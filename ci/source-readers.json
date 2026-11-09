@@ -4,10 +4,21 @@
     {
       "package": "server/internal/store/stmt/stmttest",
       "why": "Checks all production server Go sources for fixture-only registration imports and unreceipted constructors, and compiles an ordinary-binary probe with the server module's Go version",
-      "reads": ["server/*.go", "server/go.mod"],
-      "ignore": ["*_test.go", "*/testdata/*"],
-      "files": ["server/internal/store/stmt/stmttest/registry_test.go"],
-      "tests": ["TestFixtureAdapterRefusesOrdinaryBinary", "TestNoProductionFixtureImportsOrUnreceiptedRegistration"]
+      "reads": [
+        "server/*.go",
+        "server/go.mod"
+      ],
+      "ignore": [
+        "*_test.go",
+        "*/testdata/*"
+      ],
+      "files": [
+        "server/internal/store/stmt/stmttest/registry_test.go"
+      ],
+      "tests": [
+        "TestFixtureAdapterRefusesOrdinaryBinary",
+        "TestNoProductionFixtureImportsOrUnreceiptedRegistration"
+      ]
     },
     {
       "package": "server/internal/identity",
@@ -31,120 +42,294 @@
     {
       "package": "server/internal/store/internal/sqliteconn",
       "why": "Type-resolves store Go sources and tests and their imports to reject connection openings that bypass the shared physical connection policy",
-      "reads": ["server/*.go", "server/go.mod", "server/go.sum", "go.work"],
-      "files": ["server/internal/store/internal/sqliteconn/openings_inventory_test.go", "server/internal/store/internal/sqliteconn/openings_test.go"],
-      "tests": ["TestStoreOpeningsPlatformProfilesCoverFixtureBodies", "TestStoreOpeningsRejectTypedBypasses", "TestStoreOpeningsUseSharedPolicy"]
+      "reads": [
+        "server/*.go",
+        "server/go.mod",
+        "server/go.sum",
+        "go.work"
+      ],
+      "files": [
+        "server/internal/store/internal/sqliteconn/openings_inventory_test.go",
+        "server/internal/store/internal/sqliteconn/openings_test.go"
+      ],
+      "tests": [
+        "TestStoreOpeningsPlatformProfilesCoverFixtureBodies",
+        "TestStoreOpeningsRejectTypedBypasses",
+        "TestStoreOpeningsUseSharedPolicy"
+      ]
     },
     {
       "package": "server/internal/store/internal/searchpolicy",
       "why": "Pins the production search preparation source closure and its normalization/SQLite dependency identities",
-      "reads": ["server/internal/facettext/prefix.go", "server/internal/facettext/search.go", "server/internal/sorttext/sort.go", "server/internal/store/search/fragments.go", "server/internal/store/search/recipe.go", "server/go.mod", "server/go.sum"],
-      "files": ["server/internal/store/internal/searchpolicy/profile_test.go"],
-      "tests": ["TestPreparationSourcePin"]
+      "reads": [
+        "server/internal/facettext/prefix.go",
+        "server/internal/facettext/search.go",
+        "server/internal/sorttext/sort.go",
+        "server/internal/store/search/fragments.go",
+        "server/internal/store/search/recipe.go",
+        "server/go.mod",
+        "server/go.sum"
+      ],
+      "files": [
+        "server/internal/store/internal/searchpolicy/profile_test.go"
+      ],
+      "tests": [
+        "TestPreparationSourcePin"
+      ]
     },
     {
       "package": "server/internal/store/search",
       "why": "Pins the search bank's Go toolchain directive until a reviewed Unicode-fingerprint rebuild path lands",
-      "reads": ["server/go.mod"],
-      "files": ["server/internal/store/search/bank_upgrade_contract_test.go"],
-      "tests": ["TestSearchBankUpgradeContractPinnedToolchain"]
+      "reads": [
+        "server/go.mod"
+      ],
+      "files": [
+        "server/internal/store/search/bank_upgrade_contract_test.go"
+      ],
+      "tests": [
+        "TestSearchBankUpgradeContractPinnedToolchain"
+      ]
     },
     {
       "package": "server/internal/store/read",
       "why": "Owner-reverse Capture fixtures and the logical-sibling oracle prepare and hash the search package's exact read-pairing vector",
-      "reads": ["server/internal/store/search/testdata/read-pairing.json"],
-      "files": ["server/internal/store/read/owner_reverse_test.go"],
-      "tests": ["TestOwnerLogicalSiblingReadOracle", "TestOwnerReverseKeysetTraversal", "TestOwnerReversePlans"]
+      "reads": [
+        "server/internal/store/search/testdata/read-pairing.json"
+      ],
+      "files": [
+        "server/internal/store/read/owner_reverse_test.go"
+      ],
+      "tests": [
+        "TestOwnerLogicalSiblingReadOracle",
+        "TestOwnerReverseKeysetTraversal",
+        "TestOwnerReversePlans"
+      ]
     },
     {
       "package": "server/internal/store/internal/searchmanifest",
       "why": "Verifies the shared portable manifest protocol against the unchanged preparation wire vectors and restart traces",
-      "reads": ["server/internal/store/search/testdata/manifest-v1.json"],
-      "files": ["server/internal/store/internal/searchmanifest/vectors_test.go"],
-      "tests": ["TestManifestIndependentVectorsAndRestart"]
+      "reads": [
+        "server/internal/store/search/testdata/manifest-v1.json"
+      ],
+      "files": [
+        "server/internal/store/internal/searchmanifest/vectors_test.go"
+      ],
+      "tests": [
+        "TestManifestIndependentVectorsAndRestart"
+      ]
     },
     {
       "package": "server/internal/store/qual/cmd/host",
       "why": "Host protocol CLI tests retain invalid shared-fixture receipts and execute actual workflow hash bodies with failing producers",
-      "reads": [".github/workflows/store-qualification-host.yml", "server/internal/store/qual/testdata/host-valid.json"],
-      "files": ["server/internal/store/qual/cmd/host/main_test.go", "server/internal/store/qual/cmd/host/workflow_test.go"],
-      "tests": ["TestHashProducerFailure", "TestInvalidReceiptStillContainsActualEvidence"]
+      "reads": [
+        ".github/workflows/store-qualification-host.yml",
+        "server/internal/store/qual/testdata/host-valid.json"
+      ],
+      "files": [
+        "server/internal/store/qual/cmd/host/main_test.go",
+        "server/internal/store/qual/cmd/host/workflow_test.go"
+      ],
+      "tests": [
+        "TestHashProducerFailure",
+        "TestInvalidReceiptStillContainsActualEvidence"
+      ]
     },
     {
       "package": "server/internal/ingestion",
       "why": "Measures Basic probe counts on the same generated Dolby Vision clip and procedural mixed media",
-      "reads": ["fixtures/video/dovi-probe-r40/"],
-      "files": ["server/internal/ingestion/playback_frames_probe_count_test.go"],
-      "tests": ["TestBasicMixedPlaybackProbeCounts"]
+      "reads": [
+        "fixtures/video/dovi-probe-r40/"
+      ],
+      "files": [
+        "server/internal/ingestion/playback_frames_probe_count_test.go"
+      ],
+      "tests": [
+        "TestBasicMixedPlaybackProbeCounts"
+      ]
     },
     {
       "package": "server/internal/subtitlevideo",
       "why": "Runs closed analysis probes over retained generated Dolby Vision media",
-      "reads": ["fixtures/video/dovi-probe-r40/"],
-      "files": ["server/internal/subtitlevideo/analysis_probe_test.go"],
-      "tests": ["TestAnalysisProbeReadsRealFramesAndPacketsThroughRetainedBridge"]
+      "reads": [
+        "fixtures/video/dovi-probe-r40/"
+      ],
+      "files": [
+        "server/internal/subtitlevideo/analysis_probe_test.go"
+      ],
+      "tests": [
+        "TestAnalysisProbeReadsRealFramesAndPacketsThroughRetainedBridge"
+      ]
     },
     {
       "package": "server/internal/dbwork",
       "why": "Source disciplines that walk every production Go file in the server",
-      "reads": ["server/*.go"],
-      "ignore": ["*_test.go", "*/testdata/*"],
-      "files": ["server/internal/dbwork/discipline_test.go", "server/internal/dbwork/finish_discipline_test.go", "server/internal/dbwork/foreignkeys_test.go", "server/internal/dbwork/plan_census_test.go", "server/internal/dbwork/snapshot_discipline_test.go", "server/internal/dbwork/sql_callback_guard_test.go"],
-      "tests": ["TestEveryWriteHandleIsFinishedWhereItIsUsed", "TestNoArbitrarySQLCallbackSurfaces", "TestNoRawForeignKeyDisablingOutsideDBWork", "TestNoRawWriteTransactionsOutsideDBWork", "TestNoWritesThroughReadSnapshots", "TestWriteCensus"]
+      "reads": [
+        "server/*.go"
+      ],
+      "ignore": [
+        "*_test.go",
+        "*/testdata/*"
+      ],
+      "files": [
+        "server/internal/dbwork/discipline_test.go",
+        "server/internal/dbwork/finish_discipline_test.go",
+        "server/internal/dbwork/foreignkeys_test.go",
+        "server/internal/dbwork/plan_census_test.go",
+        "server/internal/dbwork/snapshot_discipline_test.go",
+        "server/internal/dbwork/sql_callback_guard_test.go"
+      ],
+      "tests": [
+        "TestEveryWriteHandleIsFinishedWhereItIsUsed",
+        "TestNoArbitrarySQLCallbackSurfaces",
+        "TestNoRawForeignKeyDisablingOutsideDBWork",
+        "TestNoRawWriteTransactionsOutsideDBWork",
+        "TestNoWritesThroughReadSnapshots",
+        "TestWriteCensus"
+      ]
     },
     {
       "package": "server/internal/dbwork",
       "why": "The snapshot ratchet follows production imports, including named fixture trees and local workspace dependencies; Go and module inputs can change that closure",
-      "reads": ["*.go", "*/go.mod", "*/go.sum", "go.work*"],
-      "ignore": ["*_test.go"],
-      "files": ["server/internal/dbwork/direct_snapshot_census_test.go"],
-      "tests": ["TestDirectBeginSnapshotCensus", "TestDirectSnapshotBaselineCanOnlyShrink", "TestDirectSnapshotCensusAccountsForLocalModules", "TestDirectSnapshotCensusFollowsProductionImports", "TestDirectSnapshotCensusFollowsWorkspaceImports", "TestDirectSnapshotCensusIgnoresUnimportedFixtures", "TestDirectSnapshotCensusIncludesUnusedRepositoryBuildListModules", "TestDirectSnapshotCensusRefusesExternalSourceLink", "TestDirectSnapshotCensusRejectsReviewerWitnesses", "TestDirectSnapshotReferenceCensusUsesImports", "TestDirectSnapshotUpdateRequiresPreviousBaseline"]
+      "reads": [
+        "*.go",
+        "*/go.mod",
+        "*/go.sum",
+        "go.work*"
+      ],
+      "ignore": [
+        "*_test.go"
+      ],
+      "files": [
+        "server/internal/dbwork/direct_snapshot_census_test.go"
+      ],
+      "tests": [
+        "TestDirectBeginSnapshotCensus",
+        "TestDirectSnapshotBaselineCanOnlyShrink",
+        "TestDirectSnapshotCensusAccountsForLocalModules",
+        "TestDirectSnapshotCensusFollowsProductionImports",
+        "TestDirectSnapshotCensusFollowsWorkspaceImports",
+        "TestDirectSnapshotCensusIgnoresUnimportedFixtures",
+        "TestDirectSnapshotCensusIncludesUnusedRepositoryBuildListModules",
+        "TestDirectSnapshotCensusRefusesExternalSourceLink",
+        "TestDirectSnapshotCensusRejectsReviewerWitnesses",
+        "TestDirectSnapshotReferenceCensusUsesImports",
+        "TestDirectSnapshotUpdateRequiresPreviousBaseline"
+      ]
     },
     {
       "package": "server/internal/supervise",
       "why": "Source discipline that walks every production Go file in the server",
-      "reads": ["server/*.go"],
-      "ignore": ["*_test.go", "*/testdata/*"],
-      "files": ["server/internal/supervise/discipline_test.go"],
-      "tests": ["TestEveryGoroutineIsStartedThroughThisPackage"]
+      "reads": [
+        "server/*.go"
+      ],
+      "ignore": [
+        "*_test.go",
+        "*/testdata/*"
+      ],
+      "files": [
+        "server/internal/supervise/discipline_test.go"
+      ],
+      "tests": [
+        "TestEveryGoroutineIsStartedThroughThisPackage"
+      ]
     },
     {
       "package": "server/internal/mediaexec",
       "why": "Spawn inventory that walks every production Go file in the server",
-      "reads": ["server/*.go"],
-      "ignore": ["*_test.go", "*/testdata/*"],
-      "files": ["server/internal/mediaexec/spawn_inventory_test.go"],
-      "tests": ["TestEveryProcessSpawnIsMediaexecOrListed"]
+      "reads": [
+        "server/*.go"
+      ],
+      "ignore": [
+        "*_test.go",
+        "*/testdata/*"
+      ],
+      "files": [
+        "server/internal/mediaexec/spawn_inventory_test.go"
+      ],
+      "tests": [
+        "TestEveryProcessSpawnIsMediaexecOrListed"
+      ]
     },
     {
       "package": "server/internal/persistence",
       "why": "SQL censuses that read every production Go file in the server (the separate-folder index census scans the ingestion writes of inventory_objects)",
-      "reads": ["server/*.go", "server/internal/enrichment/testdata/schema.sql"],
-      "ignore": ["*_test.go", "*/testdata/*"],
-      "files": ["server/internal/persistence/dropped_tables_guard_test.go", "server/internal/persistence/known_schema_test.go", "server/internal/persistence/separate_folder_index_test.go", "server/internal/persistence/statements_prepare_test.go", "server/internal/persistence/statements_scan_test.go", "server/internal/persistence/upsert_trigger_guard_test.go"],
-      "tests": ["TestNoInsertOrIgnoreUpdateTriggerOnAnUpsertedTable", "TestNoProductionSQLNamesADroppedCatalogueTable", "TestProductionStatementsDoNotScanTheCatalogue", "TestProductionStatementsPrepareAgainstTheBaseline", "TestSeparateFolderHeadLiteralMatchesProductionSource", "TestSeparateFolderIndexCensusClassifiesInventoryObjectWrites", "TestSeparateFolderIndexCostsOneInsertEntryAndNoHotWrite", "TestSubsystemSchemaObjectsMatchTheSources"]
+      "reads": [
+        "server/*.go",
+        "server/internal/enrichment/testdata/schema.sql"
+      ],
+      "ignore": [
+        "*_test.go",
+        "*/testdata/*"
+      ],
+      "files": [
+        "server/internal/persistence/dropped_tables_guard_test.go",
+        "server/internal/persistence/known_schema_test.go",
+        "server/internal/persistence/separate_folder_index_test.go",
+        "server/internal/persistence/statements_prepare_test.go",
+        "server/internal/persistence/statements_scan_test.go",
+        "server/internal/persistence/upsert_trigger_guard_test.go"
+      ],
+      "tests": [
+        "TestBackupArtworkStatementsKeepBothSchemaChecks",
+        "TestNoInsertOrIgnoreUpdateTriggerOnAnUpsertedTable",
+        "TestNoProductionSQLNamesADroppedCatalogueTable",
+        "TestProductionStatementsDoNotScanTheCatalogue",
+        "TestProductionStatementsPrepareAgainstTheBaseline",
+        "TestSeparateFolderHeadLiteralMatchesProductionSource",
+        "TestSeparateFolderIndexCensusClassifiesInventoryObjectWrites",
+        "TestSeparateFolderIndexCostsOneInsertEntryAndNoHotWrite",
+        "TestSubsystemSchemaObjectsMatchTheSources"
+      ]
     },
     {
       "package": "server/internal/operations",
       "why": "Setting consumer guard that reads each named consumer file in the server, client-core and web",
-      "reads": ["server/*.go", "server/internal/persistence/migrations/0001_baseline.sql", "packages/client-core/src/*.ts", "web/src/shell/settings.ts"],
-      "ignore": ["*_test.go", "*/testdata/*"],
-      "files": ["server/internal/operations/setting_consumers_test.go"],
-      "tests": ["TestStoredPreferencesHaveRuntimeConsumers", "TestStoredSettingsHaveRuntimeConsumers"]
+      "reads": [
+        "server/*.go",
+        "server/internal/persistence/migrations/0001_baseline.sql",
+        "packages/client-core/src/*.ts",
+        "web/src/shell/settings.ts"
+      ],
+      "ignore": [
+        "*_test.go",
+        "*/testdata/*"
+      ],
+      "files": [
+        "server/internal/operations/setting_consumers_test.go"
+      ],
+      "tests": [
+        "TestStoredPreferencesHaveRuntimeConsumers",
+        "TestStoredSettingsHaveRuntimeConsumers"
+      ]
     },
     {
       "package": "server/internal/store/writer",
       "why": "Checks the complete ordinary filename identity and sort projection against the existing movie filename corpus",
-      "reads": ["server/internal/naming/testdata/corpus.json"],
-      "files": ["server/internal/store/writer/scan_filename_test.go"],
-      "tests": ["TestProjectOrdinaryFilenameExistingMovieCorpus"]
+      "reads": [
+        "server/internal/naming/testdata/corpus.json"
+      ],
+      "files": [
+        "server/internal/store/writer/scan_filename_test.go"
+      ],
+      "tests": [
+        "TestProjectOrdinaryFilenameExistingMovieCorpus"
+      ]
     },
     {
       "package": "server/internal/store/writer",
       "why": "Group B producer census scans every server Go source plus the baseline-schema script and the generated WC progress capture for inserts, insert-selects and deletes on the B security tables",
-      "reads": ["server/*", "docs/*"],
-      "files": ["server/internal/store/writer/us_group_b_producer_inventory_test.go"],
-      "tests": ["TestUSGroupBProducerInventory", "TestUSGroupBProducerInventoryOtherSources", "TestUSGroupBProducerInventorySchemaGuards"]
+      "reads": [
+        "server/*",
+        "docs/*"
+      ],
+      "files": [
+        "server/internal/store/writer/us_group_b_producer_inventory_test.go"
+      ],
+      "tests": [
+        "TestUSGroupBProducerInventory",
+        "TestUSGroupBProducerInventoryOtherSources",
+        "TestUSGroupBProducerInventorySchemaGuards"
+      ]
     },
     {
       "package": "server/internal/store/writer",
@@ -179,207 +364,478 @@
         "server/internal/store/read/owner_reverse.go",
         "server/internal/store/read/native_auto_statements.go"
       ],
-      "files": ["server/internal/store/writer/n1_paired_export_test.go", "server/internal/store/writer/ec5_memory_external_test.go"],
-"tests": ["TestEC1RareErrorPaths", "TestEC2N1WALComposition", "TestEC2NativeFullSearchFunctional", "TestEC2NativeFunctional", "TestEC2SustainedMeasurement", "TestEC5CgroupFunctional", "TestEC5MemoryChildControl", "TestEC5PairedMemoryMeasurement", "TestEC5SustainedMemoryMeasurement", "TestN1PairedCanonicalPopulationFunctional", "TestN1PairedMeasurement", "TestN1PairedSameDBAndLIVE"]
+      "files": [
+        "server/internal/store/writer/n1_paired_export_test.go",
+        "server/internal/store/writer/ec5_memory_external_test.go"
+      ],
+      "tests": [
+        "TestEC1RareErrorPaths",
+        "TestEC2N1WALComposition",
+        "TestEC2NativeFullSearchFunctional",
+        "TestEC2NativeFunctional",
+        "TestEC2SustainedMeasurement",
+        "TestEC5CgroupFunctional",
+        "TestEC5MemoryChildControl",
+        "TestEC5PairedMemoryMeasurement",
+        "TestEC5SustainedMemoryMeasurement",
+        "TestN1PairedCanonicalPopulationFunctional",
+        "TestN1PairedMeasurement",
+        "TestN1PairedSameDBAndLIVE"
+      ]
     },
     {
       "package": "server/internal/compactcatalog/identityvalue",
       "why": "Compares extracted identity functions with independent legacy references across the existing filename corpus",
-      "reads": ["server/internal/naming/testdata/corpus.json"],
-      "files": ["server/internal/compactcatalog/identityvalue/identity_test.go"],
-      "tests": ["TestLegacyIdentityValueCorpus"]
+      "reads": [
+        "server/internal/naming/testdata/corpus.json"
+      ],
+      "files": [
+        "server/internal/compactcatalog/identityvalue/identity_test.go"
+      ],
+      "tests": [
+        "TestLegacyIdentityValueCorpus"
+      ]
     },
     {
       "package": "server/internal/compactcatalog",
       "why": "Reads the baseline schema of the persistence package",
-      "reads": ["server/internal/persistence/migrations/0001_baseline.sql"],
-      "files": ["server/internal/compactcatalog/block_split_capacity_test.go"],
-      "tests": ["TestBlockSplitsSeekInsideEqualKeyRuns"]
+      "reads": [
+        "server/internal/persistence/migrations/0001_baseline.sql"
+      ],
+      "files": [
+        "server/internal/compactcatalog/block_split_capacity_test.go"
+      ],
+      "tests": [
+        "TestBlockSplitsSeekInsideEqualKeyRuns"
+      ]
     },
     {
       "package": "server/internal/httpapi",
       "why": "Route admission and credential scope guards that scan the networking package source",
-      "reads": ["server/internal/networking/*.go"],
-      "ignore": ["*_test.go", "*/testdata/*"],
-      "files": ["server/internal/httpapi/admission_test.go", "server/internal/httpapi/api_credentials_test.go"],
-      "tests": ["TestEveryRegisteredRouteHasALane", "TestEveryRouteDeclaresACredentialScope"]
+      "reads": [
+        "server/internal/networking/*.go"
+      ],
+      "ignore": [
+        "*_test.go",
+        "*/testdata/*"
+      ],
+      "files": [
+        "server/internal/httpapi/admission_test.go",
+        "server/internal/httpapi/api_credentials_test.go"
+      ],
+      "tests": [
+        "TestEveryRegisteredRouteHasALane",
+        "TestEveryRouteDeclaresACredentialScope"
+      ]
     },
     {
       "package": "server/internal/httpapi",
       "why": "Compares the API level with the contracts package",
-      "reads": ["packages/contracts/src/api-level.ts"],
-      "files": ["server/internal/httpapi/api_level_test.go"],
-      "tests": ["TestAPILevelMatchesContracts", "TestCapabilitiesRegistryMatchesContracts"]
+      "reads": [
+        "packages/contracts/src/api-level.ts"
+      ],
+      "files": [
+        "server/internal/httpapi/api_level_test.go"
+      ],
+      "tests": [
+        "TestAPILevelMatchesContracts",
+        "TestCapabilitiesRegistryMatchesContracts"
+      ]
     },
     {
       "package": "server/internal/httpapi",
       "why": "Checks the unhashed web assets",
-      "reads": ["web/public/"],
-      "files": ["server/internal/httpapi/installation_assets_test.go"],
-      "tests": ["TestUnversionedWebAssetsAreNotNamedLikeHashedOnes"]
+      "reads": [
+        "web/public/"
+      ],
+      "files": [
+        "server/internal/httpapi/installation_assets_test.go"
+      ],
+      "tests": [
+        "TestUnversionedWebAssetsAreNotNamedLikeHashedOnes"
+      ]
     },
     {
       "package": "server/internal/httpapi",
       "why": "Reads the publisher font",
-      "reads": ["packages/reader-core/assets/"],
-      "files": ["server/internal/httpapi/reading_publisher_assets_test.go"],
-      "tests": ["TestReadingPrivatePublisherAssetsRemainOriginalAndAuthorityBound"]
+      "reads": [
+        "packages/reader-core/assets/"
+      ],
+      "files": [
+        "server/internal/httpapi/reading_publisher_assets_test.go"
+      ],
+      "tests": [
+        "TestReadingPrivatePublisherAssetsRemainOriginalAndAuthorityBound"
+      ]
     },
     {
       "package": "server/internal/reading",
       "why": "Reads the publisher font",
-      "reads": ["packages/reader-core/assets/"],
-      "files": ["server/internal/reading/css_test.go"],
-      "tests": ["TestEPUBDeclaredLocalCSSPreservesEveryAsset", "TestEPUBOriginalObfuscatedFontsAndEncryptionAreEnumeratedUnchanged"]
+      "reads": [
+        "packages/reader-core/assets/"
+      ],
+      "files": [
+        "server/internal/reading/css_test.go"
+      ],
+      "tests": [
+        "TestEPUBDeclaredLocalCSSPreservesEveryAsset",
+        "TestEPUBOriginalObfuscatedFontsAndEncryptionAreEnumeratedUnchanged"
+      ]
     },
     {
       "package": "server/internal/httpapi",
       "why": "Reads the pinned rclone bundle lock",
-      "reads": ["third_party/rclone/bundle.lock.json"],
-      "files": ["server/internal/httpapi/reading_remote_integration_test.go"],
-      "tests": ["TestReadingRemoteDefaultProfilePreparation", "TestReadingRemoteRegistered", "TestReadingRemoteSequentialPDF"]
+      "reads": [
+        "third_party/rclone/bundle.lock.json"
+      ],
+      "files": [
+        "server/internal/httpapi/reading_remote_integration_test.go"
+      ],
+      "tests": [
+        "TestReadingRemoteDefaultProfilePreparation",
+        "TestReadingRemoteRegistered",
+        "TestReadingRemoteSequentialPDF"
+      ]
     },
     {
       "package": "server/internal/rcloneprogram",
       "why": "Reads the pinned rclone bundle lock",
-      "reads": ["third_party/rclone/bundle.lock.json"],
-      "files": ["server/internal/rcloneprogram/program_test.go", "server/internal/rcloneprogram/serve_real_integration_test.go"],
-      "tests": ["TestLockedCachedRangeDoesNotMaterializeWholeFile", "TestLockedCustomServeRechecksImageImmediatelyBeforeStart", "TestLockedCustomServeRejectsEnforceImageSubstitution", "TestLockedDAVMixedOperationBudget", "TestLockedDAVNestedSmallArchiveAtOneConnection", "TestLockedRcloneServeLifecycleAndObservableReplacement", "TestLockedSFTPMixedOperationBudget", "TestLockedSMBMixedOperationBudget", "TestPinnedVersionsMatchPackaging"]
+      "reads": [
+        "third_party/rclone/bundle.lock.json"
+      ],
+      "files": [
+        "server/internal/rcloneprogram/program_test.go",
+        "server/internal/rcloneprogram/serve_real_integration_test.go"
+      ],
+      "tests": [
+        "TestLockedCachedRangeDoesNotMaterializeWholeFile",
+        "TestLockedCustomServeRechecksImageImmediatelyBeforeStart",
+        "TestLockedCustomServeRejectsEnforceImageSubstitution",
+        "TestLockedDAVMixedOperationBudget",
+        "TestLockedDAVNestedSmallArchiveAtOneConnection",
+        "TestLockedRcloneServeLifecycleAndObservableReplacement",
+        "TestLockedSFTPMixedOperationBudget",
+        "TestLockedSMBMixedOperationBudget",
+        "TestPinnedVersionsMatchPackaging"
+      ]
     },
     {
       "package": "server/internal/remotesources",
       "why": "Reads the pinned rclone bundle lock",
-      "reads": ["third_party/rclone/bundle.lock.json"],
-      "files": ["server/internal/remotesources/fresh_range_integration_test.go"],
-      "tests": ["TestDedicatedDAVOwnerCanSaveNineSources", "TestDedicatedDAVSetupRunsBoundedOriginChecksAfterPhysicalStop", "TestFreshRangeRealMetadataAndRetainedRevocations", "TestFreshSequentialRealRangeUnsupportedOrigin", "TestImportedSavedPrivateEndpointsAndCryptOrigin", "TestNativeSavedNASConnectionAndForbiddenEdits", "TestResolvedWebDAVSetupUsesActualRetainedProcess", "TestSourceControllerRealSharedProcessAndScanPublication"]
+      "reads": [
+        "third_party/rclone/bundle.lock.json"
+      ],
+      "files": [
+        "server/internal/remotesources/fresh_range_integration_test.go"
+      ],
+      "tests": [
+        "TestDedicatedDAVOwnerCanSaveNineSources",
+        "TestDedicatedDAVSetupRunsBoundedOriginChecksAfterPhysicalStop",
+        "TestFreshRangeRealMetadataAndRetainedRevocations",
+        "TestFreshSequentialRealRangeUnsupportedOrigin",
+        "TestImportedSavedPrivateEndpointsAndCryptOrigin",
+        "TestNativeSavedNASConnectionAndForbiddenEdits",
+        "TestResolvedWebDAVSetupUsesActualRetainedProcess",
+        "TestSourceControllerRealSharedProcessAndScanPublication"
+      ]
     },
     {
       "package": "server/internal/remotesources",
       "why": "Reads the rclone program Samba fixture",
-      "reads": ["server/internal/rcloneprogram/testdata/"],
-      "files": ["server/internal/remotesources/native_nas_integration_test.go"],
-      "tests": ["TestImportedSavedPrivateEndpointsAndCryptOrigin", "TestNativeSavedNASConnectionAndForbiddenEdits"]
+      "reads": [
+        "server/internal/rcloneprogram/testdata/"
+      ],
+      "files": [
+        "server/internal/remotesources/native_nas_integration_test.go"
+      ],
+      "tests": [
+        "TestImportedSavedPrivateEndpointsAndCryptOrigin",
+        "TestNativeSavedNASConnectionAndForbiddenEdits"
+      ]
     },
     {
       "package": "server/internal/apispec",
       "why": "Reads the HTTP API read-path golden",
-      "reads": ["server/internal/httpapi/testdata/readpath_golden.json"],
-      "files": ["server/internal/apispec/errors_test.go"],
-      "tests": ["TestHandlerGoldenErrorEnvelopes"]
+      "reads": [
+        "server/internal/httpapi/testdata/readpath_golden.json"
+      ],
+      "files": [
+        "server/internal/apispec/errors_test.go"
+      ],
+      "tests": [
+        "TestHandlerGoldenErrorEnvelopes"
+      ]
     },
     {
       "package": "server/internal/assets",
       "why": "Reads the decoder music format fixtures",
-      "reads": ["server/internal/decoder/testdata/"],
-      "files": ["server/internal/assets/music_probe_test.go", "server/internal/assets/probe_formats_test.go"],
-      "tests": ["TestLocalProbesRejectSecondaryFileDemuxers", "TestMusepackBasicProbeUsesValidatedHeaderTimeline", "TestMusepackHeaderCannotBypassObservedFactsOrReadAuthority"]
+      "reads": [
+        "server/internal/decoder/testdata/"
+      ],
+      "files": [
+        "server/internal/assets/music_probe_test.go",
+        "server/internal/assets/probe_formats_test.go"
+      ],
+      "tests": [
+        "TestLocalProbesRejectSecondaryFileDemuxers",
+        "TestMusepackBasicProbeUsesValidatedHeaderTimeline",
+        "TestMusepackHeaderCannotBypassObservedFactsOrReadAuthority"
+      ]
     },
     {
       "package": "server/internal/assets",
       "why": "Reads the disc fixtures",
-      "reads": ["fixtures/discs/"],
-      "files": ["server/internal/assets/disc_inventory_probe_test.go", "server/internal/assets/disc_probe_test.go"],
-      "tests": ["TestDiscTitleProbeUsesActualConfinedISOAndRechecksInvocation", "TestSelectedDiscTitleActualMediaProbe"]
+      "reads": [
+        "fixtures/discs/"
+      ],
+      "files": [
+        "server/internal/assets/disc_inventory_probe_test.go",
+        "server/internal/assets/disc_probe_test.go"
+      ],
+      "tests": [
+        "TestDiscTitleProbeUsesActualConfinedISOAndRechecksInvocation",
+        "TestSelectedDiscTitleActualMediaProbe"
+      ]
     },
     {
       "package": "server/internal/assets",
       "why": "Reads the generated HDR fixtures",
-      "reads": ["fixtures/video/hdr-generated/"],
-      "files": ["server/internal/assets/dolby_vision_real_test.go"],
-      "tests": ["TestDolbyVisionDecodedSourceFactsFromGeneratedMedia"]
+      "reads": [
+        "fixtures/video/hdr-generated/"
+      ],
+      "files": [
+        "server/internal/assets/dolby_vision_real_test.go"
+      ],
+      "tests": [
+        "TestDolbyVisionDecodedSourceFactsFromGeneratedMedia"
+      ]
     },
     {
       "package": "server/internal/catalog",
       "why": "Reads the decoder music format fixtures",
-      "reads": ["server/internal/decoder/testdata/"],
-      "files": ["server/internal/catalog/music_musepack_scan_test.go"],
-      "tests": ["TestMusicMusepackBasicTimelineReachesStoredFacts"]
+      "reads": [
+        "server/internal/decoder/testdata/"
+      ],
+      "files": [
+        "server/internal/catalog/music_musepack_scan_test.go"
+      ],
+      "tests": [
+        "TestMusicMusepackBasicTimelineReachesStoredFacts"
+      ]
     },
     {
       "package": "server/internal/catalog",
       "why": "Reads the disc fixtures",
-      "reads": ["fixtures/discs/"],
-      "files": ["server/internal/catalog/disc_publication_test.go"],
-      "tests": ["TestAcceptDiscAlternateStagesRequestedTitleOnly", "TestDiscOwnerObservationChoosesLowestCurrentObjectID", "TestDiscStructurePublicationStableIdentitiesReorderAndCurrentRead", "TestDiscStructureSourceFencesAndCorruptionStayClosed", "TestFileInfoBatchedDiscFactsKeepObservationFences", "TestInfoDiscCrossedCustodySwapKeepsPinsWithCurrentObjects", "TestInfoDiscMediaSourceAlternateOnlyStagesRequestedTimedTitle", "TestInfoDiscMediaSourceAlternateRespectsOwnerChoiceAndStagesRequestedTitle", "TestInfoDiscMediaSourceMainStagesTimedTitleAndStopsWhenUnchanged", "TestInfoDiscMediaSourceRejectsUnfencedFacts", "TestInfoDiscRepointDischargesAndNormalProducerReanalyzes", "TestInfoDiscSourcePublishesNormalizedStructureAndKeepsSurvivingTokens", "TestInfoInventorySourceClearsDiscMainAssociationWithoutSelection", "TestInfoInventorySourceDiscMediaPublishesSelectedTimedTitle", "TestInfoInventorySourceFingerprintBindsHiddenTechnicalFamilies", "TestInfoInventorySourceUsesLiveFenceAndExplicitReceipt", "TestInfoOwnerMissingNeverNeedsLedgerRoomAndPinsOldTree", "TestInfoOwnerTargetChoosesFactsFreeLowestIDBeforeProbe", "TestInventoryStreamsCompetingProducerCanResumeBeforeAcceptance", "TestInventoryStreamsCompetingRefusalCannotStrandReceipt", "TestInventoryStreamsPublishesOnlyStreamsAndKeepsPendingReceipt", "TestInventoryStreamsRefusesCompetingPendingStreams", "TestInventoryStreamsRejectsChangedAdmissionBeforeSeal", "TestInventoryStreamsRetryCannotResetAbandonedReclaimCursor"]
+      "reads": [
+        "fixtures/discs/"
+      ],
+      "files": [
+        "server/internal/catalog/disc_publication_test.go"
+      ],
+      "tests": [
+        "TestAcceptDiscAlternateStagesRequestedTitleOnly",
+        "TestDiscOwnerObservationChoosesLowestCurrentObjectID",
+        "TestDiscStructurePublicationStableIdentitiesReorderAndCurrentRead",
+        "TestDiscStructureSourceFencesAndCorruptionStayClosed",
+        "TestFileInfoBatchedDiscFactsKeepObservationFences",
+        "TestInfoDiscCrossedCustodySwapKeepsPinsWithCurrentObjects",
+        "TestInfoDiscMediaSourceAlternateOnlyStagesRequestedTimedTitle",
+        "TestInfoDiscMediaSourceAlternateRespectsOwnerChoiceAndStagesRequestedTitle",
+        "TestInfoDiscMediaSourceMainStagesTimedTitleAndStopsWhenUnchanged",
+        "TestInfoDiscMediaSourceRejectsUnfencedFacts",
+        "TestInfoDiscRepointDischargesAndNormalProducerReanalyzes",
+        "TestInfoDiscSourcePublishesNormalizedStructureAndKeepsSurvivingTokens",
+        "TestInfoInventorySourceClearsDiscMainAssociationWithoutSelection",
+        "TestInfoInventorySourceDiscMediaPublishesSelectedTimedTitle",
+        "TestInfoInventorySourceFingerprintBindsHiddenTechnicalFamilies",
+        "TestInfoInventorySourceUsesLiveFenceAndExplicitReceipt",
+        "TestInfoOwnerMissingNeverNeedsLedgerRoomAndPinsOldTree",
+        "TestInfoOwnerTargetChoosesFactsFreeLowestIDBeforeProbe",
+        "TestInventoryStreamsCompetingProducerCanResumeBeforeAcceptance",
+        "TestInventoryStreamsCompetingRefusalCannotStrandReceipt",
+        "TestInventoryStreamsPublishesOnlyStreamsAndKeepsPendingReceipt",
+        "TestInventoryStreamsRefusesCompetingPendingStreams",
+        "TestInventoryStreamsRejectsChangedAdmissionBeforeSeal",
+        "TestInventoryStreamsRetryCannotResetAbandonedReclaimCursor"
+      ]
     },
     {
       "package": "server/internal/catalog",
       "why": "Reads the client-core channel tint vectors",
-      "reads": ["packages/client-core/test/fixtures/channel-tint-vectors.json"],
-      "files": ["server/internal/catalog/music_mix_tint_test.go"],
-      "tests": ["TestMusicMixTintUsesCanonicalCrossPlatformChannelVectors"]
+      "reads": [
+        "packages/client-core/test/fixtures/channel-tint-vectors.json"
+      ],
+      "files": [
+        "server/internal/catalog/music_mix_tint_test.go"
+      ],
+      "tests": [
+        "TestMusicMixTintUsesCanonicalCrossPlatformChannelVectors"
+      ]
     },
     {
       "package": "server/internal/catalog",
       "why": "Recompiles the frozen legacy browse-filter-term oracle vectors to prove the native read fixture has not drifted from ParseBrowseQuery and CompileBrowseSelection",
-      "reads": ["server/internal/store/read/testdata/rb-filter-terms-legacy-oracle.json.gz"],
-      "files": ["server/internal/catalog/browse_filter_terms_oracle_vectors_test.go"],
-      "tests": ["TestRBFilterTermsLegacyOracleVectorsMatchCompiler"]
+      "reads": [
+        "server/internal/store/read/testdata/rb-filter-terms-legacy-oracle.json.gz"
+      ],
+      "files": [
+        "server/internal/catalog/browse_filter_terms_oracle_vectors_test.go"
+      ],
+      "tests": [
+        "TestRBFilterTermsLegacyOracleVectorsMatchCompiler"
+      ]
     },
     {
       "package": "server/internal/disc",
       "why": "Reads the disc fixtures",
-      "reads": ["fixtures/discs/"],
-      "files": ["server/internal/disc/contract_test.go", "server/internal/disc/dovi_test.go"],
-      "tests": ["TestCapturedProbeStructureCannotBeMutatedByItsConsumer", "TestCapturedStructureDoesNotCarryAcrossCaptureSourceOrBytes", "TestCapturedStructureRejectsNonCaptureOrMalformedEvidence", "TestDiscISOProbeUsesActualConfinedInventoryInput", "TestDiscScopedFFmpegInputs", "TestDolbyVisionDependencyIsAnObservedSameClipVideoPID", "TestDolbyVisionDiscFixturesAndActualSandboxedProbe", "TestFFmpegInputRequiresExactObservedTitle", "TestFixtureInventoryAndNavigation", "TestHelperFixtureProbeAndCrossClipSeek", "TestHelperScrambledPESRefusesPlayableTitles", "TestISOActualUDF250Descriptor", "TestOneCaptureCannotVersionADiscFolder", "TestProbeRejectsMalformedOrAmbiguousFacts", "TestSelectedDiscTitleActualDecodedSeek"]
+      "reads": [
+        "fixtures/discs/"
+      ],
+      "files": [
+        "server/internal/disc/contract_test.go",
+        "server/internal/disc/dovi_test.go"
+      ],
+      "tests": [
+        "TestCapturedProbeStructureCannotBeMutatedByItsConsumer",
+        "TestCapturedStructureDoesNotCarryAcrossCaptureSourceOrBytes",
+        "TestCapturedStructureRejectsNonCaptureOrMalformedEvidence",
+        "TestDiscISOProbeUsesActualConfinedInventoryInput",
+        "TestDiscScopedFFmpegInputs",
+        "TestDolbyVisionDependencyIsAnObservedSameClipVideoPID",
+        "TestDolbyVisionDiscFixturesAndActualSandboxedProbe",
+        "TestFFmpegInputRequiresExactObservedTitle",
+        "TestFixtureInventoryAndNavigation",
+        "TestHelperFixtureProbeAndCrossClipSeek",
+        "TestHelperScrambledPESRefusesPlayableTitles",
+        "TestISOActualUDF250Descriptor",
+        "TestOneCaptureCannotVersionADiscFolder",
+        "TestProbeRejectsMalformedOrAmbiguousFacts",
+        "TestSelectedDiscTitleActualDecodedSeek"
+      ]
     },
     {
       "package": "server/internal/ingestion",
       "why": "Reads the decoder music format fixtures",
-      "reads": ["server/internal/decoder/testdata/"],
-      "files": ["server/internal/ingestion/music_scanner_conformance_test.go"],
-      "tests": ["TestMusicScannerConformanceMusepackBasicStoresValidatedTimeline"]
+      "reads": [
+        "server/internal/decoder/testdata/"
+      ],
+      "files": [
+        "server/internal/ingestion/music_scanner_conformance_test.go"
+      ],
+      "tests": [
+        "TestMusicScannerConformanceMusepackBasicStoresValidatedTimeline"
+      ]
     },
     {
       "package": "server/internal/playback",
       "why": "Reads the decoder music format fixtures",
-      "reads": ["server/internal/decoder/testdata/"],
-      "files": ["server/internal/playback/hls_probe_formats_test.go"],
-      "tests": ["TestCopyTimelineProbeRejectsSecondaryFileDemuxers"]
+      "reads": [
+        "server/internal/decoder/testdata/"
+      ],
+      "files": [
+        "server/internal/playback/hls_probe_formats_test.go"
+      ],
+      "tests": [
+        "TestCopyTimelineProbeRejectsSecondaryFileDemuxers"
+      ]
     },
     {
       "package": "server/internal/administration",
       "why": "Runs the release manifest script",
-      "reads": ["scripts/write-public-update-manifest.mjs"],
-      "files": ["server/internal/administration/public_feed_test.go", "server/internal/administration/versions_test.go"],
-      "tests": ["TestAnUnsealedReleaseFeedOffersNoUpdate", "TestPublishedFeedBytesDriveUpdateNotice", "TestUpdatesReadTheManifestTheReleasePipelinePublishes"]
+      "reads": [
+        "scripts/write-public-update-manifest.mjs"
+      ],
+      "files": [
+        "server/internal/administration/public_feed_test.go",
+        "server/internal/administration/versions_test.go"
+      ],
+      "tests": [
+        "TestAnUnsealedReleaseFeedOffersNoUpdate",
+        "TestPublishedFeedBytesDriveUpdateNotice",
+        "TestUpdatesReadTheManifestTheReleasePipelinePublishes"
+      ]
     },
     {
       "package": "server/cmd/server",
       "why": "Compares recovery copy with the string catalogue",
-      "reads": ["packages/i18n/src/catalog/en-US/settings.ts"],
-      "files": ["server/cmd/server/startup_recovery_test.go"],
-      "tests": ["TestRecoveryCopyMatchesStringCatalogue"]
+      "reads": [
+        "packages/i18n/src/catalog/en-US/settings.ts"
+      ],
+      "files": [
+        "server/cmd/server/startup_recovery_test.go"
+      ],
+      "tests": [
+        "TestRecoveryCopyMatchesStringCatalogue"
+      ]
     },
     {
       "package": "server/internal/hosted",
       "why": "Compares the account step window with the contracts package",
-      "reads": ["packages/contracts/src/account-step.ts"],
-      "files": ["server/internal/hosted/account_step_window_test.go"],
-      "tests": ["TestClientsAndServerShareOneAccountStepWindow"]
+      "reads": [
+        "packages/contracts/src/account-step.ts"
+      ],
+      "files": [
+        "server/internal/hosted/account_step_window_test.go"
+      ],
+      "tests": [
+        "TestClientsAndServerShareOneAccountStepWindow"
+      ]
     },
     {
       "package": "server/internal/httpapi",
       "why": "Runs the actual client-core and reader-core publication client against the HTTP server; Go imports cannot express these Node execution dependencies",
-      "reads": ["packages/client-core/", "packages/reader-core/", "packages/contracts/"],
-      "ignore": ["*.md"],
-      "files": ["server/internal/httpapi/reading_client_integration_test.go"],
-      "tests": ["TestReadingHTTPClientPublication"]
+      "reads": [
+        "packages/client-core/",
+        "packages/reader-core/",
+        "packages/contracts/"
+      ],
+      "ignore": [
+        "*.md"
+      ],
+      "files": [
+        "server/internal/httpapi/reading_client_integration_test.go"
+      ],
+      "tests": [
+        "TestReadingHTTPClientPublication"
+      ]
     },
     {
       "package": "server/internal/persistence",
       "why": "Compiled SQLite caller controls seed their temporary module with the server dependency checksums",
-      "reads": ["server/go.sum", "server/internal/persistence/testdata/derived_incoming_runner.go.txt"],
-      "files": ["server/internal/persistence/derived_incoming_test.go"],
-      "tests": ["TestDerivedWriterGuardIncomingAndGenericModule"]
+      "reads": [
+        "server/go.sum",
+        "server/internal/persistence/testdata/derived_incoming_runner.go.txt"
+      ],
+      "files": [
+        "server/internal/persistence/derived_incoming_test.go"
+      ],
+      "tests": [
+        "TestDerivedWriterGuardIncomingAndGenericModule"
+      ]
     },
     {
       "package": "server/internal/persistence",
       "why": "Derived-table ownership scans SQL and resolved reflective callees across build profiles, checks module dependency types, and pins unknown writers after trigger removal",
-      "reads": ["server/*.go", "server/go.mod", "server/go.sum", "apikit/*.go", "apikit/go.mod", "go.work", "server/internal/persistence/migrations/0001_baseline.sql"],
-      "ignore": ["*_test.go", "*/thirdparty/*", "*/testdata/*"],
-      "files": ["server/internal/persistence/derived_writers_test.go"],
-      "tests": ["TestDerivedTableWritersHaveDeclaredOwners"]
+      "reads": [
+        "server/*.go",
+        "server/go.mod",
+        "server/go.sum",
+        "apikit/*.go",
+        "apikit/go.mod",
+        "go.work",
+        "server/internal/persistence/migrations/0001_baseline.sql"
+      ],
+      "ignore": [
+        "*_test.go",
+        "*/thirdparty/*",
+        "*/testdata/*"
+      ],
+      "files": [
+        "server/internal/persistence/derived_writers_test.go"
+      ],
+      "tests": [
+        "TestDerivedTableWritersHaveDeclaredOwners"
+      ]
     },
     {
       "package": "server/internal/store/read",
@@ -414,9 +870,16 @@
     {
       "package": "server/internal/store/writer",
       "why": "The opt-in EC4 screening binds the actual read policy to its exact definition sources and pins the files it executes",
-      "reads": ["server/internal/store/internal/readfixture/source.go", "server/internal/store/read/foreground.go"],
-      "files": ["server/internal/store/writer/ec4_screening_test.go"],
-      "tests": ["TestEC4NativeScreening"]
+      "reads": [
+        "server/internal/store/internal/readfixture/source.go",
+        "server/internal/store/read/foreground.go"
+      ],
+      "files": [
+        "server/internal/store/writer/ec4_screening_test.go"
+      ],
+      "tests": [
+        "TestEC4NativeScreening"
+      ]
     },
     {
       "package": "server/internal/store/writer",
@@ -427,15 +890,27 @@
         "server/internal/identity/avatars.go",
         "server/internal/identity/member_profiles.go"
       ],
-      "files": ["server/internal/store/writer/us_member_profile_image_test.go"],
-      "tests": ["TestUSMemberProfileSourceShape"]
+      "files": [
+        "server/internal/store/writer/us_member_profile_image_test.go"
+      ],
+      "tests": [
+        "TestUSMemberProfileSourceShape"
+      ]
     },
     {
       "package": "server/internal/store/writer",
       "why": "The native DirectSnapshot image parity check parses the live identity declarations, so an added, removed, reordered or retyped public DTO field fails the writer image",
-      "reads": ["server/internal/identity/direct_accounts.go", "server/internal/identity/direct_profiles.go", "server/internal/identity/sign_in_kind.go"],
-      "files": ["server/internal/store/writer/us_direct_snapshot_image_test.go"],
-      "tests": ["TestUSDirectSnapshotImageSourceShape"]
+      "reads": [
+        "server/internal/identity/direct_accounts.go",
+        "server/internal/identity/direct_profiles.go",
+        "server/internal/identity/sign_in_kind.go"
+      ],
+      "files": [
+        "server/internal/store/writer/us_direct_snapshot_image_test.go"
+      ],
+      "tests": [
+        "TestUSDirectSnapshotImageSourceShape"
+      ]
     }
   ],
   "reviewed": {
