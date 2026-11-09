@@ -1,8 +1,11 @@
 package writer
 
 import (
+	"bytes"
 	"database/sql"
 	"errors"
+	"github.com/PorticoMediaServer/portico/server/internal/store/schema"
+	"os"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
@@ -10,6 +13,10 @@ import (
 
 func searchRearmCombinedRegistry(t *testing.T, w *executor, extra ...[]stmt.Definition) *stmt.Registry {
 	t.Helper()
+	disk, err := os.ReadFile("../schema/schema.sql")
+	if err != nil || !bytes.Equal(disk, []byte(schema.SQL())) {
+		t.Fatal("historical matrix/schema source differs from embed", err)
+	}
 	defs := searchEntityRearmDefinitions()
 	seen := map[stmt.ID]bool{}
 	for _, d := range defs {

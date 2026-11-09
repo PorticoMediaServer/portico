@@ -1,6 +1,7 @@
 package writer
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -28,6 +29,10 @@ func TestSearchEntityRearmCaptureProfiles(t *testing.T) {
 	contract, err := schema.ReadContract("INT-INDEX-POLICY.json")
 	if err != nil {
 		t.Fatal(err)
+	}
+	disk, err := os.ReadFile("../schema/INT-INDEX-POLICY.json")
+	if err != nil || !bytes.Equal(disk, contract) {
+		t.Fatal("Capture index policy source differs from embed", err)
 	}
 	policy, err := plan.ReadIndexPolicy(contract)
 	if err != nil {
@@ -69,5 +74,13 @@ func TestSearchEntityRearmCaptureProfiles(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestSearchEntityRearmStatementGrammar(t *testing.T) {
+	for _, d := range searchEntityRearmDefinitions() {
+		if issues := plan.LintSQL(d.SQL); len(issues) != 0 {
+			t.Fatalf("%s: %v", d.ID, issues)
+		}
 	}
 }

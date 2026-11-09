@@ -1,9 +1,12 @@
 package writer
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"github.com/PorticoMediaServer/portico/server/internal/store/schema"
 	"math"
+	"os"
 	"testing"
 	"time"
 
@@ -15,6 +18,10 @@ import (
 // receipt/authority, full Work, current input and physical terminal outcome.
 func searchRearmFixture(t *testing.T) (*executor, *stmt.Registry, *searchHeadPublishCommand) {
 	t.Helper()
+	disk, err := os.ReadFile("../schema/schema.sql")
+	if err != nil || !bytes.Equal(disk, []byte(schema.SQL())) {
+		t.Fatal("native fixture/schema source differs from embed", err)
+	}
 	w, old := searchHeadNativeSeed(t)
 	defs := searchEntityRearmDefinitions()
 	r := cachedNativeInventoryFixtureRegistry(t, w, defs, "search_entity_rearm_test.go", "search_entity_rearm_statements.go")
@@ -228,5 +235,43 @@ func TestSearchEntityRearmConstructorAndPoison(t *testing.T) {
 	cancel()
 	if out, err := rearmSearchEntity(ctx, nil, nil); err == nil || out != (searchEntityRearmResult{}) {
 		t.Fatal("invalid/cancelled entry exposed result")
+	}
+}
+
+func TestSearchEntityRearmNativeLateBankConflictPoisonsWholePrefix(t *testing.T) {
+	w, r, _ := searchRearmFixture(t)
+	turn := searchRearmTurn(t, w, r)
+	searchRearmExec(t, turn, `UPDATE catalog_entities SET revision=12 WHERE id=41`)
+	searchRearmExec(t, turn, `INSERT INTO search_generations(id,bank_key,recipe_version,engine_version,unicode_fingerprint,state,created_ms) SELECT 8,'next',recipe_version,engine_version,unicode_fingerprint,'building',1000 FROM search_generations WHERE id=7`)
+	searchRearmExec(t, turn, `UPDATE search_revision SET building_generation_id=8`)
+	searchRearmExec(t, turn, `INSERT INTO search_publish_jobs(id,entity_id,search_generation_id,input_generation,source_incarnation,source_revision,recipe_version,phase) SELECT 81,41,8,1,source_incarnation,11,recipe_version,'capture' FROM search_publish_jobs WHERE id=29`)
+	searchRearmExec(t, turn, `UPDATE search_generations SET pending_subjects=1 WHERE id=8`)
+	injected := false
+	custody := turn.transaction.custody.(*testCustody)
+	custody.checkHook = func() {
+		if injected {
+			return
+		}
+		var activeNew bool
+		if err := turn.transaction.conn.QueryRowContext(t.Context(), `SELECT input_generation=6 FROM search_publish_jobs WHERE id=29`).Scan(&activeNew); err != nil {
+			t.Fatal(err)
+		}
+		if activeNew {
+			searchRearmExec(t, turn, `UPDATE search_publish_jobs SET job_revision=job_revision+1 WHERE id=81`)
+			injected = true
+		}
+	}
+	out, err := rearmSearchEntity(t.Context(), turn, searchRearmInput(t, true))
+	custody.checkHook = nil
+	var refusal *searchRearmRefusal
+	if !injected || !errors.As(err, &refusal) || refusal.Reason != searchRearmSourceOrBankChanged || out != (searchEntityRearmResult{}) {
+		t.Fatal("late conflict not typed/zero/atomic", injected, out, err)
+	}
+	if _, err := turn.transaction.commit(); err == nil {
+		t.Fatal("partially updated active bank committed")
+	}
+	var intact bool
+	if err := w.db.QueryRowContext(t.Context(), `SELECT (SELECT revision=11 FROM catalog_entities WHERE id=41) AND (SELECT input_generation=5 AND document_id=307 FROM search_publish_jobs WHERE id=29) AND (SELECT phase='held' FROM search_reclaim_jobs WHERE publication_id=307) AND (SELECT revision=19 AND input_sequence=71 AND building_generation_id IS NULL FROM search_revision)`).Scan(&intact); err != nil || !intact {
+		t.Fatal("prefix escaped rollback", err)
 	}
 }
