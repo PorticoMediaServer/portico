@@ -332,7 +332,7 @@ func TestUSCredentialNative(t *testing.T) {
 	}
 
 	// Top-level revoke of the same source, then its own original replay.
-	revokeIdentity := CommandIdentity{Incarnation: [16]byte{5}, OperationID: [16]byte{6}, Sequence: 2}
+	revokeIdentity := CommandIdentity{Incarnation: [16]byte{1}, OperationID: [16]byte{6}, Sequence: 2}
 	revoke := usCredentialRevokeCommandFixture(t, w, proof, command, revokeIdentity)
 	turn, a, _ = usCredentialTurn(t, w, r, proof, usAPICredentialRevoke, 0)
 	revoked, _, err := runUSCredentialDispatch(t.Context(), turn, a, usCredentialInput(t, revoke))
@@ -829,7 +829,7 @@ func usCredentialAssertRevokeRefused(t *testing.T, w *executor, r *stmt.Registry
 // account key. A foreign credential id, a descendant row and a stale witness are
 // each refused with zero output, no receipt and no source change.
 func TestUSCredentialRevokeRefusesForeignChildAndStaleWitness(t *testing.T) {
-	revokeIdentity := CommandIdentity{Incarnation: [16]byte{5}, OperationID: [16]byte{7}, Sequence: 2}
+	revokeIdentity := CommandIdentity{Incarnation: [16]byte{1}, OperationID: [16]byte{7}, Sequence: 2}
 
 	t.Run("foreign_credential_id", func(t *testing.T) {
 		w, proof := usCredentialAuthorityFixture(t, false)
@@ -907,7 +907,7 @@ func TestUSCredentialRevokedMarkerDrainNeverOrdinaryAuthority(t *testing.T) {
 	}
 	// Revoke the live source first so the drain below is real: clearing a marker
 	// that was never written proves nothing.
-	revoke := usCredentialRevokeCommandFixture(t, w, proof, command, CommandIdentity{Incarnation: [16]byte{5}, OperationID: [16]byte{6}, Sequence: 2})
+	revoke := usCredentialRevokeCommandFixture(t, w, proof, command, CommandIdentity{Incarnation: [16]byte{1}, OperationID: [16]byte{6}, Sequence: 2})
 	turn, a, _ := usCredentialTurn(t, w, r, proof, usAPICredentialRevoke, 0)
 	if _, _, err := runUSCredentialDispatch(t.Context(), turn, a, usCredentialInput(t, revoke)); err != nil {
 		t.Fatal(err)
