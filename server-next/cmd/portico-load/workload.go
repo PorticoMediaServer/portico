@@ -151,7 +151,14 @@ func (w *workload) read(ctx context.Context, r *rand.Rand) {
 	var next db.ItemQuery // the list this reader is paging down
 	var nextViewer db.Viewer
 	for ctx.Err() == nil {
-		v := pick(r, w.viewers)
+		n := r.IntN(len(w.viewers))
+		v := w.viewers[n]
+		// The seeder restricts the last three profiles, by label, by library and by rating.
+		// Their first pages and totals are timed apart, because a restriction is checked row by row.
+		firstPage := "first-page"
+		if n >= len(w.viewers)-3 && len(w.viewers) > 3 {
+			firstPage = "first-page-restricted"
+		}
 		lib := pick(r, w.libs)
 		leaf := db.ItemQuery{Library: lib.PublicID, Kinds: []db.ItemKind{seed.LeafKind(lib.Kind)},
 			Sort: pick(r, []string{db.SortTitle, db.SortTitle, db.SortAdded, db.SortYear, db.SortRelease}), Desc: r.IntN(3) == 0}
@@ -160,7 +167,7 @@ func (w *workload) read(ctx context.Context, r *rand.Rand) {
 		case n < 20: // open a library: the first page and its size
 			leaf.WithTotal = true
 			page, err := w.d.Items(ctx, v, leaf)
-			w.record("first-page", started, err)
+			w.record(firstPage, started, err)
 			leaf.WithTotal, leaf.Cursor = false, page.NextCursor
 			next, nextViewer = leaf, v
 		case n < 50: // scroll on

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -32,10 +33,10 @@ type DB struct {
 	undo      undoOffers
 
 	// See checkpoint.go.
-	path        string
-	helper      *sql.DB
-	helperDone  chan struct{}
-	lastRestart time.Time
+	path       string
+	helper     *sql.DB
+	helperDone chan struct{}
+	restartDue atomic.Bool
 }
 
 // Open opens the database at path, creating it with the current schema if it is new.
@@ -72,7 +73,7 @@ func open(path, mode string, conns int) (*sql.DB, error) {
 	q.Set("mode", mode)
 	q.Set("_txlock", "immediate")
 	for _, pragma := range []string{"busy_timeout(5000)", "journal_mode(WAL)", "synchronous(FULL)", "foreign_keys(1)",
-		"wal_autocheckpoint(0)", fmt.Sprintf("journal_size_limit(%d)", walRestartBytes)} {
+		"wal_autocheckpoint(0)", fmt.Sprintf("journal_size_limit(%d)", walKeepBytes)} {
 		q.Add("_pragma", pragma)
 	}
 	conn, err := sql.Open("sqlite", "file:"+url.PathEscape(path)+"?"+q.Encode())

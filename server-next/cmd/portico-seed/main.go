@@ -59,13 +59,10 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		start, rows := time.Now(), 0
-		for _, v := range viewers {
-			n, err := seed.State(ctx, d, v, *state, *seedValue)
-			if err != nil {
-				log.Fatal(err)
-			}
-			rows += n
+		start := time.Now()
+		rows, err := seed.State(ctx, d, viewers, *state, *seedValue)
+		if err != nil {
+			log.Fatal(err)
 		}
 		log.Printf("state: %d rows for %d profiles in %s", rows, len(viewers), time.Since(start).Round(time.Millisecond))
 		report["stateRows"] = rows

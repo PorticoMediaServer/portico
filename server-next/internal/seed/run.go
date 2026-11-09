@@ -2,6 +2,7 @@ package seed
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand/v2"
 	"time"
@@ -118,71 +119,90 @@ func LeafKind(libraryKind string) db.ItemKind {
 	return db.KindMovie
 }
 
-// State gives one profile about target state rows spread over everything it may see: mostly
-// watched, some part-way through, some favourites and some on My List. It reads the lists the
-// way an app does and writes through the same state path, as background work.
-func State(ctx context.Context, d *db.DB, v db.Viewer, target int, seed uint64) (int, error) {
-	libraries, err := d.Libraries(ctx, v)
+// State gives each profile about target state rows spread over the library: mostly watched,
+// some part-way through, some favourites and some on My List. It reads the lists once, the
+// way an app does, and writes through the same state path as background work. A restricted
+// profile ends with fewer rows, because an edit to a title it may not see is refused.
+func State(ctx context.Context, d *db.DB, viewers []db.Viewer, target int, seed uint64) (int, error) {
+	if len(viewers) == 0 {
+		return 0, nil
+	}
+	all := viewers[0]
+	libraries, err := d.Libraries(ctx, all)
 	if err != nil {
 		return 0, err
 	}
-	visible := 0
+	leaves := 0
 	for _, lib := range libraries {
-		page, err := d.Items(ctx, v, db.ItemQuery{Library: lib.PublicID, Kinds: []db.ItemKind{LeafKind(lib.Kind)}, Limit: 1, WithTotal: true})
+		page, err := d.Items(ctx, all, db.ItemQuery{Library: lib.PublicID, Kinds: []db.ItemKind{LeafKind(lib.Kind)}, Limit: 1, WithTotal: true})
 		if err != nil {
 			return 0, err
 		}
-		visible += page.Total
+		leaves += page.Total
 	}
-	if visible == 0 {
+	if leaves == 0 {
 		return 0, nil
 	}
-	r := rand.New(rand.NewPCG(seed, uint64(v.ProfileID)))
-	chance := float64(target) / float64(visible)
+	chance := float64(target) / float64(leaves)
+	random := make([]*rand.Rand, len(viewers))
+	pending := make([][]db.ItemEdit, len(viewers))
+	for n, v := range viewers {
+		random[n] = rand.New(rand.NewPCG(seed, uint64(v.ProfileID)))
+	}
 	written := 0
+	flush := func(n int) error {
+		_, refusals, err := d.SetStates(ctx, db.Background, viewers[n], pending[n])
+		for _, refusal := range refusals {
+			if refusal == nil {
+				written++
+			} else if !errors.Is(refusal, db.ErrNotFound) && err == nil {
+				err = refusal
+			}
+		}
+		pending[n] = pending[n][:0]
+		return err
+	}
 	yes := true
 	for _, lib := range libraries {
 		query := db.ItemQuery{Library: lib.PublicID, Kinds: []db.ItemKind{LeafKind(lib.Kind)}, Limit: 200}
 		for {
-			page, err := d.Items(ctx, v, query)
+			page, err := d.Items(ctx, all, query)
 			if err != nil {
 				return written, err
 			}
-			var edits []db.ItemEdit
 			for _, item := range page.Items {
-				if r.Float64() >= chance {
-					continue
-				}
-				edit := db.ItemEdit{ItemID: item.PublicID}
-				switch pick := r.IntN(10); {
-				case pick < 6:
-					edit.Watched = &yes
-				case pick < 8 && item.DurationMS > 0:
-					position := item.DurationMS / 10 * int64(1+r.IntN(8))
-					edit.PositionMS = &position
-				case pick < 9:
-					edit.Favorite = &yes
-				default:
-					edit.InList = &yes
-				}
-				edits = append(edits, edit)
-			}
-			if len(edits) > 0 {
-				_, refusals, err := d.SetStates(ctx, db.Background, v, edits)
-				if err != nil {
-					return written, err
-				}
-				for _, refusal := range refusals {
-					if refusal != nil {
-						return written, refusal
+				for n, r := range random {
+					if r.Float64() >= chance {
+						continue
+					}
+					edit := db.ItemEdit{ItemID: item.PublicID}
+					switch pick := r.IntN(10); {
+					case pick < 6:
+						edit.Watched = &yes
+					case pick < 8 && item.DurationMS > 0:
+						position := item.DurationMS / 10 * int64(1+r.IntN(8))
+						edit.PositionMS = &position
+					case pick < 9:
+						edit.Favorite = &yes
+					default:
+						edit.InList = &yes
+					}
+					if pending[n] = append(pending[n], edit); len(pending[n]) >= 400 {
+						if err := flush(n); err != nil {
+							return written, err
+						}
 					}
 				}
-				written += len(edits)
 			}
 			if page.NextCursor == "" {
 				break
 			}
 			query.Cursor = page.NextCursor
+		}
+	}
+	for n := range viewers {
+		if err := flush(n); err != nil {
+			return written, err
 		}
 	}
 	return written, nil
