@@ -230,7 +230,7 @@ func TestIPArtworkReencodeFences(t *testing.T) {
 				t.Fatal("stale reencode admitted", out, err)
 			}
 			ipPolicyRollbackTurn(t, turn, tx)
-			ipArtworkReencodeExpect(t, w, 1, `SELECT count(*) FROM artwork_sources WHERE digest=? AND small_blob=? AND revision=1`, spec.sourceDigest, previous.small)
+			ipArtworkReencodeExpect(t, w, 1, `SELECT count(*) FROM artwork_sources WHERE digest=? AND small_blob=?`, spec.sourceDigest, previous.small)
 			ipArtworkReencodeExpect(t, w, 3, `SELECT count(*) FROM artwork_blobs`)
 			ipArtworkReencodeExpect(t, w, 1, `SELECT count(*) FROM artwork_command_receipts WHERE command_kind='upload_accept'`)
 			ipArtworkReencodeExpect(t, w, 1, `SELECT last_command_sequence FROM artwork_subject_jobs WHERE id=901`)

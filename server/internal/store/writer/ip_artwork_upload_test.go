@@ -385,7 +385,7 @@ func TestIPArtworkUploadFences(t *testing.T) {
 			ipArtworkUploadExpect(t, w, 0, `SELECT count(*) FROM artwork_blobs`)
 			ipArtworkUploadExpect(t, w, 0, `SELECT count(*) FROM artwork_selections`)
 			ipArtworkUploadExpect(t, w, 0, `SELECT count(*) FROM artwork_command_receipts`)
-			ipArtworkUploadExpect(t, w, 1, `SELECT artwork_revision FROM catalog_entities WHERE id=778`)
+			ipArtworkUploadExpect(t, w, 0, `SELECT last_command_sequence FROM artwork_subject_jobs WHERE id=901`)
 		})
 	}
 }
