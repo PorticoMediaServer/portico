@@ -233,9 +233,9 @@ FROM security_credential_results WHERE owner_id=? AND command_incarnation=? AND 
 		{ID: usCredentialScopeRead, Kind: stmt.Read, SQL: `SELECT ordinal,scope FROM security_credential_result_scopes WHERE owner_id=? AND command_incarnation=? AND command_sequence=? ORDER BY ordinal LIMIT ?`,
 			Params: append(append([]stmt.Param(nil), key...), i("limit")), Cohorts: []stmt.Cohort{{Name: "complete", Bindings: append(append([]any(nil), bind...), int64(5))}}, Plan: scopePlan},
 		{ID: usCredentialReceiptInsert, Kind: stmt.Write, SQL: `INSERT INTO security_command_receipts(owner_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,result_version,result_codec,applied_ms,result_digest,result_count)
-VALUES(?,?,?,?,?,?,?,?,?,?,0) RETURNING variable_bytes`,
-			Params:  []stmt.Param{t("owner"), b("incarnation"), i("sequence"), b("operation"), b("request"), i("kind"), i("version"), t("codec"), i("applied_ms"), b("result")},
-			Cohorts: []stmt.Cohort{{Name: "credential_result", Bindings: []any{"security-owner", inc, int64(1), op, digest, int64(521), int64(1), "credential_issue_v1", int64(1000), digest}}}, Plan: stmt.Plan{Hot: true}},
+VALUES(?,?,?,?,?,?,?,?,?,?,?) RETURNING variable_bytes`,
+			Params:  []stmt.Param{t("owner"), b("incarnation"), i("sequence"), b("operation"), b("request"), i("kind"), i("version"), t("codec"), i("applied_ms"), b("result"), i("result_count")},
+			Cohorts: []stmt.Cohort{{Name: "credential_result", Bindings: []any{"security-owner", inc, int64(1), op, digest, int64(521), int64(1), "credential_issue_v1", int64(1000), digest, int64(0)}}}, Plan: stmt.Plan{Hot: true}},
 		{ID: usCredentialResultInsert, Kind: stmt.Write, SQL: `INSERT INTO security_credential_results(owner_id,command_incarnation,command_sequence,command_kind,credential_id,kind,name,scope_count,hint,created_ms,expires_ms,last_used_ms,revoked_ms,state,ended_reason,account_id,member_incarnation,username,profile_id,profile_lifetime,profile_name,family_id,family_incarnation,device_id,secret_hash,secret_key_id,secret_nonce,secret_body,secret_aad_digest)
 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING variable_bytes`,
 			Params:  []stmt.Param{t("owner"), b("incarnation"), i("sequence"), i("kind"), t("credential"), t("credential_kind"), t("name"), i("scope_count"), t("hint"), i("created"), i("expires"), i("last_used"), i("revoked"), t("state"), t("ended_reason"), t("account"), t("member"), t("username"), t("profile"), t("lifetime"), t("profile_name"), t("family"), b("family_incarnation"), t("device"), t("hash"), nullableText("key_id"), nullableBlob("nonce"), nullableBlob("body"), nullableBlob("aad")},
@@ -1022,7 +1022,7 @@ func storeUSCredentialResult(ctx context.Context, turn *commandTurn, a *usOwnerA
 	default:
 		return 0, scanErr
 	}
-	row, err := usCredentialQuery(ctx, turn, usCredentialReceiptInsert, q.ownerID, q.reference.Identity.Incarnation[:], q.reference.Identity.Sequence, q.reference.Identity.OperationID[:], q.reference.RequestDigest[:], int64(q.kind), int64(1), codec, v.appliedMS, digest[:])
+	row, err := usCredentialQuery(ctx, turn, usCredentialReceiptInsert, q.ownerID, q.reference.Identity.Incarnation[:], q.reference.Identity.Sequence, q.reference.Identity.OperationID[:], q.reference.RequestDigest[:], int64(q.kind), int64(1), codec, v.appliedMS, digest[:], int64(0))
 	if err != nil {
 		return 0, err
 	}
