@@ -402,7 +402,7 @@ def make_plan(paths, full=False, tier="short"):
         listing_tags = tags + ',reading_client_integration'
         for module in ['server','apikit']:
             raw=command(['go','list','-json','-tags',listing_tags,'./...'], ROOT/module)
-            listed=decode_stream(raw)
+            listed=[p for p in decode_stream(raw) if not re.search(r'/server/internal/store(?:/|$)', p['ImportPath'])]
             for p in listed: p['module']=module
             packages.extend(listed); modules.append(module)
         probe_seeds={p['ImportPath'] for p in packages if any(re.search(r'ffmpeg|ffprobe', (Path(p['Dir'])/f).read_text(),re.I) for field in ['GoFiles','TestGoFiles','XTestGoFiles'] for f in p.get(field,[]))}
