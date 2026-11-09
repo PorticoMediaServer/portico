@@ -3,6 +3,7 @@ package writer
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -197,6 +198,116 @@ func TestIAFinishRescanProtectedSubtreeDoesNotBlock(t *testing.T) {
 	turn.transaction.rollback(nil)
 }
 
+// A blocked (unreadable) subtree from an earlier scan leaves its objects
+// available and unseen. Those objects are exempt from the absence obligation -
+// exactly like a protected path - so finish completes with warnings instead of
+// returning ErrResolveRequired on every attempt. A blocked directory the scan
+// already charged through a protect+warning issue is not charged twice.
+func TestIAFinishRescanBlockedSubtreeDoesNotWedge(t *testing.T) {
+	for name, charged := range map[string]bool{"scan_charged": true, "uncharged_blocked_path": false} {
+		t.Run(name, func(t *testing.T) {
+			w, keeper, p := iaMissingFinishFixture(t)
+			reg := iaFinishRegistry(t, keeper)
+			wc008NativeExec(t, w, `INSERT INTO inventory_directories(job_id,relative_path,identity,revision,cursor,state,pages,skipped) VALUES('finish-run','Finish/Blocked','finish-blocked-identity','finish-blocked-revision','1','blocked',1,0)`)
+			wc008NativeExec(t, w, `INSERT INTO catalog_assets(id,token,path,size,modified_ns,container,video_codec,audio_codec,width,height,duration,library_id) VALUES(55,'finish-asset-5','/media/finish/Finish/Blocked/Old.mkv',42,7,'','','',0,0,0,8)`)
+			wc008NativeExec(t, w, `INSERT INTO inventory_objects(id,source_id,asset_id,root_incarnation,relative_path,object_identity,revision,evidence_json,size,modified_ns,seen_job,directory_path,state) VALUES('object:finish:5','finish-source','finish-asset-5','finish-incarnation','Finish/Blocked/Old.mkv','ino:55','object-revision:1','{}',42,7,'','Finish/Blocked','available')`)
+			if charged {
+				wc008NativeExec(t, w, `INSERT INTO inventory_scan_issues(job_id,relative_path,reason,line,protect,warning) VALUES('finish-run','Finish/Blocked','directory_unreadable',0,1,1)`)
+				wc008NativeExec(t, w, `UPDATE inventory_runs SET warnings=1 WHERE job_id='finish-run'`)
+			}
+			q := iaFinishAcceptRequest(w)
+			q.outcome = iaFinishWithWarnings
+			ref := iaFinishAcceptReference(t, q, 2, 3)
+			turn, out, err := iaFinishAcceptRun(t, w, reg, p, q, ref)
+			if err != nil || out.decision != receiptFresh || out.result.facts.phase != iaFinishWithWarnings || out.result.facts.warnings != 1 {
+				t.Fatal("blocked subtree wedged finish", out, err)
+			}
+			turn.transaction.rollback(nil)
+		})
+	}
+}
+
+// The exempt path COUNT is never a refusal: nine blocked directories or nine
+// protected paths still page to exhaustion and finish with a truthful count.
+func TestIAFinishRescanManyExemptPathsDoNotRefuse(t *testing.T) {
+	t.Run("blocked_directories", func(t *testing.T) {
+		w, keeper, p := iaMissingFinishFixture(t)
+		reg := iaFinishRegistry(t, keeper)
+		for i := 0; i <= iaFinishMaxRows; i++ {
+			name := string(rune('a' + i))
+			wc008NativeExec(t, w, `INSERT INTO inventory_directories(job_id,relative_path,identity,revision,cursor,state,pages,skipped) VALUES('finish-run',?,?,?, '1','blocked',1,0)`,
+				"Finish/Blocked"+name, "blocked-identity-"+name, "blocked-revision-"+name)
+		}
+		q := iaFinishAcceptRequest(w)
+		q.outcome = iaFinishWithWarnings
+		ref := iaFinishAcceptReference(t, q, 2, 3)
+		turn, out, err := iaFinishAcceptRun(t, w, reg, p, q, ref)
+		if err != nil || out.decision != receiptFresh || out.result.facts.phase != iaFinishWithWarnings || out.result.facts.warnings != int64(iaFinishMaxRows+1) {
+			t.Fatal("many blocked directories wedged finish", out, err)
+		}
+		turn.transaction.rollback(nil)
+	})
+	t.Run("protected_paths", func(t *testing.T) {
+		w, keeper, p := iaMissingFinishFixture(t)
+		reg := iaFinishRegistry(t, keeper)
+		for i := 0; i <= iaFinishMaxRows; i++ {
+			name := string(rune('a' + i))
+			wc008NativeExec(t, w, `INSERT INTO inventory_scan_issues(job_id,relative_path,reason,line,protect,warning) VALUES('finish-run',?,'unreadable_entry',0,1,1)`, "Locked"+name)
+		}
+		wc008NativeExec(t, w, `UPDATE inventory_runs SET warnings=? WHERE job_id='finish-run'`, iaFinishMaxRows+1)
+		q := iaFinishAcceptRequest(w)
+		q.outcome = iaFinishWithWarnings
+		ref := iaFinishAcceptReference(t, q, 2, 3)
+		turn, out, err := iaFinishAcceptRun(t, w, reg, p, q, ref)
+		if err != nil || out.decision != receiptFresh || out.result.facts.phase != iaFinishWithWarnings || out.result.facts.warnings != int64(iaFinishMaxRows+1) {
+			t.Fatal("many protected paths wedged finish", out, err)
+		}
+		turn.transaction.rollback(nil)
+	})
+}
+
+// Unseen objects under a protected path are exempt by prefix, not by a window
+// that stops at the first page: more than one full page of them still finishes.
+func TestIAFinishRescanProtectedSubtreePagesPastExemptObjects(t *testing.T) {
+	w, keeper, p := iaMissingFinishFixture(t)
+	reg := iaFinishRegistry(t, keeper)
+	wc008NativeExec(t, w, `INSERT INTO inventory_scan_issues(job_id,relative_path,reason,line,protect,warning) VALUES('finish-run','Locked','unreadable_entry',0,1,1)`)
+	wc008NativeExec(t, w, `UPDATE inventory_runs SET warnings=1 WHERE job_id='finish-run'`)
+	for i := 0; i < iaFinishPageRows+1; i++ {
+		name := fmt.Sprintf("%03d", i)
+		asset := 70 + i
+		wc008NativeExec(t, w, `INSERT INTO catalog_assets(id,token,path,size,modified_ns,container,video_codec,audio_codec,width,height,duration,library_id) VALUES(?,?,?,42,7,'','','',0,0,0,8)`, asset, "finish-locked-token-"+name, "/media/finish/Locked/Film"+name+".mkv")
+		wc008NativeExec(t, w, `INSERT INTO inventory_objects(id,source_id,asset_id,root_incarnation,relative_path,object_identity,revision,evidence_json,size,modified_ns,seen_job,directory_path,state) VALUES(?,?,?,?,?,?,?,?,42,7,'','Locked','available')`,
+			"object:finish:l"+name, "finish-source", "finish-locked-token-"+name, "finish-incarnation",
+			"Locked/Film"+name+".mkv", "ino:l-"+name, "object-revision:1", "{}")
+	}
+	q := iaFinishAcceptRequest(w)
+	q.outcome = iaFinishWithWarnings
+	ref := iaFinishAcceptReference(t, q, 2, 3)
+	turn, out, err := iaFinishAcceptRun(t, w, reg, p, q, ref)
+	if err != nil || out.decision != receiptFresh || out.result.facts.phase != iaFinishWithWarnings || out.result.facts.warnings != 1 {
+		t.Fatal("protected subtree pages wedged finish", out, err)
+	}
+	turn.transaction.rollback(nil)
+}
+
+// A directory that skipped part of its listing never claimed absence for the
+// skipped entry, so its unseen objects are exempt from the absence obligation.
+func TestIAFinishRescanSkippedSubtreeDoesNotWedge(t *testing.T) {
+	w, keeper, p := iaMissingFinishFixture(t)
+	reg := iaFinishRegistry(t, keeper)
+	wc008NativeExec(t, w, `UPDATE inventory_directories SET skipped=1 WHERE job_id='finish-run' AND relative_path='Finish'`)
+	wc008NativeExec(t, w, `INSERT INTO catalog_assets(id,token,path,size,modified_ns,container,video_codec,audio_codec,width,height,duration,library_id) VALUES(56,'finish-asset-6','/media/finish/Finish/Skipped.mkv',42,7,'','','',0,0,0,8)`)
+	wc008NativeExec(t, w, `INSERT INTO inventory_objects(id,source_id,asset_id,root_incarnation,relative_path,object_identity,revision,evidence_json,size,modified_ns,seen_job,directory_path,state) VALUES('object:finish:6','finish-source','finish-asset-6','finish-incarnation','Finish/Skipped.mkv','ino:56','object-revision:1','{}',42,7,'','Finish','available')`)
+	q := iaFinishAcceptRequest(w)
+	ref := iaFinishAcceptReference(t, q, 2, 3)
+	turn, out, err := iaFinishAcceptRun(t, w, reg, p, q, ref)
+	if err != nil || out.decision != receiptFresh || out.result.facts.phase != iaFinishComplete || out.result.facts.warnings != 0 {
+		t.Fatal("skipped subtree wedged finish", out, err)
+	}
+	turn.transaction.rollback(nil)
+}
+
 // Open durable obligations never converge: a pending directory, an unreadable
 // or missing root and an over-bound frontier all refuse.
 func TestIAFinishRescanRefusesOpenObligations(t *testing.T) {
@@ -243,22 +354,6 @@ func TestIAFinishRescanRefusesOpenObligations(t *testing.T) {
 		turn, out, err := iaFinishAcceptRun(t, w, reg, p, q, ref)
 		if !errors.Is(err, ErrCap) || out.decision != 0 {
 			t.Fatal("over-bound unseen frontier accepted", out, err)
-		}
-		turn.transaction.rollback(nil)
-	})
-	t.Run("too_many_blocked", func(t *testing.T) {
-		w, keeper, p := iaMissingFinishFixture(t)
-		reg := iaFinishRegistry(t, keeper)
-		for i := 0; i <= iaFinishMaxRows; i++ {
-			wc008NativeExec(t, w, `INSERT INTO inventory_directories(job_id,relative_path,identity,revision,cursor,state,pages,skipped) VALUES('finish-run',?,?,?, '1','blocked',1,0)`,
-				"Finish/Blocked"+string(rune('a'+i)), "blocked-identity-"+string(rune('a'+i)), "blocked-revision-"+string(rune('a'+i)))
-		}
-		q := iaFinishAcceptRequest(w)
-		q.outcome = iaFinishWithWarnings
-		ref := iaFinishAcceptReference(t, q, 2, 3)
-		turn, out, err := iaFinishAcceptRun(t, w, reg, p, q, ref)
-		if !errors.Is(err, ErrCap) || out.decision != 0 {
-			t.Fatal("over-bound frontier accepted", out, err)
 		}
 		turn.transaction.rollback(nil)
 	})

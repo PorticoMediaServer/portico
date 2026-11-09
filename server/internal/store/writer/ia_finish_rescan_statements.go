@@ -3,30 +3,40 @@ package writer
 import "github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 
 // IA-19 finish-rescan statement family. Every read is a point read or one
-// bounded indexed window over the accepted run's own directory/object frontier;
-// every write is one finite CAS on the exact run row or the exact group C draft
-// receipt relation. There is no OFFSET, temporary sort, library-wide scan or
-// caller-selected SQL. The frontier probes are bounded by iaFinishMaxRows so an
-// unbounded pathological run refuses instead of pretending convergence.
+// bounded indexed keyset window over the accepted run's own directory/object
+// frontier; every write is one finite CAS on the exact run row or the exact
+// group C draft receipt relation. There is no OFFSET, temporary sort,
+// library-wide scan or caller-selected SQL. Exempt (blocked, protected and
+// skipped) paths and exempt unseen objects are paged iaFinishPageRows at a
+// time, never refused for their count: a run with many unreadable folders or a
+// large protected subtree still accounts for every row and finishes truthfully.
+// Only genuinely unseen objects outside every exempt subtree keep the
+// iaFinishMaxRows refusal.
 const (
-	iaFinishOwner         stmt.ID = "ia.finish.owner"
-	iaFinishHeader        stmt.ID = "ia.finish.header"
-	iaFinishLibrary       stmt.ID = "ia.finish.library"
-	iaFinishSource        stmt.ID = "ia.finish.source"
-	iaFinishRunStateStmt  stmt.ID = "ia.finish.run_state"
-	iaFinishRoot          stmt.ID = "ia.finish.root"
-	iaFinishPending       stmt.ID = "ia.finish.pending"
-	iaFinishBlocked       stmt.ID = "ia.finish.blocked"
-	iaFinishProtected     stmt.ID = "ia.finish.protected"
-	iaFinishUnseen        stmt.ID = "ia.finish.unseen"
-	iaFinishRunCAS        stmt.ID = "ia.finish.run_cas"
-	iaFinishReceiptInsert stmt.ID = "ia.finish.receipt_insert"
-	iaFinishReceiptKind           = "inventory_finish"
-	iaFinishComplete              = "complete"
-	iaFinishWithWarnings          = "complete_with_warnings"
-	iaFinishMaxRows               = 8
-	iaFinishRootPath              = "."
-	iaFinishMaxKeyBytes           = 512
+	iaFinishOwner          stmt.ID = "ia.finish.owner"
+	iaFinishHeader         stmt.ID = "ia.finish.header"
+	iaFinishLibrary        stmt.ID = "ia.finish.library"
+	iaFinishSource         stmt.ID = "ia.finish.source"
+	iaFinishRunStateStmt   stmt.ID = "ia.finish.run_state"
+	iaFinishRoot           stmt.ID = "ia.finish.root"
+	iaFinishPending        stmt.ID = "ia.finish.pending"
+	iaFinishBlocked        stmt.ID = "ia.finish.blocked"
+	iaFinishProtected      stmt.ID = "ia.finish.protected"
+	iaFinishSkipped        stmt.ID = "ia.finish.skipped"
+	iaFinishBlockedCharged stmt.ID = "ia.finish.blocked_charged"
+	iaFinishUnseen         stmt.ID = "ia.finish.unseen"
+	iaFinishRunCAS         stmt.ID = "ia.finish.run_cas"
+	iaFinishReceiptInsert  stmt.ID = "ia.finish.receipt_insert"
+	iaFinishReceiptKind            = "inventory_finish"
+	iaFinishComplete               = "complete"
+	iaFinishWithWarnings           = "complete_with_warnings"
+	iaFinishMaxRows                = 8
+	// iaFinishPageRows bounds one keyset window, not a count. Exempt rows are
+	// paged until the frontier is exhausted so a run is never wedged by their
+	// number; a page that fills is followed by its keyset successor.
+	iaFinishPageRows    = 64
+	iaFinishRootPath    = "."
+	iaFinishMaxKeyBytes = 512
 )
 
 func iaFinishRescanStatements() []stmt.Definition {
@@ -95,27 +105,44 @@ FROM inventory_runs WHERE job_id=? AND command_incarnation=?`,
 				{Name: "closed_frontier", Bindings: []any{"finish-closed"}},
 			}},
 		{ID: iaFinishBlocked, Kind: stmt.Read,
-			SQL:    `SELECT relative_path FROM inventory_directories INDEXED BY inventory_directories_pending WHERE job_id=? AND state='blocked' ORDER BY relative_path LIMIT ?`,
-			Params: []stmt.Param{t("run_id"), i("row_limit")},
+			SQL:    `SELECT relative_path FROM inventory_directories INDEXED BY inventory_directories_pending WHERE job_id=? AND state='blocked' AND relative_path>? ORDER BY relative_path LIMIT ?`,
+			Params: []stmt.Param{t("run_id"), t("after_path"), i("row_limit")},
 			Cohorts: []stmt.Cohort{
-				{Name: "one_blocked_directory", Bindings: []any{"finish-run", int64(iaFinishMaxRows + 1)}},
-				{Name: "no_blocked_directory", Bindings: []any{"finish-closed", int64(iaFinishMaxRows + 1)}},
+				{Name: "one_blocked_directory", Bindings: []any{"finish-run", "", int64(iaFinishPageRows)}},
+				{Name: "no_blocked_directory", Bindings: []any{"finish-closed", "", int64(iaFinishPageRows)}},
 			}},
 		{ID: iaFinishProtected, Kind: stmt.Read,
-			SQL:    `SELECT relative_path FROM inventory_scan_issues INDEXED BY inventory_scan_issues_protected WHERE job_id=? AND protect=1 ORDER BY relative_path LIMIT ?`,
-			Params: []stmt.Param{t("run_id"), i("row_limit")},
+			SQL:    `SELECT relative_path FROM inventory_scan_issues INDEXED BY inventory_scan_issues_protected WHERE job_id=? AND protect=1 AND relative_path>? ORDER BY relative_path LIMIT ?`,
+			Params: []stmt.Param{t("run_id"), t("after_path"), i("row_limit")},
 			Cohorts: []stmt.Cohort{
-				{Name: "one_protected_path", Bindings: []any{"finish-run", int64(iaFinishMaxRows + 1)}},
-				{Name: "no_protected_path", Bindings: []any{"finish-closed", int64(iaFinishMaxRows + 1)}},
+				{Name: "one_protected_path", Bindings: []any{"finish-run", "", int64(iaFinishPageRows)}},
+				{Name: "no_protected_path", Bindings: []any{"finish-closed", "", int64(iaFinishPageRows)}},
+			}},
+		{ID: iaFinishSkipped, Kind: stmt.Read,
+			SQL:    `SELECT relative_path FROM inventory_directories INDEXED BY sqlite_autoindex_inventory_directories_1 WHERE job_id=? AND skipped>0 AND relative_path>? ORDER BY relative_path LIMIT ?`,
+			Params: []stmt.Param{t("run_id"), t("after_path"), i("row_limit")},
+			Cohorts: []stmt.Cohort{
+				{Name: "skipped_directory", Bindings: []any{"finish-run", "", int64(iaFinishPageRows)}},
+				{Name: "no_skipped_directory", Bindings: []any{"finish-closed", "", int64(iaFinishPageRows)}},
+			}},
+		{ID: iaFinishBlockedCharged, Kind: stmt.Read,
+			SQL: `SELECT d.relative_path FROM inventory_directories AS d INDEXED BY inventory_directories_pending
+LEFT JOIN inventory_scan_issues AS x INDEXED BY sqlite_autoindex_inventory_scan_issues_1 ON x.job_id=d.job_id AND x.relative_path=d.relative_path AND x.warning=1
+WHERE d.job_id=? AND d.state='blocked' AND d.relative_path>? AND x.relative_path IS NULL
+ORDER BY d.relative_path LIMIT ?`,
+			Params: []stmt.Param{t("run_id"), t("after_path"), i("row_limit")},
+			Cohorts: []stmt.Cohort{
+				{Name: "uncharged_blocked_directory", Bindings: []any{"finish-run", "", int64(iaFinishPageRows)}},
+				{Name: "charged_blocked_directory", Bindings: []any{"finish-closed", "", int64(iaFinishPageRows)}},
 			}},
 		{ID: iaFinishUnseen, Kind: stmt.Read,
-			SQL: `SELECT relative_path FROM inventory_objects INDEXED BY inventory_objects_source
+			SQL: `SELECT id,relative_path FROM inventory_objects INDEXED BY inventory_objects_source
 WHERE source_id=? AND retired=0 AND id>? AND root_incarnation=? AND state='available' AND seen_job<>?
 ORDER BY id LIMIT ?`,
 			Params: []stmt.Param{t("source_id"), t("after_object_id"), t("incarnation"), t("run_id"), i("row_limit")},
 			Cohorts: []stmt.Cohort{
-				{Name: "unseen_available_object", Bindings: []any{"finish-source", "", "finish-incarnation", "finish-run", int64(iaFinishMaxRows + 1)}},
-				{Name: "no_unseen_available_object", Bindings: []any{"finish-source", "", "finish-incarnation", "finish-closed", int64(iaFinishMaxRows + 1)}},
+				{Name: "unseen_available_object", Bindings: []any{"finish-source", "", "finish-incarnation", "finish-run", int64(iaFinishPageRows)}},
+				{Name: "no_unseen_available_object", Bindings: []any{"finish-source", "", "finish-incarnation", "finish-closed", int64(iaFinishPageRows)}},
 			}},
 		{ID: iaFinishRunCAS, Kind: stmt.Write,
 			SQL: `UPDATE inventory_runs SET phase=?,finished_at=?,reconcile_cursor='',authoritative=1,warnings=?,job_revision=?,last_command_sequence=?
@@ -186,7 +213,13 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			defs[n].Plan.Seeks = []string{"job_id=? AND state=? AND relative_path>?"}
 		case iaFinishProtected:
 			defs[n].Plan.Indexes = []string{"inventory_scan_issues_protected"}
-			defs[n].Plan.Seeks = []string{"job_id=?"}
+			defs[n].Plan.Seeks = []string{"job_id=? AND relative_path>?"}
+		case iaFinishSkipped:
+			defs[n].Plan.Indexes = []string{"sqlite_autoindex_inventory_directories_1"}
+			defs[n].Plan.Seeks = []string{"job_id=? AND relative_path>?"}
+		case iaFinishBlockedCharged:
+			defs[n].Plan.Indexes = []string{"inventory_directories_pending", "sqlite_autoindex_inventory_scan_issues_1"}
+			defs[n].Plan.Seeks = []string{"job_id=? AND state=? AND relative_path>?"}
 		case iaFinishUnseen:
 			defs[n].Plan.Indexes = []string{"inventory_objects_source"}
 			defs[n].Plan.Seeks = []string{"source_id=? AND retired=? AND id>?"}
