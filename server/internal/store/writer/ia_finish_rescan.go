@@ -223,16 +223,18 @@ func iaFinishRescanReceiptFacts(ctx context.Context, turn *commandTurn, runID st
 	}
 	var operation, request, digest []byte
 	var kind string
-	err = row.Scan(&operation, &request, &kind, &header.facts.resultCount, &digest, &header.acceptedRevision, &header.appliedMS,
-		&header.sourceID, &header.sourceIncarnation, &header.beforeKey, &header.afterKey, &header.phase,
-		&header.authoritative, &header.processed, &header.analyzed, &header.warnings, &header.finishedMS, &header.health)
+	var resultCount, acceptedRevision, appliedMS, authoritative, processed, analyzed, warnings, finishedMS sql.NullInt64
+	var sourceID, sourceIncarnation, beforeKey, afterKey, phase, health sql.NullString
+	err = row.Scan(&operation, &request, &kind, &resultCount, &digest, &acceptedRevision, &appliedMS,
+		&sourceID, &sourceIncarnation, &beforeKey, &afterKey, &phase,
+		&authoritative, &processed, &analyzed, &warnings, &finishedMS, &health)
 	if errors.Is(err, sql.ErrNoRows) {
 		return owner, header, nil
 	}
 	if err != nil {
 		return owner, header, err
 	}
-	if len(operation) != 16 || len(request) != 32 || len(digest) != 32 || header.finishedMS != header.appliedMS {
+	if len(operation) != 16 || len(request) != 32 || len(digest) != 32 {
 		return owner, header, ErrResolveRequired
 	}
 	header.facts.exists = true
@@ -240,9 +242,26 @@ func iaFinishRescanReceiptFacts(ctx context.Context, turn *commandTurn, runID st
 	copy(header.facts.identity.command.OperationID[:], operation)
 	copy(header.facts.identity.digest[:], request)
 	copy(header.facts.resultDigest[:], digest)
-	if kind == iaFinishReceiptKind {
-		header.facts.kind = IAFinishRescan
+	if kind != iaFinishReceiptKind {
+		// A receipt at this exact key belongs to another command purpose. Its
+		// finish projection is intentionally NULL, so it is left undecoded and
+		// classifyReceipt answers the kind mismatch with ErrConflict rather than
+		// a raw NULL scan error.
+		return owner, header, nil
 	}
+	if !resultCount.Valid || !acceptedRevision.Valid || !appliedMS.Valid || !authoritative.Valid || !processed.Valid ||
+		!analyzed.Valid || !warnings.Valid || !finishedMS.Valid || !sourceID.Valid || !sourceIncarnation.Valid ||
+		!beforeKey.Valid || !afterKey.Valid || !phase.Valid || !health.Valid || finishedMS.Int64 != appliedMS.Int64 {
+		return owner, header, ErrResolveRequired
+	}
+	header.facts.resultCount = resultCount.Int64
+	header.acceptedRevision = acceptedRevision.Int64
+	header.appliedMS = appliedMS.Int64
+	header.sourceID, header.sourceIncarnation = sourceID.String, sourceIncarnation.String
+	header.beforeKey, header.afterKey, header.phase = beforeKey.String, afterKey.String, phase.String
+	header.authoritative, header.processed, header.analyzed = authoritative.Int64, processed.Int64, analyzed.Int64
+	header.warnings, header.finishedMS, header.health = warnings.Int64, finishedMS.Int64, health.String
+	header.facts.kind = IAFinishRescan
 	return owner, header, nil
 }
 
