@@ -35,7 +35,7 @@ func init() {
 		params:  []string{"profile"},
 		indexes: []string{"sqlite_autoindex_profile_restrictions_1"},
 		seeks:   []string{"profile_id=?"},
-		pins:    []stmt.AutoIndexBinding{usPolicyImagePin("profile_restrictions", "sqlite_autoindex_profile_restrictions_1", "u", "profile_id")},
+		pins:    []stmt.AutoIndexBinding{usPolicyImagePin("profile_restrictions", "sqlite_autoindex_profile_restrictions_1", "pk", "profile_id")},
 		tables:  []string{"profile_restrictions"},
 		point:   usPolicyImagePoint("sqlite_autoindex_profile_restrictions_1"),
 	}
