@@ -33,12 +33,16 @@ func rsChildrenSource(t *testing.T) *browseFixture {
 		f.exec(t, `INSERT INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(?,?,0,?,1,1,0)`, k.id, k.name, k.container)
 	}
 	insert := func(id, kind int64, show, season, artist, album, book, disc, track, part, seasonNumber, episodeNumber any, retired int64) {
+		var authorKey any
+		if kind == 8 {
+			authorKey = "author:"
+		}
 		public := make([]byte, 16)
 		binary.LittleEndian.PutUint64(public, uint64(id))
 		f.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(?,?,1,?)`, id, public, kind)
 		f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,
-show_id,season_id,artist_id,album_id,book_id,disc_number,track_number,part_number,season_number,episode_number,numbering,retired)
-VALUES(?,?,1,?,'deliberately reversed display','z','z','z','z',0,?,?, ?,?,?,?,?,?,?,?,?,?,'seasonal',?)`, id, public, kind, public, public, show, season, artist, album, book, disc, track, part, seasonNumber, episodeNumber, retired)
+show_id,season_id,artist_id,album_id,book_id,disc_number,track_number,part_number,season_number,episode_number,numbering,retired,author,book_author_identity_key)
+VALUES(?,?,1,?,'deliberately reversed display','z','z','z','z',0,?,?, ?,?,?,?,?,?,?,?,?,?,'seasonal',?,'',?)`, id, public, kind, public, public, show, season, artist, album, book, disc, track, part, seasonNumber, episodeNumber, retired, authorKey)
 	}
 	for _, p := range []struct {
 		id, kind             int64

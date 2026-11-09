@@ -56,7 +56,11 @@ func homeFixedEntitySeed(t *testing.T, f *browseFixture, id, kind int64, parent,
 	if kind == 9 {
 		book = parent
 	}
-	f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,parent_id,show_id,season_id,album_id,book_id,artist_id,season_number,episode_number,numbering,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,playback_origin_incarnation,playback_origin_revision,added_at,last_content_added_at,admission_own_age) VALUES(?,?,1,?,?,?,?,?,?,?,?,?,'seasonal','Fixed','fixed','f','fixed','f',0,?,?,?,1,?,?,10)`, id, b, kind, parent, show, season, album, book, artist, id, id, b, b, b, date, date)
+	var authorKey any
+	if kind == 8 {
+		authorKey = "author:"
+	}
+	f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,parent_id,show_id,season_id,album_id,book_id,artist_id,season_number,episode_number,numbering,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,playback_origin_incarnation,playback_origin_revision,added_at,last_content_added_at,admission_own_age,author,book_author_identity_key) VALUES(?,?,1,?,?,?,?,?,?,?,?,?,'seasonal','Fixed','fixed','f','fixed','f',0,?,?,?,1,?,?,10,'',?)`, id, b, kind, parent, show, season, album, book, artist, id, id, b, b, b, date, date, authorKey)
 }
 func homeFixedAssetSeed(t *testing.T, f *browseFixture, id int64) {
 	t.Helper()

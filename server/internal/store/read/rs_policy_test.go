@@ -169,7 +169,11 @@ func rsPolicyRetype(t *testing.T, f *browseFixture, kind int64) {
 	f.exec(t, `BEGIN`)
 	f.exec(t, `PRAGMA defer_foreign_keys=ON`)
 	f.exec(t, `UPDATE catalog_subjects SET kind=? WHERE id=1`, kind)
-	f.exec(t, `UPDATE catalog_entities SET kind=? WHERE id=1`, kind)
+	var authorKey any
+	if kind == 8 {
+		authorKey = "author:"
+	}
+	f.exec(t, `UPDATE catalog_entities SET kind=?,author='',book_author_identity_key=? WHERE id=1`, kind, authorKey)
 	f.exec(t, `COMMIT`)
 }
 func TestRSPolicyRecipeCannotBypassBirthChecks(t *testing.T) {
