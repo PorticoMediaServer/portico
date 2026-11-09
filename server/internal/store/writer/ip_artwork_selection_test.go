@@ -57,10 +57,10 @@ func ipArtworkSelectionFixture(t *testing.T) (*executor, *ipPolicyRegistry, *usO
 		revision    int64
 		command     []byte
 	}{
-		{901, 778, "entity_id", []byte{4}, 1, []byte{1}},
-		{902, 778, "person_id", []byte{5}, 2, []byte{6}},
-		{903, 779, "entity_id", []byte{7}, 1, []byte{9}},
-		{904, 780, "entity_id", []byte{8}, 1, []byte{10}},
+		{901, 778, "entity_id", ipArtworkSelectionBytes(4), 1, ipArtworkSelectionBytes(1)},
+		{902, 778, "person_id", ipArtworkSelectionBytes(5), 2, ipArtworkSelectionBytes(6)},
+		{903, 779, "entity_id", ipArtworkSelectionBytes(7), 1, ipArtworkSelectionBytes(9)},
+		{904, 780, "entity_id", ipArtworkSelectionBytes(8), 1, ipArtworkSelectionBytes(10)},
 	} {
 		ipPolicyExec(t, w, `INSERT INTO artwork_subject_jobs(id,`+row.column+`,source_incarnation,source_revision,phase,job_revision,job_lease_owner,job_lease_generation,job_lease_expires_ms,command_incarnation) VALUES(?,?,?,?,'publish',1,7,1,?,?)`,
 			row.id, row.subject, row.incarnation, row.revision, leaseUntil, row.command)
@@ -109,6 +109,12 @@ func ipArtworkSelectionSongOwner() ipArtworkMaterialOwner {
 }
 
 func ipArtworkSelectionHex(n int) string { return strings.Repeat(fmt.Sprintf("%x", n%16), 64) }
+
+func ipArtworkSelectionBytes(n byte) []byte {
+	value := make([]byte, 16)
+	value[0] = n
+	return value
+}
 
 // One accepted source with its three ready slots and (optionally) the retained
 // original upload bytes. It is content custody only, not a selection.
