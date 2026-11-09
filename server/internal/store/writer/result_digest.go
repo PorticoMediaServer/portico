@@ -57,6 +57,8 @@ func preflightCanonicalResult(identity CommandIdentity, request RequestDigest, r
 	switch v := result.(type) {
 	case uoBirthStartResult:
 		return preflightUOBirthStart(v)
+	case uoBirthSessionResult:
+		return preflightUOBirthSession(v)
 	case uoRootOperationResult:
 		return preflightUORootOperation(v)
 	case mpQueueRepeatValue:
@@ -146,6 +148,8 @@ func writeCanonicalResult(e *requestEncoder, identity CommandIdentity, request R
 	switch v := result.(type) {
 	case uoBirthStartResult:
 		return writeUOBirthStart(e, identity, request, v)
+	case uoBirthSessionResult:
+		return writeUOBirthSession(e, identity, request, v)
 	case uoRootOperationResult:
 		return writeUORootOperation(e, identity, request, v)
 	case mpQueueRepeatValue:

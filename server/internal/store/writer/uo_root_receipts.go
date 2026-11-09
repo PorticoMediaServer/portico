@@ -64,7 +64,18 @@ func lookupUORootCommand(ctx context.Context, turn *commandTurn, binding *uoRoot
 		return out, ErrInvalid
 	}
 	if isUOUserBirthPurpose(q.kind) {
-		if q.kind != 700 || turn.transaction.birthStart == nil || turn.transaction.birthStart.turn != turn || turn.transaction.birthStart.root.reference != q {
+		// Closed per-purpose extension: each birth purpose names its own state
+		// holder. There is no generic birth callback or scalar fallback.
+		switch q.kind {
+		case 700:
+			if turn.transaction.birthStart == nil || turn.transaction.birthStart.turn != turn || turn.transaction.birthStart.root.reference != q {
+				return out, ErrInvalid
+			}
+		case 710:
+			if turn.transaction.birthSession == nil || turn.transaction.birthSession.turn != turn || turn.transaction.birthSession.root.reference != q {
+				return out, ErrInvalid
+			}
+		default:
 			return out, ErrInvalid
 		}
 	}
@@ -251,6 +262,18 @@ func persistUORootCanonical(ctx context.Context, turn *commandTurn, lookup uoRoo
 			return out, ErrInvalid
 		}
 		appliedMS = v.result.appliedMS
+	case uoBirthSessionResult:
+		if v.source.root != q.root || q.kind != 710 {
+			return out, ErrInvalid
+		}
+		state := turn.transaction.birthSession
+		if state == nil || state.turn != turn || state.saved || state.root.reference != q {
+			return out, ErrInvalid
+		}
+		if err = checkUOBirthSessionNative(ctx, turn, state, v); err != nil {
+			return out, err
+		}
+		appliedMS = v.source.appliedMS
 	default:
 		return out, ErrInvalid
 	}

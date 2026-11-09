@@ -13,7 +13,8 @@ import (
 )
 
 // This closed NORMAL recipe proves only a current ordinary LOCAL interactive
-// session for personal flags600, preparation birth700 and public reading770/771.
+// session for personal flags600, preparation birth700, session birth710 and
+// public reading770/771.
 // It grants no item/library/reading/media-creation command,
 // owner/admin power, MP source proof, worker/Hosted/reset/recovery authority.
 // Those remain independent parent conditions. Prepared US-01 witnesses contain
@@ -88,7 +89,7 @@ func authorizeUSCurrentSession(ctx context.Context, turn *commandTurn, p *usOwne
 		return nil, ErrDisclosureDenied
 	}
 	switch tx.descriptor.ID {
-	case SetPersonalFlags, 700, 770, 771:
+	case SetPersonalFlags, 700, 710, 770, 771:
 	default:
 		return nil, ErrDisclosureDenied
 	}

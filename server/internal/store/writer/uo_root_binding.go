@@ -16,7 +16,9 @@ import (
 var ErrUORootGone = errors.New("writer UO root is gone")
 
 // ErrUORootCurrentFenceUnavailable refuses a missing or unsupported NORMAL
-// current-session proof. It is not a retry signal
+// current-session proof. The supported set is a closed, per-purpose list
+// (600 personal flags, 700 preparation birth, 710 session birth) and is not a
+// callback or a generic authorizer. This is not a retry signal
 // and never means the root is gone.
 var ErrUORootCurrentFenceUnavailable = errors.New("writer UO root current fence unavailable")
 
@@ -63,7 +65,7 @@ func (p *uoRootCurrentProof) current(turn *commandTurn) error {
 		return ErrUORootCurrentFenceUnavailable
 	}
 	switch p.purpose {
-	case 600, 700:
+	case 600, 700, 710:
 	default:
 		return ErrUORootCurrentFenceUnavailable
 	}
@@ -83,7 +85,7 @@ func bindUSCurrentUORoot(ctx context.Context, turn *commandTurn, a *usCurrentSes
 		return nil, ErrUORootCurrentFenceUnavailable
 	}
 	switch turn.transaction.descriptor.ID {
-	case 600, 700:
+	case 600, 700, 710:
 	default:
 		return nil, ErrUORootCurrentFenceUnavailable
 	}
