@@ -694,3 +694,80 @@ func TestMPPhysicalFailedLaunchesDoNotExhaustCapacity(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+type mpPhysicalPanickingRunner struct{ proceed <-chan struct{} }
+
+func (r *mpPhysicalPanickingRunner) RunOwnedLinear(_ context.Context, _ string, _ *exec.Cmd, _ func(io.Reader) error, _ func(), afterRetired func()) error {
+	defer afterRetired()
+	<-r.proceed
+	panic("mp physical runner test panic")
+}
+
+func TestMPPhysicalRunnerPanicRefundsAfterOwnersAndCleanup(t *testing.T) {
+	s, err := newMPPhysicalSupervisor(&Writer{}, t.Context(), "server")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "owned")
+	if err = os.WriteFile(path, []byte("pending cleanup"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	files, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { files.Close() })
+	proceed := make(chan struct{})
+	root := mpPhysicalRoot{"media", "execution", 1}
+	e, err := s.start(root, &mpPhysicalPanickingRunner{proceed}, mpPhysicalCommand(), files, []string{"owned"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader, err := e.readers.Acquire()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Release()
+	window, err := e.windows.Acquire()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer window.Release()
+	close(proceed)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	select {
+	case <-e.returned:
+	case <-ctx.Done():
+		t.Fatal("recovered panic never published runner return", ctx.Err())
+	}
+	if e.runErr == nil {
+		t.Fatal("recovered panic did not record a terminal error")
+	}
+	joinCtx, cancelJoin := context.WithCancel(ctx)
+	done := mpPhysicalJoinAsync(joinCtx, e)
+	mpPhysicalAssertHeld(t, e, done)
+	cancelJoin()
+	if got := <-done; got.o != nil || !errors.Is(got.err, context.Canceled) || len(s.registry.executions) != 1 {
+		t.Fatal("panic refunded before owners finished", got, len(s.registry.executions))
+	}
+	if _, err = os.Stat(path); err != nil {
+		t.Fatal("panic cleaned files before owners finished", err)
+	}
+	reader.Release()
+	window.Release()
+	if o, err := e.join(ctx); o != nil || err == nil || !errors.Is(err, e.runErr) || len(s.registry.executions) != 0 {
+		t.Fatal("panic retained a slot or minted proof", o, err, len(s.registry.executions))
+	}
+	if _, err = os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("panic refund skipped owned cleanup", err)
+	}
+	successor, err := s.start(root, &mpPhysicalTestSupervisor{}, mpPhysicalCommand(), nil, nil)
+	if err != nil {
+		t.Fatal("panic permanently excluded root", err)
+	}
+	if _, err = successor.join(ctx); err != nil {
+		t.Fatal(err)
+	}
+}
