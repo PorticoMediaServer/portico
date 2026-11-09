@@ -924,6 +924,9 @@ func TestUSCredentialRevokedMarkerDrainNeverOrdinaryAuthority(t *testing.T) {
 	if err := a.recheck(t.Context(), turn); err != nil {
 		t.Fatal("ordinary issuer session should still pass", err)
 	}
+	// Release the open frame: the writer has one connection and the direct
+	// fixture updates below need it.
+	_, _ = turn.transaction.rollback(nil)
 	// A fully matching ordinary session family is denied the moment it carries
 	// the credential marker, and a security_kind=1 family is denied on its own.
 	wc008NativeExec(t, w, `UPDATE authorization_session_families SET security_kind=1 WHERE id='issuer-family'`)
@@ -931,6 +934,7 @@ func TestUSCredentialRevokedMarkerDrainNeverOrdinaryAuthority(t *testing.T) {
 	if a, err := authorizeUSOwnerPolicy(t.Context(), turn, proof, t.Context(), b); a != nil || !errors.Is(err, ErrDisclosureDenied) {
 		t.Fatal("credential kind granted ordinary authority", a, err)
 	}
+	_, _ = turn.transaction.rollback(nil)
 	wc008NativeExec(t, w, `UPDATE authorization_session_families SET security_kind=0 WHERE id='issuer-family'`)
 	// The credential marker alone, with a drained (zero) revoke time, still
 	// denies ordinary authority for that family.
