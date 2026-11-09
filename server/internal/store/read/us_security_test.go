@@ -1,6 +1,7 @@
 package read
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -58,7 +59,9 @@ SELECT ?, 'device', s.id, s.generation FROM identity_security_fences AS s WHERE 
 func usTestPrepareSession(t *testing.T, f *browseFixture, account, profile, family, token, device, role, installation string) {
 	t.Helper()
 	f.exec(t, `UPDATE direct_memberships SET role=? WHERE account_id=?`, role, account)
-	if role == "owner" {
+	// The account's main profile carries the membership role (owner or admin);
+	// a member account's fixture profile stays non-primary.
+	if role == "owner" || role == "admin" {
 		f.exec(t, `UPDATE direct_profiles SET is_primary=1 WHERE id=? AND account_id=?`, profile, account)
 	}
 	f.exec(t, `UPDATE accounts SET profile_id=? WHERE id=?`, profile, account)
@@ -108,6 +111,53 @@ func usTestStatus(t *testing.T, r *USSecurityReader, f *browseFixture, in USSecu
 		t.Fatal(err)
 	}
 	return status
+}
+
+// usTestSecondaryProfile moves the prepared family onto a second, non-primary
+// profile of account a, exactly as the product's profile switch does: the
+// account keeps its membership role, the profile is not primary, and the
+// session it mints is written with the role that profile carries.
+func usTestSecondaryProfile(t *testing.T, f *browseFixture, family, profile, role string) {
+	t.Helper()
+	lifetime := strings.Repeat("2", 32)
+	f.exec(t, `INSERT INTO direct_profiles(id,account_id,lifetime,name,position) VALUES(?,'a',?,'Second',1)`, profile, lifetime)
+	f.exec(t, `UPDATE authorization_session_families SET profile_id=?,command_profile_lifetime=?,role=? WHERE id=?`, profile, lifetime, role, family)
+}
+
+// usTestOwnerSurfaces calls the three owner-administration reads with the
+// caller's own principal. It returns nil only when every class refused with
+// ErrDenied and a zero page, so a caller-side denial cannot be mistaken for a
+// successful empty read.
+func usTestOwnerSurfaces(t *testing.T, r *USSecurityReader, f *browseFixture, in USSecurityInput) error {
+	t.Helper()
+	if page, _, err := r.members(t.Context(), foregroundRequest(), time.Second, f.output, in); !errors.Is(err, ErrDenied) || !reflect.DeepEqual(page, USSecurityMembersPage{}) {
+		return fmt.Errorf("member list: %+v %v", page, err)
+	}
+	if member, _, err := r.member(t.Context(), foregroundRequest(), time.Second, f.output, USSecurityInput{View: in.View, Installation: in.Installation, Account: "b"}); !errors.Is(err, ErrDenied) || !reflect.DeepEqual(member, USSecurityMember{}) {
+		return fmt.Errorf("member point: %+v %v", member, err)
+	}
+	if page, _, err := r.devices(t.Context(), foregroundRequest(), time.Second, f.output, USSecurityInput{View: in.View, Installation: in.Installation, Account: "a"}); !errors.Is(err, ErrDenied) || !reflect.DeepEqual(page, USSecurityDevicesPage{}) {
+		return fmt.Errorf("device page: %+v %v", page, err)
+	}
+	return nil
+}
+
+// usTestOwnerSurfacesAllowed is the positive control: the unprotected primary
+// owner must read every owner page.
+func usTestOwnerSurfacesAllowed(t *testing.T, r *USSecurityReader, f *browseFixture, in USSecurityInput) {
+	t.Helper()
+	page, _, err := r.members(t.Context(), foregroundRequest(), time.Second, f.output, in)
+	if err != nil || len(page.Items) != 2 {
+		t.Fatalf("owner member list: %+v %v", page, err)
+	}
+	member, _, err := r.member(t.Context(), foregroundRequest(), time.Second, f.output, USSecurityInput{View: in.View, Installation: in.Installation, Account: "b"})
+	if err != nil || member.AccountID != "b" {
+		t.Fatalf("owner member point: %+v %v", member, err)
+	}
+	devices, _, err := r.devices(t.Context(), foregroundRequest(), time.Second, f.output, USSecurityInput{View: in.View, Installation: in.Installation, Account: "a"})
+	if err != nil || devices.AccountID != "a" || len(devices.Items) == 0 {
+		t.Fatalf("owner device page: %+v %v", devices, err)
+	}
 }
 
 func TestUSSecurityRead(t *testing.T) {
@@ -186,7 +236,12 @@ func TestUSSecurityRead(t *testing.T) {
 		assertDenied("waiting move")
 		f.exec(t, `DELETE FROM identity_move_waiting WHERE account_id='a'`)
 		f.exec(t, `UPDATE direct_memberships SET role='admin' WHERE account_id='a'`)
-		assertDenied("role mismatch")
+		// The fixture's p is the account's profile but is not primary, so the
+		// effective role stays member and a session that still claims owner is a
+		// stale escalation rather than a narrower session.
+		f.exec(t, `UPDATE authorization_session_families SET role='owner' WHERE id='f'`)
+		assertDenied("stale session role")
+		f.exec(t, `UPDATE authorization_session_families SET role='member' WHERE id='f'`)
 		f.exec(t, `UPDATE direct_memberships SET role='member' WHERE account_id='a'`)
 		f.exec(t, `DELETE FROM authorization_family_security_fences WHERE family_id='f' AND scope_kind='device'`)
 		assertDenied("missing device fence")
@@ -245,10 +300,9 @@ SELECT 'f',?,s.id,s.generation FROM identity_security_fences AS s WHERE s.accoun
 		f, r, in := usTestOwner(t)
 		f.exec(t, `UPDATE direct_profiles SET pin_hash=x'00' WHERE id='p'`)
 		if _, _, err := r.status(t.Context(), foregroundRequest(), time.Second, f.output, in); !errors.Is(err, ErrDenied) {
-			t.Fatalf("owner PIN: %v", err)
+			t.Fatalf("owner PIN without a profile_pin fence: %v", err)
 		}
 	})
-
 	t.Run("profiles are own-account bounded", func(t *testing.T) {
 		f, r, in := usTestSelf(t)
 		f.exec(t, `INSERT INTO direct_profiles(id,account_id,name,position) VALUES('p2','a','Second',1)`)
@@ -363,6 +417,198 @@ SELECT 'f',?,s.id,s.generation FROM identity_security_fences AS s WHERE s.accoun
 	})
 }
 
+// TestUSSecurityEffectiveRole proves the product rule that only the account's
+// primary profile carries the membership role while every other profile is a
+// member (identity direct_profiles.go:579-592, family_revocation.go:96-100,
+// direct_policy.go:138-143). A session's stored role must agree with that rule
+// in Go, so an owner/admin account's secondary profile is admitted as a member
+// and a stale owner claim on a non-primary (or pointer-orphaned) profile is
+// refused instead of reporting owner.
+func TestUSSecurityEffectiveRole(t *testing.T) {
+	t.Run("secondary profile of an owner account reads as member", func(t *testing.T) {
+		f, r := newUSSecurityFixture(t)
+		installation := strings.Repeat("i", 32)
+		usTestPrepareSession(t, f, "a", "p", "f", "token", "d", "owner", installation)
+		usTestSecondaryProfile(t, f, "f", "p2", "member")
+		in := usTestInput(f, installation)
+		status := usTestStatus(t, r, f, in)
+		if status.Role != "member" || status.ProfileID != "p2" || status.AccountID != "a" {
+			t.Fatalf("secondary owner profile status: %+v", status)
+		}
+		profiles, _, err := r.profiles(t.Context(), foregroundRequest(), time.Second, f.output, in)
+		if err != nil || len(profiles.Items) != 2 || profiles.AccountID != "a" {
+			t.Fatalf("secondary owner profile profiles: %+v %v", profiles, err)
+		}
+	})
+
+	t.Run("secondary profile of an admin account reads as member", func(t *testing.T) {
+		f, r := newUSSecurityFixture(t)
+		installation := strings.Repeat("i", 32)
+		usTestPrepareSession(t, f, "a", "p", "f", "token", "d", "admin", installation)
+		usTestSecondaryProfile(t, f, "f", "p2", "member")
+		in := usTestInput(f, installation)
+		status := usTestStatus(t, r, f, in)
+		if status.Role != "member" || status.ProfileID != "p2" {
+			t.Fatalf("secondary admin profile status: %+v", status)
+		}
+		if profiles, _, err := r.profiles(t.Context(), foregroundRequest(), time.Second, f.output, in); err != nil || len(profiles.Items) != 2 {
+			t.Fatalf("secondary admin profile profiles: %+v %v", profiles, err)
+		}
+	})
+
+	t.Run("stale owner role on a non-primary profile is refused", func(t *testing.T) {
+		f, r := newUSSecurityFixture(t)
+		installation := strings.Repeat("i", 32)
+		usTestPrepareSession(t, f, "a", "p", "f", "token", "d", "owner", installation)
+		// A session that still claims owner on a profile that is not primary,
+		// even while the account pointer names it. The primary flag alone makes
+		// the effective role member; removing that half of the rule would let
+		// this claim through the owner gate.
+		usTestSecondaryProfile(t, f, "f", "p2", "owner")
+		f.exec(t, `UPDATE accounts SET profile_id='p2' WHERE id='a'`)
+		in := usTestInput(f, installation)
+		if status, _, err := r.status(t.Context(), foregroundRequest(), time.Second, f.output, in); !errors.Is(err, ErrDenied) || !reflect.DeepEqual(status, USSecurityStatus{}) {
+			t.Fatalf("stale owner on secondary profile: %+v %v", status, err)
+		}
+		if page, _, err := r.profiles(t.Context(), foregroundRequest(), time.Second, f.output, in); !errors.Is(err, ErrDenied) || !reflect.DeepEqual(page, USSecurityProfilesPage{}) {
+			t.Fatalf("stale owner profiles: %+v %v", page, err)
+		}
+	})
+
+	t.Run("primary profile the account does not point at is refused", func(t *testing.T) {
+		f, r := newUSSecurityFixture(t)
+		installation := strings.Repeat("i", 32)
+		usTestPrepareSession(t, f, "a", "p", "f", "token", "d", "owner", installation)
+		lifetime := strings.Repeat("3", 32)
+		// The profile still claims primary while the account pointer moved. The
+		// product refuses this pair even for a member claim
+		// (direct_policy.go checkDirectPrincipalTx).
+		f.exec(t, `INSERT INTO direct_profiles(id,account_id,lifetime,name,position) VALUES('p2','a',?,'Second',1)`, lifetime)
+		f.exec(t, `UPDATE accounts SET profile_id='p2' WHERE id='a'`)
+		in := usTestInput(f, installation)
+		if status, _, err := r.status(t.Context(), foregroundRequest(), time.Second, f.output, in); !errors.Is(err, ErrDenied) || !reflect.DeepEqual(status, USSecurityStatus{}) {
+			t.Fatalf("orphaned primary profile: %+v %v", status, err)
+		}
+	})
+
+	t.Run("narrowed member session on the owner main profile reads as member", func(t *testing.T) {
+		f, r, in := usTestOwner(t)
+		// The product may issue a session narrower than its profile (a Guest or
+		// Kids session on the owner's own main profile) and accepts "member"
+		// anywhere (direct_policy.go:138-143).
+		f.exec(t, `UPDATE authorization_session_families SET role='member' WHERE id='f'`)
+		status := usTestStatus(t, r, f, in)
+		if status.Role != "member" || status.ProfileID != "p" {
+			t.Fatalf("narrowed member session: %+v", status)
+		}
+		if _, _, err := r.profiles(t.Context(), foregroundRequest(), time.Second, f.output, in); err != nil {
+			t.Fatalf("narrowed member profiles: %v", err)
+		}
+	})
+}
+
+// TestUSSecurityOwnerGate reaches the owner gate rather than the earlier
+// missing-witness refusals: each caller below satisfies the session, profile,
+// device and PIN fences and is refused by one closed owner-gate predicate.
+// Mutation by reading:
+//   - removing `facts.role != "owner"`: "narrowed member on the owner's main
+//     profile" (an owner profile opened by a member session) reads the owner
+//     pages.
+//   - removing the primary/account-pointer half of the effective role: the
+//     stale owner claim in TestUSSecurityEffectiveRole is admitted.
+//   - removing `protected`: "PIN-protected owner main profile" reads them.
+func TestUSSecurityOwnerGate(t *testing.T) {
+	t.Run("admin account is refused", func(t *testing.T) {
+		f, r, in := usTestOwner(t)
+		f.exec(t, `UPDATE direct_memberships SET role='admin' WHERE account_id='a'`)
+		f.exec(t, `UPDATE authorization_session_families SET role='admin' WHERE id='f'`)
+		if err := usTestOwnerSurfaces(t, r, f, in); err != nil {
+			t.Fatalf("admin owner pages: %v", err)
+		}
+	})
+
+	t.Run("secondary profile owner is refused", func(t *testing.T) {
+		f, r, in := usTestOwner(t)
+		usTestSecondaryProfile(t, f, "f", "p2", "member")
+		if status := usTestStatus(t, r, f, in); status.Role != "member" {
+			t.Fatalf("secondary owner self read: %+v", status)
+		}
+		if err := usTestOwnerSurfaces(t, r, f, in); err != nil {
+			t.Fatalf("secondary owner pages: %v", err)
+		}
+	})
+
+	t.Run("narrowed member on the owner main profile is refused", func(t *testing.T) {
+		f, r, in := usTestOwner(t)
+		f.exec(t, `UPDATE authorization_session_families SET role='member' WHERE id='f'`)
+		if err := usTestOwnerSurfaces(t, r, f, in); err != nil {
+			t.Fatalf("narrowed member owner pages: %v", err)
+		}
+	})
+
+	t.Run("PIN-protected owner main profile is refused by the gate", func(t *testing.T) {
+		f, r, in := usTestOwner(t)
+		f.exec(t, `UPDATE direct_profiles SET pin_hash=x'00' WHERE id='p'`)
+		f.exec(t, `INSERT INTO identity_security_fences(scope_kind,account_id,member_incarnation,profile_id,profile_lifetime,updated_ms)
+SELECT 'profile_pin',m.account_id,m.incarnation,p.id,p.lifetime,0 FROM direct_memberships AS m JOIN direct_profiles AS p ON p.account_id=m.account_id WHERE m.account_id='a' AND p.id='p'`)
+		f.exec(t, `INSERT INTO authorization_family_security_fences(family_id,scope_kind,fence_id,confirmed_generation)
+SELECT 'f','profile_pin',s.id,s.generation FROM identity_security_fences AS s WHERE s.account_id='a' AND s.scope_kind='profile_pin'`)
+		// The self read is authorized (the PIN witness exists) and reports the
+		// PIN; the owner gate is what refuses the administration pages.
+		if status := usTestStatus(t, r, f, in); !status.PINRequired {
+			t.Fatalf("protected owner self read: %+v", status)
+		}
+		if err := usTestOwnerSurfaces(t, r, f, in); err != nil {
+			t.Fatalf("protected owner pages: %v", err)
+		}
+	})
+
+	t.Run("unprotected primary owner reads", func(t *testing.T) {
+		f, r, in := usTestOwner(t)
+		usTestOwnerSurfacesAllowed(t, r, f, in)
+	})
+}
+
+// TestUSSecurityMemberNotesRunes proves the member note bound counts runes, as
+// the product and schema do (access invitationNotes safeText(v,500), schema
+// CHECK length(notes)<=500), not octets: a 500-rune CJK note is 1500 octets and
+// a 500-rune emoji note is 2000, and both must pass through the point read and
+// a page without poisoning the cursor.
+func TestUSSecurityMemberNotesRunes(t *testing.T) {
+	f, r, in := usTestOwner(t)
+	read := func(name string, want string) {
+		t.Helper()
+		member, _, err := r.member(t.Context(), foregroundRequest(), time.Second, f.output, USSecurityInput{View: in.View, Installation: in.Installation, Account: "b"})
+		if err != nil || member.Notes == nil || *member.Notes != want {
+			t.Fatalf("%s member point: notes %v %v", name, member.Notes, err)
+		}
+		page, _, err := r.members(t.Context(), foregroundRequest(), time.Second, f.output, in)
+		if err != nil {
+			t.Fatalf("%s members page: %v", name, err)
+		}
+		found := false
+		for _, item := range page.Items {
+			if item.AccountID != "b" {
+				continue
+			}
+			found = true
+			if item.Notes == nil || *item.Notes != want {
+				t.Fatalf("%s page notes: %v", name, item.Notes)
+			}
+		}
+		if !found {
+			t.Fatalf("%s page lost account b", name)
+		}
+	}
+	for name, note := range map[string]string{
+		"cjk":   strings.Repeat("漢", 500),
+		"emoji": strings.Repeat("😀", 500),
+	} {
+		f.exec(t, `UPDATE direct_memberships SET notes=? WHERE account_id='b'`, note)
+		read(name, note)
+	}
+}
+
 // TestUSSecurityDevicesExcludeRetired proves the owner device page reads only
 // live devices exactly as the session witness does. A retired device in the
 // middle of the people-activity order is absent without leaving a hole, retired
@@ -370,6 +616,10 @@ SELECT 'f',?,s.id,s.generation FROM identity_security_fences AS s WHERE s.accoun
 // predicate matches the complete page. The oracle is local SQL rather than an
 // identity/access import: those packages register legacy SQL functions in
 // init(), which would change every plan golden's functionsSha256.
+//
+// The oracle is a shape-only mirror of this read's own predicate, not an
+// independent authority or product-query oracle; it proves the page traversal
+// and the retired filter, nothing more.
 func TestUSSecurityDevicesExcludeRetired(t *testing.T) {
 	f, r, in := usTestOwner(t)
 	devices := func() (USSecurityDevicesPage, error) {
@@ -454,6 +704,11 @@ func TestUSSecurityDevicesExcludeRetired(t *testing.T) {
 // SQL scalars from init(); importing them into the read test binary changes the
 // package-wide pragma_function_list that plan capture hashes into every
 // golden's environment.functionsSha256.
+//
+// The mirror is shape-only: it compares this package's own DTOs against a copy
+// of the public field names and types, so it cannot detect a product-side
+// semantic drift. The wire contract is therefore pinned literally by
+// TestUSSecurityDTOJSONTags below instead of by importing the product packages.
 func TestUSSecurityDTOParity(t *testing.T) {
 	type publicProfile struct {
 		ID               string   `json:"id"`
@@ -527,11 +782,118 @@ func TestUSSecurityDTOParity(t *testing.T) {
 	}
 }
 
-func TestUSSecurityFormattedValueHasNoSecret(t *testing.T) {
-	f, r, in := usTestSelf(t)
+// usTestAssertNoSecret walks every string, []byte and slice element reachable
+// from a DTO and fails if any of it contains one of the seeded secrets. The
+// formatted-value check alone cannot see a hash that a new field carries.
+func usTestAssertNoSecret(t *testing.T, value any, secrets [][]byte) {
+	t.Helper()
+	var walk func(reflect.Value, string)
+	walk = func(v reflect.Value, path string) {
+		switch v.Kind() {
+		case reflect.Pointer, reflect.Interface:
+			if !v.IsNil() {
+				walk(v.Elem(), path)
+			}
+		case reflect.Struct:
+			for i := 0; i < v.NumField(); i++ {
+				walk(v.Field(i), path+"."+v.Type().Field(i).Name)
+			}
+		case reflect.Slice:
+			if v.Type().Elem().Kind() == reflect.Uint8 {
+				for _, secret := range secrets {
+					if bytes.Contains(v.Bytes(), secret) {
+						t.Fatalf("secret material in %s", path)
+					}
+				}
+				return
+			}
+			for i := 0; i < v.Len(); i++ {
+				walk(v.Index(i), fmt.Sprintf("%s[%d]", path, i))
+			}
+		case reflect.String:
+			for _, secret := range secrets {
+				if len(secret) > 0 && strings.Contains(v.String(), string(secret)) {
+					t.Fatalf("secret material in %s", path)
+				}
+			}
+		}
+	}
+	walk(reflect.ValueOf(value), "dto")
+}
+
+// TestUSSecurityStatusCarriesNoSecret extends the formatted-value scan to the
+// whole status DTO by reflection: every string and []byte field must be free of
+// the PIN and password hashes the fixture seeds. The status read selects only
+// lengths, so this proves the stored digests cannot ride along in a field
+// added later.
+func TestUSSecurityStatusCarriesNoSecret(t *testing.T) {
+	f, r, in := usTestOwner(t)
+	pinHash := []byte("SENTINEL-PIN-HASH-0123456789abcdef")
+	passwordHash := []byte("SENTINEL-PASSWORD-HASH-0123456789abcdef")
+	f.exec(t, `UPDATE direct_profiles SET pin_hash=? WHERE id='p'`, pinHash)
+	f.exec(t, `UPDATE accounts SET password_hash=? WHERE id='a'`, passwordHash)
+	// Authorize the protected profile so the read reaches its payload.
+	f.exec(t, `INSERT INTO identity_security_fences(scope_kind,account_id,member_incarnation,profile_id,profile_lifetime,updated_ms)
+SELECT 'profile_pin',m.account_id,m.incarnation,p.id,p.lifetime,0 FROM direct_memberships AS m JOIN direct_profiles AS p ON p.account_id=m.account_id WHERE m.account_id='a' AND p.id='p'`)
+	f.exec(t, `INSERT INTO authorization_family_security_fences(family_id,scope_kind,fence_id,confirmed_generation)
+SELECT 'f','profile_pin',s.id,s.generation FROM identity_security_fences AS s WHERE s.account_id='a' AND s.scope_kind='profile_pin'`)
 	status := usTestStatus(t, r, f, in)
+	if !status.PINRequired {
+		t.Fatalf("protected status: %+v", status)
+	}
+	usTestAssertNoSecret(t, status, [][]byte{pinHash, passwordHash, []byte(in.Installation), []byte("token")})
+	usTestAssertNoSecret(t, status.Profile, [][]byte{pinHash, passwordHash})
+	usTestAssertNoSecret(t, status.Device, [][]byte{pinHash, passwordHash})
+
 	formatted := fmt.Sprintf("%+v", status)
 	if strings.Contains(formatted, in.Installation) || strings.Contains(formatted, "token") {
 		t.Fatalf("secret material in formatted status")
+	}
+}
+
+// TestUSSecurityDTOJSONTags pins the wire contract literally. A shape-only
+// field-name mirror (TestUSSecurityDTOParity) cannot see a renamed JSON tag, so
+// each tag below is an expected literal, not a comparison against itself.
+func TestUSSecurityDTOJSONTags(t *testing.T) {
+	want := map[reflect.Type]map[string]string{
+		reflect.TypeOf(USSecurityProfile{}): {
+			"ID": "id", "Name": "name", "Primary": "primary", "Position": "position",
+			"Art": "art", "Revision": "revision", "PINRevision": "pinRevision",
+			"PINRequired": "pinRequired", "AllowedLibraries": "allowedLibraries",
+		},
+		reflect.TypeOf(USSecurityDevice{}): {
+			"ID": "id", "AccountID": "accountId", "Username": "username",
+			"ProfileID": "profileId,omitempty", "Name": "name", "Platform": "platform",
+			"App": "app", "AppVersion": "appVersion", "FirstSeen": "firstSeenAt",
+			"LastSeen": "lastSeenAt", "Revision": "revision", "RememberAccount": "rememberAccount",
+		},
+		reflect.TypeOf(USSecurityMember{}): {
+			"AccountID": "accountId", "Username": "username", "Email": "email,omitempty",
+			"DisplayName": "displayName", "ProfileID": "profileId", "Role": "role",
+			"Disabled": "disabled", "DisabledAt": "disabledAt,omitempty",
+			"DisabledReason": "disabledReason,omitempty", "Revision": "revision",
+			"AllowedLibraries": "allowedLibraries", "Notes": "notes,omitempty",
+			"JoinedVia": "joinedVia,omitempty", "JoinedAt": "joinedAt,omitempty",
+		},
+		reflect.TypeOf(USSecurityStatus{}): {
+			"ServerID": "serverId", "AccountID": "accountId", "FamilyID": "familyId",
+			"ProfileID": "profileId", "Role": "role", "Epoch": "epoch",
+			"AuthorityGeneration": "authorityGeneration", "FamilyGeneration": "familyGeneration",
+			"Horizon": "horizon", "RememberUntil": "rememberUntil,omitempty",
+			"ManageUntil": "manageUntil,omitempty", "ExpiresAt": "expiresAt",
+			"PINRequired": "pinRequired", "Remembered": "remembered",
+			"Profile": "profile", "Device": "device",
+		},
+	}
+	for typ, fields := range want {
+		if typ.NumField() != len(fields) {
+			t.Fatalf("%s field count changed: %d", typ.Name(), typ.NumField())
+		}
+		for i := 0; i < typ.NumField(); i++ {
+			field := typ.Field(i)
+			if got := field.Tag.Get("json"); got != fields[field.Name] {
+				t.Fatalf("%s.%s json tag %q, want %q", typ.Name(), field.Name, got, fields[field.Name])
+			}
+		}
 	}
 }
