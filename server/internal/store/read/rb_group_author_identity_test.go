@@ -13,7 +13,7 @@ func TestRBGroupAuthorBooksUnicodePending(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		f := rbGroupFixture(t, false)
 		f.exec(t, `UPDATE catalog_entities SET title='Émile Zola' WHERE id=2005`)
-		f.exec(t, `UPDATE catalog_entities SET author='Émile Zola' WHERE id=2006`)
+		f.exec(t, `UPDATE catalog_entities SET author='Émile Zola',book_author_identity_key='author:émile zola' WHERE id=2006`)
 		in := RBGroupInput{View: f.input, Family: RBGroupAuthorBooks, Subject: 2005}
 		in.View.Kind = 8
 		got, _, err := f.reader.rbGroupWindow(t.Context(), rbGroupRequest(), time.Second, f.output, in)

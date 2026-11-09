@@ -61,7 +61,12 @@ func homeFixtureEntity(t *testing.T, f *browseFixture, id, library, kind int64, 
 	if kind == 9 {
 		book = parent
 	}
-	f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,parent_id,show_id,season_id,season_number,episode_number,numbering,artist_id,album_id,book_id,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,added_at,admission_own_age) VALUES(?,?,?,?,?,?,?,?,?,'seasonal',?,?,?,?,'home','h','home','h',0,?,?,?,10)`, id, public, library, kind, parent, show, season, id, id, artist, album, book, fmt.Sprintf("Home %d", id), public, public, added)
+	// Home's synthetic author is empty; only kind8 stores its empty key.
+	var authorKey any
+	if kind == 8 {
+		authorKey = "author:"
+	}
+	f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,parent_id,show_id,season_id,season_number,episode_number,numbering,artist_id,album_id,book_id,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,added_at,admission_own_age,author,book_author_identity_key) VALUES(?,?,?,?,?,?,?,?,?,'seasonal',?,?,?,?,'home','h','home','h',0,?,?,?,10,'',?)`, id, public, library, kind, parent, show, season, id, id, artist, album, book, fmt.Sprintf("Home %d", id), public, public, added, authorKey)
 }
 func homeFixtureAsset(t *testing.T, f *browseFixture, id int64) {
 	t.Helper()

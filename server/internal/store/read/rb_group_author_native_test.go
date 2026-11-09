@@ -30,7 +30,7 @@ func testRBGroupAuthorNative(t *testing.T) {
 		for _, v := range []struct{ id, kind int64 }{{id, 8}, {part, 9}} {
 			source.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(?,unhex(?),1,?)`, v.id, fmt.Sprintf("%032x", v.id), v.kind)
 		}
-		source.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,author,series,series_position) VALUES(?,unhex(?),1,8,'A','a','a','a','a',0,zeroblob(16),zeroblob(16),'Author',?,?)`, id, fmt.Sprintf("%032x", id), series, position)
+		source.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,author,book_author_identity_key,series,series_position) VALUES(?,unhex(?),1,8,'A','a','a','a','a',0,zeroblob(16),zeroblob(16),'Author','author:author',?,?)`, id, fmt.Sprintf("%032x", id), series, position)
 		source.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,book_id) VALUES(?,unhex(?),1,9,'Part','p','p','p','p',0,zeroblob(16),zeroblob(16),?)`, part, fmt.Sprintf("%032x", part), id)
 	}
 	defs := append(append(browseDefinitions(), RBGroupDefinitions()...), RBAuthorDefinitions()...)
@@ -91,7 +91,7 @@ func TestRBGroupAuthorUnicodePending(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		source := rbGroupSource(t)
 		source.exec(t, `UPDATE catalog_entities SET title='Émile Zola' WHERE id=2005`)
-		source.exec(t, `UPDATE catalog_entities SET author='Émile Zola' WHERE id=2006`)
+		source.exec(t, `UPDATE catalog_entities SET author='Émile Zola',book_author_identity_key='author:émile zola' WHERE id=2006`)
 		defs := append(append(browseDefinitions(), RBGroupDefinitions()...), RBAuthorDefinitions()...)
 		f := composeBrowseFixture(t, source, defs)
 		view := f.input
@@ -137,7 +137,7 @@ func TestRBGroupAuthorBounds(t *testing.T) {
 					id := int64(10000 + n)
 					public := fmt.Sprintf("%032x", id)
 					source.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(?,unhex(?),1,8)`, id, public)
-					source.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,author) VALUES(?,unhex(?),1,8,'Book','book','b','book','b',0,zeroblob(16),zeroblob(16),'Author')`, id, public)
+					source.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,author,book_author_identity_key) VALUES(?,unhex(?),1,8,'Book','book','b','book','b',0,zeroblob(16),zeroblob(16),'Author','author:author')`, id, public)
 				}
 				for n := 80; n < tc.parts; n++ {
 					id := int64(20000 + n)

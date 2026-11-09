@@ -41,7 +41,7 @@ func rbGroupSource(t *testing.T) *browseFixture {
 	add(2010, 5, "Featured Artist", "")
 	add(2004, 6, "Album", ",artist_id", int64(2003))
 	add(2005, 13, "Author", "")
-	add(2006, 8, "Book", ",author", "Author")
+	add(2006, 8, "Book", ",author,book_author_identity_key", "Author", "author:author")
 	add(2007, 10, "Collection", "")
 	for n := int64(0); n < 80; n++ {
 		disc, part := any(int64(1)), any(n%3)
