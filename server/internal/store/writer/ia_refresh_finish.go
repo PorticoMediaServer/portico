@@ -209,6 +209,13 @@ func iaRefreshReceiptCharge(kind, state, key string) int64 {
 // iaRefreshFinishVerify composes all four family registries into one bounded
 // proof. The journal is the only source of keys: an absent family has no key and
 // is not evidence of an empty projection.
+//
+// Reviewer note (non-blocking, no behaviour change): this proves the keys the
+// journal CONTAINS, never that the capture walk that filled the journal reached
+// more=false for every pair. A journal is only as complete as the bounded walk
+// that produced it, and that completeness is the 127 composer's responsibility
+// (it holds the pair phase across turns); accept must not be read as a second
+// proof of it.
 func iaRefreshFinishVerify(ctx context.Context, turn *commandTurn, e *iaRefreshEntry, restore bool, b iaEntryBudget) (checked int64, err error) {
 	defer func() {
 		v, x := finishCommand(ctx, commandLifetime(turn), checked, err)

@@ -18,6 +18,7 @@ import (
 // deletes a row it has not charged and read back on the same snapshot.
 const (
 	iaRefreshReclaimSlot         stmt.ID = "ia.refresh.gc.slot"
+	iaRefreshReclaimAsset        stmt.ID = "ia.refresh.gc.asset"
 	iaRefreshReclaimReceiptPage  stmt.ID = "ia.refresh.gc.receipt_page"
 	iaRefreshReclaimReceiptErase stmt.ID = "ia.refresh.gc.receipt_erase"
 	iaRefreshReclaimAdvance      stmt.ID = "ia.refresh.gc.advance"
@@ -174,17 +175,38 @@ func iaRefreshReclaimTurn(ctx context.Context, turn *commandTurn, e *iaRefreshEn
 	if facts.last != facts.ack || facts.slotPresent() && (facts.slotSequence.Int64 != facts.last || facts.ack < facts.slotSequence.Int64) {
 		return out, ErrResolveRequired
 	}
-	// Output/proof pins: the owned publication fence is gone, the asset is still
-	// the exact accepted row, and no newer refresh owns this asset's before-images.
-	row, err := basicStageRead(ctx, turn, iaRefreshAsset, s.assetID, s.token, s.libraryID, s.epoch)
+	// Output/proof pins: the owned publication fence is gone, the journal still
+	// belongs to this asset/token/library, and no newer refresh owns this
+	// asset's before-images.
+	//
+	// The accepted info_epoch is deliberately NOT one of these pins. A later
+	// republish moves the epoch, and retirement owns no canonical row: it deletes
+	// only this journal's acknowledged undo rows and receipt headers. An epoch
+	// move therefore cannot make the journal wrong or the deletion unsafe, so
+	// pinning the epoch would only strand a terminal+ACKed journal forever (and
+	// leave its NO ACTION foreign key blocking deletion of the republished asset).
+	// The binding that proves ownership is the journal's own asset_id/asset_token
+	// (FK-bound to the asset when the row was written) plus the caller's library.
+	row, err := basicStageRead(ctx, turn, iaRefreshReclaimAsset, s.assetID, s.token)
 	if err != nil {
 		return out, err
 	}
-	var pending, playback, prepared, invalidation int64
-	if err = row.Scan(&pending, &playback, &prepared, &invalidation); err != nil {
+	var library, pending, playback, prepared, invalidation int64
+	err = row.Scan(&library, &pending, &playback, &prepared, &invalidation)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		// The asset row is gone while this journal's undo rows remain. Under the
+		// enforced schema catalog_info_refresh_undo(asset_id,asset_token)
+		// references catalog_assets with NO ACTION, so a compliant writer cannot
+		// reach this state; it can only arise from a foreign_keys=OFF repair. A
+		// missing row cannot hold a pending publication fence, and retirement
+		// still deletes only this refresh's own rows, so keep retiring rather than
+		// stranding the journal and its orphaned foreign key.
+	case err != nil:
 		return out, basicStageError(err)
-	}
-	if pending != 0 || playback <= 0 || prepared <= 0 || invalidation <= 0 {
+	case library != s.libraryID:
+		return out, ErrConflict
+	case pending != 0 || playback <= 0 || prepared <= 0 || invalidation <= 0:
 		return out, ErrConflict
 	}
 	if err = iaRefreshNoRows(ctx, turn, iaRefreshFinishActive, s.assetID, e.refreshID); err != nil {
@@ -210,6 +232,14 @@ func iaRefreshReclaimTurn(ctx context.Context, turn *commandTurn, e *iaRefreshEn
 	// Each deleted family row and each deleted receipt header was one charged
 	// control row in retained_rows; the permanent slot itself stays charged as
 	// the one remaining row.
+	//
+	// Reviewer note (non-blocking, no behaviour change): the slot's own result is
+	// charged like a receipt header on EVERY turn, and a non-terminal turn's
+	// charge is never refunded by the next one. A retirement that needs n turns
+	// therefore accrues 160+len(kind)+len(state)+len(key) bytes per intermediate
+	// turn on top of the permanent slot debt. It is bounded by
+	// iaRefreshReclaimRowsPerTurn and TestIARefreshReclaimRetiresAfterRepublish
+	// pins the exact final total for a two-turn retirement.
 	slotDelta := int64(0)
 	if !facts.slotPresent() {
 		slotDelta = 1
@@ -523,6 +553,11 @@ func iaRefreshReclaimDefinitions() []stmt.Definition {
 			SQL:    `SELECT reclaim_command_sequence,reclaim_operation_id,reclaim_request_digest,reclaim_result_digest,reclaim_applied_ms,reclaim_after_family,reclaim_after_key,reclaim_removed_rows,reclaim_removed_bytes,reclaim_terminal,state,revision,retained_rows,retained_bytes FROM catalog_info_refresh_undo WHERE refresh_id=?`,
 			Params: []stmt.Param{i("refresh")}, Plan: stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_info_refresh_undo"}},
 			Cohorts: []stmt.Cohort{{Name: "reclaim_fixed_slot", Bindings: []any{int64(1)}}}},
+		{ID: iaRefreshReclaimAsset, Kind: stmt.Read,
+			SQL:     `SELECT library_id,info_publication_pending,playback_origin_revision,prepared_source_revision,info_invalidation_revision FROM catalog_assets WHERE id=? AND token=?`,
+			Params:  []stmt.Param{i("asset"), t("token")},
+			Plan:    stmt.Plan{Hot: true, PrimaryKeys: []string{"catalog_assets"}},
+			Cohorts: []stmt.Cohort{{Name: "unpinned_retirable_asset", Bindings: []any{int64(41), "refresh-asset"}}}},
 		{ID: iaRefreshReclaimReceiptPage, Kind: stmt.Read,
 			SQL:     `SELECT command_sequence,command_kind,result_state,after_key FROM catalog_info_refresh_receipts WHERE refresh_id=? AND command_incarnation=? AND command_sequence>? ORDER BY command_sequence LIMIT ?`,
 			Params:  []stmt.Param{i("refresh"), b("incarnation"), i("after"), i("limit")},

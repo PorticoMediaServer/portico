@@ -37,6 +37,13 @@ import (
 // Begin position and restore begins from this pair's own journalled parent or
 // highest child. A cursor inside the pair still resumes at exactly its key.
 //
+// Reviewer note (non-blocking, no behaviour change): because the cursor is a
+// LATER pair's key, a caller that re-enters this pair's walk while the cursor
+// sits in a later pair re-walks this pair from "not started". That terminates and
+// is idempotent (a repeated key keeps the first before-image), but it re-reads
+// the pair and adds receipt debt. Holding the pair phase across calls is the 127
+// composer's job, not this walk's.
+//
 // The iaRefreshWalkKeys refusal bounds the caller's desired child rows. Live
 // child keys are never truncated either: each is named and journalled one
 // bounded keyset step per turn (tombstone or first old image), so the live side

@@ -285,6 +285,130 @@ func TestIARefreshReclaimUnknownCommitReadsBackFresh(t *testing.T) {
 	}
 }
 
+// A republish after accept moves the asset's info_epoch. Retirement owns no
+// canonical row, so the epoch is not part of the journal's identity: the bounded
+// walk must resume after the move, free exactly the debt it charged, and settle
+// on a slot charged only for its own turns.
+func TestIARefreshReclaimRetiresAfterRepublish(t *testing.T) {
+	w, r, p, q, last := iaRefreshFinishSeededJournal(t)
+	fin := iaRefreshFinalizeRequest(t, q, last)
+	accepted := iaRefreshApply(t, w, r, p, fin)
+	iaRefreshAck(t, w, accepted.result.refreshID)
+	// Extend the acknowledged journal past one quantum so retirement needs two
+	// bounded turns. The first three receipts are the BEGIN, STEP and finalize
+	// headers the real accept wrote.
+	rows := iaRefreshCount(t, w, `SELECT retained_rows FROM catalog_info_refresh_undo WHERE refresh_id=?`, accepted.result.refreshID)
+	bytes := iaRefreshCount(t, w, `SELECT retained_bytes FROM catalog_info_refresh_undo WHERE refresh_id=?`, accepted.result.refreshID)
+	for sequence := int64(4); sequence <= 66; sequence++ {
+		iaRefreshSeedReceipt(t, w, accepted.result.refreshID, sequence, "refresh_step", "copying")
+		rows++
+		bytes += iaRefreshReceiptChargeFor("refresh_step", "copying", "")
+	}
+	wc008NativeExec(t, w, `UPDATE catalog_info_refresh_undo SET last_command_sequence=66,acknowledged_command_sequence=66,retained_rows=?,retained_bytes=? WHERE refresh_id=?`, rows, bytes, accepted.result.refreshID)
+	wc008NativeExec(t, w, `UPDATE catalog_info_input_budget SET used_bytes=? WHERE singleton=1`, bytes)
+	// The republish: the accepted epoch moves on after ACK, with the canonical
+	// revisions that a completed publication would carry. Reclaim neither
+	// relabels nor re-reads these rows, so the journal stays owned by this asset.
+	wc008NativeExec(t, w, `UPDATE catalog_assets SET info_epoch=info_epoch+1,playback_origin_revision=playback_origin_revision+1,prepared_source_revision=prepared_source_revision+1,info_invalidation_revision=info_invalidation_revision+1 WHERE id=41`)
+	revision := iaRefreshCount(t, w, `SELECT revision FROM catalog_info_refresh_undo WHERE refresh_id=?`, accepted.result.refreshID)
+
+	first := iaRefreshApply(t, w, r, p, iaRefreshReclaimTick(t, q, accepted.result.refreshID, revision, 67))
+	if first.result.state != "accepted" || first.result.family != 0 || first.result.key != "64" {
+		t.Fatalf("first turn: %+v", first.result)
+	}
+	if got := iaRefreshCount(t, w, `SELECT count(*) FROM catalog_info_refresh_receipts WHERE refresh_id=?`, accepted.result.refreshID); got != 2 {
+		t.Fatal("first turn did not delete exactly one quantum of receipts", got)
+	}
+	iaRefreshAck(t, w, first.result.refreshID)
+	done := iaRefreshApply(t, w, r, p, iaRefreshReclaimTick(t, q, accepted.result.refreshID, revision, 68))
+	if done.result.state != "retired" || done.result.family != 7 || done.result.rows != 1 {
+		t.Fatalf("terminal turn: %+v", done.result)
+	}
+	if got := iaRefreshCount(t, w, `SELECT count(*) FROM catalog_info_refresh_receipts WHERE refresh_id=?`, accepted.result.refreshID); got != 0 {
+		t.Fatal("receipts survived the republished retirement", got)
+	}
+	if got := iaRefreshCount(t, w, `SELECT count(*) FROM catalog_info_undo_asset_streams WHERE refresh_id=?`, accepted.result.refreshID); got != 0 {
+		t.Fatal("before-images survived the republished retirement", got)
+	}
+	// Every charged row was freed, so the final retained debt is exactly the two
+	// turn charges: 186 for the "accepted"/"64" intermediate slot and 183 for the
+	// "retired" slot. The intermediate charge is never refunded (reviewer note).
+	wantBytes := iaRefreshReceiptChargeFor("refresh_finalize", "accepted", "64") + iaRefreshReceiptChargeFor("refresh_finalize", "retired", "")
+	if wantBytes != 369 {
+		t.Fatal("pinned retirement charge moved", wantBytes)
+	}
+	if used, retained := iaRefreshCount(t, w, `SELECT used_bytes FROM catalog_info_input_budget`), iaRefreshCount(t, w, `SELECT retained_bytes FROM catalog_info_refresh_undo WHERE refresh_id=?`, accepted.result.refreshID); used != wantBytes || retained != wantBytes || done.result.bytes != wantBytes {
+		t.Fatal("republished retirement free/exact bytes", used, retained, done.result.bytes, wantBytes)
+	}
+	// The replay of the terminal turn still reads the fixed slot, not the asset.
+	replay := iaRefreshApply(t, w, r, p, iaRefreshReclaimTick(t, q, accepted.result.refreshID, revision, 68))
+	if replay.decision != receiptReplay || replay.result != done.result {
+		t.Fatalf("republished retirement replay changed: %+v", replay)
+	}
+}
+
+// Dropping the epoch pin must not drop the journal's asset/token/library binding:
+// a retirement that names another asset, token or library is refused before any
+// row is deleted.
+func TestIARefreshReclaimRefusesForeignAssetBinding(t *testing.T) {
+	w, r, p, q, last := iaRefreshFinishSeededJournal(t)
+	fin := iaRefreshFinalizeRequest(t, q, last)
+	accepted := iaRefreshApply(t, w, r, p, fin)
+	iaRefreshAck(t, w, accepted.result.refreshID)
+	// A second real asset exists, so a refusal cannot be explained by an absent
+	// row.
+	wc008NativeExec(t, w, `INSERT INTO catalog_assets(id,token,library_id,path,size,modified_ns,container,video_codec,audio_codec,width,height,duration,info_epoch) VALUES(42,'other-asset',7,'/media/other',42,11,'','','',0,0,0,2)`)
+	for _, mode := range []string{"asset", "token", "library"} {
+		t.Run(mode, func(t *testing.T) {
+			reclaim := iaRefreshFinalizeRequest(t, fin, accepted)
+			switch mode {
+			case "asset":
+				reclaim.scope.assetID = 42
+			case "token":
+				reclaim.scope.token = "other-asset"
+			case "library":
+				reclaim.scope.libraryID = 8
+			}
+			iaRefreshSign(t, &reclaim)
+			turn, b := iaRefreshTurn(t, w, r, reclaim)
+			out, err := runIARefresh(t.Context(), turn, reclaim, p, t.Context(), b)
+			if err == nil || !reflect.DeepEqual(out, iaRefreshOutcome{}) || !errors.Is(err, ErrConflict) {
+				t.Fatal("foreign binding produced output", out, err)
+			}
+			turn.transaction.rollback(err)
+			if got := iaRefreshCount(t, w, `SELECT count(*) FROM catalog_info_undo_asset_stream_facts WHERE refresh_id=?`, accepted.result.refreshID); got != 1 {
+				t.Fatal("refused retirement deleted a before-image", got)
+			}
+			if got := iaRefreshCount(t, w, `SELECT count(*) FROM catalog_info_refresh_receipts WHERE refresh_id=?`, accepted.result.refreshID); got != 3 {
+				t.Fatal("refused retirement deleted a receipt", got)
+			}
+			if got := iaRefreshCount(t, w, `SELECT used_bytes FROM catalog_info_input_budget`); got != accepted.result.bytes {
+				t.Fatal("refused retirement moved the budget", got)
+			}
+		})
+	}
+}
+
+// A republish that is still fenced (a new publication pending) is the one asset
+// state that still pins retirement: the undo rows may be a live writer's data.
+func TestIARefreshReclaimRefusesPendingFenceAfterRepublish(t *testing.T) {
+	w, r, p, q, last := iaRefreshFinishSeededJournal(t)
+	fin := iaRefreshFinalizeRequest(t, q, last)
+	accepted := iaRefreshApply(t, w, r, p, fin)
+	iaRefreshAck(t, w, accepted.result.refreshID)
+	wc008NativeExec(t, w, `UPDATE catalog_assets SET info_epoch=info_epoch+1,info_publication_pending=1 WHERE id=41`)
+	reclaim := iaRefreshFinalizeRequest(t, fin, accepted)
+	turn, b := iaRefreshTurn(t, w, r, reclaim)
+	out, err := runIARefresh(t.Context(), turn, reclaim, p, t.Context(), b)
+	if err == nil || !reflect.DeepEqual(out, iaRefreshOutcome{}) || !errors.Is(err, ErrConflict) {
+		t.Fatal("fenced republished asset produced output", out, err)
+	}
+	turn.transaction.rollback(err)
+	if got := iaRefreshCount(t, w, `SELECT count(*) FROM catalog_info_refresh_receipts WHERE refresh_id=?`, accepted.result.refreshID); got != 3 {
+		t.Fatal("fenced retirement deleted a receipt", got)
+	}
+}
+
 // iaRefreshHzFixture is the IA20 fixture with a real BEGIN journal and no steps,
 // so a test can seed an exact acknowledged debt and drive the cleanup quantum.
 func iaRefreshHzFixture(t *testing.T) (*executor, *iaEntryRegistry, *usOwnerAuthorityProof, iaRefreshRequest) {
