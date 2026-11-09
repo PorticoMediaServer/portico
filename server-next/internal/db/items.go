@@ -409,12 +409,11 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 	if q.Watched != nil {
 		// A playable item is watched when its own state says so. An item that holds others is
 		// watched when nothing the viewer may see under it is left unwatched.
+		unwatched := underHolder(`EXISTS (SELECT 1 FROM items c WHERE {under} AND `+acc.visible("c")+` AND NOT EXISTS (
+			SELECT 1 FROM user_item_state w WHERE w.profile_id = @viewer_profile AND w.item_id = c.id AND w.played = 1))`, "i.id", " OR ")
 		w.add(` AND CASE WHEN i.kind IN `, playableKindsSQL, ` THEN `, boolSQL(*q.Watched), ` = EXISTS (
 			SELECT 1 FROM user_item_state w WHERE w.profile_id = @viewer_profile AND w.item_id = i.id AND w.played = 1)
-			ELSE `, boolSQL(*q.Watched), ` = (i.leaf_count > 0 AND NOT EXISTS (
-			SELECT 1 FROM items c WHERE (c.root_id = i.id OR c.parent_id = i.id) AND c.kind IN `, playableKindsSQL, `
-			AND `, acc.visible("c"), ` AND NOT EXISTS (
-			SELECT 1 FROM user_item_state w WHERE w.profile_id = @viewer_profile AND w.item_id = c.id AND w.played = 1))) END`)
+			ELSE `, boolSQL(*q.Watched), ` = (i.leaf_count > 0 AND NOT (`, unwatched, `)) END`)
 	}
 	if q.Resolution != "" {
 		class, ok := resolutionClasses[q.Resolution]
@@ -441,6 +440,18 @@ var resolutionClasses = map[string]int{"sd": 1, "720p": 2, "1080p": 3, "4k": 4}
 
 const resolutionSQL = `CASE WHEN m.width >= 3800 OR m.height >= 2000 THEN 4 WHEN m.width >= 1900 OR m.height >= 1000 THEN 3
 	WHEN m.width >= 1200 OR m.height >= 700 THEN 2 ELSE 1 END`
+
+// underHolder writes a query over the playable items under a holder. Titles nest at most
+// three deep, so a holder is the root or the parent of its leaves, and each is found through
+// its own index; asking for "root or parent" in one condition would read the whole table.
+// body is a SELECT over items c with "{under}" where that condition goes, and holder is the
+// SQL expression for the holder's id. The two results are joined by joiner: " UNION " to list
+// each leaf once, " OR " between two EXISTS.
+func underHolder(body, holder, joiner string) string {
+	root := strings.ReplaceAll(body, "{under}", "c.root_id = "+holder+" AND c.kind IN "+playableKindsSQL)
+	parent := strings.ReplaceAll(body, "{under}", "c.parent_id = "+holder+" AND c.kind IN "+playableKindsSQL)
+	return root + joiner + parent
+}
 
 // idList is the ids of some items as an SQL list.
 func idList(items []Item) string {

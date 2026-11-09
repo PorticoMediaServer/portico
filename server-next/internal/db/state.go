@@ -351,10 +351,9 @@ func (w *stateWriter) read(itemID int64, kind ItemKind) (State, error) {
 		return state, err
 	}
 	var leaves, watched int
-	err = w.queryRow(`SELECT count(*), count(w.item_id) FROM items c
+	err = w.queryRow(`SELECT count(*), count(played) FROM (`+underHolder(`SELECT c.id, w.item_id AS played FROM items c
 		LEFT JOIN user_item_state w ON w.profile_id = @viewer_profile AND w.item_id = c.id AND w.played = 1
-		WHERE (c.root_id = @id OR c.parent_id = @id) AND c.kind IN `+playableKindsSQL+` AND `+w.access.visible("c"),
-		w.named(sql.Named("id", itemID))...).Scan(&leaves, &watched)
+		WHERE {under} AND `+w.access.visible("c"), "@id", " UNION ")+`)`, w.named(sql.Named("id", itemID))...).Scan(&leaves, &watched)
 	state.Watched = leaves > 0 && leaves == watched
 	return state, err
 }
@@ -364,10 +363,10 @@ func (w *stateWriter) read(itemID int64, kind ItemKind) (State, error) {
 func (w *stateWriter) markLeaves(holderID int64, watched bool, at int64) (*undoOffer, error) {
 	offer := &undoOffer{profileID: w.viewer.ProfileID, itemID: holderID, madeAt: at,
 		expires: time.Now().Add(undoLifetime)}
-	rows, err := w.tx.Query(`SELECT c.id, ifnull(s.played, 0), s.played_at, s.position_ms, s.position_at FROM items c
+	rows, err := w.tx.Query(underHolder(`SELECT c.id, ifnull(s.played, 0), s.played_at, s.position_ms, s.position_at FROM items c
 		LEFT JOIN user_item_state s ON s.profile_id = @viewer_profile AND s.item_id = c.id
-		WHERE (c.root_id = @id OR c.parent_id = @id) AND c.kind IN `+playableKindsSQL+` AND `+w.access.visible("c")+`
-		AND ifnull(s.played_at, 0) <= @at AND (ifnull(s.played, 0) <> @watched OR ifnull(s.position_ms, 0) <> 0)`,
+		WHERE {under} AND `+w.access.visible("c")+`
+		AND ifnull(s.played_at, 0) <= @at AND (ifnull(s.played, 0) <> @watched OR ifnull(s.position_ms, 0) <> 0)`, "@id", " UNION "),
 		w.named(sql.Named("id", holderID), sql.Named("at", at), sql.Named("watched", watched))...)
 	if err != nil {
 		return nil, err
