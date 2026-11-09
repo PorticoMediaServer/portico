@@ -154,14 +154,14 @@ WHERE job_id=? AND relative_path=? AND identity=? AND revision=? AND cursor=? AN
 				{Name: "missing_item", Bindings: []any{int64(35)}},
 			}},
 		{ID: iaMembershipSeasonChild, Kind: stmt.Read,
-			SQL:    `SELECT id FROM catalog_entities INDEXED BY catalog_entities_parent WHERE parent_id=? AND library_id=? AND kind=4 LIMIT 1`,
+			SQL:    `SELECT id FROM catalog_entities INDEXED BY catalog_entities_parent WHERE parent_id=? AND parent_id IS NOT NULL AND library_id=? AND kind=4 LIMIT 1`,
 			Params: []stmt.Param{i("season_id"), i("library_id")},
 			Cohorts: []stmt.Cohort{
 				{Name: "season_with_episode", Bindings: []any{int64(71), int64(7)}},
 				{Name: "season_without_episode", Bindings: []any{int64(72), int64(7)}},
 			}},
 		{ID: iaMembershipSeasonEpisode, Kind: stmt.Read,
-			SQL:    `SELECT id FROM catalog_entities INDEXED BY catalog_entities_season WHERE season_id=? AND library_id=? AND kind=4 LIMIT 1`,
+			SQL:    `SELECT id FROM catalog_entities INDEXED BY catalog_entities_season WHERE season_id=? AND season_id IS NOT NULL AND library_id=? AND kind=4 LIMIT 1`,
 			Params: []stmt.Param{i("season_id"), i("library_id")},
 			Cohorts: []stmt.Cohort{
 				{Name: "season_with_episode", Bindings: []any{int64(71), int64(7)}},

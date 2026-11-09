@@ -154,7 +154,7 @@ WHERE job_id=? AND relative_path=? AND identity=? AND revision=? AND cursor=? AN
 				{Name: "attached_asset", Bindings: []any{int64(42)}},
 			}},
 		{ID: iaReadingPublications, Kind: stmt.Read,
-			SQL:    `SELECT asset_id FROM reading_publications WHERE item_id=? ORDER BY asset_id LIMIT 1`,
+			SQL:    `SELECT asset_id FROM reading_publications INDEXED BY sqlite_autoindex_reading_publications_2 WHERE item_id=? ORDER BY asset_id LIMIT 1`,
 			Params: []stmt.Param{i("item_id")},
 			Cohorts: []stmt.Cohort{
 				{Name: "no_publication", Bindings: []any{int64(31)}},
@@ -331,6 +331,7 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			defs[n].Plan.Seeks = []string{"asset_id=?"}
 		case iaReadingPublications:
 			defs[n].Plan.Indexes = []string{"sqlite_autoindex_reading_publications_2"}
+			defs[n].Plan.AutoIndexes = []stmt.AutoIndexBinding{{Table: "reading_publications", Name: "sqlite_autoindex_reading_publications_2", Origin: "pk", Columns: []stmt.IndexColumn{{Name: "item_id", Collation: "BINARY"}, {Name: "asset_id", Collation: "BINARY"}}}}
 			defs[n].Plan.Seeks = []string{"item_id=?"}
 		case iaReadingDirectoryCAS:
 			defs[n].Plan.Indexes = []string{"sqlite_autoindex_inventory_directories_1"}
