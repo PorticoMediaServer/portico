@@ -28,4 +28,7 @@ var usCommands = commandRegistration{owner: "US", descriptors: []Descriptor{
 	{ID: USMemberLibraries, Name: "us_member_libraries", Durability: Full},
 	{ID: USProfileLibraries, Name: "us_profile_libraries", Durability: Full},
 	{ID: USProfileRestrictions, Name: "us_profile_restrictions", Durability: Full},
+	{ID: usInvitationCreate, Name: "us_invitation_create", Durability: Full},
+	{ID: usInvitationEdit, Name: "us_invitation_edit", Durability: Full},
+	{ID: usInvitationRevoke, Name: "us_invitation_revoke", Durability: Full},
 }}
