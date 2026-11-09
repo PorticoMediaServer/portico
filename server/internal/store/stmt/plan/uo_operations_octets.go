@@ -16,10 +16,8 @@ ORDER BY c.id ASC LIMIT ?`
 
 func uoOperationsDevicesOctetSQL() string {
 	return `SELECT octet_length(d.device_id),d.sequence
-FROM authorization_family_tokens AS t INDEXED BY sqlite_autoindex_authorization_family_tokens_1
-CROSS JOIN authorization_session_families AS f INDEXED BY sqlite_autoindex_authorization_session_families_1 ON f.id=t.family_id
-CROSS JOIN personal_device_sequences AS d INDEXED BY sqlite_autoindex_personal_device_sequences_1 ON d.profile_id=f.profile_id
-WHERE t.token_hash=? AND d.device_id>?
+FROM personal_device_sequences AS d INDEXED BY sqlite_autoindex_personal_device_sequences_1
+WHERE d.profile_id=? AND d.device_id>?
 ORDER BY d.device_id ASC LIMIT ?`
 }
 
@@ -44,10 +42,8 @@ ORDER BY j.job_due_ms LIMIT ?`
 
 func uoOperationsPendingOctetSQL() string {
 	return `SELECT octet_length(s.field),s.revision
-FROM authorization_family_tokens AS t INDEXED BY sqlite_autoindex_authorization_family_tokens_1
-CROSS JOIN authorization_session_families AS f INDEXED BY sqlite_autoindex_authorization_session_families_1 ON f.id=t.family_id
-CROSS JOIN server_configuration_pending AS s INDEXED BY sqlite_autoindex_server_configuration_pending_1
-WHERE t.token_hash=? AND s.field>?
+FROM server_configuration_pending AS s INDEXED BY sqlite_autoindex_server_configuration_pending_1
+WHERE s.field>?
 ORDER BY s.field ASC LIMIT ?`
 }
 
@@ -90,11 +86,11 @@ func init() {
 	})
 	addUOReadOctet(uoReadOctet{
 		id: stmt.ID("read.uo.operations.devices.sizes"), sql: uoOperationsDevicesOctetSQL(), label: "UO devices bytes", owner: "store/read UO operations",
-		params: afterParams,
-		plan:   stmt.Plan{Hot: true, Indexes: []string{token.Name, family.Name, devices.Name}, AutoIndexes: []stmt.AutoIndexBinding{token, family, devices}, Seeks: []string{"token_hash=?", "profile_id=?"}},
+		params: []stmt.Param{text("profile"), text("after"), integer("limit")},
+		plan:   stmt.Plan{Hot: true, Indexes: []string{devices.Name}, AutoIndexes: []stmt.AutoIndexBinding{devices}, Seeks: []string{"profile_id=?", "device_id>?"}},
 		table:  "personal_device_sequences", index: devices.Name, autoKey: []string{"profile_id", "device_id"},
-		eqp:     []string{tokenEQP, familyEQP, "d USING INDEX sqlite_autoindex_personal_device_sequences_1 ("},
-		eqpRows: 3,
+		eqp:     []string{"d USING INDEX sqlite_autoindex_personal_device_sequences_1 ("},
+		eqpRows: 1,
 	})
 	addUOReadOctet(uoReadOctet{
 		id: stmt.ID("read.uo.operations.jobs.sizes"), sql: uoOperationsJobsOctetSQL(), label: "UO jobs bytes", owner: "store/read UO operations",
@@ -116,15 +112,15 @@ func init() {
 	})
 	addUOReadOctet(uoReadOctet{
 		id: stmt.ID("read.uo.operations.settings.pending.sizes"), sql: uoOperationsPendingOctetSQL(), label: "UO settings pending bytes", owner: "store/read UO operations",
-		params: afterParams,
-		plan:   stmt.Plan{Hot: true, Indexes: []string{token.Name, family.Name, pending.Name}, AutoIndexes: []stmt.AutoIndexBinding{token, family, pending}, Seeks: []string{"token_hash=?"}},
+		params: []stmt.Param{text("after"), integer("limit")},
+		plan:   stmt.Plan{Hot: true, Indexes: []string{pending.Name}, AutoIndexes: []stmt.AutoIndexBinding{pending}, Seeks: []string{"field>?"}},
 		table:  "server_configuration_pending", index: pending.Name, autoKey: []string{"field"},
-		eqp:     []string{tokenEQP, familyEQP, "s USING INDEX sqlite_autoindex_server_configuration_pending_1 ("},
-		eqpRows: 3,
+		eqp:     []string{"s USING INDEX sqlite_autoindex_server_configuration_pending_1 ("},
+		eqpRows: 1,
 	})
 	for _, variant := range []string{"first", "same", "older"} {
 		params := []stmt.Param{text("webhook"), text("token"), integer("limit")}
-		eqp := []string{tokenEQP, familyEQP, "d USING INDEX webhook_deliveries_log ("}
+		eqp := []string{tokenEQP, "f USING COVERING INDEX sqlite_autoindex_authorization_session_families_1 (id=?)", "d USING INDEX webhook_deliveries_log ("}
 		switch variant {
 		case "same":
 			params = []stmt.Param{text("webhook"), text("token"), integer("created"), text("id"), integer("limit")}

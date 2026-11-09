@@ -35,10 +35,11 @@ func uoOperationsDevicesSQL(sizes bool) string {
 	if sizes {
 		columns = `octet_length(d.device_id),d.sequence`
 	}
+	// The viewing token's own profile is resolved by the shared fence in this
+	// same snapshot and bound here; a caller-supplied profile never reaches SQL.
 	return `SELECT ` + columns + `
-` + uoOperationsTokenJoin + `
-CROSS JOIN personal_device_sequences AS d INDEXED BY sqlite_autoindex_personal_device_sequences_1 ON d.profile_id=f.profile_id
-WHERE t.token_hash=? AND d.device_id>?
+FROM personal_device_sequences AS d INDEXED BY sqlite_autoindex_personal_device_sequences_1
+WHERE d.profile_id=? AND d.device_id>?
 ORDER BY d.device_id ASC LIMIT ?`
 }
 
@@ -79,10 +80,11 @@ func uoOperationsSettingsPendingSQL(sizes bool) string {
 	if sizes {
 		columns = `octet_length(s.field),s.revision`
 	}
+	// Pending server configuration is a server-wide keyset; the head statement
+	// and the fence prove the current admin/owner authority for it.
 	return `SELECT ` + columns + `
-` + uoOperationsTokenJoin + `
-CROSS JOIN server_configuration_pending AS s INDEXED BY sqlite_autoindex_server_configuration_pending_1
-WHERE t.token_hash=? AND s.field>?
+FROM server_configuration_pending AS s INDEXED BY sqlite_autoindex_server_configuration_pending_1
+WHERE s.field>?
 ORDER BY s.field ASC LIMIT ?`
 }
 
@@ -142,14 +144,18 @@ func UOOperationsDefinitions() []stmt.Definition {
 	}
 	afterParams := []stmt.Param{s("token"), s("after"), i("limit")}
 	afterBindings := []any{"token", "", int64(MaxRaw + 1)}
+	devicesParams := []stmt.Param{s("profile"), s("after"), i("limit")}
+	devicesBindings := []any{"profile", "", int64(MaxRaw + 1)}
+	pendingParams := []stmt.Param{s("after"), i("limit")}
+	pendingBindings := []any{"", int64(MaxRaw + 1)}
 	add("read.uo.operations.conflicts.sizes", uoOperationsConflictsSQL(true), afterParams, afterBindings,
 		stmt.Plan{Hot: true, Indexes: []string{token.Name, family.Name, "personal_conflicts_profile"}, AutoIndexes: []stmt.AutoIndexBinding{token, family}, Seeks: []string{"token_hash=?", "profile_id=?"}})
 	add("read.uo.operations.conflicts", uoOperationsConflictsSQL(false), afterParams, afterBindings,
 		stmt.Plan{Hot: true, Indexes: []string{token.Name, family.Name, "personal_conflicts_profile"}, AutoIndexes: []stmt.AutoIndexBinding{token, family}, Seeks: []string{"token_hash=?", "profile_id=?"}})
-	add("read.uo.operations.devices.sizes", uoOperationsDevicesSQL(true), afterParams, afterBindings,
-		stmt.Plan{Hot: true, Indexes: []string{token.Name, family.Name, devices.Name}, AutoIndexes: []stmt.AutoIndexBinding{token, family, devices}, Seeks: []string{"token_hash=?", "profile_id=?"}})
-	add("read.uo.operations.devices", uoOperationsDevicesSQL(false), afterParams, afterBindings,
-		stmt.Plan{Hot: true, Indexes: []string{token.Name, family.Name, devices.Name}, AutoIndexes: []stmt.AutoIndexBinding{token, family, devices}, Seeks: []string{"token_hash=?", "profile_id=?"}})
+	add("read.uo.operations.devices.sizes", uoOperationsDevicesSQL(true), devicesParams, devicesBindings,
+		stmt.Plan{Hot: true, Indexes: []string{devices.Name}, AutoIndexes: []stmt.AutoIndexBinding{devices}, Seeks: []string{"profile_id=?", "device_id>?"}})
+	add("read.uo.operations.devices", uoOperationsDevicesSQL(false), devicesParams, devicesBindings,
+		stmt.Plan{Hot: true, Indexes: []string{devices.Name}, AutoIndexes: []stmt.AutoIndexBinding{devices}, Seeks: []string{"profile_id=?", "device_id>?"}})
 	jobsPointParams := []stmt.Param{s("job"), s("token")}
 	jobsPointBindings := []any{"job", "token"}
 	add("read.uo.operations.jobs.sizes", uoOperationsJobsSQL(true), jobsPointParams, jobsPointBindings,
@@ -164,10 +170,10 @@ func UOOperationsDefinitions() []stmt.Definition {
 		stmt.Plan{Hot: true, Indexes: []string{token.Name, family.Name, "personal_jobs_governor_due"}, AutoIndexes: []stmt.AutoIndexBinding{token, family}, Seeks: []string{"token_hash=?"}})
 	add("read.uo.operations.settings.head", uoOperationsSettingsHeadSQL, []stmt.Param{s("token")}, []any{"token"},
 		stmt.Plan{Hot: true, PrimaryKeys: []string{"r", "s"}, Indexes: []string{token.Name, family.Name}, AutoIndexes: []stmt.AutoIndexBinding{token, family}, Seeks: []string{"token_hash=?"}})
-	add("read.uo.operations.settings.pending.sizes", uoOperationsSettingsPendingSQL(true), afterParams, afterBindings,
-		stmt.Plan{Hot: true, Indexes: []string{token.Name, family.Name, pending.Name}, AutoIndexes: []stmt.AutoIndexBinding{token, family, pending}, Seeks: []string{"token_hash=?"}})
-	add("read.uo.operations.settings.pending", uoOperationsSettingsPendingSQL(false), afterParams, afterBindings,
-		stmt.Plan{Hot: true, Indexes: []string{token.Name, family.Name, pending.Name}, AutoIndexes: []stmt.AutoIndexBinding{token, family, pending}, Seeks: []string{"token_hash=?"}})
+	add("read.uo.operations.settings.pending.sizes", uoOperationsSettingsPendingSQL(true), pendingParams, pendingBindings,
+		stmt.Plan{Hot: true, Indexes: []string{pending.Name}, AutoIndexes: []stmt.AutoIndexBinding{pending}, Seeks: []string{"field>?"}})
+	add("read.uo.operations.settings.pending", uoOperationsSettingsPendingSQL(false), pendingParams, pendingBindings,
+		stmt.Plan{Hot: true, Indexes: []string{pending.Name}, AutoIndexes: []stmt.AutoIndexBinding{pending}, Seeks: []string{"field>?"}})
 	add("read.uo.operations.delivery-log.gate", uoOperationsDeliveryGateSQL, []stmt.Param{s("webhook"), s("token")}, []any{"webhook", "token"},
 		stmt.Plan{Hot: true, Indexes: []string{token.Name, family.Name, webhooks.Name}, AutoIndexes: []stmt.AutoIndexBinding{token, family, webhooks}, Seeks: []string{"token_hash=?", "id=?"}})
 	for _, variant := range []string{"first", "same", "older"} {
