@@ -23,7 +23,7 @@ type nativeSnapshots interface {
 
 // The pool's Reader read limits must keep LengthBytes at the canonical 65536 so
 // the 64 KiB per-field searchable-text cap holds in SQLite as well as in the
-// Go-side checks; composition owns setting it (the native recipe assumes C128/L65536).
+// Go-side checks; composition owns setting it (the native recipe assumes C129/L65536).
 func NewNativeFullSearchReader(pool *governor.Snapshots) (*NativeFullSearchReader, error) {
 	if pool == nil {
 		return nil, ErrInput

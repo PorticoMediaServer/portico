@@ -422,14 +422,16 @@ connections, frames, grants or a new issuer. The actual read adapters and shared
 ConsumeForeground remain unchanged. N1 uses library7; authenticated reads use
 the existing library1 fixture on the SAME file, not the same item/library.
 
-The two existing fixture configs are composed without new resource numbers:
-N1's actual Work,25msHOLD,4MiB preparation/4MiB reserve/class amounts remain;
-RD2 retains its existing LIVE profile,80MiB+bookkeeping partition,12MiB read,
-8MiB output,1s ready and3s protected deadlines. The combined fixture uses RD2's
+The two fixture configs use the reviewed C129 foreground recipe. N1's actual
+Work,25msHOLD,4MiB preparation/4MiB reserve/class amounts remain unchanged.
+RD2 retains its LIVE capacity and funds four read/output pairs in an
+80 MiB + 256 KiB + bookkeeping partition (84,168,704 bytes including bookkeeping).
+Each read uses `governor.ForegroundReadBytes` (12,648,448 bytes); output remains
+8 MiB, with 1s ready and 3s protected deadlines. The combined fixture uses RD2's
 existing16 grant-metadata slots; one serial N1 worker still admits one8MiB writer
 holding in its unchanged8MiB class partition. This is test composition, not a
-new qualified resource/production profile. Default standalone fixtures retain
-their old configs. Only the known foreground class may remain charged during
+new qualified resource/production profile. Standalone N1 retains its writer
+configuration; the read budget does not install a production composition. Only the known foreground class may remain charged during
 N1's own joined/snapshot checks; all other holdings still stop progression.
 All class holdings must be zero after both streams and owner closes join.
 
