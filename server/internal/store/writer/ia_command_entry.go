@@ -211,6 +211,8 @@ func iaEntryCommandKind(purpose CommandID) (string, error) {
 		return "extra_inventory_accept", nil
 	case IAAcceptMembership:
 		return "membership_accept", nil
+	case IAReconcileObject:
+		return "inventory_reconcile", nil
 	default:
 		return "", ErrInvalid
 	}
