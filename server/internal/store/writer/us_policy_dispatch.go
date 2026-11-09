@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"time"
@@ -64,21 +65,43 @@ const (
 	usPolicyDispatchRechecks int64 = 3
 	usPolicyRecheckBytes     int64 = 64 << 10
 
+	// usPolicyImageProfiles is the live-profile safety maximum for the caller
+	// snapshot. It is well above the product's eight-profile write cap, so it
+	// bounds legacy data instead of silently truncating a live profile: a 65th
+	// live row is a named refusal, never a dropped row.
+	usPolicyImageMaxProfiles int64 = 64
+	// The caller snapshot charge covers the retained native row copy and the
+	// decoded public DTO copy (2x the preflight octets) plus fixed per-profile
+	// slice/cohort overhead and one image-wide header allowance.
+	usPolicyImageProfileBytes int64 = 256
+	usPolicyImageHeaderBytes  int64 = 1024
+
 	usPolicyChangedEventType = "authority.changed"
 )
 
-// Statement inventory for the dispatcher's own reads and the retained-quota
-// re-read. None of these opens, commits, authenticates, registers a command or
-// mints authority; authority, effect and receipt statements stay owned by
-// US-01/US-05/US-06 files.
+// Statement inventory for the dispatcher's own reads, the retained-quota
+// re-read and the private 541 caller-snapshot loader. None of these opens,
+// commits, authenticates, registers a command or mints authority; authority,
+// effect and receipt statements stay owned by US-01/US-05/US-06 files.
+//
+// The two-step shape is deliberate. Every variable (TEXT/BLOB) column first has
+// an INTEGER-only octet preflight; the frame grant is charged from those exact
+// octets before any TEXT/BLOB Scan, JSON decode, slice or DTO allocation.
 const (
-	usPolicyOwnerQuota  stmt.ID = "us.policy.owner.quota"
-	usPolicyImageMember stmt.ID = "us.policy.image.member"
-	usPolicyImageList   stmt.ID = "us.policy.image.profiles"
-	usPolicyImageState  stmt.ID = "us.policy.image.state"
-	usPolicyImagePolicy stmt.ID = "us.policy.image.sign_in_policy"
-	usPolicyImageFactor stmt.ID = "us.policy.image.factor"
-	usPolicyImageOne    stmt.ID = "us.policy.image.profile"
+	usPolicyOwnerQuota           stmt.ID = "us.policy.owner.quota"
+	usPolicyImageAccountOctets   stmt.ID = "us.policy.image.account_octets"
+	usPolicyImageFamilyOctets    stmt.ID = "us.policy.image.family_octets"
+	usPolicyImagePolicyOctets    stmt.ID = "us.policy.image.policy_octets"
+	usPolicyImageHostedOctets    stmt.ID = "us.policy.image.hosted_octets"
+	usPolicyImageCustodianOctets stmt.ID = "us.policy.image.custodian_octets"
+	usPolicyImageProfilesOctets  stmt.ID = "us.policy.image.profiles_octets"
+	usPolicyImageAccount         stmt.ID = "us.policy.image.account"
+	usPolicyImageFamily          stmt.ID = "us.policy.image.family"
+	usPolicyImagePolicy          stmt.ID = "us.policy.image.policy"
+	usPolicyImageFactor          stmt.ID = "us.policy.image.factor"
+	usPolicyImageHosted          stmt.ID = "us.policy.image.hosted"
+	usPolicyImageCustodian       stmt.ID = "us.policy.image.custodian"
+	usPolicyImageProfiles        stmt.ID = "us.policy.image.profiles"
 )
 
 type usPolicyInvocation struct {
@@ -87,17 +110,17 @@ type usPolicyInvocation struct {
 	ack     bool
 }
 
-// usPolicyPublicImage is the frozen public shape of the changed subject, using
-// the complete US-03 DirectSnapshot and US-04 MemberProfile images. It is a
-// response image captured in the SAME frame as the accepted original, never a
-// receipt field: 540/541 close result_body, and a replay must never reconstruct
-// an original from live source. The immutable original is usPolicySavedResult.
+// usPolicyPublicImage is the frozen public shape of a 541 original: the CALLER's
+// complete post-effect DirectSnapshot, exactly the identity service's
+// directSnapshotTx / EditDirectProfile response. It is a response image captured
+// in the SAME frame as the accepted original, never a receipt field. 541 closes
+// result_body that way; a replay must never reconstruct it from live source.
+//
+// 540 has NO public original-response image (the product response is empty/204):
+// its saved result and any replay carry no image and no target snapshot DTO.
 type usPolicyPublicImage struct {
-	// 540: the target membership's own snapshot; the account-level library list
-	// is the field this purpose changes.
-	Member *USDirectSnapshotImage
-	// 541: the edited profile in its complete People shape.
-	Profile *USMemberProfileImage
+	// Snapshot is present only for a fresh 541 original.
+	Snapshot *USDirectSnapshotImage
 }
 
 func (usPolicyPublicImage) String() string   { return "[us policy public image redacted]" }
@@ -117,6 +140,7 @@ type usPolicyDispatchResult struct {
 
 	// Exact accounting for this command, not a quota claim.
 	ChargedBytes int64
+	ImageBytes   int64
 	EventID      int64
 	EventBytes   int64
 	OwnerCount   int64
@@ -151,68 +175,94 @@ func usPolicyPoint(table, index, origin string, columns ...string) stmt.AutoInde
 // usPolicyDispatchDefinitions is the dispatcher's own finite statement set.
 func usPolicyDispatchDefinitions() []stmt.Definition {
 	text := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Text} }
+	integer := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Integer} }
 	ownerPlan := stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_security_command_owners_1"}, Seeks: []string{"id=?"},
 		AutoIndexes: []stmt.AutoIndexBinding{usPolicyPoint("security_command_owners", "sqlite_autoindex_security_command_owners_1", "pk", "id")}}
-	memberPlan := stmt.Plan{Hot: true,
-		Indexes: []string{"sqlite_autoindex_accounts_1", "sqlite_autoindex_direct_memberships_1", "sqlite_autoindex_configuration_1"},
-		Seeks:   []string{"id=?", "account_id=?", "key=?"},
+	accountPlan := stmt.Plan{Hot: true,
+		Indexes: []string{"sqlite_autoindex_accounts_1", "sqlite_autoindex_direct_memberships_1"},
+		Seeks:   []string{"id=?", "account_id=?"},
 		AutoIndexes: []stmt.AutoIndexBinding{
 			usPolicyPoint("accounts", "sqlite_autoindex_accounts_1", "pk", "id"),
 			usPolicyPoint("direct_memberships", "sqlite_autoindex_direct_memberships_1", "pk", "account_id"),
-			usPolicyPoint("configuration", "sqlite_autoindex_configuration_1", "pk", "key"),
 		}}
-	listPlan := stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_direct_profiles_2"}, Seeks: []string{"account_id=?"},
-		AutoIndexes: []stmt.AutoIndexBinding{usPolicyPoint("direct_profiles", "sqlite_autoindex_direct_profiles_2", "u", "account_id", "id")}}
-	statePlan := stmt.Plan{Hot: true, PrimaryKeys: []string{"identity_state"}, Seeks: []string{"rowid=?"}}
-	policyPlan := stmt.Plan{Hot: true, PrimaryKeys: []string{"identity_sign_in_policy"}, Seeks: []string{"rowid=?"}}
-	factorPlan := stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_identity_account_factors_1"}, Seeks: []string{"account_id=?"},
-		AutoIndexes: []stmt.AutoIndexBinding{usPolicyPoint("identity_account_factors", "sqlite_autoindex_identity_account_factors_1", "pk", "account_id")}}
-	onePlan := stmt.Plan{Hot: true,
-		Indexes: []string{"sqlite_autoindex_direct_profiles_2", "sqlite_autoindex_direct_memberships_1"},
-		Seeks:   []string{"account_id=? AND id=?", "account_id=?"},
+	familyPlan := stmt.Plan{Hot: true,
+		Indexes: []string{"sqlite_autoindex_authorization_session_families_1", "sqlite_autoindex_direct_profiles_2"},
+		Seeks:   []string{"id=?", "account_id=? AND id=?"},
 		AutoIndexes: []stmt.AutoIndexBinding{
+			usPolicyPoint("authorization_session_families", "sqlite_autoindex_authorization_session_families_1", "pk", "id"),
 			usPolicyPoint("direct_profiles", "sqlite_autoindex_direct_profiles_2", "u", "account_id", "id"),
-			usPolicyPoint("direct_memberships", "sqlite_autoindex_direct_memberships_1", "pk", "account_id"),
 		}}
+	policyPlan := stmt.Plan{Hot: true, PrimaryKeys: []string{"identity_sign_in_policy", "identity_state"}, Seeks: []string{"rowid=?"}}
+	hostedPlan := stmt.Plan{Hot: true, Seeks: []string{"account_id=?"}}
+	custodianPlan := stmt.Plan{Hot: true, Seeks: []string{"rowid=?"}}
+	profilesPlan := stmt.Plan{Hot: true, Indexes: []string{"direct_profiles_account"}, Seeks: []string{"account_id=? AND deleted=?"}}
 	defs := []stmt.Definition{
 		{ID: usPolicyOwnerQuota, SQL: `SELECT command_incarnation,original_family_id,last_sequence,acknowledged_sequence,reclaimed_sequence,retained_count,retained_variable_bytes,retired_ms
 FROM security_command_owners INDEXED BY sqlite_autoindex_security_command_owners_1
 WHERE id=? AND ingress='authenticated' AND server_id=? AND issuer_account_id=? AND issuer_member_incarnation=? AND issuer_profile_id=? AND issuer_profile_lifetime=? AND issuer_installation_incarnation=?`,
 			Params:  []stmt.Param{text("owner"), text("server"), text("account"), text("member"), text("profile"), text("lifetime"), text("installation")},
 			Cohorts: []stmt.Cohort{{Name: "original_scope", Bindings: []any{"security-owner", "server", "issuer", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "issuer-profile", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "cccccccccccccccccccccccccccccccc"}}}, Plan: ownerPlan},
-		{ID: usPolicyImageMember, SQL: `SELECT a.username,a.profile_id,m.role,m.revision,m.disabled,m.allowed_libraries,m.disabled_ms,m.disabled_reason,coalesce(l.hosted_account_id,''),coalesce(h.custodian,''),c.value
+		{ID: usPolicyImageAccountOctets, SQL: `SELECT octet_length(a.username),octet_length(a.profile_id),octet_length(m.role),octet_length(m.allowed_libraries),m.revision,m.disabled
 FROM accounts AS a INDEXED BY sqlite_autoindex_accounts_1
 CROSS JOIN direct_memberships AS m INDEXED BY sqlite_autoindex_direct_memberships_1 ON m.account_id=a.id
-LEFT JOIN account_portico_links AS l ON l.account_id=a.id
-LEFT JOIN hosted_membership_sync AS h ON h.singleton=1
-CROSS JOIN configuration AS c INDEXED BY sqlite_autoindex_configuration_1 ON c.key=?
 WHERE a.id=?`,
-			Params:  []stmt.Param{text("server_key"), text("account")},
-			Cohorts: []stmt.Cohort{{Name: "target", Bindings: []any{"id", "us-target"}}}, Plan: memberPlan},
-		{ID: usPolicyImageList, SQL: `SELECT id,name,is_primary,position,art,revision,pin_revision,coalesce(length(pin_hash),0),allowed_libraries,deleted
-FROM direct_profiles INDEXED BY sqlite_autoindex_direct_profiles_2
-WHERE account_id=? ORDER BY id LIMIT ?`,
-			Params:  []stmt.Param{text("account"), {Name: "row_limit", Type: stmt.Integer}},
-			Cohorts: []stmt.Cohort{{Name: "target", Bindings: []any{"us-target", int64(65)}}}, Plan: listPlan},
-		{ID: usPolicyImageState, SQL: `SELECT sign_in_kind FROM identity_state WHERE singleton=1`,
-			Params:  []stmt.Param{},
-			Cohorts: []stmt.Cohort{{Name: "single", Bindings: []any{}}}, Plan: statePlan},
-		{ID: usPolicyImagePolicy, SQL: `SELECT require_two_step,pin_remember_days FROM identity_sign_in_policy WHERE singleton=1`,
+			Params:  []stmt.Param{text("account")},
+			Cohorts: []stmt.Cohort{{Name: "caller", Bindings: []any{"issuer"}}}, Plan: accountPlan},
+		{ID: usPolicyImageFamilyOctets, SQL: `SELECT octet_length(f.role),octet_length(f.remember_until),octet_length(f.manage_until),octet_length(p.pin_hash),p.is_primary
+FROM authorization_session_families AS f INDEXED BY sqlite_autoindex_authorization_session_families_1
+CROSS JOIN direct_profiles AS p INDEXED BY sqlite_autoindex_direct_profiles_2 ON p.account_id=f.account_id
+WHERE f.id=? AND f.account_id=? AND p.id=?`,
+			Params:  []stmt.Param{text("family"), text("account"), text("profile")},
+			Cohorts: []stmt.Cohort{{Name: "caller", Bindings: []any{"issuer-family", "issuer", "issuer-profile"}}}, Plan: familyPlan},
+		{ID: usPolicyImagePolicyOctets, SQL: `SELECT octet_length(p.require_two_step),p.pin_remember_days,octet_length(s.sign_in_kind)
+FROM identity_sign_in_policy AS p
+CROSS JOIN identity_state AS s ON s.singleton=1
+WHERE p.singleton=1`,
 			Params:  []stmt.Param{},
 			Cohorts: []stmt.Cohort{{Name: "single", Bindings: []any{}}}, Plan: policyPlan},
-		{ID: usPolicyImageFactor, SQL: `SELECT account_id FROM identity_account_factors INDEXED BY sqlite_autoindex_identity_account_factors_1 WHERE account_id=? AND confirmed=1`,
+		{ID: usPolicyImageHostedOctets, SQL: `SELECT octet_length(hosted_account_id) FROM account_portico_links WHERE account_id=?`,
 			Params:  []stmt.Param{text("account")},
-			Cohorts: []stmt.Cohort{{Name: "target", Bindings: []any{"us-target"}}}, Plan: factorPlan},
-		{ID: usPolicyImageOne, SQL: `SELECT p.id,p.name,p.is_primary,p.position,p.art,p.revision,p.pin_revision,coalesce(length(p.pin_hash),0),p.allowed_libraries,
- m.role,m.disabled,
- r.rating_system,r.maximum_age_rating,r.maximum_age,r.allow_unrated,r.blocked_labels,r.allow_downloads,r.allow_live_tv,r.allow_dvr,r.allow_watch_together,r.revision,
- p.avatar_version,p.avatar_updated_at,p.avatar_source_mime
-FROM direct_profiles AS p INDEXED BY sqlite_autoindex_direct_profiles_2
-CROSS JOIN direct_memberships AS m INDEXED BY sqlite_autoindex_direct_memberships_1 ON m.account_id=p.account_id
-LEFT JOIN profile_restrictions AS r ON r.profile_id=p.id
-WHERE p.account_id=? AND p.id=? AND p.deleted=0`,
-			Params:  []stmt.Param{text("account"), text("profile")},
-			Cohorts: []stmt.Cohort{{Name: "target", Bindings: []any{"us-target", "us-profile"}}}, Plan: onePlan},
+			Cohorts: []stmt.Cohort{{Name: "caller", Bindings: []any{"issuer"}}}, Plan: hostedPlan},
+		{ID: usPolicyImageCustodianOctets, SQL: `SELECT octet_length(custodian) FROM hosted_membership_sync WHERE singleton=1`,
+			Params:  []stmt.Param{},
+			Cohorts: []stmt.Cohort{{Name: "single", Bindings: []any{}}}, Plan: custodianPlan},
+		{ID: usPolicyImageProfilesOctets, SQL: `SELECT octet_length(p.id),octet_length(p.name),octet_length(p.art),coalesce(octet_length(p.allowed_libraries),0),p.position
+FROM direct_profiles AS p INDEXED BY direct_profiles_account
+WHERE p.account_id=? AND p.deleted=0 ORDER BY p.position,p.id LIMIT ?`,
+			Params:  []stmt.Param{text("account"), integer("row_limit")},
+			Cohorts: []stmt.Cohort{{Name: "caller", Bindings: []any{"issuer", int64(65)}}}, Plan: profilesPlan},
+		{ID: usPolicyImageAccount, SQL: `SELECT a.username,a.profile_id,m.role,m.revision,m.disabled,m.allowed_libraries
+FROM accounts AS a INDEXED BY sqlite_autoindex_accounts_1
+CROSS JOIN direct_memberships AS m INDEXED BY sqlite_autoindex_direct_memberships_1 ON m.account_id=a.id
+WHERE a.id=?`,
+			Params:  []stmt.Param{text("account")},
+			Cohorts: []stmt.Cohort{{Name: "caller", Bindings: []any{"issuer"}}}, Plan: accountPlan},
+		{ID: usPolicyImageFamily, SQL: `SELECT f.role,f.remember_until,f.manage_until,length(p.pin_hash),p.is_primary
+FROM authorization_session_families AS f INDEXED BY sqlite_autoindex_authorization_session_families_1
+CROSS JOIN direct_profiles AS p INDEXED BY sqlite_autoindex_direct_profiles_2 ON p.account_id=f.account_id
+WHERE f.id=? AND f.account_id=? AND p.id=?`,
+			Params:  []stmt.Param{text("family"), text("account"), text("profile")},
+			Cohorts: []stmt.Cohort{{Name: "caller", Bindings: []any{"issuer-family", "issuer", "issuer-profile"}}}, Plan: familyPlan},
+		{ID: usPolicyImagePolicy, SQL: `SELECT p.require_two_step,p.pin_remember_days,s.sign_in_kind
+FROM identity_sign_in_policy AS p
+CROSS JOIN identity_state AS s ON s.singleton=1
+WHERE p.singleton=1`,
+			Params:  []stmt.Param{},
+			Cohorts: []stmt.Cohort{{Name: "single", Bindings: []any{}}}, Plan: policyPlan},
+		{ID: usPolicyImageFactor, SQL: `SELECT 1 FROM identity_account_factors WHERE account_id=? AND confirmed=1`,
+			Params:  []stmt.Param{text("account")},
+			Cohorts: []stmt.Cohort{{Name: "caller", Bindings: []any{"issuer"}}}, Plan: stmt.Plan{Hot: true, Indexes: []string{"sqlite_autoindex_identity_account_factors_1"}, Seeks: []string{"account_id=?"}}},
+		{ID: usPolicyImageHosted, SQL: `SELECT hosted_account_id FROM account_portico_links WHERE account_id=?`,
+			Params:  []stmt.Param{text("account")},
+			Cohorts: []stmt.Cohort{{Name: "caller", Bindings: []any{"issuer"}}}, Plan: hostedPlan},
+		{ID: usPolicyImageCustodian, SQL: `SELECT custodian FROM hosted_membership_sync WHERE singleton=1`,
+			Params:  []stmt.Param{},
+			Cohorts: []stmt.Cohort{{Name: "single", Bindings: []any{}}}, Plan: custodianPlan},
+		{ID: usPolicyImageProfiles, SQL: `SELECT p.id,p.name,p.is_primary,p.position,p.art,p.revision,p.pin_revision,length(p.pin_hash),p.allowed_libraries
+FROM direct_profiles AS p INDEXED BY direct_profiles_account
+WHERE p.account_id=? AND p.deleted=0 ORDER BY p.position,p.id LIMIT ?`,
+			Params:  []stmt.Param{text("account"), integer("row_limit")},
+			Cohorts: []stmt.Cohort{{Name: "caller", Bindings: []any{"issuer", int64(65)}}}, Plan: profilesPlan},
 	}
 	for n := range defs {
 		defs[n].Kind = stmt.Read
@@ -420,12 +470,15 @@ func executeUSPolicyInvocation(ctx context.Context, turn *commandTurn, a *usOwne
 	v := usPolicySavedResult{kind: q.kind, ownerID: q.ownerID, account: input.request.account, memberIncarnation: input.request.memberIncarnation,
 		profile: input.request.profile, profileLifetime: input.request.profileLifetime, revision: revision, appliedMS: nowMS,
 		inherits: !input.policy.Valid, libraries: libraries}
-	unchanged, err := usPolicyUnchanged(before, input)
+	identical, authorityChanged, err := usPolicyUnchanged(before, input)
 	if err != nil {
 		return out, floor, false, err
 	}
-	v.changed = !unchanged
-	if !unchanged {
+	// The product compares SORTED COMPACTED sets for its authority event but
+	// writes the prepared order: a reorder-only 540 still writes and bumps its
+	// revision, and appends NO event.
+	v.changed = authorityChanged
+	if !identical {
 		v.revision++
 	}
 	// Reserve the complete prospective immutable result BEFORE any source effect.
@@ -439,7 +492,7 @@ func executeUSPolicyInvocation(ctx context.Context, turn *commandTurn, a *usOwne
 	if err = usPolicyDispatchFund(a, charge); err != nil {
 		return out, floor, false, err
 	}
-	if !unchanged {
+	if !identical {
 		effect, e := applyUSLibraryPolicy(ctx, turn, input, before, revision)
 		if e != nil {
 			return out, floor, false, e
@@ -470,9 +523,15 @@ func executeUSPolicyInvocation(ctx context.Context, turn *commandTurn, a *usOwne
 		}
 		out.EventID, out.EventBytes = event.insertedID, event.insertedVariableBytes
 	}
-	out.Image, err = usPolicyCaptureImage(ctx, turn, v)
-	if err != nil {
-		return out, floor, false, err
+	// 540 has no original-response image. 541 freezes the CALLER's complete
+	// post-effect snapshot; the loader charges its own preflight before any
+	// TEXT/BLOB materialization.
+	if v.kind == USProfileLibraries {
+		image, imageBytes, e := captureUSPolicyCallerSnapshot(ctx, turn, a, input, v, nowMS)
+		if e != nil {
+			return out, floor, false, e
+		}
+		out.Image, out.ImageBytes = usPolicyPublicImage{Snapshot: image}, imageBytes
 	}
 	return out, floor, false, turn.checkLifetimes(ctx)
 }
@@ -574,26 +633,36 @@ func readUSPolicyFreshTarget(ctx context.Context, turn *commandTurn, a *usOwnerA
 }
 
 // usPolicyUnchanged compares the fresh source value with the frozen prepared
-// projection. It is not authority and it never writes.
-func usPolicyUnchanged(before sql.NullString, input *usLibraryPolicyCommand) (bool, error) {
+// projection. It reports two distinct product facts: identical (write and
+// revision) and authorityChanged (the 540 event). The product publishes an
+// authority.changed only when the SORTED COMPACTED library sets differ
+// (identity/membership_change.go), while the row always receives the prepared
+// order. It is not authority and it never writes.
+func usPolicyUnchanged(before sql.NullString, input *usLibraryPolicyCommand) (identical, authorityChanged bool, err error) {
 	if input == nil {
-		return false, ErrInvalid
+		return false, false, ErrInvalid
 	}
 	if before.Valid != input.policy.Valid {
-		return false, nil
+		return false, true, nil
 	}
 	if !before.Valid {
-		return true, nil
+		return true, false, nil
 	}
 	ids, err := decodeUSLibraryIDs(before.String)
 	if err != nil {
-		return false, err
+		return false, false, err
 	}
 	want := input.request.libraries
 	if want == nil {
 		want = []string{}
 	}
-	return usPolicySameLibraries(ids, want), nil
+	identical = usPolicySameLibraries(ids, want)
+	if input.kind == USMemberLibraries {
+		return identical, !usPolicySameLibrarySet(ids, want), nil
+	}
+	// Profile policy publishes no event; "changed" keeps meaning the saved
+	// policy differs from the fresh source (its own next request reads it live).
+	return identical, !identical, nil
 }
 
 // The cached SQL projection is not an independent request. A future internal
@@ -643,86 +712,401 @@ func usPolicySavedLibraries(input *usLibraryPolicyCommand) []string {
 	return out
 }
 
-// usPolicyCaptureImage captures the complete public image of the changed
-// subject from ONE same-snapshot read after the effect. It never becomes a
-// receipt and is never used to reconstruct a replay.
-func usPolicyCaptureImage(ctx context.Context, turn *commandTurn, v usPolicySavedResult) (out usPolicyPublicImage, err error) {
-	defer func() {
-		img, e := finishCommand(ctx, commandLifetime(turn), out, err)
-		out, err = img, e
-	}()
-	switch v.kind {
-	case USMemberLibraries:
-		image, e := captureUSPolicyMemberImage(ctx, turn, v)
-		return usPolicyPublicImage{Member: image}, e
-	case USProfileLibraries:
-		image, e := captureUSPolicyProfileImage(ctx, turn, v)
-		return usPolicyPublicImage{Profile: image}, e
-	default:
-		return usPolicyPublicImage{}, ErrInvalid
+// captureUSPolicyCallerSnapshot freezes the CALLER's complete POST-EFFECT
+// DirectSnapshot for a fresh 541 original, exactly the identity service's
+// directSnapshotTx shape returned by EditDirectProfile. It is never the edited
+// target's MemberProfile and never a member-level 540 image (540 has none).
+//
+// Authority binding: every key comes from the same-frame rechecked US-01 stamp's
+// validated issuer (account/profile/lifetime/family), never the frozen command's
+// claimed issuer and never a caller-supplied boolean. The stamp proves the
+// current owner session only; this loader derives CanManage, Capabilities,
+// ManagePINRequired, TwoStepSetupRequired and CustodyPending from current native
+// facts with directSnapshotTx's own rules (including NULL custodian => false).
+//
+// Resource order: INTEGER-only octet/count preflights over the exact selected
+// keys, overflow-checked sum, funded-grant charge, and only then any TEXT/BLOB
+// Scan, JSON decode, slice or DTO allocation. The live profile read uses the
+// direct_profiles_account index (deleted=0, position,id) with cap+1 refusal, so
+// retired rows never consume the cap and a live row is never silently dropped.
+func captureUSPolicyCallerSnapshot(ctx context.Context, turn *commandTurn, a *usOwnerAuthorization, input *usLibraryPolicyCommand, v usPolicySavedResult, nowMS int64) (out *USDirectSnapshotImage, charged int64, err error) {
+	var done struct {
+		image   *USDirectSnapshotImage
+		charged int64
 	}
-}
+	defer func() {
+		value, e := finishCommand(ctx, commandLifetime(turn), done, err)
+		out, charged, err = value.image, value.charged, e
+	}()
+	if turn == nil || turn.transaction == nil || a == nil || input == nil || v.kind != USProfileLibraries {
+		return nil, 0, ErrInvalid
+	}
+	issuer := a.proof.witness.issuer
+	if !usIdentifier(issuer.account) || !usIdentifier(issuer.profile) || !usIdentifier(issuer.family) {
+		return nil, 0, ErrInvalid
+	}
+	// The snapshot is the caller's own account. A cross-account image would be a
+	// different product operation and is not admitted here.
+	if input.request.account != issuer.account || v.account != issuer.account {
+		return nil, 0, ErrDisclosureDenied
+	}
 
-func captureUSPolicyMemberImage(ctx context.Context, turn *commandTurn, v usPolicySavedResult) (out *USDirectSnapshotImage, err error) {
-	defer func() {
-		img, e := finishCommand(ctx, commandLifetime(turn), out, err)
-		out, err = img, e
-	}()
-	row, err := usPolicyRow(ctx, turn, usPolicyImageMember, "id", v.account)
+	// Integer-only preflight. No variable column is materialized yet.
+	var preflight struct {
+		account  [4]int64
+		family   [3]int64
+		policy   [2]int64
+		hosted   [2]int64
+		profiles int64
+		rows     int64
+	}
+	row, err := usPolicyRow(ctx, turn, usPolicyImageAccountOctets, issuer.account)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	var username, primary, role, libraries, disabledReason, hosted, custodian, server string
-	var revision, disabled, disabledMS int64
-	if err = row.Scan(&username, &primary, &role, &revision, &disabled, &libraries, &disabledMS, &disabledReason, &hosted, &custodian, &server); err != nil {
-		return nil, errors.Join(ErrResolveRequired, err)
+	var usernameN, primaryN, roleN, librariesN, revision, disabled sql.NullInt64
+	if err = row.Scan(&usernameN, &primaryN, &roleN, &librariesN, &revision, &disabled); err != nil {
+		return nil, 0, errors.Join(ErrResolveRequired, err)
 	}
-	if revision != v.revision || disabled != 0 || !usIdentifier(primary) || !usIdentifier(server) || (role != "owner" && role != "admin" && role != "member") {
-		return nil, ErrResolveRequired
+	for n, value := range []sql.NullInt64{usernameN, primaryN, roleN, librariesN} {
+		if preflight.account[n], err = usPolicyOctet(value); err != nil {
+			return nil, 0, err
+		}
 	}
-	ids, err := decodeUSLibraryIDs(libraries)
-	if err != nil || !usPolicySameLibraries(ids, v.libraries) {
-		return nil, ErrResolveRequired
+	if !revision.Valid || revision.Int64 < 1 || !disabled.Valid || disabled.Int64 != 0 {
+		return nil, 0, ErrResolveRequired
 	}
-	if ids == nil {
-		ids = []string{}
-	}
-	profiles, err := captureUSPolicyProfiles(ctx, turn, v.account)
+	row, err = usPolicyRow(ctx, turn, usPolicyImageFamilyOctets, issuer.family, issuer.account, issuer.profile)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	state, err := readUSPolicySignInFacts(ctx, turn, v.account)
+	var familyRoleN, rememberN, manageN, pinN, primaryInt sql.NullInt64
+	if err = row.Scan(&familyRoleN, &rememberN, &manageN, &pinN, &primaryInt); err != nil {
+		return nil, 0, errors.Join(ErrResolveRequired, err)
+	}
+	for n, value := range []sql.NullInt64{familyRoleN, rememberN, manageN} {
+		if preflight.family[n], err = usPolicyOctet(value); err != nil {
+			return nil, 0, err
+		}
+	}
+	if !primaryInt.Valid || (primaryInt.Int64 != 0 && primaryInt.Int64 != 1) {
+		return nil, 0, ErrResolveRequired
+	}
+	row, err = usPolicyRow(ctx, turn, usPolicyImagePolicyOctets)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	// This is the target membership's OWN snapshot: its primary profile manages
-	// its own account unless an unconfirmed required factor blocks management.
-	twoStep := state.twoStepRequired(role)
-	manage := !twoStep
-	return &USDirectSnapshotImage{
+	var twoStepN, rememberDays, kindN sql.NullInt64
+	if err = row.Scan(&twoStepN, &rememberDays, &kindN); err != nil {
+		return nil, 0, errors.Join(ErrResolveRequired, err)
+	}
+	if preflight.policy[0], err = usPolicyOctet(twoStepN); err != nil {
+		return nil, 0, err
+	}
+	if preflight.policy[1], err = usPolicyOctet(kindN); err != nil {
+		return nil, 0, err
+	}
+	if !rememberDays.Valid || rememberDays.Int64 < 0 {
+		return nil, 0, ErrResolveRequired
+	}
+	hostedPresent := false
+	hostedRow, err := usPolicyRow(ctx, turn, usPolicyImageHostedOctets, issuer.account)
+	if err != nil {
+		return nil, 0, err
+	}
+	var hostedN sql.NullInt64
+	switch scan := hostedRow.Scan(&hostedN); {
+	case errors.Is(scan, sql.ErrNoRows):
+		// No Hosted link: both facts are absent, exactly as directSnapshotTx.
+	case scan != nil:
+		return nil, 0, errors.Join(ErrResolveRequired, scan)
+	default:
+		if preflight.hosted[0], err = usPolicyOctet(hostedN); err != nil {
+			return nil, 0, err
+		}
+		hostedPresent = true
+	}
+	if hostedPresent {
+		custodianRow, e := usPolicyRow(ctx, turn, usPolicyImageCustodianOctets)
+		if e != nil {
+			return nil, 0, e
+		}
+		var custodianN sql.NullInt64
+		switch scan := custodianRow.Scan(&custodianN); {
+		case errors.Is(scan, sql.ErrNoRows), scan == nil && !custodianN.Valid:
+			// No custodian row/fact: NULL custodian, exactly as the product.
+		case scan != nil:
+			return nil, 0, errors.Join(ErrResolveRequired, scan)
+		default:
+			if preflight.hosted[1], err = usPolicyOctet(custodianN); err != nil {
+				return nil, 0, err
+			}
+		}
+	}
+	rows, err := usPolicyRows(ctx, turn, usPolicyImageProfilesOctets, issuer.account, usPolicyImageMaxProfiles+1)
+	if err != nil {
+		return nil, 0, err
+	}
+	for rows.Next() {
+		var idN, nameN, artN, librariesN, position sql.NullInt64
+		if err = rows.Scan(&idN, &nameN, &artN, &librariesN, &position); err != nil {
+			_ = rows.Close()
+			return nil, 0, err
+		}
+		preflight.rows++
+		if preflight.rows > usPolicyImageMaxProfiles {
+			_ = rows.Close()
+			return nil, 0, &Refusal{Code: RefusalCapacity}
+		}
+		for _, value := range []sql.NullInt64{idN, nameN, artN, librariesN} {
+			n, e := usPolicyOctet(value)
+			if e != nil {
+				_ = rows.Close()
+				return nil, 0, e
+			}
+			if preflight.profiles, err = usPolicyOctetsSum(preflight.profiles, n); err != nil {
+				_ = rows.Close()
+				return nil, 0, err
+			}
+		}
+	}
+	if err = rows.Err(); err != nil {
+		_ = rows.Close()
+		return nil, 0, err
+	}
+	if err = rows.Close(); err != nil {
+		return nil, 0, err
+	}
+	raw := int64(0)
+	for _, n := range preflight.account {
+		if raw, err = usPolicyOctetsSum(raw, n); err != nil {
+			return nil, 0, err
+		}
+	}
+	for _, n := range preflight.family {
+		if raw, err = usPolicyOctetsSum(raw, n); err != nil {
+			return nil, 0, err
+		}
+	}
+	for _, n := range preflight.policy {
+		if raw, err = usPolicyOctetsSum(raw, n); err != nil {
+			return nil, 0, err
+		}
+	}
+	for _, n := range preflight.hosted {
+		if raw, err = usPolicyOctetsSum(raw, n); err != nil {
+			return nil, 0, err
+		}
+	}
+	if raw, err = usPolicyOctetsSum(raw, preflight.profiles); err != nil {
+		return nil, 0, err
+	}
+	// Both the retained native copy and the decoded DTO copy are resident while
+	// the image is built; per-profile slice overhead and the image header are
+	// additive. The charge is proved BEFORE any materialization.
+	charged = raw
+	if charged, err = usPolicyOctetsSum(charged, raw); err != nil {
+		return nil, 0, err
+	}
+	for n := preflight.rows; n > 0; n-- {
+		if charged, err = usPolicyOctetsSum(charged, usPolicyImageProfileBytes); err != nil {
+			return nil, 0, err
+		}
+	}
+	if charged, err = usPolicyOctetsSum(charged, usPolicyImageHeaderBytes); err != nil {
+		return nil, 0, err
+	}
+	if err = a.budget.check(ctx, turn, charged); err != nil {
+		return nil, 0, err
+	}
+	if err = usPolicyDispatchFund(a, charged); err != nil {
+		return nil, 0, err
+	}
+	done.charged = charged
+
+	// Charged. Only now may variable source become Go memory.
+	row, err = usPolicyRow(ctx, turn, usPolicyImageAccount, issuer.account)
+	if err != nil {
+		return nil, 0, err
+	}
+	var username, primary, role, libraries string
+	if err = row.Scan(&username, &primary, &role, &revision, &disabled, &libraries); err != nil {
+		return nil, 0, errors.Join(ErrResolveRequired, err)
+	}
+	if primary != issuer.profile || (role != "owner" && role != "admin" && role != "member") || !revision.Valid || revision.Int64 < 1 || !disabled.Valid || disabled.Int64 != 0 {
+		return nil, 0, ErrResolveRequired
+	}
+	accountLibraries, err := decodeUSLibraryIDs(libraries)
+	if err != nil {
+		return nil, 0, err
+	}
+	if accountLibraries == nil {
+		accountLibraries = []string{}
+	}
+
+	row, err = usPolicyRow(ctx, turn, usPolicyImageFamily, issuer.family, issuer.account, issuer.profile)
+	if err != nil {
+		return nil, 0, err
+	}
+	var familyRole, rememberUntil, manageUntil string
+	var pinLength sql.NullInt64
+	if err = row.Scan(&familyRole, &rememberUntil, &manageUntil, &pinLength, &primaryInt); err != nil {
+		return nil, 0, errors.Join(ErrResolveRequired, err)
+	}
+	if !usPolicyFamilyRole(familyRole) || !primaryInt.Valid || (primaryInt.Int64 != 0 && primaryInt.Int64 != 1) {
+		return nil, 0, ErrResolveRequired
+	}
+	primaryPIN := pinLength.Valid && pinLength.Int64 > 0
+	// directSnapshotTx: CanManage starts as "this session's profile is the
+	// primary profile", then an account-scoped session whose primary profile has
+	// a PIN manages nothing.
+	canManage := primaryInt.Int64 == 1
+	if canManage && familyRole == "account" && primaryPIN {
+		canManage = false
+	}
+
+	row, err = usPolicyRow(ctx, turn, usPolicyImagePolicy)
+	if err != nil {
+		return nil, 0, err
+	}
+	var requireTwoStep, signInKind string
+	if err = row.Scan(&requireTwoStep, &rememberDays, &signInKind); err != nil {
+		return nil, 0, errors.Join(ErrResolveRequired, err)
+	}
+	if (requireTwoStep != "nobody" && requireTwoStep != "administrators" && requireTwoStep != "everyone") ||
+		(signInKind != "local" && signInKind != "portico") || !rememberDays.Valid || rememberDays.Int64 < 0 {
+		return nil, 0, ErrResolveRequired
+	}
+	twoStep := false
+	if familyRole == "account" {
+		// missingRequiredFactorTx, from current native facts only.
+		required := signInKind == "local" && requireTwoStep != "nobody" && (requireTwoStep == "everyone" || role == "owner" || role == "admin")
+		confirmed := false
+		if required {
+			factor, e := usPolicyRow(ctx, turn, usPolicyImageFactor, issuer.account)
+			if e != nil {
+				return nil, 0, e
+			}
+			var present int64
+			switch scan := factor.Scan(&present); {
+			case scan == nil && present == 1:
+				confirmed = true
+			case scan == nil, errors.Is(scan, sql.ErrNoRows):
+			default:
+				return nil, 0, errors.Join(ErrResolveRequired, scan)
+			}
+		}
+		twoStep = required && !confirmed
+		if twoStep {
+			canManage = false
+		}
+	}
+
+	hostedAccount := ""
+	custodian := sql.NullString{}
+	hostedRow, err = usPolicyRow(ctx, turn, usPolicyImageHosted, issuer.account)
+	if err != nil {
+		return nil, 0, err
+	}
+	switch scan := hostedRow.Scan(&hostedAccount); {
+	case errors.Is(scan, sql.ErrNoRows):
+		hostedPresent = false
+	case scan != nil:
+		return nil, 0, errors.Join(ErrResolveRequired, scan)
+	}
+	if hostedPresent {
+		custodianRow, e := usPolicyRow(ctx, turn, usPolicyImageCustodian)
+		if e != nil {
+			return nil, 0, e
+		}
+		switch scan := custodianRow.Scan(&custodian); {
+		case errors.Is(scan, sql.ErrNoRows):
+		case scan != nil:
+			return nil, 0, errors.Join(ErrResolveRequired, scan)
+		}
+	}
+	custodyPending := false
+	if hostedPresent && role == "owner" {
+		// The product reads custodian only for a Hosted owner. A NULL custodian
+		// is NOT pending; an empty or different string is.
+		custodyPending = custodian.Valid && custodian.String != hostedAccount
+	}
+	managePINRequired := false
+	if canManage && primaryPIN && manageUntil != "" && rememberUntil != "" {
+		now := time.UnixMilli(nowMS).UTC().Format(time.RFC3339)
+		managePINRequired = rememberUntil > now && manageUntil <= now
+	}
+
+	profiles := make([]USDirectProfileImage, 0, 8)
+	rows, err = usPolicyRows(ctx, turn, usPolicyImageProfiles, issuer.account, usPolicyImageMaxProfiles+1)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer func() { err = errors.Join(err, rows.Close()) }()
+	for rows.Next() {
+		var p USDirectProfileImage
+		var pinHash sql.NullInt64
+		var libraries sql.NullString
+		if err = rows.Scan(&p.ID, &p.Name, &p.Primary, &p.Position, &p.Art, &p.Revision, &p.PINRevision, &pinHash, &libraries); err != nil {
+			return nil, 0, err
+		}
+		if len(profiles) >= int(usPolicyImageMaxProfiles) {
+			return nil, 0, &Refusal{Code: RefusalCapacity}
+		}
+		p.PINRequired = pinHash.Valid && pinHash.Int64 > 0
+		if libraries.Valid {
+			ids, e := decodeUSLibraryIDs(libraries.String)
+			if e != nil {
+				return nil, 0, e
+			}
+			p.AllowedLibraries = ids
+		}
+		if p.ID == v.profile {
+			// The edited profile must be the post-effect source this result
+			// saved: NULL only for inherit, an explicit list otherwise, in the
+			// exact prepared order. A NULL image against a saved explicit list
+			// (or the reverse) is a source/result divergence, never an empty list.
+			if libraries.Valid == v.inherits {
+				return nil, 0, ErrResolveRequired
+			}
+			if libraries.Valid && !usPolicySameLibraries(p.AllowedLibraries, v.libraries) {
+				return nil, 0, ErrResolveRequired
+			}
+		}
+		if p.AllowedLibraries == nil {
+			p.AllowedLibraries = []string{}
+		}
+		profiles = append(profiles, p)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, 0, err
+	}
+
+	out = &USDirectSnapshotImage{
 		TwoStepSetupRequired: twoStep,
 		Authority:            "local",
-		ServerID:             server,
-		Account: USDirectAccountImage{ID: v.account, Username: username, PrimaryProfileID: primary, Role: role,
-			Revision: v.revision, Disabled: false, AllowedLibraries: ids,
-			DisabledAt: disabledAt(disabledMS, disabled), DisabledReason: disabledReason, HostedAccountID: hosted},
+		ServerID:             issuer.server,
+		Account: USDirectAccountImage{ID: issuer.account, Username: username, PrimaryProfileID: primary, Role: role,
+			Revision: revision.Int64, Disabled: false, AllowedLibraries: accountLibraries,
+			DisabledAt: "", DisabledReason: "", HostedAccountID: hostedAccount},
 		Profiles:          profiles,
-		CanManage:         manage,
-		Capabilities:      usPolicyCapabilities(manage, role),
-		CustodyPending:    hosted != "" && role == "owner" && custodian != hosted,
-		RememberProfiles:  state.rememberProfiles,
-		ManagePINRequired: false, // no session family inside a frozen image
-	}, nil
-}
-
-func disabledAt(ms, disabled int64) string {
-	if disabled == 0 || ms <= 0 {
-		return ""
+		CanManage:         canManage,
+		Capabilities:      usPolicySnapshotCapabilities(canManage, role),
+		CustodyPending:    custodyPending,
+		RememberProfiles:  rememberDays.Int64 > 0,
+		ManagePINRequired: managePINRequired,
 	}
-	return time.UnixMilli(ms).UTC().Format(time.RFC3339)
+	// Frozen carrier octet contract on the fresh image: the image can never cost
+	// more variable bytes than the preflighted source it was decoded from.
+	imageOctets, e := USDirectSnapshotImageOctets(*out)
+	if e != nil || imageOctets > raw {
+		return nil, 0, errors.Join(ErrResolveRequired, e)
+	}
+	done.image = out
+	return out, charged, nil
 }
 
-func usPolicyCapabilities(manage bool, role string) USDirectCapabilitiesImage {
+func usPolicySnapshotCapabilities(manage bool, role string) USDirectCapabilitiesImage {
 	if !manage {
 		return USDirectCapabilitiesImage{}
 	}
@@ -730,224 +1114,26 @@ func usPolicyCapabilities(manage bool, role string) USDirectCapabilitiesImage {
 	return USDirectCapabilitiesImage{ManageAccount: manage, ManagePeople: manage && admin, ManageServer: manage && admin, ManageSignIn: manage && role == "owner"}
 }
 
-func captureUSPolicyProfiles(ctx context.Context, turn *commandTurn, account string) (out []USDirectProfileImage, err error) {
-	defer func() {
-		rows, e := finishCommand(ctx, commandLifetime(turn), out, err)
-		out, err = rows, e
-	}()
-	rows, err := usPolicyRows(ctx, turn, usPolicyImageList, account, int64(65))
-	if err != nil {
-		return nil, err
-	}
-	defer func() { err = errors.Join(err, rows.Close()) }()
-	out = make([]USDirectProfileImage, 0, 8)
-	for rows.Next() {
-		var p USDirectProfileImage
-		var libraries sql.NullString
-		var pinHash, deleted int64
-		if err = rows.Scan(&p.ID, &p.Name, &p.Primary, &p.Position, &p.Art, &p.Revision, &p.PINRevision, &pinHash, &libraries, &deleted); err != nil {
-			return nil, err
-		}
-		if pinHash < 0 || (deleted != 0 && deleted != 1) {
-			return nil, ErrResolveRequired
-		}
-		if deleted == 1 {
-			continue
-		}
-		p.PINRequired = pinHash > 0
-		if libraries.Valid {
-			ids, e := decodeUSLibraryIDs(libraries.String)
-			if e != nil {
-				return nil, e
-			}
-			p.AllowedLibraries = ids
-		}
-		if p.AllowedLibraries == nil {
-			p.AllowedLibraries = []string{}
-		}
-		if !usIdentifier(p.ID) || len(out) >= 64 {
-			return nil, ErrResolveRequired
-		}
-		out = append(out, p)
-	}
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
-	// The product cohort is position,id order; the index scan is id order, so
-	// sorting in Go keeps the hot path free of a SQLite temporary B-tree.
-	sort.SliceStable(out, func(i, j int) bool {
-		if out[i].Position != out[j].Position {
-			return out[i].Position < out[j].Position
-		}
-		return out[i].ID < out[j].ID
-	})
-	return out, nil
+func usPolicyFamilyRole(role string) bool {
+	return role == "account" || role == "owner" || role == "admin" || role == "member"
 }
 
-type usPolicySignInFacts struct {
-	signInKind       string
-	requireTwoStep   string
-	rememberProfiles bool
-	factorConfirmed  bool
+// usPolicyOctet accepts one NOT NULL octet_length integer and refuses a NULL,
+// negative or non-integral preflight fact before any materialization.
+func usPolicyOctet(value sql.NullInt64) (int64, error) {
+	if !value.Valid || value.Int64 < 0 {
+		return 0, ErrResolveRequired
+	}
+	return value.Int64, nil
 }
 
-func (s usPolicySignInFacts) twoStepRequired(role string) bool {
-	if s.signInKind != "local" || s.requireTwoStep == "nobody" || s.factorConfirmed {
-		return false
+// usPolicyOctetsSum adds two non-negative preflight octets with overflow and
+// closed-capacity refusal. It never wraps and never truncates.
+func usPolicyOctetsSum(total, add int64) (int64, error) {
+	if total < 0 || add < 0 || add > maxCanonicalResultBytes-total {
+		return 0, &Refusal{Code: RefusalCapacity}
 	}
-	return s.requireTwoStep == "everyone" || role == "owner" || role == "admin"
-}
-
-func readUSPolicySignInFacts(ctx context.Context, turn *commandTurn, account string) (out usPolicySignInFacts, err error) {
-	defer func() {
-		v, e := finishCommand(ctx, commandLifetime(turn), out, err)
-		out, err = v, e
-	}()
-	row, err := usPolicyRow(ctx, turn, usPolicyImageState)
-	if err != nil {
-		return out, err
-	}
-	if err = row.Scan(&out.signInKind); err != nil {
-		return out, errors.Join(ErrResolveRequired, err)
-	}
-	if out.signInKind != "local" && out.signInKind != "portico" {
-		return out, ErrResolveRequired
-	}
-	row, err = usPolicyRow(ctx, turn, usPolicyImagePolicy)
-	if err != nil {
-		return out, err
-	}
-	var remember int64
-	if err = row.Scan(&out.requireTwoStep, &remember); err != nil {
-		return out, errors.Join(ErrResolveRequired, err)
-	}
-	if (out.requireTwoStep != "nobody" && out.requireTwoStep != "administrators" && out.requireTwoStep != "everyone") || remember < 0 {
-		return out, ErrResolveRequired
-	}
-	confirm, err := usPolicyRow(ctx, turn, usPolicyImageFactor, account)
-	if err != nil {
-		return out, err
-	}
-	var present string
-	switch scan := confirm.Scan(&present); {
-	case scan == nil:
-		out.factorConfirmed = true
-	case errors.Is(scan, sql.ErrNoRows):
-	default:
-		return out, scan
-	}
-	out.rememberProfiles = remember > 0
-	return out, nil
-}
-
-type usPolicyRestrictionRow struct {
-	ratingSystem, maximumRating sql.NullString
-	maximumAge                  sql.NullInt64
-	allowUnrated                sql.NullInt64
-	labels                      sql.NullString
-	allowDownloads              sql.NullInt64
-	allowLiveTV                 sql.NullInt64
-	allowDVR                    sql.NullInt64
-	allowWatchTogether          sql.NullInt64
-	revision                    sql.NullInt64
-}
-
-func (r usPolicyRestrictionRow) image(profile string, primary bool, role string, disabled int64) (USMemberProfileRestrictionsImage, error) {
-	if !r.revision.Valid {
-		// identity.DefaultRestrictions: Recordings default on only for the
-		// server owner's live primary profile.
-		return USMemberProfileRestrictionsImage{ProfileID: profile, MaximumAge: -1, AllowUnrated: true, BlockedLabels: []string{},
-			AllowDownloads: true, AllowLiveTV: true, AllowDVR: primary && role == "owner" && disabled == 0, AllowWatchTogether: true, Revision: 1}, nil
-	}
-	if !r.maximumAge.Valid || !r.allowUnrated.Valid || !r.labels.Valid || !r.allowDownloads.Valid || !r.allowLiveTV.Valid || !r.allowDVR.Valid || !r.allowWatchTogether.Valid || r.revision.Int64 < 1 {
-		return USMemberProfileRestrictionsImage{}, ErrResolveRequired
-	}
-	labels, err := decodeUSLibraryIDs(r.labels.String)
-	if err != nil {
-		return USMemberProfileRestrictionsImage{}, err
-	}
-	if labels == nil {
-		labels = []string{}
-	}
-	flag := func(v sql.NullInt64) (bool, error) {
-		if v.Int64 != 0 && v.Int64 != 1 {
-			return false, ErrResolveRequired
-		}
-		return v.Int64 == 1, nil
-	}
-	unrated, err := flag(r.allowUnrated)
-	if err != nil {
-		return USMemberProfileRestrictionsImage{}, err
-	}
-	downloads, err := flag(r.allowDownloads)
-	if err != nil {
-		return USMemberProfileRestrictionsImage{}, err
-	}
-	live, err := flag(r.allowLiveTV)
-	if err != nil {
-		return USMemberProfileRestrictionsImage{}, err
-	}
-	dvr, err := flag(r.allowDVR)
-	if err != nil {
-		return USMemberProfileRestrictionsImage{}, err
-	}
-	together, err := flag(r.allowWatchTogether)
-	if err != nil {
-		return USMemberProfileRestrictionsImage{}, err
-	}
-	if !r.ratingSystem.Valid || !r.maximumRating.Valid {
-		return USMemberProfileRestrictionsImage{}, ErrResolveRequired
-	}
-	return USMemberProfileRestrictionsImage{ProfileID: profile, RatingSystem: r.ratingSystem.String, MaximumAgeRating: r.maximumRating.String,
-		MaximumAge: int(r.maximumAge.Int64), AllowUnrated: unrated, BlockedLabels: labels, AllowDownloads: downloads,
-		AllowLiveTV: live, AllowDVR: dvr, AllowWatchTogether: together, Revision: r.revision.Int64}, nil
-}
-
-func captureUSPolicyProfileImage(ctx context.Context, turn *commandTurn, v usPolicySavedResult) (out *USMemberProfileImage, err error) {
-	defer func() {
-		img, e := finishCommand(ctx, commandLifetime(turn), out, err)
-		out, err = img, e
-	}()
-	row, err := usPolicyRow(ctx, turn, usPolicyImageOne, v.account, v.profile)
-	if err != nil {
-		return nil, err
-	}
-	var p USMemberProfileImage
-	var libraries sql.NullString
-	var role string
-	var disabled, avatarVersion int64
-	var avatarUpdated, avatarMIME sql.NullString
-	var restriction usPolicyRestrictionRow
-	var pinHash int64
-	if err = row.Scan(&p.ID, &p.Name, &p.Primary, &p.Position, &p.Art, &p.Revision, &p.PINRevision, &pinHash, &libraries,
-		&role, &disabled, &restriction.ratingSystem, &restriction.maximumRating, &restriction.maximumAge, &restriction.allowUnrated,
-		&restriction.labels, &restriction.allowDownloads, &restriction.allowLiveTV, &restriction.allowDVR, &restriction.allowWatchTogether,
-		&restriction.revision, &avatarVersion, &avatarUpdated, &avatarMIME); err != nil {
-		return nil, errors.Join(ErrResolveRequired, err)
-	}
-	if p.Revision != v.revision || !usIdentifier(p.ID) || (role != "owner" && role != "admin" && role != "member") || pinHash < 0 {
-		return nil, ErrResolveRequired
-	}
-	p.PINRequired = pinHash > 0
-	if libraries.Valid {
-		ids, e := decodeUSLibraryIDs(libraries.String)
-		if e != nil || !usPolicySameLibraries(ids, v.libraries) {
-			return nil, ErrResolveRequired
-		}
-		p.AllowedLibraries = ids
-	}
-	if p.AllowedLibraries == nil {
-		p.AllowedLibraries = []string{}
-	}
-	p.Restrictions, err = restriction.image(v.profile, p.Primary, role, disabled)
-	if err != nil {
-		return nil, err
-	}
-	if avatarVersion > 0 && avatarUpdated.Valid && avatarMIME.Valid {
-		p.Avatar = &USMemberProfileAvatarImage{ProfileID: v.profile, Version: avatarVersion, UpdatedAt: avatarUpdated.String, SourceMIME: avatarMIME.String,
-			URL: "/v1/admin/access/members/" + v.account + "/profiles/" + v.profile + "/avatar?v=" + strconv.FormatInt(avatarVersion, 10)}
-	}
-	return &p, nil
+	return total + add, nil
 }
 
 func usPolicySameLibraries(a, b []string) bool {
@@ -960,6 +1146,18 @@ func usPolicySameLibraries(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+// usPolicySameLibrarySet mirrors identity.membershipLibrarySet: decode, sort and
+// compact before comparing. Order and duplicates are not authority changes.
+func usPolicySameLibrarySet(a, b []string) bool {
+	left := append([]string(nil), a...)
+	right := append([]string(nil), b...)
+	sort.Strings(left)
+	sort.Strings(right)
+	left = slices.Compact(left)
+	right = slices.Compact(right)
+	return slices.Equal(left, right)
 }
 
 // runUSPolicyDispatch is the closed test/harness entry. It owns the final
@@ -992,13 +1190,22 @@ func runUSPolicyDispatch(ctx context.Context, turn *commandTurn, a *usOwnerAutho
 	physical, commitErr := turn.transaction.commit()
 	switch physical.state {
 	case committed:
+		// finishCommand's release rule: no error, including a late cleanup
+		// failure or a committed safety overrun, may carry output. Physical truth
+		// stays in the private frame; retry must resolve the ORIGINAL.
+		if commitErr != nil {
+			return usPolicyDispatchResult{}, AckResult{}, commitErr
+		}
 		if inv.ack {
 			return usPolicyDispatchResult{}, floor, nil
 		}
 		if historical {
 			return out, floor, nil
 		}
-		if out.Outcome.State == Pending {
+		// Only a submission that actually composed effects is Applied. A bare
+		// Resolve of a never-applied command (input == nil) stays Pending, so its
+		// zero Value/Digest can never be delivered as an applied original.
+		if inv.input != nil && out.Outcome.State == Pending {
 			out.Outcome.State = Applied
 		}
 		return out, floor, nil
