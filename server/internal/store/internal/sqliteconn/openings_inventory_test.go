@@ -20,12 +20,13 @@ import (
 // These are the ONLY reviewed constrained store sources. All bodies must be
 // type-resolved: host, Linux/non-Unix fixture variants, and GV's tagged audits.
 var openingConstraints = map[string]string{
-	"writer/crash_scan_issuer_preparation_linux_test.go": "",                  // implicit _linux suffix; actual issuer original input checkpoint
-	"writer/crash_scan_issuer_oracle_linux_test.go":      "",                  // implicit _linux suffix; independent scan journal/digest model
-	"writer/crash_scan_issuer_linux_test.go":             "",                  // implicit _linux suffix; real issuer SIGKILL/reopen controls
-	"writer/crash_scan_ack_history_linux_test.go":        "",                  // implicit _linux suffix; post-restart scan ACK/retired rebind controls
-	"writer/ec_host_sampler_linux_test.go":               "",                  // implicit _linux suffix; host/cgroup/disk sampler reads /proc
-	"writer/ec_host_sampler_other_test.go":               "//go:build !linux", // non-Linux stub of the host sampler device lookup
+	"writer/mp_external_guide_pin_real_test.go":          "//go:build mp15integration", // reviewed real process/file MP15 test; typed in its exact profile below
+	"writer/crash_scan_issuer_preparation_linux_test.go": "",                           // implicit _linux suffix; actual issuer original input checkpoint
+	"writer/crash_scan_issuer_oracle_linux_test.go":      "",                           // implicit _linux suffix; independent scan journal/digest model
+	"writer/crash_scan_issuer_linux_test.go":             "",                           // implicit _linux suffix; real issuer SIGKILL/reopen controls
+	"writer/crash_scan_ack_history_linux_test.go":        "",                           // implicit _linux suffix; post-restart scan ACK/retired rebind controls
+	"writer/ec_host_sampler_linux_test.go":               "",                           // implicit _linux suffix; host/cgroup/disk sampler reads /proc
+	"writer/ec_host_sampler_other_test.go":               "//go:build !linux",          // non-Linux stub of the host sampler device lookup
 
 	"writer/ec4_screening_test.go":               "//go:build linux && portico_ec4_screening",
 	"qual/scanbench/fixture_dir_unix.go":         "//go:build linux || darwin",
@@ -232,6 +233,7 @@ func loadOpeningSourceUniverse(root string) ([]*packages.Package, error) {
 		{openingEnv("linux"), []string{"-p=1", "-tags=portico_ec4_screening"}, "./internal/store/writer"},
 		// The race-tagged crash-child budget file is excluded from every other
 		// profile. Resolve its body under the declared `race` constraint too.
+		{os.Environ(), []string{"-p=1", "-tags=mp15integration"}, "./internal/store/writer"},
 		{os.Environ(), []string{"-p=1", "-tags=race"}, "./internal/store/writer"},
 	}
 	for _, target := range openingOtherPlatforms(runtime.GOOS) {
