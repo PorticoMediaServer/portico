@@ -20,6 +20,8 @@ func commandClass(id CommandID) (governor.Class, error) {
 		IPArtworkDiscoveryClaim, IPArtworkDiscoveryPage, IPArtworkDiscoveryFinish,
 		IPFieldEdit, IPFieldLock, IPFieldRestore, IPEditBulkBegin:
 		return governor.Background, nil
+	case IPArtworkMaterialIntent, IPArtworkMaterialInstalled:
+		return governor.Background, nil
 	case IAConfigureLibrary, IAConfigureSource:
 		return governor.Background, nil
 	case InventoryAccept, BasicAccept, BasicStage, BasicSeal, InventoryCreate, InventoryClaim, InventoryDirectoryDiscover, InventoryDirectoryEOF, InventoryDirectoryRefuse, InventoryTraversalComplete:

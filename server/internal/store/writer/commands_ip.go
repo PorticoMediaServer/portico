@@ -1,8 +1,8 @@
 package writer
 
-// IP declares the provider-policy/sweep family, the artwork discovery stage
-// family and the owner-edit entry family. Native handlers, profiles and product
-// callers remain uninstalled. Other IP purposes stay shut.
+// IP declares the provider-policy/sweep family, the artwork discovery and
+// material custody families and the owner-edit entry family. Native handlers,
+// profiles and product callers remain uninstalled. Other IP purposes stay shut.
 const (
 	IPPolicySet    CommandID = 200
 	IPRefreshBegin CommandID = 201
@@ -14,6 +14,9 @@ const (
 	IPArtworkDiscoveryClaim  CommandID = 220
 	IPArtworkDiscoveryPage   CommandID = 221
 	IPArtworkDiscoveryFinish CommandID = 222
+
+	IPArtworkMaterialIntent    CommandID = 223
+	IPArtworkMaterialInstalled CommandID = 224
 
 	IPFieldEdit     CommandID = 240
 	IPFieldLock     CommandID = 241
@@ -31,6 +34,8 @@ var ipCommands = commandRegistration{owner: "IP", descriptors: []Descriptor{
 	{IPArtworkDiscoveryClaim, "ip_artwork_discovery_claim", Normal},
 	{IPArtworkDiscoveryPage, "ip_artwork_discovery_page", Normal},
 	{IPArtworkDiscoveryFinish, "ip_artwork_discovery_finish", Normal},
+	{IPArtworkMaterialIntent, "ip_artwork_material_intent", Normal},
+	{IPArtworkMaterialInstalled, "ip_artwork_material_installed", Normal},
 	{IPFieldEdit, "ip_field_edit", Normal},
 	{IPFieldLock, "ip_field_lock", Normal},
 	{IPFieldRestore, "ip_field_restore", Normal},
