@@ -1,11 +1,14 @@
 package read
 
 import (
+	"database/sql"
 	"database/sql/driver"
 	"encoding/json"
+	"net/url"
 	"os"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"testing/synctest"
 
@@ -47,31 +50,70 @@ func rbMembershipLegacyVectors(t *testing.T) []rbMembershipLegacyVector {
 // The legacy public compiler binds a public id through pid_blob and folds text
 // through portico_fold_text. This native test binary deliberately does not
 // import the persistence graph that registers them, so the oracle registers the
-// exact public-id decode here and substitutes only the fold function name; every
-// join, membership arm and argument stays byte-for-byte as compiled. Every
-// frozen value is ASCII, where that fold is exactly lower().
-func init() {
-	_ = sqlite.RegisterDeterministicScalarFunction("pid_blob", 1, func(_ *sqlite.FunctionContext, args []driver.Value) (driver.Value, error) {
-		public, ok := args[0].(string)
-		if !ok {
-			return nil, nil
+// exact public-id decode on a driver of its own and substitutes only the fold
+// function name; every join, membership arm and argument stays byte-for-byte as
+// compiled. Every frozen value is ASCII, where that fold is exactly lower().
+//
+// The registration stays off the package-level "sqlite" driver. Plan capture
+// hashes pragma_function_list into environment.functionsSha256, so functions
+// registered there would change every plan golden in this package, not only the
+// oracle's rows. This driver is registered once, lazily, when a membership test
+// first asks for it, and only the oracle's own connection is opened through it.
+const rbMembershipOracleDriverName = "sqlite-rb-membership-legacy-oracle"
+
+var (
+	rbMembershipOracleRegister sync.Once
+	rbMembershipOracleErr      error
+)
+
+func rbMembershipOracleDB(t *testing.T, path string) *sql.DB {
+	t.Helper()
+	rbMembershipOracleRegister.Do(func() {
+		connDriver := &sqlite.Driver{}
+		if err := connDriver.RegisterDeterministicScalarFunction("pid_blob", 1, func(_ *sqlite.FunctionContext, args []driver.Value) (driver.Value, error) {
+			public, ok := args[0].(string)
+			if !ok {
+				return nil, nil
+			}
+			raw, valid := entityid.Decode(public)
+			if !valid {
+				return nil, nil
+			}
+			return raw, nil
+		}); err != nil {
+			rbMembershipOracleErr = err
+			return
 		}
-		raw, valid := entityid.Decode(public)
-		if !valid {
-			return nil, nil
+		if err := connDriver.RegisterDeterministicScalarFunction("pid", 1, func(_ *sqlite.FunctionContext, args []driver.Value) (driver.Value, error) {
+			raw, ok := args[0].([]byte)
+			if !ok || len(raw) != entityid.Size {
+				return nil, nil
+			}
+			return entityid.Encode(raw), nil
+		}); err != nil {
+			rbMembershipOracleErr = err
+			return
 		}
-		return raw, nil
+		sql.Register(rbMembershipOracleDriverName, connDriver)
 	})
-	_ = sqlite.RegisterDeterministicScalarFunction("pid", 1, func(_ *sqlite.FunctionContext, args []driver.Value) (driver.Value, error) {
-		raw, ok := args[0].([]byte)
-		if !ok || len(raw) != entityid.Size {
-			return nil, nil
+	if rbMembershipOracleErr != nil {
+		t.Fatalf("register membership oracle functions: %v", rbMembershipOracleErr)
+	}
+	uri := url.URL{Scheme: "file", Path: path, RawQuery: "mode=rw"}
+	db, err := sql.Open(rbMembershipOracleDriverName, uri.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.SetMaxOpenConns(1)
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Error(err)
 		}
-		return entityid.Encode(raw), nil
 	})
+	return db
 }
 
-func rbMembershipLegacyMatches(t *testing.T, f *browseFixture, in BrowseInput, where string, args []any) []int64 {
+func rbMembershipLegacyMatches(t *testing.T, db *sql.DB, in BrowseInput, where string, args []any) []int64 {
 	t.Helper()
 	key, direction := "sort_key", "ASC"
 	if in.KeepArticles {
@@ -82,7 +124,7 @@ func rbMembershipLegacyMatches(t *testing.T, f *browseFixture, in BrowseInput, w
 	}
 	where = strings.ReplaceAll(where, "portico_fold_text(", "lower(")
 	query := "SELECT e.entity_id FROM (SELECT id AS entity_id,library_id,kind,retired,sort_key,sort_key_keep_articles FROM catalog_entities) AS e WHERE e.library_id=? AND e.kind=? AND e.retired=0 AND (" + where + ") ORDER BY e." + key + " COLLATE NOCASE " + direction + ",e.entity_id " + direction
-	rows, err := f.conn.QueryContext(t.Context(), query, append([]any{in.Library, in.Kind}, args...)...)
+	rows, err := db.QueryContext(t.Context(), query, append([]any{in.Library, in.Kind}, args...)...)
 	if err != nil {
 		t.Fatal(err)
 	}
