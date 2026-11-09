@@ -32,13 +32,11 @@ func TestUSPINResultBindsEveryScalar(t *testing.T) {
 		"revision":       func(v *usPINSavedResult) { v.revision++ },
 		"pin_revision":   func(v *usPINSavedResult) { v.pinRevision++ },
 		"applied_ms":     func(v *usPINSavedResult) { v.appliedMS++ },
-		"pin_required":   func(v *usPINSavedResult) { v.pinRequired = false },
 		"owner":          func(v *usPINSavedResult) { v.owner = "other-owner" },
 		"account":        func(v *usPINSavedResult) { v.account = "other-account" },
 		"member":         func(v *usPINSavedResult) { v.member = strings.Repeat("f", 32) },
 		"profile":        func(v *usPINSavedResult) { v.profile = "other-profile" },
 		"lifetime":       func(v *usPINSavedResult) { v.lifetime = strings.Repeat("a", 32) },
-		"purpose_set":    func(v *usPINSavedResult) { v.kind = usPINClear },
 		"identity":       func(*usPINSavedResult) {},
 		"request_digest": func(*usPINSavedResult) {},
 	} {
@@ -73,10 +71,16 @@ func TestUSPINResultBindsEveryScalar(t *testing.T) {
 		t.Fatal("exact receipt charge", bytes, err)
 	}
 	// A clear result must never claim a PIN, and a set result must never omit it.
+	// The codec and the PIN flag are coupled, so compare the two valid purposes
+	// instead of constructing an invalid purpose/flag combination.
 	clear := v
 	clear.kind, clear.pinRequired = usPINClear, false
-	if _, err := usPINResultDigest(i, request, clear); err != nil {
+	clearDigest, err := usPINResultDigest(i, request, clear)
+	if err != nil {
 		t.Fatal("valid clear result refused", err)
+	}
+	if clearDigest == original {
+		t.Fatal("purpose or PIN flag omitted")
 	}
 	clear.pinRequired = true
 	if _, err := usPINResultDigest(i, request, clear); err == nil {
