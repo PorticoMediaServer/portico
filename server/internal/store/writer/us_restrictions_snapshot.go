@@ -164,7 +164,10 @@ func applyUSRestrictions(ctx context.Context, turn *commandTurn, input *usRestri
 	}
 	var revision, maximumAge, unrated, downloads, live, dvr, together int64
 	var system, code, blocked string
-	if err = row.Scan(&revision, &system, &code, &maximumAge, &unrated, &blocked, &downloads, &live, &dvr, &together); err != nil {
+	if err = row.Scan(&revision, &system, &code, &maximumAge, &unrated, &blocked, &downloads, &live, &dvr, &together); errors.Is(err, sql.ErrNoRows) {
+		// The update's CAS/RETURNING matched no row: the predecessor is stale.
+		return out, ErrConflict
+	} else if err != nil {
 		return out, err
 	}
 	if revision != want.revision || system != want.ratingSystem || code != want.maximumAgeRating || maximumAge != want.maximumAge ||

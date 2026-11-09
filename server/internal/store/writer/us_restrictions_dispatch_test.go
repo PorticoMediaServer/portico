@@ -502,13 +502,12 @@ func TestUSRestrictionsDispatchLateReleaseDeniesAndRollsBack(t *testing.T) {
 	deniedTurn, deniedAuth, _ := usRestrictionsTurn(t, w, r, proof, input.kind, 0)
 	// The captured proof is what every recheck re-runs; shortening it AFTER the
 	// entry authorization is the only way to expire it mid-frame. The final
-	// disclosure's FIRST sample is the sixth control sample from the end (its
-	// two remaining samples and the terminal's three follow it), so flipping
-	// there leaves a composed prefix that the release must roll back. The step
-	// stays inside the runtime safety ceiling, making this a denial, not an
-	// overrun.
+	// disclosure is the sixth control sample from the end (its statements' own
+	// samples and the terminal's three follow it), so flipping one call earlier
+	// leaves a composed prefix that the release must roll back. The step stays
+	// inside the runtime safety ceiling, making this a denial, not an overrun.
 	deniedAuth.proof.tokenExpiry = w.now().Add(time.Second)
-	usPolicyStepClockOn(w, total-5, 2*time.Second)
+	usPolicyStepClockOn(w, total-6, 2*time.Second)
 	out, _, err := runUSRestrictionsDispatch(t.Context(), deniedTurn, deniedAuth, usRestrictionsInput(t, input))
 	if !errors.Is(err, ErrDisclosureDenied) || errors.Is(err, ErrConflict) || !reflect.DeepEqual(out, usRestrictionsDispatchResult{}) {
 		t.Fatal("release denial joined or missed", out, err)
