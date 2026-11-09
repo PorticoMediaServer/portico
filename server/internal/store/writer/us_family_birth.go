@@ -150,8 +150,16 @@ func applyUSFamilyBirth(ctx context.Context, turn *commandTurn, p *usFamilyBirth
 	if primary == 0 {
 		role = "member"
 	} else {
-		if _, e = wc008DraftInteger(ctx, turn, usFamilyBirthPrimary, i.account, i.profile); e != nil {
+		row, e = wc008DraftQuery(ctx, turn, usFamilyBirthPrimary, i.account, i.profile)
+		if e != nil {
+			return out, e
+		}
+		var matches int64
+		if e = row.Scan(&matches); e != nil {
 			return out, usFamilyBirthReadError(e)
+		}
+		if matches != 1 {
+			return out, ErrDisclosureDenied
 		}
 	}
 
