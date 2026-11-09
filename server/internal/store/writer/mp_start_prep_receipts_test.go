@@ -28,25 +28,25 @@ func TestMPStartPrepPayloadIsACompleteOriginal(t *testing.T) {
 		if err != nil || len(payload) == 0 || len(payload) > mpStartPrepPayloadCap || digest == (ResultDigest{}) {
 			t.Fatal(kind, len(payload), digest, err)
 		}
-		decoded, got, err := decodeMPStartPrepPayload(id, request, payload, digest)
-		if err != nil || got != digest || decoded != value {
-			t.Fatal("original bytes changed", decoded, got, err)
+		decoded, err := decodeMPStartPrepPayload(id, request, payload, digest)
+		if err != nil || decoded != value {
+			t.Fatal("original bytes changed", decoded, err)
 		}
 		// Every identity/request/payload mutation must be refused.
 		other := id
 		other.Sequence++
-		if _, _, err := decodeMPStartPrepPayload(other, request, payload, digest); err == nil {
+		if _, err := decodeMPStartPrepPayload(other, request, payload, digest); err == nil {
 			t.Fatal("sequence drift accepted")
 		}
 		other = id
 		other.OperationID[0] ^= 1
-		if _, _, err := decodeMPStartPrepPayload(other, request, payload, digest); err == nil {
+		if _, err := decodeMPStartPrepPayload(other, request, payload, digest); err == nil {
 			t.Fatal("operation drift accepted")
 		}
-		if _, _, err := decodeMPStartPrepPayload(id, RequestDigest{4}, payload, digest); err == nil {
+		if _, err := decodeMPStartPrepPayload(id, RequestDigest{4}, payload, digest); err == nil {
 			t.Fatal("request drift accepted")
 		}
-		if _, _, err := decodeMPStartPrepPayload(id, request, append(append([]byte{}, payload...), 0), digest); err == nil {
+		if _, err := decodeMPStartPrepPayload(id, request, append(append([]byte{}, payload...), 0), digest); err == nil {
 			t.Fatal("trailing bytes accepted")
 		}
 		forged := value
