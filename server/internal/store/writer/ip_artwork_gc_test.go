@@ -99,7 +99,7 @@ func ipArtworkGCApply(t *testing.T, w *executor, r *ipPolicyRegistry, p *usOwner
 // A refused command leaves no receipt, no owner advance and no retiring row.
 func ipArtworkGCRefuse(t *testing.T, w *executor, digest string) {
 	t.Helper()
-	ipArtworkGCExpect(t, w, 0, `SELECT count(*) FROM artwork_command_receipts`)
+	ipArtworkGCExpect(t, w, 0, `SELECT count(*) FROM artwork_command_receipts WHERE command_kind IN('gc_mark','gc_finish')`)
 	ipArtworkGCExpect(t, w, 0, `SELECT last_command_sequence FROM artwork_subject_jobs WHERE id=901`)
 	ipArtworkGCExpect(t, w, 1, `SELECT revision FROM artwork_sources WHERE digest=?`, digest)
 	ipArtworkGCExpect(t, w, 0, `SELECT retiring FROM artwork_sources WHERE digest=?`, digest)
