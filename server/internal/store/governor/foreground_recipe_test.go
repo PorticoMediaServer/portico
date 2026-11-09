@@ -7,7 +7,7 @@ import (
 )
 
 func TestForegroundReadRecipeFundsMaximumConcurrentWindows(t *testing.T) {
-	if ForegroundReadBytes != 12_648_448 || ForegroundReadBytes != 129*65536+(4<<20) ||
+	if ForegroundReadBytes != 12_648_448 ||
 		ForegroundRequestBytes != 21_037_056 || ForegroundRequestBytes-(20<<20) != 65536 {
 		t.Fatal("foreground recipe drift", ForegroundReadBytes, ForegroundRequestBytes)
 	}
