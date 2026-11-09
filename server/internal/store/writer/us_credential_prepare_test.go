@@ -30,7 +30,7 @@ func usCredentialTestIssue() usCredentialIssueRequest {
 }
 
 func usCredentialTestRevoke() usCredentialRevokeRequest {
-	return usCredentialRevokeRequest{target: usCredentialTestTarget(), id: "us-credential", kind: "token", name: "Automation", scopes: "read,playback", secretHash: usCredentialFixtureDigest, hint: "abcdef", family: "us-credential-family", device: "us-credential-device", createdMS: 1000}
+	return usCredentialRevokeRequest{target: usCredentialTestTarget(), id: "us-credential", kind: "token", name: "Automation", scopes: "read,playback", secretHash: usCredentialFixtureDigest, hint: "abcdef", family: "us-credential-family", device: "us-credential-device", familyIncarnation: [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}, familyGeneration: 1, createdMS: 1000}
 }
 
 func usCredentialTestPassword() usPasswordReplaceRequest {
@@ -154,6 +154,9 @@ func TestUSCredentialPreparationRefusalsAndExpiry(t *testing.T) {
 		func(q *usCredentialRevokeRequest) { q.scopes = "playback,read" },
 		func(q *usCredentialRevokeRequest) { q.createdMS = 0 },
 		func(q *usCredentialRevokeRequest) { q.endedReason = "role is authority" },
+		func(q *usCredentialRevokeRequest) { q.familyIncarnation = [16]byte{} },
+		func(q *usCredentialRevokeRequest) { q.familyGeneration = 0 },
+		func(q *usCredentialRevokeRequest) { q.familyGeneration = usMaxRevision + 1 },
 	} {
 		q := usCredentialTestRevoke()
 		edit(&q)

@@ -531,15 +531,17 @@ func applyUSCredentialIssue(ctx context.Context, turn *commandTurn, job *usCrede
 // never touches a descendant credential, another family, the issuer's session
 // or the issuer's device.
 //
-// Order is the binding one: (1) the source marker (revoked_ms), (2) the
-// credential's own family denial (revoked/reason/at + WC #1265's scalar
-// teardown_due_ms obligation) after proving the family's own device_id is the
-// credential row's device, (3) logical retirement of the credential's own
-// identity_devices row after proving birth's installation pin, then (4) ONE
-// devices list.changed hint. Every step is CAS-bound to the same prepared
-// witness and the same trusted clock. Any failure cancels the whole frame,
-// even if a parent ignores the error, so a marker-only or family-only prefix
-// can never commit.
+// Order is the binding one: (0) the credential's OWN family target-source
+// comparison, read-only, including the exact prepared family
+// command_incarnation/current_generation tuple, (1) the source marker
+// (revoked_ms), (2) the credential's own family denial (revoked/reason/at +
+// WC #1265's scalar teardown_due_ms obligation) after proving the family's own
+// device_id is the credential row's device, (3) logical retirement of the
+// credential's own identity_devices row after proving birth's installation
+// pin, then (4) ONE devices list.changed hint. Every step is CAS-bound to the
+// same prepared witness and the same trusted clock. Any failure cancels the
+// whole frame, even if a parent ignores the error, so a marker-only or
+// family-only prefix can never commit.
 //
 // An ALREADY-revoked family is the SAME exact target once those binds are
 // proved, whatever FIRST revoked it. In that branch a fresh 522 only completes
@@ -582,38 +584,16 @@ func applyUSCredentialRevoke(ctx context.Context, turn *commandTurn, job *usCred
 	if nowMS < in.createdMS || nowMS < in.revokedMS {
 		return out, ErrConflict
 	}
-	// (1) Marker. The exact current TOP-LEVEL source row, unchanged shape.
-	args := usCredentialSourceBindings(in)
-	id := usCredentialRevokeRead
-	want := usCredentialSourceRow{account: in.target.account, profile: in.target.profile, id: in.id, kind: in.kind, name: in.name, scopes: in.scopes, secretHash: in.secretHash, hint: in.hint, family: in.family, device: in.device, createdMS: in.createdMS, expiresMS: in.expiresMS, revokedMS: in.revokedMS, endedReason: in.endedReason}
-	if in.revokedMS == 0 {
-		id = usCredentialRevokeWrite
-		args = append([]any{nowMS}, args...)
-		want.revokedMS = nowMS
-		out.changed = true
-	}
-	row, e := usCredentialQuery(ctx, turn, id, args...)
-	if e != nil {
-		return out, e
-	}
-	// A zero-row revoke read/write (foreign id, a descendant row, or a stale
-	// witness) is the same absent exact source as the target read, so it is
-	// ErrConflict rather than a raw driver sql.ErrNoRows.
-	if e = scanUSCredentialSource(row, &out.row); e != nil {
-		return out, usCredentialSourceError(e)
-	}
-	if out.row != want {
-		return out, ErrResolveRequired
-	}
-	// (2) The credential's OWN security_kind=1 family. The credential row
-	// supplied family_id; this read/CAS binds it to the CURRENT target
-	// member/profile lifetime, server, incarnation, generation and the SAME
-	// device_id. SOL-USERS' chain is credential row -> family -> device: a family
-	// whose device_id is NULL or a different device is not this credential's
-	// exact current target, in BOTH the live and the already-revoked branch.
-	// Denying such a family while retiring the credential row's device would
-	// leave a different device live and still record Applied.
-	row, e = usCredentialQuery(ctx, turn, usCredentialFamilyRead, in.family, in.target.account, in.target.profile)
+	// (1) The credential's OWN security_kind=1 family: read-only target-source
+	// comparison BEFORE any write. The credential row supplied family_id; this
+	// read binds it to the CURRENT target member/profile lifetime, server,
+	// incarnation, generation and the SAME device_id. SOL-USERS' chain is
+	// credential row -> family -> device: a family whose device_id is NULL or a
+	// different device is not this credential's exact current target, in BOTH
+	// the live and the already-revoked branch. Denying such a family while
+	// retiring the credential row's device would leave a different device live
+	// and still record Applied.
+	row, e := usCredentialQuery(ctx, turn, usCredentialFamilyRead, in.family, in.target.account, in.target.profile)
 	if e != nil {
 		return out, e
 	}
@@ -627,8 +607,18 @@ func applyUSCredentialRevoke(ctx context.Context, turn *commandTurn, job *usCred
 	if e = row.Scan(&family.incarnation, &family.generation, &family.revoked, &family.reason, &family.due, &family.server, &family.member, &family.life, &family.device); e != nil {
 		return out, errors.Join(ErrConflict, e)
 	}
-	if len(family.incarnation) != 16 || family.generation <= 0 {
+	if len(family.incarnation) != 16 || family.generation <= 0 || family.revoked < 0 || family.revoked > 1 {
 		return out, ErrResolveRequired
+	}
+	// The prepared family command_incarnation/current_generation are OWNED
+	// comparison witnesses frozen into this request's canonical digest. Reading
+	// and CASing them only inside this frame would prove snapshot consistency,
+	// not prepare->apply identity: a family re-minted under the same family id
+	// (new command_incarnation) or a generation advance would pass. Compare the
+	// EXACT prepared tuple on BOTH branches before any write and refuse a stale
+	// witness with zero output, so the whole frame rolls back with no receipt.
+	if !equalBytes(family.incarnation, in.familyIncarnation[:]) || family.generation != in.familyGeneration {
+		return out, ErrConflict
 	}
 	if family.server != job.issuer.server || family.member != in.target.memberIncarnation || family.life != in.target.profileLifetime {
 		return out, ErrConflict
@@ -636,12 +626,46 @@ func applyUSCredentialRevoke(ctx context.Context, turn *commandTurn, job *usCred
 	if !family.device.Valid || family.device.String != in.device {
 		return out, ErrConflict
 	}
+	copy(out.familyIncarnation[:], family.incarnation)
+	// (2) Marker. The exact current TOP-LEVEL source row, unchanged shape.
+	args := usCredentialSourceBindings(in)
+	id := usCredentialRevokeRead
+	want := usCredentialSourceRow{account: in.target.account, profile: in.target.profile, id: in.id, kind: in.kind, name: in.name, scopes: in.scopes, secretHash: in.secretHash, hint: in.hint, family: in.family, device: in.device, createdMS: in.createdMS, expiresMS: in.expiresMS, revokedMS: in.revokedMS, endedReason: in.endedReason}
+	if in.revokedMS == 0 {
+		id = usCredentialRevokeWrite
+		args = append([]any{nowMS}, args...)
+		want.revokedMS = nowMS
+		out.changed = true
+	}
+	row, e = usCredentialQuery(ctx, turn, id, args...)
+	if e != nil {
+		return out, e
+	}
+	// A zero-row revoke read/write (foreign id, a descendant row, or a stale
+	// witness) is the same absent exact source as the target read, so it is
+	// ErrConflict rather than a raw driver sql.ErrNoRows.
+	if e = scanUSCredentialSource(row, &out.row); e != nil {
+		return out, usCredentialSourceError(e)
+	}
+	if out.row != want {
+		return out, ErrResolveRequired
+	}
+	// (3) The credential's OWN family denial on the live branch, CAS-bound to the
+	// SAME prepared tuple just compared. An already-revoked family is this
+	// credential's exact current target once the binds above are proved,
+	// whatever FIRST revoked it. SOL-USERS' ruling: a fresh 522 may monotonically
+	// finish a previously denied target by completing the credential marker and
+	// device retirement below, but it PRESERVES that first cause. It never
+	// rewrites revoked_reason/revoked_at, never invents a revoke_operation_id or
+	// a second family command/receipt, and never re-arms or rewrites the
+	// existing teardown lifecycle. A NULL teardown_due_ms means the obligation is
+	// already completed (or was never armed by a legacy sweep): it is NOT
+	// ErrConflict, and it is deliberately not repaired here.
 	familyChanged := false
-	switch family.revoked {
-	case 0:
+	if family.revoked == 0 {
 		revokedAt := time.UnixMilli(nowMS).UTC().Format(time.RFC3339)
 		row, e = usCredentialQuery(ctx, turn, usCredentialFamilyRevoke, revokedAt, nowMS, in.family, job.issuer.server, in.target.account, in.target.profile,
-			in.device, in.target.memberIncarnation, in.target.profileLifetime, family.incarnation, family.generation)
+			in.device, in.target.memberIncarnation, in.target.profileLifetime, in.familyIncarnation[:], in.familyGeneration)
 		if e != nil {
 			return out, e
 		}
@@ -658,19 +682,7 @@ func applyUSCredentialRevoke(ctx context.Context, turn *commandTurn, job *usCred
 		}
 		family.incarnation, family.generation = gotIncarnation, gotGeneration
 		familyChanged = true
-	case 1:
-		// An already-revoked family is this credential's exact current target
-		// once the binds above are proved, whatever FIRST revoked it. SOL-USERS'
-		// ruling: a fresh 522 may monotonically finish a previously denied
-		// target by completing the credential marker and device retirement
-		// below, but it PRESERVES that first cause. It never rewrites
-		// revoked_reason/revoked_at, never invents a revoke_operation_id or a
-		// second family command/receipt, and never re-arms or rewrites the
-		// existing teardown lifecycle. A NULL teardown_due_ms means the
-		// obligation is already completed (or was never armed by a legacy
-		// sweep): it is NOT ErrConflict, and it is deliberately not repaired
-		// here.
-		//
+	} else {
 		// 'any valid reason' does not include the empty string. The schema
 		// admits revoked_reason='' as a stored value, but '' is the ABSENCE of a
 		// recorded cause, not a cause: RevokeFamilyTx never writes it, so a
@@ -680,11 +692,8 @@ func applyUSCredentialRevoke(ctx context.Context, turn *commandTurn, job *usCred
 		if family.reason == "" {
 			return out, ErrConflict
 		}
-	default:
-		return out, ErrResolveRequired
 	}
-	copy(out.familyIncarnation[:], family.incarnation)
-	// (3) The credential's OWN bound API device: LOGICAL retirement only. The
+	// (4) The credential's OWN bound API device: LOGICAL retirement only. The
 	// read/cas also pins birth's exact installation 'api-credential-'||id, so an
 	// ordinary device or another credential's API device cannot be retired even
 	// if it carried platform 'api' and this account.
@@ -728,7 +737,7 @@ func applyUSCredentialRevoke(ctx context.Context, turn *commandTurn, job *usCred
 		// retirement path/import; there is no second revision bump and no
 		// second retirement timestamp.
 	}
-	// (4) ONE bound hint in the same frame. A replay never reaches apply (the
+	// (5) ONE bound hint in the same frame. A replay never reaches apply (the
 	// retained receipt resolves first), and an already-complete source writes
 	// nothing, so there is never a second event for one original.
 	if out.changed || familyChanged || deviceChanged {

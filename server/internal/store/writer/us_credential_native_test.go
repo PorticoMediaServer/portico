@@ -118,15 +118,30 @@ func usCredentialIssueCommandFixture(t *testing.T, w *executor, proof *usOwnerAu
 	return command
 }
 
-func usCredentialRevokeRequestFor(w *executor, issue *usCredentialNativeCommand) usCredentialRevokeRequest {
+// usCredentialRevokeRequestFor reads the credential's OWN family
+// command_incarnation/current_generation through plain SQL (an independent
+// oracle, not the writer's read statement) and freezes that tuple into the
+// prepared request exactly as root would.
+func usCredentialRevokeRequestFor(t *testing.T, w *executor, issue *usCredentialNativeCommand) usCredentialRevokeRequest {
+	t.Helper()
 	p := issue.issue.prepared
-	return usCredentialRevokeRequest{target: p.target, id: p.id, kind: p.kind, name: p.name, scopes: p.scopes, secretHash: p.secretHash,
-		hint: p.hint, family: p.family, device: p.device, createdMS: w.now().UnixMilli(), expiresMS: p.expiresMS}
+	var incarnation []byte
+	var generation int64
+	if err := w.db.QueryRowContext(t.Context(), `SELECT command_incarnation,current_generation FROM authorization_session_families WHERE id=?`, p.family).Scan(&incarnation, &generation); err != nil {
+		t.Fatal(err)
+	}
+	if len(incarnation) != 16 || generation <= 0 {
+		t.Fatal("family witness shape", incarnation, generation)
+	}
+	request := usCredentialRevokeRequest{target: p.target, id: p.id, kind: p.kind, name: p.name, scopes: p.scopes, secretHash: p.secretHash,
+		hint: p.hint, family: p.family, device: p.device, familyGeneration: generation, createdMS: w.now().UnixMilli(), expiresMS: p.expiresMS}
+	copy(request.familyIncarnation[:], incarnation)
+	return request
 }
 
 func usCredentialRevokeCommandFixture(t *testing.T, w *executor, proof *usOwnerAuthorityProof, issue *usCredentialNativeCommand, identity CommandIdentity) *usCredentialNativeCommand {
 	t.Helper()
-	command, err := prepareUSCredentialNativeRevoke(identity, usCredentialOwnerID, proof.witness.issuer, usCredentialRevokeRequestFor(w, issue))
+	command, err := prepareUSCredentialNativeRevoke(identity, usCredentialOwnerID, proof.witness.issuer, usCredentialRevokeRequestFor(t, w, issue))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1011,7 +1026,7 @@ func TestUSCredentialRevokeRefusesForeignChildAndStaleWitness(t *testing.T) {
 		// request still carries the caller's account key.
 		wc008NativeExec(t, w, `INSERT INTO accounts(id,username,password_hash,profile_id) VALUES('foreign-account','foreign-user',X'','foreign-profile')`)
 		wc008NativeExec(t, w, `INSERT INTO api_credentials(id,kind,account_id,profile_id,name,scopes,secret_hash,hint,family_id,device_id,created_ms) VALUES('credential-foreign-0001','token','foreign-account','foreign-profile','Automation','read,playback',?,'abcdef','credential-foreign-family','credential-foreign-device',?)`, usCredentialFixtureHash("foreign-credential"), w.now().UnixMilli())
-		request := usCredentialRevokeRequestFor(w, issue)
+		request := usCredentialRevokeRequestFor(t, w, issue)
 		request.id, request.family, request.device, request.secretHash = "credential-foreign-0001", "credential-foreign-family", "credential-foreign-device", usCredentialFixtureHash("foreign-credential")
 		command, err := prepareUSCredentialNativeRevoke(revokeIdentity, usCredentialOwnerID, proof.witness.issuer, request)
 		if err != nil {
@@ -1030,7 +1045,7 @@ func TestUSCredentialRevokeRefusesForeignChildAndStaleWitness(t *testing.T) {
 		issue := usCredentialIssuedAcknowledged(t, w, proof, r)
 		i := proof.witness.issuer
 		wc008NativeExec(t, w, `INSERT INTO api_credentials(id,kind,account_id,profile_id,name,scopes,secret_hash,hint,family_id,device_id,created_ms,expires_ms,parent_id) VALUES('credential-child-0001','token',?,?,'Automation','read,playback',?,'abcdef','credential-child-family','credential-child-device',?,0,?)`, i.account, i.profile, usCredentialFixtureHash("child-credential"), w.now().UnixMilli(), issue.issue.prepared.id)
-		request := usCredentialRevokeRequestFor(w, issue)
+		request := usCredentialRevokeRequestFor(t, w, issue)
 		request.id, request.family, request.device, request.secretHash = "credential-child-0001", "credential-child-family", "credential-child-device", usCredentialFixtureHash("child-credential")
 		command, err := prepareUSCredentialNativeRevoke(revokeIdentity, usCredentialOwnerID, proof.witness.issuer, request)
 		if err != nil {
@@ -1050,7 +1065,7 @@ func TestUSCredentialRevokeRefusesForeignChildAndStaleWitness(t *testing.T) {
 		usCredentialOwnerFixture(t, w, proof, [16]byte{1})
 		r := usCredentialRegistry(t)
 		issue := usCredentialIssuedAcknowledged(t, w, proof, r)
-		request := usCredentialRevokeRequestFor(w, issue)
+		request := usCredentialRevokeRequestFor(t, w, issue)
 		request.name = "Stale automation"
 		command, err := prepareUSCredentialNativeRevoke(revokeIdentity, usCredentialOwnerID, proof.witness.issuer, request)
 		if err != nil {
@@ -1602,7 +1617,7 @@ func TestUSCredentialRevokeAlreadyRevokedSource(t *testing.T) {
 			}
 			// Freeze the repeat request against the ORIGINAL clock, then move
 			// the trusted clock forward so a non-sticky rewrite would be visible.
-			request := usCredentialRevokeRequestFor(w, issue)
+			request := usCredentialRevokeRequestFor(t, w, issue)
 			request.revokedMS = originalMS
 			repeat, err := prepareUSCredentialNativeRevoke(CommandIdentity{Incarnation: [16]byte{1}, OperationID: [16]byte{9}, Sequence: 3}, usCredentialOwnerID, proof.witness.issuer, request)
 			if err != nil {
@@ -1693,7 +1708,7 @@ func TestUSCredentialRevokeCompletesAlreadyRevokedFamily(t *testing.T) {
 				wc008NativeExec(t, w, `UPDATE identity_devices SET retired_ms=?,revision=revision+1 WHERE id=?`, stickyMS, usCredentialDeviceID)
 			}
 			familyBefore := usCredentialTableRow(t, w, "authorization_session_families", "id", usCredentialFamilyID)
-			request := usCredentialRevokeRequestFor(w, issue)
+			request := usCredentialRevokeRequestFor(t, w, issue)
 			if tc.markerSet {
 				request.revokedMS = stickyMS
 			}

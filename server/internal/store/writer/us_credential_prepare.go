@@ -239,10 +239,21 @@ func (p *usCredentialIssuePrepared) protectedManifest() usCredentialProtectedMan
 // digest, family/device and created time prevent an ID-only stale revocation.
 // Names/scopes/hint/expiry/ended/revoked are compared as well, so post-results
 // never reconstruct the old operation from a subsequently edited source row.
+//
+// familyIncarnation/familyGeneration are the caller's read of the credential's
+// OWN authorization_session_families.command_incarnation (16-byte BLOB) and
+// current_generation. They are OWNED PREPARED comparison witnesses, frozen into
+// the canonical request digest with the rest of this request, and compared to
+// current source before any write on BOTH the live and the already-revoked
+// branch. Reading and CASing them only inside the applying frame would prove
+// snapshot consistency, not prepare->apply identity: a family re-minted under
+// the same family id would otherwise be accepted. They grant NO authority.
 type usCredentialRevokeRequest struct {
 	target                           usCredentialTarget
 	id, kind, name, scopes           string
 	secretHash, hint, family, device string
+	familyIncarnation                [16]byte
+	familyGeneration                 int64
 	createdMS, expiresMS, revokedMS  int64
 	endedReason                      string
 }
@@ -251,6 +262,7 @@ type usCredentialRevokePrepared struct{ request usCredentialRevokeRequest }
 
 func prepareUSCredentialRevoke(in usCredentialRevokeRequest) (*usCredentialRevokePrepared, error) {
 	if !validUSCredentialTarget(in.target) || !usIdentifier(in.id) || !usIdentifier(in.family) || !usIdentifier(in.device) || !usCredentialDigest(in.secretHash) ||
+		in.familyIncarnation == ([16]byte{}) || in.familyGeneration < 1 || in.familyGeneration > usMaxRevision ||
 		(in.kind != "key" && in.kind != "token" && in.kind != "app_password") || in.createdMS <= 0 || in.createdMS > usMaxRevision || in.expiresMS < 0 || in.expiresMS > usMaxRevision || in.revokedMS < 0 || in.revokedMS > usMaxRevision {
 		return nil, invalid("us_credential_revoke")
 	}
