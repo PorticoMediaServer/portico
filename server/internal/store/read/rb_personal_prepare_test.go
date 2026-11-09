@@ -3,6 +3,7 @@ package read
 import (
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"errors"
 	"fmt"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"testing"
 	"testing/synctest"
 	"time"
+	"unsafe"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/readfixture"
@@ -41,6 +43,23 @@ FROM catalog_entities WHERE library_id=1 AND kind=1 AND id BETWEEN 1 AND 300`)
 }
 
 // END_RB_PERSONAL_PREPARE_JOURNAL
+
+// rbPersonalPrepareAddViewer seeds a second local viewer outside the hashed
+// fixture journal, so adding it does not alter the recorded statement plans. It
+// returns that viewer's request anchor.
+func rbPersonalPrepareAddViewer(t *testing.T, f *browseFixture, profile, account, token, device, family string, maximumAge, allowUnrated int64) BrowseInput {
+	t.Helper()
+	f.exec(t, `INSERT INTO accounts(id,username,password_hash,profile_id) VALUES(?,?,x'00',?)`, account, account, profile)
+	f.exec(t, `INSERT INTO direct_memberships(account_id,role,allowed_libraries) VALUES(?,'member','["movies"]')`, account)
+	f.exec(t, `INSERT INTO direct_profiles(id,account_id,name) VALUES(?,?,?)`, profile, account, profile)
+	f.exec(t, `INSERT INTO identity_devices(id,account_id,installation_id,name,platform,app,app_version,first_seen,last_seen) VALUES(?,?,?,?,'test','test','1','2026-11-05T00:00:00Z','2026-11-05T00:00:00Z')`, device, account, device, device)
+	f.exec(t, `INSERT INTO authorization_session_families(id,server_id,account_id,profile_id,authority,role,epoch,authorization_horizon,current_generation,device_id,command_member_incarnation,command_profile_lifetime,command_incarnation,security_kind) SELECT ?,'s',?,?,'local','member',1,'2026-11-07T00:00:00Z',1,?,m.incarnation,p.lifetime,x'00800000000000000000000000000003',0 FROM direct_memberships AS m JOIN direct_profiles AS p ON p.account_id=m.account_id WHERE m.account_id=? AND p.id=?`, family, account, profile, device, account, profile)
+	f.exec(t, `INSERT INTO authorization_family_tokens(token_hash,family_id,generation,expires_at) VALUES(?,?,1,'2026-11-07T00:00:00Z')`, token, family)
+	f.exec(t, `INSERT INTO profile_restrictions(profile_id,maximum_age,allow_unrated) VALUES(?,?,?)`, profile, maximumAge, allowUnrated)
+	in := f.input
+	in.TokenHash = token
+	return in
+}
 
 func rbPersonalPrepareFixtureHash(t *testing.T) string {
 	t.Helper()
@@ -128,8 +147,10 @@ func rbPersonalPreparePosition(after *RBPersonalPrepareCursor) int {
 }
 
 // rbPersonalPrepareWant derives the complete expected order from plain SQL over
-// the same fixture. It never calls the production comparator or recipes.
-func rbPersonalPrepareWant(t *testing.T, f *browseFixture, order PersonalOrder, desc, keep bool) []int64 {
+// the same fixture. It never calls the production comparator or recipes. It
+// binds the viewer profile explicitly and applies the same own-age/unrated
+// admission rule as the public predicate.
+func rbPersonalPrepareWant(t *testing.T, f *browseFixture, profile string, order PersonalOrder, desc, keep bool) []int64 {
 	t.Helper()
 	column, condition, index := "p.rating", "p.rating>0", "personal_current_rating"
 	if order == PersonalPlayCountOrder {
@@ -138,31 +159,36 @@ func rbPersonalPrepareWant(t *testing.T, f *browseFixture, order PersonalOrder, 
 	if order == PersonalPlayedOrder {
 		column, condition, index = "p.last_played_at", "p.last_played_at>''", "personal_current_recent"
 	}
+	maxAge, allowUnrated := int64(-1), int64(1)
+	if err := f.conn.QueryRowContext(t.Context(), `SELECT COALESCE(maximum_age,-1),COALESCE(allow_unrated,1) FROM profile_restrictions WHERE profile_id=?`, profile).Scan(&maxAge, &allowUnrated); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		t.Fatal(err)
+	}
+	admission := fmt.Sprintf(`(e.admission_own_age IS NOT NULL AND (%d < 0 OR e.admission_own_age<=%d) OR %d<>0 AND e.admission_own_age IS NULL)`, maxAge, maxAge, allowUnrated)
 	direction := "ASC"
 	if desc {
 		direction = "DESC"
 	}
 	valued := `SELECT e.id FROM personal_items AS p INDEXED BY ` + index + ` JOIN catalog_entities AS e ON e.id=p.item_id AND e.public_id=p.item_public_id
-WHERE p.profile_id='p' AND e.library_id=1 AND e.kind=1 AND e.retired=0 AND ` + condition + `
+WHERE p.profile_id=? AND e.library_id=1 AND e.kind=1 AND e.retired=0 AND ` + admission + ` AND ` + condition + `
 ORDER BY ` + column + ` ` + direction + `,e.id ` + direction
 	title := "e.sort_key"
 	if keep {
 		title = "e.sort_key_keep_articles"
 	}
-	rest := `SELECT e.id FROM catalog_entities AS e LEFT JOIN personal_items AS p ON p.profile_id='p' AND p.item_id=e.id AND p.item_public_id=e.public_id
-WHERE e.library_id=1 AND e.kind=1 AND e.retired=0 AND COALESCE(` + condition + `,0)=0
+	rest := `SELECT e.id FROM catalog_entities AS e LEFT JOIN personal_items AS p ON p.profile_id=? AND p.item_id=e.id AND p.item_public_id=e.public_id
+WHERE e.library_id=1 AND e.kind=1 AND e.retired=0 AND ` + admission + ` AND COALESCE(` + condition + `,0)=0
 ORDER BY ` + title + ` COLLATE NOCASE ASC,e.id ASC`
-	valuedIDs := rbPersonalPrepareQueryIDs(t, f, valued)
-	restIDs := rbPersonalPrepareQueryIDs(t, f, rest)
+	valuedIDs := rbPersonalPrepareQueryIDs(t, f, valued, profile)
+	restIDs := rbPersonalPrepareQueryIDs(t, f, rest, profile)
 	if desc {
 		return append(valuedIDs, restIDs...)
 	}
 	return append(restIDs, valuedIDs...)
 }
 
-func rbPersonalPrepareQueryIDs(t *testing.T, f *browseFixture, query string) []int64 {
+func rbPersonalPrepareQueryIDs(t *testing.T, f *browseFixture, query string, args ...any) []int64 {
 	t.Helper()
-	rows, err := f.conn.QueryContext(t.Context(), query)
+	rows, err := f.conn.QueryContext(t.Context(), query, args...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -229,7 +255,7 @@ func TestRBPersonalPrepareCompleteTraversal(t *testing.T) {
 					if !done.Ready || done.RawRows < 257 {
 						t.Fatal("preparation did not exhaust the complete raw stream", done)
 					}
-					want := rbPersonalPrepareWant(t, f, order, desc, keep)
+					want := rbPersonalPrepareWant(t, f, "p", order, desc, keep)
 					if len(want) < 257 {
 						t.Fatal("test source is not a large personal set", len(want))
 					}
@@ -262,7 +288,7 @@ func TestRBPersonalPrepareMissingZeroAndLargeIntegers(t *testing.T) {
 		}
 		defer job.Close()
 		rbPersonalPrepareRun(t, job)
-		want := rbPersonalPrepareWant(t, f, in.Order, true, false)
+		want := rbPersonalPrepareWant(t, f, "p", in.Order, true, false)
 		got := rbPersonalPrepareAllPages(t, f, job, in, len(want), 200)
 		if !slices.Equal(got, want) {
 			t.Fatal("missing/zero/large-integer order differs")
@@ -304,7 +330,7 @@ func TestRBPersonalPrepareEqualTitleRun(t *testing.T) {
 				t.Fatal(err)
 			}
 			rbPersonalPrepareRun(t, job)
-			want := rbPersonalPrepareWant(t, f, in.Order, false, keep)
+			want := rbPersonalPrepareWant(t, f, "p", in.Order, false, keep)
 			got := rbPersonalPrepareAllPages(t, f, job, in, len(want), 13)
 			if !slices.Equal(got, want) {
 				t.Fatal("equal/prefix title run changed across windows", keep)
@@ -347,7 +373,7 @@ func TestRBPersonalPrepareSparseRawContinuation(t *testing.T) {
 		if !done.Ready || done.RawRows < valuedRaw+restRaw || done.RawRows > valuedRaw+restRaw+done.Statements {
 			t.Fatalf("rejected rows did not remain in the raw stream: %+v want [%d,%d]", done, valuedRaw+restRaw, valuedRaw+restRaw+done.Statements)
 		}
-		want := rbPersonalPrepareWant(t, f, in.Order, true, false)
+		want := rbPersonalPrepareWant(t, f, "p", in.Order, true, false)
 		got := rbPersonalPrepareAllPages(t, f, job, in, len(want), 200)
 		if !slices.Equal(got, want) || len(want) >= int(done.RawRows) {
 			t.Fatal("sparse raw windows truncated or padded the eligible set", len(got), len(want), done.RawRows)
@@ -499,7 +525,7 @@ func TestRBPersonalPrepareRestartFromInvalidation(t *testing.T) {
 		if !job.entry.lease.Deadline().Equal(original) || f.authority.Usage()[governor.Foreground][governor.MemoryBytes] != bytes {
 			t.Fatal("restart renewed the deadline or re-admitted physical bytes")
 		}
-		want := rbPersonalPrepareWant(t, f, in.Order, true, false)
+		want := rbPersonalPrepareWant(t, f, "p", in.Order, true, false)
 		got := rbPersonalPrepareAllPages(t, f, job, in, len(want), 200)
 		if !slices.Equal(got, want) {
 			t.Fatal("restart published a truncated, duplicated or mixed set", len(got), len(want))
@@ -611,6 +637,197 @@ func TestRBPersonalPreparePageForeignCursorRefused(t *testing.T) {
 		}
 		if err := byPlays.Close(); err != nil {
 			t.Fatal(err)
+		}
+	})
+}
+
+// rbPersonalStepContext reports a cancellation after a fixed number of Err
+// calls, so a window can fail mid-reduction without closing the entry.
+type rbPersonalStepContext struct {
+	context.Context
+	calls, failAt int
+}
+
+func (c *rbPersonalStepContext) Err() error {
+	c.calls++
+	if c.calls >= c.failAt {
+		return context.Canceled
+	}
+	return nil
+}
+
+// TestRBPersonalPrepareStagingAtomicPerWindow proves a mid-window error leaves
+// no staged key behind while the raw cursor is unmoved, so the retry retains
+// every ID exactly once.
+func TestRBPersonalPrepareStagingAtomicPerWindow(t *testing.T) {
+	p := &RBPersonalPreparation{
+		order:     PersonalRatingOrder,
+		view:      BrowseInput{Library: 1, Kind: 1},
+		entry:     &rbPreparedEntry{fence: browseFence{maximumAge: -1, allowUnrated: 1}},
+		staged:    make([]rbPersonalValuedKey, 0, 128),
+		stagedCap: 1 << 20,
+		stageIDs:  make([]int64, 0, rbPersonalPrepareRaw),
+	}
+	raw := make([][]any, rbPersonalPrepareRaw+1)
+	for i := range raw {
+		public := make([]byte, 16)
+		public[0] = byte(i + 1)
+		raw[i] = []any{int64(i + 1), int64(1), public, int64(0), int64(1), nil}
+	}
+	ctx := &rbPersonalStepContext{Context: t.Context(), failAt: 3}
+	if err := p.reduceValuedWindow(ctx, raw); !errors.Is(err, context.Canceled) {
+		t.Fatalf("mid-window cancellation was not returned: %v", err)
+	}
+	if len(p.staged) != 0 || p.stagedBytes != 0 || p.valuedAfter != nil {
+		t.Fatalf("failed window kept a partial staged run or moved the cursor: %d %d %v", len(p.staged), p.stagedBytes, p.valuedAfter)
+	}
+	if err := p.reduceValuedWindow(t.Context(), raw); err != nil {
+		t.Fatal(err)
+	}
+	if len(p.staged) != rbPersonalPrepareRaw {
+		t.Fatalf("retry staged %d keys, want %d", len(p.staged), rbPersonalPrepareRaw)
+	}
+	seen := make(map[int64]struct{}, len(p.staged))
+	for _, key := range p.staged {
+		if _, duplicate := seen[key.id]; duplicate {
+			t.Fatalf("retry duplicated staged id %d", key.id)
+		}
+		seen[key.id] = struct{}{}
+	}
+}
+
+// TestRBPersonalPrepareWorkspaceWithinGrant measures the retained accounting of
+// a descending personalRating walk while the valued run is prepared first
+// (total == 0) and proves the staged keys, next-key vector, batch IDs and fence
+// clones never exceed the preparation payload.
+func TestRBPersonalPrepareWorkspaceWithinGrant(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f, r := newRBPersonalPrepareFixture(t)
+		in := RBPersonalPrepareInput{View: f.input, Order: PersonalRatingOrder}
+		in.View.Descending = true
+		job, err := r.BeginRBPersonalPrepare(t.Context(), 1, 4<<20, in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := job.Advance(t.Context(), rbPersonalPrepareRequest(), time.Second); err != nil {
+			t.Fatal(err)
+		}
+		job.entry.cache.mu.Lock()
+		if job.entry.total != 0 {
+			job.entry.cache.mu.Unlock()
+			t.Fatal("descending rating did not prepare the valued run first")
+		}
+		if job.staged == nil || cap(job.staged) == 0 || job.stageIDs == nil {
+			job.entry.cache.mu.Unlock()
+			t.Fatal("valued workspace was not allocated")
+		}
+		payload := job.entry.lease.PayloadBytes()
+		fence := 2 * rbPreparedFenceBytes(job.entry.fence)
+		idBytes := int64(cap(job.entry.ids)) * 8
+		textBytes := job.stagedBytes - 64*int64(len(job.staged))
+		stagedActual := int64(cap(job.staged))*int64(unsafe.Sizeof(rbPersonalValuedKey{})) + textBytes
+		batchIDs := int64(cap(job.stageIDs)) * 8
+		stable := fence + idBytes + stagedActual + batchIDs
+		// One retained ID per possible staged key must also fit while the keys
+		// are still live; this is the retain-time peak, not just today's len.
+		projected := fence + idBytes + 8*int64(cap(job.staged)) + stagedActual + batchIDs
+		job.entry.cache.mu.Unlock()
+		if stable > payload || projected > payload {
+			t.Fatalf("workspace exceeds the grant: stable=%d projected=%d payload=%d", stable, projected, payload)
+		}
+		done := rbPersonalPrepareRun(t, job)
+		if !done.Ready {
+			t.Fatalf("preparation did not finish: %+v", done)
+		}
+		if job.staged != nil || cap(job.staged) != 0 || job.stageIDs != nil {
+			t.Fatal("ready preparation kept the staged workspace")
+		}
+		job.entry.cache.mu.Lock()
+		retained := 2*rbPreparedFenceBytes(job.entry.fence) + int64(cap(job.entry.ids))*8
+		total := job.entry.total
+		job.entry.cache.mu.Unlock()
+		if retained > payload {
+			t.Fatalf("ready retained vector exceeds the grant: %d > %d", retained, payload)
+		}
+		if total != int64(len(rbPersonalPrepareWant(t, f, "p", in.Order, true, false))) {
+			t.Fatalf("ready total %d differs from the complete admitted set", total)
+		}
+		if err := job.Close(); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
+// TestRBPersonalPrepareViewerEditDenied records the decided outcome for personal
+// facts changing mid-walk: viewer_revision is part of the pinned authorization
+// context, so the walk denies instead of restarting on stale personal values.
+func TestRBPersonalPrepareViewerEditDenied(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f, r := newRBPersonalPrepareFixture(t)
+		in := RBPersonalPrepareInput{View: f.input, Order: PersonalRatingOrder}
+		in.View.Descending = true
+		job, err := r.BeginRBPersonalPrepare(t.Context(), 1, 4<<20, in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := job.Advance(t.Context(), rbPersonalPrepareRequest(), time.Second); err != nil {
+			t.Fatal(err)
+		}
+		f.exec(t, `INSERT INTO viewer_revisions(profile_id,library_id,revision) VALUES('p','movies',1) ON CONFLICT(profile_id,library_id) DO UPDATE SET revision=revision+1`)
+		if _, err := job.Advance(t.Context(), rbPersonalPrepareRequest(), time.Second); !errors.Is(err, ErrDenied) {
+			t.Fatal("personal-value edit restarted instead of denying", err)
+		}
+		if !job.entry.closed || f.authority.Usage()[governor.Foreground][governor.MemoryBytes] != 0 {
+			t.Fatal("viewer denial retained values or bytes")
+		}
+		if err := job.Close(); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
+// TestRBPersonalPrepareSecondViewerIsolation binds another viewer profile to the
+// same library and proves each profile sees only its own personal rows, with the
+// oracle applying the same own-age/unrated admission rule.
+func TestRBPersonalPrepareSecondViewerIsolation(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f, r := newRBPersonalPrepareFixture(t)
+		viewR := rbPersonalPrepareAddViewer(t, f, "r", "c", "token-r", "d-r", "f-r", 10, 0)
+		// Profile r has different values from p.
+		f.exec(t, `INSERT INTO personal_items(profile_id,item_public_id,item_id,library_id,rating,play_count,last_played_at,activity_visible)
+SELECT 'r',public_id,id,library_id,(id%7)+1,0,'',1 FROM catalog_entities WHERE library_id=1 AND kind=1 AND id BETWEEN 1 AND 250`)
+		// The same entity is age-restricted for r but visible to unrestricted p.
+		f.exec(t, `UPDATE catalog_entities SET admission_own_age=99 WHERE id=120`)
+		f.exec(t, `UPDATE personal_items SET rating=10 WHERE item_id=120 AND profile_id IN ('p','r')`)
+		run := func(profile string, view BrowseInput) []int64 {
+			t.Helper()
+			in := RBPersonalPrepareInput{View: view, Order: PersonalRatingOrder}
+			in.View.Descending = true
+			job, err := r.BeginRBPersonalPrepare(t.Context(), 1, 4<<20, in)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer job.Close()
+			done := rbPersonalPrepareRun(t, job)
+			if !done.Ready {
+				t.Fatalf("viewer %s did not finish: %+v", profile, done)
+			}
+			want := rbPersonalPrepareWant(t, f, profile, in.Order, true, false)
+			got := rbPersonalPrepareAllPages(t, f, job, in, len(want), 40)
+			if !slices.Equal(got, want) {
+				t.Fatalf("viewer %s order differs from the profile-bound oracle: got %v want %v", profile, got, want)
+			}
+			return got
+		}
+		gotP, gotR := run("p", f.input), run("r", viewR)
+		if !slices.Contains(gotP, int64(120)) {
+			t.Fatal("unrestricted viewer lost a visible valued row")
+		}
+		if slices.Contains(gotR, int64(120)) {
+			t.Fatal("age-restricted viewer admitted an own-age row above its maximum")
+		}
+		if slices.Equal(gotP, gotR) {
+			t.Fatal("two viewers with different personal rows published the same order")
 		}
 	})
 }

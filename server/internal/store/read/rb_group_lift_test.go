@@ -277,21 +277,21 @@ func rbGroupLiftOracle(t *testing.T, f *browseFixture, source RBGroupLiftSource,
 	var sql string
 	var args []any
 	if source == RBGroupLiftCollection {
-		sql = `WITH RECURSIVE walk(raw_pos,src,id,depth) AS (
- SELECT row_number() OVER (ORDER BY m.order_key,m.item_id),m.item_id,m.item_id,0 FROM catalog_collection_members AS m WHERE m.collection_id=?1
+		sql = `WITH RECURSIVE walk(raw_pos,src,id,depth,hop_ok) AS (
+ SELECT row_number() OVER (ORDER BY m.order_key,m.item_id),m.item_id,m.item_id,0,1 FROM catalog_collection_members AS m WHERE m.collection_id=?1
  UNION ALL
- SELECT w.raw_pos,w.src,e.parent_id,w.depth+1 FROM walk AS w JOIN catalog_entities AS e ON e.id=w.id WHERE w.depth<4 AND e.parent_id IS NOT NULL)
- SELECT c.id FROM (SELECT w.raw_pos AS pos,e.id AS id,e.kind AS kind,e.library_id AS library,e.retired AS retired,w.src AS src,w.depth AS depth FROM walk AS w JOIN catalog_entities AS e ON e.id=w.id) AS c
- WHERE c.kind=?2 AND c.library=1 AND c.retired=0 AND (c.depth=0 OR c.src IN (SELECT m.item_id FROM catalog_collection_members AS m JOIN catalog_entities AS me ON me.id=m.item_id WHERE m.collection_id=?1 AND me.library_id=1 AND me.retired=0))
+ SELECT w.raw_pos,w.src,e.parent_id,w.depth+1,w.hop_ok AND e.retired=0 AND e.library_id=1 FROM walk AS w JOIN catalog_entities AS e ON e.id=w.id WHERE w.depth<4 AND e.parent_id IS NOT NULL)
+ SELECT c.id FROM (SELECT w.raw_pos AS pos,e.id AS id,e.kind AS kind,e.library_id AS library,e.retired AS retired,w.src AS src,w.depth AS depth,w.hop_ok AS hop_ok FROM walk AS w JOIN catalog_entities AS e ON e.id=w.id) AS c
+ WHERE c.kind=?2 AND c.library=1 AND c.retired=0 AND c.hop_ok AND (c.depth=0 OR c.src IN (SELECT m.item_id FROM catalog_collection_members AS m JOIN catalog_entities AS me ON me.id=m.item_id WHERE m.collection_id=?1 AND me.library_id=1 AND me.retired=0))
  GROUP BY c.id ORDER BY min(c.pos)`
 		args = []any{subject, kind}
 	} else {
-		sql = `WITH RECURSIVE walk(raw_pos,src,id,depth) AS (
- SELECT row_number() OVER (ORDER BY entry.order_key,entry.id),entry.id,entry.item_id,0 FROM catalog_playlist_entries AS entry WHERE entry.playlist_id=?1 AND entry.item_id IS NOT NULL
+		sql = `WITH RECURSIVE walk(raw_pos,src,id,depth,hop_ok) AS (
+ SELECT row_number() OVER (ORDER BY entry.order_key,entry.id),entry.id,entry.item_id,0,1 FROM catalog_playlist_entries AS entry WHERE entry.playlist_id=?1 AND entry.item_id IS NOT NULL
  UNION ALL
- SELECT w.raw_pos,w.src,e.parent_id,w.depth+1 FROM walk AS w JOIN catalog_entities AS e ON e.id=w.id WHERE w.depth<4 AND e.parent_id IS NOT NULL)
- SELECT c.id FROM (SELECT w.raw_pos AS pos,e.id AS id,e.kind AS kind,e.library_id AS library,e.retired AS retired,w.src AS src,w.depth AS depth FROM walk AS w JOIN catalog_entities AS e ON e.id=w.id) AS c
- WHERE c.kind=?2 AND c.library=1 AND c.retired=0 AND (c.depth=0 OR c.src IN (SELECT entry.id FROM catalog_playlist_entries AS entry JOIN catalog_entities AS me ON me.id=entry.item_id WHERE entry.playlist_id=?1 AND entry.item_id IS NOT NULL AND me.library_id=1 AND me.retired=0))
+ SELECT w.raw_pos,w.src,e.parent_id,w.depth+1,w.hop_ok AND e.retired=0 AND e.library_id=1 FROM walk AS w JOIN catalog_entities AS e ON e.id=w.id WHERE w.depth<4 AND e.parent_id IS NOT NULL)
+ SELECT c.id FROM (SELECT w.raw_pos AS pos,e.id AS id,e.kind AS kind,e.library_id AS library,e.retired AS retired,w.src AS src,w.depth AS depth,w.hop_ok AS hop_ok FROM walk AS w JOIN catalog_entities AS e ON e.id=w.id) AS c
+ WHERE c.kind=?2 AND c.library=1 AND c.retired=0 AND c.hop_ok AND (c.depth=0 OR c.src IN (SELECT entry.id FROM catalog_playlist_entries AS entry JOIN catalog_entities AS me ON me.id=entry.item_id WHERE entry.playlist_id=?1 AND entry.item_id IS NOT NULL AND me.library_id=1 AND me.retired=0))
  GROUP BY c.id ORDER BY min(c.pos)`
 		args = []any{subject, kind}
 	}
@@ -843,4 +843,85 @@ func rbGroupLiftLiveUsage(t *testing.T, f *browseFixture, live int, reserved int
 	if usage[governor.Reader] != 0 || usage[governor.MemoryBytes] != int64(live)*((8<<20)+4096)+reserved || usage[governor.QueueBytes] != int64(live)*4096 {
 		t.Fatalf("payload/metadata custody %+v live%d reserved%d", usage, live, reserved)
 	}
+}
+
+// TestRBGroupLiftIntermediateHop proves a retired or foreign-library season
+// between a collected episode and a visible show never lifts that show, while
+// the complete authored walk still advances past the rejected members.
+func TestRBGroupLiftIntermediateHop(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f, r := newRBGroupLiftFixture(t)
+		add := func(id, kind, library, retired int64, title string, parent, show, season, episode, seasonNumber any) {
+			public := make([]byte, 16)
+			binary.LittleEndian.PutUint64(public, uint64(id))
+			f.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(?,?,?,?)`, id, public, library, kind)
+			f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,parent_id,retired,show_id,season_id,episode_number,season_number) VALUES(?,?,?,?,?,?,?,?,?,0,?,?,?,?,?,?,?,?)`,
+				id, public, library, kind, title, title, title, title, title, public, public, parent, retired, show, season, episode, seasonNumber)
+		}
+		// Retired season between episode 6820 and visible show 6800.
+		add(6800, 2, 1, 0, "Hop Show", nil, nil, nil, nil, nil)
+		add(6810, 3, 1, 1, "Retired Hop Season", int64(6800), int64(6800), nil, nil, int64(1))
+		add(6820, 4, 1, 0, "Hop Episode", int64(6810), int64(6800), int64(6810), int64(1), nil)
+		// Foreign-library season between episode 6821 and visible show 6801.
+		add(6801, 2, 1, 0, "Foreign Hop Show", nil, nil, nil, nil, nil)
+		add(6811, 3, 2, 0, "Foreign Hop Season", int64(6801), int64(6801), nil, nil, int64(1))
+		add(6821, 4, 1, 0, "Foreign Hop Episode", int64(6811), int64(6801), int64(6811), int64(1), nil)
+		f.exec(t, `INSERT INTO catalog_collection_members(collection_id,item_id,order_key) VALUES(7000,6820,'a9000'),(7000,6821,'a9001')`)
+
+		in := RBGroupLiftInput{View: f.input, Source: RBGroupLiftCollection, Subject: 7000}
+		in.View.Kind = 2
+		job, err := r.BeginRBGroupLift(t.Context(), 1, 1<<20, in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer job.Close()
+		done := rbGroupLiftRun(t, job)
+		raw := rbGroupLiftSQLCount(t, f, `SELECT count(*) FROM catalog_collection_members WHERE collection_id=7000`)
+		if !done.Ready || !done.SourceOrdered || int64(done.RawRows) != raw {
+			t.Fatalf("intermediate-hop walk did not complete: %+v want raw=%d", done, raw)
+		}
+		got := rbGroupLiftPages(t, f, job, in.View, 7)
+		want := rbGroupLiftOracle(t, f, RBGroupLiftCollection, 7000, 2, false)
+		if !slices.Equal(got, want) {
+			t.Fatalf("intermediate hop changed the lifted shows: got %v want %v", got, want)
+		}
+		if slices.Contains(got, int64(6800)) || slices.Contains(got, int64(6801)) {
+			t.Fatal("a show behind a retired or foreign-library season was lifted")
+		}
+		if !slices.Contains(got, int64(6001)) {
+			t.Fatal("the rejected hop truncated the rest of the visible show walk")
+		}
+	})
+}
+
+// TestRBGroupLiftPageCommonRawBudget proves the page publication forecast fits
+// the common 64-raw request budget, which the 96-query preparation recipe does
+// not.
+func TestRBGroupLiftPageCommonRawBudget(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f, r := newRBGroupLiftFixture(t)
+		in := RBGroupLiftInput{View: f.input, Source: RBGroupLiftPlaylist, Subject: 1}
+		in.View.Kind = 7
+		job, err := r.BeginRBGroupLift(t.Context(), 1, 1<<20, in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer job.Close()
+		rbGroupLiftRun(t, job)
+		live, request, output := liveRequests("rb-group-lift-page-64")
+		request.Budget.RawRows = 64
+		_, err = ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, live, output, func(ctx context.Context, out BrowseOutput) error {
+			page, _, e := job.Page(ctx, request, time.Second, out, in.View, nil, 40)
+			if e != nil {
+				return e
+			}
+			if len(page.IDs) != 40 || !page.SourceOrdered {
+				t.Fatalf("64-raw page did not publish values: %+v", page)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("64-raw page request refused: %v", err)
+		}
+	})
 }

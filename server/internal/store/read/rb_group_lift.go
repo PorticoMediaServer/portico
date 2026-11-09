@@ -881,7 +881,7 @@ func (p *RBGroupLiftPreparation) page(ctx context.Context, request governor.Requ
 	var prepared rbPreparedPage
 	validation, cancel := context.WithDeadline(context.WithoutCancel(ctx), deadline)
 	defer cancel()
-	result.Publication, err = p.reader.pool.ReadForecasted(validation, request, time.Until(deadline), governor.SnapshotForecast{NativeRowBytes: p.reader.pool.NativeRowReservation(), MaxQueries: rbGroupLiftMaxQueries}, func(scope *governor.ReadScope) error {
+	result.Publication, err = p.reader.pool.ReadForecasted(validation, request, time.Until(deadline), governor.SnapshotForecast{NativeRowBytes: p.reader.pool.NativeRowReservation(), MaxQueries: rbGroupLiftPageMaxQueries}, func(scope *governor.ReadScope) error {
 		query := func(name string, args ...any) ([][]any, error) {
 			result.PublicationStatements++
 			if output.live != nil {

@@ -366,6 +366,12 @@ func (p *RBPersonalPreparation) window(ctx context.Context, request governor.Req
 				return e
 			}
 		} else if p.entry.fence != f {
+			// A personal-value edit moves viewer_revision, which is part of the
+			// pinned authorization context. It denies (ErrDenied) instead of
+			// content-restarting: a restart would publish values reduced under
+			// the old personal facts. Packet task 10 requires other-profile
+			// isolation, and the general RB rule keeps viewer/personal drift a
+			// denial while only data/order/metadata revisions restart.
 			if !rbPreparePinnedFenceEqual(p.entry.fence, f) {
 				return ErrDenied
 			}
@@ -381,7 +387,7 @@ func (p *RBPersonalPreparation) window(ctx context.Context, request governor.Req
 				return e
 			}
 			result.RawRows += len(raw)
-			e = p.reduceValuedWindow(scope, raw)
+			e = p.reduceValuedWindow(scope.Context(), raw)
 			if e != nil {
 				return e
 			}
@@ -392,7 +398,7 @@ func (p *RBPersonalPreparation) window(ctx context.Context, request governor.Req
 			return e
 		}
 		result.RawRows += len(raw)
-		if e = p.reduceRestWindow(scope, raw); e != nil {
+		if e = p.reduceRestWindow(scope.Context(), raw); e != nil {
 			return e
 		}
 		return nil
@@ -615,12 +621,27 @@ func windowTail(raw [][]any) ([][]any, bool) {
 }
 
 // reduceValuedWindow types and stages the complete valued set. Rejected rows
-// still advance the raw cursor and count against the window.
-func (p *RBPersonalPreparation) reduceValuedWindow(scope *governor.ReadScope, raw [][]any) error {
+// still advance the raw cursor and count against the window. Staging is atomic
+// per window: if the window fails part way (for example a context cancellation
+// that does not close the entry), every key appended for this window is rolled
+// back. The raw cursor is only advanced after the whole window succeeds, so a
+// retry re-reads the same rows and cannot retain a duplicate valued ID.
+func (p *RBPersonalPreparation) reduceValuedWindow(ctx context.Context, raw [][]any) (err error) {
 	raw, exhausted := windowTail(raw)
+	stagedStart := len(p.staged)
+	committed := false
+	defer func() {
+		if committed {
+			return
+		}
+		for _, key := range p.staged[stagedStart:] {
+			p.stagedBytes -= 64 + int64(len(key.text))
+		}
+		p.staged = p.staged[:stagedStart]
+	}()
 	var next *rbPersonalValuedPosition
 	for _, row := range raw {
-		if err := scope.Context().Err(); err != nil {
+		if err := ctx.Err(); err != nil {
 			return err
 		}
 		key, position, admitted, err := p.reduceValuedRow(row)
@@ -655,6 +676,7 @@ func (p *RBPersonalPreparation) reduceValuedWindow(scope *governor.ReadScope, ra
 			}
 		}
 	}
+	committed = true
 	return nil
 }
 
@@ -727,8 +749,10 @@ func (p *RBPersonalPreparation) reduceValuedRow(row []any) (rbPersonalValuedKey,
 }
 
 // reduceRestWindow keeps the title-remainder stream monotone and admits only
-// eligible, unvalued rows. Valued rows still consume the raw window.
-func (p *RBPersonalPreparation) reduceRestWindow(scope *governor.ReadScope, raw [][]any) error {
+// eligible, unvalued rows. Valued rows still consume the raw window. IDs are
+// retained only after the whole window succeeds, so a failed window leaves no
+// partial remainder.
+func (p *RBPersonalPreparation) reduceRestWindow(ctx context.Context, raw [][]any) error {
 	raw, exhausted := windowTail(raw)
 	if len(raw) > 0 {
 		key, ok := raw[0][1].(string)
@@ -740,7 +764,7 @@ func (p *RBPersonalPreparation) reduceRestWindow(scope *governor.ReadScope, raw 
 	ids := make([]int64, 0, len(raw))
 	var last *rbPersonalRestPosition
 	for _, row := range raw {
-		if err := scope.Context().Err(); err != nil {
+		if err := ctx.Err(); err != nil {
 			return err
 		}
 		if len(row) != 10 {
@@ -811,13 +835,29 @@ func (p *RBPersonalPreparation) initStaged() error {
 		return nil
 	}
 	p.entry.cache.mu.Lock()
+	if err := p.entry.checkLocked(); err != nil {
+		p.entry.cache.mu.Unlock()
+		return err
+	}
+	// capture sizes the ID vector for the WHOLE payload before any value is
+	// known. Keep exactly the IDs already retained and shrink that capacity to
+	// the used count, so the staged keys and the eventual ID growth share one
+	// payload instead of stacking a second workspace over a full vector (the
+	// old path reached ~1.75x the grant for a descending valued-first walk).
+	if cap(p.entry.ids) > len(p.entry.ids) {
+		kept := make([]int64, len(p.entry.ids))
+		copy(kept, p.entry.ids)
+		p.entry.ids = kept
+	}
+	retained := int64(cap(p.entry.ids))
+	fence := 2 * rbPreparedFenceBytes(p.entry.fence)
 	payload := p.entry.lease.PayloadBytes()
-	// Count the IDs actually retained so far, not the cache's worst-case vector
-	// capacity: the staged keys are released before the remainder phase and a
-	// capacity refusal is safe for a set that cannot fit the admitted payload.
-	idsBytes := p.entry.total * 8
 	p.entry.cache.mu.Unlock()
-	room := payload - idsBytes
+
+	// A charged 64-byte key includes 8 bytes for its eventual retained ID plus
+	// allocator slack. The batch ID vector is charged separately. Everything,
+	// including fence clones and the batch cursor, must fit the same payload.
+	room := payload - retained*8 - fence - rbPersonalPrepareRaw*8
 	if room < 64*128 {
 		return errRBPersonalPrepareWorkspace
 	}
@@ -857,8 +897,14 @@ func (p *RBPersonalPreparation) retainStaged() error {
 			return err
 		}
 	}
-	p.staged = p.staged[:0]
+	// The staged workspace must not survive readiness (a parked Ready job would
+	// hold it for the whole lease). Restore the complete retained-ID capacity
+	// only after the staged keys are gone, so the two never share live bytes.
+	p.staged = nil
 	p.stagedBytes = 0
+	p.stagedCap = 0
+	p.stageIDs = nil
+	p.entry.restoreIDCapacity()
 	return nil
 }
 
@@ -881,6 +927,11 @@ func rbComparePersonalPrepareValued(a, b rbPersonalValuedKey, order PersonalOrde
 // finishPersonal publishes readiness through the SAME preparation lease. The
 // IDs were retained in final order, so no reversal is needed after a restart.
 func (p *RBPersonalPreparation) finishPersonal() error {
+	// A parked Ready job must not keep the temporary sort workspace.
+	p.staged = nil
+	p.stagedBytes = 0
+	p.stagedCap = 0
+	p.stageIDs = nil
 	p.entry.cache.mu.Lock()
 	defer p.entry.cache.mu.Unlock()
 	if err := p.entry.checkLocked(); err != nil {
