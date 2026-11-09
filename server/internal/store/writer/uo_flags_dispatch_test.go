@@ -28,13 +28,19 @@ func uoFlagsDispatchDefinitions() []stmt.Definition {
 func uoFlagsDispatchFixture(t *testing.T) (w *executor, path, root string, identity uoRootIdentity, incarnation [16]byte, q uoPersonalFlagsInput) {
 	t.Helper()
 	w, path, _ = testExecutor(t)
-	identity = uoRootIdentity{account: "account", memberIncarnation: strings.Repeat("m", 32), profile: "profile", profileLifetime: strings.Repeat("p", 32), installation: strings.Repeat("i", 32), family: "family"}
+	identity = uoRootIdentity{account: "account", memberIncarnation: strings.Repeat("a", 32), profile: "profile", profileLifetime: strings.Repeat("b", 32), installation: strings.Repeat("c", 32), family: "family"}
 	q = uoPersonalFlagsInput{profileKey: uoFlagsPersonalOwnerKey(uoFlagsNativeAuthority, identity.account, identity.profile), libraryKey: "library-one", subjectID: 2111, libraryID: 7, publicID: [16]byte{3, 128}, entityRevision: 1, admissionRevision: 1,
 		patch: uoPersonalFlagsPatch{watchlisted: uoFlagValue{set: true, value: true}}}
 	wc008NativeExec(t, w, `INSERT INTO catalog_libraries(id,library_id,root) VALUES(7,'library-one','/fixture')`)
 	wc008NativeExec(t, w, `INSERT INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(1,'movie',1,0,1,1,0)`)
 	wc008NativeExec(t, w, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(2111,?,7,1)`, q.publicID[:])
 	wc008NativeExec(t, w, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation) VALUES(2111,?,7,1,'Title','title','t','title','t',0,?,?)`, q.publicID[:], q.publicID[:], q.publicID[:])
+	// The current membership/profile the proof identity names. The member is a
+	// plain viewer with an explicit grant for this library; the exact incarnation
+	// and lifetime must match the root the proof will bind.
+	wc008NativeExec(t, w, `INSERT INTO accounts(id,username,password_hash,profile_id,epoch) VALUES('account','account',x'00','profile',1)`)
+	wc008NativeExec(t, w, `INSERT INTO direct_memberships(account_id,role,allowed_libraries,incarnation,revision,disabled) VALUES('account','member','["library-one"]',?,1,0)`, identity.memberIncarnation)
+	wc008NativeExec(t, w, `INSERT INTO direct_profiles(id,account_id,name,allowed_libraries,deleted,lifetime) VALUES('profile','account','Profile','["library-one"]',0,?)`, identity.profileLifetime)
 	incarnation = [16]byte{1}
 	root = "abcdefghijklmnopqrstuv"
 	wc008NativeExec(t, w, `INSERT INTO user_mutation_global(singleton) VALUES(1) ON CONFLICT(singleton) DO NOTHING`)
@@ -194,11 +200,11 @@ func TestUOFlagsDispatch(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		// The mutable catalog drifts after the original: a replay must not
-		// consult it, re-run the patch or fail because the source is gone.
-		wc008NativeExec(t, w, `UPDATE catalog_entities SET revision=2,retired=1 WHERE id=2111`)
-		wc008NativeExec(t, w, `UPDATE catalog_entities SET admission_revision=2 WHERE id=2111`)
-		wc008NativeExec(t, w, `UPDATE catalog_libraries SET retired=1 WHERE id=7`)
+		// Ordinary source drift (a title revision/publication change) does not
+		// erase the original: a replay must not re-run the patch or reconstruct
+		// the answer. It does still re-prove CURRENT viewing authority, which is
+		// unchanged here.
+		wc008NativeExec(t, w, `UPDATE catalog_entities SET revision=2,admission_revision=2 WHERE id=2111`)
 		beforeRevision := uoFlagsScalar(t, w, `SELECT revision FROM personal_items WHERE profile_id=?`, q.profileKey)
 		beforeReceipts := uoFlagsScalar(t, w, `SELECT count(*) FROM user_mutation_command_receipts WHERE root_id=?`, root)
 		beforeEvents := uoFlagsScalar(t, w, `SELECT count(*) FROM api_events`)
@@ -636,6 +642,190 @@ func TestUOFlagsPersonalOwnerKeyDrift(t *testing.T) {
 		if !strings.Contains(body.String(), want) {
 			t.Fatalf("persistence.PersonalOwnerKey no longer contains %s; uoFlagsPersonalOwnerKey must change with it", want)
 		}
+	}
+}
+
+// uoFlagsNoEffects asserts the refusal left no personal row/head, no retained
+// original, no event and no owner debt. Owner revision starts at 1.
+func uoFlagsNoEffects(t *testing.T, w *executor, root string) {
+	t.Helper()
+	var personal, heads, receipts, events int64
+	if err := w.db.QueryRowContext(t.Context(), `SELECT (SELECT count(*) FROM personal_items),(SELECT count(*) FROM viewer_revisions),(SELECT count(*) FROM user_mutation_command_receipts WHERE root_id=?),(SELECT count(*) FROM api_events)`, root).Scan(&personal, &heads, &receipts, &events); err != nil || personal != 0 || heads != 0 || receipts != 0 || events != 0 {
+		t.Fatal("refusal left effects", personal, heads, receipts, events, err)
+	}
+	if last, ack, revision, rows, bytes := uoFlagsOwnerOracle(t, w, root); last != 0 || ack != 0 || revision != 1 || rows != 0 || bytes != 0 {
+		t.Fatal("refusal left owner debt", last, ack, revision, rows, bytes)
+	}
+}
+
+func uoFlagsAssertRefused(t *testing.T, w *executor, root string, identity uoRootIdentity, q uoPersonalFlagsInput) {
+	t.Helper()
+	turn := uoFlagsDispatchTurn(t, w)
+	out, floor, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: uoFlagsRef(t, root, 1, 9, q), public: q.publicID, input: q, nowMS: 300})
+	if !errors.Is(err, ErrDisclosureDenied) || out != (uoRootFlagsResult{}) || floor != 0 {
+		t.Fatal("target not refused", out, floor, err)
+	}
+	uoFlagsNoEffects(t, w, root)
+}
+
+// TestUOFlagsTargetVisibility is the UO-03c control. Each subtest changes one
+// current fact the legacy PUT personal-state path checks: the item's library or
+// existence, the library/membership/profile grant, a restriction, or the exact
+// membership incarnation. Every one must refuse before any write with the
+// disclosure-denied class and no effects.
+func TestUOFlagsTargetVisibility(t *testing.T) {
+	t.Run("matching access applies", func(t *testing.T) {
+		w, _, root, identity, _, q := uoFlagsDispatchFixture(t)
+		turn := uoFlagsDispatchTurn(t, w)
+		out, floor, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: uoFlagsRef(t, root, 1, 9, q), public: q.publicID, input: q, nowMS: 300})
+		if err != nil || floor != 0 || !out.effect.changed || !out.effect.state.watchlisted {
+			t.Fatal("matching access refused", out, floor, err)
+		}
+	})
+
+	for _, tc := range []struct {
+		name string
+		edit func(t *testing.T, w *executor, q *uoPersonalFlagsInput)
+	}{
+		{"wrong library key", func(t *testing.T, w *executor, q *uoPersonalFlagsInput) {
+			q.libraryKey = "library-two"
+		}},
+		{"moved to another library", func(t *testing.T, w *executor, q *uoPersonalFlagsInput) {
+			wc008NativeExec(t, w, `INSERT INTO catalog_libraries(id,library_id,root) VALUES(8,'library-two','/fixture-two')`)
+			tx, err := w.db.BeginTx(t.Context(), nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err = tx.ExecContext(t.Context(), `PRAGMA defer_foreign_keys=ON`); err != nil {
+				t.Fatal(err)
+			}
+			if _, err = tx.ExecContext(t.Context(), `UPDATE catalog_subjects SET library_id=8 WHERE id=2111`); err != nil {
+				t.Fatal(err)
+			}
+			if _, err = tx.ExecContext(t.Context(), `UPDATE catalog_entities SET library_id=8 WHERE id=2111`); err != nil {
+				t.Fatal(err)
+			}
+			if err = tx.Commit(); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{"retired item", func(t *testing.T, w *executor, q *uoPersonalFlagsInput) {
+			wc008NativeExec(t, w, `UPDATE catalog_entities SET retired=1 WHERE id=2111`)
+		}},
+		{"retired library", func(t *testing.T, w *executor, q *uoPersonalFlagsInput) {
+			wc008NativeExec(t, w, `UPDATE catalog_libraries SET retired=1 WHERE id=7`)
+		}},
+		{"source revision drift", func(t *testing.T, w *executor, q *uoPersonalFlagsInput) {
+			wc008NativeExec(t, w, `UPDATE catalog_entities SET revision=2 WHERE id=2111`)
+		}},
+		{"admission revision drift", func(t *testing.T, w *executor, q *uoPersonalFlagsInput) {
+			wc008NativeExec(t, w, `UPDATE catalog_entities SET admission_revision=2 WHERE id=2111`)
+		}},
+		{"hidden by age", func(t *testing.T, w *executor, q *uoPersonalFlagsInput) {
+			wc008NativeExec(t, w, `UPDATE catalog_entities SET admission_own_age=18 WHERE id=2111`)
+			wc008NativeExec(t, w, `INSERT INTO profile_restrictions(profile_id,maximum_age,allow_unrated,blocked_labels) VALUES('profile',13,1,'[]')`)
+		}},
+		{"hidden unrated", func(t *testing.T, w *executor, q *uoPersonalFlagsInput) {
+			wc008NativeExec(t, w, `UPDATE catalog_entities SET admission_own_age=NULL WHERE id=2111`)
+			wc008NativeExec(t, w, `INSERT INTO profile_restrictions(profile_id,maximum_age,allow_unrated,blocked_labels) VALUES('profile',-1,0,'[]')`)
+		}},
+		{"hidden blocked label", func(t *testing.T, w *executor, q *uoPersonalFlagsInput) {
+			wc008NativeExec(t, w, `INSERT INTO profile_restrictions(profile_id,maximum_age,allow_unrated,blocked_labels) VALUES('profile',-1,1,'["adult"]')`)
+		}},
+		{"profile library grant excludes", func(t *testing.T, w *executor, q *uoPersonalFlagsInput) {
+			wc008NativeExec(t, w, `UPDATE direct_profiles SET allowed_libraries='["library-two"]' WHERE id='profile'`)
+		}},
+		{"membership library grant removed", func(t *testing.T, w *executor, q *uoPersonalFlagsInput) {
+			wc008NativeExec(t, w, `UPDATE direct_memberships SET allowed_libraries='[]' WHERE account_id='account'`)
+		}},
+		{"disabled membership", func(t *testing.T, w *executor, q *uoPersonalFlagsInput) {
+			wc008NativeExec(t, w, `UPDATE direct_memberships SET disabled=1 WHERE account_id='account'`)
+		}},
+		{"deleted profile", func(t *testing.T, w *executor, q *uoPersonalFlagsInput) {
+			wc008NativeExec(t, w, `UPDATE direct_profiles SET deleted=1 WHERE id='profile'`)
+		}},
+		{"membership incarnation drift", func(t *testing.T, w *executor, q *uoPersonalFlagsInput) {
+			wc008NativeExec(t, w, `UPDATE direct_memberships SET incarnation=? WHERE account_id='account'`, strings.Repeat("d", 32))
+		}},
+		{"account access limits", func(t *testing.T, w *executor, q *uoPersonalFlagsInput) {
+			wc008NativeExec(t, w, `INSERT INTO access_limits(account_id) VALUES('account')`)
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w, _, root, identity, _, q := uoFlagsDispatchFixture(t)
+			tc.edit(t, w, &q)
+			uoFlagsAssertRefused(t, w, root, identity, q)
+		})
+	}
+
+	// Two profiles on one account: the acting profile's narrowed library set is
+	// what matters; another profile's identical grant cannot rescue it.
+	t.Run("two profiles", func(t *testing.T) {
+		w, _, root, identity, _, q := uoFlagsDispatchFixture(t)
+		wc008NativeExec(t, w, `INSERT INTO direct_profiles(id,account_id,name,allowed_libraries,deleted,lifetime) VALUES('profile-other','account','Other','["library-one"]',0,?)`, strings.Repeat("e", 32))
+		wc008NativeExec(t, w, `UPDATE direct_profiles SET allowed_libraries='["library-two"]' WHERE id='profile'`)
+		uoFlagsAssertRefused(t, w, root, identity, q)
+		var other int64
+		if err := w.db.QueryRowContext(t.Context(), `SELECT count(*) FROM direct_profiles WHERE id='profile-other' AND allowed_libraries='["library-one"]'`).Scan(&other); err != nil || other != 1 {
+			t.Fatal("second profile grant changed", other, err)
+		}
+	})
+}
+
+// TestUOFlagsFinalTargetDrift proves the release recheck is what denies: the
+// first proof and every write succeed, then the hint's api_events insert fires a
+// trigger that removes the membership grant. The whole prefix must roll back,
+// including the trigger's own membership update.
+func TestUOFlagsFinalTargetDrift(t *testing.T) {
+	w, _, root, identity, _, q := uoFlagsDispatchFixture(t)
+	wc008NativeExec(t, w, `CREATE TRIGGER uo_flags_target_drift AFTER INSERT ON api_events BEGIN UPDATE direct_memberships SET allowed_libraries='[]' WHERE account_id='account'; END`)
+	turn := uoFlagsDispatchTurn(t, w)
+	out, floor, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: uoFlagsRef(t, root, 1, 9, q), public: q.publicID, input: q, nowMS: 300})
+	if !errors.Is(err, ErrDisclosureDenied) || out != (uoRootFlagsResult{}) || floor != 0 {
+		t.Fatal("final target drift not refused", out, floor, err)
+	}
+	uoFlagsNoEffects(t, w, root)
+	if got := uoFlagsScalar(t, w, `SELECT count(*) FROM direct_memberships WHERE account_id='account' AND allowed_libraries='["library-one"]'`); got != 1 {
+		t.Fatal("trigger drift was not rolled back", got)
+	}
+}
+
+// TestUOFlagsReplayRequiresCurrentAccess proves a retained original is not
+// disclosed after the viewer loses the library: the replay refuses with no
+// payload and no writes.
+func TestUOFlagsReplayRequiresCurrentAccess(t *testing.T) {
+	w, _, root, identity, _, q := uoFlagsDispatchFixture(t)
+	ref := uoFlagsRef(t, root, 1, 9, q)
+	turn := uoFlagsDispatchTurn(t, w)
+	if _, _, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: ref, public: q.publicID, input: q, nowMS: 300}); err != nil {
+		t.Fatal(err)
+	}
+	wc008NativeExec(t, w, `UPDATE direct_memberships SET allowed_libraries='[]' WHERE account_id='account'`)
+	var beforePersonal, beforeReceipts, beforeEvents int64
+	if err := w.db.QueryRowContext(t.Context(), `SELECT (SELECT revision FROM personal_items WHERE profile_id=?), (SELECT count(*) FROM user_mutation_command_receipts WHERE root_id=?), (SELECT count(*) FROM api_events)`, q.profileKey, root).Scan(&beforePersonal, &beforeReceipts, &beforeEvents); err != nil {
+		t.Fatal(err)
+	}
+	turn = uoFlagsDispatchTurn(t, w)
+	out, floor, err := runUOFlagsDispatch(t.Context(), turn, uoFlagsProof(t, turn, identity), uoRootFlagsInvocation{reference: ref, public: q.publicID, input: q, nowMS: 300})
+	if !errors.Is(err, ErrDisclosureDenied) || out != (uoRootFlagsResult{}) || floor != 0 {
+		t.Fatal("access-loss replay disclosed a payload", out, floor, err)
+	}
+	var afterPersonal, afterReceipts, afterEvents int64
+	if err := w.db.QueryRowContext(t.Context(), `SELECT (SELECT revision FROM personal_items WHERE profile_id=?), (SELECT count(*) FROM user_mutation_command_receipts WHERE root_id=?), (SELECT count(*) FROM api_events)`, q.profileKey, root).Scan(&afterPersonal, &afterReceipts, &afterEvents); err != nil {
+		t.Fatal(err)
+	}
+	if afterPersonal != beforePersonal || afterReceipts != beforeReceipts || afterEvents != beforeEvents {
+		t.Fatal("access-loss replay wrote facts", beforePersonal, afterPersonal, beforeReceipts, afterReceipts, beforeEvents, afterEvents)
+	}
+}
+
+// TestUOFlagsPersonalOwnerKeyGolden pins the local owner-key bytes to the
+// canonical [3]string JSON + base64url encoding persistence.PersonalOwnerKey
+// writes. It catches a wrong port without importing the persistence package.
+func TestUOFlagsPersonalOwnerKeyGolden(t *testing.T) {
+	const want = "viewer:WyJsb2NhbCIsImFjY291bnQiLCJwcm9maWxlIl0"
+	if got := uoFlagsPersonalOwnerKey("local", "account", "profile"); got != want {
+		t.Fatalf("personal owner key = %q, want %q", got, want)
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"unicode/utf8"
 
 	"github.com/PorticoMediaServer/portico/server/internal/apievents"
 )
@@ -79,6 +80,248 @@ func bindUOFlagsFreshInput(proof *uoRootCurrentProof, reference uoRootReference,
 	return nil
 }
 
+// uoFlagsTargetProof is the typed result of the same-frame viewing-authority
+// proof. It carries the entity/library binding and the membership, profile and
+// restriction revisions that authorized it. The dispatcher consumes it before
+// Fresh writes, before any retained original is disclosed on replay and again in
+// the release recheck; a proof from a different frame, a different target or a
+// drifted policy never matches.
+type uoFlagsTargetProof struct {
+	turn                                                     *commandTurn
+	public                                                   [16]byte
+	entityID, libraryID                                      int64
+	libraryKey                                               string
+	entityRevision, admissionRevision                        int64
+	membershipRevision, profileRevision, restrictionRevision int64
+}
+
+// uoFlagsTargetRow is one public item resolved to its CURRENT entity/library
+// row. It is the writer-owned copy of the native read shape, not a second
+// catalog service.
+type uoFlagsTargetRow struct {
+	entityID, libraryID               int64
+	kind                              int64
+	kindName, libraryKey              string
+	playable                          bool
+	entityRevision, admissionRevision int64
+	ownAge                            sql.NullInt64
+}
+
+type uoFlagsViewerFacts struct {
+	membershipRevision, profileRevision, restrictionRevision int64
+}
+
+// proveUOFlagsTargetVisible is UO-03c's exact target proof for a Fresh patch. It
+// reads, in the SAME command frame as the write, the public item -> current
+// entity/library row, the current membership/profile library grants and the
+// profile restrictions, and requires every one of them to still match the
+// validated proof identity and the caller's prepared binding (subject/library/
+// revisions). The legacy PUT personal-state path got the library from
+// LibraryForItem (playable=1, catalog_libraries.retired=0), re-read the item's
+// current library and refused a moved title, then required the viewer's
+// membership/profile library access (recordingaccess.directLibraryAllowed) plus
+// the catalogue restriction predicate. Wrong, hidden, retired, moved, disabled
+// or drifted targets all return the same disclosure-denied class before the
+// dispatcher writes anything.
+func proveUOFlagsTargetVisible(ctx context.Context, turn *commandTurn, proof *uoRootCurrentProof, in uoPersonalFlagsInput) (out uoFlagsTargetProof, err error) {
+	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
+	if proof == nil {
+		return out, ErrDisclosureDenied
+	}
+	if err = in.validate(); err != nil {
+		return out, err
+	}
+	// The personal owner key is derived from the proven actor, never trusted
+	// from the caller. This is the #1375 rule applied to the visibility proof.
+	if in.profileKey != uoFlagsPersonalOwnerKey(uoFlagsNativeAuthority, proof.identity.account, proof.identity.profile) {
+		return out, ErrDisclosureDenied
+	}
+	if _, err = uoRootProofCurrent(proof, turn); err != nil {
+		return out, err
+	}
+	target, err := readUOFlagsTargetRow(ctx, turn, in.publicID)
+	if err != nil {
+		return out, err
+	}
+	// The request's prepared binding must be the item's CURRENT binding. A moved
+	// title, a changed source revision or a different admission publication is
+	// a refusal, never an invitation to write the new row under the old request.
+	if target.entityID != in.subjectID || target.libraryID != in.libraryID || target.libraryKey != in.libraryKey || target.entityRevision != in.entityRevision || target.admissionRevision != in.admissionRevision || !target.playable {
+		return out, ErrDisclosureDenied
+	}
+	viewer, err := validateUOFlagsViewer(ctx, turn, proof.identity, target)
+	if err != nil {
+		return out, err
+	}
+	return uoFlagsTargetProof{turn: turn, public: in.publicID, entityID: target.entityID, libraryID: target.libraryID, libraryKey: target.libraryKey, entityRevision: target.entityRevision, admissionRevision: target.admissionRevision, membershipRevision: viewer.membershipRevision, profileRevision: viewer.profileRevision, restrictionRevision: viewer.restrictionRevision}, nil
+}
+
+// proveUOFlagsPublicVisible is the replay/retired-side proof: the retained
+// original names only the public item id, so this re-reads the item's CURRENT
+// library/admission and the viewer's CURRENT membership/profile access before
+// any saved payload is disclosed. Losing access after the original is a
+// disclosure denial even though the original itself is immutable.
+func proveUOFlagsPublicVisible(ctx context.Context, turn *commandTurn, proof *uoRootCurrentProof, public [16]byte) (out uoFlagsTargetProof, err error) {
+	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
+	if proof == nil || public == ([16]byte{}) {
+		return out, ErrDisclosureDenied
+	}
+	if _, err = uoRootProofCurrent(proof, turn); err != nil {
+		return out, err
+	}
+	target, err := readUOFlagsTargetRow(ctx, turn, public)
+	if err != nil {
+		return out, err
+	}
+	if !target.playable {
+		return out, ErrDisclosureDenied
+	}
+	viewer, err := validateUOFlagsViewer(ctx, turn, proof.identity, target)
+	if err != nil {
+		return out, err
+	}
+	return uoFlagsTargetProof{turn: turn, public: public, entityID: target.entityID, libraryID: target.libraryID, libraryKey: target.libraryKey, entityRevision: target.entityRevision, admissionRevision: target.admissionRevision, membershipRevision: viewer.membershipRevision, profileRevision: viewer.profileRevision, restrictionRevision: viewer.restrictionRevision}, nil
+}
+
+// readUOFlagsTargetRow copies only the exact current item/library point. A miss,
+// a retired item or a retired library is the same denial class as a hidden one.
+func readUOFlagsTargetRow(ctx context.Context, turn *commandTurn, public [16]byte) (out uoFlagsTargetRow, err error) {
+	if public == ([16]byte{}) {
+		return out, ErrDisclosureDenied
+	}
+	row, err := wc008DraftQuery(ctx, turn, uoFlagsTargetEntity, public[:])
+	if err != nil {
+		return out, err
+	}
+	var playable, retired, libraryRetired int64
+	err = row.Scan(&out.entityID, &out.libraryID, &out.libraryKey, &out.kind, &out.kindName, &playable, &retired, &out.entityRevision, &out.admissionRevision, &out.ownAge, &libraryRetired)
+	if errors.Is(err, sql.ErrNoRows) {
+		return out, ErrDisclosureDenied
+	}
+	if err != nil {
+		return out, err
+	}
+	if out.entityID <= 0 || out.libraryID <= 0 || out.libraryKey == "" || out.kindName == "" || out.entityRevision <= 0 || out.admissionRevision <= 0 || (playable != 0 && playable != 1) || (retired != 0 && retired != 1) || (libraryRetired != 0 && libraryRetired != 1) || retired != 0 || libraryRetired != 0 {
+		return out, ErrDisclosureDenied
+	}
+	out.playable = playable == 1
+	return out, nil
+}
+
+// validateUOFlagsViewer is the current membership/profile fence plus admission.
+// It follows the native read principal fence and admittedItem: disabled member
+// or deleted profile, a superseded membership incarnation/profile lifetime, a
+// library outside the member's grants or the profile's narrowed set, any stored
+// blocked label (that predicate is not represented natively; refuse rather than
+// fail open), and the age/unrated admission of the item's own rating.
+//
+// A stored access_limits document is refused too: native reads do not yet
+// represent the account's narrowed ceiling/denied labels, and this proof must not
+// silently ignore them.
+func validateUOFlagsViewer(ctx context.Context, turn *commandTurn, identity uoRootIdentity, target uoFlagsTargetRow) (out uoFlagsViewerFacts, err error) {
+	row, err := wc008DraftQuery(ctx, turn, uoFlagsTargetPrincipal, identity.account, identity.profile)
+	if err != nil {
+		return out, err
+	}
+	var role, memberLibraries, memberIncarnation, profileLifetime string
+	var membershipRevision, profileRevision int64
+	var profileLibraries sql.NullString
+	var disabled, deleted int64
+	err = row.Scan(&role, &disabled, &memberLibraries, &memberIncarnation, &membershipRevision, &profileLibraries, &deleted, &profileLifetime, &profileRevision)
+	if errors.Is(err, sql.ErrNoRows) {
+		return out, ErrDisclosureDenied
+	}
+	if err != nil {
+		return out, err
+	}
+	if disabled != 0 || deleted != 0 || membershipRevision <= 0 || profileRevision <= 0 || !utf8.ValidString(memberIncarnation) || !utf8.ValidString(profileLifetime) {
+		return out, ErrDisclosureDenied
+	}
+	if role != "owner" && role != "admin" && role != "member" {
+		return out, ErrDisclosureDenied
+	}
+	// The validated root carries the exact membership incarnation/profile
+	// lifetime. A superseded pair is a different viewer, not the saved identity.
+	if memberIncarnation != identity.memberIncarnation || profileLifetime != identity.profileLifetime {
+		return out, ErrDisclosureDenied
+	}
+	var memberAllowed []string
+	if !utf8.ValidString(memberLibraries) {
+		return out, ErrDisclosureDenied
+	}
+	if err = json.Unmarshal([]byte(memberLibraries), &memberAllowed); err != nil || memberAllowed == nil || len(memberAllowed) > 100 || !uoFlagsContains(memberAllowed, target.libraryKey) && role != "owner" && role != "admin" {
+		return out, ErrDisclosureDenied
+	}
+	if profileLibraries.Valid {
+		var profileAllowed []string
+		if !utf8.ValidString(profileLibraries.String) {
+			return out, ErrDisclosureDenied
+		}
+		if err = json.Unmarshal([]byte(profileLibraries.String), &profileAllowed); err != nil || profileAllowed == nil || len(profileAllowed) > 100 || !uoFlagsContains(profileAllowed, target.libraryKey) {
+			return out, ErrDisclosureDenied
+		}
+	}
+	// The native read fence refuses an account with a stored limits document;
+	// the writer must not treat the missing native predicate as permission.
+	row, err = wc008DraftQuery(ctx, turn, uoFlagsTargetAccessLimits, identity.account)
+	if err != nil {
+		return out, err
+	}
+	var limitsAccount string
+	switch err = row.Scan(&limitsAccount); {
+	case err == nil:
+		return out, ErrDisclosureDenied
+	case !errors.Is(err, sql.ErrNoRows):
+		return out, err
+	}
+	maxAge, allowUnrated, blockedRaw, restrictionRevision := int64(-1), int64(1), "[]", int64(0)
+	row, err = wc008DraftQuery(ctx, turn, uoFlagsTargetRestrictions, identity.profile)
+	if err != nil {
+		return out, err
+	}
+	switch err = row.Scan(&maxAge, &allowUnrated, &blockedRaw, &restrictionRevision); {
+	case err == nil:
+	case errors.Is(err, sql.ErrNoRows):
+		maxAge, allowUnrated, blockedRaw, restrictionRevision = -1, 1, "[]", 0
+	default:
+		return out, err
+	}
+	if maxAge < -1 || (allowUnrated != 0 && allowUnrated != 1) || restrictionRevision < 0 || !utf8.ValidString(blockedRaw) {
+		return out, ErrDisclosureDenied
+	}
+	var labels []string
+	if err = json.Unmarshal([]byte(blockedRaw), &labels); err != nil || labels == nil || len(labels) > 64 {
+		return out, ErrDisclosureDenied
+	}
+	for _, label := range labels {
+		if len(label) == 0 || len(label) > 120 {
+			return out, ErrDisclosureDenied
+		}
+	}
+	if len(labels) != 0 {
+		return out, ErrDisclosureDenied
+	}
+	// admittedItem: a missing own age is unrated; otherwise the profile's
+	// ceiling (negative means no ceiling) admits only children at or below it.
+	if !target.ownAge.Valid {
+		if allowUnrated == 0 {
+			return out, ErrDisclosureDenied
+		}
+	} else if target.ownAge.Int64 < 0 || maxAge >= 0 && target.ownAge.Int64 > maxAge {
+		return out, ErrDisclosureDenied
+	}
+	return uoFlagsViewerFacts{membershipRevision: membershipRevision, profileRevision: profileRevision, restrictionRevision: restrictionRevision}, nil
+}
+
+func uoFlagsContains(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
 // appendUOFlagsChangedHint appends the ONE personal.changed hint a real flag
 // change owes. The native schema has no personal_change_hint trigger, so this
 // dispatcher owns the bounded append (see the assignment in
@@ -87,6 +330,12 @@ func bindUOFlagsFreshInput(proof *uoRootCurrentProof, reference uoRootReference,
 // the library with the viewer revision, so those exact fields are reused. No
 // titles field means "any title in this library", the documented fallback; the
 // scalar patch never claims a partial title path.
+//
+// KNOWN DEVIATION: this hint hardcodes "observation":"0", while the legacy
+// viewer_revisions hint emitted the head's observation_revision. The saved
+// statement/golden intentionally stay unchanged here; the correct field is
+// tracked for the post-D statement change and must not be altered in this
+// commit.
 func appendUOFlagsChangedHint(ctx context.Context, turn *commandTurn, identity uoRootIdentity, libraryKey string, revision, nowMS int64) error {
 	if libraryKey == "" || revision <= 0 || nowMS <= 0 {
 		return ErrInvalid
@@ -249,10 +498,11 @@ type uoRootFlagsPublished struct {
 // same frame. Replay may not synthesize a stub or read mutable progress. The
 // public adapter stays HELD until that storage/image is adopted.
 //
-// Viewing authority is also still missing: the item->current-library binding and
-// the current membership/profile effective-library/restriction visibility must
-// be proved before any Fresh write, before retained payload disclosure and
-// re-proved before release (UO-03c). 600 is NOT wire-able until that task lands.
+// UO-03c supplies the viewing-authority half: the item->current-library binding
+// and the current membership/profile effective-library/restriction visibility
+// are proved in this same frame before any Fresh write, before a retained
+// original is disclosed and again immediately before release. The public
+// adapter is still HELD on the missing complete result image above.
 func runUOFlagsDispatch(ctx context.Context, turn *commandTurn, proof *uoRootCurrentProof, inv uoRootFlagsInvocation) (out uoRootFlagsResult, floor int64, err error) {
 	defer func() {
 		v, e := finishCommand(ctx, ctx, uoRootFlagsPublished{out, floor}, err)
@@ -262,6 +512,8 @@ func runUOFlagsDispatch(ctx context.Context, turn *commandTurn, proof *uoRootCur
 	if err != nil {
 		return withdrawUOFlags(turn, err)
 	}
+	var targetProof uoFlagsTargetProof
+	var targetProven bool
 	if inv.ack {
 		if inv.input != (uoPersonalFlagsInput{}) {
 			return withdrawUOFlags(turn, ErrInvalid)
@@ -270,16 +522,20 @@ func runUOFlagsDispatch(ctx context.Context, turn *commandTurn, proof *uoRootCur
 	} else {
 		switch lookup.decision {
 		case receiptFresh:
-			// UO-03c plugs target viewing authority in HERE, before bind and any
-			// source effect: the item->current-library binding plus the current
-			// membership/profile effective-library/restriction visibility, and the
-			// same proof must guard retained payload disclosure and release.
+			// UO-03c: the item->current-library binding plus the current
+			// membership/profile effective-library/restriction visibility must be
+			// proved in this frame BEFORE the owner bind, source effect and receipt
+			// insert. The same typed proof is re-checked immediately before release.
 			if inv.public != inv.input.publicID || inv.nowMS <= 0 {
 				return withdrawUOFlags(turn, ErrInvalid)
 			}
 			if err = bindUOFlagsFreshInput(proof, inv.reference, inv.input); err != nil {
 				return withdrawUOFlags(turn, err)
 			}
+			if targetProof, err = proveUOFlagsTargetVisible(ctx, turn, proof, inv.input); err != nil {
+				return withdrawUOFlags(turn, err)
+			}
+			targetProven = true
 			var effect uoPersonalFlagsEffect
 			if effect, err = applyUOPersonalFlags(ctx, turn, inv.input); err == nil {
 				// A nonempty personal prefix is rolled back with the whole turn if
@@ -297,7 +553,17 @@ func runUOFlagsDispatch(ctx context.Context, turn *commandTurn, proof *uoRootCur
 				}
 			}
 		case receiptReplay:
-			out, err = restoreUORootFlags(ctx, turn, proof, lookup)
+			// A retained original is disclosed only to a viewer who may STILL see
+			// its item. Prove the public target first when the retry custody names
+			// it; restore proves again against the decoded original before it
+			// returns anything.
+			if inv.public != ([16]byte{}) {
+				if targetProof, err = proveUOFlagsPublicVisible(ctx, turn, proof, inv.public); err != nil {
+					return withdrawUOFlags(turn, err)
+				}
+				targetProven = true
+			}
+			out, err = restoreUORootFlags(ctx, turn, proof, lookup, inv.public)
 		case receiptRetired:
 			// A submission to an ACKed sequence is the retired class, never a
 			// Resolve-required loop. No payload is disclosed and nothing is written.
@@ -315,6 +581,27 @@ func runUOFlagsDispatch(ctx context.Context, turn *commandTurn, proof *uoRootCur
 		decision := receiptFresh
 		if lookup.decision == receiptReplay || lookup.decision == receiptRetired {
 			decision = receiptReplay
+		}
+		// UO-03c final recheck: a policy/role/membership/library change after the
+		// first proof and before this release must refuse the whole prefix. A
+		// retired answer has no payload and no target proof, and Fresh no-ops still
+		// carry their retained original, so only Fresh and replay are re-proved.
+		if lookup.decision == receiptFresh {
+			if !targetProven {
+				return withdrawUOFlags(turn, ErrDisclosureDenied)
+			}
+			fresh, proofErr := proveUOFlagsTargetVisible(ctx, turn, proof, inv.input)
+			if proofErr != nil || fresh != targetProof {
+				return withdrawUOFlags(turn, ErrDisclosureDenied)
+			}
+		} else if lookup.decision == receiptReplay && out.public != ([16]byte{}) {
+			fresh, proofErr := proveUOFlagsPublicVisible(ctx, turn, proof, out.public)
+			if proofErr != nil {
+				return withdrawUOFlags(turn, proofErr)
+			}
+			if targetProven && fresh != targetProof {
+				return withdrawUOFlags(turn, ErrDisclosureDenied)
+			}
 		}
 		if err = uoFlagsRelease(ctx, turn, proof, inv.reference.root, decision); err != nil {
 			return withdrawUOFlags(turn, err)

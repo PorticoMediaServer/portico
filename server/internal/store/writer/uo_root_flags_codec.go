@@ -173,9 +173,15 @@ func persistUORootFlags(ctx context.Context, turn *commandTurn, proof *uoRootCur
 }
 
 // restoreUORootFlags returns the retained ORIGINAL with zero source, revision,
-// event or outbox effects. It never re-runs the patch and never consults the
-// mutable catalog for a second answer.
-func restoreUORootFlags(ctx context.Context, turn *commandTurn, proof *uoRootCurrentProof, lookup uoRootLookup) (out uoRootFlagsResult, err error) {
+// event or outbox effects. It never re-runs the patch and never reconstructs the
+// answer from mutable catalog state. Current VIEWING authority is different from
+// those effects: before the payload leaves this function (and, when the caller
+// knows the public target, before it is even copied) the item's current library
+// and admission plus the viewer's current membership/profile access are proved,
+// so a viewer who lost access gets a refusal with no payload. public is the
+// retry custody's target when it has one; zero means the decoded original names
+// the target, which is still proved before return.
+func restoreUORootFlags(ctx context.Context, turn *commandTurn, proof *uoRootCurrentProof, lookup uoRootLookup, public [16]byte) (out uoRootFlagsResult, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
 	q := lookup.reference
 	if lookup.turn != turn || q.kind != SetPersonalFlags || lookup.decision != receiptReplay {
@@ -183,6 +189,11 @@ func restoreUORootFlags(ctx context.Context, turn *commandTurn, proof *uoRootCur
 	}
 	if _, err = uoRootProofCurrent(proof, turn); err != nil {
 		return out, err
+	}
+	if public != ([16]byte{}) {
+		if _, err = proveUOFlagsPublicVisible(ctx, turn, proof, public); err != nil {
+			return out, err
+		}
 	}
 	payload, digest, err := readUORootFlagsPayload(ctx, turn, proof, lookup)
 	if err != nil {
@@ -194,6 +205,16 @@ func restoreUORootFlags(ctx context.Context, turn *commandTurn, proof *uoRootCur
 	}
 	if lookup.resultCount != 0 || result.appliedMS != lookup.appliedMS {
 		return uoRootFlagsResult{}, ErrResolveRequired
+	}
+	// The original names its own target. A caller-supplied target that differs
+	// cannot unlock this receipt; without one, prove the decoded target now and
+	// still before the result is returned.
+	if public != ([16]byte{}) {
+		if result.public != public {
+			return uoRootFlagsResult{}, ErrDisclosureDenied
+		}
+	} else if _, err = proveUOFlagsPublicVisible(ctx, turn, proof, result.public); err != nil {
+		return uoRootFlagsResult{}, err
 	}
 	if err = uoRootReclaimRelease(ctx, turn, proof, q.root, receiptReplay); err != nil {
 		return uoRootFlagsResult{}, err
@@ -216,7 +237,7 @@ func acknowledgeUORootFlags(ctx context.Context, turn *commandTurn, proof *uoRoo
 		// GENERIC uoRootOperationResult decoder, so it cannot accept purpose
 		// 600's typed original. Verify that original here and reuse the shared
 		// purpose-agnostic floor body.
-		if _, err := restoreUORootFlags(ctx, turn, proof, lookup); err != nil {
+		if _, err := restoreUORootFlags(ctx, turn, proof, lookup, [16]byte{}); err != nil {
 			return 0, err
 		}
 		return acknowledgeUORootVerified(ctx, turn, proof, lookup, nowMS)
