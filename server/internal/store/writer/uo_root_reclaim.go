@@ -14,14 +14,21 @@ import (
 // <=4096 cleanup slot. No child receipt is created for the cleanup itself, so
 // reclaim can never recurse or manufacture idle debt.
 //
-// The NORMAL durability is not authority. Every entry reads current authority
-// through the same private same-commandTurn proof UO-01 defines, before any
-// retained owner/slot/child read, and re-proves it before release.
+// The NORMAL durability is not authority. Every entry binds the same private
+// same-commandTurn proof UO-01 defines before any retained owner/slot/child read
+// and re-proves the frame, identity and root before release. The proof's
+// current-authority mint is still pending from Sol, so 654 is not product-wired.
 
 // uoRootProofCurrent validates the closed private current proof for this frame
 // and returns the identity-bound root reader. It mints nothing: the proof has no
 // constructor or exported field outside this package, so a caller string,
 // cached role, descriptor or registration cannot stand in for it.
+//
+// Its release re-proof (uoRootReclaimRelease) covers only this frame/identity and
+// the exact root row; it deliberately makes no current-authority check call.
+// uoRootBinding.check refuses every NORMAL turn until Sol's us_current_fence
+// mint exists, and that mint is the only thing that can answer the check. So 654
+// stays a component until the mint lands; do not wire it before then.
 func uoRootProofCurrent(proof *uoRootCurrentProof, turn *commandTurn) (*uoRootBinding, error) {
 	if err := proof.current(turn); err != nil {
 		return nil, err
@@ -86,33 +93,31 @@ func lookupUORootReclaim(ctx context.Context, turn *commandTurn, proof *uoRootCu
 	}
 	copy(owner.facts.incarnation[:], incarnation)
 	owner.facts.exists = true
-	old, err := loadUORootSlot(ctx, turn, q)
+	// This is NOT a second classifier. The fixed slot is projected into W's
+	// receiptFacts and the one shared classifyReceipt makes the decision. The
+	// owner incarnation is compared before the slot is read: a stale-incarnation
+	// retry must answer exactly as W does (ResolveRequired joined with
+	// OwnerUnavailable), never as a raw slot miss.
+	expected := receiptIdentity{command: q.identity, digest: q.request}
+	found := receiptFacts{}
+	var old uoRootStoredSlot
+	if owner.facts.incarnation == q.identity.Incarnation {
+		old, err = loadUORootSlot(ctx, turn, q)
+		if err != nil {
+			return out, err
+		}
+		if old.slot.present && old.slot.reference.Identity.Sequence == q.identity.Sequence {
+			found = receiptFacts{
+				exists:      true,
+				identity:    receiptIdentity{command: old.slot.reference.Identity, digest: old.slot.reference.RequestDigest},
+				kind:        q.kind,
+				resultCount: old.slot.removedCount,
+			}
+		}
+	}
+	decision, err := classifyReceipt(expected, q.kind, owner.facts, found)
 	if err != nil {
 		return out, err
-	}
-	var decision receiptDecision
-	switch {
-	case q.identity.Sequence <= owner.facts.acknowledgedSequence:
-		// The ACKed floor retires the original even while the tombstone slot
-		// remains physically retained.
-		decision = receiptRetired
-	case q.identity.Sequence <= owner.facts.lastSequence:
-		if !old.slot.present || old.slot.reference.Identity.Sequence != q.identity.Sequence {
-			return out, ErrResolveRequired
-		}
-		if old.slot.reference.Identity.Incarnation != q.identity.Incarnation || old.slot.reference.Identity.OperationID != q.identity.OperationID || old.slot.reference.RequestDigest != q.request {
-			return out, ErrConflict
-		}
-		decision = receiptReplay
-	case q.identity.Sequence-owner.facts.lastSequence == 1:
-		// A predecessor must already be durable and acknowledged; the fixed slot
-		// may still hold the previous cycle's tombstone.
-		if owner.facts.lastSequence != owner.facts.acknowledgedSequence {
-			return out, ErrResolveRequired
-		}
-		decision = receiptFresh
-	default:
-		return out, ErrConflict
 	}
 	if decision == receiptFresh && rootState != "active" {
 		return out, ErrUORootGone
@@ -258,6 +263,10 @@ func uoRootReclaimProbe(root string, incarnation [16]byte, after, through, next 
 // child and refunds ONLY its actual native variable bytes. The refund and the
 // new owner debt are validated before anything is deleted (charge before
 // growth), and the complete original result is saved in the fixed slot.
+//
+// "Charge" is arithmetic only: W's global root-receipt quota is still open in
+// the contract, so no quota row is debited or reserved here. prepareWCReclaim
+// proves the refund/debt delta and this file must not invent a charge.
 func reclaimUORootReceipt(ctx context.Context, turn *commandTurn, proof *uoRootCurrentProof, lookup uoRootLookup, nowMS int64) (out uoRootReclaimResult, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
 	q, o := lookup.reference, lookup.owner
@@ -361,6 +370,10 @@ func acknowledgeUORootReclaim(ctx context.Context, turn *commandTurn, proof *uoR
 // uoRootReclaimDue observes at most one due root through the partial
 // user_mutation_command_reclaim_due index. It is a maintenance candidate probe,
 // never an enumeration or a claimant-selected priority.
+//
+// It is UNPROOFED across principals: it returns any due root ID without a
+// current-authority or worker proof. No sweeper may call it until Sol supplies
+// the worker proof; today it is a bounded component probe only.
 func uoRootReclaimDueRoot(ctx context.Context, turn *commandTurn, nowMS int64) (root string, dueMS int64, found bool, err error) {
 	defer func() {
 		v, e := finishCommand(ctx, commandLifetime(turn), struct {

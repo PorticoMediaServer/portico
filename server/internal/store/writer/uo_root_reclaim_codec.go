@@ -41,10 +41,10 @@ func preflightUORootReclaim(v uoRootReclaimResult) error {
 	return nil
 }
 
-// writeUORootReclaim emits the same canonical envelope as W's sole codec. The
-// closed result_digest.go dispatcher case for this type is a sequential wiring
-// hunk owned by the train; until it lands this writer is called directly by
-// encodeUORootReclaim, which performs the same preflight.
+// writeUORootReclaim emits the same canonical envelope as W's sole codec. It is
+// reached only through result_digest.go's closed dispatcher: encode and decode
+// both route every byte through that one case, so dropping the case breaks the
+// round trip instead of silently bypassing it.
 func writeUORootReclaim(e *requestEncoder, i CommandIdentity, q RequestDigest, v uoRootReclaimResult) error {
 	e.bytes([]byte(canonicalResultCodec))
 	e.bytes([]byte{0, 1})
@@ -63,23 +63,17 @@ func writeUORootReclaim(e *requestEncoder, i CommandIdentity, q RequestDigest, v
 }
 
 func encodeUORootReclaim(i CommandIdentity, q RequestDigest, v uoRootReclaimResult) ([]byte, ResultDigest, error) {
-	if i.Incarnation == [16]byte{} || i.OperationID == [16]byte{} || q == [32]byte{} || i.Sequence <= v.floor {
+	if i.Sequence <= v.floor {
 		return nil, ResultDigest{}, ErrInvalid
 	}
-	if err := preflightUORootReclaim(v); err != nil {
+	payload, digest, err := encodeUORootCanonical(i, q, v)
+	if err != nil {
 		return nil, ResultDigest{}, err
 	}
-	sink := &uoRootPayloadSink{digest: sha256.New()}
-	e := requestEncoder{h: sink}
-	if err := writeUORootReclaim(&e, i, q, v); err != nil {
-		return nil, ResultDigest{}, err
-	}
-	if len(sink.payload) < 1 || len(sink.payload) > uoRootReclaimPayloadCap {
+	if len(payload) < 1 || len(payload) > uoRootReclaimPayloadCap {
 		return nil, ResultDigest{}, ErrInvalid
 	}
-	var digest ResultDigest
-	copy(digest[:], sink.Sum(nil))
-	return sink.payload, digest, nil
+	return payload, digest, nil
 }
 
 func decodeUORootReclaim(i CommandIdentity, q RequestDigest, root string, p []byte, want ResultDigest) (uoRootReclaimResult, error) {

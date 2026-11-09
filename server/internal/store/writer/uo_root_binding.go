@@ -38,9 +38,12 @@ func (i uoRootIdentity) complete() bool {
 // uoRootCurrentProof is the opaque NORMAL current-session proof seam. Its only
 // future producer is Sol's writer/us_current_fence.go mint; this file defines no
 // constructor and no exported field, so no caller bool, string or cached issuer
-// can stand in for it. Until that mint lands every NORMAL root command refuses
-// with ErrUORootCurrentFenceUnavailable. The frame, purpose, lifetime, deadline
-// and identity fields are what the mint will bind and what a reuse must fail.
+// can stand in for it. Until that mint lands the 654 component consumes this
+// private same-turn proof type directly (package tests construct it; product
+// binding still refuses with ErrUORootCurrentFenceUnavailable). 654 must NOT be
+// wired before it routes through Sol's mint and the same current-authority
+// recheck US-01 performs. The frame, purpose, lifetime, deadline and identity
+// fields are what the mint will bind and what a reuse must fail.
 type uoRootCurrentProof struct {
 	turn     *commandTurn
 	purpose  CommandID
