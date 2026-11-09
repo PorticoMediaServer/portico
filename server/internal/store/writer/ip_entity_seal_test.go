@@ -61,6 +61,38 @@ func ipEntityEvidenceParser(provider, kind string) string {
 	return parser
 }
 
+// ipEntitySealTamperPair rewrites the recorded parser/request pair of one
+// evidence row to model a foreign or superseded build. The composite subject FK
+// admits only a request shape that the referenced metadata_provider_subjects row
+// also carries, so both rows move together in one transaction with deferred
+// enforcement; the committed state is still internally coherent.
+func ipEntitySealTamperPair(t *testing.T, w *executor, evidenceID, parser, shape string) {
+	t.Helper()
+	if _, err := w.db.ExecContext(t.Context(), `PRAGMA defer_foreign_keys=ON`); err != nil {
+		t.Fatal(err)
+	}
+	tx, err := w.db.BeginTx(t.Context(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = tx.ExecContext(t.Context(),
+		`UPDATE metadata_provider_subjects SET request_shape=? WHERE id=(SELECT subject_id FROM metadata_evidence WHERE id=?)`,
+		shape, evidenceID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = tx.ExecContext(t.Context(),
+		`UPDATE metadata_evidence SET parser_version=?,request_shape=? WHERE id=?`, parser, shape,
+		evidenceID); err != nil {
+		t.Fatal(err)
+	}
+	if err = tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.db.ExecContext(t.Context(), `PRAGMA defer_foreign_keys=OFF`); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func ipEntityEvidenceRequest(provider, kind string) string {
 	_, request := ipEntityEvidencePair(provider, kind)
 	return request
@@ -427,10 +459,11 @@ func TestIPEntitySealRejectsIncompleteAndForeignBuild(t *testing.T) {
 		name   string
 		mutate func(*ipEntitySealRequest)
 		sql    []string
+		tamper func(*testing.T, *executor)
 		want   error
 	}{
-		{"missing_child", nil, []string{`DELETE FROM metadata_evidence_aliases WHERE evidence_id='evidence-one' AND ordinal=1`}, ErrConflict},
-		{"extra_child", nil, []string{`INSERT INTO metadata_evidence_aliases(evidence_id,ordinal,requested_id,canonical_id,alias,observed_at) VALUES('evidence-one',2,'extra','tmdb-1','Extra','2026-01-01T00:00:00Z')`}, ErrConflict},
+		{"missing_child", nil, []string{`DELETE FROM metadata_evidence_aliases WHERE evidence_id='evidence-one' AND ordinal=1`}, nil, ErrConflict},
+		{"extra_child", nil, []string{`INSERT INTO metadata_evidence_aliases(evidence_id,ordinal,requested_id,canonical_id,alias,observed_at) VALUES('evidence-one',2,'extra','tmdb-1','Extra','2026-01-01T00:00:00Z')`}, nil, ErrConflict},
 		{"duplicate_page", func(q *ipEntitySealRequest) {
 			// Replay the alias page as a coherent second page at the next
 			// ordinals: the manifest then declares four alias rows while the
@@ -443,30 +476,40 @@ func TestIPEntitySealRejectsIncompleteAndForeignBuild(t *testing.T) {
 			}
 			q.pages = []ipEntitySealPage{q.pages[0], duplicate, q.pages[1]}
 			q.families = ipEntitySealDeclarations(q.pages)
-		}, nil, ErrConflict},
-		{"wrong_parser", nil, []string{`UPDATE metadata_evidence SET parser_version='ip.tmdb.series.evidence.complete-ordered-families.v3' WHERE id='evidence-one'`}, ErrConflict},
-		{"wrong_language", func(q *ipEntitySealRequest) { q.language = "fr" }, nil, ErrConflict},
-		{"wrong_region", func(q *ipEntitySealRequest) { q.region = "GB" }, nil, ErrConflict},
-		{"wrong_request_shape", nil, []string{`UPDATE metadata_evidence SET request_shape='ip.tmdb.series.other.v1' WHERE id='evidence-one'`}, ErrConflict},
-		{"wrong_observed_at", func(q *ipEntitySealRequest) { q.observedAt = "2026-01-02T00:00:00Z" }, nil, ErrConflict},
+		}, nil, nil, ErrConflict},
+		{"wrong_parser", nil, []string{`UPDATE metadata_evidence SET parser_version='ip.tmdb.series.evidence.complete-ordered-families.v3' WHERE id='evidence-one'`}, nil, ErrConflict},
+		{"wrong_language", func(q *ipEntitySealRequest) { q.language = "fr" }, nil, nil, ErrConflict},
+		{"wrong_region", func(q *ipEntitySealRequest) { q.region = "GB" }, nil, nil, ErrConflict},
+		// The composite subject FK admits only a request_shape that the subject
+		// row also carries, so the foreign shape is written to both rows.
+		{"wrong_request_shape", nil, nil, func(t *testing.T, w *executor) {
+			ipEntitySealTamperPair(t, w, "evidence-one", ipEntityEvidenceParser("tmdb", "series"),
+				"ip.tmdb.series.other.v1")
+		}, ErrConflict},
+		{"wrong_observed_at", func(q *ipEntitySealRequest) { q.observedAt = "2026-01-02T00:00:00Z" }, nil, nil, ErrConflict},
 		{"wrong_observation_digest", func(q *ipEntitySealRequest) {
 			q.observationDigest = ipEntityEvidenceDigest("other")
-		}, nil, ErrConflict},
-		{"wrong_evidence", func(q *ipEntitySealRequest) { q.evidenceID = "evidence-two" }, nil, ErrConflict},
-		{"wrong_build", func(q *ipEntitySealRequest) { q.buildID = "build-two" }, nil, ErrConflict},
-		{"wrong_build_generation", func(q *ipEntitySealRequest) { q.buildGeneration = 2 }, nil, ErrConflict},
-		{"wrong_content_revision", func(q *ipEntitySealRequest) { q.contentRevision++ }, nil, ErrConflict},
-		{"wrong_provider_id", func(q *ipEntitySealRequest) { q.providerID = "tmdb-9" }, nil, ErrConflict},
-		{"wrong_subject_kind", func(q *ipEntitySealRequest) { q.subjectKind = "season" }, nil, ErrConflict},
-		{"wrong_subject_id", func(q *ipEntitySealRequest) { q.subjectID = 2 }, nil, ErrConflict},
+		}, nil, nil, ErrConflict},
+		{"wrong_evidence", func(q *ipEntitySealRequest) { q.evidenceID = "evidence-two" }, nil, nil, ErrConflict},
+		{"wrong_build", func(q *ipEntitySealRequest) { q.buildID = "build-two" }, nil, nil, ErrConflict},
+		{"wrong_build_generation", func(q *ipEntitySealRequest) { q.buildGeneration = 2 }, nil, nil, ErrConflict},
+		{"wrong_content_revision", func(q *ipEntitySealRequest) { q.contentRevision++ }, nil, nil, ErrConflict},
+		{"wrong_provider_id", func(q *ipEntitySealRequest) { q.providerID = "tmdb-9" }, nil, nil, ErrConflict},
+		{"wrong_subject_kind", func(q *ipEntitySealRequest) {
+			// A coherent season request: its own current pair, so the shape is
+			// admitted and only the recorded series build can refuse it.
+			q.subjectKind = "season"
+			q.parserVersion, q.requestShape = ipEntityEvidencePair("tmdb", "season")
+		}, nil, nil, ErrConflict},
+		{"wrong_subject_id", func(q *ipEntitySealRequest) { q.subjectID = 2 }, nil, nil, ErrConflict},
 		{"tampered_chain", func(q *ipEntitySealRequest) {
 			q.pages = append([]ipEntitySealPage(nil), q.pages...)
 			q.pages[0].aliases = append([]ipEvidenceAlias(nil), q.pages[0].aliases...)
 			q.pages[0].aliases[0].Name = "Tampered"
 			q.families = ipEntitySealDeclarations(q.pages)
-		}, nil, ErrConflict},
-		{"expired_build", nil, []string{`UPDATE metadata_evidence_builds SET expires_at='2020-01-01T00:00:00Z' WHERE id='build-one'`}, ErrConflict},
-		{"sealed_evidence", nil, []string{`UPDATE metadata_evidence SET sealed=1 WHERE id='evidence-one'`}, ErrConflict},
+		}, nil, nil, ErrConflict},
+		{"expired_build", nil, []string{`UPDATE metadata_evidence_builds SET expires_at='2020-01-01T00:00:00Z' WHERE id='build-one'`}, nil, ErrConflict},
+		{"sealed_evidence", nil, []string{`UPDATE metadata_evidence SET sealed=1 WHERE id='evidence-one'`}, nil, ErrConflict},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -474,6 +517,9 @@ func TestIPEntitySealRejectsIncompleteAndForeignBuild(t *testing.T) {
 			staged := ipEntitySealStage(t, w, r, p)
 			for _, query := range tc.sql {
 				ipPolicyExec(t, w, query)
+			}
+			if tc.tamper != nil {
+				tc.tamper(t, w)
 			}
 			q := staged.seal
 			if tc.mutate != nil {
@@ -920,7 +966,8 @@ func TestIPEntitySealRefusesOldOrderBuild(t *testing.T) {
 	ipPolicyCommitTurn(t, turn, tx)
 	ipEntityEvidenceAck(t, w, one.Value, 3)
 
-	ipPolicyExec(t, w, `UPDATE metadata_evidence SET parser_version='ip.tmdb.series.header-complete-children.v1',request_shape='ip.tmdb.series.detail+artist-credits+recordings+release-groups.v1' WHERE id='evidence-one'`)
+	ipEntitySealTamperPair(t, w, "evidence-one", "ip.tmdb.series.header-complete-children.v1",
+		"ip.tmdb.series.detail+artist-credits+recordings+release-groups.v1")
 
 	next := ipEntityEvidenceAppendFor(one.Value, "alias", 2, 3, 3)
 	next.aliases = ipEntityEvidenceAliasRows(2, 1)

@@ -34,7 +34,7 @@ type ipPersonEvidenceExternal struct {
 
 type ipPersonEvidenceBeginRequest struct {
 	operationID, provider, providerID, language, region, requestShape, lease string
-	personID, generation, revision, leaseGeneration, leaseUntilMS            int64
+	personID, subjectID, generation, revision, leaseGeneration, leaseUntilMS int64
 	buildID                                                                  string
 	buildGeneration                                                          int64
 	header                                                                   EvidenceHeaderInput
@@ -51,7 +51,7 @@ func (q ipPersonEvidenceBeginRequest) children() int {
 
 func ipPersonEvidenceHeaderAllowed(h EvidenceHeaderInput, q ipPersonEvidenceBeginRequest) bool {
 	if h.SubjectKind != "person" || !ipPolicyProviderCode(h.Provider) ||
-		h.SubjectID != q.personID || h.Provider != q.provider || h.ProviderID != q.providerID ||
+		h.SubjectID != q.subjectID || h.Provider != q.provider || h.ProviderID != q.providerID ||
 		h.Language != q.language || h.Region != q.region || h.RequestShape != q.requestShape ||
 		!ipPersonText(h.ID, ipPersonPointerMax, true) || !ipPersonText(h.ParserVersion, ipPersonTextMax, true) ||
 		!ipPersonText(h.ObservedAt, 64, true) || !ipPersonText(h.SourceURL, ipPersonTextMax, true) ||
@@ -185,7 +185,7 @@ func ipPersonEvidenceShapeBegin(q ipPersonEvidenceBeginRequest) (EvidenceHeader,
 		!ipPersonText(q.providerID, ipPersonProviderIDMax, true) ||
 		!ipPersonText(q.language, ipPersonPointerMax, true) || !ipPolicyRegion(q.region) ||
 		!ipPersonText(q.requestShape, ipPersonPointerMax, true) ||
-		!ipPersonText(q.lease, ipPersonPointerMax, true) || q.personID <= 0 || q.generation <= 0 ||
+		!ipPersonText(q.lease, ipPersonPointerMax, true) || q.personID <= 0 || q.subjectID <= 0 || q.generation <= 0 ||
 		q.generation == math.MaxInt64 || q.revision <= 0 || q.revision == math.MaxInt64 ||
 		q.leaseGeneration <= 0 || q.leaseGeneration == math.MaxInt64 || q.leaseUntilMS <= 0 ||
 		!ipPersonText(q.buildID, ipPersonPointerMax, true) || q.buildGeneration <= 0 ||
@@ -305,6 +305,9 @@ func ipPersonBeginFresh(ctx context.Context, turn *commandTurn, identity Command
 	q ipPersonEvidenceBeginRequest, header EvidenceHeader, headerBytes int64, owner ipPersonOwner,
 	appliedMS int64) (out ipPersonResult, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
+	if header.input.SubjectID != owner.subjectID {
+		return out, ErrConflict
+	}
 	if _, e := ipPersonBuildRead(ctx, turn, q.buildID); e == nil {
 		return out, ErrConflict
 	} else if !errors.Is(e, sql.ErrNoRows) {

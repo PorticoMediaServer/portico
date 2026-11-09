@@ -146,7 +146,7 @@ func mustIPPersonFinish(t *testing.T, identity CommandIdentity, q ipPersonFinish
 func ipPersonHeaderInput() EvidenceHeaderInput {
 	return EvidenceHeaderInput{
 		ID: "evidence-person-1", ParserVersion: "tmdb.person.header-exact-dates.v1",
-		Provider: "tmdb", SubjectKind: "person", ProviderID: "42", SubjectID: 42,
+		Provider: "tmdb", SubjectKind: "person", ProviderID: "42", SubjectID: 501,
 		Language: "en-US", Region: "US",
 		RequestShape:      "tmdb.person.detail.header-exact-dates.v1",
 		ObservationDigest: [32]byte{7}, ObservedAt: "2026-01-01T00:00:00Z",
@@ -162,7 +162,7 @@ func ipPersonBeginFor(t *testing.T, first ipPersonResult) ipPersonEvidenceBeginR
 		operationID: first.OperationID, provider: first.Provider, providerID: first.ProviderID,
 		language: "en-US", region: "US",
 		requestShape: "tmdb.person.detail.header-exact-dates.v1", lease: first.Lease,
-		personID: first.PersonID, generation: first.Generation, revision: first.Revision,
+		personID: first.PersonID, subjectID: 501, generation: first.Generation, revision: first.Revision,
 		leaseGeneration: first.LeaseGeneration, leaseUntilMS: first.LeaseUntilMS,
 		buildID: "build-person-1", buildGeneration: 1,
 		header:     ipPersonHeaderInput(),
@@ -292,14 +292,14 @@ func TestIPPersonClaimExactPersonSubjectPolicyAndConsent(t *testing.T) {
 
 func TestIPPersonClaimConsentDomain(t *testing.T) {
 	for _, tc := range []struct {
-		name, provider string
-		subject        int64
-		consent        int64
-		ok             bool
+		name, provider                        string
+		subject, consent                      int64
+		subjectIncarnation, policyIncarnation [16]byte
+		ok                                    bool
 	}{
-		{"tmdb_screen", "tmdb", 501, 1, true},
-		{"musicbrainz_epoch", "musicbrainz", 502, 3, true},
-		{"musicbrainz_screen_revision", "musicbrainz", 502, 1, false},
+		{"tmdb_screen", "tmdb", 501, 1, [16]byte{0x0b}, [16]byte{9}, true},
+		{"musicbrainz_epoch", "musicbrainz", 502, 3, [16]byte{0x0c}, [16]byte{0x0a}, true},
+		{"musicbrainz_screen_revision", "musicbrainz", 502, 1, [16]byte{0x0c}, [16]byte{0x0a}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			w, r, p, _ := ipPersonFixture(t)
@@ -307,6 +307,10 @@ func TestIPPersonClaimConsentDomain(t *testing.T) {
 			q := func() *ipPersonCommand {
 				c := ipPersonClaimCommand(t, ipPersonIdentity(1, 0x31), func(q *ipPersonClaimRequest) {
 					q.provider, q.subjectID, q.consentRevision = tc.provider, tc.subject, tc.consent
+					// Subject 502 and the musicbrainz policy carry their own
+					// incarnations; the tmdb defaults would refuse before the
+					// epoch rule this case proves.
+					q.subjectIncarnation, q.policyIncarnation = tc.subjectIncarnation, tc.policyIncarnation
 				})
 				return c
 			}()
@@ -468,7 +472,7 @@ func TestIPPersonEvidenceBeginFreshReplayAndRecovery(t *testing.T) {
 	}
 	ipPolicyCommitTurn(t, turn, tx)
 	for query, want := range map[string]int64{
-		`SELECT count(*) FROM metadata_evidence WHERE id='` + q.header.ID + `' AND subject_id=42 AND subject_kind='person' AND title='Ada Lovelace' AND biography='Mathematician.' AND birth_date='1815-12-10' AND death_date='1852-11-27' AND birth_place='London' AND sealed=0`:                                                   1,
+		`SELECT count(*) FROM metadata_evidence WHERE id='` + q.header.ID + `' AND subject_id=501 AND subject_kind='person' AND title='Ada Lovelace' AND biography='Mathematician.' AND birth_date='1815-12-10' AND death_date='1852-11-27' AND birth_place='London' AND sealed=0`:                                                  1,
 		`SELECT count(*) FROM metadata_person_builds WHERE id='` + q.buildID + `' AND state='building' AND cursor=1 AND staged_rows=1 AND expected_rows=` + ipWritingInt(q.expectedRows) + ` AND expected_bytes=` + ipWritingInt(q.expectedBytes) + ` AND expected_commitment=X'` + ipPersonHexBytes(q.expectedCommitment[:]) + `'`: 1,
 		`SELECT count(*) FROM metadata_person_receipts WHERE command_kind='begin' AND evidence_id='` + q.header.ID + `' AND build_id='` + q.buildID + `'`:                                                                                                                                                                           1,
 	} {

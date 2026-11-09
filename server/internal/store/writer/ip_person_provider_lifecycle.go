@@ -754,6 +754,11 @@ func applyIPPersonRenew(ctx context.Context, turn *commandTurn, p *usOwnerAuthor
 	if lookup.owner.phase != "claimed" {
 		return zero, ErrConflict
 	}
+	// The request presents the captured person custody token; a different token
+	// is a foreign owner witness and never reaches a fresh write.
+	if lookup.owner.personToken != q.personToken {
+		return zero, ErrConflict
+	}
 	if err = ipPersonOwnerFresh(ctx, turn, lookup.owner, q.provider, q.providerID, q.lease,
 		q.personID, q.generation, q.revision, q.leaseGeneration, q.leaseUntilMS, appliedMS); err != nil {
 		return zero, err
@@ -842,6 +847,9 @@ func applyIPPersonFinish(ctx context.Context, turn *commandTurn, p *usOwnerAutho
 	switch lookup.owner.phase {
 	case "claimed", "building", "sealed", "stale":
 	default:
+		return zero, ErrConflict
+	}
+	if lookup.owner.personToken != q.personToken {
 		return zero, ErrConflict
 	}
 	now, err := turn.transaction.clockTime()

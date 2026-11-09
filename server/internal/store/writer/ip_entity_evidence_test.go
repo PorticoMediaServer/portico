@@ -525,24 +525,24 @@ func TestIPEntityEvidenceAppendMaximumAndEmptyPages(t *testing.T) {
 						q.ratings[i] = rows[i].(ipEvidenceRating)
 					}
 				case 4:
-					q.credits = make([]ipEvidenceCredit, count)
-					for i := range rows {
-						q.credits[i] = rows[i].(ipEvidenceCredit)
-					}
-				case 5:
 					q.episodes = make([]ipEvidenceEpisode, count)
 					for i := range rows {
 						q.episodes[i] = rows[i].(ipEvidenceEpisode)
 					}
-				case 6:
+				case 5:
 					q.media = make([]ipEvidenceMedia, count)
 					for i := range rows {
 						q.media[i] = rows[i].(ipEvidenceMedia)
 					}
-				case 7:
+				case 6:
 					q.tracks = make([]ipEvidenceTrack, count)
 					for i := range rows {
 						q.tracks[i] = rows[i].(ipEvidenceTrack)
+					}
+				case 7:
+					q.credits = make([]ipEvidenceCredit, count)
+					for i := range rows {
+						q.credits[i] = rows[i].(ipEvidenceCredit)
 					}
 				}
 				return q

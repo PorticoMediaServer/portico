@@ -42,7 +42,7 @@ func ipTVSetFixture(t *testing.T) (*executor, *ipPolicyRegistry, *usOwnerAuthori
 		`INSERT INTO metadata_provider_policy(library_id,provider,incarnation,revision,enabled,priority,region,algorithm,refresh_mode,credit_enabled,credit_after_item,credit_after_provider,command_incarnation) VALUES(777,'tmdb',X'09000000000000000000000000000000',1,1,5,'US','v1','fill_missing',1,NULL,NULL,X'01000000000000000000000000000000'),(777,'tvdb',X'09000000000000000000000000000000',1,1,5,'US','v1','fill_missing',1,NULL,NULL,X'01000000000000000000000000000000'),(777,'musicbrainz',X'0a000000000000000000000000000000',1,1,5,'US','v1','fill_missing',1,NULL,NULL,X'01000000000000000000000000000000')`,
 		`INSERT INTO screen_metadata_consent(singleton,revision,confirmed) VALUES(1,1,1) ON CONFLICT(singleton) DO UPDATE SET revision=1,confirmed=1`,
 		`INSERT INTO metadata_runtime_settings(singleton,online_lookups,lookup_epoch) VALUES(1,1,3) ON CONFLICT(singleton) DO UPDATE SET online_lookups=1,lookup_epoch=3`,
-		`INSERT INTO metadata_provider_subjects(id,provider,subject_kind,provider_id,language,region,request_shape,incarnation,revision) VALUES(1,'tmdb','series','tmdb-1','en','US','ip.tmdb.series.detail.v1',X'0c000000000000000000000000000000',1)`,
+		`INSERT INTO metadata_provider_subjects(id,provider,subject_kind,provider_id,language,region,request_shape,incarnation,revision) VALUES(1,'tmdb','series','tmdb-1','en','US','` + ipEntityEvidenceRequest("tmdb", "series") + `',X'0c000000000000000000000000000000',1)`,
 	} {
 		if _, err := w.db.ExecContext(t.Context(), query); err != nil {
 			t.Fatal(query, err)
@@ -91,6 +91,7 @@ func ipTVSetSeedEpisodeOwner(t *testing.T, w *executor, staged ipEntitySealStage
 func ipTVSetSeedEpisodes(t *testing.T, w *executor, staged ipEntitySealStaged, episodes []ipTVSetEpisodeSeed) []string {
 	t.Helper()
 	ids := make([]string, 0, len(episodes))
+	parser, request := ipEntityEvidencePair("tmdb", "episode")
 	for i, episode := range episodes {
 		subjectID := int64(100 + i)
 		providerID := fmt.Sprintf("tmdb-episode-%d", i+1)
@@ -99,10 +100,10 @@ func ipTVSetSeedEpisodes(t *testing.T, w *executor, staged ipEntitySealStaged, e
 		sequence := int64(1000 + i)
 		incarnation := ipEntityJobIncarnation(subjectID)
 		owner, sealIncarnation := ipTVSetSeedEpisodeOwner(t, w, staged, i)
-		ipPolicyExec(t, w, `INSERT INTO metadata_provider_subjects(id,provider,subject_kind,provider_id,language,region,request_shape,incarnation,revision) VALUES(?, 'tmdb','episode',?,'en','US','ip.tmdb.episode.detail.v1',?,1)`,
-			subjectID, providerID, incarnation[:])
-		ipPolicyExec(t, w, `INSERT INTO metadata_evidence(id,subject_id,parser_version,provider,subject_kind,provider_id,language,region,request_shape,digest,observed_at,source_url,sealed,ip_seal_owner,ip_seal_incarnation,ip_seal_sequence) VALUES(?,?,'ip.tmdb.episode.v1','tmdb','episode',?,'en','US','ip.tmdb.episode.detail.v1',?,'2026-01-01T00:00:00Z',?,1,?,?,?)`,
-			episode.EvidenceID, subjectID, providerID, hex.EncodeToString(digest[:]),
+		ipPolicyExec(t, w, `INSERT INTO metadata_provider_subjects(id,provider,subject_kind,provider_id,language,region,request_shape,incarnation,revision) VALUES(?, 'tmdb','episode',?,'en','US',?,?,1)`,
+			subjectID, providerID, request, incarnation[:])
+		ipPolicyExec(t, w, `INSERT INTO metadata_evidence(id,subject_id,parser_version,provider,subject_kind,provider_id,language,region,request_shape,digest,observed_at,source_url,sealed,ip_seal_owner,ip_seal_incarnation,ip_seal_sequence) VALUES(?,?,?,'tmdb','episode',?,'en','US',?,?,'2026-01-01T00:00:00Z',?,1,?,?,?)`,
+			episode.EvidenceID, subjectID, parser, providerID, request, hex.EncodeToString(digest[:]),
 			fmt.Sprintf("https://api.themoviedb.org/3/tv/1/season/%d/episode/%d", episode.SeasonNumber, episode.EpisodeNumber),
 			owner, sealIncarnation[:], sequence)
 		ipPolicyExec(t, w, `INSERT INTO metadata_evidence_builds(id,evidence_id,generation,owner_operation,owner_incarnation,owner_generation,state,phase,cursor,expected_rows,materialized_rows,expected_shape_digest,materialized_digest,materialized_charge,expires_at,content_revision) VALUES(?,?,1,?,?,1,'ready','sealed',1,1,1,?,?,1,'2030-01-01T00:00:00Z',1)`,
@@ -118,7 +119,7 @@ func ipTVSetSeedEpisodes(t *testing.T, w *executor, staged ipEntitySealStaged, e
 		commitment[0], commitment[1] = 0x7b, byte(i+1)
 		ipPolicyExec(t, w, `INSERT INTO metadata_ip_receipts(owner_id,command_incarnation,command_sequence,operation_id,request_digest,command_kind,accepted_revision,applied_ms,result_digest,result_phase,after_family,after_ordinal,after_key,result_count,result_bytes,terminal,evidence_id,evidence_subject_id,parser_version,build_id,seal_algorithm,seal_version,seal_commitment,seal_rows,seal_bytes,proof_pin_count) VALUES(?,?,?,?,?,'evidence_seal',1,0,?,'sealed',0,0,'',0,1,1,?,?,?,?,'ip-evidence',1,?,1,1,1)`,
 			owner, sealIncarnation[:], sequence, operationID, request,
-			result, episode.EvidenceID, subjectID, "ip.tmdb.episode.v1", buildID, commitment)
+			result, episode.EvidenceID, subjectID, parser, buildID, commitment)
 		ids = append(ids, episode.EvidenceID)
 	}
 	return ids
@@ -766,9 +767,9 @@ func TestIPTVSetDuplicateAndForeignEpisodes(t *testing.T) {
 	// A foreign-provider episode is not this set's member namespace.
 	foreignDigest := sha256.Sum256([]byte("episode-foreign"))
 	foreignIncarnation := ipEntityJobIncarnation(900)
-	ipPolicyExec(t, w, `INSERT INTO metadata_provider_subjects(id,provider,subject_kind,provider_id,language,region,request_shape,incarnation,revision) VALUES(900,'tvdb','episode','tvdb-episode','en','US','ip.tvdb.episode.detail.v1',?,1)`,
+	ipPolicyExec(t, w, `INSERT INTO metadata_provider_subjects(id,provider,subject_kind,provider_id,language,region,request_shape,incarnation,revision) VALUES(900,'tvdb','episode','tvdb-episode','en','US','`+ipEntityEvidenceRequest("tvdb", "episode")+`',?,1)`,
 		foreignIncarnation[:])
-	ipPolicyExec(t, w, `INSERT INTO metadata_evidence(id,subject_id,parser_version,provider,subject_kind,provider_id,language,region,request_shape,digest,observed_at,source_url,sealed,ip_seal_owner,ip_seal_incarnation,ip_seal_sequence) VALUES('episode-foreign',900,'ip.tvdb.episode.v1','tvdb','episode','tvdb-episode','en','US','ip.tvdb.episode.detail.v1',?,'2026-01-01T00:00:00Z','https://api.thetvdb.com/series/1/episodes/1',1,?,?,1001)`,
+	ipPolicyExec(t, w, `INSERT INTO metadata_evidence(id,subject_id,parser_version,provider,subject_kind,provider_id,language,region,request_shape,digest,observed_at,source_url,sealed,ip_seal_owner,ip_seal_incarnation,ip_seal_sequence) VALUES('episode-foreign',900,'`+ipEntityEvidenceParser("tvdb", "episode")+`','tvdb','episode','tvdb-episode','en','US','`+ipEntityEvidenceRequest("tvdb", "episode")+`',?,'2026-01-01T00:00:00Z','https://api.thetvdb.com/series/1/episodes/1',1,?,?,1001)`,
 		hex.EncodeToString(foreignDigest[:]), staged.owner.OperationID, staged.claim.Incarnation[:])
 	foreign := ipTVSetPageFor(staged, []string{"episode-foreign"}, 1, 2, 2, nil)
 	turn, tx, b = ipPolicyTurn(t, w, r, IPTVSetPage)
