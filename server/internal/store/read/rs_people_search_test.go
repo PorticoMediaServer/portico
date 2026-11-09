@@ -12,6 +12,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/store/governor"
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/readfixture"
 	"github.com/PorticoMediaServer/portico/server/internal/store/search"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
 
 // newRSPeopleSearchFixture composes the actual native bank, role/count facts,
@@ -227,6 +228,95 @@ func TestRSPeopleSearchNativeSummaryDelivery(t *testing.T) {
 			})
 		})
 	}
+}
+
+// RSPeopleSearchDefinitions composes three overlapping groups. The registry
+// carries each exact ID once while still containing every declared definition.
+func TestRSPeopleSearchDefinitionsDefinedOnce(t *testing.T) {
+	definitions := RSPeopleSearchDefinitions()
+	seen := map[stmt.ID]bool{}
+	for _, definition := range definitions {
+		if seen[definition.ID] {
+			t.Fatalf("duplicate People search definition %s", definition.ID)
+		}
+		seen[definition.ID] = true
+	}
+	want := map[stmt.ID]bool{}
+	for _, group := range [][]stmt.Definition{NativeFullSearchDefinitions(), PersonCreditsDefinitions(), RSPeoplePageDefinitions()} {
+		for _, definition := range group {
+			want[definition.ID] = true
+		}
+	}
+	if len(seen) != len(want) {
+		t.Fatalf("deduped registry changed: %d definitions, want %d", len(seen), len(want))
+	}
+	for id := range want {
+		if !seen[id] {
+			t.Fatalf("deduped registry dropped %s", id)
+		}
+	}
+}
+
+// CreditCount is the number of current credit ROWS in the complete trusted
+// scope, not the number of distinct works those rows name.
+func TestRSPeopleSearchCreditCountCountsCreditRows(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f, r := newRSPeopleSearchFixture(t, func(t *testing.T, f *browseFixture) {
+			// A second credit row for the same person on the same work.
+			f.exec(t, `INSERT INTO catalog_credits(image_id,entity_id,ord,person_id,role_id,department_id,credited_name,provider,credit_id,source_ordinal) VALUES(1,2,1,1,2,1,'Keanu second credit','test','credit-2',0)`)
+		})
+		query, e := search.PlanQuery("keanu", true)
+		if e != nil {
+			t.Fatal(e)
+		}
+		p := beginPeopleSearch(t, f, r, RSPeopleSearchInput{Views: []BrowseInput{peopleSearchView(f, 1, 4)}, Query: query})
+		page, consumed, e := runPeopleSearch(t, f, r, p, nil, nil, nil)
+		if e != nil || consumed != 1 || len(page.People) != 1 {
+			t.Fatal(page, consumed, e)
+		}
+		v := page.People[0]
+		if v.ID != 1 || v.CreditCount != 2 {
+			t.Fatalf("credit rows, not distinct works: %+v", v)
+		}
+		if len(v.KnownFor) != 1 || v.KnownFor[0].ID != 2 {
+			t.Fatalf("duplicate work credited twice in known-for: %+v", v.KnownFor)
+		}
+		assertLiveUsage(t, f, 0, 0)
+	})
+}
+
+// Equal credit ordinals tie-break on the newest added_at, not on the raw
+// credit-walk order (which visits the higher entity id first).
+func TestRSPeopleSearchKnownForAddedDescTie(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f, r := newRSPeopleSearchFixture(t, func(t *testing.T, f *browseFixture) {
+			seedPeopleSearchImage(t, f, 6002, 3)
+			f.exec(t, `INSERT INTO catalog_credits(image_id,entity_id,ord,person_id,role_id,department_id,credited_name,provider,credit_id,source_ordinal) VALUES(6002,3,0,1,1,2,'Keanu other work','fixture','tie',0)`)
+			f.exec(t, `UPDATE catalog_entities SET added_at='2026-06-01T00:00:00.000000000Z' WHERE id=2`)
+			f.exec(t, `UPDATE catalog_entities SET added_at='2026-01-01T00:00:00.000000000Z' WHERE id=3`)
+		})
+		query, e := search.PlanQuery("keanu", true)
+		if e != nil {
+			t.Fatal(e)
+		}
+		p := beginPeopleSearch(t, f, r, RSPeopleSearchInput{Views: []BrowseInput{peopleSearchView(f, 1, 4)}, Query: query})
+		page, consumed, e := runPeopleSearch(t, f, r, p, nil, nil, nil)
+		if e != nil || consumed != 1 || len(page.People) != 1 {
+			t.Fatal(page, consumed, e)
+		}
+		v := page.People[0]
+		if v.CreditCount != 2 || len(v.KnownFor) != 2 {
+			t.Fatal("fixture population", v)
+		}
+		var ids []int64
+		for _, known := range v.KnownFor {
+			ids = append(ids, known.ID)
+		}
+		if !reflect.DeepEqual(ids, []int64{2, 3}) {
+			t.Fatal("known-for added desc tie-break", ids)
+		}
+		assertLiveUsage(t, f, 0, 0)
+	})
 }
 
 func TestRSPeopleSearchMissingCreditScopeRefusesRankedHit(t *testing.T) {

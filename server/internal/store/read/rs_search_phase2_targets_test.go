@@ -48,6 +48,10 @@ const (
 	rsSearchTargetRouteDebt = 20
 	// rsSearchTargetGroupCount is the closed public group set.
 	rsSearchTargetGroupCount = 11
+	// rsSearchTargetMinHolds is the per-host population floor ci/qual_class.py
+	// enforces for a non-synthetic target. A smaller declared floor would be
+	// transport-rejected, so registration refuses it here too.
+	rsSearchTargetMinHolds = 10000
 	// rsSearchTargetRefusal is the ONE refusing start gate these targets use.
 	rsSearchTargetRefusal = "writer.classTargetStartGate in beginRSSearchPhase2Target: ErrClassTargetUnbound while the registered class has no compiled runner"
 )
@@ -359,8 +363,8 @@ func rsSearchValidateTargets(cells []rsSearchTargetCell, inventory map[string]bo
 		if cell.RefusingStart == "" {
 			problems = append(problems, cell.Class+": must declare its refusing start gate")
 		}
-		if cell.MinPopulation <= 0 {
-			problems = append(problems, cell.Class+": positive population floor required")
+		if cell.MinPopulation < rsSearchTargetMinHolds {
+			problems = append(problems, cell.Class+": min_holds_per_host must be at least 10000")
 		}
 		if len(cell.FollowUps) == 0 {
 			problems = append(problems, cell.Class+": owner follow-ups required")
@@ -497,8 +501,44 @@ func TestRSSearchPhase2TargetValidationRefusesAPassingOrUnboundCell(t *testing.T
 	if err := mutate(func(cell *rsSearchTargetCell) { cell.RefusingStart = "" }); err == nil {
 		t.Fatal("a target without its refusing start gate was accepted")
 	}
+	if err := mutate(func(cell *rsSearchTargetCell) { cell.MinPopulation = rsSearchTargetMinHolds - 1 }); err == nil {
+		t.Fatal("a target below the qual_class min_holds_per_host floor was accepted")
+	}
 	if err := mutate(func(cell *rsSearchTargetCell) { cell.Components[0].Flag = &pass }); err == nil {
 		t.Fatal("a measured component was accepted")
+	}
+}
+
+// The handoff above is deliberate: these classes are registered only in the
+// writer kit extension, not in canonicalHeldClasses() or ci/qual_class.py
+// TARGETS, so a generated target.json is deliberately transport-rejected until
+// the owner composition lands. Pin both halves of that state instead of letting
+// it drift silently in either direction.
+func TestRSSearchPhase2ClassNamesStayDeliberatelyDeferred(t *testing.T) {
+	qualification, err := os.ReadFile("../../../../ci/qual_class.py")
+	if err != nil {
+		t.Fatal(err)
+	}
+	canonical, err := os.ReadFile("../writer/canonical_held_targets_test.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	kit, err := os.ReadFile("../writer/rs_search_phase2_targets_kit_test.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, cell := range rsSearchPhase2Targets() {
+		for _, quoted := range []string{`"` + cell.Class + `"`, `'` + cell.Class + `'`} {
+			if strings.Contains(string(qualification), quoted) {
+				t.Fatalf("%s was registered in ci/qual_class.py TARGETS; move the deferred handoff with it", cell.Class)
+			}
+			if strings.Contains(string(canonical), quoted) {
+				t.Fatalf("%s was registered in canonicalHeldClasses(); move the deferred handoff with it", cell.Class)
+			}
+		}
+		if !strings.Contains(string(kit), `"`+cell.Class+`"`) {
+			t.Fatalf("%s is not registered in the writer kit extension", cell.Class)
+		}
 	}
 }
 

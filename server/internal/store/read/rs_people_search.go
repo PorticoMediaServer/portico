@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 	"sort"
 	"strings"
@@ -77,9 +78,24 @@ func NewRSPeopleSearchReader(pool *governor.Snapshots, a *governor.Authority) (*
 // It names the already merged native People bank, role/count/credit-image and
 // portrait points. There is deliberately no second name-FTS statement here.
 func RSPeopleSearchDefinitions() []stmt.Definition {
-	defs := append([]stmt.Definition(nil), NativeFullSearchDefinitions()...)
-	defs = append(defs, PersonCreditsDefinitions()...)
-	return append(defs, RSPeoplePageDefinitions()...)
+	// The three groups overlap on the shared person/credit byte points. The
+	// registry must carry each exact ID once; a divergent duplicate is a
+	// composition defect, never a second consumer of the same statement.
+	var out []stmt.Definition
+	seen := map[stmt.ID]stmt.Definition{}
+	for _, group := range [][]stmt.Definition{NativeFullSearchDefinitions(), PersonCreditsDefinitions(), RSPeoplePageDefinitions()} {
+		for _, definition := range group {
+			if prior, ok := seen[definition.ID]; ok {
+				if !reflect.DeepEqual(prior, definition) {
+					panic("divergent People search read dependency: " + string(definition.ID))
+				}
+				continue
+			}
+			seen[definition.ID] = definition
+			out = append(out, definition)
+		}
+	}
+	return out
 }
 
 // RSPeopleSearchPreparation owns exactly ONE search F-04 lease. The private
@@ -226,10 +242,10 @@ func (r *RSPeopleSearchReader) revalidate(ctx context.Context, req governor.Requ
 		if page.Next == nil || page.Stamp == nil {
 			return false, cost, ErrUnqualified
 		}
-		// Keep the continuation only as a pending witness. This fence read does
-		// not pass After, so it neither resumes the walk nor re-reads its rows;
-		// the next poll is a fresh bounded discovery read.
-		s.after = cloneFullCursor(page.Next)
+		// This fence read neither resumes the walk nor re-reads retained rows;
+		// the next poll is a fresh bounded discovery read. It therefore has no
+		// continuation to store: s.after belongs to the selected native walk and
+		// a hydration poll must not overwrite it.
 		return false, cost, nil
 	default:
 		return false, cost, ErrUnqualified
@@ -237,7 +253,6 @@ func (r *RSPeopleSearchReader) revalidate(ctx context.Context, req governor.Requ
 	if page.Stamp == nil || page.Partial && !in.Preview {
 		return false, cost, ErrUnqualified
 	}
-	s.after = cloneFullCursor(page.Next)
 	for _, hit := range page.Hits {
 		// The native walk proves other groups' candidates for the same query;
 		// only person hits are this adapter's selected scope.
