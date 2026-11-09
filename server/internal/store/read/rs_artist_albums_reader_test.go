@@ -510,15 +510,15 @@ func artistAlbumOrderFixture(t *testing.T) (*browseFixture, *RSArtistAlbumReader
 		title    string
 		song     int64
 	}{
-		{9001, 0, "Unknown Year", 6001},
-		{9002, 2024, "Zebra", 6002},
-		{9003, 2024, "zebra", 6003},
-		{9004, 2024, "Tie", 6004},
-		{9005, 2024, "Tie", 6005},
-		{9006, 2020, "é\x00Z", 6006},
-		{9007, 2020, "é\x00a", 6007},
-		{9008, 2020, "école", 6008},
-		{9009, 2020, "École", 6009},
+		{9001, 0, "Unknown Year", 7101},
+		{9002, 2024, "Zebra", 7102},
+		{9003, 2024, "zebra", 7103},
+		{9004, 2024, "Tie", 7104},
+		{9005, 2024, "Tie", 7105},
+		{9006, 2020, "é\x00Z", 7106},
+		{9007, 2020, "é\x00a", 7107},
+		{9008, 2020, "école", 7108},
+		{9009, 2020, "École", 7109},
 	} {
 		f.exec(t, `UPDATE catalog_entities SET retired=0,year=?,title=? WHERE id=? AND kind=6`, a.year, a.title, a.id)
 		artistAlbumEntity(t, f, a.song, 7, "member", nil, a.id, nil)
@@ -582,8 +582,8 @@ func TestRSArtistAlbumReaderArtParityPinsOwnArt(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		f, r := artistAlbumOrderFixture(t)
 		rsArtSelect(t, f, 9004, "poster", "matched", 20)
-		rsArtSelect(t, f, 6004, "poster", "matched", 21)
-		rsArtSelect(t, f, 6005, "poster", "matched", 22)
+		rsArtSelect(t, f, 7104, "poster", "matched", 21)
+		rsArtSelect(t, f, 7105, "poster", "matched", 22)
 		_, page := artistAlbumPage(t, f, r, 9, nil)
 		var own, memberless *RSArtistAlbumCard
 		for i := range page.Cards {
