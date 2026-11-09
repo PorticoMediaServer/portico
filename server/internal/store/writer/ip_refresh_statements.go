@@ -121,7 +121,11 @@ func ipRefreshPageDefinitions() []stmt.Definition {
 			Plan:    stmt.Plan{Hot: true, PrimaryKeys: []string{"metadata_refresh_sweeps"}},
 		},
 		{
-			ID: ipPageComplete, SQL: `UPDATE metadata_refresh_sweeps SET revision=?,phase='complete',after_id=?,page_from_id=?,page_until_id=?,page_waiting=0,last_command_sequence=? WHERE provider=? AND purpose=? AND generation=? AND revision=? AND after_id=? AND page_from_id=? AND page_until_id=? AND page_waiting=? AND command_incarnation=? AND last_command_sequence=? AND acknowledged_command_sequence=? AND phase='people' RETURNING revision`,
+			// The completing page leaves the sweep not due: job_next_attempt_ms
+			// returns to NULL (so the generated job_due_ms leaves the
+			// metadata_refresh_sweep_due index) and the claim lease is released.
+			// A later begin re-arms both fields through IP-03's request CAS.
+			ID: ipPageComplete, SQL: `UPDATE metadata_refresh_sweeps SET revision=?,phase='complete',after_id=?,page_from_id=?,page_until_id=?,page_waiting=0,job_lease_owner=0,job_lease_generation=0,job_lease_expires_ms=0,job_next_attempt_ms=NULL,last_command_sequence=? WHERE provider=? AND purpose=? AND generation=? AND revision=? AND after_id=? AND page_from_id=? AND page_until_id=? AND page_waiting=? AND command_incarnation=? AND last_command_sequence=? AND acknowledged_command_sequence=? AND phase='people' RETURNING revision`,
 			Params:  []stmt.Param{i("revision"), i("after"), i("from"), i("until"), i("sequence"), t("provider"), t("purpose"), i("generation"), i("old_revision"), i("old_after"), i("old_from"), i("old_until"), i("old_waiting"), b("incarnation"), i("old_last"), i("old_ack")},
 			Cohorts: []stmt.Cohort{{Name: "complete", Bindings: []any{int64(2), int64(1), int64(0), int64(1), int64(2), "tmdb", "metadata", int64(1), int64(1), int64(0), int64(0), int64(0), int64(0), make([]byte, 16), int64(1), int64(0)}}},
 			Plan:    stmt.Plan{Hot: true, PrimaryKeys: []string{"metadata_refresh_sweeps"}},

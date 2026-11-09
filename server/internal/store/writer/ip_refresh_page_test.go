@@ -169,6 +169,97 @@ func TestIPRefreshPageEntitiesRawKeysetSchedulesBoundedPage(t *testing.T) {
 	ipPolicyRollbackTurn(t, turn, tx)
 }
 
+// A completed sweep leaves the due index: IP-03's begin arms
+// job_next_attempt_ms, and only the completing people page disarms it. Pages
+// that still have work must keep the sweep selectable.
+func TestIPRefreshPageCompletionLeavesDueIndex(t *testing.T) {
+	w, r, p := ipRefreshPageFixture(t)
+	ipRefreshPageAddJobs(t, w, 1, 2, "tmdb", "metadata", ipRefreshPageJobOptions{})
+	ipRefreshPageBegin(t, w, r, p)
+	due := `SELECT count(*) FROM metadata_refresh_sweeps INDEXED BY metadata_refresh_sweep_due WHERE job_due_ms IS NOT NULL AND job_due_ms<=?`
+	if got := ipPolicyQueryInt(t, w, due, int64(1<<50)); got != 1 {
+		t.Fatal("begin did not arm the due index", got)
+	}
+	// The first page schedules the whole raw window and must stay due.
+	first, turn, tx, _ := ipRefreshPageApply(t, w, r, p, ipRefreshPageTestCommand(t, 2, 3, nil))
+	if first.Value.Phase != "entities" || first.Value.AfterID != 2 || first.Value.ScheduledCount != 2 || !first.Value.PageWaiting {
+		t.Fatal(first)
+	}
+	ipRefreshPageCommit(t, turn, tx)
+	if got := ipPolicyQueryInt(t, w, due, int64(1<<50)); got != 1 {
+		t.Fatal("non-final entity page left the due index", got)
+	}
+	// Once its window clears, the next page only transitions to people and is
+	// still not final.
+	ipPolicyExec(t, w, `UPDATE metadata_acquisition_jobs SET status='done'`)
+	ipRefreshPageAck(t, w, 2)
+	transition, turn, tx, _ := ipRefreshPageApply(t, w, r, p, ipRefreshPageTestCommand(t, 3, 4, func(q *ipRefreshPageRequest) { q.expectedRevision = 2 }))
+	if transition.Value.Phase != "people" || transition.Value.AfterID != 0 {
+		t.Fatal(transition)
+	}
+	ipRefreshPageCommit(t, turn, tx)
+	if got := ipPolicyQueryInt(t, w, due, int64(1<<50)); got != 1 {
+		t.Fatal("entity->people transition left the due index", got)
+	}
+	// No accepted person sources exist, so this page finishes the sweep.
+	ipRefreshPageAck(t, w, 3)
+	complete, turn, tx, _ := ipRefreshPageApply(t, w, r, p, ipRefreshPageTestCommand(t, 4, 5, func(q *ipRefreshPageRequest) { q.expectedRevision = 3 }))
+	if complete.Value.Phase != "complete" {
+		t.Fatal(complete)
+	}
+	ipRefreshPageCommit(t, turn, tx)
+	for query, want := range map[string]int64{
+		`SELECT count(*) FROM metadata_refresh_sweeps WHERE provider='tmdb' AND purpose='metadata' AND job_next_attempt_ms IS NULL AND job_due_ms IS NULL`:                      1,
+		`SELECT count(*) FROM metadata_refresh_sweeps WHERE provider='tmdb' AND purpose='metadata' AND job_lease_owner=0 AND job_lease_generation=0 AND job_lease_expires_ms=0`: 1,
+	} {
+		if got := ipPolicyQueryInt(t, w, query); got != want {
+			t.Fatal(query, got)
+		}
+	}
+	if got := ipPolicyQueryInt(t, w, due, int64(1<<50)); got != 0 {
+		t.Fatal("finished sweep stayed selectable through the due index", got)
+	}
+}
+
+// A provider-wide backoff holds the page whole: no raw key is consumed, no
+// cursor or receipt is written, and the same keys are scheduled by the retried
+// page once metadata_providers.next_attempt_ms has passed.
+func TestIPRefreshPageProviderBackoffHoldsRawKeys(t *testing.T) {
+	w, r, p := ipRefreshPageFixture(t)
+	ipRefreshPageAddJobs(t, w, 1, 3, "tmdb", "metadata", ipRefreshPageJobOptions{})
+	ipRefreshPageBegin(t, w, r, p)
+	ipPolicyExec(t, w, `UPDATE metadata_providers SET next_attempt_ms=? WHERE code='tmdb'`, int64(1<<50))
+	turn, tx, b := ipPolicyTurn(t, w, r, IPRefreshPage)
+	out, err := applyIPRefreshPage(t.Context(), turn, p, t.Context(), b, ipRefreshPageTestCommand(t, 2, 3, nil))
+	if out != (ipRefreshPageCommandResult{}) || !errors.Is(err, ErrConflict) || !errors.Is(err, errIPRefreshPageBackoff) {
+		t.Fatal("backoff page was not held", out, err)
+	}
+	ipPolicyRollbackTurn(t, turn, tx)
+	for query, want := range map[string]int64{
+		`SELECT after_id FROM metadata_refresh_sweeps WHERE provider='tmdb' AND purpose='metadata'`: 0,
+		`SELECT revision FROM metadata_refresh_sweeps WHERE provider='tmdb' AND purpose='metadata'`: 1,
+		`SELECT count(*) FROM metadata_acquisition_jobs WHERE status='pending'`:                     0,
+		`SELECT count(*) FROM metadata_acquisition_jobs WHERE status='matched'`:                     3,
+		`SELECT count(*) FROM metadata_refresh_receipts WHERE command_kind='page'`:                  0,
+		`SELECT count(*) FROM metadata_refresh_receipts`:                                            1,
+		`SELECT count(*) FROM metadata_refresh_sweeps WHERE job_due_ms IS NOT NULL`:                 1,
+	} {
+		if got := ipPolicyQueryInt(t, w, query); got != want {
+			t.Fatal(query, got)
+		}
+	}
+	// The same command retries after the backoff and schedules the same keys.
+	ipPolicyExec(t, w, `UPDATE metadata_providers SET next_attempt_ms=0 WHERE code='tmdb'`)
+	retried, turn, tx, _ := ipRefreshPageApply(t, w, r, p, ipRefreshPageTestCommand(t, 2, 3, nil))
+	if retried.Value.Phase != "entities" || retried.Value.AfterID != 3 || retried.Value.ScheduledCount != 3 || !retried.Value.PageWaiting {
+		t.Fatal("retried page", retried)
+	}
+	ipRefreshPageCommit(t, turn, tx)
+	if got := ipPolicyQueryInt(t, w, `SELECT count(*) FROM metadata_acquisition_jobs WHERE status='pending' AND force_refresh=1`); got != 3 {
+		t.Fatal("retried page did not schedule the same keys", got)
+	}
+}
+
 func TestIPRefreshPageAllExcludedStillAdvancesRawCursor(t *testing.T) {
 	w, r, p := ipRefreshPageFixture(t)
 	// A live lease excludes each raw key without changing the keyset order.

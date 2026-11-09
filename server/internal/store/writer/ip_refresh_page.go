@@ -8,13 +8,20 @@ import (
 	"math"
 )
 
+// errIPRefreshPageBackoff marks the typed held refusal for a page whose
+// provider backoff (metadata_providers.next_attempt_ms) is still in the future.
+// The refusal is joined with ErrConflict: the page consumed no raw key and
+// wrote nothing, so the driver retries the same page after the backoff.
+var errIPRefreshPageBackoff = errors.New("ip refresh page held by provider backoff")
+
 // IP refresh page 202 schedules ONE bounded raw-keyset page of provider work.
 // The subject order is always the provider/purpose/entity index; due state,
-// backoff, policy and leases only decide whether a raw key is eligible, never
-// the order in which keys are consumed. The sweep owner row carries the raw
-// cursor, and its revision/last/acknowledged CAS is the page allowance: one
-// transaction consumes exactly one page. People phase walks accepted person
-// sources by provider and resets the cursor once, at the entity->people edge.
+// backoff, policy and leases only decide whether a page runs or a raw key is
+// eligible, never the order in which keys are consumed. The sweep owner row
+// carries the raw cursor, and its revision/last/acknowledged CAS is the page
+// allowance: one transaction consumes exactly one page. People phase walks
+// accepted person sources by provider and resets the cursor once, at the
+// entity->people edge.
 type ipRefreshPageRequest struct {
 	provider, purpose                    string
 	expectedGeneration, expectedRevision int64
@@ -468,6 +475,17 @@ func ipRefreshPageEntities(ctx context.Context, turn *commandTurn, q ipRefreshPa
 	if enabled != 0 && enabled != 1 || backoff < 0 {
 		return out, ErrResolveRequired
 	}
+	// ipPolicyProviderEnabled already refused a disabled provider. Keep the
+	// page from consuming raw keys rather than relying on that earlier check.
+	if enabled != 1 {
+		return out, ErrResolveRequired
+	}
+	if backoff > nowMS {
+		// A provider-wide backoff holds the whole page: no raw key is consumed
+		// and no cursor advances, so the driver can retry this page (same
+		// expected revision) once metadata_providers.next_attempt_ms passes.
+		return out, errors.Join(ErrConflict, errIPRefreshPageBackoff)
+	}
 	ids, e := ipRefreshPageRawIDs(ctx, turn, q.provider, q.purpose, facts.afterID)
 	if e != nil {
 		return out, e
@@ -476,9 +494,6 @@ func ipRefreshPageEntities(ctx context.Context, turn *commandTurn, q ipRefreshPa
 	from, until := facts.afterID, facts.afterID
 	for _, id := range ids {
 		until = id
-		if enabled != 1 || backoff > nowMS {
-			continue
-		}
 		target, e := ipRefreshPageTarget(ctx, turn, q.provider, q.purpose, id, nowMS)
 		if e != nil {
 			return out, e
@@ -518,6 +533,11 @@ func ipRefreshPageEntities(ctx context.Context, turn *commandTurn, q ipRefreshPa
 	return out, nil
 }
 
+// ipRefreshPagePeople walks the accepted person sources whose provider matches
+// the sweep provider. It only advances that cursor: no acquisition job is
+// scheduled in this phase, so ScheduledCount is always zero here. Whether an
+// accepted person source should schedule person work is a domain question
+// (reported, not decided in IP-04).
 func ipRefreshPagePeople(ctx context.Context, turn *commandTurn, q ipRefreshPageRequest, facts ipRefreshPageOwner, appliedMS int64) (out ipRefreshPageResult, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
 	ids, err := ipRefreshPagePersonIDs(ctx, turn, q.provider, facts.afterID)
