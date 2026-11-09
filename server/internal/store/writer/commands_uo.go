@@ -13,6 +13,10 @@ const (
 	// The operation writer/dispatcher that owns 624 must supply that body.
 	AdvanceNoticeOperation CommandID = 624
 	ReclaimNotices         CommandID = 625
+	// RootReceiptReclaim is UO-02's bounded lifetime-root cleanup and ACK
+	// purpose. It follows the 650-653 operational-lease purposes in numeric
+	// order; those lines are owned by UO-15 and may land before this one.
+	RootReceiptReclaim CommandID = 654
 )
 
 var uoCommands = commandRegistration{owner: "UO", descriptors: []Descriptor{
@@ -23,4 +27,5 @@ var uoCommands = commandRegistration{owner: "UO", descriptors: []Descriptor{
 	{ID: ReadAllNotices, Name: "uo_read_all_notices", Durability: Normal},
 	{ID: AdvanceNoticeOperation, Name: "uo_advance_notice_operation", Durability: Normal},
 	{ID: ReclaimNotices, Name: "uo_reclaim_notices", Durability: Normal},
+	{ID: RootReceiptReclaim, Name: "uo_root_receipt_reclaim", Durability: Normal},
 }}
