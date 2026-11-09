@@ -68,6 +68,9 @@ func applyBasicAccept(ctx context.Context, turn *commandTurn, command *basicAcce
 	if err != nil {
 		return value, err
 	}
+	if err = idleBasicAcceptedRetry(ctx, turn, s, published, a.shapeID); err != nil {
+		return value, err
+	}
 	if _, err = applyBasicObjectAnalysis(ctx, turn, &in.analysis); err != nil {
 		return value, err
 	}
