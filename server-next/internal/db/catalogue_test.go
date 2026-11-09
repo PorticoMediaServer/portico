@@ -183,7 +183,7 @@ func TestRestrictedProfileNeverReceivesARestrictedTitle(t *testing.T) {
 		rating  string
 		labels  []string
 		people  []string
-		genres  []string
+		genres  []string // its own and those of the title it belongs to
 	}
 	facts := map[string]*fact{}
 	var ids, people []string
@@ -210,6 +210,7 @@ func TestRestrictedProfileNeverReceivesARestrictedTitle(t *testing.T) {
 				if detail.Root != nil { // a show's rating and labels cover its seasons and episodes
 					root := facts[detail.Root.PublicID]
 					f.rating, f.labels = root.rating, append(f.labels, root.labels...)
+					f.genres = append(f.genres, root.genres...)
 				}
 				facts[item.PublicID] = f
 				ids = append(ids, item.PublicID)
@@ -294,8 +295,13 @@ func TestRestrictedProfileNeverReceivesARestrictedTitle(t *testing.T) {
 				switch r.IntN(6) {
 				case 0:
 					if len(f.genres) > 0 {
-						q.Genre = f.genres[0]
+						genre := f.genres[0]
+						q.Genre = genre
+						inner := matches
+						matches = func(f *fact) bool { return inner(f) && slices.Contains(f.genres, genre) }
 					}
+					// Common tags and rare tags are read by different statements; try both.
+					db.SetRareTag([]int{1, 2000}[r.IntN(2)])
 				case 1:
 					q.YearFrom, q.YearTo = 1980, 2005
 					inner := matches
@@ -316,7 +322,7 @@ func TestRestrictedProfileNeverReceivesARestrictedTitle(t *testing.T) {
 						t.Fatalf("list %+v included restricted %q", q, item.Title)
 					}
 				}
-				want, exact := 0, q.Genre == "" && q.Watched == nil && q.Resolution == ""
+				want, exact := 0, q.Watched == nil && q.Resolution == ""
 				for _, f := range facts {
 					if matches(f) && allowed(v, f) {
 						want++

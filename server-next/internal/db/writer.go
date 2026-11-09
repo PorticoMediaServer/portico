@@ -72,6 +72,7 @@ func (d *DB) writer() {
 			}
 		}
 		req.done <- d.run(req)
+		d.restartWAL()
 	}
 }
 

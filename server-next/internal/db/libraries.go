@@ -3,7 +3,6 @@ package db
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"strings"
 	"time"
 )
@@ -63,32 +62,35 @@ const librarySelect = `SELECT l.id, l.public_id, l.name, l.kind, ifnull(l.langua
 
 // Libraries lists the libraries the viewer may see, in the owner's order.
 func (d *DB) Libraries(ctx context.Context, v Viewer) ([]Library, error) {
-	rows, err := d.read.QueryContext(ctx, librarySelect+libraryVisibleTo("l.id")+` ORDER BY l.position, l.id`, v.args()...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []Library
-	for rows.Next() {
-		var l Library
-		if err := rows.Scan(&l.ID, &l.PublicID, &l.Name, &l.Kind, &l.Language, &l.Position, &l.CreatedAt, &l.UpdatedAt); err != nil {
-			return nil, err
-		}
-		out = append(out, l)
-	}
-	return out, rows.Err()
+	return d.libraries(ctx, v, "")
 }
 
 // Library returns one library the viewer may see.
 func (d *DB) Library(ctx context.Context, v Viewer, publicID string) (Library, error) {
-	var l Library
-	args := append(v.args(), sql.Named("id", publicID))
-	err := d.read.QueryRowContext(ctx, librarySelect+`l.public_id = @id AND `+libraryVisibleTo("l.id"), args...).
-		Scan(&l.ID, &l.PublicID, &l.Name, &l.Kind, &l.Language, &l.Position, &l.CreatedAt, &l.UpdatedAt)
-	if errors.Is(err, sql.ErrNoRows) {
-		return l, ErrNotFound
+	found, err := d.libraries(ctx, v, publicID)
+	if err != nil {
+		return Library{}, err
 	}
-	return l, err
+	if len(found) == 0 {
+		return Library{}, ErrNotFound
+	}
+	return found[0], nil
+}
+
+func (d *DB) libraries(ctx context.Context, v Viewer, publicID string) ([]Library, error) {
+	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	acc, err := loadAccess(ctx, tx, v)
+	if err != nil {
+		return nil, err
+	}
+	return queryAll(ctx, tx, librarySelect+acc.libraryVisible("l.id")+` AND (? = '' OR l.public_id = ?) ORDER BY l.position, l.id`,
+		[]any{publicID, publicID}, func(l *Library) []any {
+			return []any{&l.ID, &l.PublicID, &l.Name, &l.Kind, &l.Language, &l.Position, &l.CreatedAt, &l.UpdatedAt}
+		})
 }
 
 // AllLibraries lists every library with its folders, for the scanner and the owner's console.

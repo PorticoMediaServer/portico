@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strconv"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -29,6 +30,12 @@ type DB struct {
 	queues    [2]chan writeRequest
 	closed    chan struct{}
 	undo      undoOffers
+
+	// See checkpoint.go.
+	path        string
+	helper      *sql.DB
+	helperDone  chan struct{}
+	lastRestart time.Time
 }
 
 // Open opens the database at path, creating it with the current schema if it is new.
@@ -38,7 +45,7 @@ func Open(ctx context.Context, path string) (*DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	d := &DB{writeConn: write, closed: make(chan struct{})}
+	d := &DB{writeConn: write, closed: make(chan struct{}), path: path, helperDone: make(chan struct{})}
 	d.queues[User], d.queues[Background] = make(chan writeRequest), make(chan writeRequest)
 	if err := d.ensureSchema(ctx); err != nil {
 		write.Close()
@@ -48,7 +55,15 @@ func Open(ctx context.Context, path string) (*DB, error) {
 		write.Close()
 		return nil, err
 	}
+	if d.helper, err = open(path, "rw", 1); err != nil {
+		write.Close()
+		d.read.Close()
+		return nil, err
+	}
+	// The helper never waits long for anyone: what it cannot do now it does next time.
+	d.helper.Exec(`PRAGMA busy_timeout = ` + strconv.FormatInt(walRestartWait.Milliseconds(), 10))
 	go d.writer()
+	go d.checkpointHelper()
 	return d, nil
 }
 
@@ -56,7 +71,8 @@ func open(path, mode string, conns int) (*sql.DB, error) {
 	q := url.Values{}
 	q.Set("mode", mode)
 	q.Set("_txlock", "immediate")
-	for _, pragma := range []string{"busy_timeout(5000)", "journal_mode(WAL)", "synchronous(FULL)", "foreign_keys(1)"} {
+	for _, pragma := range []string{"busy_timeout(5000)", "journal_mode(WAL)", "synchronous(FULL)", "foreign_keys(1)",
+		"wal_autocheckpoint(0)", fmt.Sprintf("journal_size_limit(%d)", walRestartBytes)} {
 		q.Add("_pragma", pragma)
 	}
 	conn, err := sql.Open("sqlite", "file:"+url.PathEscape(path)+"?"+q.Encode())
@@ -95,8 +111,10 @@ func (d *DB) ensureSchema(ctx context.Context) error {
 	return nil
 }
 
-// Close stops the writer and closes both connections.
+// Close stops the writer and the checkpoint helper and closes the connections. SQLite copies
+// what is left in the WAL into the database as the last connection closes.
 func (d *DB) Close() error {
 	close(d.closed)
-	return errors.Join(d.read.Close(), d.writeConn.Close())
+	<-d.helperDone
+	return errors.Join(d.read.Close(), d.helper.Close(), d.writeConn.Close())
 }
