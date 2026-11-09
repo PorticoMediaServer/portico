@@ -15,8 +15,9 @@ import (
 
 // Witnesses are bounded, owned comparison inputs, never permissions. This
 // recipe checks only the approved FULL frames (540/541 policy, the ordinary
-// 520 local owner password replacement, the caller's own-account 532/533 PIN
-// composition and this 542 profile-restrictions composition) for a current
+// 520 local owner password replacement, the top-level 521/522 API-credential
+// issue/revoke, the caller's own-account 532/533 PIN composition and this 542
+// profile-restrictions composition) for a current
 // direct-owner main-profile interactive session with a registered installation
 // and device. It excludes reset-file sessions and narrow grants. It proves no
 // root/admin/setup/Hosted/factor/recovery/ownership-transfer authority and grants
@@ -86,9 +87,11 @@ func (b usOwnerAuthorityBudget) check(ctx context.Context, turn *commandTurn, by
 	// whose own composition refuses every non-own-account target and any
 	// reset/factor/credential family. US-09 (532/533) adds the caller's
 	// own-account PIN composition; its extra conditions live in
-	// us_pin_receipts.go, not here.
+	// us_pin_receipts.go, not here. US-11 (521/522) adds the top-level API
+	// credential issue/revoke; us_credential_native.go owns its own-account,
+	// no-descendant and protected-wire conditions.
 	switch tx.descriptor.ID {
-	case USMemberLibraries, USProfileLibraries, usLocalPasswordReplace, usPINSet, usPINClear, USProfileRestrictions:
+	case USMemberLibraries, USProfileLibraries, usLocalPasswordReplace, usAPICredentialIssue, usAPICredentialRevoke, usPINSet, usPINClear, USProfileRestrictions:
 	default:
 		return ErrInvalid
 	}

@@ -165,6 +165,11 @@ var usGroupBProducers = []usGroupBProducer{
 	// the identity_devices row has no such column.
 	{File: "server/internal/store/writer/us_policy_receipts_test.go", Op: "insert", Table: "identity_devices", Class: usGroupBV1Native, Purpose: usGroupBOrdinary, Fixture: "P05", Note: "V1 US policy receipt second-session fixture device", Prefix: `INSERT INTO identity_devices(id,account_id,installation_id,name,platform,app,app_version,first_seen,last_seen) VALUES('issuer-device-2','issuer',?,'Issuer two',`},
 	{File: "server/internal/store/writer/us_policy_receipts_test.go", Op: "insert", Table: "authorization_session_families", Class: usGroupBV1Native, Purpose: usGroupBOrdinary, Fixture: "P05", Note: "V1 US policy receipt second-session owner family (security_kind=0)", Prefix: `INSERT INTO authorization_session_families(security_kind,id,server_id,account_id,profile_id,authority,role,epoch,authorization_horizon,current_generation,device`},
+
+	// US-11 top-level API credential issue: one exact source row, no descendant
+	// and no plaintext secret. The family/device births stay in the listed
+	// us_family_birth_statements.go helper.
+	{File: "server/internal/store/writer/us_credential_native.go", Op: "insert", Table: "api_credentials", Class: usGroupBV1Native, Purpose: usGroupBCredential, Fixture: "P05", Note: "V1 US top-level API credential issue source row", Prefix: `INSERT INTO api_credentials(id,kind,account_id,profile_id,name,scopes,secret_hash,hint,family_id,device_id,created_ms,expires_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?,?`},
 }
 
 // usGroupBOtherSources are the non-Go sites this census tracks. The Python baseline
