@@ -3,6 +3,7 @@ go 1.26.10
 use (
 	./apikit
 	./server
+	./server-next
 )
 
 // The first public tag is not published yet; avoid fetching its module graph.
