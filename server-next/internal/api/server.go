@@ -56,6 +56,8 @@ type Server struct {
 	queues  *playqueue.Service
 	network networkState
 	media   func(w http.ResponseWriter, r *http.Request, grant, file string)
+	// feeds caps the change feeds each sign-in holds open. See catalogue.go.
+	feeds feeds
 }
 
 // Route is one operation, kept so the contract can be generated and the operation budget counted.

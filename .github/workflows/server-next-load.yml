@@ -38,6 +38,9 @@ on:
       real_extra:
         description: Playable items in each of the two extra trees of real files
         default: '5000'
+      busy_time:
+        description: How long one import transaction should take while people use the server (a person's write waits for the one in flight)
+        default: '10ms'
   # A change to the workflow or the load tools runs them.
   pull_request:
     paths:
@@ -58,6 +61,7 @@ env:
   BUSY_BATCH: ${{ inputs.busy_batch || '10' }}
   REAL_ITEMS: ${{ inputs.real_items || '50000' }}
   REAL_EXTRA: ${{ inputs.real_extra || '5000' }}
+  BUSY_TIME: ${{ inputs.busy_time || '10ms' }}
   WORK: ${{ github.workspace }}/load
 defaults:
   run:
@@ -161,8 +165,8 @@ jobs:
         id: measure
         run: |
           source ci/server-next-load.sh
-          limited "$WORK/bin/portico-load" -mode mixed -db "$WORK/main.db" -items "$EXTRA" -batch "$BUSY_BATCH" -out "$WORK/mixed.json" | tee "$WORK/mixed.txt"
-          summarise "Reads and writes while importing $EXTRA more items, $BUSY_BATCH files a transaction, into the $ITEMS library" "$WORK/mixed.txt" "$WORK/mixed.json"
+          limited "$WORK/bin/portico-load" -mode mixed -db "$WORK/main.db" -items "$EXTRA" -batch 10 -batch-time "$BUSY_TIME" -out "$WORK/mixed.json" | tee "$WORK/mixed.txt"
+          summarise "Reads and writes while importing $EXTRA more items, in transactions of about $BUSY_TIME, into the $ITEMS library" "$WORK/mixed.txt" "$WORK/mixed.json"
 
   scanner:
     name: The real scanner over a file tree
@@ -278,11 +282,11 @@ jobs:
           READ_MIXED: ${{ needs.reading.outputs.mixed }}
         run: |
           jq -n --arg runner "ubuntu-24.04 GitHub-hosted, $(nproc) vCPU, 2 GB memory limit on every measured process" \
-            --arg commit "$GITHUB_SHA" --arg items "$ITEMS" --arg batch "$BATCH" --arg busy "$BUSY_BATCH" \
+            --arg commit "$GITHUB_SHA" --arg items "$ITEMS" --arg batch "$BATCH" --arg busy "$BUSY_BATCH" --arg busyTime "$BUSY_TIME" \
             --argjson import "${IMPORT:-null}" --argjson rescan "${RESCAN:-null}" --argjson columns "${COLUMNS:-null}" --argjson mixed "${MIXED:-null}" \
             --argjson scanImport "${SCAN_IMPORT:-null}" --argjson scanRescan "${SCAN_RESCAN:-null}" --argjson scanMixed "${SCAN_MIXED:-null}" \
             --argjson readImport "${READ_IMPORT:-null}" --argjson readRescan "${READ_RESCAN:-null}" --argjson readMixed "${READ_MIXED:-null}" --arg realItems "$REAL_ITEMS" \
-            '{runner: $runner, commit: $commit, items: ($items | tonumber), batchFiles: ($batch | tonumber), busyBatchFiles: ($busy | tonumber), import: $import, rescan: $rescan, addColumn: $columns, mixed: $mixed, scanner: {import: $scanImport, rescan: $scanRescan, mixed: $scanMixed}, reading: {items: ($realItems | tonumber), import: $readImport, rescan: $readRescan, mixed: $readMixed}}' \
+            '{runner: $runner, commit: $commit, items: ($items | tonumber), batchFiles: ($batch | tonumber), busyBatchFiles: ($busy | tonumber), busyBatchTime: $busyTime, import: $import, rescan: $rescan, addColumn: $columns, mixed: $mixed, scanner: {import: $scanImport, rescan: $scanRescan, mixed: $scanMixed}, reading: {items: ($realItems | tonumber), import: $readImport, rescan: $readRescan, mixed: $readMixed}}' \
             > server-next-load.json
           jq -r '[.import, .rescan, .mixed] | map(select(. != null) | .bars[]) | map(select(.passed | not)) | "Bars missed: \(length)"' server-next-load.json >> "$GITHUB_STEP_SUMMARY"
           jq -r '[.scanner.import, .scanner.rescan, .scanner.mixed] | map(select(. != null) | .bars[]) | map(select(.passed | not)) | "Bars missed by the real scanner: \(length)"' server-next-load.json >> "$GITHUB_STEP_SUMMARY"

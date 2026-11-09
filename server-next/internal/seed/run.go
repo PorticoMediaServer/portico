@@ -22,6 +22,8 @@ type Totals struct {
 	Probed       int           `json:"filesRead,omitempty"` // by a real scan's second pass
 	Elapsed      time.Duration `json:"elapsedNs"`
 	FilesPerSec  float64       `json:"filesPerSecond"`
+	// LastBatchFiles is the batch size the run ended at, which matters when it was sized by time.
+	LastBatchFiles int `json:"lastBatchFiles"`
 }
 
 func (t *Totals) add(s db.ImportStats, elapsed time.Duration) {
@@ -54,10 +56,21 @@ func Import(ctx context.Context, d *db.DB, cfg Config, progress func(Totals)) (T
 			libraries = append(libraries, lib)
 		}
 	}
+	if cfg.BatchFiles <= 0 {
+		cfg.BatchFiles = 40
+	}
+	limit := cfg.BatchFiles
+	cfg.limit = &limit
 	start := time.Now()
 	for _, lib := range libraries {
 		err := Batches(cfg, lib, func(batch db.ImportBatch) error {
 			stats, err := d.Import(ctx, batch)
+			totals.LastBatchFiles = limit
+			if cfg.BatchTime > 0 && stats.Took > 0 && len(batch.Files) > 0 {
+				// Move a third of the way to the size that would have taken BatchTime.
+				fits := float64(len(batch.Files)) * float64(cfg.BatchTime) / float64(stats.Took)
+				limit = min(max(int(0.7*float64(limit)+0.3*fits), 2), 400)
+			}
 			totals.add(stats, time.Since(start))
 			if progress != nil {
 				progress(totals)
@@ -131,8 +144,8 @@ func TitleKind(libraryKind string) db.ItemKind {
 	return LeafKind(libraryKind)
 }
 
-// State gives each profile about target state rows spread over the library: mostly watched,
-// some part-way through, some favourites and some on My List. It reads the lists once, the
+// State gives each profile about target state rows spread over the library: three quarters
+// watched, a fifth part-way through, and one in fifty each a favourite or on My List. It reads the lists once, the
 // way an app does, and writes through the same state path as background work. A restricted
 // profile ends with fewer rows, because an edit to a title it may not see is refused.
 func State(ctx context.Context, d *db.DB, viewers []db.Viewer, target int, seed uint64) (int, error) {
@@ -188,13 +201,13 @@ func State(ctx context.Context, d *db.DB, viewers []db.Viewer, target int, seed 
 						continue
 					}
 					edit := db.ItemEdit{ItemID: item.PublicID}
-					switch pick := r.IntN(10); {
-					case pick < 6:
+					switch pick := r.IntN(50); {
+					case pick < 38 && item.Kind != db.KindTrack: // music has play counts, not watched
 						edit.Watched = &yes
-					case pick < 8 && item.DurationMS > 0:
+					case pick < 48 && item.DurationMS > 0:
 						position := item.DurationMS / 10 * int64(1+r.IntN(8))
 						edit.PositionMS = &position
-					case pick < 9:
+					case pick < 49:
 						edit.Favorite = &yes
 					default:
 						edit.InList = &yes
