@@ -1441,6 +1441,30 @@
       "predicate": "ended_ms=0",
       "choice": "repeat_exact_predicate",
       "build_gate": "Exact shared literal predicate; SEARCH/no temp B-tree on actual composed registry before embed. One #1556 environment baseline; byte registrations remain domain-owned."
+    },
+    {
+      "index": "catalog_removal_receipt_due",
+      "predicate": "receipt_reclaim_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared literal predicate; SEARCH/no temp B-tree on actual composed registry before embed. One #1556 environment baseline; byte registrations remain domain-owned."
+    },
+    {
+      "index": "catalog_configuration_receipt_due",
+      "predicate": "receipt_reclaim_due_ms IS NOT NULL",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared literal predicate; SEARCH/no temp B-tree on actual composed registry before embed. One #1556 environment baseline; byte registrations remain domain-owned."
+    },
+    {
+      "index": "catalog_entities_book_author_identity",
+      "predicate": "kind=8",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared literal predicate; SEARCH/no temp B-tree on actual composed registry before embed. One #1556 environment baseline; byte registrations remain domain-owned."
+    },
+    {
+      "index": "catalog_info_refresh_active_asset",
+      "predicate": "state IN('copying','restoring')",
+      "choice": "repeat_exact_predicate",
+      "build_gate": "Exact shared literal predicate; SEARCH/no temp B-tree on actual composed registry before embed. One #1556 environment baseline; byte registrations remain domain-owned."
     }
   ]
 }

@@ -837,3 +837,21 @@ These simulated observations establish no physical exit or authority qualificati
 The current MPReadingSource decoder selects evidence and uses exact14 fields;
 owner controls and actual F-schema captures remain separate gates. #1556 once;
 retain metadata-only golden bytes, record actual changed composed registries only.
+
+
+## CHANGE-019 ingestion, author identity and refresh inverse draft
+
+Closed110-114 inventory result kinds use normalized saved members and exact parent
+purpose FKs, retaining current Basic/directory fields. Writer stores the exact Go
+AuthorIdentityKey, no trim/NFC/full fold; kind8 lookups use the stored key and an
+exact kind8 partial predicate. Empty author: scope is excluded by reader code.
+Accepted series stores complete ordered name+position pairs; owner scalar series
+wins including locked-empty, with no remote book provider or raw-tag fallback.
+Refresh uses non-reusable refresh_id and existing change lease, captures complete
+before-images once with INSERT, and restores only matching incarnation/CAS/digest
+after source drift. FIRST Basic abandon is unchanged. MP invalidation and shared
+sidecar protection stay real writer gates; inverse SQL models are not that proof.
+The SAME RS001/#1435 album/book order-index amendment remains DEFERRED; retain
+numeric indexes and do not call capped512 complete. Native SQL load/replay/model
+evidence is no performance, actual producer, semantic codec or authority grant.
+One #1556 baseline at embed; actual affected composed captures only.
