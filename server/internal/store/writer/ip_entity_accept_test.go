@@ -746,8 +746,54 @@ func TestIPEntityAcceptOwnerLockRespected(t *testing.T) {
 		}
 		ipPolicyCommitTurn(t, turn, tx)
 		for query, want := range map[string]int64{
-			`SELECT count(*) FROM catalog_entities WHERE id=1 AND title='Accepted Series' AND overview='Provider overview' AND release_date='2020-01-01' AND year=2020`:            1,
-			`SELECT count(*) FROM metadata_owner_fields WHERE kind='show' AND entity_id=1 AND field='description' AND automatic_value='Provider overview' AND automatic_present=1`: 1,
+			`SELECT count(*) FROM catalog_entities WHERE id=1 AND title='Accepted Series' AND overview='Provider overview' AND release_date='2020-01-01' AND year=2020`:                                                                           1,
+			`SELECT count(*) FROM metadata_owner_fields WHERE kind='show' AND entity_id=1 AND field='description' AND value='Provider overview' AND value_present=1 AND automatic_value='Provider overview' AND automatic_present=1 AND locked=0`: 1,
+		} {
+			if got := ipPolicyQueryInt(t, w, query); got != want {
+				t.Fatal(query, got)
+			}
+		}
+	})
+}
+
+// An UNLOCKED owner row follows the accepted source exactly as the typed
+// ReplaceUnlocked preparation defines it: the effective value moves with the
+// automatic value, so the row never goes stale against the catalogue projection
+// (a stale effective value makes every later editor edit CAS the wrong Before).
+// A locked row keeps its effective value and lock; only automatic moves.
+func TestIPEntityAcceptUnlockedOwnerRowFollowsAutomatic(t *testing.T) {
+	t.Run("unlocked_row_moves_effective_and_automatic", func(t *testing.T) {
+		w, r, p, staged := ipEntityAcceptFixture(t)
+		ipPolicyExec(t, w, `UPDATE catalog_entities SET overview='Restored A' WHERE id=1`)
+		ipPolicyExec(t, w, `UPDATE metadata_owner_fields SET value='Restored A',value_present=1,automatic_value='Restored A',automatic_present=1,locked=0 WHERE kind='show' AND entity_id=1 AND field='description'`)
+		out, turn, tx := ipEntityAcceptApply(t, w, r, p,
+			ipEntityAcceptCommandFor(t, staged, ipEntityAcceptRequestFor(staged)))
+		if out.Outcome.State != Applied {
+			t.Fatal(out)
+		}
+		ipPolicyCommitTurn(t, turn, tx)
+		for query, want := range map[string]int64{
+			`SELECT count(*) FROM catalog_entities WHERE id=1 AND overview='Provider overview'`: 1,
+			`SELECT count(*) FROM metadata_owner_fields WHERE kind='show' AND entity_id=1 AND field='description' AND value='Provider overview' AND value_present=1 AND automatic_value='Provider overview' AND automatic_present=1 AND locked=0`: 1,
+		} {
+			if got := ipPolicyQueryInt(t, w, query); got != want {
+				t.Fatal(query, got)
+			}
+		}
+	})
+	t.Run("locked_row_keeps_effective", func(t *testing.T) {
+		w, r, p, staged := ipEntityAcceptFixture(t)
+		ipPolicyExec(t, w, `UPDATE catalog_entities SET overview='Restored A' WHERE id=1`)
+		ipPolicyExec(t, w, `UPDATE metadata_owner_fields SET value='Restored A',value_present=1,automatic_value='Restored A',automatic_present=1,locked=1 WHERE kind='show' AND entity_id=1 AND field='description'`)
+		out, turn, tx := ipEntityAcceptApply(t, w, r, p,
+			ipEntityAcceptCommandFor(t, staged, ipEntityAcceptRequestFor(staged)))
+		if out.Outcome.State != Applied {
+			t.Fatal(out)
+		}
+		ipPolicyCommitTurn(t, turn, tx)
+		for query, want := range map[string]int64{
+			`SELECT count(*) FROM catalog_entities WHERE id=1 AND overview='Restored A'`: 1,
+			`SELECT count(*) FROM metadata_owner_fields WHERE kind='show' AND entity_id=1 AND field='description' AND value='Restored A' AND value_present=1 AND automatic_value='Provider overview' AND automatic_present=1 AND locked=1`: 1,
 		} {
 			if got := ipPolicyQueryInt(t, w, query); got != want {
 				t.Fatal(query, got)

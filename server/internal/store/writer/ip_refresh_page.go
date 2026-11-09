@@ -49,9 +49,10 @@ type ipRefreshPageLookup struct {
 }
 
 // ipRefreshPageResult is the complete saved page result: the POST-CAS sweep
-// revision/generation, the truthful scheduled count, the raw cursor segment
-// and whether the just-scheduled window is still in flight. ScheduledCount is
-// zero in the person phase because that phase schedules no acquisition job.
+// revision/generation (for an already-complete sweep, the unchanged terminal
+// revision), the truthful scheduled count, the raw cursor segment and whether
+// the just-scheduled window is still in flight. ScheduledCount is zero in the
+// person phase because that phase schedules no acquisition job.
 type ipRefreshPageResult struct {
 	Provider, Purpose, Phase              string
 	Generation, AcceptedRevision, EpochMS int64
@@ -584,15 +585,20 @@ func ipRefreshPageFinishPeople(ctx context.Context, turn *commandTurn, q ipRefre
 	return out, nil
 }
 
+// ipRefreshPageComplete serves a page command that reached a sweep which is
+// ALREADY complete. It is a truthful terminal page, not a second completion:
+// ipPageComplete CASes phase='people' and would match no row. The terminal CAS
+// consumes only this command's sequence, so revision, phase, cursor, page window
+// and job lease stay exactly as the completing page saved them, and the common
+// record step still writes the one page receipt that typed replay reads.
 func ipRefreshPageComplete(ctx context.Context, turn *commandTurn, q ipRefreshPageRequest, facts ipRefreshPageOwner, appliedMS int64) (out ipRefreshPageResult, err error) {
 	defer func() { out, err = finishCommand(ctx, commandLifetime(turn), out, err) }()
 	out = ipRefreshPageResult{Provider: q.provider, Purpose: q.purpose, Phase: "complete",
-		Generation: facts.generation, AcceptedRevision: facts.revision + 1, EpochMS: facts.epochMS,
+		Generation: facts.generation, AcceptedRevision: facts.revision, EpochMS: facts.epochMS,
 		AfterID: facts.afterID, ScheduledCount: 0, AppliedMS: appliedMS, ResultCount: 1}
-	if err = wc008DraftChanged(ctx, turn, ipPageComplete, out.AcceptedRevision, facts.afterID, facts.fromID,
-		facts.untilID, facts.lastSequence+1, q.provider, q.purpose, facts.generation, facts.revision,
-		facts.afterID, facts.fromID, facts.untilID, facts.waiting, facts.incarnation[:],
-		facts.lastSequence, facts.ackSequence); err != nil {
+	if err = wc008DraftChanged(ctx, turn, ipPageTerminal, facts.lastSequence+1, q.provider, q.purpose,
+		facts.generation, facts.revision, facts.afterID, facts.fromID, facts.untilID, facts.waiting,
+		facts.incarnation[:], facts.lastSequence, facts.ackSequence); err != nil {
 		return out, err
 	}
 	return out, nil

@@ -32,6 +32,7 @@ const (
 	ipEntityAcceptEntityWriteStmt    stmt.ID = "ip.entity.accept.entity_write"
 	ipEntityAcceptOwnerFieldReadStmt stmt.ID = "ip.entity.accept.owner_field_read"
 	ipEntityAcceptOwnerFieldStmt     stmt.ID = "ip.entity.accept.owner_field"
+	ipEntityAcceptOwnerUnlockedStmt  stmt.ID = "ip.entity.accept.owner_field_unlocked"
 	ipEntityAcceptOriginStmt         stmt.ID = "ip.entity.accept.origin"
 	ipEntityAcceptSearchStmt         stmt.ID = "ip.entity.accept.search_intent"
 	ipEntityAcceptRetainProofStmt    stmt.ID = "ip.entity.accept.retain_proof"
@@ -214,6 +215,17 @@ func ipEntityAcceptDefinitions() []stmt.Definition {
 			Params: []stmt.Param{t("automatic"), i("automatic_present"), t("kind"), i("entity"), t("field")},
 		},
 		{
+			// An UNLOCKED owner row follows the source exactly as the typed
+			// ReplaceUnlocked preparation defines it: the effective pair moves
+			// with the automatic pair. Moving automatic_value alone would leave
+			// the row's effective value stale against the catalogue projection,
+			// so the next editor edit would CAS that stale Before against the
+			// catalogue column and return ErrConflict forever. A locked row is
+			// never touched by this statement.
+			ID: ipEntityAcceptOwnerUnlockedStmt, SQL: `UPDATE metadata_owner_fields SET value=?,value_present=?,automatic_value=?,automatic_present=? WHERE kind=? AND entity_id=? AND field=? AND locked=0`,
+			Params: []stmt.Param{t("value"), i("value_present"), t("automatic"), i("automatic_present"), t("kind"), i("entity"), t("field")},
+		},
+		{
 			// Exact field provenance with the ORIGINAL provider observation time.
 			ID: ipEntityAcceptOriginStmt, SQL: `INSERT INTO metadata_field_origins(subject_kind,provider_id,entity_id,field,provider,source_kind,source_url,confidence,observed_at,language,region,selection_revision,publication_id,evidence_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(entity_id,field) DO UPDATE SET subject_kind=excluded.subject_kind,provider_id=excluded.provider_id,provider=excluded.provider,source_kind=excluded.source_kind,source_url=excluded.source_url,confidence=excluded.confidence,observed_at=excluded.observed_at,language=excluded.language,region=excluded.region,selection_revision=excluded.selection_revision,publication_id=excluded.publication_id,evidence_id=excluded.evidence_id`,
 			Params: []stmt.Param{
@@ -262,8 +274,8 @@ func ipEntityAcceptDefinitions() []stmt.Definition {
 		switch defs[x].ID {
 		case ipEntityAcceptPublicationStmt, ipEntityAcceptSelectionCASStmt, ipEntityAcceptExternalStmt,
 			ipEntityAcceptTermStmt, ipEntityAcceptEntityTermStmt, ipEntityAcceptTermSourceStmt,
-			ipEntityAcceptEntityWriteStmt, ipEntityAcceptOwnerFieldStmt, ipEntityAcceptOriginStmt,
-			ipEntityAcceptRetainProofStmt, ipEntityAcceptRecordStmt:
+			ipEntityAcceptEntityWriteStmt, ipEntityAcceptOwnerFieldStmt, ipEntityAcceptOwnerUnlockedStmt,
+			ipEntityAcceptOriginStmt, ipEntityAcceptRetainProofStmt, ipEntityAcceptRecordStmt:
 			defs[x].Kind = stmt.Write
 		}
 		defs[x].CallSites = []string{"store/writer/ip_entity_accept.go", "store/writer/ip_entity_accept_statements.go"}

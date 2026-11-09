@@ -848,9 +848,12 @@ func ipEntityAcceptProjectionRead(ctx context.Context, turn *commandTurn, q ipEn
 // ipEntityAcceptOwnerField translates one accepted descriptive field name to
 // the descriptive editor field metadata_owner_fields stores (IP-24/IP-25). The
 // catalogue overview is the editor's 'description' and the accepted metadata
-// language is 'metadataLanguage'; the remaining names already agree. A
-// provenance-only field keeps its own name so its durable automatic observation
-// stays addressable by the delta no-op.
+// language is 'metadataLanguage'; the remaining names already agree. The
+// provenance-only names (status, sortName, disambiguation, type, isbn,
+// pageCount) have no owner row at all: the accept bodies only UPDATE rows the
+// lock command can create, and the lock command refuses those names, so they are
+// passed through unchanged and their automatic observation is never stored in
+// metadata_owner_fields.
 func ipEntityAcceptOwnerField(name string) string {
 	switch name {
 	case "overview":
@@ -1126,7 +1129,7 @@ func ipEntityAcceptFresh(ctx context.Context, turn *commandTurn, identity Comman
 	if revision <= before.revision {
 		return out, ErrConflict
 	}
-	if err = ipEntityAcceptOwnerFields(ctx, turn, q); err != nil {
+	if err = ipEntityAcceptOwnerFields(ctx, turn, q, owners); err != nil {
 		return out, err
 	}
 	if err = ipEntityAcceptOrigins(ctx, turn, q, evidence); err != nil {
@@ -1245,7 +1248,8 @@ func ipEntityAcceptProjectionWrite(ctx context.Context, turn *commandTurn, q ipE
 	return out, nil
 }
 
-func ipEntityAcceptOwnerFields(ctx context.Context, turn *commandTurn, q ipEntityAcceptRequest) (err error) {
+func ipEntityAcceptOwnerFields(ctx context.Context, turn *commandTurn, q ipEntityAcceptRequest,
+	owners map[string]ipEntityAcceptOwnerFacts) (err error) {
 	defer func() { _, err = finishCommand(ctx, commandLifetime(turn), struct{}{}, err) }()
 	kind := ipEntityAcceptOwnerKind(q.subjectKind)
 	if kind == "" {
@@ -1255,12 +1259,21 @@ func ipEntityAcceptOwnerFields(ctx context.Context, turn *commandTurn, q ipEntit
 		if !field.Present {
 			continue
 		}
-		step, err := sealStep(turn, ipEntityAcceptOwnerFieldStmt)
+		// A locked row keeps its effective value and lock; only a row read as
+		// unlocked follows the source. A missing row is absence, so either
+		// statement is a no-op and the catalogue projection is the only record.
+		id := ipEntityAcceptOwnerFieldStmt
+		args := []any{field.Value, int64(1), kind, q.entityID, ipEntityAcceptOwnerField(field.Name)}
+		if facts, ok := owners[field.Name]; ok && facts.locked == 0 {
+			id = ipEntityAcceptOwnerUnlockedStmt
+			args = []any{field.Value, int64(1), field.Value, int64(1), kind, q.entityID,
+				ipEntityAcceptOwnerField(field.Name)}
+		}
+		step, err := sealStep(turn, id)
 		if err != nil {
 			return err
 		}
-		if _, err = turn.exec(ctx, step, field.Value, int64(1), kind, q.entityID,
-			ipEntityAcceptOwnerField(field.Name)); err != nil {
+		if _, err = turn.exec(ctx, step, args...); err != nil {
 			return err
 		}
 	}

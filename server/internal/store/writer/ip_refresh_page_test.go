@@ -449,6 +449,69 @@ func ipPolicyString(t *testing.T, w *executor, query string, args ...any) string
 	return s
 }
 
+// A page command that reaches a sweep which is ALREADY complete is a truthful
+// terminal page. The completion CAS requires phase='people', so reusing it here
+// would match no row (and a second completion would bump the terminal revision
+// again). The terminal path consumes only its own command sequence, leaves the
+// sweep revision, phase, cursor and job lease exactly as saved, and records the
+// one page receipt that typed replay reads.
+func TestIPRefreshPageAlreadyCompleteIsTruthfulAndInert(t *testing.T) {
+	w, r, p := ipRefreshPageFixture(t)
+	ipRefreshPageBegin(t, w, r, p)
+
+	// No entity jobs, so the entity page transitions straight to people.
+	people, turn, tx, _ := ipRefreshPageApply(t, w, r, p, ipRefreshPageTestCommand(t, 2, 3, nil))
+	if people.Value.Phase != "people" || people.Value.AcceptedRevision != 2 {
+		t.Fatal("entity page", people)
+	}
+	ipRefreshPageCommit(t, turn, tx)
+	ipRefreshPageAck(t, w, 2)
+
+	// No person sources, so the people page completes the sweep.
+	complete, turn, tx, _ := ipRefreshPageApply(t, w, r, p,
+		ipRefreshPageTestCommand(t, 3, 4, func(q *ipRefreshPageRequest) { q.expectedRevision = 2 }))
+	if complete.Value.Phase != "complete" || complete.Value.AcceptedRevision != 3 {
+		t.Fatal("completing page", complete)
+	}
+	ipRefreshPageCommit(t, turn, tx)
+	ipRefreshPageAck(t, w, 3)
+
+	cmd := ipRefreshPageTestCommand(t, 4, 5, func(q *ipRefreshPageRequest) { q.expectedRevision = 3 })
+	terminal, turn, tx, _ := ipRefreshPageApply(t, w, r, p, cmd)
+	if terminal.Outcome.State != Applied || terminal.Outcome.Replayed ||
+		terminal.Value.Phase != "complete" || terminal.Value.AcceptedRevision != 3 ||
+		terminal.Value.AfterID != 0 || terminal.Value.ScheduledCount != 0 || terminal.Value.PageWaiting {
+		t.Fatal("already-complete page", terminal)
+	}
+	ipRefreshPageCommit(t, turn, tx)
+	if got := ipPolicyString(t, w, `SELECT phase FROM metadata_refresh_sweeps WHERE provider='tmdb' AND purpose='metadata'`); got != "complete" {
+		t.Fatal("terminal phase", got)
+	}
+	for query, want := range map[string]int64{
+		`SELECT revision FROM metadata_refresh_sweeps WHERE provider='tmdb' AND purpose='metadata'`:              3,
+		`SELECT after_id FROM metadata_refresh_sweeps WHERE provider='tmdb' AND purpose='metadata'`:              0,
+		`SELECT last_command_sequence FROM metadata_refresh_sweeps WHERE provider='tmdb' AND purpose='metadata'`: 4,
+		`SELECT count(*) FROM metadata_refresh_receipts WHERE command_kind='page' AND phase='complete'`:          2,
+		`SELECT count(*) FROM metadata_acquisition_jobs WHERE status='pending'`:                                  0,
+	} {
+		if got := ipPolicyQueryInt(t, w, query); got != want {
+			t.Fatal(query, got)
+		}
+	}
+
+	// The saved terminal result replays exactly with no new receipt.
+	turn, tx, b := ipPolicyTurn(t, w, r, IPRefreshPage)
+	replay, err := applyIPRefreshPage(t.Context(), turn, p, t.Context(), b, cmd)
+	if err != nil || !replay.Outcome.Replayed || replay.Value != terminal.Value ||
+		replay.Digest != terminal.Digest {
+		t.Fatal("terminal page replay", replay, err)
+	}
+	ipPolicyRollbackTurn(t, turn, tx)
+	if got := ipPolicyQueryInt(t, w, `SELECT count(*) FROM metadata_refresh_receipts WHERE command_kind='page'`); got != 3 {
+		t.Fatal("replay wrote a receipt", got)
+	}
+}
+
 func TestIPRefreshPageCurrentAuthorityAndLifetime(t *testing.T) {
 	for _, mode := range []string{"revoked_family", "forged_proof", "revoked_membership"} {
 		t.Run(mode, func(t *testing.T) {

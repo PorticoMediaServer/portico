@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/internal/sqliteconn"
+	fieldmeta "github.com/PorticoMediaServer/portico/server/internal/store/metadata"
+	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt/stmttest"
 )
 
@@ -26,6 +28,15 @@ type ipEntityDeltaSetup struct {
 
 func ipEntityDeltaFixture(t *testing.T) (*executor, *ipPolicyRegistry, *usOwnerAuthorityProof, ipEntityDeltaSetup) {
 	t.Helper()
+	return ipEntityDeltaFixtureAccepting(t, ipEntityDeltaAcceptedFields())
+}
+
+// ipEntityDeltaFixtureAccepting runs the baseline acceptance with an explicit
+// typed field cohort, so a test can choose a cohort whose fields all have a
+// durable witness. The owner-field-edit tables are created here because the
+// unlock/edit regression goes through the real IP-24 edit command.
+func ipEntityDeltaFixtureAccepting(t *testing.T, acceptedFields []ipEntityAcceptField) (*executor, *ipPolicyRegistry, *usOwnerAuthorityProof, ipEntityDeltaSetup) {
+	t.Helper()
 	w, keeper, p := ipPolicySecurityFixture(t)
 	for _, name := range []string{
 		"testdata/ip-policy-draft.sql",
@@ -42,6 +53,7 @@ func ipEntityDeltaFixture(t *testing.T) (*executor, *ipPolicyRegistry, *usOwnerA
 			t.Fatal(name, err)
 		}
 	}
+	ipEntityDeltaEditTables(t, w)
 	for _, query := range []string{
 		`INSERT INTO catalog_kinds(id,name,playable,container,searchable,browsable,listening) VALUES(1,'movie',1,0,1,1,0),(2,'show',1,0,1,1,0)`,
 		`INSERT INTO catalog_libraries(id,library_id,root) VALUES(777,'ip-library','/media')`,
@@ -59,22 +71,59 @@ func ipEntityDeltaFixture(t *testing.T) (*executor, *ipPolicyRegistry, *usOwnerA
 		ipEntityEvidenceDefinitions()...), ipEntitySealDefinitions()...), ipTVSetDefinitions()...),
 		ipEntityAcceptDefinitions()...)
 	defs = append(defs, ipEntityDeltaDefinitions()...)
-	registry, err := stmttest.New(t, defs)
+	defs = append(defs, ipTextEditDefinitions()...)
+	registry, err := stmttest.New(t, ipEntityDeltaDedupe(defs))
 	if err != nil {
 		t.Fatal(err)
 	}
 	r := &ipPolicyRegistry{registry, keeper}
 	staged := ipEntityAcceptStage(t, w, r, p)
 	ipEntityAcceptSeedHead(t, w)
-	ipPolicyExec(t, w, `INSERT INTO metadata_owner_fields(kind,entity_id,field,value,automatic_value,value_present,automatic_present,locked,actor,observed_at) VALUES('show',1,'status','','',1,1,0,'owner','2025-12-01T00:00:00Z')`)
+	acceptedRequest := ipEntityAcceptRequestFor(staged)
+	acceptedRequest.fields = acceptedFields
 	accepted, turn, tx := ipEntityAcceptApply(t, w, r, p,
-		ipEntityAcceptCommandFor(t, staged, ipEntityAcceptRequestFor(staged)))
+		ipEntityAcceptCommandFor(t, staged, acceptedRequest))
 	if accepted.Outcome.State != Applied || accepted.Value.PublicationID != "publication-one" {
 		t.Fatal("baseline accept", accepted)
 	}
 	ipPolicyCommitTurn(t, turn, tx)
 	owner, claim := ipEntityDeltaSecondClaim(t, w, r, p)
 	return w, r, p, ipEntityDeltaSetup{first: staged, accepted: accepted.Value, owner: owner, claim: claim}
+}
+
+// ipEntityDeltaDedupe keeps one definition per statement ID. ipTextEditDefinitions
+// embeds the IP entry and US authority families, which the accept/delta fixture
+// already registers; the duplicated definitions are byte-identical.
+func ipEntityDeltaDedupe(defs []stmt.Definition) []stmt.Definition {
+	seen := make(map[stmt.ID]bool, len(defs))
+	out := make([]stmt.Definition, 0, len(defs))
+	for _, def := range defs {
+		if seen[def.ID] {
+			continue
+		}
+		seen[def.ID] = true
+		out = append(out, def)
+	}
+	return out
+}
+
+// ipEntityDeltaEditTables creates the IP-24/IP-25 owner-edit tables. The draft's
+// two metadata_owner_fields ALTERs are skipped because the accept draft already
+// added the same presence columns.
+func ipEntityDeltaEditTables(t *testing.T, w *executor) {
+	t.Helper()
+	ddl, err := os.ReadFile("testdata/ip-text-edit-draft.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, statement := range strings.Split(string(ddl), ";") {
+		if strings.Contains(statement, "ALTER TABLE metadata_owner_fields") || strings.TrimSpace(statement) == "" {
+			continue
+		}
+		if _, err = w.db.ExecContext(t.Context(), statement); err != nil {
+			t.Fatal(statement, err)
+		}
+	}
 }
 
 // ipEntityDeltaSecondClaim claims one NEW observation owner after the baseline
@@ -160,15 +209,26 @@ func ipEntityDeltaStageSecond(t *testing.T, w *executor, r *ipPolicyRegistry, p 
 	return staged
 }
 
-func ipEntityDeltaBaseFields() []ipEntityAcceptField {
+// ipEntityDeltaAcceptedFields is the baseline accepted cohort. Every name has a
+// durable witness: the four projection fields are catalog columns (overview is
+// the locked description owner row in the fixture) and the rest are catalog
+// columns too. Provenance-only names are deliberately absent, because accept
+// records no value for them.
+func ipEntityDeltaAcceptedFields() []ipEntityAcceptField {
 	return []ipEntityAcceptField{
 		{Name: "title", Value: "Accepted Series", Present: true},
 		{Name: "language", Value: "en", Present: true},
 		{Name: "overview", Value: "Provider overview", Present: true},
 		{Name: "releaseDate", Value: "2020-01-01", Present: true},
 		{Name: "year", Value: "2020", Present: true},
-		{Name: "status", Value: "Returning", Present: true},
 	}
+}
+
+// ipEntityDeltaBaseFields is the SAME accepted cohort a second observation may
+// present as an exact no-op. No provenance-only field is present, so every
+// value can be proved against a durable witness.
+func ipEntityDeltaBaseFields() []ipEntityAcceptField {
+	return ipEntityDeltaAcceptedFields()
 }
 
 func ipEntityDeltaSecondFields() []ipEntityAcceptField {
@@ -178,8 +238,14 @@ func ipEntityDeltaSecondFields() []ipEntityAcceptField {
 		{Name: "overview", Value: "Replacement overview", Present: true},
 		{Name: "releaseDate", Value: "2021-02-02", Present: true},
 		{Name: "year", Value: "2021", Present: true},
-		{Name: "status", Value: "Ended", Present: true},
 	}
+}
+
+// ipEntityDeltaStatusFields adds one provenance-only field (status) to a cohort.
+// Accept stores no durable value for that name, so the delta can never prove it
+// identical: this cohort is the conservative-publish regression case.
+func ipEntityDeltaStatusFields() []ipEntityAcceptField {
+	return append(ipEntityDeltaAcceptedFields(), ipEntityAcceptField{Name: "status", Value: "Returning", Present: true})
 }
 
 func ipEntityDeltaObservationFor(staged ipEntityAcceptStaged, evidenceID, buildID, publicationID string,
@@ -275,7 +341,7 @@ func TestIPEntityDeltaReplaceRetainsOldSourceAndReplays(t *testing.T) {
 		out.Value.ObservedAt != "2026-01-01T00:00:00Z" || out.Value.EntityID != 1 ||
 		out.Value.OwnerGeneration != 1 || out.Value.ContentRevision != second.begin.Revision+1 ||
 		out.Value.AcceptedRevision != 3 || out.Value.SelectionRevision != 2 ||
-		out.Value.SearchJobID != 1 || out.Value.FieldCount != 6 ||
+		out.Value.SearchJobID != 1 || out.Value.FieldCount != 5 ||
 		out.Value.ExternalCount != 1 || out.Value.TermCount != 1 ||
 		out.Value.CreditCount != 2 || out.Value.LeaseUntilMS != setup.owner.LeaseUntilMS ||
 		out.Value.AppliedMS != w.now().UnixMilli() {
@@ -288,7 +354,7 @@ func TestIPEntityDeltaReplaceRetainsOldSourceAndReplays(t *testing.T) {
 		`SELECT count(*) FROM metadata_publications WHERE id='publication-one' AND evidence_id='evidence-one' AND selection_revision=1 AND decision='accepted'`:                                                                                                                                                                                                                                                                                                                   1,
 		`SELECT proof_pin_count FROM metadata_ip_receipts WHERE command_kind='evidence_seal' AND owner_id='` + setup.first.owner.OperationID + `'`:                                                                                                                                                                                                                                                                                                                                2,
 		`SELECT proof_pin_count FROM metadata_ip_receipts WHERE command_kind='evidence_seal' AND owner_id='` + setup.owner.OperationID + `'`:                                                                                                                                                                                                                                                                                                                                      2,
-		`SELECT count(*) FROM metadata_ip_receipts WHERE command_kind='delta' AND publication_id='publication-two' AND evidence_id='evidence-two' AND terminal=1 AND result_phase='accepted' AND result_count=6`:                                                                                                                                                                                                                                                                  1,
+		`SELECT count(*) FROM metadata_ip_receipts WHERE command_kind='delta' AND publication_id='publication-two' AND evidence_id='evidence-two' AND terminal=1 AND result_phase='accepted' AND result_count=5`:                                                                                                                                                                                                                                                                  1,
 		`SELECT count(*) FROM metadata_ip_receipts WHERE command_kind='accept'`: 1,
 		// The fixture locks the owner 'description' field (the catalogue overview)
 		// to an explicit empty, so the replacement keeps that locked effective
@@ -296,7 +362,7 @@ func TestIPEntityDeltaReplaceRetainsOldSourceAndReplays(t *testing.T) {
 		// automatic value; the unlocked title and year are replaced in place.
 		`SELECT count(*) FROM catalog_entities WHERE id=1 AND title='Replacement Series' AND overview='' AND year=2021 AND revision=3 AND metadata_revision=3`:                                                                  1,
 		`SELECT count(*) FROM metadata_owner_fields WHERE kind='show' AND entity_id=1 AND field='description' AND value='' AND value_present=1 AND locked=1 AND automatic_value='Replacement overview' AND automatic_present=1`: 1,
-		`SELECT count(*) FROM metadata_field_origins WHERE entity_id=1 AND publication_id='publication-two' AND evidence_id='evidence-two'`:                                                                                     6,
+		`SELECT count(*) FROM metadata_field_origins WHERE entity_id=1 AND publication_id='publication-two' AND evidence_id='evidence-two'`:                                                                                     5,
 		`SELECT count(*) FROM metadata_field_origins WHERE entity_id=1 AND publication_id='publication-one'`:                                                                                                                    0,
 		`SELECT last_command_sequence FROM metadata_provider_operations WHERE id='` + setup.owner.OperationID + `'`:                                                                                                             second.sequence + 1,
 	} {
@@ -378,8 +444,8 @@ func TestIPEntityDeltaExactNoOpVersusNewObservation(t *testing.T) {
 			`SELECT count(*) FROM catalog_entities WHERE id=1 AND title='Accepted Series' AND revision=2 AND metadata_revision=2`:                                                        1,
 			`SELECT proof_pin_count FROM metadata_ip_receipts WHERE command_kind='evidence_seal' AND owner_id='` + setup.first.owner.OperationID + `'`:                                   2,
 			`SELECT proof_pin_count FROM metadata_ip_receipts WHERE command_kind='evidence_seal' AND owner_id='` + setup.owner.OperationID + `'`:                                         1,
-			`SELECT count(*) FROM metadata_ip_receipts WHERE command_kind='delta' AND publication_id='publication-one' AND evidence_id='evidence-two' AND terminal=1 AND result_count=6`: 1,
-			`SELECT count(*) FROM metadata_field_origins WHERE publication_id='publication-one'`:                                                                                         6,
+			`SELECT count(*) FROM metadata_ip_receipts WHERE command_kind='delta' AND publication_id='publication-one' AND evidence_id='evidence-two' AND terminal=1 AND result_count=5`: 1,
+			`SELECT count(*) FROM metadata_field_origins WHERE publication_id='publication-one'`:                                                                                         5,
 		} {
 			if got := ipPolicyQueryInt(t, w, query); got != want {
 				t.Fatal(query, got)
@@ -391,7 +457,10 @@ func TestIPEntityDeltaExactNoOpVersusNewObservation(t *testing.T) {
 		second := ipEntityDeltaStageSecond(t, w, r, p, setup, "evidence-two", "build-two",
 			ipEntityAcceptPages(), ipEntityEvidenceDigest("evidence-two"))
 		fields := ipEntityDeltaBaseFields()
-		fields[5].Value = "Ended"
+		// The fixture's description row is locked, so only its automatic
+		// observation moves; the newer provider value still makes this a new
+		// observation rather than an exact no-op.
+		fields[2].Value = "Changed overview"
 		out, turn, tx := ipEntityDeltaApply(t, w, r, p, ipEntityDeltaCommandFor(t, second,
 			ipEntityDeltaRequestFor(t, second, setup, "publication-two", fields)))
 		if out.Outcome.State != Applied || out.Value.NoOp ||
@@ -399,6 +468,27 @@ func TestIPEntityDeltaExactNoOpVersusNewObservation(t *testing.T) {
 			t.Fatal(out)
 		}
 		ipPolicyCommitTurn(t, turn, tx)
+	})
+	// A provenance-only field (status, sortName, disambiguation, type, isbn,
+	// pageCount) has no durable accepted-value witness, so the delta cannot prove
+	// its value identical even when the sealed child cohort is byte-identical.
+	// The conservative answer is a replacement head, never a claimed no-op that
+	// could drop a changed value. SOL-INGEST owns the witness decision.
+	t.Run("provenance_only_field_cannot_prove_noop", func(t *testing.T) {
+		w, r, p, setup := ipEntityDeltaFixtureAccepting(t, ipEntityDeltaStatusFields())
+		second := ipEntityDeltaStageSecond(t, w, r, p, setup, "evidence-two", "build-two",
+			ipEntityAcceptPages(), ipEntityEvidenceDigest("evidence-two"))
+		out, turn, tx := ipEntityDeltaApply(t, w, r, p, ipEntityDeltaCommandFor(t, second,
+			ipEntityDeltaRequestFor(t, second, setup, "publication-two", ipEntityDeltaStatusFields())))
+		if out.Outcome.State != Applied || out.Value.NoOp ||
+			out.Value.PublicationID != "publication-two" ||
+			out.Value.PreviousPublicationID != "publication-one" {
+			t.Fatal(out)
+		}
+		ipPolicyCommitTurn(t, turn, tx)
+		if got := ipPolicyQueryInt(t, w, `SELECT count(*) FROM metadata_owner_fields WHERE kind='show' AND entity_id=1 AND field='status'`); got != 0 {
+			t.Fatal("provenance-only field gained a phantom owner row", got)
+		}
 	})
 	t.Run("changed_sealed_cohort_is_new", func(t *testing.T) {
 		w, r, p, setup := ipEntityDeltaFixture(t)
@@ -526,7 +616,7 @@ func TestIPEntityDeltaRollbackKeepsOldAcceptedVisibility(t *testing.T) {
 		`SELECT count(*) FROM metadata_subject_providers WHERE entity_id=1 AND accepted_publication_id='publication-one' AND accepted_evidence_id='evidence-one' AND revision=2`: 1,
 		`SELECT count(*) FROM catalog_entities WHERE id=1 AND title='Accepted Series' AND revision=2 AND metadata_revision=2`:                                                    1,
 		`SELECT count(*) FROM metadata_field_origins WHERE publication_id='publication-two'`:                                                                                     0,
-		`SELECT count(*) FROM metadata_field_origins WHERE publication_id='publication-one'`:                                                                                     6,
+		`SELECT count(*) FROM metadata_field_origins WHERE publication_id='publication-one'`:                                                                                     5,
 	} {
 		if got := ipPolicyQueryInt(t, w, query); got != want {
 			t.Fatal("delta rollback lost the old head", query, got)
@@ -927,6 +1017,71 @@ func TestIPEntityDeltaOwnerLockAndExactCohort(t *testing.T) {
 			}
 		}
 	})
+}
+
+// An UNLOCKED owner row must follow a replacement source exactly as the typed
+// ReplaceUnlocked preparation does: the effective value moves with the automatic
+// value. Before the fix accept/delta moved only automatic_value, so a restored
+// row kept A in value while the catalogue showed the new B; a real IP-24 edit
+// that correctly sent Before=B then failed the catalogue CAS with ErrConflict.
+func TestIPEntityDeltaUnlockedOwnerRowTracksReplacement(t *testing.T) {
+	w, r, p, setup := ipEntityDeltaFixture(t)
+	// The baseline accept leaves the description row locked. Model lock followed
+	// by RestoreAutomatic: an unlocked row whose effective and automatic values
+	// are both the restored value A.
+	ipPolicyExec(t, w, `UPDATE catalog_entities SET overview='Restored A' WHERE id=1`)
+	ipPolicyExec(t, w, `UPDATE metadata_owner_fields SET value='Restored A',value_present=1,automatic_value='Restored A',automatic_present=1,locked=0 WHERE kind='show' AND entity_id=1 AND field='description'`)
+	second := ipEntityDeltaStageSecond(t, w, r, p, setup, "evidence-two", "build-two",
+		ipEntityAcceptPages(), ipEntityEvidenceDigest("evidence-two"))
+	fields := ipEntityDeltaBaseFields()
+	fields[2].Value = "Provider B"
+	out, turn, tx := ipEntityDeltaApply(t, w, r, p, ipEntityDeltaCommandFor(t, second,
+		ipEntityDeltaRequestFor(t, second, setup, "publication-two", fields)))
+	if out.Outcome.State != Applied || out.Value.NoOp || out.Value.PublicationID != "publication-two" {
+		t.Fatal(out)
+	}
+	ipPolicyCommitTurn(t, turn, tx)
+	for query, want := range map[string]int64{
+		`SELECT count(*) FROM catalog_entities WHERE id=1 AND overview='Provider B'`: 1,
+		`SELECT count(*) FROM metadata_owner_fields WHERE kind='show' AND entity_id=1 AND field='description' AND value='Provider B' AND value_present=1 AND automatic_value='Provider B' AND automatic_present=1 AND locked=0`: 1,
+	} {
+		if got := ipPolicyQueryInt(t, w, query); got != want {
+			t.Fatal(query, got)
+		}
+	}
+
+	// The real IP-24/IP-25 field edit takes the row's Before cohort (B/B,
+	// unlocked). It must pass the owner CAS and the catalogue scalar CAS.
+	edit := ipTextEditRequest{Kind: IPFieldEdit, Source: ipTextEditSource{
+		EntityID: 1, Kind: "show", TargetKind: 2, LibraryID: 777, LibraryKey: "ip-library",
+		Actor: "Owner", OwnerRevision: 1, SubjectRevision: out.Value.AcceptedRevision,
+		MetadataRevision: out.Value.AcceptedRevision, SourceRevision: 1, IdentityRevision: 1,
+		MetadataIncarnation: ipEntityJobIncarnation(1),
+	}, Fields: []ipTextEditField{{Field: fieldmeta.Description,
+		Before: fieldmeta.TextState{
+			Effective: fieldmeta.Text{Value: "Provider B", Present: true},
+			Automatic: fieldmeta.Text{Value: "Provider B", Present: true},
+		},
+		Edit: fieldmeta.TextEdit{Action: fieldmeta.SetText, Value: "Owner Final"}}}}
+	cmd, err := newIPTextEditCommand(ipTextEditIdentity(1, 0x70), edit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	turn, tx, _ = ipPolicyTurn(t, w, r, IPFieldEdit)
+	applied, err := applyIPTextEdit(t.Context(), turn, p, t.Context(), ipEntryBudget{4 << 20}, cmd)
+	if err != nil || applied.Outcome.State != Applied || applied.Outcome.Replayed ||
+		applied.Value.Fields[0].Field != fieldmeta.Description || !applied.Value.Fields[0].Change.Changed {
+		t.Fatal("edit after replacement", applied, err)
+	}
+	ipTextCommit(t, turn, tx)
+	for query, want := range map[string]int64{
+		`SELECT count(*) FROM catalog_entities WHERE id=1 AND overview='Owner Final'`:                                                                                                                    1,
+		`SELECT count(*) FROM metadata_owner_fields WHERE kind='show' AND entity_id=1 AND field='description' AND value='Owner Final' AND value_present=1 AND automatic_value='Provider B' AND locked=1`: 1,
+	} {
+		if got := ipPolicyQueryInt(t, w, query); got != want {
+			t.Fatal(query, got)
+		}
+	}
 }
 
 func TestIPEntityDeltaDescriptors(t *testing.T) {

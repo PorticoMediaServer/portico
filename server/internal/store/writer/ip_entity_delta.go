@@ -463,8 +463,20 @@ func ipEntityDeltaProjectionValue(p ipEntityAcceptProjectionFacts, name string) 
 // values. A durable owner row's automatic observation is the witness for a
 // descriptive field (a lock keeps the owner's effective value in the
 // projection); the projection is the witness only when no owner row exists.
-// A non-projection field with no owner row cannot be proven identical, so it is
-// never treated as the same observation.
+// A provenance-only field (status, sortName, disambiguation, type, isbn,
+// pageCount) has NO witness: the accept bodies never create a
+// metadata_owner_fields row for those names and metadata_field_origins stores no
+// accepted value column, while the sealed cohort digest covers the child
+// families only. Such a field is therefore never treated as the same
+// observation; publishing a new head is the conservative answer, because a
+// false no-op would silently drop a changed provider value.
+//
+// SOL-INGEST decision: proving the exact no-op for these fields needs one
+// schema-backed value witness, either metadata_field_origins.value (plus a
+// value_present flag, written by ipEntityAcceptOrigins) or a
+// metadata_publication_fields(publication_id,entity_id,field,value) child table
+// written by the accept. Neither exists in the embedded or draft schema, so no
+// DDL is invented here and the conservative publish path stays in force.
 func ipEntityDeltaFieldsSame(ctx context.Context, turn *commandTurn,
 	q ipEntityDeltaRequest, before ipEntityAcceptProjectionFacts,
 	owners map[string]ipEntityAcceptOwnerFacts) (same bool, err error) {
@@ -516,6 +528,10 @@ func ipEntityDeltaFieldsSame(ctx context.Context, turn *commandTurn,
 			}
 			continue
 		}
+		// Unwitnessed provenance-only field: no owner row can exist for this
+		// name and no durable value column exists, so equality is unprovable.
+		// Publish (see the SOL-INGEST decision above) instead of claiming a
+		// no-op that could hide a changed value.
 		return false, nil
 	}
 	return true, nil
@@ -773,7 +789,7 @@ func ipEntityDeltaFresh(ctx context.Context, turn *commandTurn, identity Command
 	if revision <= before.revision {
 		return out, ErrConflict
 	}
-	if err = ipEntityAcceptOwnerFields(ctx, turn, observation); err != nil {
+	if err = ipEntityAcceptOwnerFields(ctx, turn, observation, owners); err != nil {
 		return out, err
 	}
 	if err = ipEntityAcceptOrigins(ctx, turn, observation, evidence); err != nil {

@@ -19,6 +19,7 @@ const (
 	ipPageTransition    stmt.ID = "ip.refresh.page.transition"
 	ipPagePeopleUpdate  stmt.ID = "ip.refresh.page.people_update"
 	ipPageComplete      stmt.ID = "ip.refresh.page.complete"
+	ipPageTerminal      stmt.ID = "ip.refresh.page.terminal"
 	ipPageRecord        stmt.ID = "ip.refresh.page.record"
 	ipPagePerson        stmt.ID = "ip.refresh.page.person"
 	ipPagePersonNext    stmt.ID = "ip.refresh.page.person_next"
@@ -131,6 +132,18 @@ func ipRefreshPageDefinitions() []stmt.Definition {
 			Plan:    stmt.Plan{Hot: true, PrimaryKeys: []string{"metadata_refresh_sweeps"}},
 		},
 		{
+			// A page command that arrives on a sweep which is ALREADY complete
+			// consumes only its own command sequence: revision, phase, cursor and
+			// the job lease stay exactly as the completing page saved them. The
+			// completion CAS below requires phase='people' and can never match
+			// here, and re-running it would advance the terminal revision a
+			// second time.
+			ID: ipPageTerminal, SQL: `UPDATE metadata_refresh_sweeps SET last_command_sequence=? WHERE provider=? AND purpose=? AND generation=? AND revision=? AND after_id=? AND page_from_id=? AND page_until_id=? AND page_waiting=? AND command_incarnation=? AND last_command_sequence=? AND acknowledged_command_sequence=? AND phase='complete' RETURNING revision`,
+			Params:  []stmt.Param{i("sequence"), t("provider"), t("purpose"), i("generation"), i("revision"), i("after"), i("from"), i("until"), i("waiting"), b("incarnation"), i("old_last"), i("old_ack")},
+			Cohorts: []stmt.Cohort{{Name: "completed", Bindings: []any{int64(2), "tmdb", "metadata", int64(1), int64(1), int64(0), int64(0), int64(0), int64(0), make([]byte, 16), int64(1), int64(0)}}},
+			Plan:    stmt.Plan{Hot: true, PrimaryKeys: []string{"metadata_refresh_sweeps"}},
+		},
+		{
 			ID: ipPageRecord, SQL: `INSERT INTO metadata_refresh_receipts(provider,purpose,command_incarnation,command_sequence,operation_id,request_digest,applied_ms,result_digest,command_kind,accepted_revision,generation,epoch_ms,phase,after_id,scheduled_count,page_waiting) VALUES(?,?,?,?,?,?,?,?,'page',?,?,?,?,?,?,?)`,
 			Params:  []stmt.Param{t("provider"), t("purpose"), b("incarnation"), i("sequence"), b("operation_id"), b("request_digest"), i("applied_ms"), b("result_digest"), i("accepted_revision"), i("generation"), i("epoch_ms"), t("phase"), i("after"), i("scheduled"), i("waiting")},
 			Cohorts: []stmt.Cohort{{Name: "saved", Bindings: []any{"tmdb", "metadata", make([]byte, 16), int64(2), make([]byte, 16), make([]byte, 32), int64(1), make([]byte, 32), int64(2), int64(1), int64(1), "entities", int64(1), int64(1), int64(1)}}},
@@ -160,7 +173,7 @@ func ipRefreshPageDefinitions() []stmt.Definition {
 	for n := range defs {
 		defs[n].Kind = stmt.Read
 		switch defs[n].ID {
-		case ipPageSchedule, ipPageUpdate, ipPageTransition, ipPagePeopleUpdate, ipPageComplete, ipPageRecord:
+		case ipPageSchedule, ipPageUpdate, ipPageTransition, ipPagePeopleUpdate, ipPageComplete, ipPageTerminal, ipPageRecord:
 			defs[n].Kind = stmt.Write
 		}
 		defs[n].Owner = "store/writer IP refresh page"
