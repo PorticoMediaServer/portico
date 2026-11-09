@@ -435,13 +435,16 @@ CREATE TABLE users (
   updated_at          INTEGER NOT NULL
 ) STRICT;
 
--- Viewing profiles. access_changed_at moves whenever what the profile may see changes, and
+-- Viewing profiles. Each account has one main profile (is_primary), made with the account: it
+-- cannot be deleted, and only it carries the account's owner or admin role. access_changed_at moves whenever what the profile may see changes, and
 -- clients throw their cache away. history_cleared_at drops older offline progress.
 CREATE TABLE profiles (
   id                 INTEGER NOT NULL PRIMARY KEY,
   public_id          TEXT    NOT NULL UNIQUE,
   user_id            INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   name               TEXT    NOT NULL,
+  color              TEXT    NOT NULL DEFAULT 'blue',
+  is_primary         INTEGER NOT NULL DEFAULT 0 CHECK (is_primary IN (0, 1)),
   position           INTEGER NOT NULL DEFAULT 0,
   pin_hash           TEXT,
   max_rating_age     INTEGER,
@@ -456,6 +459,7 @@ CREATE TABLE profiles (
   updated_at         INTEGER NOT NULL
 ) STRICT;
 CREATE INDEX profiles_user ON profiles (user_id, position);
+CREATE UNIQUE INDEX profiles_primary ON profiles (user_id) WHERE is_primary = 1;
 
 -- One row per app install or browser. client_id is the id the app made for itself.
 CREATE TABLE devices (
@@ -493,9 +497,10 @@ CREATE TABLE profile_restrictions (
 ) STRICT, WITHOUT ROWID;
 CREATE INDEX profile_restrictions_tag ON profile_restrictions (tag_id);
 
--- One row per sign-in. The refresh token rotates on each renewal. The previous token's request
--- id and sealed reply are kept briefly so a renewal whose reply was lost can be repeated;
--- any other use of an old token revokes the session.
+-- One row per sign-in. The refresh token rotates on each renewal. The previous token's hash and
+-- the request id it was renewed with are kept until the next renewal, so a renewal whose reply
+-- was lost can be repeated; any other use of an old token revokes the session. profile_id is
+-- NULL until a profile is selected.
 CREATE TABLE sessions (
   id                    INTEGER NOT NULL PRIMARY KEY,
   public_id             TEXT    NOT NULL UNIQUE,
@@ -506,7 +511,6 @@ CREATE TABLE sessions (
   refresh_hash          TEXT    NOT NULL UNIQUE,
   previous_refresh_hash TEXT,
   previous_request_id   TEXT,
-  previous_reply        BLOB,
   previous_at           INTEGER,
   token_generation      INTEGER NOT NULL DEFAULT 1,
   created_at            INTEGER NOT NULL,
@@ -519,7 +523,6 @@ CREATE TABLE sessions (
 CREATE INDEX sessions_user ON sessions (user_id);
 CREATE INDEX sessions_profile ON sessions (profile_id) WHERE profile_id IS NOT NULL;
 CREATE INDEX sessions_device ON sessions (device_id);
-CREATE INDEX sessions_previous ON sessions (previous_refresh_hash) WHERE previous_refresh_hash IS NOT NULL;
 
 -- Every short-lived single-use secret: password reset, TV sign-in code, two-step challenge,
 -- recovery code. Redeeming is one UPDATE ... WHERE used_at IS NULL, so exactly one caller wins.

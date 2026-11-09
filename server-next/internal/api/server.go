@@ -27,14 +27,16 @@ const maxBody = 64 << 10
 
 // Server answers the API from one database.
 type Server struct {
-	db      *db.DB
-	tokens  *auth.Tokens
-	log     *slog.Logger
-	mux     *http.ServeMux
-	version string
-	id      string
-	routes  []Route
-	now     func() time.Time
+	db     *db.DB
+	tokens *auth.Tokens
+	// passwords is replaced by tests with a cheap hasher.
+	passwords *auth.Passwords
+	log       *slog.Logger
+	mux       *http.ServeMux
+	version   string
+	id        string
+	routes    []Route
+	now       func() time.Time
 }
 
 // Route is one operation, kept so the contract can be generated and the operation budget counted.
@@ -61,6 +63,13 @@ const (
 	Owner
 )
 
+// Page is the answer of every list route. NextCursor is absent on the last page; a list
+// short enough to come whole never has one.
+type Page[T any] struct {
+	Items      []T    `json:"items"`
+	NextCursor string `json:"nextCursor,omitempty"`
+}
+
 // None is the request type of a route with no body, and the response type of one that answers 204.
 type None struct{}
 
@@ -78,8 +87,12 @@ func New(ctx context.Context, d *db.DB, version string, log *slog.Logger) (*Serv
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{db: d, tokens: tokens, log: log, mux: http.NewServeMux(), version: version, id: id, now: time.Now}
+	s := &Server{db: d, tokens: tokens, log: log, mux: http.NewServeMux(), version: version, id: id, now: time.Now,
+		passwords: auth.NewPasswords(auth.PasswordCost, auth.PINCost)}
 	s.systemRoutes()
+	s.authRoutes()
+	s.profileRoutes()
+	s.deviceRoutes()
 	return s, nil
 }
 
@@ -119,7 +132,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.mux.ServeHTTP(probe, r)
 		if probe.status == http.StatusMethodNotAllowed {
 			w.Header().Set("Allow", probe.Header().Get("Allow"))
-			s.writeError(w, r, refusal(http.StatusMethodNotAllowed, "method_not_allowed", "This address does not take that method.", RetryNever))
+			s.writeError(w, r, refusal(http.StatusMethodNotAllowed, "method_not_allowed", "This address does not take that method.", false))
 			return
 		}
 		s.writeError(w, r, ErrNotFound())
@@ -177,8 +190,8 @@ func Handle[Req, Resp any](s *Server, pattern string, access Access, fn func(r *
 	})
 }
 
-// readBody reads a bounded JSON body into out. Unknown fields are refused, so a typing
-// mistake is not silently ignored; /v1/system tells an app what this server understands.
+// readBody reads a bounded JSON body into out. Fields this server does not know are ignored,
+// so a newer app can talk to an older server; /v1/system says what the server understands.
 func readBody(w http.ResponseWriter, r *http.Request, out any, noBody bool) error {
 	body := http.MaxBytesReader(w, r.Body, maxBody)
 	if noBody {
@@ -188,18 +201,13 @@ func readBody(w http.ResponseWriter, r *http.Request, out any, noBody bool) erro
 		return nil
 	}
 	if kind, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type")); kind != "application/json" {
-		return refusal(http.StatusUnsupportedMediaType, "unsupported_media_type", "Send the request as application/json.", RetryNever)
+		return refusal(http.StatusUnsupportedMediaType, "unsupported_media_type", "Send the request as application/json.", false)
 	}
 	dec := json.NewDecoder(body)
-	dec.DisallowUnknownFields()
 	if err := dec.Decode(out); err != nil {
 		var tooBig *http.MaxBytesError
 		if errors.As(err, &tooBig) {
-			return refusal(http.StatusRequestEntityTooLarge, "body_too_large", "The request is too large.", RetryNever)
-		}
-		if field, ok := strings.CutPrefix(err.Error(), "json: unknown field "); ok {
-			return ErrInvalid("Check the request and try again.",
-				Field{Path: strings.Trim(field, `"`), Code: "unknown_field", Message: "This field is not recognized."})
+			return refusal(http.StatusRequestEntityTooLarge, "body_too_large", "The request is too large.", false)
 		}
 		return ErrInvalid("The request body is not valid JSON for this request.")
 	}
@@ -216,7 +224,7 @@ func (s *Server) writeError(w http.ResponseWriter, r *http.Request, err error) {
 		if !errors.Is(err, context.Canceled) {
 			s.log.Error("request failed", "requestId", RequestID(r.Context()), "method", r.Method, "path", r.URL.Path, "error", err)
 		}
-		e = refusal(http.StatusInternalServerError, "internal", "The request could not be completed.", RetryNever)
+		e = refusal(http.StatusInternalServerError, "internal", "The request could not be completed.", false)
 	}
 	out := *e
 	out.RequestID = RequestID(r.Context())
@@ -258,7 +266,9 @@ func (s *Server) admit(r *http.Request, access Access) (*http.Request, error) {
 		return r, ErrUnauthorized()
 	}
 	claims, err := s.tokens.CheckAccess(token, s.now())
-	if err != nil {
+	// A token of a session that has since been ended, or whose profile or role has changed,
+	// is refused although it has not expired. The app renews and carries on, or signs in.
+	if err != nil || s.db.TokenRefused(claims.SessionID, db.TokenStamp{Boot: claims.Boot, Seq: claims.Seq}) {
 		return r, ErrUnauthorized()
 	}
 	c := Caller{SessionID: claims.SessionID, UserID: claims.UserID, ProfileID: claims.ProfileID, Role: claims.Role, Manage: claims.Manage}

@@ -31,7 +31,7 @@ func (s *Server) systemRoutes() {
 	Handle(s, "GET /v1/health/ready", Public, func(r *http.Request, _ None) (Health, error) {
 		if err := s.db.Ping(r.Context()); err != nil {
 			s.log.Error("readiness check failed", "error", err)
-			e := refusal(http.StatusServiceUnavailable, "not_ready", "The server is not ready yet.", RetrySame)
+			e := refusal(http.StatusServiceUnavailable, "not_ready", "The server is not ready yet.", true)
 			e.RetryAfterMs = 1000
 			return Health{}, e
 		}
