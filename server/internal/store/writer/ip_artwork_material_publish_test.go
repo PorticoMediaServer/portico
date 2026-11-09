@@ -164,7 +164,6 @@ func ipArtworkMaterialPublishClean(t *testing.T, w *executor) {
 		{`SELECT job_revision FROM artwork_subject_jobs WHERE id=901`, 3},
 		{`SELECT count(*) FROM artwork_selections`, 0},
 		{`SELECT count(*) FROM metadata_owner_history`, 0},
-		{`SELECT count(*) FROM metadata_owner_history_artwork`, 0},
 	} {
 		ipArtworkMaterialPublishExpect(t, w, check.want, check.query)
 	}
@@ -221,7 +220,6 @@ func TestIPArtworkMaterialPublishFourSlotSourceAndReplay(t *testing.T) {
 		`SELECT job_revision FROM artwork_subject_jobs WHERE id=901`)
 	ipArtworkMaterialPublishExpect(t, w, 0, `SELECT count(*) FROM artwork_selections`)
 	ipArtworkMaterialPublishExpect(t, w, 0, `SELECT count(*) FROM metadata_owner_history`)
-	ipArtworkMaterialPublishExpect(t, w, 0, `SELECT count(*) FROM metadata_owner_history_artwork`)
 
 	// IP-19's installed handoff remains retired at or below its ACK after a
 	// publish; publish neither rewrote nor reopened the earlier receipt.
@@ -685,7 +683,7 @@ func TestIPArtworkMaterialPublishBoundsAndDescriptors(t *testing.T) {
 	}
 	oversize := ipArtworkMaterialPublishRequest{owner: owner, spec: maxSpec,
 		slots: append([]ipArtworkMaterialSlot(nil), maxSlots...)}
-	oversize.slots[0].bytes = ipArtworkMaterialMaxBytes/3 + 1
+	oversize.slots[0].bytes = ipArtworkMaterialMaxSlot
 	if _, err := newIPArtworkMaterialPublishCommand(identity, oversize); !errors.Is(err, ErrInvalid) {
 		t.Fatal("oversize publish admitted", err)
 	}

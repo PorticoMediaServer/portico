@@ -349,7 +349,7 @@ func writeIPEntitySealManifest(e *requestEncoder, q ipEntitySealRequest, shape, 
 // ipEntitySealManifestCommitment is the complete manifest identity and its
 // canonical byte measure. It is inert data, never a request or result digest.
 func ipEntitySealManifestCommitment(q ipEntitySealRequest, shape, chain [32]byte, rows int64) ([32]byte, int64, error) {
-	measure := requestEncoder{path: make(map[uintptr]bool)}
+	measure := requestEncoder{h: sha256.New(), path: make(map[uintptr]bool)}
 	writeIPEntitySealManifest(&measure, q, shape, chain, rows)
 	if measure.err != nil || measure.written == 0 || measure.written > math.MaxInt64 {
 		return [32]byte{}, 0, ErrInvalid
