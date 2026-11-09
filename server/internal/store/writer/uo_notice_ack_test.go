@@ -513,7 +513,7 @@ func TestUONoticeAckRollbackAfterPrefix(t *testing.T) {
 			}
 			turn := wc008NativeTurn(t, w, AcknowledgeNotices, defs)
 			if failure == "revision-overflow" {
-				if _, err := turn.transaction.conn.ExecContext(t.Context(), `INSERT INTO notification_revision(singleton,value) VALUES(1,?)`, int64(math.MaxInt64)); err != nil {
+				if _, err := turn.transaction.conn.ExecContext(t.Context(), `INSERT INTO notification_revision(singleton,value) VALUES(1,?) ON CONFLICT(singleton) DO UPDATE SET value=excluded.value`, int64(math.MaxInt64)); err != nil {
 					t.Fatal(err)
 				}
 			}

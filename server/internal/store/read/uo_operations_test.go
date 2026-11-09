@@ -21,7 +21,7 @@ func newUOOperationsFixture(t *testing.T) (*browseFixture, *ForegroundReader) {
 	return f, r
 }
 
-func uoOperationsRead(t *testing.T, f *browseFixture, r *ForegroundReader, in UOOperationsInput) (UOOperationsPage, BrowseReadResult, error) {
+func uoOperationsTestRead(t *testing.T, f *browseFixture, r *ForegroundReader, in UOOperationsInput) (UOOperationsPage, BrowseReadResult, error) {
 	t.Helper()
 	if in.View.Kind == 0 {
 		in.View.Kind = 1
@@ -48,7 +48,7 @@ func TestUOOperationsConflictsAndDevicesAreOwnAndBounded(t *testing.T) {
 		if pages > 10 {
 			t.Fatal("conflict cursor did not terminate")
 		}
-		page, result, err := uoOperationsRead(t, f, r, in)
+		page, result, err := uoOperationsTestRead(t, f, r, in)
 		if err != nil || result.Refusal != nil {
 			t.Fatalf("conflicts %v %+v", err, result)
 		}
@@ -97,7 +97,7 @@ func TestUOOperationsConflictsAndDevicesAreOwnAndBounded(t *testing.T) {
 		if pages > 10 {
 			t.Fatal("device cursor did not terminate")
 		}
-		page, _, err := uoOperationsRead(t, f, r, in)
+		page, _, err := uoOperationsTestRead(t, f, r, in)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -123,25 +123,25 @@ func TestUOOperationsJobsPointAndDue(t *testing.T) {
 	f.exec(t, `INSERT INTO personal_jobs(id,profile_id,operation_id,request_hash,principal,selector,args,state,created_ms,updated_ms) VALUES('job-q','q','op-q','hash','q','selector','{}','queued',1,2)`)
 	in := uoOperationsInput(f, UOOperationsJobs)
 	in.JobID = "job-a"
-	page, _, err := uoOperationsRead(t, f, r, in)
+	page, _, err := uoOperationsTestRead(t, f, r, in)
 	if err != nil || len(page.Jobs) != 1 || page.Jobs[0].ID != "job-a" || page.Jobs[0].State != "queued" || page.Jobs[0].Due {
 		t.Fatalf("job point %+v %v", page, err)
 	}
 	// Another profile's job id is not readable through this point.
 	in.JobID = "job-q"
-	if page, result, err := uoOperationsRead(t, f, r, in); !errors.Is(err, ErrDenied) || result.LookupStatements == 0 || !reflect.DeepEqual(page, UOOperationsPage{}) {
+	if page, result, err := uoOperationsTestRead(t, f, r, in); !errors.Is(err, ErrDenied) || result.LookupStatements == 0 || !reflect.DeepEqual(page, UOOperationsPage{}) {
 		t.Fatalf("foreign job point %+v %+v %v", page, result, err)
 	}
 	f.exec(t, `UPDATE personal_jobs SET job_next_attempt_ms=1000 WHERE id='job-a'`)
 	in = uoOperationsInput(f, UOOperationsJobDue)
-	due, _, err := uoOperationsRead(t, f, r, in)
+	due, _, err := uoOperationsTestRead(t, f, r, in)
 	if err != nil || len(due.Jobs) != 1 || due.Jobs[0].ID != "job-a" || !due.Jobs[0].Due || !due.Jobs[0].Runnable || due.More {
 		t.Fatalf("due job %+v %v", due, err)
 	}
 	// A second, earlier due job is the single returned candidate and is reported
 	// as more work without letting the claimant choose a priority.
 	f.exec(t, `INSERT INTO personal_jobs(id,profile_id,operation_id,request_hash,principal,selector,args,state,created_ms,updated_ms,job_next_attempt_ms) VALUES('job-b','p','op-b','hash','p','selector','{}','queued',1,2,500)`)
-	due, _, err = uoOperationsRead(t, f, r, in)
+	due, _, err = uoOperationsTestRead(t, f, r, in)
 	if err != nil || len(due.Jobs) != 1 || due.Jobs[0].ID != "job-b" || !due.More {
 		t.Fatalf("due priority %+v %v", due, err)
 	}
@@ -158,7 +158,7 @@ func TestUOOperationsSettingsAdminFenceAndPendingKeyset(t *testing.T) {
 	in.View.Limit = 30
 	// The fixture principal is a member; ordinary server settings require current
 	// owner/admin authority at both fences.
-	if page, result, err := uoOperationsRead(t, f, r, in); !errors.Is(err, ErrDenied) || result.LookupStatements == 0 || !reflect.DeepEqual(page, UOOperationsPage{}) {
+	if page, result, err := uoOperationsTestRead(t, f, r, in); !errors.Is(err, ErrDenied) || result.LookupStatements == 0 || !reflect.DeepEqual(page, UOOperationsPage{}) {
 		t.Fatalf("member read settings %+v %+v %v", page, result, err)
 	}
 	f.exec(t, `UPDATE direct_memberships SET role='admin' WHERE account_id='a'`)
@@ -167,7 +167,7 @@ func TestUOOperationsSettingsAdminFenceAndPendingKeyset(t *testing.T) {
 		if pages > 10 {
 			t.Fatal("settings cursor did not terminate")
 		}
-		page, _, err := uoOperationsRead(t, f, r, in)
+		page, _, err := uoOperationsTestRead(t, f, r, in)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -189,6 +189,9 @@ func TestUOOperationsSettingsAdminFenceAndPendingKeyset(t *testing.T) {
 
 func TestUOOperationsDeliveryLogBoundsAndNoSecrets(t *testing.T) {
 	f, r := newUOOperationsFixture(t)
+	// The delivery log is an admin/owner operational read; the fixture principal
+	// starts as a member.
+	f.exec(t, `UPDATE direct_memberships SET role='admin' WHERE account_id='a'`)
 	f.exec(t, `INSERT INTO webhooks(id,name,url,secret,events,created_ms,updated_ms) VALUES('w','Webhook','https://secret.invalid/hook','top-secret','[]',1,1)`)
 	for i := 1; i <= 70; i++ {
 		state := "delivered"
@@ -206,7 +209,7 @@ func TestUOOperationsDeliveryLogBoundsAndNoSecrets(t *testing.T) {
 		if pages > 10 {
 			t.Fatal("delivery cursor did not terminate")
 		}
-		page, _, err := uoOperationsRead(t, f, r, in)
+		page, _, err := uoOperationsTestRead(t, f, r, in)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -240,12 +243,12 @@ func TestUOOperationsDeliveryLogBoundsAndNoSecrets(t *testing.T) {
 	f.exec(t, `UPDATE webhook_deliveries SET error=? WHERE id='delivery-070'`, strings.Repeat("e", 600))
 	in = uoOperationsInput(f, UOOperationsDeliveryLog)
 	in.Webhook = "w"
-	if page, result, err := uoOperationsRead(t, f, r, in); !errors.Is(err, ErrUnqualified) || result.LookupStatements == 0 || !reflect.DeepEqual(page, UOOperationsPage{}) {
+	if page, result, err := uoOperationsTestRead(t, f, r, in); !errors.Is(err, ErrUnqualified) || result.LookupStatements == 0 || !reflect.DeepEqual(page, UOOperationsPage{}) {
 		t.Fatalf("hostile delivery error released %+v %+v %v", page, result, err)
 	}
 	// The delivery log is not readable without its exact current webhook gate.
 	in.Webhook = "missing"
-	if page, _, err := uoOperationsRead(t, f, r, in); !errors.Is(err, ErrDenied) || !reflect.DeepEqual(page, UOOperationsPage{}) {
+	if page, _, err := uoOperationsTestRead(t, f, r, in); !errors.Is(err, ErrDenied) || !reflect.DeepEqual(page, UOOperationsPage{}) {
 		t.Fatalf("missing webhook gate %+v %v", page, err)
 	}
 }
@@ -254,7 +257,7 @@ func TestUOOperationsHostilePayloadAndProducerRefusal(t *testing.T) {
 	f, r := newUOOperationsFixture(t)
 	f.exec(t, `INSERT INTO personal_conflicts(id,profile_id,item_id,field,base_revision,base_value,resolved) VALUES('big','p',1,'watched',1,?,0)`, strings.Repeat("v", 5000))
 	in := uoOperationsInput(f, UOOperationsConflicts)
-	if page, result, err := uoOperationsRead(t, f, r, in); !errors.Is(err, ErrUnqualified) || result.LookupStatements == 0 || !reflect.DeepEqual(page, UOOperationsPage{}) {
+	if page, result, err := uoOperationsTestRead(t, f, r, in); !errors.Is(err, ErrUnqualified) || result.LookupStatements == 0 || !reflect.DeepEqual(page, UOOperationsPage{}) {
 		t.Fatalf("hostile conflict value released %+v %+v %v", page, result, err)
 	}
 	// UO-08 outcome rows have no producer yet and are refused by name.
@@ -282,7 +285,7 @@ func TestUOOperationsInvalidInput(t *testing.T) {
 		if in.Family == UOOperationsConflicts {
 			in.View.Library = 1
 		}
-		page, result, err := uoOperationsRead(t, f, r, in)
+		page, result, err := uoOperationsTestRead(t, f, r, in)
 		if !errors.Is(err, ErrInput) || result.LookupStatements != 0 || !reflect.DeepEqual(page, UOOperationsPage{}) {
 			t.Fatalf("invalid operations ran %+v %+v %v", in, page, err)
 		}

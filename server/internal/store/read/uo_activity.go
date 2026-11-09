@@ -183,13 +183,15 @@ func (r *ForegroundReader) activityWindow(ctx context.Context, request governor.
 		return UOActivityPage{}, BrowseReadResult{}, &UOProducerPending{Task: "UO-05", Source: "effective watched overlay"}
 	}
 	base := "foreground.uo.activity." + in.Family.activityName()
-	// The shared publication helper re-reads this exact root in its fresh final
-	// snapshot. It reserves the actual bounded payload octets BEFORE any payload
-	// query and compares the exact rows at publication.
+	// The shared publication helper re-reads this exact generation root in its
+	// fresh final snapshot. The shared fence plus this head root already use the
+	// eight calls of one snapshot, so the exact octet preflight and its matching
+	// payload each carry a window of their own. Every payload row is still
+	// compared with the octets reserved before it was read.
 	var head UOActivityHead
-	var sizes, rows [][]any
+	var sizes, sizesTail, rows [][]any
 	root := func(q browseQuery) ([]any, error) {
-		sizes, rows, head = nil, nil, UOActivityHead{}
+		head = UOActivityHead{}
 		heads, e := q("read.uo.activity.head", in.View.TokenHash)
 		if e != nil {
 			return nil, e
@@ -201,104 +203,107 @@ func (r *ForegroundReader) activityWindow(ctx context.Context, request governor.
 		if e != nil {
 			return nil, e
 		}
-		var sizesTail, rowsTail [][]any
-		if in.After == nil {
-			sizes, e = q(base+".first.bytes", in.View.TokenHash, int64(MaxRaw+1))
-			if e != nil {
-				return nil, e
-			}
-			if err := uoActivityReserve(output, sizes); err != nil {
-				return nil, err
-			}
-			rows, e = q(base+".first", in.View.TokenHash, int64(MaxRaw+1))
-		} else {
-			sizes, e = q(base+".same.bytes", in.View.TokenHash, in.After.at, in.After.public[:], int64(MaxRaw+1))
-			if e != nil {
-				return nil, e
-			}
-			if len(sizes) < MaxRaw+1 {
-				sizesTail, e = q(base+".older.bytes", in.View.TokenHash, in.After.at, int64(MaxRaw+1-len(sizes)))
-				if e != nil {
-					return nil, e
-				}
-				sizes = append(sizes, sizesTail...)
-			}
-			if err := uoActivityReserve(output, sizes); err != nil {
-				return nil, err
-			}
-			n := len(sizes)
-			rows, e = q(base+".same", in.View.TokenHash, in.After.at, in.After.public[:], int64(n))
-			if e != nil {
-				return nil, e
-			}
-			if len(sizesTail) > 0 {
-				rowsTail, e = q(base+".older", in.View.TokenHash, in.After.at, int64(len(sizesTail)))
-				if e != nil {
-					return nil, e
-				}
-			}
-			rows = append(rows, rowsTail...)
-		}
-		if e != nil {
-			return nil, e
-		}
-		if len(rows) != len(sizes) {
-			return nil, ErrStale
-		}
 		// The head is part of the same snapshot even when it is absent.
 		headRows := []any{int64(0), int64(0), int64(0), int64(0), int64(0), int64(0)}
 		if head.Exists {
 			headRows[0] = int64(1)
 		}
 		headRows[1], headRows[2], headRows[3], headRows[4], headRows[5] = head.Revision, head.ActivityGeneration, head.RecommendationGeneration, head.HistoryCutoff, head.ActionSequence
-		source := append([]any(nil), headRows...)
-		for i, row := range rows {
-			check := uoActivityCheckSizes
-			if in.Family == UOActivityHistory {
-				check = uoActivityHistoryCheckSizes
-			}
-			if e := check(row, sizes[i]); e != nil {
-				return nil, e
-			}
-			source = append(source, row...)
-		}
-		return source, nil
+		return headRows, nil
 	}
-	steps := []readStep[UOActivityPage]{func(ctx context.Context, _ browseQuery, f browseFence, draft *UOActivityPage) error {
-		if in.After != nil && (in.After.fence != f || in.After.family != in.Family || in.After.head != head) {
-			return ErrStale
-		}
-		draft.Head = head
-		draft.RawRows = len(rows)
-		for _, row := range rows {
-			if e := ctx.Err(); e != nil {
-				return e
+	allSizes := func() [][]any {
+		out := append([][]any(nil), sizes...)
+		return append(out, sizesTail...)
+	}
+	steps := []readStep[UOActivityPage]{
+		func(ctx context.Context, q browseQuery, f browseFence, _ *UOActivityPage) error {
+			if in.After != nil && (in.After.fence != f || in.After.family != in.Family || in.After.head != head) {
+				return ErrStale
 			}
-			cursor, e := uoActivityCursorValue(in.Family, row)
+			var e error
+			sizes, sizesTail = nil, nil
+			if in.After == nil {
+				sizes, e = q(base+".first.bytes", in.View.TokenHash, int64(MaxRaw+1))
+			} else {
+				sizes, e = q(base+".same.bytes", in.View.TokenHash, in.After.at, in.After.public[:], int64(MaxRaw+1))
+			}
 			if e != nil {
 				return e
 			}
-			cursor.fence, cursor.head = f, head
-			draft.Next = cursor
-			draft.RawPositions++
-			item, ok, e := uoActivityItem(in, f, head, row)
+			if in.After == nil || len(sizes) >= MaxRaw+1 {
+				return uoActivityReserve(output, sizes)
+			}
+			return nil
+		},
+		func(ctx context.Context, q browseQuery, _ browseFence, _ *UOActivityPage) error {
+			if in.After == nil || len(sizesTail) > 0 || len(sizes) >= MaxRaw+1 {
+				return nil
+			}
+			tail, e := q(base+".older.bytes", in.View.TokenHash, in.After.at, int64(MaxRaw+1-len(sizes)))
 			if e != nil {
 				return e
 			}
-			if !ok {
-				continue
+			sizesTail = tail
+			return uoActivityReserve(output, allSizes())
+		},
+		func(ctx context.Context, q browseQuery, f browseFence, draft *UOActivityPage) error {
+			var sameRows, tailRows [][]any
+			var e error
+			if in.After == nil {
+				sameRows, e = q(base+".first", in.View.TokenHash, int64(len(sizes)))
+			} else {
+				sameRows, e = q(base+".same", in.View.TokenHash, in.After.at, in.After.public[:], int64(len(sizes)+len(sizesTail)))
+				if e == nil && len(sizesTail) > 0 {
+					tailRows, e = q(base+".older", in.View.TokenHash, in.After.at, int64(len(sizesTail)))
+				}
 			}
-			draft.Items = append(draft.Items, item)
-			if len(draft.Items) == in.View.Limit {
-				break
+			if e != nil {
+				return e
 			}
-		}
-		draft.Exhausted = draft.RawPositions == len(rows) && len(rows) < MaxRaw+1
-		if draft.Exhausted {
-			draft.Next = nil
-		}
-		return nil
-	}}
+			rows = append(append([][]any(nil), sameRows...), tailRows...)
+			sizes = allSizes()
+			if len(rows) != len(sizes) {
+				return ErrStale
+			}
+			draft.Head = head
+			draft.RawRows = len(rows)
+			for i, row := range rows {
+				if e := ctx.Err(); e != nil {
+					return e
+				}
+				check := uoActivityCheckSizes
+				if in.Family == UOActivityHistory {
+					check = uoActivityHistoryCheckSizes
+				}
+				if e := check(row, sizes[i]); e != nil {
+					return e
+				}
+				cursor, e := uoActivityCursorValue(in.Family, row)
+				if e != nil {
+					return e
+				}
+				cursor.fence, cursor.head = f, head
+				draft.Next = cursor
+				draft.RawPositions++
+				item, ok, e := uoActivityItem(in, f, head, row)
+				if e != nil {
+					return e
+				}
+				if !ok {
+					continue
+				}
+				draft.Items = append(draft.Items, item)
+				if len(draft.Items) == in.View.Limit {
+					break
+				}
+			}
+			draft.Exhausted = draft.RawPositions == len(rows) && len(rows) < MaxRaw+1
+			if draft.Exhausted {
+				draft.Next = nil
+			}
+			return nil
+		},
+	}
 	page, result, err = publishRead(ctx, r.snapshots, request, budget, output, in.View, steps, root)
 	if err == nil {
 		page.Statements = result.LookupStatements + result.PublicationStatements
@@ -399,17 +404,24 @@ func uoActivityHistoryCheckSizes(row, size []any) error {
 }
 
 func uoActivityCursorValue(f UOActivityFamily, row []any) (*UOActivityCursor, error) {
+	cursor := &UOActivityCursor{family: f}
+	if f == UOActivityHistory {
+		id, ok := row[0].(int64)
+		if !ok || id <= 0 {
+			return nil, ErrUnqualified
+		}
+		at, ok := row[1].(string)
+		if !ok || at == "" {
+			return nil, ErrUnqualified
+		}
+		cursor.id, cursor.at = id, at
+		return cursor, nil
+	}
 	public, ok := row[0].([]byte)
 	if !ok || len(public) != 16 {
 		return nil, ErrUnqualified
 	}
-	cursor := &UOActivityCursor{family: f}
 	copy(cursor.public[:], public)
-	if f == UOActivityHistory {
-		cursor.id = row[0].(int64)
-		cursor.at = row[1].(string)
-		return cursor, nil
-	}
 	cursor.at = row[17].(string)
 	return cursor, nil
 }
@@ -523,14 +535,25 @@ func uoActivityHistoryItem(in UOActivityInput, f browseFence, head UOActivityHea
 		return UOActivityItem{}, false, nil
 	}
 	var out UOActivityItem
-	for i, dst := range []*int64{&out.Position, &out.PlayedMS, &out.ActivityGeneration, &out.AcceptedSequence} {
+	for i, dst := range []*int64{&out.Position, &out.PlayedMS} {
 		n, ok := row[5+i].(int64)
 		if !ok || n < 0 {
 			return UOActivityItem{}, false, ErrUnqualified
 		}
 		*dst = n
 	}
-	out.Completed = row[7].(int64) != 0
+	completed, ok := row[7].(int64)
+	if !ok || completed < 0 {
+		return UOActivityItem{}, false, ErrUnqualified
+	}
+	out.Completed = completed != 0
+	for i, dst := range []*int64{&out.ActivityGeneration, &out.AcceptedSequence} {
+		n, ok := row[8+i].(int64)
+		if !ok || n < 0 {
+			return UOActivityItem{}, false, ErrUnqualified
+		}
+		*dst = n
+	}
 	if out.ActivityGeneration <= 0 {
 		return UOActivityItem{}, false, nil
 	}
