@@ -474,12 +474,25 @@ func TestUORootReclaimCurrentProofSameTurn(t *testing.T) {
 // TestUORootReclaimReleaseDenialReplacesBody proves a release-time identity
 // denial replaces the completed body and rolls the whole prefix back. A
 // draining state alone is not a denial on the 654 maintenance path; these
-// changed/missing roots still are.
+// changed/missing roots still are. The dispatcher now calls the 654-only
+// maintenance release, so that is the helper exercised here.
 func TestUORootReclaimReleaseDenialReplacesBody(t *testing.T) {
 	changes := map[string]func(t *testing.T, turn *commandTurn, root string){
 		"account": func(t *testing.T, turn *commandTurn, root string) {
 			t.Helper()
 			if _, err := turn.transaction.conn.ExecContext(t.Context(), `UPDATE user_mutation_roots SET account_id='other-account' WHERE id=?`, root); err != nil {
+				t.Fatal(err)
+			}
+		},
+		"profile": func(t *testing.T, turn *commandTurn, root string) {
+			t.Helper()
+			if _, err := turn.transaction.conn.ExecContext(t.Context(), `UPDATE user_mutation_roots SET profile_id='other-profile' WHERE id=?`, root); err != nil {
+				t.Fatal(err)
+			}
+		},
+		"family": func(t *testing.T, turn *commandTurn, root string) {
+			t.Helper()
+			if _, err := turn.transaction.conn.ExecContext(t.Context(), `UPDATE user_mutation_roots SET family_id='other-family' WHERE id=?`, root); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -532,7 +545,7 @@ func TestUORootReclaimReleaseDenialReplacesBody(t *testing.T) {
 			// The same helper the dispatcher calls must deny and the caller must
 			// withdraw.
 			change(t, turn, root)
-			if err := uoRootReclaimRelease(t.Context(), turn, proof, root, receiptFresh); !errors.Is(err, ErrUORootGone) {
+			if err := uoRootReclaimMaintenanceRelease(t.Context(), turn, proof, root, receiptFresh); !errors.Is(err, ErrUORootGone) {
 				t.Fatal("release denial missed", err)
 			}
 			if _, err := turn.transaction.rollback(nil); err != nil {

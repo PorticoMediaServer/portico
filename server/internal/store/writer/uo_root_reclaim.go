@@ -21,7 +21,11 @@ import (
 //
 // SOL-USERS ruling 1 maintenance exception: because ACK can still advance the
 // floor of a draining root, this closed reclaim path (and this path only) may
-// run a Fresh 654 on an active OR draining root. It removes at most the selected
+// run a Fresh 654 on an active OR draining root. That admission lives ONLY in
+// uoRootReclaimMaintenanceRelease, which refuses every descriptor except 654
+// before it reads anything; the shared uoRootReclaimRelease keeps UO-01's
+// original active-only Fresh rule. Sabotaging a Fresh 600 through the shared
+// helper must still end ErrUORootGone. The cleanup removes at most the selected
 // ACK-floor-eligible child, refunds only its actual deleted bytes, writes only
 // the fixed <=4096 slot/cursor/protocol metadata and never advances ACK. It
 // widens no domain Fresh rule: every other purpose still treats draining as
@@ -50,19 +54,50 @@ func uoRootProofCurrent(proof *uoRootCurrentProof, turn *commandTurn) (*uoRootBi
 }
 
 // uoRootReclaimFreshState is the SOL-USERS ruling 1 maintenance exception,
-// scoped to this closed 654 reclaim path only: a Fresh cleanup may run while the
+// scoped to the closed 654 reclaim path: a Fresh cleanup may run while the
 // root is active OR draining. It grants no new root, identity, lifetime or
-// incarnation; the caller has already re-proved all of those. Every ordinary
-// domain purpose keeps UO-01's generic rule (draining = replay only).
+// incarnation; the caller has already re-proved all of those. It is consulted
+// ONLY by the 654 reclaim lookup and by uoRootReclaimMaintenanceRelease; the
+// shared uoRootReclaimRelease never uses it, so every ordinary domain purpose
+// keeps UO-01's generic rule (draining = replay only).
 func uoRootReclaimFreshState(state string) bool {
 	return state == "active" || state == "draining"
 }
 
-// uoRootReclaimRelease re-proves current authority and the exact native root
-// identity/state immediately before release. A fresh cleanup may end on an
-// active or draining root (the closed 654 maintenance exception); an authorized
-// original replay may end draining. A missing/foreign root still ends Gone.
+// uoRootReclaimRelease is the SHARED release re-proof. It re-checks current
+// authority and the exact native root identity/state immediately before
+// release. A Fresh original must end on an ACTIVE root; an authorized original
+// replay may end draining. A missing/foreign root still ends Gone. This is
+// UO-01's generic rule, byte-for-byte: the 654 maintenance admission is NOT
+// here (uoRootReclaimMaintenanceRelease owns it), so a Fresh 600 or any other
+// purpose re-reaching a draining root still fails ErrUORootGone.
 func uoRootReclaimRelease(ctx context.Context, turn *commandTurn, proof *uoRootCurrentProof, rootID string, decision receiptDecision) error {
+	binding, err := uoRootProofCurrent(proof, turn)
+	if err != nil {
+		return err
+	}
+	state, err := binding.root(ctx, turn, rootID)
+	if err != nil {
+		return err
+	}
+	if decision == receiptFresh && state != "active" {
+		return ErrUORootGone
+	}
+	return turn.checkLifetimes(ctx)
+}
+
+// uoRootReclaimMaintenanceRelease is the SOL-USERS ruling 1 exception, reachable
+// ONLY from the closed 654 reclaim path. It refuses any descriptor other than
+// RootReceiptReclaim BEFORE reading the proof, so no domain purpose can borrow
+// the draining-Fresh admission even if it names this function by mistake. For
+// 654, a Fresh cleanup may end on an active OR draining root (ACK may still be
+// advancing the floor of a draining root); an authorized replay may end
+// draining. Everything else is the shared identity/state re-proof and lifetime
+// check, and a missing/foreign root still ends Gone.
+func uoRootReclaimMaintenanceRelease(ctx context.Context, turn *commandTurn, proof *uoRootCurrentProof, rootID string, decision receiptDecision) error {
+	if turn == nil || turn.transaction == nil || turn.transaction.descriptor.ID != RootReceiptReclaim {
+		return ErrInvalid
+	}
 	binding, err := uoRootProofCurrent(proof, turn)
 	if err != nil {
 		return err
@@ -146,7 +181,7 @@ func lookupUORootReclaim(ctx context.Context, turn *commandTurn, proof *uoRootCu
 		return out, ErrUORootGone
 	}
 	// A constructor-time read cannot outlive a revocation or root change.
-	if err = uoRootReclaimRelease(ctx, turn, proof, q.root, decision); err != nil {
+	if err = uoRootReclaimMaintenanceRelease(ctx, turn, proof, q.root, decision); err != nil {
 		return out, err
 	}
 	out = uoRootLookup{turn: turn, reference: q, owner: owner, decision: decision, resultCount: old.slot.removedCount, appliedMS: old.slot.appliedMS}
@@ -296,7 +331,7 @@ func reclaimUORootReceipt(ctx context.Context, turn *commandTurn, proof *uoRootC
 	if lookup.turn != turn || q.kind != RootReceiptReclaim || lookup.decision != receiptFresh || nowMS <= 0 || o.revision == math.MaxInt64 || o.rows == math.MaxInt64 || o.variableBytes == math.MaxInt64 {
 		return out, ErrInvalid
 	}
-	if err = uoRootReclaimRelease(ctx, turn, proof, q.root, receiptFresh); err != nil {
+	if err = uoRootReclaimMaintenanceRelease(ctx, turn, proof, q.root, receiptFresh); err != nil {
 		return out, err
 	}
 	if !o.due.Valid || o.due.Int64 > nowMS {
@@ -369,7 +404,7 @@ func reclaimUORootReceipt(ctx context.Context, turn *commandTurn, proof *uoRootC
 	}
 	// A revocation or root change during the effects cannot publish an Applied
 	// body: the caller rolls the whole prefix back.
-	if err = uoRootReclaimRelease(ctx, turn, proof, q.root, receiptFresh); err != nil {
+	if err = uoRootReclaimMaintenanceRelease(ctx, turn, proof, q.root, receiptFresh); err != nil {
 		return uoRootReclaimResult{}, err
 	}
 	return out, turn.checkLifetimes(ctx)
@@ -478,7 +513,7 @@ func runUORootReclaimDispatch(ctx context.Context, turn *commandTurn, proof *uoR
 		if lookup.decision == receiptReplay {
 			decision = receiptReplay
 		}
-		if err = uoRootReclaimRelease(ctx, turn, proof, inv.reference.root, decision); err != nil {
+		if err = uoRootReclaimMaintenanceRelease(ctx, turn, proof, inv.reference.root, decision); err != nil {
 			return withdrawUORootReclaim(turn, err)
 		}
 	}
