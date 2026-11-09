@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"math"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -25,12 +26,33 @@ type mgPersonalReminderResult struct {
 
 const mgPersonalResultTextMax = 256
 
+// A library preference's public source is "library:"+channel, so a legal
+// 256-byte library channel derives a 264-byte source. The request already
+// accepts that channel; the saved result is held to the same derived bound
+// instead of a 256-byte cap that would reject an input the command validated.
+const (
+	mgPersonalLibraryPrefix       = "library:"
+	mgPersonalPreferenceSourceMax = mgPersonalResultTextMax + len(mgPersonalLibraryPrefix)
+)
+
 func mgPersonalResultText(s string) bool {
 	return mgPersonalText(s)
 }
 
+// A preference source is either a live source/member ID (bounded by the common
+// text cap) or the exact "library:"+channel derivation of this same row.
+func mgPersonalPreferenceSource(source, channel string) bool {
+	if !mgPersonalResultText(channel) {
+		return false
+	}
+	if strings.HasPrefix(source, mgPersonalLibraryPrefix) {
+		return source == mgPersonalLibraryPrefix+channel
+	}
+	return len(source) <= mgPersonalResultTextMax && mgPersonalResultText(source)
+}
+
 func preflightMGPersonalPreference(v mgPersonalPreferenceResult) error {
-	if !mgPersonalResultText(v.source) || !mgPersonalResultText(v.channel) || v.revision < 1 {
+	if !mgPersonalPreferenceSource(v.source, v.channel) || v.revision < 1 {
 		return ErrResolveRequired
 	}
 	return nil
@@ -170,7 +192,7 @@ func (r *mgPersonalResultReader) flag() (bool, error) {
 }
 func (r *mgPersonalResultReader) text() (string, error) {
 	n, err := r.number()
-	if err != nil || n < 0 || n > mgPersonalResultTextMax+16 {
+	if err != nil || n < 0 || n > int64(mgPersonalPreferenceSourceMax) {
 		return "", ErrResolveRequired
 	}
 	p, err := r.take(int(n))

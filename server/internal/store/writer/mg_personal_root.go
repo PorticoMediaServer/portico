@@ -16,18 +16,25 @@ import (
 var ErrMGRootUnavailable = errors.New("writer MG personal current-session root unavailable")
 
 // mgPersonalRootAuthorization is the ONE opaque value MG composes against the
-// SOL-USERS current-session mint. Its exact future producer is
-// authorizeUSCurrentSession(ctx, turn, witness *usOwnerAuthorityProof, lifetime),
-// which returns a *usCurrentSessionAuthorization with a recheck method. That
-// type does not exist on main yet, so this MG-owned interface mirrors only the
-// observable contract: the validated lifetime root, its exact frozen identity,
-// a current-state observation and a current-authority recheck. No constructor,
-// exported field, caller string or cached issuer stands in for the mint.
+// SOL-USERS current-session mint, which now lives on main at
+// writer/us_current_fence.go. Its purpose switch is closed to 600/770/771, so
+// MG purposes are NOT admitted yet and the production seam here still refuses
+// with ErrMGRootUnavailable. This MG-owned interface mirrors only the observable
+// contract: the validated lifetime root, its exact frozen identity, a
+// current-state observation, a current-authority recheck and the closed
+// target-admission decision. No constructor, exported field, caller string,
+// caller rating/visibility bool or cached issuer stands in for the mint.
 type mgPersonalRootAuthorization interface {
 	mgPersonalRootID() string
 	mgPersonalRootIdentity() uoRootIdentity
 	state(ctx context.Context, turn *commandTurn) (string, error)
 	recheck(ctx context.Context, turn *commandTurn) error
+	// admitTarget applies the session's own current viewer eligibility, rating
+	// and item-visibility policy to one Fresh native target. It runs after the
+	// Fresh classification and before any effect, and it refuses in production:
+	// the production seam mints no session, so no production value can satisfy
+	// this method. A caller rating, allowed() callback or bool never grants it.
+	admitTarget(ctx context.Context, turn *commandTurn, target mgPersonalAdmissionTarget) error
 }
 
 // mgPersonalRootSeam keeps the swap to the merged mint to ONE file and one
@@ -241,7 +248,37 @@ func mgPersonalRootLookupCommand(ctx context.Context, turn *commandTurn, session
 	return mgPersonalRootLookup{turn: turn, session: session, reference: q, owner: owner, decision: decision, payloadBytes: size, variableBytes: variable, resultCount: found.resultCount, appliedMS: appliedMS}, nil
 }
 
-func mgPersonalResultPayload(id CommandIdentity, q RequestDigest, result any) ([]byte, ResultDigest, error) {
+// The saved result type is bound to the exact command kind that produced it.
+// A receipt row addressed as one command can never carry another command's
+// result shape, even when both families share the same root adapter.
+func mgPersonalResultKindBound(kind CommandID, result any) bool {
+	switch v := result.(type) {
+	case mgPersonalPreferenceResult:
+		return kind == MGSetChannelPreference
+	case mgPersonalReminderResult:
+		return kind == MGSetReminder || kind == MGDeleteReminder
+	case mgSourceCommandResult:
+		return mgSourceCommandKind(kind) && v.kind == kind
+	case mgDVRPolicyResult:
+		switch kind {
+		case MGSetDVRDefaults:
+			return v.kind == mgDVRPolicyDefaultsKind
+		case MGSetDVRStoragePolicy:
+			return v.kind == mgDVRPolicyStorageKind
+		}
+		return false
+	case mgRecordingIntentResult:
+		return kind == MGScheduleRecording || kind == MGUpdateRecording || kind == MGCancelRecording || kind == MGKeepRecording
+	case mgRuleResult:
+		return kind == MGSaveRule || kind == MGDeleteRule
+	}
+	return false
+}
+
+func mgPersonalResultPayload(id CommandIdentity, q RequestDigest, kind CommandID, result any) ([]byte, ResultDigest, error) {
+	if !mgPersonalResultKindBound(kind, result) {
+		return nil, ResultDigest{}, ErrInvalid
+	}
 	switch v := result.(type) {
 	case mgPersonalPreferenceResult:
 		return mgPersonalPreferencePayload(id, q, v)
@@ -282,7 +319,7 @@ func mgPersonalRootPersist(ctx context.Context, turn *commandTurn, lookup mgPers
 	if err != nil || decision != receiptFresh {
 		return out, ErrResolveRequired
 	}
-	payload, digest, err := mgPersonalResultPayload(q.identity, q.request, result)
+	payload, digest, err := mgPersonalResultPayload(q.identity, q.request, q.kind, result)
 	if err != nil {
 		return out, err
 	}

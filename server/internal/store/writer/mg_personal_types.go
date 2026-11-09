@@ -50,10 +50,13 @@ const (
 )
 
 // Frozen value inputs, constructed before admission. This owner tuple names a
-// sparse namespace, NOT an authority proof. Parent composition owns current
-// opaque member/profile/rating/source authority and user-mutation lifetime,
-// original receipt lookup/result codec, final disclosure, admission and COMMIT.
-// There is no request nonce/JSON flag that grants authority in these bodies.
+// sparse namespace, NOT an authority proof: acceptMGPersonal* binds
+// owner.account/owner.profile to the validated session identity before it
+// looks up or writes anything, so a caller can never name another profile's
+// preference/reminder. The session still owns current opaque member/profile/
+// rating/source authority, the original receipt lookup/result codec, final
+// disclosure, target admission, the effect and COMMIT. There is no request
+// nonce/JSON flag that grants authority in these bodies.
 type mgPersonalOwner struct{ authority, account, profile string }
 
 func (o mgPersonalOwner) valid() bool {
@@ -100,6 +103,35 @@ type mgPersonalLibraryItem struct {
 
 func (i mgPersonalLibraryItem) valid() bool {
 	return i.item > 0 && mgPersonalText(i.library) && mgPersonalText(i.asset) && mgPersonalText(i.source)
+}
+
+// mgPersonalAdmissionTarget is the closed native identity of one Fresh personal
+// effect. It carries no rating, visibility flag, viewer scope or allowed()
+// callback: those are current viewer policy and are decided by the session that
+// produced this target, against native rows in the same turn. A caller string
+// therefore cannot widen or forge the admission decision.
+type mgPersonalAdmissionTarget struct {
+	kind                        mgPersonalKind
+	source, channel, generation string
+	programme                   string
+	item                        mgPersonalLibraryItem
+}
+
+func (t mgPersonalAdmissionTarget) valid() bool {
+	if (t.kind != mgPersonalLive && t.kind != mgPersonalLibrary) ||
+		!mgPersonalText(t.source) || !mgPersonalText(t.channel) || !mgPersonalText(t.generation) {
+		return false
+	}
+	if t.programme == "" {
+		return t.item == mgPersonalLibraryItem{}
+	}
+	if !mgPersonalText(t.programme) {
+		return false
+	}
+	if t.kind == mgPersonalLibrary {
+		return t.item.valid()
+	}
+	return t.item == mgPersonalLibraryItem{}
 }
 
 type mgPersonalPreferenceRequest struct {

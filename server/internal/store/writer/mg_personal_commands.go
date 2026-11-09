@@ -69,6 +69,23 @@ func mgPersonalAuthorize(ctx context.Context, turn *commandTurn, purpose Command
 	return session, nil
 }
 
+// The frozen owner tuple is a comparison input, never a caller-selected
+// identity. acceptMGPersonal* is the parent for these commands, so it binds the
+// owner's account/profile to the validated session BEFORE any lookup or effect:
+// a session for profile A can never read or write profile B's preference,
+// reminder or reminder delete. The session alone owns the member/profile
+// revisions, rating and item policy that the native rows recheck.
+func mgPersonalOwnerBound(session mgPersonalRootAuthorization, owner mgPersonalOwner) error {
+	if session == nil || !owner.valid() {
+		return ErrDisclosureDenied
+	}
+	i := session.mgPersonalRootIdentity()
+	if owner.account != i.account || owner.profile != i.profile {
+		return ErrDisclosureDenied
+	}
+	return nil
+}
+
 // Fresh preference: current target/head observation, sparse owner CAS, saved
 // scalar. A replay never re-enters the effect and an ACKed original is retired.
 func acceptMGPersonalPreference(ctx context.Context, turn *commandTurn, root mgPersonalRootSeam, witness *usOwnerAuthorityProof, lifetime context.Context, reference ReceiptReference, request mgPersonalPreferenceRequest) (out mgPersonalAcceptance, err error) {
@@ -82,6 +99,9 @@ func acceptMGPersonalPreference(ctx context.Context, turn *commandTurn, root mgP
 	}
 	session, err := mgPersonalAuthorize(ctx, turn, MGSetChannelPreference, root, witness, lifetime)
 	if err != nil {
+		return out, err
+	}
+	if err = mgPersonalOwnerBound(session, request.owner); err != nil {
 		return out, err
 	}
 	ref := uoRootReference{root: session.mgPersonalRootID(), kind: MGSetChannelPreference, identity: command.identity, request: command.digest}
@@ -106,6 +126,9 @@ func acceptMGPersonalPreference(ctx context.Context, turn *commandTurn, root mgP
 		}
 		return mgPersonalAcceptance{decision: receiptReplay, preference: result, digest: digest}, nil
 	case receiptFresh:
+		if err = session.admitTarget(ctx, turn, mgPersonalAdmissionTarget{kind: request.target.kind, source: request.target.source, channel: request.target.channel, generation: request.target.generation}); err != nil {
+			return out, err
+		}
 		facts, err := setMGPersonalPreference(ctx, turn, request)
 		if err != nil {
 			return out, err
@@ -137,6 +160,9 @@ func acceptMGPersonalReminder(ctx context.Context, turn *commandTurn, root mgPer
 	if err != nil {
 		return out, err
 	}
+	if err = mgPersonalOwnerBound(session, request.owner); err != nil {
+		return out, err
+	}
 	ref := uoRootReference{root: session.mgPersonalRootID(), kind: MGSetReminder, identity: command.identity, request: command.digest}
 	lookup, err := mgPersonalRootLookupCommand(ctx, turn, session, ref)
 	if err != nil {
@@ -159,6 +185,9 @@ func acceptMGPersonalReminder(ctx context.Context, turn *commandTurn, root mgPer
 		}
 		return mgPersonalAcceptance{decision: receiptReplay, reminder: result, digest: digest}, nil
 	case receiptFresh:
+		if err = session.admitTarget(ctx, turn, mgPersonalAdmissionTarget{kind: request.target.kind, source: request.target.source, channel: request.target.channel, generation: request.target.generation, programme: request.programme, item: request.libraryItem}); err != nil {
+			return out, err
+		}
 		facts, err := setMGPersonalReminder(ctx, turn, request)
 		if err != nil {
 			return out, err
@@ -188,6 +217,9 @@ func acceptMGPersonalReminderDelete(ctx context.Context, turn *commandTurn, root
 	}
 	session, err := mgPersonalAuthorize(ctx, turn, MGDeleteReminder, root, witness, lifetime)
 	if err != nil {
+		return out, err
+	}
+	if err = mgPersonalOwnerBound(session, request.owner); err != nil {
 		return out, err
 	}
 	ref := uoRootReference{root: session.mgPersonalRootID(), kind: MGDeleteReminder, identity: command.identity, request: command.digest}

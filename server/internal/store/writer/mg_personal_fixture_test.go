@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -166,6 +168,18 @@ type mgPersonalFakeRoots struct {
 	root     string
 	identity uoRootIdentity
 	witness  *usOwnerAuthorityProof
+	viewer   mgPersonalFakeViewer
+}
+
+// mgPersonalFakeViewer is the test stand-in for the current viewer policy that
+// the future production session owns. A nil field admits every value; that is
+// the fixture default, never a production grant. A non-nil map/slice is an
+// allow-list, so a test can prove a forbidden channel/rating/item denies before
+// the effect. Production has no session at all and therefore always refuses.
+type mgPersonalFakeViewer struct {
+	channels map[string]bool
+	items    map[int64]bool
+	ratings  []string
 }
 
 type mgPersonalFakeSession struct {
@@ -227,6 +241,76 @@ func (s *mgPersonalFakeSession) recheck(ctx context.Context, turn *commandTurn) 
 	}
 	_, err = mgPersonalRootObserve(ctx, turn, s.roots.root, s.identity)
 	return err
+}
+
+// admitTarget models the viewer policy the minted session will own: the exact
+// current channel membership, the current LC item projection and the content
+// rating observed from the native row in this same turn. It refuses with
+// ErrDisclosureDenied before any effect, and it never accepts a caller rating.
+func (s *mgPersonalFakeSession) admitTarget(ctx context.Context, turn *commandTurn, target mgPersonalAdmissionTarget) (err error) {
+	defer func() { _, err = finishCommand(ctx, commandLifetime(turn), struct{}{}, err) }()
+	if s == nil || s.roots == nil || s.turn != turn || turn == nil || turn.transaction == nil || !target.valid() {
+		return ErrDisclosureDenied
+	}
+	v := s.roots.viewer
+	if v.channels != nil && !v.channels[target.channel] {
+		return ErrDisclosureDenied
+	}
+	if target.kind == mgPersonalLibrary && v.items != nil && !v.items[target.item.item] {
+		return ErrDisclosureDenied
+	}
+	if target.programme == "" || v.ratings == nil {
+		return nil
+	}
+	rating, err := mgPersonalFakeRating(ctx, turn, target)
+	if err != nil {
+		return err
+	}
+	for _, allowed := range v.ratings {
+		if allowed == rating {
+			return nil
+		}
+	}
+	return ErrDisclosureDenied
+}
+
+// mgPersonalFakeRating reads the rating from the original native row: the live
+// programme metadata facts, or the library item's content-rating attribute.
+func mgPersonalFakeRating(ctx context.Context, turn *commandTurn, target mgPersonalAdmissionTarget) (string, error) {
+	if turn == nil || turn.transaction == nil {
+		return "", ErrDisclosureDenied
+	}
+	if target.kind == mgPersonalLive {
+		var raw string
+		err := turn.transaction.conn.QueryRowContext(ctx, `SELECT metadata_facts FROM live_programmes WHERE generation_id=? AND id=? AND has_live_programme_metadata=1`, target.generation, target.programme).Scan(&raw)
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", nil
+		}
+		if err != nil {
+			return "", ErrDisclosureDenied
+		}
+		var facts struct {
+			Rating *struct {
+				Value string `json:"value"`
+			} `json:"rating"`
+		}
+		if json.Unmarshal([]byte(raw), &facts) != nil {
+			return "", ErrDisclosureDenied
+		}
+		if facts.Rating == nil {
+			return "", nil
+		}
+		return facts.Rating.Value, nil
+	}
+	var rating sql.NullString
+	err := turn.transaction.conn.QueryRowContext(ctx, `SELECT min(a.source_value) FROM catalog_item_attribute_edges AS a JOIN catalog_attribute_terms AS term ON term.id=a.term_id WHERE a.item_id=? AND term.field_id=1`, target.item.item).Scan(&rating)
+	if err != nil {
+		return "", ErrDisclosureDenied
+	}
+	if !rating.Valid {
+		return "", nil
+	}
+	return rating.String, nil
 }
 
 func mgPersonalFake(t *testing.T, v mgPersonalFixtureValues) *mgPersonalFakeRoots {
