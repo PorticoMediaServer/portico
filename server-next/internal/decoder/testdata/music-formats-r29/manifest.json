@@ -1,0 +1,26 @@
+[
+  {
+    "Codec": "ape",
+    "Path": "tone.ape",
+    "SHA256": "bde14ea76034a052867711a3e811018a5897fdcd7a8c306459a89004a0d825cb",
+    "Rights": "verified-free-fixture",
+    "SampleRate": 44100,
+    "Frames": 22050
+  },
+  {
+    "Codec": "mpc7",
+    "Path": "tone-sv7.mpc",
+    "SHA256": "4792cb155a70a8d5e20e74bcdc1253b87f79a584055ea20fbbab58dcf8813db5",
+    "Rights": "verified-free-fixture",
+    "SampleRate": 44100,
+    "Frames": 22050
+  },
+  {
+    "Codec": "mpc8",
+    "Path": "tone-sv8.mpc",
+    "SHA256": "37109f5725b0b0475d76ab650c627a8cd2f9eb061d19ca93edc00bebebc20a5c",
+    "Rights": "verified-free-fixture",
+    "SampleRate": 44100,
+    "Frames": 22050
+  }
+]
