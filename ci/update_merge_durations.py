@@ -12,8 +12,11 @@ pile into one 780-second batch just because they were unmeasured.
 
 `--runs` fetches the `go-<N>` artifacts through the Actions API; `gh run
 download` mangles some artifact names. The table keeps the longest observed
-seconds per parent across every supplied run. A parent that is absent falls back
-to ci/durations.json, then to the planner's conservative default.
+seconds per parent across every supplied run and preserves parents already in
+the output. A parent that is absent falls back to ci/durations.json, then to the
+planner's conservative default.
+
+For one-command refresh from train heads, use ci/refresh_go_durations.py.
 """
 import argparse
 import io
@@ -80,6 +83,24 @@ def read_run(run_id, table):
                     observe(io.TextIOWrapper(member, encoding='utf-8'), table)
 
 
+def load_table(output):
+    """Seed from the existing table so untouched parents keep their measurements."""
+    if not output.is_file():
+        return {}
+    loaded = json.loads(output.read_text())
+    if not isinstance(loaded, dict):
+        raise ValueError(f'{output} is not a JSON object')
+    return {str(key): float(value) for key, value in loaded.items()}
+
+
+def write_table(table, output):
+    data = {key: round(value, 2) for key, value in sorted(table.items())}
+    temporary = output.with_suffix('.tmp')
+    temporary.write_text(json.dumps(data, indent=1, allow_nan=False) + '\n')
+    temporary.replace(output)
+    return data
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--results', type=Path, action='append', default=[],
@@ -90,7 +111,7 @@ def main():
     runs = [run.strip() for run in args.runs.split(',') if run.strip()]
     if not args.results and not runs:
         parser.error('provide --results and/or --runs')
-    table = {}
+    table = load_table(args.output)
     for directory in args.results:
         read_results(directory, table)
     for run in runs:
@@ -99,10 +120,7 @@ def main():
         read_run(run, table)
     if not table:
         raise ValueError('no parent test durations found')
-    data = {key: round(value, 2) for key, value in sorted(table.items())}
-    temporary = args.output.with_suffix('.tmp')
-    temporary.write_text(json.dumps(data, indent=1, allow_nan=False) + '\n')
-    temporary.replace(args.output)
+    data = write_table(table, args.output)
     sys.stdout.write(f'{len(data)} parent tests, {sum(data.values()):.0f}s total -> {args.output}\n')
 
 
