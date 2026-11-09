@@ -15,27 +15,37 @@ import (
 // identifier or SQL-function permission. personalRating and playCount keys are
 // fixed-width integers, so their recipes copy no variable source bytes.
 const (
-	rbPersonalPrepareRecentFirstSQL = "SELECT e.id,octet_length(p.last_played_at) FROM personal_items AS p INDEXED BY personal_current_recent JOIN catalog_entities AS e ON e.id=p.item_id AND e.public_id=p.item_public_id WHERE p.profile_id=? AND p.last_played_at>'' AND e.library_id=? AND e.kind=? ORDER BY p.activity_visible ASC,p.last_played_at DESC,p.item_public_id ASC LIMIT ?"
-	rbPersonalPrepareRecentTailSQL  = "SELECT e.id,octet_length(p.last_played_at) FROM personal_items AS p INDEXED BY personal_current_recent JOIN catalog_entities AS e ON e.id=p.item_id AND e.public_id=p.item_public_id WHERE p.profile_id=? AND p.last_played_at>'' AND e.library_id=? AND e.kind=? AND (p.activity_visible>? OR (p.activity_visible=? AND (p.last_played_at<? OR (p.last_played_at=? AND p.item_public_id>?)))) ORDER BY p.activity_visible ASC,p.last_played_at DESC,p.item_public_id ASC LIMIT ?"
+	rbPersonalPrepareRecentTablesSQL             = " FROM personal_items AS p INDEXED BY personal_current_recent INNER JOIN catalog_entities AS e ON e.id=p.item_id AND e.public_id=p.item_public_id WHERE "
+	rbPersonalPrepareRecentFirstPredicateSQL     = "p.profile_id=? AND p.last_played_at>'' AND e.library_id=? AND e.kind=?"
+	rbPersonalPrepareRecentTailPredicateSQL      = "p.profile_id=? AND p.last_played_at>'' AND e.library_id=? AND e.kind=? AND p.activity_visible=? AND p.last_played_at<?"
+	rbPersonalPrepareRecentTailEqualPredicateSQL = "p.profile_id=? AND p.last_played_at>'' AND e.library_id=? AND e.kind=? AND p.activity_visible=? AND p.last_played_at=? AND p.item_public_id>?"
+	rbPersonalPrepareRecentNextPredicateSQL      = "p.profile_id=? AND p.last_played_at>'' AND e.library_id=? AND e.kind=? AND p.activity_visible>?"
+	rbPersonalPrepareRecentOrderSQL              = " ORDER BY p.activity_visible ASC,p.last_played_at DESC,p.item_public_id ASC LIMIT ?"
+	rbPersonalPrepareRecentFirstSQL              = "SELECT e.id,octet_length(p.last_played_at)" + rbPersonalPrepareRecentTablesSQL + rbPersonalPrepareRecentFirstPredicateSQL + rbPersonalPrepareRecentOrderSQL
+	rbPersonalPrepareRecentTailSQL               = "SELECT e.id,octet_length(p.last_played_at)" + rbPersonalPrepareRecentTablesSQL + rbPersonalPrepareRecentTailPredicateSQL + rbPersonalPrepareRecentOrderSQL
+	rbPersonalPrepareRecentTailEqualSQL          = "SELECT e.id,octet_length(p.last_played_at)" + rbPersonalPrepareRecentTablesSQL + rbPersonalPrepareRecentTailEqualPredicateSQL + rbPersonalPrepareRecentOrderSQL
+	rbPersonalPrepareRecentNextSQL               = "SELECT e.id,octet_length(p.last_played_at)" + rbPersonalPrepareRecentTablesSQL + rbPersonalPrepareRecentNextPredicateSQL + rbPersonalPrepareRecentOrderSQL
 )
 
 func init() {
 	i := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Integer} }
 	s := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Text} }
 	b := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Blob} }
-	for _, part := range []string{"first", "tail"} {
-		part := part
-		sqlText := rbPersonalPrepareRecentFirstSQL
-		params := []stmt.Param{s("profile"), i("library"), i("kind"), i("limit")}
-		if part == "tail" {
-			sqlText = rbPersonalPrepareRecentTailSQL
-			params = []stmt.Param{s("profile"), i("library"), i("kind"), i("after_activity"), s("after_text"), b("public_id"), i("limit")}
-		}
-		id := stmt.ID("read.browse.rb.personal_prepare.recent." + part + ".bytes")
+	for _, leg := range []struct {
+		name   string
+		sql    string
+		params []stmt.Param
+	}{
+		{"first", rbPersonalPrepareRecentFirstSQL, []stmt.Param{s("profile"), i("library"), i("kind"), i("limit")}},
+		{"tail", rbPersonalPrepareRecentTailSQL, []stmt.Param{s("profile"), i("library"), i("kind"), i("after_activity"), s("after_text"), i("limit")}},
+		{"tail_equal", rbPersonalPrepareRecentTailEqualSQL, []stmt.Param{s("profile"), i("library"), i("kind"), i("after_activity"), s("after_text"), b("public_id"), i("limit")}},
+		{"next", rbPersonalPrepareRecentNextSQL, []stmt.Param{s("profile"), i("library"), i("kind"), i("after_activity"), i("limit")}},
+	} {
+		id := stmt.ID("read.browse.rb.personal_prepare.recent." + leg.name + ".bytes")
 		proof := stmt.Plan{Hot: true, Indexes: []string{"personal_current_recent"}, Seeks: []string{"profile_id=?", "rowid=?"}}
-		pointOctets.add(octetShape{id: id, sql: sqlText, mismatch: "exact bounded personal-order recent byte-source range required",
+		pointOctets.add(octetShape{id: id, sql: leg.sql, mismatch: "exact bounded personal-order recent byte-source range required",
 			definition: func(d stmt.Definition) bool {
-				return d.ID == id && d.SQL == sqlText && d.Owner == "store/read" && d.Kind == stmt.Read && reflect.DeepEqual(d.Params, params) && reflect.DeepEqual(d.Plan, proof)
+				return d.ID == id && d.SQL == leg.sql && d.Owner == "store/read" && d.Kind == stmt.Read && reflect.DeepEqual(d.Params, leg.params) && reflect.DeepEqual(d.Plan, proof)
 			},
 			audit: func(ctx context.Context, c *sql.Conn) error {
 				return auditRBPersonalPrepareRecentIndex(ctx, c)

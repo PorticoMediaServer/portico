@@ -26,7 +26,7 @@ func TestRBContainerMetricsPlans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	definitions := RBContainerMetricsDefinitions()
+	definitions := rbContainerMetricsDefinitions()
 	catalogue, err := stmt.Describe(definitions)
 	if err != nil {
 		t.Fatal(err)

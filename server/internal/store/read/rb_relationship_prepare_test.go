@@ -73,17 +73,26 @@ func newRBRelationshipSource(t *testing.T) *browseFixture {
 		}
 	}
 	for i := int64(0); i < 300; i++ {
-		add(entity{id: 310000 + i, kind: 7, key: "song", keep: "song", album: 200000, disc: 1, track: i})
+		add(entity{id: 310000 + i, kind: 7, key: "song", keep: "song", album: 200001, disc: 1, track: i})
 	}
-	// Missing and invalid ancestors: NULL album, NULL artist, foreign-library
+	// Missing and invalid ancestors: dangling album/artist, foreign-library
 	// album, retired artist, retired album, retired song.
 	f.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(900010,x'00000000000000000000000000000000',2,6)`)
-	f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,artist_id) VALUES(900010,x'00000000000000000000000000000000',2,6,'Foreign album','foreign','f','foreign','f',0,zeroblob(16),zeroblob(16),100000)`)
-	add(entity{id: 900000, kind: 7, key: "song", keep: "song"})
+	// A foreign-library album needs an artist in its own library: the composite
+	// (library, artist) FK forbids pointing at this library's artist.
+	f.exec(t, `INSERT INTO catalog_subjects(id,public_id,library_id,kind) VALUES(900009,x'00000000000000000000000000000009',2,5)`)
+	f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation) VALUES(900009,x'00000000000000000000000000000009',2,5,'Foreign artist','foreign artist','f','foreign artist','f',0,zeroblob(16),zeroblob(16))`)
+	f.exec(t, `INSERT INTO catalog_entities(id,public_id,library_id,kind,title,sort_key,sort_head,sort_key_keep_articles,sort_head_keep_articles,random_key,metadata_incarnation,artwork_incarnation,artist_id) VALUES(900010,x'00000000000000000000000000000000',2,6,'Foreign album','foreign','f','foreign','f',0,zeroblob(16),zeroblob(16),900009)`)
+	// Missing ancestors cannot exist under the live foreign keys, so inject the
+	// dangling parent identities with checks off; a torn/partial snapshot may
+	// still present them and the reducer must refuse or skip them.
+	f.exec(t, `PRAGMA foreign_keys=OFF`)
+	add(entity{id: 900000, kind: 7, key: "song", keep: "song", album: 900099})
 	add(entity{id: 900001, kind: 7, key: "song", keep: "song", album: 200053})
-	add(entity{id: 900002, kind: 7, key: "song", keep: "song", album: 900010})
-	add(entity{id: 900003, kind: 6, key: "orphan", keep: "orphan"})
+	add(entity{id: 900002, kind: 7, key: "song", keep: "song", album: 900010, library: 2})
+	add(entity{id: 900003, kind: 6, key: "orphan", keep: "orphan", artist: 900098})
 	add(entity{id: 900004, kind: 7, key: "song", keep: "song", album: 900003})
+	f.exec(t, `PRAGMA foreign_keys=ON`)
 	add(entity{id: 900005, kind: 6, key: "retired artist album", keep: "retired artist album", artist: 100041})
 	add(entity{id: 900006, kind: 7, key: "song", keep: "song", album: 900005})
 	add(entity{id: 900011, kind: 6, key: "retired album", keep: "retired album", retired: 1, artist: 100000})
@@ -311,7 +320,7 @@ func TestRBRelationshipPrepareLargeParentAndEqualKeys(t *testing.T) {
 		// The special album alone owns 300 songs, and many artists/albums share
 		// a folded key. Verify both properties independently of the reducer.
 		var special int64
-		if err := f.conn.QueryRowContext(t.Context(), `SELECT count(*) FROM catalog_entities WHERE kind=7 AND album_id=200000 AND retired=0`).Scan(&special); err != nil || special < 257 {
+		if err := f.conn.QueryRowContext(t.Context(), `SELECT count(*) FROM catalog_entities WHERE kind=7 AND album_id=200001 AND retired=0`).Scan(&special); err != nil || special < 257 {
 			t.Fatal("fixture lost its >256-row parent", special, err)
 		}
 		var equal int64

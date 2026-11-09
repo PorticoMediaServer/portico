@@ -35,21 +35,21 @@ func rbContainerMetricsOctetSources() []rbContainerMetricsOctetSource {
 	return []rbContainerMetricsOctetSource{
 		{
 			name: "show", from: entity + "catalog_entities_show_fk",
-			where: "e.show_id IS NOT NULL AND e.show_id=? AND e.library_id=?",
+			where: "show_id IS NOT NULL AND e.show_id=? AND e.library_id=?",
 			index: "catalog_entities_show_fk", order: "k0 ASC", scopeAlias: "e", scopeColumn: "show_id", lastColumn: "id", partial: true,
 			keys:   []rbContainerMetricsOctetKey{{sql: "e.id", alias: "k0"}},
 			params: []stmt.Param{i("show"), i("library")},
 		},
 		{
 			name: "season", from: entity + "catalog_entities_parent",
-			where: "e.parent_id IS NOT NULL AND e.parent_id=? AND e.library_id=?",
+			where: "parent_id IS NOT NULL AND e.parent_id=? AND e.library_id=?",
 			index: "catalog_entities_parent", order: "k0 ASC", scopeAlias: "e", scopeColumn: "parent_id", lastColumn: "id", partial: true,
 			keys:   []rbContainerMetricsOctetKey{{sql: "e.id", alias: "k0"}},
 			params: []stmt.Param{i("parent"), i("library")},
 		},
 		{
 			name: "album", from: entity + "catalog_entities_album",
-			where: "e.album_id IS NOT NULL AND e.album_id=? AND e.library_id=?",
+			where: "album_id IS NOT NULL AND e.album_id=? AND e.library_id=?",
 			index: "catalog_entities_album", order: "k0 ASC,k1 ASC,k2 ASC", scopeAlias: "e", scopeColumn: "album_id", lastColumn: "id", partial: true,
 			keys: []rbContainerMetricsOctetKey{
 				{sql: "COALESCE(e.disc_number,1)", alias: "k0"},
@@ -60,7 +60,7 @@ func rbContainerMetricsOctetSources() []rbContainerMetricsOctetSource {
 		},
 		{
 			name: "book", from: entity + "catalog_entities_book",
-			where: "e.book_id IS NOT NULL AND e.book_id=? AND e.library_id=?",
+			where: "book_id IS NOT NULL AND e.book_id=? AND e.library_id=?",
 			index: "catalog_entities_book", order: "k0 ASC,k1 ASC,k2 ASC", scopeAlias: "e", scopeColumn: "book_id", lastColumn: "id", partial: true,
 			keys: []rbContainerMetricsOctetKey{
 				{sql: "COALESCE(e.disc_number,1)", alias: "k0"},
@@ -91,19 +91,33 @@ func rbContainerMetricsOctetKeyColumns(spec rbContainerMetricsOctetSource) strin
 	return out
 }
 
-func rbContainerMetricsOctetSelect(spec rbContainerMetricsOctetSource, preds []string) string {
+func rbContainerMetricsOctetSelect(spec rbContainerMetricsOctetSource, preds []string, order string) string {
 	where := spec.where
 	for _, pred := range preds {
 		where += " AND " + pred
 	}
 	return "SELECT e.id,octet_length(e.latest_aired_key),COALESCE(octet_length(p.last_played_at),0)," + rbContainerMetricsOctetKeyColumns(spec) +
 		" FROM " + spec.from +
-		" LEFT JOIN personal_items AS p INDEXED BY personal_current_live ON p.profile_id=? AND p.item_id=e.id AND p.item_public_id=e.public_id" +
-		" WHERE " + where + " ORDER BY " + spec.order + " LIMIT ?"
+		" LEFT JOIN personal_items AS p INDEXED BY personal_current_live ON p.profile_id=? AND p.item_id=e.id" +
+		" WHERE " + where + " ORDER BY " + order + " LIMIT ?"
+}
+
+// rbContainerMetricsOctetLegOrder omits the equality-prefix keys so the forced
+// index supplies the order without a temporary B-tree.
+func rbContainerMetricsOctetLegOrder(spec rbContainerMetricsOctetSource, fixed int) string {
+	var out string
+	for i := fixed; i < len(spec.keys); i++ {
+		if out != "" {
+			out += ","
+		}
+		out += "k" + strconv.Itoa(i) + " ASC"
+	}
+	return out
 }
 
 func init() {
 	i := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Integer} }
+	p := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Text} }
 	for _, spec := range rbContainerMetricsOctetSources() {
 		plan := stmt.Plan{Hot: true, Indexes: []string{spec.index, "personal_current_live"}, Seeks: []string{spec.scopeColumn + "=?", "profile_id=? AND item_id=?"}}
 		if spec.name == "collection" {
@@ -141,15 +155,48 @@ func init() {
 			legs = append(legs, leg{name: "tail" + strconv.Itoa(level), pred: preds, kp: keyParams, kb: keyBinds})
 		}
 		for _, one := range legs {
-			params := append(append([]stmt.Param(nil), spec.params...), one.kp...)
+			// The personal LEFT JOIN's profile binds first, before spec.where.
+			params := append([]stmt.Param{p("profile")}, spec.params...)
+			params = append(params, one.kp...)
 			params = append(params, i("limit"))
-			sqlText := rbContainerMetricsOctetSelect(spec, one.pred)
+			order := spec.order
+			if len(one.kp) > 0 {
+				order = rbContainerMetricsOctetLegOrder(spec, len(one.kp)-1)
+			}
+			sqlText := rbContainerMetricsOctetSelect(spec, one.pred, order)
 			id := stmt.ID("read.browse.rb.container_metrics.children." + spec.name + "." + one.name + ".bytes")
-			prefix := "SEARCH " + spec.scopeAlias + " USING INDEX " + spec.index + " ("
+			legPlan := plan
+			legPlan.Waivers = append(append([]stmt.Waiver(nil), plan.Waivers...), stmt.Waiver{
+				StatementID: id, Stage: "eqp", Form: "BLOOM FILTER",
+				Match:  "BLOOM FILTER ON p (profile_id=? AND item_id=?)",
+				Reason: "bundled planner join bloom filter; the current-personal index seek is still pinned",
+			})
+			if spec.name == "album" || spec.name == "book" {
+				fk := "album_id=?"
+				if spec.name == "book" {
+					fk = "book_id=?"
+				}
+				parts := []string{fk}
+				for k := range one.kp {
+					column, op := "<expr>", "=?"
+					if k == 2 {
+						column = "id"
+					}
+					if k == len(one.kp)-1 {
+						op = ">?"
+					}
+					parts = append(parts, column+op)
+				}
+				legPlan.Waivers = append(legPlan.Waivers, stmt.Waiver{
+					StatementID: id, Stage: "eqp", Form: "UNRECOGNIZED EQP",
+					Match:  "SEARCH e USING INDEX " + spec.index + " (" + strings.Join(parts, " AND ") + ")",
+					Reason: "reviewed expression-index keyset for the authored album/book child order",
+				})
+			}
 			source := spec
 			pointOctets.add(octetShape{id: id, sql: sqlText, mismatch: "exact bounded container-child byte range required",
 				definition: func(d stmt.Definition) bool {
-					return d.ID == id && d.SQL == sqlText && d.Owner == "store/read" && d.Kind == stmt.Read && reflect.DeepEqual(d.Params, params) && reflect.DeepEqual(d.Plan, plan)
+					return d.ID == id && d.SQL == sqlText && d.Owner == "store/read" && d.Kind == stmt.Read && reflect.DeepEqual(d.Params, params) && reflect.DeepEqual(d.Plan, legPlan)
 				},
 				audit: func(ctx context.Context, c *sql.Conn) error {
 					return auditRBContainerMetricsIndex(ctx, c, source, len(source.keys))
@@ -159,7 +206,13 @@ func init() {
 						if len(row) != 4 {
 							continue
 						}
-						if text, ok := row[3].(string); ok && strings.HasPrefix(text, prefix) {
+						text, ok := row[3].(string)
+						if !ok || !strings.HasPrefix(text, "SEARCH "+spec.scopeAlias+" USING ") {
+							continue
+						}
+						// The planner may report a covering form of the same forced
+						// index; both are the reviewed native range.
+						if strings.Contains(text, "INDEX "+spec.index+" (") {
 							return nil
 						}
 					}

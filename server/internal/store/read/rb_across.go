@@ -118,6 +118,24 @@ type rbAcrossDraft struct {
 // AcrossWindow publishes one bounded same-sort page across the viewer's
 // libraries. It never accepts a caller allowed-library list and never reads a
 // library outside the derived principal scope.
+// rbWideSnapshots raises the compiled-statement bound for the cross-library
+// merge. One window fetches the fence plus each authorized library's next
+// bounded legs; the recipe stays finite and is never caller-supplied.
+type rbWideSnapshots struct{ browseSnapshots }
+
+const rbWideMaxQueries = 32
+
+func (w rbWideSnapshots) Read(ctx context.Context, r governor.Request, budget time.Duration, read func(*governor.ReadScope) error) (governor.SnapshotResult, error) {
+	maxQueries := int(r.Budget.RawRows)
+	if maxQueries > rbWideMaxQueries {
+		maxQueries = rbWideMaxQueries
+	}
+	if wide, ok := w.browseSnapshots.(*governor.Snapshots); ok && maxQueries > 0 {
+		return wide.ReadForecasted(ctx, r, budget, governor.SnapshotForecast{NativeRowBytes: wide.NativeRowReservation(), MaxQueries: uint16(maxQueries)}, read)
+	}
+	return w.browseSnapshots.Read(ctx, r, budget, read)
+}
+
 func (r *BrowseReader) AcrossWindow(ctx context.Context, request governor.Request, budget time.Duration, output BrowseOutput, in RBAcrossInput) (RBAcrossPage, BrowseReadResult, error) {
 	if r == nil {
 		return RBAcrossPage{}, BrowseReadResult{}, ErrInput
@@ -149,7 +167,7 @@ func (r *BrowseReader) acrossWindow(ctx context.Context, request governor.Reques
 		}
 	}
 	steps := rbAcrossSteps(in, spec)
-	draft, result, err := rbPrincipalPublish(ctx, r.snapshots, request, budget, output, view, steps)
+	draft, result, err := rbPrincipalPublish(ctx, rbWideSnapshots{r.snapshots}, request, budget, output, view, steps)
 	if err != nil {
 		return RBAcrossPage{}, result, err
 	}
@@ -325,7 +343,7 @@ func rbAcrossFetch(ctx context.Context, q browseQuery, in RBAcrossInput, spec rb
 		}
 		return nil
 	}
-	base := []any{d.allowed[i].id, in.View.Kind}
+	base := []any{d.allowed[i].catalogID, in.View.Kind}
 	switch {
 	case !pos.started:
 		if err := leg(rbAcrossOrderName(spec, in.View.Descending, "first"), base...); err != nil {
@@ -335,7 +353,7 @@ func rbAcrossFetch(ctx context.Context, q browseQuery, in RBAcrossInput, spec rb
 		if err := leg(rbAcrossOrderName(spec, in.View.Descending, "null_tail"), append(base, pos.id)...); err != nil {
 			return err
 		}
-		if remaining > 0 && !in.View.Descending {
+		if remaining > 0 && !in.View.Descending && spec.nullable {
 			if err := leg(rbAcrossOrderName(spec, in.View.Descending, "values"), base...); err != nil {
 				return err
 			}
@@ -349,7 +367,7 @@ func rbAcrossFetch(ctx context.Context, q browseQuery, in RBAcrossInput, spec rb
 				return err
 			}
 		}
-		if remaining > 0 && in.View.Descending {
+		if remaining > 0 && in.View.Descending && spec.nullable {
 			if err := leg(rbAcrossOrderName(spec, in.View.Descending, "nulls"), base...); err != nil {
 				return err
 			}

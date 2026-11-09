@@ -2,6 +2,7 @@ package read
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/PorticoMediaServer/portico/server/internal/store/stmt"
 )
@@ -50,7 +51,7 @@ func rbContainerMetricsChildSpecs() []rbContainerMetricsChildSpec {
 		{
 			name: "show", kind: 2,
 			from:  entity + "catalog_entities_show_fk",
-			where: "e.show_id IS NOT NULL AND e.show_id=? AND e.library_id=?",
+			where: "show_id IS NOT NULL AND e.show_id=? AND e.library_id=?",
 			index: "catalog_entities_show_fk", seek: "show_id=?", order: "k0 ASC",
 			keys: []rbContainerMetricsChildKey{{sql: "e.id", alias: "k0"}}, kinds: []int64{4},
 			params: []stmt.Param{i("show"), i("library")}, binds: []any{int64(2000), int64(1)},
@@ -58,7 +59,7 @@ func rbContainerMetricsChildSpecs() []rbContainerMetricsChildSpec {
 		{
 			name: "season", kind: 3,
 			from:  entity + "catalog_entities_parent",
-			where: "e.parent_id IS NOT NULL AND e.parent_id=? AND e.library_id=?",
+			where: "parent_id IS NOT NULL AND e.parent_id=? AND e.library_id=?",
 			index: "catalog_entities_parent", seek: "parent_id=?", order: "k0 ASC",
 			keys: []rbContainerMetricsChildKey{{sql: "e.id", alias: "k0"}}, kinds: []int64{4},
 			params: []stmt.Param{i("parent"), i("library")}, binds: []any{int64(2000), int64(1)},
@@ -66,7 +67,7 @@ func rbContainerMetricsChildSpecs() []rbContainerMetricsChildSpec {
 		{
 			name: "album", kind: 6,
 			from:  entity + "catalog_entities_album",
-			where: "e.album_id IS NOT NULL AND e.album_id=? AND e.library_id=?",
+			where: "album_id IS NOT NULL AND e.album_id=? AND e.library_id=?",
 			index: "catalog_entities_album", seek: "album_id=?",
 			order: "k0 ASC,k1 ASC,k2 ASC",
 			keys: []rbContainerMetricsChildKey{
@@ -80,7 +81,7 @@ func rbContainerMetricsChildSpecs() []rbContainerMetricsChildSpec {
 		{
 			name: "book", kind: 8,
 			from:  entity + "catalog_entities_book",
-			where: "e.book_id IS NOT NULL AND e.book_id=? AND e.library_id=?",
+			where: "book_id IS NOT NULL AND e.book_id=? AND e.library_id=?",
 			index: "catalog_entities_book", seek: "book_id=?",
 			order: "k0 ASC,k1 ASC,k2 ASC",
 			keys: []rbContainerMetricsChildKey{
@@ -140,20 +141,40 @@ func rbContainerMetricsKeyColumns(spec rbContainerMetricsChildSpec) string {
 
 // rbContainerMetricsSelect builds one closed statement. preds are compiled key
 // predicates; requests never contribute one.
-func rbContainerMetricsSelect(spec rbContainerMetricsChildSpec, projection string, preds []string) string {
+func rbContainerMetricsSelect(spec rbContainerMetricsChildSpec, projection string, preds []string, order string) string {
 	where := spec.where
 	for _, pred := range preds {
 		where += " AND " + pred
 	}
 	return "SELECT " + projection + "," + rbContainerMetricsKeyColumns(spec) +
 		" FROM " + spec.from +
-		" LEFT JOIN personal_items AS p INDEXED BY personal_current_live ON p.profile_id=? AND p.item_id=e.id AND p.item_public_id=e.public_id" +
-		" WHERE " + where + " ORDER BY " + spec.order + " LIMIT ?"
+		" LEFT JOIN personal_items AS p INDEXED BY personal_current_live ON p.profile_id=? AND p.item_id=e.id" +
+		" WHERE " + where + " ORDER BY " + order + " LIMIT ?"
+}
+
+// rbContainerMetricsLegOrder omits the keys the leg's equality prefix already
+// fixes, so the forced index supplies the order without a temporary B-tree.
+func rbContainerMetricsLegOrder(spec rbContainerMetricsChildSpec, fixed int) string {
+	var out string
+	for i := fixed; i < len(spec.keys); i++ {
+		if out != "" {
+			out += ","
+		}
+		out += "k" + strconv.Itoa(i) + " ASC"
+	}
+	return out
 }
 
 // RBContainerMetricsDefinitions is an inert, independently receipted inventory.
 func RBContainerMetricsDefinitions() []stmt.Definition {
+	return append(HarnessDefinitions(), rbContainerMetricsDefinitions()...)
+}
+
+// rbContainerMetricsDefinitions is this domain's own inventory; the exported
+// form also carries the shared fence harness.
+func rbContainerMetricsDefinitions() []stmt.Definition {
 	i := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Integer} }
+	s := func(n string) stmt.Param { return stmt.Param{Name: n, Type: stmt.Text} }
 	var out []stmt.Definition
 	add := func(name, sql string, params []stmt.Param, present, empty []any, p stmt.Plan) {
 		out = append(out, stmt.Definition{ID: readStatementID("rb.container_metrics." + name), SQL: sql, Owner: "store/read", CallSites: []string{"store/read/rb_container_metrics.go:RBContainerMetricsPreparation.window"}, Kind: stmt.Read, Params: params, Cohorts: []stmt.Cohort{{Name: "present", Bindings: present}, {Name: "empty", Bindings: empty}}, Plan: p})
@@ -170,16 +191,58 @@ func RBContainerMetricsDefinitions() []stmt.Definition {
 			plan.PrimaryKeys = []string{"e"}
 		}
 		addChild := func(leg string, preds []string, keyParams []stmt.Param, keyBinds []any) {
-			params := append(append([]stmt.Param(nil), spec.params...), keyParams...)
+			// The personal LEFT JOIN's profile binds first, before spec.where.
+			params := append([]stmt.Param{s("profile")}, spec.params...)
+			params = append(params, keyParams...)
 			params = append(params, i("limit"))
+			legPlan := func(name string) stmt.Plan {
+				p := plan
+				p.Waivers = append(append([]stmt.Waiver(nil), plan.Waivers...), stmt.Waiver{
+					StatementID: readStatementID("rb.container_metrics.children." + spec.name + "." + name),
+					Stage:       "eqp", Form: "BLOOM FILTER",
+					Match:  "BLOOM FILTER ON p (profile_id=? AND item_id=?)",
+					Reason: "bundled planner join bloom filter; the current-personal index seek is still pinned",
+				})
+				if spec.name == "album" || spec.name == "book" {
+					// These authored-order indexes are expression indexes, so the
+					// bounded keyset EQP names <expr> instead of a column. Waive that
+					// exact reviewed detail; the index and seek stay pinned.
+					fk := "album_id=?"
+					if spec.name == "book" {
+						fk = "book_id=?"
+					}
+					parts := []string{fk}
+					for k := range keyParams {
+						column, op := "<expr>", "=?"
+						if k == 2 {
+							column = "id"
+						}
+						if k == len(keyParams)-1 {
+							op = ">?"
+						}
+						parts = append(parts, column+op)
+					}
+					p.Waivers = append(p.Waivers, stmt.Waiver{
+						StatementID: readStatementID("rb.container_metrics.children." + spec.name + "." + name),
+						Stage:       "eqp", Form: "UNRECOGNIZED EQP",
+						Match:  "SEARCH e USING INDEX " + spec.index + " (" + strings.Join(parts, " AND ") + ")",
+						Reason: "reviewed expression-index keyset for the authored album/book child order",
+					})
+				}
+				return p
+			}
 			present := append([]any{"p"}, spec.binds...)
 			present = append(present, keyBinds...)
 			present = append(present, int64(rbContainerMetricsRaw+1))
 			empty := append([]any(nil), present...)
 			empty[1] = int64(-1)
 			name := "children." + spec.name + "." + leg
-			add(name, rbContainerMetricsSelect(spec, rbContainerMetricsPayloadColumns, preds), params, present, empty, plan)
-			add(name+".bytes", rbContainerMetricsSelect(spec, rbContainerMetricsOctetColumns, preds), params, present, empty, plan)
+			order := spec.order
+			if leg != "first" {
+				order = rbContainerMetricsLegOrder(spec, len(keyParams)-1)
+			}
+			add(name, rbContainerMetricsSelect(spec, rbContainerMetricsPayloadColumns, preds, order), params, present, empty, legPlan(leg))
+			add(name+".bytes", rbContainerMetricsSelect(spec, rbContainerMetricsOctetColumns, preds, order), params, present, empty, legPlan(leg+".bytes"))
 		}
 		if spec.textFirst {
 			addChild("first", nil, nil, nil)

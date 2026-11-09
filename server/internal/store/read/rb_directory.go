@@ -202,7 +202,7 @@ func (r *BrowseReader) directoryWindow(ctx context.Context, request governor.Req
 	if view.Limit < 1 || view.Limit > MaxPage {
 		return RBDirectoryPage{}, BrowseReadResult{}, ErrInput
 	}
-	draft, result, err := rbPrincipalPublish(ctx, r.snapshots, request, budget, output, view, []readStep[rbDirectoryDraft]{func(ctx context.Context, q browseQuery, f browseFence, d *rbDirectoryDraft) error {
+	draft, result, err := rbPrincipalPublish(ctx, rbWideSnapshots{r.snapshots}, request, budget, output, view, []readStep[rbDirectoryDraft]{func(ctx context.Context, q browseQuery, f browseFence, d *rbDirectoryDraft) error {
 		return readRBDirectoryPage(ctx, q, f, in, d)
 	}})
 	if err != nil {

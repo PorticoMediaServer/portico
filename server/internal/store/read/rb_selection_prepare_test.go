@@ -133,7 +133,13 @@ func rbSelectionBrowseIDs(t *testing.T, f *browseFixture, keep, desc bool) []int
 	in.KeepArticles, in.Descending, in.Limit, in.After = keep, desc, 40, nil
 	var ids []int64
 	for n := 0; n < 64; n++ {
-		page, _, err := f.window(t, t.Context(), in)
+		live, request, output := liveRequests(fmt.Sprintf("rb-selection-browse-%d-%v-%v-%d", n, keep, desc, len(ids)))
+		var page BrowsePage
+		_, err := ConsumeForeground(t.Context(), f.governor, f.authority, f.snapshots, live, output, func(ctx context.Context, out BrowseOutput) error {
+			var e error
+			page, _, e = f.reader.window(ctx, request, time.Second, out, in)
+			return e
+		})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -205,18 +211,17 @@ func TestRBSelectionPrepareCompleteResult(t *testing.T) {
 					if key == RBOrderByID && keep {
 						continue
 					}
-					var want []int64
+					// ascending is always the true ascending order; want is the
+					// requested page order (the full reverse for a descending read).
+					var ascending []int64
 					if key == RBOrderByID {
-						want = rbSelectionSorted(admitted)
+						ascending = rbSelectionSorted(admitted)
 					} else {
-						want = rbSelectionBrowseIDs(t, f, keep, desc)
+						ascending = rbSelectionBrowseIDs(t, f, keep, false)
 					}
+					want := slices.Clone(ascending)
 					if desc {
 						slices.Reverse(want)
-					}
-					ascending := slices.Clone(want)
-					if desc {
-						slices.Reverse(ascending)
 					}
 					rbSelectionOracle(t, f, ascending)
 					in := RBSelectionInput{View: f.input, Key: key}

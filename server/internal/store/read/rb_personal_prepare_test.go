@@ -194,7 +194,7 @@ func rbPersonalPrepareAllPages(t *testing.T, f *browseFixture, job *RBPersonalPr
 			t.Fatal("missing fresh publication evidence", page, cost)
 		}
 		if page.Total != int64(want) {
-			t.Fatal("page total is not the complete admitted set", page.Total, want)
+			t.Fatalf("page total is not the complete admitted set %d want %d order=%s desc=%v keep=%v", page.Total, want, in.Order, in.View.Descending, in.View.KeepArticles)
 		}
 		got = append(got, page.IDs...)
 		if page.Exhausted {
@@ -273,12 +273,22 @@ func TestRBPersonalPrepareMissingZeroAndLargeIntegers(t *testing.T) {
 		// Explicit zeroes and missing personal rows are both the title-default
 		// remainder, never the valued run.
 		valued := rbPersonalPrepareQueryIDs(t, f, `SELECT e.id FROM personal_items AS p JOIN catalog_entities AS e ON e.id=p.item_id AND e.public_id=p.item_public_id WHERE p.profile_id='p' AND e.library_id=1 AND e.kind=1 AND e.retired=0 AND p.play_count>0`)
-		if slices.Contains(valued, int64(1)) {
-			t.Fatal("zero play count entered the valued run")
+		zero := rbPersonalPrepareQueryIDs(t, f, `SELECT e.id FROM personal_items AS p JOIN catalog_entities AS e ON e.id=p.item_id AND e.public_id=p.item_public_id WHERE p.profile_id='p' AND e.library_id=1 AND e.kind=1 AND e.retired=0 AND p.play_count=0`)
+		if len(zero) == 0 {
+			t.Fatal("fixture has no zero play counts")
 		}
-		// The other profile's large count and rating never leak in.
-		if slices.Contains(got[:len(valued)], int64(1)) {
-			t.Fatal("another profile's values leaked into the valued run")
+		for _, id := range zero {
+			if slices.Contains(got[:len(valued)], id) {
+				t.Fatal("zero play count entered the valued run", id)
+			}
+		}
+		// The valued prefix is exactly this profile's positive counts: no other
+		// profile's row and no zero/missing row may take a valued place.
+		gotValued, wantValued := slices.Clone(got[:len(valued)]), slices.Clone(valued)
+		slices.Sort(gotValued)
+		slices.Sort(wantValued)
+		if !slices.Equal(gotValued, wantValued) {
+			t.Fatalf("valued run is not this profile's current values: got %d want %d", len(gotValued), len(wantValued))
 		}
 	})
 }
@@ -307,8 +317,9 @@ func TestRBPersonalPrepareEqualTitleRun(t *testing.T) {
 			}
 			sorted := slices.Clone(run)
 			slices.Sort(sorted)
-			if len(run) != 71 || !slices.Equal(run, sorted) {
-				t.Fatal("equal-title run is not in entity-ID order", keep, len(run))
+			wantRun := rbPersonalPrepareCount(t, f, `SELECT count(*) FROM catalog_entities WHERE library_id=1 AND kind=1 AND retired=0 AND id BETWEEN 400 AND 470`)
+			if len(run) != wantRun || !slices.Equal(run, sorted) {
+				t.Fatal("equal-title run is not in entity-ID order", keep, len(run), wantRun)
 			}
 			if err := job.Close(); err != nil {
 				t.Fatal(err)
@@ -331,8 +342,10 @@ func TestRBPersonalPrepareSparseRawContinuation(t *testing.T) {
 		done := rbPersonalPrepareRun(t, job)
 		valuedRaw := rbPersonalPrepareCount(t, f, `SELECT count(*) FROM personal_items AS p JOIN catalog_entities AS e ON e.id=p.item_id AND e.public_id=p.item_public_id WHERE p.profile_id='p' AND e.library_id=1 AND e.kind=1 AND p.rating>0`)
 		restRaw := rbPersonalPrepareCount(t, f, `SELECT count(*) FROM catalog_entities WHERE library_id=1 AND kind=1`)
-		if !done.Ready || done.RawRows != valuedRaw+restRaw {
-			t.Fatalf("rejected rows did not remain in the raw stream: %+v want %d", done, valuedRaw+restRaw)
+		// Every raw row is fetched (the lower bound) and the only repeats are the
+		// one-row lookahead each bounded window re-reads (the upper bound).
+		if !done.Ready || done.RawRows < valuedRaw+restRaw || done.RawRows > valuedRaw+restRaw+done.Statements {
+			t.Fatalf("rejected rows did not remain in the raw stream: %+v want [%d,%d]", done, valuedRaw+restRaw, valuedRaw+restRaw+done.Statements)
 		}
 		want := rbPersonalPrepareWant(t, f, in.Order, true, false)
 		got := rbPersonalPrepareAllPages(t, f, job, in, len(want), 200)

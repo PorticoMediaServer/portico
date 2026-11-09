@@ -65,7 +65,7 @@ func newRBGroupLiftSource(t *testing.T) *browseFixture {
 		add(6110+n, 4, fmt.Sprintf("Episode Two %d", n), ",parent_id,show_id,season_id,episode_number", seasonTwo, show, seasonTwo, n+1)
 	}
 	add(6120, 4, "Retired Episode", ",parent_id,show_id,season_id,episode_number,retired", seasonOne, show, seasonOne, int64(99), int64(1))
-	add(6130, 4, "Episode Of Retired Show", ",parent_id,show_id", retiredShow, retiredShow)
+	add(6130, 4, "Episode Of Retired Show", ",parent_id,show_id,numbering,episode_number", retiredShow, retiredShow, "seasonal", int64(1))
 	add(6400, 5, "Artist", ",parent_id", nil)
 	add(albumOne, 6, "Album One", ",parent_id,artist_id", int64(6400), int64(6400))
 	add(albumTwo, 6, "Album Two", ",parent_id,artist_id", int64(6400), int64(6400))
@@ -99,8 +99,9 @@ func newRBGroupLiftSource(t *testing.T) *browseFixture {
 	for n, item := range []int64{6600, 6100, 6310, 6101, 6510, 6102, 6120, 6311, 1040, 6110, 1010, show, 6130, 6360, 6601} {
 		member(7000, item, key(n))
 	}
-	// Songs sharing Album One and Album Two across many windows.
-	for n := int64(0); n < 20; n++ {
+	// Songs sharing Album One and Album Two across many windows. 6310/6311 are
+	// already members above, so this adds the rest of Album One's songs.
+	for n := int64(0); n < 18; n++ {
 		member(7000, 6312+n, key(100+int(n)))
 	}
 	for n := int64(0); n < 10; n++ {
@@ -790,16 +791,19 @@ func TestRBGroupLiftPublicLIVE(t *testing.T) {
 			if len(page.IDs) != 40 || !page.SourceOrdered {
 				t.Fatal("LIVE values/admission")
 			}
-			assertLiveUsage(t, f, 1, 0)
+			// The preparation's reserved bytes stay held until physical exit
+			// (Close), alongside the one LIVE response page.
+			rbGroupLiftLiveUsage(t, f, 1, 1<<20)
 			return nil
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		assertLiveUsage(t, f, 0, 0)
+		rbGroupLiftLiveUsage(t, f, 0, 1<<20)
 		if err := job.Close(); err != nil {
 			t.Fatal(err)
 		}
+		rbGroupLiftLiveUsage(t, f, 0, 0)
 	})
 }
 
@@ -826,4 +830,17 @@ func TestRBGroupLiftForeignMemberAndRetiredSkip(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+}
+
+// rbGroupLiftLiveUsage adds the preparation reservation to the shared LIVE
+// custody assertion; the governor refunds it only at physical exit.
+func rbGroupLiftLiveUsage(t *testing.T, f *browseFixture, live int, reserved int64) {
+	t.Helper()
+	if got := f.authority.ForegroundUsage(); got.Live != live || got.Waiters != 0 {
+		t.Fatalf("live custody %+v want%d", got, live)
+	}
+	usage := f.authority.Usage()[governor.Foreground]
+	if usage[governor.Reader] != 0 || usage[governor.MemoryBytes] != int64(live)*((8<<20)+4096)+reserved || usage[governor.QueueBytes] != int64(live)*4096 {
+		t.Fatalf("payload/metadata custody %+v live%d reserved%d", usage, live, reserved)
+	}
 }
