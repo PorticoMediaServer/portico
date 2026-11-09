@@ -433,6 +433,7 @@ type transaction struct {
 	compositionClock *time.Time                  // real runtime's same mark survives all admission failures
 	publicReading    *uoPublicReadingReservation // one closed canonical public-reading original
 	birthStart       *uoBirthStartLookup         // one closed 700 original; never a callback registry
+	birthJob         *uoBirthJobLookup           // one closed 740 original; never a callback registry
 }
 
 // observeTime records every trusted admission/helper sample, even a helper read
@@ -535,6 +536,9 @@ func (t *transaction) commit() (turnResult, error) {
 	}
 	if err == nil {
 		err = t.checkUOBirthStartCommit()
+	}
+	if err == nil {
+		err = t.checkUOBirthJobCommit()
 	}
 	if err == nil {
 		err = t.checkPublicationCommit()

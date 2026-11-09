@@ -64,6 +64,7 @@ func (p *uoRootCurrentProof) current(turn *commandTurn) error {
 	}
 	switch p.purpose {
 	case 600, 700:
+	case 740:
 	default:
 		return ErrUORootCurrentFenceUnavailable
 	}
@@ -84,6 +85,7 @@ func bindUSCurrentUORoot(ctx context.Context, turn *commandTurn, a *usCurrentSes
 	}
 	switch turn.transaction.descriptor.ID {
 	case 600, 700:
+	case 740:
 	default:
 		return nil, ErrUORootCurrentFenceUnavailable
 	}

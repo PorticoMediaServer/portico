@@ -64,7 +64,16 @@ func lookupUORootCommand(ctx context.Context, turn *commandTurn, binding *uoRoot
 		return out, ErrInvalid
 	}
 	if isUOUserBirthPurpose(q.kind) {
-		if q.kind != 700 || turn.transaction.birthStart == nil || turn.transaction.birthStart.turn != turn || turn.transaction.birthStart.root.reference != q {
+		switch q.kind {
+		case 700:
+			if turn.transaction.birthStart == nil || turn.transaction.birthStart.turn != turn || turn.transaction.birthStart.root.reference != q {
+				return out, ErrInvalid
+			}
+		case 740:
+			if turn.transaction.birthJob == nil || turn.transaction.birthJob.turn != turn || turn.transaction.birthJob.root.reference != q {
+				return out, ErrInvalid
+			}
+		default:
 			return out, ErrInvalid
 		}
 	}
@@ -251,6 +260,18 @@ func persistUORootCanonical(ctx context.Context, turn *commandTurn, lookup uoRoo
 			return out, ErrInvalid
 		}
 		appliedMS = v.result.appliedMS
+	case uoBirthJobResult:
+		if v.root != q.root || q.kind != 740 {
+			return out, ErrInvalid
+		}
+		state := turn.transaction.birthJob
+		if state == nil || state.turn != turn || state.saved || state.root.reference != q {
+			return out, ErrInvalid
+		}
+		if err = checkUOBirthJobNative(ctx, turn, state, v); err != nil {
+			return out, err
+		}
+		appliedMS = v.appliedMS
 	default:
 		return out, ErrInvalid
 	}

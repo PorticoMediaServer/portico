@@ -89,6 +89,7 @@ func authorizeUSCurrentSession(ctx context.Context, turn *commandTurn, p *usOwne
 	}
 	switch tx.descriptor.ID {
 	case SetPersonalFlags, 700, 770, 771:
+	case 740:
 	default:
 		return nil, ErrDisclosureDenied
 	}
