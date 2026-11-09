@@ -154,8 +154,9 @@ func (usPolicyDispatchResult) Format(f fmt.State, _ rune) {
 }
 
 type usPolicyCompletion struct {
-	out   usPolicyDispatchResult
-	floor AckResult
+	out        usPolicyDispatchResult
+	floor      AckResult
+	historical bool
 }
 
 func (usPolicyCompletion) String() string   { return "usPolicyCompletion{redacted}" }
@@ -377,8 +378,8 @@ func usPolicyQuotaAdmit(owner usPolicyOwnerFacts, charge int64) error {
 // physical terminal may declare Applied.
 func executeUSPolicyInvocation(ctx context.Context, turn *commandTurn, a *usOwnerAuthorization, inv *usPolicyInvocation) (out usPolicyDispatchResult, floor AckResult, historical bool, err error) {
 	defer func() {
-		v, e := finishCommand(ctx, commandLifetime(turn), usPolicyCompletion{out, floor}, err)
-		out, floor, err = v.out, v.floor, e
+		v, e := finishCommand(ctx, commandLifetime(turn), usPolicyCompletion{out, floor, historical}, err)
+		out, floor, historical, err = v.out, v.floor, v.historical, e
 	}()
 	if turn == nil || turn.transaction == nil || a == nil || inv == nil {
 		return out, floor, false, ErrInvalid
@@ -1197,7 +1198,12 @@ func usPolicySameLibrarySet(a, b []string) bool {
 // current disclosure and the FULL physical terminal; the caller supplies only
 // the already admitted turn.
 func runUSPolicyDispatch(ctx context.Context, turn *commandTurn, a *usOwnerAuthorization, inv *usPolicyInvocation) (out usPolicyDispatchResult, floor AckResult, err error) {
-	out, floor, historical, err := executeUSPolicyInvocation(ctx, turn, a, inv)
+	var historical bool
+	defer func() {
+		v, e := finishCommand(ctx, ctx, usPolicyCompletion{out, floor, historical}, err)
+		out, floor, err = v.out, v.floor, e
+	}()
+	out, floor, historical, err = executeUSPolicyInvocation(ctx, turn, a, inv)
 	if err != nil {
 		return withdrawUSPolicy(turn, err)
 	}
@@ -1210,9 +1216,10 @@ func runUSPolicyDispatch(ctx context.Context, turn *commandTurn, a *usOwnerAutho
 		return withdrawUSPolicy(turn, ctxErr)
 	}
 	// The release rule runs BEFORE the terminal: the transaction cancels its
-	// own lifetime at commit/rollback, so a deferred finish afterwards would
-	// misreport a committed command as canceled.
-	release, releaseErr := finishCommand(ctx, commandLifetime(turn), usPolicyCompletion{out, floor}, nil)
+	// own lifetime at commit/rollback, so this release uses the live frame
+	// lifetime. The deferred final publication rechecks the CALLER's context
+	// after physical return, exactly like the shared dispatcher.
+	release, releaseErr := finishCommand(ctx, commandLifetime(turn), usPolicyCompletion{out, floor, historical}, nil)
 	if releaseErr != nil {
 		return withdrawUSPolicy(turn, releaseErr)
 	}
