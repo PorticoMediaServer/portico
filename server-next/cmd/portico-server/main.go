@@ -55,6 +55,22 @@ func run(log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	// The list of changes behind the events feed is kept short. A reader further behind than
+	// what is kept is told to read everything again.
+	go func() {
+		tick := time.NewTicker(5 * time.Minute)
+		defer tick.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-tick.C:
+				if _, err := d.PruneChanges(ctx); err != nil && ctx.Err() == nil {
+					log.Error("pruning the list of changes failed", "error", err)
+				}
+			}
+		}
+	}()
 	// No write timeout: media and the events feed are long replies. Slow request headers are bounded.
 	srv := &http.Server{Addr: *listen, Handler: handler, ReadHeaderTimeout: 10 * time.Second}
 	failed := make(chan error, 1)

@@ -58,8 +58,8 @@ type ItemEdit struct {
 	StateEdit
 }
 
-// undoLifetime is how long a show, season or album mark can be taken back.
-const undoLifetime = time.Minute
+// UndoLifetime is how long a show, season or album mark can be taken back.
+const UndoLifetime = time.Minute
 
 // maxUndoOffers bounds the memory undo offers can hold; the oldest goes first.
 const maxUndoOffers = 500
@@ -362,7 +362,7 @@ func (w *stateWriter) read(itemID int64, kind ItemKind) (State, error) {
 // may see and whose own last mark is not later. It returns what those leaves held before.
 func (w *stateWriter) markLeaves(holderID int64, watched bool, at int64) (*undoOffer, error) {
 	offer := &undoOffer{profileID: w.viewer.ProfileID, itemID: holderID, madeAt: at,
-		expires: time.Now().Add(undoLifetime)}
+		expires: time.Now().Add(UndoLifetime)}
 	rows, err := w.tx.Query(underHolder(`SELECT c.id, ifnull(s.played, 0), s.played_at, s.position_ms, s.position_at FROM items c
 		LEFT JOIN user_item_state s ON s.profile_id = @viewer_profile AND s.item_id = c.id
 		WHERE {under} AND `+w.access.visible("c")+`
