@@ -44,6 +44,7 @@ type Report struct {
 	LoadedImport *seed.Totals      `json:"loadedImport,omitempty"`
 	Reads        map[string]Timing `json:"reads,omitempty"`
 	ReadsIdle    map[string]Timing `json:"readsIdle,omitempty"`
+	WritesIdle   *Timing           `json:"writesIdle,omitempty"`
 	Writes       *Timing           `json:"writes,omitempty"`
 	PeakRSSBytes int64             `json:"peakRssBytes"`
 	WALMaxBytes  int64             `json:"walMaxBytes"`
@@ -61,6 +62,7 @@ func main() {
 	items := flag.Int("items", 20_000, "playable items: the library size for import and rescan, the size of each extra import for mixed")
 	seedValue := flag.Uint64("seed", 1, "seed of the library")
 	batch := flag.Int("batch", 40, "files per import transaction")
+	batchTime := flag.Duration("batch-time", 0, "size import transactions to take this long instead (-batch is then where the size starts)")
 	readers := flag.Int("readers", 4, "mixed: goroutines reading pages")
 	writesPerSec := flag.Int("writes", 20, "mixed: user writes a second")
 	settle := flag.Duration("settle", time.Minute, "how long after the import to watch the WAL")
@@ -74,7 +76,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer d.Close()
-	cfg := seed.Config{Seed: *seedValue, Items: *items, BatchFiles: *batch}
+	cfg := seed.Config{Seed: *seedValue, Items: *items, BatchFiles: *batch, BatchTime: *batchTime}
 	report := &Report{Mode: *mode, Items: *items}
 	wal := watchWAL(*path + "-wal")
 
@@ -144,9 +146,16 @@ func mixed(ctx context.Context, d *db.DB, cfg seed.Config, readers, writesPerSec
 		log.Fatal(err)
 	}
 
+	// The floor under every user write: one small transaction and its disk sync, nothing else running.
+	log.Print("writes with nothing else running")
+	stop := w.start(ctx, 0, writesPerSec)
+	time.Sleep(10 * time.Second)
+	_, idleWrites := stop()
+	report.WritesIdle = &idleWrites
+
 	log.Print("reads with nothing else running")
-	stop := w.start(ctx, readers, 0)
-	time.Sleep(20 * time.Second)
+	stop = w.start(ctx, readers, 0)
+	time.Sleep(30 * time.Second)
 	idleReads, _ := stop()
 	report.ReadsIdle = idleReads
 
@@ -173,9 +182,12 @@ func mixed(ctx context.Context, d *db.DB, cfg seed.Config, readers, writesPerSec
 	report.bar("5 import rate kept under activity", "at least 0.5 of idle", kept, "of idle", kept >= 0.5)
 	for _, class := range sortedKeys(reads) {
 		t := reads[class]
-		fmt.Printf("  reads %-14s n=%-7d p50 %7.2f ms  p99 %8.2f ms  max %8.2f ms   (idle p99 %.2f ms)\n", class, t.N, t.P50, t.P99, t.Max, idleReads[class].P99)
+		fmt.Printf("  reads %-24s n=%-7d p50 %7.2f ms  p99 %8.2f ms  max %8.2f ms   (idle p99 %.2f ms)\n", class, t.N, t.P50, t.P99, t.Max, idleReads[class].P99)
 	}
 	fmt.Printf("  writes               n=%-7d p50 %7.2f ms  p99 %8.2f ms  max %8.2f ms\n", writes.N, writes.P50, writes.P99, writes.Max)
+	fmt.Printf("  writes, nothing else running: n=%d p50 %.2f ms  p99 %.2f ms  max %.2f ms (one commit and its disk sync)\n",
+		idleWrites.N, idleWrites.P50, idleWrites.P99, idleWrites.Max)
+	fmt.Printf("  import transactions ended at %d files each\n", loaded.LastBatchFiles)
 	fmt.Printf("  import: %.0f files/s idle, %.0f files/s under activity\n", idle.FilesPerSec, loaded.FilesPerSec)
 }
 
