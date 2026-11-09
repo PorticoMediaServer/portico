@@ -285,7 +285,7 @@ func (r *RSSearchReader) pollLocked(ctx context.Context, request governor.Reques
 	}
 	v.Limit = 20
 	v.Now = v.Now.Add(time.Since(p.started))
-	input := FullSearchInput{View: v, After: cloneFullCursor(p.after), Preview: preview}
+	input := FullSearchInput{View: v, After: cloneFullCursor(p.after), Preview: preview, PeopleOnly: p.input.Group == RSSearchPeople}
 	if preview {
 		input.CandidateBudget = NativePreviewCandidates - p.candidates
 		if len(p.streams) > 1 {

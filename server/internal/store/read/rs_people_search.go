@@ -189,19 +189,22 @@ func (r *RSPeopleSearchReader) Begin(ctx context.Context, owner governor.OwnerID
 
 // revalidate advances the ONE native call for a hydration poll. It carries a
 // fence/revision witness for the retained scope instead of re-reading every
-// retained row: each poll proves the current bank/source/permission fence and
-// advances at most one bounded native page. A pending page is progress only
-// when it kept a continuation; a pending census or a proof that cannot advance
-// refuses explicitly and never becomes a ready empty page. The retained
-// summaries themselves are re-proved by the borrower's source fences and by the
-// complete delivery fence before any payload is published.
+// retained row: each poll proves the current bank/source/permission fence. A
+// pending page is progress only when it kept a continuation; a pending census
+// or a proof that cannot advance refuses explicitly and never becomes a ready
+// empty page. The retained summaries themselves are re-proved by the borrower's
+// source fences and by the complete delivery fence before any payload is
+// published, so this fence read needs a bounded discovery proof, not a complete
+// census: a dense People cohort would otherwise re-census on every hydration
+// poll. A partial discovery page is therefore accepted HERE only, for its fresh
+// stamp, and none of its hits reach the page.
 func (r *RSPeopleSearchReader) revalidate(ctx context.Context, req governor.Request, budget time.Duration, out BrowseOutput, p *RSPeopleSearchPreparation) (bool, *BrowseReadResult, error) {
 	s := p.search
 	v := s.input.Views[s.library]
 	v.Kind = 0
-	v.Limit = 20
+	v.Limit = 1
 	v.Now = v.Now.Add(time.Since(s.started))
-	in := FullSearchInput{View: v, After: cloneFullCursor(s.after)}
+	in := FullSearchInput{View: v, Preview: true, CandidateBudget: 1, PeopleOnly: true}
 	if s.stamp == nil {
 		return false, nil, ErrUnqualified
 	}
@@ -230,7 +233,7 @@ func (r *RSPeopleSearchReader) revalidate(ctx context.Context, req governor.Requ
 	default:
 		return false, cost, ErrUnqualified
 	}
-	if page.Stamp == nil || page.Partial {
+	if page.Stamp == nil || page.Partial && !in.Preview {
 		return false, cost, ErrUnqualified
 	}
 	s.after = cloneFullCursor(page.Next)

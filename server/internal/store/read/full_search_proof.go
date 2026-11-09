@@ -25,6 +25,7 @@ type fullQueryScope struct {
 	bank            int64
 	revision, input int64
 	preview         bool
+	peopleOnly      bool
 	nativeWork      *nativeCandidateWork
 }
 
