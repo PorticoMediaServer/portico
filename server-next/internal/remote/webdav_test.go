@@ -71,13 +71,13 @@ func TestWebDAV(t *testing.T) {
 }
 
 // A name a WebDAV server lists that could point somewhere else is dropped, and the rest of
-// the listing is kept.
+// the listing, a name with two dots in a row included, is kept.
 func TestWebDAVDropsUnsafeNames(t *testing.T) {
-	dav := remotetest.NewDAV(t, map[string]string{"Films/Heat.mkv": "x"})
-	dav.BadNames = []string{"..", "%2E%2E", "a..b.mkv", `back\slash.mkv`, "back%5Cslash.mkv", "slash%2Fname.mkv", "%2E%2E%2Fescape.mkv", "nul%00.mkv"}
+	dav := remotetest.NewDAV(t, map[string]string{"Films/Heat.mkv": "x", "Films/Film..mkv": "y"})
+	dav.BadNames = []string{".", "..", "%2E", "%2E%2E", `back\slash.mkv`, "back%5Cslash.mkv", "slash%2Fname.mkv", "%2E%2E%2Fescape.mkv", "nul%00.mkv"}
 	src, _ := remote.NewWebDAV(dav.URL, dav.User, dav.Password)
 	listed, err := src.List(ctx, "Films")
-	if err != nil || len(listed) != 1 || listed[0].Name != "Heat.mkv" {
+	if err != nil || len(listed) != 2 || listed[0].Name != "Film..mkv" || listed[1].Name != "Heat.mkv" {
 		t.Fatalf("listing with unsafe names: %v %+v", err, listed)
 	}
 }
