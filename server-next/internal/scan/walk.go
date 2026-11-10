@@ -74,7 +74,8 @@ func (s *Scanner) Scan(ctx context.Context, lib db.Library) (Stats, error) {
 		}
 		paths[p.ID] = unavailable
 	}
-	if lib.Options.Depth != db.DepthFiles && s.Prober != nil {
+	// Books and comics are not audio or video: there is nothing in them for the prober.
+	if lib.Options.Depth != db.DepthFiles && s.Prober != nil && lib.Kind != db.LibraryBooks && lib.Kind != db.LibraryComics {
 		if err := r.probe(); err != nil {
 			return r.stats, err
 		}
@@ -106,6 +107,7 @@ type run struct {
 	path    db.LibraryPath
 	src     Source
 	rules   []naming.IgnoreRules
+	pending db.ImportBatch // what has been gathered for the next transaction
 	claimed map[int64]bool // stored files already recognised at a new place by this scan
 	sources map[string]Source
 	nfos    map[string][]localmetadata.VideoNFO // NFO files read by this scan, by path
@@ -139,7 +141,10 @@ func (r *run) walkPath() (unavailable, err error) {
 			return errEmptied, nil
 		}
 	}
-	return nil, r.walkFolder("", entries, 0)
+	if err := r.walkFolder("", entries, 0); err != nil {
+		return nil, err
+	}
+	return nil, r.flush()
 }
 
 // state is how a file compares with what the last scan stored.
@@ -280,7 +285,7 @@ func (r *run) walkFolder(rel string, entries []Entry, depth int) error {
 			return err
 		}
 	}
-	if r.s.Progress != nil && (f.differs || r.stats.Folders%500 == 0) {
+	if r.s.Progress != nil && r.stats.Folders%500 == 0 {
 		r.s.Progress(r.stats)
 	}
 
@@ -306,6 +311,9 @@ func (r *run) walkFolder(rel string, entries []Entry, depth int) error {
 	// everything under it.
 	for _, child := range stored.Folders {
 		if !here[child] {
+			if err := r.flush(); err != nil {
+				return err
+			}
 			if err := r.s.DB.MarkFolderGone(r.ctx, r.lib.ID, r.path.ID, child); err != nil {
 				return err
 			}
@@ -351,19 +359,15 @@ func (r *run) store(f *folder, gone []db.FileRef) error {
 	}
 	units = append(units, rest)
 
-	dir := db.ImportDir{RelPath: f.rel}
-	batch := r.newBatch(dir)
-	batch.Gone = gone
-	r.stats.FilesGone += len(gone)
-	flush := func() error {
-		stats, err := r.s.DB.Import(r.ctx, batch)
-		r.stats.FilesNew += stats.FilesNew
-		r.stats.FilesChanged += stats.FilesChanged
-		r.stats.ItemsNew += stats.ItemsNew
-		r.stats.RowsWritten += stats.RowsWritten
-		batch = r.newBatch(dir)
-		return err
+	// Folders share transactions: a library of one film to a folder would otherwise sync the
+	// disk once for every film.
+	batch := &r.pending
+	if batch.PathID != r.path.ID {
+		*batch = db.ImportBatch{LibraryID: r.lib.ID, PathID: r.path.ID, Scan: r.scan}
 	}
+	batch.Dirs = append(batch.Dirs, db.ImportDir{RelPath: f.rel})
+	batch.Gone = append(batch.Gone, gone...)
+	r.stats.FilesGone += len(gone)
 	for _, u := range units {
 		base := len(batch.Items)
 		for _, file := range u.files {
@@ -390,16 +394,32 @@ func (r *run) store(f *folder, gone []db.FileRef) error {
 			batch.Items = append(batch.Items, item)
 		}
 		if len(batch.Files)+len(batch.Moves) >= r.batch {
-			if err := flush(); err != nil {
+			if err := r.flush(); err != nil {
 				return err
 			}
+			// The rest of this folder goes into the next transaction, which names the folder again.
+			batch.Dirs = append(batch.Dirs, db.ImportDir{RelPath: f.rel})
 		}
 	}
-	return flush()
+	return nil
 }
 
-func (r *run) newBatch(dir db.ImportDir) db.ImportBatch {
-	return db.ImportBatch{LibraryID: r.lib.ID, PathID: r.path.ID, Scan: r.scan, Dirs: []db.ImportDir{dir}}
+// flush writes what the scan has gathered, in one transaction.
+func (r *run) flush() error {
+	batch := r.pending
+	r.pending = db.ImportBatch{LibraryID: batch.LibraryID, PathID: batch.PathID, Scan: batch.Scan}
+	if len(batch.Dirs) == 0 {
+		return nil
+	}
+	stats, err := r.s.DB.Import(r.ctx, batch)
+	r.stats.FilesNew += stats.FilesNew
+	r.stats.FilesChanged += stats.FilesChanged
+	r.stats.ItemsNew += stats.ItemsNew
+	r.stats.RowsWritten += stats.RowsWritten
+	if r.s.Progress != nil {
+		r.s.Progress(r.stats)
+	}
+	return err
 }
 
 // findMoves recognises new media files that are stored files at a new place: the same size
