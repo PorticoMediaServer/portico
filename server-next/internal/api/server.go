@@ -47,6 +47,7 @@ type Server struct {
 	setupCode, setupFile string
 	// playback runs the viewing sessions. See playback.go.
 	playback *playback.Service
+	network  networkState
 }
 
 // Route is one operation, kept so the contract can be generated and the operation budget counted.
@@ -153,7 +154,11 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 		}
 		log.Info("this server has no owner yet: create one with this setup code", "setupCode", s.setupCode, "file", s.setupFile)
 	}
+	if err := s.loadNetworks(ctx); err != nil {
+		return nil, err
+	}
 	s.systemRoutes()
+	s.networkRoutes()
 	s.identityRoutes()
 	s.authRoutes()
 	s.profileRoutes()

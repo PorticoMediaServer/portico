@@ -1355,6 +1355,51 @@
         ],
         "type": "object"
       },
+      "NetworkSettings": {
+        "properties": {
+          "homeNetworks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "homeNetworksDefault": {
+            "type": "boolean"
+          },
+          "trustedProxies": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "homeNetworks",
+          "homeNetworksDefault",
+          "trustedProxies"
+        ],
+        "type": "object"
+      },
+      "NetworkSettingsEdit": {
+        "properties": {
+          "homeNetworks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "trustedProxies": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "trustedProxies"
+        ],
+        "type": "object"
+      },
       "Part": {
         "properties": {
           "endMs": {
@@ -3757,6 +3802,68 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StreamLimits"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/settings/network": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NetworkSettings"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "put": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NetworkSettingsEdit"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NetworkSettings"
                 }
               }
             },

@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 )
@@ -75,10 +74,12 @@ func playbackError(err error) error {
 	return err
 }
 
-func playbackCaller(r *http.Request) playback.Caller {
+func (s *Server) playbackCaller(r *http.Request) playback.Caller {
 	c := CallerFrom(r.Context())
+	networks := s.networks()
+	addr, ok := networks.Client(r)
 	return playback.Caller{Viewer: db.Viewer{UserID: c.UserID, ProfileID: c.ProfileID}, SignInID: c.SessionID,
-		AtHome: auth.AtHome(remoteHost(r))}
+		AtHome: ok && networks.AtHome(addr)}
 }
 
 // deviceID is the device a capabilities route is about: one of the caller's own by id, or
@@ -162,7 +163,7 @@ func (s *Server) playbackOptions(r *http.Request, _ None) (PlaybackOptions, erro
 		ask.Quality = &playback.Quality{Mode: q.Get("quality"), ID: q.Get("qualityId"), MaxVideoBitrateKbps: number("maxVideoBitrateKbps"),
 			MaxHeight: number("maxHeight"), MaxAudioBitrateKbps: number("maxAudioBitrateKbps")}
 	}
-	options, err := s.playback.Options(r.Context(), playbackCaller(r), r.PathValue("id"), ask)
+	options, err := s.playback.Options(r.Context(), s.playbackCaller(r), r.PathValue("id"), ask)
 	if err != nil {
 		return PlaybackOptions{}, playbackError(err)
 	}
@@ -182,7 +183,7 @@ func (s *Server) startPlayback(r *http.Request, req PlaybackStart) (PlaybackSess
 	if req.ItemID == "" {
 		return PlaybackSession{}, ErrField("itemId", "Say which title to play.")
 	}
-	in := playback.StartInput{Caller: playbackCaller(r), Key: key, Hash: requestHash(req), ItemID: req.ItemID,
+	in := playback.StartInput{Caller: s.playbackCaller(r), Key: key, Hash: requestHash(req), ItemID: req.ItemID,
 		PositionMs: req.StartPositionMs, FromStart: req.StartFrom == "beginning" || req.StartFrom == "startOver",
 		Paused: req.State == playback.StatePaused,
 		Ask:    playback.Ask{VersionID: req.VersionID, Quality: req.Quality, Network: req.Network, ThroughputKbps: req.ThroughputKbps}}
@@ -211,7 +212,7 @@ func (s *Server) startPlayback(r *http.Request, req PlaybackStart) (PlaybackSess
 }
 
 func (s *Server) getPlayback(r *http.Request, _ None) (PlaybackSession, error) {
-	c := playbackCaller(r)
+	c := s.playbackCaller(r)
 	session, err := s.playback.Get(r.PathValue("id"), c.Viewer, c.SignInID)
 	return sessionOut(session), playbackError(err)
 }
@@ -234,7 +235,7 @@ func (s *Server) changePlayback(r *http.Request, req PlaybackChange) (PlaybackSe
 		position := max(req.Seek.PositionMs, 0)
 		change.SeekMs, change.SeekID = &position, req.Seek.ID
 	}
-	session, err := s.playback.Change(r.Context(), r.PathValue("id"), playbackCaller(r), change)
+	session, err := s.playback.Change(r.Context(), r.PathValue("id"), s.playbackCaller(r), change)
 	return sessionOut(session), playbackError(err)
 }
 
@@ -242,7 +243,7 @@ func (s *Server) changePlayback(r *http.Request, req PlaybackChange) (PlaybackSe
 // lives and when to report next. A session that is over answers 410; one this server does
 // not know (it restarted) answers 404, and the app starts again where it was.
 func (s *Server) reportPlayback(r *http.Request, req PlaybackProgress) (PlaybackLease, error) {
-	c := playbackCaller(r)
+	c := s.playbackCaller(r)
 	session, err := s.playback.Report(r.Context(), r.PathValue("id"), c.Viewer, c.SignInID,
 		playback.Report{State: req.State, PositionMs: req.PositionMs, PlayedMs: req.PlayClockMs})
 	if err != nil {
@@ -261,7 +262,7 @@ func (s *Server) stopPlayback(r *http.Request, req PlaybackStop) (None, error) {
 // accountPlayback lists what the account is playing on every device, so a person at their
 // stream limit can see it and stop one.
 func (s *Server) accountPlayback(r *http.Request, _ None) (AccountPlayback, error) {
-	c := playbackCaller(r)
+	c := s.playbackCaller(r)
 	sessions := s.playback.AccountSessions(c.Viewer.UserID)
 	ids := make([]int64, len(sessions))
 	for n, v := range sessions {

@@ -175,7 +175,7 @@ func (s *Server) revokeInvitation(r *http.Request, _ None) (None, error) {
 
 // openInvitation finds the invitation behind a typed code, counting a wrong one against the source.
 func (s *Server) openInvitation(r *http.Request, code string) (db.Invitation, error) {
-	limits := sourceLimit(r)
+	limits := s.sourceLimit(r)
 	if wait, err := s.db.LimitWait(r.Context(), s.now(), limits...); err != nil {
 		return db.Invitation{}, err
 	} else if wait > 0 {

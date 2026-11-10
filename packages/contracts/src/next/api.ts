@@ -407,6 +407,17 @@ export interface MemberPage {
   nextCursor?: string;
 }
 
+export interface NetworkSettings {
+  homeNetworks: string[];
+  homeNetworksDefault: boolean;
+  trustedProxies: string[];
+}
+
+export interface NetworkSettingsEdit {
+  homeNetworks?: string[];
+  trustedProxies: string[];
+}
+
 export interface Part {
   size: number;
   startMs?: number;
@@ -975,6 +986,8 @@ export interface Routes {
   'GET /v1/health/live': {access: 'public'; request: undefined; response: Health};
   'GET /v1/health/ready': {access: 'public'; request: undefined; response: Health};
   'GET /v1/system': {access: 'public'; request: undefined; response: System};
+  'GET /v1/admin/settings/network': {access: 'owner'; request: undefined; response: NetworkSettings};
+  'PUT /v1/admin/settings/network': {access: 'owner'; request: NetworkSettingsEdit; response: NetworkSettings};
   'POST /v1/system/identity-proof': {access: 'public'; request: IdentityQuestion; response: IdentityProof};
   'POST /v1/setup/owner': {access: 'public'; request: SetupOwnerRequest; response: SignInResponse};
   'POST /v1/auth/sign-in': {access: 'public'; request: SignInRequest; response: SignInResponse};

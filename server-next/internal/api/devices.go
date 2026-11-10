@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"net/http"
+	"net/netip"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
@@ -59,12 +60,13 @@ func (s *Server) deviceRoutes() {
 	Handle(s, "DELETE /v1/devices/{id}", SignedIn, s.forgetDevice)
 }
 
-// network says whether an address is on the home network, for the lists a person sees.
-func network(addr string) string {
+// homeOrAway says whether an address is on the home network, for the lists a person sees.
+func (s *Server) homeOrAway(stored string) string {
+	addr, err := netip.ParseAddr(stored)
 	switch {
-	case addr == "":
+	case err != nil:
 		return ""
-	case auth.AtHome(addr):
+	case s.networks().AtHome(addr):
 		return "home"
 	}
 	return "away"
@@ -80,7 +82,7 @@ func (s *Server) listSessions(r *http.Request, _ None) (Page[SessionInfo], error
 	for _, v := range sessions {
 		info := SessionInfo{ID: v.PublicID, DeviceID: v.DevicePublicID, DeviceName: v.DeviceName, ProfileID: v.ProfilePublicID,
 			CreatedAt: v.CreatedAt.UTC(), LastUsedAt: v.LastUsedAt.UTC(), ExpiresAt: v.ExpiresAt.UTC(),
-			EndReason: v.EndReason, Network: network(v.RemoteAddr), Current: v.ID == caller.SessionID}
+			EndReason: v.EndReason, Network: s.homeOrAway(v.RemoteAddr), Current: v.ID == caller.SessionID}
 		if !v.EndedAt.IsZero() {
 			ended := v.EndedAt.UTC()
 			info.EndedAt = &ended
@@ -114,7 +116,7 @@ func (s *Server) devices(r *http.Request, caller Caller) ([]Device, error) {
 	out := make([]Device, 0, len(devices))
 	for _, v := range devices {
 		out = append(out, Device{ID: v.PublicID, Name: v.Name, Platform: v.Platform, App: v.App, AppVersion: v.AppVersion,
-			CreatedAt: v.CreatedAt.UTC(), LastSeenAt: v.LastSeenAt.UTC(), Network: network(v.RemoteAddr), SignedIn: v.SignedIn, Current: v.Current})
+			CreatedAt: v.CreatedAt.UTC(), LastSeenAt: v.LastSeenAt.UTC(), Network: s.homeOrAway(v.RemoteAddr), SignedIn: v.SignedIn, Current: v.Current})
 	}
 	return out, err
 }

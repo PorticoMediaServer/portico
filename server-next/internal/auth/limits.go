@@ -1,9 +1,6 @@
 package auth
 
-import (
-	"net/netip"
-	"time"
-)
+import "time"
 
 // SessionIdle is how long a sign-in lasts without being used. Each renewal starts it again.
 const SessionIdle = 90 * 24 * time.Hour
@@ -31,6 +28,13 @@ type PINLimit []PINStep
 var (
 	StandardPasswords = PasswordLimit{FreeTries: 4, FirstWait: time.Second, MaxWait: time.Minute}
 	StandardPINs      = PINLimit{{1, 2 * time.Second}, {3, 30 * time.Second}, {5, 5 * time.Minute}, {10, 15 * time.Minute}, {15, time.Hour}}
+	// StandardProfilePINs counts a profile's wrong PINs on every device together. A device's
+	// own count starts again on a device nobody has seen before, and a new device costs
+	// nothing to make, so without this a PIN could be guessed as fast as devices can be
+	// made. It makes every device wait, the profile's own person included, so its waits are
+	// short and start late: ten wrong PINs is more than a household mistypes in a day, and
+	// the longest wait is a quarter of an hour. Forgot PIN ends the wait at once.
+	StandardProfilePINs = PINLimit{{10, time.Minute}, {20, 5 * time.Minute}, {40, 15 * time.Minute}}
 )
 
 // SourceFailures is how many wrong passwords, PINs and codes of any kind one network away
@@ -65,28 +69,4 @@ func SourceDelay(failures int) time.Duration {
 		return 0
 	}
 	return SourceBlock
-}
-
-// Source turns a connection's remote address into the network failures are counted against:
-// the IPv4 address, or the /64 of an IPv6 address. home is true for this machine and for
-// private addresses, which stand for the home network until the owner can say what theirs
-// is. The home network is never blocked: one mistyping household must not shut out its own TV.
-func Source(remoteAddr string) (source string, home bool) {
-	ap, err := netip.ParseAddrPort(remoteAddr)
-	if err != nil {
-		return "", true
-	}
-	addr := ap.Addr().Unmap()
-	home = addr.IsLoopback() || addr.IsPrivate() || addr.IsLinkLocalUnicast()
-	if addr.Is6() {
-		prefix, _ := addr.Prefix(64)
-		return prefix.String(), home
-	}
-	return addr.String(), home
-}
-
-// AtHome reports whether a stored address (no port) is on the home network.
-func AtHome(addr string) bool {
-	a, err := netip.ParseAddr(addr)
-	return err == nil && (a.IsLoopback() || a.IsPrivate() || a.IsLinkLocalUnicast())
 }

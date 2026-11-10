@@ -174,7 +174,7 @@ Listed route by route with each console panel's definition. Resources:
 | Area | Ops | Resources |
 |---|---:|---|
 | People and access | 22 | Members; invitations; members' devices; sign-in policy; security summary and unblock; moving between sign-in kinds |
-| Setup and remote access | 18 | First-run setup (`POST /v1/setup/owner` exists now, and needs the setup code the server logs and writes to `setup-code.txt` in its data folder); remote access; certificate; Portico Account link; network policy |
+| Setup and remote access | 18 | First-run setup (`POST /v1/setup/owner` exists now, needs the setup code the server logs and writes to `setup-code.txt` in its data folder, and works from any network); remote access; certificate; Portico Account link; `GET`/`PUT /v1/admin/settings/network` (exists now: the owner's home networks, which alone decide local and remote, and the reverse proxies whose `X-Forwarded-For` is believed) |
 | Libraries, storage, files | 33 | Libraries, folders, scans and their issues; storage sources; folder browser; missing titles; delete; merge and split |
 | Metadata and matching | 18 | `GET`/`PATCH /v1/admin/items/{id}/metadata`; match; refresh; artwork; needs-attention; provider settings |
 | Playback and analysis | 17 | Active sessions; play history; hardware and transcode capacity; remembered playback failures; intro and credits review; analysis jobs |
