@@ -1,4 +1,4 @@
-import {serverPath} from './server-api.ts';
+import {serverPath} from './query/server-api.ts';
 import {observeResponseClock} from './server-clock.ts';
 import {addressClass,formatIP,parseDirectName,parseIP,sameIP} from './network-locality.ts';
 /** P09 connection evidence. None of these values grants a viewer or media lease. */

@@ -2,7 +2,7 @@ import {serverNow} from './server-clock.ts';
 import {throwIfAborted} from './abort-lifetime.ts';
 import type {RouteResponse as HostedRouteResponse} from "../../contracts/src/hosted/routes.ts";
 import {routePath as hostedRoutePath, encodedRoutePath as hostedEncodedRoutePath} from "../../contracts/src/hosted/routes.ts";
-import {callServer} from './server-api.ts';
+import {callServer} from './query/server-api.ts';
 import {readServerSystem,readViewerIdentity} from './query/connection-operations.ts';
 import {hostedGate} from './hosted-gate.ts';
 import {ApiError,HttpLocalApi,type HostedServer,type LocalSession} from './index.ts';

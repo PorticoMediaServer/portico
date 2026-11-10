@@ -1,4 +1,4 @@
-import {serverPath} from './server-api.ts';
+import {serverPath} from './query/server-api.ts';
 import {ApiError, type SystemInfo} from './index.ts';
 import {RouteError, routeOrigin, routeJSON} from './route-identity.ts';
 import {API_LEVEL} from '../../contracts/src/api-level.ts';

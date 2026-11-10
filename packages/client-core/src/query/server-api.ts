@@ -1,4 +1,4 @@
-import type {Routes} from '../../contracts/src/next/api.ts';
+import type {Routes} from '../../../contracts/src/next/api.ts';
 
 /** Anything that can send one request to the selected server (`HttpLocalApi` is one). */
 export type ServerRequester = {request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>};

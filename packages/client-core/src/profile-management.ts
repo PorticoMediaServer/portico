@@ -1,5 +1,5 @@
 import type {DeviceInfo} from '../../contracts/src/next/api.ts';
-import {callServer} from './server-api.ts';
+import {callServer} from './query/server-api.ts';
 import {installationIdentity} from './installation.ts';
 import {CodedError,unreadableServerResponse} from './server-messages.ts';
 import {parseLocalSession,currentUTCTimestamp} from './local-session.ts';

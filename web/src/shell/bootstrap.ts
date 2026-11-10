@@ -10,7 +10,7 @@ import {selectedViewerRecord} from '@core/viewer-selection.ts';
 import {PreferencesReader} from '@core/preferences-reader.ts';
 import {appearancePreferences, regionPreferences} from '@core/preference-effects.ts';
 import {noPreferences, type PreferenceSnapshot} from '@core/preferences.ts';
-import {notOnThisServer} from '@core/server-api.ts';
+import {notOnThisServer} from '@core/query/server-api.ts';
 import {parseDirectSnapshot, type DirectSnapshot} from '@core/profile-management.ts';
 import {HomeService} from '@core/home-service.ts';
 import {createShellFactOwner, attachShellFactFeed, bindShellFactWake, shellAccount, type ShellFactWitnesses} from './facts';

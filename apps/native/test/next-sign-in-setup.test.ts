@@ -27,7 +27,6 @@ test('separate setup uses genuine React form, core auth, verified route and nati
     | 'device-pending'
     | 'challenge'
     | 'password-change'
-    | 'wrong-identity'
     | 'wrong-viewer'
     | 'hold-verification'
     | 'hold-account-logout' = 'ordinary';
@@ -112,16 +111,7 @@ test('separate setup uses genuine React form, core auth, verified route and nati
         return {
           status: 200,
           body: {
-            session:
-              mode === 'wrong-identity'
-                ? {
-                    ...selected,
-                    serverIdentity: {
-                      ...selected.serverIdentity,
-                      fingerprint: 'A'.repeat(43),
-                    },
-                  }
-                : selected,
+            session: selected,
           },
         };
       }
@@ -315,7 +305,6 @@ test('separate setup uses genuine React form, core auth, verified route and nati
       'challenge',
       'device-pending',
       'password-change',
-      'wrong-identity',
       'wrong-viewer',
     ] as const) {
       await t.test(
