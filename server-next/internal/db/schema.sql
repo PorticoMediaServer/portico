@@ -501,6 +501,7 @@ CREATE INDEX metadata_history_item ON metadata_history (item_id, id);
 -- two_factor_secret is set when enrolment starts and counts once two_factor_enabled_at is set.
 -- two_factor_last_step is the last authenticator time step accepted, so one code works once.
 -- viewing_hours is the times of the week the account may be used, as JSON; NULL is any time.
+-- home_only limits the account to the owner's home networks.
 CREATE TABLE users (
   id                  INTEGER NOT NULL PRIMARY KEY,
   public_id           TEXT    NOT NULL UNIQUE,
@@ -515,6 +516,7 @@ CREATE TABLE users (
   two_factor_last_step INTEGER,
   disabled_at         INTEGER,
   viewing_hours       TEXT,
+  home_only           INTEGER NOT NULL DEFAULT 0 CHECK (home_only IN (0, 1)),
   notes               TEXT,
   extra               TEXT,
   revision            INTEGER NOT NULL DEFAULT 1,
