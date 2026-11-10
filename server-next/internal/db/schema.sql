@@ -219,10 +219,12 @@ CREATE TABLE items (
   revision         INTEGER NOT NULL DEFAULT 1,
   extra            TEXT
 );
-CREATE INDEX items_by_title ON items (library_id, kind, sort_title, id);
-CREATE INDEX items_by_added ON items (library_id, kind, added_at, id);
-CREATE INDEX items_by_year ON items (library_id, kind, year, id);
-CREATE INDEX items_by_release ON items (library_id, kind, release_date, id);
+-- The list indexes end with rating_age so a profile with a rating limit skips and counts
+-- titles from the index alone.
+CREATE INDEX items_by_title ON items (library_id, kind, sort_title, id, rating_age);
+CREATE INDEX items_by_added ON items (library_id, kind, added_at, id, rating_age);
+CREATE INDEX items_by_year ON items (library_id, kind, year, id, rating_age);
+CREATE INDEX items_by_release ON items (library_id, kind, release_date, id, rating_age);
 -- For a profile with a rating limit: how many titles of a kind it may see, and which, when few.
 CREATE INDEX items_by_rating ON items (library_id, kind, rating_age);
 CREATE INDEX items_children ON items (parent_id, parent_index, index_number, id);
@@ -334,13 +336,18 @@ CREATE TABLE tags (
   UNIQUE (kind, norm_name)
 ) STRICT;
 
--- large.
+-- large. library_id and kind are copies of the item's own, which never change. With them,
+-- "how many films in this library carry this tag" and "which tags do this library's films
+-- carry" are answered from an index, without reading a row of items.
 CREATE TABLE item_tags (
-  item_id INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
-  tag_id  INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+  item_id    INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+  tag_id     INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+  library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+  kind       INTEGER NOT NULL,
   PRIMARY KEY (item_id, tag_id)
 ) WITHOUT ROWID;
-CREATE INDEX item_tags_tag ON item_tags (tag_id, item_id);
+CREATE INDEX item_tags_tag ON item_tags (tag_id, library_id, kind, item_id);
+CREATE INDEX item_tags_library ON item_tags (library_id, kind, tag_id);
 
 -- large. Actors, directors, authors, narrators, artists' members.
 CREATE TABLE people (
