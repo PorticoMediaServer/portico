@@ -60,6 +60,11 @@ type Report struct {
 	WALMaxBytes  int64             `json:"walMaxBytes"`
 	WALEndBytes  int64             `json:"walBytesAMinuteAfterImport"`
 	Bars         []Bar             `json:"bars"`
+	// DiskSync is a bare 4 KiB append and sync beside the database, at the rate of the user
+	// writes and at the same time as them: what the disk alone gave a small write.
+	DiskSync     *Timing `json:"diskSync,omitempty"`
+	DiskSyncIdle *Timing `json:"diskSyncIdle,omitempty"`
+	dir          string
 }
 
 func (r *Report) bar(name, limit string, value float64, unit string, passed bool) {
@@ -87,6 +92,7 @@ func main() {
 	out := flag.String("out", "", "JSON report file")
 	flag.StringVar(&treeRoot, "tree", "", "a folder of real files: with it, import, rescan and mixed use the real scanner over it; -mode tree writes it")
 	flag.BoolVar(&realFiles, "real", false, "with -tree: the files are small real films and songs (made with ffmpeg) and the scanner reads them with the real prober")
+	noSync := flag.Bool("no-sync", false, "commit without syncing to disk, to time everything but the disk")
 	flag.Parse()
 	log.SetFlags(log.Ltime)
 	if realFiles {
@@ -111,6 +117,9 @@ func main() {
 		log.Fatal(err)
 	}
 	defer d.Close()
+	if *noSync {
+		d.SkipDiskSync()
+	}
 	cfg := seed.Config{Seed: *seedValue, Items: *items, BatchFiles: *batch, Samples: samples(), BatchTime: *batchTime}
 	report := &Report{Mode: *mode, Items: *items}
 	wal := watchWAL(*path + "-wal")
@@ -128,6 +137,7 @@ func main() {
 		report.bar("2 unchanged rescan", "at least 5,000 files/s", totals.FilesPerSec, "files/s", totals.FilesPerSec >= 5000)
 		report.bar("2 rows changed by a rescan", "0", float64(totals.RowsWritten), "rows", unchanged)
 	case "mixed":
+		report.dir = filepath.Dir(*path)
 		mixed(ctx, d, cfg, *readers, *writesPerSec, *settle, wal, report)
 	default:
 		log.Fatal("-mode must be import, rescan, mixed or tree")
@@ -266,10 +276,12 @@ func mixed(ctx context.Context, d *db.DB, cfg seed.Config, readers, writesPerSec
 	warm := w.start(ctx, 0, writesPerSec) // a few first, uncounted, so the pages they touch are in memory
 	time.Sleep(3 * time.Second)
 	warm()
+	probe := diskProbe(report.dir, writesPerSec)
 	stop := w.start(ctx, 0, writesPerSec)
 	time.Sleep(30 * time.Second)
 	_, idleWrites := stop()
-	report.WritesIdle = &idleWrites
+	idleSync, _ := probe()
+	report.WritesIdle, report.DiskSyncIdle = &idleWrites, &idleSync
 
 	log.Print("reads with nothing else running")
 	stop = w.start(ctx, readers, 0)
@@ -284,11 +296,15 @@ func mixed(ctx context.Context, d *db.DB, cfg seed.Config, readers, writesPerSec
 
 	log.Print("import with constant reads and writes")
 	cfg.Seed += 1000
+	probe = diskProbe(report.dir, writesPerSec)
 	stop = w.start(ctx, readers, writesPerSec)
 	loaded := mustImport(ctx, d, cfg)
 	report.LoadedImport = &loaded
 	report.WALEndBytes = wal.settle(settle) // people keep using the server while the WAL settles
 	reads, writes := stop()
+	loadedSync, syncSpans := probe()
+	report.DiskSync = &loadedSync
+	slow, withDisk := slowTogether(w.spans, syncSpans, 50*time.Millisecond)
 	report.Reads, report.Writes = reads, &writes
 
 	all := reads["all"]
@@ -306,6 +322,11 @@ func mixed(ctx context.Context, d *db.DB, cfg seed.Config, readers, writesPerSec
 	fmt.Printf("  writes, nothing else running: n=%d p50 %.2f ms  p90 %.2f ms  p99 %.2f ms  max %.2f ms (one commit and its disk sync)\n",
 		idleWrites.N, idleWrites.P50, idleWrites.P90, idleWrites.P99, idleWrites.Max)
 	fmt.Printf("  writes during import: p90 %.2f ms\n", writes.P90)
+	fmt.Printf("  bare 4 KiB sync beside the database, nothing else running: p50 %.2f ms  p90 %.2f ms  p99 %.2f ms  max %.2f ms\n",
+		idleSync.P50, idleSync.P90, idleSync.P99, idleSync.Max)
+	fmt.Printf("  bare 4 KiB sync beside the database, during import: n=%d p50 %.2f ms  p90 %.2f ms  p99 %.2f ms  max %.2f ms\n",
+		loadedSync.N, loadedSync.P50, loadedSync.P90, loadedSync.P99, loadedSync.Max)
+	fmt.Printf("  writes over 50 ms during import: %d, of which %d while a bare sync also took over 50 ms\n", slow, withDisk)
 	fmt.Printf("  import transactions ended at %d files each\n", loaded.LastBatchFiles)
 	fmt.Printf("  import: %.0f files/s idle, %.0f files/s under activity\n", idle.FilesPerSec, loaded.FilesPerSec)
 }
