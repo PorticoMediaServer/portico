@@ -277,8 +277,7 @@ func (d *DB) VisibleTitles(ctx context.Context, v Viewer, itemIDs []int64) (map[
 
 // Preferences returns a profile's settings for everywhere and those it saved for one device,
 // as stored: key to JSON value. Where both hold a key, the device's wins. What the profile
-// saved for a kind of device is not read here, because a device does not yet say which kind
-// it is when it plays.
+// saved for a kind of device is not read here: nothing that decides playback is saved that way.
 func (d *DB) Preferences(ctx context.Context, profileID, deviceID int64) (map[string]string, error) {
 	rows, err := d.read.QueryContext(ctx, `SELECT key, value FROM preferences
 		WHERE profile_id = ?1 AND (device_id = ?2 OR device_id IS NULL AND device_class = '')
