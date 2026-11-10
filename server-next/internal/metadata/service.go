@@ -25,6 +25,10 @@ type Service struct {
 	// running state: after a restart the first call looks through them once.
 	walks  sync.Mutex
 	walked map[int64]time.Time
+	// Subtitles is the subtitle provider, or nil when the owner has not set one up, and
+	// SubtitleDir the folder in the data folder that downloaded subtitles are kept in.
+	Subtitles   SubtitleProvider
+	SubtitleDir string
 }
 
 // defaultProviders is the provider a library of each kind uses until the owner chooses.

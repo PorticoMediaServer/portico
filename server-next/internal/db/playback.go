@@ -87,14 +87,18 @@ type PlaybackVersion struct {
 	Tracks []Track
 }
 
-// Track is one video, audio or subtitle track of a version: in its own file, or in a
-// subtitle file beside it.
+// Track is one video, audio or subtitle track of a version: in its own file, in a subtitle
+// file beside it, or a subtitle someone downloaded for it.
 type Track struct {
 	Stream
 	FileID int64
 	Index  int
 	// Sidecar is true for a track in a file beside the video.
 	Sidecar bool
+	// Downloaded is a downloaded subtitle's id, and DownloadedHash names its text file in
+	// the data folder. Both are empty for every other track.
+	Downloaded     string
+	DownloadedHash string
 }
 
 // PlaybackItem returns a title the viewer may see with its versions and tracks, where the
@@ -176,6 +180,11 @@ func (d *DB) PlaybackItem(ctx context.Context, v Viewer, publicID string) (Playb
 			}
 			pv.Tracks = append(pv.Tracks, more...)
 		}
+		downloaded, err := downloadedTracks(ctx, tx, version.id)
+		if err != nil {
+			return out, err
+		}
+		pv.Tracks = append(pv.Tracks, downloaded...)
 		out.Versions = append(out.Versions, pv)
 	}
 	return out, nil
