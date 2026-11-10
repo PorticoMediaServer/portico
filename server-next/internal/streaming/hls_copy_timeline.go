@@ -13,6 +13,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/childprocess"
+	"github.com/PorticoMediaServer/portico/server-next/internal/mediaexec"
 )
 
 // A converted picture can be cut anywhere, because the encoder is told to put a
@@ -350,4 +353,47 @@ func promoteCopySegments(staging, dir string, from int, final bool) int {
 		highest = i
 	}
 	return highest
+}
+
+func localTimelineProbe(ffprobe string, input *PlaybackInput) timelineProbe {
+	if ffprobe == "" || input == nil {
+		return nil
+	}
+	return func(ctx context.Context, args ...string) ([]byte, error) {
+		return runProbe(ctx, ffprobe, input, args...)
+	}
+}
+
+func runProbe(ctx context.Context, ffprobe string, input *PlaybackInput, args ...string) ([]byte, error) {
+	ctx, releaseInput := input.BorrowContext(ctx)
+	defer releaseInput()
+	full := append([]string{"-v", "error", "-protocol_whitelist", "file,pipe", "-format_whitelist", mediaexec.LocalInputFormats}, args...)
+	full = append(full, input.Options...)
+	full = append(full, input.Argument)
+	// Where /dev/fd shares this process's file offset, the previous child left it
+	// wherever it stopped reading.
+	if input.File != nil {
+		_, _ = input.File.Seek(0, io.SeekStart)
+	}
+	if input.Validate != nil {
+		if err := validateOwnedInput(ctx, input.Validate); err != nil {
+			return nil, err
+		}
+	}
+	cmd, err := mediaexec.CommandContext(ctx, mediaexec.Job{Executable: ffprobe, Args: full, Files: input.ExtraFiles(), InputFD: input.MountFD, InputMount: input.MountPath, ReadPaths: input.ReadPaths()})
+	if err != nil {
+		return nil, errCopyTimeline
+	}
+	cmd.WaitDelay = time.Second
+	var out bytes.Buffer
+	cmd.Stdout = &limitedWriter{buffer: &out, limit: 1 << 20}
+	if err := childprocess.Run(ctx, cmd); err != nil {
+		return nil, errCopyTimeline
+	}
+	if input.Validate != nil {
+		if err := validateOwnedInput(ctx, input.Validate); err != nil {
+			return nil, err
+		}
+	}
+	return out.Bytes(), nil
 }

@@ -48,6 +48,9 @@ type PlanRequest struct {
 	// NoConverter says ffmpeg was not found, so only the original route exists.
 	FragmentedOutput bool
 	NoConverter      bool
+	// BurnIn is the subtitle the picture must carry, for a screen that shows the
+	// video alone. It forces the picture to be converted.
+	BurnIn *BurnInSpec
 }
 
 // UnmeasuredRemotePlan is the plan for a STRM whose target was never measured:
@@ -64,6 +67,19 @@ func UnmeasuredRemotePlan(id string, duration float64) DeliveryPlan {
 // rejected. It returns the plan together with ErrTranscodingDisabled when the
 // plan needs a conversion the owner has turned off.
 func Plan(r PlanRequest) (DeliveryPlan, error) {
+	plan, err := planDelivery(r.deliveryInput())
+	if err != nil {
+		return DeliveryPlan{}, err
+	}
+	plan.BurnIn = r.BurnIn
+	if !r.TranscodingEnabled && (plan.AudioAction == "convert" || plan.VideoAction == "convert") {
+		return plan, ErrTranscodingDisabled
+	}
+	return plan, nil
+}
+
+// deliveryInput is the request as the planner reads it.
+func (r PlanRequest) deliveryInput() DeliveryInput {
 	choice := r.Choice
 	values := preferenceReaderOrDefaults(r.Preferences)
 	edge := r.Connection
@@ -141,13 +157,6 @@ func Plan(r PlanRequest) (DeliveryPlan, error) {
 		input.Client.SubtitleRendering = []string{SubtitleText}
 		input.Engine = EngineNative
 	}
-
-	plan, err := planDelivery(input)
-	if err != nil {
-		return DeliveryPlan{}, err
-	}
-	if !r.TranscodingEnabled && (plan.AudioAction == "convert" || plan.VideoAction == "convert") {
-		return plan, ErrTranscodingDisabled
-	}
-	return plan, nil
+	input.BurnIn = r.BurnIn != nil
+	return input
 }

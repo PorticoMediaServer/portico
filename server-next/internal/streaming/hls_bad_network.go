@@ -1,7 +1,10 @@
 package streaming
 
 import (
+	"context"
+	"errors"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -67,4 +70,118 @@ type segmentWait struct {
 func segmentReady(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && info.Size() > 0
+}
+
+// freeAbandoned cancels producers whose viewer has stopped fetching. The
+// session is left alone: it is still valid, still authorised, and still
+// resumable — this frees the processor, not the person's place in the film.
+func (h *HLS) freeAbandoned() {
+	now := time.Now()
+	var abandoned []string
+	h.mu.Lock()
+	for id := range h.active {
+		// Only grid conversions. A planned audio session produces everything in
+		// one run with no segment requests in between, so silence there means
+		// working, not gone.
+		if h.windows[id] == nil {
+			continue
+		}
+		usage := h.usage[producerSession(id)]
+		if usage == nil || usage.served.IsZero() {
+			continue
+		}
+		if now.Sub(usage.served) >= hlsAbandonedAfterValue {
+			abandoned = append(abandoned, producerSession(id))
+		}
+	}
+	h.mu.Unlock()
+	for _, id := range abandoned {
+		h.abandoned.Add(1)
+		h.cancelSession(id)
+	}
+}
+
+// restartAllowed reports whether this session may restart its producer now.
+//
+// The budget is per session and refills over a window, so the common case —
+// somebody dragging the scrubber — is never touched, while a client that asks
+// for a restart hundreds of times a second is answered with the converter it
+// already has. The caller treats a refusal as "no restart happened", which is
+// the same outcome its poll already handles: the segment is not there yet, and
+// the retryable answer says so.
+func (h *HLS) restartAllowedLocked(id string) bool {
+	now := time.Now()
+	if h.restarts == nil {
+		h.restarts = map[string]*restartBudget{}
+	}
+	budget := h.restarts[id]
+	if budget == nil {
+		budget = &restartBudget{window: now}
+		h.restarts[id] = budget
+	}
+	if now.Sub(budget.window) >= hlsRestartWindow {
+		budget.window, budget.count = now, 0
+	}
+	if budget.count >= hlsRestartBudget {
+		return false
+	}
+	budget.count++
+	return true
+}
+
+// awaitSegment waits for a segment that is being produced, sharing the wait
+// between everybody asking for it.
+//
+// Without this, ten reconnecting clients asking for the same segment ran ten
+// poll loops, each querying the session state ten times a second: a hundred
+// queries a second for one segment, produced by clients doing nothing wrong.
+// Now the first caller polls and the rest wait on its answer, each still bounded
+// by its own deadline so a slow leader never holds a fast client past its own
+// budget.
+func (h *HLS) awaitSegment(ctx context.Context, id string, index int, poll func(context.Context) (string, error)) (string, error) {
+	for {
+		if ctx.Err() != nil {
+			return "", ctx.Err()
+		}
+		key := id + ":" + strconv.Itoa(index)
+		h.mu.Lock()
+		if h.segmentWaits == nil {
+			h.segmentWaits = map[string]*segmentWait{}
+		}
+		existing := h.segmentWaits[key]
+		if existing != nil {
+			h.mu.Unlock()
+			select {
+			case <-existing.done:
+				// The leader's answer is a file path and a file on disk; both are
+				// equally true for every follower.
+				if (errors.Is(existing.err, context.Canceled) || errors.Is(existing.err, context.DeadlineExceeded)) && ctx.Err() == nil {
+					continue
+				}
+				return existing.path, existing.err
+			case <-ctx.Done():
+				return "", ErrSegmentPreparing
+			}
+		}
+		wait := &segmentWait{done: make(chan struct{})}
+		h.segmentWaits[key] = wait
+		h.mu.Unlock()
+		wait.path, wait.err = poll(ctx)
+		if ctx.Err() != nil {
+			wait.err = ctx.Err()
+		}
+		h.mu.Lock()
+		delete(h.segmentWaits, key)
+		h.mu.Unlock()
+		close(wait.done)
+		return wait.path, wait.err
+	}
+}
+
+// waitsInFlight is for tests and diagnostics: how many distinct segments have a
+// shared wait open right now.
+func (h *HLS) waitsInFlight() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return len(h.segmentWaits)
 }
