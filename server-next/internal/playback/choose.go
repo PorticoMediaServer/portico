@@ -2,27 +2,39 @@ package playback
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strconv"
 	"strings"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/preferences"
 )
 
-// Settings a device or a profile can change that decide what a start plays. Values are JSON.
-const (
-	// The saved quality for each kind of connection, per device: "original", "automatic", or
-	// the id of a menu entry. Unset is the original at home and away, and on mobile data
-	// 720p for video and 320 kbps for music.
-	PrefQualityHome     = "quality.home"
-	PrefQualityRemote   = "quality.remote"
-	PrefQualityCellular = "quality.cellular"
-	PrefMusicHome       = "music.quality.home"
-	PrefMusicRemote     = "music.quality.remote"
-	PrefMusicCellular   = "music.quality.cellular"
-	// PrefResumeRewind is "Rewind when resuming", in seconds: none unless set.
-	PrefResumeRewind = "playback.resumeRewindSeconds"
+// The settings that decide what a start plays, as the settings list (package preferences)
+// names them: the saved quality for each kind of connection, for video and for music, and
+// an audiobook's "Rewind when resuming". A setting nobody saved has the list's default.
+var (
+	qualitySettings = map[string][2]string{
+		NetworkLocal:    {"quality.home", "music.qualityHome"},
+		NetworkRemote:   {"quality.remote", "music.qualityAway"},
+		NetworkCellular: {"quality.mobile", "music.qualityMobile"},
+	}
+	rewindSetting = "audiobooks.resumeRewindMs"
 )
+
+// setting is a saved setting, or the settings list's default for it.
+func setting(prefs map[string]string, key string) any {
+	field, _ := preferences.Find(key)
+	var raw any
+	if stored, ok := prefs[key]; ok && json.Unmarshal([]byte(stored), &raw) == nil {
+		if value, err := field.Check(raw); err == nil {
+			return value
+		}
+	}
+	value, _ := field.Check(field.Default)
+	return value
+}
 
 // Invalid is a request this package refuses as malformed. Field names the part at fault.
 type Invalid struct{ Field, Message string }
@@ -124,6 +136,9 @@ type Ask struct {
 	Quality          *Quality
 	Network          string
 	ThroughputKbps   int
+	// DeviceClass is the kind of device asking: web, mobile, tablet or television. It decides
+	// which of the profile's saved settings apply; empty reads none saved for a kind of device.
+	DeviceClass string
 }
 
 // Who is asking, and from where.
@@ -152,37 +167,19 @@ func playable(kind db.ItemKind) bool {
 	return kind == db.KindMovie || kind == db.KindEpisode || audioKind(kind)
 }
 
-func prefText(prefs map[string]string, key string) string { return strings.Trim(prefs[key], `"`) }
-
-// savedQuality is the quality a start gets when it names none.
+// savedQuality is the quality a start gets when it names none. A saved entry this title
+// does not offer (it is wider than the title itself) is the original.
 func savedQuality(prefs map[string]string, kind db.ItemKind, net string, menu []QualityOption) Quality {
-	keys := map[string][2]string{
-		NetworkLocal: {PrefQualityHome, PrefMusicHome}, NetworkRemote: {PrefQualityRemote, PrefMusicRemote},
-		NetworkCellular: {PrefQualityCellular, PrefMusicCellular},
-	}[net]
 	music := 0
 	if audioKind(kind) {
 		music = 1
 	}
-	switch saved := prefText(prefs, keys[music]); saved {
+	switch saved, _ := setting(prefs, qualitySettings[net][music]).(string); saved {
 	case QualityAutomatic, QualityCD:
 		return Quality{Mode: saved}
-	case QualityOriginal:
-		return Quality{Mode: QualityOriginal}
-	case "":
-		if net != NetworkCellular {
-			return Quality{Mode: QualityOriginal}
-		}
-		// The widest entry within the mobile-data default.
-		for _, option := range menu {
-			if music == 0 && option.MaxHeight > 0 && option.MaxHeight <= 720 ||
-				music == 1 && option.MaxAudioBitrateKbps > 0 && option.MaxAudioBitrateKbps <= 320 {
-				return optionQuality(option)
-			}
-		}
 	default:
 		for _, option := range menu {
-			if option.ID == saved {
+			if option.ID == saved && saved != "" {
 				return optionQuality(option)
 			}
 		}
@@ -320,7 +317,7 @@ func (s *Service) resolve(ctx context.Context, c Caller, device db.SessionDevice
 	} else if !errors.Is(err, db.ErrNotFound) {
 		return out, err
 	}
-	prefs, err := s.db.Preferences(ctx, c.Viewer.ProfileID, device.ID)
+	prefs, err := s.db.Preferences(ctx, c.Viewer.ProfileID, ask.DeviceClass, device.ID)
 	if err != nil {
 		return out, err
 	}
@@ -514,11 +511,12 @@ func (s *Service) Options(ctx context.Context, c Caller, itemID string, ask Ask)
 		ResumeMs: resumeAt(r.item, r.prefs)}, nil
 }
 
-// resumeAt is where a title resumes: where the viewer stopped, less "Rewind when resuming".
+// resumeAt is where a title resumes: where the viewer stopped, and for an audiobook that
+// less "Rewind when resuming".
 func resumeAt(item db.PlaybackItem, prefs map[string]string) int64 {
-	rewind, _ := strconv.ParseInt(prefText(prefs, PrefResumeRewind), 10, 64)
-	if rewind < 0 || rewind > 600 {
-		rewind = 0
+	if item.Kind != db.KindAudiobook {
+		return item.PositionMS
 	}
-	return max(item.PositionMS-rewind*1000, 0)
+	rewind, _ := setting(prefs, rewindSetting).(int64)
+	return max(item.PositionMS-rewind, 0)
 }

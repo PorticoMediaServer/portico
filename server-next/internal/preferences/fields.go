@@ -108,7 +108,7 @@ var fields = []Setting{
 	oneOf("quality.mobile", "720p-high", qualityladder.IDs(), ScopeDeviceClass),
 
 	oneOf("music.qualityHome", "original", qualityladder.MusicIDs(), ScopeDeviceClass),
-	oneOf("music.qualityAway", "320", qualityladder.MusicIDs(), ScopeDeviceClass),
+	oneOf("music.qualityAway", "original", qualityladder.MusicIDs(), ScopeDeviceClass),
 	oneOf("music.qualityMobile", "320", qualityladder.MusicIDs(), ScopeDeviceClass),
 	flag("music.neverBoost", false, ScopeProfile),
 	flag("music.smoothTransitions", true, ScopeProfile),

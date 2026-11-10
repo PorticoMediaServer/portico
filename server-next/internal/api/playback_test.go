@@ -29,8 +29,8 @@ type fakeEngine struct {
 func (f *fakeEngine) CheckCapabilities(json.RawMessage) error { return nil }
 
 func (f *fakeEngine) Qualities(db.PlaybackVersion, db.ItemKind, string) []playback.QualityOption {
-	return []playback.QualityOption{{Mode: "original"}, {Mode: "automatic"}, {Mode: "fixed", ID: "1080p", MaxHeight: 1080},
-		{Mode: "fixed", ID: "720p", MaxHeight: 720}, {Mode: "fixed", ID: "480p", MaxHeight: 480}}
+	return []playback.QualityOption{{Mode: "original"}, {Mode: "automatic"}, {Mode: "fixed", ID: "1080p-low", MaxHeight: 1080},
+		{Mode: "fixed", ID: "720p-high", MaxHeight: 720}, {Mode: "fixed", ID: "480p", MaxHeight: 480}}
 }
 
 func (f *fakeEngine) Plan(r playback.PlanRequest) (playback.Plan, error) {
@@ -377,7 +377,7 @@ func TestChangeMidPlay(t *testing.T) {
 	session := th.play(token, th.film)
 	path := "/v1/playback/sessions/" + session.ID
 	var changed PlaybackSession
-	body := PlaybackChange{Quality: &playback.Quality{Mode: "fixed", ID: "720p"}, PositionMs: ptr(15 * 60_000)}
+	body := PlaybackChange{Quality: &playback.Quality{Mode: "fixed", ID: "720p-high"}, PositionMs: ptr(15 * 60_000)}
 	if w := call(t, th.s, "PATCH", path, token, body, &changed); w.Code != 200 {
 		t.Fatalf("change answered %d: %s", w.Code, w.Body)
 	}
@@ -651,8 +651,43 @@ func TestTrackPicksAreRemembered(t *testing.T) {
 		t.Fatalf("a pick on a show reached a film: %+v", film.Preferred)
 	}
 	// On mobile data video defaults to 720p; elsewhere to the original.
-	if mobile := th.options(token, th.film, "?network=cellular"); mobile.Preferred.Quality.ID != "720p" || mobile.Plan.Route != "converted" {
+	if mobile := th.options(token, th.film, "?network=cellular"); mobile.Preferred.Quality.ID != "720p-high" || mobile.Plan.Route != "converted" {
 		t.Fatalf("the mobile-data default: %+v", mobile.Preferred)
+	}
+}
+
+// The quality a start gets when it names none is the one saved in Settings for that kind of
+// connection, as the profile saved it for this kind of device.
+func TestSavedQualityFollowsTheKindOfDevice(t *testing.T) {
+	th := newTheatre(t)
+	token := th.owner.AccessToken
+	save := func(scope, class, quality string) {
+		t.Helper()
+		// These requests do not come from the home network, so the away setting is the one read.
+		edit := PreferencesEdit{Scope: scope, DeviceClass: class, Values: map[string]any{"quality.remote": quality}}
+		if code := status(t, th.s, "PATCH", "/v1/preferences", token, edit); code != 200 {
+			t.Fatalf("saving the quality answered %d", code)
+		}
+	}
+	preferred := func(query string) string {
+		q := th.options(token, th.film, query).Preferred.Quality
+		return q.Mode + " " + q.ID
+	}
+	save("profile-device-class", "television", "480p")
+	if got := preferred("?deviceClass=television"); got != "fixed 480p" {
+		t.Fatalf("a television plays %q, want the quality saved for televisions", got)
+	}
+	if got := preferred("?deviceClass=web"); got != "original " {
+		t.Fatalf("a browser plays %q, want the original: nothing was saved for browsers", got)
+	}
+	save("profile-device-class", "television", "automatic")
+	// A start reads the same settings.
+	code, session := th.start(token, "", PlaybackStart{ItemID: th.film, DeviceClass: "television"})
+	if code != 201 || session.Presentation.Quality.Mode != "automatic" {
+		t.Fatalf("the start answered %d with %+v", code, session.Presentation.Quality)
+	}
+	if code := status(t, th.s, "POST", "/v1/playback/sessions", token, PlaybackStart{ItemID: th.film, DeviceClass: "fridge"}); code != 400 {
+		t.Fatalf("an unknown kind of device answered %d", code)
 	}
 }
 

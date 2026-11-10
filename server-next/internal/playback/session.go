@@ -87,8 +87,10 @@ type Session struct {
 	State   string
 	Choice  Choice
 	Network string
-	Plan    Plan
-	Stream  Stream
+	// DeviceClass is the kind of device, as the start said: a change reads the same settings.
+	DeviceClass string
+	Plan        Plan
+	Stream      Stream
 	// Generation counts the streams this session has had. It is told to the app and never
 	// asked of it: a replaced stream has a new address, and that is the whole guard.
 	Generation      int

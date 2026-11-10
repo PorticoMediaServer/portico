@@ -154,7 +154,7 @@ func (s *Service) create(ctx context.Context, in StartInput) (*session, error) {
 	sess := &session{version: r.version}
 	sess.Session = Session{ID: in.SessionID, UserID: c.Viewer.UserID, ProfileID: c.Viewer.ProfileID, SignInID: c.SignInID,
 		Device: device, Item: r.item, VersionID: r.version.PublicID, fileID: r.version.FileID, Queue: in.Queue,
-		State: StatePlaying, Choice: r.choice, Network: r.network, Plan: r.plan, Generation: 1,
+		State: StatePlaying, Choice: r.choice, Network: r.network, DeviceClass: in.Ask.DeviceClass, Plan: r.plan, Generation: 1,
 		StartPositionMs: position, PositionMs: position, StartedAt: now, LeaseUntil: now.Add(lease)}
 	if sess.ID == "" {
 		sess.ID = db.NewID("pbs")
@@ -330,6 +330,7 @@ func (s *Service) Change(ctx context.Context, id string, c Caller, ch Change) (S
 	if a.Network == "" {
 		a.Network = before.Network
 	}
+	a.DeviceClass = before.DeviceClass
 	c.AtHome = before.Network == NetworkLocal
 	r, err := s.resolve(ctx, c, before.Device, before.Item.PublicID, a, &before.Choice)
 	if err != nil {

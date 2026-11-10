@@ -244,6 +244,9 @@ type PlaybackStart struct {
 	// Network is cellular when the app knows it is on mobile data. The server tells home from away.
 	Network        string `json:"network,omitempty"`
 	ThroughputKbps int    `json:"throughputKbps,omitempty"`
+	// DeviceClass is the kind of device this is (web, mobile, tablet or television), so the
+	// profile's settings saved for that kind of device apply, the saved quality among them.
+	DeviceClass string `json:"deviceClass,omitempty"`
 	// DiscTitle names one title of a disc. Disc playback is not available yet: a start that
 	// names one is refused with 501 disc_playback_unavailable.
 	DiscTitle JSON `json:"discTitle,omitempty"`
