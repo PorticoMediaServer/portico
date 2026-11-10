@@ -316,6 +316,20 @@ func (s *Server) selectProfile(r *http.Request, req ProfileSelect) (Session, err
 	if err != nil {
 		return Session{}, err
 	}
+	// Choosing a profile hands out a fresh access token, so it is held to home as a renewal
+	// is: a device away from home cannot keep itself going by choosing its profile again.
+	if !s.atHome(r) {
+		current, err := s.db.SessionState(ctx, caller.SessionID, now)
+		if errors.Is(err, db.ErrNotFound) {
+			return Session{}, errSignInEnded()
+		}
+		if err != nil {
+			return Session{}, err
+		}
+		if current.HomeOnly {
+			return Session{}, s.errAwayFromHome(r)
+		}
+	}
 	sel := db.ProfileSelection{UserID: caller.UserID, SessionID: caller.SessionID, ProfileID: p.ID, CheckedPINHash: p.PINHash, Now: now}
 	remember, pinToken := s.policy().PINRemembered(), ""
 	if p.PINHash != "" {
