@@ -225,7 +225,6 @@ CREATE TABLE items (
   last_child_added_at INTEGER,
   available        INTEGER NOT NULL DEFAULT 1 CHECK (available IN (0, 1)),
   missing_since_at INTEGER,
-  merged_into_id   INTEGER REFERENCES items(id) ON DELETE SET NULL,
   revision         INTEGER NOT NULL DEFAULT 1,
   extra            TEXT
 );
@@ -235,13 +234,12 @@ CREATE INDEX items_by_year ON items (library_id, kind, year, id);
 CREATE INDEX items_by_release ON items (library_id, kind, release_date, id);
 CREATE INDEX items_children ON items (parent_id, parent_index, index_number, id);
 CREATE INDEX items_descendants ON items (root_id, kind, parent_index, index_number, id);
-CREATE INDEX items_merged ON items (merged_into_id) WHERE merged_into_id IS NOT NULL;
 -- Three reads of the matcher, each over top-level titles only (an episode follows its show):
 -- titles no provider has been asked about yet, a library's Unmatched items list (looked up
--- without a confident answer, or kept as they are), and matched titles by when they were
--- last refreshed.
+-- without a confident answer; a title kept as it is is off the list), and matched titles by
+-- when they were last refreshed.
 CREATE INDEX items_to_match ON items (library_id, id) WHERE match_state = 0 AND parent_id IS NULL;
-CREATE INDEX items_unmatched ON items (library_id, sort_title, id) WHERE match_state IN (3, 4);
+CREATE INDEX items_unmatched ON items (library_id, sort_title, id) WHERE match_state = 3;
 CREATE INDEX items_to_refresh ON items (library_id, refreshed_at, id) WHERE match_state IN (1, 2) AND parent_id IS NULL;
 
 -- large. "This folder, file or embedded ID means that item." Unique, so a rescan or a repeated
@@ -452,7 +450,8 @@ CREATE TABLE subtitles (
   is_hearing_impaired INTEGER NOT NULL DEFAULT 0 CHECK (is_hearing_impaired IN (0, 1)),
   created_at   INTEGER NOT NULL
 );
-CREATE INDEX subtitles_media ON subtitles (media_id);
+-- Unique, so one provider's subtitle is one row for a version. An upload has no provider_ref.
+CREATE UNIQUE INDEX subtitles_media ON subtitles (media_id, provider, provider_ref);
 
 -- large. A song's lyrics that a rescan cannot find again: read from the file's tags, fetched
 -- from the library's lyrics source, or pasted by the owner. (A lyrics file beside the song is
