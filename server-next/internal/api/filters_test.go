@@ -53,7 +53,7 @@ func TestFiltersTakeSeveralValues(t *testing.T) {
 		}
 	}
 	decade := get[Facets](t, s, token, "/v1/facets?facet=decade&library="+library+"&kind=movie").Values[0]
-	if got := total(token, "&year="+decade.Value+".."+decade.Value[:3]+"9"); got != decade.Count {
+	if got := total(token, "&year="+decade.Value); got != decade.Count {
 		t.Fatalf("the %s hold %d films and the year range %d", decade.Label, decade.Count, got)
 	}
 
