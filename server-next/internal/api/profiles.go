@@ -131,6 +131,11 @@ func pinFingerprint(hash string) string { return auth.Hash("pin|" + hash)[:16] }
 // devices back to the chooser.
 func (s *Server) profileOwner(r *http.Request) (userID, sessionID int64, err error) {
 	caller := CallerFrom(r.Context())
+	// A main profile entered with a remembered PIN still carries its owner or admin role,
+	// so a member's profiles are kept from it here until the PIN is typed.
+	if caller.PINNeeded {
+		return 0, 0, errPINToManage()
+	}
 	member := r.URL.Query().Get("member")
 	if member == "" {
 		if !caller.Manage {

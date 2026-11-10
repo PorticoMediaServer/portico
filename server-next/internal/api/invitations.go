@@ -210,6 +210,9 @@ func (s *Server) acceptInvitation(r *http.Request, req InvitationAccept) (SignIn
 	if err != nil {
 		return SignInResponse{}, err
 	}
+	// Joining is this person's first sign-in: if the owner requires two-step sign-in of
+	// them, they set it up before anything else.
+	session.TwoStepRequired = s.policy().TwoStepRequired
 	// Look before hashing a password, so a wrong code costs the server little and is counted.
 	if _, err := s.openInvitation(r, r.PathValue("id")); err != nil {
 		return SignInResponse{}, err
