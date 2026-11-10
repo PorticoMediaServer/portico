@@ -751,18 +751,18 @@ func (d *DB) ListShares(ctx context.Context, v Viewer, publicID string) (shares,
 // to edit. Only its maker may. A profile no longer in the list is told it is gone.
 func (d *DB) SetListShares(ctx context.Context, v Viewer, publicID string, revision int64, shares []ListShare, now time.Time) (out List, err error) {
 	if len(shares) > MaxListShares {
-		return out, invalid("a list is shared with at most %d people", MaxListShares)
+		return out, invalid("A playlist is shared with at most %d people.", MaxListShares)
 	}
 	err = d.listWrite(ctx, v, publicID, revision, true, now, func(e *listEdit) error {
 		if e.kind != ListPlaylist {
-			return invalid("only a playlist is shared with chosen people")
+			return invalid("Only a playlist is shared with chosen people.")
 		}
 		want := map[int64]bool{}
 		for _, s := range shares {
 			var id int64
 			err := e.tx.QueryRow(`SELECT id FROM profiles WHERE public_id = ?`, s.ProfilePublicID).Scan(&id)
 			if errors.Is(err, sql.ErrNoRows) || id == v.ProfileID {
-				return invalid("there is no profile %q to share with", s.ProfilePublicID)
+				return invalid("One of the people chosen is not on this server.")
 			}
 			if err != nil {
 				return err
