@@ -70,6 +70,27 @@ func (n Networks) Client(r *http.Request) (netip.Addr, bool) {
 	return peer, true
 }
 
+// ThroughUnlistedProxy reports whether a request carries X-Forwarded-For from an address
+// that is not one of the owner's trusted proxies. The header is still not believed, but
+// it shows the request was passed on by something, so the connection's own address is that
+// thing's and not the person's.
+func (n Networks) ThroughUnlistedProxy(r *http.Request) bool {
+	if len(r.Header.Values("X-Forwarded-For")) == 0 {
+		return false
+	}
+	ap, err := netip.ParseAddrPort(r.RemoteAddr)
+	return err != nil || !within(n.Proxies, ap.Addr().Unmap().WithZone(""))
+}
+
+// FromHome reports whether a request came from one of the owner's home networks. A request
+// passed on by a proxy the owner has not listed is never from home: a proxy on the same
+// machine or network would otherwise make everyone on the internet look like the household.
+// This only ever takes trust away, so the header cannot be used to gain anything.
+func (n Networks) FromHome(r *http.Request) bool {
+	addr, ok := n.Client(r)
+	return ok && n.AtHome(addr) && !n.ThroughUnlistedProxy(r)
+}
+
 // AtHome reports whether an address is on one of the owner's home networks.
 func (n Networks) AtHome(addr netip.Addr) bool {
 	return addr.IsValid() && within(n.Home, addr.Unmap().WithZone(""))
