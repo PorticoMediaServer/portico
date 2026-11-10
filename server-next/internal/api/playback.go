@@ -4,13 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"slices"
 	"strconv"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
-	"github.com/PorticoMediaServer/portico/server-next/internal/preferences"
 )
 
 // Playback returns the service that runs viewing sessions, for the program to wire the media
@@ -142,24 +140,13 @@ func subtitleAsk(pick *SubtitlePick) (track *string, delivery string, err error)
 	return pick.TrackID, pick.Delivery, nil
 }
 
-func checkDeviceClass(class string) error {
-	if class != "" && !slices.Contains(preferences.DeviceClasses, class) {
-		return ErrField("deviceClass", "The kind of device is web, mobile, tablet or television.")
-	}
-	return nil
-}
-
 // playbackOptions previews a start. The query can name a version, tracks and a quality to
 // see how they would be delivered: versionId, audioId, subtitleId ("none" for off), quality
-// (a mode) with qualityId or the max… numbers, network, throughputKbps and deviceClass.
+// (a mode) with qualityId or the max… numbers, network and throughputKbps.
 func (s *Server) playbackOptions(r *http.Request, _ None) (PlaybackOptions, error) {
 	q := r.URL.Query()
 	number := func(name string) int { n, _ := strconv.Atoi(q.Get(name)); return max(n, 0) }
-	ask := playback.Ask{VersionID: q.Get("versionId"), Network: q.Get("network"), ThroughputKbps: number("throughputKbps"),
-		DeviceClass: q.Get("deviceClass")}
-	if err := checkDeviceClass(ask.DeviceClass); err != nil {
-		return PlaybackOptions{}, err
-	}
+	ask := playback.Ask{VersionID: q.Get("versionId"), Network: q.Get("network"), ThroughputKbps: number("throughputKbps")}
 	if q.Has("audioId") {
 		id := q.Get("audioId")
 		ask.Audio = &id
@@ -198,11 +185,7 @@ func (s *Server) startPlayback(r *http.Request, req PlaybackStart) (PlaybackSess
 	in := playback.StartInput{Caller: playbackCaller(r), Key: key, Hash: requestHash(req), ItemID: req.ItemID,
 		PositionMs: req.StartPositionMs, FromStart: req.StartFrom == "beginning" || req.StartFrom == "startOver",
 		Paused: req.State == playback.StatePaused,
-		Ask: playback.Ask{VersionID: req.VersionID, Quality: req.Quality, Network: req.Network, ThroughputKbps: req.ThroughputKbps,
-			DeviceClass: req.DeviceClass}}
-	if err := checkDeviceClass(req.DeviceClass); err != nil {
-		return PlaybackSession{}, err
-	}
+		Ask:    playback.Ask{VersionID: req.VersionID, Quality: req.Quality, Network: req.Network, ThroughputKbps: req.ThroughputKbps}}
 	if req.Audio != nil {
 		in.Ask.Audio = &req.Audio.TrackID
 	}

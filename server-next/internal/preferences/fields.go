@@ -97,19 +97,22 @@ var fields = []Setting{
 	flag("playback.useSystemCaptionStyle", false, ScopeDevice),
 	flag("playback.showSyncedLyrics", true, ScopeProfile),
 
-	oneOf("delivery.directPlay", "prefer", deliveryModes, ScopeDeviceClass),
-	oneOf("delivery.directStream", "allow", deliveryModes, ScopeDeviceClass),
-	oneOf("delivery.transcode", "allow", deliveryModes, ScopeDeviceClass),
+	// How a title may be delivered and the quality it starts at belong to one device and stay
+	// on it: two phones sharing a profile each keep their own. A device with nothing saved has
+	// the defaults, never another device's choice.
+	oneOf("delivery.directPlay", "prefer", deliveryModes, ScopeDevice),
+	oneOf("delivery.directStream", "allow", deliveryModes, ScopeDevice),
+	oneOf("delivery.transcode", "allow", deliveryModes, ScopeDevice),
 
 	// The quality a title starts at when the player names none: at home, away, and on a
 	// phone's own data connection.
-	oneOf("quality.home", "original", qualityladder.IDs(), ScopeDeviceClass),
-	oneOf("quality.remote", "original", qualityladder.IDs(), ScopeDeviceClass),
-	oneOf("quality.mobile", "720p-high", qualityladder.IDs(), ScopeDeviceClass),
+	oneOf("quality.home", "original", qualityladder.IDs(), ScopeDevice),
+	oneOf("quality.remote", "original", qualityladder.IDs(), ScopeDevice),
+	oneOf("quality.mobile", "720p-high", qualityladder.IDs(), ScopeDevice),
 
-	oneOf("music.qualityHome", "original", qualityladder.MusicIDs(), ScopeDeviceClass),
-	oneOf("music.qualityAway", "original", qualityladder.MusicIDs(), ScopeDeviceClass),
-	oneOf("music.qualityMobile", "320", qualityladder.MusicIDs(), ScopeDeviceClass),
+	oneOf("music.qualityHome", "original", qualityladder.MusicIDs(), ScopeDevice),
+	oneOf("music.qualityAway", "original", qualityladder.MusicIDs(), ScopeDevice),
+	oneOf("music.qualityMobile", "320", qualityladder.MusicIDs(), ScopeDevice),
 	flag("music.neverBoost", false, ScopeProfile),
 	flag("music.smoothTransitions", true, ScopeProfile),
 	intOf("music.dsdGainDb", -6, []int{0, -3, -6, -9, -12}, ScopeProfile),

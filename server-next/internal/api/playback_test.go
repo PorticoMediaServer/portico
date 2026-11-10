@@ -656,38 +656,31 @@ func TestTrackPicksAreRemembered(t *testing.T) {
 	}
 }
 
-// The quality a start gets when it names none is the one saved in Settings for that kind of
-// connection, as the profile saved it for this kind of device.
-func TestSavedQualityFollowsTheKindOfDevice(t *testing.T) {
+// The quality a start gets when it names none is the one saved in Settings on that device.
+// Two phones sharing a profile each play their own, and a device with nothing saved plays
+// the default, not another device's choice.
+func TestSavedQualityStaysOnItsDevice(t *testing.T) {
 	th := newTheatre(t)
-	token := th.owner.AccessToken
-	save := func(scope, class, quality string) {
-		t.Helper()
+	first := th.owner.AccessToken
+	second := onMain(t, th.s, signIn(t, th.s, 1)).AccessToken
+	third := onMain(t, th.s, signIn(t, th.s, 2)).AccessToken
+	save := func(token, scope, quality string) int {
 		// These requests do not come from the home network, so the away setting is the one read.
-		edit := PreferencesEdit{Scope: scope, DeviceClass: class, Values: map[string]any{"quality.remote": quality}}
-		if code := status(t, th.s, "PATCH", "/v1/preferences", token, edit); code != 200 {
-			t.Fatalf("saving the quality answered %d", code)
+		edit := PreferencesEdit{Scope: scope, DeviceClass: "mobile", Values: map[string]any{"quality.remote": quality}}
+		return status(t, th.s, "PATCH", "/v1/preferences", token, edit)
+	}
+	if a, b := save(first, "profile-device", "480p"), save(second, "profile-device", "automatic"); a != 200 || b != 200 {
+		t.Fatalf("saving a quality on a device answered %d and %d", a, b)
+	}
+	// A quality cannot be saved for the whole profile or for a kind of device.
+	if a, b := save(first, "profile-server", "480p"), save(first, "profile-device-class", "480p"); a != 400 || b != 400 {
+		t.Fatalf("saving a quality wider than one device answered %d and %d", a, b)
+	}
+	for token, want := range map[string]string{first: "fixed 480p", second: "automatic ", third: "original "} {
+		code, session := th.start(token, "", PlaybackStart{ItemID: th.film})
+		if got := session.Presentation.Quality; code != 201 || got.Mode+" "+got.ID != want {
+			t.Fatalf("a start answered %d with %+v, want %q", code, got, want)
 		}
-	}
-	preferred := func(query string) string {
-		q := th.options(token, th.film, query).Preferred.Quality
-		return q.Mode + " " + q.ID
-	}
-	save("profile-device-class", "television", "480p")
-	if got := preferred("?deviceClass=television"); got != "fixed 480p" {
-		t.Fatalf("a television plays %q, want the quality saved for televisions", got)
-	}
-	if got := preferred("?deviceClass=web"); got != "original " {
-		t.Fatalf("a browser plays %q, want the original: nothing was saved for browsers", got)
-	}
-	save("profile-device-class", "television", "automatic")
-	// A start reads the same settings.
-	code, session := th.start(token, "", PlaybackStart{ItemID: th.film, DeviceClass: "television"})
-	if code != 201 || session.Presentation.Quality.Mode != "automatic" {
-		t.Fatalf("the start answered %d with %+v", code, session.Presentation.Quality)
-	}
-	if code := status(t, th.s, "POST", "/v1/playback/sessions", token, PlaybackStart{ItemID: th.film, DeviceClass: "fridge"}); code != 400 {
-		t.Fatalf("an unknown kind of device answered %d", code)
 	}
 }
 

@@ -576,7 +576,6 @@ export interface PlaybackStart {
   subtitles?: SubtitlePick;
   network?: string;
   throughputKbps?: number;
-  deviceClass?: string;
   discTitle?: unknown;
 }
 

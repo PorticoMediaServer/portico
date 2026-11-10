@@ -13,7 +13,8 @@ import (
 
 // The settings that decide what a start plays, as the settings list (package preferences)
 // names them: the saved quality for each kind of connection, for video and for music, and
-// an audiobook's "Rewind when resuming". A setting nobody saved has the list's default.
+// an audiobook's "Rewind when resuming". The qualities are saved for one device and stay on
+// it: a device with none saved has the list's default, whatever the profile's other devices chose.
 var (
 	qualitySettings = map[string][2]string{
 		NetworkLocal:    {"quality.home", "music.qualityHome"},
@@ -136,9 +137,6 @@ type Ask struct {
 	Quality          *Quality
 	Network          string
 	ThroughputKbps   int
-	// DeviceClass is the kind of device asking: web, mobile, tablet or television. It decides
-	// which of the profile's saved settings apply; empty reads none saved for a kind of device.
-	DeviceClass string
 }
 
 // Who is asking, and from where.
@@ -317,7 +315,7 @@ func (s *Service) resolve(ctx context.Context, c Caller, device db.SessionDevice
 	} else if !errors.Is(err, db.ErrNotFound) {
 		return out, err
 	}
-	prefs, err := s.db.Preferences(ctx, c.Viewer.ProfileID, ask.DeviceClass, device.ID)
+	prefs, err := s.db.Preferences(ctx, c.Viewer.ProfileID, device.ID)
 	if err != nil {
 		return out, err
 	}
