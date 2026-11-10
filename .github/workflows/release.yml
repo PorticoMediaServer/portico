@@ -352,6 +352,13 @@ jobs:
     needs: identity
     runs-on: ubuntu-24.04
     timeout-minutes: 120
+    # Each flavor has its own workspace, Gradle cache and copy of the signing key.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {flavor: google, task: assembleGoogleRelease}
+          - {flavor: firetv, task: assembleFiretvRelease}
     steps:
       - name: Disk space
         # The engine build plus Gradle outgrew the hosted runner's free disk (proof 41322445806:
@@ -410,24 +417,28 @@ jobs:
         # ("Multiple shrunk-resources files found", issuetracker 402800800).
         run: |
           set -euo pipefail
-          ./gradlew --no-daemon -PporticoAbiSplits=true -PporticoVersionName="$VERSION" -PporticoVersionCode="$BUILD" assembleGoogleRelease assembleFiretvRelease
-          ./gradlew --no-daemon -PporticoVersionName="$VERSION" -PporticoVersionCode="$BUILD" bundleGoogleRelease
+          ./gradlew --no-daemon -PporticoAbiSplits=true -PporticoVersionName="$VERSION" -PporticoVersionCode="$BUILD" ${{ matrix.task }}
+          if [ '${{ matrix.flavor }}' = google ]; then
+            ./gradlew --no-daemon -PporticoVersionName="$VERSION" -PporticoVersionCode="$BUILD" bundleGoogleRelease
+          fi
       - name: Collect
         env: {SIGNED: '${{ needs.identity.outputs.android_signing }}'}
         run: |
           set -euo pipefail
           suffix=""; [ "$SIGNED" = true ] || suffix="-DEBUG-SIGNED-NOT-FOR-USE"
           out=apps/native/android/app/build/outputs; mkdir -p dist
-          for flavor in google firetv; do
+          for flavor in '${{ matrix.flavor }}'; do
             name=$([ "$flavor" = google ] && echo Portico-Android || echo Portico-FireTV)
             for apk in "$out"/apk/"$flavor"/release/app-"$flavor"-*-release.apk; do
               abi="${apk##*/app-$flavor-}"; abi="${abi%-release.apk}"
               cp "$apk" "dist/$name-$abi$suffix.apk"
             done
           done
-          cp "$out"/bundle/googleRelease/app-google-release.aab "dist/Portico-Android$suffix.aab"
-          cp third_party/media-engine/out/android/source/*.tar dist/
-          cp third_party/media-engine/out/android/notices/THIRD-PARTY-NOTICES.txt dist/media-engine-android-THIRD-PARTY-NOTICES.txt
+          if [ '${{ matrix.flavor }}' = google ]; then
+            cp "$out"/bundle/googleRelease/app-google-release.aab "dist/Portico-Android$suffix.aab"
+            cp third_party/media-engine/out/android/source/*.tar dist/
+            cp third_party/media-engine/out/android/notices/THIRD-PARTY-NOTICES.txt dist/media-engine-android-THIRD-PARTY-NOTICES.txt
+          fi
           if [ "$SIGNED" = true ]; then
             for apk in dist/*.apk; do "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$apk" | grep -qi 'SHA-256 digest: db88a3178d498603feb663b967990c76392e37cd43e1b95344ae2ea987ef56fa'; done
           fi
@@ -436,7 +447,7 @@ jobs:
         if: always()
         run: rm -f "$RUNNER_TEMP/release.keystore"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with: {name: assets-android, path: dist/, if-no-files-found: error, retention-days: '${{ env.RETENTION_DAYS }}'}
+        with: {name: 'assets-android-${{ matrix.flavor }}', path: dist/, if-no-files-found: error, retention-days: '${{ env.RETENTION_DAYS }}'}
 
   apple:
     # iPhone/iPad and Apple TV share tv.getportico.app. With the secrets, xcodebuild signs
@@ -446,6 +457,13 @@ jobs:
     runs-on: macos-26
     env: {DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer}
     timeout-minutes: 120
+    # Hosted runners isolate DerivedData, profiles and keychains for each archive.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {platform: ios, upload_type: ios}
+          - {platform: tvos, upload_type: appletvos}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: {ref: '${{ needs.identity.outputs.sha }}', persist-credentials: false}
@@ -516,7 +534,7 @@ jobs:
             echo "$(basename "$1"): DTSDKName $name, DTXcode $(/usr/libexec/PlistBuddy -c 'Print :DTXcode' "$plist")"
             [[ "$name" == "${2}26."* ]] || { echo "built with $name, not the $2 26 SDK" >&2; return 1; }
           }
-          for platform in ios tvos; do
+          for platform in '${{ matrix.platform }}'; do
             sdk=iphoneos; [ "$platform" = tvos ] && sdk=appletvos
             archive="$RUNNER_TEMP/Portico-$platform.xcarchive"
             common=(-workspace "apps/native/$platform/Portico.xcworkspace" -scheme Portico -configuration Release -sdk "$sdk"
@@ -552,15 +570,14 @@ jobs:
           set -euo pipefail
           mkdir -p ~/.appstoreconnect/private_keys
           cp "$RUNNER_TEMP/asc-key.p8" ~/.appstoreconnect/private_keys/AuthKey_"$ASC_KEY_ID".p8
-          xcrun altool --upload-app -f dist/Portico-ios.ipa -t ios --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER"
-          xcrun altool --upload-app -f dist/Portico-tvos.ipa -t appletvos --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER"
+          xcrun altool --upload-app -f "dist/Portico-${{ matrix.platform }}.ipa" -t '${{ matrix.upload_type }}' --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER"
       - name: Forget the signing material
         if: always()
         run: |
           rm -rf "$RUNNER_TEMP/asc-key.p8" ~/.appstoreconnect
           security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with: {name: assets-apple, path: dist/, if-no-files-found: error, retention-days: '${{ env.RETENTION_DAYS }}'}
+        with: {name: 'assets-apple-${{ matrix.platform }}', path: dist/, if-no-files-found: error, retention-days: '${{ env.RETENTION_DAYS }}'}
 
   desktop:
     # "If it builds": the desktop app's Linux build, unsigned. A failure here never blocks the
