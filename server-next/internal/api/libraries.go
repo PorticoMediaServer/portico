@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"io/fs"
 	"net/http"
@@ -26,6 +27,13 @@ type LibraryOptions struct {
 	Trash TrashRule `json:"trash"`
 	// AllowDelete lets the owner delete files of this library from disk. It starts off.
 	AllowDelete bool `json:"allowDelete"`
+	// Watch is whether the library's folders are watched for changes, which are then picked
+	// up within about ten seconds. It starts on; leaving it out of an edit keeps it on.
+	Watch *bool `json:"watch,omitempty"`
+	// RescanMinutes is how often the library's folders are scanned by themselves, from 15
+	// minutes to 30 days. 0 leaves it to the server: not at all while the folders are
+	// watched, every hour when they cannot be, every six hours on a network share.
+	RescanMinutes int `json:"rescanMinutes"`
 }
 
 // TrashRule is days (the default, with Days from 1 to 3,650, starting at 30), scan (after
@@ -205,7 +213,9 @@ func timePtr(ms int64) *time.Time {
 }
 
 func libraryOptionsOut(o db.LibraryOptions) LibraryOptions {
-	out := LibraryOptions{Depth: o.Depth, Trash: TrashRule{Mode: o.Trash.Mode, Days: o.Trash.Days}, AllowDelete: o.AllowDelete}
+	watch := !o.NoWatch
+	out := LibraryOptions{Depth: o.Depth, Trash: TrashRule{Mode: o.Trash.Mode, Days: o.Trash.Days}, AllowDelete: o.AllowDelete,
+		Watch: &watch, RescanMinutes: o.RescanMinutes}
 	if out.Depth == "" {
 		out.Depth = db.DepthBasic
 	}
@@ -219,7 +229,8 @@ func libraryOptionsOut(o db.LibraryOptions) LibraryOptions {
 }
 
 func optionsIn(o LibraryOptions) db.LibraryOptions {
-	return db.LibraryOptions{Depth: o.Depth, Trash: db.TrashRule{Mode: o.Trash.Mode, Days: o.Trash.Days}, AllowDelete: o.AllowDelete}
+	return db.LibraryOptions{Depth: o.Depth, Trash: db.TrashRule{Mode: o.Trash.Mode, Days: o.Trash.Days}, AllowDelete: o.AllowDelete,
+		NoWatch: o.Watch != nil && !*o.Watch, RescanMinutes: o.RescanMinutes}
 }
 
 func foldersOut(folders []db.LibraryFolder) []LibraryFolder {
@@ -334,6 +345,11 @@ func libraryError(err error) error {
 	}
 	return err
 }
+
+// RunSchedules starts scans by themselves until ctx ends: when watched folders change, on
+// rescan intervals, and the hourly emptying of trash whose days are up. The program calls it
+// once, beside serving.
+func (s *Server) RunSchedules(ctx context.Context) { s.scans.Run(ctx) }
 
 func (s *Server) libraryRoutes() {
 	Handle(s, "GET /v1/admin/libraries", Owner, s.listAdminLibraries)

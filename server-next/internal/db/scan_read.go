@@ -235,3 +235,23 @@ func (d *DB) SkippedFiles(ctx context.Context, libraryID int64, offset, limit in
 	}
 	return out, total, rows.Err()
 }
+
+// LibraryDirectories lists the folders on this machine's disks that the last scans stored
+// for a library, as full paths, up to limit.
+func (d *DB) LibraryDirectories(ctx context.Context, libraryID int64, limit int) ([]string, error) {
+	rows, err := d.read.QueryContext(ctx, `SELECT p.path, dir.rel_path FROM directories dir JOIN library_paths p ON p.id = dir.library_path_id
+		WHERE p.library_id = ? AND p.remote_source_id IS NULL LIMIT ?`, libraryID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var root, rel string
+		if err := rows.Scan(&root, &rel); err != nil {
+			return nil, err
+		}
+		out = append(out, path.Join(root, rel))
+	}
+	return out, rows.Err()
+}

@@ -41,6 +41,12 @@ type LibraryOptions struct {
 	Depth       string    `json:"depth,omitempty"`
 	Trash       TrashRule `json:"trash"`
 	AllowDelete bool      `json:"allowDelete,omitempty"`
+	// NoWatch turns off watching the library's folders for changes.
+	NoWatch bool `json:"noWatch,omitempty"`
+	// RescanMinutes is how often the library's local folders are scanned by themselves. 0
+	// leaves it to the server: not at all while the folders are watched, every hour when
+	// they cannot be, every six hours on a network share.
+	RescanMinutes int `json:"rescanMinutes,omitempty"`
 }
 
 // TrashRule says when a library's missing titles are removed.

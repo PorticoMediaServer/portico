@@ -168,6 +168,9 @@ func (o LibraryOptions) check() error {
 	if o.Trash.Days < 0 || o.Trash.Days > 3650 {
 		return invalid("missing titles are removed after 1 to 3,650 days")
 	}
+	if o.RescanMinutes != 0 && (o.RescanMinutes < 15 || o.RescanMinutes > 30*24*60) {
+		return invalid("a library is rescanned every 15 minutes to 30 days")
+	}
 	return nil
 }
 

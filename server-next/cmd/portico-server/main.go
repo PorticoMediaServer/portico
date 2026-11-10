@@ -83,6 +83,8 @@ func run(log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	// Scans start by themselves from here on: watched folders, rescan intervals, the trash.
+	go handler.RunSchedules(ctx)
 	// The media engine plans and runs the streams. Its conversions folder is emptied at start:
 	// no stream outlives a restart.
 	engine, err := mediaengine.New(ctx, d, mediaengine.Options{Folder: filepath.Join(*data, "transcodes")})
