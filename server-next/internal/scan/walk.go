@@ -145,16 +145,12 @@ func (r *run) walkPath() (unavailable, err error) {
 			return errEmptied, nil
 		}
 	}
-	var disk int64
-	if local, ok := r.src.(interface{ Device(string) int64 }); ok {
-		disk = local.Device("")
-	}
 	if local, ok := r.src.(interface{ FolderID(string) string }); ok {
 		if id := local.FolderID(""); id != "" {
 			r.walked[id] = true
 		}
 	}
-	if err := r.walkFolder("", entries, 0, disk); err != nil {
+	if err := r.walkFolder("", entries, 0); err != nil {
 		return nil, err
 	}
 	return nil, r.flush()
@@ -198,13 +194,12 @@ func (f *found) touched() bool { return f.state == added || f.state == moved }
 // folder is one folder being scanned.
 type folder struct {
 	rel     string
-	disk    int64
 	files   []*found // every file the scan keeps, by name
 	media   []*found
 	differs bool
 }
 
-func (r *run) walkFolder(rel string, entries []Entry, depth int, disk int64) error {
+func (r *run) walkFolder(rel string, entries []Entry, depth int) error {
 	if err := r.ctx.Err(); err != nil {
 		return err
 	}
@@ -228,9 +223,8 @@ func (r *run) walkFolder(rel string, entries []Entry, depth int, disk int64) err
 	if err != nil {
 		return err
 	}
-	f := &folder{rel: rel, disk: disk, differs: !stored.Known}
+	f := &folder{rel: rel, differs: !stored.Known}
 	var folders []string
-	disks := map[string]int64{}
 	inDisc := discFolder(path.Base(rel))
 	listed := map[string]bool{}
 	for _, e := range entries {
@@ -257,7 +251,6 @@ func (r *run) walkFolder(rel string, entries []Entry, depth int, disk int64) err
 					r.walked[e.FolderID] = true
 				}
 				folders = append(folders, e.Name)
-				disks[e.Name] = e.Device
 			}
 			continue
 		default:
@@ -327,13 +320,7 @@ func (r *run) walkFolder(rel string, entries []Entry, depth int, disk int64) err
 			r.s.log().Warn("folder not read", "library", r.lib.Name, "folder", r.src.LocalPath(child), "error", err)
 			continue
 		}
-		// A folder that was a disk of its own and is now an empty folder on this folder's disk is
-		// a disk that is not mounted: nothing in it is marked missing.
-		if was := stored.Disks[child]; len(entries) == 0 && was != 0 && stored.Disk != 0 && was != stored.Disk && disk != 0 && disks[name] == disk {
-			r.s.log().Warn("folder not read: its disk is not mounted", "library", r.lib.Name, "folder", r.src.LocalPath(child))
-			continue
-		}
-		if err := r.walkFolder(child, entries, depth+1, disks[name]); err != nil {
+		if err := r.walkFolder(child, entries, depth+1); err != nil {
 			return err
 		}
 	}
@@ -395,7 +382,7 @@ func (r *run) store(f *folder, gone []db.FileRef) error {
 	if batch.PathID != r.path.ID {
 		*batch = db.ImportBatch{LibraryID: r.lib.ID, PathID: r.path.ID, Scan: r.scan}
 	}
-	batch.Dirs = append(batch.Dirs, db.ImportDir{RelPath: f.rel, Device: f.disk})
+	batch.Dirs = append(batch.Dirs, db.ImportDir{RelPath: f.rel})
 	batch.Gone = append(batch.Gone, gone...)
 	r.stats.FilesGone += len(gone)
 	for _, u := range units {
@@ -428,7 +415,7 @@ func (r *run) store(f *folder, gone []db.FileRef) error {
 				return err
 			}
 			// The rest of this folder goes into the next transaction, which names the folder again.
-			batch.Dirs = append(batch.Dirs, db.ImportDir{RelPath: f.rel, Device: f.disk})
+			batch.Dirs = append(batch.Dirs, db.ImportDir{RelPath: f.rel})
 		}
 	}
 	return nil

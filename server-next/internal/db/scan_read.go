@@ -24,18 +24,13 @@ type StoredFolder struct {
 	Known   bool
 	Files   map[string]StoredFile
 	Folders []string // paths relative to the library path
-	// Disk is the number of the disk the folder was on when it was stored, and Disks the same
-	// for the folders inside it; 0 where it was not known.
-	Disk  int64
-	Disks map[string]int64
 }
 
 // Folder reads what is stored about one folder, for a scan to compare with what is there now.
 func (d *DB) Folder(ctx context.Context, pathID int64, rel string) (StoredFolder, error) {
-	out := StoredFolder{Files: map[string]StoredFile{}, Disks: map[string]int64{}}
+	out := StoredFolder{Files: map[string]StoredFile{}}
 	var id int64
-	err := d.read.QueryRowContext(ctx, `SELECT id, ifnull(device, 0) FROM directories WHERE library_path_id = ? AND rel_path = ?`, pathID, rel).
-		Scan(&id, &out.Disk)
+	err := d.read.QueryRowContext(ctx, `SELECT id FROM directories WHERE library_path_id = ? AND rel_path = ?`, pathID, rel).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return out, nil
 	}
@@ -60,19 +55,17 @@ func (d *DB) Folder(ctx context.Context, pathID int64, rel string) (StoredFolder
 	if err := rows.Close(); err != nil {
 		return out, err
 	}
-	rows, err = d.read.QueryContext(ctx, `SELECT rel_path, ifnull(device, 0) FROM directories WHERE parent_id = ?`, id)
+	rows, err = d.read.QueryContext(ctx, `SELECT rel_path FROM directories WHERE parent_id = ?`, id)
 	if err != nil {
 		return out, err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var folder string
-		var disk int64
-		if err := rows.Scan(&folder, &disk); err != nil {
+		if err := rows.Scan(&folder); err != nil {
 			return out, err
 		}
 		out.Folders = append(out.Folders, folder)
-		out.Disks[folder] = disk
 	}
 	return out, rows.Err()
 }

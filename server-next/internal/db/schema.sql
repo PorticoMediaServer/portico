@@ -139,9 +139,7 @@ CREATE TABLE library_paths (
 CREATE UNIQUE INDEX library_paths_place ON library_paths (library_id, ifnull(remote_source_id, 0), path);
 CREATE INDEX library_paths_remote ON library_paths (remote_source_id) WHERE remote_source_id IS NOT NULL;
 
--- large. Every folder seen, with its modified time. device is the number of the disk the folder
--- is on, where the server can tell: a folder that was a disk of its own and is now an empty
--- folder on its parent's disk is a disk that is not mounted, and nothing in it is marked missing.
+-- large. Every folder seen, with its modified time.
 CREATE TABLE directories (
   id              INTEGER NOT NULL PRIMARY KEY,
   library_path_id INTEGER NOT NULL REFERENCES library_paths(id) ON DELETE CASCADE,
@@ -149,7 +147,6 @@ CREATE TABLE directories (
   rel_path        TEXT    NOT NULL,
   modified_ns     INTEGER NOT NULL,
   seen_scan       INTEGER NOT NULL,
-  device          INTEGER,
   UNIQUE (library_path_id, rel_path)
 );
 CREATE INDEX directories_parent ON directories (parent_id);

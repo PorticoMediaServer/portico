@@ -544,46 +544,6 @@ func TestStateReturnsToATitleThatWasRemovedAndAddedAgain(t *testing.T) {
 	}
 }
 
-// mounts is a local folder in which some folders are disks of their own.
-type mounts struct {
-	scan.Local
-	disks map[string]int64 // by folder name at the top
-}
-
-func (m mounts) Device(string) int64 { return 1 }
-
-func (m mounts) List(ctx context.Context, rel string) ([]scan.Entry, error) {
-	entries, err := m.Local.List(ctx, rel)
-	for i := range entries {
-		if entries[i].Dir {
-			entries[i].Device = 1
-			if disk, ok := m.disks[entries[i].Name]; ok && rel == "" {
-				entries[i].Device = disk
-			}
-		}
-	}
-	return entries, err
-}
-
-// A disk mounted one folder below the library's top that goes away leaves an empty folder on
-// the parent's disk: nothing in it is marked missing. An ordinary folder that was emptied is a
-// complete listing, and its titles are missing.
-func TestADiskThatIsNotMountedMarksNothingMissing(t *testing.T) {
-	f := newFixture(t, db.LibraryMovies)
-	f.write("Disk/Heat (1995).mkv")
-	f.write("Folder/Alien (1979).mkv")
-	disks := map[string]int64{"Disk": 2}
-	f.s.Source = func(root string) scan.Source { return mounts{scan.Local{Root: root}, disks} }
-	f.scan()
-	delete(disks, "Disk") // the folder is now on its parent's disk
-	f.remove("Disk/Heat (1995).mkv")
-	f.remove("Folder/Alien (1979).mkv")
-	f.scan()
-	if !f.detail(f.film("Heat").PublicID).Available || f.detail(f.film("Alien").PublicID).Available {
-		t.Fatal("the unmounted disk's film should stay available and the emptied folder's film should be missing")
-	}
-}
-
 // What a person had on a removed title returns when the title is added to another library,
 // and where they already have something on it, the later edit wins field by field.
 func TestKeptStateReturnsInAnotherLibrary(t *testing.T) {
