@@ -617,3 +617,21 @@ func TestKeptStateReturnsInAnotherLibrary(t *testing.T) {
 		t.Fatalf("Alien should be watched again in the second library, and Heat should not be: %+v, %v", page.Items, err)
 	}
 }
+
+// A link back to a folder above it does not send the scan round in circles or list a film twice.
+func TestALinkBackToAFolderAboveIsReadOnce(t *testing.T) {
+	f := newFixture(t, db.LibraryMovies)
+	f.write("Heat (1995)/Heat (1995).mkv")
+	for _, link := range []string{"Heat (1995)/again", "Heat (1995)/and again"} {
+		if err := os.Symlink(f.root, filepath.Join(f.root, filepath.FromSlash(link))); err != nil {
+			t.Skip("links cannot be made here:", err)
+		}
+	}
+	first := f.scan()
+	if got := f.titles(db.KindMovie); len(got) != 1 || first.Files != 1 {
+		t.Fatalf("%d films from %d files; want one film from one file: %v", len(got), first.Files, keys(got))
+	}
+	if again := f.scan(); again.RowsWritten != 0 {
+		t.Fatalf("a rescan wrote %d rows", again.RowsWritten)
+	}
+}
