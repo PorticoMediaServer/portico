@@ -4,6 +4,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/audiotags"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/localmetadata"
 )
@@ -79,4 +80,20 @@ func fieldIf(fromFiles bool, field string) string {
 		return field
 	}
 	return ""
+}
+
+// tagLyrics are the lyrics in a song's tags: timed ones before plain ones.
+func tagLyrics(tags audiotags.Tags) *db.Lyrics {
+	var out *db.Lyrics
+	for _, l := range tags.Lyrics {
+		if strings.TrimSpace(l.Text) == "" || out != nil && (out.Timed || l.Format != "lrc") {
+			continue
+		}
+		language := strings.ToLower(l.Language)
+		if language == "und" || language == "xxx" {
+			language = ""
+		}
+		out = &db.Lyrics{Source: db.LyricsFromFile, Body: l.Text, Timed: l.Format == "lrc", Language: language}
+	}
+	return out
 }
