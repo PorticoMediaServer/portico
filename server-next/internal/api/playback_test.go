@@ -148,6 +148,11 @@ func newTheatre(t *testing.T) *theatre {
 		}
 		return db.ImportFile{FileRef: db.FileRef{Name: name}, Role: role, Size: 1 << 20, Container: "matroska", DurationMS: hour, Streams: streams}
 	}
+	// Both episodes have credits at forty minutes: the first confirmed across the show, the
+	// second found in that one file only, which is not trusted.
+	credits := func(source db.MarkerSource) []db.Marker {
+		return []db.Marker{{Kind: db.MarkerCredits, Source: source, StartMS: 40 * 60_000, EndMS: hour}}
+	}
 	version := func(name string, sidecars ...string) []db.ImportVersion {
 		v := db.ImportVersion{Parts: []db.ImportPart{{File: db.FileRef{Name: name}}}}
 		for _, sidecar := range sidecars {
@@ -177,9 +182,9 @@ func newTheatre(t *testing.T) *theatre {
 				{Kind: db.KindSeason, Keys: []db.ItemKey{{Kind: db.KeyName, Key: "dark/1"}}, Parent: &db.ItemKey{Kind: db.KeyFolder, Key: "dark"},
 					Title: "Season 1", IndexNumber: &one},
 				{Kind: db.KindEpisode, Keys: []db.ItemKey{{Kind: db.KeyFile, Key: "e1"}}, Parent: &db.ItemKey{Kind: db.KeyName, Key: "dark/1"},
-					Title: "Secrets", IndexNumber: &one, ParentIndex: &one, Versions: version("e1.mkv")},
+					Title: "Secrets", IndexNumber: &one, ParentIndex: &one, Versions: marked(version("e1.mkv"), credits(db.MarkerConfirmed))},
 				{Kind: db.KindEpisode, Keys: []db.ItemKey{{Kind: db.KeyFile, Key: "e2"}}, Parent: &db.ItemKey{Kind: db.KeyName, Key: "dark/1"},
-					Title: "Lies", IndexNumber: &two, ParentIndex: &one, Versions: version("e2.mkv")},
+					Title: "Lies", IndexNumber: &two, ParentIndex: &one, Versions: marked(version("e2.mkv"), credits(db.MarkerFromAnalysis))},
 			},
 		},
 		db.LibraryMusic: {
@@ -220,6 +225,11 @@ func newTheatre(t *testing.T) *theatre {
 		t.Fatalf("the library was not imported: %+v", th)
 	}
 	return th
+}
+
+func marked(versions []db.ImportVersion, markers []db.Marker) []db.ImportVersion {
+	versions[0].Markers = markers
+	return versions
 }
 
 // start plays an item and returns the status and the session.
@@ -836,3 +846,56 @@ func TestStopDuringStartAndAStreamReplacedByTheEngine(t *testing.T) {
 		t.Fatalf("after the engine replaced the stream: lease %+v, presentation %+v", lease, now.Presentation)
 	}
 }
+
+// A video is watched when trusted credits start, or at the percentage, whichever comes
+// first; credits found in one file only finish nothing and are not skipped without asking.
+// While history is paused nothing of the profile's own is saved, but the owner's play
+// record has the play, hidden from the profile. What the engine cannot do yet is refused
+// by name.
+func TestCreditsPausedHistoryAndWhatIsNotAvailableYet(t *testing.T) {
+	th := newTheatre(t)
+	token := th.owner.AccessToken
+	ctx := context.Background()
+	stopAt := func(item string, positionMs int64) {
+		t.Helper()
+		session := th.play(token, item)
+		status(t, th.s, "DELETE", "/v1/playback/sessions/"+session.ID, token, PlaybackStop{PositionMs: &positionMs})
+	}
+	stopAt(th.eps[0], 41*60_000)
+	stopAt(th.eps[1], 41*60_000)
+	if first, second := th.state(th.eps[0]), th.state(th.eps[1]); !first.Watched || first.PlayCount != 1 || second.Watched || second.PositionMS != 41*60_000 {
+		t.Fatalf("past the credits: trusted %+v, untrusted %+v", first, second)
+	}
+	if a, b := th.options(token, th.eps[0], "").Markers, th.options(token, th.eps[1], "").Markers; len(a) != 1 || !a[0].AutomaticSafe || len(b) != 1 || b[0].AutomaticSafe {
+		t.Fatalf("markers: %+v and %+v", a, b)
+	}
+
+	// History paused: the film is played to the end. Nothing of the profile's changes.
+	if err := th.s.db.SetProfilePreference(ctx, 1, db.PrefPauseHistory, "true", th.clock); err != nil {
+		t.Fatal(err)
+	}
+	stopAt(th.film, 30*60_000)
+	stopAt(th.film, hour)
+	if got := th.state(th.film); got.Watched || got.PlayCount != 0 || got.PositionMS != 0 {
+		t.Fatalf("with history paused the film's state changed: %+v", got)
+	}
+	records, err := th.s.db.PlayRecords(ctx, 1, 10)
+	if err != nil || len(records) != 2 || records[0].Title != "Heat" || !records[0].HiddenFromProfile || records[1].HiddenFromProfile {
+		t.Fatalf("the owner's play record: %+v, %v", records, err)
+	}
+
+	for body, code := range map[*PlaybackStart]string{
+		{ItemID: th.film, DiscTitle: json.RawMessage(`{"id":"x","revision":"y"}`)}:           "disc_playback_unavailable",
+		{ItemID: th.film, Subtitles: &SubtitlePick{TrackID: ptr2("3"), Delivery: "sidecar"}}: "subtitle_delivery_unavailable",
+	} {
+		w := serve(th.s, newRequest("POST", "/v1/playback/sessions", token, body))
+		if w.Code != 501 || !strings.Contains(w.Body.String(), code) {
+			t.Fatalf("%s: answered %d: %s", code, w.Code, w.Body)
+		}
+	}
+	if th.engine.streams() != 0 {
+		t.Fatalf("a refused start left %d streams", th.engine.streams())
+	}
+}
+
+func ptr2(s string) *string { return &s }

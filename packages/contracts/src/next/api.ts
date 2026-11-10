@@ -594,6 +594,7 @@ export interface PlaybackStart {
   subtitles?: SubtitlePick;
   network?: string;
   throughputKbps?: number;
+  discTitle?: unknown;
 }
 
 export interface PlaybackStop {
