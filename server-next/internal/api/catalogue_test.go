@@ -101,8 +101,8 @@ func TestBrowse(t *testing.T) {
 		t.Fatalf("credits: %d of %d, cursor %q", len(credits.Items), credits.Total, credits.NextCursor)
 	}
 	person := get[Person](t, s, token, "/v1/people/"+credits.Items[0].PersonID)
-	if titles := get[ItemPage](t, s, token, "/v1/items?person="+person.ID+"&total=true"); person.TitleCount == 0 || *titles.Total != person.TitleCount {
-		t.Fatalf("person: %d titles, list total %v", person.TitleCount, titles.Total)
+	if titles := get[ItemPage](t, s, token, "/v1/items?person="+person.ID+"&total=true"); person.TitleCount == nil || *person.TitleCount == 0 || *titles.Total != *person.TitleCount {
+		t.Fatalf("person: %v titles, list total %v", person.TitleCount, titles.Total)
 	}
 	facets := get[Facets](t, s, token, "/v1/facets?facet=genre&library="+films.ID+"&kind=movie")
 	if len(facets.Values) == 0 {

@@ -45,7 +45,7 @@ def run_scan(bin_dir, env_extra=None):
 class SecretScanCache(unittest.TestCase):
     def test_every_hygiene_job_caches_the_pinned_tarball(self):
         self.assertIn('sha256=' + SHA256, SCRIPT.read_text())
-        for name in ['merge.yml']:
+        for name in ['merge.yml', 'nightly.yml']:
             with self.subTest(workflow=name):
                 job = hygiene(name)
                 self.assertIn(
@@ -60,7 +60,7 @@ class SecretScanCache(unittest.TestCase):
                     r'\n\s+run: bash ci/secret-scan\.sh')
 
     def test_every_hygiene_job_installs_the_pinned_go_before_the_scan(self):
-        for name in ['merge.yml']:
+        for name in ['merge.yml', 'nightly.yml']:
             with self.subTest(workflow=name):
                 job = hygiene(name)
                 self.assertRegex(
