@@ -85,6 +85,8 @@ func run(log *slog.Logger) error {
 	}
 	// rclone, which remote sources run, stops with the server.
 	defer handler.RemoteSources().Close()
+	// Scans start by themselves from here on: watched folders and rescan intervals.
+	go handler.RunSchedules(ctx)
 	// The media engine plans and runs the streams. Its conversions folder is emptied at start:
 	// no stream outlives a restart.
 	engine, err := mediaengine.New(ctx, d, mediaengine.Options{Folder: filepath.Join(*data, "transcodes"), Log: log, Remote: handler.RemoteSources().Open})
