@@ -3,11 +3,12 @@ package auth
 import (
 	"net/http"
 	"net/netip"
+	"strings"
 	"testing"
 )
 
 // Who a request came from. A forwarded address is believed only from a proxy the owner
-// listed, read from the end that proxy wrote, and never when the header cannot be read.
+// listed, and read only from the end that proxy wrote.
 func TestClientAddress(t *testing.T) {
 	proxies, err := ParseNetworks([]string{"10.0.0.2", "172.18.0.0/16"})
 	if err != nil {
@@ -25,7 +26,9 @@ func TestClientAddress(t *testing.T) {
 		{"what the client wrote before the proxy's entry is not", "10.0.0.2:4000", []string{"192.168.1.10, 198.51.100.7"}, "198.51.100.7"},
 		{"a chain of trusted proxies", "10.0.0.2:4000", []string{"198.51.100.7, 172.18.0.3"}, "198.51.100.7"},
 		{"two header lines", "10.0.0.2:4000", []string{"192.168.1.10", "198.51.100.7"}, "198.51.100.7"},
-		{"a header that cannot be read", "10.0.0.2:4000", []string{"198.51.100.7, unknown"}, "10.0.0.2"},
+		{"the proxy's own entry cannot be read", "10.0.0.2:4000", []string{"198.51.100.7, unknown"}, "10.0.0.2"},
+		{"junk a client sent first does not make it the proxy", "10.0.0.2:4000", []string{"not an address, 198.51.100.7"}, "198.51.100.7"},
+		{"nor does a very long list", "10.0.0.2:4000", []string{strings.Repeat("192.168.1.10, ", 40) + "198.51.100.7"}, "198.51.100.7"},
 		{"a trusted proxy that sent nothing", "10.0.0.2:4000", nil, "10.0.0.2"},
 		{"IPv6 through a proxy", "[::ffff:10.0.0.2]:4000", []string{"2001:db8::1"}, "2001:db8::1"},
 	} {
