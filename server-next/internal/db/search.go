@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/searchtext"
@@ -162,10 +163,8 @@ type searcher struct {
 	// and rating limit hide, by the facts each row carries. It only saves work: every row
 	// sent is still checked against the main database, and a count is tested against that.
 	narrow string
-	// What counting people already found out about who may be seen: each row up to
-	// checkedTo, by group. A page asks the main database only beyond that.
-	checked   map[int64]bool
-	checkedTo map[int64]int64
+	// What this request has already asked the main database: whether each row may be seen.
+	checked map[int64]bool
 }
 
 // narrowing writes the viewer's libraries and rating limit as an expression over the facts
@@ -213,7 +212,7 @@ func (d *DB) searcher(ctx context.Context, v Viewer, terms searchTerms) (s *sear
 	}
 	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err == nil {
-		s = &searcher{ctx: ctx, tx: tx, index: ix.read, v: v, match: terms.match(), checked: map[int64]bool{}, checkedTo: map[int64]int64{}}
+		s = &searcher{ctx: ctx, tx: tx, index: ix.read, v: v, match: terms.match(), checked: map[int64]bool{}}
 		if s.acc, err = loadAccess(ctx, tx, v); err != nil {
 			tx.Rollback()
 		}
@@ -282,6 +281,17 @@ func (d *DB) Search(ctx context.Context, v Viewer, q SearchQuery) (SearchResults
 	var totals map[int64]searchTotal
 	if q.Cursor == "" {
 		if totals, err = s.totals(); err != nil {
+			return fail(err)
+		}
+	}
+	if only == nil {
+		var shown []int64
+		for _, g := range searchGroups {
+			if totals[g.code].visible > 0 {
+				shown = append(shown, g.code)
+			}
+		}
+		if err := s.warm(shown, limit); err != nil {
 			return fail(err)
 		}
 	}
@@ -428,19 +438,22 @@ func (s *searcher) check(rows []int64) (map[int64]bool, error) {
 	return seen, nil
 }
 
-// visible says which of some matching rows the viewer may see. With nothing kept from the
-// viewer that is all of them: a row whose title was deleted a moment ago is dropped when the
-// page is loaded.
+// visible says which of some matching rows the viewer may see, asking the main database only
+// about rows this request has not asked about before. With nothing kept from the viewer that
+// is all of them: a row whose title was deleted a moment ago is dropped when the page is loaded.
 func (s *searcher) visible(rows []int64) (map[int64]bool, error) {
 	seen := make(map[int64]bool, len(rows))
+	if s.acc.seesAll() {
+		for _, row := range rows {
+			seen[row] = true
+		}
+		return seen, nil
+	}
 	var ask []int64
 	for _, row := range rows {
-		switch {
-		case s.acc.seesAll():
-			seen[row] = true
-		case row <= s.checkedTo[row>>searchIDBits]:
-			seen[row] = s.checked[row]
-		default:
+		if known, ok := s.checked[row]; ok {
+			seen[row] = known
+		} else {
 			ask = append(ask, row)
 		}
 	}
@@ -448,10 +461,43 @@ func (s *searcher) visible(rows []int64) (map[int64]bool, error) {
 		return seen, nil
 	}
 	asked, err := s.check(ask)
-	for _, row := range ask {
-		seen[row] = asked[row]
+	if err != nil {
+		return nil, err
 	}
-	return seen, err
+	for _, row := range ask {
+		seen[row], s.checked[row] = asked[row], asked[row]
+	}
+	return seen, nil
+}
+
+// firstBatch is how many matches a page of limit results reads from the index to begin with.
+func firstBatch(limit int) int { return max(2*(limit+1), 50) }
+
+// warm asks about the first matches of several groups in one statement, so the page of each
+// that follows finds them already answered. A statement that asks what a profile with
+// blocked labels may see costs the same few milliseconds however few rows it asks about, so
+// one for every group is much cheaper than one a group.
+func (s *searcher) warm(codes []int64, limit int) error {
+	if s.acc.seesAll() {
+		return nil
+	}
+	batch := firstBatch(limit)
+	var ask []int64
+	for _, code := range codes {
+		// The same reads a page makes: each tier from its start, until one fills a batch.
+		for _, tier := range s.match.tiers {
+			rows, err := s.candidates(tier, code, 0, batch)
+			if err != nil {
+				return err
+			}
+			ask = append(ask, rows...)
+			if len(rows) == batch {
+				break
+			}
+		}
+	}
+	_, err := s.visible(ask)
+	return err
 }
 
 type searchTotal struct {
@@ -461,10 +507,12 @@ type searchTotal struct {
 
 // totals counts the results of every kind the viewer may see.
 //
-// Titles are counted exactly without reading their rows: one pass over the index counts the
-// matches in the viewer's libraries and within its rating limit, by the facts each row
-// carries, and a second takes away those a blocked label hides, which are found from the
-// label's side in the main database. With nothing kept from the viewer the first pass is all.
+// Titles are counted exactly without reading their rows. Each kind is a range of rows in the
+// index and is counted by its own statement, all of them at once on the index's connections:
+// one statement that groups every match by kind has to sort them first and takes about four
+// times as long. A count takes in the matches in the viewer's libraries and within its rating
+// limit, by the facts each row carries; a second takes away those a blocked label hides,
+// which are found from the label's side in the main database.
 //
 // People have no such facts: a person is seen through any one title. For a viewer with
 // restrictions the matching people are checked one by one, up to searchCheckCap of them, and
@@ -474,32 +522,45 @@ func (s *searcher) totals() (map[int64]searchTotal, error) {
 	if !s.acc.known {
 		return totals, nil
 	}
-	count := func(query string, sign int, args ...any) error {
-		rows, err := s.index.QueryContext(s.ctx, query, args...)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
-		for rows.Next() {
-			var code int64
-			var n int
-			if err := rows.Scan(&code, &n); err != nil {
-				return err
+	var counting sync.WaitGroup
+	var mu sync.Mutex
+	var failed error
+	// count adds to each kind of title, or takes away from it, its matches that also meet a condition.
+	count := func(sign int, condition string, args ...any) {
+		for _, g := range searchGroups {
+			if g.code == searchPeople && !s.acc.seesAll() {
+				continue
 			}
-			total := totals[code]
-			total.visible += sign * n
-			totals[code] = total
+			counting.Go(func() {
+				var n int
+				err := s.index.QueryRowContext(s.ctx, `SELECT count(*) FROM search_titles WHERE search_titles MATCH ?1 AND rowid > ?2 AND rowid < ?3`+condition,
+					append([]any{s.over(s.match.all, g.code), searchRow(g.code, 0), searchRow(g.code+1, 0)}, args...)...).Scan(&n)
+				mu.Lock()
+				defer mu.Unlock()
+				if err != nil {
+					failed = err
+				}
+				total := totals[g.code]
+				total.visible += sign * n
+				totals[g.code] = total
+			})
 		}
-		return rows.Err()
 	}
-	const grouped = `SELECT rowid >> ?1, count(*) FROM search_titles WHERE search_titles MATCH ?2`
+	done := func(err error) (map[int64]searchTotal, error) {
+		counting.Wait()
+		if err == nil {
+			err = failed
+		}
+		if err != nil {
+			return nil, err
+		}
+		return totals, nil
+	}
+	count(1, "")
 	if s.acc.seesAll() {
-		return totals, count(grouped+` GROUP BY 1`, 1, searchIDBits, s.match.all)
+		return done(nil)
 	}
-	titles := s.over(s.match.all, searchGroups[0].code)
-	if err := count(grouped+` AND rowid >> ?1 != ?3 GROUP BY 1`, 1, searchIDBits, titles, searchPeople); err != nil {
-		return nil, err
-	}
+	// While the index counts, the main database is asked what the labels hide and who may be seen.
 	if len(s.acc.blockedTags) > 0 {
 		// Everything a blocked label hides: what carries one, and what sits under that.
 		tags := intList(s.acc.blockedTags)
@@ -507,29 +568,34 @@ func (s *searcher) totals() (map[int64]searchTotal, error) {
 			UNION SELECT c.id FROM item_tags h CROSS JOIN items c WHERE h.tag_id IN `+tags+` AND c.parent_id = h.item_id
 			UNION SELECT c.id FROM item_tags h CROSS JOIN items c WHERE h.tag_id IN `+tags+` AND c.root_id = h.item_id`)
 		if err != nil {
-			return nil, err
+			return done(err)
 		}
-		if err := count(grouped+` AND rowid >> ?1 != ?3 AND (rowid & ?4) IN (SELECT value FROM json_each(?5)) GROUP BY 1`, -1,
-			searchIDBits, titles, searchPeople, int64(1)<<searchIDBits-1, idsJSON(hidden)); err != nil {
-			return nil, err
+		if len(hidden) > 0 {
+			count(-1, ` AND (rowid & ?4) IN (SELECT value FROM json_each(?5))`, int64(1)<<searchIDBits-1, idsJSON(hidden))
 		}
 	}
 	people, err := s.candidates(s.match.all, searchPeople, 0, searchCheckCap+1)
 	if err != nil {
-		return nil, err
+		return done(err)
 	}
 	minimum := len(people) > searchCheckCap
 	if minimum {
 		people = people[:searchCheckCap]
 	}
-	if len(people) > 0 {
-		s.checkedTo[searchPeople] = people[len(people)-1]
+	seen, err := s.visible(people)
+	if err != nil {
+		return done(err)
 	}
-	if s.checked, err = s.check(people); err != nil {
-		return nil, err
+	visible := 0
+	for _, row := range people {
+		if seen[row] {
+			visible++
+		}
 	}
-	totals[searchPeople] = searchTotal{visible: len(s.checked), minimum: minimum}
-	return totals, nil
+	mu.Lock()
+	totals[searchPeople] = searchTotal{visible: visible, minimum: minimum}
+	mu.Unlock()
+	return done(nil)
 }
 
 // best reads the next limit results of a group, best first, from the position in from. The
@@ -540,7 +606,7 @@ func (s *searcher) best(tiers []string, code int64, from searchCursor, limit, kn
 	next, end := from, from
 	end.Tier = -1
 	var hits []int64
-	checked, batch := 0, max(2*(limit+1), 50)
+	checked, batch := 0, firstBatch(limit)
 	tier, after := from.Tier, from.After
 	for tier < len(tiers) && len(hits) != known {
 		candidates, err := s.candidates(tiers[tier], code, after, batch)
