@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 )
 
 // Priority says whose write this is. A person's action goes ahead of background work.
@@ -56,11 +57,18 @@ func (d *DB) writeThen(ctx context.Context, p Priority, fn func(tx *sql.Tx) erro
 func (d *DB) writer() {
 	streak := 0
 	for {
+		// While the WAL is being emptied, background work waits and the writer looks in on
+		// the WAL whenever it has nothing else to do. See checkpoint.go.
+		background := d.queues[Background]
+		var lookIn <-chan time.Time
+		if d.draining.Load() {
+			background, lookIn = nil, time.After(walDrainInterval)
+		}
 		var req writeRequest
 		if streak >= userStreak {
 			streak = 0
 			select {
-			case req = <-d.queues[Background]:
+			case req = <-background:
 			default:
 				continue
 			}
@@ -72,8 +80,12 @@ func (d *DB) writer() {
 				select {
 				case req = <-d.queues[User]:
 					streak++
-				case req = <-d.queues[Background]:
+				case req = <-background:
 					streak = 0
+				case <-lookIn:
+					d.emptyWAL(0)
+					d.afterWrite()
+					continue
 				case <-d.closed:
 					return
 				}
