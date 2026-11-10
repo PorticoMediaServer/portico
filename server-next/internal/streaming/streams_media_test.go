@@ -508,18 +508,61 @@ func TestVideoConversionSeekAndQualityChange(t *testing.T) {
 	rig.streams.Stop("s1")
 }
 
+// A player asks for a segment far ahead and goes away while the server is still
+// converting towards it. The request stops waiting at once, nobody is left
+// waiting for the segment, and the converter that was started for it is
+// cancelled once nobody fetches from it, with the stream itself still alive.
 func TestSegmentRequestStopsWaitingWhenThePlayerGoesAway(t *testing.T) {
+	restore := hlsAbandonedAfterForTest(2 * time.Second)
+	defer hlsAbandonedAfterForTest(restore)
 	rig := newMediaRig(t)
-	path := rig.generate("cancel.avi", 60, "-c:v", "mpeg4", "-q:v", "5", "-c:a", "mp3")
+	path := rig.generate("cancel.avi", 240, "-c:v", "mpeg4", "-q:v", "5", "-c:a", "mp3")
 	stream, _ := rig.start("s1", path, 0, nil)
 	rig.ready("s1")
-	last := rig.playlists(stream.Grant)[0]
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	began := time.Now()
-	response := rig.get(ctx, stream.Grant, last.segments[len(last.segments)-1], "")
-	if response.Code == http.StatusOK || time.Since(began) > 5*time.Second {
-		t.Fatalf("a cancelled request answered %d after %s", response.Code, time.Since(began))
+	segments := rig.playlists(stream.Grant)[0].segments
+	h := rig.streams.hls
+	cancelledWhileWaiting := false
+	for _, index := range []int{len(segments) - 2, len(segments) / 2, len(segments) / 4} {
+		ctx, cancel := context.WithCancel(context.Background())
+		answered := make(chan int, 1)
+		go func() { answered <- rig.get(ctx, stream.Grant, segments[index], "").Code }()
+		// Cancel only once the request is really parked waiting for the segment.
+		waiting := false
+		for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline) && !waiting; time.Sleep(5 * time.Millisecond) {
+			waiting = h.waitsInFlight() > 0
+			if len(answered) > 0 {
+				break
+			}
+		}
+		cancel()
+		cancelled := time.Now()
+		code := <-answered
+		if !waiting || code == http.StatusOK {
+			continue // the converter got there first; try a segment it has not reached
+		}
+		if elapsed := time.Since(cancelled); elapsed > 2*time.Second {
+			t.Fatalf("the request kept waiting %s after the player went away", elapsed)
+		}
+		if n := h.waitsInFlight(); n != 0 {
+			t.Fatalf("%d waits still open after the only request was cancelled", n)
+		}
+		cancelledWhileWaiting = true
+		break
+	}
+	if !cancelledWhileWaiting {
+		t.Skip("the converter reached every segment before a request could be seen waiting")
+	}
+	if runtime.GOOS == "linux" {
+		deadline := time.Now().Add(30 * time.Second)
+		for len(converterProcesses()) > 0 {
+			if time.Now().After(deadline) {
+				t.Fatalf("the converter kept working for a player that had gone: %v", converterProcesses())
+			}
+			time.Sleep(200 * time.Millisecond)
+		}
+	}
+	if status, _ := rig.streams.Status("s1"); status.State != "playing" {
+		t.Fatalf("the stream is %s; only its converter should have stopped", status.State)
 	}
 	rig.streams.Stop("s1")
 }
