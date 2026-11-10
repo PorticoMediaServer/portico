@@ -13,6 +13,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/localmetadata"
 	"github.com/PorticoMediaServer/portico/server-next/internal/naming"
+	"github.com/PorticoMediaServer/portico/server-next/internal/remote"
 )
 
 // Scanner scans libraries. One Scanner serves every scan of a server.
@@ -20,9 +21,21 @@ type Scanner struct {
 	DB *db.DB
 	// Prober reads the inside of media files. With none, files are listed and never read.
 	Prober Prober
-	// Source opens the tree a library folder points at. With none, every folder is a local one.
+	// Source opens the tree a library folder on this machine's disks points at. With none it
+	// is the folder itself.
 	Source func(root string) Source
-	Log    *slog.Logger
+	// Remote opens a remote source by its id: its storage, already behind that source's
+	// throttle, and how often the source is scanned by itself (0 for never). With none, a
+	// folder on remote storage is unavailable, which marks nothing missing.
+	Remote func(ctx context.Context, sourceID int64) (remote.Storage, time.Duration, error)
+	// ReaderProber reads the inside of a file that is not on a disk here. With none, such
+	// files are listed and never read.
+	ReaderProber ReaderProber
+	// Scheduled says this scan started by itself (a rescan interval, a source's preset), not
+	// because the owner asked. Such a scan lists a remote folder only when its source is due;
+	// a local folder is listed by every scan, and so is everything when the owner asks.
+	Scheduled bool
+	Log   *slog.Logger
 	// BatchFiles is about how many files go into one transaction. 0 means 200.
 	BatchFiles int
 	// Progress, if set, is told how far a scan has got after every folder with changes and
@@ -57,14 +70,21 @@ func (s *Scanner) Scan(ctx context.Context, lib db.Library) (Stats, error) {
 	if err != nil {
 		return Stats{}, err
 	}
-	r := &run{s: s, ctx: ctx, lib: lib, names: namesKind(lib.Kind), scan: scan, claimed: map[int64]bool{}, sources: map[string]Source{}, walked: map[string]bool{},
+	r := &run{s: s, ctx: ctx, lib: lib, names: namesKind(lib.Kind), scan: scan, claimed: map[int64]bool{}, sources: map[int64]Source{}, paths: map[int64]db.LibraryPath{}, walked: map[string]bool{},
 		nfos: map[string][]localmetadata.VideoNFO{}}
 	if r.batch = s.BatchFiles; r.batch <= 0 {
 		r.batch = 200
 	}
+	for _, p := range lib.Paths {
+		r.paths[p.ID] = p
+	}
 	paths := map[int64]error{}
 	for _, p := range lib.Paths {
-		r.path, r.src = p, r.source(p.Path)
+		if p.RemoteID != 0 && s.Scheduled && !r.due(p) {
+			// Not listed this time, so nothing in it is compared, changed or marked missing.
+			continue
+		}
+		r.path, r.src = p, r.source(p.ID)
 		unavailable, err := r.walkPath()
 		if err != nil {
 			return r.stats, err
@@ -110,23 +130,50 @@ type run struct {
 	path    db.LibraryPath
 	src     Source
 	rules   []naming.IgnoreRules
-	pending db.ImportBatch // what has been gathered for the next transaction
-	claimed map[int64]bool // stored files already recognised at a new place by this scan
-	sources map[string]Source
+	pending db.ImportBatch                      // what has been gathered for the next transaction
+	claimed map[int64]bool                      // stored files already recognised at a new place by this scan
+	sources map[int64]Source                    // by library folder
+	paths   map[int64]db.LibraryPath            // the library's folders
 	walked  map[string]bool                     // folders this scan has already taken, by Entry.FolderID
 	nfos    map[string][]localmetadata.VideoNFO // NFO files read by this scan, by path
 }
 
-func (r *run) source(root string) Source {
-	if src, ok := r.sources[root]; ok {
+// source is the tree of one of the library's folders, opened once for the scan.
+func (r *run) source(pathID int64) Source {
+	if src, ok := r.sources[pathID]; ok {
 		return src
 	}
-	var src Source = Local{Root: root}
-	if r.s.Source != nil {
-		src = r.s.Source(root)
+	p := r.paths[pathID]
+	var src Source = Local{Root: p.Path}
+	switch {
+	case p.RemoteID != 0:
+		src = unreachable{errors.New("remote storage is not available on this server")}
+		if r.s.Remote != nil {
+			if storage, _, err := r.s.Remote(r.ctx, p.RemoteID); err != nil {
+				src = unreachable{err}
+			} else {
+				src = Remote{Storage: storage, Root: p.Path}
+			}
+		}
+	case r.s.Source != nil:
+		src = r.s.Source(p.Path)
 	}
-	r.sources[root] = src
+	r.sources[pathID] = src
 	return src
+}
+
+// due reports whether a folder on remote storage is due to be listed by a scan nobody asked
+// for. A source that cannot be opened is tried, so that its folder says it is unavailable.
+func (r *run) due(p db.LibraryPath) bool {
+	if r.s.Remote == nil {
+		return true
+	}
+	_, every, err := r.s.Remote(r.ctx, p.RemoteID)
+	var last time.Time
+	if p.LastScanAt != 0 {
+		last = time.UnixMilli(p.LastScanAt)
+	}
+	return err != nil || remote.Due(last, every, time.Now())
 }
 
 // walkPath scans one folder of the library. The first error is why the folder could not be
@@ -459,7 +506,7 @@ func (r *run) findMoves(f *folder, gone *[]db.FileRef) error {
 				continue
 			}
 			if !place.Missing {
-				if there, err := r.source(place.Root).Exists(r.ctx, place.Rel); err != nil || there {
+				if there, err := r.source(place.PathID).Exists(r.ctx, place.Rel); err != nil || there {
 					continue
 				}
 			}

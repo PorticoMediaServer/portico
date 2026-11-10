@@ -343,7 +343,7 @@ func (r *run) episodeItems(v *version, ep episode) []db.ImportItem {
 	if lead.state == moved {
 		// The show follows its files when their old folder is gone: the folder was renamed.
 		oldFolder := path.Dir(lead.from.Rel)
-		if there, err := r.source(lead.from.Root).Exists(r.ctx, oldFolder); err == nil && !there {
+		if there, err := r.source(lead.from.PathID).Exists(r.ctx, oldFolder); err == nil && !there {
 			ref := lead.ref()
 			show.Follow = &ref
 		}

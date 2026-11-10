@@ -11,8 +11,11 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"syscall"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/remote"
 )
 
 // Entry is one name in a folder listing.
@@ -153,3 +156,54 @@ func readSmall(ctx context.Context, src Source, rel string, limit int64) ([]byte
 	}
 	return raw, nil
 }
+
+// Remote is a folder on remote storage: Root is the folder's path within the source. Every
+// request it makes goes through the source's throttle, which Storage already carries.
+type Remote struct {
+	Storage remote.Storage
+	Root    string
+}
+
+// LocalPath is always "": remote storage is never mounted.
+func (Remote) LocalPath(string) string { return "" }
+
+func (r Remote) at(rel string) string { return path.Join(r.Root, rel) }
+
+func (r Remote) List(ctx context.Context, rel string) ([]Entry, error) {
+	listed, err := r.Storage.List(ctx, r.at(rel))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Entry, len(listed))
+	for i, e := range listed {
+		out[i] = Entry{Name: e.Name, Dir: e.Dir, Size: e.Size, ModifiedNS: e.ModifiedNS}
+	}
+	return out, nil
+}
+
+// Exists lists the file's folder, which is the one question every kind of storage answers.
+func (r Remote) Exists(ctx context.Context, rel string) (bool, error) {
+	listed, err := r.Storage.List(ctx, r.at(path.Dir(rel)))
+	if err != nil {
+		return false, err
+	}
+	for _, e := range listed {
+		if e.Name == path.Base(rel) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (r Remote) Open(ctx context.Context, rel string) (File, error) {
+	return r.Storage.Open(ctx, r.at(rel))
+}
+
+// unreachable is a folder whose source could not be opened. It lists as an error, so the
+// folder is reported unavailable and nothing in it is marked missing.
+type unreachable struct{ err error }
+
+func (u unreachable) List(context.Context, string) ([]Entry, error) { return nil, u.err }
+func (u unreachable) Exists(context.Context, string) (bool, error)  { return false, u.err }
+func (u unreachable) Open(context.Context, string) (File, error)    { return nil, u.err }
+func (unreachable) LocalPath(string) string                         { return "" }

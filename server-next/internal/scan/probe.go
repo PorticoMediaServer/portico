@@ -3,6 +3,8 @@ package scan
 import (
 	"context"
 	"errors"
+	"io"
+	"path"
 	"runtime"
 	"sync"
 
@@ -13,6 +15,13 @@ import (
 // It reads headers only and decodes nothing.
 type Prober interface {
 	Probe(ctx context.Context, path string) (Facts, error)
+}
+
+// ReaderProber does the same for a file that is not on a disk here, given a way to read
+// ranges of it and its size. It asks for the parts that hold the file's facts, never the
+// whole file.
+type ReaderProber interface {
+	ProbeReader(ctx context.Context, file io.ReaderAt, size int64) (Facts, error)
 }
 
 // Facts is what a file was found to hold.
@@ -48,15 +57,16 @@ func (r *run) probe() error {
 		slots := make(chan struct{}, min(4, runtime.NumCPU()))
 		for i, file := range files {
 			after = file.ID
-			local := r.source(file.Root).LocalPath(file.Rel)
-			if local == "" {
+			src := r.source(file.PathID)
+			local := src.LocalPath(file.Rel)
+			if local == "" && r.s.ReaderProber == nil {
 				continue
 			}
 			slots <- struct{}{}
 			wg.Add(1)
 			go func() {
 				defer func() { <-slots; wg.Done() }()
-				results[i] = r.probeFile(file, local)
+				results[i] = r.probeFile(file, src, local)
 			}()
 		}
 		wg.Wait()
@@ -84,12 +94,25 @@ func (r *run) probe() error {
 
 // probeFile reads one file. It returns nothing for a file that could not be looked at just
 // now, which is tried again on the next scan.
-func (r *run) probeFile(file db.UnprobedFile, local string) *db.Probe {
+func (r *run) probeFile(file db.UnprobedFile, src Source, local string) *db.Probe {
 	if r.ctx.Err() != nil {
 		return nil
 	}
 	probe := &db.Probe{FileID: file.ID, Size: file.Size, ModifiedNS: file.ModifiedNS}
-	facts, err := r.s.Prober.Probe(r.ctx, local)
+	var facts Facts
+	var err error
+	if local != "" {
+		facts, err = r.s.Prober.Probe(r.ctx, local)
+	} else {
+		// Not on a disk here: the file is opened through its source, which reads only the
+		// ranges the prober asks for, each one a request within the source's limits.
+		local = path.Join(file.Root, file.Rel)
+		var opened File
+		if opened, err = src.Open(r.ctx, file.Rel); err == nil {
+			facts, err = r.s.ReaderProber.ProbeReader(r.ctx, opened, opened.Size())
+			opened.Close()
+		}
+	}
 	switch {
 	case err == nil:
 		probe.Container, probe.DurationMS, probe.Bitrate = facts.Container, facts.DurationMS, facts.Bitrate

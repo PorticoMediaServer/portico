@@ -77,6 +77,10 @@ func parseOptions(raw sql.NullString) LibraryOptions {
 type LibraryPath struct {
 	ID   int64
 	Path string
+	// RemoteID is the remote source the folder is on, or 0 for a folder on a disk here.
+	RemoteID int64
+	// LastScanAt is when a scan last listed the folder, in milliseconds, or 0 for never.
+	LastScanAt int64
 }
 
 // CreateLibrary adds a library with its folders and tells open screens that the list changed.
@@ -149,8 +153,8 @@ func (d *DB) libraries(ctx context.Context, v Viewer, publicID string) ([]Librar
 // AllLibraries lists every library with its folders, for the scanner and the owner's console.
 func (d *DB) AllLibraries(ctx context.Context) ([]Library, error) {
 	rows, err := d.read.QueryContext(ctx, `SELECT l.id, l.public_id, l.name, l.kind, ifnull(l.language, ''), l.position,
-		l.created_at, l.updated_at, l.options, p.id, p.path FROM libraries l LEFT JOIN library_paths p ON p.library_id = l.id
-		ORDER BY l.position, l.id, p.id`)
+		l.created_at, l.updated_at, l.options, p.id, p.path, ifnull(p.remote_source_id, 0), ifnull(p.last_scan_at, 0)
+		FROM libraries l LEFT JOIN library_paths p ON p.library_id = l.id ORDER BY l.position, l.id, p.id`)
 	if err != nil {
 		return nil, err
 	}
@@ -160,7 +164,9 @@ func (d *DB) AllLibraries(ctx context.Context) ([]Library, error) {
 		var l Library
 		var pathID sql.NullInt64
 		var path, options sql.NullString
-		if err := rows.Scan(&l.ID, &l.PublicID, &l.Name, &l.Kind, &l.Language, &l.Position, &l.CreatedAt, &l.UpdatedAt, &options, &pathID, &path); err != nil {
+		var remoteID, lastScanAt int64
+		if err := rows.Scan(&l.ID, &l.PublicID, &l.Name, &l.Kind, &l.Language, &l.Position, &l.CreatedAt, &l.UpdatedAt, &options, &pathID, &path,
+			&remoteID, &lastScanAt); err != nil {
 			return nil, err
 		}
 		l.Options = parseOptions(options)
@@ -169,7 +175,7 @@ func (d *DB) AllLibraries(ctx context.Context) ([]Library, error) {
 		}
 		if pathID.Valid {
 			last := &out[len(out)-1]
-			last.Paths = append(last.Paths, LibraryPath{ID: pathID.Int64, Path: path.String})
+			last.Paths = append(last.Paths, LibraryPath{ID: pathID.Int64, Path: path.String, RemoteID: remoteID, LastScanAt: lastScanAt})
 		}
 	}
 	return out, rows.Err()
