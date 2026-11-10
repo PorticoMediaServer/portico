@@ -47,6 +47,8 @@ type LibraryOptions struct {
 	// RescanMinutes is how often the library's local folders are scanned by themselves; 0 is
 	// no periodic scan. Watching and a periodic scan are separate choices: one, both or neither.
 	RescanMinutes int `json:"rescanMinutes,omitempty"`
+	// GroupSeries is "Group films from the same series": nil is on, the default.
+	GroupSeries *bool `json:"groupSeries,omitempty"`
 }
 
 // TrashRule says when a library's missing titles are removed.
