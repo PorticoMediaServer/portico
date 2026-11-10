@@ -291,6 +291,57 @@
         ],
         "type": "object"
       },
+      "DeletionPreview": {
+        "properties": {
+          "devices": {
+            "type": "integer"
+          },
+          "favorites": {
+            "type": "integer"
+          },
+          "history": {
+            "type": "integer"
+          },
+          "inProgress": {
+            "type": "integer"
+          },
+          "keys": {
+            "type": "integer"
+          },
+          "lists": {
+            "type": "integer"
+          },
+          "myList": {
+            "type": "integer"
+          },
+          "profiles": {
+            "type": "integer"
+          },
+          "ratings": {
+            "type": "integer"
+          },
+          "signIns": {
+            "type": "integer"
+          },
+          "watched": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "profiles",
+          "history",
+          "inProgress",
+          "watched",
+          "favorites",
+          "myList",
+          "ratings",
+          "lists",
+          "devices",
+          "signIns",
+          "keys"
+        ],
+        "type": "object"
+      },
       "Device": {
         "properties": {
           "app": {
@@ -1276,6 +1327,9 @@
                 },
                 "type": "array"
               },
+              "maxProfiles": {
+                "type": "integer"
+              },
               "notes": {
                 "type": "string"
               },
@@ -1288,7 +1342,8 @@
               "createdAt",
               "allLibraries",
               "libraries",
-              "twoFactorEnabled"
+              "twoFactorEnabled",
+              "maxProfiles"
             ],
             "type": "object"
           }
@@ -1328,6 +1383,9 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "maxProfiles": {
+            "type": "integer"
           },
           "notes": {
             "type": "string"
@@ -2250,6 +2308,20 @@
         },
         "type": "object"
       },
+      "ProfileOrder": {
+        "properties": {
+          "profileIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "profileIds"
+        ],
+        "type": "object"
+      },
       "ProfilePIN": {
         "properties": {
           "code": {
@@ -2519,6 +2591,9 @@
           "allLibraries": {
             "type": "boolean"
           },
+          "allowUnrated": {
+            "type": "boolean"
+          },
           "blockedLabels": {
             "items": {
               "type": "string"
@@ -2543,6 +2618,7 @@
           }
         },
         "required": [
+          "allowUnrated",
           "blockedLabels",
           "allLibraries",
           "libraries",
@@ -3637,6 +3713,43 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Member"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
+      }
+    },
+    "/v1/admin/members/{id}/deletion-preview": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletionPreview"
                 }
               }
             },
@@ -5730,6 +5843,43 @@
         "x-access": "signedIn"
       }
     },
+    "/v1/profiles/order": {
+      "put": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileOrder"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfilePage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "signedIn"
+      }
+    },
     "/v1/profiles/{id}": {
       "delete": {
         "parameters": [
@@ -5821,6 +5971,43 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Profile"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "signedIn"
+      }
+    },
+    "/v1/profiles/{id}/deletion-preview": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletionPreview"
                 }
               }
             },

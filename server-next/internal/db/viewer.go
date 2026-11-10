@@ -32,6 +32,7 @@ type access struct {
 	allLibraries bool    // no library limit on the account or the profile
 	libraries    []int64 // otherwise, the libraries both allow
 	maxAge       *int    // the profile's rating limit
+	allowUnrated bool    // under a rating limit, titles with no rating are shown too
 	blockedTags  []int64 // labels the profile must never be shown
 }
 
@@ -55,8 +56,8 @@ func ids(ctx context.Context, tx *sql.Tx, query string, args ...any) ([]int64, e
 func loadAccess(ctx context.Context, tx *sql.Tx, v Viewer) (access, error) {
 	var a access
 	var userAll, profileAll bool
-	err := tx.QueryRowContext(ctx, `SELECT u.all_libraries, p.all_libraries, p.max_rating_age FROM profiles p
-		JOIN users u ON u.id = p.user_id WHERE p.id = ? AND u.id = ?`, v.ProfileID, v.UserID).Scan(&userAll, &profileAll, &a.maxAge)
+	err := tx.QueryRowContext(ctx, `SELECT u.all_libraries, p.all_libraries, p.max_rating_age, p.allow_unrated FROM profiles p
+		JOIN users u ON u.id = p.user_id WHERE p.id = ? AND u.id = ?`, v.ProfileID, v.UserID).Scan(&userAll, &profileAll, &a.maxAge, &a.allowUnrated)
 	if errors.Is(err, sql.ErrNoRows) {
 		return a, nil
 	}
@@ -105,12 +106,14 @@ func (a access) libraryVisible(library string) string {
 // it nor anything it sits under (its album or season, its artist or show) carries a label the
 // profile has blocked. Children are stored with the rating they inherit, so an episode needs
 // no join to its show. When a limit is set, a title with no rating is hidden: unknown is not
-// the same as suitable.
+// the same as suitable. The profile's "Allow unrated titles" switch shows them all the same.
 //
 // A profile with no restriction gets the condition "1", so its reads cost nothing extra.
 func (a access) visible(alias string) string {
 	cond := a.libraryVisible(alias + ".library_id")
-	if a.maxAge != nil {
+	if a.maxAge != nil && a.allowUnrated {
+		cond += " AND ifnull(" + alias + ".rating_age, 0) <= " + strconv.Itoa(*a.maxAge)
+	} else if a.maxAge != nil {
 		cond += " AND " + alias + ".rating_age <= " + strconv.Itoa(*a.maxAge)
 	}
 	if len(a.blockedTags) > 0 {

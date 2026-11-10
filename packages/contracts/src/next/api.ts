@@ -95,6 +95,20 @@ export interface Decision {
   channels?: number;
 }
 
+export interface DeletionPreview {
+  profiles: number;
+  history: number;
+  inProgress: number;
+  watched: number;
+  favorites: number;
+  myList: number;
+  ratings: number;
+  lists: number;
+  devices: number;
+  signIns: number;
+  keys: number;
+}
+
 export interface Device {
   id: string;
   name: string;
@@ -385,6 +399,7 @@ export interface Member extends Account {
   libraries: string[];
   twoFactorEnabled: boolean;
   notes?: string;
+  maxProfiles: number;
 }
 
 export interface MemberCreate {
@@ -400,6 +415,7 @@ export interface MemberEdit {
   notes?: string;
   allLibraries?: boolean;
   libraries?: string[];
+  maxProfiles?: number;
 }
 
 export interface MemberPage {
@@ -683,6 +699,10 @@ export interface ProfileEdit {
   color?: string;
 }
 
+export interface ProfileOrder {
+  profileIds: string[];
+}
+
 export interface ProfilePIN {
   pin: string;
   currentPassword?: string;
@@ -767,6 +787,7 @@ export interface RememberedFailurePage {
 
 export interface Restrictions {
   maxRatingAge?: number | null;
+  allowUnrated: boolean;
   blockedLabels: string[];
   allLibraries: boolean;
   libraries: string[];
@@ -1012,6 +1033,9 @@ export interface Routes {
   'POST /v1/profiles/{id}/select': {access: 'signedIn'; request: ProfileSelect; response: Session};
   'GET /v1/profiles/{id}/restrictions': {access: 'signedIn'; request: undefined; response: Restrictions};
   'PUT /v1/profiles/{id}/restrictions': {access: 'signedIn'; request: Restrictions; response: Restrictions};
+  'PUT /v1/profiles/order': {access: 'signedIn'; request: ProfileOrder; response: ProfilePage};
+  'GET /v1/profiles/{id}/deletion-preview': {access: 'signedIn'; request: undefined; response: DeletionPreview};
+  'GET /v1/admin/members/{id}/deletion-preview': {access: 'admin'; request: undefined; response: DeletionPreview};
   'GET /v1/preferences': {access: 'withProfile'; request: undefined; response: Preferences};
   'PATCH /v1/preferences': {access: 'withProfile'; request: PreferencesEdit; response: Preferences};
   'GET /v1/me/sessions': {access: 'signedIn'; request: undefined; response: SessionInfoPage};
