@@ -52,7 +52,7 @@ import (
 // Ref names one thing at a provider: TMDB's film 603 is {"tmdb", "movie", "603"}.
 type Ref struct {
 	Provider string
-	Kind     string // movie, show, episode, person, album, artist, book
+	Kind     string // movie, show, episode, person, album, artist, track, book
 	ID       string
 }
 
@@ -65,9 +65,11 @@ type Locale struct {
 
 // Query is what a title's files say about it.
 type Query struct {
-	Kind  string // movie or show, as in Ref
+	Kind  string // movie, show, album or artist, as in Ref
 	Title string
 	Year  int // 0 when the names give none
+	// Creator is who made it, when that helps find it: an album's artist.
+	Creator string
 	// IDs are ids the files carry for the title at other providers (an IMDb id in an NFO
 	// file). A provider that can look one up answers that title alone, marked Exact.
 	IDs          []Ref

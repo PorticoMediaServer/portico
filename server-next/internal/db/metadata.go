@@ -41,17 +41,23 @@ func (d *DB) LibrarySource(ctx context.Context, libraryID int64) (LibrarySource,
 	return src, err
 }
 
-// MatchItem is a top-level title no provider has been asked about yet.
+// MatchItem is a title no provider has been asked about yet: a top-level title, or an album.
 type MatchItem struct {
 	ID          int64
 	Kind        ItemKind
 	Title       string
 	Year        int
 	ExternalIDs []ExternalID // ids its names or an NFO file gave
+	// For an album: its artist, and whether a provider was asked about the artist yet.
+	ParentID    int64
+	ParentTitle string
+	ParentAsked bool
 }
 
-// ToMatch lists a library's top-level titles of the given kinds that no provider has been
-// asked about, a page at a time in id order: pass the last id of one page to get the next.
+// ToMatch lists a library's titles of the given kinds that no provider has been asked about,
+// a page at a time in id order: pass the last id of one page to get the next. These are the
+// top-level titles and the albums: an episode follows its show and a track its album, and an
+// album is what a music provider is asked about.
 func (d *DB) ToMatch(ctx context.Context, libraryID int64, kinds []ItemKind, after int64, limit int) ([]MatchItem, error) {
 	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
@@ -63,9 +69,13 @@ func (d *DB) ToMatch(ctx context.Context, libraryID int64, kinds []ItemKind, aft
 		list[i] = int64(kind)
 	}
 	// The condition is written as the items_to_match index has it, so the read is the index.
-	items, err := queryAll(ctx, tx, `SELECT id, kind, title, ifnull(year, 0) FROM items WHERE library_id = ? AND match_state = 0
-		AND parent_id IS NULL AND id > ? AND kind IN `+intList(list)+` ORDER BY id LIMIT ?`, []any{libraryID, after, limit},
-		func(m *MatchItem) []any { return []any{&m.ID, &m.Kind, &m.Title, &m.Year} })
+	items, err := queryAll(ctx, tx, `SELECT i.id, i.kind, i.title, ifnull(i.year, 0), ifnull(p.id, 0), ifnull(p.title, ''),
+		ifnull(p.match_state, 0) != 0 FROM items i LEFT JOIN items p ON p.id = i.parent_id
+		WHERE i.library_id = ? AND i.match_state = 0 AND (i.parent_id IS NULL OR i.kind = 6) AND i.id > ? AND i.kind IN `+intList(list)+`
+		ORDER BY i.id LIMIT ?`, []any{libraryID, after, limit},
+		func(m *MatchItem) []any {
+			return []any{&m.ID, &m.Kind, &m.Title, &m.Year, &m.ParentID, &m.ParentTitle, &m.ParentAsked}
+		})
 	if err != nil {
 		return nil, err
 	}
@@ -79,10 +89,12 @@ func (d *DB) ToMatch(ctx context.Context, libraryID int64, kinds []ItemKind, aft
 	return items, nil
 }
 
-// ChildNumbers lists the numbers of the containers directly under a title: a show's seasons.
+// ChildNumbers lists the numbers of the groups directly under a title: a show's seasons, or
+// the discs of an album's tracks.
 func (d *DB) ChildNumbers(ctx context.Context, itemID int64) ([]int, error) {
-	rows, err := d.read.QueryContext(ctx, `SELECT index_number FROM items WHERE parent_id = ? AND index_number IS NOT NULL
-		AND kind IN (?, ?) ORDER BY index_number`, itemID, KindSeason, KindAlbum)
+	rows, err := d.read.QueryContext(ctx, `SELECT index_number FROM items WHERE parent_id = ?1 AND index_number IS NOT NULL AND kind = ?2
+		UNION SELECT parent_index FROM items WHERE parent_id = ?1 AND parent_index IS NOT NULL AND kind = ?3 ORDER BY 1`,
+		itemID, KindSeason, KindTrack)
 	if err != nil {
 		return nil, err
 	}
@@ -136,15 +148,21 @@ func (d *DB) ApplyDetails(ctx context.Context, p Priority, itemID int64, details
 }
 
 // ApplyChildren stores what a provider said about the children of a title in one group: the
-// episodes of one season of a show. A child the library does not have is passed over.
+// episodes of one season of a show, the tracks of one disc of an album. A child the library
+// does not have is passed over.
 func (d *DB) ApplyChildren(ctx context.Context, p Priority, itemID int64, kind ItemKind, group int, children []ItemDetails) error {
+	// An episode is found under its show, past the season; a track is directly under its album.
+	holder := "root_id"
+	if kind == KindTrack {
+		holder = "parent_id"
+	}
 	return d.write(ctx, p, func(tx *sql.Tx) error {
 		b := newBatchTx(tx)
 		defer b.close()
 		now := time.Now().UnixMilli()
 		for i := range children {
 			var id int64
-			err := b.queryRow(`SELECT id FROM items WHERE root_id = ? AND kind = ? AND parent_index = ? AND index_number = ? ORDER BY id LIMIT 1`,
+			err := b.queryRow(`SELECT id FROM items WHERE `+holder+` = ? AND kind = ? AND parent_index = ? AND index_number = ? ORDER BY id LIMIT 1`,
 				itemID, kind, group, children[i].Index).Scan(&id)
 			if errors.Is(err, sql.ErrNoRows) {
 				continue

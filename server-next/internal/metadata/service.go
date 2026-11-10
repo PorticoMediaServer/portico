@@ -19,7 +19,8 @@ type Service struct {
 
 // defaultProviders is the provider a library of each kind uses until the owner chooses.
 // A kind that is not here is local only.
-var defaultProviders = map[string]string{db.LibraryMovies: "tmdb", db.LibraryShows: "tmdb", db.LibraryAnime: "tmdb"}
+var defaultProviders = map[string]string{db.LibraryMovies: "tmdb", db.LibraryShows: "tmdb", db.LibraryAnime: "tmdb",
+	db.LibraryMusic: "musicbrainz"}
 
 // provider is the one provider a library uses, or nil for a library that uses local metadata
 // only or whose provider this server has no key for.
@@ -34,8 +35,13 @@ func (s *Service) provider(src db.LibrarySource) Provider {
 	return s.Providers[name]
 }
 
-// providerKinds are the kinds of top-level title a provider is asked about, and its word for each.
-var providerKinds = map[db.ItemKind]string{db.KindMovie: "movie", db.KindShow: "show"}
+// providerKinds are the kinds of title a provider is asked about, and its word for each. In a
+// music library that is the album: its tracks follow it, and its artist is the one the
+// provider credits it to.
+var providerKinds = map[db.ItemKind]string{db.KindMovie: "movie", db.KindShow: "show", db.KindAlbum: "album"}
+
+// childKinds are what Children answers under each kind of title.
+var childKinds = map[string]db.ItemKind{"show": db.KindEpisode, "album": db.KindTrack}
 
 // MatchStats says what one run of MatchLibrary did.
 type MatchStats struct {
@@ -65,6 +71,7 @@ func (s *Service) MatchLibrary(ctx context.Context, libraryID int64) (MatchStats
 		kinds = append(kinds, kind)
 	}
 	locale := Locale{Language: src.Language, Region: src.Region}
+	artists := map[int64]bool{} // the artists given details in this run
 	after := int64(0)
 	for {
 		items, err := s.DB.ToMatch(ctx, libraryID, kinds, after, 50)
@@ -73,7 +80,7 @@ func (s *Service) MatchLibrary(ctx context.Context, libraryID int64) (MatchStats
 		}
 		for _, item := range items {
 			after = item.ID
-			matched, err := s.match(ctx, p, locale, item)
+			matched, err := s.match(ctx, p, locale, item, artists)
 			if err != nil {
 				return stats, err
 			}
@@ -86,8 +93,11 @@ func (s *Service) MatchLibrary(ctx context.Context, libraryID int64) (MatchStats
 	}
 }
 
-func (s *Service) match(ctx context.Context, p Provider, locale Locale, item db.MatchItem) (bool, error) {
+func (s *Service) match(ctx context.Context, p Provider, locale Locale, item db.MatchItem, artists map[int64]bool) (bool, error) {
 	q := Query{Kind: providerKinds[item.Kind], Title: item.Title, Year: item.Year, Locale: locale, IncludeAdult: s.IncludeAdult}
+	if item.Kind == db.KindAlbum {
+		q.Creator = item.ParentTitle
+	}
 	ref := Ref{Provider: p.Name(), Kind: q.Kind}
 	for _, id := range item.ExternalIDs {
 		if id.Provider == p.Name() {
@@ -117,13 +127,43 @@ func (s *Service) match(ctx context.Context, p Provider, locale Locale, item db.
 	if err := s.DB.ApplyDetails(ctx, db.Background, item.ID, details(record, db.MatchFound)); err != nil {
 		return false, err
 	}
-	return true, s.children(ctx, p, locale, item.ID, ref)
+	if err := s.children(ctx, p, locale, item.ID, ref); err != nil {
+		return true, err
+	}
+	return true, s.artist(ctx, p, locale, item, record, artists)
+}
+
+// artist gives an album's artist the details of the artist the provider credits the album
+// to: when no provider was asked about the artist yet, and the credited name is the
+// artist's name, so an album filed under "Various Artists" does not make that one singer.
+func (s *Service) artist(ctx context.Context, p Provider, locale Locale, item db.MatchItem, album Record, done map[int64]bool) error {
+	if item.Kind != db.KindAlbum || item.ParentID == 0 || item.ParentAsked || done[item.ParentID] || len(album.Credits) == 0 {
+		return nil
+	}
+	credited := album.Credits[0]
+	if credited.Person.ID == "" {
+		return nil
+	}
+	if best, _ := Choose(Query{Title: item.ParentTitle}, []Candidate{{Title: credited.Name}}); best < 0 {
+		return nil
+	}
+	done[item.ParentID] = true
+	record, err := p.Details(ctx, credited.Person, locale)
+	if errors.Is(err, ErrNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return s.DB.ApplyDetails(ctx, db.Background, item.ParentID, details(record, db.MatchFound))
 }
 
 // children fetches and stores the details of what the library has under a matched title:
-// the episodes of each season of a show. One season is one provider call and one transaction.
+// the episodes of each season of a show, the tracks of each disc of an album. One group is
+// one provider call and one transaction.
 func (s *Service) children(ctx context.Context, p Provider, locale Locale, itemID int64, ref Ref) error {
-	if ref.Kind != "show" {
+	kind, holds := childKinds[ref.Kind]
+	if !holds {
 		return nil
 	}
 	groups, err := s.DB.ChildNumbers(ctx, itemID)
@@ -133,7 +173,7 @@ func (s *Service) children(ctx context.Context, p Provider, locale Locale, itemI
 	for _, group := range groups {
 		records, err := p.Children(ctx, ref, group, locale)
 		if errors.Is(err, ErrNotFound) {
-			continue // a season the provider does not know keeps the names its files gave
+			continue // a season or disc the provider does not know keeps the names its files gave
 		}
 		if err != nil {
 			return err
@@ -142,7 +182,7 @@ func (s *Service) children(ctx context.Context, p Provider, locale Locale, itemI
 		for i, record := range records {
 			children[i] = details(record, db.MatchFound)
 		}
-		if err := s.DB.ApplyChildren(ctx, db.Background, itemID, db.KindEpisode, group, children); err != nil {
+		if err := s.DB.ApplyChildren(ctx, db.Background, itemID, kind, group, children); err != nil {
 			return err
 		}
 	}

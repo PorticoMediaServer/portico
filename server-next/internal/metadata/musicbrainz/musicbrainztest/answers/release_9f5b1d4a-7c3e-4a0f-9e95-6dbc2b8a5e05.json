@@ -1,0 +1,9 @@
+{"id":"9f5b1d4a-7c3e-4a0f-9e95-6dbc2b8a5e05","title":"Help!","status":"Official","date":"1965-08-06","country":"GB",
+ "artist-credit":[{"name":"The Beatles","joinphrase":"","artist":{"id":"5b1d7f0c-3e9a-4c6b-9a51-2f7e8d4c1a01","name":"The Beatles","sort-name":"Beatles, The"}}],
+ "release-group":{"id":"0a6c2e5b-8d4f-4b1a-8fa6-7ecd3c9b6f06","title":"Help!","primary-type":"Album","genres":[{"name":"rock","count":9}]},
+ "label-info":[{"label":{"id":"2c8e4f7d-0a6b-4d3c-9bc8-9aef5ebd8b12","name":"Parlophone"}}],
+ "cover-art-archive":{"artwork":false,"count":0,"front":false,"back":false,"darkened":false},
+ "media":[{"position":1,"format":"CD","track-count":1,"tracks":[
+  {"id":"6a2c8db0-4daf-4b7a-9f0c-3ecd9cf12f13","position":1,"number":"1","title":"Help!","length":138000,
+   "artist-credit":[{"name":"The Beatles","joinphrase":"","artist":{"id":"5b1d7f0c-3e9a-4c6b-9a51-2f7e8d4c1a01","name":"The Beatles","sort-name":"Beatles, The"}}],
+   "recording":{"id":"7b3d9ec1-5eb0-4c8b-8a1d-4fdeadc23014","title":"Help!","length":138000}}]}]}

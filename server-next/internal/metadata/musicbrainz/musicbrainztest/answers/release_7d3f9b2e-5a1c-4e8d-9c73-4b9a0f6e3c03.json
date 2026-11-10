@@ -1,0 +1,13 @@
+{"id":"7d3f9b2e-5a1c-4e8d-9c73-4b9a0f6e3c03","title":"Abbey Road","status":"Official","date":"1969-09-26","country":"GB",
+ "artist-credit":[{"name":"The Beatles","joinphrase":"","artist":{"id":"5b1d7f0c-3e9a-4c6b-9a51-2f7e8d4c1a01","name":"The Beatles","sort-name":"Beatles, The"}}],
+ "release-group":{"id":"6c2e8a1d-4f0b-4d7c-8b62-3a8f9e5d2b02","title":"Abbey Road","primary-type":"Album","first-release-date":"1969-09-26","genres":[{"name":"rock","count":14},{"name":"pop","count":6}]},
+ "genres":[{"name":"rock","count":3}],
+ "label-info":[{"catalog-number":"PCS 7088","label":{"id":"1b7d3e6c-9e5a-4c2b-8ab7-8fde4dac7a07","name":"Apple Records"}}],
+ "cover-art-archive":{"artwork":true,"count":2,"front":true,"back":true,"darkened":false},
+ "media":[{"position":1,"format":"12\" Vinyl","track-count":2,"tracks":[
+  {"id":"2c8e4f7d-0f6b-4d3c-9bc8-9aef5ebd8b08","position":1,"number":"A1","title":"Come Together","length":259946,
+   "artist-credit":[{"name":"The Beatles","joinphrase":"","artist":{"id":"5b1d7f0c-3e9a-4c6b-9a51-2f7e8d4c1a01","name":"The Beatles","sort-name":"Beatles, The"}}],
+   "recording":{"id":"3d9f5a8e-1a7c-4e4d-8cd9-0bfa6fce9c09","title":"Come Together","length":259946}},
+  {"id":"4e0a6b9f-2b8d-4f5e-9dea-1cab7adf0d10","position":2,"number":"A2","title":"Something","length":182293,
+   "artist-credit":[{"name":"The Beatles","joinphrase":"","artist":{"id":"5b1d7f0c-3e9a-4c6b-9a51-2f7e8d4c1a01","name":"The Beatles","sort-name":"Beatles, The"}}],
+   "recording":{"id":"5f1b7caf-3c9e-4a6f-8efb-2dbc8be01e11","title":"Something","length":182293}}]}]}
