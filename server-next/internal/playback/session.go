@@ -1,9 +1,11 @@
 package playback
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"log/slog"
+	"slices"
 	"sync"
 	"time"
 
@@ -93,8 +95,10 @@ type Session struct {
 	SeekID          string
 
 	// PositionMs is where the device last said it was.
-	PositionMs  int64
-	StartedAt   time.Time
+	PositionMs int64
+	StartedAt  time.Time
+	// order is the session's place among all that were ever started: lists are oldest first.
+	order       int64
 	LeaseUntil  time.Time
 	pausedSince time.Time
 	End         *End
@@ -155,6 +159,7 @@ type Service struct {
 	mu       sync.Mutex
 	sessions map[string]*session
 	starts   map[startKey]*startRecord
+	started  int64
 }
 
 // New returns the session service. Run must be started for leases and progress to be kept.
@@ -241,12 +246,7 @@ func (s *Service) list(want func(*session) bool) []Session {
 }
 
 func sortSessions(list []Session) {
-	for i := 1; i < len(list); i++ {
-		for j := i; j > 0 && (list[j].StartedAt.Before(list[j-1].StartedAt) ||
-			list[j].StartedAt.Equal(list[j-1].StartedAt) && list[j].ID < list[j-1].ID); j-- {
-			list[j], list[j-1] = list[j-1], list[j]
-		}
-	}
+	slices.SortFunc(list, func(a, b Session) int { return cmp.Compare(a.order, b.order) })
 }
 
 // Report is what a device says about its playback: at least every ReportEvery, and at once

@@ -192,6 +192,8 @@ func (s *Service) create(ctx context.Context, in StartInput) (*session, error) {
 	for _, other := range replaced {
 		s.endLocked(other, EndReplaced, "")
 	}
+	s.started++
+	sess.order = s.started
 	s.sessions[sess.ID] = sess
 	sess.op.Lock()
 	s.mu.Unlock()
