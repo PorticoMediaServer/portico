@@ -58,4 +58,5 @@ exists today. Columns are documented in `schema.sql` itself.
 | | `prepared_media`, `downloads`, `download_items` | with downloads | Offline downloads |
 | Live TV and DVR | `live_sources`, `guide_sources`, `channels`, `profile_channels`, `recording_rules`, `recordings`, `recording_owners`, `reminders`, `virtual_channels` | with Live TV | Live TV, the guide, recordings, library channels |
 | `guide.db` | `programmes` | with Live TV | The TV guide |
-| `search.db` | full-text indexes, `book_text` | with search | Search |
+| `search.db` | `search_titles` (full text), `meta` | yes (`internal/db/search.sql`) | Search by title and by name; the file is thrown away and rebuilt at will |
+| | `book_text` | with reading | Search inside a book |

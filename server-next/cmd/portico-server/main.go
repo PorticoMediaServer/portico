@@ -62,6 +62,7 @@ func run(log *slog.Logger) error {
 		return err
 	}
 	defer d.Close()
+	d.StartSearch(filepath.Join(*data, "search.db"), log)
 	handler, err := api.New(ctx, d, *data, version, log)
 	if err != nil {
 		return err
