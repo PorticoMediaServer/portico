@@ -363,6 +363,10 @@ func Audiobookshelf(raw []byte) (map[string]string, []Chapter, error) { return p
 // OPF reads a book's OPF file into details by tag name.
 func OPF(raw []byte) (map[string]string, error) { return parseOPF(raw) }
 
+// AlbumNFO reads a music album's album.nfo (Kodi's) into details by tag name: "album",
+// "album_artist", "year", "date", "genres", "description", "musicbrainz_albumid".
+func AlbumNFO(raw []byte) (map[string]string, error) { return parseMusicNFO(raw, "music") }
+
 // BookText reads Audiobookshelf's desc.txt or reader.txt.
 func BookText(name string, raw []byte) (map[string]string, error) { return parseBookText(name, raw) }
 
