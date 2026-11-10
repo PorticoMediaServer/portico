@@ -73,8 +73,11 @@ func searchUnder(id int64) string { return searchUnderMark + strconv.FormatInt(i
 
 func searchLibrary(id int64) string { return searchLibraryMark + strconv.FormatInt(id, 10) }
 
-// searchRating is the key of a rating age; an item with no rating has none.
+// searchRating is the key of a rating age.
 func searchRating(age int64) string { return searchRatingMark + strconv.FormatInt(age, 10) }
+
+// searchUnrated is the key of an item with no rating, for a profile whose limit lets those through.
+const searchUnrated = searchRatingMark + "none"
 
 const (
 	searchFollowBatch = 500  // changes applied in one search.db transaction
@@ -356,6 +359,8 @@ func (d *DB) searchItemDocs(ctx context.Context, tail string, args ...any) (docs
 		}
 		if keys = append(keys, searchLibrary(library)); rating.Valid {
 			keys = append(keys, searchRating(rating.Int64))
+		} else {
+			keys = append(keys, searchUnrated)
 		}
 		doc.other, doc.keys = strings.Join(other, " "), strings.Join(keys, " ")
 		docs, lines = append(docs, doc), append(lines, [3]int64{id, parentID, rootID})
@@ -451,8 +456,8 @@ func (w searchWriter) add(doc searchDoc) error {
 }
 
 // put writes a row unless the index already holds exactly it. changed says whether the row
-// was there with another title, under other items or with other tags, which the rows under
-// it carry too.
+// was there and is now different. The rows under it carry its title, its place and its tags,
+// and its rating when they have none of their own, so they are read again too.
 func (w searchWriter) put(doc searchDoc) (changed bool, err error) {
 	old, found, err := w.get(doc.row)
 	if err != nil || found && old == doc {
@@ -463,19 +468,7 @@ func (w searchWriter) put(doc searchDoc) (changed bool, err error) {
 			return false, err
 		}
 	}
-	return found && (old.title != doc.title || old.joined != doc.joined || placeKeys(old.keys) != placeKeys(doc.keys)), w.add(doc)
-}
-
-// placeKeys is the part of a row's keys that the rows under it depend on: what it sits under
-// and the tags it carries.
-func placeKeys(keys string) string {
-	var above []string
-	for _, key := range strings.Fields(keys) {
-		if strings.HasPrefix(key, searchUnderMark) || strings.HasPrefix(key, searchTagMark) {
-			above = append(above, key)
-		}
-	}
-	return strings.Join(above, " ")
+	return found, w.add(doc)
 }
 
 // under lists the rows of the items that sit under an item.
@@ -540,7 +533,8 @@ func (ix *searchIndex) apply(changes []Change) error {
 }
 
 // applyItems rewrites the rows of the changed items, and of everything under an item whose
-// title or place changed, because those rows carry its title too.
+// row changed, because those rows carry its title, tags and rating too. A season has no row
+// of its own to compare, so what is under a changed season is always read again.
 func (ix *searchIndex) applyItems(w searchWriter, items []int64) error {
 	var under []int64
 	for len(items) > 0 {
@@ -549,18 +543,24 @@ func (ix *searchIndex) applyItems(w searchWriter, items []int64) error {
 		if err != nil {
 			return err
 		}
+		above := map[int64]bool{} // the changed items whose rows under them are read again
+		for _, id := range present {
+			above[id] = true
+		}
 		for _, doc := range docs {
-			changed, err := w.put(doc)
+			if above[searchRowID(doc.row)], err = w.put(doc); err != nil {
+				return err
+			}
+		}
+		for _, id := range present {
+			if !above[id] {
+				continue
+			}
+			below, err := w.under(id)
 			if err != nil {
 				return err
 			}
-			if changed {
-				below, err := w.under(searchRowID(doc.row))
-				if err != nil {
-					return err
-				}
-				under = append(under, below...)
-			}
+			under = append(under, below...)
 		}
 		// What is no longer in the main database goes, and everything under it went with it.
 		// Its kind went too, so its row is looked for in every group.
