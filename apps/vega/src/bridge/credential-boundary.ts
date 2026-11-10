@@ -67,7 +67,7 @@ export function requestCredentials(url: string, headers: unknown, body: string |
   const tokens = secrets(jsonValue(body));
   const parsed = new URL(url);
   const proof = jsonValue(body) as {baseUrl?: string; nonce?: string} | undefined;
-  const publicProof = parsed.pathname === '/v1/networking/identity-proof' && proof && typeof proof === 'object' &&
+  const publicProof = parsed.pathname === '/v1/system/identity-proof' && proof && typeof proof === 'object' &&
     Object.keys(proof).length === 2 && proof.baseUrl === origin && typeof proof.nonce === 'string' && /^[A-Za-z0-9_-]{43}$/.test(proof.nonce);
   let sensitive = body !== null && !publicProof;
   if (publicProof) {

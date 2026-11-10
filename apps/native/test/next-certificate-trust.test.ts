@@ -46,7 +46,7 @@ function fixture(options: {
     pin: async (origin, pin) => {pins.push({origin, pin});},
     proofFetcher: (origin, observedLeaf) => async (input, init = {}) => {
       assert.equal(observedLeaf, options.refused ?? LEAF);
-      assert.equal(input, origin + '/v1/networking/identity-proof');
+      assert.equal(input, origin + '/v1/system/identity-proof');
       assert.equal(init.method, 'POST');
       assert.equal(init.credentials, 'omit');
       assert.equal(init.redirect, 'error');

@@ -5,7 +5,7 @@ import {NativeModules} from './react-native-stub.mjs';
 import {nativeCertificatePlatform, nativeProofTLSLeaf, nativeHostedSource} from '../src-next/platform/server-connections';
 
 const origin = 'https://synthetic-identity.test', leaf = 'A'.repeat(43), other = 'B'.repeat(43);
-const path = origin + '/v1/networking/identity-proof';
+const path = origin + '/v1/system/identity-proof';
 const body = JSON.stringify({baseUrl: origin, nonce: 'A'.repeat(43)});
 const code = (expected: string) => (error: unknown) => !!error && typeof error === 'object' && 'code' in error && error.code === expected;
 
@@ -39,7 +39,7 @@ test('cancelled and non-proof requests perform no native call; cancellation reti
   let calls = 0;
   network.proofRequest = async () => {calls++; throw new Error('unexpected native call');};
   const fetcher = nativeCertificatePlatform.proofFetcher(origin, leaf), abort = new AbortController(); abort.abort();
-  for (const [url, options] of [[path, {method: 'POST', body, signal: abort.signal}], [origin + '/v1/system', {method: 'GET'}], [path, {method: 'GET'}], ['https://other.test/v1/networking/identity-proof', {method: 'POST', body}]] as const)
+  for (const [url, options] of [[path, {method: 'POST', body, signal: abort.signal}], [origin + '/v1/system', {method: 'GET'}], [path, {method: 'GET'}], ['https://other.test/v1/system/identity-proof', {method: 'POST', body}]] as const)
     await assert.rejects(fetcher(url, options), code('cancelled'));
   assert.equal(calls, 0);
   let finish!: (value: unknown) => void;

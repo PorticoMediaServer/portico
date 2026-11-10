@@ -151,7 +151,7 @@ test('standard index/App Home actions use restored authority, current documents 
         assert.ok(
           app.receipts.some(
             receipt =>
-              receipt.path === '/v1/networking/identity-proof' &&
+              receipt.path === '/v1/system/identity-proof' &&
               receipt.status === 200,
           ),
         );

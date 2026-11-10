@@ -165,7 +165,7 @@ class PorticoNetwork(context: ReactApplicationContext) : PorticoEventModule(cont
 
   /**
    * The identity proof, and only it, over one named certificate: a POST of the caller's JSON to
-   * `<origin>/v1/networking/identity-proof`, bound to that exact observed leaf even
+   * `<origin>/v1/system/identity-proof`, bound to that exact observed leaf even
    * if another leaf is system-trusted. No credentials/cookies, no redirects, 8 KB, 5 seconds.
    * The returned TLS fingerprint comes from this response's handshake, never its headers.
    */
@@ -175,7 +175,7 @@ class PorticoNetwork(context: ReactApplicationContext) : PorticoEventModule(cont
     val target = if (base?.scheme == "https" && base.username.isEmpty() && base.password.isEmpty() &&
         base.encodedPath == "/" && base.query == null && base.fragment == null &&
         origin == base.toString().removeSuffix("/") && method == "POST" &&
-        requestUrl == origin + "/v1/networking/identity-proof") requestUrl?.toHttpUrlOrNull() else null
+        requestUrl == origin + "/v1/system/identity-proof") requestUrl?.toHttpUrlOrNull() else null
     val validBody = if (body == null || body.toByteArray(Charsets.UTF_8).size > 4096) false else try {
       val document = JSONObject(body ?: "")
       val nonce = document.optString("nonce", "")

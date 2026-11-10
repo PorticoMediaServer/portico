@@ -189,7 +189,7 @@ test('revocation retains its independent five-second deadline while response met
 
 test('a fresh signed nonce proof may admit the same server at an alternate exact origin', () => {
   for (const origin of ['https://old-route.test', 'http://new-route.test:32500']) {
-    requestCredentials(origin + '/v1/networking/identity-proof', {}, JSON.stringify({baseUrl: origin, nonce: 'N'.repeat(43)}));
+    requestCredentials(origin + '/v1/system/identity-proof', {}, JSON.stringify({baseUrl: origin, nonce: 'N'.repeat(43)}));
     verifiedCredentialOrigin({kind: 'portico.route-proof', version: '1', baseUrl: origin, nonce: 'N'.repeat(43), fingerprint: 'same-identity'});
   }
   rememberCredentials('https://old-route.test', {accessToken: 'routed-token'});
@@ -209,7 +209,7 @@ test('an ordinary network failure does not sign the viewer out as an exposure', 
 test('identity proof public exception does not hide passwords, and media grants are retired on exposure', async () => {
   let exposures = 0;
   const off = onCredentialExposure(event => { if (event.origin === 'https://proof-secret.test') exposures++; });
-  const proof = send('https://proof-secret.test/v1/networking/identity-proof', 'POST', {}, JSON.stringify({baseUrl: 'https://proof-secret.test', nonce: 'N'.repeat(43), password: 'dummy'}));
+  const proof = send('https://proof-secret.test/v1/system/identity-proof', 'POST', {}, JSON.stringify({baseUrl: 'https://proof-secret.test', nonce: 'N'.repeat(43), password: 'dummy'}));
   last().respond(200, '{}', 'https://capture.test/proof');
   await assert.rejects(proof, e => code(e) === 'credential_exposed'); assert.equal(exposures, 1); off();
   const media = send('https://grant-secret.test/v1/media/SCOPEDGRANT/file');
@@ -228,7 +228,7 @@ test('the real crypto bridge admits an alternate origin only after a valid nonce
   const publicKey = base64Url(ed25519.getPublicKey(secret));
   const nonce = 'S'.repeat(43);
   for (const [origin, valid] of [['https://signed-old.test', true], ['http://signed-new.test:32500', false]] as const) {
-    requestCredentials(origin + '/v1/networking/identity-proof', {}, JSON.stringify({baseUrl: origin, nonce}));
+    requestCredentials(origin + '/v1/system/identity-proof', {}, JSON.stringify({baseUrl: origin, nonce}));
     const payload = utf8(JSON.stringify({kind: 'portico.route-proof', version: '1', baseUrl: origin, nonce, fingerprint: 'signed-server'}));
     assert.equal(await PorticoNetwork.verify(publicKey, base64Url(ed25519.sign(payload, valid ? secret : otherKey)), base64Url(payload)), valid);
     if (valid) rememberCredentials(origin, {accessToken: 'signed-route-token'});
