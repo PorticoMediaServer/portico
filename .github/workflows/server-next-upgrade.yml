@@ -25,8 +25,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
-      # A change to the rehearsal checks it on a small library; the real size is run by hand.
-      ITEMS: ${{ inputs.items || '50000' }}
+      # A change to the rehearsal runs it at full size: it is rare, and the numbers are the point.
+      ITEMS: ${{ inputs.items || '1000000' }}
       WORK: ${{ github.workspace }}/upgrade
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
