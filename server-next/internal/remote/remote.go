@@ -47,8 +47,8 @@ func (s *SlowDown) Error() string { return "the remote source asked to be given 
 
 // Limits are a source's own limits, set by its preset and editable by the owner.
 type Limits struct {
-	Connections int     // requests in flight at once
-	PerSecond   float64 // requests started a second
+	Connections int     `json:"connections"` // requests in flight at once
+	PerSecond   float64 `json:"perSecond"`   // requests started a second
 }
 
 // Preset is one of the four plain choices a source is given: how often it is scanned by
