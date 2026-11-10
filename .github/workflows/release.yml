@@ -462,8 +462,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {platform: ios, upload_type: ios}
-          - {platform: tvos, upload_type: appletvos}
+          - {platform: ios}
+          - {platform: tvos}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: {ref: '${{ needs.identity.outputs.sha }}', persist-credentials: false}
@@ -561,16 +561,6 @@ jobs:
               ditto -c -k --keepParent "$archive" "dist/Portico-$platform-UNSIGNED-NOT-FOR-USE.xcarchive.zip"
             fi
           done
-      - name: TestFlight
-        if: needs.identity.outputs.apple_signing == 'true' && inputs.testflight
-        env:
-          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-          ASC_ISSUER: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-        run: |
-          set -euo pipefail
-          mkdir -p ~/.appstoreconnect/private_keys
-          cp "$RUNNER_TEMP/asc-key.p8" ~/.appstoreconnect/private_keys/AuthKey_"$ASC_KEY_ID".p8
-          xcrun altool --upload-app -f "dist/Portico-${{ matrix.platform }}.ipa" -t '${{ matrix.upload_type }}' --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER"
       - name: Forget the signing material
         if: always()
         run: |
@@ -578,6 +568,48 @@ jobs:
           security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with: {name: 'assets-apple-${{ matrix.platform }}', path: dist/, if-no-files-found: error, retention-days: '${{ env.RETENTION_DAYS }}'}
+
+  apple_testflight:
+    # Neither platform is uploaded unless both archives succeeded.
+    needs: [identity, apple]
+    if: needs.identity.outputs.apple_signing == 'true' && inputs.testflight
+    runs-on: macos-26
+    env: {DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer}
+    timeout-minutes: 120
+    steps:
+      - name: Xcode 26.6
+        # App Store Connect takes only builds made with the iOS and tvOS 26 SDKs (ITMS-90725).
+        run: |
+          set -euo pipefail
+          # Read whole, then compared: piping into head can close the pipe early, and xcodebuild aborts on the broken pipe.
+          version="$(xcodebuild -version)"
+          echo "$version"
+          [ "${version%%$'\n'*}" = 'Xcode 26.6' ] || { echo 'expected Xcode 26.6' >&2; exit 1; }
+          xcodebuild -showsdks
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with: {name: assets-apple-ios, path: dist}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with: {name: assets-apple-tvos, path: dist}
+      - name: App Store Connect key
+        env:
+          ASC_KEY: ${{ secrets.APP_STORE_CONNECT_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          (umask 077; python3 -c 'import base64,os,sys; v=os.environ["ASC_KEY"].strip(); d=(v+"\n").encode() if v.startswith("-----BEGIN") else base64.b64decode(v); assert d.startswith(b"-----BEGIN " + b"PRIVATE KEY-----"), "APP_STORE_CONNECT_KEY_P8 is not a PKCS#8 key"; open(sys.argv[1],"wb").write(d)' "$RUNNER_TEMP/asc-key.p8")
+      - name: TestFlight
+        env:
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.appstoreconnect/private_keys
+          cp "$RUNNER_TEMP/asc-key.p8" ~/.appstoreconnect/private_keys/AuthKey_"$ASC_KEY_ID".p8
+          xcrun altool --upload-app -f dist/Portico-ios.ipa -t ios --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER"
+          xcrun altool --upload-app -f dist/Portico-tvos.ipa -t appletvos --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER"
+      - name: Forget the signing material
+        if: always()
+        run: |
+          rm -rf "$RUNNER_TEMP/asc-key.p8" ~/.appstoreconnect
 
   desktop:
     # "If it builds": the desktop app's Linux build, unsigned. A failure here never blocks the
@@ -606,8 +638,8 @@ jobs:
 
   assemble:
     # Everything the draft will carry, checked against what this run was able to produce.
-    needs: [identity, server, server-macos, docker, android, apple, desktop]
-    if: ${{ !cancelled() && needs.server.result == 'success' && needs.server-macos.result == 'success' && needs.docker.result == 'success' && needs.android.result == 'success' && needs.apple.result == 'success' }}
+    needs: [identity, server, server-macos, docker, android, apple, apple_testflight, desktop]
+    if: ${{ !cancelled() && needs.server.result == 'success' && needs.server-macos.result == 'success' && needs.docker.result == 'success' && needs.android.result == 'success' && needs.apple.result == 'success' && (needs.apple_testflight.result == 'success' || needs.apple_testflight.result == 'skipped') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
