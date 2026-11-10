@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -294,6 +295,43 @@ func (d *DB) Preferences(ctx context.Context, profileID, deviceID int64) (map[st
 	return out, rows.Err()
 }
 
+// SetProfilePreference stores one of a profile's settings as a JSON value.
+func (d *DB) SetProfilePreference(ctx context.Context, profileID int64, key, value string, now time.Time) error {
+	return d.write(ctx, User, func(tx *sql.Tx) error {
+		_, err := tx.Exec(`INSERT INTO preferences (profile_id, key, value, updated_at) VALUES (?, ?, ?, ?)
+			ON CONFLICT (profile_id, key) WHERE profile_id IS NOT NULL DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+			profileID, key, value, now.UnixMilli())
+		return err
+	})
+}
+
+// PlayRecord is one finished play as the owner's play record has it.
+type PlayRecord struct {
+	Title             string
+	HiddenFromProfile bool
+}
+
+// PlayRecords lists a profile's finished plays, newest first, for the owner: it includes
+// plays made while the profile had its history paused. Anything shown to the profile itself
+// must leave out the rows with HiddenFromProfile.
+func (d *DB) PlayRecords(ctx context.Context, profileID int64, limit int) ([]PlayRecord, error) {
+	rows, err := d.read.QueryContext(ctx, `SELECT title, hidden_from_profile FROM play_history WHERE profile_id = ?
+		ORDER BY played_at DESC, id DESC LIMIT ?`, profileID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []PlayRecord
+	for rows.Next() {
+		var r PlayRecord
+		if err := rows.Scan(&r.Title, &r.HiddenFromProfile); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
 // RouteFailure is one remembered "this way of playing this file failed on this device".
 type RouteFailure struct {
 	PublicID  string
@@ -385,21 +423,32 @@ type Progress struct {
 
 // Settings a profile can change that decide what a position means. Values are percentages.
 const (
-	PrefWatchedAt    = "playback.watchedAtPercent" // 50 to 100; the default is 95
-	PrefStartedAt    = "playback.startedAtPercent" // the default is 5, and never more than a minute in
-	PrefPauseHistory = "privacy.pauseHistory"
+	PrefWatchedAt    = "playback.playedThresholdPercent"  // 50 to 100; the default is 95
+	PrefStartedAt    = "playback.startedThresholdPercent" // 1 to 25; the default is 5
+	PrefPauseHistory = "privacy.pauseWatchHistory"
+)
+
+// How a library decides a video is finished, in its options as "videoCompletion": at the
+// percentage or when trusted credits start, whichever comes first (the default); at the
+// percentage only; or when trusted credits start, falling back to the percentage for a
+// title that has none.
+const (
+	VideoCompletionEarliest  = "earliest"
+	VideoCompletionThreshold = "threshold"
+	VideoCompletionCredits   = "credits"
 )
 
 // SaveProgress saves a batch of playback positions in one transaction, and reports for each
 // whether that playing has now reached the end and been counted.
 //
-// A position past the profile's "Mark as watched at" marks the title watched, clears the
-// resume point, adds one to the play count and writes one history row: once per PlayID. An
-// audiobook is finished when 30 seconds or 5% remains, whichever is less. Before that, the
-// position becomes the resume point once the title counts as started. Songs keep no resume
-// point and no watched mark, only plays. Every write goes through the state rules, so a
-// position never undoes a watched or unwatched mark made after it. A profile with history
-// paused saves nothing.
+// A position past the profile's "Mark as watched at", or at trusted credits where the library
+// goes by them, marks the title watched, clears the resume point, adds one to the play count
+// and writes one history row: once per PlayID. An audiobook is finished when 30 seconds or 5%
+// remains, whichever is less. Before that, the position becomes the resume point once the
+// title counts as started. Songs keep no resume point and no watched mark, only plays. Every
+// write goes through the state rules, so a position never undoes a watched or unwatched mark
+// made after it. While a profile has history paused nothing of its own is saved, but a
+// finished play is still recorded for the owner, hidden from the profile.
 func (d *DB) SaveProgress(ctx context.Context, p Priority, batch []Progress) ([]bool, error) {
 	finished := make([]bool, len(batch))
 	if len(batch) == 0 {
@@ -470,18 +519,20 @@ func percent(prefs map[string]string, key string, fallback, low, high int64) int
 }
 
 func (w *stateWriter) saveProgress(sample Progress, prefs map[string]string) (finished bool, err error) {
-	if prefs[PrefPauseHistory] == "true" {
-		return false, nil
-	}
+	paused := prefs[PrefPauseHistory] == "true"
 	var id, duration int64
 	var kind ItemKind
-	var title, holder string
-	var resumeAt sql.NullInt64
+	var title, holder, completion string
+	var resumeAt, credits sql.NullInt64
+	// Only a trusted credits marker can finish a title: see MarkerSource.Trusted.
 	err = w.queryRow(`SELECT i.id, i.kind, ifnull(i.duration_ms, 0), i.title,
-		ifnull((SELECT r.title FROM items r WHERE r.id = ifnull(i.root_id, i.parent_id)), ''), s.position_ms
+		ifnull((SELECT r.title FROM items r WHERE r.id = ifnull(i.root_id, i.parent_id)), ''), s.position_ms,
+		ifnull((SELECT json_extract(l.options, '$.videoCompletion') FROM libraries l WHERE l.id = i.library_id), ''),
+		(SELECT min(k.start_ms) FROM media m JOIN media_markers k ON k.media_id = m.id
+			WHERE m.item_id = i.id AND k.kind = `+itoa(int64(MarkerCredits))+` AND k.source <> `+itoa(int64(MarkerFromAnalysis))+`)
 		FROM items i LEFT JOIN user_item_state s ON s.profile_id = @viewer_profile AND s.item_id = i.id
 		WHERE i.public_id = @item AND `+w.access.visible("i"), w.named(sql.Named("item", sample.ItemID))...).
-		Scan(&id, &kind, &duration, &title, &holder, &resumeAt)
+		Scan(&id, &kind, &duration, &title, &holder, &resumeAt, &completion, &credits)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil // removed, or no longer this profile's to see
 	}
@@ -494,19 +545,27 @@ func (w *stateWriter) saveProgress(sample Progress, prefs map[string]string) (fi
 	}
 	ago := max(time.Duration(w.now-sample.At.UnixMilli())*time.Millisecond, 0)
 
-	end := duration * percent(prefs, PrefWatchedAt, 95, 50, 100) / 100
-	if kind == KindAudiobook {
-		end = duration - min(30_000, duration*5/100)
+	done := duration > 0 && position >= duration*percent(prefs, PrefWatchedAt, 95, 50, 100)/100
+	video := kind == KindMovie || kind == KindEpisode
+	switch {
+	case kind == KindAudiobook:
+		done = duration > 0 && position > 0 && duration-position <= min(30_000, duration/20)
+	case video && completion != VideoCompletionThreshold && credits.Valid:
+		// The library finishes a video when its credits start: instead of the percentage
+		// ("credits"), or whichever comes first (the default).
+		atCredits := position >= credits.Int64
+		done = atCredits || done && completion != VideoCompletionCredits
 	}
-	if duration > 0 && position >= end {
-		res, err := w.exec(`INSERT INTO play_history (profile_id, item_id, device_id, client_event_id, played_at, watched_ms, item_kind, title, subtitle)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, nullif(?, '')) ON CONFLICT (profile_id, client_event_id) DO NOTHING`,
-			w.viewer.ProfileID, id, sample.DeviceID, sample.PlayID, sample.At.UnixMilli(), sample.WatchedMS, kind, title, holder)
+	if done {
+		res, err := w.exec(`INSERT INTO play_history (profile_id, item_id, device_id, client_event_id, played_at, watched_ms, item_kind, title,
+			subtitle, hidden_from_profile) VALUES (?, ?, ?, ?, ?, ?, ?, ?, nullif(?, ''), ?) ON CONFLICT (profile_id, client_event_id) DO NOTHING`,
+			w.viewer.ProfileID, id, sample.DeviceID, sample.PlayID, sample.At.UnixMilli(), sample.WatchedMS, kind, title, holder, paused)
 		if err != nil {
 			return false, err
 		}
-		if n, _ := res.RowsAffected(); n == 0 {
-			return true, nil // this playing was already counted
+		if n, _ := res.RowsAffected(); n == 0 || paused {
+			// Already counted; or history is paused, and the play is the owner's record only.
+			return true, nil
 		}
 		if kind != KindTrack {
 			yes := true
@@ -522,12 +581,19 @@ func (w *stateWriter) saveProgress(sample Progress, prefs map[string]string) (fi
 		}
 		return true, appendChange(w.tx, Change{At: w.now, Topic: TopicState, Op: OpUpdated, RefID: id, ProfileID: w.viewer.ProfileID})
 	}
-	if kind == KindTrack {
+	if kind == KindTrack || paused {
 		return false, nil
 	}
 	// A resume point is kept once the title counts as started, and from then on is wherever
-	// the person stopped, even after seeking back to the first minute.
-	started := min(duration*percent(prefs, PrefStartedAt, 5, 0, 50)/100, 60_000)
+	// the person stopped, even after seeking back to the first minute. A title of unknown
+	// length counts as started after thirty seconds, and an audiobook after one.
+	started := int64(30_000)
+	switch {
+	case kind == KindAudiobook:
+		started = 1000
+	case duration > 0:
+		started = duration * percent(prefs, PrefStartedAt, 5, 1, 25) / 100
+	}
 	if position < started && !resumeAt.Valid {
 		return false, nil
 	}
@@ -537,3 +603,5 @@ func (w *stateWriter) saveProgress(sample Progress, prefs map[string]string) (fi
 	}
 	return false, err
 }
+
+func itoa(n int64) string { return strconv.FormatInt(n, 10) }
