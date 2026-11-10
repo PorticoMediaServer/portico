@@ -112,9 +112,6 @@ func TestBrowse(t *testing.T) {
 	if *byGenre.Total != facets.Values[0].Count {
 		t.Fatalf("the genre count says %d, the filtered list has %d", facets.Values[0].Count, *byGenre.Total)
 	}
-	if home := get[Home](t, s, token, "/v1/home"); len(home.Rows) != 1 || home.Rows[0].ID != "recently_added" || len(home.Rows[0].Items) == 0 {
-		t.Fatalf("Home before anything is played: %+v", home.Rows)
-	}
 
 	for _, c := range []struct {
 		path   string

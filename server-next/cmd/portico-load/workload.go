@@ -223,9 +223,9 @@ func (w *workload) read(ctx context.Context, r *rand.Rand) {
 			}
 			w.record("person", started, err)
 		case n < 90: // Home: both rows
-			_, err := w.d.ContinueWatching(ctx, v)
+			_, err := w.d.Continue(ctx, v, db.ContinueWatching, "")
 			if err == nil {
-				_, err = w.d.RecentlyAdded(ctx, v)
+				_, err = w.d.RecentlyAdded(ctx, v, lib.PublicID, "", 20)
 			}
 			w.record("home", started, err)
 		case n < 93: // opening the genre filter of a library screen

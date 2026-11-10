@@ -129,27 +129,7 @@ func (s *Server) catalogueRoutes() {
 		}
 		return out, nil
 	})
-	Handle(s, "GET /v1/home", WithProfile, func(r *http.Request, _ None) (Home, error) {
-		continuing, err := s.db.ContinueWatching(r.Context(), viewer(r))
-		if err != nil {
-			return Home{}, err
-		}
-		recent, err := s.db.RecentlyAdded(r.Context(), viewer(r))
-		if err != nil {
-			return Home{}, err
-		}
-		// A row with nothing in it is left out, so an app never draws an empty shelf.
-		out := Home{Rows: []HomeRow{}}
-		for _, row := range []HomeRow{
-			{ID: "continue", Title: "Continue Watching", Shape: "landscape", Items: itemShapes(continuing)},
-			{ID: "recently_added", Title: "Recently Added", Shape: "poster", Items: itemShapes(recent)},
-		} {
-			if len(row.Items) > 0 {
-				out.Rows = append(out.Rows, row)
-			}
-		}
-		return out, nil
-	})
+	s.homeRoutes()
 	Handle(s, "PUT /v1/items/{id}/state", WithProfile, func(r *http.Request, req StateRequest) (StateReply, error) {
 		if req.MadeAgoMs < 0 {
 			return StateReply{}, ErrField("madeAgoMs", "This cannot be negative.")

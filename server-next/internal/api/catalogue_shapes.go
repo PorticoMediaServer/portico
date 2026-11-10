@@ -245,19 +245,6 @@ type FacetValue struct {
 	Count int    `json:"count"`
 }
 
-// Home is the Home screen, composed by the server. An app draws the rows it is given.
-type Home struct {
-	Rows []HomeRow `json:"rows"`
-}
-
-// HomeRow is one row. Shape says how to draw its cards: "landscape" or "poster".
-type HomeRow struct {
-	ID    string `json:"id"`
-	Title string `json:"title"`
-	Shape string `json:"shape"`
-	Items []Item `json:"items"`
-}
-
 // StateRequest is the body of PUT /v1/items/{id}/state. Only the fields sent change.
 type StateRequest struct {
 	Watched    *bool   `json:"watched"`
