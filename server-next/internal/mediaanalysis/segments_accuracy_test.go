@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -252,6 +253,51 @@ func (s *score) report(t *testing.T) (precision, recall, meanStart, meanEnd floa
 	return
 }
 
+// evaluateShow measures every episode, then runs the comparison as the analysis
+// job will: neighbours chosen by segmentNeighbours, then Intro and Credits.
+func (h *harness) evaluateShow(episodes []harnessEpisode, intro, credits *score) {
+	ctx := context.Background()
+	evidence := make([]segmentdetect.Evidence, len(episodes))
+	files := make([]showFile, len(episodes))
+	started := time.Now()
+	for i, e := range episodes {
+		file, duration := h.episodeFile(e)
+		plan := planSegments("episode", SegmentModeStandard, duration, true, true)
+		var err error
+		evidence[i], err = extractSegmentEvidence(ctx, h.decode(file), "harness", plan, duration, decoder.PreviewVideoFacts{})
+		if err != nil {
+			h.t.Fatalf("%s: %v", e.name, err)
+		}
+		files[i] = showFile{Episode: int64(i + 1), Season: e.season, Number: e.number}
+	}
+	h.t.Logf("measured %d episodes in %v", len(episodes), time.Since(started).Round(time.Millisecond))
+	for i, e := range episodes {
+		var openings, closings []segmentdetect.Fingerprint
+		for _, n := range segmentNeighbours(files, i, segmentNeighbourCount) {
+			openings = append(openings, evidence[n].Opening)
+			closings = append(closings, evidence[n].Closing)
+		}
+		var got []segmentdetect.Detection
+		if d, ok := segmentdetect.Intro(evidence[i].Opening, segmentdetect.MatchRegion(evidence[i].Opening, openings), evidence[i].DurationUS); ok {
+			got = append(got, d)
+		}
+		if d, ok := segmentdetect.Credits(evidence[i].Closing, segmentdetect.MatchRegion(evidence[i].Closing, closings), evidence[i].DurationUS); ok {
+			got = append(got, d)
+			if e.scene != d.FollowedByScene {
+				h.t.Errorf("%s: post-credits scene %v, detected %v", e.name, e.scene, d.FollowedByScene)
+			}
+		}
+		if os.Getenv("SEGMENT_DEBUG") != "" {
+			h.t.Logf("%s truth intro %+v credits %+v got %+v", e.name, e.intro, e.credits, got)
+			for k, m := range segmentdetect.MatchRegion(evidence[i].Opening, openings) {
+				h.t.Logf("  pair %d: %+v", k, m)
+			}
+		}
+		intro.add(e.name, e.intro, got)
+		credits.add(e.name, e.credits, got)
+	}
+}
+
 func harnessShows(full bool) [][]harnessEpisode {
 	themeA, endA := segmentsynth.Theme(11), segmentsynth.Theme(12)
 	var showA []harnessEpisode
@@ -285,6 +331,31 @@ func harnessShows(full bool) [][]harnessEpisode {
 		showB = append(showB, buildEpisode(fmt.Sprintf("b-s1e%d", i+1), 1, i+1, uint64(500+i), 30, nil, 0, 180, nil, 0, 0, false))
 	}
 	return [][]harnessEpisode{showA, showB}
+}
+
+func TestSegmentAccuracyHarness(t *testing.T) {
+	full := os.Getenv("PORTICO_SEGMENT_ACCURACY") != ""
+	h := newHarness(t)
+	intro, credits := &score{kind: "intro"}, &score{kind: "credits"}
+	for _, show := range harnessShows(full) {
+		// Episodes are compared in season and number order.
+		sort.SliceStable(show, func(i, j int) bool {
+			if show[i].season != show[j].season {
+				return show[i].season < show[j].season
+			}
+			return show[i].number < show[j].number
+		})
+		h.evaluateShow(show, intro, credits)
+	}
+	for _, s := range []*score{intro, credits} {
+		precision, recall, start, end := s.report(t)
+		if precision < 0.95 || recall < 0.9 || start > 1 || end > 1.5 || s.autoFP > 0 {
+			t.Errorf("%s accuracy below the bar (wrong automatic: %v)", s.kind, s.unsafeAutomatic)
+		}
+	}
+	if full {
+		h.evaluateFilm(t)
+	}
 }
 
 // evaluateFilm generates a film whose credits crawl over black, with a
