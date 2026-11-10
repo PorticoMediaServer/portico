@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -120,13 +121,16 @@ type theatre struct {
 	film   string
 	eps    [2]string
 	song   string
+	libs   map[string]db.Library
+	path   string
 }
 
 const hour = int64(3_600_000)
 
 func newTheatre(t *testing.T) *theatre {
-	s := newTestServer(t)
-	th := &theatre{T: t, s: s, engine: &fakeEngine{}, clock: time.Now()}
+	path := filepath.Join(t.TempDir(), "main.db")
+	s := openTestServer(t, path)
+	th := &theatre{T: t, s: s, path: path, engine: &fakeEngine{}, clock: time.Now(), libs: map[string]db.Library{}}
 	s.now = func() time.Time { return th.clock }
 	s.playback.SetEngine(th.engine, th.engine)
 	th.owner = onMain(t, s, setup(t, s))
@@ -197,6 +201,7 @@ func newTheatre(t *testing.T) *theatre {
 		if err != nil {
 			t.Fatal(err)
 		}
+		th.libs[kind] = lib
 		batch.LibraryID, batch.PathID, batch.Scan, batch.Dirs = lib.ID, lib.Paths[0].ID, 1, []db.ImportDir{{}}
 		if _, err := s.db.Import(ctx, batch); err != nil {
 			t.Fatal(err)

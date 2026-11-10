@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
@@ -23,9 +24,72 @@ type StartInput struct {
 	PositionMs *int64
 	FromStart  bool
 	Paused     bool
-	// SessionID, when set, is the id the session must have: a stream got ready ahead of time
-	// under that id becomes this session's.
+	// Prepared, when set, is a stream got ready ahead of time for this start: it becomes the
+	// session's stream, so playback carries on without a gap.
+	Prepared *Prepared
+}
+
+// Prepared is the next title of a queue planned and its stream started before the current
+// one ends. It is not a session yet and does not count as a stream.
+type Prepared struct {
 	SessionID string
+	ItemID    string
+	Plan      Plan
+	Stream    Stream
+	r         resolved
+	caller    Caller
+	// mu guards Stream and sess: the engine may replace the stream by itself at any time,
+	// before the prepared stream has become a session or after.
+	mu   sync.Mutex
+	sess *session
+}
+
+// Prepare plans a title for the device asking and starts its stream under the id its session
+// will have. from, when it names the caller's running session, hands its quality on. The
+// caller must give the result to Start, or to Drop.
+func (s *Service) Prepare(ctx context.Context, c Caller, itemID, from string) (*Prepared, error) {
+	device, err := s.db.SessionDevice(ctx, c.SignInID)
+	if err != nil {
+		return nil, err
+	}
+	var ask Ask
+	if sess, err := s.owned(from, c.Viewer, c.SignInID); err == nil {
+		running := s.snapshot(sess)
+		quality := running.Choice.Quality
+		ask.Quality, ask.Network = &quality, running.Network
+		c.AtHome = running.Network == NetworkLocal
+	}
+	r, err := s.resolve(ctx, c, device, itemID, ask, nil)
+	if err != nil {
+		return nil, err
+	}
+	p := &Prepared{SessionID: db.NewID("pbs"), ItemID: itemID, Plan: r.plan, r: r, caller: c}
+	request := StartRequest{SessionID: p.SessionID, Item: r.item, Version: r.version, Plan: r.plan, Replaced: func(stream Stream) {
+		p.mu.Lock()
+		sess := p.sess
+		if sess == nil {
+			p.Stream = stream
+		}
+		p.mu.Unlock()
+		if sess != nil {
+			s.replaced(sess)(stream)
+		}
+	}}
+	stream, err := s.streams.Start(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+	p.mu.Lock()
+	p.Stream = stream
+	p.mu.Unlock()
+	return p, nil
+}
+
+// Drop stops a prepared stream that will not be played.
+func (s *Service) Drop(p *Prepared) {
+	if p != nil {
+		s.streams.Stop(p.SessionID)
+	}
 }
 
 // Start begins playing a title on the device asking, and ends whatever that device was
@@ -135,8 +199,10 @@ func (s *Service) create(ctx context.Context, in StartInput) (*session, error) {
 	if err != nil {
 		return nil, err
 	}
-	r, err := s.resolve(ctx, c, device, in.ItemID, in.Ask, nil)
-	if err != nil {
+	var r resolved
+	if in.Prepared != nil {
+		r = in.Prepared.r
+	} else if r, err = s.resolve(ctx, c, device, in.ItemID, in.Ask, nil); err != nil {
 		return nil, err
 	}
 	limits, err := s.Limits(ctx)
@@ -152,12 +218,17 @@ func (s *Service) create(ctx context.Context, in StartInput) (*session, error) {
 		position = 0
 	}
 	sess := &session{version: r.version}
-	sess.Session = Session{ID: in.SessionID, UserID: c.Viewer.UserID, ProfileID: c.Viewer.ProfileID, SignInID: c.SignInID,
+	sess.Session = Session{ID: db.NewID("pbs"), UserID: c.Viewer.UserID, ProfileID: c.Viewer.ProfileID, SignInID: c.SignInID,
 		Device: device, Item: r.item, VersionID: r.version.PublicID, fileID: r.version.FileID, Queue: in.Queue,
 		State: StatePlaying, Choice: r.choice, Network: r.network, Plan: r.plan, Generation: 1,
 		StartPositionMs: position, PositionMs: position, StartedAt: now, LeaseUntil: now.Add(lease)}
-	if sess.ID == "" {
-		sess.ID = db.NewID("pbs")
+	if in.Prepared != nil {
+		// The stream is already running under this id, from the start of the title.
+		in.Prepared.mu.Lock()
+		sess.ID, sess.Stream, sess.ready = in.Prepared.SessionID, in.Prepared.Stream, true
+		in.Prepared.sess = sess
+		in.Prepared.mu.Unlock()
+		sess.StartPositionMs, sess.PositionMs, position = 0, 0, 0
 	}
 	sess.Item.Versions = nil
 	if in.Paused {
@@ -202,8 +273,11 @@ func (s *Service) create(ctx context.Context, in StartInput) (*session, error) {
 		s.finish(ctx, other)
 	}
 
-	stream, err := s.streams.Start(ctx, StartRequest{SessionID: sess.ID, Item: r.item, Version: r.version, Plan: r.plan, PositionMs: position,
-		Replaced: s.replaced(sess)})
+	stream := sess.Stream
+	if in.Prepared == nil {
+		stream, err = s.streams.Start(ctx, StartRequest{SessionID: sess.ID, Item: r.item, Version: r.version, Plan: r.plan, PositionMs: position,
+			Replaced: s.replaced(sess)})
+	}
 	s.mu.Lock()
 	if err != nil {
 		delete(s.sessions, sess.ID)

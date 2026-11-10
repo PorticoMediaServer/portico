@@ -223,7 +223,7 @@ func (d *DB) RememberTracks(ctx context.Context, v Viewer, itemID int64, audio, 
 		for _, id := range targets {
 			if _, err := tx.Exec(`INSERT INTO user_item_state (profile_id, item_id, audio_language, subtitle_language, updated_at)
 				VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT (profile_id, item_id) DO UPDATE SET
-				audio_language = ifnull(?3, audio_language), subtitle_language = ifnull(?4, subtitle_language)`,
+				audio_language = ifnull(?3, audio_language), subtitle_language = ifnull(?4, subtitle_language), updated_at = ?5`,
 				v.ProfileID, id, audio, subtitle, now.UnixMilli()); err != nil {
 				return err
 			}

@@ -231,8 +231,10 @@ type SubtitlePick struct {
 // PlaybackStart asks to play a title. Send an Idempotency-Key: the same key and body is the
 // same start, however often it is sent.
 type PlaybackStart struct {
-	ItemID    string `json:"itemId"`
-	VersionID string `json:"versionId,omitempty"`
+	// ItemID is the title to play, or Queue the queue entry: one of the two.
+	ItemID    string              `json:"itemId,omitempty"`
+	Queue     *playback.QueueLink `json:"queue,omitempty"`
+	VersionID string              `json:"versionId,omitempty"`
 	// StartPositionMs starts there. Without it StartFrom decides: resume (the default) or beginning.
 	StartPositionMs *int64 `json:"startPositionMs,omitempty"`
 	StartFrom       string `json:"startFrom,omitempty"`
