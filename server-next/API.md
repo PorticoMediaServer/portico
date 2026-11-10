@@ -208,7 +208,18 @@ Only the owner. A key made for a tool needs the `library` scope to scan and dele
 
 For the owner and administrators. Provider keys and a library's source are the owner's alone.
 A library's provider, language and region are options of the library, set on its own routes.
-Refreshing or editing a selection of titles is a bulk action, `POST /v1/jobs`.
+Refreshing or editing a selection of titles is a bulk action, `POST /v1/jobs`, with these kinds
+(owner and administrators; a title or library hidden from the caller's main profile is `404`):
+
+| Kind | Target | What it does |
+|---|---|---|
+| `match_library` | library | Look up every title no provider has been asked about |
+| `refresh_library` | library | Ask the provider again about every matched title |
+| `refresh_items` | items | Refresh metadata on a selection; a title with no match is looked up again |
+| `edit_items` | items of one kind | Bulk edit. `params`: `year`, `edition`, `contentRating`, and `add` / `remove` of `genres`, `studios`, `networks`, `countries`, `labels` (a list is never replaced); `lock` (default true) locks what is edited. Ends `failed` naming each title not saved and why; the same request again saves them |
+
+After every scan the server starts `metadata_after_scan` for the library itself: new titles are
+looked up, then what is due is refreshed.
 
 | Route | Purpose |
 |---|---|

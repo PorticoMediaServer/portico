@@ -18,6 +18,10 @@ type Manager struct {
 
 	mu    sync.Mutex
 	stats map[string]Stats // by library, for the scan running or last run since the server started
+
+	// AfterScan, when set, is called with a library's public id after a scan of it ends
+	// without error: what the scan found is then looked up.
+	AfterScan func(ctx context.Context, library string)
 }
 
 // library is the lane scans and library removals share, so that a library is never removed
@@ -128,6 +132,9 @@ func (m *Manager) scan(ctx context.Context, work jobs.Work) error {
 	m.mu.Unlock()
 	if errors.Is(err, context.Canceled) {
 		return nil
+	}
+	if err == nil && m.AfterScan != nil {
+		m.AfterScan(ctx, lib.PublicID)
 	}
 	return err
 }
