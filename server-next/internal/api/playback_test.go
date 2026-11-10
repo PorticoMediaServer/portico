@@ -836,3 +836,32 @@ func TestCreditsPausedHistoryAndWhatIsNotAvailableYet(t *testing.T) {
 }
 
 func ptr2(s string) *string { return &s }
+
+// A stream that stops working by itself in the middle of playing (its conversion failed) is
+// moved to the next way of playing by the server, where the viewer was, without waiting for
+// the player to find the dead address. When no way is left the session ends as failed.
+func TestAStreamThatFailsMidPlayMovesToTheNextWay(t *testing.T) {
+	th := newTheatre(t)
+	token := th.owner.AccessToken
+	session := th.play(token, th.film)
+	path := "/v1/playback/sessions/" + session.ID
+	call(t, th.s, "PUT", path+"/progress", token, PlaybackProgress{State: "playing", PositionMs: 30_000}, nil)
+	fail := func() PlaybackSession {
+		th.engine.mu.Lock()
+		failed := th.engine.running[session.ID].Failed
+		th.engine.mu.Unlock()
+		failed()
+		var now PlaybackSession
+		call(t, th.s, "GET", path, token, nil, &now)
+		return now
+	}
+	if now := fail(); now.Presentation.Route != "repackaged" || now.Presentation.Generation != 2 || now.Presentation.StartPositionMs != 30_000 {
+		t.Fatalf("after the stream failed: %+v", now.Presentation)
+	}
+	if now := fail(); now.Presentation.Route != "converted" || now.Presentation.Generation != 3 {
+		t.Fatalf("after the second way failed: %+v", now.Presentation)
+	}
+	if now := fail(); now.State != "ended" || now.End == nil || now.End.Reason != "failed" || th.engine.streams() != 0 {
+		t.Fatalf("after the last way failed: %+v, %d streams", now, th.engine.streams())
+	}
+}

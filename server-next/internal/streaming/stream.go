@@ -72,8 +72,10 @@ type stream struct {
 	// changed is closed and replaced whenever a waiter might have something
 	// new to look at: output published, the stream stopped or failed.
 	changed chan struct{}
-	// replaced tells the session layer this stream gave way to another.
-	replaced func(Stream)
+	// replaced tells the session layer this stream gave way to another, and
+	// failedHook that its conversion failed.
+	replaced   func(Stream)
+	failedHook func()
 }
 
 // ConversionFailure is why a stream failed or fell back, for the people who can

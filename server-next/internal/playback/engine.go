@@ -203,6 +203,8 @@ type StartRequest struct {
 	// that failed mid-stream carries on in software under a new address). The session then
 	// plays the new stream.
 	Replaced func(Stream)
+	// Failed is called when the stream stops working by itself: its conversion failed.
+	Failed func()
 }
 
 // SubtitleFile is a subtitle the app fetches beside the stream.

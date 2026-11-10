@@ -203,7 +203,7 @@ func (s *Service) create(ctx context.Context, in StartInput) (*session, error) {
 	}
 
 	stream, err := s.streams.Start(ctx, StartRequest{SessionID: sess.ID, Item: r.item, Version: r.version, Plan: r.plan, PositionMs: position,
-		Replaced: s.replaced(sess)})
+		Replaced: s.replaced(sess), Failed: s.failed(sess)})
 	s.mu.Lock()
 	if err != nil {
 		delete(s.sessions, sess.ID)
@@ -232,6 +232,37 @@ func (s *Service) replaced(sess *session) func(Stream) {
 		if sess.State != StateEnded {
 			sess.Stream, sess.StartPositionMs = stream, sess.PositionMs
 			sess.Generation++
+		}
+	}
+}
+
+// FailureConversion is the failure the server itself records when a conversion breaks down
+// in the middle of playing.
+const FailureConversion = "conversion_failed"
+
+// failed is what the engine calls when a session's stream stopped working in the middle of
+// playing. The server does what the player would do on finding the address dead, without
+// waiting for it to find out: it remembers that this way of playing failed and starts the
+// next way where the viewer was. The app learns of the new address from its next progress
+// report. When there is no other way, the session ends as failed.
+func (s *Service) failed(sess *session) func() {
+	return func() {
+		s.mu.Lock()
+		ready, generation := sess.ready, sess.Generation
+		caller := Caller{Viewer: sess.Viewer(), SignInID: sess.SignInID}
+		s.mu.Unlock()
+		if !ready {
+			// A stream that fails before it has produced anything ends the start: awaitReady.
+			return
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		out, err := s.Change(ctx, sess.ID, caller, Change{Failure: &Failure{Code: FailureConversion}})
+		if errors.Is(err, ErrEnded) || errors.Is(err, db.ErrNotFound) {
+			return
+		}
+		if err != nil || out.Generation == generation {
+			s.end(ctx, sess.ID, EndFailed, "")
 		}
 	}
 }
@@ -339,10 +370,10 @@ func (s *Service) Change(ctx context.Context, id string, c Caller, ch Change) (S
 	generation := before.Generation
 	if r.plan.Key != before.Plan.Key || r.version.PublicID != version.PublicID {
 		s.streams.Stop(id)
-		request := StartRequest{SessionID: id, Item: r.item, Version: r.version, Plan: r.plan, PositionMs: position, Replaced: s.replaced(sess)}
+		request := StartRequest{SessionID: id, Item: r.item, Version: r.version, Plan: r.plan, PositionMs: position, Replaced: s.replaced(sess), Failed: s.failed(sess)}
 		if stream, err = s.streams.Start(ctx, request); err != nil {
 			// Playback is left as it was: the stream it had is started again.
-			old := StartRequest{SessionID: id, Item: r.item, Version: version, Plan: before.Plan, PositionMs: position, Replaced: s.replaced(sess)}
+			old := StartRequest{SessionID: id, Item: r.item, Version: version, Plan: before.Plan, PositionMs: position, Replaced: s.replaced(sess), Failed: s.failed(sess)}
 			if _, again := s.streams.Start(ctx, old); again != nil {
 				// This holds the session's lock, which end and finish take: end it here.
 				s.mu.Lock()
