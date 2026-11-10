@@ -27,23 +27,6 @@ export interface AccountStream {
   current: boolean;
 }
 
-export interface AdminLibrary {
-  id: string;
-  name: string;
-  kind: string;
-  language?: string;
-  folders: LibraryFolder[];
-  options: LibraryOptions;
-  scanning: boolean;
-  lastScanStartedAt?: string;
-  lastScanFinishedAt?: string;
-}
-
-export interface AdminLibraryPage {
-  items: AdminLibrary[];
-  nextCursor?: string;
-}
-
 export interface Alternative {
   versionId: string;
   label: string;
@@ -110,22 +93,6 @@ export interface Decision {
   reasons?: string[];
   to?: string;
   channels?: number;
-}
-
-export interface DeletionPreview {
-  title: string;
-  titles: number;
-  files: number;
-  bytes: number;
-  listEntries: number;
-  otherPeople: number;
-}
-
-export interface DeletionResult {
-  removed: boolean;
-  filesDeleted: number;
-  bytes: number;
-  kept: KeptFile[];
 }
 
 export interface Device {
@@ -341,24 +308,6 @@ export interface ItemState {
   updatedAt?: string;
 }
 
-export interface Job {
-  id: string;
-  kind: string;
-  state: string;
-  progress?: JobProgress;
-  error?: string;
-}
-
-export interface JobProgress {
-  done: number;
-  total?: number;
-}
-
-export interface KeptFile {
-  path: string;
-  reason: string;
-}
-
 export interface Key {
   id: string;
   name: string;
@@ -395,34 +344,6 @@ export interface Library {
   views?: View[];
   sorts?: Sort[];
   filters?: Filter[];
-}
-
-export interface LibraryCreate {
-  name: string;
-  kind: string;
-  language?: string;
-  folders: string[];
-  options?: LibraryOptions;
-}
-
-export interface LibraryEdit {
-  name?: string;
-  language?: string;
-  folders?: string[];
-  options?: LibraryOptions;
-}
-
-export interface LibraryFolder {
-  path: string;
-  available: boolean;
-  problem?: string;
-  lastScanAt?: string;
-}
-
-export interface LibraryOptions {
-  depth: string;
-  trash: TrashRule;
-  allowDelete: boolean;
 }
 
 export interface Marker {
@@ -484,20 +405,6 @@ export interface MemberEdit {
 export interface MemberPage {
   items: Member[];
   nextCursor?: string;
-}
-
-export interface MissingTitle {
-  id: string;
-  kind: string;
-  title: string;
-  year?: number;
-  missingSinceAt: string;
-  removedAt?: string;
-}
-
-export interface MissingTitles {
-  items: MissingTitle[];
-  total: number;
 }
 
 export interface Part {
@@ -858,29 +765,6 @@ export interface RememberedFailurePage {
   nextCursor?: string;
 }
 
-export interface ScanCounts {
-  files: number;
-  filesNew: number;
-  filesChanged: number;
-  filesMoved: number;
-  filesMissing: number;
-  titlesNew: number;
-  filesRead: number;
-}
-
-export interface ScanRequest {
-  allFiles?: boolean;
-}
-
-export interface ScanStatus {
-  state: string;
-  job?: Job;
-  lastScanStartedAt?: string;
-  lastScanFinishedAt?: string;
-  folders: LibraryFolder[];
-  counts?: ScanCounts;
-}
-
 export interface Session {
   accessToken: string;
   expiresAt: string;
@@ -948,17 +832,6 @@ export interface SignInResponse {
   account?: Account;
   profiles?: Profile[];
   challenge?: Challenge;
-}
-
-export interface SkippedFile {
-  path: string;
-  reason: string;
-  message: string;
-}
-
-export interface SkippedFilePage {
-  items: SkippedFile[];
-  nextCursor?: string;
 }
 
 export interface Sort {
@@ -1041,15 +914,6 @@ export interface Tag {
   id: string;
   kind: string;
   name: string;
-}
-
-export interface TrashEmptied {
-  removed: number;
-}
-
-export interface TrashRule {
-  mode: string;
-  days?: number;
 }
 
 export interface TwoFactorEnrol {
@@ -1191,19 +1055,4 @@ export interface Routes {
   'PUT /v1/admin/playback/stream-limits': {access: 'owner'; request: StreamLimits; response: StreamLimits};
   'GET /v1/admin/playback/failures': {access: 'owner'; request: undefined; response: RememberedFailurePage};
   'DELETE /v1/admin/playback/failures/{id}': {access: 'owner'; request: undefined; response: undefined};
-  'GET /v1/admin/libraries': {access: 'owner'; request: undefined; response: AdminLibraryPage};
-  'POST /v1/admin/libraries': {access: 'owner'; request: LibraryCreate; response: AdminLibrary};
-  'GET /v1/admin/libraries/{id}': {access: 'owner'; request: undefined; response: AdminLibrary};
-  'PATCH /v1/admin/libraries/{id}': {access: 'owner'; request: LibraryEdit; response: AdminLibrary};
-  'DELETE /v1/admin/libraries/{id}': {access: 'owner'; request: undefined; response: Job};
-  'POST /v1/admin/libraries/{id}/scan': {access: 'owner'; request: ScanRequest; response: Job};
-  'DELETE /v1/admin/libraries/{id}/scan': {access: 'owner'; request: undefined; response: undefined};
-  'GET /v1/admin/libraries/{id}/scan': {access: 'owner'; request: undefined; response: ScanStatus};
-  'GET /v1/admin/libraries/{id}/skipped': {access: 'owner'; request: undefined; response: SkippedFilePage};
-  'GET /v1/admin/libraries/{id}/missing': {access: 'owner'; request: undefined; response: MissingTitles};
-  'DELETE /v1/admin/libraries/{id}/missing': {access: 'owner'; request: undefined; response: TrashEmptied};
-  'GET /v1/admin/items/{id}/deletion': {access: 'owner'; request: undefined; response: DeletionPreview};
-  'DELETE /v1/admin/items/{id}': {access: 'owner'; request: undefined; response: DeletionResult};
-  'DELETE /v1/admin/versions/{id}': {access: 'owner'; request: undefined; response: DeletionResult};
-  'GET /v1/jobs/{id}': {access: 'signedIn'; request: undefined; response: Job};
 }
