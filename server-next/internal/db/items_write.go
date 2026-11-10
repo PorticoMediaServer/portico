@@ -22,6 +22,9 @@ type ImportBatch struct {
 	Dirs      []ImportDir  // parents before children
 	Files     []ImportFile // each in a folder of this batch or of an earlier one
 	Items     []ImportItem // parents before children
+	// What only a scan of real folders reports. Moves are applied before Files, Gone after.
+	Moves []ImportMove // files that are the same file at a new place
+	Gone  []FileRef    // files a complete listing of their folder no longer has
 }
 
 // ImportDir is one folder, by its path relative to the library path ("" is the path itself).
@@ -46,6 +49,10 @@ type ImportFile struct {
 	DurationMS int64
 	Bitrate    int64
 	Streams    []Stream
+	// Unprobed says the facts above are not known yet: the file is stored for the probe pass
+	// to read. A file stored this way and found again unchanged is never read again.
+	Unprobed bool
+	Problem  FileProblem // why the file is in Files skipped, if it is
 }
 
 // Stream is one video, audio or subtitle track of a file.
@@ -102,6 +109,18 @@ type ImportItem struct {
 	Credits         []ImportCredit
 	Images          []ImportImage
 	Versions        []ImportVersion
+	// ParentRow names the parent by its place in this batch's Items, counting from 1, for a
+	// parent that has no library-wide key (a season). 0 means use Parent.
+	ParentRow int
+	// ChildKey is the item's place under its parent ("s2", "e5", "d1t4"). It is stored as a
+	// name key with the parent's id in front, and is looked up after Keys.
+	ChildKey string
+	// Follow is a file of this container that moved here. When no key finds the container,
+	// it is the one the file belonged to before: a renamed show folder is the same show.
+	Follow *FileRef
+	// ExtraOf makes this item an extra or trailer of the item one of these keys names.
+	ExtraOf   []ItemKey
+	ExtraKind RelationKind
 }
 
 // ExternalID is an id a provider gave an item or a person.
@@ -141,6 +160,9 @@ type ImportVersion struct {
 	Parts    []ImportPart
 	Sidecars []FileRef // subtitle and similar files that belong to this version
 	Markers  []Marker
+	// Shared says the same file or range also plays other items (two episodes in one file),
+	// so finding it on another item does not mean it moved from there.
+	Shared bool
 }
 
 // ImportPart is a whole file, or the range of a file between StartMS and EndMS.
@@ -205,11 +227,18 @@ type importer struct {
 	tags   map[TagName]int64
 	people map[string]int64
 	counts map[int64]*countChange
+	rows   []*importedItem // the stored item of each of the batch's Items, in order
+	// Files whose missing mark or place changed, and items that lost a version: what is
+	// available is worked out again for them at the end.
+	changedFiles []int64
+	unsettled    []int64
+	restores     *bool // whether this library has state kept from removed titles
 }
 
 type importedFile struct {
 	id      int64
 	touched bool // new or changed in this batch
+	moved   bool // the same file, found at a new place in this batch
 	facts   *ImportFile
 }
 
@@ -231,8 +260,18 @@ func (im *importer) run(stats *ImportStats) error {
 			return err
 		}
 	}
+	for _, move := range im.batch.Moves {
+		if err := im.moveFile(move); err != nil {
+			return err
+		}
+	}
 	for i := range im.batch.Files {
 		if err := im.importFile(&im.batch.Files[i], stats); err != nil {
+			return err
+		}
+	}
+	for _, ref := range im.batch.Gone {
+		if err := im.goneFile(ref); err != nil {
 			return err
 		}
 	}
@@ -247,7 +286,7 @@ func (im *importer) run(stats *ImportStats) error {
 			return err
 		}
 	}
-	return nil
+	return im.settle()
 }
 
 func (im *importer) importDir(dir ImportDir) error {
@@ -307,10 +346,11 @@ func (im *importer) importFile(f *ImportFile, stats *ImportStats) error {
 		return err
 	}
 	var id, size, modified int64
-	var missing sql.NullInt64
-	err = im.queryRow(`SELECT id, size, modified_ns, missing_since_at FROM files WHERE directory_id = ? AND name = ?`,
-		dir, f.Name).Scan(&id, &size, &modified, &missing)
-	state := &importedFile{facts: f}
+	var missing, problem sql.NullInt64
+	err = im.queryRow(`SELECT id, size, modified_ns, missing_since_at, problem FROM files WHERE directory_id = ? AND name = ?`,
+		dir, f.Name).Scan(&id, &size, &modified, &missing, &problem)
+	state := &importedFile{id: id, facts: f}
+	replaced := size != f.Size || modified != f.ModifiedNS
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		if state.id, err = im.insertFile(dir, f, im.batch.Scan, im.now); err != nil {
@@ -320,9 +360,20 @@ func (im *importer) importFile(f *ImportFile, stats *ImportStats) error {
 		stats.FilesNew++
 	case err != nil:
 		return err
-	case size != f.Size || modified != f.ModifiedNS || missing.Valid:
+	case f.Unprobed && (replaced || missing.Valid):
+		// A file that came back as it was keeps everything read from it. A replaced file keeps
+		// its tracks until the probe pass has read the new ones.
+		state.touched = true
+		stats.FilesChanged++
+		if _, err := im.exec(`UPDATE files SET role = ?, size = ?, modified_ns = ?, seen_scan = ?, missing_since_at = NULL,
+			probed_at = CASE WHEN ? THEN NULL ELSE probed_at END, problem = ? WHERE id = ?`, f.Role, f.Size, f.ModifiedNS,
+			im.batch.Scan, replaced, nz(f.Problem), id); err != nil {
+			return err
+		}
+		im.changedFiles = append(im.changedFiles, id)
+	case replaced || missing.Valid:
 		// The file was replaced or came back: its facts and tracks are read again.
-		state.id, state.touched = id, true
+		state.touched = true
 		stats.FilesChanged++
 		if _, err := im.exec(`UPDATE files SET role = ?, size = ?, modified_ns = ?, seen_scan = ?, missing_since_at = NULL,
 			probed_at = ?, container = ?, duration_ms = ?, bitrate = ? WHERE id = ?`, f.Role, f.Size, f.ModifiedNS, im.batch.Scan,
@@ -335,8 +386,11 @@ func (im *importer) importFile(f *ImportFile, stats *ImportStats) error {
 		if err := im.insertStreams(id, f.Streams); err != nil {
 			return err
 		}
-	default:
-		state.id = id
+		im.changedFiles = append(im.changedFiles, id)
+	case FileProblem(problem.Int64) != f.Problem:
+		if _, err := im.exec(`UPDATE files SET problem = ? WHERE id = ?`, nz(f.Problem), id); err != nil {
+			return err
+		}
 	}
 	im.files[f.FileRef] = state
 	return nil
@@ -381,19 +435,37 @@ func (im *importer) file(ref FileRef) (*importedFile, error) {
 }
 
 func (im *importer) importItem(it *ImportItem, stats *ImportStats) error {
-	if len(it.Keys) == 0 {
-		return invalid("item %q has no key", it.Title)
-	}
-	found, err := im.findItem(it.Keys)
+	parent, keys, err := im.place(it)
 	if err != nil {
 		return err
 	}
+	if len(keys) == 0 {
+		return invalid("item %q has no key", it.Title)
+	}
+	// A moved file whose title the owner made or matched by hand stays with that title, whatever
+	// its new names say. Any other file is read again under its new names.
+	found, err := im.pinnedItem(it)
+	if err != nil {
+		return err
+	}
+	if found != nil {
+		keys = fileKeys(keys)
+	} else if found, err = im.findItem(keys); err != nil {
+		return err
+	}
+	if found == nil {
+		// A file that moved brings its title with it when the new names say nothing stored.
+		if found, err = im.movedItem(it, parent); err != nil {
+			return err
+		}
+	}
 	if found == nil {
 		stats.ItemsNew++
-		return im.createItem(it)
+		return im.createItem(it, parent, keys)
 	}
+	im.rows = append(im.rows, found)
 	// A key the item did not have yet is added, so the title is found by it next time too.
-	for _, key := range it.Keys {
+	for _, key := range keys {
 		if im.items[key] == nil {
 			if err := im.insertItemKey(im.batch.LibraryID, key, found.id); err != nil {
 				return err
@@ -406,7 +478,7 @@ func (im *importer) importItem(it *ImportItem, stats *ImportStats) error {
 			return err
 		}
 	}
-	return nil
+	return im.relate(found.id, it)
 }
 
 // findItem returns the stored item any of the keys names, or nil.
@@ -447,19 +519,12 @@ func (im *importer) itemByKey(key ItemKey) (*importedItem, error) {
 	return item, nil
 }
 
-func (im *importer) createItem(it *ImportItem) error {
+func (im *importer) createItem(it *ImportItem, parent *importedItem, keys []ItemKey) error {
 	row := itemRow{ImportItem: it, libraryID: im.batch.LibraryID, publicID: NewID("itm"), addedAt: it.AddedAt, ratingAge: it.RatingAge}
 	if row.addedAt == 0 {
 		row.addedAt = im.now
 	}
-	if it.Parent != nil {
-		parent, err := im.itemByKey(*it.Parent)
-		if err != nil {
-			return err
-		}
-		if parent == nil {
-			return invalid("item %q names a parent that is not in this batch or an earlier one", it.Title)
-		}
+	if parent != nil {
 		row.parentID, row.rootID = parent.id, parent.rootID
 		if row.rootID == 0 {
 			row.rootID = parent.id
@@ -497,7 +562,8 @@ func (im *importer) createItem(it *ImportItem) error {
 		return err
 	}
 	stored := &importedItem{id: id, rootID: row.rootID, parentID: row.parentID, ratingAge: row.ratingAge}
-	for _, key := range it.Keys {
+	im.rows = append(im.rows, stored)
+	for _, key := range keys {
 		if err := im.insertItemKey(im.batch.LibraryID, key, id); err != nil {
 			return err
 		}
@@ -535,6 +601,12 @@ func (im *importer) createItem(it *ImportItem) error {
 		if err := im.createVersion(id, i, &it.Versions[i], versions[i], row.addedAt); err != nil {
 			return err
 		}
+	}
+	if err := im.relate(id, it); err != nil {
+		return err
+	}
+	if err := im.restore(id); err != nil {
+		return err
 	}
 	return appendChange(im.tx, Change{At: im.now, Topic: TopicItem, Op: OpCreated, RefID: id, LibraryID: im.batch.LibraryID})
 }
@@ -691,24 +763,38 @@ func (im *importer) createVersion(itemID int64, position int, v *ImportVersion, 
 	return im.linkSidecars(mediaID, v, false)
 }
 
-// ensureVersion adds a version of a stored item if the item does not have it yet. A version is
-// recognised by the file, and the place in the file, that its first part plays.
+// ensureVersion gives a stored item a version if it does not have it yet. A version is
+// recognised by the file, and the place in the file, that its first part plays. The keys say
+// which item a file belongs to, so a version found on another item moves to this one: that is
+// a file renamed into a different title.
 func (im *importer) ensureVersion(itemID int64, v *ImportVersion) error {
 	facts, err := im.versionFacts(v)
 	if err != nil {
 		return err
 	}
-	var mediaID int64
-	err = im.queryRow(`SELECT m.id FROM media_parts p JOIN media m ON m.id = p.media_id
-		WHERE p.file_id = ? AND m.item_id = ? AND p.position = 0 AND p.start_ms IS ?`, facts.fileIDs[0], itemID, v.Parts[0].StartMS).Scan(&mediaID)
-	if errors.Is(err, sql.ErrNoRows) {
+	var mediaID, owner int64
+	err = im.queryRow(`SELECT m.id, m.item_id FROM media_parts p JOIN media m ON m.id = p.media_id
+		WHERE p.file_id = ? AND p.position = 0 AND p.start_ms IS ? ORDER BY m.item_id = ? DESC LIMIT 1`,
+		facts.fileIDs[0], v.Parts[0].StartMS, itemID).Scan(&mediaID, &owner)
+	if errors.Is(err, sql.ErrNoRows) || err == nil && owner != itemID && v.Shared {
 		var position int
 		if err := im.queryRow(`SELECT count(*) FROM media WHERE item_id = ?`, itemID).Scan(&position); err != nil {
 			return err
 		}
+		im.unsettled = append(im.unsettled, itemID)
 		return im.createVersion(itemID, position, v, facts, im.now)
 	}
 	if err != nil {
+		return err
+	}
+	if owner != itemID {
+		if _, err := im.exec(`UPDATE media SET item_id = ?, position = (SELECT count(*) FROM media WHERE item_id = ?) WHERE id = ?`,
+			itemID, itemID, mediaID); err != nil {
+			return err
+		}
+		im.unsettled = append(im.unsettled, owner, itemID)
+	}
+	if err := im.ensureParts(mediaID, v, facts); err != nil {
 		return err
 	}
 	return im.linkSidecars(mediaID, v, true)
