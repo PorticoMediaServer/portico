@@ -3,6 +3,7 @@
 package auth
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
@@ -32,6 +33,11 @@ type Claims struct {
 	Role string `json:"r"`
 	// Manage says the bearer is on the account's main profile and may change the account itself.
 	Manage bool `json:"m,omitempty"`
+	// ManageUntil, when not zero, is when Manage stops counting until the profile's PIN is
+	// typed again: the device entered the main profile with a remembered PIN.
+	ManageUntil int64 `json:"mu,omitempty"`
+	// Enrol says the bearer may only set up two-step sign-in, which the owner requires.
+	Enrol bool `json:"n,omitempty"`
 	// Boot and Seq place the token in the server's order of session changes, so a token read
 	// before a change to its session can be told from one read after. See db.TokenStamp.
 	Boot      int64 `json:"b"`
@@ -61,8 +67,27 @@ func NewTokens(key string) (*Tokens, error) {
 const (
 	kindAccess  = 'a'
 	kindRefresh = 'r'
+	kindMemory  = 'm'
 	macSize     = 32
 )
+
+// Remember returns a token a device keeps to show later that the server told it to remember
+// something: a profile's PIN, or an account for its sign-in screen. Only this server can
+// make one, so nothing has to be stored here. purpose keeps one kind from passing as another.
+func (t *Tokens) Remember(purpose string, what any) string {
+	payload, _ := json.Marshal(what)
+	return t.seal(kindMemory, append([]byte(purpose+"\x00"), payload...))
+}
+
+// Recall reads a token made by Remember for the same purpose into what.
+func (t *Tokens) Recall(purpose, token string, what any) bool {
+	body, err := t.open(kindMemory, token)
+	if err != nil {
+		return false
+	}
+	payload, ok := bytes.CutPrefix(body, []byte(purpose+"\x00"))
+	return ok && json.Unmarshal(payload, what) == nil
+}
 
 func (t *Tokens) seal(kind byte, payload []byte) string {
 	body := append([]byte{kind}, payload...)

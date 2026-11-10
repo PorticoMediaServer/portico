@@ -500,6 +500,7 @@ CREATE INDEX metadata_history_item ON metadata_history (item_id, id);
 
 -- two_factor_secret is set when enrolment starts and counts once two_factor_enabled_at is set.
 -- two_factor_last_step is the last authenticator time step accepted, so one code works once.
+-- viewing_hours is the times of the week the account may be used, as JSON; NULL is any time.
 CREATE TABLE users (
   id                  INTEGER NOT NULL PRIMARY KEY,
   public_id           TEXT    NOT NULL UNIQUE,
@@ -513,6 +514,7 @@ CREATE TABLE users (
   two_factor_enabled_at INTEGER,
   two_factor_last_step INTEGER,
   disabled_at         INTEGER,
+  viewing_hours       TEXT,
   notes               TEXT,
   extra               TEXT,
   revision            INTEGER NOT NULL DEFAULT 1,
@@ -595,8 +597,11 @@ CREATE INDEX profile_restrictions_tag ON profile_restrictions (tag_id);
 -- One row per sign-in. The refresh token rotates on each renewal. The previous token's hash and
 -- the request id it was renewed with are kept until the next renewal, so a renewal whose reply
 -- was lost can be repeated; any other use of an old token revokes the session. profile_id is
--- NULL until a profile is selected. scope is 'app', or 'member' for a sign-in that never has
--- more than a member's rights: a TV approved from a profile other than the main one.
+-- NULL until a profile is selected. scope is 'app'; 'member' for a sign-in that never has
+-- more than a member's rights (a TV approved from a profile other than the main one); or
+-- 'enrol' for a sign-in that can only set up two-step sign-in, which the owner requires.
+-- manage_until_at is when a main profile entered with a remembered PIN stops being able to
+-- manage the account until the PIN is typed again; NULL is no such limit.
 CREATE TABLE sessions (
   id                    INTEGER NOT NULL PRIMARY KEY,
   public_id             TEXT    NOT NULL UNIQUE,
@@ -614,7 +619,8 @@ CREATE TABLE sessions (
   last_used_at          INTEGER NOT NULL,
   revoked_at            INTEGER,
   revoked_reason        TEXT,
-  remote_addr           TEXT
+  remote_addr           TEXT,
+  manage_until_at       INTEGER
 ) STRICT;
 CREATE INDEX sessions_user ON sessions (user_id);
 CREATE INDEX sessions_profile ON sessions (profile_id) WHERE profile_id IS NOT NULL;
