@@ -219,7 +219,8 @@ type RelatedGroup struct {
 	Items    []Item `json:"items"`
 }
 
-// Person is someone with credits. Their titles are GET /v1/items?person=<id>.
+// Person is someone with credits. Their titles are GET /v1/items?person=<id>. TitleCount, how
+// many of them the caller may see, is present on GET /v1/people/{id}.
 type Person struct {
 	ID         string            `json:"id"`
 	Name       string            `json:"name"`
@@ -228,7 +229,7 @@ type Person struct {
 	DeathDate  string            `json:"deathDate,omitempty"`
 	Birthplace string            `json:"birthplace,omitempty"`
 	Images     map[string]string `json:"images"`
-	TitleCount int               `json:"titleCount"`
+	TitleCount *int              `json:"titleCount,omitempty"`
 }
 
 // Facets is the answer of GET /v1/facets: the choices of one filter over a list, each with
