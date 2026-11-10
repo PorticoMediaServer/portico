@@ -251,7 +251,7 @@ func (w *stateWriter) apply(itemID string, edit StateEdit) (State, *undoOffer, e
 	switch d := edit.DismissContinue; {
 	case d != nil && *d && (!row.dismissedAt.Valid || at > row.dismissedAt.Int64):
 		row.dismissedAt, changed = sql.NullInt64{Int64: at, Valid: true}, true
-	case d != nil && !*d && row.dismissedAt.Valid:
+	case d != nil && !*d && row.dismissedAt.Valid && at > row.dismissedAt.Int64:
 		row.dismissedAt, changed = sql.NullInt64{}, true
 	}
 	set(edit.Rating != nil || edit.ClearRating, &row.ratingAt, func() {
