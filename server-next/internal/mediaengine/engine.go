@@ -17,12 +17,15 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
+	"github.com/PorticoMediaServer/portico/server-next/internal/inputbridge"
 	"github.com/PorticoMediaServer/portico/server-next/internal/libraryfile"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediafacts"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediatools"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/preferences"
+	"github.com/PorticoMediaServer/portico/server-next/internal/processpool"
 	"github.com/PorticoMediaServer/portico/server-next/internal/qualityladder"
+	"github.com/PorticoMediaServer/portico/server-next/internal/remote"
 	"github.com/PorticoMediaServer/portico/server-next/internal/streaming"
 )
 
@@ -32,6 +35,9 @@ type Options struct {
 	Folder string
 	// FFmpeg and FFprobe are the tools to run; empty finds the bundled or installed ones.
 	FFmpeg, FFprobe string
+	// Remote opens a remote source by its id, behind its throttle (remote.Registry.Open).
+	// With none, a file on remote storage does not play.
+	Remote func(ctx context.Context, sourceID int64) (remote.Storage, time.Duration, error)
 }
 
 // Engine is the session layer's Planner and Streams, backed by the real media engine.
@@ -39,6 +45,10 @@ type Engine struct {
 	db      *db.DB
 	streams *streaming.Streams
 	probe   mediafacts.Probe
+	// remote opens remote sources; processes supervises the probes of remote files, which
+	// run on the decoder's isolated bridge, and the streams' converters.
+	remote    func(ctx context.Context, sourceID int64) (remote.Storage, time.Duration, error)
+	processes *processpool.Supervisor
 	// converter is false on a server without a working ffmpeg: only original files play.
 	// fragmented says its ffmpeg can write fragmented MP4 streams.
 	converter, fragmented bool
@@ -50,7 +60,8 @@ type Engine struct {
 // New starts the media engine and finds out what this server's ffmpeg can do. Run must be
 // called for it to do its housekeeping.
 func New(ctx context.Context, d *db.DB, o Options) (*Engine, error) {
-	e := &Engine{db: d, probe: mediafacts.Probe{Binary: o.FFprobe}, facts: map[string]mediafacts.Facts{}}
+	e := &Engine{db: d, probe: mediafacts.Probe{Binary: o.FFprobe}, facts: map[string]mediafacts.Facts{}, remote: o.Remote,
+		processes: &processpool.Supervisor{Limit: 4}}
 	ffmpeg := o.FFmpeg
 	if ffmpeg == "" {
 		ffmpeg = mediatools.Resolve("ffmpeg")
@@ -63,7 +74,7 @@ func New(ctx context.Context, d *db.DB, o Options) (*Engine, error) {
 		decoder.ConfigureToolchain(tools)
 		e.converter, e.fragmented = true, tools.Muxers["mp4"] && tools.Muxers["hls"]
 	}
-	streams, err := streaming.New(ctx, streaming.Options{Folder: o.Folder, FFmpeg: o.FFmpeg, Libraries: e.folders})
+	streams, err := streaming.New(ctx, streaming.Options{Folder: o.Folder, FFmpeg: o.FFmpeg, Libraries: e.folders, Processes: e.processes})
 	e.streams = streams
 	return e, err
 }
@@ -121,31 +132,48 @@ type planned struct {
 	request streaming.PlanRequest
 	path    string
 	place   db.FileOnDisk
+	// remoteID is the remote source the file is on, with path its path within the source, or
+	// 0 for a file on a disk here.
+	remoteID int64
 }
 
-// source finds a version's file on disk and what is in it. The file is measured once and
-// remembered until it changes.
-func (e *Engine) source(ctx context.Context, version db.PlaybackVersion) (string, db.FileOnDisk, mediafacts.Facts, error) {
+// source finds a version's file, on a disk here or on remote storage, and what is in it. The
+// file is measured once and remembered until it changes. A file on remote storage is measured
+// through its source, by range, and its remote source id is returned with its path there.
+func (e *Engine) source(ctx context.Context, version db.PlaybackVersion) (string, db.FileOnDisk, int64, mediafacts.Facts, error) {
 	place, err := e.db.FileOnDisk(ctx, version.FileID)
-	if errors.Is(err, db.ErrNotFound) {
-		return "", place, mediafacts.Facts{}, playback.ErrSourceUnavailable
+	var path string
+	var remoteID int64
+	switch {
+	case errors.Is(err, db.ErrNotFound) && e.remote != nil:
+		if remoteID, place, err = e.db.RemoteFileOf(ctx, version.FileID); errors.Is(err, db.ErrNotFound) {
+			return "", place, 0, mediafacts.Facts{}, playback.ErrSourceUnavailable
+		}
+		path = place.Path
+	case errors.Is(err, db.ErrNotFound):
+		return "", place, 0, mediafacts.Facts{}, playback.ErrSourceUnavailable
+	case err == nil:
+		if path, err = libraryfile.Resolve(place.Path, e.folders()); err != nil {
+			return "", place, 0, mediafacts.Facts{}, playback.ErrSourceUnavailable
+		}
 	}
 	if err != nil {
-		return "", place, mediafacts.Facts{}, err
+		return "", place, 0, mediafacts.Facts{}, err
 	}
-	path, err := libraryfile.Resolve(place.Path, e.folders())
-	if err != nil {
-		return "", place, mediafacts.Facts{}, playback.ErrSourceUnavailable
-	}
-	key := fmt.Sprint(path, "\x00", place.Size, "\x00", place.ModifiedNS)
+	key := fmt.Sprint(remoteID, "\x00", path, "\x00", place.Size, "\x00", place.ModifiedNS)
 	e.mu.Lock()
 	facts, ok := e.facts[key]
 	e.mu.Unlock()
 	if ok {
-		return path, place, facts, nil
+		return path, place, remoteID, facts, nil
 	}
-	if facts, err = e.probe.Inspect(ctx, path); err != nil {
-		return "", place, facts, playback.ErrSourceUnavailable
+	if remoteID != 0 {
+		facts, err = e.inspectRemote(ctx, remoteID, path, place.Size)
+	} else {
+		facts, err = e.probe.Inspect(ctx, path)
+	}
+	if err != nil {
+		return "", place, 0, facts, playback.ErrSourceUnavailable
 	}
 	e.mu.Lock()
 	if len(e.facts) > 2000 {
@@ -153,7 +181,25 @@ func (e *Engine) source(ctx context.Context, version db.PlaybackVersion) (string
 	}
 	e.facts[key] = facts
 	e.mu.Unlock()
-	return path, place, facts, nil
+	return path, place, remoteID, facts, nil
+}
+
+// inspectRemote reads a remote file's facts through its source, so a file on Just list the
+// files is read when someone first plays it.
+func (e *Engine) inspectRemote(ctx context.Context, sourceID int64, path string, size int64) (mediafacts.Facts, error) {
+	storage, _, err := e.remote(ctx, sourceID)
+	if err != nil {
+		return mediafacts.Facts{}, err
+	}
+	file, err := storage.Open(ctx, path)
+	if err != nil {
+		return mediafacts.Facts{}, err
+	}
+	defer file.Close()
+	if file.Size() != size {
+		return mediafacts.Facts{}, streaming.ErrSourceChanged
+	}
+	return inputbridge.Inspect(ctx, e.processes, e.probe.Binary, file, size)
 }
 
 var routes = map[streaming.DeliveryStrategy]string{
@@ -263,7 +309,7 @@ func (s saved) PreferenceSource(key string) string {
 func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	path, place, facts, err := e.source(ctx, r.Version)
+	path, place, remoteID, facts, err := e.source(ctx, r.Version)
 	if err != nil {
 		return playback.Plan{}, err
 	}
@@ -335,7 +381,7 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 	out := playback.Plan{Mode: "stream", Player: plan.Engine, Route: routes[plan.Strategy], Container: plan.OutputContainer,
 		BitrateKbps: (plan.VideoBitrateBPS + plan.AudioBitrateBPS) / 1000, Quality: q,
 		Audio:  &playback.Decision{Action: action(plan.AudioAction), Reasons: plan.ReasonCodes, To: plan.OutputAudioCodec, Channels: plan.AudioChannels},
-		Detail: &planned{plan: plan, request: request, path: path, place: place}}
+		Detail: &planned{plan: plan, request: request, path: path, place: place, remoteID: remoteID}}
 	if plan.Strategy == streaming.DeliveryOriginal {
 		out.Mode, out.Audio.Action = "direct", "direct"
 		out.Audio.Reasons, out.Audio.To = nil, ""
@@ -376,6 +422,14 @@ func (e *Engine) Start(ctx context.Context, r playback.StartRequest) (playback.S
 	request := p.request
 	start := streaming.StartRequest{SessionID: r.SessionID, Plan: p.plan, Request: &request, Path: p.path, Size: p.place.Size,
 		Modified: time.Unix(0, p.place.ModifiedNS), PositionMs: r.PositionMs}
+	if p.remoteID != 0 {
+		// A file on remote storage is read through its source, by range, never by path.
+		storage, _, err := e.remote(ctx, p.remoteID)
+		if err != nil {
+			return playback.Stream{}, playback.ErrSourceUnavailable
+		}
+		start.Path, start.Source = "", streaming.RemoteFile(storage, p.path, p.place.Size, start.Modified)
+	}
 	if r.Replaced != nil {
 		start.Replaced = func(s streaming.Stream) { r.Replaced(stream(s)) }
 	}
