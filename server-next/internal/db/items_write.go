@@ -588,8 +588,7 @@ func (im *importer) createItem(it *ImportItem, parent *importedItem, keys []Item
 		if err != nil {
 			return err
 		}
-		if _, err := im.exec(`INSERT INTO item_tags (item_id, tag_id, library_id, kind, rating_age) VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`,
-			id, tagID, im.batch.LibraryID, it.Kind, row.ratingAge); err != nil {
+		if err := im.tagItem(id, tagID); err != nil {
 			return err
 		}
 	}
