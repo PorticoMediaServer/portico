@@ -59,7 +59,7 @@ func (r *run) probe() error {
 			after = file.ID
 			src := r.source(file.PathID)
 			local := src.LocalPath(file.Rel)
-			if local == "" && r.s.ReaderProber == nil {
+			if local == "" && r.s.ReaderProber == nil || local != "" && r.s.Prober == nil {
 				continue
 			}
 			slots <- struct{}{}
