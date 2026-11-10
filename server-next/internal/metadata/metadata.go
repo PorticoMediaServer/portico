@@ -52,7 +52,23 @@ type Ref struct {
 	Provider string
 	Kind     string // movie, show, episode, person, album, artist, book
 	ID       string
+	// Order is, for a show handed to Children, the episode order its seasons and episodes are
+	// numbered by: OrderAired (the zero value), OrderDVD or OrderAbsolute. A provider that does
+	// not have the show in that order answers ErrNotFound. It is no part of the show's identity:
+	// keys and external ids never carry it.
+	Order string
 }
+
+// The episode orders an owner can choose for a show's match. The choice is kept on the show,
+// in items.extra as "episodeOrder", beside "episodeOffset": a whole number added to every
+// episode number the files give before the provider is asked (files numbered from 101 for a
+// provider that numbers from 1 have the offset -100). Both are the owner's and no refresh
+// changes them. The service reads them and applies the offset; a provider only sees Order.
+const (
+	OrderAired    = ""
+	OrderDVD      = "dvd"
+	OrderAbsolute = "absolute"
+)
 
 // Locale is the library's metadata language and country. The country decides which content
 // rating is taken.
@@ -144,7 +160,8 @@ type Provider interface {
 	// Details answers everything about one title.
 	Details(ctx context.Context, ref Ref, locale Locale) (Record, error)
 	// Children answers what a title holds in one group: the episodes of a show's season, the
-	// tracks of an album's disc.
+	// tracks of an album's disc. For a show, parent.Order says which episode order the group
+	// and the answers' Index are in; in OrderAbsolute there is one group, 1.
 	Children(ctx context.Context, parent Ref, group int, locale Locale) ([]Record, error)
 }
 
