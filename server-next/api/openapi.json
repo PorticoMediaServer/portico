@@ -222,6 +222,27 @@
         ],
         "type": "object"
       },
+      "Condition": {
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "field",
+          "values"
+        ],
+        "type": "object"
+      },
       "Credit": {
         "properties": {
           "character": {
@@ -944,6 +965,59 @@
         "required": [
           "items"
         ],
+        "type": "object"
+      },
+      "ItemQueryRequest": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "favorite": {
+            "type": "boolean"
+          },
+          "filter": {
+            "items": {
+              "$ref": "#/components/schemas/Condition"
+            },
+            "type": "array"
+          },
+          "inList": {
+            "type": "boolean"
+          },
+          "kind": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "library": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "order": {
+            "type": "string"
+          },
+          "parent": {
+            "type": "string"
+          },
+          "person": {
+            "type": "string"
+          },
+          "sort": {
+            "type": "string"
+          },
+          "tag": {
+            "type": "string"
+          },
+          "total": {
+            "type": "boolean"
+          },
+          "watched": {
+            "type": "boolean"
+          }
+        },
         "type": "object"
       },
       "ItemRef": {
@@ -4962,6 +5036,43 @@
     },
     "/v1/items": {
       "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/items/query": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemQueryRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "content": {

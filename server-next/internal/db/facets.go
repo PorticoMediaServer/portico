@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -40,6 +41,13 @@ func (d *DB) Facets(ctx context.Context, v Viewer, q ItemQuery, facet string) ([
 	if err != nil {
 		return nil, err
 	}
+	// A filter's own choices are counted under the other filters in use, not under itself:
+	// choosing Drama must not empty the list of genres.
+	own := facet
+	if facet == FacetDecade {
+		own = "year"
+	}
+	q.Conditions = slices.DeleteFunc(slices.Clone(q.Conditions), func(c Condition) bool { return c.Field == own })
 	w := newQuery(v)
 	if found, err := q.filters(ctx, tx, w, acc); err != nil || !found {
 		return nil, err
