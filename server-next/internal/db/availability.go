@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/sorttext"
@@ -63,29 +64,21 @@ func settleItem(b *batchTx, libraryID, id, now int64) error {
 	return nil
 }
 
-// keptColumns are the columns of user_item_state that a removed title's state keeps.
-var keptColumns = []string{"position_ms", "position_text", "position_at", "played", "played_at", "play_count", "last_played_at",
-	"favorite", "favorite_at", "in_list", "in_list_at", "hidden", "hidden_at", "rating", "rating_at", "audio_language",
-	"subtitle_language", "subtitle_offset_ms", "updated_at"}
+// keptColumns are the columns of user_item_state that removed_state keeps.
+const keptColumns = `position_ms, position_text, position_at, played, played_at, play_count, last_played_at, favorite, favorite_at,
+	in_list, in_list_at, hidden, hidden_at, rating, rating_at, audio_language, subtitle_language, subtitle_offset_ms, updated_at`
 
-var statePack, stateUnpack = func() (pack, unpack string) {
-	for n, column := range keptColumns {
-		if n > 0 {
-			pack, unpack = pack+", ", unpack+", "
-		}
-		pack += "'" + column + "', " + column
-		unpack += "json_extract(state, '$." + column + "')"
-	}
-	return "json_object(" + pack + ")", unpack
-}()
+// keptStateAge is how long a removed title's state is kept for its return.
+const keptStateAge = 365 * 24 * time.Hour
 
-// identities are the names a removed title's state is kept under and found again by: its
-// provider id when it has one, and always its kind, name and year, under those of what holds
-// it ("2|the wire|2002/3#0.1/4#1.5" is an episode of a show).
+// identities are the names a title's state is kept under and found again by, best first: its
+// provider id with its kind when it has one, and its kind, folded title and year. An episode,
+// a season or a track is its show's or album's identity and its own numbers
+// ("id:tmdb:show:1438/3#0.1/4#1.5", "name:2|the wire|2002/3#0.1/4#1.5"), so it works for a
+// show nobody matched, and nothing in it depends on the library.
 func identities(b *batchTx, id int64) ([]string, error) {
-	name := ""
-	var out []string
-	for at := id; at != 0; {
+	tail := ""
+	for at := id; ; {
 		var kind ItemKind
 		var title string
 		var year, parent, index, parentIndex sql.NullInt64
@@ -95,24 +88,25 @@ func identities(b *batchTx, id int64) ([]string, error) {
 			return nil, err
 		}
 		own := fmt.Sprintf("%d|%s|%d", kind, sorttext.Fold(title), year.Int64)
-		if index.Valid && parent.Valid {
-			own = fmt.Sprintf("%d#%d.%d", kind, parentIndex.Int64, index.Int64)
+		if parent.Valid {
+			// Under a parent an item is its numbers, or its name when it has none.
+			if index.Valid {
+				own = fmt.Sprintf("%d#%d.%d", kind, parentIndex.Int64, index.Int64)
+			}
+			tail = "/" + own + tail
+			at = parent.Int64
+			continue
 		}
-		if name == "" {
-			name = own
-		} else {
-			name = own + "/" + name
+		var out []string
+		var provider string
+		err = b.queryRow(`SELECT key FROM item_keys WHERE item_id = ? AND kind = ? ORDER BY key LIMIT 1`, at, KeyProvider).Scan(&provider)
+		if err == nil {
+			out = append(out, "id:"+provider+tail)
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return nil, err
 		}
-		at = parent.Int64
+		return append(out, "name:"+own+tail), nil
 	}
-	var provider string
-	err := b.queryRow(`SELECT key FROM item_keys WHERE item_id = ? AND kind = ? ORDER BY key LIMIT 1`, id, KeyProvider).Scan(&provider)
-	if err == nil {
-		out = append(out, "id:"+provider)
-	} else if !errors.Is(err, sql.ErrNoRows) {
-		return nil, err
-	}
-	return append(out, "name:"+name), nil
 }
 
 // removeItem takes an item and everything under it out of the library, with its extras. What
@@ -152,11 +146,9 @@ func removeItem(b *batchTx, libraryID, id, now int64) error {
 		if err != nil {
 			return err
 		}
-		for _, identity := range names {
-			if _, err := b.exec(`INSERT OR REPLACE INTO removed_state (library_id, identity, profile_id, state, removed_at)
-				SELECT ?, ?, profile_id, `+statePack+`, ? FROM user_item_state WHERE item_id = ?`, libraryID, identity, now, item); err != nil {
-				return err
-			}
+		if _, err := b.exec(`INSERT OR REPLACE INTO removed_state (profile_id, identity, removed_at, `+keptColumns+`)
+			SELECT profile_id, ?, ?, `+keptColumns+` FROM user_item_state WHERE item_id = ?`, names[0], now, item); err != nil {
+			return err
 		}
 	}
 	var leaves int
@@ -199,7 +191,7 @@ func queryInts(tx *sql.Tx, query string, args ...any) ([]int64, error) {
 func (im *importer) restore(id int64) error {
 	if im.restores == nil {
 		var any bool
-		if err := im.queryRow(`SELECT EXISTS (SELECT 1 FROM removed_state WHERE library_id = ?)`, im.batch.LibraryID).Scan(&any); err != nil {
+		if err := im.queryRow(`SELECT EXISTS (SELECT 1 FROM removed_state)`).Scan(&any); err != nil {
 			return err
 		}
 		im.restores = &any
@@ -207,34 +199,60 @@ func (im *importer) restore(id int64) error {
 	if !*im.restores {
 		return nil
 	}
-	names, err := identities(im.batchTx, id)
+	return restoreState(im.batchTx, id)
+}
+
+// later is the SQL for "the kept value, when it was set later than the one there".
+func later(column, at string) string {
+	return column + ` = CASE WHEN ifnull(excluded.` + at + `, 0) > ifnull(user_item_state.` + at + `, 0) THEN excluded.` + column +
+		` ELSE user_item_state.` + column + ` END`
+}
+
+var restoreSQL = func() string {
+	sets := []string{later("position_ms", "position_at"), later("position_text", "position_at"), later("played", "played_at"),
+		later("favorite", "favorite_at"), later("in_list", "in_list_at"), later("hidden", "hidden_at"), later("rating", "rating_at")}
+	// SQLite reads every column as the row was before the update, so each time can become the
+	// later of the two in the same statement.
+	for _, at := range []string{"position_at", "played_at", "favorite_at", "in_list_at", "hidden_at", "rating_at", "last_played_at", "updated_at"} {
+		sets = append(sets, at+` = nullif(max(ifnull(excluded.`+at+`, 0), ifnull(user_item_state.`+at+`, 0)), 0)`)
+	}
+	sets = append(sets, `play_count = max(excluded.play_count, user_item_state.play_count)`,
+		`audio_language = ifnull(user_item_state.audio_language, excluded.audio_language)`,
+		`subtitle_language = ifnull(user_item_state.subtitle_language, excluded.subtitle_language)`,
+		`subtitle_offset_ms = ifnull(user_item_state.subtitle_offset_ms, excluded.subtitle_offset_ms)`)
+	return `INSERT INTO user_item_state (profile_id, item_id, ` + keptColumns + `) SELECT profile_id, ?, ` + keptColumns + `
+		FROM removed_state WHERE identity = ? AND true ON CONFLICT (profile_id, item_id) DO UPDATE SET ` + strings.Join(sets, ", ")
+}()
+
+// restoreState moves kept state onto an item, in the transaction that made or matched it, and
+// drops the kept rows. Where a profile already has state on the item, the later edit wins
+// field by field. Matching calls it too, when a title gets the provider id its removed self had.
+func restoreState(b *batchTx, id int64) error {
+	names, err := identities(b, id)
 	if err != nil {
 		return err
 	}
-	return restoreState(im.batchTx, im.batch.LibraryID, id, names)
-}
-
-// restoreState moves kept state onto an item. Matching calls it too, when a title gets the
-// provider id its removed self had.
-func restoreState(b *batchTx, libraryID, id int64, names []string) error {
-	columns := ""
-	for _, column := range keptColumns {
-		columns += ", " + column
-	}
 	for _, identity := range names {
-		res, err := b.exec(`INSERT OR IGNORE INTO user_item_state (profile_id, item_id`+columns+`) SELECT profile_id, ?, `+stateUnpack+`
-			FROM removed_state WHERE library_id = ? AND identity = ?`, id, libraryID, identity)
+		res, err := b.exec(restoreSQL, id, identity)
 		if err != nil {
 			return err
 		}
 		if n, _ := res.RowsAffected(); n == 0 {
 			continue
 		}
-		if _, err := b.exec(`DELETE FROM removed_state WHERE library_id = ? AND identity = ?`, libraryID, identity); err != nil {
+		if _, err := b.exec(`DELETE FROM removed_state WHERE identity = ?`, identity); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// PruneRemovedState drops the kept state of titles that did not return within a year.
+func (d *DB) PruneRemovedState(ctx context.Context) error {
+	return d.write(ctx, Background, func(tx *sql.Tx) error {
+		_, err := tx.Exec(`DELETE FROM removed_state WHERE removed_at < ?`, time.Now().Add(-keptStateAge).UnixMilli())
+		return err
+	})
 }
 
 // MissingItem is a title in a library's trash.
