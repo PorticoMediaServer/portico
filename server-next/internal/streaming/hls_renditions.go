@@ -256,12 +256,22 @@ func videoCodecString(p *DeliveryPlan) string {
 		}
 		return fmt.Sprintf("hvc1.1.6.L%d.B0", level)
 	case "av1":
-		if p.VideoAction == "convert" {
-			return ""
-		}
 		level, depth, profile := 8, 8, 0
-		if p.VideoAction == "convert" && p.ConversionTarget != nil {
-			depth = p.ConversionTarget.BitDepth
+		if p.VideoAction == "convert" {
+			// The level the encoder will write follows from the picture's size and
+			// cadence, as for H.264 and HEVC above.
+			w, h := convertedDimensions(*p)
+			rate := 0.0
+			if p.Trace != nil && p.Trace.Video != nil {
+				rate = p.Trace.Video.FrameRate
+			}
+			if p.MaxFrameRate > 0 {
+				rate = min(rate, p.MaxFrameRate)
+			}
+			level = decoder.AV1OutputLevel(w, h, rate)
+			if p.ConversionTarget != nil && p.ConversionTarget.BitDepth == 10 {
+				depth = 10
+			}
 		}
 		if p.VideoAction == "copy" && p.Trace != nil && p.Trace.Video != nil {
 			v := p.Trace.Video

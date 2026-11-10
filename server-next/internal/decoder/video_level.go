@@ -42,3 +42,27 @@ func HEVCOutputLevel(width, height int, rate float64) int {
 	}
 	return 186
 }
+
+// AV1OutputLevel is the level an AV1 encoder writes for a picture of this size
+// and cadence, as the number a codec string carries (0 is level 2.0, 8 is 4.0,
+// 12 is 5.0). Unknown dimensions use level 5.1, the most this pipeline produces.
+func AV1OutputLevel(width, height int, rate float64) int {
+	if width <= 0 || height <= 0 {
+		return 13
+	}
+	if rate <= 0 {
+		rate = 60
+	}
+	// Encoders code whole 8 by 8 blocks.
+	pixels := math.Ceil(float64(width)/8) * 8 * math.Ceil(float64(height)/8) * 8
+	for _, bound := range []struct {
+		level          int
+		pixels, second float64
+	}{{0, 147456, 4423680}, {1, 278784, 8363520}, {4, 665856, 19975680}, {5, 1065024, 31950720}, {8, 2359296, 70778880}, {9, 2359296, 141557760},
+		{12, 8912896, 267386880}, {13, 8912896, 534773760}, {14, 8912896, 1069547520}, {16, 35651584, 1069547520}, {17, 35651584, 2139095040}} {
+		if pixels <= bound.pixels && pixels*rate <= bound.second {
+			return bound.level
+		}
+	}
+	return 18
+}
