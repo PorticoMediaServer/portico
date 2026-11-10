@@ -127,6 +127,16 @@ func TestRequiredTwoStep(t *testing.T) {
 	}
 	held.Session = renewed
 	main := onMain(t, s, held)
+	// Someone who joins by invitation while the rule covers them is held the same way.
+	setSignIn(t, s, main.AccessToken, SignInSettingsEdit{RequireTwoStep: to("everyone")})
+	var invited Invitation
+	call(t, s, "POST", "/v1/admin/invitations", main.AccessToken, InvitationCreate{}, &invited)
+	var joined SignInResponse
+	join := InvitationAccept{Username: "nia", Password: testPassword, Device: device(9)}
+	if w := call(t, s, "POST", "/v1/auth/invitations/"+invited.Code+"/accept", "", join, &joined); w.Code != 200 || !joined.Session.TwoStepSetupRequired {
+		t.Errorf("joining by invitation under the rule answered %d, held %v", w.Code, joined.Session.TwoStepSetupRequired)
+	}
+	setSignIn(t, s, main.AccessToken, SignInSettingsEdit{RequireTwoStep: to("admins")})
 	now = now.Add(time.Minute)
 	off := TwoFactorProof{CurrentPassword: testPassword, Code: auth.TOTPCode(secret, auth.TOTPStep(now))}
 	if w := call(t, s, "DELETE", "/v1/me/two-factor", main.AccessToken, off, &refused); w.Code != 403 || refused.Error.Code != "two_factor_required" {
@@ -250,7 +260,7 @@ func TestRememberPIN(t *testing.T) {
 		t.Fatalf("entering with the remembered PIN: %d %+v", code, remembered.Viewer)
 	}
 	var refused errorBody
-	for _, path := range []string{"/v1/devices", "/v1/admin/members"} {
+	for _, path := range []string{"/v1/devices", "/v1/admin/members", "/v1/profiles?member=usr_someone"} {
 		if w := call(t, s, "GET", path, remembered.AccessToken, nil, &refused); w.Code != 403 || refused.Error.Code != "profile_pin_manage" {
 			t.Errorf("%s from a remembered main profile answered %d %s, want 403 profile_pin_manage", path, w.Code, refused.Error.Code)
 		}
