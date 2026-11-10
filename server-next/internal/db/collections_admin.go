@@ -178,6 +178,10 @@ func (d *DB) DeleteCollection(ctx context.Context, v Viewer, collection string) 
 		if err != nil {
 			return err
 		}
+		// An automatic collection the owner deleted is not made again.
+		if err := rememberRemoved(b, library, id); err != nil {
+			return err
+		}
 		return removeItem(b, library, id, time.Now().UnixMilli())
 	})
 }

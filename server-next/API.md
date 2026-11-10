@@ -248,6 +248,11 @@ everyone with the library sees, read like any title (`GET /v1/items?library=…&
 | `PATCH /v1/admin/collections/{id}` | Rename, `add`, `remove` and `order` its titles. Safe to repeat: adding a title it holds changes nothing. What it changes holds against automatic grouping |
 | `DELETE /v1/admin/collections/{id}` | Remove it; its titles stay. A collection whose last title leaves the server goes with it |
 
+With the library option `groupSeries` (Group films from the same series, on unless turned off) a
+collection appears by itself once two films of a series are matched in the library, named
+without "Collection", and later films join it. One the owner deletes is not made again; one
+whose titles the owner changed takes no more by itself.
+
 ## Not on the wire, on purpose
 
 `viewerFence`, `expectedRevision`, `operationId`, a "preparing" answer on a read, query handles,
