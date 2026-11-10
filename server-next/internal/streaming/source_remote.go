@@ -126,7 +126,10 @@ func (f remoteFile) openWindow(ctx context.Context, ffmpeg, ffprobe string) (*Pl
 		reader.Close()
 		return nil, nil, ErrSourceUnavailable
 	}
-	return &PlaybackInput{ReleaseSource: reader.Close}, &bridgeWindow{bridge: bridge, ffmpeg: ffmpeg, ffprobe: ffprobe}, nil
+	// The remote server chooses the bytes. Held to single-file formats, they cannot be a
+	// playlist that sends the converter to another address.
+	options := []string{"-format_whitelist", mediaexec.LocalInputFormats}
+	return &PlaybackInput{ReleaseSource: reader.Close, Options: options}, &bridgeWindow{bridge: bridge, ffmpeg: ffmpeg, ffprobe: ffprobe}, nil
 }
 
 // sequentialReaderAt keeps one request open for a converter reading straight through the
