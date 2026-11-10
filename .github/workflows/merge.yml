@@ -132,10 +132,13 @@ jobs:
     needs: planner
     if: needs.planner.outputs.server_next == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: server-next
+    env:
+      # The media tests convert real files inside the ffmpeg sandbox. Without the sandbox they must fail, not skip.
+      PORTICO_REQUIRE_DECODER_SANDBOX: '1'
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -145,6 +148,30 @@ jobs:
           go-version-file: server-next/go.mod
           cache: true
           cache-dependency-path: server-next/go.sum
+      - name: FFmpeg package cache key
+        id: aptkey
+        run: echo "key=apt-ffmpeg-${ImageOS:-ubuntu}-${ImageVersion:-0}-$(date -u +%G-%V)-v1" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: ${{ runner.temp }}/portico-apt-ffmpeg
+          key: ${{ steps.aptkey.outputs.key }}
+          restore-keys: apt-ffmpeg-
+      - name: Install ffmpeg and bubblewrap, and allow unprivileged user namespaces on this VM
+        env:
+          APT_CACHE: ${{ runner.temp }}/portico-apt-ffmpeg
+        run: |
+          mkdir -p "$APT_CACHE/partial"
+          install() {
+            sudo apt-get install -y --no-install-recommends -o Dir::Cache::archives="$APT_CACHE" ffmpeg bubblewrap
+          }
+          install || { sudo apt-get update && install; }
+          sudo chown -R "$(id -u):$(id -g)" "$APT_CACHE"
+          for setting in kernel.apparmor_restrict_unprivileged_userns=0 kernel.unprivileged_userns_clone=1; do
+            key=${setting%%=*}
+            if [ -e "/proc/sys/${key//.//}" ]; then sudo sysctl -w "$setting"; fi
+          done
+          bwrap --unshare-all --die-with-parent --ro-bind / / --proc /proc --dev /dev --cap-drop ALL /bin/true
+          ffmpeg -version | head -n 1
       - run: go build ./...
       - run: go vet ./...
       - run: go test ./...
