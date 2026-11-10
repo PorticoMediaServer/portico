@@ -201,3 +201,75 @@ func memberToken(t *testing.T, s *Server, owner string) string {
 	addMember(t, s, owner, "sam", "member")
 	return signInAs(t, s, "sam", testPassword, 7).AccessToken
 }
+
+// Deleting one of two episodes held in one file says the other goes too, and takes both.
+// With the library's disk not connected nothing is deleted and the title stays. The whole
+// disk and the server's own folder are refused as library folders.
+func TestDeleteNamesWhatSharesAFileAndRefusesAMissingDisk(t *testing.T) {
+	s := newTestServer(t)
+	owner := onMain(t, s, setup(t, s)).AccessToken
+	for _, folder := range []string{"/", s.dataDir, filepath.Dir(s.dataDir)} {
+		if code := status(t, s, "POST", "/v1/admin/libraries", owner, LibraryCreate{Name: "Shows", Kind: "shows", Folders: []string{folder}}); code != 400 {
+			t.Errorf("a library at %s answered %d; want 400", folder, code)
+		}
+	}
+	root := filepath.Join(t.TempDir(), "shows")
+	double := filepath.Join(root, "Lost", "Season 1", "Lost - S01E01-E02.mkv")
+	writeFile(t, double, 1)
+	var lib AdminLibrary
+	create := LibraryCreate{Name: "Shows", Kind: "shows", Folders: []string{root}, Options: &LibraryOptions{Depth: "basic", Trash: TrashRule{Mode: "manual"}, AllowDelete: true}}
+	if w := call(t, s, "POST", "/v1/admin/libraries", owner, create, &lib); w.Code != 200 {
+		t.Fatalf("creating the library answered %d: %s", w.Code, w.Body)
+	}
+	scanNow(t, s, owner, lib.ID)
+	episodes := func() []struct{ ID, Title string } {
+		var page struct {
+			Items []struct{ ID, Title string }
+		}
+		if w := call(t, s, "GET", "/v1/items?kind=episode&library="+lib.ID, owner, nil, &page); w.Code != 200 {
+			t.Fatalf("listing episodes answered %d: %s", w.Code, w.Body)
+		}
+		return page.Items
+	}
+	both := episodes()
+	if len(both) != 2 {
+		t.Fatalf("episodes: %+v; want the two the file holds", both)
+	}
+	item := "/v1/admin/items/" + both[0].ID
+	var preview DeletionPreview
+	if w := call(t, s, "GET", item+"/deletion", owner, nil, &preview); w.Code != 200 || preview.Titles != 2 || preview.Files != 1 ||
+		len(preview.AlsoRemoves) != 1 || preview.AlsoRemoves[0].ID != both[1].ID {
+		t.Fatalf("delete preview: %d %s", w.Code, w.Body)
+	}
+
+	// The disk goes away: its folder is there and empty.
+	away := root + "-away"
+	if err := os.Rename(root, away); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	confirm := "?confirm=" + url.QueryEscape(preview.Title)
+	if w := call(t, s, "DELETE", item+confirm, owner, nil, nil); w.Code != 409 || len(episodes()) != 2 {
+		t.Fatalf("deleting with the disk away answered %d: %s", w.Code, w.Body)
+	}
+	if err := os.Remove(root); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(away, root); err != nil {
+		t.Fatal(err)
+	}
+
+	var result DeletionResult
+	if w := call(t, s, "DELETE", item+confirm, owner, nil, &result); w.Code != 200 || !result.Removed || result.FilesDeleted != 1 ||
+		len(result.AlsoRemoved) != 1 || result.AlsoRemoved[0].ID != both[1].ID {
+		t.Fatalf("delete: %d %s", w.Code, w.Body)
+	}
+	if _, err := os.Stat(double); err == nil {
+		t.Error("the file is still on disk")
+	}
+	if left := episodes(); len(left) != 0 {
+		t.Errorf("episodes left after the delete: %+v", left)
+	}
+}

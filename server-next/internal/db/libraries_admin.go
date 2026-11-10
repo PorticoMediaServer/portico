@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"path"
+	"slices"
 	"strings"
 	"time"
 )
@@ -239,6 +240,7 @@ func (d *DB) removeTitles(ctx context.Context, libraryID int64, pick string, arg
 // DiskFile is a stored file and where it is on disk.
 type DiskFile struct {
 	ID         int64
+	Root       string // the library folder it is under
 	Path       string
 	Size       int64
 	ModifiedNS int64
@@ -257,6 +259,18 @@ type Deletion struct {
 	Bytes       int64
 	ListEntries int
 	OtherStates int // other profiles' saved places and marks on these titles
+	// Others are versions of other titles that are played from the same files: the second
+	// episode of a file holding two, the other tracks of an album in one file. Deleting the
+	// files removes them too.
+	Others []SharedTitle
+}
+
+// SharedTitle is a version of another title played from a file that is being deleted.
+type SharedTitle struct {
+	ItemID   int64
+	MediaID  int64
+	PublicID string
+	Title    string
 }
 
 const subtreeSQL = `WITH RECURSIVE t(id) AS (SELECT ? UNION ALL SELECT i.id FROM items i JOIN t ON i.parent_id = t.id) `
@@ -317,11 +331,34 @@ func (d *DB) deletion(ctx context.Context, v Viewer, where, id string, version b
 		if err := rows.Scan(&f.ID, &root, &dir, &name, &f.Size, &f.ModifiedNS, &f.Remote); err != nil {
 			return out, err
 		}
-		f.Path = path.Join(root, dir, name)
+		f.Root, f.Path = root, path.Join(root, dir, name)
 		out.Files = append(out.Files, f)
 		out.Bytes += f.Size
 	}
-	return out, rows.Err()
+	if err := rows.Close(); err != nil {
+		return out, err
+	}
+	for _, f := range out.Files {
+		others, err := tx.QueryContext(ctx, `SELECT DISTINCT i.id, m.id, i.public_id, i.title FROM media_parts p JOIN media m ON m.id = p.media_id
+			JOIN items i ON i.id = m.item_id WHERE p.file_id = ? AND m.id NOT IN (`+medias+`) ORDER BY i.id`, append([]any{f.ID}, args...)...)
+		if err != nil {
+			return out, err
+		}
+		for others.Next() {
+			var o SharedTitle
+			if err := others.Scan(&o.ItemID, &o.MediaID, &o.PublicID, &o.Title); err != nil {
+				others.Close()
+				return out, err
+			}
+			if !slices.ContainsFunc(out.Others, func(have SharedTitle) bool { return have.MediaID == o.MediaID }) {
+				out.Others = append(out.Others, o)
+			}
+		}
+		if err := others.Close(); err != nil {
+			return out, err
+		}
+	}
+	return out, nil
 }
 
 // Deleted records that files were deleted from disk. With every file of the deletion gone
@@ -352,12 +389,46 @@ func (d *DB) Deleted(ctx context.Context, del Deletion, deleted []int64) error {
 			if err != nil {
 				return err
 			}
+			for _, other := range del.Others {
+				items = append(items, other.ItemID)
+			}
 			for _, id := range items {
 				if err := settleItem(b, del.LibraryID, id, now); err != nil {
 					return err
 				}
 			}
 			return nil
+		}
+		// The other titles played from these files go with them: a version whose file is
+		// deleted is gone, and a title with no version left is removed, never Missing.
+		for _, other := range del.Others {
+			if _, err := b.exec(`DELETE FROM media WHERE id = ?`, other.MediaID); err != nil {
+				return err
+			}
+		}
+		others := func() error {
+			for _, other := range del.Others {
+				var left int
+				var up sql.NullInt64
+				err := b.queryRow(`SELECT (SELECT count(*) FROM media WHERE item_id = i.id), i.parent_id FROM items i WHERE i.id = ?`, other.ItemID).Scan(&left, &up)
+				if errors.Is(err, sql.ErrNoRows) {
+					continue // already removed with the first of its versions
+				}
+				if err != nil {
+					return err
+				}
+				if left > 0 {
+					err = settleItem(b, del.LibraryID, other.ItemID, now)
+				} else if err = removeItem(b, del.LibraryID, other.ItemID, now); err == nil {
+					err = settleItem(b, del.LibraryID, up.Int64, now)
+				}
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+		switch {
 		case del.MediaID != 0:
 			for _, id := range deleted {
 				if _, err := b.exec(`DELETE FROM files WHERE id = ?`, id); err != nil {
@@ -370,11 +441,17 @@ func (d *DB) Deleted(ctx context.Context, del Deletion, deleted []int64) error {
 			if err := appendChange(tx, Change{At: now, Topic: TopicItem, Op: OpUpdated, RefID: del.ItemID, LibraryID: del.LibraryID}); err != nil {
 				return err
 			}
-			return settleItem(b, del.LibraryID, del.ItemID, now)
+			if err := settleItem(b, del.LibraryID, del.ItemID, now); err != nil {
+				return err
+			}
+			return others()
 		}
 		if err := removeItem(b, del.LibraryID, del.ItemID, now); err != nil {
 			return err
 		}
-		return settleItem(b, del.LibraryID, parent.Int64, now)
+		if err := settleItem(b, del.LibraryID, parent.Int64, now); err != nil {
+			return err
+		}
+		return others()
 	})
 }
