@@ -79,6 +79,8 @@ func run(log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	// rclone, which remote sources run, stops with the server.
+	defer handler.RemoteSources().Close()
 	// The list of changes behind the events feed is kept short. A reader further behind than
 	// what is kept is told to read everything again.
 	go func() {

@@ -154,6 +154,7 @@ func NewRegistry(d *db.DB, dataDir string) (*Registry, error) {
 	if len(key) != 32 {
 		return nil, fmt.Errorf("%s is not a key Portico made", name)
 	}
+	RcloneHome = filepath.Join(dataDir, "rclone")
 	block, _ := aes.NewCipher(key)
 	aead, _ := cipher.NewGCM(block)
 	return &Registry{db: d, aead: aead, open: map[int64]*opened{}}, nil
@@ -251,6 +252,16 @@ func (r *Registry) Waiting(id int64) (time.Time, bool) {
 		return time.Time{}, false
 	}
 	return o.throttle.Waiting()
+}
+
+// Close stops whatever every open source runs (rclone), when the server stops.
+func (r *Registry) Close() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for id, o := range r.open {
+		closeStorage(o.raw)
+		delete(r.open, id)
+	}
 }
 
 // Forget drops what is open for a source that was removed.
