@@ -16,7 +16,8 @@ const (
 	FacetStudio     = "studio"
 	FacetNetwork    = "network"
 	FacetLabel      = "label"
-	FacetDecade     = "decade"
+	FacetYear       = "year"   // counted by decade
+	FacetDecade     = "decade" // the same as FacetYear
 	FacetRating     = "contentRating"
 	FacetResolution = "resolution"
 	// FacetLetter is the letter rail: the first letter of every title in the list, in title
@@ -30,7 +31,9 @@ const maxLetters = 500
 
 // FacetValue is one choice of a filter and how many items of the list it would leave.
 type FacetValue struct {
-	Value string // what to send back as the filter: a tag's public id, "1990", "PG-13", "4k"
+	// Value is what to send back as the filter of the same name: a tag's public id,
+	// "1990..1999" for the year filter, "PG-13", "4k".
+	Value string
 	Label string
 	Count int
 }
@@ -74,10 +77,10 @@ func (d *DB) Facets(ctx context.Context, v Viewer, q ItemQuery, facet string) ([
 	}
 	// A filter's own choices are counted under the other filters in use, not under itself:
 	// choosing Drama must not empty the list of genres.
-	own := facet
 	if facet == FacetDecade {
-		own = "year"
+		facet = FacetYear
 	}
+	own := facet
 	q.Conditions = slices.DeleteFunc(slices.Clone(q.Conditions), func(c Condition) bool { return c.Field == own })
 	w := newQuery(v)
 	if found, err := q.filters(ctx, tx, w, acc); err != nil || !found {
@@ -107,15 +110,17 @@ func (d *DB) Facets(ctx context.Context, v Viewer, q ItemQuery, facet string) ([
 		}
 		query = fmt.Sprintf(`SELECT t.public_id, t.name, sum(c.n) FROM (%s) c JOIN tags t ON t.id = c.tag AND t.kind = '%s'
 			GROUP BY t.id ORDER BY 3 DESC, t.norm_name LIMIT 200`, counts, facetTagKinds[facet])
-	case FacetDecade:
-		query = fmt.Sprintf(`SELECT i.year / 10 * 10, (i.year / 10 * 10) || 's', count(*) FROM %s
+	case FacetYear:
+		query = fmt.Sprintf(`SELECT (i.year / 10 * 10) || '..' || (i.year / 10 * 10 + 9), (i.year / 10 * 10) || 's', count(*) FROM %s
 			WHERE %s AND i.year IS NOT NULL GROUP BY 1 ORDER BY 1 DESC`, from, where)
 	case FacetRating:
 		query = fmt.Sprintf(`SELECT i.content_rating, i.content_rating, count(*) FROM %s
 			WHERE %s AND i.content_rating IS NOT NULL GROUP BY 1 ORDER BY 3 DESC, 1`, from, where)
 	case FacetResolution:
-		query = fmt.Sprintf(`SELECT CASE class WHEN 4 THEN '4k' WHEN 3 THEN '1080p' WHEN 2 THEN '720p' ELSE 'sd' END, '', count(*) FROM (
-			SELECT i.id, max(%s) AS class FROM %s JOIN media m ON m.item_id = i.id AND m.width IS NOT NULL WHERE %s GROUP BY i.id)
+		// A title counts under each resolution it has a version in, as the filter matches it.
+		query = fmt.Sprintf(`SELECT CASE class WHEN 4 THEN '4k' WHEN 3 THEN '1080p' WHEN 2 THEN '720p' ELSE 'sd' END,
+			CASE class WHEN 4 THEN '4K' WHEN 3 THEN '1080p' WHEN 2 THEN '720p' ELSE 'SD' END, count(*) FROM (
+			SELECT DISTINCT i.id, %s AS class FROM %s JOIN media m ON m.item_id = i.id AND m.width IS NOT NULL WHERE %s)
 			GROUP BY class ORDER BY class DESC`, resolutionSQL, from, where)
 	default:
 		return nil, invalid("unknown facet %q", facet)
