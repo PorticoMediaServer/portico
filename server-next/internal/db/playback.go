@@ -412,7 +412,7 @@ func (d *DB) ForgetRouteFailure(ctx context.Context, publicID string) error {
 type Progress struct {
 	Viewer   Viewer
 	ItemID   string
-	DeviceID int64
+	DeviceID int64 // 0 when no device made the play, as for a seeded library
 	// PlayID names this playing of the title. A finished play is counted once per PlayID,
 	// however often it is saved.
 	PlayID     string
@@ -560,7 +560,7 @@ func (w *stateWriter) saveProgress(sample Progress, prefs map[string]string) (fi
 	}
 	if done {
 		res, err := w.exec(`INSERT INTO play_history (profile_id, item_id, device_id, client_event_id, played_at, watched_ms, item_kind, title,
-			subtitle, hidden_from_profile) VALUES (?, ?, ?, ?, ?, ?, ?, ?, nullif(?, ''), ?) ON CONFLICT (profile_id, client_event_id) DO NOTHING`,
+			subtitle, hidden_from_profile) VALUES (?, ?, nullif(?, 0), ?, ?, ?, ?, ?, nullif(?, ''), ?) ON CONFLICT (profile_id, client_event_id) DO NOTHING`,
 			w.viewer.ProfileID, id, sample.DeviceID, sample.PlayID, sample.At.UnixMilli(), sample.WatchedMS, kind, title, holder, paused)
 		if err != nil {
 			return false, err

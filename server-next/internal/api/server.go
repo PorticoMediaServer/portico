@@ -177,6 +177,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.catalogueRoutes()
 	s.artwork = artwork.New(dataDir)
 	s.imageRoutes()
+	s.historyRoutes()
 	s.playback = playback.New(d, playback.NoEngine{}, playback.NoEngine{}, log, func() time.Time { return s.now() })
 	go s.playback.Run(ctx)
 	s.playbackRoutes()
