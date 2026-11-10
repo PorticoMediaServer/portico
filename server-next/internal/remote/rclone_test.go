@@ -33,7 +33,12 @@ func fakeRclone(args []string) int {
 			return 2
 		}
 	}
-	if os.Getenv("RCLONE_CONFIG_PORTICO_TYPE") != "drive" || os.Getenv("RCLONE_CONFIG_PORTICO_TOKEN") != fakeToken {
+	env := os.Getenv
+	signedIn := env("RCLONE_CONFIG_PORTICO_TOKEN") == fakeToken ||
+		env("RCLONE_CONFIG_PORTICO_CLIENT_ID") == "client-1" && env("RCLONE_CONFIG_PORTICO_CLIENT_SECRET") == "secret-1" &&
+			strings.Contains(env("RCLONE_CONFIG_PORTICO_TOKEN"), `"refresh_token":"refresh-1"`) ||
+		strings.Contains(env("RCLONE_CONFIG_PORTICO_SERVICE_ACCOUNT_CREDENTIALS"), `"service_account"`)
+	if env("RCLONE_CONFIG_PORTICO_TYPE") != "drive" || !signedIn {
 		fmt.Fprintln(os.Stderr, "Failed to create file system: didn't find section in config file")
 		return 1
 	}

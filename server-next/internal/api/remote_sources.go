@@ -20,7 +20,7 @@ import (
 // RemoteSource is a remote source as the owner sees it.
 type RemoteSource struct {
 	ID string `json:"id"`
-	// Kind is webdav or rclone.
+	// Kind is webdav, rclone or drive.
 	Kind string `json:"kind"`
 	Name string `json:"name"`
 	// Preset is list-only, read-once (the default), everything or on-request.
@@ -28,6 +28,7 @@ type RemoteSource struct {
 	Limits RemoteLimits `json:"limits"`
 	WebDAV *WebDAVShown `json:"webdav,omitempty"`
 	Rclone *RcloneShown `json:"rclone,omitempty"`
+	Drive  *DriveShown  `json:"drive,omitempty"`
 	// State is connected, unreachable, sign_in (needs its sign-in again), waiting (it asked
 	// Portico to slow down, until WaitingUntil) or setup (no library folder is on it yet).
 	State        string     `json:"state"`
@@ -74,6 +75,38 @@ type RcloneSettings struct {
 	Path   string `json:"path,omitempty"`
 }
 
+// DriveShown is a Google Drive source as shown: the folder in it, and what it signs in with
+// (service-account or oauth, with the OAuth client's id). Never a key, secret or token.
+type DriveShown struct {
+	Path         string `json:"path,omitempty"`
+	SignedInWith string `json:"signedInWith"`
+	ClientID     string `json:"clientId,omitempty"`
+}
+
+// DriveSettings are what a Google Drive source signs in with, with the owner's own Google
+// credentials: a service account key (the JSON file, pasted), or a finished sign-in with the
+// owner's OAuth client (SignIn from POST /v1/admin/remote-sources/drive-sign-in and the
+// address the browser was sent to). On an edit, leaving both out keeps the stored sign-in.
+type DriveSettings struct {
+	ServiceAccountKey string `json:"serviceAccountKey,omitempty"`
+	SignIn            string `json:"signIn,omitempty"`
+	RedirectedURL     string `json:"redirectedUrl,omitempty"`
+	Path              string `json:"path,omitempty"`
+}
+
+// DriveSignInStart starts a sign-in with the owner's own Google OAuth client.
+type DriveSignInStart struct {
+	ClientID     string `json:"clientId"`
+	ClientSecret string `json:"clientSecret"`
+}
+
+// DriveSignInStarted is the sign-in to finish: open Address, allow Portico to read Drive, and
+// paste the address the browser is sent to (a page that does not load) as redirectedUrl.
+type DriveSignInStarted struct {
+	SignIn  string `json:"signIn"`
+	Address string `json:"address"`
+}
+
 // RemoteSourceCreate adds a source. Its connection is tested first and nothing is saved
 // unless the test succeeds. Send an Idempotency-Key.
 type RemoteSourceCreate struct {
@@ -83,6 +116,7 @@ type RemoteSourceCreate struct {
 	Limits *RemoteLimits   `json:"limits,omitempty"`
 	WebDAV *WebDAVSettings `json:"webdav,omitempty"`
 	Rclone *RcloneSettings `json:"rclone,omitempty"`
+	Drive  *DriveSettings  `json:"drive,omitempty"`
 }
 
 // RemoteSourceEdit changes a source. Fields left out stay. A change to how it is reached
@@ -93,6 +127,7 @@ type RemoteSourceEdit struct {
 	Limits *RemoteLimits   `json:"limits,omitempty"`
 	WebDAV *WebDAVSettings `json:"webdav,omitempty"`
 	Rclone *RcloneSettings `json:"rclone,omitempty"`
+	Drive  *DriveSettings  `json:"drive,omitempty"`
 }
 
 // RemoteFolder is a folder on a source, for choosing a library's folders.
@@ -144,6 +179,14 @@ func (s *Server) remoteSourceRoutes() {
 		return s.remoteSourceOut(row), err
 	})
 	Handle(s, "GET /v1/admin/remote-sources/{id}/folders", Owner, s.remoteFolders)
+	Handle(s, "POST /v1/admin/remote-sources/drive-sign-in", Owner, func(r *http.Request, req DriveSignInStart) (DriveSignInStarted, error) {
+		req.ClientID, req.ClientSecret = strings.TrimSpace(req.ClientID), strings.TrimSpace(req.ClientSecret)
+		if req.ClientID == "" || req.ClientSecret == "" || len(req.ClientID) > 512 || len(req.ClientSecret) > 512 {
+			return DriveSignInStarted{}, ErrInvalid("Give your Google OAuth client's id and secret.")
+		}
+		id, address := s.driveSignIns.Start(req.ClientID, req.ClientSecret)
+		return DriveSignInStarted{SignIn: id, Address: address}, nil
+	})
 }
 
 func (s *Server) remoteSource(r *http.Request) (db.RemoteSource, error) {
@@ -165,6 +208,11 @@ func (s *Server) remoteSourceOut(row db.RemoteSource) RemoteSource {
 		out.WebDAV = &WebDAVShown{Address: c.Address, User: c.User, PasswordSet: c.SecretSet}
 	case "rclone":
 		out.Rclone = &RcloneShown{Type: c.RcloneType, Path: c.Path}
+	case "drive":
+		out.Drive = &DriveShown{Path: c.Path, SignedInWith: "service-account", ClientID: c.DriveClientID}
+		if c.DriveClientID != "" {
+			out.Drive.SignedInWith = "oauth"
+		}
 	}
 	switch until, waiting := s.remote.Waiting(row.ID); {
 	case waiting:
@@ -219,8 +267,31 @@ func remoteSettings(kind string, c *remote.Config, secret *remote.Secret, preset
 			}
 			secret.Rclone, c.RcloneType, c.SecretSet = rc.Config, options["type"], true
 		}
+	case "drive":
 	default:
-		return ErrField("kind", "The kind of source is webdav or rclone.")
+		return ErrField("kind", "The kind of source is webdav, rclone or drive.")
+	}
+	return nil
+}
+
+// driveSettings folds a Drive source's settings in, finishing its sign-in if one is given.
+func (s *Server) driveSettings(ctx context.Context, c *remote.Config, secret *remote.Secret, d *DriveSettings) error {
+	if d == nil {
+		return nil
+	}
+	c.Path = strings.Trim(strings.TrimSpace(d.Path), "/")
+	switch {
+	case d.ServiceAccountKey != "":
+		if err := remote.CheckServiceAccountKey(d.ServiceAccountKey); err != nil {
+			return ErrField("drive.serviceAccountKey", "Paste the JSON key Google gives for a service account.")
+		}
+		*secret, c.DriveClientID, c.SecretSet = remote.Secret{DriveKey: d.ServiceAccountKey}, "", true
+	case d.SignIn != "":
+		id, clientSecret, token, err := s.driveSignIns.Finish(ctx, d.SignIn, d.RedirectedURL)
+		if err != nil {
+			return refusal(http.StatusUnprocessableEntity, "drive_sign_in", "The Google sign-in did not finish: "+err.Error()+".", false)
+		}
+		*secret, c.DriveClientID, c.SecretSet = remote.Secret{DriveClientSecret: clientSecret, DriveToken: token}, id, true
 	}
 	return nil
 }
@@ -242,6 +313,14 @@ func (s *Server) createRemoteSource(r *http.Request, req RemoteSourceCreate) (Re
 	preset := req.Preset
 	if err := remoteSettings(req.Kind, &c, &secret, &preset, req.Limits, req.WebDAV, req.Rclone); err != nil {
 		return RemoteSource{}, err
+	}
+	if req.Kind == "drive" {
+		if req.Drive == nil || req.Drive.ServiceAccountKey == "" && req.Drive.SignIn == "" {
+			return RemoteSource{}, ErrField("drive", "Paste a service account key, or sign in with your own Google OAuth client.")
+		}
+		if err := s.driveSettings(ctx, &c, &secret, req.Drive); err != nil {
+			return RemoteSource{}, err
+		}
 	}
 	key := r.Header.Get("Idempotency-Key")
 	if len(key) > 128 {
@@ -267,6 +346,11 @@ func (s *Server) createRemoteSource(r *http.Request, req RemoteSourceCreate) (Re
 		rc := *hashed.Rclone
 		rc.Config = ""
 		hashed.Rclone = &rc
+	}
+	if hashed.Drive != nil {
+		d := *hashed.Drive
+		d.ServiceAccountKey, d.RedirectedURL = "", ""
+		hashed.Drive = &d
 	}
 	row, err := s.db.CreateRemoteSource(ctx, publicID, db.NewRemoteSource{UserID: CallerFrom(ctx).UserID, Kind: req.Kind, Name: req.Name,
 		Config: string(config), Secret: sealed, IdempotencyKey: key, RequestID: requestHash(hashed), Now: s.now()})
@@ -296,8 +380,13 @@ func (s *Server) editRemoteSource(r *http.Request, req RemoteSourceEdit) (Remote
 	if err := remoteSettings(row.Kind, &c, &secret, req.Preset, req.Limits, req.WebDAV, req.Rclone); err != nil {
 		return RemoteSource{}, err
 	}
+	if row.Kind == "drive" {
+		if err := s.driveSettings(ctx, &c, &secret, req.Drive); err != nil {
+			return RemoteSource{}, err
+		}
+	}
 	edit := db.RemoteSourceEdit{Name: req.Name, Now: s.now()}
-	if req.Rclone != nil {
+	if req.Rclone != nil || req.Drive != nil {
 		// A new configuration or folder: test it, with the stored configuration unless a new
 		// one was given. The configuration names its own hosts, so it is kept with them.
 		if secret == (remote.Secret{}) {

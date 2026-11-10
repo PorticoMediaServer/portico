@@ -53,6 +53,8 @@ type Server struct {
 	queues *playqueue.Service
 	// remote opens the owner's remote sources. See remote_sources.go.
 	remote *remote.Registry
+	// driveSignIns are Google sign-ins for Drive sources under way.
+	driveSignIns remote.DriveSignIns
 }
 
 // Route is one operation, kept so the contract can be generated and the operation budget counted.
