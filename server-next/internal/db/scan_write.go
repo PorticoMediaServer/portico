@@ -114,13 +114,26 @@ func goneFiles(b *batchTx, now int64, changed *[]int64, where string, args ...an
 		}
 	}
 	for _, id := range others {
+		// A picture that was this file goes with it, and the next best is shown.
+		shown, err := shownPictures(b, id)
+		if err != nil {
+			return err
+		}
 		if _, err := b.exec(`DELETE FROM files WHERE id = ?`, id); err != nil {
 			return err
+		}
+		for _, picture := range shown {
+			if err := selectPicture(b, picture.item, picture.role); err != nil {
+				return err
+			}
 		}
 	}
 	*changed = append(*changed, plays...)
 	return nil
 }
+
+// errNothingToReread: an item that only re-reads local details names a parent that is not stored.
+var errNothingToReread = errors.New("nothing to read again")
 
 // place finds an item's parent and turns its keys into the ones stored: a ChildKey becomes a
 // name key under the parent.
@@ -136,6 +149,9 @@ func (im *importer) place(it *ImportItem) (*importedItem, []ItemKey, error) {
 		found, err := im.itemByKey(*it.Parent)
 		if err != nil {
 			return nil, nil, err
+		}
+		if found == nil && it.Reread && len(it.Versions) == 0 {
+			return nil, nil, errNothingToReread
 		}
 		if found == nil {
 			return nil, nil, invalid("item %q names a parent that is not in this batch or an earlier one", it.Title)
