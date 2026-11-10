@@ -84,3 +84,20 @@ func renditionInitFile(ordinal int) string { return fmt.Sprintf("audio-%d-init.m
 func isRenditionInit(name string) bool {
 	return strings.HasPrefix(name, "audio-") && strings.HasSuffix(name, "-init.mp4")
 }
+
+func (h *HLS) highestServed(id string) int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	// The stream remembers the furthest segment it has served, so the answer
+	// outlives the window that served it.
+	served := -1
+	if s := h.streams[id]; s != nil {
+		served = s.served
+	}
+	for key, w := range h.windows {
+		if producerSession(key) == id {
+			served = max(served, w.served)
+		}
+	}
+	return served
+}

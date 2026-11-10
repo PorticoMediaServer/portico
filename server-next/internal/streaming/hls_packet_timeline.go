@@ -3,9 +3,13 @@ package streaming
 import (
 	"bytes"
 	"context"
+	"io"
 	"math"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/mediaexec"
 )
 
 // packetTimelineWriter retains one timestamp per grid line while ffprobe walks
@@ -89,4 +93,25 @@ func probePacketTimeline(ctx context.Context, probe timelinePacketProbe, start, 
 		return nil, err
 	}
 	return writer.timeline()
+}
+
+func localPacketTimelineProbe(ffprobe string, input *PlaybackInput) timelinePacketProbe {
+	return func(ctx context.Context, writer io.Writer) error {
+		ctx, releaseInput := input.BorrowContext(ctx)
+		defer releaseInput()
+		if input.File != nil {
+			_, _ = input.File.Seek(0, io.SeekStart)
+		}
+		args := []string{"-v", "error", "-protocol_whitelist", "file,pipe", "-fflags", "+genpts", "-select_streams", "v:0", "-show_entries", "packet=pts_time,flags", "-of", "csv=p=0", input.Argument}
+		cmd, err := mediaexec.CommandContext(ctx, mediaexec.Job{Executable: ffprobe, Args: args, Files: input.ExtraFiles(), ReadPaths: input.ReadPaths()})
+		if err != nil {
+			return err
+		}
+		cmd.WaitDelay = time.Second
+		cmd.Stdout = writer
+		if err := cmd.Run(); err != nil {
+			return errCopyTimeline
+		}
+		return nil
+	}
 }
