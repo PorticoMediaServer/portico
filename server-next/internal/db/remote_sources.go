@@ -168,3 +168,35 @@ func (d *DB) SetRemoteSourceState(ctx context.Context, id int64, state, lastErro
 		return err
 	})
 }
+
+// AddRemoteFolder adds a folder on a remote source to a library: path is the folder within
+// the source. It tells open screens that the library changed.
+func (d *DB) AddRemoteFolder(ctx context.Context, libraryID, sourceID int64, path string) (LibraryPath, error) {
+	out := LibraryPath{Path: path, RemoteID: sourceID}
+	err := d.write(ctx, User, func(tx *sql.Tx) error {
+		res, err := tx.Exec(`INSERT INTO library_paths (library_id, remote_source_id, path) VALUES (?, ?, ?)`, libraryID, sourceID, path)
+		if err != nil {
+			return err
+		}
+		out.ID, _ = res.LastInsertId()
+		return appendChange(tx, Change{At: time.Now().UnixMilli(), Topic: TopicLibrary, Op: OpUpdated, RefID: libraryID, LibraryID: libraryID})
+	})
+	return out, err
+}
+
+// RemoteFileOf returns where a file on remote storage is: its source, and its path within
+// the source (the library folder's path there, then the file's place beneath it), with its
+// size and modified time as scanned. A local file, or one that has gone missing, is
+// ErrNotFound.
+func (d *DB) RemoteFileOf(ctx context.Context, fileID int64) (int64, FileOnDisk, error) {
+	var source int64
+	var out FileOnDisk
+	err := d.read.QueryRowContext(ctx, `SELECT lp.remote_source_id, ltrim(rtrim(lp.path, '/') || '/' || CASE WHEN dir.rel_path = '' THEN '' ELSE dir.rel_path || '/' END || f.name, '/'),
+		f.size, f.modified_ns FROM files f JOIN directories dir ON dir.id = f.directory_id
+		JOIN library_paths lp ON lp.id = dir.library_path_id
+		WHERE f.id = ? AND f.missing_since_at IS NULL AND lp.remote_source_id IS NOT NULL`, fileID).Scan(&source, &out.Path, &out.Size, &out.ModifiedNS)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, out, ErrNotFound
+	}
+	return source, out, err
+}
