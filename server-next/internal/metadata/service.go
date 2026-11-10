@@ -133,9 +133,18 @@ func (s *Service) children(ctx context.Context, p Provider, locale Locale, itemI
 	if ref.Kind != "show" {
 		return nil
 	}
-	groups, err := s.DB.ChildNumbers(ctx, itemID)
+	// The owner's episode order goes to the provider; the offset turns the files' episode
+	// numbers into the provider's and back.
+	numbering, err := s.DB.EpisodeNumbering(ctx, itemID)
 	if err != nil {
 		return err
+	}
+	ref.Order = numbering.Order
+	groups, apply := []int{1}, -1 // in absolute order the provider has one group, numbered through the show
+	if ref.Order != OrderAbsolute {
+		if groups, err = s.DB.ChildNumbers(ctx, itemID); err != nil {
+			return err
+		}
 	}
 	for _, group := range groups {
 		records, err := p.Children(ctx, ref, group, locale)
@@ -148,8 +157,12 @@ func (s *Service) children(ctx context.Context, p Provider, locale Locale, itemI
 		children := make([]db.ItemDetails, len(records))
 		for i, record := range records {
 			children[i] = details(record, db.MatchFound)
+			children[i].Index = record.Index - numbering.Offset
 		}
-		if err := s.DB.ApplyChildren(ctx, db.Background, itemID, db.KindEpisode, group, children); err != nil {
+		if ref.Order != OrderAbsolute {
+			apply = group
+		}
+		if err := s.DB.ApplyChildren(ctx, db.Background, itemID, db.KindEpisode, apply, children); err != nil {
 			return err
 		}
 	}
@@ -235,6 +248,13 @@ func (s *Service) target(ctx context.Context, itemID string) (db.MatchTarget, Pr
 	return t, p, Locale{Language: src.Language, Region: src.Region}, nil
 }
 
+// ErrNotAShow is the answer to an episode order or offset given with the match of a title
+// that is not a show.
+var ErrNotAShow = errors.New("only a show has an episode order and offset")
+
+// ErrUnknownOrder is the answer to an episode order other than aired, DVD or absolute.
+var ErrUnknownOrder = errors.New("not an episode order")
+
 // ErrNoProvider is the answer for a title no provider can be asked about: its library uses
 // local metadata only, or it is of a kind the library's provider does not know.
 var ErrNoProvider = errors.New("this title's library has no provider to ask")
@@ -247,6 +267,13 @@ var ErrNoProvider = errors.New("this title's library has no provider to ask")
 // The provider is asked first; the title changes in one transaction after it has answered.
 // A show's episodes then follow as background work before Identify returns.
 func (s *Service) Identify(ctx context.Context, itemID string, ref Ref) (string, error) {
+	return s.IdentifyShow(ctx, itemID, ref, 0)
+}
+
+// IdentifyShow is Identify with a show's number offset. For a show, ref.Order and offset are
+// the episode order and number offset the owner chose with the match: they are kept on the
+// show and used by every later refresh. A title that is not a show takes neither.
+func (s *Service) IdentifyShow(ctx context.Context, itemID string, ref Ref, offset int) (string, error) {
 	t, p, locale, err := s.target(ctx, itemID)
 	if err != nil {
 		return "", err
@@ -254,12 +281,23 @@ func (s *Service) Identify(ctx context.Context, itemID string, ref Ref) (string,
 	if ref.Provider != "" && ref.Provider != p.Name() {
 		return "", ErrUnknownRef
 	}
-	ref.Provider, ref.Kind = p.Name(), providerKinds[t.Kind]
+	order := ref.Order
+	ref.Provider, ref.Kind, ref.Order = p.Name(), providerKinds[t.Kind], OrderAired
+	if ref.Kind != "show" && (order != OrderAired || offset != 0) {
+		return "", ErrNotAShow
+	}
+	if order != OrderAired && order != OrderDVD && order != OrderAbsolute {
+		return "", ErrUnknownOrder
+	}
 	record, err := p.Details(ctx, ref, locale)
 	if err != nil {
 		return "", err
 	}
-	remaining, err := s.DB.ChangeMatch(ctx, db.User, t.ID, details(record, db.MatchChosen))
+	chosen := details(record, db.MatchChosen)
+	if ref.Kind == "show" {
+		chosen.Numbering = &db.EpisodeNumbering{Order: order, Offset: offset}
+	}
+	remaining, err := s.DB.ChangeMatch(ctx, db.User, t.ID, chosen)
 	if err != nil || remaining != itemID {
 		return remaining, err // merged into a title that has its details already
 	}

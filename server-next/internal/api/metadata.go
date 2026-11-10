@@ -53,6 +53,12 @@ type MatchRequest struct {
 	ID       string `json:"id,omitempty"`
 	// KeepAsIs takes an unmatched title off Unmatched items until its files change.
 	KeepAsIs bool `json:"keepAsIs,omitempty"`
+	// For a show: the episode order its files are numbered in, aired (the default), dvd or
+	// absolute, and a whole number added to every episode number the files give before the
+	// provider is asked (files numbered from 101 for a provider that numbers from 1: -100).
+	// Both are kept with the match through every refresh.
+	EpisodeOrder  string `json:"episodeOrder,omitempty"`
+	EpisodeOffset int    `json:"episodeOffset,omitempty"`
 }
 
 // MergeRequest names the other title, which is merged into the one in the address.
@@ -91,6 +97,10 @@ func metadataError(err error) error {
 		return ErrConflict("match_locked", "A person chose this title's match. Choose another match to change it.")
 	case errors.Is(err, metadata.ErrUnknownRef), errors.Is(err, metadata.ErrNotFound):
 		return refusal(http.StatusUnprocessableEntity, "unknown_ref", "The provider has no title with that id or address.", false)
+	case errors.Is(err, metadata.ErrUnknownOrder):
+		return ErrField("episodeOrder", "Use aired, dvd or absolute.")
+	case errors.Is(err, metadata.ErrNotAShow):
+		return refusal(http.StatusUnprocessableEntity, "not_a_show", "Only a show has an episode order and offset.", false)
 	case errors.Is(err, metadata.ErrWrongKind):
 		return refusal(http.StatusUnprocessableEntity, "wrong_kind", "That address is of a film and this is a show, or the other way round.", false)
 	case errors.Is(err, db.ErrNotFound), errors.Is(err, db.ErrInvalid):
@@ -190,7 +200,14 @@ func (s *Server) setMatch(r *http.Request, req MatchRequest) (MatchResult, error
 	case req.ID == "":
 		return MatchResult{}, ErrField("id", "Name the match to use, as the list of matches gave it.")
 	}
-	remaining, err := s.metadata.Identify(r.Context(), id, metadata.Ref{Provider: req.Provider, ID: req.ID})
+	order := req.EpisodeOrder
+	if order == "aired" {
+		order = metadata.OrderAired
+	}
+	if req.EpisodeOffset < -9999 || req.EpisodeOffset > 9999 {
+		return MatchResult{}, ErrField("episodeOffset", "Use a whole number from -9999 to 9999.")
+	}
+	remaining, err := s.metadata.IdentifyShow(r.Context(), id, metadata.Ref{Provider: req.Provider, ID: req.ID, Order: order}, req.EpisodeOffset)
 	if err != nil && remaining == "" {
 		return MatchResult{}, metadataError(err)
 	}
