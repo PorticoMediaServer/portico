@@ -17,6 +17,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/api"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
+	"github.com/PorticoMediaServer/portico/server-next/internal/libraryfile"
 )
 
 // version is set by the release build.
@@ -57,6 +58,12 @@ func run(log *slog.Logger) error {
 	if err := os.MkdirAll(*data, 0o700); err != nil {
 		return err
 	}
+	// Nothing in the data folder is ever played as a library file.
+	serverData, err := filepath.Abs(*data)
+	if err != nil {
+		return err
+	}
+	libraryfile.ServerData = serverData
 	d, err := db.Open(ctx, filepath.Join(*data, "main.db"))
 	if err != nil {
 		return err
