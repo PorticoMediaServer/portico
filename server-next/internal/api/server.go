@@ -59,9 +59,11 @@ type Server struct {
 	// playback runs the viewing sessions. See playback.go.
 	playback *playback.Service
 	// queues builds and runs play queues. See queues.go.
-	queues  *playqueue.Service
-	network networkState
-	media   func(w http.ResponseWriter, r *http.Request, grant, file string)
+	queues       *playqueue.Service
+	network      networkState
+	media        func(w http.ResponseWriter, r *http.Request, grant, file string)
+	dataDir      string
+	signInPolicy policyState
 	// feeds caps the change feeds each sign-in holds open. See catalogue.go.
 	feeds feeds
 	// remote opens the owner's remote sources. See remote_sources.go.
@@ -82,6 +84,8 @@ type Route struct {
 	// Status is the status of a reply with a body when it is not 200: 202 for a slow write
 	// that answers with a job to watch.
 	Status int
+	// Enrolling routes also take a sign-in that may only set up two-step sign-in.
+	Enrolling bool
 }
 
 // Scope is what a key made for a tool must have been given to use a route. A signed-in
@@ -180,10 +184,15 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	if err := s.loadNetworks(ctx); err != nil {
 		return nil, err
 	}
+	if err := s.loadPolicy(ctx); err != nil {
+		return nil, err
+	}
 	s.systemRoutes()
 	s.networkRoutes()
+	s.signInSettingsRoutes()
 	s.identityRoutes()
 	s.authRoutes()
+	s.ownerResetRoutes()
 	s.profileRoutes()
 	s.preferenceRoutes()
 	s.deviceRoutes()
@@ -411,6 +420,11 @@ type Caller struct {
 	// Manage says the caller is on the account's main profile, and so may change the account
 	// itself: its profiles, devices, sessions and password.
 	Manage bool
+	// PINNeeded says the caller is on the main profile but entered it with a remembered PIN
+	// more than an hour after the PIN was last typed: managing needs the PIN again.
+	PINNeeded bool
+	// Enrol says the caller may only set up two-step sign-in, which the owner requires.
+	Enrol bool
 }
 
 // CallerFrom returns the signed-in caller of a route whose access is not Public.
@@ -452,9 +466,16 @@ func (s *Server) admit(r *http.Request, route *Route) (*http.Request, error) {
 		if err != nil || s.db.TokenRefused(claims.SessionID, db.TokenStamp{Boot: claims.Boot, Seq: claims.Seq}) {
 			return r, ErrUnauthorized()
 		}
-		c = Caller{SessionID: claims.SessionID, UserID: claims.UserID, ProfileID: claims.ProfileID, Role: claims.Role, Manage: claims.Manage}
+		c = Caller{SessionID: claims.SessionID, UserID: claims.UserID, ProfileID: claims.ProfileID, Role: claims.Role, Manage: claims.Manage, Enrol: claims.Enrol}
+		if c.Manage && claims.ManageUntil != 0 && s.now().UnixMilli() >= claims.ManageUntil {
+			c.Manage, c.PINNeeded = false, true
+		}
 	}
 	switch {
+	case c.Enrol && !route.Enrolling:
+		return r, refusal(http.StatusForbidden, "factor_setup_required", "Set up two-step sign-in to finish signing in.", false)
+	case c.PINNeeded && (route.Access == Admin || route.Access == Owner):
+		return r, errPINToManage()
 	case route.Access == WithProfile && c.ProfileID == 0:
 		return r, ErrConflict("profile_selection_required", "Choose a profile to continue.")
 	case route.Access == Admin && c.Role != "owner" && c.Role != "admin", route.Access == Owner && c.Role != "owner":

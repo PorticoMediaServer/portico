@@ -13,6 +13,9 @@ import (
 	"path/filepath"
 	"syscall"
 	"time"
+	// Viewing hours are kept in a person's own timezone, and a small container has no
+	// timezone files of its own.
+	_ "time/tzdata"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/api"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"

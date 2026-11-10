@@ -75,7 +75,7 @@ func (s *Server) listSessions(r *http.Request, _ None) (Page[SessionInfo], error
 	if err != nil {
 		return Page[SessionInfo]{}, err
 	}
-	sessions, err := s.db.Sessions(r.Context(), caller.UserID, s.now())
+	sessions, err := s.db.Sessions(r.Context(), caller.UserID, s.now(), s.policy().EndedSessionsKept())
 	out := Page[SessionInfo]{Items: make([]SessionInfo, 0, len(sessions))}
 	for _, v := range sessions {
 		info := SessionInfo{ID: v.PublicID, DeviceID: v.DevicePublicID, DeviceName: v.DeviceName, ProfileID: v.ProfilePublicID,
