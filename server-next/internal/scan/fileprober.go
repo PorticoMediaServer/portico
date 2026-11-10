@@ -13,6 +13,7 @@ import (
 	"slices"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/inputbridge"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediaexec"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediafacts"
 )
@@ -68,6 +69,33 @@ func (FileProber) Probe(ctx context.Context, path string) (Facts, error) {
 		return Facts{}, err
 	}
 	found, err := mediafacts.Probe{ScanCommand: pooled}.Inspect(ctx, real)
+	return factsOf(ctx, found, err)
+}
+
+// RemoteProber is the ReaderProber a server runs: ffprobe, confined to one loopback address
+// that serves the file by range (package inputbridge), never told where the file is.
+type RemoteProber struct{}
+
+func (RemoteProber) ProbeReader(ctx context.Context, file io.ReaderAt, size int64) (Facts, error) {
+	bridge, err := inputbridge.Open(ctx, file, size)
+	if err != nil {
+		return Facts{}, err
+	}
+	defer bridge.Close()
+	readPrefix := func(_ context.Context, _ string, limit int64) ([]byte, error) {
+		prefix := make([]byte, min(limit, size))
+		n, err := file.ReadAt(prefix, 0)
+		if err == io.EOF && n == len(prefix) {
+			err = nil
+		}
+		return prefix[:n], err
+	}
+	found, err := mediafacts.Probe{ReadPrefix: readPrefix}.InspectRemote(ctx, bridge.URL())
+	return factsOf(ctx, found, err)
+}
+
+// factsOf turns what ffprobe found into a file's facts, or says why there are none.
+func factsOf(ctx context.Context, found mediafacts.Facts, err error) (Facts, error) {
 	var exit *exec.ExitError
 	switch {
 	case err == nil:

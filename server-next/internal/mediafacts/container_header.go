@@ -76,7 +76,8 @@ func ebmlInteger(data []byte, id bool) (uint64, int, bool) {
 }
 
 func (p Probe) completeContainer(ctx context.Context, path string, f *Facts) error {
-	if f.Container != "matroska" || strings.Contains(path, "://") {
+	// An address is read through the caller's ReadPrefix, or not at all.
+	if f.Container != "matroska" || strings.Contains(path, "://") && p.ReadPrefix == nil {
 		return nil
 	}
 	if p.ReadGuard != nil {
