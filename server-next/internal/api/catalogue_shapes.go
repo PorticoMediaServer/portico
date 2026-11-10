@@ -35,6 +35,8 @@ type View struct {
 }
 
 // Sort is a sort GET /v1/items accepts for this library, with the direction it starts in.
+// Titles with no value for a sort come last in either direction. "random" is one order for
+// as long as its cursor is followed, and a new one each time it is asked for without a cursor.
 type Sort struct {
 	ID    string `json:"id"`
 	Order string `json:"order"`

@@ -77,6 +77,12 @@ func TestBrowse(t *testing.T) {
 	if seen != 90 {
 		t.Fatalf("paging to the end sent %d films of 90", seen)
 	}
+	// Highest rated first unless asked otherwise; a film nobody rated is last either way.
+	best := get[ItemPage](t, s, token, list+"&sort=communityRating").Items
+	worst := get[ItemPage](t, s, token, list+"&sort=communityRating&order=asc").Items
+	if best[0].Ratings == nil || worst[0].Ratings == nil || best[0].Ratings.Community <= worst[0].Ratings.Community {
+		t.Fatalf("by community rating the list starts with %+v, and ascending with %+v", best[0].Ratings, worst[0].Ratings)
+	}
 	if fewer := get[ItemPage](t, s, limited, list+"&total=true"); *fewer.Total == 0 || *fewer.Total >= 90 {
 		t.Fatalf("the limited profile was shown %d films of 90", *fewer.Total)
 	}
