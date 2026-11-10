@@ -1,4 +1,4 @@
-import {routePath} from "../../contracts/src/route-paths.ts";
+import {serverPath} from './server-api.ts';
 import {observeResponseClock} from './server-clock.ts';
 import {addressClass,formatIP,parseDirectName,parseIP,sameIP} from './network-locality.ts';
 /** P09 connection evidence. None of these values grants a viewer or media lease. */
@@ -193,7 +193,7 @@ export async function probeRoute(origin:string,pin:ServerPin|undefined,options:{
  try{
   if(options.signal?.aborted)cancel();if(controller.signal.aborted)throw new RouteError('cancelled','Connection check cancelled.');
   const sentAt=Date.now();
-  const response=await (options.fetcher??globalThis.fetch)((baseUrl) + routePath("prove_network_identity"),{method:'POST',redirect:'error',credentials:'omit',referrerPolicy:'no-referrer',signal:controller.signal,headers:{Accept:'application/json; portico-route-proof=2','Content-Type':'application/json'},body:JSON.stringify({baseUrl,nonce})});
+  const response=await (options.fetcher??globalThis.fetch)((baseUrl) + serverPath('POST /v1/system/identity-proof'),{method:'POST',redirect:'error',credentials:'omit',referrerPolicy:'no-referrer',signal:controller.signal,headers:{Accept:'application/json; portico-route-proof=2','Content-Type':'application/json'},body:JSON.stringify({baseUrl,nonce})});
   // The first answer on every connection: it teaches this server's clock before anything is judged by it.
   observeResponseClock(baseUrl,response,sentAt);
   const tlsLeaf=options.observedTLSLeaf?.(response);if(tlsLeaf!==undefined)routeBytes(tlsLeaf,32);

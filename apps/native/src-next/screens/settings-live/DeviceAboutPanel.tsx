@@ -1,7 +1,8 @@
 import {readServerSystem} from '../../../../../packages/client-core/src/query/connection-operations.ts';
+import {parseServerSignIn} from '../../../../../packages/client-core/src/sign-in';
 import React, {useEffect, useState} from 'react';
 import {Linking, Platform, Text, View} from 'react-native';
-import {routePath, type RouteResponse} from '../../../../../packages/contracts/src/routes';
+import {routePath} from '../../../../../packages/contracts/src/routes';
 import {SettingsRow} from '../../kit/shell';
 import {StateView} from '../../kit/states';
 import {useTheme} from '../../kit/theme';
@@ -18,7 +19,7 @@ export function DeviceAboutPanel({context, lifetime, t, runtime, openRoute}: Nat
   useEffect(() => {
     const caller = new AbortController();
     setServerVersion(undefined); setServerApi(undefined); setVersionError(undefined);
-    void lifetime.request(signal => readServerSystem<RouteResponse<'get_system'>>(context.api, signal), caller.signal).then(system => {
+    void lifetime.request(signal => readServerSystem(context.api, signal).then(parseServerSignIn), caller.signal).then(system => {
       if (caller.signal.aborted || !lifetime.current()) return;
       if (system.id !== lifetime.authority.serverId || typeof system.version !== 'string' || !system.version.trim()) throw new Error('native_settings_server_version_invalid');
       setServerVersion(system.version);

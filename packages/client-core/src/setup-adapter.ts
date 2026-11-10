@@ -4,9 +4,11 @@ import {releaseThenRethrow} from './cleanup.ts';
 import {ApiError, HttpLocalApi, type LocalSession} from './index.ts';
 import type {AppSessionStore} from './app-sessions.ts';
 import {parseLocalSession} from './local-session.ts';
-import {parseDirectSnapshot} from './profile-management.ts';
+import {completeOwnerSetup, parseDirectSnapshot} from './profile-management.ts';
+import {readDirectAccount, readServerSystem, revokeCurrentSession} from './query/connection-operations.ts';
+import {parseServerSignIn} from './sign-in.ts';
 import {parseSetupSession} from './setup-onboarding.ts';
-import {readSetupState} from './setup-state.ts';
+import type {SetupState} from './setup-state.ts';
 import type {ServerSignIn} from './sign-in.ts';
 import {routeBase64, sameServerPin, webRouteCrypto, type RouteCrypto, type ServerPin} from './route-identity.ts';
 import type {ConnectionEnvironment, rememberNativeSession} from './server-connections.ts';
@@ -70,6 +72,7 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
   const now = deps.now ?? (() => serverNow()), crypto = deps.crypto ?? webRouteCrypto, newRequestId = deps.newRequestId ?? randomId;
   const life = new AbortController();
   let paired: Paired | undefined, own: Own | undefined, issued: {serverId: string; setupToken: string} | undefined;
+  let setupCode: string | undefined;
   let owner: {api: HttpLocalApi; session: LocalSession} | undefined, pendingLocal: LocalSession | undefined, exchanged: {api: HttpLocalApi; session: LocalSession} | undefined;
 
   const live = () => {
@@ -133,7 +136,7 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
   /** The selected session for this server is its owner's, restored and checked against the server. */
   async function ownerSnapshot(api: HttpLocalApi, session: LocalSession, signal: AbortSignal) {
     if (session.viewer.role !== 'owner') throw changed();
-    const snapshot = parseDirectSnapshot(await api.request(routePath('get_direct_account'), 'GET', undefined, signal),
+    const snapshot = parseDirectSnapshot(await readDirectAccount(api, signal),
       {authority: 'local', serverId: session.viewer.serverId, accountId: session.viewer.accountId}, true);
     if (snapshot.account.role !== 'owner' || snapshot.account.disabled || !snapshot.capabilities.manageServer || snapshot.account.primaryProfileId !== session.viewer.profileId) throw changed();
   }
@@ -166,7 +169,8 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
       await assertPaired(p);
       const record = local.record?.serverId === p.pin.serverId ? local.record : undefined;
       try {
-        const state = await readSetupState(record ? tokenApi(p, record.setupToken) : p.api, context.signal);
+        // The new server has one setup fact, told to anyone: whether it still needs its owner.
+        const state: SetupState = Object.freeze({status: parseServerSignIn(await readServerSystem(p.api, context.signal)).setupRequired ? 'ready' : 'complete'});
         await assertPaired(p);
         own = typeof state.setup === 'object' ? {requestId: state.setup.requestId, revision: state.setup.revision} : undefined;
         const ownerSessionHeld = state.status === 'complete' ? await heldOwner(p, context.signal) : undefined;
@@ -177,38 +181,18 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
         throw error;
       }
     },
+    /** The server asks for its setup code with the owner's details, not before: the code is kept
+     * here until then. The server wrote it to its log and to setup-code.txt in its data folder. */
     async start(context, code) {
       const p = await pair(context.signal);
       // The same rule the server and Portico Services apply: a public http address is refused before any request.
       if (!setupAddressAllowed(p.api.baseUrl)) return {kind: 'addressNotAllowed'};
-      try {
-        const raw = await p.api.request<{serverId?: unknown; setupToken?: unknown}>(routePath(deps.tokenRoute), 'POST', code ? {setupCode: code} : {}, context.signal);
-        await assertPaired(p);
-        if (raw?.serverId !== p.pin.serverId || typeof raw.setupToken !== 'string' || !raw.setupToken) throw Object.assign(new Error('The setup answer did not match this server.'), {code: 'identity_mismatch'});
-        issued = {serverId: raw.serverId, setupToken: raw.setupToken};
-        return {kind: 'startDone'};
-      } catch (error) {
-        if (refused(error, 'setup_code_required')) return {kind: 'setupCodeRequired'};
-        if (refused(error, 'setup_code_invalid')) return {kind: 'setupCodeInvalid'};
-        if (refused(error, 'setup_in_progress')) return {kind: 'setupInProgress', ...((error as ApiError).retryAfterSeconds ? {retryAfterSeconds: (error as ApiError).retryAfterSeconds} : {})};
-        if (refused(error, 'setup_source_not_local')) return {kind: 'notLocalSource'};
-        if (refused(error, 'setup_complete', 'not_setup_required', 'conflict')) return {kind: 'alreadyComplete'};
-        throw error;
-      }
+      if (!code) return {kind: 'setupCodeRequired'};
+      setupCode = code;
+      return {kind: 'startDone'};
     },
-    async remoteCheck(remote, context) {
-      const p = await pair(context.signal);
-      if (!remote || !issued || issued.serverId !== p.pin.serverId) return {kind: 'remoteOk'};
-      // The setup token as bearer too: from outside, it is what a setup code admitted.
-      const out = await tokenApi(p, issued.setupToken).request<{refused?: unknown; reason?: unknown; fixes?: unknown; address?: unknown}>(routePath('post_setup_remote_check'), 'POST',
-        {setupToken: issued.setupToken, remoteAccess: remote.remoteAccess, remoteSecurity: remote.remoteSecurity}, context.signal);
-      await assertPaired(p);
-      if (out?.refused !== true) return {kind: 'remoteOk'};
-      const fixes = Array.isArray(out.fixes) ? out.fixes.filter((fix): fix is 'address' | 'standard' => fix === 'address' || fix === 'standard') : [];
-      const address = typeof out.address === 'string' && out.address.length <= 2048 ? out.address : undefined;
-      const reason = out.reason === 'http' || out.reason === 'name' ? out.reason : 'access';
-      return {kind: 'remoteRefused', reason, fixes: fixes.filter(fix => fix !== 'address' || !!address), ...(address ? {address} : {})};
-    },
+    /** Remote access is chosen in Settings after setup on the new server; there is nothing to check yet. */
+    async remoteCheck() {return {kind: 'remoteOk'};},
     async initializeHosted(name, remote, context) {
       const p = await pair(context.signal);
       if (!issued || issued.serverId !== p.pin.serverId) throw changed();
@@ -238,19 +222,19 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
         throw error;
       }
     },
-    async initializeLocal(name, credentials: SetupCredentials, remote, context) {
+    /** Creates the owner (`POST /v1/setup/owner`) and opens the owner's main profile. The server's
+     * name and remote access are not part of setup on the new server; they are set in Settings. */
+    async initializeLocal(_name, credentials: SetupCredentials, _remote, context) {
       const p = await pair(context.signal);
-      if (!issued || issued.serverId !== p.pin.serverId) throw changed();
+      if (!setupCode) throw changed();
       try {
-        const session = parseSetupSession(await tokenApi(p, issued.setupToken).request(routePath('setup_server'), 'POST',
-          routeBody('setup_server', {requestId: newRequestId(), setupToken: issued.setupToken, name, username: credentials.username.trim(), password: credentials.password,
-            authMode: 'local', interactive: true, ...remote}), context.signal), p.pin.serverId);
+        const grant = await completeOwnerSetup(p.api, {setupCode, username: credentials.username.trim(), password: credentials.password}, context.signal);
         await assertPaired(p);
-        if ('claimRequired' in session) throw changed();
-        pendingLocal = session;
+        if (grant.kind !== 'signed-in' || grant.snapshot.serverId !== p.pin.serverId) throw changed();
+        pendingLocal = grant.session;
         return {kind: 'initializeDone'};
       } catch (error) {
-        if (refused(error, 'unauthorized')) return {kind: 'tokenRefused'};
+        if (refused(error, 'setup_code_invalid')) return {kind: 'setupCodeInvalid'};
         if (refused(error, 'setup_complete', 'not_setup_required')) return {kind: 'alreadyComplete'};
         throw error;
       }
@@ -341,7 +325,7 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
         // Replaced after admission: what this run remembered goes, and its session ends.
         return releaseThenRethrow(error, 'setup exchange', async () => {
           await deps.sessions().connectionStorage(p.pin.serverId).change(old => old?.session.sessionFamilyId === family ? undefined : old).catch(() => {});
-          await bounded(signal => done.api.request(routePath('delete_sessions_current'), 'DELETE', undefined, signal));
+          await bounded(signal => revokeCurrentSession(done.api, signal));
           done.connection.dispose();
         });
       }
@@ -383,7 +367,7 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
       } finally {
         if (!adopted) {
           await sessions.connectionStorage(p.pin.serverId).change(old => old?.session.sessionFamilyId === session.sessionFamilyId ? undefined : old).catch(() => {});
-          await bounded(signal => tokenApi(p, session.accessToken).request(routePath('delete_sessions_current'), 'DELETE', undefined, signal));
+          await bounded(signal => revokeCurrentSession(tokenApi(p, session.accessToken), signal));
         }
       }
     },

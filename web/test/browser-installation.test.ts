@@ -89,7 +89,7 @@ test('an existing installation needs no storage write and sends real build and d
   const api = new HttpLocalApi(origin, '', async (_input, init) => {
     calls.push(new Headers(init?.headers)); return new Response('{}', {headers: {'Content-Type': 'application/json'}});
   });
-  await api.request(routePath('post_direct_sign_in'), 'POST', {username: 'synthetic', password: 'synthetic'});
+  await api.request('/v1/auth/sign-in', 'POST', {username: 'synthetic', password: 'synthetic'});
   assert.equal(calls[0].get('X-Portico-Installation-Id'), persistedId);
   assert.equal(calls[0].get('X-Portico-Device-Name'), 'Chrome on Linux');
   assert.equal(calls[0].get('X-Portico-Device-Platform'), 'web');

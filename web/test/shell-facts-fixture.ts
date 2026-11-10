@@ -1,4 +1,5 @@
 import {GUIDE_PROTOCOL} from '@core/channel-guide.ts';
+import {accountAnswer, accountPath, systemAnswer, snapshotOf} from './next-wire.ts';
 import {FreshnessHub} from '@core/freshness-hub.ts';
 import {parseDirectSnapshot} from '@core/profile-management.ts';
 import {createShellFactOwner, shellAccount} from '../src/shell/facts.ts';
@@ -26,11 +27,11 @@ export function harness(o: Readonly<{libraryRouteProof?: unknown}> = {}) {
   const calls:string[]=[];
   let libraryRead: (()=>Promise<unknown>) | undefined;
   const settings={effective:{},deviceClass:'web'} as ShellFacts['preferences'];
-  const witnesses={system:system(),direct:parseDirectSnapshot(direct())};
+  const witnesses={system:system(),direct:snapshotOf(direct())};
   const initial:ShellFacts={serverName:'Study',preferences:settings,identity:{viewer:session.viewer,serverName:'Study',serverVersion:'1',libraries,fences:{viewerFence:'directory',privacyFence:privacy},
     ...shellAccount(witnesses.direct,'profile'),liveAvailable:true,unread:0,showNotificationDot:false}};
-  const api={async request(path:string) {calls.push(path); if (path==='/v1/libraries') return libraryRead ? await libraryRead() : {items:libraries,viewerFence:'directory',privacyFence:privacy}; if (path==='/v1/direct') return record;
-    if (path==='/v1/system') {if(systemError)throw systemError;return info;} if (path.startsWith('/v1/guide/sources?')) {if (guideError) throw guideError;return {protocolVersion:GUIDE_PROTOCOL,serverId:'server',viewerFence:'guide',revision:'1',sources:[]};}
+  const api={async request(path:string) {calls.push(path); if (path==='/v1/libraries') return libraryRead ? await libraryRead() : {items:libraries,viewerFence:'directory',privacyFence:privacy}; if (accountPath(path)) return accountAnswer(path, record);
+    if (path==='/v1/system') {if(systemError)throw systemError;return systemAnswer(info);} if (path.startsWith('/v1/guide/sources?')) {if (guideError) throw guideError;return {protocolVersion:GUIDE_PROTOCOL,serverId:'server',viewerFence:'guide',revision:'1',sources:[]};}
     throw new Error('Unexpected read '+path);}};
   const owner=createShellFactOwner({api:api as never, session:()=>session, hub,initial,witnesses,libraryRouteProof:o.libraryRouteProof as never,
     isCurrent:()=>retired===0, retire:()=>{retired++;},

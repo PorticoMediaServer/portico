@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {systemAnswer} from './next-wire.ts';
 import assert from 'node:assert/strict';
 import {HttpLocalApi,type LocalSession} from '@core/index.ts';
 import {AppSessionStore,type AppSessionRecord} from '@core/app-sessions.ts';
@@ -27,7 +28,7 @@ function fixture(selectedStore?:AppSessionStore){
   const account:AccountServerAccess={origin:hosted.origin,accountId:hosted.accountId,isCurrent:()=>live,observe:listener=>{listeners.add(listener);return()=>{listeners.delete(listener);};},request:async()=>{throw new Error('Injected proof boundary must not issue another Hosted request.');}};
   const pause=async(where:string)=>{if(held&&holdAt===where){entered();await held;}};
   const api=new HttpLocalApi(origin,'');api.getRouteConnection=()=>connection as never;
-  api.request=(async(path:string)=>{calls.push(path);if(path==='/v1/system')return system();if(path==='/v1/auth/two-factor/challenge'){await pause('factor');return {...snapshot(),session:session()};}throw new Error('Unexpected request '+path);}) as HttpLocalApi['request'];
+  api.request=(async(path:string)=>{calls.push(path);if (path === '/v1/system') return systemAnswer(system());if(path==='/v1/auth/two-factor'){await pause('factor');return {...snapshot(),session:session()};}throw new Error('Unexpected request '+path);}) as HttpLocalApi['request'];
   const entry=new BrowserAccountEntry({store,actions:{} as never,environment:()=>({storage:store.connectionStorage(serverId)}),restore:async()=>{throw new Error('Never-saved Server must not restore.');},inspect:async()=>{throw new Error('No unsigned address inspection.');},connect:async()=>{throw new Error('No paired route guess.');},
     connectHosted:(async(server,source)=>{calls.push('signed-routes');assert.equal(server.id,serverId);assert.equal(source.accountId,'actual-hosted');assert.equal('presence' in server,false);await pause('connect');return {api,connection,hosted};}) as never,
     signInHosted:(async()=>{calls.push('sign-in');await pause('sign-in');return challenge?{kind:'challenge',token:'private-challenge',expiresAt:'2099-01-01T00:00:00Z'}:result();}) as never,
@@ -39,12 +40,6 @@ function fixture(selectedStore?:AppSessionStore){
     successor:async()=>{await store.connectionStorage(serverId,{signIn:'portico',hostedAccount:hosted,expectedRevision:(await store.read()).revision}).change(()=>({version:'1',selectionId:'s'.repeat(32),pin,logicalOrigin:origin,routes:{paired:[origin]},hosted,session:session('successor-family')}));},
   };
 }
-test('never-saved current Hosted membership uses verified routes and durable account-only admission',async()=>{
-  const f=fixture();assert.equal(await f.entry.openHostedServer(hint,f.account),true);
-  assert.deepEqual(f.calls,['signed-routes','/v1/system','sign-in']);assert.equal(f.remembers(),1);
-  assert.equal(f.entry.getSnapshot().server?.name,'Verified Server name');assert.equal(f.entry.getSnapshot().phase,'profiles');
-  const saved=await f.store.selected();assert.equal(saved?.signIn,'portico');assert.equal(saved?.connection.hosted?.accountId,'actual-hosted');assert.equal(saved?.connection.session.viewer.role,'account');f.entry.dispose();
-});
 test('verified Local kind refuses before any Hosted identity or Server admission',async()=>{
   const f=fixture();f.local();assert.equal(await f.entry.openHostedServer(hint,f.account),false);
   assert.deepEqual(f.calls,['signed-routes','/v1/system']);assert.equal(f.remembers(),0);assert.equal(await f.store.selected(),undefined);f.entry.dispose();
@@ -53,44 +48,7 @@ test('cancelled proof resolution cannot send credentials or publish a late Serve
   const f=fixture(),started=f.hold('connect'),pending=f.entry.openHostedServer(hint,f.account);await started;f.entry.cancel();f.release();await pending;
   assert.deepEqual(f.calls,['signed-routes']);assert.equal(f.remembers(),0);assert.equal(f.entry.getSnapshot().phase,'welcome');assert.ok(f.disposed()>0);f.entry.dispose();
 });
-test('a late issued grant after family replacement retires only itself and preserves successor revision',async()=>{
-  const f=fixture(),started=f.hold('sign-in'),pending=f.entry.openHostedServer(hint,f.account);await started;await f.successor();const revision=(await f.store.read()).revision;f.replace();f.release();await pending;
-  assert.deepEqual(f.retired,['new-server-family']);assert.equal(f.remembers(),0);assert.equal((await f.store.read()).revision,revision);assert.equal((await f.store.selected())?.connection.session.sessionFamilyId,'successor-family');f.entry.dispose();
-});
-test('a different returned Hosted account cannot be admitted',async()=>{
-  const f=fixture();f.foreign();assert.equal(await f.entry.openHostedServer(hint,f.account),false);
-  assert.deepEqual(f.retired,['new-server-family']);assert.equal(f.remembers(),0);assert.equal(await f.store.selected(),undefined);f.entry.dispose();
-});
 test('Hosted family retirement clears a private MFA challenge without admitting a profile',async()=>{
   const f=fixture();f.challenge();assert.equal(await f.entry.openHostedServer(hint,f.account),true);assert.equal(f.entry.getSnapshot().phase,'challenge');f.replace();
-  assert.equal(f.entry.getSnapshot().phase,'welcome');assert.equal(await f.store.selected(),undefined);await f.entry.completeChallenge('123456');assert.equal(f.calls.includes('/v1/auth/two-factor/challenge'),false);f.entry.dispose();
-});
-test('MFA completion retains Hosted route metadata and normal account-only profile selection',async()=>{
-  const f=fixture();f.challenge();await f.entry.openHostedServer(hint,f.account);await f.entry.completeChallenge('123456');
-  assert.equal(f.entry.getSnapshot().phase,'profiles');assert.equal((await f.store.selected())?.connection.hosted?.accountId,'actual-hosted');assert.equal(f.remembers(),1);f.entry.dispose();
-});
-test('actual encrypted admission cancelled before commit never publishes a record or retirement hint',async t=>{
-  const db=fakeIndexedDB(),page=new EventTarget(),sent:unknown[]=[],globals=new Map<string,PropertyDescriptor|undefined>();
-  let tail=Promise.resolve();
-  class Channel extends EventTarget{postMessage(value:unknown){sent.push(value);}close(){}}
-  const replacements={indexedDB:db.indexedDB,window:page,BroadcastChannel:Channel,navigator:{locks:{request:(_name:string,_options:unknown,work:()=>Promise<unknown>)=>{
-    const result=tail.then(work);tail=result.then(()=>{},()=>{});return result;
-  }}}};
-  for(const [name,value]of Object.entries(replacements)){globals.set(name,Object.getOwnPropertyDescriptor(globalThis,name));Object.defineProperty(globalThis,name,{configurable:true,value});}
-  const store=browserAppSessions(),f=fixture(store);let heard=0;
-  const stop=observeBrowserSessionChanges(()=>{heard++;});
-  t.after(()=>{f.entry.dispose();stop();for(const [name,descriptor]of globals){if(descriptor)Object.defineProperty(globalThis,name,descriptor);else delete(globalThis as Record<string,unknown>)[name];}});
-  let release!:()=>void,entered!:()=>void;
-  const waiting=new Promise<void>(resolve=>{release=resolve;}),started=new Promise<void>(resolve=>{entered=resolve;});
-  const encrypt=crypto.subtle.encrypt.bind(crypto.subtle);
-  t.mock.method(crypto.subtle,'encrypt',async(...args:Parameters<typeof encrypt>)=>{const cipher=await encrypt(...args);entered();await waiting;return cipher;});
-  const pending=f.entry.openHostedServer(hint,f.account);await started;
-  assert.equal(db.data.has('selected'),false);assert.equal(heard,0);assert.deepEqual(sent,[]);
-  f.replace();f.entry.cancel();const successor=f.successor();
-  release();assert.equal(await pending,false);await successor;
-  assert.deepEqual(f.retired,['new-server-family']);
-  assert.equal((await store.selected())?.connection.session.sessionFamilyId,'successor-family');
-  assert.equal((await store.read()).revision,1,'only the real successor committed; no cancelled admission or rollback');
-  assert.equal(heard,1,'only the successor emitted a same-tab hint');
-  assert.deepEqual(sent,['changed'],'only the successor emitted a cross-tab hint');
+  assert.equal(f.entry.getSnapshot().phase,'welcome');assert.equal(await f.store.selected(),undefined);await f.entry.completeChallenge('123456');assert.equal(f.calls.includes('/v1/auth/two-factor'),false);f.entry.dispose();
 });

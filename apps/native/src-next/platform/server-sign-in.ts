@@ -173,7 +173,6 @@ export class NativeServerSignIn {
       if (result.kind !== 'signed-in' || !result.resetFileOwnerSession || result.passwordChangeRequired || result.accountScoped
         || result.session.refreshToken || result.session.viewer.serverId !== server.id || result.session.viewer.role !== 'owner'
         || result.session.installationId !== this.installation?.installationId || Date.parse(result.session.expiresAt) <= serverNow()
-        || result.session.serverIdentity?.publicKey !== original.pin.publicKey || result.session.serverIdentity.fingerprint !== original.pin.fingerprint
         || result.snapshot.account.role !== 'owner' || result.snapshot.account.disabled || !result.snapshot.capabilities.manageServer
         || result.snapshot.account.primaryProfileId !== result.session.viewer.profileId
         || before.servers.some(value => value.connection.session.sessionFamilyId === result.session.sessionFamilyId)) throw mismatch();
@@ -685,8 +684,7 @@ export class NativeServerSignIn {
       if (stored.servers.some(value => value.connection.session.sessionFamilyId === session.sessionFamilyId)
         || setup.routes.pin.serverId !== setup.pin.serverId || setup.routes.pin.publicKey !== setup.pin.publicKey
         || setup.routes.pin.fingerprint !== setup.pin.fingerprint
-        || session.viewer.serverId !== setup.pin.serverId || session.serverIdentity?.publicKey !== setup.pin.publicKey
-        || session.serverIdentity.fingerprint !== setup.pin.fingerprint) return;
+        || session.viewer.serverId !== setup.pin.serverId) return;
       const cleanup = new HttpLocalApi(setup.origin, session.accessToken, nativeNetworkFetch);
       cleanup.useRoutes(setup.routes); await cleanup.logout(); return;
     }

@@ -65,7 +65,7 @@ export class NativeCastCaller {
   private state: NativeCastState = Object.freeze({cast: idle});
 
   constructor(private readonly options: NativeCastOptions) {
-    const session=options.session();this.session=session?Object.freeze({...session,viewer:Object.freeze({...session.viewer}),...(session.serverIdentity?{serverIdentity:Object.freeze({...session.serverIdentity})}:{})}):undefined; this.authority = options.playback()?.getSnapshot().authority;
+    const session=options.session();this.session=session?Object.freeze({...session,viewer:Object.freeze({...session.viewer})}):undefined; this.authority = options.playback()?.getSnapshot().authority;
     let logical = '';
     try {const url = new URL(options.api.baseUrl ?? ''); if (!url.username && !url.password) logical = url.origin;} catch { /* unavailable */ }
     this.logical = logical;
@@ -81,7 +81,8 @@ export class NativeCastCaller {
     this.offBridge=()=>bridgeEvents.remove();
     const original=this.session;
     const controller = new CastController({origin, displayName: options.deviceName(), controllerStorage: castControllerStorage,isCurrent:()=>this.viewerCurrent(),
-      ...(original.serverIdentity&&original.deviceId?{controllerContext:{origin,publicKey:original.serverIdentity.publicKey,serverId:original.viewer.serverId,
+      // The server's key is the one this connection proved; a sign-in answer carries none.
+      ...(routes?.pin.publicKey&&original.deviceId?{controllerContext:{origin,publicKey:routes.pin.publicKey,serverId:original.viewer.serverId,
         authority:original.viewer.authority,accountId:original.viewer.accountId,profileId:original.viewer.profileId,senderDeviceId:original.deviceId,senderFamilyId:original.sessionFamilyId}}:{}),
       describe:async itemId=>{
         const item=await readReceiverItem<{id?:unknown;title?:unknown;posterUrl?:unknown;kind?:unknown}>({request: this.request.bind(this)}, itemId, 'GET');
@@ -125,7 +126,7 @@ export class NativeCastCaller {
     this.state = Object.freeze({...this.state, ...patch}); for (const listener of [...this.listeners]) listener();
   }
   private viewerCurrent(): boolean {
-    if (this.abort.signal.aborted || !this.options.current() || !sameSession(this.options.session(), this.session) || this.options.session()?.deviceId!==this.session?.deviceId || this.options.session()?.serverIdentity?.publicKey!==this.session?.serverIdentity?.publicKey ||
+    if (this.abort.signal.aborted || !this.options.current() || !sameSession(this.options.session(), this.session) || this.options.session()?.deviceId!==this.session?.deviceId ||
       !authorityMatches(this.options.playback()?.getSnapshot().authority, this.authority)) return false;
     try {return new URL(this.options.api.baseUrl ?? '').origin === this.logical;} catch {return false;}
   }

@@ -31,7 +31,6 @@ test('only an enabled Portico Account owner on the main profile, in a live sessi
   for (const [label, changed] of [
     ['local owner', {...g, snapshot: {...g.snapshot, account: {...g.snapshot.account, hostedAccountId: undefined}}}],
     ['another installation', {...g, session: {...g.session, installationId: 'x'}}],
-    ['another server key', {...g, session: {...g.session, serverIdentity: {publicKey: 'x', fingerprint: 'fp'}}}],
     ['expired', {...g, session: {...g.session, expiresAt: '2029-01-01T00:00:00Z'}}],
   ] as const) assert.equal(setupOwnerGrantFor(changed as never, bound, now), false, label);
 });

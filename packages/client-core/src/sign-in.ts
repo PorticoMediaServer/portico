@@ -1,4 +1,4 @@
-import {routePath} from '../../contracts/src/route-paths.ts';
+import {serverPath} from './server-api.ts';
 import {ApiError, type SystemInfo} from './index.ts';
 import {RouteError, routeOrigin, routeJSON} from './route-identity.ts';
 import {API_LEVEL} from '../../contracts/src/api-level.ts';
@@ -8,34 +8,20 @@ import {serverNow} from './server-clock.ts';
 export type ServerSignIn = Readonly<SystemInfo & {signIn: SignInKind}>;
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const text = (v: unknown, max: number): v is string => typeof v === 'string' && v.length > 0 && v.length <= max && !/[\p{Cc}\p{Cf}]/u.test(v);
-/** A missing or unknown kind never grants a password form. No claim/Hosted inference.
- * The server version is served only to a signed-in caller (O-169), so it is
- * optional here and carried when present. */
+/** Reads `GET /v1/system` (`System` in the generated contract). What this app must know is who
+ * the server is, how to sign in and whether setup is pending; anything else is ignored. A server
+ * that names no way to sign in this app knows never gets a password form. The version is told only
+ * to a signed-in caller, so it is carried when present. */
 export function parseServerSignIn(raw: unknown): ServerSignIn {
-  if (!object(raw) || !text(raw.id, 256) || !text(raw.name, 120) ||
-      !['portico', 'local'].includes(String(raw.signIn)) || typeof raw.setupRequired !== 'boolean' || !Number.isSafeInteger(raw.apiLevel) || (raw.apiLevel as number) < 1)
+  const methods = object(raw) && Array.isArray(raw.signInMethods) ? raw.signInMethods : [];
+  const signIn: SignInKind | undefined = methods.includes('portico') ? 'portico' : methods.includes('password') ? 'local' : undefined;
+  if (!object(raw) || !text(raw.id, 256) || !text(raw.name, 120) || !signIn || typeof raw.setupRequired !== 'boolean' || !Number.isSafeInteger(raw.apiMajor) || (raw.apiMajor as number) < 1 ||
+      !Array.isArray(raw.capabilities) || raw.capabilities.length > 1024)
     throw new RouteError('invalid_system', 'This server did not report how to sign in.');
-  // What this app must know is who the server is, how to sign in and whether setup is pending. The rest is
-  // read when present: a server that stops reporting a move or its Portico account state is one with none.
-  const move = raw.move === 'to_portico' || raw.move === 'to_local' ? raw.move : null;
-  if (move === 'to_portico' && raw.signIn !== 'portico' || move === 'to_local' && raw.signIn !== 'local') throw new RouteError('invalid_system', 'The server reported a different sign-in move.');
-  const endsAt = raw.moveEndsAt;
-  const moveEndsAt = endsAt === undefined || endsAt === null ? null
-    : typeof endsAt === 'string' && endsAt.length <= 64 && move === 'to_portico' && Number.isFinite(Date.parse(endsAt)) ? endsAt : undefined;
-  if (moveEndsAt === undefined) throw new RouteError('invalid_system', 'The server reported an unreadable move window.');
-  return Object.freeze({id: raw.id, name: raw.name, signIn: raw.signIn as SignInKind, move, setupRequired: raw.setupRequired,
-    hostedConfigured: raw.hostedConfigured === true, hostedAttached: raw.hostedAttached === true, apiLevel: raw.apiLevel as number, moveEndsAt,
-    ...(text(raw.version, 256) ? {version: raw.version} : {}), ...serverAPI(raw)});
-}
-/** O-159: the negotiation facts. A server without them, or with a shape this client can't read,
- * is pre-release: it carries none, and negotiation refuses it. Nothing is guessed from `apiLevel`. */
-function serverAPI(raw: Record<string, unknown>) {
-  const version = typeof raw.apiVersion === 'string' && /^\d{1,6}\.\d{1,6}$/.test(raw.apiVersion) ? raw.apiVersion : undefined;
-  const majors = Array.isArray(raw.apiMajors) && raw.apiMajors.length > 0 && raw.apiMajors.length <= 64 && raw.apiMajors.every(value => Number.isSafeInteger(value) && value >= 1)
-    ? [...new Set(raw.apiMajors as number[])].sort((a, b) => a - b) : undefined;
-  const capabilities = Array.isArray(raw.capabilities) && raw.capabilities.length <= 1024 && raw.capabilities.every(value => text(value, 128))
-    ? [...new Set(raw.capabilities as string[])].sort() : undefined;
-  return version && majors && capabilities ? {apiVersion: version, apiMajors: Object.freeze(majors), capabilities: Object.freeze(capabilities)} : {};
+  const major = raw.apiMajor as number;
+  const capabilities = Object.freeze([...new Set(raw.capabilities.filter((value): value is string => text(value, 128)))].sort());
+  return Object.freeze({id: raw.id, name: raw.name, signIn, setupRequired: raw.setupRequired, move: null, moveEndsAt: null, hostedConfigured: false, hostedAttached: false, apiLevel: major, apiVersion: major + '.0', apiMajors: Object.freeze([major]), capabilities,
+    ...(text(raw.version, 256) ? {version: raw.version} : {})});
 }
 /** Whole calendar days left to use the old sign-in during a move, counted on this device's
  * calendar: 0 when it ends today, 1 when it ends tomorrow. Undefined when nothing is offered. */
@@ -115,7 +101,7 @@ export class ServerSignInProbe {
     try {
       const origin = routeOrigin(address); this.publish({phase: 'probing', origin});
       const pending = (async () => {
-        const response = await this.fetcher(origin + routePath('get_system'), {method: 'GET', redirect: 'error', credentials: 'omit', headers: {Accept: 'application/json'}, signal: controller.signal});
+        const response = await this.fetcher(origin + serverPath('GET /v1/system'), {method: 'GET', redirect: 'error', credentials: 'omit', headers: {Accept: 'application/json'}, signal: controller.signal});
         if (!current()) { void response.body?.cancel().catch(() => {}); return; }
         if (!response.ok) throw new ApiError(response.status, 'system_unavailable', 'The server could not report how to sign in.', response.status >= 500);
         return parseServerSignIn(await routeJSON(response, controller.signal, 8192));

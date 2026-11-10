@@ -60,10 +60,9 @@ test('late same-family cleanup cannot remove replacement family and atomic failu
   await assert.rejects(store.connectionStorage('b').change(() => {throw new Error('disk refused');}));
   assert.deepEqual(await store.read(), before);
 });
-test('invalid kind/account bindings, duplicate servers, Hosted profiles and mixed Hosted identities fail closed', () => {
+test('invalid kind/account bindings, duplicate servers and mixed Hosted identities fail closed', () => {
   const a = entry('a'), b = entry('b', true);
-  for (const servers of [[a, a], [{...b, signIn: 'local'}], [{...a, signIn: 'portico'}], [b, {...entry('c', true), connection: {...entry('c', true).connection, hosted: {...hosted, accountId: 'other'}}}],
-    [{...a, connection: {...a.connection, session: {...a.connection.session, viewer: {...a.connection.session.viewer, authority: 'hosted'}}}}]]) {
+  for (const servers of [[a, a], [{...b, signIn: 'local'}], [{...a, signIn: 'portico'}], [b, {...entry('c', true), connection: {...entry('c', true).connection, hosted: {...hosted, accountId: 'other'}}}]]) {
     assert.throws(() => parseAppSessionRecord({version: 1, revision: 0, servers}), {code: 'invalid_saved_connection'});
   }
 });

@@ -42,7 +42,7 @@ export interface SetupPorts {
   /** S4. */
   initializeHosted(name: string, remote: SetupRemoteChoices | undefined, context: SetupPortContext): Promise<Of<'initializeDone' | 'tokenRefused' | 'alreadyComplete'>>;
   /** S5. */
-  initializeLocal(name: string, credentials: SetupCredentials, remote: SetupRemoteChoices | undefined, context: SetupPortContext): Promise<Of<'initializeDone' | 'tokenRefused' | 'alreadyComplete'>>;
+  initializeLocal(name: string, credentials: SetupCredentials, remote: SetupRemoteChoices | undefined, context: SetupPortContext): Promise<Of<'initializeDone' | 'tokenRefused' | 'alreadyComplete' | 'setupCodeInvalid'>>;
   /** S6, then binds the handoff in the store. */
   requestApproval(navigate: boolean, context: SetupPortContext): Promise<Of<'approvalReady' | 'tokenRefused' | 'alreadyComplete'>>;
   approveInApp(context: SetupPortContext): Promise<Of<'approvedInApp'>>;
@@ -156,7 +156,8 @@ export function createSetupController(ports: SetupPorts, options: SetupControlle
   const apply = (input: SetupInput): readonly SetupEffect[] => {
     const step = stepSetup(view, input, wallNow());
     setView(step.view);
-    if (view.kind !== 'starting' && view.kind !== 'failed') credentials = undefined;
+    // The setup code is asked for in the middle of a start, which then carries on with the same owner details.
+    if (view.kind !== 'starting' && view.kind !== 'failed' && view.kind !== 'code') credentials = undefined;
     if (view.kind !== 'library' && view.kind !== 'failed') library = undefined;
     return step.effects;
   };
@@ -232,7 +233,8 @@ export function createSetupController(ports: SetupPorts, options: SetupControlle
       case 'initialize-local': {
         if (!credentials) return failureOf(effect, {code: 'credentials_missing', retryable: false});
         const result = await written(ports.initializeLocal(effect.name, credentials, remote, context));
-        credentials = undefined;
+        // A wrong setup code asks for the code again and then sends the same owner details.
+        if (result?.kind !== 'setupCodeInvalid') credentials = undefined;
         return result;
       }
       case 'request-approval': return written(ports.requestApproval(effect.navigate, context));

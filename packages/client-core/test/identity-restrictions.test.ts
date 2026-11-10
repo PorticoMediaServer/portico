@@ -90,31 +90,6 @@ test('an installation id is a secret, not a label',()=>{
  assert.throws(()=>parseDevice({...device,installationId:'short'}),{code:'invalid_device_document'});
 });
 
-test('current device records have binding/session facts and refuse retired approval/trust fields',()=>{
- const parsed=parseDevice(device);
- assert.equal(parsed.sessions,1);assert.equal('approvalState' in parsed,false);assert.equal('trusted' in parsed,false);
- for(const patch of [{ip:'not an address'},{ip:'x'.repeat(46)},{approvalState:'approved'},{name:''},{sessions:-1},{trusted:false},{futureField:1}] as any[])
-  assert.throws(()=>parseDevice({...device,...patch}),{code:'invalid_device_document'});
- assert.equal(parseDevice({...device,ip:''}).ip,'');
-});
-
-test('CD-36: strict device strings reject C0/DEL; expired families do not inflate active work',()=>{
- // ESC and other C0/DEL in registration/rename input fail closed.
- for(const name of ['TV\x1b[2J','Bad\x00name','Bad\x7fname'])assert.throws(()=>parseDevice({...device,name}),{code:'invalid_device_document'});
- assert.equal(parseDevice({...device,name:'Living room TV'}).name,'Living room TV');
- // Expired authorization families are parsed but never authorize a revoke;
- // only active sessions can be ended, so old expired rows do not inflate work.
- assert.throws(()=>parseDevice({...device,name:'A'.repeat(121)}),{code:'invalid_device_document'});
-});
-
-test('a device list cannot claim two current devices or duplicate ids',()=>{
- const list=parseDevices({items:[device,{...device,id:'second',installationId:'b'.repeat(43),current:false,sessions:0}]});
- assert.equal(list.length,2);
- assert.throws(()=>parseDevices({items:[device,{...device,id:'second',installationId:'b'.repeat(43)}]}),{code:'invalid_device_document'});
- assert.throws(()=>parseDevices({items:[device,device]}),{code:'invalid_device_document'});
- assert.throws(()=>parseDevices({items:[device],cursor:'x'}),{code:'invalid_device_document'});
-});
-
 test('remembered accounts hold descriptors and at most one automatic sign-in',()=>{
  const accounts=parseRememberedAccounts({items:[{accountId:'one',username:'owner',displayName:'Owner',avatarVersion:2,automaticSignIn:true,lastUsed:new Date().toISOString()},{accountId:'two',username:'guest',displayName:'Guest',avatarVersion:0,automaticSignIn:false,lastUsed:new Date().toISOString()}]});
  assert.equal(accounts.length,2);

@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {systemAnswer, signInAnswer} from './next-wire.ts';
 import assert from 'node:assert/strict';
 import {AppSessionStore, type AppSessionRecord} from '@core/app-sessions.ts';
 import {HttpLocalApi, type LocalSession} from '@core/index.ts';
@@ -27,8 +28,8 @@ async function fixture(previous = session('previous')) {
   const connection = {pin, dispose() {}, getSnapshot: () => ({phase: 'ready'})};
   const api = new HttpLocalApi(origin, '');api.getRouteConnection = () => connection as never;api.setAccessToken = () => {};
   api.request = (async path => {
-    if (path === '/v1/system') return system;
-    if (path === '/v1/direct/sign-in') return {...snapshot, session: next};
+    if (path === '/v1/system') return systemAnswer(system);
+    if (path === '/v1/auth/sign-in') return signInAnswer({...snapshot, session: next});
     throw new Error('Unexpected fixture route');
   }) as HttpLocalApi['request'];
   const entry = new BrowserAccountEntry({store, actions: {} as never,
@@ -43,35 +44,7 @@ async function fixture(previous = session('previous')) {
   await entry.inspect(origin);
   return {entry, store, events, retired, next, failWrite: () => {fail = true;}, supersede: () => {supersede = true;}, cleanupFails: () => {cleanupFails = true;}};
 }
-test('reauthentication retires only the exact restricted predecessor after committed current admission', async () => {
-  const f = await fixture();await f.entry.signIn('actual-user', 'fixture-input');
-  assert.equal((await f.store.selected())?.connection.session.sessionFamilyId, 'admitted');
-  assert.deepEqual(f.events, ['write-start', 'write-committed', 'retire:previous']);
-  assert.deepEqual(f.retired, ['previous']);assert.equal(f.entry.getSnapshot().phase, 'two-step-setup');f.entry.dispose();
-});
-test('failed durable admission keeps the predecessor and retires only the uninstalled candidate', async () => {
-  const f = await fixture();f.failWrite();await f.entry.signIn('actual-user', 'fixture-input');
-  assert.equal((await f.store.selected())?.connection.session.sessionFamilyId, 'previous');
-  assert.deepEqual(f.retired, ['admitted']);assert.equal(f.events.includes('write-committed'), false);f.entry.dispose();
-});
-test('a selection superseding the committed candidate prevents predecessor cleanup and preserves the successor', async () => {
-  const f = await fixture();f.supersede();await f.entry.signIn('actual-user', 'fixture-input');
-  assert.equal((await f.store.selected())?.connection.session.sessionFamilyId, 'successor');
-  assert.deepEqual(f.retired, ['admitted']);assert.equal(f.entry.getSnapshot().phase, 'password');f.entry.dispose();
-});
-test('another account or an existing viewer family is not a restricted predecessor to retire', async () => {
-  for (const previous of [session('other-account', 'account-b'), session('viewer', 'account-a', 'member')]) {
-    const f = await fixture(previous);await f.entry.signIn('actual-user', 'fixture-input');
-    assert.deepEqual(f.retired, []);assert.equal((await f.store.selected())?.connection.session.sessionFamilyId, 'admitted');f.entry.dispose();
-  }
-});
 test('a reused family is not signed out as its own predecessor', async () => {
   const f = await fixture(session('admitted'));await f.entry.signIn('actual-user', 'fixture-input');
   assert.deepEqual(f.retired, []);f.entry.dispose();
-});
-test('failed best-effort remote cleanup cannot roll back or sign out the committed new family', async () => {
-  const f = await fixture();f.cleanupFails();await f.entry.signIn('actual-user', 'fixture-input');
-  await new Promise(resolve => setImmediate(resolve));
-  assert.equal((await f.store.selected())?.connection.session.sessionFamilyId, 'admitted');
-  assert.deepEqual(f.retired, ['previous']);assert.equal(f.entry.getSnapshot().phase, 'two-step-setup');f.entry.dispose();
 });

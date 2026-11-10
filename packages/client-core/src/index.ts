@@ -77,6 +77,7 @@ import {setupResultBody} from './setup-result.ts';
 import {unreadableServerResponse} from './server-messages.ts';
 import {parseLibraryList} from './library-list.ts';
 import {installationHeaders,issuesCredentials,provesIdentity} from './installation.ts';
+import {serverPath} from './server-api.ts';
 import {AudioSelection,emptyAudio,type AudioPlan,type AudioBinding,type AudioSelectionSnapshot} from './audio-selection.ts';
 export type {AudioPlan,AudioBinding,AudioSelectionSnapshot} from './audio-selection.ts';
 import {Outbox, sameOutboxScope, type OutboxAnswer, type OutboxEntry, type OutboxScope, type OutboxStore} from './outbox.ts';
@@ -93,9 +94,7 @@ export type Viewer = {
   authority: string;
   role: string;
 };
-export type NativeServerIdentity = {publicKey:string;fingerprint:string};
 export type LocalSession = {
-  serverIdentity?: NativeServerIdentity;
   accessToken: string;
   expiresAt: string;
   viewer: Viewer;
@@ -160,10 +159,11 @@ export type PlaybackSession = {
   duration: number;
   resumeSeconds: number;
 };
-/** O-159: `apiVersion`, `apiMajors` and `capabilities` are absent on servers older than 1.0's
- * negotiation; `parseServerSignIn` fills them from `apiLevel`. */
-export type SystemInfo = Omit<RouteResponse<'get_system'>, 'signIn'|'move'|'apiVersion'|'apiMajors'|'capabilities'> & {signIn: 'portico' | 'local';move:'to_portico'|'to_local'|null;
-  apiVersion?: string; apiMajors?: readonly number[]; capabilities?: readonly string[]};
+/** What an app knows about a server before sign-in (`parseServerSignIn` reads it from `GET /v1/system`). */
+export type SystemInfo = {id: string; name: string; version?: string; setupRequired: boolean; signIn: 'portico' | 'local';
+  /** The new server never reports a move between sign-in kinds or a Portico Account link; the screens that show them stay until setup moves. */
+  move: 'to_portico' | 'to_local' | null; moveEndsAt: string | null; hostedConfigured: boolean; hostedAttached: boolean;
+  apiLevel: number; apiVersion?: string; apiMajors?: readonly number[]; capabilities?: readonly string[]};
 /** A closed numeric rclone version (three numeric parts plus an optional suffix); never prose. */
 function errorProgramVersion(value:unknown):string|undefined{
   return typeof value==='string'&&/^\d{1,4}(?:\.\d{1,4}){2}(?:[-+][0-9A-Za-z.+-]{1,32})?$/.test(value)?value:undefined;
@@ -508,6 +508,14 @@ export class HttpLocalApi {
     this.observeRoutes();
     if (this.token) bindSessionRoute(this.token,routes);
   }
+  /** The same server over the same routes, sending another sign-in's token: for one request made
+   * with a sign-in this transport has not installed (choosing a profile straight after signing in). */
+  withAccessToken(token: string): HttpLocalApi {
+    const other = new HttpLocalApi(this.baseUrl, '', this.rawFetcher);
+    if (this.routes) other.useRoutes(this.routes);
+    other.token = token;
+    return other;
+  }
   recoverRoute() { return this.routes?.recover() ?? Promise.reject(new Error('No remembered server routes are available.')); }
 
   constructor(
@@ -680,7 +688,7 @@ export class HttpLocalApi {
       signal,
       ...(keepalive ? {keepalive: true} : {}),
       // Credential/profile proof exchanges must never follow an HTTP redirect.
-      ...(ownerStart || /^\/v1\/(?:direct(?:\/|$)|auth\/|hosted\/(?:attach|profiles\/offline-select))/.test(path)?{redirect:'error' as const,credentials:'omit' as const}:{}),
+      ...(ownerStart || /^\/v1\/(?:auth\/|setup\/|hosted\/(?:attach|profiles\/offline-select))/.test(path)?{redirect:'error' as const,credentials:'omit' as const}:{}),
       headers: {
         Accept: "application/json",
         ...(body === undefined ? {} : { "Content-Type": "application/json" }),
@@ -719,7 +727,7 @@ export class HttpLocalApi {
       throwIfAborted(signal);
       if (next && next !== token) { void response.body?.cancel().catch(() => {}); response = await this.send(path, method, body, signal, next, extra); }
     }
-    if(response.status===403&&this.auth?.permissionDenied&&!exchange&&!singleAttempt&&!path.startsWith(routePath("get_me"))&&!signal?.aborted){
+    if(response.status===403&&this.auth?.permissionDenied&&!exchange&&!singleAttempt&&!path.startsWith(serverPath('GET /v1/me'))&&!signal?.aborted){
       let changed=false;try{changed=await waitForAuth(this.auth.permissionDenied(),signal);}catch{throwIfAborted(signal);}
       throwIfAborted(signal);
       if(changed){void response.body?.cancel().catch(()=>{});response=await this.send(path,method,body,signal,this.token,extra);}
@@ -864,11 +872,9 @@ export class HttpLocalApi {
       name,
     })).then(value=>{const {tag,body}=setupResultBody(value);if(tag!=='session')throw new Error(unreadableServerResponse);return parseLocalSession(body,{authority:'local'});});
   }
-  me(signal?: AbortSignal) {
-    return this.request<{ viewer: Viewer }>(routePath("get_me"), "GET", undefined, signal);
-  }
+  /** Signs this device out on the server (`DELETE /v1/auth/session`). Safe to repeat. */
   logout() {
-    return this.request<void>(routePath("delete_sessions_current"), "DELETE");
+    return this.request<void>(serverPath('DELETE /v1/auth/session'), "DELETE");
   }
   libraries() {
     return this.request<RouteResponse<"get_libraries">>(routePath("get_libraries")).then(parseLibraryList);

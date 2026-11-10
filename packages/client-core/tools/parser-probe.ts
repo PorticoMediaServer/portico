@@ -32,6 +32,7 @@ import {fetchInventoryStatus} from '../src/library-inventory.ts';
 import {DetailService} from '../src/detail.ts';
 import {FreshnessHub} from '../src/freshness-hub.ts';
 import {createViewerQueries} from '../src/query/viewer-queries.ts';
+import {readViewerIdentity} from '../src/query/connection-operations.ts';
 import {ShowWorkspaceService} from '../src/show-workspace.ts';
 import {readPerson} from '../src/people.ts';
 import {SavedService, type SavedProjection} from '../src/saved.ts';
@@ -211,7 +212,7 @@ export async function walkProbe(api: HttpLocalApi, input: ProbeInput): Promise<P
   // 1. System and identity.
   const system = await rec.check('system', 'system', 'GET', '/v1/system', () => api.system()) as {id?: unknown} | undefined;
   if (system && typeof system.id === 'string' && system.id) serverId = system.id;
-  const me = await rec.check('system', 'me', 'GET', '/v1/me', () => api.me()) as {viewer?: {authority?: unknown; accountId?: unknown; profileId?: unknown; serverId?: unknown; role?: unknown}} | undefined;
+  const me = await rec.check('system', 'me', 'GET', '/v1/me', () => readViewerIdentity(api, {serverId})) as {viewer?: {authority?: unknown; accountId?: unknown; profileId?: unknown; serverId?: unknown; role?: unknown}} | undefined;
   if (me?.viewer) {
     const viewer = me.viewer;
     if (typeof viewer.authority === 'string') authority = viewer.authority;

@@ -37,9 +37,10 @@ export function installationIdentity(): InstallationIdentity | undefined {
   return current;
 }
 
-/** Paths that issue credentials: the claim travels only with these. */
+/** Paths that issue credentials: the claim travels only with these. Sign-in itself now names the
+ * device in its body (`signInDevice`); the headers remain for the sign-in routes not yet moved. */
 export function issuesCredentials(path: string, method: string): boolean {
-  return method.toUpperCase() === 'POST' && /^\/v1\/(?:direct\/|auth\/|dev\/e2e\/sign-in(?:\?|$)|quick-connect(?:\/|\?|$)|device-authorizations(?:\/|\?|$)|sessions(?:\?|$)|setup(?:\?|$)|access\/invitations\/accept(?:\?|$)|hosted\/(?:attach|profiles\/offline-select)(?:\?|$))/.test(path);
+  return method.toUpperCase() === 'POST' && /^\/v1\/(?:auth\/|dev\/e2e\/sign-in(?:\?|$)|quick-connect(?:\/|\?|$)|device-authorizations(?:\/|\?|$)|sessions(?:\?|$)|setup(?:\/|\?|$)|access\/invitations\/accept(?:\?|$)|hosted\/(?:attach|profiles\/offline-select)(?:\?|$))/.test(path);
 }
 
 /** The request headers for the claim (empty until an app sets it). */
@@ -75,7 +76,7 @@ export function credentialLock(): CredentialLock { return lock; }
  * never a reason to refresh and resend (resending a password would count twice toward lockout).
  */
 export function provesIdentity(path: string, method: string): boolean {
-  return path.startsWith(routePrefix("get_auth_capabilities", 2)) || (method.toUpperCase() === 'POST' && (/^\/v1\/(?:direct\/(?:sign-in|two-factor)|sessions(?:\?|$)|setup(?:\?|$)|hosted\/(?:attach|profiles\/offline-select)(?:\?|$))/.test(path)
+  return path.startsWith(routePrefix("get_auth_capabilities", 2)) || (method.toUpperCase() === 'POST' && (/^\/v1\/(?:sessions(?:\?|$)|setup(?:\/|\?|$)|hosted\/(?:attach|profiles\/offline-select)(?:\?|$))/.test(path)
     // Binding this sign-in to this device record: a 401 means the family belongs to another device
     // (a Quick Connect grant), which is an answer, never a reason to renew the sign-in.
     || /^\/v1\/devices\/[A-Za-z0-9_-]{1,128}\/sessions\/bind$/.test(path)));

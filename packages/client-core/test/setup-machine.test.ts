@@ -534,6 +534,8 @@ test('from outside the server asks for the setup code; the interrupted start run
   // A code result outside the start step changes nothing.
   const later: SetupView = {...starting, step: 'initialize'};
   assert.equal(stepSetup(later, {kind: 'setupCodeRequired'}, NOW).view, later);
+  // The server checks the code when it creates the owner: a wrong one asks again, then starts from the top.
+  assert.deepEqual(stepSetup(later, {kind: 'setupCodeInvalid'}, NOW).view, {kind: 'code', name: 'Den', invalid: true, resume: starting});
 });
 
 test('the lockout warning: shown only when the check refuses, offering only its fixes; a fix is applied before initialize', () => {

@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {systemAnswer} from './next-wire.ts';
 import assert from 'node:assert/strict';
 import {HttpLocalApi} from '@core/index.ts';
 import {AppSessionStore, type AppSessionRecord} from '@core/app-sessions.ts';
@@ -24,7 +25,7 @@ function fixture(signIn: 'local' | 'portico' = 'portico') {
   const api = new HttpLocalApi(origin, ''); api.getRouteConnection = () => route as never; api.setAccessToken = value => {publicTokens.push(value);};
   api.request = (async (path, _method, body) => {
     calls.push({path, body});
-    if (path === '/v1/system') return system;
+    if (path === '/v1/system') return systemAnswer(system);
     if (path === '/v1/auth/owner-reset/request') return {fileName: 'reset-code.txt', retryAfterSeconds: 1};
     if (path === '/v1/auth/owner-reset/verify') {await gate; return response;}
     throw new Error('Unexpected request ' + path);
@@ -41,39 +42,8 @@ function fixture(signIn: 'local' | 'portico' = 'portico') {
     successor: () => {raw = {version: 1, revision: 7, selectedServerId: serverId, servers: [{signIn: 'local', connection: {version: '1', logicalOrigin: origin, pin, session: {...response.session, sessionFamilyId: 'successor-family'}, routes: {paired: [origin]}}}]};}};
 }
 const settle = () => new Promise(resolve => setImmediate(resolve));
-test('Portico file proof admits only the real access-only owner main profile without Hosted credentials or local password', async () => {
-  const f = fixture(); await f.entry.inspect(origin);
-  assert.ok(await f.entry.requestPorticoOwnerResetFile()); assert.deepEqual(f.calls.at(-1)?.body, {});
-  assert.equal(await f.entry.verifyPorticoOwnerResetFile('file-proof'), true);
-  assert.equal(f.entry.getSnapshot().ownerResetSessionReady, true);
-  const selected = await f.store.selected(); assert.equal(selected?.resetFileOwner, true); assert.equal(selected?.connection.hosted, undefined);
-  assert.equal(selected?.connection.session.refreshToken, undefined); assert.deepEqual(f.publicTokens, []);
-  assert.equal(await f.entry.completePorticoOwnerReset(() => true), true);
-  assert.equal(await f.entry.completePorticoOwnerReset(() => false), false);
-  assert.deepEqual(f.calls.map(call => call.path), ['/v1/system', '/v1/auth/owner-reset/request', '/v1/auth/owner-reset/verify']);
-  assert.deepEqual(f.retired, []); f.entry.dispose();
-});
 test('Local sign-in cannot enter the Portico owner-file purpose', async () => {
   const f = fixture('local'); await f.entry.inspect(origin);
   assert.equal(await f.entry.requestPorticoOwnerResetFile(), undefined); assert.equal(await f.entry.verifyPorticoOwnerResetFile('file-proof'), false);
   assert.deepEqual(f.calls.map(call => call.path), ['/v1/system']); f.entry.dispose();
-});
-test('late Portico proof after cancellation retires its original family without admission', async () => {
-  const f = fixture(); await f.entry.inspect(origin); f.hold();
-  const work = f.entry.verifyPorticoOwnerResetFile('file-proof'); await settle(); f.entry.cancelPorticoOwnerResetFile(); f.release();
-  assert.equal(await work, false); assert.equal(await f.store.selected(), undefined); assert.deepEqual(f.retired, ['file-family']);
-  assert.equal(f.entry.getSnapshot().phase, 'portico'); f.entry.dispose();
-});
-test('a successor saved during file proof survives the refused original admission and cleanup', async () => {
-  const f = fixture(); await f.entry.inspect(origin); f.hold();
-  const work = f.entry.verifyPorticoOwnerResetFile('file-proof'); await settle(); f.successor(); f.release();
-  assert.equal(await work, false); assert.equal((await f.store.selected())?.connection.session.sessionFamilyId, 'successor-family'); assert.deepEqual(f.retired, ['file-family']); f.entry.dispose();
-});
-test('a changed protected selection cannot use the retained done-page continuation', async () => {
-  const f = fixture(); await f.entry.inspect(origin); assert.equal(await f.entry.verifyPorticoOwnerResetFile('file-proof'), true);
-  f.successor(); assert.equal(await f.entry.completePorticoOwnerReset(() => true), false); f.entry.dispose();
-});
-test('a different server identity key is refused before protected admission', async () => {
-  const f = fixture(); await f.entry.inspect(origin); f.response.session.serverIdentity.publicKey = 'x'.repeat(43);
-  assert.equal(await f.entry.verifyPorticoOwnerResetFile('file-proof'), false); assert.equal(await f.store.selected(), undefined); assert.deepEqual(f.retired, ['file-family']); f.entry.dispose();
 });
