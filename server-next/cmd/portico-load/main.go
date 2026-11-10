@@ -263,6 +263,9 @@ func mixed(ctx context.Context, d *db.DB, cfg seed.Config, readers, writesPerSec
 
 	// The floor under every user write: one small transaction and its disk sync, nothing else running.
 	log.Print("writes with nothing else running")
+	warm := w.start(ctx, 0, writesPerSec) // a few first, uncounted, so the pages they touch are in memory
+	time.Sleep(3 * time.Second)
+	warm()
 	stop := w.start(ctx, 0, writesPerSec)
 	time.Sleep(10 * time.Second)
 	_, idleWrites := stop()
