@@ -11,6 +11,7 @@ import (
 type SeedProfile struct {
 	Name         string
 	MaxRatingAge *int     // nil is no rating limit
+	AllowUnrated bool     // with a limit: also show titles that have no rating
 	Libraries    []int64  // nil is every library; otherwise only these
 	BlockedTags  []string // public ids of tags the profile must never be shown
 }
@@ -26,8 +27,8 @@ func (d *DB) CreateSeedProfile(ctx context.Context, p SeedProfile) (Viewer, erro
 			return err
 		}
 		v.UserID, _ = res.LastInsertId()
-		res, err = tx.Exec(`INSERT INTO profiles (public_id, user_id, name, max_rating_age, all_libraries, access_changed_at, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, NewID("prf"), v.UserID, p.Name, p.MaxRatingAge, p.Libraries == nil, now, now, now)
+		res, err = tx.Exec(`INSERT INTO profiles (public_id, user_id, name, max_rating_age, allow_unrated, all_libraries, access_changed_at, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, NewID("prf"), v.UserID, p.Name, p.MaxRatingAge, p.AllowUnrated, p.Libraries == nil, now, now, now)
 		if err != nil {
 			return err
 		}

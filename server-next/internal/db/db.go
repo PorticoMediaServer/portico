@@ -9,8 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"strconv"
-	"sync/atomic"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -39,10 +37,10 @@ type DB struct {
 	path       string
 	helper     *sql.DB
 	helperDone chan struct{}
-	restartDue atomic.Bool
 
 	// titleData is the title data file the reads use, or nil. See titledata.go.
-	titleData atomic.Pointer[titleData]
+	titleData  atomic.Pointer[titleData]
+	nextInsist time.Time
 }
 
 // Open opens the database at path, creating it with the current schema if it is new.
@@ -69,7 +67,7 @@ func Open(ctx context.Context, path string) (*DB, error) {
 		return nil, err
 	}
 	// The helper never waits long for anyone: what it cannot do now it does next time.
-	d.helper.Exec(`PRAGMA busy_timeout = ` + strconv.FormatInt(walRestartWait.Milliseconds(), 10))
+	d.helper.Exec(`PRAGMA busy_timeout = 50`)
 	go d.writer()
 	go d.checkpointHelper()
 	return d, nil
