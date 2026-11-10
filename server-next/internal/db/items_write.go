@@ -619,7 +619,11 @@ func (im *importer) createItem(it *ImportItem, parent *importedItem, keys []Item
 		return err
 	}
 	if len(it.LocalFields) > 0 {
-		if _, err := im.exec(`UPDATE items SET local_fields = ?, tagline = ? WHERE id = ?`, fieldList(it.LocalFields), nz(it.Tagline), id); err != nil {
+		sources := map[string]string{}
+		for _, field := range it.LocalFields {
+			sources[field] = SourceFile
+		}
+		if _, err := im.exec(`UPDATE items SET local_fields = ?, tagline = ? WHERE id = ?`, sourceJSON(sources), nz(it.Tagline), id); err != nil {
 			return err
 		}
 	}
