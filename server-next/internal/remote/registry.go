@@ -31,6 +31,9 @@ type Config struct {
 	// rclone: the remote's type, shown to the owner, and the folder within the remote.
 	RcloneType string `json:"rcloneType,omitempty"`
 	Path       string `json:"path,omitempty"`
+	// Google Drive: the owner's own OAuth client, when the source signed in with one rather
+	// than a service account key.
+	DriveClientID string `json:"driveClientId,omitempty"`
 	// SecretSet says a password or key is stored, which is all the owner is shown of it.
 	SecretSet bool `json:"secretSet,omitempty"`
 }
@@ -42,6 +45,10 @@ type Secret struct {
 	// Rclone is one remote from an rclone configuration, as pasted: it holds the remote's
 	// tokens and passwords.
 	Rclone string `json:"rclone,omitempty"`
+	// Google Drive: a service account key, or the OAuth client's secret and the sign-in's token.
+	DriveKey          string `json:"driveKey,omitempty"`
+	DriveClientSecret string `json:"driveClientSecret,omitempty"`
+	DriveToken        string `json:"driveToken,omitempty"`
 }
 
 // PresetNamed returns the preset a source names, or the default.
@@ -72,6 +79,13 @@ var kinds = map[string]func(Config, Secret) (Storage, error){
 	"webdav": func(c Config, s Secret) (Storage, error) { return NewWebDAV(c.Address, c.User, s.Password) },
 	"rclone": func(c Config, s Secret) (Storage, error) {
 		options, err := ParseRcloneConfig(s.Rclone)
+		if err != nil {
+			return nil, err
+		}
+		return NewRclone(options, c.Path), nil
+	},
+	"drive": func(c Config, s Secret) (Storage, error) {
+		options, err := driveOptions(c, s)
 		if err != nil {
 			return nil, err
 		}
