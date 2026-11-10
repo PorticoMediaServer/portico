@@ -615,6 +615,9 @@ func (e *Engine) Start(ctx context.Context, r playback.StartRequest) (playback.S
 	if r.Replaced != nil {
 		start.Replaced = func(s streaming.Stream) { r.Replaced(stream(s)) }
 	}
+	if r.Failed != nil {
+		start.Failed = func(s streaming.Stream) { r.Failed(stream(s)) }
+	}
 	s, err := e.streams.Start(ctx, start)
 	switch {
 	case errors.Is(err, streaming.ErrConversionCapacity), errors.Is(err, streaming.ErrConversionSpace):

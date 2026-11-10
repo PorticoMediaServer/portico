@@ -276,7 +276,7 @@ func (s *Service) create(ctx context.Context, in StartInput) (*session, error) {
 	stream := sess.Stream
 	if in.Prepared == nil {
 		stream, err = s.streams.Start(ctx, StartRequest{SessionID: sess.ID, Item: r.item, Version: r.version, Plan: r.plan, PositionMs: position,
-			Replaced: s.replaced(sess)})
+			Replaced: s.replaced(sess), Failed: s.failed(sess)})
 	}
 	s.mu.Lock()
 	if err != nil {
@@ -307,6 +307,35 @@ func (s *Service) replaced(sess *session) func(Stream) {
 			sess.Stream, sess.StartPositionMs = stream, sess.PositionMs
 			sess.Generation++
 		}
+	}
+}
+
+// FailureConversion is the failure the server itself records when a conversion breaks down
+// in the middle of playing.
+const FailureConversion = "conversion_failed"
+
+// failed is what the engine calls when a session's stream stopped working in the middle of
+// playing. The server does what the player would do on finding the address dead, without
+// waiting for it to find out: it remembers that this way of playing failed and starts the
+// next way where the viewer was. The app learns of the new address from its next progress
+// report. When there is no other way, the session ends as failed.
+//
+// The engine says which stream failed. By the time this runs the session may already be
+// playing another (the viewer changed quality, or the engine replaced the stream): a failure
+// of a stream the session no longer plays is ignored, under the session's own lock in change.
+func (s *Service) failed(sess *session) func(Stream) {
+	return func(failed Stream) {
+		s.mu.Lock()
+		ready := sess.ready
+		caller := Caller{Viewer: sess.Viewer(), SignInID: sess.SignInID}
+		s.mu.Unlock()
+		if !ready || failed.Grant == "" {
+			// A stream that fails before it has produced anything ends the start: awaitReady.
+			return
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		_, _ = s.change(ctx, sess.ID, caller, Change{Failure: &Failure{Code: FailureConversion}}, failed.Grant)
 	}
 }
 
@@ -346,6 +375,13 @@ var certainFailures = map[string]bool{"decode_error": true, "source_not_supporte
 // or a burned-in subtitle plans again, stops the stream and starts a new one where the player
 // was. A change that cannot be made leaves playback as it was.
 func (s *Service) Change(ctx context.Context, id string, c Caller, ch Change) (Session, error) {
+	return s.change(ctx, id, c, ch, "")
+}
+
+// change is Change. failedGrant, when set, is the stream the engine says failed by itself:
+// the change is then made only if the session still plays that stream, and if it cannot be
+// moved to another way of playing the session ends as failed.
+func (s *Service) change(ctx context.Context, id string, c Caller, ch Change, failedGrant string) (Session, error) {
 	sess, err := s.owned(id, c.Viewer, c.SignInID)
 	if err != nil {
 		return Session{}, err
@@ -358,8 +394,27 @@ func (s *Service) Change(ctx context.Context, id string, c Caller, ch Change) (S
 		s.mu.Unlock()
 		return Session{}, ErrEnded
 	}
+	if failedGrant != "" && sess.Stream.Grant != failedGrant {
+		// The stream that failed is no longer the one this session plays.
+		out := sess.Session
+		s.mu.Unlock()
+		return out, nil
+	}
 	before := sess.Session
 	version := sess.version
+	// failed ends the session when the stream the engine reported cannot be moved to another
+	// way of playing. change holds the session's lock, which end and finish take, so it is
+	// ended here.
+	failed := func(err error) (Session, error) {
+		s.mu.Lock()
+		if sess.State != StateEnded {
+			s.endLocked(sess, EndFailed, "")
+		}
+		s.mu.Unlock()
+		s.Save(ctx, db.User, id)
+		s.streams.Stop(id)
+		return Session{}, err
+	}
 	if ch.PositionMs != nil {
 		s.sampleLocked(sess, *ch.PositionMs, sess.playedMs, now)
 	}
@@ -387,6 +442,9 @@ func (s *Service) Change(ctx context.Context, id string, c Caller, ch Change) (S
 		}
 		if err := s.db.RecordRouteFailure(ctx, before.Device.ID, before.fileID, db.RouteFailure{Player: before.Plan.Player,
 			Route: before.Plan.Route, Code: ch.Failure.Code, Detail: ch.Failure.Detail, FailedAt: now, ExpiresAt: now.Add(kept)}); err != nil {
+			if failedGrant != "" {
+				return failed(err)
+			}
 			return Session{}, err
 		}
 	}
@@ -407,25 +465,30 @@ func (s *Service) Change(ctx context.Context, id string, c Caller, ch Change) (S
 	c.AtHome = before.Network == NetworkLocal
 	r, err := s.resolve(ctx, c, before.Device, before.Item.PublicID, a, &before.Choice)
 	if err != nil {
+		if failedGrant != "" {
+			return failed(err)
+		}
 		return Session{}, err
 	}
 	stream := before.Stream
 	generation := before.Generation
-	if r.plan.Key != before.Plan.Key || r.version.PublicID != version.PublicID {
+	restart := r.plan.Key != before.Plan.Key || r.version.PublicID != version.PublicID
+	if failedGrant != "" && !restart {
+		// Planning again gave the way that just failed: there is no other.
+		return failed(ErrEnded)
+	}
+	if restart {
 		s.streams.Stop(id)
-		request := StartRequest{SessionID: id, Item: r.item, Version: r.version, Plan: r.plan, PositionMs: position, Replaced: s.replaced(sess)}
+		request := StartRequest{SessionID: id, Item: r.item, Version: r.version, Plan: r.plan, PositionMs: position, Replaced: s.replaced(sess), Failed: s.failed(sess)}
 		if stream, err = s.streams.Start(ctx, request); err != nil {
+			if failedGrant != "" {
+				// The stream it had is the one that failed: there is nothing to go back to.
+				return failed(err)
+			}
 			// Playback is left as it was: the stream it had is started again.
-			old := StartRequest{SessionID: id, Item: r.item, Version: version, Plan: before.Plan, PositionMs: position, Replaced: s.replaced(sess)}
+			old := StartRequest{SessionID: id, Item: r.item, Version: version, Plan: before.Plan, PositionMs: position, Replaced: s.replaced(sess), Failed: s.failed(sess)}
 			if _, again := s.streams.Start(ctx, old); again != nil {
-				// Change holds the session lock; end it without taking that lock again.
-				s.mu.Lock()
-				if sess.State != StateEnded {
-					s.endLocked(sess, EndFailed, "")
-				}
-				s.mu.Unlock()
-				s.Save(ctx, db.User, id)
-				s.streams.Stop(id)
+				return failed(err)
 			}
 			return Session{}, err
 		}
