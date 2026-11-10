@@ -35,14 +35,16 @@ type Bridge struct {
 	size     int64
 	server   *http.Server
 	ipv4     *net.TCPListener
-	ipv6     *net.TCPListener
+	ipv6     *net.TCPListener // nil on a host with no IPv6 loopback
 	requests chan struct{}
 	done     chan struct{}
 	closing  sync.Once
 }
 
-// Open starts serving a source of a known size on a fresh loopback port, on
-// both address families so the tool reaches it however it resolves loopback.
+// Open starts serving a source of a known size on a fresh loopback port. The
+// tool is told the IPv4 address. The same port on IPv6 loopback is held too, so
+// nothing else can sit there, unless the host has no IPv6 loopback at all (many
+// containers), where there is nothing to hold.
 // The bridge stops when ctx ends or Close is called.
 func Open(ctx context.Context, source io.ReaderAt, size int64) (*Bridge, error) {
 	if ctx == nil || ctx.Err() != nil || source == nil || size <= 0 {
@@ -52,15 +54,23 @@ func Open(ctx context.Context, source io.ReaderAt, size int64) (*Bridge, error) 
 	if err != nil {
 		return nil, err
 	}
-	ipv6, err := net.ListenTCP("tcp6", &net.TCPAddr{IP: net.IPv6loopback, Port: ipv4.Addr().(*net.TCPAddr).Port})
-	if err != nil {
+	listeners := []net.Listener{ipv4}
+	ipv6, err := listenIPv6(ipv4.Addr().(*net.TCPAddr).Port)
+	if err == nil {
+		listeners = append(listeners, ipv6)
+	} else if probe, probeErr := listenIPv6(0); probeErr == nil {
+		// IPv6 loopback works, so this port is taken there by something else.
+		probe.Close()
 		ipv4.Close()
 		return nil, err
+	} else {
+		ipv6 = nil
 	}
 	var secret [32]byte
 	if _, err = rand.Read(secret[:]); err != nil {
-		ipv4.Close()
-		ipv6.Close()
+		for _, listener := range listeners {
+			listener.Close()
+		}
 		return nil, err
 	}
 	b := &Bridge{
@@ -72,13 +82,18 @@ func Open(ctx context.Context, source io.ReaderAt, size int64) (*Bridge, error) 
 		Handler: b, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 5 * time.Second, MaxHeaderBytes: 4096,
 		BaseContext: func(net.Listener) context.Context { return ctx },
 	}
-	for _, listener := range []net.Listener{ipv4, ipv6} {
+	for _, listener := range listeners {
 		served := listener
 		supervise.Go("inputbridge.serve", func() { _ = b.server.Serve(served) })
 	}
 	stop := context.AfterFunc(ctx, func() { _ = b.Close() })
 	supervise.Go("inputbridge.owner", func() { <-b.done; stop() })
 	return b, nil
+}
+
+// listenIPv6 is replaced in tests to stand in for a host without IPv6 loopback.
+var listenIPv6 = func(port int) (*net.TCPListener, error) {
+	return net.ListenTCP("tcp6", &net.TCPAddr{IP: net.IPv6loopback, Port: port})
 }
 
 // URL is a private capability for the one tool it is given to. Never log it.
