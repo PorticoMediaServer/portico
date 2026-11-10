@@ -125,9 +125,10 @@ type ItemState struct {
 	LastPlayedAt string `json:"lastPlayedAt,omitempty"`
 	Favorite     bool   `json:"favorite"`
 	InList       bool   `json:"inList"`
-	Hidden       bool   `json:"hidden"`
-	Rating       *int   `json:"rating,omitempty"`
-	UpdatedAt    string `json:"updatedAt,omitempty"`
+	// NotInterested takes the title out of recommendation rows; it hides nothing else.
+	NotInterested bool   `json:"notInterested"`
+	Rating        *int   `json:"rating,omitempty"`
+	UpdatedAt     string `json:"updatedAt,omitempty"`
 }
 
 // Tag is a genre, studio, label or similar.
@@ -271,7 +272,11 @@ type StateRequest struct {
 	Position   *string `json:"position"`
 	Favorite   *bool   `json:"favorite"`
 	InList     *bool   `json:"inList"`
-	Hidden     *bool   `json:"hidden"`
+	// NotInterested takes the title out of recommendation rows; it hides nothing else.
+	NotInterested *bool `json:"notInterested"`
+	// ContinueDismissed true removes the title from Continue Watching until it is played
+	// again, and changes nothing else; false puts it back (an undo).
+	ContinueDismissed *bool `json:"continueDismissed"`
 	// Rating is half a star to five stars, sent as 1 to 10, or null to clear it.
 	Rating NullableInt `json:"rating"`
 	// MadeAgoMs is how long ago the person made this edit, by the device's own measure, for
@@ -340,7 +345,7 @@ func imageMap(images []db.Image) map[string]string {
 
 func stateShape(s db.State) ItemState {
 	return ItemState{Watched: s.Watched, PositionMs: s.PositionMS, Position: s.PositionText, PlayCount: s.PlayCount,
-		LastPlayedAt: timeString(s.LastPlayedAt), Favorite: s.Favorite, InList: s.InList, Hidden: s.Hidden, Rating: s.Rating,
+		LastPlayedAt: timeString(s.LastPlayedAt), Favorite: s.Favorite, InList: s.InList, NotInterested: s.Hidden, Rating: s.Rating,
 		UpdatedAt: timeString(s.UpdatedAt)}
 }
 

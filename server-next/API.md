@@ -44,7 +44,7 @@ Assistant) are a separate short document and are not counted here.
   `versions[]` (each a `Media` with its streams), `tags`, `externalIds`, `markers`.
   One shape for every kind; a new media type is a new `kind` value.
 - **`ItemState`**: `watched`, `positionMs?`, `position?` (a book location), `playCount`,
-  `lastPlayedAt?`, `favorite`, `inList`, `hidden`, `rating?`.
+  `lastPlayedAt?`, `favorite`, `inList`, `notInterested`, `rating?`.
 - **`Library`**: `id`, `name`, `kind`, `views`, `sorts`, `filters` (what this library can be
   browsed by).
 - **`Person`**, **`Tag`**, **`Credit`**: small named shapes used by `Item`.
@@ -125,7 +125,7 @@ Assistant) are a separate short document and are not counted here.
 
 | Route | Purpose |
 |---|---|
-| `PUT /v1/items/{id}/state` | **The one state route.** Watched, position, favourite, My List, rating, hidden. On a show, season or album it sets every leaf and answers an undo token. |
+| `PUT /v1/items/{id}/state` | **The one state route.** Watched, position, favourite, My List, rating, Not interested, and removing a title from Continue Watching until it is played again. On a show, season or album it sets every leaf and answers an undo token. |
 | `POST /v1/items/state:batch` | The same for many items (what a device queued while out of reach) |
 | `POST /v1/items/state:undo` | Undo a container change within about a minute |
 | `GET /v1/history`, `DELETE /v1/history/{id}`, `DELETE /v1/history` | Your play history: list, remove one, clear |

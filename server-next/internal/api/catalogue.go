@@ -155,8 +155,8 @@ func (s *Server) catalogueRoutes() {
 			return StateReply{}, ErrField("madeAgoMs", "This cannot be negative.")
 		}
 		edit := db.StateEdit{Watched: req.Watched, PositionMS: req.PositionMs, PositionText: req.Position, Favorite: req.Favorite,
-			InList: req.InList, Hidden: req.Hidden, Rating: req.Rating.Value, ClearRating: req.Rating.Set && req.Rating.Value == nil,
-			Ago: time.Duration(req.MadeAgoMs) * time.Millisecond}
+			InList: req.InList, Hidden: req.NotInterested, Rating: req.Rating.Value, ClearRating: req.Rating.Set && req.Rating.Value == nil,
+			DismissContinue: req.ContinueDismissed, Ago: time.Duration(req.MadeAgoMs) * time.Millisecond}
 		state, undo, err := s.db.SetState(r.Context(), viewer(r), r.PathValue("id"), edit)
 		if err != nil {
 			return StateReply{}, refuse(err)
