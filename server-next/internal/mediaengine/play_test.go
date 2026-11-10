@@ -199,7 +199,7 @@ func TestAScannedFilmPlaysAsItIsAndConverted(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stats, err := (&scan.Scanner{DB: d, Prober: mediaengine.Prober{FFprobe: ffprobe}}).Scan(ctx, lib)
+	stats, err := (&scan.Scanner{DB: d, Prober: scan.FileProber{}}).Scan(ctx, lib)
 	if err != nil || stats.ItemsNew != 1 || stats.Probed != 1 {
 		t.Fatalf("scan: %+v, %v", stats, err)
 	}
