@@ -5,6 +5,13 @@ import (
 	"database/sql"
 )
 
+// ChooseMatch marks a title's match as chosen by a person, which only the metadata editor's
+// own writes do.
+func ChooseMatch(d *DB, publicID string) error {
+	_, err := d.writeConn.Exec(`UPDATE items SET match_state = ? WHERE public_id = ?`, MatchChosen, publicID)
+	return err
+}
+
 // SetRareTag lets a test send tag-filtered lists down the path for common tags or the path
 // for rare ones, whatever the size of its library.
 func SetRareTag(uses int) { rareTag = uses }
