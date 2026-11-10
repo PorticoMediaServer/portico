@@ -63,3 +63,30 @@ func TestOnlyPathsWrittenBeneathALibraryFolderOpen(t *testing.T) {
 		}
 	}
 }
+
+func TestAFileInTheServersDataFolderIsNeverALibraryFile(t *testing.T) {
+	library, data := t.TempDir(), t.TempDir()
+	database := filepath.Join(data, "main.db")
+	if err := os.WriteFile(database, []byte("tokens"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if os.Symlink(database, filepath.Join(library, "film.mkv")) != nil || os.Symlink(data, filepath.Join(library, "Show")) != nil {
+		t.Skip("no symbolic links here")
+	}
+	ServerData = data
+	defer func() { ServerData = "" }()
+	// A link to the file, a link to the folder, and a library that is the data folder.
+	for path, folder := range map[string]string{
+		filepath.Join(library, "film.mkv"): library, filepath.Join(library, "Show", "main.db"): library, database: data,
+	} {
+		if file, err := Open(path, []string{folder}); !errors.Is(err, ErrOutside) {
+			if file != nil {
+				file.Close()
+			}
+			t.Fatalf("%s opened: %v", path, err)
+		}
+		if real, err := Resolve(path, []string{folder}); !errors.Is(err, ErrOutside) {
+			t.Fatalf("%s resolved to %s: %v", path, real, err)
+		}
+	}
+}
