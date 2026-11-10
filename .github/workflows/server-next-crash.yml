@@ -3,7 +3,8 @@ name: New server killed under load
 # an import run against a real database file, and checks after every restart that the server
 # serves again, every write it said was saved is there, none it refused shows up, a repeated
 # "create profile" makes one profile, and SQLite's integrity and foreign-key checks are clean.
-# A change to the tool runs a short pass; the full count (rebuild plan bar 9) is run by hand.
+# A change to the tool runs the full count (rebuild plan bar 9): it is rare, and the result is the point.
+# The tool's own default is a short pass for running it locally.
 # Not part of ci/required.
 on:
   workflow_dispatch:
@@ -32,7 +33,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
-      KILLS: ${{ inputs.kills || '20' }}
+      KILLS: ${{ inputs.kills || '200' }}
       ITEMS: ${{ inputs.items || '200000' }}
       RANDOM_SEED: ${{ inputs.random }}
       WORK: ${{ github.workspace }}/crash

@@ -27,6 +27,7 @@ var processSpawns = map[string]string{
 	"internal/decoder/hardware_nvidia.go:runNVIDIADiscovery": "fixed read-only nvidia-smi UUID/PCI/index/name/driver query; 5-second context, bounded output, minimal environment and " +
 		"childprocess group retirement; no media input or codec availability inference",
 	"internal/supervise/process.go:Process": "the server starting itself as its own worker, so a restart stays inside the service",
+	"cmd/portico-crash/main.go:command":     "a test tool starting the server binary, and itself to run an import, so it can kill them; no media",
 }
 
 type spawn struct{ file, function string }
