@@ -68,6 +68,30 @@ func TestHistory(t *testing.T) {
 		t.Fatalf("another profile removing an entry answered %d", code)
 	}
 
+	// The owner's other devices hear of each removal and of the clear; the kid's do not.
+	ownerView := db.Viewer{UserID: 1, ProfileID: 1}
+	kidClaims, err := th.s.tokens.CheckAccess(onKid.AccessToken, th.clock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	kidView := db.Viewer{UserID: kidClaims.UserID, ProfileID: kidClaims.ProfileID}
+	_, ownerFrom, _, _ := th.s.db.Events(context.Background(), ownerView, 0, 10_000)
+	_, kidFrom, _, _ := th.s.db.Events(context.Background(), kidView, 0, 10_000)
+	heard := func(v db.Viewer, from int64) int {
+		t.Helper()
+		events, _, _, err := th.s.db.Events(context.Background(), v, from, 10_000)
+		if err != nil {
+			t.Fatal(err)
+		}
+		n := 0
+		for _, e := range events {
+			if e.Topic == db.TopicHistory {
+				n++
+			}
+		}
+		return n
+	}
+
 	// Removing one entry, twice, then clearing the rest.
 	for range 2 {
 		if code := status(t, th.s, "DELETE", "/v1/history/"+rest.Items[0].ID, token, nil); code != 204 {
@@ -82,6 +106,9 @@ func TestHistory(t *testing.T) {
 	}
 	if left := get[HistoryPage](t, th.s, token, "/v1/history"); len(left.Items) != 0 {
 		t.Fatalf("after clearing: %+v", left.Items)
+	}
+	if owner, kid := heard(ownerView, ownerFrom), heard(kidView, kidFrom); owner != 2 || kid != 0 {
+		t.Fatalf("History events: the owner heard %d (one removal, one clear), the kid %d", owner, kid)
 	}
 	if !th.state(th.film).Watched || !th.state(th.eps[0]).Watched {
 		t.Fatal("clearing History took away a watched mark")
