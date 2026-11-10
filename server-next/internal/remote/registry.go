@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"net/url"
 	"os"
@@ -27,6 +28,9 @@ type Config struct {
 	// WebDAV: the address and the user name.
 	Address string `json:"address,omitempty"`
 	User    string `json:"user,omitempty"`
+	// rclone: the remote's type, shown to the owner, and the folder within the remote.
+	RcloneType string `json:"rcloneType,omitempty"`
+	Path       string `json:"path,omitempty"`
 	// SecretSet says a password or key is stored, which is all the owner is shown of it.
 	SecretSet bool `json:"secretSet,omitempty"`
 }
@@ -35,6 +39,9 @@ type Config struct {
 // never logged, and can only be replaced.
 type Secret struct {
 	Password string `json:"password,omitempty"`
+	// Rclone is one remote from an rclone configuration, as pasted: it holds the remote's
+	// tokens and passwords.
+	Rclone string `json:"rclone,omitempty"`
 }
 
 // PresetNamed returns the preset a source names, or the default.
@@ -63,6 +70,20 @@ func (c Config) limits() Limits {
 // kinds builds each kind of source from its settings and secret.
 var kinds = map[string]func(Config, Secret) (Storage, error){
 	"webdav": func(c Config, s Secret) (Storage, error) { return NewWebDAV(c.Address, c.User, s.Password) },
+	"rclone": func(c Config, s Secret) (Storage, error) {
+		options, err := ParseRcloneConfig(s.Rclone)
+		if err != nil {
+			return nil, err
+		}
+		return NewRclone(options, c.Path), nil
+	},
+}
+
+// closeStorage stops whatever a source runs to be reached (rclone).
+func closeStorage(s Storage) {
+	if c, ok := s.(io.Closer); ok {
+		c.Close()
+	}
 }
 
 // Build makes a source's storage, not yet behind a throttle.
@@ -81,6 +102,7 @@ func Test(ctx context.Context, kind string, c Config, s Secret) error {
 	if err != nil {
 		return err
 	}
+	defer closeStorage(storage)
 	_, err = Throttled(storage, NewThrottle(c.limits())).List(ctx, "")
 	return err
 }
@@ -97,6 +119,7 @@ type Registry struct {
 
 type opened struct {
 	revision int64
+	raw      Storage // as built, to be closed
 	storage  Storage
 	throttle *Throttle
 	every    time.Duration
@@ -204,8 +227,11 @@ func (r *Registry) Open(ctx context.Context, id int64) (Storage, time.Duration, 
 	}
 	preset, _ := PresetNamed(c.Preset)
 	throttle := NewThrottle(c.limits())
-	o = &opened{revision: revision, storage: Throttled(storage, throttle), throttle: throttle, every: preset.RescanEvery, state: row.State}
+	o = &opened{revision: revision, raw: storage, storage: Throttled(storage, throttle), throttle: throttle, every: preset.RescanEvery, state: row.State}
 	r.mu.Lock()
+	if old := r.open[id]; old != nil {
+		closeStorage(old.raw)
+	}
 	r.open[id] = o
 	r.mu.Unlock()
 	return watched{o.storage, r, id}, o.every, nil
@@ -225,6 +251,9 @@ func (r *Registry) Waiting(id int64) (time.Time, bool) {
 // Forget drops what is open for a source that was removed.
 func (r *Registry) Forget(id int64) {
 	r.mu.Lock()
+	if o := r.open[id]; o != nil {
+		closeStorage(o.raw)
+	}
 	delete(r.open, id)
 	r.mu.Unlock()
 }

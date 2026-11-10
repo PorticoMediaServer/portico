@@ -20,13 +20,14 @@ import (
 // RemoteSource is a remote source as the owner sees it.
 type RemoteSource struct {
 	ID string `json:"id"`
-	// Kind is webdav.
+	// Kind is webdav or rclone.
 	Kind string `json:"kind"`
 	Name string `json:"name"`
 	// Preset is list-only, read-once (the default), everything or on-request.
 	Preset string       `json:"preset"`
 	Limits RemoteLimits `json:"limits"`
 	WebDAV *WebDAVShown `json:"webdav,omitempty"`
+	Rclone *RcloneShown `json:"rclone,omitempty"`
 	// State is connected, unreachable, sign_in (needs its sign-in again), waiting (it asked
 	// Portico to slow down, until WaitingUntil) or setup (no library folder is on it yet).
 	State        string     `json:"state"`
@@ -58,6 +59,21 @@ type WebDAVSettings struct {
 	Password string `json:"password,omitempty"`
 }
 
+// RcloneShown is an rclone source as shown: the remote's type and the folder in it, never
+// its configuration, which holds its tokens.
+type RcloneShown struct {
+	Type string `json:"type"`
+	Path string `json:"path,omitempty"`
+}
+
+// RcloneSettings are one remote from an rclone configuration, pasted as rclone config show
+// prints it ("[name]" then "key = value" lines; the remote's own name is not used), and the
+// folder within the remote. On an edit an empty configuration keeps the one stored.
+type RcloneSettings struct {
+	Config string `json:"config,omitempty"`
+	Path   string `json:"path,omitempty"`
+}
+
 // RemoteSourceCreate adds a source. Its connection is tested first and nothing is saved
 // unless the test succeeds. Send an Idempotency-Key.
 type RemoteSourceCreate struct {
@@ -66,6 +82,7 @@ type RemoteSourceCreate struct {
 	Preset string          `json:"preset,omitempty"`
 	Limits *RemoteLimits   `json:"limits,omitempty"`
 	WebDAV *WebDAVSettings `json:"webdav,omitempty"`
+	Rclone *RcloneSettings `json:"rclone,omitempty"`
 }
 
 // RemoteSourceEdit changes a source. Fields left out stay. A change to how it is reached
@@ -75,6 +92,7 @@ type RemoteSourceEdit struct {
 	Preset *string         `json:"preset,omitempty"`
 	Limits *RemoteLimits   `json:"limits,omitempty"`
 	WebDAV *WebDAVSettings `json:"webdav,omitempty"`
+	Rclone *RcloneSettings `json:"rclone,omitempty"`
 }
 
 // RemoteFolder is a folder on a source, for choosing a library's folders.
@@ -142,8 +160,11 @@ func (s *Server) remoteSourceOut(row db.RemoteSource) RemoteSource {
 	preset, _ := remote.PresetNamed(c.Preset)
 	out := RemoteSource{ID: row.PublicID, Kind: row.Kind, Name: row.Name, Preset: preset.Name, Problem: row.LastError, Folders: row.Folders,
 		Limits: RemoteLimits{c.Limits.Connections, c.Limits.PerSecond}}
-	if row.Kind == "webdav" {
+	switch row.Kind {
+	case "webdav":
 		out.WebDAV = &WebDAVShown{Address: c.Address, User: c.User, PasswordSet: c.SecretSet}
+	case "rclone":
+		out.Rclone = &RcloneShown{Type: c.RcloneType, Path: c.Path}
 	}
 	switch until, waiting := s.remote.Waiting(row.ID); {
 	case waiting:
@@ -159,7 +180,7 @@ func (s *Server) remoteSourceOut(row db.RemoteSource) RemoteSource {
 }
 
 // settings checks a request's settings and folds them into a source's config and secret.
-func remoteSettings(kind string, c *remote.Config, secret *remote.Secret, preset *string, limits *RemoteLimits, dav *WebDAVSettings) error {
+func remoteSettings(kind string, c *remote.Config, secret *remote.Secret, preset *string, limits *RemoteLimits, dav *WebDAVSettings, rc *RcloneSettings) error {
 	if preset != nil {
 		if _, ok := remote.PresetNamed(*preset); !ok {
 			return ErrField("preset", "The preset is list-only, read-once, everything or on-request.")
@@ -186,8 +207,20 @@ func remoteSettings(kind string, c *remote.Config, secret *remote.Secret, preset
 			secret.Password = dav.Password
 			c.SecretSet = true
 		}
+	case "rclone":
+		if rc == nil {
+			return nil
+		}
+		c.Path = strings.Trim(strings.TrimSpace(rc.Path), "/")
+		if rc.Config != "" {
+			options, err := remote.ParseRcloneConfig(rc.Config)
+			if err != nil {
+				return ErrField("rclone.config", "Paste one remote from the rclone configuration: "+err.Error()+".")
+			}
+			secret.Rclone, c.RcloneType, c.SecretSet = rc.Config, options["type"], true
+		}
 	default:
-		return ErrField("kind", "The kind of source is webdav.")
+		return ErrField("kind", "The kind of source is webdav or rclone.")
 	}
 	return nil
 }
@@ -201,10 +234,13 @@ func (s *Server) createRemoteSource(r *http.Request, req RemoteSourceCreate) (Re
 	if req.Kind == "webdav" && req.WebDAV == nil {
 		return RemoteSource{}, ErrField("webdav", "Give the WebDAV address.")
 	}
+	if req.Kind == "rclone" && (req.Rclone == nil || req.Rclone.Config == "") {
+		return RemoteSource{}, ErrField("rclone.config", "Paste the remote from the rclone configuration.")
+	}
 	var c remote.Config
 	var secret remote.Secret
 	preset := req.Preset
-	if err := remoteSettings(req.Kind, &c, &secret, &preset, req.Limits, req.WebDAV); err != nil {
+	if err := remoteSettings(req.Kind, &c, &secret, &preset, req.Limits, req.WebDAV, req.Rclone); err != nil {
 		return RemoteSource{}, err
 	}
 	key := r.Header.Get("Idempotency-Key")
@@ -226,6 +262,11 @@ func (s *Server) createRemoteSource(r *http.Request, req RemoteSourceCreate) (Re
 		dav := *hashed.WebDAV
 		dav.Password = ""
 		hashed.WebDAV = &dav
+	}
+	if hashed.Rclone != nil {
+		rc := *hashed.Rclone
+		rc.Config = ""
+		hashed.Rclone = &rc
 	}
 	row, err := s.db.CreateRemoteSource(ctx, publicID, db.NewRemoteSource{UserID: CallerFrom(ctx).UserID, Kind: req.Kind, Name: req.Name,
 		Config: string(config), Secret: sealed, IdempotencyKey: key, RequestID: requestHash(hashed), Now: s.now()})
@@ -252,10 +293,25 @@ func (s *Server) editRemoteSource(r *http.Request, req RemoteSourceEdit) (Remote
 	}
 	oldAddress := c.Address
 	var secret remote.Secret
-	if err := remoteSettings(row.Kind, &c, &secret, req.Preset, req.Limits, req.WebDAV); err != nil {
+	if err := remoteSettings(row.Kind, &c, &secret, req.Preset, req.Limits, req.WebDAV, req.Rclone); err != nil {
 		return RemoteSource{}, err
 	}
 	edit := db.RemoteSourceEdit{Name: req.Name, Now: s.now()}
+	if req.Rclone != nil {
+		// A new configuration or folder: test it, with the stored configuration unless a new
+		// one was given. The configuration names its own hosts, so it is kept with them.
+		if secret == (remote.Secret{}) {
+			if secret, err = s.remote.Secret(ctx, row.ID); err != nil {
+				return RemoteSource{}, ErrConflict("source_secret_lost", "Paste the remote's configuration again.")
+			}
+		}
+		if err := s.testSource(ctx, row.Kind, c, secret); err != nil {
+			return RemoteSource{}, err
+		}
+		if edit.Secret, err = s.remote.Seal(row.PublicID, secret); err != nil {
+			return RemoteSource{}, err
+		}
+	}
 	if req.WebDAV != nil {
 		// How the source is reached changed: test it, with the stored password unless a new
 		// one was given, and keep nothing unless the test succeeds.
