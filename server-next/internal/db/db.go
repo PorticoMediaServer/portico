@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"sync/atomic"
 	"time"
 
 	_ "modernc.org/sqlite"
