@@ -503,7 +503,9 @@ func loadImages(ctx context.Context, tx *sql.Tx, items []Item) error {
 }
 
 // loadLeafCounts fills Leaves and WatchedLeaves for the items that hold others, and from them
-// whether the viewer has watched the whole of each.
+// whether the viewer has watched the whole of each. For a profile with a rating limit or a
+// blocked label it also counts each holder's children again, so a show's seasons or an
+// artist's albums are only those the profile can list.
 func loadLeafCounts(ctx context.Context, tx *sql.Tx, v Viewer, acc access, items []Item) error {
 	var holders []Item
 	byID := map[int64]*Item{}
@@ -539,5 +541,29 @@ func loadLeafCounts(ctx context.Context, tx *sql.Tx, v Viewer, acc access, items
 			return err
 		}
 	}
-	return nil
+	// The stored child count is right while every child is visible: a child is always in its
+	// holder's library, so only a rating limit or a blocked label can hide one. Otherwise the
+	// children are counted under the list's own condition, through the parent index; this
+	// reads the children of one page of holders, fewer rows than the leaves read above.
+	if acc.maxAge == nil && len(acc.blockedTags) == 0 {
+		return nil
+	}
+	for _, h := range holders {
+		byID[h.ID].ChildCount = 0
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT c.parent_id, count(*) FROM items c WHERE c.parent_id IN `+idList(holders)+
+		` AND `+acc.visible("c")+` GROUP BY 1`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		var children int
+		if err := rows.Scan(&id, &children); err != nil {
+			return err
+		}
+		byID[id].ChildCount = children
+	}
+	return rows.Err()
 }

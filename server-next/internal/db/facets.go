@@ -116,6 +116,9 @@ func (d *DB) Related(ctx context.Context, v Viewer, itemID string) (map[Relation
 	if err := loadImages(ctx, tx, items); err != nil {
 		return nil, err
 	}
+	if err := loadLeafCounts(ctx, tx, v, acc, items); err != nil {
+		return nil, err
+	}
 	out := map[RelationKind][]Item{}
 	for n, it := range items {
 		out[kinds[n]] = append(out[kinds[n]], it)
