@@ -150,6 +150,36 @@ func (s *Server) networkRoutes() {
 		return s.networkSettings(saved), err
 	})
 	Handle(s, "PUT /v1/admin/settings/network", Owner, s.saveNetworkSettings)
+	Handle(s, "GET /v1/admin/blocked-networks", Admin, s.blockedNetworks)
+	Handle(s, "DELETE /v1/admin/blocked-networks/{id}", Admin, s.unblockNetwork)
+}
+
+// BlockedNetwork is a network away from home that sent so many wrong passwords, PINs or
+// codes that every sign-in from it is refused until BlockedUntil.
+type BlockedNetwork struct {
+	ID string `json:"id"`
+	// Network is an IPv4 address, or the /64 network of an IPv6 address.
+	Network      string    `json:"network"`
+	BlockedUntil time.Time `json:"blockedUntil"`
+}
+
+func (s *Server) blockedNetworks(r *http.Request, _ None) (Page[BlockedNetwork], error) {
+	blocked, err := s.db.BlockedNetworks(r.Context(), s.now())
+	out := Page[BlockedNetwork]{Items: make([]BlockedNetwork, 0, len(blocked))}
+	for _, b := range blocked {
+		out.Items = append(out.Items, BlockedNetwork{ID: b.ID, Network: b.Network, BlockedUntil: b.Until.UTC()})
+	}
+	return out, err
+}
+
+// unblockNetwork lets a blocked network try again at once. Its people still wait out any
+// wait of their own for wrong passwords, which is a minute at most on Standard.
+func (s *Server) unblockNetwork(r *http.Request, _ None) (None, error) {
+	err := s.db.UnblockNetwork(r.Context(), CallerFrom(r.Context()).UserID, r.PathValue("id"), s.now())
+	if errors.Is(err, db.ErrNotFound) {
+		return None{}, ErrNotFound()
+	}
+	return None{}, err
 }
 
 func prefixStrings(prefixes []netip.Prefix) []string {
