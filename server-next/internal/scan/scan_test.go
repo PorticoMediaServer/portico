@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
@@ -15,10 +16,10 @@ import (
 var ctx = context.Background()
 
 // prober stands in for the real one: a file's length is its size in seconds.
-type prober struct{ calls int }
+type prober struct{ calls atomic.Int64 }
 
 func (p *prober) Probe(_ context.Context, path string) (scan.Facts, error) {
-	p.calls++
+	p.calls.Add(1)
 	info, err := os.Stat(path)
 	if err != nil {
 		return scan.Facts{}, err
@@ -246,14 +247,14 @@ func TestRescanOfAnUnchangedLibraryChangesNothing(t *testing.T) {
 	films(f)
 	first := f.scan()
 	head, _ := f.d.ChangesHead(ctx)
-	probes := f.probes.calls
+	probes := f.probes.calls.Load()
 	again := f.scan()
 	after, _ := f.d.ChangesHead(ctx)
 	if again.RowsWritten != 0 || again.FilesNew+again.FilesChanged+again.FilesMoved+again.FilesGone+again.ItemsNew != 0 || after != head {
 		t.Fatalf("an unchanged rescan changed something: %+v, changes %d to %d", again, head, after)
 	}
-	if again.Files != first.Files || again.Files == 0 || f.probes.calls != probes {
-		t.Fatalf("the rescan looked at %d files (first scan %d) and read %d", again.Files, first.Files, f.probes.calls-probes)
+	if again.Files != first.Files || again.Files == 0 || f.probes.calls.Load() != probes {
+		t.Fatalf("the rescan looked at %d files (first scan %d) and read %d", again.Files, first.Files, f.probes.calls.Load()-probes)
 	}
 }
 
@@ -267,13 +268,13 @@ func TestTitlesKeepTheirStateThroughRenamesMovesAndReplacements(t *testing.T) {
 	for _, item := range []db.Item{heat, alien, kill} {
 		f.watch(item.PublicID)
 	}
-	probes := f.probes.calls
+	probes := f.probes.calls.Load()
 
 	f.move("Heat (1995)", "Crime/Heat (1995)")
 	f.move("Alien.1979.1080p.BluRay.x264-GRP.mkv", "Alien (1979)/Alien (1979).mkv")
 	stats := f.scan()
-	if stats.FilesMoved != 4 || stats.ItemsNew != 0 || f.probes.calls != probes {
-		t.Fatalf("moved %d files, %d new items, %d files read again; want 4 moves and nothing else", stats.FilesMoved, stats.ItemsNew, f.probes.calls-probes)
+	if stats.FilesMoved != 4 || stats.ItemsNew != 0 || f.probes.calls.Load() != probes {
+		t.Fatalf("moved %d files, %d new items, %d files read again; want 4 moves and nothing else", stats.FilesMoved, stats.ItemsNew, f.probes.calls.Load()-probes)
 	}
 	for _, was := range []db.Item{heat, alien, kill} {
 		now := f.film(was.Title)
