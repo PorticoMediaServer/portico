@@ -72,7 +72,7 @@ func run(log *slog.Logger) error {
 	}
 	// The media engine plans and runs the streams. Its conversions folder is emptied at start:
 	// no stream outlives a restart.
-	engine, err := mediaengine.New(ctx, d, mediaengine.Options{Folder: filepath.Join(*data, "transcodes")})
+	engine, err := mediaengine.New(ctx, d, mediaengine.Options{Folder: filepath.Join(*data, "transcodes"), Log: log})
 	if err != nil {
 		return err
 	}
