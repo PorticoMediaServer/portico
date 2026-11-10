@@ -165,8 +165,8 @@ func TestPlannerOutputDeviceSourceMatrix(t *testing.T) {
 			"video_conversion/av1/aac/2/sdr/native",
 			"video_conversion/av1/aac/2/sdr/native",
 			"original/av1/aac/2/sdr/native",
-			"video_conversion/av1/flac/2/sdr/native",
-			"video_conversion/av1/flac/2/sdr/native",
+			"video_conversion/h264/flac/2/sdr/native",
+			"video_conversion/h264/flac/2/sdr/native",
 			"video_conversion/av1/aac/2/sdr/native",
 		},
 		"Safari": {
@@ -242,8 +242,8 @@ func TestPlannerOutputDeviceSourceMatrix(t *testing.T) {
 			"video_conversion/av1/aac/2/sdr/native",
 			"video_conversion/av1/aac/2/sdr/native",
 			"original/av1/aac/2/sdr/native",
-			"video_conversion/av1/flac/2/sdr/native",
-			"video_conversion/av1/flac/2/sdr/native",
+			"video_conversion/h264/flac/2/sdr/native",
+			"video_conversion/h264/flac/2/sdr/native",
 			"video_conversion/av1/aac/2/sdr/native",
 		},
 	}

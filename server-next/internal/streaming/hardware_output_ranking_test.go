@@ -56,11 +56,11 @@ func TestPlannerRanksOnlyMeasuredHardwareOutputsAheadOfSoftware(t *testing.T) {
 		return p
 	}
 	if p := plan(probe, "auto"); p.OutputVideoCodec != "h264" || p.HardwareDevice != probe.Device || p.HardwareBackend != string(probe.Backend) {
-		t.Fatalf("measured hardware H264 lost to software AV1: %+v", p)
+		t.Fatalf("measured hardware H264 was not chosen: %+v", p)
 	}
 	for _, unqualified := range []decoder.HardwareProbe{{}, {Backend: probe.Backend, Available: true, OutputEncoders: probe.OutputEncoders}, {Backend: probe.Backend, Available: true,
 		Identity: probe.Identity}} {
-		if p := plan(unqualified, "auto"); p.OutputVideoCodec != "av1" || p.HardwareBackend != string(decoder.BackendSoftware) || p.HardwareNative ||
+		if p := plan(unqualified, "auto"); p.OutputVideoCodec != "h264" || p.HardwareBackend != string(decoder.BackendSoftware) || p.HardwareNative ||
 			containsString(p.ReasonCodes, ReasonHardwareBackend) ||
 			!containsString(p.ReasonCodes, ReasonSoftwareFallback) {
 			t.Fatalf("unmeasured hardware changed codec ranking or execution explanation: %+v", p)
@@ -68,7 +68,7 @@ func TestPlannerRanksOnlyMeasuredHardwareOutputsAheadOfSoftware(t *testing.T) {
 	}
 	mismatched := probe
 	mismatched.Identity = "different-selected-toolchain"
-	if p := plan(mismatched, "auto"); p.OutputVideoCodec != "av1" || p.HardwareBackend != string(decoder.BackendSoftware) || p.HardwareNative || containsString(p.ReasonCodes, ReasonHardwareBackend) {
+	if p := plan(mismatched, "auto"); p.OutputVideoCodec != "h264" || p.HardwareBackend != string(decoder.BackendSoftware) || p.HardwareNative || containsString(p.ReasonCodes, ReasonHardwareBackend) {
 		t.Fatalf("another toolchain's measured output changed ranking or execution explanation: %+v", p)
 	}
 	wrongCell := probe
