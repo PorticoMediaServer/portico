@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"strings"
 )
 
 // What a queue can be built from. Each function returns the playable titles the viewer may
@@ -213,8 +212,6 @@ func (d *DB) ShuffledItems(ctx context.Context, v Viewer, q ItemQuery, seed, aft
 	}
 	return items, last, rows.Err()
 }
-
-func itoa(n int64) string { return strings.Trim(intList([]int64{n}), "()") }
 
 // FirstUnwatched returns the index of the first of the items the profile has not watched:
 // where a show resumes. When all are watched it is 0.

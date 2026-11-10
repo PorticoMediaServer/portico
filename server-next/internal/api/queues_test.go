@@ -409,6 +409,22 @@ func TestPrepareAndCommitNext(t *testing.T) {
 	if old.State != "ended" {
 		t.Fatalf("the song before is still %s", old.State)
 	}
+	// A prepared stream the engine replaces by itself (a hardware encoder that gave up) is
+	// the one that gets committed.
+	th.queue("POST", path+"/prepare-next", "", QueuePrepare{SessionID: done.Session.ID}, &next)
+	th.engine.mu.Lock()
+	for id, running := range th.engine.running {
+		if id != done.Session.ID {
+			running.Replaced(playback.Stream{Grant: "software", URL: "/v1/media/software/master.m3u8", Mode: "stream"})
+		}
+	}
+	th.engine.mu.Unlock()
+	var swapped QueueCommitted
+	if w := th.queue("POST", path+"/commit-next", "", QueueCommit{Token: next.Token}, &swapped); w.Code != 200 ||
+		swapped.Session.Presentation.URL != "/v1/media/software/master.m3u8" {
+		t.Fatalf("committing a replaced prepared stream answered %d %+v", w.Code, swapped.Session.Presentation)
+	}
+	done = swapped
 	// Prepared again, then the queue is edited: the prepared song is dropped.
 	th.queue("POST", path+"/prepare-next", "", QueuePrepare{SessionID: done.Session.ID}, &next)
 	th.queue("PATCH", path, "", QueueChange{Repeat: "all"}, nil)

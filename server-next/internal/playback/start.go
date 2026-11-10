@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
@@ -37,6 +38,10 @@ type Prepared struct {
 	Stream    Stream
 	r         resolved
 	caller    Caller
+	// mu guards Stream and sess: the engine may replace the stream by itself at any time,
+	// before the prepared stream has become a session or after.
+	mu   sync.Mutex
+	sess *session
 }
 
 // Prepare plans a title for the device asking and starts its stream under the id its session
@@ -59,10 +64,24 @@ func (s *Service) Prepare(ctx context.Context, c Caller, itemID, from string) (*
 		return nil, err
 	}
 	p := &Prepared{SessionID: db.NewID("pbs"), ItemID: itemID, Plan: r.plan, r: r, caller: c}
-	request := StartRequest{SessionID: p.SessionID, Item: r.item, Version: r.version, Plan: r.plan}
-	if p.Stream, err = s.streams.Start(ctx, request); err != nil {
+	request := StartRequest{SessionID: p.SessionID, Item: r.item, Version: r.version, Plan: r.plan, Replaced: func(stream Stream) {
+		p.mu.Lock()
+		sess := p.sess
+		if sess == nil {
+			p.Stream = stream
+		}
+		p.mu.Unlock()
+		if sess != nil {
+			s.replaced(sess)(stream)
+		}
+	}}
+	stream, err := s.streams.Start(ctx, request)
+	if err != nil {
 		return nil, err
 	}
+	p.mu.Lock()
+	p.Stream = stream
+	p.mu.Unlock()
 	return p, nil
 }
 
@@ -205,7 +224,10 @@ func (s *Service) create(ctx context.Context, in StartInput) (*session, error) {
 		StartPositionMs: position, PositionMs: position, StartedAt: now, LeaseUntil: now.Add(lease)}
 	if in.Prepared != nil {
 		// The stream is already running under this id, from the start of the title.
+		in.Prepared.mu.Lock()
 		sess.ID, sess.Stream, sess.ready = in.Prepared.SessionID, in.Prepared.Stream, true
+		in.Prepared.sess = sess
+		in.Prepared.mu.Unlock()
 		sess.StartPositionMs, sess.PositionMs, position = 0, 0, 0
 	}
 	sess.Item.Versions = nil
