@@ -159,6 +159,9 @@ func (w *WebDAV) List(ctx context.Context, dir string) ([]Entry, error) {
 	limited := &io.LimitedReader{R: resp.Body, N: maxListing + 1}
 	var listing multistatus
 	if err := xml.NewDecoder(limited).Decode(&listing); err != nil || limited.N <= 0 {
+		if limited.N <= 0 {
+			return nil, fmt.Errorf("%w: a folder holds more than Portico lists at once; choose folders inside it", ErrNeedsAttention)
+		}
 		return nil, errors.New("the WebDAV server's folder listing could not be read")
 	}
 	folder := strings.TrimSuffix(u.Path, "/")
