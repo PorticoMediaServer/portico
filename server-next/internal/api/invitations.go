@@ -212,6 +212,9 @@ func (s *Server) acceptInvitation(r *http.Request, req InvitationAccept) (SignIn
 	}
 	// Look before hashing a password, so a wrong code costs the server little and is counted.
 	if _, err := s.openInvitation(r, r.PathValue("id")); err != nil {
+		if e, ok := asError(err); ok && e.Code == errNoInvitation().Code {
+			return s.acceptedAgain(r, req)
+		}
 		return SignInResponse{}, err
 	}
 	username, hash, err := s.newAccount(r, req.Username, req.Password, &req.ProfileName)
@@ -222,9 +225,33 @@ func (s *Server) acceptInvitation(r *http.Request, req InvitationAccept) (SignIn
 		PasswordHash: hash, ProfileName: req.ProfileName, Session: session, Now: now})
 	switch {
 	case errors.Is(err, db.ErrNotFound):
-		return SignInResponse{}, errNoInvitation()
+		// Another acceptance of this invitation committed first: perhaps this one's first try.
+		return s.acceptedAgain(r, req)
 	case err != nil:
 		return SignInResponse{}, memberError(err)
 	}
 	return s.signedIn(ctx, st, now, refresh)
+}
+
+// acceptedAgain answers an acceptance of an invitation that is no longer open. When it is
+// the same acceptance sent again after its answer was lost, the person must not be stranded
+// with an account they cannot reach: if the invitation created an account with this username,
+// the request is answered as a sign-in to it, with the password checked and counted as any
+// sign-in is. Anything else, a wrong password included, is told the invitation is used up,
+// so the answer says no more than the sign-in route would.
+func (s *Server) acceptedAgain(r *http.Request, req InvitationAccept) (SignInResponse, error) {
+	username, err := s.db.InvitationAccount(r.Context(), invitationHash(r.PathValue("id")))
+	if errors.Is(err, db.ErrNotFound) {
+		return SignInResponse{}, errNoInvitation()
+	} else if err != nil {
+		return SignInResponse{}, err
+	}
+	if key, _ := auth.Username(req.Username); key != username {
+		return SignInResponse{}, errNoInvitation()
+	}
+	out, err := s.signIn(r, SignInRequest{Username: req.Username, Password: req.Password, Device: req.Device})
+	if _, refused := asError(err); refused {
+		return SignInResponse{}, errNoInvitation()
+	}
+	return out, err
 }
