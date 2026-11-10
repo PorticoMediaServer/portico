@@ -81,8 +81,9 @@ type PlaybackVersion struct {
 	Subtitles   []PlaybackSubtitle `json:"subtitles"`
 }
 
-// PlaybackMarker is a span the player can offer to skip. automaticSafe says it may be
-// skipped without asking, for a viewer who chose that.
+// PlaybackMarker is a span the player can offer to skip. automaticSafe says it is trusted (in
+// the file, from a provider, approved by the owner, or confirmed across a show's episodes),
+// so it may be skipped without asking for a viewer who chose that.
 type PlaybackMarker struct {
 	ID            string `json:"id"`
 	Type          string `json:"type"`
@@ -221,7 +222,9 @@ type AudioPick struct {
 
 type SubtitlePick struct {
 	TrackID *string `json:"trackId"`
-	// Delivery is auto, sidecar, embeddedClient or burn.
+	// Delivery is auto (the default), embeddedClient (the player draws the track from the
+	// file it is playing) or burn (into the picture). sidecar, a subtitle file served beside
+	// the stream, is not available yet and is refused with 501 subtitle_delivery_unavailable.
 	Delivery string `json:"delivery,omitempty"`
 }
 
@@ -243,6 +246,9 @@ type PlaybackStart struct {
 	// Network is cellular when the app knows it is on mobile data. The server tells home from away.
 	Network        string `json:"network,omitempty"`
 	ThroughputKbps int    `json:"throughputKbps,omitempty"`
+	// DiscTitle names one title of a disc. Disc playback is not available yet: a start that
+	// names one is refused with 501 disc_playback_unavailable.
+	DiscTitle JSON `json:"discTitle,omitempty"`
 }
 
 type PlaybackSeek struct {
@@ -393,7 +399,7 @@ func versionOut(v db.PlaybackVersion) PlaybackVersion {
 }
 
 var markerConfidence = map[db.MarkerSource]string{db.MarkerFromFile: "embedded", db.MarkerFromAnalysis: "detected",
-	db.MarkerFromPerson: "manual", db.MarkerFromProvider: "provider"}
+	db.MarkerConfirmed: "detected", db.MarkerFromPerson: "manual", db.MarkerFromProvider: "provider"}
 
 func optionsOut(o playback.Options) PlaybackOptions {
 	out := PlaybackOptions{ItemID: o.Item.PublicID, Kind: o.Item.Kind.String(), Versions: []PlaybackVersion{},
@@ -415,7 +421,7 @@ func optionsOut(o playback.Options) PlaybackOptions {
 			continue
 		}
 		out.Markers = append(out.Markers, PlaybackMarker{ID: m.Kind.String() + "-" + strconv.FormatInt(m.StartMS, 10), Type: m.Kind.String(),
-			StartMs: m.StartMS, EndMs: m.EndMS, Confidence: markerConfidence[m.Source], AutomaticSafe: true})
+			StartMs: m.StartMS, EndMs: m.EndMS, Confidence: markerConfidence[m.Source], AutomaticSafe: m.Source.Trusted()})
 	}
 	if out.Qualities == nil {
 		out.Qualities = []playback.QualityOption{}

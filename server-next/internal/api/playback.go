@@ -117,15 +117,28 @@ func (s *Server) putCapabilities(r *http.Request, req CapabilityDocument) (None,
 	return None{}, playbackError(s.db.PutDeviceCapabilities(r.Context(), CallerFrom(r.Context()).UserID, id, string(req.raw), s.now()))
 }
 
-func subtitleAsk(pick *SubtitlePick) (track *string, delivery string) {
+// What the media engine cannot do yet. Each is refused by name, so an app can say so
+// instead of showing a stream that never starts.
+func notYet(code, message string) *Error {
+	return refusal(http.StatusNotImplemented, code, message, false)
+}
+
+func subtitleAsk(pick *SubtitlePick) (track *string, delivery string, err error) {
 	if pick == nil {
-		return nil, ""
+		return nil, "", nil
+	}
+	switch pick.Delivery {
+	case "", "auto", "embeddedClient", "burn":
+	case "sidecar":
+		return nil, "", notYet("subtitle_delivery_unavailable", "This server can't send subtitles beside the stream yet. Let it choose, or burn them in.")
+	default:
+		return nil, "", ErrField("subtitles.delivery", "The delivery is auto, embeddedClient or burn.")
 	}
 	off := ""
 	if pick.TrackID == nil {
-		return &off, pick.Delivery
+		return &off, pick.Delivery, nil
 	}
-	return pick.TrackID, pick.Delivery
+	return pick.TrackID, pick.Delivery, nil
 }
 
 // playbackOptions previews a start. The query can name a version, tracks and a quality to
@@ -184,7 +197,13 @@ func (s *Server) startPlayback(r *http.Request, req PlaybackStart) (PlaybackSess
 	if req.Audio != nil {
 		in.Ask.Audio = &req.Audio.TrackID
 	}
-	in.Ask.Subtitle, in.Ask.SubtitleDelivery = subtitleAsk(req.Subtitles)
+	var err error
+	if in.Ask.Subtitle, in.Ask.SubtitleDelivery, err = subtitleAsk(req.Subtitles); err != nil {
+		return PlaybackSession{}, err
+	}
+	if len(req.DiscTitle) > 0 && string(req.DiscTitle) != "null" {
+		return PlaybackSession{}, notYet("disc_playback_unavailable", "This server can't play discs yet.")
+	}
 	session, ready, created, err := s.playback.Start(r.Context(), in)
 	if err != nil {
 		return PlaybackSession{}, playbackError(err)
@@ -215,7 +234,10 @@ func (s *Server) changePlayback(r *http.Request, req PlaybackChange) (PlaybackSe
 	if req.Audio != nil {
 		change.Ask.Audio = &req.Audio.TrackID
 	}
-	change.Ask.Subtitle, change.Ask.SubtitleDelivery = subtitleAsk(req.Subtitles)
+	var err error
+	if change.Ask.Subtitle, change.Ask.SubtitleDelivery, err = subtitleAsk(req.Subtitles); err != nil {
+		return PlaybackSession{}, err
+	}
 	if req.Seek != nil {
 		position := max(req.Seek.PositionMs, 0)
 		change.SeekMs, change.SeekID = &position, req.Seek.ID

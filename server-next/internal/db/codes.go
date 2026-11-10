@@ -100,19 +100,27 @@ var markerKindNames = map[MarkerKind]string{
 
 func (k MarkerKind) String() string { return markerKindNames[k] }
 
-// MarkerSource is where a marker came from.
+// MarkerSource is where a marker came from, which also says whether it is trusted. Skipping
+// without asking and "watched when the credits start" only ever use trusted markers.
 type MarkerSource int
 
 const (
-	MarkerFromFile     MarkerSource = 1
+	MarkerFromFile MarkerSource = 1 // a chapter or marker written in the file
+	// MarkerFromAnalysis is detected in this one file and not yet trusted.
 	MarkerFromAnalysis MarkerSource = 2
 	MarkerFromProvider MarkerSource = 3
-	MarkerFromPerson   MarkerSource = 4
+	MarkerFromPerson   MarkerSource = 4 // made or approved by the owner
+	// MarkerConfirmed is detected and confirmed by the show's other episodes.
+	MarkerConfirmed MarkerSource = 5
 )
 
 var markerSourceNames = map[MarkerSource]string{
 	MarkerFromFile: "file", MarkerFromAnalysis: "analysis", MarkerFromProvider: "provider", MarkerFromPerson: "person",
+	MarkerConfirmed: "analysis_confirmed",
 }
+
+// Trusted reports whether a marker from this source may be acted on without asking.
+func (s MarkerSource) Trusted() bool { return s != MarkerFromAnalysis }
 
 func (s MarkerSource) String() string { return markerSourceNames[s] }
 
