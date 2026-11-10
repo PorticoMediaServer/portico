@@ -161,6 +161,8 @@ type Service struct {
 	sessions map[string]*session
 	starts   map[startKey]*startRecord
 	started  int64
+	// accessChecked is when running sessions were last checked against what may be seen.
+	accessChecked time.Time
 }
 
 // New returns the session service. Run must be started for leases and progress to be kept.
@@ -454,6 +456,32 @@ func (s *Service) Sweep(ctx context.Context) {
 	for _, sess := range over {
 		s.finish(ctx, sess)
 	}
+	s.recheckAccess(ctx, now)
+}
+
+// accessEvery is how often running sessions are checked against what their profile may see.
+// A sign-in's access changing is acted on at once; this catches a title that became hidden
+// some other way (the owner gave it a label the profile has blocked), and a check that failed.
+const accessEvery = time.Minute
+
+func (s *Service) recheckAccess(ctx context.Context, now time.Time) {
+	s.mu.Lock()
+	due := now.Sub(s.accessChecked) >= accessEvery
+	var running []Session
+	if due {
+		s.accessChecked = now
+		for _, sess := range s.sessions {
+			if sess.State != StateEnded {
+				running = append(running, sess.Session)
+			}
+		}
+	}
+	s.mu.Unlock()
+	for _, sess := range running {
+		if ok, err := s.db.Visible(ctx, sess.Viewer(), sess.Item.ID); err == nil && !ok {
+			s.end(ctx, sess.ID, EndAccess, "")
+		}
+	}
 }
 
 // signInsChanged is called by the database straight after a commit that ended sign-ins or
@@ -490,7 +518,14 @@ func (s *Service) signInsChanged(ended, changed []int64) {
 			s.finish(ctx, sess)
 		}
 		for _, sess := range check {
-			if ok, err := s.db.Visible(ctx, sess.Viewer(), sess.Item.ID); err == nil && !ok {
+			ok, err := s.db.Visible(ctx, sess.Viewer(), sess.Item.ID)
+			switch {
+			case err != nil:
+				// The check could not be made: the next sweep makes it again.
+				s.mu.Lock()
+				s.accessChecked = time.Time{}
+				s.mu.Unlock()
+			case !ok:
 				s.end(ctx, sess.ID, EndAccess, "")
 			}
 		}
