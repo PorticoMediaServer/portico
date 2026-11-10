@@ -70,8 +70,13 @@ func (s *Store) Put(id string, data []byte) error {
 var widths = []int{160, 240, 320, 480, 720, 1080, 1920}
 
 // maxPixels is the largest picture that is decoded to make a smaller copy. A larger one is
-// served as it is.
-const maxPixels = 50_000_000
+// served as it is. Decoded, a picture takes eight bytes a pixel here, so this is about 200 MB.
+const maxPixels = 24_000_000
+
+// decoding holds how many pictures are being made smaller at once. The first screenful of a
+// new library asks for forty posters in the same moment, each tens of megabytes once decoded,
+// and the route takes no sign-in: without a limit that is the server's whole memory.
+var decoding = make(chan struct{}, 2)
 
 // Read returns a picture's bytes and content type, made to fit inside w by h when either is
 // given (0 means no limit that way). A picture is never enlarged, and one this server cannot
@@ -114,6 +119,12 @@ func (s *Store) Read(id string, w, h int) (data []byte, contentType string, err 
 		suffix, sizedType = fmt.Sprintf(".w%d.png", width), "image/png"
 	}
 	path := place(s.sized, id, suffix)
+	if sized, err := os.ReadFile(path); err == nil {
+		return sized, sizedType, nil
+	}
+	decoding <- struct{}{}
+	defer func() { <-decoding }()
+	// Someone else may have made this copy while this request waited its turn.
 	if sized, err := os.ReadFile(path); err == nil {
 		return sized, sizedType, nil
 	}
