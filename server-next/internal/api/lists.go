@@ -84,6 +84,30 @@ type ListMove struct {
 	After  string `json:"after,omitempty"`
 }
 
+// ListShare is a profile a playlist is shared with, or could be. Person is the name of the
+// main profile of the account it belongs to, so two profiles called "Kids" can be told apart.
+type ListShare struct {
+	ProfileID string `json:"profileId"`
+	Name      string `json:"name,omitempty"`
+	Person    string `json:"person,omitempty"`
+	// CanEdit lets them add, move and remove entries. Renaming, sharing and deleting stay
+	// with the maker.
+	CanEdit bool `json:"canEdit"`
+}
+
+// ListShares is who a playlist is shared with, and People everyone else on the server it
+// could be shared with.
+type ListShares struct {
+	Shares []ListShare `json:"shares"`
+	People []ListShare `json:"people"`
+}
+
+// ListSharesSet is everyone a playlist is to be shared with, at most 100. Profiles left out
+// stop seeing it.
+type ListSharesSet struct {
+	Shares []ListShare `json:"shares"`
+}
+
 func (s *Server) listRoutes() {
 	Handle(s, "GET /v1/lists", WithProfile, s.lists)
 	Handle(s, "POST /v1/lists", WithProfile, s.createList)
@@ -97,6 +121,25 @@ func (s *Server) listRoutes() {
 	})
 	Handle(s, "POST /v1/lists/{id}/entries", WithProfile, s.addToList)
 	Handle(s, "PATCH /v1/lists/{id}/entries/{entryId}", WithProfile, s.moveInList)
+	Handle(s, "GET /v1/lists/{id}/shares", WithProfile, func(r *http.Request, _ None) (ListShares, error) {
+		shares, people, err := s.db.ListShares(r.Context(), viewer(r), r.PathValue("id"))
+		return ListShares{Shares: listShareShapes(shares), People: listShareShapes(people)}, listError(err)
+	})
+	Handle(s, "PUT /v1/lists/{id}/shares", WithProfile, func(r *http.Request, req ListSharesSet) (List, error) {
+		if len(req.Shares) > db.MaxListShares {
+			return List{}, ErrField("shares", "A playlist is shared with at most 100 people.")
+		}
+		revision, err := listIfMatch(r)
+		if err != nil {
+			return List{}, err
+		}
+		shares := make([]db.ListShare, len(req.Shares))
+		for n, share := range req.Shares {
+			shares[n] = db.ListShare{ProfilePublicID: share.ProfileID, CanEdit: share.CanEdit}
+		}
+		l, err := s.db.SetListShares(r.Context(), viewer(r), r.PathValue("id"), revision, shares, s.now())
+		return listShape(l), listError(err)
+	})
 	Handle(s, "DELETE /v1/lists/{id}/entries/{entryId}", WithProfile, func(r *http.Request, _ None) (List, error) {
 		revision, err := listIfMatch(r)
 		if err != nil {
@@ -280,4 +323,12 @@ func (s *Server) moveInList(r *http.Request, req ListMove) (List, error) {
 	}
 	l, err := s.db.MoveInList(r.Context(), viewer(r), r.PathValue("id"), revision, db.ParseEntryID(r.PathValue("entryId")), before, after, s.now())
 	return listShape(l), listError(err)
+}
+
+func listShareShapes(shares []db.ListShare) []ListShare {
+	out := make([]ListShare, len(shares))
+	for n, share := range shares {
+		out[n] = ListShare{ProfileID: share.ProfilePublicID, Name: share.Name, Person: share.AccountName, CanEdit: share.CanEdit}
+	}
+	return out
 }

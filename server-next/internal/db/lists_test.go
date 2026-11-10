@@ -29,6 +29,16 @@ func entries(t *testing.T, d *db.DB, v db.Viewer, list string) (titles []string,
 	}
 }
 
+// profileID is a viewer's profile's public id.
+func profileID(t *testing.T, d *db.DB, v db.Viewer) string {
+	t.Helper()
+	p, err := d.ProfileByID(ctx, v.UserID, v.ProfileID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return p.PublicID
+}
+
 // A playlist keeps its maker's order through adds, moves and removals, holds a title twice,
 // and a profile it is shared with sees only the titles it may see, in counts as well.
 func TestPlaylistOrderAndWhatAReaderSees(t *testing.T) {
@@ -82,8 +92,22 @@ func TestPlaylistOrderAndWhatAReaderSees(t *testing.T) {
 	}
 
 	// Shared with the limited profile: the hidden film is in no entry, total or count.
-	if err := l.d.ShareListForTest(ctx, list.PublicID, child.ProfileID); err != nil {
+	_, people, err := l.d.ListShares(ctx, owner, list.PublicID)
+	if err != nil || len(people) < 2 {
+		t.Fatalf("people to share with: %+v, %v", people, err)
+	}
+	childID := profileID(t, l.d, child)
+	if !slices.ContainsFunc(people, func(p db.ListShare) bool { return p.ProfilePublicID == childID }) {
+		t.Fatalf("the child is not among the people to share with: %+v", people)
+	}
+	if _, err := l.d.SetListShares(ctx, owner, list.PublicID, 0, []db.ListShare{{ProfilePublicID: childID}}, now); err != nil {
 		t.Fatal(err)
+	}
+	if shares, _, err := l.d.ListShares(ctx, owner, list.PublicID); err != nil || len(shares) != 1 || shares[0].CanEdit {
+		t.Fatalf("shares: %+v, %v", shares, err)
+	}
+	if _, _, err := l.d.ListShares(ctx, child, list.PublicID); !errors.Is(err, db.ErrNotAllowed) {
+		t.Fatalf("a profile it is shared with read the shares: %v", err)
 	}
 	titles, _, total = entries(t, l.d, child, list.PublicID)
 	if want := []string{seen[2], seen[0], seen[1], seen[0]}; !slices.Equal(titles, want) || total != 4 {
@@ -102,6 +126,19 @@ func TestPlaylistOrderAndWhatAReaderSees(t *testing.T) {
 	if err := l.d.DeleteList(ctx, child, list.PublicID); !errors.Is(err, db.ErrNotAllowed) {
 		t.Fatalf("a profile shared to view deleted: %v", err)
 	}
+	// Shared to edit, the same profile adds a title it may see; unshared, it no longer finds it.
+	if _, err := l.d.SetListShares(ctx, owner, list.PublicID, 0, []db.ListShare{{ProfilePublicID: childID, CanEdit: true}}, now); err != nil {
+		t.Fatal(err)
+	}
+	if added, err := l.d.AddToList(ctx, child, list.PublicID, 0, []string{seen[1]}, 0, "", "", now); err != nil || added.List.Count != 5 {
+		t.Fatalf("a profile shared to edit added: %+v, %v", added, err)
+	}
+	if _, err := l.d.SetListShares(ctx, owner, list.PublicID, 0, nil, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.d.List(ctx, child, list.PublicID); !errors.Is(err, db.ErrNotFound) {
+		t.Fatalf("an unshared profile still reads the list: %v", err)
+	}
 	// Another profile it is not shared with does not know it exists.
 	if _, err := l.d.List(ctx, l.viewers[1], list.PublicID); !errors.Is(err, db.ErrNotFound) {
 		t.Fatalf("a stranger read the list: %v", err)
@@ -109,7 +146,7 @@ func TestPlaylistOrderAndWhatAReaderSees(t *testing.T) {
 	if err := l.d.DeleteList(ctx, owner, list.PublicID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := l.d.List(ctx, child, list.PublicID); !errors.Is(err, db.ErrNotFound) {
+	if _, err := l.d.List(ctx, owner, list.PublicID); !errors.Is(err, db.ErrNotFound) {
 		t.Fatalf("a deleted list is still read: %v", err)
 	}
 }

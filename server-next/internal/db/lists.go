@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"strconv"
 	"strings"
 	"time"
@@ -691,4 +692,122 @@ func (e *listEdit) add(publicIDs []string, after int64) (added, already int, err
 	}
 	_, err = e.tx.Exec(`UPDATE lists SET entry_count = entry_count + ? WHERE id = ?`, len(items), e.id)
 	return len(items), already, err
+}
+
+// MaxListShares is the most people a list can be shared with.
+const MaxListShares = 100
+
+// ListShare is a profile a list is shared with, or one it could be shared with.
+type ListShare struct {
+	ProfilePublicID string
+	Name            string
+	// AccountName is the name of the main profile of the profile's account: who it belongs to.
+	AccountName string
+	CanEdit     bool
+}
+
+// ListShares returns who a playlist is shared with, and every other profile on the server it
+// could be shared with. Only the list's maker may ask.
+func (d *DB) ListShares(ctx context.Context, v Viewer, publicID string) (shares, people []ListShare, err error) {
+	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, nil, err
+	}
+	defer tx.Rollback()
+	acc, err := loadAccess(ctx, tx, v)
+	if err != nil {
+		return nil, nil, err
+	}
+	l, err := readList(ctx, tx, v, acc, publicID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !l.Owned {
+		return nil, nil, ErrNotAllowed
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT p.public_id, p.name, ifnull(m.name, p.name), ifnull(s.can_edit, 0), s.profile_id IS NOT NULL
+		FROM profiles p JOIN users u ON u.id = p.user_id LEFT JOIN profiles m ON m.user_id = p.user_id AND m.is_primary = 1
+		LEFT JOIN list_shares s ON s.list_id = ? AND s.profile_id = p.id
+		WHERE p.id <> ? AND u.disabled_at IS NULL ORDER BY ifnull(m.name, p.name), p.position, p.id`, l.ID, v.ProfileID)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var s ListShare
+		var shared bool
+		if err := rows.Scan(&s.ProfilePublicID, &s.Name, &s.AccountName, &s.CanEdit, &shared); err != nil {
+			return nil, nil, err
+		}
+		if shared {
+			shares = append(shares, s)
+		}
+		people = append(people, s)
+	}
+	return shares, people, rows.Err()
+}
+
+// SetListShares sets who a playlist is shared with: exactly these profiles, each to view or
+// to edit. Only its maker may. A profile no longer in the list is told it is gone.
+func (d *DB) SetListShares(ctx context.Context, v Viewer, publicID string, revision int64, shares []ListShare, now time.Time) (out List, err error) {
+	if len(shares) > MaxListShares {
+		return out, invalid("a list is shared with at most %d people", MaxListShares)
+	}
+	err = d.listWrite(ctx, v, publicID, revision, true, now, func(e *listEdit) error {
+		if e.kind != ListPlaylist {
+			return invalid("only a playlist is shared with chosen people")
+		}
+		want := map[int64]bool{}
+		for _, s := range shares {
+			var id int64
+			err := e.tx.QueryRow(`SELECT id FROM profiles WHERE public_id = ?`, s.ProfilePublicID).Scan(&id)
+			if errors.Is(err, sql.ErrNoRows) || id == v.ProfileID {
+				return invalid("there is no profile %q to share with", s.ProfilePublicID)
+			}
+			if err != nil {
+				return err
+			}
+			want[id] = s.CanEdit
+		}
+		before := map[int64]bool{}
+		rows, err := e.tx.Query(`SELECT profile_id, can_edit FROM list_shares WHERE list_id = ?`, e.id)
+		if err != nil {
+			return err
+		}
+		for rows.Next() {
+			var id int64
+			var canEdit bool
+			if err := rows.Scan(&id, &canEdit); err != nil {
+				rows.Close()
+				return err
+			}
+			before[id] = canEdit
+		}
+		if err := rows.Close(); err != nil {
+			return err
+		}
+		if maps.Equal(before, want) {
+			e.unchanged = true
+			return nil
+		}
+		for id := range before {
+			if _, kept := want[id]; kept {
+				continue
+			}
+			if _, err := e.tx.Exec(`DELETE FROM list_shares WHERE list_id = ? AND profile_id = ?`, e.id, id); err != nil {
+				return err
+			}
+			if err := appendChange(e.tx, Change{At: e.at, Topic: TopicList, Op: OpDeleted, RefID: e.id, ProfileID: id}); err != nil {
+				return err
+			}
+		}
+		for id, canEdit := range want {
+			if _, err := e.tx.Exec(`INSERT INTO list_shares (list_id, profile_id, can_edit, created_at) VALUES (?, ?, ?, ?)
+				ON CONFLICT (list_id, profile_id) DO UPDATE SET can_edit = excluded.can_edit`, e.id, id, canEdit, e.at); err != nil {
+				return err
+			}
+		}
+		return nil
+	}, &out)
+	return out, err
 }
