@@ -558,6 +558,10 @@ export interface ScanCounts {
   filesRead: number;
 }
 
+export interface ScanRequest {
+  allFiles?: boolean;
+}
+
 export interface ScanStatus {
   state: string;
   job?: Job;
@@ -825,7 +829,7 @@ export interface Routes {
   'GET /v1/admin/libraries/{id}': {access: 'owner'; request: undefined; response: AdminLibrary};
   'PATCH /v1/admin/libraries/{id}': {access: 'owner'; request: LibraryEdit; response: AdminLibrary};
   'DELETE /v1/admin/libraries/{id}': {access: 'owner'; request: undefined; response: Job};
-  'POST /v1/admin/libraries/{id}/scan': {access: 'owner'; request: undefined; response: Job};
+  'POST /v1/admin/libraries/{id}/scan': {access: 'owner'; request: ScanRequest; response: Job};
   'DELETE /v1/admin/libraries/{id}/scan': {access: 'owner'; request: undefined; response: undefined};
   'GET /v1/admin/libraries/{id}/scan': {access: 'owner'; request: undefined; response: ScanStatus};
   'GET /v1/admin/libraries/{id}/skipped': {access: 'owner'; request: undefined; response: SkippedFilePage};

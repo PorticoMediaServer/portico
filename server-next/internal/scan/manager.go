@@ -40,9 +40,17 @@ func (m *Manager) Resume() error {
 	return err
 }
 
+// allFiles is the payload of a scan that reads every file again, changed or not.
+const allFiles = "all-files"
+
 // Scan asks for a scan of a library. While one is waiting or running, asking again joins it.
-func (m *Manager) Scan(ctx context.Context, libraryID string, ownerID int64) (db.Job, error) {
-	return m.start(ctx, db.JobScan, libraryID, ownerID)
+// With all set, the scan reads every file again, changed or not.
+func (m *Manager) Scan(ctx context.Context, libraryID string, ownerID int64, all bool) (db.Job, error) {
+	payload := ""
+	if all {
+		payload = allFiles
+	}
+	return m.start(ctx, db.JobScan, libraryID, payload, ownerID)
 }
 
 // DeleteLibrary asks for a library to be removed, after stopping its scan.
@@ -52,11 +60,11 @@ func (m *Manager) DeleteLibrary(ctx context.Context, libraryID string, ownerID i
 			return db.Job{}, err
 		}
 	}
-	return m.start(ctx, db.JobDeleteLibrary, libraryID, ownerID)
+	return m.start(ctx, db.JobDeleteLibrary, libraryID, "", ownerID)
 }
 
-func (m *Manager) start(ctx context.Context, kind, target string, ownerID int64) (db.Job, error) {
-	job, err := m.scanner.DB.StartJob(ctx, kind, target, "", ownerID)
+func (m *Manager) start(ctx context.Context, kind, target, payload string, ownerID int64) (db.Job, error) {
+	job, err := m.scanner.DB.StartJob(ctx, kind, target, payload, ownerID)
 	if err == nil && job.State == db.JobWaiting {
 		m.enqueue(job)
 	}
@@ -160,6 +168,11 @@ func (m *Manager) run(ctx context.Context, job db.Job) error {
 	}
 	if job.Kind == db.JobDeleteLibrary {
 		return d.DeleteLibrary(ctx, lib.ID)
+	}
+	if job.Payload == allFiles {
+		if err := d.ForgetProbes(ctx, lib.ID); err != nil {
+			return err
+		}
 	}
 	scanner := *m.scanner
 	var reported time.Time
