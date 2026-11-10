@@ -145,6 +145,58 @@ jobs:
           limited "$WORK/bin/portico-load" -mode mixed -db "$WORK/main.db" -items "$EXTRA" -batch 10 -batch-time "$BUSY_BATCH" -out "$WORK/mixed.json" | tee "$WORK/mixed.txt"
           summarise "Reads and writes while importing $EXTRA more items, in transactions of about $BUSY_BATCH, into the $ITEMS library" "$WORK/mixed.txt" "$WORK/mixed.json"
 
+  unsynced:
+    name: The same with commits not synced to disk
+    needs: state
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with: {name: load-database-seeded, path: '${{ env.WORK }}'}
+      - name: Unpack the database
+        run: chmod +x "$WORK"/bin/* && zstd -q -d --rm "$WORK/main.db.zst"
+      - name: Import with nobody using the server, then with constant use, nothing synced
+        run: |
+          source ci/server-next-load.sh
+          limited "$WORK/bin/portico-load" -mode mixed -no-sync -db "$WORK/main.db" -items "$EXTRA" -batch 10 -batch-time "$BUSY_BATCH" -out "$WORK/mixed.json" | tee "$WORK/mixed.txt"
+          summarise "Commits NOT synced: reads and writes while importing $EXTRA more items" "$WORK/mixed.txt" "$WORK/mixed.json"
+
+  disk:
+    name: The disk apart from the database
+    needs: state
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with: {name: load-database-seeded, path: '${{ env.WORK }}'}
+      - name: Unpack the database
+        run: chmod +x "$WORK"/bin/* && zstd -q -d --rm "$WORK/main.db.zst"
+      - name: The disks
+        run: |
+          { echo '### Disks'; echo '```'; df -h "$WORK" /mnt; lsblk -o NAME,SIZE,ROTA,SCHED,MOUNTPOINT; mount | grep -E ' / | /mnt '; grep -E 'Dirty|Writeback' /proc/meminfo; echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Straight after unpacking
+        run: |
+          source ci/server-next-load.sh
+          limited "$WORK/bin/portico-load" -mode disk -db "$WORK/main.db" -out "$WORK/disk1.json" | tee "$WORK/disk1.txt"
+          summarise "Idle user writes beside a bare sync loop, straight after unpacking the database" "$WORK/disk1.txt" "$WORK/disk1.json"
+      - name: After the unpacked file has reached the disk
+        run: |
+          source ci/server-next-load.sh
+          grep -E 'Dirty|Writeback' /proc/meminfo; time sync; grep -E 'Dirty|Writeback' /proc/meminfo
+          limited "$WORK/bin/portico-load" -mode disk -db "$WORK/main.db" -out "$WORK/disk2.json" | tee "$WORK/disk2.txt"
+          summarise "The same after sync" "$WORK/disk2.txt" "$WORK/disk2.json"
+      - name: On the runner's other disk
+        run: |
+          source ci/server-next-load.sh
+          sudo mkdir -p /mnt/load && sudo chown "$(id -u):$(id -g)" /mnt/load
+          cp "$WORK/main.db" /mnt/load/main.db && sync
+          limited "$WORK/bin/portico-load" -mode disk -db /mnt/load/main.db -out "$WORK/disk3.json" | tee "$WORK/disk3.txt"
+          summarise "The same on /mnt" "$WORK/disk3.txt" "$WORK/disk3.json"
+
   report:
     name: Report
     needs: [import, state, mixed]

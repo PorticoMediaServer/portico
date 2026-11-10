@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"sync/atomic"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -34,10 +35,11 @@ type DB struct {
 	sessionWatch func(ended, changed []int64)
 
 	// See checkpoint.go.
-	path       string
-	helper     *sql.DB
-	helperDone chan struct{}
-	nextInsist time.Time
+	path           string
+	helper         *sql.DB
+	helperDone     chan struct{}
+	nextInsist     time.Time
+	checkpointsOff atomic.Bool
 }
 
 // Open opens the database at path, creating it with the current schema if it is new.

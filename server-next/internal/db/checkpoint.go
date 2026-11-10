@@ -53,6 +53,9 @@ func (d *DB) checkpointHelper() {
 		case <-d.closed:
 			return
 		case <-tick.C:
+			if d.checkpointsOff.Load() {
+				continue
+			}
 			size, modified := d.walSize()
 			switch {
 			case size != lastSize || !modified.Equal(lastModified):
@@ -68,6 +71,9 @@ func (d *DB) checkpointHelper() {
 // afterWrite runs on the writer after every transaction. It costs one file stat while the
 // WAL is small.
 func (d *DB) afterWrite() {
+	if d.checkpointsOff.Load() {
+		return
+	}
 	size, _ := d.walSize()
 	if size < walCatchUpBytes {
 		return
@@ -81,4 +87,16 @@ func (d *DB) afterWrite() {
 	d.writeConn.ExecContext(ctx, `PRAGMA busy_timeout = `+strconv.FormatInt(walInsistWait.Milliseconds(), 10))
 	d.writeConn.ExecContext(ctx, `PRAGMA wal_checkpoint(RESTART)`)
 	d.writeConn.ExecContext(ctx, `PRAGMA busy_timeout = 5000`)
+}
+
+// Diagnose is for the load tool, to tell the disk from this package's own work: it turns the
+// WAL policy off or on, and turns the disk sync of every commit off or on.
+func (d *DB) Diagnose(checkpoints, diskSync bool) {
+	d.checkpointsOff.Store(!checkpoints)
+	mode := "FULL"
+	if !diskSync {
+		mode = "OFF"
+	}
+	d.writeConn.Exec(`PRAGMA synchronous = ` + mode)
+	d.helper.Exec(`PRAGMA synchronous = ` + mode)
 }
