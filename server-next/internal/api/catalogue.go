@@ -54,7 +54,12 @@ func (s *Server) catalogueRoutes() {
 		if err != nil {
 			return ItemPage{}, err
 		}
-		page, err := s.db.Items(r.Context(), viewer(r), q)
+		// A list in its own order is read entry by entry; in any other sort, title by title.
+		read := s.db.Items
+		if q.List != "" && (q.Sort == "" || q.Sort == "order") {
+			read = s.db.ListEntries
+		}
+		page, err := read(r.Context(), viewer(r), q)
 		if err != nil {
 			return ItemPage{}, refuse(err)
 		}
@@ -233,6 +238,7 @@ func limitParam(query url.Values) (int, error) {
 // server does not know is ignored.
 func itemQuery(query url.Values) (db.ItemQuery, error) {
 	q := db.ItemQuery{Library: query.Get("library"), Parent: query.Get("parent"), Person: query.Get("person"), Tag: query.Get("tag"),
+		List:  query.Get("list"),
 		Genre: query.Get("genre"), Resolution: query.Get("resolution"), Sort: query.Get("sort"), Cursor: query.Get("cursor")}
 	for _, name := range strings.FieldsFunc(query.Get("kind"), func(r rune) bool { return r == ',' }) {
 		kind, ok := db.ParseItemKind(name)

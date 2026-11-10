@@ -50,6 +50,11 @@ func (d *DB) Events(ctx context.Context, v Viewer, after int64, limit int) (even
 		return nil, next, false, err
 	}
 	defer library.Close()
+	list, err := tx.PrepareContext(ctx, `SELECT l.public_id FROM lists l WHERE l.id = @list AND `+readableSQL)
+	if err != nil {
+		return nil, next, false, err
+	}
+	defer list.Close()
 	for _, c := range changes {
 		next = c.ID
 		e := Event{ID: c.ID, Topic: c.Topic, Op: c.Op}
@@ -58,6 +63,11 @@ func (d *DB) Events(ctx context.Context, v Viewer, after int64, limit int) (even
 			continue // another profile's state or access
 		case c.Topic == TopicAccess, c.Topic == TopicPreferences:
 			// The profile's own access or settings changed: nothing to look up.
+		case c.Topic == TopicList:
+			// A deleted list was announced to each profile that could read it, by name.
+			if c.Op != OpDeleted {
+				err = list.QueryRowContext(ctx, append(v.args(), sql.Named("list", c.RefID))...).Scan(&e.PublicID)
+			}
 		case (c.Topic == TopicItem || c.Topic == TopicState) && c.Op != OpDeleted:
 			err = item.QueryRowContext(ctx, c.RefID).Scan(&e.PublicID, &e.LibraryID)
 		case c.LibraryID != 0:

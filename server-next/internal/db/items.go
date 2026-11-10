@@ -37,6 +37,8 @@ type Item struct {
 	// how many of those are watched. A show is watched when the two are equal and not zero.
 	Leaves        int
 	WatchedLeaves int
+	// EntryID is the entry's id when the item is listed as an entry of a list.
+	EntryID int64
 
 	sortTitle string
 }
@@ -67,6 +69,7 @@ type ItemQuery struct {
 	Parent     string
 	Person     string
 	Tag        string
+	List       string // a playlist or collection; its own order is read by ListEntries
 	Genre      string // a genre by name, as people type it
 	Kinds      []ItemKind
 	YearFrom   int
@@ -83,6 +86,8 @@ type ItemQuery struct {
 	At        int
 	Limit     int
 	WithTotal bool
+
+	entries bool // the rows are a list's entries, already narrowed to a list the viewer may read
 }
 
 // ItemPage is one page of a list. NextCursor is empty at the end. Total is the whole list's
@@ -445,6 +450,17 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 	}
 	if q.Person != "" {
 		w.add(` AND i.id IN (SELECT item_id FROM credits WHERE person_id = (SELECT id FROM people WHERE public_id = `, w.arg(q.Person), `))`)
+		scoped = true
+	}
+	if q.entries {
+		scoped = true
+	}
+	if q.List != "" {
+		in, err := listInQuery(ctx, tx, w.args[0], q.List)
+		if err != nil {
+			return false, err
+		}
+		w.add(in)
 		scoped = true
 	}
 	if q.Tag != "" || q.Genre != "" {
