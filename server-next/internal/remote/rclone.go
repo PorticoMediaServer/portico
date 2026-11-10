@@ -62,7 +62,11 @@ func ParseRcloneConfig(text string) (map[string]string, error) {
 			if key == "ssh" || strings.HasSuffix(key, "_command") {
 				return nil, fmt.Errorf("the option %q runs a program on this computer, which Portico does not allow", key)
 			}
-			options[key] = strings.TrimSpace(value)
+			value = strings.TrimSpace(value)
+			if rcloneLocalOption(key, value) {
+				return nil, fmt.Errorf("the option %q names another remote, or a file or sign-in of this computer's own, which Portico does not allow", key)
+			}
+			options[key] = value
 		}
 	}
 	if options["type"] == "" || !rcloneKey.MatchString(options["type"]) {
@@ -77,7 +81,21 @@ func ParseRcloneConfig(text string) (map[string]string, error) {
 // rcloneRefusedTypes read this machine's disk (local, memory) or wrap another remote, which
 // may be a local path or an inline remote carrying options this parser would have refused.
 var rcloneRefusedTypes = map[string]bool{"local": true, "alias": true, "union": true, "combine": true, "crypt": true, "chunker": true,
-	"compress": true, "hasher": true, "cache": true, "memory": true}
+	"compress": true, "hasher": true, "cache": true, "memory": true, "archive": true}
+
+// rcloneLocalOption says an option points rclone at something other than the remote's own
+// storage: another remote (every wrapping type takes one as "remote" or "upstreams", so a
+// wrapping type newer than the list above is refused too), a file or socket on this computer
+// (an SSH key, a credentials file), or this computer's own cloud or Kerberos sign-in.
+func rcloneLocalOption(key, value string) bool {
+	switch key {
+	case "remote", "upstreams", "unix_socket", "kerberos_ccache":
+		return true
+	case "env_auth", "use_msi", "use_az", "use_kerberos", "key_use_agent":
+		return value != "" && value != "false"
+	}
+	return strings.HasSuffix(key, "_file") || strings.HasSuffix(key, "_path")
+}
 
 // RcloneHome is rclone's home folder: the server's own, inside its data folder, never a shared
 // one, because rclone and its libraries read credentials from files there. NewRegistry sets
