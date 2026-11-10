@@ -23,6 +23,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediaengine"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediaexec"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
+	"github.com/PorticoMediaServer/portico/server-next/internal/remote"
 	"github.com/PorticoMediaServer/portico/server-next/internal/scan"
 )
 
@@ -111,6 +112,13 @@ func (h *house) media(path string, header ...string) (int, http.Header, []byte) 
 }
 
 func newHouse(t *testing.T, ffmpeg, ffprobe string) (*house, *db.DB) {
+	h, d, _ := newHouseWith(t, ffmpeg, ffprobe)
+	return h, d
+}
+
+// newHouseWith is newHouse that also hands back the server's remote sources, which the
+// engine plays remote files through.
+func newHouseWith(t *testing.T, ffmpeg, ffprobe string) (*house, *db.DB, *remote.Registry) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	data := t.TempDir()
@@ -123,7 +131,8 @@ func newHouse(t *testing.T, ffmpeg, ffprobe string) (*house, *db.DB) {
 		t.Fatal(err)
 	}
 	previous := decoder.CurrentToolchain()
-	engine, err := mediaengine.New(ctx, d, mediaengine.Options{Folder: filepath.Join(data, "transcodes"), FFmpeg: ffmpeg, FFprobe: ffprobe})
+	engine, err := mediaengine.New(ctx, d, mediaengine.Options{Folder: filepath.Join(data, "transcodes"), FFmpeg: ffmpeg, FFprobe: ffprobe,
+		Remote: handler.RemoteSources().Open})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +175,7 @@ func newHouse(t *testing.T, ffmpeg, ffprobe string) (*house, *db.DB) {
 		t.Fatal(err)
 	}
 	h.call("PUT", "/v1/devices/"+session.DeviceID+"/capabilities", documents["chromium"], nil, 204)
-	return h, d
+	return h, d, handler.RemoteSources()
 }
 
 // A film file in a library folder is scanned, and a signed-in profile then plays it over
