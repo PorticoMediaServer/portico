@@ -19,6 +19,9 @@ type Config struct {
 	Seed       uint64
 	Items      int
 	BatchFiles int // files per import batch; 0 means 40
+	// Picture, when set, is called with the name of every picture a title is given, so a
+	// run that wants real artwork to fetch can store one under that name.
+	Picture func(hash string)
 }
 
 // LibrarySpec is one of the libraries the seeder fills.
@@ -56,6 +59,15 @@ type builder struct {
 	lib   db.Library
 	batch db.ImportBatch
 	emit  func(db.ImportBatch) error
+}
+
+// picture names a title's picture.
+func (b *builder) picture(r *rand.Rand) string {
+	hash := fmt.Sprintf("%016x", r.Uint64())
+	if b.cfg.Picture != nil {
+		b.cfg.Picture(hash)
+	}
+	return hash
 }
 
 // Batches generates the whole of one library, calling emit for each batch in order.
@@ -279,7 +291,7 @@ func (b *builder) movies() error {
 		}
 		if r.IntN(2) == 0 {
 			b.file(db.ImportFile{FileRef: db.FileRef{Dir: dir, Name: "poster.jpg"}, Role: db.FileArtwork, Size: 400e3})
-			it.Images = []db.ImportImage{{Role: db.ImagePoster, Source: db.ImageFromFile, FileHash: fmt.Sprintf("%016x", r.Uint64()), Width: 1000, Height: 1500}}
+			it.Images = []db.ImportImage{{Role: db.ImagePoster, Source: db.ImageFromFile, FileHash: b.picture(r), Width: 1000, Height: 1500}}
 		}
 		b.item(it)
 		if err := b.flush(false); err != nil {
@@ -303,7 +315,7 @@ func (b *builder) shows() error {
 			Summary: "A series about " + word(r) + ".", Tags: tags(r, genres, true),
 			ExternalIDs: []db.ExternalID{{Provider: "tvdb", ID: fmt.Sprint(200000 + n)}},
 			Credits:     b.credits(r, append(repeat(db.RoleActor, 13), db.RoleWriter, db.RoleProducer)...),
-			Images:      []db.ImportImage{{Role: db.ImagePoster, Source: db.ImageFromProvider, FileHash: fmt.Sprintf("%016x", r.Uint64()), Width: 1000, Height: 1500}}})
+			Images:      []db.ImportImage{{Role: db.ImagePoster, Source: db.ImageFromProvider, FileHash: b.picture(r), Width: 1000, Height: 1500}}})
 		for season, seasons := 1, 1+r.IntN(6); season <= seasons && left > 0; season++ {
 			seasonDir := fmt.Sprintf("%s/Season %02d", dir, season)
 			b.dir(seasonDir)
@@ -372,7 +384,7 @@ func (b *builder) music() error {
 			added := addedAt(r)
 			b.item(db.ImportItem{Kind: db.KindAlbum, Keys: []db.ItemKey{albumKey}, Parent: &artistKey, Title: name, Year: year, AddedAt: added,
 				Tags: tags(r, musicGenres, false), Credits: []db.ImportCredit{artistCredit},
-				Images: []db.ImportImage{{Role: db.ImageCover, Source: db.ImageFromEmbedded, FileHash: fmt.Sprintf("%016x", r.Uint64()), Width: 1200, Height: 1200}}})
+				Images: []db.ImportImage{{Role: db.ImageCover, Source: db.ImageFromEmbedded, FileHash: b.picture(r), Width: 1200, Height: 1200}}})
 			tracks := min(8+r.IntN(9), left)
 			audio := []db.Stream{{Kind: db.StreamAudio, Codec: "flac", Channels: 2, SampleRate: 44100, BitDepth: 16, Default: true}}
 			var whole *db.FileRef // one file for the whole album, cut into tracks by a cue sheet
