@@ -251,8 +251,13 @@ func TestStateAndEvents(t *testing.T) {
 		if quiet := get[EventPage](t, s, token, "/v1/events?poll=true&wait=0&cursor="+page.Cursor); len(quiet.Events) != 0 || quiet.Cursor != page.Cursor {
 			t.Fatalf("a poll with nothing new: %+v", quiet)
 		}
-		if other := get[EventPage](t, s, limited, "/v1/events?poll=true&wait=0&cursor="+start.Cursor); len(other.Events) != 0 {
-			t.Fatalf("another profile's poll heard this profile's state: %+v", other.Events)
+		// A poll that waits no time still reads: the same change again from the first cursor,
+		// and nothing of it for another profile.
+		if again := get[EventPage](t, s, token, "/v1/events?poll=true&wait=0&cursor="+start.Cursor); len(again.Events) != 1 {
+			t.Fatalf("a poll with no wait from the first cursor heard %+v", again.Events)
+		}
+		if other := get[EventPage](t, s, limited, "/v1/events?poll=true&wait=0&cursor="+start.Cursor); len(other.Events) != 0 || other.Cursor != page.Cursor {
+			t.Fatalf("another profile's poll heard this profile's state, or did not move on: %+v", other)
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("the poll did not answer when something changed")

@@ -193,11 +193,12 @@ func (s *Server) pollEvents(w http.ResponseWriter, r *http.Request, v db.Viewer,
 		wait = min(time.Duration(seconds)*time.Second, eventsWaitMost)
 	}
 	out := EventPage{Events: []Event{}}
-	ctx, cancel := context.WithTimeout(r.Context(), wait)
-	defer cancel()
+	// The wait bounds the waiting, never a read: a poll that waits no time still looks once.
+	over := time.NewTimer(wait)
+	defer over.Stop()
 	for given {
-		events, next, err := s.changesAfter(ctx, v, after)
-		if err != nil && ctx.Err() == nil {
+		events, next, err := s.changesAfter(r.Context(), v, after)
+		if err != nil {
 			s.writeError(w, r, err)
 			return
 		}
@@ -213,10 +214,9 @@ func (s *Server) pollEvents(w http.ResponseWriter, r *http.Request, v db.Viewer,
 			break
 		}
 		select {
-		case <-ctx.Done():
-			if r.Context().Err() != nil {
-				return // the reader went away
-			}
+		case <-r.Context().Done():
+			return // the reader went away
+		case <-over.C:
 			given = false // the wait is over: answer with nothing new
 		case <-time.After(eventsPoll):
 		}
