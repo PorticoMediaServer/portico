@@ -207,6 +207,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 		return nil, err
 	}
 	go s.jobs.RunTidy(ctx)
+	s.collectionRoutes()
 	return s, nil
 }
 
