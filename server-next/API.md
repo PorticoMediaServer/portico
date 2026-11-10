@@ -100,7 +100,7 @@ Assistant) are a separate short document and are not counted here.
 | `GET /v1/devices/{id}/capabilities`, `PUT /v1/devices/{id}/capabilities` | What a device can play |
 | `GET /v1/me/sessions`, `DELETE /v1/me/sessions/{id}`, `DELETE /v1/me/sessions` | Your sign-ins: list, end one, end all others |
 | `GET /v1/preferences`, `PATCH /v1/preferences` | A profile's own settings: the list of settings with their defaults, what the profile saved for everywhere, for this kind of device and for this device, and the values in force. The last save wins. |
-| `/v1/me/tokens`, `/v1/me/app-passwords` | Your personal tokens and app passwords: list, make, revoke. A key's secret is shown once and not kept, so a repeat of the same `Idempotency-Key` answers the key made the first time with a new secret, and the unseen first one stops working; this holds for `/v1/admin/api-keys` too. |
+| `/v1/me/tokens`, `/v1/me/app-passwords` | Your personal tokens and app passwords: list, make, revoke. A key's secret is shown once and not kept, so a repeat of the same `Idempotency-Key` answers the key made the first time: with a new secret while that key has never been used (the unseen first one stops working), and with no secret and a `note` once it has been used; this holds for `/v1/admin/api-keys` too. |
 
 ### Browse, search and Home (23)
 
