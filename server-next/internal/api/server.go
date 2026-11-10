@@ -39,12 +39,14 @@ type Server struct {
 	passwords *auth.Passwords
 	log       *slog.Logger
 	scans     *scan.Manager
-	mux       *http.ServeMux
-	version   string
-	id        string
-	identity  identity
-	routes    []*Route
-	now       func() time.Time
+	// dataDir is the server's own folder, which no library may be, hold or be inside.
+	dataDir  string
+	mux      *http.ServeMux
+	version  string
+	id       string
+	identity identity
+	routes   []*Route
+	now      func() time.Time
 	// setupCode is what creating the owner needs. It is made at start while there is no
 	// account, and written to the log and to setupFile, never sent to an app.
 	setupCode, setupFile string
@@ -150,7 +152,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{db: d, tokens: tokens, log: log, mux: http.NewServeMux(), version: version, id: identity.id, identity: identity, now: time.Now,
+	s := &Server{db: d, dataDir: dataDir, tokens: tokens, log: log, mux: http.NewServeMux(), version: version, id: identity.id, identity: identity, now: time.Now,
 		passwords: auth.NewPasswords(auth.PasswordCost, auth.PINCost)}
 	if set, err := d.HasUsers(ctx); err != nil {
 		return nil, err
