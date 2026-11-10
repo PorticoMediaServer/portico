@@ -206,6 +206,9 @@ type query struct {
 	library int64
 	kinds   string
 	tagWalk string
+	// whole is set when the list is all of that library and those kinds with nothing else
+	// asked for, whatever the viewer's rating limit. Its tag choices are counted from indexes.
+	whole bool
 }
 
 func (q *query) pageWhere() string {
