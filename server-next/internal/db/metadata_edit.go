@@ -33,10 +33,51 @@ type MetadataEdit struct {
 	Year          *int
 	ReleaseDate   *string // YYYY-MM-DD, or "" for none
 	ContentRating *string
-	Genres        *[]string
-	Lock          []string // field names to lock without changing them
-	Unlock        []string
+	Edition       *string
+	// Lists replace the whole list of one kind and lock it: genres, studios, networks,
+	// countries. Labels are the owner's own: no provider or scan changes them, so they are
+	// not locked.
+	Genres    *[]string
+	Studios   *[]string
+	Networks  *[]string
+	Countries *[]string
+	Labels    *[]string
+	// Credits replaces the cast and crew in this order and locks them.
+	Credits *[]CreditEdit
+	Lock    []string // field names to lock without changing them
+	Unlock  []string
+	// LockAll and UnlockAll lock or unlock every field, list and the match.
+	LockAll, UnlockAll bool
 }
+
+// CreditEdit is one line of Cast & crew. Person is a person's public id; without one the name
+// joins the person of that name, ignoring case and accents, or makes a new one.
+type CreditEdit struct {
+	Person    string
+	Name      string
+	Role      string // actor, director, writer, producer, composer, author, narrator, artist, guest, crew
+	Character string
+}
+
+// maxCredits bounds a title's cast and crew as a person edits it.
+const maxCredits = 500
+
+// editLists are the lists an edit can replace, by tag kind, with the field that locks each.
+// Labels lock nothing.
+var editLists = []struct {
+	kind, field string
+	value       func(*MetadataEdit) *[]string
+}{
+	{TagGenre, FieldGenres, func(e *MetadataEdit) *[]string { return e.Genres }},
+	{TagStudio, FieldStudios, func(e *MetadataEdit) *[]string { return e.Studios }},
+	{TagNetwork, FieldNetworks, func(e *MetadataEdit) *[]string { return e.Networks }},
+	{TagCountry, FieldCountries, func(e *MetadataEdit) *[]string { return e.Countries }},
+	{TagLabel, "", func(e *MetadataEdit) *[]string { return e.Labels }},
+}
+
+// LockableFields are the names a field, list or the match is locked by.
+var LockableFields = []string{FieldTitle, FieldSortTitle, FieldOriginalTitle, FieldSummary, FieldTagline, FieldEdition, FieldYear,
+	FieldReleaseDate, FieldContentRating, FieldRating, FieldGenres, FieldStudios, FieldNetworks, FieldCountries, FieldCredits, FieldMatch}
 
 // MetadataLocks says which of a title's fields a person locked and which its files gave, and
 // the revision an edit must name.
@@ -95,7 +136,8 @@ func (d *DB) EditMetadata(ctx context.Context, publicID string, revision int64, 
 	texts := []textField{{FieldTitle, "title", edit.Title, maxShortField, false}, {FieldSortTitle, "", edit.SortTitle, maxShortField, false},
 		{FieldOriginalTitle, "original_title", edit.OriginalTitle, maxShortField, false}, {FieldSummary, "summary", edit.Summary, maxDescription, true},
 		{FieldTagline, "tagline", edit.Tagline, maxShortField, false}, {FieldReleaseDate, "release_date", edit.ReleaseDate, 10, false},
-		{FieldContentRating, "content_rating", edit.ContentRating, maxShortField, false}}
+		{FieldContentRating, "content_rating", edit.ContentRating, maxShortField, false},
+		{FieldEdition, "edition", edit.Edition, maxShortField, false}}
 	for i, f := range texts {
 		if f.value == nil {
 			continue
@@ -117,29 +159,56 @@ func (d *DB) EditMetadata(ctx context.Context, publicID string, revision int64, 
 			return 0, invalid("%s: a real date, as YYYY-MM-DD", FieldReleaseDate)
 		}
 	}
-	var genres []TagName
-	if edit.Genres != nil {
+	lists := map[string][]TagName{}
+	for _, list := range editLists {
+		names := list.value(&edit)
+		if names == nil {
+			continue
+		}
 		seen := map[string]bool{}
-		for _, name := range *edit.Genres {
+		tags := []TagName{}
+		for _, name := range *names {
 			name = strings.TrimSpace(name)
 			if name == "" || seen[normTag(name)] {
 				continue
 			}
 			seen[normTag(name)] = true
-			if err := checkText(FieldGenres, name, maxListEntryLen, false); err != nil {
+			if err := checkText(list.kind+"s", name, maxListEntryLen, false); err != nil {
 				return 0, err
 			}
-			genres = append(genres, TagName{Kind: TagGenre, Name: name})
+			tags = append(tags, TagName{Kind: list.kind, Name: name})
 		}
-		if len(genres) > maxListEntries {
-			return 0, invalid("%s: at most %d entries", FieldGenres, maxListEntries)
+		if len(tags) > maxListEntries {
+			return 0, invalid("%ss: at most %d entries", list.kind, maxListEntries)
+		}
+		lists[list.kind] = tags
+	}
+	var credits []ImportCredit
+	var creditPeople []string
+	if edit.Credits != nil {
+		if len(*edit.Credits) > maxCredits {
+			return 0, invalid("%s: at most %d entries", FieldCredits, maxCredits)
+		}
+		for _, c := range *edit.Credits {
+			role, known := creditRoleByName[c.Role]
+			name, character := strings.TrimSpace(c.Name), strings.TrimSpace(c.Character)
+			switch {
+			case !known:
+				return 0, invalid("%s: %q is not a role", FieldCredits, c.Role)
+			case c.Person == "" && name == "":
+				return 0, invalid("%s: each line needs a person or a name", FieldCredits)
+			}
+			for _, text := range []string{name, character} {
+				if err := checkText(FieldCredits, text, maxShortField, false); err != nil {
+					return 0, err
+				}
+			}
+			credits = append(credits, ImportCredit{Name: name, Role: role, Character: character})
+			creditPeople = append(creditPeople, c.Person)
 		}
 	}
-	known := map[string]bool{FieldRating: true, FieldCredits: true, FieldMatch: true, FieldYear: true}
-	for _, f := range texts {
-		known[f.name] = true
-	}
-	for _, field := range tagFields {
+	known := map[string]bool{}
+	for _, field := range LockableFields {
 		known[field] = true
 	}
 	for _, field := range append(append([]string(nil), edit.Lock...), edit.Unlock...) {
@@ -167,6 +236,9 @@ func (d *DB) EditMetadata(ctx context.Context, publicID string, revision int64, 
 		}
 		if current != revision {
 			return ErrStale
+		}
+		if err := remember(b, id, HistoryFields, now); err != nil {
+			return err
 		}
 		locks := fieldSet(locked)
 		sortLocked := locks[FieldSortTitle] // a sort title a person set does not follow a new title
@@ -206,8 +278,21 @@ func (d *DB) EditMetadata(ctx context.Context, publicID string, revision int64, 
 			sets += ", rating_age = ?"
 			args = append(args, age)
 		}
-		if edit.Genres != nil {
-			locks[FieldGenres] = true
+		for _, list := range editLists {
+			if _, given := lists[list.kind]; given && list.field != "" {
+				locks[list.field] = true
+			}
+		}
+		if edit.Credits != nil {
+			locks[FieldCredits] = true
+		}
+		if edit.UnlockAll {
+			locks = map[string]bool{}
+		}
+		if edit.LockAll {
+			for _, field := range LockableFields {
+				locks[field] = true
+			}
 		}
 		for _, field := range edit.Lock {
 			locks[field] = true
@@ -225,17 +310,37 @@ func (d *DB) EditMetadata(ctx context.Context, publicID string, revision int64, 
 				return err
 			}
 		}
-		if edit.Genres != nil {
-			if _, err := b.exec(`DELETE FROM item_tags WHERE item_id = ? AND tag_id IN (SELECT id FROM tags WHERE kind = ?)`, id, TagGenre); err != nil {
+		im := &importer{batchTx: b, now: now, tags: map[TagName]int64{}, people: map[string]int64{}}
+		for kind, tags := range lists {
+			if _, err := b.exec(`DELETE FROM item_tags WHERE item_id = ? AND tag_id IN (SELECT id FROM tags WHERE kind = ?)`, id, kind); err != nil {
 				return err
 			}
-			im := &importer{batchTx: b, now: now, tags: map[TagName]int64{}}
-			for _, genre := range genres {
-				tagID, err := im.tagID(genre)
+			for _, tag := range tags {
+				tagID, err := im.tagID(tag)
 				if err != nil {
 					return err
 				}
 				if _, err := b.exec(`INSERT INTO item_tags (item_id, tag_id) VALUES (?, ?) ON CONFLICT DO NOTHING`, id, tagID); err != nil {
+					return err
+				}
+			}
+		}
+		if edit.Credits != nil {
+			if _, err := b.exec(`DELETE FROM credits WHERE item_id = ?`, id); err != nil {
+				return err
+			}
+			for position, credit := range credits {
+				var personID int64
+				if creditPeople[position] != "" {
+					if err := b.queryRow(`SELECT id, name FROM people WHERE public_id = ?`, creditPeople[position]).Scan(&personID, &credit.Name); errors.Is(err, sql.ErrNoRows) {
+						return invalid("%s: no such person", FieldCredits)
+					} else if err != nil {
+						return err
+					}
+				} else if personID, err = im.personID(credit); err != nil {
+					return err
+				}
+				if err := b.insertCredit(id, position, personID, credit.Role, credit.Character); err != nil {
 					return err
 				}
 			}
@@ -316,3 +421,12 @@ func (d *DB) MarkRefreshed(ctx context.Context, p Priority, itemID int64) error 
 		return err
 	})
 }
+
+// creditRoleByName reads a role as the editor names it.
+var creditRoleByName = func() map[string]CreditRole {
+	out := map[string]CreditRole{}
+	for role, name := range creditRoleNames {
+		out[name] = role
+	}
+	return out
+}()

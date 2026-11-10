@@ -176,6 +176,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.queueRoutes()
 	s.metadata = &metadata.Service{DB: d, Providers: map[string]metadata.Provider{}}
 	s.metadataRoutes()
+	s.editorRoutes()
 	return s, nil
 }
 
