@@ -28,8 +28,11 @@ type RemoteSource struct {
 	Limits RemoteLimits `json:"limits"`
 	WebDAV *WebDAVShown `json:"webdav,omitempty"`
 	Rclone *RcloneShown `json:"rclone,omitempty"`
-	// State is connected, unreachable, sign_in (needs its sign-in again), waiting (it asked
-	// Portico to slow down, until WaitingUntil) or setup (no library folder is on it yet).
+	// State is connected, unreachable, sign_in (needs its sign-in again: a wrong or revoked
+	// credential), waiting (it asked Portico to slow down, until WaitingUntil), limited (it
+	// does not send parts of files, so they cannot be read or played), needs_attention (its
+	// saved details are refused, or a folder is too large to list; Problem says which) or setup
+	// (no library folder is on it yet).
 	State        string     `json:"state"`
 	WaitingUntil *time.Time `json:"waitingUntil,omitempty"`
 	Problem      string     `json:"problem,omitempty"`
@@ -169,7 +172,7 @@ func (s *Server) remoteSourceOut(row db.RemoteSource) RemoteSource {
 	switch until, waiting := s.remote.Waiting(row.ID); {
 	case waiting:
 		out.State, out.WaitingUntil = "waiting", &until
-	case row.State == "unreachable", row.State == "sign_in":
+	case row.State == "unreachable", row.State == "sign_in", row.State == "limited", row.State == "needs_attention":
 		out.State = row.State
 	case row.Folders == 0:
 		out.State = "setup"
