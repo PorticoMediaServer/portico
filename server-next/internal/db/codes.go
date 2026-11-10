@@ -343,7 +343,9 @@ const (
 	TagNetwork = "network"
 	TagCountry = "country"
 	TagLabel   = "label"
-	TagMood    = "mood"
+	// TagMood is a mood, tone, theme or other tag from the title data, named by its key in the
+	// data set ("mood:cozy"). No screen shows one: they make the mood rows on Home.
+	TagMood = "mood"
 )
 
 var tagKinds = map[string]bool{TagGenre: true, TagStudio: true, TagNetwork: true, TagCountry: true, TagLabel: true, TagMood: true}
