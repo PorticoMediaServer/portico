@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sync"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/contentrating"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
@@ -15,6 +17,11 @@ type Service struct {
 	Providers map[string]Provider // by Name
 	// IncludeAdult is the owner's "Include adult titles" switch.
 	IncludeAdult bool
+
+	// When each library's matched titles were last all looked through for a refresh. It is
+	// running state: after a restart the first call looks through them once.
+	walks  sync.Mutex
+	walked map[int64]time.Time
 }
 
 // defaultProviders is the provider a library of each kind uses until the owner chooses.
