@@ -428,23 +428,30 @@ func TestOriginalFileIsServedByByteRange(t *testing.T) {
 	}
 }
 
-func TestLibraryFileMustBeInsideALibraryFolder(t *testing.T) {
+func TestLibraryFileMustBeRecordedBeneathALibraryFolder(t *testing.T) {
 	rig := newMediaRig(t)
 	outside := filepath.Join(t.TempDir(), "outside.mp4")
 	if err := os.WriteFile(outside, []byte("not in a library"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	link := filepath.Join(rig.library, "link.mp4")
-	if err := os.Symlink(outside, link); err != nil {
-		t.Skip("no symbolic links here")
-	}
-	for _, path := range []string{outside, link, filepath.Join(rig.library, "missing.mp4")} {
-		_, err := rig.streams.Start(context.Background(), StartRequest{
-			SessionID: "s1", Plan: DeliveryPlan{Mode: "direct", Strategy: DeliveryOriginal}, Path: path,
-		})
-		if !errors.Is(err, ErrSourceUnavailable) {
+	original := StartRequest{SessionID: "s1", Plan: DeliveryPlan{Mode: "direct", Strategy: DeliveryOriginal}}
+	for _, path := range []string{outside, filepath.Join(rig.library, "missing.mp4")} {
+		original.Path = path
+		if _, err := rig.streams.Start(context.Background(), original); !errors.Is(err, ErrSourceUnavailable) {
 			t.Fatalf("%s: %v", path, err)
 		}
+	}
+	// A link in a library to a file somewhere else plays: the scanner lists it.
+	original.Path = filepath.Join(rig.library, "link.mp4")
+	if err := os.Symlink(outside, original.Path); err != nil {
+		t.Skip("no symbolic links here")
+	}
+	stream, err := rig.streams.Start(context.Background(), original)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response := rig.get(context.Background(), stream.Grant, "original", ""); response.Body.String() != "not in a library" {
+		t.Fatalf("a linked file answered %d with %q", response.Code, response.Body.String())
 	}
 }
 

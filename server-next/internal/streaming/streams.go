@@ -32,7 +32,7 @@ type Options struct {
 	// Settings are the owner's delivery settings, read whenever they matter.
 	Settings DeliverySettings
 	// Libraries returns the library folders configured now. A file is opened
-	// only if, with symbolic links resolved, it is inside one of them.
+	// only if its path is written beneath one of them (package libraryfile).
 	Libraries func() []string
 	// Processes bounds the confined tools that convert music. Nil gives the
 	// streams a small pool of their own.
@@ -65,8 +65,9 @@ type StartRequest struct {
 	// out not to be copyable plans again by itself and converts; without it that
 	// stream fails with its reason.
 	Request *PlanRequest
-	// Path is the file inside a library folder, with the size and modified time
-	// the scanner recorded; a file that no longer matches is refused. Source
+	// Path is the file as the scanner recorded it (library folder, folder
+	// beneath it, name: never text from a request), with the size and modified
+	// time the scanner recorded; a file that no longer matches is refused. Source
 	// replaces all three for any other kind of source.
 	Path     string
 	Size     int64
