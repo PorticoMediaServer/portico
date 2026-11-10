@@ -12,7 +12,7 @@ import (
 )
 
 // ErrSourceUnavailable says the file a stream plays cannot be opened: it is
-// gone, it is outside every library folder, or it is not a regular file.
+// gone, its path is not beneath a library folder, or it is not a regular file.
 var ErrSourceUnavailable = errors.New("The file for this title cannot be reached.")
 
 // ErrSourceChanged says the file is not the one that was scanned, so the plan
@@ -27,8 +27,8 @@ type Source interface {
 	Open(ctx context.Context) (io.ReadSeekCloser, int64, time.Time, error)
 }
 
-// libraryFile is a file inside one of the owner's library folders, opened by
-// the server itself.
+// libraryFile is a file the scanner recorded beneath one of the owner's library
+// folders, opened by the server itself.
 type libraryFile struct {
 	path     string
 	size     int64

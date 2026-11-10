@@ -1,7 +1,19 @@
 // Package libraryfile is the one rule for reading a file from a library: the
-// server opens it itself, and only if its real location, with every symbolic
-// link resolved, is inside a folder the owner configured as a library. A link
-// placed in a library therefore cannot make the server read anything else.
+// server opens it itself, by the path the scanner recorded for it, and that
+// path must be written beneath a folder the owner configured as a library.
+//
+// Callers pass only a path built from the scanner's own records (library
+// folder, folder beneath it, file name), never a path or part of a path that
+// came from a request.
+//
+// Symbolic links are followed wherever they lead, in scanning and here alike,
+// so a title that lists also plays. Libraries made of links to other disks and
+// to remote mounts are common. The cost: whoever can write into a library
+// folder can place a link there and, once a scan has recorded it, have the
+// server read any regular file the server's own user can read. The owner
+// accepts that, because such a person already controls the library. To go back
+// to refusing links that leave the library, this file is the only place to
+// change.
 //
 // Media tools never get this authority. ffmpeg and ffprobe run in their sandbox
 // and are handed the one file: as an open descriptor, or bound read-only at its
@@ -12,64 +24,58 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
-// ErrOutside says the path is not a readable file inside a library folder: it
-// does not exist, cannot be resolved, or resolves to somewhere else.
+// ErrOutside says the path is not a readable file of a library: it is not
+// written beneath a library folder, does not exist, or is not a regular file.
 var ErrOutside = errors.New("not a file inside a library folder")
 
-// Resolve returns the real path of a file if it is inside one of the folders.
-// A folder that cannot itself be resolved is skipped.
-func Resolve(path string, folders []string) (string, error) {
-	real, _, _, err := locate(path, folders)
-	return real, err
-}
-
-// locate resolves a path and names the library folder it is inside, with the
-// path under that folder.
-func locate(path string, folders []string) (real, folder, relative string, err error) {
+// beneath reports whether a path is written beneath one of the folders. It
+// reads the path's text only; "x/../.." steps are worked out first, so they
+// cannot climb out.
+func beneath(path string, folders []string) bool {
 	if !filepath.IsAbs(path) {
-		return "", "", "", ErrOutside
-	}
-	real, err = filepath.EvalSymlinks(path)
-	if err != nil {
-		return "", "", "", ErrOutside
+		return false
 	}
 	for _, folder := range folders {
-		realFolder, err := filepath.EvalSymlinks(folder)
-		if err != nil || !filepath.IsAbs(realFolder) {
+		if !filepath.IsAbs(folder) {
 			continue
 		}
-		relative, err := filepath.Rel(realFolder, real)
-		if err != nil || relative == "." || relative == ".." || filepath.IsAbs(relative) ||
-			strings.HasPrefix(relative, ".."+string(os.PathSeparator)) {
-			continue
+		relative, err := filepath.Rel(filepath.Clean(folder), filepath.Clean(path))
+		if err == nil && relative != "." && filepath.IsLocal(relative) {
+			return true
 		}
-		return real, realFolder, relative, nil
 	}
-	return "", "", "", ErrOutside
+	return false
 }
 
-// Open opens a regular file inside one of the folders for reading. The file is
-// opened beneath the library folder, so a folder on the way that is swapped for
-// a link to somewhere else after the check is refused, not followed.
-func Open(path string, folders []string) (*os.File, error) {
-	_, folder, relative, err := locate(path, folders)
-	if err != nil {
-		return nil, err
+// Resolve returns the real path of a library file, with links followed, for
+// handing to a sandboxed tool.
+func Resolve(path string, folders []string) (string, error) {
+	if !beneath(path, folders) {
+		return "", ErrOutside
 	}
-	root, err := os.OpenRoot(folder)
+	real, err := filepath.EvalSymlinks(path)
 	if err != nil {
+		return "", ErrOutside
+	}
+	return real, nil
+}
+
+// Open opens a library file for reading, following links. It must be a regular
+// file with something in it: an empty file plays nothing, and the files Linux
+// makes up under /proc (a process's memory and environment among them) all
+// report no size.
+func Open(path string, folders []string) (*os.File, error) {
+	if !beneath(path, folders) {
 		return nil, ErrOutside
 	}
-	defer root.Close()
-	file, err := root.Open(relative)
+	file, err := os.Open(path)
 	if err != nil {
 		return nil, ErrOutside
 	}
 	info, err := file.Stat()
-	if err != nil || !info.Mode().IsRegular() {
+	if err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
 		file.Close()
 		return nil, ErrOutside
 	}
