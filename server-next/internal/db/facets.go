@@ -74,7 +74,7 @@ func (d *DB) Facets(ctx context.Context, v Viewer, q ItemQuery, facet string) ([
 			SELECT i.id, max(%s) AS class FROM %s JOIN media m ON m.item_id = i.id AND m.width IS NOT NULL WHERE %s GROUP BY i.id)
 			GROUP BY class ORDER BY class DESC`, resolutionSQL, from, where)
 	default:
-		return nil, invalid("unknown facet %q", facet)
+		return nil, invalid("This list has no choices to count for that.")
 	}
 	return queryAll(ctx, tx, query, w.args, func(f *FacetValue) []any { return []any{&f.Value, &f.Label, &f.Count} })
 }

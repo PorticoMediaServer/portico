@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
@@ -147,7 +148,9 @@ func TestBrowse(t *testing.T) {
 		{"/v1/items", token, 400, "invalid_request"}, // nothing to list by
 		{"/v1/items?library=" + films.ID + "&kind=film", token, 400, "invalid_request"},
 		{"/v1/items?library=" + films.ID + "&sort=size", token, 400, "invalid_request"},
-		{"/v1/items?library=" + films.ID + "&cursor=xyz", token, 400, "invalid_request"},
+		{"/v1/items?library=" + films.ID + "&cursor=xyz", token, 400, "cursor_expired"},
+		{"/v1/items/" + hidden.ID + "/credits?cursor=xyz", token, 400, "cursor_expired"},
+		{"/v1/items?library=" + films.ID + "&sort=order", token, 400, "invalid_request"},
 		{"/v1/items?library=" + films.ID + "&year=19x", token, 400, "invalid_request"},
 		{"/v1/items/itm_nothing", token, 404, "not_found"},
 		{"/v1/items/" + hidden.ID + "/credits", limited, 404, "not_found"},
@@ -160,6 +163,10 @@ func TestBrowse(t *testing.T) {
 		var got errorBody
 		if w := call(t, s, "GET", c.path, c.token, nil, &got); w.Code != c.status || got.Error.Code != c.code {
 			t.Errorf("GET %s: %d %s, want %d %s", c.path, w.Code, got.Error.Code, c.status, c.code)
+		}
+		// A refusal is a sentence for a person: no quoted request values, no lower-case code words.
+		if m := got.Error.Message; m == "" || strings.ContainsAny(m, `"%`) || unicode.IsLower([]rune(m)[0]) || !strings.HasSuffix(m, ".") {
+			t.Errorf("GET %s: the refusal %q is not a plain sentence", c.path, m)
 		}
 	}
 }

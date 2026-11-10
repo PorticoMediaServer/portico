@@ -25,12 +25,19 @@ func refuse(err error) error {
 	switch {
 	case errors.Is(err, db.ErrNotFound):
 		return ErrNotFound()
+	case errors.Is(err, db.ErrCursorExpired):
+		return errCursorExpired()
 	case errors.Is(err, db.ErrFilterTooLong):
 		return ErrInvalid("This filter is too long.")
 	case errors.Is(err, db.ErrInvalid):
 		return ErrInvalid(strings.TrimPrefix(err.Error(), db.ErrInvalid.Error()+": "))
 	}
 	return err
+}
+
+// errCursorExpired is the documented answer to a cursor a list cannot carry on from.
+func errCursorExpired() *Error {
+	return refusal(http.StatusBadRequest, "cursor_expired", "This list has changed since it was opened. Start it again from the top.", false)
 }
 
 func (s *Server) catalogueRoutes() {
@@ -93,7 +100,7 @@ func (s *Server) catalogueRoutes() {
 		// The cursor is how many credits have been sent. A cast list does not change under a reader.
 		offset, err := strconv.Atoi(query.Get("cursor"))
 		if query.Get("cursor") != "" && (err != nil || offset < 0) {
-			return CreditPage{}, ErrField("cursor", "This cursor does not belong to this list.")
+			return CreditPage{}, errCursorExpired()
 		}
 		limit, err := limitParam(query)
 		if err != nil {
