@@ -38,6 +38,9 @@ type LibraryOptions struct {
 	// scanned only when asked. Where watch is on and the folders cannot be watched, they are
 	// scanned every hour instead, or every six on a network share.
 	RescanMinutes int `json:"rescanMinutes"`
+	// GroupSeries is "Group films from the same series": a collection appears once two films
+	// of a series are in the library. On unless turned off; left out of an edit, it stays.
+	GroupSeries *bool `json:"groupSeries,omitempty"`
 }
 
 // TrashRule is days (the default, with Days from 1 to 3,650, starting at 30), scan (after
@@ -262,8 +265,9 @@ func timePtr(ms int64) *time.Time {
 
 func libraryOptionsOut(o db.LibraryOptions) LibraryOptions {
 	watch := !o.NoWatch
+	group := o.GroupSeries == nil || *o.GroupSeries
 	out := LibraryOptions{Depth: o.Depth, Trash: TrashRule{Mode: o.Trash.Mode, Days: o.Trash.Days}, AllowDelete: o.AllowDelete,
-		Watch: &watch, RescanMinutes: o.RescanMinutes}
+		Watch: &watch, RescanMinutes: o.RescanMinutes, GroupSeries: &group}
 	if out.Depth == "" {
 		out.Depth = db.DepthBasic
 	}
@@ -278,7 +282,7 @@ func libraryOptionsOut(o db.LibraryOptions) LibraryOptions {
 
 func optionsIn(o LibraryOptions) db.LibraryOptions {
 	return db.LibraryOptions{Depth: o.Depth, Trash: db.TrashRule{Mode: o.Trash.Mode, Days: o.Trash.Days}, AllowDelete: o.AllowDelete,
-		NoWatch: o.Watch != nil && !*o.Watch, RescanMinutes: o.RescanMinutes}
+		NoWatch: o.Watch != nil && !*o.Watch, RescanMinutes: o.RescanMinutes, GroupSeries: o.GroupSeries}
 }
 
 func (s *Server) foldersOut(lib db.Library, folders []db.LibraryFolder) []LibraryFolder {
