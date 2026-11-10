@@ -406,7 +406,7 @@ func (r *run) store(f *folder, gone []db.FileRef) error {
 			}
 			file.written = true
 			if file.state == moved {
-				batch.Moves = append(batch.Moves, db.ImportMove{FileID: file.from.ID, To: file.ref()})
+				batch.Moves = append(batch.Moves, db.ImportMove{FileID: file.from.ID, To: file.ref(), KeepTitle: r.tagLed()})
 				r.stats.FilesMoved++
 				continue
 			}
@@ -506,6 +506,14 @@ func (r *run) units(f *folder) []unit {
 		return r.filmUnits(f)
 	case db.LibraryShows, db.LibraryAnime:
 		return r.showUnits(f)
+	case db.LibraryMusic:
+		return r.musicUnits(f)
+	case db.LibraryAudiobooks:
+		return r.audiobookUnits(f)
+	case db.LibraryBooks:
+		return r.bookUnits(f)
+	case db.LibraryComics:
+		return r.comicUnits(f)
 	}
 	return nil
 }
