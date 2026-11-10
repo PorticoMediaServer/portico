@@ -98,13 +98,19 @@ func TestTrustedProxiesAndHomeNetworks(t *testing.T) {
 	if got := from(t, s, "203.0.113.50", "192.168.1.5", "POST", "/v1/auth/sign-in", "", claimed, nil); got != 200 {
 		t.Fatalf("a sign-in from elsewhere answered %d", got)
 	}
+	// A proxy on this machine that the owner has not listed: whoever comes through it is
+	// not at home, whatever address the connection has.
+	unlisted := SignInRequest{Username: "justin", Password: testPassword, Device: device(204)}
+	if got := from(t, s, "127.0.0.1", "203.0.113.60", "POST", "/v1/auth/sign-in", "", unlisted, nil); got != 200 {
+		t.Fatalf("a sign-in through an unlisted proxy answered %d", got)
+	}
 	s.now = time.Now
 	owner = onMain(t, s, signIn(t, s, 0))
 	networks := map[string]string{}
 	for _, d := range get[Page[Device]](t, s, owner.AccessToken, "/v1/devices").Items {
 		networks[d.Name] = d.Network
 	}
-	if networks["Device 200"] != "away" || networks["Device 201"] != "home" || networks["Device 202"] != "away" {
+	if networks["Device 200"] != "away" || networks["Device 201"] != "home" || networks["Device 202"] != "away" || networks["Device 204"] != "away" {
 		t.Errorf("home and away in the device list: %v", networks)
 	}
 

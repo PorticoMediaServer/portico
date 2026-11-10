@@ -115,9 +115,9 @@ func (s *Server) loadNetworks(ctx context.Context) error {
 }
 
 // noteForwarded says once in the log that requests are arriving with a forwarded address
-// from a proxy the owner has not listed. Until they list it, everyone behind that proxy
-// counts as the proxy's own address: Home and Away are wrong and one person's wrong
-// guesses count against all of them.
+// from a proxy the owner has not listed. Until they list it, nobody behind that proxy
+// counts as at home, and everyone behind it counts as the proxy's own address, so one
+// person's wrong guesses count against all of them.
 func (s *Server) noteForwarded(r *http.Request) {
 	if r.Header.Get("X-Forwarded-For") == "" {
 		return
@@ -131,8 +131,8 @@ func (s *Server) noteForwarded(r *http.Request) {
 	s.network.warnedProxy = true
 	s.network.mu.Unlock()
 	if !warned {
-		s.log.Warn("a request came through a proxy that is not in the trusted proxies, so its X-Forwarded-For was ignored: "+
-			"add the proxy's address in the network settings if it is yours", "proxy", peerAddr(r))
+		s.log.Warn("a request came through a proxy that is not in the trusted proxies, so its X-Forwarded-For was ignored "+
+			"and it does not count as coming from home: add the proxy's address in the network settings if it is yours", "proxy", peerAddr(r))
 	}
 }
 
