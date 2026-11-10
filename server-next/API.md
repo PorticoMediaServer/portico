@@ -30,7 +30,7 @@ Assistant) are a separate short document and are not counted here.
 | Time | Timestamps are RFC 3339 UTC strings ending `At`. Durations and positions are whole milliseconds ending `Ms`. |
 | Unknown things | Clients ignore fields, enum values and event types they do not know. Every enum is open. The server ignores unknown request fields. |
 | Server-tuned values | The server tells clients how often to report progress, how long to wait before retrying and the largest page it will serve. Clients do not hard-code them. |
-| Media and artwork | The server returns addresses that carry their own short-lived permission (`/v1/media/{grant}/{file}`, `/v1/images/{id}`). Clients fetch them and never build them. |
+| Media and artwork | The server returns addresses that are their own permission, and clients fetch them and never build them. A media address (`/v1/media/{grant}/{file}`) is short-lived. An artwork address (`/v1/images/{id}`) is named by a long hash that only a reply about something the caller may see contains; the picture behind it never changes, so it takes no token and can be cached for good. A client may add `w` and `h` to get it no larger than it will draw it. |
 | Sign-in | `Authorization: Bearer <access token>`. Access tokens last 15 minutes; the refresh token rotates on every renewal; a renewal repeated with the same `requestId` gets the same answer; an older refresh token used again ends the session. A token that is no longer good is answered `401` at every address under `/v1`, an unknown one included. |
 | Versioning | `/v1` in the path. After release, additions are optional fields and new routes, announced in `capabilities` on `GET /v1/system`. |
 
