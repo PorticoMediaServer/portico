@@ -521,7 +521,7 @@ export class HomeSelectionController {
         const state = await getContainerState(this.options.api, kind, entry.id, ticket.controller.signal); this.check(ticket);
         const run = async () => {
           if (action === 'watchlist' || action === 'favorite') await setContainerFlag(this.options.api, kind, entry.id, action === 'watchlist' ? 'watchlisted' : 'favorite', action === 'watchlist' ? !state.watchlisted : !state.favorite, ticket.controller.signal);
-          else if (action === 'watched') await setContainerState(this.options.api, kind, entry.id, {expectedRevision: state.revision, watched: !state.watched}, ticket.controller.signal);
+          else if (action === 'watched') await setContainerState(this.options.api, kind, entry.id, {watched: !state.watched}, ticket.controller.signal);
           else throw selectionExecutionError('personal-action-unavailable');
         };
         this.retry = () => this.guarded(ticket, action, run); await run();

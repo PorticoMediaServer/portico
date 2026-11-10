@@ -19,7 +19,6 @@ export function createRecommendations(context: ScreenContext) {
       try {
         const value = 'show' in data ? await fetchShowRecommendations(life.api, data.show.id, 12, life.signal(controller.signal)) : await fetchItemRecommendations(life.api, data.item.id, 12, life.signal(controller.signal));
         if (generation !== request || !life.current() || !isCurrent()) return;
-        if (value.revision.catalog !== data.revision.catalog || value.revision.viewer !== data.revision.viewer) throw new Error('Recommendation revision changed');
         publish({phase: 'ready', data: value});
       } catch { if (generation === request && life.current() && isCurrent()) publish({phase: 'error'}); }
     },

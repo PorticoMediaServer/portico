@@ -95,7 +95,7 @@ function ArtistBody({context, libraryId, artistId, lease, retry, back}: {context
   const artist = projection?.entity;
   const admitted = !!projection && !!artist && artist.kind === 'artist' && artist.id === artistId
     && projection.scope.libraryId === libraryId && projection.scope.view === 'artist' && projection.scope.entityId === artistId
-    ? {catalog: projection.revision.catalog, viewer: projection.revision.viewer} : undefined;
+    ? projection : undefined;
   const [similar, setSimilar] = useState<Similar>();
   const similarRead = useRef<object | undefined>(undefined);
   useLayoutEffect(() => {
@@ -118,12 +118,11 @@ function ArtistBody({context, libraryId, artistId, lease, retry, back}: {context
     const scope: ListeningViewerScope = {serverId: context.scope.serverId, authority: viewer.authority, accountId: viewer.accountId, profileId: viewer.profileId};
     void readListeningSimilar(lease.api, scope, artistId, {limit: 12, by: 'sound', signal: AbortSignal.any([lease.signal, request.signal])})
       .then(value => {
-        if (!current() || value.itemId !== artistId || value.libraryId !== libraryId
-          || value.revision.catalog !== admitted.catalog || value.revision.viewer !== admitted.viewer) return;
+        if (!current() || value.itemId !== artistId || value.libraryId !== libraryId) return;
         setSimilar({page, token, value, scope});
       }, error => {if (current()) context.effects.reportError(error);});
     return () => request.abort();
-  }, [lease, artistId, libraryId, context, projection, admitted?.catalog, admitted?.viewer]);
+  }, [lease, artistId, libraryId, context, projection, admitted]);
   const section = (id: string): ContentSection | undefined => projection && admitted
     ? (content.appended.find(value => value.id === id) ?? projection.sections.find(value => value.id === id)) : undefined;
   const recoveryContext: ScreenContext = forwardIdentity(context, {isCurrent: lease.isCurrent, effects: {...context.effects,
@@ -152,8 +151,7 @@ function ArtistBody({context, libraryId, artistId, lease, retry, back}: {context
     if (live.phase !== 'ready') return false;
     const page = live.projection;
     return page === projection && page.entity?.kind === 'artist' && page.entity.id === artistId && page.scope.libraryId === libraryId
-      && page.scope.view === 'artist' && page.scope.entityId === artistId
-      && page.revision.catalog === admitted.catalog && page.revision.viewer === admitted.viewer;
+      && page.scope.view === 'artist' && page.scope.entityId === artistId;
   };
   // No artist art: the first album's cover stands in (desktop-listen #artist: "clearly an album cover").
   const cover = artist.posterUrl ?? albums.find(album => album.posterUrl)?.posterUrl, discArt = cover ? context.artwork.foreground(cover, 480, 1) : undefined;

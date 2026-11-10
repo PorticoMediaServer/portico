@@ -31,7 +31,6 @@ export class ReadingCollection {
   private closed = false;
   private running = false;
   private fence?: string;
-  private detailFence?: string;
   private cursor?: string;
   private history: (string | undefined)[] = [];
   private chosen?: HomeSelectionPickerRow;
@@ -78,8 +77,6 @@ export class ReadingCollection {
       const state = this.detail.getSnapshot(), data = state.data;
       if (state.phase !== 'ready' || !data || data.scope.libraryId !== item.libraryId || data.item.id !== item.id || data.item.kind !== item.kind
         || !data.actions.some(action => action.id === 'add_to_collection' && action.enabled)) throw unavailable();
-      if (this.detailFence && this.detailFence !== data.scope.viewerFence) throw unavailable();
-      this.detailFence = data.scope.viewerFence;
     }
   }
   private async read(query: string, cursor?: string, history: (string | undefined)[] = []) {

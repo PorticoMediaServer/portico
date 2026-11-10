@@ -8,6 +8,9 @@ import {QueryObserver} from '@tanstack/query-core';
 import type {ViewerQueries} from './query/viewer-queries.ts';
 import type {ViewerQueryOptions} from './query/react.ts';
 import {queryKeys} from './query/keys.ts';
+import {entriesFromItems,entryFromItem,readAllItems,readItem,readItems} from './items.ts';
+import {childrenQuery} from './library-browse.ts';
+import type {ServerRequester} from './query/server-api.ts';
 import {dependsOn, titlesWithPersonalState} from './freshness-hub.ts';
 import {linkAbortSignals} from './abort-lifetime.ts';
 export type ShowWorkspaceRoute=Readonly<{libraryId:string;episodeDirection?:'asc'|'desc';playState?:'all'|'played'|'unplayed'|'in-progress';showId?:string;seasonId?:string;episodeId?:string;selectedSeasonId?:string;group?:string}>;
@@ -21,9 +24,9 @@ const group=(v:unknown):v is string=>typeof v==='string'&&SHOW_GROUP.test(v);
 export type WorkspaceShowCredit=Readonly<{id?:string;name:string;role?:string;department?:string;ordinal:number;portraitUrl?:string}>;
 export type WorkspaceShow=Readonly<{episodeCount?:number;addedAt?:string;originalLanguage?:string;status?:string;firstAired?:string;lastAired?:string;id:string;libraryId:string;title:string;credits?:readonly WorkspaceShowCredit[];year?:number;overview?:string;posterUrl?:string;backdropUrl?:string;logoUrl?:string;network?:string;studio?:string;contentRating?:string;originalTitle?:string;country?:string;genres?:readonly string[];providerSourceUrl?:string;providerObservedAt?:string;libraryKind:'tv'|'anime';providerMatchStatus:string}>;
 export type WorkspaceSeason=Readonly<{episodeCount?:number;watchedCount?:number;unwatchedCount?:number;firstAired?:string;lastAired?:string;overview?:string;id:string;showId:string;number:number;title:string}>;
-export type ShowWorkspaceData=Readonly<{scope:Readonly<{serverId:string;libraryId:string;viewerFence:string}>;revision:Readonly<{catalog:number;viewer:number}>;show:WorkspaceShow;seasons:readonly WorkspaceSeason[];seasonTotalCount:number;nextSeasonCursor:string;groups:readonly Readonly<{id:string;title:string;count:number}>[];selected:Readonly<{seasonId:string|null;group?:string;episodeId?:string}>;episodes:ContentProjection;nextUp?:ContentEntry;settings:ShowSettings}>;
+export type ShowWorkspaceData=Readonly<{scope:Readonly<{serverId:string;libraryId:string}>;show:WorkspaceShow;seasons:readonly WorkspaceSeason[];seasonTotalCount:number;nextSeasonCursor:string;groups:readonly Readonly<{id:string;title:string;count:number}>[];selected:Readonly<{seasonId:string|null;group?:string;episodeId?:string}>;episodes:ContentProjection;nextUp?:ContentEntry;settings:ShowSettings}>;
 export type ShowWorkspaceAnchor=Readonly<{expandedEpisodeId:string|null;focusedEpisodeId:string|null;scrollOffset:number}>;
-export type ShowWorkspaceRestore=Readonly<{scope:ContentScope;route:ShowWorkspaceRoute;cursor:string|null;history:readonly (string|null)[];seasonCursor:string|null;seasonHistory:readonly (string|null)[];revision:ShowWorkspaceData['revision'];viewerFence:string;anchor:ShowWorkspaceAnchor;pageAnchorEpisodeId:string|null;pageAnchors:readonly string[];resolvedSelection:Readonly<{showId:string;seasonId:string|null;group?:string}>}>;
+export type ShowWorkspaceRestore=Readonly<{scope:ContentScope;route:ShowWorkspaceRoute;cursor:string|null;history:readonly (string|null)[];seasonCursor:string|null;seasonHistory:readonly (string|null)[];anchor:ShowWorkspaceAnchor;pageAnchorEpisodeId:string|null;pageAnchors:readonly string[];resolvedSelection:Readonly<{showId:string;seasonId:string|null;group?:string}>}>;
 export type ShowWorkspaceError=Readonly<{code:string;message:string;retryable:boolean}>;
 export type ShowWorkspaceSnapshot=Readonly<{generation:number;scope:ContentScope;route:ShowWorkspaceRoute|null;phase:'idle'|'loading'|'ready'|'error'|'refresh-required';data:ShowWorkspaceData|null;pagination:Readonly<{cursor:string|null;history:readonly (string|null)[];nextCursor:string|null;canPrevious:boolean}>;seasonPagination:Readonly<{cursor:string|null;history:readonly (string|null)[];nextCursor:string|null;canPrevious:boolean}>;anchor:ShowWorkspaceAnchor;error:ShowWorkspaceError|null}>;
 const record=(v:unknown):v is Record<string,unknown>=>typeof v==='object'&&v!==null&&!Array.isArray(v);
@@ -33,55 +36,42 @@ const count=(v:unknown):v is number=>typeof v==='number'&&Number.isSafeInteger(v
 class Failure extends Error{code:string;retryable:boolean;constructor(code:string,message:string,retryable=false){super(message);this.code=code;this.retryable=retryable;}}
 function invalid():never{throw new Failure('invalid_show_workspace',unreadableServerResponse);}
 function arr(v:unknown,max:number):unknown[]{if(!Array.isArray(v)||v.length>max)invalid();return v;}
-/** An optional fact of the show that could not be read was left out; an absent value is not counted. */
-function left(part:string,value:unknown):void{if(value!==undefined&&value!==null)noteSkipped('show-workspace',part);}
 const blankAnchor=():ShowWorkspaceAnchor=>Object.freeze({expandedEpisodeId:null,focusedEpisodeId:null,scrollOffset:0});
 function bound(v:ContentScope):ContentScope{if(!record(v)||!id(v.serverId)||!str(v.viewerId,1024)||!v.viewerId)throw new Error('A server and composed authority/account/profile scope is required.');return Object.freeze({serverId:v.serverId,viewerId:v.viewerId});}
 export function validateShowWorkspaceRoute(v:ShowWorkspaceRoute):ShowWorkspaceRoute{if(!record(v)||!id(v.libraryId)||!v.showId&&!v.seasonId&&!v.episodeId||v.group!==undefined&&!group(v.group)||v.group!==undefined&&v.selectedSeasonId!==undefined)throw new Error('Invalid show workspace target.');for(const k of Object.keys(v))if(!['libraryId','episodeDirection','playState','showId','seasonId','episodeId','selectedSeasonId','group'].includes(k))throw new Error('Unknown show workspace route field.');const result:{-readonly[K in keyof ShowWorkspaceRoute]:ShowWorkspaceRoute[K]}={libraryId:v.libraryId};for(const k of ['showId','seasonId','episodeId','selectedSeasonId'] as const)if(v[k]!==undefined){if(!id(v[k]))throw new Error('Invalid show workspace identifier.');result[k]=v[k];}if(v.episodeDirection!==undefined){if(!['asc','desc'].includes(v.episodeDirection))throw new Error('Invalid episode direction.');result.episodeDirection=v.episodeDirection;}if(v.playState!==undefined){if(!['all','played','unplayed','in-progress'].includes(v.playState))throw new Error('Invalid episode playState.');result.playState=v.playState;}if(v.group)result.group=v.group;return Object.freeze(result);}
 function anchor(v:ShowWorkspaceAnchor):ShowWorkspaceAnchor{if(!record(v)||v.expandedEpisodeId!==null&&!id(v.expandedEpisodeId)||v.focusedEpisodeId!==null&&!id(v.focusedEpisodeId)||typeof v.scrollOffset!=='number'||!Number.isFinite(v.scrollOffset)||v.scrollOffset<0||v.scrollOffset>10000000)throw new Error('Invalid show workspace anchor.');return Object.freeze({...v});}
 function cursor(v:unknown):string|null{if(v===null)return null;if(!str(v,4096)||!v)throw new Error('Invalid show workspace continuation.');return v;}
-function parse(raw:unknown,r:ShowWorkspaceRoute,s:ContentScope,pageSize:number,seasonSize:number,page:string|null):ShowWorkspaceData{
- if(!record(raw)||!record(raw.scope)||!record(raw.revision)||!record(raw.show)||!record(raw.selected))invalid();const x=raw.scope,rev=raw.revision,show=raw.show,selected=raw.selected;
- if(x.serverId!==s.serverId||x.libraryId!==r.libraryId||!id(x.viewerFence)||!count(rev.catalog)||!count(rev.viewer)||!id(show.id)||show.libraryId!==r.libraryId||r.showId!==undefined&&show.id!==r.showId||!str(show.title??'',2048)||!id(show.libraryKind)||!str(show.providerMatchStatus??'',128))invalid();
- // The show, its library and its scope are exact. What the page is only drawn with is not: a kind of library this app does not know is drawn as TV, and an optional fact that cannot be read is left out.
- const parsedShow:{-readonly[K in keyof WorkspaceShow]:WorkspaceShow[K]}={id:show.id,libraryId:r.libraryId,title:(show.title??'') as string,libraryKind:oneOfOr('show-workspace','show.libraryKind',show.libraryKind,['tv','anime'] as const,'tv'),providerMatchStatus:(show.providerMatchStatus??'') as string};
-  for(const k of ['posterUrl','backdropUrl'] as const){const v=show[k];if(str(v,4096)&&v.startsWith(encodedRoutePath("get_metadata_kind_id_art_role", {"kind": "show", "id": encodeURIComponent(show.id), "role": k==='posterUrl'?'poster':'backdrop'}) + "?"))parsedShow[k]=v;else left('show.'+k,v);}
-  // M32: hero facts the server already sends (network, studio, content
-  // rating, genres, country, original title, logo). Additive: older servers
-  // omit them and the show still parses. A present-but-malformed value is
-  // dropped rather than failing the whole screen.
-  if(show.logoUrl!==undefined&&str(show.logoUrl,4096)&&show.logoUrl.startsWith(encodedRoutePath("get_metadata_kind_id_art_role", {"kind": "show", "id": encodeURIComponent(show.id), "role": "logo"}) + "?"))parsedShow.logoUrl=show.logoUrl;
-  for(const k of ['network','studio','contentRating','originalTitle','country','originalLanguage','status','firstAired','lastAired','addedAt'] as const)if(show[k]!==undefined&&str(show[k],256)&&show[k])parsedShow[k]=show[k];
-  if(Array.isArray(show.genres)){const genres=(show.genres as unknown[]).filter(g=>str(g,128)&&g) as string[];if(genres.length)parsedShow.genres=Object.freeze(genres);}
- if(count(show.episodeCount))parsedShow.episodeCount=show.episodeCount;
- if(count(show.year))parsedShow.year=show.year;else left('show.year',show.year);
- // Show credits (cast, creators, writers): additive, read from the workspace's own list. A malformed row is dropped, never fatal.
- if(Array.isArray(raw.showCredits)){const credits:WorkspaceShowCredit[]=[];for(const c of (raw.showCredits as unknown[])){if(!record(c)||!str(c.name,512)||!c.name)continue;const credit:{-readonly[K in keyof WorkspaceShowCredit]:WorkspaceShowCredit[K]}={name:c.name,ordinal:count(c.ordinal)?c.ordinal as number:credits.length};if(str(c.id,256)&&c.id)credit.id=c.id;if(str(c.role,512)&&c.role)credit.role=c.role;if(str(c.department,128)&&c.department)credit.department=c.department;if(str(c.portraitUrl,4096)&&c.portraitUrl)credit.portraitUrl=c.portraitUrl;credits.push(Object.freeze(credit));}if(credits.length)parsedShow.credits=Object.freeze(credits);}
- if(typeof show.overview==='string'&&show.overview.length<=65536&&!/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(show.overview))parsedShow.overview=show.overview;else left('show.overview',show.overview);
- for(const k of ['providerSourceUrl','providerObservedAt'] as const){const v=show[k];let ok=str(v,4096);if(ok&&k==='providerSourceUrl'&&v){try{const u=new URL(v as string);ok=u.protocol==='https:'&&!u.username&&!u.password&&['www.themoviedb.org','thetvdb.com','anilist.co'].includes(u.hostname);}catch{ok=false;}}if(ok)parsedShow[k]=v as string;else left('show.'+k,v);}
- if(selected.seasonId!==null&&!id(selected.seasonId)||selected.group!==undefined&&!group(selected.group)||selected.seasonId!==null&&selected.group!==undefined||selected.episodeId!==undefined&&!id(selected.episodeId))invalid();
- // Additive: a server without per-show settings sends none, and the show has the defaults.
- const st=record(raw.settings)?raw.settings:{};const settings:ShowSettings=Object.freeze({hideSeasons:st.hideSeasons===true,absoluteNumbering:st.absoluteNumbering===true,ranges:st.ranges===true,newestFirst:st.newestFirst===true,revision:count(st.revision)?st.revision:0});const flat=settings.hideSeasons||settings.ranges;
- // A flat show answers a link to one of its seasons with its own list.
- if(!flat&&(r.seasonId!==undefined&&selected.seasonId!==r.seasonId||r.selectedSeasonId!==undefined&&selected.seasonId!==r.selectedSeasonId)||r.group!==undefined&&selected.group!==r.group||r.episodeId!==selected.episodeId)invalid();
- // A season or group that cannot be read (or belongs to another show) is left out alone; a repeated one keeps its first appearance.
- const seasons=firstOfEach('show-workspace','seasons',keepReadable('show-workspace','seasons',arr(raw.seasons,seasonSize),v=>{if(!record(v)||!id(v.id)||v.showId!==show.id||!count(v.number)||!str(v.title??'',2048))invalid();return Object.freeze({id:v.id,showId:show.id as string,number:v.number,title:(v.title??'') as string,...Object.fromEntries(['episodeCount','watchedCount','unwatchedCount'].filter(k=>count(v[k])).map(k=>[k,v[k]])),...Object.fromEntries(['firstAired','lastAired','overview'].filter(k=>str(v[k],65536)).map(k=>[k,v[k]]))});}),v=>v.id);
- if(!str(raw.nextSeasonCursor,4096)||raw.nextSeasonCursor!==''&&(raw.seasons as unknown[]).length===0)invalid();
- // The season count is at least the seasons kept.
- const seasonTotalCount=Math.max(count(raw.seasonTotalCount)?raw.seasonTotalCount:0,seasons.length);
- const groups=firstOfEach('show-workspace','groups',keepReadable('show-workspace','groups',arr(raw.groups??[],20000),v=>{if(!record(v)||!group(v.id)||!str(v.title??'',2048))invalid();return Object.freeze({id:v.id as string,title:(v.title??'') as string,count:count(v.count)?v.count:0});}),v=>v.id);
- if(selected.group&&!groups.some(g=>g.id===selected.group))invalid();
- let episodes=validateContentProjection(raw.episodes,{libraryId:r.libraryId,view:selected.seasonId===null?'show':'season',entityId:selected.seasonId===null?show.id:selected.seasonId as string,sort:'episode',direction:r.episodeDirection??'asc',category:'',q:''},s,pageSize);
- if(episodes.scope.viewerFence!==x.viewerFence||episodes.scope.libraryKind!==show.libraryKind||episodes.revision.catalog!==rev.catalog||episodes.revision.viewer!==rev.viewer||episodes.sections.length>1||episodes.query.searchMode!=='none')invalid();
- let section=episodes.sections[0];if(section&&(section.id!==(selected.seasonId===null?selected.group:'episodes')||section.entries.length>pageSize))invalid();
- // A row that is not an episode of this page, or whose playback is not its own, is left out alone. The list is drawn as a list whatever layout the server names.
- if(section){const kept=section.entries.filter(e=>e.kind==='episode'&&e.navigation?.view==='item'&&e.navigation.entityId===e.id&&(e.playback===undefined||e.available===true&&e.playback.itemId===e.id));if(kept.length!==section.entries.length||section.type!=='list'){noteSkipped('show-workspace','episodes',section.entries.length-kept.length);section=Object.freeze({...section,type:'list' as const,entries:Object.freeze(kept)});episodes=Object.freeze({...episodes,sections:Object.freeze([section])});}}
-  if(r.episodeId&&!page&&section?.entries[0]?.id!==r.episodeId)invalid();if(selected.seasonId===null&&!selected.group&&(section||seasonTotalCount!==0))invalid();
-  // M32: the server's primary action (Resume SxEy / Play next episode /
-  // Play S1E1). Additive: older servers omit it and screens fall back to
-  // their bounded client rule. A malformed value is dropped, never fatal.
-  let nextUp:ContentEntry|undefined;if(raw.nextUp!==undefined&&raw.nextUp!==null){try{const entry=validateContentEntry(raw.nextUp);if(entry.kind==='episode')nextUp=entry;}catch{nextUp=undefined;}}
-  return Object.freeze({scope:Object.freeze({serverId:s.serverId,libraryId:r.libraryId,viewerFence:x.viewerFence}),revision:Object.freeze({catalog:rev.catalog,viewer:rev.viewer}),show:Object.freeze(parsedShow),seasons:Object.freeze(seasons),seasonTotalCount,nextSeasonCursor:raw.nextSeasonCursor,groups:Object.freeze(groups),selected:Object.freeze({seasonId:selected.seasonId as string|null,...(selected.group?{group:selected.group as string}:{}),...(selected.episodeId?{episodeId:selected.episodeId as string}:{})}),episodes,...(nextUp?{nextUp}:{}),settings});
+const present=<T extends Record<string,unknown>>(value:T):T=>{for(const key of Object.keys(value))if(value[key]===undefined||value[key]===null||value[key]==='')delete value[key];return value;};
+/** A show's page from the server's items: the show, its seasons, and one page of the chosen season's episodes in the order asked for. */
+async function readShow(api:ServerRequester,r:ShowWorkspaceRoute,s:ContentScope,pageSize:number,cursor:string|null,signal:AbortSignal):Promise<ShowWorkspaceData>{
+ // A link to a season or an episode opens its show on that season.
+ const opened=r.showId?undefined:await readItem(api,(r.episodeId??r.seasonId)!,signal);
+ const showId=r.showId??opened?.rootId??opened?.parentId;if(!showId)invalid();
+ const [show,seasonItems]=await Promise.all([readItem(api,showId,signal),readAllItems(api,childrenQuery(showId,'season'),signal)]);
+ if(show.kind!=='show'||show.libraryId!==r.libraryId)throw new Failure('not_found','This show is not in this library.');
+ const seasons=seasonItems.filter(season=>season.kind==='season').map(season=>Object.freeze(present({id:season.id,showId,number:season.index??0,title:season.title,episodeCount:season.counts?.leaves,
+  watchedCount:season.counts?season.counts.leaves-season.counts.unwatchedLeaves:undefined,unwatchedCount:season.counts?.unwatchedLeaves}) as WorkspaceSeason));
+ // Specials are their own season and are not where a show opens.
+ const wanted=r.selectedSeasonId??r.seasonId??(opened?.kind==='episode'?opened.parentId:opened?.kind==='season'?opened.id:undefined);
+ const selected=seasons.find(season=>season.id===wanted)??seasons.find(season=>season.number>0)??seasons[0];
+ const direction=r.episodeDirection??'asc';
+ const page=selected?await readItems(api,{...childrenQuery(selected.id,'episode'),order:direction,...(r.playState==='played'?{watched:true}:r.playState==='unplayed'?{watched:false}:{})},{cursor:cursor??undefined,limit:pageSize,total:true},signal):{items:[]};
+ let entries=entriesFromItems(page.items,r.libraryId).filter(entry=>entry.kind==='episode');
+ if(r.playState==='in-progress')entries=entries.filter(entry=>!!entry.progressSeconds&&!entry.watched);
+ const heading=Object.freeze({key:'library.episodes',fallback:'Episodes'});
+ const episodes:ContentProjection=Object.freeze({heading,scope:Object.freeze({serverId:s.serverId,libraryId:r.libraryId,libraryKind:'tv',view:selected?'season':'show',entityId:selected?.id??showId}),navigation:Object.freeze([]),
+  query:Object.freeze({sort:'episode',direction,category:'',q:'',limit:pageSize,searchMode:'none'}),sorts:Object.freeze([]),filters:Object.freeze([]),
+  sections:Object.freeze(selected?[Object.freeze({id:'episodes',type:'list' as const,heading,entries:Object.freeze(entries),totalCount:page.total??entries.length,nextCursor:page.nextCursor??''})]:[])});
+ const tag=(kind:string)=>show.tags?.find(each=>each.kind===kind)?.name,card=entryFromItem(show,r.libraryId);
+ const credits=(show.credits??[]).map((credit,ordinal)=>Object.freeze(present({id:credit.personId,name:credit.name,role:credit.character||credit.role,department:['actor','guest'].includes(credit.role)?'cast':credit.role,ordinal,portraitUrl:credit.image}) as WorkspaceShowCredit));
+ const genres=(show.tags??[]).filter(each=>each.kind==='genre').map(each=>each.name);
+ const parsedShow=Object.freeze(present({id:show.id,libraryId:r.libraryId,title:show.title,libraryKind:'tv' as const,providerMatchStatus:'',year:show.year,overview:show.summary,posterUrl:card?.posterUrl,backdropUrl:card?.backdropUrl,logoUrl:show.images?.logo,
+  network:tag('network'),studio:tag('studio'),contentRating:show.contentRating,originalTitle:show.originalTitle,addedAt:show.addedAt,episodeCount:show.counts?.leaves,
+  ...(genres.length?{genres:Object.freeze(genres)}:{}),...(credits.length?{credits:Object.freeze(credits)}:{})}) as WorkspaceShow);
+ // The episode the main action plays: the one in progress, else the first not yet watched, in the show's order.
+ const nextUp=entries.find(entry=>!!entry.progressSeconds&&!entry.watched)??entries.find(entry=>!entry.watched);
+ return Object.freeze({scope:Object.freeze({serverId:s.serverId,libraryId:r.libraryId}),show:parsedShow,seasons:Object.freeze(seasons),seasonTotalCount:seasons.length,nextSeasonCursor:'',groups:Object.freeze([]),
+  selected:Object.freeze({seasonId:selected?.id??null,...(r.episodeId?{episodeId:r.episodeId}:{})}),episodes,...(nextUp?{nextUp}:{}),settings:defaultShowSettings});
 }
 const SHOW_DEADLINE_MS=15000;
 /** One page of a show (its route, episode page and season page): a document in the viewer's cache, read once and kept current by the hub. */
@@ -91,13 +81,13 @@ export function showWorkspaceQuery(queries:ViewerQueries,r:ShowWorkspaceRoute,cu
  return {queryKey:queryKeys.showWorkspace(r.libraryId,params.toString()),
   queryFn:async({signal})=>{
    const deadline=linkAbortSignals([signal],SHOW_DEADLINE_MS);
-   try{return parse(await queries.api.request<RouteResponse<"get_libraries_id_show_workspace">>(encodedRoutePath("get_libraries_id_show_workspace",{"id":encodeURIComponent(r.libraryId)})+"?"+params,'GET',undefined,deadline.signal),r,queries.scope,pageSize,seasonSize,cursor);}
+   try{return await readShow(queries.api,r,queries.scope,pageSize,cursor,deadline.signal);}
    catch(error){if(deadline.signal.aborted&&!signal.aborted)throw new Failure('timeout','The server took too long to respond.',true);throw error;}
    finally{deadline.dispose();}
   },
   meta:{dependencies:[dependsOn.libraries,...titlesWithPersonalState(r.libraryId),dependsOn.event('stream.resync')]}};
 }
-type Operation={fresh?:boolean;route:ShowWorkspaceRoute;cursor:string|null;history:(string|null)[];seasonCursor:string|null;seasonHistory:(string|null)[];anchor:ShowWorkspaceAnchor;pageAnchors:string[];fence:{revision:ShowWorkspaceData['revision'];viewerFence:string;allowViewerAdvance?:boolean;allowCatalogAdvance?:boolean}|null};
+type Operation={fresh?:boolean;route:ShowWorkspaceRoute;cursor:string|null;history:(string|null)[];seasonCursor:string|null;seasonHistory:(string|null)[];anchor:ShowWorkspaceAnchor;pageAnchors:string[];returning:{afterPlayback?:boolean;afterMetadata?:boolean}|null};
 export class ShowWorkspaceService{
  private readonly queries:ViewerQueries;private scope:ContentScope;private pageSize:number;private seasonSize:number;private timeout:number;private generation=0;private disposed=false;private controller?:AbortController;private pending?:Promise<void>;private key='';private operation?:Operation;private state:ShowWorkspaceSnapshot;private listeners=new Set<()=>void>();
  /** Keeps the page on screen current: the hub reads it again in place when something it shows moved. */
@@ -110,28 +100,28 @@ export class ShowWorkspaceService{
  private stop(){this.generation++;this.controller?.abort();this.pending=undefined;this.key='';this.stopShown?.();this.stopShown=undefined;this.shown=undefined;}
  cancel(){this.active();this.stop();this.operation=undefined;this.publish(this.empty());}
  dispose(){this.stop();this.disposed=true;this.listeners.clear();}
- select(input:ShowWorkspaceRoute,restore?:ShowWorkspaceRestore):Promise<void>{this.active();const route=validateShowWorkspaceRoute(input);let op:Operation={route,cursor:null,history:[],seasonCursor:null,seasonHistory:[],anchor:blankAnchor(),pageAnchors:[],fence:null};if(restore){if(!record(restore)||restore.scope?.serverId!==this.scope.serverId||restore.scope?.viewerId!==this.scope.viewerId||JSON.stringify(validateShowWorkspaceRoute(restore.route))!==JSON.stringify(route)||!record(restore.revision)||!count(restore.revision.catalog)||!count(restore.revision.viewer)||!id(restore.viewerFence))throw new Error('Show restoration belongs to another scope or route.');op={route,cursor:cursor(restore.cursor),history:arr(restore.history,64).map(cursor),seasonCursor:cursor(restore.seasonCursor),seasonHistory:arr(restore.seasonHistory,64).map(cursor),anchor:anchor(restore.anchor),pageAnchors:arr(restore.pageAnchors,64).map(v=>{if(!id(v))invalid();return v;}),fence:{revision:Object.freeze({...restore.revision}),viewerFence:restore.viewerFence}};}return this.load(op);}
+ select(input:ShowWorkspaceRoute,restore?:ShowWorkspaceRestore):Promise<void>{this.active();const route=validateShowWorkspaceRoute(input);let op:Operation={route,cursor:null,history:[],seasonCursor:null,seasonHistory:[],anchor:blankAnchor(),pageAnchors:[],returning:null};if(restore){if(!record(restore)||restore.scope?.serverId!==this.scope.serverId||restore.scope?.viewerId!==this.scope.viewerId||JSON.stringify(validateShowWorkspaceRoute(restore.route))!==JSON.stringify(route))throw new Error('Show restoration belongs to another scope or route.');op={route,cursor:cursor(restore.cursor),history:arr(restore.history,64).map(cursor),seasonCursor:cursor(restore.seasonCursor),seasonHistory:arr(restore.seasonHistory,64).map(cursor),anchor:anchor(restore.anchor),pageAnchors:arr(restore.pageAnchors,64).map(v=>{if(!id(v))invalid();return v;}),returning:{}};}return this.load(op);}
  /** Workspace-only order; reset both cursor histories without changing playback or owner settings. */
  selectEpisodeDirection(direction:'asc'|'desc'):Promise<void>{this.active();const d=this.state.data,r=this.state.route;if(!d||!r||this.state.phase!=='ready')return Promise.resolve();return this.select({libraryId:d.scope.libraryId,showId:d.show.id,...(d.selected.seasonId?{selectedSeasonId:d.selected.seasonId}:d.selected.group?{group:d.selected.group}:{}),playState:r.playState,episodeDirection:direction});}
  selectSeason(id:string):Promise<void>{this.active();const d=this.state.data;if(!d||!d.seasons.some(v=>v.id===id)&&d.selected.seasonId!==id)throw new Error('Choose a server-provided season.');return this.select({libraryId:d.scope.libraryId,showId:d.show.id,selectedSeasonId:id,playState:this.state.route?.playState,episodeDirection:this.state.route?.episodeDirection});}
  selectGroup(group:string):Promise<void>{this.active();const d=this.state.data;if(!d?.groups.some(g=>g.id===group))throw new Error('Choose a server-provided episode group.');return this.select({libraryId:d.scope.libraryId,showId:d.show.id,group,playState:this.state.route?.playState,episodeDirection:this.state.route?.episodeDirection});}
  updateAnchor(input:ShowWorkspaceAnchor){this.active();const a=anchor(input),entries=this.state.data?.episodes.sections[0]?.entries??[];if((a.expandedEpisodeId&&!entries.some(e=>e.id===a.expandedEpisodeId))||(a.focusedEpisodeId&&!entries.some(e=>e.id===a.focusedEpisodeId)))throw new Error('Episode anchor must belong to the current server page.');if(this.operation)this.operation.anchor=a;this.publish({anchor:a});}
- captureRestore():ShowWorkspaceRestore|null{const op=this.operation,d=this.state.data;if(!op||!d||this.state.phase!=='ready')return null;return Object.freeze({scope:this.scope,route:op.route,cursor:op.cursor,history:Object.freeze([...op.history]),seasonCursor:op.seasonCursor,seasonHistory:Object.freeze([...op.seasonHistory]),revision:d.revision,viewerFence:d.scope.viewerFence,anchor:this.state.anchor,pageAnchorEpisodeId:d.episodes.sections[0]?.entries[0]?.id??null,pageAnchors:Object.freeze([...op.pageAnchors]),resolvedSelection:Object.freeze({showId:d.show.id,seasonId:d.selected.seasonId,...(d.selected.group?{group:d.selected.group}:{})})});}
+ captureRestore():ShowWorkspaceRestore|null{const op=this.operation,d=this.state.data;if(!op||!d||this.state.phase!=='ready')return null;return Object.freeze({scope:this.scope,route:op.route,cursor:op.cursor,history:Object.freeze([...op.history]),seasonCursor:op.seasonCursor,seasonHistory:Object.freeze([...op.seasonHistory]),anchor:this.state.anchor,pageAnchorEpisodeId:d.episodes.sections[0]?.entries[0]?.id??null,pageAnchors:Object.freeze([...op.pageAnchors]),resolvedSelection:Object.freeze({showId:d.show.id,seasonId:d.selected.seasonId,...(d.selected.group?{group:d.selected.group}:{})})});}
  /** Own-playback return reads a fresh server target page; catalog/permission fences stay exact. No stale cursor is reused. */
  restoreAfterPlayback(restore:ShowWorkspaceRestore):Promise<void>{return this.restoreFresh(restore,false);}
  /** Explicit owner metadata publication refresh; never reuses old revision-bound cursors. */
  refreshAfterMetadata(restore:ShowWorkspaceRestore):Promise<void>{return this.restoreFresh(restore,true);}
  private restoreFresh(restore:ShowWorkspaceRestore,metadata:boolean):Promise<void>{
-  this.active();if(!record(restore)||restore.scope?.serverId!==this.scope.serverId||restore.scope?.viewerId!==this.scope.viewerId||!record(restore.resolvedSelection)||!id(restore.resolvedSelection.showId)||restore.resolvedSelection.seasonId!==null&&!id(restore.resolvedSelection.seasonId)||restore.resolvedSelection.group!==undefined&&!group(restore.resolvedSelection.group)||!record(restore.revision)||!count(restore.revision.catalog)||!count(restore.revision.viewer)||!id(restore.viewerFence))throw new Error('Invalid playback restoration scope.');
+  this.active();if(!record(restore)||restore.scope?.serverId!==this.scope.serverId||restore.scope?.viewerId!==this.scope.viewerId||!record(restore.resolvedSelection)||!id(restore.resolvedSelection.showId)||restore.resolvedSelection.seasonId!==null&&!id(restore.resolvedSelection.seasonId)||restore.resolvedSelection.group!==undefined&&!group(restore.resolvedSelection.group))throw new Error('Invalid playback restoration scope.');
   const original=validateShowWorkspaceRoute(restore.route),selected=restore.resolvedSelection,first=restore.pageAnchorEpisodeId;if(first!==null&&!id(first))throw new Error('Invalid playback page anchor.');
   const route=validateShowWorkspaceRoute({libraryId:original.libraryId,showId:selected.showId,playState:original.playState,episodeDirection:original.episodeDirection,...(selected.seasonId?{selectedSeasonId:selected.seasonId}:selected.group?{group:selected.group}:{}),...(first?{episodeId:first}:{})});
   const pageAnchors=arr(restore.pageAnchors,64).map(v=>{if(!id(v))invalid();return v;});
-  return this.load({route,cursor:null,history:[],seasonCursor:null,seasonHistory:[],anchor:anchor(restore.anchor),pageAnchors,fence:{revision:Object.freeze({...restore.revision}),viewerFence:restore.viewerFence,allowViewerAdvance:true,allowCatalogAdvance:metadata}});
+  return this.load({route,cursor:null,history:[],seasonCursor:null,seasonHistory:[],anchor:anchor(restore.anchor),pageAnchors,returning:{afterPlayback:true,afterMetadata:metadata}});
  }
  nextEpisodes():Promise<void>{return this.page('episodes',true);}previousEpisodes():Promise<void>{return this.page('episodes',false);}nextSeasons():Promise<void>{return this.page('seasons',true);}previousSeasons():Promise<void>{return this.page('seasons',false);}
- private page(kind:'episodes'|'seasons',next:boolean):Promise<void>{this.active();const d=this.state.data,op=this.operation;if(!d||!op||this.state.phase!=='ready')return Promise.resolve();const history=[...(kind==='episodes'?op.history:op.seasonHistory)],current=kind==='episodes'?op.cursor:op.seasonCursor;const pageAnchors=[...op.pageAnchors];if(kind==='episodes'&&!next&&!history.length&&pageAnchors.length){const first=pageAnchors.pop()!;return this.load({...op,route:validateShowWorkspaceRoute({...op.route,episodeId:first}),cursor:null,history:[],pageAnchors,anchor:blankAnchor(),fence:{revision:d.revision,viewerFence:d.scope.viewerFence,allowViewerAdvance:true}});}let value:string|null;if(next){const offered=kind==='episodes'?d.episodes.sections[0]?.nextCursor:d.nextSeasonCursor;if(!offered)return Promise.resolve();value=offered;if(history.includes(value)||value===current)throw new Error('Repeated server continuation.');history.push(current);if(history.length>64)history.shift();if(kind==='episodes'){const first=d.episodes.sections[0]?.entries[0]?.id;if(first)pageAnchors.push(first);if(pageAnchors.length>64)pageAnchors.shift();}}else{if(!history.length)return Promise.resolve();value=history.pop()!;if(kind==='episodes')pageAnchors.pop();}return this.load({...op,pageAnchors,...(kind==='episodes'?{cursor:value,history,anchor:blankAnchor()}:{seasonCursor:value,seasonHistory:history}),fence:{revision:d.revision,viewerFence:d.scope.viewerFence}});}
+ private page(kind:'episodes'|'seasons',next:boolean):Promise<void>{this.active();const d=this.state.data,op=this.operation;if(!d||!op||this.state.phase!=='ready')return Promise.resolve();const history=[...(kind==='episodes'?op.history:op.seasonHistory)],current=kind==='episodes'?op.cursor:op.seasonCursor;const pageAnchors=[...op.pageAnchors];if(kind==='episodes'&&!next&&!history.length&&pageAnchors.length){const first=pageAnchors.pop()!;return this.load({...op,route:validateShowWorkspaceRoute({...op.route,episodeId:first}),cursor:null,history:[],pageAnchors,anchor:blankAnchor(),returning:{afterPlayback:true}});}let value:string|null;if(next){const offered=kind==='episodes'?d.episodes.sections[0]?.nextCursor:d.nextSeasonCursor;if(!offered)return Promise.resolve();value=offered;if(history.includes(value)||value===current)throw new Error('Repeated server continuation.');history.push(current);if(history.length>64)history.shift();if(kind==='episodes'){const first=d.episodes.sections[0]?.entries[0]?.id;if(first)pageAnchors.push(first);if(pageAnchors.length>64)pageAnchors.shift();}}else{if(!history.length)return Promise.resolve();value=history.pop()!;if(kind==='episodes')pageAnchors.pop();}return this.load({...op,pageAnchors,...(kind==='episodes'?{cursor:value,history,anchor:blankAnchor()}:{seasonCursor:value,seasonHistory:history}),returning:{}});}
  /** Explicit refresh restarts both bounded pages while preserving the requested show/ancestry. */
- refresh():Promise<void>{this.active();if(!this.operation)return Promise.resolve();const route=this.operation.route;return this.load({fresh:true,route,cursor:null,history:[],seasonCursor:null,seasonHistory:[],anchor:blankAnchor(),pageAnchors:[],fence:null});}
+ refresh():Promise<void>{this.active();if(!this.operation)return Promise.resolve();const route=this.operation.route;return this.load({fresh:true,route,cursor:null,history:[],seasonCursor:null,seasonHistory:[],anchor:blankAnchor(),pageAnchors:[],returning:null});}
  retry():Promise<void>{this.active();if(!this.operation)return Promise.resolve();return this.state.phase==='refresh-required'?this.refresh():this.load({...this.operation,fresh:true});}
   private load(op:Operation):Promise<void>{
   const key=JSON.stringify(op);if(this.pending&&this.key===key)return this.pending;
@@ -140,7 +130,7 @@ export class ShowWorkspaceService{
   const retained=previous&&previous.scope.libraryId===op.route.libraryId&&(op.route.showId===previous.show.id||!!op.route.episodeId&&this.state.route?.episodeId===op.route.episodeId)?previous:null;
   const options=showWorkspaceQuery(this.queries,op.route,op.cursor,op.seasonCursor,this.pageSize,this.seasonSize);
   // A place this viewer has had, with nothing owed, is shown at once: Back reads nothing. A return after playback or an owner's edit always reads the server.
-  const held=op.fence||op.fresh?undefined:this.queries.client.getQueryData<ShowWorkspaceData>(options.queryKey);
+  const held=op.returning||op.fresh?undefined:this.queries.client.getQueryData<ShowWorkspaceData>(options.queryKey);
   if(held&&this.queries.documentFor(options.queryKey)?.getState().stale!==true){
    this.publish({generation:gen,route:op.route,error:null,anchor:op.anchor});
    try{this.apply(op,held);this.watch(op,options);}catch(e){this.failed(op,gen,e,retained);}
@@ -150,7 +140,7 @@ export class ShowWorkspaceService{
   const promise=(async()=>{try{
    // A read this page abandons (another season, another show) is stopped too, unless another screen shows the same page.
    c.signal.addEventListener('abort',()=>{const query=this.queries.client.getQueryCache().find({queryKey:options.queryKey,exact:true});if(query&&query.getObserversCount()===0)void query.cancel({revert:true});},{once:true});
-   const data=await this.deadline(this.queries.client.fetchQuery(op.fence||op.fresh?{...options,staleTime:0}:options),c);
+   const data=await this.deadline(this.queries.client.fetchQuery(op.returning||op.fresh?{...options,staleTime:0}:options),c);
    if(this.disposed||gen!==this.generation)return;
    this.apply(op,data);this.watch(op,options);
   }catch(e){if(this.disposed||gen!==this.generation)return;await this.failed(op,gen,e,retained);
@@ -159,10 +149,7 @@ export class ShowWorkspaceService{
  }
  /** The page's answer for this operation, checked against what it was opened for, published as ready. */
  private apply(op:Operation,data:ShowWorkspaceData):void{
-  if(op.fence?.allowCatalogAdvance&&[op.anchor.expandedEpisodeId,op.anchor.focusedEpisodeId].some(id=>id&&!data.episodes.sections[0]?.entries.some(e=>e.id===id)))throw new Failure('stale_continuation','The selected episode changed. Refresh this show.');
-  // A return after playback continues the place it left only within the same show page family: the server's cursors are bound to them.
-  // A moved viewer fence is the server's to refuse (every cursor is bound to it: `invalid_cursor`); an older revision of this show is not a page of it.
-  if(op.fence&&(data.revision.catalog<op.fence.revision.catalog||data.revision.viewer<op.fence.revision.viewer))throw new Failure('stale_continuation','This show changed. Refresh to load its current episodes.',true);
+  if(op.returning?.afterMetadata&&[op.anchor.expandedEpisodeId,op.anchor.focusedEpisodeId].some(id=>id&&!data.episodes.sections[0]?.entries.some(e=>e.id===id)))throw new Failure('stale_continuation','The selected episode changed. Refresh this show.');
   const entries=data.episodes.sections[0]?.entries??[];let a=op.anchor;
   if((a.expandedEpisodeId&&!entries.some(e=>e.id===a.expandedEpisodeId))||(a.focusedEpisodeId&&!entries.some(e=>e.id===a.focusedEpisodeId)))throw new Failure('stale_continuation','The requested episode anchor is no longer on this page.',true);
   if(op.route.episodeId&&!op.cursor&&!a.expandedEpisodeId)a=Object.freeze({...a,expandedEpisodeId:op.route.episodeId,focusedEpisodeId:op.route.episodeId});
@@ -177,7 +164,7 @@ export class ShowWorkspaceService{
    if(this.disposed||gen!==this.generation||this.operation!==op||this.state.phase!=='ready')return;
    const e=result.error as {code?:unknown;status?:unknown}|null;
    // The place in the show is no longer one the server knows, or the show is gone: the page's own load says which.
-   if(e&&(['stale_continuation','invalid_cursor','invalid_request','not_found','forbidden','unauthorized'].includes(String(e.code))||e.status===401||e.status===403||e.status===404)){void this.refresh().catch(()=>{});return;}
+   if(e&&(['stale_continuation','cursor_expired','invalid_cursor','invalid_request','not_found','forbidden','unauthorized'].includes(String(e.code))||e.status===401||e.status===403||e.status===404)){void this.refresh().catch(()=>{});return;}
    const data=result.data;if(!data||data===this.state.data)return;
    const entries=data.episodes.sections[0]?.entries??[],held=this.state.anchor;
    const a=(held.expandedEpisodeId&&!entries.some(x=>x.id===held.expandedEpisodeId))||(held.focusedEpisodeId&&!entries.some(x=>x.id===held.focusedEpisodeId))?blankAnchor():held;
@@ -186,10 +173,10 @@ export class ShowWorkspaceService{
   });
  }
  private async failed(op:Operation,gen:number,e:unknown,retained:ShowWorkspaceData|null):Promise<void>{
-  const x=e as {code?:unknown;retryable?:unknown};let code=id(x?.code)?x.code:'request_failed';if(op.fence?.allowViewerAdvance&&['invalid_request','not_found'].includes(code))code='stale_continuation';
+  const x=e as {code?:unknown;retryable?:unknown};let code=id(x?.code)?x.code:'request_failed';if(op.returning?.afterPlayback&&['invalid_request','not_found'].includes(code))code='stale_continuation';
   // A place in the show the server no longer honours is not the person's problem: open the show again from its first page, keeping what is shown until it arrives.
-  if(['stale_continuation','invalid_cursor'].includes(code)&&(op.cursor||op.seasonCursor||op.fence||op.history.length||op.pageAnchors.length||op.anchor.expandedEpisodeId||op.anchor.focusedEpisodeId)){if(gen===this.generation){this.pending=undefined;this.key='';}await this.load({fresh:true,route:op.route,cursor:null,history:[],seasonCursor:null,seasonHistory:[],anchor:blankAnchor(),pageAnchors:[],fence:null});return;}
-  this.publish({phase:['stale_continuation','invalid_cursor'].includes(code)?'refresh-required':'error',data:['request_failed','timeout','network_error','server_unavailable','service_unavailable'].includes(code)?retained:null,anchor:blankAnchor(),error:Object.freeze({code,message:e instanceof Error?e.message:'Could not load this show.',retryable:x?.retryable===true})});
+  if(['stale_continuation','cursor_expired','invalid_cursor'].includes(code)&&(op.cursor||op.seasonCursor||op.returning||op.history.length||op.pageAnchors.length||op.anchor.expandedEpisodeId||op.anchor.focusedEpisodeId)){if(gen===this.generation){this.pending=undefined;this.key='';}await this.load({fresh:true,route:op.route,cursor:null,history:[],seasonCursor:null,seasonHistory:[],anchor:blankAnchor(),pageAnchors:[],returning:null});return;}
+  this.publish({phase:['stale_continuation','cursor_expired','invalid_cursor'].includes(code)?'refresh-required':'error',data:['request_failed','timeout','network_error','server_unavailable','service_unavailable'].includes(code)?retained:null,anchor:blankAnchor(),error:Object.freeze({code,message:e instanceof Error?e.message:'Could not load this show.',retryable:x?.retryable===true})});
  }
  /** How long this page waits for the shared read; the read itself goes on for the cache. */
  private async deadline<T>(p:Promise<T>,c:AbortController):Promise<T>{let timer:ReturnType<typeof setTimeout>|undefined,abort:(()=>void)|undefined;try{return await Promise.race([p,new Promise<never>((_,reject)=>{abort=()=>reject(new Failure('cancelled','Show request cancelled.'));c.signal.addEventListener('abort',abort,{once:true});timer=setTimeout(()=>reject(new Failure('timeout','The server took too long to respond.',true)),this.timeout);})]);}finally{if(timer)clearTimeout(timer);if(abort)c.signal.removeEventListener('abort',abort);}}

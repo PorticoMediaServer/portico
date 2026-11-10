@@ -57,7 +57,7 @@ export type HomeEffects = Readonly<{
   setMyList: (spotlight: HomeSpotlight) => Promise<void>;
   reportError: (error: unknown) => void;
   /** A short confirmation toast. */
-  notify?: (message: string) => void;
+  notify?: (message: string, action?: Readonly<{label: string; onAction: () => void}>) => void;
   openHome?: () => void;
 }>;
 export type HomeBindings = Readonly<{/** One quiet line above the rows, such as libraries that did not load. */notice?: ReactNode; service: HomeService; displayDocument?: FreshDocument; artwork: ShellArtwork; effects: HomeEffects; selection: HomeSelection; time: TimeEnvironment; reducedMotion: boolean; appearance?: ScreenAppearance; serverName?: string; customization?: HomeCustomizationBindings; musicMixes?: MusicMixesBinding; musicMixesMore?: ReactNode}>;

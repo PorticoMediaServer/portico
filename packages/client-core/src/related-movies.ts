@@ -30,7 +30,7 @@ function relatedEntry(entry:ContentEntry,source:RelatedSource):ContentEntry{
  * A related row read to its end: its later pages come from the title's row route under the
  * detail's fence and revision, and an entry that is not a related title is left out alone.
  */
-export function relatedRowPager(api:HomeApi,source:RelatedSource,row:RelatedMovieRow,scope:Readonly<{viewerFence:string;revision:Readonly<{catalog:number;viewer:number}>}>,limit?:number):RelationRowPager{
+export function relatedRowPager(api:HomeApi,source:RelatedSource,row:RelatedMovieRow,limit?:number):RelationRowPager{
  // Later pages continue the detail's revision; reading the first page again ('', after the server refused the cursor) moves it.
  const page=async(cursor:string,signal:AbortSignal)=>{
   const next=await readRecommendationRowPage(api,{kind:'item',id:source.itemId},{id:row.id},{...(cursor?{cursor}:{}),...(limit===undefined?{}:{limit})},signal);

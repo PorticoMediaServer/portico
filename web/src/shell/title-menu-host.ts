@@ -179,7 +179,7 @@ export class TitleMenuHost {
     if (isAggregateKind(entry.kind)) {
       const kind = entry.kind as ContainerKind;
       const state = await getContainerState(life.api, kind, entry.id, signal);
-      if (id === 'watched') await setContainerState(life.api, kind, entry.id, {expectedRevision: state.revision, watched: !state.watched}, signal);
+      if (id === 'watched') await setContainerState(life.api, kind, entry.id, {watched: !state.watched}, signal);
       else await setContainerFlag(life.api, kind, entry.id, id === 'watchlist' ? 'watchlisted' : 'favorite', id === 'watchlist' ? !state.watchlisted : !state.favorite, signal);
       return;
     }

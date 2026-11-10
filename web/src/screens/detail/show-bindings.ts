@@ -3,7 +3,8 @@ import {ShowWorkspaceService, saveShowSettings, type ShowSettings, type ShowWork
 import type {ContentEntry} from '@core/library-content.ts';
 import {createDetailBindings} from './bindings';
 import {screenLifetime, type ScreenContext} from './context';
-import {getContainerState, setContainerFlag, setContainerState, type ContainerState} from '@core/container-state.ts';
+import {getContainerState, setContainerFlag, setContainerState, undoContainerState, type ContainerKind, type ContainerState} from '@core/container-state.ts';
+import {defaultI18n} from '@i18n';
 import {createRecommendations} from './recommendations';
 import {titleView} from './view-state';
 import {openGenre} from './genre-binding';
@@ -34,6 +35,22 @@ export function createShowBindings(context: ScreenContext) {
   let selection: AbortController | undefined;
   let playbackRequest: AbortController | undefined;
   const listeners = new Set<() => void>(), publish = () => { for (const listener of listeners) listener(); };
+  /** After marking a whole show or season: say so, and offer Undo for as long as the server will take it back. */
+  const offerUndo = (data: ShowWorkspaceData, kind: ContainerKind, id: string, title: string, watched: boolean, result: ContainerState) => {
+    const token = result.undoToken;
+    context.effects.notify?.(defaultI18n.t(watched ? 'watched.markedTitle' : 'watched.unmarkedTitle', {title}), token ? {label: defaultI18n.t('action.undo'), onAction: () => {
+      if (!life.current()) return;
+      void undoContainerState(life.api, kind, id, {undoToken: token}, life.signal()).then(async state => {
+        if (!life.current()) return;
+        if (kind === 'show') { personal = state; publish(); }
+        await service.refresh();
+      }, error => {
+        if (!life.current()) return;
+        if ((error as {code?: unknown})?.code === 'undo_expired') context.effects.notify?.(defaultI18n.t('watched.undoGone', {title}));
+        else context.effects.reportError(error);
+      });
+    }} : undefined);
+  };
   const current = (data: ShowWorkspaceData) => {
     life.assert();
     if (service.getSnapshot().phase !== 'ready' || service.getSnapshot().data !== data) throw new DOMException('Show revision changed', 'AbortError');
@@ -112,8 +129,9 @@ export function createShowBindings(context: ScreenContext) {
       if (!held || held.data !== data || held.seasonId !== data.selected.seasonId || busy) throw new DOMException('Season state changed', 'AbortError');
       busy = true; publish();
       try {
-        await setContainerState(life.api, 'season', held.seasonId, {expectedRevision: before.revision, watched: value}, life.signal());
+        const result = await setContainerState(life.api, 'season', held.seasonId, {watched: value}, life.signal());
         current(data); seasonReads.delete(before); await service.refresh();
+        offerUndo(data, 'season', held.seasonId, data.seasons.find(season => season.id === held.seasonId)?.title ?? data.show.title, value, result);
       } finally { busy = false; publish(); }
     },
     async playSeason(data: ShowWorkspaceData, signal?: AbortSignal) {
@@ -147,11 +165,7 @@ export function createShowBindings(context: ScreenContext) {
     },
     async setWatched(data: ShowWorkspaceData, value: boolean) {
       current(data); const before = personal; if (!before || busy) return; busy = true; publish();
-      try { const result = await setContainerState(life.api, 'show', data.show.id, {expectedRevision: before.revision, watched: value}, life.signal()); current(data); if (before === personal) { personal = result; publish(); } await service.refresh(); }
-      catch (error) {
-        if (life.current() && (error as {status?: number})?.status === 412) { const latest = await getContainerState(life.api, 'show', data.show.id, life.signal()); current(data); personal = latest; publish(); }
-        throw error;
-      }
+      try { const result = await setContainerState(life.api, 'show', data.show.id, {watched: value}, life.signal()); current(data); if (before === personal) { personal = {...before, ...result}; publish(); } await service.refresh(); offerUndo(data, 'show', data.show.id, data.show.title, value, result); }
       finally { busy = false; publish(); }
     },
     canManage() { return life.current() && context.identity?.primaryProfile === true && context.identity.capabilities?.manageServer === true; },
