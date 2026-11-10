@@ -72,7 +72,9 @@ func (d *DB) ApplyTitleData(ctx context.Context, after int64, limit int) (int64,
 		return 0, err
 	}
 	defer tx.Rollback()
-	titles, err := queryAll(ctx, tx, `SELECT id, kind FROM items WHERE id > ? AND kind IN (?, ?) AND parent_id IS NULL ORDER BY id LIMIT ?`,
+	// Walked by id, not through the parent index, which would read every top-level title of
+	// every kind and sort them for each step: one pass reads the table once.
+	titles, err := queryAll(ctx, tx, `SELECT id, kind FROM items WHERE id > ? AND kind IN (?, ?) AND +parent_id IS NULL ORDER BY id LIMIT ?`,
 		[]any{after, KindMovie, KindShow, limit}, func(t *title) []any { return []any{&t.id, &t.kind} })
 	if err != nil || len(titles) == 0 {
 		return 0, err
