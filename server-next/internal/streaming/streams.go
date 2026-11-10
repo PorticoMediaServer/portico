@@ -9,7 +9,9 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/audiofacts"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediatools"
+	"github.com/PorticoMediaServer/portico/server-next/internal/processpool"
 	"github.com/PorticoMediaServer/portico/server-next/internal/subtitles"
 	"github.com/PorticoMediaServer/portico/server-next/internal/supervise"
 )
@@ -32,6 +34,9 @@ type Options struct {
 	// Libraries returns the library folders configured now. A file is opened
 	// only if, with symbolic links resolved, it is inside one of them.
 	Libraries func() []string
+	// Processes bounds the confined tools that convert music. Nil gives the
+	// streams a small pool of their own.
+	Processes *processpool.Supervisor
 }
 
 // Streams is every stream this server process is serving, in memory. A stream
@@ -41,6 +46,7 @@ type Options struct {
 type Streams struct {
 	hls       *HLS
 	libraries func() []string
+	processes *processpool.Supervisor
 	// byGrant and bySession are guarded by hls.mu, the same mutex that orders
 	// producer admission, so stopping a stream and starting its converter can
 	// never interleave.
@@ -72,6 +78,12 @@ type StartRequest struct {
 	// first. Burn is the subtitle a plan with burn-in draws into the picture.
 	Subtitles []TextRenditionPlan
 	Burn      *BurnSubtitle
+	// Audio makes this a planned music stream (from PlanAudio): the device
+	// decodes the original or an exact conversion with the server's trim and
+	// gain. Plan is not read. SeekIndex is the file's seek index, for a direct
+	// plan that names one.
+	Audio     *AudioPlan
+	SeekIndex *audiofacts.SeekIndex
 	// Replaced is called when this stream gives way to another by itself: a
 	// hardware encoder that changed its output mid-stream carries on in software
 	// under a new address. Nil fails such a stream instead.
@@ -83,7 +95,8 @@ type Stream struct {
 	// Grant is the unguessable part of the address. URL is the address to load.
 	Grant string
 	URL   string
-	// Mode is "direct" for the original file by byte range, "hls" otherwise.
+	// Mode is "direct" for the original file by byte range, "audio" for a
+	// planned music stream, "hls" otherwise.
 	Mode string
 }
 
@@ -136,7 +149,11 @@ func New(ctx context.Context, o Options) (*Streams, error) {
 	if libraries == nil {
 		libraries = func() []string { return nil }
 	}
-	s := &Streams{hls: h, libraries: libraries, byGrant: map[string]*stream{}, bySession: map[string]*stream{}}
+	processes := o.Processes
+	if processes == nil {
+		processes = &processpool.Supervisor{Limit: 4}
+	}
+	s := &Streams{hls: h, libraries: libraries, processes: processes, byGrant: map[string]*stream{}, bySession: map[string]*stream{}}
 	h.replace = s.replace
 	return s, nil
 }
@@ -177,6 +194,9 @@ func (s *Streams) Start(ctx context.Context, r StartRequest) (Stream, error) {
 	if r.Plan.Mode == "direct" || r.Plan.Strategy == DeliveryOriginal {
 		mode = "direct"
 	}
+	if r.Audio != nil {
+		mode = "audio"
+	}
 	if mode == "hls" && s.hls.binary == "" {
 		return Stream{}, ErrNoConverter
 	}
@@ -198,7 +218,7 @@ func (s *Streams) Start(ctx context.Context, r StartRequest) (Stream, error) {
 	st := &stream{
 		id: token(), session: r.SessionID, grant: token(), mode: mode, source: source, plan: &plan, request: r.Request,
 		duration: plan.Duration, text: append([]TextRenditionPlan{}, r.Subtitles...), burn: r.Burn,
-		changed: make(chan struct{}), replaced: r.Replaced, served: -1,
+		changed: make(chan struct{}), replaced: r.Replaced, served: -1, audio: r.Audio, seekIndex: r.SeekIndex,
 	}
 	s.Stop(r.SessionID)
 	if err := s.install(st); err != nil {
@@ -269,6 +289,9 @@ func (st *stream) public() Stream {
 	url := "/v1/media/" + st.grant + "/original"
 	if st.mode == "hls" {
 		url = "/v1/media/" + st.grant + "/master.m3u8"
+	}
+	if st.mode == "audio" {
+		url = st.audioURL()
 	}
 	return Stream{Grant: st.grant, URL: url, Mode: st.mode}
 }
