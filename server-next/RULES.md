@@ -43,6 +43,8 @@ contributor would recognise on first read. If in doubt, leave it out.
     positions in whole milliseconds. `ETag` and `If-Match` only where two people or devices
     edit the same document (settings, metadata, shared lists, queues).
 
+Feature PRs do not commit `packages/contracts/src/next/api.ts` or `server-next/api/openapi.json`; the merge desk regenerates them on main in one PR after each batch of merges.
+
 ## Code
 
 13. The existing product is a reference, never a gate. Read it, judge it, then reimplement or
