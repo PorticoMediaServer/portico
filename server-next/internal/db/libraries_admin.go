@@ -378,15 +378,3 @@ func (d *DB) Deleted(ctx context.Context, del Deletion, deleted []int64) error {
 		return settleItem(b, del.LibraryID, parent.Int64, now)
 	})
 }
-
-// ItemIDByTitle returns the public id of the first top-level title of a library with exactly
-// this title. It is for tools and tests; browsing uses Items.
-func (d *DB) ItemIDByTitle(ctx context.Context, libraryID, title string) (string, error) {
-	var id string
-	err := d.read.QueryRowContext(ctx, `SELECT i.public_id FROM items i JOIN libraries l ON l.id = i.library_id
-		WHERE l.public_id = ? AND i.title = ? AND i.parent_id IS NULL ORDER BY i.id LIMIT 1`, libraryID, title).Scan(&id)
-	if errors.Is(err, sql.ErrNoRows) {
-		return "", ErrNotFound
-	}
-	return id, err
-}
