@@ -9,7 +9,7 @@ func TestAge(t *testing.T) {
 			t.Errorf("Age(%q) = %d, %v; want %d", rating, got, ok, want)
 		}
 	}
-	for _, rating := range []string{"", "Not Rated", "Unrated", "XYZ", "NR"} {
+	for _, rating := range []string{"", "Not Rated", "Unrated", "XYZ", "NR", "A", "N/A", "U/A"} {
 		if age, ok := Age(rating); ok {
 			t.Errorf("Age(%q) = %d; want unrated", rating, age)
 		}
