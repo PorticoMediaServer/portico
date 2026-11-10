@@ -89,6 +89,8 @@ type ItemQuery struct {
 	Favorite   *bool
 	InList     *bool
 	Resolution string // "sd", "720p", "1080p" or "4k"
+	// Conditions are further filters, each of which can take several values. See Condition.
+	Conditions []Condition
 	Sort       string
 	Desc       bool
 	Cursor     string
@@ -698,6 +700,9 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 	if library != 0 && kindList != "" && acc.maxAge == nil && q.Parent == "" && q.Person == "" && q.Tag == "" && q.Genre == "" &&
 		q.YearFrom == 0 && q.YearTo == 0 && q.Favorite == nil && q.InList == nil && q.Watched == nil && q.Resolution == "" {
 		w.plainLibrary, w.plainKinds = library, kindList
+	}
+	if found, err := q.conditions(ctx, tx, w, &scoped); err != nil || !found {
+		return false, err
 	}
 	if !scoped {
 		return false, invalid("a list needs a library, a parent, a person, a tag, favourites or My List")
