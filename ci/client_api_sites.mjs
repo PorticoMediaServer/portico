@@ -44,7 +44,7 @@ export function analyseCensus({root,files},runtime={}) {
     }
     visit(file);
     const kinds = new Map();
-    const coreHttpSymbol = symbol => symbol?.declarations?.some(d=>/\/packages\/client-core\/src\/index\.ts$/.test(d.path))
+    const coreHttpSymbol = symbol => symbol?.declarations?.some(d=>/\/packages\/client-core\/src\/(?:index|http)\.ts$/.test(d.path))
       && symbol.getParent()?.name==='HttpLocalApi'
       || symbol?.name==='send' && symbol.declarations.some(d=>/\/packages\/client-core\/src\/playback-v1\/(?:http|scope-http|local-http)\.ts$/.test(d.path));
     // Resolve the callee itself before applying spelling heuristics. Generic
@@ -66,7 +66,7 @@ export function analyseCensus({root,files},runtime={}) {
         if (n.name?.kind === K.Identifier && (coreReference || requestNames.has(nameOf(initializer)) || aliases.has(nameOf(initializer)))) aliases.add(n.name.text);
         if (n.name?.kind === K.ObjectBindingPattern) {
           const coreReceiver = checker.getTypeAtLocation(initializer)?.getSymbol();
-          const core = coreReceiver?.name==='HttpLocalApi' && coreReceiver.declarations.some(d=>/\/packages\/client-core\/src\/index\.ts$/.test(d.path));
+          const core = coreReceiver?.name==='HttpLocalApi' && coreReceiver.declarations.some(d=>/\/packages\/client-core\/src\/(?:index|http)\.ts$/.test(d.path));
           for (const binding of n.name.elements ?? []) if (core || requestNames.has(binding.propertyName?.text ?? binding.name?.text)) aliases.add(binding.name.text);
         }
       }
@@ -101,7 +101,7 @@ export function analyseCensus({root,files},runtime={}) {
         kinds.set(c,'url'); continue;
       }
       const fetchLike = (name==='nativeRequest' && params[0]==='input') || (name==='fetch' && (!declaration || /lib\..*\.d\.ts$/.test(declaration) || ['input','url','path'].includes(params[0]))) || params[0]==='input' && params[1]==='init' || (/(?:Fetch|fetcher)$/.test(name) && (!params.length || ['input','url','path'].includes(params[0])));
-      const transport = coreCalls.has(c) || requestNames.has(name) || aliases.has(name) || name==='farewell' || /client-core\/src\/index\.ts$/.test(declaration);
+      const transport = coreCalls.has(c) || requestNames.has(name) || aliases.has(name) || name==='farewell' || /client-core\/src\/(?:index|http)\.ts$/.test(declaration);
       const requester = transport && (params.includes('path') || params.includes('method') || coreCalls.has(c) && params.includes('request') || !params.length && requestNames.has(name));
       const special = /^(?:EventSource|Request)$/.test(name) && c.kind===K.NewExpression || name==='open' && xhrNames.has(expression.split('.')[0]) && args.length>=2;
       const urlAdapter = name==='mediaUrl' && params.includes('path');
