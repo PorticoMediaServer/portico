@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -118,6 +119,9 @@ type ItemDetails struct {
 	ContentRating   string
 	RatingAge       *int // the age ContentRating stands for; nil when it is not known
 	CommunityRating float64
+	// Numbering is, for a show whose match a person chose, the episode order and number offset
+	// they chose with it; nil leaves what the show has.
+	Numbering *EpisodeNumbering
 	// Continuing says whether a show is still running, which a refresh comes sooner for.
 	// nil means the provider did not say.
 	Continuing *bool
@@ -152,8 +156,9 @@ func (d *DB) ApplyChildren(ctx context.Context, p Priority, itemID int64, kind I
 		now := time.Now().UnixMilli()
 		for i := range children {
 			var id int64
-			err := b.queryRow(`SELECT id FROM items WHERE root_id = ? AND kind = ? AND parent_index = ? AND index_number = ? ORDER BY id LIMIT 1`,
-				itemID, kind, group, children[i].Index).Scan(&id)
+			// A negative group is any: episodes in absolute order are numbered through the show.
+			err := b.queryRow(`SELECT id FROM items WHERE root_id = ? AND kind = ? AND (? < 0 OR parent_index = ?) AND index_number = ?
+				ORDER BY parent_index, id LIMIT 1`, itemID, kind, group, group, children[i].Index).Scan(&id)
 			if errors.Is(err, sql.ErrNoRows) {
 				continue
 			}
@@ -229,6 +234,10 @@ func applyDetails(b *batchTx, itemID int64, d *ItemDetails, now int64) error {
 	if d.Continuing != nil {
 		sets += ", extra = json_set(ifnull(extra, '{}'), '$.continuing', ?)"
 		args = append(args, *d.Continuing)
+	}
+	if d.Numbering != nil {
+		sets += ", extra = json_set(ifnull(extra, '{}'), '$.episodeOrder', ?, '$.episodeOffset', ?)"
+		args = append(args, d.Numbering.Order, d.Numbering.Offset)
 	}
 	if _, err := b.exec(`UPDATE items SET `+sets+` WHERE id = ?`, append(args, itemID)...); err != nil {
 		return err
@@ -433,6 +442,20 @@ func (d *DB) ChangeMatch(ctx context.Context, p Priority, itemID int64, details 
 				return err
 			}
 		}
+		// A show that becomes another show, or is numbered another way, first loses what the old
+		// answer gave its episodes; the new show's episodes then fill in what it has.
+		var oldKey string
+		if err := b.queryRow(`SELECT ifnull(max(key), '') FROM item_keys WHERE item_id = ? AND kind = ?`, itemID, KeyProvider).Scan(&oldKey); err != nil {
+			return err
+		}
+		renumbered := false
+		if details.Numbering != nil {
+			old, err := episodeNumbering(b, itemID)
+			if err != nil {
+				return err
+			}
+			renumbered = old != *details.Numbering
+		}
 		// The old match goes: its ids, the key it was found by, and its place on the Unmatched
 		// items list.
 		for _, query := range []string{`DELETE FROM item_keys WHERE item_id = ? AND kind = ` + strconv.Itoa(int(KeyProvider)),
@@ -452,6 +475,11 @@ func (d *DB) ChangeMatch(ctx context.Context, p Priority, itemID int64, details 
 		details.Replace = true
 		if err := applyDetails(b, itemID, &details, now); err != nil {
 			return err
+		}
+		if oldKey != details.ProviderKey || renumbered {
+			if err := resetEpisodes(b, itemID, now); err != nil {
+				return err
+			}
 		}
 		return b.queryRow(`SELECT public_id FROM items WHERE id = ?`, itemID).Scan(&remaining)
 	})
@@ -476,4 +504,60 @@ func (d *DB) KeepAsIs(ctx context.Context, publicID string) error {
 		}
 		return nil
 	})
+}
+
+// EpisodeNumbering is how a show's episodes are numbered at its provider: the episode order
+// ("" for aired, "dvd" or "absolute") and a whole number added to every episode number the
+// files give before the provider is asked. Both are the owner's and no refresh changes them.
+type EpisodeNumbering struct {
+	Order  string
+	Offset int
+}
+
+// EpisodeNumbering returns a show's episode order and number offset.
+func (d *DB) EpisodeNumbering(ctx context.Context, showID int64) (EpisodeNumbering, error) {
+	var n EpisodeNumbering
+	err := d.read.QueryRowContext(ctx, `SELECT ifnull(extra ->> '$.episodeOrder', ''), ifnull(extra ->> '$.episodeOffset', 0) FROM items
+		WHERE id = ?`, showID).Scan(&n.Order, &n.Offset)
+	if errors.Is(err, sql.ErrNoRows) {
+		return n, ErrNotFound
+	}
+	return n, err
+}
+
+func episodeNumbering(b *batchTx, showID int64) (EpisodeNumbering, error) {
+	var n EpisodeNumbering
+	err := b.queryRow(`SELECT ifnull(extra ->> '$.episodeOrder', ''), ifnull(extra ->> '$.episodeOffset', 0) FROM items WHERE id = ?`,
+		showID).Scan(&n.Order, &n.Offset)
+	return n, err
+}
+
+// resetEpisodes takes from a show's episodes everything a provider gave them, as if no
+// provider had been asked: each is named from its number again, and its ids, description,
+// dates, rating, genres and credits go. A field a person locked or the files gave stays.
+func resetEpisodes(b *batchTx, showID, now int64) error {
+	type episode struct {
+		id    int64
+		index sql.NullInt64
+	}
+	episodes, err := queryAll(context.Background(), b.tx, `SELECT id, index_number FROM items WHERE root_id = ? AND kind = ?`,
+		[]any{showID, KindEpisode}, func(e *episode) []any { return []any{&e.id, &e.index} })
+	if err != nil {
+		return err
+	}
+	for _, e := range episodes {
+		blank := ItemDetails{Replace: true}
+		if e.index.Valid {
+			blank.Title = fmt.Sprintf("Episode %d", e.index.Int64)
+		}
+		if err := applyDetails(b, e.id, &blank, now); err != nil {
+			return err
+		}
+		if _, err := b.exec(`DELETE FROM item_external_ids WHERE item_id = ?`, e.id); err != nil {
+			return err
+		}
+	}
+	// An episode with no rating of its own uses its show's.
+	_, err = b.exec(`UPDATE items SET rating_age = (SELECT rating_age FROM items WHERE id = ?1) WHERE root_id = ?1 AND content_rating IS NULL`, showID)
+	return err
 }
