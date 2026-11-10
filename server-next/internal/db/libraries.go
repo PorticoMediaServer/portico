@@ -85,23 +85,53 @@ type LibraryPath struct {
 
 // CreateLibrary adds a library with its folders and tells open screens that the list changed.
 func (d *DB) CreateLibrary(ctx context.Context, name, kind, language string, paths []string) (Library, error) {
-	name = strings.TrimSpace(name)
+	return d.NewLibrary(ctx, NewLibrary{Name: name, Kind: kind, Language: language, Folders: paths})
+}
+
+// NewLibrary is a library to make. With an IdempotencyKey, the same request sent twice makes
+// one library and answers with it both times.
+type NewLibrary struct {
+	Name, Kind, Language string
+	Folders              []string
+	Options              LibraryOptions
+	UserID               int64
+	IdempotencyKey       string
+	RequestHash          string
+}
+
+// NewLibrary adds a library.
+func (d *DB) NewLibrary(ctx context.Context, n NewLibrary) (Library, error) {
+	name := strings.TrimSpace(n.Name)
 	if name == "" || len(name) > 200 {
 		return Library{}, invalid("a library name has 1 to 200 characters")
 	}
-	if !libraryKinds[kind] {
-		return Library{}, invalid("unknown library kind %q", kind)
+	if !libraryKinds[n.Kind] {
+		return Library{}, invalid("unknown library kind %q", n.Kind)
 	}
-	now := time.Now().UnixMilli()
-	lib := Library{PublicID: NewID("lib"), Name: name, Kind: kind, Language: language, CreatedAt: now, UpdatedAt: now}
+	if err := n.Options.check(); err != nil {
+		return Library{}, err
+	}
+	now := time.Now()
+	var lib Library
 	err := d.write(ctx, User, func(tx *sql.Tx) error {
-		res, err := tx.Exec(`INSERT INTO libraries (public_id, name, kind, language, position, created_at, updated_at)
-			VALUES (?, ?, ?, nullif(?, ''), (SELECT count(*) FROM libraries), ?, ?)`, lib.PublicID, name, kind, language, now, now)
+		lib = Library{PublicID: NewID("lib"), Name: name, Kind: n.Kind, Language: n.Language, Options: n.Options,
+			CreatedAt: now.UnixMilli(), UpdatedAt: now.UnixMilli()}
+		before, err := createdBefore(tx, n.UserID, n.IdempotencyKey, n.RequestHash)
+		if err != nil {
+			return err
+		}
+		if before != "" {
+			lib.PublicID = before
+			return tx.QueryRow(`SELECT id FROM libraries WHERE public_id = ?`, before).Scan(&lib.ID)
+		}
+		res, err := tx.Exec(`INSERT INTO libraries (public_id, name, kind, language, options, position, created_at, updated_at)
+			VALUES (?, ?, ?, nullif(?, ''), ?, (SELECT count(*) FROM libraries), ?, ?)`, lib.PublicID, name, n.Kind, n.Language,
+			n.Options.json(), lib.CreatedAt, lib.CreatedAt)
 		if err != nil {
 			return err
 		}
 		lib.ID, _ = res.LastInsertId()
-		for _, p := range paths {
+		for _, p := range n.Folders {
 			res, err := tx.Exec(`INSERT INTO library_paths (library_id, path) VALUES (?, ?)`, lib.ID, p)
 			if err != nil {
 				return err
@@ -109,7 +139,10 @@ func (d *DB) CreateLibrary(ctx context.Context, name, kind, language string, pat
 			id, _ := res.LastInsertId()
 			lib.Paths = append(lib.Paths, LibraryPath{ID: id, Path: p})
 		}
-		return appendChange(tx, Change{At: now, Topic: TopicLibrary, Op: OpCreated, RefID: lib.ID, LibraryID: lib.ID})
+		if err := rememberCreated(tx, n.UserID, n.IdempotencyKey, n.RequestHash, lib.PublicID, now); err != nil {
+			return err
+		}
+		return appendChange(tx, Change{At: lib.CreatedAt, Topic: TopicLibrary, Op: OpCreated, RefID: lib.ID, LibraryID: lib.ID})
 	})
 	return lib, err
 }
@@ -194,26 +227,12 @@ func (d *DB) Tags(ctx context.Context, kind string) ([]Tag, error) {
 
 // SetLibraryOptions stores the owner's choices for a library.
 func (d *DB) SetLibraryOptions(ctx context.Context, libraryID int64, options LibraryOptions) error {
-	switch options.Depth {
-	case "", DepthFiles, DepthBasic, DepthComplete:
-	default:
-		return invalid("unknown scan depth %q", options.Depth)
-	}
-	switch options.Trash.Mode {
-	case "", TrashAfterDays, TrashAfterScan, TrashManual:
-	default:
-		return invalid("unknown trash rule %q", options.Trash.Mode)
-	}
-	if options.Trash.Days < 0 || options.Trash.Days > 3650 {
-		return invalid("missing titles are removed after 1 to 3,650 days")
-	}
-	raw, err := json.Marshal(options)
-	if err != nil {
+	if err := options.check(); err != nil {
 		return err
 	}
 	return d.write(ctx, User, func(tx *sql.Tx) error {
 		now := time.Now().UnixMilli()
-		res, err := tx.Exec(`UPDATE libraries SET options = ?, revision = revision + 1, updated_at = ? WHERE id = ?`, string(raw), now, libraryID)
+		res, err := tx.Exec(`UPDATE libraries SET options = ?, revision = revision + 1, updated_at = ? WHERE id = ?`, options.json(), now, libraryID)
 		if err != nil {
 			return err
 		}
@@ -222,4 +241,9 @@ func (d *DB) SetLibraryOptions(ctx context.Context, libraryID int64, options Lib
 		}
 		return appendChange(tx, Change{At: now, Topic: TopicLibrary, Op: OpUpdated, RefID: libraryID, LibraryID: libraryID})
 	})
+}
+
+func (o LibraryOptions) json() string {
+	raw, _ := json.Marshal(o)
+	return string(raw)
 }
