@@ -278,11 +278,12 @@ CREATE INDEX items_children ON items (parent_id, parent_index, index_number, id)
 -- Ends with rating_age for the same reason: what is under a title is counted for a profile
 -- with a rating limit from the index alone.
 CREATE INDEX items_descendants ON items (root_id, kind, parent_index, index_number, id, rating_age);
--- Three reads of the matcher, each over top-level titles only (an episode follows its show):
+-- Three reads of the matcher, each over top-level titles (an episode follows its show):
 -- titles no provider has been asked about yet, a library's Unmatched items list (looked up
 -- without a confident answer; a title kept as it is is off the list), and matched titles by
--- when they were last refreshed.
-CREATE INDEX items_to_match ON items (library_id, id) WHERE match_state = 0 AND parent_id IS NULL;
+-- when they were last refreshed. The first also holds albums (kind 6), which are what a music
+-- provider is asked about, so an album added later to an artist already matched is found.
+CREATE INDEX items_to_match ON items (library_id, id) WHERE match_state = 0 AND (parent_id IS NULL OR kind = 6);
 CREATE INDEX items_unmatched ON items (library_id, sort_title, id) WHERE match_state = 3;
 CREATE INDEX items_to_refresh ON items (library_id, refreshed_at, id) WHERE match_state IN (1, 2) AND parent_id IS NULL;
 -- The matched titles due a refresh, in the order they fall due: a read of only what is due.
