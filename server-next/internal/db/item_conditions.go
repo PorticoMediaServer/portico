@@ -99,9 +99,10 @@ const hasStream = `EXISTS (SELECT 1 FROM media m WHERE m.item_id = i.id AND (
 	OR EXISTS (SELECT 1 FROM files f JOIN media_streams t ON t.file_id = f.id WHERE f.media_id = m.id AND t.kind = %[1]d AND t.language = %[2]s)))`
 
 // conditions adds every condition of the list to its statement. The first condition that
-// asks for a tag or a person becomes what the list is read from when it is rare, exactly as
-// a single tag does (see ItemQuery.filters), so a narrow filter on a large library reads
-// what matches and not the library. It reports false when nothing can match.
+// asks for tags or people becomes what the list is read from, as a single tag does (see
+// ItemQuery.filters), so a narrow filter on a large library reads what matches and not the
+// library. Every other condition is a check on each row the list comes to: one that few
+// titles of a very large library pass reads far into the library to fill a page.
 func (q ItemQuery) conditions(ctx context.Context, tx *sql.Tx, w *query, scoped *bool) (bool, error) {
 	if len(q.Conditions) > MaxConditions {
 		return false, ErrFilterTooLong
@@ -147,17 +148,26 @@ func (q ItemQuery) conditions(ctx context.Context, tx *sql.Tx, w *query, scoped 
 				// An item matches a tag it carries, or one the title it belongs to carries.
 				tests = append(tests, fmt.Sprintf(`EXISTS (SELECT 1 FROM item_tags t WHERE t.tag_id = %d AND t.item_id IN (i.id, i.root_id))`, tag))
 			}
-			// Read from the tags when that is the shorter road: every tag of an "any" is
-			// rare, or one tag of an "all" is.
-			from := tags
-			if c.Mode == ModeAll && rarest != 0 {
-				from = []int64{rarest}
-			}
-			if !driven && c.Mode != ModeNone && len(tags) == len(c.Values) && (c.Mode == ModeAll && rarest != 0 || c.Mode == ModeAny && len(tags)*most < rareTag) {
+			// The first condition that asks for tags decides how the list is read, as a single
+			// tag does in ItemQuery.filters. Its total always starts from the tags' own items,
+			// so it costs what matches and not the library. Its page starts there too when
+			// the tags are rare, and otherwise walks the list in order and skips.
+			if !driven && c.Mode != ModeNone && len(tags) == len(c.Values) {
+				from, rare := tags, len(tags)*most < rareTag
+				if c.Mode == ModeAll {
+					from, rare = []int64{rarest}, rarest != 0
+					if rarest == 0 {
+						from = tags[:1]
+					}
+				}
 				list := intList(from)
-				w.add(` AND i.id IN (SELECT item_id FROM item_tags WHERE tag_id IN `, list, ` UNION
-					SELECT d.id FROM item_tags h CROSS JOIN items d WHERE h.tag_id IN `, list, ` AND d.root_id = h.item_id)`)
-				w.from, w.countFrom, driven = "items i NOT INDEXED", "items i NOT INDEXED", true
+				gathered := ` AND i.id IN (SELECT item_id FROM item_tags WHERE tag_id IN ` + list + ` UNION
+					SELECT d.id FROM item_tags h CROSS JOIN items d WHERE h.tag_id IN ` + list + ` AND d.root_id = h.item_id)`
+				w.add("{tag}")
+				w.countFrom, w.tagCount, driven = "items i NOT INDEXED", gathered, true
+				if rare {
+					w.from, w.tagPage = "items i NOT INDEXED", gathered
+				}
 			}
 			if c.Mode != ModeNone {
 				*scoped = true
