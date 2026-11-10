@@ -279,8 +279,16 @@ func TestRestrictedProfileNeverReceivesARestrictedTitle(t *testing.T) {
 			case 1: // a person and their count
 				person := people[r.IntN(len(people))]
 				got, err := l.d.Person(ctx, v, person)
-				if want := titles(v, person); got.Titles != want || (want == 0) != errors.Is(err, db.ErrNotFound) {
+				want := titles(v, person)
+				if got.Titles != want || (want == 0) != errors.Is(err, db.ErrNotFound) {
 					t.Fatalf("person %s: %d titles, %v; want %d", person, got.Titles, err, want)
+				}
+				if want == 0 {
+					// Someone the profile may not know of has no list of titles either.
+					if _, err := l.d.Items(ctx, v, db.ItemQuery{Person: person}); !errors.Is(err, db.ErrNotFound) {
+						t.Fatalf("the titles of hidden person %s: %v, want not found", person, err)
+					}
+					continue
 				}
 				for _, item := range everything(t, l.d, v, db.ItemQuery{Person: person}) {
 					if !allowed(v, facts[item.PublicID]) {
@@ -317,6 +325,12 @@ func TestRestrictedProfileNeverReceivesARestrictedTitle(t *testing.T) {
 					q.Resolution = []string{"sd", "720p", "1080p", "4k"}[r.IntN(4)]
 				}
 				page, err := l.d.Items(ctx, v, q)
+				if hidden := v == byLibrary && lib.Kind != db.LibraryMovies && lib.Kind != db.LibraryMusic; hidden {
+					if !errors.Is(err, db.ErrNotFound) {
+						t.Fatalf("list of a hidden library %+v: %v, want not found", q, err)
+					}
+					continue
+				}
 				if err != nil {
 					t.Fatal(err)
 				}
