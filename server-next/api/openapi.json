@@ -23,6 +23,72 @@
         ],
         "type": "object"
       },
+      "AccountPlayback": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AccountStream"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "AccountStream": {
+        "properties": {
+          "current": {
+            "type": "boolean"
+          },
+          "deviceId": {
+            "type": "string"
+          },
+          "deviceName": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "positionMs": {
+            "type": "integer"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "deviceId",
+          "deviceName",
+          "kind",
+          "state",
+          "positionMs",
+          "startedAt",
+          "current"
+        ],
+        "type": "object"
+      },
       "AdminLibrary": {
         "properties": {
           "folders": {
@@ -83,6 +149,36 @@
         "required": [
           "items"
         ],
+        "type": "object"
+      },
+      "Alternative": {
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "versionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "versionId",
+          "label"
+        ],
+        "type": "object"
+      },
+      "AudioPick": {
+        "properties": {
+          "trackId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "trackId"
+        ],
+        "type": "object"
+      },
+      "CapabilityDocument": {
+        "properties": {},
         "type": "object"
       },
       "Challenge": {
@@ -231,6 +327,29 @@
         "required": [
           "items",
           "total"
+        ],
+        "type": "object"
+      },
+      "Decision": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "channels": {
+            "type": "integer"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "to": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action"
         ],
         "type": "object"
       },
@@ -467,6 +586,20 @@
         ],
         "type": "object"
       },
+      "Failure": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "type": "object"
+      },
       "Field": {
         "properties": {
           "code": {
@@ -504,6 +637,23 @@
         "required": [
           "id",
           "type"
+        ],
+        "type": "object"
+      },
+      "HDR": {
+        "properties": {
+          "delivered": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "toneMapped": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "toneMapped"
         ],
         "type": "object"
       },
@@ -1639,8 +1789,724 @@
         ],
         "type": "object"
       },
+      "PlaybackAudio": {
+        "properties": {
+          "bitDepth": {
+            "type": "integer"
+          },
+          "channels": {
+            "type": "integer"
+          },
+          "codec": {
+            "type": "string"
+          },
+          "commentary": {
+            "type": "boolean"
+          },
+          "default": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "layout": {
+            "type": "string"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "sampleRate": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "codec",
+          "default",
+          "commentary"
+        ],
+        "type": "object"
+      },
+      "PlaybackChange": {
+        "properties": {
+          "audio": {
+            "$ref": "#/components/schemas/AudioPick"
+          },
+          "failure": {
+            "$ref": "#/components/schemas/Failure"
+          },
+          "positionMs": {
+            "type": "integer"
+          },
+          "quality": {
+            "$ref": "#/components/schemas/Quality"
+          },
+          "replan": {
+            "type": "boolean"
+          },
+          "seek": {
+            "$ref": "#/components/schemas/PlaybackSeek"
+          },
+          "state": {
+            "type": "string"
+          },
+          "subtitleOffsetMs": {
+            "type": "integer"
+          },
+          "subtitles": {
+            "$ref": "#/components/schemas/SubtitlePick"
+          },
+          "throughputKbps": {
+            "type": "integer"
+          },
+          "versionId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "PlaybackChapter": {
+        "properties": {
+          "startMs": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "startMs",
+          "title"
+        ],
+        "type": "object"
+      },
+      "PlaybackContainer": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "id"
+        ],
+        "type": "object"
+      },
+      "PlaybackDecisions": {
+        "properties": {
+          "audio": {
+            "$ref": "#/components/schemas/Decision"
+          },
+          "subtitles": {
+            "$ref": "#/components/schemas/Decision"
+          },
+          "video": {
+            "$ref": "#/components/schemas/Decision"
+          }
+        },
+        "type": "object"
+      },
+      "PlaybackLease": {
+        "properties": {
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "generation": {
+            "type": "integer"
+          },
+          "reportEveryMs": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expiresAt",
+          "reportEveryMs"
+        ],
+        "type": "object"
+      },
+      "PlaybackMarker": {
+        "properties": {
+          "automaticSafe": {
+            "type": "boolean"
+          },
+          "confidence": {
+            "type": "string"
+          },
+          "endMs": {
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "startMs": {
+            "type": "integer"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "startMs",
+          "endMs",
+          "confidence",
+          "automaticSafe"
+        ],
+        "type": "object"
+      },
+      "PlaybackOptions": {
+        "properties": {
+          "alternatives": {
+            "items": {
+              "$ref": "#/components/schemas/Alternative"
+            },
+            "type": "array"
+          },
+          "chapters": {
+            "items": {
+              "$ref": "#/components/schemas/PlaybackChapter"
+            },
+            "type": "array"
+          },
+          "container": {
+            "$ref": "#/components/schemas/PlaybackContainer"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "markers": {
+            "items": {
+              "$ref": "#/components/schemas/PlaybackMarker"
+            },
+            "type": "array"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/PlaybackPlan"
+          },
+          "preferred": {
+            "$ref": "#/components/schemas/PlaybackPreferred"
+          },
+          "qualities": {
+            "items": {
+              "$ref": "#/components/schemas/QualityOption"
+            },
+            "type": "array"
+          },
+          "resume": {
+            "$ref": "#/components/schemas/PlaybackResume"
+          },
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/PlaybackVersion"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "itemId",
+          "kind",
+          "versions",
+          "chapters",
+          "markers",
+          "qualities",
+          "preferred",
+          "plan",
+          "alternatives"
+        ],
+        "type": "object"
+      },
+      "PlaybackPlan": {
+        "properties": {
+          "decision": {
+            "$ref": "#/components/schemas/PlaybackDecisions"
+          },
+          "engine": {
+            "type": "string"
+          },
+          "estimatedBitrateKbps": {
+            "type": "integer"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "quality": {
+            "$ref": "#/components/schemas/Quality"
+          },
+          "route": {
+            "type": "string"
+          },
+          "versionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "versionId",
+          "mode",
+          "engine",
+          "route",
+          "decision",
+          "quality"
+        ],
+        "type": "object"
+      },
+      "PlaybackPreferred": {
+        "properties": {
+          "audioId": {
+            "type": "string"
+          },
+          "quality": {
+            "$ref": "#/components/schemas/Quality"
+          },
+          "subtitleId": {
+            "type": "string"
+          },
+          "versionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "versionId",
+          "quality"
+        ],
+        "type": "object"
+      },
+      "PlaybackProgress": {
+        "properties": {
+          "playClockMs": {
+            "type": "integer"
+          },
+          "positionMs": {
+            "type": "integer"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "positionMs"
+        ],
+        "type": "object"
+      },
+      "PlaybackResume": {
+        "properties": {
+          "positionMs": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "positionMs"
+        ],
+        "type": "object"
+      },
+      "PlaybackSeek": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "positionMs": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "positionMs",
+          "id"
+        ],
+        "type": "object"
+      },
+      "PlaybackSession": {
+        "properties": {
+          "end": {
+            "$ref": "#/components/schemas/SessionEnd"
+          },
+          "id": {
+            "type": "string"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "lease": {
+            "$ref": "#/components/schemas/PlaybackLease"
+          },
+          "playbackInfo": {},
+          "presentation": {
+            "$ref": "#/components/schemas/Presentation"
+          },
+          "queue": {
+            "$ref": "#/components/schemas/QueueLink"
+          },
+          "retryAfterMs": {
+            "type": "integer"
+          },
+          "state": {
+            "type": "string"
+          },
+          "versionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "state",
+          "itemId",
+          "versionId",
+          "lease",
+          "presentation"
+        ],
+        "type": "object"
+      },
+      "PlaybackStart": {
+        "properties": {
+          "audio": {
+            "$ref": "#/components/schemas/AudioPick"
+          },
+          "discTitle": {},
+          "itemId": {
+            "type": "string"
+          },
+          "network": {
+            "type": "string"
+          },
+          "quality": {
+            "$ref": "#/components/schemas/Quality"
+          },
+          "startFrom": {
+            "type": "string"
+          },
+          "startPositionMs": {
+            "type": "integer"
+          },
+          "state": {
+            "type": "string"
+          },
+          "subtitles": {
+            "$ref": "#/components/schemas/SubtitlePick"
+          },
+          "throughputKbps": {
+            "type": "integer"
+          },
+          "versionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemId"
+        ],
+        "type": "object"
+      },
+      "PlaybackStop": {
+        "properties": {
+          "positionMs": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "PlaybackSubtitle": {
+        "properties": {
+          "default": {
+            "type": "boolean"
+          },
+          "forced": {
+            "type": "boolean"
+          },
+          "format": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "sdh": {
+            "type": "boolean"
+          },
+          "source": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "format",
+          "source",
+          "forced",
+          "sdh",
+          "default"
+        ],
+        "type": "object"
+      },
+      "PlaybackVersion": {
+        "properties": {
+          "audio": {
+            "items": {
+              "$ref": "#/components/schemas/PlaybackAudio"
+            },
+            "type": "array"
+          },
+          "bitrateKbps": {
+            "type": "integer"
+          },
+          "container": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": "integer"
+          },
+          "edition": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "type": "integer"
+          },
+          "subtitles": {
+            "items": {
+              "$ref": "#/components/schemas/PlaybackSubtitle"
+            },
+            "type": "array"
+          },
+          "video": {
+            "items": {
+              "$ref": "#/components/schemas/PlaybackVideo"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "durationMs",
+          "video",
+          "audio",
+          "subtitles"
+        ],
+        "type": "object"
+      },
+      "PlaybackVideo": {
+        "properties": {
+          "bitDepth": {
+            "type": "integer"
+          },
+          "bitrateKbps": {
+            "type": "integer"
+          },
+          "codec": {
+            "type": "string"
+          },
+          "fps": {
+            "type": "number"
+          },
+          "hdr": {
+            "type": "string"
+          },
+          "height": {
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "width": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "codec"
+        ],
+        "type": "object"
+      },
+      "PreferenceDocument": {
+        "properties": {
+          "scope": {
+            "type": "string"
+          },
+          "values": {
+            "additionalProperties": {},
+            "type": "object"
+          }
+        },
+        "required": [
+          "scope",
+          "values"
+        ],
+        "type": "object"
+      },
+      "PreferenceRegistry": {
+        "properties": {
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/Setting"
+            },
+            "type": "array"
+          },
+          "revision": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "revision",
+          "fields"
+        ],
+        "type": "object"
+      },
+      "Preferences": {
+        "properties": {
+          "deviceBound": {
+            "type": "boolean"
+          },
+          "deviceClass": {
+            "type": "string"
+          },
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/PreferenceDocument"
+            },
+            "type": "array"
+          },
+          "effective": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "effectiveSource": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "registry": {
+            "$ref": "#/components/schemas/PreferenceRegistry"
+          }
+        },
+        "required": [
+          "deviceClass",
+          "deviceBound",
+          "registry",
+          "documents",
+          "effective",
+          "effectiveSource"
+        ],
+        "type": "object"
+      },
+      "PreferencesEdit": {
+        "properties": {
+          "deviceClass": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "values": {
+            "additionalProperties": {},
+            "type": "object"
+          }
+        },
+        "required": [
+          "scope",
+          "deviceClass",
+          "values"
+        ],
+        "type": "object"
+      },
+      "Presentation": {
+        "properties": {
+          "audioRender": {},
+          "audioTrackId": {
+            "type": "string"
+          },
+          "bitrateKbps": {
+            "type": "integer"
+          },
+          "container": {
+            "type": "string"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/PlaybackDecisions"
+          },
+          "engine": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "integer"
+          },
+          "hdr": {
+            "$ref": "#/components/schemas/HDR"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "quality": {
+            "$ref": "#/components/schemas/Quality"
+          },
+          "route": {
+            "type": "string"
+          },
+          "seekId": {
+            "type": "string"
+          },
+          "startPositionMs": {
+            "type": "integer"
+          },
+          "subtitle": {
+            "$ref": "#/components/schemas/SubtitleInForce"
+          },
+          "subtitles": {
+            "items": {
+              "$ref": "#/components/schemas/SubtitleFile"
+            },
+            "type": "array"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "generation",
+          "mode",
+          "url",
+          "startPositionMs",
+          "engine",
+          "route",
+          "quality",
+          "subtitles",
+          "decision"
+        ],
+        "type": "object"
+      },
       "Profile": {
         "properties": {
+          "accessMarker": {
+            "type": "string"
+          },
           "color": {
             "type": "string"
           },
@@ -1662,7 +2528,8 @@
           "name",
           "color",
           "isPrimary",
-          "pinRequired"
+          "pinRequired",
+          "accessMarker"
         ],
         "type": "object"
       },
@@ -1734,6 +2601,76 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "Quality": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "maxAudioBitrateKbps": {
+            "type": "integer"
+          },
+          "maxHeight": {
+            "type": "integer"
+          },
+          "maxVideoBitrateKbps": {
+            "type": "integer"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "step": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "type": "object"
+      },
+      "QualityOption": {
+        "properties": {
+          "dataGBPerHour": {
+            "type": "number"
+          },
+          "id": {
+            "type": "string"
+          },
+          "maxAudioBitrateKbps": {
+            "type": "integer"
+          },
+          "maxHeight": {
+            "type": "integer"
+          },
+          "maxVideoBitrateKbps": {
+            "type": "integer"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "sameAsOriginal": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "type": "object"
+      },
+      "QueueLink": {
+        "properties": {
+          "entryId": {
+            "type": "string"
+          },
+          "queueId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "queueId",
+          "entryId"
+        ],
         "type": "object"
       },
       "Ratings": {
@@ -1808,6 +2745,73 @@
         },
         "required": [
           "relation",
+          "items"
+        ],
+        "type": "object"
+      },
+      "RememberedFailure": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "deviceName": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "failedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "player": {
+            "type": "string"
+          },
+          "route": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "deviceName",
+          "fileName",
+          "player",
+          "route",
+          "code",
+          "failedAt",
+          "expiresAt"
+        ],
+        "type": "object"
+      },
+      "RememberedFailurePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RememberedFailure"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
           "items"
         ],
         "type": "object"
@@ -1931,6 +2935,20 @@
         ],
         "type": "object"
       },
+      "SessionEnd": {
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "type": "object"
+      },
       "SessionInfo": {
         "properties": {
           "createdAt": {
@@ -1996,6 +3014,48 @@
         },
         "required": [
           "items"
+        ],
+        "type": "object"
+      },
+      "Setting": {
+        "properties": {
+          "allowedValues": {
+            "items": {},
+            "type": "array"
+          },
+          "default": {},
+          "group": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "labelKey": {
+            "type": "string"
+          },
+          "max": {
+            "type": "number"
+          },
+          "min": {
+            "type": "number"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "type",
+          "default",
+          "scopes",
+          "group",
+          "labelKey"
         ],
         "type": "object"
       },
@@ -2272,6 +3332,85 @@
           "index",
           "kind"
         ],
+        "type": "object"
+      },
+      "StreamLimits": {
+        "properties": {
+          "endPausedVideoAfterMs": {
+            "type": "integer"
+          },
+          "people": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "perPerson": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "SubtitleFile": {
+        "properties": {
+          "format": {
+            "type": "string"
+          },
+          "offsetMs": {
+            "type": "integer"
+          },
+          "trackId": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "trackId",
+          "format",
+          "url"
+        ],
+        "type": "object"
+      },
+      "SubtitleInForce": {
+        "properties": {
+          "delivery": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "trackId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "trackId",
+          "kind",
+          "delivery"
+        ],
+        "type": "object"
+      },
+      "SubtitlePick": {
+        "properties": {
+          "delivery": {
+            "type": "string"
+          },
+          "trackId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
         "type": "object"
       },
       "System": {
@@ -3437,6 +4576,125 @@
         "x-access": "admin"
       }
     },
+    "/v1/admin/playback/failures": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RememberedFailurePage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/playback/failures/{id}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/playback/stream-limits": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamLimits"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "put": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StreamLimits"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamLimits"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
     "/v1/admin/versions/{id}": {
       "delete": {
         "parameters": [
@@ -4021,6 +5279,81 @@
         "x-access": "signedIn"
       }
     },
+    "/v1/devices/{id}/capabilities": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapabilityDocument"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "signedIn"
+      },
+      "put": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CapabilityDocument"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "signedIn"
+      }
+    },
     "/v1/events": {
       "get": {
         "responses": {
@@ -4263,6 +5596,43 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreditPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/items/{id}/playback-options": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaybackOptions"
                 }
               }
             },
@@ -4935,6 +6305,297 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Person"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/playback/sessions": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountPlayback"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      },
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaybackStart"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaybackSession"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/playback/sessions/{id}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaybackStop"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      },
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaybackSession"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      },
+      "patch": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaybackChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaybackSession"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/playback/sessions/{id}/progress": {
+      "put": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaybackProgress"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaybackLease"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/preferences": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Preferences"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      },
+      "patch": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreferencesEdit"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Preferences"
                 }
               }
             },
