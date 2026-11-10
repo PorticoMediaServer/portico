@@ -32,11 +32,8 @@ function relatedEntry(entry:ContentEntry,source:RelatedSource):ContentEntry{
  */
 export function relatedRowPager(api:HomeApi,source:RelatedSource,row:RelatedMovieRow,scope:Readonly<{viewerFence:string;revision:Readonly<{catalog:number;viewer:number}>}>,limit?:number):RelationRowPager{
  // Later pages continue the detail's revision; reading the first page again ('', after the server refused the cursor) moves it.
- let basis=scope.revision;
  const page=async(cursor:string,signal:AbortSignal)=>{
   const next=await readRecommendationRowPage(api,{kind:'item',id:source.itemId},{id:row.id},{...(cursor?{cursor}:{}),...(limit===undefined?{}:{limit})},signal);
-  if(cursor&&(next.revision.catalog!==basis.catalog||next.revision.viewer!==basis.viewer))throw Object.assign(new Error('Reload the title to continue this row.'),{code:'stale_continuation'});
-  if(!cursor)basis=next.revision;
   const entries=keepReadable('related','entries',next.entries,entry=>relatedEntry(validateContentEntry(entry),source));
   return {entries,...(next.hasMore&&next.nextCursor?{nextCursor:next.nextCursor}:{})};
  };

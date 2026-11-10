@@ -129,12 +129,9 @@ export class RelationRowPager {
 /** The pager of a title's or show's recommendation row, from the row as its page returned it. */
 export function recommendationRowPager(api: HomeApi, owner: RelationRowOwner, row: HomeRow, limit?: number): RelationRowPager {
   // Later pages continue the revision of the first page they follow; reading the first page again ('') moves it.
-  let basis = row.revision;
   const shown = (page: HomeRow): RelationPage => ({entries: page.entries, ...(page.hasMore && page.nextCursor ? {nextCursor: page.nextCursor} : {})});
   return new RelationRowPager(shown(row), async (cursor, signal) => {
     const page = await readRecommendationRowPage(api, owner, row, {...(cursor ? {cursor} : {}), ...(limit === undefined ? {} : {limit})}, signal);
-    if (!cursor) basis = page.revision;
-    else if (page.revision.catalog !== basis.catalog || page.revision.viewer !== basis.viewer) throw Object.assign(new Error('Reload recommendations after the title changes.'), {code: 'stale_continuation'});
     return shown(page);
   });
 }

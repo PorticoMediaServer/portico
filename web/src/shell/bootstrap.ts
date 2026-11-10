@@ -49,7 +49,7 @@ export type ShellAssemblyContext = Readonly<{
   libraryRouteProof?: LibraryRouteProof; libraryRouteSignal?: AbortSignal;
   facts: ShellFacts; factsSource?: ShellFactsSource; homeAuthority?: () => void;
   /** Read the library directory again now (an inline Try again after it did not answer). */
-  retryLibraries?: () => void; observeDirect?: (snapshot: DirectSnapshot) => void; preferences?: PreferencesReader; epoch: number; viewerFence?: string; isCurrent: () => boolean;
+  retryLibraries?: () => void; observeDirect?: (snapshot: DirectSnapshot) => void; preferences?: PreferencesReader; epoch: number; isCurrent: () => boolean;
   signOut: () => void; switchProfile:(profileId:string,pin:string,signal:AbortSignal)=>Promise<void>; manageGate?: ManageGate; switchServer:(serverId:string,expectedRevision?:number)=>Promise<void>; savedServers:readonly {id:string;label:string}[];
 }>;
 export type ShellAssembly = Readonly<{
@@ -136,20 +136,20 @@ export async function readShellIdentity(api: HttpLocalApi, session: LocalSession
   ]);
   if (system.id !== session.viewer.serverId) throw new RouteError('identity_mismatch', 'The server identity changed.');
   negotiateServer(system);
-  return {libraries: libraries?.items ?? [], ...(libraries ? {} : {librariesUnavailable: true as const}), ...(libraries?.fences ? {fences: libraries.fences} : {}), direct: profile, profile: shellAccount(profile, session.viewer.profileId), system, guide, liveAvailable: !!guide?.sources.length};
+  return {libraries: libraries?.items ?? [], ...(libraries ? {} : {librariesUnavailable: true as const}), direct: profile, profile: shellAccount(profile, session.viewer.profileId), system, guide, liveAvailable: !!guide?.sources.length};
 }
 async function readFacts(api: HttpLocalApi, session: LocalSession, preferences: PreferencesReader, inbox: InboxService, signal: AbortSignal): Promise<{facts: ShellFacts; witnesses: ShellFactWitnesses}> {
   const [read, settings] = await Promise.all([readShellIdentity(api, session, signal),
     // Preferences are not on the rebuilt server yet: every setting then reads as its default.
     preferences.preferences('web').catch(error => {if (notOnThisServer(error)) return noPreferences('web'); throw error;})]);
-  const {libraries, profile, system, liveAvailable} = read, librariesUnavailable = 'librariesUnavailable' in read, fences = 'fences' in read ? read.fences : undefined;
+  const {libraries, profile, system, liveAvailable} = read, librariesUnavailable = 'librariesUnavailable' in read;
   rememberShell(session.sessionFamilyId, system.name);
   // O-169: signed in, the server gives the owner's home networks; the route connection keeps
   // them, so a VPN or tailnet range the owner added counts as home for routing from now on.
   void api.connection(signal).then(facts => api.getRouteConnection()?.learnSignedInFacts(facts), () => {});
   await inbox.load();
   signal.throwIfAborted();
-  return {witnesses: {system: read.system, direct: read.direct, guide: read.guide && {viewerFence:read.guide.viewerFence, revision:read.guide.revision}}, facts: {identity: {viewer: session.viewer, libraries, ...(librariesUnavailable ? {librariesUnavailable: true as const} : {}), ...(fences ? {fences} : {}), serverName: system.name, serverVersion: system.version, serverApiVersion: system.apiVersion, signIn:system.signIn, ...profile,
+  return {witnesses: {system: read.system, direct: read.direct, guide: read.guide && {viewerFence:read.guide.viewerFence, revision:read.guide.revision}}, facts: {identity: {viewer: session.viewer, libraries, ...(librariesUnavailable ? {librariesUnavailable: true as const} : {}), serverName: system.name, serverVersion: system.version, serverApiVersion: system.apiVersion, signIn:system.signIn, ...profile,
     // desktop-search #menu: the server, then how this account signs in ("Portico demo · Server account").
     accountFacts:[{id:'server',role:'context',text:system.name},{id:'sign-in',role:'context',text:defaultI18n.t(system.signIn==='portico'?'account.portico':'web.shell.localAccount')}],
     liveAvailable, unread: inbox.getSnapshot().unread, showNotificationDot: settings.effective['notifications.badges'] === true}, preferences: settings, serverName: system.name}};
@@ -447,14 +447,7 @@ export class ShellBootstrap {
       directoryVersion: () => freshness.hub.version(dependsOn.libraries),
       request: () => factOwner?.request('directory')});
     cleanups.push(libraryRouteProof.dispose);
-    const home = new HomeService(api, {observation: {
-      serverId: session.viewer.serverId, isCurrent,
-      retire: () => {if (isCurrent()) this.restart();},
-      mismatch: () => factOwner?.authority(),
-      // Who the viewer is and what they may see is the library directory's privacy fence (client
-      // data step 5); Home answers for this shell while it is current.
-      observe: () => isCurrent() ? 'accept' : 'retire',
-    }}), inbox = new InboxService(notificationScope, undefined, {queries: freshness.queries, cacheApi: notificationScope});
+    const home = new HomeService(api), inbox = new InboxService(notificationScope, undefined, {queries: freshness.queries, cacheApi: notificationScope});
     cleanups.push(() => home.dispose(), () => inbox.dispose());
     const {facts: initialFacts, witnesses} = await readFacts(api, session, preferences, inbox, signal);
     if (!isCurrent()) return;
@@ -479,7 +472,7 @@ export class ShellBootstrap {
     const saved=(await (this.environment.actions?.()??browserAppSessionActions()).store.read()).servers;
     const savedServers=await display.choices(saved.map(value=>({pin:value.connection.pin,origin:value.connection.logicalOrigin,signIn:value.signIn})),signal);
     if (!isCurrent()) return;
-    const context: ShellAssemblyContext = {api, session: () => session, auth, events, freshness, home, inbox, artwork, factsSource, libraryRouteProof: libraryRouteProof.source, homeAuthority: factOwner.authority, observeDirect: factOwner.observeDirect, retryLibraries: () => {if (isCurrent()) factOwner?.request('directory');}, get facts() {return facts();}, preferences, epoch, get viewerFence() {return isCurrent() ? facts().identity.fences?.viewerFence : undefined;}, isCurrent, signOut,switchProfile,manageGate,switchServer:this.selectServer,get savedServers() {return savedServers.map(value => value.id === session.viewer.serverId ? {...value, label: facts().serverName} : value);}};
+    const context: ShellAssemblyContext = {api, session: () => session, auth, events, freshness, home, inbox, artwork, factsSource, libraryRouteProof: libraryRouteProof.source, homeAuthority: factOwner.authority, observeDirect: factOwner.observeDirect, retryLibraries: () => {if (isCurrent()) factOwner?.request('directory');}, get facts() {return facts();}, preferences, epoch, isCurrent, signOut,switchProfile,manageGate,switchServer:this.selectServer,get savedServers() {return savedServers.map(value => value.id === session.viewer.serverId ? {...value, label: facts().serverName} : value);}};
     const assembly = await this.assemble(context);
     if (!isCurrent()) { assembly.dispose(); return; }
     cleanups.push(() => assembly.dispose());

@@ -67,7 +67,7 @@ export function createShellSelection(context: ShellAssemblyContext, playback: Ho
     deviceId: originalSession.deviceId ?? '', sourceIdentity: () => context.home.getSnapshot().document,
     owner: viewer.role === 'owner' && viewer.authority === 'local', signal: queryLife.signal,
     scopeKey: () => {const session = context.session(), actor = session.viewer; return JSON.stringify([router.state.location.href,
-      session.sessionFamilyId, session.deviceId, actor.serverId, actor.authority, actor.accountId, actor.profileId, actor.role, context.viewerFence]);},
+      session.sessionFamilyId, session.deviceId, actor.serverId, actor.authority, actor.accountId, actor.profileId, actor.role]);},
     isCurrent: () => !retired && context.isCurrent() && router.state.location.pathname === '/',
     subscribe: listener => {const a = context.home.subscribe(listener), b = subscribeFacts(context, listener), c = router.subscribe('onResolved', listener); return () => {a();b();c();};}});
   const anchor: {current: HTMLElement | null} = {current: null};
@@ -100,7 +100,7 @@ export function createShellSelection(context: ShellAssemblyContext, playback: Ho
   const selected = (key: string) => controller.getSnapshot().selection.selectedKeys.includes(key);
   const currentRow = (row: HomeRow) => {
     const shown = context.home.getSnapshot().document;
-    return isCurrent(controller.getSnapshot().context) && !!shown && row.viewerFence === shown.viewerFence && shown.rows.some(value => value === row || value.children?.includes(row));
+    return isCurrent(controller.getSnapshot().context) && !!shown && shown.rows.some(value => value === row || value.children?.includes(row));
   };
   const liveCurrent = (row: HomeRow) => !row.live || !!currentHomeLive(row.live, serverNow());
   const clearExpiredLive = (row: HomeRow) => {

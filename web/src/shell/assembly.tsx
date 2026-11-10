@@ -65,8 +65,6 @@ export const assembleShellBindings: ShellAssembler = async context => {
   if (preparingStarts) resources.push(preparingStarts.subscribePending(retentionChanged));
   const homeDisplay = createShellHomeDocument(context.freshness.hub, context.home);
   resources.push(homeDisplay.dispose);
-  // Coming back to Home reads again any shelf dropped after its retries (no row-level error state exists to show instead).
-  resources.push(router.subscribe('onResolved', event => {if (current() && event.toLocation.pathname === '/') void context.home.recoverDroppedRows().catch(feedback.reportError);}));
   resources.push(() => listeners.clear());
   const currentHomeContext = () => {
     const document = context.home.getSnapshot().document; if (!document) throw new Error('home-document-required');

@@ -4,6 +4,8 @@ import {routePath, encodedRoutePath} from "../../contracts/src/route-paths.ts";
 import {unreadableServerResponse} from './server-messages.ts';
 /** Server-composed home rows. Clients render membership, order and policy as published; they never rank, hide or page a row themselves. */
 import {validateContentEntry, type ContentEntry} from './library-content.ts';
+import type {Home} from '../../contracts/src/next/api.ts';
+import {entriesFromItems, readHomeRows} from './items.ts';
 import {parseBrowseNode, type BrowseNode, type BrowseSortSelection} from './browse.ts';
 import {firstOfEach, keepReadable, noteSkipped, oneOfOr} from './tolerant.ts';
 import {parseGuideChannels, parseGuideSources, type GuideChannel, type GuideSource} from './channel-guide.ts';
@@ -45,7 +47,7 @@ export type HomeChannelMark = Readonly<{text:string;seed:string}>;
 export type HomeChannel = Readonly<{channel:GuideChannel & Readonly<{mark:HomeChannelMark}>;source:GuideSource;actions:HomeChannelActions}>;
 export type HomeLive = Readonly<{revision:string;observedAt:string;expiresAt:string;sort:'favorites';group:string;groups:readonly Readonly<{name:string;count:number}>[];channels:readonly HomeChannel[]}>;
 export type HomeRow = Readonly<{
-  id: string; viewerFence: string; title: string; titleText?: ServerText; kind: string; artworkShape: HomeArtworkShape; explanation?: string; why?:ServerText; whyTitles?:readonly Readonly<{id:string;name:string}>[]; displayTargets?:readonly Readonly<{membershipId:string;entryId:string}>[]; endpoint: string;
+  id: string; title: string; titleText?: ServerText; kind: string; artworkShape: HomeArtworkShape; explanation?: string; why?:ServerText; whyTitles?:readonly Readonly<{id:string;name:string}>[]; displayTargets?:readonly Readonly<{membershipId:string;entryId:string}>[]; endpoint: string;
   /** `for_you` on the personal rows: the layout arranges and hides them together as the row `for_you`. */
   family?: string;
   deferred?: boolean; children?: readonly HomeRow[];
@@ -62,7 +64,7 @@ export type HomeRow = Readonly<{
   /** The row's exact length. A Home document row carries it only when the server knew it without counting the row; a row's own page request always does. */
   total?: number;
   start: number; limit: number; hasMore: boolean;
-  nextCursor: string; anchorId?: string; revision: HomeRevision;
+  nextCursor: string; anchorId?: string;
 }>;
 export type HomeLayout = Readonly<{revision: number; rowOrder: readonly string[]; hiddenRowIds: readonly string[]}>;
 export type HomeLayoutRowView = Readonly<{availabilityText?:ServerText;id: string; title: string; titleText?: ServerText; kind: string; artworkShape: HomeArtworkShape; libraryId?: string; required: boolean; hideable: boolean; reorderable: boolean; hidden: boolean}>;
@@ -70,13 +72,10 @@ export type HomeLayoutView = Readonly<HomeLayout & {rows: readonly HomeLayoutRow
 /** Frozen type dependency of presentation/home-hero.ts, removed with the old UI in Phase 10. */
 export type HomeHeroRef = Readonly<{rowId: string; entryId: string; selectionKey?: string}>;
 export type HomeDocument = Readonly<{
-  serverId: string; viewerFence: string;
-  /** Changes only when who the viewer is or what they may see changes; a library added or
-   * removed changes `viewerFence` alone. Absent from older servers. */
-  rows: readonly HomeRow[]; spotlight:readonly HomeSpotlight[]; hero?: HomeHeroRef; layout: HomeLayout; revision: HomeRevision; generatedAt: string;
+  rows: readonly HomeRow[]; spotlight:readonly HomeSpotlight[]; hero?: HomeHeroRef; layout: HomeLayout;
 }>;
 export type HomeRowPage = Readonly<{limit?: number; cursor?: string; start?: number; revision?: string; anchorId?: string;group?:string;sourceId?:string}>;
-export type HomeLayoutIntent = Readonly<{expectedRevision: number; rowOrder: readonly string[]; hiddenRowIds: readonly string[]; idempotencyKey?: string}>;
+export type HomeLayoutIntent = Readonly<{/** The layout this edit started from. */ revision: number; rowOrder: readonly string[]; hiddenRowIds: readonly string[]; idempotencyKey?: string}>;
 export interface HomeApi {request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>}
 
 const shapes = ['poster', 'square', 'landscape'] as const;
@@ -233,14 +232,14 @@ export function validateHomeRow(value: unknown): HomeRow {
 }
 
 function parseHomeRow(value: unknown, allowChildren: boolean): HomeRow {
-  if (!object(value) || !id(value.id) || !id(value.viewerFence)) invalid();
+  if (!object(value) || !id(value.id)) invalid();
   if (!Array.isArray(value.entries) || value.entries.length > 200 || !text(value.nextCursor ?? '', 4096)) invalid();
   const entries = firstOfEach('home', 'entries', keepReadable('home', 'entries', value.entries, entry => validateHomeEntry(entry)), entry => entry.id);
   const flag = (name: string) => value[name] === true;
   const amount = (name: string) => (whole(value[name]) ? value[name] as number : 0);
   const required = flag('required');
   const row: Record<string, unknown> = {
-    id: value.id, viewerFence: value.viewerFence, title: words(value.title, 1024), kind: words(value.kind, 256),
+    id: value.id, title: words(value.title, 1024), kind: words(value.kind, 256),
     artworkShape: oneOfOr('home', 'row.artworkShape', value.artworkShape, shapes, 'poster'), endpoint: words(value.endpoint, 256),
     privacySensitivity: words(value.privacySensitivity, 256), policyState: words(value.policyState, 256), priority: amount('priority'),
     // A required row is never hideable, whatever the two flags say together.
@@ -248,7 +247,7 @@ function parseHomeRow(value: unknown, allowChildren: boolean): HomeRow {
     reorderable: flag('reorderable'), critical: flag('critical'), cursorCapable: flag('cursorCapable'),
     // The total, when sent, is at least the entries kept.
     entries: Object.freeze(entries), ...(whole(value.total) ? {total: Math.max(value.total as number, entries.length)} : {}), start: amount('start'), limit: amount('limit'),
-    hasMore: flag('hasMore'), nextCursor: value.nextCursor ?? '', revision: revision(value.revision),
+    hasMore: flag('hasMore'), nextCursor: value.nextCursor ?? '',
   };
   if (value.deferred === true) row.deferred = true;
   if (value.children !== undefined) {
@@ -358,27 +357,19 @@ export function validateHomeLayoutView(value: unknown): HomeLayoutView {
   return Object.freeze({...layout, rows: Object.freeze(rows)});
 }
 
-/**
- * Home. The server, the viewer fence, the layout, the revision and the bound on rows are exact.
- * A row that cannot be read is left out alone, a repeated row keeps its first appearance, and a
- * row the viewer hid or an empty row that is not critical is not shown.
- */
-export function validateHomeDocument(value: unknown): HomeDocument {
-  if (!object(value) || !id(value.serverId) || !id(value.viewerFence) || !Array.isArray(value.rows) || value.rows.length > 64 || (value.spotlight !== undefined && (!Array.isArray(value.spotlight) || value.spotlight.length>5))) invalid();
-  // R-10 (O-159 two-tier parsing): spotlights are presentation, not identity or safety. One this
-  // client cannot read is left out alone; an absent list is no spotlight. Home itself still shows.
-  const spotlight=Object.freeze(keepReadable('home', 'spotlight', (value.spotlight ?? []) as unknown[], parseHomeSpotlight));
-  const layout = validateHomeLayout(value.layout);
-  const readable = keepReadable('home', 'rows', value.rows, raw => {
-    const row = validateHomeRow(raw);
-    // An entry of a kind this app does not know leaves its row in place; a row the server sent empty is kept only when critical.
-    if(row.viewerFence!==value.viewerFence)invalid();
-    return {row, shown: !layout.hiddenRowIds.includes(row.id) && ((raw as {entries: unknown[]}).entries.length > 0 || hasHomeRowContent(row) || row.critical || row.deferred)};
-  });
-  // A Home none of whose rows could be read is refused rather than shown as empty.
-  if (!readable.length && value.rows.length) invalid();
-  const rows = firstOfEach('home', 'rows', readable.filter(read => read.shown).map(read => read.row), row => row.id);
-  return Object.freeze({serverId: value.serverId, viewerFence: value.viewerFence, rows: Object.freeze(rows), spotlight, layout, revision: revision(value.revision), generatedAt: words(value.generatedAt, 128)});
+/** Home as the server composes it for this profile: the rows it sends, in its order. A row with nothing in it is not sent. */
+export function homeDocument(home: Home): HomeDocument {
+  const rows = firstOfEach('home', 'rows', keepReadable('home', 'rows', home.rows, raw => {
+    const row = raw as Home['rows'][number];
+    if (!id(row.id)) return undefined;
+    const entries = Object.freeze(firstOfEach('home', 'entries', entriesFromItems(row.items), entry => entry.id));
+    if (!entries.length) return undefined;
+    const always = row.id.startsWith('continue');
+    return Object.freeze({id: row.id, title: words(row.title, 1024), kind: row.id, artworkShape: oneOfOr('home', 'row.artworkShape', row.shape, shapes, 'poster'),
+      endpoint: '', privacySensitivity: '', policyState: '', priority: 0, required: always, hideable: !always, reorderable: true, critical: false, cursorCapable: false,
+      entries, start: 0, limit: entries.length, hasMore: false, nextCursor: ''}) as HomeRow;
+  }), row => row.id);
+  return Object.freeze({rows: Object.freeze(rows), spotlight: Object.freeze([]), layout: Object.freeze({revision: 0, rowOrder: Object.freeze(rows.map(row => row.id)), hiddenRowIds: Object.freeze([])})});
 }
 
 function pageQuery(page: HomeRowPage): string {
@@ -394,8 +385,8 @@ function pageQuery(page: HomeRowPage): string {
   return text ? '?' + text : '';
 }
 
-export async function fetchHome(api: HomeApi, limit?: number, signal?: AbortSignal): Promise<HomeDocument> {
-  return validateHomeDocument(await api.request<RouteResponse<"get_home">>(routePath("get_home") + (limit === undefined ? '' : '?limit=' + limit), 'GET', undefined, signal));
+export async function fetchHome(api: HomeApi, signal?: AbortSignal): Promise<HomeDocument> {
+  return homeDocument(await readHomeRows(api, signal));
 }
 
 export async function fetchHomeLayout(api: HomeApi, signal?: AbortSignal): Promise<HomeLayoutView> {
@@ -420,7 +411,6 @@ export function hasFencedHomeMembership(rowId: string): boolean {
 export function appendHomeRowPage(row: HomeRow, page: HomeRow): HomeRow {
   // The server binds a row's cursor to the viewer fence and refuses an old one (invalid_cursor), so only the row's own revision is compared here.
   if(row.id!==page.id)invalid();
-  if(!row.live&&(row.revision.catalog!==page.revision.catalog||row.revision.viewer!==page.revision.viewer))throw Object.assign(new Error('The row revision changed.'),{code:'stale_continuation'});
   if(row.live||page.live){
     if(!row.live||!page.live||row.live.revision!==page.live.revision||row.live.observedAt!==page.live.observedAt||row.live.group!==page.live.group)invalid();
     const key=(v:HomeChannel)=>v.channel.provenance+':'+v.channel.sourceId+':'+v.channel.id;
@@ -450,11 +440,11 @@ export async function fetchHomeRow(api: HomeApi, rowId: string, page: HomeRowPag
 
 export async function saveHomeLayout(api: HomeApi, intent: HomeLayoutIntent, signal?: AbortSignal): Promise<HomeLayout> {
   return validateHomeLayout(await api.request<RouteResponse<"put_home_layout">>(routePath("put_home_layout"), 'PUT', routeBody("put_home_layout", {
-    expectedRevision: intent.expectedRevision, idempotencyKey: intent.idempotencyKey ?? '',
+    expectedRevision: intent.revision, idempotencyKey: intent.idempotencyKey ?? '',
     rowOrder: [...intent.rowOrder], hiddenRowIds: [...intent.hiddenRowIds],
   }), signal));
 }
 
-export async function resetHomeLayout(api: HomeApi, idempotencyKey = '', signal?: AbortSignal, expectedRevision?: number): Promise<HomeLayout> {
-  return validateHomeLayout(await api.request<RouteResponse<"post_home_layout_reset">>(routePath("post_home_layout_reset"), 'POST', routeBody("post_home_layout_reset", {idempotencyKey, ...(expectedRevision === undefined ? {} : {expectedRevision})}), signal));
+export async function resetHomeLayout(api: HomeApi, idempotencyKey = '', signal?: AbortSignal, revision?: number): Promise<HomeLayout> {
+  return validateHomeLayout(await api.request<RouteResponse<"post_home_layout_reset">>(routePath("post_home_layout_reset"), 'POST', routeBody("post_home_layout_reset", {idempotencyKey, ...(revision === undefined ? {} : {expectedRevision: revision})}), signal));
 }

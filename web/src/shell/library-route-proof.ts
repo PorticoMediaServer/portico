@@ -1,6 +1,6 @@
 import type {LocalSession} from '@core/index.ts';
 
-export type LibraryRouteProofSnapshot = Readonly<{serverId: string; viewerFence: string; libraryIds: readonly string[]}>;
+export type LibraryRouteProofSnapshot = Readonly<{serverId: string; libraryIds: readonly string[]}>;
 /** One current proof, never Home-row membership or the tolerant display projection. */
 export type LibraryRouteProof = Readonly<{
   getSnapshot(): LibraryRouteProofSnapshot | undefined;
@@ -12,7 +12,7 @@ export type LibraryRouteProof = Readonly<{
 }>;
 type Session = Pick<LocalSession, 'sessionFamilyId' | 'viewer' | 'deviceId'>;
 type Version = string | number;
-type Candidate = Readonly<{ids: readonly string[]; fence: string; version: Version}>;
+type Candidate = Readonly<{ids: readonly string[]; version: Version}>;
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const text = (value: unknown, max: number): value is string => typeof value === 'string' && value.length > 0 && value.length <= max && !/[\x00-\x1f\x7f]/.test(value);
 
@@ -56,7 +56,7 @@ export function createLibraryRouteProof(o: Readonly<{
   const invalidate = () => {directoryWave = {};directoryTicket = undefined;candidate = undefined;snapshot = undefined;reconcile();};
   const publish = () => {
     if (!current() || !inputsCurrent()) return false;
-    snapshot = Object.freeze({serverId: viewer.serverId, viewerFence: candidate!.fence, libraryIds: candidate!.ids});
+    snapshot = Object.freeze({serverId: viewer.serverId, libraryIds: candidate!.ids});
     reconcile();return true;
   };
   const source: LibraryRouteProof = Object.freeze({getSnapshot, reconcile, isCurrent: current,
@@ -76,9 +76,9 @@ export function createLibraryRouteProof(o: Readonly<{
     },
     directory(ticket: object, raw: unknown) {
       if (!current() || directoryTicket !== ticket || directoryTicket.wave !== directoryWave || directoryTicket.version !== o.directoryVersion()) return false;
-      const ids = completeLibraryDirectory(raw), fence = record(raw) && text(raw.viewerFence, 8192) ? raw.viewerFence : undefined;
-      if (!ids || !fence || !current() || directoryTicket !== ticket || directoryTicket.version !== o.directoryVersion()) return false;
-      candidate = {ids, fence, version: directoryTicket.version};publish();return true;
+      const ids = completeLibraryDirectory(raw);
+      if (!ids || !current() || directoryTicket !== ticket || directoryTicket.version !== o.directoryVersion()) return false;
+      candidate = {ids, version: directoryTicket.version};publish();return true;
     },
     dispose() {if (closed) return;closed = true;snapshot = undefined;candidate = undefined;directoryTicket = undefined;claimedOpening = undefined;reconcile();listeners.clear();},
   };

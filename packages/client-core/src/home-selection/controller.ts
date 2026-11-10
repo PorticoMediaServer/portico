@@ -33,8 +33,8 @@ const sameContext = (a: SelectionContext, b: SelectionContext) =>
   sameScope(a, b) && a.scope.privacyFence === b.scope.privacyFence && a.revision.catalogRevision === b.revision.catalogRevision && a.revision.viewerRevision === b.revision.viewerRevision;
 const sameEnvironment = (a: SelectionEnvironment, b: SelectionEnvironment) => a.platform === b.platform && a.isOwner === b.isOwner && a.canEditMetadata === b.canEditMetadata;
 export function homeSelectionContext(scope: Omit<SelectionContext['scope'], 'privacyFence'>, document: HomeDocument): SelectionContext {
-  if (scope.serverId !== document.serverId) throw selectionExecutionError('home-source-mismatch');
-  return {scope: {...scope, privacyFence: document.viewerFence}, revision: {catalogRevision: String(document.revision.catalog), viewerRevision: String(document.revision.viewer)}};
+  void document;
+  return {scope: {...scope, privacyFence: ''}, revision: {catalogRevision: '', viewerRevision: ''}};
 }
 type WindowSource = Readonly<{kind: 'row'; id: string; slot: 'entries' | 'collection' | 'live'} | {kind: 'spotlight'}>;
 type WindowOrigin = Readonly<{kind: 'row'; row: HomeRow; index: number} | {kind: 'spotlight'; spotlight: HomeSpotlight}>;
@@ -112,13 +112,13 @@ export class HomeSelectionController {
   getDisplayMembers = () => this.state.displayMembers;
   private isHomeCurrent(context: SelectionContext) {
     const document = this.options.home.getSnapshot().document;
-    return !!document && this.options.isCurrent(context) && document.serverId === context.scope.serverId && document.viewerFence === context.scope.privacyFence && String(document.revision.catalog) === context.revision.catalogRevision && String(document.revision.viewer) === context.revision.viewerRevision;
+    return !!document && this.options.isCurrent(context);
   }
   private active() {if (this.disposed) throw selectionExecutionError('stale-home-context'); if (!this.isHomeCurrent(this.state.context)) {this.invalidate(); throw selectionExecutionError('stale-home-context');}}
   private platform(): HomeActionPlatform {return {platform: this.environment.platform === 'phone-app' ? 'phone-app' : this.environment.platform === 'tv' ? 'tv' : 'web', playbackAvailable: true, queueAvailable: true, nativeDownloadsAvailable: !!this.options.download};}
   private homeChanged() {
     const document = this.options.home.getSnapshot().document;
-    if (!document || document.serverId !== this.state.context.scope.serverId) {this.invalidate(); return;}
+    if (!document) {this.invalidate(); return;}
     const next = homeSelectionContext(this.state.context.scope, document);
     if (!this.options.isCurrent(next)) {this.invalidate(); return;}
     if (document !== this.document || !sameContext(next, this.state.context)) this.reconcile(next, this.environment);
@@ -237,7 +237,7 @@ export class HomeSelectionController {
   registerWindow(input: HomeSelectionWindowInput): SelectionRegistration | Readonly<{ok: false; reason: 'stale-home-live-window'}> {
     this.active();
     const row = this.rows().find(value => value === input.row);
-    if (!row || row.viewerFence !== this.state.context.scope.privacyFence) throw selectionExecutionError('unoffered-home-row');
+    if (!row) throw selectionExecutionError('unoffered-home-row');
     const members = new Map<string, HomeSelectionMember>(), platform = this.platform();
     let start = input.start ?? row.start;
     const put = (member: HomeSelectionMember) => members.set(this.key(member.item), member);
@@ -310,7 +310,7 @@ export class HomeSelectionController {
     return ticket.target.mode === 'explicit' && ticket.target.items.every(pick => {
       if (pick.item.kind !== 'channel') return true;
       const member = this.operationMembers.get(pick.key);
-      return !!member?.channel && this.rows().some(row => row.viewerFence === ticket.context.scope.privacyFence && row.live && Number.isFinite(Date.parse(row.live.expiresAt)) && Date.parse(row.live.expiresAt) > serverNow() && row.live.channels.includes(member.channel!))
+      return !!member?.channel && this.rows().some(row => row.live && Number.isFinite(Date.parse(row.live.expiresAt)) && Date.parse(row.live.expiresAt) > serverNow() && row.live.channels.includes(member.channel!))
         && selectionCapabilityNames.every(name => homeChannelSelection(member.channel!, this.platform()).capabilities[name] === pick.item.capabilities[name]);
     });
   }
@@ -457,7 +457,7 @@ export class HomeSelectionController {
       }) ?? [];
       return found.length === 1 ? found[0] : undefined;
     }
-    const rows = this.rows().filter(row => row.id === source.id && row.viewerFence === this.state.context.scope.privacyFence);
+    const rows = this.rows().filter(row => row.id === source.id);
     if (rows.length !== 1) return;
     const row = rows[0];
     if (source.slot === 'live') {

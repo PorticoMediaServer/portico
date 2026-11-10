@@ -405,7 +405,7 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
     const scopeKey = () => {
       const current = captured.context.session(), viewer = current.viewer, query = controller?.getSnapshot() ?? noGrid;
       return JSON.stringify([resources.routeKey, gridName, current.sessionFamilyId, current.deviceId,
-        viewer.serverId, viewer.authority, viewer.accountId, viewer.profileId, viewer.role, captured.context.viewerFence,
+        viewer.serverId, viewer.authority, viewer.accountId, viewer.profileId, viewer.role,
         query.predicates, query.sort]);
     };
     const actions = createBrowserQueryActions(queryBridge, {api: {...resources.life.api, mediaUrl: context.api.mediaUrl.bind(context.api)},

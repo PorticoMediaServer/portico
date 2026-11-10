@@ -188,7 +188,7 @@ export function HomeView({service, customization, document, nowMs, onMore, refre
   const mixesState = useSyncExternalStore(musicMixes?.subscribe ?? noSubscription, musicMixes?.getSnapshot ?? noMixes, musicMixes?.getSnapshot ?? noMixes);
   const mixesContent = !!mixesState && (mixesState.phase === 'loading' || mixesState.phase === 'ready' && mixesState.rows.length > 0);
   const empty = candidates.length === 0 && !mixesContent && !anyContent(rows);
-  return <div className={styles.home} data-size-class={sizeClass} data-home-document={document.viewerFence}>
+  return <div className={styles.home} data-size-class={sizeClass} data-home-document="">
     {candidates.length > 0 && <div ref={hero.ref}><Hero<Spotlight> candidates={candidates} platform={platform} sizeClass={sizeClass} visible={hero.visible} reducedMotion={appearance?.reducedMotion ?? reducedMotion}
       renderReason={slide => slide.reason}
       titleLink={slide => { const href = effects.entryHref?.(slide.entry); return href ? {href, open: () => effects.openEntry(slide.entry)} : undefined; }}
