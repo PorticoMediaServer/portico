@@ -112,8 +112,16 @@ func (s *Server) finishTwoFactor(r *http.Request, req TwoFactorFinish) (SignInRe
 	return s.signedIn(ctx, st, now, refresh)
 }
 
+// Everything about two-step sign-in says or changes how the account is secured, so like
+// every other part of managing the account it needs the main profile: reading whether it is
+// on, turning it on or off, and making recovery codes.
+
 func (s *Server) twoFactorState(r *http.Request, _ None) (TwoFactorState, error) {
-	state, err := s.db.TwoFactor(r.Context(), CallerFrom(r.Context()).UserID)
+	caller, err := manager(r)
+	if err != nil {
+		return TwoFactorState{}, err
+	}
+	state, err := s.db.TwoFactor(r.Context(), caller.UserID)
 	out := TwoFactorState{Enabled: state.Enabled, RecoveryCodesLeft: state.RecoveryCodesLeft}
 	if state.Enabled {
 		at := state.EnabledAt.UTC()
@@ -121,9 +129,6 @@ func (s *Server) twoFactorState(r *http.Request, _ None) (TwoFactorState, error)
 	}
 	return out, err
 }
-
-// Turning two-step sign-in on or off and making recovery codes change how the account is
-// secured, so like every other change to the account they need its main profile.
 
 func (s *Server) enrolTwoFactor(r *http.Request, req TwoFactorEnrol) (TwoFactorSetup, error) {
 	ctx := r.Context()

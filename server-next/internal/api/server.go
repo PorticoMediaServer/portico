@@ -154,6 +154,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.identityRoutes()
 	s.authRoutes()
 	s.profileRoutes()
+	s.preferenceRoutes()
 	s.deviceRoutes()
 	s.memberRoutes()
 	s.invitationRoutes()
@@ -193,6 +194,16 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 	if _, pattern := s.mux.Handler(r); pattern == "" {
+		// A token that is no longer good is told so whatever the address, so an app that
+		// asks for something this server does not have still learns to renew its sign-in.
+		if strings.HasPrefix(r.URL.Path, "/v1/") && r.Header.Get("Authorization") != "" {
+			if _, err := s.admit(r, &Route{Access: SignedIn, Scope: ScopeRead}); err != nil {
+				if e, ok := asError(err); !ok || e.Status == http.StatusUnauthorized {
+					s.writeError(w, r, err)
+					return
+				}
+			}
+		}
 		// The mux would answer in plain text. Say the same thing in the API's error format.
 		probe := &statusOnly{}
 		s.mux.ServeHTTP(probe, r)

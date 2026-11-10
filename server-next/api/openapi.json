@@ -1328,8 +1328,103 @@
         ],
         "type": "object"
       },
+      "PreferenceDocument": {
+        "properties": {
+          "scope": {
+            "type": "string"
+          },
+          "values": {
+            "additionalProperties": {},
+            "type": "object"
+          }
+        },
+        "required": [
+          "scope",
+          "values"
+        ],
+        "type": "object"
+      },
+      "PreferenceRegistry": {
+        "properties": {
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/Setting"
+            },
+            "type": "array"
+          },
+          "revision": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "revision",
+          "fields"
+        ],
+        "type": "object"
+      },
+      "Preferences": {
+        "properties": {
+          "deviceBound": {
+            "type": "boolean"
+          },
+          "deviceClass": {
+            "type": "string"
+          },
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/PreferenceDocument"
+            },
+            "type": "array"
+          },
+          "effective": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "effectiveSource": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "registry": {
+            "$ref": "#/components/schemas/PreferenceRegistry"
+          }
+        },
+        "required": [
+          "deviceClass",
+          "deviceBound",
+          "registry",
+          "documents",
+          "effective",
+          "effectiveSource"
+        ],
+        "type": "object"
+      },
+      "PreferencesEdit": {
+        "properties": {
+          "deviceClass": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "values": {
+            "additionalProperties": {},
+            "type": "object"
+          }
+        },
+        "required": [
+          "scope",
+          "deviceClass",
+          "values"
+        ],
+        "type": "object"
+      },
       "Profile": {
         "properties": {
+          "accessMarker": {
+            "type": "string"
+          },
           "color": {
             "type": "string"
           },
@@ -1351,7 +1446,8 @@
           "name",
           "color",
           "isPrimary",
-          "pinRequired"
+          "pinRequired",
+          "accessMarker"
         ],
         "type": "object"
       },
@@ -1610,6 +1706,48 @@
         },
         "required": [
           "items"
+        ],
+        "type": "object"
+      },
+      "Setting": {
+        "properties": {
+          "allowedValues": {
+            "items": {},
+            "type": "array"
+          },
+          "default": {},
+          "group": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "labelKey": {
+            "type": "string"
+          },
+          "max": {
+            "type": "number"
+          },
+          "min": {
+            "type": "number"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "type",
+          "default",
+          "scopes",
+          "group",
+          "labelKey"
         ],
         "type": "object"
       },
@@ -3942,6 +4080,68 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Person"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/preferences": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Preferences"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      },
+      "patch": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreferencesEdit"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Preferences"
                 }
               }
             },

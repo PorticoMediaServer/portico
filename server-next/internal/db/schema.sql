@@ -587,20 +587,21 @@ CREATE TABLE api_keys (
 ) STRICT;
 CREATE INDEX api_keys_user ON api_keys (user_id);
 
--- Per user, profile or device settings as key and JSON value. Exactly one owner per row.
+-- A profile's own settings, as key and JSON value. A row with no device_class and no device
+-- applies everywhere; one with a device_class to that kind of device (web, mobile, tablet,
+-- television); one with a device to that device alone. The narrowest row wins.
 CREATE TABLE preferences (
-  id         INTEGER NOT NULL PRIMARY KEY,
-  user_id    INTEGER REFERENCES users(id) ON DELETE CASCADE,
-  profile_id INTEGER REFERENCES profiles(id) ON DELETE CASCADE,
-  device_id  INTEGER REFERENCES devices(id) ON DELETE CASCADE,
-  key        TEXT    NOT NULL,
-  value      TEXT    NOT NULL,
-  updated_at INTEGER NOT NULL,
-  CHECK ((user_id IS NOT NULL) + (profile_id IS NOT NULL) + (device_id IS NOT NULL) = 1)
+  id           INTEGER NOT NULL PRIMARY KEY,
+  profile_id   INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  device_class TEXT    NOT NULL DEFAULT '',
+  device_id    INTEGER REFERENCES devices(id) ON DELETE CASCADE,
+  key          TEXT    NOT NULL,
+  value        TEXT    NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  CHECK (device_class = '' OR device_id IS NULL)
 ) STRICT;
-CREATE UNIQUE INDEX preferences_user ON preferences (user_id, key) WHERE user_id IS NOT NULL;
-CREATE UNIQUE INDEX preferences_profile ON preferences (profile_id, key) WHERE profile_id IS NOT NULL;
-CREATE UNIQUE INDEX preferences_device ON preferences (device_id, key) WHERE device_id IS NOT NULL;
+CREATE UNIQUE INDEX preferences_key ON preferences (profile_id, device_class, ifnull(device_id, 0), key);
+CREATE INDEX preferences_device ON preferences (device_id) WHERE device_id IS NOT NULL;
 
 -- ---------------------------------------------------------------------------------------
 -- F. Per-user state

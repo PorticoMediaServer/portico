@@ -397,12 +397,38 @@ export interface Person {
   titleCount: number;
 }
 
+export interface PreferenceDocument {
+  scope: string;
+  values: Record<string, unknown>;
+}
+
+export interface PreferenceRegistry {
+  revision: string;
+  fields: Setting[];
+}
+
+export interface Preferences {
+  deviceClass: string;
+  deviceBound: boolean;
+  registry: PreferenceRegistry;
+  documents: PreferenceDocument[];
+  effective: Record<string, unknown>;
+  effectiveSource: Record<string, string>;
+}
+
+export interface PreferencesEdit {
+  scope: string;
+  deviceClass: string;
+  values: Record<string, unknown>;
+}
+
 export interface Profile {
   id: string;
   name: string;
   color: string;
   isPrimary: boolean;
   pinRequired: boolean;
+  accessMarker: string;
 }
 
 export interface ProfileCreate {
@@ -484,6 +510,18 @@ export interface SessionInfo {
 export interface SessionInfoPage {
   items: SessionInfo[];
   nextCursor?: string;
+}
+
+export interface Setting {
+  key: string;
+  type: string;
+  default: unknown;
+  allowedValues?: unknown[];
+  min?: number;
+  max?: number;
+  scopes: string[];
+  group: string;
+  labelKey: string;
 }
 
 export interface SetupOwnerRequest {
@@ -649,6 +687,8 @@ export interface Routes {
   'DELETE /v1/profiles/{id}/pin': {access: 'signedIn'; request: undefined; response: undefined};
   'DELETE /v1/profiles/{id}': {access: 'signedIn'; request: undefined; response: undefined};
   'POST /v1/profiles/{id}/select': {access: 'signedIn'; request: ProfileSelect; response: Session};
+  'GET /v1/preferences': {access: 'withProfile'; request: undefined; response: Preferences};
+  'PATCH /v1/preferences': {access: 'withProfile'; request: PreferencesEdit; response: Preferences};
   'GET /v1/me/sessions': {access: 'signedIn'; request: undefined; response: SessionInfoPage};
   'DELETE /v1/me/sessions': {access: 'signedIn'; request: undefined; response: undefined};
   'DELETE /v1/me/sessions/{id}': {access: 'signedIn'; request: undefined; response: undefined};

@@ -23,6 +23,10 @@ type Profile struct {
 	IsPrimary bool `json:"isPrimary"`
 	// PINRequired says selecting this profile needs its PIN.
 	PINRequired bool `json:"pinRequired"`
+	// AccessMarker changes whenever what the profile may see changes: its libraries, its
+	// limits or its account's role. It means nothing else. An app keeps it with whatever it
+	// has cached for the profile and throws the cache away when it differs.
+	AccessMarker string `json:"accessMarker"`
 }
 
 // ProfileCreate adds a profile. Send an Idempotency-Key so a repeat does not add a second one.
@@ -60,7 +64,8 @@ type ProfileSelect struct {
 var profileColors = []string{"blue", "violet", "mint", "coral", "gold", "slate", "rose", "sky"}
 
 func profileOut(p db.Profile) Profile {
-	return Profile{ID: p.PublicID, Name: p.Name, Color: p.Color, IsPrimary: p.Primary, PINRequired: p.PINHash != ""}
+	return Profile{ID: p.PublicID, Name: p.Name, Color: p.Color, IsPrimary: p.Primary, PINRequired: p.PINHash != "",
+		AccessMarker: strconv.FormatInt(p.AccessChangedAt, 36)}
 }
 
 func profilesOut(profiles []db.Profile) []Profile {

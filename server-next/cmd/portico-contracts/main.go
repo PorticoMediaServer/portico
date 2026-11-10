@@ -238,6 +238,9 @@ func tsType(t reflect.Type) string {
 		return tsType(t.Elem()) + "[]"
 	case reflect.Map:
 		return "Record<string, " + tsType(t.Elem()) + ">"
+	case reflect.Interface:
+		// A value whose type depends on what it is a value of, such as a setting's.
+		return "unknown"
 	case reflect.Struct:
 		if t == timeType {
 			return "string"
@@ -300,6 +303,8 @@ func schema(t reflect.Type) object {
 		return object{"type": "array", "items": schema(t.Elem())}
 	case reflect.Map:
 		return object{"type": "object", "additionalProperties": schema(t.Elem())}
+	case reflect.Interface:
+		return object{}
 	case reflect.Struct:
 		if t == timeType {
 			return object{"type": "string", "format": "date-time"}

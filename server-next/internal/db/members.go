@@ -175,6 +175,7 @@ func (d *DB) UpdateMember(ctx context.Context, e MemberEdit) (Member, error) {
 		}
 		at := e.Now.UnixMilli()
 		var did []string
+		accessMoved := false
 		if e.Role != nil && *e.Role != m.Role {
 			if !Manages(e.ActorRole, *e.Role) {
 				return ErrNotPermitted
@@ -183,6 +184,7 @@ func (d *DB) UpdateMember(ctx context.Context, e MemberEdit) (Member, error) {
 				return err
 			}
 			did = append(did, "role "+*e.Role)
+			accessMoved = true
 		}
 		if e.Disabled != nil && *e.Disabled != m.Disabled {
 			var disabledAt any
@@ -224,10 +226,13 @@ func (d *DB) UpdateMember(ctx context.Context, e MemberEdit) (Member, error) {
 					}
 				}
 			}
-			if _, err := tx.Exec(`UPDATE profiles SET access_changed_at = ? WHERE user_id = ?`, at, m.ID); err != nil {
+			did = append(did, "libraries")
+			accessMoved = true
+		}
+		if accessMoved {
+			if err := accessChanged(tx, e.Now, `user_id = ?`, m.ID); err != nil {
 				return err
 			}
-			did = append(did, "libraries")
 		}
 		if _, err := tx.Exec(`UPDATE users SET updated_at = ?, revision = revision + 1 WHERE id = ?`, at, m.ID); err != nil {
 			return err

@@ -26,12 +26,12 @@ Assistant) are a separate short document and are not counted here.
 | Repeating a request | `PUT`, `PATCH` and `DELETE` are safe to repeat by design. A `POST` that creates something takes an `Idempotency-Key` header; a repeat returns what was created, and the same key with a different body is `422 idempotency_key_reused`. A `2xx` always means it happened. |
 | Edits by two people | `ETag` out and `If-Match` in, only on documents two people or devices edit: owner settings, the metadata editor, shared lists, queues. A stale `If-Match` is `412`. Never on watched, favourite, rating or progress: the last tap wins. |
 | Slow work | Reads answer or fail; they never say "not ready". A slow write answers `202` with a `Job` to watch at `/v1/jobs/{id}`. Starting playback and preparing a download may answer `202 preparing`; the client repeats the same request. |
-| Changes | `GET /v1/events` is a server-sent event stream with a cursor. An event says "this changed, read it again" and never carries the data. A `resync` event means "reread everything you show" and always has an id. |
+| Changes | `GET /v1/events` is a server-sent event stream with a cursor. An event says "this changed, read it again" and never carries the data. A `resync` event means "reread everything you show" and always has an id. An `access` change means what this profile may see has changed: throw the cache away. |
 | Time | Timestamps are RFC 3339 UTC strings ending `At`. Durations and positions are whole milliseconds ending `Ms`. |
 | Unknown things | Clients ignore fields, enum values and event types they do not know. Every enum is open. The server ignores unknown request fields. |
 | Server-tuned values | The server tells clients how often to report progress, how long to wait before retrying and the largest page it will serve. Clients do not hard-code them. |
 | Media and artwork | The server returns addresses that carry their own short-lived permission (`/v1/media/{grant}/{file}`, `/v1/images/{id}`). Clients fetch them and never build them. |
-| Sign-in | `Authorization: Bearer <access token>`. Access tokens last 15 minutes; the refresh token rotates on every renewal; a renewal repeated with the same `requestId` gets the same answer; an older refresh token used again ends the session. |
+| Sign-in | `Authorization: Bearer <access token>`. Access tokens last 15 minutes; the refresh token rotates on every renewal; a renewal repeated with the same `requestId` gets the same answer; an older refresh token used again ends the session. A token that is no longer good is answered `401` at every address under `/v1`, an unknown one included. |
 | Versioning | `/v1` in the path. After release, additions are optional fields and new routes, announced in `capabilities` on `GET /v1/system`. |
 
 ## Shared shapes
@@ -49,7 +49,8 @@ Assistant) are a separate short document and are not counted here.
   browsed by).
 - **`Person`**, **`Tag`**, **`Credit`**: small named shapes used by `Item`.
 - **`Account`**: `id`, `username`, `role`. **`Profile`**: `id`, `name`, `avatar?`,
-  `pinRequired`, `restricted`. **`Device`**, **`Session`** (a sign-in).
+  `pinRequired`, `accessMarker` (changes when what the profile may see changes; part of an
+  app's cache key and nothing else). **`Device`**, **`Session`** (a sign-in).
 - **`Tokens`**: `accessToken`, `expiresAt`, `refreshToken`.
 - **`Job`**: `id`, `kind`, `state`, `progress?`, `error?`.
 - **`PlaybackSession`**, **`Queue`**, **`List`**, **`Download`**: defined with their areas.
@@ -66,7 +67,7 @@ Assistant) are a separate short document and are not counted here.
 | `GET /v1/events` | The change feed |
 | `GET /v1/attribution` | Required notices for metadata providers |
 
-### Sign-in (17)
+### Sign-in (16)
 
 | Route | Purpose |
 |---|---|
@@ -77,11 +78,11 @@ Assistant) are a separate short document and are not counted here.
 | `POST /v1/auth/portico/challenge`, `POST /v1/auth/portico/exchange` | Sign in with a Portico Account |
 | `POST /v1/auth/codes`, `GET /v1/auth/codes/{id}`, `POST /v1/auth/codes/{id}/approve`, `POST /v1/auth/codes/{id}/redeem` | Sign in on a TV by approving a code on a phone |
 | `GET /v1/auth/invitations/{id}`, `POST /v1/auth/invitations/{id}/accept` | Preview and accept an invitation |
-| `POST /v1/auth/password-reset`, `POST /v1/auth/password-reset/confirm` | Reset a forgotten password |
+| `POST /v1/auth/password-reset/confirm` | Choose a new password with a reset code. The owner or an admin makes the code in People; the server sends no email, so there is no route that asks for one |
 | `POST /v1/auth/password` | Change your password |
 | `GET /v1/auth/remembered`, `DELETE /v1/auth/remembered/{id}` | Accounts remembered on this device's sign-in screen |
 
-### Me, profiles and devices (27)
+### Me, profiles and devices (33)
 
 | Route | Purpose |
 |---|---|
@@ -97,7 +98,8 @@ Assistant) are a separate short document and are not counted here.
 | `GET /v1/devices`, `PATCH /v1/devices/{id}`, `DELETE /v1/devices/{id}` | Your devices: list, rename, forget (ends its sign-ins) |
 | `GET /v1/devices/{id}/capabilities`, `PUT /v1/devices/{id}/capabilities` | What a device can play |
 | `GET /v1/me/sessions`, `DELETE /v1/me/sessions/{id}`, `DELETE /v1/me/sessions` | Your sign-ins: list, end one, end all others |
-| `GET /v1/preferences`, `PATCH /v1/preferences` | Per-profile and per-device settings |
+| `GET /v1/preferences`, `PATCH /v1/preferences` | A profile's own settings: the list of settings with their defaults, what the profile saved for everywhere, for this kind of device and for this device, and the values in force. The last save wins. |
+| `/v1/me/tokens`, `/v1/me/app-passwords` | Your personal tokens and app passwords: list, make, revoke |
 
 ### Browse, search and Home (23)
 
@@ -147,7 +149,7 @@ resources and their counts are fixed now so the whole product fits the budget:
 | Live TV and DVR | `/v1/live/channels`, `/guide`, `/now`, programme detail, channel favourites and hiding; reminders (3); `/v1/dvr/recordings` (6); `/v1/dvr/rules` (4). Watching a channel is an ordinary playback session. |
 | Notices and reports | Notification inbox (3); feedback reports (2); client log upload (1); app reports (3) |
 
-## Console API (about 185)
+## Console API (about 180)
 
 Listed route by route with each console panel's definition. Resources:
 
@@ -160,7 +162,7 @@ Listed route by route with each console panel's definition. Resources:
 | Playback and analysis | 17 | Active sessions; play history; hardware and transcode capacity; remembered playback failures; intro and credits review; analysis jobs |
 | Live TV and DVR setup | 24 | Sources; live settings; DVR settings; library channels |
 | Server operations | 38 | Settings; jobs and schedules; logs; backups; updates; restart; dashboard; storage; diagnostics; notices; feedback triage; resource usage |
-| Keys, tools, webhooks | 15 | API keys; personal tokens; app passwords; webhooks; MCP |
+| Keys, tools, webhooks | 9 | Server API keys; webhooks; MCP. A person's own tokens and app passwords are under `/v1/me` |
 
 ## Not on the wire, on purpose
 
