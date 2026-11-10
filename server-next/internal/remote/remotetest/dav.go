@@ -28,6 +28,9 @@ type DAV struct {
 	SlowDowns atomic.Int64
 	// NoRanges makes GET ignore Range and send the whole file.
 	NoRanges atomic.Bool
+	// BadNames are names, written as they go in an href (already escaped), that every
+	// folder listing also gives as files: what a server that cannot be trusted might send.
+	BadNames []string
 
 	mu       sync.Mutex
 	files    map[string][]byte
@@ -145,6 +148,10 @@ func (d *DAV) propfind(w http.ResponseWriter, r *http.Request, rel string) {
 			sort.Strings(names)
 			for _, name := range names {
 				entry(path.Join(rel, name), children[name])
+			}
+			for _, raw := range d.BadNames {
+				fmt.Fprintf(&out, `<D:response><D:href>%s/%s</D:href><D:propstat><D:prop><D:getcontentlength>1</D:getcontentlength><D:resourcetype/></D:prop>`+
+					`<D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>`, (&url.URL{Path: path.Join("/dav", rel)}).EscapedPath(), raw)
 			}
 		}
 	}
