@@ -11,8 +11,10 @@ import (
 var ErrTranscodingDisabled = errors.New("This source requires conversion, which the server owner has disabled.")
 
 // PlanRequest is everything one playback decision depends on. The caller reads
-// each part from wherever it lives; planning reads nothing and keeps nothing, so
-// the same request always gives the same plan.
+// each part from wherever it lives; planning reads no database and keeps nothing,
+// so on one host the same request always gives the same plan. (What this host's
+// ffmpeg can produce is set once at start: decoder.CurrentToolchain and
+// SetConversionOutputs.)
 type PlanRequest struct {
 	// File is the catalogue's facts for the chosen version of the title.
 	File FileFacts
@@ -20,8 +22,8 @@ type PlanRequest struct {
 	// the media behind a STRM, or one title of a disc. Disc says which.
 	Measured *DeliverySource
 	Disc     bool
-	// Device is the capability document the device last published. Nil plans for
-	// the built-in baseline profile.
+	// Device is the capability document the device last published. Nil plans from
+	// the baseline document, as for a device that has published nothing yet.
 	Device *CapabilityDocument
 	// Choice is what the viewer picked: version, quality, audio track, subtitle.
 	Choice Choice
@@ -97,6 +99,10 @@ func Plan(r PlanRequest) (DeliveryPlan, error) {
 	input.CarriedAudioLanguage = choice.CarriedAudioLanguage
 
 	input.Device = r.Device
+	if input.Device == nil {
+		baseline := BaselineCapabilityDocument()
+		input.Device = &baseline
+	}
 	input.PreferredAudioLanguages = resolvePreferenceLanguages(values, "playback.preferredAudioLanguages", edge.AppLanguage)
 	input.AudioTrackChoice = values.Text("playback.audioTrackChoice")
 	input.PreferAudioDescription = values.Text("playback.audioDescription") == "prefer"
