@@ -37,7 +37,7 @@ class ReadingClientSelection(unittest.TestCase):
         for filename in ['merge.yml', 'nightly.yml']:
             text = (ROOT / '.github/workflows' / filename).read_text()
             blocks = re.findall(r'^      - name: Install real reading-client integration dependencies\n.*?        run: \|\n((?:          [^\n]*\n)+)', text, re.M | re.S)
-            self.assertEqual(len(blocks), 1 if filename == 'merge.yml' else 2)
+            self.assertEqual(len(blocks), 1)
             for block in blocks:
                 with tempfile.TemporaryDirectory() as directory:
                     root = Path(directory); contracts = root / 'packages/contracts'; contracts.mkdir(parents=True)
