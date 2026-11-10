@@ -5,10 +5,13 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"math"
 	"sync"
 	"time"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 )
 
 // ErrBadCredentials is the one answer for every failed proof: wrong password, unknown
@@ -185,6 +188,13 @@ type SessionState struct {
 	ProfilePrimary  bool
 	// MemberOnly: the session never has more than a member's rights. See NewSession.
 	MemberOnly bool
+	// Enrol: the session can only set up two-step sign-in. See NewSession.
+	Enrol bool
+	// ManageUntil is when a main profile entered with a remembered PIN stops being able to
+	// manage the account until the PIN is typed again. Zero is no such limit.
+	ManageUntil time.Time
+	// Hours are the account's viewing hours.
+	Hours auth.Hours
 
 	DevicePublicID string
 	InstallationID string
@@ -196,22 +206,31 @@ type SessionState struct {
 
 func sessionState(ctx context.Context, q queryer, id int64) (SessionState, error) {
 	var s SessionState
-	var expires, renewed int64
+	var expires, renewed, manageUntil int64
+	var hours string
 	err := q.QueryRowContext(ctx, `
 		SELECT s.id, s.public_id, s.token_generation, s.expires_at, ifnull(s.previous_at, s.created_at),
 			s.revoked_at IS NOT NULL, s.refresh_hash, ifnull(s.previous_refresh_hash, ''), ifnull(s.previous_request_id, ''),
 			u.id, u.public_id, u.role, u.disabled_at IS NOT NULL,
-			ifnull(p.id, 0), ifnull(p.public_id, ''), ifnull(p.is_primary, 0), s.scope = 'member',
+			ifnull(p.id, 0), ifnull(p.public_id, ''), ifnull(p.is_primary, 0), s.scope = 'member', s.scope = 'enrol',
+			ifnull(s.manage_until_at, 0), ifnull(u.viewing_hours, ''),
 			d.public_id, d.client_id
 		FROM sessions s JOIN users u ON u.id = s.user_id JOIN devices d ON d.id = s.device_id
 		LEFT JOIN profiles p ON p.id = s.profile_id
 		WHERE s.id = ?`, id).Scan(&s.ID, &s.PublicID, &s.Generation, &expires, &renewed,
 		&s.revoked, &s.refreshHash, &s.previousHash, &s.previousRequestID,
 		&s.UserID, &s.UserPublicID, &s.UserRole, &s.disabled,
-		&s.ProfileID, &s.ProfilePublicID, &s.ProfilePrimary, &s.MemberOnly,
+		&s.ProfileID, &s.ProfilePublicID, &s.ProfilePrimary, &s.MemberOnly, &s.Enrol,
+		&manageUntil, &hours,
 		&s.DevicePublicID, &s.InstallationID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return s, ErrNotFound
+	}
+	if manageUntil != 0 {
+		s.ManageUntil = time.UnixMilli(manageUntil)
+	}
+	if hours != "" {
+		json.Unmarshal([]byte(hours), &s.Hours)
 	}
 	s.ExpiresAt, s.RenewedAt = time.UnixMilli(expires), time.UnixMilli(renewed)
 	return s, err
@@ -234,14 +253,61 @@ type NewSession struct {
 	ExpiresAt   time.Time
 	Device      DeviceInfo
 	RemoteAddr  string
+	// KeepEnded is how long the account's ended sessions stay listed; older ones are dropped.
+	KeepEnded time.Duration
 	// MemberOnly starts a session that never has more than a member's rights, whichever
 	// profile it is on: a TV approved by someone who was not on the account's main profile.
 	MemberOnly bool
+	// TwoStepRequired says whether the owner requires two-step sign-in of an account with
+	// this role. A password sign-in to such an account that has not set it up starts a
+	// session that can do nothing else until it has.
+	TwoStepRequired func(role string) bool
+}
+
+// ErrOutsideHours: the account has viewing hours and this is not one of them. Nothing was
+// changed: a sign-in already held is kept for later.
+var ErrOutsideHours = errors.New("outside the account's viewing hours")
+
+// viewingOpen reports whether an account may be used now.
+func viewingOpen(q queryer, userID int64, now time.Time) (bool, error) {
+	var stored sql.NullString
+	if err := q.QueryRowContext(context.Background(), `SELECT viewing_hours FROM users WHERE id = ?`, userID).Scan(&stored); err != nil {
+		return false, err
+	}
+	var hours auth.Hours
+	if stored.Valid {
+		json.Unmarshal([]byte(stored.String), &hours)
+	}
+	open, _ := hours.Open(now)
+	return open, nil
+}
+
+// ViewingOpen reports whether an account may be used now and, if its hours limit it, when
+// the window it is in ends. The playback layer asks on each progress report, and stops a
+// title when the answer is no.
+func (d *DB) ViewingOpen(ctx context.Context, userID int64, now time.Time) (open bool, until time.Time, err error) {
+	var stored sql.NullString
+	if err := d.read.QueryRowContext(ctx, `SELECT viewing_hours FROM users WHERE id = ?`, userID).Scan(&stored); err != nil {
+		return false, time.Time{}, err
+	}
+	var hours auth.Hours
+	if stored.Valid {
+		json.Unmarshal([]byte(stored.String), &hours)
+	}
+	open, until = hours.Open(now)
+	return open, until, nil
 }
 
 // startSession registers the device and inserts the session, for a user already proven.
+// Outside the account's viewing hours it is ErrOutsideHours, and the caller's transaction
+// must change nothing.
 func startSession(tx *sql.Tx, userID int64, n NewSession, now time.Time) (SessionState, error) {
 	at := now.UnixMilli()
+	if open, err := viewingOpen(tx, userID, now); err != nil {
+		return SessionState{}, err
+	} else if !open {
+		return SessionState{}, ErrOutsideHours
+	}
 	var deviceID int64
 	// A name someone gave the device is kept; the app's own facts are brought up to date.
 	err := tx.QueryRow(`INSERT INTO devices (public_id, client_id, name, platform, app, app_version, created_at, last_seen_at)
@@ -253,13 +319,25 @@ func startSession(tx *sql.Tx, userID int64, n NewSession, now time.Time) (Sessio
 		return SessionState{}, err
 	}
 	// Sessions that ended long ago are of no more use to the session list.
-	if _, err := tx.Exec(`DELETE FROM sessions WHERE user_id = ? AND min(expires_at, ifnull(revoked_at, expires_at)) < ?`,
-		userID, now.Add(-endedSessionsKept).UnixMilli()); err != nil {
-		return SessionState{}, err
+	if n.KeepEnded > 0 {
+		if _, err := tx.Exec(`DELETE FROM sessions WHERE user_id = ? AND min(expires_at, ifnull(revoked_at, expires_at)) < ?`,
+			userID, now.Add(-n.KeepEnded).UnixMilli()); err != nil {
+			return SessionState{}, err
+		}
 	}
 	scope := "app"
 	if n.MemberOnly {
 		scope = "member"
+	}
+	if n.TwoStepRequired != nil {
+		var role string
+		var enrolled bool
+		if err := tx.QueryRow(`SELECT role, two_factor_enabled_at IS NOT NULL FROM users WHERE id = ?`, userID).Scan(&role, &enrolled); err != nil {
+			return SessionState{}, err
+		}
+		if !enrolled && n.TwoStepRequired(role) {
+			scope = "enrol"
+		}
 	}
 	if _, err := tx.Exec(`INSERT INTO sessions (id, public_id, user_id, device_id, scope, refresh_hash, created_at, expires_at, last_used_at, remote_addr)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, nullif(?, ''))`,
@@ -425,6 +503,11 @@ func (d *DB) RenewSession(ctx context.Context, r Renewal) (out SessionState, rep
 		if s.revoked || s.disabled || !s.ExpiresAt.After(r.Now) || s.InstallationID != r.InstallationID {
 			return nil
 		}
+		// Outside viewing hours the token is not used up: the same renewal works later.
+		if open, _ := s.Hours.Open(r.Now); !open {
+			refused = ErrOutsideHours
+			return nil
+		}
 		switch {
 		case r.Generation == s.Generation && r.Hash == s.refreshHash:
 			at := r.Now.UnixMilli()
@@ -484,9 +567,6 @@ func (d *DB) RevokeOtherSessions(ctx context.Context, userID, keepSessionID int6
 	})
 }
 
-// endedSessionsKept is how long an ended session stays in the session list.
-const endedSessionsKept = 90 * 24 * time.Hour
-
 // SessionInfo is one row of a person's session list.
 type SessionInfo struct {
 	ID              int64
@@ -505,14 +585,14 @@ type SessionInfo struct {
 	RemoteAddr string
 }
 
-// Sessions lists a user's live sessions and those that ended in the last 90 days, newest use first.
-func (d *DB) Sessions(ctx context.Context, userID int64, now time.Time) ([]SessionInfo, error) {
+// Sessions lists a user's live sessions and those that ended within keepEnded, newest use first.
+func (d *DB) Sessions(ctx context.Context, userID int64, now time.Time, keepEnded time.Duration) ([]SessionInfo, error) {
 	rows, err := d.read.QueryContext(ctx, `
 		SELECT s.id, s.public_id, d.public_id, d.name, ifnull(p.public_id, ''), s.created_at, s.last_used_at, s.expires_at,
 			ifnull(s.revoked_at, 0), ifnull(s.revoked_reason, ''), ifnull(s.remote_addr, '')
 		FROM sessions s JOIN devices d ON d.id = s.device_id LEFT JOIN profiles p ON p.id = s.profile_id
 		WHERE s.user_id = ? AND min(s.expires_at, ifnull(s.revoked_at, s.expires_at)) > ?
-		ORDER BY s.last_used_at DESC, s.id`, userID, now.Add(-endedSessionsKept).UnixMilli())
+		ORDER BY s.last_used_at DESC, s.id`, userID, now.Add(-keepEnded).UnixMilli())
 	if err != nil {
 		return nil, err
 	}
