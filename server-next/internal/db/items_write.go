@@ -223,7 +223,7 @@ func (d *DB) Import(ctx context.Context, batch ImportBatch) (ImportStats, error)
 	err := d.write(ctx, Background, func(tx *sql.Tx) (err error) {
 		im := &importer{batchTx: newBatchTx(tx), batch: batch, now: time.Now().UnixMilli(),
 			dirs: map[string]int64{}, files: map[FileRef]*importedFile{}, items: map[ItemKey]*importedItem{},
-			tags: map[TagName]int64{}, people: map[string]int64{}, counts: map[int64]*countChange{}}
+			tags: map[TagName]int64{}, people: map[string]int64{}, counts: map[int64]*countChange{}, grown: map[int64]bool{}}
 		defer im.close()
 		// Took is how long the transaction held the writer before its commit, with the
 		// settling of watched marks below, which is part of what a waiting tap waits for.
@@ -263,6 +263,7 @@ type importer struct {
 	tags   map[TagName]int64
 	people map[string]int64
 	counts map[int64]*countChange
+	grown  map[int64]bool  // top-level titles that gained something playable in this batch
 	rows   []*importedItem // the stored item of each of the batch's Items, in order
 	// Files whose missing mark or place changed, and items that lost a version: what is
 	// available is worked out again for them at the end.
@@ -321,6 +322,14 @@ func (im *importer) run(stats *ImportStats) error {
 		}
 		if _, err := im.exec(`UPDATE items SET child_count = child_count + ?, leaf_count = leaf_count + ?,
 			last_child_added_at = max(ifnull(last_child_added_at, 0), ?) WHERE id = ?`, c.children, c.leaves, c.lastAdded, id); err != nil {
+			return err
+		}
+	}
+	// A matched show or album that gained an episode or a track is due a refresh at once, so
+	// the new one gets its details now and not when the title is next due. Zero sorts first.
+	for id := range im.grown {
+		if _, err := im.exec(`UPDATE items SET refreshed_at = 0 WHERE id = ? AND match_state IN (?, ?) AND refreshed_at > 0`,
+			id, MatchFound, MatchChosen); err != nil {
 			return err
 		}
 	}
@@ -693,6 +702,7 @@ func (im *importer) createItem(it *ImportItem, parent *importedItem, keys []Item
 		// Titles nest at most three deep (show, season, episode), so the containers above a
 		// leaf are its parent and its root.
 		if it.Kind.Playable() {
+			im.grown[row.rootID] = true
 			im.count(parent.id).leaves++
 			if row.rootID != parent.id {
 				im.count(row.rootID).leaves++
