@@ -356,7 +356,6 @@ func (s *Server) libraryRoutes() {
 	Handle(s, "GET /v1/admin/items/{id}/deletion", Owner, s.previewItemDeletion)
 	Handle(s, "DELETE /v1/admin/items/{id}", Owner, s.deleteItem).with(ScopeLibrary)
 	Handle(s, "DELETE /v1/admin/versions/{id}", Owner, s.deleteVersion).with(ScopeLibrary)
-	Handle(s, "GET /v1/jobs/{id}", SignedIn, s.readJob)
 }
 
 // with gives a route a scope other than its default.
@@ -721,16 +720,4 @@ func (s *Server) deleteFiles(r *http.Request, del db.Deletion) (DeletionResult, 
 		out.AlsoRemoved = titleRefs(del.Others)
 	}
 	return out, nil
-}
-
-// readJob answers for the person who started the job, and for the owner and admins.
-func (s *Server) readJob(r *http.Request, _ None) (Job, error) {
-	job, err := s.db.Job(r.Context(), r.PathValue("id"))
-	if err != nil {
-		return Job{}, libraryError(err)
-	}
-	if c := CallerFrom(r.Context()); job.OwnerID != c.UserID && c.Role != "owner" && c.Role != "admin" {
-		return Job{}, ErrNotFound()
-	}
-	return *jobOut(job), nil
 }
