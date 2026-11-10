@@ -208,6 +208,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.remoteSourceRoutes()
 	s.historyRoutes()
 	s.listRoutes()
+	s.stateBatchRoutes()
 	s.playback = playback.New(d, playback.NoEngine{}, playback.NoEngine{}, log, func() time.Time { return s.now() })
 	go s.playback.Run(ctx)
 	s.playbackRoutes()
