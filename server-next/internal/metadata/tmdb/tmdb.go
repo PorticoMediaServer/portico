@@ -4,9 +4,7 @@ package tmdb
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"slices"
@@ -15,13 +13,13 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata"
+	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/fetch"
 )
 
 const (
 	// Origin is where TMDB's API is.
 	Origin     = "https://api.themoviedb.org"
 	pictures   = "https://image.tmdb.org/t/p/original"
-	maxAnswer  = 4 << 20 // no answer is larger; more is not read
 	maxCast    = 50
 	maxResults = 10
 )
@@ -30,17 +28,14 @@ const (
 type Client struct {
 	origin string
 	token  string
-	http   *http.Client
+	http   *fetch.Client
 }
 
 // New makes a client that signs its requests with an API read access token. origin is
-// tmdb.Origin, or a test's own server.
+// tmdb.Origin, or a test's own server. TMDB allows about forty requests a second; the
+// client sends at most twenty.
 func New(token, origin string) *Client {
-	return &Client{origin: strings.TrimRight(origin, "/"), token: token, http: &http.Client{
-		Timeout: 20 * time.Second,
-		// Every address is built here; an answer that points somewhere else is not followed.
-		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-	}}
+	return &Client{origin: strings.TrimRight(origin, "/"), token: token, http: fetch.New("tmdb", 50*time.Millisecond, 30*time.Second)}
 }
 
 func (c *Client) Name() string { return "tmdb" }
@@ -52,23 +47,9 @@ func (c *Client) get(ctx context.Context, path string, q url.Values, out any) er
 	}
 	req.Header.Set("Authorization", "Bearer "+c.token)
 	req.Header.Set("Accept", "application/json")
-	res, err := c.http.Do(req)
+	raw, err := c.http.Do(req)
 	if err != nil {
-		return fmt.Errorf("tmdb: %w", err)
-	}
-	defer res.Body.Close()
-	switch {
-	case res.StatusCode == http.StatusNotFound:
-		return metadata.ErrNotFound
-	case res.StatusCode != http.StatusOK:
-		return fmt.Errorf("tmdb answered %d for %s", res.StatusCode, path)
-	}
-	raw, err := io.ReadAll(io.LimitReader(res.Body, maxAnswer+1))
-	if err != nil {
-		return fmt.Errorf("tmdb: %w", err)
-	}
-	if len(raw) > maxAnswer {
-		return errors.New("tmdb sent an answer larger than any real one")
+		return err
 	}
 	return json.Unmarshal(raw, out)
 }
