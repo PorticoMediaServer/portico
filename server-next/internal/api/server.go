@@ -22,6 +22,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/artwork"
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/jobs"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
 	"github.com/PorticoMediaServer/portico/server-next/internal/remote"
@@ -43,6 +44,9 @@ type Server struct {
 	passwords *auth.Passwords
 	log       *slog.Logger
 	scans     *scan.Manager
+	// jobs runs slow work in the background. Each area registers its kinds in New, before
+	// the jobs left from the last run are taken up again.
+	jobs *jobs.Runner
 	// dataDir is the server's own folder, which no library may be, hold or be inside.
 	dataDir  string
 	mux      *http.ServeMux
@@ -203,13 +207,15 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.queues = playqueue.New(d, s.playback, func() time.Time { return s.now() })
 	s.queueRoutes()
 	s.subtitleRoutes()
-
-	// Scans and library removals asked for before the server last stopped are taken up again.
-	s.scans = scan.NewManager(ctx, &scan.Scanner{DB: d, Log: log})
-	if err := s.scans.Resume(); err != nil {
+	s.jobs = jobs.New(ctx, d, log)
+	s.scans = scan.NewManager(s.jobs, &scan.Scanner{DB: d, Log: log})
+	s.libraryRoutes()
+	s.jobRoutes()
+	// Every kind of job is registered by now: the jobs asked for before the server last
+	// stopped are taken up again.
+	if err := s.jobs.Resume(); err != nil {
 		return nil, err
 	}
-	s.libraryRoutes()
 	return s, nil
 }
 
