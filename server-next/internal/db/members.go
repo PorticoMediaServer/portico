@@ -47,18 +47,19 @@ type Member struct {
 	// ViewingHours is the JSON of the member's viewing hours, or "" for any time.
 	ViewingHours string
 	// HomeOnly limits the account to the owner's home networks.
-	HomeOnly bool
+	HomeOnly    bool
+	MaxProfiles int
 }
 
 const memberColumns = `u.id, u.public_id, u.username, ifnull(u.email, ''), u.role, u.disabled_at IS NOT NULL, u.created_at,
-	u.all_libraries, ifnull(u.notes, ''), u.two_factor_enabled_at IS NOT NULL, ifnull(u.viewing_hours, ''), u.home_only,
+	u.all_libraries, ifnull(u.notes, ''), u.two_factor_enabled_at IS NOT NULL, ifnull(u.viewing_hours, ''), u.home_only, ifnull(u.max_profiles, 8),
 	ifnull((SELECT group_concat(l.public_id, ' ') FROM library_access a JOIN libraries l ON l.id = a.library_id WHERE a.user_id = u.id), '')`
 
 func scanMember(row interface{ Scan(...any) error }) (Member, error) {
 	var m Member
 	var created int64
 	var libraries string
-	err := row.Scan(&m.ID, &m.PublicID, &m.Username, &m.Email, &m.Role, &m.Disabled, &created, &m.AllLibraries, &m.Notes, &m.TwoFactor, &m.ViewingHours, &m.HomeOnly, &libraries)
+	err := row.Scan(&m.ID, &m.PublicID, &m.Username, &m.Email, &m.Role, &m.Disabled, &created, &m.AllLibraries, &m.Notes, &m.TwoFactor, &m.ViewingHours, &m.HomeOnly, &m.MaxProfiles, &libraries)
 	if errors.Is(err, sql.ErrNoRows) {
 		return m, ErrNotFound
 	}
@@ -169,7 +170,10 @@ type MemberEdit struct {
 	ViewingHours *string
 	// HomeOnly limits the account to the owner's home networks, or lifts that.
 	HomeOnly *bool
-	Now      time.Time
+	// MaxProfiles lowers or restores how many profiles the account may have. It never
+	// removes a profile.
+	MaxProfiles *int
+	Now         time.Time
 }
 
 // libraryIDs resolves public library ids, refusing any that does not exist.
@@ -243,6 +247,11 @@ func (d *DB) UpdateMember(ctx context.Context, e MemberEdit) (Member, error) {
 				return err
 			}
 			did = append(did, "viewing hours")
+		}
+		if e.MaxProfiles != nil {
+			if _, err := tx.Exec(`UPDATE users SET max_profiles = nullif(?, ?) WHERE id = ?`, *e.MaxProfiles, MaxProfiles, m.ID); err != nil {
+				return err
+			}
 		}
 		if e.AllLibraries != nil || e.Libraries != nil {
 			if e.AllLibraries != nil {

@@ -502,6 +502,7 @@ CREATE INDEX metadata_history_item ON metadata_history (item_id, id);
 -- two_factor_last_step is the last authenticator time step accepted, so one code works once.
 -- viewing_hours is the times of the week the account may be used, as JSON; NULL is any time.
 -- home_only limits the account to the owner's home networks.
+-- max_profiles is how many profiles the account may have when the owner lowered it; NULL is eight.
 CREATE TABLE users (
   id                  INTEGER NOT NULL PRIMARY KEY,
   public_id           TEXT    NOT NULL UNIQUE,
@@ -517,6 +518,7 @@ CREATE TABLE users (
   disabled_at         INTEGER,
   viewing_hours       TEXT,
   home_only           INTEGER NOT NULL DEFAULT 0 CHECK (home_only IN (0, 1)),
+  max_profiles        INTEGER,
   notes               TEXT,
   extra               TEXT,
   revision            INTEGER NOT NULL DEFAULT 1,
@@ -526,7 +528,8 @@ CREATE TABLE users (
 
 -- Viewing profiles. Each account has one main profile (is_primary), made with the account: it
 -- cannot be deleted, and only it carries the account's owner or admin role. access_changed_at moves whenever what the profile may see changes, and
--- clients throw their cache away. history_cleared_at drops older offline progress.
+-- clients throw their cache away. history_cleared_at drops older offline progress. Under a rating limit a title with no rating is
+-- hidden unless allow_unrated is set.
 CREATE TABLE profiles (
   id                 INTEGER NOT NULL PRIMARY KEY,
   public_id          TEXT    NOT NULL UNIQUE,
