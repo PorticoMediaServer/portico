@@ -22,6 +22,9 @@ type Config struct {
 	// Picture, when set, is called with the name of every picture a title is given, so a
 	// run that wants real artwork to fetch can store one under that name.
 	Picture func(hash string)
+	// Samples, for Tree, is what a file of each extension (".mkv") holds, so that a scan
+	// can really read it. A file of any other extension is a few empty bytes.
+	Samples map[string][]byte
 }
 
 // LibrarySpec is one of the libraries the seeder fills.

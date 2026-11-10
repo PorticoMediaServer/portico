@@ -22,12 +22,16 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/mediaexec"
+	"github.com/PorticoMediaServer/portico/server-next/internal/mediatools"
 	"github.com/PorticoMediaServer/portico/server-next/internal/scan"
 	"github.com/PorticoMediaServer/portico/server-next/internal/seed"
 )
@@ -63,6 +67,14 @@ func (r *Report) bar(name, limit string, value float64, unit string, passed bool
 }
 
 func main() {
+	// The sandbox around the media tools starts this same binary again as its helper.
+	if handled, err := mediaexec.RunHelper(os.Args[1:]); handled {
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
 	mode := flag.String("mode", "", "import, rescan, mixed or tree")
 	path := flag.String("db", "main.db", "database file")
 	items := flag.Int("items", 20_000, "playable items: the library size for import and rescan, the size of each extra import for mixed")
@@ -73,13 +85,20 @@ func main() {
 	settle := flag.Duration("settle", time.Minute, "how long after the import to watch the WAL")
 	out := flag.String("out", "", "JSON report file")
 	flag.StringVar(&treeRoot, "tree", "", "a folder of real files: with it, import, rescan and mixed use the real scanner over it; -mode tree writes it")
+	flag.BoolVar(&realFiles, "real", false, "with -tree: the files are small real films and songs (made with ffmpeg) and the scanner reads them with the real prober")
 	flag.Parse()
 	log.SetFlags(log.Ltime)
+	if realFiles {
+		// As the server does, so that files are read on pooled confined workers.
+		if _, err := mediaexec.Configure(mediaexec.Options{}); err != nil {
+			log.Fatal(err)
+		}
+	}
 
 	ctx := context.Background()
 	if *mode == "tree" {
 		start := time.Now()
-		files, err := seed.Tree(seed.Config{Seed: *seedValue, Items: *items}, treeRoot)
+		files, err := seed.Tree(seed.Config{Seed: *seedValue, Items: *items, Samples: samples()}, treeRoot)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -91,7 +110,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer d.Close()
-	cfg := seed.Config{Seed: *seedValue, Items: *items, BatchFiles: *batch}
+	cfg := seed.Config{Seed: *seedValue, Items: *items, BatchFiles: *batch, Samples: samples()}
 	report := &Report{Mode: *mode, Items: *items}
 	wal := watchWAL(*path + "-wal")
 
@@ -138,7 +157,47 @@ func main() {
 // the seeder's batches.
 var treeRoot string
 
-// facts stands in for the prober, which is not in this server yet: every film and episode
+// realFiles says the tree holds real media and the scanner reads it with the real prober.
+var realFiles bool
+
+// samples makes one small real film and one small real song with ffmpeg, for every file of
+// the tree to hold. With no -real there are none.
+func samples() map[string][]byte {
+	if !realFiles {
+		return nil
+	}
+	dir, err := os.MkdirTemp("", "portico-load-samples")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+	out := map[string][]byte{}
+	for ext, args := range map[string][]string{
+		".mkv": {"-f", "lavfi", "-i", "color=c=black:size=160x90:rate=24", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-t", "1",
+			"-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-metadata:s:a:0", "language=eng"},
+		".flac": {"-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo", "-t", "1", "-c:a", "flac"},
+	} {
+		file := filepath.Join(dir, "sample"+ext)
+		args = append(append([]string{"-v", "error", "-y"}, args...), "-map_metadata", "-1", file)
+		if raw, err := exec.Command(mediatools.Resolve("ffmpeg"), args...).CombinedOutput(); err != nil {
+			log.Fatalf("ffmpeg could not make a sample %s file: %v %s", ext, err, raw)
+		}
+		if out[ext], err = os.ReadFile(file); err != nil {
+			log.Fatal(err)
+		}
+	}
+	return out
+}
+
+// prober is the real prober with -real, and the stand-in without.
+func prober() scan.Prober {
+	if realFiles {
+		return scan.FileProber{}
+	}
+	return facts{}
+}
+
+// facts stands in for the prober where the tree's files are empty: every film and episode
 // gets a video track, two audio tracks and a subtitle track, and every song one audio track,
 // so the second pass of a scan writes about what a real one would.
 type facts struct{}
@@ -173,7 +232,7 @@ func mustImport(ctx context.Context, d *db.DB, cfg seed.Config) seed.Totals {
 				log.Fatal(err)
 			}
 		}
-		totals, err = seed.ScanTree(ctx, d, &scan.Scanner{DB: d, Prober: facts{}, BatchFiles: cfg.BatchFiles}, root, progress)
+		totals, err = seed.ScanTree(ctx, d, &scan.Scanner{DB: d, Prober: prober(), BatchFiles: cfg.BatchFiles}, root, progress)
 	} else {
 		totals, err = seed.Import(ctx, d, cfg, progress)
 	}
