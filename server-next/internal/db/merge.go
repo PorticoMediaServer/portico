@@ -60,7 +60,7 @@ func mergeItems(b *batchTx, from, into, now int64) error {
 	case a.library != z.library || a.kind != z.kind || a.parent != z.parent:
 		return invalid("only two titles of the same kind in the same library can be merged")
 	}
-	if err := mergeInto(b, a.library, from, into); err != nil {
+	if err := mergeInto(b, a.library, from, into, now); err != nil {
 		return err
 	}
 	if _, err := b.exec(`DELETE FROM items WHERE id = ?`, from); err != nil {
@@ -100,13 +100,17 @@ var mergeStateSQL = func() string {
 // versions, everyone's state, list and queue entries, history, extras and keys. What the
 // first holds (a show's seasons, a season's episodes) is merged with the other's of the same
 // number, or moved under it.
-func mergeInto(b *batchTx, library, from, into int64) error {
+func mergeInto(b *batchTx, library, from, into, now int64) error {
 	steps := []struct {
 		query string
 		args  []any
 	}{
-		{`UPDATE media SET item_id = ?, position = position + (SELECT count(*) FROM media WHERE item_id = ?) WHERE item_id = ?`, []any{into, into, from}},
+		// The other's versions go after this title's, whatever gaps its positions have.
+		{`UPDATE media SET item_id = ?, position = position + 1 + (SELECT ifnull(max(position), -1) FROM media WHERE item_id = ?)
+			WHERE item_id = ?`, []any{into, into, from}},
 		{mergeStateSQL, []any{into, from}},
+		// A list whose entries change says so, so an editor open elsewhere cannot save over it.
+		{`UPDATE lists SET revision = revision + 1 WHERE id IN (SELECT list_id FROM list_entries WHERE item_id = ?)`, []any{from}},
 		// A list that holds both keeps the entry of the title merged into.
 		{`UPDATE lists SET entry_count = entry_count - (SELECT count(*) FROM list_entries e WHERE e.list_id = lists.id AND e.item_id = ?)
 			WHERE id IN (SELECT list_id FROM list_entries WHERE item_id = ?) AND id IN (SELECT list_id FROM list_entries WHERE item_id = ?)`,
@@ -120,6 +124,9 @@ func mergeInto(b *batchTx, library, from, into int64) error {
 		// The keys that find a title across scans move, except its place under its parent
 		// ("812/s2"): the title merged into has its own place.
 		{`UPDATE item_keys SET item_id = ? WHERE item_id = ? AND NOT (kind = ? AND key GLOB '[0-9]*/*')`, []any{into, from, KeyName}},
+		// The merged-away title's own id now names the one that remains.
+		{`INSERT OR REPLACE INTO item_keys (library_id, kind, key, item_id) SELECT ?, ?, public_id, ? FROM items WHERE id = ?`,
+			[]any{library, KeyMerged, into, from}},
 	}
 	for _, step := range steps {
 		if _, err := b.exec(step.query, step.args...); err != nil {
@@ -155,6 +162,9 @@ func mergeInto(b *batchTx, library, from, into int64) error {
 	if intoRoot.Valid {
 		root = intoRoot.Int64
 	}
+	// Search and open screens follow the change list: every season and episode that goes, and
+	// every one that is now somewhere else, is recorded there.
+	var changed []Change
 	for _, c := range children {
 		var twin int64
 		err := sql.ErrNoRows
@@ -164,20 +174,28 @@ func mergeInto(b *batchTx, library, from, into int64) error {
 		}
 		switch {
 		case err == nil:
-			if err := mergeInto(b, library, c.id, twin); err != nil {
+			if err := mergeInto(b, library, c.id, twin, now); err != nil {
 				return err
 			}
 			if _, err := b.exec(`DELETE FROM items WHERE id = ?`, c.id); err != nil {
 				return err
 			}
+			changed = append(changed, Change{Op: OpDeleted, RefID: c.id}, Change{Op: OpUpdated, RefID: twin})
 		case errors.Is(err, sql.ErrNoRows):
 			// Nothing of that number there: it moves across with all it holds, and its place
 			// key is rewritten for its new parent.
 			if _, err := b.exec(`UPDATE items SET parent_id = ?, root_id = ? WHERE id = ?`, into, root, c.id); err != nil {
 				return err
 			}
+			under, err := queryInts(b.tx, `SELECT id FROM items WHERE parent_id = ?`, c.id)
+			if err != nil {
+				return err
+			}
 			if _, err := b.exec(`UPDATE items SET root_id = ? WHERE parent_id = ?`, root, c.id); err != nil {
 				return err
+			}
+			for _, id := range append(under, c.id) {
+				changed = append(changed, Change{Op: OpUpdated, RefID: id})
 			}
 			old, moved := strconv.FormatInt(from, 10)+"/", strconv.FormatInt(into, 10)+"/"
 			if _, err := b.exec(`UPDATE OR REPLACE item_keys SET key = ? || substr(key, ?) WHERE item_id = ? AND kind = ? AND key GLOB ?`,
@@ -188,5 +206,16 @@ func mergeInto(b *batchTx, library, from, into int64) error {
 			return err
 		}
 	}
+	for _, change := range changed {
+		change.At, change.Topic, change.LibraryID = now, TopicItem, library
+		if err := appendChange(b.tx, change); err != nil {
+			return err
+		}
+	}
 	return nil
 }
+
+// mergedIntoSQL finds the title a merged-away public id now names. item_keys is keyed by
+// library first, so the libraries (a handful) are named to keep it a key lookup.
+const mergedIntoSQL = `SELECT i.public_id FROM item_keys k JOIN items i ON i.id = k.item_id
+	WHERE k.library_id IN (SELECT id FROM libraries) AND k.kind = ? AND k.key = ?`
