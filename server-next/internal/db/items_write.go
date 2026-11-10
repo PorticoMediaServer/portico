@@ -31,7 +31,6 @@ type ImportBatch struct {
 type ImportDir struct {
 	RelPath    string
 	ModifiedNS int64
-	Device     int64 // the number of the disk the folder is on, or 0 when it is not known
 }
 
 // FileRef names a file by its folder and name.
@@ -304,8 +303,8 @@ func (im *importer) importDir(dir ImportDir) error {
 			}
 			parent = parentID
 		}
-		res, err := im.exec(`INSERT INTO directories (library_path_id, parent_id, rel_path, modified_ns, seen_scan, device)
-			VALUES (?, ?, ?, ?, ?, ?)`, im.batch.PathID, parent, dir.RelPath, dir.ModifiedNS, im.batch.Scan, nz(dir.Device))
+		res, err := im.exec(`INSERT INTO directories (library_path_id, parent_id, rel_path, modified_ns, seen_scan)
+			VALUES (?, ?, ?, ?, ?)`, im.batch.PathID, parent, dir.RelPath, dir.ModifiedNS, im.batch.Scan)
 		if err != nil {
 			return err
 		}
