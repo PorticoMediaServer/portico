@@ -95,7 +95,7 @@ func (s *Server) signInSettingsRoutes() {
 		if field := p.Problem(); field != "" {
 			return SignInSettings{}, ErrField(field, "That is not one of this setting's choices.")
 		}
-		match, err := ifMatch(r)
+		match, err := settingsIfMatch(r)
 		if err != nil {
 			return SignInSettings{}, err
 		}
