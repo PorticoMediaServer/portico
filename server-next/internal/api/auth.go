@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/netip"
 	"os"
 	"strconv"
 	"strings"
@@ -154,9 +155,15 @@ func ErrViewingHoursEnded() *Error {
 }
 
 // errAwayFromHome answers a sign-in or a renewal for an account limited to the home network
-// when it comes from anywhere else. The sign-in is kept, and works again at home.
-func errAwayFromHome() *Error {
-	return refusal(http.StatusForbidden, "away_from_home", "This account can be used only on the home network.", false)
+// when it comes from anywhere else. The sign-in is kept, and works again at home. Someone
+// at home behind a proxy the owner has not listed is refused too, and is told what the
+// owner has to do, since nothing they can do themselves will help.
+func (s *Server) errAwayFromHome(r *http.Request) *Error {
+	message := "This account can be used only on the home network."
+	if s.throughUnlistedProxy(r) {
+		message += " This request came through a proxy the server does not know. If you are at home, ask the server's owner to add the proxy to Trusted proxies in the network settings."
+	}
+	return refusal(http.StatusForbidden, "away_from_home", message, false)
 }
 
 func errOutsideHours() *Error {
@@ -264,7 +271,26 @@ func (s *Server) remoteHost(r *http.Request) string {
 func (s *Server) atHome(r *http.Request) bool {
 	networks := s.networks()
 	addr, ok := networks.Client(r)
-	return ok && networks.AtHome(addr)
+	return ok && networks.AtHome(addr) && !s.throughUnlistedProxy(r)
+}
+
+// throughUnlistedProxy reports whether a request carries X-Forwarded-For from an address
+// that is not one of the owner's trusted proxies. Such a request was passed on by
+// something, so the connection's address is not the person's and it is never home.
+func (s *Server) throughUnlistedProxy(r *http.Request) bool {
+	if r.Header.Get("X-Forwarded-For") == "" {
+		return false
+	}
+	peer, err := netip.ParseAddrPort(r.RemoteAddr)
+	if err != nil {
+		return true
+	}
+	for _, proxy := range s.networks().Proxies {
+		if proxy.Contains(peer.Addr().Unmap().WithZone("")) {
+			return false
+		}
+	}
+	return true
 }
 
 // sourceLimit counts everything one network away from home gets wrong: passwords, PINs and
@@ -434,7 +460,7 @@ func (s *Server) signIn(r *http.Request, req SignInRequest) (SignInResponse, err
 	case errors.Is(err, db.ErrOutsideHours):
 		return SignInResponse{}, errOutsideHours()
 	case errors.Is(err, db.ErrAwayFromHome):
-		return SignInResponse{}, errAwayFromHome()
+		return SignInResponse{}, s.errAwayFromHome(r)
 	case err != nil:
 		return SignInResponse{}, err
 	case challenged:
@@ -475,7 +501,7 @@ func (s *Server) refresh(r *http.Request, req RefreshRequest) (Session, error) {
 		Hash: auth.Hash(req.RefreshToken), NextHash: auth.Hash(next), RequestID: req.RequestID, InstallationID: req.InstallationID,
 		ExpiresAt: now.Add(s.policy().SessionIdle()), RemoteAddr: s.remoteHost(r), AtHome: s.atHome(r), Now: now})
 	if errors.Is(err, db.ErrAwayFromHome) {
-		return Session{}, errAwayFromHome()
+		return Session{}, s.errAwayFromHome(r)
 	}
 	if errors.Is(err, db.ErrBadCredentials) {
 		return Session{}, errSignInEnded()
