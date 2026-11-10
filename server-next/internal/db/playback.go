@@ -607,3 +607,42 @@ func (w *stateWriter) saveProgress(sample Progress, prefs map[string]string) (fi
 }
 
 func itoa(n int64) string { return strconv.FormatInt(n, 10) }
+
+// FileOnDisk is where a file is and what the scanner recorded of it.
+type FileOnDisk struct {
+	Path       string
+	Size       int64
+	ModifiedNS int64
+}
+
+// FileOnDisk returns where a local file is on disk. A file of remote storage, or one that
+// has gone missing, is ErrNotFound.
+func (d *DB) FileOnDisk(ctx context.Context, fileID int64) (FileOnDisk, error) {
+	var out FileOnDisk
+	err := d.read.QueryRowContext(ctx, `SELECT rtrim(lp.path, '/') || '/' || CASE WHEN dir.rel_path = '' THEN '' ELSE dir.rel_path || '/' END || f.name,
+		f.size, f.modified_ns FROM files f JOIN directories dir ON dir.id = f.directory_id
+		JOIN library_paths lp ON lp.id = dir.library_path_id
+		WHERE f.id = ? AND f.missing_since_at IS NULL AND lp.remote_source_id IS NULL`, fileID).Scan(&out.Path, &out.Size, &out.ModifiedNS)
+	if errors.Is(err, sql.ErrNoRows) {
+		return out, ErrNotFound
+	}
+	return out, err
+}
+
+// LibraryFolders lists every local library folder.
+func (d *DB) LibraryFolders(ctx context.Context) ([]string, error) {
+	rows, err := d.read.QueryContext(ctx, `SELECT path FROM library_paths WHERE remote_source_id IS NULL ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var path string
+		if err := rows.Scan(&path); err != nil {
+			return nil, err
+		}
+		out = append(out, path)
+	}
+	return out, rows.Err()
+}
