@@ -118,8 +118,11 @@ type ItemDetails struct {
 	ContentRating   string
 	RatingAge       *int // the age ContentRating stands for; nil when it is not known
 	CommunityRating float64
-	Tags            []TagName // genres, studios, networks and countries; each kind given replaces that list
-	Credits         []ImportCredit
+	// Continuing says whether a show is still running, which a refresh comes sooner for.
+	// nil means the provider did not say.
+	Continuing *bool
+	Tags       []TagName // genres, studios, networks and countries; each kind given replaces that list
+	Credits    []ImportCredit
 	// Index is, for a child, its number under its parent: an episode's number.
 	Index int
 	// Replace says the title is now a different one (its match was changed): what the provider
@@ -209,6 +212,10 @@ func applyDetails(b *batchTx, itemID int64, d *ItemDetails, now int64) error {
 		// A match a person chose is never made the server's own again.
 		sets += ", match_state = CASE WHEN match_state = ? AND ? = ? THEN match_state ELSE ? END"
 		args = append(args, MatchChosen, d.Match, MatchFound, d.Match)
+	}
+	if d.Continuing != nil {
+		sets += ", extra = json_set(ifnull(extra, '{}'), '$.continuing', ?)"
+		args = append(args, *d.Continuing)
 	}
 	if _, err := b.exec(`UPDATE items SET `+sets+` WHERE id = ?`, append(args, itemID)...); err != nil {
 		return err
