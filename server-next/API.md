@@ -711,6 +711,18 @@ Not carried: showing a key or app password again later; the owner making app pas
 other people and listing members' tokens (`/v1/admin/access-tokens*`); keys made from an app
 password and tracked under it; the five webhook settings (fixed values).
 
+### Library collections (3)
+
+For the owner and administrators. A library's collection is an item of kind `collection` that
+everyone with the library sees, read like any title (`GET /v1/items?library=…&kind=collection`,
+`GET /v1/items/{id}`, `GET /v1/items?collection={id}`). A person's own collections are lists.
+
+| Route | Purpose |
+|---|---|
+| `POST /v1/admin/libraries/{id}/collections` | Make one with a title and its titles in order (films, shows and other top-level titles of that library). Takes an `Idempotency-Key` |
+| `PATCH /v1/admin/collections/{id}` | Rename, `add`, `remove` and `order` its titles. Safe to repeat: adding a title it holds changes nothing. What it changes holds against automatic grouping |
+| `DELETE /v1/admin/collections/{id}` | Remove it; its titles stay. A collection whose last title leaves the server goes with it |
+
 ## Not on the wire, on purpose
 
 `viewerFence`, `expectedRevision`, `operationId`, a "preparing" answer on a read, query handles,
