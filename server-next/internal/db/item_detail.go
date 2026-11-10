@@ -217,10 +217,12 @@ func (d *DB) Credits(ctx context.Context, v Viewer, itemID string, offset, limit
 	return out, total, err
 }
 
+// versions are the versions of an item that can be played: one with a missing file is not offered.
 func versions(ctx context.Context, tx *sql.Tx, itemID int64) ([]Version, error) {
 	out, err := queryAll(ctx, tx, `SELECT id, public_id, ifnull(name, ''), ifnull(edition, ''), ifnull(container, ''), ifnull(duration_ms, 0),
 		ifnull(bitrate, 0), ifnull(size, 0), ifnull(width, 0), ifnull(height, 0), ifnull(video_codec, ''), ifnull(audio_codec, ''),
-		ifnull(audio_channels, 0), ifnull(hdr, '') FROM media WHERE item_id = ? ORDER BY position, id`, []any{itemID},
+		ifnull(audio_channels, 0), ifnull(hdr, '') FROM media WHERE item_id = ? AND NOT EXISTS (SELECT 1 FROM media_parts p
+		JOIN files f ON f.id = p.file_id WHERE p.media_id = media.id AND f.missing_since_at IS NOT NULL) ORDER BY position, id`, []any{itemID},
 		func(m *Version) []any {
 			return []any{&m.id, &m.PublicID, &m.Name, &m.Edition, &m.Container, &m.DurationMS, &m.Bitrate, &m.Size, &m.Width,
 				&m.Height, &m.VideoCodec, &m.AudioCodec, &m.AudioChannels, &m.HDR}
