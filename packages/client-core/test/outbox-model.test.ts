@@ -5,11 +5,13 @@ import {Outbox, OutboxWaiting, OUTBOX_MAX_AGE_MS, type OutboxAnswer, type Outbox
 /**
  * The outbox against a small server that counts how often each idempotency key was applied, under
  * random sequences of: write, double tap, lost request, lost reply, busy server, client crash and
- * restart, server restart, profile switch, sign-out, sign-in again, expired sign-in and clock jump.
+ * restart, server restart, profile switch, sign-out, sign-in again, expired sign-in, clock jump and
+ * an edit the server fails on every time.
  *
  * It holds that every edit is applied exactly once or reported to the person once, that none is
- * ever applied under another account or profile or sent when older than 30 days, that the queue
- * ends empty, and that an idle queue writes nothing to its store. Time is virtual, so a run takes seconds. A failure prints its seed:
+ * ever applied under another account or profile or sent when older than 30 days, that edits to one
+ * item arrive in the order made, that an edit the server keeps failing on holds back only the later
+ * edits to its own item, that the queue ends empty, and that an idle queue writes nothing to its store. Time is virtual, so a run takes seconds. A failure prints its seed:
  * run it again alone with OUTBOX_SEED=<seed> OUTBOX_SEQUENCES=1.
  */
 const SEQUENCES = Number(process.env.OUTBOX_SEQUENCES ?? 2000);
@@ -99,6 +101,7 @@ class Server {
     if (trouble === 'slow-down') return {status: 429, retryAfterMs: 20_000};
     const who = this.tokens.get(token);
     if (!who) return {status: 401};
+    if ((entry.body as {broken?: boolean}).broken) return {status: 500}; // this one edit fails every time
     if ((entry.body as {refuse?: boolean}).refuse) return {status: 422};
     const done = this.applied.get(entry.id);
     if (done) {
@@ -111,7 +114,7 @@ class Server {
   }
 }
 
-type Edit = {id: string; who: Who; refuse: boolean; asking: number; refusedToCaller: number; dropped: {why: string}[]};
+type Edit = {id: string; n: number; who: Who; item: string; refuse: boolean; broken: boolean; asking: number; refusedToCaller: number; dropped: {why: string}[]};
 
 async function sequence(seed: number) {
   const random = prng(seed), pick = <T>(list: readonly T[]) => list[Math.floor(random() * list.length)]!;
@@ -121,7 +124,12 @@ async function sequence(seed: number) {
   let outbox!: Outbox, life = 0;
   let loseRequest = 0, loseReply = 0, trouble: Trouble[] = [];
   let lastEdit: Edit | undefined, nextEdit = 0;
-  const sentTooOld: string[] = [];
+  const sentTooOld: string[] = [], outOfOrder: string[] = [];
+  const pathOf = (edit: Edit) => `/v1/items/${edit.item}/personal-state`;
+  const sameItem = (a: OutboxEntry, b: OutboxEntry) => a.path === b.path && a.scope.profileId === b.scope.profileId;
+  /** Still on the device: an edit by the same person to the same item, made earlier by the count and by the clock (which can jump back). */
+  const ahead = (entry: OutboxEntry) => [...disk.entries.values()].some(earlier =>
+    sameItem(earlier, entry) && earlier.createdAt < entry.createdAt && edits.get(earlier.id)!.n < edits.get(entry.id)!.n);
 
   const boot = () => {
     const mine = ++life, alive = () => mine === life;
@@ -135,7 +143,9 @@ async function sequence(seed: number) {
         const lost = () => world.later(1000, () => { if (alive()) reject(new TypeError('network')); });
         if (loseRequest > 0) { loseRequest--; lost(); return; }
         world.later(50, () => {
+          const fresh = !server.applied.has(entry.id);
           const answer = server.handle(token, entry, trouble.shift());
+          if (fresh && server.applied.has(entry.id) && ahead(entry)) outOfOrder.push(entry.id);
           if (!answer || loseReply > 0) { if (answer) loseReply--; lost(); return; }
           world.later(50, () => { if (alive()) resolve(answer); });
         });
@@ -145,7 +155,7 @@ async function sequence(seed: number) {
     void outbox.start();
   };
   const write = (edit: Edit) => {
-    const answered = outbox.add({id: edit.id, method: 'PUT', path: '/v1/items/x/personal-state', body: {refuse: edit.refuse}});
+    const answered = outbox.add({id: edit.id, method: 'PUT', path: pathOf(edit), body: {refuse: edit.refuse, broken: edit.broken}});
     // Two taps that are both still waiting hear the same answer on the same screen: that is one report.
     const first = edit.asking++ === 0;
     answered.then(answer => { edit.asking--; if (answer.status >= 400 && first) edit.refusedToCaller++; },
@@ -159,7 +169,7 @@ async function sequence(seed: number) {
     const roll = random();
     if (roll < 0.3) {
       if (session) {
-        const edit: Edit = {id: `edit-${seed}-${++nextEdit}`, who: session.who, refuse: random() < 0.1, asking: 0, refusedToCaller: 0, dropped: []};
+        const edit: Edit = {id: `edit-${seed}-${++nextEdit}`, n: nextEdit, who: session.who, item: pick(['x', 'y', 'z']), refuse: random() < 0.1, broken: random() < 0.05, asking: 0, refusedToCaller: 0, dropped: []};
         edits.set(edit.id, edit); lastEdit = edit; write(edit);
       }
     } else if (roll < 0.36) {
@@ -179,9 +189,16 @@ async function sequence(seed: number) {
     await world.advance(pick([0, 10, 200, 3000, 60_000, 600_000]));
   }
 
-  // The network heals and each person signs in again: everything left drains.
+  // The network heals and each person signs in again: everything left drains, except an edit the
+  // server fails on every time and the later edits to the same item. Those are dropped once too old.
   server.up = true; loseRequest = 0; loseReply = 0; trouble = [];
   for (const who of PEOPLE) { signIn(who); await world.advance(2 * 60 * 60 * 1000); }
+  for (const entry of disk.entries.values()) {
+    assert.ok([...disk.entries.values()].some(other => edits.get(other.id)!.broken && sameItem(other, entry)), `${entry.id} waits behind an edit to something else`);
+  }
+  // (The clock may have gone back since an edit was made, so the jump is counted from the newest.)
+  world.wall = Math.max(world.wall, ...[...disk.entries.values()].map(entry => entry.createdAt)) + OUTBOX_MAX_AGE_MS + DAY;
+  for (const who of PEOPLE) { signIn(who); await world.advance(60 * 1000); }
 
   for (const edit of edits.values()) {
     if (!disk.accepted.has(edit.id)) continue; // the app died before the edit reached the device's storage
@@ -195,6 +212,7 @@ async function sequence(seed: number) {
   }
   assert.deepEqual(server.strangers, [], 'an edit is never sent again under another account or profile');
   assert.deepEqual(sentTooOld, [], 'an edit older than 30 days is dropped, not sent');
+  assert.deepEqual(outOfOrder, [], 'edits to one item arrive in the order they were made');
   assert.equal(disk.entries.size, 0, 'the queue is empty at the end');
   assert.equal(outbox.waiting(), 0);
 
