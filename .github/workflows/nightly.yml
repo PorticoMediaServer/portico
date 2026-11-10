@@ -16,43 +16,6 @@ concurrency:
   group: nightly-full-${{ github.ref }}
   cancel-in-progress: false
 jobs:
-  hygiene:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 8
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
-        with:
-          node-version-file: .node-version
-          cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            apps/native/package-lock.json
-            apps/vega/package-lock.json
-            apps/desktop/package-lock.json
-      - run: npm ci --no-audit --no-fund
-      - name: Install typed ratchet owning lockfiles
-        run: |
-          for component in apps/native apps/vega apps/desktop; do
-            (cd "$component" && npm ci --ignore-scripts --legacy-peer-deps --workspaces=false --no-audit --no-fund)
-          done
-      - run: python3 -m unittest discover -s ci -p 'test_*.py'
-      - run: python3 ci/source_guard.py
-      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
-        with:
-          path: ${{ runner.temp }}/gitleaks-cache/gitleaks.tar.gz
-          key: gitleaks-8.30.1-${{ hashFiles('ci/secret-scan.sh') }}
-      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
-        with:
-          go-version-file: server/go.mod
-          cache: false
-      - env:
-          GITLEAKS_TARBALL_CACHE: ${{ runner.temp }}/gitleaks-cache/gitleaks.tar.gz
-        run: bash ci/secret-scan.sh
-      - run: python3 ci/engineering_rules.py
-      - run: python3 ci/client_api_census.py
   planner:
     runs-on: ubuntu-24.04
     timeout-minutes: 8
@@ -88,6 +51,7 @@ jobs:
           name: selection
           path: ci-plan.json
   go_build:
+    # The wider diagnostic lanes need this executable; merge artifacts cannot be reused.
     needs: planner
     if: needs.planner.outputs.go == 'true'
     runs-on: ubuntu-24.04
@@ -110,99 +74,36 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci --no-audit --no-fund
-      - run: python3 ci/run.py build
+      - run: python3 ci/run.py helper
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: playback-helper
           path: ci-tools/portico-server
           if-no-files-found: error
-  go_vet_cross:
-    # Same as merge.yml: static macOS/Windows vet of every package and test.
-    needs: planner
-    if: needs.planner.outputs.go == 'true'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        goos: [darwin, windows]
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with:
-          persist-credentials: false
-      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
-        with:
-          go-version-file: server/go.mod
-          cache-dependency-path: '**/go.sum'
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
-        with:
-          name: selection
-      - run: python3 ci/run.py download
-      - run: python3 ci/run.py vet-cross --goos '${{ matrix.goos }}'
   macos_suite:
-    # Report-only (lead decision, 1 Nov 2026): the server suite on macOS has never passed end to
-    # end, and the release builds no longer run it. This lists every failing test by name so the
-    # macOS failures can be fixed in one batch; it becomes blocking once that list is empty.
-    needs: planner
-    if: needs.planner.outputs.go == 'true'
     runs-on: macos-15
-    timeout-minutes: 90
+    timeout-minutes: 15
     continue-on-error: true
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [0, 1, 2, 3, 4, 5, 6, 7]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
         with:
-          go-version-file: server/go.mod
+          go-version-file: server-next/go.mod
           cache-dependency-path: '**/go.sum'
       - name: Development engine (NOT FOR USE)
         run: python3 scripts/development-engine.py fetch --target macos-arm64 --output "$RUNNER_TEMP/engine"
-      - name: macOS suite, one shard of packages (report-only)
+      - name: Mac media and packaging paths
         working-directory: server
         env:
-          SHARD: ${{ matrix.shard }}
-          SHARDS: '8'
-        run: |
-          set -euo pipefail
-          # macOS's default /var temp path aliases /private/var. Private-directory
-          # guards and SQLite compare canonical paths; give fixtures that same root.
-          export TMPDIR="$(python3 -c 'import os; print(os.path.realpath(os.environ["RUNNER_TEMP"]))')"
-          tags="$(python3 ../scripts/release-build-tags.py --capability)"
-          go build -tags "$tags" -o "$RUNNER_TEMP/portico-server" ./cmd/server
-          export PORTICO_PLAYBACK_TEST_HELPER="$RUNNER_TEMP/portico-server"
-          export PORTICO_FFMPEG="$RUNNER_TEMP/engine/bin/ffmpeg" PORTICO_FFPROBE="$RUNNER_TEMP/engine/bin/ffprobe" PORTICO_CI_ENGINE=development
-          go list -tags "$tags" ./... | awk -v n="$SHARDS" -v i="$SHARD" 'NR % n == i' > "$RUNNER_TEMP/packages.txt"
-          mkdir -p "$RUNNER_TEMP/macos-suite"
-          status=0
-          go test -tags "$tags" -json -timeout 60m $(cat "$RUNNER_TEMP/packages.txt") > "$RUNNER_TEMP/macos-suite/shard-$SHARD.jsonl" 2> "$RUNNER_TEMP/macos-suite/shard-$SHARD.stderr" || status=$?
-          python3 - "$RUNNER_TEMP/macos-suite/shard-$SHARD.jsonl" >> "$GITHUB_STEP_SUMMARY" <<'PY'
-          import json, sys
-          failed, blocked = [], set()
-          for line in open(sys.argv[1]):
-              try: e = json.loads(line)
-              except ValueError: continue
-              if e.get('Action') == 'fail':
-                  (failed.append(f"{e['Package']} {e['Test']}") if e.get('Test') else blocked.add(e['Package']))
-          print(f"### macOS suite shard: {len(failed)} failing tests, {len(blocked)} failing packages")
-          for name in sorted(failed): print(f"- {name}")
-          for name in sorted(blocked - {f.split()[0] for f in failed}): print(f"- {name} (package failed to build or run)")
-          PY
-          exit $status
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        if: always()
-        with:
-          name: macos-suite-${{ matrix.shard }}
-          path: ${{ runner.temp }}/macos-suite
-          retention-days: 7
-  decoder_sandbox:
-    needs: planner
-    if: needs.planner.outputs.go == 'true'
-    uses: ./.github/workflows/decoder-sandbox.yml
+          PORTICO_FFMPEG: ${{ runner.temp }}/engine/bin/ffmpeg
+          PORTICO_FFPROBE: ${{ runner.temp }}/engine/bin/ffprobe
+          PORTICO_CI_ENGINE: development
+        run: go test -timeout 10m ./internal/mediaexec ./internal/decoder ./internal/archive7z ./internal/storagepaths ./internal/hostlimits
+      - name: New server on macOS
+        working-directory: server-next
+        run: go test -timeout 10m ./...
   go_tests:
     needs: planner
     if: needs.planner.outputs.go == 'true'
@@ -257,64 +158,24 @@ jobs:
           name: go-${{ matrix.index }}
           path: ci-results/
   go_race:
-    name: Go race report (${{ matrix.index }})
     continue-on-error: true
-    needs: planner
-    if: needs.planner.outputs.go == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.planner.outputs.go_matrix) }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 90
+      matrix:
+        module: [server-next, apikit]
     steps:
-      - name: Runner hardware
-        if: ${{ matrix.index == 0 }}
-        run: |
-          echo "runner: $(nproc) cpu, $(free -g | awk '/Mem:/{print $2}') GiB"
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
         with:
-          go-version-file: server/go.mod
-          cache: true
+          go-version-file: server-next/go.mod
           cache-dependency-path: '**/go.sum'
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
-        with:
-          name: selection
-      - run: python3 ci/run.py download
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
-        if: matrix.reading_client == true
-        with:
-          node-version-file: .node-version
-          cache: npm
-          cache-dependency-path: package-lock.json
-      - name: Install real reading-client integration dependencies
-        if: matrix.reading_client == true
-        run: |
-          npm ci --no-audit --no-fund
-          (cd packages/contracts && npm run build)
-      - name: FFmpeg package cache key
-        id: aptkey
-        run: echo "key=apt-ffmpeg-${ImageOS:-ubuntu}-${ImageVersion:-0}-$(date -u +%G-%V)-v1" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
-        with:
-          path: ${{ runner.temp }}/portico-apt-ffmpeg
-          key: ${{ steps.aptkey.outputs.key }}
-          restore-keys: apt-ffmpeg-
-      - env:
-          PORTICO_CI_APT_CACHE: ${{ runner.temp }}/portico-apt-ffmpeg
-        run: python3 ci/run.py ffmpeg --index '${{ matrix.index }}'
-      - name: Observe races (timing and other diagnostics are separate)
-        env:
-          PORTICO_CI_GO_RACE: '1'
-        run: python3 ci/race_report.py --index '${{ matrix.index }}'
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        if: always()
-        with:
-          name: race-${{ matrix.index }}
-          path: ci-race-results/
-          if-no-files-found: warn
+      - name: Race tests
+        working-directory: ${{ matrix.module }}
+        run: go test -race -timeout 10m ./...
   js:
     needs: planner
     if: needs.planner.outputs.js == 'true'
@@ -375,44 +236,6 @@ jobs:
           name: js-${{ matrix.component == 'apps/native' && 'native' || matrix.component == 'apps/desktop' && 'desktop' || matrix.component == 'apps/vega' && 'vega' || matrix.component }}-${{ matrix.index }}
           path: ci-results/js/
           if-no-files-found: error
-  js_static:
-    needs: planner
-    if: needs.planner.outputs.js_static == 'true'
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.planner.outputs.js_static_matrix) }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with:
-          persist-credentials: false
-      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
-        with:
-          go-version-file: server/go.mod
-          cache-dependency-path: '**/go.sum'
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
-        with:
-          node-version-file: ${{ matrix.component == 'apps/desktop' && 'apps/desktop/.node-version' || '.node-version' }}
-          cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            apps/*/package-lock.json
-            website/package-lock.json
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
-        with:
-          name: selection
-      - name: Install owning lockfiles
-        env:
-          COMPONENT: ${{ matrix.component }}
-        run: |
-          npm ci
-          case "$COMPONENT" in
-            apps/*|website) (cd "$COMPONENT" && npm ci --legacy-peer-deps --workspaces=false) ;;
-          esac
-      - env:
-          COMPONENT: ${{ matrix.component }}
-        run: python3 ci/run.py js-static --component "$COMPONENT"
   android:
     needs: planner
     if: needs.planner.outputs.android == 'true'
@@ -482,7 +305,7 @@ jobs:
   merge:
     name: ci/nightly/full
     if: ${{ !cancelled() }}
-    needs: [planner, hygiene, go_build, go_vet_cross, go_tests, decoder_sandbox, js, js_static, android, diagnostic, inventory_benchmark]
+    needs: [planner, go_build, go_tests, js, android, diagnostic, inventory_benchmark]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:

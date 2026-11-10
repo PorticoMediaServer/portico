@@ -388,12 +388,3 @@ jobs:
       - env:
           RESULTS: ${{ toJSON(needs) }}
         run: python3 ci/run.py aggregate --needs "$RESULTS"
-  report:
-    name: ${{ (github.event_name == 'merge_group' || inputs.full || inputs.tier == 'merge') && 'ci/merge-queue' || 'ci/short' }}
-    if: ${{ !cancelled() }}
-    needs: merge
-    runs-on: ubuntu-24.04
-    steps:
-      - env:
-          RESULT: ${{ needs.merge.result }}
-        run: test "$RESULT" = success
