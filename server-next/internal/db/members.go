@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -43,17 +44,19 @@ type Member struct {
 	Libraries []string
 	Notes     string
 	TwoFactor bool
+	// ViewingHours is the JSON of the member's viewing hours, or "" for any time.
+	ViewingHours string
 }
 
 const memberColumns = `u.id, u.public_id, u.username, ifnull(u.email, ''), u.role, u.disabled_at IS NOT NULL, u.created_at,
-	u.all_libraries, ifnull(u.notes, ''), u.two_factor_enabled_at IS NOT NULL,
+	u.all_libraries, ifnull(u.notes, ''), u.two_factor_enabled_at IS NOT NULL, ifnull(u.viewing_hours, ''),
 	ifnull((SELECT group_concat(l.public_id, ' ') FROM library_access a JOIN libraries l ON l.id = a.library_id WHERE a.user_id = u.id), '')`
 
 func scanMember(row interface{ Scan(...any) error }) (Member, error) {
 	var m Member
 	var created int64
 	var libraries string
-	err := row.Scan(&m.ID, &m.PublicID, &m.Username, &m.Email, &m.Role, &m.Disabled, &created, &m.AllLibraries, &m.Notes, &m.TwoFactor, &libraries)
+	err := row.Scan(&m.ID, &m.PublicID, &m.Username, &m.Email, &m.Role, &m.Disabled, &created, &m.AllLibraries, &m.Notes, &m.TwoFactor, &m.ViewingHours, &libraries)
 	if errors.Is(err, sql.ErrNoRows) {
 		return m, ErrNotFound
 	}
@@ -143,6 +146,8 @@ type MemberEdit struct {
 	// AllLibraries and Libraries say what the member may see.
 	AllLibraries *bool
 	Libraries    *[]string
+	// ViewingHours is the JSON of the member's viewing hours; a pointer to "" removes them.
+	ViewingHours *string
 	Now          time.Time
 }
 
@@ -205,6 +210,12 @@ func (d *DB) UpdateMember(ctx context.Context, e MemberEdit) (Member, error) {
 			if _, err := tx.Exec(`UPDATE users SET notes = nullif(?, '') WHERE id = ?`, *e.Notes, m.ID); err != nil {
 				return err
 			}
+		}
+		if e.ViewingHours != nil {
+			if _, err := tx.Exec(`UPDATE users SET viewing_hours = nullif(?, '') WHERE id = ?`, *e.ViewingHours, m.ID); err != nil {
+				return err
+			}
+			did = append(did, "viewing hours")
 		}
 		if e.AllLibraries != nil || e.Libraries != nil {
 			if e.AllLibraries != nil {
@@ -380,6 +391,100 @@ func (d *DB) RedeemPasswordReset(ctx context.Context, r ResetRedemption) error {
 		}
 		// Nothing should be signed in since the code was made; make sure of it.
 		return revoke(tx, c, r.Now, "password_reset", `user_id = ?`, userID)
+	})
+	if err == nil {
+		err = refused
+	}
+	return err
+}
+
+// IssueOwnerReset stores a one-time code that lets its holder choose a new password for the
+// owner, replacing any earlier one. publish puts the code where the owner can read it; it
+// runs before the code is stored, so a failure in between leaves a file that opens nothing,
+// never a code that works and that nobody was given. A new code is made at most once in
+// every period: asked sooner, nothing changes and wait is the time left.
+func (d *DB) IssueOwnerReset(ctx context.Context, codeHash string, expires time.Time, every time.Duration, now time.Time, publish func() error) (wait time.Duration, err error) {
+	err = d.write(ctx, User, func(tx *sql.Tx) error {
+		wait = every
+		var ownerID, last int64
+		err := tx.QueryRow(`SELECT u.id, ifnull((SELECT max(created_at) FROM auth_codes WHERE user_id = u.id AND kind = 'owner_reset'), 0)
+			FROM users u WHERE u.role = 'owner'`).Scan(&ownerID, &last)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil // a server with no owner yet: the same answer, and nothing to reset
+		}
+		if err != nil {
+			return err
+		}
+		if since := now.Sub(time.UnixMilli(last)); since >= 0 && since < every {
+			wait = every - since
+			return nil
+		}
+		if err := publish(); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`DELETE FROM auth_codes WHERE user_id = ? AND kind = 'owner_reset'`, ownerID); err != nil {
+			return err
+		}
+		if err := insertCode(tx, Code{Kind: "owner_reset", Hash: codeHash, UserID: ownerID, ExpiresAt: expires}, now); err != nil {
+			return err
+		}
+		return audit(tx, ownerID, "owner.reset_file_written", "", "", now)
+	})
+	return wait, err
+}
+
+// RedeemOwnerReset sets the owner's new password if the code is the one in the file, unused
+// and in time. Everything signed in as the owner is signed out in the same commit: whoever
+// held the old password must not keep a session made with it. Five wrong codes cancel the
+// code. Every refusal is ErrBadCredentials or a *LimitedError.
+func (d *DB) RedeemOwnerReset(ctx context.Context, codeHash, newHash string, turnOffTwoStep bool, limits []Limit, now time.Time) error {
+	var refused error
+	err := d.writeSessions(ctx, func(tx *sql.Tx, c *changes) error {
+		refused = nil
+		if wait, err := limitWait(ctx, tx, now, limits); err != nil {
+			return err
+		} else if wait > 0 {
+			refused = &LimitedError{Wait: wait}
+			return nil
+		}
+		at := now.UnixMilli()
+		var ownerID int64
+		var pending string
+		var attempts int
+		err := tx.QueryRow(`SELECT u.id, c.code_hash, c.attempts FROM users u JOIN auth_codes c ON c.user_id = u.id
+			WHERE u.role = 'owner' AND c.kind = 'owner_reset' AND c.used_at IS NULL AND c.expires_at > ?`, at).Scan(&ownerID, &pending, &attempts)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		if err != nil || pending != codeHash {
+			refused = ErrBadCredentials
+			if err == nil {
+				// The code stays in the table, spent, so the wait before a new file still counts.
+				query := `UPDATE auth_codes SET attempts = attempts + 1 WHERE code_hash = ?`
+				if attempts+1 >= resetAttempts {
+					query = `UPDATE auth_codes SET attempts = attempts + 1, used_at = ` + strconv.FormatInt(at, 10) + ` WHERE code_hash = ?`
+				}
+				if _, err := tx.Exec(query, pending); err != nil {
+					return err
+				}
+			}
+			return limitFail(tx, now, limits)
+		}
+		if _, err := redeemCode(tx, "owner_reset", codeHash, now); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`UPDATE users SET password_hash = ?, password_changed_at = ?, updated_at = ? WHERE id = ?`, newHash, at, at, ownerID); err != nil {
+			return err
+		}
+		if turnOffTwoStep {
+			if err := clearTwoFactor(tx, ownerID, now); err != nil {
+				return err
+			}
+		}
+		if err := revoke(tx, c, now, "owner_reset", `user_id = ?`, ownerID); err != nil {
+			return err
+		}
+		return audit(tx, ownerID, "owner.reset_file_used", "", "", now)
 	})
 	if err == nil {
 		err = refused

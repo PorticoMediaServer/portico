@@ -67,7 +67,7 @@ Assistant) are a separate short document and are not counted here.
 | `GET /v1/events` | The change feed |
 | `GET /v1/attribution` | Required notices for metadata providers |
 
-### Sign-in (16)
+### Sign-in (17)
 
 | Route | Purpose |
 |---|---|
@@ -80,7 +80,8 @@ Assistant) are a separate short document and are not counted here.
 | `GET /v1/auth/invitations/{id}`, `POST /v1/auth/invitations/{id}/accept` | Preview and accept an invitation |
 | `POST /v1/auth/password-reset/confirm` | Choose a new password with a reset code. The owner or an admin makes the code in People; the server sends no email, so there is no route that asks for one |
 | `POST /v1/auth/password` | Change your password |
-| `GET /v1/auth/remembered`, `DELETE /v1/auth/remembered/{id}` | Accounts remembered on this device's sign-in screen |
+| `POST /v1/auth/remembered` | Turn the account tokens a device kept into the names its sign-in screen lists. The list lives on the device; the server keeps nothing, and forgetting an account is the device dropping its token |
+| `POST /v1/auth/owner-reset`, `POST /v1/auth/owner-reset/confirm` | An owner who cannot sign in: write a one-time code to `reset-code.txt` in the server's data folder, then choose a new password with it |
 
 ### Me, profiles and devices (33)
 
@@ -89,7 +90,7 @@ Assistant) are a separate short document and are not counted here.
 | `GET /v1/me`, `PATCH /v1/me` | Your account, current profile, role and features; edit account details |
 | `GET /v1/profiles`, `POST /v1/profiles` | List and create profiles (at most eight per account). With `member=<id>` an admin manages another person's. |
 | `GET /v1/profiles/{id}`, `PATCH /v1/profiles/{id}`, `DELETE /v1/profiles/{id}` | Read, edit, delete (`?preview=true` says what would be lost) |
-| `POST /v1/profiles/{id}/select` | Choose a profile, with its PIN if it has one; answers tokens bound to it |
+| `POST /v1/profiles/{id}/select` | Choose a profile, with its PIN if it has one; answers tokens bound to it. With `rememberPin` the answer carries a `pinToken` this device sends in place of the PIN, for as long as the owner allows; a main profile entered that way manages the account only for an hour after its PIN was last typed |
 | `PUT /v1/profiles/order` | Reorder |
 | `PUT /v1/profiles/{id}/avatar`, `DELETE /v1/profiles/{id}/avatar` | Avatar |
 | `PUT /v1/profiles/{id}/pin`, `DELETE /v1/profiles/{id}/pin` | Set, change or remove a PIN. With the account's password, `PUT` replaces a forgotten PIN from any profile. |
@@ -180,7 +181,7 @@ Listed route by route with each console panel's definition. Resources:
 
 | Area | Ops | Resources |
 |---|---:|---|
-| People and access | 22 | Members; invitations; members' devices; sign-in policy; security summary and unblock; moving between sign-in kinds |
+| People and access | 22 | Members (with viewing hours); invitations; members' devices; `GET`/`PATCH /v1/admin/settings/sign-in` (exists now: stay signed in, remember PIN, strictness of wrong guesses, shortest password, reset-code life, who must use two-step, remembered accounts, how long ended sign-ins are listed); security summary and unblock; moving between sign-in kinds |
 | Setup and remote access | 18 | First-run setup (`POST /v1/setup/owner` exists now, needs the setup code the server logs and writes to `setup-code.txt` in its data folder, and works from any network); remote access; certificate; Portico Account link; `GET`/`PUT /v1/admin/settings/network` (exists now: the owner's home networks, which alone decide local and remote, and the reverse proxies whose `X-Forwarded-For` is believed) |
 | Libraries, storage, files | 33 | Libraries, folders, scans and their issues; storage sources; folder browser; missing titles; delete; merge and split |
 | Metadata and matching | 18 | `GET`/`PATCH /v1/admin/items/{id}/metadata`; match; refresh; artwork; needs-attention; provider settings |
