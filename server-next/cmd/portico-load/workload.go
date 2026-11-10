@@ -124,15 +124,26 @@ func (w *workload) start(ctx context.Context, readers, writesPerSec int) func() 
 	return func() (map[string]Timing, Timing) {
 		cancel()
 		wg.Wait()
+		// Besides each class: every page together and every count together, for everyone
+		// ("pages", "counts") and for each kind of profile ("pages (label)").
 		out := map[string]Timing{}
-		var all []time.Duration
+		groups := map[string][]time.Duration{}
 		for class, samples := range w.reads {
-			out[class] = summarise(samples)
-			if !strings.Contains(class, " (") {
-				all = append(all, samples...)
+			out[class] = summarise(slices.Clone(samples))
+			group := "pages"
+			if strings.HasPrefix(class, countClass) {
+				group = "counts"
 			}
+			if at := strings.Index(class, " ("); at >= 0 {
+				group += class[at:]
+			} else {
+				groups["all"] = append(groups["all"], samples...)
+			}
+			groups[group] = append(groups[group], samples...)
 		}
-		out["all"] = summarise(all)
+		for group, samples := range groups {
+			out[group] = summarise(samples)
+		}
 		if w.failures > 0 {
 			log.Fatalf("%d requests failed during the run", w.failures)
 		}
@@ -155,6 +166,18 @@ func (w *workload) record(class, who string, started time.Time, err error) {
 	}
 }
 
+// countClass marks the classes that count a whole list (its size, its filter choices). They
+// are judged apart from pages: an app can show the list first and the count just after.
+const countClass = "count "
+
+// total asks for the size of a list by itself, as an app does after showing the first page.
+func (w *workload) total(ctx context.Context, v db.Viewer, q db.ItemQuery, class, who string) {
+	q.WithTotal, q.Limit, q.Cursor = true, 1, ""
+	started := time.Now()
+	_, err := w.d.Items(ctx, v, q)
+	w.record(countClass+class, who, started, err)
+}
+
 func pick[T any](r *rand.Rand, from []T) T { return from[r.IntN(len(from))] }
 
 // read sends one request after another with a short pause, as one busy app would.
@@ -168,7 +191,7 @@ func (w *workload) read(ctx context.Context, r *rand.Rand) {
 		v := w.viewers[n]
 		// The seeder restricts the last three profiles, by label, by library and by rating.
 		// Their requests are also timed apart, because a restriction is checked row by row.
-		who := ""
+		who := " (unrestricted)"
 		if at := n - (len(w.viewers) - 3); at >= 0 && len(w.viewers) > 3 {
 			who = []string{" (label)", " (library)", " (rating)"}[at]
 		}
@@ -186,11 +209,11 @@ func (w *workload) read(ctx context.Context, r *rand.Rand) {
 			Sort: pick(r, []string{db.SortTitle, db.SortTitle, db.SortAdded, db.SortYear, db.SortRelease}), Desc: r.IntN(3) == 0}
 		started := time.Now()
 		switch n := r.IntN(100); {
-		case n < 20: // open a library: the first page and its size
-			leaf.WithTotal = true
+		case n < 20: // open a library: the first page, then its size
 			page, err := w.d.Items(ctx, v, leaf)
 			w.record("first-page", who, started, err)
-			leaf.WithTotal, leaf.Cursor = false, page.NextCursor
+			w.total(ctx, v, leaf, "total", who)
+			leaf.Cursor = page.NextCursor
 			next, nextViewer, nextWho = leaf, v, who
 		case n < 50: // scroll on
 			if next.Cursor == "" {
@@ -200,20 +223,22 @@ func (w *workload) read(ctx context.Context, r *rand.Rand) {
 			w.record("next-page", nextWho, started, err)
 			next.Cursor = page.NextCursor
 		case n < 55:
-			leaf.Genre, leaf.WithTotal = pick(r, seed.Genres(lib.Kind)), true
+			leaf.Genre = pick(r, seed.Genres(lib.Kind))
 			_, err := w.d.Items(ctx, v, leaf)
-			w.record("genre", who, started, err)
+			w.record("genre-page", who, started, err)
+			w.total(ctx, v, leaf, "genre-total", who)
 		case n < 60:
 			if lib.Kind == db.LibraryMusic { // music has no watched state to filter by
 				continue
 			}
 			leaf.Watched = pick(r, []*bool{&yes, &no})
 			_, err := w.d.Items(ctx, v, leaf)
-			w.record("watched", who, started, err)
+			w.record("watched-page", who, started, err)
 		case n < 63:
-			leaf.YearFrom, leaf.YearTo, leaf.WithTotal = 1990, 1999, true
+			leaf.YearFrom, leaf.YearTo = 1990, 1999
 			_, err := w.d.Items(ctx, v, leaf)
-			w.record("decade", who, started, err)
+			w.record("decade-page", who, started, err)
+			w.total(ctx, v, leaf, "decade-total", who)
 		case n < 65:
 			if !video { // only video libraries offer the resolution filter
 				continue
@@ -247,7 +272,7 @@ func (w *workload) read(ctx context.Context, r *rand.Rand) {
 		case n < 93: // opening the genre filter of a library screen
 			leaf.Kinds = []db.ItemKind{seed.TitleKind(lib.Kind)}
 			_, err := w.d.Facets(ctx, v, leaf, db.FacetGenre)
-			w.record("facets", who, started, err)
+			w.record(countClass+"facets", who, started, err)
 		default:
 			_, err := w.d.Item(ctx, v, pick(r, w.leaves))
 			w.record("detail", who, started, err)
