@@ -172,3 +172,24 @@ func streamFacts(streams []Stream) versionFacts {
 	}
 	return facts
 }
+
+// ForgetProbes marks every media file of a library as not read, so the next scan reads each
+// again, changed or not: Scan all files. What was read before stays until it is replaced.
+func (d *DB) ForgetProbes(ctx context.Context, libraryID int64) error {
+	for {
+		var n int64
+		err := d.write(ctx, Background, func(tx *sql.Tx) error {
+			res, err := tx.Exec(`UPDATE files SET probed_at = NULL WHERE id IN (SELECT f.id FROM files f JOIN directories d ON d.id = f.directory_id
+				JOIN library_paths p ON p.id = d.library_path_id WHERE p.library_id = ? AND f.role = 1 AND f.probed_at IS NOT NULL
+				LIMIT 500)`, libraryID)
+			if err != nil {
+				return err
+			}
+			n, _ = res.RowsAffected()
+			return nil
+		})
+		if err != nil || n == 0 {
+			return err
+		}
+	}
+}
