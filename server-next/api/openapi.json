@@ -1817,6 +1817,14 @@
         ],
         "type": "object"
       },
+      "ScanRequest": {
+        "properties": {
+          "allFiles": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "ScanStatus": {
         "properties": {
           "counts": {
@@ -3108,6 +3116,16 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScanRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "202": {
             "content": {

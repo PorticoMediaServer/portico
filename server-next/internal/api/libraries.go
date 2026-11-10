@@ -76,6 +76,12 @@ type LibraryEdit struct {
 	Options  *LibraryOptions `json:"options,omitempty"`
 }
 
+// ScanRequest starts a scan. With AllFiles it reads every file again, changed or not; a scan
+// already waiting or running is joined as it is.
+type ScanRequest struct {
+	AllFiles bool `json:"allFiles,omitempty"`
+}
+
 // Job is slow work to watch at /v1/jobs/{id}. State is waiting, running, done, failed or cancelled.
 type Job struct {
 	ID       string       `json:"id"`
@@ -355,7 +361,7 @@ func (s *Server) createLibrary(r *http.Request, req LibraryCreate) (AdminLibrary
 		return AdminLibrary{}, libraryError(err)
 	}
 	// A new library is scanned at once.
-	if _, err := s.scans.Scan(r.Context(), lib.PublicID, caller.UserID); err != nil {
+	if _, err := s.scans.Scan(r.Context(), lib.PublicID, caller.UserID, false); err != nil {
 		return AdminLibrary{}, err
 	}
 	found, err := s.db.AdminLibraries(r.Context(), lib.PublicID)
@@ -406,7 +412,7 @@ func (s *Server) editLibrary(r *http.Request, req LibraryEdit) (AdminLibrary, er
 		}
 	}
 	if added {
-		if _, err := s.scans.Scan(r.Context(), lib.PublicID, CallerFrom(r.Context()).UserID); err != nil {
+		if _, err := s.scans.Scan(r.Context(), lib.PublicID, CallerFrom(r.Context()).UserID, false); err != nil {
 			return AdminLibrary{}, err
 		}
 	}
@@ -440,12 +446,12 @@ func (s *Server) deleteLibrary(r *http.Request, _ None) (Job, error) {
 	return *jobOut(job), nil
 }
 
-func (s *Server) startScan(r *http.Request, _ None) (Job, error) {
+func (s *Server) startScan(r *http.Request, req ScanRequest) (Job, error) {
 	lib, err := s.library(r)
 	if err != nil {
 		return Job{}, err
 	}
-	job, err := s.scans.Scan(r.Context(), lib.PublicID, CallerFrom(r.Context()).UserID)
+	job, err := s.scans.Scan(r.Context(), lib.PublicID, CallerFrom(r.Context()).UserID, req.AllFiles)
 	if err != nil {
 		return Job{}, err
 	}
