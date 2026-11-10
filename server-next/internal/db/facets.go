@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"slices"
 )
 
 // Facets a list can be counted by.
@@ -72,11 +73,16 @@ func (d *DB) Facets(ctx context.Context, v Viewer, q ItemQuery, facet string) ([
 		// A tag counts once for an item that carries it or whose title does. Each list row
 		// costs a look in the tag table's key, so this reads in proportion to the list; the
 		// tags are named only after counting, and at most 200 are returned.
-		own := fmt.Sprintf(`SELECT it.tag_id AS tag, count(*) AS n FROM %s JOIN item_tags it ON it.item_id = i.id WHERE %s GROUP BY 1`, from, where)
-		inherited := fmt.Sprintf(`SELECT it.tag_id, count(*) FROM %s JOIN item_tags it ON it.item_id = i.root_id WHERE %s
-			AND NOT EXISTS (SELECT 1 FROM item_tags o WHERE o.item_id = i.id AND o.tag_id = it.tag_id) GROUP BY 1`, from, where)
-		query = fmt.Sprintf(`SELECT t.public_id, t.name, sum(c.n) FROM (%s UNION ALL %s) c JOIN tags t ON t.id = c.tag AND t.kind = '%s'
-			GROUP BY t.id ORDER BY 3 DESC, t.norm_name LIMIT 200`, own, inherited, facetTagKinds[facet])
+		// CROSS JOIN makes SQLite read the list and look each row's tags up, not read every
+		// tag in the database and look each item up.
+		counts := fmt.Sprintf(`SELECT it.tag_id AS tag, count(*) AS n FROM %s CROSS JOIN item_tags it ON it.item_id = i.id WHERE %s GROUP BY 1`, from, where)
+		if len(q.Kinds) == 0 || slices.ContainsFunc(q.Kinds, func(k ItemKind) bool { return !k.TopLevel() }) {
+			// Something under a title also counts for the title's tags, unless it has the tag itself.
+			counts += fmt.Sprintf(` UNION ALL SELECT it.tag_id, count(*) FROM %s CROSS JOIN item_tags it ON it.item_id = i.root_id WHERE %s
+				AND NOT EXISTS (SELECT 1 FROM item_tags o WHERE o.item_id = i.id AND o.tag_id = it.tag_id) GROUP BY 1`, from, where)
+		}
+		query = fmt.Sprintf(`SELECT t.public_id, t.name, sum(c.n) FROM (%s) c JOIN tags t ON t.id = c.tag AND t.kind = '%s'
+			GROUP BY t.id ORDER BY 3 DESC, t.norm_name LIMIT 200`, counts, facetTagKinds[facet])
 	case FacetDecade:
 		query = fmt.Sprintf(`SELECT i.year / 10 * 10, (i.year / 10 * 10) || 's', count(*) FROM %s
 			WHERE %s AND i.year IS NOT NULL GROUP BY 1 ORDER BY 1 DESC`, from, where)

@@ -95,7 +95,9 @@ func (a access) libraryVisible(library string) string {
 	case a.allLibraries:
 		return "1"
 	}
-	return library + " IN " + intList(a.libraries)
+	// The "+" keeps this a check on rows found some other way. Without it SQLite may pick an
+	// index because the library list fits it, and give up the index that orders the list.
+	return "+" + library + " IN " + intList(a.libraries)
 }
 
 // visible is the one condition that says the viewer may see the items row with this alias.
@@ -110,38 +112,43 @@ func (a access) libraryVisible(library string) string {
 //
 // A profile with no restriction gets the condition "1", so its reads cost nothing extra.
 func (a access) visible(alias string) string {
-	return "(" + a.libraryVisible(alias+".library_id") + a.rated(alias) + a.unblocked(alias) + ")"
+	return "(" + a.libraryVisible(alias+".library_id") + a.rated(alias, "+") + a.unblocked(alias) + ")"
 }
 
-// rated is the rating part of visible, as " AND ..." or nothing.
-func (a access) rated(alias string) string {
+// rated is the rating part of visible, as " AND ..." or nothing. plus is "+" to keep it a
+// check on rows found some other way (see libraryVisible), or "" where the rating index
+// should be used: a total, or a list read from that index.
+func (a access) rated(alias, plus string) string {
 	switch {
 	case a.maxAge == nil:
 		return ""
 	case a.allowUnrated:
 		return " AND ifnull(" + alias + ".rating_age, 0) <= " + strconv.Itoa(*a.maxAge)
 	}
-	return " AND " + alias + ".rating_age <= " + strconv.Itoa(*a.maxAge)
+	return " AND " + plus + alias + ".rating_age <= " + strconv.Itoa(*a.maxAge)
 }
 
-// unblocked is the label part of visible, as " AND ..." or nothing. It is checked row by row,
-// which suits a page: the list is read in order and stops when the page is full.
+// unblocked is the label part of visible, as " AND ..." or nothing: neither the row nor what
+// it sits under carries a blocked label. It is a few key lookups per row, which suits a page
+// (the list is read in order and stops when the page is full) and a single item.
 func (a access) unblocked(alias string) string {
 	if len(a.blockedTags) == 0 {
 		return ""
 	}
-	blocked := "(SELECT item_id FROM item_tags WHERE tag_id IN " + intList(a.blockedTags) + ")"
-	return " AND " + alias + ".id NOT IN " + blocked + " AND ifnull(" + alias + ".parent_id, 0) NOT IN " + blocked +
-		" AND ifnull(" + alias + ".root_id, 0) NOT IN " + blocked
+	return " AND NOT EXISTS (SELECT 1 FROM item_tags blocked WHERE blocked.item_id IN (" + alias + ".id, " + alias + ".parent_id, " +
+		alias + ".root_id) AND blocked.tag_id IN " + intList(a.blockedTags) + ")"
 }
 
 // blockedIDs is a query for the id of every item a blocked label hides: the items that carry
 // one, and everything under them. A total subtracts these instead of checking every row.
-func (a access) blockedIDs() string {
+// inLibrary and ofKinds narrow it to a library and kinds, as conditions on c, and may be
+// empty. What is under a labelled title is in the title's library, and is found with its
+// kind from an index, so that part needs no item rows at all.
+func (a access) blockedIDs(inLibrary, ofKinds string) string {
 	tags := intList(a.blockedTags)
-	return `SELECT item_id FROM item_tags WHERE tag_id IN ` + tags + `
-		UNION SELECT c.id FROM item_tags h CROSS JOIN items c WHERE h.tag_id IN ` + tags + ` AND c.parent_id = h.item_id
-		UNION SELECT c.id FROM item_tags h CROSS JOIN items c WHERE h.tag_id IN ` + tags + ` AND c.root_id = h.item_id`
+	return `SELECT c.id FROM item_tags h CROSS JOIN items c ON c.id = h.item_id WHERE h.tag_id IN ` + tags + inLibrary + ofKinds + `
+		UNION SELECT c.id FROM item_tags h CROSS JOIN items c ON c.parent_id = h.item_id WHERE h.tag_id IN ` + tags + ofKinds + `
+		UNION SELECT c.id FROM item_tags h CROSS JOIN items c ON c.root_id = h.item_id WHERE h.tag_id IN ` + tags + ofKinds
 }
 
 // sparseRated is how few visible titles make a rating-limited list "sparse". See ratedIn.
@@ -179,10 +186,16 @@ type query struct {
 	// labels is the viewer's blocked-label condition, standing in for "{labels}" on a page.
 	// A total leaves it out and subtracts what the labels hide. See access.blockedIDs.
 	labels string
+	// ratingPlus stands in for "{rated}" on a page: "+" unless the page is read from the
+	// rating index. See access.rated.
+	ratingPlus string
+	// plainLibrary and plainKinds are set when the list is a whole library and kind with
+	// nothing else asked for, as conditions on c, for counting what labels hide in it.
+	plainLibrary, plainKinds string
 }
 
 func (q *query) pageWhere() string {
-	return strings.NewReplacer("{tag}", q.tagPage, "{+}", q.pagePlus, "{labels}", q.labels).Replace(q.sql.String())
+	return strings.NewReplacer("{tag}", q.tagPage, "{+}", q.pagePlus, "{labels}", q.labels, "{rated}", q.ratingPlus).Replace(q.sql.String())
 }
 
 // countWhere is the condition for a total or a facet. With labels false the blocked-label
@@ -192,10 +205,12 @@ func (q *query) countWhere(labels bool) string {
 	if labels {
 		check = q.labels
 	}
-	return strings.NewReplacer("{tag}", q.tagCount, "{+}", "", "{labels}", check).Replace(q.sql.String())
+	return strings.NewReplacer("{tag}", q.tagCount, "{+}", "", "{labels}", check, "{rated}", "").Replace(q.sql.String())
 }
 
-func newQuery(v Viewer) *query { return &query{args: v.args(), from: "items i", countFrom: "items i"} }
+func newQuery(v Viewer) *query {
+	return &query{args: v.args(), from: "items i", countFrom: "items i", ratingPlus: "+"}
+}
 
 // arg adds a value and returns the name to write in the statement.
 func (q *query) arg(value any) string {
