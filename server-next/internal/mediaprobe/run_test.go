@@ -2,6 +2,7 @@ package mediaprobe
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,8 +12,23 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
 	"github.com/PorticoMediaServer/portico/server-next/internal/decodertest"
+	"github.com/PorticoMediaServer/portico/server-next/internal/mediaexec"
 	"github.com/PorticoMediaServer/portico/server-next/internal/processpool"
 )
+
+// The test executable dispatches the same confinement helpers as the server.
+func TestMain(m *testing.M) {
+	for _, helper := range []func([]string) (bool, error){decoder.RunHelper, mediaexec.RunHelper} {
+		if handled, err := helper(os.Args[1:]); handled {
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+			os.Exit(0)
+		}
+	}
+	os.Exit(m.Run())
+}
 
 // A real, confined ffprobe reads a generated file through the bridge: it is
 // given a loopback address and never a path, and its facts come back typed.
@@ -34,11 +50,7 @@ func TestConfinedProbeReadsAFileThroughTheBridge(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	libraries, err := decoder.ResolveLibraries(ffmpeg, ffprobe, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	tool := Tool{Executable: ffprobe, Libraries: libraries}
+	tool := Tool{Executable: ffprobe}
 	tool.Identity.ExecutableSHA256, tool.Identity.Version = strings.Repeat("0", 64), "test"
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
