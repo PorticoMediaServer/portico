@@ -119,7 +119,7 @@ func (q ItemQuery) conditions(ctx context.Context, tx *sql.Tx, w *query, scoped 
 			c.Mode = ModeAny
 		}
 		if c.Mode != ModeAny && c.Mode != ModeAll && c.Mode != ModeNone {
-			return false, invalid("a filter combines its values as any, all or none, not %q", c.Mode)
+			return false, invalid("A filter's choices combine as any, all or none of them.")
 		}
 		var tests []string
 		tagKind, isTag := conditionTags[c.Field]
@@ -232,7 +232,7 @@ func conditionTest(w *query, field, value string) (string, error) {
 		first, errFrom := strconv.Atoi(from)
 		last, errTo := strconv.Atoi(to)
 		if errFrom != nil || errTo != nil || first > last || first < 1 {
-			return "", invalid(`a year is "1999" or a range such as "1990..1999", not %q`, value)
+			return "", invalid("Give a year such as 1999, or a range such as 1990..1999.")
 		}
 		// "{+}" keeps a page from being found through the year index. See ItemQuery.filters.
 		return `({+}i.year >= ` + w.arg(first) + ` AND {+}i.year <= ` + w.arg(last) + `)`, nil
@@ -241,7 +241,7 @@ func conditionTest(w *query, field, value string) (string, error) {
 	case "resolution":
 		class, ok := resolutionClasses[value]
 		if !ok {
-			return "", invalid("unknown resolution %q", value)
+			return "", invalid("Choose a resolution of sd, 720p, 1080p or 4k.")
 		}
 		return `EXISTS (SELECT 1 FROM media m WHERE m.item_id = i.id AND m.width IS NOT NULL AND ` + resolutionSQL + ` = ` + fmt.Sprint(class) + `)`, nil
 	case "dynamicRange":
@@ -256,7 +256,7 @@ func conditionTest(w *query, field, value string) (string, error) {
 		low, errFrom := strconv.ParseFloat(from, 64)
 		high, errTo := strconv.ParseFloat(to, 64)
 		if from != "" && errFrom != nil || to != "" && errTo != nil || from == "" && to == "" {
-			return "", invalid(`%s takes a number or a range such as "7..9", not %q`, field, value)
+			return "", invalid("Give a number, or a range such as 7..9.")
 		}
 		return between(w, expr, low, high, from != "", to != ""), nil
 	}
@@ -270,7 +270,7 @@ func conditionTest(w *query, field, value string) (string, error) {
 			last, errTo = time.Parse(time.DateOnly, to)
 		}
 		if errFrom != nil || errTo != nil || from == "" && to == "" {
-			return "", invalid(`%s takes a day or a range such as "2024-01-01..2024-12-31", not %q`, field, value)
+			return "", invalid("Give a day such as 2024-03-01, or a range such as 2024-01-01..2024-12-31.")
 		}
 		if field == "released" {
 			return between(w, expr, from, to, from != "", to != ""), nil // stored as a day
@@ -285,7 +285,7 @@ func conditionTest(w *query, field, value string) (string, error) {
 		case "false":
 			return "NOT " + test, nil
 		}
-		return "", invalid("%s is true or false, not %q", field, value)
+		return "", invalid("Use true or false.")
 	}
-	return "", invalid("unknown filter %q", field)
+	return "", invalid("This list cannot be filtered that way.")
 }

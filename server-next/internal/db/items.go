@@ -206,7 +206,7 @@ func decodeCursor(text, sort string, desc bool) (*listCursor, error) {
 		}
 	}
 	if err != nil || c.Sort != sort || c.Desc != desc {
-		return nil, invalid("the cursor does not belong to this list")
+		return nil, ErrCursorExpired
 	}
 	return &c, nil
 }
@@ -264,15 +264,15 @@ func (d *DB) Items(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, error)
 	}
 	spec, ok := sortFor(q.Sort, seed)
 	if !ok {
-		return page, invalid("unknown sort %q", q.Sort)
+		return page, invalid("This list cannot be sorted that way.")
 	}
 	if cursor != nil && !cursor.fits(spec) {
-		return page, invalid("the cursor does not belong to this list")
+		return page, ErrCursorExpired
 	}
 	if q.Sort == SortOrder && q.Parent == "" {
 		// Season and episode numbers order one show's items. Over a whole library they have
 		// no index and mean nothing, so the list would be sorted afresh for every page.
-		return page, invalid("the order sort is for the items under a parent")
+		return page, invalid("Only the titles inside a show, season, artist or album can be sorted in their own order.")
 	}
 	if q.Limit <= 0 {
 		q.Limit = defaultPageSize
@@ -516,7 +516,7 @@ func listRun(ctx context.Context, tx *sql.Tx, where *query, spec sortSpec, q Ite
 func cursorAt(ctx context.Context, tx *sql.Tx, v Viewer, q ItemQuery, item int64) (string, error) {
 	spec, ok := sortFor(q.Sort, 0)
 	if !ok || q.Sort == SortRandom {
-		return "", invalid("a list cannot be carried on from an item in the sort %q", q.Sort)
+		return "", invalid("A list in random order cannot start from a chosen title.")
 	}
 	at := listCursor{Sort: q.Sort, Desc: q.Desc, ID: item}
 	values := make([]any, len(spec.columns))
@@ -577,7 +577,7 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		kinds := make([]string, len(q.Kinds))
 		for n, kind := range q.Kinds {
 			if err := checkCode("kind", itemKindNames, kind); err != nil {
-				return false, invalid("unknown kind")
+				return false, invalid("That is not a kind of title.")
 			}
 			kinds[n] = fmt.Sprint(int(kind))
 		}
@@ -693,7 +693,7 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 	if q.Resolution != "" {
 		class, ok := resolutionClasses[q.Resolution]
 		if !ok {
-			return false, invalid("unknown resolution %q", q.Resolution)
+			return false, invalid("Choose a resolution of sd, 720p, 1080p or 4k.")
 		}
 		w.add(` AND EXISTS (SELECT 1 FROM media m WHERE m.item_id = i.id AND m.width IS NOT NULL AND `, resolutionSQL, ` = `, fmt.Sprint(class), `)`)
 	}
@@ -705,7 +705,7 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		return false, err
 	}
 	if !scoped {
-		return false, invalid("a list needs a library, a parent, a person, a tag, favourites or My List")
+		return false, invalid("Choose a library, a title, a person, a genre, Favorites or My List to list.")
 	}
 	return true, nil
 }
