@@ -185,6 +185,7 @@ func TestAScannedFilmPlaysAsItIsAndConverted(t *testing.T) {
 	}
 	if out, err := exec.Command(ffmpeg, "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
 		"-f", "lavfi", "-i", "testsrc2=size=1280x720:rate=24", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000",
+		"-map", "0:v", "-map", "1:a", "-map", "1:a", "-metadata:s:a:0", "language=eng", "-metadata:s:a:1", "language=jpn",
 		"-t", "12", "-pix_fmt", "yuv420p", "-g", "48", "-ac", "2", "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac",
 		"-movflags", "+faststart", film).CombinedOutput(); err != nil {
 		t.Fatalf("making the film: %v\n%s", err, out)
@@ -212,10 +213,23 @@ func TestAScannedFilmPlaysAsItIsAndConverted(t *testing.T) {
 	// What the scan read from the file is what the player is offered.
 	var options api.PlaybackOptions
 	h.call("GET", "/v1/items/"+item+"/playback-options", nil, &options, 200)
-	if v := options.Versions[0]; len(v.Video) != 1 || v.Video[0].Codec != "h264" || v.Video[0].Height != 720 ||
-		len(v.Audio) != 1 || v.Audio[0].Codec != "aac" || v.DurationMs < 11_000 || v.DurationMs > 13_000 {
+	version := options.Versions[0]
+	if v := version; len(v.Video) != 1 || v.Video[0].Codec != "h264" || v.Video[0].Height != 720 || len(v.Audio) != 2 ||
+		v.Audio[0].Codec != "aac" || v.Audio[1].Language != "jpn" || v.DurationMs < 11_000 || v.DurationMs > 13_000 {
 		t.Fatalf("the version is %+v", v)
 	}
+	// The profile's own settings reach the planner: with Japanese preferred, that track plays.
+	if options.Preferred.AudioID != version.Audio[0].ID {
+		t.Fatalf("the first audio track should play by default: %+v", options.Preferred)
+	}
+	h.call("PATCH", "/v1/preferences", api.PreferencesEdit{Scope: "profile-server", DeviceClass: "web",
+		Values: map[string]any{"playback.preferredAudioLanguages": []string{"ja"}}}, nil, 200)
+	h.call("GET", "/v1/items/"+item+"/playback-options", nil, &options, 200)
+	if options.Preferred.AudioID != version.Audio[1].ID {
+		t.Fatalf("with Japanese preferred the Japanese track should play: %+v", options.Preferred)
+	}
+	h.call("PATCH", "/v1/preferences", api.PreferencesEdit{Scope: "profile-server", DeviceClass: "web",
+		Values: map[string]any{"playback.preferredAudioLanguages": nil}}, nil, 200)
 
 	// The file as it is, by byte range.
 	var session api.PlaybackSession
