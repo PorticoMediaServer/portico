@@ -475,15 +475,24 @@ func TestSearchNeverShowsARestrictedTitle(t *testing.T) {
 	if err != nil || blocked == "" {
 		t.Fatalf("a profile with a blocked label: %v", err)
 	}
+	// And one with all three restrictions at once, as a child's profile has.
+	teen := 13
+	child, err := l.d.CreateSeedProfile(ctx, db.SeedProfile{Name: "child", MaxRatingAge: &teen, BlockedTags: []string{blocked},
+		Libraries: []int64{l.libs[0].ID, l.libs[1].ID}})
+	if err != nil || l.libs[0].Kind != db.LibraryMovies || l.libs[1].Kind != db.LibraryShows {
+		t.Fatalf("a profile with every restriction: %v", err)
+	}
 	allowed := func(v db.Viewer, f *fact) bool {
+		age, rated := ratingAges[f.rating]
 		switch v {
 		case byRating:
-			age, rated := ratingAges[f.rating]
 			return rated && age <= 13
 		case byLibrary:
 			return f.library == db.LibraryMovies || f.library == db.LibraryMusic
 		case byLabel:
 			return !slices.Contains(f.labels, blocked)
+		case child:
+			return rated && age <= 13 && (f.library == db.LibraryMovies || f.library == db.LibraryShows) && !slices.Contains(f.labels, blocked)
 		}
 		return true
 	}
@@ -501,7 +510,7 @@ func TestSearchNeverShowsARestrictedTitle(t *testing.T) {
 	sorts := []string{db.SearchBest, db.SortTitle, db.SortYear, db.SortAdded}
 	kinds := []string{"movie", "show", "episode", "artist", "album", "track", "book"}
 	queries, shown := 0, 0
-	for _, v := range []db.Viewer{byRating, byLibrary, byLabel} {
+	for _, v := range []db.Viewer{byRating, byLibrary, byLabel, child} {
 		check := func(text string, g db.SearchGroup) {
 			t.Helper()
 			for _, item := range g.Items {
@@ -515,7 +524,7 @@ func TestSearchNeverShowsARestrictedTitle(t *testing.T) {
 				}
 			}
 		}
-		for range 200 {
+		for range 150 {
 			text := word()
 			if r.IntN(3) == 0 {
 				text += " " + word()
@@ -567,8 +576,8 @@ func TestSearchNeverShowsARestrictedTitle(t *testing.T) {
 					break
 				}
 			}
-			if rows < total || rows > total && !minimum {
-				t.Fatalf("search %+v: counted %d (a minimum: %v), paged through %d", q, total, minimum, rows)
+			if rows != total || minimum {
+				t.Fatalf("search %+v: counted %d (a minimum: %v), paged through %d; a count of titles is exact", q, total, minimum, rows)
 			}
 			suggestions, err := l.d.SearchSuggestions(ctx, v, text, 20)
 			if err != nil {
