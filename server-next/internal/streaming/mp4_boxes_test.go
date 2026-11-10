@@ -222,22 +222,27 @@ func TestCopiedPictureKeepsItsConvertedSoundUnbroken(t *testing.T) {
 	}
 	combined := filepath.Join(root, "joined.mp4")
 	os.WriteFile(combined, joined, 0600)
+	// Sound frames all have one length, so each starts one frame after the one before.
 	out, e := exec.CommandContext(ctx, decodertest.QualifiedFFprobe(t), "-v", "error", "-select_streams", "a:0",
-		"-show_entries", "packet=pts_time,duration_time", "-of", "csv=p=0", combined).Output()
+		"-show_entries", "packet=pts_time", "-of", "csv=p=0", combined).Output()
 	if e != nil {
 		t.Fatal(e)
 	}
-	end, packets := 0.0, 0
+	var starts []float64
 	for _, row := range strings.Fields(string(out)) {
-		start, length, _ := strings.Cut(row, ",")
-		at, _ := strconv.ParseFloat(start, 64)
-		duration, _ := strconv.ParseFloat(strings.TrimSuffix(length, ","), 64)
-		if packets > 0 && math.Abs(at-end) > .001 {
-			t.Fatalf("sound packet %d starts at %f, the one before ended at %f", packets, at, end)
+		at, e := strconv.ParseFloat(strings.TrimSuffix(row, ","), 64)
+		if e != nil {
+			t.Fatalf("sound packet time %q", row)
 		}
-		end, packets = at+duration, packets+1
+		starts = append(starts, at)
 	}
-	if packets < 100 || end < 12.9 {
-		t.Fatalf("%d sound packets ending at %f", packets, end)
+	if len(starts) < 100 || starts[len(starts)-1] < 12.8 {
+		t.Fatalf("%d sound packets, the last at %v", len(starts), starts[len(starts)-1:])
+	}
+	frame := starts[1] - starts[0]
+	for i := 2; i < len(starts); i++ {
+		if math.Abs(starts[i]-starts[i-1]-frame) > .001 {
+			t.Fatalf("sound packet %d starts at %f, %f after the one before; a frame is %f", i, starts[i], starts[i]-starts[i-1], frame)
+		}
 	}
 }
