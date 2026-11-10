@@ -38,12 +38,14 @@ type MetadataEdit struct {
 	Unlock        []string
 }
 
-// MetadataLocks says which of a title's fields a person locked and which its files gave, and
-// the revision an edit must name.
+// MetadataLocks says which of a title's fields a person locked, where each value that is not
+// the provider's came from (SourceFile or SourceEdit, by field), and the revision an edit
+// must name. Local is the fields whose source is the files, for callers that only ask that.
 type MetadataLocks struct {
 	Revision int64
 	Locked   []string
 	Local    []string
+	Sources  map[string]string
 	Match    MatchState
 }
 
@@ -56,7 +58,14 @@ func (d *DB) MetadataLocks(ctx context.Context, publicID string) (MetadataLocks,
 	if errors.Is(err, sql.ErrNoRows) {
 		return out, ErrNotFound
 	}
-	out.Locked, out.Local = sortedFields(fieldSet(locked)), sortedFields(fieldSet(local))
+	out.Locked, out.Sources = sortedFields(fieldSet(locked)), fieldSources(local)
+	out.Local = []string{}
+	for field, source := range out.Sources {
+		if source == SourceFile {
+			out.Local = append(out.Local, field)
+		}
+	}
+	slices.Sort(out.Local)
 	return out, err
 }
 
@@ -155,10 +164,10 @@ func (d *DB) EditMetadata(ctx context.Context, publicID string, revision int64, 
 		now := time.Now().UnixMilli()
 		var id, library, current int64
 		var title string
-		var locked, language sql.NullString
+		var locked, local, language sql.NullString
 		var root sql.NullInt64
-		err := b.queryRow(`SELECT i.id, i.library_id, i.revision, i.title, i.locked_fields, i.root_id, l.language FROM items i
-			JOIN libraries l ON l.id = i.library_id WHERE i.public_id = ?`, publicID).Scan(&id, &library, &current, &title, &locked, &root, &language)
+		err := b.queryRow(`SELECT i.id, i.library_id, i.revision, i.title, i.locked_fields, i.local_fields, i.root_id, l.language FROM items i
+			JOIN libraries l ON l.id = i.library_id WHERE i.public_id = ?`, publicID).Scan(&id, &library, &current, &title, &locked, &local, &root, &language)
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrNotFound
 		}
@@ -170,12 +179,15 @@ func (d *DB) EditMetadata(ctx context.Context, publicID string, revision int64, 
 		}
 		locks := fieldSet(locked)
 		sortLocked := locks[FieldSortTitle] // a sort title a person set does not follow a new title
+		// What this edit sets is a person's from now on, whatever gave it before. A field that
+		// is only locked or unlocked keeps its source.
+		sources := fieldSources(local)
 		sets, args := "updated_at = ?, revision = revision + 1", []any{now}
 		for _, f := range texts {
 			if f.value == nil {
 				continue
 			}
-			locks[f.name] = true
+			locks[f.name], sources[f.name] = true, SourceEdit
 			if f.column != "" {
 				sets += ", " + f.column + " = ?"
 				args = append(args, nz(*f.value))
@@ -193,7 +205,7 @@ func (d *DB) EditMetadata(ctx context.Context, publicID string, revision int64, 
 			args = append(args, sorttext.Key(title, explicit, language.String))
 		}
 		if edit.Year != nil {
-			locks[FieldYear] = true
+			locks[FieldYear], sources[FieldYear] = true, SourceEdit
 			sets += ", year = ?"
 			args = append(args, nz(*edit.Year))
 		}
@@ -203,11 +215,17 @@ func (d *DB) EditMetadata(ctx context.Context, publicID string, revision int64, 
 			if n, ok := contentrating.Age(*edit.ContentRating); ok {
 				age = &n
 			}
-			sets += ", rating_age = ?"
-			args = append(args, age)
+			if strings.TrimSpace(*edit.ContentRating) == "" && root.Valid {
+				// An episode with no rating of its own uses its show's.
+				sets += ", rating_age = (SELECT r.rating_age FROM items r WHERE r.id = ?)"
+				args = append(args, root.Int64)
+			} else {
+				sets += ", rating_age = ?"
+				args = append(args, age)
+			}
 		}
 		if edit.Genres != nil {
-			locks[FieldGenres] = true
+			locks[FieldGenres], sources[FieldGenres] = true, SourceEdit
 		}
 		for _, field := range edit.Lock {
 			locks[field] = true
@@ -215,8 +233,8 @@ func (d *DB) EditMetadata(ctx context.Context, publicID string, revision int64, 
 		for _, field := range edit.Unlock {
 			delete(locks, field)
 		}
-		sets += ", locked_fields = ?"
-		args = append(args, fieldList(sortedFields(locks)))
+		sets += ", locked_fields = ?, local_fields = ?"
+		args = append(args, fieldList(sortedFields(locks)), sourceJSON(sources))
 		if _, err := b.exec(`UPDATE items SET `+sets+` WHERE id = ?`, append(args, id)...); err != nil {
 			return err
 		}
@@ -252,8 +270,8 @@ type RefreshItem struct {
 	Kind        ItemKind
 	RefreshedAt int64
 	AddedAt     int64
-	Continuing  bool // a show that has not ended
-	ExternalIDs []ExternalID
+	Continuing  bool         // a show that has not ended
+	ExternalIDs []ExternalID // filled by RefreshTarget; ToRefresh leaves it for ExternalIDs to answer
 }
 
 // ToRefresh lists a library's matched top-level titles that were last refreshed at or before the
@@ -275,13 +293,6 @@ func (d *DB) ToRefresh(ctx context.Context, libraryID, before int64, after *Refr
 		func(r *RefreshItem) []any { return []any{&r.ID, &r.Kind, &r.RefreshedAt, &r.AddedAt, &r.Continuing} })
 	if err != nil {
 		return nil, err
-	}
-	for i := range items {
-		items[i].ExternalIDs, err = queryAll(ctx, tx, `SELECT provider, external_id FROM item_external_ids WHERE item_id = ?`,
-			[]any{items[i].ID}, func(e *ExternalID) []any { return []any{&e.Provider, &e.ID} })
-		if err != nil {
-			return nil, err
-		}
 	}
 	return items, nil
 }
@@ -315,4 +326,15 @@ func (d *DB) MarkRefreshed(ctx context.Context, p Priority, itemID int64) error 
 		_, err := tx.Exec(`UPDATE items SET refreshed_at = ? WHERE id = ?`, time.Now().UnixMilli(), itemID)
 		return err
 	})
+}
+
+// ExternalIDs returns a title's ids at providers.
+func (d *DB) ExternalIDs(ctx context.Context, itemID int64) ([]ExternalID, error) {
+	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	return queryAll(ctx, tx, `SELECT provider, external_id FROM item_external_ids WHERE item_id = ?`, []any{itemID},
+		func(e *ExternalID) []any { return []any{&e.Provider, &e.ID} })
 }

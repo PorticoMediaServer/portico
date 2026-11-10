@@ -2,12 +2,15 @@ package metadata_test
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/scan"
 )
 
 func text(s string) *string { return &s }
@@ -41,6 +44,16 @@ func TestARefreshNeverOverwritesAHandEdit(t *testing.T) {
 		t.Fatalf("locks after the edit: %+v", locks)
 	}
 
+	// The editor can tell what a person typed from what is only locked: the year is locked
+	// here without being changed, and stays the provider's.
+	if _, err := f.d.EditMetadata(ctx, film.PublicID, revision, db.MetadataEdit{Lock: []string{"year"}}); err != nil {
+		t.Fatal(err)
+	}
+	locks, _ = f.d.MetadataLocks(ctx, film.PublicID)
+	if locks.Sources["title"] != db.SourceEdit || locks.Sources["year"] != "" || !slices.Contains(locks.Locked, "year") {
+		t.Fatalf("sources after an edit and a lock: %+v", locks)
+	}
+
 	asked := f.tmdb.Requests.Load()
 	if refreshed, err := f.s.Refresh(ctx, film.PublicID); err != nil || !refreshed || f.tmdb.Requests.Load() == asked {
 		t.Fatalf("Refresh: %v, %v", refreshed, err)
@@ -69,6 +82,11 @@ func TestARefreshNeverOverwritesAHandEdit(t *testing.T) {
 	}
 	if unlocked.Summary != "Mine." {
 		t.Errorf("a field still locked changed: %q", unlocked.Summary)
+	}
+	// The unlocked tagline is the provider's again; the description is still the person's.
+	locks, _ = f.d.MetadataLocks(ctx, film.PublicID)
+	if locks.Sources["tagline"] != "" || locks.Sources["summary"] != db.SourceEdit {
+		t.Errorf("sources after unlocking and refreshing: %+v", locks.Sources)
 	}
 
 	// A provider that cannot be asked changes nothing.
@@ -111,5 +129,46 @@ func TestTitlesAreRefreshedWhenTheyAreDue(t *testing.T) {
 	}
 	if film := f.title(db.KindMovie, "The Matrix"); !strings.HasPrefix(film.Summary, "Set in the 22nd century") {
 		t.Errorf("after refreshes: %+v", film)
+	}
+}
+
+func TestANewEpisodeOfAMatchedShowIsLookedUpAtOnce(t *testing.T) {
+	f := newFixture(t, db.LibraryShows, "Breaking Bad/Season 01/Breaking Bad - S01E01.mkv")
+	f.match()
+	// The show ended long ago and was matched a moment ago: by its age it is not due.
+	file := filepath.Join(f.lib.Paths[0].Path, "Breaking Bad", "Season 01", "Breaking Bad - S01E02.mkv")
+	if err := os.WriteFile(file, make([]byte, 222), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := (&scan.Scanner{DB: f.d, Prober: prober{}}).Scan(ctx, f.lib); err != nil {
+		t.Fatal(err)
+	}
+	f.title(db.KindEpisode, "Episode 2")
+	if done, err := f.s.RefreshLibrary(ctx, f.lib.ID, time.Now(), 100); err != nil || done != 1 {
+		t.Fatalf("after a scan added an episode: %d refreshed, %v; want the show", done, err)
+	}
+	f.title(db.KindEpisode, "Cat's in the Bag...")
+	// Nothing more was added: the show is not refreshed again.
+	if done, err := f.s.RefreshLibrary(ctx, f.lib.ID, time.Now(), 100); err != nil || done != 0 {
+		t.Errorf("a second run: %d refreshed, %v", done, err)
+	}
+}
+
+func TestAllTitlesAreLookedThroughAtMostHourly(t *testing.T) {
+	f := newFixture(t, db.LibraryMovies, "the.matrix.1999.1080p.mkv")
+	f.match()
+	due := time.Now().Add(2 * 24 * time.Hour) // when the film, being new, is first due
+	for _, step := range []struct {
+		at   time.Duration
+		want int
+		why  string
+	}{
+		{-40 * time.Minute, 0, "not due yet"},
+		{10 * time.Minute, 0, "due, but every title was looked through 50 minutes ago"},
+		{30 * time.Minute, 1, "due, and the last look through was over an hour ago"},
+	} {
+		if done, err := f.s.RefreshLibrary(ctx, f.lib.ID, due.Add(step.at), 100); err != nil || done != step.want {
+			t.Errorf("%s: %d refreshed, %v; want %d", step.why, done, err, step.want)
+		}
 	}
 }
