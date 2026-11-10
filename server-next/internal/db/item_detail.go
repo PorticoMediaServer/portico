@@ -183,7 +183,7 @@ func creditsPart(part string) (string, error) {
 	case CreditsCrew:
 		return ` AND c.role NOT IN ` + castRoles, nil
 	}
-	return "", invalid("unknown part of the credits %q", part)
+	return "", invalid("Ask for the cast or the crew.")
 }
 
 func credits(ctx context.Context, tx *sql.Tx, itemID int64, part string, offset, limit int) ([]Credit, error) {
