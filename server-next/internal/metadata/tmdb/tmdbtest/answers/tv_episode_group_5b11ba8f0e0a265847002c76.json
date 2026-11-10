@@ -1,0 +1,7 @@
+{"description":"Every episode numbered from the first.","episode_count":62,"group_count":2,"id":"5b11ba8f0e0a265847002c76","name":"Absolute Order","type":2,
+ "groups":[
+  {"id":"5b11baa50e0a265847002c8a","name":"Part 2","order":2,"locked":true,"episodes":[
+   {"air_date":"2009-03-08","episode_number":1,"id":62092,"name":"Seven Thirty-Seven","overview":"Walt and Jesse realize how dire their situation is.","season_number":2,"still_path":"","vote_average":8.0,"order":0}]},
+  {"id":"5b11baa00e0a265847002c84","name":"Part 1","order":1,"locked":true,"episodes":[
+   {"air_date":"2008-01-20","episode_number":1,"id":62085,"name":"Pilot","overview":"When an unassuming high school chemistry teacher discovers he has a rare form of lung cancer.","season_number":1,"still_path":"/ydlY3iPfeOAvu8gVqrxPoMvzNCn.jpg","vote_average":8.1,"order":0},
+   {"air_date":"2008-01-27","episode_number":2,"id":62086,"name":"Cat's in the Bag...","overview":"Walt and Jesse attempt to tie up loose ends.","season_number":1,"still_path":"/tjDNvbokPLtEnpFyFPyXMOd6Zr1.jpg","vote_average":8.2,"order":1}]}]}
