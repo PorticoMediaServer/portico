@@ -34,6 +34,16 @@ func (d *DB) PlayableUnder(ctx context.Context, v Viewer, holderPublicID string)
 	if kind.Playable() {
 		return []int64{holder}, nil
 	}
+	if kind == KindCollection {
+		// A collection's films in its own order. A show in a collection is not played from it.
+		out, err := ids(ctx, tx, `SELECT c.id FROM item_relations r CROSS JOIN items c ON c.id = r.related_item_id
+			WHERE r.item_id = @holder AND r.kind = `+itoa(int64(RelationCollectionMember))+` AND c.kind IN `+playableKindsSQL+` AND `+acc.visible("c")+`
+			ORDER BY r.position, c.id LIMIT `+itoa(int64(QueueMax)+1), append(v.args(), sql.Named("holder", holder))...)
+		if err == nil && len(out) > QueueMax {
+			err = ErrQueueFull
+		}
+		return out, err
+	}
 	// An artist's songs play album by album, oldest first; everything else by season or
 	// disc number and then episode or track number.
 	order := `ifnull(c.parent_index, 0), ifnull(c.index_number, 0), c.sort_title, c.id`

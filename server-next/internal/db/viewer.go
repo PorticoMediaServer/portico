@@ -107,18 +107,40 @@ func (a access) libraryVisible(library string) string {
 // no join to its show. When a limit is set, a title with no rating is hidden: unknown is not
 // the same as suitable.
 //
+// A library's collection has no rating of its own: under a limit it is visible while it holds
+// a film the profile may see, so it neither disappears for a child nor shows one it cannot open.
+//
 // A profile with no restriction gets the condition "1", so its reads cost nothing extra.
 func (a access) visible(alias string) string {
 	cond := a.libraryVisible(alias + ".library_id")
-	if a.maxAge != nil {
-		cond += " AND " + alias + ".rating_age <= " + strconv.Itoa(*a.maxAge)
+	limits := a.limits(alias, true)
+	if limits == "" {
+		return "(" + cond + ")"
+	}
+	member := alias + "_member"
+	held := "EXISTS (SELECT 1 FROM item_relations " + member + "_r CROSS JOIN items " + member + " ON " + member + ".id = " + member +
+		"_r.related_item_id WHERE " + member + "_r.item_id = " + alias + ".id AND " + member + "_r.kind = " + itoa(int64(RelationCollectionMember)) +
+		" AND " + a.libraryVisible(member+".library_id") + " AND " + a.limits(member, true) + ")"
+	own := a.limits(alias, false)
+	if own != "" {
+		held = own + " AND " + held
+	}
+	return "(" + cond + " AND CASE WHEN " + alias + ".kind = " + itoa(int64(KindCollection)) + " THEN " + held + " ELSE " + limits + " END)"
+}
+
+// limits is the rating limit and blocked labels as a condition on the items row with this
+// alias, or "" when the profile has neither. Without rated, only the labels.
+func (a access) limits(alias string, rated bool) string {
+	var parts []string
+	if rated && a.maxAge != nil {
+		parts = append(parts, alias+".rating_age <= "+strconv.Itoa(*a.maxAge))
 	}
 	if len(a.blockedTags) > 0 {
 		blocked := "(SELECT item_id FROM item_tags WHERE tag_id IN " + intList(a.blockedTags) + ")"
-		cond += " AND " + alias + ".id NOT IN " + blocked + " AND ifnull(" + alias + ".parent_id, 0) NOT IN " + blocked +
-			" AND ifnull(" + alias + ".root_id, 0) NOT IN " + blocked
+		parts = append(parts, alias+".id NOT IN "+blocked, "ifnull("+alias+".parent_id, 0) NOT IN "+blocked,
+			"ifnull("+alias+".root_id, 0) NOT IN "+blocked)
 	}
-	return "(" + cond + ")"
+	return strings.Join(parts, " AND ")
 }
 
 // query builds one statement with named values, so the visibility condition can appear in it
