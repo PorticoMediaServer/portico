@@ -60,13 +60,14 @@ type NewAPIKey struct {
 
 const liveKey = `revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?)`
 
-// CreateAPIKey stores a new key. The same request sent again with its Idempotency-Key does
-// not make a second key: the server never kept the first key's secret, so the key made the
-// first time is given n.KeyHash, the secret in this answer, and the secret nobody saw stops
-// working. A key revoked since is ErrNotFound.
-func (d *DB) CreateAPIKey(ctx context.Context, n NewAPIKey) (APIKey, error) {
-	var out APIKey
-	err := d.write(ctx, User, func(tx *sql.Tx) error {
+// CreateAPIKey stores a new key and says whether n.KeyHash is its secret. The same request
+// sent again with its Idempotency-Key does not make a second key. The server never kept the
+// first key's secret, so while that key has never been used it is given n.KeyHash, the secret
+// in this answer, and the secret nobody saw stops working. Once the key has been used, its
+// secret was delivered and is in use: the repeat answers the key and keeps its secret. A key
+// revoked since is ErrNotFound.
+func (d *DB) CreateAPIKey(ctx context.Context, n NewAPIKey) (out APIKey, secretIsNew bool, err error) {
+	err = d.write(ctx, User, func(tx *sql.Tx) error {
 		at := n.Now.UnixMilli()
 		ref, err := createdBefore(tx, n.UserID, n.IdempotencyKey, n.RequestHash)
 		if err != nil {
@@ -74,7 +75,14 @@ func (d *DB) CreateAPIKey(ctx context.Context, n NewAPIKey) (APIKey, error) {
 		}
 		if ref != "" {
 			out, err = scanKey(tx.QueryRow(`UPDATE api_keys SET key_hash = ? WHERE public_id = ? AND user_id = ? AND revoked_at IS NULL
-				RETURNING `+keyColumns, n.KeyHash, ref, n.UserID))
+				AND last_used_at IS NULL RETURNING `+keyColumns, n.KeyHash, ref, n.UserID))
+			if err == nil {
+				secretIsNew = true
+				return nil
+			}
+			if errors.Is(err, sql.ErrNoRows) {
+				out, err = scanKey(tx.QueryRow(`SELECT `+keyColumns+` FROM api_keys WHERE public_id = ? AND user_id = ? AND revoked_at IS NULL`, ref, n.UserID))
+			}
 			if errors.Is(err, sql.ErrNoRows) {
 				return ErrNotFound
 			}
@@ -99,9 +107,10 @@ func (d *DB) CreateAPIKey(ctx context.Context, n NewAPIKey) (APIKey, error) {
 		if err := audit(tx, n.UserID, "key.create", out.PublicID, n.Kind+" "+n.Name, n.Now); err != nil {
 			return err
 		}
+		secretIsNew = true
 		return rememberCreated(tx, n.UserID, n.IdempotencyKey, n.RequestHash, out.PublicID, n.Now)
 	})
-	return out, err
+	return out, secretIsNew, err
 }
 
 // APIKeys lists an account's live keys of one kind, newest first.
@@ -170,7 +179,16 @@ func (d *DB) KeyCaller(ctx context.Context, keyHash string, now time.Time) (KeyC
 	}
 	c.Scopes = strings.Fields(scopes)
 	// "Last used" is for the owner to spot a key nobody uses. An hour's precision is plenty,
-	// and it is not worth making a read wait for a write.
+	// and it is not worth making a read wait for a write, except once: the first use is
+	// recorded before it is answered, because a repeated create gives a never-used key a new
+	// secret and must not do that to a key already in use.
+	if !used.Valid {
+		err := d.write(ctx, User, func(tx *sql.Tx) error {
+			_, err := tx.Exec(`UPDATE api_keys SET last_used_at = ? WHERE id = ? AND last_used_at IS NULL`, now.UnixMilli(), id)
+			return err
+		})
+		return c, err
+	}
 	if now.Sub(time.UnixMilli(used.Int64)) > time.Hour {
 		go d.write(context.WithoutCancel(ctx), Background, func(tx *sql.Tx) error {
 			_, err := tx.Exec(`UPDATE api_keys SET last_used_at = ? WHERE id = ?`, now.UnixMilli(), id)
