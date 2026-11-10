@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -18,12 +19,27 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
 	"github.com/PorticoMediaServer/portico/server-next/internal/decodertest"
+	"github.com/PorticoMediaServer/portico/server-next/internal/mediaexec"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediafacts"
 )
 
 // These tests run real conversions of small generated files through the whole
 // runtime: plan, start, serve by grant, stop. Each one ends with no converter
 // process and no file left behind.
+
+// The test executable dispatches the same confinement helpers as the server.
+func TestMain(m *testing.M) {
+	for _, helper := range []func([]string) (bool, error){decoder.RunHelper, mediaexec.RunHelper} {
+		if handled, err := helper(os.Args[1:]); handled {
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+			os.Exit(0)
+		}
+	}
+	os.Exit(m.Run())
+}
 
 type mediaRig struct {
 	t       *testing.T
