@@ -107,11 +107,11 @@ Assistant) are a separate short document and are not counted here.
 |---|---|
 | `GET /v1/libraries`, `GET /v1/libraries/{id}` | Libraries you may see; one library with its views, sorts and filters |
 | `GET /v1/libraries/{id}/landing` | The library's landing page, composed by the server |
-| `GET /v1/items` | **The one list.** By `library`, `parent`, `person`, `tag`, `list`; `kind`; filters; `sort`; `cursor`, `limit`, `total` |
+| `GET /v1/items` | **The one list.** By `library`, `parent`, `person`, `tag`, `list`; `kind`; filters; `sort`; `cursor`, `limit`, `total`. `at=<position>` opens the list at any position in place of a cursor, for a scroll bar or a letter |
 | `POST /v1/items/query` | The same list with a structured filter body, for filters too long for a query string |
 | `GET /v1/items/{id}` | Detail, with your state |
 | `GET /v1/items/{id}/credits`, `GET /v1/items/{id}/related`, `GET /v1/items/{id}/files` | Cast and crew; related titles; file facts |
-| `GET /v1/facets` | Counted filter choices for a list |
+| `GET /v1/facets` | Counted filter choices for a list. `facet=letter` is the letter rail: each first letter in title order with its count, so a letter's position is the sum of the counts before it |
 | `GET /v1/search`, `GET /v1/search/suggestions` | Search across what you may see |
 | `GET /v1/search/history`, `DELETE /v1/search/history` | Your recent searches |
 | `GET /v1/home`, `GET /v1/home/rows/{id}` | Home, composed by the server; one row paged |
