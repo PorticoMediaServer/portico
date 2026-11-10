@@ -222,6 +222,8 @@ func run(log *slog.Logger) (err error) {
 		log.Warn("Enhanced Recommendations data comes from a test publication", "address", titleData.Address)
 	}
 	goBackground(func() { titleData.Run(ctx) })
+	// Mood rows on Home are chosen in the background, so a Home request only reads them.
+	goBackground(func() { d.KeepMoodRows(ctx, log) })
 	// No write timeout: media and the events feed are long replies. Slow request headers are bounded.
 	// Messages read the log kept in the data folder.
 	handler.UseLog(serverLog)

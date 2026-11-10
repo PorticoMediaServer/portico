@@ -51,6 +51,7 @@ type DB struct {
 
 	// titleData is the title data file the reads use, or nil. See titledata.go.
 	titleData  atomic.Pointer[titleData]
+	moods      moodKeeper // each profile's chosen mood rows. See titledata_rows.go.
 	nextInsist time.Time
 
 	// upgradesDone closes when the upgrade's background work has stopped. See upgrade.go.
