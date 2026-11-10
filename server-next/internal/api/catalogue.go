@@ -82,7 +82,7 @@ func (s *Server) catalogueRoutes() {
 		if err != nil {
 			return CreditPage{}, err
 		}
-		credits, total, err := s.db.Credits(r.Context(), viewer(r), r.PathValue("id"), offset, limit)
+		credits, total, err := s.db.Credits(r.Context(), viewer(r), r.PathValue("id"), query.Get("part"), offset, limit)
 		if err != nil {
 			return CreditPage{}, refuse(err)
 		}
