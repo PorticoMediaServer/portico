@@ -173,6 +173,8 @@ session is unknown (`404`), and the app starts again by itself where it was.
 | `POST /v1/queues/{id}/playlist` | Save the queue as a playlist |
 | `GET /v1/media/{grant}/{file}` | The bytes a session plays, at the address the session gave: the file itself by byte range (`original`), or a conversion's playlists and segments (`master.m3u8` and what it names). No sign-in header: the grant is the permission, and it dies when the session stops or changes stream. Anything else is `404`. |
 | `GET /v1/media/subtitles/{grant}/{track}/{n}.vtt` | A text subtitle of the session's title as WebVTT, at the address the session gave in `presentation.subtitles`; `?segment=N` is one minute of it, which is what the stream's own playlist names. Same permission and same `404` as above. |
+| `GET /v1/items/{id}/subtitles`, `PUT /v1/items/{id}/subtitles/offset` | A title's subtitles (in the file, or beside it) and the timing nudge this profile gave them, which is kept for that title |
+| `GET /v1/items/{id}/lyrics` | A song's lyrics from files beside it, timed lines in order |
 | `GET /v1/admin/playback/stream-limits`, `PUT /v1/admin/playback/stream-limits` | The owner's stream limits: in total, per person, and for one person |
 | `GET /v1/admin/playback/failures`, `DELETE /v1/admin/playback/failures/{id}` | Remembered "this way of playing this file failed on this device", and forgetting one |
 
