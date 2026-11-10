@@ -61,12 +61,10 @@ func (s *Server) deviceRoutes() {
 }
 
 // homeOrAway says whether an address is on the home network, for the lists a person sees.
+// No address was kept for a sign-in that came through a proxy the owner has not listed, and
+// what the server cannot place is not home.
 func (s *Server) homeOrAway(stored string) string {
-	addr, err := netip.ParseAddr(stored)
-	switch {
-	case err != nil:
-		return ""
-	case s.networks().AtHome(addr):
+	if addr, err := netip.ParseAddr(stored); err == nil && s.networks().AtHome(addr) {
 		return "home"
 	}
 	return "away"
