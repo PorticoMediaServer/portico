@@ -83,13 +83,25 @@ func (s *Service) Refresh(ctx context.Context, itemID string) (bool, error) {
 	return true, s.refresh(ctx, p, Locale{Language: src.Language, Region: src.Region}, item, db.User)
 }
 
-// RefreshLibrary refreshes the library's matched titles whose details are due: every 30 days
-// for a film and 14 for a show, and every 2 for a show still running or a title added in the
-// last 14 days. It refreshes at most limit titles, oldest first, and says how many it did. It
-// is background work: each title is asked about outside any transaction and stored in its own
-// small one at Background priority.
+// walkEvery is how often, at most, a library's matched titles are all looked through for the
+// ones that are due. Which are due depends on each title's kind, age and whether it is still
+// running, so the whole list is read: about three seconds at a million titles.
+const walkEvery = time.Hour
+
+// RefreshLibrary refreshes the library's matched titles whose details are due. It is safe to
+// call as often as wanted, and should be called after every scan:
 //
-// An error means the provider could not be asked; the titles not reached stay due.
+//   - A matched show that a scan just gave a new episode is refreshed at once, whatever its
+//     age, so the episode gets its details. That is a read of only those titles.
+//   - Every other matched title is due every 30 days for a film and 14 for a show, and every
+//     2 for a show still running or a title added in the last 14 days. Finding them reads
+//     every matched title, so it is done at most once an hour for a library, however often
+//     this is called; a call in between does the first part only.
+//
+// It refreshes at most limit titles, oldest first, and says how many it did. It is background
+// work: each title is asked about outside any transaction and stored in its own small one at
+// Background priority. An error means the provider could not be asked; the titles not reached
+// stay due.
 func (s *Service) RefreshLibrary(ctx context.Context, libraryID int64, now time.Time, limit int) (int, error) {
 	src, err := s.DB.LibrarySource(ctx, libraryID)
 	if err != nil {
@@ -99,28 +111,64 @@ func (s *Service) RefreshLibrary(ctx context.Context, libraryID int64, now time.
 	if p == nil {
 		return 0, nil
 	}
-	locale := Locale{Language: src.Language, Region: src.Region}
-	// Nothing refreshed more recently than the shortest wait can be due. A title this run has
-	// refreshed moves to the end of the read's order and can come round again: it is passed over.
-	before := now.Add(-refreshSoon).UnixMilli()
-	done, refreshed := 0, map[int64]bool{}
+	run := &refreshRun{ctx: ctx, s: s, p: p, locale: Locale{Language: src.Language, Region: src.Region}, library: libraryID, now: now,
+		limit: limit, refreshed: map[int64]bool{}}
+	// Asked for by a scan: refreshed_at is zero.
+	if err := run.pass(0); err != nil {
+		return run.done, err
+	}
+	s.walks.Lock()
+	last, walked := s.walked[libraryID]
+	if walked && !now.Before(last) && now.Sub(last) < walkEvery {
+		s.walks.Unlock()
+		return run.done, nil
+	}
+	if s.walked == nil {
+		s.walked = map[int64]time.Time{}
+	}
+	s.walked[libraryID] = now
+	s.walks.Unlock()
+	// Nothing refreshed more recently than the shortest wait can be due.
+	return run.done, run.pass(now.Add(-refreshSoon).UnixMilli())
+}
+
+// refreshRun is one call of RefreshLibrary.
+type refreshRun struct {
+	ctx     context.Context
+	s       *Service
+	p       Provider
+	locale  Locale
+	library int64
+	now     time.Time
+	limit   int
+	done    int
+	// A title this run has refreshed moves to the end of the read's order and can come round
+	// again: it is passed over.
+	refreshed map[int64]bool
+}
+
+// pass refreshes the due titles among those last refreshed at or before a time.
+func (r *refreshRun) pass(before int64) error {
 	var after *db.RefreshItem
-	for done < limit {
-		page, err := s.DB.ToRefresh(ctx, libraryID, before, after, 200)
+	for r.done < r.limit {
+		page, err := r.s.DB.ToRefresh(r.ctx, r.library, before, after, 200)
 		if err != nil || len(page) == 0 {
-			return done, err
+			return err
 		}
 		for i := range page {
 			after = &page[i]
-			if done >= limit || refreshed[page[i].ID] || !due(page[i], now) {
+			if r.done >= r.limit || r.refreshed[page[i].ID] || !due(page[i], r.now) {
 				continue
 			}
-			if err := s.refresh(ctx, p, locale, page[i], db.Background); err != nil {
-				return done, err
+			if page[i].ExternalIDs, err = r.s.DB.ExternalIDs(r.ctx, page[i].ID); err != nil {
+				return err
 			}
-			refreshed[page[i].ID] = true
-			done++
+			if err := r.s.refresh(r.ctx, r.p, r.locale, page[i], db.Background); err != nil {
+				return err
+			}
+			r.refreshed[page[i].ID] = true
+			r.done++
 		}
 	}
-	return done, nil
+	return nil
 }
