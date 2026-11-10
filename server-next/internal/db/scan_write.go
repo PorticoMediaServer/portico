@@ -30,6 +30,10 @@ func FileKey(pathID int64, rel string, n int) ItemKey {
 type ImportMove struct {
 	FileID int64
 	To     FileRef
+	// KeepTitle says the title comes from inside the file (its tags), which did not change: the
+	// file's keys move with it and nothing about its title is read again. Without it the old
+	// place's keys are dropped and the file is read again under its new names.
+	KeepTitle bool
 }
 
 func (im *importer) moveFile(move ImportMove) error {
@@ -50,8 +54,13 @@ func (im *importer) moveFile(move ImportMove) error {
 	}
 	// The old place no longer plays the title: a different file put there later is a new title.
 	old := FileKey(oldPath, path.Join(oldDir, oldName), 0).Key
-	if _, err := im.exec(`DELETE FROM item_keys WHERE library_id = ? AND kind = ? AND (key = ? OR key > ? AND key < ?)`,
-		im.batch.LibraryID, KeyFile, old, old+"#", old+"$"); err != nil {
+	change := `DELETE FROM item_keys`
+	args := []any{im.batch.LibraryID, KeyFile, old, old + "#", old + "$"}
+	if move.KeepTitle {
+		change = `UPDATE item_keys SET key = ? || substr(key, ?)`
+		args = append([]any{FileKey(im.batch.PathID, path.Join(move.To.Dir, move.To.Name), 0).Key, len(old) + 1}, args...)
+	}
+	if _, err := im.exec(change+` WHERE library_id = ? AND kind = ? AND (key = ? OR key > ? AND key < ?)`, args...); err != nil {
 		return err
 	}
 	delete(im.files, move.To)
@@ -136,7 +145,13 @@ func (im *importer) place(it *ImportItem) (*importedItem, []ItemKey, error) {
 		if parent == nil {
 			return nil, nil, invalid("item %q has a place under a parent and no parent", it.Title)
 		}
-		keys = append(append([]ItemKey(nil), keys...), ItemKey{Kind: KeyName, Key: fmt.Sprintf("%d/%s", parent.id, it.ChildKey)})
+		// The place under the parent is a name: it goes ahead of any folder key.
+		child := ItemKey{Kind: KeyName, Key: fmt.Sprintf("%d/%s", parent.id, it.ChildKey)}
+		at := len(keys)
+		for at > 0 && keys[at-1].Kind == KeyFolder {
+			at--
+		}
+		keys = append(append(append([]ItemKey(nil), keys[:at]...), child), keys[at:]...)
 	}
 	return parent, keys, nil
 }
