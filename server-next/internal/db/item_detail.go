@@ -129,7 +129,7 @@ func (d *DB) Item(ctx context.Context, v Viewer, publicID string) (ItemDetail, e
 		*ref.into = r
 	}
 	if out.Tags, err = queryAll(ctx, tx, `SELECT t.public_id, t.kind, t.name FROM item_tags it JOIN tags t ON t.id = it.tag_id
-		WHERE it.item_id = ? ORDER BY t.kind, t.name`, []any{out.ID}, func(t *Tag) []any { return []any{&t.PublicID, &t.Kind, &t.Name} }); err != nil {
+		WHERE it.item_id = ? AND t.kind <> 'mood' ORDER BY t.kind, t.name`, []any{out.ID}, func(t *Tag) []any { return []any{&t.PublicID, &t.Kind, &t.Name} }); err != nil {
 		return out, err
 	}
 	if out.ExternalIDs, err = queryAll(ctx, tx, `SELECT provider, external_id FROM item_external_ids WHERE item_id = ?`, []any{out.ID},

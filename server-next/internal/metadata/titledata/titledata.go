@@ -12,8 +12,13 @@
 // expanded file passes SQLite's check and is a full file of the schema, domain and version the
 // list names. Anything that fails is refused and the copy in use stays in use.
 //
-// The owner's switch, "Download title data", is on unless switched off. Off, the file goes and
-// no request is made.
+// The file in use gives films and shows their mood tags (db.ApplyTitleData), matched by the ids
+// providers gave them and never by name, after each new file and daily for titles matched since.
+// A mood tag adds to a title and replaces nothing it has, so titles in a library set to local
+// metadata only get them too, from the ids their files carry (definition area 4, rule 58).
+//
+// The owner's switch, "Download title data", is on unless switched off. Off, the file and every
+// mood tag go and no request is made.
 package titledata
 
 import (
@@ -62,6 +67,7 @@ const (
 	// A list is fetched weekly, at a random point in a two-day spread so servers do not all ask
 	// at once. A failed fetch is tried again after an hour, doubling to at most a day.
 	checkEvery = 7 * 24 * time.Hour
+	applyEvery = 24 * time.Hour
 	spread     = 48 * time.Hour
 	firstRetry = time.Hour
 	lastRetry  = 24 * time.Hour
@@ -224,7 +230,7 @@ func (u *Updater) Run(ctx context.Context) {
 	if err := u.Open(ctx); err != nil {
 		u.log().Warn("the title data kept from before could not be opened", "error", err)
 	}
-	var due time.Time
+	var due, applied time.Time
 	failures := 0
 	next := time.Minute
 	for {
@@ -245,20 +251,24 @@ func (u *Updater) Run(ctx context.Context) {
 			due = time.Time{}
 			continue
 		}
-		if time.Now().Before(due) {
-			next = min(time.Hour, time.Until(due))
-			continue
-		}
-		if err := u.Check(ctx); err != nil {
-			if ctx.Err() != nil {
-				return
+		if !time.Now().Before(due) {
+			if err := u.Check(ctx); err != nil {
+				if ctx.Err() != nil {
+					return
+				}
+				failures++
+				due = time.Now().Add(min(firstRetry<<min(failures-1, 5), lastRetry))
+				u.log().Warn("checking for new title data failed; the data in use stays", "error", err)
+			} else {
+				failures = 0
+				due = time.Now().Add(checkEvery + rand.N(spread))
 			}
-			failures++
-			due = time.Now().Add(min(firstRetry<<min(failures-1, 5), lastRetry))
-			u.log().Warn("checking for new title data failed; the data in use stays", "error", err)
-		} else {
-			failures = 0
-			due = time.Now().Add(checkEvery + rand.N(spread))
+		}
+		if time.Since(applied) > applyEvery {
+			if err := u.Apply(ctx); err != nil && ctx.Err() == nil {
+				u.log().Warn("giving titles their mood tags failed; it is tried again tomorrow", "error", err)
+			}
+			applied = time.Now()
 		}
 		next = min(time.Hour, time.Until(due))
 	}
@@ -333,7 +343,22 @@ func (u *Updater) Check(ctx context.Context) error {
 	}
 	u.log().Info("new title data is in use", "version", entry.DatasetVersion, "release", m.Sequence)
 	u.removeOthers(name)
-	return nil
+	return u.Apply(ctx)
+}
+
+// Apply gives every film and show the mood tags the file in use has for it, and takes them off
+// titles it no longer has them for. A batch of titles is one Background write.
+func (u *Updater) Apply(ctx context.Context) error {
+	for after := int64(0); ; {
+		next, err := u.DB.ApplyTitleData(ctx, after, 100)
+		if err != nil {
+			return err
+		}
+		if next == 0 {
+			return u.DB.RemoveUnusedTitleDataTags(ctx)
+		}
+		after = next
+	}
 }
 
 // safeVersion is a version that can be part of a file name.
@@ -350,6 +375,14 @@ func (u *Updater) remove(ctx context.Context) error {
 		return err
 	}
 	u.removeOthers("")
+	for left := true; left; {
+		if left, err = u.DB.RemoveTitleDataTags(ctx, 500); err != nil {
+			return err
+		}
+	}
+	if err := u.DB.RemoveUnusedTitleDataTags(ctx); err != nil {
+		return err
+	}
 	if st.File != "" || st.Version != "" {
 		return u.saveState(ctx, state{Sequence: st.Sequence})
 	}
