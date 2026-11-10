@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 )
@@ -103,6 +105,13 @@ func (s *Server) catalogueRoutes() {
 				out.Groups = append(out.Groups, RelatedGroup{Relation: kind.String(), Items: itemShapes(items)})
 			}
 		}
+		like, err := s.db.MoreLikeThis(r.Context(), viewer(r), r.PathValue("id"))
+		if err != nil {
+			return Related{}, refuse(err)
+		}
+		if len(like) > 0 {
+			out.Groups = append(out.Groups, RelatedGroup{Relation: "more_like_this", Items: itemShapes(like)})
+		}
 		return out, nil
 	})
 	Handle(s, "GET /v1/people/{id}", WithProfile, func(r *http.Request, _ None) (Person, error) {
@@ -138,12 +147,23 @@ func (s *Server) catalogueRoutes() {
 		if err != nil {
 			return Home{}, err
 		}
+		moods, err := s.db.MoodRows(r.Context(), viewer(r))
+		if err != nil {
+			return Home{}, err
+		}
 		// A row with nothing in it is left out, so an app never draws an empty shelf.
 		out := Home{Rows: []HomeRow{}}
 		for _, row := range []HomeRow{
 			{ID: "continue", Title: "Continue Watching", Shape: "landscape", Items: itemShapes(continuing)},
 			{ID: "recently_added", Title: "Recently Added", Shape: "poster", Items: itemShapes(recent)},
 		} {
+			if len(row.Items) > 0 {
+				out.Rows = append(out.Rows, row)
+			}
+		}
+		for _, mood := range moods {
+			row := HomeRow{ID: mood.Key, Title: moodRowTitle(mood.Label),
+				Reason: becauseYouWatched(mood.Because), Shape: "poster", Items: itemShapes(mood.Items)}
 			if len(row.Items) > 0 {
 				out.Rows = append(out.Rows, row)
 			}
@@ -379,4 +399,21 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, route *Route) {
 		case <-poll.C:
 		}
 	}
+}
+
+// moodRowTitle names a mood row from the tag's row label: "cozy stories" is "Cozy stories for you".
+func moodRowTitle(label string) string {
+	first, size := utf8.DecodeRuneInString(label)
+	return string(unicode.ToUpper(first)) + label[size:] + " for you"
+}
+
+// becauseYouWatched is a mood row's line saying why: the titles it comes from.
+func becauseYouWatched(items []db.Item) string {
+	switch len(items) {
+	case 0:
+		return ""
+	case 1:
+		return "Because you watched " + items[0].Title
+	}
+	return "Because you watched " + items[0].Title + " and " + items[1].Title
 }
