@@ -421,6 +421,14 @@ func (d *DB) ChangeMatch(ctx context.Context, p Priority, itemID int64, details 
 				return err
 			}
 		}
+		if details.Match == MatchChosen {
+			// A person choosing again is the owner's own act: a lock on the match does not
+			// hold against it, and the new choice is itself locked by being chosen.
+			if _, err := b.exec(`UPDATE items SET locked_fields = (SELECT nullif(json_group_array(value), '[]') FROM json_each(locked_fields)
+				WHERE value <> ?) WHERE id = ? AND locked_fields IS NOT NULL`, FieldMatch, itemID); err != nil {
+				return err
+			}
+		}
 		details.Replace = true
 		if err := applyDetails(b, itemID, &details, now); err != nil {
 			return err
