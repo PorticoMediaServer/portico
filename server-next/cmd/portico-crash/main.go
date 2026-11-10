@@ -187,8 +187,11 @@ func importOnly(path string) (seed.Totals, error) {
 // importer is this command started again to run only the import.
 func (h *harness) importer() *exec.Cmd {
 	self, _ := os.Executable()
-	return exec.Command(self, "-import", h.dbPath, "-items", fmt.Sprint(*items), "-pause", pause.String())
+	return command(self, "-import", h.dbPath, "-items", fmt.Sprint(*items), "-pause", pause.String())
 }
+
+// command is the one place this tool starts a process: the server under test, or itself.
+func command(name string, args ...string) *exec.Cmd { return exec.Command(name, args...) }
 
 func freePort() (int, error) {
 	for range 50 {
@@ -206,7 +209,7 @@ func freePort() (int, error) {
 // answers. A server that does not answer within 30 seconds is a failure (bar 9 says 10).
 func (h *harness) start() error {
 	began := time.Now()
-	h.server = exec.Command(*serverBin, "-data", h.data, "-listen", strings.TrimPrefix(h.base, "http://"))
+	h.server = command(*serverBin, "-data", h.data, "-listen", strings.TrimPrefix(h.base, "http://"))
 	h.server.Stdout, h.server.Stderr = h.logs, h.logs
 	if err := h.server.Start(); err != nil {
 		return err
