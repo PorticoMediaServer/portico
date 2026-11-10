@@ -427,6 +427,12 @@ func (d *DB) ChangeMatch(ctx context.Context, p Priority, itemID int64, details 
 			}
 			return b.queryRow(`SELECT public_id FROM items WHERE id = ?`, holder).Scan(&remaining)
 		}
+		// A match a person chose is in the title's History; looking it up again is not.
+		if details.Match == MatchChosen {
+			if err := remember(b, itemID, HistoryMatch, now); err != nil {
+				return err
+			}
+		}
 		// The old match goes: its ids, the key it was found by, and its place on the Unmatched
 		// items list.
 		for _, query := range []string{`DELETE FROM item_keys WHERE item_id = ? AND kind = ` + strconv.Itoa(int(KeyProvider)),

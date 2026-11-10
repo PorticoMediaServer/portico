@@ -190,6 +190,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.queueRoutes()
 	s.metadata = &metadata.Service{DB: d, Providers: map[string]metadata.Provider{}}
 	s.metadataRoutes()
+	s.editorRoutes()
 	s.jobs = jobs.New(ctx, d, log)
 	s.scans = scan.NewManager(s.jobs, &scan.Scanner{DB: d, Log: log})
 	s.libraryRoutes()
