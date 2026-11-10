@@ -58,6 +58,8 @@ type workload struct {
 	writes   []time.Duration
 	spans    []span // each write, from when it was due to when it returned
 	failures int
+	// countFailures has a run go on past failed requests and report how many there were.
+	countFailures bool
 }
 
 // newWorkload reads enough of the library, from different ends of it, to have titles to ask for.
@@ -124,27 +126,8 @@ func (w *workload) start(ctx context.Context, readers, writesPerSec int) func() 
 	return func() (map[string]Timing, Timing) {
 		cancel()
 		wg.Wait()
-		// Besides each class: every page together and every count together, for everyone
-		// ("pages", "counts") and for each kind of profile ("pages (label)").
-		out := map[string]Timing{}
-		groups := map[string][]time.Duration{}
-		for class, samples := range w.reads {
-			out[class] = summarise(slices.Clone(samples))
-			group := "pages"
-			if strings.HasPrefix(class, countClass) {
-				group = "counts"
-			}
-			if at := strings.Index(class, " ("); at >= 0 {
-				group += class[at:]
-			} else {
-				groups["all"] = append(groups["all"], samples...)
-			}
-			groups[group] = append(groups[group], samples...)
-		}
-		for group, samples := range groups {
-			out[group] = summarise(samples)
-		}
-		if w.failures > 0 {
+		out, _ := summariseReads(w.reads)
+		if w.failures > 0 && !w.countFailures {
 			log.Fatalf("%d requests failed during the run", w.failures)
 		}
 		return out, summarise(w.writes)
@@ -180,14 +163,24 @@ func (w *workload) total(ctx context.Context, v db.Viewer, q db.ItemQuery, class
 
 func pick[T any](r *rand.Rand, from []T) T { return from[r.IntN(len(from))] }
 
-// read sends one request after another with a short pause, as one busy app would.
+// read sends one request after another with a short pause, as one busy app would, each as a
+// profile picked at random.
 func (w *workload) read(ctx context.Context, r *rand.Rand) {
+	w.browse(ctx, r, -1, func() time.Duration { return 2 * time.Millisecond })
+}
+
+// browse sends one request after another, waiting pause() between them. profile is the
+// viewer to read as, or -1 for one picked at random each time.
+func (w *workload) browse(ctx context.Context, r *rand.Rand, profile int, pause func() time.Duration) {
 	yes, no := true, false
 	var next db.ItemQuery // the list this reader is paging down
 	var nextViewer db.Viewer
 	var nextWho string
 	for ctx.Err() == nil {
-		n := r.IntN(len(w.viewers))
+		n := profile
+		if n < 0 {
+			n = r.IntN(len(w.viewers))
+		}
 		v := w.viewers[n]
 		// The seeder restricts the last three profiles, by label, by library and by rating.
 		// Their requests are also timed apart, because a restriction is checked row by row.
@@ -277,7 +270,10 @@ func (w *workload) read(ctx context.Context, r *rand.Rand) {
 			_, err := w.d.Item(ctx, v, pick(r, w.leaves))
 			w.record("detail", who, started, err)
 		}
-		time.Sleep(2 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+		case <-time.After(pause()):
+		}
 	}
 }
 
@@ -380,4 +376,29 @@ func slowTogether(a, b []span, slow time.Duration) (n, together int) {
 		}
 	}
 	return n, together
+}
+
+// summariseReads gives each class of read its timing, and besides: every page together and
+// every count together, for everyone ("pages", "counts") and for each kind of profile
+// ("pages (label)"), and "all".
+func summariseReads(reads map[string][]time.Duration) (map[string]Timing, int) {
+	out := map[string]Timing{}
+	groups := map[string][]time.Duration{}
+	for class, samples := range reads {
+		out[class] = summarise(slices.Clone(samples))
+		group := "pages"
+		if strings.HasPrefix(class, countClass) {
+			group = "counts"
+		}
+		if at := strings.Index(class, " ("); at >= 0 {
+			group += class[at:]
+		} else {
+			groups["all"] = append(groups["all"], samples...)
+		}
+		groups[group] = append(groups[group], samples...)
+	}
+	for group, samples := range groups {
+		out[group] = summarise(samples)
+	}
+	return out, len(groups["all"])
 }
