@@ -10,26 +10,6 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/sorttext"
 )
 
-// The names of the fields and lists a title can have locked (items.locked_fields) or given by
-// its files (items.local_fields). They are also the names the metadata editor uses.
-const (
-	FieldTitle         = "title"
-	FieldSortTitle     = "sortTitle"
-	FieldOriginalTitle = "originalTitle"
-	FieldSummary       = "summary"
-	FieldTagline       = "tagline"
-	FieldYear          = "year"
-	FieldReleaseDate   = "releaseDate"
-	FieldContentRating = "contentRating"
-	FieldRating        = "rating"
-	FieldCredits       = "credits"
-	FieldMatch         = "match"
-)
-
-// tagFields are the lists a provider speaks for, by tag kind. Labels and moods are not here:
-// no provider's answer ever changes them.
-var tagFields = map[string]string{TagGenre: "genres", TagStudio: "studios", TagNetwork: "networks", TagCountry: "countries"}
-
 // LibrarySource is where a library's details come from.
 type LibrarySource struct {
 	ID       int64
@@ -178,20 +158,6 @@ func (d *DB) ApplyChildren(ctx context.Context, p Priority, itemID int64, kind I
 		}
 		return nil
 	})
-}
-
-func fieldSet(lists ...sql.NullString) map[string]bool {
-	out := map[string]bool{}
-	for _, list := range lists {
-		var names []string
-		if list.Valid {
-			json.Unmarshal([]byte(list.String), &names)
-		}
-		for _, name := range names {
-			out[name] = true
-		}
-	}
-	return out
 }
 
 func applyDetails(b *batchTx, itemID int64, d *ItemDetails, now int64) error {
