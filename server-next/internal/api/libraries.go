@@ -653,6 +653,17 @@ func (s *Server) deleteVersion(r *http.Request, _ None) (DeletionResult, error) 
 	return s.deleteFiles(r, del)
 }
 
+// hasEntry reports whether a folder can be listed and holds anything.
+func hasEntry(folder string) bool {
+	dir, err := os.Open(folder)
+	if err != nil {
+		return false
+	}
+	defer dir.Close()
+	names, _ := dir.Readdirnames(1)
+	return len(names) > 0
+}
+
 // deleteFiles deletes a title's or a version's files from disk, then takes what is gone out
 // of the library. A file is only deleted while it is still the file Portico last read.
 func (s *Server) deleteFiles(r *http.Request, del db.Deletion) (DeletionResult, error) {
@@ -667,8 +678,15 @@ func (s *Server) deleteFiles(r *http.Request, del db.Deletion) (DeletionResult, 
 	}
 	// A library folder that is not there, or is empty where it has files, is a disk that is
 	// not connected: nothing is deleted and no title is removed.
+	// Each folder is looked at once and only for a first entry: a show has thousands of files
+	// under one folder that may hold thousands of others.
+	checked := map[string]bool{}
 	for _, f := range del.Files {
-		if entries, err := os.ReadDir(f.Root); err != nil || len(entries) == 0 {
+		if checked[f.Root] {
+			continue
+		}
+		checked[f.Root] = true
+		if !hasEntry(f.Root) {
 			return out, ErrConflict("folder_unavailable", "The library folder "+f.Root+" can't be reached: its disk may not be connected. Nothing was deleted.")
 		}
 	}
