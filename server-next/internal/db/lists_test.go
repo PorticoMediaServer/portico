@@ -82,7 +82,7 @@ func TestPlaylistOrderAndWhatAReaderSees(t *testing.T) {
 	}
 
 	// Shared with the limited profile: the hidden film is in no entry, total or count.
-	if err := l.d.ShareListForTest(ctx, list.PublicID, child.ProfileID); err != nil {
+	if err := l.d.ShareListForTest(ctx, list.PublicID, child.ProfileID, false); err != nil {
 		t.Fatal(err)
 	}
 	titles, _, total = entries(t, l.d, child, list.PublicID)
@@ -141,5 +141,57 @@ func TestListRenumbersWhenAGapRunsOut(t *testing.T) {
 	want = append(want, names[1])
 	if titles, _, _ := entries(t, l.d, owner, list.PublicID); !slices.Equal(titles, want) {
 		t.Fatalf("order %v, want %v", titles, want)
+	}
+}
+
+// A profile that may edit a shared playlist neither finds nor changes an entry of a title it
+// may not see: every entry route answers not found for it, as for an entry that is not there,
+// and no count includes it.
+func TestAnEditorCannotReachAnEntryItMayNotSee(t *testing.T) {
+	l := newLibrary(t, 600)
+	owner, child := l.all, l.viewers[9]
+	films := everything(t, l.d, owner, db.ItemQuery{Library: l.libs[0].PublicID, Kinds: []db.ItemKind{db.KindMovie}, Limit: 200})
+	var seen, hidden string
+	for _, f := range films {
+		if _, err := l.d.Item(ctx, child, f.PublicID); err == nil && seen == "" {
+			seen = f.PublicID
+		} else if err != nil && hidden == "" {
+			hidden = f.PublicID
+		}
+	}
+	now := time.Now()
+	list, err := l.d.CreateList(ctx, owner, db.NewList{Kind: db.ListPlaylist, Name: "Mix", SortName: "mix", Items: []string{seen, hidden, seen}}, "", "", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, ids, _ := entries(t, l.d, owner, list.PublicID)
+	if err := l.d.ShareListForTest(ctx, list.PublicID, child.ProfileID, true); err != nil {
+		t.Fatal(err)
+	}
+	gone := ids[2] + 1000 // no such entry
+	for _, entry := range []int64{ids[1], gone} {
+		if _, err := l.d.RemoveFromList(ctx, child, list.PublicID, 0, entry, now); !errors.Is(err, db.ErrNotFound) {
+			t.Errorf("removing entry %d: %v", entry, err)
+		}
+		if _, err := l.d.MoveInList(ctx, child, list.PublicID, 0, entry, ids[0], 0, now); !errors.Is(err, db.ErrNotFound) {
+			t.Errorf("moving entry %d: %v", entry, err)
+		}
+		if _, err := l.d.MoveInList(ctx, child, list.PublicID, 0, ids[2], 0, entry, now); !errors.Is(err, db.ErrNotFound) {
+			t.Errorf("moving after entry %d: %v", entry, err)
+		}
+		if _, err := l.d.AddToList(ctx, child, list.PublicID, 0, []string{seen}, entry, "", "", now); !errors.Is(err, db.ErrNotFound) {
+			t.Errorf("adding after entry %d: %v", entry, err)
+		}
+	}
+	// What it may see it changes, and every count it is given leaves the hidden entry out.
+	out, err := l.d.RemoveFromList(ctx, child, list.PublicID, 0, ids[2], now)
+	if err != nil || out.Count != 1 {
+		t.Fatalf("removing an entry it sees: count %d, %v", out.Count, err)
+	}
+	if titles, _, total := entries(t, l.d, child, list.PublicID); len(titles) != 1 || total != 1 {
+		t.Fatalf("the editor sees %v (%d)", titles, total)
+	}
+	if titles, _, total := entries(t, l.d, owner, list.PublicID); !slices.Equal(titles, []string{seen, hidden}) || total != 2 {
+		t.Fatalf("the owner sees %v (%d)", titles, total)
 	}
 }
