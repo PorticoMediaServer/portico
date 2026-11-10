@@ -221,7 +221,6 @@ CREATE TABLE items (
   last_child_added_at INTEGER,
   available        INTEGER NOT NULL DEFAULT 1 CHECK (available IN (0, 1)),
   missing_since_at INTEGER,
-  merged_into_id   INTEGER REFERENCES items(id) ON DELETE SET NULL,
   revision         INTEGER NOT NULL DEFAULT 1,
   extra            TEXT
 );
@@ -231,7 +230,6 @@ CREATE INDEX items_by_year ON items (library_id, kind, year, id);
 CREATE INDEX items_by_release ON items (library_id, kind, release_date, id);
 CREATE INDEX items_children ON items (parent_id, parent_index, index_number, id);
 CREATE INDEX items_descendants ON items (root_id, kind, parent_index, index_number, id);
-CREATE INDEX items_merged ON items (merged_into_id) WHERE merged_into_id IS NOT NULL;
 
 -- large. "This folder, file or embedded ID means that item." Unique, so a rescan or a repeated
 -- job cannot create a second copy of a title, and a merged title stays merged.
