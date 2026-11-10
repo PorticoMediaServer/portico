@@ -30,8 +30,6 @@ type Planner interface {
 // named by the session's id; a song got ready ahead of time has the id its session will have.
 type Streams interface {
 	Start(ctx context.Context, r StartRequest) (Stream, error)
-	// Restart moves a running stream to a position its producer has not reached.
-	Restart(ctx context.Context, sessionID string, positionMs int64) error
 	// Stop ends a stream and makes its addresses stop working. Stopping twice is fine.
 	Stop(sessionID string)
 	// Ready returns once the stream has something to play, or when ctx ends.
@@ -201,6 +199,10 @@ type StartRequest struct {
 	Version    db.PlaybackVersion
 	Plan       Plan
 	PositionMs int64
+	// Replaced is called when the stream gives way to another by itself (a hardware encoder
+	// that failed mid-stream carries on in software under a new address). The session then
+	// plays the new stream.
+	Replaced func(Stream)
 }
 
 // SubtitleFile is a subtitle the app fetches beside the stream.

@@ -202,7 +202,8 @@ func (s *Service) create(ctx context.Context, in StartInput) (*session, error) {
 		s.finish(ctx, other)
 	}
 
-	stream, err := s.streams.Start(ctx, StartRequest{SessionID: sess.ID, Item: r.item, Version: r.version, Plan: r.plan, PositionMs: position})
+	stream, err := s.streams.Start(ctx, StartRequest{SessionID: sess.ID, Item: r.item, Version: r.version, Plan: r.plan, PositionMs: position,
+		Replaced: s.replaced(sess)})
 	s.mu.Lock()
 	if err != nil {
 		delete(s.sessions, sess.ID)
@@ -220,6 +221,19 @@ func (s *Service) create(ctx context.Context, in StartInput) (*session, error) {
 		s.remember(ctx, c.Viewer, r, r.audioPicked, r.subtitlePicked)
 	}
 	return sess, nil
+}
+
+// replaced is what the engine calls when a session's stream gave way to another by itself:
+// the session plays the new address, and its app learns of it from its next progress report.
+func (s *Service) replaced(sess *session) func(Stream) {
+	return func(stream Stream) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if sess.State != StateEnded {
+			sess.Stream, sess.StartPositionMs = stream, sess.PositionMs
+			sess.Generation++
+		}
+	}
 }
 
 // Change is a request to change a running session. Only what is set changes.
@@ -306,11 +320,7 @@ func (s *Service) Change(ctx context.Context, id string, c Caller, ch Change) (S
 	replan := ch.Replan || ch.Failure != nil || a.VersionID != "" || a.Audio != nil || a.Subtitle != nil || a.Quality != nil ||
 		a.SubtitleDelivery != "" || a.SubtitleOffsetMs != nil
 	if !replan {
-		if ch.SeekMs != nil && before.Plan.Mode != "direct" {
-			if err := s.streams.Restart(ctx, id, position); err != nil {
-				return Session{}, err
-			}
-		}
+		// A seek needs nothing from the stream: the player asks for a later part of it.
 		return s.snapshot(sess), nil
 	}
 
@@ -329,20 +339,16 @@ func (s *Service) Change(ctx context.Context, id string, c Caller, ch Change) (S
 	generation := before.Generation
 	if r.plan.Key != before.Plan.Key || r.version.PublicID != version.PublicID {
 		s.streams.Stop(id)
-		request := StartRequest{SessionID: id, Item: r.item, Version: r.version, Plan: r.plan, PositionMs: position}
+		request := StartRequest{SessionID: id, Item: r.item, Version: r.version, Plan: r.plan, PositionMs: position, Replaced: s.replaced(sess)}
 		if stream, err = s.streams.Start(ctx, request); err != nil {
 			// Playback is left as it was: the stream it had is started again.
-			old := StartRequest{SessionID: id, Item: r.item, Version: version, Plan: before.Plan, PositionMs: position}
+			old := StartRequest{SessionID: id, Item: r.item, Version: version, Plan: before.Plan, PositionMs: position, Replaced: s.replaced(sess)}
 			if _, again := s.streams.Start(ctx, old); again != nil {
 				s.end(ctx, id, EndFailed, "")
 			}
 			return Session{}, err
 		}
 		generation++
-	} else if ch.SeekMs != nil && r.plan.Mode != "direct" {
-		if err := s.streams.Restart(ctx, id, position); err != nil {
-			return Session{}, err
-		}
 	}
 	s.mu.Lock()
 	ended := sess.State == StateEnded

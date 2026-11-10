@@ -483,6 +483,7 @@ export interface PlaybackDecisions {
 export interface PlaybackLease {
   expiresAt: string;
   reportEveryMs: number;
+  generation?: number;
 }
 
 export interface PlaybackMarker {
