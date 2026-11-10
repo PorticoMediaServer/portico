@@ -2,7 +2,8 @@ name: New server under load
 # Fills the new server's database (server-next) with a synthetic library of one million
 # playable items and measures it against the rebuild plan's bars: first import rate, unchanged
 # rescan rate, page reads and user writes while an import runs, whether an import keeps moving
-# under constant use, and memory and WAL size. Every measured process runs under a 2 GB memory
+# under constant use, memory and WAL size, how soon an imported title can be searched for, and
+# reads, writes and searches while the search index is rebuilt. Every measured process runs under a 2 GB memory
 # limit. The numbers go to the run summary and one JSON artifact. This is a diagnostic: a
 # missed bar is a number to explain, not a failed run.
 #
@@ -144,6 +145,27 @@ jobs:
           source ci/server-next-load.sh
           limited "$WORK/bin/portico-load" -mode mixed -db "$WORK/main.db" -items "$EXTRA" -batch "$BUSY_BATCH" -out "$WORK/mixed.json" | tee "$WORK/mixed.txt"
           summarise "Reads and writes while importing $EXTRA more items, $BUSY_BATCH files a transaction, into the $ITEMS library" "$WORK/mixed.txt" "$WORK/mixed.json"
+
+  search:
+    name: Search during an import and during a rebuild
+    needs: state
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with: {name: load-database-seeded, path: '${{ env.WORK }}'}
+      - name: Unpack the database
+        run: chmod +x "$WORK"/bin/* && zstd -q -d --rm "$WORK/main.db.zst"
+      - name: Build the index, import with search following, rebuild it under use (bars 7 and 8)
+        run: |
+          source ci/server-next-load.sh
+          limited "$WORK/bin/portico-load" -mode search -db "$WORK/main.db" -items "$EXTRA" -batch 10 -out "$WORK/search.json" | tee "$WORK/search.txt"
+          summarise "Search: the index of the $ITEMS library built from nothing, $EXTRA more items imported with search following, then a rebuild under constant use" "$WORK/search.txt" "$WORK/search.json"
+          jq '. + {runner: "ubuntu-24.04 GitHub-hosted, '"$(nproc)"' vCPU, 2 GB memory limit on the measured process", commit: env.GITHUB_SHA}' "$WORK/search.json" > server-next-load-search.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with: {name: server-next-load-search, path: server-next-load-search.json, retention-days: 30}
 
   report:
     name: Report
