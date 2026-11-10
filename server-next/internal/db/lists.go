@@ -451,12 +451,12 @@ func (d *DB) AddToList(ctx context.Context, v Viewer, publicID string, revision 
 // MoveInList moves an entry to just before the entry before, or just after the entry after.
 func (d *DB) MoveInList(ctx context.Context, v Viewer, publicID string, revision, entry, before, after int64, now time.Time) (out List, err error) {
 	err = d.listWrite(ctx, v, publicID, revision, false, now, func(e *listEdit) error {
+		if _, err := e.position(entry); err != nil {
+			return err
+		}
 		if entry == before || entry == after {
 			e.unchanged = true
 			return nil
-		}
-		if _, err := e.position(entry); err != nil {
-			return err
 		}
 		anchor := after
 		if before != 0 {
@@ -488,18 +488,18 @@ func (d *DB) MoveInList(ctx context.Context, v Viewer, publicID string, revision
 	return out, err
 }
 
-// RemoveFromList removes one entry. Removing one that is gone changes nothing.
+// RemoveFromList removes one entry. One that is gone, or whose title the viewer may not see,
+// is not found: a removal sent again after its reply was lost answers not found, and the app
+// takes that as done.
 func (d *DB) RemoveFromList(ctx context.Context, v Viewer, publicID string, revision, entry int64, now time.Time) (out List, err error) {
 	err = d.listWrite(ctx, v, publicID, revision, false, now, func(e *listEdit) error {
-		res, err := e.tx.Exec(`DELETE FROM list_entries WHERE id = ? AND list_id = ?`, entry, e.id)
-		if err != nil {
+		if _, err := e.position(entry); err != nil {
 			return err
 		}
-		if n, _ := res.RowsAffected(); n == 0 {
-			e.unchanged = true
-			return nil
+		if _, err := e.tx.Exec(`DELETE FROM list_entries WHERE id = ?`, entry); err != nil {
+			return err
 		}
-		_, err = e.tx.Exec(`UPDATE lists SET entry_count = entry_count - 1 WHERE id = ?`, e.id)
+		_, err := e.tx.Exec(`UPDATE lists SET entry_count = entry_count - 1 WHERE id = ?`, e.id)
 		return err
 	}, &out)
 	return out, err
@@ -555,12 +555,16 @@ func (d *DB) listWrite(ctx context.Context, v Viewer, publicID string, revision 
 	})
 }
 
-// position is an entry's place in the list.
+// position is the place in the list of an entry the viewer may see. An entry of a title the
+// viewer may not see is not found, exactly like one that is not there, so a profile that may
+// edit a shared list can neither find nor change what it is not shown.
 func (e *listEdit) position(entry int64) (int64, error) {
 	var pos int64
-	err := e.tx.QueryRow(`SELECT position FROM list_entries WHERE id = ? AND list_id = ?`, entry, e.id).Scan(&pos)
+	err := e.tx.QueryRowContext(e.ctx, `SELECT e.position FROM list_entries e CROSS JOIN items i ON i.id = e.item_id
+		WHERE e.id = @entry AND e.list_id = @list AND `+e.acc.visible("i"),
+		append(e.v.args(), sql.Named("entry", entry), sql.Named("list", e.id))...).Scan(&pos)
 	if errors.Is(err, sql.ErrNoRows) {
-		return 0, invalid("that entry is not in this list")
+		return 0, ErrNotFound
 	}
 	return pos, err
 }
