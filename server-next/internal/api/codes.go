@@ -93,7 +93,7 @@ func (s *Server) wrongCode(r *http.Request, limits []db.Limit) error {
 }
 
 func (s *Server) reviewCode(r *http.Request, _ None) (CodeReview, error) {
-	limits := sourceLimit(r)
+	limits := s.sourceLimit(r)
 	if wait, err := s.db.LimitWait(r.Context(), s.now(), limits...); err != nil {
 		return CodeReview{}, err
 	} else if wait > 0 {
@@ -108,7 +108,7 @@ func (s *Server) reviewCode(r *http.Request, _ None) (CodeReview, error) {
 }
 
 func (s *Server) decideCode(r *http.Request, req CodeDecision) (None, error) {
-	caller, limits := CallerFrom(r.Context()), sourceLimit(r)
+	caller, limits := CallerFrom(r.Context()), s.sourceLimit(r)
 	if wait, err := s.db.LimitWait(r.Context(), s.now(), limits...); err != nil {
 		return None{}, err
 	} else if wait > 0 {

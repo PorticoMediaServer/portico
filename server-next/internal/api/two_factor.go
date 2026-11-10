@@ -95,7 +95,7 @@ func newRecoveryCodes(userID int64) (codes, hashes []string) {
 func (s *Server) finishTwoFactor(r *http.Request, req TwoFactorFinish) (SignInResponse, error) {
 	ctx, now := r.Context(), s.now()
 	session, refresh := s.mintSession(r, now)
-	limits := func(username string) []db.Limit { return passwordLimits(r, username) }
+	limits := func(username string) []db.Limit { return s.passwordLimits(r, username) }
 	st, err := s.db.FinishSignIn(ctx, db.SecondStep{ChallengeHash: auth.Hash(req.Challenge), Limits: limits, Session: session, Now: now,
 		Proof: func(userID int64) db.SecondProof { return secondProof(userID, req.Code, now) }})
 	var limited *db.LimitedError
@@ -165,7 +165,7 @@ func (s *Server) verifyTwoFactor(r *http.Request, req TwoFactorVerify) (Recovery
 	codes, hashes := newRecoveryCodes(caller.UserID)
 	err = s.db.ConfirmTwoFactor(r.Context(), caller.UserID, func(secret []byte, lastStep int64) (int64, bool) {
 		return auth.CheckTOTP(secret, req.Code, now, lastStep)
-	}, hashes, sourceLimit(r), now)
+	}, hashes, s.sourceLimit(r), now)
 	var limited *db.LimitedError
 	switch {
 	case errors.As(err, &limited):

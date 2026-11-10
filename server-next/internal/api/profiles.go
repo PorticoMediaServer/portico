@@ -294,8 +294,9 @@ func (s *Server) selectProfile(r *http.Request, req ProfileSelect) (Session, err
 		if req.PIN == "" {
 			return Session{}, errBadPIN()
 		}
-		// Wrong PINs are counted for this profile on this device, so nobody can make the
-		// profile wait on another device, and signing in again on this one starts no new count.
+		// Wrong PINs are counted for this profile on this device, so signing in again on it
+		// starts no new count, and for the profile on all devices together, so a count
+		// cannot be escaped by making new devices. See auth.StandardProfilePINs.
 		session, err := s.db.SessionState(ctx, caller.SessionID, now)
 		if errors.Is(err, db.ErrNotFound) {
 			return Session{}, errSignInEnded()
@@ -303,8 +304,11 @@ func (s *Server) selectProfile(r *http.Request, req ProfileSelect) (Session, err
 		if err != nil {
 			return Session{}, err
 		}
-		sel.Limits = append([]db.Limit{{Bucket: "pin", Key: "profile:" + strconv.FormatInt(p.ID, 10) + "|" + session.DevicePublicID,
-			Delay: auth.StandardPINs.Delay, Lasting: true}}, sourceLimit(r)...)
+		profile := "profile:" + strconv.FormatInt(p.ID, 10)
+		sel.Limits = append([]db.Limit{
+			{Bucket: "pin", Key: profile + "|" + session.DevicePublicID, Delay: auth.StandardPINs.Delay, Lasting: true},
+			{Bucket: db.ProfilePINBucket, Key: profile, Delay: auth.StandardProfilePINs.Delay, Lasting: true},
+		}, s.sourceLimit(r)...)
 		if wait, err := s.db.LimitWait(ctx, now, sel.Limits...); err != nil {
 			return Session{}, err
 		} else if wait > 0 {

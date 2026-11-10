@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"net/netip"
 	"os"
 	"strconv"
 	"strings"
@@ -192,7 +191,7 @@ func checkDevice(device DeviceInfo) (db.DeviceInfo, error) {
 func (s *Server) mintSession(r *http.Request, now time.Time) (db.NewSession, string) {
 	id := db.NewSessionID()
 	refresh := s.tokens.FirstRefresh(id)
-	return db.NewSession{ID: id, RefreshHash: auth.Hash(refresh), ExpiresAt: now.Add(auth.SessionIdle), RemoteAddr: remoteHost(r)}, refresh
+	return db.NewSession{ID: id, RefreshHash: auth.Hash(refresh), ExpiresAt: now.Add(auth.SessionIdle), RemoteAddr: s.remoteHost(r)}, refresh
 }
 
 // newSession checks what the app said about its device and prepares a session for it.
@@ -206,25 +205,26 @@ func (s *Server) newSession(r *http.Request, device DeviceInfo, now time.Time) (
 	return session, refresh, nil
 }
 
-// remoteHost is the address a request came from, without the port.
-func remoteHost(r *http.Request) string {
-	ap, err := netip.ParseAddrPort(r.RemoteAddr)
-	if err != nil {
+// remoteHost is the address a request came from, as the owner's network settings read it.
+func (s *Server) remoteHost(r *http.Request) string {
+	addr, ok := s.networks().Client(r)
+	if !ok {
 		return ""
 	}
-	return ap.Addr().Unmap().String()
+	return addr.String()
 }
 
 // sourceLimit counts everything one network away from home gets wrong: passwords, PINs and
 // codes of every kind. At 30 the network is blocked for 15 minutes, then for twice as long
 // each time it happens again, up to a day. Every proof takes it, so a block refuses them
 // all. The home network is never blocked.
-func sourceLimit(r *http.Request) []db.Limit {
-	source, home := auth.Source(r.RemoteAddr)
-	if home {
+func (s *Server) sourceLimit(r *http.Request) []db.Limit {
+	networks := s.networks()
+	addr, ok := networks.Client(r)
+	if !ok || networks.AtHome(addr) {
 		return nil
 	}
-	return []db.Limit{{Bucket: "source", Key: source, Delay: auth.SourceDelay, Doubling: true}}
+	return []db.Limit{{Bucket: "source", Key: auth.SourceKey(addr), Delay: auth.SourceDelay, Doubling: true}}
 }
 
 // passwordLimits are the counts a wrong password adds to. The wait belongs to the network
@@ -232,9 +232,12 @@ func sourceLimit(r *http.Request) []db.Limit {
 // to from elsewhere. Wrong guesses at one account from many networks are also counted
 // against the account, and each new network that guesses wrong starts from that count; a
 // right password from a new network still works at once.
-func passwordLimits(r *http.Request, account string) []db.Limit {
-	source, _ := auth.Source(r.RemoteAddr)
-	return append([]db.Limit{{Bucket: "password", Key: source, FloorKey: "account|" + account, Delay: auth.StandardPasswords.Delay}}, sourceLimit(r)...)
+func (s *Server) passwordLimits(r *http.Request, account string) []db.Limit {
+	source := ""
+	if addr, ok := s.networks().Client(r); ok {
+		source = auth.SourceKey(addr)
+	}
+	return append([]db.Limit{{Bucket: "password", Key: source, FloorKey: "account|" + account, Delay: auth.StandardPasswords.Delay}}, s.sourceLimit(r)...)
 }
 
 // passwordProof compares the caller's current password and returns the proof for the
@@ -242,7 +245,7 @@ func passwordLimits(r *http.Request, account string) []db.Limit {
 // if the account needs one. A wait already in force is refused here.
 func (s *Server) passwordProof(r *http.Request, password, code string) (db.PasswordProof, error) {
 	ctx, caller := r.Context(), CallerFrom(r.Context())
-	p := db.PasswordProof{UserID: caller.UserID, Limits: passwordLimits(r, "user:"+strconv.FormatInt(caller.UserID, 10)),
+	p := db.PasswordProof{UserID: caller.UserID, Limits: s.passwordLimits(r, "user:"+strconv.FormatInt(caller.UserID, 10)),
 		Second: secondProof(caller.UserID, code, s.now())}
 	if wait, err := s.db.LimitWait(ctx, s.now(), p.Limits...); err != nil {
 		return p, err
@@ -340,6 +343,7 @@ func errSetupDone() *Error {
 
 func (s *Server) signIn(r *http.Request, req SignInRequest) (SignInResponse, error) {
 	ctx, now := r.Context(), s.now()
+	s.noteForwarded(r)
 	session, refresh, err := s.newSession(r, req.Device, now)
 	if err != nil {
 		return SignInResponse{}, err
@@ -347,7 +351,7 @@ func (s *Server) signIn(r *http.Request, req SignInRequest) (SignInResponse, err
 	// From here on, a username nobody has is treated exactly like one with a wrong password:
 	// the same work, the same counting, the same answer.
 	key, _ := auth.Username(req.Username)
-	limits := passwordLimits(r, key)
+	limits := s.passwordLimits(r, key)
 	if wait, err := s.db.LimitWait(ctx, now, limits...); err != nil {
 		return SignInResponse{}, err
 	} else if wait > 0 {
@@ -396,7 +400,7 @@ func (s *Server) refresh(r *http.Request, req RefreshRequest) (Session, error) {
 	next := s.tokens.NextRefresh(req.RefreshToken, ref, req.RequestID)
 	st, replayed, err := s.db.RenewSession(r.Context(), db.Renewal{SessionID: ref.SessionID, Generation: ref.Generation,
 		Hash: auth.Hash(req.RefreshToken), NextHash: auth.Hash(next), RequestID: req.RequestID, InstallationID: req.InstallationID,
-		ExpiresAt: now.Add(auth.SessionIdle), RemoteAddr: remoteHost(r), Now: now})
+		ExpiresAt: now.Add(auth.SessionIdle), RemoteAddr: s.remoteHost(r), Now: now})
 	if errors.Is(err, db.ErrBadCredentials) {
 		return Session{}, errSignInEnded()
 	}
