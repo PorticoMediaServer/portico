@@ -34,6 +34,16 @@ func (d *DB) SettingOrCreate(ctx context.Context, key string, make func() string
 	return value, err
 }
 
+// SaveSetting stores the value for key, replacing what was there.
+func (d *DB) SaveSetting(ctx context.Context, key, value string, now time.Time) error {
+	return d.write(ctx, User, func(tx *sql.Tx) error {
+		_, err := tx.Exec(`INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
+			ON CONFLICT (key) DO UPDATE SET value = excluded.value, revision = revision + 1, updated_at = excluded.updated_at`,
+			key, value, now.UnixMilli())
+		return err
+	})
+}
+
 // HasUsers reports whether any account exists. Until one does, the server is in first-run setup.
 func (d *DB) HasUsers(ctx context.Context) (bool, error) {
 	var has bool

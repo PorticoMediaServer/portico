@@ -8,6 +8,37 @@ export interface Account {
   role: string;
 }
 
+export interface AccountPlayback {
+  items: AccountStream[];
+  limit?: number;
+}
+
+export interface AccountStream {
+  id: string;
+  deviceId: string;
+  deviceName: string;
+  kind: string;
+  state: string;
+  itemId?: string;
+  title?: string;
+  positionMs: number;
+  durationMs?: number;
+  startedAt: string;
+  current: boolean;
+}
+
+export interface Alternative {
+  versionId: string;
+  label: string;
+}
+
+export interface AudioPick {
+  trackId: string;
+}
+
+export interface CapabilityDocument {
+}
+
 export interface Challenge {
   token: string;
   expiresAt: string;
@@ -41,6 +72,13 @@ export interface CodeStarted {
   deviceSecret: string;
   expiresAt: string;
   intervalMs: number;
+}
+
+export interface Decision {
+  action: string;
+  reasons?: string[];
+  to?: string;
+  channels?: number;
 }
 
 export interface Device {
@@ -82,10 +120,21 @@ export interface ApiError {
   requestId: string;
 }
 
+export interface Failure {
+  code: string;
+  detail?: string;
+}
+
 export interface Field {
   path: string;
   code: string;
   message: string;
+}
+
+export interface HDR {
+  source?: string;
+  delivered?: string;
+  toneMapped: boolean;
 }
 
 export interface Health {
@@ -225,6 +274,196 @@ export interface PasswordResetRequest {
   newPassword: string;
 }
 
+export interface PlaybackAudio {
+  id: string;
+  codec: string;
+  profile?: string;
+  channels?: number;
+  layout?: string;
+  sampleRate?: number;
+  bitDepth?: number;
+  language?: string;
+  title?: string;
+  default: boolean;
+  commentary: boolean;
+}
+
+export interface PlaybackChange {
+  state?: string;
+  versionId?: string;
+  quality?: Quality;
+  audio?: AudioPick;
+  subtitles?: SubtitlePick;
+  subtitleOffsetMs?: number;
+  seek?: PlaybackSeek;
+  positionMs?: number;
+  throughputKbps?: number;
+  replan?: boolean;
+  failure?: Failure;
+}
+
+export interface PlaybackChapter {
+  startMs: number;
+  title: string;
+}
+
+export interface PlaybackContainer {
+  kind: string;
+  id: string;
+}
+
+export interface PlaybackDecisions {
+  video?: Decision;
+  audio?: Decision;
+  subtitles?: Decision;
+}
+
+export interface PlaybackLease {
+  expiresAt: string;
+  reportEveryMs: number;
+}
+
+export interface PlaybackMarker {
+  id: string;
+  type: string;
+  startMs: number;
+  endMs: number;
+  confidence: string;
+  automaticSafe: boolean;
+}
+
+export interface PlaybackOptions {
+  itemId: string;
+  kind: string;
+  resume?: PlaybackResume;
+  container?: PlaybackContainer;
+  versions: PlaybackVersion[];
+  chapters: PlaybackChapter[];
+  markers: PlaybackMarker[];
+  qualities: QualityOption[];
+  preferred: PlaybackPreferred;
+  plan: PlaybackPlan;
+  alternatives: Alternative[];
+}
+
+export interface PlaybackPlan {
+  versionId: string;
+  mode: string;
+  engine: string;
+  route: string;
+  decision: PlaybackDecisions;
+  estimatedBitrateKbps?: number;
+  quality: Quality;
+}
+
+export interface PlaybackPreferred {
+  versionId: string;
+  audioId?: string;
+  subtitleId?: string;
+  quality: Quality;
+}
+
+export interface PlaybackProgress {
+  state: string;
+  positionMs: number;
+  playClockMs?: number;
+}
+
+export interface PlaybackResume {
+  positionMs: number;
+}
+
+export interface PlaybackSeek {
+  positionMs: number;
+  id: string;
+}
+
+export interface PlaybackSession {
+  id: string;
+  kind: string;
+  state: string;
+  itemId: string;
+  versionId: string;
+  queue?: QueueLink;
+  lease: PlaybackLease;
+  presentation: Presentation;
+  playbackInfo?: unknown;
+  end?: SessionEnd;
+  retryAfterMs?: number;
+}
+
+export interface PlaybackStart {
+  itemId: string;
+  versionId?: string;
+  startPositionMs?: number;
+  startFrom?: string;
+  state?: string;
+  quality?: Quality;
+  audio?: AudioPick;
+  subtitles?: SubtitlePick;
+  network?: string;
+  throughputKbps?: number;
+}
+
+export interface PlaybackStop {
+  positionMs?: number;
+}
+
+export interface PlaybackSubtitle {
+  id: string;
+  format: string;
+  source: string;
+  language?: string;
+  title?: string;
+  forced: boolean;
+  sdh: boolean;
+  default: boolean;
+}
+
+export interface PlaybackVersion {
+  id: string;
+  label: string;
+  edition?: string;
+  container?: string;
+  sizeBytes?: number;
+  durationMs: number;
+  bitrateKbps?: number;
+  video: PlaybackVideo[];
+  audio: PlaybackAudio[];
+  subtitles: PlaybackSubtitle[];
+}
+
+export interface PlaybackVideo {
+  id: string;
+  codec: string;
+  profile?: string;
+  bitDepth?: number;
+  width?: number;
+  height?: number;
+  fps?: number;
+  hdr?: string;
+  bitrateKbps?: number;
+}
+
+export interface Presentation {
+  generation: number;
+  mode: string;
+  url: string;
+  startPositionMs: number;
+  seekId?: string;
+  engine: string;
+  route: string;
+  container?: string;
+  bitrateKbps?: number;
+  quality: Quality;
+  audioTrackId?: string;
+  subtitle?: SubtitleInForce;
+  subtitles: SubtitleFile[];
+  decision: PlaybackDecisions;
+  hdr?: HDR;
+  audioRender?: unknown;
+}
+
 export interface Profile {
   id: string;
   name: string;
@@ -259,6 +498,30 @@ export interface ProfileSelect {
   pin?: string;
 }
 
+export interface Quality {
+  mode: string;
+  id?: string;
+  maxVideoBitrateKbps?: number;
+  maxHeight?: number;
+  maxAudioBitrateKbps?: number;
+  step?: string;
+}
+
+export interface QualityOption {
+  mode: string;
+  id?: string;
+  maxVideoBitrateKbps?: number;
+  maxHeight?: number;
+  maxAudioBitrateKbps?: number;
+  sameAsOriginal?: boolean;
+  dataGBPerHour?: number;
+}
+
+export interface QueueLink {
+  queueId: string;
+  entryId: string;
+}
+
 export interface RecoveryCodes {
   recoveryCodes: string[];
 }
@@ -267,6 +530,25 @@ export interface RefreshRequest {
   refreshToken: string;
   installationId: string;
   requestId: string;
+}
+
+export interface RememberedFailure {
+  id: string;
+  deviceName: string;
+  itemId?: string;
+  title?: string;
+  fileName: string;
+  player: string;
+  route: string;
+  code: string;
+  detail?: string;
+  failedAt: string;
+  expiresAt: string;
+}
+
+export interface RememberedFailurePage {
+  items: RememberedFailure[];
+  nextCursor?: string;
 }
 
 export interface Session {
@@ -279,6 +561,11 @@ export interface Session {
   deviceId: string;
   installationId: string;
   viewer: Viewer;
+}
+
+export interface SessionEnd {
+  reason: string;
+  message?: string;
 }
 
 export interface SessionInfo {
@@ -319,6 +606,31 @@ export interface SignInResponse {
   account?: Account;
   profiles?: Profile[];
   challenge?: Challenge;
+}
+
+export interface StreamLimits {
+  total?: number;
+  perPerson?: number;
+  people?: Record<string, number>;
+  endPausedVideoAfterMs?: number;
+}
+
+export interface SubtitleFile {
+  trackId: string;
+  format: string;
+  url: string;
+  offsetMs?: number;
+}
+
+export interface SubtitleInForce {
+  trackId: string;
+  kind: string;
+  delivery: string;
+}
+
+export interface SubtitlePick {
+  trackId?: string | null;
+  delivery?: string;
 }
 
 export interface System {
@@ -429,4 +741,17 @@ export interface Routes {
   'GET /v1/admin/api-keys': {access: 'owner'; request: undefined; response: KeyPage};
   'POST /v1/admin/api-keys': {access: 'owner'; request: KeyCreate; response: KeyCreated};
   'DELETE /v1/admin/api-keys/{id}': {access: 'owner'; request: undefined; response: undefined};
+  'GET /v1/devices/{id}/capabilities': {access: 'signedIn'; request: undefined; response: CapabilityDocument};
+  'PUT /v1/devices/{id}/capabilities': {access: 'signedIn'; request: CapabilityDocument; response: undefined};
+  'GET /v1/items/{id}/playback-options': {access: 'withProfile'; request: undefined; response: PlaybackOptions};
+  'POST /v1/playback/sessions': {access: 'withProfile'; request: PlaybackStart; response: PlaybackSession};
+  'GET /v1/playback/sessions': {access: 'withProfile'; request: undefined; response: AccountPlayback};
+  'GET /v1/playback/sessions/{id}': {access: 'withProfile'; request: undefined; response: PlaybackSession};
+  'PATCH /v1/playback/sessions/{id}': {access: 'withProfile'; request: PlaybackChange; response: PlaybackSession};
+  'PUT /v1/playback/sessions/{id}/progress': {access: 'withProfile'; request: PlaybackProgress; response: PlaybackLease};
+  'DELETE /v1/playback/sessions/{id}': {access: 'withProfile'; request: PlaybackStop; response: undefined};
+  'GET /v1/admin/playback/stream-limits': {access: 'owner'; request: undefined; response: StreamLimits};
+  'PUT /v1/admin/playback/stream-limits': {access: 'owner'; request: StreamLimits; response: StreamLimits};
+  'GET /v1/admin/playback/failures': {access: 'owner'; request: undefined; response: RememberedFailurePage};
+  'DELETE /v1/admin/playback/failures/{id}': {access: 'owner'; request: undefined; response: undefined};
 }

@@ -32,6 +32,8 @@ type DB struct {
 	closed    chan struct{}
 	marks     tokenMarks
 	undo      undoOffers
+	// sessionWatch is told about ended and changed sign-ins. See WatchSessions.
+	sessionWatch func(ended, changed []int64)
 
 	// See checkpoint.go.
 	path       string
