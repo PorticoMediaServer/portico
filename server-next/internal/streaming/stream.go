@@ -47,14 +47,14 @@ type stream struct {
 	plan *DeliveryPlan
 	// request is what the plan was made from, kept so the producer can plan
 	// again when the picture cannot be copied after all. Nil refuses that.
-	request  *PlanRequest
-	duration float64
-	text     []TextRenditionPlan
-	burn     *BurnSubtitle
-	// audio is the planned music stream this stream serves, with the file's
-	// seek index when the plan names one. Nil for everything else.
+	request   *PlanRequest
+	duration  float64
+	text      []TextRenditionPlan
+	burn      *BurnSubtitle
 	audio     *AudioPlan
 	seekIndex *audiofacts.SeekIndex
+	// cues holds each text subtitle once it has been read, by Resource.
+	cues map[string]*textCues
 	// openInput replaces opening source as one file, and disc keeps the output on
 	// disk: both are for a disc title.
 	openInput inputOpener
