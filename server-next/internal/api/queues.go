@@ -202,6 +202,8 @@ func queueError(err error) error {
 		return refusal(http.StatusGone, "prepared_expired", "The prepared next item is gone.", false)
 	case errors.Is(err, db.ErrInvalid):
 		return ErrInvalid("Check the request and try again.")
+	case errors.Is(err, db.ErrKeyReused):
+		return errKeyReused()
 	}
 	return playbackError(err)
 }
@@ -266,8 +268,13 @@ func (s *Server) window(r *http.Request, q db.Queue, before, after int) ([]Queue
 }
 
 func (s *Server) createQueue(r *http.Request, req QueueCreate) (QueueCreated, error) {
+	key, err := idempotencyKey(r)
+	if err != nil {
+		return QueueCreated{}, err
+	}
 	q, err := s.queues.Create(r.Context(), s.playbackCaller(r), playqueue.CreateInput{Source: req.Source, Shuffle: req.Shuffle,
-		StartAt: req.StartAt, Resume: req.Resume})
+		StartAt: req.StartAt, Resume: req.Resume, Key: key, Hash: requestHash(req)})
+>>>>>>> b22d78fa2 (Creating an invitation, a member, an API key or token, or a play queue honours the Idempotency-Key, so a resent request gets the first answer instead of a second one or a 409)
 	if err != nil {
 		return QueueCreated{}, queueError(err)
 	}
