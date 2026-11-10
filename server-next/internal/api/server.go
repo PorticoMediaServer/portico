@@ -191,6 +191,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.metadata = &metadata.Service{DB: d, Providers: map[string]metadata.Provider{}}
 	s.metadataRoutes()
 	s.editorRoutes()
+	s.collectionRoutes()
 	s.jobs = jobs.New(ctx, d, log)
 	s.scans = scan.NewManager(s.jobs, &scan.Scanner{DB: d, Log: log})
 	s.libraryRoutes()
@@ -207,7 +208,6 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 		return nil, err
 	}
 	go s.jobs.RunTidy(ctx)
-	s.collectionRoutes()
 	return s, nil
 }
 

@@ -119,6 +119,8 @@ type ItemDetails struct {
 	ContentRating   string
 	RatingAge       *int // the age ContentRating stands for; nil when it is not known
 	CommunityRating float64
+	// Series is, for a film, the series the provider says it belongs to; nil when it said none.
+	Series *SeriesRef
 	// Numbering is, for a show whose match a person chose, the episode order and number offset
 	// they chose with it; nil leaves what the show has.
 	Numbering *EpisodeNumbering
@@ -251,6 +253,15 @@ func applyDetails(b *batchTx, itemID int64, d *ItemDetails, now int64) error {
 	for _, ext := range d.ExternalIDs {
 		if _, err := b.exec(`INSERT INTO item_external_ids (item_id, provider, external_id) VALUES (?, ?, ?)
 			ON CONFLICT (item_id, provider) DO UPDATE SET external_id = excluded.external_id`, itemID, ext.Provider, ext.ID); err != nil {
+			return err
+		}
+	}
+	if d.Series != nil && kind == KindMovie && !root.Valid {
+		if _, err := b.exec(`INSERT INTO item_external_ids (item_id, provider, external_id) VALUES (?, ?, ?)
+			ON CONFLICT (item_id, provider) DO UPDATE SET external_id = excluded.external_id`, itemID, d.Series.idProvider(), d.Series.ID); err != nil {
+			return err
+		}
+		if err := joinSeries(b, library, itemID, *d.Series, now); err != nil {
 			return err
 		}
 	}
@@ -460,6 +471,10 @@ func (d *DB) ChangeMatch(ctx context.Context, p Priority, itemID int64, details 
 				return err
 			}
 			renumbered = old != *details.Numbering
+		}
+		// The title is another one now: it leaves the automatic collections of the old.
+		if err := leaveSeries(b, library, itemID, now); err != nil {
+			return err
 		}
 		// The old match goes: its ids, the key it was found by, and its place on the Unmatched
 		// items list.

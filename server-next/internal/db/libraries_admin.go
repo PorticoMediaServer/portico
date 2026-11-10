@@ -104,7 +104,7 @@ func (d *DB) EditLibrary(ctx context.Context, publicID string, edit LibraryEdit)
 			}
 		}
 		if edit.Options != nil {
-			if _, err := tx.Exec(`UPDATE libraries SET options = ? WHERE id = ?`, edit.Options.json(), id); err != nil {
+			if _, err := tx.Exec(`UPDATE libraries SET options = `+keepRemoved+` WHERE id = ?`, edit.Options.json(), edit.Options.json(), id); err != nil {
 				return err
 			}
 		}

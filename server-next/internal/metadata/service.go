@@ -208,6 +208,9 @@ func details(r Record, match db.MatchState) db.ItemDetails {
 	if r.Ref.ID != "" {
 		d.ExternalIDs = append(d.ExternalIDs, db.ExternalID{Provider: r.Ref.Provider, ID: r.Ref.ID})
 	}
+	if r.Collection != nil && r.Ref.Kind == "movie" {
+		d.Series = &db.SeriesRef{Provider: r.Collection.Ref.Provider, ID: r.Collection.Ref.ID, Name: r.Collection.Title}
+	}
 	for _, other := range r.OtherIDs {
 		d.ExternalIDs = append(d.ExternalIDs, db.ExternalID{Provider: other.Provider, ID: other.ID})
 	}

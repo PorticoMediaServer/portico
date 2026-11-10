@@ -74,7 +74,7 @@ func TestMetadataJobs(t *testing.T) {
 	sh.tmdb.Down.Store(false)
 
 	// A new film found by a scan is looked up without anyone asking.
-	if err := os.WriteFile(filepath.Join(sh.root, "The Matrix Reloaded (2003).mkv"), make([]byte, 77), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(sh.root, "Zzyzx Two (2012).mkv"), make([]byte, 77), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	sh.startJob(JobStart{Kind: "scan", Target: JobTarget{Library: sh.library}})
@@ -85,7 +85,7 @@ func TestMetadataJobs(t *testing.T) {
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	if len(unmatched) != 1 || unmatched[0].Title != "The Matrix Reloaded" || unmatched[0].Reason != "no_results" {
+	if len(unmatched) != 1 || unmatched[0].Title != "Zzyzx Two" || unmatched[0].Reason != "no_results" {
 		t.Fatalf("after a scan, Unmatched items: %+v", unmatched)
 	}
 

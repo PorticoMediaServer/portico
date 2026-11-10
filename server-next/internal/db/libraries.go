@@ -41,6 +41,8 @@ type LibraryOptions struct {
 	Depth       string    `json:"depth,omitempty"`
 	Trash       TrashRule `json:"trash"`
 	AllowDelete bool      `json:"allowDelete,omitempty"`
+	// GroupSeries is "Group films from the same series": nil is on, the default.
+	GroupSeries *bool `json:"groupSeries,omitempty"`
 }
 
 // TrashRule says when a library's missing titles are removed.
@@ -226,7 +228,8 @@ func (d *DB) SetLibraryOptions(ctx context.Context, libraryID int64, options Lib
 	}
 	return d.write(ctx, User, func(tx *sql.Tx) error {
 		now := time.Now().UnixMilli()
-		res, err := tx.Exec(`UPDATE libraries SET options = ?, revision = revision + 1, updated_at = ? WHERE id = ?`, options.json(), now, libraryID)
+		res, err := tx.Exec(`UPDATE libraries SET options = `+keepRemoved+`, revision = revision + 1, updated_at = ? WHERE id = ?`,
+			options.json(), options.json(), now, libraryID)
 		if err != nil {
 			return err
 		}

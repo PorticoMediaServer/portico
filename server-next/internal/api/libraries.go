@@ -26,6 +26,9 @@ type LibraryOptions struct {
 	Trash TrashRule `json:"trash"`
 	// AllowDelete lets the owner delete files of this library from disk. It starts off.
 	AllowDelete bool `json:"allowDelete"`
+	// GroupSeries is "Group films from the same series": a collection appears once two films
+	// of a series are in the library. On unless turned off; left out of an edit, it stays.
+	GroupSeries *bool `json:"groupSeries,omitempty"`
 }
 
 // TrashRule is days (the default, with Days from 1 to 3,650, starting at 30), scan (after
@@ -205,7 +208,8 @@ func timePtr(ms int64) *time.Time {
 }
 
 func libraryOptionsOut(o db.LibraryOptions) LibraryOptions {
-	out := LibraryOptions{Depth: o.Depth, Trash: TrashRule{Mode: o.Trash.Mode, Days: o.Trash.Days}, AllowDelete: o.AllowDelete}
+	group := o.GroupSeries == nil || *o.GroupSeries
+	out := LibraryOptions{Depth: o.Depth, Trash: TrashRule{Mode: o.Trash.Mode, Days: o.Trash.Days}, AllowDelete: o.AllowDelete, GroupSeries: &group}
 	if out.Depth == "" {
 		out.Depth = db.DepthBasic
 	}
@@ -219,7 +223,7 @@ func libraryOptionsOut(o db.LibraryOptions) LibraryOptions {
 }
 
 func optionsIn(o LibraryOptions) db.LibraryOptions {
-	return db.LibraryOptions{Depth: o.Depth, Trash: db.TrashRule{Mode: o.Trash.Mode, Days: o.Trash.Days}, AllowDelete: o.AllowDelete}
+	return db.LibraryOptions{Depth: o.Depth, Trash: db.TrashRule{Mode: o.Trash.Mode, Days: o.Trash.Days}, AllowDelete: o.AllowDelete, GroupSeries: o.GroupSeries}
 }
 
 func foldersOut(folders []db.LibraryFolder) []LibraryFolder {
