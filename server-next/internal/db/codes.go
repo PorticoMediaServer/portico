@@ -24,13 +24,14 @@ const (
 	KindIssue      ItemKind = 11
 	KindSeries     ItemKind = 12
 	KindCollection ItemKind = 13
+	KindExtra      ItemKind = 14 // a trailer, featurette or other extra of a title: played from its page, never listed as a title
 )
 
 var itemKindNames = map[ItemKind]string{
 	KindMovie: "movie", KindShow: "show", KindSeason: "season", KindEpisode: "episode",
 	KindArtist: "artist", KindAlbum: "album", KindTrack: "track", KindAudiobook: "audiobook",
 	KindBook: "book", KindComic: "comic", KindIssue: "issue", KindSeries: "series",
-	KindCollection: "collection",
+	KindCollection: "collection", KindExtra: "extra",
 }
 
 func (k ItemKind) String() string { return itemKindNames[k] }
@@ -42,14 +43,14 @@ func ParseItemKind(name string) (ItemKind, bool) { return parseCode(itemKindName
 // holding other items. Watched and progress live on playable items.
 func (k ItemKind) Playable() bool {
 	switch k {
-	case KindMovie, KindEpisode, KindTrack, KindAudiobook, KindBook, KindComic, KindIssue:
+	case KindMovie, KindEpisode, KindTrack, KindAudiobook, KindBook, KindComic, KindIssue, KindExtra:
 		return true
 	}
 	return false
 }
 
 // playableKindsSQL is the playable kinds as an SQL list, for queries over a container's leaves.
-const playableKindsSQL = "(1, 4, 7, 8, 9, 10, 11)"
+const playableKindsSQL = "(1, 4, 7, 8, 9, 10, 11, 14)"
 
 // FileRole is what a file on disk is for.
 type FileRole int
@@ -61,14 +62,32 @@ const (
 	FileMetadata FileRole = 4
 	FileLyrics   FileRole = 5
 	FileCueSheet FileRole = 6
+	FileOther    FileRole = 7 // a file the scan could not use, kept so Files skipped can list it
 )
 
 var fileRoleNames = map[FileRole]string{
 	FileMedia: "media", FileSubtitle: "subtitle", FileArtwork: "artwork", FileMetadata: "metadata",
-	FileLyrics: "lyrics", FileCueSheet: "cue_sheet",
+	FileLyrics: "lyrics", FileCueSheet: "cue_sheet", FileOther: "other",
 }
 
 func (r FileRole) String() string { return fileRoleNames[r] }
+
+// FileProblem is why a file is in a library's Files skipped list.
+type FileProblem int
+
+const (
+	ProblemNone           FileProblem = 0
+	ProblemDamaged        FileProblem = 1 // it could not be read as media
+	ProblemUnsupported    FileProblem = 2 // a path too long or too deep, an encrypted disc
+	ProblemNotMedia       FileProblem = 3 // it is named like media and is not
+	ProblemUnreadableName FileProblem = 4 // its name is not valid text; the stored name is a readable stand-in
+)
+
+var fileProblemNames = map[FileProblem]string{
+	ProblemDamaged: "damaged", ProblemUnsupported: "not_supported", ProblemNotMedia: "not_media", ProblemUnreadableName: "unreadable_name",
+}
+
+func (p FileProblem) String() string { return fileProblemNames[p] }
 
 // StreamKind is the type of a track inside a file.
 type StreamKind int
@@ -197,15 +216,40 @@ var imageSourceNames = map[ImageSource]string{
 
 func (s ImageSource) String() string { return imageSourceNames[s] }
 
-// KeyKind is what kind of fact identifies an item across rescans.
+// KeyKind is what kind of fact identifies an item across rescans. A key is unique in its
+// library, so whatever a key names, it names one item. A scan looks an item up by its keys in
+// the order file, provider, embedded, name, folder: the first that is stored wins, and the
+// others are then stored for the same item. Merging two titles moves every key of one to the
+// other; splitting a file off moves its file key to the new title. Keys are only removed with
+// their item or when the file they name has moved.
 type KeyKind int
 
 const (
-	KeyFolder   KeyKind = 1 // a folder path inside the library
-	KeyFile     KeyKind = 2 // a file path inside the library, with a track or episode number where one file holds several
-	KeyEmbedded KeyKind = 3 // an id written in the file's own tags
-	KeyProvider KeyKind = 4 // a provider id the item was matched to
-	KeyName     KeyKind = 5 // a parent and a name or number, such as an artist name or "show key/season 2"
+	// KeyFolder: "this folder is this title's": a show's folder, an artist's, an album's, a
+	// book's, or the folder a film has to itself. It guarantees that a file later found in the
+	// folder, whose own name does not say otherwise, joins the same title, and that extras in
+	// the folder's Extras or Trailers folder find their owner.
+	// The key is the library path's id, a slash and the folder's path.
+	KeyFolder KeyKind = 1
+	// KeyFile: "this file plays this title". With "#n" after the path, the nth episode or cue
+	// track of a file that holds several. It guarantees that a rescan, a second run of a job or
+	// a restart after a kill finds the same item, and that a file the owner split into its own
+	// title stays split: this key is looked up first, so nothing the name says can pull the
+	// file back. The key is the library path's id, a slash and the file's path.
+	KeyFile KeyKind = 2
+	// KeyEmbedded: an id written in the file's own tags, such as a MusicBrainz release id. It
+	// guarantees that the files of one release are one album however they are named or foldered.
+	KeyEmbedded KeyKind = 3
+	// KeyProvider: a provider id, from the name ("{tmdb-603}"), an NFO file or a match. It
+	// guarantees that two files anywhere in the library with the same id are versions of one
+	// title, and that a matched title is found again whatever its files are renamed to.
+	KeyProvider KeyKind = 4
+	// KeyName: what the names say. At the top of a library, the kind, the folded title and the
+	// year ("movie|heat|1995"). Under a parent, the parent's item id and the place in it
+	// ("812/s2", "813/e5", "90/d1t4"). It guarantees that two files of the same film or episode
+	// anywhere in the library are versions of one title, and that a show's seasons and an
+	// album's tracks are each made once.
+	KeyName KeyKind = 5
 )
 
 var keyKindNames = map[KeyKind]string{
@@ -269,10 +313,13 @@ const (
 	LibraryMusic      = "music"
 	LibraryBooks      = "books"
 	LibraryAudiobooks = "audiobooks"
+	LibraryAnime      = "anime"
+	LibraryComics     = "comics"
 )
 
 var libraryKinds = map[string]bool{
 	LibraryMovies: true, LibraryShows: true, LibraryMusic: true, LibraryBooks: true, LibraryAudiobooks: true,
+	LibraryAnime: true, LibraryComics: true,
 }
 
 // Tag kinds. tags is a small table and stores the name itself.

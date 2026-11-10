@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"strings"
 	"time"
 )
@@ -17,7 +18,59 @@ type Library struct {
 	Position  int
 	CreatedAt int64
 	UpdatedAt int64
+	Options   LibraryOptions
 	Paths     []LibraryPath
+}
+
+// How much of each file a scan reads.
+const (
+	DepthFiles    = "files"    // names, sizes and dates only
+	DepthBasic    = "basic"    // also length, tracks, tags and sidecar files; the default
+	DepthComplete = "complete" // also the work that reads whole files
+)
+
+// When a library's missing titles are removed.
+const (
+	TrashAfterDays = "days" // the default, after 30
+	TrashAfterScan = "scan"
+	TrashManual    = "manual"
+)
+
+// LibraryOptions are the owner's choices for one library, stored as JSON.
+type LibraryOptions struct {
+	Depth       string    `json:"depth,omitempty"`
+	Trash       TrashRule `json:"trash"`
+	AllowDelete bool      `json:"allowDelete,omitempty"`
+}
+
+// TrashRule says when a library's missing titles are removed.
+type TrashRule struct {
+	Mode string `json:"mode,omitempty"`
+	Days int    `json:"days,omitempty"`
+}
+
+// Cutoff is the time a title must have gone missing by to be removed now. ok is false when
+// the trash is only emptied by hand.
+func (t TrashRule) Cutoff(now time.Time) (cutoff time.Time, ok bool) {
+	switch t.Mode {
+	case TrashManual:
+		return time.Time{}, false
+	case TrashAfterScan:
+		return now, true
+	}
+	days := t.Days
+	if days <= 0 {
+		days = 30
+	}
+	return now.AddDate(0, 0, -days), true
+}
+
+func parseOptions(raw sql.NullString) LibraryOptions {
+	var o LibraryOptions
+	if raw.Valid {
+		json.Unmarshal([]byte(raw.String), &o)
+	}
+	return o
 }
 
 // LibraryPath is one folder of a library.
@@ -96,7 +149,7 @@ func (d *DB) libraries(ctx context.Context, v Viewer, publicID string) ([]Librar
 // AllLibraries lists every library with its folders, for the scanner and the owner's console.
 func (d *DB) AllLibraries(ctx context.Context) ([]Library, error) {
 	rows, err := d.read.QueryContext(ctx, `SELECT l.id, l.public_id, l.name, l.kind, ifnull(l.language, ''), l.position,
-		l.created_at, l.updated_at, p.id, p.path FROM libraries l LEFT JOIN library_paths p ON p.library_id = l.id
+		l.created_at, l.updated_at, l.options, p.id, p.path FROM libraries l LEFT JOIN library_paths p ON p.library_id = l.id
 		ORDER BY l.position, l.id, p.id`)
 	if err != nil {
 		return nil, err
@@ -106,10 +159,11 @@ func (d *DB) AllLibraries(ctx context.Context) ([]Library, error) {
 	for rows.Next() {
 		var l Library
 		var pathID sql.NullInt64
-		var path sql.NullString
-		if err := rows.Scan(&l.ID, &l.PublicID, &l.Name, &l.Kind, &l.Language, &l.Position, &l.CreatedAt, &l.UpdatedAt, &pathID, &path); err != nil {
+		var path, options sql.NullString
+		if err := rows.Scan(&l.ID, &l.PublicID, &l.Name, &l.Kind, &l.Language, &l.Position, &l.CreatedAt, &l.UpdatedAt, &options, &pathID, &path); err != nil {
 			return nil, err
 		}
+		l.Options = parseOptions(options)
 		if len(out) == 0 || out[len(out)-1].ID != l.ID {
 			out = append(out, l)
 		}
@@ -130,4 +184,36 @@ func (d *DB) Tags(ctx context.Context, kind string) ([]Tag, error) {
 	defer tx.Rollback()
 	return queryAll(ctx, tx, `SELECT public_id, kind, name FROM tags WHERE kind = ? ORDER BY norm_name`, []any{kind},
 		func(t *Tag) []any { return []any{&t.PublicID, &t.Kind, &t.Name} })
+}
+
+// SetLibraryOptions stores the owner's choices for a library.
+func (d *DB) SetLibraryOptions(ctx context.Context, libraryID int64, options LibraryOptions) error {
+	switch options.Depth {
+	case "", DepthFiles, DepthBasic, DepthComplete:
+	default:
+		return invalid("unknown scan depth %q", options.Depth)
+	}
+	switch options.Trash.Mode {
+	case "", TrashAfterDays, TrashAfterScan, TrashManual:
+	default:
+		return invalid("unknown trash rule %q", options.Trash.Mode)
+	}
+	if options.Trash.Days < 0 || options.Trash.Days > 3650 {
+		return invalid("missing titles are removed after 1 to 3,650 days")
+	}
+	raw, err := json.Marshal(options)
+	if err != nil {
+		return err
+	}
+	return d.write(ctx, User, func(tx *sql.Tx) error {
+		now := time.Now().UnixMilli()
+		res, err := tx.Exec(`UPDATE libraries SET options = ?, revision = revision + 1, updated_at = ? WHERE id = ?`, string(raw), now, libraryID)
+		if err != nil {
+			return err
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			return ErrNotFound
+		}
+		return appendChange(tx, Change{At: now, Topic: TopicLibrary, Op: OpUpdated, RefID: libraryID, LibraryID: libraryID})
+	})
 }
