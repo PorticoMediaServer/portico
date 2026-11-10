@@ -20,8 +20,8 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
-	"github.com/PorticoMediaServer/portico/server-next/internal/metadata"
 	"github.com/PorticoMediaServer/portico/server-next/internal/jobs"
+	"github.com/PorticoMediaServer/portico/server-next/internal/metadata"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
 	"github.com/PorticoMediaServer/portico/server-next/internal/scan"
@@ -188,6 +188,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.playbackRoutes()
 	s.queues = playqueue.New(d, s.playback, func() time.Time { return s.now() })
 	s.queueRoutes()
+	s.subtitleRoutes()
 	s.metadata = &metadata.Service{DB: d, Providers: map[string]metadata.Provider{}}
 	s.metadataRoutes()
 	s.editorRoutes()
