@@ -15,6 +15,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/childprocess"
 )
 
 // RcloneBinary is the rclone that comes with Portico, found beside the server, or set with
@@ -37,6 +39,9 @@ var RcloneBinary = func() string {
 // ParseRcloneConfig reads one remote from rclone's configuration: a "[name]" line, then
 // "key = value" lines, as rclone config show prints it. It returns the options, which must
 // name the remote's type. Comments and blank lines are skipped; a second remote is refused.
+// So that a pasted remote reaches only remote storage, an option that runs a program ("ssh",
+// anything ending "_command") and a type that reads this machine's own disk or wraps another
+// remote (which can be written inline with such options) are refused, named, never quoted.
 func ParseRcloneConfig(text string) (map[string]string, error) {
 	options, sections := map[string]string{}, 0
 	for number, line := range strings.Split(text, "\n") {
@@ -54,14 +59,39 @@ func ParseRcloneConfig(text string) (map[string]string, error) {
 				// The line is not repeated: it may hold a token.
 				return nil, fmt.Errorf("line %d is not a line of an rclone configuration", number+1)
 			}
+			if key == "ssh" || strings.HasSuffix(key, "_command") {
+				return nil, fmt.Errorf("the option %q runs a program on this computer, which Portico does not allow", key)
+			}
 			options[key] = strings.TrimSpace(value)
 		}
 	}
 	if options["type"] == "" || !rcloneKey.MatchString(options["type"]) {
 		return nil, errors.New("the rclone configuration does not say the remote's type")
 	}
+	if rcloneRefusedTypes[options["type"]] {
+		return nil, fmt.Errorf("a remote of type %q reads this computer's own disk or wraps another remote, which Portico does not allow", options["type"])
+	}
 	return options, nil
 }
+
+// rcloneRefusedTypes read this machine's disk (local, memory) or wrap another remote, which
+// may be a local path or an inline remote carrying options this parser would have refused.
+var rcloneRefusedTypes = map[string]bool{"local": true, "alias": true, "union": true, "combine": true, "crypt": true, "chunker": true,
+	"compress": true, "hasher": true, "cache": true, "memory": true}
+
+// RcloneHome is rclone's home folder: the server's own, inside its data folder, never a shared
+// one, because rclone and its libraries read credentials from files there. NewRegistry sets
+// it; with none, a private temporary folder is made.
+var RcloneHome string
+
+func rcloneHome() (string, error) {
+	if RcloneHome != "" {
+		return RcloneHome, os.MkdirAll(RcloneHome, 0o700)
+	}
+	return privateHome()
+}
+
+var privateHome = sync.OnceValues(func() (string, error) { return os.MkdirTemp("", "portico-rclone-") })
 
 var rcloneKey = regexp.MustCompile(`^[a-z0-9_]{1,64}$`)
 
@@ -100,8 +130,14 @@ func (r *rclone) current(ctx context.Context) (*WebDAV, error) {
 	var secret [16]byte
 	rand.Read(secret[:])
 	password := hex.EncodeToString(secret[:])
+	home, err := rcloneHome()
+	if err != nil {
+		return nil, err
+	}
 	cmd := exec.Command(RcloneBinary(), "serve", "webdav", "portico:"+r.root, "--read-only", "--addr", "127.0.0.1:0")
-	cmd.Env = []string{"RCLONE_CONFIG=" + os.DevNull, "RCLONE_USER=portico", "RCLONE_PASS=" + password, "HOME=" + os.TempDir(), "PATH=" + os.Getenv("PATH")}
+	// Its own process group, killed with the server if the server dies.
+	childprocess.Configure(cmd)
+	cmd.Env = []string{"RCLONE_CONFIG=" + os.DevNull, "RCLONE_USER=portico", "RCLONE_PASS=" + password, "HOME=" + home, "PATH=" + os.Getenv("PATH")}
 	for key, value := range r.options {
 		cmd.Env = append(cmd.Env, "RCLONE_CONFIG_PORTICO_"+strings.ToUpper(key)+"="+value)
 	}
@@ -129,7 +165,7 @@ func (r *rclone) current(ctx context.Context) (*WebDAV, error) {
 		cmd.Wait()
 		close(done)
 	}()
-	stop := func() { cmd.Process.Kill(); <-done }
+	stop := func() { childprocess.Kill(cmd); <-done }
 	select {
 	case at := <-address:
 		dav, err := NewWebDAV(at, "portico", password)
@@ -173,7 +209,7 @@ func (r *rclone) Close() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.done != nil {
-		r.cmd.Process.Kill()
+		childprocess.Kill(r.cmd)
 		<-r.done
 		r.cmd, r.dav, r.done = nil, nil, nil
 	}
