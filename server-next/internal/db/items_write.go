@@ -113,10 +113,12 @@ type ImportItem struct {
 	// person has locked them. An item that only re-reads (no Versions) is never created by it.
 	Reread      bool
 	ExternalIDs []ExternalID
-	Tags        []TagName
-	Credits     []ImportCredit
-	Images      []ImportImage
-	Versions    []ImportVersion
+	// Lyrics are a song's lyrics from its own tags, stored when the song is first made.
+	Lyrics   *Lyrics
+	Tags     []TagName
+	Credits  []ImportCredit
+	Images   []ImportImage
+	Versions []ImportVersion
 	// ParentRow names the parent by its place in this batch's Items, counting from 1, for a
 	// parent that has no library-wide key (a season). 0 means use Parent.
 	ParentRow int
@@ -624,6 +626,12 @@ func (im *importer) createItem(it *ImportItem, parent *importedItem, keys []Item
 			sources[field] = SourceFile
 		}
 		if _, err := im.exec(`UPDATE items SET local_fields = ?, tagline = ? WHERE id = ?`, sourceJSON(sources), nz(it.Tagline), id); err != nil {
+			return err
+		}
+	}
+	// Lyrics the file's tags hold that cannot be kept (too long) are passed over, not the song.
+	if it.Lyrics != nil {
+		if _, err := putLyrics(im.tx, id, *it.Lyrics, im.now); err != nil && !errors.Is(err, ErrInvalid) {
 			return err
 		}
 	}

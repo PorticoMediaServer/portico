@@ -233,6 +233,7 @@ func (r *run) musicUnits(f *folder) []unit {
 			ParentIndex: &disc, ParentRow: 2, Keys: keys, Credits: trackArtists, Versions: []db.ImportVersion{stored}}
 		given(&track, fieldIf(d["title"] != "", db.FieldTitle), fieldIf(d["title_sort"] != "", db.FieldSortTitle),
 			fieldIf(track.Year != 0, db.FieldYear), fieldIf(artistGiven, db.FieldCredits))
+		track.Lyrics = tagLyrics(tags)
 		if n := firstNumber(number(d["track"]), first(read.TrackNumbers), 0); n > 0 {
 			track.IndexNumber, track.ChildKey = &n, fmt.Sprintf("d%dt%d", disc, n)
 		} else {

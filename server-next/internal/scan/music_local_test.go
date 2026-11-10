@@ -74,3 +74,27 @@ func TestAnAlbumsNFOFileAndCoversAreReadAndKept(t *testing.T) {
 		t.Errorf("genres after the change: %+v", got.Tags)
 	}
 }
+
+// Lyrics in a song's tags are kept with the song, timed ones following it, and only pasted
+// lyrics replace them.
+func TestLyricsInASongsTagsAreKept(t *testing.T) {
+	f := newFixture(t, db.LibraryMusic)
+	// USLT: UTF-8, the language, no description, the words.
+	f.tagged("Air/Moon Safari/01.mp3", "TIT2", "Plain", "TPE1", "Air", "TALB", "Moon Safari", "TRCK", "1", "USLT", "eng\x00First line\nSecond line")
+	f.tagged("Air/Moon Safari/02.mp3", "TIT2", "Timed", "TPE1", "Air", "TALB", "Moon Safari", "TRCK", "2", "USLT", "eng\x00[00:01.00]First line")
+	f.scan()
+	tracks := f.titles(db.KindTrack)
+	plain, err := f.d.SongLyrics(ctx, tracks["Plain"].ID)
+	if err != nil || plain.Body != "First line\nSecond line" || plain.Timed || plain.Source != db.LyricsFromFile || plain.Language != "eng" {
+		t.Fatalf("plain lyrics: %+v, %v", plain, err)
+	}
+	if timed, err := f.d.SongLyrics(ctx, tracks["Timed"].ID); err != nil || !timed.Timed {
+		t.Errorf("timed lyrics: %+v, %v", timed, err)
+	}
+	if stored, err := f.d.SetLyrics(ctx, db.Background, tracks["Plain"].ID, db.Lyrics{Source: db.LyricsFromProvider, Body: "Other words"}); err != nil || stored {
+		t.Errorf("a provider replaced the file's lyrics: %v, %v", stored, err)
+	}
+	if stored, err := f.d.SetLyrics(ctx, db.User, tracks["Plain"].ID, db.Lyrics{Source: db.LyricsPasted, Body: "Pasted"}); err != nil || !stored {
+		t.Errorf("pasted lyrics were refused: %v, %v", stored, err)
+	}
+}
