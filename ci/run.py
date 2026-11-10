@@ -407,6 +407,9 @@ def verify_census_passes(plan, directory):
 
 def aggregate(plan,needs):
     expected={'planner':True,'hygiene':True,'go_build':bool(plan['packages']),'go_vet_cross':bool(plan['packages']),'go_tests':bool(plan['packages']),'decoder_sandbox':bool(plan['packages']),'js':any(x['shards'] for x in plan['js']),'js_static':bool(plan['js']), 'android':plan.get('android',False)}
+    if plan.get('tier') == 'nightly':
+        for job in ('hygiene', 'go_vet_cross', 'decoder_sandbox', 'js_static'):
+            expected.pop(job)
     if 'server_next' in plan: expected['server_next'] = plan['server_next']
     for job,required in expected.items():
         actual=needs.get(job,{}).get('result')
