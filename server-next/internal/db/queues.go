@@ -280,11 +280,16 @@ type NewQueue struct {
 	// InOrder says Items are already in the order to play: a slice of a shuffled selection.
 	InOrder   bool
 	Selection string
-	Now       time.Time
+	// IdempotencyKey and RequestHash make a repeated request return what it made the first time.
+	IdempotencyKey string
+	RequestHash    string
+	Now            time.Time
 }
 
 // CreateQueue makes a queue and replaces the one of the same medium the profile had on the
-// device. Queues nobody has played for 30 days are removed as it goes.
+// device. Queues nobody has played for 30 days are removed as it goes. The same request sent
+// again with its Idempotency-Key returns the queue it made, and ErrNotFound if that queue has
+// been replaced or deleted since: making it again would replace the newer one.
 func (d *DB) CreateQueue(ctx context.Context, n NewQueue) (Queue, error) {
 	var out Queue
 	if len(n.Items) == 0 {
@@ -295,46 +300,13 @@ func (d *DB) CreateQueue(ctx context.Context, n NewQueue) (Queue, error) {
 	}
 	publicID := NewID("que")
 	err := d.write(ctx, User, func(tx *sql.Tx) error {
-		var kind ItemKind
-		if err := tx.QueryRow(`SELECT kind FROM items WHERE id = ?`, n.Items[min(max(n.Start, 0), len(n.Items)-1)]).Scan(&kind); err != nil {
-			return err
-		}
-		medium := MediumVideo
-		if kind == KindTrack || kind == KindAudiobook {
-			medium = MediumAudio
-		}
-		at := n.Now.UnixMilli()
-		if _, err := tx.Exec(`DELETE FROM play_queues WHERE (profile_id = ? AND device_id = ? AND medium = ?) OR played_at < ?`,
-			n.Viewer.ProfileID, n.DeviceID, medium, n.Now.Add(-queueIdle).UnixMilli()); err != nil {
-			return err
-		}
-		res, err := tx.Exec(`INSERT INTO play_queues (public_id, profile_id, device_id, medium, shuffle_seed, selection, created_at, played_at)
-			VALUES (?, ?, ?, ?, ?, nullif(?, ''), ?, ?)`, publicID, n.Viewer.ProfileID, n.DeviceID, medium, n.ShuffleSeed, n.Selection, at, at)
+		ref, err := createdBefore(tx, n.Viewer.UserID, n.IdempotencyKey, n.RequestHash)
 		if err != nil {
 			return err
 		}
-		queueID, _ := res.LastInsertId()
-		order := make([]int, len(n.Items))
-		for i := range order {
-			order[i] = i
-		}
-		if n.ShuffleSeed != nil && !n.InOrder {
-			order = playOrder(len(n.Items), n.Start, *n.ShuffleSeed)
-		}
-		b := newBatchTx(tx)
-		defer b.close()
-		var current int64
-		for place, index := range order {
-			res, err := b.exec(`INSERT INTO queue_entries (queue_id, item_id, position, source_position) VALUES (?, ?, ?, ?)`,
-				queueID, n.Items[index], int64(place+1)*queueStep, int64(index+1)*queueStep)
-			if err != nil {
-				return err
-			}
-			if index == n.Start {
-				current, _ = res.LastInsertId()
-			}
-		}
-		if _, err := tx.Exec(`UPDATE play_queues SET current_entry_id = ? WHERE id = ?`, current, queueID); err != nil {
+		if ref != "" {
+			publicID = ref
+		} else if err := insertQueue(tx, n, publicID); err != nil {
 			return err
 		}
 		acc, err := loadAccess(ctx, tx, n.Viewer)
@@ -345,6 +317,53 @@ func (d *DB) CreateQueue(ctx context.Context, n NewQueue) (Queue, error) {
 		return err
 	})
 	return out, err
+}
+
+// insertQueue writes a new queue and its entries, replacing the device's queue of the same medium.
+func insertQueue(tx *sql.Tx, n NewQueue, publicID string) error {
+	var kind ItemKind
+	if err := tx.QueryRow(`SELECT kind FROM items WHERE id = ?`, n.Items[min(max(n.Start, 0), len(n.Items)-1)]).Scan(&kind); err != nil {
+		return err
+	}
+	medium := MediumVideo
+	if kind == KindTrack || kind == KindAudiobook {
+		medium = MediumAudio
+	}
+	at := n.Now.UnixMilli()
+	if _, err := tx.Exec(`DELETE FROM play_queues WHERE (profile_id = ? AND device_id = ? AND medium = ?) OR played_at < ?`,
+		n.Viewer.ProfileID, n.DeviceID, medium, n.Now.Add(-queueIdle).UnixMilli()); err != nil {
+		return err
+	}
+	res, err := tx.Exec(`INSERT INTO play_queues (public_id, profile_id, device_id, medium, shuffle_seed, selection, created_at, played_at)
+		VALUES (?, ?, ?, ?, ?, nullif(?, ''), ?, ?)`, publicID, n.Viewer.ProfileID, n.DeviceID, medium, n.ShuffleSeed, n.Selection, at, at)
+	if err != nil {
+		return err
+	}
+	queueID, _ := res.LastInsertId()
+	order := make([]int, len(n.Items))
+	for i := range order {
+		order[i] = i
+	}
+	if n.ShuffleSeed != nil && !n.InOrder {
+		order = playOrder(len(n.Items), n.Start, *n.ShuffleSeed)
+	}
+	b := newBatchTx(tx)
+	defer b.close()
+	var current int64
+	for place, index := range order {
+		res, err := b.exec(`INSERT INTO queue_entries (queue_id, item_id, position, source_position) VALUES (?, ?, ?, ?)`,
+			queueID, n.Items[index], int64(place+1)*queueStep, int64(index+1)*queueStep)
+		if err != nil {
+			return err
+		}
+		if index == n.Start {
+			current, _ = res.LastInsertId()
+		}
+	}
+	if _, err := tx.Exec(`UPDATE play_queues SET current_entry_id = ? WHERE id = ?`, current, queueID); err != nil {
+		return err
+	}
+	return rememberCreated(tx, n.Viewer.UserID, n.IdempotencyKey, n.RequestHash, publicID, n.Now)
 }
 
 // queueEdit is one change to a queue, run inside the transaction that checks the revision.

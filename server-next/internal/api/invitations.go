@@ -140,11 +140,15 @@ func (s *Server) createInvitation(r *http.Request, req InvitationCreate) (Invita
 	if err := checkInvitation(&req.Role, &req.ExpiresInDays, &req.Libraries, &req.Note); err != nil {
 		return Invitation{}, err
 	}
+	key, err := idempotencyKey(r)
+	if err != nil {
+		return Invitation{}, err
+	}
 	id := db.NewID("inv")
 	i, err := s.db.CreateInvitation(r.Context(), db.NewInvitation{ActorID: caller.UserID, ActorRole: caller.Role,
 		PublicID: id, CodeHash: invitationHash(s.tokens.InvitationCode(id)),
 		Role: req.Role, AllLibraries: req.AllLibraries == nil || *req.AllLibraries, Libraries: req.Libraries, Note: req.Note,
-		ExpiresAt: now.AddDate(0, 0, req.ExpiresInDays), Now: now})
+		ExpiresAt: now.AddDate(0, 0, req.ExpiresInDays), IdempotencyKey: key, RequestHash: requestHash(req), Now: now})
 	if errors.Is(err, db.ErrInvitationLimit) {
 		return Invitation{}, ErrConflict("invitation_capacity", "Too many invitations are waiting. Revoke some first.")
 	}
