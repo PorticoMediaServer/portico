@@ -58,6 +58,16 @@ func TestPlanFromFileFacts(t *testing.T) {
 	if err != nil || plan.VideoAction != "convert" || len(plan.ReasonCodes) == 0 {
 		t.Fatalf("an unplayable picture was not converted with a reason: %+v %v", plan, err)
 	}
+	// A device that has published no document is planned from the baseline document,
+	// by the same rules as every other device.
+	request.Device = nil
+	unknown, err := Plan(request)
+	baseline := BaselineCapabilityDocument()
+	request.Device = &baseline
+	if known, e := Plan(request); err != nil || e != nil || unknown.Strategy != known.Strategy || unknown.Profile != known.Profile {
+		t.Fatalf("no document planned %v/%v (%v), the baseline document %v/%v (%v)", unknown.Profile, unknown.Strategy, err, known.Profile, known.Strategy, e)
+	}
+	request.Device = browser
 	request.TranscodingEnabled = false
 	var refused ErrDeliveryRefused
 	if _, err = Plan(request); !errors.As(err, &refused) && !errors.Is(err, ErrTranscodingDisabled) {
