@@ -51,6 +51,7 @@ var (
 	checkEvery = flag.Int("check-every", 5, "run the integrity check on the killed database every this many kills; the others are recovered by the server itself")
 	writers    = flag.Int("writers", 4, "people writing at once")
 	randomSeed = flag.Uint64("random", uint64(time.Now().UnixNano()), "seed for the kill times, printed so a failure can be repeated")
+	everyPoint = flag.Bool("every-point", false, "instead of random kills, kill at every change point in turn (both binaries built with -tags crashpoints)")
 )
 
 func main() {
@@ -64,6 +65,12 @@ func main() {
 		json.NewEncoder(os.Stdout).Encode(report)
 		return
 	}
+	if *everyPoint {
+		if err := runEveryPoint(); err != nil {
+			log.Fatalf("FAILED: %v", err)
+		}
+		return
+	}
 	if err := run(); err != nil {
 		log.Fatalf("FAILED: %v (rerun with -random %d)", err, *randomSeed)
 	}
@@ -72,6 +79,8 @@ func main() {
 type harness struct {
 	data, dbPath, base string
 	server, seeder     *exec.Cmd
+	serverExited       chan struct{}
+	crashAt            int // with -every-point: PORTICO_CRASH_AT for the server
 	seederDone         bool
 	logs               *os.File
 	rnd                *rand.Rand
@@ -211,13 +220,24 @@ func (h *harness) start() error {
 	began := time.Now()
 	h.server = command(*serverBin, "-data", h.data, "-listen", strings.TrimPrefix(h.base, "http://"))
 	h.server.Stdout, h.server.Stderr = h.logs, h.logs
+	if h.crashAt > 0 {
+		h.server.Env = append(os.Environ(), fmt.Sprintf("PORTICO_CRASH_AT=%d", h.crashAt))
+	}
 	if err := h.server.Start(); err != nil {
 		return err
 	}
+	exited, server := make(chan struct{}), h.server
+	h.serverExited = exited
+	go func() { server.Wait(); close(exited) }()
 	for {
 		var health api.Health
 		if code, _ := call("GET", h.base+"/v1/health/ready", "", nil, &health); code == 200 {
 			break
+		}
+		select {
+		case <-exited:
+			return errServerDied
+		default:
 		}
 		if time.Since(began) > 30*time.Second {
 			return fmt.Errorf("the server did not serve within 30 s of starting again")
@@ -237,16 +257,12 @@ func (h *harness) start() error {
 
 // killAll kills the server and the import at once, as a power cut or an OOM kill would.
 func (h *harness) killAll() {
-	procs := []*exec.Cmd{h.server}
+	h.server.Process.Signal(syscall.SIGKILL)
 	if h.seeder != nil {
-		procs = append(procs, h.seeder)
+		h.seeder.Process.Signal(syscall.SIGKILL)
+		h.seeder.Wait()
 	}
-	for _, p := range procs {
-		p.Process.Signal(syscall.SIGKILL)
-	}
-	for _, p := range procs {
-		p.Wait()
-	}
+	<-h.serverExited
 	// An import that ended by itself before the kill has finished the library.
 	if h.seeder != nil && h.seeder.ProcessState.Success() {
 		h.seederDone = true
@@ -303,12 +319,16 @@ func (h *harness) person(deviceName string) (p person, err error) {
 func (h *harness) signInOnce(deviceName string) (person, error) {
 	var in api.SignInResponse
 	status, err := call("POST", h.base+"/v1/auth/sign-in", "", api.SignInRequest{Username: "owner", Password: password, Device: device(deviceName)}, &in)
-	if status != 200 {
+	if status == 0 {
+		return person{}, fmt.Errorf("sign-in: %w: %v", errNoAnswer, err)
+	} else if status != 200 {
 		return person{}, fmt.Errorf("sign-in answered %d: %v", status, err)
 	}
 	var chosen api.Session
 	status, err = call("POST", h.base+"/v1/profiles/"+in.Profiles[0].ID+"/select", in.Session.AccessToken, api.ProfileSelect{}, &chosen)
-	if status != 200 {
+	if status == 0 {
+		return person{}, fmt.Errorf("choosing the main profile: %w: %v", errNoAnswer, err)
+	} else if status != 200 {
 		return person{}, fmt.Errorf("choosing the main profile answered %d: %v", status, err)
 	}
 	return person{token: chosen.AccessToken, profileID: in.Profiles[0].ID}, nil
