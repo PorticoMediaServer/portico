@@ -1,0 +1,4 @@
+{"id":"5b1d7f0c-3e9a-4c6b-9a51-2f7e8d4c1a01","name":"The Beatles","sort-name":"Beatles, The","type":"Group","country":"GB",
+ "area":{"id":"8c4e0fd2-6fc1-4d9c-9b2e-5aefbed34115","name":"United Kingdom"},
+ "life-span":{"begin":"1960","end":"1970-04-10","ended":true},
+ "genres":[{"name":"rock","count":30},{"name":"pop","count":20},{"name":"psychedelic rock","count":12}]}
