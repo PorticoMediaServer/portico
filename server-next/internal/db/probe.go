@@ -10,6 +10,7 @@ import (
 // UnprobedFile is a media file whose inside has not been read yet.
 type UnprobedFile struct {
 	ID         int64
+	PathID     int64 // the library folder it is under
 	Root       string
 	Rel        string
 	Size       int64
@@ -20,7 +21,7 @@ type UnprobedFile struct {
 // the given file id. A file that could not be read stays unread and is offered again by the
 // next scan, which starts from 0.
 func (d *DB) UnprobedFiles(ctx context.Context, libraryID, after int64, limit int) ([]UnprobedFile, error) {
-	rows, err := d.read.QueryContext(ctx, `SELECT f.id, p.path, d.rel_path, f.name, f.size, f.modified_ns FROM files f
+	rows, err := d.read.QueryContext(ctx, `SELECT f.id, p.id, p.path, d.rel_path, f.name, f.size, f.modified_ns FROM files f
 		JOIN directories d ON d.id = f.directory_id JOIN library_paths p ON p.id = d.library_path_id
 		WHERE f.probed_at IS NULL AND f.probe_version = 0 AND f.id > ? AND f.role = 1 AND f.missing_since_at IS NULL AND p.library_id = ?
 		ORDER BY f.probe_version, f.id LIMIT ?`, after, libraryID, limit)
@@ -32,7 +33,7 @@ func (d *DB) UnprobedFiles(ctx context.Context, libraryID, after int64, limit in
 	for rows.Next() {
 		var f UnprobedFile
 		var dir, name string
-		if err := rows.Scan(&f.ID, &f.Root, &dir, &name, &f.Size, &f.ModifiedNS); err != nil {
+		if err := rows.Scan(&f.ID, &f.PathID, &f.Root, &dir, &name, &f.Size, &f.ModifiedNS); err != nil {
 			return nil, err
 		}
 		f.Rel = path.Join(dir, name)
