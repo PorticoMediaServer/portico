@@ -233,8 +233,17 @@ func TestRestrictedProfileNeverReceivesARestrictedTitle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// A fourth has a rating limit but is allowed titles with no rating.
+	age := 13
+	byRatingOrNone, err := l.d.CreateSeedProfile(ctx, db.SeedProfile{Name: "unrated-too", MaxRatingAge: &age, AllowUnrated: true})
+	if err != nil {
+		t.Fatal(err)
+	}
 	allowed := func(v db.Viewer, f *fact) bool {
 		switch v {
+		case byRatingOrNone:
+			age, rated := ratingAges[f.rating]
+			return !rated || age <= 13
 		case byRating:
 			age, rated := ratingAges[f.rating]
 			return rated && age <= 13
@@ -256,7 +265,7 @@ func TestRestrictedProfileNeverReceivesARestrictedTitle(t *testing.T) {
 
 	r := rand.New(rand.NewPCG(1, 2))
 	yes, no := true, false
-	for _, v := range []db.Viewer{byRating, byLibrary, byLabel} {
+	for _, v := range []db.Viewer{byRating, byRatingOrNone, byLibrary, byLabel} {
 		hidden := 0
 		for _, f := range facts {
 			if !allowed(v, f) {

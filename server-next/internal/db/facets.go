@@ -76,6 +76,11 @@ func (d *DB) Facets(ctx context.Context, v Viewer, q ItemQuery, facet string) ([
 		// CROSS JOIN makes SQLite read the list and look each row's tags up, not read every
 		// tag in the database and look each item up.
 		counts := fmt.Sprintf(`SELECT it.tag_id AS tag, count(*) AS n FROM %s CROSS JOIN item_tags it ON it.item_id = i.id WHERE %s GROUP BY 1`, from, where)
+		if w.plainKinds != "" && len(acc.blockedTags) == 0 {
+			// A whole library and kind: the tags are counted from item_tags' own index.
+			counts = fmt.Sprintf(`SELECT it.tag_id AS tag, count(*) AS n FROM item_tags it WHERE it.library_id = %d AND it.kind IN %s GROUP BY 1`,
+				w.plainLibrary, w.plainKinds)
+		}
 		if len(q.Kinds) == 0 || slices.ContainsFunc(q.Kinds, func(k ItemKind) bool { return !k.TopLevel() }) {
 			// Something under a title also counts for the title's tags, unless it has the tag itself.
 			counts += fmt.Sprintf(` UNION ALL SELECT it.tag_id, count(*) FROM %s CROSS JOIN item_tags it ON it.item_id = i.root_id WHERE %s

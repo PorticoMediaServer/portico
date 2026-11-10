@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -269,7 +270,7 @@ func total(ctx context.Context, tx *sql.Tx, where *query, acc access) (int, erro
 		err = tx.QueryRowContext(ctx, `SELECT count(*) FROM (`+acc.blockedIDs(where.plainLibrary, where.plainKinds)+`)`).Scan(&hidden)
 	} else {
 		err = tx.QueryRowContext(ctx, `SELECT count(*) FROM items i NOT INDEXED WHERE `+where.countWhere(false)+
-			` AND i.id IN (`+acc.blockedIDs("", "")+`)`, where.args...).Scan(&hidden)
+			` AND i.id IN (`+acc.blockedIDs(0, "")+`)`, where.args...).Scan(&hidden)
 	}
 	return all - hidden, err
 }
@@ -428,6 +429,11 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		// own order, skipping what does not match. Otherwise the tag's items are gathered
 		// first, and the total always is: it costs what matches, not the whole library.
 		walk := fmt.Sprintf(` AND EXISTS (SELECT 1 FROM item_tags t WHERE t.tag_id = %d AND t.item_id IN (i.id, i.root_id))`, tag)
+		if len(q.Kinds) > 0 && !slices.ContainsFunc(q.Kinds, func(k ItemKind) bool { return !k.TopLevel() }) {
+			// Films, shows and other top-level titles have nothing to inherit a tag from, so
+			// the walk needs only the id, which the list's index already holds.
+			walk = fmt.Sprintf(` AND EXISTS (SELECT 1 FROM item_tags t WHERE t.tag_id = %d AND t.item_id = i.id)`, tag)
+		}
 		under := ""
 		if len(q.Kinds) > 0 {
 			under = " AND d.kind IN " + kindList
@@ -435,14 +441,14 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		gathered := fmt.Sprintf(` AND i.id IN (SELECT item_id FROM item_tags WHERE tag_id = %[1]d UNION
 			SELECT d.id FROM item_tags h CROSS JOIN items d WHERE h.tag_id = %[1]d AND d.root_id = h.item_id%[2]s)`, tag, under)
 		// With nothing asked for but a library, kinds and the tag, the total needs no item
-		// rows at all beyond the tagged titles themselves: what is under them is counted from
-		// an index.
+		// rows at all: item_tags knows each tagged item's library and kind, and what is under
+		// a tagged title is counted from an index.
 		if library != 0 && under != "" && acc.maxAge == nil && q.Parent == "" && q.Person == "" && q.YearFrom == 0 && q.YearTo == 0 &&
 			q.Favorite == nil && q.InList == nil && q.Watched == nil && q.Resolution == "" {
 			w.tagTotal = fmt.Sprintf(`SELECT count(*) FROM (
-				SELECT r.id FROM item_tags h CROSS JOIN items r ON r.id = h.item_id WHERE h.tag_id = %[1]d AND r.library_id = %[2]d AND r.kind IN %[3]s
-				UNION SELECT d.id FROM item_tags h CROSS JOIN items r ON r.id = h.item_id CROSS JOIN items d ON d.root_id = r.id
-				WHERE h.tag_id = %[1]d AND r.library_id = %[2]d AND d.kind IN %[3]s)`, tag, library, kindList)
+				SELECT h.item_id FROM item_tags h WHERE h.tag_id = %[1]d AND h.library_id = %[2]d AND h.kind IN %[3]s
+				UNION SELECT d.id FROM item_tags h CROSS JOIN items d ON d.root_id = h.item_id
+				WHERE h.tag_id = %[1]d AND h.library_id = %[2]d AND d.kind IN %[3]s)`, tag, library, kindList)
 		}
 		w.add("{tag}")
 		w.countFrom, w.tagCount = "items i NOT INDEXED", gathered
@@ -498,7 +504,7 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 	}
 	if library != 0 && kindList != "" && acc.maxAge == nil && q.Parent == "" && q.Person == "" && q.Tag == "" && q.Genre == "" &&
 		q.YearFrom == 0 && q.YearTo == 0 && q.Favorite == nil && q.InList == nil && q.Watched == nil && q.Resolution == "" {
-		w.plainLibrary, w.plainKinds = fmt.Sprintf(" AND c.library_id = %d", library), " AND c.kind IN "+kindList
+		w.plainLibrary, w.plainKinds = library, kindList
 	}
 	if !scoped {
 		return false, invalid("a list needs a library, a parent, a person, a tag, favourites or My List")
