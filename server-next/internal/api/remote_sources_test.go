@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -65,6 +66,24 @@ func TestRemoteSources(t *testing.T) {
 	}
 	if code := status(t, s, "POST", "/v1/admin/remote-sources/"+src.ID+"/test", owner.AccessToken, nil); code != 200 {
 		t.Fatalf("testing the saved source answered %d", code)
+	}
+
+	// A server that sends whole files is Limited, and a listing that works does not hide it.
+	row, _ := s.db.RemoteSource(context.Background(), src.ID)
+	storage, _, err := s.remote.Open(context.Background(), row.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dav.NoRanges.Store(true)
+	storage.Open(context.Background(), "Films/Heat (1995).mkv")
+	storage.List(context.Background(), "Films")
+	if call(t, s, "GET", "/v1/admin/remote-sources/"+src.ID, owner.AccessToken, nil, &src); src.State != "limited" || src.Problem == "" {
+		t.Fatalf("a server without ranges shows %q %q", src.State, src.Problem)
+	}
+	dav.NoRanges.Store(false)
+	storage.Open(context.Background(), "Films/Heat (1995).mkv")
+	if call(t, s, "GET", "/v1/admin/remote-sources/"+src.ID, owner.AccessToken, nil, &src); src.State != "setup" {
+		t.Fatalf("once ranges work again it shows %q", src.State)
 	}
 
 	for _, name := range []string{"main.db", "main.db-wal"} {
