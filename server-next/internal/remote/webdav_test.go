@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -67,5 +68,25 @@ func TestWebDAV(t *testing.T) {
 	dav.NoRanges.Store(true)
 	if _, err := src.Open(ctx, "Films/Heat #2.mkv"); !errors.Is(err, remote.ErrNoRanges) {
 		t.Fatalf("a server that sends whole files: %v", err)
+	}
+}
+
+// A media tool reads a remote file a few kilobytes at a time; each megabyte is one request.
+func TestSmallReadsShareARequest(t *testing.T) {
+	dav := remotetest.NewDAV(t, map[string]string{"film.mkv": strings.Repeat("x", 3<<20)})
+	src, _ := remote.NewWebDAV(dav.URL, dav.User, dav.Password)
+	file, err := remote.Throttled(src, remote.NewThrottle(remote.Limits{Connections: 2, PerSecond: 1000})).Open(ctx, "film.mkv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	reads := dav.Reads.Load()
+	piece := make([]byte, 32<<10)
+	for off := int64(0); off < 2<<20; off += int64(len(piece)) {
+		if n, err := file.ReadAt(piece, off); n != len(piece) || err != nil {
+			t.Fatalf("read at %d: %d %v", off, n, err)
+		}
+	}
+	if got := dav.Reads.Load() - reads; got != 2 {
+		t.Fatalf("two megabytes read in small pieces took %d requests", got)
 	}
 }
