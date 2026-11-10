@@ -57,8 +57,10 @@ func (im *importer) moveFile(move ImportMove) error {
 	change := `DELETE FROM item_keys`
 	args := []any{im.batch.LibraryID, KeyFile, old, old + "#", old + "$"}
 	if move.KeepTitle {
-		change = `UPDATE item_keys SET key = ? || substr(key, ?)`
-		args = append([]any{FileKey(im.batch.PathID, path.Join(move.To.Dir, move.To.Name), 0).Key, len(old) + 1}, args...)
+		// SQLite counts characters where Go counts bytes, so the old key's length is taken
+		// there: a folder named in anything but ASCII would otherwise lose the "#3" of its tracks.
+		change = `UPDATE item_keys SET key = ? || substr(key, length(?) + 1)`
+		args = append([]any{FileKey(im.batch.PathID, path.Join(move.To.Dir, move.To.Name), 0).Key, old}, args...)
 	}
 	if _, err := im.exec(change+` WHERE library_id = ? AND kind = ? AND (key = ? OR key > ? AND key < ?)`, args...); err != nil {
 		return err
