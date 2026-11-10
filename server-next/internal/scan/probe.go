@@ -34,7 +34,7 @@ var (
 func (r *run) probe() error {
 	var after int64
 	for {
-		files, err := r.s.DB.UnprobedFiles(r.ctx, r.lib.ID, after, 50)
+		files, err := r.s.DB.UnprobedFiles(r.ctx, r.lib.ID, after, r.batch)
 		if err != nil || len(files) == 0 {
 			return err
 		}
