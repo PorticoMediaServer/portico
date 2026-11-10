@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type {HttpLocalApi} from '../../../packages/client-core/src/index.ts';
 import type {AppServerSession} from '../../../packages/client-core/src/app-sessions.ts';
+import {systemAnswer} from '../../../packages/client-core/test/next-wire.ts';
 import {NativeModules} from './react-native-stub.mjs';
 import {readNativeServerDisplays, rememberNativeServerDisplay} from '../src-next/platform/server-display.ts';
 
@@ -15,7 +16,7 @@ function fixture() {
   const route = {pin: {serverId: 'server', fingerprint}, getSnapshot: () => ({phase: 'ready'})};
   const api = {getRouteConnection: () => route, request: async (path: string) => {
     requests.push(path);
-    return {id: serverId, name, version: '1', move: null, signIn: 'local', setupRequired, hostedConfigured: false, hostedAttached: false, apiLevel: 1, apiVersion: '1.0', apiMajors: [1], capabilities: []};
+    return systemAnswer({id: serverId, name, version: '1', setupRequired});
   }} as unknown as HttpLocalApi;
   const remember = (setup?: boolean) => rememberNativeServerDisplay(api, {serverId: 'server', signIn: 'local', isCurrent: () => current, ...(setup === undefined ? {} : {setup})});
   return {records, requests, remember, setupRequired(value: boolean) {setupRequired = value;}, name(value: string) {name = value;}, server(value: string) {serverId = value;},

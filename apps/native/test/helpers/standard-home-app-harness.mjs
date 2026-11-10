@@ -555,8 +555,8 @@ export async function standardHomeApp({
     data: value,
   });
   // The signed-in account as the server describes it (`GET /v1/me`, `GET /v1/profiles`).
-  const described = {account: {id: 'account', username: 'fixture_member', role: accountRole},
-    profiles: [{id: 'profile', name: 'Fixture profile', primary: true, art: 'mint'}], canManage: accountRole === 'owner'};
+  const described = () => ({account: {id: 'account', username: 'fixture_member', role: accountRole},
+    profiles: [{id: 'profile', name: 'Fixture profile', primary: true, art: 'mint'}], canManage: accountRole === 'owner'});
   let fault;
   const reply = async request => {
     const url = new URL(origin + request.path),
@@ -603,7 +603,7 @@ export async function standardHomeApp({
     }
     if (path === routePath('get_user_mutation_policy')) return {status: 200, body: {serverTimeMs: Date.now(), retiredBeforeMs: 0}};
     if (path === '/v1/system') return {status: 200, body: systemAnswer({id: pin.serverId, name: 'Synthetic living room', version: '1'})};
-    if (accountPath(path)) return {status: 200, body: accountAnswer(path, described)};
+    if (accountPath(path)) return {status: 200, body: accountAnswer(path, described())};
     if (path === routePath('get_home')) return {status: 200, body: homeDoc()};
     if (path === routePath('get_preferences'))
       return {status: 200, body: envelope('preferences', prefs())};

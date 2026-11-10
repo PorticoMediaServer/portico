@@ -73,7 +73,7 @@ async function fixture(options: Options = {}) {
     '../../../../packages/client-core/src': core,
     '../../../../packages/client-core/src/cleanup': cleanup,
     '../../../../packages/client-core/src/installation': {installationIdentity: () => ({installationId: 'install'})},
-    '../../../../packages/client-core/src/profile-management': {parseDirectSnapshot: (raw: unknown) => raw, selectDirectProfile: async () => ({})},
+    '../../../../packages/client-core/src/profile-management': {parseDirectSnapshot: (raw: {me: unknown}) => raw.me, selectDirectProfile: async () => ({})},
     '../../../../packages/client-core/src/remember-marker': rememberMarker,
     '../../../../packages/client-core/src/server-connections': {restoreNativeSession: serverConnections.restoreNativeSession},
     '../../../../packages/client-core/src/timer': timer,
@@ -185,7 +185,7 @@ test('connect restores the held sign-in, maps the profiles, and keeps the PIN st
   const fx = await fixture();
   const facts = await fx.ports.connect('a', new AbortController().signal);
   assert.deepEqual(facts, {rememberProfiles: true, manageLocked: false, profiles: [{id: 'p1', name: 'Main', primary: true, pinRequired: true}, {id: 'p2', name: 'Kids', primary: false, pinRequired: false}]});
-  assert.deepEqual(fx.apis[0].requests, ['get_direct_account']);
+  assert.deepEqual(fx.apis[0].requests, ['/v1/me', '/v1/profiles']);
   assert.equal(fx.entry()!.profilePinRequired, true);
   assert.equal(fx.ports.connection('a')?.api, fx.apis[0]); assert.equal(fx.ports.connection('b'), undefined);
   fx.ports.releaseConnection();
