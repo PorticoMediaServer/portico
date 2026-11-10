@@ -232,11 +232,13 @@ const (
 	TopicPerson  ChangeTopic = 4
 	TopicAccess  ChangeTopic = 5 // what a profile may see changed: its clients throw their cache away
 	TopicList    ChangeTopic = 6
+	// TopicPreferences: a profile's own settings changed: its other devices read them again.
+	TopicPreferences ChangeTopic = 7
 )
 
 var changeTopicNames = map[ChangeTopic]string{
 	TopicItem: "item", TopicLibrary: "library", TopicState: "state", TopicPerson: "person",
-	TopicAccess: "access", TopicList: "list",
+	TopicAccess: "access", TopicList: "list", TopicPreferences: "preferences",
 }
 
 func (t ChangeTopic) String() string { return changeTopicNames[t] }

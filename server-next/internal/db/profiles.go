@@ -27,13 +27,15 @@ type Profile struct {
 	Position int
 	// PINHash is empty when the profile has no PIN.
 	PINHash string
+	// AccessChangedAt moves whenever what the profile may see changes.
+	AccessChangedAt int64
 }
 
-const profileColumns = `id, public_id, name, color, is_primary, position, ifnull(pin_hash, '')`
+const profileColumns = `id, public_id, name, color, is_primary, position, ifnull(pin_hash, ''), access_changed_at`
 
 func scanProfile(row interface{ Scan(...any) error }) (Profile, error) {
 	var p Profile
-	err := row.Scan(&p.ID, &p.PublicID, &p.Name, &p.Color, &p.Primary, &p.Position, &p.PINHash)
+	err := row.Scan(&p.ID, &p.PublicID, &p.Name, &p.Color, &p.Primary, &p.Position, &p.PINHash, &p.AccessChangedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = ErrNotFound
 	}
@@ -66,6 +68,36 @@ func (d *DB) Profile(ctx context.Context, userID int64, publicID string) (Profil
 // ProfileByID returns one of the account's profiles by internal id.
 func (d *DB) ProfileByID(ctx context.Context, userID, id int64) (Profile, error) {
 	return scanProfile(d.read.QueryRowContext(ctx, `SELECT `+profileColumns+` FROM profiles WHERE user_id = ? AND id = ?`, userID, id))
+}
+
+// accessChanged records that what the matching profiles may see has changed: library
+// access, a rating limit, blocked labels or the account's role. Each profile's marker moves,
+// and its open apps are told on the changes feed to throw away what they have cached.
+func accessChanged(tx *sql.Tx, now time.Time, where string, args ...any) error {
+	// The marker is a time, pushed on by one when two changes share a millisecond.
+	rows, err := tx.Query(`UPDATE profiles SET access_changed_at = max(access_changed_at + 1, ?) WHERE `+where+` RETURNING id`,
+		append([]any{now.UnixMilli()}, args...)...)
+	if err != nil {
+		return err
+	}
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	for _, id := range ids {
+		if err := appendChange(tx, Change{At: now.UnixMilli(), Topic: TopicAccess, Op: OpUpdated, RefID: id, ProfileID: id}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // NewProfile is a profile to add to an account.

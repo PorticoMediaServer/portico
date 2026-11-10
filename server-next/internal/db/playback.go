@@ -275,10 +275,13 @@ func (d *DB) VisibleTitles(ctx context.Context, v Viewer, itemIDs []int64) (map[
 	return out, rows.Err()
 }
 
-// Preferences returns a profile's settings and those of one device as stored: key to JSON
-// value. Where both hold a key, the device's wins.
+// Preferences returns a profile's settings for everywhere and those it saved for one device,
+// as stored: key to JSON value. Where both hold a key, the device's wins. What the profile
+// saved for a kind of device is not read here, because a device does not yet say which kind
+// it is when it plays.
 func (d *DB) Preferences(ctx context.Context, profileID, deviceID int64) (map[string]string, error) {
-	rows, err := d.read.QueryContext(ctx, `SELECT key, value FROM preferences WHERE profile_id = ?1 OR device_id = ?2
+	rows, err := d.read.QueryContext(ctx, `SELECT key, value FROM preferences
+		WHERE profile_id = ?1 AND (device_id = ?2 OR device_id IS NULL AND device_class = '')
 		ORDER BY device_id IS NOT NULL`, profileID, deviceID)
 	if err != nil {
 		return nil, err
@@ -299,7 +302,7 @@ func (d *DB) Preferences(ctx context.Context, profileID, deviceID int64) (map[st
 func (d *DB) SetProfilePreference(ctx context.Context, profileID int64, key, value string, now time.Time) error {
 	return d.write(ctx, User, func(tx *sql.Tx) error {
 		_, err := tx.Exec(`INSERT INTO preferences (profile_id, key, value, updated_at) VALUES (?, ?, ?, ?)
-			ON CONFLICT (profile_id, key) WHERE profile_id IS NOT NULL DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+			ON CONFLICT (profile_id, device_class, ifnull(device_id, 0), key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
 			profileID, key, value, now.UnixMilli())
 		return err
 	})
@@ -487,7 +490,7 @@ func (d *DB) SaveProgress(ctx context.Context, p Priority, batch []Progress) ([]
 }
 
 func profilePreferences(tx *sql.Tx, profileID int64) (map[string]string, error) {
-	rows, err := tx.Query(`SELECT key, value FROM preferences WHERE profile_id = ? AND key IN (?, ?, ?)`,
+	rows, err := tx.Query(`SELECT key, value FROM preferences WHERE profile_id = ? AND device_class = '' AND device_id IS NULL AND key IN (?, ?, ?)`,
 		profileID, PrefWatchedAt, PrefStartedAt, PrefPauseHistory)
 	if err != nil {
 		return nil, err
