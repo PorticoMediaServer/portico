@@ -189,9 +189,12 @@ CREATE INDEX files_problem ON files (directory_id) WHERE problem IS NOT NULL;
 
 -- large. Everything a person can browse: film, show, season, episode, artist, album, track,
 -- audiobook, book, comic, issue, series, collection. A new media type is a new kind code.
--- locked_fields is a JSON list of the fields and lists a person edited or locked; local_fields
--- is a JSON list of those an NFO file or the file's own tags gave. A refresh from a provider
--- changes neither kind. refreshed_at is when a provider was last asked about the title.
+-- locked_fields is a JSON list of the fields and lists a person locked, by editing them or
+-- without: a refresh from a provider changes none of them. local_fields is a JSON object that
+-- says where a value came from when it is not the provider's: field name to "file" (an NFO
+-- file or the file's own tags gave it, and a provider never replaces it) or "edit" (a person
+-- typed it). A field in neither has the provider's value, or the name its files gave.
+-- refreshed_at is when a provider was last asked about the title.
 CREATE TABLE items (
   id               INTEGER NOT NULL PRIMARY KEY,
   public_id        TEXT    NOT NULL UNIQUE,
