@@ -25,13 +25,13 @@ exists today. Columns are documented in `schema.sql` itself.
 | | `media_parts` | yes | Split films, CUE albums, two episodes in one file, discs |
 | | `media_streams` | yes | Audio and subtitle choice; the playback decision |
 | | `media_markers` | yes | Chapters, skip intro, skip credits |
-| | `subtitles` | with playback | Downloaded and uploaded subtitles and timing offsets, which a rescan cannot rebuild |
+| | `subtitles` | yes | Downloaded and uploaded subtitles, which a rescan cannot find again |
 | | `tags`, `item_tags` | yes | Genres, studios, labels and the filters on them |
 | | `people`, `person_external_ids`, `credits` | yes | Cast and crew, and a person's other titles, without duplicate people |
 | | `item_relations` | yes | Collections, extras, trailers, guest artists, books in a series |
 | | `images` | yes | Artwork, and the artwork a person chose or uploaded |
-| | `metadata_cache` | with metadata | Refreshing metadata without refetching everything from providers |
-| | `lyrics` | with playback | Lyrics |
+| | `metadata_history` | yes | The editor's History and "Undo to before this": a title's last 20 changes made by people |
+| | `lyrics` | yes | Lyrics fetched, read from tags or pasted by the owner |
 | | `media_artifacts` | with playback | Seek previews, waveforms and keyframe positions already computed |
 | | `track_embeddings` | with music mixes | Mixes and radio from sound similarity |
 | Users and access | `users`, `profiles` | yes | Accounts and viewing profiles |

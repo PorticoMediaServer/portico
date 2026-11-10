@@ -189,6 +189,28 @@ Listed route by route with each console panel's definition. Resources:
 | Server operations | 38 | Settings; jobs and schedules; logs; backups; updates; restart; dashboard; storage; diagnostics; notices; feedback triage; resource usage |
 | Keys, tools, webhooks | 9 | Server API keys; webhooks; MCP. A person's own tokens and app passwords are under `/v1/me` |
 
+### Metadata and matching, route by route (16 of 18)
+
+For the owner and administrators. Provider keys and a library's source are the owner's alone.
+A library's provider, language and region are options of the library, set on its own routes.
+Refreshing or editing a selection of titles is a bulk action, `POST /v1/jobs`.
+
+| Route | Purpose |
+|---|---|
+| `GET /v1/admin/items/{id}/metadata`, `PATCH /v1/admin/items/{id}/metadata` | The editor's document with its `ETag`: each field and list with its value, where it came from (provider, file, edit) and whether it is locked. Edit fields and lists, which locks them; lock or unlock a field, a list, the match or everything. Needs `If-Match`; a stale one is `412`. A value out of range is `422` naming the field and its limit |
+| `GET /v1/admin/items/{id}/metadata/history`, `POST /v1/admin/items/{id}/metadata/history/{entryId}/undo` | The last 20 changes people made, newest first; put the title back to how it was before one |
+| `POST /v1/admin/items/{id}/metadata/refresh` | Ask the provider again now. Replaces only what is not locked and did not come from the files |
+| `GET /v1/admin/items/{id}/matches` | Possible matches with their posters: the closest by themselves, a search by `q` and `year`, or the one a provider id or address in `ref` names. Asks the provider; `502 provider_unavailable` when it does not answer |
+| `PUT /v1/admin/items/{id}/match` | Use a match, with a show's episode order and number offset; or Keep as is. The title keeps its id, everyone's state, locked fields and chosen pictures. Answers when the title's own details are in; a show's episodes follow in the background. A match the library already has merges the two |
+| `POST /v1/admin/items/{id}/merge` | Merge with another title of the same kind in the same library (counted with Libraries, storage, files) |
+| `GET /v1/admin/libraries/{id}/unmatched` | Unmatched items: the library's titles looked up without a confident answer, by title, each with a plain reason and up to three closest matches. No count |
+| `GET /v1/admin/items/{id}/artwork` | The pictures a title could use for a `role`: beside the media, inside the file, the provider's, uploads, and a frame from the video |
+| `POST /v1/admin/items/{id}/artwork` | Upload a JPEG, PNG or WebP of at most 10 MB for a role; it is used and locked |
+| `PUT /v1/admin/items/{id}/artwork/{role}` | Use this picture for the role, which locks it; or unlock the role |
+| `DELETE /v1/admin/items/{id}/artwork/{imageId}` | Remove an upload; the next best picture is used |
+| `POST /v1/admin/items/{id}/artwork/find` | Find more from the provider, fetch again, or make an episode's picture from the video |
+| `GET /v1/admin/metadata/settings`, `PUT /v1/admin/metadata/settings` | Own provider keys (write-only: the answer says only whether one is set), Include adult titles, cast photos, Download title data, the subtitle account |
+
 ## Not on the wire, on purpose
 
 `viewerFence`, `expectedRevision`, `operationId`, a "preparing" answer on a read, query handles,
