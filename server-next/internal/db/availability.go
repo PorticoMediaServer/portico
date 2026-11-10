@@ -172,12 +172,30 @@ func removeItem(b *batchTx, libraryID, id, now int64) error {
 			}
 		}
 	}
+	// The library's collections that hold this title. One left holding nothing goes with it.
+	holders, err := queryInts(b.tx, subtree+`SELECT DISTINCT r.item_id FROM item_relations r JOIN t ON t.id = r.related_item_id WHERE r.kind = ?`,
+		id, RelationCollectionMember)
+	if err != nil {
+		return err
+	}
 	if _, err := b.exec(`DELETE FROM items WHERE id = ?`, id); err != nil {
 		return err
 	}
 	for _, gone := range ids {
 		if err := appendChange(b.tx, Change{At: now, Topic: TopicItem, Op: OpDeleted, RefID: gone, LibraryID: libraryID}); err != nil {
 			return err
+		}
+	}
+	for _, holder := range holders {
+		var held bool
+		if err := b.queryRow(`SELECT EXISTS (SELECT 1 FROM item_relations WHERE item_id = ? AND kind = ?)`, holder,
+			RelationCollectionMember).Scan(&held); err != nil {
+			return err
+		}
+		if !held {
+			if err := removeItem(b, libraryID, holder, now); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
