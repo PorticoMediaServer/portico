@@ -5,6 +5,7 @@ name: New server killed under load
 # "create profile" makes one profile, and SQLite's integrity and foreign-key checks are clean.
 # A change to the tool runs the full count (rebuild plan bar 9): it is rare, and the result is the point.
 # The tool's own default is a short pass for running it locally.
+# A second job kills at every change point in turn (both binaries built with -tags crashpoints).
 # Not part of ci/required.
 on:
   workflow_dispatch:
@@ -22,6 +23,7 @@ on:
     paths:
       - .github/workflows/server-next-crash.yml
       - server-next/cmd/portico-crash/**
+      - server-next/internal/db/crashpoints.go
 permissions:
   contents: read
 concurrency:
@@ -56,3 +58,27 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with: {name: server-next-crash-log, path: '${{ env.WORK }}/run/processes.log', retention-days: 7}
+
+  every-point:
+    name: Kill at every change point
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      WORK: ${{ github.workspace }}/points
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server-next/go.mod, cache-dependency-path: server-next/go.sum}
+      - name: Build the server and the tool with the crash hook
+        run: |
+          mkdir -p "$WORK/bin"
+          cd server-next && CGO_ENABLED=0 go build -tags crashpoints -o "$WORK/bin/" ./cmd/portico-server ./cmd/portico-crash
+      - name: Kill at each point of people's writes and of an import
+        run: |
+          "$WORK/bin/portico-crash" -every-point -server "$WORK/bin/portico-server" -work "$WORK/run" | tee "$WORK/points.json"
+          { echo '### Killed at every change point'; echo '```json'; cat "$WORK/points.json"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - name: Keep the server log of a failed run
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with: {name: server-next-every-point-log, path: '${{ env.WORK }}/run/processes.log', retention-days: 7}
