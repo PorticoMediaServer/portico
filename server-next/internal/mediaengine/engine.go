@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os/exec"
 	"sync"
@@ -32,6 +33,8 @@ type Options struct {
 	Folder string
 	// FFmpeg and FFprobe are the tools to run; empty finds the bundled or installed ones.
 	FFmpeg, FFprobe string
+	// Log is told when ffmpeg cannot be asked what it can do; nil uses the default logger.
+	Log *slog.Logger
 }
 
 // Engine is the session layer's Planner and Streams, backed by the real media engine.
@@ -39,6 +42,9 @@ type Engine struct {
 	db      *db.DB
 	streams *streaming.Streams
 	probe   mediafacts.Probe
+	// asked is closed once ffmpeg has said what it can do. Until then converter and
+	// fragmented are not to be read: tools waits for it.
+	asked chan struct{}
 	// converter is false on a server without a working ffmpeg: only original files play.
 	// fragmented says its ffmpeg can write fragmented MP4 streams.
 	converter, fragmented bool
@@ -47,25 +53,49 @@ type Engine struct {
 	facts map[string]mediafacts.Facts // by path, size and modified time
 }
 
-// New starts the media engine and finds out what this server's ffmpeg can do. Run must be
-// called for it to do its housekeeping.
+// New starts the media engine. Asking ffmpeg what it can do takes several seconds, so it
+// happens beside the start and not in it: the server serves at once, and only a play that
+// arrives in those first seconds waits for the answer. Run must be called for the engine to
+// do its housekeeping.
 func New(ctx context.Context, d *db.DB, o Options) (*Engine, error) {
-	e := &Engine{db: d, probe: mediafacts.Probe{Binary: o.FFprobe}, facts: map[string]mediafacts.Facts{}}
+	e := &Engine{db: d, probe: mediafacts.Probe{Binary: o.FFprobe}, facts: map[string]mediafacts.Facts{}, asked: make(chan struct{})}
 	ffmpeg := o.FFmpeg
 	if ffmpeg == "" {
 		ffmpeg = mediatools.Resolve("ffmpeg")
 	}
-	if _, err := exec.LookPath(ffmpeg); err == nil {
+	log := o.Log
+	if log == nil {
+		log = slog.Default()
+	}
+	go func() {
+		defer close(e.asked)
+		if _, err := exec.LookPath(ffmpeg); err != nil {
+			return
+		}
 		tools, err := decoder.ProbeToolchain(ctx, ffmpeg)
 		if err != nil {
-			return nil, fmt.Errorf("asking ffmpeg what it can do: %w", err)
+			if ctx.Err() == nil {
+				log.Error("ffmpeg could not be asked what it can do, so only original files will play", "error", err)
+			}
+			return
 		}
 		decoder.ConfigureToolchain(tools)
 		e.converter, e.fragmented = true, tools.Muxers["mp4"] && tools.Muxers["hls"]
-	}
+	}()
 	streams, err := streaming.New(ctx, streaming.Options{Folder: o.Folder, FFmpeg: o.FFmpeg, Libraries: e.folders})
 	e.streams = streams
 	return e, err
+}
+
+// tools waits until ffmpeg has said what it can do, and reports whether this server can
+// convert and whether it can write fragmented MP4 streams.
+func (e *Engine) tools(ctx context.Context) (converter, fragmented bool, err error) {
+	select {
+	case <-e.asked:
+		return e.converter, e.fragmented, nil
+	case <-ctx.Done():
+		return false, false, ctx.Err()
+	}
 }
 
 // Run does the engine's housekeeping until ctx ends. Shutdown stops every stream.
@@ -267,11 +297,15 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 	if err != nil {
 		return playback.Plan{}, err
 	}
+	converter, fragmented, err := e.tools(ctx)
+	if err != nil {
+		return playback.Plan{}, err
+	}
 	request := streaming.PlanRequest{
 		File: streaming.FileFacts{ID: r.Version.PublicID, Container: facts.Container, VideoCodec: facts.VideoCodec, AudioCodec: facts.AudioCodec,
 			Duration: facts.Duration, Size: place.Size, Width: facts.Width, Height: facts.Height,
 			DetailVersion: mediafacts.StreamDetailVersion, StreamsCurrent: true, Streams: facts.Streams},
-		Settings: streaming.DefaultDeliveryConfiguration(), TranscodingEnabled: true, FragmentedOutput: e.fragmented, NoConverter: !e.converter,
+		Settings: streaming.DefaultDeliveryConfiguration(), TranscodingEnabled: true, FragmentedOutput: fragmented, NoConverter: !converter,
 		Connection:  streaming.DeliveryContext{NetworkClass: streaming.NetworkRemote},
 		Preferences: saved(r.Preferences),
 	}
