@@ -140,7 +140,7 @@ func (r *rclone) current(ctx context.Context) (*WebDAV, error) {
 		r.cmd, r.dav, r.done = cmd, dav, done
 		return dav, nil
 	case <-done:
-		return nil, errors.New("rclone stopped as it started: check the remote's configuration")
+		return nil, fmt.Errorf("%w: rclone refused the remote's configuration", ErrNeedsAttention)
 	case <-time.After(30 * time.Second):
 		stop()
 		return nil, errors.New("rclone did not start serving the remote")

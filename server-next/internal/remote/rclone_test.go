@@ -104,7 +104,7 @@ func TestRclone(t *testing.T) {
 		t.Fatalf("a bad line: %v", err)
 	}
 	wrong, _ := remote.ParseRcloneConfig("[a]\ntype = drive\ntoken = other\n")
-	if _, err := remote.NewRclone(wrong, "").List(ctx, ""); err == nil {
-		t.Fatal("a remote rclone refused was listed")
+	if _, err := remote.NewRclone(wrong, "").List(ctx, ""); !errors.Is(err, remote.ErrNeedsAttention) {
+		t.Fatalf("a remote rclone refused: %v", err)
 	}
 }
