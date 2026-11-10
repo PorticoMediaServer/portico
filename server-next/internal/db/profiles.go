@@ -250,7 +250,14 @@ type ProfileSelection struct {
 	CheckedPINHash string
 	PINOK          bool
 	Limits         []Limit
-	Now            time.Time
+	// Remembered: the device showed that it remembers the PIN instead of the PIN being
+	// typed. Wrong guesses are not at stake, and the session may not manage the account
+	// until the PIN is typed.
+	Remembered bool
+	// ManageFor, when not zero, is how long a typed PIN lets a device that remembers PINs
+	// manage the account from the main profile.
+	ManageFor time.Duration
+	Now       time.Time
 }
 
 // SelectProfile makes the profile the session's own. Tokens the session held for another
@@ -262,6 +269,7 @@ func (d *DB) SelectProfile(ctx context.Context, s ProfileSelection) (SessionStat
 	stamp, err := d.writeSessionsStamped(ctx, func(tx *sql.Tx, c *changes) error {
 		refused = nil
 		var pin string
+		var manageUntil any
 		err := tx.QueryRow(`SELECT ifnull(pin_hash, '') FROM profiles WHERE id = ? AND user_id = ?`, s.ProfileID, s.UserID).Scan(&pin)
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrNotFound
@@ -269,7 +277,16 @@ func (d *DB) SelectProfile(ctx context.Context, s ProfileSelection) (SessionStat
 		if err != nil {
 			return err
 		}
-		if pin != "" {
+		if pin != "" && s.Remembered {
+			if !s.PINOK || pin != s.CheckedPINHash {
+				refused = ErrBadPIN
+				return nil
+			}
+			manageUntil = s.Now.UnixMilli()
+		} else if pin != "" {
+			if s.ManageFor > 0 {
+				manageUntil = s.Now.Add(s.ManageFor).UnixMilli()
+			}
 			wait, err := limitWait(ctx, tx, s.Now, s.Limits)
 			if err != nil {
 				return err
@@ -286,7 +303,8 @@ func (d *DB) SelectProfile(ctx context.Context, s ProfileSelection) (SessionStat
 				return err
 			}
 		}
-		res, err := tx.Exec(`UPDATE sessions SET profile_id = ? WHERE id = ? AND user_id = ? AND revoked_at IS NULL`, s.ProfileID, s.SessionID, s.UserID)
+		res, err := tx.Exec(`UPDATE sessions SET profile_id = ?, manage_until_at = ? WHERE id = ? AND user_id = ? AND revoked_at IS NULL`,
+			s.ProfileID, manageUntil, s.SessionID, s.UserID)
 		if err != nil {
 			return err
 		}

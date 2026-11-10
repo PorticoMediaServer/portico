@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -14,9 +15,6 @@ import (
 // and members; an admin manages members; nobody manages the owner, or themselves here.
 // A member's profiles are managed through the profile routes with ?member=<account id>.
 
-// resetCodeLife is how long a password reset code can be used.
-const resetCodeLife = time.Hour
-
 // Member is an account as the owner and admins see it.
 type Member struct {
 	Account
@@ -28,6 +26,8 @@ type Member struct {
 	TwoFactorEnabled bool     `json:"twoFactorEnabled"`
 	// Notes are the admins' private notes about the member. The member never sees them.
 	Notes string `json:"notes,omitempty"`
+	// ViewingHours are the times of the week the account may be used; absent means any time.
+	ViewingHours *auth.Hours `json:"viewingHours,omitempty"`
 }
 
 // MemberCreate makes an account directly, with a first password to pass on to its person.
@@ -46,6 +46,10 @@ type MemberEdit struct {
 	Notes        *string   `json:"notes,omitempty"`
 	AllLibraries *bool     `json:"allLibraries,omitempty"`
 	Libraries    *[]string `json:"libraries,omitempty"`
+	// ViewingHours sets the times of the week the account may be used. With no windows the
+	// account may be used at any time. Outside them it cannot sign in, a title that is
+	// playing stops within a quarter of an hour, and its devices stay signed in for later.
+	ViewingHours *auth.Hours `json:"viewingHours,omitempty"`
 }
 
 // PasswordResetCreate asks for a reset code for a member.
@@ -72,8 +76,13 @@ func memberOut(m db.Member) Member {
 	if libraries == nil {
 		libraries = []string{}
 	}
-	return Member{Account: accountOut(m.Account), Disabled: m.Disabled, CreatedAt: m.CreatedAt.UTC(), AllLibraries: m.AllLibraries,
+	out := Member{Account: accountOut(m.Account), Disabled: m.Disabled, CreatedAt: m.CreatedAt.UTC(), AllLibraries: m.AllLibraries,
 		Libraries: libraries, TwoFactorEnabled: m.TwoFactor, Notes: m.Notes}
+	if m.ViewingHours != "" {
+		out.ViewingHours = &auth.Hours{}
+		json.Unmarshal([]byte(m.ViewingHours), out.ViewingHours)
+	}
+	return out
 }
 
 // memberError maps what the data layer says about a managed account to a refusal.
@@ -123,7 +132,7 @@ func (s *Server) newAccount(r *http.Request, username, password string, profileN
 	if !ok {
 		return "", "", ErrField("username", "Choose a username of 3 to 64 characters with no spaces or @.")
 	}
-	if problem := auth.PasswordProblem(password); problem != "" {
+	if problem := s.policy().PasswordProblem(password); problem != "" {
 		return "", "", ErrField("password", problem)
 	}
 	if *profileName == "" {
@@ -165,9 +174,20 @@ func (s *Server) editMember(r *http.Request, req MemberEdit) (Member, error) {
 		return Member{}, ErrField("notes", "Notes are at most 4,000 characters.")
 	case req.Libraries != nil && len(*req.Libraries) > 1000:
 		return Member{}, ErrField("libraries", "That is too many libraries.")
+	case req.ViewingHours != nil && !req.ViewingHours.Valid():
+		return Member{}, ErrField("viewingHours", "Viewing hours need a known timezone and windows with days 0 to 6 and minutes within one day.")
+	}
+	var hours *string
+	if req.ViewingHours != nil {
+		stored := ""
+		if len(req.ViewingHours.Windows) > 0 {
+			raw, _ := json.Marshal(req.ViewingHours)
+			stored = string(raw)
+		}
+		hours = &stored
 	}
 	m, err := s.db.UpdateMember(r.Context(), db.MemberEdit{ActorID: caller.UserID, ActorRole: caller.Role, PublicID: r.PathValue("id"),
-		Role: req.Role, Disabled: req.Disabled, Notes: req.Notes, AllLibraries: req.AllLibraries, Libraries: req.Libraries, Now: s.now()})
+		Role: req.Role, Disabled: req.Disabled, Notes: req.Notes, AllLibraries: req.AllLibraries, Libraries: req.Libraries, ViewingHours: hours, Now: s.now()})
 	return memberOut(m), memberError(err)
 }
 
@@ -180,7 +200,7 @@ func resetHash(typed string) string { return auth.Hash("reset|" + auth.CodeKey(t
 
 func (s *Server) issuePasswordReset(r *http.Request, req PasswordResetCreate) (PasswordResetCode, error) {
 	caller, now := CallerFrom(r.Context()), s.now()
-	out := PasswordResetCode{Code: auth.NewCode(3), ExpiresAt: now.Add(resetCodeLife).UTC()}
+	out := PasswordResetCode{Code: auth.NewCode(3), ExpiresAt: now.Add(s.policy().ResetCodeLife()).UTC()}
 	err := s.db.IssuePasswordReset(r.Context(), db.PasswordReset{ActorID: caller.UserID, ActorRole: caller.Role, PublicID: r.PathValue("id"),
 		CodeHash: resetHash(out.Code), ResetTwoFactor: req.ResetTwoFactor, ExpiresAt: out.ExpiresAt, Now: now})
 	return out, memberError(err)
@@ -191,7 +211,7 @@ func (s *Server) issuePasswordReset(r *http.Request, req PasswordResetCreate) (P
 // the account's code, and every wrong one counts against the network it came from.
 func (s *Server) resetPassword(r *http.Request, req PasswordResetRequest) (None, error) {
 	ctx, now := r.Context(), s.now()
-	if problem := auth.PasswordProblem(req.NewPassword); problem != "" {
+	if problem := s.policy().PasswordProblem(req.NewPassword); problem != "" {
 		return None{}, ErrField("newPassword", problem)
 	}
 	key, _ := auth.Username(req.Username)

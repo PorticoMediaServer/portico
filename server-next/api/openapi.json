@@ -589,6 +589,23 @@
         ],
         "type": "object"
       },
+      "Hours": {
+        "properties": {
+          "timezone": {
+            "type": "string"
+          },
+          "windows": {
+            "items": {
+              "$ref": "#/components/schemas/Window"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "windows"
+        ],
+        "type": "object"
+      },
       "IdentityProof": {
         "properties": {
           "payload": {
@@ -1281,6 +1298,9 @@
               },
               "twoFactorEnabled": {
                 "type": "boolean"
+              },
+              "viewingHours": {
+                "$ref": "#/components/schemas/Hours"
               }
             },
             "required": [
@@ -1334,6 +1354,9 @@
           },
           "role": {
             "type": "string"
+          },
+          "viewingHours": {
+            "$ref": "#/components/schemas/Hours"
           }
         },
         "type": "object"
@@ -1397,6 +1420,47 @@
         },
         "required": [
           "trustedProxies"
+        ],
+        "type": "object"
+      },
+      "OwnerResetFinish": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "newPassword": {
+            "type": "string"
+          },
+          "turnOffTwoStep": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "code",
+          "newPassword"
+        ],
+        "type": "object"
+      },
+      "OwnerResetStart": {
+        "properties": {
+          "username": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "OwnerResetStarted": {
+        "properties": {
+          "fileName": {
+            "type": "string"
+          },
+          "retryAfterMs": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "fileName",
+          "retryAfterMs"
         ],
         "type": "object"
       },
@@ -2079,6 +2143,49 @@
         ],
         "type": "object"
       },
+      "Policy": {
+        "properties": {
+          "endedSessionsDays": {
+            "type": "integer"
+          },
+          "passwordAttempts": {
+            "type": "string"
+          },
+          "passwordMinLength": {
+            "type": "integer"
+          },
+          "pinAttempts": {
+            "type": "string"
+          },
+          "pinRememberDays": {
+            "type": "integer"
+          },
+          "rememberAccounts": {
+            "type": "boolean"
+          },
+          "requireTwoStep": {
+            "type": "string"
+          },
+          "resetCodeMinutes": {
+            "type": "integer"
+          },
+          "staySignedInDays": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "staySignedInDays",
+          "pinRememberDays",
+          "passwordAttempts",
+          "pinAttempts",
+          "passwordMinLength",
+          "resetCodeMinutes",
+          "requireTwoStep",
+          "rememberAccounts",
+          "endedSessionsDays"
+        ],
+        "type": "object"
+      },
       "PreferenceDocument": {
         "properties": {
           "scope": {
@@ -2333,6 +2440,12 @@
         "properties": {
           "pin": {
             "type": "string"
+          },
+          "pinToken": {
+            "type": "string"
+          },
+          "rememberPin": {
+            "type": "boolean"
           }
         },
         "type": "object"
@@ -2483,6 +2596,47 @@
         ],
         "type": "object"
       },
+      "RememberedAccount": {
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "accountToken": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "accountId",
+          "username",
+          "name",
+          "color",
+          "accountToken"
+        ],
+        "type": "object"
+      },
+      "RememberedAccounts": {
+        "properties": {
+          "accounts": {
+            "items": {
+              "$ref": "#/components/schemas/RememberedAccount"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "accounts"
+        ],
+        "type": "object"
+      },
       "RememberedFailure": {
         "properties": {
           "code": {
@@ -2550,6 +2704,24 @@
         ],
         "type": "object"
       },
+      "RememberedRequest": {
+        "properties": {
+          "accountTokens": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "installationId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "installationId",
+          "accountTokens"
+        ],
+        "type": "object"
+      },
       "Session": {
         "properties": {
           "accessToken": {
@@ -2565,6 +2737,13 @@
           "installationId": {
             "type": "string"
           },
+          "pinToken": {
+            "type": "string"
+          },
+          "pinTokenExpiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
           "refreshToken": {
             "type": "string"
           },
@@ -2577,6 +2756,9 @@
           },
           "tokenGeneration": {
             "type": "string"
+          },
+          "twoStepSetupRequired": {
+            "type": "boolean"
           },
           "viewer": {
             "$ref": "#/components/schemas/Viewer"
@@ -2752,6 +2934,9 @@
           "password": {
             "type": "string"
           },
+          "rememberAccount": {
+            "type": "boolean"
+          },
           "username": {
             "type": "string"
           }
@@ -2768,6 +2953,9 @@
           "account": {
             "$ref": "#/components/schemas/Account"
           },
+          "accountToken": {
+            "type": "string"
+          },
           "challenge": {
             "$ref": "#/components/schemas/Challenge"
           },
@@ -2779,6 +2967,49 @@
           },
           "session": {
             "$ref": "#/components/schemas/Session"
+          }
+        },
+        "type": "object"
+      },
+      "SignInSettings": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Policy"
+          },
+          {
+            "properties": {},
+            "type": "object"
+          }
+        ]
+      },
+      "SignInSettingsEdit": {
+        "properties": {
+          "endedSessionsDays": {
+            "type": "integer"
+          },
+          "passwordAttempts": {
+            "type": "string"
+          },
+          "passwordMinLength": {
+            "type": "integer"
+          },
+          "pinAttempts": {
+            "type": "string"
+          },
+          "pinRememberDays": {
+            "type": "integer"
+          },
+          "rememberAccounts": {
+            "type": "boolean"
+          },
+          "requireTwoStep": {
+            "type": "string"
+          },
+          "resetCodeMinutes": {
+            "type": "integer"
+          },
+          "staySignedInDays": {
+            "type": "integer"
           }
         },
         "type": "object"
@@ -3053,6 +3284,9 @@
           "name": {
             "type": "string"
           },
+          "rememberAccounts": {
+            "type": "boolean"
+          },
           "setupRequired": {
             "type": "boolean"
           },
@@ -3072,7 +3306,8 @@
           "apiMajor",
           "capabilities",
           "setupRequired",
-          "signInMethods"
+          "signInMethods",
+          "rememberAccounts"
         ],
         "type": "object"
       },
@@ -3113,6 +3348,9 @@
           },
           "code": {
             "type": "string"
+          },
+          "rememberAccount": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -3237,6 +3475,28 @@
           "accountId",
           "serverId",
           "role"
+        ],
+        "type": "object"
+      },
+      "Window": {
+        "properties": {
+          "days": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "endMinute": {
+            "type": "integer"
+          },
+          "startMinute": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "days",
+          "startMinute",
+          "endMinute"
         ],
         "type": "object"
       }
@@ -3883,6 +4143,68 @@
         "x-access": "owner"
       }
     },
+    "/v1/admin/settings/sign-in": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInSettings"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "patch": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignInSettingsEdit"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInSettings"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
     "/v1/auth/codes": {
       "post": {
         "requestBody": {
@@ -4132,6 +4454,75 @@
         "x-access": "public"
       }
     },
+    "/v1/auth/owner-reset": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnerResetStart"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerResetStarted"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "security": [],
+        "x-access": "public"
+      }
+    },
+    "/v1/auth/owner-reset/confirm": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnerResetFinish"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "security": [],
+        "x-access": "public"
+      }
+    },
     "/v1/auth/password": {
       "post": {
         "requestBody": {
@@ -4211,6 +4602,44 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Session"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "security": [],
+        "x-access": "public"
+      }
+    },
+    "/v1/auth/remembered": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RememberedRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RememberedAccounts"
                 }
               }
             },

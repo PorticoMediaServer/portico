@@ -193,7 +193,7 @@ func replaceRecoveryCodes(tx *sql.Tx, userID int64, hashes []string, now time.Ti
 // it is ErrNotFound; already on, ErrConflict; a wrong code, ErrBadSecondStep.
 func (d *DB) ConfirmTwoFactor(ctx context.Context, userID int64, check CheckTOTP, recoveryHashes []string, limits []Limit, now time.Time) error {
 	var refused error
-	err := d.write(ctx, User, func(tx *sql.Tx) error {
+	err := d.writeSessions(ctx, func(tx *sql.Tx, c *changes) error {
 		refused = nil
 		var secret []byte
 		var enabled bool
@@ -219,6 +219,13 @@ func (d *DB) ConfirmTwoFactor(ctx context.Context, userID int64, check CheckTOTP
 		}
 		if _, err := tx.Exec(`UPDATE users SET two_factor_enabled_at = ?, two_factor_last_step = ?, updated_at = ? WHERE id = ?`,
 			now.UnixMilli(), step, now.UnixMilli(), userID); err != nil {
+			return err
+		}
+		// A sign-in that was only allowed to set this up becomes an ordinary one.
+		if err := markStale(tx, c, `user_id = ? AND scope = 'enrol'`, userID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`UPDATE sessions SET scope = 'app' WHERE user_id = ? AND scope = 'enrol'`, userID); err != nil {
 			return err
 		}
 		return replaceRecoveryCodes(tx, userID, recoveryHashes, now)

@@ -30,6 +30,9 @@ type SignInRequest struct {
 	Username string     `json:"username"`
 	Password string     `json:"password"`
 	Device   DeviceInfo `json:"device"`
+	// RememberAccount asks that this device's sign-in screen may list the account. The
+	// answer then carries an accountToken to keep.
+	RememberAccount bool `json:"rememberAccount,omitempty"`
 }
 
 // SetupOwnerRequest creates the owner account on a new server.
@@ -76,6 +79,13 @@ type Session struct {
 	DeviceID         string    `json:"deviceId"`
 	InstallationID   string    `json:"installationId"`
 	Viewer           Viewer    `json:"viewer"`
+	// TwoStepSetupRequired says the owner requires two-step sign-in and this account has not
+	// set it up: until it has, this sign-in can do nothing else.
+	TwoStepSetupRequired bool `json:"twoStepSetupRequired,omitempty"`
+	// PINToken is present when selecting a profile with rememberPin: this device sends it
+	// in place of the PIN until PINTokenExpiresAt, or until the PIN changes.
+	PINToken          string     `json:"pinToken,omitempty"`
+	PINTokenExpiresAt *time.Time `json:"pinTokenExpiresAt,omitempty"`
 }
 
 // Viewer is who a session acts for.
@@ -105,6 +115,9 @@ type SignInResponse struct {
 	Account   Account    `json:"account,omitzero"`
 	Profiles  []Profile  `json:"profiles,omitempty"`
 	Challenge *Challenge `json:"challenge,omitempty"`
+	// AccountToken is present when the sign-in asked to be remembered on this device and the
+	// owner allows it. See POST /v1/auth/remembered.
+	AccountToken string `json:"accountToken,omitempty"`
 }
 
 // Challenge is a password sign-in waiting for its second step.
@@ -133,6 +146,17 @@ func errSignInEnded() *Error {
 	return refusal(http.StatusUnauthorized, "unauthorized", "This sign-in has ended. Sign in again.", false)
 }
 
+// ErrViewingHoursEnded is the answer when an account's viewing hours end while it is in
+// use: a renewal is refused with it, and the playback layer stops a title with it. The
+// sign-in is kept, and works again when the hours next begin.
+func ErrViewingHoursEnded() *Error {
+	return refusal(http.StatusForbidden, "outside_viewing_hours", "Viewing hours have ended.", false)
+}
+
+func errOutsideHours() *Error {
+	return refusal(http.StatusForbidden, "outside_viewing_hours", "This account can be used only during its viewing hours.", false)
+}
+
 func errTooManyAttempts(wait time.Duration) *Error {
 	return ErrTooMany("rate_limited", "Too many attempts. Wait a moment, then try again.", wait)
 }
@@ -144,7 +168,9 @@ func (s *Server) authRoutes() {
 	Handle(s, "DELETE /v1/auth/session", Public, s.signOut)
 	Handle(s, "POST /v1/auth/password", SignedIn, s.changePassword)
 	// A tool with a key can ask who it is acting for.
-	Handle(s, "GET /v1/me", SignedIn, s.me).Scope = ScopeRead
+	me := Handle(s, "GET /v1/me", SignedIn, s.me)
+	me.Scope, me.Enrolling = ScopeRead, true
+	Handle(s, "POST /v1/auth/remembered", Public, s.rememberedAccounts)
 	Handle(s, "POST /v1/auth/password-reset/confirm", Public, s.resetPassword)
 	s.twoFactorRoutes()
 	s.codeRoutes()
@@ -162,11 +188,21 @@ func (s *Server) session(st db.SessionState, issued time.Time, refreshToken stri
 			role, manage = st.UserRole, true
 		}
 	}
-	access, expires := s.tokens.Access(auth.Claims{SessionID: st.ID, UserID: st.UserID, ProfileID: st.ProfileID, Role: role, Manage: manage,
-		Boot: st.Stamp.Boot, Seq: st.Stamp.Seq},
-		issued, st.ExpiresAt)
+	claims := auth.Claims{SessionID: st.ID, UserID: st.UserID, ProfileID: st.ProfileID, Role: role, Manage: manage, Enrol: st.Enrol,
+		Boot: st.Stamp.Boot, Seq: st.Stamp.Seq}
+	if manage && !st.ManageUntil.IsZero() {
+		claims.ManageUntil = st.ManageUntil.UnixMilli()
+	}
+	// A token never outlasts the account's viewing hours: when they end, the app's next
+	// renewal is refused, and within a quarter of an hour at most nothing plays.
+	ends := st.ExpiresAt
+	if open, until := st.Hours.Open(issued); open && !until.IsZero() && until.Before(ends) {
+		ends = until
+	}
+	access, expires := s.tokens.Access(claims, issued, ends)
 	return Session{
-		AccessToken: access, ExpiresAt: expires.UTC(), RefreshToken: refreshToken,
+		TwoStepSetupRequired: st.Enrol,
+		AccessToken:          access, ExpiresAt: expires.UTC(), RefreshToken: refreshToken,
 		SessionID: st.PublicID, TokenGeneration: strconv.FormatInt(st.Generation, 10), SessionExpiresAt: st.ExpiresAt.UTC(),
 		DeviceID: st.DevicePublicID, InstallationID: st.InstallationID,
 		Viewer: Viewer{AccountID: st.UserPublicID, ProfileID: st.ProfilePublicID, ServerID: s.id, Role: role},
@@ -191,7 +227,8 @@ func checkDevice(device DeviceInfo) (db.DeviceInfo, error) {
 func (s *Server) mintSession(r *http.Request, now time.Time) (db.NewSession, string) {
 	id := db.NewSessionID()
 	refresh := s.tokens.FirstRefresh(id)
-	return db.NewSession{ID: id, RefreshHash: auth.Hash(refresh), ExpiresAt: now.Add(auth.SessionIdle), RemoteAddr: s.remoteHost(r)}, refresh
+	return db.NewSession{ID: id, RefreshHash: auth.Hash(refresh), ExpiresAt: now.Add(s.policy().SessionIdle()), RemoteAddr: s.remoteHost(r),
+		KeepEnded: s.policy().EndedSessionsKept()}, refresh
 }
 
 // newSession checks what the app said about its device and prepares a session for it.
@@ -224,7 +261,7 @@ func (s *Server) sourceLimit(r *http.Request) []db.Limit {
 	if !ok || networks.AtHome(addr) {
 		return nil
 	}
-	return []db.Limit{{Bucket: "source", Key: auth.SourceKey(addr), Delay: auth.SourceDelay, Doubling: true}}
+	return []db.Limit{{Bucket: "source", Key: auth.SourceKey(addr), Delay: s.policy().Passwords().SourceDelay, Doubling: true}}
 }
 
 // passwordLimits are the counts a wrong password adds to. The wait belongs to the network
@@ -237,7 +274,7 @@ func (s *Server) passwordLimits(r *http.Request, account string) []db.Limit {
 	if addr, ok := s.networks().Client(r); ok {
 		source = auth.SourceKey(addr)
 	}
-	return append([]db.Limit{{Bucket: "password", Key: source, FloorKey: "account|" + account, Delay: auth.StandardPasswords.Delay}}, s.sourceLimit(r)...)
+	return append([]db.Limit{{Bucket: "password", Key: source, FloorKey: "account|" + account, Delay: s.policy().Passwords().Limit.Delay}}, s.sourceLimit(r)...)
 }
 
 // passwordProof compares the caller's current password and returns the proof for the
@@ -298,7 +335,7 @@ func (s *Server) setupOwner(r *http.Request, req SetupOwnerRequest) (SignInRespo
 	if !ok {
 		return SignInResponse{}, ErrField("username", "Choose a username of 3 to 64 characters with no spaces or @.")
 	}
-	if problem := auth.PasswordProblem(req.Password); problem != "" {
+	if problem := s.policy().PasswordProblem(req.Password); problem != "" {
 		return SignInResponse{}, ErrField("password", problem)
 	}
 	if req.ProfileName == "" {
@@ -348,6 +385,7 @@ func (s *Server) signIn(r *http.Request, req SignInRequest) (SignInResponse, err
 	if err != nil {
 		return SignInResponse{}, err
 	}
+	session.TwoStepRequired = s.policy().TwoStepRequired
 	// From here on, a username nobody has is treated exactly like one with a wrong password:
 	// the same work, the same counting, the same answer.
 	key, _ := auth.Username(req.Username)
@@ -377,12 +415,29 @@ func (s *Server) signIn(r *http.Request, req SignInRequest) (SignInResponse, err
 		return SignInResponse{}, errTooManyAttempts(limited.Wait)
 	case errors.Is(err, db.ErrBadCredentials):
 		return SignInResponse{}, errBadSignIn()
+	case errors.Is(err, db.ErrOutsideHours):
+		return SignInResponse{}, errOutsideHours()
 	case err != nil:
 		return SignInResponse{}, err
 	case challenged:
 		return SignInResponse{Challenge: &challenge}, nil
 	}
-	return s.signedIn(ctx, st, now, refresh)
+	return s.signedInRemembered(ctx, st, now, refresh, req.RememberAccount)
+}
+
+// accountMemory is what a device keeps to show that an account chose to be listed on its
+// sign-in screen. It proves nothing else: picking the account still needs its password.
+type accountMemory struct {
+	User         int64  `json:"u"`
+	Installation string `json:"i"`
+}
+
+func (s *Server) signedInRemembered(ctx context.Context, st db.SessionState, now time.Time, refresh string, remember bool) (SignInResponse, error) {
+	out, err := s.signedIn(ctx, st, now, refresh)
+	if err == nil && remember && s.policy().RememberAccounts {
+		out.AccountToken = s.tokens.Remember("account", accountMemory{User: st.UserID, Installation: st.InstallationID})
+	}
+	return out, err
 }
 
 func (s *Server) refresh(r *http.Request, req RefreshRequest) (Session, error) {
@@ -400,9 +455,12 @@ func (s *Server) refresh(r *http.Request, req RefreshRequest) (Session, error) {
 	next := s.tokens.NextRefresh(req.RefreshToken, ref, req.RequestID)
 	st, replayed, err := s.db.RenewSession(r.Context(), db.Renewal{SessionID: ref.SessionID, Generation: ref.Generation,
 		Hash: auth.Hash(req.RefreshToken), NextHash: auth.Hash(next), RequestID: req.RequestID, InstallationID: req.InstallationID,
-		ExpiresAt: now.Add(auth.SessionIdle), RemoteAddr: s.remoteHost(r), Now: now})
+		ExpiresAt: now.Add(s.policy().SessionIdle()), RemoteAddr: s.remoteHost(r), Now: now})
 	if errors.Is(err, db.ErrBadCredentials) {
 		return Session{}, errSignInEnded()
+	}
+	if errors.Is(err, db.ErrOutsideHours) {
+		return Session{}, ErrViewingHoursEnded()
 	}
 	if err != nil {
 		return Session{}, err
@@ -438,7 +496,7 @@ func (s *Server) changePassword(r *http.Request, req PasswordRequest) (None, err
 	if err != nil {
 		return None{}, err
 	}
-	if problem := auth.PasswordProblem(req.NewPassword); problem != "" {
+	if problem := s.policy().PasswordProblem(req.NewPassword); problem != "" {
 		return None{}, ErrField("newPassword", problem)
 	}
 	proof, err := s.passwordProof(r, req.CurrentPassword, req.Code)
