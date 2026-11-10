@@ -7,6 +7,8 @@ import {nextDelay, systemScheduler, type Scheduler} from './timer.ts';
  *
  * An entry's id is its idempotency key, so sending it again is safe. A 2xx answer means it is saved
  * and the entry is deleted. No answer, a 5xx, a redirect, a 429 or an ended sign-in keeps it for another try.
+ * Entries are sent in the order they were made. One the server keeps failing on (a 5xx) holds back only
+ * the later edits to the same item or list; the rest go ahead.
  * Any other 4xx deletes it and the person is told once. Entries belong to an account and profile:
  * they are sent only while that profile is the one signed in, wait across a new sign-in, and are
  * dropped (and reported) after 30 days. An empty outbox does nothing at all.
@@ -52,6 +54,8 @@ export const sameOutboxScope = (a: OutboxScope, b: OutboxScope) =>
 /** An answer settles an entry when it is a 2xx, or a 4xx that is about the write itself. Anything else (5xx, a redirect,
  * 429, 408, an ended sign-in) says nothing about the write, and the entry is kept. */
 const settles = (status: number) => status >= 200 && status < 300 || status >= 400 && status < 500 && ![401, 408, 429].includes(status);
+/** What an entry changes: the item, list or other thing its path names (`/v1/items/{id}`, `/v1/playlists/{id}`). */
+const targetOf = (entry: OutboxEntry) => entry.path.split('?')[0]!.split('/').slice(0, 4).join('/');
 
 export class Outbox {
   private entries: OutboxEntry[] = [];
@@ -63,6 +67,8 @@ export class Outbox {
   private timer: unknown;
   private retryAt = 0;
   private serverAskedToWait = false;
+  /** Entries the server failed on (5xx), and when each is tried again. Kept in memory: after a restart each is simply tried once more. */
+  private failed = new Map<string, number>();
   private inFlight?: AbortController;
   private readonly clock: Scheduler;
   private readonly options: OutboxOptions;
@@ -135,7 +141,7 @@ export class Outbox {
   }
   private retryIn(ms: number) { this.retryAt = this.clock.now() + ms; }
 
-  /** Sends this profile's entries in the order they were made, one at a time, until none is left or one has to wait. */
+  /** Sends this profile's entries in the order they were made, one at a time, until none is left or all that are left have to wait. */
   private async pump(): Promise<void> {
     if (this.running || this.stopped) return;
     this.running = true;
@@ -145,16 +151,32 @@ export class Outbox {
         const old = this.entries.find(entry => this.wallNow() - entry.createdAt > OUTBOX_MAX_AGE_MS && !this.callers.has(entry.id));
         if (old) { await this.finish(old); continue; }
         const scope = this.options.scope();
-        const entry = scope && this.entries.find(candidate => sameOutboxScope(candidate.scope, scope));
-        if (!entry) break; // idle: nothing to send for the profile signed in
-        const wait = this.retryAt - this.clock.now();
-        if (wait > 0) { this.timer = this.clock.setTimeout(() => { void this.pump(); }, wait); break; }
+        const mine = scope ? this.entries.filter(candidate => sameOutboxScope(candidate.scope, scope)) : [];
+        if (!mine.length) break; // idle: nothing to send for the profile signed in
+        const now = this.clock.now(), held = new Set<string>();
+        let entry: OutboxEntry | undefined, wait = this.retryAt - now;
+        if (wait <= 0) {
+          // The first entry that is not waiting after a 5xx, nor an edit to the same thing as an earlier one that is.
+          wait = Infinity;
+          for (const candidate of mine) {
+            const target = targetOf(candidate), until = this.failed.get(candidate.id) ?? 0;
+            if (held.has(target)) continue;
+            if (until <= now) { entry = candidate; break; }
+            held.add(target);
+            wait = Math.min(wait, until - now);
+          }
+        }
+        if (!entry) { this.timer = this.clock.setTimeout(() => { void this.pump(); }, wait); break; }
         const answer = await this.send(entry);
         if (this.stopped) break;
         if (answer && settles(answer.status)) { this.serverAskedToWait = false; await this.finish(entry, answer); continue; }
         const again = {...entry, attempts: entry.attempts + 1};
         this.serverAskedToWait = !!answer?.retryAfterMs;
-        this.retryIn(nextDelay(BACKOFF, again.attempts, {retryAfterMs: answer?.retryAfterMs}, this.options.random));
+        const delay = nextDelay(BACKOFF, again.attempts, {retryAfterMs: answer?.retryAfterMs}, this.options.random);
+        // A 5xx is the server failing on this write, so only this entry waits. Anything else (no answer, a wait
+        // the server asked for, an ended sign-in) would meet every entry, so they all wait.
+        if (answer && answer.status >= 500 && !answer.retryAfterMs) this.failed.set(entry.id, this.clock.now() + delay);
+        else this.retryIn(delay);
         this.entries = this.entries.map(each => each === entry ? again : each);
         await this.options.store.put(again);
       }
@@ -175,6 +197,7 @@ export class Outbox {
   private async finish(entry: OutboxEntry, answer?: OutboxAnswer): Promise<void> {
     await this.options.store.delete(entry.id);
     this.entries = this.entries.filter(each => each.id !== entry.id);
+    this.failed.delete(entry.id);
     const caller = this.callers.get(entry.id);
     this.callers.delete(entry.id);
     if (caller && answer) caller.resolve(answer);
