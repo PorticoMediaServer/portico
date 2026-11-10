@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -179,7 +178,12 @@ func samples() map[string][]byte {
 	} {
 		file := filepath.Join(dir, "sample"+ext)
 		args = append(append([]string{"-v", "error", "-y"}, args...), "-map_metadata", "-1", file)
-		if raw, err := exec.Command(mediatools.Resolve("ffmpeg"), args...).CombinedOutput(); err != nil {
+		// Started the way the server starts every media tool, confined to the one folder.
+		cmd, err := mediaexec.Command(mediaexec.Job{Executable: mediatools.Resolve("ffmpeg"), Args: args, WriteDirs: []string{dir}})
+		if err != nil {
+			log.Fatal(err)
+		}
+		if raw, err := cmd.CombinedOutput(); err != nil {
 			log.Fatalf("ffmpeg could not make a sample %s file: %v %s", ext, err, raw)
 		}
 		if out[ext], err = os.ReadFile(file); err != nil {
