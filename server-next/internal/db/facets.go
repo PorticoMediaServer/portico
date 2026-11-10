@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/sorttext"
 	"slices"
