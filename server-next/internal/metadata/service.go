@@ -206,3 +206,82 @@ func details(r Record, match db.MatchState) db.ItemDetails {
 	}
 	return d
 }
+
+// ErrMatchLocked is the answer to looking a title up again when a person chose its match:
+// the server never changes a match a person made.
+var ErrMatchLocked = errors.New("this title's match was chosen by a person")
+
+// target reads a title and the provider of its library for a request about its match.
+func (s *Service) target(ctx context.Context, itemID string) (db.MatchTarget, Provider, Locale, error) {
+	t, err := s.DB.MatchTarget(ctx, itemID)
+	if err != nil {
+		return t, nil, Locale{}, err
+	}
+	src, err := s.DB.LibrarySource(ctx, t.LibraryID)
+	if err != nil {
+		return t, nil, Locale{}, err
+	}
+	p := s.provider(src)
+	if p == nil || providerKinds[t.Kind] == "" {
+		return t, nil, Locale{}, ErrNoProvider
+	}
+	return t, p, Locale{Language: src.Language, Region: src.Region}, nil
+}
+
+// ErrNoProvider is the answer for a title no provider can be asked about: its library uses
+// local metadata only, or it is of a kind the library's provider does not know.
+var ErrNoProvider = errors.New("this title's library has no provider to ask")
+
+// Identify makes a title the one a person chose from the provider. The title keeps its id,
+// everyone's state, its lists, locked fields and chosen pictures; its details are fetched
+// again, and the match is locked against every scan and refresh. If the library already has
+// that title, the two become one and the id of the one that remains is returned.
+//
+// The provider is asked first; the title changes in one transaction after it has answered.
+// A show's episodes then follow as background work before Identify returns.
+func (s *Service) Identify(ctx context.Context, itemID string, ref Ref) (string, error) {
+	t, p, locale, err := s.target(ctx, itemID)
+	if err != nil {
+		return "", err
+	}
+	ref.Provider, ref.Kind = p.Name(), providerKinds[t.Kind]
+	record, err := p.Details(ctx, ref, locale)
+	if err != nil {
+		return "", err
+	}
+	remaining, err := s.DB.ChangeMatch(ctx, db.User, t.ID, details(record, db.MatchChosen))
+	if err != nil || remaining != itemID {
+		return remaining, err // merged into a title that has its details already
+	}
+	return remaining, s.children(ctx, p, locale, t.ID, record.Ref)
+}
+
+// Rematch looks a title up again as if it had just been scanned: "Look it up again" on the
+// Unmatched items list. It reports whether the title is now matched.
+func (s *Service) Rematch(ctx context.Context, itemID string) (bool, error) {
+	t, p, locale, err := s.target(ctx, itemID)
+	if err != nil {
+		return false, err
+	}
+	if t.Match == db.MatchChosen {
+		return false, ErrMatchLocked
+	}
+	q := Query{Kind: providerKinds[t.Kind], Title: t.Title, Year: t.Year, Locale: locale, IncludeAdult: s.IncludeAdult}
+	candidates, err := p.Search(ctx, q)
+	if err != nil {
+		return false, err
+	}
+	best, reason := Choose(q, candidates)
+	if best < 0 {
+		// A title that was matched stays as it is; one that was not is listed with the new answers.
+		return false, s.unmatched(ctx, t.ID, reason, candidates)
+	}
+	record, err := p.Details(ctx, candidates[best].Ref, locale)
+	if err != nil {
+		return false, err
+	}
+	if _, err := s.DB.ChangeMatch(ctx, db.User, t.ID, details(record, db.MatchFound)); err != nil {
+		return false, err
+	}
+	return true, s.children(ctx, p, locale, t.ID, record.Ref)
+}
