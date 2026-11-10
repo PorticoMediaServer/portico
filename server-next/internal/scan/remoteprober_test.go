@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
 	"github.com/PorticoMediaServer/portico/server-next/internal/decodertest"
 	"github.com/PorticoMediaServer/portico/server-next/internal/remote"
 	"github.com/PorticoMediaServer/portico/server-next/internal/remote/remotetest"
@@ -15,10 +16,14 @@ import (
 )
 
 // A real film on a WebDAV server is read by the real prober through its source's throttle,
-// by range, with a handful of requests.
+// by range, with a handful of requests. Where this host has the decoder's isolated bridge the
+// sandbox is required, so a probe that kept the host network would be refused.
 func TestRemoteProberReadsAFileOnWebDAV(t *testing.T) {
 	ffmpeg := decodertest.QualifiedFFmpeg(t)
 	decodertest.QualifiedFFprobe(t)
+	if decoder.ProbeConfinement(ctx) == nil {
+		t.Setenv("PORTICO_DECODER_SANDBOX", "required")
+	}
 	film := filepath.Join(t.TempDir(), "film.mkv")
 	out, err := exec.Command(ffmpeg, "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=25", "-f", "lavfi", "-i",
 		"sine=frequency=440:sample_rate=48000", "-t", "2", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-metadata:s:a:0", "language=eng", film).CombinedOutput()
