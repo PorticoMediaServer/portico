@@ -49,7 +49,9 @@ type stream struct {
 	request  *PlanRequest
 	duration float64
 	text     []TextRenditionPlan
-	burn     *BurnSubtitle
+	// cues holds each text subtitle once it has been read, by Resource.
+	cues map[string]*textCues
+	burn *BurnSubtitle
 	// openInput replaces opening source as one file, and disc keeps the output on
 	// disk: both are for a disc title.
 	openInput inputOpener

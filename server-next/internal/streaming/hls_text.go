@@ -5,15 +5,26 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/subtitles"
 )
 
 type TextRenditionPlan struct {
+	// Resource names the track in its address; Revision is part of the address too.
 	Resource                          string
 	Revision                          int64
 	Language, Label, Grant            string
 	Selected, Forced, HearingImpaired bool
+	// Format is what the track is written in: srt, vtt, ass, ssa, smi or ttml.
+	// Path, with the size and modified time the scanner recorded, is a subtitle
+	// file beside the video, inside a library folder; with no Path the track is
+	// track number Track of the stream's own file.
+	Format   string
+	Path     string
+	Size     int64
+	Modified time.Time
+	Track    int
 }
 
 func publishTextManifests(dir string, p *DeliveryPlan) error {

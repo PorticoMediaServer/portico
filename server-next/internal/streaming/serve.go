@@ -20,6 +20,10 @@ import (
 // lookup of the grant and no database work. A grant that is unknown, stopped or
 // failed, and a file name the stream does not have, are the same hidden 404.
 func (s *Streams) ServeMedia(w http.ResponseWriter, r *http.Request, grant, file string) {
+	if grant == "subtitles" {
+		s.serveText(w, r, file)
+		return
+	}
 	st, err := s.grant(grant)
 	if err != nil {
 		mediaError(w, err)

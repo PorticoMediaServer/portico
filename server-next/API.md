@@ -165,6 +165,7 @@ session is unknown (`404`), and the app starts again by itself where it was.
 | `PUT /v1/playback/sessions/{id}/progress` | Where the player is. Answers how long the session now lives and when to report next (10 seconds while playing). `410` when the session is over. |
 | `DELETE /v1/playback/sessions/{id}` | Stop, with the final position. Safe to repeat; an unknown session stops fine. Also stops another device of the same account. |
 | `GET /v1/media/{grant}/{file}` | The bytes a session plays, at the address the session gave: the file itself by byte range (`original`), or a conversion's playlists and segments (`master.m3u8` and what it names). No sign-in header: the grant is the permission, and it dies when the session stops or changes stream. Anything else is `404`. |
+| `GET /v1/media/subtitles/{grant}/{track}/{n}.vtt` | A text subtitle of the session's title as WebVTT, at the address the session gave in `presentation.subtitles`; `?segment=N` is one minute of it, which is what the stream's own playlist names. Same permission and same `404` as above. |
 | `GET /v1/admin/playback/stream-limits`, `PUT /v1/admin/playback/stream-limits` | The owner's stream limits: in total, per person, and for one person |
 | `GET /v1/admin/playback/failures`, `DELETE /v1/admin/playback/failures/{id}` | Remembered "this way of playing this file failed on this device", and forgetting one |
 
