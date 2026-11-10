@@ -267,16 +267,35 @@ func (s *Service) Rematch(ctx context.Context, itemID string) (bool, error) {
 		return false, ErrMatchLocked
 	}
 	q := Query{Kind: providerKinds[t.Kind], Title: t.Title, Year: t.Year, Locale: locale, IncludeAdult: s.IncludeAdult}
-	candidates, err := p.Search(ctx, q)
-	if err != nil {
-		return false, err
+	ref := Ref{Provider: p.Name(), Kind: q.Kind}
+	if t.Match != db.MatchFound {
+		// The ids of a title the server has not matched are the ones its name or NFO file
+		// carries, and an id is exact, as it is the first time a title is looked up. A matched
+		// title's ids are the match being questioned, so it is looked up by name.
+		for _, id := range t.ExternalIDs {
+			if id.Provider == p.Name() {
+				ref.ID = id.ID
+			} else {
+				q.IDs = append(q.IDs, Ref{Provider: id.Provider, Kind: q.Kind, ID: id.ID})
+			}
+		}
 	}
-	best, reason := Choose(q, candidates)
-	if best < 0 {
-		// A title that was matched stays as it is; one that was not is listed with the new answers.
-		return false, s.unmatched(ctx, t.ID, reason, candidates)
+	if ref.ID == "" {
+		candidates, err := p.Search(ctx, q)
+		if err != nil {
+			return false, err
+		}
+		best, reason := Choose(q, candidates)
+		if best < 0 {
+			// A title that was matched stays as it is; one that was not is listed with the new answers.
+			return false, s.unmatched(ctx, t.ID, reason, candidates)
+		}
+		ref = candidates[best].Ref
 	}
-	record, err := p.Details(ctx, candidates[best].Ref, locale)
+	record, err := p.Details(ctx, ref, locale)
+	if errors.Is(err, ErrNotFound) {
+		return false, s.unmatched(ctx, t.ID, ReasonIDNotFound, nil)
+	}
 	if err != nil {
 		return false, err
 	}
