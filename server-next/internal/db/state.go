@@ -16,7 +16,7 @@ type State struct {
 	Favorite     bool
 	InList       bool
 	Hidden       bool // "not interested"
-	Rating       *int // 0 to 10; nil is no rating
+	Rating       *int // 1 to 10, in half stars; nil is no rating
 	PlayCount    int
 	LastPlayedAt int64
 	UpdatedAt    int64
@@ -297,8 +297,9 @@ func (w *stateWriter) apply(itemID string, edit StateEdit) (State, *undoOffer, e
 
 // check refuses an edit that cannot apply to this kind of item.
 func (e StateEdit) check(kind ItemKind, durationMS int64) error {
-	if e.Rating != nil && (*e.Rating < 0 || *e.Rating > 10) {
-		return invalid("a rating is a whole number from 0 to 10")
+	// Half a star to five stars in half-star steps: 1 to 10. No rating is null, not 0.
+	if e.Rating != nil && (*e.Rating < 1 || *e.Rating > 10) {
+		return invalid("A rating is half a star to five stars, sent as 1 to 10, or null for no rating.")
 	}
 	if e.PositionMS == nil && e.PositionText == nil {
 		return nil

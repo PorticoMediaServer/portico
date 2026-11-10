@@ -35,6 +35,8 @@ func TestCheck(t *testing.T) {
 		{"playback.skipBackMs", 15000.0, int64(15000)},
 		{"playback.skipBackMs", 12000.0, nil},
 		{"playback.defaultSpeed", 1.5, 1.5},
+		{"playback.playedThresholdPercent", 50.0, int64(50)},
+		{"playback.playedThresholdPercent", 49.0, nil},
 		{"appearance.cardSizePercent", 150.0, int64(150)},
 		{"appearance.cardSizePercent", 151.0, nil},
 		{"appearance.cardSizePercent", 99.5, nil},
