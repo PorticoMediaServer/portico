@@ -40,7 +40,9 @@ type DB struct {
 	helper     *sql.DB
 	helperDone chan struct{}
 	nextInsist time.Time
-	draining   atomic.Bool // background work is held back until the WAL has been emptied
+	draining   atomic.Bool // background work is held back while the WAL is emptied
+	holdUntil  time.Time   // when the present hold ends whether or not the file emptied
+	holdAgain  time.Time   // after a hold that ran out: when the next may begin
 	// file is the database file, held only so the helper can sync it, and copied is how many
 	// WAL pages its last copy had reached. The file is closed after SQLite's own connections:
 	// closing it sooner would drop the locks SQLite holds on the same file.

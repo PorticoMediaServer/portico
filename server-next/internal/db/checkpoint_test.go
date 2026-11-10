@@ -15,7 +15,7 @@ import (
 // for a moment, long before the size at which the writer would make people wait for reads.
 func TestWALStaysSmallUnderConstantReads(t *testing.T) {
 	const drain, insist = 1 << 20, 1 << 30
-	t.Cleanup(db.SetWALLimits(drain, insist))
+	t.Cleanup(db.SetWALLimits(drain, insist, 2*time.Second))
 	dir := t.TempDir()
 	d, err := db.Open(ctx, filepath.Join(dir, "main.db"))
 	if err != nil {
@@ -78,4 +78,55 @@ func TestWALStaysSmallUnderConstantReads(t *testing.T) {
 	if largest < drain {
 		t.Fatalf("the WAL only reached %d KiB, so this test never held the import back", largest>>10)
 	}
+}
+
+// On a server that is never quiet (reads one after another, a person writing every few
+// milliseconds) the WAL may never empty. Background work must go on all the same.
+func TestBackgroundWorkGoesOnWhenTheWALNeverEmpties(t *testing.T) {
+	t.Cleanup(db.SetWALLimits(1<<20, 1<<30, 50*time.Millisecond))
+	l := newLibrary(t, 500)
+	films, err := l.d.Items(ctx, l.all, db.ItemQuery{Library: l.libs[0].PublicID, Kinds: []db.ItemKind{db.KindMovie}})
+	if err != nil || len(films.Items) == 0 {
+		t.Fatalf("films: %d, %v", len(films.Items), err)
+	}
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	for range 4 {
+		wg.Go(func() {
+			for {
+				select {
+				case <-done:
+					return
+				default:
+					l.d.Items(ctx, l.all, db.ItemQuery{Library: l.libs[0].PublicID, Kinds: []db.ItemKind{db.KindMovie}, WithTotal: true})
+				}
+			}
+		})
+	}
+	wg.Go(func() {
+		for n := int64(0); ; n++ {
+			select {
+			case <-done:
+				return
+			case <-time.After(2 * time.Millisecond):
+				position := 1000 + n
+				l.d.SetState(ctx, l.all, films.Items[int(n)%len(films.Items)].PublicID, db.StateEdit{PositionMS: &position})
+			}
+		}
+	})
+	imported := make(chan error, 1)
+	go func() {
+		_, err := seed.Import(ctx, l.d, seed.Config{Seed: 8, Items: 2000}, nil)
+		imported <- err
+	}()
+	select {
+	case err := <-imported:
+		if err != nil {
+			t.Error(err)
+		}
+	case <-time.After(90 * time.Second):
+		t.Error("the import was still held back after 90 seconds")
+	}
+	close(done)
+	wg.Wait()
 }
