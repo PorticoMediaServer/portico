@@ -49,6 +49,16 @@ func (k ItemKind) Playable() bool {
 	return false
 }
 
+// TopLevel reports whether an item of this kind never sits under another item, so it has
+// nothing to inherit a tag or a label from.
+func (k ItemKind) TopLevel() bool {
+	switch k {
+	case KindMovie, KindShow, KindArtist, KindAudiobook, KindBook, KindComic, KindSeries, KindCollection:
+		return true
+	}
+	return false
+}
+
 // playableKindsSQL is the playable kinds as an SQL list, for queries over a container's leaves.
 const playableKindsSQL = "(1, 4, 7, 8, 9, 10, 11, 14)"
 
