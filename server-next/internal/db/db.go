@@ -39,6 +39,9 @@ type DB struct {
 	helper         *sql.DB
 	helperDone     chan struct{}
 	nextInsist     time.Time
+	draining       atomic.Bool // background work is held back until the WAL has been emptied
+	drainFrom      int64       // the WAL size at which it is next held back
+	drainUntil     time.Time   // when the present hold gives up
 	checkpointsOff atomic.Bool
 }
 
