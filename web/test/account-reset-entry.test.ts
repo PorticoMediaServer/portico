@@ -1,5 +1,5 @@
 import test from 'node:test';
-import {systemAnswer, signInAnswer} from './next-wire.ts';
+import {systemAnswer, signInAnswer} from '../../packages/client-core/test/next-wire.ts';
 import assert from 'node:assert/strict';
 import {HttpLocalApi} from '@core/index.ts';
 import type {ServerSignInProbe} from '@core/sign-in.ts';

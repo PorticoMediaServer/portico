@@ -1,5 +1,5 @@
 import {GUIDE_PROTOCOL} from '@core/channel-guide.ts';
-import {accountAnswer, accountPath, systemAnswer, snapshotOf} from './next-wire.ts';
+import {accountAnswer, accountPath, systemAnswer, snapshotOf} from '../../packages/client-core/test/next-wire.ts';
 import {FreshnessHub} from '@core/freshness-hub.ts';
 import {parseDirectSnapshot} from '@core/profile-management.ts';
 import {createShellFactOwner, shellAccount} from '../src/shell/facts.ts';

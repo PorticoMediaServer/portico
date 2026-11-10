@@ -1,5 +1,5 @@
 import test from 'node:test';
-import {systemAnswer} from './next-wire.ts';
+import {systemAnswer} from '../../packages/client-core/test/next-wire.ts';
 import assert from 'node:assert/strict';
 import {HttpLocalApi} from '@core/index.ts';
 import {routeBase64} from '@core/route-identity.ts';

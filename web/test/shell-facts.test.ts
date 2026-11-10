@@ -1,5 +1,5 @@
 import test from 'node:test';
-import {snapshotOf} from './next-wire.ts';
+import {snapshotOf} from '../../packages/client-core/test/next-wire.ts';
 import assert from 'node:assert/strict';
 import {FreshnessHub, dependsOn} from '@core/freshness-hub.ts';
 import {parseDirectSnapshot} from '@core/profile-management.ts';

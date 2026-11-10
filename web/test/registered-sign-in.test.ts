@@ -1,5 +1,5 @@
 import test from 'node:test';
-import {signInAnswer} from './next-wire.ts';
+import {signInAnswer} from '../../packages/client-core/test/next-wire.ts';
 import assert from 'node:assert/strict';
 import {BrowserRegisteredSignIn} from '../src/platform/registered-sign-in.ts';
 import {routeBase64} from '@core/route-identity.ts';

@@ -1,5 +1,5 @@
 import test, {type TestContext} from 'node:test';
-import {accountAnswer, accountPath, systemAnswer, snapshotOf} from './next-wire.ts';
+import {accountAnswer, accountPath, systemAnswer, snapshotOf} from '../../packages/client-core/test/next-wire.ts';
 import assert from 'node:assert/strict';
 import {registerHooks} from 'node:module';
 import {HttpLocalApi} from '@core/index.ts';

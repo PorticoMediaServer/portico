@@ -1,5 +1,5 @@
 import test from 'node:test';
-import {accountAnswer, accountPath, systemAnswer} from './next-wire.ts';
+import {accountAnswer, accountPath, systemAnswer} from '../../packages/client-core/test/next-wire.ts';
 import assert from 'node:assert/strict';
 import {AppSessionStore, type AppSessionRecord} from '@core/app-sessions.ts';
 import {HttpLocalApi, type LocalSession} from '@core/index.ts';
