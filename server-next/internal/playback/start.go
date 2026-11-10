@@ -344,14 +344,7 @@ func (s *Service) Change(ctx context.Context, id string, c Caller, ch Change) (S
 			// Playback is left as it was: the stream it had is started again.
 			old := StartRequest{SessionID: id, Item: r.item, Version: version, Plan: before.Plan, PositionMs: position, Replaced: s.replaced(sess)}
 			if _, again := s.streams.Start(ctx, old); again != nil {
-				// This holds the session's lock, which end and finish take: end it here.
-				s.mu.Lock()
-				if sess.State != StateEnded {
-					s.endLocked(sess, EndFailed, "")
-				}
-				s.mu.Unlock()
-				s.Save(ctx, db.User, id)
-				s.streams.Stop(id)
+				s.end(ctx, id, EndFailed, "")
 			}
 			return Session{}, err
 		}
@@ -374,6 +367,12 @@ func (s *Service) Change(ctx context.Context, id string, c Caller, ch Change) (S
 	}
 	if a.Audio != nil || a.Subtitle != nil {
 		s.remember(ctx, c.Viewer, r, a.Audio != nil, a.Subtitle != nil)
+	}
+	if a.SubtitleOffsetMs != nil {
+		// A timing nudge is kept for this title, and does not carry to the next.
+		if err := s.db.SetSubtitleOffset(ctx, c.Viewer, r.item.PublicID, *a.SubtitleOffsetMs, s.now()); err != nil {
+			s.log.Error("keeping a subtitle timing nudge failed", "error", err)
+		}
 	}
 	return out, nil
 }
