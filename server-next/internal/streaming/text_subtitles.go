@@ -130,13 +130,26 @@ func readSmallSource(ctx context.Context, source Source) ([]byte, error) {
 	return raw, err
 }
 
-// extractText takes one subtitle track out of the stream's file with ffmpeg in
-// its sandbox, which is handed the open file and nothing else.
+// extractText takes one subtitle track out of the stream's file as SRT or ASS.
 func (s *Streams) extractText(ctx context.Context, st *stream, track int, format string) ([]byte, error) {
+	return s.extractTrack(ctx, st.source, track, subtitles.MaxInputBytes, "-f", format)
+}
+
+// SubtitleTrack copies one subtitle track out of a library file, untouched, as a
+// Matroska subtitle file: what a stream that burns the subtitle into its picture
+// is started with (BurnSubtitle, format "mks"). It reads the whole file once.
+func (s *Streams) SubtitleTrack(ctx context.Context, path string, size int64, modified time.Time, track int) ([]byte, error) {
+	source := libraryFile{path: path, size: size, modified: modified, roots: s.libraries}
+	return s.extractTrack(ctx, source, track, subtitles.BinaryLimitBytes(), "-c:s", "copy", "-f", "matroska")
+}
+
+// extractTrack runs ffmpeg in its sandbox, which is handed the open file and
+// nothing else, to write one track to a pipe.
+func (s *Streams) extractTrack(ctx context.Context, source Source, track, limit int, output ...string) ([]byte, error) {
 	if s.hls.binary == "" {
 		return nil, ErrNoConverter
 	}
-	input, err := converterInput(ctx, st.source)
+	input, err := converterInput(ctx, source)
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +158,8 @@ func (s *Streams) extractText(ctx context.Context, st *stream, track int, format
 	defer release()
 	args := []string{"-nostdin", "-hide_banner", "-loglevel", "error", "-protocol_whitelist", "file,pipe"}
 	args = append(args, input.Options...)
-	args = append(args, "-i", input.Argument, "-map", "0:"+strconv.Itoa(track), "-f", format, "pipe:1")
+	args = append(args, "-i", input.Argument, "-map", "0:"+strconv.Itoa(track))
+	args = append(append(args, output...), "pipe:1")
 	cmd, err := mediaexec.CommandContext(ctx, mediaexec.Job{Executable: s.hls.binary, Args: args, Files: input.ExtraFiles(),
 		InputFD: input.MountFD, InputMount: input.MountPath, ReadPaths: input.ReadPaths()})
 	if err != nil {
@@ -153,7 +167,7 @@ func (s *Streams) extractText(ctx context.Context, st *stream, track int, format
 	}
 	cmd.WaitDelay = time.Second
 	var out bytes.Buffer
-	cmd.Stdout = &limitedWriter{buffer: &out, limit: subtitles.MaxInputBytes}
+	cmd.Stdout = &limitedWriter{buffer: &out, limit: limit}
 	if err := childprocess.Run(ctx, cmd); err != nil {
 		return nil, err
 	}
