@@ -100,10 +100,12 @@ func (s *Service) RefreshLibrary(ctx context.Context, libraryID int64, now time.
 		return 0, nil
 	}
 	locale := Locale{Language: src.Language, Region: src.Region}
-	// Nothing refreshed more recently than the shortest wait can be due, and nothing this run
-	// has refreshed is looked at twice.
+	// Nothing refreshed more recently than the shortest wait can be due. A title this run has
+	// refreshed can still be read again on a later page when it was refreshed in the
+	// millisecond the run started, so the run remembers what it did.
 	before := min(now.Add(-refreshSoon).UnixMilli(), time.Now().UnixMilli())
 	done := 0
+	refreshed := map[int64]bool{}
 	var after *db.RefreshItem
 	for done < limit {
 		page, err := s.DB.ToRefresh(ctx, libraryID, before, after, 200)
@@ -112,12 +114,13 @@ func (s *Service) RefreshLibrary(ctx context.Context, libraryID int64, now time.
 		}
 		for i := range page {
 			after = &page[i]
-			if done >= limit || !due(page[i], now) {
+			if done >= limit || refreshed[page[i].ID] || !due(page[i], now) {
 				continue
 			}
 			if err := s.refresh(ctx, p, locale, page[i], db.Background); err != nil {
 				return done, err
 			}
+			refreshed[page[i].ID] = true
 			done++
 		}
 	}
