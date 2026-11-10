@@ -56,6 +56,11 @@ func TestCollectionShowsAChildOnlyWhatItMaySee(t *testing.T) {
 	if _, err := l.d.Item(ctx, child, grownID); !errors.Is(err, db.ErrNotFound) {
 		t.Fatalf("the child opened a collection of films it may not see: %v", err)
 	}
+	for _, id := range []string{grownID, "itm_nothing"} {
+		if _, err := l.d.Items(ctx, child, db.ItemQuery{Collection: id, WithTotal: true}); !errors.Is(err, db.ErrNotFound) {
+			t.Fatalf("the child listed collection %s: %v", id, err)
+		}
+	}
 	inIt := func(v db.Viewer) (titles []string) {
 		for _, it := range everything(t, l.d, v, db.ItemQuery{Collection: mixedID}) {
 			titles = append(titles, it.Title)
