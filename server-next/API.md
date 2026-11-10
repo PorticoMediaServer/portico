@@ -49,7 +49,8 @@ Assistant) are a separate short document and are not counted here.
   browsed by).
 - **`Person`**, **`Tag`**, **`Credit`**: small named shapes used by `Item`.
 - **`SearchGroup`**: `kind`, `total?`, `totalIsMinimum?`, `items?` or `people?`, `nextCursor?`. A total is
-  exact unless `totalIsMinimum` says the count stopped early; an app then shows "2,000+".
+  exact for every kind of title. Only the `person` group of a profile with restrictions can carry
+  `totalIsMinimum`: its count stops at 2,000 people and an app then shows "2,000+".
 - **`Account`**: `id`, `username`, `role`. **`Profile`**: `id`, `name`, `avatar?`,
   `pinRequired`, `restricted`. **`Device`**, **`Session`** (a sign-in).
 - **`Tokens`**: `accessToken`, `expiresAt`, `refreshToken`.
@@ -186,8 +187,8 @@ Listed route by route with each console panel's definition. Resources:
 ## Not on the wire, on purpose
 
 `viewerFence`, `expectedRevision`, `operationId`, a "preparing" answer on a read, query handles,
-lower-bound totals (with one stated exception: a search total for a restricted profile says so with
-`totalIsMinimum` when a very wide search stops being checked), write lookups after the fact, conflict choices for offline edits, a
+lower-bound totals (with one stated exception: the count of people in a search by a restricted profile says so with
+`totalIsMinimum` when it stops at 2,000), write lookups after the fact, conflict choices for offline edits, a
 revision on personal state, per-provider and per-screen route families, and step-by-step
 wizard routes. Each existed for the old storage design. What a person would lose without
 them is nothing: the last deliberate edit wins, a `2xx` means it happened, and reads answer.
