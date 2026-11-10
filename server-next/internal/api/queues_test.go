@@ -206,6 +206,23 @@ func TestQueueEditsPagingRepeatAndRestart(t *testing.T) {
 	if saved.Entries != 13 || saved.PlaylistID != again.PlaylistID {
 		t.Fatalf("saved %+v, then %+v", saved, again)
 	}
+	// The saved playlist is among the person's lists, and can be renamed and deleted.
+	var lists Page[List]
+	th.queue("GET", "/v1/lists", "", nil, &lists)
+	if len(lists.Items) != 1 || lists.Items[0].ID != saved.PlaylistID || lists.Items[0].Count != 13 || lists.Items[0].Role != "owner" {
+		t.Fatalf("lists: %+v", lists.Items)
+	}
+	var renamed List
+	name := "Late"
+	if w := th.queue("PATCH", "/v1/lists/"+saved.PlaylistID, lists.Items[0].Revision, ListEdit{Name: &name}, &renamed); w.Code != 200 || renamed.Name != name {
+		t.Fatalf("rename answered %d: %s", w.Code, w.Body)
+	}
+	if w := th.queue("DELETE", "/v1/lists/"+saved.PlaylistID, "", nil, nil); w.Code != 204 {
+		t.Fatalf("delete answered %d", w.Code)
+	}
+	if w := th.queue("GET", "/v1/lists/"+saved.PlaylistID, "", nil, nil); w.Code != 404 {
+		t.Fatalf("a deleted playlist answered %d", w.Code)
+	}
 
 	// After a restart the queue has the same order, current entry and repeat.
 	before := th.order(q.ID)

@@ -77,6 +77,8 @@ type Item struct {
 	State         ItemState         `json:"state"`
 	// LibraryID is the library the item is in, on every card and every page.
 	LibraryID string `json:"libraryId"`
+	// EntryID is the entry's id in a list read in its own order: what a move or a removal names.
+	EntryID string `json:"entryId,omitempty"`
 
 	// On GET /v1/items/{id} only.
 	OriginalTitle string            `json:"originalTitle,omitempty"`
@@ -346,6 +348,9 @@ func itemShape(it db.Item) Item {
 		ParentID: it.ParentPublicID, RootID: it.RootPublicID, Index: it.IndexNumber, ParentIndex: it.ParentIndex,
 		DurationMs: it.DurationMS, ContentRating: it.ContentRating, AddedAt: timeString(it.AddedAt), Images: imageMap(it.Images),
 		State: stateShape(it.State), LibraryID: it.LibraryID}
+	if it.EntryID != 0 {
+		out.EntryID = db.EntryID(it.EntryID)
+	}
 	if it.CommunityRating != 0 {
 		out.Ratings = &Ratings{Community: it.CommunityRating}
 	}
