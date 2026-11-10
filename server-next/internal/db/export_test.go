@@ -28,3 +28,11 @@ func SetRatingAge(d *DB, publicID string, age int) error {
 		return b.ratingChanged(id)
 	})
 }
+
+// ShareListForTest shares a list with a profile, to view, until sharing has its own route.
+func (d *DB) ShareListForTest(ctx context.Context, list string, profile int64) error {
+	return d.write(ctx, User, func(tx *sql.Tx) error {
+		_, err := tx.Exec(`INSERT INTO list_shares (list_id, profile_id, created_at) SELECT id, ?, 0 FROM lists WHERE public_id = ?`, profile, list)
+		return err
+	})
+}

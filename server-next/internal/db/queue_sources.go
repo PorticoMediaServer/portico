@@ -31,6 +31,12 @@ func (d *DB) PlayableUnder(ctx context.Context, v Viewer, holderPublicID string)
 	if err != nil {
 		return nil, err
 	}
+	return playableUnder(ctx, tx, v, acc, holder, kind)
+}
+
+// playableUnder returns what plays under one title the viewer may see, in its own order, or
+// the title itself when it is playable. More than a queue holds is ErrQueueFull.
+func playableUnder(ctx context.Context, tx *sql.Tx, v Viewer, acc access, holder int64, kind ItemKind) ([]int64, error) {
 	if kind.Playable() {
 		return []int64{holder}, nil
 	}
@@ -86,7 +92,7 @@ func (d *DB) PlayableItems(ctx context.Context, v Viewer, publicIDs []string) ([
 }
 
 // ListItems returns what a playlist or collection holds, in its own order: one the profile
-// made, one shared with it, or a library's collection. An entry that is not itself playable
+// made or one shared with it. An entry that is not itself playable
 // (a show in a collection) is left out. after and limit page through a long list by entry.
 func (d *DB) ListItems(ctx context.Context, v Viewer, listPublicID string, after int64, limit int) (items []int64, last int64, err error) {
 	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
@@ -100,8 +106,8 @@ func (d *DB) ListItems(ctx context.Context, v Viewer, listPublicID string, after
 	}
 	var list int64
 	err = tx.QueryRowContext(ctx, `SELECT l.id FROM lists l WHERE l.public_id = ?1 AND l.kind IN ('playlist', 'collection') AND
-		(l.owner_profile_id = ?2 OR EXISTS (SELECT 1 FROM list_shares s WHERE s.list_id = l.id AND s.profile_id = ?2)
-		 OR (l.owner_profile_id IS NULL AND `+acc.libraryVisible("l.library_id")+`))`, listPublicID, v.ProfileID).Scan(&list)
+		(l.owner_profile_id = ?2 OR EXISTS (SELECT 1 FROM list_shares s WHERE s.list_id = l.id AND s.profile_id = ?2))`,
+		listPublicID, v.ProfileID).Scan(&list)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, 0, ErrNotFound
 	}
