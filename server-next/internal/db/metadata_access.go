@@ -55,3 +55,39 @@ func UnmatchedAfter(cursor string) (*UnmatchedItem, error) {
 	}
 	return &at, nil
 }
+
+// MainViewer is an account reading as its main profile: the profile an owner or admin acts
+// from on administration routes, and so the one a job they started reads as.
+func (d *DB) MainViewer(ctx context.Context, userID int64) (Viewer, error) {
+	v := Viewer{UserID: userID}
+	err := d.read.QueryRowContext(ctx, `SELECT id FROM profiles WHERE user_id = ? AND is_primary = 1`, userID).Scan(&v.ProfileID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return v, ErrNotFound
+	}
+	return v, err
+}
+
+// SeesItems checks that the viewer may see every one of these titles and answers their kinds,
+// one each. One that is not there, or hidden from the viewer, is ErrNotFound for the lot.
+func (d *DB) SeesItems(ctx context.Context, v Viewer, publicIDs []string) ([]ItemKind, error) {
+	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	acc, err := loadAccess(ctx, tx, v)
+	if err != nil {
+		return nil, err
+	}
+	kinds := make([]ItemKind, len(publicIDs))
+	for n, id := range publicIDs {
+		err := tx.QueryRowContext(ctx, `SELECT i.kind FROM items i WHERE i.public_id = :id AND `+acc.visible("i"), sql.Named("id", id)).Scan(&kinds[n])
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	return kinds, nil
+}
