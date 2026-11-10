@@ -60,13 +60,14 @@ const (
 	SortOrder   = "order" // season, disc and track or episode number: the default under a parent
 )
 
-// ItemQuery says which items to list. Library, Parent, Person and Tag are public ids. At
+// ItemQuery says which items to list. Library, Parent, Person, Tag and Collection are public ids. At
 // least one of them, or one of the state filters, must be set.
 type ItemQuery struct {
 	Library    string
 	Parent     string
 	Person     string
 	Tag        string
+	Collection string // a library's collection: the titles it holds
 	Genre      string // a genre by name, as people type it
 	Kinds      []ItemKind
 	YearFrom   int
@@ -445,6 +446,11 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 	}
 	if q.Person != "" {
 		w.add(` AND i.id IN (SELECT item_id FROM credits WHERE person_id = (SELECT id FROM people WHERE public_id = `, w.arg(q.Person), `))`)
+		scoped = true
+	}
+	if q.Collection != "" {
+		w.add(` AND i.id IN (SELECT related_item_id FROM item_relations WHERE kind = `, itoa(int64(RelationCollectionMember)),
+			` AND item_id = (SELECT id FROM items WHERE public_id = `, w.arg(q.Collection), `))`)
 		scoped = true
 	}
 	if q.Tag != "" || q.Genre != "" {
