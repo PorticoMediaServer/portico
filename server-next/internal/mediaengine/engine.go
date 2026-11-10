@@ -50,6 +50,10 @@ type Engine struct {
 	// converter is false on a server without a working ffmpeg: only original files play.
 	// fragmented says its ffmpeg can write fragmented MP4 streams.
 	converter, fragmented bool
+	// ffmpeg is the converter's path, and hardware what has been found out about this
+	// machine's hardware encoders. Both are set before asked is closed.
+	ffmpeg   string
+	hardware *decoder.HardwareDetector
 
 	mu    sync.Mutex
 	facts map[string]mediafacts.Facts // by path, size and modified time
@@ -83,6 +87,15 @@ func New(ctx context.Context, d *db.DB, o Options) (*Engine, error) {
 		}
 		decoder.ConfigureToolchain(tools)
 		e.converter, e.fragmented = true, tools.Muxers["mp4"] && tools.Muxers["hls"]
+		// The hardware encoders are tried out now, beside the start, so no play waits for
+		// that: until it is done a conversion is planned in software.
+		if path, err := exec.LookPath(ffmpeg); err == nil {
+			e.ffmpeg, e.hardware = path, &decoder.HardwareDetector{}
+			if libraries, err := decoder.ResolveLibraries(path, mediatools.Resolve("ffprobe"), nil); err == nil {
+				e.hardware.Libraries = libraries
+			}
+			e.hardware.SelectCached(path, "auto", "")
+		}
 	}()
 	streams, err := streaming.New(ctx, streaming.Options{Folder: o.Folder, FFmpeg: o.FFmpeg, Libraries: e.folders})
 	e.streams = streams
@@ -336,6 +349,11 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 		Settings: streaming.DefaultDeliveryConfiguration(), TranscodingEnabled: true, FragmentedOutput: fragmented, NoConverter: !converter,
 		Connection:  streaming.DeliveryContext{NetworkClass: streaming.NetworkRemote},
 		Preferences: saved(r.Preferences),
+	}
+	if e.hardware != nil {
+		// Only what has already been measured: a play never waits for a hardware encoder
+		// to be tried out.
+		request.Hardware = e.hardware.SelectCached(e.ffmpeg, request.Settings.HardwareBackend, "")
 	}
 	if r.Network == playback.NetworkLocal {
 		request.Connection.NetworkClass = streaming.NetworkLocal
