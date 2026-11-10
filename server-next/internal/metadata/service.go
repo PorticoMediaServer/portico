@@ -24,8 +24,12 @@ type Service struct {
 	Lyrics LyricsProvider
 	// Pictures keeps the provider's pictures the server fetches; nil fetches none.
 	Pictures PictureStore
+	// SubtitleDir is the folder in the data folder that downloaded subtitles are kept in. The
+	// subtitle provider is set with UseSubtitles, as the owner saves its key and account.
+	SubtitleDir string
 
-	mu sync.RWMutex // guards Providers
+	mu        sync.RWMutex // guards Providers and subtitles
+	subtitles SubtitleProvider
 }
 
 // defaultProviders is the provider a library of each kind uses until the owner chooses.
