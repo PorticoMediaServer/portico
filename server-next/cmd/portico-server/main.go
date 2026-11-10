@@ -18,6 +18,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
 	"github.com/PorticoMediaServer/portico/server-next/internal/libraryfile"
+	"github.com/PorticoMediaServer/portico/server-next/internal/mediaexec"
 )
 
 // version is set by the release build.
@@ -64,6 +65,11 @@ func run(log *slog.Logger) error {
 		return err
 	}
 	libraryfile.ServerData = serverData
+	// Media tools are started through this binary as their helper. That lets a scan keep a
+	// few confined workers going, where it would otherwise build a sandbox for every file.
+	if _, err := mediaexec.Configure(mediaexec.Options{}); err != nil {
+		return err
+	}
 	d, err := db.Open(ctx, filepath.Join(*data, "main.db"))
 	if err != nil {
 		return err
