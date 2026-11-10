@@ -21,6 +21,6 @@ CREATE TABLE meta (
 --   joined  the same with words that punctuation breaks kept whole ("spiderman"); empty when no different
 --   other   an item's original title, and the titles it sits under (its show, artist or album)
 --   keys    words no person can type: the whole title as one word, to find a title that is exactly
---           what was typed, and the id of each item it sits under, to find everything under a
---           renamed or deleted title
+--           what was typed; the id of each item it sits under, to find everything under a renamed
+--           or deleted title; and an item's library and rating age, to narrow a count
 CREATE VIRTUAL TABLE search_titles USING fts5(title, joined, other, keys, tokenize = 'ascii', prefix = '1 2 3');
