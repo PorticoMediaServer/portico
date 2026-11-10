@@ -252,8 +252,11 @@ func parseMusicNFO(raw []byte, kind string) (map[string]string, error) {
 		out["album"] = root.first("title")
 		delete(out, "title")
 	}
+	if out["description"] == "" {
+		out["description"] = root.first("review") // Kodi's album.nfo keeps the album's description here
+	}
 	for _, spec := range []struct{ tag, single, multi string }{{"author", "author", "authors"}, {"narrator", "narrator", "narrators"}, {"artist", "artist", "artists"},
-		{"albumartist", "album_artist", "album_artists"}} {
+		{"albumartist", "album_artist", "album_artists"}, {"genre", "genre", "genres"}} {
 		names := []string{}
 		for _, n := range root.all(spec.tag) {
 			v := strings.TrimSpace(n.text)
