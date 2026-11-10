@@ -11,18 +11,29 @@ import (
 // win. A field or list a person locked is left alone. A field the file no longer gives keeps
 // its value and stops being the file's, so the next refresh may replace it.
 func (im *importer) reread(id int64, it *ImportItem) error {
-	var locked, language sql.NullString
+	var locked, was, language sql.NullString
 	var root sql.NullInt64
-	if err := im.queryRow(`SELECT i.locked_fields, i.root_id, l.language FROM items i JOIN libraries l ON l.id = i.library_id WHERE i.id = ?`, id).
-		Scan(&locked, &root, &language); err != nil {
+	var match MatchState
+	if err := im.queryRow(`SELECT i.locked_fields, i.local_fields, i.root_id, i.match_state, l.language FROM items i
+		JOIN libraries l ON l.id = i.library_id WHERE i.id = ?`, id).Scan(&locked, &was, &root, &match, &language); err != nil {
 		return err
 	}
 	keep := fieldSet(locked)
+	// What the file gives now is the file's, except where a person locked the field; what a
+	// person typed and the file does not give stays the person's.
+	sources := fieldSources(was)
+	for field, source := range sources {
+		if source == SourceFile {
+			delete(sources, field)
+		}
+	}
 	local := map[string]bool{}
 	for _, field := range it.LocalFields {
-		local[field] = !keep[field]
+		if local[field] = !keep[field]; local[field] {
+			sources[field] = SourceFile
+		}
 	}
-	sets, args := "local_fields = ?, updated_at = ?, revision = revision + 1", []any{fieldList(it.LocalFields), im.now}
+	sets, args := "local_fields = ?, updated_at = ?, revision = revision + 1", []any{sourceJSON(sources), im.now}
 	set := func(field, column string, value any) {
 		if local[field] {
 			sets += ", " + column + " = ?"
@@ -50,7 +61,13 @@ func (im *importer) reread(id int64, it *ImportItem) error {
 			return err
 		}
 	}
-	for _, ext := range it.ExternalIDs {
+	// A match a person chose, or locked, is theirs: an id the file now carries does not replace
+	// it, or the next refresh would bring another title's details.
+	ids := it.ExternalIDs
+	if match == MatchChosen || keep[FieldMatch] {
+		ids = nil
+	}
+	for _, ext := range ids {
 		if _, err := im.exec(`INSERT INTO item_external_ids (item_id, provider, external_id) VALUES (?, ?, ?)
 			ON CONFLICT (item_id, provider) DO UPDATE SET external_id = excluded.external_id`, id, ext.Provider, ext.ID); err != nil {
 			return err
@@ -114,12 +131,20 @@ func (im *importer) localImages(itemID int64, images []ImportImage) error {
 		if err != nil {
 			return err
 		}
-		if _, err := im.exec(`DELETE FROM images WHERE file_id = ?`, f.id); err != nil {
+		// A file that changed keeps its row, so a picture a person chose stays chosen.
+		res, err := im.exec(`UPDATE images SET file_hash = ?, width = ?, height = ? WHERE file_id = ? AND item_id = ? AND role = ?`,
+			image.FileHash, nz(image.Width), nz(image.Height), f.id, itemID, image.Role)
+		if err != nil {
 			return err
 		}
-		if _, err := im.exec(`INSERT INTO images (item_id, file_id, role, source, file_hash, width, height, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-			itemID, f.id, image.Role, ImageFromFile, image.FileHash, nz(image.Width), nz(image.Height), position); err != nil {
-			return err
+		if n, _ := res.RowsAffected(); n == 0 {
+			if _, err := im.exec(`DELETE FROM images WHERE file_id = ?`, f.id); err != nil {
+				return err
+			}
+			if _, err := im.exec(`INSERT INTO images (item_id, file_id, role, source, file_hash, width, height, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+				itemID, f.id, image.Role, ImageFromFile, image.FileHash, nz(image.Width), nz(image.Height), position); err != nil {
+				return err
+			}
 		}
 		roles[image.Role] = true
 	}
