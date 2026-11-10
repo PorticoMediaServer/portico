@@ -195,7 +195,7 @@ func (s *Server) resetPassword(r *http.Request, req PasswordResetRequest) (None,
 		return None{}, ErrField("newPassword", problem)
 	}
 	key, _ := auth.Username(req.Username)
-	limits := sourceLimit(r)
+	limits := s.sourceLimit(r)
 	if wait, err := s.db.LimitWait(ctx, now, limits...); err != nil {
 		return None{}, err
 	} else if wait > 0 {
