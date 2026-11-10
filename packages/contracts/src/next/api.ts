@@ -183,6 +183,11 @@ export interface HomeRow {
   items: Item[];
 }
 
+export interface Hours {
+  timezone?: string;
+  windows: Window[];
+}
+
 export interface IdentityProof {
   payload: string;
   signature: string;
@@ -385,6 +390,7 @@ export interface Member extends Account {
   libraries: string[];
   twoFactorEnabled: boolean;
   notes?: string;
+  viewingHours?: Hours;
 }
 
 export interface MemberCreate {
@@ -400,6 +406,7 @@ export interface MemberEdit {
   notes?: string;
   allLibraries?: boolean;
   libraries?: string[];
+  viewingHours?: Hours;
 }
 
 export interface MemberPage {
@@ -416,6 +423,21 @@ export interface NetworkSettings {
 export interface NetworkSettingsEdit {
   homeNetworks?: string[];
   trustedProxies: string[];
+}
+
+export interface OwnerResetFinish {
+  code: string;
+  newPassword: string;
+  turnOffTwoStep?: boolean;
+}
+
+export interface OwnerResetStart {
+  username?: string;
+}
+
+export interface OwnerResetStarted {
+  fileName: string;
+  retryAfterMs: number;
 }
 
 export interface Part {
@@ -630,6 +652,18 @@ export interface PlaybackVideo {
   bitrateKbps?: number;
 }
 
+export interface Policy {
+  staySignedInDays: number;
+  pinRememberDays: number;
+  passwordAttempts: string;
+  pinAttempts: string;
+  passwordMinLength: number;
+  resetCodeMinutes: number;
+  requireTwoStep: string;
+  rememberAccounts: boolean;
+  endedSessionsDays: number;
+}
+
 export interface PreferenceDocument {
   scope: string;
   values: Record<string, unknown>;
@@ -707,6 +741,8 @@ export interface ProfilePage {
 
 export interface ProfileSelect {
   pin?: string;
+  rememberPin?: boolean;
+  pinToken?: string;
 }
 
 export interface Quality {
@@ -757,6 +793,18 @@ export interface RelatedGroup {
   items: Item[];
 }
 
+export interface RememberedAccount {
+  accountId: string;
+  username: string;
+  name: string;
+  color: string;
+  accountToken: string;
+}
+
+export interface RememberedAccounts {
+  accounts: RememberedAccount[];
+}
+
 export interface RememberedFailure {
   id: string;
   deviceName: string;
@@ -776,6 +824,11 @@ export interface RememberedFailurePage {
   nextCursor?: string;
 }
 
+export interface RememberedRequest {
+  installationId: string;
+  accountTokens: string[];
+}
+
 export interface Session {
   accessToken: string;
   expiresAt: string;
@@ -786,6 +839,9 @@ export interface Session {
   deviceId: string;
   installationId: string;
   viewer: Viewer;
+  twoStepSetupRequired?: boolean;
+  pinToken?: string;
+  pinTokenExpiresAt?: string;
 }
 
 export interface SessionEnd {
@@ -836,6 +892,7 @@ export interface SignInRequest {
   username: string;
   password: string;
   device: DeviceInfo;
+  rememberAccount?: boolean;
 }
 
 export interface SignInResponse {
@@ -843,6 +900,22 @@ export interface SignInResponse {
   account?: Account;
   profiles?: Profile[];
   challenge?: Challenge;
+  accountToken?: string;
+}
+
+export interface SignInSettings extends Policy {
+}
+
+export interface SignInSettingsEdit {
+  staySignedInDays?: number;
+  pinRememberDays?: number;
+  passwordAttempts?: string;
+  pinAttempts?: string;
+  passwordMinLength?: number;
+  resetCodeMinutes?: number;
+  requireTwoStep?: string;
+  rememberAccounts?: boolean;
+  endedSessionsDays?: number;
 }
 
 export interface Sort {
@@ -919,6 +992,7 @@ export interface System {
   capabilities: string[];
   setupRequired: boolean;
   signInMethods: string[];
+  rememberAccounts: boolean;
 }
 
 export interface Tag {
@@ -934,6 +1008,7 @@ export interface TwoFactorEnrol {
 export interface TwoFactorFinish {
   challenge: string;
   code: string;
+  rememberAccount?: boolean;
 }
 
 export interface TwoFactorProof {
@@ -976,6 +1051,12 @@ export interface Viewer {
   role: string;
 }
 
+export interface Window {
+  days: number[];
+  startMinute: number;
+  endMinute: number;
+}
+
 /** The body of every refusal. */
 export interface ErrorBody {
   error: ApiError;
@@ -988,6 +1069,8 @@ export interface Routes {
   'GET /v1/system': {access: 'public'; request: undefined; response: System};
   'GET /v1/admin/settings/network': {access: 'owner'; request: undefined; response: NetworkSettings};
   'PUT /v1/admin/settings/network': {access: 'owner'; request: NetworkSettingsEdit; response: NetworkSettings};
+  'GET /v1/admin/settings/sign-in': {access: 'owner'; request: undefined; response: SignInSettings};
+  'PATCH /v1/admin/settings/sign-in': {access: 'owner'; request: SignInSettingsEdit; response: SignInSettings};
   'POST /v1/system/identity-proof': {access: 'public'; request: IdentityQuestion; response: IdentityProof};
   'POST /v1/setup/owner': {access: 'public'; request: SetupOwnerRequest; response: SignInResponse};
   'POST /v1/auth/sign-in': {access: 'public'; request: SignInRequest; response: SignInResponse};
@@ -995,6 +1078,7 @@ export interface Routes {
   'DELETE /v1/auth/session': {access: 'public'; request: undefined; response: undefined};
   'POST /v1/auth/password': {access: 'signedIn'; request: PasswordRequest; response: undefined};
   'GET /v1/me': {access: 'signedIn'; request: undefined; response: Me};
+  'POST /v1/auth/remembered': {access: 'public'; request: RememberedRequest; response: RememberedAccounts};
   'POST /v1/auth/password-reset/confirm': {access: 'public'; request: PasswordResetRequest; response: undefined};
   'POST /v1/auth/two-factor': {access: 'public'; request: TwoFactorFinish; response: SignInResponse};
   'GET /v1/me/two-factor': {access: 'signedIn'; request: undefined; response: TwoFactorState};
@@ -1006,6 +1090,8 @@ export interface Routes {
   'GET /v1/auth/codes/{id}': {access: 'withProfile'; request: undefined; response: CodeReview};
   'POST /v1/auth/codes/{id}/approve': {access: 'withProfile'; request: CodeDecision; response: undefined};
   'POST /v1/auth/codes/{id}/redeem': {access: 'public'; request: CodeCollect; response: CodeResult};
+  'POST /v1/auth/owner-reset': {access: 'public'; request: OwnerResetStart; response: OwnerResetStarted};
+  'POST /v1/auth/owner-reset/confirm': {access: 'public'; request: OwnerResetFinish; response: undefined};
   'GET /v1/profiles': {access: 'signedIn'; request: undefined; response: ProfilePage};
   'POST /v1/profiles': {access: 'signedIn'; request: ProfileCreate; response: Profile};
   'GET /v1/profiles/{id}': {access: 'signedIn'; request: undefined; response: Profile};
