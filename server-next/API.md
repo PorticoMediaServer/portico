@@ -212,6 +212,19 @@ Refreshing or editing a selection of titles is a bulk action, `POST /v1/jobs`.
 | `POST /v1/admin/items/{id}/artwork/find` | Find more from the provider, fetch again, or make an episode's picture from the video |
 | `GET /v1/admin/metadata/settings`, `PUT /v1/admin/metadata/settings` | Own provider keys (write-only: the answer says only whether one is set), Include adult titles, cast photos, Download title data, the subtitle account |
 
+### Remote sources, route by route (7 of the 33 for libraries, storage and files)
+
+The owner's alone. A source's password or key is never sent back; it can only be replaced.
+
+| Route | Purpose |
+|---|---|
+| `GET /v1/admin/remote-sources`, `GET /v1/admin/remote-sources/{id}` | The sources with their kind, settings, preset, limits and state (connected, unreachable, sign_in, waiting, setup) |
+| `POST /v1/admin/remote-sources` | Add one: the connection is tested first and nothing is saved unless it works. Takes an `Idempotency-Key` |
+| `PATCH /v1/admin/remote-sources/{id}` | Rename, change the preset or limits, change the address or replace the password (tested first; a new host needs the password again) |
+| `DELETE /v1/admin/remote-sources/{id}` | Disconnect, once no library folder is on it (`409 source_in_use` otherwise) |
+| `POST /v1/admin/remote-sources/{id}/test` | Test the saved source now |
+| `GET /v1/admin/remote-sources/{id}/folders?path=` | The folders in one folder of the source, for choosing a library's folders |
+
 ## Not on the wire, on purpose
 
 `viewerFence`, `expectedRevision`, `operationId`, a "preparing" answer on a read, query handles,
