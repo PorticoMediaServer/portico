@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"syscall"
 )
 
 // ScanMode says how a probe names its input to the caller's reader.
@@ -40,7 +41,8 @@ func (p Probe) readPrefix(ctx context.Context, path string, limit int64) ([]byte
 	if p.ReadPrefix != nil {
 		return p.ReadPrefix(ctx, path, limit)
 	}
-	f, err := os.Open(path)
+	// O_NONBLOCK: a named pipe opens at once and is refused as not a regular file.
+	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return nil, err
 	}

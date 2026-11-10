@@ -26,6 +26,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"syscall"
 )
 
 // ErrOutside says the path is not a readable file of a library: it is not
@@ -91,7 +92,7 @@ func Open(path string, folders []string) (*os.File, error) {
 	if !beneath(path, folders) {
 		return nil, ErrOutside
 	}
-	file, err := os.Open(path)
+	file, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return nil, ErrOutside
 	}
