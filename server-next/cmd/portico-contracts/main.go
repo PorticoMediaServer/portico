@@ -68,7 +68,11 @@ func generate() (types, openAPI []byte, err error) {
 	var routes []route
 	for _, r := range srv.Routes() {
 		method, path, _ := strings.Cut(r.Pattern, " ")
-		routes = append(routes, route{r.Pattern, method, path, accessNames[r.Access], g.use(r.Request), g.use(r.Response)})
+		status := "200"
+		if r.Status != 0 {
+			status = fmt.Sprint(r.Status)
+		}
+		routes = append(routes, route{r.Pattern, method, path, accessNames[r.Access], g.use(r.Request), g.use(r.Response), status})
 	}
 	// Every refusal has this one shape, whichever route it comes from.
 	g.use(reflect.TypeFor[api.Error]())
@@ -86,6 +90,7 @@ type route struct {
 	pattern, method, path, access string
 	// request and response are shape names, or "" for none.
 	request, response string
+	status            string // the status of a reply with a body
 }
 
 type generator struct {
@@ -357,7 +362,7 @@ func (g *generator) openAPI(routes []route) []byte {
 		}
 		answer := object{"204": object{"description": "Done"}}
 		if r.response != "" {
-			answer = object{"200": object{"description": "OK", "content": object{"application/json": object{"schema": ref(r.response)}}}}
+			answer = object{r.status: object{"description": "OK", "content": object{"application/json": object{"schema": ref(r.response)}}}}
 		}
 		answer["default"] = object{"description": "A refusal", "content": object{"application/json": object{"schema": ref("ErrorBody")}}}
 		op["responses"] = answer
