@@ -137,7 +137,7 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with: {name: load-database-seeded, path: '${{ env.WORK }}'}
       - name: Unpack the database
-        run: chmod +x "$WORK"/bin/* && zstd -q -d --rm "$WORK/main.db.zst"
+        run: chmod +x "$WORK"/bin/* && zstd -q -d --rm "$WORK/main.db.zst" && sync
       - name: Import with nobody using the server, then with constant use (bars 3 to 6)
         id: measure
         run: |
@@ -156,7 +156,7 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with: {name: load-database-seeded, path: '${{ env.WORK }}'}
       - name: Unpack the database
-        run: chmod +x "$WORK"/bin/* && zstd -q -d --rm "$WORK/main.db.zst"
+        run: chmod +x "$WORK"/bin/* && zstd -q -d --rm "$WORK/main.db.zst" && sync
       - name: Import with nobody using the server, then with constant use, nothing synced
         run: |
           source ci/server-next-load.sh
