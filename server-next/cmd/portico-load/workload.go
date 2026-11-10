@@ -89,8 +89,9 @@ func newWorkload(ctx context.Context, d *db.DB, viewers []db.Viewer) (*workload,
 			}
 		}
 	}
-	for _, id := range w.leaves[:min(len(w.leaves), 60)] {
-		detail, err := d.Item(ctx, v, id)
+	// Sixty titles spread over every kind: in a scanned library only some kinds have credits.
+	for n := 0; n < min(len(w.leaves), 60); n++ {
+		detail, err := d.Item(ctx, v, w.leaves[n*len(w.leaves)/min(len(w.leaves), 60)])
 		if err != nil {
 			return nil, err
 		}
