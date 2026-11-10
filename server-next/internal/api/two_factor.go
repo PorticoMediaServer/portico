@@ -112,6 +112,8 @@ func (s *Server) finishTwoFactor(r *http.Request, req TwoFactorFinish) (SignInRe
 		return SignInResponse{}, refusal(http.StatusUnauthorized, "unauthorized", "This sign-in took too long. Sign in again.", false)
 	case errors.Is(err, db.ErrOutsideHours):
 		return SignInResponse{}, errOutsideHours()
+	case errors.Is(err, db.ErrAwayFromHome):
+		return SignInResponse{}, errAwayFromHome()
 	case err != nil:
 		return SignInResponse{}, err
 	}

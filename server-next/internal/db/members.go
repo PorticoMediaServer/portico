@@ -46,17 +46,19 @@ type Member struct {
 	TwoFactor bool
 	// ViewingHours is the JSON of the member's viewing hours, or "" for any time.
 	ViewingHours string
+	// HomeOnly limits the account to the owner's home networks.
+	HomeOnly bool
 }
 
 const memberColumns = `u.id, u.public_id, u.username, ifnull(u.email, ''), u.role, u.disabled_at IS NOT NULL, u.created_at,
-	u.all_libraries, ifnull(u.notes, ''), u.two_factor_enabled_at IS NOT NULL, ifnull(u.viewing_hours, ''),
+	u.all_libraries, ifnull(u.notes, ''), u.two_factor_enabled_at IS NOT NULL, ifnull(u.viewing_hours, ''), u.home_only,
 	ifnull((SELECT group_concat(l.public_id, ' ') FROM library_access a JOIN libraries l ON l.id = a.library_id WHERE a.user_id = u.id), '')`
 
 func scanMember(row interface{ Scan(...any) error }) (Member, error) {
 	var m Member
 	var created int64
 	var libraries string
-	err := row.Scan(&m.ID, &m.PublicID, &m.Username, &m.Email, &m.Role, &m.Disabled, &created, &m.AllLibraries, &m.Notes, &m.TwoFactor, &m.ViewingHours, &libraries)
+	err := row.Scan(&m.ID, &m.PublicID, &m.Username, &m.Email, &m.Role, &m.Disabled, &created, &m.AllLibraries, &m.Notes, &m.TwoFactor, &m.ViewingHours, &m.HomeOnly, &libraries)
 	if errors.Is(err, sql.ErrNoRows) {
 		return m, ErrNotFound
 	}
@@ -148,7 +150,9 @@ type MemberEdit struct {
 	Libraries    *[]string
 	// ViewingHours is the JSON of the member's viewing hours; a pointer to "" removes them.
 	ViewingHours *string
-	Now          time.Time
+	// HomeOnly limits the account to the owner's home networks, or lifts that.
+	HomeOnly *bool
+	Now      time.Time
 }
 
 // libraryIDs resolves public library ids, refusing any that does not exist.
@@ -210,6 +214,12 @@ func (d *DB) UpdateMember(ctx context.Context, e MemberEdit) (Member, error) {
 			if _, err := tx.Exec(`UPDATE users SET notes = nullif(?, '') WHERE id = ?`, *e.Notes, m.ID); err != nil {
 				return err
 			}
+		}
+		if e.HomeOnly != nil {
+			if _, err := tx.Exec(`UPDATE users SET home_only = ? WHERE id = ?`, *e.HomeOnly, m.ID); err != nil {
+				return err
+			}
+			did = append(did, "home only")
 		}
 		if e.ViewingHours != nil {
 			if _, err := tx.Exec(`UPDATE users SET viewing_hours = nullif(?, '') WHERE id = ?`, *e.ViewingHours, m.ID); err != nil {
