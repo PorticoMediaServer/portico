@@ -134,6 +134,16 @@ export interface HomeRow {
   items: Item[];
 }
 
+export interface IdentityProof {
+  payload: string;
+  signature: string;
+}
+
+export interface IdentityQuestion {
+  baseUrl: string;
+  nonce: string;
+}
+
 export interface Invitation {
   id: string;
   code?: string;
@@ -613,6 +623,7 @@ export interface Routes {
   'GET /v1/health/live': {access: 'public'; request: undefined; response: Health};
   'GET /v1/health/ready': {access: 'public'; request: undefined; response: Health};
   'GET /v1/system': {access: 'public'; request: undefined; response: System};
+  'POST /v1/system/identity-proof': {access: 'public'; request: IdentityQuestion; response: IdentityProof};
   'POST /v1/setup/owner': {access: 'public'; request: SetupOwnerRequest; response: SignInResponse};
   'POST /v1/auth/sign-in': {access: 'public'; request: SignInRequest; response: SignInResponse};
   'POST /v1/auth/refresh': {access: 'public'; request: RefreshRequest; response: Session};
