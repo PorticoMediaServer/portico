@@ -88,7 +88,7 @@ func (h *HLS) openWindowInput(ctx context.Context, id string, plan *DeliveryPlan
 		return s.openInput(ctx)
 	}
 	if remote, ok := s.source.(windowSource); ok {
-		return remote.openWindow(ctx, h.binary, h.ffprobe)
+		return remote.openWindow(ctx, h.binary, h.ffprobe, h.processes)
 	}
 	input, err := converterInput(ctx, s.source)
 	return input, nil, err

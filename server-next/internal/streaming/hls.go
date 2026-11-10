@@ -3,6 +3,7 @@ package streaming
 import (
 	"context"
 	"errors"
+	"github.com/PorticoMediaServer/portico/server-next/internal/processpool"
 	"math"
 	"os"
 	"os/exec"
@@ -34,6 +35,9 @@ var errMediaConversionFailed = errors.New("media conversion failed")
 
 // HLS owns conversion lifetimes only; grants and direct files are in Streams.
 type HLS struct {
+	// processes supervises converters run on the decoder's isolated bridge (a file on remote
+	// storage), the same supervisor Streams has.
+	processes *processpool.Supervisor
 	// streams is every stream this process is serving, by stream id. It is the
 	// whole of what the old server kept in the database about a running stream.
 	streams map[string]*stream

@@ -1,17 +1,17 @@
 package streaming
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"io"
-	"net/url"
 	"sync"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/childprocess"
+	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
 	"github.com/PorticoMediaServer/portico/server-next/internal/inputbridge"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediaexec"
+	"github.com/PorticoMediaServer/portico/server-next/internal/processpool"
 	"github.com/PorticoMediaServer/portico/server-next/internal/remote"
 	"github.com/PorticoMediaServer/portico/server-next/internal/subtitles"
 )
@@ -110,12 +110,17 @@ func (r *remoteReader) Close() error {
 }
 
 // windowSource is a source the converter cannot be handed as a file. It is served to the
-// converter on a private loopback address instead (package inputbridge).
+// converter on a private loopback address instead (package inputbridge), which the decoder's
+// isolated bridge lets the converter reach and nothing else.
 type windowSource interface {
-	openWindow(ctx context.Context, ffmpeg, ffprobe string) (*PlaybackInput, subtitles.WindowInput, error)
+	openWindow(ctx context.Context, ffmpeg, ffprobe string, processes *processpool.Supervisor) (*PlaybackInput, subtitles.WindowInput, error)
 }
 
-func (f remoteFile) openWindow(ctx context.Context, ffmpeg, ffprobe string) (*PlaybackInput, subtitles.WindowInput, error) {
+func (f remoteFile) openWindow(ctx context.Context, ffmpeg, ffprobe string, processes *processpool.Supervisor) (*PlaybackInput, subtitles.WindowInput, error) {
+	libraries, err := mediaexec.ResolveLibraries(ffmpeg, ffprobe, nil)
+	if err != nil {
+		return nil, nil, err
+	}
 	file, err := f.open(ctx)
 	if err != nil {
 		return nil, nil, err
@@ -126,7 +131,8 @@ func (f remoteFile) openWindow(ctx context.Context, ffmpeg, ffprobe string) (*Pl
 		reader.Close()
 		return nil, nil, ErrSourceUnavailable
 	}
-	return &PlaybackInput{ReleaseSource: reader.Close}, &bridgeWindow{bridge: bridge, ffmpeg: ffmpeg, ffprobe: ffprobe}, nil
+	window := &bridgeWindow{bridge: bridge, ffmpeg: ffmpeg, ffprobe: ffprobe, processes: processes, libraries: libraries}
+	return &PlaybackInput{ReleaseSource: reader.Close}, window, nil
 }
 
 // sequentialReaderAt keeps one request open for a converter reading straight through the
@@ -179,31 +185,22 @@ func (r *sequentialReaderAt) Close() error {
 	return r.file.Close()
 }
 
-// bridgeWindow runs the converter and its index probe on the bridge's address, the only
-// place they may connect to.
+// bridgeWindow runs the converter and its index probe on the decoder's isolated bridge: in
+// their own network namespace, able to reach only the bridge's address, writing only into
+// the session's folder. Each run reserves the bridge's port until the tool has really exited.
 type bridgeWindow struct {
 	bridge          *inputbridge.Bridge
 	ffmpeg, ffprobe string
-}
-
-func (w *bridgeWindow) loopback() string {
-	u, _ := url.Parse(w.bridge.URL())
-	return u.Host
+	processes       *processpool.Supervisor
+	libraries       []string
 }
 
 func (w *bridgeWindow) Probe(ctx context.Context, args []string) ([]byte, error) {
-	full := append([]string{"-v", "error", "-protocol_whitelist", "http,tcp", "-format_whitelist", mediaexec.LocalInputFormats}, args...)
-	cmd, err := mediaexec.CommandContext(ctx, mediaexec.Job{Executable: w.ffprobe, Args: append(full, w.bridge.URL()), Loopback: w.loopback()})
+	reservation, err := w.bridge.Reserve()
 	if err != nil {
 		return nil, err
 	}
-	cmd.WaitDelay = time.Second
-	var out bytes.Buffer
-	cmd.Stdout = &limitedWriter{buffer: &out, limit: 1 << 20}
-	if err := childprocess.Run(ctx, cmd); err != nil {
-		return nil, err
-	}
-	return out.Bytes(), nil
+	return decoder.RunProbeQuery(ctx, w.processes, "playback:probe:"+token(), w.ffprobe, w.bridge.URL(), reservation, args, w.libraries...)
 }
 
 // Run starts the converter and returns once it has exited.
@@ -212,21 +209,14 @@ func (w *bridgeWindow) Run(ctx context.Context, dir string, build func(string) (
 	if err != nil {
 		return err
 	}
-	cmd, err := mediaexec.CommandContext(ctx, mediaexec.Job{Executable: w.ffmpeg, Args: spec.Args, Loopback: w.loopback(), WriteDirs: []string{dir},
-		Fonts: true, Hardware: spec.Hardware})
+	reservation, err := w.bridge.Reserve()
 	if err != nil {
 		return err
 	}
-	cmd.WaitDelay = 2 * time.Second
-	tail := &tailWriter{limit: 4096}
-	cmd.Stderr = tail
 	if spec.Started != nil {
 		ctx = childprocess.WithStarted(ctx, spec.Started)
 	}
-	if err := childprocess.Run(ctx, cmd); err != nil {
-		return errors.Join(err, errors.New(tail.String()))
-	}
-	return nil
+	return decoder.RunHLSWindow(ctx, w.processes, token(), w.ffmpeg, w.bridge.URL(), dir, reservation, spec.Args, spec.Hardware, w.libraries...)
 }
 
 func (w *bridgeWindow) Close() error { return w.bridge.Close() }
