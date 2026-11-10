@@ -824,6 +824,7 @@ func TestCreditsPausedHistoryAndWhatIsNotAvailableYet(t *testing.T) {
 	for body, code := range map[*PlaybackStart]string{
 		{ItemID: th.film, DiscTitle: json.RawMessage(`{"id":"x","revision":"y"}`)}:           "disc_playback_unavailable",
 		{ItemID: th.film, Subtitles: &SubtitlePick{TrackID: ptr2("3"), Delivery: "sidecar"}}: "subtitle_delivery_unavailable",
+		{ItemID: th.film, Subtitles: &SubtitlePick{TrackID: ptr2("3"), Delivery: "burn"}}:    "subtitle_delivery_unavailable",
 	} {
 		w := serve(th.s, newRequest("POST", "/v1/playback/sessions", token, body))
 		if w.Code != 501 || !strings.Contains(w.Body.String(), code) {
