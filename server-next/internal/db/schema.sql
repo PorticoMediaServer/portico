@@ -476,6 +476,15 @@ CREATE TABLE devices (
   last_seen_at INTEGER NOT NULL
 ) STRICT;
 
+-- What a device's players can do, as the app last published it: one JSON document that can
+-- describe more than one player on the device. Not a column on devices, because that row is
+-- rewritten whenever the device is seen and this document is several kilobytes.
+CREATE TABLE device_capabilities (
+  device_id  INTEGER NOT NULL PRIMARY KEY REFERENCES devices(id) ON DELETE CASCADE,
+  document   TEXT    NOT NULL,
+  updated_at INTEGER NOT NULL
+) STRICT;
+
 -- Which libraries a member, a profile or a not-yet-accepted invitation may see.
 -- Only read when the owner's all_libraries flag is 0.
 CREATE TABLE library_access (
@@ -699,3 +708,63 @@ CREATE TABLE list_shares (
   PRIMARY KEY (list_id, profile_id)
 ) STRICT, WITHOUT ROWID;
 CREATE INDEX list_shares_profile ON list_shares (profile_id);
+
+-- A profile's play queue on one device. A queue outlives a restart; one nobody has played for
+-- 30 days is removed. selection says what the queue was built from when that is more than it
+-- holds at once, and selection_taken how far into it the queue has got, so it can be refilled
+-- as the listener nears the end. shuffle_seed is NULL while shuffle is off.
+CREATE TABLE play_queues (
+  id               INTEGER NOT NULL PRIMARY KEY,
+  public_id        TEXT    NOT NULL UNIQUE,
+  profile_id       INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  device_id        INTEGER NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+  current_entry_id INTEGER REFERENCES queue_entries(id) ON DELETE SET NULL,
+  repeat           TEXT    NOT NULL DEFAULT 'off' CHECK (repeat IN ('off', 'one', 'all')),
+  shuffle_seed     INTEGER,
+  selection        TEXT,
+  selection_taken  INTEGER NOT NULL DEFAULT 0,
+  revision         INTEGER NOT NULL DEFAULT 1,
+  created_at       INTEGER NOT NULL,
+  played_at        INTEGER NOT NULL
+) STRICT;
+CREATE INDEX play_queues_profile ON play_queues (profile_id);
+CREATE INDEX play_queues_device ON play_queues (device_id);
+CREATE INDEX play_queues_current ON play_queues (current_entry_id) WHERE current_entry_id IS NOT NULL;
+CREATE INDEX play_queues_idle ON play_queues (played_at);
+
+-- large. A queue's entries. position is the order they play in, with gaps so a move rewrites
+-- one row; source_position is the order they were added in, which turning shuffle off goes
+-- back to. added is 1 for what a person added by hand ("Added by you").
+CREATE TABLE queue_entries (
+  id              INTEGER NOT NULL PRIMARY KEY,
+  queue_id        INTEGER NOT NULL REFERENCES play_queues(id) ON DELETE CASCADE,
+  item_id         INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+  position        INTEGER NOT NULL,
+  source_position INTEGER NOT NULL,
+  added           INTEGER NOT NULL DEFAULT 0 CHECK (added IN (0, 1))
+);
+CREATE INDEX queue_entries_order ON queue_entries (queue_id, position);
+CREATE INDEX queue_entries_item ON queue_entries (item_id);
+
+-- ---------------------------------------------------------------------------------------
+-- G. Playback
+-- ---------------------------------------------------------------------------------------
+
+-- "This way of delivering this file failed on this device's player." Planning starts with the
+-- next way until expires_at, then tries this one again. It belongs to the device and the file,
+-- so it holds for every profile on the device and outlives a sign-out and a restart.
+CREATE TABLE playback_route_failures (
+  id         INTEGER NOT NULL PRIMARY KEY,
+  public_id  TEXT    NOT NULL UNIQUE,
+  device_id  INTEGER NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+  file_id    INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  player     TEXT    NOT NULL,
+  route      TEXT    NOT NULL,
+  code       TEXT    NOT NULL,
+  detail     TEXT,
+  failed_at  INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL,
+  UNIQUE (device_id, file_id, player, route)
+) STRICT;
+CREATE INDEX playback_route_failures_file ON playback_route_failures (file_id);
+CREATE INDEX playback_route_failures_expiry ON playback_route_failures (expires_at);

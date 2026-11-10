@@ -88,6 +88,8 @@ func run(log *slog.Logger) error {
 	if err := srv.Shutdown(wait); err != nil && !errors.Is(err, context.DeadlineExceeded) {
 		return err
 	}
+	// Where everyone had got to is saved before the database closes.
+	handler.Playback().Save(wait, db.User)
 	log.Info("portico-server stopped cleanly")
 	return nil
 }

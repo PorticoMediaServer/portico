@@ -105,9 +105,20 @@ func (d *DB) writeSessionsStamped(ctx context.Context, fn func(tx *sql.Tx, c *ch
 	err := d.writeThen(ctx, User, func(tx *sql.Tx) error {
 		c = changes{}
 		return fn(tx, &c)
-	}, func() { stamp = d.marks.apply(c) })
+	}, func() {
+		stamp = d.marks.apply(c)
+		if d.sessionWatch != nil && len(c.revoked)+len(c.stale) > 0 {
+			d.sessionWatch(c.revoked, c.stale)
+		}
+	})
 	return stamp, err
 }
+
+// WatchSessions registers the one function told, straight after the commit, which sign-ins
+// were just ended and which had their profile, role or access changed. Playback uses it to
+// stop what those sign-ins are playing. It runs on the writer, so it must return at once and
+// leave anything slow to a goroutine. Call it before the server starts serving.
+func (d *DB) WatchSessions(fn func(ended, changed []int64)) { d.sessionWatch = fn }
 
 // revoke ends every live session matching where.
 func revoke(tx *sql.Tx, c *changes, now time.Time, reason, where string, args ...any) error {
