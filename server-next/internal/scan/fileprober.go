@@ -16,6 +16,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/inputbridge"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediaexec"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediafacts"
+	"github.com/PorticoMediaServer/portico/server-next/internal/processpool"
 )
 
 // FileProber is the Prober a server runs: ffprobe, confined to the one file, reading its
@@ -72,25 +73,22 @@ func (FileProber) Probe(ctx context.Context, path string) (Facts, error) {
 	return factsOf(ctx, found, err)
 }
 
-// RemoteProber is the ReaderProber a server runs: ffprobe, confined to one loopback address
-// that serves the file by range (package inputbridge), never told where the file is.
-type RemoteProber struct{}
+// RemoteProber is the ReaderProber a server runs: ffprobe on the decoder's isolated bridge,
+// able to reach only the one loopback address that serves the file by range (package
+// inputbridge), never told where the file is.
+type RemoteProber struct {
+	// Processes supervises the probes; nil uses one shared by every RemoteProber.
+	Processes *processpool.Supervisor
+}
 
-func (RemoteProber) ProbeReader(ctx context.Context, file io.ReaderAt, size int64) (Facts, error) {
-	bridge, err := inputbridge.Open(ctx, file, size)
-	if err != nil {
-		return Facts{}, err
+var remoteProbes = &processpool.Supervisor{Limit: 4}
+
+func (p RemoteProber) ProbeReader(ctx context.Context, file io.ReaderAt, size int64) (Facts, error) {
+	processes := p.Processes
+	if processes == nil {
+		processes = remoteProbes
 	}
-	defer bridge.Close()
-	readPrefix := func(_ context.Context, _ string, limit int64) ([]byte, error) {
-		prefix := make([]byte, min(limit, size))
-		n, err := file.ReadAt(prefix, 0)
-		if err == io.EOF && n == len(prefix) {
-			err = nil
-		}
-		return prefix[:n], err
-	}
-	found, err := mediafacts.Probe{ReadPrefix: readPrefix}.InspectRemote(ctx, bridge.URL())
+	found, err := inputbridge.Inspect(ctx, processes, "", file, size)
 	return factsOf(ctx, found, err)
 }
 
