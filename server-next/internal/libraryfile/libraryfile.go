@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 )
 
 // ErrOutside says the path is not a readable file inside a library folder: it
@@ -64,7 +65,10 @@ func Open(path string, folders []string) (*os.File, error) {
 		return nil, ErrOutside
 	}
 	defer root.Close()
-	file, err := root.Open(relative)
+	// Without O_NONBLOCK, opening a named pipe put where the file was would wait
+	// for ever for somebody to write to it. With it the pipe opens at once and is
+	// refused below as not a regular file.
+	file, err := root.OpenFile(relative, os.O_RDONLY|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return nil, ErrOutside
 	}
