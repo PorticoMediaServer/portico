@@ -200,6 +200,12 @@ type query struct {
 	// read from item_tags and the labels alone.
 	plainLibrary int64
 	plainKinds   string
+	// library and kinds are the list's own, when it names them, whatever else it asks for;
+	// tagWalk is its tag condition as a check on one row. A total uses them to count what a
+	// blocked label hides: only that library's hidden items are looked at, one by one.
+	library int64
+	kinds   string
+	tagWalk string
 }
 
 func (q *query) pageWhere() string {
@@ -214,6 +220,12 @@ func (q *query) countWhere(labels bool) string {
 		check = q.labels
 	}
 	return strings.NewReplacer("{tag}", q.tagCount, "{+}", "", "{labels}", check, "{rated}", "").Replace(q.sql.String())
+}
+
+// hiddenWhere is the list's condition for the few rows a blocked label hides: no label check,
+// and the tag as a check on each row.
+func (q *query) hiddenWhere() string {
+	return strings.NewReplacer("{tag}", q.tagWalk, "{+}", "", "{labels}", "", "{rated}", "").Replace(q.sql.String())
 }
 
 func newQuery(v Viewer) *query {
