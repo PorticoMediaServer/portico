@@ -91,7 +91,7 @@ func setSearchHistory(tx *sql.Tx, profileID int64, history []string) error {
 	}
 	raw, _ := json.Marshal(history)
 	_, err := tx.Exec(`INSERT INTO preferences (profile_id, key, value, updated_at) VALUES (?, ?, ?, ?)
-		ON CONFLICT (profile_id, key) WHERE profile_id IS NOT NULL DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+		ON CONFLICT DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
 		profileID, prefSearchHistory, string(raw), time.Now().UnixMilli())
 	return err
 }
