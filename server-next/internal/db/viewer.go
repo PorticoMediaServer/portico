@@ -142,13 +142,18 @@ func (a access) unblocked(alias string) string {
 // blockedIDs is a query for the id of every item a blocked label hides: the items that carry
 // one, and everything under them. A total subtracts these instead of checking every row.
 // inLibrary and ofKinds narrow it to a library and kinds, as conditions on c, and may be
-// empty. What is under a labelled title is in the title's library, and is found with its
-// kind from an index, so that part needs no item rows at all.
+// empty. What is under a labelled title is in the title's library, so the library is checked
+// on the labelled title (one row each), and what is under it is found with its kind from an
+// index: that part reads no rows of the hidden items themselves.
 func (a access) blockedIDs(inLibrary, ofKinds string) string {
 	tags := intList(a.blockedTags)
+	holder, holderIn := "", ""
+	if inLibrary != "" {
+		holder, holderIn = ` CROSS JOIN items r ON r.id = h.item_id`, strings.ReplaceAll(inLibrary, "c.", "r.")
+	}
 	return `SELECT c.id FROM item_tags h CROSS JOIN items c ON c.id = h.item_id WHERE h.tag_id IN ` + tags + inLibrary + ofKinds + `
-		UNION SELECT c.id FROM item_tags h CROSS JOIN items c ON c.parent_id = h.item_id WHERE h.tag_id IN ` + tags + ofKinds + `
-		UNION SELECT c.id FROM item_tags h CROSS JOIN items c ON c.root_id = h.item_id WHERE h.tag_id IN ` + tags + ofKinds
+		UNION SELECT c.id FROM item_tags h` + holder + ` CROSS JOIN items c ON c.parent_id = h.item_id WHERE h.tag_id IN ` + tags + holderIn + ofKinds + `
+		UNION SELECT c.id FROM item_tags h` + holder + ` CROSS JOIN items c ON c.root_id = h.item_id WHERE h.tag_id IN ` + tags + holderIn + ofKinds
 }
 
 // sparseRated is how few visible titles make a rating-limited list "sparse". See ratedIn.
