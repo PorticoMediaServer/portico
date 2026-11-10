@@ -55,31 +55,35 @@ func (s *Server) stateBatchRoutes() {
 		if len(req.Items) == 0 || len(req.Items) > maxBatchEdits {
 			return StateBatchReply{}, ErrField("items", "Send 1 to 500 edits at a time.")
 		}
-		edits := make([]db.ItemEdit, len(req.Items))
+		out := StateBatchReply{Items: make([]StateBatchResult, len(req.Items))}
+		edits := make([]db.ItemEdit, 0, len(req.Items))
+		positions := make([]int, 0, len(req.Items))
 		for n, e := range req.Items {
-			if e.MadeAgoMs < 0 {
-				return StateBatchReply{}, ErrField("items.madeAgoMs", "This cannot be negative.")
+			out.Items[n].ItemID = e.ItemID
+			if e.MadeAgoMs < 0 || e.MadeAgoMs > (35*24*time.Hour).Milliseconds() {
+				out.Items[n].Error = &BatchError{Code: "invalid_request", Message: "An edit must be between now and 35 days old."}
+				continue
 			}
-			edits[n] = db.ItemEdit{ItemID: e.ItemID, StateEdit: db.StateEdit{Watched: e.Watched, PositionMS: e.PositionMs,
+			positions = append(positions, n)
+			edits = append(edits, db.ItemEdit{ItemID: e.ItemID, StateEdit: db.StateEdit{Watched: e.Watched, PositionMS: e.PositionMs,
 				PositionText: e.Position, Favorite: e.Favorite, InList: e.InList, Hidden: e.Hidden, Rating: e.Rating.Value,
-				ClearRating: e.Rating.Set && e.Rating.Value == nil, Ago: time.Duration(e.MadeAgoMs) * time.Millisecond}}
+				ClearRating: e.Rating.Set && e.Rating.Value == nil, Ago: time.Duration(e.MadeAgoMs) * time.Millisecond}})
 		}
 		states, refusals, err := s.db.SetStates(r.Context(), db.User, viewer(r), edits)
 		if err != nil {
 			return StateBatchReply{}, err
 		}
-		out := StateBatchReply{Items: make([]StateBatchResult, len(edits))}
 		for n, refusal := range refusals {
-			out.Items[n].ItemID = req.Items[n].ItemID
+			result := &out.Items[positions[n]]
 			switch {
 			case errors.Is(refusal, db.ErrNotFound):
-				out.Items[n].Error = &BatchError{Code: "not_found", Message: "This title is no longer here."}
+				result.Error = &BatchError{Code: "not_found", Message: "This title is no longer here."}
 			case errors.Is(refusal, db.ErrInvalid):
-				out.Items[n].Error = &BatchError{Code: "invalid_request",
+				result.Error = &BatchError{Code: "invalid_request",
 					Message: strings.TrimPrefix(refusal.Error(), db.ErrInvalid.Error()+": ")}
 			default:
 				state := stateShape(states[n])
-				out.Items[n].State = &state
+				result.State = &state
 			}
 		}
 		return out, nil
