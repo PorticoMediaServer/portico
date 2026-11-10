@@ -188,24 +188,29 @@ func (s *Server) catalogueRoutes() {
 // starts in. Every list also takes the same filters under a parent, a person or a tag.
 func browseBy(kind string) ([]View, []Sort, []Filter) {
 	sorts := []Sort{{db.SortTitle, "asc"}, {db.SortAdded, "desc"}, {db.SortYear, "desc"}, {db.SortRelease, "desc"}}
+	// Then the sorts every kind has, and the ones only video has a fact for.
+	mine := []Sort{{db.SortUserRating, "desc"}, {db.SortLastPlayed, "desc"}, {db.SortPlayCount, "desc"}, {db.SortRandom, "asc"}}
+	video := append([]Sort{{db.SortDuration, "desc"}, {db.SortCommunityRating, "desc"}, {db.SortCriticRating, "desc"}, {db.SortResolution, "desc"}}, mine...)
 	filters := []Filter{{ID: "genre", Type: "tag"}, {ID: "year", Type: "year"}, {ID: "watched", Type: "boolean"},
 		{ID: "favorite", Type: "boolean"}, {ID: "inList", Type: "boolean"}}
 	resolution := Filter{ID: "resolution", Type: "choice", Values: []string{"sd", "720p", "1080p", "4k"}}
 	switch kind {
 	case db.LibraryMovies:
-		return []View{{"movie"}}, sorts, append(filters, resolution)
+		return []View{{"movie"}}, append(sorts, video...), append(filters, resolution)
 	case db.LibraryShows:
-		return []View{{"show"}, {"episode"}}, sorts, append(filters, resolution)
+		return []View{{"show"}, {"episode"}}, append(append(sorts, video...), Sort{db.SortLatest, "desc"}), append(filters, resolution)
 	case db.LibraryMusic:
-		return []View{{"artist"}, {"album"}, {"track"}}, sorts[:3], filters
+		return []View{{"artist"}, {"album"}, {"track"}}, append(append(sorts[:3:3], Sort{db.SortDuration, "desc"}, Sort{db.SortLatest, "desc"}), mine...), filters
 	case db.LibraryAudiobooks:
-		return []View{{"audiobook"}}, sorts[:3], filters
+		return []View{{"audiobook"}}, append(append(sorts[:3:3], Sort{db.SortDuration, "desc"}), mine...), filters
 	}
-	return []View{{"book"}}, sorts[:3], filters
+	return []View{{"book"}}, append(sorts[:3:3], mine...), filters
 }
 
 // defaultOrder is the direction a sort starts in when the request does not say.
-var defaultOrder = map[string]bool{db.SortAdded: true, db.SortYear: true, db.SortRelease: true}
+var defaultOrder = map[string]bool{db.SortAdded: true, db.SortYear: true, db.SortRelease: true, db.SortDuration: true,
+	db.SortCommunityRating: true, db.SortCriticRating: true, db.SortUserRating: true, db.SortLastPlayed: true, db.SortPlayCount: true,
+	db.SortResolution: true, db.SortLatest: true}
 
 func boolParam(query url.Values, name string) (*bool, error) {
 	switch query.Get(name) {
