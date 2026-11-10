@@ -100,10 +100,15 @@ func TestRclone(t *testing.T) {
 	// A pasted remote reaches only remote storage: nothing that runs a program or reads this
 	// computer's disk, and the refusal names the option, never its value.
 	for _, paste := range []string{"[a]\ntype = sftp\nhost = example.invalid\nssh = touch /tmp/owned\n", "[a]\ntype = webdav\nbearer_token_command = id\n",
-		"[a]\ntype = alias\nremote = /etc\n", "[a]\ntype = local\n", "[a]\ntype = crypt\nremote = :sftp,ssh=\"id\":\n"} {
+		"[a]\ntype = alias\nremote = /etc\n", "[a]\ntype = local\n", "[a]\ntype = crypt\nremote = :sftp,ssh=\"id\":\n",
+		"[a]\ntype = archive\nremote = /etc\n", "[a]\ntype = newwrapper\nupstreams = /etc\n", "[a]\ntype = sftp\nhost = example.invalid\nkey_file = /etc/ssh/key\n",
+		"[a]\ntype = s3\nenv_auth = true\n"} {
 		if _, err := remote.ParseRcloneConfig(paste); err == nil || strings.Contains(err.Error(), "/tmp/owned") || strings.Contains(err.Error(), "/etc") {
 			t.Fatalf("%q: %v", paste, err)
 		}
+	}
+	if _, err := remote.ParseRcloneConfig("[a]\ntype = s3\nenv_auth = false\naccess_key_id = k\n"); err != nil {
+		t.Fatalf("an ordinary S3 paste was refused: %v", err)
 	}
 	if _, err := remote.ParseRcloneConfig("[a]\ntype = drive\n[b]\ntype = s3\n"); err == nil {
 		t.Fatal("two remotes were taken")
