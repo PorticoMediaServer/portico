@@ -1,0 +1,13 @@
+{"adult":false,"backdrop_path":"/qDTtgEf6gqv0PcBbxjCBGhhMRfY.jpg",
+ "belongs_to_collection":{"id":2344,"name":"The Matrix Collection","poster_path":"/bV9qTVHTVf0gkW0j7p7M0ILD4pG.jpg","backdrop_path":"/bRm2DEgUiYciDw3myHuYFInD7la.jpg"},
+ "genres":[{"id":28,"name":"Action"},{"id":878,"name":"Science Fiction"}],
+ "id":604,"imdb_id":"tt0234215","original_language":"en","original_title":"The Matrix Reloaded",
+ "overview":"Six months after the events depicted in The Matrix, Neo has proved to be a good omen for the free humans.",
+ "popularity":40.1,"poster_path":"/9TGHDvWrqKBzwDxDodHYXEmOE6J.jpg",
+ "production_companies":[{"id":174,"name":"Warner Bros. Pictures","origin_country":"US"}],
+ "production_countries":[{"iso_3166_1":"US","name":"United States of America"}],
+ "release_date":"2003-05-15","runtime":138,"status":"Released","tagline":"Free your mind.","title":"The Matrix Reloaded","vote_average":7.1,"vote_count":10000,
+ "credits":{"cast":[{"id":6384,"name":"Keanu Reeves","character":"Neo","order":0}],
+  "crew":[{"id":9340,"name":"Lana Wachowski","department":"Directing","job":"Director"}]},
+ "release_dates":{"results":[{"iso_3166_1":"US","release_dates":[{"certification":"R","type":3,"release_date":"2003-05-15T00:00:00.000Z"}]}]},
+ "external_ids":{"imdb_id":"tt0234215"}}
