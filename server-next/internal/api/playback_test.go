@@ -419,6 +419,21 @@ func TestChangeMidPlay(t *testing.T) {
 	if changed.Presentation.SeekID != "seek-1" || th.state(th.film).PositionMS != 40*60_000 {
 		t.Fatalf("after seek: %+v, saved %d", changed.Presentation, th.state(th.film).PositionMS)
 	}
+	// A change whose new stream cannot start, and whose old one cannot come back, ends the
+	// session and leaves nothing waiting: it can be read, stopped and swept afterwards.
+	th.engine.mu.Lock()
+	th.engine.busy = true
+	th.engine.mu.Unlock()
+	if code := status(t, th.s, "PATCH", path, token, PlaybackChange{Quality: &playback.Quality{Mode: "fixed", ID: "480p"}}); code != 429 {
+		t.Fatalf("a change with no stream to be had answered %d", code)
+	}
+	if code := status(t, th.s, "PATCH", path, token, PlaybackChange{State: "playing"}); code != 410 {
+		t.Fatalf("a change to the failed session answered %d", code)
+	}
+	th.s.playback.Sweep(context.Background())
+	if th.engine.streams() != 0 {
+		t.Fatalf("%d streams left after a failed change", th.engine.streams())
+	}
 }
 
 // No limit unless the owner sets one. At a person's limit a start is refused and the account's

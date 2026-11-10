@@ -26,8 +26,9 @@ const (
 	// long an ended session can still be read, so its app can say why it ended.
 	startsKept = 2 * time.Minute
 	endedKept  = 2 * time.Minute
-	// saveEvery is how often progress is written; a crash loses at most about this much.
-	saveEvery  = 15 * time.Second
+	// saveEvery is how often progress is written. A device reports every ten seconds, so a
+	// crash loses at most about fifteen.
+	saveEvery  = 5 * time.Second
 	sweepEvery = 5 * time.Second
 )
 
