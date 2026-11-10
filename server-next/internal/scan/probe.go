@@ -41,7 +41,9 @@ var (
 	ErrNotMedia    = errors.New("the file is not a media file")
 )
 
-// probe reads every media file of the library that has not been read, a few at a time.
+// probe reads every media file of the library that has not been read, a few at a time. Where
+// the library's scan depth and a remote source's preset differ, the lower wins: a library on
+// File list only, or a source on Just list the files, has nothing read.
 func (r *run) probe() error {
 	var after int64
 	for {
@@ -59,7 +61,7 @@ func (r *run) probe() error {
 			after = file.ID
 			src := r.source(file.PathID)
 			local := src.LocalPath(file.Rel)
-			if local == "" && r.s.ReaderProber == nil || local != "" && r.s.Prober == nil {
+			if remote, ok := src.(Remote); local == "" && (r.s.ReaderProber == nil || ok && !remote.readsFiles()) || local != "" && r.s.Prober == nil {
 				continue
 			}
 			slots <- struct{}{}
