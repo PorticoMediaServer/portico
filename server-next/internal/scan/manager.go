@@ -16,8 +16,11 @@ type Manager struct {
 	scanner *Scanner
 	jobs    *jobs.Runner
 
-	mu    sync.Mutex
-	stats map[string]Stats // by library, for the scan running or last run since the server started
+	mu      sync.Mutex
+	stats   map[string]Stats // by library, for the scan running or last run since the server started
+	watcher *watcher         // set while Run is going, where folders can be watched
+	changed chan string      // libraries with a change to look at, while Run is going
+	watched map[string]bool  // the libraries whose every folder is watched
 }
 
 // library is the lane scans and library removals share, so that a library is never removed
@@ -28,7 +31,7 @@ const library = "library"
 // (Scan now, Scan all files); removing a library is started only by its own route, which
 // asks for the library's name first.
 func NewManager(runner *jobs.Runner, scanner *Scanner) *Manager {
-	m := &Manager{scanner: scanner, jobs: runner, stats: map[string]Stats{}}
+	m := &Manager{scanner: scanner, jobs: runner, stats: map[string]Stats{}, watched: map[string]bool{}}
 	exists := func(ctx context.Context, req jobs.Request) error {
 		_, err := m.library(ctx, req.Target.Library)
 		return err
@@ -52,6 +55,9 @@ func NewManager(runner *jobs.Runner, scanner *Scanner) *Manager {
 type ScanParams struct {
 	// AllFiles reads every file again, changed or not.
 	AllFiles bool `json:"allFiles,omitempty"`
+	// Scheduled says the scan started by itself: a remote folder is listed only when its
+	// source is due.
+	Scheduled bool `json:"scheduled,omitempty"`
 }
 
 // Scan asks for a scan of a library. While one is waiting or running, asking again joins it.
@@ -116,6 +122,7 @@ func (m *Manager) scan(ctx context.Context, work jobs.Work) error {
 		}
 	}
 	scanner := *m.scanner
+	scanner.Scheduled = params.Scheduled
 	scanner.Progress = func(stats Stats) {
 		m.mu.Lock()
 		m.stats[lib.PublicID] = stats
@@ -128,6 +135,10 @@ func (m *Manager) scan(ctx context.Context, work jobs.Work) error {
 	m.mu.Unlock()
 	if errors.Is(err, context.Canceled) {
 		return nil
+	}
+	if err == nil {
+		// Folders the scan found are watched from now on.
+		m.rewatch(ctx, lib, false)
 	}
 	return err
 }
