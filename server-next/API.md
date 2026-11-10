@@ -126,7 +126,7 @@ Assistant) are a separate short document and are not counted here.
 | Route | Purpose |
 |---|---|
 | `PUT /v1/items/{id}/state` | **The one state route.** Watched, position, favourite, My List, rating, Not interested, and removing a title from Continue Watching until it is played again. On a show, season or album it sets every leaf and answers an undo token. |
-| `POST /v1/items/state:batch` | The same for many items (what a device queued while out of reach) |
+| `POST /v1/items/state:batch` | The same for up to 500 items in one transaction (what a device queued while out of reach, or several selected titles), answered title by title |
 | `POST /v1/items/state:undo` | Undo a container change within about a minute |
 | `GET /v1/history`, `DELETE /v1/history/{id}`, `DELETE /v1/history` | Your play history: list, remove one, clear |
 | `GET /v1/lists`, `POST /v1/lists` | Playlists, collections and saved views (`kind`) |
