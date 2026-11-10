@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -11,7 +12,9 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/sorttext"
 )
 
-// List is a playlist, a collection or a saved view. Its entries are read with
+// List is a playlist, a collection or a saved view. A saved view holds no entries: it is a
+// library with a sort and filters, opened as GET /v1/items?library={library}&{query}, and its
+// count is that list's total. A playlist's or collection's entries are read with
 // GET /v1/items?list={id}: in the list's own order (the default, or sort=order) each item
 // carries its entryId, which moving and removing name. Revision is also the list's ETag; an
 // edit may send it back in If-Match, and one made on an out-of-date copy is refused with 412.
@@ -29,6 +32,13 @@ type List struct {
 	// Everyone says a collection is visible to everyone on the server, not only its maker.
 	// Others can open and play it and cannot change it.
 	Everyone bool `json:"everyone,omitempty"`
+	// Library and Query are a saved view's library and its sort and filters, as the query
+	// string of GET /v1/items.
+	Library string `json:"library,omitempty"`
+	Query   string `json:"query,omitempty"`
+	// Dropped, on GET /v1/lists/{id} only, names the parameters of a saved view left out of
+	// Query because what they named no longer exists: the view opens with the rest and says so.
+	Dropped []string `json:"dropped,omitempty"`
 	// Covers are the pictures of the first entries, up to four, for the list's tile.
 	Covers    []map[string]string `json:"covers"`
 	Revision  string              `json:"revision"`
@@ -53,6 +63,10 @@ type ListCreate struct {
 	Items       []string `json:"items,omitempty"`
 	// Everyone makes a collection visible to everyone on the server.
 	Everyone bool `json:"everyone,omitempty"`
+	// Library and Query make a saved view: the library and the item list's query string with
+	// its sort and filters ("kind=movie&genre=Drama&sort=year").
+	Library string `json:"library,omitempty"`
+	Query   string `json:"query,omitempty"`
 }
 
 // ListCreated is a new list; a repeat of the same Idempotency-Key answers the same list.
@@ -65,6 +79,8 @@ type ListEdit struct {
 	Name        *string `json:"name,omitempty"`
 	Description *string `json:"description,omitempty"`
 	Everyone    *bool   `json:"everyone,omitempty"`
+	// Query saves a view's sort and filters again.
+	Query *string `json:"query,omitempty"`
 }
 
 // ListAdd adds titles, at the end or just after the entry After. Putting back a removed
@@ -95,7 +111,14 @@ func (s *Server) listRoutes() {
 	Handle(s, "POST /v1/lists", WithProfile, s.createList)
 	Handle(s, "GET /v1/lists/{id}", WithProfile, func(r *http.Request, _ None) (List, error) {
 		l, err := s.db.List(r.Context(), viewer(r), r.PathValue("id"))
-		return listShape(l), listError(err)
+		if err != nil {
+			return List{}, listError(err)
+		}
+		out := listShape(l)
+		if l.Kind == db.ListSavedView {
+			out.Query, out.Dropped, err = s.openView(r, l.Query)
+		}
+		return out, err
 	})
 	Handle(s, "PATCH /v1/lists/{id}", WithProfile, s.editList)
 	Handle(s, "DELETE /v1/lists/{id}", WithProfile, func(r *http.Request, _ None) (None, error) {
@@ -136,7 +159,7 @@ func listShape(l db.List) List {
 		role = "editor"
 	}
 	out := List{ID: l.PublicID, Kind: l.Kind, Name: l.Name, Description: l.Description, Owner: ListOwner{ID: l.OwnerPublicID, Name: l.OwnerName},
-		Role: role, Count: l.Count, Everyone: l.Everyone, Covers: []map[string]string{}, Revision: strconv.FormatInt(l.Revision, 10),
+		Role: role, Count: l.Count, Everyone: l.Everyone, Library: l.LibraryPublicID, Query: l.Query, Covers: []map[string]string{}, Revision: strconv.FormatInt(l.Revision, 10),
 		CreatedAt: timeString(l.CreatedAt), UpdatedAt: timeString(l.UpdatedAt)}
 	for _, cover := range l.Covers {
 		out.Covers = append(out.Covers, imageMap(cover.Images))
@@ -205,8 +228,25 @@ func (s *Server) lists(r *http.Request, _ None) (Page[List], error) {
 }
 
 func (s *Server) createList(r *http.Request, req ListCreate) (ListCreated, error) {
-	if req.Kind != db.ListPlaylist && req.Kind != db.ListCollection {
-		return ListCreated{}, ErrField("kind", "Use playlist or collection.")
+	switch req.Kind {
+	case db.ListPlaylist, db.ListCollection:
+		if req.Library != "" || req.Query != "" {
+			return ListCreated{}, ErrField("query", "Only a saved view has a library, a sort and filters.")
+		}
+	case db.ListSavedView:
+		if req.Library == "" {
+			return ListCreated{}, ErrField("library", "A saved view is of one library.")
+		}
+		if len(req.Items) > 0 {
+			return ListCreated{}, ErrField("items", "A saved view holds no titles of its own.")
+		}
+		query, err := viewQuery(req.Query)
+		if err != nil {
+			return ListCreated{}, err
+		}
+		req.Query = query
+	default:
+		return ListCreated{}, ErrField("kind", "Use playlist, collection or saved_view.")
 	}
 	if req.Everyone && req.Kind != db.ListCollection {
 		return ListCreated{}, ErrField("everyone", "Only a collection is made visible to everyone.")
@@ -222,7 +262,7 @@ func (s *Server) createList(r *http.Request, req ListCreate) (ListCreated, error
 		return ListCreated{}, err
 	}
 	l, err := s.db.CreateList(r.Context(), viewer(r), db.NewList{Kind: req.Kind, Name: req.Name, SortName: sorttext.Key(req.Name, "", ""),
-		Description: req.Description, Items: req.Items, Everyone: req.Everyone}, key, requestHash(req), s.now())
+		Description: req.Description, Items: req.Items, Everyone: req.Everyone, Library: req.Library, Query: req.Query}, key, requestHash(req), s.now())
 	return ListCreated{listShape(l)}, listError(err)
 }
 
@@ -234,7 +274,14 @@ func (s *Server) editList(r *http.Request, req ListEdit) (List, error) {
 	if err != nil {
 		return List{}, err
 	}
-	change := db.ListChange{Name: req.Name, Description: req.Description, Everyone: req.Everyone}
+	if req.Query != nil {
+		query, err := viewQuery(*req.Query)
+		if err != nil {
+			return List{}, err
+		}
+		req.Query = &query
+	}
+	change := db.ListChange{Name: req.Name, Description: req.Description, Everyone: req.Everyone, Query: req.Query}
 	if req.Name != nil {
 		change.SortName = sorttext.Key(*req.Name, "", "")
 	}
@@ -289,4 +336,69 @@ func (s *Server) moveInList(r *http.Request, req ListMove) (List, error) {
 	}
 	l, err := s.db.MoveInList(r.Context(), viewer(r), r.PathValue("id"), revision, db.ParseEntryID(r.PathValue("entryId")), before, after, s.now())
 	return listShape(l), listError(err)
+}
+
+// viewQuery checks a saved view's sort and filters as the item list reads them, and keeps them
+// without where a page starts, how long it is, and whether to count: each reading says those.
+func viewQuery(text string) (string, error) {
+	values, err := url.ParseQuery(text)
+	if err != nil || len(text) > 8000 {
+		return "", ErrField("query", "A saved view's query is the query string of the item list.")
+	}
+	for _, key := range []string{"library", "list", "cursor", "limit", "total"} {
+		values.Del(key)
+	}
+	if _, err := itemQuery(values); err != nil {
+		return "", err
+	}
+	return values.Encode(), nil
+}
+
+// openView is a saved view's query as it opens now: a parameter the item list no longer takes,
+// or one naming a title, person or tag that no longer exists or that the profile may not see,
+// is left out, and named in dropped.
+func (s *Server) openView(r *http.Request, query string) (string, []string, error) {
+	values, err := url.ParseQuery(query)
+	if err != nil {
+		return "", []string{"query"}, nil
+	}
+	var dropped []string
+	drop := func(key string) { values.Del(key); dropped = append(dropped, key) }
+	for range len(values) {
+		_, err := itemQuery(values)
+		var refusal *Error
+		if err == nil || !errors.As(err, &refusal) || len(refusal.Fields) == 0 || !values.Has(refusal.Fields[0].Path) {
+			break
+		}
+		drop(refusal.Fields[0].Path)
+	}
+	ctx, v := r.Context(), viewer(r)
+	for _, key := range []string{"parent", "collection", "person", "tag", "genre"} {
+		value := values.Get(key)
+		if value == "" {
+			continue
+		}
+		var err error
+		known := true
+		switch key {
+		case "parent", "collection":
+			_, err = s.db.Item(ctx, v, value)
+		case "person":
+			_, err = s.db.Person(ctx, v, value)
+		case "tag":
+			known, err = s.db.TagKnown(ctx, value, "")
+		case "genre":
+			known, err = s.db.TagKnown(ctx, "", value)
+		}
+		if errors.Is(err, db.ErrNotFound) {
+			known, err = false, nil
+		}
+		if err != nil {
+			return "", nil, err
+		}
+		if !known {
+			drop(key)
+		}
+	}
+	return values.Encode(), dropped, nil
 }

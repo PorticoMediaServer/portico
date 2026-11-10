@@ -48,6 +48,9 @@ type List struct {
 	CanEdit bool
 	// Everyone says a collection is visible to everyone on the server.
 	Everyone bool
+	// A saved view's library and its sort and filters, as the item list's query string.
+	LibraryPublicID string
+	Query           string
 	// Count is how many entries the viewer may see.
 	Count     int
 	Revision  int64
@@ -62,9 +65,10 @@ type List struct {
 
 // readable is the condition that the viewer may read the list with alias l: its own, one
 // shared with it, or a collection its maker made visible to everyone. Someone else's
-// collection is readable only while it holds a title the viewer may see.
+// collection is readable only while it holds a title the viewer may see. A saved view is
+// read only while its library may be.
 func (a access) readable() string {
-	return `(l.owner_profile_id = @viewer_profile OR EXISTS (
+	return `(ifnull(` + a.libraryVisible("l.library_id") + `, 1)) AND (l.owner_profile_id = @viewer_profile OR EXISTS (
 	SELECT 1 FROM list_shares sh WHERE sh.list_id = l.id AND sh.profile_id = @viewer_profile) OR (l.everyone = 1 AND EXISTS (
 	SELECT 1 FROM list_entries ve CROSS JOIN items vi ON vi.id = ve.item_id WHERE ve.list_id = l.id AND ` + a.visible("vi") + `)))`
 }
@@ -74,12 +78,13 @@ func listColumns(count string) string {
 	return `l.id, l.public_id, l.kind, l.name, ifnull(l.description, ''), op.public_id, op.name, l.owner_profile_id,
 	l.owner_profile_id = @viewer_profile, l.owner_profile_id = @viewer_profile OR (l.kind = 'playlist' AND EXISTS (
 		SELECT 1 FROM list_shares sh WHERE sh.list_id = l.id AND sh.profile_id = @viewer_profile AND sh.can_edit = 1)),
-	` + count + `, l.revision, l.created_at, l.updated_at, l.sort_name, l.everyone FROM lists l JOIN profiles op ON op.id = l.owner_profile_id`
+	` + count + `, l.revision, l.created_at, l.updated_at, l.sort_name, l.everyone,
+	ifnull((SELECT public_id FROM libraries WHERE id = l.library_id), ''), ifnull(l.rules, '') FROM lists l JOIN profiles op ON op.id = l.owner_profile_id`
 }
 
 func (l *List) dest() []any {
 	return []any{&l.ID, &l.PublicID, &l.Kind, &l.Name, &l.Description, &l.OwnerPublicID, &l.OwnerName, &l.ownerID,
-		&l.Owned, &l.CanEdit, &l.Count, &l.Revision, &l.CreatedAt, &l.UpdatedAt, &l.sortName, &l.Everyone}
+		&l.Owned, &l.CanEdit, &l.Count, &l.Revision, &l.CreatedAt, &l.UpdatedAt, &l.sortName, &l.Everyone, &l.LibraryPublicID, &l.Query}
 }
 
 // unrestricted says the viewer sees every title of every library, so a list's stored entry
@@ -325,6 +330,9 @@ type NewList struct {
 	Items       []string
 	// Everyone makes a collection visible to everyone on the server.
 	Everyone bool
+	// Library and Query are a saved view's library (a public id) and its sort and filters.
+	Library string
+	Query   string
 }
 
 // CreateList makes a list. The same key with the same request returns the list it made.
@@ -342,10 +350,22 @@ func (d *DB) CreateList(ctx context.Context, v Viewer, n NewList, key, requestHa
 			out, err = readList(ctx, tx, v, acc, made)
 			return err
 		}
+		var library *int64
+		if n.Kind == ListSavedView {
+			var id int64
+			err := tx.QueryRowContext(ctx, `SELECT l.id FROM libraries l WHERE l.public_id = ? AND `+acc.libraryVisible("l.id"), n.Library).Scan(&id)
+			if errors.Is(err, sql.ErrNoRows) {
+				return ErrNotFound
+			}
+			if err != nil {
+				return err
+			}
+			library = &id
+		}
 		publicID, at := NewID("lst"), now.UnixMilli()
-		res, err := tx.Exec(`INSERT INTO lists (public_id, kind, owner_profile_id, name, sort_name, description, everyone, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, nullif(?, ''), ?, ?, ?)`, publicID, n.Kind, v.ProfileID, n.Name, n.SortName, n.Description,
-			n.Everyone && n.Kind == ListCollection, at, at)
+		res, err := tx.Exec(`INSERT INTO lists (public_id, kind, owner_profile_id, library_id, name, sort_name, description, rules, everyone,
+			created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, nullif(?, ''), ?, ?, ?, ?)`, publicID, n.Kind, v.ProfileID, library, n.Name, n.SortName,
+			n.Description, nullIfEmpty(n.Query, n.Kind == ListSavedView), n.Everyone && n.Kind == ListCollection, at, at)
 		if err != nil {
 			return err
 		}
@@ -373,6 +393,8 @@ type ListChange struct {
 	SortName    string
 	Description *string
 	Everyone    *bool
+	// Query is a saved view's new sort and filters.
+	Query *string
 }
 
 // EditList renames or describes a list, or changes who sees a collection. Only its maker may. revision, when not 0, is the
@@ -389,9 +411,17 @@ func (d *DB) EditList(ctx context.Context, v Viewer, publicID string, revision i
 				return err
 			}
 		}
+		if c.Query != nil {
+			if e.kind != ListSavedView {
+				return invalid("Only a saved view has a sort and filters.")
+			}
+			if _, err := e.tx.Exec(`UPDATE lists SET rules = ? WHERE id = ?`, *c.Query, e.id); err != nil {
+				return err
+			}
+		}
 		if c.Everyone != nil {
 			if e.kind != ListCollection {
-				return invalid("only a collection is made visible to everyone")
+				return invalid("Only a collection can be made visible to everyone.")
 			}
 			_, err := e.tx.Exec(`UPDATE lists SET everyone = ? WHERE id = ?`, *c.Everyone, e.id)
 			return err
@@ -586,7 +616,7 @@ func (e *listEdit) position(entry int64) (int64, error) {
 	var pos int64
 	err := e.tx.QueryRow(`SELECT position FROM list_entries WHERE id = ? AND list_id = ?`, entry, e.id).Scan(&pos)
 	if errors.Is(err, sql.ErrNoRows) {
-		return 0, invalid("that entry is not in this list")
+		return 0, invalid("That entry is not in this list. Reload the list and try again.")
 	}
 	return pos, err
 }
@@ -647,11 +677,15 @@ const renumberOffset = int64(1) << 52
 // playlist a title that holds others adds what plays under it, and a title may be added
 // twice. A collection holds each title once: one it holds already is counted, not added.
 func (e *listEdit) add(publicIDs []string, after int64) (added, already int, err error) {
+	if len(publicIDs) == 0 {
+		e.unchanged = true
+		return 0, 0, nil
+	}
 	if e.kind == ListSavedView {
-		return 0, 0, invalid("a saved view holds no entries")
+		return 0, 0, invalid("A saved view holds no titles of its own.")
 	}
 	if len(publicIDs) > MaxListAdd {
-		return 0, 0, invalid("add at most %d titles at once", MaxListAdd)
+		return 0, 0, invalid("Add at most %d titles at once.", MaxListAdd)
 	}
 	var items []int64
 	for _, publicID := range publicIDs {
@@ -717,4 +751,20 @@ func (e *listEdit) add(publicIDs []string, after int64) (added, already int, err
 	}
 	_, err = e.tx.Exec(`UPDATE lists SET entry_count = entry_count + ? WHERE id = ?`, len(items), e.id)
 	return len(items), already, err
+}
+
+// nullIfEmpty is text for a column that holds it only when keep is set.
+func nullIfEmpty(text string, keep bool) any {
+	if !keep {
+		return nil
+	}
+	return text
+}
+
+// TagKnown says whether a tag exists, by its public id, or for a genre by its name.
+func (d *DB) TagKnown(ctx context.Context, publicID, genre string) (bool, error) {
+	var known bool
+	err := d.read.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM tags WHERE public_id = ? OR (? <> '' AND kind = 'genre' AND norm_name = ?))`,
+		publicID, genre, normTag(genre)).Scan(&known)
+	return known, err
 }
