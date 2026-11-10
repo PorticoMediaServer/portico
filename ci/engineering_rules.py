@@ -23,7 +23,7 @@ RULES = [
     ('token-compare', {'packages/client-core/src/session-authority.ts'},
      re.compile(r'\.accessToken\s*[!=]==|[!=]==\s*[\w.!?]*\.accessToken\b')),
     ('set-interval', set(), re.compile(r'\bsetInterval\(')),
-    ('retry-after', {'packages/client-core/src/timer.ts', 'packages/client-core/src/index.ts'},
+    ('retry-after', {'packages/client-core/src/timer.ts', 'packages/client-core/src/http.ts'},
      re.compile(r'''['"]retry-after['"]''', re.IGNORECASE)),
     ('throwing-cleanup', {'packages/client-core/src/cleanup.ts'},
      re.compile(r'catch\s*\(\s*(\w+)\s*\)\s*\{\s*(?:await\s+)?[\w.?!]+\.(?:dispose|close|retire|release|revoke|cleanup|stop)\([^;{}()]*\)\s*;?\s*throw\s+\1\s*;?\s*\}')),
@@ -226,12 +226,25 @@ def counts(paths, read=lambda p: (ROOT / p).read_text(encoding='utf-8', errors='
     return found
 
 
+# A file split into several moves its counts without adding any: the parts are counted together, under the
+# name the file had, so the split neither needs nor gets a larger allowance.
+SPLIT = {part: 'packages/client-core/src/index.ts' for part in (
+    'packages/client-core/src/http.ts', 'packages/client-core/src/viewer-service.ts', 'packages/client-core/src/playback-service.ts')}
+
+
+def together(files):
+    out = {}
+    for path, n in files.items():
+        out[SPLIT.get(path, path)] = out.get(SPLIT.get(path, path), 0) + n
+    return out
+
+
 def compare(found, baseline):
     """Problems as (rule, path, now, allowed) for every count above the baseline, and a separate
     list of counts that fell below it (baseline refreshes are optional)."""
     risen, fallen = [], []
     for rule, _, _ in RULES:
-        now, was = found.get(rule, {}), baseline.get(rule, {})
+        now, was = together(found.get(rule, {})), together(baseline.get(rule, {}))
         for path in sorted(set(now) | set(was)):
             a, b = now.get(path, 0), was.get(path, 0)
             if a > b:
