@@ -89,12 +89,13 @@ Assistant) are a separate short document and are not counted here.
 |---|---|
 | `GET /v1/me`, `PATCH /v1/me` | Your account, current profile, role and features; edit account details |
 | `GET /v1/profiles`, `POST /v1/profiles` | List and create profiles (at most eight per account). With `member=<id>` an admin manages another person's. |
-| `GET /v1/profiles/{id}`, `PATCH /v1/profiles/{id}`, `DELETE /v1/profiles/{id}` | Read, edit, delete (`?preview=true` says what would be lost) |
+| `GET /v1/profiles/{id}`, `PATCH /v1/profiles/{id}`, `DELETE /v1/profiles/{id}` | Read, edit, delete |
+| `GET /v1/profiles/{id}/deletion-preview` | What deleting the profile would remove |
 | `POST /v1/profiles/{id}/select` | Choose a profile, with its PIN if it has one; answers tokens bound to it. With `rememberPin` the answer carries a `pinToken` this device sends in place of the PIN, for as long as the owner allows; a main profile entered that way manages the account only for an hour after its PIN was last typed |
 | `PUT /v1/profiles/order` | Reorder |
 | `PUT /v1/profiles/{id}/avatar`, `DELETE /v1/profiles/{id}/avatar` | Avatar |
 | `PUT /v1/profiles/{id}/pin`, `DELETE /v1/profiles/{id}/pin` | Set, change or remove a PIN. With the account's password, `PUT` replaces a forgotten PIN from any profile. |
-| `GET /v1/profiles/{id}/restrictions`, `PUT /v1/profiles/{id}/restrictions` | Rating limit, blocked labels, library access |
+| `GET /v1/profiles/{id}/restrictions`, `PUT /v1/profiles/{id}/restrictions` | Rating limit, Allow unrated titles, hidden labels, library access; from the account's main profile only |
 | `GET /v1/me/two-factor`, `POST /v1/me/two-factor`, `POST /v1/me/two-factor/confirm`, `DELETE /v1/me/two-factor`, `POST /v1/me/two-factor/recovery-codes` | Two-step sign-in |
 | `GET /v1/devices`, `PATCH /v1/devices/{id}`, `DELETE /v1/devices/{id}` | Your devices: list, rename, forget (ends its sign-ins) |
 | `GET /v1/devices/{id}/capabilities`, `PUT /v1/devices/{id}/capabilities` | What a device can play |
