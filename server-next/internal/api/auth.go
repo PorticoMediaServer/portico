@@ -153,6 +153,12 @@ func ErrViewingHoursEnded() *Error {
 	return refusal(http.StatusForbidden, "outside_viewing_hours", "Viewing hours have ended.", false)
 }
 
+// errAwayFromHome answers a sign-in or a renewal for an account limited to the home network
+// when it comes from anywhere else. The sign-in is kept, and works again at home.
+func errAwayFromHome() *Error {
+	return refusal(http.StatusForbidden, "away_from_home", "This account can be used only on the home network.", false)
+}
+
 func errOutsideHours() *Error {
 	return refusal(http.StatusForbidden, "outside_viewing_hours", "This account can be used only during its viewing hours.", false)
 }
@@ -228,7 +234,7 @@ func (s *Server) mintSession(r *http.Request, now time.Time) (db.NewSession, str
 	id := db.NewSessionID()
 	refresh := s.tokens.FirstRefresh(id)
 	return db.NewSession{ID: id, RefreshHash: auth.Hash(refresh), ExpiresAt: now.Add(s.policy().SessionIdle()), RemoteAddr: s.remoteHost(r),
-		KeepEnded: s.policy().EndedSessionsKept()}, refresh
+		AtHome: s.atHome(r), KeepEnded: s.policy().EndedSessionsKept()}, refresh
 }
 
 // newSession checks what the app said about its device and prepares a session for it.
@@ -252,6 +258,13 @@ func (s *Server) remoteHost(r *http.Request) string {
 		return ""
 	}
 	return addr.String()
+}
+
+// atHome reports whether a request came from one of the owner's home networks.
+func (s *Server) atHome(r *http.Request) bool {
+	networks := s.networks()
+	addr, ok := networks.Client(r)
+	return ok && networks.AtHome(addr)
 }
 
 // sourceLimit counts everything one network away from home gets wrong: passwords, PINs and
@@ -420,6 +433,8 @@ func (s *Server) signIn(r *http.Request, req SignInRequest) (SignInResponse, err
 		return SignInResponse{}, errBadSignIn()
 	case errors.Is(err, db.ErrOutsideHours):
 		return SignInResponse{}, errOutsideHours()
+	case errors.Is(err, db.ErrAwayFromHome):
+		return SignInResponse{}, errAwayFromHome()
 	case err != nil:
 		return SignInResponse{}, err
 	case challenged:
@@ -458,7 +473,10 @@ func (s *Server) refresh(r *http.Request, req RefreshRequest) (Session, error) {
 	next := s.tokens.NextRefresh(req.RefreshToken, ref, req.RequestID)
 	st, replayed, err := s.db.RenewSession(r.Context(), db.Renewal{SessionID: ref.SessionID, Generation: ref.Generation,
 		Hash: auth.Hash(req.RefreshToken), NextHash: auth.Hash(next), RequestID: req.RequestID, InstallationID: req.InstallationID,
-		ExpiresAt: now.Add(s.policy().SessionIdle()), RemoteAddr: s.remoteHost(r), Now: now})
+		ExpiresAt: now.Add(s.policy().SessionIdle()), RemoteAddr: s.remoteHost(r), AtHome: s.atHome(r), Now: now})
+	if errors.Is(err, db.ErrAwayFromHome) {
+		return Session{}, errAwayFromHome()
+	}
 	if errors.Is(err, db.ErrBadCredentials) {
 		return Session{}, errSignInEnded()
 	}
