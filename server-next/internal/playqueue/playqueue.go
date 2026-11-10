@@ -205,6 +205,9 @@ type CreateInput struct {
 	// starts a show at the first episode not yet watched. With neither, the first title plays.
 	StartAt string
 	Resume  bool
+	// Key is the request's Idempotency-Key and Hash a digest of its body: the same key and
+	// body sent again return the queue made the first time.
+	Key, Hash string
 }
 
 // Create builds a queue for the device asking and makes it that device's queue for its
@@ -214,7 +217,7 @@ func (s *Service) Create(ctx context.Context, c Caller, in CreateInput) (db.Queu
 	if err != nil {
 		return db.Queue{}, err
 	}
-	n := db.NewQueue{Viewer: c.Viewer, DeviceID: device.ID, Now: s.now()}
+	n := db.NewQueue{Viewer: c.Viewer, DeviceID: device.ID, IdempotencyKey: in.Key, RequestHash: in.Hash, Now: s.now()}
 	if in.Shuffle {
 		seed := newSeed()
 		n.ShuffleSeed = &seed

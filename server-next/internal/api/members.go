@@ -87,6 +87,8 @@ func memberError(err error) error {
 		return ErrField("libraries", "One of these libraries does not exist.")
 	case errors.Is(err, db.ErrConflict):
 		return ErrConflict("username_taken", "That username is already in use.")
+	case errors.Is(err, db.ErrKeyReused):
+		return errKeyReused()
 	}
 	return err
 }
@@ -147,12 +149,20 @@ func (s *Server) createMember(r *http.Request, req MemberCreate) (Member, error)
 	if !db.Manages(caller.Role, req.Role) {
 		return Member{}, ErrNotPermitted()
 	}
+	key, err := idempotencyKey(r)
+	if err != nil {
+		return Member{}, err
+	}
+	// The password is left out of what identifies the request: the hash is kept for 35 days
+	// and a plain digest of a password is easy to reverse.
+	withoutPassword := req
+	withoutPassword.Password = ""
 	username, hash, err := s.newAccount(r, req.Username, req.Password, &req.ProfileName)
 	if err != nil {
 		return Member{}, err
 	}
 	m, err := s.db.CreateMember(r.Context(), db.NewMember{ActorID: caller.UserID, ActorRole: caller.Role, Username: username,
-		PasswordHash: hash, Role: req.Role, ProfileName: req.ProfileName, Now: s.now()})
+		PasswordHash: hash, Role: req.Role, ProfileName: req.ProfileName, IdempotencyKey: key, RequestHash: requestHash(withoutPassword), Now: s.now()})
 	return memberOut(m), memberError(err)
 }
 

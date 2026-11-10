@@ -118,7 +118,16 @@ func (s *Server) createKey(r *http.Request, k keyKind, req KeyCreate) (KeyCreate
 	if !auth.ValidName(req.Name) {
 		return KeyCreated{}, ErrField("name", "Give the key a name of at most 120 characters.")
 	}
-	n := db.NewAPIKey{UserID: caller.UserID, Kind: k.kind, Name: req.Name, Limit: k.limit, Now: now}
+	key, err := idempotencyKey(r)
+	if err != nil {
+		return KeyCreated{}, err
+	}
+	// A repeat answers the key made the first time with a new secret: see db.CreateAPIKey.
+	n := db.NewAPIKey{UserID: caller.UserID, Kind: k.kind, Name: req.Name, Limit: k.limit, IdempotencyKey: key,
+		RequestHash: requestHash(struct {
+			Kind string
+			KeyCreate
+		}{k.kind, req}), Now: now}
 	secret := keyPrefix + auth.NewSecret()
 	if k.appPassword {
 		if len(req.Scopes) > 0 {
@@ -146,11 +155,16 @@ func (s *Server) createKey(r *http.Request, k keyKind, req KeyCreate) (KeyCreate
 	if k.appPassword {
 		n.KeyHash = auth.Hash(auth.CodeKey(secret))
 	}
-	key, err := s.db.CreateAPIKey(r.Context(), n)
-	if errors.Is(err, db.ErrKeyLimit) {
+	made, err := s.db.CreateAPIKey(r.Context(), n)
+	switch {
+	case errors.Is(err, db.ErrKeyLimit):
 		return KeyCreated{}, ErrConflict("credential_limit", "There are too many of these already. Revoke one first.")
+	case errors.Is(err, db.ErrKeyReused):
+		return KeyCreated{}, errKeyReused()
+	case errors.Is(err, db.ErrNotFound):
+		return KeyCreated{}, ErrConflict("key_revoked", "The key this request made has been revoked since. Create a new one.")
 	}
-	return KeyCreated{Key: keyOut(key), Secret: secret}, err
+	return KeyCreated{Key: keyOut(made), Secret: secret}, err
 }
 
 func (s *Server) revokeKey(r *http.Request, k keyKind) (None, error) {

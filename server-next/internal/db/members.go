@@ -108,7 +108,10 @@ type NewMember struct {
 	PasswordHash string
 	Role         string
 	ProfileName  string
-	Now          time.Time
+	// IdempotencyKey and RequestHash make a repeated request return what it made the first time.
+	IdempotencyKey string
+	RequestHash    string
+	Now            time.Time
 }
 
 // CreateMember creates an account. A taken username is ErrConflict; a role the actor may
@@ -119,6 +122,17 @@ func (d *DB) CreateMember(ctx context.Context, n NewMember) (Member, error) {
 		if !Manages(n.ActorRole, n.Role) {
 			return ErrNotPermitted
 		}
+		ref, err := createdBefore(tx, n.ActorID, n.IdempotencyKey, n.RequestHash)
+		if err != nil {
+			return err
+		}
+		if ref != "" {
+			out, err = scanMember(tx.QueryRow(`SELECT `+memberColumns+` FROM users u WHERE u.public_id = ?`, ref))
+			if errors.Is(err, sql.ErrNoRows) {
+				return ErrNotFound
+			}
+			return err
+		}
 		id, err := insertUser(tx, n.Username, n.PasswordHash, n.Role, n.ProfileName, n.Now)
 		if err != nil {
 			return err
@@ -126,7 +140,10 @@ func (d *DB) CreateMember(ctx context.Context, n NewMember) (Member, error) {
 		if out, err = scanMember(tx.QueryRow(`SELECT `+memberColumns+` FROM users u WHERE u.id = ?`, id)); err != nil {
 			return err
 		}
-		return audit(tx, n.ActorID, "member.create", out.PublicID, out.Username+" as "+n.Role, n.Now)
+		if err := audit(tx, n.ActorID, "member.create", out.PublicID, out.Username+" as "+n.Role, n.Now); err != nil {
+			return err
+		}
+		return rememberCreated(tx, n.ActorID, n.IdempotencyKey, n.RequestHash, out.PublicID, n.Now)
 	})
 	return out, err
 }
