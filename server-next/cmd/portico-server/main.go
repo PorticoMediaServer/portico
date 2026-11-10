@@ -17,6 +17,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/api"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
+	"github.com/PorticoMediaServer/portico/server-next/internal/mediaengine"
 )
 
 // version is set by the release build.
@@ -66,6 +67,15 @@ func run(log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	// The media engine plans and runs the streams. Its conversions folder is emptied at start:
+	// no stream outlives a restart.
+	engine, err := mediaengine.New(ctx, d, mediaengine.Options{Folder: filepath.Join(*data, "transcodes")})
+	if err != nil {
+		return err
+	}
+	handler.Playback().SetEngine(engine, engine)
+	handler.ServeMediaWith(engine.ServeMedia)
+	go engine.Run(ctx)
 	// The list of changes behind the events feed is kept short. A reader further behind than
 	// what is kept is told to read everything again.
 	go func() {
@@ -99,8 +109,11 @@ func run(log *slog.Logger) error {
 	if err := srv.Shutdown(wait); err != nil && !errors.Is(err, context.DeadlineExceeded) {
 		return err
 	}
-	// Where everyone had got to is saved before the database closes.
+	// Where everyone had got to is saved before the database closes, and every converter stopped.
 	handler.Playback().Save(wait, db.User)
+	if err := engine.Shutdown(wait); err != nil {
+		log.Error("stopping the streams failed", "error", err)
+	}
 	log.Info("portico-server stopped cleanly")
 	return nil
 }

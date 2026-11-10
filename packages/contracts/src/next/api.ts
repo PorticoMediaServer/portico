@@ -1002,6 +1002,7 @@ export interface Routes {
   'PUT /v1/items/{id}/state': {access: 'withProfile'; request: StateRequest; response: StateReply};
   'POST /v1/items/state:undo': {access: 'withProfile'; request: UndoRequest; response: undefined};
   'GET /v1/events': {access: 'withProfile'; request: undefined; response: undefined};
+  'GET /v1/media/{grant}/{file...}': {access: 'public'; request: undefined; response: undefined};
   'GET /v1/devices/{id}/capabilities': {access: 'signedIn'; request: undefined; response: CapabilityDocument};
   'PUT /v1/devices/{id}/capabilities': {access: 'signedIn'; request: CapabilityDocument; response: undefined};
   'GET /v1/items/{id}/playback-options': {access: 'withProfile'; request: undefined; response: PlaybackOptions};
