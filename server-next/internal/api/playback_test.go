@@ -30,8 +30,8 @@ type fakeEngine struct {
 func (f *fakeEngine) CheckCapabilities(json.RawMessage) error { return nil }
 
 func (f *fakeEngine) Qualities(db.PlaybackVersion, db.ItemKind, string) []playback.QualityOption {
-	return []playback.QualityOption{{Mode: "original"}, {Mode: "automatic"}, {Mode: "fixed", ID: "1080p", MaxHeight: 1080},
-		{Mode: "fixed", ID: "720p", MaxHeight: 720}, {Mode: "fixed", ID: "480p", MaxHeight: 480}}
+	return []playback.QualityOption{{Mode: "original"}, {Mode: "automatic"}, {Mode: "fixed", ID: "1080p-low", MaxHeight: 1080},
+		{Mode: "fixed", ID: "720p-high", MaxHeight: 720}, {Mode: "fixed", ID: "480p", MaxHeight: 480}}
 }
 
 func (f *fakeEngine) Plan(r playback.PlanRequest) (playback.Plan, error) {
@@ -382,7 +382,7 @@ func TestChangeMidPlay(t *testing.T) {
 	session := th.play(token, th.film)
 	path := "/v1/playback/sessions/" + session.ID
 	var changed PlaybackSession
-	body := PlaybackChange{Quality: &playback.Quality{Mode: "fixed", ID: "720p"}, PositionMs: ptr(15 * 60_000)}
+	body := PlaybackChange{Quality: &playback.Quality{Mode: "fixed", ID: "720p-high"}, PositionMs: ptr(15 * 60_000)}
 	if w := call(t, th.s, "PATCH", path, token, body, &changed); w.Code != 200 {
 		t.Fatalf("change answered %d: %s", w.Code, w.Body)
 	}
@@ -656,8 +656,36 @@ func TestTrackPicksAreRemembered(t *testing.T) {
 		t.Fatalf("a pick on a show reached a film: %+v", film.Preferred)
 	}
 	// On mobile data video defaults to 720p; elsewhere to the original.
-	if mobile := th.options(token, th.film, "?network=cellular"); mobile.Preferred.Quality.ID != "720p" || mobile.Plan.Route != "converted" {
+	if mobile := th.options(token, th.film, "?network=cellular"); mobile.Preferred.Quality.ID != "720p-high" || mobile.Plan.Route != "converted" {
 		t.Fatalf("the mobile-data default: %+v", mobile.Preferred)
+	}
+}
+
+// The quality a start gets when it names none is the one saved in Settings on that device.
+// Two phones sharing a profile each play their own, and a device with nothing saved plays
+// the default, not another device's choice.
+func TestSavedQualityStaysOnItsDevice(t *testing.T) {
+	th := newTheatre(t)
+	first := th.owner.AccessToken
+	second := onMain(t, th.s, signIn(t, th.s, 1)).AccessToken
+	third := onMain(t, th.s, signIn(t, th.s, 2)).AccessToken
+	save := func(token, scope, quality string) int {
+		// These requests do not come from the home network, so the away setting is the one read.
+		edit := PreferencesEdit{Scope: scope, DeviceClass: "mobile", Values: map[string]any{"quality.remote": quality}}
+		return status(t, th.s, "PATCH", "/v1/preferences", token, edit)
+	}
+	if a, b := save(first, "profile-device", "480p"), save(second, "profile-device", "automatic"); a != 200 || b != 200 {
+		t.Fatalf("saving a quality on a device answered %d and %d", a, b)
+	}
+	// A quality cannot be saved for the whole profile or for a kind of device.
+	if a, b := save(first, "profile-server", "480p"), save(first, "profile-device-class", "480p"); a != 400 || b != 400 {
+		t.Fatalf("saving a quality wider than one device answered %d and %d", a, b)
+	}
+	for token, want := range map[string]string{first: "fixed 480p", second: "automatic ", third: "original "} {
+		code, session := th.start(token, "", PlaybackStart{ItemID: th.film})
+		if got := session.Presentation.Quality; code != 201 || got.Mode+" "+got.ID != want {
+			t.Fatalf("a start answered %d with %+v, want %q", code, got, want)
+		}
 	}
 }
 
