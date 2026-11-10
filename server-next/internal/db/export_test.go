@@ -52,3 +52,12 @@ func ForgetEndedSignIns(d *DB) {
 	clear(d.marks.marks)
 	d.marks.mu.Unlock()
 }
+
+// SetWALLimits lets a test reach the WAL policy's sizes with a small database. It returns
+// a function that puts the real ones back.
+func SetWALLimits(drain, insist int64) (restore func()) {
+	oldDrain, oldInsist := walDrainBytes, walInsistBytes
+	walDrainBytes, walInsistBytes = drain, insist
+	return func() { walDrainBytes, walInsistBytes = oldDrain, oldInsist }
+
+}
