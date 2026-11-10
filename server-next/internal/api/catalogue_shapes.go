@@ -43,8 +43,12 @@ type Sort struct {
 }
 
 // Filter is a filter GET /v1/items accepts for this library. Type says what a value looks
-// like: "boolean", "tag" (a name or an id; GET /v1/facets lists the choices), "year"
-// ("1999" or "1990..1999") or "choice" (one of Values).
+// like: "boolean"; "tag" (an id, or for a genre its name; GET /v1/facets lists the choices);
+// "person" (an id); "year" ("1999" or "1990..1999"); "number" ("7", "7..9", "7..", "..9");
+// "day" ("2024-03-01" or a range of days, either end open); "text"; or "choice" (one of
+// Values). Every filter but a boolean takes several values, as "v1,v2", and says how they
+// combine with "any:", "all:" or "none:" in front (any, when it says nothing). It can be
+// sent more than once; everything sent has to pass.
 type Filter struct {
 	ID     string   `json:"id"`
 	Type   string   `json:"type"`
@@ -58,6 +62,62 @@ type ItemPage struct {
 	Items      []Item `json:"items"`
 	NextCursor string `json:"nextCursor,omitempty"`
 	Total      *int   `json:"total,omitempty"`
+}
+
+// ItemQueryRequest is the body of POST /v1/items/query: the same list as GET /v1/items, for a
+// filter too long for an address or a value that holds a comma. A filter of more than 40
+// conditions, or a condition of more than 100 values, is refused as too long.
+type ItemQueryRequest struct {
+	Library string   `json:"library,omitempty"`
+	Parent  string   `json:"parent,omitempty"`
+	Person  string   `json:"person,omitempty"`
+	Tag     string   `json:"tag,omitempty"`
+	Kind    []string `json:"kind,omitempty"`
+	// Filter holds the conditions, which all have to pass.
+	Filter   []Condition `json:"filter,omitempty"`
+	Watched  *bool       `json:"watched,omitempty"`
+	Favorite *bool       `json:"favorite,omitempty"`
+	InList   *bool       `json:"inList,omitempty"`
+	Sort     string      `json:"sort,omitempty"`
+	// Order is "asc" or "desc"; left out, the sort's own first direction.
+	Order  string `json:"order,omitempty"`
+	Cursor string `json:"cursor,omitempty"`
+	Limit  int    `json:"limit,omitempty"`
+	Total  bool   `json:"total,omitempty"`
+}
+
+// Condition is one filter: a field from the library's filters, some values, and how they
+// combine. Mode is "any" (the default), "all" or "none": the item has any of the values,
+// every one of them, or none of them.
+type Condition struct {
+	Field  string   `json:"field"`
+	Mode   string   `json:"mode,omitempty"`
+	Values []string `json:"values"`
+}
+
+func (req ItemQueryRequest) query() (db.ItemQuery, error) {
+	q := db.ItemQuery{Library: req.Library, Parent: req.Parent, Person: req.Person, Tag: req.Tag, Watched: req.Watched, Favorite: req.Favorite,
+		InList: req.InList, Sort: req.Sort, Cursor: req.Cursor, Limit: max(req.Limit, 0), WithTotal: req.Total}
+	for _, name := range req.Kind {
+		kind, ok := db.ParseItemKind(name)
+		if !ok {
+			return q, ErrField("kind", "One of these is not a kind of item.")
+		}
+		q.Kinds = append(q.Kinds, kind)
+	}
+	for _, c := range req.Filter {
+		q.Conditions = append(q.Conditions, db.Condition{Field: c.Field, Mode: c.Mode, Values: c.Values})
+	}
+	switch req.Order {
+	case "":
+		q.Desc = defaultOrder[q.Sort]
+	case "desc":
+		q.Desc = true
+	case "asc":
+	default:
+		return q, ErrField("order", "Use asc or desc.")
+	}
+	return q, nil
 }
 
 // Item is anything a person can browse.
