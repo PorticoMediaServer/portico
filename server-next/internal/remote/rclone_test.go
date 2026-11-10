@@ -46,7 +46,7 @@ func fakeRclone(args []string) int {
 	}
 	dav := remotetest.NewHandler(files, "")
 	dav.User, dav.Password = os.Getenv("RCLONE_USER"), os.Getenv("RCLONE_PASS")
-	dav.BadNames = []string{"..", "a..b.mkv", "back%5Cslash.mkv", "slash%2Fname.mkv"}
+	dav.BadNames = []string{"..", ".", "back%5Cslash.mkv", "slash%2Fname.mkv"}
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return 1
