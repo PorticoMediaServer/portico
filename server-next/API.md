@@ -110,7 +110,7 @@ Assistant) are a separate short document and are not counted here.
 | `GET /v1/items` | **The one list.** By `library`, `parent`, `person`, `tag`, `list`; `kind`; filters; `sort`; `cursor`, `limit`, `total` |
 | `POST /v1/items/query` | The same list with a structured filter body, for filters too long for a query string |
 | `GET /v1/items/{id}` | Detail, with your state |
-| `GET /v1/items/{id}/credits`, `GET /v1/items/{id}/related`, `GET /v1/items/{id}/files` | Cast and crew; related titles; file facts |
+| `GET /v1/items/{id}/credits`, `GET /v1/items/{id}/related`, `GET /v1/items/{id}/files` | Cast and crew; related titles; where each file is on the server, for the owner and admins only (everyone sees the format facts on the detail) |
 | `GET /v1/facets` | Counted filter choices for a list |
 | `GET /v1/search`, `GET /v1/search/suggestions` | Search across what you may see |
 | `GET /v1/search/history`, `DELETE /v1/search/history` | Your recent searches |

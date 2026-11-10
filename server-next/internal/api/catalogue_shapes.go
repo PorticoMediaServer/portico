@@ -396,19 +396,23 @@ func detailShape(d db.ItemDetail) Item {
 			Size: v.Size, Width: v.Width, Height: v.Height, VideoCodec: v.VideoCodec, AudioCodec: v.AudioCodec,
 			AudioChannels: v.AudioChannels, HDR: v.HDR, Parts: []Part{}}
 		for _, p := range v.Parts {
-			part := Part{Size: p.Size, StartMs: p.StartMS, EndMs: p.EndMS, Streams: []Stream{}}
-			for index, s := range p.Streams {
-				part.Streams = append(part.Streams, Stream{Index: index, Kind: s.Kind.String(), Codec: s.Codec, Profile: s.Profile,
-					Language: s.Language, Title: s.Title, Default: s.Default, Forced: s.Forced, HearingImpaired: s.HearingImpaired,
-					Bitrate: s.Bitrate, Width: s.Width, Height: s.Height, FrameRate: s.FrameRate, BitDepth: s.BitDepth, HDR: s.HDR,
-					Channels: s.Channels, ChannelLayout: s.ChannelLayout, SampleRate: s.SampleRate})
-			}
-			m.Parts = append(m.Parts, part)
+			m.Parts = append(m.Parts, Part{Size: p.Size, StartMs: p.StartMS, EndMs: p.EndMS, Streams: streamShapes(p.Streams)})
 		}
 		for _, k := range v.Markers {
 			m.Markers = append(m.Markers, Marker{Kind: k.Kind.String(), StartMs: k.StartMS, EndMs: k.EndMS, Title: k.Title})
 		}
 		out.Versions = append(out.Versions, m)
+	}
+	return out
+}
+
+func streamShapes(streams []db.Stream) []Stream {
+	out := make([]Stream, len(streams))
+	for index, s := range streams {
+		out[index] = Stream{Index: index, Kind: s.Kind.String(), Codec: s.Codec, Profile: s.Profile,
+			Language: s.Language, Title: s.Title, Default: s.Default, Forced: s.Forced, HearingImpaired: s.HearingImpaired,
+			Bitrate: s.Bitrate, Width: s.Width, Height: s.Height, FrameRate: s.FrameRate, BitDepth: s.BitDepth, HDR: s.HDR,
+			Channels: s.Channels, ChannelLayout: s.ChannelLayout, SampleRate: s.SampleRate}
 	}
 	return out
 }
