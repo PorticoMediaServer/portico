@@ -189,6 +189,9 @@ CREATE INDEX files_problem ON files (directory_id) WHERE problem IS NOT NULL;
 
 -- large. Everything a person can browse: film, show, season, episode, artist, album, track,
 -- audiobook, book, comic, issue, series, collection. A new media type is a new kind code.
+-- locked_fields is a JSON list of the fields and lists a person edited or locked; local_fields
+-- is a JSON list of those an NFO file or the file's own tags gave. A refresh from a provider
+-- changes neither kind. refreshed_at is when a provider was last asked about the title.
 CREATE TABLE items (
   id               INTEGER NOT NULL PRIMARY KEY,
   public_id        TEXT    NOT NULL UNIQUE,
@@ -215,6 +218,7 @@ CREATE TABLE items (
   edition          TEXT,
   match_state      INTEGER NOT NULL DEFAULT 0,
   locked_fields    TEXT,
+  local_fields     TEXT,
   refreshed_at     INTEGER,
   child_count      INTEGER NOT NULL DEFAULT 0,
   leaf_count       INTEGER NOT NULL DEFAULT 0,
@@ -232,6 +236,13 @@ CREATE INDEX items_by_release ON items (library_id, kind, release_date, id);
 CREATE INDEX items_children ON items (parent_id, parent_index, index_number, id);
 CREATE INDEX items_descendants ON items (root_id, kind, parent_index, index_number, id);
 CREATE INDEX items_merged ON items (merged_into_id) WHERE merged_into_id IS NOT NULL;
+-- Three reads of the matcher, each over top-level titles only (an episode follows its show):
+-- titles no provider has been asked about yet, a library's Unmatched items list (looked up
+-- without a confident answer, or kept as they are), and matched titles by when they were
+-- last refreshed.
+CREATE INDEX items_to_match ON items (library_id, id) WHERE match_state = 0 AND parent_id IS NULL;
+CREATE INDEX items_unmatched ON items (library_id, sort_title, id) WHERE match_state IN (3, 4);
+CREATE INDEX items_to_refresh ON items (library_id, refreshed_at, id) WHERE match_state IN (1, 2) AND parent_id IS NULL;
 
 -- large. "This folder, file or embedded ID means that item." Unique, so a rescan or a repeated
 -- job cannot create a second copy of a title, and a merged title stays merged.
@@ -397,12 +408,16 @@ CREATE TABLE item_relations (
 CREATE INDEX item_relations_reverse ON item_relations (related_item_id, kind, item_id);
 
 -- large. Artwork choices. Each row belongs to exactly one owner. The picture itself is a file
--- on disk named by its content hash.
+-- in the data folder named by its content hash; a provider's picture nobody has needed yet has
+-- only its source_url. file_id is the library file a picture beside the media was copied
+-- from: when that file changes or goes, so does the row. selected is the picture shown for the
+-- role; locked says a person chose it, and then no scan or refresh selects another.
 CREATE TABLE images (
   id         INTEGER NOT NULL PRIMARY KEY,
   item_id    INTEGER REFERENCES items(id) ON DELETE CASCADE,
   person_id  INTEGER REFERENCES people(id) ON DELETE CASCADE,
   profile_id INTEGER REFERENCES profiles(id) ON DELETE CASCADE,
+  file_id    INTEGER REFERENCES files(id) ON DELETE CASCADE,
   role       INTEGER NOT NULL,
   source     INTEGER NOT NULL,
   file_hash  TEXT,
@@ -419,6 +434,54 @@ CREATE TABLE images (
 CREATE INDEX images_item ON images (item_id, role, selected) WHERE item_id IS NOT NULL;
 CREATE INDEX images_person ON images (person_id, role, selected) WHERE person_id IS NOT NULL;
 CREATE INDEX images_profile ON images (profile_id) WHERE profile_id IS NOT NULL;
+CREATE INDEX images_file ON images (file_id) WHERE file_id IS NOT NULL;
+
+-- large. Subtitles a person uploaded or the server downloaded for one version, which a rescan
+-- cannot find again. (A subtitle inside the file or beside it is a media_streams row.) The
+-- text is a file in the data folder named by its content hash. source is upload or provider;
+-- provider_ref is the provider's own id for it, so the same one is not downloaded twice.
+CREATE TABLE subtitles (
+  id           INTEGER NOT NULL PRIMARY KEY,
+  public_id    TEXT    NOT NULL UNIQUE,
+  media_id     INTEGER NOT NULL REFERENCES media(id) ON DELETE CASCADE,
+  source       INTEGER NOT NULL,
+  provider     TEXT,
+  provider_ref TEXT,
+  file_hash    TEXT    NOT NULL,
+  format       TEXT    NOT NULL,
+  language     TEXT,
+  title        TEXT,
+  is_forced    INTEGER NOT NULL DEFAULT 0 CHECK (is_forced IN (0, 1)),
+  is_hearing_impaired INTEGER NOT NULL DEFAULT 0 CHECK (is_hearing_impaired IN (0, 1)),
+  created_at   INTEGER NOT NULL
+);
+CREATE INDEX subtitles_media ON subtitles (media_id);
+
+-- large. A song's lyrics that a rescan cannot find again: read from the file's tags, fetched
+-- from the library's lyrics source, or pasted by the owner. (A lyrics file beside the song is
+-- read from disk.) One row per song: pasted lyrics are what everyone sees and no fetch
+-- replaces them. body is NULL when a fetch found nothing, so it is not asked again at once.
+CREATE TABLE lyrics (
+  item_id    INTEGER NOT NULL PRIMARY KEY REFERENCES items(id) ON DELETE CASCADE,
+  source     INTEGER NOT NULL,
+  body       TEXT,
+  timed      INTEGER NOT NULL DEFAULT 0 CHECK (timed IN (0, 1)),
+  language   TEXT,
+  updated_at INTEGER NOT NULL
+);
+
+-- large. The changes people made to a title's details, pictures or match: the editor's
+-- History, and what "Undo to before this" puts back. before is the title as it was before
+-- the change (fields, lists, locks, chosen pictures and match) as JSON. The newest 20 per
+-- title are kept. Refreshes and scans are not recorded.
+CREATE TABLE metadata_history (
+  id      INTEGER NOT NULL PRIMARY KEY,
+  item_id INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+  at      INTEGER NOT NULL,
+  kind    INTEGER NOT NULL,
+  before  TEXT    NOT NULL
+);
+CREATE INDEX metadata_history_item ON metadata_history (item_id, id);
 
 -- ---------------------------------------------------------------------------------------
 -- D. Users, sign-in and access
