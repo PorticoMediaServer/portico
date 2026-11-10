@@ -186,7 +186,7 @@ func (s *Server) saveNetworkSettings(r *http.Request, req NetworkSettingsEdit) (
 			return NetworkSettings{}, ErrField("trustedProxies", "A trusted proxy is your own proxy's address or network, not most of the internet.")
 		}
 	}
-	match, err := ifMatch(r)
+	match, err := settingsIfMatch(r)
 	if err != nil {
 		return NetworkSettings{}, err
 	}
@@ -220,7 +220,7 @@ func errStale() *Error {
 	return refusal(http.StatusPreconditionFailed, "changed_elsewhere", "These settings were changed somewhere else. Read them again.", false)
 }
 
-func ifMatch(r *http.Request) (int64, error) {
+func settingsIfMatch(r *http.Request) (int64, error) {
 	raw := r.Header.Get("If-Match")
 	if raw == "" || raw == "*" {
 		return -1, nil
