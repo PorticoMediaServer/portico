@@ -204,7 +204,65 @@ func (s throttled) Open(ctx context.Context, path string) (file File, err error)
 	if err != nil {
 		return nil, err
 	}
-	return throttledFile{file, s.t, ctx}, nil
+	return &blockFile{File: throttledFile{file, s.t, ctx}}, nil
+}
+
+// blockSize is how much one request reads of a file for a small read. Media tools read in
+// pieces of a few kilobytes; asked for one by one they would spend a source's requests a
+// second on a file's first megabytes.
+const blockSize = 1 << 20
+
+// blockFile answers small reads from the last few blocks it read, each block one request.
+// A read of a block or more is asked for as it is.
+type blockFile struct {
+	File
+	mu     sync.Mutex
+	blocks [4]struct {
+		at   int64
+		data []byte
+	}
+	next int
+}
+
+func (f *blockFile) ReadAt(p []byte, off int64) (int, error) {
+	size := f.Size()
+	if off < 0 || len(p) >= blockSize {
+		return f.File.ReadAt(p, off)
+	}
+	n := 0
+	for n < len(p) && off+int64(n) < size {
+		at := (off + int64(n)) / blockSize * blockSize
+		data, err := f.block(at, size)
+		if err != nil {
+			return n, err
+		}
+		n += copy(p[n:], data[off+int64(n)-at:])
+	}
+	if n < len(p) {
+		return n, io.EOF
+	}
+	return n, nil
+}
+
+func (f *blockFile) block(at, size int64) ([]byte, error) {
+	f.mu.Lock()
+	for _, b := range f.blocks {
+		if b.data != nil && b.at == at {
+			f.mu.Unlock()
+			return b.data, nil
+		}
+	}
+	f.mu.Unlock()
+	data := make([]byte, min(blockSize, size-at))
+	n, err := f.File.ReadAt(data, at)
+	if err != nil && !(errors.Is(err, io.EOF) && n == len(data)) {
+		return nil, err
+	}
+	f.mu.Lock()
+	f.blocks[f.next].at, f.blocks[f.next].data = at, data
+	f.next = (f.next + 1) % len(f.blocks)
+	f.mu.Unlock()
+	return data, nil
 }
 
 // throttledFile makes each read of an open file a request of its own. The file lives as long
