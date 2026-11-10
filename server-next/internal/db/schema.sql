@@ -344,18 +344,22 @@ CREATE TABLE tags (
   UNIQUE (kind, norm_name)
 ) STRICT;
 
--- large. library_id and kind are copies of the item's own, which never change. With them,
--- "how many films in this library carry this tag" and "which tags do this library's films
--- carry" are answered from an index, without reading a row of items.
+-- large. library_id, kind and rating_age are copies of the item's own. With them, "how many
+-- films in this library carry this tag", "which tags do this library's films carry", and
+-- both again for a profile with a rating limit, are answered from an index without reading a
+-- row of items. The library and kind of an item never change. Nothing changes an item's
+-- rating_age yet; whatever comes to do so must write the same value here in the same
+-- transaction (UPDATE item_tags SET rating_age = ? WHERE item_id = ?).
 CREATE TABLE item_tags (
   item_id    INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
   tag_id     INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
   library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
   kind       INTEGER NOT NULL,
+  rating_age INTEGER,
   PRIMARY KEY (item_id, tag_id)
 ) WITHOUT ROWID;
 CREATE INDEX item_tags_tag ON item_tags (tag_id, library_id, kind, item_id);
-CREATE INDEX item_tags_library ON item_tags (library_id, kind, tag_id);
+CREATE INDEX item_tags_library ON item_tags (library_id, kind, tag_id, rating_age);
 
 -- large. Actors, directors, authors, narrators, artists' members.
 CREATE TABLE people (

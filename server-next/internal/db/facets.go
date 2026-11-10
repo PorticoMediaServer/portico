@@ -85,22 +85,23 @@ func (d *DB) Facets(ctx context.Context, v Viewer, q ItemQuery, facet string) ([
 			return counts
 		}
 		counts := byRow("", where)
-		if w.plainKinds != "" {
+		if w.whole {
 			// A whole library and kind reads no row of the list. For each tag of the facet's
 			// kind, the items that carry it are counted from item_tags' own index, and what
 			// sits under a title that carries it from the index of a title's descendants.
+			// Both indexes hold each item's rating, so a rating limit is checked there too.
 			// What a blocked label hides is few: those rows are counted one by one and
 			// taken away.
 			inherited := ""
 			if under {
 				inherited = fmt.Sprintf(` + (SELECT count(*) FROM item_tags h CROSS JOIN items d ON d.root_id = h.item_id
-					WHERE h.tag_id = t.id AND h.library_id = %d AND d.kind IN %s
-					AND NOT EXISTS (SELECT 1 FROM item_tags o WHERE o.item_id = d.id AND o.tag_id = h.tag_id))`, w.plainLibrary, w.plainKinds)
+					WHERE h.tag_id = t.id AND h.library_id = %d AND d.kind IN %s%s
+					AND NOT EXISTS (SELECT 1 FROM item_tags o WHERE o.item_id = d.id AND o.tag_id = h.tag_id))`, w.library, w.kinds, acc.rated("d", ""))
 			}
 			counts = fmt.Sprintf(`SELECT t.id AS tag, (SELECT count(*) FROM item_tags it WHERE it.library_id = %d AND it.kind IN %s
-				AND it.tag_id = t.id)%s AS n FROM tags t WHERE t.kind = '%s'`, w.plainLibrary, w.plainKinds, inherited, facetTagKinds[facet])
+				AND it.tag_id = t.id%s)%s AS n FROM tags t WHERE t.kind = '%s'`, w.library, w.kinds, acc.rated("it", ""), inherited, facetTagKinds[facet])
 			if len(acc.blockedTags) > 0 {
-				counts += ` UNION ALL ` + byRow("-", `i.id IN (`+acc.blockedIDs(w.plainLibrary, w.plainKinds)+`)`)
+				counts += ` UNION ALL ` + byRow("-", `i.id IN (`+acc.blockedIDs(w.library, w.kinds)+`)`+acc.rated("i", ""))
 			}
 		}
 		// The tags are named only after counting, and at most 200 are returned. MATERIALIZED

@@ -443,20 +443,15 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		gathered := fmt.Sprintf(` AND i.id IN (SELECT item_id FROM item_tags WHERE tag_id = %[1]d UNION
 			SELECT d.id FROM item_tags h CROSS JOIN items d WHERE h.tag_id = %[1]d AND d.root_id = h.item_id%[2]s)`, tag, under)
 		// With nothing asked for but a library, kinds and the tag, the total reads no row of
-		// the list: item_tags knows each tagged item's library and kind, and what is under a
-		// tagged title is counted from an index, which also holds each one's rating. Only a
-		// rating limit needs a row, and then only of the items that carry the tag themselves.
+		// items: item_tags knows each tagged item's library, kind and rating, and what is
+		// under a tagged title is counted from an index that holds each one's rating too.
 		if library != 0 && under != "" && q.Parent == "" && q.Person == "" && q.YearFrom == 0 && q.YearTo == 0 &&
 			q.Favorite == nil && q.InList == nil && q.Watched == nil && q.Resolution == "" {
-			own := ""
-			if acc.maxAge != nil {
-				own = ` CROSS JOIN items r ON r.id = h.item_id`
-			}
 			w.tagTotal = fmt.Sprintf(`SELECT count(*) FROM (
-				SELECT h.item_id FROM item_tags h%[4]s WHERE h.tag_id = %[1]d AND h.library_id = %[2]d AND h.kind IN %[3]s%[5]s
+				SELECT h.item_id FROM item_tags h WHERE h.tag_id = %[1]d AND h.library_id = %[2]d AND h.kind IN %[3]s%[4]s
 				UNION SELECT d.id FROM item_tags h CROSS JOIN items d ON d.root_id = h.item_id
-				WHERE h.tag_id = %[1]d AND h.library_id = %[2]d AND d.kind IN %[3]s%[6]s)`, tag, library, kindList,
-				own, acc.rated("r", ""), acc.rated("d", ""))
+				WHERE h.tag_id = %[1]d AND h.library_id = %[2]d AND d.kind IN %[3]s%[5]s)`, tag, library, kindList,
+				acc.rated("h", ""), acc.rated("d", ""))
 		}
 		w.add("{tag}")
 		w.tagWalk = walk
@@ -511,9 +506,12 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		}
 		w.add(` AND EXISTS (SELECT 1 FROM media m WHERE m.item_id = i.id AND m.width IS NOT NULL AND `, resolutionSQL, ` = `, fmt.Sprint(class), `)`)
 	}
-	if library != 0 && kindList != "" && acc.maxAge == nil && q.Parent == "" && q.Person == "" && q.Tag == "" && q.Genre == "" &&
+	if library != 0 && kindList != "" && q.Parent == "" && q.Person == "" && q.Tag == "" && q.Genre == "" &&
 		q.YearFrom == 0 && q.YearTo == 0 && q.Favorite == nil && q.InList == nil && q.Watched == nil && q.Resolution == "" {
-		w.plainLibrary, w.plainKinds = library, kindList
+		w.whole = true
+		if acc.maxAge == nil {
+			w.plainLibrary, w.plainKinds = library, kindList
+		}
 	}
 	if !scoped {
 		return false, invalid("a list needs a library, a parent, a person, a tag, favourites or My List")
