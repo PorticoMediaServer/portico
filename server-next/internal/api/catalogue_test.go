@@ -252,7 +252,7 @@ func TestStateAndEvents(t *testing.T) {
 	if w := call(t, s, "POST", "/v1/items/state:undo", token, UndoRequest{Token: state.Undo.Token}, &refused); w.Code != 409 || refused.Error.Code != "undo_expired" {
 		t.Fatalf("a second undo: %d %s", w.Code, refused.Error.Code)
 	}
-	for _, body := range []map[string]any{{"rating": 11}, {"watched": true, "positionMs": 5}, {"madeAgoMs": -1, "favorite": true}} {
+	for _, body := range []map[string]any{{"rating": 11}, {"rating": 0}, {"watched": true, "positionMs": 5}, {"madeAgoMs": -1, "favorite": true}} {
 		if w := call(t, s, "PUT", "/v1/items/"+film.ID+"/state", token, body, &refused); w.Code != 400 {
 			t.Errorf("state %v answered %d", body, w.Code)
 		}

@@ -77,7 +77,7 @@ var fields = []Setting{
 	intOf("audiobooks.resumeRewindMs", 0, []int{0, 5000, 15000, 30000}, ScopeProfile),
 	intOf("playback.sleepTimerMinutes", 0, []int{0, 30, 60, 90, 120}, ScopeProfile),
 	intRange("playback.startedThresholdPercent", 5, 1, 25, ScopeProfile),
-	intRange("playback.playedThresholdPercent", 95, 75, 100, ScopeProfile),
+	intRange("playback.playedThresholdPercent", 95, 50, 100, ScopeProfile),
 	list("languageList", "playback.preferredAudioLanguages", []string{"@appLanguage", "@original"}, 8, 35),
 	list("languageList", "playback.preferredSubtitleLanguages", []string{"@appLanguage"}, 8, 35),
 	// Subtitles without being asked: never; only for speech in a language other than the

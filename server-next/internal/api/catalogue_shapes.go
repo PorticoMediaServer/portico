@@ -272,7 +272,7 @@ type StateRequest struct {
 	Favorite   *bool   `json:"favorite"`
 	InList     *bool   `json:"inList"`
 	Hidden     *bool   `json:"hidden"`
-	// Rating is 0 to 10, or null to clear it.
+	// Rating is half a star to five stars, sent as 1 to 10, or null to clear it.
 	Rating NullableInt `json:"rating"`
 	// MadeAgoMs is how long ago the person made this edit, by the device's own measure, for
 	// an edit that waited while the device was out of reach. The server never reads a
