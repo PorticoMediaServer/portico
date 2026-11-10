@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/scan"
 )
 
-// Tree writes the synthetic library as real folders of empty files under root, one folder for
+// Tree writes the synthetic library as real folders of small files under root, one folder for
 // each of the four libraries, named the way people name them, so that a real scan can be
 // measured. It returns how many files it made. The same seed and size give the same tree.
 func Tree(cfg Config, root string) (int, error) {
@@ -81,8 +82,9 @@ func (t *tree) file(folder, name string) {
 		}
 		t.made = dir
 	}
-	// A few bytes, differing in size, so that no two files look like one that moved.
-	if t.err = os.WriteFile(filepath.Join(dir, name), make([]byte, 1+t.files%61), 0o644); t.err == nil {
+	// A few bytes more or less, so that no two files look like one that moved.
+	content := append(slices.Clone(t.cfg.Samples[filepath.Ext(name)]), make([]byte, 1+t.files%61)...)
+	if t.err = os.WriteFile(filepath.Join(dir, name), content, 0o644); t.err == nil {
 		t.files++
 	}
 }
@@ -104,9 +106,12 @@ func ScanTree(ctx context.Context, d *db.DB, scanner *scan.Scanner, root string,
 	}
 	if len(mine) == 0 {
 		for _, spec := range Libraries {
-			lib, err := d.NewLibrary(ctx, db.NewLibrary{Name: spec.Name + " in " + filepath.Base(root), Kind: spec.Kind, Language: "en",
-				Folders: []string{filepath.Join(root, spec.Kind)}, Options: db.LibraryOptions{Trash: db.TrashRule{Mode: db.TrashManual}}})
+			lib, err := d.CreateLibrary(ctx, spec.Name+" in "+filepath.Base(root), spec.Kind, "en", []string{filepath.Join(root, spec.Kind)})
 			if err != nil {
+				return totals, err
+			}
+			lib.Options.Trash = db.TrashRule{Mode: db.TrashManual}
+			if err := d.SetLibraryOptions(ctx, lib.ID, lib.Options); err != nil {
 				return totals, err
 			}
 			mine = append(mine, lib)
