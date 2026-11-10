@@ -41,15 +41,18 @@ func (d *DB) Facets(ctx context.Context, v Viewer, q ItemQuery, facet string) ([
 	}
 	// A facet's own filter does not narrow it: with "Drama" chosen, the genre list still
 	// shows what choosing "Comedy" instead would give.
-	switch facet {
-	case FacetDecade:
+	// A tag that is all that says which list this is stays: a genre's own page is still that
+	// genre's list.
+	placed := q.Library != "" || q.Parent != "" || q.Person != "" || q.Favorite != nil && *q.Favorite || q.InList != nil && *q.InList
+	switch {
+	case facet == FacetDecade:
 		q.YearFrom, q.YearTo = 0, 0
-	case FacetResolution:
+	case facet == FacetResolution:
 		q.Resolution = ""
-	case FacetGenre:
+	case facet == FacetGenre && placed:
 		q.Genre = ""
 	}
-	if kind, ok := facetTagKinds[facet]; ok && q.Tag != "" {
+	if kind, ok := facetTagKinds[facet]; ok && q.Tag != "" && placed {
 		var same bool
 		if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM tags WHERE public_id = ? AND kind = ?)`, q.Tag, kind).Scan(&same); err != nil {
 			return nil, err
