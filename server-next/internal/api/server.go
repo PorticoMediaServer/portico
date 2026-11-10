@@ -20,6 +20,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/metadata"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
 	"github.com/PorticoMediaServer/portico/server-next/internal/remote"
@@ -51,6 +52,8 @@ type Server struct {
 	playback *playback.Service
 	// queues builds and runs play queues. See queues.go.
 	queues *playqueue.Service
+	// metadata looks titles up at their library's provider. See metadata.go.
+	metadata *metadata.Service
 	// remote opens the owner's remote sources. See remote_sources.go.
 	remote *remote.Registry
 }
@@ -178,8 +181,14 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.playbackRoutes()
 	s.queues = playqueue.New(d, s.playback, func() time.Time { return s.now() })
 	s.queueRoutes()
+	s.metadata = &metadata.Service{DB: d, Providers: map[string]metadata.Provider{}}
+	s.metadataRoutes()
 	return s, nil
 }
+
+// UseProvider gives the server an online metadata source. Without one, titles are looked up
+// nowhere and keep what their files say.
+func (s *Server) UseProvider(p metadata.Provider) { s.metadata.Providers[p.Name()] = p }
 
 // RemoteSources opens the owner's remote sources for the scanner and for playback.
 func (s *Server) RemoteSources() *remote.Registry { return s.remote }
