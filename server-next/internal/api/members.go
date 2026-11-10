@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -30,6 +31,8 @@ type Member struct {
 	ViewingHours *auth.Hours `json:"viewingHours,omitempty"`
 	// HomeOnly says the account can be used only on the home network.
 	HomeOnly bool `json:"homeOnly"`
+	// MaxProfiles is how many profiles the account may have: 8 unless the owner lowered it.
+	MaxProfiles int `json:"maxProfiles"`
 }
 
 // MemberCreate makes an account directly, with a first password to pass on to its person.
@@ -56,6 +59,9 @@ type MemberEdit struct {
 	// network settings. Away from home it cannot sign in, and a device that leaves home
 	// stops within a quarter of an hour and stays signed in for when it is back.
 	HomeOnly *bool `json:"homeOnly,omitempty"`
+	// MaxProfiles is how many profiles the account may have: 1, 2, 4 or 8. Only the owner
+	// sets it. Lowering it removes no profile; it only stops new ones.
+	MaxProfiles *int `json:"maxProfiles,omitempty"`
 }
 
 // PasswordResetCreate asks for a reset code for a member.
@@ -83,7 +89,7 @@ func memberOut(m db.Member) Member {
 		libraries = []string{}
 	}
 	out := Member{Account: accountOut(m.Account), Disabled: m.Disabled, CreatedAt: m.CreatedAt.UTC(), AllLibraries: m.AllLibraries,
-		Libraries: libraries, TwoFactorEnabled: m.TwoFactor, Notes: m.Notes, HomeOnly: m.HomeOnly}
+		Libraries: libraries, TwoFactorEnabled: m.TwoFactor, Notes: m.Notes, HomeOnly: m.HomeOnly, MaxProfiles: m.MaxProfiles}
 	if m.ViewingHours != "" {
 		out.ViewingHours = &auth.Hours{}
 		json.Unmarshal([]byte(m.ViewingHours), out.ViewingHours)
@@ -192,6 +198,10 @@ func (s *Server) editMember(r *http.Request, req MemberEdit) (Member, error) {
 		return Member{}, ErrField("libraries", "That is too many libraries.")
 	case req.ViewingHours != nil && !req.ViewingHours.Valid():
 		return Member{}, ErrField("viewingHours", "Viewing hours need a known timezone and windows with days 0 to 6 and minutes within one day.")
+	case req.MaxProfiles != nil && !slices.Contains([]int{1, 2, 4, 8}, *req.MaxProfiles):
+		return Member{}, ErrField("maxProfiles", "An account can have 1, 2, 4 or 8 profiles.")
+	case req.MaxProfiles != nil && caller.Role != "owner":
+		return Member{}, ErrNotPermitted()
 	}
 	var hours *string
 	if req.ViewingHours != nil {
@@ -203,7 +213,7 @@ func (s *Server) editMember(r *http.Request, req MemberEdit) (Member, error) {
 		hours = &stored
 	}
 	m, err := s.db.UpdateMember(r.Context(), db.MemberEdit{ActorID: caller.UserID, ActorRole: caller.Role, PublicID: r.PathValue("id"),
-		Role: req.Role, Disabled: req.Disabled, Notes: req.Notes, AllLibraries: req.AllLibraries, Libraries: req.Libraries, ViewingHours: hours, HomeOnly: req.HomeOnly, Now: s.now()})
+		Role: req.Role, Disabled: req.Disabled, Notes: req.Notes, AllLibraries: req.AllLibraries, Libraries: req.Libraries, ViewingHours: hours, HomeOnly: req.HomeOnly, MaxProfiles: req.MaxProfiles, Now: s.now()})
 	return memberOut(m), memberError(err)
 }
 
