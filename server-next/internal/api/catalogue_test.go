@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
-	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/seed"
 )
 
@@ -19,27 +18,36 @@ import (
 // everything and one for a profile limited by rating.
 func seeded(t *testing.T) (s *Server, token, limited string) {
 	t.Helper()
+	s, _, members := seededWith(t, 600, 2)
+	return s, members[0], members[1]
+}
+
+// seededWith is a server holding a seeded library of some size and the seeder's members, with
+// a token for the owner and one for each member, in the seeder's order (see seed.Profiles).
+func seededWith(t *testing.T, items, profiles int) (s *Server, owner string, members []string) {
+	t.Helper()
 	s = newTestServer(t)
 	// The seeded members have no password, so their tokens are minted here. A token is only
 	// let in if it was made since this server started, and a real sign-in says when that was.
-	started, err := s.tokens.CheckAccess(setup(t, s).Session.AccessToken, time.Now())
+	first := setup(t, s)
+	started, err := s.tokens.CheckAccess(first.Session.AccessToken, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	if _, err := seed.Import(ctx, s.db, seed.Config{Seed: 3, Items: 600}, nil); err != nil {
+	if _, err := seed.Import(ctx, s.db, seed.Config{Seed: 3, Items: items}, nil); err != nil {
 		t.Fatal(err)
 	}
-	viewers, err := seed.Profiles(ctx, s.db, 2)
+	viewers, err := seed.Profiles(ctx, s.db, profiles)
 	if err != nil {
 		t.Fatal(err)
 	}
-	mint := func(v db.Viewer) string {
+	for _, v := range viewers {
 		token, _ := s.tokens.Access(auth.Claims{UserID: v.UserID, ProfileID: v.ProfileID, Role: "member", Boot: started.Boot},
 			time.Now(), time.Now().Add(time.Hour))
-		return token
+		members = append(members, token)
 	}
-	return s, mint(viewers[0]), mint(viewers[1])
+	return s, onMain(t, s, first).AccessToken, members
 }
 
 func get[T any](t *testing.T, s *Server, token, path string) T {

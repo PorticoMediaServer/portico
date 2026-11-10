@@ -1,6 +1,7 @@
 package db
 
 import (
+	"database/sql"
 	"errors"
 	"time"
 )
@@ -19,3 +20,11 @@ var (
 type LimitedError struct{ Wait time.Duration }
 
 func (e *LimitedError) Error() string { return "too many attempts" }
+
+// notFound turns "no row" into ErrNotFound and passes any other error on.
+func notFound(err error) error {
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrNotFound
+	}
+	return err
+}

@@ -49,10 +49,8 @@ func TestAProfilesRestrictionsAreSetFromTheMainProfile(t *testing.T) {
 	if fewer := *get[ItemPage](t, s, onKid.AccessToken, films).Total; fewer == 0 || fewer >= all {
 		t.Fatalf("the kid is shown %d films of %d under a limit of 13", fewer, all)
 	}
-	if code := status(t, s, "GET", "/v1/items?library="+libraries[1].ID, onKid.AccessToken, nil); code != 200 {
-		t.Fatalf("a library the kid may not see answered %d, want an empty list", code)
-	} else if page := get[ItemPage](t, s, onKid.AccessToken, "/v1/items?library="+libraries[1].ID); len(page.Items) != 0 {
-		t.Fatalf("the kid was shown %d items of a library it is not given", len(page.Items))
+	if code := status(t, s, "GET", "/v1/items?library="+libraries[1].ID, onKid.AccessToken, nil); code != 404 {
+		t.Fatalf("a library the kid may not see answered %d, want 404 as for one that does not exist", code)
 	}
 
 	for _, c := range []struct {

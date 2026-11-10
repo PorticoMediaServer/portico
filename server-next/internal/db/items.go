@@ -330,22 +330,24 @@ var rareTag = 2000
 func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access) (bool, error) {
 	w.add(acc.visible("i"))
 	scoped := false
+	// A library, title or person the list is of is looked up first. One the viewer may not see
+	// is not found, exactly like one that does not exist, as it is when opened on its own.
 	if q.Library != "" {
-		// The library is looked up first, so a library the viewer may not see is an empty
-		// list at once instead of a walk through every row of it.
 		var library int64
 		err := tx.QueryRowContext(ctx, `SELECT l.id FROM libraries l WHERE l.public_id = ? AND `+acc.libraryVisible("l.id"), q.Library).Scan(&library)
-		if errors.Is(err, sql.ErrNoRows) {
-			return false, nil
-		}
 		if err != nil {
-			return false, err
+			return false, notFound(err)
 		}
 		w.add(` AND i.library_id = `, fmt.Sprint(library))
 		scoped = true
 	}
 	if q.Parent != "" {
-		w.add(` AND i.parent_id = (SELECT id FROM items WHERE public_id = `, w.arg(q.Parent), `)`)
+		var parent int64
+		err := tx.QueryRowContext(ctx, `SELECT i.id FROM items i WHERE i.public_id = ? AND `+acc.visible("i"), q.Parent).Scan(&parent)
+		if err != nil {
+			return false, notFound(err)
+		}
+		w.add(` AND i.parent_id = `, fmt.Sprint(parent))
 		scoped = true
 	}
 	if len(q.Kinds) > 0 {
@@ -363,7 +365,14 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		}
 	}
 	if q.Person != "" {
-		w.add(` AND i.id IN (SELECT item_id FROM credits WHERE person_id = (SELECT id FROM people WHERE public_id = `, w.arg(q.Person), `))`)
+		// A person is known to the viewer through a title it may see, as GET /v1/people/{id} says.
+		var person int64
+		err := tx.QueryRowContext(ctx, `SELECT p.id FROM people p WHERE p.public_id = ? AND EXISTS (SELECT 1 FROM credits c
+			JOIN items i ON i.id = c.item_id WHERE c.person_id = p.id AND `+acc.visible("i")+`)`, q.Person).Scan(&person)
+		if err != nil {
+			return false, notFound(err)
+		}
+		w.add(` AND i.id IN (SELECT item_id FROM credits WHERE person_id = `, fmt.Sprint(person), `)`)
 		scoped = true
 	}
 	if q.Tag != "" || q.Genre != "" {
