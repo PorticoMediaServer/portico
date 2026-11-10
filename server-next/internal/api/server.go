@@ -45,6 +45,9 @@ type Server struct {
 	identity  identity
 	routes    []*Route
 	now       func() time.Time
+	// eventsLifetime is how long a change stream stays open: it ends before its access token
+	// does, and the app reconnects. Tests shorten it.
+	eventsLifetime time.Duration
 	// setupCode is what creating the owner needs. It is made at start while there is no
 	// account, and written to the log and to setupFile, never sent to an app.
 	setupCode, setupFile string
@@ -158,7 +161,8 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 		return nil, err
 	}
 	s := &Server{db: d, tokens: tokens, log: log, mux: http.NewServeMux(), version: version, id: identity.id, identity: identity, now: time.Now,
-		passwords: auth.NewPasswords(auth.PasswordCost, auth.PINCost), dataDir: dataDir}
+		eventsLifetime: 10 * time.Minute,
+		passwords:      auth.NewPasswords(auth.PasswordCost, auth.PINCost), dataDir: dataDir}
 	if set, err := d.HasUsers(ctx); err != nil {
 		return nil, err
 	} else if !set {
