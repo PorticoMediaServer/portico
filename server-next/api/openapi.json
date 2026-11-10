@@ -902,7 +902,8 @@
           "title",
           "addedAt",
           "images",
-          "state"
+          "state",
+          "libraryId"
         ],
         "type": "object"
       },

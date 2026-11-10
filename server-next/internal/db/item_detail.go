@@ -9,7 +9,6 @@ import (
 // ItemDetail is everything the detail page of one item shows.
 type ItemDetail struct {
 	Item
-	LibraryID     string
 	OriginalTitle string
 	Summary       string
 	Tagline       string
@@ -97,10 +96,10 @@ func (d *DB) Item(ctx context.Context, v Viewer, publicID string) (ItemDetail, e
 		return out, err
 	}
 	args := append(v.args(), sql.Named("id", publicID))
-	err = scanItem(tx.QueryRowContext(ctx, `SELECT `+itemColumns+`, (SELECT public_id FROM libraries WHERE id = i.library_id),
+	err = scanItem(tx.QueryRowContext(ctx, `SELECT `+itemColumns+`,
 		ifnull(i.original_title, ''), ifnull(i.summary, ''), ifnull(i.tagline, ''), ifnull(i.edition, ''),
 		ifnull(i.critic_rating, 0), i.available`+itemFrom+`i.public_id = @id AND `+acc.visible("i"), args...),
-		&out.Item, &out.LibraryID, &out.OriginalTitle, &out.Summary, &out.Tagline, &out.Edition, &out.CriticRating, &out.Available)
+		&out.Item, &out.OriginalTitle, &out.Summary, &out.Tagline, &out.Edition, &out.CriticRating, &out.Available)
 	if errors.Is(err, sql.ErrNoRows) {
 		return out, ErrNotFound
 	}
@@ -137,7 +136,7 @@ func (d *DB) Item(ctx context.Context, v Viewer, publicID string) (ItemDetail, e
 		func(e *ExternalID) []any { return []any{&e.Provider, &e.ID} }); err != nil {
 		return out, err
 	}
-	if out.Credits, err = credits(ctx, tx, out.ID, 0, detailCredits); err != nil {
+	if out.Credits, err = credits(ctx, tx, out.ID, CreditsAll, 0, detailCredits); err != nil {
 		return out, err
 	}
 	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM credits WHERE item_id = ?`, out.ID).Scan(&out.CreditTotal); err != nil {
@@ -165,16 +164,42 @@ func queryAll[T any](ctx context.Context, tx *sql.Tx, query string, args []any, 
 	return out, rows.Err()
 }
 
-func credits(ctx context.Context, tx *sql.Tx, itemID int64, afterPosition, limit int) ([]Credit, error) {
+// Which of an item's credits to list.
+const (
+	CreditsAll  = ""
+	CreditsCast = "cast" // the people seen or heard: actors, guests, narrators and artists
+	CreditsCrew = "crew" // everyone else
+)
+
+const castRoles = `(1, 7, 8, 9)` // RoleActor, RoleNarrator, RoleArtist, RoleGuest
+
+// creditsPart is the condition for one part of the credits, as " AND ..." or nothing.
+func creditsPart(part string) (string, error) {
+	switch part {
+	case CreditsAll:
+		return "", nil
+	case CreditsCast:
+		return ` AND c.role IN ` + castRoles, nil
+	case CreditsCrew:
+		return ` AND c.role NOT IN ` + castRoles, nil
+	}
+	return "", invalid("unknown part of the credits %q", part)
+}
+
+func credits(ctx context.Context, tx *sql.Tx, itemID int64, part string, offset, limit int) ([]Credit, error) {
 	type creditRow struct {
 		Credit
 		imageID sql.NullInt64
 		hash    sql.NullString
 	}
+	only, err := creditsPart(part)
+	if err != nil {
+		return nil, err
+	}
 	rows, err := queryAll(ctx, tx, `SELECT p.public_id, p.name, c.role, ifnull(c.character, ''), img.id, img.file_hash
 		FROM credits c JOIN people p ON p.id = c.person_id
 		LEFT JOIN images img ON img.person_id = p.id AND img.role = 7 AND img.selected = 1
-		WHERE c.item_id = ? AND c.position >= ? ORDER BY c.position LIMIT ?`, []any{itemID, afterPosition, limit},
+		WHERE c.item_id = ?`+only+` ORDER BY c.position LIMIT ? OFFSET ?`, []any{itemID, limit, offset},
 		func(c *creditRow) []any {
 			return []any{&c.PersonID, &c.Name, &c.Role, &c.Character, &c.imageID, &c.hash}
 		})
@@ -188,9 +213,14 @@ func credits(ctx context.Context, tx *sql.Tx, itemID int64, afterPosition, limit
 	return out, err
 }
 
-// Credits pages through an item's cast and crew in billing order. offset is how many to skip;
-// a cast list is short and never reorders under a reader, so a plain position is enough.
-func (d *DB) Credits(ctx context.Context, v Viewer, itemID string, offset, limit int) ([]Credit, int, error) {
+// Credits pages through an item's cast and crew in billing order, all of them or one part.
+// offset is how many to skip; a cast list is short and never reorders under a reader, so a
+// plain position is enough. The total is of the part asked for.
+func (d *DB) Credits(ctx context.Context, v Viewer, itemID, part string, offset, limit int) ([]Credit, int, error) {
+	only, err := creditsPart(part)
+	if err != nil {
+		return nil, 0, err
+	}
 	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return nil, 0, err
@@ -202,7 +232,7 @@ func (d *DB) Credits(ctx context.Context, v Viewer, itemID string, offset, limit
 	}
 	var id int64
 	var total int
-	err = tx.QueryRowContext(ctx, `SELECT i.id, (SELECT count(*) FROM credits WHERE item_id = i.id) FROM items i
+	err = tx.QueryRowContext(ctx, `SELECT i.id, (SELECT count(*) FROM credits c WHERE c.item_id = i.id`+only+`) FROM items i
 		WHERE i.public_id = ? AND `+acc.visible("i"), itemID).Scan(&id, &total)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, 0, ErrNotFound
@@ -213,7 +243,7 @@ func (d *DB) Credits(ctx context.Context, v Viewer, itemID string, offset, limit
 	if limit <= 0 || limit > maxPageSize {
 		limit = defaultPageSize
 	}
-	out, err := credits(ctx, tx, id, max(offset, 0), limit)
+	out, err := credits(ctx, tx, id, part, max(offset, 0), limit)
 	return out, total, err
 }
 

@@ -100,6 +100,12 @@ func TestBrowse(t *testing.T) {
 	if len(credits.Items) != 5 || credits.Total != 14 || credits.NextCursor != "5" {
 		t.Fatalf("credits: %d of %d, cursor %q", len(credits.Items), credits.Total, credits.NextCursor)
 	}
+	cast := get[CreditPage](t, s, token, "/v1/items/"+hidden.ID+"/credits?part=cast&limit=3")
+	crew := get[CreditPage](t, s, token, "/v1/items/"+hidden.ID+"/credits?part=crew")
+	if cast.Total == 0 || crew.Total == 0 || cast.Total+crew.Total != credits.Total || len(cast.Items) != 3 || cast.NextCursor != "3" ||
+		cast.Items[0].Role != "actor" || len(crew.Items) != crew.Total || crew.Items[0].Role == "actor" {
+		t.Fatalf("cast %d and crew %d of %d credits: %+v %+v", cast.Total, crew.Total, credits.Total, cast.Items, crew.Items)
+	}
 	person := get[Person](t, s, token, "/v1/people/"+credits.Items[0].PersonID)
 	if titles := get[ItemPage](t, s, token, "/v1/items?person="+person.ID+"&total=true"); person.TitleCount == 0 || *titles.Total != person.TitleCount {
 		t.Fatalf("person: %d titles, list total %v", person.TitleCount, titles.Total)
@@ -114,6 +120,15 @@ func TestBrowse(t *testing.T) {
 	}
 	if home := get[Home](t, s, token, "/v1/home"); len(home.Rows) != 1 || home.Rows[0].ID != "recently_added" || len(home.Rows[0].Items) == 0 {
 		t.Fatalf("Home before anything is played: %+v", home.Rows)
+	}
+	// A card says which library it is from, in a list and on Home, so an app can open its page.
+	if page.Items[0].LibraryID != films.ID {
+		t.Fatalf("a film in a list says its library is %q, want %q", page.Items[0].LibraryID, films.ID)
+	}
+	for _, card := range get[Home](t, s, token, "/v1/home").Rows[0].Items {
+		if card.LibraryID == "" {
+			t.Fatalf("a card on Home does not say its library: %+v", card)
+		}
 	}
 
 	for _, c := range []struct {
@@ -130,6 +145,8 @@ func TestBrowse(t *testing.T) {
 		{"/v1/items?library=" + films.ID + "&year=19x", token, 400, "invalid_request"},
 		{"/v1/items/itm_nothing", token, 404, "not_found"},
 		{"/v1/items/" + hidden.ID + "/credits", limited, 404, "not_found"},
+		{"/v1/items/" + hidden.ID + "/credits?part=cast", limited, 404, "not_found"},
+		{"/v1/items/" + hidden.ID + "/credits?part=extras", token, 400, "invalid_request"},
 		{"/v1/libraries/lib_nothing", token, 404, "not_found"},
 		{"/v1/people/per_nothing", token, 404, "not_found"},
 		{"/v1/facets?facet=colour&library=" + films.ID, token, 400, "invalid_request"},

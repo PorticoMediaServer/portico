@@ -261,7 +261,7 @@ export interface Item {
   images: Record<string, string>;
   counts?: ItemCounts;
   state: ItemState;
-  libraryId?: string;
+  libraryId: string;
   originalTitle?: string;
   summary?: string;
   tagline?: string;

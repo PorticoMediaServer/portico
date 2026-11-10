@@ -75,9 +75,10 @@ type Item struct {
 	Images        map[string]string `json:"images"`
 	Counts        *ItemCounts       `json:"counts,omitempty"`
 	State         ItemState         `json:"state"`
+	// LibraryID is the library the item is in, on every card and every page.
+	LibraryID string `json:"libraryId"`
 
 	// On GET /v1/items/{id} only.
-	LibraryID     string            `json:"libraryId,omitempty"`
 	OriginalTitle string            `json:"originalTitle,omitempty"`
 	Summary       string            `json:"summary,omitempty"`
 	Tagline       string            `json:"tagline,omitempty"`
@@ -144,7 +145,9 @@ type Credit struct {
 	Image     string `json:"image,omitempty"`
 }
 
-// CreditPage is one page of GET /v1/items/{id}/credits, in billing order.
+// CreditPage is one page of GET /v1/items/{id}/credits, in billing order. With part=cast it
+// holds only the people seen or heard (actors, guests, narrators, artists) and with part=crew
+// everyone else; Total counts the part asked for.
 type CreditPage struct {
 	Items      []Credit `json:"items"`
 	NextCursor string   `json:"nextCursor,omitempty"`
@@ -342,7 +345,7 @@ func itemShape(it db.Item) Item {
 	out := Item{ID: it.PublicID, Kind: it.Kind.String(), Title: it.Title, Year: it.Year, ReleaseDate: it.ReleaseDate,
 		ParentID: it.ParentPublicID, RootID: it.RootPublicID, Index: it.IndexNumber, ParentIndex: it.ParentIndex,
 		DurationMs: it.DurationMS, ContentRating: it.ContentRating, AddedAt: timeString(it.AddedAt), Images: imageMap(it.Images),
-		State: stateShape(it.State)}
+		State: stateShape(it.State), LibraryID: it.LibraryID}
 	if it.CommunityRating != 0 {
 		out.Ratings = &Ratings{Community: it.CommunityRating}
 	}
@@ -362,7 +365,7 @@ func itemShapes(items []db.Item) []Item {
 
 func detailShape(d db.ItemDetail) Item {
 	out := itemShape(d.Item)
-	out.LibraryID, out.OriginalTitle, out.Summary, out.Tagline, out.Edition = d.LibraryID, d.OriginalTitle, d.Summary, d.Tagline, d.Edition
+	out.OriginalTitle, out.Summary, out.Tagline, out.Edition = d.OriginalTitle, d.Summary, d.Tagline, d.Edition
 	out.Available, out.CreditTotal = &d.Available, &d.CreditTotal
 	if d.CriticRating != 0 {
 		if out.Ratings == nil {
