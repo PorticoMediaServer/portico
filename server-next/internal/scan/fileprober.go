@@ -82,6 +82,11 @@ func (FileProber) Probe(ctx context.Context, path string) (Facts, error) {
 		// The tool could not be run or took too long: try the file again next scan.
 		return Facts{}, err
 	}
+	return FromMedia(found), nil
+}
+
+// FromMedia is what the media tool found in a file, as the scanner stores it.
+func FromMedia(found mediafacts.Facts) Facts {
 	facts := Facts{Container: found.Container, DurationMS: int64(math.Round(found.Duration * 1000)), Bitrate: found.BitRate}
 	for _, s := range found.Streams {
 		d := s.Detail
@@ -106,5 +111,5 @@ func (FileProber) Probe(ctx context.Context, path string) (Facts, error) {
 	for _, c := range found.Chapters {
 		facts.Chapters = append(facts.Chapters, db.Marker{StartMS: int64(math.Round(c.Start * 1000)), EndMS: int64(math.Round(c.End * 1000)), Title: c.Title})
 	}
-	return facts, nil
+	return facts
 }

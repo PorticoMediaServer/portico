@@ -613,6 +613,8 @@ type FileOnDisk struct {
 	Path       string
 	Size       int64
 	ModifiedNS int64
+	// Read says a scan has read the file's facts and tracks.
+	Read bool
 }
 
 // FileOnDisk returns where a local file is on disk. A file of remote storage, or one that
@@ -620,9 +622,9 @@ type FileOnDisk struct {
 func (d *DB) FileOnDisk(ctx context.Context, fileID int64) (FileOnDisk, error) {
 	var out FileOnDisk
 	err := d.read.QueryRowContext(ctx, `SELECT rtrim(lp.path, '/') || '/' || CASE WHEN dir.rel_path = '' THEN '' ELSE dir.rel_path || '/' END || f.name,
-		f.size, f.modified_ns FROM files f JOIN directories dir ON dir.id = f.directory_id
+		f.size, f.modified_ns, f.probed_at IS NOT NULL FROM files f JOIN directories dir ON dir.id = f.directory_id
 		JOIN library_paths lp ON lp.id = dir.library_path_id
-		WHERE f.id = ? AND f.missing_since_at IS NULL AND lp.remote_source_id IS NULL`, fileID).Scan(&out.Path, &out.Size, &out.ModifiedNS)
+		WHERE f.id = ? AND f.missing_since_at IS NULL AND lp.remote_source_id IS NULL`, fileID).Scan(&out.Path, &out.Size, &out.ModifiedNS, &out.Read)
 	if errors.Is(err, sql.ErrNoRows) {
 		return out, ErrNotFound
 	}
