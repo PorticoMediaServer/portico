@@ -19,6 +19,9 @@ type System struct {
 	SetupRequired bool `json:"setupRequired"`
 	// SignInMethods lists the ways to sign in, in the order to offer them.
 	SignInMethods []string `json:"signInMethods"`
+	// RememberAccounts says the sign-in screen may offer to remember an account on the
+	// device and list the ones it has. The owner can turn this off.
+	RememberAccounts bool `json:"rememberAccounts"`
 }
 
 // Health is the answer of the health checks.
@@ -49,7 +52,7 @@ func (s *Server) systemRoutes() {
 			return System{}, err
 		}
 		out := System{ID: s.id, Name: name, APIMajor: APIMajor, Capabilities: []string{},
-			SetupRequired: !hasUsers, SignInMethods: []string{"password"}}
+			SetupRequired: !hasUsers, SignInMethods: []string{"password"}, RememberAccounts: s.policy().RememberAccounts}
 		if _, err := s.admit(r, &Route{Access: SignedIn, Scope: ScopeRead}); err == nil {
 			out.Version = s.version
 		}

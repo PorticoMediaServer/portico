@@ -53,9 +53,11 @@ type Server struct {
 	// playback runs the viewing sessions. See playback.go.
 	playback *playback.Service
 	// queues builds and runs play queues. See queues.go.
-	queues  *playqueue.Service
-	network networkState
-	media   func(w http.ResponseWriter, r *http.Request, grant, file string)
+	queues       *playqueue.Service
+	network      networkState
+	media        func(w http.ResponseWriter, r *http.Request, grant, file string)
+	dataDir      string
+	signInPolicy policyState
 	// feeds caps the change feeds each sign-in holds open. See catalogue.go.
 	feeds feeds
 }
@@ -69,6 +71,8 @@ type Route struct {
 	Scope    Scope
 	Request  reflect.Type
 	Response reflect.Type
+	// Enrolling routes also take a sign-in that may only set up two-step sign-in.
+	Enrolling bool
 }
 
 // Scope is what a key made for a tool must have been given to use a route. A signed-in
@@ -154,7 +158,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 		return nil, err
 	}
 	s := &Server{db: d, tokens: tokens, log: log, mux: http.NewServeMux(), version: version, id: identity.id, identity: identity, now: time.Now,
-		passwords: auth.NewPasswords(auth.PasswordCost, auth.PINCost)}
+		passwords: auth.NewPasswords(auth.PasswordCost, auth.PINCost), dataDir: dataDir}
 	if set, err := d.HasUsers(ctx); err != nil {
 		return nil, err
 	} else if !set {
@@ -167,10 +171,15 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	if err := s.loadNetworks(ctx); err != nil {
 		return nil, err
 	}
+	if err := s.loadPolicy(ctx); err != nil {
+		return nil, err
+	}
 	s.systemRoutes()
 	s.networkRoutes()
+	s.signInSettingsRoutes()
 	s.identityRoutes()
 	s.authRoutes()
+	s.ownerResetRoutes()
 	s.profileRoutes()
 	s.preferenceRoutes()
 	s.deviceRoutes()
@@ -266,7 +275,7 @@ func (p *statusOnly) WriteHeader(status int)      { p.status = status }
 func Handle[Req, Resp any](s *Server, pattern string, access Access, fn func(r *http.Request, req Req) (Resp, error)) *Route {
 	noBody := reflect.TypeFor[Req]() == reflect.TypeFor[None]()
 	noReply := reflect.TypeFor[Resp]() == reflect.TypeFor[None]()
-	route := &Route{pattern, access, defaultScope(pattern, access), reflect.TypeFor[Req](), reflect.TypeFor[Resp]()}
+	route := &Route{Pattern: pattern, Access: access, Scope: defaultScope(pattern, access), Request: reflect.TypeFor[Req](), Response: reflect.TypeFor[Resp]()}
 	s.routes = append(s.routes, route)
 	s.mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
 		r, err := s.admit(r, route)
@@ -376,6 +385,11 @@ type Caller struct {
 	// Manage says the caller is on the account's main profile, and so may change the account
 	// itself: its profiles, devices, sessions and password.
 	Manage bool
+	// PINNeeded says the caller is on the main profile but entered it with a remembered PIN
+	// more than an hour after the PIN was last typed: managing needs the PIN again.
+	PINNeeded bool
+	// Enrol says the caller may only set up two-step sign-in, which the owner requires.
+	Enrol bool
 }
 
 // CallerFrom returns the signed-in caller of a route whose access is not Public.
@@ -417,9 +431,16 @@ func (s *Server) admit(r *http.Request, route *Route) (*http.Request, error) {
 		if err != nil || s.db.TokenRefused(claims.SessionID, db.TokenStamp{Boot: claims.Boot, Seq: claims.Seq}) {
 			return r, ErrUnauthorized()
 		}
-		c = Caller{SessionID: claims.SessionID, UserID: claims.UserID, ProfileID: claims.ProfileID, Role: claims.Role, Manage: claims.Manage}
+		c = Caller{SessionID: claims.SessionID, UserID: claims.UserID, ProfileID: claims.ProfileID, Role: claims.Role, Manage: claims.Manage, Enrol: claims.Enrol}
+		if c.Manage && claims.ManageUntil != 0 && s.now().UnixMilli() >= claims.ManageUntil {
+			c.Manage, c.PINNeeded = false, true
+		}
 	}
 	switch {
+	case c.Enrol && !route.Enrolling:
+		return r, refusal(http.StatusForbidden, "factor_setup_required", "Set up two-step sign-in to finish signing in.", false)
+	case c.PINNeeded && (route.Access == Admin || route.Access == Owner):
+		return r, errPINToManage()
 	case route.Access == WithProfile && c.ProfileID == 0:
 		return r, ErrConflict("profile_selection_required", "Choose a profile to continue.")
 	case route.Access == Admin && c.Role != "owner" && c.Role != "admin", route.Access == Owner && c.Role != "owner":
