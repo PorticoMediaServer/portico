@@ -1,0 +1,57 @@
+name: New server killed under load
+# Kills the new server (server-next) with SIGKILL at random moments while people's writes and
+# an import run against a real database file, and checks after every restart that the server
+# serves again, every write it said was saved is there, none it refused shows up, a repeated
+# "create profile" makes one profile, and SQLite's integrity and foreign-key checks are clean.
+# A change to the tool runs a short pass; the full count (rebuild plan bar 9) is run by hand.
+# Not part of ci/required.
+on:
+  workflow_dispatch:
+    inputs:
+      kills:
+        description: How many times to kill the server
+        default: '200'
+      items:
+        description: Playable items in the library the import works through
+        default: '200000'
+      random:
+        description: Seed for the kill times, to repeat a failed run (empty for a new one)
+        default: ''
+  pull_request:
+    paths:
+      - .github/workflows/server-next-crash.yml
+      - server-next/cmd/portico-crash/**
+permissions:
+  contents: read
+concurrency:
+  group: server-next-crash-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  crash:
+    name: Kill the server under load
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      KILLS: ${{ inputs.kills || '20' }}
+      ITEMS: ${{ inputs.items || '200000' }}
+      RANDOM_SEED: ${{ inputs.random }}
+      WORK: ${{ github.workspace }}/crash
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server-next/go.mod, cache-dependency-path: server-next/go.sum}
+      - name: Build the server and the tool
+        run: |
+          mkdir -p "$WORK/bin"
+          cd server-next && CGO_ENABLED=0 go build -o "$WORK/bin/" ./cmd/portico-server ./cmd/portico-crash
+      - name: Kill it ${{ env.KILLS }} times
+        run: |
+          args=(-server "$WORK/bin/portico-server" -work "$WORK/run" -kills "$KILLS" -items "$ITEMS")
+          if [ -n "$RANDOM_SEED" ]; then args+=(-random "$RANDOM_SEED"); fi
+          "$WORK/bin/portico-crash" "${args[@]}" | tee "$WORK/crash.json"
+          { echo '### Killed under load'; echo '```json'; cat "$WORK/crash.json"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - name: Keep the server log of a failed run
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with: {name: server-next-crash-log, path: '${{ env.WORK }}/run/processes.log', retention-days: 7}
