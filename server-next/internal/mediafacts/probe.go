@@ -105,6 +105,14 @@ func (p Probe) Inspect(ctx context.Context, path string) (Facts, error) {
 func (p Probe) InspectScan(ctx context.Context, path string) (Facts, error) {
 	return p.inspect(ctx, path, []string{"-protocol_whitelist", "file,pipe", "-format_whitelist", mediaexec.LocalInputFormats, "-probesize", "8388608", "-analyzeduration", "5000000"})
 }
+
+// InspectRemote reads a file that is not on a disk here through the private loopback
+// address that serves it (package inputbridge), the way a scan reads a local one.
+func (p Probe) InspectRemote(ctx context.Context, address string) (Facts, error) {
+	return p.inspect(ctx, address, []string{"-protocol_whitelist", "http,tcp", "-format_whitelist", mediaexec.LocalInputFormats, "-probesize", "8388608",
+		"-analyzeduration", "5000000"})
+}
+
 func (p Probe) InspectRemoteMP4(ctx context.Context, path string) (Facts, error) {
 	facts, e := p.inspect(ctx, path, []string{"-f", "mov", "-enable_drefs", "0", "-use_absolute_path", "0", "-protocol_whitelist", "http,tcp", "-probesize", "8388608", "-analyzeduration", "5000000"})
 	facts.Container = "mp4"

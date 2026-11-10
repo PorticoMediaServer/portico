@@ -22,7 +22,7 @@ func (p Probe) completeMusepackTimeline(ctx context.Context, path string, f *Fac
 	if f.AudioCodec != "mpc7" && f.AudioCodec != "mpc8" {
 		return nil
 	}
-	if strings.Contains(path, "://") {
+	if strings.Contains(path, "://") && p.ReadPrefix == nil {
 		return audiofacts.ErrInconsistent
 	}
 	if p.ReadGuard != nil {
