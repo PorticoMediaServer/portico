@@ -22,6 +22,10 @@ type Entry struct {
 	ModifiedNS int64
 	// Device is, for a folder, the number of the disk it is on, or 0 when that cannot be told.
 	Device int64
+	// FolderID is, for a folder, a name for the folder itself however it was reached (through
+	// a link or not), or "" when that cannot be told. A scan reads each folder once, so a
+	// link back to a folder above it cannot send the scan round in circles.
+	FolderID string
 }
 
 // Source is the tree of files one library folder points at. A local folder is one; remote
@@ -84,7 +88,7 @@ func (l Local) List(ctx context.Context, rel string) ([]Entry, error) {
 		}
 		entry := Entry{Name: e.Name(), Dir: info.IsDir(), Size: info.Size(), ModifiedNS: info.ModTime().UnixNano()}
 		if entry.Dir {
-			entry.Device = device(info)
+			entry.Device, entry.FolderID = device(info), folderID(info)
 		}
 		out = append(out, entry)
 	}
@@ -98,6 +102,15 @@ func (l Local) Device(rel string) int64 {
 		return 0
 	}
 	return device(info)
+}
+
+// FolderID names a folder itself, however it was reached, or is "" when it cannot be told.
+func (l Local) FolderID(rel string) string {
+	info, err := os.Stat(l.LocalPath(rel))
+	if err != nil {
+		return ""
+	}
+	return folderID(info)
 }
 
 func (l Local) Exists(ctx context.Context, rel string) (bool, error) {
