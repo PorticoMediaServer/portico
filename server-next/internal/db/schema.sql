@@ -627,7 +627,9 @@ CREATE INDEX preferences_device ON preferences (device_id) WHERE device_id IS NO
 
 -- large. One row per profile per item. Each deliberate choice carries the time it was made,
 -- so when devices sync the later edit wins field by field. A progress report never undoes a
--- later deliberate watched or unwatched.
+-- later deliberate watched or unwatched. hidden is "Not interested". continue_dismissed_at is
+-- when the title was removed from Continue Watching: it stays off that row until it is played
+-- again (last_played_at later than it).
 CREATE TABLE user_item_state (
   profile_id       INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   item_id          INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
@@ -649,6 +651,7 @@ CREATE TABLE user_item_state (
   audio_language   TEXT,
   subtitle_language TEXT,
   subtitle_offset_ms INTEGER,
+  continue_dismissed_at INTEGER,
   updated_at       INTEGER NOT NULL,
   PRIMARY KEY (profile_id, item_id)
 ) WITHOUT ROWID;
