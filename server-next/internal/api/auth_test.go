@@ -287,6 +287,10 @@ func TestNothingWorksAfterASessionIsEnded(t *testing.T) {
 			t.Fatalf("run %d: the last access token worked after its session was ended (%d)", run, code)
 		}
 	}
+	// Signing out with the "{}" many HTTP libraries send as a body is fine.
+	if code := status(t, s, "DELETE", "/v1/auth/session", signIn(t, s, 0).Session.AccessToken, struct{}{}); code != 204 {
+		t.Errorf("sign-out with a {} body answered %d, want 204", code)
+	}
 	// Signing out twice, or with a token that has run out, is fine.
 	last := signIn(t, s, 0).Session
 	s.now = func() time.Time { return time.Now().Add(time.Hour) }

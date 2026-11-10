@@ -3,6 +3,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -310,7 +311,10 @@ type JSON = json.RawMessage
 func readBody(w http.ResponseWriter, r *http.Request, out any, noBody bool) error {
 	body := http.MaxBytesReader(w, r.Body, maxBody)
 	if noBody {
-		if n, _ := io.Copy(io.Discard, body); n > 0 {
+		// Many HTTP libraries send an empty object, "{}", with every request; it says nothing.
+		raw, err := io.ReadAll(body)
+		var empty map[string]json.RawMessage
+		if len(bytes.TrimSpace(raw)) > 0 && (err != nil || json.Unmarshal(raw, &empty) != nil || empty == nil || len(empty) > 0) {
 			return ErrInvalid("This request takes no body.")
 		}
 		return nil
