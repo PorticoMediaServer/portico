@@ -347,9 +347,9 @@ CREATE TABLE tags (
 -- large. library_id, kind and rating_age are copies of the item's own. With them, "how many
 -- films in this library carry this tag", "which tags do this library's films carry", and
 -- both again for a profile with a rating limit, are answered from an index without reading a
--- row of items. The library and kind of an item never change. Nothing changes an item's
--- rating_age yet; whatever comes to do so must write the same value here in the same
--- transaction (UPDATE item_tags SET rating_age = ? WHERE item_id = ?).
+-- row of items. The library and kind of an item never change. Its rating can: whatever
+-- changes it calls ratingChanged in the same transaction, which writes it here again. Rows
+-- are made only by tagItem, which takes all three copies from the item.
 CREATE TABLE item_tags (
   item_id    INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
   tag_id     INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,

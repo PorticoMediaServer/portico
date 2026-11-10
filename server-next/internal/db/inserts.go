@@ -183,3 +183,20 @@ func (b *batchTx) insertImage(itemID int64, position int, image ImportImage) err
 		itemID, image.Role, image.Source, nz(image.FileHash), nz(image.Width), nz(image.Height), position, itemID, image.Role)
 	return err
 }
+
+// tagItem gives an item a tag. The tag row takes its copies of the item's library, kind and
+// rating from the item itself, so they cannot be given wrongly.
+func (b *batchTx) tagItem(itemID, tagID int64) error {
+	_, err := b.exec(`INSERT INTO item_tags (item_id, tag_id, library_id, kind, rating_age)
+		SELECT id, ?, library_id, kind, rating_age FROM items WHERE id = ? ON CONFLICT DO NOTHING`, tagID, itemID)
+	return err
+}
+
+// ratingChanged must be called, in the same transaction, by whatever has just changed the
+// rating_age of an item or of the items under it. It writes each one's present rating into
+// its tag rows, which a rating-limited profile's genre choices and totals are counted from.
+func (b *batchTx) ratingChanged(itemID int64) error {
+	_, err := b.exec(`UPDATE item_tags SET rating_age = (SELECT rating_age FROM items WHERE id = item_tags.item_id)
+		WHERE item_id = ?1 OR item_id IN (SELECT id FROM items WHERE root_id = ?1)`, itemID)
+	return err
+}
