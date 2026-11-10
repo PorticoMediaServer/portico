@@ -449,8 +449,18 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		scoped = true
 	}
 	if q.Collection != "" {
+		// A collection the viewer may not see is not found, as it is when opened on its own.
+		var collection int64
+		err := tx.QueryRowContext(ctx, `SELECT i.id FROM items i WHERE i.public_id = ? AND i.kind = `+itoa(int64(KindCollection))+` AND `+
+			acc.visible("i"), q.Collection).Scan(&collection)
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, ErrNotFound
+		}
+		if err != nil {
+			return false, err
+		}
 		w.add(` AND i.id IN (SELECT related_item_id FROM item_relations WHERE kind = `, itoa(int64(RelationCollectionMember)),
-			` AND item_id = (SELECT id FROM items WHERE public_id = `, w.arg(q.Collection), `))`)
+			` AND item_id = `, itoa(collection), `)`)
 		scoped = true
 	}
 	if q.Tag != "" || q.Genre != "" {
