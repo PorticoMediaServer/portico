@@ -308,10 +308,14 @@ const (
 	MatchFound          MatchState = 1
 	MatchChosen         MatchState = 2 // a person picked the match; a refresh never changes it
 	MatchNeedsAttention MatchState = 3
+	// MatchKept: a person chose "Keep as is": it is off the Unmatched items list until its
+	// files change, and still counts as unmatched.
+	MatchKept MatchState = 4
 )
 
 var matchStateNames = map[MatchState]string{
 	MatchNone: "unmatched", MatchFound: "matched", MatchChosen: "chosen", MatchNeedsAttention: "needs_attention",
+	MatchKept: "kept",
 }
 
 func (s MatchState) String() string { return matchStateNames[s] }
