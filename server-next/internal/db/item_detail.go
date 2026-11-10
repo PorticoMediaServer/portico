@@ -101,6 +101,12 @@ func (d *DB) Item(ctx context.Context, v Viewer, publicID string) (ItemDetail, e
 		ifnull(i.critic_rating, 0), i.available`+itemFrom+`i.public_id = @id AND `+acc.visible("i"), args...),
 		&out.Item, &out.OriginalTitle, &out.Summary, &out.Tagline, &out.Edition, &out.CriticRating, &out.Available)
 	if errors.Is(err, sql.ErrNoRows) {
+		// A title that was merged into another opens the one that remains.
+		var kept string
+		if tx.QueryRowContext(ctx, mergedIntoSQL, KeyMerged, publicID).Scan(&kept) == nil {
+			tx.Rollback()
+			return d.Item(ctx, v, kept)
+		}
 		return out, ErrNotFound
 	}
 	if err != nil {

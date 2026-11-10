@@ -365,6 +365,10 @@ func TestChoosingATitleTheLibraryHasMergesTheTwo(t *testing.T) {
 	if !merged.State.Watched || !merged.State.Favorite || merged.State.Rating == nil || *merged.State.Rating != 9 {
 		t.Errorf("state after the merge: %+v", merged.State)
 	}
+	// A link to the title that was merged away opens the one that remains.
+	if byOldID, err := f.d.Item(ctx, f.viewer, other.PublicID); err != nil || byOldID.PublicID != matrix.PublicID {
+		t.Errorf("the merged-away title's id: %q, %v; want the merged title", byOldID.PublicID, err)
+	}
 	// The merge holds through a scan: the other file is this title's now.
 	if made := f.rescan(); made != 0 || f.count(db.KindMovie) != 1 {
 		t.Errorf("a rescan after the merge made %d titles", made)
@@ -385,8 +389,37 @@ func TestMergingTwoShowsMergesTheirSeasonsAndEpisodes(t *testing.T) {
 	if watched != 3 {
 		t.Fatalf("the other show has %d episodes; want 3", watched)
 	}
+	gone := map[int64]bool{}
+	for _, episode := range f.episodes() {
+		if episode.RootPublicID == other.PublicID {
+			gone[episode.ID] = true
+		}
+	}
+	head, err := f.d.ChangesHead(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := f.d.MergeItems(ctx, other.PublicID, show.PublicID); err != nil {
 		t.Fatal(err)
+	}
+	// Search follows the change list: the episode that was merged away is recorded as deleted,
+	// and the two that moved to the other show as changed.
+	changes, _, _, err := f.d.Changes(ctx, head, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deleted, moved := 0, 0
+	for _, change := range changes {
+		switch {
+		case !gone[change.RefID] || change.Topic != db.TopicItem:
+		case change.Op == db.OpDeleted:
+			deleted++
+		case change.Op == db.OpUpdated:
+			moved++
+		}
+	}
+	if deleted != 1 || moved != 2 {
+		t.Errorf("the change list has %d of the other show's episodes deleted and %d moved; want 1 and 2", deleted, moved)
 	}
 	if err := f.d.Check(ctx); err != nil {
 		t.Fatal(err)
