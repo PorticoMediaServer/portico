@@ -47,6 +47,7 @@ type Server struct {
 	setupCode, setupFile string
 	// playback runs the viewing sessions. See playback.go.
 	playback *playback.Service
+	media    func(w http.ResponseWriter, r *http.Request, grant, file string)
 }
 
 // Route is one operation, kept so the contract can be generated and the operation budget counted.

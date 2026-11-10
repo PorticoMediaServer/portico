@@ -17,20 +17,24 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/api"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
+	"github.com/PorticoMediaServer/portico/server-next/internal/mediaengine"
+	"github.com/PorticoMediaServer/portico/server-next/internal/mediaexec"
 )
 
 // version is set by the release build.
 var version = "dev"
 
 func main() {
-	// The sandbox around ffmpeg starts this same binary again as its helper.
+	// The sandbox around ffmpeg and ffprobe starts this same binary again as its helper.
 	// That must be answered before anything else, flags included.
-	if handled, err := decoder.RunHelper(os.Args[1:]); handled {
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+	for _, helper := range []func([]string) (bool, error){decoder.RunHelper, mediaexec.RunHelper} {
+		if handled, err := helper(os.Args[1:]); handled {
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+			os.Exit(0)
 		}
-		os.Exit(0)
 	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	if err := run(log); err != nil {
@@ -66,6 +70,15 @@ func run(log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	// The media engine plans and runs the streams. Its conversions folder is emptied at start:
+	// no stream outlives a restart.
+	engine, err := mediaengine.New(ctx, d, mediaengine.Options{Folder: filepath.Join(*data, "transcodes")})
+	if err != nil {
+		return err
+	}
+	handler.Playback().SetEngine(engine, engine)
+	handler.ServeMediaWith(engine.ServeMedia)
+	go engine.Run(ctx)
 	// The list of changes behind the events feed is kept short. A reader further behind than
 	// what is kept is told to read everything again.
 	go func() {
@@ -99,8 +112,11 @@ func run(log *slog.Logger) error {
 	if err := srv.Shutdown(wait); err != nil && !errors.Is(err, context.DeadlineExceeded) {
 		return err
 	}
-	// Where everyone had got to is saved before the database closes.
+	// Where everyone had got to is saved before the database closes, and every converter stopped.
 	handler.Playback().Save(wait, db.User)
+	if err := engine.Shutdown(wait); err != nil {
+		log.Error("stopping the streams failed", "error", err)
+	}
 	log.Info("portico-server stopped cleanly")
 	return nil
 }
