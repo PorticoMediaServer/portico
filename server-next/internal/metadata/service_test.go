@@ -34,6 +34,44 @@ type fixture struct {
 	s      *metadata.Service
 }
 
+// rescan scans the library again and says how many titles that made.
+func (f *fixture) rescan() int {
+	f.t.Helper()
+	stats, err := (&scan.Scanner{DB: f.d, Prober: prober{}}).Scan(ctx, f.lib)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	if err := f.d.Check(ctx); err != nil {
+		f.t.Fatal(err)
+	}
+	return stats.ItemsNew
+}
+
+func (f *fixture) count(kind db.ItemKind) int {
+	f.t.Helper()
+	page, err := f.d.Items(ctx, f.viewer, db.ItemQuery{Library: f.lib.PublicID, Kinds: []db.ItemKind{kind}, Limit: 200})
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	return len(page.Items)
+}
+
+func (f *fixture) episodes() []db.Item {
+	f.t.Helper()
+	page, err := f.d.Items(ctx, f.viewer, db.ItemQuery{Library: f.lib.PublicID, Kinds: []db.ItemKind{db.KindEpisode}, Limit: 200})
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	return page.Items
+}
+
+func (f *fixture) set(id string, edit db.StateEdit) {
+	f.t.Helper()
+	if _, _, err := f.d.SetState(ctx, f.viewer, id, edit); err != nil {
+		f.t.Fatal(err)
+	}
+}
+
 // newFixture makes a library of the given kind holding the given files and scans it.
 func newFixture(t *testing.T, kind string, files ...string) *fixture {
 	t.Helper()
@@ -260,4 +298,121 @@ func TestAShowIsMatchedWithItsEpisodes(t *testing.T) {
 	f.title(db.KindEpisode, "Cat's in the Bag...")
 	// A season the provider does not know keeps the name its file gave.
 	f.title(db.KindEpisode, "Episode 1")
+}
+
+var yes = true
+
+func TestAChosenMatchKeepsStateAndIsNeverChangedAgain(t *testing.T) {
+	f := newFixture(t, db.LibraryMovies, "Heat.mkv")
+	f.match()
+	heat := f.title(db.KindMovie, "Heat")
+	f.set(heat.PublicID, db.StateEdit{Watched: &yes, Favorite: &yes})
+
+	// Keep as is takes it off the list; looking it up again puts it back.
+	if err := f.d.KeepAsIs(ctx, heat.PublicID); err != nil {
+		t.Fatal(err)
+	}
+	if list, _ := f.d.Unmatched(ctx, f.lib.ID, nil, 10); len(list) != 0 {
+		t.Fatalf("a title kept as it is is still listed: %+v", list)
+	}
+	if matched, err := f.s.Rematch(ctx, heat.PublicID); err != nil || matched {
+		t.Fatalf("looking up a name two films share: %v, %v", matched, err)
+	}
+	if list, _ := f.d.Unmatched(ctx, f.lib.ID, nil, 10); len(list) != 1 {
+		t.Fatalf("after looking it up again: %+v", list)
+	}
+
+	remaining, err := f.s.Identify(ctx, heat.PublicID, metadata.Ref{ID: "949"})
+	if err != nil || remaining != heat.PublicID {
+		t.Fatalf("Identify: %q, %v", remaining, err)
+	}
+	fixed := f.title(db.KindMovie, "Heat")
+	if fixed.PublicID != heat.PublicID || fixed.Year != 1995 || fixed.Tagline != "A Los Angeles crime saga." || fixed.CreditTotal != 3 {
+		t.Errorf("details after choosing the match: %+v", fixed)
+	}
+	if !fixed.State.Watched || !fixed.State.Favorite {
+		t.Errorf("state after choosing the match: %+v", fixed.State)
+	}
+	if list, _ := f.d.Unmatched(ctx, f.lib.ID, nil, 10); len(list) != 0 {
+		t.Errorf("a matched title is still listed: %+v", list)
+	}
+	// A person's choice is locked: the server will not look it up again.
+	if _, err := f.s.Rematch(ctx, heat.PublicID); err != metadata.ErrMatchLocked {
+		t.Errorf("Rematch of a chosen match: %v", err)
+	}
+}
+
+func TestChoosingATitleTheLibraryHasMergesTheTwo(t *testing.T) {
+	f := newFixture(t, db.LibraryMovies, "the.matrix.1999.1080p.mkv", "matrix again.mkv")
+	f.match()
+	matrix, other := f.title(db.KindMovie, "The Matrix"), f.title(db.KindMovie, "matrix again")
+	rating := 9
+	f.set(matrix.PublicID, db.StateEdit{Favorite: &yes, Rating: &rating})
+	f.set(other.PublicID, db.StateEdit{Watched: &yes})
+
+	remaining, err := f.s.Identify(ctx, other.PublicID, metadata.Ref{ID: "603"})
+	if err != nil || remaining != matrix.PublicID {
+		t.Fatalf("Identify: %q, %v; want %q", remaining, err, matrix.PublicID)
+	}
+	if n := f.count(db.KindMovie); n != 1 {
+		t.Fatalf("%d films after the merge; want 1", n)
+	}
+	merged := f.title(db.KindMovie, "The Matrix")
+	if len(merged.Versions) != 2 {
+		t.Errorf("%d versions; want both files", len(merged.Versions))
+	}
+	// Watched because the other was; favourite and rating are this title's own.
+	if !merged.State.Watched || !merged.State.Favorite || merged.State.Rating == nil || *merged.State.Rating != 9 {
+		t.Errorf("state after the merge: %+v", merged.State)
+	}
+	// The merge holds through a scan: the other file is this title's now.
+	if made := f.rescan(); made != 0 || f.count(db.KindMovie) != 1 {
+		t.Errorf("a rescan after the merge made %d titles", made)
+	}
+}
+
+func TestMergingTwoShowsMergesTheirSeasonsAndEpisodes(t *testing.T) {
+	f := newFixture(t, db.LibraryShows, "Breaking Bad/Season 01/Breaking Bad - S01E01.mkv",
+		"BB/Season 01/BB - S01E01.mkv", "BB/Season 01/BB - S01E02.mkv", "BB/Season 02/BB - S02E01.mkv")
+	show, other := f.title(db.KindShow, "Breaking Bad"), f.title(db.KindShow, "BB")
+	watched := 0
+	for _, episode := range f.episodes() {
+		if episode.RootPublicID == other.PublicID {
+			f.set(episode.PublicID, db.StateEdit{Watched: &yes})
+			watched++
+		}
+	}
+	if watched != 3 {
+		t.Fatalf("the other show has %d episodes; want 3", watched)
+	}
+	if err := f.d.MergeItems(ctx, other.PublicID, show.PublicID); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.d.Check(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if f.count(db.KindShow) != 1 || f.count(db.KindSeason) != 2 || f.count(db.KindEpisode) != 3 {
+		t.Fatalf("after the merge: %d shows, %d seasons, %d episodes; want 1, 2, 3", f.count(db.KindShow), f.count(db.KindSeason), f.count(db.KindEpisode))
+	}
+	merged := f.episodes()
+	for _, episode := range merged {
+		detail, err := f.d.Item(ctx, f.viewer, episode.PublicID)
+		if err != nil || episode.RootPublicID != show.PublicID {
+			t.Fatalf("episode %s of %s: %v", episode.PublicID, episode.RootPublicID, err)
+		}
+		versions := 1
+		if *detail.ParentIndex == 1 && *detail.IndexNumber == 1 {
+			versions = 2 // the episode both shows had
+		}
+		if !detail.State.Watched || len(detail.Versions) != versions {
+			t.Errorf("S%dE%d: watched %v, %d versions", *detail.ParentIndex, *detail.IndexNumber, detail.State.Watched, len(detail.Versions))
+		}
+	}
+	if made := f.rescan(); made != 0 || f.count(db.KindShow) != 1 {
+		t.Errorf("a rescan after the merge made %d titles", made)
+	}
+	// A title cannot be merged with one of another kind.
+	if err := f.d.MergeItems(ctx, merged[0].PublicID, show.PublicID); err == nil {
+		t.Error("an episode was merged into a show")
+	}
 }
