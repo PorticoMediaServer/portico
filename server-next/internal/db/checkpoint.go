@@ -17,8 +17,12 @@ import (
 // stop writing for about as long as a read takes, and it should be the import, never a person.
 // So the automatic checkpoint is off, and:
 //
-//   - A helper on its own connection copies committed pages every half second. This blocks
-//     nobody. When nothing has been written for a whole interval it empties the file.
+//   - A helper on its own connection copies committed pages every half second, and syncs
+//     the database file after each copy. This blocks nobody. SQLite syncs the database only
+//     when it has copied everything, which during an import is never, so without the helper's
+//     sync the whole import's pages would wait for the moment the file is emptied and whoever
+//     wrote next would wait with them: seconds on a slow disk. When nothing has been written
+//     for a whole interval the helper empties the file.
 //   - Once the file passes walDrainBytes the writer holds background work back and takes only
 //     people's writes. The helper then copies every few milliseconds, and whenever the writer
 //     has nothing to do it tries to empty the file, without waiting for anyone. With the
@@ -35,7 +39,7 @@ const (
 	walInsistWait     = 2 * time.Second
 	walHelperInterval = 500 * time.Millisecond
 	walDrainInterval  = 10 * time.Millisecond
-	walDrainPatience  = time.Second
+	walDrainPatience  = 2 * time.Second
 )
 
 // Variables so a test can reach them with a small database.
@@ -68,7 +72,7 @@ func (d *DB) checkpointHelper() {
 				continue
 			}
 			if d.draining.Load() {
-				d.helper.Exec(`PRAGMA wal_checkpoint(PASSIVE)`)
+				d.copyPages()
 				continue
 			}
 			if n%int(walHelperInterval/walDrainInterval) != 0 {
@@ -78,12 +82,21 @@ func (d *DB) checkpointHelper() {
 			switch {
 			case size != lastSize || !modified.Equal(lastModified):
 				lastSize, lastModified = size, modified
-				d.helper.Exec(`PRAGMA wal_checkpoint(PASSIVE)`)
+				d.copyPages()
 			case size > 0:
 				d.helper.Exec(`PRAGMA wal_checkpoint(TRUNCATE)`)
 			}
 		}
 	}
+}
+
+// copyPages is the helper's copy: committed pages into the database file, and that file to disk.
+func (d *DB) copyPages() {
+	var busy, pages, copied int
+	if err := d.helper.QueryRow(`PRAGMA wal_checkpoint(PASSIVE)`).Scan(&busy, &pages, &copied); err == nil && copied > d.copied {
+		d.file.Sync()
+	}
+	d.copied = copied
 }
 
 // afterWrite runs on the writer after every transaction. It costs one file stat, and decides

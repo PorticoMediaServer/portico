@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"sync/atomic"
 	"time"
 
@@ -35,13 +36,18 @@ type DB struct {
 	sessionWatch func(ended, changed []int64)
 
 	// See checkpoint.go.
-	path           string
-	helper         *sql.DB
-	helperDone     chan struct{}
-	nextInsist     time.Time
-	draining       atomic.Bool // background work is held back until the WAL has been emptied
-	drainFrom      int64       // the WAL size at which it is next held back
-	drainUntil     time.Time   // when the present hold gives up
+	path       string
+	helper     *sql.DB
+	helperDone chan struct{}
+	nextInsist time.Time
+	draining   atomic.Bool // background work is held back until the WAL has been emptied
+	drainFrom  int64       // the WAL size at which it is next held back
+	drainUntil time.Time   // when the present hold gives up
+	// file is the database file, held only so the helper can sync it, and copied is how many
+	// WAL pages its last copy had reached. The file is closed after SQLite's own connections:
+	// closing it sooner would drop the locks SQLite holds on the same file.
+	file           *os.File
+	copied         int
 	checkpointsOff atomic.Bool
 }
 
@@ -66,6 +72,12 @@ func Open(ctx context.Context, path string) (*DB, error) {
 	if d.helper, err = open(path, "rw", 1, 0); err != nil {
 		write.Close()
 		d.read.Close()
+		return nil, err
+	}
+	if d.file, err = os.OpenFile(path, os.O_RDWR, 0); err != nil {
+		write.Close()
+		d.read.Close()
+		d.helper.Close()
 		return nil, err
 	}
 	// The helper never waits long for anyone: what it cannot do now it does next time.
@@ -135,5 +147,5 @@ func (d *DB) ensureSchema(ctx context.Context) error {
 func (d *DB) Close() error {
 	close(d.closed)
 	<-d.helperDone
-	return errors.Join(d.read.Close(), d.helper.Close(), d.writeConn.Close())
+	return errors.Join(d.read.Close(), d.helper.Close(), d.writeConn.Close(), d.file.Close())
 }
