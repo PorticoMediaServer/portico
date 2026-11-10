@@ -375,7 +375,7 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		scoped = true
 	}
 	if q.List != "" {
-		in, err := listInQuery(ctx, tx, w.args[0], q.List)
+		in, err := listInQuery(ctx, tx, acc, w.args[0], q.List)
 		if err != nil {
 			return false, err
 		}

@@ -143,3 +143,64 @@ func TestListRenumbersWhenAGapRunsOut(t *testing.T) {
 		t.Fatalf("order %v, want %v", titles, want)
 	}
 }
+
+// A collection holds each title once. Its maker can make it visible to everyone; others then
+// read and play it and cannot change it, and see only its titles they may see. One holding
+// nothing a profile may see is not there for that profile.
+func TestCollectionVisibleToEveryone(t *testing.T) {
+	l := newLibrary(t, 600)
+	owner, child, other := l.all, l.viewers[9], l.viewers[1]
+	films := everything(t, l.d, owner, db.ItemQuery{Library: l.libs[0].PublicID, Kinds: []db.ItemKind{db.KindMovie}, Limit: 200})
+	var seen, hidden []string
+	for _, f := range films {
+		if _, err := l.d.Item(ctx, child, f.PublicID); err == nil {
+			seen = append(seen, f.PublicID)
+		} else {
+			hidden = append(hidden, f.PublicID)
+		}
+	}
+	now := time.Now()
+	create := func(name string, items ...string) db.List {
+		c, err := l.d.CreateList(ctx, owner, db.NewList{Kind: db.ListCollection, Name: name, SortName: name, Items: items}, "", "", now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return c
+	}
+	both, grown := create("both", seen[0], hidden[0]), create("grown", hidden[1])
+	added, err := l.d.AddToList(ctx, owner, both.PublicID, 0, []string{seen[0], seen[1], seen[1]}, 0, "", "", now)
+	if err != nil || added.Added != 1 || added.Already != 2 || added.List.Count != 3 {
+		t.Fatalf("adding what a collection holds: %+v, %v", added, err)
+	}
+	if _, err := l.d.List(ctx, child, both.PublicID); !errors.Is(err, db.ErrNotFound) {
+		t.Fatalf("an only-you collection was read by another profile: %v", err)
+	}
+	yes := true
+	for _, c := range []db.List{both, grown} {
+		if _, err := l.d.EditList(ctx, owner, c.PublicID, 0, db.ListChange{Everyone: &yes}, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	read, err := l.d.List(ctx, child, both.PublicID)
+	if err != nil || read.Count != 2 || read.CanEdit || !read.Everyone {
+		t.Fatalf("the child reads %+v, %v", read, err)
+	}
+	if titles, _, total := entries(t, l.d, child, both.PublicID); !slices.Equal(titles, []string{seen[0], seen[1]}) || total != 2 {
+		t.Fatalf("the child's entries: %v (%d)", titles, total)
+	}
+	if queue, _, err := l.d.ListItems(ctx, child, both.PublicID, 0, 100); err != nil || len(queue) != 2 {
+		t.Fatalf("the child's queue from it: %d, %v", len(queue), err)
+	}
+	if _, err := l.d.List(ctx, child, grown.PublicID); !errors.Is(err, db.ErrNotFound) {
+		t.Fatalf("the child read a collection of titles it may not see: %v", err)
+	}
+	if lists, _, err := l.d.Lists(ctx, child, db.ListCollection, "", 0); err != nil || len(lists) != 1 || lists[0].PublicID != both.PublicID {
+		t.Fatalf("the child's collections: %+v, %v", lists, err)
+	}
+	if lists, _, err := l.d.Lists(ctx, other, db.ListCollection, "", 0); err != nil || len(lists) != 2 {
+		t.Fatalf("an unrestricted profile's collections: %d, %v", len(lists), err)
+	}
+	if _, err := l.d.AddToList(ctx, other, both.PublicID, 0, []string{seen[2]}, 0, "", "", now); !errors.Is(err, db.ErrNotAllowed) {
+		t.Fatalf("another profile changed a collection visible to everyone: %v", err)
+	}
+}

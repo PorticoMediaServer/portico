@@ -26,6 +26,9 @@ type List struct {
 	Role string `json:"role"`
 	// Count is how many entries the asking profile may see.
 	Count int `json:"count"`
+	// Everyone says a collection is visible to everyone on the server, not only its maker.
+	// Others can open and play it and cannot change it.
+	Everyone bool `json:"everyone,omitempty"`
 	// Covers are the pictures of the first entries, up to four, for the list's tile.
 	Covers    []map[string]string `json:"covers"`
 	Revision  string              `json:"revision"`
@@ -48,6 +51,8 @@ type ListCreate struct {
 	Name        string   `json:"name"`
 	Description string   `json:"description,omitempty"`
 	Items       []string `json:"items,omitempty"`
+	// Everyone makes a collection visible to everyone on the server.
+	Everyone bool `json:"everyone,omitempty"`
 }
 
 // ListCreated is a new list; a repeat of the same Idempotency-Key answers the same list.
@@ -55,10 +60,11 @@ type ListCreated struct{ List }
 
 func (l ListCreated) reply(h http.Header) int { etag(h, l.Revision); return http.StatusCreated }
 
-// ListEdit renames or describes a list. Only its maker may.
+// ListEdit renames or describes a list, or changes who sees a collection. Only its maker may.
 type ListEdit struct {
 	Name        *string `json:"name,omitempty"`
 	Description *string `json:"description,omitempty"`
+	Everyone    *bool   `json:"everyone,omitempty"`
 }
 
 // ListAdd adds titles, at the end or just after the entry After. Putting back a removed
@@ -130,7 +136,7 @@ func listShape(l db.List) List {
 		role = "editor"
 	}
 	out := List{ID: l.PublicID, Kind: l.Kind, Name: l.Name, Description: l.Description, Owner: ListOwner{ID: l.OwnerPublicID, Name: l.OwnerName},
-		Role: role, Count: l.Count, Covers: []map[string]string{}, Revision: strconv.FormatInt(l.Revision, 10),
+		Role: role, Count: l.Count, Everyone: l.Everyone, Covers: []map[string]string{}, Revision: strconv.FormatInt(l.Revision, 10),
 		CreatedAt: timeString(l.CreatedAt), UpdatedAt: timeString(l.UpdatedAt)}
 	for _, cover := range l.Covers {
 		out.Covers = append(out.Covers, imageMap(cover.Images))
@@ -202,6 +208,9 @@ func (s *Server) createList(r *http.Request, req ListCreate) (ListCreated, error
 	if req.Kind != db.ListPlaylist && req.Kind != db.ListCollection {
 		return ListCreated{}, ErrField("kind", "Use playlist or collection.")
 	}
+	if req.Everyone && req.Kind != db.ListCollection {
+		return ListCreated{}, ErrField("everyone", "Only a collection is made visible to everyone.")
+	}
 	if err := checkName(&req.Name, &req.Description); err != nil {
 		return ListCreated{}, err
 	}
@@ -213,7 +222,7 @@ func (s *Server) createList(r *http.Request, req ListCreate) (ListCreated, error
 		return ListCreated{}, err
 	}
 	l, err := s.db.CreateList(r.Context(), viewer(r), db.NewList{Kind: req.Kind, Name: req.Name, SortName: sorttext.Key(req.Name, "", ""),
-		Description: req.Description, Items: req.Items}, key, requestHash(req), s.now())
+		Description: req.Description, Items: req.Items, Everyone: req.Everyone}, key, requestHash(req), s.now())
 	return ListCreated{listShape(l)}, listError(err)
 }
 
@@ -225,7 +234,7 @@ func (s *Server) editList(r *http.Request, req ListEdit) (List, error) {
 	if err != nil {
 		return List{}, err
 	}
-	change := db.ListChange{Name: req.Name, Description: req.Description}
+	change := db.ListChange{Name: req.Name, Description: req.Description, Everyone: req.Everyone}
 	if req.Name != nil {
 		change.SortName = sorttext.Key(*req.Name, "", "")
 	}
