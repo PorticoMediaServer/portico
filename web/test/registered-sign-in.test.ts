@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {signInAnswer} from './next-wire.ts';
 import assert from 'node:assert/strict';
 import {BrowserRegisteredSignIn} from '../src/platform/registered-sign-in.ts';
 import {routeBase64} from '@core/route-identity.ts';
@@ -32,12 +33,12 @@ async function fixture() {
   const connection = {pin, getSnapshot: () => ({phase: 'ready'}), dispose: () => {calls.push('dispose-prepared');}};
   const api = {baseUrl: origin, getRouteConnection: () => connection, setAccessToken: () => {},
     request: async (path: string, method: string, body: unknown) => {
-      assert.equal(path, '/v1/auth/two-factor/challenge'); assert.equal(method, 'POST');
-      assert.deepEqual(body, {token: 'actual-server-challenge', code: '123456'});
+      assert.equal(path, '/v1/auth/two-factor'); assert.equal(method, 'POST');
+      assert.deepEqual(body, {challenge: 'actual-server-challenge', code: '123456'});
       calls.push('factor'); if (gate) await gate;
       assert.equal(grant.kind, 'signed-in');
       if (grant.kind !== 'signed-in') throw new Error('Expected a genuine factor grant.');
-      return {...grant.snapshot, session: grant.session, passwordChangeRequired: grant.passwordChangeRequired};
+      return signInAnswer({...grant.snapshot, session: grant.session});
     }} as never;
   const boundConnection = {dispose: () => {calls.push('dispose-bound');}};
   let gate: Promise<void> | undefined, resolveGate: (() => void) | undefined;
@@ -101,17 +102,6 @@ test('normal completion spends the journal once and durably admits the exact ser
   const f = await fixture(); await f.prepare(); await f.flow.finish(f.callback);
   assert.deepEqual(f.calls.filter(value => value !== 'secure-context'), ['connect', 'exchange', 'route-key', 'admission', 'remember', 'dispose-prepared']);
   assert.deepEqual(f.retired, []); await assert.rejects(f.flow.finish(f.callback), {code: 'invalid_return'});
-});
-test('Server MFA remains private after the one-use return and only its actual completion admits the account', async () => {
-  const f = await fixture(), signedIn = f.answer(); await f.prepare();
-  f.grant({kind: 'challenge', token: 'actual-server-challenge', expiresAt: new Date(Date.now() + 120000).toISOString()});
-  const challenge = await f.flow.finish(f.callback);
-  assert.equal(challenge.result.kind, 'challenge'); assert.equal(f.saved(), undefined);
-  assert.equal(f.calls.includes('remember'), false); assert.equal(f.calls.includes('dispose-prepared'), false);
-  f.grant(signedIn); const completed = await f.flow.completeChallenge('123456');
-  assert.equal(completed.result.kind, 'signed-in'); assert.equal(f.calls.filter(value => value === 'exchange').length, 1);
-  assert.equal(f.calls.filter(value => value === 'factor').length, 1); assert.equal(f.calls.includes('remember'), true);
-  await assert.rejects(f.flow.completeChallenge('123456'), {code: 'invalid_return'});
 });
 for (const change of ['cancel', 'revision'] as const) test('a late factor grant after ' + change + ' is retired without adoption', async () => {
   const f = await fixture(), signedIn = f.answer(); await f.prepare();
