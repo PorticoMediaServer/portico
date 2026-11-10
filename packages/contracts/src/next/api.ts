@@ -176,11 +176,23 @@ export interface Home {
   rows: HomeRow[];
 }
 
+export interface HomeLayout {
+  rows: HomeLayoutRow[];
+}
+
+export interface HomeLayoutRow {
+  id: string;
+  title: string;
+  hidden: boolean;
+  alwaysOn: boolean;
+}
+
 export interface HomeRow {
   id: string;
   title: string;
   shape: string;
   items: Item[];
+  nextCursor?: string;
 }
 
 export interface IdentityProof {
@@ -1039,6 +1051,10 @@ export interface Routes {
   'GET /v1/people/{id}': {access: 'withProfile'; request: undefined; response: Person};
   'GET /v1/facets': {access: 'withProfile'; request: undefined; response: Facets};
   'GET /v1/home': {access: 'withProfile'; request: undefined; response: Home};
+  'GET /v1/home/rows/{id}': {access: 'withProfile'; request: undefined; response: ItemPage};
+  'GET /v1/home/layout': {access: 'withProfile'; request: undefined; response: HomeLayout};
+  'PUT /v1/home/layout': {access: 'withProfile'; request: HomeLayout; response: HomeLayout};
+  'GET /v1/libraries/{id}/landing': {access: 'withProfile'; request: undefined; response: Home};
   'PUT /v1/items/{id}/state': {access: 'withProfile'; request: StateRequest; response: StateReply};
   'POST /v1/items/state:undo': {access: 'withProfile'; request: UndoRequest; response: undefined};
   'GET /v1/events': {access: 'withProfile'; request: undefined; response: undefined};

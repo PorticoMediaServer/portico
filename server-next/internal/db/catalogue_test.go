@@ -1,6 +1,7 @@
 package db_test
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"math/rand/v2"
@@ -491,29 +492,75 @@ func TestHomeRowsAndEvents(t *testing.T) {
 	state(t, l.d, v, films[0].PublicID, db.StateEdit{PositionMS: position(60_000)})
 	state(t, l.d, v, films[1].PublicID, db.StateEdit{PositionMS: position(60_000)})
 	state(t, l.d, v, films[1].PublicID, db.StateEdit{Watched: &yes})
-	row, err := l.d.ContinueWatching(ctx, v)
+	row, err := l.d.Continue(ctx, v, db.ContinueWatching, "")
 	if err != nil || len(row) != 1 || row[0].PublicID != films[0].PublicID {
 		t.Fatalf("continue watching: %d items, %v; want only the unfinished film", len(row), err)
 	}
-	if other, _ := l.d.ContinueWatching(ctx, limited); len(other) != 0 {
+	if other, _ := l.d.Continue(ctx, limited, db.ContinueWatching, ""); len(other) != 0 {
 		t.Fatal("another profile's progress showed on this profile's Home")
 	}
-	recent, err := l.d.RecentlyAdded(ctx, limited)
-	if err != nil || len(recent) == 0 {
-		t.Fatalf("recently added: %d items, %v", len(recent), err)
-	}
-	kinds := map[db.ItemKind]bool{}
-	for _, item := range recent {
-		kinds[item.Kind] = true
-		if _, err := l.d.Item(ctx, limited, item.PublicID); err != nil {
-			t.Fatalf("recently added showed %q, which the profile may not open: %v", item.Title, err)
+	// Finishing an episode puts the next one on the row, once for the show, and only in the
+	// show's own library.
+	show := everything(t, l.d, v, db.ItemQuery{Library: l.libs[1].PublicID, Kinds: []db.ItemKind{db.KindShow}})[0]
+	episodes := everything(t, l.d, v, db.ItemQuery{Library: l.libs[1].PublicID, Kinds: []db.ItemKind{db.KindEpisode}, Sort: db.SortAdded})
+	var inShow []db.Item
+	for _, e := range episodes {
+		if e.RootPublicID == show.PublicID && e.ParentIndex != nil && *e.ParentIndex > 0 {
+			inShow = append(inShow, e)
 		}
 	}
-	if kinds[db.KindEpisode] || kinds[db.KindTrack] || !kinds[db.KindMovie] {
-		t.Fatalf("recently added should hold whole titles, films among them: %v", kinds)
+	slices.SortFunc(inShow, func(a, b db.Item) int {
+		return cmp.Or(cmp.Compare(*a.ParentIndex, *b.ParentIndex), cmp.Compare(*a.IndexNumber, *b.IndexNumber))
+	})
+	if len(inShow) < 2 {
+		t.Fatalf("the first seeded show has %d numbered episodes", len(inShow))
 	}
-	if everyone, _ := l.d.RecentlyAdded(ctx, v); !kinds[db.KindMovie] || len(everyone) != 40 {
-		t.Fatalf("recently added for the unrestricted profile has %d titles", len(everyone))
+	state(t, l.d, v, inShow[0].PublicID, db.StateEdit{PositionMS: position(60_000)})
+	state(t, l.d, v, inShow[0].PublicID, db.StateEdit{Watched: &yes})
+	row, err = l.d.Continue(ctx, v, db.ContinueWatching, "")
+	if err != nil || len(row) != 2 || row[0].PublicID != inShow[1].PublicID {
+		t.Fatalf("after finishing an episode the row is %d long and starts with %q, want the next episode %q: %v",
+			len(row), row[0].Title, inShow[1].Title, err)
+	}
+	if only, _ := l.d.Continue(ctx, v, db.ContinueWatching, l.libs[0].PublicID); len(only) != 1 || only[0].PublicID != films[0].PublicID {
+		t.Fatalf("the film library's own row holds %d items", len(only))
+	}
+	if music, _ := l.d.Continue(ctx, v, db.ContinueListening, ""); len(music) != 0 {
+		t.Fatalf("Continue Listening holds %d films or episodes", len(music))
+	}
+
+	// Recently added pages through a library's shows, each once and never an episode, and a
+	// limited profile is shown only shows it may open.
+	shows := everything(t, l.d, v, db.ItemQuery{Library: l.libs[1].PublicID, Kinds: []db.ItemKind{db.KindShow}})
+	for _, who := range []db.Viewer{v, limited} {
+		seen, cursor, pages := map[string]bool{}, "", 0
+		for {
+			page, err := l.d.RecentlyAdded(ctx, who, l.libs[1].PublicID, cursor, 3)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, item := range page.Items {
+				if item.Kind != db.KindShow || seen[item.PublicID] {
+					t.Fatalf("recently added sent %s %q, a second time or not a show", item.Kind, item.Title)
+				}
+				seen[item.PublicID] = true
+				if _, err := l.d.Item(ctx, who, item.PublicID); err != nil {
+					t.Fatalf("recently added showed %q, which the profile may not open: %v", item.Title, err)
+				}
+			}
+			if cursor, pages = page.NextCursor, pages+1; cursor == "" {
+				break
+			}
+		}
+		if who == v && (len(seen) != len(shows) || pages < 2) {
+			t.Fatalf("recently added paged %d of %d shows in %d pages", len(seen), len(shows), pages)
+		}
+		if who == limited && (len(seen) == 0 || len(seen) >= len(shows)) {
+			t.Fatalf("the limited profile was shown %d of %d shows", len(seen), len(shows))
+		}
+	}
+	if _, err := l.d.RecentlyAdded(ctx, l.viewers[8], l.libs[1].PublicID, "", 3); !errors.Is(err, db.ErrNotFound) {
+		t.Fatalf("a library the profile is not given: %v", err)
 	}
 
 	events, next, reread, err := l.d.Events(ctx, limited, 0, 100_000)
@@ -532,8 +579,8 @@ func TestHomeRowsAndEvents(t *testing.T) {
 		}
 	}
 	mine, _, _, _ := l.d.Events(ctx, v, 0, 100_000)
-	if last := mine[len(mine)-1]; last.Topic != db.TopicState || last.PublicID != films[1].PublicID {
-		t.Fatalf("the profile's own last event is %+v, want its state on the second film", last)
+	if last := mine[len(mine)-1]; last.Topic != db.TopicState || last.PublicID != inShow[0].PublicID {
+		t.Fatalf("the profile's own last event is %+v, want its state on the episode it finished", last)
 	}
 
 	// Once old changes are pruned, a reader still at the start is told to read everything again.
