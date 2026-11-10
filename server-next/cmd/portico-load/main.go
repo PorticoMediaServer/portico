@@ -66,6 +66,7 @@ type Report struct {
 	// writes and at the same time as them: what the disk alone gave a small write.
 	DiskSync     *Timing `json:"diskSync,omitempty"`
 	DiskSyncIdle *Timing `json:"diskSyncIdle,omitempty"`
+	Crowd        *Crowd  `json:"crowd,omitempty"`
 	dir          string
 }
 
@@ -92,8 +93,10 @@ func main() {
 	writesPerSec := flag.Int("writes", 20, "mixed: user writes a second")
 	settle := flag.Duration("settle", time.Minute, "how long after the import to watch the WAL")
 	out := flag.String("out", "", "JSON report file")
-	flag.StringVar(&treeRoot, "tree", "", "a folder of real files: with it, import, rescan and mixed use the real scanner over it; -mode tree writes it")
-	flag.BoolVar(&realFiles, "real", false, "with -tree: the files are small real films and songs (made with ffmpeg) and the scanner reads them with the real prober")
+	people := flag.Int("people", 200, "crowd: people using the server at once")
+	streams := flag.Int("streams", 80, "crowd: how many of them are streaming")
+	crowdTime := flag.Duration("crowd-time", 4*time.Minute, "crowd: how long, with an import through the middle half")
+	streamFile := flag.String("stream-file", "", "crowd: a large file each stream reads a mebibyte a second of")
 	noSync := flag.Bool("no-sync", false, "commit without syncing to disk, to time everything but the disk")
 	flag.Parse()
 	log.SetFlags(log.Ltime)
@@ -138,13 +141,15 @@ func main() {
 		unchanged := totals.RowsWritten == 0 && totals.ItemsNew == 0
 		report.bar("2 unchanged rescan", "at least 5,000 files/s", totals.FilesPerSec, "files/s", totals.FilesPerSec >= 5000)
 		report.bar("2 rows changed by a rescan", "0", float64(totals.RowsWritten), "rows", unchanged)
+	case "crowd":
+		crowd(ctx, d, cfg, *people, *streams, *crowdTime, *streamFile, report)
 	case "mixed":
 		report.dir = filepath.Dir(*path)
 		mixed(ctx, d, cfg, *readers, *writesPerSec, *settle, wal, report)
 	case "search":
 		searchMode(ctx, d, *path, cfg, *readers, *writesPerSec, report)
 	default:
-		log.Fatal("-mode must be import, rescan, mixed, tree or search")
+		log.Fatal("-mode must be import, rescan, mixed, crowd, tree or search")
 	}
 
 	report.PeakRSSBytes, report.WALMaxBytes = peakRSS(), wal.max.Load()
