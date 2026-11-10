@@ -172,7 +172,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	go s.playback.Run(ctx)
 	s.playbackRoutes()
 	// Scans and library removals asked for before the server last stopped are taken up again.
-	s.scans = scan.NewManager(ctx, &scan.Scanner{DB: d, Log: log})
+	s.scans = scan.NewManager(ctx, &scan.Scanner{DB: d, Prober: scan.FileProber{}, Log: log})
 	if err := s.scans.Resume(); err != nil {
 		return nil, err
 	}
