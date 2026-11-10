@@ -27,12 +27,16 @@ import (
 //     people's writes. The helper then copies every few milliseconds, and whenever the writer
 //     has nothing to do it tries to empty the file, without waiting for anyone. With the
 //     import quiet that works as soon as the reads in flight have finished, and background
-//     work goes on. A person's write never waits for any of this. The price is the import's:
-//     while reads that take long follow one another without a gap, it waits.
-//   - With the import held, only people's own writes can still grow the file. If they take it
-//     to walInsistBytes, which needs a read that does not end or writes without a gap for a
-//     long time, the writer waits up to walInsistWait for reads, once a second, and empties
-//     it. A pause in writing is better than a file with no limit.
+//     work goes on. A person's write never waits for any of this.
+//   - Background work is never held longer than walHoldMax. On a server that is never quiet
+//     the file may not empty in that time; background work then runs for as long again
+//     before it is next held, so a scan always moves at half speed or better and a job's own
+//     small writes (a cancel, a first play storing a file's facts) wait two seconds at most.
+//     Two seconds is about two of the slowest reads measured at a million items, which is
+//     what emptying the file needs.
+//   - The file can therefore still grow. At walInsistBytes the writer waits up to
+//     walInsistWait for reads, once a second, and empties it. A pause in writing is better
+//     than a file with no limit.
 const (
 	walKeepBytes      = 16 << 20
 	walInsistWait     = 2 * time.Second
@@ -44,6 +48,7 @@ const (
 var (
 	walDrainBytes  int64 = 128 << 20
 	walInsistBytes int64 = 384 << 20
+	walHoldMax           = 2 * time.Second
 )
 
 func (d *DB) walSize() (int64, time.Time) {
@@ -94,13 +99,26 @@ func (d *DB) copyPages() {
 	d.copied = copied
 }
 
-// afterWrite runs on the writer after every transaction. It costs one file stat, and decides
-// whether background work is held back.
+// afterWrite runs on the writer after every transaction, and after every try at emptying the
+// file. It costs one file stat, and decides whether background work is held back.
 func (d *DB) afterWrite() {
 	size, _ := d.walSize()
-	d.draining.Store(size >= walDrainBytes)
-	if size >= walInsistBytes && time.Now().After(d.nextInsist) {
-		d.nextInsist = time.Now().Add(time.Second)
+	now := time.Now()
+	switch {
+	case size < walDrainBytes:
+		d.draining.Store(false)
+		d.holdAgain = time.Time{}
+	case d.draining.Load():
+		if now.After(d.holdUntil) {
+			d.draining.Store(false)
+			d.holdAgain = now.Add(walHoldMax)
+		}
+	case now.After(d.holdAgain):
+		d.draining.Store(true)
+		d.holdUntil = now.Add(walHoldMax)
+	}
+	if size >= walInsistBytes && now.After(d.nextInsist) {
+		d.nextInsist = now.Add(time.Second)
 		d.emptyWAL(walInsistWait)
 	}
 }
