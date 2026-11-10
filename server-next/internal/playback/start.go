@@ -418,7 +418,14 @@ func (s *Service) Change(ctx context.Context, id string, c Caller, ch Change) (S
 			// Playback is left as it was: the stream it had is started again.
 			old := StartRequest{SessionID: id, Item: r.item, Version: version, Plan: before.Plan, PositionMs: position, Replaced: s.replaced(sess)}
 			if _, again := s.streams.Start(ctx, old); again != nil {
-				s.end(ctx, id, EndFailed, "")
+				// Change holds the session lock; end it without taking that lock again.
+				s.mu.Lock()
+				if sess.State != StateEnded {
+					s.endLocked(sess, EndFailed, "")
+				}
+				s.mu.Unlock()
+				s.Save(ctx, db.User, id)
+				s.streams.Stop(id)
 			}
 			return Session{}, err
 		}
