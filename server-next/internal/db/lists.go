@@ -46,6 +46,8 @@ type List struct {
 	// Owned says the viewer made it; CanEdit says the viewer may change its entries.
 	Owned   bool
 	CanEdit bool
+	// Everyone says a collection is visible to everyone on the server.
+	Everyone bool
 	// Count is how many entries the viewer may see.
 	Count     int
 	Revision  int64
@@ -58,21 +60,26 @@ type List struct {
 	sortName string
 }
 
-// readableSQL is the condition that the viewer may read the list with alias l.
-const readableSQL = `(l.owner_profile_id = @viewer_profile OR EXISTS (
-	SELECT 1 FROM list_shares sh WHERE sh.list_id = l.id AND sh.profile_id = @viewer_profile))`
+// readable is the condition that the viewer may read the list with alias l: its own, one
+// shared with it, or a collection its maker made visible to everyone. Someone else's
+// collection is readable only while it holds a title the viewer may see.
+func (a access) readable() string {
+	return `(l.owner_profile_id = @viewer_profile OR EXISTS (
+	SELECT 1 FROM list_shares sh WHERE sh.list_id = l.id AND sh.profile_id = @viewer_profile) OR (l.everyone = 1 AND EXISTS (
+	SELECT 1 FROM list_entries ve CROSS JOIN items vi ON vi.id = ve.item_id WHERE ve.list_id = l.id AND ` + a.visible("vi") + `)))`
+}
 
 // listColumns are what a List scans from, given how its entries are counted.
 func listColumns(count string) string {
 	return `l.id, l.public_id, l.kind, l.name, ifnull(l.description, ''), op.public_id, op.name, l.owner_profile_id,
 	l.owner_profile_id = @viewer_profile, l.owner_profile_id = @viewer_profile OR (l.kind = 'playlist' AND EXISTS (
 		SELECT 1 FROM list_shares sh WHERE sh.list_id = l.id AND sh.profile_id = @viewer_profile AND sh.can_edit = 1)),
-	` + count + `, l.revision, l.created_at, l.updated_at, l.sort_name FROM lists l JOIN profiles op ON op.id = l.owner_profile_id`
+	` + count + `, l.revision, l.created_at, l.updated_at, l.sort_name, l.everyone FROM lists l JOIN profiles op ON op.id = l.owner_profile_id`
 }
 
 func (l *List) dest() []any {
 	return []any{&l.ID, &l.PublicID, &l.Kind, &l.Name, &l.Description, &l.OwnerPublicID, &l.OwnerName, &l.ownerID,
-		&l.Owned, &l.CanEdit, &l.Count, &l.Revision, &l.CreatedAt, &l.UpdatedAt, &l.sortName}
+		&l.Owned, &l.CanEdit, &l.Count, &l.Revision, &l.CreatedAt, &l.UpdatedAt, &l.sortName, &l.Everyone}
 }
 
 // unrestricted says the viewer sees every title of every library, so a list's stored entry
@@ -93,7 +100,7 @@ func (a access) countSQL() string {
 // readList reads one list the viewer may read, inside a transaction.
 func readList(ctx context.Context, tx *sql.Tx, v Viewer, acc access, publicID string) (List, error) {
 	var l List
-	err := tx.QueryRowContext(ctx, `SELECT `+listColumns(acc.countSQL())+` WHERE l.public_id = @id AND `+readableSQL,
+	err := tx.QueryRowContext(ctx, `SELECT `+listColumns(acc.countSQL())+` WHERE l.public_id = @id AND `+acc.readable(),
 		append(v.args(), sql.Named("id", publicID))...).Scan(l.dest()...)
 	if errors.Is(err, sql.ErrNoRows) {
 		return l, ErrNotFound
@@ -173,7 +180,7 @@ func (d *DB) Lists(ctx context.Context, v Viewer, kind, cursor string, limit int
 	if err != nil {
 		return nil, "", err
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT `+listColumns(acc.countSQL())+` WHERE `+readableSQL+`
+	rows, err := tx.QueryContext(ctx, `SELECT `+listColumns(acc.countSQL())+` WHERE `+acc.readable()+`
 		AND (@kind = '' OR l.kind = @kind) AND (l.sort_name, l.id) > (@name, @after) ORDER BY l.sort_name, l.id LIMIT @limit`,
 		append(v.args(), sql.Named("kind", kind), sql.Named("name", after.Name), sql.Named("after", after.ID), sql.Named("limit", limit+1))...)
 	if err != nil {
@@ -246,7 +253,7 @@ func (d *DB) ListEntries(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, 
 		return page, err
 	}
 	var list int64
-	err = tx.QueryRowContext(ctx, `SELECT l.id FROM lists l WHERE l.public_id = @id AND l.kind <> 'saved_view' AND `+readableSQL,
+	err = tx.QueryRowContext(ctx, `SELECT l.id FROM lists l WHERE l.public_id = @id AND l.kind <> 'saved_view' AND `+acc.readable(),
 		append(v.args(), sql.Named("id", q.List))...).Scan(&list)
 	if errors.Is(err, sql.ErrNoRows) {
 		return page, ErrNotFound
@@ -298,9 +305,9 @@ func (d *DB) ListEntries(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, 
 // listInQuery is the condition, for the item list, that an item is in a list the viewer may
 // read. A list the viewer may not read is not found. viewer is the statement's viewer_profile
 // value.
-func listInQuery(ctx context.Context, tx *sql.Tx, viewer any, publicID string) (string, error) {
+func listInQuery(ctx context.Context, tx *sql.Tx, acc access, viewer any, publicID string) (string, error) {
 	var list int64
-	err := tx.QueryRowContext(ctx, `SELECT l.id FROM lists l WHERE l.public_id = @id AND l.kind <> 'saved_view' AND `+readableSQL,
+	err := tx.QueryRowContext(ctx, `SELECT l.id FROM lists l WHERE l.public_id = @id AND l.kind <> 'saved_view' AND `+acc.readable(),
 		viewer, sql.Named("id", publicID)).Scan(&list)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", ErrNotFound
@@ -316,6 +323,8 @@ type NewList struct {
 	SortName    string
 	Description string
 	Items       []string
+	// Everyone makes a collection visible to everyone on the server.
+	Everyone bool
 }
 
 // CreateList makes a list. The same key with the same request returns the list it made.
@@ -334,8 +343,9 @@ func (d *DB) CreateList(ctx context.Context, v Viewer, n NewList, key, requestHa
 			return err
 		}
 		publicID, at := NewID("lst"), now.UnixMilli()
-		res, err := tx.Exec(`INSERT INTO lists (public_id, kind, owner_profile_id, name, sort_name, description, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, nullif(?, ''), ?, ?)`, publicID, n.Kind, v.ProfileID, n.Name, n.SortName, n.Description, at, at)
+		res, err := tx.Exec(`INSERT INTO lists (public_id, kind, owner_profile_id, name, sort_name, description, everyone, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, nullif(?, ''), ?, ?, ?)`, publicID, n.Kind, v.ProfileID, n.Name, n.SortName, n.Description,
+			n.Everyone && n.Kind == ListCollection, at, at)
 		if err != nil {
 			return err
 		}
@@ -356,14 +366,16 @@ func (d *DB) CreateList(ctx context.Context, v Viewer, n NewList, key, requestHa
 	return out, err
 }
 
-// ListChange edits a list's name or description. Nil fields stay as they are.
+// ListChange edits a list's name, description, or who sees a collection. Nil fields stay as
+// they are.
 type ListChange struct {
 	Name        *string
 	SortName    string
 	Description *string
+	Everyone    *bool
 }
 
-// EditList renames or describes a list. Only its maker may. revision, when not 0, is the
+// EditList renames or describes a list, or changes who sees a collection. Only its maker may. revision, when not 0, is the
 // revision the edit was made on; an older one is ErrStale.
 func (d *DB) EditList(ctx context.Context, v Viewer, publicID string, revision int64, c ListChange, now time.Time) (out List, err error) {
 	err = d.listWrite(ctx, v, publicID, revision, true, now, func(e *listEdit) error {
@@ -373,7 +385,15 @@ func (d *DB) EditList(ctx context.Context, v Viewer, publicID string, revision i
 			}
 		}
 		if c.Description != nil {
-			_, err := e.tx.Exec(`UPDATE lists SET description = nullif(?, '') WHERE id = ?`, *c.Description, e.id)
+			if _, err := e.tx.Exec(`UPDATE lists SET description = nullif(?, '') WHERE id = ?`, *c.Description, e.id); err != nil {
+				return err
+			}
+		}
+		if c.Everyone != nil {
+			if e.kind != ListCollection {
+				return invalid("only a collection is made visible to everyone")
+			}
+			_, err := e.tx.Exec(`UPDATE lists SET everyone = ? WHERE id = ?`, *c.Everyone, e.id)
 			return err
 		}
 		return nil
@@ -385,10 +405,14 @@ func (d *DB) EditList(ctx context.Context, v Viewer, publicID string, revision i
 // may. A list that is gone, or that the viewer cannot read, is deleted already.
 func (d *DB) DeleteList(ctx context.Context, v Viewer, publicID string) error {
 	return d.write(ctx, User, func(tx *sql.Tx) error {
+		acc, err := loadAccess(ctx, tx, v)
+		if err != nil {
+			return err
+		}
 		var id int64
-		var owned bool
-		err := tx.QueryRowContext(ctx, `SELECT l.id, l.owner_profile_id = @viewer_profile FROM lists l WHERE l.public_id = @id AND `+readableSQL,
-			append(v.args(), sql.Named("id", publicID))...).Scan(&id, &owned)
+		var owned, everyone bool
+		err = tx.QueryRowContext(ctx, `SELECT l.id, l.owner_profile_id = @viewer_profile, l.everyone FROM lists l WHERE l.public_id = @id AND `+acc.readable(),
+			append(v.args(), sql.Named("id", publicID))...).Scan(&id, &owned, &everyone)
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil
 		}
@@ -399,10 +423,12 @@ func (d *DB) DeleteList(ctx context.Context, v Viewer, publicID string) error {
 			return ErrNotAllowed
 		}
 		// Everyone who could read it is told, by profile: once it is gone nobody can be
-		// looked up through it.
-		readers, err := ids(ctx, tx, `SELECT owner_profile_id FROM lists WHERE id = ?1 UNION SELECT profile_id FROM list_shares WHERE list_id = ?1`, id)
-		if err != nil {
-			return err
+		// looked up through it. A collection visible to everyone is told to everyone.
+		readers := []int64{0}
+		if !everyone {
+			if readers, err = ids(ctx, tx, `SELECT owner_profile_id FROM lists WHERE id = ?1 UNION SELECT profile_id FROM list_shares WHERE list_id = ?1`, id); err != nil {
+				return err
+			}
 		}
 		if _, err := tx.Exec(`DELETE FROM lists WHERE id = ?`, id); err != nil {
 			return err

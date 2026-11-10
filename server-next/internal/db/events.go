@@ -50,7 +50,7 @@ func (d *DB) Events(ctx context.Context, v Viewer, after int64, limit int) (even
 		return nil, next, false, err
 	}
 	defer library.Close()
-	list, err := tx.PrepareContext(ctx, `SELECT l.public_id FROM lists l WHERE l.id = @list AND `+readableSQL)
+	list, err := tx.PrepareContext(ctx, `SELECT l.public_id FROM lists l WHERE l.id = @list AND `+acc.readable())
 	if err != nil {
 		return nil, next, false, err
 	}
