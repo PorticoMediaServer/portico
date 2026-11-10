@@ -383,7 +383,10 @@ CREATE TABLE credits (
 CREATE INDEX credits_person ON credits (person_id, role, item_id);
 
 -- large. Typed links between items: member of a collection, extra or trailer of a film,
--- guest artist on a track, book in a series.
+-- guest artist on a track, book in a series. item_id is always the one that holds (the
+-- collection, the film, the series) and related_item_id the one held, in position order, so
+-- a collection's films are read through the primary key and a film's collections through
+-- item_relations_reverse.
 CREATE TABLE item_relations (
   item_id         INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
   kind            INTEGER NOT NULL,
@@ -676,29 +679,36 @@ CREATE INDEX play_history_profile ON play_history (profile_id, played_at);
 CREATE INDEX play_history_item ON play_history (item_id) WHERE item_id IS NOT NULL;
 CREATE INDEX play_history_device ON play_history (device_id) WHERE device_id IS NOT NULL;
 
--- Playlists, collections people make, and saved views. rules holds a saved filter or the
--- rule of a smart list.
+-- Playlists, collections people make, and saved views, each belonging to the profile that
+-- made it. A library's own collections, made automatically or by the owner, are items of kind
+-- collection with their films in item_relations. everyone is 1 for a collection its maker made
+-- visible to everyone on the server. A saved view is on one library, and rules holds its sort
+-- and filters as the query string of the item list. Pins are each profile's own, so they are
+-- not kept here. revision moves with every change and is the list's ETag.
 CREATE TABLE lists (
   id               INTEGER NOT NULL PRIMARY KEY,
   public_id        TEXT    NOT NULL UNIQUE,
   kind             TEXT    NOT NULL CHECK (kind IN ('playlist', 'collection', 'saved_view')),
-  owner_profile_id INTEGER REFERENCES profiles(id) ON DELETE CASCADE,
+  owner_profile_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   library_id       INTEGER REFERENCES libraries(id) ON DELETE CASCADE,
   name             TEXT    NOT NULL,
   sort_name        TEXT    NOT NULL,
   description      TEXT,
   rules            TEXT,
-  pinned           INTEGER NOT NULL DEFAULT 0 CHECK (pinned IN (0, 1)),
-  position         INTEGER NOT NULL DEFAULT 0,
+  everyone         INTEGER NOT NULL DEFAULT 0 CHECK (everyone IN (0, 1)),
   entry_count      INTEGER NOT NULL DEFAULT 0,
   revision         INTEGER NOT NULL DEFAULT 1,
   created_at       INTEGER NOT NULL,
-  updated_at       INTEGER NOT NULL
+  updated_at       INTEGER NOT NULL,
+  CHECK ((kind = 'saved_view') = (library_id IS NOT NULL)),
+  CHECK (everyone = 0 OR kind = 'collection')
 ) STRICT;
-CREATE INDEX lists_owner ON lists (owner_profile_id, kind) WHERE owner_profile_id IS NOT NULL;
-CREATE INDEX lists_library ON lists (library_id, kind) WHERE library_id IS NOT NULL;
+CREATE INDEX lists_owner ON lists (owner_profile_id, kind, sort_name);
+CREATE INDEX lists_library ON lists (library_id) WHERE library_id IS NOT NULL;
+CREATE INDEX lists_everyone ON lists (kind, sort_name) WHERE everyone = 1;
 
--- large. Ordered entries. Positions leave gaps so a move rewrites one row.
+-- large. Ordered entries. Positions are unique in a list and leave gaps, so a move rewrites
+-- one row and a page starts after the last position sent.
 CREATE TABLE list_entries (
   id       INTEGER NOT NULL PRIMARY KEY,
   list_id  INTEGER NOT NULL REFERENCES lists(id) ON DELETE CASCADE,
@@ -706,8 +716,8 @@ CREATE TABLE list_entries (
   position INTEGER NOT NULL,
   added_at INTEGER NOT NULL
 );
-CREATE INDEX list_entries_order ON list_entries (list_id, position);
-CREATE INDEX list_entries_item ON list_entries (item_id);
+CREATE UNIQUE INDEX list_entries_order ON list_entries (list_id, position);
+CREATE INDEX list_entries_item ON list_entries (item_id, list_id);
 
 -- Who a list is shared with, and whether they may edit it.
 CREATE TABLE list_shares (
