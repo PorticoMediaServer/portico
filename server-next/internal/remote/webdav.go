@@ -264,6 +264,14 @@ func (f *davFile) ReadAt(p []byte, off int64) (int, error) {
 	return n, err
 }
 
+// Stream is one GET for everything from off.
+func (f *davFile) Stream(off int64) (io.ReadCloser, error) {
+	if off >= f.size {
+		return io.NopCloser(strings.NewReader("")), nil
+	}
+	return f.get(off, 0)
+}
+
 // get opens length bytes from off, or everything from off when length is 0. It is one
 // request; the caller reads and closes the body.
 func (f *davFile) get(off, length int64) (io.ReadCloser, error) {
