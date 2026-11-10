@@ -7,6 +7,11 @@ name: New server under load
 # missed bar is a number to explain, not a failed run.
 #
 # The database is built in one job and handed to the next as an artifact, so no job runs long.
+#
+# The "scanner" job measures the same bars through the real scanner: it writes the library as
+# real folders of small files, scans them, scans them again unchanged, and scans two more
+# trees with and without people using the server. A stand-in gives every file its tracks, as
+# the prober will. Its numbers are reported beside the seeder's.
 on:
   workflow_dispatch:
     inputs:
@@ -29,6 +34,7 @@ on:
       - server-next/cmd/portico-load/**
       - server-next/cmd/portico-seed/**
       - server-next/internal/seed/**
+      - server-next/internal/scan/**
 permissions:
   contents: read
 concurrency:
@@ -145,9 +151,53 @@ jobs:
           limited "$WORK/bin/portico-load" -mode mixed -db "$WORK/main.db" -items "$EXTRA" -batch "$BUSY_BATCH" -out "$WORK/mixed.json" | tee "$WORK/mixed.txt"
           summarise "Reads and writes while importing $EXTRA more items, $BUSY_BATCH files a transaction, into the $ITEMS library" "$WORK/mixed.txt" "$WORK/mixed.json"
 
+  scanner:
+    name: The real scanner over a file tree
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    outputs:
+      import: ${{ steps.import.outputs.report }}
+      rescan: ${{ steps.rescan.outputs.report }}
+      mixed: ${{ steps.mixed.outputs.report }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server-next/go.mod, cache-dependency-path: server-next/go.sum}
+      - name: Build the seeder and the load driver
+        run: |
+          mkdir -p "$WORK/bin"
+          cd server-next && CGO_ENABLED=0 go build -o "$WORK/bin/" ./cmd/portico-seed ./cmd/portico-load
+      - name: Write the library as real folders and files
+        run: |
+          "$WORK/bin/portico-load" -mode tree -tree "$WORK/tree" -items "$ITEMS"
+          df -h "$WORK" && df -i "$WORK"
+      - name: Scan it for the first time (bars 1 and 6)
+        id: import
+        run: |
+          source ci/server-next-load.sh
+          limited "$WORK/bin/portico-load" -mode import -tree "$WORK/tree" -db "$WORK/main.db" -items "$ITEMS" -batch 200 -out "$WORK/import.json" | tee "$WORK/import.txt"
+          summarise "Real scanner: first scan of $ITEMS playable items" "$WORK/import.txt" "$WORK/import.json"
+      - name: Give ten profiles a tenth of the library each in state rows
+        run: |
+          source ci/server-next-load.sh
+          limited "$WORK/bin/portico-seed" -phase state -db "$WORK/main.db" -items "$ITEMS" -profiles 10
+      - name: Scan the unchanged tree again (bar 2)
+        id: rescan
+        run: |
+          source ci/server-next-load.sh
+          limited "$WORK/bin/portico-load" -mode rescan -tree "$WORK/tree" -db "$WORK/main.db" -items "$ITEMS" -batch 200 -out "$WORK/rescan.json" | tee "$WORK/rescan.txt"
+          summarise "Real scanner: unchanged rescan" "$WORK/rescan.txt" "$WORK/rescan.json"
+      - name: Scan two more trees, with nobody using the server and then with constant use (bars 3 to 6)
+        id: mixed
+        run: |
+          source ci/server-next-load.sh
+          limited "$WORK/bin/portico-load" -mode mixed -tree "$WORK/tree" -db "$WORK/main.db" -items "$EXTRA" -batch "$BUSY_BATCH" -out "$WORK/mixed.json" | tee "$WORK/mixed.txt"
+          summarise "Real scanner: reads and writes while scanning $EXTRA more items, $BUSY_BATCH files a transaction" "$WORK/mixed.txt" "$WORK/mixed.json"
+
   report:
     name: Report
-    needs: [import, state, mixed]
+    needs: [import, state, mixed, scanner]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -158,12 +208,17 @@ jobs:
           RESCAN: ${{ needs.state.outputs.report }}
           COLUMNS: ${{ needs.state.outputs.columns }}
           MIXED: ${{ needs.mixed.outputs.report }}
+          SCAN_IMPORT: ${{ needs.scanner.outputs.import }}
+          SCAN_RESCAN: ${{ needs.scanner.outputs.rescan }}
+          SCAN_MIXED: ${{ needs.scanner.outputs.mixed }}
         run: |
           jq -n --arg runner "ubuntu-24.04 GitHub-hosted, $(nproc) vCPU, 2 GB memory limit on every measured process" \
             --arg commit "$GITHUB_SHA" --arg items "$ITEMS" --arg batch "$BATCH" --arg busy "$BUSY_BATCH" \
             --argjson import "${IMPORT:-null}" --argjson rescan "${RESCAN:-null}" --argjson columns "${COLUMNS:-null}" --argjson mixed "${MIXED:-null}" \
-            '{runner: $runner, commit: $commit, items: ($items | tonumber), batchFiles: ($batch | tonumber), busyBatchFiles: ($busy | tonumber), import: $import, rescan: $rescan, addColumn: $columns, mixed: $mixed}' \
+            --argjson scanImport "${SCAN_IMPORT:-null}" --argjson scanRescan "${SCAN_RESCAN:-null}" --argjson scanMixed "${SCAN_MIXED:-null}" \
+            '{runner: $runner, commit: $commit, items: ($items | tonumber), batchFiles: ($batch | tonumber), busyBatchFiles: ($busy | tonumber), import: $import, rescan: $rescan, addColumn: $columns, mixed: $mixed, scanner: {import: $scanImport, rescan: $scanRescan, mixed: $scanMixed}}' \
             > server-next-load.json
           jq -r '[.import, .rescan, .mixed] | map(select(. != null) | .bars[]) | map(select(.passed | not)) | "Bars missed: \(length)"' server-next-load.json >> "$GITHUB_STEP_SUMMARY"
+          jq -r '[.scanner.import, .scanner.rescan, .scanner.mixed] | map(select(. != null) | .bars[]) | map(select(.passed | not)) | "Bars missed by the real scanner: \(length)"' server-next-load.json >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with: {name: server-next-load, path: server-next-load.json, retention-days: 30}
