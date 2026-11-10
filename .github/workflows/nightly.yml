@@ -100,7 +100,9 @@ jobs:
           PORTICO_FFMPEG: ${{ runner.temp }}/engine/bin/ffmpeg
           PORTICO_FFPROBE: ${{ runner.temp }}/engine/bin/ffprobe
           PORTICO_CI_ENGINE: development
-        run: go test -timeout 10m ./internal/mediaexec ./internal/decoder ./internal/archive7z ./internal/storagepaths ./internal/hostlimits
+        run: |
+          export TMPDIR="$(python3 -c 'import os; print(os.path.realpath(os.environ["RUNNER_TEMP"]))')"
+          go test -timeout 10m ./internal/mediaexec ./internal/decoder ./internal/archive7z ./internal/storagepaths ./internal/hostlimits
       - name: New server on macOS
         working-directory: server-next
         run: go test -timeout 10m ./...
