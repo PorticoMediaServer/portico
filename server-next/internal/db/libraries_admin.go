@@ -226,6 +226,9 @@ func (o LibraryOptions) check() error {
 	if o.RescanMinutes != 0 && (o.RescanMinutes < 15 || o.RescanMinutes > 30*24*60) {
 		return invalid("a library is rescanned every 15 minutes to 30 days")
 	}
+	if o.Lyrics != "" && o.Lyrics != LyricsLRCLIB {
+		return invalid("unknown lyrics source %q", o.Lyrics)
+	}
 	return nil
 }
 
