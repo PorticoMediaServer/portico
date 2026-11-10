@@ -551,7 +551,7 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 	if timeline != nil {
 		if delivery != nil && delivery.OutputContainer == "fmp4_hls" {
 			var promoteErr error
-			produced, promoteErr = promoteFMP4Segments(staging, dir, timeline, from, e == nil)
+			produced, promoteErr = promoteFMP4Segments(staging, dir, timeline, from, e == nil, &fragmentClock.sound)
 			if promoteErr != nil {
 				h.outputPublicationFailed(ctx, id, delivery, position, promoteErr)
 				return
@@ -634,7 +634,7 @@ func (h *HLS) watchWindow(
 				if plan != nil && plan.OutputContainer == "fmp4_hls" {
 					var err error
 					if timeline != nil {
-						produced, err = promoteFMP4Segments(staging, dir, timeline, from, false)
+						produced, err = promoteFMP4Segments(staging, dir, timeline, from, false, &fragmentClock.sound)
 					} else {
 						produced, err = promoteConvertedFragments(staging, dir, "init-"+strconv.Itoa(from)+".mp4", from, nil, fragmentClock)
 					}

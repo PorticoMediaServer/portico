@@ -114,10 +114,55 @@ func mp4Timescales(init []byte) (map[uint32]uint32, error) {
 	return out, nil
 }
 
+// mp4SoundTracks names the tracks of an init segment that carry sound.
+func mp4SoundTracks(init []byte) map[uint32]bool {
+	out := map[uint32]bool{}
+	boxes, _ := mp4Boxes(init, 0, len(init))
+	for _, b := range boxes {
+		if b.kind != "moov" {
+			continue
+		}
+		tracks, _ := mp4Boxes(init, b.body, b.end)
+		for _, t := range tracks {
+			if t.kind != "trak" {
+				continue
+			}
+			tk, e := mp4Child(init, t, "tkhd")
+			md, e2 := mp4Child(init, t, "mdia")
+			if e != nil || e2 != nil {
+				continue
+			}
+			hd, e := mp4Child(init, md, "hdlr")
+			at := tk.body + 12
+			if init[tk.body] == 1 {
+				at = tk.body + 20
+			}
+			if e == nil && at+4 <= tk.end && hd.body+12 <= hd.end && string(init[hd.body+8:hd.body+12]) == "soun" {
+				out[binary.BigEndian.Uint32(init[at:])] = true
+			}
+		}
+	}
+	return out
+}
+
+// soundClock carries where each sound track ended in the segment before, in the
+// track's own units, through one converter run. The MP4 segment muxer starts
+// every track of every segment at zero, so where a segment's sound really began
+// is not in the file: but within one run the sound is one unbroken series of
+// frames, so it begins where the segment before ended. Stamping it at the cut
+// point instead, as the picture is, moved it by up to one audio frame at every
+// segment and left a gap or an overlap there.
+type soundClock struct {
+	next int
+	end  map[uint32]uint64
+}
+
 // rebaseFragments restores the absolute clock the MP4 segment muxer discards.
 // Each track is shifted as a unit; composition offsets and inter-fragment decode
-// distances are preserved. No packet bytes or sample offsets change.
-func rebaseFragments(init, media []byte, position float64) error {
+// distances are preserved. No packet bytes or sample offsets change. A sound
+// track continues from clock when the segment before, index-1, came from the
+// same run.
+func rebaseFragments(init, media []byte, position float64, index int, clock *soundClock) error {
 	scales, e := mp4Timescales(init)
 	if e != nil {
 		return e
@@ -134,6 +179,8 @@ func rebaseFragments(init, media []byte, position float64) error {
 	}
 	stamps := []stamp{}
 	first := map[uint32]uint64{}
+	// length is how far each track runs in this segment, from its first sample.
+	length := map[uint32]uint64{}
 	type composition struct {
 		at, versionAt int
 		value         int64
@@ -256,7 +303,7 @@ func rebaseFragments(init, media []byte, position float64) error {
 					decode += int64(duration)
 				}
 			}
-
+			length[id] = max(length[id], uint64(decode))
 		}
 	}
 	if len(stamps) == 0 {
@@ -274,6 +321,11 @@ func rebaseFragments(init, media []byte, position float64) error {
 		media[c.versionAt] = 0
 		binary.BigEndian.PutUint32(media[c.at:], uint32(int32(value)))
 	}
+	sound := map[uint32]bool{}
+	if clock != nil {
+		sound = mp4SoundTracks(init)
+	}
+	starts := map[uint32]uint64{}
 	for _, s := range stamps {
 		base := uint64(math.Round(position * float64(scales[s.track])))
 		hasComposition := false
@@ -286,6 +338,10 @@ func rebaseFragments(init, media []byte, position float64) error {
 		if !hasComposition {
 			base += uint64(scales[s.track])
 		}
+		if end, continues := clock.continued(index, s.track); continues && sound[s.track] {
+			base = end
+		}
+		starts[s.track] = base
 		if s.value < first[s.track] {
 			return errMP4Box
 		}
@@ -299,7 +355,25 @@ func rebaseFragments(init, media []byte, position float64) error {
 			binary.BigEndian.PutUint64(media[s.at:], value)
 		}
 	}
+	if clock != nil {
+		clock.next, clock.end = index+1, map[uint32]uint64{}
+		for track := range sound {
+			if start, ok := starts[track]; ok {
+				clock.end[track] = start + length[track]
+			}
+		}
+	}
 	return nil
+}
+
+// continued is where a sound track ended in the segment before this one, if
+// that segment came from the same run.
+func (c *soundClock) continued(index int, track uint32) (uint64, bool) {
+	if c == nil || c.next != index {
+		return 0, false
+	}
+	end, ok := c.end[track]
+	return end, ok
 }
 
 // splitFragmentedMP4 bounds memory even for malformed converter output.
@@ -342,7 +416,7 @@ func publishMP4Init(dir string, init []byte) error {
 	}
 	return os.Rename(target+".tmp", target)
 }
-func promoteFMP4Segments(staging, dir string, t *copyTimeline, from int, final bool) (int, error) {
+func promoteFMP4Segments(staging, dir string, t *copyTimeline, from int, final bool, clock *soundClock) (int, error) {
 	highest := from - 1
 	for i := from; i < t.count(); i++ {
 		name := fmt.Sprintf("segment-%06d.m4s", i)
@@ -370,7 +444,7 @@ func promoteFMP4Segments(staging, dir string, t *copyTimeline, from int, final b
 		if e = publishMP4Init(dir, init); e != nil {
 			return highest, e
 		}
-		if e = rebaseFragments(init, media, t.Boundaries[i]); e != nil {
+		if e = rebaseFragments(init, media, t.Boundaries[i], i, clock); e != nil {
 			return highest, e
 		}
 		path := filepath.Join(dir, name)
