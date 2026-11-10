@@ -136,6 +136,7 @@ func run(log *slog.Logger) (err error) {
 	if err != nil {
 		return err
 	}
+	useTMDBFromEnv(handler)
 	// rclone, which remote sources run, stops with the server.
 	defer handler.RemoteSources().Close()
 	// Scans start by themselves from here on: watched folders and rescan intervals.
