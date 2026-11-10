@@ -117,15 +117,22 @@ func TestCreatesAreSafeToRepeat(t *testing.T) {
 					t.Errorf("%s sent again %s: %d exist, want 1", c.route, when, n)
 				}
 			}
-			// A key's secret is not kept, so a repeat answers a new one and the first stops working.
-			if secret, _ := answer["secret"].(string); strings.HasPrefix(secret, keyPrefix) {
-				if code := status(t, th.s, "GET", "/v1/me", secret, nil); code != 200 {
-					t.Errorf("%s: the secret in the repeat's answer answered %d", c.route, code)
+			// A key's secret is not kept. While the key has never been used, a repeat answers a
+			// new secret and the unseen one stops working; the test then uses the key, so the next
+			// repeat must give no secret, say why, and leave the delivered secret working.
+			if delivered, _ := firstAnswer["secret"].(string); strings.HasPrefix(delivered, keyPrefix) {
+				secret, _ := answer["secret"].(string)
+				if when == "after a dropped connection" {
+					if secret == "" || status(t, th.s, "GET", "/v1/me", secret, nil) != 200 {
+						t.Errorf("%s: a repeat before the key was used gave no working secret: %v", c.route, answer)
+					}
+					if status(t, th.s, "GET", "/v1/me", delivered, nil) != 401 {
+						t.Errorf("%s: the secret nobody was meant to have still works", c.route)
+					}
+					firstAnswer = answer
+				} else if secret != "" || answer["note"] == nil || status(t, th.s, "GET", "/v1/me", delivered, nil) != 200 {
+					t.Errorf("%s: a repeat after the key was used answered %v; want no secret, a note, and the used secret still working", c.route, answer)
 				}
-				if old, _ := firstAnswer["secret"].(string); old != secret && status(t, th.s, "GET", "/v1/me", old, nil) != 401 {
-					t.Errorf("%s: the secret nobody was meant to have still works", c.route)
-				}
-				firstAnswer = answer
 			}
 		}
 		if code, _, answer := send(c.other); code != 422 {
