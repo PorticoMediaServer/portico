@@ -1,4 +1,5 @@
 import {userMutationBridge} from './user-mutation-bridge.mjs';
+import {accountAnswer, accountPath, systemAnswer} from '../../../../packages/client-core/test/next-wire.ts';
 import {readFileSync} from 'node:fs';
 import {createRequire, registerHooks, stripTypeScriptTypes} from 'node:module';
 import {compileFunction} from 'node:vm';
@@ -553,11 +554,14 @@ export async function standardHomeApp({
     },
     data: value,
   });
+  // The signed-in account as the server describes it (`GET /v1/me`, `GET /v1/profiles`).
+  const described = {account: {id: 'account', username: 'fixture_member', role: accountRole},
+    profiles: [{id: 'profile', name: 'Fixture profile', primary: true, art: 'mint'}], canManage: accountRole === 'owner'};
   let fault;
   const reply = async request => {
     const url = new URL(origin + request.path),
       path = url.pathname;
-    if (path === routePath('prove_network_identity')) {
+    if (path === '/v1/system/identity-proof') {
       const value = {
         kind: 'portico.route-proof',
         version: '1',
@@ -581,7 +585,7 @@ export async function standardHomeApp({
       const response = await nativeResponse(request, {
         pin,
         viewer,
-        session: {...session, serverIdentity: {publicKey: pin.publicKey, fingerprint: pin.fingerprint}},
+        session,
         installationId,
         origin,
       });
@@ -591,21 +595,15 @@ export async function standardHomeApp({
       const response = await setupResponse(request, {
         pin,
         viewer,
-        session: {
-          ...session,
-          serverIdentity: {
-            publicKey: pin.publicKey,
-            fingerprint: pin.fingerprint,
-          },
-        },
+        session,
         installationId,
         origin,
       });
       if (response) return response;
     }
     if (path === routePath('get_user_mutation_policy')) return {status: 200, body: {serverTimeMs: Date.now(), retiredBeforeMs: 0}};
-    if (path === routePath('get_system')) return {status: 200, body: {id: pin.serverId, name: 'Synthetic living room', version: '1', move: null, signIn: 'local', setupRequired: false, hostedConfigured: false, hostedAttached: false, apiLevel: 1, apiVersion: '1.0', apiMajors: [1], capabilities: []}};
-    if (path === routePath('get_me')) return {status: 200, body: {viewer: {...viewer, role: accountRole}}};
+    if (path === '/v1/system') return {status: 200, body: systemAnswer({id: pin.serverId, name: 'Synthetic living room', version: '1'})};
+    if (accountPath(path)) return {status: 200, body: accountAnswer(path, described)};
     if (path === routePath('get_home')) return {status: 200, body: homeDoc()};
     if (path === routePath('get_preferences'))
       return {status: 200, body: envelope('preferences', prefs())};
@@ -613,42 +611,6 @@ export async function standardHomeApp({
       return {
         status: 200,
         body: {items: [{id: 'movies', name: 'Movies', kind: 'movies'}], viewerFence: homeFence, privacyFence: homePrivacy},
-      };
-    if (path === routePath('get_direct_account'))
-      return {
-        status: 200,
-        body: {
-          authority: 'local',
-          serverId: pin.serverId,
-          canManage: accountRole === 'owner',
-          capabilities: {
-            manageAccount: accountRole === 'owner',
-            managePeople: accountRole === 'owner',
-            manageServer: accountRole === 'owner',
-            manageSignIn: accountRole === 'owner',
-          },
-          account: {
-            id: 'account',
-            username: 'fixture_member',
-            primaryProfileId: 'profile',
-            role: accountRole,
-            revision: 1,
-            disabled: false,
-            allowedLibraries: ['movies'],
-          },
-          profiles: [
-            {
-              id: 'profile',
-              name: 'Fixture profile',
-              primary: true,
-              position: 0,
-              art: 'mint',
-              revision: 1,
-              pinRevision: 1,
-              pinRequired: false,
-            },
-          ],
-        },
       };
     if (path === routePath('get_direct_profile_avatars'))
       return {status: 200, body: {items: []}};
