@@ -223,17 +223,16 @@ func (ix *searchIndex) run(rebuild bool) {
 				if ix.ctx.Err() == nil {
 					ix.log.Error("rebuilding the search index failed; it will be tried again", "error", err)
 				}
-				select {
-				case <-time.After(searchRetry):
-				case <-ix.ctx.Done():
-				}
+				ix.pause()
 				continue
 			}
 		}
 		var err error
 		if rebuild, err = ix.follow(); err != nil && ix.ctx.Err() == nil {
-			// Whatever went wrong, the index is the file that can be thrown away.
+			// Whatever went wrong, the index is the file that can be thrown away. The pause
+			// keeps a fault that will not go away from rebuilding it without rest.
 			ix.log.Error("updating the search index failed; it will be rebuilt", "error", err)
+			ix.pause()
 			rebuild = true
 		}
 		if rebuild {
@@ -245,6 +244,14 @@ func (ix *searchIndex) run(rebuild bool) {
 			waiting, rebuild = append(waiting, w), true
 		case <-ix.ctx.Done():
 		}
+	}
+}
+
+// pause waits before another try, or until the server stops.
+func (ix *searchIndex) pause() {
+	select {
+	case <-time.After(searchRetry):
+	case <-ix.ctx.Done():
 	}
 }
 
