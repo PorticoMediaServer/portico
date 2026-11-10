@@ -29,7 +29,7 @@ type shelf struct {
 	t                           *testing.T
 	s                           *Server
 	tmdb                        *tmdbtest.Server
-	library                     string
+	library, root               string
 	owner, limitedAdmin, member string
 }
 
@@ -64,7 +64,7 @@ func newShelf(t *testing.T, files ...string) *shelf {
 	if _, err := s.metadata.MatchLibrary(ctx, lib.ID); err != nil {
 		t.Fatal(err)
 	}
-	sh.library = lib.PublicID
+	sh.library, sh.root = lib.PublicID, root
 	viewers, err := seed.Profiles(ctx, s.db, 2)
 	if err != nil {
 		t.Fatal(err)
