@@ -251,6 +251,9 @@ func (s *Service) Identify(ctx context.Context, itemID string, ref Ref) (string,
 	if err != nil {
 		return "", err
 	}
+	if ref.Provider != "" && ref.Provider != p.Name() {
+		return "", ErrUnknownRef
+	}
 	ref.Provider, ref.Kind = p.Name(), providerKinds[t.Kind]
 	record, err := p.Details(ctx, ref, locale)
 	if err != nil {
