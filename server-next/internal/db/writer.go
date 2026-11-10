@@ -84,7 +84,7 @@ func (d *DB) writer() {
 			req.after()
 		}
 		req.done <- err
-		d.restartWAL()
+		d.afterWrite()
 	}
 }
 
