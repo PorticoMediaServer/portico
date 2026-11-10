@@ -263,6 +263,37 @@ func TestRestrictedProfileNeverReceivesARestrictedTitle(t *testing.T) {
 		return n
 	}
 
+	// The genre choices of a whole library and kind are counted from indexes, with what a
+	// profile may not see taken away. They must equal a count made title by title.
+	for _, v := range []db.Viewer{l.all, byRating, byRatingOrNone, byLibrary, byLabel} {
+		for _, lib := range l.libs {
+			for _, kind := range []db.ItemKind{db.KindMovie, db.KindShow, db.KindEpisode, db.KindArtist, db.KindAlbum, db.KindTrack, db.KindBook} {
+				want := map[string]int{}
+				for _, f := range facts {
+					if f.library == lib.Kind && f.item.Kind == kind && allowed(v, f) {
+						genres := slices.Clone(f.genres)
+						slices.Sort(genres)
+						for _, genre := range slices.Compact(genres) {
+							want[genre]++
+						}
+					}
+				}
+				got, err := l.d.Facets(ctx, v, db.ItemQuery{Library: lib.PublicID, Kinds: []db.ItemKind{kind}}, db.FacetGenre)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(got) != len(want) {
+					t.Fatalf("genre choices of %s kind %d: %d, want %d", lib.Kind, kind, len(got), len(want))
+				}
+				for _, choice := range got {
+					if choice.Count != want[choice.Label] {
+						t.Fatalf("genre %q of %s kind %d: %d, want %d", choice.Label, lib.Kind, kind, choice.Count, want[choice.Label])
+					}
+				}
+			}
+		}
+	}
+
 	r := rand.New(rand.NewPCG(1, 2))
 	yes, no := true, false
 	for _, v := range []db.Viewer{byRating, byRatingOrNone, byLibrary, byLabel} {

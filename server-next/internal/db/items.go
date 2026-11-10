@@ -267,8 +267,8 @@ func total(ctx context.Context, tx *sql.Tx, where *query, acc access) (int, erro
 		// The whole of a library and kind: what is hidden in it is found from the labels alone.
 		err = tx.QueryRowContext(ctx, `SELECT count(*) FROM (`+acc.blockedIDs(where.plainLibrary, where.plainKinds)+`)`).Scan(&hidden)
 	} else {
-		err = tx.QueryRowContext(ctx, `SELECT count(*) FROM items i NOT INDEXED WHERE `+where.countWhere(false)+
-			` AND i.id IN (`+acc.blockedIDs(0, "")+`)`, where.args...).Scan(&hidden)
+		err = tx.QueryRowContext(ctx, `SELECT count(*) FROM items i NOT INDEXED WHERE `+where.hiddenWhere()+
+			` AND i.id IN (`+acc.blockedIDs(where.library, where.kinds)+`)`, where.args...).Scan(&hidden)
 	}
 	return all - hidden, err
 }
@@ -377,6 +377,7 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 			return false, err
 		}
 		w.add(` AND i.library_id = `, fmt.Sprint(library))
+		w.library = library
 		scoped = true
 	}
 	if q.Parent != "" {
@@ -397,6 +398,7 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 			w.add(` AND i.kind IN (`, strings.Join(kinds, ", "), `)`)
 		}
 		kindList = "(" + strings.Join(kinds, ", ") + ")"
+		w.kinds = kindList
 		if library != 0 {
 			rated, err := acc.ratedIn(ctx, tx, library, kindList)
 			if err != nil || rated == 0 {
@@ -438,17 +440,24 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		}
 		gathered := fmt.Sprintf(` AND i.id IN (SELECT item_id FROM item_tags WHERE tag_id = %[1]d UNION
 			SELECT d.id FROM item_tags h CROSS JOIN items d WHERE h.tag_id = %[1]d AND d.root_id = h.item_id%[2]s)`, tag, under)
-		// With nothing asked for but a library, kinds and the tag, the total needs no item
-		// rows at all: item_tags knows each tagged item's library and kind, and what is under
-		// a tagged title is counted from an index.
-		if library != 0 && under != "" && acc.maxAge == nil && q.Parent == "" && q.Person == "" && q.YearFrom == 0 && q.YearTo == 0 &&
+		// With nothing asked for but a library, kinds and the tag, the total reads no row of
+		// the list: item_tags knows each tagged item's library and kind, and what is under a
+		// tagged title is counted from an index, which also holds each one's rating. Only a
+		// rating limit needs a row, and then only of the items that carry the tag themselves.
+		if library != 0 && under != "" && q.Parent == "" && q.Person == "" && q.YearFrom == 0 && q.YearTo == 0 &&
 			q.Favorite == nil && q.InList == nil && q.Watched == nil && q.Resolution == "" {
+			own := ""
+			if acc.maxAge != nil {
+				own = ` CROSS JOIN items r ON r.id = h.item_id`
+			}
 			w.tagTotal = fmt.Sprintf(`SELECT count(*) FROM (
-				SELECT h.item_id FROM item_tags h WHERE h.tag_id = %[1]d AND h.library_id = %[2]d AND h.kind IN %[3]s
+				SELECT h.item_id FROM item_tags h%[4]s WHERE h.tag_id = %[1]d AND h.library_id = %[2]d AND h.kind IN %[3]s%[5]s
 				UNION SELECT d.id FROM item_tags h CROSS JOIN items d ON d.root_id = h.item_id
-				WHERE h.tag_id = %[1]d AND h.library_id = %[2]d AND d.kind IN %[3]s)`, tag, library, kindList)
+				WHERE h.tag_id = %[1]d AND h.library_id = %[2]d AND d.kind IN %[3]s%[6]s)`, tag, library, kindList,
+				own, acc.rated("r", ""), acc.rated("d", ""))
 		}
 		w.add("{tag}")
+		w.tagWalk = walk
 		w.countFrom, w.tagCount = "items i NOT INDEXED", gathered
 		if scoped && uses >= rareTag {
 			w.tagPage = walk

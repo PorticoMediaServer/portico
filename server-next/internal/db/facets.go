@@ -28,8 +28,8 @@ type FacetValue struct {
 var facetTagKinds = map[string]string{FacetGenre: TagGenre, FacetStudio: TagStudio, FacetNetwork: TagNetwork, FacetLabel: TagLabel}
 
 // Facets counts the choices of one filter over the list q describes (its sort, cursor and
-// limit are ignored). It reads every row of that list, so a client asks for it when someone
-// opens the filter, not with every page.
+// limit are ignored). Unless the list is a whole library and kind it reads every row of that
+// list, so a client asks for it when someone opens the filter, not with every page.
 func (d *DB) Facets(ctx context.Context, v Viewer, q ItemQuery, facet string) ([]FacetValue, error) {
 	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
@@ -70,24 +70,45 @@ func (d *DB) Facets(ctx context.Context, v Viewer, q ItemQuery, facet string) ([
 	var query string
 	switch facet {
 	case FacetGenre, FacetStudio, FacetNetwork, FacetLabel:
-		// A tag counts once for an item that carries it or whose title does. Each list row
-		// costs a look in the tag table's key, so this reads in proportion to the list; the
-		// tags are named only after counting, and at most 200 are returned.
+		// A tag counts once for an item that carries it or whose title does. Something under
+		// a title counts for the title's tags unless it has the tag itself.
+		under := len(q.Kinds) == 0 || slices.ContainsFunc(q.Kinds, func(k ItemKind) bool { return !k.TopLevel() })
+		// byRow counts row by row: each row of the list costs a look in the tag table's key.
 		// CROSS JOIN makes SQLite read the list and look each row's tags up, not read every
 		// tag in the database and look each item up.
-		counts := fmt.Sprintf(`SELECT it.tag_id AS tag, count(*) AS n FROM %s CROSS JOIN item_tags it ON it.item_id = i.id WHERE %s GROUP BY 1`, from, where)
-		if w.plainKinds != "" && len(acc.blockedTags) == 0 {
-			// A whole library and kind: the tags are counted from item_tags' own index.
-			counts = fmt.Sprintf(`SELECT it.tag_id AS tag, count(*) AS n FROM item_tags it WHERE it.library_id = %d AND it.kind IN %s GROUP BY 1`,
-				w.plainLibrary, w.plainKinds)
+		byRow := func(sign, where string) string {
+			counts := fmt.Sprintf(`SELECT it.tag_id AS tag, %scount(*) AS n FROM %s CROSS JOIN item_tags it ON it.item_id = i.id WHERE %s GROUP BY 1`, sign, from, where)
+			if under {
+				counts += fmt.Sprintf(` UNION ALL SELECT it.tag_id, %scount(*) FROM %s CROSS JOIN item_tags it ON it.item_id = i.root_id WHERE %s
+					AND NOT EXISTS (SELECT 1 FROM item_tags o WHERE o.item_id = i.id AND o.tag_id = it.tag_id) GROUP BY 1`, sign, from, where)
+			}
+			return counts
 		}
-		if len(q.Kinds) == 0 || slices.ContainsFunc(q.Kinds, func(k ItemKind) bool { return !k.TopLevel() }) {
-			// Something under a title also counts for the title's tags, unless it has the tag itself.
-			counts += fmt.Sprintf(` UNION ALL SELECT it.tag_id, count(*) FROM %s CROSS JOIN item_tags it ON it.item_id = i.root_id WHERE %s
-				AND NOT EXISTS (SELECT 1 FROM item_tags o WHERE o.item_id = i.id AND o.tag_id = it.tag_id) GROUP BY 1`, from, where)
+		counts := byRow("", where)
+		if w.plainKinds != "" {
+			// A whole library and kind reads no row of the list. For each tag of the facet's
+			// kind, the items that carry it are counted from item_tags' own index, and what
+			// sits under a title that carries it from the index of a title's descendants.
+			// What a blocked label hides is few: those rows are counted one by one and
+			// taken away.
+			inherited := ""
+			if under {
+				inherited = fmt.Sprintf(` + (SELECT count(*) FROM item_tags h CROSS JOIN items d ON d.root_id = h.item_id
+					WHERE h.tag_id = t.id AND h.library_id = %d AND d.kind IN %s
+					AND NOT EXISTS (SELECT 1 FROM item_tags o WHERE o.item_id = d.id AND o.tag_id = h.tag_id))`, w.plainLibrary, w.plainKinds)
+			}
+			counts = fmt.Sprintf(`SELECT t.id AS tag, (SELECT count(*) FROM item_tags it WHERE it.library_id = %d AND it.kind IN %s
+				AND it.tag_id = t.id)%s AS n FROM tags t WHERE t.kind = '%s'`, w.plainLibrary, w.plainKinds, inherited, facetTagKinds[facet])
+			if len(acc.blockedTags) > 0 {
+				counts += ` UNION ALL ` + byRow("-", `i.id IN (`+acc.blockedIDs(w.plainLibrary, w.plainKinds)+`)`)
+			}
 		}
-		query = fmt.Sprintf(`SELECT t.public_id, t.name, sum(c.n) FROM (%s) c JOIN tags t ON t.id = c.tag AND t.kind = '%s'
-			GROUP BY t.id ORDER BY 3 DESC, t.norm_name LIMIT 200`, counts, facetTagKinds[facet])
+		// The tags are named only after counting, and at most 200 are returned. MATERIALIZED
+		// has the counting done once; left to itself SQLite folds it into the outer statement
+		// and counts again for the HAVING and for the ORDER BY.
+		query = fmt.Sprintf(`WITH c(tag, n) AS MATERIALIZED (%s) SELECT t.public_id, t.name, sum(c.n) FROM c
+			JOIN tags t ON t.id = c.tag AND t.kind = '%s'
+			GROUP BY t.id HAVING sum(c.n) > 0 ORDER BY 3 DESC, t.norm_name LIMIT 200`, counts, facetTagKinds[facet])
 	case FacetDecade:
 		query = fmt.Sprintf(`SELECT i.year / 10 * 10, (i.year / 10 * 10) || 's', count(*) FROM %s
 			WHERE %s AND i.year IS NOT NULL GROUP BY 1 ORDER BY 1 DESC`, from, where)
