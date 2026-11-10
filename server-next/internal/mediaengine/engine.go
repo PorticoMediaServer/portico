@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os/exec"
 	"sync"
@@ -23,6 +24,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/preferences"
 	"github.com/PorticoMediaServer/portico/server-next/internal/qualityladder"
+	"github.com/PorticoMediaServer/portico/server-next/internal/scan"
 	"github.com/PorticoMediaServer/portico/server-next/internal/streaming"
 )
 
@@ -153,6 +155,21 @@ func (e *Engine) source(ctx context.Context, version db.PlaybackVersion) (string
 	}
 	e.facts[key] = facts
 	e.mu.Unlock()
+	if !place.Read {
+		// A scan has listed this file and not yet read it. What was just measured is stored
+		// the way the scan would store it, so the title's length and its audio and subtitle
+		// lists are there at once. It is one background write, and playing does not wait for it.
+		found := scan.FromMedia(facts)
+		go func() {
+			ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Minute)
+			defer cancel()
+			err := e.db.StoreProbes(ctx, []db.Probe{{FileID: version.FileID, Size: place.Size, ModifiedNS: place.ModifiedNS, Container: found.Container,
+				DurationMS: found.DurationMS, Bitrate: found.Bitrate, Streams: found.Streams, Chapters: found.Chapters}})
+			if err != nil {
+				slog.Warn("what was measured at play time was not stored", "error", err)
+			}
+		}()
+	}
 	return path, place, facts, nil
 }
 

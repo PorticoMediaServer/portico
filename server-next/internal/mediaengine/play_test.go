@@ -321,3 +321,63 @@ func TestAScannedFilmPlaysAsItIsAndConverted(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 }
+
+// A film whose file the scan has listed but not yet read plays all the same, and playing it
+// stores what was measured: its length and its tracks are there for the next look.
+func TestAnUnreadFilmPlaysAndItsFactsAreKept(t *testing.T) {
+	ffmpeg, ffprobe := decodertest.QualifiedFFmpeg(t), decodertest.QualifiedFFprobe(t)
+	h, d := newHouse(t, ffmpeg, ffprobe)
+	ctx := context.Background()
+	library := filepath.Join(t.TempDir(), "Films")
+	film := filepath.Join(library, "Unread Film (2021).mp4")
+	if err := os.MkdirAll(library, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := exec.Command(ffmpeg, "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
+		"-f", "lavfi", "-i", "testsrc2=size=640x360:rate=24", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000",
+		"-t", "4", "-pix_fmt", "yuv420p", "-ac", "2", "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", "-movflags", "+faststart", film).CombinedOutput(); err != nil {
+		t.Fatalf("making the film: %v\n%s", err, out)
+	}
+	lib, err := d.CreateLibrary(ctx, "Films", db.LibraryMovies, "en", []string{library})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The folder walk only: no file is read.
+	stats, err := (&scan.Scanner{DB: d}).Scan(ctx, lib)
+	if err != nil || stats.ItemsNew != 1 || stats.Probed != 0 {
+		t.Fatalf("scan: %+v, %v", stats, err)
+	}
+	var page api.ItemPage
+	h.call("GET", "/v1/items?library="+lib.PublicID+"&kind=movie", nil, &page, 200)
+	if len(page.Items) != 1 {
+		t.Fatalf("the library lists %+v", page.Items)
+	}
+	item := page.Items[0].ID
+	var options api.PlaybackOptions
+	h.call("GET", "/v1/items/"+item+"/playback-options", nil, &options, 200)
+	if len(options.Versions[0].Audio) != 0 {
+		t.Fatalf("nothing has read the file, yet it has tracks: %+v", options.Versions[0])
+	}
+	var session api.PlaybackSession
+	h.call("POST", "/v1/playback/sessions", api.PlaybackStart{ItemID: item}, &session, 201)
+	if session.Presentation.Mode != "direct" {
+		t.Fatalf("the unread film should play as it is: %+v", session.Presentation)
+	}
+	if code, _, body := h.media(session.Presentation.URL, "Range", "bytes=0-999"); code != http.StatusPartialContent || len(body) != 1000 {
+		t.Fatalf("a byte range of the unread film answered %d with %d bytes", code, len(body))
+	}
+	h.call("DELETE", "/v1/playback/sessions/"+session.ID, nil, nil, 204)
+	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(20 * time.Millisecond) {
+		h.call("GET", "/v1/items/"+item+"/playback-options", nil, &options, 200)
+		if v := options.Versions[0]; len(v.Video) == 1 && len(v.Audio) == 1 && v.DurationMs > 3000 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("playing did not store the file's facts: %+v", options.Versions[0])
+		}
+	}
+	// The scan's reading pass has nothing left to do for it.
+	if stats, err := (&scan.Scanner{DB: d, Prober: scan.FileProber{}}).Scan(ctx, lib); err != nil || stats.Probed != 0 {
+		t.Fatalf("the scan after: %+v, %v", stats, err)
+	}
+}
