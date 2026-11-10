@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -159,6 +160,16 @@ type DeletionPreview struct {
 	ListEntries int    `json:"listEntries"`
 	// OtherPeople is how many saved places and marks of other profiles go with the titles.
 	OtherPeople int `json:"otherPeople"`
+	// AlsoRemoves are other titles played from the same files (the second episode of a file
+	// holding two, the other tracks of an album in one file): deleting the files removes them
+	// too. Titles counts them.
+	AlsoRemoves []TitleRef `json:"alsoRemoves"`
+}
+
+// TitleRef names a title.
+type TitleRef struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
 }
 
 // DeletionResult says what Delete did. A file that changed since Portico last read it, or
@@ -168,6 +179,8 @@ type DeletionResult struct {
 	FilesDeleted int        `json:"filesDeleted"`
 	Bytes        int64      `json:"bytes"`
 	Kept         []KeptFile `json:"kept"`
+	// AlsoRemoved are the other titles that were played from the deleted files and went with them.
+	AlsoRemoved []TitleRef `json:"alsoRemoved"`
 }
 
 // KeptFile is a file Delete left on disk, and why.
@@ -254,8 +267,25 @@ func (s *Server) library(r *http.Request) (db.AdminLibrary, error) {
 // The folders the owner may never point a library at: they are not places files are kept.
 var refusedFolders = []string{"/proc", "/sys", "/dev", "/run"}
 
+// real is a folder's path with links resolved, or the path itself where that cannot be done.
+func real(folder string) string {
+	if abs, err := filepath.Abs(folder); err == nil {
+		folder = abs
+	}
+	if resolved, err := filepath.EvalSymlinks(folder); err == nil {
+		return resolved
+	}
+	return folder
+}
+
+// within reports whether a folder is another folder or inside it.
+func within(folder, parent string) bool {
+	rel, err := filepath.Rel(parent, folder)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
 // checkFolders refuses a folder the server cannot use, saying which and why.
-func checkFolders(folders []string, field string) error {
+func (s *Server) checkFolders(folders []string, field string) error {
 	if len(folders) == 0 {
 		return ErrField(field, "A library needs at least one folder.")
 	}
@@ -279,6 +309,15 @@ func checkFolders(folders []string, field string) error {
 			return ErrField(at, "This folder cannot be reached.")
 		case !info.IsDir():
 			return ErrField(at, "This is a file, not a folder.")
+		}
+		// The whole disk, and the server's own folder with its database: a title there would
+		// list and never play.
+		here := real(folder)
+		if here == string(filepath.Separator) {
+			return ErrField(at, "The whole disk cannot be a library. Choose the folder your media is in.")
+		}
+		if data := real(s.dataDir); s.dataDir != "" && (within(here, data) || within(data, here)) {
+			return ErrField(at, "This folder holds Portico's own data, or is inside it. Choose another folder.")
 		}
 	}
 	return nil
@@ -347,7 +386,7 @@ func (s *Server) createLibrary(r *http.Request, req LibraryCreate) (AdminLibrary
 	if len(key) > 128 {
 		return AdminLibrary{}, ErrInvalid("The Idempotency-Key is at most 128 characters.")
 	}
-	if err := checkFolders(req.Folders, "folders"); err != nil {
+	if err := s.checkFolders(req.Folders, "folders"); err != nil {
 		return AdminLibrary{}, err
 	}
 	caller := CallerFrom(r.Context())
@@ -397,7 +436,7 @@ func (s *Server) editLibrary(r *http.Request, req LibraryEdit) (AdminLibrary, er
 			return AdminLibrary{}, ErrField("folders", "A library needs at least one folder.")
 		}
 		if len(added) > 0 {
-			if err := checkFolders(added, "folders"); err != nil {
+			if err := s.checkFolders(added, "folders"); err != nil {
 				return AdminLibrary{}, err
 			}
 		}
@@ -581,8 +620,18 @@ func (s *Server) previewItemDeletion(r *http.Request, _ None) (DeletionPreview, 
 	if err != nil {
 		return DeletionPreview{}, libraryError(err)
 	}
-	return DeletionPreview{Title: del.Title, Titles: del.Titles, Files: len(del.Files), Bytes: del.Bytes, ListEntries: del.ListEntries,
-		OtherPeople: del.OtherStates}, nil
+	return DeletionPreview{Title: del.Title, Titles: del.Titles + len(del.Others), Files: len(del.Files), Bytes: del.Bytes, ListEntries: del.ListEntries,
+		OtherPeople: del.OtherStates, AlsoRemoves: titleRefs(del.Others)}, nil
+}
+
+func titleRefs(others []db.SharedTitle) []TitleRef {
+	out := []TitleRef{}
+	for _, o := range others {
+		if !slices.ContainsFunc(out, func(t TitleRef) bool { return t.ID == o.PublicID }) {
+			out = append(out, TitleRef{ID: o.PublicID, Title: o.Title})
+		}
+	}
+	return out
 }
 
 func (s *Server) deleteItem(r *http.Request, _ None) (DeletionResult, error) {
@@ -607,7 +656,7 @@ func (s *Server) deleteVersion(r *http.Request, _ None) (DeletionResult, error) 
 // deleteFiles deletes a title's or a version's files from disk, then takes what is gone out
 // of the library. A file is only deleted while it is still the file Portico last read.
 func (s *Server) deleteFiles(r *http.Request, del db.Deletion) (DeletionResult, error) {
-	out := DeletionResult{Kept: []KeptFile{}}
+	out := DeletionResult{Kept: []KeptFile{}, AlsoRemoved: []TitleRef{}}
 	if !del.AllowDelete {
 		return out, refusal(http.StatusForbidden, "deleting_not_allowed", "Deleting files is turned off for this library.", false)
 	}
@@ -616,12 +665,21 @@ func (s *Server) deleteFiles(r *http.Request, del db.Deletion) (DeletionResult, 
 			return out, ErrConflict("remote_storage", "Portico can't delete files on remote storage")
 		}
 	}
+	// A library folder that is not there, or is empty where it has files, is a disk that is
+	// not connected: nothing is deleted and no title is removed.
+	for _, f := range del.Files {
+		if entries, err := os.ReadDir(f.Root); err != nil || len(entries) == 0 {
+			return out, ErrConflict("folder_unavailable", "The library folder "+f.Root+" can't be reached: its disk may not be connected. Nothing was deleted.")
+		}
+	}
 	var deleted []int64
 	for _, f := range del.Files {
 		info, err := os.Stat(f.Path)
 		switch {
 		case errors.Is(err, fs.ErrNotExist):
-			// Already gone: nothing is left to delete.
+			// Not where it was, and so not deleted by this: the next scan says what became of it.
+			out.Kept = append(out.Kept, KeptFile{Path: f.Path, Reason: "The file was not found. Scan the library, then delete again."})
+			continue
 		case err != nil:
 			out.Kept = append(out.Kept, KeptFile{Path: f.Path, Reason: "The file could not be reached."})
 			continue
@@ -641,7 +699,9 @@ func (s *Server) deleteFiles(r *http.Request, del db.Deletion) (DeletionResult, 
 	if err := s.db.Deleted(r.Context(), del, deleted); err != nil {
 		return out, err
 	}
-	out.Removed = len(out.Kept) == 0
+	if out.Removed = len(out.Kept) == 0; out.Removed {
+		out.AlsoRemoved = titleRefs(del.Others)
+	}
 	return out, nil
 }
 
