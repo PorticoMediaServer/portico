@@ -267,7 +267,7 @@ func (s *Server) editRemoteSource(r *http.Request, req RemoteSourceEdit) (Remote
 			// typed again, so changing the address cannot be used to read it.
 			before, _ := url.Parse(oldAddress)
 			after, _ := url.Parse(c.Address)
-			if before == nil || after == nil || before.Scheme != after.Scheme || before.Host != after.Host {
+			if c.SecretSet && (before == nil || after == nil || before.Scheme != after.Scheme || before.Host != after.Host) {
 				return RemoteSource{}, ErrField("webdav.password", "Give the password again for a new address.")
 			}
 			if secret, err = s.remote.Secret(ctx, row.ID); err != nil {

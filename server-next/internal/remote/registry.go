@@ -188,6 +188,11 @@ func (r *Registry) Open(ctx context.Context, id int64) (Storage, time.Duration, 
 	if err != nil {
 		return nil, 0, err
 	}
+	if revision != row.Revision {
+		// The source was changed between the two reads. Read both again, so a new password
+		// is never used with the address it replaced.
+		return r.Open(ctx, id)
+	}
 	r.mu.Lock()
 	o := r.open[id]
 	r.mu.Unlock()
