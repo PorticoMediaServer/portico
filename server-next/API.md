@@ -147,6 +147,24 @@ resources and their counts are fixed now so the whole product fits the budget:
 | Live TV and DVR | `/v1/live/channels`, `/guide`, `/now`, programme detail, channel favourites and hiding; reminders (3); `/v1/dvr/recordings` (6); `/v1/dvr/rules` (4). Watching a channel is an ordinary playback session. |
 | Notices and reports | Notification inbox (3); feedback reports (2); client log upload (1); app reports (3) |
 
+### Playback, route by route (built so far: 9 of 34, and 4 console routes)
+
+A session is one device playing one title. It lives in memory: after a server restart every
+session is unknown (`404`), and the app starts again by itself where it was.
+
+| Route | Purpose |
+|---|---|
+| `GET /v1/devices/{id}/capabilities`, `PUT /v1/devices/{id}/capabilities` | What a device's players can do, stored as the app sent it. `{id}` may be `current`. |
+| `GET /v1/items/{id}/playback-options` | Versions, tracks, the quality menu, where it resumes, and what a start that names nothing would play and how |
+| `POST /v1/playback/sessions` | Start. `201` with the session, `200` for a repeat of the same `Idempotency-Key`, or `202` with `retryAfterMs` while the stream gets ready. Ends whatever the same device was playing. |
+| `GET /v1/playback/sessions` | What the account is playing on all its devices, and its stream limit. A title the asking profile may not see is unnamed. |
+| `GET /v1/playback/sessions/{id}` | The device's own session. An ended one can be read for two minutes and says why it ended. |
+| `PATCH /v1/playback/sessions/{id}` | Pause, play, seek, change version, audio, subtitles or quality, or report that the player could not play it |
+| `PUT /v1/playback/sessions/{id}/progress` | Where the player is. Answers how long the session now lives and when to report next (10 seconds while playing). `410` when the session is over. |
+| `DELETE /v1/playback/sessions/{id}` | Stop, with the final position. Safe to repeat; an unknown session stops fine. Also stops another device of the same account. |
+| `GET /v1/admin/playback/stream-limits`, `PUT /v1/admin/playback/stream-limits` | The owner's stream limits: in total, per person, and for one person |
+| `GET /v1/admin/playback/failures`, `DELETE /v1/admin/playback/failures/{id}` | Remembered "this way of playing this file failed on this device", and forgetting one |
+
 ## Console API (about 185)
 
 Listed route by route with each console panel's definition. Resources:

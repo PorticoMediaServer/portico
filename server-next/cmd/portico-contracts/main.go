@@ -96,6 +96,7 @@ type generator struct {
 var (
 	noneType     = reflect.TypeFor[api.None]()
 	timeType     = reflect.TypeFor[time.Time]()
+	jsonType     = reflect.TypeFor[json.RawMessage]()
 	unmarshaler  = reflect.TypeFor[json.Unmarshaler]()
 	genericParts = regexp.MustCompile(`^(\w+)\[.*?(\w+)\]$`)
 )
@@ -129,6 +130,9 @@ func (g *generator) fail(format string, args ...any) {
 }
 
 func (g *generator) collect(t reflect.Type) {
+	if t == jsonType {
+		return
+	}
 	switch t.Kind() {
 	case reflect.Pointer, reflect.Slice, reflect.Map:
 		g.collect(t.Elem())
@@ -224,6 +228,9 @@ func tsName(n string) string {
 }
 
 func tsType(t reflect.Type) string {
+	if t == jsonType {
+		return "unknown" // any JSON value, passed through as it is
+	}
 	switch t.Kind() {
 	case reflect.String:
 		return "string"
@@ -284,6 +291,9 @@ type object = map[string]any
 func ref(n string) object { return object{"$ref": "#/components/schemas/" + n} }
 
 func schema(t reflect.Type) object {
+	if t == jsonType {
+		return object{}
+	}
 	switch t.Kind() {
 	case reflect.String:
 		return object{"type": "string"}

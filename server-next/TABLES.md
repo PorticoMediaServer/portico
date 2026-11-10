@@ -36,7 +36,7 @@ exists today. Columns are documented in `schema.sql` itself.
 | | `track_embeddings` | with music mixes | Mixes and radio from sound similarity |
 | Users and access | `users`, `profiles` | yes | Accounts and viewing profiles |
 | | `devices` | yes | The device list, and revoking a lost device |
-| | `device_capabilities` | with playback | Starting playback on another device |
+| | `device_capabilities` | yes | Starting playback on another device |
 | | `library_access`, `profile_restrictions` | yes | Keeping a library or a label away from a member or a child |
 | | `sessions` | yes | Staying signed in; ending a sign-in |
 | | `auth_codes` | yes | TV sign-in codes, password reset, two-step sign-in, recovery codes |
@@ -51,9 +51,9 @@ exists today. Columns are documented in `schema.sql` itself.
 | Per-user state | `user_item_state` | yes | Watched, progress, favourites, My List, ratings |
 | | `play_history` | yes | History and play statistics |
 | | `lists`, `list_entries`, `list_shares` | yes | Playlists, collections, saved views, and sharing them |
-| | `play_queues`, `queue_entries` | with playback | A queue that survives a restart and moves between devices |
+| | `play_queues`, `queue_entries` | yes | A queue that survives a restart and moves between devices |
 | | `annotations` | with reading | Highlights, bookmarks and notes in books |
-| Playback and downloads | `playback_route_failures` | with playback | Not hitting the same known-bad playback route after every restart |
+| Playback and downloads | `playback_route_failures` | yes | Not hitting the same known-bad playback route after every restart |
 | | `prepared_media`, `downloads`, `download_items` | with downloads | Offline downloads |
 | Live TV and DVR | `live_sources`, `guide_sources`, `channels`, `profile_channels`, `recording_rules`, `recordings`, `recording_owners`, `reminders`, `virtual_channels` | with Live TV | Live TV, the guide, recordings, library channels |
 | `guide.db` | `programmes` | with Live TV | The TV guide |

@@ -20,6 +20,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 )
 
 // APIMajor is the number in the path. It changes only for a break old apps could not survive.
@@ -44,6 +45,8 @@ type Server struct {
 	// setupCode is what creating the owner needs. It is made at start while there is no
 	// account, and written to the log and to setupFile, never sent to an app.
 	setupCode, setupFile string
+	// playback runs the viewing sessions. See playback.go.
+	playback *playback.Service
 }
 
 // Route is one operation, kept so the contract can be generated and the operation budget counted.
@@ -159,6 +162,9 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.invitationRoutes()
 	s.keyRoutes()
 	s.catalogueRoutes()
+	s.playback = playback.New(d, playback.NoEngine{}, playback.NoEngine{}, log, func() time.Time { return s.now() })
+	go s.playback.Run(ctx)
+	s.playbackRoutes()
 	return s, nil
 }
 
@@ -254,10 +260,24 @@ func Handle[Req, Resp any](s *Server, pattern string, access Access, fn func(r *
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
+		if special, ok := any(resp).(replier); ok {
+			if status := special.reply(w.Header()); status != 0 {
+				w.WriteHeader(status)
+			}
+		}
 		json.NewEncoder(w).Encode(resp)
 	})
 	return route
 }
+
+// replier is a response that is not a plain 200: it can set headers (an ETag) and return a
+// status other than 200 (201 for something created, 202 for a start still preparing).
+// Returning 0 leaves the status alone.
+type replier interface{ reply(h http.Header) int }
+
+// JSON is a value this server passes through as it is: a device's capability document, or
+// facts the media engine writes for the player. The contract calls it unknown.
+type JSON = json.RawMessage
 
 // readBody reads a bounded JSON body into out. Fields this server does not know are ignored,
 // so a newer app can talk to an older server; /v1/system says what the server understands.
