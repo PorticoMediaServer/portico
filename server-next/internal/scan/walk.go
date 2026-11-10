@@ -95,7 +95,7 @@ func (s *Scanner) Scan(ctx context.Context, lib db.Library) (Stats, error) {
 		paths[p.ID] = unavailable
 	}
 	// Books and comics are not audio or video: there is nothing in them for the prober.
-	if lib.Options.Depth != db.DepthFiles && s.Prober != nil && lib.Kind != db.LibraryBooks && lib.Kind != db.LibraryComics {
+	if lib.Options.Depth != db.DepthFiles && (s.Prober != nil || s.ReaderProber != nil) && lib.Kind != db.LibraryBooks && lib.Kind != db.LibraryComics {
 		if err := r.probe(); err != nil {
 			return r.stats, err
 		}
