@@ -147,9 +147,21 @@ func (d *DB) RemoveHistoryEntry(ctx context.Context, v Viewer, entryID string) e
 		if !exists {
 			return ErrNotFound
 		}
-		_, err := tx.Exec(`UPDATE play_history SET hidden_from_profile = 1 WHERE id = ? AND profile_id = ?`, id, v.ProfileID)
-		return err
+		res, err := tx.Exec(`UPDATE play_history SET hidden_from_profile = 1 WHERE id = ? AND profile_id = ? AND hidden_from_profile = 0`,
+			id, v.ProfileID)
+		if err != nil {
+			return err
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			return nil // removed already: nothing for the profile's other devices to reread
+		}
+		return historyChanged(tx, v)
 	})
+}
+
+// historyChanged tells the profile's other devices to read its History again.
+func historyChanged(tx *sql.Tx, v Viewer) error {
+	return appendChange(tx, Change{At: time.Now().UnixMilli(), Topic: TopicHistory, Op: OpUpdated, RefID: v.ProfileID, ProfileID: v.ProfileID})
 }
 
 // ClearHistory empties the viewer's History. It is one write however long the history is:
@@ -157,8 +169,10 @@ func (d *DB) RemoveHistoryEntry(ctx context.Context, v Viewer, entryID string) e
 // resume points, play counts and ratings all stay.
 func (d *DB) ClearHistory(ctx context.Context, v Viewer, now time.Time) error {
 	return d.write(ctx, User, func(tx *sql.Tx) error {
-		_, err := tx.Exec(`UPDATE profiles SET history_cleared_at = max(ifnull(history_cleared_at, 0), ?) WHERE id = ?`,
-			now.UnixMilli(), v.ProfileID)
-		return err
+		if _, err := tx.Exec(`UPDATE profiles SET history_cleared_at = max(ifnull(history_cleared_at, 0), ?) WHERE id = ?`,
+			now.UnixMilli(), v.ProfileID); err != nil {
+			return err
+		}
+		return historyChanged(tx, v)
 	})
 }

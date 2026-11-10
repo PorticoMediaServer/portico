@@ -56,8 +56,8 @@ func (d *DB) Events(ctx context.Context, v Viewer, after int64, limit int) (even
 		switch {
 		case c.ProfileID != 0 && c.ProfileID != v.ProfileID:
 			continue // another profile's state or access
-		case c.Topic == TopicAccess, c.Topic == TopicPreferences:
-			// The profile's own access or settings changed: nothing to look up.
+		case c.Topic == TopicAccess, c.Topic == TopicPreferences, c.Topic == TopicHistory:
+			// The profile's own access, settings or History changed: nothing to look up.
 		case (c.Topic == TopicItem || c.Topic == TopicState) && c.Op != OpDeleted:
 			err = item.QueryRowContext(ctx, c.RefID).Scan(&e.PublicID, &e.LibraryID)
 		case c.LibraryID != 0:

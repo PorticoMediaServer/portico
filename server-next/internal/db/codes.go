@@ -278,11 +278,14 @@ const (
 	TopicList    ChangeTopic = 6
 	// TopicPreferences: a profile's own settings changed: its other devices read them again.
 	TopicPreferences ChangeTopic = 7
+	// TopicHistory: an entry was removed from a profile's History, or it was cleared: its
+	// other devices read History again.
+	TopicHistory ChangeTopic = 8
 )
 
 var changeTopicNames = map[ChangeTopic]string{
 	TopicItem: "item", TopicLibrary: "library", TopicState: "state", TopicPerson: "person",
-	TopicAccess: "access", TopicList: "list", TopicPreferences: "preferences",
+	TopicAccess: "access", TopicList: "list", TopicPreferences: "preferences", TopicHistory: "history",
 }
 
 func (t ChangeTopic) String() string { return changeTopicNames[t] }
