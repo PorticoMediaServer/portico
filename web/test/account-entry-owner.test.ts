@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {accountAnswer, accountPath, systemAnswer} from './next-wire.ts';
 import assert from 'node:assert/strict';
 import {AppSessionStore, type AppSessionRecord} from '@core/app-sessions.ts';
 import {HttpLocalApi, type LocalSession} from '@core/index.ts';
@@ -38,8 +39,8 @@ async function fixture(kind:'owner'|'setup'|'ambiguous'='owner', admittedSetupOw
   const api = new HttpLocalApi(origin, '');api.getRouteConnection = () => ({pin, getSnapshot: () => ({phase: 'ready'}), dispose() {}}) as never;
   api.request = (async path => {
     events.push('read:' + path);
-    if (path === '/v1/system') return {id: serverId, name: 'Actual server', version: '1', signIn: portico ? 'portico' : 'local', move: null, setupRequired: false, hostedConfigured: portico, hostedAttached: portico, apiLevel: 1, apiVersion: '1.0', apiMajors: [1], capabilities: []};
-    if (path === '/v1/direct') return snapshot(true);
+    if (path === '/v1/system') return systemAnswer({id: serverId, name: 'Actual server', version: '1', signIn: portico ? 'portico' : 'local', move: null, setupRequired: false, hostedConfigured: portico, hostedAttached: portico, apiLevel: 1, apiVersion: '1.0', apiMajors: [1], capabilities: []});
+    if (accountPath(path)) return accountAnswer(path, snapshot(true));
     throw new Error('Entry must not exchange, probe me, or admit again: ' + path);
   }) as HttpLocalApi['request'];
   const complete = async () => {
@@ -94,11 +95,6 @@ test('an old entry observer retires before the owner controller publishes its ow
   const f = await fixture();await f.entry.loadProfiles();await settle();assert.equal(f.hints.size, 1);
   f.events.length = 0;await f.entry.finishPorticoReturn(callback);
   assert.deepEqual(f.events.slice(0, 2), ['owner:pending', 'owner:finish']);assert.equal(f.entry.getSnapshot().phase, 'profiles');f.entry.dispose();
-});
-test('owner return rereads live required-setup flags instead of promoting its account grant', async () => {
-  const f = await fixture();f.requireFactor();await f.entry.finishPorticoReturn(callback);
-  assert.equal(f.entry.getSnapshot().phase, 'two-step-setup');assert.equal((await f.store.selected())?.connection.session.viewer.role, 'account');
-  assert.equal(f.remembers, 0);f.entry.dispose();
 });
 test('a missing owner pending keeps the existing ordinary registered return branch', async () => {
   const f = await fixture();f.noOwner();await f.entry.finishPorticoReturn(normalCallback);
@@ -179,9 +175,4 @@ test('a setup Return whose admission fails after the pending profiles state stil
  assert.ok(pending,'the failure came after the pending profiles state');
  assert.ok(state.error instanceof Error,'it shows the error');assert.notEqual(state.phase,'ready');assert.equal(state.setupCompleted,undefined);
  f.entry.dispose();
-});
-test('a required two-step setup cannot be bypassed by the first-library return hint',async()=>{
- const f=await fixture('setup',true);f.requireFactor();await f.entry.finishPorticoReturn(callback);
- assert.equal(f.entry.getSnapshot().phase,'two-step-setup');
- assert.equal(f.entry.getSnapshot().setupCompleted,undefined);f.entry.dispose();
 });

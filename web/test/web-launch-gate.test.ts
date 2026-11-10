@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {accountAnswer, accountPath} from './next-wire.ts';
 import assert from 'node:assert/strict';
 import {ShellBootstrap, followsStoredSignIn, type ShellAssembler} from '../src/shell/bootstrap.ts';
 import type {SelectedViewerRecord} from '@core/viewer-selection.ts';
@@ -21,7 +22,7 @@ function launch(answer: () => unknown, held = session) {
   const requests: string[] = [];
   let disposed = 0;
   const api = {baseUrl: 'https://demo.example:32500', getRouteConnection: () => ({dispose: () => {disposed++;}}),
-    request: async (path: string) => {requests.push(path); const value = answer(); if (value instanceof Error) throw value; return value;}};
+    request: async (path: string) => {requests.push(path); const value = answer(); if (value instanceof Error) throw value; return accountPath(path) ? accountAnswer(path, value) : value;}};
   const bootstrap = new ShellBootstrap(assembler, {selected: {read: async () => ({...saved, session: held})}, restore: async () => ({api, session: held}) as never});
   return {bootstrap, requests, disposed: () => disposed};
 }
@@ -31,7 +32,7 @@ test('not remembered in this tab, with several profiles: Who\'s watching first, 
   const l = launch(() => direct([profile('main', false, true), profile('alex', true)]));
   await l.bootstrap.start();
   assert.equal(l.bootstrap.getSnapshot().phase, 'choose-profile');
-  assert.deepEqual(l.requests, ['/v1/direct']);
+  assert.deepEqual(l.requests.sort(), ['/v1/me', '/v1/profiles']);
   assert.equal(l.disposed(), 1);
   l.bootstrap.dispose();
 });
@@ -52,7 +53,7 @@ test('remembered in this tab: opens with no account read for the gate', async ()
   const l = launch(() => direct([profile('main', false, true), profile('alex', true)]));
   await l.bootstrap.start();
   assert.notEqual(l.bootstrap.getSnapshot().phase, 'choose-profile');
-  assert.equal(l.requests.filter(path => path === '/v1/direct').length <= 1, true);
+  assert.equal(l.requests.filter(path => path === '/v1/me').length <= 1, true);
   l.bootstrap.dispose();
 });
 
@@ -84,7 +85,7 @@ test('another tab choosing the same profile never signs this tab out: it restart
   await next.bootstrap.start();
   assert.notEqual(next.bootstrap.getSnapshot().phase, 'choose-profile');
   assert.notEqual(next.bootstrap.getSnapshot().phase, 'signed-out');
-  assert.deepEqual(next.requests.filter(path => path === '/v1/direct'), [], 'no gate read: the page load is already admitted');
+  assert.deepEqual(next.requests.filter(path => path === '/v1/me'), [], 'no gate read: the page load is already admitted');
   next.bootstrap.dispose();
   // On its next reload it is no longer admitted, and nothing was remembered here: Who's watching.
   gate.resetTabSessionGate();

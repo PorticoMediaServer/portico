@@ -4,25 +4,33 @@ import {routePath, routeBody, type RouteResponse} from '../../../contracts/src/r
 import {routePath as hostedPath, routeBody as hostedBody, encodedRoutePath as hostedEncodedPath} from '../../../contracts/src/hosted/routes.ts';
 import {routeOrigin, routeJSON} from '../route-identity.ts';
 import {clockOrigin, observeResponseClock} from '../server-clock.ts';
-import {HttpLocalApi} from '../index.ts';
+import {HttpLocalApi, type Viewer} from '../index.ts';
 import {installationIdentity} from '../installation.ts';
 import type {ViewerRequester} from './viewer-queries.ts';
+import {callServer} from '../server-api.ts';
 
-export function readServerSystem<T = RouteResponse<'get_system'>>(api: ViewerRequester, signal?: AbortSignal): Promise<T> {
-  return api.request<T>(routePath('get_system'), 'GET', undefined, signal);
+export function readServerSystem(api: ViewerRequester, signal?: AbortSignal): Promise<unknown> {
+  return callServer(api, 'GET /v1/system', {signal});
 }
-export function readDirectAccount<T = unknown>(api: ViewerRequester, signal?: AbortSignal): Promise<T> {
-  return api.request<T>(routePath('get_direct_account'), 'GET', undefined, signal);
+/** The signed-in account and its profiles, for `parseDirectSnapshot`. */
+export async function readDirectAccount(api: ViewerRequester, signal?: AbortSignal): Promise<unknown> {
+  const [me, profiles] = await Promise.all([callServer(api, 'GET /v1/me', {signal}), callServer(api, 'GET /v1/profiles', {signal})]);
+  return {me, profiles};
 }
-export function readViewerIdentity<T = RouteResponse<'get_me'>>(api: ViewerRequester, signal?: AbortSignal): Promise<T> {
-  return api.request<T>(routePath('get_me'), 'GET', undefined, signal);
+/** Who the server says this sign-in acts for now (`GET /v1/me`), in the shape a session keeps.
+ * `known` supplies the server id, which the answer does not repeat. */
+export async function readViewerIdentity(api: ViewerRequester, known: Pick<Viewer, 'serverId'>, signal?: AbortSignal): Promise<{viewer: Viewer}> {
+  const me = await callServer(api, 'GET /v1/me', {signal});
+  if (!me || typeof me !== 'object' || typeof me.role !== 'string' || typeof me.account?.id !== 'string') throw Object.assign(new Error('The server returned an unreadable account.'), {code: 'invalid_response'});
+  return {viewer: {accountId: me.account.id, profileId: typeof me.profile?.id === 'string' ? me.profile.id : '', serverId: known.serverId, authority: 'local', role: me.role}};
 }
 /** The platform owns shelf delivery and renewal; core builds its feed-token request. */
 export function issueTopShelfToken(api: {request(path: string, method: 'POST', body: unknown, signal?: AbortSignal): Promise<unknown>}, installationId: string, signal?: AbortSignal): Promise<unknown> {
   return api.request(routePath('post_topshelf_token'), 'POST', {installationId}, signal);
 }
-export function revokeCurrentSession<T = void>(api: ViewerRequester, signal?: AbortSignal): Promise<T> {
-  return api.request<T>(routePath('delete_sessions_current'), 'DELETE', undefined, signal);
+/** Signs this device out (`DELETE /v1/auth/session`). Safe to repeat. */
+export function revokeCurrentSession(api: ViewerRequester, signal?: AbortSignal): Promise<void> {
+  return callServer(api, 'DELETE /v1/auth/session', {signal}).then(() => {});
 }
 export function readOwnerClaim<T = unknown>(api: ViewerRequester, signal?: AbortSignal): Promise<T> {
   return api.request<T>(routePath('get_networking_claim'), 'GET', undefined, signal);

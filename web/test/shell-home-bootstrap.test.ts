@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {accountAnswer, accountPath, systemAnswer} from './next-wire.ts';
 import assert from 'node:assert/strict';
 import {currentShellProfile, readShellIdentity, ShellBootstrap, sameShellAuthority, shellArtworkAuthorityKey, type ShellAssembler} from '../src/shell/bootstrap.ts';
 import {type HttpLocalApi, type LocalSession} from '@core/index.ts';
@@ -82,13 +83,13 @@ const directSession = {sessionFamilyId: 'family-a', viewer: {serverId: 'server-a
 test('local account facts supply genuine username separately from differing or matching profile names', async () => {
   for (const name of ['Evening profile', 'local-user']) {
     const calls: unknown[][] = [], controller = new AbortController();
-    const api = {request: async (...args: unknown[]) => { calls.push(args); return directRecord('local-user', name); }} as unknown as HttpLocalApi;
+    const api = {request: async (...args: unknown[]) => { calls.push(args); return accountAnswer(args[0] as string, directRecord('local-user', name)); }} as unknown as HttpLocalApi;
     const restored = await currentShellProfile(api, directSession, controller.signal);
     assert.equal(restored.username, 'local-user'); assert.equal(restored.profileName, name);
     assert.equal(restored.primaryProfile, true); assert.equal(restored.profileArt, 'mint'); assert.equal(restored.canManageProfiles, true);
     assert.deepEqual(restored.accountFacts, []);
     assert.deepEqual(restored.profiles, [{id: 'profile-a', name, initial: Array.from(name)[0], art: 'mint', pinRequired: false, primary: true}]);
-    assert.deepEqual(calls, [['/v1/direct', 'GET', undefined, controller.signal]]);
+    assert.deepEqual(calls, [['/v1/me', 'GET', undefined, controller.signal], ['/v1/profiles', 'GET', undefined, controller.signal]]);
   }
 });
 test('local missing username or mismatched account/server/profile fails without promoting another display field', async () => {
@@ -101,18 +102,19 @@ test('local missing username or mismatched account/server/profile fails without 
 test('Portico members read profiles on this server and never from the Hosted account', async () => {
   const raw=directRecord();Object.assign(raw.account,{hostedAccountId:'central-account'});
   const calls:string[]=[];
-  const result=await currentShellProfile({request:async(path:string)=>{calls.push(path);return raw;}} as HttpLocalApi,directSession,new AbortController().signal);
-  assert.equal(result.profileName,'Evening profile');assert.deepEqual(calls,['/v1/direct']);
+  const result=await currentShellProfile({request:async(path:string)=>{calls.push(path);return accountAnswer(path,raw);}} as HttpLocalApi,directSession,new AbortController().signal);
+  assert.equal(result.profileName,'Evening profile');assert.deepEqual(calls,['/v1/me','/v1/profiles']);
 });
 test('a secondary profile has no management powers, even on an owner account', async () => {
  const raw=directRecord();raw.profiles.push({...raw.profiles[0],id:'kids',name:'Kids',primary:false});
  const child={...directSession,viewer:{...directSession.viewer,profileId:'kids',role:'member'}};
- const api={request:async()=>raw} as HttpLocalApi;
- await assert.rejects(currentShellProfile(api,child,new AbortController().signal),/main profile/);
- Object.assign(raw,{canManage:false,capabilities:{manageAccount:false,managePeople:false,manageServer:false,manageSignIn:false}});
- const facts=await currentShellProfile(api,child,new AbortController().signal);
- assert.equal(facts.canManageProfiles,false);assert.equal(facts.primaryProfile,false);assert.deepEqual(Object.values(facts.capabilities!),[false,false,false,false]);
- await assert.rejects(currentShellProfile(api,{...child,viewer:{...child.viewer,authority:'hosted'}},new AbortController().signal),/this server/);
+ // The server says a profile other than the main one is a member that manages nothing.
+ const api={request:async(path:string)=>accountAnswer(path,raw,{profileId:'kids'})} as HttpLocalApi;
+ const shown=await currentShellProfile(api,child,new AbortController().signal);
+ assert.equal(shown.canManageProfiles,false);assert.equal(shown.primaryProfile,false);assert.deepEqual(Object.values(shown.capabilities),[false,false,false,false]);
+ // An answer that claimed management for it is refused.
+ const claims={request:async(path:string)=>path==='/v1/me'?{...(accountAnswer(path,raw,{profileId:'kids'}) as object),canManageAccount:true}:accountAnswer(path,raw)} as HttpLocalApi;
+ await assert.rejects(currentShellProfile(claims,child,new AbortController().signal),/main profile/);
 });
 
 
@@ -122,8 +124,8 @@ test('shell identity loads during a building Reading generation and retains Sett
   const api = {request: async (path: string) => {
     calls.push(path);
     if (path === '/v1/libraries') return {items: [{id: 'reading-a', name: 'Still importing', kind: 'book', summary}], viewerFence: 'viewer-a', privacyFence: 'privacy-a'};
-    if (path === '/v1/direct') return directRecord();
-    if (path === '/v1/system') return {id: 'server-a', name: 'Test server', version: '1', signIn: 'local', move: null, setupRequired: false, hostedConfigured: false, hostedAttached: false, apiLevel: 1, apiVersion: '1.0', apiMajors: [1], capabilities: []};
+    if (accountPath(path)) return accountAnswer(path, directRecord());
+    if (path === '/v1/system') return systemAnswer({id: 'server-a', name: 'Test server', version: '1', signIn: 'local', move: null, setupRequired: false, hostedConfigured: false, hostedAttached: false, apiLevel: 1, apiVersion: '1.0', apiMajors: [1], capabilities: []});
     if (path.startsWith('/v1/guide/sources?')) throw Object.assign(new Error('not permitted'), {status: 403});
     throw new Error(`Unexpected shell read ${path}`);
   }} as unknown as HttpLocalApi;
@@ -136,14 +138,14 @@ test('shell identity loads during a building Reading generation and retains Sett
   // Client data step 5: the shell learns who the viewer is from the directory, not from Home.
   assert.deepEqual('fences' in read && read.fences, {viewerFence: 'viewer-a', privacyFence: 'privacy-a'});
   assert.equal(calls.includes('/v1/home'), false);
-  assert.ok(calls.includes('/v1/libraries') && calls.includes('/v1/direct') && calls.includes('/v1/system'));
+  assert.ok(calls.includes('/v1/libraries') && calls.includes('/v1/me') && calls.includes('/v1/system'));
 });
 
 test('a library directory that times out never stops sign-in: the libraries are unavailable, not empty, and authority answers still stop', async () => {
   const api = (libraries: () => unknown) => ({request: async (path: string) => {
     if (path === '/v1/libraries') return libraries();
-    if (path === '/v1/direct') return directRecord();
-    if (path === '/v1/system') return {id: 'server-a', name: 'Test server', version: '1', signIn: 'local', move: null, setupRequired: false, hostedConfigured: false, hostedAttached: false, apiLevel: 1, apiVersion: '1.0', apiMajors: [1], capabilities: []};
+    if (accountPath(path)) return accountAnswer(path, directRecord());
+    if (path === '/v1/system') return systemAnswer({id: 'server-a', name: 'Test server', version: '1', signIn: 'local', move: null, setupRequired: false, hostedConfigured: false, hostedAttached: false, apiLevel: 1, apiVersion: '1.0', apiMajors: [1], capabilities: []});
     if (path.startsWith('/v1/guide/sources?')) throw Object.assign(new Error('not permitted'), {status: 403});
     throw new Error(`Unexpected shell read ${path}`);
   }}) as unknown as HttpLocalApi;

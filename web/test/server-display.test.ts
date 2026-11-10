@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {BrowserServerDisplay} from '../src/platform/server-display.ts';
 const pin={serverId:'server_a',publicKey:'key_a',fingerprint:'fingerprint_a'};
 const source={pin,origin:'https://address.example',signIn:'local' as const};
-const system={id:pin.serverId,name:'Portico demo',signIn:'local',move:null,version:'test',setupRequired:false,hostedConfigured:false,hostedAttached:false, apiLevel: 1, apiVersion: '1.0', apiMajors: [1], capabilities: []};
+const system={id:pin.serverId,name:'Portico demo',version:'test',apiMajor:1,capabilities:[],setupRequired:false,signInMethods:['password']};
 function fixture(raw:unknown=system){
  const memory=new Map<string,string>(),calls:{origin:string;pin:typeof pin}[]=[];let disposed=0;
  const route={pin,getSnapshot:()=>({phase:'ready'}),dispose:()=>{disposed++;}};
@@ -25,7 +25,7 @@ test('a previously verified name survives offline without being replaced by the 
  assert.deepEqual(await offline.choices([source],new AbortController().signal),[{id:pin.serverId,label:'Portico demo'}]);
 });
 test('another server or a kind mismatch cannot supply display metadata',async()=>{
- for(const raw of [{...system,id:'other_server'},{...system,signIn:'portico'}]){
+ for(const raw of [{...system,id:'other_server'},{...system,signInMethods:['portico']}]){
   const f=fixture(raw);assert.deepEqual(await f.display.choices([source],new AbortController().signal),[]);assert.equal(f.memory.size,0);assert.equal(f.disposed(),1);
  }
 });

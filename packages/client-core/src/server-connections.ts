@@ -1,17 +1,15 @@
 import {serverNow} from './server-clock.ts';
 import {throwIfAborted} from './abort-lifetime.ts';
 import type {RouteResponse as HostedRouteResponse} from "../../contracts/src/hosted/routes.ts";
-import {routeBody} from "../../contracts/src/routes.ts";
-import type {RouteResponse} from "../../contracts/src/route-paths.ts";
 import {routePath as hostedRoutePath, encodedRoutePath as hostedEncodedRoutePath} from "../../contracts/src/hosted/routes.ts";
-import {routePath} from "../../contracts/src/route-paths.ts";
+import {callServer} from './server-api.ts';
+import {readServerSystem,readViewerIdentity} from './query/connection-operations.ts';
 import {hostedGate} from './hosted-gate.ts';
 import {ApiError,HttpLocalApi,type HostedServer,type LocalSession} from './index.ts';
 import {credentialLock,installationIdentity} from './installation.ts';
 import {parseLocalSession} from './local-session.ts';
 import {compareSessionAuthority} from './session-authority.ts';
 import {parseServerSignIn} from './sign-in.ts';
-import {parseDirectSnapshot} from './profile-management.ts';
 import {RouteConnection,bindSessionRoute,forgetSessionRoute,sessionRoute,sessionRoute as sessionRouteForRotation,type DiscoveryRoute,type RememberedNetworkPolicy,type RouteMemory,type RouteProbeFailure} from './route-connection.ts';
 import type {ConnectionPolicy} from './connection-policy.ts';
 import {RouteError,routeBase64,probeRoute,routeOrigin,routeJSON,serverPin,sameServerPin,verifyRoutes,webRouteCrypto,type RouteCrypto,type RouteKey,type ServerPin,type SignedRoutes,type VerifiedRoutes} from './route-identity.ts';
@@ -105,7 +103,7 @@ export async function connectPairedPorticoServer(origin:string,pin:ServerPin,sou
  throwIfAborted(signal);
  const paired=await connectPairedServer(origin,pin,env,signal);
  try{
-  const system=parseServerSignIn(await paired.api.request(routePath('get_system'),'GET',undefined,signal));
+  const system=parseServerSignIn(await readServerSystem(paired.api,signal));
   if(system.id!==pin.serverId||system.signIn!=='portico')throw new RouteError('identity_mismatch','This server does not use Portico Accounts.');
   const key=await routeKey(source,env,signal);throwIfAborted(signal);
   return {...paired,hosted:{origin:accountOrigin,accountId:source.accountId,key}};
@@ -113,17 +111,18 @@ export async function connectPairedPorticoServer(origin:string,pin:ServerPin,sou
 }
 export async function rememberNativeSession(api:HttpLocalApi,session:LocalSession,env:ConnectionEnvironment,hosted?:RememberedServer['hosted'],isCurrent:()=>boolean=()=>true):Promise<void>{
  const parsed=parseLocalSession(session),connection=api.getRouteConnection();if(!connection||connection.getSnapshot().phase!=='ready'||connection.pin.serverId!==parsed.viewer.serverId)throw new RouteError('identity_mismatch','Verify this server before saving its sign-in.');
- // Local pairing alone cannot supply the offline raw-key credential pin. The
- // issuing server must return it with the native session, in its transaction.
- if(!hosted&&!parsed.serverIdentity)throw new RouteError('missing_server_key','This server must include its identity key in the sign-in response.');
- if(parsed.serverIdentity){const actual=await serverPin(parsed.viewer.serverId,parsed.serverIdentity.publicKey,parsed.serverIdentity.fingerprint,env.crypto);if(!sameServerPin(actual,connection.pin))throw new RouteError('identity_mismatch','The native session returned a different server identity.');}
+ // The server's key is the one this connection proved before any credential was sent; the sign-in answer carries none.
  // A Portico Account member (Spec — Hosted at Scale) holds a server-local session whose account is the
  // server's own; the Portico Account only discovers routes for it. A legacy hosted viewer must match.
  if(hosted&&parsed.viewer.authority==='hosted'&&parsed.viewer.accountId!==hosted.accountId)throw new RouteError('identity_mismatch','The native session belongs to another account.');
  const record:RememberedServer={version:'1',selectionId:routeBase64((env.crypto??webRouteCrypto).random(24)),logicalOrigin:connection.logicalOrigin,session:parsed,pin:{serverId:connection.pin.serverId,publicKey:connection.pin.publicKey,fingerprint:connection.pin.fingerprint},routes:memoryRecord(connection.getMemory()),...(hosted?{hosted}: {})};
  let previous:RememberedServer|undefined;
  const beforeCommit=()=>{if(!isCurrent())throw new RouteError('cancelled','The selected account or server changed.');};
- await env.storage.change(current=>{beforeCommit();previous=current;return record;},beforeCommit);
+ // Choosing a profile answers with the same sign-in and no refresh token: the one already saved
+ // is still the right one, and so is a renewal of it that has been sent and not yet answered.
+ const kept=(current:RememberedServer|undefined)=>!parsed.refreshToken&&current?.session.refreshToken&&current.session.sessionFamilyId===parsed.sessionFamilyId&&current.pin.serverId===record.pin.serverId
+  ?{...record,session:{...parsed,refreshToken:current.session.refreshToken},...(current.pendingRefresh?{pendingRefresh:current.pendingRefresh}:{})}:record;
+ await env.storage.change(current=>{beforeCommit();previous=current;return kept(current);},beforeCommit);
  if(!isCurrent()){await env.storage.change(current=>sameSelection(current,record)?previous:current);throw new RouteError('cancelled','The selected account or server changed.');}
  // The storage acknowledgement itself may be delayed behind a newer selection.
  const saved=await env.storage.read();
@@ -145,7 +144,6 @@ async function restoreStoredSession(env:ConnectionEnvironment,source:((record:Re
  // The protected store may hold a newer rotation of the same family than the caller's copy.
  if(expected&&(record.session.sessionFamilyId!==expected.sessionFamilyId||BigInt(record.session.tokenGeneration)<BigInt(expected.tokenGeneration)||(record.session.tokenGeneration===expected.tokenGeneration&&record.session.accessToken!==expected.accessToken)||record.session.viewer.serverId!==expected.viewer.serverId||record.session.viewer.accountId!==expected.viewer.accountId||record.session.viewer.profileId!==expected.viewer.profileId))return;
  const pin=await serverPin(record.pin.serverId,record.pin.publicKey,record.pin.fingerprint,env.crypto??webRouteCrypto);check();
- if(record.session.serverIdentity){const actual=await serverPin(pin.serverId,record.session.serverIdentity.publicKey,record.session.serverIdentity.fingerprint,env.crypto);check();if(!sameServerPin(pin,actual))throw new RouteError('identity_mismatch','Saved credentials and server identity disagree.');}
  const memory:RouteMemory={paired:record.routes.paired,lastGood:record.routes.lastGood,...(record.routes.policy?{policy:record.routes.policy}:{})};let current:VerifiedRoutes|undefined,previous:VerifiedRoutes|undefined;
  if(record.hosted){for(const field of ['current','previous'] as const){const signed=record.routes[field];if(signed){const verified=await verifyRoutes(signed,record.hosted.key,{accountId:record.hosted.accountId,serverId:pin.serverId,pin},env.crypto);check();if(field==='current')current=verified;else previous=verified;}}}
  const freshSource=source?.(record),hosted=record.hosted;
@@ -172,21 +170,13 @@ async function restoreStoredSession(env:ConnectionEnvironment,source:((record:Re
   const statusOf=(e:unknown)=>(e as {status?:unknown}|null)?.status;
   const validateLiveScope=async()=>{
    const viewer=record.session.viewer;
-   if(viewer.authority==='local'&&viewer.role==='account'){
-    // Account sign-in has not selected a viewer. Validate this exact live
-    // account through its canonical endpoint; /me correctly refuses it.
-    const raw=await api.request(routePath('get_direct_account'),'GET',undefined,signal);check();
-    const snapshot=parseDirectSnapshot(raw,
-     {authority:'local',accountId:viewer.accountId,serverId:viewer.serverId});
-    if(snapshot.account.disabled||snapshot.account.primaryProfileId!==viewer.profileId)throw new RouteError('identity_mismatch','The saved account no longer matches this server sign-in.');
-    return;
-   }
-   const me=await api.me(signal);check();
-   for(const field of ['authority','accountId','profileId','serverId'] as const)if(me.viewer[field]!==viewer[field])throw new RouteError('identity_mismatch','The saved viewer no longer matches this server session.');
+   // A sign-in that has not chosen a profile is the account's, and the server says so too.
+   const me=await readViewerIdentity(api,viewer,signal);check();
+   for(const field of ['accountId','profileId'] as const)if(me.viewer[field]!==viewer[field])throw new RouteError('identity_mismatch','The saved viewer no longer matches this server session.');
    if(me.viewer.role!==viewer.role){
     // Restoration adopts current permissions.
     if(!['owner','admin','member'].includes(me.viewer.role))throw new RouteError('identity_mismatch','The saved viewer no longer matches this server session.');
-    const next=parseLocalSession({...record.session,viewer:me.viewer},{authority:viewer.authority,accountId:viewer.accountId,profileId:viewer.profileId,serverId:viewer.serverId},{stored:true});
+    const next=parseLocalSession({...record.session,viewer:me.viewer},{accountId:viewer.accountId,profileId:viewer.profileId,serverId:viewer.serverId},{stored:true});
     check();await env.storage.change(current=>{check();return sameSelection(current,record)&&current!.session.accessToken===record.session.accessToken?{...current!,session:{...current!.session,viewer:next.viewer}}:current;},check);check();
     record.session=next;
    }
@@ -220,8 +210,8 @@ export async function rememberRotatedSession(env:ConnectionEnvironment,session:L
  const parsed=parseLocalSession(session);let saved:RememberedServer|undefined,connection:RouteConnection|undefined;
  await env.storage.change(current=>{
   if(!current||current.session.sessionFamilyId!==parsed.sessionFamilyId||current.session.viewer.serverId!==parsed.viewer.serverId)return current;
-  for(const field of ['authority','accountId','profileId'] as const)if(current.session.viewer[field]!==parsed.viewer[field])throw new RouteError('identity_mismatch','Renewal changed the selected viewer.');
-  if(parsed.serverIdentity&&(parsed.serverIdentity.publicKey!==current.pin.publicKey||parsed.serverIdentity.fingerprint!==current.pin.fingerprint))throw new RouteError('identity_mismatch','Renewal changed the pinned server.');
+  // A renewal keeps the account and the profile, or comes back with no profile after that profile's PIN changed.
+  if(current.session.viewer.accountId!==parsed.viewer.accountId||(parsed.viewer.profileId!==''&&current.session.viewer.profileId!==parsed.viewer.profileId))throw new RouteError('identity_mismatch','Renewal changed the selected viewer.');
   const generation=BigInt(parsed.tokenGeneration),old=BigInt(current.session.tokenGeneration);
   if(generation<old)return current;
   if(generation===old&&parsed.accessToken!==current.session.accessToken)throw new RouteError('identity_mismatch','Conflicting credentials for the same generation.');
@@ -261,6 +251,7 @@ export const REFRESH_MIN_VALID_MS = 60_000;
 /**
  * The 403 a renewal answers outside the hours the owner allows this account. The server ends
  * nothing: the same credential renews again once the hours return, so the sign-in is kept.
+ * (Viewing hours are not on the new server yet; the answer is understood for when they are.)
  */
 export const REFRESH_OUTSIDE_HOURS = 'outside_allowed_hours';
 
@@ -292,7 +283,7 @@ export type RefreshStoredOptions=Readonly<{
 }>;
 
 /**
- * One refresh against the protected connection store (lane C `POST /v1/auth/refresh`):
+ * One refresh against the protected connection store (`POST /v1/auth/refresh`):
  * under the credential lock, re-read the store (another tab or a restore may already have
  * rotated), persist the request id before sending, send, then store the next access and refresh
  * credential in one atomic change. A crash after sending replays the same request id and the
@@ -350,7 +341,7 @@ export function refreshStoredSession(o:RefreshStoredOptions):Promise<LocalSessio
   const bound=new AbortController(),abort=()=>bound.abort(),timer=setTimeout(abort,o.timeoutMs??15_000);
   o.signal?.addEventListener('abort',abort,{once:true});if(o.signal?.aborted)abort();
   let raw:unknown;
-  try{raw=await o.api.request<RouteResponse<"post_auth_refresh">>(routePath("post_auth_refresh"),'POST',routeBody("post_auth_refresh", {refreshToken:session.refreshToken,installationId:identity.installationId,requestId}),bound.signal);check();}
+  try{raw=await callServer(o.api,'POST /v1/auth/refresh',{body:{refreshToken:session.refreshToken,installationId:identity.installationId,requestId},signal:bound.signal});check();}
   catch(e){
    check();const status=(e as {status?:unknown}|null)?.status;
    // Only a 401 ends the sign-in (revoked, unknown family, or a reused refresh token). No 403 does:
@@ -361,9 +352,6 @@ export function refreshStoredSession(o:RefreshStoredOptions):Promise<LocalSessio
    if(status===401){
     await o.env.storage.change(current=>{check();return same(current)&&current!.session.refreshToken===session.refreshToken?undefined:current;},check).catch(()=>{check();});check();
     forgetSessionRoute(session.accessToken);
-    // The server's move to its own membership (migration 0120) ended this family: not a sign-out.
-    // The code survives so the app can re-admit silently (`isSessionMigrated`).
-    if(status===401&&(e as {code?:unknown}|null)?.code==='session_migrated')throw new SessionRefreshError('session_migrated','This server moved your sign-in to its own membership.',true);
     throw new SessionRefreshError('refresh_refused','Your sign-in has ended. Sign in again.',true);
    }
    if(status===404||status===405)throw new SessionRefreshError('refresh_unsupported','This server doesn’t renew sign-ins.',false,status as number);
@@ -375,7 +363,9 @@ export function refreshStoredSession(o:RefreshStoredOptions):Promise<LocalSessio
    throw busy;
   }finally{clearTimeout(timer);o.signal?.removeEventListener('abort',abort);}
   let next:LocalSession;
-  try{next=parseLocalSession(raw,{authority:session.viewer.authority,accountId:session.viewer.accountId,profileId:session.viewer.profileId,serverId:session.viewer.serverId},{refreshReceipt:true});}
+  // The renewed sign-in is for the same account on the same server. It keeps its profile, or has
+  // none when that profile's PIN changed on another device: the app then asks Who's watching.
+  try{next=parseLocalSession(raw,{accountId:session.viewer.accountId,serverId:session.viewer.serverId},{refreshReceipt:true});if(next.viewer.profileId!==''&&next.viewer.profileId!==session.viewer.profileId)throw new Error();}
   catch{throw new SessionRefreshError('refresh_invalid','The renewed sign-in didn’t match this one.',false);}
   if(next.sessionFamilyId!==session.sessionFamilyId||BigInt(next.tokenGeneration)<=BigInt(session.tokenGeneration)||Date.parse(next.authorizationHorizon)<=now()||
    !next.refreshToken||next.refreshToken===session.refreshToken||
@@ -383,7 +373,7 @@ export function refreshStoredSession(o:RefreshStoredOptions):Promise<LocalSessio
    // are checked here. A live successor is returned, and the caller's own binding gate decides.
    (Date.parse(next.expiresAt)<=now()&&((session.deviceId!==undefined&&next.deviceId!==session.deviceId)||
     (next.installationId!==undefined&&next.installationId!==identity.installationId)||(session.installationId!==undefined&&next.installationId!==session.installationId)))||
-   (session.viewer.role==='account'&&next.viewer.role!=='account')||(next.serverIdentity&&(next.serverIdentity.publicKey!==record.pin.publicKey||next.serverIdentity.fingerprint!==record.pin.fingerprint)))
+   (session.viewer.role==='account'&&next.viewer.role!=='account'))
    throw new SessionRefreshError('refresh_invalid','The renewed sign-in didn’t match this one.',false);
   const connection=sessionRoute(session.accessToken);let saved=false;
   try{

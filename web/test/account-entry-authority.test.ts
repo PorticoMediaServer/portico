@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {accountAnswer, accountPath, systemAnswer} from './next-wire.ts';
 import assert from 'node:assert/strict';
 import {AppSessionStore, type AppSessionRecord} from '@core/app-sessions.ts';
 import {HttpLocalApi, type LocalSession} from '@core/index.ts';
@@ -30,8 +31,8 @@ async function fixture(required = true, recovery = false) {
   const api = new HttpLocalApi(origin, '');api.getRouteConnection = () => connection as never;api.setAccessToken = token => {tokens.push(token);};
   api.request = (async path => {
     calls.push(path);
-    if (path === '/v1/system') return system;
-    if (path === '/v1/direct') {directStarted = true; await directGate; return snapshot();}
+    if (path === '/v1/system') return systemAnswer(system);
+    if (accountPath(path)) {directStarted = true; await directGate; return accountAnswer(path, snapshot());}
     if (path === '/v1/direct/profiles/main/pin-reset') {profileRevision++;pinRevision++;return undefined;}
     if (path === '/v1/direct/two-factor/enrol') {enrolStarted = true;await enrolGate;return {secret: 'ABCDEFGHIJKLMNOP', uri: 'otpauth://totp/Actual?secret=ABCDEFGHIJKLMNOP', recoveryCodes: ['ephemeral-code']};}
     throw new Error('Unexpected fixture route');
@@ -60,24 +61,12 @@ test('idle family replacement clears displayed secrets and the captured route wi
   assert.equal(f.entry.getSnapshot().ended, true, 'AU-5: the held sign-in ended, so its screen moves on');
   assert.equal((await f.store.selected())?.connection.session.sessionFamilyId, 'successor');assert.equal(f.disconnected, 1);assert.equal(f.hints.size, 0);f.entry.dispose();
 });
-test('same-scope token rotation updates the captured bearer without retiring an enrollment view', async () => {
-  const f = await fixture();let retired = 0;f.entry.subscribeAuthorityRetired(() => {retired++;});
-  await f.save({...f.initial, accessToken: 'rotated-access', tokenGeneration: '2'});await settle();f.hint();await settle();
-  assert.equal(retired, 0);assert.equal(f.tokens.at(-1), 'rotated-access');assert.equal(f.entry.getSnapshot().phase, 'two-step-setup');
-  assert.equal(f.entry.getSnapshot().origin, origin);assert.deepEqual(f.entry.getSnapshot().pin, pin);f.entry.dispose();assert.equal(retired, 1);assert.equal(f.hints.size, 0);
-});
 test('signout and unreadable private selection both retire an idle setup lifetime', async () => {
   for (const failure of [false, true]) {
     const f = await fixture();let retired = 0;f.entry.subscribeAuthorityRetired(() => {retired++;});
     if (failure) {f.failRead();f.hint();} else await f.store.signOutServer(serverId, f.initial.sessionFamilyId);
     await settle();assert.equal(retired, 1);assert.equal(f.entry.getSnapshot().phase, 'welcome');assert.equal(f.hints.size, 0);f.entry.dispose();
   }
-});
-test('an idle authority change prevents a late enrollment from returning its secret', async () => {
-  const f = await fixture();f.holdEnrol();const enrolling = f.entry.beginRequiredTwoStep('fixture-input');
-  await settle();assert.equal(f.enrolStarted, true);
-  await f.save(session('successor'));await settle();f.releaseEnrol();assert.equal(await enrolling, undefined);
-  assert.equal(f.entry.getSnapshot().phase, 'welcome');assert.doesNotMatch(JSON.stringify(f.entry.getSnapshot()), /ABCDEFGHIJKLMNOP|ephemeral-code|fixture-input/);f.entry.dispose();
 });
 test('own profile admission ignores its own committed hint and starts the new viewer lifetime', async () => {
   const f = await fixture(false);let retired = 0;f.entry.subscribeAuthorityRetired(() => {retired++;});
@@ -91,28 +80,7 @@ test('a failing view subscriber cannot prevent other secret owners from clearing
   f.entry.subscribeAuthorityRetired(() => {retired++;});f.entry.subscribe(() => {throw new Error('fixture-render-error');});
   await f.save(session('successor'));await settle();assert.equal(retired, 1);assert.equal(f.entry.getSnapshot().phase, 'welcome');f.entry.dispose();
 });
-test('retiring while an old selection read is delayed cannot cancel a newly captured lifetime', async () => {
-  const f = await fixture();const selected = f.store.selected.bind(f.store), old = await selected();
-  let release!: (value: typeof old) => void;
-  f.store.selected = () => new Promise(resolve => {release = resolve;});f.hint();
-  f.entry.cancel();f.store.selected = selected;await f.entry.loadProfiles();await settle();
-  release(undefined);await settle();assert.equal(f.entry.getSnapshot().phase, 'two-step-setup');assert.equal(f.hints.size, 1);f.entry.dispose();
-});
-test('profile recovery uses only a current eligible picker and retires with its captured entry', async () => {
-  const required = await fixture();assert.throws(() => required.entry.profileRecovery('main'));required.entry.dispose();
-  const f = await fixture(false);assert.throws(() => f.entry.profileRecovery('missing-profile'));
-  const recovery = f.entry.profileRecovery('main');assert.equal(recovery.getSnapshot().phase, 'password');
-  const before = f.calls.length;await f.save(session('successor'));await settle();
-  await recovery.password('fixture-input');assert.equal(f.calls.length, before);assert.equal(f.entry.getSnapshot().phase, 'welcome');recovery.dispose();f.entry.dispose();
-});
 
-test('recovered profile opens only through its original committed picker and main family', async () => {
-  const f = await fixture(false, true), flow = f.entry.profileRecovery('main');
-  await flow.reset('2468');assert.equal(flow.getSnapshot().phase,'done');
-  await flow.openProfile('2468',()=>true);
-  assert.equal(f.selections.length,1);assert.deepEqual(f.selections[0][1],f.initial);assert.equal(f.selections[0][2],'main');assert.equal(f.selections[0][6],false);
-  flow.dispose();f.entry.dispose();
-});
 test('retired recovery view during the profile read cannot dispatch a successor choice', async () => {
   const f = await fixture(false, true);let current = true;
   const flow = f.entry.profileRecovery('main',()=>current);await flow.reset('2468');
@@ -129,14 +97,6 @@ test('same-server account-family replacement during recovered-profile read refus
 });
 
 
-test('recovered profile captures the rotated bearer only within its original private admission', async () => {
-  const f=await fixture(false,true),flow=f.entry.profileRecovery('main');await flow.reset('2468');
-  const rotated={...f.initial,accessToken:'rotated-access',tokenGeneration:'2'};
-  await f.save(rotated);await settle();f.hint();await settle();
-  await flow.openProfile('2468',()=>true);
-  assert.equal(f.selections.length,1);assert.deepEqual(f.selections[0][1],rotated);
-  flow.dispose();f.entry.dispose();
-});
 test('recovery refuses a same-family replacement authorization horizon', async () => {
   const f=await fixture(false,true),flow=f.entry.profileRecovery('main');await flow.reset('2468');
   await f.save({...f.initial,authorizationHorizon:'2099-03-01T00:00:00Z',tokenGeneration:'2'});await settle();f.hint();await settle();

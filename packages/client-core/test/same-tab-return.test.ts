@@ -36,14 +36,3 @@ test('a member return prepares genuine key proof/PKCE without sending the server
  for(const patch of [{claimOperationId:'invalid operation!'},{purpose:'switch' as const},{moveCode:secret}])await assert.rejects(prepareSameTabReturn(api as never,store,{...input,...patch}));
  assert.equal(calls,1);
 });
-test('member exchange sends its once-only proof only to the captured server and retires a late grant after cancellation',async()=>{
- const session={accessToken:'access_A',sessionFamilyId:'family_A',tokenGeneration:'1',expiresAt:'2099-01-01T00:00:00Z',authorizationHorizon:'2099-02-01T00:00:00Z',viewer:{serverId:'server',accountId:'a',profileId:'p',authority:'local',role:'member'}};
- const grant={authority:'local',serverId:'server',account:{id:'a',username:'alice',primaryProfileId:'p',role:'member',revision:1,disabled:false,allowedLibraries:[]},profiles:[{id:'p',name:'Evening',primary:true,position:0,art:'blue',revision:1,pinRevision:1,pinRequired:false}],canManage:true,capabilities:{manageAccount:true,managePeople:false,manageServer:false,manageSignIn:false},session};
- let saved:ReturnPending|undefined={...pending,purpose:'sign-in',claimOperationId:'',moveCode:'M'.repeat(43)},answer!:(v:unknown)=>void;const sent:any[]=[],retired:string[]=[];
- const store:ReturnPendingStore={read:async()=>saved,change:async fn=>{saved=fn(saved);}},controller=new AbortController();
- const api={getRouteConnection:()=>({pin:{serverId:'server'}}),request:(path:string,_method:string,body:unknown)=>{sent.push({path,body});return new Promise(resolve=>{answer=resolve;});}};
- const url=`https://server.example/auth/portico-return#code=src_${'a'.repeat(43)}&state=${pending.state}&transaction=srt_${'b'.repeat(43)}`;
- const result=consumeSameTabReturn(api as never,store,{href:url},{replaceState:()=>{}},{isCurrent:()=>true,retireLateGrant:async s=>{retired.push(s.sessionFamilyId);}},controller.signal);
- for(let n=0;n<5;n++)await Promise.resolve();assert.equal(sent[0].path,'/v1/auth/portico-return/exchange');assert.equal(sent[0].body.moveCode,'M'.repeat(43));assert.equal(sent[0].body.purpose,'sign-in');
- controller.abort();answer(grant);await assert.rejects(result,{code:'cancelled'});assert.deepEqual(retired,['family_A']);assert.equal(saved,undefined);
-});

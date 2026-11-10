@@ -7,7 +7,7 @@ import {NativeScreenLifetime} from '../screens/settings-live/lifetime';
 import {sendNativeDeviceReport} from '../screens/settings-live/device-client-report';
 import {bindNativeTogether} from '../screens/settings-live/together-playback';
 import {audiobookPreferences} from '../../../../packages/client-core/src/audiobook-preferences';
-import {routePath, type RouteResponse} from '../../../../packages/contracts/src/routes';
+import {routePath} from '../../../../packages/contracts/src/routes';
 import {HomeService} from '../../../../packages/client-core/src/home-service';
 import {viewerQueryScope} from '../../../../packages/client-core/src/query/viewer-queries';
 import type {DirectSnapshot} from '../../../../packages/client-core/src/profile-management';
@@ -171,7 +171,7 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
   // server who this viewer is now; only a changed role rebuilds, a proven refusal ends, and a
   // transient failure keeps the shell.
   const endUnlessRoleChanged = createRoleProbe({alive: () => alive, viewer: () => session?.viewer, rebuild, end,
-    probe: () => api ? readViewerIdentity<RouteResponse<'get_me'>>(api, signal.signal) : undefined});
+    probe: () => api && session ? readViewerIdentity(api, session.viewer, signal.signal) : undefined});
   // A PIN change elsewhere (profile_pin_reentry) is neither a sign-out nor a role change: the device
   // asks for this profile's PIN again (C-DESIGN §2). Any other refusal goes through the role probe.
   // A management refusal (profile_pin_manage) ends nothing: the manage gate asks for the PIN.
@@ -461,7 +461,7 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
       signal.signal.addEventListener('abort', abortRound, {once: true});
       try {
         const [selection, me, nextLibraries, nextFacts, nextAccount, nextAvatars] = await Promise.all([
-          readNativeSelectedViewer(), readViewerIdentity<RouteResponse<'get_me'>>(readers, round.signal),
+          readNativeSelectedViewer(), readViewerIdentity(readers, session!.viewer, round.signal),
           readLibraries(readers, round.signal).then(value => value, error => tolerateLibraryDirectory(error, round.signal)), readers.read(round.signal),
           readers.readAccount(round.signal), identities.avatars(round.signal),
         ]);
@@ -537,7 +537,7 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
       identity: guarded(async requestSignal => {
         const ticket = readOrder.identity.begin();
         const [me, nextAccount, nextAvatars] = await Promise.all([
-          readViewerIdentity<RouteResponse<'get_me'>>(readers, requestSignal),
+          readViewerIdentity(readers, session!.viewer, requestSignal),
           readers.readAccount(requestSignal), identities.avatars(requestSignal),
         ]);
         await resourceCurrent(requestSignal);

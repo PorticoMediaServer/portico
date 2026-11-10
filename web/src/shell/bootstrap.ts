@@ -9,7 +9,8 @@ import {LocalSessionRefresher} from '@core/session-refresh.ts';
 import {selectedViewerRecord} from '@core/viewer-selection.ts';
 import {PreferencesReader} from '@core/preferences-reader.ts';
 import {appearancePreferences, regionPreferences} from '@core/preference-effects.ts';
-import type {PreferenceSnapshot} from '@core/preferences.ts';
+import {noPreferences, type PreferenceSnapshot} from '@core/preferences.ts';
+import {notOnThisServer} from '@core/server-api.ts';
 import {parseDirectSnapshot, type DirectSnapshot} from '@core/profile-management.ts';
 import {HomeService} from '@core/home-service.ts';
 import {createShellFactOwner, attachShellFactFeed, bindShellFactWake, shellAccount, type ShellFactWitnesses} from './facts';
@@ -129,7 +130,7 @@ export async function readShellIdentity(api: HttpLocalApi, session: LocalSession
     }),
     readDirectAccount(api, signal).then(raw => parseDirectSnapshot(raw, {authority:'local',accountId:session.viewer.accountId,serverId:session.viewer.serverId})), readServerSystem(api, signal).then(parseServerSignIn),
     fetchGuideSourceSummaries(api, session.viewer.serverId, Intl.DateTimeFormat().resolvedOptions().timeZone, signal).catch(error => {
-      if ((error as {status?: number}).status === 403) return undefined;
+      if ((error as {status?: number}).status === 403 || notOnThisServer(error)) return undefined;
       throw error;
     }),
   ]);
@@ -138,7 +139,9 @@ export async function readShellIdentity(api: HttpLocalApi, session: LocalSession
   return {libraries: libraries?.items ?? [], ...(libraries ? {} : {librariesUnavailable: true as const}), ...(libraries?.fences ? {fences: libraries.fences} : {}), direct: profile, profile: shellAccount(profile, session.viewer.profileId), system, guide, liveAvailable: !!guide?.sources.length};
 }
 async function readFacts(api: HttpLocalApi, session: LocalSession, preferences: PreferencesReader, inbox: InboxService, signal: AbortSignal): Promise<{facts: ShellFacts; witnesses: ShellFactWitnesses}> {
-  const [read, settings] = await Promise.all([readShellIdentity(api, session, signal), preferences.preferences('web')]);
+  const [read, settings] = await Promise.all([readShellIdentity(api, session, signal),
+    // Preferences are not on the rebuilt server yet: every setting then reads as its default.
+    preferences.preferences('web').catch(error => {if (notOnThisServer(error)) return noPreferences('web'); throw error;})]);
   const {libraries, profile, system, liveAvailable} = read, librariesUnavailable = 'librariesUnavailable' in read, fences = 'fences' in read ? read.fences : undefined;
   rememberShell(session.sessionFamilyId, system.name);
   // O-169: signed in, the server gives the owner's home networks; the route connection keeps

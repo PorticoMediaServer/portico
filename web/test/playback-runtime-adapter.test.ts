@@ -1,4 +1,5 @@
 import test, {type TestContext} from 'node:test';
+import {accountAnswer, accountPath, systemAnswer, snapshotOf} from './next-wire.ts';
 import assert from 'node:assert/strict';
 import {registerHooks} from 'node:module';
 import {HttpLocalApi} from '@core/index.ts';
@@ -3051,7 +3052,7 @@ test('WEB002 EACH five same-authority hints preserve actual media owners in all 
     const session={sessionFamilyId:'family',viewer:{...viewer,role:'owner'}} as import('@core/index.ts').LocalSession;
     const system={id:'server',name:'Study',version:'1',signIn:'local' as const,move:null,setupRequired:false,hostedConfigured:false,hostedAttached:false, apiLevel: 1, apiVersion: '1.0', apiMajors: [1], capabilities: []};
     const direct=()=>({authority:'local',serverId:'server',canManage:true,capabilities:{manageAccount:true,managePeople:true,manageServer:true,manageSignIn:true},account:{id:'account',username:'viewer '+revision,primaryProfileId:'profile',role:'owner',revision,disabled:false,allowedLibraries:[]},profiles:[{id:'profile',name:'Evening '+revision,primary:true,position:0,art:'mint',revision,pinRevision:1,pinRequired:false}]});
-    const witnesses={system,direct:parseDirectSnapshot(direct())};
+    const witnesses={system,direct:snapshotOf(direct())};
     const preferences={effective:{},deviceClass:'web'} as import('../src/shell/bootstrap.ts').ShellFacts['preferences'];
     const initial={serverName:'Study',preferences,identity:{viewer:session.viewer,serverName:'Study',libraries:[{id:'library',name:'Films',kind:'movies'}],fences:{viewerFence:'directory',privacyFence:privacy},...shellAccount(witnesses.direct,'profile'),liveAvailable:false,unread:0,showNotificationDot:false}} as import('../src/shell/bootstrap.ts').ShellFacts;
     const retire=()=>{if(retired)return;retired++;f.invalidate();f.runtime.dispose();};
@@ -3060,8 +3061,8 @@ test('WEB002 EACH five same-authority hints preserve actual media owners in all 
     f.intercept(async(request,response)=>{
       const ok=(body:unknown)=>({status:200,headers:{},body});
       if(request.path==='/v1/libraries'){reads.push('directory');return ok({items:[{id:'library',name:'Films '+revision,kind:'movies'}],viewerFence:'directory',privacyFence:privacy});}
-      if(request.path==='/v1/system'){reads.push('server');return ok({...system,name:'Study '+revision,version:String(revision)});}
-      if(request.path==='/v1/direct'){reads.push('members');return ok(direct());}
+      if(request.path==='/v1/system'){reads.push('server');return ok(systemAnswer({...system,name:'Study '+revision,version:String(revision)}));}
+      if (accountPath(request.path)) {if(request.path==='/v1/me')reads.push('members');return ok(accountAnswer(request.path, direct()));}
       if(request.path.startsWith('/v1/guide/sources?')){reads.push('guide');return ok({protocolVersion:GUIDE_PROTOCOL,serverId:'server',viewerFence:'guide',revision:String(revision),sources:[]});}
       if(request.path==='/v1/home'){reads.push('home');return ok({serverId:'server',viewerFence:homeViewerFence,rows:[],spotlight:[],layout:{revision:1,rowOrder:[],hiddenRowIds:[]},revision:{catalog:revision,viewer:1},generatedAt:'2026-10-28T12:00:00Z'});}
       return response;

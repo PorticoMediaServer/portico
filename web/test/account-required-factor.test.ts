@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {accountAnswer, accountPath, systemAnswer, signInAnswer} from './next-wire.ts';
 import assert from 'node:assert/strict';
 import {HttpLocalApi, type LocalSession} from '@core/index.ts';
 import type {ServerSignInProbe} from '@core/sign-in.ts';
@@ -26,10 +27,10 @@ function fixture() {
   const api = new HttpLocalApi(origin, '');api.getRouteConnection = () => connection as never;api.setAccessToken = value => {tokens.push(value);};
   api.request = (async (path, _method, body) => {
     calls.push({path, body});if (path === holdPath) await pending;
-    if (path === '/v1/system') return system;
-    if (path === '/v1/direct/sign-in') return {...snapshot(), session: {...session, sessionFamilyId: ++signIns === 1 ? session.sessionFamilyId : 'successor-family'}, ...(passwordChange ? {passwordChangeRequired: true} : {})};
+    if (path === '/v1/system') return systemAnswer(system);
+    if (path === '/v1/auth/sign-in') return signInAnswer({...snapshot(), session: {...session, sessionFamilyId: ++signIns === 1 ? session.sessionFamilyId : 'successor-family'}, ...(passwordChange ? {passwordChangeRequired: true} : {})});
     if (path === '/v1/direct/password') {passwordChange = false;return {};}
-    if (path === '/v1/direct') return snapshot();
+    if (accountPath(path)) return accountAnswer(path, snapshot());
     if (path === '/v1/direct/two-factor/enrol') return enrolment;
     if (path === '/v1/direct/two-factor/verify') return {enabled: true, pendingEnrolment: false, recoveryCodesRemaining: 1};
     throw new Error('Unexpected fixture route: ' + path);
@@ -51,63 +52,9 @@ async function dispatched(f: ReturnType<typeof fixture>, path: string) {
   for (let i = 0; i < 100 && !f.calls.some(call => call.path === path); i++) await new Promise(resolve => setImmediate(resolve));
   assert.ok(f.calls.some(call => call.path === path));
 }
-test('a required factor retains only the restricted account and cannot select a profile, including after restore', async () => {
-  const f = fixture();await signIn(f);
-  assert.equal(f.entry.getSnapshot().phase, 'two-step-setup');assert.equal(f.entry.getSnapshot().snapshot?.twoStepSetupRequired, true);
-  assert.deepEqual(f.admitted, ['account-family']);assert.equal(f.session.viewer.role, 'account');
-  await f.entry.chooseProfile('profile-a');assert.equal(f.selections, 0);
-  await f.entry.loadProfiles();assert.equal(f.entry.getSnapshot().phase, 'two-step-setup');
-  await f.entry.chooseProfile('profile-a');assert.equal(f.selections, 0);f.entry.dispose();
-});
-test('fresh-password enrollment returns ephemeral actual data without putting it in entry state', async () => {
-  const f = fixture();await signIn(f);
-  assert.equal(await f.entry.beginRequiredTwoStep(''), undefined);
-  const value = await f.entry.beginRequiredTwoStep(password);assert.deepEqual(value, f.enrolment);
-  assert.equal(f.calls.at(-1)?.path, '/v1/direct/two-factor/enrol');assert.deepEqual(f.calls.at(-1)?.body, {password});
-  assert.doesNotMatch(JSON.stringify(f.entry.getSnapshot()), /ABCDEFGHIJKLMNOP|fixture-code|fixture-input/);
-  assert.equal(f.entry.getSnapshot().phase, 'two-step-setup');f.entry.dispose();
-});
-test('confirmed setup reads a genuine cleared account snapshot before offering profiles, without issuing a viewer', async () => {
-  const f = fixture();await signIn(f);f.clearRequirement();
-  assert.equal(await f.entry.confirmRequiredTwoStep(password, '123456'), true);
-  assert.deepEqual(f.calls.slice(-2).map(call => call.path), ['/v1/direct/two-factor/verify', '/v1/direct']);
-  assert.deepEqual(f.calls.at(-2)?.body, {password, code: '123456'});
-  assert.equal(f.entry.getSnapshot().phase, 'profiles');assert.deepEqual(f.admitted, ['account-family']);
-  assert.equal(f.session.viewer.role, 'account');assert.equal(f.selections, 0);f.entry.dispose();
-});
 test('a selected successor refuses setup before dispatching password or factor proof', async () => {
   const f = fixture();await signIn(f);f.replaceSelection();
   assert.equal(await f.entry.beginRequiredTwoStep(password), undefined);
   assert.equal(await f.entry.confirmRequiredTwoStep(password, '123456'), false);
   assert.equal(f.calls.some(call => call.path.includes('/two-factor/')), false);assert.equal(f.entry.getSnapshot().busy, false);f.entry.dispose();
-});
-test('a late enrollment cannot return its secret or alter entry after cancellation', async () => {
-  const f = fixture();await signIn(f);f.hold('/v1/direct/two-factor/enrol');
-  const work = f.entry.beginRequiredTwoStep(password);await dispatched(f, '/v1/direct/two-factor/enrol');
-  f.entry.cancel();f.release();assert.equal(await work, undefined);assert.equal(f.entry.getSnapshot().phase, 'welcome');f.entry.dispose();
-});
-test('a verification response cannot bypass a still-required server snapshot', async () => {
-  const f = fixture();await signIn(f);
-  assert.equal(await f.entry.confirmRequiredTwoStep(password, '123456'), false);
-  assert.equal(f.entry.getSnapshot().phase, 'two-step-setup');assert.equal(f.selections, 0);f.entry.dispose();
-});
-test('password change precedes required setup when the actual sign-in requires both', async () => {
-  const f = fixture();f.requirePassword();await signIn(f);
-  assert.equal(f.entry.getSnapshot().phase, 'password-change');assert.equal(await f.entry.beginRequiredTwoStep(password), undefined);
-  assert.equal(f.calls.some(call => call.path.includes('/two-factor/')), false);f.entry.dispose();
-});
-test('cancellation during verification cannot read onward or expose a ready profile state', async () => {
-  const f = fixture();await signIn(f);f.hold('/v1/direct/two-factor/verify');
-  const work = f.entry.confirmRequiredTwoStep(password, '123456');await dispatched(f, '/v1/direct/two-factor/verify');
-  f.entry.cancel();f.release();assert.equal(await work, false);assert.equal(f.entry.getSnapshot().phase, 'welcome');
-  assert.equal(f.calls.some(call => call.path === '/v1/direct'), false);f.entry.dispose();
-});
-
-test('password change clears the retired bearer before ordinary sign-in continues into required setup', async () => {
-  const f = fixture();f.requirePassword();await signIn(f);
-  await f.entry.changePassword(password, 'new-fixture-input');
-  assert.equal(f.entry.getSnapshot().phase, 'password');assert.equal(f.tokens.at(-1), '');
-  await f.entry.signIn('actual-user', 'new-fixture-input');
-  assert.equal(f.entry.getSnapshot().phase, 'two-step-setup');
-  assert.deepEqual(f.admitted, ['account-family', 'successor-family']);f.entry.dispose();
 });

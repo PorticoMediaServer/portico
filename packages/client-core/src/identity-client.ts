@@ -1,14 +1,17 @@
 import {routeBody} from "../../contracts/src/routes.ts";
 import type {RouteResponse} from "../../contracts/src/route-paths.ts";
 import {routePath, encodedRoutePath} from "../../contracts/src/route-paths.ts";
-import {unreadableServerResponse} from './server-messages.ts';
+import {CodedError,unreadableServerResponse} from './server-messages.ts';
+import {callServer} from './server-api.ts';
 /** Typed calls for the identity workstream on a direct server: profile restrictions and
  * devices, two-factor. Parsing is strict; these functions add no state. */
-import {parseDevice,parseDevices,parseRememberedAccounts,validInstallationId,type Device,type RememberedAccount} from './identity-devices.ts';
+import {parseDevice,parseDevices,parseRememberedAccounts,type Device,type RememberedAccount} from './identity-devices.ts';
 import {parsePINRecoveryMethods,parseProfileAvatar,parseProfileRestrictions,parseRatingSystems,parseTwoFactorState,restrictionEdit,type PINRecoveryMethods,type ProfileAvatar,type ProfileRestrictions,type RatingSystem,type TwoFactorState} from './identity-restrictions.ts';
 
 export type IdentityApi={request<T>(path:string,method?:string,body?:unknown,signal?:AbortSignal):Promise<T>};
 export type DeviceDescription=Readonly<{installationId:string;name:string;platform:string;app:string;appVersion:string}>;
+/** One sign-in of the account on one device. `network` is where it was last used from, never an address. */
+export type SignInRecord=Readonly<{id:string;deviceId:string;deviceName:string;profileId?:string;createdAt:string;lastUsedAt:string;expiresAt:string;endedAt?:string;endReason?:string;network?:'home'|'away';current:boolean}>;
 export type TwoFactorEnrolment=Readonly<{secret:string;uri:string;recoveryCodes:readonly string[]}>;
 const id=(v:string)=>encodeURIComponent(v);
 
@@ -48,27 +51,37 @@ export class IdentityClient{
   return parseProfileAvatar(await this.upload(encodedRoutePath("post_direct_profiles_id_avatar", {"id": id(profileId)}),picture,/^image\/(jpeg|png|webp)$/.test(contentType)?contentType:'application/octet-stream'));
  }
 
- async devices(installationId:string,signal?:AbortSignal):Promise<readonly Device[]>{
-  return parseDevices(await this.api.request<RouteResponse<"get_devices">>(routePath("get_devices"),'GET',undefined,signal));
+ /** The account's signed-in devices (`GET /v1/devices`), most recently used first. */
+ async devices(_installationId:string,signal?:AbortSignal):Promise<readonly Device[]>{
+  return parseDevices(await callServer(this.api,'GET /v1/devices',{signal}));
  }
- /** Tells the server which device this is, at sign-in. It refreshes the record when the
-  * installation is already known and never overwrites a name a person gave the device. */
- async registerDevice(device:DeviceDescription):Promise<Device>{return parseDevice(await this.api.request<RouteResponse<"post_device">>(routePath("post_device"),'POST',device));}
- /** Ties this viewing session to the device, so "sign this device out" knows what to end. */
- async bindDevice(deviceId:string,installationId:string,sessionFamilyId:string):Promise<void>{await this.api.request(encodedRoutePath("post_device_session_binding", {"id": id(deviceId)}),'POST',routeBody("post_device_session_binding", {installationId,sessionFamilyId}));}
+ /** The account's sign-ins, ended ones included for as long as the server lists them (`GET /v1/me/sessions`). */
+ async sessions(signal?:AbortSignal):Promise<readonly SignInRecord[]>{
+  const raw=await callServer(this.api,'GET /v1/me/sessions',{signal});
+  if(!Array.isArray(raw?.items))throw new Error(unreadableServerResponse);
+  return Object.freeze(raw.items.filter(row=>row&&typeof row.id==='string'&&typeof row.deviceName==='string').map(row=>Object.freeze({id:row.id,deviceId:row.deviceId,deviceName:row.deviceName,createdAt:row.createdAt,lastUsedAt:row.lastUsedAt,expiresAt:row.expiresAt,current:row.current===true,
+   ...(row.profileId?{profileId:row.profileId}:{}),...(row.endedAt?{endedAt:row.endedAt}:{}),...(row.endReason?{endReason:row.endReason}:{}),...(row.network==='home'||row.network==='away'?{network:row.network}:{})})));
+ }
+ /** Ends one of the account's sign-ins (`DELETE /v1/me/sessions/{id}`). */
+ async endSession(sessionId:string,signal?:AbortSignal):Promise<void>{await callServer(this.api,'DELETE /v1/me/sessions/{id}',{id:sessionId,signal});}
  /** Who has used this installation. Asked before anyone is signed in; nothing in it is a credential. */
  /** The installation id goes in the body, never the address: addresses end up in proxy and access logs. */
  async rememberedAccounts(installationId:string,signal?:AbortSignal):Promise<readonly RememberedAccount[]>{return parseRememberedAccounts(await this.api.request<RouteResponse<"post_auth_remembered_accounts">>(routePath("post_auth_remembered_accounts"),'POST',routeBody("post_auth_remembered_accounts", {installationId}),signal));}
  async rememberAccount(installationId:string,automaticSignIn:boolean):Promise<readonly RememberedAccount[]>{return parseRememberedAccounts(await this.api.request<RouteResponse<"post_direct_remembered_accounts">>(routePath("post_direct_remembered_accounts"),'POST',routeBody("post_direct_remembered_accounts", {installationId,automaticSignIn})));}
  async forgetAccount(accountId:string,installationId:string):Promise<void>{await this.api.request(encodedRoutePath("delete_direct_remembered_account", {"accountId": id(accountId)}),'DELETE',routeBody("delete_direct_remembered_account", {installationId}));}
- async editDevice(deviceId:string,edit:{name?:string;rememberAccount?:boolean}):Promise<Device>{return parseDevice(await this.api.request<RouteResponse<"patch_device">>(encodedRoutePath("patch_device", {"id": id(deviceId)}),'PATCH',edit));}
- async signOutDevice(deviceId:string):Promise<void>{await this.api.request(encodedRoutePath("delete_device_sessions", {"id": id(deviceId)}),'DELETE');}
- async removeDevice(deviceId:string):Promise<void>{await this.api.request(encodedRoutePath("delete_device", {"id": id(deviceId)}),'DELETE');}
- /** Ends every session of the account (C45: no password; the signed-in session is the authority). */
- async signOutEverywhere():Promise<void>{await this.api.request(routePath("post_direct_sign_out_everywhere"),'POST');}
- /** A direct account's password. C45: the current password always, plus `code` (authenticator or
-  * recovery code) when two-step verification is on, in this one request. */
- async changePassword(currentPassword:string,newPassword:string,code?:string):Promise<void>{await this.api.request(routePath("post_direct_password"),'POST',routeBody("post_direct_password", {currentPassword,newPassword,...(code?{code}:{})}));}
+ /** Renames a device (`PATCH /v1/devices/{id}`). Remembering an account on a device is not on the new server yet. */
+ async editDevice(deviceId:string,edit:{name?:string;rememberAccount?:boolean}):Promise<Device>{
+  if(edit.name===undefined)throw new CodedError('not_available','This is not available on this server yet.');
+  return parseDevice(await callServer(this.api,'PATCH /v1/devices/{id}',{id:deviceId,body:{name:edit.name}}));
+ }
+ /** Signs a device out and takes it off the list (`DELETE /v1/devices/{id}`): the server does both in one step. */
+ async signOutDevice(deviceId:string):Promise<void>{await callServer(this.api,'DELETE /v1/devices/{id}',{id:deviceId});}
+ async removeDevice(deviceId:string):Promise<void>{await callServer(this.api,'DELETE /v1/devices/{id}',{id:deviceId});}
+ /** Signs the account out everywhere except on this device (`DELETE /v1/me/sessions`). */
+ async signOutEverywhere():Promise<void>{await callServer(this.api,'DELETE /v1/me/sessions');}
+ /** Changes the account's password: the current password always, plus `code` (authenticator or
+  * recovery code) when two-step sign-in is on. The account's other devices are signed out. */
+ async changePassword(currentPassword:string,newPassword:string,code?:string):Promise<void>{await callServer(this.api,'POST /v1/auth/password',{body:{currentPassword,newPassword,...(code?{code}:{})}});}
 
  async twoFactor(signal?:AbortSignal):Promise<TwoFactorState>{return parseTwoFactorState(await this.api.request<RouteResponse<"get_direct_two_factor">>(routePath("get_direct_two_factor"),'GET',undefined,signal));}
  async enrolTwoFactor(password:string):Promise<TwoFactorEnrolment>{return parseTwoFactorEnrolment(await this.api.request<RouteResponse<"post_direct_two_factor_enrol">>(routePath("post_direct_two_factor_enrol"),'POST',routeBody("post_direct_two_factor_enrol", {password})));}
@@ -88,10 +101,3 @@ export class IdentityClient{
  async disableTwoFactor(password:string,code:string):Promise<void>{await this.api.request(routePath("delete_direct_two_factor"),'DELETE',routeBody("delete_direct_two_factor", {password,code}));}
 }
 
-/** Registers this device and verifies the issued session binding. A briefly unavailable
- * device list never costs someone their sign-in. */
-export async function announceDevice(identity:IdentityClient,device:DeviceDescription,sessionFamilyId:string):Promise<'bound'|'skipped'>{
- if(!validInstallationId(device.installationId))return 'skipped';
- try{const record=await identity.registerDevice(device);await identity.bindDevice(record.id,device.installationId,sessionFamilyId);return 'bound';}
- catch{return 'skipped';}
-}

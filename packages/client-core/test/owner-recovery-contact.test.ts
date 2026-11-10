@@ -7,7 +7,7 @@ import {routePath} from '../../contracts/src/routes.ts';
 const keys=generateKeyPairSync('ed25519');
 const rawKey=keys.publicKey.export({format:'der',type:'spki'}).subarray(-32);
 const captured={baseUrl:'https://server.example:32500',publicKey:rawKey.toString('base64url'),serverId:'srv_'+createHash('sha256').update('portico.server.identity.v1\0').update(rawKey).digest('base64url')};
-const system={id:captured.serverId,name:'Server',version:'1',signIn:'portico',move:null,setupRequired:false,hostedConfigured:true,hostedAttached:true, apiLevel: 1, apiVersion: '1.0', apiMajors: [1], capabilities: []};
+const system={id:captured.serverId,name:'Server',version:'1',setupRequired:false,apiMajor:1,capabilities:[],signInMethods:['portico']};
 const json=(value:unknown)=>new Response(JSON.stringify(value),{headers:{'Content-Type':'application/json'}});
 function transport(overrides:{proof?:Record<string,unknown>;system?:Record<string,unknown>;after?:(path:string)=>void;redirect?:boolean}={}) {
  const calls:string[]=[];
@@ -18,7 +18,7 @@ function transport(overrides:{proof?:Record<string,unknown>;system?:Record<strin
   assert.equal(new Headers(init?.headers).has('Authorization'),false);assert.equal(new Headers(init?.headers).has('Cookie'),false);
   assert.equal(new URL(url).origin,captured.baseUrl);
   let response:Response;
-  if(url.endsWith(routePath('prove_network_identity'))){
+  if(url.endsWith('/v1/system/identity-proof')){
    const asked=JSON.parse(String(init?.body)),now=Date.now();
    const payload=Buffer.from(JSON.stringify({kind:'portico.route-proof',version:'1',...captured,baseUrl:asked.baseUrl,nonce:asked.nonce,fingerprint:createHash('sha256').update(rawKey).digest('base64url'),...overrides.proof}));
    response=json({payload:payload.toString('base64url'),signature:sign(null,payload,keys.privateKey).toString('base64url')});
@@ -32,7 +32,7 @@ const lifetime=()=>({signal:new AbortController().signal,isCurrent:()=>true});
 test('emergency contact proves only the captured origin and returns purpose-only same-origin navigation',async()=>{
  const net=transport();
  assert.deepEqual(await contactKnownServerForOwnerRecovery(captured,{...net,...lifetime()}),{purpose:'owner-recovery',origin:captured.baseUrl,serverId:captured.serverId,signInURL:captured.baseUrl+'/sign-in'});
- assert.deepEqual(net.calls,[captured.baseUrl+routePath('prove_network_identity'),captured.baseUrl+routePath('get_system')]);
+ assert.deepEqual(net.calls,[captured.baseUrl+'/v1/system/identity-proof',captured.baseUrl+routePath('get_system')]);
 });
 test('pin, nonce, system identity and redirect failures never yield a recovery handoff',async()=>{
  for(const overrides of [{proof:{nonce:'wrong'}},{proof:{publicKey:'A'.repeat(43)}},{system:{id:'different'}},{redirect:true}]){

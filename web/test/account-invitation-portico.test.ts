@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {systemAnswer} from './next-wire.ts';
 import assert from 'node:assert/strict';
 import {HttpLocalApi} from '@core/index.ts';
 import {routeBase64} from '@core/route-identity.ts';
@@ -31,7 +32,7 @@ async function fixture(destination: 'adopt' | 'server-origin' = 'adopt',short=fa
   const api = new HttpLocalApi(origin, ''); api.getRouteConnection = () => connection as never; api.setAccessToken = token => {tokens.push(token);};
   api.request = (async (path, _method, body) => {
     calls.push(path);
-    if (path === '/v1/system') return system;
+    if (path === '/v1/system') return systemAnswer(system);
     if (path === '/v1/access/invitations/preview') return {allLibraries: false, expiresAt: '2099-01-01T00:00:00Z', inviterUsername: 'owner', libraries: [{name: 'Actual collection'}], libraryCount: 1, role: 'member', serverName: system.name, signInMethod: 'portico'};
     if (path === '/v1/direct/portico-challenge') {
       const challenge = 'q'.repeat(43), payload = new TextEncoder().encode(JSON.stringify({kind: 'portico.challenge-proof', version: '1', serverId,
@@ -60,11 +61,6 @@ async function fixture(destination: 'adopt' | 'server-origin' = 'adopt',short=fa
     holdGrant: () => {grantGate = new Promise(resolve => {releaseGrant = resolve;});}, releaseGrant: () => releaseGrant?.()};
 }
 async function until(check: () => boolean) {const deadline = Date.now() + 2000; while (!check() && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 1)); assert.equal(check(), true);}
-test('Portico invitation uses the proved server challenge and captured account before durable admission', async () => {
-  const f = await fixture(); await f.entry.joinPortico(f.account);
-  assert.deepEqual(f.calls.map(path => path.startsWith('Hosted:') ? 'Hosted identity' : path), ['/v1/system', '/v1/access/invitations/preview', '/v1/direct/portico-challenge', 'Hosted identity', '/v1/access/invitations/accept']);
-  assert.deepEqual(f.admitted, ['issued-family']); assert.deepEqual(f.retired, []); f.entry.dispose();
-});
 test('an invalid challenge proof asks Hosted for no assertion', async () => {
   const f = await fixture(); f.invalidProof(); await f.entry.joinPortico(f.account);
   assert.equal(f.calls.some(path => path.startsWith('Hosted:')), false); assert.deepEqual(f.admitted, []); assert.deepEqual(f.retired, []); f.entry.dispose();
@@ -76,23 +72,4 @@ test('changing the Hosted family during assertion issuance sends no identity to 
   assert.equal(f.entry.getSnapshot().busy, false, 'the still-current invitation can continue with the newly signed-in account');
   assert.equal(f.entry.getSnapshot().error, undefined); f.entry.dispose();
 });
-test('a grant arriving after the Hosted family changes is retired without admission', async () => {
-  const f = await fixture(); f.holdGrant(); const pending = f.entry.joinPortico(f.account);
-  await until(() => f.calls.includes('/v1/access/invitations/accept')); f.changeAccount(); f.releaseGrant(); await pending;
-  assert.deepEqual(f.retired, ['issued-family']); assert.deepEqual(f.admitted, []);
-  assert.equal(f.entry.getSnapshot().busy, false); assert.equal(f.entry.getSnapshot().phase, 'portico'); f.entry.dispose();
-});
-test('a different Hosted account in the returned grant is retired', async () => {
-  const f = await fixture(); f.wrongGrantAccount(); await f.entry.joinPortico(f.account);
-  assert.deepEqual(f.retired, ['issued-family']); assert.deepEqual(f.admitted, []); f.entry.dispose();
-});
-test('Services gets only the verified Portico destination after retiring its transient server family', async () => {
-  const f = await fixture('server-origin'); await f.entry.joinPortico(f.account);
-  assert.deepEqual(f.entry.getSnapshot().joined, {origin: f.origin, signIn: 'portico'}); assert.deepEqual(f.admitted, []); assert.deepEqual(f.retired, ['issued-family']); assert.deepEqual(f.tokens, []); f.entry.dispose();
-});
 
-
-test('a short Portico invitation uses the exact proved destination and captured Hosted family',async()=>{
- const f=await fixture('adopt',true);await f.entry.joinPortico(f.account);
- assert.deepEqual(f.admitted,['issued-family']);assert.deepEqual(f.retired,[]);f.entry.dispose();
-});

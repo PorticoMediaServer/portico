@@ -1,4 +1,5 @@
 import {routePath} from '../../contracts/src/route-paths.ts';
+import {serverPath} from './server-api.ts';
 import {RouteError, probeRoute, routeOrigin, routeJSON, serverPin, type RouteCrypto} from './route-identity.ts';
 import {parseServerSignIn} from './sign-in.ts';
 
@@ -32,7 +33,7 @@ export async function contactKnownServerForOwnerRecovery(
   const anonymous:typeof fetch=async(input,init)=>{
    check();
    const url=String(input);
-   if(!((url===origin+routePath('prove_network_identity')&&init?.method==='POST')||(url===origin+routePath('get_system')&&init?.method==='GET'))||init?.credentials!=='omit'||init.redirect!=='error')throw new RouteError('invalid_address','Invalid recovery contact request.');
+   if(!((url===origin+serverPath('POST /v1/system/identity-proof')&&init?.method==='POST')||(url===origin+routePath('get_system')&&init?.method==='GET'))||init?.credentials!=='omit'||init.redirect!=='error')throw new RouteError('invalid_address','Invalid recovery contact request.');
    const response=await transport(input,{...init,cache:'no-store'});
    try {
     check();

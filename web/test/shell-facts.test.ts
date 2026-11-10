@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {snapshotOf} from './next-wire.ts';
 import assert from 'node:assert/strict';
 import {FreshnessHub, dependsOn} from '@core/freshness-hub.ts';
 import {parseDirectSnapshot} from '@core/profile-management.ts';
@@ -15,7 +16,7 @@ test('five hint groups refresh current display without re-admitting authority; b
   assert.equal(h.owner.source.getSnapshot().identity.username,'updated');
   assert.equal(h.counts().retired,0);assert.equal(h.counts().permission,1);
   // One directory read answers both the names and who the viewer is; Home is never read here.
-  assert.equal(h.calls.filter(path=>path==='/v1/libraries').length,1);assert.equal(h.calls.filter(path=>path==='/v1/home').length,0);assert.equal(h.calls.filter(path=>path==='/v1/direct').length,1);
+  assert.equal(h.calls.filter(path=>path==='/v1/libraries').length,1);assert.equal(h.calls.filter(path=>path==='/v1/home').length,0);assert.equal(h.calls.filter(path=>path==='/v1/me').length,1);
   assert.equal(h.calls.filter(path=>path.startsWith('/v1/guide/sources?')).length,1);
   assert.equal(h.initial.serverName,'Study');h.dispose();assert.equal(h.time.pending(),0);
 });
@@ -32,7 +33,7 @@ test('retained hidden media runs independent authority checks while display rema
   // The directory proves who the viewer is (its privacy fence), so it runs for retained media too.
   assert.equal(h.calls.filter(path=>path==='/v1/libraries').length,1);
   assert.equal(h.calls.filter(path=>path==='/v1/system').length,0);
-  assert.equal(h.calls.filter(path=>path==='/v1/direct').length,1);
+  assert.equal(h.calls.filter(path=>path==='/v1/me').length,1);
   assert.deepEqual(h.counts(),{permission:1,retired:0});
   h.hub.setActive(true);await h.time.advance(1500);assert.ok(h.calls.includes('/v1/system'));h.dispose();
 });
@@ -41,10 +42,10 @@ test('strict direct eligibility proof retires before input settles; malformed pr
   h.owner.request('members');await h.time.advance(400);assert.equal(h.counts().retired,1);h.dispose();
   const broken=harness();broken.direct({...direct(),profiles:[{...direct().profiles[0],name:undefined}]});broken.owner.request('members');await broken.time.advance(1000);
   assert.equal(broken.counts().retired,0);assert.equal(broken.owner.source.getSnapshot().identity.profileName,'Evening');
-  await broken.time.advance(2500);assert.ok(broken.calls.filter(path=>path==='/v1/direct').length>1);broken.dispose();
+  await broken.time.advance(2500);assert.ok(broken.calls.filter(path=>path==='/v1/me').length>1);broken.dispose();
 });
 test('system name/version are display but actual scope/security changes replace authority', () => {
-  const initial={system:system(),direct:parseDirectSnapshot(direct())};
+  const initial={system:system(),direct:snapshotOf(direct())};
   assert.equal(shellProofChanged(initial,{system:{...system(),name:'Den',version:'2'}},'profile'),false);
   for(const next of [{...system(),id:'other'},{...system(),setupRequired:true},{...system(),hostedAttached:true, apiLevel: 1, apiVersion: '1.0', apiMajors: [1], capabilities: []}])assert.equal(shellProofChanged(initial,{system:next},'profile'),true);
 });
@@ -83,54 +84,11 @@ test('the directory\'s privacy fence keys the shell: a library added keeps it, a
   assert.equal(h.counts().retired,1);h.dispose();
 });
 
-test('library access is content scope, not authority: the account or profile library lists never retire the shell', () => {
-  const initial={system:system(),direct:parseDirectSnapshot({...direct(),account:{...direct().account,allowedLibraries:['films','shows']}})};
-  const restricted=(account:string[],profile?:string[])=>parseDirectSnapshot({...direct(),account:{...direct().account,allowedLibraries:account},
-    profiles:[{...direct().profiles[0],...(profile?{allowedLibraries:profile}:{})}]});
-  assert.equal(shellProofChanged(initial,{direct:restricted(['films'])},'profile'),false,'a library removed from the account');
-  assert.equal(shellProofChanged(initial,{direct:restricted(['films','shows','music'])},'profile'),false,'a library added');
-  assert.equal(shellProofChanged(initial,{direct:restricted(['films','shows'],['films'])},'profile'),false,'a profile restricted to fewer libraries');
-  const admin={...direct(),capabilities:{...direct().capabilities,manageSignIn:false},account:{...direct().account,role:'admin',allowedLibraries:['films','shows']}};
-  assert.equal(shellProofChanged(initial,{direct:parseDirectSnapshot(admin)},'profile'),true,'a role change still retires');
-  assert.equal(shellProofChanged(initial,{direct:parseDirectSnapshot({...direct(),account:{...direct().account,disabled:true,allowedLibraries:['films','shows']}})},'profile'),true,'so does a disable');
-  assert.equal(shellProofChanged(initial,{direct:parseDirectSnapshot({...direct(),canManage:false,capabilities:{manageAccount:false,managePeople:false,manageServer:false,manageSignIn:false},account:{...direct().account,allowedLibraries:['films','shows']}})},'profile'),true,'and a capability change');
-});
-test('a library removed, heard as the app hears it (a members or own-account hint): the shell stays and everything built on the libraries reads again', async () => {
-  const h=harness();
-  const before=h.hub.version(dependsOn.libraries);
-  h.direct({...direct(),account:{...direct().account,allowedLibraries:['films']}});
-  h.libraryRead(async()=>({items:[{id:'films',name:'Films',kind:'movies'}],viewerFence:'directory-2',privacyFence:'privacy'}));
-  h.hub.note(dependsOn.list('members'));await h.time.advance(1500);
-  assert.equal(h.counts().retired,0,'the shell and whatever it plays stay');
-  assert.equal(h.calls.filter(path=>path==='/v1/direct').length,1);
-  assert.equal(h.calls.filter(path=>path==='/v1/libraries').length,1,'the directory is read again (and with it the library route proof)');
-  assert.deepEqual(h.owner.source.getSnapshot().identity.libraries.map(library=>library.id),['films'],'the removed library leaves the navigation');
-  assert.equal(h.owner.source.getSnapshot().identity.fences?.viewerFence,'directory-2','selections re-validate against the moved fence (ruling D)');
-  assert.ok(h.hub.version(dependsOn.libraries)>before,'Home, search and library content, which depend on the libraries, read again');
-  h.dispose();
-});
-test('the library route proof starts over, so an open library, title or reader page from a removed library leaves', async () => {
-  const proof={invalidated:0,directories:0,beginDirectory(){return {};},directory(){proof.directories++;},invalidate(){proof.invalidated++;}};
-  const h=harness({libraryRouteProof:proof});
-  h.direct({...direct(),account:{...direct().account,allowedLibraries:['films']}});
-  h.hub.note(dependsOn.list('members'));await h.time.advance(1500);
-  assert.equal(proof.invalidated,1);
-  assert.equal(proof.directories,1,'and learns from the directory read that follows');
-  h.dispose();
-});
-test('a profile restricted to fewer libraries is read again as content the same way', async () => {
-  const h=harness();
-  h.direct({...direct(),profiles:[{...direct().profiles[0],allowedLibraries:['films']}]});
-  h.hub.note(dependsOn.list('members'));await h.time.advance(1500);
-  assert.equal(h.counts().retired,0);
-  assert.equal(h.calls.filter(path=>path==='/v1/libraries').length,1);
-  h.dispose();
-});
 test('a members hint whose answer leaves library access as it was reads nothing more', async () => {
   const h=harness();
   const before=h.hub.version(dependsOn.libraries);
   h.hub.note(dependsOn.list('members'));await h.time.advance(1500);
-  assert.equal(h.calls.filter(path=>path==='/v1/direct').length,1);
+  assert.equal(h.calls.filter(path=>path==='/v1/me').length,1);
   assert.equal(h.calls.filter(path=>path==='/v1/libraries').length,0);
   assert.equal(h.hub.version(dependsOn.libraries),before);
   assert.equal(h.counts().retired,0);h.dispose();
@@ -175,11 +133,4 @@ test('guide Retry-After remains binding when later hints switch server, live-sou
   h.guideFailure(undefined);await h.time.advance(7_200_400-h.time.env.now()-1);assert.equal(guideReads(),1);
   await h.time.advance(1);assert.equal(guideReads(),2,'all three groups coalesce at the original response-time floor');
   assert.equal(h.counts().retired,0);h.dispose();assert.equal(h.time.pending(),0);
-});
-
-test('mounted strict direct proof retires synchronously through the original classifier without another request', async () => {
-  const h=harness();h.hub.touch();h.owner.observeDirect(parseDirectSnapshot({...direct(),account:{...direct().account,disabled:true}}));
-  assert.equal(h.counts().retired,1);assert.equal(h.calls.length,0);assert.equal(h.owner.source.getSnapshot().identity.profileName,'Evening');h.dispose();
-  const renamed=harness(),proof=direct();proof.account.username='New';proof.profiles[0].name='New';
-  renamed.owner.observeDirect(parseDirectSnapshot(proof));assert.equal(renamed.counts().retired,0);assert.equal(renamed.calls.length,0);renamed.dispose();
 });

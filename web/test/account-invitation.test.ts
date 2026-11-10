@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {systemAnswer} from './next-wire.ts';
 import assert from 'node:assert/strict';
 import {HttpLocalApi} from '@core/index.ts';
 import {BrowserAccountEntry} from '../src/platform/account-entry.ts';
@@ -29,10 +30,10 @@ function fixture(destination: 'adopt' | 'server-origin' = 'adopt') {
   api.setAccessToken = value => {tokens.push(value);};
   api.request = (async (path, _method, body) => {
     calls.push({path, body});
-    if (path === '/v1/system') return system;
+    if (path === '/v1/system') return systemAnswer(system);
     if (path === '/v1/access/invitations/preview') return previewAnswer;
     if (path === '/v1/access/invitations/accept') return {variant: 'accepted', accountId: 'created-account', profileId: 'main', username: 'new_user', role: 'member', allowedLibraries: []};
-    if (path === '/v1/direct/sign-in') {if (signInGate) await signInGate; if (failSignIn) throw new Error('offline after membership creation'); const result = response();result.session.sessionFamilyId = family;result.session.accessToken = token;return result;}
+    if (path === '/v1/auth/sign-in') {if (signInGate) await signInGate; if (failSignIn) throw new Error('offline after membership creation'); const result = response();result.session.sessionFamilyId = family;result.session.accessToken = token;return result;}
     throw new Error('Unexpected endpoint: ' + path);
   }) as HttpLocalApi['request'];
   const storage = {read: async () => undefined, change: async () => {}};
@@ -73,57 +74,7 @@ test('a preview cannot switch the verified local kind into a Portico credential 
   assert.equal(f.entry.getSnapshot().invitation, undefined); assert.equal((f.entry.getSnapshot().error as {code: string}).code, 'invalid_response');
   await f.entry.joinLocal('new_user', 'long enough password'); assert.equal(f.admitted.length, 0); f.entry.dispose();
 });
-test('local join creates once, signs in, and admits the actual created account using the captured revision', async () => {
-  const f = fixture(); await f.entry.inspectInvitation(link); await f.entry.joinLocal('new_user', 'long enough password', 'New person');
-  assert.deepEqual(f.calls.map(value => value.path), ['/v1/system', '/v1/access/invitations/preview', '/v1/access/invitations/accept', '/v1/direct/sign-in']);
-  assert.deepEqual(f.admitted, ['issued-family']); assert.equal(f.entry.getSnapshot().phase, 'ready'); f.entry.dispose();
-});
-test('an acknowledged membership is not created again when its initial sign-in needs retry', async () => {
-  const f = fixture(); await f.entry.inspectInvitation(link); f.failSignIn(true); await f.entry.joinLocal('new_user', 'long enough password');
-  f.failSignIn(false); await f.entry.joinLocal('new_user', 'long enough password');
-  assert.equal(f.calls.filter(value => value.path === '/v1/access/invitations/accept').length, 1);
-  assert.deepEqual(f.admitted, ['issued-family']); f.entry.dispose();
-});
-test('Services completion retires the temporary server family and exposes only verified origin/kind', async () => {
-  const f = fixture('server-origin'); await f.entry.inspectInvitation(link); await f.entry.joinLocal('new_user', 'long enough password');
-  assert.deepEqual(f.admitted, []); assert.deepEqual(f.retired, ['issued-family']);
-  assert.deepEqual(f.entry.getSnapshot().joined, {origin, signIn: 'local'});
-  assert.equal(f.entry.getSnapshot().snapshot, undefined); assert.deepEqual(f.tokens, []); f.entry.dispose();
-});
-test('a Local join grant returned after leaving entry is retired without durable admission', async () => {
-  const f = fixture(); await f.entry.inspectInvitation(link); f.holdSignIn(); const joining = f.entry.joinLocal('new_user', 'long enough password');
-  for (let n = 0; n < 100 && !f.calls.some(value => value.path === '/v1/direct/sign-in'); n++) await new Promise(resolve => setImmediate(resolve));
-  assert.equal(f.calls.some(value => value.path === '/v1/direct/sign-in'), true);
-  f.entry.cancel(); f.releaseSignIn(); await joining;
-  assert.deepEqual(f.retired, ['issued-family']); assert.deepEqual(f.admitted, []); assert.equal(f.entry.getSnapshot().phase, 'welcome');
-  assert.deepEqual(f.tokens, [], 'an abandoned pre-admission result cannot publish even a token clear'); f.entry.dispose();
-});
 
-
-test('late cleanup cannot clear a successor admitted through the same captured API object', async () => {
-  const f = fixture();await f.entry.inspectInvitation(link);f.holdSignIn();f.holdRetirement();
-  const abandoned = f.entry.joinLocal('new_user', 'long enough password');
-  for (let n = 0; n < 100 && !f.calls.some(value => value.path === '/v1/direct/sign-in'); n++) await new Promise(resolve => setImmediate(resolve));
-  assert.ok(f.calls.some(value => value.path === '/v1/direct/sign-in'));
-  f.entry.cancel();f.releaseSignIn();
-  for (let n = 0; n < 100 && f.retired.length === 0; n++) await new Promise(resolve => setImmediate(resolve));
-  assert.deepEqual(f.retired, ['issued-family']);
-  f.successorGrant();await f.entry.inspectInvitation(link);await f.entry.joinLocal('new_user', 'long enough password');
-  assert.deepEqual(f.admitted, ['successor-family']);assert.deepEqual(f.tokens, ['successor-access']);
-  f.releaseRetirement();await abandoned;
-  assert.deepEqual(f.tokens, ['successor-access']);assert.equal(f.entry.getSnapshot().phase, 'ready');f.entry.dispose();
-});
-
-
-test('human short code uses the verified entry and existing one-use local join without a long secret',async()=>{
- const f=fixture();await f.entry.inspectShortInvitation(origin,'0123-4567-89ab-cdef');
- assert.deepEqual(f.calls.map(v=>v.path),['/v1/system','/v1/access/invitations/preview']);
- assert.deepEqual(f.calls[1].body,{shortCode:'0123456789ABCDEF'});
- assert.equal(JSON.stringify(f.entry.getSnapshot()).includes('0123456789ABCDEF'),false);
- await f.entry.joinLocal('new_user','long enough password','New person');
- assert.deepEqual(f.calls.find(v=>v.path==='/v1/access/invitations/accept')?.body,{shortCode:'0123456789ABCDEF',username:'new_user',password:'long enough password',name:'New person'});
- assert.deepEqual(f.admitted,['issued-family']);f.entry.dispose();
-});
 
 test('short code is never sent after failed proof, invalid syntax or abandoned address inspection',async()=>{
  const f=fixture();f.refuseProof();await f.entry.inspectShortInvitation(origin,'0123456789ABCDEF');

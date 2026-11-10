@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {accountAnswer, accountPath, systemAnswer} from './next-wire.ts';
 import assert from 'node:assert/strict';
 import {AppSessionStore, type AppSessionRecord} from '@core/app-sessions.ts';
 import {HttpLocalApi, type LocalSession} from '@core/index.ts';
@@ -28,7 +29,7 @@ async function fixture() {
   const result = (): DirectSignIn => ({kind: 'signed-in', session: session(), snapshot, accountScoped: true, passwordChangeRequired: false});
   const system = {id: serverId, name: 'Actual server', version: '1', signIn: 'portico', move: null, setupRequired: false, hostedConfigured: true, hostedAttached: true, apiLevel: 1, apiVersion: '1.0', apiMajors: [1], capabilities: []};
   const api = new HttpLocalApi(origin, '');api.getRouteConnection = () => ({pin, getSnapshot: () => ({phase: 'ready'}), dispose: () => {disposed++;}}) as never;
-  api.request = (async path => {if (path === '/v1/system') return system;if (path === '/v1/direct') return snapshot;throw new Error('Unexpected second protocol/admission: ' + path);}) as HttpLocalApi['request'];
+  api.request = (async path => {if (path === '/v1/system') return systemAnswer(system);if (accountPath(path)) return accountAnswer(path, snapshot);throw new Error('Unexpected second protocol/admission: ' + path);}) as HttpLocalApi['request'];
   const complete = async () => {await save(session());if (supersede) await save(session('successor'));returnedRevision = (await store.read()).revision;returnedNotifications = notifications;return {api, result: result()};};
   const controller = {prepare: async () => hostedOrigin + '/#canonical',
     finish: async captured => {assert.equal(captured, callback);finishCalls++;if (hold) await hold;return challenge ? {api, result: {kind: 'challenge' as const, token: 'private-factor-token', expiresAt: '2099-01-01T00:00:00Z'}} : complete();},

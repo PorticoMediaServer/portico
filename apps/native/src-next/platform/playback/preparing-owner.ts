@@ -22,7 +22,7 @@ export function captureNativePreparingOwner(api: HttpLocalApi, read: () => Local
     const principal = Object.freeze({...selected, viewer: Object.freeze({...session.viewer})});
     const pin = route.pin.publicKey, origin = api.baseUrl, epoch = api.getCertificateSessionEpoch();
     const until = Math.min(Date.parse(principal.expiresAt), Date.parse(principal.authorizationHorizon));
-    if (!pin || route.pin.serverId !== principal.viewer.serverId || principal.serverIdentity && principal.serverIdentity.publicKey !== pin || !Number.isFinite(until)) return undefined;
+    if (!pin || route.pin.serverId !== principal.viewer.serverId || !Number.isFinite(until)) return undefined;
     const current = () => {
       try {
         const live = read();

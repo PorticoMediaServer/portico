@@ -10,7 +10,7 @@ import {unreadableServerResponse} from './server-messages.ts';
  *
  * The tokens themselves stay in the client. The server keeps only the account
  * descriptors and which one was used last. */
-export type Device=Readonly<{id:string;installationId:string;name:string;platform:string;app:string;appVersion:string;ip:string;firstSeen:string;lastSeen:string;lastProfileId:string;rememberAccount:boolean;current:boolean;sessions:number}>;
+export type Device=Readonly<{id:string;installationId:string;name:string;platform:string;app:string;appVersion:string;ip:string;firstSeen:string;lastSeen:string;lastProfileId:string;rememberAccount:boolean;current:boolean;sessions:number;network?:'home'|'away'}>;
 export type RememberedAccount=Readonly<{accountId:string;username:string;displayName:string;avatarVersion:number;automaticSignIn:boolean;lastUsed:string}>;
 
 const obj=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object'&&!Array.isArray(v);
@@ -36,33 +36,24 @@ export function newInstallationId():string{
  return text;
 }
 
-const deviceKeys=['id','authority','installationId','name','platform','app','appVersion','ip','firstSeen','lastSeen','lastProfileId','rememberAccount','current','sessions'] as const;
-
+/** Reads a device (`Device` in the generated contract). `network` is "home" or "away", where the
+ * device was last used from; the server never sends an address, so `ip` is always empty. A device
+ * list never names another device's installation id. `sessions` is 1 while the device is signed in. */
 export function parseDevice(raw:unknown):Device{
- if(!obj(raw))fail('device');only(raw,deviceKeys);
- // Every device record now names the authority that signed it in; servers from before that omit it.
- if(raw.authority!==undefined&&raw.authority!=='local'&&raw.authority!=='hosted')fail('authority');
- // A device list shows an installation id only for the caller's own device: it is what a device
- // renews its sign-in with, so every other device's comes back empty.
- if(!id(raw.id)||!(validInstallationId(raw.installationId)||raw.installationId===''&&raw.current===false))fail('device identity');
+ if(!obj(raw)||!id(raw.id))fail('device identity');
  if(!text(raw.name,120)||raw.name==='')fail('name');
- for(const field of ['platform','app','appVersion'])if(!text(raw[field],64))fail(field);
- // The server records the peer address or nothing; it never echoes a header the
- // caller supplied, so anything that is not an address is a defect.
- if(typeof raw.ip!=='string'||raw.ip.length>45||/[^0-9a-fA-F.:]/.test(raw.ip))fail('ip');
- if(!instant(raw.firstSeen)||!instant(raw.lastSeen))fail('timestamps');
- if(!bool(raw.rememberAccount)||!bool(raw.current))fail('device flags');
- if(raw.lastProfileId!==undefined&&raw.lastProfileId!==''&&!id(raw.lastProfileId))fail('lastProfileId');
- if(!count(raw.sessions,0,1000))fail('sessions');
- return Object.freeze({id:raw.id as string,installationId:raw.installationId as string,name:raw.name as string,platform:raw.platform as string,app:raw.app as string,appVersion:raw.appVersion as string,ip:raw.ip,firstSeen:raw.firstSeen as string,lastSeen:raw.lastSeen as string,lastProfileId:(raw.lastProfileId as string|undefined)??'',rememberAccount:raw.rememberAccount as boolean,current:raw.current as boolean,sessions:raw.sessions as number});
+ if(!instant(raw.createdAt)||!instant(raw.lastSeenAt))fail('timestamps');
+ const optional=(value:unknown)=>text(value,64)?value as string:'';
+ return Object.freeze({id:raw.id as string,installationId:'',name:raw.name as string,platform:optional(raw.platform),app:optional(raw.app),appVersion:optional(raw.appVersion),ip:'',firstSeen:raw.createdAt as string,lastSeen:raw.lastSeenAt as string,lastProfileId:'',rememberAccount:false,current:raw.current===true,sessions:raw.signedIn===true?1:0,
+  ...(raw.network==='home'||raw.network==='away'?{network:raw.network}:{})});
 }
 
-/** Devices arrive most recently active first. At most one may be `current`: two
- * would mean the list cannot tell the person which device they are holding. */
+/** Devices arrive most recently active first. A device this app cannot read is left out; at most
+ * one may be `current`, or the list cannot tell the person which device they are holding. */
 export function parseDevices(raw:unknown):readonly Device[]{
- if(!obj(raw)||!Array.isArray(raw.items)||raw.items.length>200)fail('device list');
- only(raw,['items']);
- const devices=raw.items.map(parseDevice);
+ if(!obj(raw)||!Array.isArray(raw.items))fail('device list');
+ const devices:Device[]=[];
+ for(const row of raw.items){try{devices.push(parseDevice(row));}catch{/* shown without the row it cannot read */}}
  if(new Set(devices.map(d=>d.id)).size!==devices.length)fail('duplicate device ids');
  if(devices.filter(d=>d.current).length>1)fail('more than one current device');
  return Object.freeze(devices);

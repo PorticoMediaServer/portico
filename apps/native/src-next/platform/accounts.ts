@@ -1,5 +1,5 @@
 import {createHostedAccountApi} from '../../../../packages/client-core/src/query/hosted-account-transport';
-import {readHostedAccountIdentity} from '../../../../packages/client-core/src/query/connection-operations.ts';
+import {readHostedAccountIdentity, readViewerIdentity} from '../../../../packages/client-core/src/query/connection-operations.ts';
 import {captureTVApprovalGrant} from './tv-approval-grant';
 import {NativeModules} from 'react-native';
 import {HttpLocalApi, type HostedSession, type LocalSession} from '../../../../packages/client-core/src';
@@ -65,8 +65,8 @@ export class NativeAccounts {
     // Bounded: these reads go over the live route that just served the sign-in.
     trace?.mark('identity');
     const bound = new AbortController(), timer = setTimeout(() => bound.abort(), POST_PICK_TIMEOUT_MS);
-    let me: Awaited<ReturnType<HttpLocalApi['me']>>;
-    try {me = await api.me(bound.signal);} finally {clearTimeout(timer);}
+    let me: Awaited<ReturnType<typeof readViewerIdentity>>;
+    try {me = await readViewerIdentity(api, session.viewer, bound.signal);} finally {clearTimeout(timer);}
     this.assertCurrent(generation);
     if (!current()) throw Object.assign(new Error('native_sign_in_cancelled'), {name: 'AbortError'});
     if ((['serverId', 'accountId', 'profileId', 'authority', 'role'] as const).some(key => me.viewer[key] !== session.viewer[key]))

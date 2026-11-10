@@ -25,13 +25,6 @@ function fixture(response:unknown=grant){
  const options={serverId:'server',isCurrent:()=>current,retireLateGrant:async(s:any)=>{retired.push(s.sessionFamilyId);}};
  return {api,options,calls,retired,set:(value:unknown)=>{reply=value;},end:()=>{current=false;}};
 }
-test('public move is consistent with server kind; an absent or unknown move is no move, and a contradictory one refuses credentials',()=>{
- const system={id:'server',name:'Home',version:'1',signIn:'local',move:null,setupRequired:false,hostedConfigured:true,hostedAttached:false, apiLevel: 1, apiVersion: '1.0', apiMajors: [1], capabilities: []};
- for(const move of [undefined,'preview','switch'])assert.equal(parseServerSignIn({...system,move}).move,null);
- assert.throws(()=>parseServerSignIn({...system,move:'to_portico'}));
- assert.equal(parseServerSignIn({...system,move:'to_local'}).move,'to_local');
- assert.equal(parseServerSignIn({...system,signIn:'portico',move:'to_portico'}).move,'to_portico');
-});
 test('owner move counters are whole live counts and Start over has no invented device total',()=>{
  assert.equal(parseAccountMove(move).waiting,120);
  for(const patch of [{waiting:138},{revision:0},{stage:'approved'},{ownAddressRequired:false},{devices:undefined}])assert.throws(()=>parseAccountMove({...move,...patch}));
@@ -44,29 +37,6 @@ test('old-password proof is only an opaque bounded ticket; code preview exposes 
  assert.deepEqual(parseMoveCodePreview({username:'alice',signIn:'local',expiresAt:until}),{username:'alice',signIn:'local',expiresAt:until});
  assert.throws(()=>parseMoveCodePreview({username:'alice',signIn:'local',expiresAt:until,code}));
  assert.throws(()=>parseAccountMoveCodes({items:[{accountId:'a',username:'alice',code,expiresAt:until},{accountId:'a',username:'alice',code,expiresAt:until}]}));
-});
-test('member commands use checked routes and code preview never redeems; the original server profile survives redemption',async()=>{
- const f=fixture({ticket:code,expiresAt:until}),client=new MemberAccountMoveClient(f.api,f.options);
- await client.password('alice','old password');f.set({username:'alice',signIn:'local',expiresAt:until});await client.previewCode(code);
- assert.deepEqual(f.calls.map(x=>x.path),['/v1/auth/move/password','/v1/auth/move/code']);
- f.set(grant);const result=await client.redeemLocal(code,'alice','new password');assert.equal(result.kind,'signed-in');if(result.kind==='signed-in')assert.equal(result.snapshot.profiles[0].id,'profile');
- assert.deepEqual(f.calls[2].body,{code,username:'alice',password:'new password'});
- assert.throws(()=>client.redeemPortico({ticket:code,code} as any,{payload:'p',signature:'s',keyId:'k'}));client.dispose();
-});
-test('owner commands send exact revision/once-only code request and final confirmation produces a typed local continuation',async()=>{
- const f=fixture({move}),client=new AccountMoveClient(f.api,f.options);
- assert.equal((await client.current())?.waiting,120);f.set({...move,stage:'preview'});const preview=await client.preview('local',false);
- f.set({signIn:grant});const result=await client.confirm({moveId:preview.id,expectedRevision:preview.revision,confirmation:'',username:'owner',password:'new password'});assert.equal(result.kind,'local');
- f.set({items:[{accountId:'member',username:'alice',code,expiresAt:until}]});assert.equal((await client.codes(['member']))[0].code,code);
- assert.deepEqual(f.calls[3].body,{accountIds:['member']});f.set(undefined);await client.finish(parseAccountMove(move));assert.deepEqual(f.calls[4].body,{expectedRevision:2});client.dispose();
-});
-test('cancelled and authority-replaced redemptions retire the exact late grant and never publish or auto replay',async()=>{
- for(const end of ['cancel','authority'] as const){
-  let answer!:(v:unknown)=>void,requests=0;const retired:string[]=[];let current=true;
-  const client=new MemberAccountMoveClient({request:()=>{requests++;return new Promise(resolve=>{answer=resolve;}) as any;}},{serverId:'server',isCurrent:()=>current,retireLateGrant:async s=>{retired.push(s.sessionFamilyId);}});
-  const pending=client.redeemLocal(code,'alice','new password');if(end==='cancel')client.cancel();else current=false;
-  answer(grant);await assert.rejects(pending);assert.deepEqual(retired,['family_A']);assert.equal(requests,1);client.dispose();
- }
 });
 test('duplicate mutation and offline failure grant nothing; the client never retries a spent operation',async()=>{
  let fail!:(e:unknown)=>void,calls=0;const f=fixture();

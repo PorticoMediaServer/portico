@@ -1,6 +1,6 @@
-import {routeBody} from "../../contracts/src/routes.ts";
-import type {RouteResponse} from "../../contracts/src/route-paths.ts";
-import {routePath, encodedRoutePath} from "../../contracts/src/route-paths.ts";
+import type {DeviceInfo} from '../../contracts/src/next/api.ts';
+import {callServer} from './server-api.ts';
+import {installationIdentity} from './installation.ts';
 import {CodedError,unreadableServerResponse} from './server-messages.ts';
 import {parseLocalSession,currentUTCTimestamp} from './local-session.ts';
 import type {LocalSession} from './index.ts';
@@ -8,7 +8,9 @@ import {keepReadable,oneOfOr} from './tolerant.ts';
 import {requireTag} from './needs-newer-app.ts';
 
 /** Account credentials administer profiles; a selected profile is only a viewer. */
-export interface ProfileAPI {request<T>(path:string,method?:string,body?:unknown,signal?:AbortSignal):Promise<T>}
+export interface ProfileAPI {request<T>(path:string,method?:string,body?:unknown,signal?:AbortSignal):Promise<T>;
+ /** The same server, sending another sign-in's token (`HttpLocalApi.withAccessToken`). */
+ withAccessToken?(token:string):ProfileAPI}
 export type ProfileAuthority='local'|'hosted';
 export const PROFILE_ART=['blue','violet','mint','coral','gold','slate','rose','sky'] as const;
 export type ProfileArt=typeof PROFILE_ART[number];
@@ -28,11 +30,10 @@ export type ManagementCapabilities=Readonly<{manageAccount:boolean;managePeople:
 export const managementPinRefused = (error: unknown): boolean => (error as {code?: unknown} | null)?.code === 'profile_pin_manage';
 export type DirectSnapshot=Readonly<{capabilities:ManagementCapabilities;authority:'local';serverId:string;account:DirectAccount;profiles:readonly ManagedProfile[];canManage:boolean;custodyPending?:boolean;twoStepSetupRequired?:true;rememberProfiles?:boolean;managePinRequired?:true}>;
 /**
- * C45 direct sign-in (Justin's account decisions). There is no separate account token any more:
- * - `signed-in`: one device-bound `session`. With several profiles or a PIN it has role `account`
- *   (`accountScoped`) and a profile must be chosen; with one unprotected profile it is the viewer.
- *   `passwordChangeRequired` means: `changeRequiredPassword` with this session, then sign in again.
- * - `challenge`: the account has two-step verification; finish with `completeDirectSignInChallenge`.
+ * The answer to a sign-in:
+ * - `signed-in`: one `session` for this device. Until a profile is chosen it has the role `account`
+ *   (`accountScoped`); `directSignIn` chooses an account's only profile itself when it has no PIN.
+ * - `challenge`: the account has two-step sign-in; finish with `completeDirectSignInChallenge`.
  */
 export type DirectSignIn=
  Readonly<{kind:'signed-in';snapshot:DirectSnapshot;session:LocalSession;accountScoped:boolean;passwordChangeRequired:boolean;resetFileOwnerSession?:true}>
@@ -47,114 +48,70 @@ export function directSignInContinuation(result:DirectSignIn):'challenge'|'passw
  return result.accountScoped?'profile-selection':'viewer';
 }
 export type ProfileScope=Readonly<{authority:ProfileAuthority;accountId:string;serverId?:string}>;
-/** `remember`: open this profile at launch while this device keeps the sign-in (the PIN screen's
- * Remember this profile). The server honours it only when its "Remember PIN for" is not Off. */
+/** `remember` (the PIN screen's Remember this profile) is not on the new server yet and is not sent. */
 export type ProfileSelectionInput=Readonly<{pin?:string;installationId?:string;remember?:boolean}>;
-export type SignedProfileProof=Readonly<{payload:string;signature:string;keyId:string}>;
 /** `remembered`: the new sign-in remembers its profile until `expiresAt`. */
 export type DirectSelection=Readonly<{session:LocalSession;remembered?:Readonly<{expiresAt:string}>}>;
-/** A deletion preview: the revision and the profile lifetime the server will retire. The lifetime is
- * generated once by the server and never reused, so a replayed delete names the same retirement. */
+/** What the confirmation shows before a profile is deleted. `revision` and `lifetime` are kept for
+ * the screens that pass a preview back; the server deletes a profile in one step and reads neither. */
 export type ProfileDeletion=Readonly<{id?:string;profileId:string;revision:number;lifetime:string;name?:string;primary:boolean;status?:string;playlists?:number;savedResources?:number;servers?:readonly {id:string;name:string;acknowledged:boolean}[]}>;
-/** Retirement is logical first, then a purge: only `removed` is finished. `blocked` is not success. */
+/** A deleted profile is `removed` as soon as the server answers. */
 export type ProfileRetirementState='removing'|'removed'|'blocked';
 export type ProfileRetirement=Readonly<{profileId:string;lifetime:string;state:ProfileRetirementState}>;
-export type ProfileDeletionOptions=Readonly<{
- signal?:AbortSignal;
- /** Every checked state, in order: `removing` and `blocked` keep the UI's pending wording. */
- onStatus?:(retirement:ProfileRetirement)=>void;
- /** Focused tests shorten the check interval. */
- intervalMs?:number;
- /** Focused tests bound the whole wait. The UI omits it: a private purge may legally take
-  * longer than any fixed wait, so it keeps one repeated timer until `removed`, an error or the
-  * viewer's abort instead of giving up on a retirement that is still running. */
- maxWaitMs?:number;
-}>;
+export type ProfileDeletionOptions=Readonly<{signal?:AbortSignal;onStatus?:(retirement:ProfileRetirement)=>void}>;
 export type ProfilePolicy=Readonly<{serverId:string;allowedLibraries:readonly string[]|null}>;
 const obj=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object'&&!Array.isArray(v);
 const text=(v:unknown,max=256):v is string=>typeof v==='string'&&v.length>0&&v.length<=max&&!/[\x00-\x1f\x7f]/.test(v);
-const natural=(v:unknown):v is number=>typeof v==='number'&&Number.isSafeInteger(v)&&v>=0;
-const revision=(v:unknown):v is number=>natural(v)&&v>0;
-/** A profile lifetime is 32 lowercase hexadecimal characters; it is never guessed or reused. */
-const profileLifetime=(v:unknown):v is string=>typeof v==='string'&&/^[0-9a-f]{32}$/.test(v);
-/** A retirement names the exact profile and lifetime that was previewed. Anything else, a lost
- * response included, is unreadable: it is never taken as `removed`. */
-export function parseProfileRetirement(raw:unknown,expected:Readonly<{profileId:string;lifetime:string}>):ProfileRetirement{
- if(!obj(raw)||!text(raw.profileId,128)||!profileLifetime(raw.lifetime)||raw.profileId!==expected.profileId||raw.lifetime!==expected.lifetime||!['removing','removed','blocked'].includes(raw.state as string))invalid();
- return Object.freeze({profileId:raw.profileId,lifetime:raw.lifetime,state:raw.state as ProfileRetirementState});
-}
-const retirementStopped=()=>Object.assign(new Error('Profile removal stopped'),{name:'AbortError'});
-const throwIfRetirementStopped=(signal?:AbortSignal):void=>{if(signal?.aborted)throw retirementStopped();};
-/** One timer at a time, cleared with its listener when the removal is retired. */
-function retirementSleep(signal?:AbortSignal):(ms:number)=>Promise<void>{
- return ms=>new Promise<void>((resolve,reject)=>{
-  if(signal?.aborted){reject(retirementStopped());return;}
-  let timer:ReturnType<typeof setTimeout>|undefined;
-  const stop=()=>{if(timer!==undefined)clearTimeout(timer);signal?.removeEventListener('abort',stop);reject(retirementStopped());};
-  timer=setTimeout(()=>{signal?.removeEventListener('abort',stop);resolve();},ms);
-  signal?.addEventListener('abort',stop,{once:true});
- });
-}
-/** A checked `Retry-After` hint, never an unbounded pause. */
-function retryAfterMs(error:unknown):number|undefined{
- const seconds=(error as {retryAfterSeconds?:unknown}|null|undefined)?.retryAfterSeconds;
- return typeof seconds==='number'&&Number.isSafeInteger(seconds)&&seconds>0&&seconds<=60?seconds*1000:undefined;
-}
 function invalid():never{throw new CodedError('invalid_response',unreadableServerResponse);}
-function ids(v:unknown):readonly string[]{if(!Array.isArray(v)||v.length>1000||v.some(x=>!text(x,128))||new Set(v).size!==v.length)invalid();return Object.freeze([...v] as string[]);}
+/** Not on the new server yet. The screen shows the refusal it already shows for any other. */
+function notYet():never{throw new CodedError('not_available','This is not available on this server yet.');}
+
 /**
- * A picture colour this app does not know reads as `blue`, the colour a new profile starts with; the name sent is never kept.
- * Everything else about a profile is exact, its PIN requirement and allowed libraries above all. Where the whole list is relied
- * on (sign-in, the account snapshot) one unreadable profile refuses the list. With `readable`, a list read for display leaves
- * that profile out instead: it is never shown with part of it missing. Either way there is exactly one primary profile, no id
- * appears twice and the list is no longer than an account may hold.
+ * Reads the account's profiles (`Profile` in the generated contract). A picture colour this app does not know reads as
+ * `blue`, the colour a new profile starts with. Where the whole list is relied on (sign-in, the account snapshot) one
+ * unreadable profile refuses the list; with `readable`, a list read for display leaves that profile out instead. Either
+ * way there is exactly one main profile, no id appears twice and the list is no longer than an account may hold.
+ * `position` is the server's order. `revision` and `pinRevision` are always 1: the later save wins on the new server.
  */
 export function parseManagedProfiles(raw:unknown,readable=false):readonly ManagedProfile[]{
  if(!Array.isArray(raw)||raw.length<1||raw.length>8)invalid();
- const row=(v:unknown)=>{if(!obj(v)||!text(v.id,128)||!text(v.name,120)||typeof v.primary!=='boolean'||!natural(v.position)||!text(v.art,64)||!revision(v.revision)||!revision(v.pinRevision)||typeof v.pinRequired!=='boolean'||(v.trustRevision!==undefined&&!revision(v.trustRevision)))invalid();
-  return Object.freeze({id:v.id,name:v.name,primary:v.primary,position:v.position,art:oneOfOr('profiles','profile.art',v.art,PROFILE_ART,'blue'),revision:v.revision,pinRevision:v.pinRevision,pinRequired:v.pinRequired,...(v.trustRevision===undefined?{}:{trustRevision:v.trustRevision as number}),...(v.allowedLibraries===undefined?{}:{allowedLibraries:v.allowedLibraries===null?null:ids(v.allowedLibraries)})});};
+ const positions=new Map<unknown,number>(raw.map((value,index)=>[value,index]));
+ const row=(v:unknown):ManagedProfile=>{if(!obj(v)||!text(v.id,128)||!text(v.name,120)||typeof v.isPrimary!=='boolean'||!text(v.color,64)||typeof v.pinRequired!=='boolean')invalid();
+  return Object.freeze({id:v.id,name:v.name,primary:v.isPrimary,position:positions.get(v)??0,art:oneOfOr('profiles','profile.art',v.color,PROFILE_ART,'blue'),revision:1,pinRevision:1,pinRequired:v.pinRequired});};
  const result:ManagedProfile[]=readable?keepReadable('profiles','rows',raw,row):raw.map(row);
  if(new Set(result.map(v=>v.id)).size!==result.length||result.filter(v=>v.primary).length!==1)invalid();
- return Object.freeze(result.sort((a,b)=>a.position-b.position||a.id.localeCompare(b.id)));
+ return Object.freeze(result);
 }
+/** Builds what the screens know about an account from the server's `Account` and `Profile` shapes.
+ * `role` and `canManage` are this sign-in's: only the account's main profile manages anything. */
+function accountSnapshot(serverId:string,account:unknown,profileRows:unknown,role:string,canManage:boolean,readable=false):DirectSnapshot{
+ if(!text(serverId,128)||!obj(account)||!text(account.id,128)||!text(account.username,64)||!['owner','admin','member'].includes(account.role as string))invalid();
+ const profiles=parseManagedProfiles(profileRows,readable),primary=profiles.find(p=>p.primary);if(!primary)invalid();
+ const staff=canManage&&(role==='owner'||role==='admin');
+ return Object.freeze({authority:'local',serverId,account:Object.freeze({id:account.id,username:account.username,primaryProfileId:primary.id,role:account.role as DirectAccount['role'],revision:1,disabled:false,allowedLibraries:Object.freeze([])}),
+  profiles,capabilities:Object.freeze({manageAccount:canManage,managePeople:staff,manageServer:staff,manageSignIn:canManage&&role==='owner'}),canManage,rememberProfiles:false});
+}
+/** Reads what `readDirectAccount` fetched (`GET /v1/me` and `GET /v1/profiles`) for the server the caller is signed in to. */
 export function parseDirectSnapshot(raw:unknown,expected:Partial<ProfileScope>={},readableProfiles=false):DirectSnapshot{
- if(!obj(raw)||raw.authority!=='local'||!text(raw.serverId,128)||!obj(raw.account)||typeof raw.canManage!=='boolean'||(raw.custodyPending!==undefined&&typeof raw.custodyPending!=='boolean')||(raw.twoStepSetupRequired!==undefined&&typeof raw.twoStepSetupRequired!=='boolean'))invalid();const a=raw.account;
- if(!text(a.id,128)||!text(a.username,64)||!text(a.primaryProfileId,128)||!['owner','admin','member'].includes(a.role as string)||(a.hostedAccountId!==undefined&&!text(a.hostedAccountId,128))||!revision(a.revision)||typeof a.disabled!=='boolean'||(expected.accountId&&a.id!==expected.accountId)||(expected.serverId&&raw.serverId!==expected.serverId)||(expected.authority&&expected.authority!=='local'))invalid();
- const c=raw.capabilities;
- if(!obj(c)||!['manageAccount','managePeople','manageServer','manageSignIn'].every(key=>typeof c[key]==='boolean')||c.manageAccount!==raw.canManage||c.manageSignIn===true&&a.role!=='owner'||(c.managePeople===true||c.manageServer===true)&&!['owner','admin'].includes(a.role as string)||c.manageAccount===false&&(c.managePeople===true||c.manageServer===true||c.manageSignIn===true))invalid();
- const capabilities:ManagementCapabilities=Object.freeze({manageAccount:c.manageAccount as boolean,managePeople:c.managePeople as boolean,manageServer:c.manageServer as boolean,manageSignIn:c.manageSignIn as boolean});
- if(raw.twoStepSetupRequired===true&&Object.values(capabilities).some(Boolean))invalid();
- const profiles=parseManagedProfiles(raw.profiles,readableProfiles);if(!profiles.some(p=>p.primary&&p.id===a.primaryProfileId))invalid();
- return Object.freeze({authority:'local',serverId:raw.serverId,account:Object.freeze({id:a.id,username:a.username,primaryProfileId:a.primaryProfileId,role:a.role as DirectAccount['role'],revision:a.revision,disabled:a.disabled,allowedLibraries:ids(a.allowedLibraries),...(a.hostedAccountId===undefined?{}:{hostedAccountId:a.hostedAccountId as string})}),profiles,capabilities,canManage:raw.canManage,rememberProfiles:raw.rememberProfiles===true,...(raw.custodyPending===true?{custodyPending:true}:{}),...(raw.twoStepSetupRequired===true?{twoStepSetupRequired:true as const}:{}),...(raw.managePinRequired===true?{managePinRequired:true as const}:{})});
+ if(!obj(raw)||!obj(raw.me)||!obj(raw.profiles)||typeof raw.me.canManageAccount!=='boolean'||!text(raw.me.role,64)||!expected.serverId||(expected.authority&&expected.authority!=='local'))invalid();
+ const snapshot=accountSnapshot(expected.serverId,raw.me.account,raw.profiles.items,raw.me.role,raw.me.canManageAccount,readableProfiles);
+ if(expected.accountId&&snapshot.account.id!==expected.accountId)invalid();
+ return snapshot;
 }
+/** Reads a sign-in answer (`SignInResponse` in the generated contract). */
 export function parseDirectSignIn(raw:unknown):DirectSignIn{
  if(!obj(raw))invalid();
  if(raw.challenge!==undefined){
   const c=raw.challenge;if(!obj(c)||!text(c.token,256)||!currentUTCTimestamp(c.expiresAt))invalid();
   return Object.freeze({kind:'challenge',token:c.token,expiresAt:c.expiresAt});
  }
- if(Object.hasOwn(raw,'deviceApprovalPending'))invalid();
- const snapshot=parseDirectSnapshot(raw);
- // A sign-in can never admit a disabled membership, even if its snapshot is
- // otherwise valid for management/display reads.
- if(snapshot.account.disabled)invalid();
- if(raw.passwordChangeRequired!==undefined&&typeof raw.passwordChangeRequired!=='boolean')invalid();
- const passwordChangeRequired=raw.passwordChangeRequired===true;
- const session=parseLocalSession(raw.session,{authority:'local',accountId:snapshot.account.id,serverId:snapshot.serverId,profileId:snapshot.account.primaryProfileId});
+ if(!obj(raw.session)||!obj(raw.session.viewer)||!obj(raw.account))invalid();
+ const session=parseLocalSession(raw.session,{accountId:raw.account.id as string});
  const accountScoped=session.viewer.role==='account';
- // Direct sign-in names the primary profile. Its viewer role must be the
- // actual membership role; an account-only grant remains account-only.
- if(!accountScoped&&session.viewer.role!==snapshot.account.role)invalid();
- if(snapshot.twoStepSetupRequired&&!accountScoped)invalid();
- if(raw.resetFileOwnerSession!==undefined&&raw.resetFileOwnerSession!==true)invalid();
- const resetFileOwnerSession=raw.resetFileOwnerSession===true;
- if(resetFileOwnerSession&&(accountScoped||passwordChangeRequired||snapshot.account.role!=='owner'||session.viewer.role!=='owner'||session.refreshToken))invalid();
-
- // A viewer session straight from sign-in only for one unprotected profile and no forced password change.
- if(!accountScoped&&!resetFileOwnerSession&&(passwordChangeRequired||snapshot.profiles.length!==1||snapshot.profiles[0]!.pinRequired))invalid();
- return Object.freeze({kind:'signed-in',snapshot,session,accountScoped,passwordChangeRequired,...(resetFileOwnerSession?{resetFileOwnerSession:true as const}:{})});
+ const snapshot=accountSnapshot(session.viewer.serverId,raw.account,raw.profiles,session.viewer.role,!accountScoped&&session.viewer.profileId===parseManagedProfiles(raw.profiles).find(p=>p.primary)?.id);
+ return Object.freeze({kind:'signed-in',snapshot,session,accountScoped,passwordChangeRequired:false});
 }
-/** A sign-in answered by a route whose response union is tagged (R-09b): the server always sends `variant`, one of
+/** A sign-in answered by a route whose response union is tagged: the server always sends `variant`, one of
  * `known`. A tag outside it is a newer server (`NeedsNewerAppError`); a known tag the sign-in does not match is unreadable. */
 export function parseTaggedSignIn(raw:unknown,known:readonly string[],matches:(tag:string,out:DirectSignIn)=>boolean):DirectSignIn{
  const tag=requireTag(raw,'variant',known,invalid);
@@ -162,126 +119,87 @@ export function parseTaggedSignIn(raw:unknown,known:readonly string[],matches:(t
  if(!matches(tag,out))invalid();
  return out;
 }
-/** `POST /v1/direct/sign-in`. */
-export async function directSignIn(api:ProfileAPI,username:string,password:string,signal?:AbortSignal):Promise<DirectSignIn>{
- return parseDirectSignIn(await api.request<RouteResponse<"post_direct_sign_in">>(routePath("post_direct_sign_in"),'POST',routeBody("post_direct_sign_in", {username,password}),signal));
+/** What this install says about itself when it asks for a sign-in (`DeviceInfo`). */
+export function signInDevice():DeviceInfo{
+ const identity=installationIdentity();
+ if(!identity)throw new CodedError('installation_unavailable','This device is not ready to sign in. Reopen the app and try again.');
+ return {installationId:identity.installationId,name:identity.name||identity.platform||'Portico',platform:identity.platform,app:identity.app,appVersion:identity.appVersion};
 }
-/** Finishes a two-step sign-in: the challenge token and an authenticator or recovery code (`POST /v1/auth/two-factor/challenge`). */
+/** An account's only profile, when it has no PIN, opens without asking Who's watching. */
+async function openOnlyProfile(api:ProfileAPI,result:DirectSignIn,signal?:AbortSignal):Promise<DirectSignIn>{
+ if(result.kind!=='signed-in'||!result.accountScoped||result.snapshot.profiles.length!==1||result.snapshot.profiles[0]!.pinRequired)return result;
+ const account=result.session,only=result.snapshot.profiles[0]!,scoped=api.withAccessToken?.(account.accessToken);
+ if(!scoped)return result;
+ const chosen=await selectDirectProfile(scoped,{authority:'local',accountId:result.snapshot.account.id,serverId:result.snapshot.serverId},only.id,{},signal);
+ const session=Object.freeze({...chosen.session,...(account.refreshToken?{refreshToken:account.refreshToken}:{})});
+ const role=session.viewer.role,snapshot=result.snapshot;
+ return Object.freeze({...result,session,accountScoped:false,snapshot:Object.freeze({...snapshot,canManage:true,
+  capabilities:Object.freeze({manageAccount:true,managePeople:role==='owner'||role==='admin',manageServer:role==='owner'||role==='admin',manageSignIn:role==='owner'})})});
+}
+/** `POST /v1/auth/sign-in`. */
+export async function directSignIn(api:ProfileAPI,username:string,password:string,signal?:AbortSignal):Promise<DirectSignIn>{
+ return openOnlyProfile(api,parseDirectSignIn(await callServer(api,'POST /v1/auth/sign-in',{body:{username,password,device:signInDevice()},signal})),signal);
+}
+/** Creates the owner of a new server (`POST /v1/setup/owner`) with the setup code the server wrote
+ * to its log and to setup-code.txt in its data folder, and opens the owner's main profile. */
+export async function completeOwnerSetup(api:ProfileAPI,owner:Readonly<{setupCode:string;username:string;password:string}>,signal?:AbortSignal):Promise<DirectSignIn>{
+ return openOnlyProfile(api,parseDirectSignIn(await callServer(api,'POST /v1/setup/owner',{body:{...owner,device:signInDevice()},signal})),signal);
+}
+/** Finishes a two-step sign-in: the challenge token and an authenticator or recovery code (`POST /v1/auth/two-factor`). */
 export async function completeDirectSignInChallenge(api:ProfileAPI,token:string,code:string,signal?:AbortSignal):Promise<DirectSignIn>{
  if(!text(token,256)||!text(code.trim(),64))throw new CodedError('code_required','Enter the code from your authenticator app or a recovery code.');
- const result=parseDirectSignIn(await api.request<RouteResponse<"post_auth_two_factor_challenge">>(routePath("post_auth_two_factor_challenge"),'POST',routeBody("post_auth_two_factor_challenge", {token,code:code.trim()}),signal));
+ const result=parseDirectSignIn(await callServer(api,'POST /v1/auth/two-factor',{body:{challenge:token,code:code.trim()},signal}));
  if(result.kind==='challenge')invalid();
- return result;
+ return openOnlyProfile(api,result,signal);
+}
+/** Changes the signed-in account's password (`POST /v1/auth/password`). */
+export async function changeRequiredPassword(api:ProfileAPI,currentPassword:string,newPassword:string,signal?:AbortSignal):Promise<void>{
+ await callServer(api,'POST /v1/auth/password',{body:{currentPassword,newPassword},signal});
 }
 /**
- * A required password change (sign-in said `passwordChangeRequired`): with that account session's
- * bearer, `POST /v1/direct/password {currentPassword, newPassword}`; then sign in again.
+ * Chooses the profile this sign-in acts for (`POST /v1/profiles/{id}/select`). The answer is the same sign-in with a new
+ * access token; the server leaves the refresh token as it was and does not send it again, so whoever saves the answer
+ * keeps the one already saved (`rememberNativeSession` does).
  */
-export async function changeRequiredPassword(api:ProfileAPI,currentPassword:string,newPassword:string,signal?:AbortSignal):Promise<void>{
- await api.request(routePath("post_direct_password"),'POST',routeBody("post_direct_password", {currentPassword,newPassword}),signal);
-}
 export async function selectDirectProfile(api:ProfileAPI,scope:ProfileScope&{serverId:string},profileId:string,input:ProfileSelectionInput,signal?:AbortSignal):Promise<DirectSelection>{
  if(scope.authority!=='local'||!text(profileId,128)||(input.pin!==undefined&&input.pin!==''&&!/^\d{4}$/.test(input.pin)))throw new CodedError('pin_format','Enter the four-digit profile PIN.');
- const raw=await api.request<RouteResponse<"post_direct_profiles_id_select">>(encodedRoutePath("post_direct_profiles_id_select", {"id": encodeURIComponent(profileId)}),'POST',input,signal);if(!obj(raw))invalid();
- const session=parseLocalSession(raw.session,{authority:'local',accountId:scope.accountId,serverId:scope.serverId,profileId});
- const remembered=obj(raw.remembered)&&currentUTCTimestamp(raw.remembered.expiresAt)?Object.freeze({expiresAt:raw.remembered.expiresAt}):undefined;
- return Object.freeze({session,...(remembered?{remembered}:{})});
+ const raw=await callServer(api,'POST /v1/profiles/{id}/select',{id:profileId,body:input.pin?{pin:input.pin}:{},signal});
+ return Object.freeze({session:parseLocalSession(raw,{accountId:scope.accountId,serverId:scope.serverId,profileId})});
 }
-/** Validation and revision-bound mutations are shared by web, iOS and tvOS. */
-/**
- * The profiles of a local account, managed on its own server. (Hosted Portico Account profiles
- * have no API of their own: an account's profiles are each server's, so they are managed here.)
- */
+/** The profiles of an account, managed on its own server from its main profile. */
 export class ManagedProfilesClient {
  readonly api:ProfileAPI;readonly scope:ProfileScope;
  constructor(api:ProfileAPI,scope:ProfileScope){if(scope.authority!=='local'||!text(scope.accountId,128)||!text(scope.serverId,128))throw new Error('An account profile scope is required.');this.api=api;this.scope=Object.freeze({...scope});}
- private path(profileId:string|undefined,action:'create'|'edit'|'delete'|'order'|'preview'):string{
-  if(action==='create')return routePath("post_direct_profiles");
-  if(action==='order')return routePath("put_direct_profiles_order");
-  if(!profileId)throw new Error('A profile is required.');
-  if(action==='edit')return routePath("patch_direct_profiles_id",{id:profileId});
-  if(action==='delete')return routePath("delete_direct_profiles_id",{id:profileId});
-  return routePath("get_direct_profiles_id_deletion_preview",{id:profileId});
- }
- async list(signal?:AbortSignal):Promise<readonly ManagedProfile[]>{const raw=await this.api.request<RouteResponse<"get_direct_account">>(routePath("get_direct_account"),'GET',undefined,signal);return parseDirectSnapshot(raw,this.scope,true).profiles;}
- async create(name:string,art:ProfileArt='blue',signal?:AbortSignal):Promise<void>{if(!text(name.trim(),120)||!PROFILE_ART.includes(art))throw new Error('Enter a profile name.');await this.api.request(this.path(undefined,'create'),'POST',{name:name.trim(),art},signal);}
+ async list(signal?:AbortSignal):Promise<readonly ManagedProfile[]>{return parseManagedProfiles((await callServer(this.api,'GET /v1/profiles',{signal}))?.items,true);}
+ async create(name:string,art:ProfileArt='blue',signal?:AbortSignal):Promise<void>{if(!text(name.trim(),120)||!PROFILE_ART.includes(art))throw new Error('Enter a profile name.');await callServer(this.api,'POST /v1/profiles',{body:{name:name.trim(),color:art},signal});}
+ /** The later save wins. An empty `pin` removes the PIN. Library access for a profile is not on the new server yet. */
  async edit(profile:ManagedProfile,change:{name?:string;art?:ProfileArt;pin?:string;policy?:ProfilePolicy},signal?:AbortSignal):Promise<void>{
   if(change.pin!==undefined&&change.pin!==''&&!/^\d{4}$/.test(change.pin))throw new Error('Use exactly four numeric digits for the profile PIN.');
   if(change.name!==undefined&&!text(change.name.trim(),120))throw new Error('Enter a profile name.');
-  if(change.policy){if(change.policy.serverId!==this.scope.serverId)throw new Error('This profile belongs to a different server.');if(change.policy.allowedLibraries!==null)ids(change.policy.allowedLibraries);}
-  const policy=change.policy?{allowedLibraries:change.policy.allowedLibraries}:undefined;
-  await this.api.request(this.path(profile.id,'edit'),'PATCH',{...change,...(policy?{policy}:{}),expectedRevision:profile.revision},signal);
+  if(change.policy)notYet();
+  if(change.name!==undefined||change.art!==undefined)await callServer(this.api,'PATCH /v1/profiles/{id}',{id:profile.id,body:{...(change.name===undefined?{}:{name:change.name.trim()}),...(change.art===undefined?{}:{color:change.art})},signal});
+  if(change.pin==='')await callServer(this.api,'DELETE /v1/profiles/{id}/pin',{id:profile.id,signal});
+  else if(change.pin!==undefined)await callServer(this.api,'PUT /v1/profiles/{id}/pin',{id:profile.id,body:{pin:change.pin},signal});
  }
- async order(profiles:readonly ManagedProfile[],signal?:AbortSignal):Promise<void>{await this.api.request(this.path(undefined,'order'),'PUT',{profiles:profiles.map(p=>({id:p.id,revision:p.revision}))},signal);}
- async forgetTrust(profileId:string,signal?:AbortSignal):Promise<void>{await this.api.request(routePath("delete_direct_trust"),'DELETE',{profileId},signal);}
- async previewDelete(profile:ManagedProfile,signal?:AbortSignal):Promise<ProfileDeletion>{
-  if(profile.primary)throw new Error('The primary profile is managed through account settings.');const raw=await this.api.request<unknown>(this.path(profile.id,'preview'),'GET',undefined,signal);
-  if(!obj(raw)||raw.profileId!==profile.id||!revision(raw.revision)||raw.primary!==false||!profileLifetime(raw.lifetime))invalid();return Object.freeze({...raw}) as ProfileDeletion;
+ async order(_profiles:readonly ManagedProfile[],_signal?:AbortSignal):Promise<void>{notYet();}
+ async forgetTrust(_profileId:string,_signal?:AbortSignal):Promise<void>{notYet();}
+ /** The server has no preview of what a deletion removes yet, so the confirmation names the profile only. */
+ async previewDelete(profile:ManagedProfile,_signal?:AbortSignal):Promise<ProfileDeletion>{
+  if(profile.primary)throw new Error('The primary profile is managed through account settings.');
+  return Object.freeze({profileId:profile.id,name:profile.name,revision:1,lifetime:'',primary:false});
  }
- private retirementPath(profileId:string,lifetime:string):string{
-  return routePath('get_direct_profiles_id_retirement',{id:profileId})+'?lifetime='+encodeURIComponent(lifetime);
- }
- /**
-  * Retire a profile for every client at once, then report the purge truthfully: the accepted body and
-  * lifetime are sent once and replayed unchanged if a response is lost, `removed` is reported only
-  * when the server says so, and `blocked`, an unreadable state or an abort is never success. The wait
-  * has no fixed end: one check timer at a time, until removed, an error, or the caller's abort.
-  */
+ /** Deletes the profile for good and returns its devices to Who's watching (`DELETE /v1/profiles/{id}`). */
  async delete(preview:ProfileDeletion,options:ProfileDeletionOptions={}):Promise<ProfileRetirement>{
-  if(preview.primary||!revision(preview.revision)||!profileLifetime(preview.lifetime))throw new Error('Preview this profile deletion first.');
-  const {signal}=options,body=Object.freeze({expectedRevision:preview.revision,lifetime:preview.lifetime,deleteSavedResources:true});
-  throwIfRetirementStopped(signal);
-  const accepted=await this.api.request<RouteResponse<"delete_direct_profiles_id">>(this.path(preview.profileId,'delete'),'DELETE',body,signal);
-  // An answer that arrives after the viewer retired is not published as progress.
-  throwIfRetirementStopped(signal);
-  let status=parseProfileRetirement(accepted,{profileId:preview.profileId,lifetime:preview.lifetime});
-  options.onStatus?.(status);
-  const finish=(state:ProfileRetirement):ProfileRetirement=>{
-   if(state.state==='removed')return state;
-   if(state.state==='blocked')throw new CodedError('retirement_blocked','This profile could not be finished removing.');
-   return state;
-  };
-  if(status.state!=='removing')return finish(status);
-  const sleep=retirementSleep(signal),interval=Math.max(1,Math.floor(options.intervalMs??500));
-  const budget=options.maxWaitMs===undefined?undefined:Math.max(interval,Math.floor(options.maxWaitMs));
-  let waited=0;
-  while(budget===undefined||waited<budget){
-   const step=budget===undefined?interval:Math.min(interval,budget-waited);
-   await sleep(step);waited+=step;
-   throwIfRetirementStopped(signal);
-   try{
-    status=parseProfileRetirement(await this.api.request<unknown>(this.retirementPath(preview.profileId,preview.lifetime),'GET',undefined,signal),{profileId:preview.profileId,lifetime:preview.lifetime});
-   }catch(error){
-    // A bounded, server-asked pause is the only retry: no busy loop on an error.
-    const pause=retryAfterMs(error);if(pause===undefined||budget!==undefined&&waited+pause>=budget)throw error;
-    await sleep(pause);waited+=pause;continue;
-   }
-   throwIfRetirementStopped(signal);
-   options.onStatus?.(status);
-   if(status.state!=='removing')return finish(status);
-  }
-  throw new CodedError('retirement_pending','This profile is still being removed.');
+  if(preview.primary)throw new Error('Preview this profile deletion first.');
+  await callServer(this.api,'DELETE /v1/profiles/{id}',{id:preview.profileId,signal:options.signal});
+  const removed:ProfileRetirement=Object.freeze({profileId:preview.profileId,lifetime:preview.lifetime,state:'removed'});
+  options.onStatus?.(removed);
+  return removed;
  }
 }
 
-/** Retire a temporary account sign-in only after a distinct viewer family was accepted.
- * A direct sign-in may already be the viewer session, and deleting that bearer signs the viewer out. */
+/** Choosing a profile keeps the same sign-in, so there is never a second one to end. Kept for the
+ * areas that still ask (a Portico Account sign-in, a move between sign-in kinds). */
 export function shouldRetireAccountSession(account:Pick<LocalSession,'accessToken'|'sessionFamilyId'>|undefined,viewer:Pick<LocalSession,'accessToken'|'sessionFamilyId'>):boolean {
  return !!account && !!account.accessToken && !!account.sessionFamilyId && !!viewer.sessionFamilyId && account.accessToken!==viewer.accessToken && account.sessionFamilyId!==viewer.sessionFamilyId;
-}
-
-/** A fresh sign-in proves Forgot PIN without replacing the installed viewer session.
- * `authenticate` completes local/Portico sign-in and any configured second factor.
- * The temporary transport is used only for this reset and then signed out.
- */
-export async function resetProfilePINWithFreshSignIn(authenticate:()=>Promise<DirectSignIn>,temporaryAPI:(session:LocalSession)=>ProfileAPI,scope:ProfileScope&{serverId:string},profileId:string,pin:string,signal?:AbortSignal):Promise<void>{
- if(scope.authority!=='local'||!text(profileId,128)||pin!==''&&!/^\d{4}$/.test(pin))throw new CodedError('pin_format','Enter the four-digit profile PIN.');
- const signIn=await authenticate();if(signIn.kind!=='signed-in')throw new CodedError('authentication_required','Complete account sign-in first.');
- const api=temporaryAPI(signIn.session);
- try{
-  if(signIn.snapshot.account.id!==scope.accountId||signIn.snapshot.serverId!==scope.serverId||!signIn.snapshot.profiles.some(p=>p.id===profileId))throw new CodedError('invalid_scope','Sign in to the account that owns this profile.');
-  await api.request(routePath('post_direct_profile_pin_reset',{id:profileId}),'POST',routeBody('post_direct_profile_pin_reset',{pin}),signal);
- }finally{
-  try{await api.request(routePath('delete_sessions_current'),'DELETE');}catch(e){if(!(e instanceof CodedError)||!['unauthorized','authentication_required','session_ended'].includes(e.code))throw e;}
- }
 }

@@ -11,19 +11,19 @@ function environment(options:{wrongProof?:boolean;key?:unknown;abort?:AbortContr
  const calls:string[]=[];let writes=0;
  const env:ConnectionEnvironment={storage:{read:async()=>undefined,change:async()=>{writes++;}},fetcher:async(input,init)=>{
   const url=String(input);calls.push(url);
-  if(url==='https://server.example/v1/system')return json({id:pin.serverId,name:'Server',version:'test',signIn:options.signIn??'portico',move:options.signIn==='local'?null:'to_portico',setupRequired:false,hostedConfigured:true,hostedAttached:true, apiLevel: 1, apiVersion: '1.0', apiMajors: [1], capabilities: []});
+  if(url==='https://server.example/v1/system')return json({id:pin.serverId,name:'Server',version:'test',setupRequired:false,apiMajor:1,capabilities:[],signInMethods:[options.signIn==='local'?'password':'portico']});
   if(url==='https://account.example/v1/keys'){
    assert.equal(init?.redirect,'error');assert.equal(init?.credentials,'omit');assert.equal(new Headers(init?.headers).get('Authorization'),null);
    if(options.abort)options.abort.abort();return json(options.key??{keyId:'route_key',publicKey:pin.publicKey});
   }
-  assert.equal(url,'https://server.example/v1/networking/identity-proof');
+  assert.equal(url,'https://server.example/v1/system/identity-proof');
   const q=JSON.parse(String(init?.body));return json(signed({kind:'portico.route-proof',version:'1',...pin,...q,...(options.wrongProof?{nonce:'wrong'}:{})}));
  }};
  return {env,calls,writes:()=>writes};
 }
 test('a Waiting account pairs a proven Portico server without reading the directory or saving a credential',async()=>{
  const f=environment(),result=await connectPairedPorticoServer('https://server.example',pin,source,f.env,new AbortController().signal);
- try{assert.equal(result.api.getRouteConnection(),result.connection);assert.deepEqual(result.hosted,{origin:source.origin,accountId:source.accountId,key:{keyId:'route_key',publicKey:pin.publicKey}});assert.deepEqual(f.calls,['https://server.example/v1/networking/identity-proof','https://server.example/v1/system','https://account.example/v1/keys']);assert.equal(f.writes(),0);assert.equal(result.connection.getMemory().current,undefined);}finally{result.connection.dispose();}
+ try{assert.equal(result.api.getRouteConnection(),result.connection);assert.deepEqual(result.hosted,{origin:source.origin,accountId:source.accountId,key:{keyId:'route_key',publicKey:pin.publicKey}});assert.deepEqual(f.calls,['https://server.example/v1/system/identity-proof','https://server.example/v1/system','https://account.example/v1/keys']);assert.equal(f.writes(),0);assert.equal(result.connection.getMemory().current,undefined);}finally{result.connection.dispose();}
 });
 test('failed server proof never contacts the account service',async()=>{
  const f=environment({wrongProof:true});await assert.rejects(connectPairedPorticoServer('https://server.example',pin,source,f.env,new AbortController().signal));assert.equal(f.calls.some(v=>v.startsWith(source.origin)),false);assert.equal(f.writes(),0);
