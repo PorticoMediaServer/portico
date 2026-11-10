@@ -2356,95 +2356,6 @@
         ],
         "type": "object"
       },
-      "ProfileRestrictions": {
-        "properties": {
-          "accountAllLibraries": {
-            "type": "boolean"
-          },
-          "accountLibraries": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "allLibraries": {
-            "type": "boolean"
-          },
-          "allowUnrated": {
-            "type": "boolean"
-          },
-          "blockedLabels": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "libraries": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "maxRatingAge": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "allowUnrated",
-          "blockedLabels",
-          "allLibraries",
-          "libraries",
-          "accountAllLibraries",
-          "accountLibraries"
-        ],
-        "type": "object"
-      },
-      "ProfileRestrictionsEdit": {
-        "properties": {
-          "allLibraries": {
-            "type": "boolean"
-          },
-          "allowUnrated": {
-            "type": "boolean"
-          },
-          "blockedLabels": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "libraries": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "maxRatingAge": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "allowUnrated",
-          "blockedLabels",
-          "allLibraries",
-          "libraries"
-        ],
-        "type": "object"
-      },
       "ProfileSelect": {
         "properties": {
           "pin": {
@@ -2663,6 +2574,56 @@
         },
         "required": [
           "items"
+        ],
+        "type": "object"
+      },
+      "Restrictions": {
+        "properties": {
+          "accountAllLibraries": {
+            "type": "boolean"
+          },
+          "accountLibraries": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "allLibraries": {
+            "type": "boolean"
+          },
+          "allowUnrated": {
+            "type": "boolean"
+          },
+          "blockedLabels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "libraries": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "maxRatingAge": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "allowUnrated",
+          "blockedLabels",
+          "allLibraries",
+          "libraries",
+          "accountAllLibraries",
+          "accountLibraries"
         ],
         "type": "object"
       },
@@ -6158,7 +6119,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProfileRestrictions"
+                  "$ref": "#/components/schemas/Restrictions"
                 }
               }
             },
@@ -6192,7 +6153,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ProfileRestrictionsEdit"
+                "$ref": "#/components/schemas/Restrictions"
               }
             }
           },
@@ -6203,7 +6164,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProfileRestrictions"
+                  "$ref": "#/components/schemas/Restrictions"
                 }
               }
             },

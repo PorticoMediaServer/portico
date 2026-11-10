@@ -85,6 +85,7 @@ func (s *Server) profileRoutes() {
 	Handle(s, "DELETE /v1/profiles/{id}/pin", SignedIn, s.removeProfilePIN)
 	Handle(s, "DELETE /v1/profiles/{id}", SignedIn, s.deleteProfile)
 	Handle(s, "POST /v1/profiles/{id}/select", SignedIn, s.selectProfile)
+	s.restrictionRoutes()
 }
 
 // manager returns the caller if this session may change the account itself: only a session

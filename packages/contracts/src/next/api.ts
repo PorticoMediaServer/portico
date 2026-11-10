@@ -714,24 +714,6 @@ export interface ProfilePage {
   nextCursor?: string;
 }
 
-export interface ProfileRestrictions {
-  maxRatingAge?: number | null;
-  allowUnrated: boolean;
-  blockedLabels: string[];
-  allLibraries: boolean;
-  libraries: string[];
-  accountAllLibraries: boolean;
-  accountLibraries: string[];
-}
-
-export interface ProfileRestrictionsEdit {
-  maxRatingAge?: number | null;
-  allowUnrated: boolean;
-  blockedLabels: string[];
-  allLibraries: boolean;
-  libraries: string[];
-}
-
 export interface ProfileSelect {
   pin?: string;
 }
@@ -801,6 +783,16 @@ export interface RememberedFailure {
 export interface RememberedFailurePage {
   items: RememberedFailure[];
   nextCursor?: string;
+}
+
+export interface Restrictions {
+  maxRatingAge?: number | null;
+  allowUnrated: boolean;
+  blockedLabels: string[];
+  allLibraries: boolean;
+  libraries: string[];
+  accountAllLibraries: boolean;
+  accountLibraries: string[];
 }
 
 export interface Session {
@@ -1039,8 +1031,8 @@ export interface Routes {
   'DELETE /v1/profiles/{id}/pin': {access: 'signedIn'; request: undefined; response: undefined};
   'DELETE /v1/profiles/{id}': {access: 'signedIn'; request: undefined; response: undefined};
   'POST /v1/profiles/{id}/select': {access: 'signedIn'; request: ProfileSelect; response: Session};
-  'GET /v1/profiles/{id}/restrictions': {access: 'signedIn'; request: undefined; response: ProfileRestrictions};
-  'PUT /v1/profiles/{id}/restrictions': {access: 'signedIn'; request: ProfileRestrictionsEdit; response: ProfileRestrictions};
+  'GET /v1/profiles/{id}/restrictions': {access: 'signedIn'; request: undefined; response: Restrictions};
+  'PUT /v1/profiles/{id}/restrictions': {access: 'signedIn'; request: Restrictions; response: Restrictions};
   'PUT /v1/profiles/order': {access: 'signedIn'; request: ProfileOrder; response: ProfilePage};
   'GET /v1/profiles/{id}/deletion-preview': {access: 'signedIn'; request: undefined; response: DeletionPreview};
   'GET /v1/admin/members/{id}/deletion-preview': {access: 'admin'; request: undefined; response: DeletionPreview};

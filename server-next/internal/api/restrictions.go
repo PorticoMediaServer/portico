@@ -8,39 +8,73 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 )
 
-// A profile's limits, the order of an account's profiles, and what deleting a profile or a
-// person would remove. Limits only ever narrow what the account itself may see, and the
-// server applies them to every list and title: an app shows these settings, it never hides
-// anything by them itself.
-
-// ProfileRestrictions are what a profile is kept from seeing.
-type ProfileRestrictions struct {
-	// MaxRatingAge is the highest age rating shown (0 to 21), or null for no limit.
+// Restrictions are what a profile is kept from seeing. They only narrow what the account
+// may see. PUT replaces all of it, so an editor sends back what it read with its changes.
+type Restrictions struct {
+	// MaxRatingAge is the highest age rating shown (13 shows PG-13 and below), or null for
+	// no limit. Under a limit, a title with no rating is not shown unless AllowUnrated is set.
 	MaxRatingAge *int `json:"maxRatingAge"`
-	// AllowUnrated shows titles with no rating although a limit is set. Without it a
-	// profile with a limit never sees an unrated title.
+	// AllowUnrated shows titles with no rating although a limit is set. It is off by default.
 	AllowUnrated bool `json:"allowUnrated"`
 	// BlockedLabels are the ids of labels whose titles are never shown.
 	BlockedLabels []string `json:"blockedLabels"`
-	// AllLibraries, or else Libraries, says which of the account's libraries the profile is given.
+	// AllLibraries gives the profile every library its account has. Otherwise it is given
+	// only Libraries, by id.
 	AllLibraries bool     `json:"allLibraries"`
 	Libraries    []string `json:"libraries"`
-	// AccountAllLibraries and AccountLibraries are what the account itself is given. A
-	// library the account lacks stays out of reach whatever the profile's own list says, so
-	// a settings screen can say where the account is the stricter of the two.
+	// AccountAllLibraries and AccountLibraries say what the account itself is given, which
+	// the profile can never go beyond. They are read-only.
 	AccountAllLibraries bool     `json:"accountAllLibraries"`
 	AccountLibraries    []string `json:"accountLibraries"`
 }
 
-// ProfileRestrictionsEdit replaces a profile's limits: send all of them. The later save wins.
-type ProfileRestrictionsEdit struct {
-	MaxRatingAge  *int     `json:"maxRatingAge"`
-	AllowUnrated  bool     `json:"allowUnrated"`
-	BlockedLabels []string `json:"blockedLabels"`
-	// AllLibraries must be true, or Libraries must be sent, so that leaving both out cannot
-	// take every library away by accident. An empty list is a profile with no libraries.
-	AllLibraries bool     `json:"allLibraries"`
-	Libraries    []string `json:"libraries"`
+// The most labels or libraries one profile's restrictions can name, and the highest age limit.
+const (
+	maxRestrictionEntries = 200
+	maxRatingAge          = 21
+)
+
+func restrictionsOut(r db.Restrictions) Restrictions {
+	return Restrictions{MaxRatingAge: r.MaxRatingAge, AllowUnrated: r.AllowUnrated, BlockedLabels: r.BlockedLabels, AllLibraries: r.AllLibraries, Libraries: r.Libraries,
+		AccountAllLibraries: r.AccountAllLibraries, AccountLibraries: r.AccountLibraries}
+}
+
+// restrictionRoutes are for the account's main profile, or an owner or admin acting on a
+// member with ?member=. A profile can never read or lift its own limits from inside itself.
+func (s *Server) restrictionRoutes() {
+	Handle(s, "GET /v1/profiles/{id}/restrictions", SignedIn, func(r *http.Request, _ None) (Restrictions, error) {
+		userID, _, err := s.profileOwner(r)
+		if err != nil {
+			return Restrictions{}, err
+		}
+		out, err := s.db.ProfileRestrictions(r.Context(), userID, r.PathValue("id"))
+		return restrictionsOut(out), refuse(err)
+	})
+	Handle(s, "PUT /v1/profiles/{id}/restrictions", SignedIn, func(r *http.Request, req Restrictions) (Restrictions, error) {
+		userID, _, err := s.profileOwner(r)
+		switch {
+		case err != nil:
+			return Restrictions{}, err
+		case req.MaxRatingAge != nil && (*req.MaxRatingAge < 0 || *req.MaxRatingAge > maxRatingAge):
+			return Restrictions{}, ErrField("maxRatingAge", "Use an age from 0 to 21, or null for no limit.")
+		case len(req.BlockedLabels) > maxRestrictionEntries:
+			return Restrictions{}, ErrField("blockedLabels", "That is too many labels.")
+		case len(req.Libraries) > maxRestrictionEntries:
+			return Restrictions{}, ErrField("libraries", "That is too many libraries.")
+		}
+		out, err := s.db.SetProfileRestrictions(r.Context(), userID, r.PathValue("id"), db.Restrictions{MaxRatingAge: req.MaxRatingAge,
+			AllowUnrated: req.AllowUnrated, BlockedLabels: req.BlockedLabels, AllLibraries: req.AllLibraries, Libraries: req.Libraries}, s.now())
+		switch {
+		case errors.Is(err, db.ErrUnknownLibrary):
+			return Restrictions{}, ErrField("libraries", "One of these libraries does not exist.")
+		case errors.Is(err, db.ErrUnknownLabel):
+			return Restrictions{}, ErrField("blockedLabels", "One of these labels does not exist.")
+		}
+		return restrictionsOut(out), refuse(err)
+	})
+	Handle(s, "PUT /v1/profiles/order", SignedIn, s.orderProfiles)
+	Handle(s, "GET /v1/profiles/{id}/deletion-preview", SignedIn, s.profileDeletionPreview)
+	Handle(s, "GET /v1/admin/members/{id}/deletion-preview", Admin, s.memberDeletionPreview)
 }
 
 // ProfileOrder is every profile of the account, each once, in the order to show them. The
@@ -65,64 +99,6 @@ type DeletionPreview struct {
 	Devices int `json:"devices"`
 	SignIns int `json:"signIns"`
 	Keys    int `json:"keys"`
-}
-
-func (s *Server) restrictionRoutes() {
-	Handle(s, "GET /v1/profiles/{id}/restrictions", SignedIn, s.getRestrictions)
-	Handle(s, "PUT /v1/profiles/{id}/restrictions", SignedIn, s.setRestrictions)
-	Handle(s, "PUT /v1/profiles/order", SignedIn, s.orderProfiles)
-	Handle(s, "GET /v1/profiles/{id}/deletion-preview", SignedIn, s.profileDeletionPreview)
-	Handle(s, "GET /v1/admin/members/{id}/deletion-preview", Admin, s.memberDeletionPreview)
-}
-
-func restrictionsOut(r db.Restrictions) ProfileRestrictions {
-	return ProfileRestrictions{MaxRatingAge: r.MaxRatingAge, AllowUnrated: r.AllowUnrated, BlockedLabels: r.BlockedLabels,
-		AllLibraries: r.AllLibraries, Libraries: r.Libraries, AccountAllLibraries: r.AccountAllLibraries, AccountLibraries: r.AccountLibraries}
-}
-
-// getRestrictions is for whoever manages the profile, and for the profile itself: an app
-// on a limited profile may read its own limits, never another profile's.
-func (s *Server) getRestrictions(r *http.Request, _ None) (ProfileRestrictions, error) {
-	ctx, caller := r.Context(), CallerFrom(r.Context())
-	userID := caller.UserID
-	if own, err := s.db.Profile(ctx, caller.UserID, r.PathValue("id")); r.URL.Query().Has("member") || err != nil || own.ID != caller.ProfileID {
-		if userID, _, err = s.profileOwner(r); err != nil {
-			return ProfileRestrictions{}, err
-		}
-	}
-	out, err := s.db.ProfileRestrictions(ctx, userID, r.PathValue("id"))
-	if errors.Is(err, db.ErrNotFound) {
-		return ProfileRestrictions{}, ErrNotFound()
-	}
-	return restrictionsOut(out), err
-}
-
-func (s *Server) setRestrictions(r *http.Request, req ProfileRestrictionsEdit) (ProfileRestrictions, error) {
-	userID, _, err := s.profileOwner(r)
-	if err != nil {
-		return ProfileRestrictions{}, err
-	}
-	switch {
-	case req.MaxRatingAge != nil && (*req.MaxRatingAge < 0 || *req.MaxRatingAge > 21):
-		return ProfileRestrictions{}, ErrField("maxRatingAge", "A rating limit is an age from 0 to 21, or null for no limit.")
-	case len(req.BlockedLabels) > 64:
-		return ProfileRestrictions{}, ErrField("blockedLabels", "A profile can hide at most 64 labels.")
-	case !req.AllLibraries && req.Libraries == nil:
-		return ProfileRestrictions{}, ErrField("libraries", "Send allLibraries as true, or the list of libraries this profile is given.")
-	case len(req.Libraries) > 1000:
-		return ProfileRestrictions{}, ErrField("libraries", "That is too many libraries.")
-	}
-	out, err := s.db.SetProfileRestrictions(r.Context(), userID, r.PathValue("id"), db.Restrictions{MaxRatingAge: req.MaxRatingAge,
-		AllowUnrated: req.AllowUnrated, BlockedLabels: req.BlockedLabels, AllLibraries: req.AllLibraries, Libraries: req.Libraries}, s.now())
-	switch {
-	case errors.Is(err, db.ErrNotFound):
-		return ProfileRestrictions{}, ErrNotFound()
-	case errors.Is(err, db.ErrUnknownLibrary):
-		return ProfileRestrictions{}, ErrField("libraries", "One of these libraries does not exist.")
-	case errors.Is(err, db.ErrUnknownLabel):
-		return ProfileRestrictions{}, ErrField("blockedLabels", "One of these labels does not exist.")
-	}
-	return restrictionsOut(out), err
 }
 
 func (s *Server) orderProfiles(r *http.Request, req ProfileOrder) (Page[Profile], error) {
@@ -159,10 +135,7 @@ func (s *Server) profileDeletionPreview(r *http.Request, _ None) (DeletionPrevie
 		return DeletionPreview{}, err
 	}
 	out, err := s.db.ProfileDeletion(r.Context(), userID, r.PathValue("id"))
-	if errors.Is(err, db.ErrNotFound) {
-		return DeletionPreview{}, ErrNotFound()
-	}
-	return deletionOut(out), err
+	return deletionOut(out), refuse(err)
 }
 
 func (s *Server) memberDeletionPreview(r *http.Request, _ None) (DeletionPreview, error) {
