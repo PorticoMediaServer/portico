@@ -269,11 +269,7 @@ func (d *DB) Search(ctx context.Context, v Viewer, q SearchQuery) (SearchResults
 				if group.Counted && !group.TotalIsMinimum {
 					known = group.Total
 				}
-				var hits []searchHit
-				hits, next, err = s.best(s.match.tiers, g.code, start, limit, known)
-				for _, hit := range hits {
-					rows = append(rows, hit.row)
-				}
+				rows, next, err = s.best(s.match.tiers, g.code, start, limit, known)
 			} else {
 				rows, next, err = s.sorted(g.code, start, limit)
 			}
@@ -367,13 +363,19 @@ func splitRows(rows []int64) (items, people []int64) {
 func (s *searcher) check(rows []int64) (map[int64]bool, error) {
 	seen := make(map[int64]bool, len(rows))
 	items, people := splitRows(rows)
+	itemRow := make(map[int64]int64, len(items)) // an item is in one group, so its id names its row
+	for _, row := range rows {
+		if row>>searchIDBits != searchPeople {
+			itemRow[searchRowID(row)] = row
+		}
+	}
 	if len(items) > 0 {
 		found, err := ids(s.ctx, s.tx, `SELECT i.id `+s.visibleItems(), s.args(items)...)
 		if err != nil {
 			return nil, err
 		}
 		for _, id := range found {
-			seen[id] = true
+			seen[itemRow[id]] = true
 		}
 	}
 	if len(people) > 0 {
@@ -383,12 +385,6 @@ func (s *searcher) check(rows []int64) (map[int64]bool, error) {
 		}
 		for _, id := range found {
 			seen[searchRow(searchPeople, id)] = true
-		}
-	}
-	// Items were answered by id; say it by row.
-	for _, row := range rows {
-		if row>>searchIDBits != searchPeople && seen[searchRowID(row)] {
-			seen[row] = true
 		}
 	}
 	return seen, nil
@@ -448,9 +444,10 @@ func (s *searcher) totals() (map[int64]searchTotal, error) {
 		}
 		totals[code] = total
 	}
-	if err := rows.Close(); err != nil || s.acc.seesAll() {
+	if err := rows.Err(); err != nil || s.acc.seesAll() {
 		return totals, err
 	}
+	rows.Close()
 	var all []int64
 	for code := range totals {
 		candidates, err := s.candidates(s.match.all, code, 0, searchCheckCap+1)
@@ -480,19 +477,14 @@ func (s *searcher) totals() (map[int64]searchTotal, error) {
 	return totals, nil
 }
 
-type searchHit struct {
-	row  int64
-	tier int
-}
-
 // best reads the next limit results of a group, best first, from the position in from. The
 // cursor it returns is where the next page starts; its Tier is -1 when there is nothing more.
 // known is how many results there are in all when that has been counted, or -1: a first page
 // that holds them all need not look further.
-func (s *searcher) best(tiers []string, code int64, from searchCursor, limit, known int) ([]searchHit, searchCursor, error) {
+func (s *searcher) best(tiers []string, code int64, from searchCursor, limit, known int) ([]int64, searchCursor, error) {
 	next, end := from, from
 	end.Tier = -1
-	var hits []searchHit
+	var hits []int64
 	checked, batch := 0, max(2*(limit+1), 50)
 	tier, after := from.Tier, from.After
 	for tier < len(tiers) && len(hits) != known {
@@ -511,7 +503,7 @@ func (s *searcher) best(tiers []string, code int64, from searchCursor, limit, kn
 			if len(hits) == limit {
 				return hits, next, nil // there is more: the next page starts after the last row sent
 			}
-			hits = append(hits, searchHit{row, tier})
+			hits = append(hits, row)
 			next.Tier, next.After = tier, row
 		}
 		checked += len(candidates)
@@ -681,13 +673,9 @@ func (d *DB) SearchSuggestions(ctx context.Context, v Viewer, text string, limit
 		return nil, err
 	}
 	defer done()
-	hits, _, err := s.best(s.match.tiers[:3], 0, searchCursor{}, limit, -1)
+	rows, _, err := s.best(s.match.tiers[:3], 0, searchCursor{}, limit, -1)
 	if err != nil {
 		return nil, err
-	}
-	rows := make([]int64, len(hits))
-	for n, hit := range hits {
-		rows[n] = hit.row
 	}
 	items, people, err := s.load(rows)
 	if err != nil {
