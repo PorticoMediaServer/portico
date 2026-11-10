@@ -6,19 +6,26 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
 	"github.com/PorticoMediaServer/portico/server-next/internal/remote"
 	"github.com/PorticoMediaServer/portico/server-next/internal/remote/remotetest"
 )
 
 // A film on a WebDAV server plays as it is by byte range and is repackaged by the converter
-// through the loopback bridge, both through the source's throttle; a file whose size is not
-// the one scanned is refused.
+// through the loopback bridge, both through the source's throttle; a second audio track is
+// converted beside it the same way; a file whose size is not the one scanned is refused.
+// Where this host has the decoder's isolated bridge, the test requires the sandbox, so a
+// converter that kept the host network would be refused.
 func TestARemoteFilePlaysDirectAndRepackaged(t *testing.T) {
 	rig := newMediaRig(t)
 	direct := rig.generate("direct.mp4", 4, "-c:v", "libx264", "-c:a", "aac", "-movflags", "+faststart")
-	remux := rig.generate("remux.mkv", 12, "-c:v", "libx264", "-c:a", "aac")
+	remux := rig.generate("remux.mkv", 12, "-map", "0:v", "-map", "1:a", "-map", "1:a", "-c:v", "libx264", "-c:a", "aac")
+	if decoder.ProbeConfinement(context.Background()) == nil {
+		t.Setenv("PORTICO_DECODER_SANDBOX", "required")
+	}
 	files := map[string]string{}
 	for _, path := range []string{direct, remux} {
 		raw, err := os.ReadFile(path)
@@ -66,6 +73,21 @@ func TestARemoteFilePlaysDirectAndRepackaged(t *testing.T) {
 	}
 	rig.ready("s2")
 	rig.requireContinuous(rig.packets(stream.Grant, 0, 99), plan, 0, 12)
+	if len(plan.Renditions) < 2 {
+		t.Fatalf("two audio tracks gave %d renditions", len(plan.Renditions))
+	}
+	renditions := 0
+	for _, list := range rig.playlists(stream.Grant) {
+		if strings.HasPrefix(list.name, "audio-") && len(list.segments) > 0 {
+			if len(rig.fetch(stream.Grant, list.segments[0])) == 0 {
+				t.Fatalf("%s: empty segment", list.name)
+			}
+			renditions++
+		}
+	}
+	if renditions == 0 {
+		t.Fatal("no audio rendition playlist was offered")
+	}
 	rig.streams.Stop("s2")
 
 	request, info := rig.request(direct)
