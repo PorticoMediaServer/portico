@@ -423,6 +423,14 @@ func (s *Server) admit(r *http.Request, route *Route) (*http.Request, error) {
 		case !slices.Contains(key.Scopes, string(route.Scope)) && !slices.Contains(key.Scopes, string(ScopeAdmin)):
 			return r, refusal(http.StatusForbidden, "insufficient_scope", "This key was not given the scope this needs.", false)
 		}
+		// A key is no way round the account's limits: a token made while the hours are
+		// open, or at home, would otherwise work at any time and from anywhere.
+		if open, _ := key.Hours.Open(s.now()); !open {
+			return r, ErrViewingHoursEnded()
+		}
+		if key.HomeOnly && !s.atHome(r) {
+			return r, s.errAwayFromHome(r)
+		}
 		c = Caller{UserID: key.UserID, ProfileID: key.ProfileID, Role: key.Role}
 	} else {
 		claims, err := s.tokens.CheckAccess(token, s.now())
