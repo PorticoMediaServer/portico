@@ -138,7 +138,8 @@ func TestFixMatchRoutes(t *testing.T) {
 	if item.Title != "Heat" || item.Year != 1995 || item.ExternalIDs["tmdb"] != "949" {
 		t.Fatalf("after using a match: %+v", item)
 	}
-	sh.do("PUT", "/v1/admin/items/"+heat+"/match", MatchRequest{KeepAsIs: true}, nil, 409) // matched: nothing to keep
+	sh.do("PUT", "/v1/admin/items/"+heat+"/match", MatchRequest{Provider: "tmdb", ID: "949", EpisodeOrder: "dvd"}, nil, 422) // a film has no episodes
+	sh.do("PUT", "/v1/admin/items/"+heat+"/match", MatchRequest{KeepAsIs: true}, nil, 409)                                   // matched: nothing to keep
 	sh.do("PUT", "/v1/admin/items/"+zzyzx+"/match", MatchRequest{KeepAsIs: true}, nil, 200)
 	if list := sh.unmatched(); len(list) != 0 {
 		t.Fatalf("after Keep as is: %+v", list)

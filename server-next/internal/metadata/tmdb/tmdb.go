@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -358,6 +359,9 @@ func (c *Client) Children(ctx context.Context, parent metadata.Ref, group int, l
 	if parent.Kind != "show" {
 		return nil, fmt.Errorf("tmdb has nothing under a %q", parent.Kind)
 	}
+	if parent.Order != metadata.OrderAired {
+		return c.groupChildren(ctx, parent, group, locale)
+	}
 	var season struct {
 		Episodes []struct {
 			ID          int64   `json:"id"`
@@ -383,6 +387,89 @@ func (c *Client) Children(ctx context.Context, parent metadata.Ref, group int, l
 			r.Pictures = []metadata.Picture{{Role: "thumb", URL: picture(e.StillPath)}}
 		}
 		out = append(out, r)
+	}
+	return out, nil
+}
+
+// episodeGroup is one group of a TMDB episode group: a DVD season, or a run of episodes.
+type episodeGroup struct {
+	Order    int `json:"order"`
+	Episodes []struct {
+		ID          int64   `json:"id"`
+		Name        string  `json:"name"`
+		Overview    string  `json:"overview"`
+		AirDate     string  `json:"air_date"`
+		VoteAverage float64 `json:"vote_average"`
+		StillPath   string  `json:"still_path"`
+		Order       int     `json:"order"` // from 0 within its group
+	} `json:"episodes"`
+}
+
+// episodeGroupTypes are TMDB's episode group types for each order a person can choose.
+var episodeGroupTypes = map[string]int{metadata.OrderAbsolute: 2, metadata.OrderDVD: 3}
+
+// groupChildren answers a show's episodes in DVD or absolute order from TMDB's episode groups:
+// the show's first group of that type. In DVD order each of its groups is a season, numbered
+// by the group's order; in absolute order there is one group, 1, and the episodes are
+// numbered through the whole show. A show TMDB has in no such order is ErrNotFound.
+func (c *Client) groupChildren(ctx context.Context, parent metadata.Ref, group int, locale metadata.Locale) ([]metadata.Record, error) {
+	kind, known := episodeGroupTypes[parent.Order]
+	if !known {
+		return nil, fmt.Errorf("tmdb has no episode order %q", parent.Order)
+	}
+	if parent.Order == metadata.OrderAbsolute && group != 1 {
+		return nil, metadata.ErrNotFound
+	}
+	var list struct {
+		Results []struct {
+			ID   string `json:"id"`
+			Type int    `json:"type"`
+		} `json:"results"`
+	}
+	if err := c.get(ctx, "/tv/"+url.PathEscape(parent.ID)+"/episode_groups", url.Values{"language": {language(locale)}}, &list); err != nil {
+		return nil, err
+	}
+	id := ""
+	for _, r := range list.Results {
+		if r.Type == kind {
+			id = r.ID
+			break
+		}
+	}
+	if id == "" {
+		return nil, metadata.ErrNotFound
+	}
+	var answer struct {
+		Groups []episodeGroup `json:"groups"`
+	}
+	if err := c.get(ctx, "/tv/episode_group/"+url.PathEscape(id), url.Values{"language": {language(locale)}}, &answer); err != nil {
+		return nil, err
+	}
+	slices.SortFunc(answer.Groups, func(a, b episodeGroup) int { return a.Order - b.Order })
+	var out []metadata.Record
+	through := 0 // the absolute number of the last episode of the groups before
+	for _, g := range answer.Groups {
+		if parent.Order == metadata.OrderDVD && g.Order != group {
+			continue
+		}
+		last := 0
+		for _, e := range g.Episodes {
+			index := e.Order + 1
+			if parent.Order == metadata.OrderAbsolute {
+				index += through
+			}
+			last = max(last, e.Order+1)
+			r := metadata.Record{Ref: metadata.Ref{Provider: "tmdb", Kind: "episode", ID: strconv.FormatInt(e.ID, 10)}, Title: e.Name,
+				Overview: e.Overview, Year: year(e.AirDate), ReleaseDate: e.AirDate, Rating: e.VoteAverage, Index: index, ParentIndex: group}
+			if e.StillPath != "" {
+				r.Pictures = []metadata.Picture{{Role: "thumb", URL: picture(e.StillPath)}}
+			}
+			out = append(out, r)
+		}
+		through += last
+	}
+	if out == nil {
+		return nil, metadata.ErrNotFound
 	}
 	return out, nil
 }

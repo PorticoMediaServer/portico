@@ -1,0 +1,10 @@
+{"adult":false,"first_air_date":"2015-02-08","genres":[{"id":80,"name":"Crime"},{"id":18,"name":"Drama"}],
+ "id":60059,"in_production":false,"last_air_date":"2022-08-15","name":"Better Call Saul",
+ "networks":[{"id":174,"name":"AMC","origin_country":"US"}],
+ "number_of_episodes":63,"number_of_seasons":6,"origin_country":["US"],"original_language":"en","original_name":"Better Call Saul",
+ "overview":"Six years before Saul Goodman meets Walter White, we meet him when the man who will become Saul Goodman is known as Jimmy McGill.",
+ "poster_path":"/fC2HDm5t0kHl7mTm7jxMR31b7by.jpg","seasons":[{"id":60223,"name":"Season 1","season_number":1,"episode_count":10}],
+ "status":"Ended","tagline":"","type":"Scripted","vote_average":8.7,"vote_count":5000,
+ "aggregate_credits":{"cast":[{"id":59410,"name":"Bob Odenkirk","roles":[{"character":"Jimmy McGill","episode_count":63}],"total_episode_count":63,"order":0}],"crew":[]},
+ "content_ratings":{"results":[{"descriptors":[],"iso_3166_1":"US","rating":"TV-MA"}]},
+ "external_ids":{"imdb_id":"tt3032476","tvdb_id":273181}}

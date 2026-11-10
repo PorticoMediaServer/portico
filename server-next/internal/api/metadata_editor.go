@@ -1,6 +1,7 @@
 package api
 
 import (
+	"cmp"
 	"errors"
 	"net/http"
 	"strconv"
@@ -49,6 +50,9 @@ type MetadataMatch struct {
 	State  string            `json:"state"`
 	Locked bool              `json:"locked"`
 	IDs    map[string]string `json:"ids"`
+	// For a show: aired, dvd or absolute, and the number offset, as PUT …/match set them.
+	EpisodeOrder  string `json:"episodeOrder,omitempty"`
+	EpisodeOffset int    `json:"episodeOffset,omitempty"`
 }
 
 // MetadataDocument is the editor's document. Its revision is also its ETag; an edit sends it
@@ -202,6 +206,9 @@ func (s *Server) document(r *http.Request, id string) (MetadataDocument, error) 
 	}
 	for _, ext := range doc.ExternalIDs {
 		out.Match.IDs[ext.Provider] = ext.ID
+	}
+	if doc.Kind == db.KindShow {
+		out.Match.EpisodeOrder, out.Match.EpisodeOffset = cmp.Or(doc.Numbering.Order, "aired"), doc.Numbering.Offset
 	}
 	return out, nil
 }
