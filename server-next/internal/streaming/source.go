@@ -5,10 +5,10 @@ import (
 	"errors"
 	"io"
 	"os"
-	"path/filepath"
 	"runtime"
-	"strings"
 	"time"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/libraryfile"
 )
 
 // ErrSourceUnavailable says the file a stream plays cannot be opened: it is
@@ -36,19 +36,18 @@ type libraryFile struct {
 	roots    func() []string
 }
 
-// Open resolves symbolic links first and then requires the real file to be
-// inside a library folder, so a link placed in a library cannot make the server
-// read anything else. A size and modified time, when given, must still match.
+// Open follows the one rule for library files (package libraryfile). A size and
+// modified time, when given, must still match.
 func (f libraryFile) Open(ctx context.Context) (io.ReadSeekCloser, int64, time.Time, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, 0, time.Time{}, err
 	}
-	file, err := openLibraryFile(f.path, f.roots())
+	file, err := libraryfile.Open(f.path, f.roots())
 	if err != nil {
-		return nil, 0, time.Time{}, err
+		return nil, 0, time.Time{}, ErrSourceUnavailable
 	}
 	info, err := file.Stat()
-	if err != nil || !info.Mode().IsRegular() {
+	if err != nil {
 		file.Close()
 		return nil, 0, time.Time{}, ErrSourceUnavailable
 	}
@@ -57,32 +56,6 @@ func (f libraryFile) Open(ctx context.Context) (io.ReadSeekCloser, int64, time.T
 		return nil, 0, time.Time{}, ErrSourceChanged
 	}
 	return file, info.Size(), info.ModTime(), nil
-}
-
-func openLibraryFile(path string, roots []string) (*os.File, error) {
-	if !filepath.IsAbs(path) {
-		return nil, ErrSourceUnavailable
-	}
-	real, err := filepath.EvalSymlinks(path)
-	if err != nil {
-		return nil, ErrSourceUnavailable
-	}
-	for _, root := range roots {
-		realRoot, err := filepath.EvalSymlinks(root)
-		if err != nil || !filepath.IsAbs(realRoot) {
-			continue
-		}
-		relative, err := filepath.Rel(realRoot, real)
-		if err != nil || relative == "." || relative == ".." || strings.HasPrefix(relative, ".."+string(os.PathSeparator)) || filepath.IsAbs(relative) {
-			continue
-		}
-		file, err := os.Open(real)
-		if err != nil {
-			return nil, ErrSourceUnavailable
-		}
-		return file, nil
-	}
-	return nil, ErrSourceUnavailable
 }
 
 // converterInput opens a source the way ffmpeg can be given it: as an open
