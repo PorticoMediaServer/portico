@@ -21,7 +21,10 @@ type Manager struct {
 	working bool
 	current int64 // the job being run
 	stop    context.CancelFunc
-	stats   map[string]Stats // by library, for the scan running or last run since the server started
+	// cancelled says the job being run was cancelled and is on its way out. Its row is
+	// already marked, and asking for the same work again queues it afresh.
+	cancelled bool
+	stats     map[string]Stats // by library, for the scan running or last run since the server started
 }
 
 // NewManager makes a manager whose work stops when ctx ends.
@@ -79,7 +82,7 @@ func (m *Manager) enqueue(job db.Job) {
 			return
 		}
 	}
-	if m.current == job.ID {
+	if m.current == job.ID && !m.cancelled {
 		return
 	}
 	m.queue = append(m.queue, job)
@@ -93,6 +96,7 @@ func (m *Manager) enqueue(job db.Job) {
 func (m *Manager) Cancel(ctx context.Context, job db.Job) error {
 	m.mu.Lock()
 	if m.current == job.ID && m.stop != nil {
+		m.cancelled = true
 		m.stop()
 	}
 	for i, queued := range m.queue {
@@ -132,13 +136,13 @@ func (m *Manager) work() {
 		stopped := ctx.Err() != nil
 		stop()
 		m.mu.Lock()
-		m.current, m.stop = 0, nil
+		m.current, m.stop, m.cancelled = 0, nil, false
 		m.mu.Unlock()
 		switch {
-		case stopped && m.ctx.Err() != nil:
-			// The server is stopping: the job stays as it is and is run again at the next start.
 		case stopped:
-			m.scanner.DB.FinishJob(m.ctx, job.ID, db.JobCancelled, "")
+			// The server is stopping, and the job is run again at the next start; or the job
+			// was cancelled, and Cancel has recorded that. Nothing is recorded here, because
+			// the same work may already have been asked for again under the same row.
 		case err != nil:
 			m.scanner.log().Error("job failed", "kind", job.Kind, "target", job.Target, "error", err)
 			m.scanner.DB.FinishJob(m.ctx, job.ID, db.JobFailed, err.Error())
