@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -15,12 +16,22 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/api"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
 )
 
 // version is set by the release build.
 var version = "dev"
 
 func main() {
+	// The sandbox around ffmpeg starts this same binary again as its helper.
+	// That must be answered before anything else, flags included.
+	if handled, err := decoder.RunHelper(os.Args[1:]); handled {
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	if err := run(log); err != nil {
 		log.Error("portico-server stopped", "error", err)

@@ -373,7 +373,8 @@ func runOuter(v linuxSpec, fds []*os.File) error {
 	if v.Probe {
 		return ErrInvalidConfiguration
 	}
-	dir, e := os.MkdirTemp(os.TempDir(), "portico-decoder-")
+	removeDeadHelperFolders(os.TempDir())
+	dir, e := os.MkdirTemp(os.TempDir(), helperFolderPrefix)
 	if e != nil {
 		return e
 	}
@@ -443,4 +444,27 @@ func runInner(v linuxSpec, fds []*os.File) error {
 		return errors.New("confined decoder failed")
 	}
 	return nil
+}
+
+const helperFolderPrefix = "portico-decoder-"
+
+// removeDeadHelperFolders clears the folders of helpers that were killed. A
+// cancelled conversion kills its helper outright, so the helper never removes
+// its own folder; the next helper to start does it. A folder is dead when
+// nothing answers on its socket, and is left alone for its first minute so a
+// helper that has only just made its folder is never mistaken for one.
+func removeDeadHelperFolders(tmp string) {
+	folders, _ := filepath.Glob(filepath.Join(tmp, helperFolderPrefix+"*"))
+	for _, folder := range folders {
+		info, err := os.Lstat(folder)
+		if err != nil || !info.IsDir() || time.Since(info.ModTime()) < time.Minute {
+			continue
+		}
+		conn, err := net.DialTimeout("unix", filepath.Join(folder, "input.sock"), time.Second)
+		if err == nil {
+			conn.Close()
+			continue
+		}
+		_ = os.RemoveAll(folder)
+	}
 }
