@@ -21,6 +21,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediafacts"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediatools"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
+	"github.com/PorticoMediaServer/portico/server-next/internal/preferences"
 	"github.com/PorticoMediaServer/portico/server-next/internal/qualityladder"
 	"github.com/PorticoMediaServer/portico/server-next/internal/streaming"
 )
@@ -222,6 +223,42 @@ func trackID(version db.PlaybackVersion, facts mediafacts.Facts, index int) stri
 	return ""
 }
 
+// saved answers the planner's questions about the viewer's settings: what the profile saved,
+// or the settings list's default.
+type saved map[string]string
+
+func (s saved) value(key string) (any, bool) {
+	field, known := preferences.Find(key)
+	if !known {
+		return nil, false
+	}
+	var raw any
+	if stored, ok := s[key]; ok && json.Unmarshal([]byte(stored), &raw) == nil {
+		if value, err := field.Check(raw); err == nil {
+			return value, true
+		}
+	}
+	value, _ := field.Check(field.Default)
+	return value, false
+}
+
+func (s saved) Bool(key string) bool   { v, _ := s.value(key); b, _ := v.(bool); return b }
+func (s saved) Int(key string) int     { v, _ := s.value(key); n, _ := v.(int64); return int(n) }
+func (s saved) Text(key string) string { v, _ := s.value(key); t, _ := v.(string); return t }
+func (s saved) List(key string) []string {
+	v, _ := s.value(key)
+	list, _ := v.([]string)
+	return list
+}
+
+// PreferenceSource tells the planner a default from a choice somebody made.
+func (s saved) PreferenceSource(key string) string {
+	if _, stored := s.value(key); stored {
+		return preferences.ScopeProfile
+	}
+	return "default"
+}
+
 // Plan asks the media engine how the version reaches the device.
 func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -235,7 +272,8 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 			Duration: facts.Duration, Size: place.Size, Width: facts.Width, Height: facts.Height,
 			DetailVersion: mediafacts.StreamDetailVersion, StreamsCurrent: true, Streams: facts.Streams},
 		Settings: streaming.DefaultDeliveryConfiguration(), TranscodingEnabled: true, FragmentedOutput: e.fragmented, NoConverter: !e.converter,
-		Connection: streaming.DeliveryContext{NetworkClass: streaming.NetworkRemote},
+		Connection:  streaming.DeliveryContext{NetworkClass: streaming.NetworkRemote},
+		Preferences: saved(r.Preferences),
 	}
 	if r.Network == playback.NetworkLocal {
 		request.Connection.NetworkClass = streaming.NetworkLocal
