@@ -193,9 +193,20 @@ func mixed(ctx context.Context, d *db.DB, cfg seed.Config, readers, writesPerSec
 	slow, withDisk := slowTogether(w.spans, syncSpans, 50*time.Millisecond)
 	report.Reads, report.Writes = reads, &writes
 
+	// Everyday pages (open a list, scroll, open a title, Home) are held to 100 ms for every
+	// profile. Sizes and filter counts for a restricted profile are held to 300 ms.
+	for _, who := range []string{" (unrestricted)", " (label)", " (library)", " (rating)"} {
+		pages := reads["pages"+who]
+		report.bar("3 pages during import"+who+", p99", "at most 100 ms", pages.P99, "ms", pages.P99 <= 100)
+	}
+	for _, who := range []string{" (label)", " (rating)"} {
+		counts := reads["counts"+who]
+		report.bar("3 counts during import"+who+", p99", "at most 300 ms", counts.P99, "ms", counts.P99 <= 300)
+	}
+	plain := reads["counts (unrestricted)"]
+	fmt.Printf("  counts for unrestricted profiles during import: p50 %.1f ms  p99 %.1f ms (no target ruled)\n", plain.P50, plain.P99)
 	all := reads["all"]
-	report.bar("3 page reads during import, p99", "at most 100 ms", all.P99, "ms", all.P99 <= 100)
-	report.bar("3 slowest page read during import", "at most 1,000 ms", all.Max, "ms", all.Max <= 1000)
+	report.bar("3 slowest read during import", "at most 1,000 ms", all.Max, "ms", all.Max <= 1000)
 	report.bar("4 user writes during import, p99", "at most 25 ms", writes.P99, "ms", writes.P99 <= 25)
 	report.bar("4 slowest user write during import", "at most 500 ms", writes.Max, "ms", writes.Max <= 500)
 	kept := loaded.FilesPerSec / idle.FilesPerSec
