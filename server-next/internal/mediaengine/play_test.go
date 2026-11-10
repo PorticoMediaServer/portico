@@ -265,7 +265,7 @@ func TestAScannedFilmPlaysAsItIsAndConverted(t *testing.T) {
 	if code != 200 || !strings.HasPrefix(string(master), "#EXTM3U") {
 		t.Fatalf("the playlist answered %d: %s", code, master)
 	}
-	// The master playlist names the picture's playlist; that one names the segments.
+	// The address names the picture's playlist, or is it; that one names the segments.
 	names := func(playlist []byte) (out []string) {
 		for _, line := range strings.Split(string(playlist), "\n") {
 			line = strings.TrimSpace(line)
@@ -281,7 +281,11 @@ func TestAScannedFilmPlaysAsItIsAndConverted(t *testing.T) {
 	if len(variants) == 0 {
 		t.Fatalf("the master playlist names nothing:\n%s", master)
 	}
-	code, _, playlist := h.media(base + variants[0])
+	// A stream of MPEG-TS segments has one playlist, which is the address itself.
+	playlist := master
+	if strings.HasSuffix(variants[0], ".m3u8") {
+		code, _, playlist = h.media(base + variants[0])
+	}
 	segments := names(playlist)
 	if code != 200 || len(segments) < 2 {
 		t.Fatalf("the picture's playlist answered %d:\n%s", code, playlist)
@@ -300,7 +304,8 @@ func TestAScannedFilmPlaysAsItIsAndConverted(t *testing.T) {
 		t.Fatal(err)
 	}
 	out, err := exec.Command(ffprobe, "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_name,height", "-of", "csv=p=0", converted).CombinedOutput()
-	if codec, height, _ := strings.Cut(strings.TrimSpace(string(out)), ","); err != nil || codec == "" || height != "240" {
+	line, _, _ := strings.Cut(strings.TrimSpace(string(out)), "\n")
+	if codec, height, _ := strings.Cut(line, ","); err != nil || codec != "h264" || height != "240" {
 		t.Fatalf("the converted segments are %q (%v), want a picture 240 high", out, err)
 	}
 
