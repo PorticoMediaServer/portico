@@ -149,7 +149,7 @@ resources and their counts are fixed now so the whole product fits the budget:
 | Live TV and DVR | `/v1/live/channels`, `/guide`, `/now`, programme detail, channel favourites and hiding; reminders (3); `/v1/dvr/recordings` (6); `/v1/dvr/rules` (4). Watching a channel is an ordinary playback session. |
 | Notices and reports | Notification inbox (3); feedback reports (2); client log upload (1); app reports (3) |
 
-### Playback, route by route (built so far: 9 of 34, and 4 console routes)
+### Playback, route by route (built so far: 22 of 34, and 4 console routes)
 
 A session is one device playing one title. It lives in memory: after a server restart every
 session is unknown (`404`), and the app starts again by itself where it was.
@@ -164,6 +164,13 @@ session is unknown (`404`), and the app starts again by itself where it was.
 | `PATCH /v1/playback/sessions/{id}` | Pause, play, seek, change version, audio, subtitles or quality, or report that the player could not play it |
 | `PUT /v1/playback/sessions/{id}/progress` | Where the player is. Answers how long the session now lives and when to report next (10 seconds while playing). `410` when the session is over. |
 | `DELETE /v1/playback/sessions/{id}` | Stop, with the final position. Safe to repeat; an unknown session stops fine. Also stops another device of the same account. |
+| `POST /v1/queues`, `GET /v1/queues` | Build a queue from a show, season, album, artist, playlist, collection, library view, selection or radio; the queues this device has. A device keeps one music queue and one video queue. The app starts the current entry with `POST /v1/playback/sessions` and `queue`. |
+| `GET /v1/queues/{id}`, `PATCH /v1/queues/{id}`, `DELETE /v1/queues/{id}` | The queue with its `ETag`; repeat and shuffle; clear |
+| `GET /v1/queues/{id}/entries` | A run of entries: `from` and `limit`, or `around=current` with `before` and `after` |
+| `POST /v1/queues/{id}/entries`, `DELETE /v1/queues/{id}/entries/{entryId}`, `POST /v1/queues/{id}/entries/{entryId}/move` | Play next, play later, remove, move. These need `If-Match`; a stale one is `412`. |
+| `POST /v1/queues/{id}/advance` | The entry ended, Next, Previous, or jump to an entry |
+| `POST /v1/queues/{id}/prepare-next`, `POST /v1/queues/{id}/commit-next` | Get the next song ready before this one ends, then make it the session, for a join without a gap |
+| `POST /v1/queues/{id}/playlist` | Save the queue as a playlist |
 | `GET /v1/admin/playback/stream-limits`, `PUT /v1/admin/playback/stream-limits` | The owner's stream limits: in total, per person, and for one person |
 | `GET /v1/admin/playback/failures`, `DELETE /v1/admin/playback/failures/{id}` | Remembered "this way of playing this file failed on this device", and forgetting one |
 
