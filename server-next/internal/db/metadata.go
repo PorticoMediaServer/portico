@@ -19,6 +19,7 @@ type LibrarySource struct {
 	Provider string // "" is the default for the kind; "local" is local metadata only
 	Language string
 	Region   string
+	Lyrics   string // a music library's lyrics source: "" for its files only, or LyricsLRCLIB
 }
 
 // ProviderLocal is the provider of a library that uses local metadata only.
@@ -35,11 +36,12 @@ func (d *DB) LibrarySource(ctx context.Context, libraryID int64) (LibrarySource,
 	}
 	var region struct {
 		Region string `json:"region"`
+		Lyrics string `json:"lyrics"`
 	}
 	if options.Valid {
 		json.Unmarshal([]byte(options.String), &region)
 	}
-	src.Region = region.Region
+	src.Region, src.Lyrics = region.Region, region.Lyrics
 	return src, err
 }
 
