@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -228,6 +229,54 @@ func TestInvitations(t *testing.T) {
 		if w.Code != 404 || !strings.Contains(w.Body.String(), "This invitation is no longer valid.") {
 			t.Errorf("accepting a %s invitation answered %d %s", name, w.Code, w.Body)
 		}
+	}
+}
+
+// An acceptance sent again after its answer was lost signs the person in to the account the
+// first one made. Only that: another username or a wrong password is told the invitation is
+// used up, another invitation's code is told the username is taken, and no second account is made.
+func TestAcceptingAnInvitationAgain(t *testing.T) {
+	s := newTestServer(t)
+	owner := onMainProfile(t, s)
+	invite := func() Invitation {
+		var out Invitation
+		if w := call(t, s, "POST", "/v1/admin/invitations", owner.AccessToken, InvitationCreate{}, &out); w.Code != 200 {
+			t.Fatalf("inviting answered %d: %s", w.Code, w.Body)
+		}
+		return out
+	}
+	made, other := invite(), invite()
+	accept := func(code, username, password string) (*httptest.ResponseRecorder, SignInResponse) {
+		var in SignInResponse
+		w := call(t, s, "POST", "/v1/auth/invitations/"+code+"/accept", "", InvitationAccept{Username: username, Password: password, Device: device(40)}, nil)
+		if w.Code == 200 {
+			jsonInto(w, &in)
+		}
+		return w, in
+	}
+	_, first := accept(made.Code, "sam", testPassword)
+	if first.Account.ID == "" {
+		t.Fatal("the first acceptance made no account")
+	}
+	for _, username := range []string{"sam", " Sam "} {
+		w, again := accept(made.Code, username, testPassword)
+		if w.Code != 200 || again.Account.ID != first.Account.ID || status(t, s, "GET", "/v1/me", again.Session.AccessToken, nil) != 200 {
+			t.Errorf("the acceptance sent again as %q answered %d for account %q, want a sign-in to %q", username, w.Code, again.Account.ID, first.Account.ID)
+		}
+	}
+	for name, c := range map[string]struct{ code, username, password string }{
+		"another username":          {made.Code, "someone", testPassword},
+		"a wrong password":          {made.Code, "sam", "not the password"},
+		"another invitation's code": {other.Code, "sam", testPassword},
+	} {
+		if w, _ := accept(c.code, c.username, c.password); w.Code != 404 && !(c.code == other.Code && w.Code == 409) {
+			t.Errorf("accepting again with %s answered %d %s, want the invitation refused", name, w.Code, w.Body)
+		}
+	}
+	var members Page[Member]
+	call(t, s, "GET", "/v1/admin/members", owner.AccessToken, nil, &members)
+	if len(members.Items) != 2 {
+		t.Errorf("%d accounts exist, want the owner and sam", len(members.Items))
 	}
 }
 

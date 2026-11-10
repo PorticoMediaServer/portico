@@ -226,6 +226,18 @@ func (d *DB) InvitationByCode(ctx context.Context, codeHash string, now time.Tim
 		WHERE i.code_hash = ? AND i.state = 'open' AND i.expires_at > ?`, codeHash, now.UnixMilli()), now)
 }
 
+// InvitationAccount is the username of the account an invitation created when it was
+// accepted, or ErrNotFound if it has not created one.
+func (d *DB) InvitationAccount(ctx context.Context, codeHash string) (string, error) {
+	var username string
+	err := d.read.QueryRowContext(ctx, `SELECT u.username FROM invitations i JOIN users u ON u.id = i.accepted_user_id
+		WHERE i.code_hash = ? AND i.state = 'accepted'`, codeHash).Scan(&username)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	return username, err
+}
+
 // Acceptance is a person creating their account with an invitation.
 type Acceptance struct {
 	CodeHash string
