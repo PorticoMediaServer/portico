@@ -50,6 +50,7 @@ type Server struct {
 	playback *playback.Service
 	// queues builds and runs play queues. See queues.go.
 	queues *playqueue.Service
+	media  func(w http.ResponseWriter, r *http.Request, grant, file string)
 }
 
 // Route is one operation, kept so the contract can be generated and the operation budget counted.

@@ -171,6 +171,7 @@ session is unknown (`404`), and the app starts again by itself where it was.
 | `POST /v1/queues/{id}/advance` | The entry ended, Next, Previous, or jump to an entry |
 | `POST /v1/queues/{id}/prepare-next`, `POST /v1/queues/{id}/commit-next` | Get the next song ready before this one ends, then make it the session, for a join without a gap |
 | `POST /v1/queues/{id}/playlist` | Save the queue as a playlist |
+| `GET /v1/media/{grant}/{file}` | The bytes a session plays, at the address the session gave: the file itself by byte range (`original`), or a conversion's playlists and segments (`master.m3u8` and what it names). No sign-in header: the grant is the permission, and it dies when the session stops or changes stream. Anything else is `404`. |
 | `GET /v1/admin/playback/stream-limits`, `PUT /v1/admin/playback/stream-limits` | The owner's stream limits: in total, per person, and for one person |
 | `GET /v1/admin/playback/failures`, `DELETE /v1/admin/playback/failures/{id}` | Remembered "this way of playing this file failed on this device", and forgetting one |
 

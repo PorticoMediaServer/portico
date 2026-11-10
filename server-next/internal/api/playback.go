@@ -16,7 +16,23 @@ import (
 // engine into and to save progress with when it shuts down.
 func (s *Server) Playback() *playback.Service { return s.playback }
 
+// ServeMediaWith gives the server the media engine's byte server. Call it before serving.
+func (s *Server) ServeMediaWith(serve func(w http.ResponseWriter, r *http.Request, grant, file string)) {
+	s.media = serve
+}
+
 func (s *Server) playbackRoutes() {
+	// Media addresses carry their own permission, the grant, so players that cannot send
+	// headers can fetch them. The engine answers them, bytes and refusals alike.
+	media := &Route{Pattern: "GET /v1/media/{grant}/{file...}", Access: Public, Scope: ScopeOpen}
+	s.routes = append(s.routes, media)
+	s.mux.HandleFunc(media.Pattern, func(w http.ResponseWriter, r *http.Request) {
+		if s.media == nil {
+			s.writeError(w, r, ErrNotFound())
+			return
+		}
+		s.media(w, r, r.PathValue("grant"), r.PathValue("file"))
+	})
 	// Playback belongs to a device, so these take a signed-in person and not a key.
 	for _, route := range []*Route{
 		Handle(s, "GET /v1/devices/{id}/capabilities", SignedIn, s.getCapabilities),
