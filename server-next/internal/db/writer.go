@@ -83,6 +83,12 @@ func (d *DB) writer() {
 		if err == nil && req.after != nil {
 			req.after()
 		}
+		if err == nil {
+			select {
+			case d.changed <- struct{}{}:
+			default:
+			}
+		}
 		req.done <- err
 		d.restartWAL()
 	}

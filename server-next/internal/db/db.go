@@ -32,6 +32,9 @@ type DB struct {
 	closed    chan struct{}
 	marks     tokenMarks
 	undo      undoOffers
+	// changed is signalled after every commit, to wake the search indexer. See search_index.go.
+	changed chan struct{}
+	search  *searchIndex
 
 	// See checkpoint.go.
 	path       string
@@ -47,7 +50,7 @@ func Open(ctx context.Context, path string) (*DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	d := &DB{writeConn: write, closed: make(chan struct{}), path: path, helperDone: make(chan struct{})}
+	d := &DB{writeConn: write, closed: make(chan struct{}), path: path, helperDone: make(chan struct{}), changed: make(chan struct{}, 1)}
 	d.queues[User], d.queues[Background] = make(chan writeRequest), make(chan writeRequest)
 	if err := d.ensureSchema(ctx); err != nil {
 		write.Close()
@@ -128,6 +131,9 @@ func (d *DB) ensureSchema(ctx context.Context) error {
 // Close stops the writer and the checkpoint helper and closes the connections. SQLite copies
 // what is left in the WAL into the database as the last connection closes.
 func (d *DB) Close() error {
+	if d.search != nil {
+		d.search.stop()
+	}
 	close(d.closed)
 	<-d.helperDone
 	return errors.Join(d.read.Close(), d.helper.Close(), d.writeConn.Close())
