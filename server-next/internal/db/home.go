@@ -88,11 +88,12 @@ func (d *DB) RecentlyAdded(ctx context.Context, v Viewer) ([]Item, error) {
 			if rated == 0 {
 				continue
 			}
+			may := acc.visible("i")
 			if rated < sparseRated {
-				from = "items i INDEXED BY items_by_rating"
+				from, may = "items i INDEXED BY items_by_rating", "(1"+acc.rated("i", "")+acc.unblocked("i")+")"
 			}
 			rows, err := queryAll(ctx, tx, `SELECT `+leaf.title+`, i.added_at FROM `+from+` WHERE i.library_id = ? AND i.kind = ? AND `+
-				acc.visible("i")+` ORDER BY i.added_at DESC, i.id DESC LIMIT 400`, []any{library, leaf.kind},
+				may+` ORDER BY i.added_at DESC, i.id DESC LIMIT 400`, []any{library, leaf.kind},
 				func(n *newest) []any { return []any{&n.id, &n.addedAt} })
 			if err != nil {
 				return nil, err
