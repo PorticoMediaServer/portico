@@ -186,6 +186,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.scans = scan.NewManager(s.jobs, &scan.Scanner{DB: d, Log: log})
 	s.libraryRoutes()
 	s.jobRoutes()
+	s.stateJobs()
 	// Every kind of job is registered by now: the jobs asked for before the server last
 	// stopped are taken up again.
 	if err := s.jobs.Resume(); err != nil {
