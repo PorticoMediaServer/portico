@@ -35,7 +35,7 @@ CREATE TABLE jobs (
   public_id     TEXT    NOT NULL UNIQUE,
   kind          TEXT    NOT NULL,
   target        TEXT    NOT NULL,
-  state         TEXT    NOT NULL DEFAULT 'waiting' CHECK (state IN ('waiting', 'running', 'failed', 'done')),
+  state         TEXT    NOT NULL DEFAULT 'waiting' CHECK (state IN ('waiting', 'running', 'failed', 'done', 'cancelled')),
   priority      INTEGER NOT NULL DEFAULT 0,
   run_after_at  INTEGER NOT NULL,
   attempts      INTEGER NOT NULL DEFAULT 0,
