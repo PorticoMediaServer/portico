@@ -57,7 +57,7 @@ func (s *Scanner) Scan(ctx context.Context, lib db.Library) (Stats, error) {
 	if err != nil {
 		return Stats{}, err
 	}
-	r := &run{s: s, ctx: ctx, lib: lib, names: namesKind(lib.Kind), scan: scan, claimed: map[int64]bool{}, sources: map[string]Source{},
+	r := &run{s: s, ctx: ctx, lib: lib, names: namesKind(lib.Kind), scan: scan, claimed: map[int64]bool{}, sources: map[string]Source{}, walked: map[string]bool{},
 		nfos: map[string][]localmetadata.VideoNFO{}}
 	if r.batch = s.BatchFiles; r.batch <= 0 {
 		r.batch = 200
@@ -113,6 +113,7 @@ type run struct {
 	pending db.ImportBatch // what has been gathered for the next transaction
 	claimed map[int64]bool // stored files already recognised at a new place by this scan
 	sources map[string]Source
+	walked  map[string]bool                     // folders this scan has already taken, by Entry.FolderID
 	nfos    map[string][]localmetadata.VideoNFO // NFO files read by this scan, by path
 }
 
@@ -147,6 +148,11 @@ func (r *run) walkPath() (unavailable, err error) {
 	var disk int64
 	if local, ok := r.src.(interface{ Device(string) int64 }); ok {
 		disk = local.Device("")
+	}
+	if local, ok := r.src.(interface{ FolderID(string) string }); ok {
+		if id := local.FolderID(""); id != "" {
+			r.walked[id] = true
+		}
 	}
 	if err := r.walkFolder("", entries, 0, disk); err != nil {
 		return nil, err
@@ -242,6 +248,14 @@ func (r *run) walkFolder(rel string, entries []Entry, depth int, disk int64) err
 			file.role, file.problem = db.FileOther, db.ProblemUnsupported
 		case e.Dir:
 			if !inDisc && !naming.IgnorePathWithSize(child, true, 0) && !r.ignored(child, true) {
+				// A folder reached a second time (a link to a folder above this one, or two
+				// links to one folder) is read once: a loop would otherwise multiply the library.
+				if e.FolderID != "" {
+					if r.walked[e.FolderID] {
+						continue
+					}
+					r.walked[e.FolderID] = true
+				}
 				folders = append(folders, e.Name)
 				disks[e.Name] = e.Device
 			}
