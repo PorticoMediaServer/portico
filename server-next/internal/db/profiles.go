@@ -8,15 +8,17 @@ import (
 	"time"
 )
 
-// MaxProfiles is how many profiles one account can have, its main profile included.
+// MaxProfiles is how many profiles one account can have, its main profile included, unless
+// the owner lowered the number for that account.
 const MaxProfiles = 8
 
-var (
-	// ErrProfileLimit: the account already has MaxProfiles profiles.
-	ErrProfileLimit = errors.New("the account has its full number of profiles")
-	// ErrPrimaryProfile: the account's main profile cannot be deleted.
-	ErrPrimaryProfile = errors.New("the main profile cannot be deleted")
-)
+// ErrPrimaryProfile: the account's main profile cannot be deleted.
+var ErrPrimaryProfile = errors.New("the main profile cannot be deleted")
+
+// ProfileLimitError: the account already has as many profiles as it may. Most is that number.
+type ProfileLimitError struct{ Most int }
+
+func (e *ProfileLimitError) Error() string { return "the account has its full number of profiles" }
 
 // Profile is a viewing profile of an account.
 type Profile struct {
@@ -30,13 +32,15 @@ type Profile struct {
 	PINHash string
 	// AccessChangedAt moves whenever what the profile may see changes.
 	AccessChangedAt int64
+	// AvatarAt is when the profile's picture was last set, or 0 if it has none.
+	AvatarAt int64
 }
 
-const profileColumns = `id, public_id, name, color, is_primary, position, ifnull(pin_hash, ''), access_changed_at`
+const profileColumns = `id, public_id, name, color, is_primary, position, ifnull(pin_hash, ''), access_changed_at, ifnull(avatar_at, 0)`
 
 func scanProfile(row interface{ Scan(...any) error }) (Profile, error) {
 	var p Profile
-	err := row.Scan(&p.ID, &p.PublicID, &p.Name, &p.Color, &p.Primary, &p.Position, &p.PINHash, &p.AccessChangedAt)
+	err := row.Scan(&p.ID, &p.PublicID, &p.Name, &p.Color, &p.Primary, &p.Position, &p.PINHash, &p.AccessChangedAt, &p.AvatarAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = ErrNotFound
 	}
@@ -125,12 +129,14 @@ func (d *DB) CreateProfile(ctx context.Context, n NewProfile) (Profile, error) {
 			out, err = scanProfile(tx.QueryRow(`SELECT `+profileColumns+` FROM profiles WHERE user_id = ? AND public_id = ?`, n.UserID, ref))
 			return err
 		}
-		var count, last int
-		if err := tx.QueryRow(`SELECT count(*), ifnull(max(position), 0) FROM profiles WHERE user_id = ?`, n.UserID).Scan(&count, &last); err != nil {
+		var count, last, most int
+		if err := tx.QueryRow(`SELECT count(*), ifnull(max(position), 0), (SELECT ifnull(max_profiles, ?) FROM users WHERE id = ?)
+			FROM profiles WHERE user_id = ?`, MaxProfiles, n.UserID, n.UserID).Scan(&count, &last, &most); err != nil {
 			return err
 		}
-		if count >= MaxProfiles {
-			return ErrProfileLimit
+		// A number lowered after the profiles were made removes none of them.
+		if count >= most {
+			return &ProfileLimitError{Most: max(most, count)}
 		}
 		at := n.Now.UnixMilli()
 		out, err = scanProfile(tx.QueryRow(`INSERT INTO profiles (public_id, user_id, name, color, position, pin_hash, access_changed_at, created_at, updated_at)
