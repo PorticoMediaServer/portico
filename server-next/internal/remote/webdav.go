@@ -168,17 +168,23 @@ func (w *WebDAV) List(ctx context.Context, dir string) ([]Entry, error) {
 		if err != nil {
 			return nil, errors.New("the WebDAV server's folder listing could not be read")
 		}
-		// An href is a path on the server, or a whole address on it.
-		at := strings.TrimSuffix(href.Path, "/")
-		if at == folder {
+		// An href is a path on the server, or a whole address on it. It is split before it is
+		// decoded, so an encoded slash stays inside the name, where SafeName drops it.
+		escaped := strings.TrimSuffix(href.EscapedPath(), "/")
+		rawParent, rawName := path.Split(escaped)
+		parent, err1 := url.PathUnescape(strings.TrimSuffix(rawParent, "/"))
+		name, err2 := url.PathUnescape(rawName)
+		if err1 != nil || err2 != nil {
+			return nil, errors.New("the WebDAV server's folder listing could not be read")
+		}
+		if parent+"/"+name == folder || parent == "" && name == folder {
 			continue
 		}
-		parent, name := path.Split(at)
-		if strings.TrimSuffix(parent, "/") != folder {
+		if parent != folder {
 			// Not something in this folder: the listing is not the one asked for.
 			return nil, errors.New("the WebDAV server listed something outside the folder")
 		}
-		if name == "" || name == "." || name == ".." || strings.ContainsRune(name, 0) {
+		if !SafeName(name) {
 			continue
 		}
 		entry, found := Entry{Name: name}, false
