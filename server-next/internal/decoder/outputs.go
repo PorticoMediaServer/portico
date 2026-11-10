@@ -74,7 +74,27 @@ func AvailableConversionOutputs(f *ToolchainFacts) ConversionOutputs {
 		}
 		o.Audio = append(o.Audio, ConversionAudioOutput{codec, codec == "flac", rates, transports})
 	}
+	orderVideoOutputs(o.Video)
 	return o
+}
+
+// orderVideoOutputs puts the outputs in the order the planner tries them: what
+// this machine's hardware encodes first, then software. In software AV1 comes
+// last: its encoders are several times slower than libx264, so a device that
+// plays both would stall on a server without a hardware encoder. A picture that
+// only AV1 can carry (ten bits for a device without HEVC) still gets it, because
+// the planner tries the source's bit depth before the other.
+func orderVideoOutputs(video []ConversionVideoOutput) {
+	rank := func(o ConversionVideoOutput) int {
+		switch {
+		case o.Hardware:
+			return 0
+		case o.Codec != "av1":
+			return 1
+		}
+		return 2
+	}
+	sort.SliceStable(video, func(i, j int) bool { return rank(video[i]) < rank(video[j]) })
 }
 
 // AvailableConversionOutputsForHardware keeps the software fallback inventory
@@ -91,7 +111,7 @@ func AvailableConversionOutputsForHardware(f *ToolchainFacts, probe HardwareProb
 		video := &out.Video[i]
 		video.Hardware = probe.OutputEncoders[video.Codec+":"+strconv.Itoa(video.BitDepth)]
 	}
-	sort.SliceStable(out.Video, func(i, j int) bool { return out.Video[i].Hardware && !out.Video[j].Hardware })
+	orderVideoOutputs(out.Video)
 	return out
 }
 
