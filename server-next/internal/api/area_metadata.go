@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/jobs"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata"
 )
 
@@ -19,6 +20,13 @@ func (s *Server) startMetadata(ctx context.Context) error {
 	s.metadata = &metadata.Service{DB: s.db, Providers: map[string]metadata.Provider{}}
 	s.metadataRoutes()
 	s.editorRoutes()
+	s.metadataJobs()
+	// What a scan found is looked up when it ends.
+	s.scans.AfterScan = func(ctx context.Context, library string) {
+		if _, err := s.jobs.Start(ctx, jobAfterScan, jobs.Request{Target: jobs.Target{Library: library}}); err != nil && ctx.Err() == nil {
+			s.log.Error("looking up what a scan found could not be started", "library", library, "error", err)
+		}
+	}
 	return nil
 }
 
