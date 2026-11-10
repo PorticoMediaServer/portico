@@ -92,14 +92,21 @@ func (d *DB) Facets(ctx context.Context, v Viewer, q ItemQuery, facet string) ([
 			// Both indexes hold each item's rating, so a rating limit is checked there too.
 			// What a blocked label hides is few: those rows are counted one by one and
 			// taken away.
-			inherited := ""
+			own := fmt.Sprintf(`(SELECT count(*) FROM item_tags it WHERE it.library_id = %d AND it.kind IN %s AND it.tag_id = t.id%s)`,
+				w.library, w.kinds, acc.rated("it", ""))
+			n := own
 			if under {
-				inherited = fmt.Sprintf(` + (SELECT count(*) FROM item_tags h CROSS JOIN items d ON d.root_id = h.item_id
-					WHERE h.tag_id = t.id AND h.library_id = %d AND d.kind IN %s%s
-					AND NOT EXISTS (SELECT 1 FROM item_tags o WHERE o.item_id = d.id AND o.tag_id = h.tag_id))`, w.library, w.kinds, acc.rated("d", ""))
+				// What is under a title that carries the tag counts too, unless it carries the
+				// tag itself and was counted already. When nothing of these kinds carries the
+				// tag itself, as with episodes, that needs no look at each one: the run of
+				// each title's descendants in the index is simply counted.
+				below := fmt.Sprintf(`SELECT count(*) FROM item_tags h CROSS JOIN items d ON d.root_id = h.item_id
+					WHERE h.tag_id = t.id AND h.library_id = %d AND d.kind IN %s%s`, w.library, w.kinds, acc.rated("d", ""))
+				tagged := fmt.Sprintf(`EXISTS (SELECT 1 FROM item_tags it WHERE it.library_id = %d AND it.kind IN %s AND it.tag_id = t.id)`, w.library, w.kinds)
+				n = fmt.Sprintf(`%s + CASE WHEN %s THEN (%s AND NOT EXISTS (SELECT 1 FROM item_tags o WHERE o.item_id = d.id AND o.tag_id = h.tag_id))
+					ELSE (%s) END`, own, tagged, below, below)
 			}
-			counts = fmt.Sprintf(`SELECT t.id AS tag, (SELECT count(*) FROM item_tags it WHERE it.library_id = %d AND it.kind IN %s
-				AND it.tag_id = t.id%s)%s AS n FROM tags t WHERE t.kind = '%s'`, w.library, w.kinds, acc.rated("it", ""), inherited, facetTagKinds[facet])
+			counts = fmt.Sprintf(`SELECT t.id AS tag, %s AS n FROM tags t WHERE t.kind = '%s'`, n, facetTagKinds[facet])
 			if len(acc.blockedTags) > 0 {
 				counts += ` UNION ALL ` + byRow("-", `i.id IN (`+acc.blockedIDs(w.library, w.kinds)+`)`+acc.rated("i", ""))
 			}
