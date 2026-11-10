@@ -305,6 +305,9 @@ func decodeMediaProbe(data []byte) (Facts, error) {
 	return f, nil
 }
 
+// ErrNoTimedStream says the tool read the file and found no audio or video with a length.
+var ErrNoTimedStream = errors.New("file has no timed media stream")
+
 func (p Probe) inspect(ctx context.Context, path string, options []string) (Facts, error) {
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
@@ -327,7 +330,7 @@ func (p Probe) inspect(ctx context.Context, path string, options []string) (Fact
 		f.LocalMetadataIssue = "invalid_chapter_timeline"
 	}
 	if (f.VideoCodec == "" && f.AudioCodec == "") || (f.Duration <= 0 || math.IsNaN(f.Duration) || math.IsInf(f.Duration, 0)) {
-		return Facts{}, errors.New("file has no timed media stream")
+		return Facts{}, ErrNoTimedStream
 	}
 	return f, nil
 }
