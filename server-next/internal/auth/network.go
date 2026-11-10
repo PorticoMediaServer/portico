@@ -20,7 +20,7 @@ type Networks struct {
 	Proxies []netip.Prefix
 }
 
-// maxForwardedHops bounds how much of a forwarded header is read.
+// maxForwardedHops is how many trusted proxies in a row a forwarded header is read through.
 const maxForwardedHops = 32
 
 func within(prefixes []netip.Prefix, addr netip.Addr) bool {
@@ -35,8 +35,10 @@ func within(prefixes []netip.Prefix, addr netip.Addr) bool {
 // Client returns the address a request came from: the connection's own address or, when
 // that is one of the owner's trusted proxies, the nearest address in X-Forwarded-For that
 // is not itself a trusted proxy. The header can be written by anyone, so it is read from
-// the end the trusted proxy wrote, and a header that cannot be read in full is not
-// believed at all: the request then counts as coming from the proxy.
+// the end the trusted proxy wrote and no further than the first address that is not a
+// trusted proxy: whatever a client put before that is never looked at, so nothing a client
+// sends can make it count as the proxy. If the proxy's own entry cannot be read, the
+// request counts as coming from the proxy.
 func (n Networks) Client(r *http.Request) (netip.Addr, bool) {
 	ap, err := netip.ParseAddrPort(r.RemoteAddr)
 	if err != nil {
@@ -46,19 +48,23 @@ func (n Networks) Client(r *http.Request) (netip.Addr, bool) {
 	if !within(n.Proxies, peer) {
 		return peer, true
 	}
-	var hops []netip.Addr
-	for _, line := range r.Header.Values("X-Forwarded-For") {
-		for _, raw := range strings.Split(line, ",") {
+	lines := r.Header.Values("X-Forwarded-For")
+	for read, l := 0, len(lines)-1; l >= 0; l-- {
+		rest := lines[l]
+		for more := true; more; read++ {
+			var raw string
+			if at := strings.LastIndexByte(rest, ','); at >= 0 {
+				rest, raw = rest[:at], rest[at+1:]
+			} else {
+				raw, more = rest, false
+			}
 			hop, err := netip.ParseAddr(strings.TrimSpace(raw))
-			if err != nil || hop.Zone() != "" || hop.IsUnspecified() || hop.IsMulticast() || len(hops) == maxForwardedHops {
+			if err != nil || hop.Zone() != "" || hop.IsUnspecified() || hop.IsMulticast() || read == maxForwardedHops {
 				return peer, true
 			}
-			hops = append(hops, hop.Unmap())
-		}
-	}
-	for i := len(hops) - 1; i >= 0; i-- {
-		if !within(n.Proxies, hops[i]) {
-			return hops[i], true
+			if hop = hop.Unmap(); !within(n.Proxies, hop) {
+				return hop, true
+			}
 		}
 	}
 	return peer, true
