@@ -8,6 +8,7 @@ import (
 	"math/rand/v2"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -43,7 +44,17 @@ type searchLoad struct {
 	words   []string
 	mu      sync.Mutex
 	samples map[string][]time.Duration
+	slow    []slowSearch // every search that took a tenth of a second or longer
 	failed  int
+}
+
+// slowSearch is one slow search, kept so a missed target can be traced to what was typed.
+type slowSearch struct {
+	took  time.Duration
+	after time.Duration // since the searchers started
+	text  string
+	class string
+	who   int
 }
 
 // start runs n searchers until the returned function is called, which returns how long the
@@ -51,7 +62,8 @@ type searchLoad struct {
 // asked for, and whether a profile with restrictions asked.
 func (s *searchLoad) start(ctx context.Context, n int) func() (map[string]Timing, int) {
 	ctx, cancel := context.WithCancel(ctx)
-	s.samples, s.failed = map[string][]time.Duration{}, 0
+	s.samples, s.slow, s.failed = map[string][]time.Duration{}, nil, 0
+	began := time.Now()
 	var wg sync.WaitGroup
 	for i := range n {
 		wg.Go(func() {
@@ -87,7 +99,11 @@ func (s *searchLoad) start(ctx context.Context, n int) func() (map[string]Timing
 					s.failed++
 					println("search failed:", text, err.Error())
 				}
-				s.samples[class] = append(s.samples[class], time.Since(started))
+				took := time.Since(started)
+				s.samples[class] = append(s.samples[class], took)
+				if took >= 100*time.Millisecond {
+					s.slow = append(s.slow, slowSearch{took, started.Sub(began), text, class, who})
+				}
 				s.mu.Unlock()
 				time.Sleep(5 * time.Millisecond)
 			}
@@ -152,6 +168,7 @@ func searchMode(ctx context.Context, d *db.DB, path string, cfg seed.Config, rea
 	stopSearches := s.start(ctx, 2)
 	time.Sleep(20 * time.Second)
 	out.SearchesIdle, _ = stopSearches()
+	slowIdle := s.slow
 
 	log.Print("import with constant reads, writes and searches; how long until each batch is searchable")
 	type mark struct {
@@ -242,6 +259,10 @@ func searchMode(ctx context.Context, d *db.DB, path string, cfg seed.Config, rea
 	line("searchable after an import batch", out.Searchable)
 	for _, class := range sortedKeys(out.SearchesIdle) {
 		line("search, idle: "+class, out.SearchesIdle[class])
+	}
+	sort.Slice(slowIdle, func(a, b int) bool { return slowIdle[a].took > slowIdle[b].took })
+	for _, slow := range slowIdle[:min(len(slowIdle), 15)] {
+		fmt.Printf("  slow idle search: %7.1f ms  %q  %s, profile %d, %.1f s in\n", float64(slow.took.Microseconds())/1000, slow.text, slow.class, slow.who, slow.after.Seconds())
 	}
 	line("searches during the import", out.SearchesDuringImport["all"])
 	line("page reads during the import", out.ReadsDuringImport["all"])
