@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"strings"
 )
 
@@ -38,6 +39,8 @@ type Item struct {
 	WatchedLeaves int
 
 	sortTitle string
+	// sortValues are the item's values in the sort it was listed by, for the next cursor.
+	sortValues []any
 }
 
 // Image is one chosen picture of an item or a person.
@@ -57,6 +60,16 @@ const (
 	SortYear    = "year"
 	SortRelease = "release"
 	SortOrder   = "order" // season, disc and track or episode number: the default under a parent
+
+	SortDuration        = "duration"
+	SortCommunityRating = "communityRating"
+	SortCriticRating    = "criticRating"
+	SortUserRating      = "userRating" // the viewer's own rating
+	SortLastPlayed      = "lastPlayed" // when the viewer last played it
+	SortPlayCount       = "playCount"  // how often the viewer played it
+	SortResolution      = "resolution" // by the widest version
+	SortLatest          = "latest"     // a show or album by its newest episode or track
+	SortRandom          = "random"     // one order for as long as a reader pages through it
 )
 
 // ItemQuery says which items to list. Library, Parent, Person and Tag are public ids. At
@@ -101,12 +114,48 @@ type sortSpec struct {
 	nullable bool
 }
 
+// The four sorts a library tab opens in have an index each (library, kind, column, id), so a
+// page of them costs the same anywhere in a library of any size. The others order by a fact
+// with no index: the list is read once and the page picked out of it. See sortFor.
 var sortSpecs = map[string]sortSpec{
 	SortTitle:   {columns: []string{"i.sort_title"}},
 	SortAdded:   {columns: []string{"i.added_at"}},
 	SortYear:    {columns: []string{"i.year"}, nullable: true},
 	SortRelease: {columns: []string{"i.release_date"}, nullable: true},
 	SortOrder:   {columns: []string{"ifnull(i.parent_index, 0)", "ifnull(i.index_number, 0)", "i.sort_title"}},
+
+	SortDuration:        {columns: []string{"i.duration_ms"}, nullable: true},
+	SortCommunityRating: {columns: []string{"i.community_rating"}, nullable: true},
+	SortCriticRating:    {columns: []string{"i.critic_rating"}, nullable: true},
+	SortLatest:          {columns: []string{"i.last_child_added_at"}, nullable: true},
+	SortResolution:      {columns: []string{"(SELECT max(m.width) FROM media m WHERE m.item_id = i.id)"}, nullable: true},
+	SortUserRating:      {columns: []string{ownState("rating")}, nullable: true},
+	SortLastPlayed:      {columns: []string{ownState("last_played_at")}, nullable: true},
+	SortPlayCount:       {columns: []string{ownState("nullif(play_count, 0)")}, nullable: true},
+}
+
+// ownState reads one value of the viewer's own state for the item being listed.
+func ownState(value string) string {
+	return "(SELECT " + value + " FROM user_item_state own WHERE own.profile_id = @viewer_profile AND own.item_id = i.id)"
+}
+
+// shuffleKey is the place of an item in the order a seed decides: its id multiplied by a
+// number the seed gives, modulo a prime above any id a library has. Every seed is a different
+// walk through the list that meets each item once.
+func shuffleKey(seed int64) string {
+	// The multiplier is odd and large, so neighbours in the library land far apart.
+	multiplier := (uint64(seed)*0x9e3779b97f4a7c15>>33)%(shufflePrime-2) + 2
+	return `((i.id % ` + itoa(shufflePrime) + `) * ` + itoa(int64(multiplier)) + ` % ` + itoa(shufflePrime) + `)`
+}
+
+// sortFor returns how a sort orders. A random order needs the seed it was begun with, which
+// its cursor carries from page to page.
+func sortFor(sort string, seed int64) (sortSpec, bool) {
+	if sort == SortRandom {
+		return sortSpec{columns: []string{shuffleKey(seed)}}, true
+	}
+	spec, ok := sortSpecs[sort]
+	return spec, ok
 }
 
 // listCursor is where the next page starts: the sort it belongs to and the position of the
@@ -117,6 +166,7 @@ type listCursor struct {
 	Nulls  bool   `json:"n,omitempty"` // the run of rows without a sort value has begun
 	Values []any  `json:"v,omitempty"`
 	ID     int64  `json:"i"`
+	Seed   int64  `json:"r,omitempty"` // of a random order
 }
 
 func (c listCursor) encode() string {
@@ -124,7 +174,9 @@ func (c listCursor) encode() string {
 	return base64.RawURLEncoding.EncodeToString(raw)
 }
 
-func decodeCursor(text, sort string, desc bool, columns int) (*listCursor, error) {
+// decodeCursor reads a cursor and checks it belongs to this sort and direction. The number
+// of sort values it must carry is checked by the caller, which knows the sort.
+func decodeCursor(text, sort string, desc bool) (*listCursor, error) {
 	if text == "" {
 		return nil, nil
 	}
@@ -138,19 +190,27 @@ func decodeCursor(text, sort string, desc bool, columns int) (*listCursor, error
 	}
 	for n, value := range c.Values {
 		if number, ok := value.(json.Number); ok {
-			if c.Values[n], err = number.Int64(); err != nil {
+			// A rating has a fraction; everything else is whole.
+			if whole, bad := number.Int64(); bad == nil {
+				c.Values[n] = whole
+			} else if c.Values[n], err = number.Float64(); err != nil {
 				break
 			}
 		}
 	}
-	wantValues := columns
-	if c.Nulls {
-		wantValues = 0
-	}
-	if err != nil || c.Sort != sort || c.Desc != desc || len(c.Values) != wantValues {
+	if err != nil || c.Sort != sort || c.Desc != desc {
 		return nil, invalid("the cursor does not belong to this list")
 	}
 	return &c, nil
+}
+
+// fits says whether a cursor carries a value for each column of the sort, or none when it
+// is among the rows that have no value.
+func (c *listCursor) fits(spec sortSpec) bool {
+	if c.Nulls {
+		return len(c.Values) == 0
+	}
+	return len(c.Values) == len(spec.columns)
 }
 
 const itemColumns = `i.id, i.public_id, i.kind, i.title, i.sort_title, ifnull(i.year, 0), ifnull(i.release_date, ''), i.added_at,
@@ -184,9 +244,22 @@ func (d *DB) Items(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, error)
 			q.Sort = SortOrder
 		}
 	}
-	spec, ok := sortSpecs[q.Sort]
+	cursor, err := decodeCursor(q.Cursor, q.Sort, q.Desc)
+	if err != nil {
+		return page, err
+	}
+	// A random order is begun with a new seed and carried on with the one its cursor holds,
+	// so it stays one order while a reader pages and is another the next time it is chosen.
+	seed := rand.Int64N(shufflePrime-1) + 1
+	if cursor != nil && cursor.Seed != 0 {
+		seed = cursor.Seed
+	}
+	spec, ok := sortFor(q.Sort, seed)
 	if !ok {
 		return page, invalid("unknown sort %q", q.Sort)
+	}
+	if cursor != nil && !cursor.fits(spec) {
+		return page, invalid("the cursor does not belong to this list")
 	}
 	if q.Sort == SortOrder && q.Parent == "" {
 		// Season and episode numbers order one show's items. Over a whole library they have
@@ -197,10 +270,6 @@ func (d *DB) Items(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, error)
 		q.Limit = defaultPageSize
 	}
 	q.Limit = min(q.Limit, maxPageSize)
-	cursor, err := decodeCursor(q.Cursor, q.Sort, q.Desc, len(spec.columns))
-	if err != nil {
-		return page, err
-	}
 	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return page, err
@@ -232,10 +301,13 @@ func (d *DB) Items(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, error)
 		page.Items = page.Items[:q.Limit]
 		last := page.Items[q.Limit-1]
 		next := listCursor{Sort: q.Sort, Desc: q.Desc, ID: last.ID}
-		if values := last.sortValues(q.Sort); values[0] == nil {
+		if q.Sort == SortRandom {
+			next.Seed = seed
+		}
+		if last.sortValues[0] == nil {
 			next.Nulls = true
 		} else {
-			next.Values = values
+			next.Values = last.sortValues
 		}
 		page.NextCursor = next.encode()
 	}
@@ -254,7 +326,8 @@ func (d *DB) Items(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, error)
 // listRun reads one run of a page: the rows that have a sort value, or the rows that do not.
 func listRun(ctx context.Context, tx *sql.Tx, where *query, spec sortSpec, q ItemQuery, after *listCursor, nulls bool, page *ItemPage) error {
 	run := &query{args: append([]any(nil), where.args...)}
-	run.add(`SELECT `, itemColumns, ` FROM `, where.from, stateJoin, where.pageWhere())
+	// The sort's own values are read with each row: the last row's are the next cursor.
+	run.add(`SELECT `, itemColumns, `, `, strings.Join(spec.columns, ", "), ` FROM `, where.from, stateJoin, where.pageWhere())
 	columns := append(append([]string(nil), spec.columns...), "i.id")
 	if nulls {
 		run.add(` AND `, spec.columns[0], ` IS NULL`)
@@ -282,40 +355,51 @@ func listRun(ctx context.Context, tx *sql.Tx, where *query, spec sortSpec, q Ite
 	defer rows.Close()
 	for rows.Next() {
 		var it Item
-		if err := scanItem(rows, &it); err != nil {
+		it.sortValues = make([]any, len(spec.columns))
+		dest := make([]any, len(spec.columns))
+		for n := range dest {
+			dest[n] = &it.sortValues[n]
+		}
+		if err := scanItem(rows, &it, dest...); err != nil {
 			return err
+		}
+		for n, value := range it.sortValues {
+			if text, ok := value.([]byte); ok {
+				it.sortValues[n] = string(text)
+			}
 		}
 		page.Items = append(page.Items, it)
 	}
 	return rows.Err()
 }
 
-// sortValues is an item's position in a sort, as the cursor carries it.
-func (it *Item) sortValues(sort string) []any {
-	switch sort {
-	case SortAdded:
-		return []any{it.AddedAt}
-	case SortYear:
-		if it.Year == 0 {
-			return []any{nil}
-		}
-		return []any{it.Year}
-	case SortRelease:
-		if it.ReleaseDate == "" {
-			return []any{nil}
-		}
-		return []any{it.ReleaseDate}
-	case SortOrder:
-		var parent, index int
-		if it.ParentIndex != nil {
-			parent = *it.ParentIndex
-		}
-		if it.IndexNumber != nil {
-			index = *it.IndexNumber
-		}
-		return []any{parent, index, it.sortTitle}
+// cursorAt returns the cursor that makes a list carry on just after one of its items.
+func cursorAt(ctx context.Context, tx *sql.Tx, v Viewer, q ItemQuery, item int64) (string, error) {
+	spec, ok := sortFor(q.Sort, 0)
+	if !ok || q.Sort == SortRandom {
+		return "", invalid("a list cannot be carried on from an item in the sort %q", q.Sort)
 	}
-	return []any{it.sortTitle}
+	at := listCursor{Sort: q.Sort, Desc: q.Desc, ID: item}
+	values := make([]any, len(spec.columns))
+	dest := make([]any, len(spec.columns))
+	for n := range dest {
+		dest[n] = &values[n]
+	}
+	if err := tx.QueryRowContext(ctx, `SELECT `+strings.Join(spec.columns, ", ")+` FROM items i WHERE i.id = @item`,
+		append(v.args(), sql.Named("item", item))...).Scan(dest...); err != nil {
+		return "", err
+	}
+	for n, value := range values {
+		if text, ok := value.([]byte); ok {
+			values[n] = string(text)
+		}
+	}
+	if values[0] == nil {
+		at.Nulls = true
+	} else {
+		at.Values = values
+	}
+	return at.encode(), nil
 }
 
 // rareTag is how many uses make a tag common. A list filtered by a rarer tag starts from the
