@@ -22,7 +22,10 @@ type Scanner struct {
 	Prober Prober
 	// Source opens the tree a library folder points at. With none, every folder is a local one.
 	Source func(root string) Source
-	Log    *slog.Logger
+	// Pictures takes a copy of each picture found beside the media. With none, those
+	// pictures are listed as files and never become artwork.
+	Pictures Pictures
+	Log      *slog.Logger
 	// BatchFiles is about how many files go into one transaction. 0 means 200.
 	BatchFiles int
 	// Progress, if set, is told how far a scan has got after every folder with changes and
@@ -58,7 +61,7 @@ func (s *Scanner) Scan(ctx context.Context, lib db.Library) (Stats, error) {
 		return Stats{}, err
 	}
 	r := &run{s: s, ctx: ctx, lib: lib, names: namesKind(lib.Kind), scan: scan, claimed: map[int64]bool{}, sources: map[string]Source{}, walked: map[string]bool{},
-		nfos: map[string][]localmetadata.VideoNFO{}}
+		nfos: map[string][]localmetadata.VideoNFO{}, shows: map[string]showLocal{}}
 	if r.batch = s.BatchFiles; r.batch <= 0 {
 		r.batch = 200
 	}
@@ -115,6 +118,7 @@ type run struct {
 	sources map[string]Source
 	walked  map[string]bool                     // folders this scan has already taken, by Entry.FolderID
 	nfos    map[string][]localmetadata.VideoNFO // NFO files read by this scan, by path
+	shows   map[string]showLocal                // the pictures in a show's own folder, by folder
 }
 
 func (r *run) source(root string) Source {
@@ -202,6 +206,10 @@ type folder struct {
 	files   []*found // every file the scan keeps, by name
 	media   []*found
 	differs bool
+	fresh   bool // the last scan did not store this folder
+	// changed are the names, in lower case, of the NFO files and pictures here that were
+	// added, changed or removed since the last scan.
+	changed []string
 }
 
 func (r *run) walkFolder(rel string, entries []Entry, depth int, disk int64) error {
@@ -228,7 +236,7 @@ func (r *run) walkFolder(rel string, entries []Entry, depth int, disk int64) err
 	if err != nil {
 		return err
 	}
-	f := &folder{rel: rel, disk: disk, differs: !stored.Known}
+	f := &folder{rel: rel, disk: disk, differs: !stored.Known, fresh: !stored.Known}
 	var folders []string
 	disks := map[string]int64{}
 	inDisc := discFolder(path.Base(rel))
@@ -373,6 +381,16 @@ func (r *run) store(f *folder, gone []db.FileRef) error {
 	if err := r.findMoves(f, &gone); err != nil {
 		return err
 	}
+	for _, file := range f.files {
+		if file.state != same && (file.role == db.FileMetadata || file.role == db.FileArtwork) {
+			f.changed = append(f.changed, strings.ToLower(file.entry.Name))
+		}
+	}
+	for _, ref := range gone {
+		if was := role(r.lib.Kind, ref.Name); was == db.FileMetadata || was == db.FileArtwork {
+			f.changed = append(f.changed, strings.ToLower(ref.Name))
+		}
+	}
 	units := r.units(f)
 	// Files no title claimed are stored too: artwork, sidecars of nothing, files with problems.
 	rest := unit{}
@@ -505,7 +523,7 @@ func (r *run) units(f *folder) []unit {
 	case db.LibraryMovies:
 		return r.filmUnits(f)
 	case db.LibraryShows, db.LibraryAnime:
-		return r.showUnits(f)
+		return append(r.rereadUnits(f), r.showUnits(f)...)
 	}
 	return nil
 }

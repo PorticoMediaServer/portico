@@ -105,11 +105,19 @@ type ImportItem struct {
 	CommunityRating float64
 	DurationMS      int64 // 0 means take the first version's
 	Summary         string
-	ExternalIDs     []ExternalID
-	Tags            []TagName
-	Credits         []ImportCredit
-	Images          []ImportImage
-	Versions        []ImportVersion
+	Tagline         string
+	// LocalFields names the fields and lists above that an NFO file or the file's own tags
+	// gave (the Field names in metadata.go). They are kept when a provider is asked.
+	LocalFields []string
+	// Reread says an NFO file or a picture of this title changed, was added or went: its
+	// local fields and pictures are stored again on the title it already is, except where a
+	// person has locked them. An item that only re-reads (no Versions) is never created by it.
+	Reread      bool
+	ExternalIDs []ExternalID
+	Tags        []TagName
+	Credits     []ImportCredit
+	Images      []ImportImage
+	Versions    []ImportVersion
 	// ParentRow names the parent by its place in this batch's Items, counting from 1, for a
 	// parent that has no library-wide key (a season). 0 means use Parent.
 	ParentRow int
@@ -145,13 +153,15 @@ type ImportCredit struct {
 	Character string
 }
 
-// ImportImage is a picture found beside or inside the files.
+// ImportImage is a picture found beside or inside the files. File is the library file a
+// picture beside the media was copied from: the picture changes and goes with it.
 type ImportImage struct {
 	Role     ImageRole
 	Source   ImageSource
 	FileHash string
 	Width    int
 	Height   int
+	File     *FileRef
 }
 
 // ImportVersion is one playable version of an item: the files or file ranges it is made of.
@@ -446,6 +456,10 @@ func (im *importer) file(ref FileRef) (*importedFile, error) {
 
 func (im *importer) importItem(it *ImportItem, stats *ImportStats) error {
 	parent, keys, err := im.place(it)
+	if errors.Is(err, errNothingToReread) {
+		im.rows = append(im.rows, nil)
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -469,11 +483,20 @@ func (im *importer) importItem(it *ImportItem, stats *ImportStats) error {
 			return err
 		}
 	}
+	if found == nil && it.Reread && len(it.Versions) == 0 {
+		im.rows = append(im.rows, nil)
+		return nil
+	}
 	if found == nil {
 		stats.ItemsNew++
 		return im.createItem(it, parent, keys)
 	}
 	im.rows = append(im.rows, found)
+	if it.Reread {
+		if err := im.reread(found.id, it); err != nil {
+			return err
+		}
+	}
 	// A key the item did not have yet is added, so the title is found by it next time too.
 	for _, key := range keys {
 		if im.items[key] == nil {
@@ -603,8 +626,11 @@ func (im *importer) createItem(it *ImportItem, parent *importedItem, keys []Item
 			return err
 		}
 	}
-	for position, image := range it.Images {
-		if err := im.insertImage(id, position, image); err != nil {
+	if err := im.localImages(id, it.Images); err != nil {
+		return err
+	}
+	if len(it.LocalFields) > 0 {
+		if _, err := im.exec(`UPDATE items SET local_fields = ?, tagline = ? WHERE id = ?`, fieldList(it.LocalFields), nz(it.Tagline), id); err != nil {
 			return err
 		}
 	}
