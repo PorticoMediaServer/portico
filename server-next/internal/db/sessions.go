@@ -195,6 +195,8 @@ type SessionState struct {
 	ManageUntil time.Time
 	// Hours are the account's viewing hours.
 	Hours auth.Hours
+	// HomeOnly: the account may be used only on the owner's home networks.
+	HomeOnly bool
 
 	DevicePublicID string
 	InstallationID string
@@ -213,7 +215,7 @@ func sessionState(ctx context.Context, q queryer, id int64) (SessionState, error
 			s.revoked_at IS NOT NULL, s.refresh_hash, ifnull(s.previous_refresh_hash, ''), ifnull(s.previous_request_id, ''),
 			u.id, u.public_id, u.role, u.disabled_at IS NOT NULL,
 			ifnull(p.id, 0), ifnull(p.public_id, ''), ifnull(p.is_primary, 0), s.scope = 'member', s.scope = 'enrol',
-			ifnull(s.manage_until_at, 0), ifnull(u.viewing_hours, ''),
+			ifnull(s.manage_until_at, 0), ifnull(u.viewing_hours, ''), u.home_only,
 			d.public_id, d.client_id
 		FROM sessions s JOIN users u ON u.id = s.user_id JOIN devices d ON d.id = s.device_id
 		LEFT JOIN profiles p ON p.id = s.profile_id
@@ -221,7 +223,7 @@ func sessionState(ctx context.Context, q queryer, id int64) (SessionState, error
 		&s.revoked, &s.refreshHash, &s.previousHash, &s.previousRequestID,
 		&s.UserID, &s.UserPublicID, &s.UserRole, &s.disabled,
 		&s.ProfileID, &s.ProfilePublicID, &s.ProfilePrimary, &s.MemberOnly, &s.Enrol,
-		&manageUntil, &hours,
+		&manageUntil, &hours, &s.HomeOnly,
 		&s.DevicePublicID, &s.InstallationID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return s, ErrNotFound
@@ -253,6 +255,8 @@ type NewSession struct {
 	ExpiresAt   time.Time
 	Device      DeviceInfo
 	RemoteAddr  string
+	// AtHome says the request came from one of the owner's home networks.
+	AtHome bool
 	// KeepEnded is how long the account's ended sessions stay listed; older ones are dropped.
 	KeepEnded time.Duration
 	// MemberOnly starts a session that never has more than a member's rights, whichever
@@ -267,6 +271,10 @@ type NewSession struct {
 // ErrOutsideHours: the account has viewing hours and this is not one of them. Nothing was
 // changed: a sign-in already held is kept for later.
 var ErrOutsideHours = errors.New("outside the account's viewing hours")
+
+// ErrAwayFromHome: the account is limited to the home network and this request came from
+// somewhere else. Nothing was changed: a sign-in already held is kept for later.
+var ErrAwayFromHome = errors.New("the account is limited to the home network")
 
 // viewingOpen reports whether an account may be used now.
 func viewingOpen(q queryer, userID int64, now time.Time) (bool, error) {
@@ -299,14 +307,21 @@ func (d *DB) ViewingOpen(ctx context.Context, userID int64, now time.Time) (open
 }
 
 // startSession registers the device and inserts the session, for a user already proven.
-// Outside the account's viewing hours it is ErrOutsideHours, and the caller's transaction
-// must change nothing.
+// Outside the account's viewing hours it is ErrOutsideHours, and away from home for an
+// account limited to home it is ErrAwayFromHome; the caller's transaction must then change nothing.
 func startSession(tx *sql.Tx, userID int64, n NewSession, now time.Time) (SessionState, error) {
 	at := now.UnixMilli()
 	if open, err := viewingOpen(tx, userID, now); err != nil {
 		return SessionState{}, err
 	} else if !open {
 		return SessionState{}, ErrOutsideHours
+	}
+	var homeOnly bool
+	if err := tx.QueryRow(`SELECT home_only FROM users WHERE id = ?`, userID).Scan(&homeOnly); err != nil {
+		return SessionState{}, err
+	}
+	if homeOnly && !n.AtHome {
+		return SessionState{}, ErrAwayFromHome
 	}
 	var deviceID int64
 	// A name someone gave the device is kept; the app's own facts are brought up to date.
@@ -480,7 +495,9 @@ type Renewal struct {
 	InstallationID string
 	ExpiresAt      time.Time
 	RemoteAddr     string
-	Now            time.Time
+	// AtHome says the request came from one of the owner's home networks.
+	AtHome bool
+	Now    time.Time
 }
 
 // RenewSession rotates the refresh token. replayed is true when this is the same renewal
@@ -506,6 +523,11 @@ func (d *DB) RenewSession(ctx context.Context, r Renewal) (out SessionState, rep
 		// Outside viewing hours the token is not used up: the same renewal works later.
 		if open, _ := s.Hours.Open(r.Now); !open {
 			refused = ErrOutsideHours
+			return nil
+		}
+		// Nor away from home, for an account limited to home: it works again back at home.
+		if s.HomeOnly && !r.AtHome {
+			refused = ErrAwayFromHome
 			return nil
 		}
 		switch {

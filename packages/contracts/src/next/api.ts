@@ -391,6 +391,7 @@ export interface Member extends Account {
   twoFactorEnabled: boolean;
   notes?: string;
   viewingHours?: Hours;
+  homeOnly: boolean;
 }
 
 export interface MemberCreate {
@@ -407,6 +408,7 @@ export interface MemberEdit {
   allLibraries?: boolean;
   libraries?: string[];
   viewingHours?: Hours;
+  homeOnly?: boolean;
 }
 
 export interface MemberPage {

@@ -28,6 +28,8 @@ type Member struct {
 	Notes string `json:"notes,omitempty"`
 	// ViewingHours are the times of the week the account may be used; absent means any time.
 	ViewingHours *auth.Hours `json:"viewingHours,omitempty"`
+	// HomeOnly says the account can be used only on the home network.
+	HomeOnly bool `json:"homeOnly"`
 }
 
 // MemberCreate makes an account directly, with a first password to pass on to its person.
@@ -50,6 +52,10 @@ type MemberEdit struct {
 	// account may be used at any time. Outside them it cannot sign in, a title that is
 	// playing stops within a quarter of an hour, and its devices stay signed in for later.
 	ViewingHours *auth.Hours `json:"viewingHours,omitempty"`
+	// HomeOnly limits the account to the home network: the owner's home networks in the
+	// network settings. Away from home it cannot sign in, and a device that leaves home
+	// stops within a quarter of an hour and stays signed in for when it is back.
+	HomeOnly *bool `json:"homeOnly,omitempty"`
 }
 
 // PasswordResetCreate asks for a reset code for a member.
@@ -77,7 +83,7 @@ func memberOut(m db.Member) Member {
 		libraries = []string{}
 	}
 	out := Member{Account: accountOut(m.Account), Disabled: m.Disabled, CreatedAt: m.CreatedAt.UTC(), AllLibraries: m.AllLibraries,
-		Libraries: libraries, TwoFactorEnabled: m.TwoFactor, Notes: m.Notes}
+		Libraries: libraries, TwoFactorEnabled: m.TwoFactor, Notes: m.Notes, HomeOnly: m.HomeOnly}
 	if m.ViewingHours != "" {
 		out.ViewingHours = &auth.Hours{}
 		json.Unmarshal([]byte(m.ViewingHours), out.ViewingHours)
@@ -187,7 +193,7 @@ func (s *Server) editMember(r *http.Request, req MemberEdit) (Member, error) {
 		hours = &stored
 	}
 	m, err := s.db.UpdateMember(r.Context(), db.MemberEdit{ActorID: caller.UserID, ActorRole: caller.Role, PublicID: r.PathValue("id"),
-		Role: req.Role, Disabled: req.Disabled, Notes: req.Notes, AllLibraries: req.AllLibraries, Libraries: req.Libraries, ViewingHours: hours, Now: s.now()})
+		Role: req.Role, Disabled: req.Disabled, Notes: req.Notes, AllLibraries: req.AllLibraries, Libraries: req.Libraries, ViewingHours: hours, HomeOnly: req.HomeOnly, Now: s.now()})
 	return memberOut(m), memberError(err)
 }
 

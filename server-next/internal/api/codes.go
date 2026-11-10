@@ -134,6 +134,8 @@ func (s *Server) collectCode(r *http.Request, req CodeCollect) (CodeResult, erro
 		return CodeResult{}, refusal(http.StatusForbidden, "sign_in_denied", "This sign-in was not approved.", false)
 	case errors.Is(err, db.ErrOutsideHours):
 		return CodeResult{}, errOutsideHours()
+	case errors.Is(err, db.ErrAwayFromHome):
+		return CodeResult{}, errAwayFromHome()
 	case errors.Is(err, db.ErrNotFound), errors.Is(err, db.ErrBadCredentials):
 		return CodeResult{}, refusal(http.StatusGone, "code_expired", "This code has expired. Start again.", false)
 	case err != nil:

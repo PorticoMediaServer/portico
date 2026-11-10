@@ -188,6 +188,49 @@ func TestViewingHours(t *testing.T) {
 	}
 }
 
+// An account limited to home signs in on the owner's home networks and nowhere else. Away
+// from home the reason is told only to someone who knows the password, and a device that
+// leaves home keeps its sign-in for when it is back.
+func TestAccountLimitedToHome(t *testing.T) {
+	s := newTestServer(t)
+	owner := onMainProfile(t, s)
+	const home, away = "192.168.1.20", "198.51.100.9"
+	network := NetworkSettingsEdit{HomeNetworks: &[]string{"192.168.1.0/24"}, TrustedProxies: []string{}}
+	if got := status(t, s, "PUT", "/v1/admin/settings/network", owner.AccessToken, network); got != 200 {
+		t.Fatalf("saving the home networks answered %d", got)
+	}
+	max := addMember(t, s, owner.AccessToken, "max", "member")
+	yes := true
+	var edited Member
+	if w := call(t, s, "PATCH", "/v1/admin/members/"+max.ID, owner.AccessToken, MemberEdit{HomeOnly: &yes}, &edited); w.Code != 200 || !edited.HomeOnly {
+		t.Fatalf("limiting an account to home answered %d: %s", w.Code, w.Body)
+	}
+
+	signIn := SignInRequest{Username: "max", Password: testPassword, Device: device(5)}
+	var refused errorBody
+	r := newRequest("POST", "/v1/auth/sign-in", "", signIn)
+	r.RemoteAddr = away + ":4000"
+	if w := serve(s, r); w.Code != 403 || jsonInto(w, &refused) != nil || refused.Error.Code != "away_from_home" {
+		t.Fatalf("signing in away from home answered %d %+v", w.Code, refused.Error)
+	}
+	wrong := signIn
+	wrong.Password = "not the password"
+	if got := from(t, s, away, "", "POST", "/v1/auth/sign-in", "", wrong, nil); got != 401 {
+		t.Errorf("a wrong password away from home answered %d: the limit is told only to someone who knows the password", got)
+	}
+	var in SignInResponse
+	if got := from(t, s, home, "", "POST", "/v1/auth/sign-in", "", signIn, &in); got != 200 {
+		t.Fatalf("signing in at home answered %d", got)
+	}
+	renewal := RefreshRequest{RefreshToken: in.Session.RefreshToken, InstallationID: device(5).InstallationID, RequestID: "left-home"}
+	if got := from(t, s, away, "", "POST", "/v1/auth/refresh", "", renewal, nil); got != 403 {
+		t.Errorf("renewing away from home answered %d, want 403", got)
+	}
+	if got := from(t, s, home, "", "POST", "/v1/auth/refresh", "", renewal, nil); got != 200 {
+		t.Errorf("the same renewal back at home answered %d: the sign-in was not kept", got)
+	}
+}
+
 func mustClaims(t *testing.T, s *Server, token string) auth.Claims {
 	t.Helper()
 	claims, err := s.tokens.ExpiredAccess(token)
