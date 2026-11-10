@@ -362,6 +362,12 @@ func (s *Service) Change(ctx context.Context, id string, c Caller, ch Change) (S
 	if a.Audio != nil || a.Subtitle != nil {
 		s.remember(ctx, c.Viewer, r, a.Audio != nil, a.Subtitle != nil)
 	}
+	if a.SubtitleOffsetMs != nil {
+		// A timing nudge is kept for this title, and does not carry to the next.
+		if err := s.db.SetSubtitleOffset(ctx, c.Viewer, r.item.PublicID, *a.SubtitleOffsetMs, s.now()); err != nil {
+			s.log.Error("keeping a subtitle timing nudge failed", "error", err)
+		}
+	}
 	return out, nil
 }
 

@@ -979,6 +979,42 @@
         ],
         "type": "object"
       },
+      "ItemSubtitle": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlaybackSubtitle"
+          },
+          {
+            "properties": {
+              "versionId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "versionId"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "ItemSubtitles": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ItemSubtitle"
+            },
+            "type": "array"
+          },
+          "offsetMs": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "offsetMs"
+        ],
+        "type": "object"
+      },
       "Key": {
         "properties": {
           "createdAt": {
@@ -1116,6 +1152,71 @@
           "id",
           "name",
           "kind"
+        ],
+        "type": "object"
+      },
+      "LyricLine": {
+        "properties": {
+          "atMs": {
+            "type": "integer"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "type": "object"
+      },
+      "Lyrics": {
+        "properties": {
+          "format": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/LyricLine"
+            },
+            "type": "array"
+          },
+          "offsetMs": {
+            "type": "integer"
+          },
+          "origin": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "origin",
+          "format",
+          "text",
+          "lines",
+          "offsetMs"
+        ],
+        "type": "object"
+      },
+      "LyricsPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Lyrics"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
         ],
         "type": "object"
       },
@@ -2798,6 +2899,17 @@
           "trackId",
           "kind",
           "delivery"
+        ],
+        "type": "object"
+      },
+      "SubtitleOffset": {
+        "properties": {
+          "offsetMs": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "offsetMs"
         ],
         "type": "object"
       },
@@ -4487,6 +4599,43 @@
         "x-access": "withProfile"
       }
     },
+    "/v1/items/{id}/lyrics": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LyricsPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
     "/v1/items/{id}/playback-options": {
       "get": {
         "parameters": [
@@ -4589,6 +4738,90 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StateReply"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/items/{id}/subtitles": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemSubtitles"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/items/{id}/subtitles/offset": {
+      "put": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubtitleOffset"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubtitleOffset"
                 }
               }
             },

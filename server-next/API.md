@@ -162,6 +162,8 @@ session is unknown (`404`), and the app starts again by itself where it was.
 | `PATCH /v1/playback/sessions/{id}` | Pause, play, seek, change version, audio, subtitles or quality, or report that the player could not play it |
 | `PUT /v1/playback/sessions/{id}/progress` | Where the player is. Answers how long the session now lives and when to report next (10 seconds while playing). `410` when the session is over. |
 | `DELETE /v1/playback/sessions/{id}` | Stop, with the final position. Safe to repeat; an unknown session stops fine. Also stops another device of the same account. |
+| `GET /v1/items/{id}/subtitles`, `PUT /v1/items/{id}/subtitles/offset` | A title's subtitles (in the file, or beside it) and the timing nudge this profile gave them, which is kept for that title |
+| `GET /v1/items/{id}/lyrics` | A song's lyrics from files beside it, timed lines in order |
 | `GET /v1/admin/playback/stream-limits`, `PUT /v1/admin/playback/stream-limits` | The owner's stream limits: in total, per person, and for one person |
 | `GET /v1/admin/playback/failures`, `DELETE /v1/admin/playback/failures/{id}` | Remembered "this way of playing this file failed on this device", and forgetting one |
 

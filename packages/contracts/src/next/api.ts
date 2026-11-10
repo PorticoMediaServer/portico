@@ -298,6 +298,15 @@ export interface ItemState {
   updatedAt?: string;
 }
 
+export interface ItemSubtitle extends PlaybackSubtitle {
+  versionId: string;
+}
+
+export interface ItemSubtitles {
+  items: ItemSubtitle[];
+  offsetMs: number;
+}
+
 export interface Key {
   id: string;
   name: string;
@@ -334,6 +343,25 @@ export interface Library {
   views?: View[];
   sorts?: Sort[];
   filters?: Filter[];
+}
+
+export interface LyricLine {
+  atMs?: number;
+  text: string;
+}
+
+export interface Lyrics {
+  id: string;
+  origin: string;
+  format: string;
+  text: string;
+  lines: LyricLine[];
+  offsetMs: number;
+}
+
+export interface LyricsPage {
+  items: Lyrics[];
+  nextCursor?: string;
 }
 
 export interface Marker {
@@ -845,6 +873,10 @@ export interface SubtitleInForce {
   delivery: string;
 }
 
+export interface SubtitleOffset {
+  offsetMs: number;
+}
+
 export interface SubtitlePick {
   trackId?: string | null;
   delivery?: string;
@@ -1002,4 +1034,7 @@ export interface Routes {
   'PUT /v1/admin/playback/stream-limits': {access: 'owner'; request: StreamLimits; response: StreamLimits};
   'GET /v1/admin/playback/failures': {access: 'owner'; request: undefined; response: RememberedFailurePage};
   'DELETE /v1/admin/playback/failures/{id}': {access: 'owner'; request: undefined; response: undefined};
+  'GET /v1/items/{id}/subtitles': {access: 'withProfile'; request: undefined; response: ItemSubtitles};
+  'PUT /v1/items/{id}/subtitles/offset': {access: 'withProfile'; request: SubtitleOffset; response: SubtitleOffset};
+  'GET /v1/items/{id}/lyrics': {access: 'withProfile'; request: undefined; response: LyricsPage};
 }
