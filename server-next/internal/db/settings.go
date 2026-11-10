@@ -57,9 +57,6 @@ func (d *DB) Ping(ctx context.Context) error {
 	return d.read.QueryRowContext(ctx, `SELECT 1`).Scan(&one)
 }
 
-// ErrStale: the document was saved by someone else since the caller read it.
-var ErrStale = errors.New("the document has changed")
-
 // SettingDocument returns one of the owner's settings documents and the number of times it
 // has been saved, which is 0 for a document still at its defaults.
 func (d *DB) SettingDocument(ctx context.Context, key string) (value string, revision int64, err error) {
