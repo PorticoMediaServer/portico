@@ -146,3 +146,10 @@ func (d *DB) Close() error {
 	<-d.helperDone
 	return errors.Join(d.read.Close(), d.helper.Close(), d.writeConn.Close(), d.file.Close())
 }
+
+// SkipDiskSync makes commits return without waiting for the disk. It is for the load tool
+// alone, to time everything a write waits for except the disk. A power cut then loses data.
+func (d *DB) SkipDiskSync() {
+	d.writeConn.Exec(`PRAGMA synchronous = OFF`)
+	d.helper.Exec(`PRAGMA synchronous = OFF`)
+}

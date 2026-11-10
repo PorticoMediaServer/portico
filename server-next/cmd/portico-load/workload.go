@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"math/rand/v2"
+	"os"
 	"slices"
 	"sort"
 	"strings"
@@ -55,6 +56,7 @@ type workload struct {
 	mu       sync.Mutex
 	reads    map[string][]time.Duration
 	writes   []time.Duration
+	spans    []span // each write, from when it was due to when it returned
 	failures int
 }
 
@@ -111,7 +113,7 @@ func newWorkload(ctx context.Context, d *db.DB, viewers []db.Viewer) (*workload,
 // called. That function returns what was measured: reads by class (and "all"), and writes.
 func (w *workload) start(ctx context.Context, readers, writesPerSec int) func() (map[string]Timing, Timing) {
 	ctx, cancel := context.WithCancel(ctx)
-	w.reads, w.writes = map[string][]time.Duration{}, nil
+	w.reads, w.writes, w.spans = map[string][]time.Duration{}, nil, nil
 	var wg sync.WaitGroup
 	for n := range readers {
 		wg.Go(func() { w.read(ctx, rand.New(rand.NewPCG(uint64(n), 99))) })
@@ -285,7 +287,72 @@ func (w *workload) write(ctx context.Context, perSec int) {
 				println("write failed:", err.Error())
 			}
 			w.writes = append(w.writes, time.Since(due))
+			w.spans = append(w.spans, span{due, time.Now()})
 			w.mu.Unlock()
 		}
 	}
+}
+
+// diskProbe appends 4 KiB to a file beside the database and syncs it, at a steady rate, until
+// the returned function is called. It is what the disk gives any small write at that moment,
+// with none of the database's code in the way.
+func diskProbe(dir string, perSec int) func() (Timing, []span) {
+	f, err := os.CreateTemp(dir, "sync-probe-*")
+	if err != nil {
+		log.Fatal(err)
+	}
+	done, stopped := make(chan struct{}), make(chan struct{})
+	var spans []span
+	go func() {
+		defer close(stopped)
+		block := make([]byte, 4096)
+		tick := time.NewTicker(time.Second / time.Duration(perSec))
+		defer tick.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-tick.C:
+				started := time.Now()
+				if _, err := f.Write(block); err != nil {
+					log.Fatal(err)
+				}
+				if err := f.Sync(); err != nil {
+					log.Fatal(err)
+				}
+				spans = append(spans, span{started, time.Now()})
+			}
+		}
+	}()
+	return func() (Timing, []span) {
+		close(done)
+		<-stopped
+		f.Close()
+		os.Remove(f.Name())
+		took := make([]time.Duration, len(spans))
+		for i, s := range spans {
+			took[i] = s.end.Sub(s.start)
+		}
+		return summarise(took), spans
+	}
+}
+
+type span struct{ start, end time.Time }
+
+// slowTogether counts the spans in a that took at least slow, and how many of those overlap
+// a span in b that also took at least slow.
+func slowTogether(a, b []span, slow time.Duration) (n, together int) {
+	for _, x := range a {
+		if x.end.Sub(x.start) < slow {
+			continue
+		}
+		n++
+		for _, y := range b {
+			if y.end.Sub(y.start) >= slow && y.start.Before(x.end) && x.start.Before(y.end) {
+				together++
+				break
+			}
+		}
+	}
+	return n, together
 }
