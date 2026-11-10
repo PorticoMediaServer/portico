@@ -153,7 +153,8 @@ CREATE INDEX directories_parent ON directories (parent_id);
 
 -- large. Every file found: media, subtitle, artwork, NFO, lyrics. A disc title is the playlist
 -- file inside the disc folder. Probe facts about the whole file live here; its tracks are
--- media_streams rows.
+-- media_streams rows. seen_scan is the scan that added or last changed the row. problem is why
+-- the file is in the library's Files skipped list, or NULL.
 CREATE TABLE files (
   id            INTEGER NOT NULL PRIMARY KEY,
   directory_id  INTEGER NOT NULL REFERENCES directories(id) ON DELETE CASCADE,
@@ -171,11 +172,16 @@ CREATE TABLE files (
   duration_ms   INTEGER,
   bitrate       INTEGER,
   extra         TEXT,
+  problem       INTEGER,
   UNIQUE (directory_id, name)
 );
 CREATE INDEX files_fingerprint ON files (fingerprint) WHERE fingerprint IS NOT NULL;
 CREATE INDEX files_sidecar ON files (media_id) WHERE media_id IS NOT NULL;
 CREATE INDEX files_unprobed ON files (probe_version, id) WHERE probed_at IS NULL;
+-- A media file found at a new place with the size and modified time of one that is gone is the
+-- same file, moved.
+CREATE INDEX files_same ON files (size, modified_ns) WHERE role = 1;
+CREATE INDEX files_problem ON files (directory_id) WHERE problem IS NOT NULL;
 
 -- ---------------------------------------------------------------------------------------
 -- C. Catalogue
@@ -771,3 +777,17 @@ CREATE TABLE playback_route_failures (
 ) STRICT;
 CREATE INDEX playback_route_failures_file ON playback_route_failures (file_id);
 CREATE INDEX playback_route_failures_expiry ON playback_route_failures (expires_at);
+
+-- What each profile had on a title that was removed (its trash was emptied, it was deleted, or
+-- its folder left the library), so watched, progress, rating and favourite return if the title
+-- is added again. identity is the title's provider id when it had one, and its kind, name and
+-- year (under its show or album) either way. state is the user_item_state row as JSON.
+CREATE TABLE removed_state (
+  library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+  identity   TEXT    NOT NULL,
+  profile_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  state      TEXT    NOT NULL,
+  removed_at INTEGER NOT NULL,
+  PRIMARY KEY (library_id, identity, profile_id)
+) STRICT, WITHOUT ROWID;
+CREATE INDEX removed_state_profile ON removed_state (profile_id);
