@@ -43,26 +43,35 @@ var searchSQL string
 
 // searchFormat is raised when search.sql changes, or the way rows are written into it. A file
 // of another format cannot answer today's queries, so it is discarded at once.
-const searchFormat = "1"
+const searchFormat = "2"
 
 // searchFolding is the word rules the text is folded with. A file folded under other rules
 // still answers, a little wrongly, while its replacement is built.
 var searchFolding = searchtext.Stamp()
 
-// Besides words, a row holds two kinds of key, each one word that begins with a character
-// no title, name or query can contain, so nothing a person types ever matches one by chance:
-// the whole title as a single word, which makes "is exactly this title" one lookup, and the id
-// of each item the row sits under.
+// Besides words, a row holds keys, each one word that begins with a character no title, name
+// or query can contain, so nothing a person types ever matches one by chance: the whole title
+// as a single word, which makes "is exactly this title" one lookup; the id of each item the
+// row sits under; and two facts about an item, its library and its rating age, so that a
+// count can be narrowed to some libraries and ratings without reading a row of main.db. The
+// facts are not rules: who may see which library or rating is only ever read from main.db.
 const (
-	searchWholeMark = "\uE000"
-	searchWordJoin  = "\uE002"
-	searchUnderMark = "\uE001"
+	searchWholeMark   = "\uE000"
+	searchWordJoin    = "\uE002"
+	searchUnderMark   = "\uE001"
+	searchLibraryMark = "\uE003"
+	searchRatingMark  = "\uE004"
 )
 
 // searchWhole is a title's words as its one-word key.
 func searchWhole(words []string) string { return searchWholeMark + strings.Join(words, searchWordJoin) }
 
 func searchUnder(id int64) string { return searchUnderMark + strconv.FormatInt(id, 10) }
+
+func searchLibrary(id int64) string { return searchLibraryMark + strconv.FormatInt(id, 10) }
+
+// searchRating is the key of a rating age; an item with no rating has none.
+func searchRating(age int64) string { return searchRatingMark + strconv.FormatInt(age, 10) }
 
 const (
 	searchFollowBatch = 500  // changes applied in one search.db transaction
@@ -297,17 +306,18 @@ func searchTitle(text string) (title, joined string, keys []string) {
 // those of kinds that are not searched.
 func (d *DB) searchItemDocs(ctx context.Context, tail string, args ...any) (docs []searchDoc, present []int64, err error) {
 	rows, err := d.read.QueryContext(ctx, `SELECT i.id, i.kind, i.title, ifnull(i.original_title, ''), ifnull(i.parent_id, 0),
-		ifnull(i.root_id, 0), ifnull(p.kind, 0), ifnull(p.title, ''), ifnull(r.kind, 0), ifnull(r.title, '')
+		ifnull(i.root_id, 0), ifnull(p.kind, 0), ifnull(p.title, ''), ifnull(r.kind, 0), ifnull(r.title, ''), i.library_id, i.rating_age
 		FROM items i LEFT JOIN items p ON p.id = i.parent_id LEFT JOIN items r ON r.id = i.root_id WHERE `+tail, args...)
 	if err != nil {
 		return nil, nil, err
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var id, parentID, rootID int64
+		var id, parentID, rootID, library int64
 		var kind, parentKind, rootKind ItemKind
 		var title, original, parentTitle, rootTitle string
-		if err := rows.Scan(&id, &kind, &title, &original, &parentID, &rootID, &parentKind, &parentTitle, &rootKind, &rootTitle); err != nil {
+		var rating sql.NullInt64
+		if err := rows.Scan(&id, &kind, &title, &original, &parentID, &rootID, &parentKind, &parentTitle, &rootKind, &rootTitle, &library, &rating); err != nil {
 			return nil, nil, err
 		}
 		present = append(present, id)
@@ -336,6 +346,9 @@ func (d *DB) searchItemDocs(ctx context.Context, tail string, args ...any) (docs
 			if above != 0 {
 				keys = append(keys, searchUnder(above))
 			}
+		}
+		if keys = append(keys, searchLibrary(library)); rating.Valid {
+			keys = append(keys, searchRating(rating.Int64))
 		}
 		doc.other, doc.keys = strings.Join(other, " "), strings.Join(keys, " ")
 		docs = append(docs, doc)
@@ -399,7 +412,7 @@ func (w searchWriter) add(doc searchDoc) error {
 }
 
 // put writes a row unless the index already holds exactly it. changed says whether the row
-// was there with another title or under other items: both are in its keys.
+// was there with another title or under other items, which the rows under it carry too.
 func (w searchWriter) put(doc searchDoc) (changed bool, err error) {
 	old, found, err := w.get(doc.row)
 	if err != nil || found && old == doc {
@@ -410,7 +423,18 @@ func (w searchWriter) put(doc searchDoc) (changed bool, err error) {
 			return false, err
 		}
 	}
-	return found && old.keys != doc.keys, w.add(doc)
+	return found && (old.title != doc.title || old.joined != doc.joined || placeKeys(old.keys) != placeKeys(doc.keys)), w.add(doc)
+}
+
+// placeKeys is the part of a row's keys that says what it sits under.
+func placeKeys(keys string) string {
+	var above []string
+	for _, key := range strings.Fields(keys) {
+		if strings.HasPrefix(key, searchUnderMark) {
+			above = append(above, key)
+		}
+	}
+	return strings.Join(above, " ")
 }
 
 // under lists the rows of the items that sit under an item.
