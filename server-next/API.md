@@ -189,6 +189,18 @@ Listed route by route with each console panel's definition. Resources:
 | Server operations | 38 | Settings; jobs and schedules; logs; backups; updates; restart; dashboard; storage; diagnostics; notices; feedback triage; resource usage |
 | Keys, tools, webhooks | 9 | Server API keys; webhooks; MCP. A person's own tokens and app passwords are under `/v1/me` |
 
+### Library collections (3)
+
+For the owner and administrators. A library's collection is an item of kind `collection` that
+everyone with the library sees, read like any title (`GET /v1/items?library=…&kind=collection`,
+`GET /v1/items/{id}`, `GET /v1/items?collection={id}`). A person's own collections are lists.
+
+| Route | Purpose |
+|---|---|
+| `POST /v1/admin/libraries/{id}/collections` | Make one with a title and its titles in order (films, shows and other top-level titles of that library). Takes an `Idempotency-Key` |
+| `PATCH /v1/admin/collections/{id}` | Rename, `add`, `remove` and `order` its titles. Safe to repeat: adding a title it holds changes nothing. What it changes holds against automatic grouping |
+| `DELETE /v1/admin/collections/{id}` | Remove it; its titles stay. A collection whose last title leaves the server goes with it |
+
 ## Not on the wire, on purpose
 
 `viewerFence`, `expectedRevision`, `operationId`, a "preparing" answer on a read, query handles,
