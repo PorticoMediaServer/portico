@@ -47,7 +47,13 @@ type LibraryOptions struct {
 	// RescanMinutes is how often the library's local folders are scanned by themselves; 0 is
 	// no periodic scan. Watching and a periodic scan are separate choices: one, both or neither.
 	RescanMinutes int `json:"rescanMinutes,omitempty"`
+	// Lyrics is a music library's lyrics source: "" for its files only (the default), or
+	// LyricsLRCLIB for its files, then LRCLIB.
+	Lyrics string `json:"lyrics,omitempty"`
 }
+
+// LyricsLRCLIB is a music library that looks up lyrics its files do not have at LRCLIB.
+const LyricsLRCLIB = "lrclib"
 
 // TrashRule says when a library's missing titles are removed.
 type TrashRule struct {

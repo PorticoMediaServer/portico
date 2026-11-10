@@ -15,6 +15,8 @@ type Service struct {
 	Providers map[string]Provider // by Name
 	// IncludeAdult is the owner's "Include adult titles" switch.
 	IncludeAdult bool
+	// Lyrics is the lyrics provider, or nil.
+	Lyrics LyricsProvider
 }
 
 // defaultProviders is the provider a library of each kind uses until the owner chooses.
