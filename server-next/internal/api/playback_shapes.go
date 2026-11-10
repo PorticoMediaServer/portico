@@ -158,6 +158,9 @@ type PlaybackOptions struct {
 type PlaybackLease struct {
 	ExpiresAt     time.Time `json:"expiresAt"`
 	ReportEveryMs int64     `json:"reportEveryMs"`
+	// Generation is the session's current presentation.generation. An app that is playing
+	// an earlier one reads the session and loads the new address.
+	Generation int `json:"generation,omitempty"`
 }
 
 // Presentation is what the device plays now. A change of quality, audio or version replaces

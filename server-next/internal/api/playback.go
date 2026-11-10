@@ -234,7 +234,8 @@ func (s *Server) reportPlayback(r *http.Request, req PlaybackProgress) (Playback
 	if err != nil {
 		return PlaybackLease{}, playbackError(err)
 	}
-	return PlaybackLease{ExpiresAt: session.LeaseUntil.UTC(), ReportEveryMs: session.ReportEvery().Milliseconds()}, nil
+	return PlaybackLease{ExpiresAt: session.LeaseUntil.UTC(), ReportEveryMs: session.ReportEvery().Milliseconds(),
+		Generation: session.Generation}, nil
 }
 
 // stopPlayback is safe to repeat: stopping a session that is unknown or already over succeeds.
