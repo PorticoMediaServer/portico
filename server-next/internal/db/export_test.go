@@ -28,3 +28,10 @@ func SetRatingAge(d *DB, publicID string, age int) error {
 		return b.ratingChanged(id)
 	})
 }
+
+// ChooseMatch marks a title's match as chosen by a person, which only the metadata editor's
+// own writes do.
+func ChooseMatch(d *DB, publicID string) error {
+	_, err := d.writeConn.Exec(`UPDATE items SET match_state = ? WHERE public_id = ?`, MatchChosen, publicID)
+	return err
+}
