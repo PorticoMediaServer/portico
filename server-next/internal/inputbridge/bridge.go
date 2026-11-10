@@ -17,6 +17,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
@@ -37,6 +38,7 @@ type Bridge struct {
 	ipv6     *net.TCPListener
 	requests chan struct{}
 	done     chan struct{}
+	closing  sync.Once
 }
 
 // Open starts serving a source of a known size on a fresh loopback port, on
@@ -90,13 +92,13 @@ func (b *Bridge) Reserve() (*decoder.EndpointReservation, error) {
 
 // Close stops serving and drops open connections. It is safe to call twice.
 func (b *Bridge) Close() error {
-	select {
-	case <-b.done:
-		return nil
-	default:
+	// The context ending and the caller can both close at the same moment.
+	var err error
+	b.closing.Do(func() {
 		close(b.done)
-	}
-	return b.server.Close()
+		err = b.server.Close()
+	})
+	return err
 }
 
 func (b *Bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
