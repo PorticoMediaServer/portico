@@ -157,6 +157,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.identityRoutes()
 	s.authRoutes()
 	s.profileRoutes()
+	s.restrictionRoutes()
 	s.preferenceRoutes()
 	s.deviceRoutes()
 	s.memberRoutes()
