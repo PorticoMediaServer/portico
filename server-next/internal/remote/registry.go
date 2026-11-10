@@ -137,6 +137,7 @@ type opened struct {
 	storage  Storage
 	throttle *Throttle
 	every    time.Duration
+	listOnly bool
 	state    string
 }
 
@@ -224,7 +225,7 @@ func (r *Registry) Open(ctx context.Context, id int64) (Storage, time.Duration, 
 	o := r.open[id]
 	r.mu.Unlock()
 	if o != nil && o.revision == revision {
-		return watched{o.storage, r, id}, o.every, nil
+		return watched{o.storage, r, id, o.listOnly}, o.every, nil
 	}
 	var c Config
 	if err := json.Unmarshal([]byte(row.Config), &c); err != nil {
@@ -241,14 +242,15 @@ func (r *Registry) Open(ctx context.Context, id int64) (Storage, time.Duration, 
 	}
 	preset, _ := PresetNamed(c.Preset)
 	throttle := NewThrottle(c.limits())
-	o = &opened{revision: revision, raw: storage, storage: Throttled(storage, throttle), throttle: throttle, every: preset.RescanEvery, state: row.State}
+	o = &opened{revision: revision, raw: storage, storage: Throttled(storage, throttle), throttle: throttle, every: preset.RescanEvery, listOnly: preset.Name == "list-only",
+		state: row.State}
 	r.mu.Lock()
 	if old := r.open[id]; old != nil {
 		closeStorage(old.raw)
 	}
 	r.open[id] = o
 	r.mu.Unlock()
-	return watched{o.storage, r, id}, o.every, nil
+	return watched{o.storage, r, id, o.listOnly}, o.every, nil
 }
 
 // Waiting reports whether the source was told to slow down and until when.
@@ -303,9 +305,14 @@ func (r *Registry) found(id int64, err error) {
 // watched tells the registry how each request to a source went.
 type watched struct {
 	Storage
-	r  *Registry
-	id int64
+	r        *Registry
+	id       int64
+	listOnly bool
 }
+
+// ReadsFiles says whether a scan may read inside the source's files: not on Just list the
+// files, where a file is first read when someone plays it.
+func (w watched) ReadsFiles() bool { return !w.listOnly }
 
 func (w watched) List(ctx context.Context, dir string) ([]Entry, error) {
 	entries, err := w.Storage.List(ctx, dir)

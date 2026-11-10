@@ -164,6 +164,13 @@ type Remote struct {
 	Root    string
 }
 
+// readsFiles says whether a scan reads inside the folder's files. A source on Just list the
+// files says no.
+func (r Remote) readsFiles() bool {
+	choice, ok := r.Storage.(interface{ ReadsFiles() bool })
+	return !ok || choice.ReadsFiles()
+}
+
 // LocalPath is always "": remote storage is never mounted.
 func (Remote) LocalPath(string) string { return "" }
 

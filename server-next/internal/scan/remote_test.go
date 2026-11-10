@@ -111,3 +111,48 @@ func TestAFolderOnRemoteStorage(t *testing.T) {
 		t.Fatal("a due scan should list the source, read nothing again and mark the removed film missing")
 	}
 }
+
+// listOnly is a source on Just list the files.
+type listOnly struct{ remote.Storage }
+
+func (listOnly) ReadsFiles() bool { return false }
+
+// The lower setting wins: a source on Just list the files has its files listed and none
+// read, and a library on File list only reads no file at all, local or remote.
+func TestListOnlyReadsNothing(t *testing.T) {
+	f := newFixture(t, db.LibraryMovies)
+	f.write("Alien (1979).mkv")
+	reads := &reader{}
+	f.s.Remote = func(context.Context, int64) (remote.Storage, time.Duration, error) {
+		return listOnly{&storage{root: f.root}}, time.Hour, nil
+	}
+	f.s.ReaderProber = reads
+	f.lib = f.library()
+	f.lib.Paths[0].RemoteID, f.lib.Paths[0].Path = 1, ""
+	if _, err := f.s.Scan(ctx, f.lib); err != nil {
+		t.Fatal(err)
+	}
+	if reads.calls.Load() != 0 || !f.detail(f.film("Alien").PublicID).Available {
+		t.Fatalf("a list-only source: %d files read", reads.calls.Load())
+	}
+
+	local := newFixture(t, db.LibraryMovies)
+	local.write("Heat (1995).mkv")
+	local.lib = local.library()
+	local.lib.Options.Depth = db.DepthFiles
+	if _, err := local.s.Scan(ctx, local.lib); err != nil {
+		t.Fatal(err)
+	}
+	if local.probes.calls.Load() != 0 || !local.detail(local.film("Heat").PublicID).Available {
+		t.Fatalf("a File list only library: %d files read", local.probes.calls.Load())
+	}
+}
+
+func (f *fixture) library() db.Library {
+	f.t.Helper()
+	libraries, err := f.d.AllLibraries(ctx)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	return libraries[0]
+}
