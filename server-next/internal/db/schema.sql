@@ -445,7 +445,7 @@ CREATE TABLE users (
 
 -- Viewing profiles. Each account has one main profile (is_primary), made with the account: it
 -- cannot be deleted, and only it carries the account's owner or admin role. access_changed_at moves whenever what the profile may see changes, and
--- clients throw their cache away. history_cleared_at drops older offline progress.
+-- clients throw their cache away. History shows no play from before history_cleared_at.
 CREATE TABLE profiles (
   id                 INTEGER NOT NULL PRIMARY KEY,
   public_id          TEXT    NOT NULL UNIQUE,

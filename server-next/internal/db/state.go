@@ -203,11 +203,9 @@ func (w *stateWriter) apply(itemID string, edit StateEdit) (State, *undoOffer, e
 	var state State
 	var id, libraryID, duration int64
 	var kind ItemKind
-	var cleared sql.NullInt64
-	err := w.queryRow(`SELECT i.id, i.kind, i.library_id, ifnull(i.duration_ms, 0),
-		(SELECT history_cleared_at FROM profiles WHERE id = @viewer_profile)
+	err := w.queryRow(`SELECT i.id, i.kind, i.library_id, ifnull(i.duration_ms, 0)
 		FROM items i WHERE i.public_id = @item AND `+w.access.visible("i"), w.named(sql.Named("item", itemID))...).
-		Scan(&id, &kind, &libraryID, &duration, &cleared)
+		Scan(&id, &kind, &libraryID, &duration)
 	if errors.Is(err, sql.ErrNoRows) {
 		return state, nil, ErrNotFound
 	}
@@ -251,10 +249,9 @@ func (w *stateWriter) apply(itemID string, edit StateEdit) (State, *undoOffer, e
 		}
 	})
 
-	// Watched and progress made before the profile's history was cleared stay cleared.
 	watching := edit.Watched != nil || edit.PositionMS != nil || edit.PositionText != nil
 	var offer *undoOffer
-	if watching && !(cleared.Valid && at < cleared.Int64) {
+	if watching {
 		switch {
 		case edit.Watched != nil && !kind.Playable():
 			if offer, err = w.markLeaves(id, *edit.Watched, at); err != nil {

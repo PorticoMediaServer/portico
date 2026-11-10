@@ -131,8 +131,10 @@ func TitleKind(libraryKind string) db.ItemKind {
 }
 
 // State gives each profile about target state rows spread over the library: mostly watched,
-// some part-way through, some favourites and some on My List. It reads the lists once, the
-// way an app does, and writes through the same state path as background work. A restricted
+// some part-way through, some favourites and some on My List. A title watched to the end is
+// a finished play on some day of the last half year, saved through playback's own path, so
+// it is in the profile's History too. It reads the lists once, the way an app does, and
+// writes through the same state path as background work. A restricted
 // profile ends with fewer rows, because an edit to a title it may not see is refused.
 func State(ctx context.Context, d *db.DB, viewers []db.Viewer, target int, seed uint64) (int, error) {
 	if len(viewers) == 0 {
@@ -157,6 +159,8 @@ func State(ctx context.Context, d *db.DB, viewers []db.Viewer, target int, seed 
 	chance := float64(target) / float64(leaves)
 	random := make([]*rand.Rand, len(viewers))
 	pending := make([][]db.ItemEdit, len(viewers))
+	plays := make([][]db.Progress, len(viewers))
+	now := time.Now()
 	for n, v := range viewers {
 		random[n] = rand.New(rand.NewPCG(seed, uint64(v.ProfileID)))
 	}
@@ -171,6 +175,16 @@ func State(ctx context.Context, d *db.DB, viewers []db.Viewer, target int, seed 
 			}
 		}
 		pending[n] = pending[n][:0]
+		if err == nil && len(plays[n]) > 0 {
+			var finished []bool
+			finished, err = d.SaveProgress(ctx, db.Background, plays[n])
+			for _, done := range finished {
+				if done {
+					written++
+				}
+			}
+		}
+		plays[n] = plays[n][:0]
 		return err
 	}
 	yes := true
@@ -188,6 +202,11 @@ func State(ctx context.Context, d *db.DB, viewers []db.Viewer, target int, seed 
 					}
 					edit := db.ItemEdit{ItemID: item.PublicID}
 					switch pick := r.IntN(10); {
+					case pick < 6 && item.DurationMS > 0:
+						at := now.Add(-time.Duration(r.Int64N(int64(180 * 24 * time.Hour))))
+						plays[n] = append(plays[n], db.Progress{Viewer: viewers[n], ItemID: item.PublicID, PositionMS: item.DurationMS,
+							At: at, PlayID: fmt.Sprintf("seed-%d-%d", viewers[n].ProfileID, item.ID), WatchedMS: item.DurationMS})
+						continue
 					case pick < 6:
 						edit.Watched = &yes
 					case pick < 8 && item.DurationMS > 0:
@@ -198,7 +217,7 @@ func State(ctx context.Context, d *db.DB, viewers []db.Viewer, target int, seed 
 					default:
 						edit.InList = &yes
 					}
-					if pending[n] = append(pending[n], edit); len(pending[n]) >= 400 {
+					if pending[n] = append(pending[n], edit); len(pending[n])+len(plays[n]) >= 400 {
 						if err := flush(n); err != nil {
 							return written, err
 						}

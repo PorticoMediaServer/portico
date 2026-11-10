@@ -128,7 +128,7 @@ Assistant) are a separate short document and are not counted here.
 | `PUT /v1/items/{id}/state` | **The one state route.** Watched, position, favourite, My List, rating, hidden. On a show, season or album it sets every leaf and answers an undo token. |
 | `POST /v1/items/state:batch` | The same for many items (what a device queued while out of reach) |
 | `POST /v1/items/state:undo` | Undo a container change within about a minute |
-| `GET /v1/history`, `DELETE /v1/history/{id}`, `DELETE /v1/history` | Your play history: list, remove one, clear |
+| `GET /v1/history`, `DELETE /v1/history/{id}`, `DELETE /v1/history` | Your finished plays, newest first, by `period` (`24h`, `7d`, `30d`, `90d`, `all`): list, remove one, clear. The owner's play record keeps every play |
 | `GET /v1/lists`, `POST /v1/lists` | Playlists, collections and saved views (`kind`) |
 | `GET /v1/lists/{id}`, `PATCH /v1/lists/{id}`, `DELETE /v1/lists/{id}` | Read, rename, delete |
 | `POST /v1/lists/{id}/entries`, `PATCH /v1/lists/{id}/entries/{entryId}`, `DELETE /v1/lists/{id}/entries/{entryId}` | Add, move, remove entries. Entries are read with `GET /v1/items?list=`. |
