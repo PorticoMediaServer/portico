@@ -126,6 +126,52 @@
         ],
         "type": "object"
       },
+      "Credit": {
+        "properties": {
+          "character": {
+            "type": "string"
+          },
+          "image": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "personId": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "personId",
+          "name",
+          "role"
+        ],
+        "type": "object"
+      },
+      "CreditPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Credit"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "type": "object"
+      },
       "Device": {
         "properties": {
           "app": {
@@ -266,6 +312,42 @@
         ],
         "type": "object"
       },
+      "FacetValue": {
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "count"
+        ],
+        "type": "object"
+      },
+      "Facets": {
+        "properties": {
+          "facet": {
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "$ref": "#/components/schemas/FacetValue"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "facet",
+          "values"
+        ],
+        "type": "object"
+      },
       "Field": {
         "properties": {
           "code": {
@@ -285,6 +367,27 @@
         ],
         "type": "object"
       },
+      "Filter": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "type"
+        ],
+        "type": "object"
+      },
       "Health": {
         "properties": {
           "status": {
@@ -293,6 +396,46 @@
         },
         "required": [
           "status"
+        ],
+        "type": "object"
+      },
+      "Home": {
+        "properties": {
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/HomeRow"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "rows"
+        ],
+        "type": "object"
+      },
+      "HomeRow": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Item"
+            },
+            "type": "array"
+          },
+          "shape": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "shape",
+          "items"
         ],
         "type": "object"
       },
@@ -468,6 +611,224 @@
         ],
         "type": "object"
       },
+      "Item": {
+        "properties": {
+          "addedAt": {
+            "type": "string"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "contentRating": {
+            "type": "string"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/ItemCounts"
+          },
+          "creditTotal": {
+            "type": "integer"
+          },
+          "credits": {
+            "items": {
+              "$ref": "#/components/schemas/Credit"
+            },
+            "type": "array"
+          },
+          "durationMs": {
+            "type": "integer"
+          },
+          "edition": {
+            "type": "string"
+          },
+          "externalIds": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "id": {
+            "type": "string"
+          },
+          "images": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "index": {
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "libraryId": {
+            "type": "string"
+          },
+          "originalTitle": {
+            "type": "string"
+          },
+          "parent": {
+            "$ref": "#/components/schemas/ItemRef"
+          },
+          "parentId": {
+            "type": "string"
+          },
+          "parentIndex": {
+            "type": "integer"
+          },
+          "ratings": {
+            "$ref": "#/components/schemas/Ratings"
+          },
+          "releaseDate": {
+            "type": "string"
+          },
+          "root": {
+            "$ref": "#/components/schemas/ItemRef"
+          },
+          "rootId": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ItemState"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "tagline": {
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "$ref": "#/components/schemas/Tag"
+            },
+            "type": "array"
+          },
+          "title": {
+            "type": "string"
+          },
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/Media"
+            },
+            "type": "array"
+          },
+          "year": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "title",
+          "addedAt",
+          "images",
+          "state"
+        ],
+        "type": "object"
+      },
+      "ItemCounts": {
+        "properties": {
+          "children": {
+            "type": "integer"
+          },
+          "leaves": {
+            "type": "integer"
+          },
+          "unwatchedLeaves": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "children",
+          "leaves",
+          "unwatchedLeaves"
+        ],
+        "type": "object"
+      },
+      "ItemPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Item"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "ItemRef": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "index": {
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "title"
+        ],
+        "type": "object"
+      },
+      "ItemState": {
+        "properties": {
+          "favorite": {
+            "type": "boolean"
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "inList": {
+            "type": "boolean"
+          },
+          "lastPlayedAt": {
+            "type": "string"
+          },
+          "playCount": {
+            "type": "integer"
+          },
+          "position": {
+            "type": "string"
+          },
+          "positionMs": {
+            "type": "integer"
+          },
+          "rating": {
+            "type": "integer"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "watched": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "watched",
+          "playCount",
+          "favorite",
+          "inList",
+          "hidden"
+        ],
+        "type": "object"
+      },
       "Key": {
         "properties": {
           "createdAt": {
@@ -557,6 +918,79 @@
         ],
         "type": "object"
       },
+      "Libraries": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Library"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "Library": {
+        "properties": {
+          "filters": {
+            "items": {
+              "$ref": "#/components/schemas/Filter"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sorts": {
+            "items": {
+              "$ref": "#/components/schemas/Sort"
+            },
+            "type": "array"
+          },
+          "views": {
+            "items": {
+              "$ref": "#/components/schemas/View"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "Marker": {
+        "properties": {
+          "endMs": {
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "startMs": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "startMs",
+          "endMs"
+        ],
+        "type": "object"
+      },
       "Me": {
         "properties": {
           "account": {
@@ -576,6 +1010,66 @@
           "account",
           "role",
           "canManageAccount"
+        ],
+        "type": "object"
+      },
+      "Media": {
+        "properties": {
+          "audioChannels": {
+            "type": "integer"
+          },
+          "audioCodec": {
+            "type": "string"
+          },
+          "bitrate": {
+            "type": "integer"
+          },
+          "container": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": "integer"
+          },
+          "edition": {
+            "type": "string"
+          },
+          "hdr": {
+            "type": "string"
+          },
+          "height": {
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "markers": {
+            "items": {
+              "$ref": "#/components/schemas/Marker"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "parts": {
+            "items": {
+              "$ref": "#/components/schemas/Part"
+            },
+            "type": "array"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "videoCodec": {
+            "type": "string"
+          },
+          "width": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "parts"
         ],
         "type": "object"
       },
@@ -681,6 +1175,30 @@
         ],
         "type": "object"
       },
+      "Part": {
+        "properties": {
+          "endMs": {
+            "type": "integer"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "startMs": {
+            "type": "integer"
+          },
+          "streams": {
+            "items": {
+              "$ref": "#/components/schemas/Stream"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "size",
+          "streams"
+        ],
+        "type": "object"
+      },
       "PasswordRequest": {
         "properties": {
           "code": {
@@ -739,6 +1257,44 @@
           "username",
           "code",
           "newPassword"
+        ],
+        "type": "object"
+      },
+      "Person": {
+        "properties": {
+          "biography": {
+            "type": "string"
+          },
+          "birthDate": {
+            "type": "string"
+          },
+          "birthplace": {
+            "type": "string"
+          },
+          "deathDate": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "images": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "name": {
+            "type": "string"
+          },
+          "titleCount": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "images",
+          "titleCount"
         ],
         "type": "object"
       },
@@ -839,6 +1395,17 @@
         },
         "type": "object"
       },
+      "Ratings": {
+        "properties": {
+          "community": {
+            "type": "number"
+          },
+          "critic": {
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
       "RecoveryCodes": {
         "properties": {
           "recoveryCodes": {
@@ -869,6 +1436,38 @@
           "refreshToken",
           "installationId",
           "requestId"
+        ],
+        "type": "object"
+      },
+      "Related": {
+        "properties": {
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/RelatedGroup"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "groups"
+        ],
+        "type": "object"
+      },
+      "RelatedGroup": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Item"
+            },
+            "type": "array"
+          },
+          "relation": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "relation",
+          "items"
         ],
         "type": "object"
       },
@@ -1049,6 +1648,180 @@
         },
         "type": "object"
       },
+      "Sort": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "order": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "order"
+        ],
+        "type": "object"
+      },
+      "StateReply": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ItemState"
+          },
+          {
+            "properties": {
+              "undo": {
+                "$ref": "#/components/schemas/UndoOffer"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "StateRequest": {
+        "properties": {
+          "favorite": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hidden": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "inList": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "madeAgoMs": {
+            "type": "integer"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "positionMs": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rating": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "watched": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "madeAgoMs"
+        ],
+        "type": "object"
+      },
+      "Stream": {
+        "properties": {
+          "bitDepth": {
+            "type": "integer"
+          },
+          "bitrate": {
+            "type": "integer"
+          },
+          "channelLayout": {
+            "type": "string"
+          },
+          "channels": {
+            "type": "integer"
+          },
+          "codec": {
+            "type": "string"
+          },
+          "default": {
+            "type": "boolean"
+          },
+          "forced": {
+            "type": "boolean"
+          },
+          "frameRate": {
+            "type": "number"
+          },
+          "hdr": {
+            "type": "string"
+          },
+          "hearingImpaired": {
+            "type": "boolean"
+          },
+          "height": {
+            "type": "integer"
+          },
+          "index": {
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "sampleRate": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "width": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "index",
+          "kind"
+        ],
+        "type": "object"
+      },
       "System": {
         "properties": {
           "apiMajor": {
@@ -1086,6 +1859,25 @@
           "capabilities",
           "setupRequired",
           "signInMethods"
+        ],
+        "type": "object"
+      },
+      "Tag": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "name"
         ],
         "type": "object"
       },
@@ -1172,6 +1964,43 @@
         },
         "required": [
           "code"
+        ],
+        "type": "object"
+      },
+      "UndoOffer": {
+        "properties": {
+          "expiresAt": {
+            "type": "string"
+          },
+          "token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "expiresAt"
+        ],
+        "type": "object"
+      },
+      "UndoRequest": {
+        "properties": {
+          "token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "type": "object"
+      },
+      "View": {
+        "properties": {
+          "kind": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
         ],
         "type": "object"
       },
@@ -2206,6 +3035,53 @@
         "x-access": "signedIn"
       }
     },
+    "/v1/events": {
+      "get": {
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/facets": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Facets"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
     "/v1/health/live": {
       "get": {
         "responses": {
@@ -2260,6 +3136,312 @@
         },
         "security": [],
         "x-access": "public"
+      }
+    },
+    "/v1/home": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Home"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/items": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/items/state:undo": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UndoRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/items/{id}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Item"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/items/{id}/credits": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreditPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/items/{id}/related": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Related"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/items/{id}/state": {
+      "put": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StateReply"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/libraries": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Libraries"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/libraries/{id}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Library"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
       }
     },
     "/v1/me": {
@@ -2710,6 +3892,43 @@
           }
         },
         "x-access": "signedIn"
+      }
+    },
+    "/v1/people/{id}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Person"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
       }
     },
     "/v1/profiles": {

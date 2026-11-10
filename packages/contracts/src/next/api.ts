@@ -43,6 +43,20 @@ export interface CodeStarted {
   intervalMs: number;
 }
 
+export interface Credit {
+  personId: string;
+  name: string;
+  role: string;
+  character?: string;
+  image?: string;
+}
+
+export interface CreditPage {
+  items: Credit[];
+  nextCursor?: string;
+  total: number;
+}
+
 export interface Device {
   id: string;
   name: string;
@@ -82,14 +96,42 @@ export interface ApiError {
   requestId: string;
 }
 
+export interface FacetValue {
+  value: string;
+  label?: string;
+  count: number;
+}
+
+export interface Facets {
+  facet: string;
+  values: FacetValue[];
+}
+
 export interface Field {
   path: string;
   code: string;
   message: string;
 }
 
+export interface Filter {
+  id: string;
+  type: string;
+  values?: string[];
+}
+
 export interface Health {
   status: string;
+}
+
+export interface Home {
+  rows: HomeRow[];
+}
+
+export interface HomeRow {
+  id: string;
+  title: string;
+  shape: string;
+  items: Item[];
 }
 
 export interface Invitation {
@@ -143,6 +185,70 @@ export interface InvitationPreview {
   expiresAt: string;
 }
 
+export interface Item {
+  id: string;
+  kind: string;
+  title: string;
+  year?: number;
+  releaseDate?: string;
+  parentId?: string;
+  rootId?: string;
+  index?: number;
+  parentIndex?: number;
+  durationMs?: number;
+  contentRating?: string;
+  ratings?: Ratings;
+  addedAt: string;
+  images: Record<string, string>;
+  counts?: ItemCounts;
+  state: ItemState;
+  libraryId?: string;
+  originalTitle?: string;
+  summary?: string;
+  tagline?: string;
+  edition?: string;
+  available?: boolean;
+  parent?: ItemRef;
+  root?: ItemRef;
+  tags?: Tag[];
+  externalIds?: Record<string, string>;
+  credits?: Credit[];
+  creditTotal?: number;
+  versions?: Media[];
+}
+
+export interface ItemCounts {
+  children: number;
+  leaves: number;
+  unwatchedLeaves: number;
+}
+
+export interface ItemPage {
+  items: Item[];
+  nextCursor?: string;
+  total?: number;
+}
+
+export interface ItemRef {
+  id: string;
+  kind: string;
+  title: string;
+  index?: number;
+}
+
+export interface ItemState {
+  watched: boolean;
+  positionMs?: number;
+  position?: string;
+  playCount: number;
+  lastPlayedAt?: string;
+  favorite: boolean;
+  inList: boolean;
+  hidden: boolean;
+  rating?: number;
+  updatedAt?: string;
+}
+
 export interface Key {
   id: string;
   name: string;
@@ -168,11 +274,49 @@ export interface KeyPage {
   nextCursor?: string;
 }
 
+export interface Libraries {
+  items: Library[];
+}
+
+export interface Library {
+  id: string;
+  name: string;
+  kind: string;
+  views?: View[];
+  sorts?: Sort[];
+  filters?: Filter[];
+}
+
+export interface Marker {
+  kind: string;
+  startMs: number;
+  endMs: number;
+  title?: string;
+}
+
 export interface Me {
   account: Account;
   profile?: Profile;
   role: string;
   canManageAccount: boolean;
+}
+
+export interface Media {
+  id: string;
+  name?: string;
+  edition?: string;
+  container?: string;
+  durationMs?: number;
+  bitrate?: number;
+  size?: number;
+  width?: number;
+  height?: number;
+  videoCodec?: string;
+  audioCodec?: string;
+  audioChannels?: number;
+  hdr?: string;
+  parts: Part[];
+  markers?: Marker[];
 }
 
 export interface Member extends Account {
@@ -204,6 +348,13 @@ export interface MemberPage {
   nextCursor?: string;
 }
 
+export interface Part {
+  size: number;
+  startMs?: number;
+  endMs?: number;
+  streams: Stream[];
+}
+
 export interface PasswordRequest {
   currentPassword: string;
   newPassword: string;
@@ -223,6 +374,17 @@ export interface PasswordResetRequest {
   username: string;
   code: string;
   newPassword: string;
+}
+
+export interface Person {
+  id: string;
+  name: string;
+  biography?: string;
+  birthDate?: string;
+  deathDate?: string;
+  birthplace?: string;
+  images: Record<string, string>;
+  titleCount: number;
 }
 
 export interface Profile {
@@ -259,6 +421,11 @@ export interface ProfileSelect {
   pin?: string;
 }
 
+export interface Ratings {
+  community?: number;
+  critic?: number;
+}
+
 export interface RecoveryCodes {
   recoveryCodes: string[];
 }
@@ -267,6 +434,15 @@ export interface RefreshRequest {
   refreshToken: string;
   installationId: string;
   requestId: string;
+}
+
+export interface Related {
+  groups: RelatedGroup[];
+}
+
+export interface RelatedGroup {
+  relation: string;
+  items: Item[];
 }
 
 export interface Session {
@@ -321,6 +497,47 @@ export interface SignInResponse {
   challenge?: Challenge;
 }
 
+export interface Sort {
+  id: string;
+  order: string;
+}
+
+export interface StateReply extends ItemState {
+  undo?: UndoOffer;
+}
+
+export interface StateRequest {
+  watched?: boolean | null;
+  positionMs?: number | null;
+  position?: string | null;
+  favorite?: boolean | null;
+  inList?: boolean | null;
+  hidden?: boolean | null;
+  rating?: number | null;
+  madeAgoMs: number;
+}
+
+export interface Stream {
+  index: number;
+  kind: string;
+  codec?: string;
+  profile?: string;
+  language?: string;
+  title?: string;
+  default?: boolean;
+  forced?: boolean;
+  hearingImpaired?: boolean;
+  bitrate?: number;
+  width?: number;
+  height?: number;
+  frameRate?: number;
+  bitDepth?: number;
+  hdr?: string;
+  channels?: number;
+  channelLayout?: string;
+  sampleRate?: number;
+}
+
 export interface System {
   id: string;
   name: string;
@@ -329,6 +546,12 @@ export interface System {
   capabilities: string[];
   setupRequired: boolean;
   signInMethods: string[];
+}
+
+export interface Tag {
+  id: string;
+  kind: string;
+  name: string;
 }
 
 export interface TwoFactorEnrol {
@@ -358,6 +581,19 @@ export interface TwoFactorState {
 
 export interface TwoFactorVerify {
   code: string;
+}
+
+export interface UndoOffer {
+  token: string;
+  expiresAt: string;
+}
+
+export interface UndoRequest {
+  token: string;
+}
+
+export interface View {
+  kind: string;
 }
 
 export interface Viewer {
@@ -429,4 +665,16 @@ export interface Routes {
   'GET /v1/admin/api-keys': {access: 'owner'; request: undefined; response: KeyPage};
   'POST /v1/admin/api-keys': {access: 'owner'; request: KeyCreate; response: KeyCreated};
   'DELETE /v1/admin/api-keys/{id}': {access: 'owner'; request: undefined; response: undefined};
+  'GET /v1/libraries': {access: 'withProfile'; request: undefined; response: Libraries};
+  'GET /v1/libraries/{id}': {access: 'withProfile'; request: undefined; response: Library};
+  'GET /v1/items': {access: 'withProfile'; request: undefined; response: ItemPage};
+  'GET /v1/items/{id}': {access: 'withProfile'; request: undefined; response: Item};
+  'GET /v1/items/{id}/credits': {access: 'withProfile'; request: undefined; response: CreditPage};
+  'GET /v1/items/{id}/related': {access: 'withProfile'; request: undefined; response: Related};
+  'GET /v1/people/{id}': {access: 'withProfile'; request: undefined; response: Person};
+  'GET /v1/facets': {access: 'withProfile'; request: undefined; response: Facets};
+  'GET /v1/home': {access: 'withProfile'; request: undefined; response: Home};
+  'PUT /v1/items/{id}/state': {access: 'withProfile'; request: StateRequest; response: StateReply};
+  'POST /v1/items/state:undo': {access: 'withProfile'; request: UndoRequest; response: undefined};
+  'GET /v1/events': {access: 'withProfile'; request: undefined; response: undefined};
 }
