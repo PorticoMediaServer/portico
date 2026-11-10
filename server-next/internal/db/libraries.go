@@ -50,6 +50,8 @@ type LibraryOptions struct {
 	// Lyrics is a music library's lyrics source: "" for its files only (the default), or
 	// LyricsLRCLIB for its files, then LRCLIB.
 	Lyrics string `json:"lyrics,omitempty"`
+	// GroupSeries is "Group films from the same series": nil is on, the default.
+	GroupSeries *bool `json:"groupSeries,omitempty"`
 }
 
 // LyricsLRCLIB is a music library that looks up lyrics its files do not have at LRCLIB.
