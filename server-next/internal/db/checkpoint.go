@@ -26,20 +26,18 @@ import (
 //   - Once the file passes walDrainBytes the writer holds background work back and takes only
 //     people's writes. The helper then copies every few milliseconds, and whenever the writer
 //     has nothing to do it tries to empty the file, without waiting for anyone. With the
-//     import quiet that works as soon as the reads in flight have finished. Background work
-//     then goes on. A person's write never waits for any of this.
-//   - People writing without a gap, or a read that does not end, can keep that from working.
-//     After walDrainPatience background work goes on anyway, and is held back again when the
-//     file has grown by half of walDrainBytes more.
-//   - If the file reaches walInsistBytes all the same, the writer waits up to walInsistWait
-//     for reads, once a second, and empties it. A pause in writing is better than a file with
-//     no limit.
+//     import quiet that works as soon as the reads in flight have finished, and background
+//     work goes on. A person's write never waits for any of this. The price is the import's:
+//     while reads that take long follow one another without a gap, it waits.
+//   - With the import held, only people's own writes can still grow the file. If they take it
+//     to walInsistBytes, which needs a read that does not end or writes without a gap for a
+//     long time, the writer waits up to walInsistWait for reads, once a second, and empties
+//     it. A pause in writing is better than a file with no limit.
 const (
 	walKeepBytes      = 16 << 20
 	walInsistWait     = 2 * time.Second
 	walHelperInterval = 500 * time.Millisecond
 	walDrainInterval  = 10 * time.Millisecond
-	walDrainPatience  = 2 * time.Second
 )
 
 // Variables so a test can reach them with a small database.
@@ -106,22 +104,9 @@ func (d *DB) afterWrite() {
 		return
 	}
 	size, _ := d.walSize()
-	now := time.Now()
-	switch {
-	case size < walDrainBytes:
-		d.draining.Store(false)
-		d.drainFrom = walDrainBytes
-	case d.draining.Load():
-		if now.After(d.drainUntil) {
-			d.draining.Store(false)
-			d.drainFrom = size + walDrainBytes/2
-		}
-	case size >= d.drainFrom:
-		d.draining.Store(true)
-		d.drainUntil = now.Add(walDrainPatience)
-	}
-	if size >= walInsistBytes && now.After(d.nextInsist) {
-		d.nextInsist = now.Add(time.Second)
+	d.draining.Store(size >= walDrainBytes)
+	if size >= walInsistBytes && time.Now().After(d.nextInsist) {
+		d.nextInsist = time.Now().Add(time.Second)
 		d.emptyWAL(walInsistWait)
 	}
 }
