@@ -661,6 +661,41 @@ func TestTrackPicksAreRemembered(t *testing.T) {
 	}
 }
 
+// A title that stops being visible without any change to the sign-in (here it is removed from
+// the library) ends its playback at the next once-a-minute check, not before and not never.
+func TestATitleRemovedWhilePlayingEndsWithinAMinute(t *testing.T) {
+	th := newTheatre(t)
+	token := th.owner.AccessToken
+	ctx := context.Background()
+	session := th.play(token, th.film)
+	th.s.playback.Sweep(ctx) // the check runs now, so the next one is a minute away
+
+	all, _ := th.s.db.AllLibraries(ctx)
+	for _, lib := range all {
+		if lib.Kind != db.LibraryMovies {
+			continue
+		}
+		if err := th.s.db.MarkFolderGone(ctx, lib.ID, lib.Paths[0].ID, ""); err != nil {
+			t.Fatal(err)
+		}
+		if n, err := th.s.db.EmptyTrash(ctx, lib.ID, time.Now().Add(time.Hour)); err != nil || n != 1 {
+			t.Fatalf("removing the film: %d, %v", n, err)
+		}
+	}
+	th.clock = th.clock.Add(30 * time.Second)
+	th.s.playback.Sweep(ctx)
+	if th.engine.streams() != 1 {
+		t.Fatal("playback ended before the check was due")
+	}
+	th.clock = th.clock.Add(31 * time.Second)
+	th.s.playback.Sweep(ctx)
+	var over PlaybackSession
+	call(t, th.s, "GET", "/v1/playback/sessions/"+session.ID, token, nil, &over)
+	if over.State != "ended" || over.End == nil || over.End.Reason != "access_removed" || th.engine.streams() != 0 {
+		t.Fatalf("a minute after the film was removed: %+v, %d streams", over, th.engine.streams())
+	}
+}
+
 // A way of playing that failed on a device is remembered for that device and file: the
 // session moves to the next way, the next start begins there, the owner can see it and
 // forget it, and it expires by itself.
