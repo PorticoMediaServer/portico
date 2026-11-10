@@ -12,6 +12,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"syscall"
 )
 
 // Entry is one name in a folder listing.
@@ -129,11 +130,16 @@ type localFile struct {
 func (f localFile) Size() int64 { return f.size }
 
 func (l Local) Open(ctx context.Context, rel string) (File, error) {
-	f, err := os.Open(l.LocalPath(rel))
+	// O_NONBLOCK: a named pipe put where a file was opens at once and is refused,
+	// where a plain open would wait for ever for somebody to write to it.
+	f, err := os.OpenFile(l.LocalPath(rel), os.O_RDONLY|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return nil, err
 	}
 	info, err := f.Stat()
+	if err == nil && !info.Mode().IsRegular() {
+		err = errors.New(rel + " is not a regular file")
+	}
 	if err != nil {
 		f.Close()
 		return nil, err
