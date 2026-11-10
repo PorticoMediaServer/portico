@@ -113,7 +113,7 @@ func TestTheOwnerManagesLibrariesScansAndDeletes(t *testing.T) {
 	}
 
 	// Deleting is off until the owner allows it, and wants the title typed.
-	heat := missingItemID(t, s, lib.ID, "Heat")
+	heat := missingItemID(t, s, owner, lib.ID, "Heat")
 	item := "/v1/admin/items/" + heat
 	var preview DeletionPreview
 	if w := call(t, s, "GET", item+"/deletion", owner, nil, &preview); w.Code != 200 || preview.Titles != 1 || preview.Files != 1 || preview.Bytes != 101 {
@@ -142,7 +142,7 @@ func TestTheOwnerManagesLibrariesScansAndDeletes(t *testing.T) {
 
 	// The added folder was scanned; taking it out removes its title and leaves its file.
 	scanNow(t, s, owner, lib.ID)
-	missingItemID(t, s, lib.ID, "Ronin")
+	missingItemID(t, s, owner, lib.ID, "Ronin")
 	only := LibraryEdit{Folders: &[]string{root}}
 	if w := call(t, s, "PATCH", base, owner, only, &lib); w.Code != 200 || len(lib.Folders) != 1 {
 		t.Fatalf("removing a folder: %d %s", w.Code, w.Body)
@@ -176,15 +176,23 @@ func TestTheOwnerManagesLibrariesScansAndDeletes(t *testing.T) {
 	}
 }
 
-// missingItemID finds a film of a library by title, through the data layer the browse routes
-// will use, and fails the test if it is not there.
-func missingItemID(t *testing.T, s *Server, library, title string) string {
+// missingItemID finds a film of a library by title through the browse route, and fails the
+// test if it is not there.
+func missingItemID(t *testing.T, s *Server, token, library, title string) string {
 	t.Helper()
-	id, err := s.db.ItemIDByTitle(t.Context(), library, title)
-	if err != nil {
-		t.Fatalf("no title %q in the library: %v", title, err)
+	var page struct {
+		Items []struct{ ID, Title string }
 	}
-	return id
+	if w := call(t, s, "GET", "/v1/items?kind=movie&library="+library, token, nil, &page); w.Code != 200 {
+		t.Fatalf("listing the library answered %d: %s", w.Code, w.Body)
+	}
+	for _, item := range page.Items {
+		if item.Title == title {
+			return item.ID
+		}
+	}
+	t.Fatalf("no title %q in the library: %+v", title, page.Items)
+	return ""
 }
 
 // memberToken makes a member and returns a session of theirs on their main profile.
