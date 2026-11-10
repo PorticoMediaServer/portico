@@ -112,9 +112,11 @@ export class Outbox {
     return promise;
   }
 
-  /** Try now: a new entry, a sign-in, or the network coming back. A wait the server asked for is kept. */
+  /** Try now: a new entry, a sign-in, or the network coming back. A wait the server asked for is kept;
+   * an entry's own wait after a 5xx is not, since it only spaces out retries while nothing has changed. */
   wake(): void {
     if (!this.serverAskedToWait) this.retryAt = 0;
+    this.failed.clear();
     void this.pump();
   }
 
