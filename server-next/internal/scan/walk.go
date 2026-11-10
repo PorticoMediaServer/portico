@@ -35,7 +35,7 @@ type Scanner struct {
 	// because the owner asked. Such a scan lists a remote folder only when its source is due;
 	// a local folder is listed by every scan, and so is everything when the owner asks.
 	Scheduled bool
-	Log   *slog.Logger
+	Log       *slog.Logger
 	// BatchFiles is about how many files go into one transaction. 0 means 200.
 	BatchFiles int
 	// Progress, if set, is told how far a scan has got after every folder with changes and
