@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/artwork"
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
@@ -45,6 +46,8 @@ type Server struct {
 	// setupCode is what creating the owner needs. It is made at start while there is no
 	// account, and written to the log and to setupFile, never sent to an app.
 	setupCode, setupFile string
+	// artwork is where pictures are kept. See images.go.
+	artwork *artwork.Store
 	// playback runs the viewing sessions. See playback.go.
 	playback *playback.Service
 }
@@ -163,6 +166,8 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.invitationRoutes()
 	s.keyRoutes()
 	s.catalogueRoutes()
+	s.artwork = artwork.New(dataDir)
+	s.imageRoutes()
 	s.playback = playback.New(d, playback.NoEngine{}, playback.NoEngine{}, log, func() time.Time { return s.now() })
 	go s.playback.Run(ctx)
 	s.playbackRoutes()

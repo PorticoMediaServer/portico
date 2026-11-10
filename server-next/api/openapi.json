@@ -4528,6 +4528,37 @@
         "x-access": "withProfile"
       }
     },
+    "/v1/images/{id}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "security": [],
+        "x-access": "public"
+      }
+    },
     "/v1/items": {
       "get": {
         "responses": {
