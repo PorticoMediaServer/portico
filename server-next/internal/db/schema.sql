@@ -240,7 +240,9 @@ CREATE INDEX items_by_release ON items (library_id, kind, release_date, id, rati
 -- For a profile with a rating limit: how many titles of a kind it may see, and which, when few.
 CREATE INDEX items_by_rating ON items (library_id, kind, rating_age);
 CREATE INDEX items_children ON items (parent_id, parent_index, index_number, id);
-CREATE INDEX items_descendants ON items (root_id, kind, parent_index, index_number, id);
+-- Ends with rating_age for the same reason: what is under a title is counted for a profile
+-- with a rating limit from the index alone.
+CREATE INDEX items_descendants ON items (root_id, kind, parent_index, index_number, id, rating_age);
 -- Three reads of the matcher, each over top-level titles only (an episode follows its show):
 -- titles no provider has been asked about yet, a library's Unmatched items list (looked up
 -- without a confident answer; a title kept as it is is off the list), and matched titles by
