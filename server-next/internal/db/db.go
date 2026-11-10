@@ -40,6 +40,9 @@ type DB struct {
 	helper     *sql.DB
 	helperDone chan struct{}
 	restartDue atomic.Bool
+
+	// titleData is the title data file the reads use, or nil. See titledata.go.
+	titleData atomic.Pointer[titleData]
 }
 
 // Open opens the database at path, creating it with the current schema if it is new.
@@ -132,5 +135,5 @@ func (d *DB) ensureSchema(ctx context.Context) error {
 func (d *DB) Close() error {
 	close(d.closed)
 	<-d.helperDone
-	return errors.Join(d.read.Close(), d.helper.Close(), d.writeConn.Close())
+	return errors.Join(d.UseTitleData(""), d.read.Close(), d.helper.Close(), d.writeConn.Close())
 }

@@ -20,6 +20,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/libraryfile"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediaengine"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediaexec"
+	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/titledata"
 )
 
 // version is set by the release build.
@@ -107,6 +108,9 @@ func run(log *slog.Logger) error {
 			}
 		}
 	}()
+	// Moods and similar titles: the published title data file, checked weekly. Nothing is
+	// downloaded until a release is signed, or while the owner has it switched off.
+	go (&titledata.Updater{DB: d, Dir: filepath.Join(*data, "title-data"), Log: log}).Run(ctx)
 	// No write timeout: media and the events feed are long replies. Slow request headers are bounded.
 	srv := &http.Server{Addr: *listen, Handler: handler, ReadHeaderTimeout: 10 * time.Second}
 	failed := make(chan error, 1)
