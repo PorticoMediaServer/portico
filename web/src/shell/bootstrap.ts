@@ -1,3 +1,4 @@
+import {accessChangedEvent} from '@core/server-events.ts';
 import {readLibraries} from '@core/query/catalogue-reads.ts';
 import {readDirectAccount, readServerSystem} from '../../../packages/client-core/src/query/connection-operations.ts';
 import {createManageGate, type ManageGate} from './manage-gate';
@@ -426,6 +427,8 @@ export class ShellBootstrap {
     cleanups.push(() => auth.stop());
     const events = new EventsClient({http: localV1Http(api), openStream: browserEventStream(api, session.viewer.serverId + ':' + viewerId(session), () => session.accessToken)});
     cleanups.push(() => events.stop());
+    // What this profile may see changed on the server: everything read for it is thrown away and read again.
+    cleanups.push(events.on(accessChangedEvent, () => {if (isCurrent()) this.restart();}));
     // The feed's position before anything below is read: what changes meanwhile is replayed as hints.
     const primed = await events.prime(signal);
     if (!isCurrent()) return;

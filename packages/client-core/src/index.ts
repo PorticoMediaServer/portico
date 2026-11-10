@@ -81,7 +81,7 @@ import {serverPath} from './query/server-api.ts';
 import {AudioSelection,emptyAudio,type AudioPlan,type AudioBinding,type AudioSelectionSnapshot} from './audio-selection.ts';
 export type {AudioPlan,AudioBinding,AudioSelectionSnapshot} from './audio-selection.ts';
 import {Outbox, sameOutboxScope, type OutboxAnswer, type OutboxEntry, type OutboxScope, type OutboxStore} from './outbox.ts';
-import {isOutboxRoute, outboxKind, type OutboxKind} from './outbox-routes.ts';
+import {isOutboxRoute, outboxBody, outboxKind, type OutboxKind} from './outbox-routes.ts';
 import {castStopKey} from './cast/sender.ts';
 import {readWriteAnswer, writeRoute, type ConfirmedWrite, type WriteAnswer} from './query/write-dependencies.ts';
 export * from './outbox.ts';
@@ -400,14 +400,14 @@ export class HttpLocalApi {
       mine();
       let token = this.token;
       if (this.auth) { token = await waitForAuth(this.auth.token(token), bounded); mine(); if (token !== this.token) throw new Error('The signed-in profile changed.'); }
-      const headers = {...entry.headers, 'Idempotency-Key': entry.id};
-      let response = await this.send(entry.path, entry.method, entry.body, bounded, token, headers);
+      const headers = {...entry.headers, 'Idempotency-Key': entry.id}, sent = () => outboxBody(entry, Date.now());
+      let response = await this.send(entry.path, entry.method, sent(), bounded, token, headers);
       if (response.status === 401 && this.auth) {
         const next = await waitForAuth(this.auth.recover(token), bounded);
         mine();
         if (next && next !== token && next === this.token) {
           void response.body?.cancel().catch(() => {});
-          response = await this.send(entry.path, entry.method, entry.body, bounded, next, headers);
+          response = await this.send(entry.path, entry.method, sent(), bounded, next, headers);
         }
       }
       const answered: Record<string, string> = {};
