@@ -30,16 +30,20 @@ func TestStateBatch(t *testing.T) {
 		{"itemId": visible[0], "watched": true},
 		{"itemId": hidden, "inList": true},
 		{"itemId": visible[1], "rating": 11},
+		{"itemId": visible[1], "favorite": true, "madeAgoMs": -1},
+		{"itemId": visible[1], "favorite": true, "madeAgoMs": int64(1 << 62)},
 		{"itemId": visible[1], "inList": true},
 	}}
 	for range 2 {
 		var reply StateBatchReply
-		if w := call(t, s, "POST", "/v1/items/state:batch", limited, batch, &reply); w.Code != 200 || len(reply.Items) != 4 {
+		if w := call(t, s, "POST", "/v1/items/state:batch", limited, batch, &reply); w.Code != 200 || len(reply.Items) != 6 {
 			t.Fatalf("the batch answered %d: %s", w.Code, w.Body)
 		}
 		got := reply.Items
 		if got[0].State == nil || !got[0].State.Watched || got[1].Error == nil || got[1].Error.Code != "not_found" ||
-			got[2].Error == nil || got[2].Error.Code != "invalid_request" || got[3].State == nil || !got[3].State.InList {
+			got[2].Error == nil || got[2].Error.Code != "invalid_request" ||
+			got[3].Error == nil || got[3].Error.Code != "invalid_request" || got[4].Error == nil || got[4].Error.Code != "invalid_request" ||
+			got[5].State == nil || !got[5].State.InList {
 			t.Fatalf("title by title: %+v", got)
 		}
 	}
