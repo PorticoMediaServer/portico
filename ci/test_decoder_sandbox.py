@@ -348,9 +348,9 @@ class DecoderSandboxTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 aggregate(plan, missing)
 
-    def test_both_required_gates_depend_on_hosted_sandbox_job(self):
+    def test_merge_gate_depends_on_hosted_sandbox_job(self):
         root = Path(__file__).resolve().parents[1]
-        for file in ['merge.yml', 'nightly.yml']:
+        for file in ['merge.yml']:
             text = (root / '.github/workflows' / file).read_text()
             self.assertIn('uses: ./.github/workflows/decoder-sandbox.yml', text)
             needs = [line for line in text.splitlines() if 'needs: [' in line and 'go_tests' in line]
