@@ -52,16 +52,34 @@ type NewAPIKey struct {
 	ExpiresAt time.Time
 	// Limit is how many live keys of this kind the account may hold.
 	Limit int
-	Now   time.Time
+	// IdempotencyKey and RequestHash make a repeated request return what it made the first time.
+	IdempotencyKey string
+	RequestHash    string
+	Now            time.Time
 }
 
 const liveKey = `revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?)`
 
-// CreateAPIKey stores a new key.
+// CreateAPIKey stores a new key. The same request sent again with its Idempotency-Key does
+// not make a second key: the server never kept the first key's secret, so the key made the
+// first time is given n.KeyHash, the secret in this answer, and the secret nobody saw stops
+// working. A key revoked since is ErrNotFound.
 func (d *DB) CreateAPIKey(ctx context.Context, n NewAPIKey) (APIKey, error) {
 	var out APIKey
 	err := d.write(ctx, User, func(tx *sql.Tx) error {
 		at := n.Now.UnixMilli()
+		ref, err := createdBefore(tx, n.UserID, n.IdempotencyKey, n.RequestHash)
+		if err != nil {
+			return err
+		}
+		if ref != "" {
+			out, err = scanKey(tx.QueryRow(`UPDATE api_keys SET key_hash = ? WHERE public_id = ? AND user_id = ? AND revoked_at IS NULL
+				RETURNING `+keyColumns, n.KeyHash, ref, n.UserID))
+			if errors.Is(err, sql.ErrNoRows) {
+				return ErrNotFound
+			}
+			return err
+		}
 		var live int
 		if err := tx.QueryRow(`SELECT count(*) FROM api_keys WHERE user_id = ? AND kind = ? AND `+liveKey, n.UserID, n.Kind, at).Scan(&live); err != nil {
 			return err
@@ -73,13 +91,15 @@ func (d *DB) CreateAPIKey(ctx context.Context, n NewAPIKey) (APIKey, error) {
 		if !n.ExpiresAt.IsZero() {
 			expires = n.ExpiresAt.UnixMilli()
 		}
-		var err error
 		out, err = scanKey(tx.QueryRow(`INSERT INTO api_keys (public_id, user_id, kind, name, key_hash, scopes, created_at, expires_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING `+keyColumns, NewID("key"), n.UserID, n.Kind, n.Name, n.KeyHash, strings.Join(n.Scopes, " "), at, expires))
 		if err != nil {
 			return err
 		}
-		return audit(tx, n.UserID, "key.create", out.PublicID, n.Kind+" "+n.Name, n.Now)
+		if err := audit(tx, n.UserID, "key.create", out.PublicID, n.Kind+" "+n.Name, n.Now); err != nil {
+			return err
+		}
+		return rememberCreated(tx, n.UserID, n.IdempotencyKey, n.RequestHash, out.PublicID, n.Now)
 	})
 	return out, err
 }

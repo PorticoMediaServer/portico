@@ -73,7 +73,10 @@ type NewInvitation struct {
 	Libraries    []string
 	Note         string
 	ExpiresAt    time.Time
-	Now          time.Time
+	// IdempotencyKey and RequestHash make a repeated request return what it made the first time.
+	IdempotencyKey string
+	RequestHash    string
+	Now            time.Time
 }
 
 // CreateInvitation stores an invitation. Inviting someone into a role the actor could not
@@ -83,6 +86,14 @@ func (d *DB) CreateInvitation(ctx context.Context, n NewInvitation) (Invitation,
 	err := d.write(ctx, User, func(tx *sql.Tx) error {
 		if !Manages(n.ActorRole, n.Role) {
 			return ErrNotPermitted
+		}
+		ref, err := createdBefore(tx, n.ActorID, n.IdempotencyKey, n.RequestHash)
+		if err != nil {
+			return err
+		}
+		if ref != "" {
+			out, err = scanInvitation(tx.QueryRow(`SELECT `+invitationColumns+` FROM invitations i WHERE i.public_id = ?`, ref), n.Now)
+			return err
 		}
 		at := n.Now.UnixMilli()
 		var open int
@@ -108,7 +119,10 @@ func (d *DB) CreateInvitation(ctx context.Context, n NewInvitation) (Invitation,
 		if out, err = scanInvitation(tx.QueryRow(`SELECT `+invitationColumns+` FROM invitations i WHERE i.id = ?`, id), n.Now); err != nil {
 			return err
 		}
-		return audit(tx, n.ActorID, "invitation.create", out.PublicID, "as "+n.Role, n.Now)
+		if err := audit(tx, n.ActorID, "invitation.create", out.PublicID, "as "+n.Role, n.Now); err != nil {
+			return err
+		}
+		return rememberCreated(tx, n.ActorID, n.IdempotencyKey, n.RequestHash, out.PublicID, n.Now)
 	})
 	return out, err
 }
