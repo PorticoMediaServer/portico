@@ -23,6 +23,68 @@
         ],
         "type": "object"
       },
+      "AdminLibrary": {
+        "properties": {
+          "folders": {
+            "items": {
+              "$ref": "#/components/schemas/LibraryFolder"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "lastScanFinishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lastScanStartedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "options": {
+            "$ref": "#/components/schemas/LibraryOptions"
+          },
+          "scanning": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "folders",
+          "options",
+          "scanning"
+        ],
+        "type": "object"
+      },
+      "AdminLibraryPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AdminLibrary"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
       "Challenge": {
         "properties": {
           "expiresAt": {
@@ -169,6 +231,63 @@
         "required": [
           "items",
           "total"
+        ],
+        "type": "object"
+      },
+      "DeletionPreview": {
+        "properties": {
+          "bytes": {
+            "type": "integer"
+          },
+          "files": {
+            "type": "integer"
+          },
+          "listEntries": {
+            "type": "integer"
+          },
+          "otherPeople": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "titles": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "title",
+          "titles",
+          "files",
+          "bytes",
+          "listEntries",
+          "otherPeople"
+        ],
+        "type": "object"
+      },
+      "DeletionResult": {
+        "properties": {
+          "bytes": {
+            "type": "integer"
+          },
+          "filesDeleted": {
+            "type": "integer"
+          },
+          "kept": {
+            "items": {
+              "$ref": "#/components/schemas/KeptFile"
+            },
+            "type": "array"
+          },
+          "removed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "removed",
+          "filesDeleted",
+          "bytes",
+          "kept"
         ],
         "type": "object"
       },
@@ -859,6 +978,60 @@
         ],
         "type": "object"
       },
+      "Job": {
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/JobProgress"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "state"
+        ],
+        "type": "object"
+      },
+      "JobProgress": {
+        "properties": {
+          "done": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "done"
+        ],
+        "type": "object"
+      },
+      "KeptFile": {
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "reason"
+        ],
+        "type": "object"
+      },
       "Key": {
         "properties": {
           "createdAt": {
@@ -996,6 +1169,95 @@
           "id",
           "name",
           "kind"
+        ],
+        "type": "object"
+      },
+      "LibraryCreate": {
+        "properties": {
+          "folders": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "options": {
+            "$ref": "#/components/schemas/LibraryOptions"
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "folders"
+        ],
+        "type": "object"
+      },
+      "LibraryEdit": {
+        "properties": {
+          "folders": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "language": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "options": {
+            "$ref": "#/components/schemas/LibraryOptions"
+          }
+        },
+        "type": "object"
+      },
+      "LibraryFolder": {
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "lastScanAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "problem": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "available"
+        ],
+        "type": "object"
+      },
+      "LibraryOptions": {
+        "properties": {
+          "allowDelete": {
+            "type": "boolean"
+          },
+          "depth": {
+            "type": "string"
+          },
+          "trash": {
+            "$ref": "#/components/schemas/TrashRule"
+          }
+        },
+        "required": [
+          "depth",
+          "trash",
+          "allowDelete"
         ],
         "type": "object"
       },
@@ -1202,6 +1464,55 @@
         },
         "required": [
           "items"
+        ],
+        "type": "object"
+      },
+      "MissingTitle": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "missingSinceAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "removedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "year": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "title",
+          "missingSinceAt"
+        ],
+        "type": "object"
+      },
+      "MissingTitles": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MissingTitle"
+            },
+            "type": "array"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
         ],
         "type": "object"
       },
@@ -1501,6 +1812,73 @@
         ],
         "type": "object"
       },
+      "ScanCounts": {
+        "properties": {
+          "files": {
+            "type": "integer"
+          },
+          "filesChanged": {
+            "type": "integer"
+          },
+          "filesMissing": {
+            "type": "integer"
+          },
+          "filesMoved": {
+            "type": "integer"
+          },
+          "filesNew": {
+            "type": "integer"
+          },
+          "filesRead": {
+            "type": "integer"
+          },
+          "titlesNew": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "files",
+          "filesNew",
+          "filesChanged",
+          "filesMoved",
+          "filesMissing",
+          "titlesNew",
+          "filesRead"
+        ],
+        "type": "object"
+      },
+      "ScanStatus": {
+        "properties": {
+          "counts": {
+            "$ref": "#/components/schemas/ScanCounts"
+          },
+          "folders": {
+            "items": {
+              "$ref": "#/components/schemas/LibraryFolder"
+            },
+            "type": "array"
+          },
+          "job": {
+            "$ref": "#/components/schemas/Job"
+          },
+          "lastScanFinishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lastScanStartedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "folders"
+        ],
+        "type": "object"
+      },
       "Session": {
         "properties": {
           "accessToken": {
@@ -1676,6 +2054,42 @@
             "$ref": "#/components/schemas/Session"
           }
         },
+        "type": "object"
+      },
+      "SkippedFile": {
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "reason",
+          "message"
+        ],
+        "type": "object"
+      },
+      "SkippedFilePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SkippedFile"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
         "type": "object"
       },
       "Sort": {
@@ -1908,6 +2322,31 @@
           "id",
           "kind",
           "name"
+        ],
+        "type": "object"
+      },
+      "TrashEmptied": {
+        "properties": {
+          "removed": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "removed"
+        ],
+        "type": "object"
+      },
+      "TrashRule": {
+        "properties": {
+          "days": {
+            "type": "integer"
+          },
+          "mode": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode"
         ],
         "type": "object"
       },
@@ -2299,6 +2738,468 @@
         "x-access": "admin"
       }
     },
+    "/v1/admin/items/{id}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletionResult"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/items/{id}/deletion": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletionPreview"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/libraries": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminLibraryPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminLibrary"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/libraries/{id}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminLibrary"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "patch": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryEdit"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminLibrary"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/libraries/{id}/missing": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrashEmptied"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissingTitles"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/libraries/{id}/scan": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanStatus"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/libraries/{id}/skipped": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkippedFilePage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
     "/v1/admin/members": {
       "get": {
         "responses": {
@@ -2516,6 +3417,43 @@
           }
         },
         "x-access": "admin"
+      }
+    },
+    "/v1/admin/versions/{id}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletionResult"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
       }
     },
     "/v1/auth/codes": {
@@ -3408,6 +4346,43 @@
           }
         },
         "x-access": "withProfile"
+      }
+    },
+    "/v1/jobs/{id}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "signedIn"
       }
     },
     "/v1/libraries": {
