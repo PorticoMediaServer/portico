@@ -212,6 +212,22 @@ Refreshing or editing a selection of titles is a bulk action, `POST /v1/jobs`.
 | `POST /v1/admin/items/{id}/artwork/find` | Find more from the provider, fetch again, or make an episode's picture from the video |
 | `GET /v1/admin/metadata/settings`, `PUT /v1/admin/metadata/settings` | Own provider keys (write-only: the answer says only whether one is set), Include adult titles, cast photos, Download title data, the subtitle account |
 
+### Libraries, scans and files (15 so far)
+
+Only the owner. A key made for a tool needs the `library` scope to scan and delete.
+
+| Route | Purpose |
+|---|---|
+| `GET /v1/admin/libraries`, `POST /v1/admin/libraries` | The libraries with their folders and options; make one (kind, name, folders, language, options), which starts its first scan |
+| `GET /v1/admin/libraries/{id}`, `PATCH /v1/admin/libraries/{id}` | One library; rename it, change its options, give the whole list of its folders (an added folder is scanned, a removed folder's titles leave) |
+| `DELETE /v1/admin/libraries/{id}?confirm=<name>` | Remove the library; answers `202` with a job. Files on disk are not touched |
+| `POST /v1/admin/libraries/{id}/scan`, `DELETE …/scan`, `GET …/scan` | Scan now (`202` with a job; joins a scan already asked for), cancel, and the scan's state, counts and folders |
+| `GET /v1/admin/libraries/{id}/skipped` | Files the last scan could not use, 40 at a time, each with a reason |
+| `GET /v1/admin/libraries/{id}/missing`, `DELETE …/missing?confirm=<count>` | The library's trash, with when each title will be removed; Empty trash |
+| `GET /v1/admin/items/{id}/deletion`, `DELETE /v1/admin/items/{id}?confirm=<title>` | What deleting a title would take; delete its files from disk and remove it |
+| `DELETE /v1/admin/versions/{id}` | Delete one version's files from disk |
+| `GET /v1/jobs/{id}` | Watch a job (listed with the client API above) |
+
 ## Not on the wire, on purpose
 
 `viewerFence`, `expectedRevision`, `operationId`, a "preparing" answer on a read, query handles,

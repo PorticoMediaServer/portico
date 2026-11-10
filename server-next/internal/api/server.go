@@ -24,6 +24,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
+	"github.com/PorticoMediaServer/portico/server-next/internal/scan"
 )
 
 // APIMajor is the number in the path. It changes only for a break old apps could not survive.
@@ -39,6 +40,7 @@ type Server struct {
 	// passwords is replaced by tests with a cheap hasher.
 	passwords *auth.Passwords
 	log       *slog.Logger
+	scans     *scan.Manager
 	mux       *http.ServeMux
 	version   string
 	id        string
@@ -67,6 +69,9 @@ type Route struct {
 	Scope    Scope
 	Request  reflect.Type
 	Response reflect.Type
+	// Status is the status of a reply with a body when it is not 200: 202 for a slow write
+	// that answers with a job to watch.
+	Status int
 }
 
 // Scope is what a key made for a tool must have been given to use a route. A signed-in
@@ -183,6 +188,12 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.playbackRoutes()
 	s.queues = playqueue.New(d, s.playback, func() time.Time { return s.now() })
 	s.queueRoutes()
+	// Scans and library removals asked for before the server last stopped are taken up again.
+	s.scans = scan.NewManager(ctx, &scan.Scanner{DB: d, Log: log})
+	if err := s.scans.Resume(); err != nil {
+		return nil, err
+	}
+	s.libraryRoutes()
 	return s, nil
 }
 
@@ -264,7 +275,8 @@ func (p *statusOnly) WriteHeader(status int)      { p.status = status }
 func Handle[Req, Resp any](s *Server, pattern string, access Access, fn func(r *http.Request, req Req) (Resp, error)) *Route {
 	noBody := reflect.TypeFor[Req]() == reflect.TypeFor[None]()
 	noReply := reflect.TypeFor[Resp]() == reflect.TypeFor[None]()
-	route := &Route{pattern, access, defaultScope(pattern, access), reflect.TypeFor[Req](), reflect.TypeFor[Resp]()}
+	route := &Route{Pattern: pattern, Access: access, Scope: defaultScope(pattern, access), Request: reflect.TypeFor[Req](),
+		Response: reflect.TypeFor[Resp]()}
 	s.routes = append(s.routes, route)
 	s.mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
 		r, err := s.admit(r, route)
@@ -288,10 +300,14 @@ func Handle[Req, Resp any](s *Server, pattern string, access Access, fn func(r *
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
+		status := route.Status
 		if special, ok := any(resp).(replier); ok {
-			if status := special.reply(w.Header()); status != 0 {
-				w.WriteHeader(status)
+			if own := special.reply(w.Header()); own != 0 {
+				status = own
 			}
+		}
+		if status != 0 {
+			w.WriteHeader(status)
 		}
 		json.NewEncoder(w).Encode(resp)
 	})
