@@ -267,7 +267,7 @@ func mixed(ctx context.Context, d *db.DB, cfg seed.Config, readers, writesPerSec
 	time.Sleep(3 * time.Second)
 	warm()
 	stop := w.start(ctx, 0, writesPerSec)
-	time.Sleep(10 * time.Second)
+	time.Sleep(30 * time.Second)
 	_, idleWrites := stop()
 	report.WritesIdle = &idleWrites
 
@@ -303,8 +303,9 @@ func mixed(ctx context.Context, d *db.DB, cfg seed.Config, readers, writesPerSec
 		fmt.Printf("  reads %-24s n=%-7d p50 %7.2f ms  p99 %8.2f ms  max %8.2f ms   (idle p99 %.2f ms)\n", class, t.N, t.P50, t.P99, t.Max, idleReads[class].P99)
 	}
 	fmt.Printf("  writes               n=%-7d p50 %7.2f ms  p99 %8.2f ms  max %8.2f ms\n", writes.N, writes.P50, writes.P99, writes.Max)
-	fmt.Printf("  writes, nothing else running: n=%d p50 %.2f ms  p99 %.2f ms  max %.2f ms (one commit and its disk sync)\n",
-		idleWrites.N, idleWrites.P50, idleWrites.P99, idleWrites.Max)
+	fmt.Printf("  writes, nothing else running: n=%d p50 %.2f ms  p90 %.2f ms  p99 %.2f ms  max %.2f ms (one commit and its disk sync)\n",
+		idleWrites.N, idleWrites.P50, idleWrites.P90, idleWrites.P99, idleWrites.Max)
+	fmt.Printf("  writes during import: p90 %.2f ms\n", writes.P90)
 	fmt.Printf("  import transactions ended at %d files each\n", loaded.LastBatchFiles)
 	fmt.Printf("  import: %.0f files/s idle, %.0f files/s under activity\n", idle.FilesPerSec, loaded.FilesPerSec)
 }

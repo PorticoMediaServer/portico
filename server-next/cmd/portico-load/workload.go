@@ -19,6 +19,7 @@ import (
 type Timing struct {
 	N   int     `json:"n"`
 	P50 float64 `json:"p50Ms"`
+	P90 float64 `json:"p90Ms"`
 	P99 float64 `json:"p99Ms"`
 	Max float64 `json:"maxMs"`
 }
@@ -28,8 +29,9 @@ func summarise(samples []time.Duration) Timing {
 		return Timing{}
 	}
 	slices.Sort(samples)
-	ms := func(d time.Duration) float64 { return float64(d.Microseconds()) / 1000 }
-	return Timing{N: len(samples), P50: ms(samples[len(samples)/2]), P99: ms(samples[len(samples)*99/100]), Max: ms(samples[len(samples)-1])}
+	ms := func(at int) float64 { return float64(samples[at].Microseconds()) / 1000 }
+	n := len(samples)
+	return Timing{N: n, P50: ms(n / 2), P90: ms(n * 9 / 10), P99: ms(n * 99 / 100), Max: ms(n - 1)}
 }
 
 func sortedKeys(m map[string]Timing) []string {
