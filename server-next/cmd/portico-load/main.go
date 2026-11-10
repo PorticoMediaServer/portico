@@ -7,6 +7,12 @@
 //	portico-load -mode import -db main.db -items 1000000 -out import.json
 //	portico-load -mode rescan -db main.db -items 1000000 -out rescan.json
 //	portico-load -mode mixed  -db main.db -items 100000  -out mixed.json
+//
+// With -tree the same three modes run the real scanner over a folder of real files, which
+// -mode tree writes first:
+//
+//	portico-load -mode tree   -tree /data/tree -items 1000000
+//	portico-load -mode import -tree /data/tree -db main.db -out import.json
 package main
 
 import (
@@ -22,6 +28,7 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/scan"
 	"github.com/PorticoMediaServer/portico/server-next/internal/seed"
 )
 
@@ -56,7 +63,7 @@ func (r *Report) bar(name, limit string, value float64, unit string, passed bool
 }
 
 func main() {
-	mode := flag.String("mode", "", "import, rescan or mixed")
+	mode := flag.String("mode", "", "import, rescan, mixed or tree")
 	path := flag.String("db", "main.db", "database file")
 	items := flag.Int("items", 20_000, "playable items: the library size for import and rescan, the size of each extra import for mixed")
 	seedValue := flag.Uint64("seed", 1, "seed of the library")
@@ -65,10 +72,20 @@ func main() {
 	writesPerSec := flag.Int("writes", 20, "mixed: user writes a second")
 	settle := flag.Duration("settle", time.Minute, "how long after the import to watch the WAL")
 	out := flag.String("out", "", "JSON report file")
+	flag.StringVar(&treeRoot, "tree", "", "a folder of real files: with it, import, rescan and mixed use the real scanner over it; -mode tree writes it")
 	flag.Parse()
 	log.SetFlags(log.Ltime)
 
 	ctx := context.Background()
+	if *mode == "tree" {
+		start := time.Now()
+		files, err := seed.Tree(seed.Config{Seed: *seedValue, Items: *items}, treeRoot)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("wrote %d files under %s in %s", files, treeRoot, time.Since(start).Round(time.Second))
+		return
+	}
 	d, err := db.Open(ctx, *path)
 	if err != nil {
 		log.Fatal(err)
@@ -93,7 +110,7 @@ func main() {
 	case "mixed":
 		mixed(ctx, d, cfg, *readers, *writesPerSec, *settle, wal, report)
 	default:
-		log.Fatal("-mode must be import, rescan or mixed")
+		log.Fatal("-mode must be import, rescan, mixed or tree")
 	}
 
 	report.PeakRSSBytes, report.WALMaxBytes = peakRSS(), wal.max.Load()
@@ -117,14 +134,49 @@ func main() {
 	}
 }
 
+// treeRoot, when set, is a folder of real files that the real scanner imports in place of
+// the seeder's batches.
+var treeRoot string
+
+// facts stands in for the prober, which is not in this server yet: every film and episode
+// gets a video track, two audio tracks and a subtitle track, and every song one audio track,
+// so the second pass of a scan writes about what a real one would.
+type facts struct{}
+
+func (facts) Probe(_ context.Context, path string) (scan.Facts, error) {
+	if strings.HasSuffix(path, ".flac") {
+		return scan.Facts{Container: "flac", DurationMS: 240000, Bitrate: 900e3,
+			Streams: []db.Stream{{Kind: db.StreamAudio, Codec: "flac", Channels: 2, SampleRate: 44100, BitDepth: 16, Default: true}}}, nil
+	}
+	return scan.Facts{Container: "mkv", DurationMS: 5400000, Bitrate: 8e6, Streams: []db.Stream{
+		{Kind: db.StreamVideo, Codec: "hevc", Width: 3840, Height: 2160, HDR: "hdr10", FrameRate: 23.976, BitDepth: 10},
+		{Kind: db.StreamAudio, Codec: "eac3", Language: "en", Channels: 6, Default: true}, {Kind: db.StreamAudio, Codec: "aac", Language: "fr", Channels: 2},
+		{Kind: db.StreamSubtitle, Codec: "subrip", Language: "en"}}}, nil
+}
+
 func mustImport(ctx context.Context, d *db.DB, cfg seed.Config) seed.Totals {
 	last := time.Now()
-	totals, err := seed.Import(ctx, d, cfg, func(t seed.Totals) {
+	progress := func(t seed.Totals) {
 		if time.Since(last) > 15*time.Second {
 			last = time.Now()
-			log.Printf("%d files, %.0f files/s", t.Files, t.FilesPerSec)
+			log.Printf("%d files, %.0f files/s, %d read", t.Files, t.FilesPerSec, t.Probed)
 		}
-	})
+	}
+	var totals seed.Totals
+	var err error
+	if treeRoot != "" {
+		// Each import of the mixed run scans its own tree, written before the clock starts.
+		root := treeRoot
+		if cfg.Seed >= 1000 {
+			root = fmt.Sprintf("%s-%d", treeRoot, cfg.Seed)
+			if _, err := seed.Tree(cfg, root); err != nil {
+				log.Fatal(err)
+			}
+		}
+		totals, err = seed.ScanTree(ctx, d, &scan.Scanner{DB: d, Prober: facts{}, BatchFiles: cfg.BatchFiles}, root, progress)
+	} else {
+		totals, err = seed.Import(ctx, d, cfg, progress)
+	}
 	if err != nil {
 		log.Fatal(err)
 	}

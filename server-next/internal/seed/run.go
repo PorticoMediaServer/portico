@@ -19,6 +19,7 @@ type Totals struct {
 	Items        int           `json:"items"`
 	ItemsNew     int           `json:"itemsNew"`
 	RowsWritten  int64         `json:"rowsWritten"`
+	Probed       int           `json:"filesRead,omitempty"` // by a real scan's second pass
 	Elapsed      time.Duration `json:"elapsedNs"`
 	FilesPerSec  float64       `json:"filesPerSecond"`
 }
