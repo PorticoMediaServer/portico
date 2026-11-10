@@ -327,22 +327,29 @@ type UnmatchedItem struct {
 }
 
 // Unmatched lists the titles of a library that a provider was asked about without a confident
-// answer, by title. after is the last line of the page before, or nil for the first page. It
-// reads the items_unmatched index and nothing else, however large the library.
-func (d *DB) Unmatched(ctx context.Context, libraryID int64, after *UnmatchedItem, limit int) ([]UnmatchedItem, error) {
+// answer, by title, leaving out any the viewer may not see. after is the last line of the page
+// before, or nil for the first page. It reads along the items_unmatched index, however large
+// the library.
+func (d *DB) Unmatched(ctx context.Context, v Viewer, libraryID int64, after *UnmatchedItem, limit int) ([]UnmatchedItem, error) {
 	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback()
+	acc, err := loadAccess(ctx, tx, v)
+	if err != nil {
+		return nil, err
+	}
 	// "Kept as it is" titles share the index and are passed over.
-	where, args := `library_id = ? AND match_state IN (3, 4) AND match_state = 3`, []any{libraryID}
+	where, args := `library_id = :library AND match_state IN (3, 4) AND match_state = 3 AND `+acc.visible("i"),
+		append(v.args(), sql.Named("library", libraryID))
 	if after != nil {
-		where += ` AND (sort_title, id) > (?, ?)`
-		args = append(args, after.sortTitle, after.id)
+		where += ` AND (sort_title, id) > (:sort, :after)`
+		args = append(args, sql.Named("sort", after.sortTitle), sql.Named("after", after.id))
 	}
 	return queryAll(ctx, tx, `SELECT id, sort_title, public_id, kind, title, ifnull(year, 0), ifnull(extra ->> '$.unmatched.reason', ''),
-		ifnull(extra ->> '$.unmatched.matches', '[]') FROM items WHERE `+where+` ORDER BY sort_title, id LIMIT ?`, append(args, limit),
+		ifnull(extra ->> '$.unmatched.matches', '[]') FROM items i WHERE `+where+` ORDER BY sort_title, id LIMIT :limit`,
+		append(args, sql.Named("limit", limit)),
 		func(u *UnmatchedItem) []any {
 			return []any{&u.id, &u.sortTitle, &u.PublicID, &u.Kind, &u.Title, &u.Year, &u.Reason, &u.Matches}
 		})

@@ -210,7 +210,7 @@ func TestAFilmIsMatchedAndGetsItsDetails(t *testing.T) {
 
 	// What could not be matched stays in the library under its own name, and is listed.
 	f.title(db.KindMovie, "Heat")
-	unmatched, err := f.d.Unmatched(ctx, f.lib.ID, nil, 10)
+	unmatched, err := f.d.Unmatched(ctx, f.viewer, f.lib.ID, nil, 10)
 	if err != nil || len(unmatched) != 2 {
 		t.Fatalf("unmatched: %+v, %v", unmatched, err)
 	}
@@ -221,7 +221,7 @@ func TestAFilmIsMatchedAndGetsItsDetails(t *testing.T) {
 	if zzyzx.Reason != metadata.ReasonNoResults || zzyzx.Matches != "[]" {
 		t.Errorf("Zzyzx: %+v", zzyzx)
 	}
-	if next, err := f.d.Unmatched(ctx, f.lib.ID, &unmatched[0], 10); err != nil || len(next) != 1 || next[0].Title != zzyzx.Title {
+	if next, err := f.d.Unmatched(ctx, f.viewer, f.lib.ID, &unmatched[0], 10); err != nil || len(next) != 1 || next[0].Title != zzyzx.Title {
 		t.Errorf("second page: %+v, %v", next, err)
 	}
 
@@ -312,13 +312,13 @@ func TestAChosenMatchKeepsStateAndIsNeverChangedAgain(t *testing.T) {
 	if err := f.d.KeepAsIs(ctx, heat.PublicID); err != nil {
 		t.Fatal(err)
 	}
-	if list, _ := f.d.Unmatched(ctx, f.lib.ID, nil, 10); len(list) != 0 {
+	if list, _ := f.d.Unmatched(ctx, f.viewer, f.lib.ID, nil, 10); len(list) != 0 {
 		t.Fatalf("a title kept as it is is still listed: %+v", list)
 	}
 	if matched, err := f.s.Rematch(ctx, heat.PublicID); err != nil || matched {
 		t.Fatalf("looking up a name two films share: %v, %v", matched, err)
 	}
-	if list, _ := f.d.Unmatched(ctx, f.lib.ID, nil, 10); len(list) != 1 {
+	if list, _ := f.d.Unmatched(ctx, f.viewer, f.lib.ID, nil, 10); len(list) != 1 {
 		t.Fatalf("after looking it up again: %+v", list)
 	}
 
@@ -333,7 +333,7 @@ func TestAChosenMatchKeepsStateAndIsNeverChangedAgain(t *testing.T) {
 	if !fixed.State.Watched || !fixed.State.Favorite {
 		t.Errorf("state after choosing the match: %+v", fixed.State)
 	}
-	if list, _ := f.d.Unmatched(ctx, f.lib.ID, nil, 10); len(list) != 0 {
+	if list, _ := f.d.Unmatched(ctx, f.viewer, f.lib.ID, nil, 10); len(list) != 0 {
 		t.Errorf("a matched title is still listed: %+v", list)
 	}
 	// A person's choice is locked: the server will not look it up again.
