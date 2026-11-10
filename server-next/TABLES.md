@@ -51,8 +51,8 @@ exists today. Columns are documented in `schema.sql` itself.
 | Per-user state | `user_item_state` | yes | Watched, progress, favourites, My List, ratings |
 | | `play_history` | yes | History and play statistics |
 | | `lists`, `list_entries`, `list_shares` | yes | Playlists, collections, saved views, and sharing them |
+| | `removed_state` | yes | Watched marks, progress, ratings and favourites coming back when a title that was removed is added again: an upgrade by Radarr or Sonarr deletes a title and adds it again |
 | | `play_queues`, `queue_entries` | yes | A queue that survives a restart and moves between devices |
-| | `removed_state` | yes (asked for with the scanner; awaiting the design owner's yes) | Watched marks, progress, ratings and favourites returning when a removed title is added again |
 | | `annotations` | with reading | Highlights, bookmarks and notes in books |
 | Playback and downloads | `playback_route_failures` | yes | Not hitting the same known-bad playback route after every restart |
 | | `prepared_media`, `downloads`, `download_items` | with downloads | Offline downloads |
