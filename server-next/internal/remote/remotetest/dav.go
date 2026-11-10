@@ -32,6 +32,7 @@ type DAV struct {
 	// folder listing also gives as files: what a server that cannot be trusted might send.
 	BadNames []string
 
+	prefix   string
 	mu       sync.Mutex
 	files    map[string][]byte
 	modified time.Time
@@ -39,13 +40,21 @@ type DAV struct {
 
 // NewDAV starts a server for the test with the given files.
 func NewDAV(t testing.TB, files map[string]string) *DAV {
-	d := &DAV{User: "viewer", Password: "pw-" + fmt.Sprint(time.Now().UnixNano()), files: map[string][]byte{}, modified: time.Unix(1700000000, 0).UTC()}
-	for name, body := range files {
-		d.files[name] = []byte(body)
-	}
+	d := NewHandler(files, "/dav")
 	srv := httptest.NewServer(d)
 	t.Cleanup(srv.Close)
 	d.URL = srv.URL + "/dav/"
+	return d
+}
+
+// NewHandler is the same server as a handler, answering under prefix ("" for the top), for
+// a test that serves it itself.
+func NewHandler(files map[string]string, prefix string) *DAV {
+	d := &DAV{User: "viewer", Password: "pw-" + fmt.Sprint(time.Now().UnixNano()), files: map[string][]byte{}, modified: time.Unix(1700000000, 0).UTC(),
+		prefix: strings.TrimSuffix(prefix, "/")}
+	for name, body := range files {
+		d.files[name] = []byte(body)
+	}
 	return d
 }
 
@@ -65,8 +74,8 @@ func (d *DAV) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	d.SlowDowns.Store(0)
-	rel, ok := strings.CutPrefix(r.URL.Path, "/dav/")
-	if !ok && r.URL.Path != "/dav" {
+	rel, ok := strings.CutPrefix(r.URL.Path, d.prefix+"/")
+	if !ok && r.URL.Path != d.prefix {
 		http.NotFound(w, r)
 		return
 	}
@@ -127,7 +136,7 @@ func (d *DAV) propfind(w http.ResponseWriter, r *http.Request, rel string) {
 	var out strings.Builder
 	out.WriteString(`<?xml version="1.0" encoding="utf-8"?><D:multistatus xmlns:D="DAV:">`)
 	entry := func(p string, c child) {
-		href := (&url.URL{Path: path.Join("/dav", p)}).EscapedPath()
+		href := (&url.URL{Path: path.Join("/", d.prefix, p)}).EscapedPath()
 		props := fmt.Sprintf(`<D:getcontentlength>%d</D:getcontentlength><D:resourcetype/>`, c.size)
 		if c.dir {
 			href += "/"
@@ -151,7 +160,7 @@ func (d *DAV) propfind(w http.ResponseWriter, r *http.Request, rel string) {
 			}
 			for _, raw := range d.BadNames {
 				fmt.Fprintf(&out, `<D:response><D:href>%s/%s</D:href><D:propstat><D:prop><D:getcontentlength>1</D:getcontentlength><D:resourcetype/></D:prop>`+
-					`<D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>`, (&url.URL{Path: path.Join("/dav", rel)}).EscapedPath(), raw)
+					`<D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>`, strings.TrimSuffix((&url.URL{Path: path.Join("/", d.prefix, rel)}).EscapedPath(), "/"), raw)
 			}
 		}
 	}
