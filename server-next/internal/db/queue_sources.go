@@ -158,13 +158,13 @@ func (d *DB) ViewCursorAt(ctx context.Context, v Viewer, q ItemQuery, itemPublic
 	if q.Sort == "" {
 		q.Sort = SortTitle
 	}
-	at := listCursor{Sort: q.Sort, Desc: q.Desc, ID: detail.ID}
-	if values := detail.Item.sortValues(q.Sort); values[0] == nil {
-		at.Nulls = true
-	} else {
-		at.Values = values
+	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return "", 0, err
 	}
-	return at.encode(), detail.ID, nil
+	defer tx.Rollback()
+	cursor, err = cursorAt(ctx, tx, v, q, detail.ID)
+	return cursor, detail.ID, err
 }
 
 // shufflePrime is the modulus of the shuffle order: a prime above any item id a library has.
@@ -193,9 +193,7 @@ func (d *DB) ShuffledItems(ctx context.Context, v Viewer, q ItemQuery, seed, aft
 	if found, err := q.filters(ctx, tx, where, acc); err != nil || !found {
 		return nil, after, err
 	}
-	// The multiplier is odd and large, so neighbours in the library land far apart.
-	multiplier := (uint64(seed)*0x9e3779b97f4a7c15>>33)%(shufflePrime-2) + 2
-	key := `((i.id % ` + itoa(shufflePrime) + `) * ` + itoa(int64(multiplier)) + ` % ` + itoa(shufflePrime) + `)`
+	key := shuffleKey(seed)
 	rows, err := tx.QueryContext(ctx, `SELECT `+key+`, i.id FROM `+where.from+` WHERE `+where.pageWhere()+` AND `+key+` > `+where.arg(after)+`
 		ORDER BY 1 LIMIT `+itoa(int64(limit)), where.args...)
 	if err != nil {

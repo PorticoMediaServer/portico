@@ -643,3 +643,81 @@ func TestAListOpensAtAnyPositionAndByLetter(t *testing.T) {
 		t.Fatalf("a position with a cursor: %v", err)
 	}
 }
+
+// The sorts with no index of their own still send every row exactly once, in order, with the
+// rows that have no value last either way, for a restricted profile too. A random order is
+// one order while it is paged and another the next time it is asked for.
+func TestEverySortPagesEveryRowOnce(t *testing.T) {
+	l := newLibrary(t, 900)
+	v, limited, yes := l.all, l.viewers[9], true
+	films := db.ItemQuery{Library: l.libs[0].PublicID, Kinds: []db.ItemKind{db.KindMovie}}
+	whole := everything(t, l.d, v, films)
+	// Some state of the viewer's own to sort by: ratings, plays and one film played twice.
+	for n, film := range whole[:40] {
+		rating := n % 11
+		state(t, l.d, v, film.PublicID, db.StateEdit{Rating: &rating})
+		if n%2 == 0 {
+			state(t, l.d, v, film.PublicID, db.StateEdit{Watched: &yes})
+		}
+	}
+	value := map[string]func(db.Item) (float64, bool){
+		db.SortDuration:        func(i db.Item) (float64, bool) { return float64(i.DurationMS), i.DurationMS != 0 },
+		db.SortCommunityRating: func(i db.Item) (float64, bool) { return i.CommunityRating, i.CommunityRating != 0 },
+		db.SortUserRating: func(i db.Item) (float64, bool) {
+			if i.State.Rating == nil {
+				return 0, false
+			}
+			return float64(*i.State.Rating), true
+		},
+	}
+	for _, who := range []db.Viewer{v, limited} {
+		q := films
+		want := len(everything(t, l.d, who, q))
+		for _, sort := range []string{db.SortDuration, db.SortCommunityRating, db.SortCriticRating, db.SortUserRating, db.SortLastPlayed,
+			db.SortPlayCount, db.SortResolution, db.SortLatest, db.SortRandom} {
+			for _, desc := range []bool{false, true} {
+				q.Sort, q.Desc, q.Limit = sort, desc, 23
+				rows := everything(t, l.d, who, q)
+				if len(rows) != want {
+					t.Fatalf("sort %s desc %v: %d rows of %d", sort, desc, len(rows), want)
+				}
+				of, known := value[sort]
+				ended := false // the rows with no value have begun
+				for n := 1; known && n < len(rows); n++ {
+					a, hasA := of(rows[n-1])
+					b, hasB := of(rows[n])
+					switch {
+					case !hasB:
+						ended = true
+					case ended || !hasA:
+						t.Fatalf("sort %s desc %v: row %d has a value after a row with none", sort, desc, n)
+					case !desc && a > b || desc && a < b:
+						t.Fatalf("sort %s desc %v: row %d is out of order (%v then %v)", sort, desc, n, a, b)
+					}
+				}
+			}
+		}
+		// Rated films first when sorting by the viewer's own rating, highest first.
+		q.Sort, q.Desc, q.Limit = db.SortUserRating, true, 5
+		if who == v {
+			if top, _ := l.d.Items(ctx, who, q); top.Items[0].State.Rating == nil || *top.Items[0].State.Rating != 10 {
+				t.Fatalf("the highest rated film is not first: %+v", top.Items[0].State)
+			}
+		}
+		// Random: the second time is a different order of the same films.
+		q.Sort, q.Desc, q.Limit = db.SortRandom, false, 50
+		first, again := everything(t, l.d, who, q), everything(t, l.d, who, q)
+		same := 0
+		for n := range first {
+			if first[n].PublicID == again[n].PublicID {
+				same++
+			}
+		}
+		if same > len(first)/2 {
+			t.Fatalf("two random orders agree in %d of %d places", same, len(first))
+		}
+	}
+	if _, err := l.d.Items(ctx, v, db.ItemQuery{Library: films.Library, Sort: "size"}); !errors.Is(err, db.ErrInvalid) {
+		t.Fatalf("an unknown sort: %v", err)
+	}
+}
