@@ -50,7 +50,8 @@ type Filter struct {
 }
 
 // ItemPage is one page of GET /v1/items. NextCursor is absent at the end. Total is present
-// when the request asked for it with total=true.
+// when the request asked for it with total=true. A request with at=<position> in place of a
+// cursor gets the page that starts at that position, counting from 0, in the sort asked for.
 type ItemPage struct {
 	Items      []Item `json:"items"`
 	NextCursor string `json:"nextCursor,omitempty"`
@@ -232,7 +233,9 @@ type Person struct {
 }
 
 // Facets is the answer of GET /v1/facets: the choices of one filter over a list, each with
-// how many of the list's items it would leave.
+// how many of the list's items it would leave. With facet=letter the values are the first
+// letters of the list's titles in title order ("#" for digits and symbols), and a letter's
+// position in the list sorted by title is the sum of the counts before it.
 type Facets struct {
 	Facet  string       `json:"facet"`
 	Values []FacetValue `json:"values"`

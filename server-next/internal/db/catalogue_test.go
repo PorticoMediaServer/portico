@@ -11,6 +11,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/seed"
+	"github.com/PorticoMediaServer/portico/server-next/internal/sorttext"
 )
 
 var ctx = context.Background()
@@ -547,5 +548,62 @@ func TestHomeRowsAndEvents(t *testing.T) {
 	}
 	if events, _, reread, _ = l.d.Events(ctx, v, head-3, 100); reread || len(events) != 3 {
 		t.Fatalf("a recent cursor after pruning: %d events, reread %v", len(events), reread)
+	}
+}
+
+// A list opens at any position with the items a reader paging from the start would find
+// there, in every sort and direction, across the titles with no year, for a restricted
+// profile too; and the letter rail's counts add up to where each letter begins.
+func TestAListOpensAtAnyPositionAndByLetter(t *testing.T) {
+	l := newLibrary(t, 900)
+	for _, who := range []db.Viewer{l.all, l.viewers[9], l.viewers[7]} {
+		for _, sort := range []string{db.SortTitle, db.SortYear, db.SortRelease, db.SortAdded} {
+			for _, desc := range []bool{false, true} {
+				q := db.ItemQuery{Library: l.libs[0].PublicID, Kinds: []db.ItemKind{db.KindMovie}, Sort: sort, Desc: desc, Limit: 7}
+				whole := everything(t, l.d, who, q)
+				for _, at := range []int{0, 1, 6, 7, len(whole) / 2, len(whole) - 8, len(whole) - 1, len(whole), len(whole) + 5} {
+					q.At, q.WithTotal = at, true
+					page, err := l.d.Items(ctx, who, q)
+					if err != nil {
+						t.Fatal(err)
+					}
+					want := whole[min(at, len(whole)):min(at+7, len(whole))]
+					if len(page.Items) != len(want) || page.Total != len(whole) || (page.NextCursor != "") != (at+7 < len(whole)) {
+						t.Fatalf("%s desc=%v at %d of %d: %d items, total %d, cursor %q", sort, desc, at, len(whole), len(page.Items), page.Total, page.NextCursor)
+					}
+					for n := range want {
+						if page.Items[n].PublicID != want[n].PublicID {
+							t.Fatalf("%s desc=%v at %d: item %d is %q, want %q", sort, desc, at, n, page.Items[n].Title, want[n].Title)
+						}
+					}
+					// The page after it carries on from there, like any other.
+					if page.NextCursor != "" {
+						next, err := l.d.Items(ctx, who, db.ItemQuery{Library: q.Library, Kinds: q.Kinds, Sort: sort, Desc: desc, Limit: 7, Cursor: page.NextCursor})
+						if err != nil || next.Items[0].PublicID != whole[at+7].PublicID {
+							t.Fatalf("%s desc=%v: the page after position %d starts wrong (%v)", sort, desc, at, err)
+						}
+					}
+				}
+			}
+		}
+		q := db.ItemQuery{Library: l.libs[0].PublicID, Kinds: []db.ItemKind{db.KindMovie}}
+		whole := everything(t, l.d, who, q)
+		rail, err := l.d.Facets(ctx, who, q, db.FacetLetter)
+		if err != nil || len(rail) < 5 {
+			t.Fatalf("the letter rail has %d letters: %v", len(rail), err)
+		}
+		position := 0
+		for _, letter := range rail {
+			if got := sorttext.Letter(sorttext.Key(whole[position].Title, "", "")); got != letter.Value {
+				t.Fatalf("position %d is under %q, and the rail says %q begins there", position, got, letter.Value)
+			}
+			position += letter.Count
+		}
+		if position != len(whole) {
+			t.Fatalf("the rail counts %d titles of %d", position, len(whole))
+		}
+	}
+	if _, err := l.d.Items(ctx, l.all, db.ItemQuery{Library: l.libs[0].PublicID, At: 3, Cursor: "x"}); !errors.Is(err, db.ErrInvalid) {
+		t.Fatalf("a position with a cursor: %v", err)
 	}
 }

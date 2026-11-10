@@ -77,6 +77,18 @@ func TestBrowse(t *testing.T) {
 	if seen != 90 {
 		t.Fatalf("paging to the end sent %d films of 90", seen)
 	}
+	// The list opens at a position, and the letter rail says where each letter begins.
+	whole := get[ItemPage](t, s, token, "/v1/items?library="+films.ID+"&kind=movie&limit=90").Items
+	if jump := get[ItemPage](t, s, token, list+"&at=57"); len(jump.Items) != 33 || jump.Items[0].ID != whole[57].ID || jump.NextCursor != "" {
+		t.Fatalf("opening at 57 of 90: %d items", len(jump.Items))
+	}
+	counted := 0
+	for _, letter := range get[Facets](t, s, token, "/v1/facets?facet=letter&library="+films.ID+"&kind=movie").Values {
+		counted += letter.Count
+	}
+	if counted != 90 {
+		t.Fatalf("the letter rail counts %d films of 90", counted)
+	}
 	if fewer := get[ItemPage](t, s, limited, list+"&total=true"); *fewer.Total == 0 || *fewer.Total >= 90 {
 		t.Fatalf("the limited profile was shown %d films of 90", *fewer.Total)
 	}
@@ -127,6 +139,7 @@ func TestBrowse(t *testing.T) {
 		{"/v1/items?library=" + films.ID + "&kind=film", token, 400, "invalid_request"},
 		{"/v1/items?library=" + films.ID + "&sort=size", token, 400, "invalid_request"},
 		{"/v1/items?library=" + films.ID + "&cursor=xyz", token, 400, "invalid_request"},
+		{"/v1/items?library=" + films.ID + "&at=-1", token, 400, "invalid_request"},
 		{"/v1/items?library=" + films.ID + "&year=19x", token, 400, "invalid_request"},
 		{"/v1/items/itm_nothing", token, 404, "not_found"},
 		{"/v1/items/" + hidden.ID + "/credits", limited, 404, "not_found"},

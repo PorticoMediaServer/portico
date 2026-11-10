@@ -266,6 +266,11 @@ func itemQuery(query url.Values) (db.ItemQuery, error) {
 	if q.Limit, err = limitParam(query); err != nil {
 		return q, err
 	}
+	if at := query.Get("at"); at != "" {
+		if q.At, err = strconv.Atoi(at); err != nil || q.At < 0 {
+			return q, ErrField("at", "Use a position in the list, counting from 0.")
+		}
+	}
 	switch query.Get("order") {
 	case "":
 		q.Desc = defaultOrder[q.Sort]

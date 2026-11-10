@@ -77,8 +77,11 @@ type ItemQuery struct {
 	Sort       string
 	Desc       bool
 	Cursor     string
-	Limit      int
-	WithTotal  bool
+	// At opens the list at a position instead of a cursor: 0 is the first item. It is how a
+	// screen jumps to wherever a scroll bar or a letter points.
+	At        int
+	Limit     int
+	WithTotal bool
 }
 
 // ItemPage is one page of a list. NextCursor is empty at the end. Total is the whole list's
@@ -215,8 +218,22 @@ func (d *DB) Items(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, error)
 		return page, err
 	}
 
+	tail := false
+	if q.At > 0 {
+		if cursor != nil {
+			return page, invalid("open a list at a position or at a cursor, not both")
+		}
+		var past bool
+		if cursor, tail, past, err = positionCursor(ctx, tx, where, spec, q); err != nil {
+			return page, err
+		}
+		if past {
+			// A position past the end is an empty page, with the total if it was asked for.
+			return page, listTotal(ctx, tx, where, q, &page)
+		}
+	}
 	// Rows with a sort value first, then the rows without one.
-	nulls := cursor != nil && cursor.Nulls
+	nulls := tail || cursor != nil && cursor.Nulls
 	if !nulls {
 		if err := listRun(ctx, tx, where, spec, q, cursor, false, &page); err != nil {
 			return page, err
@@ -239,16 +256,80 @@ func (d *DB) Items(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, error)
 		}
 		page.NextCursor = next.encode()
 	}
-	if q.WithTotal {
-		count := `SELECT count(*) FROM ` + where.countFrom + ` WHERE ` + where.countWhere()
-		if err := tx.QueryRowContext(ctx, count, where.args...).Scan(&page.Total); err != nil {
-			return page, err
-		}
+	if err := listTotal(ctx, tx, where, q, &page); err != nil {
+		return page, err
 	}
 	if err := loadImages(ctx, tx, page.Items); err != nil {
 		return page, err
 	}
 	return page, loadLeafCounts(ctx, tx, v, acc, page.Items)
+}
+
+// listTotal counts the whole list when the request asked for its total.
+func listTotal(ctx context.Context, tx *sql.Tx, where *query, q ItemQuery, page *ItemPage) error {
+	if !q.WithTotal {
+		return nil
+	}
+	return tx.QueryRowContext(ctx, `SELECT count(*) FROM `+where.countFrom+` WHERE `+where.countWhere(), where.args...).Scan(&page.Total)
+}
+
+// positionCursor finds the item just before position q.At and returns it as a cursor, so the
+// page that follows is read exactly as any later page is. It reads only the sort's own columns
+// and skips through the list's index without fetching a row it does not send, which is what
+// lets a list of a million open anywhere in one step. tail reports that the position is the
+// first of the rows with no sort value, which has no item before it in that run; past reports
+// a position beyond the end.
+func positionCursor(ctx context.Context, tx *sql.Tx, where *query, spec sortSpec, q ItemQuery) (cursor *listCursor, tail, past bool, err error) {
+	direction := ""
+	if q.Desc {
+		direction = " DESC"
+	}
+	find := func(nulls bool, skip int) (*listCursor, error) {
+		columns, with := append(append([]string(nil), spec.columns...), "i.id"), ""
+		if nulls {
+			columns, with = []string{"i.id"}, ` AND `+spec.columns[0]+` IS NULL`
+		} else if spec.nullable {
+			with = ` AND ` + spec.columns[0] + ` IS NOT NULL`
+		}
+		values := make([]any, len(columns))
+		dest := make([]any, len(columns))
+		for n := range values {
+			dest[n] = &values[n]
+		}
+		err := tx.QueryRowContext(ctx, `SELECT `+strings.Join(columns, ", ")+` FROM `+where.from+` WHERE `+where.pageWhere()+with+
+			` ORDER BY `+strings.Join(columns, direction+", ")+direction+` LIMIT 1 OFFSET `+fmt.Sprint(skip), where.args...).Scan(dest...)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		found := &listCursor{Sort: q.Sort, Desc: q.Desc, Nulls: nulls, ID: values[len(values)-1].(int64)}
+		if !nulls {
+			found.Values = values[:len(values)-1]
+			for n, value := range found.Values {
+				if text, ok := value.([]byte); ok {
+					found.Values[n] = string(text)
+				}
+			}
+		}
+		return found, nil
+	}
+	if cursor, err = find(false, q.At-1); cursor != nil || err != nil || !spec.nullable {
+		return cursor, false, cursor == nil, err
+	}
+	// The position is among the rows with no sort value, which come last: count the rows
+	// that have one and skip the rest of the way there.
+	var valued int
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM `+where.from+` WHERE `+where.pageWhere()+` AND `+spec.columns[0]+` IS NOT NULL`,
+		where.args...).Scan(&valued); err != nil {
+		return nil, false, false, err
+	}
+	if q.At == valued {
+		return nil, true, false, nil
+	}
+	cursor, err = find(true, q.At-valued-1)
+	return cursor, false, cursor == nil, err
 }
 
 // listRun reads one run of a page: the rows that have a sort value, or the rows that do not.
