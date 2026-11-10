@@ -48,6 +48,9 @@ type Alternative struct {
 
 // TrackID is the id a track has on the wire. Apps never parse it.
 func TrackID(t db.Track) string {
+	if t.Downloaded != "" {
+		return "d" + t.Downloaded
+	}
 	if t.Sidecar {
 		return "f" + strconv.FormatInt(t.FileID, 10) + "-" + strconv.Itoa(t.Index)
 	}

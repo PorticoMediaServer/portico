@@ -15,6 +15,10 @@ type Service struct {
 	Providers map[string]Provider // by Name
 	// IncludeAdult is the owner's "Include adult titles" switch.
 	IncludeAdult bool
+	// Subtitles is the subtitle provider, or nil when the owner has not set one up, and
+	// SubtitleDir the folder in the data folder that downloaded subtitles are kept in.
+	Subtitles   SubtitleProvider
+	SubtitleDir string
 }
 
 // defaultProviders is the provider a library of each kind uses until the owner chooses.

@@ -58,7 +58,8 @@ type PlaybackAudio struct {
 type PlaybackSubtitle struct {
 	ID     string `json:"id"`
 	Format string `json:"format"`
-	// Source is embedded (in the file) or sidecar (a file beside it).
+	// Source is embedded (in the file), sidecar (a file beside it) or downloaded (found by a
+	// subtitle search and kept for everyone who may play the title).
 	Source   string `json:"source"`
 	Language string `json:"language,omitempty"`
 	Title    string `json:"title,omitempty"`
@@ -388,7 +389,10 @@ func versionOut(v db.PlaybackVersion) PlaybackVersion {
 				Default: t.Default, Commentary: playback.Commentary(t)})
 		case db.StreamSubtitle:
 			source := "embedded"
-			if t.Sidecar {
+			switch {
+			case t.Downloaded != "":
+				source = "downloaded"
+			case t.Sidecar:
 				source = "sidecar"
 			}
 			out.Subtitles = append(out.Subtitles, PlaybackSubtitle{ID: id, Format: t.Codec, Source: source, Language: t.Language,
