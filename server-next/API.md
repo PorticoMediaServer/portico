@@ -189,6 +189,19 @@ Listed route by route with each console panel's definition. Resources:
 | Server operations | 38 | Settings; jobs and schedules; logs; backups; updates; restart; dashboard; storage; diagnostics; notices; feedback triage; resource usage |
 | Keys, tools, webhooks | 9 | Server API keys; webhooks; MCP. A person's own tokens and app passwords are under `/v1/me` |
 
+### Remote sources, route by route (7 of the 33 for libraries, storage and files)
+
+The owner's alone. A source's password or key is never sent back; it can only be replaced.
+
+| Route | Purpose |
+|---|---|
+| `GET /v1/admin/remote-sources`, `GET /v1/admin/remote-sources/{id}` | The sources with their kind, settings, preset, limits and state (connected, unreachable, sign_in, waiting, setup) |
+| `POST /v1/admin/remote-sources` | Add one: the connection is tested first and nothing is saved unless it works. Takes an `Idempotency-Key` |
+| `PATCH /v1/admin/remote-sources/{id}` | Rename, change the preset or limits, change the address or replace the password (tested first; a new host needs the password again) |
+| `DELETE /v1/admin/remote-sources/{id}` | Disconnect, once no library folder is on it (`409 source_in_use` otherwise) |
+| `POST /v1/admin/remote-sources/{id}/test` | Test the saved source now |
+| `GET /v1/admin/remote-sources/{id}/folders?path=` | The folders in one folder of the source, for choosing a library's folders |
+
 ## Not on the wire, on purpose
 
 `viewerFence`, `expectedRevision`, `operationId`, a "preparing" answer on a read, query handles,

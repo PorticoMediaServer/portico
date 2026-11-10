@@ -22,6 +22,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
+	"github.com/PorticoMediaServer/portico/server-next/internal/remote"
 )
 
 // APIMajor is the number in the path. It changes only for a break old apps could not survive.
@@ -50,6 +51,8 @@ type Server struct {
 	playback *playback.Service
 	// queues builds and runs play queues. See queues.go.
 	queues *playqueue.Service
+	// remote opens the owner's remote sources. See remote_sources.go.
+	remote *remote.Registry
 }
 
 // Route is one operation, kept so the contract can be generated and the operation budget counted.
@@ -166,6 +169,10 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.invitationRoutes()
 	s.keyRoutes()
 	s.catalogueRoutes()
+	if s.remote, err = remote.NewRegistry(d, dataDir); err != nil {
+		return nil, err
+	}
+	s.remoteSourceRoutes()
 	s.playback = playback.New(d, playback.NoEngine{}, playback.NoEngine{}, log, func() time.Time { return s.now() })
 	go s.playback.Run(ctx)
 	s.playbackRoutes()
@@ -173,6 +180,9 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.queueRoutes()
 	return s, nil
 }
+
+// RemoteSources opens the owner's remote sources for the scanner and for playback.
+func (s *Server) RemoteSources() *remote.Registry { return s.remote }
 
 // Routes lists every registered operation.
 func (s *Server) Routes() []*Route { return s.routes }
