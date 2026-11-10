@@ -115,6 +115,43 @@
         ],
         "type": "object"
       },
+      "BlockedNetwork": {
+        "properties": {
+          "blockedUntil": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "network": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "network",
+          "blockedUntil"
+        ],
+        "type": "object"
+      },
+      "BlockedNetworkPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/BlockedNetwork"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
       "CapabilityDocument": {
         "properties": {},
         "type": "object"
@@ -3344,6 +3381,63 @@
           }
         },
         "x-access": "owner"
+      }
+    },
+    "/v1/admin/blocked-networks": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlockedNetworkPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
+      }
+    },
+    "/v1/admin/blocked-networks/{id}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
       }
     },
     "/v1/admin/invitations": {

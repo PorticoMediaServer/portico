@@ -224,7 +224,7 @@ func (s *Server) sourceLimit(r *http.Request) []db.Limit {
 	if !ok || networks.AtHome(addr) {
 		return nil
 	}
-	return []db.Limit{{Bucket: "source", Key: auth.SourceKey(addr), Delay: auth.SourceDelay, Doubling: true}}
+	return []db.Limit{{Bucket: db.SourceBucket, Key: auth.SourceKey(addr), Delay: auth.SourceDelay, Doubling: true, Shown: true}}
 }
 
 // passwordLimits are the counts a wrong password adds to. The wait belongs to the network

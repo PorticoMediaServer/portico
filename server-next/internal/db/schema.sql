@@ -579,13 +579,15 @@ CREATE INDEX invitations_creator ON invitations (created_by_user_id) WHERE creat
 CREATE INDEX invitations_accepted ON invitations (accepted_user_id) WHERE accepted_user_id IS NOT NULL;
 
 -- Failed-attempt counts that survive a restart. A limit slows a source down; it never locks
--- an account. Unknown and known usernames are counted the same way.
+-- an account. Unknown and known usernames are counted the same way. Keys are kept hashed;
+-- shown_key is the readable address of a blocked network, so the owner can see and unblock it.
 CREATE TABLE auth_limits (
   bucket          TEXT    NOT NULL,
   key_hash        TEXT    NOT NULL,
   failures        INTEGER NOT NULL DEFAULT 0,
   last_failure_at INTEGER NOT NULL,
   blocked_until_at INTEGER,
+  shown_key       TEXT,
   PRIMARY KEY (bucket, key_hash)
 ) STRICT, WITHOUT ROWID;
 

@@ -89,6 +89,25 @@ func TestTrustedProxiesAndHomeNetworks(t *testing.T) {
 	if got := from(t, s, proxy, friend, "POST", "/v1/auth/sign-in", "", right, &in); got != 200 {
 		t.Fatalf("someone else behind the same proxy was answered %d, want 200", got)
 	}
+	// The owner sees which network is blocked and lets it back in.
+	owner = onMain(t, s, in)
+	blocked := get[Page[BlockedNetwork]](t, s, owner.AccessToken, "/v1/admin/blocked-networks")
+	if len(blocked.Items) != 1 || blocked.Items[0].Network != guesser || !blocked.Items[0].BlockedUntil.After(later) {
+		t.Fatalf("the blocked networks are listed as %+v", blocked.Items)
+	}
+	if got := status(t, s, "DELETE", "/v1/admin/blocked-networks/"+blocked.Items[0].ID, owner.AccessToken, nil); got != 200 && got != 204 {
+		t.Fatalf("unblocking answered %d", got)
+	}
+	unblocked := SignInRequest{Username: "justin", Password: testPassword, Device: device(203)}
+	if got := from(t, s, proxy, guesser, "POST", "/v1/auth/sign-in", "", unblocked, nil); got != 200 {
+		t.Errorf("the unblocked network was answered %d, want 200", got)
+	}
+	if left := get[Page[BlockedNetwork]](t, s, owner.AccessToken, "/v1/admin/blocked-networks"); len(left.Items) != 0 {
+		t.Errorf("after unblocking the list still holds %+v", left.Items)
+	}
+	if got := status(t, s, "DELETE", "/v1/admin/blocked-networks/"+blocked.Items[0].ID, owner.AccessToken, nil); got != 404 {
+		t.Errorf("unblocking a network that is not blocked answered %d, want 404", got)
+	}
 	// Home is what the owner listed, as the proxy reports it, and never what a stranger claims.
 	atHome := SignInRequest{Username: "justin", Password: testPassword, Device: device(201)}
 	if got := from(t, s, proxy, "192.168.1.5", "POST", "/v1/auth/sign-in", "", atHome, nil); got != 200 {

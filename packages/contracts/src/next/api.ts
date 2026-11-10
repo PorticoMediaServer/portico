@@ -36,6 +36,17 @@ export interface AudioPick {
   trackId: string;
 }
 
+export interface BlockedNetwork {
+  id: string;
+  network: string;
+  blockedUntil: string;
+}
+
+export interface BlockedNetworkPage {
+  items: BlockedNetwork[];
+  nextCursor?: string;
+}
+
 export interface CapabilityDocument {
 }
 
@@ -988,6 +999,8 @@ export interface Routes {
   'GET /v1/system': {access: 'public'; request: undefined; response: System};
   'GET /v1/admin/settings/network': {access: 'owner'; request: undefined; response: NetworkSettings};
   'PUT /v1/admin/settings/network': {access: 'owner'; request: NetworkSettingsEdit; response: NetworkSettings};
+  'GET /v1/admin/blocked-networks': {access: 'admin'; request: undefined; response: BlockedNetworkPage};
+  'DELETE /v1/admin/blocked-networks/{id}': {access: 'admin'; request: undefined; response: undefined};
   'POST /v1/system/identity-proof': {access: 'public'; request: IdentityQuestion; response: IdentityProof};
   'POST /v1/setup/owner': {access: 'public'; request: SetupOwnerRequest; response: SignInResponse};
   'POST /v1/auth/sign-in': {access: 'public'; request: SignInRequest; response: SignInResponse};

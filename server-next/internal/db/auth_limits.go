@@ -29,6 +29,9 @@ type Limit struct {
 	// Doubling makes each wait twice as long as the one before, up to a day, and starts
 	// over once a day has passed since the last wait ended.
 	Doubling bool
+	// Shown keeps the key readable beside its hash while a wait is in force, so the owner
+	// can be told which network is blocked. Only a network's own address is ever shown.
+	Shown bool
 }
 
 // limitHalfLife is how fast old failures stop counting: the count halves each period.
@@ -137,6 +140,11 @@ func limitFail(tx *sql.Tx, now time.Time, limits []Limit) error {
 		if err := limitStore(tx, l.Bucket, l.Key, failures, now, wait); err != nil {
 			return err
 		}
+		if wait > 0 && l.Shown {
+			if _, err := tx.Exec(`UPDATE auth_limits SET shown_key = ? WHERE bucket = ? AND key_hash = ?`, l.Key, l.Bucket, limitKey(l.Key)); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
@@ -164,4 +172,57 @@ func limitClear(tx *sql.Tx, limits []Limit) error {
 // sign-in code nobody issued.
 func (d *DB) RecordFailure(ctx context.Context, now time.Time, limits ...Limit) error {
 	return d.write(ctx, User, func(tx *sql.Tx) error { return limitFail(tx, now, limits) })
+}
+
+// SourceBucket counts everything one network away from home gets wrong.
+const SourceBucket = "source"
+
+// BlockedNetwork is a network that is refused every sign-in, PIN and code until Until.
+type BlockedNetwork struct {
+	// ID names the block in UnblockNetwork.
+	ID string
+	// Network is an IPv4 address, or the /64 of an IPv6 address.
+	Network string
+	Until   time.Time
+}
+
+// BlockedNetworks lists the networks blocked now, the one blocked longest first.
+func (d *DB) BlockedNetworks(ctx context.Context, now time.Time) ([]BlockedNetwork, error) {
+	rows, err := d.read.QueryContext(ctx, `SELECT key_hash, shown_key, blocked_until_at FROM auth_limits
+		WHERE bucket = ? AND blocked_until_at > ? AND shown_key IS NOT NULL ORDER BY blocked_until_at DESC LIMIT 500`, SourceBucket, now.UnixMilli())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []BlockedNetwork{}
+	for rows.Next() {
+		var b BlockedNetwork
+		var until int64
+		if err := rows.Scan(&b.ID, &b.Network, &until); err != nil {
+			return nil, err
+		}
+		b.Until = time.UnixMilli(until)
+		out = append(out, b)
+	}
+	return out, rows.Err()
+}
+
+// UnblockNetwork lets a blocked network try again at once and forgets how often it has
+// been blocked, so its next block is a first one. A block that has already ended is ErrNotFound.
+func (d *DB) UnblockNetwork(ctx context.Context, actorID int64, id string, now time.Time) error {
+	return d.write(ctx, User, func(tx *sql.Tx) error {
+		var network string
+		err := tx.QueryRow(`DELETE FROM auth_limits WHERE bucket = ? AND key_hash = ? AND blocked_until_at > ? RETURNING ifnull(shown_key, '')`,
+			SourceBucket, id, now.UnixMilli()).Scan(&network)
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`DELETE FROM auth_limits WHERE bucket = ? AND key_hash = ?`, SourceBucket+"_repeat", id); err != nil {
+			return err
+		}
+		return audit(tx, actorID, "network.unblock", network, "", now)
+	})
 }
