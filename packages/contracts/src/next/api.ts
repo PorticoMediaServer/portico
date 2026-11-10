@@ -900,6 +900,15 @@ export interface RememberedFailurePage {
   nextCursor?: string;
 }
 
+export interface Restrictions {
+  maxRatingAge?: number | null;
+  blockedLabels: string[];
+  allLibraries: boolean;
+  libraries: string[];
+  accountAllLibraries: boolean;
+  accountLibraries: string[];
+}
+
 export interface SavedPlaylist {
   playlistId: string;
   entries: number;
@@ -1141,6 +1150,8 @@ export interface Routes {
   'DELETE /v1/profiles/{id}/pin': {access: 'signedIn'; request: undefined; response: undefined};
   'DELETE /v1/profiles/{id}': {access: 'signedIn'; request: undefined; response: undefined};
   'POST /v1/profiles/{id}/select': {access: 'signedIn'; request: ProfileSelect; response: Session};
+  'GET /v1/profiles/{id}/restrictions': {access: 'signedIn'; request: undefined; response: Restrictions};
+  'PUT /v1/profiles/{id}/restrictions': {access: 'signedIn'; request: Restrictions; response: Restrictions};
   'GET /v1/preferences': {access: 'withProfile'; request: undefined; response: Preferences};
   'PATCH /v1/preferences': {access: 'withProfile'; request: PreferencesEdit; response: Preferences};
   'GET /v1/me/sessions': {access: 'signedIn'; request: undefined; response: SessionInfoPage};
