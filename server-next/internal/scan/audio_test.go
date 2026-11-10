@@ -2,6 +2,7 @@ package scan_test
 
 import (
 	"encoding/binary"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -179,5 +180,25 @@ func TestBooksAndComicsAreReadFromNamesAndOPF(t *testing.T) {
 	saga := c.children(c.titles(db.KindSeries)["Saga"].PublicID)
 	if len(saga) != 2 || saga[2].PublicID == "" || c.titles(db.KindComic)["Watchmen"].PublicID == "" {
 		t.Fatalf("comics: %v issues of Saga, %v", len(saga), keys(c.titles(db.KindComic)))
+	}
+}
+
+// A cue album is not limited to sixteen tracks, and every track has its own place in the file.
+func TestACueAlbumOfTwentyTracks(t *testing.T) {
+	f := newFixture(t, db.LibraryMusic)
+	f.write("Artist/Long Album/Long Album.flac")
+	sheet := "FILE \"Long Album.flac\" WAVE\n"
+	for n := 1; n <= 20; n++ {
+		sheet += fmt.Sprintf("  TRACK %02d AUDIO\n    TITLE \"Song %d\"\n    INDEX 01 %02d:00:00\n", n, n, n-1)
+	}
+	f.text("Artist/Long Album/Long Album.cue", sheet)
+	f.scan()
+	tracks := f.children(f.byTitle(f.titles(db.KindArtist)["Artist"].PublicID)["Long Album"].PublicID)
+	starts := map[int64]bool{}
+	for _, track := range tracks {
+		starts[*f.detail(track.PublicID).Versions[0].Parts[0].StartMS] = true
+	}
+	if len(tracks) != 20 || len(starts) != 20 || tracks[20].Title != "Song 20" {
+		t.Fatalf("%d tracks at %d places; want 20 of each", len(tracks), len(starts))
 	}
 }
