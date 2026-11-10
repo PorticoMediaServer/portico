@@ -42,6 +42,9 @@ func Run(
 	if err != nil {
 		return result, err
 	}
+	// A probe that was refused before its tool started never took the reservation: it is
+	// given back here. Once a tool has it, its real exit gives it back and this does nothing.
+	defer reservation.Close()
 	data, err := decoder.RunProbe(ctx, supervisor, key, tool.Executable, bridge.URL(), reservation, tool.Libraries...)
 	if err != nil {
 		return result, err
