@@ -22,6 +22,8 @@ type Service struct {
 	// running state: after a restart the first call looks through them once.
 	walks  sync.Mutex
 	walked map[int64]time.Time
+	// Lyrics is the lyrics provider, or nil.
+	Lyrics LyricsProvider
 }
 
 // defaultProviders is the provider a library of each kind uses until the owner chooses.

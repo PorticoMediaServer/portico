@@ -168,6 +168,9 @@ func (o LibraryOptions) check() error {
 	if o.Trash.Days < 0 || o.Trash.Days > 3650 {
 		return invalid("missing titles are removed after 1 to 3,650 days")
 	}
+	if o.Lyrics != "" && o.Lyrics != LyricsLRCLIB {
+		return invalid("unknown lyrics source %q", o.Lyrics)
+	}
 	return nil
 }
 
