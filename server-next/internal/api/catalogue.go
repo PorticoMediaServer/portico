@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 )
@@ -136,6 +138,13 @@ func (s *Server) catalogueRoutes() {
 				out.Groups = append(out.Groups, RelatedGroup{Relation: kind.String(), Items: itemShapes(items)})
 			}
 		}
+		like, err := s.db.MoreLikeThis(r.Context(), viewer(r), r.PathValue("id"))
+		if err != nil {
+			return Related{}, refuse(err)
+		}
+		if len(like) > 0 {
+			out.Groups = append(out.Groups, RelatedGroup{Relation: "more_like_this", Items: itemShapes(like)})
+		}
 		return out, nil
 	})
 	Handle(s, "GET /v1/people/{id}", WithProfile, func(r *http.Request, _ None) (Person, error) {
@@ -176,10 +185,19 @@ func (s *Server) catalogueRoutes() {
 		if err != nil {
 			return Home{}, err
 		}
-		rows, err := s.homeLayout(r.Context(), viewer(r).ProfileID, []HomeRow{
+		moods, err := s.db.MoodRows(r.Context(), viewer(r))
+		if err != nil {
+			return Home{}, err
+		}
+		home := []HomeRow{
 			{ID: "continue", Title: "Continue Watching", Shape: "landscape", Items: itemShapes(continuing)},
 			{ID: "recently_added", Title: "Recently Added", Shape: "poster", Items: itemShapes(recent)},
-		}, withHidden)
+		}
+		for _, mood := range moods {
+			home = append(home, HomeRow{ID: mood.Key, Title: moodRowTitle(mood.Label), Reason: because(mood.Because),
+				Shape: "poster", Items: itemShapes(mood.Items)})
+		}
+		rows, err := s.homeLayout(r.Context(), viewer(r).ProfileID, home, withHidden)
 		// A row with nothing in it is left out, so an app never draws an empty shelf. A hidden
 		// row sent to the editor has no items and is always sent.
 		out := Home{Rows: []HomeRow{}}
@@ -544,4 +562,31 @@ func parseCursor(text string) (changes, live int64, err error) {
 
 func feedCursor(changes, live int64) string {
 	return strconv.FormatInt(changes, 10) + "." + strconv.FormatInt(live, 10)
+}
+
+// moodRowTitle names a mood row from the tag's row label: "cozy stories" is "Cozy stories for you".
+func moodRowTitle(label string) string {
+	first, size := utf8.DecodeRuneInString(label)
+	return string(unicode.ToUpper(first)) + label[size:] + " for you"
+}
+
+// because is a mood row's line saying which titles it comes from, and whether the profile
+// watched them or only liked them: "Because you watched Babe and liked Ponyo".
+func because(from []db.MoodReason) string {
+	line := ""
+	for n, r := range from {
+		verb := "liked"
+		if r.Watched {
+			verb = "watched"
+		}
+		switch {
+		case n == 0:
+			line = "Because you " + verb + " " + r.Item.Title
+		case r.Watched == from[0].Watched:
+			line += " and " + r.Item.Title
+		default:
+			line += " and " + verb + " " + r.Item.Title
+		}
+	}
+	return line
 }

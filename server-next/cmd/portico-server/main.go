@@ -168,6 +168,8 @@ func run(log *slog.Logger) error {
 		log.Warn("title data comes from a test publication", "address", titleData.Address)
 	}
 	go titleData.Run(ctx)
+	// Mood rows on Home are chosen in the background, so a Home request only reads them.
+	go d.KeepMoodRows(ctx, log)
 	// No write timeout: media and the events feed are long replies. Slow request headers are bounded.
 	srv := &http.Server{Addr: *listen, Handler: handler, ReadHeaderTimeout: 10 * time.Second}
 	failed := make(chan error, 1)

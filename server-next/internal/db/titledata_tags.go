@@ -131,6 +131,7 @@ func (d *DB) ApplyTitleData(ctx context.Context, after int64, limit int) (int64,
 	if len(changed) == 0 {
 		return next, nil
 	}
+	defer d.moods.stale(0) // mood rows are chosen again from the new tags
 	return next, d.write(ctx, Background, func(tx *sql.Tx) error {
 		b := newBatchTx(tx)
 		defer b.close()
@@ -174,6 +175,7 @@ func (d *DB) RemoveUnusedTitleDataTags(ctx context.Context) error {
 // RemoveTitleDataTags takes mood tags off up to limit titles, for when title data is switched
 // off, and answers whether any are left.
 func (d *DB) RemoveTitleDataTags(ctx context.Context, limit int) (bool, error) {
+	defer d.moods.stale(0)
 	var left bool
 	err := d.write(ctx, Background, func(tx *sql.Tx) error {
 		if _, err := tx.ExecContext(ctx, `DELETE FROM item_tags WHERE (item_id, tag_id) IN

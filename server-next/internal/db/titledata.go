@@ -114,6 +114,7 @@ func (d *DB) UseTitleData(path string) error {
 		}
 		next = &titleData{conn: conn}
 	}
+	d.moods.stale(0) // the row labels may have changed
 	if old := d.titleData.Swap(next); old != nil {
 		return old.conn.Close()
 	}

@@ -284,7 +284,8 @@ type Related struct {
 	Groups []RelatedGroup `json:"groups"`
 }
 
-// RelatedGroup is one kind of tie, such as "extra" or "collection_member".
+// RelatedGroup is one kind of tie, such as "extra" or "collection_member". "more_like_this" is
+// the titles Portico's title data names as like this one, best first.
 type RelatedGroup struct {
 	Relation string `json:"relation"`
 	Items    []Item `json:"items"`
@@ -324,12 +325,14 @@ type Home struct {
 	Rows []HomeRow `json:"rows"`
 }
 
-// HomeRow is one row. Shape says how to draw its cards: "landscape" or "poster".
+// HomeRow is one row. Shape says how to draw its cards: "landscape" or "poster". Reason is the
+// line under a personal row's title saying why these titles ("Because you watched Paddington").
 type HomeRow struct {
-	ID    string `json:"id"`
-	Title string `json:"title"`
-	Shape string `json:"shape"`
-	Items []Item `json:"items"`
+	ID     string `json:"id"`
+	Title  string `json:"title"`
+	Reason string `json:"reason,omitempty"`
+	Shape  string `json:"shape"`
+	Items  []Item `json:"items"`
 	// Hidden is true only on GET /v1/home?hidden=include, for a row the profile hid: it is sent
 	// with its title and no items, so Customize Home can offer to show it again.
 	Hidden bool `json:"hidden,omitempty"`
