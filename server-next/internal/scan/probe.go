@@ -40,11 +40,12 @@ func (r *run) probe() error {
 		if err != nil || len(files) == 0 {
 			return err
 		}
-		// A few files are read at once: each read is a confined tool at low priority, and
-		// one at a time would make a large library's first scan take several times as long.
+		// Up to four files are read at once: each read is a confined tool at low priority, so
+		// it gives way to playback, and one at a time would make a large library's first
+		// scan take several times as long.
 		results := make([]*db.Probe, len(files))
 		var wg sync.WaitGroup
-		slots := make(chan struct{}, max(1, min(4, runtime.NumCPU()/2)))
+		slots := make(chan struct{}, min(4, runtime.NumCPU()))
 		for i, file := range files {
 			after = file.ID
 			local := r.source(file.Root).LocalPath(file.Rel)
