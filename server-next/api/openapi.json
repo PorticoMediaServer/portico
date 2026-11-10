@@ -2505,6 +2505,52 @@
         ],
         "type": "object"
       },
+      "Restrictions": {
+        "properties": {
+          "accountAllLibraries": {
+            "type": "boolean"
+          },
+          "accountLibraries": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "allLibraries": {
+            "type": "boolean"
+          },
+          "blockedLabels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "libraries": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "maxRatingAge": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "blockedLabels",
+          "allLibraries",
+          "libraries",
+          "accountAllLibraries",
+          "accountLibraries"
+        ],
+        "type": "object"
+      },
       "Session": {
         "properties": {
           "accessToken": {
@@ -5850,6 +5896,88 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Profile"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "signedIn"
+      }
+    },
+    "/v1/profiles/{id}/restrictions": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Restrictions"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "signedIn"
+      },
+      "put": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Restrictions"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Restrictions"
                 }
               }
             },
