@@ -47,21 +47,49 @@ func (j *Job) dest() []any {
 		&j.CreatedAt, &j.StartedAt, &j.FinishedAt}
 }
 
+// NewJob is a piece of work being asked for.
+type NewJob struct {
+	Kind    string
+	Target  string
+	Payload string
+	OwnerID int64
+	// IdempotencyKey and RequestHash, when a request came with a key: the same request sent
+	// again answers with the job the first one started, and starts nothing.
+	IdempotencyKey string
+	RequestHash    string
+}
+
 // StartJob asks for a piece of work. Asking again while it is waiting or running joins the
 // one there is; asking after it has finished starts it afresh under the same id.
-func (d *DB) StartJob(ctx context.Context, kind, target, payload string, ownerID int64) (Job, error) {
+func (d *DB) StartJob(ctx context.Context, n NewJob) (Job, error) {
 	var job Job
 	err := d.write(ctx, User, func(tx *sql.Tx) error {
-		now := time.Now().UnixMilli()
-		_, err := tx.Exec(`INSERT INTO jobs (public_id, kind, target, payload, run_after_at, owner_user_id, created_at)
-			VALUES (?, ?, ?, nullif(?, ''), ?, nullif(?, 0), ?) ON CONFLICT (kind, target) DO UPDATE SET state = 'waiting', attempts = 0,
-			last_error = NULL, payload = excluded.payload, progress_done = 0, progress_total = NULL, owner_user_id = excluded.owner_user_id,
-			created_at = excluded.created_at, started_at = NULL, finished_at = NULL WHERE jobs.state NOT IN ('waiting', 'running')`,
-			NewID("job"), kind, target, payload, now, ownerID, now)
+		before, err := createdBefore(tx, n.OwnerID, n.IdempotencyKey, n.RequestHash)
 		if err != nil {
 			return err
 		}
-		return tx.QueryRow(`SELECT `+jobColumns+` FROM jobs WHERE kind = ? AND target = ?`, kind, target).Scan(job.dest()...)
+		if before != "" {
+			err := tx.QueryRow(`SELECT `+jobColumns+` FROM jobs WHERE public_id = ?`, before).Scan(job.dest()...)
+			if !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
+		}
+		now := time.Now()
+		_, err = tx.Exec(`INSERT INTO jobs (public_id, kind, target, payload, run_after_at, owner_user_id, created_at)
+			VALUES (?, ?, ?, nullif(?, ''), ?, nullif(?, 0), ?) ON CONFLICT (kind, target) DO UPDATE SET state = 'waiting', attempts = 0,
+			last_error = NULL, payload = excluded.payload, progress_done = 0, progress_total = NULL, owner_user_id = excluded.owner_user_id,
+			created_at = excluded.created_at, started_at = NULL, finished_at = NULL WHERE jobs.state NOT IN ('waiting', 'running')`,
+			NewID("job"), n.Kind, n.Target, n.Payload, now.UnixMilli(), n.OwnerID, now.UnixMilli())
+		if err != nil {
+			return err
+		}
+		if err := tx.QueryRow(`SELECT `+jobColumns+` FROM jobs WHERE kind = ? AND target = ?`, n.Kind, n.Target).Scan(job.dest()...); err != nil {
+			return err
+		}
+		if before != "" || n.OwnerID == 0 {
+			return nil
+		}
+		return rememberCreated(tx, n.OwnerID, n.IdempotencyKey, n.RequestHash, job.PublicID, now)
 	})
 	return job, err
 }
