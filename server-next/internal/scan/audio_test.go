@@ -110,10 +110,13 @@ func TestMusicIsReadFromTagsThenFolders(t *testing.T) {
 
 	// A moved file is the same track: nothing about it is read again or changes.
 	airbag := tracks[1]
-	f.watch(airbag.PublicID)
+	yes := true
+	if _, _, err := f.d.SetState(ctx, f.viewer, airbag.PublicID, db.StateEdit{Favorite: &yes}); err != nil {
+		t.Fatal(err)
+	}
 	f.move("downloads", "Radiohead/OK Computer (1997)")
 	stats := f.scan()
-	if stats.FilesMoved != 2 || stats.ItemsNew != 0 || !f.watched(f.children(ok.PublicID)[1].PublicID) {
+	if stats.FilesMoved != 2 || stats.ItemsNew != 0 || !f.detail(f.children(ok.PublicID)[1].PublicID).State.Favorite {
 		t.Fatalf("after moving the album: %+v", stats)
 	}
 	if again := f.scan(); again.RowsWritten != 0 {
