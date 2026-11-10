@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"time"
 )
 
 // ChooseMatch marks a title's match as chosen by a person, which only the metadata editor's
@@ -53,11 +54,11 @@ func ForgetEndedSignIns(d *DB) {
 	d.marks.mu.Unlock()
 }
 
-// SetWALLimits lets a test reach the WAL policy's sizes with a small database. It returns
-// a function that puts the real ones back.
-func SetWALLimits(drain, insist int64) (restore func()) {
-	oldDrain, oldInsist := walDrainBytes, walInsistBytes
-	walDrainBytes, walInsistBytes = drain, insist
-	return func() { walDrainBytes, walInsistBytes = oldDrain, oldInsist }
+// SetWALLimits lets a test reach the WAL policy's sizes with a small database, and its
+// longest hold without waiting seconds. It returns a function that puts the real ones back.
+func SetWALLimits(drain, insist int64, hold time.Duration) (restore func()) {
+	oldDrain, oldInsist, oldHold := walDrainBytes, walInsistBytes, walHoldMax
+	walDrainBytes, walInsistBytes, walHoldMax = drain, insist, hold
+	return func() { walDrainBytes, walInsistBytes, walHoldMax = oldDrain, oldInsist, oldHold }
 
 }
