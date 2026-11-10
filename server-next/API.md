@@ -216,7 +216,7 @@ Refreshing or editing a selection of titles is a bulk action, `POST /v1/jobs`.
 | `POST /v1/admin/items/{id}/artwork/find` | Find more from the provider, fetch again, or make an episode's picture from the video |
 | `GET /v1/admin/metadata/settings`, `PUT /v1/admin/metadata/settings` | Own provider keys (write-only: the answer says only whether one is set), Include adult titles, cast photos, Download title data, the subtitle account |
 
-### Remote sources, route by route (7 of the 33 for libraries, storage and files)
+### Remote sources, route by route (8 of the 33 for libraries, storage and files)
 
 The owner's alone. A source's password or key is never sent back; it can only be replaced.
 
@@ -228,6 +228,9 @@ The owner's alone. A source's password or key is never sent back; it can only be
 | `DELETE /v1/admin/remote-sources/{id}` | Disconnect, once no library folder is on it (`409 source_in_use` otherwise) |
 | `POST /v1/admin/remote-sources/{id}/test` | Test the saved source now |
 | `GET /v1/admin/remote-sources/{id}/folders?path=` | The folders in one folder of the source, for choosing a library's folders |
+| `POST /v1/admin/remote-sources/drive-sign-in` | Start a Google sign-in with the owner's own OAuth client; the address the browser is sent to is pasted into the Drive source's settings |
+
+A source is `webdav` (an address, user and password), `rclone` (one remote pasted from rclone's configuration, and a folder in it) or `drive` (Google Drive with a service account key or the sign-in above, and a folder in it). rclone and Drive are served by the rclone that comes with Portico.
 
 ## Not on the wire, on purpose
 
