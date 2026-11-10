@@ -273,8 +273,36 @@ func TestSearchFollowsChanges(t *testing.T) {
 	s.expect("saul", "episode", "")
 }
 
-// A label put on a show hides the show and everything under it from a profile that blocks the
-// label, in the results and in the counts, as soon as the index has followed the change.
+// agrees checks that what a profile finds for a word, and the count it is told, of a kind in
+// the shows library, is exactly what it can list there with that word in its title or its show's.
+func (s *shelf) agrees(v db.Viewer, text, kind string, want int) {
+	s.t.Helper()
+	everyone := s.v
+	s.v = v
+	g := s.search(text, kind)
+	s.v = everyone
+	var listed []string
+	for _, k := range []db.ItemKind{db.KindShow, db.KindEpisode} {
+		if k.String() != kind {
+			continue
+		}
+		for _, item := range everything(s.t, s.d, v, db.ItemQuery{Library: s.shows.PublicID, Kinds: []db.ItemKind{k}, Limit: 200}) {
+			listed = append(listed, item.PublicID)
+		}
+	}
+	var found []string
+	for _, item := range g.Items {
+		found = append(found, item.PublicID)
+	}
+	slices.Sort(listed)
+	slices.Sort(found)
+	if !slices.Equal(found, listed) || g.Total != len(listed) || g.TotalIsMinimum || len(listed) != want {
+		s.t.Fatalf("search %q: told of %d %s results and shown %q; the profile can list %d, and %d were expected", text, g.Total, kind, names(g), len(listed), want)
+	}
+}
+
+// A label put on a show or a season hides it and everything under it from a profile that
+// blocks the label, in the results and in the counts, as soon as the index has followed the change.
 func TestSearchFollowsALabel(t *testing.T) {
 	s := newShelf(t)
 	kids := film("Zardoz")
@@ -289,27 +317,56 @@ func TestSearchFollowsALabel(t *testing.T) {
 		t.Fatal(err)
 	}
 	everyone := s.v
-	expect := func(v db.Viewer, text, kind string, want int) {
-		t.Helper()
-		s.v = v
-		defer func() { s.v = everyone }()
-		if g := s.search(text, kind); g.Total != want || len(g.Items) != want || g.TotalIsMinimum {
-			t.Fatalf("search %q: %d %s results counted, %q shown, want %d", text, g.Total, kind, names(g), want)
-		}
+	s.v = child
+	s.expect("zardoz", "movie", "")
+	s.v = everyone
+	s.expect("zardoz", "movie", "Zardoz")
+	s.agrees(child, "breaking", "show", 1)
+	s.agrees(child, "breaking", "episode", 2)
+
+	seasons := everything(t, s.d, everyone, db.ItemQuery{Library: s.shows.PublicID, Kinds: []db.ItemKind{db.KindSeason}, Limit: 200})
+	if len(seasons) != 1 {
+		t.Fatalf("%d seasons, want the one", len(seasons))
 	}
-	expect(child, "zardoz", "movie", 0)
-	expect(everyone, "zardoz", "movie", 1)
-	expect(child, "breaking", "show", 1)
-	expect(child, "breaking", "episode", 2)
+	if err := s.d.LabelItem(ctx, seasons[0].PublicID, labels[0].PublicID); err != nil {
+		t.Fatal(err)
+	}
+	s.agrees(child, "breaking", "show", 1)
+	s.agrees(child, "breaking", "episode", 0)
+	s.agrees(everyone, "breaking", "episode", 2)
 
 	if err := s.d.LabelItem(ctx, s.search("breaking bad", "show").Items[0].PublicID, labels[0].PublicID); err != nil {
 		t.Fatal(err)
 	}
-	expect(child, "breaking", "show", 0)
-	expect(child, "breaking", "episode", 0)
-	expect(child, "ozymandias", "episode", 0)
-	expect(everyone, "breaking", "episode", 2)
-	expect(child, "godfather", "movie", 2)
+	s.agrees(child, "breaking", "show", 0)
+	s.agrees(child, "breaking", "episode", 0)
+	s.agrees(everyone, "breaking", "episode", 2)
+}
+
+// A show's rating is copied to its episodes with one change, for the show. A profile with a
+// rating limit finds the episodes when the new rating lets it, and not when it does not.
+func TestSearchFollowsAShowsRating(t *testing.T) {
+	s := newShelf(t)
+	thirteen := 13
+	child, err := s.d.CreateSeedProfile(ctx, db.SeedProfile{Name: "child", MaxRatingAge: &thirteen})
+	if err != nil {
+		t.Fatal(err)
+	}
+	show := s.search("breaking bad", "show").Items[0].PublicID
+	s.agrees(child, "breaking", "episode", 0) // not rated yet
+
+	if err := s.d.RateShow(ctx, show, 12); err != nil {
+		t.Fatal(err)
+	}
+	s.agrees(child, "breaking", "show", 1)
+	s.agrees(child, "breaking", "episode", 2)
+
+	if err := s.d.RateShow(ctx, show, 16); err != nil {
+		t.Fatal(err)
+	}
+	s.agrees(child, "breaking", "show", 0)
+	s.agrees(child, "breaking", "episode", 0)
+	s.agrees(s.v, "breaking", "episode", 2)
 }
 
 // The answers a shelf gives after the edits below, whatever state its index was in before.

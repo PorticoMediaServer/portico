@@ -58,3 +58,18 @@ func (d *DB) LabelItem(ctx context.Context, publicID, tagPublicID string) error 
 		return appendChange(tx, Change{At: time.Now().UnixMilli(), Topic: TopicItem, Op: OpUpdated, RefID: id, LibraryID: library})
 	})
 }
+
+// RateShow does what a match, a refresh or the metadata editor does to a show's rating: the
+// show and everything under it with no rating of its own, and one change, for the show.
+func (d *DB) RateShow(ctx context.Context, publicID string, age int) error {
+	return d.write(ctx, User, func(tx *sql.Tx) error {
+		var id, library int64
+		if err := tx.QueryRow(`UPDATE items SET rating_age = ? WHERE public_id = ? RETURNING id, library_id`, age, publicID).Scan(&id, &library); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`UPDATE items SET rating_age = ? WHERE root_id = ? AND content_rating IS NULL`, age, id); err != nil {
+			return err
+		}
+		return appendChange(tx, Change{At: time.Now().UnixMilli(), Topic: TopicItem, Op: OpUpdated, RefID: id, LibraryID: library})
+	})
+}
