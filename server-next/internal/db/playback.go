@@ -76,7 +76,9 @@ type PlaybackItem struct {
 	// Empty means no choice was made. See RememberTracks for the notation.
 	AudioPick    string
 	SubtitlePick string
-	Versions     []PlaybackVersion
+	// SubtitleOffsetMS is the timing nudge the profile gave this title's subtitles.
+	SubtitleOffsetMS int64
+	Versions         []PlaybackVersion
 }
 
 // PlaybackVersion is one playable version with every track that can be chosen for it.
@@ -116,11 +118,12 @@ func (d *DB) PlaybackItem(ctx context.Context, v Viewer, publicID string) (Playb
 	}
 	var parentID, rootID int64
 	err = tx.QueryRowContext(ctx, `SELECT i.id, i.public_id, i.kind, i.title, ifnull(i.duration_ms, 0), i.library_id,
-		ifnull(i.parent_id, 0), ifnull(i.root_id, 0), ifnull(s.position_ms, 0), ifnull(s.audio_language, ''), ifnull(s.subtitle_language, '')
+		ifnull(i.parent_id, 0), ifnull(i.root_id, 0), ifnull(s.position_ms, 0), ifnull(s.audio_language, ''), ifnull(s.subtitle_language, ''),
+		ifnull(s.subtitle_offset_ms, 0)
 		FROM items i LEFT JOIN user_item_state s ON s.profile_id = @viewer_profile AND s.item_id = i.id
 		WHERE i.public_id = @id AND `+acc.visible("i"), append(v.args(), sql.Named("id", publicID))...).
 		Scan(&out.ID, &out.PublicID, &out.Kind, &out.Title, &out.DurationMS, &out.LibraryID, &parentID, &rootID,
-			&out.PositionMS, &out.AudioPick, &out.SubtitlePick)
+			&out.PositionMS, &out.AudioPick, &out.SubtitlePick, &out.SubtitleOffsetMS)
 	if errors.Is(err, sql.ErrNoRows) {
 		return out, ErrNotFound
 	}
@@ -239,6 +242,64 @@ func (d *DB) RememberTracks(ctx context.Context, v Viewer, itemID int64, audio, 
 		}
 		return nil
 	})
+}
+
+// SetSubtitleOffset keeps the timing nudge a profile gave one title's subtitles. It belongs to
+// that title and does not carry to the next. A title the viewer may not see is ErrNotFound.
+func (d *DB) SetSubtitleOffset(ctx context.Context, v Viewer, itemPublicID string, offsetMS int64, now time.Time) error {
+	return d.write(ctx, User, func(tx *sql.Tx) error {
+		acc, err := loadAccess(ctx, tx, v)
+		if err != nil {
+			return err
+		}
+		var id int64
+		err = tx.QueryRow(`SELECT i.id FROM items i WHERE i.public_id = @id AND `+acc.visible("i"),
+			append(v.args(), sql.Named("id", itemPublicID))...).Scan(&id)
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return err
+		}
+		_, err = tx.Exec(`INSERT INTO user_item_state (profile_id, item_id, subtitle_offset_ms, updated_at) VALUES (?1, ?2, nullif(?3, 0), ?4)
+			ON CONFLICT (profile_id, item_id) DO UPDATE SET subtitle_offset_ms = nullif(?3, 0)`, v.ProfileID, id, offsetMS, now.UnixMilli())
+		return err
+	})
+}
+
+// LyricFile is a lyrics file found beside a song.
+type LyricFile struct {
+	FileID int64
+	Name   string
+	// Path is where the file is on disk.
+	Path string
+}
+
+// LyricFiles returns the lyrics files beside a song the viewer may see, by name.
+func (d *DB) LyricFiles(ctx context.Context, v Viewer, itemPublicID string) ([]LyricFile, error) {
+	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	acc, err := loadAccess(ctx, tx, v)
+	if err != nil {
+		return nil, err
+	}
+	var id int64
+	err = tx.QueryRowContext(ctx, `SELECT i.id FROM items i WHERE i.public_id = @id AND `+acc.visible("i"),
+		append(v.args(), sql.Named("id", itemPublicID))...).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return queryAll(ctx, tx, `SELECT f.id, f.name, rtrim(lp.path, '/') || '/' || CASE WHEN dir.rel_path = '' THEN '' ELSE dir.rel_path || '/' END || f.name
+		FROM media m JOIN files f ON f.media_id = m.id JOIN directories dir ON dir.id = f.directory_id
+		JOIN library_paths lp ON lp.id = dir.library_path_id
+		WHERE m.item_id = ? AND f.role = ? AND f.missing_since_at IS NULL AND lp.remote_source_id IS NULL ORDER BY f.name`,
+		[]any{id, FileLyrics}, func(l *LyricFile) []any { return []any{&l.FileID, &l.Name, &l.Path} })
 }
 
 // Visible reports whether the viewer may see an item now.

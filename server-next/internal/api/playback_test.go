@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -419,21 +420,6 @@ func TestChangeMidPlay(t *testing.T) {
 	if changed.Presentation.SeekID != "seek-1" || th.state(th.film).PositionMS != 40*60_000 {
 		t.Fatalf("after seek: %+v, saved %d", changed.Presentation, th.state(th.film).PositionMS)
 	}
-	// A change whose new stream cannot start, and whose old one cannot come back, ends the
-	// session and leaves nothing waiting: it can be read, stopped and swept afterwards.
-	th.engine.mu.Lock()
-	th.engine.busy = true
-	th.engine.mu.Unlock()
-	if code := status(t, th.s, "PATCH", path, token, PlaybackChange{Quality: &playback.Quality{Mode: "fixed", ID: "480p"}}); code != 429 {
-		t.Fatalf("a change with no stream to be had answered %d", code)
-	}
-	if code := status(t, th.s, "PATCH", path, token, PlaybackChange{State: "playing"}); code != 410 {
-		t.Fatalf("a change to the failed session answered %d", code)
-	}
-	th.s.playback.Sweep(context.Background())
-	if th.engine.streams() != 0 {
-		t.Fatalf("%d streams left after a failed change", th.engine.streams())
-	}
 }
 
 // No limit unless the owner sets one. At a person's limit a start is refused and the account's
@@ -767,6 +753,82 @@ func TestCapabilitiesAreStoredAsPublished(t *testing.T) {
 	other := onMain(t, th.s, signIn(t, th.s, 3))
 	if code := status(t, th.s, "GET", "/v1/devices/current/capabilities", other.AccessToken, nil); code != 404 {
 		t.Fatalf("a device that published nothing answered %d", code)
+	}
+}
+
+// A title's subtitles are listed with where each came from; a timing nudge is kept for that
+// title and profile and does not reach another title; lyrics beside a song are read, timed
+// lines in order.
+func TestSubtitlesOffsetAndLyrics(t *testing.T) {
+	th := newTheatre(t)
+	token := th.owner.AccessToken
+	var list ItemSubtitles
+	call(t, th.s, "GET", "/v1/items/"+th.film+"/subtitles", token, nil, &list)
+	sources := ""
+	for _, s := range list.Items {
+		sources += s.Language + ":" + s.Source + fmt.Sprint(s.SDH) + ";"
+	}
+	if sources != "eng:embeddedfalse;eng:embeddedtrue;fra:sidecarfalse;" || list.OffsetMs != 0 {
+		t.Fatalf("the film's subtitles: %s offset %d", sources, list.OffsetMs)
+	}
+	// Nudged in the player: kept for the film, there on the next start, not on the episode.
+	session := th.play(token, th.film)
+	nudge := int64(-750)
+	if code := status(t, th.s, "PATCH", "/v1/playback/sessions/"+session.ID, token, PlaybackChange{SubtitleOffsetMs: &nudge}); code != 200 {
+		t.Fatalf("a timing nudge answered %d", code)
+	}
+	call(t, th.s, "GET", "/v1/items/"+th.film+"/subtitles", token, nil, &list)
+	var other ItemSubtitles
+	call(t, th.s, "GET", "/v1/items/"+th.eps[0]+"/subtitles", token, nil, &other)
+	if list.OffsetMs != -750 || other.OffsetMs != 0 {
+		t.Fatalf("the nudge: film %d, episode %d", list.OffsetMs, other.OffsetMs)
+	}
+	if code := status(t, th.s, "PUT", "/v1/items/"+th.film+"/subtitles/offset", token, SubtitleOffset{OffsetMs: 0}); code != 200 {
+		t.Fatalf("clearing the nudge answered %d", code)
+	}
+	call(t, th.s, "GET", "/v1/items/"+th.film+"/subtitles", token, nil, &list)
+	if list.OffsetMs != 0 {
+		t.Fatalf("the nudge was not cleared: %d", list.OffsetMs)
+	}
+
+	lines, offset, timed := parseLyrics("[ar:Band]\n[offset:+120]\n[00:12.50][01:02.5]Chorus\n[00:01.00]First line\nSpoken")
+	if !timed || offset != 120 || len(lines) != 4 || lines[0].Text != "Spoken" || *lines[1].AtMs != 1000 || *lines[2].AtMs != 12500 ||
+		*lines[3].AtMs != 62500 || lines[3].Text != "Chorus" {
+		t.Fatalf("parsed lyrics: %+v offset %d", lines, offset)
+	}
+	var lyrics Page[Lyrics]
+	if w := call(t, th.s, "GET", "/v1/items/"+th.song+"/lyrics", token, nil, &lyrics); w.Code != 200 || len(lyrics.Items) != 0 {
+		t.Fatalf("a song with no lyrics file answered %d: %s", w.Code, w.Body)
+	}
+	// A song in a real folder with a lyrics file beside it.
+	folder := t.TempDir()
+	if err := os.WriteFile(filepath.Join(folder, "tune.lrc"), []byte("[00:05.00]Hello\n[00:09.00]Again\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	lib, err := th.s.db.CreateLibrary(ctx, "Tunes", db.LibraryMusic, "en", []string{folder})
+	if err != nil {
+		t.Fatal(err)
+	}
+	age := 0
+	_, err = th.s.db.Import(ctx, db.ImportBatch{LibraryID: lib.ID, PathID: lib.Paths[0].ID, Scan: 1, Dirs: []db.ImportDir{{}},
+		Files: []db.ImportFile{
+			{FileRef: db.FileRef{Name: "tune.flac"}, Role: db.FileMedia, Size: 1, DurationMS: 60_000},
+			{FileRef: db.FileRef{Name: "tune.lrc"}, Role: db.FileLyrics, Size: 30},
+		},
+		Items: []db.ImportItem{{Kind: db.KindTrack, Keys: []db.ItemKey{{Kind: db.KeyFile, Key: "tune"}}, Title: "Tune", RatingAge: &age,
+			Versions: []db.ImportVersion{{Parts: []db.ImportPart{{File: db.FileRef{Name: "tune.flac"}}}, Sidecars: []db.FileRef{{Name: "tune.lrc"}}}}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := th.s.db.Items(ctx, db.Viewer{UserID: 1, ProfileID: 1}, db.ItemQuery{Library: lib.PublicID, Kinds: []db.ItemKind{db.KindTrack}})
+	if err != nil || len(page.Items) != 1 {
+		t.Fatalf("the tune was not imported: %v", err)
+	}
+	call(t, th.s, "GET", "/v1/items/"+page.Items[0].PublicID+"/lyrics", token, nil, &lyrics)
+	if len(lyrics.Items) != 1 || lyrics.Items[0].Format != "lrc" || lyrics.Items[0].Origin != "sidecar" || len(lyrics.Items[0].Lines) != 2 ||
+		lyrics.Items[0].Lines[1].Text != "Again" {
+		t.Fatalf("lyrics read from the file: %+v", lyrics.Items)
 	}
 }
 

@@ -195,6 +195,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 		return nil, err
 	}
 	s.metadataSettingsRoutes()
+	s.subtitleRoutes()
 	return s, nil
 }
 
