@@ -348,8 +348,13 @@ func total(ctx context.Context, tx *sql.Tx, where *query, acc access) (int, erro
 	if err != nil || len(acc.blockedTags) == 0 || all == 0 {
 		return all, err
 	}
-	err = tx.QueryRowContext(ctx, `SELECT count(*) FROM items i NOT INDEXED WHERE `+where.countWhere(false)+
-		` AND i.id IN (`+acc.blockedIDs()+`)`, where.args...).Scan(&hidden)
+	if where.plainKinds != "" {
+		// The whole of a library and kind: what is hidden in it is found from the labels alone.
+		err = tx.QueryRowContext(ctx, `SELECT count(*) FROM (`+acc.blockedIDs(where.plainLibrary, where.plainKinds)+`)`).Scan(&hidden)
+	} else {
+		err = tx.QueryRowContext(ctx, `SELECT count(*) FROM items i NOT INDEXED WHERE `+where.countWhere(false)+
+			` AND i.id IN (`+acc.blockedIDs("", "")+`)`, where.args...).Scan(&hidden)
+	}
 	return all - hidden, err
 }
 
@@ -441,7 +446,7 @@ var rareTag = 2000
 // filters writes the condition for everything but the page position: what the viewer may see,
 // and what was asked for. It reports false when a named tag does not exist, so nothing matches.
 func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access) (bool, error) {
-	w.add("(", acc.libraryVisible("i.library_id"), acc.rated("i"), "){labels}")
+	w.add("(", acc.libraryVisible("i.library_id"), acc.rated("i", "{rated}"), "){labels}")
 	w.labels = acc.unblocked("i")
 	scoped := false
 	var library int64
@@ -485,7 +490,7 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 				return false, err
 			}
 			if rated < sparseRated {
-				w.from = "items i INDEXED BY items_by_rating"
+				w.from, w.ratingPlus = "items i INDEXED BY items_by_rating", ""
 			}
 		}
 	}
@@ -525,7 +530,7 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		// With nothing asked for but a library, kinds and the tag, the total needs no item
 		// rows at all beyond the tagged titles themselves: what is under them is counted from
 		// an index.
-		if library != 0 && under != "" && acc.rated("i") == "" && q.Parent == "" && q.Person == "" && q.YearFrom == 0 && q.YearTo == 0 &&
+		if library != 0 && under != "" && acc.maxAge == nil && q.Parent == "" && q.Person == "" && q.YearFrom == 0 && q.YearTo == 0 &&
 			q.Favorite == nil && q.InList == nil && q.Watched == nil && q.Resolution == "" {
 			w.tagTotal = fmt.Sprintf(`SELECT count(*) FROM (
 				SELECT r.id FROM item_tags h CROSS JOIN items r ON r.id = h.item_id WHERE h.tag_id = %[1]d AND r.library_id = %[2]d AND r.kind IN %[3]s
@@ -583,6 +588,10 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 			return false, invalid("unknown resolution %q", q.Resolution)
 		}
 		w.add(` AND EXISTS (SELECT 1 FROM media m WHERE m.item_id = i.id AND m.width IS NOT NULL AND `, resolutionSQL, ` = `, fmt.Sprint(class), `)`)
+	}
+	if library != 0 && kindList != "" && acc.maxAge == nil && q.Parent == "" && q.Person == "" && q.Tag == "" && q.Genre == "" &&
+		q.YearFrom == 0 && q.YearTo == 0 && q.Favorite == nil && q.InList == nil && q.Watched == nil && q.Resolution == "" {
+		w.plainLibrary, w.plainKinds = fmt.Sprintf(" AND c.library_id = %d", library), " AND c.kind IN "+kindList
 	}
 	if !scoped {
 		return false, invalid("a list needs a library, a parent, a person, a tag, favourites or My List")
