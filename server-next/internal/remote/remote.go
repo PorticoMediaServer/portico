@@ -244,6 +244,8 @@ func (f *blockFile) ReadAt(p []byte, off int64) (int, error) {
 	return n, nil
 }
 
+func (f *blockFile) Stream(off int64) (io.ReadCloser, error) { return StreamFrom(f.File, off) }
+
 func (f *blockFile) block(at, size int64) ([]byte, error) {
 	f.mu.Lock()
 	for _, b := range f.blocks {
@@ -265,12 +267,35 @@ func (f *blockFile) block(at, size int64) ([]byte, error) {
 	return data, nil
 }
 
+// Streamer is a file that can send everything from a place in it with one request, which
+// is how a film is played: one request for each place the player starts reading from.
+type Streamer interface {
+	Stream(off int64) (io.ReadCloser, error)
+}
+
+// StreamFrom reads a file from off to its end, with one request where the source can.
+func StreamFrom(f File, off int64) (io.ReadCloser, error) {
+	if s, ok := f.(Streamer); ok {
+		return s.Stream(off)
+	}
+	return io.NopCloser(io.NewSectionReader(f, off, max(f.Size()-off, 0))), nil
+}
+
 // throttledFile makes each read of an open file a request of its own. The file lives as long
 // as the work that opened it, so its reads end with that work's context.
 type throttledFile struct {
 	File
 	t   *Throttle
 	ctx context.Context
+}
+
+// Stream starts within the source's limits; what it sends after that is not counted again.
+func (f throttledFile) Stream(off int64) (body io.ReadCloser, err error) {
+	err = f.t.Do(f.ctx, func() error {
+		body, err = StreamFrom(f.File, off)
+		return err
+	})
+	return body, err
 }
 
 func (f throttledFile) ReadAt(p []byte, off int64) (n int, err error) {

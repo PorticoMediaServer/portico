@@ -77,8 +77,8 @@ type BurnSubtitle struct {
 }
 
 // openWindowInput opens the stream's source for one converter run. The second
-// result is for a source ffmpeg reaches over a private local address; no source
-// does that yet, so it is always nil.
+// result is for a source ffmpeg reaches over a private local address: a file on
+// remote storage.
 func (h *HLS) openWindowInput(ctx context.Context, id string, plan *DeliveryPlan) (*PlaybackInput, subtitles.WindowInput, error) {
 	s, err := h.liveStream(id)
 	if err != nil {
@@ -86,6 +86,9 @@ func (h *HLS) openWindowInput(ctx context.Context, id string, plan *DeliveryPlan
 	}
 	if s.openInput != nil {
 		return s.openInput(ctx)
+	}
+	if remote, ok := s.source.(windowSource); ok {
+		return remote.openWindow(ctx, h.binary, h.ffprobe)
 	}
 	input, err := converterInput(ctx, s.source)
 	return input, nil, err
