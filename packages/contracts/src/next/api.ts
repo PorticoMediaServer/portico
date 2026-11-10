@@ -555,7 +555,8 @@ export interface PlaybackSession {
 }
 
 export interface PlaybackStart {
-  itemId: string;
+  itemId?: string;
+  queue?: QueueLink;
   versionId?: string;
   startPositionMs?: number;
   startFrom?: string;
@@ -605,6 +606,14 @@ export interface PlaybackVideo {
   fps?: number;
   hdr?: string;
   bitrateKbps?: number;
+}
+
+export interface PreparedNext {
+  token: string;
+  expiresAt: string;
+  entryId: string;
+  itemId: string;
+  presentation: Presentation;
 }
 
 export interface Presentation {
@@ -679,9 +688,135 @@ export interface QualityOption {
   dataGBPerHour?: number;
 }
 
+export interface Queue {
+  id: string;
+  revision: string;
+  medium: string;
+  total: number;
+  current?: QueueCurrent;
+  remainingCount: number;
+  remainingMs: number;
+  repeat: string;
+  shuffle: boolean;
+  nextEntryId?: string;
+  refills?: boolean;
+  automaticAdvances: number;
+}
+
+export interface QueueAdd {
+  source: QueueSource;
+  placement?: string;
+  after?: string;
+}
+
+export interface QueueAdvance {
+  reason: string;
+  entryId?: string;
+}
+
+export interface QueueChange {
+  repeat?: string;
+  shuffle?: boolean;
+}
+
+export interface QueueCommit {
+  token: string;
+}
+
+export interface QueueCommitted {
+  queue: Queue;
+  session: PlaybackSession;
+}
+
+export interface QueueCreate {
+  source: QueueSource;
+  shuffle?: boolean;
+  startAt?: string;
+  resume?: boolean;
+}
+
+export interface QueueCreated {
+  queue: Queue;
+  window: QueueEntry[];
+}
+
+export interface QueueCurrent {
+  entryId: string;
+  position: number;
+}
+
+export interface QueueEntries {
+  items: QueueEntry[];
+  start: number;
+  total: number;
+  revision: string;
+}
+
+export interface QueueEntry {
+  entryId: string;
+  position: number;
+  itemId: string;
+  kind: string;
+  title: string;
+  added: boolean;
+  available: boolean;
+  durationMs?: number;
+  year?: number;
+  index?: number;
+  parentIndex?: number;
+  parentId?: string;
+  parentTitle?: string;
+  rootId?: string;
+  rootTitle?: string;
+  images: Record<string, string>;
+}
+
 export interface QueueLink {
   queueId: string;
   entryId: string;
+}
+
+export interface QueueMove {
+  before?: string;
+  after?: string;
+}
+
+export interface QueuePage {
+  items: Queue[];
+  nextCursor?: string;
+}
+
+export interface QueuePrepare {
+  sessionId: string;
+}
+
+export interface QueueSave {
+  name: string;
+}
+
+export interface QueueSource {
+  container?: string;
+  items?: string[];
+  list?: string;
+  view?: QueueView;
+  radio?: string;
+}
+
+export interface QueueView {
+  library?: string;
+  parent?: string;
+  person?: string;
+  tag?: string;
+  genre?: string;
+  kinds?: string[];
+  yearFrom?: number;
+  yearTo?: number;
+  watched?: boolean;
+  favorite?: boolean;
+  inList?: boolean;
+  resolution?: string;
+  sort?: string;
+  desc?: boolean;
 }
 
 export interface Ratings {
@@ -725,6 +860,11 @@ export interface RememberedFailure {
 export interface RememberedFailurePage {
   items: RememberedFailure[];
   nextCursor?: string;
+}
+
+export interface SavedPlaylist {
+  playlistId: string;
+  entries: number;
 }
 
 export interface Session {
@@ -1002,4 +1142,17 @@ export interface Routes {
   'PUT /v1/admin/playback/stream-limits': {access: 'owner'; request: StreamLimits; response: StreamLimits};
   'GET /v1/admin/playback/failures': {access: 'owner'; request: undefined; response: RememberedFailurePage};
   'DELETE /v1/admin/playback/failures/{id}': {access: 'owner'; request: undefined; response: undefined};
+  'POST /v1/queues': {access: 'withProfile'; request: QueueCreate; response: QueueCreated};
+  'GET /v1/queues': {access: 'withProfile'; request: undefined; response: QueuePage};
+  'GET /v1/queues/{id}': {access: 'withProfile'; request: undefined; response: Queue};
+  'PATCH /v1/queues/{id}': {access: 'withProfile'; request: QueueChange; response: Queue};
+  'DELETE /v1/queues/{id}': {access: 'withProfile'; request: undefined; response: undefined};
+  'GET /v1/queues/{id}/entries': {access: 'withProfile'; request: undefined; response: QueueEntries};
+  'POST /v1/queues/{id}/entries': {access: 'withProfile'; request: QueueAdd; response: Queue};
+  'DELETE /v1/queues/{id}/entries/{entryId}': {access: 'withProfile'; request: undefined; response: Queue};
+  'POST /v1/queues/{id}/entries/{entryId}/move': {access: 'withProfile'; request: QueueMove; response: Queue};
+  'POST /v1/queues/{id}/advance': {access: 'withProfile'; request: QueueAdvance; response: Queue};
+  'POST /v1/queues/{id}/prepare-next': {access: 'withProfile'; request: QueuePrepare; response: PreparedNext};
+  'POST /v1/queues/{id}/commit-next': {access: 'withProfile'; request: QueueCommit; response: QueueCommitted};
+  'POST /v1/queues/{id}/playlist': {access: 'withProfile'; request: QueueSave; response: SavedPlaylist};
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
+	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
 )
 
 // Playback returns the service that runs viewing sessions, for the program to wire the media
@@ -166,10 +167,17 @@ func (s *Server) startPlayback(r *http.Request, req PlaybackStart) (PlaybackSess
 	if key == "" {
 		key = db.NewID("once") // a start sent without a key is never taken for a repeat
 	}
-	if req.ItemID == "" {
-		return PlaybackSession{}, ErrField("itemId", "Say which title to play.")
+	if (req.ItemID == "") == (req.Queue == nil) {
+		return PlaybackSession{}, ErrField("itemId", "Say which title to play, or which queue entry.")
 	}
-	in := playback.StartInput{Caller: playbackCaller(r), Key: key, Hash: requestHash(req), ItemID: req.ItemID,
+	if req.Queue != nil {
+		// The queue moves to the entry being started, and the entry says which title it is.
+		var err error
+		if req.ItemID, err = s.queues.Begin(r.Context(), playbackCaller(r), req.Queue.QueueID, playqueue.ParseEntryID(req.Queue.EntryID)); err != nil {
+			return PlaybackSession{}, queueError(err)
+		}
+	}
+	in := playback.StartInput{Caller: playbackCaller(r), Key: key, Hash: requestHash(req), ItemID: req.ItemID, Queue: req.Queue,
 		PositionMs: req.StartPositionMs, FromStart: req.StartFrom == "beginning" || req.StartFrom == "startOver",
 		Paused: req.State == playback.StatePaused,
 		Ask:    playback.Ask{VersionID: req.VersionID, Quality: req.Quality, Network: req.Network, ThroughputKbps: req.ThroughputKbps}}

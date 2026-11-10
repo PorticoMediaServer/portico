@@ -21,6 +21,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
+	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
 )
 
 // APIMajor is the number in the path. It changes only for a break old apps could not survive.
@@ -46,6 +47,8 @@ type Server struct {
 	setupCode, setupFile string
 	// playback runs the viewing sessions. See playback.go.
 	playback *playback.Service
+	// queues builds and runs play queues. See queues.go.
+	queues *playqueue.Service
 }
 
 // Route is one operation, kept so the contract can be generated and the operation budget counted.
@@ -159,6 +162,8 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.playback = playback.New(d, playback.NoEngine{}, playback.NoEngine{}, log, func() time.Time { return s.now() })
 	go s.playback.Run(ctx)
 	s.playbackRoutes()
+	s.queues = playqueue.New(d, s.playback, func() time.Time { return s.now() })
+	s.queueRoutes()
 	return s, nil
 }
 

@@ -1843,6 +1843,9 @@
           "quality": {
             "$ref": "#/components/schemas/Quality"
           },
+          "queue": {
+            "$ref": "#/components/schemas/QueueLink"
+          },
           "startFrom": {
             "type": "string"
           },
@@ -1862,9 +1865,6 @@
             "type": "string"
           }
         },
-        "required": [
-          "itemId"
-        ],
         "type": "object"
       },
       "PlaybackStop": {
@@ -1997,6 +1997,34 @@
         "required": [
           "id",
           "codec"
+        ],
+        "type": "object"
+      },
+      "PreparedNext": {
+        "properties": {
+          "entryId": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "presentation": {
+            "$ref": "#/components/schemas/Presentation"
+          },
+          "token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "expiresAt",
+          "entryId",
+          "itemId",
+          "presentation"
         ],
         "type": "object"
       },
@@ -2217,6 +2245,271 @@
         ],
         "type": "object"
       },
+      "Queue": {
+        "properties": {
+          "automaticAdvances": {
+            "type": "integer"
+          },
+          "current": {
+            "$ref": "#/components/schemas/QueueCurrent"
+          },
+          "id": {
+            "type": "string"
+          },
+          "medium": {
+            "type": "string"
+          },
+          "nextEntryId": {
+            "type": "string"
+          },
+          "refills": {
+            "type": "boolean"
+          },
+          "remainingCount": {
+            "type": "integer"
+          },
+          "remainingMs": {
+            "type": "integer"
+          },
+          "repeat": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "string"
+          },
+          "shuffle": {
+            "type": "boolean"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "revision",
+          "medium",
+          "total",
+          "remainingCount",
+          "remainingMs",
+          "repeat",
+          "shuffle",
+          "automaticAdvances"
+        ],
+        "type": "object"
+      },
+      "QueueAdd": {
+        "properties": {
+          "after": {
+            "type": "string"
+          },
+          "placement": {
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/QueueSource"
+          }
+        },
+        "required": [
+          "source"
+        ],
+        "type": "object"
+      },
+      "QueueAdvance": {
+        "properties": {
+          "entryId": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "type": "object"
+      },
+      "QueueChange": {
+        "properties": {
+          "repeat": {
+            "type": "string"
+          },
+          "shuffle": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "QueueCommit": {
+        "properties": {
+          "token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "type": "object"
+      },
+      "QueueCommitted": {
+        "properties": {
+          "queue": {
+            "$ref": "#/components/schemas/Queue"
+          },
+          "session": {
+            "$ref": "#/components/schemas/PlaybackSession"
+          }
+        },
+        "required": [
+          "queue",
+          "session"
+        ],
+        "type": "object"
+      },
+      "QueueCreate": {
+        "properties": {
+          "resume": {
+            "type": "boolean"
+          },
+          "shuffle": {
+            "type": "boolean"
+          },
+          "source": {
+            "$ref": "#/components/schemas/QueueSource"
+          },
+          "startAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source"
+        ],
+        "type": "object"
+      },
+      "QueueCreated": {
+        "properties": {
+          "queue": {
+            "$ref": "#/components/schemas/Queue"
+          },
+          "window": {
+            "items": {
+              "$ref": "#/components/schemas/QueueEntry"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "queue",
+          "window"
+        ],
+        "type": "object"
+      },
+      "QueueCurrent": {
+        "properties": {
+          "entryId": {
+            "type": "string"
+          },
+          "position": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "entryId",
+          "position"
+        ],
+        "type": "object"
+      },
+      "QueueEntries": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/QueueEntry"
+            },
+            "type": "array"
+          },
+          "revision": {
+            "type": "string"
+          },
+          "start": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "start",
+          "total",
+          "revision"
+        ],
+        "type": "object"
+      },
+      "QueueEntry": {
+        "properties": {
+          "added": {
+            "type": "boolean"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "durationMs": {
+            "type": "integer"
+          },
+          "entryId": {
+            "type": "string"
+          },
+          "images": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "index": {
+            "type": "integer"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "parentId": {
+            "type": "string"
+          },
+          "parentIndex": {
+            "type": "integer"
+          },
+          "parentTitle": {
+            "type": "string"
+          },
+          "position": {
+            "type": "integer"
+          },
+          "rootId": {
+            "type": "string"
+          },
+          "rootTitle": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "year": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "entryId",
+          "position",
+          "itemId",
+          "kind",
+          "title",
+          "added",
+          "available",
+          "images"
+        ],
+        "type": "object"
+      },
       "QueueLink": {
         "properties": {
           "entryId": {
@@ -2230,6 +2523,129 @@
           "queueId",
           "entryId"
         ],
+        "type": "object"
+      },
+      "QueueMove": {
+        "properties": {
+          "after": {
+            "type": "string"
+          },
+          "before": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "QueuePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Queue"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "QueuePrepare": {
+        "properties": {
+          "sessionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sessionId"
+        ],
+        "type": "object"
+      },
+      "QueueSave": {
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "QueueSource": {
+        "properties": {
+          "container": {
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "list": {
+            "type": "string"
+          },
+          "radio": {
+            "type": "string"
+          },
+          "view": {
+            "$ref": "#/components/schemas/QueueView"
+          }
+        },
+        "type": "object"
+      },
+      "QueueView": {
+        "properties": {
+          "desc": {
+            "type": "boolean"
+          },
+          "favorite": {
+            "type": "boolean"
+          },
+          "genre": {
+            "type": "string"
+          },
+          "inList": {
+            "type": "boolean"
+          },
+          "kinds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "library": {
+            "type": "string"
+          },
+          "parent": {
+            "type": "string"
+          },
+          "person": {
+            "type": "string"
+          },
+          "resolution": {
+            "type": "string"
+          },
+          "sort": {
+            "type": "string"
+          },
+          "tag": {
+            "type": "string"
+          },
+          "watched": {
+            "type": "boolean"
+          },
+          "yearFrom": {
+            "type": "integer"
+          },
+          "yearTo": {
+            "type": "integer"
+          }
+        },
         "type": "object"
       },
       "Ratings": {
@@ -2372,6 +2788,21 @@
         },
         "required": [
           "items"
+        ],
+        "type": "object"
+      },
+      "SavedPlaylist": {
+        "properties": {
+          "entries": {
+            "type": "integer"
+          },
+          "playlistId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "playlistId",
+          "entries"
         ],
         "type": "object"
       },
@@ -5680,6 +6111,548 @@
           }
         },
         "x-access": "signedIn"
+      }
+    },
+    "/v1/queues": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueuePage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      },
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueueCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueCreated"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/queues/{id}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      },
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Queue"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      },
+      "patch": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueueChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Queue"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/queues/{id}/advance": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueueAdvance"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Queue"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/queues/{id}/commit-next": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueueCommit"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueCommitted"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/queues/{id}/entries": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueEntries"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      },
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueueAdd"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Queue"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/queues/{id}/entries/{entryId}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "entryId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Queue"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/queues/{id}/entries/{entryId}/move": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "entryId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueueMove"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Queue"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/queues/{id}/playlist": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueueSave"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedPlaylist"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/queues/{id}/prepare-next": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueuePrepare"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreparedNext"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
       }
     },
     "/v1/setup/owner": {
