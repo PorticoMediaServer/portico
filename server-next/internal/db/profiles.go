@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strconv"
 	"time"
 )
 
@@ -184,6 +185,11 @@ func (d *DB) UpdateProfile(ctx context.Context, e ProfileEdit) (Profile, error) 
 		}
 		if e.PINHash != nil {
 			p.PINHash = *e.PINHash
+			// Guesses at the old PIN say nothing about the new one, and this is how someone
+			// kept waiting by another person's wrong guesses gets back in at once.
+			if _, err := tx.Exec(`DELETE FROM auth_limits WHERE bucket = ? AND key_hash = ?`, ProfilePINBucket, limitKey("profile:"+strconv.FormatInt(p.ID, 10))); err != nil {
+				return err
+			}
 			if p.PINHash != "" {
 				if err := markStale(tx, c, `profile_id = ? AND id <> ?`, p.ID, e.SessionID); err != nil {
 					return err
@@ -227,6 +233,10 @@ func (d *DB) DeleteProfile(ctx context.Context, userID int64, publicID string, n
 		return err
 	})
 }
+
+// ProfilePINBucket holds the count of a profile's wrong PINs on all devices together, under
+// the key "profile:<id>".
+const ProfilePINBucket = "pin_profile"
 
 // ErrBadPIN: the PIN is wrong.
 var ErrBadPIN = errors.New("wrong PIN")

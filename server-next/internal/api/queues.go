@@ -261,12 +261,12 @@ const (
 
 func (s *Server) window(r *http.Request, q db.Queue, before, after int) ([]QueueEntry, int, error) {
 	from := max(q.CurrentIndex-before, 0)
-	entries, _, err := s.db.QueueEntries(r.Context(), playbackCaller(r).Viewer, q.PublicID, from, before+after+1)
+	entries, _, err := s.db.QueueEntries(r.Context(), s.playbackCaller(r).Viewer, q.PublicID, from, before+after+1)
 	return entriesOut(entries), from, err
 }
 
 func (s *Server) createQueue(r *http.Request, req QueueCreate) (QueueCreated, error) {
-	q, err := s.queues.Create(r.Context(), playbackCaller(r), playqueue.CreateInput{Source: req.Source, Shuffle: req.Shuffle,
+	q, err := s.queues.Create(r.Context(), s.playbackCaller(r), playqueue.CreateInput{Source: req.Source, Shuffle: req.Shuffle,
 		StartAt: req.StartAt, Resume: req.Resume})
 	if err != nil {
 		return QueueCreated{}, queueError(err)
@@ -278,7 +278,7 @@ func (s *Server) createQueue(r *http.Request, req QueueCreate) (QueueCreated, er
 // listQueues answers the queues this profile has on the device asking: what an app shows
 // when it is opened again.
 func (s *Server) listQueues(r *http.Request, _ None) (Page[Queue], error) {
-	c := playbackCaller(r)
+	c := s.playbackCaller(r)
 	device, err := s.db.SessionDevice(r.Context(), c.SignInID)
 	if err != nil {
 		return Page[Queue]{}, playbackError(err)
@@ -292,7 +292,7 @@ func (s *Server) listQueues(r *http.Request, _ None) (Page[Queue], error) {
 }
 
 func (s *Server) getQueue(r *http.Request, _ None) (Queue, error) {
-	q, err := s.db.Queue(r.Context(), playbackCaller(r).Viewer, r.PathValue("id"))
+	q, err := s.db.Queue(r.Context(), s.playbackCaller(r).Viewer, r.PathValue("id"))
 	return s.queueOut(q), queueError(err)
 }
 
@@ -306,7 +306,7 @@ func (s *Server) queueEntries(r *http.Request, _ None) (QueueEntries, error) {
 		}
 		return n
 	}
-	viewer := playbackCaller(r).Viewer
+	viewer := s.playbackCaller(r).Viewer
 	q, err := s.db.Queue(r.Context(), viewer, r.PathValue("id"))
 	if err != nil {
 		return QueueEntries{}, queueError(err)
@@ -331,7 +331,7 @@ func (s *Server) addToQueue(r *http.Request, req QueueAdd) (Queue, error) {
 	if req.After != "" {
 		place.After = playqueue.ParseEntryID(req.After)
 	}
-	q, err := s.queues.Add(r.Context(), playbackCaller(r), r.PathValue("id"), revision, req.Source, place)
+	q, err := s.queues.Add(r.Context(), s.playbackCaller(r), r.PathValue("id"), revision, req.Source, place)
 	return s.queueOut(q), queueError(err)
 }
 
@@ -340,7 +340,7 @@ func (s *Server) removeFromQueue(r *http.Request, _ None) (Queue, error) {
 	if err != nil {
 		return Queue{}, err
 	}
-	q, err := s.queues.Remove(r.Context(), playbackCaller(r), r.PathValue("id"), revision, playqueue.ParseEntryID(r.PathValue("entryId")))
+	q, err := s.queues.Remove(r.Context(), s.playbackCaller(r), r.PathValue("id"), revision, playqueue.ParseEntryID(r.PathValue("entryId")))
 	return s.queueOut(q), queueError(err)
 }
 
@@ -358,7 +358,7 @@ func (s *Server) moveInQueue(r *http.Request, req QueueMove) (Queue, error) {
 	} else {
 		after = playqueue.ParseEntryID(req.After)
 	}
-	q, err := s.queues.Move(r.Context(), playbackCaller(r), r.PathValue("id"), revision, playqueue.ParseEntryID(r.PathValue("entryId")), before, after)
+	q, err := s.queues.Move(r.Context(), s.playbackCaller(r), r.PathValue("id"), revision, playqueue.ParseEntryID(r.PathValue("entryId")), before, after)
 	return s.queueOut(q), queueError(err)
 }
 
@@ -367,7 +367,7 @@ func (s *Server) changeQueue(r *http.Request, req QueueChange) (Queue, error) {
 	if err != nil {
 		return Queue{}, err
 	}
-	q, err := s.queues.Change(r.Context(), playbackCaller(r), r.PathValue("id"), revision, req.Repeat, req.Shuffle)
+	q, err := s.queues.Change(r.Context(), s.playbackCaller(r), r.PathValue("id"), revision, req.Repeat, req.Shuffle)
 	return s.queueOut(q), queueError(err)
 }
 
@@ -384,16 +384,16 @@ func (s *Server) advanceQueue(r *http.Request, req QueueAdvance) (Queue, error) 
 	default:
 		return Queue{}, ErrField("reason", "The reason is completion, next, previous or entry.")
 	}
-	q, err := s.queues.Advance(r.Context(), playbackCaller(r), r.PathValue("id"), revision, req.Reason, entry)
+	q, err := s.queues.Advance(r.Context(), s.playbackCaller(r), r.PathValue("id"), revision, req.Reason, entry)
 	return s.queueOut(q), queueError(err)
 }
 
 func (s *Server) deleteQueue(r *http.Request, _ None) (None, error) {
-	return None{}, s.queues.Delete(r.Context(), playbackCaller(r), r.PathValue("id"))
+	return None{}, s.queues.Delete(r.Context(), s.playbackCaller(r), r.PathValue("id"))
 }
 
 func (s *Server) prepareNext(r *http.Request, req QueuePrepare) (PreparedNext, error) {
-	p, err := s.queues.PrepareNext(r.Context(), playbackCaller(r), r.PathValue("id"), req.SessionID)
+	p, err := s.queues.PrepareNext(r.Context(), s.playbackCaller(r), r.PathValue("id"), req.SessionID)
 	if err != nil {
 		return PreparedNext{}, queueError(err)
 	}
@@ -403,7 +403,7 @@ func (s *Server) prepareNext(r *http.Request, req QueuePrepare) (PreparedNext, e
 }
 
 func (s *Server) commitNext(r *http.Request, req QueueCommit) (QueueCommitted, error) {
-	q, session, err := s.queues.CommitNext(r.Context(), playbackCaller(r), r.PathValue("id"), req.Token)
+	q, session, err := s.queues.CommitNext(r.Context(), s.playbackCaller(r), r.PathValue("id"), req.Token)
 	if err != nil {
 		return QueueCommitted{}, queueError(err)
 	}
@@ -419,7 +419,7 @@ func (s *Server) saveQueue(r *http.Request, req QueueSave) (SavedPlaylist, error
 	if len(key) > 128 {
 		return SavedPlaylist{}, ErrInvalid("The Idempotency-Key is at most 128 characters.")
 	}
-	c := playbackCaller(r)
+	c := s.playbackCaller(r)
 	id, entries, err := s.db.SaveQueueAsPlaylist(r.Context(), c.Viewer, r.PathValue("id"), name, sorttext.Key(name, "", ""), key,
 		requestHash(struct{ Queue, Name string }{r.PathValue("id"), name}), s.now())
 	if errors.Is(err, db.ErrKeyReused) {
