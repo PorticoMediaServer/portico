@@ -296,6 +296,9 @@ func (r *run) audiobookUnits(f *folder) []unit {
 	// or after, by path: "Disc 1" before "Disc 2".
 	parts := append([]*found(nil), f.media...)
 	var earlier []db.FileRef
+	if err := r.flush(); err != nil {
+		return nil
+	}
 	for _, dir := range r.bookFolders(book, f.rel) {
 		stored, err := r.s.DB.Folder(r.ctx, r.path.ID, dir)
 		if err != nil || !stored.Known {
