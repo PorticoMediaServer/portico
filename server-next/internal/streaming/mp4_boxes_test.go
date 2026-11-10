@@ -127,7 +127,7 @@ func testCopyFMP4Restart(t *testing.T, codec string) {
 		if out, e := exec.CommandContext(ctx, binary, args...).CombinedOutput(); e != nil {
 			t.Fatalf("segments: %v %s", e, out)
 		}
-		_, e := promoteFMP4Segments(stage, outdir, timeline, from, true)
+		_, e := promoteFMP4Segments(stage, outdir, timeline, from, true, nil)
 		if e != nil {
 			t.Fatal(e)
 		}
@@ -181,5 +181,63 @@ func TestMP4BoxBounds(t *testing.T) {
 		if _, e := mp4Boxes(v, 0, len(v)); e == nil {
 			t.Fatal("accepted truncated box")
 		}
+	}
+}
+
+// A copied picture with converted sound: across the segments of one run the
+// sound has no gap and no overlap, though its frames never end on a cut.
+func TestCopiedPictureKeepsItsConvertedSoundUnbroken(t *testing.T) {
+	binary := decodertest.QualifiedFFmpeg(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	root := t.TempDir()
+	source, stage, outdir := filepath.Join(root, "film.mkv"), filepath.Join(root, "stage"), filepath.Join(root, "out")
+	os.MkdirAll(stage, 0700)
+	os.MkdirAll(outdir, 0700)
+	if out, e := exec.CommandContext(ctx, binary, "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=160x90:rate=24",
+		"-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000", "-t", "13", "-c:v", "libx264", "-preset", "ultrafast",
+		"-g", "48", "-c:a", "ac3", source).CombinedOutput(); e != nil {
+		t.Fatalf("fixture: %v %s", e, out)
+	}
+	timeline := &copyTimeline{Boundaries: []float64{0, 4, 10, 13}}
+	args := append([]string{"-v", "error", "-y", "-i", source, "-map", "0:v:0", "-map", "0:a:0", "-c:v", "copy", "-c:a", "flac",
+		"-strict", "-2", "-map_metadata", "-1", "-fflags", "+bitexact", "-muxdelay", "0", "-muxpreload", "0"},
+		copySegmentArgs(timeline, 0, stage, true)...)
+	if out, e := exec.CommandContext(ctx, binary, args...).CombinedOutput(); e != nil {
+		t.Fatalf("segments: %v %s", e, out)
+	}
+	if _, e := promoteFMP4Segments(stage, outdir, timeline, 0, true, &soundClock{}); e != nil {
+		t.Fatal(e)
+	}
+	joined, e := os.ReadFile(filepath.Join(outdir, "init.mp4"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	for index := 0; index < timeline.count(); index++ {
+		media, e := os.ReadFile(filepath.Join(outdir, fmt.Sprintf("segment-%06d.m4s", index)))
+		if e != nil {
+			t.Fatal(e)
+		}
+		joined = append(joined, media...)
+	}
+	combined := filepath.Join(root, "joined.mp4")
+	os.WriteFile(combined, joined, 0600)
+	out, e := exec.CommandContext(ctx, decodertest.QualifiedFFprobe(t), "-v", "error", "-select_streams", "a:0",
+		"-show_entries", "packet=pts_time,duration_time", "-of", "csv=p=0", combined).Output()
+	if e != nil {
+		t.Fatal(e)
+	}
+	end, packets := 0.0, 0
+	for _, row := range strings.Fields(string(out)) {
+		start, length, _ := strings.Cut(row, ",")
+		at, _ := strconv.ParseFloat(start, 64)
+		duration, _ := strconv.ParseFloat(strings.TrimSuffix(length, ","), 64)
+		if packets > 0 && math.Abs(at-end) > .001 {
+			t.Fatalf("sound packet %d starts at %f, the one before ended at %f", packets, at, end)
+		}
+		end, packets = at+duration, packets+1
+	}
+	if packets < 100 || end < 12.9 {
+		t.Fatalf("%d sound packets ending at %f", packets, end)
 	}
 }

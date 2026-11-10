@@ -13,6 +13,9 @@ type convertedFragmentClock struct {
 	ready bool
 	shift float64
 	next  int
+	// sound is the same run's clock for a copied picture, which is cut by
+	// promoteFMP4Segments and not by restore.
+	sound soundClock
 }
 
 // HLS's MP4 muxer rebases each run even when output_ts_offset is set. Shift
