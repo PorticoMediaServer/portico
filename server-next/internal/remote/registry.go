@@ -85,6 +85,11 @@ func Test(ctx context.Context, kind string, c Config, s Secret) error {
 	return err
 }
 
+// ErrNeedsAttention says the source's saved details no longer work as they are: the
+// configuration is refused, or a folder is too large to list at once. Its page says "Needs
+// attention" and the owner edits the connection or chooses folders inside the large one.
+var ErrNeedsAttention = errors.New("the source needs attention")
+
 // Registry opens saved sources for scans and playback. It keeps one throttle per source, so
 // everything Portico asks of a source shares its limits.
 type Registry struct {
@@ -195,7 +200,7 @@ func (r *Registry) Open(ctx context.Context, id int64) (Storage, time.Duration, 
 	}
 	secret, err := r.unseal(row.PublicID, sealed)
 	if err != nil {
-		r.found(id, err)
+		r.found(id, err, false)
 		return nil, 0, err
 	}
 	storage, err := Build(row.Kind, c, secret)
@@ -232,12 +237,16 @@ func (r *Registry) Forget(id int64) {
 // found records how a request to a source went, and keeps it when the state changed: a
 // refused sign-in, an address that cannot be reached, or fine again. Other failures (a
 // folder that is not there) say nothing about the source.
-func (r *Registry) found(id int64, err error) {
+func (r *Registry) found(id int64, err error, opened bool) {
 	state, problem := "", ""
 	var unreachable *url.Error
 	switch {
 	case err == nil:
 		state = "ok"
+	case errors.Is(err, ErrNoRanges):
+		state, problem = "limited", "The source doesn't let Portico read parts of a file."
+	case errors.Is(err, ErrNeedsAttention):
+		state, problem = "needs_attention", err.Error()
 	case errors.Is(err, ErrSignIn):
 		state, problem = "sign_in", "The source refused its sign-in."
 	case errors.As(err, &unreachable) && !errors.Is(err, context.Canceled):
@@ -247,6 +256,11 @@ func (r *Registry) found(id int64, err error) {
 	}
 	r.mu.Lock()
 	o := r.open[id]
+	if o != nil && o.state == "limited" && state == "ok" && !opened {
+		// A listing that works says nothing about reading parts of files.
+		r.mu.Unlock()
+		return
+	}
 	changed := o == nil || o.state != state
 	if o != nil {
 		o.state = state
@@ -266,12 +280,12 @@ type watched struct {
 
 func (w watched) List(ctx context.Context, dir string) ([]Entry, error) {
 	entries, err := w.Storage.List(ctx, dir)
-	w.r.found(w.id, err)
+	w.r.found(w.id, err, false)
 	return entries, err
 }
 
 func (w watched) Open(ctx context.Context, path string) (File, error) {
 	file, err := w.Storage.Open(ctx, path)
-	w.r.found(w.id, err)
+	w.r.found(w.id, err, true)
 	return file, err
 }
