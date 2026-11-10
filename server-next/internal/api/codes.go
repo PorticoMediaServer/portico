@@ -135,7 +135,7 @@ func (s *Server) collectCode(r *http.Request, req CodeCollect) (CodeResult, erro
 	case errors.Is(err, db.ErrOutsideHours):
 		return CodeResult{}, errOutsideHours()
 	case errors.Is(err, db.ErrAwayFromHome):
-		return CodeResult{}, errAwayFromHome()
+		return CodeResult{}, s.errAwayFromHome(r)
 	case errors.Is(err, db.ErrNotFound), errors.Is(err, db.ErrBadCredentials):
 		return CodeResult{}, refusal(http.StatusGone, "code_expired", "This code has expired. Start again.", false)
 	case err != nil:
