@@ -87,6 +87,8 @@ type ItemQuery struct {
 	Favorite   *bool
 	InList     *bool
 	Resolution string // "sd", "720p", "1080p" or "4k"
+	// Conditions are further filters, each of which can take several values. See Condition.
+	Conditions []Condition
 	Sort       string
 	Desc       bool
 	Cursor     string
@@ -517,6 +519,9 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 			return false, invalid("unknown resolution %q", q.Resolution)
 		}
 		w.add(` AND EXISTS (SELECT 1 FROM media m WHERE m.item_id = i.id AND m.width IS NOT NULL AND `, resolutionSQL, ` = `, fmt.Sprint(class), `)`)
+	}
+	if found, err := q.conditions(ctx, tx, w, &scoped); err != nil || !found {
+		return false, err
 	}
 	if !scoped {
 		return false, invalid("a list needs a library, a parent, a person, a tag, favourites or My List")

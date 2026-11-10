@@ -74,6 +74,12 @@ export interface CodeStarted {
   intervalMs: number;
 }
 
+export interface Condition {
+  field: string;
+  mode?: string;
+  values: string[];
+}
+
 export interface Credit {
   personId: string;
   name: string;
@@ -286,6 +292,23 @@ export interface ItemPage {
   items: Item[];
   nextCursor?: string;
   total?: number;
+}
+
+export interface ItemQueryRequest {
+  library?: string;
+  parent?: string;
+  person?: string;
+  tag?: string;
+  kind?: string[];
+  filter?: Condition[];
+  watched?: boolean;
+  favorite?: boolean;
+  inList?: boolean;
+  sort?: string;
+  order?: string;
+  cursor?: string;
+  limit?: number;
+  total?: boolean;
 }
 
 export interface ItemRef {
@@ -1173,6 +1196,7 @@ export interface Routes {
   'GET /v1/libraries': {access: 'withProfile'; request: undefined; response: Libraries};
   'GET /v1/libraries/{id}': {access: 'withProfile'; request: undefined; response: Library};
   'GET /v1/items': {access: 'withProfile'; request: undefined; response: ItemPage};
+  'POST /v1/items/query': {access: 'withProfile'; request: ItemQueryRequest; response: ItemPage};
   'GET /v1/items/{id}': {access: 'withProfile'; request: undefined; response: Item};
   'GET /v1/items/{id}/credits': {access: 'withProfile'; request: undefined; response: CreditPage};
   'GET /v1/items/{id}/related': {access: 'withProfile'; request: undefined; response: Related};

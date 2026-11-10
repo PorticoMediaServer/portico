@@ -25,6 +25,8 @@ func refuse(err error) error {
 	switch {
 	case errors.Is(err, db.ErrNotFound):
 		return ErrNotFound()
+	case errors.Is(err, db.ErrFilterTooLong):
+		return ErrInvalid("This filter is too long.")
 	case errors.Is(err, db.ErrInvalid):
 		return ErrInvalid(strings.TrimPrefix(err.Error(), db.ErrInvalid.Error()+": "))
 	}
@@ -64,6 +66,21 @@ func (s *Server) catalogueRoutes() {
 		}
 		return out, nil
 	})
+	Handle(s, "POST /v1/items/query", WithProfile, func(r *http.Request, req ItemQueryRequest) (ItemPage, error) {
+		q, err := req.query()
+		if err != nil {
+			return ItemPage{}, err
+		}
+		page, err := s.db.Items(r.Context(), viewer(r), q)
+		if err != nil {
+			return ItemPage{}, refuse(err)
+		}
+		out := ItemPage{Items: itemShapes(page.Items), NextCursor: page.NextCursor}
+		if q.WithTotal {
+			out.Total = &page.Total
+		}
+		return out, nil
+	}).Scope = ScopeRead
 	Handle(s, "GET /v1/items/{id}", WithProfile, func(r *http.Request, _ None) (Item, error) {
 		detail, err := s.db.Item(r.Context(), viewer(r), r.PathValue("id"))
 		if err != nil {
@@ -182,26 +199,37 @@ func (s *Server) catalogueRoutes() {
 }
 
 // browseBy says what a library of each kind can be browsed by. Sorts list the direction each
-// starts in. Every list also takes the same filters under a parent, a person or a tag.
+// starts in. A filter is offered only where that kind of title has the fact. Every list also
+// takes the same filters under a parent, a person or a tag.
 func browseBy(kind string) ([]View, []Sort, []Filter) {
 	sorts := []Sort{{db.SortTitle, "asc"}, {db.SortAdded, "desc"}, {db.SortYear, "desc"}, {db.SortRelease, "desc"}}
 	// Then the sorts every kind has, and the ones only video has a fact for.
-	mine := []Sort{{db.SortUserRating, "desc"}, {db.SortLastPlayed, "desc"}, {db.SortPlayCount, "desc"}, {db.SortRandom, "asc"}}
-	video := append([]Sort{{db.SortDuration, "desc"}, {db.SortCommunityRating, "desc"}, {db.SortCriticRating, "desc"}, {db.SortResolution, "desc"}}, mine...)
-	filters := []Filter{{ID: "genre", Type: "tag"}, {ID: "year", Type: "year"}, {ID: "watched", Type: "boolean"},
-		{ID: "favorite", Type: "boolean"}, {ID: "inList", Type: "boolean"}}
-	resolution := Filter{ID: "resolution", Type: "choice", Values: []string{"sd", "720p", "1080p", "4k"}}
+	ownSorts := []Sort{{db.SortUserRating, "desc"}, {db.SortLastPlayed, "desc"}, {db.SortPlayCount, "desc"}, {db.SortRandom, "asc"}}
+	videoSorts := append([]Sort{{db.SortDuration, "desc"}, {db.SortCommunityRating, "desc"}, {db.SortCriticRating, "desc"},
+		{db.SortResolution, "desc"}}, ownSorts...)
+	mine := []Filter{{ID: "watched", Type: "boolean"}, {ID: "inProgress", Type: "boolean"}, {ID: "favorite", Type: "boolean"},
+		{ID: "inList", Type: "boolean"}, {ID: "userRating", Type: "number"}, {ID: "lastPlayed", Type: "day"}, {ID: "playCount", Type: "number"}}
+	filters := append([]Filter{{ID: "genre", Type: "tag"}, {ID: "label", Type: "tag"}, {ID: "year", Type: "year"}, {ID: "added", Type: "day"},
+		{ID: "available", Type: "boolean"}}, mine...)
+	video := []Filter{{ID: "contentRating", Type: "text"}, {ID: "released", Type: "day"}, {ID: "communityRating", Type: "number"},
+		{ID: "criticRating", Type: "number"}, {ID: "durationMs", Type: "number"}, {ID: "studio", Type: "tag"},
+		{ID: "actor", Type: "person"}, {ID: "director", Type: "person"}, {ID: "writer", Type: "person"},
+		{ID: "resolution", Type: "choice", Values: []string{"sd", "720p", "1080p", "4k"}}, {ID: "dynamicRange", Type: "text"},
+		{ID: "audioLanguage", Type: "text"}, {ID: "subtitleLanguage", Type: "text"}, {ID: "versions", Type: "number"}}
 	switch kind {
 	case db.LibraryMovies:
-		return []View{{"movie"}}, append(sorts, video...), append(filters, resolution)
+		return []View{{"movie"}}, append(sorts, videoSorts...), append(filters, video...)
 	case db.LibraryShows:
-		return []View{{"show"}, {"episode"}}, append(append(sorts, video...), Sort{db.SortLatest, "desc"}), append(filters, resolution)
+		return []View{{"show"}, {"episode"}}, append(append(sorts, videoSorts...), Sort{db.SortLatest, "desc"}),
+			append(append(filters, video...), Filter{ID: "network", Type: "tag"})
 	case db.LibraryMusic:
-		return []View{{"artist"}, {"album"}, {"track"}}, append(append(sorts[:3:3], Sort{db.SortDuration, "desc"}, Sort{db.SortLatest, "desc"}), mine...), filters
+		return []View{{"artist"}, {"album"}, {"track"}}, append(append(sorts[:3:3], Sort{db.SortDuration, "desc"}, Sort{db.SortLatest, "desc"}), ownSorts...),
+			append(filters, Filter{ID: "artist", Type: "person"}, Filter{ID: "durationMs", Type: "number"})
 	case db.LibraryAudiobooks:
-		return []View{{"audiobook"}}, append(append(sorts[:3:3], Sort{db.SortDuration, "desc"}), mine...), filters
+		return []View{{"audiobook"}}, append(append(sorts[:3:3], Sort{db.SortDuration, "desc"}), ownSorts...),
+			append(filters, Filter{ID: "author", Type: "person"}, Filter{ID: "narrator", Type: "person"}, Filter{ID: "durationMs", Type: "number"})
 	}
-	return []View{{"book"}}, append(sorts[:3:3], mine...), filters
+	return []View{{"book"}}, append(sorts[:3:3], ownSorts...), append(filters, Filter{ID: "author", Type: "person"})
 }
 
 // defaultOrder is the direction a sort starts in when the request does not say.
@@ -237,26 +265,40 @@ func limitParam(query url.Values) (int, error) {
 // itemQuery reads the parameters GET /v1/items and GET /v1/facets share. A parameter the
 // server does not know is ignored.
 func itemQuery(query url.Values) (db.ItemQuery, error) {
-	q := db.ItemQuery{Library: query.Get("library"), Parent: query.Get("parent"), Person: query.Get("person"), Tag: query.Get("tag"),
-		Genre: query.Get("genre"), Resolution: query.Get("resolution"), Sort: query.Get("sort"), Cursor: query.Get("cursor")}
+	q := db.ItemQuery{Library: query.Get("library"), Parent: query.Get("parent"), Sort: query.Get("sort"), Cursor: query.Get("cursor")}
+	// A filter may be sent more than once, and each time as "v", "v1,v2", or with how its
+	// values combine in front: "any:v1,v2", "all:v1,v2", "none:v1,v2". A value that holds
+	// a comma goes in the body of POST /v1/items/query instead.
+	for _, field := range db.ConditionFields {
+		for _, text := range query[field] {
+			if text == "" {
+				continue
+			}
+			c := db.Condition{Field: field, Mode: db.ModeAny}
+			for _, mode := range []string{db.ModeAny, db.ModeAll, db.ModeNone} {
+				if rest, ok := strings.CutPrefix(text, mode+":"); ok {
+					c.Mode, text = mode, rest
+					break
+				}
+			}
+			c.Values = strings.Split(text, ",")
+			// "tag" and "person" alone, with one value, are what the list is of: a genre's
+			// page, a person's titles. Then nothing else needs to scope it.
+			if single := c.Mode == db.ModeAny && len(c.Values) == 1 && len(query[field]) == 1; single && field == "tag" {
+				q.Tag = c.Values[0]
+			} else if single && field == "person" {
+				q.Person = c.Values[0]
+			} else {
+				q.Conditions = append(q.Conditions, c)
+			}
+		}
+	}
 	for _, name := range strings.FieldsFunc(query.Get("kind"), func(r rune) bool { return r == ',' }) {
 		kind, ok := db.ParseItemKind(name)
 		if !ok {
 			return q, ErrField("kind", fmt.Sprintf("%q is not a kind of item.", name))
 		}
 		q.Kinds = append(q.Kinds, kind)
-	}
-	if year := query.Get("year"); year != "" {
-		from, to, ranged := strings.Cut(year, "..")
-		if !ranged {
-			to = from
-		}
-		var errFrom, errTo error
-		q.YearFrom, errFrom = strconv.Atoi(from)
-		q.YearTo, errTo = strconv.Atoi(to)
-		if errFrom != nil || errTo != nil || q.YearFrom > q.YearTo || q.YearFrom < 1 {
-			return q, ErrField("year", `Use a year such as "1999" or a range such as "1990..1999".`)
-		}
 	}
 	var err error
 	if q.Watched, err = boolParam(query, "watched"); err != nil {
