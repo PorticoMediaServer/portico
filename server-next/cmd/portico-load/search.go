@@ -20,13 +20,16 @@ import (
 type SearchReport struct {
 	FirstBuildSeconds     float64           `json:"firstBuildSeconds"`
 	IndexBytes            int64             `json:"indexBytes"`
-	SearchesIdle          Timing            `json:"searchesIdle"`
+	SearchesIdle          map[string]Timing `json:"searchesIdle"`
 	Searchable            Timing            `json:"searchableAfterImportBatch"`
-	SearchesDuringImport  Timing            `json:"searchesDuringImport"`
+	SearchesDuringImport  map[string]Timing `json:"searchesDuringImport"`
 	ReadsDuringImport     map[string]Timing `json:"readsDuringImport"`
 	WritesDuringImport    Timing            `json:"writesDuringImport"`
+	SearchesBeforeRebuild map[string]Timing `json:"searchesBeforeRebuild"`
+	ReadsBeforeRebuild    map[string]Timing `json:"readsBeforeRebuild"`
+	WritesBeforeRebuild   Timing            `json:"writesBeforeRebuild"`
 	RebuildSeconds        float64           `json:"rebuildSeconds"`
-	SearchesDuringRebuild Timing            `json:"searchesDuringRebuild"`
+	SearchesDuringRebuild map[string]Timing `json:"searchesDuringRebuild"`
 	ReadsDuringRebuild    map[string]Timing `json:"readsDuringRebuild"`
 	WritesDuringRebuild   Timing            `json:"writesDuringRebuild"`
 	FailedSearches        int               `json:"failedSearches"`
@@ -39,15 +42,16 @@ type searchLoad struct {
 	viewers []db.Viewer
 	words   []string
 	mu      sync.Mutex
-	samples []time.Duration
+	samples map[string][]time.Duration
 	failed  int
 }
 
 // start runs n searchers until the returned function is called, which returns how long the
-// searches took and how many failed.
-func (s *searchLoad) start(ctx context.Context, n int) func() (Timing, int) {
+// searches took, by class and under "all", and how many failed. The classes are what was
+// asked for, and whether a profile with restrictions asked.
+func (s *searchLoad) start(ctx context.Context, n int) func() (map[string]Timing, int) {
 	ctx, cancel := context.WithCancel(ctx)
-	s.samples, s.failed = nil, 0
+	s.samples, s.failed = map[string][]time.Duration{}, 0
 	var wg sync.WaitGroup
 	for i := range n {
 		wg.Go(func() {
@@ -58,32 +62,48 @@ func (s *searchLoad) start(ctx context.Context, n int) func() (Timing, int) {
 				if r.IntN(4) == 0 {
 					text += " " + pick(r, s.words)
 				}
-				v := pick(r, s.viewers)
+				who := r.IntN(len(s.viewers))
+				v := s.viewers[who]
 				started := time.Now()
 				var err error
+				var class string
 				switch pick := r.IntN(10); {
 				case pick < 7:
+					class = "every kind"
 					_, err = s.d.Search(ctx, v, db.SearchQuery{Text: text})
 				case pick < 9:
+					class = "one kind"
 					_, err = s.d.Search(ctx, v, db.SearchQuery{Text: text, Kind: []string{"movie", "episode", "track", "person"}[r.IntN(4)]})
 				default:
+					class = "suggestions"
 					_, err = s.d.SearchSuggestions(ctx, v, text, 8)
+				}
+				// The seeder restricts the last three profiles.
+				if who >= len(s.viewers)-3 && len(s.viewers) > 3 {
+					class += ", restricted"
 				}
 				s.mu.Lock()
 				if err != nil && ctx.Err() == nil {
 					s.failed++
 					println("search failed:", text, err.Error())
 				}
-				s.samples = append(s.samples, time.Since(started))
+				s.samples[class] = append(s.samples[class], time.Since(started))
 				s.mu.Unlock()
 				time.Sleep(5 * time.Millisecond)
 			}
 		})
 	}
-	return func() (Timing, int) {
+	return func() (map[string]Timing, int) {
 		cancel()
 		wg.Wait()
-		return summarise(s.samples), s.failed
+		out := map[string]Timing{}
+		var all []time.Duration
+		for class, samples := range s.samples {
+			out[class] = summarise(samples)
+			all = append(all, samples...)
+		}
+		out["all"] = summarise(all)
+		return out, s.failed
 	}
 }
 
@@ -186,6 +206,15 @@ func searchMode(ctx context.Context, d *db.DB, path string, cfg seed.Config, rea
 		log.Fatalf("the newest title %q is not found by search: %v", newest.Items[0].Title, err)
 	}
 
+	// The same use with nothing else going on, to tell what the rebuild itself costs.
+	log.Print("constant reads, writes and searches with nothing else running")
+	stop = w.start(ctx, readers, writesPerSec)
+	stopSearches = s.start(ctx, 2)
+	time.Sleep(45 * time.Second)
+	out.ReadsBeforeRebuild, out.WritesBeforeRebuild = stop()
+	out.SearchesBeforeRebuild, failed = stopSearches()
+	out.FailedSearches += failed
+
 	log.Print("rebuilding the search index with constant reads, writes and searches")
 	stop = w.start(ctx, readers, writesPerSec)
 	stopSearches = s.start(ctx, 2)
@@ -206,16 +235,21 @@ func searchMode(ctx context.Context, d *db.DB, path string, cfg seed.Config, rea
 	report.bar("8 slowest user write in a rebuild", "at most 500 ms", writes.Max, "ms", writes.Max <= 500)
 	report.bar("8 searches that failed", "0", float64(out.FailedSearches), "", out.FailedSearches == 0)
 	line := func(name string, t Timing) {
-		fmt.Printf("  %-34s n=%-7d p50 %8.2f ms  p99 %8.2f ms  max %8.2f ms\n", name, t.N, t.P50, t.P99, t.Max)
+		fmt.Printf("  %-40s n=%-7d p50 %8.2f ms  p99 %8.2f ms  max %8.2f ms\n", name, t.N, t.P50, t.P99, t.Max)
 	}
 	fmt.Printf("  first build of the index: %.1f s, %.0f MiB; %d files imported at %.0f files/s with search following; rebuild under use: %.1f s\n",
 		out.FirstBuildSeconds, float64(out.IndexBytes)/mib, totals.Files, totals.FilesPerSec, out.RebuildSeconds)
 	line("searchable after an import batch", out.Searchable)
-	line("searches, nothing else running", out.SearchesIdle)
-	line("searches during the import", out.SearchesDuringImport)
-	line("searches during the rebuild", out.SearchesDuringRebuild)
+	for _, class := range sortedKeys(out.SearchesIdle) {
+		line("search, idle: "+class, out.SearchesIdle[class])
+	}
+	line("searches during the import", out.SearchesDuringImport["all"])
 	line("page reads during the import", out.ReadsDuringImport["all"])
 	line("user writes during the import", out.WritesDuringImport)
+	line("searches before the rebuild", out.SearchesBeforeRebuild["all"])
+	line("searches during the rebuild", out.SearchesDuringRebuild["all"])
+	line("page reads before the rebuild", out.ReadsBeforeRebuild["all"])
 	line("page reads during the rebuild", reads)
+	line("user writes before the rebuild", out.WritesBeforeRebuild)
 	line("user writes during the rebuild", writes)
 }
