@@ -2,7 +2,7 @@ import {routeBody} from "../../contracts/src/routes.ts";
 import type {RouteResponse} from "../../contracts/src/route-paths.ts";
 import {routePath, encodedRoutePath} from "../../contracts/src/route-paths.ts";
 import {CodedError,unreadableServerResponse} from './server-messages.ts';
-import {callServer} from './server-api.ts';
+import {callServer} from './query/server-api.ts';
 /** Typed calls for the identity workstream on a direct server: profile restrictions and
  * devices, two-factor. Parsing is strict; these functions add no state. */
 import {parseDevice,parseDevices,parseRememberedAccounts,type Device,type RememberedAccount} from './identity-devices.ts';

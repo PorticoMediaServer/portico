@@ -77,7 +77,7 @@ import {setupResultBody} from './setup-result.ts';
 import {unreadableServerResponse} from './server-messages.ts';
 import {parseLibraryList} from './library-list.ts';
 import {installationHeaders,issuesCredentials,provesIdentity} from './installation.ts';
-import {serverPath} from './server-api.ts';
+import {serverPath} from './query/server-api.ts';
 import {AudioSelection,emptyAudio,type AudioPlan,type AudioBinding,type AudioSelectionSnapshot} from './audio-selection.ts';
 export type {AudioPlan,AudioBinding,AudioSelectionSnapshot} from './audio-selection.ts';
 import {Outbox, sameOutboxScope, type OutboxAnswer, type OutboxEntry, type OutboxScope, type OutboxStore} from './outbox.ts';

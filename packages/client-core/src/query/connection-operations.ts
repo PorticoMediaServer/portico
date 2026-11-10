@@ -7,7 +7,7 @@ import {clockOrigin, observeResponseClock} from '../server-clock.ts';
 import {HttpLocalApi, type Viewer} from '../index.ts';
 import {installationIdentity} from '../installation.ts';
 import type {ViewerRequester} from './viewer-queries.ts';
-import {callServer} from '../server-api.ts';
+import {callServer} from './server-api.ts';
 
 export function readServerSystem(api: ViewerRequester, signal?: AbortSignal): Promise<unknown> {
   return callServer(api, 'GET /v1/system', {signal});
