@@ -515,8 +515,10 @@ func loadLeafCounts(ctx context.Context, tx *sql.Tx, v Viewer, acc access, items
 		return nil
 	}
 	// Titles nest at most three deep, so a holder is the root or the parent of its leaves.
-	for _, column := range []string{"c.root_id", "c.parent_id"} {
-		rows, err := tx.QueryContext(ctx, `SELECT `+column+`, count(*), count(w.item_id) FROM items c
+	// Each is read through its own index, named here because a viewer limited to some libraries
+	// otherwise tempts SQLite into reading those libraries whole.
+	for column, index := range map[string]string{"c.root_id": "items_descendants", "c.parent_id": "items_children"} {
+		rows, err := tx.QueryContext(ctx, `SELECT `+column+`, count(*), count(w.item_id) FROM items c INDEXED BY `+index+`
 			LEFT JOIN user_item_state w ON w.profile_id = @viewer_profile AND w.item_id = c.id AND w.played = 1
 			WHERE `+column+` IN `+idList(holders)+` AND c.kind IN `+playableKindsSQL+` AND `+acc.visible("c")+` GROUP BY 1`, v.args()...)
 		if err != nil {

@@ -37,8 +37,9 @@ const (
 var (
 	// searchCheckCap is the most matches one request checks against the main database for
 	// one kind. It bounds what a profile with restrictions, or a sort, costs on a search as
-	// wide as one letter. A page that stops at it carries a cursor to go on from; a total
-	// that stops at it is marked as a minimum; a sort over more matches than this is refused.
+	// wide as one letter. A page that stops at it carries a cursor to go on from; a count of
+	// people that stops at it is marked as a minimum (titles are always counted exactly);
+	// a sort over more matches than this is refused.
 	searchCheckCap = 2000
 )
 
@@ -157,10 +158,46 @@ type searcher struct {
 	v     Viewer
 	acc   access
 	match searchMatch
-	// What counting the totals already found out about who may see what: whether each row
-	// up to checkedTo, by group, may be seen. A page asks the main database only beyond that.
+	// narrow is added to an expression over titles to leave out what the viewer's libraries
+	// and rating limit hide, by the facts each row carries. It only saves work: every row
+	// sent is still checked against the main database, and a count is tested against that.
+	narrow string
+	// What counting people already found out about who may be seen: each row up to
+	// checkedTo, by group. A page asks the main database only beyond that.
 	checked   map[int64]bool
 	checkedTo map[int64]int64
+}
+
+// narrowing writes the viewer's libraries and rating limit as an expression over the facts
+// in the index: " AND (its libraries) AND (the rating ages within its limit)", or nothing.
+func (a access) narrowing() string {
+	var out string
+	if a.known && !a.allLibraries {
+		keys := make([]string, len(a.libraries))
+		for n, id := range a.libraries {
+			keys[n] = `"` + searchLibrary(id) + `"`
+		}
+		if len(keys) == 0 {
+			keys = []string{`"` + searchLibrary(0) + `"`} // no library at all: nothing matches
+		}
+		out += " AND (" + strings.Join(keys, " OR ") + ")"
+	}
+	if a.maxAge != nil {
+		keys := []string{`"` + searchRating(-1) + `"`} // a limit below every rating: nothing matches
+		for age := 0; age <= *a.maxAge; age++ {
+			keys = append(keys, `"`+searchRating(int64(age))+`"`)
+		}
+		out += " AND (" + strings.Join(keys, " OR ") + ")"
+	}
+	return out
+}
+
+// over is an expression for the rows of one group: narrowed when the group holds titles.
+func (s *searcher) over(expr string, code int64) string {
+	if code == searchPeople || code == 0 || s.narrow == "" {
+		return expr
+	}
+	return "(" + expr + ")" + s.narrow
 }
 
 // searcher opens both files for one request. The caller calls done when it has its answer.
@@ -180,6 +217,7 @@ func (d *DB) searcher(ctx context.Context, v Viewer, terms searchTerms) (s *sear
 		if s.acc, err = loadAccess(ctx, tx, v); err != nil {
 			tx.Rollback()
 		}
+		s.narrow = s.acc.narrowing()
 	}
 	if err != nil {
 		ix.mu.RUnlock()
@@ -312,7 +350,7 @@ func (s *searcher) candidates(expr string, code, after int64, limit int) ([]int6
 		last = searchRow(int64(len(searchGroups))+1, 0)
 	}
 	rows, err := s.index.QueryContext(s.ctx, `SELECT rowid FROM search_titles WHERE search_titles MATCH ? AND rowid > ? AND rowid <= ? ORDER BY rowid LIMIT ?`,
-		expr, max(after, first), last, limit)
+		s.over(expr, code), max(after, first), last, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -421,59 +459,76 @@ type searchTotal struct {
 	minimum bool
 }
 
-// totals counts the results of every kind the viewer may see. One pass over the index counts
-// what matches, by group. With nothing kept from the viewer that is the answer. Otherwise
-// each group's matches, up to searchCheckCap of them, are checked against the main database
-// in one go, and what was learned is kept for the pages that follow.
+// totals counts the results of every kind the viewer may see.
+//
+// Titles are counted exactly without reading their rows: one pass over the index counts the
+// matches in the viewer's libraries and within its rating limit, by the facts each row
+// carries, and a second takes away those a blocked label hides, which are found from the
+// label's side in the main database. With nothing kept from the viewer the first pass is all.
+//
+// People have no such facts: a person is seen through any one title. For a viewer with
+// restrictions the matching people are checked one by one, up to searchCheckCap of them, and
+// what was learned is kept for the pages that follow.
 func (s *searcher) totals() (map[int64]searchTotal, error) {
 	totals := map[int64]searchTotal{}
 	if !s.acc.known {
 		return totals, nil
 	}
-	rows, err := s.index.QueryContext(s.ctx, `SELECT rowid >> ?, count(*) FROM search_titles WHERE search_titles MATCH ? GROUP BY 1`,
-		searchIDBits, s.match.all)
-	if err != nil {
+	count := func(query string, sign int, args ...any) error {
+		rows, err := s.index.QueryContext(s.ctx, query, args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var code int64
+			var n int
+			if err := rows.Scan(&code, &n); err != nil {
+				return err
+			}
+			total := totals[code]
+			total.visible += sign * n
+			totals[code] = total
+		}
+		return rows.Err()
+	}
+	const grouped = `SELECT rowid >> ?1, count(*) FROM search_titles WHERE search_titles MATCH ?2`
+	if s.acc.seesAll() {
+		return totals, count(grouped+` GROUP BY 1`, 1, searchIDBits, s.match.all)
+	}
+	titles := s.over(s.match.all, searchGroups[0].code)
+	if err := count(grouped+` AND rowid >> ?1 != ?3 GROUP BY 1`, 1, searchIDBits, titles, searchPeople); err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var code int64
-		var total searchTotal
-		if err := rows.Scan(&code, &total.visible); err != nil {
-			return nil, err
-		}
-		totals[code] = total
-	}
-	if err := rows.Err(); err != nil || s.acc.seesAll() {
-		return totals, err
-	}
-	rows.Close()
-	var all []int64
-	for code := range totals {
-		candidates, err := s.candidates(s.match.all, code, 0, searchCheckCap+1)
+	if len(s.acc.blockedTags) > 0 {
+		// Everything a blocked label hides: what carries one, and what sits under that.
+		tags := intList(s.acc.blockedTags)
+		hidden, err := ids(s.ctx, s.tx, `SELECT item_id FROM item_tags WHERE tag_id IN `+tags+`
+			UNION SELECT c.id FROM item_tags h CROSS JOIN items c WHERE h.tag_id IN `+tags+` AND c.parent_id = h.item_id
+			UNION SELECT c.id FROM item_tags h CROSS JOIN items c WHERE h.tag_id IN `+tags+` AND c.root_id = h.item_id`)
 		if err != nil {
 			return nil, err
 		}
-		minimum := len(candidates) > searchCheckCap
-		if minimum {
-			candidates = candidates[:searchCheckCap]
+		if err := count(grouped+` AND rowid >> ?1 != ?3 AND (rowid & ?4) IN (SELECT value FROM json_each(?5)) GROUP BY 1`, -1,
+			searchIDBits, titles, searchPeople, int64(1)<<searchIDBits-1, idsJSON(hidden)); err != nil {
+			return nil, err
 		}
-		totals[code] = searchTotal{minimum: minimum}
-		if len(candidates) > 0 {
-			s.checkedTo[code] = candidates[len(candidates)-1]
-		}
-		all = append(all, candidates...)
 	}
-	if s.checked, err = s.check(all); err != nil {
+	people, err := s.candidates(s.match.all, searchPeople, 0, searchCheckCap+1)
+	if err != nil {
 		return nil, err
 	}
-	for _, row := range all {
-		if s.checked[row] {
-			total := totals[row>>searchIDBits]
-			total.visible++
-			totals[row>>searchIDBits] = total
-		}
+	minimum := len(people) > searchCheckCap
+	if minimum {
+		people = people[:searchCheckCap]
 	}
+	if len(people) > 0 {
+		s.checkedTo[searchPeople] = people[len(people)-1]
+	}
+	if s.checked, err = s.check(people); err != nil {
+		return nil, err
+	}
+	totals[searchPeople] = searchTotal{visible: len(s.checked), minimum: minimum}
 	return totals, nil
 }
 

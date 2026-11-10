@@ -154,6 +154,8 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server-next/go.mod, cache-dependency-path: server-next/go.sum}
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with: {name: load-database-seeded, path: '${{ env.WORK }}'}
       - name: Unpack the database
@@ -164,8 +166,20 @@ jobs:
           limited "$WORK/bin/portico-load" -mode search -db "$WORK/main.db" -items "$EXTRA" -batch 10 -out "$WORK/search.json" | tee "$WORK/search.txt"
           summarise "Search: the index of the $ITEMS library built from nothing, $EXTRA more items imported with search following, then a rebuild under constant use" "$WORK/search.txt" "$WORK/search.json"
           jq '. + {runner: "ubuntu-24.04 GitHub-hosted, '"$(nproc)"' vCPU, 2 GB memory limit on the measured process", commit: env.GITHUB_SHA}' "$WORK/search.json" > server-next-load-search.json
+      - name: Measure what each part of a wide search costs, and an exact count against a capped one
+        working-directory: server-next
+        env:
+          PORTICO_LOAD_DB: ${{ env.WORK }}/main.db
+        run: |
+          go test ./internal/db -run TestSearchCost -count=1 -v -timeout 30m | grep -E 'SEARCH COST|^(ok|FAIL|---)' | sed 's/^.*SEARCH COST //' | tee "$WORK/search-cost.txt"
+          { echo "### What a wide search costs at $ITEMS items (15 runs each)"; echo; echo '```'; cat "$WORK/search-cost.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with: {name: server-next-load-search, path: server-next-load-search.json, retention-days: 30}
+        with:
+          name: server-next-load-search
+          path: |
+            server-next-load-search.json
+            ${{ env.WORK }}/search-cost.txt
+          retention-days: 30
 
   report:
     name: Report
