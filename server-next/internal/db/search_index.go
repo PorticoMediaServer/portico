@@ -29,8 +29,8 @@ import (
 // indexed again, which changes nothing.
 //
 // What the indexer relies on from every write to main.db: a new, edited, moved or deleted item
-// appends an item change, and deleting an item that holds others needs only the one change
-// for the item itself. People are indexed with the items that credit them; a person renamed or
+// appends an item change, and so does a tag put on an item or taken off it; deleting an item
+// that holds others needs only the one change for the item itself. People are indexed with the items that credit them; a person renamed or
 // deleted on their own appends a person change.
 //
 // The index is rebuilt from nothing when the file is missing or unreadable, when it was
@@ -43,7 +43,7 @@ var searchSQL string
 
 // searchFormat is raised when search.sql changes, or the way rows are written into it. A file
 // of another format cannot answer today's queries, so it is discarded at once.
-const searchFormat = "2"
+const searchFormat = "3"
 
 // searchFolding is the word rules the text is folded with. A file folded under other rules
 // still answers, a little wrongly, while its replacement is built.
@@ -52,15 +52,18 @@ var searchFolding = searchtext.Stamp()
 // Besides words, a row holds keys, each one word that begins with a character no title, name
 // or query can contain, so nothing a person types ever matches one by chance: the whole title
 // as a single word, which makes "is exactly this title" one lookup; the id of each item the
-// row sits under; and two facts about an item, its library and its rating age, so that a
-// count can be narrowed to some libraries and ratings without reading a row of main.db. The
-// facts are not rules: who may see which library or rating is only ever read from main.db.
+// row sits under; and three facts about an item, its library, its rating age and every tag
+// that it or anything it sits under carries, so that a count can be narrowed to some
+// libraries and ratings, and can leave out what a blocked label hides, without reading a row
+// of main.db. The facts are not rules: who may see which library or rating, and which labels
+// a profile has blocked, is only ever read from main.db.
 const (
 	searchWholeMark   = "\uE000"
 	searchWordJoin    = "\uE002"
 	searchUnderMark   = "\uE001"
 	searchLibraryMark = "\uE003"
 	searchRatingMark  = "\uE004"
+	searchTagMark     = "\uE005"
 )
 
 // searchWhole is a title's words as its one-word key.
@@ -78,6 +81,9 @@ const (
 	searchBuildBatch  = 2000 // rows read from main.db at a time during a rebuild
 	searchRetry       = 10 * time.Second
 )
+
+// searchTag is the key of a tag that an item, or something it sits under, carries.
+func searchTag(id int64) string { return searchTagMark + strconv.FormatInt(id, 10) }
 
 // ErrSearchUnavailable is the answer while there is no index to search: for the moment a new
 // server takes to build its first one, or longer after an upgrade that changed its format.
@@ -312,6 +318,7 @@ func (d *DB) searchItemDocs(ctx context.Context, tail string, args ...any) (docs
 		return nil, nil, err
 	}
 	defer rows.Close()
+	var lines [][3]int64 // for each row of docs: the item, and what it sits under
 	for rows.Next() {
 		var id, parentID, rootID, library int64
 		var kind, parentKind, rootKind ItemKind
@@ -351,9 +358,41 @@ func (d *DB) searchItemDocs(ctx context.Context, tail string, args ...any) (docs
 			keys = append(keys, searchRating(rating.Int64))
 		}
 		doc.other, doc.keys = strings.Join(other, " "), strings.Join(keys, " ")
-		docs = append(docs, doc)
+		docs, lines = append(docs, doc), append(lines, [3]int64{id, parentID, rootID})
 	}
-	return docs, present, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, nil, err
+	}
+	rows.Close()
+	// The tags of each item and of what it sits under, the same reach a blocked label has.
+	var carriers []int64
+	for _, line := range lines {
+		carriers = append(carriers, line[:]...)
+	}
+	tagged, err := d.read.QueryContext(ctx, `SELECT item_id, tag_id FROM item_tags WHERE item_id`+inIDs+` ORDER BY tag_id`, idsJSON(carriers))
+	if err != nil {
+		return nil, nil, err
+	}
+	defer tagged.Close()
+	tags := map[int64][]int64{}
+	for tagged.Next() {
+		var item, tag int64
+		if err := tagged.Scan(&item, &tag); err != nil {
+			return nil, nil, err
+		}
+		tags[item] = append(tags[item], tag)
+	}
+	for n, line := range lines {
+		var carried []int64
+		for _, item := range line {
+			carried = append(carried, tags[item]...)
+		}
+		slices.Sort(carried)
+		for _, tag := range slices.Compact(carried) {
+			docs[n].keys += " " + searchTag(tag)
+		}
+	}
+	return docs, present, tagged.Err()
 }
 
 // searchPeopleDocs reads people from the main database as index rows, in the order read.
@@ -412,7 +451,8 @@ func (w searchWriter) add(doc searchDoc) error {
 }
 
 // put writes a row unless the index already holds exactly it. changed says whether the row
-// was there with another title or under other items, which the rows under it carry too.
+// was there with another title, under other items or with other tags, which the rows under
+// it carry too.
 func (w searchWriter) put(doc searchDoc) (changed bool, err error) {
 	old, found, err := w.get(doc.row)
 	if err != nil || found && old == doc {
@@ -426,11 +466,12 @@ func (w searchWriter) put(doc searchDoc) (changed bool, err error) {
 	return found && (old.title != doc.title || old.joined != doc.joined || placeKeys(old.keys) != placeKeys(doc.keys)), w.add(doc)
 }
 
-// placeKeys is the part of a row's keys that says what it sits under.
+// placeKeys is the part of a row's keys that the rows under it depend on: what it sits under
+// and the tags it carries.
 func placeKeys(keys string) string {
 	var above []string
 	for _, key := range strings.Fields(keys) {
-		if strings.HasPrefix(key, searchUnderMark) {
+		if strings.HasPrefix(key, searchUnderMark) || strings.HasPrefix(key, searchTagMark) {
 			above = append(above, key)
 		}
 	}

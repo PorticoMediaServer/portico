@@ -9,14 +9,13 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 )
 
 // TestSearchCost is a measurement, not a check: the load workflow runs it against a seeded
-// database to learn what each part of a wide search costs, and what a count costs when it is
-// exact, when it stops at the cap, and when it is narrowed from the index side. Without
+// database to learn what each part of a wide search costs, and what a count costs when every
+// match is checked against when it is made from the facts in the index. Without
 // PORTICO_LOAD_DB it is skipped.
 func TestSearchCost(t *testing.T) {
 	source := os.Getenv("PORTICO_LOAD_DB")
@@ -199,60 +198,18 @@ func TestSearchCost(t *testing.T) {
 			median, slowest = timed(func() { people0 = 0; clear(exact); checkAll(true) })
 			line(text, viewer.name, "exact count of people, every match", median, slowest, fmt.Sprintf("%d of %d matches seen", exact[searchPeople], people0))
 
-			// An exact count of titles from the index side: narrowed to the libraries and
-			// ratings the profile may see by the facts in the index, less what its blocked
-			// labels hide, found from the labels' side in main.db.
-			s, done := open()
-			acc := s.acc
-			done()
-			narrowed := s.match.all
-			if !acc.allLibraries {
-				keys := make([]string, len(acc.libraries))
-				for n, id := range acc.libraries {
-					keys[n] = `"` + searchLibrary(id) + `"`
+			// The same count as a search makes it: from the facts in the index.
+			fromIndex := 0
+			for code, total := range totals {
+				if code != searchPeople {
+					fromIndex += total.visible
 				}
-				narrowed += " AND (" + strings.Join(keys, " OR ") + ")"
 			}
-			if acc.maxAge != nil {
-				var keys []string
-				for age := 0; age <= *acc.maxAge; age++ {
-					keys = append(keys, `"`+searchRating(int64(age))+`"`)
-				}
-				narrowed += " AND (" + strings.Join(keys, " OR ") + ")"
-			}
-			var fromIndex int
-			median, slowest = timed(func() {
-				s, done := open()
-				defer done()
-				fromIndex = 0
-				rows, err := s.index.QueryContext(ctx, `SELECT rowid >> ?, count(*) FROM search_titles WHERE search_titles MATCH ? AND rowid >> ? != ? GROUP BY 1`,
-					searchIDBits, narrowed, searchIDBits, searchPeople)
-				must(err)
-				for rows.Next() {
-					var code int64
-					var count int
-					must(rows.Scan(&code, &count))
-					fromIndex += count
-				}
-				must(rows.Close())
-				if len(acc.blockedTags) == 0 {
-					return
-				}
-				tags := intList(acc.blockedTags)
-				hidden, err := ids(ctx, s.tx, `SELECT item_id FROM item_tags WHERE tag_id IN `+tags+`
-					UNION SELECT c.id FROM item_tags h CROSS JOIN items c WHERE h.tag_id IN `+tags+` AND c.parent_id = h.item_id
-					UNION SELECT c.id FROM item_tags h CROSS JOIN items c WHERE h.tag_id IN `+tags+` AND c.root_id = h.item_id`)
-				must(err)
-				var lost int
-				must(s.index.QueryRowContext(ctx, `SELECT count(*) FROM search_titles WHERE search_titles MATCH ? AND rowid >> ? != ?
-					AND (rowid & ?) IN (SELECT value FROM json_each(?))`, narrowed, searchIDBits, searchPeople, int64(1)<<searchIDBits-1, idsJSON(hidden)).Scan(&lost))
-				fromIndex -= lost
-			})
 			agrees := "agrees with the plain count"
 			if fromIndex != itemsExact {
 				agrees = "DISAGREES with the plain count of " + strconv.Itoa(itemsExact)
 			}
-			line(text, viewer.name, "exact count of titles, index side", median, slowest, fmt.Sprintf("%d, %s", fromIndex, agrees))
+			line(text, viewer.name, "exact count of titles, index side", 0, 0, fmt.Sprintf("%d, %s", fromIndex, agrees))
 		}
 	}
 }
