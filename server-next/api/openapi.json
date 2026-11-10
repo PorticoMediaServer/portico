@@ -1681,6 +1681,9 @@
             "format": "date-time",
             "type": "string"
           },
+          "generation": {
+            "type": "integer"
+          },
           "reportEveryMs": {
             "type": "integer"
           }

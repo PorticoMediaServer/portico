@@ -24,6 +24,8 @@ type fakeEngine struct {
 	started  int
 	notReady bool
 	busy     bool
+	// hold, when set, makes Start wait until it is closed.
+	hold chan struct{}
 }
 
 func (f *fakeEngine) CheckCapabilities(json.RawMessage) error { return nil }
@@ -68,6 +70,12 @@ func (f *fakeEngine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 
 func (f *fakeEngine) Start(_ context.Context, r playback.StartRequest) (playback.Stream, error) {
 	f.mu.Lock()
+	hold := f.hold
+	f.mu.Unlock()
+	if hold != nil {
+		<-hold
+	}
+	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.busy {
 		return playback.Stream{}, playback.ErrBusy
@@ -79,8 +87,6 @@ func (f *fakeEngine) Start(_ context.Context, r playback.StartRequest) (playback
 	f.started++
 	return playback.Stream{Grant: fmt.Sprint("grant", f.started), URL: fmt.Sprintf("/v1/media/grant%d/master.m3u8", f.started), Mode: r.Plan.Mode}, nil
 }
-
-func (f *fakeEngine) Restart(context.Context, string, int64) error { return nil }
 
 func (f *fakeEngine) Stop(id string) {
 	f.mu.Lock()
@@ -774,5 +780,59 @@ func TestSubtitlesOffsetAndLyrics(t *testing.T) {
 	if len(lyrics.Items) != 1 || lyrics.Items[0].Format != "lrc" || lyrics.Items[0].Origin != "sidecar" || len(lyrics.Items[0].Lines) != 2 ||
 		lyrics.Items[0].Lines[1].Text != "Again" {
 		t.Fatalf("lyrics read from the file: %+v", lyrics.Items)
+	}
+}
+
+// A stop that arrives while the stream is still starting leaves no stream behind, and a
+// stream the engine replaces by itself becomes the session's, which the app hears of in its
+// next progress answer.
+func TestStopDuringStartAndAStreamReplacedByTheEngine(t *testing.T) {
+	th := newTheatre(t)
+	token := th.owner.AccessToken
+	th.engine.hold = make(chan struct{})
+	started := make(chan int)
+	go func() {
+		code, _ := th.start(token, "", PlaybackStart{ItemID: th.film})
+		started <- code
+	}()
+	var id string
+	for range 400 {
+		if all := th.s.playback.All(); len(all) == 1 {
+			id = all[0].ID
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if id == "" {
+		t.Fatal("the session never appeared")
+	}
+	stopped := make(chan int)
+	go func() { stopped <- status(t, th.s, "DELETE", "/v1/playback/sessions/"+id, token, nil) }()
+	for range 400 {
+		if len(th.s.playback.All()) == 0 {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	close(th.engine.hold)
+	<-started
+	if code := <-stopped; code != 204 || th.engine.streams() != 0 {
+		t.Fatalf("stop during start answered %d and left %d streams", code, th.engine.streams())
+	}
+	th.engine.mu.Lock()
+	th.engine.hold = nil
+	th.engine.mu.Unlock()
+
+	session := th.play(token, th.film)
+	th.engine.mu.Lock()
+	replaced := th.engine.running[session.ID].Replaced
+	th.engine.mu.Unlock()
+	replaced(playback.Stream{Grant: "software", URL: "/v1/media/software/master.m3u8", Mode: "stream"})
+	var lease PlaybackLease
+	call(t, th.s, "PUT", "/v1/playback/sessions/"+session.ID+"/progress", token, PlaybackProgress{State: "playing", PositionMs: 5000}, &lease)
+	var now PlaybackSession
+	call(t, th.s, "GET", "/v1/playback/sessions/"+session.ID, token, nil, &now)
+	if lease.Generation != 2 || now.Presentation.URL != "/v1/media/software/master.m3u8" || now.Presentation.StartPositionMs != 5000 && now.Presentation.StartPositionMs != 0 {
+		t.Fatalf("after the engine replaced the stream: lease %+v, presentation %+v", lease, now.Presentation)
 	}
 }
