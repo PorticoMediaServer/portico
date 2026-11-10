@@ -193,12 +193,26 @@ func (r *run) filmUnits(f *folder) []unit {
 		name, year := title(file)
 		return fmt.Sprintf("%s|%d|%s|%s", fold(name), year, first(file.reading.Editions), first(file.reading.Versions)), true
 	})
+	// A film has the folder to itself when every file in it is that film.
+	alone := f.rel != "" && len(versions) > 0
+	for _, v := range versions {
+		a, yearA := title(versions[0].parts[0])
+		b, yearB := title(v.parts[0])
+		alone = alone && fold(a) == fold(b) && yearA == yearB
+	}
 	var units []unit
 	for _, v := range versions {
-		if !v.touched() {
+		// A film whose NFO file or picture changed is read again, though its own file did not.
+		reread := !v.touched() && f.sidecarChanged(stem(v.parts[0].entry.Name), alone)
+		if !v.touched() && !reread {
 			continue
 		}
-		units = append(units, r.filmUnit(v))
+		u := r.filmUnit(v)
+		if item := &u.items[0]; item.Kind == db.KindMovie {
+			item.Reread = reread
+			item.Images = r.pictures(f.files, stem(v.parts[0].entry.Name), db.ImagePoster, alone, reread)
+		}
+		units = append(units, u)
 	}
 	return units
 }
@@ -307,11 +321,17 @@ func (r *run) showUnits(f *folder) []unit {
 	})
 	var units []unit
 	for _, v := range versions {
-		if !v.touched() {
-			continue
-		}
 		lead := v.parts[0]
 		ep := episodes[lead]
+		// An episode whose own NFO file or picture changed is read again.
+		reread := !v.touched() && ep.placed && len(ep.numbers) == 1 && f.sidecarChanged(stem(lead.entry.Name), false)
+		if !v.touched() && !reread {
+			continue
+		}
+		if reread {
+			units = append(units, unit{items: r.episodeReread(f, v, ep)})
+			continue
+		}
 		u := unit{files: v.files()}
 		stored, keys := r.stored(v, false, 0)
 		if extra, ok := r.extra(lead, stored, keys); ok {
@@ -322,14 +342,14 @@ func (r *run) showUnits(f *folder) []unit {
 			u.items = []db.ImportItem{{Kind: db.KindMovie, Title: name, Year: year, Keys: append(keys, nameKey("movie", name, year)),
 				Versions: []db.ImportVersion{stored}}}
 		} else {
-			u.items = r.episodeItems(v, ep)
+			u.items = r.episodeItems(f, v, ep)
 		}
 		units = append(units, u)
 	}
 	return units
 }
 
-func (r *run) episodeItems(v *version, ep episode) []db.ImportItem {
+func (r *run) episodeItems(f *folder, v *version, ep episode) []db.ImportItem {
 	lead := v.parts[0]
 	provider, ids := providerKeys(lead.reading, "show")
 	showKeys := append(provider, nameKey("show", ep.show, ep.year))
@@ -337,8 +357,17 @@ func (r *run) episodeItems(v *version, ep episode) []db.ImportItem {
 		showKeys = append(showKeys, db.FolderKey(r.path.ID, folder))
 	}
 	show := db.ImportItem{Kind: db.KindShow, Title: ep.show, Year: ep.year, Keys: showKeys, ExternalIDs: ids}
+	var local showLocal
 	if folder := showFolder(lead.rel); folder != "" {
 		describe(&show, r.nfo("show", path.Join(folder, "tvshow.nfo")), "show")
+		// The show's and its seasons' pictures are in the show's own folder, which is this
+		// folder or one above it.
+		if folder == f.rel {
+			local = r.showPictures(folder, f.files, false)
+		} else {
+			local = r.showPictures(folder, nil, false)
+		}
+		show.Images = local.show
 	}
 	if lead.state == moved {
 		// The show follows its files when their old folder is gone: the folder was renamed.
@@ -352,7 +381,11 @@ func (r *run) episodeItems(v *version, ep episode) []db.ImportItem {
 	if ep.season == 0 {
 		seasonTitle = "Specials"
 	}
-	season := db.ImportItem{Kind: db.KindSeason, Title: seasonTitle, IndexNumber: &ep.season, ParentRow: 1, ChildKey: fmt.Sprintf("s%d", ep.season)}
+	season := db.ImportItem{Kind: db.KindSeason, Title: seasonTitle, IndexNumber: &ep.season, ParentRow: 1, ChildKey: seasonKey(ep.season),
+		Images: local.seasons[ep.season]}
+	if _, isSeason := naming.SeasonFolder(path.Base(f.rel)); isSeason {
+		season.Images = append(season.Images, r.pictures(f.files, "", 0, true, false)...)
+	}
 	items := []db.ImportItem{show, season}
 	for n, number := range ep.numbers {
 		place := 0
@@ -364,8 +397,27 @@ func (r *run) episodeItems(v *version, ep episode) []db.ImportItem {
 		if ep.date != "" {
 			name = ep.date
 		}
-		items = append(items, db.ImportItem{Kind: db.KindEpisode, Title: name, IndexNumber: &number, ParentIndex: &ep.season,
-			ReleaseDate: ep.date, ParentRow: 2, ChildKey: fmt.Sprintf("e%d", number), Keys: keys, Versions: []db.ImportVersion{stored}})
+		item := db.ImportItem{Kind: db.KindEpisode, Title: name, IndexNumber: &number, ParentIndex: &ep.season,
+			ReleaseDate: ep.date, ParentRow: 2, ChildKey: fmt.Sprintf("e%d", number), Keys: keys, Versions: []db.ImportVersion{stored}}
+		if len(ep.numbers) == 1 {
+			r.episodeLocal(f, lead, &item, false)
+		}
+		items = append(items, item)
 	}
 	return items
+}
+
+// episodeLocal gives an episode what is beside its file: an NFO file of the same name, and
+// a picture ("<name>-thumb.jpg" or "<name>.jpg").
+func (r *run) episodeLocal(f *folder, lead *found, item *db.ImportItem, changedOnly bool) {
+	describe(item, r.nfo("episode", strings.TrimSuffix(lead.rel, path.Ext(lead.rel))+".nfo"), "episode")
+	item.Images = r.pictures(f.files, stem(lead.entry.Name), db.ImageThumb, false, changedOnly)
+}
+
+// episodeReread is an episode already stored, found by its file, with what is beside it now.
+func (r *run) episodeReread(f *folder, v *version, ep episode) []db.ImportItem {
+	_, keys := r.stored(v, false, 0)
+	item := db.ImportItem{Kind: db.KindEpisode, Keys: keys, Reread: true}
+	r.episodeLocal(f, v.parts[0], &item, true)
+	return []db.ImportItem{item}
 }

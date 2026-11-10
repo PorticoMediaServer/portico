@@ -4,6 +4,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/contentrating"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/localmetadata"
 )
@@ -34,25 +35,63 @@ func (r *run) nfo(kind string, paths ...string) *localmetadata.VideoNFO {
 	return nil
 }
 
-// describe fills an item from an NFO record: an id in it is an exact match, and its title and
-// year are the file's own word, which wins over the folder's.
+// describe fills an item from an NFO record: an id in it is an exact match, and what it says
+// is the files' own word, which wins over the folder's name and over any provider. The item
+// is told which of its fields the file gave.
 func describe(item *db.ImportItem, nfo *localmetadata.VideoNFO, kind string) {
 	if nfo == nil {
 		return
 	}
-	if nfo.Title != "" {
-		item.Title = nfo.Title
+	text := func(field string, to *string, value string) {
+		if value != "" {
+			*to = value
+			item.LocalFields = append(item.LocalFields, field)
+		}
+	}
+	text(db.FieldTitle, &item.Title, nfo.Title)
+	text(db.FieldSortTitle, &item.SortTitle, nfo.SortTitle)
+	text(db.FieldOriginalTitle, &item.OriginalTitle, nfo.OriginalTitle)
+	text(db.FieldSummary, &item.Summary, nfo.Overview)
+	text(db.FieldTagline, &item.Tagline, nfo.Tagline)
+	text(db.FieldReleaseDate, &item.ReleaseDate, nfo.Date)
+	text(db.FieldContentRating, &item.ContentRating, nfo.Certification)
+	if age, ok := contentrating.Age(nfo.Certification); ok {
+		item.RatingAge = &age
 	}
 	if nfo.Year > 0 {
 		item.Year = nfo.Year
+		item.LocalFields = append(item.LocalFields, db.FieldYear)
 	}
-	item.OriginalTitle, item.SortTitle, item.Summary = nfo.OriginalTitle, nfo.SortTitle, nfo.Overview
-	item.ContentRating, item.ReleaseDate = nfo.Certification, nfo.Date
 	for _, genre := range nfo.Genres {
 		item.Tags = append(item.Tags, db.TagName{Kind: db.TagGenre, Name: genre})
 	}
 	for _, studio := range nfo.Studios {
 		item.Tags = append(item.Tags, db.TagName{Kind: db.TagStudio, Name: studio})
+	}
+	if len(nfo.Genres) > 0 {
+		item.LocalFields = append(item.LocalFields, db.FieldGenres)
+	}
+	if len(nfo.Studios) > 0 {
+		item.LocalFields = append(item.LocalFields, db.FieldStudios)
+	}
+	for _, credit := range nfo.Credits {
+		role, character := db.RoleActor, credit.Role
+		switch credit.Department {
+		case "Acting":
+		case "Directing":
+			role, character = db.RoleDirector, ""
+		case "Writing":
+			role, character = db.RoleWriter, ""
+		default:
+			continue
+		}
+		item.Credits = append(item.Credits, db.ImportCredit{Name: credit.Name, Role: role, Character: character})
+	}
+	if len(item.Credits) > 0 {
+		item.LocalFields = append(item.LocalFields, db.FieldCredits)
+	}
+	if kind == "episode" {
+		return // an episode is found by its place in its show, not by an id
 	}
 	have := map[string]bool{}
 	for _, id := range item.ExternalIDs {
