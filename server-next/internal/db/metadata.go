@@ -176,8 +176,21 @@ func applyDetails(b *batchTx, itemID int64, d *ItemDetails, now int64) error {
 	if err != nil {
 		return err
 	}
-	keep := fieldSet(locked, local)
+	sources := fieldSources(local)
+	keep := keptFields(locked, sources)
 	sets, args := "refreshed_at = ?, updated_at = ?, revision = revision + 1", []any{now, now}
+	// A field a person edited and later unlocked is the provider's again from this answer on.
+	unlocked := false
+	for field, source := range sources {
+		if source == SourceEdit && !keep[field] {
+			delete(sources, field)
+			unlocked = true
+		}
+	}
+	if unlocked {
+		sets += ", local_fields = ?"
+		args = append(args, sourceJSON(sources))
+	}
 	set := func(field, column string, value any, said bool) {
 		if said && !keep[field] {
 			sets += ", " + column + " = ?"
