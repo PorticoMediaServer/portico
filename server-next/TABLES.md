@@ -67,7 +67,8 @@ lines; columns are documented there. How the areas use these tables is in `AREAS
 | | `recording_rules`, `recordings` | yes | Series rules; bookings, what is recording, and History. A recorded programme is an ordinary title in the one Recorded TV library |
 | | `reminders` | yes | Reminders that follow a profile to every device |
 | `guide.db` | `programmes` | with Live TV | The TV guide. Library Channel programmes in it are a copy of `channel_schedule` |
-| `search.db` | full-text indexes, `book_text` | with search | Search |
+| `search.db` | `search_titles` (full text), `meta` | yes (`internal/db/search.sql`) | Search by title and by name; the file is thrown away and rebuilt at will |
+| | `book_text` | with reading | Search inside a book |
 
 ## Counted
 
