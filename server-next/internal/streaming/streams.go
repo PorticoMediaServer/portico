@@ -91,6 +91,10 @@ type StartRequest struct {
 	// hardware encoder that changed its output mid-stream carries on in software
 	// under a new address. Nil fails such a stream instead.
 	Replaced func(Stream)
+	// Failed is called, once, when a stream started here, or one that replaced
+	// it, fails for good, with the stream that failed. Its address has stopped
+	// working by then.
+	Failed func(Stream)
 }
 
 // Stream is what a player is given.
@@ -222,7 +226,7 @@ func (s *Streams) Start(ctx context.Context, r StartRequest) (Stream, error) {
 	st := &stream{
 		id: token(), session: r.SessionID, grant: token(), mode: mode, source: source, plan: &plan, request: r.Request,
 		duration: plan.Duration, text: append([]TextRenditionPlan{}, r.Subtitles...), burn: r.Burn,
-		changed: make(chan struct{}), replaced: r.Replaced, served: -1, audio: r.Audio, seekIndex: r.SeekIndex,
+		changed: make(chan struct{}), replaced: r.Replaced, failedHook: r.Failed, served: -1, audio: r.Audio, seekIndex: r.SeekIndex,
 	}
 	s.Stop(r.SessionID)
 	if err := s.install(st); err != nil {
@@ -477,7 +481,7 @@ func (s *Streams) replace(id string, plan *DeliveryPlan, position float64) bool 
 	next := &stream{
 		id: token(), session: old.session, grant: token(), mode: "hls", source: old.source, plan: plan, request: old.request,
 		duration: old.duration, text: old.text, burn: old.burn, openInput: old.openInput, disc: old.disc,
-		changed: make(chan struct{}), replaced: old.replaced, served: -1,
+		changed: make(chan struct{}), replaced: old.replaced, failedHook: old.failedHook, served: -1,
 	}
 	old.state = streamStopped
 	delete(s.byGrant, old.grant)
@@ -488,8 +492,10 @@ func (s *Streams) replace(id string, plan *DeliveryPlan, position float64) bool 
 	h.mu.Unlock()
 	supervise.Go("streaming.replace", func() {
 		s.stop(old)
-		_ = h.start(h.ctx, next.id, int(position)/HLSSegmentSeconds)
+		// The session is told of its new stream before that stream can fail, so a
+		// failure is never reported for a stream the session has not heard of.
 		next.replaced(next.public())
+		_ = h.start(h.ctx, next.id, int(position)/HLSSegmentSeconds)
 	})
 	return true
 }

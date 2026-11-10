@@ -711,5 +711,9 @@ func (h *HLS) failed(ctx context.Context, id string) bool {
 	}
 	s.state, s.output = streamFailed, "failed"
 	h.signalLocked(s)
+	if s.failedHook != nil {
+		hook, failed := s.failedHook, s.public()
+		supervise.Go("streaming.failed", func() { hook(failed) })
+	}
 	return true
 }
