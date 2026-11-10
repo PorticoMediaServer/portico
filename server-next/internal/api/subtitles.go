@@ -4,12 +4,13 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/libraryfile"
 )
 
 // ItemSubtitle is one subtitle a title has: in the file or in a file beside it.
@@ -137,11 +138,7 @@ func parseLyrics(text string) (lines []LyricLine, offsetMs int64, timed bool) {
 				sung = append(sung, l)
 			}
 		}
-		for i := 1; i < len(sung); i++ {
-			for j := i; j > 0 && *sung[j].AtMs < *sung[j-1].AtMs; j-- {
-				sung[j], sung[j-1] = sung[j-1], sung[j]
-			}
-		}
+		sort.SliceStable(sung, func(i, j int) bool { return *sung[i].AtMs < *sung[j].AtMs })
 		lines = append(ordered, sung...)
 	}
 	return lines, offsetMs, timed
@@ -157,9 +154,9 @@ func (s *Server) itemLyrics(r *http.Request, _ None) (Page[Lyrics], error) {
 	}
 	out := Page[Lyrics]{Items: []Lyrics{}}
 	for _, file := range files {
-		f, err := os.Open(file.Path)
+		f, err := libraryfile.Open(file.Path, []string{file.Folder})
 		if err != nil {
-			if errors.Is(err, os.ErrNotExist) || errors.Is(err, os.ErrPermission) {
+			if errors.Is(err, libraryfile.ErrOutside) {
 				continue // gone since the last scan
 			}
 			return out, err

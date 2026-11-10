@@ -263,7 +263,8 @@ type LyricFile struct {
 	FileID int64
 	Name   string
 	// Path is where the file is on disk.
-	Path string
+	Path   string
+	Folder string
 }
 
 // LyricFiles returns the lyrics files beside a song the viewer may see, by name.
@@ -286,11 +287,11 @@ func (d *DB) LyricFiles(ctx context.Context, v Viewer, itemPublicID string) ([]L
 	if err != nil {
 		return nil, err
 	}
-	return queryAll(ctx, tx, `SELECT f.id, f.name, rtrim(lp.path, '/') || '/' || CASE WHEN dir.rel_path = '' THEN '' ELSE dir.rel_path || '/' END || f.name
+	return queryAll(ctx, tx, `SELECT f.id, f.name, lp.path, rtrim(lp.path, '/') || '/' || CASE WHEN dir.rel_path = '' THEN '' ELSE dir.rel_path || '/' END || f.name
 		FROM media m JOIN files f ON f.media_id = m.id JOIN directories dir ON dir.id = f.directory_id
 		JOIN library_paths lp ON lp.id = dir.library_path_id
 		WHERE m.item_id = ? AND f.role = ? AND f.missing_since_at IS NULL AND lp.remote_source_id IS NULL ORDER BY f.name`,
-		[]any{id, FileLyrics}, func(l *LyricFile) []any { return []any{&l.FileID, &l.Name, &l.Path} })
+		[]any{id, FileLyrics}, func(l *LyricFile) []any { return []any{&l.FileID, &l.Name, &l.Folder, &l.Path} })
 }
 
 // Visible reports whether the viewer may see an item now.
