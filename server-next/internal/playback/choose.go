@@ -353,6 +353,7 @@ func (s *Service) resolve(ctx context.Context, c Caller, device db.SessionDevice
 				a.choice.SubtitleTrackID = TrackID(t)
 			}
 			a.choice.Quality = savedQuality(prefs, item.Kind, out.network, a.menu)
+			a.choice.SubtitleOffsetMs = item.SubtitleOffsetMS
 		}
 		remembered := a.choice
 		if ask.Audio != nil {
