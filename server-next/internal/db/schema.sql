@@ -435,6 +435,7 @@ CREATE INDEX images_profile ON images (profile_id) WHERE profile_id IS NOT NULL;
 
 -- two_factor_secret is set when enrolment starts and counts once two_factor_enabled_at is set.
 -- two_factor_last_step is the last authenticator time step accepted, so one code works once.
+-- max_profiles is how many profiles the account may have when the owner lowered it; NULL is eight.
 CREATE TABLE users (
   id                  INTEGER NOT NULL PRIMARY KEY,
   public_id           TEXT    NOT NULL UNIQUE,
@@ -448,6 +449,7 @@ CREATE TABLE users (
   two_factor_enabled_at INTEGER,
   two_factor_last_step INTEGER,
   disabled_at         INTEGER,
+  max_profiles        INTEGER,
   notes               TEXT,
   extra               TEXT,
   revision            INTEGER NOT NULL DEFAULT 1,
@@ -457,7 +459,8 @@ CREATE TABLE users (
 
 -- Viewing profiles. Each account has one main profile (is_primary), made with the account: it
 -- cannot be deleted, and only it carries the account's owner or admin role. access_changed_at moves whenever what the profile may see changes, and
--- clients throw their cache away. history_cleared_at drops older offline progress.
+-- clients throw their cache away. history_cleared_at drops older offline progress. Under a rating limit a title with no rating is
+-- hidden unless allow_unrated is set.
 CREATE TABLE profiles (
   id                 INTEGER NOT NULL PRIMARY KEY,
   public_id          TEXT    NOT NULL UNIQUE,

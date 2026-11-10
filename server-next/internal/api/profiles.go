@@ -163,9 +163,10 @@ func (s *Server) createProfile(r *http.Request, req ProfileCreate) (Profile, err
 		}
 	}
 	p, err := s.db.CreateProfile(ctx, n)
+	var full *db.ProfileLimitError
 	switch {
-	case errors.Is(err, db.ErrProfileLimit):
-		return Profile{}, ErrConflict("profile_capacity", "An account can have up to eight profiles.")
+	case errors.As(err, &full):
+		return Profile{}, ErrConflict("profile_capacity", "This account already has "+strconv.Itoa(full.Most)+" profiles.")
 	case errors.Is(err, db.ErrKeyReused):
 		return Profile{}, errKeyReused()
 	}

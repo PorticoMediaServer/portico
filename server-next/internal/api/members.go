@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -28,6 +29,8 @@ type Member struct {
 	TwoFactorEnabled bool     `json:"twoFactorEnabled"`
 	// Notes are the admins' private notes about the member. The member never sees them.
 	Notes string `json:"notes,omitempty"`
+	// MaxProfiles is how many profiles the account may have: 8 unless the owner lowered it.
+	MaxProfiles int `json:"maxProfiles"`
 }
 
 // MemberCreate makes an account directly, with a first password to pass on to its person.
@@ -46,6 +49,9 @@ type MemberEdit struct {
 	Notes        *string   `json:"notes,omitempty"`
 	AllLibraries *bool     `json:"allLibraries,omitempty"`
 	Libraries    *[]string `json:"libraries,omitempty"`
+	// MaxProfiles is how many profiles the account may have: 1, 2, 4 or 8. Only the owner
+	// sets it. Lowering it removes no profile; it only stops new ones.
+	MaxProfiles *int `json:"maxProfiles,omitempty"`
 }
 
 // PasswordResetCreate asks for a reset code for a member.
@@ -73,7 +79,7 @@ func memberOut(m db.Member) Member {
 		libraries = []string{}
 	}
 	return Member{Account: accountOut(m.Account), Disabled: m.Disabled, CreatedAt: m.CreatedAt.UTC(), AllLibraries: m.AllLibraries,
-		Libraries: libraries, TwoFactorEnabled: m.TwoFactor, Notes: m.Notes}
+		Libraries: libraries, TwoFactorEnabled: m.TwoFactor, Notes: m.Notes, MaxProfiles: m.MaxProfiles}
 }
 
 // memberError maps what the data layer says about a managed account to a refusal.
@@ -165,9 +171,13 @@ func (s *Server) editMember(r *http.Request, req MemberEdit) (Member, error) {
 		return Member{}, ErrField("notes", "Notes are at most 4,000 characters.")
 	case req.Libraries != nil && len(*req.Libraries) > 1000:
 		return Member{}, ErrField("libraries", "That is too many libraries.")
+	case req.MaxProfiles != nil && !slices.Contains([]int{1, 2, 4, 8}, *req.MaxProfiles):
+		return Member{}, ErrField("maxProfiles", "An account can have 1, 2, 4 or 8 profiles.")
+	case req.MaxProfiles != nil && caller.Role != "owner":
+		return Member{}, ErrNotPermitted()
 	}
 	m, err := s.db.UpdateMember(r.Context(), db.MemberEdit{ActorID: caller.UserID, ActorRole: caller.Role, PublicID: r.PathValue("id"),
-		Role: req.Role, Disabled: req.Disabled, Notes: req.Notes, AllLibraries: req.AllLibraries, Libraries: req.Libraries, Now: s.now()})
+		Role: req.Role, Disabled: req.Disabled, Notes: req.Notes, AllLibraries: req.AllLibraries, Libraries: req.Libraries, MaxProfiles: req.MaxProfiles, Now: s.now()})
 	return memberOut(m), memberError(err)
 }
 

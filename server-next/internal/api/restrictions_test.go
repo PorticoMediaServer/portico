@@ -20,7 +20,8 @@ func TestAProfilesRestrictionsAreSetFromTheMainProfile(t *testing.T) {
 	var kid Profile
 	call(t, s, "POST", "/v1/profiles", parent, ProfileCreate{Name: "Kid"}, &kid)
 	var onKid Session
-	if w := call(t, s, "POST", "/v1/profiles/"+kid.ID+"/select", signIn(t, s, 1).Session.AccessToken, ProfileSelect{}, &onKid); w.Code != 200 {
+	kidSignIn := signIn(t, s, 1)
+	if w := call(t, s, "POST", "/v1/profiles/"+kid.ID+"/select", kidSignIn.Session.AccessToken, ProfileSelect{}, &onKid); w.Code != 200 {
 		t.Fatalf("choosing the kid's profile answered %d", w.Code)
 	}
 	libraries := get[Libraries](t, s, parent, "/v1/libraries").Items
@@ -42,7 +43,21 @@ func TestAProfilesRestrictionsAreSetFromTheMainProfile(t *testing.T) {
 		len(saved.BlockedLabels) != 1 || saved.AllLibraries || len(saved.Libraries) != 1 || !saved.AccountAllLibraries {
 		t.Fatalf("setting limits answered %d %+v", w.Code, saved)
 	}
-	// The kid's token still works and is shown less from the next request on.
+	// The kid's token from before the change is refused, so a title it was playing is
+	// checked again; its app renews without signing in and is shown less.
+	if code := status(t, s, "GET", "/v1/libraries", onKid.AccessToken, nil); code != 401 {
+		t.Fatalf("the kid's token from before the limits answered %d, want 401", code)
+	}
+	refresh := kidSignIn.Session.RefreshToken
+	renewKid := func(id string) {
+		t.Helper()
+		code, next := renew(t, s, refresh, 1, id)
+		if code != 200 {
+			t.Fatalf("the kid's app renewing after a change of limits answered %d", code)
+		}
+		onKid, refresh = next, next.RefreshToken
+	}
+	renewKid("after-limits")
 	if seen := get[Libraries](t, s, onKid.AccessToken, "/v1/libraries").Items; len(seen) != 1 || seen[0].ID != libraries[0].ID {
 		t.Fatalf("the kid is shown %d libraries, want only the films", len(seen))
 	}
@@ -80,6 +95,7 @@ func TestAProfilesRestrictionsAreSetFromTheMainProfile(t *testing.T) {
 	if code := status(t, s, "PUT", address, parent, Restrictions{AllLibraries: true}); code != 200 {
 		t.Fatalf("lifting the limits answered %d", code)
 	}
+	renewKid("after-lifting")
 	if again := *get[ItemPage](t, s, onKid.AccessToken, films).Total; again != all {
 		t.Fatalf("with the limits lifted the kid is shown %d films of %d", again, all)
 	}
