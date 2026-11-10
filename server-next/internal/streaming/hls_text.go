@@ -1,6 +1,7 @@
 package streaming
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"strings"
@@ -30,6 +31,29 @@ func publishTextManifests(dir string, p *DeliveryPlan) error {
 		if e := writeNamedManifest(dir, fmt.Sprintf("text-%d.m3u8", ordinal), []byte(b.String())); e != nil {
 			return e
 		}
+	}
+	return nil
+}
+
+// loadTextRenditions gives a plan the text subtitles this stream offers in its
+// playlist, the selected one first as the caller ordered them.
+func (h *HLS) loadTextRenditions(ctx context.Context, id string, p *DeliveryPlan) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	s := h.streams[id]
+	if s == nil {
+		return ErrGrantEnded
+	}
+	for _, r := range s.text {
+		if len(p.TextRenditions) >= 32 {
+			break
+		}
+		if p.AirPlay && !r.Selected {
+			continue
+		}
+		r.Grant = s.grant
+		r.Label = subtitles.ManifestSubtitleName(r.Label, r.Language, len(p.TextRenditions))
+		p.TextRenditions = append(p.TextRenditions, r)
 	}
 	return nil
 }
