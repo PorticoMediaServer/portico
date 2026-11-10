@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/audiofacts"
 	"github.com/PorticoMediaServer/portico/server-next/internal/childprocess"
 	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
 )
@@ -50,6 +51,10 @@ type stream struct {
 	duration float64
 	text     []TextRenditionPlan
 	burn     *BurnSubtitle
+	// audio is the planned music stream this stream serves, with the file's
+	// seek index when the plan names one. Nil for everything else.
+	audio     *AudioPlan
+	seekIndex *audiofacts.SeekIndex
 	// openInput replaces opening source as one file, and disc keeps the output on
 	// disk: both are for a disc title.
 	openInput inputOpener

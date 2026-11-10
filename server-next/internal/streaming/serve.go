@@ -27,6 +27,10 @@ func (s *Streams) ServeMedia(w http.ResponseWriter, r *http.Request, grant, file
 	}
 	// check ends a transfer already under way when its stream stops.
 	check := func() error { _, e := s.grant(grant); return e }
+	if st.mode == "audio" {
+		s.serveAudio(w, r, st, file, check)
+		return
+	}
 	if st.mode == "direct" {
 		if file != "original" && file != "" {
 			mediaError(w, ErrHLSArtifactNotFound)

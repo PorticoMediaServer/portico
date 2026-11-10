@@ -644,3 +644,79 @@ func TestStopDuringStartLeavesNothing(t *testing.T) {
 		rig.nothingLeft()
 	}
 }
+
+func TestPlannedMusicIsServedDirectAndConvertedExactly(t *testing.T) {
+	rig := newMediaRig(t)
+	path := filepath.Join(rig.library, "song.flac")
+	generate := exec.Command(rig.ffmpeg, "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
+		"-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000", "-t", "5", "-ac", "2", "-sample_fmt", "s16", path)
+	if out, err := generate.CombinedOutput(); err != nil {
+		t.Fatalf("generate: %v\n%s", err, out)
+	}
+	const frames = 5 * 48000
+	whole, _ := os.ReadFile(path)
+
+	direct := &AudioPlan{Version: 2, Mode: "direct", Container: "flac", Codec: "flac", DurationFrames: frames, Bytes: int64(len(whole))}
+	stream, err := rig.streams.Start(context.Background(), StartRequest{SessionID: "music", Audio: direct, Path: path})
+	if err != nil || stream.Mode != "audio" || !strings.HasSuffix(stream.URL, "/audio") {
+		t.Fatalf("direct music stream: %+v %v", stream, err)
+	}
+	response := rig.get(context.Background(), stream.Grant, "audio", "bytes=0-99")
+	if response.Code != http.StatusPartialContent || string(response.Body.Bytes()) != string(whole[:100]) || response.Header().Get("Content-Type") != "audio/flac" {
+		t.Fatalf("original music by range answered %d %q", response.Code, response.Header().Get("Content-Type"))
+	}
+	for _, file := range []string{"audio-converted", "audio-index", "master.m3u8"} {
+		if response = rig.get(context.Background(), stream.Grant, file, ""); response.Code != http.StatusNotFound {
+			t.Fatalf("%s on a direct plan without an index answered %d", file, response.Code)
+		}
+	}
+
+	converted := &AudioPlan{Version: 2, Mode: "converted", Container: "flac", Codec: "flac", DurationFrames: frames, Convert: &AudioConversion{
+		Codec: "flac", SourceRate: 48000, SourceFrames: frames, SourceBitDepth: 16, Rate: 48000, Channels: 2, BitDepth: 16,
+	}}
+	stream, err = rig.streams.Start(context.Background(), StartRequest{SessionID: "music", Audio: converted, Path: path})
+	if err != nil || !strings.HasSuffix(stream.URL, "/audio-converted") {
+		t.Fatalf("converted music stream: %+v %v", stream, err)
+	}
+	for _, from := range []int64{0, frames / 2} {
+		request := httptest.NewRequest(http.MethodGet, "/v1/media/"+stream.Grant+"/audio-converted?fromFrame="+strconv.FormatInt(from, 10), nil)
+		response = httptest.NewRecorder()
+		rig.streams.ServeMedia(response, request, stream.Grant, "audio-converted")
+		if response.Code != http.StatusOK || response.Header().Get("X-Audio-Frames") != strconv.FormatInt(frames-from, 10) {
+			t.Fatalf("conversion from frame %d answered %d %s", from, response.Code, response.Body.String())
+		}
+		file := filepath.Join(t.TempDir(), "converted.flac")
+		if err = os.WriteFile(file, response.Body.Bytes(), 0600); err != nil {
+			t.Fatal(err)
+		}
+		raw, err := exec.Command(rig.ffprobe, "-v", "error", "-count_frames", "-show_entries", "stream=codec_name,sample_rate,channels",
+			"-show_entries", "packet=duration", "-of", "json", file).Output()
+		if err != nil {
+			t.Fatalf("ffprobe: %v", err)
+		}
+		var probed struct {
+			Streams []struct {
+				Codec    string `json:"codec_name"`
+				Rate     string `json:"sample_rate"`
+				Channels int    `json:"channels"`
+			} `json:"streams"`
+			Packets []struct {
+				Duration int64 `json:"duration"`
+			} `json:"packets"`
+		}
+		if err = json.Unmarshal(raw, &probed); err != nil || len(probed.Streams) != 1 {
+			t.Fatalf("converted output is not one audio stream: %s", raw)
+		}
+		total := int64(0)
+		for _, packet := range probed.Packets {
+			total += packet.Duration
+		}
+		if s := probed.Streams[0]; s.Codec != "flac" || s.Rate != "48000" || s.Channels != 2 || total != frames-from {
+			t.Fatalf("from frame %d: %+v with %d frames, wanted exactly %d", from, s, total, frames-from)
+		}
+	}
+	rig.streams.Stop("music")
+	if response = rig.get(context.Background(), stream.Grant, "audio-converted", ""); response.Code != http.StatusNotFound {
+		t.Fatalf("a stopped music stream answered %d", response.Code)
+	}
+}
