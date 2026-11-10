@@ -149,6 +149,21 @@ func textDocument(cues []StyledCue) ([]byte, error) {
 	}
 	return out, nil
 }
+
+// TextDocument reads any text subtitle (SRT, WebVTT, ASS, SSA, SAMI, TTML) into
+// the plain cues a player draws itself: styling beyond italics and "at the top"
+// is dropped.
+func TextDocument(raw []byte, format string, durationUS int64) ([]byte, error) {
+	parse := func() ([]StyledCue, error) { return ParseTolerant(raw, format, durationUS) }
+	if format == "ass" || format == "ssa" {
+		parse = func() ([]StyledCue, error) { return ParseASSAsText(raw, durationUS) }
+	}
+	cues, err := parse()
+	if err != nil {
+		return nil, err
+	}
+	return textDocument(cues)
+}
 func Canonical(raw []byte, format string, durationUS int64) ([]byte, error) {
 	return CanonicalAsset(raw, nil, format, durationUS)
 }

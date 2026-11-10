@@ -183,11 +183,19 @@ func TestAScannedFilmPlaysAsItIsAndConverted(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(film), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	// One subtitle inside the film and one in a file beside it.
+	beside := strings.TrimSuffix(film, ".mp4") + ".de.srt"
+	inside := filepath.Join(t.TempDir(), "inside.srt")
+	for path, line := range map[string]string{beside: "Neben dem Film", inside: "Inside the film"} {
+		if err := os.WriteFile(path, []byte("1\n00:00:01,000 --> 00:00:03,000\n"+line+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
 	if out, err := exec.Command(ffmpeg, "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
-		"-f", "lavfi", "-i", "testsrc2=size=1280x720:rate=24", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000",
-		"-map", "0:v", "-map", "1:a", "-map", "1:a", "-metadata:s:a:0", "language=eng", "-metadata:s:a:1", "language=jpn",
-		"-t", "12", "-pix_fmt", "yuv420p", "-g", "48", "-ac", "2", "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac",
-		"-movflags", "+faststart", film).CombinedOutput(); err != nil {
+		"-f", "lavfi", "-i", "testsrc2=size=1280x720:rate=24", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000", "-i", inside,
+		"-map", "0:v", "-map", "1:a", "-map", "1:a", "-map", "2:s", "-metadata:s:a:0", "language=eng", "-metadata:s:a:1", "language=jpn",
+		"-metadata:s:s:0", "language=eng", "-t", "12", "-pix_fmt", "yuv420p", "-g", "48", "-ac", "2", "-c:v", "libx264", "-preset", "ultrafast",
+		"-c:a", "aac", "-c:s", "mov_text", "-movflags", "+faststart", film).CombinedOutput(); err != nil {
 		t.Fatalf("making the film: %v\n%s", err, out)
 	}
 	original, err := os.ReadFile(film)
@@ -304,8 +312,33 @@ func TestAScannedFilmPlaysAsItIsAndConverted(t *testing.T) {
 		t.Fatalf("the converted segments are %q (%v), want a picture 240 high", out, err)
 	}
 
+	// Both subtitles are served beside the stream as WebVTT, and named in its playlist.
+	if len(second.Subtitles) != 2 || !strings.Contains(string(master), "TYPE=SUBTITLES") {
+		t.Fatalf("the stream offers subtitles %+v in\n%s", second.Subtitles, master)
+	}
+	lines := map[string]string{}
+	for _, subtitle := range second.Subtitles {
+		code, header, body := h.media(subtitle.URL)
+		if code != 200 || !strings.HasPrefix(header.Get("Content-Type"), "text/vtt") || !strings.HasPrefix(string(body), "WEBVTT") {
+			t.Fatalf("%s answered %d %s:\n%s", subtitle.URL, code, header.Get("Content-Type"), body)
+		}
+		lines[subtitle.TrackID] = string(body)
+	}
+	found := 0
+	for _, text := range lines {
+		if strings.Contains(text, "Neben dem Film") != strings.Contains(text, "Inside the film") && strings.Contains(text, "00:00:01.000 --> 00:00:03.000") {
+			found++
+		}
+	}
+	if found != 2 {
+		t.Fatalf("the subtitles read %q", lines)
+	}
+
 	// Stop: the address dies with the session and the conversion is cleared away.
 	h.call("DELETE", "/v1/playback/sessions/"+session.ID, nil, nil, 204)
+	if code, _, _ = h.media(second.Subtitles[0].URL); code != http.StatusNotFound {
+		t.Fatalf("a subtitle of the stopped stream answered %d", code)
+	}
 	if code, _, _ = h.media(second.URL); code != http.StatusNotFound {
 		t.Fatalf("the stopped address answered %d", code)
 	}

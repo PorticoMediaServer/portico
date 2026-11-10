@@ -24,6 +24,8 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/preferences"
 	"github.com/PorticoMediaServer/portico/server-next/internal/qualityladder"
 	"github.com/PorticoMediaServer/portico/server-next/internal/streaming"
+	"github.com/PorticoMediaServer/portico/server-next/internal/subtitleoffer"
+	"github.com/PorticoMediaServer/portico/server-next/internal/subtitles"
 )
 
 // Options says where the engine works.
@@ -121,6 +123,27 @@ type planned struct {
 	request streaming.PlanRequest
 	path    string
 	place   db.FileOnDisk
+	// text is the version's text subtitles, which are served beside the stream.
+	text []textTrack
+}
+
+// textTrack is one text subtitle: in a file beside the video, or track number index of
+// the video file itself.
+type textTrack struct {
+	track    db.Track
+	format   string
+	index    int
+	selected bool
+}
+
+// subtitleFormat is the format a subtitle track is written in, or "" when it is not one
+// the server knows. The scanner records a file beside the video by its format and a track
+// inside the video by ffprobe's name for it.
+func subtitleFormat(track db.Track) string {
+	if subtitleoffer.ValidFormat(track.Codec) {
+		return track.Codec
+	}
+	return subtitles.CodecFormat(track.Codec)
 }
 
 // source finds a version's file on disk and what is in it. The file is measured once and
@@ -177,14 +200,19 @@ func action(a string) string {
 
 // fileStream is the file's own number for the audio track a session names.
 func fileStream(version db.PlaybackVersion, facts mediafacts.Facts, id string) (int, bool) {
+	return fileTrack(version, facts, db.StreamAudio, "audio", id)
+}
+
+// fileTrack is the file's own number for a track of one kind that a session names.
+func fileTrack(version db.PlaybackVersion, facts mediafacts.Facts, kind db.StreamKind, kindInFile, id string) (int, bool) {
 	place := 0
 	for _, track := range version.Tracks {
-		if track.Kind != db.StreamAudio || track.Sidecar {
+		if track.Kind != kind || track.Sidecar {
 			continue
 		}
 		if playback.TrackID(track) == id {
 			for _, s := range facts.Streams {
-				if s.Type != "audio" {
+				if s.Type != kindInFile {
 					continue
 				}
 				if place == 0 {
@@ -350,13 +378,32 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 			out.HDR = &playback.HDR{ToneMapped: true}
 		}
 	}
-	// A subtitle is only in force where the player can draw it from the file it is playing.
-	// Subtitles served beside a stream, and burned into it, wait on the engine.
-	if r.Choice.SubtitleTrackID != "" && !r.Choice.SubtitlesOff && out.Mode == "direct" {
-		for _, track := range r.Version.Tracks {
-			if track.Kind == db.StreamSubtitle && !track.Sidecar && playback.TrackID(track) == r.Choice.SubtitleTrackID {
-				out.Subtitle = &playback.SubtitleInForce{TrackID: r.Choice.SubtitleTrackID, Kind: track.Codec, Delivery: "device"}
-			}
+	// Every text subtitle of the version is served beside the stream as WebVTT, whichever
+	// way the title plays, so changing subtitles never interrupts it. The chosen one is in
+	// force: drawn by the player itself from a file it plays directly, or fetched beside the
+	// stream. A subtitle made of pictures on a converted stream waits on burning in.
+	detail := out.Detail.(*planned)
+	for _, track := range r.Version.Tracks {
+		format := subtitleFormat(track)
+		if track.Kind != db.StreamSubtitle {
+			continue
+		}
+		id := playback.TrackID(track)
+		chosen := id == r.Choice.SubtitleTrackID && !r.Choice.SubtitlesOff
+		text := textTrack{track: track, format: format, selected: chosen}
+		served := subtitleoffer.TextFormat(format)
+		if served && !track.Sidecar {
+			text.index, served = fileTrack(r.Version, facts, db.StreamSubtitle, "subtitle", id)
+		}
+		if served {
+			detail.text = append(detail.text, text)
+		}
+		switch {
+		case !chosen:
+		case out.Mode == "direct" && !track.Sidecar:
+			out.Subtitle = &playback.SubtitleInForce{TrackID: id, Kind: track.Codec, Delivery: "device"}
+		case served:
+			out.Subtitle = &playback.SubtitleInForce{TrackID: id, Kind: "text", Delivery: "sidecar"}
 		}
 	}
 	// Two plans that would produce the same stream share a key, so a change that alters
@@ -376,6 +423,33 @@ func (e *Engine) Start(ctx context.Context, r playback.StartRequest) (playback.S
 	request := p.request
 	start := streaming.StartRequest{SessionID: r.SessionID, Plan: p.plan, Request: &request, Path: p.path, Size: p.place.Size,
 		Modified: time.Unix(0, p.place.ModifiedNS), PositionMs: r.PositionMs}
+	for _, text := range p.text {
+		track := text.track
+		rendition := streaming.TextRenditionPlan{Resource: playback.TrackID(track), Revision: 1, Language: track.Language, Label: track.Title,
+			Selected: text.selected, Forced: track.Forced, HearingImpaired: track.HearingImpaired, Format: text.format, Track: text.index}
+		if track.Sidecar {
+			// A subtitle file the scanner no longer has is left out; the film still plays.
+			beside, err := e.db.FileOnDisk(ctx, track.FileID)
+			if err != nil {
+				continue
+			}
+			rendition.Path, rendition.Size, rendition.Modified = beside.Path, beside.Size, time.Unix(0, beside.ModifiedNS)
+		}
+		if text.selected {
+			start.Subtitles = append([]streaming.TextRenditionPlan{rendition}, start.Subtitles...)
+		} else {
+			start.Subtitles = append(start.Subtitles, rendition)
+		}
+	}
+	// stream adds the addresses of the subtitles to what the session is told.
+	stream := func(s streaming.Stream) playback.Stream {
+		out := stream(s)
+		for _, text := range start.Subtitles {
+			out.Subtitles = append(out.Subtitles, playback.SubtitleFile{TrackID: text.Resource, Format: "vtt",
+				URL: streaming.TextURL(s.Grant, text.Resource, text.Revision)})
+		}
+		return out
+	}
 	if r.Replaced != nil {
 		start.Replaced = func(s streaming.Stream) { r.Replaced(stream(s)) }
 	}
