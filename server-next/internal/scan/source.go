@@ -20,6 +20,8 @@ type Entry struct {
 	Dir        bool
 	Size       int64
 	ModifiedNS int64
+	// Device is, for a folder, the number of the disk it is on, or 0 when that cannot be told.
+	Device int64
 }
 
 // Source is the tree of files one library folder points at. A local folder is one; remote
@@ -80,9 +82,22 @@ func (l Local) List(ctx context.Context, rel string) ([]Entry, error) {
 		if !info.IsDir() && !info.Mode().IsRegular() {
 			continue
 		}
-		out = append(out, Entry{Name: e.Name(), Dir: info.IsDir(), Size: info.Size(), ModifiedNS: info.ModTime().UnixNano()})
+		entry := Entry{Name: e.Name(), Dir: info.IsDir(), Size: info.Size(), ModifiedNS: info.ModTime().UnixNano()}
+		if entry.Dir {
+			entry.Device = device(info)
+		}
+		out = append(out, entry)
 	}
 	return out, nil
+}
+
+// Device is the number of the disk a folder is on, or 0 when it cannot be told.
+func (l Local) Device(rel string) int64 {
+	info, err := os.Stat(l.LocalPath(rel))
+	if err != nil {
+		return 0
+	}
+	return device(info)
 }
 
 func (l Local) Exists(ctx context.Context, rel string) (bool, error) {
