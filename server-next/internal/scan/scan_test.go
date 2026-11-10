@@ -2,6 +2,8 @@ package scan_test
 
 import (
 	"context"
+	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +12,7 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/jobs"
 	"github.com/PorticoMediaServer/portico/server-next/internal/scan"
 	"github.com/PorticoMediaServer/portico/server-next/internal/seed"
 )
@@ -631,7 +634,7 @@ func TestScanNowAfterCancelRunsANewScan(t *testing.T) {
 	library := libraries[0].PublicID
 	h := held{listing: make(chan struct{}), release: make(chan struct{})}
 	f.s.Source = func(root string) scan.Source { h.Local = scan.Local{Root: root}; return h }
-	m := scan.NewManager(ctx, f.s)
+	m := scan.NewManager(jobs.New(ctx, f.d, slog.New(slog.NewTextHandler(io.Discard, nil))), f.s)
 	first, err := m.Scan(ctx, library, 0, false)
 	if err != nil {
 		t.Fatal(err)
