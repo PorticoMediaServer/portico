@@ -48,6 +48,8 @@ Assistant) are a separate short document and are not counted here.
 - **`Library`**: `id`, `name`, `kind`, `views`, `sorts`, `filters` (what this library can be
   browsed by).
 - **`Person`**, **`Tag`**, **`Credit`**: small named shapes used by `Item`.
+- **`SearchGroup`**: `kind`, `total?`, `totalIsMinimum?`, `items?` or `people?`, `nextCursor?`. A total is
+  exact unless `totalIsMinimum` says the count stopped early; an app then shows "2,000+".
 - **`Account`**: `id`, `username`, `role`. **`Profile`**: `id`, `name`, `avatar?`,
   `pinRequired`, `restricted`. **`Device`**, **`Session`** (a sign-in).
 - **`Tokens`**: `accessToken`, `expiresAt`, `refreshToken`.
@@ -110,8 +112,9 @@ Assistant) are a separate short document and are not counted here.
 | `GET /v1/items/{id}` | Detail, with your state |
 | `GET /v1/items/{id}/credits`, `GET /v1/items/{id}/related`, `GET /v1/items/{id}/files` | Cast and crew; related titles; file facts |
 | `GET /v1/facets` | Counted filter choices for a list |
-| `GET /v1/search`, `GET /v1/search/suggestions` | Search across what you may see |
-| `GET /v1/search/history`, `DELETE /v1/search/history` | Your recent searches |
+| `GET /v1/search` | Search titles and people you may see, by `q`. Results come in groups by kind, each with its total. With `kind`, one group a page at a time (`cursor`, `limit`), best match first or by `sort` and `order`. `record=true` also keeps the search in your recent searches. `503 search_unavailable` (retry) while the index is being built. |
+| `GET /v1/search/suggestions` | The few best titles and names for what has been typed so far |
+| `GET /v1/search/history`, `DELETE /v1/search/history` | Your recent searches: read; clear, or remove one with `query` |
 | `GET /v1/home`, `GET /v1/home/rows/{id}` | Home, composed by the server; one row paged |
 | `GET /v1/home/layout`, `PUT /v1/home/layout` | Which rows you show and in what order |
 | `GET /v1/people`, `GET /v1/people/{id}` | People |
@@ -183,7 +186,8 @@ Listed route by route with each console panel's definition. Resources:
 ## Not on the wire, on purpose
 
 `viewerFence`, `expectedRevision`, `operationId`, a "preparing" answer on a read, query handles,
-lower-bound totals, write lookups after the fact, conflict choices for offline edits, a
+lower-bound totals (with one stated exception: a search total for a restricted profile says so with
+`totalIsMinimum` when a very wide search stops being checked), write lookups after the fact, conflict choices for offline edits, a
 revision on personal state, per-provider and per-screen route families, and step-by-step
 wizard routes. Each existed for the old storage design. What a person would lose without
 them is nothing: the last deliberate edit wins, a `2xx` means it happened, and reads answer.

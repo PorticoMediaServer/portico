@@ -443,7 +443,7 @@ export interface Person {
   deathDate?: string;
   birthplace?: string;
   images: Record<string, string>;
-  titleCount: number;
+  titleCount?: number;
 }
 
 export interface PlaybackAudio {
@@ -739,6 +739,37 @@ export interface RememberedFailurePage {
   nextCursor?: string;
 }
 
+export interface SearchGroup {
+  kind: string;
+  total?: number;
+  totalIsMinimum?: boolean;
+  items?: Item[];
+  people?: Person[];
+  nextCursor?: string;
+}
+
+export interface SearchHistory {
+  items: SearchHistoryEntry[];
+}
+
+export interface SearchHistoryEntry {
+  query: string;
+}
+
+export interface SearchResults {
+  groups: SearchGroup[];
+}
+
+export interface SearchSuggestion {
+  id: string;
+  kind: string;
+  title: string;
+}
+
+export interface SearchSuggestions {
+  items: SearchSuggestion[];
+}
+
 export interface Session {
   accessToken: string;
   expiresAt: string;
@@ -1015,4 +1046,8 @@ export interface Routes {
   'PUT /v1/admin/playback/stream-limits': {access: 'owner'; request: StreamLimits; response: StreamLimits};
   'GET /v1/admin/playback/failures': {access: 'owner'; request: undefined; response: RememberedFailurePage};
   'DELETE /v1/admin/playback/failures/{id}': {access: 'owner'; request: undefined; response: undefined};
+  'GET /v1/search': {access: 'withProfile'; request: undefined; response: SearchResults};
+  'GET /v1/search/suggestions': {access: 'withProfile'; request: undefined; response: SearchSuggestions};
+  'GET /v1/search/history': {access: 'withProfile'; request: undefined; response: SearchHistory};
+  'DELETE /v1/search/history': {access: 'withProfile'; request: undefined; response: undefined};
 }

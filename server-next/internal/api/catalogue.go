@@ -111,7 +111,7 @@ func (s *Server) catalogueRoutes() {
 			return Person{}, refuse(err)
 		}
 		return Person{ID: p.PublicID, Name: p.Name, Biography: p.Biography, BirthDate: p.BirthDate, DeathDate: p.DeathDate,
-			Birthplace: p.Birthplace, Images: imageMap(p.Images), TitleCount: p.Titles}, nil
+			Birthplace: p.Birthplace, Images: imageMap(p.Images), TitleCount: &p.Titles}, nil
 	})
 	Handle(s, "GET /v1/facets", WithProfile, func(r *http.Request, _ None) (Facets, error) {
 		q, err := itemQuery(r.URL.Query())
