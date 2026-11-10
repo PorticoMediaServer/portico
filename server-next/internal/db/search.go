@@ -159,44 +159,46 @@ type searcher struct {
 	v     Viewer
 	acc   access
 	match searchMatch
-	// narrow is added to an expression over titles to leave out what the viewer's libraries
-	// and rating limit hide, by the facts each row carries. It only saves work: every row
-	// sent is still checked against the main database, and a count is tested against that.
-	narrow string
 	// What this request has already asked the main database: whether each row may be seen.
 	checked map[int64]bool
 }
 
-// narrowing writes the viewer's libraries and rating limit as an expression over the facts
-// in the index: " AND (its libraries) AND (the rating ages within its limit)", or nothing.
-func (a access) narrowing() string {
-	var out string
+// narrowed is an expression over titles that leaves out what the viewer's libraries, rating
+// limit and blocked labels hide, by the facts each row of the index carries:
+// "((expr) AND (its libraries) AND (the rating ages within its limit)) NOT (its blocked labels)".
+func (a access) narrowed(expr string) string {
+	any := func(keys []string) string { return `("` + strings.Join(keys, `" OR "`) + `")` }
+	out := "(" + expr + ")"
 	if a.known && !a.allLibraries {
-		keys := make([]string, len(a.libraries))
-		for n, id := range a.libraries {
-			keys[n] = `"` + searchLibrary(id) + `"`
+		keys := []string{searchLibrary(0)} // no library at all: nothing matches
+		for _, id := range a.libraries {
+			keys = append(keys, searchLibrary(id))
 		}
-		if len(keys) == 0 {
-			keys = []string{`"` + searchLibrary(0) + `"`} // no library at all: nothing matches
-		}
-		out += " AND (" + strings.Join(keys, " OR ") + ")"
+		out += " AND " + any(keys)
 	}
 	if a.maxAge != nil {
-		keys := []string{`"` + searchRating(-1) + `"`} // a limit below every rating: nothing matches
+		keys := []string{searchRating(-1)} // a limit below every rating: nothing matches
 		for age := 0; age <= *a.maxAge; age++ {
-			keys = append(keys, `"`+searchRating(int64(age))+`"`)
+			keys = append(keys, searchRating(int64(age)))
 		}
-		out += " AND (" + strings.Join(keys, " OR ") + ")"
+		out += " AND " + any(keys)
+	}
+	if len(a.blockedTags) > 0 {
+		keys := make([]string, len(a.blockedTags))
+		for n, id := range a.blockedTags {
+			keys[n] = searchTag(id)
+		}
+		out = "(" + out + ") NOT " + any(keys)
 	}
 	return out
 }
 
 // over is an expression for the rows of one group: narrowed when the group holds titles.
 func (s *searcher) over(expr string, code int64) string {
-	if code == searchPeople || code == 0 || s.narrow == "" {
+	if code == searchPeople || code == 0 || s.acc.seesAll() {
 		return expr
 	}
-	return "(" + expr + ")" + s.narrow
+	return s.acc.narrowed(expr)
 }
 
 // searcher opens both files for one request. The caller calls done when it has its answer.
@@ -216,7 +218,6 @@ func (d *DB) searcher(ctx context.Context, v Viewer, terms searchTerms) (s *sear
 		if s.acc, err = loadAccess(ctx, tx, v); err != nil {
 			tx.Rollback()
 		}
-		s.narrow = s.acc.narrowing()
 	}
 	if err != nil {
 		ix.mu.RUnlock()
@@ -511,8 +512,7 @@ type searchTotal struct {
 // index and is counted by its own statement, all of them at once on the index's connections:
 // one statement that groups every match by kind has to sort them first and takes about four
 // times as long. A count takes in the matches in the viewer's libraries and within its rating
-// limit, by the facts each row carries; a second takes away those a blocked label hides,
-// which are found from the label's side in the main database.
+// limit that carry none of its blocked labels, by the facts each row of the index carries.
 //
 // People have no such facts: a person is seen through any one title. For a viewer with
 // restrictions the matching people are checked one by one, up to searchCheckCap of them, and
@@ -525,26 +525,21 @@ func (s *searcher) totals() (map[int64]searchTotal, error) {
 	var counting sync.WaitGroup
 	var mu sync.Mutex
 	var failed error
-	// count adds to each kind of title, or takes away from it, its matches that also meet a condition.
-	count := func(sign int, condition string, args ...any) {
-		for _, g := range searchGroups {
-			if g.code == searchPeople && !s.acc.seesAll() {
-				continue
-			}
-			counting.Go(func() {
-				var n int
-				err := s.index.QueryRowContext(s.ctx, `SELECT count(*) FROM search_titles WHERE search_titles MATCH ?1 AND rowid > ?2 AND rowid < ?3`+condition,
-					append([]any{s.over(s.match.all, g.code), searchRow(g.code, 0), searchRow(g.code+1, 0)}, args...)...).Scan(&n)
-				mu.Lock()
-				defer mu.Unlock()
-				if err != nil {
-					failed = err
-				}
-				total := totals[g.code]
-				total.visible += sign * n
-				totals[g.code] = total
-			})
+	for _, g := range searchGroups {
+		if g.code == searchPeople && !s.acc.seesAll() {
+			continue
 		}
+		counting.Go(func() {
+			var n int
+			err := s.index.QueryRowContext(s.ctx, `SELECT count(*) FROM search_titles WHERE search_titles MATCH ? AND rowid > ? AND rowid < ?`,
+				s.over(s.match.all, g.code), searchRow(g.code, 0), searchRow(g.code+1, 0)).Scan(&n)
+			mu.Lock()
+			defer mu.Unlock()
+			if err != nil {
+				failed = err
+			}
+			totals[g.code] = searchTotal{visible: n}
+		})
 	}
 	done := func(err error) (map[int64]searchTotal, error) {
 		counting.Wait()
@@ -556,24 +551,10 @@ func (s *searcher) totals() (map[int64]searchTotal, error) {
 		}
 		return totals, nil
 	}
-	count(1, "")
 	if s.acc.seesAll() {
 		return done(nil)
 	}
-	// While the index counts, the main database is asked what the labels hide and who may be seen.
-	if len(s.acc.blockedTags) > 0 {
-		// Everything a blocked label hides: what carries one, and what sits under that.
-		tags := intList(s.acc.blockedTags)
-		hidden, err := ids(s.ctx, s.tx, `SELECT item_id FROM item_tags WHERE tag_id IN `+tags+`
-			UNION SELECT c.id FROM item_tags h CROSS JOIN items c WHERE h.tag_id IN `+tags+` AND c.parent_id = h.item_id
-			UNION SELECT c.id FROM item_tags h CROSS JOIN items c WHERE h.tag_id IN `+tags+` AND c.root_id = h.item_id`)
-		if err != nil {
-			return done(err)
-		}
-		if len(hidden) > 0 {
-			count(-1, ` AND (rowid & ?4) IN (SELECT value FROM json_each(?5))`, int64(1)<<searchIDBits-1, idsJSON(hidden))
-		}
-	}
+	// While the index counts, the main database is asked who may be seen.
 	people, err := s.candidates(s.match.all, searchPeople, 0, searchCheckCap+1)
 	if err != nil {
 		return done(err)

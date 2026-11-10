@@ -44,3 +44,17 @@ func (d *DB) DeleteItem(ctx context.Context, publicID string) error {
 		return appendChange(tx, Change{At: time.Now().UnixMilli(), Topic: TopicItem, Op: OpDeleted, RefID: id, LibraryID: library})
 	})
 }
+
+// LabelItem stands in for the label editor, which is not built yet. It writes what that will:
+// the tag on the title, and the title's change.
+func (d *DB) LabelItem(ctx context.Context, publicID, tagPublicID string) error {
+	return d.write(ctx, User, func(tx *sql.Tx) error {
+		var id, library int64
+		if err := tx.QueryRow(`INSERT INTO item_tags (item_id, tag_id) SELECT i.id, t.id FROM items i, tags t
+			WHERE i.public_id = ? AND t.public_id = ? RETURNING item_id, (SELECT library_id FROM items WHERE id = item_id)`,
+			publicID, tagPublicID).Scan(&id, &library); err != nil {
+			return err
+		}
+		return appendChange(tx, Change{At: time.Now().UnixMilli(), Topic: TopicItem, Op: OpUpdated, RefID: id, LibraryID: library})
+	})
+}

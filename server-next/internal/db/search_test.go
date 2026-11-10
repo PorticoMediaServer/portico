@@ -273,6 +273,45 @@ func TestSearchFollowsChanges(t *testing.T) {
 	s.expect("saul", "episode", "")
 }
 
+// A label put on a show hides the show and everything under it from a profile that blocks the
+// label, in the results and in the counts, as soon as the index has followed the change.
+func TestSearchFollowsALabel(t *testing.T) {
+	s := newShelf(t)
+	kids := film("Zardoz")
+	kids.Tags = []db.TagName{{Kind: db.TagLabel, Name: "Not for kids"}}
+	s.add(s.films, kids)
+	labels, err := s.d.Tags(ctx, db.TagLabel)
+	if err != nil || len(labels) != 1 {
+		t.Fatalf("labels: %v, %v", labels, err)
+	}
+	child, err := s.d.CreateSeedProfile(ctx, db.SeedProfile{Name: "child", BlockedTags: []string{labels[0].PublicID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	everyone := s.v
+	expect := func(v db.Viewer, text, kind string, want int) {
+		t.Helper()
+		s.v = v
+		defer func() { s.v = everyone }()
+		if g := s.search(text, kind); g.Total != want || len(g.Items) != want || g.TotalIsMinimum {
+			t.Fatalf("search %q: %d %s results counted, %q shown, want %d", text, g.Total, kind, names(g), want)
+		}
+	}
+	expect(child, "zardoz", "movie", 0)
+	expect(everyone, "zardoz", "movie", 1)
+	expect(child, "breaking", "show", 1)
+	expect(child, "breaking", "episode", 2)
+
+	if err := s.d.LabelItem(ctx, s.search("breaking bad", "show").Items[0].PublicID, labels[0].PublicID); err != nil {
+		t.Fatal(err)
+	}
+	expect(child, "breaking", "show", 0)
+	expect(child, "breaking", "episode", 0)
+	expect(child, "ozymandias", "episode", 0)
+	expect(everyone, "breaking", "episode", 2)
+	expect(child, "godfather", "movie", 2)
+}
+
 // The answers a shelf gives after the edits below, whatever state its index was in before.
 func (s *shelf) expectEdited() {
 	s.t.Helper()
@@ -482,6 +521,54 @@ func TestSearchNeverShowsARestrictedTitle(t *testing.T) {
 	if err != nil || l.libs[0].Kind != db.LibraryMovies || l.libs[1].Kind != db.LibraryShows {
 		t.Fatalf("a profile with every restriction: %v", err)
 	}
+	// What each profile can list, read the way a library page reads it.
+	listable := map[db.Viewer]map[string]bool{}
+	for _, v := range []db.Viewer{byRating, byLibrary, byLabel, child} {
+		listable[v] = map[string]bool{}
+		for _, lib := range l.libs {
+			for _, kind := range []db.ItemKind{db.KindMovie, db.KindShow, db.KindEpisode, db.KindArtist, db.KindAlbum, db.KindTrack, db.KindBook} {
+				items, err := l.d.Items(ctx, v, db.ItemQuery{Library: lib.PublicID, Kinds: []db.ItemKind{kind}, Limit: 200})
+				for err == nil {
+					for _, item := range items.Items {
+						listable[v][item.PublicID] = true
+					}
+					if items.NextCursor == "" {
+						break
+					}
+					items, err = l.d.Items(ctx, v, db.ItemQuery{Library: lib.PublicID, Kinds: []db.ItemKind{kind}, Limit: 200, Cursor: items.NextCursor})
+				}
+				if err != nil && !errors.Is(err, db.ErrNotFound) { // a library the profile may not open
+					t.Fatal(err)
+				}
+			}
+		}
+	}
+	// paged reads every result of one kind, best first, and the count its first page gave.
+	paged := func(v db.Viewer, text, kind string) (ids []string, total int) {
+		q := db.SearchQuery{Text: text, Kind: kind, Limit: 50}
+		for {
+			found, err := l.d.Search(ctx, v, q)
+			if err != nil {
+				t.Fatalf("search %+v: %v", q, err)
+			}
+			for _, g := range found.Groups {
+				if g.Kind != kind {
+					continue
+				}
+				for _, item := range g.Items {
+					ids = append(ids, item.PublicID)
+				}
+				if g.Counted {
+					total = g.Total
+				}
+				q.Cursor = g.NextCursor
+			}
+			if q.Cursor == "" {
+				slices.Sort(ids)
+				return ids, total
+			}
+		}
+	}
 	allowed := func(v db.Viewer, f *fact) bool {
 		age, rated := ratingAges[f.rating]
 		switch v {
@@ -578,6 +665,14 @@ func TestSearchNeverShowsARestrictedTitle(t *testing.T) {
 			}
 			if rows != total || minimum {
 				t.Fatalf("search %+v: counted %d (a minimum: %v), paged through %d; a count of titles is exact", q, total, minimum, rows)
+			}
+			// What the profile finds, and how many it is told there are, is exactly what
+			// everyone finds less what the profile cannot list.
+			mine, counted := paged(v, text, q.Kind)
+			all, _ := paged(l.all, text, q.Kind)
+			all = slices.DeleteFunc(all, func(id string) bool { return !listable[v][id] })
+			if !slices.Equal(mine, all) || counted != len(all) {
+				t.Fatalf("search %q, %s: the profile was shown %d and told %d; it can list %d of what matches", text, q.Kind, len(mine), counted, len(all))
 			}
 			suggestions, err := l.d.SearchSuggestions(ctx, v, text, 20)
 			if err != nil {
