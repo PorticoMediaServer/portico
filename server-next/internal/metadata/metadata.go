@@ -6,6 +6,8 @@
 //   - Provider (this file) is the one interface an online source implements. internal/metadata/tmdb
 //     is the first. A source for music, books or comics is another implementation of it; nothing
 //     else in the area knows which provider it is talking to.
+//   - internal/metadata/fetch sends every provider's requests: spaced out, waiting when the
+//     provider asks for a pause, never following a redirect.
 //   - match.go is the matcher: it scores what a provider's search answered against the title's
 //     name and year and says whether one answer is confident enough to use by itself.
 //   - service.go ties them together, one title at a time: read the title from the database, ask
