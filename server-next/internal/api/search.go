@@ -22,9 +22,9 @@ type SearchResults struct {
 // other kind; an item carries Parent and Root, so an episode says which show it is from.
 //
 // Total is how many results of this kind there are. It is present on a first page, for every
-// kind, and absent on later pages. It is exact unless TotalIsMinimum is true: for a profile
-// with restrictions the server stops checking a very wide search at 2,000 matches of a kind
-// and says "at least this many". NextCursor is present while the kind has more results; send
+// kind, and absent on later pages. It is exact for every kind of title. Only the "person"
+// group of a profile with restrictions can have TotalIsMinimum true: the server stops
+// checking who may be seen at 2,000 matching people and says "at least this many". NextCursor is present while the kind has more results; send
 // it back with the same q, kind, sort and order.
 type SearchGroup struct {
 	Kind           string   `json:"kind"`
