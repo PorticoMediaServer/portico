@@ -258,10 +258,15 @@ const (
 	// anywhere in the library are versions of one title, and that a show's seasons and an
 	// album's tracks are each made once.
 	KeyName KeyKind = 5
+	// KeyMerged: the public id of a title that was merged into this one. It guarantees that
+	// a link or an open page for the merged-away title opens the one that remains. No scan
+	// looks it up; it is read only when an id is not found.
+	KeyMerged KeyKind = 6
 )
 
 var keyKindNames = map[KeyKind]string{
 	KeyFolder: "folder", KeyFile: "file", KeyEmbedded: "embedded", KeyProvider: "provider", KeyName: "name",
+	KeyMerged: "merged",
 }
 
 func (k KeyKind) String() string { return keyKindNames[k] }
