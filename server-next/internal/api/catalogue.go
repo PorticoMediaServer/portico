@@ -311,7 +311,8 @@ func limitParam(query url.Values) (int, error) {
 // itemQuery reads the parameters GET /v1/items and GET /v1/facets share. A parameter the
 // server does not know is ignored.
 func itemQuery(query url.Values) (db.ItemQuery, error) {
-	q := db.ItemQuery{Library: query.Get("library"), Parent: query.Get("parent"), Sort: query.Get("sort"), Cursor: query.Get("cursor"), List: query.Get("list")}
+	q := db.ItemQuery{Library: query.Get("library"), Parent: query.Get("parent"), Sort: query.Get("sort"), Cursor: query.Get("cursor"), List: query.Get("list"),
+		Collection: query.Get("collection")}
 	// A filter may be sent more than once, and each time as "v", "v1,v2", or with how its
 	// values combine in front: "any:v1,v2", "all:v1,v2", "none:v1,v2". A value that holds
 	// a comma goes in the body of POST /v1/items/query instead.

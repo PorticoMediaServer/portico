@@ -76,7 +76,7 @@ const (
 	SortRandom          = "random"     // one order for as long as a reader pages through it
 )
 
-// ItemQuery says which items to list. Library, Parent, Person and Tag are public ids. At
+// ItemQuery says which items to list. Library, Parent, Person, Tag and Collection are public ids. At
 // least one of them, or one of the state filters, must be set.
 type ItemQuery struct {
 	Library    string
@@ -84,6 +84,7 @@ type ItemQuery struct {
 	Person     string
 	Tag        string
 	List       string // a playlist or collection; its own order is read by ListEntries
+	Collection string // a library's collection: the titles it holds
 	Genre      string // a genre by name, as people type it
 	Kinds      []ItemKind
 	YearFrom   int
@@ -640,6 +641,11 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 			return false, err
 		}
 		w.add(in)
+		scoped = true
+	}
+	if q.Collection != "" {
+		w.add(` AND i.id IN (SELECT related_item_id FROM item_relations WHERE kind = `, itoa(int64(RelationCollectionMember)),
+			` AND item_id = (SELECT id FROM items WHERE public_id = `, w.arg(q.Collection), `))`)
 		scoped = true
 	}
 	if q.Tag != "" || q.Genre != "" {
