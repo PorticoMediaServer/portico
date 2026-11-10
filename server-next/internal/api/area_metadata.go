@@ -18,6 +18,7 @@ type metadataArea struct {
 func (s *Server) startMetadata(ctx context.Context) error {
 	s.metadata = &metadata.Service{DB: s.db, Providers: map[string]metadata.Provider{}}
 	s.metadataRoutes()
+	s.editorRoutes()
 	return nil
 }
 

@@ -23,6 +23,7 @@ const (
 	FieldCountries     = "countries"
 	FieldCredits       = "credits"
 	FieldMatch         = "match"
+	FieldEdition       = "edition"
 )
 
 // tagFields are the lists a provider or an NFO file speaks for, by tag kind. Labels and moods
