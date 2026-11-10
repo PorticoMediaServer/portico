@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/sorttext"
@@ -121,6 +122,10 @@ type ItemDetails struct {
 	Credits         []ImportCredit
 	// Index is, for a child, its number under its parent: an episode's number.
 	Index int
+	// Replace says the title is now a different one (its match was changed): what the provider
+	// does not say is emptied instead of kept, so nothing of the wrong title is left. Locked
+	// fields and the files' own are still left alone.
+	Replace bool
 }
 
 // ApplyDetails stores what a provider said about a title, in one transaction. It is the one
@@ -189,14 +194,21 @@ func applyDetails(b *batchTx, itemID int64, d *ItemDetails, now int64) error {
 		args = append(args, sourceJSON(sources))
 	}
 	set := func(field, column string, value any, said bool) {
-		if said && !keep[field] {
+		if (said || d.Replace) && !keep[field] {
 			sets += ", " + column + " = ?"
+			if !said {
+				value = nil
+			}
 			args = append(args, value)
 		}
 	}
-	set(FieldTitle, "title", d.Title, d.Title != "")
-	if !keep[FieldTitle] {
-		set(FieldSortTitle, "sort_title", sorttext.Key(d.Title, "", language.String), d.Title != "")
+	if d.Title != "" && !keep[FieldTitle] {
+		sets += ", title = ?"
+		args = append(args, d.Title)
+		if !keep[FieldSortTitle] {
+			sets += ", sort_title = ?"
+			args = append(args, sorttext.Key(d.Title, "", language.String))
+		}
 	}
 	set(FieldOriginalTitle, "original_title", d.OriginalTitle, d.OriginalTitle != "")
 	set(FieldSummary, "summary", d.Summary, d.Summary != "")
@@ -215,7 +227,7 @@ func applyDetails(b *batchTx, itemID int64, d *ItemDetails, now int64) error {
 		return err
 	}
 	// An episode with no rating of its own uses its show's.
-	if d.ContentRating != "" && !keep[FieldContentRating] && !root.Valid {
+	if (d.ContentRating != "" || d.Replace) && !keep[FieldContentRating] && !root.Valid {
 		if _, err := b.exec(`UPDATE items SET rating_age = ? WHERE root_id = ? AND content_rating IS NULL`, d.RatingAge, itemID); err != nil {
 			return err
 		}
@@ -227,15 +239,34 @@ func applyDetails(b *batchTx, itemID int64, d *ItemDetails, now int64) error {
 		}
 	}
 	if d.ProviderKey != "" && !keep[FieldMatch] {
-		if _, err := b.exec(`INSERT INTO item_keys (library_id, kind, key, item_id) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING`,
-			library, KeyProvider, d.ProviderKey, itemID); err != nil {
+		// Another title that already has this id keeps the key: the server never merges two
+		// titles by itself, or a version a person split off would be merged straight back.
+		res, err := b.exec(`INSERT INTO item_keys (library_id, kind, key, item_id) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING`,
+			library, KeyProvider, d.ProviderKey, itemID)
+		if err != nil {
 			return err
+		}
+		// What everyone had on this title before it was removed comes back with its id.
+		if n, _ := res.RowsAffected(); n == 1 {
+			if err := restoreState(b, itemID); err != nil {
+				return err
+			}
 		}
 	}
 	// The importer's lookups of tags and people by name, so a provider's genre or person is
 	// the same row a scan would make.
 	im := &importer{batchTx: b, now: now, tags: map[TagName]int64{}, people: map[string]int64{}}
 	given := map[string]bool{}
+	if d.Replace {
+		for kind, field := range tagFields {
+			if !keep[field] {
+				given[kind] = true
+				if _, err := b.exec(`DELETE FROM item_tags WHERE item_id = ? AND tag_id IN (SELECT id FROM tags WHERE kind = ?)`, itemID, kind); err != nil {
+					return err
+				}
+			}
+		}
+	}
 	for _, tag := range d.Tags {
 		field, known := tagFields[tag.Kind]
 		if !known || keep[field] {
@@ -255,7 +286,7 @@ func applyDetails(b *batchTx, itemID int64, d *ItemDetails, now int64) error {
 			return err
 		}
 	}
-	if len(d.Credits) > 0 && !keep[FieldCredits] {
+	if (len(d.Credits) > 0 || d.Replace) && !keep[FieldCredits] {
 		if _, err := b.exec(`DELETE FROM credits WHERE item_id = ?`, itemID); err != nil {
 			return err
 		}
@@ -282,7 +313,8 @@ func (d *DB) SetUnmatched(ctx context.Context, p Priority, itemID int64, reason,
 		}
 		_, err := tx.Exec(`UPDATE items SET match_state = ?, refreshed_at = ?,
 			extra = json_set(ifnull(extra, '{}'), '$.unmatched', json_object('reason', ?, 'matches', json(?)))
-			WHERE id = ? AND match_state = ?`, MatchNeedsAttention, time.Now().UnixMilli(), reason, candidates, itemID, MatchNone)
+			WHERE id = ? AND match_state IN (?, ?, ?)`, MatchNeedsAttention, time.Now().UnixMilli(), reason, candidates, itemID,
+			MatchNone, MatchNeedsAttention, MatchKept)
 		return err
 	})
 }
@@ -320,4 +352,100 @@ func (d *DB) Unmatched(ctx context.Context, libraryID int64, after *UnmatchedIte
 		func(u *UnmatchedItem) []any {
 			return []any{&u.id, &u.sortTitle, &u.PublicID, &u.Kind, &u.Title, &u.Year, &u.Reason, &u.Matches}
 		})
+}
+
+// MatchTarget is a title as the matcher needs it to look it up again or give it a new match.
+type MatchTarget struct {
+	MatchItem
+	LibraryID int64
+	Match     MatchState
+}
+
+// MatchTarget returns one title for the matcher.
+func (d *DB) MatchTarget(ctx context.Context, publicID string) (MatchTarget, error) {
+	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return MatchTarget{}, err
+	}
+	defer tx.Rollback()
+	var t MatchTarget
+	err = tx.QueryRowContext(ctx, `SELECT id, kind, title, ifnull(year, 0), library_id, match_state FROM items WHERE public_id = ?`, publicID).
+		Scan(&t.ID, &t.Kind, &t.Title, &t.Year, &t.LibraryID, &t.Match)
+	if errors.Is(err, sql.ErrNoRows) {
+		return t, ErrNotFound
+	}
+	if err != nil {
+		return t, err
+	}
+	t.ExternalIDs, err = queryAll(ctx, tx, `SELECT provider, external_id FROM item_external_ids WHERE item_id = ?`, []any{t.ID},
+		func(e *ExternalID) []any { return []any{&e.Provider, &e.ID} })
+	return t, err
+}
+
+// ChangeMatch makes a title the one a provider's record describes, in one transaction: a
+// match a person chose (details.Match is MatchChosen), or one the server found on looking the
+// title up again. The title keeps its id, so its page, links, everyone's state, its lists,
+// its locked fields and its chosen pictures all stay; its old provider ids go and the new
+// record's details replace what is not locked.
+//
+// When a person chooses a match that another title of the library already has, the two
+// become one, as MergeItems does, and the id of the title that remains is returned.
+func (d *DB) ChangeMatch(ctx context.Context, p Priority, itemID int64, details ItemDetails) (string, error) {
+	var remaining string
+	err := d.write(ctx, p, func(tx *sql.Tx) error {
+		b := newBatchTx(tx)
+		defer b.close()
+		now := time.Now().UnixMilli()
+		var library int64
+		if err := b.queryRow(`SELECT library_id FROM items WHERE id = ?`, itemID).Scan(&library); errors.Is(err, sql.ErrNoRows) {
+			return ErrNotFound
+		} else if err != nil {
+			return err
+		}
+		var holder int64
+		err := b.queryRow(`SELECT item_id FROM item_keys WHERE library_id = ? AND kind = ? AND key = ?`, library, KeyProvider, details.ProviderKey).Scan(&holder)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		if err == nil && holder != itemID && details.Match == MatchChosen {
+			if err := mergeItems(b, itemID, holder, now); err != nil {
+				return err
+			}
+			return b.queryRow(`SELECT public_id FROM items WHERE id = ?`, holder).Scan(&remaining)
+		}
+		// The old match goes: its ids, the key it was found by, and its place on the Unmatched
+		// items list.
+		for _, query := range []string{`DELETE FROM item_keys WHERE item_id = ? AND kind = ` + strconv.Itoa(int(KeyProvider)),
+			`DELETE FROM item_external_ids WHERE item_id = ?`, `UPDATE items SET extra = json_remove(extra, '$.unmatched') WHERE id = ? AND extra IS NOT NULL`} {
+			if _, err := b.exec(query, itemID); err != nil {
+				return err
+			}
+		}
+		details.Replace = true
+		if err := applyDetails(b, itemID, &details, now); err != nil {
+			return err
+		}
+		return b.queryRow(`SELECT public_id FROM items WHERE id = ?`, itemID).Scan(&remaining)
+	})
+	return remaining, err
+}
+
+// KeepAsIs takes an unmatched title off its library's Unmatched items list until its files
+// change. It still counts as unmatched. Doing it twice changes nothing.
+func (d *DB) KeepAsIs(ctx context.Context, publicID string) error {
+	return d.write(ctx, User, func(tx *sql.Tx) error {
+		res, err := tx.Exec(`UPDATE items SET match_state = ? WHERE public_id = ? AND match_state IN (?, ?, ?)`, MatchKept, publicID,
+			MatchNone, MatchNeedsAttention, MatchKept)
+		if err != nil {
+			return err
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			var matched bool
+			if err := tx.QueryRow(`SELECT true FROM items WHERE public_id = ?`, publicID).Scan(&matched); errors.Is(err, sql.ErrNoRows) {
+				return ErrNotFound
+			}
+			return ErrConflict // a matched title has nothing to keep as it is
+		}
+		return nil
+	})
 }

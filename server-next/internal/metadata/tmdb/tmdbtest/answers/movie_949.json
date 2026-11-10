@@ -1,0 +1,14 @@
+{"adult":false,"backdrop_path":"/rfEXNlql4CafRmzUwNkUnJCD7DX.jpg","belongs_to_collection":null,
+ "genres":[{"id":28,"name":"Action"},{"id":80,"name":"Crime"},{"id":18,"name":"Drama"}],
+ "id":949,"imdb_id":"tt0113277","original_language":"en","original_title":"Heat",
+ "overview":"Obsessive master thief Neil McCauley leads a top-notch crew on various daring heists throughout Los Angeles while determined detective Vincent Hanna pursues him without rest.",
+ "popularity":50.3,"poster_path":"/umSVjVdbVwtx5ryCA2QXL44Durm.jpg",
+ "production_companies":[{"id":508,"name":"Regency Enterprises","origin_country":"US"},{"id":174,"name":"Warner Bros. Pictures","origin_country":"US"}],
+ "production_countries":[{"iso_3166_1":"US","name":"United States of America"}],
+ "release_date":"1995-12-15","runtime":170,"status":"Released","tagline":"A Los Angeles crime saga.","title":"Heat","vote_average":7.9,"vote_count":7000,
+ "credits":{"cast":[
+   {"id":1158,"name":"Al Pacino","character":"Lt. Vincent Hanna","order":0},
+   {"id":380,"name":"Robert De Niro","character":"Neil McCauley","order":1}],
+  "crew":[{"id":638,"name":"Michael Mann","department":"Directing","job":"Director"}]},
+ "release_dates":{"results":[{"iso_3166_1":"US","release_dates":[{"certification":"R","type":3,"release_date":"1995-12-15T00:00:00.000Z"}]}]},
+ "external_ids":{"imdb_id":"tt0113277"}}
