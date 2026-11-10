@@ -81,7 +81,9 @@ type StartRequest struct {
 	// Audio makes this a planned music stream (from PlanAudio): the device
 	// decodes the original or an exact conversion with the server's trim and
 	// gain. Plan is not read. SeekIndex is the file's seek index, for a direct
-	// plan that names one.
+	// plan that names one. The next track got ready in advance for a gapless
+	// join is a stream of its own under a second session id, stopped if the
+	// join never happens.
 	Audio     *AudioPlan
 	SeekIndex *audiofacts.SeekIndex
 	// Replaced is called when this stream gives way to another by itself: a
@@ -359,8 +361,10 @@ func (s *Streams) stop(st *stream) {
 		<-done
 	}
 	// A reader may still be copying a segment out, or the output may be moving
-	// off memory. Removal waits for it, briefly, and the sweep finishes the job
-	// if it has to.
+	// off memory. Removal waits for it, for up to five seconds. After that the
+	// stream is forgotten and its folder is left to sweepOrphanDirectories,
+	// which the maintenance loop runs every thirty seconds and which removes any
+	// folder, on disk or in memory, that no stream owns once it is two minutes old.
 	for attempt := 0; attempt < 50; attempt++ {
 		if err := h.remove(st.id); !errors.Is(err, ErrSegmentPreparing) {
 			return
