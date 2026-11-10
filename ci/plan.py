@@ -552,7 +552,7 @@ def main():
     if os.environ.get('GITHUB_OUTPUT'):
         with open(os.environ['GITHUB_OUTPUT'],'a') as f:
             f.write('go_matrix='+json.dumps(go_matrix(plan))+'\n')
-            f.write('server_next='+str(plan['server_next']).lower()+'\n')
+            f.write('server_next='+str(plan.get('server_next', False)).lower()+'\n')
             f.write('android='+str(plan['android']).lower()+'\n')
             f.write('go='+str(bool(plan['packages'])).lower()+'\n')
             f.write('js='+str(any(x['shards'] for x in plan['js'])).lower()+'\n')
