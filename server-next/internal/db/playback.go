@@ -489,7 +489,7 @@ func (d *DB) ForgetRouteFailure(ctx context.Context, publicID string) error {
 type Progress struct {
 	Viewer   Viewer
 	ItemID   string
-	DeviceID int64
+	DeviceID int64 // 0 when no device made the play, as for a seeded library
 	// PlayID names this playing of the title. A finished play is counted once per PlayID,
 	// however often it is saved.
 	PlayID     string

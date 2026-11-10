@@ -171,6 +171,8 @@ func State(ctx context.Context, d *db.DB, viewers []db.Viewer, target int, seed 
 	chance := float64(target) / float64(leaves)
 	random := make([]*rand.Rand, len(viewers))
 	pending := make([][]db.ItemEdit, len(viewers))
+	plays := make([][]db.Progress, len(viewers))
+	now := time.Now()
 	for n, v := range viewers {
 		random[n] = rand.New(rand.NewPCG(seed, uint64(v.ProfileID)))
 	}
@@ -185,6 +187,16 @@ func State(ctx context.Context, d *db.DB, viewers []db.Viewer, target int, seed 
 			}
 		}
 		pending[n] = pending[n][:0]
+		if err == nil && len(plays[n]) > 0 {
+			var finished []bool
+			finished, err = d.SaveProgress(ctx, db.Background, plays[n])
+			for _, done := range finished {
+				if done {
+					written++
+				}
+			}
+		}
+		plays[n] = plays[n][:0]
 		return err
 	}
 	yes := true
@@ -202,7 +214,12 @@ func State(ctx context.Context, d *db.DB, viewers []db.Viewer, target int, seed 
 					}
 					edit := db.ItemEdit{ItemID: item.PublicID}
 					switch pick := r.IntN(50); {
-					case pick < 38 && item.Kind != db.KindTrack: // music has play counts, not watched
+					case pick < 38 && item.Kind != db.KindTrack && item.DurationMS > 0:
+						at := now.Add(-time.Duration(r.Int64N(int64(180 * 24 * time.Hour))))
+						plays[n] = append(plays[n], db.Progress{Viewer: viewers[n], ItemID: item.PublicID, PositionMS: item.DurationMS,
+							At: at, PlayID: fmt.Sprintf("seed-%d-%d", viewers[n].ProfileID, item.ID), WatchedMS: item.DurationMS})
+						continue
+					case pick < 38 && item.Kind != db.KindTrack:
 						edit.Watched = &yes
 					case pick < 48 && item.DurationMS > 0:
 						position := item.DurationMS / 10 * int64(1+r.IntN(8))
@@ -212,7 +229,7 @@ func State(ctx context.Context, d *db.DB, viewers []db.Viewer, target int, seed 
 					default:
 						edit.InList = &yes
 					}
-					if pending[n] = append(pending[n], edit); len(pending[n]) >= 400 {
+					if pending[n] = append(pending[n], edit); len(pending[n])+len(plays[n]) >= 400 {
 						if err := flush(n); err != nil {
 							return written, err
 						}
