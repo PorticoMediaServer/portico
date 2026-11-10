@@ -63,9 +63,18 @@ func (b *batchTx) insertFile(directoryID int64, f *ImportFile, scan, now int64) 
 	if err := checkCode("files.role", fileRoleNames, f.Role); err != nil {
 		return 0, err
 	}
-	res, err := b.exec(`INSERT INTO files (directory_id, name, role, size, modified_ns, seen_scan, probed_at, container, duration_ms, bitrate)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, directoryID, f.Name, f.Role, f.Size, f.ModifiedNS, scan, now,
-		nz(f.Container), nz(f.DurationMS), nz(f.Bitrate))
+	if f.Problem != ProblemNone {
+		if err := checkCode("files.problem", fileProblemNames, f.Problem); err != nil {
+			return 0, err
+		}
+	}
+	var probedAt any = now
+	if f.Unprobed {
+		probedAt = nil
+	}
+	res, err := b.exec(`INSERT INTO files (directory_id, name, role, size, modified_ns, seen_scan, probed_at, container, duration_ms, bitrate,
+		problem) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, directoryID, f.Name, f.Role, f.Size, f.ModifiedNS, scan, probedAt,
+		nz(f.Container), nz(f.DurationMS), nz(f.Bitrate), nz(f.Problem))
 	if err != nil {
 		return 0, err
 	}

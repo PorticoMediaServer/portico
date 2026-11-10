@@ -51,6 +51,7 @@ exists today. Columns are documented in `schema.sql` itself.
 | Per-user state | `user_item_state` | yes | Watched, progress, favourites, My List, ratings |
 | | `play_history` | yes | History and play statistics |
 | | `lists`, `list_entries`, `list_shares` | yes | Playlists, collections, saved views, and sharing them |
+| | `removed_state` | yes (asked for with the scanner; awaiting the design owner's yes) | Watched marks, progress, ratings and favourites returning when a removed title is added again |
 | | `play_queues`, `queue_entries` | with playback | A queue that survives a restart and moves between devices |
 | | `annotations` | with reading | Highlights, bookmarks and notes in books |
 | Playback and downloads | `playback_route_failures` | with playback | Not hitting the same known-bad playback route after every restart |
