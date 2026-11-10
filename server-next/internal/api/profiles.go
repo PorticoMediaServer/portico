@@ -59,6 +59,11 @@ type ProfilePIN struct {
 type ProfileSelect struct {
 	// PIN is needed only when the profile's pinRequired is true.
 	PIN string `json:"pin,omitempty"`
+	// RememberPIN asks that this device need not ask for the PIN again for as long as the
+	// owner allows. The answer then carries a pinToken to keep.
+	RememberPIN bool `json:"rememberPin,omitempty"`
+	// PINToken is the pinToken kept from an earlier answer, sent in place of the PIN.
+	PINToken string `json:"pinToken,omitempty"`
 }
 
 var profileColors = []string{"blue", "violet", "mint", "coral", "gold", "slate", "rose", "sky"}
@@ -93,11 +98,33 @@ func (s *Server) profileRoutes() {
 // or not the main profile has a PIN.
 func manager(r *http.Request) (Caller, error) {
 	c := CallerFrom(r.Context())
-	if !c.Manage {
+	switch {
+	case c.PINNeeded:
+		return c, errPINToManage()
+	case !c.Manage:
 		return c, ErrNotPermitted()
 	}
 	return c, nil
 }
+
+// manageWindow is how long a typed PIN lets a device that remembers PINs manage the account.
+const manageWindow = time.Hour
+
+func errPINToManage() *Error {
+	return refusal(http.StatusForbidden, "profile_pin_manage", "Enter this profile's PIN to manage the account.", false)
+}
+
+// pinMemory is what a device keeps to show that it was allowed to remember a profile's PIN.
+// It stops working when the PIN changes, when the owner's time for remembering runs out,
+// and on any other device.
+type pinMemory struct {
+	Profile int64  `json:"p"`
+	Device  string `json:"d"`
+	PIN     string `json:"h"`
+	At      int64  `json:"t"`
+}
+
+func pinFingerprint(hash string) string { return auth.Hash("pin|" + hash)[:16] }
 
 // profileOwner says whose profiles a profile route acts on: the caller's own, or, with
 // ?member=<account id>, those of an account the caller manages as owner or admin. It
@@ -291,13 +318,8 @@ func (s *Server) selectProfile(r *http.Request, req ProfileSelect) (Session, err
 		return Session{}, err
 	}
 	sel := db.ProfileSelection{UserID: caller.UserID, SessionID: caller.SessionID, ProfileID: p.ID, CheckedPINHash: p.PINHash, Now: now}
+	remember, pinToken := s.policy().PINRemembered(), ""
 	if p.PINHash != "" {
-		if req.PIN == "" {
-			return Session{}, errBadPIN()
-		}
-		// Wrong PINs are counted for this profile on this device, so signing in again on it
-		// starts no new count, and for the profile on all devices together, so a count
-		// cannot be escaped by making new devices. See auth.StandardProfilePINs.
 		session, err := s.db.SessionState(ctx, caller.SessionID, now)
 		if errors.Is(err, db.ErrNotFound) {
 			return Session{}, errSignInEnded()
@@ -305,18 +327,42 @@ func (s *Server) selectProfile(r *http.Request, req ProfileSelect) (Session, err
 		if err != nil {
 			return Session{}, err
 		}
-		profile := "profile:" + strconv.FormatInt(p.ID, 10)
-		sel.Limits = append([]db.Limit{
-			{Bucket: "pin", Key: profile + "|" + session.DevicePublicID, Delay: auth.StandardPINs.Delay, Lasting: true},
-			{Bucket: db.ProfilePINBucket, Key: profile, Delay: auth.StandardProfilePINs.Delay, Lasting: true},
-		}, s.sourceLimit(r)...)
-		if wait, err := s.db.LimitWait(ctx, now, sel.Limits...); err != nil {
-			return Session{}, err
-		} else if wait > 0 {
-			return Session{}, errPINWait(wait)
-		}
-		if sel.PINOK, err = s.passwords.Check(ctx, p.PINHash, req.PIN); err != nil {
-			return Session{}, err
+		var kept pinMemory
+		switch {
+		case req.PIN == "" && req.PINToken != "":
+			// A remembered PIN: good on the device it was given to, until the PIN changes or
+			// the owner's time for remembering runs out. It cannot be guessed, so a stale one
+			// counts against nobody; the app asks for the PIN.
+			sel.Remembered = true
+			sel.PINOK = s.tokens.Recall("pin", req.PINToken, &kept) && kept.Profile == p.ID && kept.Device == session.DevicePublicID &&
+				kept.PIN == pinFingerprint(p.PINHash) && now.Before(time.UnixMilli(kept.At).Add(remember))
+			if !sel.PINOK {
+				return Session{}, errPINAgain()
+			}
+		case req.PIN == "":
+			return Session{}, errBadPIN()
+		default:
+			// Wrong PINs are counted for this profile on this device, so signing in again on it
+			// starts no new count, and for the profile on all devices together, so a count
+			// cannot be escaped by making new devices. See auth.PINRules.
+			profile := "profile:" + strconv.FormatInt(p.ID, 10)
+			pins := s.policy().PINs()
+			sel.Limits = append([]db.Limit{
+				{Bucket: "pin", Key: profile + "|" + session.DevicePublicID, Delay: pins.Device.Delay, Lasting: true},
+				{Bucket: db.ProfilePINBucket, Key: profile, Delay: pins.Profile.Delay, Lasting: true},
+			}, s.sourceLimit(r)...)
+			if wait, err := s.db.LimitWait(ctx, now, sel.Limits...); err != nil {
+				return Session{}, err
+			} else if wait > 0 {
+				return Session{}, errPINWait(wait)
+			}
+			if sel.PINOK, err = s.passwords.Check(ctx, p.PINHash, req.PIN); err != nil {
+				return Session{}, err
+			}
+			if req.RememberPIN && remember > 0 {
+				sel.ManageFor = manageWindow
+				pinToken = s.tokens.Remember("pin", pinMemory{Profile: p.ID, Device: session.DevicePublicID, PIN: pinFingerprint(p.PINHash), At: now.UnixMilli()})
+			}
 		}
 	}
 	st, err := s.db.SelectProfile(ctx, sel)
@@ -333,5 +379,14 @@ func (s *Server) selectProfile(r *http.Request, req ProfileSelect) (Session, err
 	case err != nil:
 		return Session{}, err
 	}
-	return s.session(st, now, ""), nil
+	out := s.session(st, now, "")
+	if pinToken != "" {
+		expires := now.Add(remember).UTC()
+		out.PINToken, out.PINTokenExpiresAt = pinToken, &expires
+	}
+	return out, nil
+}
+
+func errPINAgain() *Error {
+	return refusal(http.StatusForbidden, "profile_pin_reentry", "Enter this profile's PIN.", false)
 }

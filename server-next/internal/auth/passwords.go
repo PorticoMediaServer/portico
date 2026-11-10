@@ -78,19 +78,6 @@ func (p *Passwords) Check(ctx context.Context, hash, secret string) (bool, error
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(secret)) == nil, nil
 }
 
-// PasswordProblem says what is wrong with a new password, or "" if it will do. The one
-// rule is at least 8 characters: apps show a strength hint, but a weak password is the
-// person's choice. 72 bytes is the most bcrypt reads.
-func PasswordProblem(v string) string {
-	switch {
-	case len(v) > 72:
-		return "Use a shorter password."
-	case !utf8.ValidString(v) || utf8.RuneCountInString(v) < 8:
-		return "Choose a password of at least 8 characters."
-	}
-	return ""
-}
-
 // ValidPIN reports whether v is a profile PIN: four digits.
 func ValidPIN(v string) bool {
 	return len(v) == 4 && strings.Trim(v, "0123456789") == ""
