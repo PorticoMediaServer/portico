@@ -41,7 +41,13 @@ type LibraryOptions struct {
 	Depth       string    `json:"depth,omitempty"`
 	Trash       TrashRule `json:"trash"`
 	AllowDelete bool      `json:"allowDelete,omitempty"`
+	// Lyrics is a music library's lyrics source: "" for its files only (the default), or
+	// LyricsLRCLIB for its files, then LRCLIB.
+	Lyrics string `json:"lyrics,omitempty"`
 }
+
+// LyricsLRCLIB is a music library that looks up lyrics its files do not have at LRCLIB.
+const LyricsLRCLIB = "lrclib"
 
 // TrashRule says when a library's missing titles are removed.
 type TrashRule struct {
@@ -197,6 +203,9 @@ func (d *DB) SetLibraryOptions(ctx context.Context, libraryID int64, options Lib
 	case "", TrashAfterDays, TrashAfterScan, TrashManual:
 	default:
 		return invalid("unknown trash rule %q", options.Trash.Mode)
+	}
+	if options.Lyrics != "" && options.Lyrics != LyricsLRCLIB {
+		return invalid("unknown lyrics source %q", options.Lyrics)
 	}
 	if options.Trash.Days < 0 || options.Trash.Days > 3650 {
 		return invalid("missing titles are removed after 1 to 3,650 days")
