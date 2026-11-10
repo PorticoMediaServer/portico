@@ -156,6 +156,7 @@ func New(ctx context.Context, o Options) (*Streams, error) {
 	if processes == nil {
 		processes = &processpool.Supervisor{Limit: 4}
 	}
+	h.processes = processes
 	s := &Streams{hls: h, libraries: libraries, processes: processes, byGrant: map[string]*stream{}, bySession: map[string]*stream{}}
 	h.replace = s.replace
 	return s, nil
