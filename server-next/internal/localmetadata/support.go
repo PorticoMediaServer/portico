@@ -5,6 +5,7 @@
 package localmetadata
 
 import (
+	"encoding/json"
 	"math"
 	"net/url"
 	"sort"
@@ -343,3 +344,33 @@ func boundedText(s string, limit int) string {
 }
 
 // audiobookChapters gives a book file the chapters a sidecar describes: a cue
+
+// CueTracks reads a cue sheet and returns the tracks it gives one audio file: each track's
+// title and where it starts in the file, in seconds. ownSheet says the sheet is named after
+// the file, so a sheet that lists one file is that file's whatever name it gives.
+func CueTracks(raw []byte, audio string, ownSheet bool) ([]Chapter, error) {
+	files, err := parseCue(raw)
+	if err != nil {
+		return nil, err
+	}
+	return cueChapters(files, audio, ownSheet), nil
+}
+
+// Audiobookshelf reads the metadata.json Audiobookshelf keeps in a book's folder: the book's
+// details by tag name, and its chapters.
+func Audiobookshelf(raw []byte) (map[string]string, []Chapter, error) { return parseABSMetadata(raw) }
+
+// OPF reads a book's OPF file into details by tag name.
+func OPF(raw []byte) (map[string]string, error) { return parseOPF(raw) }
+
+// BookText reads Audiobookshelf's desc.txt or reader.txt.
+func BookText(name string, raw []byte) (map[string]string, error) { return parseBookText(name, raw) }
+
+// Names reads a list the parsers above store as JSON ("authors", "narrators", "genres").
+func Names(list string) []string {
+	var out []string
+	if json.Unmarshal([]byte(list), &out) != nil {
+		return nil
+	}
+	return out
+}
