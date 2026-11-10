@@ -223,6 +223,13 @@ func TestAccountLimitedToHome(t *testing.T) {
 	if w := serve(s, r); w.Code != 403 || jsonInto(w, &refused) != nil || refused.Error.Code != "away_from_home" {
 		t.Fatalf("signing in away from home answered %d %+v", w.Code, refused.Error)
 	}
+	// At home, but behind a proxy the owner has not listed: refused, and told what to ask for.
+	r = newRequest("POST", "/v1/auth/sign-in", "", signIn)
+	r.RemoteAddr = home + ":4000"
+	r.Header.Set("X-Forwarded-For", "192.168.1.30")
+	if w := serve(s, r); w.Code != 403 || jsonInto(w, &refused) != nil || !strings.Contains(refused.Error.Message, "Trusted proxies") {
+		t.Fatalf("signing in through an unlisted proxy answered %d %+v", w.Code, refused.Error)
+	}
 	wrong := signIn
 	wrong.Password = "not the password"
 	if got := from(t, s, away, "", "POST", "/v1/auth/sign-in", "", wrong, nil); got != 401 {

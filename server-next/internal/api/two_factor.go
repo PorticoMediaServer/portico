@@ -113,7 +113,7 @@ func (s *Server) finishTwoFactor(r *http.Request, req TwoFactorFinish) (SignInRe
 	case errors.Is(err, db.ErrOutsideHours):
 		return SignInResponse{}, errOutsideHours()
 	case errors.Is(err, db.ErrAwayFromHome):
-		return SignInResponse{}, errAwayFromHome()
+		return SignInResponse{}, s.errAwayFromHome(r)
 	case err != nil:
 		return SignInResponse{}, err
 	}
