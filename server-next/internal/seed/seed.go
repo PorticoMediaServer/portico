@@ -19,6 +19,9 @@ type Config struct {
 	Seed       uint64
 	Items      int
 	BatchFiles int // files per import batch; 0 means 40
+	// Samples, for Tree, is what a file of each extension (".mkv") holds, so that a scan
+	// can really read it. A file of any other extension is a few empty bytes.
+	Samples map[string][]byte
 }
 
 // LibrarySpec is one of the libraries the seeder fills.
