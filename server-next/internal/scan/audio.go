@@ -121,7 +121,9 @@ func (r *run) musicUnits(f *folder) []unit {
 	for _, v := range versions {
 		lead := v.parts[0]
 		sheet := r.cueSheet(f, lead)
-		if lead.state != added && !(lead.state == moved && !r.tagLed()) && !v.sideTouched() && (sheet == nil || sheet.state == same) {
+		// A file changed where it is was most likely retagged: its title is read again.
+		reread := lead.state == changed && r.tagLed()
+		if lead.state != added && !reread && !(lead.state == moved && !r.tagLed()) && !v.sideTouched() && (sheet == nil || sheet.state == same) {
 			continue
 		}
 		tags := r.tags(lead)
@@ -142,9 +144,12 @@ func (r *run) musicUnits(f *folder) []unit {
 			albumItem.Keys = []db.ItemKey{{Kind: db.KeyEmbedded, Key: "musicbrainz-release:" + id}}
 			albumItem.ExternalIDs = []db.ExternalID{{Provider: "musicbrainz", ID: id}}
 		}
-		if folder := albumFolder(lead.rel); folder != "" {
+		// The folder names the album only where the tags do not: songs of two albums kept in
+		// one folder are two albums.
+		if folder := albumFolder(lead.rel); folder != "" && d["album"] == "" {
 			albumItem.Keys = append(albumItem.Keys, db.FolderKey(r.path.ID, folder))
 		}
+		artistItem.Reread, albumItem.Reread = reread, reread
 		u := unit{files: v.files(), items: []db.ImportItem{artistItem, albumItem}}
 		trackArtists := credits(db.RoleArtist, []string{firstOf(d["artist"], artist)})
 		var chapters []localmetadata.Chapter
@@ -171,7 +176,7 @@ func (r *run) musicUnits(f *folder) []unit {
 				track := n + 1
 				u.items = append(u.items, db.ImportItem{Kind: db.KindTrack, Title: firstOf(chapter.Title, fmt.Sprintf("Track %d", track)),
 					Year: albumItem.Year, IndexNumber: &track, ParentIndex: &disc, ParentRow: 2, ChildKey: fmt.Sprintf("d%dt%d", disc, track),
-					Keys: []db.ItemKey{db.FileKey(r.path.ID, lead.rel, track)}, Credits: trackArtists,
+					Keys: []db.ItemKey{db.FileKey(r.path.ID, lead.rel, track)}, Credits: trackArtists, Reread: reread,
 					Versions: []db.ImportVersion{{Parts: []db.ImportPart{part}}}})
 			}
 			units = append(units, u)
@@ -180,7 +185,7 @@ func (r *run) musicUnits(f *folder) []unit {
 		stored, keys := r.stored(v, false, 0)
 		name, _ := title(lead)
 		track := db.ImportItem{Kind: db.KindTrack, Title: firstOf(d["title"], name), SortTitle: d["title_sort"], Year: albumItem.Year,
-			ParentIndex: &disc, ParentRow: 2, Keys: keys, Credits: trackArtists, Versions: []db.ImportVersion{stored}}
+			ParentIndex: &disc, ParentRow: 2, Keys: keys, Credits: trackArtists, Versions: []db.ImportVersion{stored}, Reread: reread}
 		if n := firstNumber(number(d["track"]), first(read.TrackNumbers), 0); n > 0 {
 			track.IndexNumber, track.ChildKey = &n, fmt.Sprintf("d%dt%d", disc, n)
 		} else {
@@ -279,7 +284,7 @@ func (r *run) audiobookUnits(f *folder) []unit {
 	if book == "" {
 		var units []unit
 		for _, file := range f.media {
-			if file.state == added || file.state == moved && !r.tagLed() {
+			if file.state == added || file.state == changed && r.tagLed() || file.state == moved && !r.tagLed() {
 				units = append(units, r.audiobookUnit(f, "", []*found{file}, nil))
 			}
 		}
@@ -287,7 +292,7 @@ func (r *run) audiobookUnits(f *folder) []unit {
 	}
 	touched := false
 	for _, file := range f.files {
-		touched = touched || file.state == added || file.state == changed && file.role != db.FileMedia || file.state == moved && !r.tagLed()
+		touched = touched || file.state == added || file.state == changed && (file.role != db.FileMedia || r.tagLed()) || file.state == moved && !r.tagLed()
 	}
 	if !touched {
 		return nil
@@ -381,6 +386,8 @@ func (r *run) audiobookUnit(f *folder, book string, here []*found, elsewhere []d
 	item := db.ImportItem{Kind: db.KindAudiobook, Title: bookTitle, Year: year, Summary: d["description"], Tags: genreTags(d),
 		Credits: append(credits(db.RoleAuthor, authors), credits(db.RoleNarrator, narrators)...),
 		Keys:    []db.ItemKey{{Kind: db.KeyName, Key: "audiobook|" + fold(bookTitle) + "|" + fold(strings.Join(authors, ","))}}}
+	// A first file changed where it is was most likely retagged: the book is read again.
+	item.Reread = lead.state == changed && r.tagLed()
 	for _, scheme := range []string{"asin", "isbn"} {
 		if id := firstOf(d[scheme]); id != "" {
 			item.ExternalIDs = append(item.ExternalIDs, db.ExternalID{Provider: scheme, ID: id})

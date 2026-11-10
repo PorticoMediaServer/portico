@@ -118,6 +118,10 @@ type ImportItem struct {
 	// Follow is a file of this container that moved here. When no key finds the container,
 	// it is the one the file belonged to before: a renamed show folder is the same show.
 	Follow *FileRef
+	// Reread says the file this title comes from changed where it is (it was retagged): a
+	// title already stored is brought up to date with what the file says now, where neither a
+	// match nor a person's edit has taken those details over.
+	Reread bool
 	// ExtraOf makes this item an extra or trailer of the item one of these keys names.
 	ExtraOf   []ItemKey
 	ExtraKind RelationKind
@@ -463,6 +467,11 @@ func (im *importer) importItem(it *ImportItem, stats *ImportStats) error {
 		stats.ItemsNew++
 		return im.createItem(it, parent, keys)
 	}
+	if it.Reread {
+		if err := im.reread(found, it, parent, keys); err != nil {
+			return err
+		}
+	}
 	im.rows = append(im.rows, found)
 	// A key the item did not have yet is added, so the title is found by it next time too.
 	for _, key := range keys {
@@ -479,6 +488,87 @@ func (im *importer) importItem(it *ImportItem, stats *ImportStats) error {
 		}
 	}
 	return im.relate(found.id, it)
+}
+
+// describe gives an item its tags and credits.
+func (im *importer) describe(id int64, it *ImportItem) error {
+	for _, tag := range it.Tags {
+		tagID, err := im.tagID(tag)
+		if err != nil {
+			return err
+		}
+		if _, err := im.exec(`INSERT INTO item_tags (item_id, tag_id) VALUES (?, ?) ON CONFLICT DO NOTHING`, id, tagID); err != nil {
+			return err
+		}
+	}
+	for position, credit := range it.Credits {
+		personID, err := im.personID(credit)
+		if err != nil {
+			return err
+		}
+		if err := im.insertCredit(id, position, personID, credit.Role, credit.Character); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// reread brings a stored title up to date with a file that changed where it is: its name,
+// year and place (a track retagged onto another album moves there), and its artists and
+// genres. A title that was matched, or that a person edited, keeps its details and only
+// changes place. The names it was found by before are dropped, so that another file is not
+// taken for it.
+func (im *importer) reread(found *importedItem, it *ImportItem, parent *importedItem, keys []ItemKey) error {
+	var free bool
+	if err := im.queryRow(`SELECT match_state = ? AND locked_fields IS NULL FROM items WHERE id = ?`, MatchNone, found.id).Scan(&free); err != nil {
+		return err
+	}
+	renamed, err := im.rename(found.id, it, parent)
+	if err != nil {
+		return err
+	}
+	*found = *renamed
+	names := map[string]bool{}
+	for _, key := range keys {
+		if key.Kind == KeyName {
+			names[key.Key] = true
+		}
+	}
+	rows, err := im.tx.Query(`SELECT key FROM item_keys WHERE item_id = ? AND kind = ?`, found.id, KeyName)
+	if err != nil {
+		return err
+	}
+	var old []string
+	for rows.Next() {
+		var key string
+		if err := rows.Scan(&key); err != nil {
+			rows.Close()
+			return err
+		}
+		old = append(old, key)
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	for _, key := range old {
+		if names[key] {
+			continue
+		}
+		if _, err := im.exec(`DELETE FROM item_keys WHERE library_id = ? AND kind = ? AND key = ?`, im.batch.LibraryID, KeyName, key); err != nil {
+			return err
+		}
+		delete(im.items, ItemKey{Kind: KeyName, Key: key})
+	}
+	if !free {
+		return nil
+	}
+	if _, err := im.exec(`DELETE FROM credits WHERE item_id = ?`, found.id); err != nil {
+		return err
+	}
+	if _, err := im.exec(`DELETE FROM item_tags WHERE item_id = ?`, found.id); err != nil {
+		return err
+	}
+	return im.describe(found.id, it)
 }
 
 // findItem returns the stored item any of the keys names, or nil.
@@ -574,23 +664,8 @@ func (im *importer) createItem(it *ImportItem, parent *importedItem, keys []Item
 			return err
 		}
 	}
-	for _, tag := range it.Tags {
-		tagID, err := im.tagID(tag)
-		if err != nil {
-			return err
-		}
-		if _, err := im.exec(`INSERT INTO item_tags (item_id, tag_id) VALUES (?, ?) ON CONFLICT DO NOTHING`, id, tagID); err != nil {
-			return err
-		}
-	}
-	for position, credit := range it.Credits {
-		personID, err := im.personID(credit)
-		if err != nil {
-			return err
-		}
-		if err := im.insertCredit(id, position, personID, credit.Role, credit.Character); err != nil {
-			return err
-		}
+	if err := im.describe(id, it); err != nil {
+		return err
 	}
 	for position, image := range it.Images {
 		if err := im.insertImage(id, position, image); err != nil {

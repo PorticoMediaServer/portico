@@ -202,3 +202,46 @@ func TestACueAlbumOfTwentyTracks(t *testing.T) {
 		t.Fatalf("%d tracks at %d places; want 20 of each", len(tracks), len(starts))
 	}
 }
+
+// A song retagged where it is (same path, new size or time) is read again: its name and
+// number change, a song retagged onto another album moves there, what a person had on it
+// stays, its facts are read again, and the next scan has nothing left to do.
+func TestARetaggedSongIsReadAgain(t *testing.T) {
+	f := newFixture(t, db.LibraryMusic)
+	f.tagged("in/a.mp3", "TIT2", "Airbag", "TPE1", "Radiohead", "TALB", "OK Computer", "TRCK", "1")
+	f.tagged("in/b.mp3", "TIT2", "Paranoid Andriod", "TPE1", "Radiohead", "TALB", "OK Computer", "TRCK", "3")
+	f.scan()
+	album := func(name string) map[int]db.Item {
+		t.Helper()
+		artist, ok := f.titles(db.KindArtist)["Radiohead"]
+		if !ok {
+			t.Fatalf("no Radiohead; have %v", keys(f.titles(db.KindArtist)))
+		}
+		found, ok := f.byTitle(artist.PublicID)[name]
+		if !ok {
+			return nil
+		}
+		return f.children(found.PublicID)
+	}
+	misspelt := album("OK Computer")[3]
+	f.watch(misspelt.PublicID)
+	probes := f.probes.calls.Load()
+
+	// The typo and the track number are fixed; the other song belongs to another album.
+	f.tagged("in/b.mp3", "TIT2", "Paranoid Android", "TPE1", "Radiohead", "TALB", "OK Computer", "TRCK", "2")
+	f.tagged("in/a.mp3", "TIT2", "Airbag", "TPE1", "Radiohead", "TALB", "Airbag / How Am I Driving?", "TRCK", "1")
+	stats := f.scan()
+	fixed := album("OK Computer")
+	if stats.ItemsNew != 1 || len(fixed) != 1 || fixed[2].Title != "Paranoid Android" || fixed[2].PublicID != misspelt.PublicID || !f.watched(misspelt.PublicID) {
+		t.Fatalf("after retagging: %+v, OK Computer %v", stats, fixed)
+	}
+	if moved := album("Airbag / How Am I Driving?"); len(moved) != 1 || moved[1].Title != "Airbag" {
+		t.Fatalf("the song retagged onto another album: %v", moved)
+	}
+	if read := f.probes.calls.Load() - probes; read != 2 {
+		t.Fatalf("%d changed files were read again; want 2", read)
+	}
+	if again := f.scan(); again.RowsWritten != 0 {
+		t.Fatalf("an unchanged rescan wrote %d rows", again.RowsWritten)
+	}
+}
