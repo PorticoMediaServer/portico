@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/scan"
@@ -594,5 +595,68 @@ func TestALinkBackToAFolderAboveIsReadOnce(t *testing.T) {
 	}
 	if again := f.scan(); again.RowsWritten != 0 {
 		t.Fatalf("a rescan wrote %d rows", again.RowsWritten)
+	}
+}
+
+// held is a local folder whose listing waits until it is let go.
+type held struct {
+	scan.Local
+	listing chan struct{} // closed when a listing has started
+	release chan struct{}
+}
+
+func (h held) List(ctx context.Context, rel string) ([]scan.Entry, error) {
+	select {
+	case <-h.listing:
+	default:
+		close(h.listing)
+	}
+	select {
+	case <-h.release:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	return h.Local.List(ctx, rel)
+}
+
+// Cancel scan and then Scan now, before the cancelled scan has wound down, runs a new scan
+// to its end: it is not left cancelled.
+func TestScanNowAfterCancelRunsANewScan(t *testing.T) {
+	f := newFixture(t, db.LibraryMovies)
+	f.write("Heat (1995).mkv")
+	libraries, err := f.d.AllLibraries(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	library := libraries[0].PublicID
+	h := held{listing: make(chan struct{}), release: make(chan struct{})}
+	f.s.Source = func(root string) scan.Source { h.Local = scan.Local{Root: root}; return h }
+	m := scan.NewManager(ctx, f.s)
+	first, err := m.Scan(ctx, library, 0, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-h.listing
+	if err := m.Cancel(ctx, first); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Scan(ctx, library, 0, false); err != nil {
+		t.Fatal(err)
+	}
+	close(h.release)
+	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(10 * time.Millisecond) {
+		job, err := f.d.JobFor(ctx, db.JobScan, library)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if job.State == db.JobDone {
+			break
+		}
+		if job.State == db.JobCancelled || time.Now().After(deadline) {
+			t.Fatalf("the scan asked for after Cancel ended %s", job.State)
+		}
+	}
+	if stats, _ := m.Stats(library); stats.ItemsNew != 1 {
+		t.Fatalf("the new scan found %d titles; want the one film", stats.ItemsNew)
 	}
 }
