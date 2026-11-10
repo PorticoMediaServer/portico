@@ -11,7 +11,9 @@ var ages = map[string]int{
 	"G": 0, "PG": 8, "PG-13": 13, "R": 17, "NC-17": 18,
 	"TV-Y": 0, "TV-G": 0, "TV-Y7": 7, "TV-Y7-FV": 7, "TV-PG": 8, "TV-14": 14, "TV-MA": 17,
 	// Other countries' ratings that do not name their age in digits.
-	"U": 0, "UC": 0, "E": 0, "TP": 0, "T": 0, "L": 0, "AL": 0, "A": 0, "ALL": 0, "M": 15, "MA15+": 15, "MA 15+": 15,
+	// "A" is not here: it is everyone in Spain and Mexico and adults only in Canada and India,
+	// and "N/A" reads as it too. Unrated is the safe answer under a profile's limit.
+	"U": 0, "UC": 0, "E": 0, "TP": 0, "T": 0, "L": 0, "AL": 0, "ALL": 0, "M": 15, "MA15+": 15, "MA 15+": 15,
 	"R18+": 18, "X18+": 18, "12A": 12, "R18": 18, "FSK 0": 0, "BPJM": 18,
 }
 
