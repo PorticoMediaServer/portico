@@ -2,6 +2,7 @@ package auth
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"net/netip"
 	"strings"
 	"testing"
@@ -63,6 +64,32 @@ func TestHome(t *testing.T) {
 	for _, bad := range []string{"", "home", "192.168.1.0/33", "fe80::1%eth0"} {
 		if _, err := ParseNetworks([]string{bad}); err == nil {
 			t.Errorf("%q was read as a network", bad)
+		}
+	}
+}
+
+// A proxy on the home network that the owner has not listed must not make everyone who
+// comes through it count as at home.
+func TestUnlistedProxyIsNeverHome(t *testing.T) {
+	n := Networks{Home: []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8"), netip.MustParsePrefix("192.168.1.0/24")},
+		Proxies: []netip.Prefix{netip.MustParsePrefix("192.168.1.2/32")}}
+	for name, c := range map[string]struct {
+		peer, forwarded string
+		home            bool
+	}{
+		"straight from home":                        {"192.168.1.20", "", true},
+		"through an unlisted proxy on this machine": {"127.0.0.1", "203.0.113.9", false},
+		"the same, claiming a home address":         {"127.0.0.1", "192.168.1.20", false},
+		"through the listed proxy, from home":       {"192.168.1.2", "192.168.1.20", true},
+		"through the listed proxy, from away":       {"192.168.1.2", "203.0.113.9", false},
+	} {
+		r := httptest.NewRequest("GET", "/", nil)
+		r.RemoteAddr = c.peer + ":4000"
+		if c.forwarded != "" {
+			r.Header.Set("X-Forwarded-For", c.forwarded)
+		}
+		if got := n.FromHome(r); got != c.home {
+			t.Errorf("%s: from home is %v, want %v", name, got, c.home)
 		}
 	}
 }
