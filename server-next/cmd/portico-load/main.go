@@ -7,6 +7,7 @@
 //	portico-load -mode import -db main.db -items 1000000 -out import.json
 //	portico-load -mode rescan -db main.db -items 1000000 -out rescan.json
 //	portico-load -mode mixed  -db main.db -items 100000  -out mixed.json
+//	portico-load -mode search -db main.db -items 100000  -out search.json
 package main
 
 import (
@@ -49,6 +50,7 @@ type Report struct {
 	WALMaxBytes  int64             `json:"walMaxBytes"`
 	WALEndBytes  int64             `json:"walBytesAMinuteAfterImport"`
 	Bars         []Bar             `json:"bars"`
+	Search       *SearchReport     `json:"search,omitempty"`
 }
 
 func (r *Report) bar(name, limit string, value float64, unit string, passed bool) {
@@ -92,8 +94,10 @@ func main() {
 		report.bar("2 rows changed by a rescan", "0", float64(totals.RowsWritten), "rows", unchanged)
 	case "mixed":
 		mixed(ctx, d, cfg, *readers, *writesPerSec, *settle, wal, report)
+	case "search":
+		searchMode(ctx, d, *path, cfg, *readers, *writesPerSec, report)
 	default:
-		log.Fatal("-mode must be import, rescan or mixed")
+		log.Fatal("-mode must be import, rescan, mixed or search")
 	}
 
 	report.PeakRSSBytes, report.WALMaxBytes = peakRSS(), wal.max.Load()
