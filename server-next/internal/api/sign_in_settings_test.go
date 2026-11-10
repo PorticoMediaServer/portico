@@ -238,6 +238,47 @@ func TestAccountLimitedToHome(t *testing.T) {
 	}
 }
 
+// A personal token is held to its account's limits like a sign-in: it stops outside the
+// viewing hours and, for an account limited to home, away from home.
+func TestKeysKeepToViewingHoursAndHome(t *testing.T) {
+	s := newTestServer(t)
+	owner := onMainProfile(t, s)
+	max := addMember(t, s, owner.AccessToken, "max", "member")
+	var key KeyCreated
+	if w := call(t, s, "POST", "/v1/me/tokens", signInAs(t, s, "max", testPassword, 6).AccessToken, KeyCreate{Name: "Script", Scopes: []string{"read"}}, &key); w.Code != 200 {
+		t.Fatalf("making a token answered %d: %s", w.Code, w.Body)
+	}
+	network := NetworkSettingsEdit{HomeNetworks: &[]string{"192.168.1.0/24"}, TrustedProxies: []string{}}
+	if got := status(t, s, "PUT", "/v1/admin/settings/network", owner.AccessToken, network); got != 200 {
+		t.Fatalf("saving the home networks answered %d", got)
+	}
+	edit := func(e MemberEdit) {
+		t.Helper()
+		if got := status(t, s, "PATCH", "/v1/admin/members/"+max.ID, owner.AccessToken, e); got != 200 {
+			t.Fatalf("editing the member answered %d", got)
+		}
+	}
+	yes, no := true, false
+	edit(MemberEdit{HomeOnly: &yes})
+	if got := from(t, s, "198.51.100.9", "", "GET", "/v1/me", key.Secret, nil, nil); got != 403 {
+		t.Errorf("a home-only account's token away from home answered %d, want 403", got)
+	}
+	if got := from(t, s, "192.168.1.20", "", "GET", "/v1/me", key.Secret, nil, nil); got != 200 {
+		t.Errorf("the same token at home answered %d, want 200", got)
+	}
+	// Hours that are open only in the hour that begins twelve hours from now.
+	closed := (time.Now().UTC().Hour() + 12) % 24 * 60
+	edit(MemberEdit{HomeOnly: &no, ViewingHours: &auth.Hours{Timezone: "UTC", Windows: []auth.Window{{Days: []int{0, 1, 2, 3, 4, 5, 6}, StartMinute: closed, EndMinute: closed + 60}}}})
+	var refused errorBody
+	if w := call(t, s, "GET", "/v1/me", key.Secret, nil, &refused); w.Code != 403 || refused.Error.Code != "outside_viewing_hours" {
+		t.Errorf("a token outside the viewing hours answered %d %s", w.Code, refused.Error.Code)
+	}
+	edit(MemberEdit{ViewingHours: &auth.Hours{}})
+	if got := status(t, s, "GET", "/v1/me", key.Secret, nil); got != 200 {
+		t.Errorf("with the hours lifted the token answered %d, want 200", got)
+	}
+}
+
 func mustClaims(t *testing.T, s *Server, token string) auth.Claims {
 	t.Helper()
 	claims, err := s.tokens.ExpiredAccess(token)

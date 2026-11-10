@@ -3,9 +3,12 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 )
 
 // ErrKeyLimit: the account already has as many keys of this kind as it may.
@@ -126,6 +129,10 @@ type KeyCaller struct {
 	ProfileID int64
 	Role      string
 	Scopes    []string
+	// Hours are the account's viewing hours, and HomeOnly says it is limited to the home
+	// network. A key is held to both, like a sign-in.
+	Hours    auth.Hours
+	HomeOnly bool
 }
 
 // KeyCaller looks a presented key up. A key that is unknown, revoked, expired, an app
@@ -137,11 +144,12 @@ func (d *DB) KeyCaller(ctx context.Context, keyHash string, now time.Time) (KeyC
 	var id int64
 	var scopes string
 	var used sql.NullInt64
-	err := d.read.QueryRowContext(ctx, `SELECT k.id, k.scopes, k.last_used_at, u.id, u.role, p.id
+	var hours string
+	err := d.read.QueryRowContext(ctx, `SELECT k.id, k.scopes, k.last_used_at, u.id, u.role, p.id, ifnull(u.viewing_hours, ''), u.home_only
 		FROM api_keys k JOIN users u ON u.id = k.user_id JOIN profiles p ON p.user_id = u.id AND p.is_primary = 1
 		WHERE k.key_hash = ? AND k.kind IN ('api_key', 'personal_token') AND u.disabled_at IS NULL
 			AND k.revoked_at IS NULL AND (k.expires_at IS NULL OR k.expires_at > ?)`, keyHash, now.UnixMilli()).
-		Scan(&id, &scopes, &used, &c.UserID, &c.Role, &c.ProfileID)
+		Scan(&id, &scopes, &used, &c.UserID, &c.Role, &c.ProfileID, &hours, &c.HomeOnly)
 	if errors.Is(err, sql.ErrNoRows) {
 		return c, ErrNotFound
 	}
@@ -149,6 +157,9 @@ func (d *DB) KeyCaller(ctx context.Context, keyHash string, now time.Time) (KeyC
 		return c, err
 	}
 	c.Scopes = strings.Fields(scopes)
+	if hours != "" {
+		json.Unmarshal([]byte(hours), &c.Hours)
+	}
 	// "Last used" is for the owner to spot a key nobody uses. An hour's precision is plenty,
 	// and it is not worth making a read wait for a write.
 	if now.Sub(time.UnixMilli(used.Int64)) > time.Hour {
