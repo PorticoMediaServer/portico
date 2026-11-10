@@ -648,7 +648,9 @@ CREATE INDEX user_item_state_favorites ON user_item_state (profile_id, favorite_
 CREATE INDEX user_item_state_my_list ON user_item_state (profile_id, in_list_at) WHERE in_list = 1;
 
 -- large. One row per finished play. The title is copied so history survives deletion.
--- client_event_id makes a repeated report count once.
+-- client_event_id makes a repeated report count once. hidden_from_profile is 1 for a play
+-- made while the profile had history paused: the owner's play record has it, and nothing
+-- the profile itself is shown does.
 CREATE TABLE play_history (
   id              INTEGER NOT NULL PRIMARY KEY,
   profile_id      INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
@@ -660,6 +662,7 @@ CREATE TABLE play_history (
   item_kind       INTEGER NOT NULL,
   title           TEXT    NOT NULL,
   subtitle        TEXT,
+  hidden_from_profile INTEGER NOT NULL DEFAULT 0 CHECK (hidden_from_profile IN (0, 1)),
   UNIQUE (profile_id, client_event_id)
 );
 CREATE INDEX play_history_profile ON play_history (profile_id, played_at);

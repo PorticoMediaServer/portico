@@ -1867,6 +1867,7 @@
           "audio": {
             "$ref": "#/components/schemas/AudioPick"
           },
+          "discTitle": {},
           "itemId": {
             "type": "string"
           },
