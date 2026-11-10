@@ -15,7 +15,9 @@ const (
 	homeRowSize    = 40
 )
 
-// ContinueWatching lists what the viewer has started and not finished, most recent first.
+// ContinueWatching lists what the viewer has started and not finished, most recent first. A
+// title the viewer removed from the row stays off it until it is played again. Not interested
+// does not take a title off it: that is for recommendation rows.
 func (d *DB) ContinueWatching(ctx context.Context, v Viewer) ([]Item, error) {
 	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
@@ -28,7 +30,7 @@ func (d *DB) ContinueWatching(ctx context.Context, v Viewer) ([]Item, error) {
 	}
 	// Read from the viewer's own recent state, newest first, and stop at a row's worth.
 	rows, err := tx.QueryContext(ctx, `SELECT `+itemColumns+` FROM user_item_state s CROSS JOIN items i ON i.id = s.item_id
-		WHERE s.profile_id = @viewer_profile AND s.last_played_at > @since AND s.played = 0 AND s.hidden = 0
+		WHERE s.profile_id = @viewer_profile AND s.last_played_at > @since AND s.played = 0 AND s.last_played_at > ifnull(s.continue_dismissed_at, 0)
 		AND (s.position_ms > 0 OR s.position_text IS NOT NULL) AND `+acc.visible("i")+`
 		ORDER BY s.last_played_at DESC LIMIT `+fmt.Sprint(homeRowSize),
 		append(v.args(), sql.Named("since", time.Now().Add(-continueWindow).UnixMilli()))...)

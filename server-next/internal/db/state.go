@@ -15,7 +15,7 @@ type State struct {
 	PositionText string // where a reader is in a book, in the reader's own notation
 	Favorite     bool
 	InList       bool
-	Hidden       bool // "not interested"
+	Hidden       bool // "Not interested": out of recommendation rows, nowhere else
 	Rating       *int // 1 to 10, in half stars; nil is no rating
 	PlayCount    int
 	LastPlayedAt int64
@@ -46,6 +46,9 @@ type StateEdit struct {
 	Hidden       *bool
 	Rating       *int
 	ClearRating  bool
+	// DismissContinue true takes the title off Continue Watching until it is played again;
+	// false puts it back at once (an undo).
+	DismissContinue *bool
 	// Ago is how long before now the person made the edit, by their device's own measure. It is
 	// zero for an edit made online and positive for one queued while offline. The server takes
 	// it from its own clock, so a device with the wrong date changes nothing.
@@ -190,6 +193,7 @@ type stateRow struct {
 	rating       sql.NullInt64
 	ratingAt     sql.NullInt64
 	lastPlayedAt sql.NullInt64
+	dismissedAt  sql.NullInt64 // removed from Continue Watching
 }
 
 func newStateWriter(ctx context.Context, tx *sql.Tx, v Viewer) (*stateWriter, error) {
@@ -244,6 +248,12 @@ func (w *stateWriter) apply(itemID string, edit StateEdit) (State, *undoOffer, e
 	set(edit.Favorite != nil, &row.favoriteAt, func() { row.favorite = *edit.Favorite })
 	set(edit.InList != nil, &row.inListAt, func() { row.inList = *edit.InList })
 	set(edit.Hidden != nil, &row.hiddenAt, func() { row.hidden = *edit.Hidden })
+	switch d := edit.DismissContinue; {
+	case d != nil && *d && (!row.dismissedAt.Valid || at > row.dismissedAt.Int64):
+		row.dismissedAt, changed = sql.NullInt64{Int64: at, Valid: true}, true
+	case d != nil && !*d && row.dismissedAt.Valid:
+		row.dismissedAt, changed = sql.NullInt64{}, true
+	}
 	set(edit.Rating != nil || edit.ClearRating, &row.ratingAt, func() {
 		row.rating = sql.NullInt64{}
 		if edit.Rating != nil {
@@ -319,9 +329,10 @@ func (e StateEdit) check(kind ItemKind, durationMS int64) error {
 func (w *stateWriter) load(itemID int64) (stateRow, error) {
 	row := stateRow{exists: true}
 	err := w.queryRow(`SELECT position_ms, position_text, position_at, played, played_at, favorite, favorite_at, in_list, in_list_at,
-		hidden, hidden_at, rating, rating_at, last_played_at FROM user_item_state WHERE profile_id = ? AND item_id = ?`, w.viewer.ProfileID, itemID).
+		hidden, hidden_at, rating, rating_at, last_played_at, continue_dismissed_at FROM user_item_state WHERE profile_id = ? AND item_id = ?`,
+		w.viewer.ProfileID, itemID).
 		Scan(&row.positionMS, &row.posText, &row.positionAt, &row.played, &row.playedAt, &row.favorite, &row.favoriteAt,
-			&row.inList, &row.inListAt, &row.hidden, &row.hiddenAt, &row.rating, &row.ratingAt, &row.lastPlayedAt)
+			&row.inList, &row.inListAt, &row.hidden, &row.hiddenAt, &row.rating, &row.ratingAt, &row.lastPlayedAt, &row.dismissedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return stateRow{}, nil
 	}
@@ -331,15 +342,16 @@ func (w *stateWriter) load(itemID int64) (stateRow, error) {
 // store is the one write to user_item_state.
 func (w *stateWriter) store(itemID int64, row stateRow) error {
 	_, err := w.exec(`INSERT INTO user_item_state (profile_id, item_id, position_ms, position_text, position_at, played, played_at,
-		favorite, favorite_at, in_list, in_list_at, hidden, hidden_at, rating, rating_at, last_played_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		favorite, favorite_at, in_list, in_list_at, hidden, hidden_at, rating, rating_at, last_played_at, continue_dismissed_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (profile_id, item_id) DO UPDATE SET position_ms = excluded.position_ms, position_text = excluded.position_text,
 			position_at = excluded.position_at, played = excluded.played, played_at = excluded.played_at,
 			favorite = excluded.favorite, favorite_at = excluded.favorite_at, in_list = excluded.in_list,
 			in_list_at = excluded.in_list_at, hidden = excluded.hidden, hidden_at = excluded.hidden_at, rating = excluded.rating,
-			rating_at = excluded.rating_at, last_played_at = excluded.last_played_at, updated_at = excluded.updated_at`,
+			rating_at = excluded.rating_at, last_played_at = excluded.last_played_at,
+			continue_dismissed_at = excluded.continue_dismissed_at, updated_at = excluded.updated_at`,
 		w.viewer.ProfileID, itemID, row.positionMS, row.posText, row.positionAt, row.played, row.playedAt, row.favorite,
-		row.favoriteAt, row.inList, row.inListAt, row.hidden, row.hiddenAt, row.rating, row.ratingAt, row.lastPlayedAt, w.now)
+		row.favoriteAt, row.inList, row.inListAt, row.hidden, row.hiddenAt, row.rating, row.ratingAt, row.lastPlayedAt, row.dismissedAt, w.now)
 	return err
 }
 
