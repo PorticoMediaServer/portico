@@ -134,6 +134,19 @@ export interface ApiError {
   requestId: string;
 }
 
+export interface Event {
+  topic: string;
+  op: string;
+  id?: string;
+  libraryId?: string;
+}
+
+export interface EventPage {
+  events: Event[];
+  cursor: string;
+  resync?: boolean;
+}
+
 export interface FacetValue {
   value: string;
   label?: string;
@@ -1041,7 +1054,7 @@ export interface Routes {
   'GET /v1/home': {access: 'withProfile'; request: undefined; response: Home};
   'PUT /v1/items/{id}/state': {access: 'withProfile'; request: StateRequest; response: StateReply};
   'POST /v1/items/state:undo': {access: 'withProfile'; request: UndoRequest; response: undefined};
-  'GET /v1/events': {access: 'withProfile'; request: undefined; response: undefined};
+  'GET /v1/events': {access: 'withProfile'; request: undefined; response: EventPage};
   'GET /v1/devices/{id}/capabilities': {access: 'signedIn'; request: undefined; response: CapabilityDocument};
   'PUT /v1/devices/{id}/capabilities': {access: 'signedIn'; request: CapabilityDocument; response: undefined};
   'GET /v1/items/{id}/playback-options': {access: 'withProfile'; request: undefined; response: PlaybackOptions};

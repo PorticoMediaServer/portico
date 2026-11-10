@@ -306,15 +306,6 @@ type UndoRequest struct {
 	Token string `json:"token"`
 }
 
-// Event is the data of one "change" event on GET /v1/events: what to read again. ID is absent
-// for something deleted; LibraryID then says which library's lists changed.
-type Event struct {
-	Topic     string `json:"topic"`
-	Op        string `json:"op"`
-	ID        string `json:"id,omitempty"`
-	LibraryID string `json:"libraryId,omitempty"`
-}
-
 func timeString(ms int64) string {
 	if ms == 0 {
 		return ""

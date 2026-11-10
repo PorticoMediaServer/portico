@@ -228,6 +228,43 @@ func TestStateAndEvents(t *testing.T) {
 		}
 	}
 
+	// An app that cannot hold a stream asks again and again instead. With no cursor it is told
+	// where to start; from there it hears the next change as soon as it is made, and nothing
+	// when the wait runs out.
+	start := get[EventPage](t, s, token, "/v1/events?poll=true")
+	if start.Cursor == "" || len(start.Events) != 0 {
+		t.Fatalf("a first poll: %+v", start)
+	}
+	heard := make(chan EventPage, 1)
+	go func() {
+		var page EventPage
+		call(t, s, "GET", "/v1/events?poll=true&wait=10&cursor="+start.Cursor, token, nil, &page)
+		heard <- page
+	}()
+	time.Sleep(100 * time.Millisecond)
+	call(t, s, "PUT", "/v1/items/"+film.ID+"/state", token, map[string]any{"favorite": false}, nil)
+	select {
+	case page := <-heard:
+		if len(page.Events) != 1 || page.Events[0].Topic != "state" || page.Events[0].ID != film.ID || page.Cursor == start.Cursor {
+			t.Fatalf("the poll heard %+v", page)
+		}
+		if quiet := get[EventPage](t, s, token, "/v1/events?poll=true&wait=0&cursor="+page.Cursor); len(quiet.Events) != 0 || quiet.Cursor != page.Cursor {
+			t.Fatalf("a poll with nothing new: %+v", quiet)
+		}
+		if other := get[EventPage](t, s, limited, "/v1/events?poll=true&wait=0&cursor="+start.Cursor); len(other.Events) != 0 {
+			t.Fatalf("another profile's poll heard this profile's state: %+v", other.Events)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the poll did not answer when something changed")
+	}
+	if far := get[EventPage](t, s, token, "/v1/events?poll=true&cursor=999999999"); !far.Resync || far.Cursor == "999999999" {
+		t.Fatalf("a poll from a cursor this server cannot follow: %+v", far)
+	}
+
+	// A stream says when the server ends it, so an app can tell that from a dropped connection.
+	s.eventsLifetime = 300 * time.Millisecond
+	feed("")("event: end")
+
 	// A reader whose cursor this server cannot follow on from is told to read everything
 	// again, with an id to carry on from.
 	head, _ := s.db.ChangesHead(ctx)

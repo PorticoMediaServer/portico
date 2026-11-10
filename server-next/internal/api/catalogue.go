@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -175,10 +174,7 @@ func (s *Server) catalogueRoutes() {
 		}
 		return None{}, err
 	})
-	// The feed is a stream, not one JSON reply, so it is registered by hand.
-	feed := &Route{Pattern: "GET /v1/events", Access: WithProfile, Scope: ScopeRead}
-	s.routes = append(s.routes, feed)
-	s.mux.HandleFunc(feed.Pattern, func(w http.ResponseWriter, r *http.Request) { s.events(w, r, feed) })
+	s.eventRoutes()
 }
 
 // browseBy says what a library of each kind can be browsed by. Sorts list the direction each
@@ -281,102 +277,4 @@ func itemQuery(query url.Values) (db.ItemQuery, error) {
 	}
 	q.WithTotal = total != nil && *total
 	return q, nil
-}
-
-// How the change feed behaves. An app reconnects with the id of the last event it saw.
-const (
-	eventsPoll      = time.Second      // how often a stream looks for new changes
-	eventsHeartbeat = 20 * time.Second // a comment line, so proxies keep the stream open
-	eventsLifetime  = 10 * time.Minute // a stream ends before its access token does; the app reconnects
-	eventsBurst     = 500              // more changes than this at once are sent as one "read everything again"
-	eventsPerPoll   = 20               // more item changes than this in one look are sent as one event per library
-)
-
-// events is GET /v1/events: a server-sent event stream. A "change" event names one thing to
-// read again and never carries it. A "resync" event means read again everything on screen;
-// it is sent to an app whose cursor is older than the oldest change kept, and in place of a
-// burst too large to be worth listing, such as a library import. Every event has an id, and
-// that id is the cursor to reconnect with (as Last-Event-ID or ?cursor=).
-func (s *Server) events(w http.ResponseWriter, r *http.Request, route *Route) {
-	r, err := s.admit(r, route)
-	if err != nil {
-		s.writeError(w, r, err)
-		return
-	}
-	ctx, v := r.Context(), viewer(r)
-	cursor, given := r.Header.Get("Last-Event-ID"), true
-	if cursor == "" {
-		cursor = r.URL.Query().Get("cursor")
-	}
-	after, err := strconv.ParseInt(cursor, 10, 64)
-	if cursor == "" {
-		// A new reader starts from now: it has just read what it shows.
-		given = false
-		if after, err = s.db.ChangesHead(ctx); err != nil {
-			s.writeError(w, r, err)
-			return
-		}
-	} else if err != nil || after < 0 {
-		s.writeError(w, r, ErrField("cursor", "This cursor does not belong to this feed."))
-		return
-	}
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("X-Accel-Buffering", "no")
-	flusher, _ := w.(http.Flusher)
-	send := func(id int64, event string, data any) {
-		raw, _ := json.Marshal(data)
-		fmt.Fprintf(w, "id: %d\nevent: %s\ndata: %s\n\n", id, event, raw)
-	}
-	if !given {
-		// Tells the app where it starts, so its first reconnect has a cursor.
-		send(after, "ready", struct{}{})
-	}
-	poll, heartbeat, end := time.NewTicker(eventsPoll), time.NewTicker(eventsHeartbeat), time.NewTimer(eventsLifetime)
-	defer poll.Stop()
-	defer heartbeat.Stop()
-	defer end.Stop()
-	for {
-		events, next, reread, err := s.db.Events(ctx, v, after, eventsBurst)
-		switch {
-		case err != nil:
-			return
-		case reread || next-after >= eventsBurst:
-			if next, err = s.db.ChangesHead(ctx); err != nil {
-				return
-			}
-			send(next, "resync", struct{}{})
-		default:
-			// During an import items change faster than a screen should redraw. Then the
-			// feed says once per library that its lists changed, instead of naming every item.
-			items, libraries := 0, map[string]int64{}
-			for _, e := range events {
-				if e.Topic == db.TopicItem {
-					items++
-					libraries[e.LibraryID] = e.ID
-				}
-			}
-			for _, e := range events {
-				switch {
-				case e.Topic != db.TopicItem || items <= eventsPerPoll:
-					send(e.ID, "change", Event{Topic: e.Topic.String(), Op: e.Op.String(), ID: e.PublicID, LibraryID: e.LibraryID})
-				case libraries[e.LibraryID] == e.ID:
-					send(e.ID, "change", Event{Topic: db.TopicLibrary.String(), Op: db.OpUpdated.String(), LibraryID: e.LibraryID})
-				}
-			}
-		}
-		after = next
-		if flusher != nil {
-			flusher.Flush()
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-end.C:
-			return
-		case <-heartbeat.C:
-			fmt.Fprint(w, ": still here\n\n")
-		case <-poll.C:
-		}
-	}
 }

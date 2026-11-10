@@ -431,6 +431,48 @@
         ],
         "type": "object"
       },
+      "Event": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "libraryId": {
+            "type": "string"
+          },
+          "op": {
+            "type": "string"
+          },
+          "topic": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "topic",
+          "op"
+        ],
+        "type": "object"
+      },
+      "EventPage": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/Event"
+            },
+            "type": "array"
+          },
+          "resync": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "events",
+          "cursor"
+        ],
+        "type": "object"
+      },
       "FacetValue": {
         "properties": {
           "count": {
@@ -4401,8 +4443,15 @@
     "/v1/events": {
       "get": {
         "responses": {
-          "204": {
-            "description": "Done"
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventPage"
+                }
+              }
+            },
+            "description": "OK"
           },
           "default": {
             "content": {
