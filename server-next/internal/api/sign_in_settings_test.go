@@ -239,6 +239,14 @@ func TestAccountLimitedToHome(t *testing.T) {
 	if got := from(t, s, home, "", "POST", "/v1/auth/sign-in", "", signIn, &in); got != 200 {
 		t.Fatalf("signing in at home answered %d", got)
 	}
+	// Away from home the device cannot get a fresh token by choosing its profile again.
+	choose := "/v1/profiles/" + in.Profiles[0].ID + "/select"
+	if got := from(t, s, away, "", "POST", choose, in.Session.AccessToken, ProfileSelect{}, nil); got != 403 {
+		t.Errorf("choosing a profile away from home answered %d, want 403", got)
+	}
+	if got := from(t, s, home, "", "POST", choose, in.Session.AccessToken, ProfileSelect{}, nil); got != 200 {
+		t.Errorf("choosing a profile at home answered %d, want 200", got)
+	}
 	renewal := RefreshRequest{RefreshToken: in.Session.RefreshToken, InstallationID: device(5).InstallationID, RequestID: "left-home"}
 	if got := from(t, s, away, "", "POST", "/v1/auth/refresh", "", renewal, nil); got != 403 {
 		t.Errorf("renewing away from home answered %d, want 403", got)
