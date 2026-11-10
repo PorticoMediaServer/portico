@@ -783,6 +783,10 @@ func (im *importer) ensureVersion(itemID int64, v *ImportVersion) error {
 			return err
 		}
 		im.unsettled = append(im.unsettled, itemID)
+		// A title kept as it is goes back to the matcher when its files change.
+		if _, err := im.exec(`UPDATE items SET match_state = ? WHERE id = ? AND match_state = ?`, MatchNone, itemID, MatchKept); err != nil {
+			return err
+		}
 		return im.createVersion(itemID, position, v, facts, im.now)
 	}
 	if err != nil {
