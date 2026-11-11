@@ -216,24 +216,12 @@ func (s *Server) startPlayback(r *http.Request, req PlaybackStart) (PlaybackSess
 		req.StartPositionMs = &offset
 		channel = &playback.ChannelLink{ID: req.Channel, StartsAt: tuned.StartsAt.UTC(), EndsAt: tuned.EndsAt.UTC()}
 		// The channel's quality choice: Original only never converts, and Limited bitrate is a
-		// ceiling over the viewer's own choice, never a rate forced on it.
-		switch cap := tuned.Quality.MaxKbps; {
-		case tuned.Quality.Mode == "original":
+		// ceiling playback holds over whatever quality is in force, now and at every change.
+		switch tuned.Quality.Mode {
+		case "original":
 			req.Quality = &playback.Quality{Mode: playback.QualityOriginal}
-		case tuned.Quality.Mode != "limited":
-		case req.Quality == nil || req.Quality.Mode == playback.QualityAutomatic:
-			// Automatic stays automatic: it is told the connection is no faster than the cap.
-			if req.ThroughputKbps == 0 || req.ThroughputKbps > cap {
-				req.ThroughputKbps = cap
-			}
-		case req.Quality.Mode == playback.QualityLimit:
-			if req.Quality.MaxVideoBitrateKbps == 0 || req.Quality.MaxVideoBitrateKbps > cap {
-				limited := *req.Quality
-				limited.MaxVideoBitrateKbps = cap
-				req.Quality = &limited
-			}
-		default: // the original, or a fixed entry that may be above the cap
-			req.Quality = &playback.Quality{Mode: playback.QualityLimit, MaxVideoBitrateKbps: cap}
+		case "limited":
+			channel.MaxKbps = tuned.Quality.MaxKbps
 		}
 	}
 	if (req.ItemID == "") == (req.Queue == nil) {
@@ -250,6 +238,9 @@ func (s *Server) startPlayback(r *http.Request, req PlaybackStart) (PlaybackSess
 		PositionMs: req.StartPositionMs, FromStart: req.StartFrom == "beginning" || req.StartFrom == "startOver",
 		Paused: req.State == playback.StatePaused,
 		Ask:    playback.Ask{VersionID: req.VersionID, Quality: req.Quality, Network: req.Network, ThroughputKbps: req.ThroughputKbps}}
+	if channel != nil {
+		in.Ask.MaxKbps = channel.MaxKbps
+	}
 	if req.Audio != nil {
 		in.Ask.Audio = &req.Audio.TrackID
 	}
