@@ -20,10 +20,10 @@ import (
 // RemoteAccessSettings is the owner's remote-access document. (So far it holds only the DLNA
 // switch.)
 type RemoteAccessSettings struct {
-	// DLNA lets TVs and consoles at home play without signing in: any device on the home
-	// networks listed in the network settings can browse the video and music libraries and
-	// play every original file. It ignores profiles, library access, rating limits, viewing
-	// hours and stream limits, never converts, and records nothing. Off by default.
+	// DLNA shares every original file with any device on your home networks, with no sign-in.
+	// (The home networks are those listed in the network settings. It ignores profiles,
+	// library access, rating limits, viewing hours and stream limits, never converts, and
+	// records nothing. Off by default.)
 	DLNA bool `json:"dlna"`
 	revision
 }
@@ -70,14 +70,27 @@ func (s *Server) dlnaHome() []netip.Prefix {
 		return nil
 	}
 	networks, stored := s.network.current(s.now())
-	if stored.Home == nil {
+	if stored.Home == nil || coversEverything(networks.Home) {
 		return nil
 	}
 	return networks.Home
 }
 
+// coversEverything says a home list takes in the whole internet (0.0.0.0/0 or ::/0), which
+// would share every original with anyone. A wide range the owner chose on purpose, such as
+// Tailscale's 100.64.0.0/10, is fine.
+func coversEverything(home []netip.Prefix) bool {
+	for _, p := range home {
+		if p.Bits() == 0 {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *Server) dlnaRoutes() {
 	s.dlna = &dlna.Server{DB: s.db, Log: s.log, ServerID: func() string { return s.id }, Version: s.version, Home: s.dlnaHome,
+		FromHome: func(r *http.Request) bool { return s.networks().FromHome(r) },
 		Name: func() string {
 			name, ok, _ := s.db.Setting(context.Background(), "server.name")
 			if !ok {
@@ -100,8 +113,13 @@ func (s *Server) saveRemoteAccess(r *http.Request, req RemoteAccessSettingsEdit)
 	}
 	next := s.remoteAccess()
 	if req.DLNA != nil {
-		if _, stored := s.network.current(s.now()); *req.DLNA && stored.Home == nil {
+		networks, stored := s.network.current(s.now())
+		if *req.DLNA && stored.Home == nil {
 			return RemoteAccessSettings{}, ErrField("dlna", "List your home networks in the network settings first: DLNA answers only there.")
+		}
+		if *req.DLNA && coversEverything(networks.Home) {
+			return RemoteAccessSettings{}, ErrField("dlna",
+				"Your home networks include the whole internet (0.0.0.0/0 or ::/0), so DLNA would share your library with anyone. Remove that entry first.")
 		}
 		next.DLNA = *req.DLNA
 	}
