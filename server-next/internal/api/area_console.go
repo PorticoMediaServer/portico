@@ -67,6 +67,8 @@ func (s *Server) startConsole(ctx context.Context) error {
 	s.notificationRoutes()
 	s.reportRoutes()
 	s.dashboardRoutes()
+	// A notice when an alert's cause starts. See server_notices.go.
+	go s.runServerNotices(ctx)
 	// The console's part of the daily tidy-up: notices past the owner's keeping time, crash
 	// reports after 30 days and app logs no report names, the activity record after a year.
 	s.jobs.Tidy("notices", 24*time.Hour, s.notices().Tidy)
