@@ -251,9 +251,11 @@ func pgsBox(width, height, x, y, w, h, from, to int) []byte {
 	segment(from, 0x16, composition(1, 1))
 	segment(from, 0x17, append(append([]byte{1, 0, 0, 0, 0, 0}, u16(width)...), u16(height)...))
 	segment(from, 0x14, []byte{0, 0, 0, 16, 128, 128, 0, 1, 235, 128, 128, 255})
+	// Each row is one run of colour 1, then the end of the line: a few bytes a row, so even a
+	// large box fits one segment.
 	var rle []byte
 	for row := 0; row < h; row++ {
-		rle = append(append(rle, bytes.Repeat([]byte{1}, w)...), 0, 0)
+		rle = append(rle, 0, 0xc0|byte(w>>8), byte(w), 1, 0, 0)
 	}
 	n := len(rle) + 4
 	object := append([]byte{0, 0, 0, 0xc0, byte(n >> 16), byte(n >> 8), byte(n)}, append(u16(w), u16(h)...)...)
@@ -1112,9 +1114,9 @@ func TestMediaMatrixHardware(t *testing.T) {
 	if err := os.WriteFile(sup, pgsBox(1920, 1080, 600, 420, 720, 240, pgsFrom, pgsTo), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	library := filepath.Join(t.TempDir(), "library")
+	// Each film in a library of its own.
 	generate := func(file string, args ...string) string {
-		path := filepath.Join(library, strings.TrimSuffix(file, filepath.Ext(file)), file)
+		path := filepath.Join(t.TempDir(), "library", strings.TrimSuffix(file, filepath.Ext(file)), file)
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			t.Fatal(err)
 		}
