@@ -37,6 +37,8 @@ var repeatSafeWithoutKey = map[string]string{
 	"POST /v1/queues/{id}/advance":                "sets the current entry",
 	"POST /v1/queues/{id}/prepare-next":           "changes nothing that lasts",
 	"POST /v1/queues/{id}/commit-next":            "sets the current entry",
+	"POST /v1/groups/join":                        "a member who joins again stays one member and uses up no join",
+	"POST /v1/groups/{id}/playback":               "sets the group's clock: the same action twice lands in the same place",
 }
 
 // An app that never had the answer to a creating request sends it again with the same
@@ -80,6 +82,8 @@ func TestCreatesAreSafeToRepeat(t *testing.T) {
 			call(t, th.s, "PUT", "/v1/receivers/current", onMain(t, th.s, signIn(t, th.s, 1)).AccessToken, nil, &tv)
 			return "/v1/receivers/" + tv.ID + "/requests"
 		}, body: ReceiverAsk{Kind: "control"}, other: ReceiverAsk{Kind: "play", Play: &receivers.Play{ItemID: th.film}}, inMemoryOnly: true},
+		{route: "POST /v1/groups", body: GroupCreate{Name: "Movie night", Control: "host"},
+			other: GroupCreate{Name: "Movie night", Control: "everyone"}, inMemoryOnly: true},
 	}
 
 	keyed := map[string]bool{}

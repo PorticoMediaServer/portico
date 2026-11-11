@@ -26,6 +26,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
 	"github.com/PorticoMediaServer/portico/server-next/internal/receivers"
+	"github.com/PorticoMediaServer/portico/server-next/internal/together"
 )
 
 // APIMajor is the number in the path. It changes only for a break old apps could not survive.
@@ -64,6 +65,8 @@ type Server struct {
 	live *livefeed.Publisher
 	// receivers are the devices open to playback from other devices. See receivers.go.
 	receivers *receivers.Service
+	// groups are the Watch Together groups. See groups.go.
+	groups *together.Service
 }
 
 // Route is one operation, kept so the contract can be generated and the operation budget counted.
@@ -176,6 +179,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	clock := func() time.Time { return s.now() }
 	s.live = livefeed.New(clock)
 	s.receivers = receivers.New(s.live, clock)
+	s.groups = together.New(s.live, clock)
 	s.systemRoutes()
 	s.networkRoutes()
 	s.identityRoutes()
@@ -199,6 +203,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.queueRoutes()
 	go s.sweepMemory(ctx)
 	s.receiverRoutes()
+	s.groupRoutes()
 	return s, nil
 }
 
