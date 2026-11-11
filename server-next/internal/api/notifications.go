@@ -1,6 +1,7 @@
 package api
 
 import (
+	"crypto/sha256"
 	"errors"
 	"net/http"
 	"strconv"
@@ -128,11 +129,27 @@ func (s *Server) sendServerMessage(r *http.Request, req ServerMessage) (ServerMe
 		return ServerMessageSent{}, err
 	}
 	n.IdempotencyKey = key
+	// A key is bounded (see tool_notices.go): the same words again are the notice already
+	// stored, and past the hour's count it waits.
+	words, now := sha256.Sum256([]byte(req.Audience+"\n"+req.Message)), s.now()
+	if c.Key {
+		repeat, wait := s.toolNotices.check(c.KeyID, words, now)
+		switch {
+		case repeat != nil:
+			return *repeat, nil
+		case wait > 0:
+			return ServerMessageSent{}, ErrTooMany("too_many_notices", "This key has sent as many notices as it may this hour.", wait)
+		}
+	}
 	id, sent, err := s.db.SendNotice(r.Context(), n)
 	if errors.Is(err, db.ErrKeyReused) {
 		return ServerMessageSent{}, errKeyReused()
 	}
-	return ServerMessageSent{ID: id, Sent: sent}, err
+	out := ServerMessageSent{ID: id, Sent: sent}
+	if err == nil && c.Key {
+		s.toolNotices.record(c.KeyID, words, now, out)
+	}
+	return out, err
 }
 
 // notices sends notices for the server's own areas. See package notices.

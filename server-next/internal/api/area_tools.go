@@ -22,6 +22,8 @@ type toolsArea struct {
 	// compat and compatKey serve the Jellyfin-compatible routes. See compat.go.
 	compat    compatState
 	compatKey []byte
+	// toolNotices bounds the notices each key sends. See tool_notices.go.
+	toolNotices toolNotices
 }
 
 // startTools builds this area's services and registers its routes and job kinds. New calls it
