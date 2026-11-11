@@ -31,9 +31,22 @@ type NetworkSettings struct {
 	// TrustedProxies are the reverse proxies whose X-Forwarded-For header is believed. The
 	// header from any other address is ignored.
 	TrustedProxies []string `json:"trustedProxies"`
+	// Warnings are risky choices in force, in plain words, for as long as they hold. The owner
+	// may keep them: the server warns, it does not refuse.
+	Warnings []Warning `json:"warnings"`
 
 	revision
 }
+
+// Warning is one risky choice in force.
+type Warning struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+// proxyEverywhereMessage is proposed wording, listed for the owner's approval.
+const proxyEverywhereMessage = "A trusted proxy covers most of the internet, so anyone can say they are at home " +
+	"and skip what applies to people away from home. List only your own proxy's address unless you mean this."
 
 // NetworkSettingsEdit replaces the network settings. HomeNetworks left out or null goes
 // back to the server's own choice.
@@ -192,8 +205,17 @@ func prefixStrings(prefixes []netip.Prefix) []string {
 
 func (s *Server) networkSettings(saved int64) NetworkSettings {
 	networks, stored := s.network.current(s.now())
-	return NetworkSettings{HomeNetworks: prefixStrings(networks.Home), HomeNetworksDefault: stored.Home == nil,
-		TrustedProxies: prefixStrings(networks.Proxies), revision: revision(saved)}
+	out := NetworkSettings{HomeNetworks: prefixStrings(networks.Home), HomeNetworksDefault: stored.Home == nil,
+		TrustedProxies: prefixStrings(networks.Proxies), Warnings: []Warning{}, revision: revision(saved)}
+	// Believing a forwarded address from most of the internet lets anyone claim to be at home.
+	// It is the owner's choice about their own server, so it is saved, and said plainly.
+	for _, p := range networks.Proxies {
+		if p.Bits() < 8 {
+			out.Warnings = append(out.Warnings, Warning{Code: "proxy_everywhere", Message: proxyEverywhereMessage})
+			break
+		}
+	}
+	return out
 }
 
 func (s *Server) saveNetworkSettings(r *http.Request, req NetworkSettingsEdit) (NetworkSettings, error) {
@@ -209,12 +231,6 @@ func (s *Server) saveNetworkSettings(r *http.Request, req NetworkSettingsEdit) (
 	proxies, err := auth.ParseNetworks(stored.Proxies)
 	if err != nil || len(proxies) > maxNetworks {
 		return NetworkSettings{}, ErrField("trustedProxies", "List up to 64 addresses or networks such as 10.0.0.2 or 172.18.0.0/16.")
-	}
-	for _, p := range proxies {
-		// Believing a forwarded address from everywhere would let anyone claim to be at home.
-		if p.Bits() < 8 {
-			return NetworkSettings{}, ErrField("trustedProxies", "A trusted proxy is your own proxy's address or network, not most of the internet.")
-		}
 	}
 	match, err := settingsIfMatch(r)
 	if err != nil {
