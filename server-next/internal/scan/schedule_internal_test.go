@@ -60,6 +60,12 @@ func TestIntervalsAndTheTrashWithoutAScan(t *testing.T) {
 	if m.due(ctx, lib, lib.Paths[0], now.Add(48*time.Hour)) {
 		t.Fatal("a watched folder needs no interval")
 	}
+	// Neither watching nor an interval: scanned only when asked.
+	m.watched[lib.PublicID], lib.Options.NoWatch = false, true
+	if m.due(ctx, lib, lib.Paths[0], now.Add(48*time.Hour)) {
+		t.Fatal("a library set to neither should never be due")
+	}
+	lib.Options.NoWatch = false
 
 	// A scan that the server died under twice is not started again by the schedule.
 	job, err := m.Scan(ctx, lib.PublicID, 0, false)
