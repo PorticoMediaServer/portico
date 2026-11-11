@@ -348,8 +348,9 @@ func (s *Service) convert(ctx context.Context, p db.Prepared) (container string,
 		}
 	}
 	if !Music(kind) {
-		// A version's subtitle tracks are those of its first file, so that file's go with it.
-		s.writeSubtitles(ctx, p, v.Parts[0])
+		for n, part := range v.Parts {
+			s.writeSubtitles(ctx, p, part, n+1)
+		}
 	}
 	return container, written, ready.ContentHash, nil
 }
