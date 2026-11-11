@@ -257,6 +257,11 @@ func TestAFailedMoveLeavesTheAccountAsItWas(t *testing.T) {
 		if code != 201 {
 			t.Fatalf("%s: the TV's start under the move answered %d", ending, code)
 		}
+		// "Allowed" sent again, as an app that retries does, keeps the move open and the TV playing.
+		th.answer(tv, asked.ID, ReceiverAnswer{Answer: "allowed"})
+		if code := th.report(tv, onTV.ID, "playing", 300_000); code != 200 {
+			t.Fatalf("%s: the TV's report after allowing again answered %d", ending, code)
+		}
 		if n == 0 {
 			// A third device is refused meanwhile: the two count as one stream, at the limit.
 			if code, _ := th.start(onMain(t, th.s, signIn(t, th.s, 2)).AccessToken, "", PlaybackStart{ItemID: th.song}); code != 409 {
