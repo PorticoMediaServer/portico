@@ -42,7 +42,11 @@ var (
 	ErrDamaged     = errors.New("the file is damaged")
 	ErrUnsupported = errors.New("the file is of a kind that is not supported")
 	ErrEncrypted   = errors.New("the disc is copy-protected")
-	ErrNotMedia    = errors.New("the file is not a media file")
+	// ErrNoDiscReader: the file stands for a film disc and this server's media tools have no
+	// disc reader. The disc is listed with that reason and tried again by every scan, so it
+	// is read as soon as the server has one.
+	ErrNoDiscReader = errors.New("this server's media tools can't read discs")
+	ErrNotMedia     = errors.New("the file is not a media file")
 )
 
 // probe reads every media file of the library that has not been read, a few at a time. Where
@@ -129,6 +133,8 @@ func (r *run) probeFile(file db.UnprobedFile, src Source, local string) *db.Prob
 		probe.Problem = db.ProblemUnsupported
 	case errors.Is(err, ErrEncrypted):
 		probe.Problem = db.ProblemEncryptedDisc
+	case errors.Is(err, ErrNoDiscReader):
+		probe.Problem = db.ProblemNoDiscReader
 	case errors.Is(err, ErrNotMedia):
 		probe.Problem = db.ProblemNotMedia
 	default:
