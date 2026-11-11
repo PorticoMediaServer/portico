@@ -175,6 +175,9 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	if err := s.loadSetupCode(ctx, dataDir); err != nil {
 		return nil, err
 	}
+	if err := s.resetRemoteAccess(ctx, dataDir); err != nil {
+		return nil, err
+	}
 	if err := s.loadNetworks(ctx); err != nil {
 		return nil, err
 	}
