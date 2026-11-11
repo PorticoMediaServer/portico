@@ -50,7 +50,8 @@ type BookVersion struct {
 }
 
 // BookProblem is why a book cannot be read: format_not_supported, remote_storage,
-// unavailable, book_changed or damaged.
+// unavailable, book_changed, source_unreachable (a remote source stopped answering partway:
+// try again) or damaged.
 type BookProblem struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
@@ -116,6 +117,8 @@ func bookProblemCode(err error) string {
 		return "unavailable"
 	case reading.ErrChanged:
 		return "book_changed"
+	case reading.ErrSourceUnreachable:
+		return "source_unreachable"
 	}
 	return "damaged"
 }

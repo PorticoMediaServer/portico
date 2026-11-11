@@ -205,9 +205,9 @@ func (s *Service) withArchive(ctx context.Context, v db.BookVersion, fn func(*ar
 	}
 	a, err := openArchive(f.at, f.size)
 	if err != nil {
-		return err
+		return f.explain(err)
 	}
-	return fn(a)
+	return f.explain(fn(a))
 }
 
 // ErrChanged says the file is no longer the one the reader was given; the app opens the book again.

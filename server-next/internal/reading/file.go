@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"sync"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
@@ -23,6 +24,47 @@ type bookFile struct {
 	// whole gives the file for reading by range from any place, as a PDF and a saved file are.
 	whole func() (io.ReadSeekCloser, error)
 	close func()
+	// source is set for a remote file: it remembers whether a read from the source failed.
+	source *sourceReader
+}
+
+// ErrSourceUnreachable says a remote book's source stopped answering partway through: the
+// network or the source blinked, and the book is not damaged. Asking again may work.
+var ErrSourceUnreachable = errors.New("Couldn't reach where this book is kept. Try again in a moment.")
+
+// explain turns a failure to read a book into what really happened: an archive that could not
+// be read because its source stopped answering is unreachable, not damaged.
+func (f *bookFile) explain(err error) error {
+	if err != nil && f.source != nil && f.source.failed() && !errors.Is(err, ErrChanged) {
+		return ErrSourceUnreachable
+	}
+	return err
+}
+
+// sourceReader reads a remote file and remembers whether a read failed for a reason other
+// than its end, so a short read from a source that blinked is not taken for a damaged book.
+type sourceReader struct {
+	io.ReaderAt
+	mu  sync.Mutex
+	err error
+}
+
+func (r *sourceReader) ReadAt(p []byte, off int64) (int, error) {
+	n, err := r.ReaderAt.ReadAt(p, off)
+	// Only a bare io.EOF is the file's end: a dropped connection can come back as an error
+	// that wraps io.EOF too.
+	if err != nil && err != io.EOF {
+		r.mu.Lock()
+		r.err = err
+		r.mu.Unlock()
+	}
+	return n, err
+}
+
+func (r *sourceReader) failed() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.err != nil
 }
 
 // openFile opens the file the scanner recorded under this id: a local one through libraryfile,
@@ -89,7 +131,8 @@ func (s *Service) openRemote(ctx context.Context, fileID int64) (*bookFile, db.F
 	// kilobytes at a time, so a comic page of a few megabytes is a few requests, and one
 	// request for a part or page holds at most 4 MiB however large the book. The file is
 	// closed when that request is answered.
-	return &bookFile{name: place.Path, size: place.Size, modified: modified, at: file, close: func() { file.Close() },
+	source := &sourceReader{ReaderAt: file}
+	return &bookFile{name: place.Path, size: place.Size, modified: modified, at: source, source: source, close: func() { file.Close() },
 		whole: func() (io.ReadSeekCloser, error) {
 			// The whole file, as playback reads it: one request from each place reading starts.
 			rs, _, _, err := streaming.RemoteFile(storage, place.Path, place.Size, modified).Open(ctx)
