@@ -27,6 +27,8 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/remote"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/scan"
+	"github.com/PorticoMediaServer/portico/server-next/internal/secrets"
+	"github.com/PorticoMediaServer/portico/server-next/internal/webhooks"
 )
 
 // APIMajor is the number in the path. It changes only for a break old apps could not survive.
@@ -68,6 +70,8 @@ type Server struct {
 	remote *remote.Registry
 	// driveSignIns are Google sign-ins for Drive sources under way.
 	driveSignIns remote.DriveSignIns
+	// webhooks sends the owner's webhooks. See webhooks.go.
+	webhooks *webhooks.Service
 }
 
 // Route is one operation, kept so the contract can be generated and the operation budget counted.
@@ -212,6 +216,19 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 		return nil, err
 	}
 	s.libraryRoutes()
+	box, err := secrets.Open(dataDir)
+	if err != nil {
+		return nil, err
+	}
+	s.webhooks = webhooks.New(d, box, log, func() time.Time { return s.now() }, func() (string, string) {
+		name, ok, _ := d.Setting(context.WithoutCancel(ctx), "server.name")
+		if !ok {
+			name = "Portico"
+		}
+		return s.id, name
+	})
+	s.webhookRoutes()
+	s.startWebhooks(ctx)
 	return s, nil
 }
 
