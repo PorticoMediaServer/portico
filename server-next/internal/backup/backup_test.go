@@ -247,7 +247,7 @@ func stagedServer(t *testing.T) (dir string) {
 	os.WriteFile(filepath.Join(dir, "main.db"), []byte("the database in use"), 0o600)
 	os.WriteFile(filepath.Join(dir, "main.db-wal"), []byte("its log"), 0o600)
 	os.WriteFile(filepath.Join(dir, "remote-sources.key"), []byte("the key in use"), 0o600)
-	if err := Stage(ctx, archive, dir, "portico-20261101-030000", time.Now()); err != nil {
+	if err := Stage(ctx, archive, dir, "portico-20261101-030000", time.Now(), true); err != nil { // another server's backup, confirmed
 		t.Fatal(err)
 	}
 	return dir
@@ -380,5 +380,46 @@ func TestWaitingRestoreAndLeftoversAtStart(t *testing.T) {
 		if exists(filepath.Join(s.DataDir, name)) {
 			t.Errorf("%s was left after a start", name)
 		}
+	}
+}
+
+// A backup carries this server's mark: one this server made restores with no warning; one
+// another server made, or one changed since, is not refused but needs the owner's
+// confirmation, and the mark is checked over the very bytes unpacked.
+func TestABackupNotMadeHereNeedsConfirming(t *testing.T) {
+	ctx := context.Background()
+	here, there := newService(t), newService(t)
+	for _, s := range []*Service{here, there} {
+		if err := s.make(ctx, "portico-20261101-030000", false); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ours, _ := here.Path("portico-20261101-030000")
+	theirs, _ := there.Path("portico-20261101-030000")
+	if !MadeHere(here.DataDir, ours) {
+		t.Errorf("this server's own backup reads as not made here")
+	}
+	if err := Stage(ctx, ours, here.DataDir, "ours", time.Now(), false); err != nil {
+		t.Errorf("restoring this server's own backup: %v", err)
+	}
+	if MadeHere(here.DataDir, theirs) {
+		t.Errorf("another server's backup reads as made here")
+	}
+	if err := Stage(ctx, theirs, here.DataDir, "theirs", time.Now(), false); !errors.Is(err, ErrNotMadeHere) {
+		t.Errorf("another server's backup without confirming: %v", err)
+	}
+	if err := Stage(ctx, theirs, here.DataDir, "theirs", time.Now(), true); err != nil {
+		t.Errorf("another server's backup, confirmed: %v", err)
+	}
+
+	// This server's backup with a file added to it and the description left as it was.
+	db := filepath.Join(t.TempDir(), "main.db")
+	extract(t, ours, "main.db", db)
+	pack(t, ours, map[string]string{"main.db": db, "artwork/ab/abcdef0123456789abcdef01.large": db})
+	if MadeHere(here.DataDir, ours) {
+		t.Errorf("a changed backup reads as made here")
+	}
+	if err := Stage(ctx, ours, here.DataDir, "changed", time.Now(), false); !errors.Is(err, ErrNotMadeHere) {
+		t.Errorf("a changed backup without confirming: %v", err)
 	}
 }
