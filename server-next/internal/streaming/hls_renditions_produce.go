@@ -408,6 +408,48 @@ func (h *HLS) produceRendition(ctx context.Context, id string, r AudioRenditionP
 	if err != nil && !throttled && ctx.Err() == nil {
 		failed(classifyConverterFailure(tail.String()))
 	}
+	if err == nil && !throttled && ctx.Err() == nil {
+		h.noteRenditionEnd(id, r, dir, from, hlsSegmentCount(plan.Duration))
+	}
+}
+
+// noteRenditionEnd is a converter that ran to its end without being stopped: what it
+// did not write from its first slot on, the track does not have. That is the end of
+// the track, not a failure, so asking for those slots again answers at once instead of
+// starting the converter over and over.
+func (h *HLS) noteRenditionEnd(id string, r AudioRenditionPlan, dir string, from, count int) {
+	end := from
+	for end < count && segmentReady(filepath.Join(dir, renditionSegmentFile(r, end))) {
+		end++
+	}
+	if end >= count {
+		return
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	s := h.streams[id]
+	if s == nil {
+		return
+	}
+	if s.audioEnds == nil {
+		s.audioEnds = map[int]int{}
+	}
+	if old, ok := s.audioEnds[r.Ordinal]; !ok || end < old {
+		s.audioEnds[r.Ordinal] = end
+	}
+	h.signalLocked(s)
+}
+
+// renditionEnded reports whether a track is known to have no media at this slot.
+func (h *HLS) renditionEnded(id string, ordinal, index int) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	s := h.streams[id]
+	if s == nil {
+		return false
+	}
+	end, ok := s.audioEnds[ordinal]
+	return ok && index >= end
 }
 
 func (h *HLS) renditionFile(ctx context.Context, id, name string, p *DeliveryPlan) (string, error) {
@@ -436,6 +478,9 @@ func (h *HLS) renditionFile(ctx context.Context, id, name string, p *DeliveryPla
 		h.noteRenditionServed(id, key, index)
 		return path, nil
 	}
+	if h.renditionEnded(id, ordinal, index) {
+		return "", ErrGrantEnded
+	}
 	if err := h.startRendition(ctx, id, p.Renditions[ordinal], index); err != nil {
 		return "", err
 	}
@@ -458,6 +503,9 @@ func (h *HLS) renditionFile(ctx context.Context, id, name string, p *DeliveryPla
 			}
 			if failure != "" {
 				return "", ErrAudioRenditionUnavailable
+			}
+			if h.renditionEnded(id, ordinal, index) && !segmentReady(path) {
+				return "", ErrGrantEnded
 			}
 			current := filepath.Join(h.outputDir(id), name)
 			if current != path {
