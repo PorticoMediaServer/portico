@@ -1,9 +1,11 @@
 name: New server in a container counts nobody as at home until told
 # Runs the new server (server-next) in a real Docker container on a bridge network with a
 # published port, the way most people install it, and checks who it counts as at home: a
-# device on the container's network and one arriving through the host's published port from
-# another network are both away while the server is guessing, and once the owner lists the
-# first network as home that one is home and the other is still away.
+# device on the container's network, one arriving at the published port from outside with its
+# own address, and one Docker relays from another network are all away while the server is
+# guessing. Once the owner lists the container's network as home, its device is home, the
+# outside one is still away, and the relayed one, arriving from the listed gateway, is home
+# with a warning that says so.
 # Not part of ci/required.
 on:
   workflow_dispatch:
