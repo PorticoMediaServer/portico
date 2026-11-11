@@ -424,6 +424,10 @@ func (w *world) markAndUndo() {
 	if target == "" {
 		w.t.Fatal("the profile with a rating limit may see no show")
 	}
+	// Every profile starts with every show watched, so it is first made unwatched.
+	if code := status(w.t, w.s, "PUT", "/v1/items/"+target+"/state", v.token, map[string]bool{"watched": false}); code != 200 {
+		w.t.Fatalf("marking a show unwatched answered %d", code)
+	}
 	var reply StateReply
 	if code := call(w.t, w.s, "PUT", "/v1/items/"+target+"/state", v.token, map[string]bool{"watched": true}, &reply).Code; code != 200 || reply.Undo == nil {
 		w.t.Fatalf("marking a show watched answered %d without an undo", code)

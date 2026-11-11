@@ -73,8 +73,21 @@ var titleChanges = []titleChange{
 			return nil
 		}},
 	{name: "the owner narrows a profile's restrictions and a member's libraries",
-		covers: []string{"PUT /v1/profiles/{id}/restrictions", "PATCH /v1/admin/members/{id}"}, run: func(w *world) map[string]string {
+		covers: []string{"PUT /v1/profiles/{id}/restrictions", "PATCH /v1/admin/members/{id}", "db.SetProfileRestrictions", "db.UpdateMember"},
+		run: func(w *world) map[string]string {
+			// Shows are watched first, so the narrowing has watched marks to work out again.
+			w.ownerState()
+			w.markAndUndo()
 			w.narrow()
+			return nil
+		}},
+	{name: "every watched mark is worked out again from nothing after shows were watched",
+		covers: []string{"db.RebuildWatchedMarks"}, run: func(w *world) map[string]string {
+			w.ownerState()
+			w.check("after shows were watched")
+			if err := w.s.db.RebuildWatchedMarks(background); err != nil {
+				w.t.Fatal(err)
+			}
 			return nil
 		}},
 }
@@ -240,6 +253,25 @@ func newWorld(t *testing.T) *world {
 	for _, l := range get[Libraries](t, s, owner, "/v1/libraries").Items {
 		for _, v := range get[Library](t, s, owner, "/v1/libraries/"+l.ID).Views {
 			w.views = append(w.views, [2]string{l.ID, v.Kind})
+		}
+	}
+	// Every profile has watched every show and album it can see, so each has watched marks
+	// for every later change to keep right: an episode that arrives, leaves or moves, a
+	// label or a rating that hides one, a restriction that changes.
+	var holders []db.ItemEdit
+	yes := true
+	for id, it := range w.read().items {
+		if it.kind == db.KindShow || it.kind == db.KindAlbum {
+			holders = append(holders, db.ItemEdit{ItemID: id, StateEdit: db.StateEdit{Watched: &yes}})
+		}
+	}
+	for _, v := range w.viewers {
+		claims, err := s.tokens.CheckAccess(v.token, time.Now())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := s.db.SetStates(background, db.Background, db.Viewer{UserID: claims.UserID, ProfileID: claims.ProfileID}, holders); err != nil {
+			t.Fatal(err)
 		}
 	}
 	return w

@@ -260,6 +260,7 @@ func (w *world) check(stage string) {
 			w.fail("%s: the owner is kept from %s", stage, f.describe(id))
 		}
 	}
+	w.watchedMarks(stage, f)
 	w.remember(f)
 	// Every card's counts are checked. The lists under a holder are read for the holders the
 	// change touched and two of each kind, since reading every one for every profile is slow.
@@ -344,6 +345,53 @@ func (w *world) check(stage string) {
 }
 
 // difference says how a list differs from what it should hold.
+// watchedMarks holds every profile's stored watched mark on every holder to the rule: a show,
+// season, artist or album is watched for a profile when the profile can see at least one
+// playable item under it and has watched every one it can see. Then every mark is worked out
+// again from nothing, which must change none of them.
+func (w *world) watchedMarks(stage string, f *facts) {
+	w.t.Helper()
+	marks := func(f *facts) map[string]bool {
+		out := map[string]bool{}
+		for id, it := range f.items {
+			if it.kind.Playable() {
+				continue
+			}
+			for profile := range it.watched {
+				out[fmt.Sprint(profile, " ", id)] = true
+			}
+		}
+		return out
+	}
+	for id, it := range f.items {
+		if it.kind.Playable() {
+			continue
+		}
+		for profile := range f.rules {
+			all, unwatched := f.leaves(profile, id)
+			if want := all > 0 && unwatched == 0; want != it.watched[profile] {
+				w.fail("%s: profile %d: %s is stored as watched %v, and %d of the %d it can see under it are unwatched",
+					stage, profile, f.describe(id), it.watched[profile], unwatched, all)
+			}
+		}
+	}
+	before := marks(f)
+	if err := w.s.db.RebuildWatchedMarks(background); err != nil {
+		w.t.Fatal(err)
+	}
+	after := marks(w.read())
+	for mark := range before {
+		if !after[mark] {
+			w.fail("%s: working the watched marks out again took away %s", stage, mark)
+		}
+	}
+	for mark := range after {
+		if !before[mark] {
+			w.fail("%s: working the watched marks out again added %s", stage, mark)
+		}
+	}
+}
+
 func (w *world) difference(f *facts, got, want []string) string {
 	var extra, missing []string
 	for _, id := range got {
