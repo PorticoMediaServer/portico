@@ -1,7 +1,7 @@
 import test from 'node:test';
 import {systemAnswer, signInAnswer} from '../../packages/client-core/test/next-wire.ts';
 import assert from 'node:assert/strict';
-import {HttpLocalApi} from '@core/index.ts';
+import {ApiError, HttpLocalApi} from '@core/index.ts';
 import type {ServerSignInProbe} from '@core/sign-in.ts';
 import {BrowserAccountEntry} from '../src/platform/account-entry.ts';
 import {setInstallationIdentity} from '@core/installation.ts';
@@ -9,7 +9,7 @@ import {setInstallationIdentity} from '@core/installation.ts';
 const serverId = 'srv_' + 's'.repeat(43), origin = 'https://reset.example';
 function fixture(kind: 'local' | 'portico' = 'local') {
   let selected: unknown;
-  let revision = 4, resetRole = 'member', wrongServer = false, twoStep = false, expiryMs: number | undefined;
+  let revision = 4, resetRole = 'member', wrongServer = false, twoStep = false, refuseFactor = false, expiryMs: number | undefined;
   let securityGate: Promise<void> | undefined, passwordGate: Promise<void> | undefined, releaseSecurity: (() => void) | undefined, releasePassword: (() => void) | undefined;
   const hints = new Set<() => void>();
   let verifyGate: Promise<void> | undefined, releaseVerify: (() => void) | undefined;
@@ -34,7 +34,7 @@ function fixture(kind: 'local' | 'portico' = 'local') {
     if (path === '/v1/auth/owner-reset/verify' || path === '/v1/direct/password/reset') {if (verifyGate) await verifyGate; return {variant: 'password-change', ...grant(true)};}
     if (path === '/v1/auth/password-reset/confirm') return undefined;
     if (path === '/v1/auth/sign-in') return signInAnswer(twoStep ? {challenge: {token: 'actual-factor-challenge', expiresAt: '2099-01-01T00:00:00Z'}} : grant(false));
-    if (path === '/v1/auth/two-factor') return signInAnswer(grant(false));
+    if (path === '/v1/auth/two-factor') {if (refuseFactor) throw new ApiError(401, 'invalid_credentials', 'That code is not right.'); return signInAnswer(grant(false));}
     if (path === '/v1/auth/move/code') return {username: 'actual_user', signIn: kind, expiresAt: new Date(Date.now() + 3600000).toISOString()};
     if (path === '/v1/auth/move/local') {if (verifyGate) await verifyGate; return grant(false);}
     throw new Error('Unexpected public route: ' + path);
@@ -52,7 +52,7 @@ function fixture(kind: 'local' | 'portico' = 'local') {
     observeSelection: changed => {hints.add(changed);return () => {hints.delete(changed);};},
     remember: async (_api, session) => {admitted.push(session.sessionFamilyId);selected = {signIn: kind, connection: {pin: connection.pin, session}};}, retire: async (_api, session) => {retired.push(session.sessionFamilyId); calls.push({path: 'retire:' + session.sessionFamilyId});},
   }, {inspect: async () => system, getSnapshot: () => ({origin}), cancel: () => {}, dispose: () => {}} as unknown as ServerSignInProbe);
-  return {entry, calls, retired, installed, admitted, owner: () => {resetRole = 'owner';}, wrongServer: () => {wrongServer = true;}, factor: () => {twoStep = true;}, revise: () => {revision++;for (const changed of hints) changed();},
+  return {entry, calls, retired, installed, admitted, owner: () => {resetRole = 'owner';}, wrongServer: () => {wrongServer = true;}, factor: () => {twoStep = true;}, refuseFactor: () => {refuseFactor = true;}, revise: () => {revision++;for (const changed of hints) changed();},
     expireIn: (ms: number) => {expiryMs = ms;}, replacePin: () => {connection.pin.publicKey = 'changed-key';},
     holdSecurity: () => {securityGate = new Promise(resolve => {releaseSecurity = resolve;});}, releaseSecurity: () => releaseSecurity?.(),
     holdPassword: () => {passwordGate = new Promise(resolve => {releasePassword = resolve;});}, releasePassword: () => releasePassword?.(),
@@ -93,4 +93,15 @@ test('a member\'s reset code sets the new password, then an ordinary sign-in adm
     assert.deepEqual(f.admitted, ['ordinary-family']); assert.deepEqual(f.retired, []); f.entry.dispose();
   }
   setInstallationIdentity(undefined);
+});
+test('a reset whose two-step code is refused has still set the password: the person is asked for the two-step code, not sent back to a used reset code', async () => {
+  setInstallationIdentity({installationId: 'i'.repeat(43), name: 'Test browser', platform: 'web', app: 'portico', appVersion: '1'});
+  const f = fixture(); f.factor(); f.refuseFactor(); await f.entry.inspect(origin);
+  await f.entry.resetLocalPassword({kind: 'member', username: 'actual_user', code: 'K7QP-2MXD-9HRT'}, 'ordinary-new-password', '000000');
+  // The reset code is used and the new password is in force. The only thing left is the two-step code.
+  assert.equal(f.entry.getSnapshot().phase, 'challenge', 'the page stays on the reset form, whose code can never be accepted again');
+  // Nothing sends the used reset code a second time.
+  assert.equal(f.calls.filter(call => call.path === '/v1/auth/password-reset/confirm').length, 1);
+  assert.equal((f.entry.getSnapshot().error as {code?: string} | undefined)?.code, 'invalid_credentials', 'and told why, at the two-step step');
+  f.entry.dispose(); setInstallationIdentity(undefined);
 });
