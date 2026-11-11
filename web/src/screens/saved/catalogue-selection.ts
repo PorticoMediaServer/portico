@@ -45,8 +45,7 @@ export function createSavedCatalogueSelection(context: ScreenContext, runtime: S
       const states = selected.map(service => service.getSnapshot());
       if (states.some((state, index) => state.phase !== 'ready' || !state.projection || !sameSavedRoute(state.route, route.view === 'playlist' ? route : {...route, shape: index === 0 ? 'posters' : 'squares'}))) return null;
       const projections = states.map(state => state.projection!);
-      if (projections.some(value => value.scope.viewerFence !== projections[0].scope.viewerFence)) return null;
-      const revision = JSON.stringify(projections.map(value => [value.scope, value.revision, value.playlistRevision]));
+      const revision = JSON.stringify(projections.map(value => [value.scope, value.playlistRevision]));
       const entries = projections.flatMap(value => value.sections.flatMap(section => section.entries.flatMap(entry => {const media = savedCatalogueEntry(entry);return media ? [media] : [];})));
       return {key: JSON.stringify([savedRouteKey(route), revision, states.map(state => [state.generation, state.pagination.cursor]), membership(entries)]), revision, entries: unique(entries)};
     },

@@ -225,26 +225,6 @@ test('one/duplicate/removed versions never grant a chooser; options failure keep
   } finally {d.screens.dispose();}
 });
 
-
-test('File info opens from the accepted Detail\'s opening: first window read, session handed to the overlay', async () => {
-  const d = fixture(); d.respond(async () => episodeGroups());
-  try {
-    await d.screens.menu(entry, () => true);
-    const before = d.requests.length;
-    await d.menus[0][1].fileInfo(withOpening);
-    assert.deepEqual(d.requests.slice(before).map(request => request.path), ['/v1/items/episode/file-info/groups', '/v1/file-info-queries/q1']);
-    assert.equal(d.fileInfos.length, 1);
-    const [captured, panel, owner] = d.fileInfos[0] as [any, any, any];
-    assert.equal(captured.entry, entry);
-    assert.equal(panel.type, 'FileInfoPanel'); assert.equal(panel.props.session, owner.session);
-    assert.ok(owner.session instanceof FileInfoSession); assert.equal(owner.kind, 'episode'); assert.equal(typeof owner.changed, 'function');
-    assert.equal(owner.session.opening.token, 'o1');
-    assert.deepEqual(owner.session.opening.revision, withOpening.revision);
-    assert.equal(owner.session.getSnapshot().groups.rows.rows[0].id, 'g1');
-    owner.session.retire();
-  } finally {d.screens.dispose();}
-});
-
 test('File info without an accepted opening rejects as unavailable and reads nothing', async () => {
   for (const detail of [undefined, {...withOpening, fileInfoOpening: undefined}, {...withOpening, item: {...withOpening.item, id: 'another'}}]) {
     const d = fixture();

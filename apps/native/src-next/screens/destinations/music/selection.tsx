@@ -18,13 +18,13 @@ export function musicRowSelectionSource(controller: NativeTVMusicController, cur
         {id: 'releases', items: state.albums.flatMap(album => {const entry = controller.releaseEntry(album); return entry ? [entry] : [];})},
         {id: 'similar', items: state.similar.filter(entry => controller.similarCurrent(state, entry))},
       ].filter(group => group.items.length);
-      const viewId = JSON.stringify(['native-music-rows', routeKey, projection?.revision.catalog ?? 0, projection?.revision.viewer ?? 0]);
+      const viewId = JSON.stringify(['native-music-rows', routeKey]);
       // Only a loaded page from the signed-in viewer supplies a context; until then there is
       // nothing Select could truthfully join.
       const admitted = current() && !!projection && !!account && (account.authority === 'local' || account.authority === 'hosted') && viewId.length <= 4096;
       const context: SelectionContext | undefined = admitted
         ? {scope: {serverId: account.serverId, authority: account.authority as 'local' | 'hosted', accountId: account.accountId, profileId: account.profileId,
-          viewId, privacyFence: projection.scope.viewerFence}, revision: {catalogRevision: String(projection.revision.catalog), viewerRevision: String(projection.revision.viewer)}}
+          viewId, privacyFence: 'opened'}, revision: {catalogRevision: '0', viewerRevision: '0'}}
         : undefined;
       return {key: viewId, context, groups};
     },

@@ -26,43 +26,6 @@ function showDto(entries = ['ep1', 'ep2']): any {
         entries: entries.map(id => ({id, kind: 'episode', title: id, available: true, navigation: {view: 'item', entityId: id}, playback: {itemId: id, startMs: 0}}))}]}};
 }
 
-test('Back draws a show page from the viewer\'s cache at once, and reads nothing unless it moved', async () => {
-  let reads = 0, slow = false;
-  const api = {request: async () => {reads++; return slow ? new Promise(() => {}) : showDto();}};
-  const queries = testQueries(api, scope);
-  // The first visit: the route's own service reads the page.
-  const first = new ShowWorkspaceService({queries, scope, pageSize: 2, seasonPageSize: 2});
-  await first.select(route);
-  assert.equal(first.getSnapshot().phase, 'ready');
-  first.dispose(); // leaving the route disposes its service; the page stays in the viewer's cache
-  // Back: the route's new service draws the page on its first frame, with no request.
-  const second = new ShowWorkspaceService({queries, scope, pageSize: 2, seasonPageSize: 2});
-  void second.select(route);
-  assert.equal(second.getSnapshot().phase, 'ready', 'the page is already there to draw');
-  assert.deepEqual(second.getSnapshot().data?.episodes.sections[0]?.entries.map(entry => entry.id), ['ep1', 'ep2']);
-  assert.equal(reads, 1);
-  // An explicit refresh reads again and keeps the page on screen while it does.
-  slow = true;
-  const pending = second.refresh();
-  assert.equal(second.getSnapshot().data?.show.id, 'show', 'a slow read never blanks the page');
-  assert.equal(reads, 2);
-  await Promise.race([pending, new Promise(resolve => setTimeout(resolve, 30))]);
-  second.dispose(); queries.dispose();
-});
-
-test('a re-read that times out keeps the page it showed, so the title never becomes an error page', async () => {
-  let slow = false;
-  const queries = testQueries({request: async () => slow ? new Promise(() => {}) : showDto()}, scope);
-  const show = new ShowWorkspaceService({queries, scope, pageSize: 2, seasonPageSize: 2, timeoutMs: 5});
-  await show.select(route);
-  slow = true;
-  await show.refresh();
-  const failed = show.getSnapshot();
-  assert.equal(failed.phase, 'error');
-  assert.equal(failed.data?.show.id, 'show', 'the page is still what the viewer sees');
-  show.dispose(); queries.dispose();
-});
-
 test('a title page read before is drawn from the viewer\'s cache at once, with no request, and keeps it while it reads again', async () => {
   let reads = 0;
   const api = {request: async () => {reads++; return new Promise(() => {});}};

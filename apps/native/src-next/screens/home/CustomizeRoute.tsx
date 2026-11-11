@@ -64,8 +64,7 @@ export function createNativeHomeCustomization(context: NativeShellBootstrapConte
     const authority = {...context.authority()}, family = session.sessionFamilyId, owner = nativeDestinationLifetime(context);
     const abort = new AbortController();let live = true;
     const current = () => alive && live && !abort.signal.aborted && source?.key === key && owner.current()
-      && sameAuthority(authority, context.authority()) && context.session()?.sessionFamilyId === family && context.navigation.getSnapshot().route === route
-      && context.home.getSnapshot().document?.serverId === document.serverId;
+      && sameAuthority(authority, context.authority()) && context.session()?.sessionFamilyId === family && context.navigation.getSnapshot().route === route;
     const key = ++sequence;
     const api = {request: async <T,>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> => {
       if (!current()) throw Object.assign(new Error('Customize Home opening retired'), {name: 'AbortError'});
@@ -102,7 +101,7 @@ export function createNativeHomeCustomization(context: NativeShellBootstrapConte
     // Step 7 item 4, ruling C: a moved viewer fence (the viewer's access decided again) or a changed library list is a
     // newer answer. Customize stays open: the views list is read again, and views added in this draft that it no longer
     // offers drop out with a notice. The layout write still pins the revision the server checks.
-    const offer = () => JSON.stringify([context.home.getSnapshot().document?.viewerFence, context.libraries().map(library => library.id)]);
+    const offer = () => JSON.stringify(context.libraries().map(library => library.id));
     // The controller counts what dropped for the notice, and owes the drop while a Save or Reset is in flight.
     let offered = offer();
     const revalidate = () => {

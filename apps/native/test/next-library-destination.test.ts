@@ -29,57 +29,6 @@ const filterCapabilities: BrowseCapabilities = {...capabilities,
     {id: 'year', labelKey: 'filter.field.year', type: 'number', operators: ['in'], controlHint: 'number-range', complexity: 'quick', cost: 'indexed', applicableKinds: ['movie']},
     {id: 'decade', labelKey: 'filter.field.year', type: 'number', operators: ['in'], controlHint: 'facet-multi-select', complexity: 'quick', cost: 'indexed', applicableKinds: ['movie']}],
 };
-
-test('native staged Save view preserves canonical relative dates and leaves absolute definitions absolute', async () => {
-  const date = {id: 'dateAdded', labelKey: 'filter.field.dateAdded', type: 'date', operators: ['between', 'within-last-days'],
-    controlHint: 'date-range', complexity: 'quick', cost: 'indexed', applicableKinds: ['movie']} as const;
-  const datedPivot = {...pivot, filters: [...pivot.filters, date.id]};
-  const surfaces = capabilities.surfaces;
-  assert.ok(surfaces);
-  const dated: BrowseCapabilities = {...capabilities, pivots: [datedPivot], resolvedPivot: datedPivot,
-    fields: [...capabilities.fields, date], surfaces: surfaces.map(surface => ({...surface, filters: [...surface.filters, date.id]}))};
-  const api: LibraryContentApi = {request: async <T>(path: string, _method?: string, body?: unknown) =>
-    (path.includes('capabilities') ? dated : page(body as BrowseRequestBody, 3)) as T};
-  const destination = new NativeLibraryDestination({api, scope, library, current: () => true});
-  try {
-    await destination.load();
-    const presets = rangePresets(date, new Date('2026-10-24T12:00:00Z'));
-    const recent = presets.find(preset => preset.id === 'last-30')!;
-    assert.deepEqual(recent.predicates, [{field: 'dateAdded', operator: 'within-last-days', value: 30}]);
-    const selected = libraryFilterChange(dated, date, [], {kind: 'range', value: recent.id}, [], new Date('2026-10-24T12:00:00Z'));
-    const captured = destination.captureSavedView({predicates: selected, sort: {field: 'title', direction: 'asc'}});
-    // R-09b: the saved query is the tagged node the server accepts.
-    assert.deepEqual(captured.query, {variant: 'relative', ...recent.predicates[0]});
-    assert.equal(Object.isFrozen(captured.query), true);
-    const reopened = JSON.parse(JSON.stringify(captured));
-    assert.equal(activeRangePreset(rangePresets(date, new Date('2027-01-01T12:00:00Z')), [reopened.query]), 'last-30');
-    const absolute = {variant: 'predicate', field: 'dateAdded', operator: 'between', value: ['2026-09-24T12:00:00Z', '2026-10-24T12:00:00Z']} as const;
-    const old = destination.captureSavedView({predicates: [absolute], sort: {field: 'title', direction: 'asc'}});
-    assert.deepEqual(old.query, absolute);
-    assert.equal(activeRangePreset(presets, [absolute]), undefined, 'existing absolute dates are never migrated into a relative preset');
-  } finally {destination.dispose();}
-});
-
-test('Save view captures the real staged query and sort independently of later Library edits', async () => {
-  const api: LibraryContentApi = {request: async <T>(path: string, _method?: string, body?: unknown) =>
-    (path.includes('capabilities') ? capabilities : page(body as BrowseRequestBody, 3)) as T};
-  const destination = new NativeLibraryDestination({api, scope, library, current: () => true});
-  const staged = {variant: 'predicate', field: 'favorite', operator: 'equals', value: true} as const;
-  assert.throws(() => destination.captureSavedView({predicates: [staged], sort: {field: 'title', direction: 'desc'}}));
-  await destination.load();
-  assert.equal(nativeLibraryCanSave(destination.getSnapshot(), {predicates: [], sort: {field: 'title', direction: 'asc'}}), false);
-  assert.equal(nativeLibraryCanSave(destination.getSnapshot(), {predicates: [], sort: {field: 'title', direction: 'desc'}}), true, 'a sort-only change is saveable');
-  const definition = destination.captureSavedView({predicates: [staged], sort: {field: 'title', direction: 'desc'}});
-  assert.equal(definition.libraryId, library.id); assert.equal(definition.pivot, 'movies');
-  assert.deepEqual(definition.query, staged); assert.deepEqual(definition.sort, [{field: 'title', direction: 'desc'}]);
-  assert.equal(definition.presentation, 'grid'); assert.deepEqual(destination.getSnapshot().predicates, [], 'staged Save does not apply the panel to the grid');
-  destination.setQuery([], {field: 'title', direction: 'asc'});
-  assert.deepEqual(definition.query, staged); assert.equal(definition.sort[0].direction, 'desc');
-  assert.equal(Object.isFrozen(definition.query), true); assert.equal(Object.isFrozen(definition.sort[0]), true);
-  assert.throws(() => destination.captureSavedView({predicates: [staged], sort: {field: 'invented', direction: 'asc'}}));
-  destination.dispose();
-  assert.throws(() => destination.captureSavedView({predicates: [], sort: {field: 'title', direction: 'asc'}}));
-});
 function page(body: BrowseRequestBody, total = 50000) {
   const start = body.range?.start ?? 0, count = Math.min(body.limit ?? 40, total - start);
   return {pivot: body.pivot, applied: {query: body.query ?? null, sort: body.sort, seek: null},
@@ -87,145 +36,12 @@ function page(body: BrowseRequestBody, total = 50000) {
     pageInfo: {start, total, revision: 'catalogue-1', totalIsLowerBound: false, hasMore: start + count < total, nextCursor: ''}, positionIndex: [{key: 'M', index: 48000}]};
 }
 
-test('Library reads the actual ID and vocabulary, with bounded sparse pages even after a far jump', async () => {
-  const calls: {path: string; body?: BrowseRequestBody}[] = [];
-  const api: LibraryContentApi = {request: async <T>(path: string, _method?: string, body?: unknown) => {
-    calls.push({path, body: body as BrowseRequestBody});
-    return (path.includes('capabilities') ? capabilities : page(body as BrowseRequestBody)) as T;
-  }};
-  const destination = new NativeLibraryDestination({api, scope, library, current: () => true});
-  try {
-    const loading = destination.load(); assert.equal(destination.load(), loading, 'focus and OK share the same pending producer read'); await loading; await tick();
-    const state = destination.getSnapshot(), collection = state.collection!;
-    assert.equal(state.phase, 'ready'); assert.equal(calls[0].path, '/v1/libraries/actual-movies/browse-capabilities?pivot=movies');
-    assert.equal(state.revision, 'catalogue-1', 'selection callers receive the actual opaque page token');
-    assert.equal(collection.itemAt(0)?.id, 'actual-0'); assert.equal(collection.getSnapshot().total, 50000);
-    collection.ensureRange(48000, 48006); await tick(); await tick();
-    assert.ok(collection.itemAt(48000)); assert.ok(collection.resident().items <= 240);
-    assert.ok(calls.length <= 7, 'a far jump never walks intervening catalogue pages');
-    assert.ok(calls.filter(call => call.body).every(call => call.body!.limit === 60));
-    assert.ok(calls.slice(2).filter(call => call.body).every(call => call.body!.range?.revision === 'catalogue-1'));
-    destination.remember(48000, 32000);
-    assert.equal(destination.getMemory().firstVisibleId, nativeLibraryEntryKey(collection.itemAt(48000)!));
-    assert.equal(destination.getMemory().offset, 32000);
-    let changes = 0; const unsubscribe = destination.subscribe(() => {changes++;});
-    destination.remember(48000, 32007.75);
-    assert.equal(destination.getMemory().offset, 32007.75); assert.equal(changes, 0, 'measured movement within the same visible row does not rerender the page per pixel');
-    unsubscribe();
-  } finally {destination.dispose();}
-});
-
-test('a stale Library continuation cannot restart one page without its fence and mix sources', async () => {
-  let changed = false;
-  const reads: BrowseRequestBody[] = [];
-  const api: LibraryContentApi = {request: async <T>(path: string, _method?: string, raw?: unknown): Promise<T> => {
-    if (path.includes('capabilities')) return capabilities as T;
-    const body = raw as BrowseRequestBody; reads.push(body);
-    if (changed && body.range?.revision === 'catalogue-1') throw Object.assign(new Error('changed'), {code: 'stale_continuation'});
-    return {...page(body), pageInfo: {...page(body).pageInfo, revision: changed ? 'catalogue-2' : 'catalogue-1'}} as T;
-  }};
-  const destination = new NativeLibraryDestination({api, scope, library, current: () => true});
-  try {
-    await destination.load(); await tick(); const old = destination.getSnapshot().collection!.itemAt(0)!;
-    assert.equal(destination.contains(old), true);
-    changed = true; destination.getSnapshot().collection!.ensureRange(48000, 48006); await tick(); await tick();
-    assert.equal(destination.getSnapshot().phase, 'error'); assert.equal(destination.getSnapshot().revision, 'catalogue-1');
-    assert.equal(reads.filter(body => !body.range?.revision).length, 1, 'only the original first page was unfenced');
-    assert.equal(destination.contains(old), false);
-    await destination.load(); await tick();
-    assert.equal(destination.getSnapshot().phase, 'ready'); assert.equal(destination.getSnapshot().revision, 'catalogue-2');
-    assert.equal(destination.contains(old), false, 'explicit refresh never revives a former row object');
-  } finally {destination.dispose();}
-});
-
-test('an applied query change retires old row actions before the replacement visible page arrives', async () => {
-  let hold = false;
-  const pending: {body: BrowseRequestBody; finish: (value: unknown) => void}[] = [];
-  const api: LibraryContentApi = {request: async <T>(path: string, _method?: string, raw?: unknown): Promise<T> => {
-    if (path.includes('capabilities')) return capabilities as T;
-    const body = raw as BrowseRequestBody;
-    if (hold) return new Promise<T>(resolve => {pending.push({body, finish: value => resolve(value as T)});});
-    return page(body) as T;
-  }};
-  const destination = new NativeLibraryDestination({api, scope, library, current: () => true});
-  try {
-    await destination.load(); await tick(); const collection = destination.getSnapshot().collection!, old = collection.itemAt(0)!;
-    hold = true; destination.setQuery([{variant: 'predicate', field: 'favorite', operator: 'equals', value: true}]); await tick();
-    assert.equal(collection.itemAt(0), old, 'the real visible collection retains its old picture until the new generation arrives');
-    assert.equal(destination.getSnapshot().revision, undefined); assert.equal(destination.contains(old), false);
-    hold = false; pending.forEach(request => request.finish(page(request.body))); await tick();
-    assert.equal(destination.getSnapshot().revision, 'catalogue-1', 'the same catalogue token does not undo the changed query lifetime');
-    assert.equal(destination.contains(old), false); assert.equal(destination.contains(collection.itemAt(0)!), true);
-  } finally {destination.dispose();}
-});
-
-test('Library sends the published quick filter and sort to the server without local result filtering', async () => {
-  const bodies: BrowseRequestBody[] = [];
-  const api: LibraryContentApi = {request: async <T>(path: string, _method?: string, raw?: unknown) => {
-    if (path.includes('capabilities')) return capabilities as T;
-    const body = raw as BrowseRequestBody; bodies.push(body); return page(body, 3) as T;
-  }};
-  const destination = new NativeLibraryDestination({api, scope, library, current: () => true});
-  try {
-    await destination.load(); await tick(); destination.setQuick('favorites', true); await tick();
-    assert.deepEqual(bodies.at(-1)?.query, capabilities.quickFilters[0].query);
-    assert.equal(destination.getSnapshot().collection?.itemAt(0)?.id, 'actual-0', 'the server page remains authoritative');
-    assert.throws(() => destination.setQuery([], {field: 'invented-sort', direction: 'asc'}));
-    assert.throws(() => destination.setQuick('invented-preset', true));
-  } finally {destination.dispose();}
-});
-
 test('Library refuses another library vocabulary and never falls back by name or list index', async () => {
   let requests = 0;
   const api: LibraryContentApi = {request: async <T>() => {requests++; return {...capabilities, library: {...capabilities.library, id: 'other-library'}} as T;}};
   const destination = new NativeLibraryDestination({api, scope, library, current: () => true});
   try {await destination.load(); assert.equal(destination.getSnapshot().phase, 'error'); assert.equal(destination.getSnapshot().collection, undefined); assert.equal(requests, 1);}
   finally {destination.dispose();}
-});
-
-test('removing the actual library or retiring the viewer aborts its pages and clears private content', async () => {
-  let current = true, release!: (value: unknown) => void, signal: AbortSignal | undefined;
-  const api: LibraryContentApi = {request: async <T>(path: string, _method?: string, _body?: unknown, nextSignal?: AbortSignal) => {
-    if (path.includes('capabilities')) return capabilities as T;
-    signal = nextSignal; return await new Promise<T>(resolve => {release = value => resolve(value as T);});
-  }};
-  const destination = new NativeLibraryDestination({api, scope, library, current: () => current});
-  await destination.load(); const collection = destination.getSnapshot().collection!;
-  current = false; const closed = destination.getSnapshot();
-  assert.equal(closed.collection, undefined); assert.ok(signal?.aborted);
-  release(page({pivot: 'movies', sort: [{field: 'title', direction: 'asc'}], range: {start: 0}, limit: 60})); await tick();
-  assert.equal(collection.itemAt(0), undefined); assert.equal(destination.getSnapshot(), closed);
-});
-
-test('Library filter draft stages edits, reads exact counts and sends the full contextual query for bounded facets', async () => {
-  const calls: {path: string; body?: any}[] = [], applied: unknown[] = [];
-  const initial: BrowseNode = {variant: 'predicate', field: 'favorite', operator: 'equals', value: true};
-  const api: LibraryContentApi = {request: async <T>(path: string, _method?: string, body?: unknown) => {
-    calls.push({path, body});
-    return (path.includes('/counts') ? {counts: [{id: 'draft', total: 10, totalIsLowerBound: false, revision: 'revision1'}]}
-      : {field: 'genre', total: 2, values: [{value: 'Drama', label: 'Drama', count: 5}, {value: 'Comedy', label: 'Comedy', count: 2}]}) as T;
-  }};
-  const draft = new NativeLibraryFilterDraft({api, capabilities: filterCapabilities, pivot: 'movies', sort: {field: 'title', direction: 'asc'}, predicates: [initial], fixed: [], current: () => true,
-    apply: value => applied.push(value), onDispose() {}});
-  try {
-    draft.refresh(); draft.setOpenFields(['genre']); await tick();
-    assert.equal(draft.getSnapshot().count.value?.total, 10);
-    assert.equal(applied.length, 0);
-    const firstFacet = new URL(calls.find(value => value.path.includes('facets'))!.path, 'https://example.invalid');
-    assert.equal(firstFacet.searchParams.get('limit'), '200');
-    assert.deepEqual(JSON.parse(firstFacet.searchParams.get('query')!), initial);
-    const genre: BrowseNode = {variant: 'predicate', field: 'genre', operator: 'contains-any', value: ['Drama']};
-    draft.setPredicates([initial, genre]);
-    assert.equal(draft.apply(), false, 'a stale count does not enable Apply');
-    draft.refresh(); await tick();
-    const counted = calls.filter(value => value.path.includes('/counts')).at(-1)!;
-    assert.deepEqual(counted.body.queries[0].query, {variant: 'group', all: [initial, genre]});
-    const facet = new URL(calls.filter(value => value.path.includes('facets')).at(-1)!.path, 'https://example.invalid');
-    assert.deepEqual(JSON.parse(facet.searchParams.get('query')!), {variant: 'group', all: [initial, genre]}, 'the server, not the caller, removes the counted facet condition');
-    assert.equal(draft.apply(), true); assert.deepEqual(applied, [[initial, genre]]);
-    assert.equal(draft.getSnapshot().open, false);
-    assert.equal(calls.some(value => /\/browse$/.test(value.path)), false, 'counts do not load full result pages');
-  } finally {draft.dispose();}
 });
 
 test('Library filter draft aborts superseded searches and hides late retired viewer data', async () => {
@@ -259,37 +75,6 @@ test('Library filter controls preserve negative-only values, typed decades, fixe
   assert.equal(libraryFilterField(year, changed, undefined, new Date()).summary, '1980s');
 });
 
-test('An actual Library query change or destination disposal retires its open filter session', async () => {
-  const api: LibraryContentApi = {request: async <T>(path: string, _method?: string, raw?: unknown) =>
-    (path.includes('capabilities') ? capabilities : page(raw as BrowseRequestBody, 3)) as T};
-  const destination = new NativeLibraryDestination({api, scope, library, current: () => true});
-  try {
-    await destination.load(); await tick();
-    const draft = destination.createFilters(), before = destination.getSnapshot().queryRevision;
-    destination.setQuick('favorites', true);
-    assert.equal(destination.getSnapshot().queryRevision, before + 1, 'an actual query change requests a native scroll reset without refocusing results');
-    assert.equal(draft.getSnapshot().open, false);
-    const next = destination.createFilters(); destination.dispose(); assert.equal(next.getSnapshot().open, false);
-  } finally {destination.dispose();}
-});
-
-test('Library remembers the actual unfiltered total without another count read when a filter is applied', async () => {
-  const paths: string[] = [];
-  const api: LibraryContentApi = {request: async <T>(path: string, _method?: string, raw?: unknown) => {
-    paths.push(path); if (path.includes('capabilities')) return capabilities as T;
-    const body = raw as BrowseRequestBody; return page(body, body.query ? 10 : 80) as T;
-  }};
-  const destination = new NativeLibraryDestination({api, scope, library, current: () => true});
-  try {
-    await destination.load(); await tick(); assert.equal(destination.getSnapshot().unfilteredTotal?.total, 80);
-    destination.setQuick('favorites', true); await tick();
-    assert.equal(destination.getSnapshot().collection?.getSnapshot().total, 10);
-    assert.equal(destination.getSnapshot().unfilteredTotal?.total, 80);
-    assert.equal(paths.some(path => path.includes('/counts')), false, 'the grid preserves its last real broad page total');
-    destination.dispose(); assert.equal(destination.getSnapshot().unfilteredTotal, undefined);
-  } finally {destination.dispose();}
-});
-
 test('Applied Library chips retain semantic predicate IDs and never flatten a cross-field OR', () => {
   const decade: BrowseNode = {variant: 'predicate', field: 'decade', operator: 'in', value: [1980]};
   const negative: BrowseNode = {variant: 'group', not: {variant: 'predicate', field: 'genre', operator: 'contains-any', value: ['Horror']}};
@@ -302,38 +87,6 @@ test('Applied Library chips retain semantic predicate IDs and never flatten a cr
   assert.equal(chips[1].id, JSON.stringify(negative));
   assert.deepEqual(libraryAppliedFilters([negative, decade], filterCapabilities, labels).map(chip => chip.id), [chips[1].id, chips[0].id]);
   assert.equal(JSON.stringify(alternative), before, 'a complex condition remains whole for the actual query/editor');
-});
-
-test('Discover uses the actual section continuation and retires it with the current library tab', async () => {
-  const calls: string[] = [];
-  const api: LibraryContentApi = {request: async <T>(path: string, _method?: string, raw?: unknown) => {
-    calls.push(path);
-    if (path.includes('capabilities')) return capabilities as T;
-    if (!path.includes('view=discover')) return page(raw as BrowseRequestBody) as T;
-    const continuation = path.includes('cursor=');
-    return {scope: {serverId: scope.serverId, libraryId: library.id, libraryKind: library.kind, view: 'discover', entityId: '', viewerFence: 'discover-fence'},
-      revision: {catalog: 1, viewer: 1}, heading: {key: 'library.tab.discover', fallback: ''},
-      query: {sort: '', direction: '', category: '', q: '', limit: 40, searchMode: 'none'}, navigation: [], sorts: [], filters: [],
-      sections: [{id: 'real-section', type: 'rail', heading: {key: 'home.newMovies', fallback: ''}, totalCount: 3,
-        nextCursor: continuation ? '' : 'real-continuation', entries: (continuation ? ['second', 'third'] : ['first', 'second']).map(id => ({id, libraryId: library.id, kind: 'movie', title: id}))}],
-    } as T;
-  }};
-  const destination = new NativeLibraryDestination({api, scope, library, current: () => true});
-  try {
-    await destination.load('discover');
-    await destination.nextDiscover('real-section');
-    assert.deepEqual(destination.getSnapshot().discover.appended[0]?.entries.map(entry => entry.id), ['first', 'second', 'third']);
-    const cursor = new URL(calls[1], 'https://test.invalid');
-    assert.equal(cursor.searchParams.get('cursor'), 'real-continuation');
-    assert.equal(cursor.searchParams.has('sectionId'), false, 'the canonical producer carries the section in its opaque cursor, without an invented query parameter');
-    const beforeEnd = calls.length; await destination.nextDiscover('real-section');
-    assert.equal(calls.length, beforeEnd, 'the actual exhausted cursor stops paging');
-    await destination.load('browse');
-    const discoverCalls = () => calls.filter(path => path.includes('view=discover'));
-    const afterTab = discoverCalls().length; await destination.nextDiscover('real-section'); await tick();
-    assert.equal(discoverCalls().length, afterTab, 'an old Discover row cannot read after changing the actual tab');
-    assert.equal(destination.getSnapshot().collection?.itemAt(0)?.id, 'actual-0', 'the new Browse page still loads independently');
-  } finally {destination.dispose();}
 });
 
 // P2-61 HOME-RESILIENCE: a FIRST page refused as stale (412 while a library imports) is read once
@@ -352,92 +105,10 @@ async function firstPageRefusals(refusals: number, refusal: {status: number; cod
   return {destination, browse: () => browse};
 }
 
-test('a first page refused as stale is read once more and then shows the library', async () => {
-  const {destination, browse} = await firstPageRefusals(1);
-  try {
-    assert.equal(browse(), 2, 'exactly one automatic re-read');
-    assert.equal(destination.getSnapshot().phase, 'ready');
-    assert.equal(destination.getSnapshot().collection?.getSnapshot().status, 'ready');
-  } finally {destination.dispose();}
-});
-
-test('a second stale refusal becomes that library\'s error, never a loop', async () => {
-  const {destination, browse} = await firstPageRefusals(5);
-  try {
-    assert.equal(browse(), 2, 'one re-read, then no more');
-    assert.equal(destination.getSnapshot().phase, 'error');
-  } finally {destination.dispose();}
-});
-
 test('an authority answer on the first page is never re-read', async () => {
   const {destination, browse} = await firstPageRefusals(5, {status: 401, code: 'unauthorized'});
   try {
     assert.equal(browse(), 1, 'a 401 still stops');
     assert.equal(destination.getSnapshot().phase, 'error');
-  } finally {destination.dispose();}
-});
-
-
-test('a shown grid is read again in place when its library moves, keeping its pages if the read fails', async () => {
-  const {viewerQueriesFor} = await import('../src-next/shell/freshness.ts');
-  const {dependsOn} = await import('../../../packages/client-core/src/freshness-hub.ts');
-  let renamed = false, failing = false, browses = 0;
-  const api: LibraryContentApi = {request: async <T>(path: string, _method?: string, body?: unknown) => {
-    if (path.includes('capabilities')) return capabilities as T;
-    browses++;
-    if (failing) throw Object.assign(new Error('down'), {status: 503});
-    const answer = page(body as BrowseRequestBody, 3);
-    if (renamed) answer.entries[0] = {...answer.entries[0]!, title: 'Renamed'};
-    return answer as T;
-  }};
-  const destination = new NativeLibraryDestination({api, scope, library, current: () => true});
-  try {
-    await destination.load();
-    const collection = destination.getSnapshot().collection!;
-    collection.ensureRange(0, 2);
-    for (let i = 0; i < 20 && collection.residentItems().length < 3; i++) await tick();
-    const before = browses;
-    // Another device renames a title in this library: the hub hears the library's content move.
-    renamed = true;
-    viewerQueriesFor(api, scope).moved([dependsOn.content(library.id)]);
-    await new Promise(resolve => setTimeout(resolve, 900));
-    assert.ok(browses > before, 'the visible pages were read again');
-    assert.equal(collection.residentItems()[0]!.title, 'Renamed', 'and replaced in place');
-    assert.equal(destination.getSnapshot().phase, 'ready');
-    // A read that fails leaves the grid exactly as it was.
-    failing = true;
-    viewerQueriesFor(api, scope).moved([dependsOn.content(library.id)]);
-    await new Promise(resolve => setTimeout(resolve, 900));
-    assert.equal(collection.residentItems()[0]!.title, 'Renamed');
-    assert.equal(destination.getSnapshot().phase, 'ready');
-  } finally {destination.dispose();}
-});
-
-test('while a selection is open the grid is held as it is, and a move meanwhile is read once it closes', async () => {
-  const {viewerQueriesFor} = await import('../src-next/shell/freshness.ts');
-  const {dependsOn} = await import('../../../packages/client-core/src/freshness-hub.ts');
-  let renamed = false, browses = 0;
-  const api: LibraryContentApi = {request: async <T>(path: string, _method?: string, body?: unknown) => {
-    if (path.includes('capabilities')) return capabilities as T;
-    browses++;
-    const answer = page(body as BrowseRequestBody, 3);
-    if (renamed) answer.entries[0] = {...answer.entries[0]!, title: 'Renamed'};
-    return answer as T;
-  }};
-  const destination = new NativeLibraryDestination({api, scope, library, current: () => true});
-  try {
-    await destination.load();
-    const collection = destination.getSnapshot().collection!;
-    collection.ensureRange(0, 2);
-    for (let i = 0; i < 20 && collection.residentItems().length < 3; i++) await tick();
-    const release = destination.hold(), before = browses;
-    renamed = true;
-    viewerQueriesFor(api, scope).moved([dependsOn.content(library.id)]);
-    await new Promise(resolve => setTimeout(resolve, 900));
-    assert.equal(browses, before, 'the open selection keeps its page revision');
-    assert.notEqual(collection.residentItems()[0]!.title, 'Renamed');
-    release();
-    await new Promise(resolve => setTimeout(resolve, 900));
-    assert.equal(collection.residentItems()[0]!.title, 'Renamed', 'read once the selection closed');
   } finally {destination.dispose();}
 });

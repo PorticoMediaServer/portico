@@ -437,7 +437,7 @@ export function TitleRecommendationRow({row, owner, binding, guard, subtitleVisi
 /** One of a title's related rows (detail.related), read to its end under the detail's fence. */
 function RelatedTitleRow({row, data, binding, guard}: {row: RelatedMovieRow; data: DetailProjection; binding: Pick<DetailBindings, 'context'>; guard?: () => void}) {
   return <PagedTitleRow heading={row.heading} entries={row.entries} binding={binding} guard={guard}
-    first={row} pager={api => relatedRowPager(api, {libraryId: data.item.libraryId, itemId: data.item.id, kind: data.item.kind}, row, {viewerFence: data.scope.viewerFence, revision: data.revision})} />;
+    first={row} pager={api => relatedRowPager(api, {libraryId: data.item.libraryId, itemId: data.item.id, kind: data.item.kind}, row)} />;
 }
 
 /** A listening title's More like this, read to its end on its first page's basis. */

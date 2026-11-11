@@ -8,8 +8,8 @@ import {tvHomeRows} from '../src-next/screens/home/tv-presentation';
 const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'fence'};
 const entry = (id: string, extra = {}): ContentEntry => ({id, title: id, kind: 'movie', libraryId: 'movies', ...extra});
 const row = (id: string, entries: readonly ContentEntry[]): HomeRow => ({id, title: id, kind: 'recent', artworkShape: 'poster', entries, start: 0,
-  viewerFence: 'fence', endpoint: '', privacySensitivity: '', policyState: '', priority: 1, required: false, hideable: true, reorderable: true,
-  critical: false, cursorCapable: true, total: entries.length, limit: 20, hasMore: false, nextCursor: '', revision: {catalog: 1, viewer: 1}});
+  endpoint: '', privacySensitivity: '', policyState: '', priority: 1, required: false, hideable: true, reorderable: true,
+  critical: false, cursorCapable: true, total: entries.length, limit: 20, hasMore: false, nextCursor: ''});
 
 test('TV semantic addresses preserve entity identity across reorder and isolate every authority component', () => {
   const ids = tvFocusIds(authority), item = entry('actual/id');

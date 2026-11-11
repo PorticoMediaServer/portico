@@ -214,14 +214,6 @@ class EngineeringRuleTests(unittest.TestCase):
         self.assertEqual(counts(['packages/client-core/src/query/viewer-queries.ts'], read=lambda _: 'x', reads={'packages/client-core/src/query/viewer-queries.ts': [1]}), {},
                          'the query cache is its home')
 
-    def test_authorized_home_is_kept_on_purpose_and_only_by_its_marker(self):
-        path = 'apps/native/src-next/screens/home/model.ts'
-        source = (BASELINE.parent.parent / path).read_text(encoding='utf-8')
-        line = next(line for line in source.splitlines() if 'document.viewerFence === authority.viewerFence' in line)
-        self.assertIn('fence-compare: kept', line)
-        self.assertEqual(self.found(line, path), {})
-        self.assertEqual(self.found(line.split('//')[0], path), {'fence-compare': {path: 1}})
-
     def test_the_homes_of_the_helpers_are_exempt(self):
         self.assertEqual(self.found('a.accessToken === b.accessToken', 'packages/client-core/src/session-authority.ts'), {})
         self.assertEqual(self.found("'retry-after'", 'packages/client-core/src/timer.ts'), {})

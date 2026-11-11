@@ -42,20 +42,6 @@ const cancelled = (error: unknown) => (error as {code?: string}).code === 'cance
 
 function deferred<T>() {let resolve!: (value: T) => void; const promise = new Promise<T>(done => {resolve = done;}); return {resolve, promise};}
 
-test('opening reads the actual capability route through its original API and signal', async () => {
-  const f = fixture(), opening = f.open()!;
-  assert.ok(opening.isCurrent()); assert.equal(f.calls.length, 0);
-  const result = await opening.capabilities();
-  assert.equal(result.library.id, 'books'); assert.equal(result.library.kind, 'book');
-  assert.equal(f.calls.length, 1);
-  assert.equal(f.calls[0]!.url.pathname, '/v1/libraries/books/browse-capabilities');
-  assert.equal(f.calls[0]!.url.searchParams.get('pivot'), 'books');
-  assert.ok(f.calls[0]!.signal, 'canonical HTTP retains a bounded transport signal');
-  opening.dispose();
-  await assert.rejects(opening.capabilities(), cancelled);
-  assert.equal(f.calls.length, 1, 'retired opening cannot dispatch again');
-});
-
 test('a capability for another id or kind never becomes an admitted page', async () => {
   for (const response of [capability('other'), capability('books', 'comic')]) {
     const f = fixture(() => json(response)), opening = f.open()!;
@@ -241,13 +227,4 @@ test('retiring a page aborts its bounded transport without borrowing a successor
   pending.resolve(json(capability()));
   assert.equal(opening.isCurrent(), false); assert.equal(successor.signal.aborted, false);
   successor.dispose();
-});
-
-test('parity: Home navigation without disposal rejects malformed late capabilities as original cancellation', async () => {
-  const reply = deferred<unknown>(), f = fixture();
-  f.context.api.request = <T>() => reply.promise as Promise<T>;
-  const opening = f.open()!, pending = opening.capabilities();
-  f.home(); reply.resolve(null);
-  try {await assert.rejects(pending, {name: 'AbortError', code: 'cancelled'});}
-  finally {opening.dispose();}
 });

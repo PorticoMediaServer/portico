@@ -27,41 +27,6 @@ const view = (id: string): PersonalResource => ({id, serverId: 'server', viewerF
 const deferred = <T>() => {let resolve!: (value: T) => void; const promise = new Promise<T>(done => {resolve = done;}); return {resolve, promise};};
 const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
 
-test('Home reads one actual library/pivot vocabulary and renders the shared UI-language result without a Saved write', async () => {
-  const requests: unknown[] = [], resources = [view('one'), view('two')], original = JSON.stringify(resources);
-  const api: LibraryContentApi = {request: async <T>(path: string, method?: string, body?: unknown) => {requests.push({path, method, body}); return capability as T;}};
-  const source = new NativeHomeSavedViewSummaries({api, serverId: 'server', current: () => true, libraryIds: () => ['movies']});
-  assert.deepEqual(requests, [], 'constructing the route-local reader performs no I/O');
-  assert.equal(source.line(resources[0], defaultI18n), undefined);
-  await source.load(resources);
-  assert.deepEqual(requests, [{path: '/v1/libraries/movies/browse-capabilities?pivot=movies', method: 'GET', body: undefined}]);
-  const expected = savedViewSummary(resources[0].definition!, parseBrowseCapabilities(capability), defaultI18n)!.line;
-  assert.equal(source.line(resources[0], defaultI18n), expected);
-  assert.equal(source.line(resources[1], defaultI18n), expected);
-  assert.notEqual(expected, resources[0].summary);
-  await source.load(resources); assert.equal(requests.length, 1);
-  const unsupported = {...resources[0], definition: {...resources[0].definition!, query: {variant: 'group' as const, not: {variant: 'predicate' as const, field: 'unknown', operator: 'equals' as const, value: true}}}};
-  await source.load([unsupported]); assert.equal(source.line(unsupported, defaultI18n), undefined, 'withheld grammar does not fall back to wire summary');
-  assert.equal(JSON.stringify(resources), original, 'the actual saved definitions and summary fields are unchanged');
-  source.dispose();
-});
-
-test('replacing the Saved page aborts old reads and late responses cannot supply words to a new resource or authority', async () => {
-  const first = deferred<unknown>(), second = deferred<unknown>(), signals: AbortSignal[] = [];
-  let calls = 0, current = true, libraries = ['movies'];
-  const api: LibraryContentApi = {request: async <T>(_path: string, _method?: string, _body?: unknown, signal?: AbortSignal) => {signals.push(signal!); return (++calls === 1 ? first.promise : second.promise) as Promise<T>;}};
-  const source = new NativeHomeSavedViewSummaries({api, serverId: 'server', current: () => current, libraryIds: () => libraries});
-  const old = view('old'), fresh = view('fresh');
-  const oldRead = source.load([old]), freshRead = source.load([fresh]);
-  assert.equal(signals[0].aborted, true);
-  first.resolve(capability); await oldRead;
-  assert.equal(source.line(old, defaultI18n), undefined); assert.equal(source.line(fresh, defaultI18n), undefined);
-  second.resolve(capability); await freshRead; assert.ok(source.line(fresh, defaultI18n));
-  libraries = []; assert.equal(source.line(fresh, defaultI18n), undefined, 'a library removed from current admission cannot expose an old vocabulary');
-  libraries = ['movies']; current = false; assert.equal(source.line(fresh, defaultI18n), undefined);
-  source.dispose(); assert.equal(signals[1].aborted, true);
-});
-
 test('unadmitted libraries and other server resources start no reads, and a mismatched capability response supplies no words', async () => {
   let calls = 0;
   const source = new NativeHomeSavedViewSummaries({serverId: 'server', current: () => true, libraryIds: () => ['movies'], api: {

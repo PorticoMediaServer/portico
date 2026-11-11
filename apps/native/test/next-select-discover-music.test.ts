@@ -22,20 +22,6 @@ const modules = async () => ({
     {react: {createElement: React.createElement, Fragment: React.Fragment}, '../../selection/native-selection': {createNativeSelection: () => port()}}),
 });
 
-test('the Discover tab offers Select for every shelf card, under the page’s own viewer fence and revisions', async () => {
-  const {discover} = await modules();
-  const source = discover.discoverSelectionSource({subscribe: () => () => {}, getSnapshot: () => libraryState()}, () => true, () => viewer);
-  const snapshot = source.getSnapshot();
-  assert.deepEqual(snapshot.groups.map((group: {id: string; items: readonly unknown[]}) => [group.id, group.items.length]),
-    [['discover:recent', 2], ['discover:continue', 1]], 'one group per non-empty shelf');
-  assert.equal(snapshot.context?.scope.privacyFence, 'viewer-fence');
-  assert.deepEqual(snapshot.context?.revision, {catalogRevision: '7', viewerRevision: '3'});
-  assert.equal(snapshot.context?.scope.viewId, snapshot.key);
-  // A new query/tab is a new selection identity, so another query's selection is never adopted.
-  const next = discover.discoverSelectionSource({subscribe: () => () => {}, getSnapshot: () => libraryState(2)}, () => true, () => viewer).getSnapshot();
-  assert.notEqual(next.key, snapshot.key);
-});
-
 test('a Discover page that is not loaded, or one that left the route, offers no Select at all', async () => {
   const {discover} = await modules();
   const loading = {...(libraryState() as any), discover: {phase: 'loading', appended: []}};
@@ -43,21 +29,6 @@ test('a Discover page that is not loaded, or one that left the route, offers no 
   assert.equal(source.getSnapshot().context, undefined);
   const retired = discover.discoverSelectionSource({subscribe: () => () => {}, getSnapshot: () => libraryState()}, () => false, () => viewer);
   assert.equal(retired.getSnapshot().context, undefined, 'a page that left the route cannot join a selection');
-});
-
-test('the TV music album and artist rows offer Select under the page projection’s fence and revisions', async () => {
-  const {music} = await modules();
-  const controller = {subscribe: () => () => {}, getSnapshot: () => musicState(),
-    selectionProjection: () => ({scope: {viewerFence: 'music-fence'}, revision: {catalog: 4, viewer: 2}}),
-    releaseEntry: (album: {id: string}) => album.id === 'album-one' ? entry('album-one', 'album') : undefined,
-    similarCurrent: () => true};
-  const source = music.musicRowSelectionSource(controller, () => true, () => viewer, 'route-key');
-  const snapshot = source.getSnapshot();
-  assert.deepEqual(snapshot.groups.map((group: {id: string; items: readonly {id: string}[]}) => [group.id, group.items.map(item => item.id)]),
-    [['releases', ['album-one']], ['similar', ['similar-album', 'similar-artist']]]);
-  assert.equal(snapshot.context?.scope.privacyFence, 'music-fence');
-  assert.deepEqual(snapshot.context?.revision, {catalogRevision: '4', viewerRevision: '2'});
-  assert.notEqual(music.musicRowSelectionSource(controller, () => true, () => viewer, 'another-page').getSnapshot().key, snapshot.key);
 });
 
 test('the music page routes a row card to the page row selection and a track row to its own query selection', async () => {

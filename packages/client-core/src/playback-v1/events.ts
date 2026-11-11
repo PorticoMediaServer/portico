@@ -1,3 +1,4 @@
+import {serverEventsFrom} from '../server-events.ts';
 import {ResyncCoordinator, type ResyncReadContext, type ResyncRegistration} from '../resync-coordinator.ts';
 import {routePath} from "../../../contracts/src/route-paths.ts";
 /**
@@ -118,15 +119,9 @@ export class EventsClient {
    * nothing needs reading twice to cover the gap. One immediate page read (no wait); resolves false
    * when there was already a position or the read failed (the caller then catches up on connect).
    */
-  async prime(signal?: AbortSignal): Promise<boolean> {
-    if (this.status.cursor || this.running) return false;
-    try {
-      const r = await call(this.o.http, {method: 'GET', path: routePath("get_events") + "?waitMs=0", signal});
-      const b = r.body as {events?: unknown; nextAfter?: unknown} | undefined;
-      if (signal?.aborted || this.running || this.status.cursor || !b || typeof b !== 'object' || typeof b.nextAfter !== 'string' || !b.nextAfter || b.nextAfter.length > 128) return false;
-      this.setStatus({cursor: b.nextAfter});
-      return true;
-    } catch { return false; }
+  async prime(_signal?: AbortSignal): Promise<boolean> {
+    // The server's stream says where it starts in its first event, so there is no position to take beforehand.
+    return false;
   }
 
   start(): void {
@@ -241,7 +236,7 @@ export class EventsClient {
 
   /** One SSE connection. Resolves with a delay before reconnecting (`stream.closed`), or 0. */
   private async streamOnce(signal: AbortSignal): Promise<number> {
-    let reconnectAfter: number | undefined;
+    let reconnectAfter: number | undefined, answered = false;
     const inner = new AbortController();
     const abort = () => inner.abort();
     signal.addEventListener('abort', abort, {once: true});
@@ -255,21 +250,17 @@ export class EventsClient {
           for (const listener of [...this.resyncListeners]) {try {listener();} catch { /* Install every consumer’s debt. */ }}
           return;
         }
-        let parsed: unknown;
-        try { parsed = JSON.parse(raw.data); } catch { return; }
-        const event = parseEvent(parsed);
-        if (!event) return;
-        if (event.type === 'stream.closed') {
-          const after = (event.data as {reconnectAfterMs?: unknown} | undefined)?.reconnectAfterMs;
-          reconnectAfter = typeof after === 'number' && Number.isFinite(after) && after >= 0 ? Math.max(1000, after) : 1000;
-          inner.abort();
-          return;
+        for (const event of serverEventsFrom(raw)) {
+          answered = true;
+          // A greeting (or malformed/control frame) proves only that headers arrived.
+          // Require useful new data before forgiving repeated short-lived streams.
+          if (!event.type.startsWith('stream.') && !this.recentSet.has(event.id)) this.streamFailures = 0;
+          this.deliver(event);
         }
-        // A greeting (or malformed/control frame) proves only that headers arrived.
-        // Require useful new data before forgiving repeated short-lived streams.
-        if (!event.type.startsWith('stream.') && !this.recentSet.has(event.id)) this.streamFailures = 0;
-        this.deliver(event);
       }, inner.signal);
+      // The server ends every stream after a while and the feed opens the next from where it stood.
+      // A stream that said nothing at all before ending is still a failure (a proxy holding it back).
+      if (answered) reconnectAfter = 1000;
     } catch (e) {
       if (!inner.signal.aborted || signal.aborted) throw e;
     } finally {

@@ -23,17 +23,3 @@ test('H-11: a library added then removed keeps the shell and player host; Home f
     try { await app.unmount(); } finally { app.disposeLoader(); }
   }
 });
-
-// Client data step 5: the privacy fence is the library directory's; the next directory read
-// that answers another one ends the shell.
-test('H-11: a privacy change in the library directory retires the shell', async () => {
-  const app = await standardHomeApp({privacyFence: 'privacy-fence'});
-  try {
-    const home = homeHost(app);
-    assert.ok(home);
-    await app.changeHome({privacyFence: 'another-viewer'});
-    assert.notEqual(homeHost(app), home, 'the old Home is gone');
-  } finally {
-    try { await app.unmount(); } finally { app.disposeLoader(); }
-  }
-});

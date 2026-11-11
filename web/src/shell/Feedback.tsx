@@ -2,7 +2,7 @@ import {useLayoutEffect, useSyncExternalStore} from 'react';
 import {presentedInPlayer} from '../platform/playback/presented';
 import type {I18n} from '@i18n';
 import {presentError} from '@core/presentation/errors.ts';
-import {ToastHost, type ToastData} from '../kit/overlays';
+import {ToastHost, type ToastAction, type ToastData} from '../kit/overlays';
 import {useShellWidth} from './viewport';
 
 export class ShellFeedback {
@@ -21,9 +21,11 @@ export class ShellFeedback {
     if (!presented.silent) this.publish({id: String(++this.serial), message: presented.body, icon: 'i-warn', tone: 'error'});
   };
   /** A short confirmation: work finished, such as a selection's My List after the selection ended (J-14). */
-  notify = (message: string) => {
+  notify = (message: string, action?: ToastAction) => {
     if (this.retired || !this.isCurrent()) return;
-    this.publish({id: String(++this.serial), message, icon: 'i-check'});
+    const id = String(++this.serial);
+    // An action (Undo) is offered once: taking it closes the toast.
+    this.publish({id, message, icon: 'i-check', ...(action ? {action: {...action, onAction: () => {this.dismiss(id); action.onAction();}}, durationMs: 30_000} : {})});
   };
   dismiss = (id: string) => { if (this.value?.id === id) this.publish(null); };
   dispose = () => { this.retired = true; this.publish(null); this.listeners.clear(); };

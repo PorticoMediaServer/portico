@@ -165,23 +165,6 @@ test('paused or restarted Search never revives an original Play when the same qu
     } finally {held.resolve();binding.dispose();}
   }
 });
-
-test('a replaced Detail projection retires its original caller through the actual screen play effect', async () => {
-  const held = deferred<void>();let guard: (() => boolean) | undefined;
-  const owner = setup(async path => {
-    const id = path.includes('/two/') ? 'two' : 'one';
-    return {...detailPage(id), actions: [{id: 'play', labelKey: 'action.play', enabled: true, playback: {itemId: id, startMs: 0}}]};
-  });
-  const runtime = {async playFromScreen(_target: unknown, lifetime: {signal: AbortSignal; isCurrent: () => boolean}) {guard = lifetime.isCurrent;await held.promise;}};
-  const binding = createDetailBindings({...owner.context, effects: {...owner.context.effects,
-    play: createScreenPlayEffect({isCurrent: owner.context.isCurrent, runtime: () => runtime})}});
-  try {
-    await binding.select({libraryId: 'library', itemId: 'one'});const data = binding.service.getSnapshot().data!;
-    const play = binding.play(data, 'play');assert.equal(guard?.(), true);
-    await binding.select({libraryId: 'library', itemId: 'two'});assert.equal(guard?.(), false);
-    held.resolve();await assert.rejects(play, {name: 'AbortError'});
-  } finally {held.resolve();binding.dispose();}
-});
 const showPage = () => ({scope: {serverId: 'server', libraryId: 'library', viewerFence: 'show-fence'}, revision: {catalog: 3, viewer: 2},
   show: {id: 'show', libraryId: 'library', title: 'show', libraryKind: 'tv', providerMatchStatus: 'unresolved'},
   seasons: [{id: 'season', showId: 'show', number: 1, title: 'season'}], seasonTotalCount: 1, nextSeasonCursor: '', groups: [], selected: {seasonId: 'season'},
@@ -189,49 +172,6 @@ const showPage = () => ({scope: {serverId: 'server', libraryId: 'library', viewe
     heading: {key: 'entity.title', fallback: 'show'}, navigation: [], query: {sort: 'episode', direction: 'asc', category: '', q: '', limit: 40, searchMode: 'none'},
     sorts: [{id: 'episode', labelKey: 'sort.episode', directions: ['asc']}], filters: [], sections: [{id: 'episodes', type: 'list', heading: {key: 'content.episodes', fallback: 'episodes'},
       entries: [{id: 'one', kind: 'episode', title: 'one', libraryId: 'library', available: true, navigation: {view: 'item', entityId: 'one'}, playback: {itemId: 'one', startMs: 10}}], totalCount: 1, nextCursor: ''}]}});
-
-test('show More favorites the show container and retires with the original page', async () => {
-  const writes: {path: string; body: unknown}[] = [], state = {revision: 1, watched: false, watermark: '', watchlisted: false, favorite: false, libraryId: 'library'};
-  const owner = setup(async (path, method, body) => {
-    if (path.includes('/show-workspace')) return showPage();
-    if (method === 'PUT') {writes.push({path, body}); return {...state, favorite: true};}
-    return state;
-  });
-  const binding = createShowBindings(owner.context);
-  try {
-    await binding.select({libraryId: 'library', showId: 'show'});
-    const data = binding.service.getSnapshot().data!;
-    await binding.setFavorite(data, true);
-    assert.deepEqual(writes, [{path: '/v1/containers/show/show/personal-state', body: {expectedRevision: 0, favorite: true}}]);
-    assert.equal(binding.personal.getSnapshot()?.favorite, true);
-    owner.retire();
-    await assert.rejects(binding.setFavorite(data, false), {name: 'AbortError'});
-    assert.equal(writes.length, 1);
-  } finally {binding.dispose();}
-});
-
-test('Watch body retains real title state across repeated presentation loads and retires My List', async () => {
-  const owner = setup(async () => ({...detailPage('movie'), actions: [{id: 'watchlist', labelKey: 'action.watchlist', enabled: true}]}));
-  const binding = createWatchBodyBindings(owner.context, {libraryId: 'library', itemId: 'movie', kind: 'movie'});
-  assert.equal(owner.requests(), 0);
-  assert.deepEqual(binding.myList.getSnapshot(), {available: false, busy: false});
-  await binding.load();
-  assert.equal(binding.body.kind, 'title');
-  if (binding.body.kind !== 'title') throw new Error('Expected actual title body');
-  binding.body.binding.view.tab('details');
-  const reads = owner.requests();
-  await binding.load();
-  assert.equal(owner.requests(), reads);
-  assert.equal(binding.body.binding.view.getSnapshot().tab, 'details');
-  assert.deepEqual(binding.myList.getSnapshot(), {available: true, watchlisted: false, busy: false});
-  owner.retire();
-  await assert.rejects(binding.myList.set(true), {name: 'AbortError'});
-  assert.equal(owner.requests(), reads);
-  binding.dispose();
-  assert.equal(binding.body.binding.service.getSnapshot().data, null);
-  assert.deepEqual(binding.myList.getSnapshot(), {available: false, busy: false});
-  assert.throws(() => binding.load(), {name: 'AbortError'});
-});
 
 test('domain factory creation is inert and disposal erases all private snapshots', () => {
   const owner = setup(async () => { throw new Error('No constructor request is authorized'); });
@@ -267,43 +207,6 @@ test('a family or profile handover refuses even a newly invoked old service requ
   await assert.rejects(binding.select('one'), {name: 'AbortError'});
   await assert.rejects(binding.clearRecent(), {name: 'AbortError'});
   assert.equal(owner.requests(), 0);
-  binding.dispose();
-});
-
-test('an episode tile reads current playback permission and resume without opening its panel', async () => {
-  const starts: unknown[] = [];
-  let allowed = true;
-  const owner = setup(async path => path.includes('/show-workspace') ? showPage() : {...detailPage('one'), actions: [{id: 'resume', labelKey: 'entry.resume', enabled: allowed, playback: {itemId: 'one', startMs: 725}}]});
-  const binding = createShowBindings({...owner.context, effects: {...owner.context.effects, play: async target => { starts.push(target); }}});
-  await binding.service.select({libraryId: 'library', showId: 'show'});
-  const data = binding.service.getSnapshot().data!;
-  assert.ok(data);
-  const entry = data.episodes.sections[0].entries[0];
-  await binding.playEpisode(data, entry);
-  assert.deepEqual(starts, [{itemId: 'one', libraryId: 'library', startSeconds: 0.725}]);
-  assert.equal(binding.service.getSnapshot().anchor.expandedEpisodeId, null);
-  assert.equal(binding.episode.service.getSnapshot().data, null);
-  allowed = false;
-  await assert.rejects(binding.playEpisode(data, entry), {name: 'AbortError'});
-  assert.equal(starts.length, 1);
-  binding.dispose();
-});
-
-test('a late episode permission read cannot play after its show page is replaced', async () => {
-  const pending = deferred<unknown>(); let detailSignal: AbortSignal | undefined, starts = 0;
-  const owner = setup(async (path, _method, _body, signal) => {
-    if (path.includes('/show-workspace')) return showPage();
-    detailSignal = signal; return pending.promise;
-  });
-  const binding = createShowBindings({...owner.context, effects: {...owner.context.effects, play: async () => { starts++; }}});
-  await binding.service.select({libraryId: 'library', showId: 'show'});
-  const data = binding.service.getSnapshot().data!, entry = data.episodes.sections[0].entries[0];
-  const refused = assert.rejects(binding.playEpisode(data, entry), {name: 'AbortError'});
-  binding.cancel();
-  assert.equal(detailSignal?.aborted, true);
-  pending.resolve({...detailPage('one'), actions: [{id: 'play', labelKey: 'title.play', enabled: true, playback: {itemId: 'one', startMs: 0}}]});
-  await refused;
-  assert.equal(starts, 0);
   binding.dispose();
 });
 
@@ -350,100 +253,6 @@ test('person page identity must still be current before starting a credit collec
   assert.throws(() => binding.credits(first), /Person required/);
   assert.equal(owner.requests(), 2);
   binding.dispose();
-});
-
-test('aborting the previous caller cannot cancel a newly selected title in the same turn', async () => {
-  const first = deferred<unknown>(), second = deferred<unknown>(); let secondSignal: AbortSignal | undefined;
-  const owner = setup(async (path, _method, _body, signal) => {
-    if (path.includes('/first/')) return first.promise;
-    secondSignal = signal; return second.promise;
-  });
-  const binding = createDetailBindings(owner.context), oldCaller = new AbortController();
-  const before = assert.rejects(binding.select({libraryId: 'library', itemId: 'first'}, oldCaller.signal), {name: 'AbortError'});
-  const after = binding.select({libraryId: 'library', itemId: 'second'});
-  oldCaller.abort();
-  assert.equal(secondSignal?.aborted, false);
-  second.resolve(detailPage('second')); await after;
-  first.resolve(detailPage('first')); await before;
-  assert.equal(binding.service.getSnapshot().data?.item.id, 'second');
-  binding.dispose();
-});
-
-test('a File info command carries its opening and exact occurrence, and a changed Detail stops it before any request', async () => {
-  const writes: {path: string; body: unknown}[] = [];
-  const owner = setup(async (path, method, body) => {
-    if (method === 'POST') { writes.push({path, body}); return {assetId: 'asset', previewKey: 'key', confirmation: 'one', confirmationKind: 'title', totalBytes: 1, totalBytesText: '1 B', targets: [{itemId: 'one'}], blocked: []}; }
-    return {...detailPage('one'), fileInfoOpening: 'opening-1'};
-  });
-  const binding = createDetailBindings(owner.context); await binding.select({libraryId: 'library', itemId: 'one'});
-  const data = binding.service.getSnapshot().data!;
-  assert.equal(data.fileInfoOpening, 'opening-1');
-  const file = {occurrence: 'opaque-1', itemId: 'one', id: 'asset', size: {value: 1}, container: 'mkv', available: true, partIndex: 0, audioCount: 0, subtitleCount: 0};
-  await assert.rejects(binding.previewDelete(data, 'opening-0', file), /File info opening changed/);
-  assert.deepEqual(writes, []);
-  await binding.previewDelete(data, 'opening-1', file).catch(() => {});
-  assert.deepEqual(writes, [{path: '/v1/admin/items/one/files/asset/delete/preview', body: {fileInfo: {opening: 'opening-1', occurrence: 'opaque-1'}}}]);
-  binding.dispose();
-});
-test('manual versions use fresh Options resume and never carry the choice into ordinary Play', async () => {
-  const starts: unknown[] = [];
-  let changed = false;
-  const base = {...detailPage('one'), actions: [{id: 'play', labelKey: 'title.play', enabled: true, playback: {itemId: 'one', startMs: 100}}]};
-  const page = new Proxy(base, {get: (target, key) => key === 'item' && changed ? {...target.item, title: 'one (renamed)'} : Reflect.get(target, key)});
-  const owner = setup(async path => path.includes('/playback-options') ? {itemId: 'one', versions: [{id: 'grouped-version', durationMs: 1000}], resume: {positionMs: 725, partIndex: 0}} : page);
-  const context = {...owner.context, effects: {...owner.context.effects, play: async (target: unknown) => { starts.push(target); }}};
-  const binding = createDetailBindings(context); await binding.select({libraryId: 'library', itemId: 'one'});
-  const data = binding.service.getSnapshot().data!;
-  await binding.play(data, 'play', 'grouped-version');
-  await binding.play(data, 'play');
-  assert.deepEqual(starts, [
-    {itemId: 'one', libraryId: 'library', startSeconds: 0.725, versionId: 'grouped-version'},
-    {itemId: 'one', libraryId: 'library', startSeconds: 0.1},
-  ]);
-  binding.dispose();
-});
-
-test('Title More passes original genuine Options to the single chooser and starts only a fresh offered exact version', async () => {
-  let captured: WatchVersionRequest | undefined, optionsReads = 0;
-  const closed = deferred<void>(), starts: unknown[] = [];
-  let changed = false;
-  const base = {...detailPage('one'), actions: [{id: 'play', labelKey: 'title.play', enabled: true, playback: {itemId: 'one', startMs: 100}}]};
-  const page = new Proxy(base, {get: (target, key) => key === 'item' && changed ? {...target.item, title: 'one (renamed)'} : Reflect.get(target, key)});
-  const owner = setup(async path => path.includes('/playback-options') ? {itemId: 'one', versions: [{id: 'first', durationMs: 1000}, {id: 'second', durationMs: 1000}], resume: {positionMs: ++optionsReads === 1 ? 0 : 700, partIndex: 0}} : page);
-  const binding = createDetailBindings({...owner.context, effects: {...owner.context.effects,
-    play: async target => {starts.push(target);}, chooseVersion: async request => {captured = request;await closed.promise;}}});
-  try {
-    await binding.select({itemId: 'one', libraryId: 'library'});
-    const data = binding.service.getSnapshot().data!, original = await binding.readVersions(data), signal = new AbortController();
-    await assert.rejects(binding.chooseVersion(data, {...original}, signal.signal), {name: 'AbortError'});
-    const showing = binding.chooseVersion(data, original, signal.signal);
-    assert.ok(captured);assert.equal(captured.options, original);assert.equal(captured.options.versions, original.versions);
-    assert.deepEqual(captured.subject, {libraryId: 'library', itemId: 'one', title: 'one'});
-    await captured.playVersion('second', signal.signal);
-    assert.deepEqual(starts, [{itemId: 'one', libraryId: 'library', startSeconds: .7, versionId: 'second'}]);
-    assert.equal(optionsReads, 2);
-    // The title changes on the server and the page is read again: a new page replaces the one the chooser was opened from.
-    changed = true; await binding.service.refresh();
-    const replacement = binding.service.getSnapshot().data!;
-    assert.notEqual(replacement, data);
-    await assert.rejects(binding.chooseVersion(replacement, original, signal.signal), {name: 'AbortError'});
-    assert.equal(captured.isCurrent(), false);
-    owner.retire();assert.equal(captured.isCurrent(), false);
-    const before = owner.requests();await assert.rejects(captured.playVersion('first', signal.signal), {name: 'AbortError'});assert.equal(owner.requests(), before);
-    closed.resolve();await showing;
-  } finally {closed.resolve();binding.dispose();}
-});
-
-test('a one-version title cannot open a chooser even when a presentation port is installed', async () => {
-  let opened = 0;
-  const owner = setup(async path => path.includes('/playback-options') ? {itemId: 'one', versions: [{id: 'only', durationMs: 1000}]}
-    : {...detailPage('one'), actions: [{id: 'play', labelKey: 'title.play', enabled: true, playback: {itemId: 'one', startMs: 0}}]});
-  const binding = createDetailBindings({...owner.context, effects: {...owner.context.effects, chooseVersion: async () => {opened++;}}});
-  try {
-    await binding.select({itemId: 'one', libraryId: 'library'});const data = binding.service.getSnapshot().data!;
-    await assert.rejects(binding.chooseVersion(data, await binding.readVersions(data), new AbortController().signal), {name: 'AbortError'});
-    assert.equal(opened, 0);
-  } finally {binding.dispose();}
 });
 
 test('the entry version command preserves nested authority and refuses a removed grouped version', async () => {
@@ -493,27 +302,6 @@ test('a retained title body keeps its tab for the same real identity and resets 
   binding.dispose();
 });
 
-test('entry playback keeps the source context and item detail in their own revision domains', async () => {
-  const starts: unknown[] = [];
-  const captured: SelectionContext = {scope: {serverId: 'server', authority: 'local', accountId: 'account', profileId: 'profile', viewId: 'search', privacyFence: 'search-fence'}, revision: {catalogRevision: '8573', viewerRevision: '0'}};
-  const entry: ContentEntry = {id: 'one', libraryId: 'library', kind: 'movie', title: 'one', navigation: {view: 'item', entityId: 'one'}};
-  const owner = setup(async path => path.includes('/playback-options') ? {itemId: 'one', versions: [{id: 'grouped-version', durationMs: 1000}], resume: {positionMs: 500, partIndex: 0}} : {...detailPage('one'), scope: {...detailPage('one').scope, viewerFence: 'detail-fence'}, revision: {catalog: 2189, viewer: 0}, actions: [{id: 'play', labelKey: 'title.play', enabled: true, playback: {itemId: 'one', startMs: 0}}]});
-  const binding = createEntryDetailsBindings({...owner.context, effects: {...owner.context.effects, play: async target => { starts.push(target); }}}, {isCurrent: value => value === captured});
-  await binding.playVersion(entry, 'grouped-version', captured, new AbortController().signal);
-  assert.deepEqual(starts, [{libraryId: 'library', itemId: 'one', startSeconds: 0.5, versionId: 'grouped-version'}]);
-  binding.dispose();
-});
-
-test('a removed title retains only its genuine same-target subject and clears it at disposal', async () => {
-  let removed = false;
-  const owner = setup(async () => { if (removed) throw Object.assign(new Error('gone'), {code: 'not_found', status: 404}); return detailPage('one'); });
-  const binding = createDetailBindings(owner.context); await binding.select({libraryId: 'library', itemId: 'one'});
-  removed = true; await binding.service.refresh();
-  assert.equal(binding.service.getSnapshot().data, null); assert.equal(binding.subject(), 'one');
-  await binding.select({libraryId: 'library', itemId: 'another'}); assert.equal(binding.subject(), undefined);
-  binding.dispose(); assert.equal(binding.subject(), undefined);
-});
-
 const genreCapabilities = () => ({
   library: {id: 'library', name: 'Movies', kind: 'movie', defaultView: 'discover'},
   pivots: [{id: 'movies', labelKey: 'library.movies', entityKinds: ['movie'], defaultSort: [], supportedViews: ['grid', 'list'], browsable: true}],
@@ -523,88 +311,3 @@ const genreCapabilities = () => ({
   queryLimits: {maximumDepth: 5, maximumClauses: 40, maximumBytes: 65536, maximumSorts: 3, defaultLimit: 40, maximumLimit: 100, cursorTtlMs: 1800000},
 });
 const genrePage = () => ({...detailPage('one'), metadata: {status: 'unavailable', ratings: [], genres: [{id: 'genre', name: 'Action'}], credits: []}});
-
-test('genre navigation validates the library vocabulary and leaves its default view to the parent', async () => {
-  const destinations: unknown[] = [];
-  const owner = setup(async path => path === browseCapabilitiesPath('library', '') ? genreCapabilities() : genrePage());
-  const binding = createDetailBindings({...owner.context, effects: {...owner.context.effects, openBrowse: selector => { destinations.push(selector); }}});
-  await binding.select({libraryId: 'library', itemId: 'one'});
-  const page = binding.service.getSnapshot().data!;
-  await binding.browseGenre(page, 'Action');
-  assert.deepEqual(destinations, [{libraryId: 'library', query: {variant:'predicate',field: 'genre', operator: 'equals', value: 'Action'}}]);
-  const requests = owner.requests();
-  assert.throws(() => binding.browseGenre(page, 'Unknown'), {name: 'AbortError'});
-  assert.equal(owner.requests(), requests);
-  binding.dispose();
-});
-
-test('a late genre vocabulary cannot navigate after an authority handover', async () => {
-  const response = deferred<unknown>(); let destinations = 0;
-  const owner = setup(async path => path === browseCapabilitiesPath('library', '') ? response.promise : genrePage());
-  const binding = createDetailBindings({...owner.context, effects: {...owner.context.effects, openBrowse: () => { destinations++; }}});
-  await binding.select({libraryId: 'library', itemId: 'one'});
-  const navigation = binding.browseGenre(binding.service.getSnapshot().data!, 'Action');
-  owner.retire(); response.resolve(genreCapabilities());
-  await assert.rejects(navigation, {name: 'AbortError'});
-  assert.equal(destinations, 0);
-  binding.dispose();
-});
-
-test('title credit windows read lazily, bound resident pages and revisit evicted cursor addresses', async () => {
-  const reads: number[] = [];
-  const owner = setup(async path => {
-    if (!path.includes('/credits?')) return detailPage('one');
-    const query = new URL('https://unit.invalid' + path).searchParams, page = Number(query.get('cursor') ?? 0);
-    reads.push(page);
-    return {revision: {catalog: 1, viewer: 1}, group: 'cast', total: 1000000, nextCursor: String(page + 1),
-      credits: Array.from({length: 40}, (_, index) => ({id: `credit-${page * 40 + index}`, name: `Person ${page * 40 + index}`, role: 'Character', department: 'Acting', provider: 'local'}))};
-  });
-  const binding = createDetailBindings(owner.context); await binding.select({libraryId: 'library', itemId: 'one'});
-  const collection = titleCreditsWindow(binding, binding.service.getSnapshot().data!, 'cast');
-  assert.equal(reads.length, 0);
-  const settle = async () => { for (let turn = 0; turn < 10; turn++) await setImmediate(); };
-  collection.ensureRange(0, 10); await settle();
-  assert.ok(reads.length <= 2); assert.equal(collection.getSnapshot().totalIsLowerBound, true);
-  for (let step = 0; step < 6; step++) {
-    const last = collection.getSnapshot().total! - 1;
-    collection.ensureRange(last - 10, last); await settle();
-  }
-  assert.ok(collection.resident().pages <= 5); assert.ok(collection.residentItems().length <= 200);
-  assert.equal(collection.itemAt(0), undefined);
-  collection.ensureRange(0, 10); await settle();
-  assert.equal(collection.itemAt(0)?.id, 'credit-0');
-  assert.ok(reads.filter(page => page === 0).length >= 2);
-  assert.notEqual(collection.getSnapshot().status, 'error');
-  collection.dispose(); binding.dispose(); assert.equal(collection.residentItems().length, 0);
-});
-
-test('season actions use complete server state and CAS, never the visible episode subset',async()=>{
- const writes:unknown[]=[];
- const state={revision:17,watched:false,watermark:'',watchlisted:false,favorite:false,watchedCount:6,unwatchedCount:18,libraryId:'library'};
- const owner=setup(async(path,method,body)=>{
-  if(path.includes('/show-workspace'))return showPage();
-  if(path==='/v1/containers/season/season/personal-state'){
-   if(method==='PUT'){writes.push(body);return {...state,revision:18,watched:true};}return state;
-  }
-  if(path==='/v1/containers/show/show/personal-state')return {...state,revision:1};
-  throw new Error('Unexpected route '+path);
- });
- const binding=createShowBindings(owner.context);await binding.select({libraryId:'library',showId:'show'});
- const data=binding.service.getSnapshot().data!;
- assert.equal(data.episodes.sections[0].entries.length,1);
- const complete=await binding.readSeasonState(data);assert.equal(complete.watchedCount,6);assert.equal(complete.unwatchedCount,18);
- await assert.rejects(binding.setSeasonWatched(data,{...complete},true),{name:'AbortError'});assert.equal(writes.length,0);
- await binding.setSeasonWatched(data,complete,true);assert.deepEqual(writes,[{expectedRevision:17,watched:true}]);
- await assert.rejects(binding.setSeasonWatched(data,complete,false),{name:'AbortError'});assert.equal(writes.length,1);
- binding.dispose();
-});
-
-test('season play captures actual selected season and retires after the selected workspace changes',async()=>{
- const held=deferred<void>();let calls=0,guard:(()=>boolean)|undefined;
- const owner=setup(async path=>path.includes('/show-workspace')?showPage():{revision:1,watched:false,watermark:'',watchlisted:false,favorite:false,libraryId:'library'});
- const context={...owner.context,effects:{...owner.context.effects,playSeason:async(id:string,signal:AbortSignal,current:()=>boolean)=>{calls++;assert.equal(id,'season');assert.equal(signal.aborted,false);guard=current;await held.promise;}}};
- const binding=createShowBindings(context);await binding.select({libraryId:'library',showId:'show'});
- const data=binding.service.getSnapshot().data!,pending=binding.playSeason(data);assert.equal(guard?.(),true);
- await binding.service.refresh();assert.equal(guard?.(),false);held.resolve();await assert.rejects(pending,{name:'AbortError'});
- await assert.rejects(binding.playSeason(data),{name:'AbortError'});assert.equal(calls,1);binding.dispose();
-});

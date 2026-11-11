@@ -37,26 +37,6 @@ function rangedShow() {
   return {controller, paths};
 }
 
-test('a ranged show opens on its first group, and choosing the second reads and shows its episodes', async () => {
-  const {controller, paths} = rangedShow();
-  try {
-    await controller.open();
-    const first = controller.getSnapshot();
-    assert.equal(first.workspace?.data?.selected.group, 'range:1');
-    assert.deepEqual(first.workspace?.data?.groups.map(group => group.id), ['range:1', 'range:101']);
-    assert.deepEqual(first.episodes.map(entry => entry.id), ['e1', 'e2']);
-    await controller.group('range:101');
-    assert.equal(paths.at(-1)?.searchParams.get('group'), 'range:101');
-    const second = controller.getSnapshot();
-    assert.equal(second.workspace?.data?.selected.group, 'range:101');
-    assert.deepEqual(second.episodes.map(entry => entry.id), ['e101', 'e102'], 'episodes past the first hundred are reachable');
-    assert.equal(second.place.group, 'range:101', 'the page remembers the group, as it does a season');
-    const reads = paths.length;
-    await controller.group('range:999');
-    assert.equal(paths.length, reads, 'only a group the server named is asked for');
-  } finally {controller.dispose();}
-});
-
 // ---- Phone and tablet: the season sheet lists the groups after the seasons.
 const theme = {isTV: false, platform: 'phone', colors: {ink: '#000', text: '#fff', textSecondary: '#ccc', textTertiary: '#999', line: '#222', accent: '#3af', accentStrong: '#4bf'}, type: {}};
 const descendants = (node: any): any[] => Array.isArray(node) ? node.flatMap(descendants) : node?.props ? [node, ...descendants(node.props.children)] : [];

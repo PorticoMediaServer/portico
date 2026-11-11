@@ -2,7 +2,6 @@ import {profileTargetKey, switchAuthorityKey, switchOfferKey} from './profile-of
 import {enterContinuesProfile, profileContinueEnabled, profileDialogText} from './profile-pin-enter';
 import {usePINLockSeconds} from '../kit/accounts/pin-feedback';
 import type {ManageGate} from './manage-gate';
-import type {LibraryDirectoryFences} from '@core/library-list.ts';
 import {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ComponentType, type ReactNode} from 'react';
 import {Link, useNavigate, useRouterState} from '@tanstack/react-router';
 import {ownerSwitchContextAllowed} from '../platform/secure-pending';
@@ -39,10 +38,6 @@ export type ShellIdentity = Readonly<{
   /** The library directory did not answer (a timeout, a busy server). `libraries` is then not known
    * to be empty: no screen may treat it as "no libraries". Cleared when the directory answers. */
   librariesUnavailable?: true;
-  /** Who the viewer is and what they may see, as the library directory last answered (client data
-   * step 5): the shell restarts when the privacy fence moves; the viewer fence moves with the
-   * library list. Absent until the directory has answered. */
-  fences?: LibraryDirectoryFences;
   /** PR-1: the server's `managePinRequired`: this remembered main profile must enter its PIN before it manages the account. */
   manageLocked?: true;
 }>;

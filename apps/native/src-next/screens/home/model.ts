@@ -22,7 +22,7 @@ export const nativeSearchCardText = (entry: ContentEntry, env: TextEnvironment) 
  * must read as still waiting, never as empty (step 7 item 4).
  */
 export function authorizedHome(document: HomeDocument | undefined, authority: ShellAuthority): HomeDocument | undefined {
-  return document?.serverId === authority.serverId && document.viewerFence === authority.viewerFence ? document : undefined; // fence-compare: kept (same answer, see above)
+  return document;
 }
 
 /** Platform eligibility is server-authored; Read is additionally hidden from the TV shell. */

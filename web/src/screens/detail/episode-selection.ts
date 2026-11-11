@@ -24,8 +24,8 @@ export function createEpisodeSelection(context: ScreenContext, binding: ShowBind
     getSnapshot: () => {
       const state = binding.service.getSnapshot(), data = state.data;
       if (!context.isCurrent() || state.phase !== 'ready' || !data || binding.view.getSnapshot().tab !== 'episodes') return null;
-      return {key: JSON.stringify([pageGeneration, state.generation, data.scope, data.revision, state.route, data.selected.seasonId, data.selected.group, state.pagination.cursor]),
-        revision: JSON.stringify([data.scope.viewerFence, data.revision]),
+      return {key: JSON.stringify([pageGeneration, state.generation, data.scope, state.route, data.selected.seasonId, data.selected.group, state.pagination.cursor]),
+        revision: JSON.stringify([data.scope, state.generation]),
         entries: data.episodes.sections.flatMap(section => section.entries.filter(entry => entry.kind === 'episode' && entry.libraryId === data.scope.libraryId))};
     },
   };

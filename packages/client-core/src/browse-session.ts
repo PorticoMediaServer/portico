@@ -1,8 +1,8 @@
 import {BrowseQueryBuilder, type BrowseCapabilities, type BrowseNode, type BrowseResult, type BrowseSortSelection, type BrowseWholeSelection, type BrowseWholeSelectionUnavailable} from './browse.ts';
 import type {FetchPage} from './collections/windowed.ts';
-import type {ContentEntry, LibraryContentApi} from './library-content.ts';
-import {readBrowsePage, readBrowseSelection, releaseBrowseSelection} from './browse-preparation.ts';
-import type {PreparationResponse, PreparationRuntime} from './read-preparation.ts';
+import type {ContentEntry} from './library-content.ts';
+import {entriesFromItems, readItems} from './items.ts';
+import {libraryItemQuery} from './library-browse.ts';
 import {linkAbortSignals} from './abort-lifetime.ts';
 import {isStaleAnswer} from './freshness-actions.ts';
 
@@ -41,146 +41,107 @@ export function withLibraryScope(page: BrowseResult, libraryId: string): BrowseR
 
 /** The session was retired (a new query, a closed scope); its late answers are not anyone's. */
 export const browseSessionClosed = (): Error => Object.assign(new Error('browse-scope-closed'), {name: 'AbortError'});
-/** The view moved on under this query: refresh it, then page again. */
-export const browseRevisionChanged = (): Error => Object.assign(new Error('browse-page-revision-changed'), {code: 'stale_continuation', retry: 'after_refresh'});
-/** An answer that says this view is gone for this viewer, not a transient failure. */
+/** The server no longer knows where this list had got to: read it again from the top. */
+export const browseListMoved = (): Error => Object.assign(new Error('browse-list-moved'), {code: 'stale_continuation', retry: 'after_refresh'});
+/** An answer that says this list is gone for this viewer, or that its place was lost: not a passing failure. */
 const ended = (error: unknown): boolean => isStaleAnswer(error)
-  || typeof error === 'object' && error !== null && 'status' in error && typeof error.status === 'number' && [401, 403, 404].includes(error.status);
+  || typeof error === 'object' && error !== null && ('code' in error && error.code === 'cursor_expired'
+    || 'status' in error && typeof error.status === 'number' && [401, 403, 404].includes(error.status));
 
 export type BrowseSessionOptions<T> = Readonly<{
   query: BrowseSessionQuery;
   request: (path: string, method: string, body: unknown, signal: AbortSignal) => Promise<unknown>;
-  requestRaw?: LibraryContentApi['requestRaw'];
-  preparationRuntime?: Partial<PreparationRuntime>;
-  /** Optional aggregate failure keeps the ordinary resident page. */
-  onPreparationError?: (error: unknown) => void;
   /** The owning screen is still open for this viewer. */
   current: () => boolean;
   /** What the collection holds for each entry (the entry itself, or a membership row). */
   item: (entry: ContentEntry, page: BrowseResult, index: number) => T;
-  /** The first page's opaque revision arrived; every later page must carry the same one. */
+  /** The first page arrived: the list has answered. The value names this reading of the list and nothing else. */
   onRevision?: (revision: string) => void;
-  /** The server's whole-view descriptor, from this library's first page only. */
+  /** Kept for the screens that offer "select everything in this view"; the server does not describe a whole view yet, so neither is called. */
   onWhole?: (whole: BrowseWholeSelection) => void;
   onWholeUnavailable?: (value: BrowseWholeSelectionUnavailable | undefined) => void;
   onPage?: (page: BrowseResult) => void;
-  /** The view changed or ended under this query. Later pages refuse until a new session. */
+  /** The list ended under this query. Later pages refuse until a new session. */
   onStale?: (error: unknown) => void;
 }>;
 
+let readings = 0;
+
 /** One applied query's page source, shared by web Browse and the native library.
  * Each query gets its own session: a new filter, sort or opening retires the old one,
- * so a late page, revision or descriptor can never land on the query that replaced it. */
+ * so a late page can never land on the query that replaced it.
+ *
+ * The server pages by cursor and the screens ask by position, so the session remembers the
+ * cursor at each position it has passed and walks forward from the nearest one. */
 export class BrowseSession<T> {
   readonly query: BrowseSessionQuery;
   private readonly options: BrowseSessionOptions<T>;
   private pinned?: string;
-  private whole?: BrowseWholeSelection;
-  private unavailable?: BrowseWholeSelectionUnavailable;
   private ended = false;
   private retired = false;
   private life = new AbortController();
-  private selection?: AbortController;
   private entries = new WeakSet<ContentEntry>();
+  /** Where each page starts: position to cursor. Position 0 needs none. */
+  private cursors = new Map<number, string>([[0, '']]);
+  private total?: number;
+  /** One walk at a time, so two pages never race for the same cursor. */
+  private queue: Promise<unknown> = Promise.resolve();
   constructor(options: BrowseSessionOptions<T>) {
     this.options = options;
     this.query = options.query;
   }
   private live(): boolean {return !this.retired && !this.ended && this.options.current();}
-  /** The page token every page of this query carries, once the first one has replied. */
+  /** Names this reading of the list, once its first page has replied. */
   get revision(): string | undefined {return this.live() ? this.pinned : undefined;}
   get stale(): boolean {return this.ended;}
-  /** The exact whole-view descriptor while this query's pages are current. */
-  wholeSelection(): BrowseWholeSelection | undefined {return this.live() && this.pinned ? this.whole : undefined;}
-  wholeSelectionUnavailable(): BrowseWholeSelectionUnavailable | undefined {return this.live() && this.pinned ? this.unavailable : undefined;}
+  wholeSelection(): BrowseWholeSelection | undefined {return undefined;}
+  wholeSelectionUnavailable(): BrowseWholeSelectionUnavailable | undefined {return undefined;}
   /** The entry arrived in one of this query's pages, and the query is still current. */
   owns(entry: ContentEntry): boolean {return this.live() && this.entries.has(entry);}
-  retire(): void {this.retired = true; this.life.abort(); this.selection?.abort(); this.entries = new WeakSet(); this.whole = undefined; this.unavailable = undefined;}
-  /** Give up the held descriptor (a retry is unsure of it); only a later first page reinstalls it. */
-  forgetWholeSelection(): void {this.selection?.abort(); this.selection = undefined; this.whole = undefined;}
+  retire(): void {this.retired = true; this.life.abort(); this.entries = new WeakSet();}
+  forgetWholeSelection(): void {}
   private end(error: unknown): void {
     if (this.retired || this.ended) return;
-    this.ended = true; this.life.abort(); this.selection?.abort(); this.entries = new WeakSet(); this.whole = undefined; this.unavailable = undefined;
+    this.ended = true; this.life.abort(); this.entries = new WeakSet();
     this.options.onStale?.(error);
   }
-  private startSelection(api: LibraryContentApi, page: BrowseResult, body: unknown, response: PreparationResponse): void {
-    this.selection?.abort();
-    const controller = new AbortController(); this.selection = controller;
-    const current = () => this.live() && this.selection === controller && this.pinned === page.pageInfo.revision;
-    // Yield past fetchPage's fulfilled promise, so an aggregate cannot delay the page.
-    void Promise.resolve().then(() => readBrowseSelection(api, this.query.libraryId,
-      {revision: page.pageInfo.revision, pivot: page.pivot, query: page.applied.query, sort: page.applied.sort}, response,
-      {signal: controller.signal, isCurrent: current, runtime: this.options.preparationRuntime}, body)).then(whole => {
-      if (!current() || controller.signal.aborted) return;
-      this.whole = whole; this.options.onWhole?.(whole);
-    }).catch(error => {
-      if (!current() || controller.signal.aborted) return;
-      if (ended(error)) this.end(error);
-      else this.options.onPreparationError?.(error);
-    });
-  }
-  fetchPage: FetchPage<T> = async (start, count, signal) => {
+  fetchPage: FetchPage<T> = (start, count, signal) => {
+    const run = this.queue.then(() => this.read(start, count, signal));
+    this.queue = run.catch(() => undefined);
+    return run;
+  };
+  private async read(start: number, count: number, signal: AbortSignal) {
     if (this.retired || !this.options.current()) throw browseSessionClosed();
-    if (this.ended) throw browseRevisionChanged();
-    const body = browseSessionBuilder(this.query).limit(count).range({start, ...(this.pinned ? {revision: this.pinned} : {})}).build();
+    if (this.ended) throw browseListMoved();
+    const list = libraryItemQuery({id: this.query.libraryId}, this.query.pivot, this.query.nodes, this.query.sorts);
     const lifetime = linkAbortSignals([signal, this.life.signal]), active = lifetime.signal;
-    let result: Awaited<ReturnType<typeof readBrowsePage>>;
-    const api: LibraryContentApi = {request: async <R>(path: string, method = 'GET', body?: unknown, input?: AbortSignal) =>
-      this.options.request(path, method, body, input ?? active) as Promise<R>, ...(this.options.requestRaw ? {requestRaw: this.options.requestRaw} : {})};
-    try {result = await readBrowsePage(api, this.query.libraryId, body, {signal: active, isCurrent: () => this.live(), runtime: this.options.preparationRuntime});}
-    catch (error) {
+    const api = {request: <R>(path: string, method = 'GET', body?: unknown, input?: AbortSignal) => this.options.request(path, method, body, input ?? active) as Promise<R>};
+    try {
+      // Walk from the nearest position already passed to the one asked for.
+      let at = [...this.cursors.keys()].filter(known => known <= start).reduce((best, known) => Math.max(best, known), 0);
+      for (;;) {
+        const cursor = this.cursors.get(at)!, wanted = at === start;
+        const page = await readItems(api, list, {cursor: cursor || undefined, limit: wanted ? count : Math.min(200, start - at), total: this.total === undefined}, active);
+        if (page.total !== undefined) this.total = page.total;
+        const end = at + page.items.length;
+        if (page.nextCursor && page.items.length) this.cursors.set(end, page.nextCursor);
+        if (!wanted && page.items.length && page.nextCursor) { at = end; continue; }
+        if (this.retired || !this.options.current() || signal.aborted) throw browseSessionClosed();
+        const entries = wanted ? entriesFromItems(page.items, this.query.libraryId) : [];
+        const total = this.total ?? end;
+        const result: BrowseResult = Object.freeze({pivot: this.query.pivot, applied: {query: null, sort: this.query.sorts, seek: null}, entries,
+          pageInfo: {start, total, totalIsLowerBound: false, revision: this.pinned ?? '', hasMore: wanted && !!page.nextCursor, nextCursor: wanted ? page.nextCursor ?? '' : ''}, positionIndex: []});
+        const first = this.pinned === undefined;
+        this.pinned ??= 'reading-' + ++readings;
+        for (const entry of entries) this.entries.add(entry);
+        if (first) this.options.onRevision?.(this.pinned);
+        this.options.onPage?.(result);
+        if (!this.live() || signal.aborted) throw browseSessionClosed();
+        return {items: entries.map((entry, index) => this.options.item(entry, result, index)), total, positionIndex: {}};
+      }
+    } catch (error) {
       if (!this.retired && this.options.current() && !signal.aborted && ended(error)) this.end(error);
       throw error;
     } finally {lifetime.dispose();}
-    if (this.retired || !this.options.current() || signal.aborted) {releaseBrowseSelection(api, this.query.libraryId, result.response); throw browseSessionClosed();}
-    const page = withLibraryScope(result.page, this.query.libraryId);
-    if (page.pivot !== this.query.pivot || page.pageInfo.start !== start || page.entries.length > count
-      || page.wholeSelectionUnavailable && (JSON.stringify(body.query ?? null) !== JSON.stringify(page.applied.query) || JSON.stringify(body.sort ?? []) !== JSON.stringify(page.applied.sort))
-      || !page.pageInfo.revision || this.pinned !== undefined && page.pageInfo.revision !== this.pinned) {
-      const error = browseRevisionChanged();
-      releaseBrowseSelection(api, this.query.libraryId, result.response);
-      this.end(error);
-      throw error;
-    }
-    const first = this.pinned === undefined;
-    this.pinned = page.pageInfo.revision;
-    for (const entry of page.entries) this.entries.add(entry);
-    if (start === 0) {
-      if (page.wholeSelectionUnavailable) {
-        this.selection?.abort(); this.selection = undefined; this.whole = undefined;
-      }
-      const changed = this.unavailable?.reason !== page.wholeSelectionUnavailable?.reason;
-      this.unavailable = page.wholeSelectionUnavailable;
-      if (changed) {
-        this.options.onWholeUnavailable?.(this.unavailable);
-        if (!this.live() || signal.aborted) {releaseBrowseSelection(api, this.query.libraryId, result.response); throw browseSessionClosed();}
-      }
-    }
-    // The descriptor is first-page-only and source-bound: a later page never installs or
-    // replaces it, and one for another library is not this view even with a matching revision.
-    if (start === 0 && page.wholeSelection !== undefined && page.wholeSelection.libraryId === this.query.libraryId
-      && (!result.response || JSON.stringify(body.query ?? null) === JSON.stringify(page.applied.query) && JSON.stringify(body.sort ?? []) === JSON.stringify(page.applied.sort))) {
-      this.selection?.abort(); this.selection = undefined;
-      this.whole = page.wholeSelection;
-      this.options.onWhole?.(page.wholeSelection);
-      if (!this.live() || signal.aborted) {releaseBrowseSelection(api, this.query.libraryId, result.response); throw browseSessionClosed();}
-    }
-    if (first) {
-      this.options.onRevision?.(this.pinned);
-      if (!this.live() || signal.aborted) {releaseBrowseSelection(api, this.query.libraryId, result.response); throw browseSessionClosed();}
-    }
-    this.options.onPage?.(page);
-    if (this.retired || !this.options.current()) {releaseBrowseSelection(api, this.query.libraryId, result.response); throw browseSessionClosed();}
-    // Start only after the first page's publication. This lifetime is session-owned:
-    // a window completing/evicting its page fetch must not cancel aggregate demand.
-    if (start === 0 && !this.whole && result.response && typeof result.response.body === 'object'
-      && result.response.body !== null && 'wholeSelectionPreparing' in result.response.body) {
-      this.startSelection(api, page, body, result.response);
-    }
-    const items = page.entries.map((entry, index) => this.options.item(entry, page, index));
-    if (!this.live() || signal.aborted) {releaseBrowseSelection(api, this.query.libraryId, result.response); throw browseSessionClosed();}
-    return {items,
-      total: page.pageInfo.total, totalIsLowerBound: page.pageInfo.totalIsLowerBound,
-      positionIndex: Object.fromEntries(page.positionIndex.map(anchor => [anchor.key, anchor.index]))};
-  };
+  }
 }

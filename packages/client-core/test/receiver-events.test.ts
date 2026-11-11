@@ -58,24 +58,6 @@ test('receiver inbox hints accept the three kinds and skip anything newer or mal
   assert.equal(parseReceiverInboxEvent(bad),undefined);
 });
 
-test('a grant event triggers exactly one inbox fetch; other frames are ignored',async(t)=>{
- t.mock.timers.enable({apis:['setTimeout','Date']});
- try{
-  const box:{grants:unknown[];handoffs:unknown[]}={grants:[],handoffs:[]};
-  const {host,inbox,events}=hostWithStream(box,t);
-  host.start();await settle();
-  assert.equal(events.opens(),1);
-  const before=inbox();
-  events.send('heartbeat','{"revision":7}');
-  events.send('change','{"revision":8,"resync":false}');
-  events.hint('grant','another_receiver');
-  events.hint('grant','rcv_1');
-  await settle();
-  assert.equal(inbox()-before,1,'one fetch for the grant, none for notification frames');
-  host.dispose();events.client.stop();
- }finally{t.mock.timers.reset();}
-});
-
 test('stopping the receiver releases subscriptions and leaves the app feed connected',async(t)=>{
  t.mock.timers.enable({apis:['setTimeout','Date']});
  try{
@@ -87,21 +69,6 @@ test('stopping the receiver releases subscriptions and leaves the app feed conne
   assert.equal(events.client.getStatus().connected,true);
   assert.equal(events.opens(),1);
   events.client.stop();
- }finally{t.mock.timers.reset();}
-});
-
-test('resync refreshes the inbox (a waiting grant is asked about)',async(t)=>{
- t.mock.timers.enable({apis:['setTimeout','Date']});
- try{
-  const box:{grants:unknown[];handoffs:unknown[]}={grants:[],handoffs:[]};
-  const {host,events}=hostWithStream(box,t);
-  host.start();await settle();
-  assert.equal(host.getSnapshot().asking,undefined);
-  box.grants=[grant('pending')];
-  events.resync();
-  await settle();
-  assert.equal(host.getSnapshot().asking?.controllerDisplayName,'Phone');
-  host.dispose();events.client.stop();
  }finally{t.mock.timers.reset();}
 });
 

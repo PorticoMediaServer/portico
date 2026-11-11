@@ -29,8 +29,7 @@ export function createAudiobookBindings(context: ScreenContext, input: Audiobook
     const value = await readListeningSimilar(life.api, similarScope, target.entityId,
       {limit: cursor ? 24 : 12, cursor, signal: life.signal(signal)});
     current(page);
-    if (value.itemId !== target.entityId || value.libraryId !== target.libraryId || value.bySound
-      || value.revision.catalog !== page.revision.catalog || value.revision.viewer !== page.revision.viewer)
+    if (value.itemId !== target.entityId || value.libraryId !== target.libraryId || value.bySound)
       throw Object.assign(new Error('Book page changed'), {code: 'stale_continuation'});
     return Object.freeze({entries: Object.freeze(value.entries.filter(entry => entry.kind === 'book' && entry.libraryId === target.libraryId && entry.available !== false && !entry.missing)),
       ...(value.nextCursor ? {nextCursor: value.nextCursor} : {})});
@@ -66,7 +65,7 @@ export function createAudiobookBindings(context: ScreenContext, input: Audiobook
       current(page);
       if (target.view !== 'book') throw new DOMException('Not a book', 'AbortError');
       const state = await getContainerState(life.api, 'book', target.entityId, life.signal());current(page);
-      const result = await setContainerState(life.api, 'book', target.entityId, {expectedRevision: state.revision, watched: !state.watched}, life.signal());
+      const result = await setContainerState(life.api, 'book', target.entityId, {watched: !state.watched}, life.signal());
       current(page);return result;
     },
     play,

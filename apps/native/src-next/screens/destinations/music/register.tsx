@@ -50,8 +50,8 @@ export function createNativeTVMusicRenderer(context: NativeShellBootstrapContext
         const admitted = pageCurrent() && snapshot.phase === 'ready' && projection && viewer && (authority === 'local' || authority === 'hosted');
         return {key, witness: snapshot, context: admitted ? {
           scope: {serverId: viewer.serverId, authority, accountId: viewer.accountId, profileId: viewer.profileId,
-            viewId: key, privacyFence: projection.scope.viewerFence},
-          revision: {catalogRevision: String(projection.revision.catalog), viewerRevision: String(projection.revision.viewer)},
+            viewId: key, privacyFence: 'opened'},
+          revision: {catalogRevision: '0', viewerRevision: '0'},
         } : null, sections: [
           {id: 'songs', start: snapshot.songPage.offset, entries: snapshot.songs.filter(controller.contains)},
           {id: 'releases', start: snapshot.releases.offset, entries: snapshot.albums.flatMap(album => {const entry = controller.releaseEntry(album); return entry ? [entry] : [];})},
