@@ -178,6 +178,9 @@ func (a access) narrowed(expr string) string {
 	}
 	if a.maxAge != nil {
 		keys := []string{searchRating(-1)} // a limit below every rating: nothing matches
+		if a.allowUnrated {
+			keys = append(keys, searchUnrated)
+		}
 		for age := 0; age <= *a.maxAge; age++ {
 			keys = append(keys, searchRating(int64(age)))
 		}

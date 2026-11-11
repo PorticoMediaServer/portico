@@ -352,8 +352,13 @@ func TestSearchFollowsAShowsRating(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	unrated, err := s.d.CreateSeedProfile(ctx, db.SeedProfile{Name: "allows unrated", MaxRatingAge: &thirteen, AllowUnrated: true})
+	if err != nil {
+		t.Fatal(err)
+	}
 	show := s.search("breaking bad", "show").Items[0].PublicID
 	s.agrees(child, "breaking", "episode", 0) // not rated yet
+	s.agrees(unrated, "breaking", "episode", 2)
 
 	if err := s.d.RateShow(ctx, show, 12); err != nil {
 		t.Fatal(err)
@@ -366,6 +371,7 @@ func TestSearchFollowsAShowsRating(t *testing.T) {
 	}
 	s.agrees(child, "breaking", "show", 0)
 	s.agrees(child, "breaking", "episode", 0)
+	s.agrees(unrated, "breaking", "episode", 0)
 	s.agrees(s.v, "breaking", "episode", 2)
 }
 
