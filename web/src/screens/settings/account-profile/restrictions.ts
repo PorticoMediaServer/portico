@@ -1,10 +1,11 @@
 import {IdentityClient} from '@core/identity-client.ts';
 import {managementPinRefused, type ProfileAPI} from '@core/profile-management.ts';
 import type {ProfileRestrictions, RatingSystem} from '@core/identity-restrictions.ts';
+import type {TagChoice} from '@core/profile-restrictions.ts';
 import {CodedError} from '@core/server-messages.ts';
 import type {ProfileSettingsSource} from './source';
 
-type Snapshot = Readonly<{loading: boolean; busy: boolean; document?: ProfileRestrictions; systems?: readonly RatingSystem[]; error?: unknown}>;
+type Snapshot = Readonly<{loading: boolean; busy: boolean; document?: ProfileRestrictions; systems?: readonly RatingSystem[]; tags?: readonly TagChoice[]; error?: unknown}>;
 const empty: Snapshot = Object.freeze({loading: true, busy: false});
 /** A selected profile's exact policy document, never a client-side content filter. */
 export class ProfileRestrictionsSource {
@@ -34,14 +35,15 @@ export class ProfileRestrictionsSource {
     const id = this.profiles.selected()?.id;
     if (id === this.selectedId) return;
     this.selectedId = id;const epoch = ++this.epoch;
-    if (!id || !this.current()) {this.state = empty;return;}
+    // Only the account's main profile reads or changes limits; a profile never sees its own.
+    if (!id || !this.current() || !this.profiles.getSnapshot().document?.canManage) {this.state = empty;return;}
     const admitted = () => this.current() && epoch === this.epoch && this.profiles.selected()?.id === id;
     const client = this.guardedClient(admitted);
     this.publish(empty);
-    void Promise.all([client.restrictions(id, this.lifetime.signal), client.ratingSystems(this.lifetime.signal)]).then(([document, systems]) => {
+    void Promise.all([client.restrictions(id, this.lifetime.signal), client.ratingSystems(this.lifetime.signal), client.tags(this.lifetime.signal)]).then(([document, systems, tags]) => {
       if (!admitted()) return;
       if (document.profileId !== id) throw new CodedError('invalid_response', 'The profile limits could not be read.');
-      this.publish({loading: false, busy: false, document, systems});
+      this.publish({loading: false, busy: false, document, systems, tags});
     }).catch(error => {if (epoch === this.epoch) this.publish(managementPinRefused(error) ? {loading: false, busy: false} : {loading: false, busy: false, error});});
   };
   save = async (changes: Parameters<IdentityClient['saveRestrictions']>[1]): Promise<void> => {
@@ -54,7 +56,7 @@ export class ProfileRestrictionsSource {
       if (!this.current() || epoch !== this.epoch || this.state.document !== captured) return false;
       const liveAccount = this.profiles.getSnapshot().document, liveTarget = this.profiles.selected();
       return liveAccount?.canManage === true && liveAccount.capabilities.manageAccount === true &&
-        liveTarget?.id === target.id && liveTarget.revision === target.revision && liveTarget.id === captured.profileId;
+        liveTarget?.id === target.id && liveTarget.id === captured.profileId;
     };
     const client = this.guardedClient(admitted);
     this.publish({...state, busy: true});
@@ -63,7 +65,7 @@ export class ProfileRestrictionsSource {
       const document = await client.saveRestrictions(captured, changes);
       if (!admitted()) return;
       if (document.profileId !== captured.profileId) throw new CodedError('invalid_response', 'The profile limits could not be read.');
-      this.publish({loading: false, busy: false, document, systems: state.systems});
+      this.publish({loading: false, busy: false, document, systems: state.systems, tags: state.tags});
     } catch (error) {
       // PR-1: refused before anything changed: keep the limits on screen; the shell asks for the PIN.
       if (epoch === this.epoch) this.publish(managementPinRefused(error) ? {...state, busy: false} : {loading: false, busy: false, error});

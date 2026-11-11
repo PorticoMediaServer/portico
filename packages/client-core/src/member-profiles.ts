@@ -1,98 +1,56 @@
-import {encodedRoutePath} from '../../contracts/src/route-paths.ts';
-import {routeBody} from '../../contracts/src/routes.ts';
-import {PROFILE_ART, type ProfileArt} from './profile-management.ts';
-import {parseProfileRestrictions, restrictionEdit, type ProfileRestrictions} from './identity-restrictions.ts';
-import {AVATAR_MAX_BYTES, type IdentityUpload} from './identity-client.ts';
+import {PROFILE_ART, parseManagedProfiles, type ProfileArt} from './profile-management.ts';
+import {readRestrictions, saveRestrictions, type ProfileRestrictions, type RestrictionChanges} from './profile-restrictions.ts';
+import type {IdentityUpload} from './identity-client.ts';
 import type {ProfileAvatar} from './identity-restrictions.ts';
+import {callServer} from './query/server-api.ts';
 import {CodedError, unreadableServerResponse} from './server-messages.ts';
 
-/** One of another person's profiles, as People's Manage edits it: the same
- * facts Profile & account shows, plus its restrictions. */
+/** One of another person's profiles, as People's Manage edits it: the same facts Profile & account
+ * shows, plus its limits. `revision` and `pinRevision` are always 1: the later save wins. */
 export type MemberProfile = Readonly<{id: string; name: string; art: ProfileArt; primary: boolean; position: number; revision: number;
   pinRequired: boolean; pinRevision: number; allowedLibraries: readonly string[]; restrictions: ProfileRestrictions; avatar?: ProfileAvatar}>;
 export type MemberProfilesApi = {request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>};
 
-const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const text = (v: unknown, max: number): v is string => typeof v === 'string' && v.length > 0 && v.length <= max && !/[\x00-\x1f\x7f]/.test(v);
-const count = (v: unknown, min = 0): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= min;
 const invalid = (): never => {throw new CodedError('invalid_response', unreadableServerResponse);};
-
-export function parseMemberProfile(raw: unknown): MemberProfile {
-  if (!object(raw) || !text(raw.id, 128) || !text(raw.name, 120) || !PROFILE_ART.includes(raw.art as ProfileArt) || typeof raw.primary !== 'boolean'
-    || !count(raw.position) || !count(raw.revision, 1) || typeof raw.pinRequired !== 'boolean' || !count(raw.pinRevision)
-    || !Array.isArray(raw.allowedLibraries) || raw.allowedLibraries.length > 256 || raw.allowedLibraries.some(id => !text(id, 128))) return invalid();
-  const restrictions = parseProfileRestrictions((raw as {restrictions?: unknown}).restrictions);
-  if (restrictions.profileId !== raw.id) invalid();
-  let avatar: ProfileAvatar | undefined;
-  if (raw.avatar !== undefined) {
-    const a = raw.avatar;
-    if (!object(a) || a.profileId !== raw.id || !count(a.version, 1) || typeof a.updatedAt !== 'string' || !Number.isFinite(Date.parse(a.updatedAt))
-      || !['image/jpeg', 'image/png'].includes(a.sourceMime as string) || typeof a.url !== 'string' || a.url.length > 512) invalid();
-    avatar = Object.freeze({...a}) as ProfileAvatar;
-  }
-  const r = raw as Record<string, unknown>;
-  return Object.freeze({id: r.id as string, name: r.name as string, art: r.art as ProfileArt, primary: r.primary as boolean, position: r.position as number,
-    revision: r.revision as number, pinRequired: r.pinRequired as boolean, pinRevision: r.pinRevision as number,
-    allowedLibraries: Object.freeze([...(r.allowedLibraries as string[])]), restrictions, ...(avatar ? {avatar} : {})});
-}
+const notYet = (): never => {throw new CodedError('not_available', 'This is not available on this server yet.');};
 
 /**
- * Another person's profiles, bound to that one account. Every answer must name
- * that account or a profile already read for it; the server proves the
- * caller's tier on each request, and an edit is fenced on the revision read.
+ * Another person's profiles, for the owner or an administrator (`?member=<account id>` on the profile routes).
+ * The server checks on every request that the caller may manage that person.
  */
 export class MemberProfilesClient {
-  constructor(private readonly api: MemberProfilesApi, readonly accountId: string, private readonly upload?: IdentityUpload) {
+  constructor(private readonly api: MemberProfilesApi, readonly accountId: string, _upload?: IdentityUpload) {
     if (!text(accountId, 128)) throw new Error('An account is required.');
   }
   async list(signal?: AbortSignal): Promise<readonly MemberProfile[]> {
-    const raw = await this.api.request<unknown>(encodedRoutePath('get_admin_access_members_id_profiles', {id: this.accountId}), 'GET', undefined, signal);
-    if (!object(raw) || raw.accountId !== this.accountId || !Array.isArray(raw.items) || raw.items.length > 64) invalid();
-    const items = (raw as {items: unknown[]}).items.map(value => this.scoped(parseMemberProfile(value)));
-    if (new Set(items.map(item => item.id)).size !== items.length || items.filter(item => item.primary).length > 1) invalid();
-    return Object.freeze(items);
+    const profiles = parseManagedProfiles((await callServer(this.api, 'GET /v1/profiles', {query: {member: this.accountId}, signal}))?.items, true);
+    return Object.freeze(await Promise.all(profiles.map(async profile => {
+      const restrictions = await readRestrictions(this.api, profile.id, this.accountId, signal);
+      return Object.freeze({id: profile.id, name: profile.name, art: profile.art, primary: profile.primary, position: profile.position, revision: 1, pinRequired: profile.pinRequired,
+        pinRevision: 1, allowedLibraries: restrictions.allLibraries ? Object.freeze([]) : restrictions.libraries, restrictions});
+    })));
   }
-  private scoped(profile: MemberProfile): MemberProfile {
-    if (profile.avatar && profile.avatar.url !== encodedRoutePath('get_admin_access_members_id_profiles_profile_avatar', {id: this.accountId, profileId: profile.id}) + '?v=' + profile.avatar.version) invalid();
-    return profile;
-  }
-  private same(profile: MemberProfile, next: MemberProfile): MemberProfile {
-    if (next.id !== profile.id) invalid();
-    return this.scoped(next);
+  private async reread(profile: MemberProfile, signal?: AbortSignal): Promise<MemberProfile> {
+    const next = (await this.list(signal)).find(candidate => candidate.id === profile.id);
+    if (!next) invalid();
+    return next!;
   }
   async rename(profile: MemberProfile, change: Readonly<{name?: string; art?: ProfileArt}>, signal?: AbortSignal): Promise<MemberProfile> {
-    const raw = await this.api.request<unknown>(encodedRoutePath('patch_admin_access_members_id_profiles_profile', {id: this.accountId, profileId: profile.id}), 'PATCH',
-      routeBody('patch_admin_access_members_id_profiles_profile', {expectedRevision: profile.revision, ...change}), signal);
-    return this.same(profile, parseMemberProfile(raw));
+    if (change.art !== undefined && !PROFILE_ART.includes(change.art)) invalid();
+    await callServer(this.api, 'PATCH /v1/profiles/{id}', {id: profile.id, query: {member: this.accountId}, body: {...(change.name === undefined ? {} : {name: change.name.trim()}), ...(change.art === undefined ? {} : {color: change.art})}, signal});
+    return this.reread(profile, signal);
   }
-  async restrict(profile: MemberProfile, changes: Parameters<typeof restrictionEdit>[1], signal?: AbortSignal): Promise<MemberProfile> {
-    const raw = await this.api.request<unknown>(encodedRoutePath('put_admin_access_members_id_profiles_profile_restrictions', {id: this.accountId, profileId: profile.id}), 'PUT',
-      restrictionEdit(profile.restrictions, changes), signal);
-    return this.same(profile, parseMemberProfile(raw));
+  async restrict(profile: MemberProfile, changes: RestrictionChanges, signal?: AbortSignal): Promise<MemberProfile> {
+    const restrictions = await saveRestrictions(this.api, profile.restrictions, changes, this.accountId, signal);
+    return Object.freeze({...profile, restrictions, allowedLibraries: restrictions.allLibraries ? Object.freeze([]) : restrictions.libraries});
   }
-  async uploadPicture(profile: MemberProfile, picture: Blob | ArrayBuffer | Uint8Array, contentType: string): Promise<MemberProfile> {
-    if (!this.upload) throw new Error('This device can’t send pictures.');
-    const size = typeof Blob !== 'undefined' && picture instanceof Blob ? picture.size : (picture as ArrayBuffer | Uint8Array).byteLength;
-    if (!size || size > AVATAR_MAX_BYTES) throw new CodedError('invalid_request', 'Choose a picture smaller than 4 MB.');
-    if (!['image/jpeg', 'image/png'].includes(contentType)) throw new CodedError('invalid_request', 'Choose a JPEG or PNG picture.');
-    const path = encodedRoutePath('post_admin_access_members_id_profiles_profile_avatar', {id: this.accountId, profileId: profile.id}) + '?expectedRevision=' + profile.revision;
-    const next = this.same(profile, parseMemberProfile(await this.upload(path, picture, contentType)));
-    if (!next.avatar || next.revision <= profile.revision) invalid();
-    return next;
-  }
-  async removePicture(profile: MemberProfile, signal?: AbortSignal): Promise<MemberProfile> {
-    const raw = await this.api.request<unknown>(encodedRoutePath('delete_admin_access_members_id_profiles_profile_avatar', {id: this.accountId, profileId: profile.id}), 'DELETE',
-      routeBody('delete_admin_access_members_id_profiles_profile_avatar', {expectedRevision: profile.revision}), signal);
-    const next = this.same(profile, parseMemberProfile(raw));
-    if (next.avatar || next.revision <= profile.revision) invalid();
-    return next;
-  }
-  /** Clears the PIN so the person can choose a new one; nobody else chooses it for them. */
+  /** Profile pictures are not on the rebuilt server yet. */
+  async uploadPicture(_profile: MemberProfile, _picture: Blob | ArrayBuffer | Uint8Array, _contentType: string): Promise<MemberProfile> {return notYet();}
+  async removePicture(_profile: MemberProfile, _signal?: AbortSignal): Promise<MemberProfile> {return notYet();}
+  /** Removes the PIN so the person can choose a new one; nobody else chooses it for them. */
   async resetPIN(profile: MemberProfile, signal?: AbortSignal): Promise<MemberProfile> {
-    const raw = await this.api.request<unknown>(encodedRoutePath('post_admin_access_members_id_profiles_profile_pin_reset', {id: this.accountId, profileId: profile.id}), 'POST',
-      routeBody('post_admin_access_members_id_profiles_profile_pin_reset', {expectedRevision: profile.revision}), signal);
-    const next = this.same(profile, parseMemberProfile(raw));
-    if (next.pinRequired) invalid();
-    return next;
+    await callServer(this.api, 'DELETE /v1/profiles/{id}/pin', {id: profile.id, query: {member: this.accountId}, signal});
+    return Object.freeze({...profile, pinRequired: false});
   }
 }

@@ -617,13 +617,12 @@ export class NativeServerSignIn {
       return accepted;
     });
   }
-  /** Auth18 on the sign-in picker. The same account-scoped sign-in that opened the
-   * picker supplies a proven management snapshot. This seam never opens the
-   * temporary-proof path, and disposal closes the recovery fence. */
+  /** Forgot PIN on the sign-in picker: the account-scoped sign-in that opened the picker sends the
+   * account's password with the new PIN. Disposal closes the recovery fence. */
   profileRecovery(profileId: string) {
     this.assertCurrent();
     const api = this.api, snapshot = this.snapshot, account = this.account, server = this.server;
-    if (!api || !snapshot || !account || !server || !snapshot.canManage || !snapshot.capabilities.manageAccount
+    if (!api || !snapshot || !account || !server
       || account.viewer.role !== 'account' || account.viewer.authority !== snapshot.authority
       || account.viewer.serverId !== snapshot.serverId || account.viewer.accountId !== snapshot.account.id) throw mismatch();
     const pin = api.getRouteConnection()?.pin;
@@ -634,11 +633,7 @@ export class NativeServerSignIn {
       return !!live && live.serverId === pin.serverId && live.publicKey === pin.publicKey && live.fingerprint === pin.fingerprint;
     };
     return new NativeProfileRecovery({api, snapshot, profileId, selectedFamilyId: account.sessionFamilyId, kind: server.signIn,
-      authorityCurrent,
-      // This seam already has an authenticated management grant. Never mint or
-      // clean up a proof family here: both the account grant and any installed
-      // viewer family remain retained until normal sign-in publication/cancel.
-      temporary: () => {throw mismatch();}});
+      authorityCurrent});
 
   }
   private async persist(session: LocalSession, trace?: PickTrace) {

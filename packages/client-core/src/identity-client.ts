@@ -3,23 +3,30 @@ import type {RouteResponse} from "../../contracts/src/route-paths.ts";
 import {routePath, encodedRoutePath} from "../../contracts/src/route-paths.ts";
 import {CodedError,unreadableServerResponse} from './server-messages.ts';
 import {callServer} from './query/server-api.ts';
-/** Typed calls for the identity workstream on a direct server: profile restrictions and
- * devices, two-factor. Parsing is strict; these functions add no state. */
+/** Typed calls for the identity workstream on a direct server: profile limits and
+ * devices, two-step sign-in. These functions add no state. */
 import {parseDevice,parseDevices,parseRememberedAccounts,type Device,type RememberedAccount} from './identity-devices.ts';
-import {parsePINRecoveryMethods,parseProfileAvatar,parseProfileRestrictions,parseRatingSystems,parseTwoFactorState,restrictionEdit,type PINRecoveryMethods,type ProfileAvatar,type ProfileRestrictions,type RatingSystem,type TwoFactorState} from './identity-restrictions.ts';
+import {parseProfileAvatar,parseTwoFactorState,type ProfileAvatar,type TwoFactorState} from './identity-restrictions.ts';
+import {RATING_LIMITS,readRestrictions,saveRestrictions,tagChoices,type ProfileRestrictions,type RatingSystem,type RestrictionChanges,type TagChoice} from './profile-restrictions.ts';
 
 export type IdentityApi={request<T>(path:string,method?:string,body?:unknown,signal?:AbortSignal):Promise<T>};
 export type DeviceDescription=Readonly<{installationId:string;name:string;platform:string;app:string;appVersion:string}>;
 /** One sign-in of the account on one device. `network` is where it was last used from, never an address. */
 export type SignInRecord=Readonly<{id:string;deviceId:string;deviceName:string;profileId?:string;createdAt:string;lastUsedAt:string;expiresAt:string;endedAt?:string;endReason?:string;network?:'home'|'away';current:boolean}>;
-export type TwoFactorEnrolment=Readonly<{secret:string;uri:string;recoveryCodes:readonly string[]}>;
+/** What an authenticator app is given. The recovery codes come when the first code is confirmed. */
+export type TwoFactorEnrolment=Readonly<{secret:string;uri:string}>;
 const id=(v:string)=>encodeURIComponent(v);
 
 export function parseTwoFactorEnrolment(raw:unknown):TwoFactorEnrolment{
  const v=raw as Record<string,unknown>|null;
- if(!v||typeof v.secret!=='string'||!/^[A-Z2-7]{16,128}$/.test(v.secret)||typeof v.uri!=='string'||!v.uri.startsWith('otpauth://totp/')||v.uri.length>1024)throw new Error(unreadableServerResponse);
- if(!Array.isArray(v.recoveryCodes)||v.recoveryCodes.length>20||v.recoveryCodes.some(c=>typeof c!=='string'||c.length<6||c.length>64))throw new Error(unreadableServerResponse);
- return Object.freeze({secret:v.secret,uri:v.uri,recoveryCodes:Object.freeze([...v.recoveryCodes as string[]])});
+ if(!v||typeof v.secret!=='string'||!v.secret||v.secret.length>256||typeof v.uri!=='string'||!v.uri.startsWith('otpauth://totp/')||v.uri.length>1024)throw new Error(unreadableServerResponse);
+ return Object.freeze({secret:v.secret,uri:v.uri});
+}
+/** The ten single-use recovery codes, shown once (`RecoveryCodes`). */
+function recoveryCodes(raw:unknown):readonly string[]{
+ const codes=(raw as {recoveryCodes?:unknown}|null)?.recoveryCodes;
+ if(!Array.isArray(codes)||codes.length<1||codes.length>20||codes.some(value=>typeof value!=='string'||value.length<6||value.length>64||/[\x00-\x20\x7f]/.test(value))||new Set(codes).size!==codes.length)throw new Error(unreadableServerResponse);
+ return Object.freeze([...codes as string[]]);
 }
 
 /** Sends bytes rather than JSON; only a picture upload needs it. The app supplies it because
@@ -30,15 +37,18 @@ export const AVATAR_MAX_BYTES=4*1024*1024;
 export class IdentityClient{
  private api:IdentityApi;private upload?:IdentityUpload;
  constructor(api:IdentityApi,upload?:IdentityUpload){this.api=api;this.upload=upload;}
- /** The server sends `{items}`; the parser takes the list. */
- async ratingSystems(signal?:AbortSignal):Promise<readonly RatingSystem[]>{const raw=await this.api.request<{items?:unknown}>(routePath("get_rating_systems"),'GET',undefined,signal);return parseRatingSystems(raw?.items);}
- async restrictions(profileId:string,signal?:AbortSignal):Promise<ProfileRestrictions>{return parseProfileRestrictions(await this.api.request<RouteResponse<"get_direct_profile_restrictions">>(encodedRoutePath("get_direct_profile_restrictions", {"id": id(profileId)}),'GET',undefined,signal));}
- /** C45: the signed-in account session manages restrictions and PINs; there is no step-up proof. */
- async saveRestrictions(current:ProfileRestrictions,changes:Parameters<typeof restrictionEdit>[1]):Promise<ProfileRestrictions>{
-  return parseProfileRestrictions(await this.api.request<RouteResponse<"put_direct_profile_restrictions">>(encodedRoutePath("put_direct_profile_restrictions", {"id": id(current.profileId)}),'PUT',restrictionEdit(current,changes)));
+ /** The highest-rating choices. The server keeps a limit as an age, so these are fixed and need no request. */
+ async ratingSystems(_signal?:AbortSignal):Promise<readonly RatingSystem[]>{return Object.freeze([RATING_LIMITS]);}
+ async restrictions(profileId:string,signal?:AbortSignal):Promise<ProfileRestrictions>{return readRestrictions(this.api,profileId,undefined,signal);}
+ /** The Tags a profile can have blocked, by name. */
+ async tags(signal?:AbortSignal):Promise<readonly TagChoice[]>{return tagChoices(this.api,signal);}
+ /** Saves the limits as read with these changes (`PUT /v1/profiles/{id}/restrictions`); the later save wins. */
+ async saveRestrictions(current:ProfileRestrictions,changes:RestrictionChanges):Promise<ProfileRestrictions>{return saveRestrictions(this.api,current,changes);}
+ /** Forgot PIN: the account's password (and two-step code when that is on) sets a new PIN from any profile
+  * (`PUT /v1/profiles/{id}/pin`). Without them, only the main profile may change a PIN. */
+ async resetPIN(profileId:string,pin:string,proof?:Readonly<{currentPassword:string;code?:string}>,signal?:AbortSignal):Promise<void>{
+  await callServer(this.api,'PUT /v1/profiles/{id}/pin',{id:profileId,body:{pin,...(proof?{currentPassword:proof.currentPassword,...(proof.code?{code:proof.code}:{})}:{})},signal});
  }
- async pinRecovery():Promise<PINRecoveryMethods>{return parsePINRecoveryMethods(await this.api.request<RouteResponse<"get_direct_pin_recovery">>(routePath("get_direct_pin_recovery")));}
- async resetPIN(profileId:string,pin:string):Promise<void>{await this.api.request(encodedRoutePath("post_direct_profile_pin_reset", {"id": id(profileId)}),'POST',routeBody("post_direct_profile_pin_reset", {pin}));}
  async removeAvatar(profileId:string):Promise<void>{await this.api.request(encodedRoutePath("delete_direct_profiles_id_avatar", {"id": id(profileId)}),'DELETE');}
  avatar(raw:unknown):ProfileAvatar{return parseProfileAvatar(raw);}
  /** Every profile's current picture version in one read; a profile with none is absent. */
@@ -83,21 +93,21 @@ export class IdentityClient{
   * recovery code) when two-step sign-in is on. The account's other devices are signed out. */
  async changePassword(currentPassword:string,newPassword:string,code?:string):Promise<void>{await callServer(this.api,'POST /v1/auth/password',{body:{currentPassword,newPassword,...(code?{code}:{})}});}
 
- async twoFactor(signal?:AbortSignal):Promise<TwoFactorState>{return parseTwoFactorState(await this.api.request<RouteResponse<"get_direct_two_factor">>(routePath("get_direct_two_factor"),'GET',undefined,signal));}
- async enrolTwoFactor(password:string):Promise<TwoFactorEnrolment>{return parseTwoFactorEnrolment(await this.api.request<RouteResponse<"post_direct_two_factor_enrol">>(routePath("post_direct_two_factor_enrol"),'POST',routeBody("post_direct_two_factor_enrol", {password})));}
- /** C45: confirming enrolment sends the current password with the first code. */
- async verifyTwoFactor(password:string,code:string):Promise<TwoFactorState>{return parseTwoFactorState(await this.api.request<RouteResponse<"post_direct_two_factor_verify">>(routePath("post_direct_two_factor_verify"),'POST',routeBody("post_direct_two_factor_verify", {password,code})));}
- /** Replaces the local account's codes under a current password and factor proof.
-  * Only this response contains the new plaintext codes; callers must keep them memory-only. */
- async replaceRecoveryCodes(password:string,code:string,signal?:AbortSignal):Promise<readonly string[]>{
-  const raw=await this.api.request<unknown>(routePath("post_direct_two_factor_recovery_codes"),'POST',routeBody("post_direct_two_factor_recovery_codes",{password,code}),signal);
-  if(!raw||typeof raw!=='object'||Array.isArray(raw)||Object.keys(raw).some(key=>key!=='codes'))throw new Error(unreadableServerResponse);
-  const codes=(raw as {codes?:unknown}).codes;
-  if(!Array.isArray(codes)||codes.length<1||codes.length>20||codes.some(value=>typeof value!=='string'||value.length<6||value.length>64||/[\x00-\x20\x7f]/.test(value))||new Set(codes).size!==codes.length)throw new Error(unreadableServerResponse);
-  return Object.freeze([...codes]);
+ /** Whether two-step sign-in is on and how many recovery codes are left (`GET /v1/me/two-factor`). */
+ async twoFactor(signal?:AbortSignal):Promise<TwoFactorState>{return parseTwoFactorState(await callServer(this.api,'GET /v1/me/two-factor',{signal}));}
+ /** Starts turning two-step on with the current password (`POST /v1/me/two-factor`). */
+ async enrolTwoFactor(password:string):Promise<TwoFactorEnrolment>{return parseTwoFactorEnrolment(await callServer(this.api,'POST /v1/me/two-factor',{body:{currentPassword:password}}));}
+ /** Turns two-step on with the first code from the authenticator (`POST /v1/me/two-factor/confirm`). The answer
+  * holds the recovery codes, shown once; callers keep them in memory only. `password` was proved when it started. */
+ async verifyTwoFactor(_password:string,code:string):Promise<TwoFactorState&{recoveryCodes:readonly string[]}>{
+  const codes=recoveryCodes(await callServer(this.api,'POST /v1/me/two-factor/confirm',{body:{code:code.trim()}}));
+  return Object.freeze({enabled:true,pendingEnrolment:false,recoveryCodesRemaining:codes.length,recoveryCodes:codes});
  }
-
- /** C45: turning it off sends the current password and a current code. */
- async disableTwoFactor(password:string,code:string):Promise<void>{await this.api.request(routePath("delete_direct_two_factor"),'DELETE',routeBody("delete_direct_two_factor", {password,code}));}
+ /** Replaces the recovery codes with the current password and a current code (`POST /v1/me/two-factor/recovery-codes`).
+  * Only this answer holds the new codes; callers keep them in memory only. */
+ async replaceRecoveryCodes(password:string,code:string,signal?:AbortSignal):Promise<readonly string[]>{
+  return recoveryCodes(await callServer(this.api,'POST /v1/me/two-factor/recovery-codes',{body:{currentPassword:password,code:code.trim()},signal}));
+ }
+ /** Turns two-step off with the current password and a current code (`DELETE /v1/me/two-factor`). */
+ async disableTwoFactor(password:string,code:string):Promise<void>{await callServer(this.api,'DELETE /v1/me/two-factor',{body:{currentPassword:password,code:code.trim()}});}
 }
-
