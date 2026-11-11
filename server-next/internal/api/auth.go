@@ -218,7 +218,8 @@ func checkDevice(device DeviceInfo) (db.DeviceInfo, error) {
 func (s *Server) mintSession(r *http.Request, now time.Time) (db.NewSession, string) {
 	id := db.NewSessionID()
 	refresh := s.tokens.FirstRefresh(id)
-	return db.NewSession{ID: id, RefreshHash: auth.Hash(refresh), ExpiresAt: now.Add(auth.SessionIdle), RemoteAddr: s.remoteHost(r)}, refresh
+	return db.NewSession{ID: id, RefreshHash: auth.Hash(refresh), ExpiresAt: now.Add(auth.SessionIdle), RemoteAddr: s.remoteHost(r),
+		AtHome: s.fromHome(r)}, refresh
 }
 
 // newSession checks what the app said about its device and prepares a session for it.
@@ -430,7 +431,7 @@ func (s *Server) refresh(r *http.Request, req RefreshRequest) (Session, error) {
 	next := s.tokens.NextRefresh(req.RefreshToken, ref, req.RequestID)
 	st, replayed, err := s.db.RenewSession(r.Context(), db.Renewal{SessionID: ref.SessionID, Generation: ref.Generation,
 		Hash: auth.Hash(req.RefreshToken), NextHash: auth.Hash(next), RequestID: req.RequestID, InstallationID: req.InstallationID,
-		ExpiresAt: now.Add(auth.SessionIdle), RemoteAddr: s.remoteHost(r), Now: now})
+		ExpiresAt: now.Add(auth.SessionIdle), RemoteAddr: s.remoteHost(r), AtHome: s.fromHome(r), Now: now})
 	if errors.Is(err, db.ErrBadCredentials) {
 		return Session{}, errSignInEnded()
 	}

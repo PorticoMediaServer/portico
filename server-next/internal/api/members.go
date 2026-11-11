@@ -37,6 +37,8 @@ type Member struct {
 	LastActiveAt *time.Time `json:"lastActiveAt,omitempty"`
 	// Profiles are the names of the account's profiles in picker order, the main one first.
 	Profiles []string `json:"profiles"`
+	// Limits are what the whole account is held to.
+	Limits MemberLimits `json:"limits"`
 }
 
 // MemberCreate makes an account directly, with a first password to pass on to its person.
@@ -57,6 +59,8 @@ type MemberEdit struct {
 	Libraries    *[]string `json:"libraries,omitempty"`
 	// AllowDownloads turns downloads on or off for the whole account.
 	AllowDownloads *bool `json:"allowDownloads,omitempty"`
+	// Limits, when sent, replaces everything the account is held to.
+	Limits *MemberLimits `json:"limits,omitempty"`
 }
 
 // PasswordResetCreate asks for a reset code for a member.
@@ -84,7 +88,8 @@ func memberOut(m db.Member) Member {
 		libraries = []string{}
 	}
 	out := Member{Account: accountOut(m.Account), Disabled: m.Disabled, CreatedAt: m.CreatedAt.UTC(), AllLibraries: m.AllLibraries,
-		Libraries: libraries, TwoFactorEnabled: m.TwoFactor, Notes: m.Notes, AllowDownloads: m.AllowDownloads, Profiles: m.Profiles}
+		Libraries: libraries, TwoFactorEnabled: m.TwoFactor, Notes: m.Notes, AllowDownloads: m.AllowDownloads, Profiles: m.Profiles,
+		Limits: memberLimitsOut(m.Limits)}
 	if out.Profiles == nil {
 		out.Profiles = []string{}
 	}
@@ -104,6 +109,8 @@ func memberError(err error) error {
 		return ErrNotPermitted()
 	case errors.Is(err, db.ErrUnknownLibrary):
 		return ErrField("libraries", "One of these libraries does not exist.")
+	case errors.Is(err, db.ErrUnknownLabel):
+		return ErrField("limits.blockedLabels", "One of these labels does not exist.")
 	case errors.Is(err, db.ErrConflict):
 		return ErrConflict("username_taken", "That username is already in use.")
 	case errors.Is(err, db.ErrKeyReused):
@@ -203,9 +210,13 @@ func (s *Server) editMember(r *http.Request, req MemberEdit) (Member, error) {
 	case req.Libraries != nil && len(*req.Libraries) > 1000:
 		return Member{}, ErrField("libraries", "That is too many libraries.")
 	}
+	limits, err := memberLimitsIn(req.Limits)
+	if err != nil {
+		return Member{}, err
+	}
 	m, err := s.db.UpdateMember(r.Context(), db.MemberEdit{ActorID: caller.UserID, ActorRole: caller.Role, PublicID: r.PathValue("id"),
 		Role: req.Role, Disabled: req.Disabled, Notes: req.Notes, AllLibraries: req.AllLibraries, Libraries: req.Libraries,
-		AllowDownloads: req.AllowDownloads, Now: s.now()})
+		AllowDownloads: req.AllowDownloads, Limits: limits, Now: s.now()})
 	return memberOut(m), memberError(err)
 }
 

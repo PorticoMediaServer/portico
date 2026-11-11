@@ -143,6 +143,18 @@ func (s *Server) listProfiles(r *http.Request, _ None) (Page[Profile], error) {
 	return Page[Profile]{Items: profilesOut(profiles)}, err
 }
 
+// errProfileCapacity says how many profiles the account may have: eight, or fewer where
+// the owner or an administrator lowered it.
+func errProfileCapacity(err error) *Error {
+	var limit *db.ProfileLimitError
+	if errors.As(err, &limit) && limit.Limit == 1 {
+		return ErrConflict("profile_capacity", "This account can have only its main profile.")
+	} else if limit != nil && limit.Limit < db.MaxProfiles {
+		return ErrConflict("profile_capacity", "This account already has "+strconv.Itoa(limit.Limit)+" profiles, the most it may have.")
+	}
+	return ErrConflict("profile_capacity", "An account can have up to eight profiles.")
+}
+
 func checkProfileFields(name, color, pin *string) error {
 	switch {
 	case name != nil && !auth.ValidName(*name):
@@ -180,7 +192,7 @@ func (s *Server) createProfile(r *http.Request, req ProfileCreate) (Profile, err
 	p, err := s.db.CreateProfile(ctx, n)
 	switch {
 	case errors.Is(err, db.ErrProfileLimit):
-		return Profile{}, ErrConflict("profile_capacity", "An account can have up to eight profiles.")
+		return Profile{}, errProfileCapacity(err)
 	case errors.Is(err, db.ErrKeyReused):
 		return Profile{}, errKeyReused()
 	}
@@ -330,7 +342,7 @@ func (s *Server) selectProfile(r *http.Request, req ProfileSelect) (Session, err
 	if err != nil {
 		return Session{}, err
 	}
-	sel := db.ProfileSelection{UserID: caller.UserID, SessionID: caller.SessionID, ProfileID: p.ID, CheckedPINHash: p.PINHash, Now: now}
+	sel := db.ProfileSelection{UserID: caller.UserID, SessionID: caller.SessionID, ProfileID: p.ID, CheckedPINHash: p.PINHash, AtHome: s.fromHome(r), Now: now}
 	if p.PINHash != "" {
 		if req.PIN == "" {
 			return Session{}, errBadPIN()

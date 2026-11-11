@@ -894,7 +894,8 @@ func nullIfEmpty(text string, keep bool) any {
 func (d *DB) TagKnown(ctx context.Context, v Viewer, publicID, genre string) (bool, error) {
 	var known bool
 	err := d.read.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM tags t WHERE (public_id = ? OR (? <> '' AND kind = 'genre' AND norm_name = ?))
-		AND NOT EXISTS (SELECT 1 FROM profile_restrictions r WHERE r.profile_id = ? AND r.tag_id = t.id))`,
-		publicID, genre, normTag(genre), v.ProfileID).Scan(&known)
+		AND NOT EXISTS (SELECT 1 FROM profile_restrictions r WHERE r.profile_id = ? AND r.tag_id = t.id)
+		AND NOT EXISTS (SELECT 1 FROM account_restrictions r WHERE r.user_id = ? AND r.tag_id = t.id))`,
+		publicID, genre, normTag(genre), v.ProfileID, v.UserID).Scan(&known)
 	return known, err
 }
