@@ -126,6 +126,8 @@ var titleChanges = []titleChange{
 // noRowNeeded are the routes and data-layer writes that change something titles hang on and
 // need no row above, each with the reason.
 var noRowNeeded = map[string]string{
+	"POST /v1/admin/items/deletion":           "reads what the selection would delete; no title changes",
+	"POST /v1/admin/items/delete":             "deletes each selected title through deleteFiles and db.Deleted, which has a row",
 	"db.RememberTracks":                       "keeps the audio and subtitle language a profile chose; no list, count or rule reads it",
 	"db.RemoveUnusedTitleDataTags":            "deletes mood tags no title carries, so no title changes",
 	"PUT /v1/playback/sessions/{id}/progress": "writes the position through db.SaveProgress, which has a row",
@@ -146,6 +148,10 @@ var noRowNeeded = map[string]string{
 // here with its reason, or get a row in titleChanges.
 func init() {
 	for reason, routes := range map[string][]string{
+		"webhook settings and deliveries change no title, rating, label or library access": {
+			"POST /v1/admin/webhooks", "PATCH /v1/admin/webhooks/{id}", "DELETE /v1/admin/webhooks/{id}",
+			"POST /v1/admin/webhooks/{id}/test", "POST /v1/admin/webhooks/{id}/secret",
+		},
 		"library order changes only the order of libraries, no title or access rule": {
 			"PUT /v1/admin/libraries/order",
 		},
@@ -164,6 +170,7 @@ func init() {
 			"POST /v1/auth/codes/{id}/approve", "POST /v1/auth/codes/{id}/redeem", "DELETE /v1/auth/session",
 			"POST /v1/me/two-factor", "POST /v1/me/two-factor/confirm", "POST /v1/me/two-factor/recovery-codes",
 			"DELETE /v1/me/two-factor", "DELETE /v1/me/sessions", "DELETE /v1/me/sessions/{id}",
+			"DELETE /v1/admin/sessions/{id}",
 			"POST /v1/admin/members/{id}/password-reset", "POST /v1/admin/api-keys", "DELETE /v1/admin/api-keys/{id}",
 			"POST /v1/me/tokens", "DELETE /v1/me/tokens/{id}", "POST /v1/me/app-passwords", "DELETE /v1/me/app-passwords/{id}",
 		},
