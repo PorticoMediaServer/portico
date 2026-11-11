@@ -69,7 +69,16 @@ func packaged(log *slog.Logger, packagedName, name, fallback string) string {
 func run(log *slog.Logger) error {
 	data := flag.String("data", packaged(log, "PORTICO_DATA_DIR", "PORTICO_DATA", ""), "folder for the database and everything else the server keeps (PORTICO_DATA_DIR, or PORTICO_DATA)")
 	listen := flag.String("listen", packaged(log, "PORTICO_BIND", "PORTICO_LISTEN", ":32500"), "address to serve the API on (PORTICO_BIND, or PORTICO_LISTEN)")
+	showVersion := flag.Bool("version", false, "print the version and stop")
+	check := flag.Bool("health-check", false, "ask the server running at the listening address whether it is ready, and stop: exit status 0 when it is")
 	flag.Parse()
+	if *showVersion {
+		fmt.Println(version)
+		return nil
+	}
+	if *check {
+		return healthCheck(*listen)
+	}
 	if *data == "" {
 		folder, err := defaultData()
 		if err != nil {
