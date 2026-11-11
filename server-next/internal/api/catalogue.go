@@ -215,14 +215,14 @@ func browseBy(kind string) ([]View, []Sort, []Filter) {
 	sorts := []Sort{{db.SortTitle, "asc"}, {db.SortAdded, "desc"}, {db.SortYear, "desc"}, {db.SortRelease, "desc"}}
 	// Then the sorts every kind has, and the ones only video has a fact for.
 	ownSorts := []Sort{{db.SortUserRating, "desc"}, {db.SortLastPlayed, "desc"}, {db.SortPlayCount, "desc"}, {db.SortRandom, "asc"}}
-	videoSorts := append([]Sort{{db.SortDuration, "desc"}, {db.SortCommunityRating, "desc"}, {db.SortCriticRating, "desc"},
-		{db.SortResolution, "desc"}}, ownSorts...)
+	// No sort or filter by critic rating is offered: nothing fills that rating yet.
+	videoSorts := append([]Sort{{db.SortDuration, "desc"}, {db.SortCommunityRating, "desc"}, {db.SortResolution, "desc"}}, ownSorts...)
 	mine := []Filter{{ID: "watched", Type: "boolean"}, {ID: "inProgress", Type: "boolean"}, {ID: "favorite", Type: "boolean"},
 		{ID: "inList", Type: "boolean"}, {ID: "userRating", Type: "number"}, {ID: "lastPlayed", Type: "day"}, {ID: "playCount", Type: "number"}}
 	filters := append([]Filter{{ID: "genre", Type: "tag"}, {ID: "label", Type: "tag"}, {ID: "year", Type: "year"}, {ID: "added", Type: "day"},
 		{ID: "available", Type: "boolean"}}, mine...)
 	video := []Filter{{ID: "contentRating", Type: "text"}, {ID: "released", Type: "day"}, {ID: "communityRating", Type: "number"},
-		{ID: "criticRating", Type: "number"}, {ID: "durationMs", Type: "number"}, {ID: "studio", Type: "tag"},
+		{ID: "durationMs", Type: "number"}, {ID: "studio", Type: "tag"},
 		{ID: "actor", Type: "person"}, {ID: "director", Type: "person"}, {ID: "writer", Type: "person"},
 		{ID: "resolution", Type: "choice", Values: []string{"sd", "720p", "1080p", "4k"}}, {ID: "dynamicRange", Type: "text"},
 		{ID: "audioLanguage", Type: "text"}, {ID: "subtitleLanguage", Type: "text"}, {ID: "versions", Type: "number"}}
