@@ -26,6 +26,7 @@ func (s *Server) startConsole(ctx context.Context) error {
 		s.log.Warn("a settings document could not be read and is at its defaults until the owner saves it", "error", err)
 	}
 	s.settingsRoutes()
+	s.upgradeCopyRoutes()
 	s.activityRoutes()
 	return nil
 }
