@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -12,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"reflect"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata"
@@ -189,4 +191,17 @@ func pictureSize(data []byte) (width, height int, ok bool) {
 		return 0, 0, false
 	}
 	return config.Width, config.Height, true
+}
+
+// pictureGrace is how long a picture is kept after it is stored before the sweep may take it:
+// a picture is put in the store a moment before the row that names it is written.
+const pictureGrace = time.Hour
+
+// SweepPictures removes from the picture store every picture no images row names any more: a
+// removed upload, a picture beside the media that was replaced, those of titles that left. It
+// is one step of the daily tidy-up and safe to run at any time. It returns how many it removed.
+func (s *Server) SweepPictures(ctx context.Context) (int, error) {
+	return s.artwork.Sweep(s.now().Add(-pictureGrace), func(yield func(string) error) error {
+		return s.db.PictureHashes(ctx, yield)
+	})
 }
