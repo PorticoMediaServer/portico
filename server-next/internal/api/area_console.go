@@ -25,6 +25,8 @@ func (s *Server) startConsole(ctx context.Context) error {
 	for _, err := range damaged {
 		s.log.Warn("a settings document could not be read and is at its defaults until the owner saves it", "error", err)
 	}
+	// The Dashboard's load charts, sampled in memory. See load.go.
+	s.loadRoutes(ctx)
 	s.settingsRoutes()
 	s.activityRoutes()
 	return nil
