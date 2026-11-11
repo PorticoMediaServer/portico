@@ -19,5 +19,7 @@ func init() {
 	safeToRepeat(map[string]string{
 		"POST /v1/admin/libraries/{id}/scan":      "a second scan request while one waits or runs joins it and queues nothing new",
 		"POST /v1/admin/remote-sources/{id}/test": "tests the saved connection and replaces its status",
+		"POST /v1/admin/items/deletion":           "a read with a body: it says what deleting a selection would take and changes nothing",
+		"POST /v1/admin/items/delete":             "a title already deleted is passed over, so a repeat deletes nothing more",
 	})
 }
