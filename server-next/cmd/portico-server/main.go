@@ -19,7 +19,6 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
 	"github.com/PorticoMediaServer/portico/server-next/internal/libraryfile"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediaexec"
-	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/tmdb"
 )
 
 // version is set by the release build.
@@ -80,10 +79,10 @@ func run(log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	// Until the owner can enter provider keys in Settings, a TMDB read access token can be
-	// given here. PORTICO_TMDB_ORIGIN points it at a stand-in for testing.
-	if token := os.Getenv("PORTICO_TMDB_TOKEN"); token != "" {
-		handler.UseProvider(tmdb.New(token, env("PORTICO_TMDB_ORIGIN", tmdb.Origin)))
+	// The owner enters provider keys in Settings › Metadata. PORTICO_TMDB_ORIGIN points the
+	// TMDB client at a stand-in, for testing only.
+	if origin := os.Getenv("PORTICO_TMDB_ORIGIN"); origin != "" {
+		handler.UseTMDBHost(origin)
 	}
 	// The list of changes behind the events feed is kept short. A reader further behind than
 	// what is kept is told to read everything again.

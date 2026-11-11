@@ -21,9 +21,11 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata"
+	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/tmdb"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
 	"github.com/PorticoMediaServer/portico/server-next/internal/remote"
+	"github.com/PorticoMediaServer/portico/server-next/internal/secrets"
 )
 
 // APIMajor is the number in the path. It changes only for a break old apps could not survive.
@@ -54,6 +56,8 @@ type Server struct {
 	queues *playqueue.Service
 	// metadata looks titles up at their library's provider. See metadata.go.
 	metadata *metadata.Service
+	// providers is the owner's provider keys and switches. See metadata_settings.go.
+	providers providers
 	// remote opens the owner's remote sources. See remote_sources.go.
 	remote *remote.Registry
 }
@@ -183,12 +187,16 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.queueRoutes()
 	s.metadata = &metadata.Service{DB: d, Providers: map[string]metadata.Provider{}}
 	s.metadataRoutes()
+	if s.providers.box, err = secrets.Open(dataDir); err != nil {
+		return nil, err
+	}
+	s.providers.tmdbHost = tmdb.Origin
+	if err := s.loadMetadataSettings(ctx); err != nil {
+		return nil, err
+	}
+	s.metadataSettingsRoutes()
 	return s, nil
 }
-
-// UseProvider gives the server an online metadata source. Without one, titles are looked up
-// nowhere and keep what their files say.
-func (s *Server) UseProvider(p metadata.Provider) { s.metadata.Providers[p.Name()] = p }
 
 // RemoteSources opens the owner's remote sources for the scanner and for playback.
 func (s *Server) RemoteSources() *remote.Registry { return s.remote }

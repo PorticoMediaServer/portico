@@ -99,7 +99,7 @@ func (s *Service) Matches(ctx context.Context, itemID, query string, year int, r
 		}
 		// Another provider's id: the library's provider answers the one title it knows by it.
 		found, err := p.Search(ctx, Query{Kind: kind, IDs: []Ref{{Provider: r.Provider, Kind: kind, ID: r.ID}}, Locale: locale,
-			IncludeAdult: s.IncludeAdult})
+			IncludeAdult: s.includeAdult()})
 		if err != nil {
 			return nil, err
 		}
@@ -108,7 +108,7 @@ func (s *Service) Matches(ctx context.Context, itemID, query string, year int, r
 		}
 		return found, nil
 	}
-	q := Query{Kind: kind, Title: t.Title, Year: t.Year, Locale: locale, IncludeAdult: s.IncludeAdult}
+	q := Query{Kind: kind, Title: t.Title, Year: t.Year, Locale: locale, IncludeAdult: s.includeAdult()}
 	if strings.TrimSpace(query) != "" {
 		q.Title, q.Year = strings.TrimSpace(query), year
 	}

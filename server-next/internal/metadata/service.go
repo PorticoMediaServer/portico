@@ -17,6 +17,9 @@ type Service struct {
 	Providers map[string]Provider // by Name
 	// IncludeAdult is the owner's "Include adult titles" switch.
 	IncludeAdult bool
+	// mu guards Providers and IncludeAdult, which the owner's settings change while the
+	// server runs (Use).
+	mu sync.RWMutex
 
 	// When each library's matched titles were last all looked through for a refresh. It is
 	// running state: after a restart the first call looks through them once.
@@ -35,6 +38,8 @@ func (s *Service) provider(src db.LibrarySource) Provider {
 	if name == "" {
 		name = defaultProviders[src.Kind]
 	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	if name == db.ProviderLocal {
 		return nil
 	}
@@ -94,7 +99,7 @@ func (s *Service) MatchLibrary(ctx context.Context, libraryID int64) (MatchStats
 }
 
 func (s *Service) match(ctx context.Context, p Provider, locale Locale, item db.MatchItem) (bool, error) {
-	q := Query{Kind: providerKinds[item.Kind], Title: item.Title, Year: item.Year, Locale: locale, IncludeAdult: s.IncludeAdult}
+	q := Query{Kind: providerKinds[item.Kind], Title: item.Title, Year: item.Year, Locale: locale, IncludeAdult: s.includeAdult()}
 	ref := Ref{Provider: p.Name(), Kind: q.Kind}
 	for _, id := range item.ExternalIDs {
 		if id.Provider == p.Name() {
@@ -276,7 +281,7 @@ func (s *Service) Rematch(ctx context.Context, itemID string) (bool, error) {
 	if t.Match == db.MatchChosen {
 		return false, ErrMatchLocked
 	}
-	q := Query{Kind: providerKinds[t.Kind], Title: t.Title, Year: t.Year, Locale: locale, IncludeAdult: s.IncludeAdult}
+	q := Query{Kind: providerKinds[t.Kind], Title: t.Title, Year: t.Year, Locale: locale, IncludeAdult: s.includeAdult()}
 	ref := Ref{Provider: p.Name(), Kind: q.Kind}
 	if t.Match != db.MatchFound {
 		// The ids of a title the server has not matched are the ones its name or NFO file
@@ -313,4 +318,18 @@ func (s *Service) Rematch(ctx context.Context, itemID string) (bool, error) {
 		return false, err
 	}
 	return true, s.children(ctx, p, locale, t.ID, record.Ref)
+}
+
+// Use replaces the online sources and the "Include adult titles" switch, as the owner's
+// settings change. A title being looked up at that moment finishes with what it had.
+func (s *Service) Use(providers map[string]Provider, includeAdult bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Providers, s.IncludeAdult = providers, includeAdult
+}
+
+func (s *Service) includeAdult() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.IncludeAdult
 }

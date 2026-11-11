@@ -221,7 +221,7 @@ Refreshing or editing a selection of titles is a bulk action, `POST /v1/jobs`.
 | `PUT /v1/admin/items/{id}/artwork/{role}` | Use this picture for the role, which locks it; or unlock the role |
 | `DELETE /v1/admin/items/{id}/artwork/{imageId}` | Remove an upload; the next best picture is used |
 | `POST /v1/admin/items/{id}/artwork/find` | Find more from the provider, fetch again, or make an episode's picture from the video |
-| `GET /v1/admin/metadata/settings`, `PUT /v1/admin/metadata/settings` | Own provider keys (write-only: the answer says only whether one is set), Include adult titles, cast photos, Download title data, the subtitle account |
+| `GET /v1/admin/metadata/settings`, `PUT /v1/admin/metadata/settings` | The owner's alone. The TMDB key, the OpenSubtitles API key and account, and Include adult titles. A key or password is write-only: the page says only whether one is set, or that it must be entered again when the server can no longer open it; an empty one removes it. Cast photos and Download title data join this page with their own work |
 
 ## Not on the wire, on purpose
 

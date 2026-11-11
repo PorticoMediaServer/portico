@@ -10,7 +10,6 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
-	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/tmdb"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/tmdb/tmdbtest"
 	"github.com/PorticoMediaServer/portico/server-next/internal/scan"
 	"github.com/PorticoMediaServer/portico/server-next/internal/seed"
@@ -40,7 +39,9 @@ func newShelf(t *testing.T, files ...string) *shelf {
 	sh := &shelf{t: t, s: s, tmdb: tmdbtest.New(t)}
 	signedIn := setup(t, s)
 	sh.owner = onMain(t, s, signedIn).AccessToken
-	s.UseProvider(tmdb.New("test-token", sh.tmdb.URL))
+	s.UseTMDBHost(sh.tmdb.URL)
+	key := "test-token"
+	sh.do("PUT", "/v1/admin/metadata/settings", MetadataSettingsEdit{TMDBKey: &key}, nil, 200)
 	root := filepath.Join(t.TempDir(), "films")
 	for i, name := range files {
 		if err := os.MkdirAll(root, 0o755); err != nil {
