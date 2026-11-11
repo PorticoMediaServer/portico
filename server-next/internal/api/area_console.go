@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/backup"
 	"github.com/PorticoMediaServer/portico/server-next/internal/console"
 	"github.com/PorticoMediaServer/portico/server-next/internal/settings"
 	"github.com/PorticoMediaServer/portico/server-next/internal/updates"
@@ -19,6 +20,8 @@ type consoleArea struct {
 	totals *console.Totals
 	// updates looks for a newer version. See updates.go.
 	updates *updates.Checker
+	// backups makes and keeps the owner's backups. See backups.go.
+	backups *backup.Service
 }
 
 // Totals are the server's lifetime statistics: the server runs them, and flushes them as it stops.
@@ -45,5 +48,10 @@ func (s *Server) startConsole(ctx context.Context) error {
 	go s.updates.Run(ctx)
 	s.updateRoutes()
 	s.storageRoutes(s.dataDir)
+	s.backups = &backup.Service{DB: s.db, Settings: s.settings, DataDir: s.dataDir, Version: s.version, Log: s.log,
+		Now: func() time.Time { return s.now() }}
+	// Scheduled backups, at the owner's hour.
+	go s.backups.Run(ctx)
+	s.backupRoutes()
 	return nil
 }
