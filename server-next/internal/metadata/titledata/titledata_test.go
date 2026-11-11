@@ -9,6 +9,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
@@ -243,4 +246,22 @@ func gzipOf(t *testing.T, change func([]byte)) []byte {
 func sha(b []byte) string {
 	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:])
+}
+
+// Plain HTTP is used only from this machine's own loopback address, where a test publication is
+// served; anywhere else the list must come over HTTPS.
+func TestPlainHTTPOnlyFromLoopback(t *testing.T) {
+	local := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, "list") }))
+	defer local.Close()
+	body, err := titledata.HTTPS{}.Open(ctx, local.URL+"/v3/manifest.json")
+	if err != nil {
+		t.Fatalf("a list on the loopback address is refused: %v", err)
+	}
+	body.Close()
+	for _, address := range []string{"http://data.getportico.tv/v3/manifest.json", "http://localhost.example/v3/manifest.json",
+		"http://192.168.1.2/v3/manifest.json", "ftp://127.0.0.1/v3/manifest.json"} {
+		if _, err := (titledata.HTTPS{}).Open(ctx, address); !errors.Is(err, titledata.ErrRefused) {
+			t.Fatalf("%s: %v, want refused", address, err)
+		}
+	}
 }

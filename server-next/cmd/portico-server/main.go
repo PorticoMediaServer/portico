@@ -157,7 +157,17 @@ func run(log *slog.Logger) error {
 	}()
 	// Moods and similar titles: the published title data file, checked weekly. Nothing is
 	// downloaded until a release is signed, or while the owner has it switched off.
-	go (&titledata.Updater{DB: d, Dir: filepath.Join(*data, "title-data"), Log: log}).Run(ctx)
+	titleData := &titledata.Updater{DB: d, Dir: filepath.Join(*data, "title-data"), Log: log}
+	// A test publication, signed with a throwaway key and served from this machine, for trying
+	// the title data before a release is signed. A release never sets these.
+	if key := os.Getenv("PORTICO_TITLE_DATA_KEY"); key != "" {
+		if titleData.Key, err = titledata.ParseKey(key); err != nil {
+			return fmt.Errorf("PORTICO_TITLE_DATA_KEY: %w", err)
+		}
+		titleData.Address = os.Getenv("PORTICO_TITLE_DATA_ADDRESS")
+		log.Warn("title data comes from a test publication", "address", titleData.Address)
+	}
+	go titleData.Run(ctx)
 	// No write timeout: media and the events feed are long replies. Slow request headers are bounded.
 	srv := &http.Server{Addr: *listen, Handler: handler, ReadHeaderTimeout: 10 * time.Second}
 	failed := make(chan error, 1)
