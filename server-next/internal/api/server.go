@@ -476,7 +476,9 @@ func (s *Server) admit(r *http.Request, route *Route) (*http.Request, error) {
 		claims, err := s.tokens.CheckAccess(token, s.now())
 		// A token of a session that has since been ended, or whose profile or role has changed,
 		// is refused although it has not expired. The app renews and carries on, or signs in.
-		if err != nil || s.db.TokenRefused(claims.SessionID, db.TokenStamp{Boot: claims.Boot, Seq: claims.Seq}) {
+		// One from before the server last started is checked against the database instead.
+		stamp := db.TokenStamp{Boot: claims.Boot, Seq: claims.Seq}
+		if err != nil || s.db.TokenRefused(claims.SessionID, stamp) || s.db.EarlierRun(stamp) && !s.stillTrue(r.Context(), claims) {
 			return r, ErrUnauthorized()
 		}
 		c = Caller{SessionID: claims.SessionID, UserID: claims.UserID, ProfileID: claims.ProfileID, Role: claims.Role, Manage: claims.Manage}

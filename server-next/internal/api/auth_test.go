@@ -633,31 +633,64 @@ func TestDevicesAndSessions(t *testing.T) {
 	}
 }
 
-// A session ended moments before a restart stays ended after it, and a live one carries on
-// by renewing: tokens from before a restart are not trusted, because the note of what was
-// ended or changed since they were minted is kept in memory.
-func TestARevokedSessionStaysRevokedAfterARestart(t *testing.T) {
+// A restart signs nobody out and makes no app renew: a token from before it works as long as
+// the database still says what the token says. A sign-in ended before the restart stays
+// ended, a person turned off before it stays out, and a token that no longer matches its
+// sign-in after it is refused.
+func TestARestartSignsNobodyOut(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "main.db")
 	s := openTestServer(t, path)
-	session := setup(t, s).Session
-	live := signIn(t, s, 1).Session
-	if code := status(t, s, "DELETE", "/v1/auth/session", session.AccessToken, nil); code != 204 {
+	first := setup(t, s)
+	owner := onMain(t, s, first)
+	live := signIn(t, s, 1)
+	chooser := live.Session
+	ended := signIn(t, s, 2).Session
+	if code := status(t, s, "DELETE", "/v1/auth/session", ended.AccessToken, nil); code != 204 {
 		t.Fatalf("sign-out answered %d", code)
 	}
-	closeDB(s.db)
-	time.Sleep(2 * time.Millisecond)
-	s = openTestServer(t, path)
-	if code := status(t, s, "GET", "/v1/me", session.AccessToken, nil); code != 401 {
-		t.Fatalf("after a restart a signed-out session's token answered %d, want 401", code)
+	max := addMember(t, s, owner.AccessToken, "max", "member")
+	member := signInAs(t, s, "max", testPassword, 3)
+	off := true
+	if code := status(t, s, "PATCH", "/v1/admin/members/"+max.ID, owner.AccessToken, MemberEdit{Disabled: &off}); code != 200 {
+		t.Fatalf("turning the member off answered %d", code)
 	}
-	if code, _ := renew(t, s, session.RefreshToken, 0, "r"); code != 401 {
-		t.Fatalf("after a restart a signed-out session renewed (%d)", code)
+
+	for range 2 {
+		closeDB(s.db)
+		time.Sleep(2 * time.Millisecond)
+		s = openTestServer(t, path)
+		if code := status(t, s, "GET", "/v1/libraries", owner.AccessToken, nil); code != 200 {
+			t.Fatalf("the owner's token from before the restart answered %d, want 200", code)
+		}
+		if code := status(t, s, "GET", "/v1/admin/members", owner.AccessToken, nil); code != 200 {
+			t.Fatalf("the owner's token from before the restart is no longer the owner's: %d", code)
+		}
+		if code := status(t, s, "GET", "/v1/me", ended.AccessToken, nil); code != 401 {
+			t.Fatalf("after a restart a signed-out session's token answered %d, want 401", code)
+		}
+		if code, _ := renew(t, s, ended.RefreshToken, 2, "r"); code != 401 {
+			t.Fatalf("after a restart a signed-out session renewed (%d)", code)
+		}
+		if code := status(t, s, "GET", "/v1/me", member.AccessToken, nil); code != 401 {
+			t.Fatalf("after a restart the token of a person who was turned off answered %d, want 401", code)
+		}
 	}
-	if code := status(t, s, "GET", "/v1/me", live.AccessToken, nil); code != 401 {
-		t.Fatalf("a token from before the restart answered %d, want 401 so the app renews", code)
+
+	// After the restart the sign-in at the chooser picks a profile. Its old token still says
+	// "no profile", which is no longer true, so it is refused; the new one works.
+	var chosen Session
+	if w := call(t, s, "POST", "/v1/profiles/"+live.Profiles[0].ID+"/select", chooser.AccessToken, ProfileSelect{}, &chosen); w.Code != 200 {
+		t.Fatalf("choosing a profile with a token from before the restart answered %d", w.Code)
 	}
-	code, renewed := renew(t, s, live.RefreshToken, 1, "r")
+	if code := status(t, s, "GET", "/v1/me", chooser.AccessToken, nil); code != 401 {
+		t.Fatalf("a token that no longer matches its sign-in answered %d, want 401", code)
+	}
+	if code := status(t, s, "GET", "/v1/libraries", chosen.AccessToken, nil); code != 200 {
+		t.Fatalf("the token minted after the restart answered %d", code)
+	}
+	// Renewing still works, as it always did.
+	code, renewed := renew(t, s, chooser.RefreshToken, 1, "r")
 	if code != 200 || status(t, s, "GET", "/v1/me", renewed.AccessToken, nil) != 200 {
-		t.Fatalf("a live session could not carry on after a restart (%d)", code)
+		t.Fatalf("a live session could not renew after a restart (%d)", code)
 	}
 }

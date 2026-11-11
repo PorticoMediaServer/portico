@@ -21,8 +21,8 @@ const accessTokenLife = 16 * time.Minute
 
 // tokenMarks is the in-memory note of sessions whose earlier access tokens must be refused:
 // a revoked session refuses all of them, a session whose profile or role changed refuses
-// those minted before the change. Access tokens are checked against this and nothing else,
-// so a request never reads the database to be let in.
+// those minted before the change. Access tokens of this run of the server are checked against
+// this and nothing else, so a request never reads the database to be let in.
 //
 // "Before" is exact, not a matter of clocks. Every transaction that touches sessions is
 // numbered as it commits, by the one writer, and a token carries the number that was current
@@ -31,8 +31,9 @@ const accessTokenLife = 16 * time.Minute
 type tokenMarks struct {
 	mu sync.RWMutex
 	// boot names this run of the server. Marks are not kept across a restart, so a token
-	// from an earlier run is refused: each app renews once, and the renewal reads what is
-	// true now from the database.
+	// from an earlier run cannot be placed in this order: it counts as older than every
+	// change of this run, and the caller must check what it says against the database
+	// (see EarlierRun). A restart signs nobody out.
 	boot  int64
 	seq   int64
 	marks map[int64]tokenMark
@@ -85,7 +86,20 @@ func (m *tokenMarks) apply(c changes) TokenStamp {
 func (d *DB) TokenRefused(sessionID int64, stamp TokenStamp) bool {
 	d.marks.mu.RLock()
 	defer d.marks.mu.RUnlock()
-	return stamp.Boot != d.marks.boot || stamp.Seq < d.marks.marks[sessionID].refuseBelow
+	seq := stamp.Seq
+	if stamp.Boot != d.marks.boot {
+		seq = 0
+	}
+	return seq < d.marks.marks[sessionID].refuseBelow
+}
+
+// EarlierRun reports whether a token was minted by an earlier run of the server. What was
+// ended or changed before the restart is no longer noted in memory, so such a token is let
+// in only if the database still says what it says: see SessionState.
+func (d *DB) EarlierRun(stamp TokenStamp) bool {
+	d.marks.mu.RLock()
+	defer d.marks.mu.RUnlock()
+	return stamp.Boot != d.marks.boot
 }
 
 // writeSessions is write for a transaction that may end sessions or change what their
