@@ -1,9 +1,9 @@
 // Package tmdbtest is a stand-in for TMDB that answers from files, so no test asks the real one.
 //
-// The files in answers/ are written by hand in the shape TMDB's API documents, cut down to
-// the fields the client reads, for a handful of real titles. They were not captured from the
-// live service: nothing in this repository's tests, and nothing on a development machine,
-// calls it.
+// The files in answers/ are TMDB's real answers, captured once on 11 November 2026 from the
+// addresses their names give (language en-US, details with the append_to_response the client
+// sends). Nothing in this repository's tests, and nothing on a development machine, calls the
+// live service.
 package tmdbtest
 
 import (
