@@ -608,12 +608,10 @@
     "category": "platform-transport",
     "reason": "DetailService/SubtitleService; original stack lifetime signals. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
     "sites": [
-      "web/src/platform/playback/runtime.ts#69bd8dfb105e18e1",
-      "web/src/platform/playback/runtime.ts#9f937c39ca0397c2"
+      "web/src/platform/playback/runtime.ts#69bd8dfb105e18e1"
     ],
     "guardHashes": {
-      "web/src/platform/playback/runtime.ts#69bd8dfb105e18e1": "1ab910a28f67251b5839683ff9e60bf474134c951bda979db7749e24a211beaf",
-      "web/src/platform/playback/runtime.ts#9f937c39ca0397c2": "9b3c8587753a3ec78086dd24b4b31a7d5b45a1121f7f649837d4a3ef8394e673"
+      "web/src/platform/playback/runtime.ts#69bd8dfb105e18e1": "1ab910a28f67251b5839683ff9e60bf474134c951bda979db7749e24a211beaf"
     },
     "additionalSites": {
       "web/src/platform/playback/runtime.ts#0d18e1c4278bb920": {

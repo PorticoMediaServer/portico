@@ -412,7 +412,7 @@ export class WebShellPlaybackRuntime {
         if (published === 'failed') problem('capability_rejected');
       } catch (error) {stackReference.capabilityRejected = true;throw error;}
     }});
-    const queue = new V1QueuePlayer({http, api: web.transport, playback: service, viewer: this.source.authority, events: this.source.events, transitions: () => this.queueTransitions, key: this.env.key, musicDefaults: this.source.settings.musicDefaults, postPlay: this.source.settings.postPlay, audiobookPreferences: this.source.settings.audiobookPreferences, quality: this.source.settings.defaultQuality, retainQueueIds: () => this.retainedQueueIds(stackReference),
+    const queue = new V1QueuePlayer({http, api: web.transport, playback: service, viewer: this.source.authority, events: this.source.events, transitions: () => this.queueTransitions, key: this.env.key, musicDefaults: this.source.settings.musicDefaults, audiobookPreferences: this.source.settings.audiobookPreferences, quality: this.source.settings.defaultQuality, retainQueueIds: () => this.retainedQueueIds(stackReference),
       retireQueuedSelection: async (session, isUnowned) => {
         // Use this stack's original viewer-bound API, never a latest transport or
         // raw stop fallback. The private registration guard survives every await.
@@ -442,6 +442,7 @@ export class WebShellPlaybackRuntime {
   }
 
   private activate(stack: Stack): void {
+    stack.queue.followPostPlay(this.source.settings.postPlay);
     if (stack.mode === 'local') {stack.web.beginLocal();if (this.video) this.bindElement(stack);return;}
     stack.service.adoptAudioEffectsPreference(this.source.settings.audioEffects());
     stack.offs.push(stack.web.bind(stack.service, stack.queue), stack.queue.connect());

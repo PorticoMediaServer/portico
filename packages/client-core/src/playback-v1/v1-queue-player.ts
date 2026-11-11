@@ -245,7 +245,7 @@ export class V1QueuePlayer implements QueueController {
   private readonly transitionsNow: () => boolean;
   private get transitions(): boolean { return this.transitionsNow(); }
   private readonly musicDefaults?: V1QueuePlayerOptions['musicDefaults'];
-  private readonly postPlay?: V1QueuePlayerOptions['postPlay'];
+  private postPlay?: V1QueuePlayerOptions['postPlay'];
   private audioAttempt?: string;
   private prepared?: Readonly<{token: string; queueId: string; itemId: string; expiresAtMs: number; durationSeconds: number}>;
   private audioReadyToken?: string;
@@ -256,6 +256,9 @@ export class V1QueuePlayer implements QueueController {
   private nativeEpoch = 0;
   private nativeSession?: string;
   private sessionStartedAt = 0;
+
+  /** Where the profile's post-play switches are read, for a player made before they were known. */
+  followPostPlay(read: V1QueuePlayerOptions['postPlay']): void { this.postPlay = read; }
 
   constructor(options: V1QueuePlayerOptions) {
     const transitions = options.transitions;
