@@ -134,3 +134,33 @@ func TestUndoOfAShowsMatchChangePutsItsEpisodesAndOrderBack(t *testing.T) {
 		t.Fatalf("a refresh after Undo: %q", got)
 	}
 }
+
+// A match change never touches labels, so its undo keeps a label the owner gave an episode
+// since: that label may be what keeps the episode from a limited profile.
+func TestUndoOfAShowsMatchChangeKeepsALabelAddedSince(t *testing.T) {
+	f := newFixture(t, db.LibraryShows, "Breaking Bad/Season 01/Breaking Bad - S01E01.mkv", "Breaking Bad/Season 01/Breaking Bad - S01E02.mkv")
+	f.match()
+	show := f.title(db.KindShow, "Breaking Bad").PublicID
+	if _, err := f.s.Identify(ctx, show, metadata.Ref{ID: "60059"}); err != nil {
+		t.Fatal(err)
+	}
+	episode := f.byNumber()[[2]int{1, 2}].PublicID
+	doc, err := f.d.MetadataDocument(ctx, episode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	labels := []string{"Not for kids"}
+	if _, err := f.d.EditMetadata(ctx, episode, doc.Revision, db.MetadataEdit{Labels: &labels}); err != nil {
+		t.Fatal(err)
+	}
+	history, err := f.d.MetadataHistory(ctx, show)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.d.UndoMetadata(ctx, show, history[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	if doc, err = f.d.MetadataDocument(ctx, episode); err != nil || len(doc.Lists["labels"]) != 1 {
+		t.Fatalf("the episode's labels after Undo: %v %v", doc.Lists["labels"], err)
+	}
+}
