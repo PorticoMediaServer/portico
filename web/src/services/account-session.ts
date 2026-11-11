@@ -1,40 +1,53 @@
 import {porticoAccount, type HeldSignIn, type Tokens} from '@core/portico-account.ts';
 
-/** This browser's sign-in to its Portico Account. It is kept in this browser's storage so the
- * person stays signed in across tabs and visits (a sign-in lasts 90 days from last use), and is
- * shared by every tab: signing out in one signs out all. */
-const key = 'portico.account.signIn';
+/** This browser's sign-in to its Portico Account. Portico Services keeps its refresh token in an
+ * HttpOnly cookie that no script here can read, and this page keeps the access token in memory
+ * only, so a new tab or a reload renews once to get one. Storage holds only the flag that this
+ * browser has a sign-in: no call is spent renewing when it has none, and every tab hears when
+ * another signs in or out (a sign-in lasts 90 days from last use, and signing out in one tab
+ * signs out all). */
+const flag = 'portico.account.signedIn';
 const listeners = new Set<() => void>();
-let current: Tokens | undefined = read();
+let current: Tokens | undefined;
+let flagged = readFlag();
+// Before the cookie, this browser kept both tokens in storage; leave none behind.
+try { localStorage.removeItem('portico.account.signIn'); } catch { /* private window */ }
 
-function read(): Tokens | undefined {
-  try {
-    const value = JSON.parse(localStorage.getItem(key) ?? 'null') as Tokens | null;
-    const text = (field: unknown) => typeof field === 'string';
-    return value && text(value.accessToken) && text(value.refreshToken) ? value : undefined;
-  } catch { return undefined; }
+function readFlag(): boolean {
+  try { return localStorage.getItem(flag) === '1'; } catch { return false; }
 }
+function notify() { for (const listener of listeners) listener(); }
 function write(tokens: Tokens | undefined) {
   current = tokens;
-  try { if (tokens) localStorage.setItem(key, JSON.stringify(tokens)); else localStorage.removeItem(key); } catch { /* private window: this tab only */ }
-  for (const listener of listeners) listener();
+  if (flagged !== (tokens !== undefined)) {
+    flagged = tokens !== undefined;
+    try { if (flagged) localStorage.setItem(flag, '1'); else localStorage.removeItem(flag); } catch { /* private window: this tab only */ }
+  }
+  notify();
 }
 if (typeof window !== 'undefined') window.addEventListener('storage', event => {
-  if (event.key !== key) return;
-  current = read();
-  for (const listener of listeners) listener();
+  if (event.key !== flag && event.key !== null) return;
+  // Another tab signed in or out: this tab's access token, if any, is no longer the one to use.
+  current = undefined;
+  flagged = readFlag();
+  notify();
 });
 
-// compareSessionAuthority is for media server sign-ins; a Portico Services sign-in has no session family or generation, so the sign-in held is compared as itself.
-const held: HeldSignIn = {current: () => current, keep: write, forget: tokens => { if (current === tokens) write(undefined); }};
+const held: HeldSignIn = {
+  current: () => current,
+  keep: write,
+  // compareSessionAuthority is for media server sign-ins; a Portico Services sign-in has no session family or generation, so the sign-in held is compared as itself.
+  forget: tokens => { if (current === tokens) write(undefined); },
+  kept: () => flagged,
+};
 
 export const accountSession = {
   subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
-  signedIn: () => current !== undefined,
+  signedIn: () => current !== undefined || flagged,
   keep(tokens: Tokens) { write(tokens); },
   /** Forget whatever sign-in is held (after a password reset ended them all). */
   forget() { write(undefined); },
 };
 
 /** The Portico Account at the Portico Services this page was served by. */
-export const account = porticoAccount(held);
+export const account = porticoAccount(held, '', {cookie: true});

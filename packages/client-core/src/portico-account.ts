@@ -1,7 +1,9 @@
 /** A Portico Account at Portico Services: one named operation for each route the account pages use.
  * Every route, its body and its refusals are the Services contract's
  * (`hosted-services/hosted-next/API.md` in the private repository); nothing here invents one.
- * The caller keeps the sign-in (`HeldSignIn`): a browser in its own storage, an app in its own. */
+ * The caller keeps the sign-in (`HeldSignIn`). An app keeps both tokens in its own storage. The
+ * account pages at web.getportico.tv keep only the access token, in memory: Services holds the
+ * refresh token in an HttpOnly cookie that no script on the page can read (`cookie: true`). */
 import {servicesRoute, type ServicesRoute} from '../../contracts/src/services/routes.ts';
 
 export class ServicesError extends Error {
@@ -10,7 +12,8 @@ export class ServicesError extends Error {
   }
 }
 
-export type Tokens = Readonly<{accessToken: string; refreshToken: string; expiresAt: string}>;
+/** `refreshToken` is absent in a browser, where Services keeps it in a cookie. */
+export type Tokens = Readonly<{accessToken: string; refreshToken?: string; expiresAt: string}>;
 export type Device = Readonly<{name: string; kind: string}>;
 /** What a change that could take the account away asks for: the password typed now, and the two-step code when it is on. */
 export type Proof = Readonly<{currentPassword?: string; twoStepCode?: string}>;
@@ -28,10 +31,13 @@ export type ListedServer = Readonly<{serverId: string; name: string; role: strin
 export type ProviderCompletion = Readonly<{tokens?: Tokens; twoStep?: {challengeId: string}; connected?: Provider; created?: boolean}>;
 export type TVCode = Readonly<{id: string; device: Device}>;
 
-/** The sign-in this device holds. `forget(held)` forgets it only if it is still the one held. */
-export type HeldSignIn = Readonly<{current: () => Tokens | undefined; keep: (tokens: Tokens) => void; forget: (held: Tokens) => void}>;
+/** The sign-in this device holds. `forget(held)` forgets it only if it is still the one held.
+ * `kept` says a sign-in is held where this page cannot read it (the browser's cookie), so an
+ * access token can be had by renewing even when none is in memory. */
+export type HeldSignIn = Readonly<{current: () => Tokens | undefined; keep: (tokens: Tokens) => void; forget: (held: Tokens | undefined) => void; kept?: () => boolean}>;
 
 type Options = Readonly<{token?: string; create?: boolean; signal?: AbortSignal}>;
+type Transport = Readonly<{origin: string; cookie: boolean}>;
 
 /** A signed document's contents, for showing. The apps and servers that act on one check its signature. */
 export function envelopePayload<T>(envelope: {payload: string}): T {
@@ -42,15 +48,18 @@ export function envelopePayload<T>(envelope: {payload: string}): T {
 
 /** One call. A POST that makes something (`create`) carries a fresh Idempotency-Key, so a repeat
  * of the same press is answered once; a new press is a new request. */
-async function send<T>(origin: string, route: ServicesRoute, values: Readonly<Record<string, string>>, body: unknown, options: Options): Promise<T> {
+async function send<T>({origin, cookie}: Transport, route: ServicesRoute, values: Readonly<Record<string, string>>, body: unknown, options: Options): Promise<T> {
   const {method, path} = servicesRoute(route, values);
   const headers: Record<string, string> = {Accept: 'application/json'};
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (options.token) headers.Authorization = `Bearer ${options.token}`;
   if (options.create) headers['Idempotency-Key'] = crypto.randomUUID();
+  // The header asks Services to keep the refresh token in its cookie. The cookie's path is the
+  // renewal route alone, so no other call carries it even though cookies are allowed.
+  if (cookie) headers['Portico-Refresh'] = 'cookie';
   let response: Response;
   try {
-    response = await fetch(origin + path, {method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: options.signal, credentials: 'omit', cache: 'no-store'}); // query-read: kept (Portico Services, the person's Portico Account: not a media server document)
+    response = await fetch(origin + path, {method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: options.signal, credentials: cookie ? 'same-origin' : 'omit', cache: 'no-store'}); // query-read: kept (Portico Services, the person's Portico Account: not a media server document)
   } catch (error) {
     if (options.signal?.aborted) throw error;
     throw new ServicesError(0, 'unreachable');
@@ -66,17 +75,22 @@ async function send<T>(origin: string, route: ServicesRoute, values: Readonly<Re
   throw new ServicesError(response.status, code, fields);
 }
 
-/** The account's operations. `origin` is Portico Services' own (empty on its own pages). */
-export function porticoAccount(held: HeldSignIn, origin = '') {
+/** The account's operations. `origin` is Portico Services' own (empty on its own pages);
+ * `cookie` is for those pages, where Services keeps the refresh token in its cookie. */
+export function porticoAccount(held: HeldSignIn, origin = '', {cookie = false}: Readonly<{cookie?: boolean}> = {}) {
   type Values = Readonly<Record<string, string>>;
-  const anyone = <T>(route: ServicesRoute, values: Values = {}, body?: unknown, options: Options = {}) => send<T>(origin, route, values, body, options);
+  const anyone = <T>(route: ServicesRoute, values: Values = {}, body?: unknown, options: Options = {}) => send<T>({origin, cookie}, route, values, body, options);
   let renewing: Promise<Tokens | undefined> | undefined;
   /** Renews the access token once it has run out. A renewal sent twice (two tabs) gets the same
    * answer from Services, so the tabs never sign each other out. */
   const renew = (): Promise<Tokens | undefined> => {
     const before = held.current();
-    if (!before) return Promise.resolve(undefined);
-    renewing ??= anyone<Tokens>('refresh', {}, {refreshToken: before.refreshToken})
+    if (!before?.refreshToken && !held.kept?.()) return Promise.resolve(undefined);
+    const body = before?.refreshToken ? {refreshToken: before.refreshToken} : undefined;
+    // A renewal whose answer was lost may have rotated the token already; Services answers a
+    // repeat within a minute the same way, so it is sent again at once rather than later.
+    renewing ??= anyone<Tokens>('refresh', {}, body)
+      .catch(error => { if (error instanceof ServicesError && error.status === 0) return anyone<Tokens>('refresh', {}, body); throw error; })
       .then(tokens => { held.keep(tokens); return tokens; })
       .catch(error => { if (error instanceof ServicesError && error.code === 'signed_out') held.forget(before); throw error; })
       .finally(() => { renewing = undefined; });
@@ -86,7 +100,7 @@ export function porticoAccount(held: HeldSignIn, origin = '') {
    * ended (signed out elsewhere, password changed) is forgotten here too. */
   const person = async <T>(route: ServicesRoute, values: Values = {}, body?: unknown, options: Omit<Options, 'token'> = {}): Promise<T> => {
     let tokens = held.current();
-    if (tokens && Date.parse(tokens.expiresAt) - Date.now() < 60_000) tokens = await renew();
+    if (tokens ? Date.parse(tokens.expiresAt) - Date.now() < 60_000 : held.kept?.()) tokens = await renew();
     if (!tokens) throw new ServicesError(401, 'signed_out');
     try {
       return await anyone<T>(route, values, body, {...options, token: tokens.accessToken});
@@ -124,7 +138,7 @@ export function porticoAccount(held: HeldSignIn, origin = '') {
       anyone<ProviderCompletion>('providerComplete', {}, {id: flow, code, secret, device, ...chosen}, {create: true}).then(tokensKept),
     signOut: async () => {
       const before = held.current();
-      try { await person<void>('signOut'); } finally { if (before) held.forget(before); }
+      try { await person<void>('signOut'); } finally { held.forget(before ?? held.current()); }
     },
     account: (signal?: AbortSignal) => person<Account>('account', {}, undefined, {signal}),
     changePassword: (proof: Proof, newPassword: string) => person<void>('password', {}, {...proof, newPassword}),
@@ -133,7 +147,7 @@ export function porticoAccount(held: HeldSignIn, origin = '') {
     deleteAccount: async (proof: Proof) => {
       const before = held.current();
       await person<void>('deleteAccount', {}, proof);
-      if (before) held.forget(before);
+      held.forget(before ?? held.current());
     },
     devices: () => person<{items: SignedInDevice[]}>('sessions').then(answer => answer.items),
     signOutDevice: (device: string) => person<void>('endSession', {id: device}),

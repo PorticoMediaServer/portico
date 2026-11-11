@@ -18,13 +18,14 @@ const calls = [];
 let routes = {};
 globalThis.fetch = async (path, init) => {
   const body = init.body ? JSON.parse(init.body) : undefined;
-  calls.push({route: `${init.method} ${path}`, body, headers: init.headers});
+  calls.push({route: `${init.method} ${path}`, body, headers: init.headers, credentials: init.credentials});
   const handler = routes[`${init.method} ${path}`];
   const [status, answer] = handler ? handler(body) : [404, {error: {code: 'not_found'}}];
   return {ok: status < 300, status, headers: {get: () => null}, text: async () => answer === undefined ? '' : JSON.stringify(answer)};
 };
 const refusal = (code, fields) => ({error: {code, message: 'words from Services', fields}});
-const tokens = {accessToken: 'pat_test', refreshToken: 'prt_test_refresh_token_long', expiresAt: new Date(Date.now() + 3600_000).toISOString()};
+// As Services answers these pages: the refresh token is in its HttpOnly cookie, never in the body.
+const tokens = {accessToken: 'pat_test', expiresAt: new Date(Date.now() + 3600_000).toISOString()};
 
 const api = await import('../src/services/services-api.ts');
 const session = await import('../src/services/account-session.ts');
@@ -230,6 +231,7 @@ test('a sign-in that has run out is renewed before the call, and one ended elsew
   routes['GET /v1/account'] = () => [200, {username: 'ada'}];
   await session.account.account();
   assert.equal(calls.at(-1).headers.Authorization, 'Bearer pat_renewed');
+  assert.equal(calls.find(call => call.route === 'POST /v1/sessions/refresh').body, undefined, 'the refresh token is the cookie, never in the body');
   routes['GET /v1/account'] = () => [401, refusal('signed_out')];
   routes['POST /v1/sessions/refresh'] = () => [401, refusal('signed_out')];
   await assert.rejects(session.account.account());
@@ -273,6 +275,30 @@ test('after signing in, only a path on this address is opened', async () => {
   assert.equal(signIn.returnPath(''), '/account');
 });
 
+test('the sign-in is kept where no script can read it: storage holds only a flag, and a new page renews once from the cookie', async () => {
+  fresh();
+  routes['POST /v1/sessions'] = () => [200, {tokens}];
+  await session.account.signIn('ada', 'long enough password', {name: 'Chrome, Linux', kind: 'web'});
+  assert.equal(calls[0].headers['Portico-Refresh'], 'cookie', 'asks Services for its cookie');
+  assert.equal(calls[0].credentials, 'same-origin', 'so the browser keeps the cookie Services sets');
+  assert.equal(localStorage.dump(), JSON.stringify([['portico.account.signedIn', '1']]), 'nothing secret in storage');
+  // A reload or another tab starts with no access token, and renews once from the cookie.
+  const reloaded = await componentModule(new URL('../src/services/account-session.ts', import.meta.url), {});
+  calls.length = 0;
+  routes['POST /v1/sessions/refresh'] = () => [200, {...tokens, accessToken: 'pat_renewed'}];
+  routes['GET /v1/account'] = () => [200, {username: 'ada'}];
+  assert.equal(reloaded.accountSession.signedIn(), true);
+  await reloaded.account.account();
+  await reloaded.account.account();
+  assert.deepEqual(calls.map(call => call.route), ['POST /v1/sessions/refresh', 'GET /v1/account', 'GET /v1/account']);
+  assert.equal(calls[0].body, undefined);
+  assert.equal(calls[1].headers.Authorization, 'Bearer pat_renewed');
+  // A browser with no sign-in spends no call finding that out.
+  reloaded.accountSession.forget(); calls.length = 0;
+  await assert.rejects(reloaded.account.account(), {code: 'signed_out'});
+  assert.equal(calls.length, 0);
+});
+
 test('Approve a server waits until the page shows which account will own it', async () => {
   fresh();
   session.accountSession.keep(tokens);
@@ -284,4 +310,48 @@ test('Approve a server waits until the page shows which account will own it', as
   const button = nodes(draw()).find(node => textOf(node.props?.children) === 'next.account.approve.approve');
   assert.equal(button.props.disabled, true);
   h.dispose();
+});
+
+test('two tabs renewing at once both stay signed in, a lost renewal is sent again at once, and a dead cookie signs out quietly', async () => {
+  fresh();
+  localStorage.setItem('portico.account.signedIn', '1');
+  // Portico Services and the browser's cookie jar, as the contract has them: each renewal rotates
+  // the cookie, and the same cookie sent again (within the minute) gets the same answer and cookie.
+  const later = new Date(Date.now() + 3600_000).toISOString();
+  let jar = 'c1', live = 'c1', rotations = 0, lose = 0;
+  const answered = new Map(), sent = [];
+  const reply = (status, answer) => ({ok: status < 300, status, headers: {get: () => null}, text: async () => JSON.stringify(answer)});
+  const saved = globalThis.fetch;
+  globalThis.fetch = async (path, init) => {
+    const cookie = jar; // what the browser attaches as the request leaves
+    await tick();
+    sent.push(path);
+    if (path === '/v1/sessions/refresh') {
+      let given = answered.get(cookie);
+      if (!given && cookie === live) { rotations++; given = {next: `c${rotations + 1}`, answer: {accessToken: `pat_${rotations + 1}`, expiresAt: later}}; answered.set(cookie, given); live = given.next; }
+      if (!given) { jar = undefined; return reply(401, refusal('signed_out')); }
+      if (lose > 0) { lose--; throw new TypeError('the answer was lost'); }
+      jar = given.next;
+      return reply(200, given.answer);
+    }
+    return /^Bearer pat_/.test(init.headers.Authorization ?? '') ? reply(200, {username: 'ada'}) : reply(401, refusal('signed_out'));
+  };
+  try {
+    const tab = () => componentModule(new URL('../src/services/account-session.ts', import.meta.url), {});
+    const [one, two] = await Promise.all([tab(), tab()]);
+    await Promise.all([one.account.account(), two.account.account()]);
+    assert.equal(rotations, 1, 'both tabs sent the same cookie, and Services answered them alike');
+    assert.ok(one.accountSession.signedIn() && two.accountSession.signedIn());
+    lose = 1;
+    const three = await tab();
+    await three.account.account();
+    assert.deepEqual(sent.slice(-3), ['/v1/sessions/refresh', '/v1/sessions/refresh', '/v1/account'], 'the lost renewal was sent again at once');
+    // This browser's sign-in ended elsewhere (signed out from another device): the next page's
+    // renewal is refused, and it is simply signed out.
+    live = 'ended';
+    const four = await tab();
+    await assert.rejects(four.account.account(), {code: 'signed_out'});
+    assert.equal(four.accountSession.signedIn(), false);
+    assert.equal(localStorage.getItem('portico.account.signedIn'), null, 'every tab now shows sign-in');
+  } finally { globalThis.fetch = saved; }
 });
