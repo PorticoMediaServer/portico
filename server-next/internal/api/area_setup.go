@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/PorticoMediaServer/portico/server-next/internal/hosted"
 	"github.com/PorticoMediaServer/portico/server-next/internal/portmap"
+	"github.com/PorticoMediaServer/portico/server-next/internal/publicaddr"
 	"github.com/PorticoMediaServer/portico/server-next/internal/tlsport"
 	"path/filepath"
 	"time"
@@ -25,6 +26,9 @@ type setupArea struct {
 	// ports asks the home router to open the public port. It asks nothing until
 	// ServePortMapping runs it, which tests never do.
 	ports *portmap.Mapper
+	// public finds the server's public address from outside services; like ports, it asks
+	// nothing until ServeNetwork runs it.
+	public *publicaddr.Finder
 }
 
 // startSetup builds this area's services and registers its routes and job kinds. New calls it
@@ -44,6 +48,9 @@ func (s *Server) startSetup(ctx context.Context) error {
 	// Enhanced waits on the owner's own certificate until it is loaded and valid for the address.
 	s.access.ownCertificateUsable = func() bool { return s.certs.Status().State == "ok" }
 	s.ports = portmap.New(s.log, nil)
+	s.public = publicaddr.New(s.log)
+	// When Portico Services is connected, a new public address is reported to it here.
+	s.public.OnChange = func(address string) { s.log.Info("this server's public address changed", "address", address) }
 	if err := s.loadRemoteAccess(ctx); err != nil {
 		return err
 	}
