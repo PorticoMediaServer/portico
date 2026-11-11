@@ -108,7 +108,7 @@ func (s *Server) watchSourceChannel(r *http.Request, ch db.LiveChannel) (Playbac
 	if err != nil {
 		return PlaybackSession{}, err
 	}
-	var cfg live.Config
+	var cfg live.SourceConfig
 	json.Unmarshal([]byte(src.Config), &cfg)
 	var signIn live.SignIn
 	if src.Kind == "xtream" {
