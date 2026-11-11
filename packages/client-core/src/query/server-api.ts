@@ -6,9 +6,11 @@ export type ServerRequester = {request<T>(path: string, method?: string, body?: 
 /** The address of a route on the new server, with its `{id}` and query filled in. */
 export function serverPath(route: keyof Routes, options: Readonly<{id?: string; query?: Readonly<Record<string, string | number | boolean | undefined>>}> = {}): string {
   let path = route.slice(route.indexOf(' ') + 1);
-  if (path.includes('{id}')) {
+  // The route's one placeholder ({id}, or another name such as {name}) takes `id`.
+  const placeholder = /\{[a-zA-Z]+\}/.exec(path)?.[0];
+  if (placeholder) {
     if (!options.id) throw new Error('This route needs an id.');
-    path = path.replace('{id}', encodeURIComponent(options.id));
+    path = path.replace(placeholder, encodeURIComponent(options.id));
   }
   const query = new URLSearchParams();
   for (const [name, value] of Object.entries(options.query ?? {})) if (value !== undefined && value !== '') query.set(name, String(value));
