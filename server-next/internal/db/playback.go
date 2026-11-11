@@ -623,7 +623,7 @@ func (w *stateWriter) saveProgress(sample Progress, prefs map[string]string) (fi
 	if done {
 		res, err := w.exec(`INSERT INTO play_history (profile_id, item_id, device_id, client_event_id, played_at, watched_ms, item_kind, title,
 			subtitle, hidden_from_profile) VALUES (?, ?, ?, ?, ?, ?, ?, ?, nullif(?, ''), ?) ON CONFLICT (profile_id, client_event_id) DO NOTHING`,
-			w.viewer.ProfileID, id, sample.DeviceID, sample.PlayID, sample.At.UnixMilli(), sample.WatchedMS, kind, title, holder, paused)
+			w.viewer.ProfileID, id, nz(sample.DeviceID), sample.PlayID, sample.At.UnixMilli(), sample.WatchedMS, kind, title, holder, paused)
 		if err != nil {
 			return false, err
 		}

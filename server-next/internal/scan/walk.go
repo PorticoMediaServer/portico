@@ -100,9 +100,6 @@ func (s *Scanner) Scan(ctx context.Context, lib db.Library) (Stats, error) {
 			return r.stats, err
 		}
 	}
-	if err := s.DB.PruneRemovedState(ctx); err != nil {
-		return r.stats, err
-	}
 	if cutoff, ok := lib.Options.Trash.Cutoff(time.Now()); ok {
 		if r.stats.Removed, err = s.DB.EmptyTrash(ctx, lib.ID, cutoff); err != nil {
 			return r.stats, err
