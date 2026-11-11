@@ -11,6 +11,7 @@ func TestWhatCountsAsATitleInsideAFile(t *testing.T) {
 		"heat_1995_remux":                 "",
 		"":                                "",
 		"Heat":                            "Heat",
+		"Heat \u202eTAEH":                 "",
 	} {
 		if got := embeddedTitle(tag); got != want {
 			t.Errorf("embeddedTitle(%q) = %q; want %q", tag, got, want)
