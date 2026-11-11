@@ -296,7 +296,7 @@ func (s *Service) create(ctx context.Context, in StartInput) (*session, error) {
 	}
 	// Another away play may have started since this one was planned.
 	if upload := settings.Streaming.Get(s.settings).UploadSpeedKbps; upload > 0 && r.network != NetworkLocal &&
-		s.awayInUseLocked("")+sess.awayKbps > upload*uploadSharePercent/100 {
+		s.awayInUseLocked("", device.ID)+sess.awayKbps > upload*uploadSharePercent/100 {
 		s.mu.Unlock()
 		return nil, &Unplayable{Err: ErrUploadFull}
 	}

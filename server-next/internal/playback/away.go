@@ -28,10 +28,13 @@ const cdKbps = 1411
 func (s *Service) UseSettings(st *settings.Settings) { s.settings = st }
 
 // room is the most a play may take, in kbps. limited is false when nothing limits it; upload
-// says the upload speed is what limits it. self is the session being changed, which does not
-// count against itself, and withUpload is false for a change that keeps the quality.
-func (s *Service) room(kind db.ItemKind, network, self string, withUpload bool) (kbps int, limited, upload bool) {
-	if network == NetworkLocal {
+// says the upload speed is what limits it. self is the session being changed and deviceID the
+// device asking: neither counts against this play, since a start on a device replaces what
+// that device plays. admitting is false for a change that keeps the quality (a subtitle or
+// sound track): no limit applies to it, so a limit lowered after the stream began never
+// lowers it.
+func (s *Service) room(kind db.ItemKind, network, self string, deviceID int64, admitting bool) (kbps int, limited, upload bool) {
+	if network == NetworkLocal || !admitting {
 		return 0, false, false
 	}
 	owner := settings.Streaming.Get(s.settings)
@@ -40,11 +43,11 @@ func (s *Service) room(kind db.ItemKind, network, self string, withUpload bool) 
 		kbps = owner.AwayMusicKbps
 	}
 	limited = kbps > 0
-	if !withUpload || owner.UploadSpeedKbps <= 0 {
+	if owner.UploadSpeedKbps <= 0 {
 		return kbps, limited, false
 	}
 	s.mu.Lock()
-	left := owner.UploadSpeedKbps*uploadSharePercent/100 - s.awayInUseLocked(self)
+	left := owner.UploadSpeedKbps*uploadSharePercent/100 - s.awayInUseLocked(self, deviceID)
 	s.mu.Unlock()
 	if !limited || left < kbps {
 		return left, true, true
@@ -52,12 +55,13 @@ func (s *Service) room(kind db.ItemKind, network, self string, withUpload bool) 
 	return kbps, true, false
 }
 
-// awayInUseLocked is what the away streams other than self take, each at the quality it is
-// playing. Caller holds s.mu.
-func (s *Service) awayInUseLocked(self string) int {
+// awayInUseLocked is what the away streams take, each at the quality it is playing, leaving
+// out self and whatever deviceID plays (a start there replaces it). Music counts like video.
+// Caller holds s.mu.
+func (s *Service) awayInUseLocked(self string, deviceID int64) int {
 	used := 0
 	for _, other := range s.sessions {
-		if other.State != StateEnded && other.ID != self && other.Network != NetworkLocal {
+		if other.State != StateEnded && other.ID != self && other.Device.ID != deviceID && other.Network != NetworkLocal {
 			used += other.awayKbps
 		}
 	}
