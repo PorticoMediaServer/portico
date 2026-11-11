@@ -347,6 +347,10 @@ func (s *Service) convert(ctx context.Context, p db.Prepared) (container string,
 			return "", 0, "", err
 		}
 	}
+	if !Music(kind) {
+		// A version's subtitle tracks are those of its first file, so that file's go with it.
+		s.writeSubtitles(ctx, p, v.Parts[0])
+	}
 	return container, written, ready.ContentHash, nil
 }
 
@@ -482,7 +486,9 @@ func (s *Service) Tidy(ctx context.Context) error {
 			return err
 		}
 		for _, p := range unused {
-			for _, file := range s.Files(p) {
+			// The copy's files and the subtitles written beside it.
+			matches, _ := filepath.Glob(filepath.Join(s.Folder, p.PublicID+"[.-]*"))
+			for _, file := range matches {
 				os.Remove(file)
 			}
 		}
