@@ -715,6 +715,9 @@ func stream(s streaming.Stream) playback.Stream {
 			out.Mode = "direct"
 		}
 	}
+	if s.Failure == streaming.FailureNotStarted {
+		out.Problem = playback.ConversionBroken
+	}
 	return out
 }
 
@@ -730,6 +733,10 @@ func (e *Engine) Ready(ctx context.Context, sessionID string) error {
 		return err
 	case errors.Is(err, streaming.ErrSegmentPreparing):
 		return context.DeadlineExceeded
+	}
+	if status, ok := e.streams.Status(sessionID); ok && status.Failure != nil && status.Failure.Code == streaming.FailureNotStarted {
+		// The converter could not be started at all: the server's fault, not this device's.
+		return fmt.Errorf("%w: %v", playback.ErrConversionBroken, err)
 	}
 	// The conversion failed before it produced anything: this way of playing does not work here.
 	return fmt.Errorf("%w: %v", playback.ErrUnsupported, err)
