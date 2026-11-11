@@ -14,6 +14,7 @@ import (
 // Every other POST creates something and must honour the key; the test below fails for a POST
 // in neither list, so a new creating route cannot be added without it.
 var repeatSafeWithoutKey = map[string]string{
+	"POST /v1/items/query":                        "reads a filtered list; changes nothing",
 	"POST /v1/setup/owner":                        "happens once: a repeat is told the server is set up",
 	"POST /v1/auth/sign-in":                       "a lost answer leaves a sign-in nobody holds, which expires",
 	"POST /v1/auth/two-factor":                    "the second step of a sign-in: as sign-in",
