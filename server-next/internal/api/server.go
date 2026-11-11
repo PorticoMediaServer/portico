@@ -199,11 +199,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	go s.channels.Run(ctx)
 	s.libraryChannelRoutes()
 	s.liveRoutes()
-	signInKey, err := d.SettingOrCreate(ctx, "live.signin_key", auth.NewKey)
-	if err != nil {
-		return nil, err
-	}
-	if s.sources, err = live.New(d, log, func() time.Time { return s.now() }, dataDir, signInKey); err != nil {
+	if s.sources, err = live.New(d, log, func() time.Time { return s.now() }, dataDir); err != nil {
 		return nil, err
 	}
 	s.background = ctx
