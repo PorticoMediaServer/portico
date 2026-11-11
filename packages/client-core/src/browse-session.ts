@@ -123,11 +123,11 @@ export class BrowseSession<T> {
     const api = {request: <R>(path: string, method = 'GET', body?: unknown, input?: AbortSignal) => this.options.request(path, method, body, input ?? active) as Promise<R>};
     try {
       // The count is its own request and no page waits for it; until it answers the list is "at least this long".
-      this.counting ??= countItems({request: <R>(path: string, method = 'GET', body?: unknown, input?: AbortSignal) => this.options.request(path, method, body, input ?? this.life.signal) as Promise<R>}, list, this.life.signal)
+      this.counting ??= countItems(api, list, this.life.signal)
         .then(total => {if (total !== undefined) {this.total = total; if (this.live()) this.options.onFacts?.({total});}}, () => undefined);
       // The letter rail, for a list in title order: each first letter and how many titles begin with it.
       const title = this.query.sorts[0]?.field === 'title' ? this.query.sorts[0] : undefined;
-      if (title) this.lettering ??= readFacet({request: <R>(path: string, method = 'GET', body?: unknown, input?: AbortSignal) => this.options.request(path, method, body, input ?? this.life.signal) as Promise<R>}, 'letter', list, this.life.signal)
+      if (title) this.lettering ??= readFacet(api, 'letter', list, this.life.signal)
         .then(facet => {
           const counts = title.direction === 'desc' ? [...facet.values].reverse() : facet.values, letters: Record<string, number> = {};
           let position = 0;
