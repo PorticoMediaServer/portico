@@ -23,6 +23,8 @@ type setupArea struct {
 	// hosted is Portico Services. Only a server choosing or using Portico Accounts asks it
 	// anything; tests replace it.
 	hosted hosted.Service
+	// access is the owner's remote access settings. See remote_access.go.
+	access remoteState
 }
 
 // startSetup builds this area's services and registers its routes and job kinds. New calls it
@@ -38,6 +40,14 @@ func (s *Server) startSetup(ctx context.Context) error {
 	if err := s.resetRemoteAccess(ctx, s.dataDir); err != nil {
 		return err
 	}
+	if err := s.loadNetworks(ctx); err != nil {
+		return err
+	}
+	if err := s.loadRemoteAccess(ctx); err != nil {
+		return err
+	}
+	s.networkRoutes()
+	s.remoteAccessRoutes()
 	s.setupRoutes()
 	return nil
 }
