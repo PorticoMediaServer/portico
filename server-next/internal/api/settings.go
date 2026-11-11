@@ -22,6 +22,10 @@ type SettingsDocument struct {
 	Defaults JSON `json:"defaults"`
 	// ETag is the document's ETag, also sent as the ETag header on a read of one document.
 	ETag string `json:"etag"`
+	// Problem is one plain line when something the document says could not be put in force
+	// (a conversion folder that cannot be written to, a program that is not ffmpeg): what
+	// was in use before stays in use. Absent when all is well.
+	Problem string `json:"problem,omitempty"`
 
 	revision
 }
@@ -73,7 +77,7 @@ func (s *Server) settingsRoutes() {
 
 func settingsDocument(doc settings.Document) SettingsDocument {
 	out := SettingsDocument{Name: doc.Name, Values: JSON(doc.Values), Defaults: JSON(doc.Defaults),
-		ETag: `"` + strconv.FormatInt(doc.Revision, 10) + `"`, revision: revision(doc.Revision)}
+		ETag: `"` + strconv.FormatInt(doc.Revision, 10) + `"`, Problem: doc.Problem, revision: revision(doc.Revision)}
 	return out
 }
 
