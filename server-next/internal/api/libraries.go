@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/jobs"
 )
 
 // The owner's libraries: making, changing and removing them, scanning, what a scan skipped,
@@ -278,8 +279,10 @@ func everyText(every time.Duration) string {
 	}
 }
 
-func jobOut(j db.Job) *Job {
-	out := &Job{ID: j.PublicID, Kind: j.Kind, State: j.State, Error: j.Error}
+// jobOut is a job as one caller sees it. A failed job's reason may name titles, so all of it
+// goes to the owner alone.
+func jobOut(r *http.Request, j db.Job) *Job {
+	out := &Job{ID: j.PublicID, Kind: j.Kind, State: j.State, Error: jobs.ErrorText(j, CallerFrom(r.Context()).Role == "owner")}
 	if j.State == db.JobRunning || j.Done > 0 {
 		out.Progress = &JobProgress{Done: j.Done}
 		if j.Total > 0 {
@@ -533,7 +536,7 @@ func (s *Server) deleteLibrary(r *http.Request, _ None) (Job, error) {
 	if err != nil {
 		return Job{}, err
 	}
-	return *jobOut(job), nil
+	return *jobOut(r, job), nil
 }
 
 func (s *Server) startScan(r *http.Request, req ScanRequest) (Job, error) {
@@ -545,7 +548,7 @@ func (s *Server) startScan(r *http.Request, req ScanRequest) (Job, error) {
 	if err != nil {
 		return Job{}, err
 	}
-	return *jobOut(job), nil
+	return *jobOut(r, job), nil
 }
 
 func (s *Server) cancelScan(r *http.Request, _ None) (None, error) {
@@ -575,7 +578,7 @@ func (s *Server) scanStatus(r *http.Request, _ None) (ScanStatus, error) {
 		return out, err
 	}
 	if err == nil {
-		out.Job = jobOut(job)
+		out.Job = jobOut(r, job)
 		if job.State == db.JobWaiting || job.State == db.JobRunning {
 			out.State = job.State
 		}

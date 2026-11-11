@@ -202,6 +202,43 @@ func (r *Runner) Start(ctx context.Context, kind string, req Request) (db.Job, e
 	return job, err
 }
 
+// Failure is how a kind's Run says why a job failed when part of the reason is not for
+// everyone. Shown is for anybody who can see the job and names nothing they might not be
+// allowed to see: a sentence, or a count ("3 titles could not be matched"). Detail is for the
+// owner alone and may name titles. Any other error a Run returns is taken to be all detail:
+// the owner reads it, and everyone else is told only that the job did not finish.
+type Failure struct{ Shown, Detail string }
+
+func (f *Failure) Error() string { return strings.TrimSpace(f.Shown + " " + f.Detail) }
+
+// ownerOnly separates, in a job's stored error, what everyone may read from what only the
+// owner may.
+const ownerOnly = "\x1f"
+
+func stored(err error) string {
+	var f *Failure
+	if errors.As(err, &f) {
+		if f.Detail == "" {
+			return f.Shown
+		}
+		return f.Shown + ownerOnly + f.Detail
+	}
+	return ownerOnly + err.Error()
+}
+
+// ErrorText is a job's error as one caller may read it: all of it for the owner; for anyone
+// else only what was meant for everyone, or a plain sentence when nothing was.
+func ErrorText(job db.Job, owner bool) string {
+	shown, detail, _ := strings.Cut(job.Error, ownerOnly)
+	switch {
+	case owner:
+		return strings.TrimSpace(shown + " " + detail)
+	case shown == "" && detail != "":
+		return "This did not finish. The owner can see why."
+	}
+	return shown
+}
+
 // Interrupted is why a job ended that was cut short twice.
 const Interrupted = "The server stopped unexpectedly twice while doing this, so it was not started again."
 
@@ -307,7 +344,7 @@ func (r *Runner) work(l *lane) {
 			// because the same work may already have been asked for again under the same row.
 		case err != nil:
 			r.log.Error("job failed", "kind", job.Kind, "target", job.Target, "error", err)
-			r.db.FinishJob(r.ctx, job.ID, db.JobFailed, err.Error())
+			r.db.FinishJob(r.ctx, job.ID, db.JobFailed, stored(err))
 		default:
 			r.db.FinishJob(r.ctx, job.ID, db.JobDone, "")
 		}
@@ -335,11 +372,32 @@ func (r *Runner) run(ctx context.Context, k Kind, job db.Job) (err error) {
 			return r.db.CancelJob(ctx, job.ID)
 		}
 	}
+	if job.OwnerID != 0 && k.Access != Internal {
+		// A job does not outlive what let its starter ask for it. When its turn comes the
+		// starter must still be allowed to start the kind (an admin demoted meanwhile is not)
+		// and the kind must still accept the request for them (limits changed meanwhile).
+		// Otherwise it is cancelled.
+		account, err := r.db.Account(ctx, job.OwnerID)
+		if err != nil && !errors.Is(err, db.ErrNotFound) {
+			return err
+		}
+		allowed := err == nil && !account.Disabled && (k.Access == AnyProfile || account.Role == "owner" || k.Access == Admins && account.Role == "admin")
+		if allowed && k.Check != nil {
+			if err := k.Check(ctx, work.Request); errors.Is(err, db.ErrNotFound) || errors.Is(err, db.ErrInvalid) {
+				allowed = false
+			} else if err != nil {
+				return err
+			}
+		}
+		if !allowed {
+			return r.db.CancelJob(ctx, job.ID)
+		}
+	}
 	// A fault in a kind's code ends that job as failed and takes nothing else down.
 	defer func() {
 		if fault := recover(); fault != nil {
 			r.log.Error("job panicked", "kind", job.Kind, "target", job.Target, "panic", fault, "stack", string(debug.Stack()))
-			err = errors.New("This stopped because of a fault in the server. The server's log has the details.")
+			err = &Failure{Shown: "This stopped because of a fault in the server. The server's log has the details."}
 		}
 	}()
 	var mu sync.Mutex
