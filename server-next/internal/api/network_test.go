@@ -42,7 +42,6 @@ func TestTrustedProxiesAndHomeNetworks(t *testing.T) {
 	}
 	for name, edit := range map[string]NetworkSettingsEdit{
 		"a proxy that is not an address": {TrustedProxies: []string{"my-proxy"}},
-		"the whole internet as a proxy":  {TrustedProxies: []string{"0.0.0.0/0"}},
 		"a home network that is not one": {HomeNetworks: &[]string{"192.168.1.0/40"}, TrustedProxies: []string{}},
 	} {
 		if got := status(t, s, "PUT", "/v1/admin/settings/network", owner.AccessToken, edit); got != 400 {
@@ -62,6 +61,25 @@ func TestTrustedProxiesAndHomeNetworks(t *testing.T) {
 	}
 	if got := save(`"0"`, edit); got != http.StatusPreconditionFailed {
 		t.Errorf("a save from a stale copy answered %d, want 412", got)
+	}
+	// Trusting a forwarded address from most of the internet is the owner's choice to make: it
+	// is saved, warned about, and the warning goes once it no longer holds.
+	var risky NetworkSettings
+	if w := call(t, s, "PUT", "/v1/admin/settings/network", owner.AccessToken, NetworkSettingsEdit{TrustedProxies: []string{"0.0.0.0/0"}}, &risky); w.Code != 200 ||
+		len(risky.Warnings) != 1 || risky.Warnings[0].Code != "proxy_everywhere" {
+		t.Fatalf("the whole internet as a proxy answered %d %+v", w.Code, risky)
+	}
+	call(t, s, "GET", "/v1/admin/settings/network", owner.AccessToken, nil, &risky)
+	if len(risky.Warnings) != 1 {
+		t.Fatalf("the warning is not shown while it holds: %+v", risky)
+	}
+	settings = NetworkSettings{}
+	if w := call(t, s, "PUT", "/v1/admin/settings/network", owner.AccessToken, NetworkSettingsEdit{TrustedProxies: []string{}}, &settings); w.Code != 200 ||
+		len(settings.Warnings) != 0 {
+		t.Fatalf("taking it back answered %d %+v", w.Code, settings)
+	}
+	if got := save("", edit); got != 200 {
+		t.Fatalf("saving the settings again answered %d", got)
 	}
 
 	wrong := SignInRequest{Username: "justin", Password: "not the password"}
