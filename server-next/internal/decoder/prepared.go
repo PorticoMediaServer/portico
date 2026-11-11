@@ -165,7 +165,7 @@ func preparedArgs(input string, r PreparedRecipe, validate bool) ([]string, erro
 			// An HDR source becomes a standard picture here: scaled in its own
 			// range, then tone-mapped on the processor, never written flat.
 			if preparedHDR(r) {
-				scale += "," + SoftwareToneMap("hable")
+				scale += "," + SoftwareToneMap(DefaultToneMapAlgorithm)
 			}
 			args = append(args, "-map", "0:v:0", "-map", "0:a?", "-vf", scale, "-c:v", "libx264", "-preset", "medium", "-pix_fmt", "yuv420p", "-profile:v", "high", "-level:v",
 				strconv.FormatFloat(float64(H264OutputLevel(r.Width, r.Height, 60))/10, 'f', 1, 64), "-crf", "21")
