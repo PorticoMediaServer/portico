@@ -825,14 +825,14 @@
       "web/src/screens/settings/Settings.route.tsx#c93d5da364f8a7c4": "c53abc05b8fb40814f3cf12718e79234db56909aa562f1bfde99732df49dcb6c",
       "web/src/screens/settings/Settings.route.tsx#79a7bc500aa905ba": "abeb6b04553854a065cbbbb7a62b814c080d04b34f7297ba98455f3693b37a52",
       "web/src/screens/settings/Settings.route.tsx#c0a9b0fe63b3e5a5": "14df79fe9203b1eb53e9141344287e3bf18b549ef2b0e21272666e4f65aab57a",
-      "web/src/screens/settings/Settings.route.tsx#7393699cf50b5a29": "e20854a9cbf174c614911cc40ef3bb79e04e08c8fae53025343b6b248df712fd",
-      "web/src/screens/settings/Settings.route.tsx#4a0ed0f9855c7d2e": "e20854a9cbf174c614911cc40ef3bb79e04e08c8fae53025343b6b248df712fd"
+      "web/src/screens/settings/Settings.route.tsx#7393699cf50b5a29": "2c762d477951d16c963d72aacc9656a09ec0565292bbfb544481195ee8927508",
+      "web/src/screens/settings/Settings.route.tsx#4a0ed0f9855c7d2e": "2c762d477951d16c963d72aacc9656a09ec0565292bbfb544481195ee8927508"
     },
     "additionalSites": {
-      "web/src/screens/settings/Settings.route.tsx#ce4f350e188d007f": {
+      "web/src/screens/settings/Settings.route.tsx#1f91e1f960b20869": {
         "category": "platform-transport",
         "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
-        "guardHash": "e20854a9cbf174c614911cc40ef3bb79e04e08c8fae53025343b6b248df712fd"
+        "guardHash": "2c762d477951d16c963d72aacc9656a09ec0565292bbfb544481195ee8927508"
       }
     }
   },
@@ -1120,16 +1120,6 @@
     ],
     "guardHashes": {
       "apps/native/src-next/screens/settings-live/server/tv-server-reader.ts#52f029557c7a21a0": "918dd59fb219d7e991a89192d61f954a406fac2dae205223f416530207a3aab1"
-    }
-  },
-  "apps/native/src-next/screens/settings-live/settings-controller.ts": {
-    "category": "platform-transport",
-    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
-    "sites": [
-      "apps/native/src-next/screens/settings-live/settings-controller.ts#3c92514366952e39"
-    ],
-    "guardHashes": {
-      "apps/native/src-next/screens/settings-live/settings-controller.ts#3c92514366952e39": "c87fc306cb67fe041a6661ab680d7722182e38c1f7c263b97d2f7a973e77c8a9"
     }
   },
   "apps/native/src-next/screens/settings-live/use-settings-request-scope.ts": {
@@ -1753,10 +1743,10 @@
     "category": "platform-transport",
     "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
     "sites": [
-      "apps/native/src-next/shell/bootstrap-services.ts#1a07fd72613c8699"
+      "apps/native/src-next/shell/bootstrap-services.ts#de7bb4bc80ff725c"
     ],
     "guardHashes": {
-      "apps/native/src-next/shell/bootstrap-services.ts#1a07fd72613c8699": "198fbbb107f2b27bfeb3819eb36c4c4dadab0dd4d64c51de2e9e6afc4275dff4"
+      "apps/native/src-next/shell/bootstrap-services.ts#de7bb4bc80ff725c": "4b62d415ec5c785ef36a7993f165dfaa55290e0f51838f59eeede3af604d103f"
     }
   },
   "web/src/screens/account/feedback-controller.ts": {

@@ -214,7 +214,7 @@ export function SettingsEntry() {
       assert();const value = await originalApi.requestLyrics<T>(path, method, body, signal(input));assert();return value;
     };
     const routeFetch: typeof originalApi.routeFetch = async (input, options) => {
-      assert();const value = await originalApi.routeFetch(input, {...options, signal: signal(options?.signal ?? (input instanceof Request ? input.signal : undefined))});assert();return value;
+      assert();const value = await originalApi.routeFetch(input, {...options, signal: signal(options?.signal)});assert();return value;
     };
     // Fence Settings transport entry points explicitly while preserving their
     // original method owner and authentication behavior. Binding a method alone
