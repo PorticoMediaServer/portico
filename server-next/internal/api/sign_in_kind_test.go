@@ -1,30 +1,66 @@
 package api
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/hosted"
 )
 
-// porticoServer sets up a server with Portico Accounts through a stand-in for Portico Services
-// and returns the owner's sign-in on the main profile, with two members, sam and alex.
-func porticoServer(t *testing.T) (*Server, string) {
+// porticoServer is a server set up with local sign-in, with members sam and alex, that the
+// owner switched to Portico Accounts through a stand-in for Portico Services. Sam has moved to
+// his Portico Account with his old password, as sammy; alex still waits. It returns the
+// owner's sign-in and sam's.
+func porticoServer(t *testing.T) (*Server, string, string) {
 	t.Helper()
 	s := newTestServer(t)
-	s.hosted = &fakeHosted{t: t, decision: hosted.Decision{Purpose: hosted.PurposeSetup, ServerName: "Cabin",
-		Account: hosted.Account{ID: "pa_1", Username: "justin"}}}
-	var out SignInResponse
-	if w := call(t, s, "POST", "/v1/setup/portico/finish", "", SetupPorticoFinish{Approval: "approved-for-" + s.id, Device: device(0)}, &out); w.Code != 200 {
-		t.Fatalf("Portico setup answered %d: %s", w.Code, w.Body)
-	}
-	owner := onMain(t, s, out).AccessToken
+	fake := &fakeHosted{t: t}
+	s.hosted = fake
+	owner := onMain(t, s, setup(t, s)).AccessToken
 	for _, name := range []string{"sam", "alex"} {
-		if w := call(t, s, "POST", "/v1/admin/members", owner, MemberCreate{Username: name, Password: testPassword}, nil); w.Code != 201 && w.Code != 200 {
+		if w := call(t, s, "POST", "/v1/admin/members", owner, MemberCreate{Username: name, Password: testPassword}, nil); w.Code != 200 {
 			t.Fatalf("adding %s answered %d: %s", name, w.Code, w.Body)
 		}
 	}
-	return s, owner
+	var preview SignInPreview
+	call(t, s, "POST", "/v1/admin/sign-in/preview", owner, SignInPreviewRequest{To: "portico", ReturnURL: "https://den.example/back"}, &preview)
+	if preview.ApprovalURL == "" || preview.SignInAgain != 2 {
+		t.Fatalf("the preview to Portico Accounts says %+v", preview)
+	}
+	fake.decision = hosted.Decision{Purpose: hosted.PurposeSwitch, Account: hosted.Account{ID: "pa_1", Username: "justin"}}
+	approval := "approved-for-" + s.id
+	var switched SignInResponse
+	body := SignInSwitchRequest{To: "portico", Approval: approval, Device: device(1)}
+	if w := call(t, s, "POST", "/v1/admin/sign-in/switch", owner, body, &switched); w.Code != 200 {
+		t.Fatalf("switching to Portico Accounts answered %d: %s", w.Code, w.Body)
+	}
+	owner = onMain(t, s, switched).AccessToken
+
+	// A waiting person's old password says what to do next, and with their Portico Account
+	// it brings them back; that Portico Account then cannot be used by anyone else.
+	w := call(t, s, "POST", "/v1/auth/sign-in", "", SignInRequest{Username: "sam", Password: testPassword, Device: device(5)}, nil)
+	if w.Code != 409 || !strings.Contains(w.Body.String(), "now uses Portico Accounts") {
+		t.Fatalf("a waiting person's old password answered %d: %s", w.Code, w.Body)
+	}
+	var check MoveCheck
+	if w := call(t, s, "POST", "/v1/auth/move/check", "", MoveCheckRequest{Username: "sam", Password: testPassword}, &check); w.Code != 200 || check.Next != "portico_account" {
+		t.Fatalf("checking an old password answered %d: %s", w.Code, w.Body)
+	}
+	fake.decision = hosted.Decision{Purpose: hosted.PurposeSwitch, Account: hosted.Account{ID: "pa_2", Username: "sammy"}}
+	var moved SignInResponse
+	done := MoveCompleteRequest{Username: "sam", Password: testPassword, Approval: approval, Device: device(5)}
+	if w := call(t, s, "POST", "/v1/auth/move/complete", "", done, &moved); w.Code != 200 || moved.Account.Username != "sammy" {
+		t.Fatalf("moving to a Portico Account answered %d: %s", w.Code, w.Body)
+	}
+	again := MoveCompleteRequest{Username: "alex", Password: testPassword, Approval: approval, Device: device(6)}
+	if w := call(t, s, "POST", "/v1/auth/move/complete", "", again, nil); w.Code != 409 || !strings.Contains(w.Body.String(), "as sammy") {
+		t.Fatalf("a Portico Account already here answered %d: %s", w.Code, w.Body)
+	}
+	if got := memberState(t, s, owner, "alex"); got != "waiting" {
+		t.Fatalf("alex is %q", got)
+	}
+	return s, owner, moved.Session.AccessToken
 }
 
 func memberState(t *testing.T, s *Server, token, username string) string {
@@ -44,15 +80,14 @@ func memberState(t *testing.T, s *Server, token, username string) string {
 // waiting, a waiting person comes back with the owner's code and a new username, the code
 // works once, and Finish now turns off whoever is left as "Didn't move".
 func TestSwitchToLocalSignIn(t *testing.T) {
-	s, owner := porticoServer(t)
+	s, owner, sam := porticoServer(t)
 	s.hosted = hosted.NotConnected{}
-	sam := signInAs(t, s, "sam", testPassword, 5).AccessToken
 
 	var preview SignInPreview
 	if w := call(t, s, "POST", "/v1/admin/sign-in/preview", owner, SignInPreviewRequest{To: "local"}, &preview); w.Code != 200 {
 		t.Fatalf("the preview answered %d: %s", w.Code, w.Body)
 	}
-	if preview.SignInAgain != 2 || preview.SignedOut < 2 || !preview.PorticoAddressRemoved || preview.Removed != 0 {
+	if preview.SignInAgain != 1 || preview.SignedOut < 2 || !preview.PorticoAddressRemoved || preview.Removed != 0 {
 		t.Fatalf("the preview says %+v", preview)
 	}
 	var switched SignInResponse
@@ -71,7 +106,7 @@ func TestSwitchToLocalSignIn(t *testing.T) {
 	if system.SignIn != "local" || system.Move != "to_local" {
 		t.Fatalf("after the switch the server says %+v", system)
 	}
-	if code := status(t, s, "POST", "/v1/auth/sign-in", "", SignInRequest{Username: "sam", Password: testPassword, Device: device(6)}); code != 401 {
+	if code := status(t, s, "POST", "/v1/auth/sign-in", "", SignInRequest{Username: "alex", Password: testPassword, Device: device(6)}); code != 401 {
 		t.Fatalf("a waiting person's password sign-in answered %d", code)
 	}
 
@@ -81,7 +116,7 @@ func TestSwitchToLocalSignIn(t *testing.T) {
 		t.Fatalf("the Sign-in page says %+v", state)
 	}
 	var code MoveCodeOut
-	samID := state.Waiting[1].ID // by username: alex, sam
+	samID := state.Waiting[1].ID // by username: alex, sammy
 	if w := call(t, s, "POST", "/v1/admin/members/"+samID+"/move-code", owner, nil, &code); w.Code != 200 || code.Code == "" {
 		t.Fatalf("a move code answered %d: %s", w.Code, w.Body)
 	}
@@ -89,7 +124,7 @@ func TestSwitchToLocalSignIn(t *testing.T) {
 		t.Fatalf("a wrong move code answered %d", w.Code)
 	}
 	var check MoveCheck
-	if w := call(t, s, "POST", "/v1/auth/move/check", "", MoveCheckRequest{Code: code.Code}, &check); w.Code != 200 || check.Username != "sam" || check.Next != "choose_password" {
+	if w := call(t, s, "POST", "/v1/auth/move/check", "", MoveCheckRequest{Code: code.Code}, &check); w.Code != 200 || check.Username != "sammy" || check.Next != "choose_password" {
 		t.Fatalf("checking the move code answered %d: %s", w.Code, w.Body)
 	}
 	done := MoveCompleteRequest{Code: code.Code, Username: "Samuel", Password: "a new password", Device: device(7)}
@@ -118,12 +153,12 @@ func TestSwitchToLocalSignIn(t *testing.T) {
 
 // Start over keeps the owner and removes everyone else, once the server's name is typed.
 func TestStartOver(t *testing.T) {
-	s, owner := porticoServer(t)
+	s, owner, _ := porticoServer(t)
 	body := SignInSwitchRequest{To: "local", StartOver: true, ServerName: "Somewhere else", Username: "justin", Password: testPassword, Device: device(1)}
 	if code := status(t, s, "POST", "/v1/admin/sign-in/switch", owner, body); code != 400 {
 		t.Fatalf("Start over with the wrong name answered %d", code)
 	}
-	body.ServerName = "cabin"
+	body.ServerName = "portico"
 	var switched SignInResponse
 	if w := call(t, s, "POST", "/v1/admin/sign-in/switch", owner, body, &switched); w.Code != 200 {
 		t.Fatalf("Start over answered %d: %s", w.Code, w.Body)
@@ -180,8 +215,7 @@ func TestOnlyALeavingPorticoServerQueuesItsMessage(t *testing.T) {
 	if _, queued, _ := s.db.Setting(t.Context(), db.LeftMessageKey); queued {
 		t.Fatal("a local server queued a message for Portico Services")
 	}
-	p, porticoOwner := porticoServer(t)
-	body.ServerName = "Cabin"
+	p, porticoOwner, _ := porticoServer(t)
 	if w := call(t, p, "POST", "/v1/admin/sign-in/switch", porticoOwner, body, nil); w.Code != 200 {
 		t.Fatalf("Start over answered %d: %s", w.Code, w.Body)
 	}
