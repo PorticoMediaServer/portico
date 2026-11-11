@@ -229,6 +229,10 @@ type remoteState struct {
 	ownCertificateUsable func() bool
 	// homeKnown says the server has home networks, guessed or listed. Unset, it has.
 	homeKnown func() bool
+	// zone is the Portico zone, "<name space>.portico.direct", once the server has one; the
+	// published addresses are named under it. onAddressesChange is told when they may change.
+	zone              string
+	onAddressesChange func()
 	// listenPort is the port the server listens on, the one the router forwards to.
 	listenPort int
 	// finder announces the server to apps at home while Find this server at home is on.
@@ -529,6 +533,9 @@ type RemoteAccessStatus struct {
 	// IdentityCode is the server's identity in twelve characters, for the owner to give to
 	// someone whose app asks for it.
 	IdentityCode string `json:"identityCode"`
+	// Addresses are the addresses this server publishes for its apps, home first, each with
+	// its port and, with a Portico Account, its Portico name.
+	Addresses []PublishedAddress `json:"addresses"`
 }
 
 // OwnCertificateStatus, PortMappingStatus and PublicAddressAnswer are the certificate's and
@@ -622,7 +629,7 @@ func (s *Server) remoteStatus(r *http.Request) RemoteAccessStatus {
 	return RemoteAccessStatus{ThisDevice: ThisDevice{AtHome: s.fromHome(r), Address: s.remoteHost(r)},
 		Refused: s.access.refusedList(), RemoteSecurity: sec, Warnings: s.warnings(v, sec, s.networks()),
 		Certificate: OwnCertificateStatus(s.certs.Status()), Router: PortMappingStatus(s.ports.Status()), PublicAddress: PublicAddressAnswer(s.public.Answer()),
-		IdentityCode: s.identity.code()}
+		IdentityCode: s.identity.code(), Addresses: s.PublishedAddresses()}
 }
 
 func (s *Server) setupFinished() bool {
