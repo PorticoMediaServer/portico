@@ -118,13 +118,13 @@ test('a stream with no name draws its card without one', () => {
   assert.match(html, /Long, Long Time/);
   assert.match(html, /Living room TV/);
 });
-test('a paused phone stream says Paused; the owner and an administrator see Stop, but not on a stream they cannot name', () => {
+test('a paused phone stream says Paused; the owner and an administrator see Stop, on a stream whose title is hidden too', () => {
   const paused = card({state: 'paused'});
   assert.match(paused, /data-state="paused"/);
   assert.match(paused, /class="phoneState"[^>]*><svg[^>]*>[\s\S]*?<\/svg>Paused/);
   assert.match(card({}, 'admin'), /phoneStop/);
-  // An administrator held to some libraries is sent a stream outside them untitled: Stop is not offered on it.
-  assert.doesNotMatch(card({title: '', item: undefined, itemId: undefined}, 'admin'), /phoneStop|buttonLabel">Stop</);
+  // An administrator held to some libraries is sent a stream outside them untitled: they may still stop it (rule 1).
+  assert.match(card({title: '', item: undefined, itemId: undefined}, 'admin'), /phoneStop/);
 });
 
 test('the phone page header draws only the facts the server returned and offers Refresh, never a pull ring', () => {
