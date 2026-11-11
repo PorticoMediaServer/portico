@@ -24,6 +24,7 @@ var processSpawns = map[string]string{
 	"internal/decoder/confinement_linux.go:runInner":                 "the tool inside the bubblewrap sandbox the outer helper built",
 	"internal/decoder/prepared_file.go:PreparedFileSandboxAvailable": "bubblewrap --help, to read its capabilities",
 	// Not media.
+	"internal/remote/rclone.go:current": "read-only WebDAV bridge for an owner-configured remote; filtered configuration and provider networking, no media decoding",
 	"internal/decoder/hardware_nvidia.go:runNVIDIADiscovery": "fixed read-only nvidia-smi UUID/PCI/index/name/driver query; 5-second context, bounded output, minimal environment and " +
 		"childprocess group retirement; no media input or codec availability inference",
 	"internal/supervise/process.go:Process": "the server starting itself as its own worker, so a restart stays inside the service",
