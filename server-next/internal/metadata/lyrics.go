@@ -109,3 +109,34 @@ func (s *Service) fetchLyrics(ctx context.Context, p db.Priority, song db.Lyrics
 		Language: answer.Language})
 	return stored && answer.Body != "", err
 }
+
+// FetchNewLyrics asks the lyrics provider about the songs a scan added since a time that have
+// no lyrics yet, where the owner chose "Files, then LRCLIB" and never in a library set to local
+// metadata only. It reads only those songs, along the library's by-date index, not the whole
+// library: that is FetchMissingLyrics, which a person starts. It returns how many got lyrics.
+func (s *Service) FetchNewLyrics(ctx context.Context, libraryID int64, since time.Time) (int, error) {
+	src, err := s.DB.LibrarySource(ctx, libraryID)
+	if err != nil {
+		return 0, err
+	}
+	if s.Lyrics == nil || src.Lyrics != db.LyricsLRCLIB || src.Provider == db.ProviderLocal {
+		return 0, nil
+	}
+	found, after := 0, int64(0)
+	for {
+		songs, err := s.DB.SongsAddedSince(ctx, libraryID, since, after, 50)
+		if err != nil || len(songs) == 0 {
+			return found, err
+		}
+		for _, song := range songs {
+			after = song.ID
+			stored, err := s.fetchLyrics(ctx, db.Background, song)
+			if err != nil {
+				return found, err
+			}
+			if stored {
+				found++
+			}
+		}
+	}
+}

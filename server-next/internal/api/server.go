@@ -201,8 +201,9 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.libraryRoutes()
 	s.jobRoutes()
 	s.metadataJobs()
-	s.scans.AfterScan = func(ctx context.Context, library string) {
-		if _, err := s.jobs.Start(ctx, jobAfterScan, jobs.Request{Target: jobs.Target{Library: library}}); err != nil && ctx.Err() == nil {
+	s.scans.AfterScan = func(ctx context.Context, library string, startedAt time.Time) {
+		params, _ := json.Marshal(afterScanParams{AddedSince: startedAt.UnixMilli()})
+		if _, err := s.jobs.Start(ctx, jobAfterScan, jobs.Request{Target: jobs.Target{Library: library}, Params: params}); err != nil && ctx.Err() == nil {
 			s.log.Error("looking up what a scan found could not be started", "library", library, "error", err)
 		}
 	}
