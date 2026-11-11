@@ -194,6 +194,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	if err := s.jobs.Resume(); err != nil {
 		return nil, err
 	}
+	go s.jobs.RunTidy(ctx)
 	return s, nil
 }
 

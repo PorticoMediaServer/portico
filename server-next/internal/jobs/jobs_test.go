@@ -205,3 +205,32 @@ func TestAPanicEndsTheJobAndNothingElse(t *testing.T) {
 	}
 	wait(t, d, fine.PublicID, db.JobDone)
 }
+
+// Housekeeping runs by itself and keeps running: a piece that fails, and one that panics,
+// are tried again at their next turn and stop nothing else.
+func TestHousekeepingRunsByItself(t *testing.T) {
+	old := tidyStart
+	tidyStart = 10 * time.Millisecond
+	defer func() { tidyStart = old }()
+	ctx, stop := context.WithCancel(context.Background())
+	defer stop()
+	d, err := db.Open(ctx, filepath.Join(t.TempDir(), "main.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	r := New(ctx, d, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	ran := make(chan string, 64)
+	r.Tidy("faulty", 20*time.Millisecond, func(context.Context) error { ran <- "faulty"; panic("a fault") })
+	r.Tidy("steady", 20*time.Millisecond, func(context.Context) error { ran <- "steady"; return nil })
+	go r.RunTidy(ctx)
+	seen := map[string]int{}
+	for deadline := time.After(10 * time.Second); seen["faulty"] < 2 || seen["steady"] < 2; {
+		select {
+		case name := <-ran:
+			seen[name]++
+		case <-deadline:
+			t.Fatalf("housekeeping ran %v; want each piece at least twice", seen)
+		}
+	}
+}
