@@ -1,10 +1,9 @@
 // Package musicbrainztest is a stand-in for MusicBrainz that answers from files, so no test
 // asks the real one.
 //
-// The files in answers/ are written by hand in the shape MusicBrainz's web service documents
-// (https://musicbrainz.org/doc/MusicBrainz_API), cut down to the fields the client reads. The
-// albums are real but the ids are made up: nothing in this repository's tests, and nothing on
-// a development machine, calls the live service.
+// The files in answers/ are MusicBrainz's real answers, captured once on 11 November 2026 from
+// the addresses their names give. Nothing in this repository's tests, and nothing on a
+// development machine, calls the live service.
 package musicbrainztest
 
 import (
@@ -19,6 +18,12 @@ import (
 
 //go:embed answers/*.json
 var answers embed.FS
+
+// moved are the ids MusicBrainz answers with 301: a release merged into another. Its answer
+// file is the body MusicBrainz sent with the 301, which is the other release's whole answer.
+var moved = map[string]string{
+	"/ws/2/release/a82fd9b7-4129-4e44-8867-a1a21493ee8e": "/ws/2/release/114bdc29-02ca-45e8-83cb-9b2dae354e20",
+}
 
 // Server answers like MusicBrainz. Requests counts every request it was sent.
 type Server struct {
@@ -64,12 +69,16 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	}
 	raw, err := answers.ReadFile(file(r))
 	switch {
+	case err == nil && moved[r.URL.Path] != "":
+		w.Header().Set("Location", moved[r.URL.Path]+"?"+r.URL.RawQuery)
+		w.WriteHeader(http.StatusMovedPermanently)
+		w.Write(raw)
 	case err == nil:
 		w.Write(raw)
 	case r.URL.Query().Get("query") != "":
 		w.Write([]byte(`{"created":"2026-11-10T00:00:00.000Z","count":0,"offset":0,"releases":[],"artists":[]}`))
 	default:
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"error":"Not Found"}`))
+		w.Write([]byte(`{"error":"Not Found","help":"For usage, please see: https://musicbrainz.org/development/mmd"}`))
 	}
 }

@@ -54,7 +54,11 @@ type Client struct {
 	// Busy503 says this provider answers 503 when asked too often (MusicBrainz does), so a
 	// 503 is a pause even without a Retry-After.
 	Busy503 bool
-	http    *http.Client
+	// MovedIsAnswer says this provider answers an id that was merged into another with a 301
+	// that carries the other's whole answer (MusicBrainz does), so that body is the answer.
+	// The redirect itself is still never followed.
+	MovedIsAnswer bool
+	http          *http.Client
 
 	mu     sync.Mutex
 	next   time.Time // the earliest the next request may start, by spacing
@@ -106,6 +110,11 @@ func (c *Client) Do(req *http.Request) ([]byte, error) {
 		}
 		switch {
 		case res.StatusCode == http.StatusOK:
+			if len(raw) > maxAnswer {
+				return nil, fmt.Errorf("%s sent an answer larger than any real one", c.name)
+			}
+			return raw, nil
+		case res.StatusCode == http.StatusMovedPermanently && c.MovedIsAnswer && len(raw) > 0:
 			if len(raw) > maxAnswer {
 				return nil, fmt.Errorf("%s sent an answer larger than any real one", c.name)
 			}
