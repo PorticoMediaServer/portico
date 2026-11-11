@@ -27,6 +27,23 @@ export interface AccountStream {
   current: boolean;
 }
 
+export interface AdminLibrary {
+  id: string;
+  name: string;
+  kind: string;
+  language?: string;
+  folders: LibraryFolder[];
+  options: LibraryOptions;
+  scanning: boolean;
+  lastScanStartedAt?: string;
+  lastScanFinishedAt?: string;
+}
+
+export interface AdminLibraryPage {
+  items: AdminLibrary[];
+  nextCursor?: string;
+}
+
 export interface Alternative {
   versionId: string;
   label: string;
@@ -34,6 +51,22 @@ export interface Alternative {
 
 export interface AudioPick {
   trackId: string;
+}
+
+export interface BatchError {
+  code: string;
+  message: string;
+}
+
+export interface BlockedNetwork {
+  id: string;
+  network: string;
+  blockedUntil: string;
+}
+
+export interface BlockedNetworkPage {
+  items: BlockedNetwork[];
+  nextCursor?: string;
 }
 
 export interface CapabilityDocument {
@@ -101,6 +134,24 @@ export interface Decision {
   channels?: number;
 }
 
+export interface DeletionPreview {
+  title: string;
+  titles: number;
+  files: number;
+  bytes: number;
+  listEntries: number;
+  otherPeople: number;
+  alsoRemoves: TitleRef[];
+}
+
+export interface DeletionResult {
+  removed: boolean;
+  filesDeleted: number;
+  bytes: number;
+  kept: KeptFile[];
+  alsoRemoved: TitleRef[];
+}
+
 export interface Device {
   id: string;
   name: string;
@@ -129,6 +180,29 @@ export interface DeviceInfo {
 export interface DevicePage {
   items: Device[];
   nextCursor?: string;
+}
+
+export interface DriveSettings {
+  serviceAccountKey?: string;
+  signIn?: string;
+  redirectedUrl?: string;
+  path?: string;
+}
+
+export interface DriveShown {
+  path?: string;
+  signedInWith: string;
+  clientId?: string;
+}
+
+export interface DriveSignInStart {
+  clientId: string;
+  clientSecret: string;
+}
+
+export interface DriveSignInStarted {
+  signIn: string;
+  address: string;
 }
 
 export interface ApiError {
@@ -168,6 +242,20 @@ export interface Filter {
   values?: string[];
 }
 
+export interface FolderChoice {
+  name: string;
+  path: string;
+  writable?: boolean;
+}
+
+export interface FolderList {
+  path: string;
+  parent?: string;
+  folders: FolderChoice[];
+  nextCursor?: string;
+  limited?: boolean;
+}
+
 export interface HDR {
   source?: string;
   delivered?: string;
@@ -202,6 +290,7 @@ export interface HomeRow {
   title: string;
   shape: string;
   items: Item[];
+  hidden?: boolean;
 }
 
 export interface IdentityProof {
@@ -283,6 +372,7 @@ export interface Item {
   counts?: ItemCounts;
   state: ItemState;
   libraryId: string;
+  entryId?: string;
   originalTitle?: string;
   summary?: string;
   tagline?: string;
@@ -370,6 +460,39 @@ export interface ItemSubtitles {
   offsetMs: number;
 }
 
+export type JSON = unknown;
+
+export interface Job {
+  id: string;
+  kind: string;
+  state: string;
+  progress?: JobProgress;
+  error?: string;
+}
+
+export interface JobProgress {
+  done: number;
+  total?: number;
+}
+
+export interface JobStart {
+  kind: string;
+  target: JobTarget;
+  params?: unknown;
+}
+
+export interface JobTarget {
+  library?: string;
+  filter?: string;
+  view?: string;
+  items?: string[];
+}
+
+export interface KeptFile {
+  path: string;
+  reason: string;
+}
+
 export interface Key {
   id: string;
   name: string;
@@ -407,6 +530,117 @@ export interface Library {
   views?: View[];
   sorts?: Sort[];
   filters?: Filter[];
+}
+
+export interface LibraryCreate {
+  name: string;
+  kind: string;
+  language?: string;
+  folders: string[];
+  options?: LibraryOptions;
+}
+
+export interface LibraryEdit {
+  name?: string;
+  language?: string;
+  folders?: string[];
+  options?: LibraryOptions;
+}
+
+export interface LibraryFolder {
+  path: string;
+  available: boolean;
+  problem?: string;
+  lastScanAt?: string;
+  watched: boolean;
+  scanEveryMinutes: number;
+  notice?: string;
+}
+
+export interface LibraryOptions {
+  depth: string;
+  trash: TrashRule;
+  allowDelete: boolean;
+  watch?: boolean;
+  rescanMinutes: number;
+}
+
+export interface LibraryOrder {
+  ids: string[];
+}
+
+export interface List {
+  id: string;
+  kind: string;
+  name: string;
+  description?: string;
+  owner: ListOwner;
+  role: string;
+  count: number;
+  everyone?: boolean;
+  covers: Record<string, string>[];
+  revision: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ListAdd {
+  items: string[];
+  after?: string;
+}
+
+export interface ListAdded {
+  list: List;
+  added: number;
+  already: number;
+}
+
+export interface ListCreate {
+  kind: string;
+  name: string;
+  description?: string;
+  items?: string[];
+  everyone?: boolean;
+}
+
+export interface ListCreated extends List {
+}
+
+export interface ListEdit {
+  name?: string;
+  description?: string;
+  everyone?: boolean;
+}
+
+export interface ListMove {
+  before?: string;
+  after?: string;
+}
+
+export interface ListOwner {
+  id: string;
+  name: string;
+}
+
+export interface ListPage {
+  items: List[];
+  nextCursor?: string;
+}
+
+export interface ListShare {
+  profileId: string;
+  name?: string;
+  person?: string;
+  canEdit: boolean;
+}
+
+export interface ListShares {
+  shares: ListShare[];
+  people: ListShare[];
+}
+
+export interface ListSharesSet {
+  shares: ListShare[];
 }
 
 export interface LyricLine {
@@ -489,10 +723,25 @@ export interface MemberPage {
   nextCursor?: string;
 }
 
+export interface MissingTitle {
+  id: string;
+  kind: string;
+  title: string;
+  year?: number;
+  missingSinceAt: string;
+  removedAt?: string;
+}
+
+export interface MissingTitles {
+  items: MissingTitle[];
+  total: number;
+}
+
 export interface NetworkSettings {
   homeNetworks: string[];
   homeNetworksDefault: boolean;
   trustedProxies: string[];
+  warnings: Warning[];
 }
 
 export interface NetworkSettingsEdit {
@@ -536,7 +785,7 @@ export interface Person {
   deathDate?: string;
   birthplace?: string;
   images: Record<string, string>;
-  titleCount: number;
+  titleCount?: number;
 }
 
 export interface PlaybackAudio {
@@ -736,6 +985,7 @@ export interface PreferencesEdit {
   scope: string;
   deviceClass: string;
   values: Record<string, unknown>;
+  madeAgoMs?: number;
 }
 
 export interface PreparedNext {
@@ -772,6 +1022,8 @@ export interface Profile {
   isPrimary: boolean;
   pinRequired: boolean;
   accessMarker: string;
+  avatar?: string;
+  avatarRef?: string;
 }
 
 export interface ProfileCreate {
@@ -844,6 +1096,7 @@ export interface QueueAdvance {
   reason: string;
   entryId?: string;
   fromEntryId?: string;
+  sessionId?: string;
 }
 
 export interface QueueChange {
@@ -858,6 +1111,12 @@ export interface QueueCommit {
 export interface QueueCommitted {
   queue: Queue;
   session: PlaybackSession;
+}
+
+export interface QueueCondition {
+  field: string;
+  mode?: string;
+  values: string[];
 }
 
 export interface QueueCreate {
@@ -947,6 +1206,7 @@ export interface QueueView {
   favorite?: boolean;
   inList?: boolean;
   resolution?: string;
+  filter?: QueueCondition[];
   sort?: string;
   desc?: boolean;
 }
@@ -1027,6 +1287,7 @@ export interface RemoteSource {
   limits: RemoteLimits;
   webdav?: WebDAVShown;
   rclone?: RcloneShown;
+  drive?: DriveShown;
   state: string;
   waitingUntil?: string;
   problem?: string;
@@ -1040,6 +1301,7 @@ export interface RemoteSourceCreate {
   limits?: RemoteLimits;
   webdav?: WebDAVSettings;
   rclone?: RcloneSettings;
+  drive?: DriveSettings;
 }
 
 export interface RemoteSourceEdit {
@@ -1048,6 +1310,7 @@ export interface RemoteSourceEdit {
   limits?: RemoteLimits;
   webdav?: WebDAVSettings;
   rclone?: RcloneSettings;
+  drive?: DriveSettings;
 }
 
 export interface RemoteSourcePage {
@@ -1067,6 +1330,60 @@ export interface Restrictions {
 export interface SavedPlaylist {
   playlistId: string;
   entries: number;
+}
+
+export interface ScanCounts {
+  files: number;
+  filesNew: number;
+  filesChanged: number;
+  filesMoved: number;
+  filesMissing: number;
+  titlesNew: number;
+  filesRead: number;
+}
+
+export interface ScanRequest {
+  allFiles?: boolean;
+}
+
+export interface ScanStatus {
+  state: string;
+  job?: Job;
+  lastScanStartedAt?: string;
+  lastScanFinishedAt?: string;
+  folders: LibraryFolder[];
+  counts?: ScanCounts;
+}
+
+export interface SearchGroup {
+  kind: string;
+  total?: number;
+  totalIsMinimum?: boolean;
+  items?: Item[];
+  people?: Person[];
+  nextCursor?: string;
+}
+
+export interface SearchHistory {
+  items: SearchHistoryEntry[];
+}
+
+export interface SearchHistoryEntry {
+  query: string;
+}
+
+export interface SearchResults {
+  groups: SearchGroup[];
+}
+
+export interface SearchSuggestion {
+  id: string;
+  kind: string;
+  title: string;
+}
+
+export interface SearchSuggestions {
+  items: SearchSuggestion[];
 }
 
 export interface Session {
@@ -1117,6 +1434,18 @@ export interface Setting {
   labelKey: string;
 }
 
+export interface SettingsDocument {
+  name: string;
+  values: unknown;
+  defaults: unknown;
+  etag: string;
+}
+
+export interface SettingsDocumentPage {
+  items: SettingsDocument[];
+  nextCursor?: string;
+}
+
 export interface SetupOwnerRequest {
   setupCode: string;
   username: string;
@@ -1138,9 +1467,38 @@ export interface SignInResponse {
   challenge?: Challenge;
 }
 
+export interface SkippedFile {
+  path: string;
+  reason: string;
+  message: string;
+}
+
+export interface SkippedFilePage {
+  items: SkippedFile[];
+  nextCursor?: string;
+}
+
 export interface Sort {
   id: string;
   order: string;
+}
+
+export interface StateBatch {
+  items: StateBatchEdit[];
+}
+
+export interface StateBatchEdit extends StateRequest {
+  itemId: string;
+}
+
+export interface StateBatchReply {
+  items: StateBatchResult[];
+}
+
+export interface StateBatchResult {
+  itemId: string;
+  state?: ItemState;
+  error?: BatchError;
 }
 
 export interface StateReply extends ItemState {
@@ -1225,6 +1583,20 @@ export interface Tag {
   name: string;
 }
 
+export interface TitleRef {
+  id: string;
+  title: string;
+}
+
+export interface TrashEmptied {
+  removed: number;
+}
+
+export interface TrashRule {
+  mode: string;
+  days?: number;
+}
+
 export interface TwoFactorEnrol {
   currentPassword: string;
 }
@@ -1280,6 +1652,11 @@ export interface Viewer {
   role: string;
 }
 
+export interface Warning {
+  code: string;
+  message: string;
+}
+
 export interface WebDAVSettings {
   address: string;
   user?: string;
@@ -1304,6 +1681,8 @@ export interface Routes {
   'GET /v1/system': {access: 'public'; request: undefined; response: System};
   'GET /v1/admin/settings/network': {access: 'owner'; request: undefined; response: NetworkSettings};
   'PUT /v1/admin/settings/network': {access: 'owner'; request: NetworkSettingsEdit; response: NetworkSettings};
+  'GET /v1/admin/blocked-networks': {access: 'admin'; request: undefined; response: BlockedNetworkPage};
+  'DELETE /v1/admin/blocked-networks/{id}': {access: 'admin'; request: undefined; response: undefined};
   'POST /v1/system/identity-proof': {access: 'public'; request: IdentityQuestion; response: IdentityProof};
   'POST /v1/setup/owner': {access: 'public'; request: SetupOwnerRequest; response: SignInResponse};
   'POST /v1/auth/sign-in': {access: 'public'; request: SignInRequest; response: SignInResponse};
@@ -1332,6 +1711,9 @@ export interface Routes {
   'POST /v1/profiles/{id}/select': {access: 'signedIn'; request: ProfileSelect; response: Session};
   'GET /v1/profiles/{id}/restrictions': {access: 'signedIn'; request: undefined; response: Restrictions};
   'PUT /v1/profiles/{id}/restrictions': {access: 'signedIn'; request: Restrictions; response: Restrictions};
+  'PUT /v1/profiles/{id}/avatar': {access: 'signedIn'; request: undefined; response: Profile};
+  'GET /v1/profiles/{id}/avatar': {access: 'signedIn'; request: undefined; response: undefined};
+  'DELETE /v1/profiles/{id}/avatar': {access: 'signedIn'; request: undefined; response: Profile};
   'GET /v1/preferences': {access: 'withProfile'; request: undefined; response: Preferences};
   'PATCH /v1/preferences': {access: 'withProfile'; request: PreferencesEdit; response: Preferences};
   'GET /v1/me/sessions': {access: 'signedIn'; request: undefined; response: SessionInfoPage};
@@ -1361,6 +1743,10 @@ export interface Routes {
   'GET /v1/admin/api-keys': {access: 'owner'; request: undefined; response: KeyPage};
   'POST /v1/admin/api-keys': {access: 'owner'; request: KeyCreate; response: KeyCreated};
   'DELETE /v1/admin/api-keys/{id}': {access: 'owner'; request: undefined; response: undefined};
+  'GET /v1/search': {access: 'withProfile'; request: undefined; response: SearchResults};
+  'GET /v1/search/suggestions': {access: 'withProfile'; request: undefined; response: SearchSuggestions};
+  'GET /v1/search/history': {access: 'withProfile'; request: undefined; response: SearchHistory};
+  'DELETE /v1/search/history': {access: 'withProfile'; request: undefined; response: undefined};
   'GET /v1/libraries': {access: 'withProfile'; request: undefined; response: Libraries};
   'GET /v1/libraries/{id}': {access: 'withProfile'; request: undefined; response: Library};
   'GET /v1/items': {access: 'withProfile'; request: undefined; response: ItemPage};
@@ -1383,9 +1769,21 @@ export interface Routes {
   'DELETE /v1/admin/remote-sources/{id}': {access: 'owner'; request: undefined; response: undefined};
   'POST /v1/admin/remote-sources/{id}/test': {access: 'owner'; request: undefined; response: RemoteSource};
   'GET /v1/admin/remote-sources/{id}/folders': {access: 'owner'; request: undefined; response: RemoteFolderPage};
+  'POST /v1/admin/remote-sources/drive-sign-in': {access: 'owner'; request: DriveSignInStart; response: DriveSignInStarted};
   'GET /v1/history': {access: 'withProfile'; request: undefined; response: HistoryPage};
   'DELETE /v1/history/{id}': {access: 'withProfile'; request: undefined; response: undefined};
   'DELETE /v1/history': {access: 'withProfile'; request: undefined; response: undefined};
+  'GET /v1/lists': {access: 'withProfile'; request: undefined; response: ListPage};
+  'POST /v1/lists': {access: 'withProfile'; request: ListCreate; response: ListCreated};
+  'GET /v1/lists/{id}': {access: 'withProfile'; request: undefined; response: List};
+  'PATCH /v1/lists/{id}': {access: 'withProfile'; request: ListEdit; response: List};
+  'DELETE /v1/lists/{id}': {access: 'withProfile'; request: undefined; response: undefined};
+  'POST /v1/lists/{id}/entries': {access: 'withProfile'; request: ListAdd; response: ListAdded};
+  'PATCH /v1/lists/{id}/entries/{entryId}': {access: 'withProfile'; request: ListMove; response: List};
+  'GET /v1/lists/{id}/shares': {access: 'withProfile'; request: undefined; response: ListShares};
+  'PUT /v1/lists/{id}/shares': {access: 'withProfile'; request: ListSharesSet; response: List};
+  'DELETE /v1/lists/{id}/entries/{entryId}': {access: 'withProfile'; request: undefined; response: List};
+  'POST /v1/items/state:batch': {access: 'withProfile'; request: StateBatch; response: StateBatchReply};
   'GET /v1/media/{grant}/{file...}': {access: 'public'; request: undefined; response: undefined};
   'GET /v1/devices/{id}/capabilities': {access: 'signedIn'; request: undefined; response: CapabilityDocument};
   'PUT /v1/devices/{id}/capabilities': {access: 'signedIn'; request: CapabilityDocument; response: undefined};
@@ -1416,4 +1814,26 @@ export interface Routes {
   'GET /v1/items/{id}/subtitles': {access: 'withProfile'; request: undefined; response: ItemSubtitles};
   'PUT /v1/items/{id}/subtitles/offset': {access: 'withProfile'; request: SubtitleOffset; response: SubtitleOffset};
   'GET /v1/items/{id}/lyrics': {access: 'withProfile'; request: undefined; response: LyricsPage};
+  'PUT /v1/admin/libraries/order': {access: 'owner'; request: LibraryOrder; response: undefined};
+  'GET /v1/admin/filesystem': {access: 'owner'; request: undefined; response: FolderList};
+  'GET /v1/admin/libraries': {access: 'owner'; request: undefined; response: AdminLibraryPage};
+  'POST /v1/admin/libraries': {access: 'owner'; request: LibraryCreate; response: AdminLibrary};
+  'GET /v1/admin/libraries/{id}': {access: 'owner'; request: undefined; response: AdminLibrary};
+  'PATCH /v1/admin/libraries/{id}': {access: 'owner'; request: LibraryEdit; response: AdminLibrary};
+  'DELETE /v1/admin/libraries/{id}': {access: 'owner'; request: undefined; response: Job};
+  'POST /v1/admin/libraries/{id}/scan': {access: 'owner'; request: ScanRequest; response: Job};
+  'DELETE /v1/admin/libraries/{id}/scan': {access: 'owner'; request: undefined; response: undefined};
+  'GET /v1/admin/libraries/{id}/scan': {access: 'owner'; request: undefined; response: ScanStatus};
+  'GET /v1/admin/libraries/{id}/skipped': {access: 'owner'; request: undefined; response: SkippedFilePage};
+  'GET /v1/admin/libraries/{id}/missing': {access: 'owner'; request: undefined; response: MissingTitles};
+  'DELETE /v1/admin/libraries/{id}/missing': {access: 'owner'; request: undefined; response: TrashEmptied};
+  'GET /v1/admin/items/{id}/deletion': {access: 'owner'; request: undefined; response: DeletionPreview};
+  'DELETE /v1/admin/items/{id}': {access: 'owner'; request: undefined; response: DeletionResult};
+  'DELETE /v1/admin/versions/{id}': {access: 'owner'; request: undefined; response: DeletionResult};
+  'POST /v1/jobs': {access: 'signedIn'; request: JobStart; response: Job};
+  'GET /v1/jobs/{id}': {access: 'signedIn'; request: undefined; response: Job};
+  'DELETE /v1/jobs/{id}': {access: 'signedIn'; request: undefined; response: undefined};
+  'GET /v1/admin/settings': {access: 'owner'; request: undefined; response: SettingsDocumentPage};
+  'GET /v1/admin/settings/{name}': {access: 'owner'; request: undefined; response: SettingsDocument};
+  'PUT /v1/admin/settings/{name}': {access: 'owner'; request: JSON; response: SettingsDocument};
 }
