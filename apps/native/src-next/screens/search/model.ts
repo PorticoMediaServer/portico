@@ -6,7 +6,7 @@ import {queryKeys} from '../../../../../packages/client-core/src/query/keys';
 import type {ViewerQueries} from '../../../../../packages/client-core/src/query/viewer-queries';
 import type {FreshDocument} from '../../../../../packages/client-core/src/freshness-hub';
 import {viewerQueriesFor} from '../../shell/freshness';
-import {searchReadingOffered, searchRequestGroups} from '../../../../../packages/client-core/src/presentation/search-model';
+import {searchRequestGroups} from '../../../../../packages/client-core/src/presentation/search-model';
 import type {ContentScope, LibraryContentApi} from '../../../../../packages/client-core/src/library-content';
 
 export const nativeSearchTailKey = (group: SearchGroup, cursor: string): string => JSON.stringify(['search-tail', group, cursor]);
@@ -157,17 +157,13 @@ export class NativeSearchDestination {
     this.freshness.markCurrent();
     // SR-6: the All view asks for the drawn groups only, as web does, so no section arrives
     // that this app cannot name (Collections and Authors were drawn under "All").
-    const selected = this.state.group, all = selected === 'all', readingOffered = searchReadingOffered(this.state.capabilities);
+    // The rebuilt server always searches books, so Reading is asked for from the first read, as web does.
+    const selected = this.state.group;
     try {
       await this.service.select(this.state.text, {
-        ...(selected === 'all' ? {groups: searchRequestGroups(readingOffered)} : {group: selected}),
+        ...(selected === 'all' ? {groups: searchRequestGroups(true)} : {group: selected}),
         record: record && this.options.rememberHistory(),
       });
-      // An answer that first says Reading is installed adds it by a read-only repeat.
-      if (all && !readingOffered && this.current() && !this.paused && revision === this.selectionRevision
-        && searchReadingOffered(this.service.getSnapshot().data?.capabilities)) {
-        await this.service.select(this.state.text, {groups: searchRequestGroups(true), record: false});
-      }
       if (record && this.current() && !this.paused && revision === this.selectionRevision) await this.refreshHistory();
     } catch (error) {if (this.current() && !this.paused && revision === this.selectionRevision) this.options.reportError(error);}
   }

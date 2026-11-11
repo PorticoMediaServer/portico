@@ -4,6 +4,7 @@ import type {SearchGroup} from '../../../packages/client-core/src/search';
 import type {NativeShellBootstrapContext, RestoredNativeShellRuntime} from '../src-next/shell/bootstrap';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
 import {standardHomeApp} from './helpers/standard-home-app-harness.mjs';
+import {legacySearchFetch, legacySearchRequest, legacySearchResponse} from '../../../packages/client-core/test/fixtures/legacy-search.ts';
 
 const deferred = () => {let resolve!: () => void; const promise = new Promise<void>(done => {resolve = done;}); return {promise, resolve};};
 const movie = {id: 'movie', kind: 'movie', title: 'Stored Movie', libraryId: 'movies', navigation: {view: 'item', entityId: 'movie'}, playback: {itemId: 'movie'}};
@@ -27,7 +28,7 @@ async function focusNamespace(react: any) {
 
 async function fixture(mount = false) {
   let beforeQueue: ((signal: AbortSignal) => Promise<void>) | undefined;
-  const app = await standardHomeApp({mountUI: false, nativeResponse: async (request: {path: string; method: string; signal: AbortSignal}, f: {pin: {serverId: string}}) => {
+  const app = await standardHomeApp({mountUI: false, nativeResponse: legacySearchResponse(async (request: {path: string; method: string; signal: AbortSignal}, f: {pin: {serverId: string}}) => {
     const url = new URL(request.path, 'https://fixture.invalid');
     if (url.pathname === '/v1/queues' && request.method === 'POST') {await beforeQueue?.(request.signal); return;}
     if (url.pathname !== '/v1/search') return;
@@ -39,7 +40,7 @@ async function fixture(mount = false) {
         sorts: ['relevance'], directions: ['desc'], maxLimit: 40, groupBudgetMs: 1000},
       groups: groups.map(group => ({...group, title: '', status: 'success', errorCode: '', totalCount: group.items.length, totalCountExact: true, nextCursor: ''})),
     }};
-  }});
+  })});
   let runtime: RestoredNativeShellRuntime | undefined, source: ReturnType<typeof import('../src-next/screens/search/controller').createNativeSearchController> | undefined;
   let actions: ReturnType<typeof import('../src-next/screens/search/actions').createNativeSearchActions> | undefined;
   try {
@@ -62,13 +63,14 @@ async function fixture(mount = false) {
   } catch (error) {await app.unmount(); actions?.dispose(); source?.dispose(); runtime?.dispose(); app.disposeLoader(); throw error;}
 }
 
-test('Search actions preserve exact current media/Person/channel identities without a fabricated library or source', async () => {
+// The rebuilt server searches no Live TV yet (recorded): the channel row returns when GET /v1/search has a `channel` group.
+test('Search actions preserve exact current media and Person identities without a fabricated library or source', async () => {
   const f = await fixture();
   try {
-    const person = f.item('people'), channel = f.item('live-tv'), movie = f.item('movies');
+    const person = f.item('people'), movie = f.item('movies');
     const before = f.context.navigation.getSnapshot();
     f.actions.open({...person}, 'people'); f.actions.open(person, 'movies'); assert.equal(f.context.navigation.getSnapshot(), before);
-    assert.equal(f.actions.canMenu(person, 'people'), false); assert.equal(f.actions.canMenu(channel, 'live-tv'), false); assert.equal(f.actions.canMenu(movie, 'movies'), true);
+    assert.equal(f.actions.canMenu(person, 'people'), false); assert.equal(f.actions.canMenu(movie, 'movies'), true);
     const host = hooks();
     const {homeCardText} = await import('../src-next/screens/home/model');
     const {nativeSearchEntryKey} = await import('../src-next/screens/search/model');
@@ -89,8 +91,6 @@ test('Search actions preserve exact current media/Person/channel identities with
 
     f.actions.open(person, 'people'); assert.deepEqual(f.context.navigation.getSnapshot().route, {kind: 'person', personId: person.navigation!.entityId});
     assert.equal('libraryId' in person, false); f.context.navigation.back(f.context.authority());
-    f.actions.open(channel, 'live-tv'); assert.deepEqual(f.context.navigation.getSnapshot().route, {kind: 'channel', sourceId: 'actual-guide-source', channelId: 'actual-channel'});
-    f.context.navigation.back(f.context.authority());
     f.actions.open(movie, 'movies'); const title = f.context.navigation.getSnapshot().route;
     assert.equal(title.kind, 'title'); if (title.kind === 'title') assert.equal(title.entry, movie);
     f.context.navigation.back(f.context.authority());

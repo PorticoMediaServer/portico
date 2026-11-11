@@ -4,6 +4,7 @@ import type {BrowseCapabilities, BrowseRequestBody} from '../../../packages/clie
 import type {NativeShellBootstrapContext, RestoredNativeShellRuntime} from '../src-next/shell/bootstrap';
 import {openNativeSearchGenres} from '../src-next/screens/search/navigation';
 import {standardHomeApp} from './helpers/standard-home-app-harness.mjs';
+import {legacySearchFetch, legacySearchRequest, legacySearchResponse} from '../../../packages/client-core/test/fixtures/legacy-search.ts';
 
 const pivot = {id: 'video-titles', labelKey: 'browse.pivot.titles', entityKinds: ['movie', 'show'], defaultSort: [{field: 'title', direction: 'asc'}],
   supportedViews: ['grid'], browsable: true, sorts: ['title'], filters: ['genre', 'favorite']} as const;
@@ -27,7 +28,7 @@ const genres = [{value: 'artless', label: 'Artless metadata', count: 1, covers: 
 test('real App Search keeps separate eligible previews and an artless All genres directory in retained registration', async () => {
   let genreReads = 0;
   const browse: BrowseRequestBody[] = [];
-  const app = await standardHomeApp({mountUI: false, nativeResponse: async (request: {path: string; method: string; body?: unknown}, fixture: {pin: {serverId: string}}) => {
+  const app = await standardHomeApp({mountUI: false, nativeResponse: legacySearchResponse(async (request: {path: string; method: string; body?: unknown}, fixture: {pin: {serverId: string}}) => {
     const url = new URL(request.path, 'https://fixture.invalid');
     if (url.pathname === '/v1/search/genres') {
       genreReads++;
@@ -48,7 +49,7 @@ test('real App Search keeps separate eligible previews and an artless All genres
       capabilities: {groups: [{id: 'movies', title: '', available: true, reason: '', sorts: ['relevance']}], sorts: ['relevance'], directions: ['desc'], maxLimit: 40, groupBudgetMs: 1000},
       groups: [{id: 'movies', entityKind: 'movie', title: '', status: 'success', errorCode: '', totalCount: url.searchParams.get('q') === 'no matches' ? 0 : 1, totalCountExact: true, nextCursor: '', items: url.searchParams.get('q') === 'no matches' ? [] : [movie]}],
     }};
-  }});
+  })});
   let runtime: RestoredNativeShellRuntime | undefined;
   try {
     const {restoreNativeShellRuntime} = await import('../src-next/shell/bootstrap');

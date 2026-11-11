@@ -9,6 +9,7 @@ import {NativeSearchDestination} from '../src-next/screens/search/model';
 import {nativeSearchRememberHistory} from '../src-next/screens/search/navigation';
 import {screenModule} from './helpers/screen-harness.mjs';
 import {viewerQueriesFor} from '../src-next/shell/freshness.ts';
+import {legacySearchFetch, legacySearchRequest, legacySearchResponse} from '../../../packages/client-core/test/fixtures/legacy-search.ts';
 
 const tick = () => new Promise<void>(resolve => setImmediate(resolve));
 function preference(value: boolean) {
@@ -28,7 +29,7 @@ async function fixture() {
   const context = {navigation, current: () => active, authority: () => authority, session: () => ({viewer: {...authority, authority: 'local'}}),
     subscribeAuthority: (listener: () => void) => {authorityListeners.add(listener); return () => {authorityListeners.delete(listener);};},
     preferences: () => preferences, subscribePreferences: (listener: () => void) => {preferenceListeners.add(listener); return () => {preferenceListeners.delete(listener);};},
-    api: new HttpLocalApi('https://fixture.invalid', '', async (input, init) => {
+    api: new HttpLocalApi('https://fixture.invalid', '', legacySearchFetch(async (input, init) => {
       const url = new URL(String(input)); paths.push(url.pathname + url.search); if (init?.signal) signals.push(init.signal);
       const data = url.pathname.includes('/history') ? await historyReply() : {
         scope: {serverId: 'server', libraryId: '', libraryKind: 'mixed', view: 'search', entityId: '', viewerFence: 'Search-own-fence'}, revision: {catalog: 3, viewer: 7},
@@ -38,7 +39,7 @@ async function fixture() {
           items: [{id: 'actual-film', kind: 'movie', libraryId: 'movies', title: 'Stored title', navigation: {view: 'item', entityId: 'actual-film'}}]}],
       };
       return new Response(JSON.stringify(data), {status: 200, headers: {'Content-Type': 'application/json'}});
-    }),
+    })),
   };
   const {createNativeSearchController} = await screenModule(new URL('../src-next/screens/search/controller.ts', import.meta.url), {
     react: {default: React}, '../destinations/lifetime': {nativeDestinationLifetime}, './navigation': {nativeSearchRememberHistory}, './model': {NativeSearchDestination},
