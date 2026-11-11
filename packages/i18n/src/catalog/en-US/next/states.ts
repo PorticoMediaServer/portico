@@ -37,6 +37,7 @@ export const statesMessages = {
   'next.states.thisComputerOffline': 'This computer is offline',
   'next.states.reconnectsWhenBack': "Portico reconnects as soon as it's back.",
   'next.states.awayLine': "Can't reach {server}. Trying again.",
+  'next.states.awayInsecureLine': "Can't reach {server}: the only address found is not secure, and this device can't confirm it's on your home network. Type the server's address yourself, or use its secure address.",
   'next.states.address': 'Address',
   'next.states.offline': 'Offline',
   'next.states.offlinePhone': "This phone is offline. Portico reconnects as soon as it's back.",

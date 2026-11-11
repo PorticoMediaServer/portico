@@ -173,7 +173,7 @@ export class LibraryManagementService{
   * Home and every library list read their libraries again. `metadataAgent` and `metadataLanguage` are not on the server's create yet and are not sent. */
  createLibrary(input:{expectedRemoteSource?:ExpectedRemoteSource;name:string;kind:ManagedLibrary['kind'];path?:string;folders?:readonly string[];metadataAgent?:'online'|'local';metadataLanguage?:string;/** Not on the rebuilt server: a new library is always scanned. */scanAfter?:boolean}):Promise<void>{
   this.active();
-  const folders=input.folders?.length?[...input.folders]:input.path?[input.path]:[];
+  const folders=(input.folders?.length?[...input.folders]:input.path?[input.path]:[]).map(cleanServerPath).filter(Boolean);
   if(!object(input)||!text(input.name,100)||!input.name.trim()||new TextEncoder().encode(input.name.trim()).length>100||!(input.kind in serverLibraryKinds)||!folders.length||folders.length>64||!folders.every(path=>text(path,8192)&&path))throw new Error('Check the library name, kind and server source path.');
   if(this.mutationPromise)throw new Error('Wait for the current library command to finish.');
   const epoch=this.epoch,c=new AbortController();this.mutationController=c;this.mutationKey='create';
@@ -248,7 +248,7 @@ export function classifyServerPath(path:string,roots:readonly {path:string;class
  * listed (`includeFiles` is ignored); `prefix` narrows the folders shown here. */
 export async function browseServerFilesystem(api:LibraryContentApi, options:Readonly<{path?:string;cursor?:string;showHidden?:boolean;prefix?:string;checkWritable?:boolean;includeFiles?:boolean;limit?:number}>={}, signal?:AbortSignal):Promise<import('./administration.ts').FilesystemPage>{
  for(const value of [options.path,options.cursor])if(value!==undefined&&!text(value,8192))throw new Error('Invalid folder explorer path.');
- const raw=await callServer(api,'GET /v1/admin/filesystem',{query:{path:options.path,cursor:options.cursor,hidden:options.showHidden?'true':undefined,writable:options.checkWritable?'true':undefined},signal});
+ const raw=await callServer(api,'GET /v1/admin/filesystem',{query:{path:options.path===undefined?undefined:cleanServerPath(options.path),cursor:options.cursor,hidden:options.showHidden?'true':undefined,writable:options.checkWritable?'true':undefined},signal});
  if(!object(raw)||!Array.isArray(raw.folders))invalid();
  const path=typeof raw.path==='string'?raw.path:'',separator=path.includes('\\')||/^[A-Za-z]:/.test(path)?'\\':'/';
  const prefix=options.prefix?.toLocaleLowerCase();
@@ -263,6 +263,14 @@ export async function browseServerFilesystem(api:LibraryContentApi, options:Read
     ...(typeof folder.writable==='boolean'?{writable:folder.writable}:{})});
   })),
   nextCursor:raw.nextCursor??''});
+}
+/** A folder path as typed, in the form the server takes: no trailing slash or backslash (but `/` and `C:\\` stay), so
+ * `/srv/media/` reads as `/srv/media` rather than being refused as not a full path. */
+export function cleanServerPath(path:string):string{
+ const trimmed=path.trim();
+ if(/^[A-Za-z]:[\\/]*$/.test(trimmed))return trimmed.slice(0,2)+'\\';
+ const cleaned=trimmed.replace(/[\\/]+$/,'');
+ return cleaned||(trimmed.startsWith('/')?'/':trimmed.startsWith('\\')?'\\':'');
 }
 /** The server's word for each library kind the screens offer. */
 const serverLibraryKinds:Readonly<Record<string,string>>={movie:'movies',tv:'shows',anime:'anime',music:'music',audiobook:'audiobooks',book:'books',comic:'comics'};

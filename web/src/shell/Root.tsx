@@ -12,7 +12,7 @@ import {BootstrapContent, useShellBootstrapState} from './BootstrapState';
 import {BootShell} from './Boot';
 import {DestinationErrorBoundary, recoveryEntryOf, type DestinationRecoveryWitness} from './DestinationError';
 import {useShellWidth} from './viewport';
-import {useServerAway} from './ConnectionAway';
+import {useServerAway, useInsecureRouteRefused} from './ConnectionAway';
 import {announceRoute, routeDocumentTitle, routeHeading, routeLabelKey, routeTitleUpdates} from './route-accessibility';
 import bootStyles from './boot.module.css';
 import {currentWebEnvironment} from '../platform/environment';
@@ -86,12 +86,13 @@ export function ShellRoot() {
   const screenId = webScreenIdForRoute(routeId);
   const viewer = binding?.shell.identity.viewer, phone = useShellWidth() < 600;
   const serverAway = useServerAway(binding?.api);
+  const insecureRefused = useInsecureRouteRefused(binding?.api);
   const hosted = currentWebEnvironment().hostedWeb;
   const path = useRouterState({select: state => state.location.pathname});
   const accountPages = hosted && hostedServicesPaths.has(path);
   useHostedInPageNavigation(hosted);
   const content = accountPages ? null : bootstrap?.snapshot.phase === 'restoring' && bootstrap.snapshot.waiting ? <BootShell><RouteContent /></BootShell>
     : !binding || !viewer || screenId && (webScreens.chrome(screenId) !== 'shell' || phone && webScreens.phoneChrome(screenId) === 'standalone') ? <RouteContent />
-    : <Shell {...binding.shell} serverAway={serverAway} onFeedback={onFeedback}><RouteContent /></Shell>;
+    : <Shell {...binding.shell} serverAway={serverAway} insecureRefused={insecureRefused} onFeedback={onFeedback}><RouteContent /></Shell>;
   return <>{content}{hosted && <HostedServicesHost active={accountPages} />}{binding?.playback && <GlobalShortcuts key={binding.scopeKey} playback={binding.playback}/>}<WebRetainedScreenHosts /></>;
 }

@@ -6,6 +6,7 @@ import type {AppSessionStore} from './app-sessions.ts';
 import {parseLocalSession} from './local-session.ts';
 import {completeOwnerSetup, parseDirectSnapshot} from './profile-management.ts';
 import {callServer} from './query/server-api.ts';
+import {cleanServerPath} from './library-management.ts';
 import {readDirectAccount, readServerSystem, revokeCurrentSession} from './query/connection-operations.ts';
 import {parseServerSignIn} from './sign-in.ts';
 import {parseSetupSession} from './setup-onboarding.ts';
@@ -52,7 +53,8 @@ export type SetupAdapterDeps = Readonly<{
   crypto?: RouteCrypto;
   newRequestId?: () => string;
 }>;
-export type SetupAdapter = Readonly<{ports: SetupPorts; libraryFolders: LibraryContentApi; serverName: () => string | undefined; dispose: () => void}>;
+/** `signIn`: the paired server's kind of sign-in, from its system answer, so a reload at the library step still knows a local owner. */
+export type SetupAdapter = Readonly<{ports: SetupPorts; libraryFolders: LibraryContentApi; serverName: () => string | undefined; signIn: () => 'local' | 'portico' | undefined; dispose: () => void}>;
 
 type Paired = SetupPairing & {revision: number; installationId: string};
 type Own = {requestId: string; revision: string};
@@ -378,7 +380,7 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
       const api = await ownerApi();
       const kinds: Readonly<Record<string, string>> = {movie: 'movies', tv: 'shows', anime: 'anime', music: 'music', audiobook: 'audiobooks', book: 'books', comic: 'comics'};
       const created = await callServer(api, 'POST /v1/admin/libraries', {body: {kind: kinds[library.kind] ?? library.kind, name: library.name,
-        folders: library.folders?.length ? [...library.folders] : [library.path]}, signal: context.signal});
+        folders: (library.folders?.length ? [...library.folders] : [library.path]).map(cleanServerPath)}, signal: context.signal});
       if (!created?.id) throw new CodedError('invalid_response', unreadableServerResponse);
       await ownerApi();
       return {kind: 'libraryAdded'};
@@ -445,7 +447,7 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
     return result;
   }};
 
-  return Object.freeze({ports: Object.freeze(ports), libraryFolders, serverName: () => paired?.server.name, dispose: () => {
+  return Object.freeze({ports: Object.freeze(ports), libraryFolders, serverName: () => paired?.server.name, signIn: () => paired?.server.signIn === 'local' ? 'local' : paired?.server.signIn === 'portico' ? 'portico' : undefined, dispose: () => {
     if (life.signal.aborted) return;
     life.abort();
     const p = paired;

@@ -19,6 +19,12 @@ test('a browser\'s line is quiet and takes nothing: the server named in bold, no
   assert.doesNotMatch(html, /data-interactive/);
 });
 
+test('when the only route that answered is a plain one this device could not confirm as at home, the line says so and names the way out', async () => {
+  const html = await render(createElement(ConnectionAway, {serverName: 'Portico demo', downloads: false, insecure: true}));
+  assert.match(html, /Can(&#x27;|')t reach <strong>Portico demo<\/strong>: the only address found is not secure/);
+  assert.match(html, /Type the server(&#x27;|')s address yourself, or use its secure address\./);
+});
+
 test('the desktop host keeps its Downloads link', async () => {
   const html = await render(createElement(ConnectionAway, {serverName: 'Portico demo'}));
   assert.match(html, /<a [^>]*href="\/saved\?view=downloads"/);

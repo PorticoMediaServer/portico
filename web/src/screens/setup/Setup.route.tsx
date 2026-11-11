@@ -37,6 +37,6 @@ function SetupRoute() {
     return () => {live = false; stop(); document.removeEventListener('visibilitychange', visibility); controller.dispose(); adapter.dispose();};
   }, [opening]);
   const owned = published?.opening === opening && published.current() ? published : undefined;
-  return owned ? <SetupScreen key={owned.key} controller={owned.controller} serverName={owned.adapter.serverName} libraryFolders={owned.adapter.libraryFolders}/> : null;
+  return owned ? <SetupScreen key={owned.key} controller={owned.controller} serverName={owned.adapter.serverName} signIn={owned.adapter.signIn} libraryFolders={owned.adapter.libraryFolders}/> : null;
 }
 export default defineWebScreen({id: 'setup', component: SetupRoute, chrome: 'standalone'});
