@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/artwork"
+	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 )
 
 // A profile's picture. It is a person's own photograph more often than not, so unlike a
@@ -29,8 +30,8 @@ const maxProfilePicture = 4 << 20
 // signInKindKey is the setting that says how people sign in to this server. Setup writes it
 // when the owner chooses; until Portico Account sign-in is built it is never anything but local.
 const (
-	signInKindKey         = "sign_in_kind"
-	signInPorticoAccounts = "portico_account"
+	signInKindKey         = db.SignInKindKey
+	signInPorticoAccounts = db.SignInPortico
 )
 
 func (s *Server) picturesKeptHere(r *http.Request) error {
