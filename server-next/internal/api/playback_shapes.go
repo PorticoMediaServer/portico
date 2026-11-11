@@ -204,11 +204,13 @@ type PlaybackSession struct {
 	Queue     *playback.QueueLink `json:"queue,omitempty"`
 	// Channel is the Library Channel this session joined, with the programme's times: pausing
 	// and going back reach as far as the programme's start, and Go to live joins it again.
-	Channel      *playback.ChannelLink `json:"channel,omitempty"`
-	Lease        PlaybackLease         `json:"lease"`
-	Presentation Presentation          `json:"presentation"`
-	PlaybackInfo JSON                  `json:"playbackInfo,omitempty"`
-	End          *SessionEnd           `json:"end,omitempty"`
+	Channel *playback.ChannelLink `json:"channel,omitempty"`
+	// Live is what a live session can play, from its oldest kept moment to live.
+	Live         *LiveWindow   `json:"live,omitempty"`
+	Lease        PlaybackLease `json:"lease"`
+	Presentation Presentation  `json:"presentation"`
+	PlaybackInfo JSON          `json:"playbackInfo,omitempty"`
+	End          *SessionEnd   `json:"end,omitempty"`
 	// Command is the latest thing another of the account's devices asked this device to do:
 	// it does each command once, by its id, through its own routes.
 	Command *playback.Command `json:"command,omitempty"`

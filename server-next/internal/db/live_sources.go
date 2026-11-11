@@ -77,6 +77,12 @@ func (d *DB) LiveSources(ctx context.Context) ([]LiveSource, error) {
 	return out, rows.Err()
 }
 
+// LiveSourceByID reads one source by its row id, to tune one of its channels.
+func (d *DB) LiveSourceByID(ctx context.Context, id int64) (LiveSource, error) {
+	s, err := scanLiveSource(d.read.QueryRowContext(ctx, `SELECT `+liveSourceColumns+` FROM live_sources WHERE id = ?`, id))
+	return s, notFound(err)
+}
+
 // LiveSource reads one source.
 func (d *DB) LiveSource(ctx context.Context, publicID string) (LiveSource, error) {
 	s, err := scanLiveSource(d.read.QueryRowContext(ctx, `SELECT `+liveSourceColumns+` FROM live_sources WHERE public_id = ?`, publicID))
