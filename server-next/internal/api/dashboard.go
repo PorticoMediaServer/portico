@@ -233,7 +233,7 @@ func (s *Server) alerts(libraries []db.AdminLibrary, sources []db.RemoteSource) 
 		add("storage_nearly_full", level, map[string]string{"freeBytes": strconv.FormatInt(disk.FreeBytes, 10),
 			"diskBytes": strconv.FormatInt(disk.DiskBytes, 10)}, "storage", "", 0)
 	}
-	if failed := s.backups.LastError(); failed != nil {
+	if failed := s.backups.Failed(); failed != nil {
 		add("backup_failed", "major", map[string]string{"reason": clip(failed.Error())}, "backups", "", 0)
 	}
 	for _, l := range libraries {

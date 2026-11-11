@@ -10,13 +10,14 @@ import (
 // each of the owner's days. One missed while the server was off runs once when it is back,
 // never once for each day missed. One that fails is tried again every half hour for 4 hours.
 
-const (
-	// missedAfter is how long after a start a backup missed while the server was off runs, so
-	// it does not compete with the start itself.
-	missedAfter = 5 * time.Minute
-	retryEvery  = 30 * time.Minute
-	retryFor    = 4 * time.Hour
-)
+// missedAfter is how long after a start a backup missed while the server was off runs, so
+// it does not compete with the start itself.
+var missedAfter = 5 * time.Minute
+
+// retryEvery is how often a scheduled backup that failed is tried again.
+var retryEvery = 30 * time.Minute
+
+const retryFor = 4 * time.Hour
 
 // due is the scheduled time on the day of t, and whether the schedule has one that day.
 func due(s Settings, day time.Time) (time.Time, bool) {
@@ -105,16 +106,20 @@ func (s *Service) Run(ctx context.Context) {
 			case <-time.After(time.Second):
 			}
 		}
-		if s.LastError() != nil && s.Now().Before(retryUntil) {
-			wait = retryEvery
-			continue
+		if s.LastError() != nil {
+			if s.Now().Before(retryUntil) {
+				wait = retryEvery
+				continue
+			}
+			s.GiveUp()
 		}
 		retryUntil, wait = time.Time{}, -1
 	}
 }
 
-// missed says a scheduled backup fell due while the server was off: the latest due time is
-// after the newest scheduled backup.
+// missed says a scheduled backup fell due while the server was off or was cut off by a stop:
+// the latest due time is after the newest scheduled backup. It is made after the start, and
+// nobody is told.
 func (s *Service) missed() bool {
 	at := lastDue(Document.Get(s.Settings), s.Now().In(time.Local))
 	if at.IsZero() {
@@ -129,6 +134,9 @@ func (s *Service) missed() bool {
 			return b.CreatedAt.Before(at)
 		}
 	}
-	// A server with no scheduled backup yet waits for its first scheduled time.
-	return false
+	// None yet. One was missed only if it fell due after the server was set up: a first backup
+	// cut off by a restart is missed like any other, and a new server waits for its first
+	// scheduled time.
+	setUp, ok, err := s.DB.SetUpAt(context.Background())
+	return err == nil && ok && at.After(setUp)
 }

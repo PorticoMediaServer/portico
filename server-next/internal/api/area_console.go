@@ -59,9 +59,11 @@ func (s *Server) startConsole(ctx context.Context) error {
 	s.updateRoutes()
 	s.storageRoutes(s.dataDir)
 	s.backups = &backup.Service{DB: s.db, Settings: s.settings, DataDir: s.dataDir, Version: s.version, Log: s.log,
-		Now: func() time.Time { return s.now() }}
-	// Scheduled backups, at the owner's hour.
+		Now: func() time.Time { return s.now() }, Stopping: ctx}
+	// Scheduled backups, at the owner's hour. A backup being made when the server stops is
+	// cut off and waited for, so it is not still copying the database as that closes.
 	s.goBackground(func() { s.backups.Run(ctx) })
+	s.goBackground(func() { <-ctx.Done(); s.backups.Wait() })
 	s.backupRoutes()
 	s.restart = make(chan struct{})
 	s.restoreRoutes()

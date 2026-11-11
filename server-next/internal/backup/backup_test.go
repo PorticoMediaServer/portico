@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -498,4 +499,124 @@ func TestTheNewestBackupIsKept(t *testing.T) {
 	if b, _ := started.Newest(); b == nil || b.ID != "portico-20261101-030000" {
 		t.Errorf("after deleting the newest, it is %+v", b)
 	}
+}
+
+// A server that stops while the nightly backup is being made cuts it off and waits for it,
+// so nothing is still copying the database as it closes; no half backup is listed, and no
+// failure is held against it. After the restart that backup counts as missed, and is made.
+func TestAScheduledBackupCutOffByAStopIsMadeAfterTheRestart(t *testing.T) {
+	ctx := context.Background()
+	s := newService(t)
+	// Last night's backup is there.
+	if err := s.make(ctx, "portico-20261110-030000", true); err != nil {
+		t.Fatal(err)
+	}
+	// Tonight's is being made, waiting on its folder, when the server stops.
+	tonight := time.Date(2026, 11, 11, 3, 0, 0, 0, time.Local)
+	s.Now = func() time.Time { return tonight }
+	release := make(chan struct{})
+	folderHook = func(string) { <-release }
+	answered := sync.OnceFunc(func() {
+		close(release)
+		folderWork.Wait()
+		folderHook = nil
+	})
+	defer answered()
+	stopping, stop := context.WithCancel(ctx)
+	s.Stopping = stopping
+	if _, err := s.Start(true); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(100 * time.Millisecond)
+	stop()
+	waited := make(chan struct{})
+	go func() { s.Wait(); close(waited) }()
+	select {
+	case <-waited:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the stop was still waiting for the backup after 5 seconds")
+	}
+	if s.Running() != nil || s.LastError() != nil {
+		t.Errorf("after the stop: running %v, failure %v", s.Running(), s.LastError())
+	}
+	if list, err := s.List(); err != nil || len(list) != 1 {
+		t.Fatalf("after the stop the backups are %v, %v", list, err)
+	}
+	// The backup folder answers again.
+	answered()
+
+	// The server starts again ten minutes later.
+	again := &Service{DB: s.DB, Settings: s.Settings, DataDir: s.DataDir, Version: "test", Log: s.Log,
+		Now: func() time.Time { return tonight.Add(10 * time.Minute) }}
+	if !again.missed() {
+		t.Fatal("after the restart the backup that was cut off does not count as missed, so it would be skipped until tomorrow")
+	}
+	saved := missedAfter
+	missedAfter = 0
+	defer func() { missedAfter = saved }()
+	running, end := context.WithCancel(ctx)
+	ended := make(chan struct{})
+	go func() { again.Run(running); close(ended) }()
+	defer func() { end(); <-ended; again.Wait() }()
+	for began := time.Now(); ; time.Sleep(20 * time.Millisecond) {
+		list, _ := again.List()
+		if len(list) == 2 && list[0].Scheduled && again.Running() == nil {
+			break
+		}
+		if time.Since(began) > 10*time.Second {
+			t.Fatalf("the missed backup was not made after the restart: %v", list)
+		}
+	}
+}
+
+// Console rule 55: a scheduled backup that fails is tried again for 4 hours, and only then is
+// the owner told. The alert ends when a scheduled backup succeeds. A server that has no
+// scheduled backup though one was due since it was set up makes it soon after it starts; a
+// server nobody has set up yet has missed none.
+func TestAFailedScheduledBackupIsRetriedForFourHoursBeforeTheOwnerIsTold(t *testing.T) {
+	ctx := context.Background()
+	s := newService(t)
+	drive := filepath.Join(t.TempDir(), "drive") // not mounted
+	if _, err := s.Settings.Write(ctx, 0, "backups", json.RawMessage(`{"folder":`+strconvQuote(drive)+`}`), -1, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	var clock atomic.Int64
+	clock.Store(time.Date(2026, 11, 11, 3, 10, 0, 0, time.Local).UnixNano())
+	s.Now = func() time.Time { return time.Unix(0, clock.Load()) }
+	if s.missed() {
+		t.Fatal("a server nobody has set up yet counts a backup as missed")
+	}
+	setUp := time.Date(2026, 11, 10, 12, 0, 0, 0, time.Local) // yesterday noon; a backup was due at 3 this morning
+	if _, err := s.DB.CreateOwner(ctx, db.NewOwner{Username: "owner", PasswordHash: "x", ProfileName: "Owner", Now: setUp,
+		Session: db.NewSession{ID: db.NewSessionID(), RefreshHash: "r", ExpiresAt: setUp.Add(24 * time.Hour),
+			Device: db.DeviceInfo{InstallationID: "test", Name: "Test", Platform: "web", App: "web", AppVersion: "1"}}}); err != nil {
+		t.Fatal(err)
+	}
+	savedAfter, savedEvery := missedAfter, retryEvery
+	missedAfter, retryEvery = 0, 20*time.Millisecond
+	running, end := context.WithCancel(ctx)
+	ended := make(chan struct{})
+	go func() { s.Run(running); close(ended) }()
+	defer func() { end(); <-ended; s.Wait(); missedAfter, retryEvery = savedAfter, savedEvery }()
+	until := func(what string, ok func() bool) {
+		t.Helper()
+		for began := time.Now(); !ok(); time.Sleep(10 * time.Millisecond) {
+			if time.Since(began) > 10*time.Second {
+				t.Fatal(what)
+			}
+		}
+	}
+	until("no backup was tried after the start, though one was due and there is none", func() bool { return s.LastError() != nil })
+	time.Sleep(200 * time.Millisecond) // several more tries
+	if failed := s.Failed(); failed != nil {
+		t.Fatalf("the owner was told before the 4 hours of retries were used up: %v", failed)
+	}
+	clock.Add(int64(4*time.Hour + time.Minute))
+	until("the owner was not told after 4 hours of failed retries", func() bool { return s.Failed() != nil })
+	// The drive is back, and the next scheduled backup succeeds.
+	if err := os.MkdirAll(drive, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	until("no scheduled backup could be started", func() bool { _, err := s.Start(true); return err == nil })
+	until("the alert stayed after a scheduled backup succeeded", func() bool { return s.Running() == nil && s.Failed() == nil })
 }

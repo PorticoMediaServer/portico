@@ -103,6 +103,10 @@ func TestOwnerDashboard(t *testing.T) {
 		t.Fatalf("setting the backup folder answered %d", code)
 	}
 	backupNow()
+	if d := read(); slices.Contains(codes(d), "backup_failed") {
+		t.Error("a scheduled backup's first failure raised the alert; it is tried again for 4 hours first")
+	}
+	s.Backups().GiveUp() // as the schedule does when those 4 hours are used up
 	// A problem report nobody has answered.
 	if code := status(t, s, "POST", "/v1/reports", member, ReportCreate{Kind: "problem", Message: "The song stutters"}); code != 200 {
 		t.Fatalf("reporting a problem answered %d", code)
