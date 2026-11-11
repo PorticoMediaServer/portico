@@ -199,7 +199,10 @@ func ParsePlaylist(r io.Reader, report *Report, fn func(Channel) error) error {
 			ch.Locator = text
 			// HD and SD feeds, or regional ones, often share a guide id: the name tells them apart.
 			if ch.Key == "" {
-				ch.Key = streamKey(text)
+				// The name with the stream's host and path, never its query: many playlists add a
+				// token there that changes at every download.
+				u, _ := url.Parse(text)
+				ch.Key = streamKey(ch.Name + "@" + u.Hostname() + u.Path)
 			} else {
 				ch.Key += "|" + ch.Name
 			}
