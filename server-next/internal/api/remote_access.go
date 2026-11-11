@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/discovery"
 	"github.com/PorticoMediaServer/portico/server-next/internal/portmap"
 	"github.com/PorticoMediaServer/portico/server-next/internal/tlsport"
 )
@@ -176,6 +177,8 @@ type remoteState struct {
 	refused map[string]RefusedAddress
 	// listenPort is the port the server listens on, the one the router forwards to.
 	listenPort int
+	// finder announces the server to apps at home while Find this server at home is on.
+	finder *discovery.Announcer
 }
 
 // RefusedAddress is an outside address Enhanced refused, and what would fix it.
@@ -216,15 +219,30 @@ func (s *Server) applyCertificate(v RemoteAccessSettings) {
 	}
 	s.certs.Use(src)
 	s.ports.Set(v.RemoteAccess == "on" && v.PortMapping == "automatic", s.listenPort(), v.PublicPort)
+	s.remote.mu.RLock()
+	finder := s.remote.finder
+	s.remote.mu.RUnlock()
+	if finder != nil {
+		finder.Set(v.FindAtHome)
+	}
 }
 
-// ServePortMapping keeps the server's port open on the home router while the owner's settings
-// ask for it, until ctx ends. port is the port the server listens on, or 0 when nothing
-// outside this machine can reach it, and the router is then never asked.
-func (s *Server) ServePortMapping(ctx context.Context, port int) {
+// ServeNetwork announces the server to apps at home and keeps its port open on the home
+// router, each while the owner's settings ask for it, until ctx ends. port is the port the
+// server listens on, or 0 when nothing outside this machine can reach it: then nothing is
+// announced and the router is never asked.
+func (s *Server) ServeNetwork(ctx context.Context, port int) {
 	s.remote.mu.Lock()
 	s.remote.listenPort = port
 	s.remote.mu.Unlock()
+	// Apps at home find the server by its announcement, which needs a port they can reach.
+	if port != 0 {
+		finder := discovery.New(s.log, discovery.Record{ServerID: s.id, Fingerprint: s.identity.fingerprint, Port: port})
+		s.remote.mu.Lock()
+		s.remote.finder = finder
+		s.remote.mu.Unlock()
+		go finder.Run(ctx)
+	}
 	v, _ := s.remote.current()
 	s.applyCertificate(v)
 	s.ports.Run(ctx)
@@ -302,6 +320,9 @@ type RemoteAccessStatus struct {
 	Certificate tlsport.Status `json:"certificate"`
 	// Router is what the home router last said about opening the public port.
 	Router portmap.Status `json:"router"`
+	// IdentityCode is the server's identity in twelve characters, for the owner to give to
+	// someone whose app asks for it.
+	IdentityCode string `json:"identityCode"`
 }
 
 // ThisDevice is the asking device as the server sees it.
@@ -335,7 +356,7 @@ func (s *Server) remoteAccessRoutes() {
 
 func (s *Server) remoteStatus(r *http.Request) RemoteAccessStatus {
 	return RemoteAccessStatus{ThisDevice: ThisDevice{AtHome: s.networks().FromHome(r), Address: s.remoteHost(r)},
-		Refused: s.remote.refusedList(), Certificate: s.certs.Status(), Router: s.ports.Status()}
+		Refused: s.remote.refusedList(), Certificate: s.certs.Status(), Router: s.ports.Status(), IdentityCode: identityCode(s.id)}
 }
 
 // saveRemoteAccess replaces the whole document. Saving it from outside the home networks can

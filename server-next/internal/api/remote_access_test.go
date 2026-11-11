@@ -1,9 +1,18 @@
 package api
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/pem"
+	"math/big"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 )
 
 // reach sends a request as if from addr ("127.0.0.1" is home by default, "203.0.113.9" is
@@ -180,4 +189,22 @@ func TestOwnCertificateStatus(t *testing.T) {
 	if status.Certificate.State != "problem" || status.Certificate.Problem != "The certificate file fullchain.pem is not in the Keys folder." {
 		t.Fatalf("the certificate status is %+v", status.Certificate)
 	}
+}
+
+// writeTestCertificate writes a self-signed cert.pem and key.pem for name into dir and returns
+// the certificate's DER bytes.
+func writeTestCertificate(t *testing.T, dir, name string) []byte {
+	t.Helper()
+	os.MkdirAll(dir, 0o700)
+	key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	tmpl := &x509.Certificate{SerialNumber: big.NewInt(1), DNSNames: []string{name},
+		NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(90 * 24 * time.Hour)}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyDER, _ := x509.MarshalECPrivateKey(key)
+	os.WriteFile(filepath.Join(dir, "cert.pem"), pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0o600)
+	os.WriteFile(filepath.Join(dir, "key.pem"), pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER}), 0o600)
+	return der
 }
