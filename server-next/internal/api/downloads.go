@@ -312,6 +312,8 @@ func downloadError(err error) error {
 		return refusal(http.StatusForbidden, "session_required", "Downloads belong to a device: sign in on it.", false)
 	case errors.Is(err, downloads.ErrQuality):
 		return ErrField("quality", "Choose original, a video quality or a music bitrate.")
+	case errors.Is(err, downloads.ErrNoConversion):
+		return refusal(http.StatusForbidden, "conversion_not_allowed", "This account can download titles only as they are: choose the original.", false)
 	case errors.Is(err, downloads.ErrAboveLimit):
 		return refusal(http.StatusForbidden, "above_download_limit", "This server doesn't allow downloads at this quality.", false)
 	case errors.Is(err, db.ErrQueueFull):
@@ -842,8 +844,11 @@ func extensionOf(name string) string {
 // serveDownload answers a download's media address: the bytes of one file, by range, so a
 // transfer carries on where it stopped. With ?save=1 a browser saves it as a file.
 func (s *Server) serveDownload(w http.ResponseWriter, r *http.Request, grant, file string) {
-	f, err := s.downloads.Open(r.Context(), grant, file)
+	f, err := s.downloads.Open(r.Context(), grant, file, s.fromHome(r))
 	switch {
+	case errors.Is(err, db.ErrAwayFromHome), errors.Is(err, db.ErrOutsideHours):
+		s.writeError(w, r, err)
+		return
 	case errors.Is(err, downloads.ErrNotReady):
 		s.writeError(w, r, ErrConflict("not_ready", "This title is not ready to download yet."))
 		return

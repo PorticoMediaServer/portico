@@ -139,10 +139,16 @@ var ErrNotReady = errors.New("this copy is not ready yet")
 // Open opens one file of a title by its address. Who may fetch it is checked again on every
 // request, so a person who lost the title or downloads altogether stops at the next range.
 // name is "file/N" for the Nth part, or "subtitles/ID" for a subtitle file beside it.
-func (s *Service) Open(ctx context.Context, token, name string) (*File, error) {
+// atHome says the request came from the home network: an account held to home, or outside
+// its viewing hours, fetches nothing (db.ErrAwayFromHome, db.ErrOutsideHours), however long
+// the address itself still has.
+func (s *Service) Open(ctx context.Context, token, name string, atHome bool) (*File, error) {
 	held, ok := s.take(token)
 	if !ok {
 		return nil, ErrGone
+	}
+	if err := s.DB.AccountOpen(ctx, held.viewer.UserID, atHome, s.Now()); err != nil {
+		return nil, err
 	}
 	// The sign-in it was given to must still be live, on the same profile, on the request's
 	// own device: signing out, being signed out, or moving to another profile ends it.

@@ -25,6 +25,7 @@ func (s *Server) startReading(ctx context.Context) error {
 	}
 	// A book on remote storage is read through its source, as playback reads a film there.
 	s.reading = reading.New(s.db, bookKey, func() time.Time { return s.now() }, s.remote.Open)
+	s.reading.FromHome = s.fromHome
 	s.readingRoutes()
 	return nil
 }
