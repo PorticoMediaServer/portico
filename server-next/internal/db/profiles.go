@@ -29,6 +29,9 @@ type Profile struct {
 	PINHash string
 	// AccessChangedAt moves whenever what the profile may see changes.
 	AccessChangedAt int64
+	// Picture changes each time the profile is given a new picture, and is 0 when it has
+	// none. Only the functions that read a profile for a person fill it in.
+	Picture int64
 }
 
 const profileColumns = `id, public_id, name, color, is_primary, position, ifnull(pin_hash, ''), access_changed_at`
@@ -57,17 +60,27 @@ func (d *DB) Profiles(ctx context.Context, userID int64) ([]Profile, error) {
 		}
 		out = append(out, p)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	for n := range out {
+		if out[n], err = pictured(ctx, d.read, out[n], nil); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
 }
 
 // Profile returns one of the account's profiles by public id. Another account's profile is ErrNotFound.
 func (d *DB) Profile(ctx context.Context, userID int64, publicID string) (Profile, error) {
-	return scanProfile(d.read.QueryRowContext(ctx, `SELECT `+profileColumns+` FROM profiles WHERE user_id = ? AND public_id = ?`, userID, publicID))
+	p, err := scanProfile(d.read.QueryRowContext(ctx, `SELECT `+profileColumns+` FROM profiles WHERE user_id = ? AND public_id = ?`, userID, publicID))
+	return pictured(ctx, d.read, p, err)
 }
 
 // ProfileByID returns one of the account's profiles by internal id.
 func (d *DB) ProfileByID(ctx context.Context, userID, id int64) (Profile, error) {
-	return scanProfile(d.read.QueryRowContext(ctx, `SELECT `+profileColumns+` FROM profiles WHERE user_id = ? AND id = ?`, userID, id))
+	p, err := scanProfile(d.read.QueryRowContext(ctx, `SELECT `+profileColumns+` FROM profiles WHERE user_id = ? AND id = ?`, userID, id))
+	return pictured(ctx, d.read, p, err)
 }
 
 // accessChanged records that what the matching profiles may see has changed: library
@@ -195,6 +208,7 @@ func (d *DB) UpdateProfile(ctx context.Context, e ProfileEdit) (Profile, error) 
 		}
 		out, err = scanProfile(tx.QueryRow(`UPDATE profiles SET name = ?, color = ?, pin_hash = nullif(?, ''), updated_at = ? WHERE id = ? RETURNING `+profileColumns,
 			p.Name, p.Color, p.PINHash, e.Now.UnixMilli(), p.ID))
+		out, err = pictured(ctx, tx, out, err)
 		return err
 	})
 	if err == nil {
@@ -293,4 +307,49 @@ func (d *DB) SelectProfile(ctx context.Context, s ProfileSelection) (SessionStat
 	}
 	out.Stamp = stamp
 	return out, err
+}
+
+// pictured fills in a profile's Picture.
+func pictured(ctx context.Context, q queryer, p Profile, err error) (Profile, error) {
+	if err != nil {
+		return p, err
+	}
+	err = q.QueryRowContext(ctx, `SELECT ifnull(max(id), 0) FROM images WHERE profile_id = ?`, p.ID).Scan(&p.Picture)
+	return p, err
+}
+
+// SetProfilePicture makes the picture stored under name the profile's picture, in place of
+// any it had. The picture store drops the old one at its next tidy-up.
+func (d *DB) SetProfilePicture(ctx context.Context, userID int64, publicID, name string, width, height int) (Profile, error) {
+	var out Profile
+	err := d.write(ctx, User, func(tx *sql.Tx) error {
+		p, err := scanProfile(tx.QueryRow(`SELECT `+profileColumns+` FROM profiles WHERE user_id = ? AND public_id = ?`, userID, publicID))
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`DELETE FROM images WHERE profile_id = ?`, p.ID); err != nil {
+			return err
+		}
+		if name != "" {
+			if _, err := tx.Exec(`INSERT INTO images (profile_id, role, source, file_hash, width, height, selected) VALUES (?, ?, ?, ?, ?, ?, 1)`,
+				p.ID, ImageAvatar, ImageFromUpload, name, width, height); err != nil {
+				return err
+			}
+		}
+		out, err = pictured(ctx, tx, p, nil)
+		return err
+	})
+	return out, err
+}
+
+// ProfilePictureName returns the name a profile's picture is stored under. A profile with no
+// picture, like another account's profile, is ErrNotFound.
+func (d *DB) ProfilePictureName(ctx context.Context, userID int64, publicID string) (string, error) {
+	var name string
+	err := d.read.QueryRowContext(ctx, `SELECT i.file_hash FROM images i JOIN profiles p ON p.id = i.profile_id
+		WHERE p.user_id = ? AND p.public_id = ? AND i.file_hash IS NOT NULL ORDER BY i.id DESC LIMIT 1`, userID, publicID).Scan(&name)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	return name, err
 }

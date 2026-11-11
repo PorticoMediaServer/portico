@@ -91,7 +91,7 @@ Assistant) are a separate short document and are not counted here.
 | `GET /v1/profiles/{id}`, `PATCH /v1/profiles/{id}`, `DELETE /v1/profiles/{id}` | Read, edit, delete (`?preview=true` says what would be lost) |
 | `POST /v1/profiles/{id}/select` | Choose a profile, with its PIN if it has one; answers tokens bound to it |
 | `PUT /v1/profiles/order` | Reorder |
-| `PUT /v1/profiles/{id}/avatar`, `DELETE /v1/profiles/{id}/avatar` | Avatar |
+| `PUT /v1/profiles/{id}/avatar`, `GET /v1/profiles/{id}/avatar`, `DELETE /v1/profiles/{id}/avatar` | A profile's picture: the body of `PUT` is a JPEG, PNG, GIF or WebP of at most 4 MB; `GET` needs a sign-in to the same account (or `member=<id>` from the owner or an admin) and takes `size=small` or `large` |
 | `PUT /v1/profiles/{id}/pin`, `DELETE /v1/profiles/{id}/pin` | Set, change or remove a PIN. With the account's password, `PUT` replaces a forgotten PIN from any profile. |
 | `GET /v1/profiles/{id}/restrictions`, `PUT /v1/profiles/{id}/restrictions` | Rating limit, blocked labels, library access |
 | `GET /v1/me/two-factor`, `POST /v1/me/two-factor`, `POST /v1/me/two-factor/confirm`, `DELETE /v1/me/two-factor`, `POST /v1/me/two-factor/recovery-codes` | Two-step sign-in |
