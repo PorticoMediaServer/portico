@@ -1558,29 +1558,11 @@
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
     "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
   },
-  "web/src/screens/dashboard/bindings.ts#de4b43329275cb5e": {
-    "category": "platform-transport",
-    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
-    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
-    "guardHash": "fc29e07b8ac8c71ccff6a5ec41b06c167fd567cc1933c3bc585b8c5029bd5292",
-    "occurrences": 1,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
-    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
-  },
   "web/src/screens/dashboard/bindings.ts#62afec8cb0b7622d": {
     "category": "platform-transport",
     "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
     "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
     "guardHash": "ddaa7366946f409d45da155c90ed62d0e5a4f5692e02bc10599cdfef19b1d5db",
-    "occurrences": 1,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
-    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
-  },
-  "web/src/screens/dashboard/bindings.ts#83c98d8bdb8cb594": {
-    "category": "platform-transport",
-    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
-    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
-    "guardHash": "838d75169ed2e6f117eeb43aafbb40afc11491dbc016ac39446ca4cce6298629",
     "occurrences": 1,
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
     "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
