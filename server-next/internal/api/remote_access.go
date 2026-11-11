@@ -48,7 +48,8 @@ type RemoteAccessSettings struct {
 	PortMapping string `json:"portMapping"`
 	// PublicPort is the port people outside connect to.
 	PublicPort int `json:"publicPort"`
-	// IPv6 lets connections in over IPv6 too.
+	// IPv6 is meant to let connections in over IPv6 too. Nothing reads it yet: no IPv6 pinhole
+	// is asked of the router, so IPv6 from outside is neither opened nor closed by it.
 	IPv6 bool `json:"ipv6"`
 	// OwnAddress is the owner's own domain, with a certificate for it or a reverse proxy in front.
 	OwnAddress OwnAddress `json:"ownAddress"`
@@ -215,7 +216,13 @@ func (s *Server) applyCertificate(v RemoteAccessSettings) {
 		src.Domain, src.CertificateFile, src.KeyFile = v.OwnAddress.Domain, v.OwnAddress.CertificateFile, v.OwnAddress.KeyFile
 	}
 	s.certs.Use(src)
-	s.ports.Set(v.RemoteAccess == "on" && v.PortMapping == "automatic", s.listenPort(), v.PublicPort)
+	// The router is asked nothing until the server has an owner: an unclaimed server never puts
+	// its setup page on the internet by itself.
+	owned, err := s.db.HasUsers(context.Background())
+	if err != nil {
+		s.log.Error("could not tell whether this server has an owner", "error", err)
+	}
+	s.ports.Set(owned && v.RemoteAccess == "on" && v.PortMapping == "automatic", s.listenPort(), v.PublicPort)
 }
 
 // ServePortMapping keeps the server's port open on the home router while the owner's settings

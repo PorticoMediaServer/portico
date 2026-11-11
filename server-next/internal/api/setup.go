@@ -148,6 +148,9 @@ func checkServerName(name string) (string, error) {
 // setupDone deletes the setup code once an owner exists; it is never asked for again.
 func (s *Server) setupDone() {
 	os.Remove(s.setupFile)
+	// The server has an owner now, so port mapping may start.
+	v, _ := s.remote.current()
+	s.applyCertificate(v)
 }
 
 func (s *Server) setupOwner(r *http.Request, req SetupOwnerRequest) (SignInResponse, error) {
