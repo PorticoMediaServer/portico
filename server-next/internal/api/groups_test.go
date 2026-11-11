@@ -237,3 +237,30 @@ func TestWatchTogetherSwitch(t *testing.T) {
 		}
 	}
 }
+
+// A profile whose restrictions change is waited for, or not, by what it may see now.
+func TestWatchTogetherFollowsRestrictionChanges(t *testing.T) {
+	th := newTheatre(t)
+	host := th.owner.AccessToken
+	var kid Profile
+	call(t, th.s, "POST", "/v1/profiles", host, ProfileCreate{Name: "Kid"}, &kid)
+	var onKid Session
+	call(t, th.s, "POST", "/v1/profiles/"+kid.ID+"/select", signIn(t, th.s, 3).Session.AccessToken, ProfileSelect{}, &onKid)
+	path := "/v1/profiles/" + kid.ID + "/restrictions"
+	on := true
+	_, made := th.room("POST", "/v1/groups", host, GroupCreate{Name: "Night", Control: "host"})
+	status(t, th.s, "PUT", path, host, Restrictions{AllLibraries: true, AllowWatchTogether: &on})
+	call(t, th.s, "PATCH", "/v1/groups/"+made.ID, host, GroupEdit{NewCode: &GroupCodeAsk{}}, &made)
+	if code, _ := th.room("POST", "/v1/groups/join", onKid.AccessToken, GroupJoin{Code: made.Invitation.Code}); code != 200 {
+		t.Fatalf("the kid joining answered %d", code)
+	}
+	_, queued := th.room("PUT", "/v1/groups/"+made.ID+"/queue", host, GroupQueue{Entries: []GroupQueueEntry{{ItemID: th.film}}})
+	if _, watching := th.room("POST", "/v1/groups/"+made.ID+"/playback", host, GroupAction{Action: "watch", EntryID: queued.Queue[0].EntryID}); watching.CantSee != 0 {
+		t.Fatalf("a kid who may see the film is counted as not: %d", watching.CantSee)
+	}
+	age := 6
+	status(t, th.s, "PUT", path, host, Restrictions{MaxRatingAge: &age, AllLibraries: true})
+	if _, room := th.room("GET", "/v1/groups/"+made.ID, host, nil); room.CantSee != 1 {
+		t.Fatalf("after the kid's rating limit fell below the film, the host is told %d cannot see it", room.CantSee)
+	}
+}
