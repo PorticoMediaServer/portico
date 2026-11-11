@@ -51,6 +51,7 @@ const (
 	msgFailed      = "The certificate couldn't be issued. Portico will try again."
 	msgUnreachable = "Portico Services can't be reached. Trying again %s."
 	msgBusy        = "Portico Services is busy. Trying again %s."
+	msgNoIssuing   = "This Portico Services isn't issuing certificates right now. Your Portico address works without one; Enhanced Security waits for it. Portico will ask again %s."
 	msgClock       = "This server's clock is %s out, so Portico Services can't accept its requests. Correct the clock; Portico will try again %s."
 	msgUnlinked    = "This server is no longer linked to Portico Services, so it has no Portico address. Link it again, or switch to local sign-in."
 )
@@ -247,6 +248,13 @@ func (c *Client) call(ctx context.Context, method, path string, in, out any, now
 		return time.Time{}, false
 	case "busy":
 		return c.wait(now, retryAfter, func(when string) string { return fmt.Sprintf(msgBusy, when) }), false
+	case "certificates_unavailable":
+		// This Portico Services has no certificate authority. Nothing was queued; it is asked
+		// again only when it says, never on the short backoff.
+		if retryAfter == 0 {
+			retryAfter = 6 * time.Hour
+		}
+		return c.wait(now, retryAfter, func(when string) string { return fmt.Sprintf(msgNoIssuing, when) }), false
 	case "slow_down", "replacement_limit":
 		if f.Error.Code == "slow_down" && !(method == "POST" && strings.HasSuffix(path, "/orders")) {
 			// The ordinary call limits: nothing to say beyond "busy".
