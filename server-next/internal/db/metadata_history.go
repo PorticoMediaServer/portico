@@ -227,11 +227,20 @@ func (d *DB) UndoMetadata(ctx context.Context, publicID, entryID string) (int64,
 		if err := b.ratingChanged(id); err != nil {
 			return err
 		}
-		// A label put back or taken off covers the title and everything under it again.
+		// A label put back or taken off covers the title and everything under it again, and the
+		// watched marks of what holds it follow what a rating or a label changed.
 		if err := b.labelsChanged(id); err != nil {
 			return err
 		}
+		holders, err := holdersAround(b, id)
+		if err != nil {
+			return err
+		}
+		b.leavesChanged(holders...)
 		if err := rememberAfter(b, id); err != nil {
+			return err
+		}
+		if err := b.settleWatchedForAll(now); err != nil {
 			return err
 		}
 		if err := b.queryRow(`SELECT revision FROM items WHERE id = ?`, id).Scan(&revision); err != nil {

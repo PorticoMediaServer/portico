@@ -343,11 +343,17 @@ func (d *DB) EditMetadata(ctx context.Context, publicID string, revision int64, 
 				}
 			}
 		}
-		// A label put on or taken off covers the title and everything under it.
+		// A label put on or taken off covers the title and everything under it, and changes what
+		// a profile that blocks it sees under the title's season and show.
 		if edit.Labels != nil {
 			if err := b.labelsChanged(id); err != nil {
 				return err
 			}
+			holders, err := holdersAround(b, id)
+			if err != nil {
+				return err
+			}
+			b.leavesChanged(holders...)
 		}
 		if edit.Credits != nil {
 			if _, err := b.exec(`DELETE FROM credits WHERE item_id = ?`, id); err != nil {
@@ -377,6 +383,10 @@ func (d *DB) EditMetadata(ctx context.Context, publicID string, revision int64, 
 			}
 		}
 		if err := rememberAfter(b, id); err != nil {
+			return err
+		}
+		// The watched marks of the shows, seasons and albums a rating or a label changed under.
+		if err := b.settleWatchedForAll(now); err != nil {
 			return err
 		}
 		next = current + 1
