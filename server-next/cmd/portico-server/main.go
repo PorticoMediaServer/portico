@@ -139,6 +139,7 @@ func run(log *slog.Logger) error {
 		log.Warn("no web app to serve: only the API is answered. Give its folder with -web, or put it in a folder named web beside this binary")
 	}
 	go engine.Run(ctx)
+	go handler.Totals().Run(ctx)
 	// The list of changes behind the events feed is kept short. A reader further behind than
 	// what is kept is told to read everything again.
 	go func() {
@@ -190,6 +191,8 @@ func run(log *slog.Logger) error {
 	handler.Jobs().Wait(wait)
 	// Where everyone had got to is saved before the database closes, and every converter stopped.
 	handler.Playback().Save(wait, db.User)
+	// Today's statistics so far are added to the day's totals.
+	handler.Totals().Flush(wait)
 	if err := engine.Shutdown(wait); err != nil {
 		log.Error("stopping the streams failed", "error", err)
 	}
