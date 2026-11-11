@@ -53,8 +53,6 @@ func (d *DB) AccountOpen(ctx context.Context, userID int64, atHome bool, now tim
 
 // PlayLimits are the limits of an account that bear on how a title is delivered.
 type PlayLimits struct {
-	// NoConversion: the account plays only what its device plays without converting.
-	NoConversion bool
 	// RemoteMaxBitrateKbps is the most video bitrate away from home; 0 is no cap.
 	RemoteMaxBitrateKbps int
 }
@@ -62,7 +60,7 @@ type PlayLimits struct {
 // PlayLimits reads what an account's plays are held to.
 func (d *DB) PlayLimits(ctx context.Context, userID int64) (PlayLimits, error) {
 	var out PlayLimits
-	err := d.read.QueryRowContext(ctx, `SELECT allow_conversion = 0, ifnull(remote_max_bitrate_kbps, 0) FROM users WHERE id = ?`, userID).
-		Scan(&out.NoConversion, &out.RemoteMaxBitrateKbps)
+	err := d.read.QueryRowContext(ctx, `SELECT ifnull(remote_max_bitrate_kbps, 0) FROM users WHERE id = ?`, userID).
+		Scan(&out.RemoteMaxBitrateKbps)
 	return out, err
 }
