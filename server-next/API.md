@@ -275,13 +275,21 @@ A book is an item: its page is `GET /v1/items/{id}`, its place and read mark go 
 /v1/items`. Nothing is "open" on the server. Search inside the open book and the highlights
 export are done by the app.
 
+A place is the state's `position`: a JSON object of at most 4 KB that the reader writes, with
+`progression` (0 to 1) and `fingerprint` (the file it was made in) read by the server and the
+exact spot in the reader's own notation. The later place wins. `"atEnd": true` (the end of the
+main text, or the last page) also marks the book read. With Pause history on neither is kept;
+a mark by hand still is, and clears the place. The book route answers the place with
+`placeExact`, false when it was made in another file: the reader opens at its progression.
+Home has a "Continue your books" row (`continue_reading`); books are not in Continue Watching.
+
 | Route | Who | Purpose |
 |---|---|---|
 | `GET /v1/items/{id}/book` | A profile that may see the book | How to read it: the version chosen (or `version=`), its kind, contents and page list, the addresses of its parts, the fingerprint of the file, and whether the caller may save the file. A book the server cannot open says why |
 | `GET /v1/media/{grant}/pages/{n}` | Whoever holds the address | One comic or image page, no wider than `w`. A page too large to prepare safely is `422` and the rest of the book reads |
 | `GET /v1/media/{grant}/parts/{path}` | Whoever holds the address | One part of an EPUB, named in the book's own list of parts and nothing else |
 | `GET /v1/media/{grant}/source` | Whoever holds the address; saving needs a profile allowed to download | The file's own bytes by range: a PDF read in the app, and Save the file at any size |
-| `GET /v1/items/{id}/annotations` | The profile, for a book it may see | Its bookmarks, highlights and notes in the book, with those deleted since `since=` |
+| `GET /v1/items/{id}/annotations` | The profile, for a book it may see | Its bookmarks, highlights and notes in the book, in book order, a page at a time. Deleted ones are not listed: an app removes those it sent before and no longer finds (a `since=` would miss edits made out of reach, which carry the time they were made) |
 | `PUT /v1/items/{id}/annotations/{annotationId}`, `DELETE /v1/items/{id}/annotations/{annotationId}` | The profile | Add or change one (the app makes the id, so a repeat changes nothing; the 5,001st is refused); delete one everywhere |
 | `POST /v1/annotations:batch` | The profile | What a device made while out of reach; the later edit to one id wins |
 

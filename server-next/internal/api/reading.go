@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/reading"
 )
 
@@ -13,7 +14,8 @@ type BookAnswer struct {
 	// different version".
 	Version  string        `json:"version"`
 	Versions []BookVersion `json:"versions"`
-	// Format is epub, pdf or cbz for a book this server opens; any other is one it cannot yet.
+	// Format is epub, pdf, cbz or images (a comic made of a folder of pictures) for a book this
+	// server opens; any other is one it cannot yet.
 	Format string `json:"format"`
 	// Fingerprint names this exact file. A place or a highlight made on another fingerprint was
 	// made on another copy of the book, and is placed by how far through the book it was.
@@ -40,6 +42,22 @@ type BookAnswer struct {
 	Contents []BookContents `json:"contents,omitempty"`
 	// Pages are a comic's pages in reading order, by their names in the archive.
 	Pages []string `json:"pages,omitempty"`
+	// Place is the profile's place in the book, as its reader saved it through PUT
+	// /v1/items/{id}/state (the state's position). PlaceExact is false when it was made in
+	// another version or an earlier copy of the file: the reader then opens at the place's
+	// progression and says "Opened near where you left off".
+	Place      JSON `json:"place,omitempty"`
+	PlaceExact bool `json:"placeExact,omitempty"`
+	// Next is the next volume of the series, offered when this one is finished; nothing opens
+	// by itself.
+	Next *NextVolume `json:"next,omitempty"`
+}
+
+// NextVolume is the volume after a book in its series.
+type NextVolume struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	Index *int   `json:"index,omitempty"`
 }
 
 // BookVersion is one file of a book.
@@ -50,7 +68,8 @@ type BookVersion struct {
 }
 
 // BookProblem is why a book cannot be read: format_not_supported, remote_storage,
-// unavailable, book_changed or damaged.
+// unavailable, book_changed, too_many_pages, source_unreachable (a remote source stopped
+// answering partway: try again) or damaged.
 type BookProblem struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
@@ -73,6 +92,7 @@ func (s *Server) readingRoutes() {
 	// A book's address is tied to the sign-in that asked for it, so this takes a signed-in
 	// person and not a key, as playback does.
 	Handle(s, "GET /v1/items/{id}/book", WithProfile, s.openBook).Scope = ScopeSession
+	s.annotationRoutes()
 }
 
 func (s *Server) openBook(r *http.Request, _ None) (BookAnswer, error) {
@@ -89,8 +109,14 @@ func (s *Server) openBook(r *http.Request, _ None) (BookAnswer, error) {
 	opened := s.reading.Open(r.Context(), who, book, version)
 	out := BookAnswer{ItemID: book.PublicID, Version: version.PublicID, Versions: []BookVersion{}, Format: opened.Format,
 		Fingerprint: opened.Fingerprint, Size: version.Size, SaveURL: opened.SaveURL}
+	if book.Place != "" {
+		out.Place, out.PlaceExact = JSON(book.Place), db.ReadPlace(book.Place).Fingerprint == opened.Fingerprint
+	}
+	if book.Next != nil {
+		out.Next = &NextVolume{ID: book.Next.PublicID, Title: book.Next.Title, Index: book.Next.Index}
+	}
 	for _, v := range book.Versions {
-		out.Versions = append(out.Versions, BookVersion{ID: v.PublicID, Format: reading.Format(v.FileName), Name: v.Name})
+		out.Versions = append(out.Versions, BookVersion{ID: v.PublicID, Format: reading.VersionFormat(v), Name: v.Name})
 	}
 	if opened.Problem != nil {
 		out.Unreadable = &BookProblem{Code: bookProblemCode(opened.Problem), Message: opened.Problem.Error()}
@@ -116,6 +142,10 @@ func bookProblemCode(err error) string {
 		return "unavailable"
 	case reading.ErrChanged:
 		return "book_changed"
+	case reading.ErrTooManyPages:
+		return "too_many_pages"
+	case reading.ErrSourceUnreachable:
+		return "source_unreachable"
 	}
 	return "damaged"
 }

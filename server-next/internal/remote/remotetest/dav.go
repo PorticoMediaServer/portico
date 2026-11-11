@@ -28,6 +28,10 @@ type DAV struct {
 	SlowDowns atomic.Int64
 	// NoRanges makes GET ignore Range and send the whole file.
 	NoRanges atomic.Bool
+	// Breaks is how many of the next ranged reads (other than the one-byte read that opens a
+	// file) have their connection dropped without an answer: a network that blinks while a
+	// file is being read.
+	Breaks atomic.Int64
 	// BadNames are names, written as they go in an href (already escaped), that every
 	// folder listing also gives as files: what a server that cannot be trusted might send.
 	BadNames []string
@@ -95,6 +99,9 @@ func (d *DAV) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		if d.NoRanges.Load() {
 			r.Header.Del("Range")
+		}
+		if spec := r.Header.Get("Range"); spec != "" && spec != "bytes=0-0" && d.Breaks.Add(-1) >= 0 {
+			panic(http.ErrAbortHandler)
 		}
 		http.ServeContent(w, r, "", d.modified, bytes.NewReader(body))
 	default:
