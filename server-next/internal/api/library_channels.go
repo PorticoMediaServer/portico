@@ -256,14 +256,11 @@ func (s *Server) listLibraryChannels(r *http.Request, _ None) (Page[LibraryChann
 }
 
 // checkBuilder refuses a builder that cannot be saved and answers it as stored. Blocks added
-// from a preset are filled in from it first. hasLogo says the channel has an uploaded logo,
-// which the on-screen logo needs.
-func (s *Server) checkBuilder(ctx context.Context, b *librarychannels.Builder, zone string, hasLogo bool) (string, error) {
+// from a preset are filled in from it first. The on-screen logo may be on without a logo: the
+// session carries none until one is uploaded, so deleting a logo never blocks a save.
+func (s *Server) checkBuilder(ctx context.Context, b *librarychannels.Builder, zone string) (string, error) {
 	if _, err := librarychannels.LoadZone(zone); err != nil {
 		return "", channelError(err)
-	}
-	if b.LogoOnScreen.On && !hasLogo {
-		return "", ErrField("builder.logoOnScreen.on", "Upload a logo to show it on screen.")
 	}
 	kinds, err := s.db.LibraryKinds(ctx)
 	if err != nil {
@@ -373,7 +370,7 @@ func (s *Server) createLibraryChannel(r *http.Request, req LibraryChannelSave) (
 	if req.Builder == nil {
 		return LibraryChannel{}, ErrField("builder.libraries", "Choose at least one library.")
 	}
-	if save.Builder, err = s.checkBuilder(r.Context(), req.Builder, save.TimeZone, false); err != nil {
+	if save.Builder, err = s.checkBuilder(r.Context(), req.Builder, save.TimeZone); err != nil {
 		return LibraryChannel{}, err
 	}
 	save.Libraries = req.Builder.Libraries()
@@ -458,7 +455,7 @@ func (s *Server) saveLibraryChannel(r *http.Request, req LibraryChannelSave) (Li
 		}
 	}
 	// The builder is checked again whatever changed: a library or a pinned title may have gone.
-	if save.Builder, err = s.checkBuilder(ctx, b, save.TimeZone, ch.LogoHash != ""); err != nil {
+	if save.Builder, err = s.checkBuilder(ctx, b, save.TimeZone); err != nil {
 		return LibraryChannel{}, err
 	}
 	save.Libraries = b.Libraries()
@@ -531,7 +528,7 @@ func (s *Server) previewLibraryChannel(r *http.Request, req ChannelPreviewAsk) (
 	if zone == "" {
 		zone = s.serverZone()
 	}
-	if _, err := s.checkBuilder(ctx, &req.Builder, zone, true); err != nil {
+	if _, err := s.checkBuilder(ctx, &req.Builder, zone); err != nil {
 		return ChannelPreview{}, err
 	}
 	loc, _ := librarychannels.LoadZone(zone)
