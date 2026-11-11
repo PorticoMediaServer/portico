@@ -151,7 +151,8 @@ func joinTests(mode string, tests []string) string {
 	case ModeAll:
 		return "(" + strings.Join(tests, " AND ") + ")"
 	case ModeNone:
-		return "NOT (" + strings.Join(tests, " OR ") + ")"
+		// A title with no value for the field has none of the values.
+		return "NOT ifnull((" + strings.Join(tests, " OR ") + "), 0)"
 	}
 	return "(" + strings.Join(tests, " OR ") + ")"
 }
