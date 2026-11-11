@@ -98,8 +98,13 @@ func (d *Doc[T]) Get(s *Settings) T {
 }
 
 // Watch calls fn with the new value after every save, once the save has committed. fn runs
-// before the save is answered, so it must be quick: hand anything slow to a goroutine.
+// before the save is answered, so it must be quick: hand anything slow to a goroutine. It
+// must not save a settings document itself: saves wait for one another. With no Settings
+// there is nothing to watch.
 func (d *Doc[T]) Watch(s *Settings, fn func(T)) {
+	if s == nil {
+		return
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	doc := s.docs[d.def.name]
@@ -315,8 +320,8 @@ func (s *Settings) Write(ctx context.Context, actorID int64, name string, change
 	def := doc.def
 	ptr := reflect.New(def.typ)
 	ptr.Elem().Set(reflect.ValueOf(s.copyOf(def, current)))
-	if err := json.Unmarshal(change, ptr.Interface()); err != nil {
-		return Document{}, &Invalid{Field: fieldOf(err), Message: "This is not a value this setting takes."}
+	if err := overlay(ptr.Elem(), change); err != nil {
+		return Document{}, err
 	}
 	if def.check != nil {
 		if err := def.check(ptr.Interface()); err != nil {
@@ -370,11 +375,35 @@ func (s *Settings) encode(def *definition, value any) (string, error) {
 	return string(raw), err
 }
 
-// fieldOf names the field a JSON type error is about, or "" when it cannot tell.
-func fieldOf(err error) string {
-	var typeErr *json.UnmarshalTypeError
-	if errors.As(err, &typeErr) {
-		return typeErr.Field
+// overlay lays a change over a document one field at a time. A field that is sent replaces
+// what was there whole, so a list or a map is the one sent and never a mix of it and the old
+// one. A name the document does not have is refused: a mistyped field would otherwise be
+// answered as saved with nothing changed.
+func overlay(v reflect.Value, change json.RawMessage) error {
+	const notAValue = "This is not a value this setting takes."
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(change, &fields); err != nil || fields == nil {
+		return &Invalid{Message: notAValue}
 	}
-	return ""
+	for name, raw := range fields {
+		var field reflect.Value
+		for i := range v.NumField() {
+			if f := v.Type().Field(i); f.IsExported() && jsonName(f) == name && name != "-" {
+				field = v.Field(i)
+			}
+		}
+		if !field.IsValid() {
+			return &Invalid{Field: name, Message: "This server has no such setting."}
+		}
+		fresh := reflect.New(field.Type())
+		if err := json.Unmarshal(raw, fresh.Interface()); err != nil || string(raw) == "null" {
+			var typeErr *json.UnmarshalTypeError
+			if errors.As(err, &typeErr) && typeErr.Field != "" {
+				name += "." + typeErr.Field
+			}
+			return &Invalid{Field: name, Message: notAValue}
+		}
+		field.Set(fresh.Elem())
+	}
+	return nil
 }
