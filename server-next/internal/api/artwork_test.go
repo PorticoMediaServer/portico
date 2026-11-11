@@ -2,11 +2,13 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"image"
 	"image/png"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 func (sh *shelf) posters(id string) []ArtworkPicture {
@@ -69,7 +71,7 @@ func TestArtwork(t *testing.T) {
 	if w := sh.uploadPoster(sh.owner, heat, make([]byte, maxUpload+1)); w.Code != 413 {
 		t.Fatalf("a picture over 10 MB was answered %d", w.Code)
 	}
-	upload := sh.posters(heat)[0].ID
+	upload, uploadURL := sh.posters(heat)[0].ID, sh.posters(heat)[0].URL
 	sh.do("DELETE", "/v1/admin/items/"+heat+"/artwork/"+upload, nil, nil, 204)
 	if got := sh.posters(heat); len(got) != 2 || got[0].Source != "provider" || got[0].Locked {
 		t.Fatalf("after removing the upload: %+v", got)
@@ -85,6 +87,23 @@ func TestArtwork(t *testing.T) {
 	sh.do("POST", "/v1/admin/items/"+heat+"/metadata/history/"+history.Items[1].ID+"/undo", nil, nil, 200)
 	if got := sh.posters(heat); got[0].ID != other || !got[0].Locked {
 		t.Fatalf("after Undo: %+v", got)
+	}
+
+	// The daily tidy-up's sweep takes the removed upload's file and nothing in use. A picture
+	// stored in the last hour is kept, so the clock is moved on.
+	if removed, err := sh.s.SweepPictures(context.Background()); err != nil || removed != 0 {
+		t.Fatalf("a sweep within the hour removed %d: %v", removed, err)
+	}
+	sh.s.now = func() time.Time { return time.Now().Add(2 * time.Hour) }
+	if removed, err := sh.s.SweepPictures(context.Background()); err != nil || removed != 1 {
+		t.Fatalf("the sweep removed %d pictures, want the one upload: %v", removed, err)
+	}
+	if w := call(t, sh.s, "GET", uploadURL, "", nil, nil); w.Code != 404 {
+		t.Fatalf("the removed upload's picture is still served: %d", w.Code)
+	}
+	sh.s.now = time.Now
+	if w := call(t, sh.s, "GET", sh.detail(heat).Images["poster"], "", nil, nil); w.Code != 200 {
+		t.Fatalf("the poster in use was swept: %d", w.Code)
 	}
 
 	if w := sh.uploadPoster(sh.limitedAdmin, heat, picture.Bytes()); w.Code != http.StatusNotFound {
