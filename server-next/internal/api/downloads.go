@@ -28,9 +28,55 @@ func (s *Server) downloadRoutes() {
 		Handle(s, "PATCH /v1/downloads/{id}", WithProfile, s.changeDownload),
 		Handle(s, "DELETE /v1/downloads/{id}", WithProfile, s.deleteDownload),
 		Handle(s, "GET /v1/downloads/{id}/items/{itemId}", WithProfile, s.downloadedItem),
+		Handle(s, "POST /v1/downloads/sync", WithProfile, s.syncDownloads),
 	} {
 		route.Scope = ScopeSession
 	}
+	Handle(s, "GET /v1/admin/downloads", Owner, s.downloadsByPerson)
+	Handle(s, "DELETE /v1/admin/members/{id}/downloads", Owner, s.removePersonDownloads)
+}
+
+// PersonDownloads is one person's downloads on the owner's Storage page.
+type PersonDownloads struct {
+	UserID      string `json:"userId"`
+	Username    string `json:"username"`
+	Titles      int    `json:"titles"`
+	CopiesBytes int64  `json:"copiesBytes"`
+}
+
+// DownloadsByPerson is the owner's view of downloads: by person, and the server's copies in
+// all, each counted once.
+type DownloadsByPerson struct {
+	Items       []PersonDownloads `json:"items"`
+	CopiesBytes int64             `json:"copiesBytes"`
+	RoomBytes   *int64            `json:"roomBytes,omitempty"`
+}
+
+func (s *Server) downloadsByPerson(r *http.Request, _ None) (DownloadsByPerson, error) {
+	people, err := s.db.DownloadsByPerson(r.Context())
+	if err != nil {
+		return DownloadsByPerson{}, err
+	}
+	out := DownloadsByPerson{Items: make([]PersonDownloads, 0, len(people))}
+	for _, p := range people {
+		out.Items = append(out.Items, PersonDownloads{UserID: p.UserPublicID, Username: p.Username, Titles: p.Titles, CopiesBytes: p.CopiesBytes})
+	}
+	if out.CopiesBytes, err = s.db.PreparedSpace(r.Context()); err != nil {
+		return out, err
+	}
+	out.RoomBytes, err = s.room(r.Context())
+	return out, err
+}
+
+// removePersonDownloads is "Remove their downloads": their requests go and the server's
+// copies nobody else asked for are freed. It does not reach into any device; to take
+// downloads away from someone, turn Downloads off for them.
+func (s *Server) removePersonDownloads(r *http.Request, _ None) (None, error) {
+	copies, err := s.db.RemovePersonDownloads(r.Context(), r.PathValue("id"))
+	for _, id := range copies {
+		s.prepare.Stop(id)
+	}
+	return None{}, refuse(err)
 }
 
 // DownloadAsk is the body of POST /v1/downloads.
@@ -172,6 +218,74 @@ type DownloadedItem struct {
 	Chapters  []PlaybackChapter  `json:"chapters"`
 	Markers   []PlaybackMarker   `json:"markers"`
 	Lyrics    []Lyrics           `json:"lyrics,omitempty"`
+}
+
+// DownloadSync is the body of POST /v1/downloads/sync: every title the device holds for this
+// profile.
+type DownloadSync struct {
+	Holds []HeldTitle `json:"holds"`
+}
+
+// HeldTitle is one title a device holds, with the request it came with.
+type HeldTitle struct {
+	DownloadID string `json:"downloadId"`
+	ItemID     string `json:"itemId"`
+}
+
+// HeldRemoval is a title the device must remove now: downloads_off (turned off for the
+// account or the profile) or no_access (the profile may no longer see it).
+type HeldRemoval struct {
+	HeldTitle
+	Reason string `json:"reason"`
+}
+
+// DownloadSyncReply says what the device must remove, what it can fetch now, and until when
+// everything it keeps plays without reaching the server. PlayableForMs is the same span
+// from the moment of the answer, for the device to count on its own clock that cannot be
+// turned back; after it, downloads do not play until the device connects once, and nothing
+// is deleted.
+type DownloadSyncReply struct {
+	PlayableUntil time.Time     `json:"playableUntil"`
+	PlayableForMs int64         `json:"playableForMs"`
+	Remove        []HeldRemoval `json:"remove"`
+	Fetch         []HeldTitle   `json:"fetch"`
+}
+
+// maxHeld bounds what one device can say it holds.
+const maxHeld = 20_000
+
+// syncDownloads is a device reaching the server: every contact renews all of the profile's
+// downloads on it. It answers even when the profile may download nothing more, so a person
+// who lost access has their downloads removed.
+func (s *Server) syncDownloads(r *http.Request, req DownloadSync) (DownloadSyncReply, error) {
+	c := CallerFrom(r.Context())
+	if c.SessionID == 0 {
+		return DownloadSyncReply{}, downloadError(downloads.ErrNoDevice)
+	}
+	if len(req.Holds) > maxHeld {
+		return DownloadSyncReply{}, ErrField("holds", "That is more titles than one device can hold.")
+	}
+	device, err := s.db.SessionDevice(r.Context(), c.SessionID)
+	if err != nil {
+		return DownloadSyncReply{}, playbackError(err)
+	}
+	held := make([]downloads.Held, len(req.Holds))
+	for n, h := range req.Holds {
+		held[n] = downloads.Held{Download: h.DownloadID, Item: h.ItemID}
+	}
+	synced, err := s.downloads.Sync(r.Context(), db.Viewer{UserID: c.UserID, ProfileID: c.ProfileID}, device.ID, device.Platform, held)
+	if err != nil {
+		return DownloadSyncReply{}, err
+	}
+	out := DownloadSyncReply{PlayableUntil: synced.Until.UTC(), PlayableForMs: downloads.OfflineFor.Milliseconds(),
+		Remove: make([]HeldRemoval, 0, len(synced.Remove)), Fetch: make([]HeldTitle, 0, len(synced.Fetch))}
+	for _, rm := range synced.Remove {
+		out.Remove = append(out.Remove, HeldRemoval{HeldTitle: HeldTitle{DownloadID: rm.Download, ItemID: rm.Item}, Reason: rm.Reason})
+	}
+	for _, f := range synced.Fetch {
+		out.Fetch = append(out.Fetch, HeldTitle{DownloadID: f.Download, ItemID: f.Item})
+	}
+	return out, nil
 }
 
 func downloadError(err error) error {

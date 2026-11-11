@@ -23,6 +23,11 @@ type Restrictions struct {
 	// the profile can never go beyond. They are read-only.
 	AccountAllLibraries bool     `json:"accountAllLibraries"`
 	AccountLibraries    []string `json:"accountLibraries"`
+	// AllowDownloads lets the profile download, within the account's own switch
+	// (AccountAllowDownloads, read-only). Left out of a change, it stays as it is. Turned
+	// off, the profile's devices remove its downloads the next time they reach the server.
+	AllowDownloads        *bool `json:"allowDownloads,omitempty"`
+	AccountAllowDownloads bool  `json:"accountAllowDownloads"`
 }
 
 // The most labels or libraries one profile's restrictions can name, and the highest age limit.
@@ -33,7 +38,8 @@ const (
 
 func restrictionsOut(r db.Restrictions) Restrictions {
 	return Restrictions{MaxRatingAge: r.MaxRatingAge, BlockedLabels: r.BlockedLabels, AllLibraries: r.AllLibraries, Libraries: r.Libraries,
-		AccountAllLibraries: r.AccountAllLibraries, AccountLibraries: r.AccountLibraries}
+		AccountAllLibraries: r.AccountAllLibraries, AccountLibraries: r.AccountLibraries, AllowDownloads: r.AllowDownloads,
+		AccountAllowDownloads: r.AccountAllowDownloads}
 }
 
 // restrictionRoutes are for the account's main profile, or an owner or admin acting on a
@@ -60,7 +66,8 @@ func (s *Server) restrictionRoutes() {
 			return Restrictions{}, ErrField("libraries", "That is too many libraries.")
 		}
 		out, err := s.db.SetProfileRestrictions(r.Context(), userID, r.PathValue("id"), db.Restrictions{MaxRatingAge: req.MaxRatingAge,
-			BlockedLabels: req.BlockedLabels, AllLibraries: req.AllLibraries, Libraries: req.Libraries}, s.now())
+			BlockedLabels: req.BlockedLabels, AllLibraries: req.AllLibraries, Libraries: req.Libraries,
+			AllowDownloads: req.AllowDownloads}, s.now())
 		switch {
 		case errors.Is(err, db.ErrUnknownLibrary):
 			return Restrictions{}, ErrField("libraries", "One of these libraries does not exist.")
