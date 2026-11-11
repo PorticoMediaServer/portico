@@ -23,6 +23,17 @@ paths = ['''^scripts/check-gitleaks-config\.py$''']
 regexTarget = "line"
 regexes = ['''^\s*expression = "this\.api,proof=this\.moveProof;"$''']
 
+# The sealing fixture in the Portico Services trust test data, copied from portico-internal
+# (hosted-services/hosted-next/trust/testdata). Made by the old service's code from a fixed
+# test phrase; it seals nothing real. Exempt only this exact value on this one line of that
+# file: any other key there, or this one anywhere else, still fails.
+[[rules.allowlists]]
+description = "Fixed sealing-key fixture in the copied Portico Services trust test data"
+condition = "AND"
+paths = ['''^server-next/internal/hosted/trust/testdata/old_service\.json$''']
+regexTarget = "line"
+regexes = ['''^\s*"sealKey": "QtCssvBYZS87DqrTRRJbTm-Ju7EO4zZzfAOACKNE_AU",?$''']
+
 # Portico ships built-in application credentials for its metadata providers on
 # purpose (see THIRD-PARTY-NOTICES.md). They identify Portico to TMDB and
 # TheTVDB and are not user or server secrets.

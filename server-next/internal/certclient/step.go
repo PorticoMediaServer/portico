@@ -10,6 +10,7 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -69,7 +70,7 @@ func (c *Client) Step(ctx context.Context) time.Time {
 	if linkAt.Unix() != c.state.LinkIssuedAt {
 		// A new link: whatever was waited for or ordered belonged to the last one.
 		c.state.LinkIssuedAt, c.state.AskNameSpace, c.state.NextTryAt = linkAt.Unix(), true, time.Time{}
-		c.orderID, c.early, c.polls, c.failures = "", false, 0, 0
+		c.orderID, c.early, c.polls, c.failures, c.repeats = "", false, 0, 0, 0
 		c.save()
 	}
 	if c.state.NextTryAt.After(now) {
@@ -97,7 +98,7 @@ func (c *Client) step(ctx context.Context, now time.Time) time.Time {
 		if next, ok := c.call(ctx, "POST", base+"name-space", nil, &answer, now); !ok {
 			return next
 		}
-		if !strings.HasPrefix(answer.NameSpace, "ptc-") || len(answer.NameSpace) != 24 {
+		if !validNameSpace.MatchString(answer.NameSpace) {
 			return c.retry(now, fmt.Sprintf(msgUnreachable, at(now.Add(time.Minute), now)))
 		}
 		if c.state.NameSpace != "" && answer.NameSpace != c.state.NameSpace {
@@ -141,6 +142,7 @@ func (c *Client) step(ctx context.Context, now time.Time) time.Time {
 
 // follow acts on where an order stands.
 func (c *Client) follow(answer orderAnswer, key *ecdsa.PrivateKey, now time.Time) time.Time {
+	c.repeats, c.failures = 0, 0
 	switch answer.State {
 	case "issued":
 		c.orderID = ""
@@ -159,7 +161,8 @@ func (c *Client) follow(answer orderAnswer, key *ecdsa.PrivateKey, now time.Time
 	}
 	wait := poll.Wait(c.polls, jitter())
 	c.polls++
-	if retryAfter := time.Duration(answer.RetryAfterMs) * time.Millisecond; retryAfter > wait {
+	// The contract's longest estimate is 10 minutes; a longer one is a fault and is not obeyed.
+	if retryAfter := min(time.Duration(answer.RetryAfterMs)*time.Millisecond, poll.Ceiling); retryAfter > wait {
 		wait = retryAfter
 	}
 	status := Status{State: "working", Message: msgWorking}
@@ -184,10 +187,18 @@ func (c *Client) retry(now time.Time, message string) time.Time {
 	return next
 }
 
-// wait obeys Portico Services' Retry-After, which sets the pace in place of the backoff.
-// message says it, given when the next try is.
+// longestWait is the most the client waits on Portico Services' word. A longer Retry-After is a
+// fault (a unit mixed up, say) and is not obeyed: a certificate is never parked for good.
+// "Not issuing certificates" has its own 6 hours, under this.
+const longestWait = 24 * time.Hour
+
+// validNameSpace is the contract's name space: "ptc-" and 20 of a-z and 2-7.
+var validNameSpace = regexp.MustCompile(`^ptc-[a-z2-7]{20}$`)
+
+// wait obeys Portico Services' Retry-After, which sets the pace in place of the backoff, up to
+// longestWait. message says it, given when the next try is.
 func (c *Client) wait(now time.Time, retryAfter time.Duration, message func(when string) string) time.Time {
-	next := now.Add(schedule.After(retryAfter))
+	next := now.Add(min(schedule.After(retryAfter), longestWait))
 	c.set(Status{State: "waiting", Message: message(at(next, now)), NextTryAt: &next})
 	return next
 }
@@ -228,7 +239,8 @@ func (c *Client) call(ctx context.Context, method, path string, in, out any, now
 		if json.Unmarshal(raw, out) != nil {
 			return c.retry(now, msgUnreachable), false
 		}
-		c.failures = 0
+		// The backoff starts again only when an order has answered (follow), not on any
+		// answer: a name space given each time in a loop that goes nowhere is no progress.
 		return time.Time{}, true
 	}
 	var f failure
@@ -266,19 +278,19 @@ func (c *Client) call(ctx context.Context, method, path string, in, out any, now
 		if !c.usable(now) && !c.early {
 			// No usable certificate here, so it is not too early for this server: say so.
 			c.early = true
-			return now, false
+			return c.again(now), false
 		}
-		next := now.Add(max(retryAfter, time.Minute))
+		next := now.Add(min(max(retryAfter, time.Minute), longestWait))
 		c.set(Status{State: "issued", NextTryAt: &next})
 		return next, false
 	case "name_space_missing":
 		c.mu.Lock()
 		c.state.NameSpace = ""
 		c.mu.Unlock()
-		return now, false
+		return c.again(now), false
 	case "not_found":
 		c.orderID = ""
-		return now, false
+		return c.again(now), false
 	case "invalid":
 		// A request Portico Services would not take: start again with a new key.
 		os.Remove(c.path(pendingFile))
@@ -299,6 +311,17 @@ func (c *Client) call(ctx context.Context, method, path string, in, out any, now
 		return next, false
 	}
 	return c.retry(now, msgUnreachable), false
+}
+
+// again is when to try once more after an answer that says what to do differently (ask for
+// the name space, place the order again): at once the first time, then on the change backoff,
+// so an answer Portico Services keeps giving never becomes a call every second.
+func (c *Client) again(now time.Time) time.Time {
+	c.repeats++
+	if c.repeats == 1 {
+		return now
+	}
+	return c.retry(now, msgWorking)
 }
 
 // at says when, for the owner: "at 14:32" today, otherwise "on 14 November at 09:12".

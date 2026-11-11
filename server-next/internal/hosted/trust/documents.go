@@ -110,10 +110,14 @@ type Approval struct {
 // ServerList is an account's servers with each one's identity and addresses, so an app
 // never meets a Portico Accounts server it cannot recognise.
 type ServerList struct {
-	Kind      string         `json:"kind"`
-	AccountID string         `json:"accountId"`
-	Servers   []ListedServer `json:"servers"`
-	IssuedAt  time.Time      `json:"issuedAt"`
+	Kind      string `json:"kind"`
+	AccountID string `json:"accountId"`
+	// Version rises whenever the list changes. It is inside the signature so that an app
+	// can tell a list is older than the one it holds: without it, a true list from before
+	// a server was removed or linked again with a new key could be given to the app again.
+	Version  int64          `json:"version"`
+	Servers  []ListedServer `json:"servers"`
+	IssuedAt time.Time      `json:"issuedAt"`
 }
 
 type ListedServer struct {
@@ -205,14 +209,28 @@ func (v Verifier) OpenApproval(e Envelope, serverID, purpose string, now time.Ti
 	return a, nil
 }
 
-// OpenServerList checks an account's server list.
-func (v Verifier) OpenServerList(e Envelope, accountID string, now time.Time) (ServerList, error) {
+// OpenServerList checks an account's server list. held is the version of the list the app
+// already holds (0 if it holds none): a list with a lower version is refused, however
+// well signed, because it is from before a change the app has already seen. There is no
+// end date on a list: an app re-reads it when the free check says it changed, not on a
+// clock. Every listed server's id must be the digest of its key, so no mistake anywhere
+// can tie an id to another key.
+func (v Verifier) OpenServerList(e Envelope, accountID string, held int64, now time.Time) (ServerList, error) {
 	var l ServerList
 	if err := open(v, e, now, ServerListKind, &l); err != nil {
 		return ServerList{}, err
 	}
-	if l.AccountID != accountID {
+	if l.AccountID != accountID || l.Version < held || l.Version < 1 {
 		return ServerList{}, ErrTrust
+	}
+	for _, server := range l.Servers {
+		key, err := encoding.DecodeString(server.PublicKey)
+		if err != nil {
+			return ServerList{}, ErrTrust
+		}
+		if id, err := ServerID(key); err != nil || id != server.ServerID {
+			return ServerList{}, ErrTrust
+		}
 	}
 	return l, nil
 }
