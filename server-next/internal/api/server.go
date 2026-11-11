@@ -22,8 +22,10 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/artwork"
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/livefeed"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
+	"github.com/PorticoMediaServer/portico/server-next/internal/receivers"
 )
 
 // APIMajor is the number in the path. It changes only for a break old apps could not survive.
@@ -58,6 +60,10 @@ type Server struct {
 	media   func(w http.ResponseWriter, r *http.Request, grant, file string)
 	// feeds caps the change feeds each sign-in holds open. See catalogue.go.
 	feeds feeds
+	// live carries the changes to what lives only in memory onto the change feed.
+	live *livefeed.Publisher
+	// receivers are the devices open to playback from other devices. See receivers.go.
+	receivers *receivers.Service
 }
 
 // Route is one operation, kept so the contract can be generated and the operation budget counted.
@@ -167,6 +173,9 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	if err := s.loadNetworks(ctx); err != nil {
 		return nil, err
 	}
+	clock := func() time.Time { return s.now() }
+	s.live = livefeed.New(clock)
+	s.receivers = receivers.New(s.live, clock)
 	s.systemRoutes()
 	s.networkRoutes()
 	s.identityRoutes()
@@ -180,11 +189,16 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.catalogueRoutes()
 	s.artwork = artwork.New(dataDir)
 	s.imageRoutes()
-	s.playback = playback.New(d, playback.NoEngine{}, playback.NoEngine{}, log, func() time.Time { return s.now() })
+	s.playback = playback.New(d, playback.NoEngine{}, playback.NoEngine{}, log, clock)
+	s.playback.OnChange(func(userID int64, id string) {
+		s.live.ToAccount(userID, livefeed.TopicPlayback, livefeed.OpUpdated, id)
+	})
 	go s.playback.Run(ctx)
 	s.playbackRoutes()
-	s.queues = playqueue.New(d, s.playback, func() time.Time { return s.now() })
+	s.queues = playqueue.New(d, s.playback, clock)
 	s.queueRoutes()
+	go s.sweepMemory(ctx)
+	s.receiverRoutes()
 	return s, nil
 }
 

@@ -24,6 +24,9 @@ type StartInput struct {
 	PositionMs *int64
 	FromStart  bool
 	Paused     bool
+	// Moving, when set, is the account's session this start takes over from another device.
+	// It ends once the new one plays, and until then the two count as one stream.
+	Moving string
 	// Prepared, when set, is a stream got ready ahead of time for this start: it becomes the
 	// session's stream, so playback carries on without a gap.
 	Prepared *Prepared
@@ -245,6 +248,7 @@ func (s *Service) create(ctx context.Context, in StartInput) (*session, error) {
 		case other.State == StateEnded:
 		case other.Device.ID == device.ID:
 			replaced = append(replaced, other)
+		case other.ID == in.Moving && other.UserID == c.Viewer.UserID:
 		default:
 			total++
 			if other.UserID == c.Viewer.UserID {
@@ -266,6 +270,7 @@ func (s *Service) create(ctx context.Context, in StartInput) (*session, error) {
 	s.started++
 	sess.order = s.started
 	s.sessions[sess.ID] = sess
+	s.changedLocked(sess)
 	sess.op.Lock()
 	s.mu.Unlock()
 	defer sess.op.Unlock()
@@ -369,8 +374,9 @@ func (s *Service) Change(ctx context.Context, id string, c Caller, ch Change) (S
 	} else {
 		ch.SeekMs = nil
 	}
-	if ch.State == StatePlaying || ch.State == StatePaused {
+	if (ch.State == StatePlaying || ch.State == StatePaused) && ch.State != sess.State {
 		s.setStateLocked(sess, ch.State, now)
+		s.changedLocked(sess)
 	}
 	sess.LeaseUntil = now.Add(lease)
 	position := sess.PositionMs

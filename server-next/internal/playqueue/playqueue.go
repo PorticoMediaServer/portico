@@ -86,6 +86,10 @@ type QueueSource struct {
 	View *QueueView `json:"view,omitempty"`
 	// Radio is the song, album or artist a radio starts from. A radio never ends.
 	Radio string `json:"radio,omitempty"`
+	// Queue is another device's queue on the same account, taken on when playback moves here:
+	// the same titles in the same order from the same entry, without those this profile may
+	// not see.
+	Queue string `json:"queue,omitempty"`
 }
 
 // selection is what a queue too long to hold at once was built from, and how far into it
@@ -234,6 +238,17 @@ func (s *Service) Create(ctx context.Context, c Caller, in CreateInput) (db.Queu
 		}
 	}
 	src := in.Source
+	if src.Queue != "" {
+		copied, err := s.db.CopyableQueue(ctx, c.Viewer, src.Queue)
+		if err != nil {
+			return db.Queue{}, err
+		}
+		if len(copied.Items) == 0 {
+			return db.Queue{}, ErrUnsupported
+		}
+		n.Items, n.Start, n.ShuffleSeed, n.Selection, n.InOrder = copied.Items, copied.Start, copied.ShuffleSeed, copied.Selection, true
+		return s.db.CreateQueue(ctx, n)
+	}
 	if src.Radio != "" {
 		if sel, src, err = s.radio(ctx, c.Viewer, src.Radio); err != nil {
 			return db.Queue{}, err

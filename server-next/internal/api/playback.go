@@ -217,6 +217,15 @@ func (s *Server) startPlayback(r *http.Request, req PlaybackStart) (PlaybackSess
 	if len(req.DiscTitle) > 0 && string(req.DiscTitle) != "null" {
 		return PlaybackSession{}, notYet("disc_playback_unavailable", "This server can't play discs yet.")
 	}
+	if req.RequestID != "" {
+		// Playback moving here from another device: what that device plays still runs until
+		// this one plays, and the two are one stream meanwhile.
+		asked, err := s.receivers.Get(in.Caller.Viewer.UserID, req.RequestID)
+		if err != nil || asked.To.SignInID != in.Caller.SignInID || !asked.Open() || asked.Play == nil || asked.Play.ItemID != req.ItemID {
+			return PlaybackSession{}, ErrField("requestId", "This is not an open request to play this title here.")
+		}
+		in.Moving = asked.Moving
+	}
 	session, ready, created, err := s.playback.Start(r.Context(), in)
 	if err != nil {
 		return PlaybackSession{}, playbackError(err)
@@ -241,6 +250,14 @@ func (s *Server) changePlayback(r *http.Request, req PlaybackChange) (PlaybackSe
 	if req.State != "" && req.State != playback.StatePlaying && req.State != playback.StatePaused {
 		return PlaybackSession{}, ErrField("state", "The state is playing or paused.")
 	}
+	if req.Skip != "" && req.Skip != "next" && req.Skip != "previous" {
+		return PlaybackSession{}, ErrField("skip", "Skip to next or previous.")
+	}
+	c := s.playbackCaller(r)
+	if _, err := s.playback.Get(r.PathValue("id"), c.Viewer, c.SignInID); errors.Is(err, db.ErrNotFound) {
+		// Not this device's own: another of the account's devices, if it allowed this one.
+		return s.remoteChange(r, r.PathValue("id"), req)
+	}
 	change := playback.Change{State: req.State, Replan: req.Replan, PositionMs: req.PositionMs, Failure: req.Failure,
 		Ask: playback.Ask{VersionID: req.VersionID, Quality: req.Quality, SubtitleOffsetMs: req.SubtitleOffsetMs,
 			ThroughputKbps: req.ThroughputKbps}}
@@ -254,6 +271,9 @@ func (s *Server) changePlayback(r *http.Request, req PlaybackChange) (PlaybackSe
 	if req.Seek != nil {
 		position := max(req.Seek.PositionMs, 0)
 		change.SeekMs, change.SeekID = &position, req.Seek.ID
+	}
+	if req.Skip != "" {
+		return PlaybackSession{}, ErrField("skip", "Move along this device's own queue with POST /v1/queues/{id}/advance.")
 	}
 	session, err := s.playback.Change(r.Context(), r.PathValue("id"), s.playbackCaller(r), change)
 	return sessionOut(session), playbackError(err)
@@ -294,15 +314,21 @@ func (s *Server) accountPlayback(r *http.Request, _ None) (AccountPlayback, erro
 	}
 	out := AccountPlayback{Items: make([]AccountStream, 0, len(sessions))}
 	for _, v := range sessions {
-		stream := AccountStream{ID: v.ID, DeviceID: v.Device.PublicID, DeviceName: v.Device.Name, Kind: sessionKind(v.Item.Kind),
-			State: v.State, PositionMs: v.PositionMs, StartedAt: v.StartedAt.UTC(), Current: v.SignInID == c.SignInID}
-		if title, ok := titles[v.Item.ID]; ok {
-			stream.ItemID, stream.Title, stream.DurationMs = v.Item.PublicID, title, v.Item.DurationMS
-		}
-		out.Items = append(out.Items, stream)
+		out.Items = append(out.Items, streamOut(v, titles, c.SignInID))
 	}
 	out.Limit, err = s.playback.AccountLimit(r.Context(), c.SignInID)
 	return out, err
+}
+
+// streamOut is one of the account's sessions as any of its devices sees it: the title only if
+// the asking profile may see it.
+func streamOut(v playback.Session, titles map[int64]string, signInID int64) AccountStream {
+	stream := AccountStream{ID: v.ID, DeviceID: v.Device.PublicID, DeviceName: v.Device.Name, Kind: sessionKind(v.Item.Kind),
+		State: v.State, PositionMs: v.PositionMs, StartedAt: v.StartedAt.UTC(), Current: v.SignInID == signInID}
+	if title, ok := titles[v.Item.ID]; ok {
+		stream.ItemID, stream.Title, stream.DurationMs = v.Item.PublicID, title, v.Item.DurationMS
+	}
+	return stream
 }
 
 func (s *Server) getStreamLimits(r *http.Request, _ None) (StreamLimits, error) {

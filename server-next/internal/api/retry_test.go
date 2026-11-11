@@ -8,6 +8,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
+	"github.com/PorticoMediaServer/portico/server-next/internal/receivers"
 )
 
 // Sending POST twice is safe for these routes without an Idempotency-Key, for the reason given.
@@ -74,6 +75,11 @@ func TestCreatesAreSafeToRepeat(t *testing.T) {
 			body: QueueSave{Name: "Evening"}, other: QueueSave{Name: "Morning"}},
 		{route: "POST /v1/playback/sessions", body: PlaybackStart{ItemID: th.film}, other: PlaybackStart{ItemID: th.song},
 			inMemoryOnly: true},
+		{route: "POST /v1/receivers/{id}/requests", path: func() string {
+			var tv ReceiverOpen
+			call(t, th.s, "PUT", "/v1/receivers/current", onMain(t, th.s, signIn(t, th.s, 1)).AccessToken, nil, &tv)
+			return "/v1/receivers/" + tv.ID + "/requests"
+		}, body: ReceiverAsk{Kind: "control"}, other: ReceiverAsk{Kind: "play", Play: &receivers.Play{ItemID: th.film}}, inMemoryOnly: true},
 	}
 
 	keyed := map[string]bool{}
