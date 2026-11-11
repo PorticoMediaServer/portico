@@ -346,6 +346,29 @@ func TestSearchFollowsALabel(t *testing.T) {
 	s.agrees(everyone, "breaking", "episode", 2)
 }
 
+// A show kept from a profile for its own label, and also left with nothing under it the profile
+// may see, is left out of the show count once: the count already leaves it out for its label,
+// so it must not be taken away again for being empty.
+func TestSearchCountsAShowHiddenTwiceOnce(t *testing.T) {
+	s := newShelf(t)
+	label := []db.TagName{{Kind: db.TagLabel, Name: "Not for kids"}}
+	show, season := key("breaking point"), key("breaking point/1")
+	s.add(s.shows,
+		db.ImportItem{Kind: db.KindShow, Keys: []db.ItemKey{show}, Title: "Breaking Point", Tags: label},
+		db.ImportItem{Kind: db.KindSeason, Keys: []db.ItemKey{season}, Parent: &show, Title: "Season 1", Tags: label},
+		db.ImportItem{Kind: db.KindEpisode, Parent: &season, Title: "Pilot"})
+	labels, err := s.d.Tags(ctx, db.TagLabel)
+	if err != nil || len(labels) != 1 {
+		t.Fatalf("labels: %v, %v", labels, err)
+	}
+	child, err := s.d.CreateSeedProfile(ctx, db.SeedProfile{Name: "child", BlockedTags: []string{labels[0].PublicID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.agrees(s.v, "breaking", "show", 2)
+	s.agrees(child, "breaking", "show", 1) // Breaking Bad
+}
+
 // A show's rating is copied to its episodes with one change, for the show. A profile with a
 // rating limit finds the episodes when the new rating lets it, and not when it does not.
 func TestSearchFollowsAShowsRating(t *testing.T) {
