@@ -44,10 +44,14 @@ type Warning struct {
 	Message string `json:"message"`
 }
 
-// proxyEverywhereMessage is proposed wording, listed for the owner's approval.
-const proxyWithoutHeaderMessage = "A trusted proxy is passing requests on without saying who sent them (no X-Forwarded-For), " +
-	"so nobody it passes on counts as at home, your own devices included. Make the proxy send X-Forwarded-For."
+// proxyWithoutHeaderMessage is proposed wording, listed for the owner's approval. The flag behind
+// it is set by any request from a listed address with no X-Forwarded-For, which may be the
+// owner's own browser or the proxy's health check, so it says what is seen and what follows.
+const proxyWithoutHeaderMessage = "Requests are arriving from a trusted proxy's address with no X-Forwarded-For, so they do not count as at home. " +
+	"If they come through your proxy, make it add X-Forwarded-For to every request: until it does, your own devices count as away, " +
+	"and a visitor who sends that header themselves can count as at home."
 
+// proxyEverywhereMessage is proposed wording, listed for the owner's approval.
 const proxyEverywhereMessage = "A trusted proxy covers most of the internet, so anyone can say they are at home " +
 	"and skip what applies to people away from home. List only your own proxy's address unless you mean this."
 
@@ -134,12 +138,8 @@ func (s *Server) loadNetworks(ctx context.Context) error {
 	return s.network.set(stored)
 }
 
-// noteForwarded says once in the log that requests are arriving with a forwarded address
-// from a proxy the owner has not listed. Until they list it, nobody behind that proxy
-// counts as at home, and everyone behind it counts as the proxy's own address, so one
-// person's wrong guesses count against all of them.
-// noteBareProxy remembers, for the owner's network settings, that a listed proxy passed a
-// request on without X-Forwarded-For. One memory flag; nothing is stored.
+// noteBareProxy remembers, for the owner's network settings, that a request came from a listed
+// proxy's address without X-Forwarded-For. One memory flag; nothing is stored.
 func (s *Server) noteBareProxy(r *http.Request) {
 	if r.Header.Get("X-Forwarded-For") != "" || !s.networks().BareProxy(r) {
 		return
@@ -149,6 +149,10 @@ func (s *Server) noteBareProxy(r *http.Request) {
 	s.network.mu.Unlock()
 }
 
+// noteForwarded says once in the log that requests are arriving with a forwarded address
+// from a proxy the owner has not listed. Until they list it, nobody behind that proxy
+// counts as at home, and everyone behind it counts as the proxy's own address, so one
+// person's wrong guesses count against all of them.
 func (s *Server) noteForwarded(r *http.Request) {
 	if r.Header.Get("X-Forwarded-For") == "" {
 		return

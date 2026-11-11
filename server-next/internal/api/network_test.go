@@ -241,4 +241,25 @@ func TestBareProxyIsNeverHome(t *testing.T) {
 	if len(settings.Warnings) != 1 || settings.Warnings[0].Code != "proxy_without_header" {
 		t.Fatalf("the owner is told %+v", settings.Warnings)
 	}
+	// A sign-in through it is not listed as at home in the sessions list.
+	sign := newRequest("POST", "/v1/auth/sign-in", "", SignInRequest{Username: "justin", Password: testPassword, Device: device(7)})
+	sign.RemoteAddr = "192.168.1.2:4000"
+	var in SignInResponse
+	if err := jsonInto(serve(s, sign), &in); err != nil || in.Session.SessionID == "" {
+		t.Fatal("signing in through the proxy failed")
+	}
+	var sessions Page[SessionInfo]
+	call(t, s, "GET", "/v1/me/sessions", owner.AccessToken, nil, &sessions)
+	found := false
+	for _, v := range sessions.Items {
+		if v.ID == in.Session.SessionID {
+			found = true
+			if v.Network == "home" {
+				t.Fatalf("a sign-in through a proxy that did not say who sent it is listed as at home: %+v", v)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("the sign-in through the proxy is not in the sessions list")
+	}
 }

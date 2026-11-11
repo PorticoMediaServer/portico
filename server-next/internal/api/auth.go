@@ -211,7 +211,9 @@ func (s *Server) newSession(r *http.Request, device DeviceInfo, now time.Time) (
 func (s *Server) remoteHost(r *http.Request) string {
 	networks := s.networks()
 	addr, ok := networks.Client(r)
-	if !ok || networks.ThroughUnlistedProxy(r) {
+	// Through a listed proxy that did not say who sent it, the only address is the proxy's,
+	// which would list a stranger's sign-in as at home.
+	if !ok || networks.ThroughUnlistedProxy(r) || networks.BareProxy(r) {
 		return ""
 	}
 	return addr.String()
