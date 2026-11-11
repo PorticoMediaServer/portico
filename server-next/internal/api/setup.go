@@ -162,10 +162,7 @@ func (s *Server) loadSetupCode(ctx context.Context, dataDir string) error {
 	return nil
 }
 
-func validSetupCode(code string) bool {
-	key := auth.CodeKey(code)
-	return len(key) == 16 && strings.Trim(key, "ABCDEFGHJKMNPQRSTUVWXYZ23456789") == ""
-}
+func validSetupCode(code string) bool { return auth.IsCode(code, 4) }
 
 func errSetupDone() *Error {
 	return ErrConflict("setup_complete", "This server is already set up. Sign in instead.")
