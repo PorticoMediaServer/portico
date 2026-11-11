@@ -115,6 +115,8 @@ func run(log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	// Settings › Streaming is read at every plan and every conversion.
+	engine.UseSettings(handler.Settings())
 	handler.Playback().SetEngine(engine, engine)
 	handler.ServeMediaWith(engine.ServeMedia)
 	go engine.Run(ctx)
