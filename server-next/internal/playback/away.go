@@ -2,6 +2,7 @@ package playback
 
 import (
 	"errors"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/settings"
@@ -141,4 +142,51 @@ func fit(version db.PlaybackVersion, kind db.ItemKind, menu []QualityOption, q Q
 		out.Mode = QualityAutomatic
 	}
 	return kept, out, nil
+}
+
+// UploadHeld is what the upload speed is holding back right now, for the owner's Dashboard
+// ("Upload speed is holding back 2 streams"). It is counted in memory and starts again from
+// nothing when the server does.
+type UploadHeld struct {
+	// Narrowed is how many streams are playing away from home at a lower quality than they
+	// asked for because of the upload speed.
+	Narrowed int
+	// Refused is how many starts were refused for it in the last five minutes.
+	Refused int
+}
+
+// uploadRefusalsKept is how long a refused start counts.
+const uploadRefusalsKept = 5 * time.Minute
+
+// UploadHeld counts what the upload speed is holding back.
+func (s *Service) UploadHeld() UploadHeld {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out UploadHeld
+	for _, sess := range s.sessions {
+		if sess.State != StateEnded && sess.Network != NetworkLocal && sess.uploadHeld {
+			out.Narrowed++
+		}
+	}
+	out.Refused = len(s.recentRefusalsLocked())
+	return out
+}
+
+// uploadRefused notes a start refused because the upload speed is full.
+func (s *Service) uploadRefused() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	// A burst of retries is bounded: the Dashboard has no use for more than "many".
+	if s.refusals = append(s.recentRefusalsLocked(), s.now()); len(s.refusals) > 1000 {
+		s.refusals = s.refusals[len(s.refusals)-1000:]
+	}
+}
+
+// recentRefusalsLocked drops the refusals that no longer count. Caller holds s.mu.
+func (s *Service) recentRefusalsLocked() []time.Time {
+	cut := s.now().Add(-uploadRefusalsKept)
+	for len(s.refusals) > 0 && s.refusals[0].Before(cut) {
+		s.refusals = s.refusals[1:]
+	}
+	return s.refusals
 }

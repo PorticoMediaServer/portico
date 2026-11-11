@@ -214,6 +214,9 @@ func (s *Service) create(ctx context.Context, in StartInput) (*session, error) {
 	if in.Prepared != nil {
 		r = in.Prepared.r
 	} else if r, err = s.resolve(ctx, c, device, in.ItemID, in.Ask, nil, "", true); err != nil {
+		if errors.Is(err, ErrUploadFull) {
+			s.uploadRefused()
+		}
 		return nil, err
 	}
 	limits, err := s.Limits(ctx)
@@ -228,7 +231,7 @@ func (s *Service) create(ctx context.Context, in StartInput) (*session, error) {
 	case in.FromStart:
 		position = 0
 	}
-	sess := &session{version: r.version, awayKbps: r.awayKbps}
+	sess := &session{version: r.version, awayKbps: r.awayKbps, uploadHeld: r.held}
 	sess.Session = Session{ID: db.NewID("pbs"), UserID: c.Viewer.UserID, ProfileID: c.Viewer.ProfileID, SignInID: c.SignInID,
 		Device: device, Item: r.item, VersionID: r.version.PublicID, fileID: r.version.FileID, Queue: in.Queue,
 		State: StatePlaying, Choice: r.choice, Network: r.network, Plan: r.plan, Generation: 1,
@@ -276,6 +279,7 @@ func (s *Service) create(ctx context.Context, in StartInput) (*session, error) {
 	if upload := settings.Streaming.Get(s.settings).UploadSpeedKbps; upload > 0 && r.network != NetworkLocal &&
 		s.awayInUseLocked("", device.ID)+sess.awayKbps > upload*uploadSharePercent/100 {
 		s.mu.Unlock()
+		s.uploadRefused()
 		return nil, &Unplayable{Err: ErrUploadFull}
 	}
 	for _, other := range replaced {
@@ -535,6 +539,10 @@ func (s *Service) change(ctx context.Context, id string, c Caller, ch Change, fa
 	if !ended {
 		sess.version, sess.VersionID, sess.fileID = r.version, r.version.PublicID, r.version.FileID
 		sess.Choice, sess.Plan, sess.Stream, sess.awayKbps = r.choice, r.plan, stream, r.awayKbps
+		if a.Quality != nil {
+			// Only a quality change is fitted to the upload speed again.
+			sess.uploadHeld = r.held
+		}
 		if generation != sess.Generation {
 			sess.Generation, sess.StartPositionMs = generation, position
 		}

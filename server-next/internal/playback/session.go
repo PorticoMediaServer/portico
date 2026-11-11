@@ -158,6 +158,8 @@ type session struct {
 	dirty    bool
 	// awayKbps is what this stream takes of the upload speed, 0 at home. See away.go.
 	awayKbps int
+	// uploadHeld says the upload speed lowered the quality this stream was asked for.
+	uploadHeld bool
 }
 
 type startKey struct {
@@ -182,6 +184,8 @@ type Service struct {
 	now     func() time.Time
 	// settings are the owner's settings, for the limits away from home. See away.go.
 	settings *settings.Settings
+	// refusals are the times of the starts lately refused for the upload speed. See away.go.
+	refusals []time.Time
 
 	mu       sync.Mutex
 	sessions map[string]*session
