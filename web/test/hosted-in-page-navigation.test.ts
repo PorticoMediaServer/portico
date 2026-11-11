@@ -9,7 +9,7 @@ import {goTo, inPageClick, registerInPageNavigation} from '../src/platform/hoste
 // document at web.getportico.tv.
 test('in-page moves use the registered router and never reload the document', () => {
   const saved = globalThis.location, loads: string[] = [], moves: [string, boolean][] = [];
-  globalThis.location = {assign: (to: string) => {loads.push(to);}, replace: (to: string) => {loads.push(to);}} as unknown as Location;
+  globalThis.location = {origin: 'https://web.getportico.tv', assign: (to: string) => {loads.push(to);}, replace: (to: string) => {loads.push(to);}} as unknown as Location;
   // A module-level sentinel survives only while the document does.
   const sentinel = Symbol('document');
   (globalThis as {__h14?: symbol}).__h14 = sentinel;
@@ -21,14 +21,16 @@ test('in-page moves use the registered router and never reload the document', ()
     assert.equal(moves.length, 7); assert.deepEqual(moves.at(-1), ['/servers', true]);
     assert.equal((globalThis as {__h14?: symbol}).__h14, sentinel, 'the same document throughout');
     assert.throws(() => goTo('https://elsewhere.example/'), /Only a path/);
-    assert.throws(() => goTo('//elsewhere.example/'), /Only a path/);
+    // A browser reads "\\" as "/" and drops tabs and line breaks, so each of these is another site.
+    for (const to of ['//elsewhere.example/', '/\\elsewhere.example', '/\t/elsewhere.example', '/\n/elsewhere.example', '/.//elsewhere.example']) assert.throws(() => goTo(to), /Only a path/, JSON.stringify(to));
     let prevented = false;
     const click = (extra = {}) => ({defaultPrevented: false, button: 0, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false, preventDefault: () => {prevented = true;}, ...extra});
     inPageClick(click(), '/account?tab=notifications'); assert.equal(prevented, true);
+    prevented = false; inPageClick(click(), '/\\elsewhere.example'); assert.equal(prevented, false, 'another site stays the browser’s');
     prevented = false; inPageClick(click({metaKey: true}), '/'); assert.equal(prevented, false, 'a new-tab click stays the browser’s');
   } finally {off(); globalThis.location = saved;}
   // Without an app (a captured link opened alone) the same call is an ordinary page load.
-  globalThis.location = {assign: (to: string) => {loads.push(to);}, replace: (to: string) => {loads.push('replace:' + to);}} as unknown as Location;
+  globalThis.location = {origin: 'https://web.getportico.tv', assign: (to: string) => {loads.push(to);}, replace: (to: string) => {loads.push('replace:' + to);}} as unknown as Location;
   try {goTo('/servers'); goTo('/account', {replace: true}); assert.deepEqual(loads, ['/servers', 'replace:/account']);}
   finally {globalThis.location = saved;}
 });

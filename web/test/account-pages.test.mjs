@@ -10,7 +10,7 @@ const memory = () => { const m = new Map(); return {getItem: k => m.get(k) ?? nu
 globalThis.localStorage = memory();
 globalThis.sessionStorage = memory();
 const assigned = [];
-globalThis.location = {pathname: '/', search: '', hash: '', assign: url => assigned.push(url)};
+globalThis.location = {origin: 'https://web.getportico.tv', pathname: '/', search: '', hash: '', assign: url => assigned.push(url)};
 globalThis.history = {state: null, replaceState: (_s, _t, url) => { globalThis.location.hash = ''; globalThis.location.pathname = url; }};
 
 /** Portico Services, as far as one test needs it: `routes['POST /v1/accounts'] = body => [status, answer]`. */
@@ -31,6 +31,7 @@ const session = await import('../src/services/account-session.ts');
 const problems = await import('../src/services/account-problem.ts');
 const signUpMemory = await import('../src/services/account-sign-up-memory.ts');
 const {enUS} = await import('../../packages/i18n/src/catalog/en-US.ts');
+const navigation = await import('../src/platform/hosted-navigation.ts');
 
 /** The pages, wired to each other, with the kit drawn as plain named elements. */
 async function pages() {
@@ -39,7 +40,7 @@ async function pages() {
   const named = new Proxy({}, {get: (_, key) => String(key)});
   const common = {
     react: h.react, '../kit/accounts/AuthStage': named, '../kit/accounts/ServicesAuth': named, '../kit/controls': named,
-    '../platform/hosted-navigation': {goTo: to => went.push(to)},
+    '../platform/hosted-navigation': {...navigation, goTo: to => went.push(to)},
     './i18n': {servicesI18n: () => ({t: (id, values) => values ? `${id} ${JSON.stringify(values)}` : id, date: value => value})},
     './services-api': api, './account-session': session, './account-problem': problems, './account-sign-up-memory': signUpMemory,
     './AccountProviders': {ProviderButtons: () => null}, './services.module.css': {default: named},
@@ -241,7 +242,7 @@ test('after Google or Apple, the one-use code leaves the address at once and is 
   const named = new Proxy({}, {get: (_, key) => String(key)});
   const providers = await componentModule(new URL('../src/services/AccountProviders.tsx', import.meta.url), {
     react: h.react, '../kit/accounts/AuthStage': named, '../kit/accounts/ServicesAuth': named, '../kit/controls': named,
-    '../platform/hosted-navigation': {goTo: to => went.push(to)}, './i18n': {servicesI18n: () => ({t: id => id})},
+    '../platform/hosted-navigation': {...navigation, goTo: to => went.push(to)}, './i18n': {servicesI18n: () => ({t: id => id})},
     './services-api': api, './account-session': session, './account-problem': problems, './AccountTwoStep': {AccountTwoStep: () => null},
     './AccountSignIn': {signInPath: next => `/sign-in?next=${next}`}, './services.module.css': {default: named},
   });
@@ -257,4 +258,17 @@ test('after Google or Apple, the one-use code leaves the address at once and is 
   assert.equal(went.at(-1), '/approve/apr_1');
   assert.equal(sessionStorage.getItem('portico.account.provider.sso_1'), null, 'the secret is used once');
   h.dispose();
+});
+
+test('after signing in, only a path on this address is opened', async () => {
+  const {signIn} = await pages();
+  const origin = 'https://web.getportico.tv';
+  // A browser reads "\\" as "/" and drops tabs and line breaks, so each of these is another site.
+  for (const next of ['/\\evil.example', '/\\/evil.example', '/\t/evil.example', '/\n/evil.example', '//evil.example', 'https://evil.example', '/.//evil.example']) {
+    const path = signIn.returnPath('?next=' + encodeURIComponent(next));
+    assert.equal(new URL(path, origin).origin, origin, `next=${JSON.stringify(next)} leaves this address: ${new URL(path, origin).href}`);
+    assert.ok(!path.startsWith('//'), `next=${JSON.stringify(next)} gives ${path}`);
+  }
+  assert.equal(signIn.returnPath('?next=' + encodeURIComponent('/approve/abc?x=1#y')), '/approve/abc?x=1#y');
+  assert.equal(signIn.returnPath(''), '/account');
 });
