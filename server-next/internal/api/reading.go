@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/reading"
 )
 
@@ -38,6 +39,12 @@ type BookAnswer struct {
 	Contents []BookContents `json:"contents,omitempty"`
 	// Pages are a comic's pages in reading order, by their names in the archive.
 	Pages []string `json:"pages,omitempty"`
+	// Place is the profile's place in the book, as its reader saved it through PUT
+	// /v1/items/{id}/state (the state's position). PlaceExact is false when it was made in
+	// another version or an earlier copy of the file: the reader then opens at the place's
+	// progression and says "Opened near where you left off".
+	Place      JSON `json:"place,omitempty"`
+	PlaceExact bool `json:"placeExact,omitempty"`
 }
 
 // BookVersion is one file of a book.
@@ -83,6 +90,9 @@ func (s *Server) openBook(r *http.Request, _ None) (BookAnswer, error) {
 	opened := s.reading.Open(r.Context(), book, version)
 	out := BookAnswer{ItemID: book.PublicID, Version: version.PublicID, Versions: []BookVersion{}, Format: opened.Format,
 		Fingerprint: opened.Fingerprint, Size: version.Size, SaveURL: opened.SaveURL}
+	if book.Place != "" {
+		out.Place, out.PlaceExact = JSON(book.Place), db.ReadPlace(book.Place).Fingerprint == opened.Fingerprint
+	}
 	for _, v := range book.Versions {
 		out.Versions = append(out.Versions, BookVersion{ID: v.PublicID, Format: reading.Format(v.FileName), Name: v.Name})
 	}
