@@ -21,6 +21,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediaengine"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediaexec"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/titledata"
+	"github.com/PorticoMediaServer/portico/server-next/internal/supervise"
 )
 
 // version is set by the release build.
@@ -37,6 +38,14 @@ func main() {
 			}
 			os.Exit(0)
 		}
+	}
+	// The Windows installer's service arguments, and the service itself.
+	if handled, err := serviceCommand(); handled {
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
 	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	if err := run(log); err != nil {
@@ -89,6 +98,11 @@ func run(log *slog.Logger) error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	// The worker of a Windows service is told to stop by its standard input closing, which
+	// also happens if the service process dies.
+	if os.Getenv(supervise.WorkerEnvironment) == "1" {
+		supervise.WatchParent(stop, os.Stdin)
+	}
 
 	if err := os.MkdirAll(*data, 0o700); err != nil {
 		return err
