@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
@@ -106,8 +107,10 @@ func (s *Server) stateBatch(r *http.Request, req StateBatch) (StateBatchReply, e
 		if p.PlayID == "" || len(p.PlayID) > 128 || p.MadeAgoMs < 0 || p.MadeAgoMs > db.MaxEditAge.Milliseconds() {
 			return StateBatchReply{}, ErrField("plays", "Each play needs a playId of up to 128 characters and a madeAgoMs of 0 to 35 days.")
 		}
-		batch[n] = db.Progress{Viewer: v, ItemID: p.ItemID, DeviceID: deviceID, PlayID: p.PlayID, PositionMS: p.PositionMs,
-			At: now.Add(-time.Duration(p.MadeAgoMs) * time.Millisecond), WatchedMS: max(p.PlayedMs, 0)}
+		// A device names its own plays; two devices that chose the same name are told apart.
+		batch[n] = db.Progress{Viewer: v, ItemID: p.ItemID, DeviceID: deviceID, PlayID: "offline:" + strconv.FormatInt(deviceID, 10) + ":" + p.PlayID,
+			PositionMS: p.PositionMs,
+			At:         now.Add(-time.Duration(p.MadeAgoMs) * time.Millisecond), WatchedMS: max(p.PlayedMs, 0)}
 	}
 	finished, err := s.db.SaveProgress(r.Context(), db.User, batch)
 	for n, p := range req.Plays {

@@ -34,3 +34,27 @@ func TestPlaysMadeOfflineArriveLaterAndCountOnce(t *testing.T) {
 		t.Fatal("reporting offline plays started a stream")
 	}
 }
+
+// An offline play is counted with the time it actually played, never more than the title
+// lasts: a device cannot write a thousand hours of watch time into the owner's play record
+// with one finished play of a one-hour film.
+func TestAnOfflinePlayClaimsNoMoreTimeThanTheTitleLasts(t *testing.T) {
+	th := newTheatre(t)
+	plays := []OfflinePlay{{ItemID: th.film, PlayID: "offline-long", PositionMs: hour, PlayedMs: 1000 * hour, MadeAgoMs: 2 * hour}}
+	var out StateBatchReply
+	if w := call(t, th.s, "POST", "/v1/items/state:batch", th.owner.AccessToken, map[string]any{"plays": plays}, &out); w.Code != 200 {
+		t.Fatalf("the batch answered %d: %s", w.Code, w.Body)
+	}
+	if len(out.Plays) != 1 || !out.Plays[0].Finished {
+		t.Fatalf("the play was not counted: %+v", out)
+	}
+	var history struct {
+		Items []HistoryEntry `json:"items"`
+	}
+	if w := call(t, th.s, "GET", "/v1/history", th.owner.AccessToken, nil, &history); w.Code != 200 || len(history.Items) != 1 {
+		t.Fatalf("history answered %d: %s", w.Code, w.Body)
+	}
+	if got := history.Items[0].WatchedMs; got > hour {
+		t.Fatalf("one play of a one-hour film is recorded as %d ms watched; want at most %d", got, int64(hour))
+	}
+}

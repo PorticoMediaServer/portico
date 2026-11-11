@@ -638,6 +638,11 @@ func (w *stateWriter) saveProgress(sample Progress, prefs map[string]string) (fi
 		done = atCredits || done && completion != VideoCompletionCredits
 	}
 	if done {
+		// A play never claims more time than the title lasts, whatever a device reports: the
+		// owner's record and every total built from it stay honest.
+		if duration > 0 {
+			sample.WatchedMS = min(max(sample.WatchedMS, 0), duration)
+		}
 		// The profile's and the account's names are copied: the play stays in the owner's
 		// record after either is deleted.
 		res, err := w.exec(`INSERT INTO play_history (profile_id, profile_name, account_name, item_id, device_id, client_event_id, played_at,
