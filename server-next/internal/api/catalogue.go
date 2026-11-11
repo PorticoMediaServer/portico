@@ -89,8 +89,10 @@ func (s *Server) catalogueRoutes() {
 		switch l.Kind {
 		case db.LibraryMusic, db.LibraryAudiobooks:
 			title, shape = "Continue Listening", "poster"
-		case db.LibraryBooks:
-			title, shape = "Continue your books", "poster"
+		case db.LibraryBooks, db.LibraryComics:
+			// Reading rule 17: Home says "Continue your books", a reading library's own page
+			// "Continue reading".
+			title, shape = "Continue reading", "poster"
 		}
 		return Home{Rows: shownRows([]HomeRow{
 			{ID: "continue", Title: title, Shape: shape, Items: itemShapes(continuing)},
