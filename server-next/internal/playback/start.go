@@ -341,6 +341,21 @@ func (s *Service) failed(sess *session) func(Stream) {
 		ready := sess.ready
 		caller := Caller{Viewer: sess.Viewer(), SignInID: sess.SignInID}
 		s.mu.Unlock()
+		if failed.Problem != "" {
+			// The server's own fault: no other way of playing would fare better, and nothing is
+			// remembered against this way of playing. The viewer is told, if this is still the
+			// stream the session plays.
+			s.mu.Lock()
+			current := sess.Stream.Grant == failed.Grant && sess.State != StateEnded
+			if current {
+				s.endLocked(sess, EndFailed, failed.Problem)
+			}
+			s.mu.Unlock()
+			if current {
+				s.finish(context.Background(), sess)
+			}
+			return
+		}
 		if !ready || failed.Grant == "" {
 			// A stream that fails before it has produced anything ends the start: awaitReady.
 			return

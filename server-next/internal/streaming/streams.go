@@ -105,6 +105,9 @@ type Stream struct {
 	// Mode is "direct" for the original file by byte range, "audio" for a
 	// planned music stream, "hls" otherwise.
 	Mode string
+	// Failure is why the stream failed, as a ConversionFailure code, on the copy handed to
+	// StartRequest.Failed.
+	Failure string
 }
 
 // StreamStatus is what the session layer can say about a session's stream.
@@ -301,7 +304,8 @@ func (st *stream) public() Stream {
 	if st.mode == "audio" {
 		url = st.audioURL()
 	}
-	return Stream{Grant: st.grant, URL: url, Mode: st.mode}
+	out := Stream{Grant: st.grant, URL: url, Mode: st.mode}
+	return out
 }
 
 // token is 128 random bits in URL-safe text: a grant nobody can guess, or the
