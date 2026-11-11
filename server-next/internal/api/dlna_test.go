@@ -39,11 +39,12 @@ func browse(s *Server, peer, id, flag string) *httptest.ResponseRecorder {
 }
 
 // DLNA is off until the owner turns it on, and can be turned on only once the owner has listed
-// home networks that do not cover the whole internet. Then a device at home (Tailscale and a
-// proxy the owner listed included), with no sign-in, browses the libraries and plays an
-// original by range, and nothing is recorded. A device away, a proxy the owner did not list,
-// and a web page that re-points its own name at the server are refused, with the same 404 as
-// when DLNA is off.
+// home networks; a list that takes in the whole internet is warned about, not refused. Then a
+// device at home (on Tailscale, or behind a proxy the owner listed that passes its address),
+// with no sign-in, browses the libraries and plays an original by range, and nothing is
+// recorded. A device away, a proxy that passes on no address, this machine's loopback, a proxy
+// the owner did not list, and a web page that re-points its own name at the server are refused,
+// with the same 404 as when DLNA is off.
 func TestDLNA(t *testing.T) {
 	s := newTestServer(t)
 	owner := onMainProfile(t, s).AccessToken
@@ -80,7 +81,7 @@ func TestDLNA(t *testing.T) {
 			t.Fatalf("saving the home networks answered %d", got)
 		}
 	}
-	setHome("192.168.1.0/24", "100.64.0.0/10")
+	setHome("192.168.1.0/24", "100.64.0.0/10", "127.0.0.0/8")
 	var settings RemoteAccessSettings
 	if w := call(t, s, "PUT", "/v1/admin/settings/remote-access", owner, RemoteAccessSettingsEdit{DLNA: &on}, &settings); w.Code != 200 || settings.Warning != "" {
 		t.Fatalf("turning DLNA on answered %d with warning %q", w.Code, settings.Warning)
@@ -125,6 +126,8 @@ func TestDLNA(t *testing.T) {
 		{"a name of several parts under a home ending", home, map[string]string{"Host": "nas.home.lan"}, 200},
 		{"the owner's own domain, not yet added", home, map[string]string{"Host": "media.example.com"}, 404},
 		{"the owner's proxy passing a home address", proxy, map[string]string{"X-Forwarded-For": home}, 200},
+		{"the owner's proxy passing no address", proxy, nil, 404},
+		{"this machine's loopback, although listed as home", "127.0.0.1", nil, 404},
 		{"a device away from home", away, nil, 404},
 		{"the owner's proxy passing an address away", proxy, map[string]string{"X-Forwarded-For": away}, 404},
 		{"a proxy the owner did not list", home, map[string]string{"X-Forwarded-For": home}, 404},
