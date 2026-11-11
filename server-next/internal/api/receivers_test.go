@@ -225,6 +225,86 @@ func TestPlayOnRefusals(t *testing.T) {
 	}
 }
 
+// live counts the account's streams that are still playing.
+func (th *theatre) live(token string) int {
+	th.Helper()
+	var account AccountPlayback
+	call(th.T, th.s, "GET", "/v1/playback/sessions", token, nil, &account)
+	return len(account.Items)
+}
+
+// A move whose second device started and then failed, was cancelled or ran out of time leaves
+// the account exactly as it was: the first device plays on, the second's start is undone, and
+// a stream limit of one is never passed. Nobody but the two devices reads the request, and
+// nobody else copies the queue it names.
+func TestAFailedMoveLeavesTheAccountAsItWas(t *testing.T) {
+	th := newTheatre(t)
+	phone := th.owner.AccessToken
+	tv := onMain(t, th.s, signIn(t, th.s, 1)).AccessToken
+	if code := status(t, th.s, "PUT", "/v1/admin/playback/stream-limits", phone, StreamLimits{PerPerson: 1}); code != 200 {
+		t.Fatalf("setting a stream limit answered %d", code)
+	}
+	var opened ReceiverOpen
+	call(t, th.s, "PUT", "/v1/receivers/current", tv, nil, &opened)
+	playing := th.play(phone, th.film)
+	th.report(phone, playing.ID, "playing", 300_000)
+
+	for n, ending := range []string{"failed", "cancelled", "timed_out"} {
+		_, asked := th.ask(phone, opened.ID, "move-"+ending, ReceiverAsk{Kind: "play", SessionID: playing.ID,
+			Play: &receivers.Play{ItemID: th.film, PositionMs: 300_000}})
+		th.answer(tv, asked.ID, ReceiverAnswer{Answer: "allowed"})
+		code, onTV := th.start(tv, "", PlaybackStart{ItemID: th.film, RequestID: asked.ID})
+		if code != 201 {
+			t.Fatalf("%s: the TV's start under the move answered %d", ending, code)
+		}
+		if n == 0 {
+			// A third device is refused meanwhile: the two count as one stream, at the limit.
+			if code, _ := th.start(onMain(t, th.s, signIn(t, th.s, 2)).AccessToken, "", PlaybackStart{ItemID: th.song}); code != 409 {
+				t.Fatalf("a third device started during a move under a limit of one: %d", code)
+			}
+		}
+		switch ending {
+		case "failed":
+			th.answer(tv, asked.ID, ReceiverAnswer{Answer: "failed"})
+		case "cancelled":
+			if code := status(t, th.s, "DELETE", "/v1/receivers/"+opened.ID+"/requests/"+asked.ID, phone, nil); code != 200 {
+				t.Fatalf("cancelling answered %d", code)
+			}
+		case "timed_out":
+			for range 2 {
+				th.clock = th.clock.Add(time.Minute + time.Second)
+				call(t, th.s, "PUT", "/v1/receivers/current", tv, nil, nil)
+				th.report(phone, playing.ID, "playing", 300_000)
+				th.report(tv, onTV.ID, "playing", 300_000)
+			}
+			th.s.receivers.Sweep()
+		}
+		if live, tvGone := th.live(phone), th.report(tv, onTV.ID, "playing", 310_000); live != 1 || tvGone != 410 ||
+			th.report(phone, playing.ID, "playing", 300_000) != 200 {
+			t.Fatalf("after a move that %s: %d streams play, the TV's report answered %d", ending, live, tvGone)
+		}
+	}
+
+	// Only the two devices read a request; another profile of the account cannot read it or
+	// copy the queue it names.
+	var kid Profile
+	call(t, th.s, "POST", "/v1/profiles", phone, ProfileCreate{Name: "Kid"}, &kid)
+	var onKid Session
+	call(t, th.s, "POST", "/v1/profiles/"+kid.ID+"/select", signIn(t, th.s, 3).Session.AccessToken, ProfileSelect{}, &onKid)
+	var made QueueCreated
+	call(t, th.s, "POST", "/v1/queues", phone, QueueCreate{Source: playqueue.QueueSource{Items: th.eps[:]}}, &made)
+	_, asked := th.ask(phone, opened.ID, "move-queue", ReceiverAsk{Kind: "play", Play: &receivers.Play{ItemID: th.eps[0], QueueID: made.Queue.ID}})
+	if code := status(t, th.s, "GET", "/v1/receivers/"+opened.ID+"/requests/"+asked.ID, onKid.AccessToken, nil); code != 404 {
+		t.Errorf("another profile read a request: %d", code)
+	}
+	if code := status(t, th.s, "POST", "/v1/queues", onKid.AccessToken, QueueCreate{Source: playqueue.QueueSource{Queue: made.Queue.ID}}); code != 404 {
+		t.Errorf("another profile copied a queue it was not offered: %d", code)
+	}
+	if code := status(t, th.s, "POST", "/v1/queues", tv, QueueCreate{Source: playqueue.QueueSource{Queue: made.Queue.ID}}); code != 201 {
+		t.Errorf("the asked TV could not copy the queue it was offered: %d", code)
+	}
+}
+
 // Another of the account's devices may stop a stream, but where it says it is does not become
 // that stream's resume point.
 func TestStoppingAnotherDeviceKeepsItsPlace(t *testing.T) {
