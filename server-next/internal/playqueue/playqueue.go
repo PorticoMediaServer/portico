@@ -180,15 +180,10 @@ type Service struct {
 	// advances counts, by queue id, the entries that played to their end one after another
 	// without the person touching the queue: what "Still watching?" goes by.
 	advances map[string]int
-	// ended is, by queue id, the playback session whose "played to its end" was counted last.
-	// The same session ending again is the same report sent again: with repeat one the entry
-	// does not change, so only the session tells a resent report from the entry played again.
-	ended map[string]string
 }
 
 func New(d *db.DB, p *playback.Service, now func() time.Time) *Service {
-	return &Service{db: d, playback: p, now: now, prepared: map[string]*prepared{}, committed: map[string]string{}, advances: map[string]int{},
-		ended: map[string]string{}}
+	return &Service{db: d, playback: p, now: now, prepared: map[string]*prepared{}, committed: map[string]string{}, advances: map[string]int{}}
 }
 
 func newSeed() int64 { return rand.Int64N(1<<62) + 1 }
@@ -511,19 +506,8 @@ func (s *Service) currentItem(ctx context.Context, v db.Viewer, q db.Queue) (db.
 
 // Advance moves the queue on: reason is completion (the entry played to its end), next,
 // previous or entry (jump to entryID). The app then starts the new current entry. At the
-// end of a queue that does not repeat it is db.ErrQueueEnded. session, for a completion, is
-// the playback session that ended: a completion of a session already counted is answered with
-// the queue as it stands and changes nothing.
-func (s *Service) Advance(ctx context.Context, c Caller, id string, ifMatch int64, reason string, entryID, from int64,
-	session string) (db.Queue, error) {
-	if reason == "completion" && session != "" {
-		s.mu.Lock()
-		again := s.ended[id] == session
-		s.mu.Unlock()
-		if again {
-			return s.db.Queue(ctx, c.Viewer, id)
-		}
-	}
+// end of a queue that does not repeat it is db.ErrQueueEnded.
+func (s *Service) Advance(ctx context.Context, c Caller, id string, ifMatch int64, reason string, entryID, from int64) (db.Queue, error) {
 	s.cancelPrepared(id)
 	q, err := s.db.Queue(ctx, c.Viewer, id)
 	if err != nil {
@@ -544,14 +528,7 @@ func (s *Service) Advance(ctx context.Context, c Caller, id string, ifMatch int6
 	}
 	s.mu.Lock()
 	if reason == "completion" {
-		// Two resends may pass the early check while the database write waits.
-		// Check again under the same lock as the counter.
-		if session == "" || s.ended[id] != session {
-			s.advances[id]++
-		}
-		if session != "" {
-			s.ended[id] = session
-		}
+		s.advances[id]++
 	} else {
 		delete(s.advances, id)
 	}
@@ -575,7 +552,7 @@ func (s *Service) Begin(ctx context.Context, c Caller, id string, entryID int64)
 		return "", err
 	}
 	if q.CurrentEntry != entryID {
-		if _, err := s.Advance(ctx, c, id, 0, "entry", entryID, 0, ""); err != nil {
+		if _, err := s.Advance(ctx, c, id, 0, "entry", entryID, 0); err != nil {
 			return "", err
 		}
 	}
@@ -587,7 +564,6 @@ func (s *Service) Delete(ctx context.Context, c Caller, id string) error {
 	s.cancelPrepared(id)
 	s.mu.Lock()
 	delete(s.advances, id)
-	delete(s.ended, id)
 	s.mu.Unlock()
 	return s.db.DeleteQueue(ctx, c.Viewer, id)
 }

@@ -130,10 +130,6 @@ type QueueAdvance struct {
 	// answer was lost can be sent again: the queue has already moved off that entry, so it
 	// is answered as it stands and does not move a second time.
 	FromEntryID string `json:"fromEntryId,omitempty"`
-	// SessionID, with completion, is the playback session that played to its end. A
-	// completion sent again for the same session (its answer was lost) changes nothing and
-	// counts once towards "Still watching?", also with repeat one, where the entry stays the same.
-	SessionID string `json:"sessionId,omitempty"`
 }
 
 // QueuePrepare asks for the next entry to be got ready. SessionID is what is playing now.
@@ -404,7 +400,7 @@ func (s *Server) advanceQueue(r *http.Request, req QueueAdvance) (Queue, error) 
 			return Queue{}, ErrField("fromEntryId", "This is not an entry of a queue.")
 		}
 	}
-	q, err := s.queues.Advance(r.Context(), s.playbackCaller(r), r.PathValue("id"), revision, req.Reason, entry, from, req.SessionID)
+	q, err := s.queues.Advance(r.Context(), s.playbackCaller(r), r.PathValue("id"), revision, req.Reason, entry, from)
 	return s.queueOut(q), queueError(err)
 }
 

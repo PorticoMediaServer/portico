@@ -105,6 +105,27 @@ func TestTheOwnerOrdersLibrariesAndExploresFolders(t *testing.T) {
 			t.Errorf("the order %v answered %d; want 400", bad, code)
 		}
 	}
+	// The explorer says which folders are a library's already and which cannot be chosen:
+	// the server's own data folder, what is inside it, and what holds it.
+	_, again := explore("path=" + url.QueryEscape(root))
+	marks := map[string]FolderChoice{}
+	for _, f := range again.Folders {
+		marks[f.Name] = f
+	}
+	if marks["films"].Library != "Films" || marks["Music"].Library != "Music" || marks["media"].Library != "" || marks["media"].CannotBeChosen != "" {
+		t.Fatalf("folders that are libraries: %+v", again.Folders)
+	}
+	_, above := explore("path=" + url.QueryEscape(filepath.Dir(s.dataDir)))
+	found := false
+	for _, f := range above.Folders {
+		if f.Path == s.dataDir {
+			found = f.CannotBeChosen != ""
+		}
+	}
+	if _, top := explore(""); !found || top.Folders[0].CannotBeChosen == "" {
+		t.Fatalf("the data folder and the whole disk should say they cannot be chosen: %+v, %+v", above.Folders, top.Folders)
+	}
+
 	member := memberToken(t, s, owner)
 	if code := status(t, s, "GET", "/v1/admin/filesystem", member, nil); code != 403 {
 		t.Errorf("a member exploring folders answered %d", code)

@@ -167,19 +167,9 @@ func TestQueueEditsPagingRepeatAndRestart(t *testing.T) {
 	// Repeat one plays the same entry again when it ends, but Next still moves on.
 	th.queue("PATCH", path, "", QueueChange{Repeat: "one"}, &q)
 	current := q.Current.EntryID
-	th.queue("POST", path+"/advance", "", QueueAdvance{Reason: "completion", SessionID: "ses_first"}, &q)
+	th.queue("POST", path+"/advance", "", QueueAdvance{Reason: "completion"}, &q)
 	if q.Current.EntryID != current || q.AutomaticAdvances != 1 {
 		t.Fatalf("repeat one moved on: %+v", q)
-	}
-	// The same "played to its end" sent again, its answer lost, counts once; the entry played
-	// again, in a new session, counts again.
-	th.queue("POST", path+"/advance", "", QueueAdvance{Reason: "completion", SessionID: "ses_first"}, &q)
-	if q.Current.EntryID != current || q.AutomaticAdvances != 1 {
-		t.Fatalf("a resent completion under repeat one: %+v", q)
-	}
-	th.queue("POST", path+"/advance", "", QueueAdvance{Reason: "completion", SessionID: "ses_second"}, &q)
-	if q.AutomaticAdvances != 2 {
-		t.Fatalf("playing it again under repeat one: %+v", q)
 	}
 	th.queue("POST", path+"/advance", "", QueueAdvance{Reason: "next"}, &q)
 	if q.Current.Position != 3 || q.AutomaticAdvances != 0 {
