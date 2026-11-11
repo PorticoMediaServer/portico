@@ -97,6 +97,44 @@ func (s *Server) mcpTools(r *http.Request, c Caller) []mcp.Tool {
 				}
 				return s.mcpList(get, url.Values{"parent": {a.ID}, "limit": {"50"}}, "", a.Cursor, false)
 			}},
+		{Name: "search_titles", Description: "Find titles by name, as the server's own search does: films, shows, episodes, artists, albums, tracks, books and audiobooks, best match first.",
+			InputSchema: mcp.Schema([]string{"query"}, map[string]string{"query": "What to look for.",
+				"kind":   "Only this kind: movie, show, episode, artist, album, track, book or audiobook. With a kind, 20 at a time.",
+				"cursor": "From the previous answer, with the same query and kind, for the next 20."}),
+			Run: func(_ context.Context, raw json.RawMessage) (any, error) {
+				var a struct{ Query, Kind, Cursor string }
+				if err := args(raw, &a); err != nil {
+					return nil, err
+				}
+				q := url.Values{"q": {a.Query}, "limit": {"20"}}
+				if a.Kind != "" {
+					q.Set("kind", a.Kind)
+				}
+				if a.Cursor != "" {
+					q.Set("cursor", a.Cursor)
+				}
+				var found SearchResults
+				if err := get("/v1/search", q, &found); err != nil {
+					return nil, toolError(err)
+				}
+				out, next := []map[string]any{}, ""
+				for _, g := range found.Groups {
+					for _, it := range g.Items {
+						title := mcpTitle(it)
+						if it.Parent != nil {
+							title["in"] = it.Parent.Title
+						}
+						if it.Root != nil {
+							title["show"] = it.Root.Title
+						}
+						out = append(out, title)
+					}
+					if a.Kind != "" {
+						next = g.NextCursor
+					}
+				}
+				return map[string]any{"titles": out, "nextCursor": next}, nil
+			}},
 		{Name: "get_title", Description: "Read one title: its summary, year, length, where it sits and whether it was watched.",
 			InputSchema: mcp.Schema([]string{"id"}, map[string]string{"id": "The title's id."}),
 			Run: func(_ context.Context, raw json.RawMessage) (any, error) {

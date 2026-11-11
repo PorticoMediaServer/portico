@@ -57,7 +57,7 @@ func TestAssistant(t *testing.T) {
 		names = append(names, tool.(map[string]any)["name"].(string))
 	}
 	slices.Sort(names)
-	want := []string{"get_title", "list_children", "list_libraries", "list_titles", "mark_watched", "now_playing", "server_status"}
+	want := []string{"get_title", "list_children", "list_libraries", "list_titles", "mark_watched", "now_playing", "search_titles", "server_status"}
 	if !slices.Equal(names, want) {
 		t.Errorf("an administrator key's assistant has tools %v, want only %v", names, want)
 	}
