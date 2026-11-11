@@ -41,14 +41,17 @@ const (
 
 // Why a session ended, when its own device did not stop it.
 const (
-	EndStopped       = "stopped"
-	EndReplaced      = "replaced"       // the same device started something else
-	EndLeaseExpired  = "lease_expired"  // the device went quiet
-	EndSignedOut     = "signed_out"     // the sign-in was ended or the account turned off
-	EndAccess        = "access_removed" // the profile may no longer see the title
-	EndTerminated    = "terminated"     // the owner or an administrator stopped it
-	EndPausedTooLong = "paused_timeout"
-	EndFailed        = "failed"
+	EndStopped = "stopped"
+	// EndStoppedElsewhere: another of the account's devices stopped it, or the server undid a
+	// move that failed.
+	EndStoppedElsewhere = "stopped_elsewhere"
+	EndReplaced         = "replaced"       // the same device started something else
+	EndLeaseExpired     = "lease_expired"  // the device went quiet
+	EndSignedOut        = "signed_out"     // the sign-in was ended or the account turned off
+	EndAccess           = "access_removed" // the profile may no longer see the title
+	EndTerminated       = "terminated"     // the owner or an administrator stopped it
+	EndPausedTooLong    = "paused_timeout"
+	EndFailed           = "failed"
 )
 
 // ErrEnded: the session is known and over.
@@ -430,19 +433,26 @@ func (s *Service) Save(ctx context.Context, p db.Priority, only ...string) {
 }
 
 // Stop ends a session from its own device, or from another of the account's devices (the
-// stream limit screen lists them to be stopped). positionMs, when not nil, is the device's
-// final position. Stopping a session that is unknown or already over succeeds.
-func (s *Service) Stop(ctx context.Context, id string, userID int64, positionMs *int64) {
+// stream limit screen lists them to be stopped, and a move stops the device it moved from).
+// by is the sign-in stopping it, 0 for the server itself. positionMs, when not nil, is the
+// device's final position, and counts only from the session's own sign-in: another device
+// does not know where this one is, and must not move its resume point or mark it watched.
+// Stopping a session that is unknown or already over succeeds.
+func (s *Service) Stop(ctx context.Context, id string, userID, by int64, positionMs *int64) {
 	s.mu.Lock()
 	sess := s.sessions[id]
 	if sess == nil || sess.UserID != userID || sess.State == StateEnded {
 		s.mu.Unlock()
 		return
 	}
+	reason := EndStopped
+	if by != sess.SignInID {
+		reason, positionMs = EndStoppedElsewhere, nil
+	}
 	if positionMs != nil {
 		s.sampleLocked(sess, *positionMs, sess.playedMs, s.now())
 	}
-	s.endLocked(sess, EndStopped, "")
+	s.endLocked(sess, reason, "")
 	s.mu.Unlock()
 	s.finish(ctx, sess)
 }
