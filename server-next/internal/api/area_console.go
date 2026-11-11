@@ -66,6 +66,7 @@ func (s *Server) startConsole(ctx context.Context) error {
 	s.playHistoryRoutes()
 	s.notificationRoutes()
 	s.reportRoutes()
+	s.dashboardRoutes()
 	// The console's part of the daily tidy-up: notices past the owner's keeping time, crash
 	// reports after 30 days and app logs no report names, the activity record after a year.
 	s.jobs.Tidy("notices", 24*time.Hour, s.notices().Tidy)
