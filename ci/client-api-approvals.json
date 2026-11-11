@@ -1540,11 +1540,11 @@
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
     "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
   },
-  "apps/native/src-next/screens/settings-live/settings-controller.ts#a24c5fcb0366cced": {
+  "apps/native/src-next/screens/settings-live/settings-controller.ts#3c92514366952e39": {
     "category": "platform-transport",
     "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
     "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
-    "guardHash": "e31ce40081fb20451a41f0e93e1615160ee11b6283c19380dd408e2143ea42b2",
+    "guardHash": "c87fc306cb67fe041a6661ab680d7722182e38c1f7c263b97d2f7a973e77c8a9",
     "occurrences": 1,
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
     "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
@@ -2329,11 +2329,11 @@
     "occurrences": 1,
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6650348707"
   },
-  "apps/native/src-next/shell/bootstrap-services.ts#de7bb4bc80ff725c": {
+  "apps/native/src-next/shell/bootstrap-services.ts#1a07fd72613c8699": {
     "category": "platform-transport",
     "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
     "condition": "Exact full canonical guard span and file-qualified occurrence budget. Core builds path, method, body, auth and header sequence; platform constructs nothing. Notifications consume exactly two combined occurrences; each share file has its own count-one allowance. Any span change voids approval.",
-    "guardHash": "4b62d415ec5c785ef36a7993f165dfaa55290e0f51838f59eeede3af604d103f",
+    "guardHash": "198fbbb107f2b27bfeb3819eb36c4c4dadab0dd4d64c51de2e9e6afc4275dff4",
     "occurrences": 1,
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6650348707"
   },

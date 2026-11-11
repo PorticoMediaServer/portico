@@ -92,7 +92,7 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
     open(route);
   };
   // An edit made out of reach of the server that will never be saved is said once.
-  const offDropped = context.api.onOutboxDropped(kind => {if (alive && context.current()) feedback.notice(defaultI18n.t(kind === 'list' ? 'sync.notSaved.list' : 'sync.notSaved.personal'));});
+  const offDropped = context.api.onOutboxDropped(kind => {if (alive && context.current()) feedback.notice(defaultI18n.t(kind === 'list' ? 'sync.notSaved.list' : kind === 'settings' ? 'sync.notSaved.settings' : 'sync.notSaved.personal'));});
   const platform = {platform: Platform.isTV ? 'tv' as const : 'phone-app' as const, playbackAvailable: true, queueAvailable: true};
   const environment = () => {
     const document = context.home.getSnapshot().document;

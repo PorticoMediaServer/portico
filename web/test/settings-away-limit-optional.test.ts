@@ -22,7 +22,7 @@ for (const refusal of [new ApiError(403, 'profile_pin_manage', 'Enter this profi
     if (path === routePath('get_connectivity_status')) throw refusal;
     return {scope: {serverId, viewerFence: 'a'.repeat(64)}, data: {}} as T;
   }};
-  const reader = new PreferencesReader(api, {serverId, viewerId: 'viewer'});
+  const reader = new PreferencesReader(api);
   const controller = new SettingsController({api, serverId, viewerId: 'viewer', role: 'owner', mainProfile: true,
     capabilities: {manageServer: true, managePeople: false, manageSignIn: false}, preferences, reader, isCurrent: () => true, reportError: error => {throw error;},
     environment: {platform: 'web', os: 'browser'}, eligibility: {hasEngine: () => true, library: () => undefined},
@@ -49,7 +49,7 @@ test('through the Settings request wrapper and the real API, a refused away-limi
   const off = http.subscribeManageGate(refusal => prompts.push(refusal));
   const life = new AbortController();
   const api = {request: guardedSettingsRequest(http, () => {}, input => input ? AbortSignal.any([life.signal, input]) : life.signal)} as SettingsControllerOptions['api'];
-  const reader = new PreferencesReader(api, {serverId, viewerId: 'viewer'});
+  const reader = new PreferencesReader(api);
   const controller = new SettingsController({api, serverId, viewerId: 'viewer', role: 'owner', mainProfile: true,
     capabilities: {manageServer: true, managePeople: false, manageSignIn: false}, preferences, reader, isCurrent: () => true, reportError: error => {throw error;},
     environment: {platform: 'web', os: 'browser'}, eligibility: {hasEngine: () => true, library: () => undefined},

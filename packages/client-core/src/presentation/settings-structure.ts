@@ -301,18 +301,18 @@ const accountPages: readonly AuthoredPage[] = [
     id: 'quality', title: 'settings.page.quality', icon: 'quality', sections: [
       // Two saved defaults: at home and away. The player can still choose another quality for one title.
       {id: 'limits', title: 'settings.section.qualityLimits', rows: [
-        pref('quality.home', 'settings.row.qualityHome', {type: 'choice', choices: qualityChoices}, {scope: 'deviceClass', help: 'settings.help.qualityHome'}),
-        pref('quality.remote', 'settings.row.qualityAway', {type: 'choice', choices: qualityChoices}, {scope: 'deviceClass', help: 'settings.help.qualityAway'}),
+        pref('quality.home', 'settings.row.qualityHome', {type: 'choice', choices: qualityChoices}, {scope: 'device', help: 'settings.help.qualityHome'}),
+        pref('quality.remote', 'settings.row.qualityAway', {type: 'choice', choices: qualityChoices}, {scope: 'device', help: 'settings.help.qualityAway'}),
         // ST-6: the phone is where cellular transport happens (the server applies `quality.mobile` then).
-        pref('quality.mobile', 'next.settingsSpec.account.quality.groups.0.rows.2.label', {type: 'choice', choices: qualityChoices}, {scope: 'deviceClass', help: 'next.settingsSpec.account.quality.groups.0.rows.2.help', platforms: ['phone']}),
+        pref('quality.mobile', 'next.settingsSpec.account.quality.groups.0.rows.2.label', {type: 'choice', choices: qualityChoices}, {scope: 'device', help: 'next.settingsSpec.account.quality.groups.0.rows.2.help', platforms: ['phone']}),
       ]},
       // ST-6: the quality new downloads are made in (`quality.downloads`, read by the download planner).
       {id: 'downloads', title: 'next.settingsSpec.account.quality.groups.1.title', platforms: ['phone'], rows: [
-        pref('quality.downloads', 'next.settingsSpec.account.quality.groups.1.rows.0.label', {type: 'choice', choices: qualityChoices}, {scope: 'deviceClass', help: 'next.settingsSpec.account.quality.groups.1.rows.0.help'}),
+        pref('quality.downloads', 'next.settingsSpec.account.quality.groups.1.rows.0.label', {type: 'choice', choices: qualityChoices}, {scope: 'device', help: 'next.settingsSpec.account.quality.groups.1.rows.0.help'}),
       ]},
       {id: 'method', rows: [
         // One choice in place of three four-way policies; it writes a combination that makes sense.
-        {kind: 'composite', id: 'playbackMethod', storage: 'registry', label: 'settings.row.playbackMethod', help: 'settings.help.playbackMethod', scope: 'deviceClass', control: {type: 'choice', choices: [
+        {kind: 'composite', id: 'playbackMethod', storage: 'registry', label: 'settings.row.playbackMethod', help: 'settings.help.playbackMethod', scope: 'device', control: {type: 'choice', choices: [
           {value: 'automatic', label: 'settings.playbackMethod.automatic'}, {value: 'original', label: 'settings.playbackMethod.original'}, {value: 'convert', label: 'settings.playbackMethod.convert'},
         ]}},
       ]},
@@ -361,19 +361,19 @@ const accountPages: readonly AuthoredPage[] = [
           {value: 'cd-quality', label: 'next.settingsSpec.account.music.groups.3.rows.0.control.options.1.label'},
           {value: '320', label: 'next.settingsSpec.account.music.groups.3.rows.0.control.options.2.label'},
           {value: '96', label: 'next.settingsSpec.account.music.groups.3.rows.0.control.options.3.label'},
-        ]}, {scope: 'deviceClass'}),
+        ]}, {scope: 'device'}),
         pref('music.qualityMobile', 'next.settingsSpec.account.music.groups.3.rows.1.label', {type: 'choice', choices: [
           {value: 'original', label: 'next.settingsSpec.account.music.groups.3.rows.1.control.options.0.label'},
           {value: 'cd-quality', label: 'next.settingsSpec.account.music.groups.3.rows.1.control.options.1.label'},
           {value: '320', label: 'next.settingsSpec.account.music.groups.3.rows.1.control.options.2.label'},
           {value: '96', label: 'next.settingsSpec.account.music.groups.3.rows.1.control.options.3.label'},
-        ]}, {scope: 'deviceClass', platforms: ['phone']}),
+        ]}, {scope: 'device', platforms: ['phone']}),
         pref('music.qualityDownloads', 'next.settingsSpec.account.music.groups.3.rows.2.label', {type: 'choice', choices: [
           {value: 'original', label: 'next.settingsSpec.account.music.groups.3.rows.2.control.options.0.label'},
           {value: 'cd-quality', label: 'next.settingsSpec.account.music.groups.3.rows.2.control.options.1.label'},
           {value: '320', label: 'next.settingsSpec.account.music.groups.3.rows.2.control.options.2.label'},
           {value: '96', label: 'next.settingsSpec.account.music.groups.3.rows.2.control.options.3.label'},
-        ]}, {scope: 'deviceClass', platforms: ['phone']}),
+        ]}, {scope: 'device', platforms: ['phone']}),
       ]},
       {id: 'advancedSound', title: 'next.settingsSpec.account.music.advanced.groups.0.title', advanced: true, rows: [
         // One device-local engine value, never an account preference (23 Oct ruling).

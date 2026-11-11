@@ -66,13 +66,13 @@ function fixture(t: TestContext, deviceClass: DeviceClass = 'mobile', role: 'own
     calls: [] as Request[], cancellations: [] as string[],
     reply: async (_request: Request): Promise<Reply> => {throw new Error('fixture not initialized');},
   };
-  const envelope = (domain: 'preferences' | 'inbox', data: unknown) => ({scope: {serverId: state.servers[domain], viewerFence: state.fences[domain]}, data});
+  const envelope = (domain: 'inbox', data: unknown) => ({scope: {serverId: state.servers[domain], viewerFence: state.fences[domain]}, data});
   const response = (request: Request): Reply => {
     const path = request.url.pathname;
     if (path === routePath('get_preferences')) {
       // This is the server's required query contract. A delivery header cannot supply it.
       if (request.url.searchParams.get('deviceClass') !== deviceClass) return {status: 400, value: {error: {code: 'invalid_console_request', message: 'Invalid device class.'}}};
-      return {value: envelope('preferences', preferenceData(state.deviceClass, state.speed))};
+      return {value: preferenceData(state.deviceClass, state.speed)};
     }
     if (path === routePath('get_notifications_inbox')) {
       const audience = request.url.searchParams.get('audience');
@@ -153,16 +153,14 @@ test('a delayed auxiliary permission denial still retires an already-admitted Ho
   assert.equal(f.state.ended, 1); assert.equal(f.services.home.getSnapshot().document, undefined);
 });
 
-test('an unscoped preference snapshot and the wrong returned device class are refused', async t => {
+test('settings answered for another kind of device are refused', async t => {
   const f = fixture(t);
-  f.state.reply = async request => request.url.pathname === routePath('get_preferences') ? {value: preferenceData('mobile', 1.85)} : f.response(request);
-  await assert.rejects(f.services.read()); assert.equal(f.services.getSnapshot(), undefined);
-  f.state.reply = async request => f.response(request); f.state.deviceClass = 'television';
-  await assert.rejects(f.services.read(), {code: 'invalid_response'});
+  f.state.deviceClass = 'television';
+  await assert.rejects(f.services.read());
   assert.equal(f.state.ended, 0); assert.equal(f.services.getSnapshot(), undefined);
 });
 
-for (const domain of ['preferences', 'inbox', 'guide', 'home'] as const) test(`a foreign server in the ${domain} response is refused independently of Home`, async t => {
+for (const domain of ['inbox', 'guide', 'home'] as const) test(`a foreign server in the ${domain} response is refused independently of Home`, async t => {
   const f = fixture(t); await Promise.all([f.services.read(), f.services.home.load()]);
   f.state.servers[domain] = 'other-server';
   if (domain === 'home') await f.services.home.revalidate(); else await assert.rejects(f.services.read());

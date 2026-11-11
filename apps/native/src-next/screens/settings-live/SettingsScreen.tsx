@@ -649,7 +649,9 @@ function SettingsPageBody({page, ports, controller, runtime, devicePreferences, 
     const patch = row.kind === 'preference' ? {[row.key]: value} : compositePatch(row.id, value as string | boolean);
     const field = state.preferences.registry.fields.find(value => value.key === Object.keys(patch)[0]);
     if (!field) return;
-    const scope: PreferenceScope | undefined = row.scope === 'deviceClass' ? field.scopes.find(value => value === 'profile-device-class') : field.scopes.find(value => value === 'profile-server');
+    const wanted: PreferenceScope = row.scope === 'device' ? 'profile-device' : row.scope === 'deviceClass' ? 'profile-device-class' : 'profile-server';
+    // The server says where each setting is saved; a row's own scope only picks among several.
+    const scope: PreferenceScope | undefined = field.scopes.includes(wanted) ? wanted : field.scopes.length === 1 ? field.scopes[0] : undefined;
     if (!scope) throw new Error('native_settings_scope_unavailable');
     void controller.apply(scope, patch).catch(runtime.reportError);
   };

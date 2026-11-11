@@ -32,7 +32,7 @@ test('Download quality saves the key the server reads, only where downloads are 
   // `downloadQuality` spec label the server doesn't know. A browser makes no downloads, so the row is
   // drawn for the desktop app only (the spec's phone/desktop platforms); Automatic is no download quality.
   const download = row('quality.downloadQuality'), binding = settingsBinding('quality.downloadQuality')!;
-  assert.deepEqual(binding, {form: 'preferences', key: 'quality.downloads', scope: 'profile-device-class', codec: 'video-quality-choice'});
+  assert.deepEqual(binding, {form: 'preferences', key: 'quality.downloads', scope: 'profile-device', codec: 'video-quality-choice'});
   assert.equal(hasWebPreferenceEffect(download), true);
   assert.equal(settingsRowVisible(download, browserSettingsEnvironment), false, 'not in a browser');
   assert.equal(settingsRowVisible(download, {platform: 'desktop', os: 'macos'}), true, 'in the desktop app');
@@ -40,8 +40,8 @@ test('Download quality saves the key the server reads, only where downloads are 
 
 test('a select offers only the values its registry can store: Ask each time waits for the server', () => {
   const binding = settingsBinding('quality.downloadQuality')!, options = row('quality.downloadQuality').control.options!;
-  const registry = (allowedValues: readonly string[]) => ({preferences: {deviceClass: 'web', deviceBound: true, registry: {revision: '1', fields: [{key: 'quality.downloads', type: 'string', default: 'original', allowedValues, scopes: ['profile-device-class'], group: 'quality', labelKey: 'x'}]},
-    documents: [{scope: 'profile-device-class', revision: 1, digest: 'd', activeRevision: 1, values: {}}], effective: {'quality.downloads': 'original'}, effectiveSource: {}, clampedFields: [], registryRevision: '1'}}) as never;
+  const registry = (allowedValues: readonly string[]) => ({preferences: {deviceClass: 'web', deviceBound: true, registry: {revision: '1', fields: [{key: 'quality.downloads', type: 'string', default: 'original', allowedValues, scopes: ['profile-device'], group: 'quality', labelKey: 'x'}]},
+    documents: [{scope: 'profile-device', values: {}}], effective: {'quality.downloads': 'original'}, effectiveSource: {}}}) as never;
   const ladder = ['original', '2160p', '1080p-high', '1080p-low', '720p-high', '720p-low', '480p', '240p', 'automatic'];
   const today = settingsStorableChoices(binding, options, registry(ladder)).map(option => option.value);
   assert.equal(today.includes('ask'), false, 'the server doesn\'t store ask yet, so it isn\'t offered');

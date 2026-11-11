@@ -24,7 +24,7 @@ function fixture(input: {owner?: boolean; readConfiguration?: SettingsController
     const name = path.split('/').at(-1)!;
     return {scope, data: {name, observedAt: 1000, freshUntil: 31000, facts: {}}} as T;
   }};
-  const reader = new PreferencesReader(api, {serverId, viewerId: 'captured-viewer'});
+  const reader = new PreferencesReader(api);
   const controller = new SettingsController({api, serverId, viewerId: 'captured-viewer', role: input.owner === false ? 'member' : 'owner', mainProfile: true,
     capabilities: {manageServer: input.owner !== false, managePeople: false, manageSignIn: false}, preferences, reader,
     readConfiguration: input.readConfiguration, isCurrent: () => current, reportError: error => {throw error;},

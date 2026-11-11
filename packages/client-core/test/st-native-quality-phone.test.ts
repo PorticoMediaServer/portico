@@ -8,11 +8,11 @@ const keys = (platform: 'phone' | 'tv' | 'web') => {
   return page.sections.flatMap(section => section.rows).filter((row): row is Extract<SettingsRow, {kind: 'preference'}> => row.kind === 'preference');
 };
 
-test('phone Quality offers On mobile data and Download quality, each kept per kind of device', () => {
+test('phone Quality offers On mobile data and Download quality, each kept for this device only', () => {
   const rows = keys('phone');
   for (const key of ['quality.mobile', 'quality.downloads']) {
     const row = rows.find(value => value.key === key);
-    assert.ok(row, key); assert.equal(row!.scope, 'deviceClass');
+    assert.ok(row, key); assert.equal(row!.scope, 'device');
     assert.deepEqual((row!.control as {choices: unknown[]}).choices, (rows.find(value => value.key === 'quality.home')!.control as {choices: unknown[]}).choices, 'the same ladder as the home and away rows');
   }
 });

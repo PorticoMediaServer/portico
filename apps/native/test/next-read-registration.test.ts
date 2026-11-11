@@ -48,9 +48,9 @@ function authorityContext() {
     subscribeAuthority: (listener: () => void) => {authorityListeners.add(listener); return () => {authorityListeners.delete(listener);};},
     subscribePreferences: (listener: () => void) => {preferenceListeners.add(listener); return () => {preferenceListeners.delete(listener);};},
   };
-  const reader = new PreferencesReader(context.api, {serverId: authority.serverId, viewerId: authority.profileId});
+  const reader = new PreferencesReader(context.api);
   bindNativeServerPreferences(context, {read: deviceClass => reader.preferences(deviceClass),
-    apply: (scope, deviceClass, revision, values) => reader.applyPreferences(scope, deviceClass, revision, values), accept: next => next});
+    apply: (scope, deviceClass, values) => reader.applyPreferences(scope, deviceClass, values), accept: next => next});
   return {context, snapshot, get requests() {return requests;}, close() {current = false; reader.dispose(); for (const listener of [...authorityListeners]) listener();}};
 }
 
