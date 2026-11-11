@@ -43,6 +43,20 @@ func (s *Service) provider(src db.LibrarySource) Provider {
 	return s.Providers[name]
 }
 
+// Asks reports whether a library (a public id) has a provider to ask: one that uses local
+// metadata only, or whose provider this server has no key for, has none.
+func (s *Service) Asks(ctx context.Context, library string) (bool, error) {
+	id, err := s.DB.LibraryID(ctx, library)
+	if err != nil {
+		return false, err
+	}
+	src, err := s.DB.LibrarySource(ctx, id)
+	if err != nil {
+		return false, err
+	}
+	return s.provider(src) != nil, nil
+}
+
 // providerKinds are the kinds of top-level title a provider is asked about, and its word for each.
 var providerKinds = map[db.ItemKind]string{db.KindMovie: "movie", db.KindShow: "show"}
 
