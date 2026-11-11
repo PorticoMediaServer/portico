@@ -223,6 +223,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	if err := s.jobs.Resume(); err != nil {
 		return nil, err
 	}
+	s.castRoutes()
 	go s.jobs.RunTidy(ctx)
 	return s, nil
 }
@@ -431,6 +432,9 @@ func CallerFrom(ctx context.Context) Caller {
 	return c
 }
 
+// roleCast is the role in the token of a Cast receiver's sign-in, which can only play.
+const roleCast = "cast"
+
 // keyPrefix starts every API key and personal token, so one is told from a session's token at a glance.
 const keyPrefix = "pk_"
 
@@ -467,6 +471,8 @@ func (s *Server) admit(r *http.Request, route *Route) (*http.Request, error) {
 		c = Caller{SessionID: claims.SessionID, UserID: claims.UserID, ProfileID: claims.ProfileID, Role: claims.Role, Manage: claims.Manage}
 	}
 	switch {
+	case c.Role == roleCast && !castMay(route.Pattern):
+		return r, refusal(http.StatusForbidden, "playback_only", "This sign-in can only play.", false)
 	case route.Access == WithProfile && c.ProfileID == 0:
 		return r, ErrConflict("profile_selection_required", "Choose a profile to continue.")
 	case route.Access == Admin && c.Role != "owner" && c.Role != "admin", route.Access == Owner && c.Role != "owner":
