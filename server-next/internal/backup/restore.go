@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
@@ -384,4 +385,44 @@ func Opened(ctx context.Context, d *db.DB, dataDir string, now time.Time) error 
 		return err
 	}
 	return os.Remove(filepath.Join(dataDir, madeFile))
+}
+
+// OpenData opens the data folder's database for a start, the one way the server does it: a
+// staged restore is made first (or one a stop cut short is finished or undone); a restored
+// database that will not open gives way to the original; and after a restore every sign-in is
+// ended, committed, before this returns. Nothing is served before it returns, so no request
+// ever meets a restored database with its old sign-ins (an access token from before a restart
+// is let in while the database still agrees with it).
+func OpenData(ctx context.Context, dataDir string, log *slog.Logger, now func() time.Time) (*db.DB, error) {
+	restored, note, err := Prepare(dataDir, now())
+	if err != nil {
+		// The data folder may be mid-swap: opening it now could make a new empty server or
+		// serve a restored database with its old sign-ins. The next start finishes or undoes it.
+		return nil, fmt.Errorf("a restore could not be finished or undone, so the server does not start; free space or fix the data folder and start it again: %w", err)
+	}
+	if note != "" {
+		log.Info(note)
+	}
+	path := filepath.Join(dataDir, "main.db")
+	d, err := db.Open(ctx, path)
+	if err != nil && restored != "" {
+		log.Error("the restored database would not open, so the server goes back to what it had", "backup", restored, "error", err)
+		if _, err := PutBack(dataDir); err != nil {
+			return nil, err
+		}
+		d, err = db.Open(ctx, path)
+	}
+	if err != nil {
+		return nil, err
+	}
+	// After a restore everyone signs in again: the restored sign-ins are from before the
+	// backup. Until this has committed, every start does it again.
+	if err := Opened(ctx, d, dataDir, now()); err != nil {
+		d.Close()
+		return nil, err
+	}
+	if restored != "" {
+		log.Info("the server was restored from a backup; everyone signs in again", "backup", restored)
+	}
+	return d, nil
 }

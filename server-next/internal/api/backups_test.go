@@ -2,11 +2,16 @@ package api
 
 import (
 	"context"
+	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"golang.org/x/crypto/bcrypt"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/backup"
 )
 
@@ -97,19 +102,27 @@ func TestRestoreNeedsThePasswordAgain(t *testing.T) {
 		t.Errorf("a restart started without being confirmed")
 	}
 
-	// The next start makes it. Stopped before the sign-ins are ended, the one after still
-	// ends them: the owner's sign-in from before the restore cannot be renewed.
+	// The next start makes it, through the one start-up path the server uses. A stop after
+	// the swap and before the sign-ins are ended is made first: the start after still ends them.
 	closeDB(s.db)
 	dir := filepath.Dir(path)
 	if restored, _, err := backup.Prepare(dir, time.Now()); err != nil || restored != started.ID {
 		t.Fatalf("making the restore: %q %v", restored, err)
 	}
-	if restored, _, _ := backup.Prepare(dir, time.Now()); restored != started.ID {
-		t.Fatalf("after a stop the restore was forgotten")
-	}
-	s = openTestServer(t, path)
-	if err := backup.Opened(context.Background(), s.db, dir, time.Now()); err != nil {
+	d, err := backup.OpenData(context.Background(), dir, slog.New(slog.NewTextHandler(io.Discard, nil)), time.Now)
+	if err != nil {
 		t.Fatal(err)
+	}
+	t.Cleanup(func() { closeDB(d) })
+	s, err = New(context.Background(), d, dir, "test", slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.passwords = auth.NewPasswords(bcrypt.MinCost, bcrypt.MinCost)
+	// The very first request the restored server answers: the owner's access token from
+	// before the restore is refused, and so is a renewal of that sign-in.
+	if code := status(t, s, "GET", "/v1/me", owner, nil); code != 401 {
+		t.Errorf("the first request after the restore, with a token from before it, answered %d", code)
 	}
 	if code, _ := renew(t, s, in.Session.RefreshToken, 0, "after-restore"); code != 401 {
 		t.Errorf("a sign-in from before the restore renewed: %d", code)
