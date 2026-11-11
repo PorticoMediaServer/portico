@@ -538,6 +538,7 @@ CREATE TABLE users (
   created_at          INTEGER NOT NULL,
   updated_at          INTEGER NOT NULL
 ) STRICT;
+
 CREATE UNIQUE INDEX users_portico_account ON users (portico_account_id) WHERE portico_account_id IS NOT NULL;
 
 -- Viewing profiles. Each account has one main profile (is_primary), made with the account: it
@@ -605,7 +606,7 @@ CREATE UNIQUE INDEX library_access_profile ON library_access (profile_id, librar
 CREATE UNIQUE INDEX library_access_invitation ON library_access (invitation_id, library_id) WHERE invitation_id IS NOT NULL;
 CREATE INDEX library_access_library ON library_access (library_id);
 
--- Tags a profile must never be shown.
+-- Labels a profile must never be shown. (Blocked channels join this table with Live TV.)
 CREATE TABLE profile_restrictions (
   profile_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   tag_id     INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
@@ -770,19 +771,147 @@ CREATE INDEX user_item_state_my_list ON user_item_state (profile_id, in_list_at)
 -- client_event_id makes a repeated report count once. hidden_from_profile is 1 for a play
 -- made while the profile had history paused: the owner's play record has it, and nothing
 -- the profile itself is shown does.
--- This is also the owner's Play history, which is kept for good: a row outlives its title,
--- its device, its library, its profile and its account (the names are copied, and the
--- references go NULL). away is 1 for a play from outside the home networks; delivery is how
--- it was delivered, as a code. The owner's list is read newest first through play_history_at
--- and, filtered, through the person and library indexes, so a page costs the same at any size.
 CREATE TABLE play_history (
   id              INTEGER NOT NULL PRIMARY KEY,
   profile_id      INTEGER REFERENCES profiles(id) ON DELETE SET NULL,
   profile_name    TEXT    NOT NULL,
   account_name    TEXT    NOT NULL,
+  item_id         INTEGER REFERENCES items(id) ON DELETE SET NULL,
+  device_id       INTEGER REFERENCES devices(id) ON DELETE SET NULL,
+  client_event_id TEXT    NOT NULL,
+  played_at       INTEGER NOT NULL,
+  watched_ms      INTEGER,
+  item_kind       INTEGER NOT NULL,
+  title           TEXT    NOT NULL,
+  subtitle        TEXT,
+  hidden_from_profile INTEGER NOT NULL DEFAULT 0 CHECK (hidden_from_profile IN (0, 1)),
+  -- For the owner's Play history. user_id and library_id are the account and the library, for
+  -- its filters; they go NULL when those are removed, and the job that removes a library or an
+  -- account clears them a batch at a time first, so the delete itself finds none left.
+  -- device_name is the device's name at the play. away is 1 for a play from outside the home
+  -- networks. delivery is how it was delivered, as a code; 0 is not known.
   user_id         INTEGER REFERENCES users(id) ON DELETE SET NULL,
   library_id      INTEGER REFERENCES libraries(id) ON DELETE SET NULL,
-  person_name     TEXT,
-  device_name     TEXT,
-  away            INTEGER,
-  delivery        INTEGER,
+  device_name     TEXT    NOT NULL DEFAULT '',
+  away            INTEGER NOT NULL DEFAULT 0 CHECK (away IN (0, 1)),
+  delivery        INTEGER NOT NULL DEFAULT 0,
+  UNIQUE (profile_id, client_event_id)
+);
+CREATE INDEX play_history_profile ON play_history (profile_id, played_at);
+CREATE INDEX play_history_played ON play_history (played_at);
+CREATE INDEX play_history_item ON play_history (item_id) WHERE item_id IS NOT NULL;
+CREATE INDEX play_history_device ON play_history (device_id) WHERE device_id IS NOT NULL;
+CREATE INDEX play_history_user ON play_history (user_id, played_at) WHERE user_id IS NOT NULL;
+CREATE INDEX play_history_library ON play_history (library_id, played_at) WHERE library_id IS NOT NULL;
+
+-- Playlists, collections people make, and saved views, each belonging to the profile that
+-- made it. A library's own collections, made automatically or by the owner, are items of kind
+-- collection with their films in item_relations. everyone is 1 for a collection its maker made
+-- visible to everyone on the server. A saved view is on one library, and rules holds its sort
+-- and filters as the query string of the item list. Pins are each profile's own, so they are
+-- not kept here. revision moves with every change and is the list's ETag.
+CREATE TABLE lists (
+  id               INTEGER NOT NULL PRIMARY KEY,
+  public_id        TEXT    NOT NULL UNIQUE,
+  kind             TEXT    NOT NULL CHECK (kind IN ('playlist', 'collection', 'saved_view')),
+  owner_profile_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  library_id       INTEGER REFERENCES libraries(id) ON DELETE CASCADE,
+  name             TEXT    NOT NULL,
+  sort_name        TEXT    NOT NULL,
+  description      TEXT,
+  rules            TEXT,
+  everyone         INTEGER NOT NULL DEFAULT 0 CHECK (everyone IN (0, 1)),
+  entry_count      INTEGER NOT NULL DEFAULT 0,
+  revision         INTEGER NOT NULL DEFAULT 1,
+  created_at       INTEGER NOT NULL,
+  updated_at       INTEGER NOT NULL,
+  CHECK ((kind = 'saved_view') = (library_id IS NOT NULL)),
+  CHECK (everyone = 0 OR kind = 'collection')
+) STRICT;
+CREATE INDEX lists_owner ON lists (owner_profile_id, kind, sort_name);
+CREATE INDEX lists_library ON lists (library_id) WHERE library_id IS NOT NULL;
+CREATE INDEX lists_everyone ON lists (kind, sort_name) WHERE everyone = 1;
+
+-- large. Ordered entries. Positions are unique in a list and leave gaps, so a move rewrites
+-- one row and a page starts after the last position sent.
+CREATE TABLE list_entries (
+  id       INTEGER NOT NULL PRIMARY KEY,
+  list_id  INTEGER NOT NULL REFERENCES lists(id) ON DELETE CASCADE,
+  item_id  INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+  position INTEGER NOT NULL,
+  added_at INTEGER NOT NULL
+);
+CREATE UNIQUE INDEX list_entries_order ON list_entries (list_id, position);
+CREATE INDEX list_entries_item ON list_entries (item_id, list_id);
+
+-- Who a list is shared with, and whether they may edit it.
+CREATE TABLE list_shares (
+  list_id    INTEGER NOT NULL REFERENCES lists(id) ON DELETE CASCADE,
+  profile_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  can_edit   INTEGER NOT NULL DEFAULT 0 CHECK (can_edit IN (0, 1)),
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (list_id, profile_id)
+) STRICT, WITHOUT ROWID;
+CREATE INDEX list_shares_profile ON list_shares (profile_id);
+
+-- A profile's play queue on one device: one for music and audiobooks and one for video, so
+-- music comes back with its queue and place after a video. A queue outlives a restart; one
+-- nobody has played for 30 days is removed. selection says what a queue too long to hold at
+-- once was built from and how far into it the queue has got, so it is refilled as the
+-- listener nears the end. shuffle_seed is NULL while shuffle is off.
+CREATE TABLE play_queues (
+  id               INTEGER NOT NULL PRIMARY KEY,
+  public_id        TEXT    NOT NULL UNIQUE,
+  profile_id       INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  device_id        INTEGER NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+  medium           TEXT    NOT NULL CHECK (medium IN ('audio', 'video')),
+  current_entry_id INTEGER REFERENCES queue_entries(id) ON DELETE SET NULL,
+  repeat           TEXT    NOT NULL DEFAULT 'off' CHECK (repeat IN ('off', 'one', 'all')),
+  shuffle_seed     INTEGER,
+  selection        TEXT,
+  revision         INTEGER NOT NULL DEFAULT 1,
+  created_at       INTEGER NOT NULL,
+  played_at        INTEGER NOT NULL
+) STRICT;
+CREATE INDEX play_queues_profile ON play_queues (profile_id);
+CREATE INDEX play_queues_device ON play_queues (device_id);
+CREATE INDEX play_queues_current ON play_queues (current_entry_id) WHERE current_entry_id IS NOT NULL;
+CREATE INDEX play_queues_idle ON play_queues (played_at);
+
+-- large. A queue's entries. position is the order they play in, with gaps so a move rewrites
+-- one row; source_position is the order they were added in, which turning shuffle off goes
+-- back to. added is 1 for what a person added by hand ("Added by you").
+CREATE TABLE queue_entries (
+  id              INTEGER NOT NULL PRIMARY KEY,
+  queue_id        INTEGER NOT NULL REFERENCES play_queues(id) ON DELETE CASCADE,
+  item_id         INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+  position        INTEGER NOT NULL,
+  source_position INTEGER NOT NULL,
+  added           INTEGER NOT NULL DEFAULT 0 CHECK (added IN (0, 1))
+);
+CREATE INDEX queue_entries_order ON queue_entries (queue_id, position);
+CREATE INDEX queue_entries_item ON queue_entries (item_id);
+
+-- ---------------------------------------------------------------------------------------
+-- G. Playback
+-- ---------------------------------------------------------------------------------------
+
+-- "This way of delivering this file failed on this device's player." Planning starts with the
+-- next way until expires_at, then tries this one again. It belongs to the device and the file,
+-- so it holds for every profile on the device and outlives a sign-out and a restart.
+CREATE TABLE playback_route_failures (
+  id         INTEGER NOT NULL PRIMARY KEY,
+  public_id  TEXT    NOT NULL UNIQUE,
+  device_id  INTEGER NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+  file_id    INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  player     TEXT    NOT NULL,
+  route      TEXT    NOT NULL,
+  code       TEXT    NOT NULL,
+  detail     TEXT,
+  failed_at  INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL,
+  UNIQUE (device_id, file_id, player, route)
+) STRICT;
+CREATE INDEX playback_route_failures_file ON playback_route_failures (file_id);
+CREATE INDEX playback_route_failures_expiry ON playback_route_failures (expires_at);
+
