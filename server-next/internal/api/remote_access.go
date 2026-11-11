@@ -17,6 +17,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/portmap"
 	"github.com/PorticoMediaServer/portico/server-next/internal/tlsport"
 )
 
@@ -205,6 +206,8 @@ type remoteState struct {
 	// are loaded and valid for it. Until the server serves them (internal/tlsport), it is nil
 	// and they count as not usable. A reverse proxy at the own address (no files) needs none.
 	ownCertificateUsable func() bool
+	// listenPort is the port the server listens on, the one the router forwards to.
+	listenPort int
 }
 
 // RefusedAddress is an outside address Enhanced refused, and what would fix it.
@@ -252,6 +255,25 @@ func (s *Server) applyCertificate(v RemoteAccessSettings) {
 		src.Domain, src.CertificateFile, src.KeyFile = v.OwnAddress.Domain, v.OwnAddress.CertificateFile, v.OwnAddress.KeyFile
 	}
 	s.certs.Use(src)
+	s.ports.Set(v.RemoteAccess == "on" && v.PortMapping == "automatic", s.listenPort(), v.PublicPort)
+}
+
+// ServePortMapping keeps the server's port open on the home router while the owner's settings
+// ask for it, until ctx ends. port is the port the server listens on, or 0 when nothing
+// outside this machine can reach it, and the router is then never asked.
+func (s *Server) ServePortMapping(ctx context.Context, port int) {
+	s.access.mu.Lock()
+	s.access.listenPort = port
+	s.access.mu.Unlock()
+	v, _ := s.access.current()
+	s.applyCertificate(v)
+	s.ports.Run(ctx)
+}
+
+func (s *Server) listenPort() int {
+	s.access.mu.RLock()
+	defer s.access.mu.RUnlock()
+	return s.access.listenPort
 }
 
 // Certificates is the owner's certificate as the listener serves it.
@@ -437,6 +459,8 @@ type RemoteAccessStatus struct {
 	Warnings []Warning `json:"warnings"`
 	// Certificate is the owner's own certificate: none, served, or what is wrong with it.
 	Certificate tlsport.Status `json:"certificate"`
+	// Router is what the home router last said about opening the public port.
+	Router portmap.Status `json:"router"`
 }
 
 // warningMessages are proposed wording, listed for the owner's approval.
@@ -488,11 +512,7 @@ func (s *Server) remoteAccessRoutes() {
 	})
 	Handle(s, "PUT /v1/admin/settings/remote-access", Owner, s.saveRemoteAccess)
 	Handle(s, "GET /v1/admin/remote-access", Owner, func(r *http.Request, _ None) (RemoteAccessStatus, error) {
-		v, allowed := s.access.current()
-		sec := s.access.security(v, allowed, s.setupFinished(), false)
-		return RemoteAccessStatus{ThisDevice: ThisDevice{AtHome: s.fromHome(r), Address: s.remoteHost(r)},
-			Refused: s.access.refusedList(), RemoteSecurity: sec, Warnings: s.warnings(v, sec, s.networks()),
-			Certificate: s.certs.Status()}, nil
+		return s.remoteStatus(r), nil
 
 	})
 	// The dry run: would the connection making this request be refused under these settings?
@@ -502,6 +522,22 @@ func (s *Server) remoteAccessRoutes() {
 		}
 		return s.judge(r, req, approved(req, s.porticoAddress()), true, true), nil
 	})
+	// Check now, and Try again: ask the router again and read the certificate files again.
+	Handle(s, "POST /v1/admin/remote-access/check", Owner, func(r *http.Request, _ None) (RemoteAccessStatus, error) {
+		s.certs.Check()
+		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+		defer cancel()
+		s.ports.CheckNow(ctx)
+		return s.remoteStatus(r), nil
+	})
+}
+
+func (s *Server) remoteStatus(r *http.Request) RemoteAccessStatus {
+	v, allowed := s.access.current()
+	sec := s.access.security(v, allowed, s.setupFinished(), false)
+	return RemoteAccessStatus{ThisDevice: ThisDevice{AtHome: s.fromHome(r), Address: s.remoteHost(r)},
+		Refused: s.access.refusedList(), RemoteSecurity: sec, Warnings: s.warnings(v, sec, s.networks()),
+		Certificate: s.certs.Status(), Router: s.ports.Status()}
 }
 
 func (s *Server) setupFinished() bool {
