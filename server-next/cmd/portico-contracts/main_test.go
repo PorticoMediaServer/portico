@@ -26,3 +26,10 @@ func TestContractsAreCurrent(t *testing.T) {
 		}
 	}
 }
+
+// Every registered route must be representable even when freshness is not checked.
+func TestRegisteredRoutesCanGenerate(t *testing.T) {
+	if _, _, err := generate(); err != nil {
+		t.Fatal(err)
+	}
+}
