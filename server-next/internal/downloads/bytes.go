@@ -171,7 +171,7 @@ func (s *Service) Open(ctx context.Context, token, name string) (*File, error) {
 		}
 		return s.openOriginal(ctx, title, n)
 	case "subtitles":
-		return s.openSubtitle(ctx, held.viewer, title, rest)
+		return s.openSubtitle(ctx, held.viewer, dl, title, rest)
 	}
 	return nil, ErrGone
 }
@@ -231,7 +231,10 @@ func (s *Service) openOriginal(ctx context.Context, title db.DownloadTitle, n in
 		Name: saveName(title.Title, n, len(v.Parts), container)}, nil
 }
 
-func (s *Service) openSubtitle(ctx context.Context, v db.Viewer, title db.DownloadTitle, trackID string) (*File, error) {
+// openSubtitle opens a subtitle file beside the original, or, for a smaller copy, a text
+// subtitle that was inside the file and was written out beside the copy. The track is found
+// among the version's own tracks; nothing in the address names a file.
+func (s *Service) openSubtitle(ctx context.Context, v db.Viewer, dl db.Download, title db.DownloadTitle, trackID string) (*File, error) {
 	item, err := s.DB.PlaybackItem(ctx, v, title.ItemPublicID)
 	if err != nil {
 		return nil, ErrGone
@@ -240,17 +243,42 @@ func (s *Service) openSubtitle(ctx context.Context, v db.Viewer, title db.Downlo
 		if version.MediaID() != title.MediaID {
 			continue
 		}
+		inside := 0 // the place of a track among the subtitle tracks inside the file
 		for _, track := range version.Tracks {
-			if track.Kind != db.StreamSubtitle || !track.Sidecar || playback.TrackID(track) != trackID {
+			if track.Kind != db.StreamSubtitle {
 				continue
 			}
-			source, size, modified, err := s.Prepare.OpenFile(ctx, track.FileID)
-			if err != nil {
-				return nil, err
+			place := inside
+			if !track.Sidecar {
+				inside++
 			}
-			return &File{ReadSeeker: io.NewSectionReader(source, 0, size), Closer: source, Size: size, Modified: modified,
-				ETag: fmt.Sprintf(`"%x-%x"`, size, modified.UnixNano()), ContentType: "application/octet-stream",
-				Name: saveName(title.Title, 0, 0, track.Codec)}, nil
+			if playback.TrackID(track) != trackID {
+				continue
+			}
+			if track.Sidecar {
+				source, size, modified, err := s.Prepare.OpenFile(ctx, track.FileID)
+				if err != nil {
+					return nil, err
+				}
+				return &File{ReadSeeker: io.NewSectionReader(source, 0, size), Closer: source, Size: size, Modified: modified,
+					ETag: fmt.Sprintf(`"%x-%x"`, size, modified.UnixNano()), ContentType: "application/octet-stream",
+					Name: saveName(title.Title, 0, 0, track.Codec)}, nil
+			}
+			if dl.Quality == Original || title.Prepared == nil || title.Prepared.State != db.PreparedReady {
+				return nil, ErrGone // inside the original file, which the device has
+			}
+			file, err := os.Open(s.Prepare.SubtitleFile(*title.Prepared, place))
+			if err != nil {
+				return nil, ErrGone
+			}
+			info, err := file.Stat()
+			if err != nil {
+				file.Close()
+				return nil, ErrGone
+			}
+			return &File{ReadSeeker: file, Closer: file, Size: info.Size(), Modified: info.ModTime(),
+				ETag: fmt.Sprintf(`"%x-%x"`, info.Size(), info.ModTime().UnixNano()), ContentType: "text/vtt; charset=utf-8",
+				Name: saveName(title.Title, 0, 0, "vtt")}, nil
 		}
 	}
 	return nil, ErrGone

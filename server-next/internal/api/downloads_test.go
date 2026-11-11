@@ -42,6 +42,22 @@ type downloadRig struct {
 	film       string
 	clip       []byte
 	shows      *db.Library
+	films      db.Library
+	folder     string
+}
+
+// makeClip makes a two-second 640x360 film with sound and an English text subtitle inside
+// it that says what it is given.
+func makeClip(t *testing.T, path, subtitle string) {
+	t.Helper()
+	srt := filepath.Join(t.TempDir(), "inside.srt")
+	os.WriteFile(srt, []byte("1\n00:00:00,000 --> 00:00:01,500\n"+subtitle+"\n"), 0o600)
+	cmd := exec.Command("ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=25:duration=2",
+		"-f", "lavfi", "-i", "sine=frequency=440:duration=2", "-i", srt, "-map", "0", "-map", "1", "-map", "2",
+		"-c:v", "libx264", "-b:v", "3M", "-c:a", "aac", "-c:s", "srt", "-metadata:s:s:0", "language=eng", "-shortest", path)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("making the clip failed: %v %s", err, out)
+	}
 }
 
 func newDownloadRig(t *testing.T) *downloadRig {
@@ -50,20 +66,17 @@ func newDownloadRig(t *testing.T) *downloadRig {
 	}
 	folder := t.TempDir()
 	clip := filepath.Join(folder, "film.mkv")
-	cmd := exec.Command("ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=25:duration=2",
-		"-f", "lavfi", "-i", "sine=frequency=440:duration=2", "-c:v", "libx264", "-b:v", "3M", "-c:a", "aac", "-shortest", clip)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("making the clip failed: %v %s", err, out)
-	}
+	makeClip(t, clip, "Inside")
 	os.WriteFile(filepath.Join(folder, "film.en.srt"), []byte("1\n00:00:00,000 --> 00:00:01,000\nHello\n"), 0o600)
 	s := newTestServer(t)
-	rig := &downloadRig{T: t, s: s, owner: onMain(t, s, setup(t, s)).AccessToken}
+	rig := &downloadRig{T: t, s: s, owner: onMain(t, s, setup(t, s)).AccessToken, folder: folder}
 	rig.clip, _ = os.ReadFile(clip)
 	ctx := context.Background()
 	lib, err := s.db.CreateLibrary(ctx, "Films", db.LibraryMovies, "en", []string{folder})
 	if err != nil {
 		t.Fatal(err)
 	}
+	rig.films = lib
 	stat := func(name string) (int64, int64) {
 		info, _ := os.Stat(filepath.Join(folder, name))
 		return info.Size(), info.ModTime().UnixNano()
@@ -76,7 +89,8 @@ func newDownloadRig(t *testing.T) *downloadRig {
 			{FileRef: db.FileRef{Name: "film.mkv"}, Role: db.FileMedia, Size: filmSize, ModifiedNS: filmTime, Container: "matroska",
 				DurationMS: 2000, Bitrate: 3_000_000, Streams: []db.Stream{
 					{Kind: db.StreamVideo, Codec: "h264", Width: 640, Height: 360, BitDepth: 8},
-					{Kind: db.StreamAudio, Codec: "aac", Channels: 1, SampleRate: 44100, Default: true}}},
+					{Kind: db.StreamAudio, Codec: "aac", Channels: 1, SampleRate: 44100, Default: true},
+					{Kind: db.StreamSubtitle, Codec: "subrip", Language: "eng"}}},
 			{FileRef: db.FileRef{Name: "film.en.srt"}, Role: db.FileSubtitle, Size: srtSize, ModifiedNS: srtTime,
 				Streams: []db.Stream{{Kind: db.StreamSubtitle, Codec: "subrip", Language: "eng"}}}},
 		Items: []db.ImportItem{{Kind: db.KindMovie, Keys: []db.ItemKey{{Kind: db.KeyFile, Key: "film"}}, Title: "Film", RatingAge: &age,
@@ -247,6 +261,22 @@ func TestASmallerCopyIsPreparedOnceForEveryoneWhoAsks(t *testing.T) {
 	}
 	if disposition := res.Header.Get("Content-Disposition"); !strings.Contains(disposition, "attachment") || !strings.Contains(disposition, "Film.mp4") {
 		t.Fatalf("a browser is not told to save it as Film.mp4: %q", disposition)
+	}
+	// The copy has no subtitle track: the one inside the film comes beside it, as WebVTT,
+	// with the subtitle file that was already beside the film.
+	var inside, beside string
+	for _, sub := range item.Subtitles {
+		if sub.Source == "embedded" {
+			inside = sub.URL
+		} else {
+			beside = sub.URL
+		}
+	}
+	if inside == "" || beside == "" {
+		t.Fatalf("the copy's subtitles are %+v", item.Subtitles)
+	}
+	if res, body := rig.fetch(inside); res.StatusCode != 200 || !strings.HasPrefix(string(body), "WEBVTT") || !strings.Contains(string(body), "Inside") {
+		t.Fatalf("the subtitle from inside the film answered %d %q", res.StatusCode, body)
 	}
 }
 
@@ -499,5 +529,112 @@ func TestKeepTheNextAsksAgainForAnExpiredCopy(t *testing.T) {
 	}
 	if state := get[Download](t, rig.s, rig.owner, "/v1/downloads/"+dl.ID).Items[0].State; state == "expired" {
 		t.Fatal("a kept title whose copy expired was not asked for again")
+	}
+}
+
+// waitReady reads a request until every title is ready, failing on a copy that failed.
+func (rig *downloadRig) waitReady(token, id string) Download {
+	rig.Helper()
+	var dl Download
+	for deadline := time.Now().Add(2 * time.Minute); time.Now().Before(deadline); time.Sleep(100 * time.Millisecond) {
+		call(rig.T, rig.s, "GET", "/v1/downloads/"+id, token, nil, &dl)
+		if dl.Counts.Failed > 0 {
+			rig.Fatalf("a copy failed: %+v", dl.Items)
+		}
+		if dl.Counts.Ready == dl.Counts.Titles {
+			return dl
+		}
+	}
+	rig.Fatalf("the request was not ready in two minutes: %+v", dl)
+	return dl
+}
+
+// A film kept as two files downloads whole: at Original the device is given both files in
+// order, and a smaller copy is made of each part, each with its own hash.
+func TestAFilmInTwoFilesDownloadsWhole(t *testing.T) {
+	rig := newDownloadRig(t)
+	ctx := context.Background()
+	var files []db.ImportFile
+	var parts []db.ImportPart
+	var raw [][]byte
+	for n, name := range []string{"split-part1.mkv", "split-part2.mkv"} {
+		path := filepath.Join(rig.folder, name)
+		makeClip(t, path, fmt.Sprintf("Part %d", n+1))
+		info, _ := os.Stat(path)
+		body, _ := os.ReadFile(path)
+		raw = append(raw, body)
+		files = append(files, db.ImportFile{FileRef: db.FileRef{Name: name}, Role: db.FileMedia, Size: info.Size(), ModifiedNS: info.ModTime().UnixNano(),
+			Container: "matroska", DurationMS: 2000, Bitrate: 3_000_000, Streams: []db.Stream{
+				{Kind: db.StreamVideo, Codec: "h264", Width: 640, Height: 360}, {Kind: db.StreamAudio, Codec: "aac", Channels: 1, SampleRate: 44100}}})
+		parts = append(parts, db.ImportPart{File: db.FileRef{Name: name}})
+	}
+	if _, err := rig.s.db.Import(ctx, db.ImportBatch{LibraryID: rig.films.ID, PathID: rig.films.Paths[0].ID, Scan: 2, Dirs: []db.ImportDir{{}},
+		Files: files, Items: []db.ImportItem{{Kind: db.KindMovie, Keys: []db.ItemKey{{Kind: db.KeyFile, Key: "split"}}, Title: "Split",
+			Versions: []db.ImportVersion{{Parts: parts}}}}}); err != nil {
+		t.Fatal(err)
+	}
+	var split string
+	for _, item := range get[ItemPage](t, rig.s, rig.owner, "/v1/items?library="+rig.films.PublicID+"&kind=movie").Items {
+		if item.Title == "Split" {
+			split = item.ID
+		}
+	}
+
+	_, original := rig.ask(rig.owner, DownloadAsk{ItemID: split, Quality: "original"})
+	var item DownloadedItem
+	call(t, rig.s, "GET", "/v1/downloads/"+original.ID+"/items/"+split, rig.owner, nil, &item)
+	if len(item.Files) != 2 || item.Files[1].SizeBytes != int64(len(raw[1])) {
+		t.Fatalf("the original's files are %+v", item.Files)
+	}
+	if res, body := rig.fetch(item.Files[1].URL); res.StatusCode != 200 || string(body) != string(raw[1]) {
+		t.Fatalf("the second part answered %d with %d bytes", res.StatusCode, len(body))
+	}
+
+	if !rig.s.prepare.Converts() {
+		t.Skip("this machine cannot run the sandboxed encoder")
+	}
+	_, smaller := rig.ask(rig.owner, DownloadAsk{ItemID: split, Quality: "240p"})
+	rig.waitReady(rig.owner, smaller.ID)
+	call(t, rig.s, "GET", "/v1/downloads/"+smaller.ID+"/items/"+split, rig.owner, nil, &item)
+	if len(item.Files) != 2 || item.Files[1].SHA256 == "" {
+		t.Fatalf("the copy's files are %+v", item.Files)
+	}
+	for _, file := range item.Files {
+		res, body := rig.fetch(file.URL)
+		sum := sha256.Sum256(body)
+		if res.StatusCode != 200 || hex.EncodeToString(sum[:]) != file.SHA256 {
+			t.Fatalf("a part of the copy is not the one described: %d", res.StatusCode)
+		}
+	}
+}
+
+// A copy nobody fetched for longer than the owner keeps them is removed and its title reads
+// Expired; Try again makes it again and the title is ready to fetch.
+func TestAnExpiredCopyIsMadeAgainOnRetry(t *testing.T) {
+	rig := newDownloadRig(t)
+	if !rig.s.prepare.Converts() {
+		t.Skip("this machine cannot run the sandboxed encoder")
+	}
+	_, dl := rig.ask(rig.owner, DownloadAsk{ItemID: rig.film, Quality: "240p"})
+	rig.waitReady(rig.owner, dl.ID)
+	rig.s.now = func() time.Time { return time.Now().Add(31 * 24 * time.Hour) }
+	if err := rig.s.prepare.Tidy(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	rig.s.now = time.Now
+	expired := get[Download](t, rig.s, rig.owner, "/v1/downloads/"+dl.ID)
+	if expired.Items[0].State != "expired" || expired.Counts.Ready != 0 {
+		t.Fatalf("an unused copy past the keeping time reads %+v", expired.Items)
+	}
+	var item DownloadedItem
+	if w := call(t, rig.s, "GET", "/v1/downloads/"+dl.ID+"/items/"+rig.film, rig.owner, nil, &item); w.Code == 200 {
+		t.Fatal("an expired title still offered files")
+	}
+	if w := call(t, rig.s, "PATCH", "/v1/downloads/"+dl.ID, rig.owner, DownloadChange{Retry: true}, nil); w.Code != 200 {
+		t.Fatalf("Try again answered %d: %s", w.Code, w.Body)
+	}
+	rig.waitReady(rig.owner, dl.ID)
+	if w := call(t, rig.s, "GET", "/v1/downloads/"+dl.ID+"/items/"+rig.film, rig.owner, nil, &item); w.Code != 200 || len(item.Files) != 1 {
+		t.Fatalf("after Try again the title's files answered %d", w.Code)
 	}
 }
