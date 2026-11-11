@@ -215,7 +215,7 @@ func State(ctx context.Context, d *db.DB, viewers []db.Viewer, target int, seed 
 					edit := db.ItemEdit{ItemID: item.PublicID}
 					switch pick := r.IntN(50); {
 					case pick < 38 && item.Kind != db.KindTrack && item.DurationMS > 0:
-						at := now.Add(-time.Duration(r.Int64N(int64(180 * 24 * time.Hour))))
+						at := now.Add(-time.Duration(r.Int64N(int64(30 * 24 * time.Hour))))
 						plays[n] = append(plays[n], db.Progress{Viewer: viewers[n], ItemID: item.PublicID, PositionMS: item.DurationMS,
 							At: at, PlayID: fmt.Sprintf("seed-%d-%d", viewers[n].ProfileID, item.ID), WatchedMS: item.DurationMS})
 						continue
