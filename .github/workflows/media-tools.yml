@@ -1,0 +1,153 @@
+name: Media tools
+# Builds Portico's media tools (ffmpeg, ffprobe and the portico-disc helper) from jellyfin-ffmpeg
+# with its own builder; third_party/ffmpeg/build.sh says how. A run does ONE stage for ONE
+# platform, so a mistake costs minutes:
+#
+#   check      no compiler: patches apply, recipes parse, the option list has what is wanted.
+#              Runs on every pull request that touches the build, and first in every run.
+#   sources    fetch every pinned library source and its licence text
+#   compiler   upstream's compiler image; built once per upstream version and kept
+#   libraries  every library, each kept once built ("library" builds one alone)
+#   helper     portico-disc, then the disc tests against the fixtures
+#   configure  FFmpeg's configure step alone
+#   bundle     ffmpeg and ffprobe, the helper, and the finished bundle as a run artifact
+#
+# The kept layers are container images named build-cache-ffmpeg-* in the project's registry.
+# They are build caches. Nothing here signs or publishes a release.
+on:
+  pull_request:
+    paths:
+      - third_party/ffmpeg/**
+      - third_party/portico-disc/**
+      - .github/workflows/media-tools.yml
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Platform to build for
+        type: choice
+        default: linux-x64
+        options: [linux-x64]
+      stage:
+        description: The one stage to run
+        type: choice
+        default: check
+        options: [check, sources, compiler, libraries, helper, configure, bundle]
+      library:
+        description: With "libraries", build only this recipe (for example portico-soxr); nothing is kept
+        type: string
+        default: ''
+permissions:
+  contents: read
+concurrency:
+  group: media-tools-${{ github.ref }}-${{ inputs.platform || 'linux-x64' }}-${{ inputs.stage || 'check' }}
+  cancel-in-progress: false
+env:
+  PLATFORM: ${{ inputs.platform || 'linux-x64' }}
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          sparse-checkout: |
+            third_party/ffmpeg
+            third_party/portico-disc
+      - name: Lay Portico's additions on the pinned source
+        run: third_party/ffmpeg/build.sh prepare "$PLATFORM"
+      - name: Everything that needs no compiler
+        run: third_party/ffmpeg/build.sh check "$PLATFORM"
+
+  sources:
+    if: github.event_name == 'workflow_dispatch' && inputs.stage == 'sources'
+    needs: check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          sparse-checkout: |
+            third_party/ffmpeg
+            third_party/portico-disc
+      - run: third_party/ffmpeg/build.sh prepare "$PLATFORM"
+      - name: Fetch every pinned library source and its licence text
+        run: |
+          command -v svn > /dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq subversion; }
+          third_party/ffmpeg/build.sh sources "$PLATFORM"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: media-tools-licences-${{ env.PLATFORM }}
+          path: .media-tools/${{ env.PLATFORM }}/licences
+          retention-days: 30
+
+  build:
+    if: github.event_name == 'workflow_dispatch' && contains(fromJSON('["compiler","libraries","helper","configure","bundle"]'), inputs.stage)
+    needs: check
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ fromJSON('{"compiler":100,"libraries":200,"helper":30,"configure":40,"bundle":120}')[inputs.stage] }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Make room on the runner
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL && df -h / | tail -1
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          sparse-checkout: |
+            third_party/ffmpeg
+            third_party/portico-disc
+            fixtures/discs
+            server-next
+      - name: Sign in to the project's container registry
+        run: echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - run: third_party/ffmpeg/build.sh prepare "$PLATFORM"
+
+      - name: Compiler image
+        if: inputs.stage == 'compiler'
+        run: third_party/ffmpeg/build.sh compiler "$PLATFORM"
+
+      - name: Libraries
+        if: inputs.stage == 'libraries'
+        env:
+          LIBRARY: ${{ inputs.library }}
+        run: third_party/ffmpeg/build.sh libraries "$PLATFORM"
+
+      - name: Library sources and licence texts
+        if: inputs.stage == 'bundle'
+        run: |
+          command -v svn > /dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq subversion; }
+          third_party/ffmpeg/build.sh sources "$PLATFORM"
+
+      - name: Disc helper
+        if: inputs.stage == 'helper' || inputs.stage == 'bundle'
+        run: third_party/ffmpeg/build.sh helper "$PLATFORM"
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        if: inputs.stage == 'helper' || inputs.stage == 'bundle'
+        with:
+          go-version-file: server-next/go.mod
+          cache: false
+      - name: Disc tests against the fixtures
+        if: inputs.stage == 'helper' || inputs.stage == 'bundle'
+        working-directory: server-next
+        env:
+          GOWORK: 'off'
+          PORTICO_DISC_TEST_BINARY: ${{ github.workspace }}/.media-tools/${{ env.PLATFORM }}/out/portico-disc
+        run: go test ./internal/disc -run 'TestHelper' -count=1 -v | grep -E '^(=== RUN|--- |PASS|FAIL|ok|\s+\S+_test.go)' ; exit "${PIPESTATUS[0]}"
+
+      - name: FFmpeg configure step alone
+        if: inputs.stage == 'configure'
+        run: third_party/ffmpeg/build.sh configure "$PLATFORM"
+
+      - name: ffmpeg and ffprobe
+        if: inputs.stage == 'bundle'
+        run: third_party/ffmpeg/build.sh compile "$PLATFORM"
+      - name: The bundle
+        if: inputs.stage == 'bundle'
+        run: third_party/ffmpeg/build.sh package "$PLATFORM"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: inputs.stage == 'bundle'
+        with:
+          name: portico-media-tools-${{ env.PLATFORM }}
+          path: .media-tools/${{ env.PLATFORM }}/portico-media-tools-${{ env.PLATFORM }}.tar.xz
+          retention-days: 30
+          compression-level: 0

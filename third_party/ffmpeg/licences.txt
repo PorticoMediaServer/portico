@@ -1,0 +1,76 @@
+# One row per recipe in the build plan: recipe | library | licence | how it reaches the programs | licence text
+# (the last column is only for a source that keeps its licence in a header or its README)
+# "linked" means the library's code is inside ffmpeg, ffprobe or portico-disc. "headers" means only
+# its interface is compiled in and the code runs from the driver on the person's machine.
+# "build only" means it is used while building and is not in the programs.
+# The licence column is checked against the licence file collected from each pinned source (the
+# sources stage copies those files into the bundle's LICENSES folder). A row whose licence says
+# non-free stops the build. FFmpeg itself, built this way, is GPL-3.0-or-later.
+20-libiconv | GNU libiconv | LGPL-2.1-or-later | linked
+20-zlib | zlib | Zlib | linked
+25-fftw3f | FFTW | GPL-2.0-or-later | linked (through chromaprint)
+25-freetype | FreeType | FTL OR GPL-2.0-or-later | linked
+25-fribidi | FriBidi | LGPL-2.1-or-later | linked
+25-gmp | GMP | LGPL-3.0-or-later OR GPL-2.0-or-later | linked
+25-libogg | libogg | BSD-3-Clause | linked
+25-libxml2 | libxml2 | MIT | linked
+25-openssl | OpenSSL | Apache-2.0 | linked
+25-xz | XZ Utils (liblzma) | 0BSD | linked
+35-fontconfig | Fontconfig | HPND-sell-variant AND MIT | linked
+45-harfbuzz | HarfBuzz | MIT-Modern-Variant | linked
+45-libudfread | libudfread | LGPL-2.1-or-later | linked
+45-libunibreak | libunibreak | Zlib | linked
+45-libvorbis | libvorbis | BSD-3-Clause | linked
+45-opencl | OpenCL headers and ICD loader (Khronos) | Apache-2.0 | linked (loader); the OpenCL runtime is the GPU vendor's
+10-xcbproto | xcb-proto | X11 | build only
+10-xproto | xorgproto | MIT AND X11 | build only
+10-xtrans | xtrans | MIT AND X11 | build only
+20-libxau | libXau | MIT-open-group | build only
+30-libxcb | libxcb | X11 | build only
+40-libx11 | libX11 | MIT AND X11 | build only
+50-libxext | libXext | MIT AND X11 | build only
+50-libxfixes | libXfixes | MIT | build only
+50-libxinerama | libXinerama | MIT AND X11 | build only
+50-libxi | libXi | MIT AND X11 | build only
+50-libxrender | libXrender | HPND-sell-variant | build only
+50-libxscrnsaver | libXScrnSaver | X11 | build only
+50-libxxf86vm | libXxf86vm | X11 | build only
+60-libglvnd | libglvnd | MIT AND BSD-1-Clause | build only | README.md
+60-libxcursor | libXcursor | HPND-sell-variant | build only
+60-libxrandr | libXrandr | HPND-sell-variant | build only
+60-libxv | libXv | HPND AND HPND-sell-variant | build only
+99-finalize | (no library: tidies the build folder) | none | build only
+45-vulkan-headers | Vulkan headers (Khronos) | Apache-2.0 OR MIT | headers
+45-vulkan-loader | Vulkan loader (Khronos) | Apache-2.0 | linked; the Vulkan driver is the GPU vendor's
+50-shaderc | shaderc, glslang, SPIRV-Tools | Apache-2.0 AND BSD-3-Clause AND MIT | linked
+55-spirv-cross | SPIRV-Cross | Apache-2.0 OR MIT | linked
+99-glslc | (no library: the shader compiler used while building) | none | build only
+50-amf | AMD AMF headers | MIT | headers; AMD's driver does the work
+50-chromaprint | Chromaprint | LGPL-2.1-or-later AND MIT | linked
+50-dav1d | dav1d | BSD-2-Clause | linked
+50-ffnvcodec | NVIDIA codec headers (FFmpeg project) | MIT | headers; NVIDIA's driver does the work | include/ffnvcodec/nvEncodeAPI.h
+50-libass | libass | ISC | linked
+50-libbluray | libbluray | LGPL-2.1-or-later | linked, with Portico's no-decryption patch
+50-libmp3lame | LAME | LGPL-2.0-or-later | linked
+50-libopus | Opus | BSD-3-Clause | linked
+50-libplacebo | libplacebo | LGPL-2.1-or-later | linked
+50-libtheora | libtheora | BSD-3-Clause | linked
+50-libvpl | Intel VPL dispatcher | MIT | linked; Intel's media driver and VPL runtime do the work
+50-libvpx | libvpx | BSD-3-Clause | linked
+50-libwebp | libwebp | BSD-3-Clause | linked
+50-openmpt | libopenmpt | BSD-3-Clause | linked
+50-portico-bzip2 | bzip2 | bzip2-1.0.6 | linked
+50-portico-dvd | libdvdread, libdvdnav | GPL-2.0-or-later | linked, with Portico's no-decryption patch
+50-portico-libdovi | libdovi (dovi_tool) and the Rust crates it is built from | MIT (crates: MIT, Apache-2.0 and similar) | linked
+50-portico-soxr | SoX Resampler (soxr) | LGPL-2.1-or-later | linked
+50-srt | SRT | MPL-2.0 | linked
+50-svtav1 | SVT-AV1 | BSD-3-Clause-Clear AND AOM patent licence 1.0 | linked
+30-libpciaccess | libpciaccess | MIT AND X11 | linked (through libdrm)
+40-libdrm | libdrm | MIT | linked | xf86drm.h
+50-libva | libva | MIT | linked; the VA driver is the system's
+50-x264 | x264 | GPL-2.0-or-later | linked
+50-x265 | x265 | GPL-2.0-or-later | linked
+50-zimg | zimg | WTFPL | linked
+50-zvbi | ZVBI | GPL-2.0-or-later AND LGPL-2.0-or-later | linked
+99-rpath | (no library: a link setting) | none | build only
+10-xorg-macros | xorg util-macros | MIT | build only
