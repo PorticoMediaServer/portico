@@ -15,6 +15,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/hosted"
+	"github.com/PorticoMediaServer/portico/server-next/internal/settings"
 )
 
 // First-run setup. A server with no owner shows setup to anyone who reaches it, from any
@@ -204,12 +205,32 @@ func (s *Server) checkSetupCode(r *http.Request, code string) error {
 		"That setup code is not correct. It is in the server's log and in setup-code.txt in its data folder.", false)
 }
 
+// checkServerName checks a name setup was given with Settings › General's own rule, so the
+// name setup saves is one the console accepts. "" keeps the name the server has.
 func checkServerName(name string) (string, error) {
-	name = strings.TrimSpace(name)
-	if name != "" && !auth.ValidName(name) {
-		return "", ErrField("serverName", "Give the server a name of at most 120 characters.")
+	if strings.TrimSpace(name) == "" {
+		return "", nil
 	}
-	return name, nil
+	checked, err := settings.General.Check(settings.GeneralSettings{Name: name})
+	var invalid *settings.Invalid
+	if errors.As(err, &invalid) {
+		return "", ErrField("serverName", invalid.Message)
+	}
+	return checked.Name, err
+}
+
+// saveServerName stores the name setup was given in Settings › General, where every reader of
+// the server's name finds it and the owner renames it later. It is saved by the new owner once
+// their account exists: a setup refused at the last moment changes nothing. If this save fails
+// the server keeps its default name, which the owner can change.
+func (s *Server) saveServerName(ctx context.Context, ownerID int64, name string) {
+	if name == "" {
+		return
+	}
+	change, _ := json.Marshal(map[string]string{"name": name})
+	if _, err := s.settings.Write(ctx, ownerID, settings.General.Name(), change, -1, s.now()); err != nil {
+		s.log.Error("the name chosen in setup was not saved; the server keeps its default name", "error", err)
+	}
 }
 
 // setupDone deletes the setup code once an owner exists; it is never asked for again.
@@ -256,13 +277,14 @@ func (s *Server) setupOwner(r *http.Request, req SetupOwnerRequest) (SignInRespo
 		return SignInResponse{}, err
 	}
 	st, err := s.db.CreateOwner(ctx, db.NewOwner{Username: username, PasswordHash: hash, ProfileName: req.ProfileName,
-		ServerName: serverName, Settings: settings, Session: session, Now: now})
+		Settings: settings, Session: session, Now: now})
 	if errors.Is(err, db.ErrSetupDone) {
 		return SignInResponse{}, errSetupDone()
 	}
 	if err != nil {
 		return SignInResponse{}, err
 	}
+	s.saveServerName(ctx, st.UserID, serverName)
 	if err := s.setupDone(ctx); err != nil {
 		return SignInResponse{}, err
 	}
@@ -359,13 +381,14 @@ func (s *Server) setupPorticoFinish(r *http.Request, req SetupPorticoFinish) (Si
 		serverName = ""
 	}
 	st, err := s.db.CreateOwner(ctx, db.NewOwner{Username: username, PorticoAccountID: decision.Account.ID, ProfileName: profileName,
-		ServerName: serverName, Settings: settings, Session: session, Now: now})
+		Settings: settings, Session: session, Now: now})
 	if errors.Is(err, db.ErrSetupDone) {
 		return SignInResponse{}, errSetupDone()
 	}
 	if err != nil {
 		return SignInResponse{}, err
 	}
+	s.saveServerName(ctx, st.UserID, serverName)
 	if err := s.setupDone(ctx); err != nil {
 		return SignInResponse{}, err
 	}
