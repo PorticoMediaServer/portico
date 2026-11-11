@@ -76,6 +76,17 @@ type AdminLibrary struct {
 	Scanning           bool       `json:"scanning"`
 	LastScanStartedAt  *time.Time `json:"lastScanStartedAt,omitempty"`
 	LastScanFinishedAt *time.Time `json:"lastScanFinishedAt,omitempty"`
+	// Revision changes with every edit of the library's name, options or folders. It is also
+	// the ETag of a read of one library; an edit may send it back in If-Match, and one made
+	// on an out-of-date copy is then refused with 412.
+	Revision string `json:"revision"`
+}
+
+func (l AdminLibrary) reply(h http.Header) int {
+	if l.Revision != "" {
+		etag(h, l.Revision)
+	}
+	return 0
 }
 
 // LibraryCreate makes a library and starts its first scan. Kind is movies, shows, anime,
@@ -306,7 +317,8 @@ const watchNote = "Changes made while the server was off are picked up at the ne
 
 func (s *Server) libraryOut(r *http.Request, l db.AdminLibrary) (AdminLibrary, error) {
 	out := AdminLibrary{ID: l.PublicID, Name: l.Name, Kind: l.Kind, Language: l.Language, Folders: s.foldersOut(l.Library, l.Folders),
-		Options: libraryOptionsOut(l.Options), LastScanStartedAt: timePtr(l.ScanStartedAt), LastScanFinishedAt: timePtr(l.ScanFinishedAt)}
+		Options: libraryOptionsOut(l.Options), LastScanStartedAt: timePtr(l.ScanStartedAt), LastScanFinishedAt: timePtr(l.ScanFinishedAt),
+		Revision: strconv.FormatInt(l.Revision, 10)}
 	if !l.Options.NoWatch {
 		out.WatchNote = watchNote
 	}
@@ -409,6 +421,8 @@ func libraryError(err error) error {
 		return ErrInvalid(strings.TrimPrefix(err.Error(), "invalid: "))
 	case errors.Is(err, db.ErrKeyReused):
 		return errKeyReused()
+	case errors.Is(err, db.ErrStale):
+		return refusal(http.StatusPreconditionFailed, "library_changed", "This library changed. Reload and try again.", false)
 	}
 	return err
 }
@@ -419,6 +433,7 @@ func (s *Server) RunSchedules(ctx context.Context) { s.scans.Run(ctx) }
 
 func (s *Server) libraryRoutes() {
 	s.explorerRoutes()
+	s.selectionRoutes()
 	Handle(s, "GET /v1/admin/libraries", Owner, s.listAdminLibraries)
 	Handle(s, "POST /v1/admin/libraries", Owner, s.createLibrary)
 	Handle(s, "GET /v1/admin/libraries/{id}", Owner, func(r *http.Request, _ None) (AdminLibrary, error) {
@@ -498,6 +513,13 @@ func (s *Server) editLibrary(r *http.Request, req LibraryEdit) (AdminLibrary, er
 		return AdminLibrary{}, err
 	}
 	edit := db.LibraryEdit{Name: req.Name, Language: req.Language, Folders: req.Folders}
+	// An edit made on a copy of the library that has since changed is refused, when the app
+	// says which copy it was made on.
+	if header := strings.Trim(strings.TrimPrefix(r.Header.Get("If-Match"), "W/"), `"`); header != "" && header != "*" {
+		if edit.Revision, err = strconv.ParseInt(header, 10, 64); err != nil || edit.Revision <= 0 {
+			return AdminLibrary{}, libraryError(db.ErrStale)
+		}
+	}
 	if req.Options != nil {
 		options := optionsIn(*req.Options)
 		edit.Options = &options
