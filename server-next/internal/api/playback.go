@@ -207,6 +207,16 @@ func (s *Server) startPlayback(r *http.Request, req PlaybackStart) (PlaybackSess
 		offset := tuned.Offset.Milliseconds()
 		req.StartPositionMs = &offset
 		channel = &playback.ChannelLink{ID: req.Channel, StartsAt: tuned.StartsAt.UTC(), EndsAt: tuned.EndsAt.UTC()}
+		if tuned.Logo != nil {
+			logo := playback.ChannelLogo{URL: "/v1/images/" + tuned.LogoHash, Corner: tuned.Logo.Corner, Size: tuned.Logo.Size}
+			if logo.Corner == "" {
+				logo.Corner = "topRight"
+			}
+			if logo.Size == "" {
+				logo.Size = "medium"
+			}
+			channel.Logo = &logo
+		}
 		// The channel's quality choice: Original only never converts, and Limited bitrate is a
 		// ceiling no viewer's own choice goes above.
 		switch tuned.Quality.Mode {
@@ -278,6 +288,12 @@ func (s *Server) changePlayback(r *http.Request, req PlaybackChange) (PlaybackSe
 	}
 	if req.Seek != nil {
 		position := max(req.Seek.PositionMs, 0)
+		// On a Library Channel a viewer can go back as far as the programme's start, never
+		// ahead of live: a seek past live goes to live.
+		c := s.playbackCaller(r)
+		if session, err := s.playback.Get(r.PathValue("id"), c.Viewer, c.SignInID); err == nil && session.Channel != nil {
+			position = min(position, s.now().Sub(session.Channel.StartsAt).Milliseconds())
+		}
 		change.SeekMs, change.SeekID = &position, req.Seek.ID
 	}
 	session, err := s.playback.Change(r.Context(), r.PathValue("id"), s.playbackCaller(r), change)
