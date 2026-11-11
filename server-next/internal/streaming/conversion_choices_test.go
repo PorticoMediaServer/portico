@@ -43,14 +43,24 @@ func TestConversionChoicesForEveryDevice(t *testing.T) {
 		t.Skip("no compiled hardware backend on this platform")
 	}
 	aac := SourceAudio{Index: 1, Codec: "aac", Channels: 2, StreamDetail: mediafacts.StreamDetail{SampleRate: 48000, BitRate: 192000}}
+	hd := mediafacts.StreamDetail{Width: 1920, Height: 1080, FrameRate: 24, BitDepth: 8, DynamicRange: mediafacts.RangeSDR}
+	hi10 := hd
+	hi10.Profile, hi10.Level, hi10.BitDepth = "High 10", 41, 10
+	uhd := mediafacts.StreamDetail{Profile: "Main 10", Level: 153, Width: 3840, Height: 2160, FrameRate: 24, BitDepth: 10,
+		DynamicRange: mediafacts.RangeSDR, CodecTag: "hvc1"}
+	hdr10, hlg := uhd, uhd
+	hdr10.DynamicRange, hlg.DynamicRange = mediafacts.RangeHDR10, mediafacts.RangeHLG
+	vp9 := mediafacts.StreamDetail{Profile: "Profile 2", Width: 3840, Height: 2160, FrameRate: 24, BitDepth: 10, DynamicRange: mediafacts.RangeHDR10}
+	av1 := vp9
+	av1.Profile = "Main"
 	sources := map[string]*DeliverySource{
-		"vc1-8bit-sdr-1080":        videoSource("mkv", "vc1", mediafacts.StreamDetail{Width: 1920, Height: 1080, FrameRate: 24, BitDepth: 8, DynamicRange: mediafacts.RangeSDR}, aac),
-		"h264-hi10-10bit-sdr-1080": videoSource("mkv", "h264", mediafacts.StreamDetail{Profile: "High 10", Level: 41, Width: 1920, Height: 1080, FrameRate: 24, BitDepth: 10, DynamicRange: mediafacts.RangeSDR}, aac),
-		"hevc-10bit-sdr-2160":      videoSource("mkv", "hevc", mediafacts.StreamDetail{Profile: "Main 10", Level: 153, Width: 3840, Height: 2160, FrameRate: 24, BitDepth: 10, DynamicRange: mediafacts.RangeSDR, CodecTag: "hvc1"}, aac),
-		"hevc-hdr10-2160":          videoSource("mkv", "hevc", mediafacts.StreamDetail{Profile: "Main 10", Level: 153, Width: 3840, Height: 2160, FrameRate: 24, BitDepth: 10, DynamicRange: mediafacts.RangeHDR10, CodecTag: "hvc1"}, aac),
-		"hevc-hlg-2160":            videoSource("mkv", "hevc", mediafacts.StreamDetail{Profile: "Main 10", Level: 153, Width: 3840, Height: 2160, FrameRate: 24, BitDepth: 10, DynamicRange: mediafacts.RangeHLG, CodecTag: "hvc1"}, aac),
-		"vp9-hdr10-2160":           videoSource("mkv", "vp9", mediafacts.StreamDetail{Profile: "Profile 2", Width: 3840, Height: 2160, FrameRate: 24, BitDepth: 10, DynamicRange: mediafacts.RangeHDR10}, aac),
-		"av1-hdr10-2160":           videoSource("mkv", "av1", mediafacts.StreamDetail{Profile: "Main", Width: 3840, Height: 2160, FrameRate: 24, BitDepth: 10, DynamicRange: mediafacts.RangeHDR10}, aac),
+		"vc1-8bit-sdr-1080":        videoSource("mkv", "vc1", hd, aac),
+		"h264-hi10-10bit-sdr-1080": videoSource("mkv", "h264", hi10, aac),
+		"hevc-10bit-sdr-2160":      videoSource("mkv", "hevc", uhd, aac),
+		"hevc-hdr10-2160":          videoSource("mkv", "hevc", hdr10, aac),
+		"hevc-hlg-2160":            videoSource("mkv", "hevc", hlg, aac),
+		"vp9-hdr10-2160":           videoSource("mkv", "vp9", vp9, aac),
+		"av1-hdr10-2160":           videoSource("mkv", "av1", av1, aac),
 	}
 	targets := map[string]QualityTarget{
 		"original": {RungID: "original", Kind: QualityAutomatic, AllowHDR: true},
