@@ -202,8 +202,12 @@ func (im *importer) restore(id int64) error {
 		return nil
 	}
 	// A holder's own row comes back with the mark it had, and a leaf's with its watched
-	// state: both are settled against what is there now.
-	im.leavesChanged(id)
+	// state: the item and what it sits under are settled against what is there now.
+	var parent, root sql.NullInt64
+	if err := im.queryRow(`SELECT parent_id, root_id FROM items WHERE id = ?`, id).Scan(&parent, &root); err != nil {
+		return err
+	}
+	im.leavesChanged(id, parent.Int64, root.Int64)
 	return restoreState(im.batchTx, id)
 }
 
