@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -235,5 +236,50 @@ func TestStartingAndEndingGroupsIsBounded(t *testing.T) {
 	th.s.groups.Sweep()
 	if code := start(9); code != 201 {
 		t.Fatalf("a group once the ended ones were dropped answered %d", code)
+	}
+}
+
+// A profile whose Watch Together is turned off while it joins does not stay in the group, and
+// a profile whose restrictions change is waited for, or not, by what it may see now.
+func TestWatchTogetherFollowsRestrictionChanges(t *testing.T) {
+	th := newTheatre(t)
+	host := th.owner.AccessToken
+	var kid Profile
+	call(t, th.s, "POST", "/v1/profiles", host, ProfileCreate{Name: "Kid"}, &kid)
+	var onKid Session
+	call(t, th.s, "POST", "/v1/profiles/"+kid.ID+"/select", signIn(t, th.s, 3).Session.AccessToken, ProfileSelect{}, &onKid)
+	path := "/v1/profiles/" + kid.ID + "/restrictions"
+	on, off := true, false
+	_, made := th.room("POST", "/v1/groups", host, GroupCreate{Name: "Night", Control: "host"})
+	for n := range raceRuns() {
+		// A fresh code each time, so the code's joins never run out.
+		call(t, th.s, "PATCH", "/v1/groups/"+made.ID, host, GroupEdit{NewCode: &GroupCodeAsk{}}, &made)
+		status(t, th.s, "PUT", path, host, Restrictions{AllLibraries: true, AllowWatchTogether: &on})
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() { defer wg.Done(); status(t, th.s, "PUT", path, host, Restrictions{AllLibraries: true, AllowWatchTogether: &off}) }()
+		go func() {
+			defer wg.Done()
+			status(t, th.s, "POST", "/v1/groups/join", onKid.AccessToken, GroupJoin{Code: made.Invitation.Code})
+		}()
+		wg.Wait()
+		if _, room := th.room("GET", "/v1/groups/"+made.ID, host, nil); len(room.Members) != 1 {
+			t.Fatalf("run %d: a profile turned off while joining is still in the group: %d members", n, len(room.Members))
+		}
+	}
+
+	status(t, th.s, "PUT", path, host, Restrictions{AllLibraries: true, AllowWatchTogether: &on})
+	call(t, th.s, "PATCH", "/v1/groups/"+made.ID, host, GroupEdit{NewCode: &GroupCodeAsk{}}, &made)
+	if code, _ := th.room("POST", "/v1/groups/join", onKid.AccessToken, GroupJoin{Code: made.Invitation.Code}); code != 200 {
+		t.Fatalf("the kid joining answered %d", code)
+	}
+	_, queued := th.room("PUT", "/v1/groups/"+made.ID+"/queue", host, GroupQueue{Entries: []GroupQueueEntry{{ItemID: th.film}}})
+	if _, watching := th.room("POST", "/v1/groups/"+made.ID+"/playback", host, GroupAction{Action: "watch", EntryID: queued.Queue[0].EntryID}); watching.CantSee != 0 {
+		t.Fatalf("a kid who may see the film is counted as not: %d", watching.CantSee)
+	}
+	age := 6
+	status(t, th.s, "PUT", path, host, Restrictions{MaxRatingAge: &age, AllLibraries: true})
+	if _, room := th.room("GET", "/v1/groups/"+made.ID, host, nil); room.CantSee != 1 {
+		t.Fatalf("after the kid's rating limit fell below the film, the host is told %d cannot see it", room.CantSee)
 	}
 }
