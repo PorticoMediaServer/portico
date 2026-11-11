@@ -1,0 +1,29 @@
+{
+  "envelope": {
+    "payload": "eyJraW5kIjoicG9ydGljby5pZGVudGl0eS52MSIsImFjY291bnRJZCI6ImFjY3RfZml4dHVyZSIsInNlcnZlcklkIjoic3J2X2ZpeHR1cmUifQ",
+    "signature": "LRxVN3loevoBTE2P-FpESJS1pZ3iV0HF2fa4WUoqOo9TEv5Oy_hMEQhKAaR4vHjBbK03hfvnXjuH6VOmfX8sCw",
+    "keyId": "319b9c86676217a6c65d5674a4da4099",
+    "certificate": {
+      "keyId": "319b9c86676217a6c65d5674a4da4099",
+      "publicKey": "GdzM-l_oOI_Azr1wSe9Y3v90uTPU0hkP4m-eGZurwjE",
+      "purpose": "documents",
+      "notBefore": "2026-01-01T00:00:00Z",
+      "notAfter": "2027-01-01T00:00:00Z",
+      "revision": 3,
+      "revoked": [
+        "0123456789abcdef0123456789abcdef"
+      ],
+      "signature": "wgjeYw2k73VpNtq6Q-5xrlVrWKYl6xpcj1zZfet3OvV9IBPZVC2T6vBzVNmbcF2R-bL6FL9iFZsEPafAhjm4Ag"
+    }
+  },
+  "note": "Made by the old service's own code (hosted/trust, hosted/internal/security, hosted/internal/claims) from keys derived from fixed test phrases. None is a real key.",
+  "payload": "{\"kind\":\"portico.identity.v1\",\"accountId\":\"acct_fixture\",\"serverId\":\"srv_fixture\"}",
+  "rootPublic": "dqGKA8l9OmGcNltkPdMgpMZESfd5mRJ3hANaRWtSB4E",
+  "sealContext": "portico/acme-account/v1/google-production",
+  "sealKey": "QtCssvBYZS87DqrTRRJbTm-Ju7EO4zZzfAOACKNE_AU",
+  "sealPlain": "the sealed words",
+  "sealed": "AAAAAXg32B9yAoSX3lbUJBcAtB_5MFD-7vOCos2uvVqHWU2bt7lD7NkfgeiZYV6W",
+  "serverId": "srv_rNJsZR12mrfBDnkjefqhz5c0t9dwIj00DKiI47B_eq0",
+  "serverPublicKey": "BH2l6k7O1BHUN-hKz7SovRI1vu1y7U73a1FCd2qkeE0",
+  "signingKeyId": "319b9c86676217a6c65d5674a4da4099"
+}
