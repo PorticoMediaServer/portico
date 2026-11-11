@@ -31,6 +31,10 @@ type consoleArea struct {
 	serverLog *serverlog.Log
 }
 
+// Settings are the owner's settings documents, for the parts of the server outside the API:
+// the media engine reads Settings › Streaming.
+func (s *Server) Settings() *settings.Settings { return s.settings }
+
 // Totals are the server's lifetime statistics: the server runs them, and flushes them as it stops.
 func (s *Server) Totals() *console.Totals { return s.totals }
 
@@ -46,6 +50,8 @@ func (s *Server) startConsole(ctx context.Context) error {
 		s.log.Warn("a settings document could not be read and is at its defaults until the owner saves it", "error", err)
 	}
 	s.settingsRoutes()
+	// Playback reads Settings › Streaming at every start: the away limits and the upload speed.
+	s.playback.UseSettings(s.settings)
 	s.activityRoutes()
 	s.totals = &console.Totals{DB: s.db, Log: s.log, Now: func() time.Time { return s.now() }}
 	s.playback.CountInto(s.totals)

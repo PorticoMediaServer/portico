@@ -135,7 +135,8 @@ func run(log *slog.Logger) error {
 	handler.UseLog(serverLog)
 	// The media engine plans and runs the streams. Its conversions folder is emptied at start:
 	// no stream outlives a restart.
-	engine, err := mediaengine.New(ctx, d, mediaengine.Options{Folder: filepath.Join(*data, "transcodes"), Log: log, Remote: handler.RemoteSources().Open})
+	engine, err := mediaengine.New(ctx, d, mediaengine.Options{Folder: filepath.Join(*data, "transcodes"), Log: log, Remote: handler.RemoteSources().Open,
+		Settings: handler.Settings()})
 	if err != nil {
 		return err
 	}
