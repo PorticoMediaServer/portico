@@ -291,7 +291,8 @@ func TestUnlistedProxyOnThisMachine(t *testing.T) {
 	}
 	var warned bool
 	for _, w := range settings.Warnings {
-		warned = warned || (w.Code == "proxy_not_listed" && strings.Contains(w.Message, proxy) && strings.Contains(w.Message, "Trusted proxies"))
+		warned = warned || (w.Code == "proxy_not_listed" && strings.Contains(w.Message, proxy) && strings.Contains(w.Message, "Trusted proxies") &&
+			strings.Contains(w.Message, "If you run no proxy, do not add it."))
 	}
 	if !warned {
 		t.Errorf("the owner's network settings do not say the proxy is not listed: %+v", settings.Warnings)
@@ -320,6 +321,39 @@ func TestUnlistedProxyOnThisMachine(t *testing.T) {
 	// the stranger who guessed starts from their own count.
 	if code, refused := through(ownerAt, "POST", "/v1/auth/sign-in", "", fresh, nil); code != 200 {
 		t.Errorf("a sign-in once the proxy is listed answered %d %q", code, refused.Message)
+	}
+}
+
+// A proxy or CDN of the owner's at a public address that is not listed gets one warning,
+// however many addresses it uses, saying what to do if it is theirs and to ignore it if not.
+// A stranger sending the header cannot fill the settings or the log with it.
+func TestUnlistedProxyAtAPublicAddress(t *testing.T) {
+	s := newTestServer(t)
+	owner := onMainProfile(t, s)
+	var log bytes.Buffer
+	s.log = slog.New(slog.NewTextHandler(&log, nil))
+	wrong := SignInRequest{Username: "justin", Password: "not the password"}
+	for range 2 {
+		for n := range maxSilentProxies + 4 {
+			wrong.Device = device(800 + n)
+			from(t, s, fmt.Sprintf("203.0.113.%d", n+1), "192.168.1.20", "POST", "/v1/auth/sign-in", "", wrong, nil)
+		}
+	}
+	var public []Warning
+	for _, w := range get[NetworkSettings](t, s, owner.AccessToken, "/v1/admin/settings/network").Warnings {
+		if w.Code == "proxy_not_listed_public" {
+			public = append(public, w)
+		}
+		if w.Code == "proxy_not_listed" {
+			t.Errorf("a public address is named as a proxy on the owner's own network: %q", w.Message)
+		}
+	}
+	if len(public) != 1 || !strings.Contains(public[0].Message, "203.0.113.") || !strings.Contains(public[0].Message, "15 others") ||
+		!strings.Contains(public[0].Message, "Trusted proxies") || !strings.Contains(public[0].Message, "ignore this") {
+		t.Errorf("the warning for public addresses is %+v", public)
+	}
+	if lines := strings.Count(log.String(), "from public addresses"); lines != maxSilentProxies {
+		t.Errorf("%d public addresses sending the header twice wrote %d log lines, want %d", maxSilentProxies+4, lines, maxSilentProxies)
 	}
 }
 

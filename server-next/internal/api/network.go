@@ -34,7 +34,7 @@ type NetworkSettings struct {
 	TrustedProxies []string `json:"trustedProxies"`
 	// Warnings are what the owner should know about these settings, each a code and a plain
 	// sentence, for as long as it holds. It is empty when nothing is wrong, and is not part of
-	// what is saved. Three codes so far:
+	// what is saved. Four codes so far:
 	//   - proxy_everywhere: the trusted proxies cover most of the internet, so anyone can say
 	//     they are at home. The owner's choice: it is saved, and said.
 	//   - proxy_without_header: requests came from a trusted proxy's address with no
@@ -43,6 +43,9 @@ type NetworkSettings struct {
 	//   - proxy_not_listed: requests carrying X-Forwarded-For came in the last day from an
 	//     address on this machine or a private network that is not a trusted proxy, so
 	//     everyone through it is one visitor. One for each such address, naming it.
+	//   - proxy_not_listed_public: the same from public addresses, which may be the owner's
+	//     own proxy or CDN elsewhere or a stranger sending the header. One warning in all,
+	//     naming the latest address and how many others.
 	Warnings []Warning `json:"warnings"`
 
 	revision
@@ -91,6 +94,8 @@ type networkState struct {
 	// unlisted is when each address on this machine or a private network that is not a
 	// trusted proxy last sent a request carrying X-Forwarded-For.
 	unlisted map[string]time.Time
+	// public is the same for public addresses, which anyone on the internet can be.
+	public map[string]time.Time
 }
 
 const (
@@ -115,7 +120,7 @@ func (n *networkState) set(stored storedNetworks) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	// A saved change starts the warnings afresh: the proxy named may no longer be listed.
-	n.stored, n.home, n.proxies, n.silent, n.unlisted = stored, home, proxies, nil, nil
+	n.stored, n.home, n.proxies, n.silent, n.unlisted, n.public = stored, home, proxies, nil, nil, nil
 	return nil
 }
 
@@ -141,6 +146,8 @@ func (s *Server) fromHome(r *http.Request) bool {
 	}
 	if networks.UnlistedLocalProxy(r) {
 		s.noteUnlistedProxy(peerAddr(r))
+	} else if networks.ThroughUnlistedProxy(r) {
+		s.notePublicProxy(peerAddr(r))
 	}
 	return networks.FromHome(r)
 }
@@ -149,7 +156,43 @@ func (s *Server) fromHome(r *http.Request) bool {
 func unlistedProxyNotice(proxy string) string {
 	return "Requests are arriving through a proxy at " + proxy + " that is not listed as trusted, so everyone who comes through it is treated as one visitor: " +
 		"they all count as away from home, and wrong passwords from any one of them can block sign-in for all of them. " +
-		"If it is your proxy, add " + proxy + " to Trusted proxies."
+		"If it is your proxy, add " + proxy + " to Trusted proxies. If you run no proxy, do not add it."
+}
+
+// publicProxyNotice is the sentence for the same thing seen from public addresses: a proxy or
+// CDN of the owner's somewhere else, or a stranger sending the header. The server cannot
+// tell which, so there is one warning however many addresses do it, naming the latest.
+func publicProxyNotice(latest string, others int) string {
+	also := ""
+	if others == 1 {
+		also = " and one other"
+	} else if others > 1 {
+		also = " and " + strconv.Itoa(others) + " others"
+	}
+	return "Requests are arriving with a forwarded address (X-Forwarded-For) from public addresses that are not listed as trusted, most recently " +
+		latest + also + ". If that is your own proxy or CDN, add its addresses to Trusted proxies: until then everyone who comes through it " +
+		"is treated as one visitor and can be blocked together. If it is not yours, ignore this: anyone can send that header, and it is not believed."
+}
+
+// notePublicProxy remembers a public address that sent X-Forwarded-For without being a
+// trusted proxy. Anyone on the internet can cause this, so it is kept apart from the
+// addresses on the owner's own machine and network, which a stranger must not crowd out;
+// like them it keeps at most sixteen and logs each once.
+func (s *Server) notePublicProxy(address string) {
+	now := s.now()
+	s.network.mu.Lock()
+	_, known := s.network.public[address]
+	if s.network.public == nil {
+		s.network.public = map[string]time.Time{}
+	}
+	added := known || len(s.network.public) < maxSilentProxies
+	if added {
+		s.network.public[address] = now
+	}
+	s.network.mu.Unlock()
+	if !known && added {
+		s.log.Warn(publicProxyNotice(address, 0), "address", address)
+	}
 }
 
 // noteUnlistedProxy remembers, for the owner's warnings, an address that is behaving as a
@@ -248,6 +291,17 @@ func (s *Server) networkWarnings(networks auth.Networks) []Warning {
 		}
 		unlisted = append(unlisted, proxy)
 	}
+	latest, others := "", -1
+	for address, at := range s.network.public {
+		if now.Sub(at) > silentProxyFor {
+			delete(s.network.public, address)
+			continue
+		}
+		others++
+		if latest == "" || at.After(s.network.public[latest]) || at.Equal(s.network.public[latest]) && address < latest {
+			latest = address
+		}
+	}
 	s.network.mu.Unlock()
 	slices.Sort(silent)
 	for _, proxy := range silent {
@@ -256,6 +310,9 @@ func (s *Server) networkWarnings(networks auth.Networks) []Warning {
 	slices.Sort(unlisted)
 	for _, proxy := range unlisted {
 		out = append(out, Warning{Code: "proxy_not_listed", Message: unlistedProxyNotice(proxy)})
+	}
+	if latest != "" {
+		out = append(out, Warning{Code: "proxy_not_listed_public", Message: publicProxyNotice(latest, others)})
 	}
 	return out
 }
