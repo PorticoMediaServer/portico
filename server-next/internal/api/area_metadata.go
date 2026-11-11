@@ -9,6 +9,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/jobs"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata"
+	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/lrclib"
 )
 
 // metadataArea is what metadata (area 04) keeps on the server. Add this area's fields here and its
@@ -31,6 +32,10 @@ func (s *Server) startMetadata(ctx context.Context) error {
 		return err
 	}
 	s.metadataRoutes()
+	// LRCLIB needs no key (definition area 4, rule 64): lyrics are looked up only in a music
+	// library whose owner chose "Files, then LRCLIB", or by hand.
+	s.metadata.Lyrics = lrclib.New(lrclib.Origin, lrclib.Every)
+	s.lyricsAdminRoutes()
 	s.metadataSettingsRoutes()
 	s.subtitleSearchRoutes()
 	s.editorRoutes()

@@ -161,3 +161,24 @@ func (im *importer) tagLyrics(itemID int64, lyrics *Lyrics) error {
 	}
 	return nil
 }
+
+// VisibleSong returns the id of a song the viewer may see, by its public id: a title that is
+// not there, not a song, or hidden from the viewer is ErrNotFound.
+func (d *DB) VisibleSong(ctx context.Context, v Viewer, publicID string) (int64, error) {
+	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+	acc, err := loadAccess(ctx, tx, v)
+	if err != nil {
+		return 0, err
+	}
+	var id int64
+	err = tx.QueryRowContext(ctx, `SELECT i.id FROM items i WHERE i.public_id = :id AND i.kind = :kind AND `+acc.visible("i"),
+		sql.Named("id", publicID), sql.Named("kind", KindTrack)).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, ErrNotFound
+	}
+	return id, err
+}
