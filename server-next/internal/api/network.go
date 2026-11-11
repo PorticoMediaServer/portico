@@ -32,9 +32,17 @@ type NetworkSettings struct {
 	// TrustedProxies are the reverse proxies whose X-Forwarded-For header is believed. The
 	// header from any other address is ignored.
 	TrustedProxies []string `json:"trustedProxies"`
+	// WebOrigins are the web addresses, besides this server's own, whose pages may use the
+	// server from a person's browser: each exactly one origin such as https://tools.example
+	// or http://localhost:5173, never a pattern. BuiltInWebOrigins are the ones always
+	// allowed, Portico's own hosted web app; they are not part of what is saved.
+	WebOrigins        []string `json:"webOrigins"`
+	BuiltInWebOrigins []string `json:"builtInWebOrigins"`
 	// Warnings are what the owner should know about these settings, each a code and a plain
 	// sentence, for as long as it holds. It is empty when nothing is wrong, and is not part of
-	// what is saved. Six codes so far:
+	// what is saved. Seven codes so far:
+	//   - web_origin_not_encrypted: an allowed web origin is plain http and not on the
+	//     person's own machine. One for each, naming it.
 	//   - proxy_everywhere: the trusted proxies cover most of the internet, so anyone can say
 	//     they are at home. The owner's choice: it is saved, and said.
 	//   - proxy_without_header: requests came from a trusted proxy's address with no
@@ -71,6 +79,7 @@ const proxyEverywhereMessage = "A trusted proxy covers most of the internet, so 
 type NetworkSettingsEdit struct {
 	HomeNetworks   *[]string `json:"homeNetworks,omitempty"`
 	TrustedProxies []string  `json:"trustedProxies"`
+	WebOrigins     []string  `json:"webOrigins"`
 }
 
 const (
@@ -84,6 +93,8 @@ const (
 type storedNetworks struct {
 	Home    *[]string `json:"home,omitempty"`
 	Proxies []string  `json:"proxies"`
+	// Origins are the web origins the owner allows, each as a browser sends it.
+	Origins []string `json:"origins,omitempty"`
 }
 
 // networkState is the settings as requests use them, kept in memory.
@@ -357,6 +368,14 @@ func (s *Server) noteSilentProxy(proxy string) {
 // then each trusted proxy address seen sending no X-Forwarded-For in the last day.
 func (s *Server) networkWarnings(networks auth.Networks) []Warning {
 	out := []Warning{}
+	s.network.mu.Lock()
+	origins := slices.Clone(s.network.stored.Origins)
+	s.network.mu.Unlock()
+	for _, origin := range origins {
+		if plainOrigin(origin) {
+			out = append(out, Warning{Code: "web_origin_not_encrypted", Message: plainOriginNotice(origin)})
+		}
+	}
 	// Believing a forwarded address from most of the internet lets anyone claim to be at home.
 	// It is the owner's choice about their own server, so it is saved, and said plainly.
 	for _, p := range networks.Proxies {
@@ -487,7 +506,8 @@ func prefixStrings(prefixes []netip.Prefix) []string {
 func (s *Server) networkSettings(saved int64) NetworkSettings {
 	networks, stored := s.network.current(s.now())
 	return NetworkSettings{HomeNetworks: prefixStrings(networks.Home), HomeNetworksDefault: stored.Home == nil,
-		TrustedProxies: prefixStrings(networks.Proxies), Warnings: s.networkWarnings(networks), revision: revision(saved)}
+		TrustedProxies: prefixStrings(networks.Proxies), WebOrigins: append([]string{}, stored.Origins...), BuiltInWebOrigins: builtInWebOrigins,
+		Warnings: s.networkWarnings(networks), revision: revision(saved)}
 }
 
 func (s *Server) saveNetworkSettings(r *http.Request, req NetworkSettingsEdit) (NetworkSettings, error) {
@@ -503,6 +523,16 @@ func (s *Server) saveNetworkSettings(r *http.Request, req NetworkSettingsEdit) (
 	proxies, err := auth.ParseNetworks(stored.Proxies)
 	if err != nil || len(proxies) > maxNetworks {
 		return NetworkSettings{}, ErrField("trustedProxies", "List up to 64 addresses or networks such as 10.0.0.2 or 172.18.0.0/16.")
+	}
+	for _, typed := range req.WebOrigins {
+		origin, ok := webOrigin(typed)
+		if !ok || len(req.WebOrigins) > maxWebOrigins {
+			return NetworkSettings{}, ErrField("webOrigins",
+				"List up to 16 web addresses, each only a scheme, a name and perhaps a port, such as https://tools.example or http://localhost:5173.")
+		}
+		if !slices.Contains(stored.Origins, origin) && !slices.Contains(builtInWebOrigins, origin) {
+			stored.Origins = append(stored.Origins, origin)
+		}
 	}
 	match, err := settingsIfMatch(r)
 	if err != nil {
