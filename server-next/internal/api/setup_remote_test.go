@@ -238,11 +238,18 @@ func TestEnhancedWaitsForHomeNetworksUnlessTheOwnerTurnsItOn(t *testing.T) {
 	save := func(v RemoteAccessSettings, confirm bool) *httptest.ResponseRecorder {
 		return reach(s, "PUT", "/v1/admin/settings/remote-access", owner, local, host, false, RemoteAccessSave{RemoteAccessSettings: v, ConfirmRefusal: confirm})
 	}
+	// Each question is confirmed by name: one save that would refuse its own connection and
+	// also chooses owner only is not let through by the first confirmation alone.
+	both := v
+	both.SignInFromOutside, both.EnhancedWithoutHome = "owner", true
+	if w := save(both, true); w.Code != 409 || !strings.Contains(w.Body.String(), "would_refuse_sign_in") {
+		t.Fatalf("a save that asks both questions, with only the route confirmed, answered %d: %s", w.Code, w.Body)
+	}
 	v.SignInFromOutside = "owner"
 	if w := save(v, false); w.Code != 409 || !strings.Contains(w.Body.String(), "would_refuse_sign_in") {
 		t.Fatalf("owner only with no home networks, unconfirmed, answered %d: %s", w.Code, w.Body)
 	}
-	if w := save(v, true); w.Code != 200 {
+	if w := reach(s, "PUT", "/v1/admin/settings/remote-access", owner, local, host, false, RemoteAccessSave{RemoteAccessSettings: v, ConfirmOwnerOnly: true}); w.Code != 200 {
 		t.Fatalf("owner only, confirmed, answered %d: %s", w.Code, w.Body)
 	}
 	if st := status(); !slices.ContainsFunc(st.Warnings, func(w Warning) bool { return w.Code == "owner_only_no_home" }) {
