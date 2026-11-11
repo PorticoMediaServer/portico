@@ -36,6 +36,17 @@ func plannerDocuments(t *testing.T) map[string]CapabilityDocument {
 	}
 	mpv := documents["appletv_mpv"]
 	mpv.EngineSetting = EngineSettingMPV
+	// An iPhone that shows HDR (iPhone 12 and later).
+	hdrPhone := documents["ios"]
+	hdrPhone.Display.DynamicRanges = []string{"sdr", "hdr10", "hlg"}
+	phoneNative := *hdrPhone.Engines.Native
+	hdrPhone.Engines.Native = &phoneNative
+	phoneNative.Video = append([]ClientVideoCodec{}, phoneNative.Video...)
+	for i := range phoneNative.Video {
+		if phoneNative.Video[i].Codec == "hevc" {
+			phoneNative.Video[i].DynamicRanges = []string{"sdr", "hdr10", "hlg"}
+		}
+	}
 	firefox := documents["chromium"]
 	firefox.Client.Platform = "firefox"
 	out := map[string]CapabilityDocument{
@@ -43,6 +54,7 @@ func plannerDocuments(t *testing.T) map[string]CapabilityDocument {
 		"AppleTV4K-mpv":    mpv,
 		"AppleTVHD":        old,
 		"iPhone":           documents["ios"],
+		"iPhone-HDR":       hdrPhone,
 		"Android-HEVC":     documents["android"],
 		"Android-no-HEVC":  noHEVC,
 		"FireTVStick":      documents["firetv"],
@@ -105,6 +117,9 @@ func plannerSources() []*DeliverySource {
 		videoSource("mkv", "vc1", vc1, SourceAudio{Index: 1, Codec: "dts", Channels: 8, StreamDetail: mediafacts.StreamDetail{Profile: "DTS-HD MA", SampleRate: 96000, BitDepth: 24}}),
 		videoSource("mp4", "hevc", hlg, audio),
 		videoSource("mkv", "h264", deep, audio),
+		// An HDR film most TVs and phones cannot play as it is: a conversion keeps its HDR
+		// only on a chip that encodes 10 bits, and this server has none.
+		videoSource("mkv", "av1", mediafacts.StreamDetail{Profile: "Main", Width: 3840, Height: 2160, FrameRate: 24, BitDepth: 10, DynamicRange: "hdr10", CodecTag: "av01"}, audio),
 	)
 	return sources
 }
@@ -112,7 +127,7 @@ func plannerSources() []*DeliverySource {
 // Compact expected plans name the route, video/audio codecs, channel count,
 // range and engine. Rejected no-base DV has no plausible fallback picture.
 func TestPlannerOutputDeviceSourceMatrix(t *testing.T) {
-	names := []string{"H264-SDR", "HEVC-HDR10-TrueHD71", "DV5", "DV7", "DV8", "AV1", "MPEG2-interlaced-AC3", "VC1-DTSHD", "HLG", "H264-10bit-SDR"}
+	names := []string{"H264-SDR", "HEVC-HDR10-TrueHD71", "DV5", "DV7", "DV8", "AV1", "MPEG2-interlaced-AC3", "VC1-DTSHD", "HLG", "H264-10bit-SDR", "AV1-HDR10"}
 	facts := &decoder.ToolchainFacts{
 		Encoders:         map[string]bool{"libx264": true, "libx265": true, "libaom-av1": true, "aac": true, "ac3": true, "eac3": true, "flac": true, "libopus": true},
 		Decoders:         map[string]bool{"h264": true, "hevc": true, "av1": true, "mpeg2video": true, "vc1": true, "truehd": true, "aac": true, "ac3": true, "dca": true},
@@ -120,6 +135,19 @@ func TestPlannerOutputDeviceSourceMatrix(t *testing.T) {
 		BitstreamFilters: map[string]bool{"dovi_rpu": true, "filter_units": true},
 	}
 	expected := map[string][]string{
+		"iPhone-HDR": {
+			"original/h264/aac/2/sdr/native",
+			"audio_conversion/hevc/flac/2/hdr10/native",
+			"refused",
+			"copy_remux/hevc/aac/2/hdr10/native",
+			"copy_remux/hevc/aac/2/hdr10/native",
+			"video_conversion/hevc/aac/2/sdr/native",
+			"video_conversion/hevc/ac3/6/sdr/native",
+			"video_conversion/hevc/flac/2/sdr/native",
+			"original/hevc/aac/2/hlg/native",
+			"video_conversion/hevc/aac/2/sdr/native/10bit",
+			"video_conversion/hevc/aac/2/sdr/native",
+		},
 		"Vega": {
 			"original/h264/aac/2/sdr/native",
 			"video_conversion/hevc/aac/2/sdr/native",
@@ -131,6 +159,7 @@ func TestPlannerOutputDeviceSourceMatrix(t *testing.T) {
 			"video_conversion/hevc/aac/2/sdr/native",
 			"video_conversion/hevc/aac/2/sdr/native",
 			"video_conversion/hevc/aac/2/sdr/native/10bit",
+			"video_conversion/hevc/aac/2/sdr/native",
 		},
 		"AppleTV4K-mpv": {
 			"original/h264/aac/2/sdr/mpv",
@@ -143,6 +172,8 @@ func TestPlannerOutputDeviceSourceMatrix(t *testing.T) {
 			"original/vc1/dts/8/sdr/mpv",
 			"original/hevc/aac/2/hlg/mpv",
 			"original/h264/aac/2/sdr/mpv",
+			// main kept HDR10 here on software HEVC; with no chip that encodes 10 bits, SDR.
+			"video_conversion/hevc/aac/2/sdr/mpv",
 		},
 		"iPhone": {
 			"original/h264/aac/2/sdr/native",
@@ -155,6 +186,7 @@ func TestPlannerOutputDeviceSourceMatrix(t *testing.T) {
 			"video_conversion/hevc/flac/2/sdr/native",
 			"video_conversion/hevc/aac/2/sdr/native",
 			"video_conversion/hevc/aac/2/sdr/native/10bit",
+			"video_conversion/hevc/aac/2/sdr/native",
 		},
 		"Android-HEVC": {
 			"original/h264/aac/2/sdr/native",
@@ -167,6 +199,7 @@ func TestPlannerOutputDeviceSourceMatrix(t *testing.T) {
 			"video_conversion/hevc/flac/2/sdr/native",
 			"video_conversion/hevc/aac/2/sdr/native",
 			"video_conversion/hevc/aac/2/sdr/native/8bit",
+			"video_conversion/hevc/aac/2/sdr/native",
 		},
 		// An HDR film tone-mapped for a browser is software H.264, not software
 		// AV1 10-bit, which could not keep up with a 4K film.
@@ -182,6 +215,7 @@ func TestPlannerOutputDeviceSourceMatrix(t *testing.T) {
 			"video_conversion/h264/aac/2/sdr/native",
 			// main gave software AV1 10-bit here: not real time, so H.264 8-bit.
 			"video_conversion/h264/aac/2/sdr/native/8bit",
+			"video_conversion/h264/aac/2/sdr/native",
 		},
 		"Safari": {
 			"original/h264/aac/2/sdr/native",
@@ -194,6 +228,8 @@ func TestPlannerOutputDeviceSourceMatrix(t *testing.T) {
 			"video_conversion/hevc/flac/6/sdr/native",
 			"original/hevc/aac/2/hlg/native",
 			"video_conversion/hevc/aac/2/sdr/native/10bit",
+			// main kept HDR10 here on software HEVC; with no chip that encodes 10 bits, SDR.
+			"video_conversion/h264/aac/2/sdr/native",
 		},
 		"AppleTV4K-native": {
 			"original/h264/aac/2/sdr/native",
@@ -206,6 +242,8 @@ func TestPlannerOutputDeviceSourceMatrix(t *testing.T) {
 			"video_conversion/hevc/flac/8/sdr/native",
 			"original/hevc/aac/2/hlg/native",
 			"video_conversion/hevc/aac/2/sdr/native/10bit",
+			// main kept HDR10 here on software HEVC; with no chip that encodes 10 bits, SDR.
+			"video_conversion/hevc/aac/2/sdr/native",
 		},
 		"AppleTVHD": {
 			"original/h264/aac/2/sdr/native",
@@ -218,6 +256,7 @@ func TestPlannerOutputDeviceSourceMatrix(t *testing.T) {
 			"video_conversion/h264/flac/2/sdr/native",
 			"video_conversion/h264/aac/2/sdr/native",
 			"video_conversion/h264/aac/2/sdr/native/8bit",
+			"video_conversion/h264/aac/2/sdr/native",
 		},
 		"Android-no-HEVC": {
 			"original/h264/aac/2/sdr/native",
@@ -230,6 +269,7 @@ func TestPlannerOutputDeviceSourceMatrix(t *testing.T) {
 			"video_conversion/h264/flac/2/sdr/native",
 			"video_conversion/h264/aac/2/sdr/native",
 			"video_conversion/h264/aac/2/sdr/native/8bit",
+			"video_conversion/h264/aac/2/sdr/native",
 		},
 		"FireTVStick": {
 			"original/h264/aac/2/sdr/native",
@@ -242,6 +282,7 @@ func TestPlannerOutputDeviceSourceMatrix(t *testing.T) {
 			"video_conversion/hevc/flac/2/sdr/native",
 			"video_conversion/hevc/aac/2/sdr/native",
 			"video_conversion/hevc/aac/2/sdr/native/8bit",
+			"video_conversion/hevc/aac/2/sdr/native",
 		},
 		"Chromecast": {
 			"original/h264/aac/2/sdr/native",
@@ -254,6 +295,7 @@ func TestPlannerOutputDeviceSourceMatrix(t *testing.T) {
 			"video_conversion/h264/aac/2/sdr/native",
 			"video_conversion/h264/aac/2/sdr/native",
 			"video_conversion/h264/aac/2/sdr/native/8bit",
+			"video_conversion/h264/aac/2/sdr/native",
 		},
 		"Firefox": {
 			"original/h264/aac/2/sdr/native",
@@ -267,6 +309,7 @@ func TestPlannerOutputDeviceSourceMatrix(t *testing.T) {
 			"video_conversion/h264/aac/2/sdr/native",
 			// main gave software AV1 10-bit here: not real time, so H.264 8-bit.
 			"video_conversion/h264/aac/2/sdr/native/8bit",
+			"video_conversion/h264/aac/2/sdr/native",
 		},
 	}
 

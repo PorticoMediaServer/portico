@@ -175,3 +175,16 @@ func TestWhatABrowserIsGivenForAnHDRFilm(t *testing.T) {
 		})
 	}
 }
+
+// onTheChip marks the server's 10-bit outputs as made by its graphics chip, which a
+// conversion that keeps HDR now needs. No chip is probed, so the arguments are still the
+// software encoder's: the path these tests check, and the one a chip falls back to.
+func onTheChip(o ConversionOutputs) *ConversionOutputs {
+	o.Video = append([]ConversionVideoOutput{}, o.Video...)
+	for i := range o.Video {
+		if o.Video[i].BitDepth >= 10 {
+			o.Video[i].Hardware = true
+		}
+	}
+	return &o
+}
