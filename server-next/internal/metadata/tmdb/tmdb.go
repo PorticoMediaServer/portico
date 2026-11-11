@@ -376,11 +376,16 @@ func (c *Client) Details(ctx context.Context, ref metadata.Ref, locale metadata.
 		if set.first != "" {
 			r.Pictures = append(r.Pictures, metadata.Picture{Role: set.role, URL: c.picture(set.first)})
 		}
-		for _, other := range set.others[:min(len(set.others), maxPictures)] {
-			if other.Path != set.first {
-				r.Pictures = append(r.Pictures, metadata.Picture{Role: set.role, URL: c.picture(other.Path), Language: other.Language,
-					Width: other.Width, Height: other.Height})
+		kept := 0
+		for _, other := range set.others {
+			// TMDB's logos are often SVG drawings, which the picture store cannot read or
+			// resize: The Matrix's and Heat's first logos are. They are passed over.
+			if other.Path == set.first || strings.HasSuffix(other.Path, ".svg") || kept == maxPictures {
+				continue
 			}
+			kept++
+			r.Pictures = append(r.Pictures, metadata.Picture{Role: set.role, URL: c.picture(other.Path), Language: other.Language,
+				Width: other.Width, Height: other.Height})
 		}
 	}
 	if d.ExternalIDs.IMDb != "" {
