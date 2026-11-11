@@ -257,7 +257,10 @@ func TestWatchTogetherFollowsRestrictionChanges(t *testing.T) {
 		status(t, th.s, "PUT", path, host, Restrictions{AllLibraries: true, AllowWatchTogether: &on})
 		var wg sync.WaitGroup
 		wg.Add(2)
-		go func() { defer wg.Done(); status(t, th.s, "PUT", path, host, Restrictions{AllLibraries: true, AllowWatchTogether: &off}) }()
+		go func() {
+			defer wg.Done()
+			status(t, th.s, "PUT", path, host, Restrictions{AllLibraries: true, AllowWatchTogether: &off})
+		}()
 		go func() {
 			defer wg.Done()
 			status(t, th.s, "POST", "/v1/groups/join", onKid.AccessToken, GroupJoin{Code: made.Invitation.Code})
