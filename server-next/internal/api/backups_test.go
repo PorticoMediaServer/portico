@@ -58,3 +58,36 @@ func TestOwnerBackups(t *testing.T) {
 		t.Errorf("the deleted backup is still listed: %+v", after.Items)
 	}
 }
+
+// A restore needs the owner's password again and is refused for a wrong one; an administrator
+// cannot restore; Restart says how many are playing until it is confirmed.
+func TestRestoreNeedsThePasswordAgain(t *testing.T) {
+	s := newTestServer(t)
+	owner := onMainProfile(t, s).AccessToken
+	addMember(t, s, owner, "ada", "admin")
+	admin := signInAs(t, s, "ada", testPassword, 1).AccessToken
+	var started BackupStarted
+	call(t, s, "POST", "/v1/admin/backups", owner, nil, &started)
+	for s.Backups().Running() != nil {
+		time.Sleep(10 * time.Millisecond)
+	}
+	restore := BackupRestore{BackupInspect: BackupInspect{ID: started.ID}, CurrentPassword: "not it"}
+	if code := status(t, s, "POST", "/v1/admin/backups/restore", owner, restore); code != 403 {
+		t.Errorf("a restore with a wrong password answered %d", code)
+	}
+	restore.CurrentPassword = testPassword
+	if code := status(t, s, "POST", "/v1/admin/backups/restore", admin, restore); code != 403 {
+		t.Errorf("an administrator's restore answered %d", code)
+	}
+	var staged RestoreStaged
+	if w := call(t, s, "POST", "/v1/admin/backups/restore", owner, restore, &staged); w.Code != 200 {
+		t.Fatalf("the restore answered %d: %s", w.Code, w.Body)
+	}
+	var restart Restart
+	if call(t, s, "POST", "/v1/admin/restart", owner, nil, &restart); restart.Restarting {
+		t.Errorf("a restart started without being confirmed")
+	}
+	if code := status(t, s, "DELETE", "/v1/admin/backups/restore", owner, nil); code != 204 {
+		t.Errorf("cancelling the restore answered %d", code)
+	}
+}

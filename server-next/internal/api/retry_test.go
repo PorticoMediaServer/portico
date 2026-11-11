@@ -39,6 +39,8 @@ var repeatSafeWithoutKey = map[string]string{
 	"POST /v1/queues/{id}/prepare-next":           "changes nothing that lasts",
 	"POST /v1/queues/{id}/commit-next":            "sets the current entry",
 	"POST /v1/admin/backups/inspect":              "changes nothing: it reads a backup",
+	"POST /v1/admin/backups/restore":              "stages the same backup again in place of the one staged",
+	"POST /v1/admin/restart":                      "a restart asked for twice is one restart",
 }
 
 // An app that never had the answer to a creating request sends it again with the same

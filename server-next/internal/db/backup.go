@@ -84,3 +84,30 @@ func (d *DB) BackupTo(ctx context.Context, path string, progress func(left int))
 func (d *DB) RecordBackup(ctx context.Context, actorID int64, action, backupID string, now time.Time) error {
 	return d.write(ctx, User, func(tx *sql.Tx) error { return audit(tx, actorID, action, backupID, "", now) })
 }
+
+// ConfirmRestore settles that the owner asking for a restore showed their current password
+// (and code, with two-step sign-in), counting a wrong one like any other, and records the
+// restore in the activity record. A wrong password is ErrBadCredentials.
+func (d *DB) ConfirmRestore(ctx context.Context, p PasswordProof, backupID string, now time.Time) error {
+	var refused error
+	err := d.write(ctx, User, func(tx *sql.Tx) error {
+		refused = nil
+		ok, err := proven(tx, now, p, &refused)
+		if err != nil || !ok {
+			return err
+		}
+		return audit(tx, p.UserID, "backup.restore", backupID, "staged; made at the next start", now)
+	})
+	if err == nil {
+		err = refused
+	}
+	return err
+}
+
+// EndEverySignIn ends every sign-in, after a restore: the restored database's sessions are
+// sign-ins from before it. API keys and personal tokens are not sign-ins and keep working.
+func (d *DB) EndEverySignIn(ctx context.Context, now time.Time) error {
+	return d.writeSessions(ctx, func(tx *sql.Tx, c *changes) error {
+		return revoke(tx, c, now, "restored", `1 = 1`)
+	})
+}

@@ -166,3 +166,45 @@ func TestSchedule(t *testing.T) {
 		t.Errorf("Never has a next run")
 	}
 }
+
+// A restore is staged whole and made at the next start: the database and key files in use are
+// set aside, the backup's take their place, and putting back what was there works.
+func TestRestoreIsMadeAtTheNextStartAndCanBeUndone(t *testing.T) {
+	ctx := context.Background()
+	s := newService(t)
+	if err := s.make(ctx, "portico-20261101-030000", false); err != nil {
+		t.Fatal(err)
+	}
+	archive, _ := s.Path("portico-20261101-030000")
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "main.db"), []byte("the database in use"), 0o600)
+	os.WriteFile(filepath.Join(dir, "remote-sources.key"), []byte("the key in use"), 0o600)
+	if err := Stage(ctx, archive, dir, "portico-20261101-030000", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if p := PendingRestore(dir); p == nil || p.Backup != "portico-20261101-030000" {
+		t.Fatalf("pending: %+v", p)
+	}
+	if raw, _ := os.ReadFile(filepath.Join(dir, "main.db")); string(raw) != "the database in use" {
+		t.Fatalf("staging changed the database in use")
+	}
+	restored, undo, err := ApplyPending(dir)
+	if err != nil || restored != "portico-20261101-030000" {
+		t.Fatalf("applying: %q %v", restored, err)
+	}
+	if err := db.CheckCopy(ctx, filepath.Join(dir, "main.db")); err != nil {
+		t.Errorf("the restored database: %v", err)
+	}
+	if PendingRestore(dir) != nil {
+		t.Errorf("the restore is still pending after it was made")
+	}
+	if err := undo(); err != nil {
+		t.Fatal(err)
+	}
+	if raw, _ := os.ReadFile(filepath.Join(dir, "main.db")); string(raw) != "the database in use" {
+		t.Errorf("undo did not put the database back")
+	}
+	if raw, _ := os.ReadFile(filepath.Join(dir, "remote-sources.key")); string(raw) != "the key in use" {
+		t.Errorf("undo did not put the key file back")
+	}
+}
