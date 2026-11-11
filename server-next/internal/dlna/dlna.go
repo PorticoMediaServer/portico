@@ -8,9 +8,11 @@
 // Who may use it is decided on every request:
 //
 //   - the switch is on and the owner has listed home networks (the defaults the server guesses
-//     before the owner chooses do not count), none of which covers the whole internet;
+//     before the owner chooses do not count; a list that takes in the whole internet is warned
+//     about in the settings, not refused);
 //   - the request comes from home by the same rule as the rest of the server (a proxy the owner
-//     listed counts by the address it passes on; one the owner did not list never counts);
+//     listed counts by the address it passes on; one the owner did not list never counts), and
+//     what it counts as coming from is neither this machine's loopback nor a listed proxy;
 //   - its Host is an IP address or one of this server's own names. A web page on the internet
 //     that re-points its own name at this server (DNS rebinding) arrives with that name, and is
 //     refused; players use the address the server announced, so they never notice.
