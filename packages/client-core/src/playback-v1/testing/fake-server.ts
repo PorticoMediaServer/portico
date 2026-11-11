@@ -18,6 +18,7 @@ import {routePath, encodedRoutePath} from "../../../../contracts/src/route-paths
  */
 import {ShufflePermutation} from '../shuffle.ts';
 import {qualityLadder} from '../quality.ts';
+import {playbackPath} from '../routes.ts';
 
 export type FakeResponse = Readonly<{status: number; headers: Readonly<Record<string, string>>; body?: unknown}>;
 export type FakeRequest = Readonly<{method: string; path: string; headers?: Readonly<Record<string, string>>; body?: unknown; signal?: AbortSignal}>;
@@ -193,7 +194,7 @@ export class FakePlaybackServer {
     let match: RegExpExecArray | null;
 
     if ((match = /^\/v1\/media\/grant-([^/]+)\/audio$/.exec(pathOnly)) && (m === 'GET' || m === 'HEAD')) return this.audioBytes(match[1]!, h('Range'), m === 'HEAD');
-    if (m === 'PUT' && pathOnly === "/v1/devices/current/capabilities") { this.capabilities.set(this.o.deviceId, body); return {status: 204, headers: {}}; }
+    if (m === 'PUT' && pathOnly === playbackPath('PUT /v1/devices/{id}/capabilities', {id: 'current'})) { this.capabilities.set(this.o.deviceId, body); return {status: 204, headers: {}}; }
     if (m === 'GET' && pathOnly === routePath("get_events")) return this.poll(q, r.signal);
     // Listening (music and books): the viewer's preferences and an item's context.
     if (m === 'GET' && pathOnly === routePath("get_listening_preferences")) return {status: 200, headers: {}, body: {scope: this.viewerScope(), data: {revision: 1, bookRate: 1, passoutMinutes: 0}}};
