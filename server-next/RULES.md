@@ -49,6 +49,17 @@ contributor would recognise on first read. If in doubt, leave it out.
      column right itself: the background part only fills what was there before.
    - A step may rely on every earlier step being finished, background part included: a
      start that has a newer step to apply finishes earlier background work first.
+   - When a new column's empty value already means something, the half-done state is not
+     safe to serve, and the step sets `beforeServing`: its background part is then finished
+     while the server starts, at every start until it is done, still in batches and still
+     carrying on after a kill. The worked example is `items.labels`, the labels that hide a
+     title from a profile that has them blocked, where empty means "nothing hides this
+     title". Had it arrived after the first release, its step would be: the column and its
+     index in the quick part, the rebuild of every title's labels (2,000 titles to a batch)
+     as the background part, and `beforeServing` set, because a title not yet filled would be
+     shown to a profile it is hidden from. The price is a longer start, once, so it is only
+     for a wrong answer a person could be harmed by; a column that is merely incomplete
+     while it fills stays ordinary background work.
    - A released step is never edited, moved or removed. Nothing goes back a version.
      Rebuilding a table is not supported yet.
    - Before an upgrade the database is copied beside itself. One copy is kept, from before

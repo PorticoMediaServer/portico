@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -365,6 +366,41 @@ func TestEarlierBackgroundWorkIsFinishedBeforeANewerStep(t *testing.T) {
 	if s := readUpgradeState(t, path); s != (upgradeState{version: 4, titles: 30, notesTable: true}) || filled != 4 {
 		t.Fatalf("the database is %+v after %d background batches, want version 4 with nothing left to do after 4", s, filled)
 	}
+}
+
+// A step can say its background part must be finished before the server answers anyone.
+// Then no start returns with it half done: not the start that applies the step, and not a
+// start after the work was cut short.
+func TestAStepCanFinishItsBackgroundPartBeforeTheServerAnswers(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "main.db")
+	firstReleaseDatabase(t, path, 30)
+	steps := trialUpgrades(10)
+	steps[1].beforeServing = true
+	fill, cutShort := steps[1].background, true
+	steps[1].background = func(tx *sql.Tx, after int64) (int64, bool, error) {
+		if cutShort && after == 10 {
+			return 0, false, errors.New("cut short")
+		}
+		return fill(tx, after)
+	}
+	useUpgrades(t, steps)
+	if _, err := Open(ctx, path); err == nil || !strings.Contains(err.Error(), "cannot start until it is finished") {
+		t.Fatalf("a start that could not finish the work: %v", err)
+	}
+	if s := readUpgradeState(t, path); s.version != 3 || !s.backgroundPending || s.backgroundAfter != 10 {
+		t.Fatalf("after the start that was cut short the database is %+v, want version 3 with the first batch done", s)
+	}
+	cutShort = false
+	d, err := Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var unfilled int
+	if err := d.read.QueryRow(`SELECT count(*) FROM items WHERE title_length IS NOT length(title)`).Scan(&unfilled); err != nil || unfilled != 0 {
+		t.Errorf("the server answers with %d titles not yet filled (%v)", unfilled, err)
+	}
+	d.Close()
 }
 
 func copyFile(t *testing.T, from, to string) {
