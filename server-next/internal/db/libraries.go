@@ -283,3 +283,48 @@ func (o LibraryOptions) save(tx *sql.Tx, libraryID int64) error {
 	_, err = tx.Exec(`UPDATE libraries SET options = ? WHERE id = ?`, string(raw), libraryID)
 	return err
 }
+
+// OrderLibraries puts the libraries in the order given, which is the order everyone sees.
+// ids must name every library once.
+func (d *DB) OrderLibraries(ctx context.Context, ids []string, now time.Time) error {
+	return d.write(ctx, User, func(tx *sql.Tx) error {
+		rows, err := tx.Query(`SELECT public_id, id FROM libraries`)
+		if err != nil {
+			return err
+		}
+		have := map[string]int64{}
+		for rows.Next() {
+			var publicID string
+			var id int64
+			if err := rows.Scan(&publicID, &id); err != nil {
+				rows.Close()
+				return err
+			}
+			have[publicID] = id
+		}
+		if err := rows.Close(); err != nil {
+			return err
+		}
+		if len(ids) != len(have) {
+			return invalid("the order must name every library once")
+		}
+		for position, publicID := range ids {
+			id, ok := have[publicID]
+			if !ok {
+				return invalid("the order must name every library once")
+			}
+			delete(have, publicID)
+			res, err := tx.Exec(`UPDATE libraries SET position = ?, updated_at = ? WHERE id = ? AND position <> ?`, position, now.UnixMilli(), id, position)
+			if err != nil {
+				return err
+			}
+			// Open screens hear of each library that moved and read the list again.
+			if n, _ := res.RowsAffected(); n == 1 {
+				if err := appendChange(tx, Change{At: now.UnixMilli(), Topic: TopicLibrary, Op: OpUpdated, RefID: id, LibraryID: id}); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	})
+}
