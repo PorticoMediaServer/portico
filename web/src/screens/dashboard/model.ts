@@ -17,6 +17,16 @@ export function sessionTitle(session: AdminSession): string {
 export function sessionStopTitle(session: AdminSession): string {
   return sessionTitle(session) || session.channel?.name || session.title;
 }
+/** What Stop says: the title when the stream has one; otherwise (a stream an administrator's libraries keep
+ * from them comes untitled) the person and the device, never anything of the title. */
+export function stopWords(session: AdminSession, i18n = defaultI18n): Readonly<{title: string; detail?: string; done: string}> {
+  const name = sessionStopTitle(session);
+  return {
+    title: name ? i18n.t('next.dashboard.stopTitle', {title: name}) : i18n.t('next.dashboard.stopUntitled'),
+    ...(session.user && session.device ? {detail: i18n.t('next.dashboard.stopDetail', {user: session.user, device: session.device})} : {}),
+    done: name ? i18n.t('next.dashboard.stopped', {title: name}) : i18n.t('next.dashboard.stoppedUntitled'),
+  };
+}
 export function orderedSessions(sessions: readonly AdminSession[]): readonly AdminSession[] {
   const converts = (s: AdminSession) => Object.values(s.decision).some(d => d?.action === 'transcode' || d?.action === 'burn');
   return [...sessions].sort((a, b) => Number(!!b.problem) - Number(!!a.problem) || Number(converts(b)) - Number(converts(a)) || Date.parse(b.startedAt ?? '') - Date.parse(a.startedAt ?? '') || a.id.localeCompare(b.id));
