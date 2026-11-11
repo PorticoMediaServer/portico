@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -789,5 +790,56 @@ func TestPlannedMusicIsServedDirectAndConvertedExactly(t *testing.T) {
 	rig.streams.Stop("music")
 	if response = rig.get(context.Background(), stream.Grant, "audio-converted", ""); response.Code != http.StatusNotFound {
 		t.Fatalf("a stopped music stream answered %d", response.Code)
+	}
+}
+
+// A converter that dies by no fault of the film is started again by the next
+// request, but not for ever: after a few deaths in a row without one new segment
+// the stream fails. The same holds for a converter that goes silent, which is
+// stopped first. (TestKilledConverterIsStartedAgain is the other half: one that
+// is killed after it got somewhere carries on.)
+func TestAConverterThatKeepsDyingFailsTheStream(t *testing.T) {
+	exit := func(code string) error { return exec.Command("sh", "-c", "exit "+code).Run() }
+	for code, stopped := range map[string]bool{"137": true, "139": true, "143": true, "255": true, "1": false} {
+		if converterKilled(exit(code)) != stopped {
+			t.Fatalf("exit status %s: stopped from outside or crashed = %v, want %v", code, !stopped, stopped)
+		}
+	}
+	silence := converterSilence
+	converterSilence = 300 * time.Millisecond
+	t.Cleanup(func() { converterSilence = silence })
+	// One server for both: asking ffmpeg what it can do is the slow part of setting one up.
+	rig := newMediaRig(t)
+	path := rig.generate("dies.avi", 60, "-c:v", "mpeg4", "-q:v", "5", "-c:a", "mp3")
+	var runs atomic.Int32
+	var converter atomic.Pointer[func(context.Context) error]
+	rig.streams.hls.execute = func(ctx context.Context, _ mediaexec.Job) (error, string) {
+		runs.Add(1)
+		return (*converter.Load())(ctx), ""
+	}
+	for session, dies := range map[string]func(context.Context) error{
+		"killed every time": func(context.Context) error { return exit("137") },
+		"silent every time": func(ctx context.Context) error { <-ctx.Done(); return ctx.Err() },
+	} {
+		runs.Store(0)
+		converter.Store(&dies)
+		stream, _ := rig.start(session, path, 0, nil)
+		// A player keeps asking for the first segment.
+		deadline := time.Now().Add(30 * time.Second)
+		for {
+			rig.get(context.Background(), stream.Grant, "segment-000000.ts", "")
+			status, _ := rig.streams.Status(session)
+			if status.State == "failed" {
+				if status.Failure == nil || status.Failure.Code != FailureConverterStopped || runs.Load() != converterDeaths+1 {
+					t.Fatalf("%s: failed as %+v after %d runs, want %s after %d", session, status.Failure, runs.Load(), FailureConverterStopped, converterDeaths+1)
+				}
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("%s: still %s after %d runs of a converter that never produces anything", session, status.State, runs.Load())
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+		rig.streams.Stop(session)
 	}
 }
