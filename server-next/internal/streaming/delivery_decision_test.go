@@ -424,8 +424,8 @@ func TestCapabilityDocumentParsing(t *testing.T) {
 	}
 	native := `"engines":{"native":{"evidence":"probed"}}`
 	for name, body := range map[string]string{
-		"version":           `{"version":1,"client":{"family":"web"},` + native + `}`,
-		"no native engine":  `{"version":2,"client":{"family":"web"},"engines":{}}`,
+		"no version":        `{"client":{"family":"web"},` + native + `}`,
+		"mpv alone":         `{"version":2,"client":{"family":"web"},"engines":{"mpv":{"evidence":"probed"}}}`,
 		"wrong type":        `{"version":2,"client":{"family":"web"},"engines":{"native":{"evidence":"probed","video":"everything"}}}`,
 		"family":            `{"version":2,"client":{"family":"Web Browser!"},` + native + `}`,
 		"evidence":          `{"version":2,"client":{"family":"web"},"engines":{"native":{"evidence":"trust me"}}}`,

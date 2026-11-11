@@ -186,7 +186,10 @@ func (s *Server) putCapabilities(r *http.Request, req CapabilityDocument) (None,
 		return None{}, ErrInvalid("Send the device's capability document.")
 	}
 	if err := s.playback.CheckCapabilities(req.raw); err != nil {
-		return None{}, refusal(http.StatusBadRequest, "client_update_required", "Update the app to play on this server.", false)
+		// Only a document that is not one is refused, and the error names the part at
+		// fault. One of a version this server does not know is kept, and the device plays
+		// from the baseline meanwhile.
+		return None{}, ErrInvalid(err.Error())
 	}
 	return None{}, playbackError(s.db.PutDeviceCapabilities(r.Context(), CallerFrom(r.Context()).UserID, id, string(req.raw), s.now()))
 }

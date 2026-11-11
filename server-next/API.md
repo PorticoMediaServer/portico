@@ -183,6 +183,120 @@ session is unknown (`404`), and the app starts again by itself where it was.
 | `GET /v1/admin/playback/stream-limits`, `PUT /v1/admin/playback/stream-limits` | The owner's stream limits: in total, per person, and for one person |
 | `GET /v1/admin/playback/failures`, `DELETE /v1/admin/playback/failures/{id}` | Remembered "this way of playing this file failed on this device", and forgetting one |
 
+### Device capability document
+
+A device says once what its players can play, and the server plans every start from that.
+This is the whole of how a device is described: the server has no table per platform and
+never looks at a device's name. Portico's own apps send exactly this document over exactly
+these routes; a client written by anyone else is planned by the same rules.
+
+`PUT /v1/devices/current/capabilities` with the document as the body (at most 64 KB) answers
+`204` and replaces what was stored. Send it again when something changes: a window moved to
+an HDR screen, a receiver plugged in, a setting changed. `GET` reads it back as it was sent.
+`GET /v1/items/{id}/playback-options` then shows how each version of a title would reach
+this device and why.
+
+**Sending nothing is allowed.** A device with no stored document is planned from the
+**baseline**: MP4, M4V or MOV with 8-bit H.264 up to 60 frames a second and stereo AAC or MP3
+plays as it is; AAC and MP3 music files play as they are; anything else is repackaged or
+converted into MPEG-TS HLS carrying H.264 with stereo AAC or MP3; text subtitles are sent
+beside the stream for the app to draw; the screen is taken to be standard dynamic range. The baseline is the file
+`internal/streaming/profiles/baseline.json`, and the documents Portico's apps send are
+recorded beside it as examples, each with the routes expected for 25 kinds of file.
+
+**Version.** `version` is `2`. Within a version fields are only added, and the server
+ignores a field it does not know, so a newer app keeps working with an older server. A
+document with any other version number is stored and the device is planned from the baseline
+until the server knows that version: it plays, with more converted than it needs. A device
+is never refused for its document's version.
+
+**What is refused.** Only a body that is not a document: not a JSON object, no whole-number
+`version` of 1 or more, larger than 64 KB, or (for version 2) a field of the wrong type or
+outside its bounds. The answer is `400 invalid_request` and its message names the part at
+fault. What was stored before stays, and the device still plays.
+
+**Names.** Codecs, containers and the like are short lower-case names (letters, digits and
+`_ . + -`, at most 32 characters). Codecs are named as ffprobe names them: `h264`, `hevc`,
+`av1`, `vp9`, `mpeg2video`, `vc1`; `aac`, `mp3`, `ac3`, `eac3`, `dts`, `truehd`, `flac`, `alac`,
+`opus`, `vorbis`, `pcm`. Common other spellings (`h265`, `avc`, `ec-3`, `dts-hd`) are read as
+the same codec. A name the server has never met is kept and simply matches no file.
+
+Top level. Only `version` and `client.family` are required.
+
+| Field | Meaning | When absent |
+|---|---|---|
+| `version` | `2` | Refused (see above) |
+| `client.family` | A short name for the kind of client, such as `web` or `roku`. Kept with each decision so a wrong one can be traced. No rule reads it. | Refused |
+| `client.form`, `.platform`, `.platformVersion`, `.os`, `.osVersion`, `.model`, `.app`, `.appVersion` | More of the same, for tracing only. `form` is a short name (`tv`, `phone`, `tablet`, `desktop`, `browser`, `cast`, `speaker`); the rest are text up to 64 characters. | Nothing changes |
+| `engines.native` | The platform's own player: see the next table | The device is planned from the baseline |
+| `engines.mpv` | A second player the app carries, in the same shape. With `engineSetting` `automatic` the server uses the platform's player whenever it can play the file as it is or repackaged, and the second player only when that avoids converting the picture, converting sound to a lossy codec, or burning subtitles in. | The device has one player |
+| `engineSetting` | The viewer's choice of player: `automatic`, `native` or `mpv` | `automatic` |
+| `display.dynamicRanges` | What the screen shows now: any of `sdr`, `hdr10`, `hdr10plus`, `hlg`, `dolby_vision` | Not stated: the screen is taken to show whatever a player decodes |
+| `audioOutput.route` | Where sound leaves the device now: `hdmi`, `arc`, `earc`, `optical`, `spdif`, `speaker`, `headphones`, `bluetooth`, `airplay` or another short name. Passthrough needs one of the first five. | No passthrough |
+| `audioOutput.maxChannels` | Channels that output carries | Not limited by the output |
+| `maxBitrateBps` | The device's own ceiling on a stream | None |
+| `overrides.forceStereo`, `.disablePassthrough`, `.disableHdr` | The viewer's "something looks or sounds wrong" switches. Each narrows what the device is planned as. | Off |
+| `audioDecode` | For music the app decodes itself: entries of `codec`, `containers`, and optionally `maxSampleRate`, `sampleRates`, `maxChannels`, `maxBitDepth`, `via` | Music is planned from the player's tables like any other file |
+
+One player (`engines.native` or `engines.mpv`):
+
+| Field | Meaning | When absent |
+|---|---|---|
+| `name`, `version` | The player's own name and version, for tracing | Nothing changes |
+| `evidence` | How the device knows what follows: `declared` (the app's own table), `probed` (asked of the device while running) or `mixed`. Both are trusted the same; it is kept so a wrong decision can be traced to its source. Codec entries may carry their own. | `declared` |
+| `video` | The pictures it decodes: see the next table | It decodes none: every picture is refused |
+| `audio` | The sound it decodes itself: entries of `codec`, `maxChannels`, `maxSampleRate`, `sampleRates`, `maxBitDepth`, `variants`, `objectAudio` | It decodes none |
+| `audioPassthrough` | Sound it hands undecoded to a receiver: entries of `codec`, `maxChannels`, `variants`, `objectAudio`. Used only while `audioOutput.route` carries it and the viewer has not turned passthrough off. | None |
+| `transports` | How streams reach it. Each entry has `transport` (`direct`: the file itself by byte range; `hls_ts`: HLS in MPEG-TS; `hls_fmp4`: HLS in fragmented MP4), the `containers` it takes that way, and the `video` and `audio` codecs it takes in them. A file plays as it is only if a `direct` entry lists its container and both codecs. An entry with an empty `video` list is for music files. | Nothing can be sent: every title is refused |
+| `subtitleRendering` | Subtitle kinds the player draws itself: `text`, `ass`, `pgs`, `vobsub`, `dvb` | It draws none |
+| `toneMapsHdr` | The player shows HDR it decodes acceptably on a screen that is not HDR | `false`: the server converts HDR for a screen that cannot show it |
+| `embeddedAudioSwitching` | The player can choose between the audio tracks inside a file | `false`: a file whose wanted track is not its default is not played as it is |
+| `liveChannels` | For `engines.mpv` only: it plays live channels | `false`: channels go to the platform's player |
+
+One entry of `video`. A limit that is absent or `0` means "not limited", and an absent list
+means "not stated", which never rejects a file, except where the table says otherwise.
+
+| Field | Meaning |
+|---|---|
+| `codec` | Required |
+| `profiles` | Codec profiles decoded, lower-case with `_` for spaces (`high`, `main_10`) |
+| `maxLevel` | The highest level, as ffprobe numbers it (H.264 4.1 is `41`, HEVC 5.1 is `153`) |
+| `bitDepths` | Bit depths decoded, such as `[8, 10]` |
+| `maxWidth`, `maxHeight`, `maxFrameRate`, `maxBitrateBps` | Ceilings |
+| `limits` | Operating points where one ceiling cannot say it ("4K at 30 but 1080p at 60"): entries of `maxWidth`, `maxHeight`, `maxFrameRate`, and optionally `bitDepths` and `maxLevel`. A picture must also fit one that applies to its bit depth. |
+| `dynamicRanges` | Ranges it decodes. Absent means standard dynamic range only. Whether the result can be shown is `display.dynamicRanges` or `toneMapsHdr`. |
+| `dolbyVisionProfiles` | Dolby Vision profile numbers it plays as Dolby Vision. A profile not listed plays from its base layer (HDR10, HLG or SDR) where it has one. |
+| `dolbyVisionProfile8Compatibility` | Narrows profile 8 to exact base layers: `1` HDR10, `2` SDR, `4` HLG |
+| `interlaced` | It plays interlaced pictures. Absent means it does not. |
+| `chromaSubsampling`, `frameRateModes` | `4:2:0`, `4:2:2`, `4:4:4`, `4:0:0`; `constant`, `variable` |
+| `codecTags` | The only sample entries it plays from a file as it is (`hvc1` but not `hev1`). Streams the server repackages are tagged by the server. |
+
+For sound, `variants` narrows a codec to exact kinds (`dts_core`, `dts_hd_hra`, `dts_hd_ma`,
+`dtsx`, `dts_express`, `truehd`, `truehd_atmos`, `ac3`, `eac3`, `eac3_joc`, `ac4`, `lpcm`);
+without it the DTS-HD kinds, DTS Express and DTS:X are not taken. `objectAudio` is `atmos` or `dtsx`.
+
+The smallest useful document, for a player that takes MP4 and HLS with H.264 and AAC:
+
+```json
+{"version": 2, "client": {"family": "my-client"},
+ "engines": {"native": {
+  "video": [{"codec": "h264", "bitDepths": [8], "maxWidth": 1920, "maxHeight": 1080}],
+  "audio": [{"codec": "aac", "maxChannels": 2}],
+  "transports": [
+   {"transport": "direct", "containers": ["mp4"], "video": ["h264"], "audio": ["aac"]},
+   {"transport": "hls_ts", "containers": ["mpegts"], "video": ["h264"], "audio": ["aac"]}],
+  "subtitleRendering": ["text"]}}}
+```
+
+**A document that says something untrue.** The server takes the document at its word; it
+cannot check it. A client that claims less than it can do gets more converted than it needs.
+A client that claims more is sent streams it cannot play: when its player fails it reports
+that with `PATCH /v1/playback/sessions/{id}` and `failure`, and the server moves that file on
+that device to the next way of playing it and remembers. What a document can never do is
+widen a limit: the owner's settings (conversion on or off, stream limits) and a member's
+limits (quality away from home, what the member may see) are applied after the document, so
+no claim gets a stream those limits forbid.
+
 ### Setup and the kind of sign-in (5 new)
 
 The Console half is under "Setup, remote access and sign-in kind" below. Setup holds nothing
