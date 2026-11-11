@@ -256,8 +256,7 @@ type PlaybackStart struct {
 	Audio     *AudioPick        `json:"audio,omitempty"`
 	Subtitles *SubtitlePick     `json:"subtitles,omitempty"`
 	// Network is cellular when the app knows it is on mobile data. The server tells home from away.
-	Network        string `json:"network,omitempty"`
-	ThroughputKbps int    `json:"throughputKbps,omitempty"`
+	Network string `json:"network,omitempty"`
 	// DiscTitle names one title of a disc. Disc playback is not available yet: a start that
 	// names one is refused with 501 disc_playback_unavailable.
 	DiscTitle JSON `json:"discTitle,omitempty"`
@@ -281,8 +280,7 @@ type PlaybackChange struct {
 	SubtitleOffsetMs *int64            `json:"subtitleOffsetMs,omitempty"`
 	Seek             *PlaybackSeek     `json:"seek,omitempty"`
 	// PositionMs is where the player is now: a new stream starts there.
-	PositionMs     *int64 `json:"positionMs,omitempty"`
-	ThroughputKbps int    `json:"throughputKbps,omitempty"`
+	PositionMs *int64 `json:"positionMs,omitempty"`
 	// Replan plans again from the device's current capability document.
 	Replan bool `json:"replan,omitempty"`
 	// Failure says the player could not play what it was given. The server remembers that
