@@ -194,3 +194,42 @@ func TestToolchainInventoryCancellationAfterLastCommand(t *testing.T) {
 		t.Fatal("cancelled final inventory was admitted", facts, err)
 	}
 }
+
+// A stock FFmpeg lists neither of Portico's additions; Portico's own build lists both, and the
+// server learns that from the tool itself.
+func TestToolchainLearnsPorticoAdditionsFromFFmpegItself(t *testing.T) {
+	for name, portico := range map[string]bool{"stock": false, "portico": true} {
+		t.Run(name, func(t *testing.T) {
+			path := fakeFFmpeg(t)
+			facts, err := probeToolchainInventory(context.Background(), path, func(ctx context.Context, job mediaexec.Job) (string, error) {
+				switch job.Args[len(job.Args)-1] {
+				case "-version":
+					return "ffmpeg version fixture\n", nil
+				case "-encoders":
+					return " V..... libx264\n V..... libx265\n A..... aac\n", nil
+				case "-muxers":
+					return " E mp4\n", nil
+				case "-bsfs":
+					if portico {
+						return "dovi_rpu\ndovi_profile\n", nil
+					}
+					return "dovi_rpu\n", nil
+				case "bsf=dovi_profile":
+					return "dovi_profile AVOptions:\n  -mode   <int>   ...V....B.. (from 2 to 2) (default 2)\n", nil
+				case "encoder=libx265":
+					if portico {
+						return "libx265 AVOptions:\n  -hdr10plus   <boolean>   E..V....... Carry frame HDR10+ metadata (default false)\n", nil
+					}
+					return "libx265 AVOptions:\n  -crf   <float>   E..V.......\n", nil
+				}
+				return "", nil
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if facts.DolbyVisionProfile7To81 != portico || facts.HDR10PlusLibX265Encode != portico {
+				t.Fatalf("portico=%v but profile conversion=%v, HDR10+ carry=%v", portico, facts.DolbyVisionProfile7To81, facts.HDR10PlusLibX265Encode)
+			}
+		})
+	}
+}
