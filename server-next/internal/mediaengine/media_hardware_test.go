@@ -48,7 +48,7 @@ func TestMediaMatrixHardware(t *testing.T) {
 	t.Cleanup(func() { t.Logf("what was planned:\n%s", strings.Join(m.summary, "\n")) })
 	dir := t.TempDir()
 	sup := filepath.Join(dir, "box.sup")
-	if err := os.WriteFile(sup, pgsBox(1920, 1080, 600, 420, 720, 240, pgsFrom, pgsTo), 0o600); err != nil {
+	if err := os.WriteFile(sup, pictureSubtitle(1920, 1080, 600, 420, 720, 240, pgsFrom, pgsTo), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	// Each film in a library of its own.
