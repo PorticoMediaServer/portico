@@ -22,6 +22,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediaengine"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediaexec"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/titledata"
+	"github.com/PorticoMediaServer/portico/server-next/internal/serverlog"
 )
 
 // version is set by the release build.
@@ -79,6 +80,14 @@ func run(log *slog.Logger) error {
 		return err
 	}
 	libraryfile.ServerData = serverData
+	// Everything logged from here on is also kept in the data folder for Messages.
+	serverLog, err := serverlog.Open(filepath.Join(*data, "logs"), os.Stderr)
+	if err != nil {
+		return err
+	}
+	defer serverLog.Close()
+	log = slog.New(serverLog.Handler())
+	slog.SetDefault(log)
 	// Media tools are started through this binary as their helper. That lets a scan keep a
 	// few confined workers going, where it would otherwise build a sandbox for every file.
 	if _, err := mediaexec.Configure(mediaexec.Options{}); err != nil {
@@ -123,6 +132,7 @@ func run(log *slog.Logger) error {
 	defer handler.RemoteSources().Close()
 	// Scans start by themselves from here on: watched folders and rescan intervals.
 	go handler.RunSchedules(ctx)
+	handler.UseLog(serverLog)
 	// The media engine plans and runs the streams. Its conversions folder is emptied at start:
 	// no stream outlives a restart.
 	engine, err := mediaengine.New(ctx, d, mediaengine.Options{Folder: filepath.Join(*data, "transcodes"), Log: log, Remote: handler.RemoteSources().Open})
