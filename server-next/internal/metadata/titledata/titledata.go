@@ -50,9 +50,11 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/settings"
 )
 
-// DefaultAddress is where the signed list is published. The owner can point the server at
-// another copy (a mirror); whatever the address, the list must be signed by PublishedKey.
-const DefaultAddress = "https://data.getportico.tv/v3/manifest.json"
+// DefaultAddress is where the signed list is published. Each format of the data has a folder of
+// its own, so a server reading a new format asks in the new folder. The owner can point the
+// server at another copy (a mirror); whatever the address, the list must be signed by
+// PublishedKey.
+var DefaultAddress = fmt.Sprintf("https://data.getportico.tv/v%d/manifest.json", db.TitleDataSchema)
 
 // PublishedKey is the Ed25519 public key, standard base64, that signs the list. It is empty
 // until the first release is signed, and until then nothing is downloaded.
@@ -107,10 +109,18 @@ var Document = settings.Define("title_data", Setting{Download: true}, func(s *Se
 const stateKey = "title_data_state"
 
 type state struct {
+	// Schema is the format the list and file are in. A new format is published in its own
+	// folder with release numbers from 1, so the newest release accepted counts only within one
+	// format.
+	Schema   int    `json:"schema,omitempty"`
 	Sequence int64  `json:"sequence"`
 	Version  string `json:"version,omitempty"`
 	File     string `json:"file,omitempty"` // a name in Dir
 }
+
+// formatBeforeRecorded is the format of a state saved before the format was recorded: every
+// server then read format 3.
+const formatBeforeRecorded = 3
 
 // ErrRefused is a list or file that failed a check. The copy in use stays in use.
 var ErrRefused = errors.New("Enhanced Recommendations data refused")
@@ -216,10 +226,21 @@ func (u *Updater) state(ctx context.Context) (state, error) {
 	if err != nil || !ok {
 		return st, err
 	}
-	return st, json.Unmarshal([]byte(raw), &st)
+	if err := json.Unmarshal([]byte(raw), &st); err != nil {
+		return st, err
+	}
+	if st.Schema == 0 {
+		st.Schema = formatBeforeRecorded
+	}
+	if st.Schema != db.TitleDataSchema {
+		// Another format's release numbers and file do not count: its file is not opened.
+		return state{}, nil
+	}
+	return st, nil
 }
 
 func (u *Updater) saveState(ctx context.Context, st state) error {
+	st.Schema = db.TitleDataSchema
 	raw, err := json.Marshal(st)
 	if err != nil {
 		return err
@@ -228,14 +249,18 @@ func (u *Updater) saveState(ctx context.Context, st state) error {
 }
 
 // Open puts the file kept from before a restart back in use, unless the owner switched title
-// data off.
+// data off. A file kept in another format is deleted; the next check downloads this format's.
 func (u *Updater) Open(ctx context.Context) error {
 	if !u.setting().on() {
 		return nil
 	}
 	st, err := u.state(ctx)
-	if err != nil || st.File == "" {
+	if err != nil {
 		return err
+	}
+	if st.File == "" {
+		u.removeOthers("")
+		return nil
 	}
 	path := filepath.Join(u.Dir, st.File)
 	if _, err := os.Stat(path); err != nil {
