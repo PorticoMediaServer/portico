@@ -63,8 +63,11 @@ async function until(check: () => boolean) {
 }
 const guidePaths = (paths: readonly string[]) => paths.filter(path => path.startsWith('/v1/guide?'));
 const groups: readonly SearchGroup[] = ['movies', 'live-tv'];
+/** The rebuilt server searches no Live TV yet (recorded by the lead): these Live TV results come back when it does.
+ * Trigger: a `channel` group in GET /v1/search. */
+const liveSearch = test.skip;
 
-test('a live result takes its channel row and on-air programme from one bounded guide read of its own matched ids', async () => {
+liveSearch('a live result takes its channel row and on-air programme from one bounded guide read of its own matched ids', async () => {
   const now = Date.now(), owner = setup(async path => {
     if (path.startsWith('/v1/search?')) return searchPage(path, [channelEntry('ember', 'Ember Drama'), channelEntry('northwind', 'Northwind News')]);
     if (path.startsWith('/v1/guide?')) return guidePage(path, [
@@ -96,7 +99,7 @@ test('a live result takes its channel row and on-air programme from one bounded 
   } finally { binding.dispose(); }
 });
 
-test('a refused guide read leaves the plain result rows and never invents a programme', async () => {
+liveSearch('a refused guide read leaves the plain result rows and never invents a programme', async () => {
   const owner = setup(async path => {
     if (path.startsWith('/v1/search?')) return searchPage(path, [channelEntry('ember', 'Ember Drama')]);
     if (path.startsWith('/v1/guide?')) throw Object.assign(new Error('forbidden'), {status: 403});
@@ -114,7 +117,7 @@ test('a refused guide read leaves the plain result rows and never invents a prog
   } finally { binding.dispose(); }
 });
 
-test('a later search retires the earlier guide read so its answer is never shown', async () => {
+liveSearch('a later search retires the earlier guide read so its answer is never shown', async () => {
   let release!: (value: unknown) => void;
   const held = new Promise<unknown>(resolve => { release = resolve; });
   let reads = 0;
@@ -158,7 +161,7 @@ test('no live group means no guide read', async () => {
   } finally { binding.dispose(); }
 });
 
-test('moving off Live TV clears the cards it no longer owns', async () => {
+liveSearch('moving off Live TV clears the cards it no longer owns', async () => {
   const owner = setup(async path => {
     if (path.startsWith('/v1/search?')) {
       const q = new URL(path, 'https://local.invalid').searchParams.get('q');
