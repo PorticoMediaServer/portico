@@ -391,7 +391,7 @@ Refreshing or editing a selection of titles is a bulk action, `POST /v1/jobs`.
 | `PUT /v1/admin/items/{id}/artwork/{role}` | Use this picture for the role, which locks it; or unlock the role |
 | `DELETE /v1/admin/items/{id}/artwork/{imageId}` | Remove an upload; the next best picture is used |
 | `POST /v1/admin/items/{id}/artwork/find` | Find more from the provider, fetch again, or make an episode's picture from the video |
-| `GET /v1/admin/metadata/settings`, `PUT /v1/admin/metadata/settings` | Own provider keys (write-only: the answer says only whether one is set), Include adult titles, cast photos, Download title data, the subtitle account |
+| `GET /v1/admin/metadata/settings`, `PUT /v1/admin/metadata/settings` | Own provider keys (write-only: the answer says only whether one is set), Include adult titles, cast photos, the subtitle account |
 
 ### Remote sources, route by route (8 of the 33 for libraries, storage and files)
 
@@ -443,7 +443,8 @@ playback reads when a play starts away from home and may refuse it for, the
 conversion folder, the graphics device, hardware decoding, conversion limits, End paused video
 after), `storage` (Keep generated files, the free-space warnings), `backups`, `logs`,
 `notices` (who gets server notices, keeping times for notices and Play history), `downloads`
-(on or off, highest quality, space, how long prepared copies are kept), `live` and `dvr`,
+(on or off, highest quality, space, how long prepared copies are kept), `title_data`
+(Enhanced Recommendations on or off, and a copy's address), `live` and `dvr`,
 `remote-access` (remote access on or off, Remote security, Secure connections, port mapping,
 the public port, IPv6, your own address and certificate files, who may sign in from outside,
 Find this server at home, and the DLNA switch), `integrations` (Assistants, the compatible

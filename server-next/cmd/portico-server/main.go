@@ -201,7 +201,7 @@ func run(log *slog.Logger) (err error) {
 			return fmt.Errorf("PORTICO_TITLE_DATA_KEY: %w", err)
 		}
 		titleData.Address = os.Getenv("PORTICO_TITLE_DATA_ADDRESS")
-		log.Warn("title data comes from a test publication", "address", titleData.Address)
+		log.Warn("Enhanced Recommendations data comes from a test publication", "address", titleData.Address)
 	}
 	go titleData.Run(ctx)
 	// No write timeout: media and the events feed are long replies. Slow request headers are bounded.
