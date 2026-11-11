@@ -73,14 +73,20 @@ func mayStart(kind jobs.Kind, c Caller) bool {
 	return kind.Access == jobs.AnyProfile
 }
 
-// job finds a job for the person who started it, and for the owner and admins. To anyone
-// else it is not there.
+// job finds a job for whoever may see it: the owner and admins, and otherwise the profile
+// that started it (for a job that runs as a profile) or the account that started it. To
+// anyone else, another profile of the same account included, it is not there.
 func (s *Server) job(r *http.Request) (db.Job, error) {
 	job, err := s.db.Job(r.Context(), r.PathValue("id"))
 	if err != nil {
 		return job, libraryError(err)
 	}
-	if c := CallerFrom(r.Context()); job.OwnerID != c.UserID && c.Role != "owner" && c.Role != "admin" {
+	c := CallerFrom(r.Context())
+	mine := job.OwnerID == c.UserID
+	if profile := jobs.ProfileOf(job); profile != 0 {
+		mine = profile == c.ProfileID
+	}
+	if !mine && c.Role != "owner" && c.Role != "admin" {
 		return job, ErrNotFound()
 	}
 	return job, nil
@@ -101,12 +107,13 @@ func (s *Server) cancelJob(r *http.Request, _ None) (None, error) {
 	if err != nil {
 		return None{}, err
 	}
-	// Whoever started a job may stop it, and so may anyone who could have started it for
-	// everybody (the owner's scan is not an admin's to stop). A kind with a route of its own
-	// (removing a library) is not stopped from here.
+	// A job that runs as a profile is stopped by that profile, the owner or an admin, which
+	// is who can see it. Any other job is stopped by whoever may start its kind: the owner's
+	// scan is not an admin's to stop, nor another profile's on the owner's account. A kind
+	// with a route of its own (removing a library) is not stopped from here.
 	c := CallerFrom(r.Context())
 	kind, known := s.jobs.Kind(job.Kind)
-	if known && kind.Access == jobs.Internal || job.OwnerID != c.UserID && !(known && kind.Access != jobs.AnyProfile && mayStart(kind, c)) && c.Role != "owner" {
+	if known && kind.Access == jobs.Internal || jobs.ProfileOf(job) == 0 && c.Role != "owner" && !(known && mayStart(kind, c)) {
 		return None{}, ErrNotPermitted()
 	}
 	if err := s.jobs.Cancel(r.Context(), job); err != nil && !errors.Is(err, db.ErrNotFound) {

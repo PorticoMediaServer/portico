@@ -88,6 +88,27 @@ func TestStartingReadingAndCancellingJobs(t *testing.T) {
 		t.Fatalf("a member's own job answered %d", code)
 	}
 	<-running
+	// Another profile of the same account neither sees the job nor stops it. The owner sees it.
+	var second Profile
+	if w := call(t, s, "POST", "/v1/profiles", member, ProfileCreate{Name: "Second"}, &second); w.Code != 200 {
+		t.Fatalf("adding a profile answered %d: %s", w.Code, w.Body)
+	}
+	var in SignInResponse
+	if w := call(t, s, "POST", "/v1/auth/sign-in", "", SignInRequest{Username: "sam", Password: testPassword, Device: device(8)}, &in); w.Code != 200 {
+		t.Fatalf("signing in again answered %d", w.Code)
+	}
+	var onSecond Session
+	if w := call(t, s, "POST", "/v1/profiles/"+second.ID+"/select", in.Session.AccessToken, ProfileSelect{}, &onSecond); w.Code != 200 {
+		t.Fatalf("choosing the second profile answered %d", w.Code)
+	}
+	for _, method := range []string{"GET", "DELETE"} {
+		if code := status(t, s, method, "/v1/jobs/"+mine.ID, onSecond.AccessToken, nil); code != 404 {
+			t.Errorf("%s of a job by another profile of the account answered %d; want 404", method, code)
+		}
+	}
+	if code := status(t, s, "GET", "/v1/jobs/"+mine.ID, owner, nil); code != 200 {
+		t.Errorf("the owner reading a member's job answered %d", code)
+	}
 	if code := status(t, s, "DELETE", "/v1/jobs/"+mine.ID, member, nil); code != 204 {
 		t.Fatalf("stopping the job answered %d", code)
 	}
