@@ -4,9 +4,12 @@ import (
 	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"math/big"
 	"net/http"
+	"strings"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 )
@@ -34,6 +37,28 @@ func newIdentity(seed string) (identity, error) {
 	digest := sha256.Sum256(public)
 	enc := base64.RawURLEncoding.EncodeToString
 	return identity{key: key, id: "srv_" + enc(id[:]), publicKey: enc(public), fingerprint: enc(digest[:])}, nil
+}
+
+// identityCode is the server's identity in twelve characters a person can read out, such as
+// "JJWY-C8J8-J26F". The owner reads it in Remote access; an app that meets this server away
+// from home through the owner's own certificate, with nothing else to vouch for it, asks for
+// it once. It is the first 8 bytes of the digest in the server id, taken modulo 31^12 and
+// written in the code alphabet, so the app works it out from the proof the same way.
+func identityCode(serverID string) string {
+	raw, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(serverID, "srv_"))
+	if err != nil || len(raw) < 8 {
+		return ""
+	}
+	n := new(big.Int).SetUint64(binary.BigEndian.Uint64(raw[:8]))
+	radix := big.NewInt(int64(len(auth.CodeAlphabet)))
+	n.Mod(n, new(big.Int).Exp(radix, big.NewInt(12), nil))
+	out := make([]byte, 12)
+	digit := new(big.Int)
+	for i := 11; i >= 0; i-- {
+		n.DivMod(n, radix, digit)
+		out[i] = auth.CodeAlphabet[digit.Int64()]
+	}
+	return string(out[:4]) + "-" + string(out[4:8]) + "-" + string(out[8:])
 }
 
 // IdentityQuestion is what an app asks an address before trusting it: the address it used
@@ -67,7 +92,11 @@ func (s *Server) identityRoutes() {
 			ServerID    string `json:"serverId"`
 			PublicKey   string `json:"publicKey"`
 			Fingerprint string `json:"fingerprint"`
-		}{"portico.route-proof", "1", req.BaseURL, req.Nonce, s.identity.id, s.identity.publicKey, s.identity.fingerprint})
+			// Certificates are the SHA-256 fingerprints, base64url, of the certificates this
+			// server serves itself (the owner's own), so an app that met one over HTTPS knows
+			// the server's identity key vouches for it, and a renewal asks nothing.
+			Certificates []string `json:"certificates,omitempty"`
+		}{"portico.route-proof", "1", req.BaseURL, req.Nonce, s.identity.id, s.identity.publicKey, s.identity.fingerprint, s.certs.Fingerprints()})
 		enc := base64.RawURLEncoding.EncodeToString
 		return IdentityProof{Payload: enc(payload), Signature: enc(ed25519.Sign(s.identity.key, payload))}, nil
 	})
