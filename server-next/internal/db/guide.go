@@ -137,12 +137,13 @@ func (d *DB) CopyChannelGuide(ctx context.Context, channelPublicID string, from,
 	return tx.Commit()
 }
 
-// DropChannelGuide removes a channel's programmes from the guide.
+// DropChannelGuide removes a channel's programmes from the guide, or with guideKey "" every
+// programme of a source.
 func (d *DB) DropChannelGuide(ctx context.Context, sourceID int64, guideKey string) error {
 	g := d.guide
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	_, err := g.write.ExecContext(ctx, `DELETE FROM programmes WHERE source_id = ? AND guide_key = ?`, sourceID, guideKey)
+	_, err := g.write.ExecContext(ctx, `DELETE FROM programmes WHERE source_id = ? AND (? = '' OR guide_key = ?)`, sourceID, guideKey, guideKey)
 	return err
 }
 
@@ -185,4 +186,37 @@ func (d *DB) GuideProgrammes(ctx context.Context, sourceID int64, guideKey strin
 		out = append(out, p)
 	}
 	return out, rows.Err()
+}
+
+// ReplaceSourceGuide replaces one source's programmes in one guide transaction: fill calls
+// add with each programme. The old guide shows until the new one is whole; a fill that fails
+// leaves it as it was.
+func (d *DB) ReplaceSourceGuide(ctx context.Context, sourceID int64, fill func(add func(GuideProgramme) error) error) error {
+	g := d.guide
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	tx, err := g.write.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `DELETE FROM programmes WHERE source_id = ?`, sourceID); err != nil {
+		return err
+	}
+	insert, err := tx.PrepareContext(ctx, `INSERT OR REPLACE INTO programmes (source_id, guide_key, starts_at, ends_at, programme_key, series_key,
+		title, episode_title, season_number, episode_number, summary, rating, rating_age, flags, image_url)
+		VALUES (?, ?, ?, ?, ?, nullif(?, ''), ?, nullif(?, ''), ?, ?, nullif(?, ''), nullif(?, ''), ?, ?, nullif(?, ''))`)
+	if err != nil {
+		return err
+	}
+	defer insert.Close()
+	err = fill(func(p GuideProgramme) error {
+		_, err := insert.ExecContext(ctx, sourceID, p.GuideKey, p.StartsAt.UnixMilli(), p.EndsAt.UnixMilli(), p.ProgrammeKey, p.SeriesKey,
+			p.Title, p.EpisodeTitle, p.Season, p.Episode, p.Summary, p.Rating, p.RatingAge, p.Flags, p.ImageURL)
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
 }

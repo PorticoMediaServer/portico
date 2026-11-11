@@ -95,13 +95,22 @@ func (s *Server) liveViewer(r *http.Request) (db.LiveViewer, error) {
 }
 
 // mayWatch says whether the viewer may see a channel. A Library Channel follows its
-// libraries, through the one function that decides it. A source's channel is not shown until
-// sources are built, so nothing is shown that nothing decided.
+// libraries, through the one function that decides it; a source's channel follows its
+// source's audience. Anything else is shown to nobody.
 func mayWatch(v db.LiveViewer, c db.LiveChannel) bool {
-	if c.Kind == db.ChannelFromLibrary {
+	switch c.Kind {
+	case db.ChannelFromLibrary:
 		return librarychannels.Visible(v, c.Libraries)
+	case db.ChannelFromSource:
+		return v.LiveTV && (c.Audience == "everyone" || c.Audience == "owner" && v.Owner)
 	}
 	return false
+}
+
+// rated says whether a guide's programme is within the profile's rating limit. A programme
+// the guide gives no rating is allowed: most guides send none.
+func rated(v db.LiveViewer, age *int) bool {
+	return v.MaxAge == nil || age == nil || *age <= *v.MaxAge
 }
 
 func channelOut(c db.LiveChannel) Channel {
@@ -210,7 +219,7 @@ func timeParam(r *http.Request, name string, fallback time.Time) (time.Time, err
 // programmes reads each channel's programmes over a stretch and hides what the viewer may
 // not see: a title above its rating limit, carrying a Tag blocked for it, or gone, shows
 // only that it is not available, never its name.
-func (s *Server) programmes(ctx context.Context, v db.Viewer, channels []db.LiveChannel, from, to time.Time, most int) ([][]Programme, error) {
+func (s *Server) programmes(ctx context.Context, v db.Viewer, lv db.LiveViewer, channels []db.LiveChannel, from, to time.Time, most int) ([][]Programme, error) {
 	all := make([][]db.GuideProgramme, len(channels))
 	var ids []int64
 	for n, c := range channels {
@@ -248,7 +257,7 @@ func (s *Server) programmes(ctx context.Context, v db.Viewer, channels []db.Live
 			switch {
 			case channels[n].Kind == db.ChannelFromLibrary && p.ItemID == 0:
 				item.Slate = true
-			case channels[n].Kind == db.ChannelFromLibrary && seen[p.ItemID] != p.ProgrammeKey:
+			case channels[n].Kind == db.ChannelFromLibrary && seen[p.ItemID] != p.ProgrammeKey, channels[n].Kind == db.ChannelFromSource && !rated(lv, p.RatingAge):
 				item.NotAvailable = true
 			case channels[n].Kind == db.ChannelFromLibrary:
 				t := current[p.ItemID]
@@ -299,7 +308,7 @@ func (s *Server) liveGuide(r *http.Request, _ None) (Guide, error) {
 	if err != nil {
 		return Guide{}, err
 	}
-	progs, err := s.programmes(r.Context(), viewer(r), channels, from, to, 200)
+	progs, err := s.programmes(r.Context(), viewer(r), lv, channels, from, to, 200)
 	if err != nil {
 		return Guide{}, err
 	}
@@ -346,7 +355,7 @@ func (s *Server) liveNow(r *http.Request, _ None) (Page[OnNow], error) {
 		}
 	}
 	now := s.now()
-	progs, err := s.programmes(ctx, viewer(r), channels, now, now.Add(24*time.Hour), 2)
+	progs, err := s.programmes(ctx, viewer(r), lv, channels, now, now.Add(24*time.Hour), 2)
 	if err != nil {
 		return Page[OnNow]{}, err
 	}
@@ -392,6 +401,12 @@ func (s *Server) tuneChannel(ctx context.Context, v db.Viewer, channelID string)
 	}
 	if !lv.LiveTV {
 		return librarychannels.Tuned{}, ErrNotFound()
+	}
+	if ch, err := s.db.LiveChannelByID(ctx, v, channelID); err == nil && ch.Kind == db.ChannelFromSource {
+		if !mayWatch(lv, ch) {
+			return librarychannels.Tuned{}, ErrNotFound()
+		}
+		return librarychannels.Tuned{}, notYet("live_watching_unavailable", "This server can't play a tuner's or playlist's channels yet.")
 	}
 	tuned, err := s.channels.Tune(ctx, v, channelID)
 	if slate, ok := librarychannels.IsSlate(err); ok {
