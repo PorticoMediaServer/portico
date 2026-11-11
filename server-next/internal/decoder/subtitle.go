@@ -14,6 +14,16 @@ const MaxSubtitleOutput = medialimits.MaxSubtitleFileMiB << 20
 
 func seconds(us int64) string { return strconv.FormatFloat(float64(us)/1e6, 'f', 6, 64) }
 func runSubtitleOwned(ctx context.Context, sup *processpool.Supervisor, key string, cmd *exec.Cmd, input string, res *EndpointReservation, max int64) ([]byte, error) {
+	if key == "" {
+		res.Close()
+		return nil, ErrInvalidConfiguration
+	}
+	return runSubtitleIn(ctx, sup, "playback:subtitle:"+key, cmd, input, res, max)
+}
+
+// runSubtitleIn runs a subtitle command under a supervisor key that names its pool:
+// "playback:" for one a viewer waits on, "optimization:" for background work.
+func runSubtitleIn(ctx context.Context, sup *processpool.Supervisor, key string, cmd *exec.Cmd, input string, res *EndpointReservation, max int64) ([]byte, error) {
 	endpoint, err := bridgeEndpoint(input)
 	if err != nil || sup == nil || key == "" {
 		res.Close()
@@ -24,7 +34,7 @@ func runSubtitleOwned(ctx context.Context, sup *processpool.Supervisor, key stri
 	}
 	retired := make(chan struct{})
 	var data []byte
-	err = sup.RunOwnedCompletion(ctx, "playback:subtitle:"+key, cmd, func(r io.Reader) error {
+	err = sup.RunOwnedCompletion(ctx, key, cmd, func(r io.Reader) error {
 		var e error
 		data, e = io.ReadAll(io.LimitReader(r, max+1))
 		if len(data) > int(max) {
