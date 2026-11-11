@@ -71,6 +71,9 @@ func TestOwnerDashboard(t *testing.T) {
 	if w := call(t, s, "POST", "/v1/admin/libraries", owner, LibraryCreate{Name: "Films", Kind: "movies", Folders: []string{folder}}, &films); w.Code != 200 {
 		t.Fatalf("adding a library answered %d: %s", w.Code, w.Body)
 	}
+	// Adding a library starts its first scan, and Scan now joins a scan already waiting or running.
+	// So the first scan is waited for before the folder goes, and the next one finds it gone.
+	scanNow(t, s, owner, films.ID)
 	os.Remove(folder)
 	scanNow(t, s, owner, films.ID)
 	// A remote source found unreachable.
