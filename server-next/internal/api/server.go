@@ -20,7 +20,6 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/artwork"
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
-	"github.com/PorticoMediaServer/portico/server-next/internal/compat"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/jobs"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
@@ -76,11 +75,6 @@ type Server struct {
 	driveSignIns remote.DriveSignIns
 	// keyRequests slows a key that makes too many requests. See key_check.go.
 	keyRequests keyRequests
-	// integrations are the owner's switches for outside tools. See integrations.go.
-	integrations integrationState
-	// compat and compatKey serve the Jellyfin-compatible routes. See compat.go.
-	compat    compatState
-	compatKey []byte
 
 	// The newer areas each keep their fields in a type of their own, in area_<name>.go,
 	// beside their start-up. Nothing below this line changes when an area grows.
@@ -206,14 +200,6 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	if err := s.loadNetworks(ctx); err != nil {
 		return nil, err
 	}
-	if err := s.loadIntegrations(ctx); err != nil {
-		return nil, err
-	}
-	compatKey, err := d.SettingOrCreate(ctx, "compat.token_key", auth.NewKey)
-	if err != nil {
-		return nil, err
-	}
-	s.compatKey = []byte(compatKey)
 	s.systemRoutes()
 	s.networkRoutes()
 	s.identityRoutes()
@@ -224,8 +210,6 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.memberRoutes()
 	s.invitationRoutes()
 	s.keyRoutes()
-	s.integrationRoutes()
-	s.mcpRoutes()
 	s.catalogueRoutes()
 	s.tagRoutes()
 	s.itemFileRoutes()
@@ -308,16 +292,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			s.writeError(w, r, errors.New("panic"))
 		}
 	}()
-	// The Jellyfin-compatible routes live outside /v1, whatever their capitals.
-	if !strings.HasPrefix(r.URL.Path, "/v1/") {
-		if op, values, ok := compat.Match(r.Method, r.URL.Path); ok && s.integrations.get().CompatibleRoutes {
-			if op == "" {
-				s.writeError(w, r, refusal(http.StatusMethodNotAllowed, "method_not_allowed", "This address does not take that method.", false))
-				return
-			}
-			s.serveCompat(w, r, op, values)
-			return
-		}
+	// Outside tools answer some addresses of their own. See area_tools.go.
+	if s.serveTools(w, r) {
+		return
 	}
 	if _, pattern := s.mux.Handler(r); pattern == "" {
 		// An address that is no route of the API, and is not under /v1/ at all, is the web
