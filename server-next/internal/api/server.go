@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strconv"
@@ -24,8 +25,8 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
 	"github.com/PorticoMediaServer/portico/server-next/internal/remote"
-
 	"github.com/PorticoMediaServer/portico/server-next/internal/scan"
+	"github.com/PorticoMediaServer/portico/server-next/internal/tlsport"
 )
 
 // APIMajor is the number in the path. It changes only for a break old apps could not survive.
@@ -65,7 +66,9 @@ type Server struct {
 	network networkState
 	// access is the owner's remote access settings. See remote_access.go.
 	access remoteState
-	media  func(w http.ResponseWriter, r *http.Request, grant, file string)
+	// certs is the certificate for the owner's own address, read from the Keys folder.
+	certs *tlsport.Store
+	media func(w http.ResponseWriter, r *http.Request, grant, file string)
 	// feeds caps the change feeds each sign-in holds open. See catalogue.go.
 	feeds feeds
 	// remote opens the owner's remote sources. See remote_sources.go.
@@ -181,6 +184,9 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	if err := s.loadNetworks(ctx); err != nil {
 		return nil, err
 	}
+	s.certs = tlsport.NewStore(filepath.Join(dataDir, "Keys"), log, func() time.Time { return s.now() })
+	// Enhanced waits on the owner's own certificate until it is loaded and valid for the address.
+	s.access.ownCertificateUsable = func() bool { return s.certs.Status().State == "ok" }
 	if err := s.loadRemoteAccess(ctx); err != nil {
 		return nil, err
 	}
