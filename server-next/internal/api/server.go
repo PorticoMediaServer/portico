@@ -16,7 +16,6 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/artwork"
@@ -87,13 +86,6 @@ type Server struct {
 	downloadsArea
 	readingArea
 	liveTVArea
-	// remoteAccessDoc is the remote-access settings, and dlna the DLNA server they switch. See dlna.go.
-	remoteAccessDoc remoteAccessState
-	dlna            *dlna.Server
-	// silentProxySeen says DLNA has served a request from a trusted proxy that passed on no
-	// visitor's address since the server started; the remote-access settings warn about it.
-	// (The record #2328 keeps of such a proxy replaces this once both are on main.)
-	silentProxySeen atomic.Bool
 }
 
 // Route is one operation, kept so the contract can be generated and the operation budget counted.
@@ -209,12 +201,8 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	if err := s.loadNetworks(ctx); err != nil {
 		return nil, err
 	}
-	if err := s.loadRemoteAccess(ctx); err != nil {
-		return nil, err
-	}
 	s.systemRoutes()
 	s.networkRoutes()
-	s.dlnaRoutes()
 	s.identityRoutes()
 	s.authRoutes()
 	s.profileRoutes()
