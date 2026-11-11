@@ -15,10 +15,10 @@ func TestACopyWithATriggerNamedLikeSQLitesOwnIsRefused(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	d.Close()
 	if err := CheckCopy(ctx, path); err != nil {
 		t.Fatalf("a new database fails its own check: %v", err)
 	}
-	d.Close()
 	raw, _ := sql.Open("sqlite", "file:"+path)
 	raw.SetMaxOpenConns(1)
 	for _, q := range []string{
