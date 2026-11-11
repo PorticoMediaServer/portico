@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
@@ -85,6 +86,10 @@ func playbackError(err error) error {
 	case errors.Is(err, playback.ErrTooSlow):
 		return refusal(http.StatusUnprocessableEntity, "connection_too_slow",
 			"Your connection to this server is too slow for this quality. Choose a lower quality or Automatic.", false)
+	case errors.Is(err, playback.ErrUploadFull):
+		e := refusal(http.StatusServiceUnavailable, "upload_full", "This server's internet connection is full right now. Try again in a few minutes.", true)
+		e.RetryAfterMs = 2 * 60 * 1000
+		return e
 	case errors.Is(err, playback.ErrUpdateRequired):
 		return refusal(http.StatusBadRequest, "client_update_required", "Update the app to play on this server.", false)
 	case errors.Is(err, playback.ErrDisc):
@@ -103,8 +108,11 @@ func playbackError(err error) error {
 
 func (s *Server) playbackCaller(r *http.Request) playback.Caller {
 	c := CallerFrom(r.Context())
+	// The app's language is the first one its request accepts ("fr-CA,fr;q=0.9" is fr-CA).
+	language, _, _ := strings.Cut(r.Header.Get("Accept-Language"), ",")
+	language, _, _ = strings.Cut(language, ";")
 	return playback.Caller{Viewer: db.Viewer{UserID: c.UserID, ProfileID: c.ProfileID}, SignInID: c.SessionID,
-		AtHome: s.fromHome(r)}
+		AtHome: s.fromHome(r), Language: strings.TrimSpace(language)}
 }
 
 // deviceID is the device a capabilities route is about: one of the caller's own by id, or

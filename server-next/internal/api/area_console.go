@@ -25,6 +25,11 @@ func (s *Server) startConsole(ctx context.Context) error {
 	for _, err := range damaged {
 		s.log.Warn("a settings document could not be read and is at its defaults until the owner saves it", "error", err)
 	}
+	// Playback reads the owner's limits on plays away from home from them.
+	s.playback.UseSettings(s.settings)
 	s.settingsRoutes()
 	return nil
 }
+
+// Settings are the owner's settings documents, for the parts of the server outside the API.
+func (s *Server) Settings() *settings.Settings { return s.settings }
