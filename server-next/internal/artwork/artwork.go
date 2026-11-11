@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	_ "golang.org/x/image/webp"
@@ -227,10 +228,9 @@ func shrink(from *image.RGBA, edge int) *image.RGBA {
 
 // Sweep removes the pictures nothing uses any more: every one stored before a time whose id
 // used does not name. used calls yield with every id in use, in ascending order; a picture
-// stored since the time is kept, as one just stored may not be recorded yet. Smaller copies
-// go with their picture. It returns how many pictures it removed.
+// stored since the time is kept, as one just stored may not be recorded yet. Both sizes go. It returns how many pictures it removed.
 func (s *Store) Sweep(before time.Time, used func(yield func(id string) error) error) (int, error) {
-	prefixes, err := os.ReadDir(s.originals)
+	prefixes, err := os.ReadDir(s.dir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return 0, nil
 	}
@@ -243,15 +243,17 @@ func (s *Store) Sweep(before time.Time, used func(yield func(id string) error) e
 	// fill reads folders until a picture at or after id is waiting, or there are no more.
 	fill := func(id string) error {
 		for next < len(prefixes) && (len(stored) == 0 || stored[len(stored)-1] < id) {
-			entries, err := os.ReadDir(filepath.Join(s.originals, prefixes[next].Name()))
+			entries, err := os.ReadDir(filepath.Join(s.dir, prefixes[next].Name()))
 			next++
 			if err != nil {
 				return err
 			}
 			for _, e := range entries {
 				info, err := e.Info()
-				if err == nil && ValidID(e.Name()) && info.ModTime().Before(before) {
-					stored = append(stored, e.Name())
+				// One entry a picture: its small size, the last of its two files to be written.
+				id, small := strings.CutSuffix(e.Name(), ".small")
+				if err == nil && small && ValidID(id) && info.ModTime().Before(before) {
+					stored = append(stored, id)
 				}
 			}
 		}
@@ -277,12 +279,10 @@ func (s *Store) Sweep(before time.Time, used func(yield func(id string) error) e
 	}
 	unused = append(unused, stored...)
 	for _, id := range unused {
-		if err := os.Remove(place(s.originals, id, "")); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return 0, err
-		}
-		copies, _ := filepath.Glob(place(s.sized, id, ".w*"))
-		for _, c := range copies {
-			os.Remove(c)
+		for _, size := range []string{"small", "large"} {
+			if err := os.Remove(s.place(id, size)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+				return 0, err
+			}
 		}
 	}
 	return len(unused), nil
