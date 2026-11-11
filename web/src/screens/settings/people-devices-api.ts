@@ -1,9 +1,7 @@
-import {readOwnerMemberDevices} from '@core/owner-requests.ts';
-import {parseAccessDevicePage, signOutMemberDevice, signOutMemberDevices} from '@core/server-administration.ts';
+import {readMemberDevices, signOutMemberDevice, signOutMemberDevices} from '@core/server-administration.ts';
 import type {SettingsPeopleApi} from '@core/settings-people.ts';
 import type {PeopleDevicesApi} from './people-devices-source';
-/** Reuse the shared canonical routes, strict access parser and sign-out commands.
- * The account filter stays on every bounded page, including continuations. */
+/** A person's devices and signing them out, on the rebuilt server's member device routes. */
 export function createPeopleDevicesApi(api: SettingsPeopleApi, isCurrent: () => boolean): PeopleDevicesApi {
   const captured: SettingsPeopleApi = {request: async <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> => {
     if (!isCurrent()) throw new DOMException('People authority retired', 'AbortError');
@@ -13,7 +11,8 @@ export function createPeopleDevicesApi(api: SettingsPeopleApi, isCurrent: () => 
     signal?.throwIfAborted(); return value;
   }};
   return {
-    list: async (accountId, cursor, signal) => parseAccessDevicePage(await readOwnerMemberDevices(captured, accountId, cursor, signal)),
+    // The rebuilt server answers with the whole list: there is no second page.
+    list: async (accountId, cursor, signal) => cursor ? Object.freeze({limit: 1, nextCursor: '', items: Object.freeze([])}) : readMemberDevices(captured, accountId, signal),
     signOut: (accountId, deviceId, signal) => deviceId === undefined ? signOutMemberDevices(captured, accountId, signal) : signOutMemberDevice(captured, accountId, deviceId, signal),
   };
 }

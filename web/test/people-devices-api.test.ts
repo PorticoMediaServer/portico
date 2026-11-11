@@ -2,24 +2,29 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createPeopleDevicesApi} from '../src/screens/settings/people-devices-api.ts';
 
-test('the canonical device list is account-filtered on first and later pages', async () => {
+const device = {id: 'device-a', name: 'Phone', createdAt: '2026-11-01T00:00:00Z', lastSeenAt: '2026-11-10T00:00:00Z', signedIn: true, current: false};
+
+test('a person\'s devices are one read of their member devices list, with no second page', async () => {
   const calls: string[] = [];
-  const api = createPeopleDevicesApi({request: async <T>(path: string): Promise<T> => {calls.push(path); return {items: [], limit: 100, nextCursor: ''} as T;}}, () => true);
+  const api = createPeopleDevicesApi({request: async <T>(path: string): Promise<T> => {calls.push(path); return {items: [device]} as T;}}, () => true);
   const signal = new AbortController().signal;
-  await api.list('member-a', '', signal); await api.list('member-a', 'cursor&next', signal);
-  assert.equal(calls.length, 2);
-  for (const path of calls) {const url = new URL(path, 'https://server.example'); assert.equal(url.pathname, '/v1/admin/access/devices'); assert.equal(url.searchParams.get('account'), 'member-a'); assert.equal(url.searchParams.get('limit'), '100');}
-  assert.equal(new URL(calls[1], 'https://server.example').searchParams.get('cursor'), 'cursor&next');
+  const page = await api.list('member a', '', signal);
+  assert.deepEqual(page.items.map(row => [row.id, row.accountId, row.name]), [['device-a', 'member a', 'Phone']]);
+  assert.equal(page.nextCursor, '');
+  assert.equal((await api.list('member a', 'more', signal)).items.length, 0);
+  assert.deepEqual(calls, ['/v1/admin/members/member%20a/devices']);
 });
 
-test('single and all-device sign-outs use the existing direct-member commands', async () => {
-  const calls: {path: string; method?: string; body?: unknown}[] = [];
-  const api = createPeopleDevicesApi({request: async <T>(path: string, method?: string, body?: unknown): Promise<T> => {calls.push({path, method, body}); return undefined as T;}}, () => true);
+test('signing out one device is one DELETE; signing out all is one DELETE per device on the list', async () => {
+  const calls: {path: string; method?: string}[] = [];
+  const api = createPeopleDevicesApi({request: async <T>(path: string, method?: string): Promise<T> => {calls.push({path, method}); return (method === 'GET' ? {items: [device, {...device, id: 'device-b'}]} : undefined) as T;}}, () => true);
   const signal = new AbortController().signal;
   await api.signOut('member-a', 'device-a', signal); await api.signOut('member-a', undefined, signal);
   assert.deepEqual(calls, [
-    {path: '/v1/direct/members/member-a/devices/device-a/sign-out', method: 'POST', body: undefined},
-    {path: '/v1/direct/members/member-a/devices/sign-out', method: 'POST', body: undefined},
+    {path: '/v1/admin/members/member-a/devices/device-a', method: 'DELETE'},
+    {path: '/v1/admin/members/member-a/devices', method: 'GET'},
+    {path: '/v1/admin/members/member-a/devices/device-a', method: 'DELETE'},
+    {path: '/v1/admin/members/member-a/devices/device-b', method: 'DELETE'},
   ]);
 });
 

@@ -5,10 +5,12 @@ import {SettingsAdvanced, SettingsPanel} from '../../kit/settings';
 import styles from './people-invite.module.css';
 import type {InviteAttempt, InviteChoices} from './people-invite';
 import {expiryChoices, inviteChoicesOf, ratingChoices, streamChoices} from './people-invite';
-import {accountLimitsOnServer} from '@core/settings-people.ts';
 
 const t = defaultI18n.t;
 const spec = 'next.settingsSpec.server.people.panels.invite.';
+
+/** The rebuilt server keeps no access limits on an invitation yet: a person is limited after joining. */
+const invitationLimitsOnServer = false;
 
 /** The drawn Invite someone form (owner-people frames 2/23b/11, server-people
  * invite panel): role, libraries, streams at once, away from home, expiry,
@@ -17,8 +19,8 @@ const spec = 'next.settingsSpec.server.people.panels.invite.';
  * until Create. While an uncertain create is being reconciled it shows that
  * attempt's original choices with Retry or Dismiss, so an edited form can never
  * submit an old body. The rebuilt server keeps no access limits and no named Portico
- * Account on an invitation yet, so streams, away from home, the username and Advanced
- * stay out until it does. */
+ * Account on an invitation yet (a person is limited after joining), so streams, away
+ * from home, the username and Advanced stay out until it does. */
 export function PeopleInviteForm({open, onOpenChange, choices, onChoices, libraries, signIn, audience, busy, error, retained, onCreate, onRetry}: Readonly<{
   open: boolean; onOpenChange: (open: boolean) => void; choices: InviteChoices; onChoices: (choices: InviteChoices) => void;
   libraries: readonly {id: string; name: string}[]; signIn?: 'local' | 'portico'; audience?: string;
@@ -67,7 +69,7 @@ export function PeopleInviteForm({open, onOpenChange, choices, onChoices, librar
           <span>{library.name}</span>
         </label>)}
       </fieldset>
-      {accountLimitsOnServer && <><RichSelect label={t(`${spec}groups.0.rows.4.label`)} description={t(`${spec}groups.0.rows.4.help`)} value={shown.streams} disabled={locked || busy}
+      {invitationLimitsOnServer && <><RichSelect label={t(`${spec}groups.0.rows.4.label`)} description={t(`${spec}groups.0.rows.4.help`)} value={shown.streams} disabled={locked || busy}
         options={streamChoices.map((value, index) => ({value, label: t(`${spec}groups.0.rows.4.control.options.${index}.label` as never),
           ...(index === 0 ? {description: t(`${spec}groups.0.rows.4.control.options.0.hint`)} : {})}))}
         onValueChange={value => set({streams: value as InviteChoices['streams']})} />
@@ -80,11 +82,11 @@ export function PeopleInviteForm({open, onOpenChange, choices, onChoices, librar
       <RichSelect label={t('next.settings.people.expiry')} value={String(shown.expiresInHours)} disabled={locked || busy}
         options={expiryChoices.map(hours => ({value: String(hours), label: t('next.settings.people.expiryDays', {count: hours / 24})}))}
         onValueChange={value => set({expiresInHours: Number(value)})} />
-      {accountLimitsOnServer && signIn === 'portico' && <TextField label={t('next.settings.people.porticoUsername')} description={t('next.settings.people.porticoUsernameHelp')}
+      {invitationLimitsOnServer && signIn === 'portico' && <TextField label={t('next.settings.people.porticoUsername')} description={t('next.settings.people.porticoUsernameHelp')}
         disabled={locked || busy} value={shown.porticoUsername ?? ''} onChange={event => set({porticoUsername: event.currentTarget.value})} />}
       <TextField label={t('next.settings.people.notes')} description={t('next.settings.people.notesHelp')} disabled={locked || busy}
         value={shown.notes ?? ''} onChange={event => set({notes: event.currentTarget.value})} />
-      {accountLimitsOnServer && <SettingsAdvanced open={advancedOpen} onOpenChange={setAdvancedOpen} summary={advancedSummary}>
+      {invitationLimitsOnServer && <SettingsAdvanced open={advancedOpen} onOpenChange={setAdvancedOpen} summary={advancedSummary}>
         <label className={styles.choice}>
           <Switch checked={shown.accessTokens} disabled={locked || busy} onCheckedChange={accessTokens => set({accessTokens})} />
           <span>{t(`${spec}advanced.groups.0.rows.0.label`)}<small>{t(`${spec}advanced.groups.0.rows.0.help`)}</small></span>

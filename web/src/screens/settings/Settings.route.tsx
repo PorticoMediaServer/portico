@@ -60,6 +60,7 @@ import {readingSettingsAdapter} from './reading-adapter';
 import {hasWebPreferenceEffect} from './effects';
 import {createPrivacySettingsSurfaces} from './privacy-controls';
 import {PeopleScreen, type PeopleBindings} from './People';
+import {createPeopleDevicesApi} from './people-devices-api';
 import {createPeopleMemberProfilesApi} from './people-member-profiles-api';
 import {SignInSettingsSource} from './signin-source';
 import {LocalOwnerTransferSource} from './local-owner-transfer';
@@ -400,8 +401,7 @@ export function SettingsEntry() {
       }) : undefined;
     const people: PeopleBindings | undefined = route.section === 'people' && identity.primaryProfile === true && identity.capabilities?.managePeople === true &&
       (role === 'owner' || role === 'admin') && (viewer.authority === 'local' || viewer.authority === 'hosted') ? {
-        // A person's Devices tab waits for the rebuilt server's member devices routes.
-        inputActivity, client: new SettingsPeopleClient(api, current, () => buildContext.facts.identity.libraries), memberProfiles: createPeopleMemberProfilesApi(api, current, async (path, body, contentType) => {
+        inputActivity, client: new SettingsPeopleClient(api, current, () => buildContext.facts.identity.libraries), devices: createPeopleDevicesApi(api, current), memberProfiles: createPeopleMemberProfilesApi(api, current, async (path, body, contentType) => {
           assert();
           const response = await uploadOwnerMemberAvatar(api, path, context.session().accessToken, body as BodyInit, contentType);
           if (!response.ok) throw Object.assign(new Error('Profile picture could not be saved.'), {status: response.status});
