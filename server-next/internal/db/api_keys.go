@@ -164,8 +164,12 @@ func (d *DB) RevokeAPIKey(ctx context.Context, userID int64, kind, publicID stri
 // KeyCaller is who a request carrying a key acts for.
 type KeyCaller struct {
 	// KeyID is the key's own row, which the request limit counts by.
-	KeyID  int64
-	UserID int64
+	KeyID int64
+	// PublicID and Hash are the key's id and the hash of its secret, from which a compatible
+	// sign-in's token is worked out, so nothing more is stored.
+	PublicID string
+	Hash     string
+	UserID   int64
 	// ProfileID is the profile the key acts as and sees as: the one it was made from, or the
 	// account's main profile.
 	ProfileID int64
@@ -189,7 +193,13 @@ var ErrAccountUnavailable = errors.New("the account cannot be used now")
 // active is ErrAccountUnavailable. Unlike a session's token, a key is read from the database
 // on every request, so revoking one or turning its account off takes effect at once.
 func (d *DB) KeyCaller(ctx context.Context, keyHash string, now time.Time) (KeyCaller, error) {
-	return d.keyCaller(ctx, keyHash, now, "'api_key', 'personal_token'", "")
+	return d.keyCaller(ctx, "k.key_hash", keyHash, now, "'api_key', 'personal_token'", "")
+}
+
+// AppPasswordByID is AppPasswordCaller for a compatible sign-in's token, which names its app
+// password by id. The caller checks the token against the key's Hash.
+func (d *DB) AppPasswordByID(ctx context.Context, publicID string, now time.Time) (KeyCaller, error) {
+	return d.keyCaller(ctx, "k.public_id", publicID, now, "'app_password'", "")
 }
 
 // AppPasswordCaller is KeyCaller for an app password, which only a tool's username and
@@ -198,24 +208,24 @@ func (d *DB) AppPasswordCaller(ctx context.Context, username, keyHash string, no
 	if username == "" {
 		return KeyCaller{}, ErrNotFound
 	}
-	return d.keyCaller(ctx, keyHash, now, "'app_password'", username)
+	return d.keyCaller(ctx, "k.key_hash", keyHash, now, "'app_password'", username)
 }
 
-func (d *DB) keyCaller(ctx context.Context, keyHash string, now time.Time, kinds, username string) (KeyCaller, error) {
+func (d *DB) keyCaller(ctx context.Context, column, value string, now time.Time, kinds, username string) (KeyCaller, error) {
 	var c KeyCaller
 	var scopes string
 	var used sql.NullInt64
 	var hours string
 	var usable bool
-	err := d.read.QueryRowContext(ctx, `SELECT k.id, k.scopes, k.last_used_at, u.id,
+	err := d.read.QueryRowContext(ctx, `SELECT k.id, k.public_id, k.key_hash, k.scopes, k.last_used_at, u.id,
 			CASE WHEN p.is_primary = 1 THEN u.role ELSE 'member' END, p.id, ifnull(u.viewing_hours, ''), u.home_only,
 			u.disabled_at IS NULL AND u.state = 'active'
 		FROM api_keys k JOIN users u ON u.id = k.user_id
 			JOIN profiles p ON p.user_id = u.id AND (p.id = k.profile_id OR k.profile_id IS NULL AND p.is_primary = 1)
-		WHERE k.key_hash = ? AND k.kind IN (`+kinds+`) AND (k.kind = 'api_key' OR u.allow_tokens = 1)
+		WHERE `+column+` = ? AND k.kind IN (`+kinds+`) AND (k.kind = 'api_key' OR u.allow_tokens = 1)
 			AND k.revoked_at IS NULL AND (k.expires_at IS NULL OR k.expires_at > ?) AND (? = '' OR u.username = ? COLLATE NOCASE)`,
-		keyHash, now.UnixMilli(), username, username).
-		Scan(&c.KeyID, &scopes, &used, &c.UserID, &c.Role, &c.ProfileID, &hours, &c.HomeOnly, &usable)
+		value, now.UnixMilli(), username, username).
+		Scan(&c.KeyID, &c.PublicID, &c.Hash, &scopes, &used, &c.UserID, &c.Role, &c.ProfileID, &hours, &c.HomeOnly, &usable)
 	if errors.Is(err, sql.ErrNoRows) {
 		return c, ErrNotFound
 	}

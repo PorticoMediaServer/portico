@@ -60,7 +60,14 @@ func (s *Server) keyCheck(r *http.Request, key db.KeyCaller, err error, scope Sc
 	if wait := s.keyRequests.take(key.KeyID, s.now()); wait > 0 {
 		return Caller{}, ErrTooMany("key_rate_limited", "This key is making too many requests. Wait a moment.", wait)
 	}
-	return Caller{UserID: key.UserID, ProfileID: key.ProfileID, Role: key.Role, KeyScopes: key.Scopes}, nil
+	c := Caller{UserID: key.UserID, ProfileID: key.ProfileID, Role: key.Role, Key: true, KeyScopes: key.Scopes}
+	if c.KeyScopes == nil {
+		c.KeyScopes = []string{} // never nil for a key, so its scopes are always checked
+	}
+	if scope == "" {
+		c.KeyScopes = nil // an app password: what its person may do
+	}
+	return c, nil
 }
 
 // keyRequests counts each key's requests in memory: a bucket of keyRate that refills over a
