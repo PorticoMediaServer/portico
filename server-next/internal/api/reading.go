@@ -73,6 +73,7 @@ func (s *Server) readingRoutes() {
 	// A book's address is tied to the sign-in that asked for it, so this takes a signed-in
 	// person and not a key, as playback does.
 	Handle(s, "GET /v1/items/{id}/book", WithProfile, s.openBook).Scope = ScopeSession
+	s.annotationRoutes()
 }
 
 func (s *Server) openBook(r *http.Request, _ None) (BookAnswer, error) {
