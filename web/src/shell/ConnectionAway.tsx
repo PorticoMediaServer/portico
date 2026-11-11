@@ -2,6 +2,7 @@ import {useCallback, useLayoutEffect, useState, useSyncExternalStore} from 'reac
 import {Link} from '@tanstack/react-router';
 import {defaultI18n} from '@i18n';
 import type {HttpLocalApi} from '@core/index.ts';
+import {INSECURE_ROUTE_UNCONFIRMED} from '@core/route-connection.ts';
 import {StateSentence} from '../kit/states';
 import {fullPlaybackSurfaceUp} from '../screens/watch/expanded-focus';
 import styles from './shell.module.css';
@@ -13,6 +14,14 @@ const t = defaultI18n.t;
 export function useServerAway(api: HttpLocalApi | undefined): boolean {
   const subscribe = useCallback((changed: () => void) => api ? api.subscribeRoute(changed) : () => {}, [api]);
   const snapshot = useCallback(() => api?.getRouteSnapshot()?.phase === 'offline', [api]);
+  return useSyncExternalStore(subscribe, snapshot, () => false);
+}
+
+/** True when the last route check found only plain-HTTP routes this device could not confirm as at home: the line then says so
+ * and names the way out. */
+export function useInsecureRouteRefused(api: HttpLocalApi | undefined): boolean {
+  const subscribe = useCallback((changed: () => void) => api ? api.subscribeRoute(changed) : () => {}, [api]);
+  const snapshot = useCallback(() => api?.getRouteSnapshot()?.errorCode === INSECURE_ROUTE_UNCONFIRMED, [api]);
   return useSyncExternalStore(subscribe, snapshot, () => false);
 }
 
@@ -46,12 +55,12 @@ export function useFullScreenSurface(active: boolean, doc: Document | undefined 
  * the server stops answering. It goes by itself when the connection is back.
  * Only the desktop host offers Downloads; a browser has none, so its line is not
  * interactive (states.html frame 4) and hides under full-screen surfaces. */
-export function ConnectionAway({serverName, downloads = true}: {serverName: string; downloads?: boolean}) {
+export function ConnectionAway({serverName, downloads = true, insecure = false}: {serverName: string; downloads?: boolean; insecure?: boolean}) {
   // Only the browser's line hides under full-screen surfaces; the desktop host's line is unchanged.
   const covered = useFullScreenSurface(!downloads);
   return <div className={styles.away} role="status" data-connection-away data-interactive={downloads || undefined} hidden={covered || undefined}>
     <span className={styles.awayDot} aria-hidden="true" />
-    <span><StateSentence messageId="next.states.awayLine" values={{server: serverName}} /></span>
+    <span><StateSentence messageId={insecure ? 'next.states.awayInsecureLine' : 'next.states.awayLine'} values={{server: serverName}} /></span>
     {downloads && <Link className={styles.awayLink} to="/saved" search={{view: 'downloads'}}>{t('next.shell.downloads')}</Link>}
   </div>;
 }
