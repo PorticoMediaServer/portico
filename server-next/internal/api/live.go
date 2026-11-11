@@ -9,6 +9,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/librarychannels"
+	"github.com/PorticoMediaServer/portico/server-next/internal/live"
 )
 
 // Channel is a channel in the guide: a source's or a Library Channel.
@@ -143,7 +144,7 @@ func pageLimit(r *http.Request, fallback, most int) (int, error) {
 func (s *Server) visibleChannels(ctx context.Context, v db.Viewer, lv db.LiveViewer, q db.LiveChannelQuery, c liveCursor, limit int) (
 	[]db.LiveChannel, *liveCursor, error) {
 	var out []db.LiveChannel
-	q.AfterNumber, q.AfterName, q.AfterID, q.Limit = c.Number, c.Name, c.ID, 100
+	q.AfterNumber, q.AfterName, q.AfterID, q.Limit, q.Owner = c.Number, c.Name, c.ID, 100, lv.Owner
 	for {
 		rows, err := s.db.LiveChannels(ctx, v, q)
 		if err != nil {
@@ -223,6 +224,9 @@ func (s *Server) programmes(ctx context.Context, v db.Viewer, lv db.LiveViewer, 
 	all := make([][]db.GuideProgramme, len(channels))
 	var ids []int64
 	for n, c := range channels {
+		if c.Kind == db.ChannelFromSource && (c.GuideSource == 0 || c.GuideKey == "") {
+			continue // no listings: source 0 is the Library Channels' and is never read for a source's channel
+		}
 		rows, err := s.db.GuideProgrammes(ctx, c.GuideSource, c.GuideKey, from, to, most)
 		if err != nil {
 			return nil, err
@@ -315,6 +319,9 @@ func (s *Server) liveGuide(r *http.Request, _ None) (Guide, error) {
 	out := Guide{Items: []GuideRow{}}
 	for n, ch := range channels {
 		out.Items = append(out.Items, GuideRow{Channel: channelOut(ch), Programmes: progs[n]})
+	}
+	if out.OutOfDate, err = s.guideOutOfDate(r.Context(), channels); err != nil {
+		return Guide{}, err
 	}
 	if next != nil {
 		out.NextCursor = encodeOpaque(next)
@@ -420,4 +427,23 @@ func (s *Server) tuneChannel(ctx context.Context, v db.Viewer, channelID string)
 		return tuned, ErrNotFound()
 	}
 	return tuned, err
+}
+
+// guideOutOfDate says whether the last refresh of a source whose channels are on this page,
+// or of the source their listings come from, failed: the guide shown is then older.
+func (s *Server) guideOutOfDate(ctx context.Context, channels []db.LiveChannel) (bool, error) {
+	sources, err := s.db.LiveSources(ctx) // a handful of rows
+	if err != nil {
+		return false, err
+	}
+	failed := map[int64]bool{}
+	for _, src := range sources {
+		failed[src.ID] = !src.Paused && src.State != live.StateUpToDate && src.State != live.StateNew
+	}
+	for _, c := range channels {
+		if c.Kind == db.ChannelFromSource && (failed[c.SourceID] || failed[c.GuideSource]) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
