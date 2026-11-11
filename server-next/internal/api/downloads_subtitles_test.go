@@ -91,14 +91,13 @@ func TestACopysSubtitlesAreReadInOnePass(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	lib, err := rig.s.db.CreateLibrary(ctx, "Remote films", db.LibraryMovies, "en", nil)
+	// Made with its folder, as the owner makes one: a library always has a folder.
+	lib, err := rig.s.db.NewLibrary(ctx, db.NewLibrary{Name: "Remote films", Kind: db.LibraryMovies, Language: "en",
+		RemoteFolders: []db.RemoteFolder{{SourceID: row.ID, Path: "Films"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	where, err := rig.s.db.AddRemoteFolder(ctx, lib.ID, row.ID, "Films")
-	if err != nil {
-		t.Fatal(err)
-	}
+	where := lib.Paths[0]
 	streams := []db.Stream{{Kind: db.StreamVideo, Codec: "h264", Width: 480, Height: 272}, {Kind: db.StreamAudio, Codec: "aac", Channels: 1, SampleRate: 44100}}
 	for _, lang := range []string{"eng", "fra", "deu"} {
 		streams = append(streams, db.Stream{Kind: db.StreamSubtitle, Codec: "subrip", Language: lang})

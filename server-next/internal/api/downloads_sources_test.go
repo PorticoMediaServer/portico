@@ -70,14 +70,13 @@ func TestACopyIsMadeFromAFileOnRemoteStorage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	lib, err := rig.s.db.CreateLibrary(ctx, "Remote films", db.LibraryMovies, "en", nil)
+	// Made with its folder, as the owner makes one: a library always has a folder.
+	lib, err := rig.s.db.NewLibrary(ctx, db.NewLibrary{Name: "Remote films", Kind: db.LibraryMovies, Language: "en",
+		RemoteFolders: []db.RemoteFolder{{SourceID: row.ID, Path: "Films"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	folder, err := rig.s.db.AddRemoteFolder(ctx, lib.ID, row.ID, "Films")
-	if err != nil {
-		t.Fatal(err)
-	}
+	folder := lib.Paths[0]
 	if _, err := rig.s.db.Import(ctx, db.ImportBatch{LibraryID: lib.ID, PathID: folder.ID, Scan: 1, Dirs: []db.ImportDir{{}},
 		Files: []db.ImportFile{{FileRef: db.FileRef{Name: "remote.mkv"}, Role: db.FileMedia, Size: int64(len(raw)), ModifiedNS: time.Unix(1700000000, 0).UnixNano(),
 			Container: "matroska", DurationMS: 2000, Bitrate: 3_000_000, Streams: []db.Stream{

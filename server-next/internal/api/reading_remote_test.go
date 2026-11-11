@@ -49,11 +49,10 @@ func TestBooksOnARemoteSource(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, lib := range []struct{ name, kind, folder string }{{"Remote books", db.LibraryBooks, "Books"}, {"Remote comics", db.LibraryComics, "Comics"}} {
-		made, err := b.s.db.CreateLibrary(ctx, lib.name, lib.kind, "en", nil)
+		// Made with its folder, as the owner makes one: a library always has a folder.
+		made, err := b.s.db.NewLibrary(ctx, db.NewLibrary{Name: lib.name, Kind: lib.kind, Language: "en",
+			RemoteFolders: []db.RemoteFolder{{SourceID: row.ID, Path: lib.folder}}})
 		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := b.s.db.AddRemoteFolder(ctx, made.ID, row.ID, lib.folder); err != nil {
 			t.Fatal(err)
 		}
 		libraries, err := b.s.db.AllLibraries(ctx)
