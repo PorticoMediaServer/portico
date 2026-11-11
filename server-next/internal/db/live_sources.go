@@ -31,8 +31,10 @@ type LiveSource struct {
 	CreatedAt   time.Time
 }
 
-// LiveSourceSave is what the owner saves for a source.
+// LiveSourceSave is what the owner saves for a source. PublicID, on a create, is the id the
+// caller made, so a sign-in can be sealed to it before it is stored.
 type LiveSourceSave struct {
+	PublicID                     string
 	Kind, Name, Config, Audience string
 	Secret                       []byte
 	KeepSecret                   bool // a change that does not send the sign-in keeps the one stored
@@ -91,7 +93,9 @@ func (d *DB) CreateLiveSource(ctx context.Context, actorID int64, s LiveSourceSa
 			publicID = ref
 			return err
 		}
-		publicID = NewID("lsr")
+		if publicID = s.PublicID; publicID == "" {
+			publicID = NewID("lsr")
+		}
 		now := s.Now.UnixMilli()
 		if _, err := tx.Exec(`INSERT INTO live_sources (public_id, kind, name, config, secret, audience, tuner_count, paused, state,
 			created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?)`, publicID, s.Kind, s.Name, s.Config, s.Secret, s.Audience,
