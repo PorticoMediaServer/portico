@@ -27,6 +27,10 @@ type Backups struct {
 	// is not connected, or a folder Portico may not write to: the settings are kept, and each
 	// backup fails with the reason until it can.
 	FolderWritable bool `json:"folderWritable"`
+	// PendingRestore is a restore staged and waiting for a restart; it is dropped if the
+	// server has not restarted within an hour of staging it. Cancel is
+	// DELETE /v1/admin/backups/restore.
+	PendingRestore *backup.Pending `json:"pendingRestore,omitempty"`
 	// Readable says that anyone with a backup file can read the working credentials inside it
 	// (the server's keys, remote sources' sign-ins and the key file that opens them): no
 	// backup here has a passphrase. ReadableMeans says what that lets them do, for the page
@@ -68,7 +72,8 @@ func (s *Server) backupRoutes() {
 	Handle(s, "GET /v1/admin/backups", Owner, func(r *http.Request, _ None) (Backups, error) {
 		list, err := s.backups.List()
 		out := Backups{Items: list, Running: s.backups.Running(), Folder: s.backups.Folder(), Readable: true,
-			ReadableMeans: []string{"sign_in_as_owner", "use_remote_storage_sign_ins"}, FolderWritable: s.backups.FolderWritable()}
+			ReadableMeans: []string{"sign_in_as_owner", "use_remote_storage_sign_ins"}, FolderWritable: s.backups.FolderWritable(),
+			PendingRestore: backup.PendingRestore(s.backups.DataDir)}
 		if out.Items == nil {
 			out.Items = []backup.Backup{}
 		}
@@ -151,7 +156,8 @@ func (s *Server) inspectBackup(r *http.Request, req BackupInspect) (BackupInspec
 		return BackupInspection{}, err
 	}
 	out := BackupInspection{Pictures: contents.Pictures, KeyFiles: contents.KeyFiles, Credentials: contents.Credentials, CreatedAt: made,
-		Restoring: []string{"everything_since_undone", "server_restarts", "everyone_signs_in_again", "keys_in_backup_work_again"}}
+		Restoring: []string{"everything_since_undone", "removed_people_return", "server_restarts", "everyone_signs_in_again",
+			"keys_in_backup_work_again"}}
 	if out.KeyFiles == nil {
 		out.KeyFiles = []string{}
 	}
