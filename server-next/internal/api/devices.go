@@ -110,7 +110,13 @@ func (s *Server) endOtherSessions(r *http.Request, _ None) (None, error) {
 }
 
 func (s *Server) devices(r *http.Request, caller Caller) ([]Device, error) {
-	devices, err := s.db.Devices(r.Context(), caller.UserID, caller.SessionID, s.now())
+	return s.devicesOf(r, caller.UserID, caller.SessionID)
+}
+
+// devicesOf lists an account's devices. currentSessionID marks the device asking, when the
+// list is the caller's own.
+func (s *Server) devicesOf(r *http.Request, userID, currentSessionID int64) ([]Device, error) {
+	devices, err := s.db.Devices(r.Context(), userID, currentSessionID, s.now())
 	out := make([]Device, 0, len(devices))
 	for _, v := range devices {
 		out = append(out, Device{ID: v.PublicID, Name: v.Name, Platform: v.Platform, App: v.App, AppVersion: v.AppVersion,
@@ -158,4 +164,22 @@ func (s *Server) forgetDevice(r *http.Request, _ None) (None, error) {
 		return None{}, err
 	}
 	return None{}, s.db.ForgetDevice(r.Context(), caller.UserID, r.PathValue("id"), s.now())
+}
+
+// memberDeviceRoutes let the owner or an admin see the devices of an account they manage and
+// sign one out: the same list and the same sign-out a person has for their own devices.
+func (s *Server) memberDeviceRoutes() {
+	Handle(s, "GET /v1/admin/members/{id}/devices", Admin, func(r *http.Request, _ None) (Page[Device], error) {
+		caller := CallerFrom(r.Context())
+		m, err := s.db.ManagedMember(r.Context(), caller.UserID, caller.Role, r.PathValue("id"))
+		if err != nil {
+			return Page[Device]{}, memberError(err)
+		}
+		devices, err := s.devicesOf(r, m.ID, 0)
+		return Page[Device]{Items: devices}, err
+	})
+	Handle(s, "DELETE /v1/admin/members/{id}/devices/{deviceId}", Admin, func(r *http.Request, _ None) (None, error) {
+		caller := CallerFrom(r.Context())
+		return None{}, memberError(s.db.ForgetMemberDevice(r.Context(), caller.UserID, caller.Role, r.PathValue("id"), r.PathValue("deviceId"), s.now()))
+	})
 }
