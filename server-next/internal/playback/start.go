@@ -74,6 +74,13 @@ func (s *Service) Prepare(ctx context.Context, c Caller, itemID, from string) (*
 		if sess != nil {
 			s.replaced(sess)(stream)
 		}
+	}, Failed: func(stream Stream) {
+		p.mu.Lock()
+		sess := p.sess
+		p.mu.Unlock()
+		if sess != nil {
+			s.failed(sess)(stream)
+		}
 	}}
 	stream, err := s.streams.Start(ctx, request)
 	if err != nil {

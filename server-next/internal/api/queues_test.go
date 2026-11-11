@@ -477,4 +477,17 @@ func TestPrepareAndCommitNext(t *testing.T) {
 	if w := th.queue("POST", path+"/commit-next", "", QueueCommit{Token: next.Token}, nil); w.Code != 410 || th.engine.streams() != 1 {
 		t.Fatalf("committing a cancelled preparation answered %d with %d streams", w.Code, th.engine.streams())
 	}
+	// Once committed, a prepared stream that fails moves on just like a direct start.
+	th.engine.mu.Lock()
+	failed := th.engine.running[done.Session.ID].Failed
+	th.engine.mu.Unlock()
+	if failed == nil {
+		t.Fatal("a committed prepared stream has no failure callback")
+	}
+	failed(playback.Stream{Grant: "software", URL: done.Session.Presentation.URL})
+	var recovered PlaybackSession
+	call(t, th.s, "GET", "/v1/playback/sessions/"+done.Session.ID, token, nil, &recovered)
+	if recovered.State != "ended" && recovered.Presentation.URL == done.Session.Presentation.URL {
+		t.Fatal("the failed prepared stream is still playing its dead address")
+	}
 }
