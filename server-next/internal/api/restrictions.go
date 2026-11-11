@@ -47,7 +47,7 @@ func (s *Server) restrictionRoutes() {
 		out, err := s.db.ProfileRestrictions(r.Context(), userID, r.PathValue("id"))
 		return restrictionsOut(out), refuse(err)
 	})
-	Handle(s, "PUT /v1/profiles/{id}/restrictions", SignedIn, func(r *http.Request, req Restrictions) (Restrictions, error) {
+	sensitive(Handle(s, "PUT /v1/profiles/{id}/restrictions", SignedIn, func(r *http.Request, req Restrictions) (Restrictions, error) {
 		userID, _, err := s.profileOwner(r)
 		switch {
 		case err != nil:
@@ -68,5 +68,5 @@ func (s *Server) restrictionRoutes() {
 			return Restrictions{}, ErrField("blockedLabels", "One of these labels does not exist.")
 		}
 		return restrictionsOut(out), refuse(err)
-	})
+	}))
 }
