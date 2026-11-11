@@ -532,6 +532,8 @@ type Caller struct {
 	Key bool
 	// KeyScopes are what the key may do; nil for a signed-in person and for an app password.
 	KeyScopes []string
+	// KeyID is the key's own row, for a key, token or app password; 0 for a signed-in person.
+	KeyID int64
 	// Stamp is the token's place in the order of session changes: what a book's address
 	// carries so that it ends when this sign-in changes.
 	Stamp db.TokenStamp

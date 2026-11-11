@@ -98,22 +98,72 @@ func TestAToolCannotFillTheAdministratorsNotifications(t *testing.T) {
 // The bound refills as the hour passes, and the same words count as new once their window has.
 func TestToolNoticesRefillWithTime(t *testing.T) {
 	var n toolNotices
-	key, start := sha256.Sum256([]byte("key")), time.Now()
+	key, start := int64(7), time.Now()
 	words := func(i int) [32]byte { return sha256.Sum256([]byte(strconv.Itoa(i))) }
 	for i := range toolNoticesPerHour {
 		at := start.Add(time.Duration(i) * time.Second)
-		if repeat, wait := n.check(key, words(i), at); repeat || wait != 0 {
+		if repeat, wait := n.check(key, words(i), at); repeat != nil || wait != 0 {
 			t.Fatalf("notice %d: repeat %v, wait %v", i, repeat, wait)
 		}
-		n.record(key, words(i), at)
+		n.record(key, words(i), at, ServerMessageSent{ID: strconv.Itoa(i), Sent: 1})
 	}
 	if _, wait := n.check(key, words(-1), start.Add(time.Minute)); wait != time.Hour-time.Minute {
 		t.Errorf("past the bound the wait is %v, want %v (until the first notice is an hour old)", wait, time.Hour-time.Minute)
 	}
-	if repeat, _ := n.check(key, words(0), start.Add(toolNoticeRepeat-time.Second)); !repeat {
-		t.Error("the same words within the window were not taken as sent")
+	if repeat, _ := n.check(key, words(0), start.Add(toolNoticeRepeat-time.Second)); repeat == nil || repeat.ID != "0" {
+		t.Errorf("the same words within the window were taken as %v, want the notice stored then", repeat)
 	}
-	if repeat, wait := n.check(key, words(0), start.Add(time.Hour)); repeat || wait != 0 {
+	if repeat, wait := n.check(key, words(0), start.Add(time.Hour)); repeat != nil || wait != 0 {
 		t.Errorf("an hour later: repeat %v, wait %v; want a new notice allowed", repeat, wait)
+	}
+}
+
+// A key that sends notices straight to POST /v1/admin/notifications is held to the same bound,
+// and shares one count with its notices through the compatible routes; the same words again
+// answer with the notice already stored. A signed-in owner using the app is not bounded.
+func TestAKeysNoticesShareOneBoundAndAPersonHasNone(t *testing.T) {
+	th := newTheatre(t)
+	s, owner := th.s, th.owner.AccessToken
+	on := true
+	status(t, s, "PUT", "/v1/admin/settings/integrations", owner, IntegrationSettingsEdit{CompatibleRoutes: &on})
+	key := func(name string) string {
+		var made KeyCreated
+		call(t, s, "POST", "/v1/admin/api-keys", owner, KeyCreate{Name: name, Scopes: []string{"admin"}}, &made)
+		return made.Secret
+	}
+	native := func(token, message string) (int, ServerMessageSent) {
+		var out ServerMessageSent
+		w := call(t, s, "POST", "/v1/admin/notifications", token, ServerMessage{Audience: "admins", Message: message}, &out)
+		return w.Code, out
+	}
+	tool := key("Script")
+	for n := range 20 {
+		if code, _, _ := compatCall(s, "POST", "/Notifications/Admin?api_key="+tool, fmt.Sprintf(`{"Name":"Through the tool route %d"}`, n), nil); code != 204 {
+			t.Fatalf("compatible notice %d answered %d", n, code)
+		}
+	}
+	for n := range toolNoticesPerHour - 20 {
+		if code, _ := native(tool, fmt.Sprintf("Straight to the route %d", n)); code != 200 {
+			t.Fatalf("native notice %d answered %d", n, code)
+		}
+	}
+	if code, _ := native(tool, "One too many"); code != 429 {
+		t.Errorf("the key's next notice on the native route answered %d, want 429", code)
+	}
+	if code, _, _ := compatCall(s, "POST", "/Notifications/Admin?api_key="+tool, `{"Name":"One too many"}`, nil); code != 429 {
+		t.Errorf("the key's next notice on the compatible route answered %d, want 429", code)
+	}
+
+	other := key("Other")
+	code, first := native(other, "Backup finished")
+	_, again := native(other, "Backup finished")
+	if code != 200 || first.ID == "" || again != first {
+		t.Errorf("the same notice twice answered %+v then %+v, want the stored one again", first, again)
+	}
+
+	for n := range toolNoticesPerHour + 10 {
+		if code, _ := native(owner, fmt.Sprintf("From the owner %d", n)); code != 200 {
+			t.Fatalf("the signed-in owner's notice %d answered %d", n, code)
+		}
 	}
 }
