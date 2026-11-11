@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 )
 
@@ -68,6 +69,10 @@ type RemoteAccessSettings struct {
 	AllowedAddresses []string `json:"allowedAddresses"`
 	// FindAtHome lets apps on the home network list this server without typing an address.
 	FindAtHome bool `json:"findAtHome"`
+	// EnhancedWithoutAddress is the owner's explicit choice to keep Enhanced in force with no
+	// address it can allow, which refuses every connection from outside the home networks.
+	// Off, Enhanced with no address waits and works as Standard; the default never turns it on.
+	EnhancedWithoutAddress bool `json:"enhancedWithoutAddress"`
 
 	revision
 }
@@ -247,7 +252,7 @@ func (st *remoteState) security(v RemoteAccessSettings, allowed []string, finish
 	case v.RemoteSecurity != "enhanced":
 	case !finished:
 		out.Waiting = "setup_not_finished"
-	case len(allowed) == 0:
+	case len(allowed) == 0 && !v.EnhancedWithoutAddress:
 		out.Waiting = "no_approved_address"
 	case pending && !ready:
 		out.Waiting, out.Problem = "certificate_not_ready", problem
@@ -399,6 +404,47 @@ type RemoteAccessStatus struct {
 	Refused []RefusedAddress `json:"refused"`
 	// RemoteSecurity is the owner's choice and what is in force, with why they differ.
 	RemoteSecurity RemoteSecurity `json:"remoteSecurity"`
+	// Warnings are the risky choices in force now, each in plain words, shown for as long as
+	// they hold. The owner may keep any of them; none is refused.
+	Warnings []Warning `json:"warnings"`
+}
+
+// Warning is one risky choice in force.
+type Warning struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+// warningMessages are proposed wording, listed for the owner's approval.
+var warningMessages = map[string]string{
+	"remote_access_off": "Remote access is off: nobody outside your home networks can reach this server, you included. " +
+		"If that shuts you out, create an empty file named reset-remote-access in the server's data folder and restart it.",
+	"enhanced_without_address": "Enhanced Security is on with no address to allow, so every connection from outside your home networks is refused. " +
+		"If that shuts you out, create an empty file named reset-remote-access in the server's data folder and restart it.",
+	"plain_http_outside": "Connections from outside your home networks may use plain HTTP, so what they send, passwords included, " +
+		"can be read on the way. Add a certificate, or use Portico Accounts, to secure them.",
+	"no_home_networks": "No home networks are listed, so every connection counts as away from home, even from this server's own machine.",
+}
+
+// warnings are the risky choices in force under v and the home networks n.
+func (s *Server) warnings(v RemoteAccessSettings, sec RemoteSecurity, n auth.Networks) []Warning {
+	var codes []string
+	switch {
+	case v.RemoteAccess == "off":
+		codes = append(codes, "remote_access_off")
+	case sec.Active == "enhanced" && v.EnhancedWithoutAddress && len(approved(v, s.porticoAddress())) == 0:
+		codes = append(codes, "enhanced_without_address")
+	case sec.Active == "standard" && v.SecureConnections == "preferred":
+		codes = append(codes, "plain_http_outside")
+	}
+	if len(n.Home) == 0 {
+		codes = append(codes, "no_home_networks")
+	}
+	out := []Warning{}
+	for _, c := range codes {
+		out = append(out, Warning{Code: c, Message: warningMessages[c]})
+	}
+	return out
 }
 
 // ThisDevice is the asking device as the server sees it.
@@ -419,8 +465,9 @@ func (s *Server) remoteAccessRoutes() {
 	Handle(s, "PUT /v1/admin/settings/remote-access", Owner, s.saveRemoteAccess)
 	Handle(s, "GET /v1/admin/remote-access", Owner, func(r *http.Request, _ None) (RemoteAccessStatus, error) {
 		v, allowed := s.access.current()
+		sec := s.access.security(v, allowed, s.setupFinished(), false)
 		return RemoteAccessStatus{ThisDevice: ThisDevice{AtHome: s.networks().FromHome(r), Address: s.remoteHost(r)},
-			Refused: s.access.refusedList(), RemoteSecurity: s.access.security(v, allowed, s.setupFinished(), false)}, nil
+			Refused: s.access.refusedList(), RemoteSecurity: sec, Warnings: s.warnings(v, sec, s.networks())}, nil
 	})
 	// The dry run: would the connection making this request be refused under these settings?
 	Handle(s, "POST /v1/admin/remote-access/route-check", Owner, func(r *http.Request, req RemoteAccessSettings) (RouteCheck, error) {
@@ -462,9 +509,14 @@ type RouteCheck struct {
 // host and port are the person's; otherwise they are this server's connection's own.
 // With ready, a Portico certificate still being issued is counted as there (see security).
 func (s *Server) judge(r *http.Request, v RemoteAccessSettings, allowed []string, finished, ready bool) RouteCheck {
+	return s.judgeWith(r, v, allowed, finished, ready, s.networks())
+}
+
+// judgeWith is judge with the home networks given, for a save of the network settings.
+func (s *Server) judgeWith(r *http.Request, v RemoteAccessSettings, allowed []string, finished, ready bool, n auth.Networks) RouteCheck {
 	secure := s.secure(r)
 	out := RouteCheck{Address: s.requestAddress(r, secure), Fixes: []string{}, RemoteSecurity: s.access.security(v, allowed, finished, ready)}
-	if s.networks().FromHome(r) {
+	if n.FromHome(r) {
 		return out
 	}
 	enhanced := out.RemoteSecurity.Active == "enhanced"
@@ -525,9 +577,6 @@ func (s *Server) applyRemoteAccess(r *http.Request, req RemoteAccessSave, match 
 		return RemoteAccessSettings{}, err
 	}
 	if req.AllowThisAddress {
-		if !s.secure(r) {
-			return RemoteAccessSettings{}, ErrField("allowThisAddress", "This connection isn’t secure (https), so approving its address won’t let it in.")
-		}
 		if address := s.requestAddress(r, true); !slices.Contains(approved(v, ""), address) {
 			v.AllowedAddresses = append(v.AllowedAddresses, address)
 		}
