@@ -449,6 +449,17 @@ func (s *Server) changeDownload(r *http.Request, req DownloadChange) (Download, 
 		return Download{}, ErrField("keepNext", "Keep the next 1, 3 or 5, or 0 to stop.")
 	}
 	id := r.PathValue("id")
+	if req.KeepNext != nil && *req.KeepNext > 0 {
+		// Keeping the next ones is a rule for a "next unwatched" download; set on one of all
+		// the titles it would remove the rest.
+		dl, _, err := s.db.DownloadOf(r.Context(), v.ProfileID, id)
+		if err != nil {
+			return Download{}, downloadError(err)
+		}
+		if dl.Selection != "next" {
+			return Download{}, ErrField("keepNext", "Keeping the next ones is for a download of the next unwatched titles.")
+		}
+	}
 	if req.Paused != nil || req.KeepNext != nil {
 		if err := s.downloads.Change(r.Context(), v, id, req.Paused, req.KeepNext); err != nil {
 			return Download{}, downloadError(err)
