@@ -159,7 +159,7 @@ type ScanCounts struct {
 }
 
 // SkippedFile is a file the last scan could not use. Reason is damaged, not_supported,
-// not_media, unreadable_name or encrypted_disc; Message says it in a sentence.
+// not_media, unreadable_name, encrypted_disc or no_disc_reader; Message says it in a sentence.
 type SkippedFile struct {
 	Path    string `json:"path"`
 	Reason  string `json:"reason"`
@@ -230,6 +230,7 @@ var skippedMessages = map[db.FileProblem]string{
 	db.ProblemDamaged:        "This file is damaged.",
 	db.ProblemUnsupported:    "This file is not supported.",
 	db.ProblemEncryptedDisc:  "This disc is copy-protected. Portico can't read copy-protected discs.",
+	db.ProblemNoDiscReader:   "This server's media tools can't read discs.",
 	db.ProblemNotMedia:       "This is not a media file.",
 	db.ProblemUnreadableName: "Portico can't read this file's name. Rename it, then scan again.",
 }
