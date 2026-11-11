@@ -139,6 +139,8 @@ type PlanRequest struct {
 	// Limits are what the viewer's account is held to: a bitrate cap that
 	// applies away from home.
 	Limits db.PlayLimits
+	// AppLanguage is the language the app is shown in, or "".
+	AppLanguage string
 }
 
 // Routes a plan can take, cheapest first.
