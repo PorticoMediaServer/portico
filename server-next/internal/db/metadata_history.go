@@ -218,9 +218,14 @@ func (d *DB) UndoMetadata(ctx context.Context, publicID, entryID string) (int64,
 			if err != nil {
 				return err
 			}
-			if _, err := b.exec(`INSERT INTO item_tags (item_id, tag_id) VALUES (?, ?) ON CONFLICT DO NOTHING`, id, tagID); err != nil {
+			if err := b.tagItem(id, tagID); err != nil {
 				return err
 			}
+		}
+		// The rating may be put back, on the title and on what under it has none of its own:
+		// the copies of it on the tag rows follow, after the tags are written.
+		if err := b.ratingChanged(id); err != nil {
+			return err
 		}
 		position := 0
 		for _, c := range s.Credits {
