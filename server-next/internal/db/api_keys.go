@@ -158,7 +158,8 @@ type KeyCaller struct {
 }
 
 // KeyCaller looks a presented key up. A key that is unknown, revoked, expired, an app
-// password (which only signs in to other apps' protocols) or whose account is disabled is
+// password (which only signs in to other apps' protocols) or whose account is disabled, or
+// waiting to move, left or not moved (its keys pause and work again once it is active), is
 // ErrNotFound. Unlike a session's token, a key is read from the database on every request,
 // so revoking one or disabling its account takes effect at once.
 func (d *DB) KeyCaller(ctx context.Context, keyHash string, now time.Time) (KeyCaller, error) {
@@ -168,7 +169,7 @@ func (d *DB) KeyCaller(ctx context.Context, keyHash string, now time.Time) (KeyC
 	var used sql.NullInt64
 	err := d.read.QueryRowContext(ctx, `SELECT k.id, k.scopes, k.last_used_at, u.id, u.role, p.id
 		FROM api_keys k JOIN users u ON u.id = k.user_id JOIN profiles p ON p.user_id = u.id AND p.is_primary = 1
-		WHERE k.key_hash = ? AND k.kind IN ('api_key', 'personal_token') AND u.disabled_at IS NULL
+		WHERE k.key_hash = ? AND k.kind IN ('api_key', 'personal_token') AND u.disabled_at IS NULL AND u.state = 'active'
 			AND k.revoked_at IS NULL AND (k.expires_at IS NULL OR k.expires_at > ?)`, keyHash, now.UnixMilli()).
 		Scan(&id, &scopes, &used, &c.UserID, &c.Role, &c.ProfileID)
 	if errors.Is(err, sql.ErrNoRows) {

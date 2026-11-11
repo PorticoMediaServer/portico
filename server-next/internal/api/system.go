@@ -27,6 +27,9 @@ type System struct {
 	SignIn string `json:"signIn"`
 	// AtHome says the caller is on one of the owner's home networks, as this server sees it.
 	AtHome bool `json:"atHome"`
+	// Move is "to_local" or "to_portico" while a switch of the kind of sign-in still has people
+	// waiting, so their apps offer the right step before sign-in; absent otherwise.
+	Move string `json:"move,omitempty"`
 }
 
 // Health is the answer of the health checks.
@@ -66,6 +69,11 @@ func (s *Server) systemRoutes() {
 		}
 		out := System{ID: s.id, Name: name, APIMajor: APIMajor, Capabilities: []string{},
 			SetupRequired: !hasUsers, SignInMethods: methods, SignIn: kind, AtHome: s.networks().FromHome(r)}
+		if move, moving, err := s.db.CurrentMove(r.Context()); err != nil {
+			return System{}, err
+		} else if moving {
+			out.Move = "to_" + move.To
+		}
 		if _, err := s.admit(r, &Route{Access: SignedIn, Scope: ScopeRead}); err == nil {
 			out.Version = s.version
 		}
