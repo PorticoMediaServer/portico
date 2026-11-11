@@ -47,6 +47,16 @@ type BookAnswer struct {
 	// progression and says "Opened near where you left off".
 	Place      JSON `json:"place,omitempty"`
 	PlaceExact bool `json:"placeExact,omitempty"`
+	// Next is the next volume of the series, offered when this one is finished; nothing opens
+	// by itself.
+	Next *NextVolume `json:"next,omitempty"`
+}
+
+// NextVolume is the volume after a book in its series.
+type NextVolume struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	Index *int   `json:"index,omitempty"`
 }
 
 // BookVersion is one file of a book.
@@ -98,6 +108,9 @@ func (s *Server) openBook(r *http.Request, _ None) (BookAnswer, error) {
 		Fingerprint: opened.Fingerprint, Size: version.Size, SaveURL: opened.SaveURL}
 	if book.Place != "" {
 		out.Place, out.PlaceExact = JSON(book.Place), db.ReadPlace(book.Place).Fingerprint == opened.Fingerprint
+	}
+	if book.Next != nil {
+		out.Next = &NextVolume{ID: book.Next.PublicID, Title: book.Next.Title, Index: book.Next.Index}
 	}
 	for _, v := range book.Versions {
 		out.Versions = append(out.Versions, BookVersion{ID: v.PublicID, Format: reading.Format(v.FileName), Name: v.Name})
