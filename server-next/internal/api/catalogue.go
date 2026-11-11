@@ -37,6 +37,7 @@ func refuse(err error) error {
 }
 
 func (s *Server) catalogueRoutes() {
+	s.searchRoutes()
 	Handle(s, "GET /v1/libraries", WithProfile, func(r *http.Request, _ None) (Libraries, error) {
 		libraries, err := s.db.Libraries(r.Context(), viewer(r))
 		out := Libraries{Items: make([]Library, len(libraries))}
