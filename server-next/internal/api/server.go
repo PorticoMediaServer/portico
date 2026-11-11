@@ -448,6 +448,9 @@ type Caller struct {
 	Manage bool
 	// KeyScopes are what the key the request came with may do; nil for a signed-in person.
 	KeyScopes []string
+	// Stamp is the token's place in the order of session changes: what a book's address
+	// carries so that it ends when this sign-in changes.
+	Stamp db.TokenStamp
 }
 
 // CallerFrom returns the signed-in caller of a route whose access is not Public.
@@ -481,7 +484,8 @@ func (s *Server) admit(r *http.Request, route *Route) (*http.Request, error) {
 		if err != nil || s.db.TokenRefused(claims.SessionID, db.TokenStamp{Boot: claims.Boot, Seq: claims.Seq}) {
 			return r, ErrUnauthorized()
 		}
-		c = Caller{SessionID: claims.SessionID, UserID: claims.UserID, ProfileID: claims.ProfileID, Role: claims.Role, Manage: claims.Manage}
+		c = Caller{SessionID: claims.SessionID, UserID: claims.UserID, ProfileID: claims.ProfileID, Role: claims.Role, Manage: claims.Manage,
+			Stamp: db.TokenStamp{Boot: claims.Boot, Seq: claims.Seq}}
 	}
 	switch {
 	case route.Access == WithProfile && c.ProfileID == 0:
