@@ -196,6 +196,31 @@ func TestDeviceToneMapLeavesTheMatrixToTheDevice(t *testing.T) {
 	}
 }
 
+// A device encoder is given the level as its number: VA-API and Quick Sync have no name
+// "4.0", read it as level 4, and fail on the first picture.
+func TestDeviceEncodersAreGivenTheLevelAsANumber(t *testing.T) {
+	for _, tc := range []struct {
+		backend HardwareBackend
+		codec   string
+		want    string
+	}{{BackendSoftware, "h264", "4.0"}, {BackendVAAPI, "h264", "40"}} {
+		if tc.backend != BackendSoftware && !backendSpecs[tc.backend].supported() {
+			continue
+		}
+		target := ConversionTarget{VideoCodec: tc.codec, VideoLevel: map[string]int{"h264": 40, "hevc": 120}[tc.codec], Width: 1920, Height: 1080}
+		graph, err := BuildConversion(ConversionRequest{Target: &target, ConvertVideo: true, Probe: HardwareProbe{Backend: tc.backend, Available: tc.backend != BackendSoftware}})
+		if err != nil {
+			t.Fatal(tc, err)
+		}
+		if got := argValue(graph.Video, "-level:v"); got != tc.want {
+			t.Fatalf("%s %s: -level:v %q, want %q: %v", tc.backend, tc.codec, got, tc.want, graph.Video)
+		}
+	}
+	if got := levelArg(BackendVAAPI, 120, 30); got != "120" {
+		t.Fatalf("HEVC 4.0 on a device: %q", got)
+	}
+}
+
 func TestHDRDetectionFromProbeFacts(t *testing.T) {
 	for _, transfer := range HDRTransfers {
 		if !IsHDR(transfer, "bt2020") {
