@@ -89,6 +89,49 @@
         ],
         "type": "object"
       },
+      "ActivityEntry": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "actor": {
+            "type": "string"
+          },
+          "at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "actor",
+          "action"
+        ],
+        "type": "object"
+      },
+      "ActivityEntryPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ActivityEntry"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
       "AdminLibrary": {
         "properties": {
           "folders": {
@@ -2862,6 +2905,86 @@
         },
         "required": [
           "trustedProxies"
+        ],
+        "type": "object"
+      },
+      "NowPlaying": {
+        "properties": {
+          "away": {
+            "type": "boolean"
+          },
+          "bitrateKbps": {
+            "type": "integer"
+          },
+          "delivery": {
+            "$ref": "#/components/schemas/PlaybackDecisions"
+          },
+          "deviceName": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "positionMs": {
+            "type": "integer"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "route": {
+            "type": "string"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "state",
+          "positionMs",
+          "username",
+          "deviceName",
+          "away",
+          "route",
+          "delivery",
+          "startedAt"
+        ],
+        "type": "object"
+      },
+      "NowPlayingPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/NowPlaying"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
         ],
         "type": "object"
       },
@@ -6018,6 +6141,14 @@
         },
         "type": "object"
       },
+      "StreamStop": {
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "SubtitleFile": {
         "properties": {
           "format": {
@@ -6707,6 +6838,33 @@
         "responses": {
           "204": {
             "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/audit": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityEntryPage"
+                }
+              }
+            },
+            "description": "OK"
           },
           "default": {
             "content": {
@@ -8138,6 +8296,73 @@
           }
         },
         "x-access": "owner"
+      }
+    },
+    "/v1/admin/sessions": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NowPlayingPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
+      }
+    },
+    "/v1/admin/sessions/{id}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StreamStop"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
       }
     },
     "/v1/admin/settings": {
