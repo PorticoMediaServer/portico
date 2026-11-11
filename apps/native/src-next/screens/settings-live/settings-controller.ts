@@ -1,4 +1,4 @@
-import {PreferencesReader, type PreferencesApi} from '../../../../../packages/client-core/src/preferences-reader';
+import type {PreferencesReader} from '../../../../../packages/client-core/src/preferences-reader';
 import {validatePreferencePatch, type DeviceClass, type PreferencePatch, type PreferenceScope, type PreferenceSnapshot} from '../../../../../packages/client-core/src/preferences';
 import {nativeServerPreferences, type NativeServerPreferencesOwner} from '../../platform/server-preferences';
 import {NativeScreenLifetime, NativeScreenStore} from './lifetime';
@@ -43,11 +43,6 @@ export class NativeSettingsController extends NativeScreenStore<NativeSettingsSn
     }
   }
   dispose(): void {if (this.disposed) return; this.disposed = true; this.reader.dispose(); this.clearListeners();}
-}
-
-export function createNativeSettingsController(lifetime: NativeScreenLifetime, api: PreferencesApi, initial: PreferenceSnapshot): NativeSettingsController {
-  const scoped: PreferencesApi = {request: <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => lifetime.request(next => api.request<T>(path, method, body, next), signal)};
-  return new NativeSettingsController(lifetime, new PreferencesReader(scoped), initial);
 }
 
 export const nativeSettingsDeviceClass = (isTV: boolean): DeviceClass => isTV ? 'television' : 'mobile';

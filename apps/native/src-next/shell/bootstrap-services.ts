@@ -116,6 +116,8 @@ export class NativeShellBootstrapServices {
     throw error;
   }
   private checkFence(domain: Domain, raw: unknown): void {
+    // The rebuilt server's settings answer is the settings themselves, with no envelope to check.
+    if (domain === 'preferences') return;
     if (!object(raw)) throw invalid();
     const scope = domain === 'inbox' ? raw.scope : raw;
     // Layout mutation receipts have no viewer fence. Their canonical parser still validates them.
@@ -153,8 +155,7 @@ export class NativeShellBootstrapServices {
       const raw = await this.api.request<T>(path, method, body, controller.signal);
       this.assertCurrent();
       if (controller.signal.aborted) throw cancelled();
-      // The rebuilt server's settings answer is the settings themselves, with no envelope to check.
-      if (domain && domain !== 'preferences') this.checkFence(domain, raw);
+      if (domain) this.checkFence(domain, raw);
       return raw;
     } catch (error) {
       if (this.retirement && error === this.retirement) throw error;
