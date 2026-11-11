@@ -417,12 +417,6 @@ type RemoteAccessStatus struct {
 	Warnings []Warning `json:"warnings"`
 }
 
-// Warning is one risky choice in force.
-type Warning struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-}
-
 // warningMessages are proposed wording, listed for the owner's approval.
 var warningMessages = map[string]string{
 	"remote_access_off": "Remote access is off: nobody outside your home networks can reach this server, you included. " +
@@ -474,7 +468,7 @@ func (s *Server) remoteAccessRoutes() {
 	Handle(s, "GET /v1/admin/remote-access", Owner, func(r *http.Request, _ None) (RemoteAccessStatus, error) {
 		v, allowed := s.access.current()
 		sec := s.access.security(v, allowed, s.setupFinished(), false)
-		return RemoteAccessStatus{ThisDevice: ThisDevice{AtHome: s.networks().FromHome(r), Address: s.remoteHost(r)},
+		return RemoteAccessStatus{ThisDevice: ThisDevice{AtHome: s.fromHome(r), Address: s.remoteHost(r)},
 			Refused: s.access.refusedList(), RemoteSecurity: sec, Warnings: s.warnings(v, sec, s.networks())}, nil
 	})
 	// The dry run: would the connection making this request be refused under these settings?
@@ -524,6 +518,10 @@ func (s *Server) judge(r *http.Request, v RemoteAccessSettings, allowed []string
 func (s *Server) judgeWith(r *http.Request, v RemoteAccessSettings, allowed []string, finished, ready bool, n auth.Networks) RouteCheck {
 	secure := s.secure(r)
 	out := RouteCheck{Address: s.requestAddress(r, secure), Fixes: []string{}, RemoteSecurity: s.access.security(v, allowed, finished, ready)}
+	// This save preview uses the proposed networks rather than the current ones.
+	if n.ProxyGaveNoAddress(r) {
+		s.noteSilentProxy(peerAddr(r))
+	}
 	if n.FromHome(r) {
 		return out
 	}
@@ -699,7 +697,7 @@ func (s *Server) outsideRefusal(r *http.Request) *Error {
 // the owner may sign in from there.
 func (s *Server) ownerOnlyAway(r *http.Request) bool {
 	v, _ := s.access.current()
-	return v.SignInFromOutside == "owner" && !s.networks().FromHome(r)
+	return v.SignInFromOutside == "owner" && !s.fromHome(r)
 }
 
 func errOwnerOnlyAway() *Error {
