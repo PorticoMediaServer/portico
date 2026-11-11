@@ -18,6 +18,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/api"
 	"github.com/PorticoMediaServer/portico/server-next/internal/backup"
+	"github.com/PorticoMediaServer/portico/server-next/internal/datalock"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
 	"github.com/PorticoMediaServer/portico/server-next/internal/libraryfile"
@@ -92,6 +93,12 @@ func run(log *slog.Logger) (err error) {
 	if err := os.MkdirAll(*data, 0o700); err != nil {
 		return err
 	}
+	// One server to a data folder, taken before anything in the folder is written.
+	release, err := datalock.Hold(serverData, log)
+	if err != nil {
+		return err
+	}
+	defer release()
 	// Nothing in the data folder is ever played as a library file.
 	libraryfile.ServerData = serverData
 	// Everything logged from here on is also kept in the data folder for Messages.

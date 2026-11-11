@@ -10,6 +10,7 @@ on:
       - .github/workflows/server-next-windows-watching.yml
       - server-next/internal/scan/watch*.go
       - server-next/internal/scan/schedule*.go
+      - server-next/internal/datalock/**
 permissions:
   contents: read
 concurrency:
@@ -34,3 +35,8 @@ jobs:
       - name: Run the watching tests
         working-directory: server-next
         run: go test ./internal/scan -run 'TestAWatchedFolderIsScannedWhenItChanges|TestAFolderIsFollowedUntilItSettles' -count=1 -v -timeout 5m
+      # The lock that keeps two servers off one data folder is its own code on Windows too
+      # (server-next/internal/datalock/lock_windows.go, LockFileEx).
+      - name: Run the data-folder lock tests
+        working-directory: server-next
+        run: go test ./internal/datalock -count=1 -v -timeout 5m
