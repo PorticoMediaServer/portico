@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	_ "image/gif" // comic pages in GIF can be made smaller too
 )
@@ -102,15 +103,26 @@ func digitRun(s string) int {
 	return n
 }
 
-// errPageTooLarge says one page is too large to prepare safely. The rest of the book reads.
-var errPageTooLarge = errors.New("This page can't be shown.")
+// errPageTooLarge says one page is too large to prepare safely, and errPageDamaged that it
+// cannot be read. The rest of the book reads.
+var (
+	errPageTooLarge = errors.New("This page can't be shown.")
+	errPageDamaged  = errors.New("This page can't be shown.")
+)
 
 // memoryLimit is the most memory making pages smaller may hold at once, counting each picture
 // unpacked, its smaller copy, and that copy until a slow reader has received all of it.
 const memoryLimit = 256 << 20
 
+// errBusy says the memory for making pages smaller is all in use and stayed so for
+// busyWait: the reader tries the page again shortly.
+var errBusy = errors.New("The server is busy. Try again in a moment.")
+
+// busyWait is the longest a page waits for memory to be free. (A variable only for a test.)
+var busyWait = 10 * time.Second
+
 // budget counts memory held by page work. A request that would go over it waits for others to
-// finish; one that could never fit is refused.
+// finish, for busyWait at most; one that could never fit is refused.
 type budget struct {
 	mu    sync.Mutex
 	used  int64
@@ -123,6 +135,8 @@ func (b *budget) take(ctx context.Context, n int64) error {
 	if n > memoryLimit {
 		return errPageTooLarge
 	}
+	timer := time.NewTimer(busyWait)
+	defer timer.Stop()
 	for {
 		b.mu.Lock()
 		if b.used+n <= memoryLimit {
@@ -134,6 +148,8 @@ func (b *budget) take(ctx context.Context, n int64) error {
 		b.mu.Unlock()
 		select {
 		case <-freed:
+		case <-timer.C:
+			return errBusy
 		case <-ctx.Done():
 			return ctx.Err()
 		}
@@ -164,8 +180,9 @@ func smaller(ctx context.Context, open func() (io.ReadCloser, error), width int)
 	}
 	height := max(1, config.Height*width/config.Width)
 	source, target := int64(config.Width)*int64(config.Height), int64(width)*int64(height)
-	// The picture as decoded, the copy shrink works from, and the smaller picture.
-	need := 8*source + 4*target
+	// The picture as decoded (up to 8 bytes a pixel, for a 16-bit PNG), the 4-byte copy shrink
+	// works from, and the smaller picture.
+	need := 12*source + 4*target
 	if err := pageMemory.take(ctx, need); err != nil {
 		return nil, "", nil, err
 	}
@@ -177,7 +194,7 @@ func smaller(ctx context.Context, open func() (io.ReadCloser, error), width int)
 	picture, _, err := image.Decode(rc)
 	rc.Close()
 	if err != nil {
-		return nil, "", nil, errPageTooLarge
+		return nil, "", nil, errPageDamaged
 	}
 	small := shrink(picture, width)
 	picture = nil
