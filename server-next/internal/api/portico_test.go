@@ -57,7 +57,7 @@ func (p *porticoRig) open() {
 	}
 	p.s = openTestServer(p.T, p.path)
 	attach(p.s, p.fake.Client(), p.fake.URL, p.fake, func() time.Time { return p.clock })
-	p.s.link.onLinked = func() { p.told++ }
+	p.s.link.onLinked = func(time.Time) { p.told++ }
 }
 
 // attach stops a server's own background work and points it at a fake Portico Services.

@@ -21,5 +21,11 @@ type setupArea struct {
 // startSetup builds this area's services and registers its routes and job kinds. New calls it
 // once, after the job runner exists and before the jobs left from the last run are taken up.
 func (s *Server) startSetup(ctx context.Context) error {
-	return s.startPortico(ctx)
+	if err := s.startPortico(ctx); err != nil {
+		return err
+	}
+	// Whatever must hear that the server is linked, or no longer is, is set on s.link here
+	// (onLinked, onUnlinked, published), above the line that starts its background work.
+	s.link.run()
+	return nil
 }

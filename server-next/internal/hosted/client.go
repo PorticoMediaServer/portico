@@ -202,7 +202,7 @@ func (c *Client) call(ctx context.Context, method, path string, floor time.Time,
 	case code == "approval_gone":
 		return ErrDeclined
 	}
-	return fmt.Errorf("portico services refused %s %s: %d %s", method, path, resp.StatusCode, code)
+	return &RefusedError{Status: resp.StatusCode, Code: code, Detail: string(raw[:min(len(raw), 2000)])}
 }
 
 func randomKey() string {

@@ -30,6 +30,7 @@ func (s *Server) porticoRoutes() {
 	Handle(s, "POST /v1/auth/portico/exchange", Public, s.porticoExchange)
 	Handle(s, "POST /v1/hosted/notices", Public, s.hostedNotice)
 	Handle(s, "POST /v1/hosted/approvals/{id}/poll", Public, s.porticoApprovalPoll)
+	Handle(s, "POST /v1/setup/local-sign-in", Public, s.localSignInReset)
 	Handle(s, "GET /v1/admin/portico", Owner, s.porticoLinkState).Scope = ScopeSession
 	Handle(s, "POST /v1/admin/portico/link", Owner, s.porticoLinkAgain).Scope = ScopeSession
 	Handle(s, "POST /v1/admin/portico/link/finish", Owner, s.porticoLinkFinish).Scope = ScopeSession

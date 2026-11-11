@@ -242,6 +242,14 @@ func (f *Services) Unlink(serverID string) {
 	s.unlinked = true
 }
 
+// Forget drops everything Portico Services holds about a server, as starting again on an
+// empty database does. Nothing signed says so: the server just meets "server_unknown".
+func (f *Services) Forget(serverID string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.servers, serverID)
+}
+
 // Note is the note Portico Services has for a server now: what a push, an app and the
 // check-in would all carry.
 func (f *Services) Note(serverID string) trust.Envelope {

@@ -53,7 +53,7 @@ func TestTheLinkIsMadeEndedAndChangedInsideOtherTransactions(t *testing.T) {
 	}
 
 	// The note numbers move up; a change of owner then leaves them where they are.
-	if _, err := d.ApplyNote(ctx, Note{Revision: now.Unix() + 50, Fleet: 7}, now); err != nil {
+	if _, changed, err := d.ApplyNote(ctx, Note{Revision: now.Unix() + 50, Fleet: 7}, now); err != nil || !changed {
 		t.Fatal(err)
 	}
 	if err := in(func(tx *sql.Tx) error { return setLinkOwner(tx, "acct_b", now) }); err != nil {
