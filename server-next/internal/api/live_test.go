@@ -158,6 +158,12 @@ func TestJoiningALibraryChannelStartsWhereTheProgrammeIs(t *testing.T) {
 	if got := session.Presentation.StartPositionMs; got != (25 * time.Minute).Milliseconds() {
 		t.Fatalf("joined %d ms in, want 25 minutes", got)
 	}
+	// A seek past live goes to live: 25 minutes is as far as the programme has got.
+	var sought PlaybackSession
+	if w := call(t, th.s, "PATCH", "/v1/playback/sessions/"+session.ID, token, PlaybackChange{Seek: &PlaybackSeek{PositionMs: (50 * time.Minute).Milliseconds(),
+		ID: "ahead"}}, &sought); w.Code != 200 || sought.Presentation.StartPositionMs > (25*time.Minute).Milliseconds() {
+		t.Fatalf("a seek past live answered %d at %d ms", w.Code, sought.Presentation.StartPositionMs)
+	}
 	if code := th.report(token, session.ID, "playing", (59 * time.Minute).Milliseconds()); code != 200 {
 		t.Fatalf("progress answered %d", code)
 	}
