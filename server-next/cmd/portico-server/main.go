@@ -42,8 +42,12 @@ func main() {
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	err := run(log)
 	if errors.Is(err, errRestart) {
-		// The same program with the same arguments, in this same process.
-		err = restartSelf()
+		// The same program with the same arguments, in this same process. If that fails (the
+		// program file was removed, or replaced by one that cannot run here), the server has
+		// already stopped cleanly and stays stopped unless a service manager starts it again.
+		if err = restartSelf(); err != nil {
+			err = fmt.Errorf("the server stopped to restart and could not start itself again, so it stays stopped unless a service manager starts it: %w", err)
+		}
 	}
 	if err != nil {
 		log.Error("portico-server stopped", "error", err)
@@ -84,7 +88,9 @@ func run(log *slog.Logger) error {
 	// short is finished or undone. See package backup.
 	restored, note, err := backup.Prepare(*data, time.Now())
 	if err != nil {
-		log.Error("the restore could not be made; the server is as it was", "error", err)
+		// The data folder may be mid-swap: opening it now could make a new empty server or
+		// serve a restored database with its old sign-ins. The next start finishes or undoes it.
+		return fmt.Errorf("a restore could not be finished or undone, so the server does not start; free space or fix the data folder and start it again: %w", err)
 	} else if note != "" {
 		log.Info(note)
 	}
