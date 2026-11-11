@@ -2,11 +2,9 @@ package api
 
 import (
 	"context"
-	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -30,18 +28,6 @@ type SignInRequest struct {
 	Username string     `json:"username"`
 	Password string     `json:"password"`
 	Device   DeviceInfo `json:"device"`
-}
-
-// SetupOwnerRequest creates the owner account on a new server.
-type SetupOwnerRequest struct {
-	// SetupCode is the code the server wrote to its log and to setup-code.txt in its data
-	// folder when it first started. It shows the person can reach the server itself.
-	SetupCode string `json:"setupCode"`
-	Username  string `json:"username"`
-	Password  string `json:"password"`
-	// ProfileName names the owner's main profile. It defaults to the username.
-	ProfileName string     `json:"profileName,omitempty"`
-	Device      DeviceInfo `json:"device"`
 }
 
 // RefreshRequest renews a sign-in. The app saves RequestID before sending and sends the
@@ -138,7 +124,6 @@ func errTooManyAttempts(wait time.Duration) *Error {
 }
 
 func (s *Server) authRoutes() {
-	Handle(s, "POST /v1/setup/owner", Public, s.setupOwner)
 	Handle(s, "POST /v1/auth/sign-in", Public, s.signIn)
 	Handle(s, "POST /v1/auth/refresh", Public, s.refresh)
 	Handle(s, "DELETE /v1/auth/session", Public, s.signOut)
@@ -294,55 +279,6 @@ func (s *Server) signedIn(ctx context.Context, st db.SessionState, now time.Time
 
 func accountOut(a db.Account) Account {
 	return Account{ID: a.PublicID, Username: a.Username, Email: a.Email, Role: a.Role}
-}
-
-func (s *Server) setupOwner(r *http.Request, req SetupOwnerRequest) (SignInResponse, error) {
-	ctx, now := r.Context(), s.now()
-	username, ok := auth.Username(req.Username)
-	if !ok {
-		return SignInResponse{}, ErrField("username", "Choose a username of 3 to 64 characters with no spaces or @.")
-	}
-	if problem := auth.PasswordProblem(req.Password); problem != "" {
-		return SignInResponse{}, ErrField("password", problem)
-	}
-	if req.ProfileName == "" {
-		req.ProfileName = strings.TrimSpace(req.Username)
-	}
-	if !auth.ValidName(req.ProfileName) {
-		return SignInResponse{}, ErrField("profileName", "Give the profile a name of at most 120 characters.")
-	}
-	session, refresh, err := s.newSession(r, req.Device, now)
-	if err != nil {
-		return SignInResponse{}, err
-	}
-	// Do not spend a password hash on a server that is already set up.
-	if done, err := s.db.HasUsers(ctx); err != nil {
-		return SignInResponse{}, err
-	} else if done {
-		return SignInResponse{}, errSetupDone()
-	}
-	// Anyone who can reach a new server could otherwise make themselves its owner.
-	if s.setupCode == "" || subtle.ConstantTimeCompare([]byte(auth.CodeKey(req.SetupCode)), []byte(auth.CodeKey(s.setupCode))) != 1 {
-		return SignInResponse{}, refusal(http.StatusForbidden, "setup_code_invalid",
-			"That setup code is not correct. It is in the server's log and in setup-code.txt in its data folder.", false)
-	}
-	hash, err := s.passwords.Hash(ctx, req.Password)
-	if err != nil {
-		return SignInResponse{}, err
-	}
-	st, err := s.db.CreateOwner(ctx, db.NewOwner{Username: username, PasswordHash: hash, ProfileName: req.ProfileName, Session: session, Now: now})
-	if errors.Is(err, db.ErrSetupDone) {
-		return SignInResponse{}, errSetupDone()
-	}
-	if err != nil {
-		return SignInResponse{}, err
-	}
-	os.Remove(s.setupFile)
-	return s.signedIn(ctx, st, now, refresh)
-}
-
-func errSetupDone() *Error {
-	return ErrConflict("setup_complete", "This server already has an owner. Sign in instead.")
 }
 
 func (s *Server) signIn(r *http.Request, req SignInRequest) (SignInResponse, error) {
