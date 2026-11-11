@@ -121,10 +121,7 @@ func removeItem(b *batchTx, libraryID, id, now int64) error {
 	// Whoever had watched everything else under them may now have watched all of it.
 	// Settled here and not left to the caller, so every path that removes a title is covered:
 	// a missing file, the emptied trash, a deleted title, a deleted library.
-	b.leavesChanged(parent.Int64, root.Int64)
-	if err := b.settleWatchedForAll(now); err != nil {
-		return err
-	}
+	b.leavesLeft(parent.Int64, root.Int64)
 	for _, gone := range ids {
 		if err := appendChange(b.tx, Change{At: now, Topic: TopicItem, Op: OpDeleted, RefID: gone, LibraryID: libraryID}); err != nil {
 			return err

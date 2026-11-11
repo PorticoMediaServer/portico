@@ -43,7 +43,10 @@ func SetRatingAge(d *DB, publicID string, age int) error {
 		if _, err := b.exec(`UPDATE items SET rating_age = ?1 WHERE id = ?2 OR root_id = ?2`, age, id); err != nil {
 			return err
 		}
-		return b.ratingChanged(id)
+		if err := b.ratingChanged(id); err != nil {
+			return err
+		}
+		return settleMarksNow(b)
 	})
 }
 

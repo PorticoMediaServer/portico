@@ -84,3 +84,6 @@ func DeviceForTest(d *DB) (int64, error) {
 	})
 	return id, err
 }
+
+// settleMarksNow ends a test hook's transaction as every writer that notes holders must.
+func settleMarksNow(b *batchTx) error { return b.settleWatchedForAll(time.Now().UnixMilli()) }

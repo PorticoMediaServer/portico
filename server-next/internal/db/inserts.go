@@ -18,6 +18,10 @@ type batchTx struct {
 	// watchedArrived are holders that gained new, unwatched items, with those items: a
 	// lighter case.
 	watchedArrived map[int64][]int64
+	// watchedLeft are holders that only lost items, and watchedRated holders whose items'
+	// ratings changed: lighter cases too.
+	watchedLeft  []int64
+	watchedRated []int64
 }
 
 func newBatchTx(tx *sql.Tx) *batchTx { return &batchTx{tx: tx, stmts: map[string]*sql.Stmt{}} }
@@ -223,9 +227,17 @@ func (b *batchTx) tagItem(itemID, tagID int64) error {
 
 // ratingChanged must be called, in the same transaction, by whatever has just changed the
 // rating_age of an item or of the items under it. It writes each one's present rating into
-// its tag rows, which a rating-limited profile's genre choices and totals are counted from.
+// its tag rows, which a rating-limited profile's genre choices and totals are counted from,
+// and notes the holders around the item: a rating decides what a limited profile may see
+// under a show, so it decides the show's watched mark. The caller's transaction must end
+// with settleWatchedForAll.
 func (b *batchTx) ratingChanged(itemID int64) error {
 	_, err := b.exec(`UPDATE item_tags SET rating_age = (SELECT rating_age FROM items WHERE id = item_tags.item_id)
 		WHERE item_id = ?1 OR item_id IN (SELECT id FROM items WHERE root_id = ?1)`, itemID)
+	if err != nil {
+		return err
+	}
+	holders, err := holdersAround(b, itemID)
+	b.watchedRated = append(b.watchedRated, holders...)
 	return err
 }
