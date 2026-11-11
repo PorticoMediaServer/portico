@@ -312,8 +312,6 @@ func downloadError(err error) error {
 		return refusal(http.StatusForbidden, "session_required", "Downloads belong to a device: sign in on it.", false)
 	case errors.Is(err, downloads.ErrQuality):
 		return ErrField("quality", "Choose original, a video quality or a music bitrate.")
-	case errors.Is(err, downloads.ErrNoConversion):
-		return refusal(http.StatusForbidden, "conversion_not_allowed", "This account can download titles only as they are: choose the original.", false)
 	case errors.Is(err, downloads.ErrAboveLimit):
 		return refusal(http.StatusForbidden, "above_download_limit", "This server doesn't allow downloads at this quality.", false)
 	case errors.Is(err, db.ErrQueueFull):
