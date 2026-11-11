@@ -37,3 +37,11 @@ func (d *DB) ShareListForTest(ctx context.Context, list string, profile int64, c
 		return err
 	})
 }
+
+// ForgetEndedSignIns drops the in-memory note of ended sign-ins at once, as the server does by
+// itself once no access token could still carry them, so a test can see what holds after that.
+func ForgetEndedSignIns(d *DB) {
+	d.marks.mu.Lock()
+	clear(d.marks.marks)
+	d.marks.mu.Unlock()
+}
