@@ -202,7 +202,7 @@ func TestAnEditorCannotReachAnEntryItMayNotSee(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, ids, _ := entries(t, l.d, owner, list.PublicID)
-	if err := l.d.ShareListForTest(ctx, list.PublicID, child.ProfileID, true); err != nil {
+	if _, err := l.d.SetListShares(ctx, owner, list.PublicID, 0, []db.ListShare{{ProfilePublicID: profileID(t, l.d, child), CanEdit: true}}, now); err != nil {
 		t.Fatal(err)
 	}
 	gone := ids[2] + 1000 // no such entry
