@@ -108,10 +108,10 @@ type ImportItem struct {
 	// LocalFields names the fields and lists above that an NFO file or the file's own tags
 	// gave (the Field names in metadata.go). They are kept when a provider is asked.
 	LocalFields []string
-	// Reread says an NFO file or a picture of this title changed, was added or went: its
+	// RereadLocal says an NFO file or a picture of this title changed, was added or went: its
 	// local fields and pictures are stored again on the title it already is, except where a
 	// person has locked them. An item that only re-reads (no Versions) is never created by it.
-	Reread      bool
+	RereadLocal bool
 	ExternalIDs []ExternalID
 	Tags        []TagName
 	Credits     []ImportCredit
@@ -490,7 +490,7 @@ func (im *importer) importItem(it *ImportItem, stats *ImportStats) error {
 			return err
 		}
 	}
-	if found == nil && it.Reread && len(it.Versions) == 0 {
+	if found == nil && it.RereadLocal && len(it.Versions) == 0 {
 		im.rows = append(im.rows, nil)
 		return nil
 	}
@@ -504,8 +504,8 @@ func (im *importer) importItem(it *ImportItem, stats *ImportStats) error {
 		}
 	}
 	im.rows = append(im.rows, found)
-	if it.Reread {
-		if err := im.reread(found.id, it); err != nil {
+	if it.RereadLocal {
+		if err := im.rereadLocal(found.id, it); err != nil {
 			return err
 		}
 	}

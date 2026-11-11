@@ -209,7 +209,7 @@ func (r *run) filmUnits(f *folder) []unit {
 		}
 		u := r.filmUnit(v)
 		if item := &u.items[0]; item.Kind == db.KindMovie {
-			item.Reread = reread
+			item.RereadLocal = reread
 			item.Images = r.pictures(f.files, stem(v.parts[0].entry.Name), db.ImagePoster, alone, reread)
 		}
 		units = append(units, u)
@@ -417,7 +417,7 @@ func (r *run) episodeLocal(f *folder, lead *found, item *db.ImportItem, changedO
 // episodeReread is an episode already stored, found by its file, with what is beside it now.
 func (r *run) episodeReread(f *folder, v *version, ep episode) []db.ImportItem {
 	_, keys := r.stored(v, false, 0)
-	item := db.ImportItem{Kind: db.KindEpisode, Keys: keys, Reread: true}
+	item := db.ImportItem{Kind: db.KindEpisode, Keys: keys, RereadLocal: true}
 	r.episodeLocal(f, v.parts[0], &item, true)
 	return []db.ImportItem{item}
 }

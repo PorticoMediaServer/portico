@@ -43,7 +43,7 @@ func TestAChangedNFOFileDoesNotReplaceAChosenMatch(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	item.Reread, item.Summary, item.ExternalIDs = true, "Second.", []db.ExternalID{{Provider: "tmdb", ID: "15389"}}
+	item.RereadLocal, item.Summary, item.ExternalIDs = true, "Second.", []db.ExternalID{{Provider: "tmdb", ID: "15389"}}
 	batch.Scan, batch.Files, batch.Items = 2, nil, []db.ImportItem{item}
 	if _, err := d.Import(ctx, batch); err != nil {
 		t.Fatal(err)
@@ -116,7 +116,7 @@ func TestGenreChoicesFollowARatingChangedByAnNFOFile(t *testing.T) {
 	}
 	// The file now rates it for adults and says nothing of its genres.
 	adult := 18
-	item.Reread, item.ContentRating, item.RatingAge, item.Tags = true, "NC-17", &adult, nil
+	item.RereadLocal, item.ContentRating, item.RatingAge, item.Tags = true, "NC-17", &adult, nil
 	item.LocalFields = []string{db.FieldContentRating}
 	batch.Scan, batch.Files, batch.Items = 2, nil, []db.ImportItem{item}
 	if _, err := d.Import(ctx, batch); err != nil {

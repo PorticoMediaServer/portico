@@ -10,7 +10,7 @@ import (
 // What the file gives replaces what the title has, a provider's value included: local details
 // win. A field or list a person locked is left alone. A field the file no longer gives keeps
 // its value and stops being the file's, so the next refresh may replace it.
-func (im *importer) reread(id int64, it *ImportItem) error {
+func (im *importer) rereadLocal(id int64, it *ImportItem) error {
 	var locked, was, language sql.NullString
 	var root sql.NullInt64
 	var match MatchState

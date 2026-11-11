@@ -193,12 +193,12 @@ func (r *run) rereadUnits(f *folder) []unit {
 		show := showFolder(path.Join(f.rel, "x"))
 		if images := r.pictures(f.files, "", 0, true, true); len(images) > 0 && show != "" {
 			key := db.FolderKey(r.path.ID, show)
-			items = append(items, db.ImportItem{Kind: db.KindSeason, Parent: &key, ChildKey: seasonKey(number), Reread: true, Images: images})
+			items = append(items, db.ImportItem{Kind: db.KindSeason, Parent: &key, ChildKey: seasonKey(number), RereadLocal: true, Images: images})
 		}
 		return []unit{{items: items}}
 	}
 	local := r.showPictures(f.rel, f.files, true)
-	show := db.ImportItem{Kind: db.KindShow, Keys: []db.ItemKey{db.FolderKey(r.path.ID, f.rel)}, Reread: true, Images: local.show}
+	show := db.ImportItem{Kind: db.KindShow, Keys: []db.ItemKey{db.FolderKey(r.path.ID, f.rel)}, RereadLocal: true, Images: local.show}
 	describe(&show, r.nfo("show", path.Join(f.rel, "tvshow.nfo")), "show")
 	// Only the folder key finds it: the show is the one that owns this folder, whatever ids
 	// the file now carries.
@@ -206,7 +206,7 @@ func (r *run) rereadUnits(f *folder) []unit {
 	items = append(items, show)
 	for season, images := range local.seasons {
 		key := db.FolderKey(r.path.ID, f.rel)
-		items = append(items, db.ImportItem{Kind: db.KindSeason, Parent: &key, ChildKey: seasonKey(season), Reread: true, Images: images})
+		items = append(items, db.ImportItem{Kind: db.KindSeason, Parent: &key, ChildKey: seasonKey(season), RereadLocal: true, Images: images})
 	}
 	return []unit{{items: items}}
 }
