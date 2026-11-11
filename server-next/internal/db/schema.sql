@@ -251,11 +251,10 @@ CREATE INDEX items_by_year ON items (library_id, kind, year, id, rating_age);
 -- by_release also ends with year. A list of one decade in release order starts at the oldest
 -- release and passes every earlier title; with the year here it passes them in the index.
 CREATE INDEX items_by_release ON items (library_id, kind, release_date, id, rating_age, year);
--- The sorts by length and by the two ratings. Without an index every page of such a list
+-- The sorts by length and by community rating. Without an index every page of such a list
 -- reads and sorts the whole library.
 CREATE INDEX items_by_duration ON items (library_id, kind, duration_ms, id, rating_age);
 CREATE INDEX items_by_community_rating ON items (library_id, kind, community_rating, id, rating_age);
-CREATE INDEX items_by_critic_rating ON items (library_id, kind, critic_rating, id, rating_age);
 -- For a profile with a rating limit: how many titles of a kind it may see, and which, when few.
 CREATE INDEX items_by_rating ON items (library_id, kind, rating_age);
 -- The few items a label covers, so "what does this label hide in this library" reads only them.
