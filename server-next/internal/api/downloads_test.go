@@ -2,9 +2,9 @@ package api
 
 import (
 	"context"
-	"fmt"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
