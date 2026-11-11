@@ -533,11 +533,38 @@ const (
 // made after it. While a profile has history paused nothing of its own is saved, but a
 // finished play is still recorded for the owner, hidden from the profile.
 func (d *DB) SaveProgress(ctx context.Context, p Priority, batch []Progress) ([]bool, error) {
-	finished := make([]bool, len(batch))
-	if len(batch) == 0 {
-		return finished, nil
+	finished, _, err := d.saveProgressBatch(ctx, p, batch)
+	return finished, err
+}
+
+// playsWritten is how many plays one write of SavePlays saves: a few hundred titles, as a
+// batch of state edits is written, so a device's offline plays never hold up other people.
+const playsWritten = 300
+
+// SavePlays saves plays a device made while out of reach, as SaveProgress saves them, a few
+// hundred to a write. It reports for each whether it reached the end and was counted, and
+// whether its title is gone (or no longer this profile's to see), in which case it changed
+// nothing. If a write fails, the plays before it stand and the error is returned.
+func (d *DB) SavePlays(ctx context.Context, p Priority, batch []Progress) (finished, gone []bool, err error) {
+	finished, gone = make([]bool, len(batch)), make([]bool, len(batch))
+	for start := 0; start < len(batch); start += playsWritten {
+		end := min(start+playsWritten, len(batch))
+		f, g, err := d.saveProgressBatch(ctx, p, batch[start:end])
+		copy(finished[start:], f)
+		copy(gone[start:], g)
+		if err != nil {
+			return finished, gone, err
+		}
 	}
-	err := d.write(ctx, p, func(tx *sql.Tx) error {
+	return finished, gone, nil
+}
+
+func (d *DB) saveProgressBatch(ctx context.Context, p Priority, batch []Progress) (finished, gone []bool, err error) {
+	finished, gone = make([]bool, len(batch)), make([]bool, len(batch))
+	if len(batch) == 0 {
+		return finished, gone, nil
+	}
+	err = d.write(ctx, p, func(tx *sql.Tx) error {
 		writers := map[Viewer]*stateWriter{}
 		defer func() {
 			for _, w := range writers {
@@ -559,6 +586,10 @@ func (d *DB) SaveProgress(ctx context.Context, p Priority, batch []Progress) ([]
 				}
 			}
 			done, err := w.saveProgress(sample, prefs[sample.Viewer.ProfileID])
+			if errors.Is(err, ErrNotFound) {
+				gone[n] = true
+				continue
+			}
 			if err != nil {
 				return err
 			}
@@ -566,7 +597,7 @@ func (d *DB) SaveProgress(ctx context.Context, p Priority, batch []Progress) ([]
 		}
 		return nil
 	})
-	return finished, err
+	return finished, gone, err
 }
 
 func profilePreferences(tx *sql.Tx, profileID int64) (map[string]string, error) {
@@ -617,7 +648,7 @@ func (w *stateWriter) saveProgress(sample Progress, prefs map[string]string) (fi
 		WHERE i.public_id = @item AND `+w.access.visible("i"), w.named(sql.Named("item", sample.ItemID))...).
 		Scan(&id, &kind, &duration, &title, &holder, &resumeAt, &completion, &credits)
 	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil // removed, or no longer this profile's to see
+		return false, ErrNotFound // removed, or no longer this profile's to see
 	}
 	if err != nil {
 		return false, err
@@ -640,6 +671,11 @@ func (w *stateWriter) saveProgress(sample Progress, prefs map[string]string) (fi
 		done = atCredits || done && completion != VideoCompletionCredits
 	}
 	if done {
+		// A play never claims more time than the title lasts, whatever a device reports: the
+		// owner's record and every total built from it stay honest.
+		if duration > 0 {
+			sample.WatchedMS = min(max(sample.WatchedMS, 0), duration)
+		}
 		// The profile's and the account's names are copied: the play stays in the owner's
 		// record after either is deleted.
 		res, err := w.exec(`INSERT INTO play_history (profile_id, profile_name, account_name, item_id, device_id, client_event_id, played_at,
