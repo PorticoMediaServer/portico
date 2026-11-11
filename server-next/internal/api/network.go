@@ -34,12 +34,15 @@ type NetworkSettings struct {
 	TrustedProxies []string `json:"trustedProxies"`
 	// Warnings are what the owner should know about these settings, each a code and a plain
 	// sentence, for as long as it holds. It is empty when nothing is wrong, and is not part of
-	// what is saved. Two codes so far:
+	// what is saved. Three codes so far:
 	//   - proxy_everywhere: the trusted proxies cover most of the internet, so anyone can say
 	//     they are at home. The owner's choice: it is saved, and said.
 	//   - proxy_without_header: requests came from a trusted proxy's address with no
 	//     X-Forwarded-For in the last day, so they count as away. One for each such address,
 	//     naming it.
+	//   - proxy_not_listed: requests carrying X-Forwarded-For came in the last day from an
+	//     address on this machine or a private network that is not a trusted proxy, so
+	//     everyone through it is one visitor. One for each such address, naming it.
 	Warnings []Warning `json:"warnings"`
 
 	revision
@@ -77,15 +80,17 @@ type storedNetworks struct {
 
 // networkState is the settings as requests use them, kept in memory.
 type networkState struct {
-	mu          sync.Mutex
-	stored      storedNetworks
-	home        []netip.Prefix // the owner's choice, when there is one
-	proxies     []netip.Prefix
-	defaults    []netip.Prefix
-	defaultsAt  time.Time
-	warnedProxy bool
+	mu         sync.Mutex
+	stored     storedNetworks
+	home       []netip.Prefix // the owner's choice, when there is one
+	proxies    []netip.Prefix
+	defaults   []netip.Prefix
+	defaultsAt time.Time
 	// silent is when each trusted proxy last sent a request with no visitor's address.
 	silent map[string]time.Time
+	// unlisted is when each address on this machine or a private network that is not a
+	// trusted proxy last sent a request carrying X-Forwarded-For.
+	unlisted map[string]time.Time
 }
 
 const (
@@ -110,7 +115,7 @@ func (n *networkState) set(stored storedNetworks) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	// A saved change starts the warnings afresh: the proxy named may no longer be listed.
-	n.stored, n.home, n.proxies, n.silent = stored, home, proxies, nil
+	n.stored, n.home, n.proxies, n.silent, n.unlisted = stored, home, proxies, nil, nil
 	return nil
 }
 
@@ -134,7 +139,57 @@ func (s *Server) fromHome(r *http.Request) bool {
 	if networks.ProxyGaveNoAddress(r) {
 		s.noteSilentProxy(peerAddr(r))
 	}
+	if networks.UnlistedLocalProxy(r) {
+		s.noteUnlistedProxy(peerAddr(r))
+	}
 	return networks.FromHome(r)
+}
+
+// unlistedProxyNotice is the one sentence the owner's network settings and the log both use.
+func unlistedProxyNotice(proxy string) string {
+	return "Requests are arriving through a proxy at " + proxy + " that is not listed as trusted, so everyone who comes through it is treated as one visitor: " +
+		"they all count as away from home, and wrong passwords from any one of them can block sign-in for all of them. " +
+		"If it is your proxy, add " + proxy + " to Trusted proxies."
+}
+
+// noteUnlistedProxy remembers, for the owner's warnings, an address that is behaving as a
+// proxy nobody listed. Like noteSilentProxy it keeps at most sixteen and logs each once.
+func (s *Server) noteUnlistedProxy(proxy string) {
+	now := s.now()
+	s.network.mu.Lock()
+	_, known := s.network.unlisted[proxy]
+	if s.network.unlisted == nil {
+		s.network.unlisted = map[string]time.Time{}
+	}
+	added := known || len(s.network.unlisted) < maxSilentProxies
+	if added {
+		s.network.unlisted[proxy] = now
+	}
+	s.network.mu.Unlock()
+	if !known && added {
+		s.log.Warn(unlistedProxyNotice(proxy), "proxy", proxy)
+	}
+}
+
+// blockedNetworkMessage is what a person is told when their network is blocked for wrong
+// guesses, in place of the plain "wait" of their own wrong tries: the wait may be long, it
+// may not be their doing, and there is someone who can end it.
+const blockedNetworkMessage = "Too many wrong sign-in attempts have come from your network, so sign-in from it is blocked for a while. " +
+	"Wait and try again, or ask the person who runs this server to unblock it."
+
+// tellBlocked gives a "too many attempts" refusal the sentence above when what refuses the
+// request is the block on its whole network and not the person's own short wait.
+func (s *Server) tellBlocked(r *http.Request, e *Error) {
+	if e.Status != http.StatusTooManyRequests || (e.Code != "rate_limited" && e.Code != "profile_pin_locked") {
+		return
+	}
+	limits := s.sourceLimit(r)
+	if e.Code == "profile_pin_locked" {
+		limits = s.pinSourceLimit(r)
+	}
+	if wait, err := s.db.LimitWait(r.Context(), s.now(), limits...); err == nil && wait > 0 {
+		e.Message = blockedNetworkMessage
+	}
 }
 
 // silentProxyNotice is the one sentence the owner's network settings and the log both use.
@@ -185,10 +240,22 @@ func (s *Server) networkWarnings(networks auth.Networks) []Warning {
 		}
 		silent = append(silent, proxy)
 	}
+	var unlisted []string
+	for proxy, at := range s.network.unlisted {
+		if now.Sub(at) > silentProxyFor {
+			delete(s.network.unlisted, proxy)
+			continue
+		}
+		unlisted = append(unlisted, proxy)
+	}
 	s.network.mu.Unlock()
 	slices.Sort(silent)
 	for _, proxy := range silent {
 		out = append(out, Warning{Code: "proxy_without_header", Message: silentProxyNotice(proxy)})
+	}
+	slices.Sort(unlisted)
+	for _, proxy := range unlisted {
+		out = append(out, Warning{Code: "proxy_not_listed", Message: unlistedProxyNotice(proxy)})
 	}
 	return out
 }
@@ -208,28 +275,6 @@ func (s *Server) loadNetworks(ctx context.Context) error {
 		return errors.New("the stored network settings are damaged")
 	}
 	return s.network.set(stored)
-}
-
-// noteForwarded says once in the log that requests are arriving with a forwarded address
-// from a proxy the owner has not listed. Until they list it, nobody behind that proxy
-// counts as at home, and everyone behind it counts as the proxy's own address, so one
-// person's wrong guesses count against all of them.
-func (s *Server) noteForwarded(r *http.Request) {
-	if r.Header.Get("X-Forwarded-For") == "" {
-		return
-	}
-	networks := s.networks()
-	if addr, ok := networks.Client(r); !ok || addr.String() != peerAddr(r) {
-		return
-	}
-	s.network.mu.Lock()
-	warned := s.network.warnedProxy
-	s.network.warnedProxy = true
-	s.network.mu.Unlock()
-	if !warned {
-		s.log.Warn("a request came through a proxy that is not in the trusted proxies, so its X-Forwarded-For was ignored "+
-			"and it does not count as coming from home: add the proxy's address in the network settings if it is yours", "proxy", peerAddr(r))
-	}
 }
 
 func peerAddr(r *http.Request) string {

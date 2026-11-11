@@ -229,6 +229,99 @@ func TestSilentProxiesAreLoggedOnceAndOnlyWhileNoted(t *testing.T) {
 	}
 }
 
+// Behind a reverse proxy on the server's own machine that the owner has not listed, every
+// visitor is one address, so a stranger's wrong passwords block sign-in for everyone. The
+// block says who to ask; the owner, already signed in, can still enter their profile, is
+// told what is wrong and how to fix it, and fixes it; and a PIN is still not guessable.
+func TestUnlistedProxyOnThisMachine(t *testing.T) {
+	s := newTestServer(t)
+	const proxy, ownerAt, stranger = "127.0.0.1", "198.51.100.20", "203.0.113.66"
+	in := setup(t, s)
+	owner := onMain(t, s, in)
+	main := "/v1/profiles/" + in.Profiles[0].ID
+	if w := call(t, s, "PUT", main+"/pin", owner.AccessToken, ProfilePIN{PIN: "2468"}, nil); w.Code != 200 {
+		t.Fatalf("setting a PIN answered %d", w.Code)
+	}
+	through := func(forwarded, method, path, token string, body, out any) (int, Error) {
+		t.Helper()
+		r := newRequest(method, path, token, body)
+		r.RemoteAddr = proxy + ":4000"
+		r.Header.Set("X-Forwarded-For", forwarded)
+		w := serve(s, r)
+		var refused errorBody
+		if w.Code >= 400 {
+			jsonInto(w, &refused)
+		} else if out != nil {
+			if err := jsonInto(w, out); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return w.Code, refused.Error
+	}
+
+	wrong := SignInRequest{Username: "justin", Password: "not the password"}
+	for n := range 30 {
+		wrong.Device = device(600 + n)
+		clock := time.Now().Add(time.Duration(n) * 2 * time.Minute)
+		s.now = func() time.Time { return clock }
+		through(stranger, "POST", "/v1/auth/sign-in", "", wrong, nil)
+	}
+	later := time.Now().Add(62 * time.Minute)
+	s.now = func() time.Time { return later }
+
+	// Everyone through the proxy is blocked from signing in, and told who to ask.
+	fresh := SignInRequest{Username: "justin", Password: testPassword, Device: device(700)}
+	if code, refused := through(ownerAt, "POST", "/v1/auth/sign-in", "", fresh, nil); code != 429 || refused.Message != blockedNetworkMessage {
+		t.Fatalf("a sign-in through the blocked proxy answered %d %q", code, refused.Message)
+	}
+
+	// The owner's existing sign-in renews, enters the main profile with its PIN, reads the
+	// warning and lists the proxy.
+	var renewed, entered Session
+	renewal := RefreshRequest{RefreshToken: owner.RefreshToken, InstallationID: device(0).InstallationID, RequestID: "after-the-block"}
+	if code, _ := through(ownerAt, "POST", "/v1/auth/refresh", "", renewal, &renewed); code != 200 {
+		t.Fatalf("the owner's renewal through the blocked proxy answered %d", code)
+	}
+	if code, refused := through(ownerAt, "POST", main+"/select", renewed.AccessToken, ProfileSelect{PIN: "2468"}, &entered); code != 200 {
+		t.Fatalf("the signed-in owner entering their profile through the blocked proxy answered %d %q", code, refused.Message)
+	}
+	var settings NetworkSettings
+	if code, _ := through(ownerAt, "GET", "/v1/admin/settings/network", entered.AccessToken, nil, &settings); code != 200 {
+		t.Fatalf("the owner reading the network settings answered %d", code)
+	}
+	var warned bool
+	for _, w := range settings.Warnings {
+		warned = warned || (w.Code == "proxy_not_listed" && strings.Contains(w.Message, proxy) && strings.Contains(w.Message, "Trusted proxies"))
+	}
+	if !warned {
+		t.Errorf("the owner's network settings do not say the proxy is not listed: %+v", settings.Warnings)
+	}
+
+	// The PIN is no way in for a guesser: a wrong one still makes this device wait, with the
+	// PIN's own message, and the header is still not believed.
+	if code, refused := through(ownerAt, "POST", main+"/select", entered.AccessToken, ProfileSelect{PIN: "0000"}, nil); code != 403 || refused.Code != "profile_pin_invalid" {
+		t.Errorf("a wrong PIN through the proxy answered %d %s", code, refused.Code)
+	}
+	if code, refused := through(ownerAt, "POST", main+"/select", entered.AccessToken, ProfileSelect{PIN: "2468"}, nil); code != 429 || refused.Code != "profile_pin_locked" || refused.Message == blockedNetworkMessage {
+		t.Errorf("the right PIN straight after a wrong one answered %d %s %q, want the PIN's own wait", code, refused.Code, refused.Message)
+	}
+
+	edit := NetworkSettingsEdit{TrustedProxies: []string{proxy}}
+	if code, refused := through(ownerAt, "PUT", "/v1/admin/settings/network", entered.AccessToken, edit, &settings); code != 200 {
+		t.Fatalf("the owner listing the proxy answered %d %q", code, refused.Message)
+	}
+	for _, w := range settings.Warnings {
+		if w.Code == "proxy_not_listed" {
+			t.Errorf("the warning is still there after the proxy was listed: %q", w.Message)
+		}
+	}
+	// With the proxy listed each visitor is their own address again: the owner signs in, and
+	// the stranger who guessed starts from their own count.
+	if code, refused := through(ownerAt, "POST", "/v1/auth/sign-in", "", fresh, nil); code != 200 {
+		t.Errorf("a sign-in once the proxy is listed answered %d %q", code, refused.Message)
+	}
+}
+
 // A profile's PIN cannot be guessed faster by making new devices. Each device has its own
 // count, and the profile has one across all of them: after ten wrong PINs, wherever they
 // were typed, every device waits a minute, the right PIN included. The wait is short, it

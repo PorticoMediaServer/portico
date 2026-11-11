@@ -421,6 +421,7 @@ func (s *Server) writeError(w http.ResponseWriter, r *http.Request, err error) {
 		e = refusal(http.StatusInternalServerError, "internal", "The request could not be completed.", false)
 	}
 	out := *e
+	s.tellBlocked(r, &out)
 	out.RequestID = RequestID(r.Context())
 	if out.RetryAfterMs > 0 {
 		w.Header().Set("Retry-After", strconv.FormatInt((out.RetryAfterMs+999)/1000, 10))

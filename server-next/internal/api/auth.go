@@ -347,7 +347,6 @@ func errSetupDone() *Error {
 
 func (s *Server) signIn(r *http.Request, req SignInRequest) (SignInResponse, error) {
 	ctx, now := r.Context(), s.now()
-	s.noteForwarded(r)
 	session, refresh, err := s.newSession(r, req.Device, now)
 	if err != nil {
 		return SignInResponse{}, err

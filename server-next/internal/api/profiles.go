@@ -295,6 +295,22 @@ func (s *Server) deleteProfile(r *http.Request, _ None) (None, error) {
 	return None{}, err
 }
 
+// pinSourceLimit is the network's count of wrong guesses as a PIN takes it. Behind a proxy
+// on this machine or a private network that the owner has not listed, every visitor is one
+// address, so one stranger's wrong passwords block that address for everybody; and the
+// owner, already signed in, must still be able to enter their profile to list the proxy.
+// So there a PIN does not take the network's count. Nothing is opened by that: a PIN is
+// only ever tried by a sign-in that already proved the account's password, and it is still
+// held by the profile's own counts on this device and across all devices, which do not
+// depend on the address. Passwords, codes and keys from that address stay blocked.
+func (s *Server) pinSourceLimit(r *http.Request) []db.Limit {
+	if s.networks().UnlistedLocalProxy(r) {
+		s.noteUnlistedProxy(peerAddr(r))
+		return nil
+	}
+	return s.sourceLimit(r)
+}
+
 func errBadPIN() *Error {
 	return refusal(http.StatusForbidden, "profile_pin_invalid", "That PIN is not correct.", false)
 }
@@ -333,7 +349,7 @@ func (s *Server) selectProfile(r *http.Request, req ProfileSelect) (Session, err
 		sel.Limits = append([]db.Limit{
 			{Bucket: "pin", Key: profile + "|" + session.DevicePublicID, Delay: auth.StandardPINs.Delay, Lasting: true},
 			{Bucket: db.ProfilePINBucket, Key: profile, Delay: auth.StandardProfilePINs.Delay, Lasting: true},
-		}, s.sourceLimit(r)...)
+		}, s.pinSourceLimit(r)...)
 		if wait, err := s.db.LimitWait(ctx, now, sel.Limits...); err != nil {
 			return Session{}, err
 		} else if wait > 0 {

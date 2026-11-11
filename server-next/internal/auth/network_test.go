@@ -127,3 +127,34 @@ func TestListedProxyThatGivesNoAddressIsNeverHome(t *testing.T) {
 		}
 	}
 }
+
+// An address on this machine or a private network that sends X-Forwarded-For and is not a
+// trusted proxy is the owner's own proxy, not yet listed. Its header is still not believed.
+func TestUnlistedLocalProxy(t *testing.T) {
+	n := Networks{Home: []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8")}, Proxies: []netip.Prefix{netip.MustParsePrefix("10.0.0.2/32")}}
+	for name, c := range map[string]struct {
+		peer, forwarded string
+		want            bool
+	}{
+		"this machine, with the header":      {"127.0.0.1", "203.0.113.9", true},
+		"a private address, with the header": {"172.18.0.3", "203.0.113.9", true},
+		"this machine, straight":             {"127.0.0.1", "", false},
+		"a stranger sending the header":      {"203.0.113.5", "192.168.1.20", false},
+		"the listed proxy":                   {"10.0.0.2", "203.0.113.9", false},
+	} {
+		r := httptest.NewRequest("GET", "/", nil)
+		r.RemoteAddr = c.peer + ":4000"
+		if c.forwarded != "" {
+			r.Header.Set("X-Forwarded-For", c.forwarded)
+		}
+		if got := n.UnlistedLocalProxy(r); got != c.want {
+			t.Errorf("%s: %v, want %v", name, got, c.want)
+		}
+		if addr, _ := n.Client(r); c.want && addr.String() != c.peer {
+			t.Errorf("%s: the header was believed: the visitor is taken to be %v", name, addr)
+		}
+		if c.want && n.FromHome(r) {
+			t.Errorf("%s: counts as coming from home", name)
+		}
+	}
+}

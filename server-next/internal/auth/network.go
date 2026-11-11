@@ -83,6 +83,22 @@ func (n Networks) ThroughUnlistedProxy(r *http.Request) bool {
 	return err != nil || !within(n.Proxies, ap.Addr().Unmap().WithZone(""))
 }
 
+// UnlistedLocalProxy reports whether a request carries X-Forwarded-For from an address on
+// this machine or a private network that is not one of the owner's trusted proxies: almost
+// always the owner's own reverse proxy, not yet listed. The header is still not believed.
+// Until the proxy is listed, everyone who comes through it is one address to this server.
+func (n Networks) UnlistedLocalProxy(r *http.Request) bool {
+	if !n.ThroughUnlistedProxy(r) {
+		return false
+	}
+	ap, err := netip.ParseAddrPort(r.RemoteAddr)
+	if err != nil {
+		return false
+	}
+	peer := ap.Addr().Unmap().WithZone("")
+	return peer.IsLoopback() || peer.IsPrivate() || peer.IsLinkLocalUnicast()
+}
+
 // ProxyGaveNoAddress reports whether a request came from one of the owner's trusted proxies
 // without a visitor's address the server can use: no X-Forwarded-For, one that cannot be
 // read, or one naming only trusted proxies. All that is known then is the proxy's own
