@@ -501,6 +501,11 @@ func reachRefusal(err error) error {
 	switch {
 	case err == nil:
 		return nil
+	case errors.Is(err, remote.ErrAddressRefused):
+		return refusal(http.StatusUnprocessableEntity, "source_address_refused", "That address is link-local, where a cloud machine keeps its own sign-in: Portico never reads from one.", false)
+	case errors.Is(err, remote.ErrRedirectInward):
+		return refusal(http.StatusUnprocessableEntity, "source_address_refused",
+			"The source sent Portico from the internet to an address on this computer or its network, which Portico does not follow.", false)
 	case errors.Is(err, remote.ErrSignIn):
 		return refusal(http.StatusUnprocessableEntity, "source_sign_in", "The source refused that user name and password.", false)
 	case errors.Is(err, context.DeadlineExceeded):
