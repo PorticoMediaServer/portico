@@ -112,6 +112,11 @@ type Kind struct {
 	// is stored: db.ErrNotFound for a target that is not there (or not the asker's to see),
 	// db.ErrInvalid for the rest.
 	Check func(ctx context.Context, req Request) error
+	// Distinct makes every request a job of its own: asking again never joins one that is
+	// waiting or running, and the jobs run in the order asked. For work whose result depends
+	// on the order, such as setting state, where "mark all watched" then "mark all unwatched"
+	// must both happen. An Idempotency-Key still answers a request sent twice with one job.
+	Distinct bool
 	// Run does the work. It returns when ctx ends (the job was cancelled, or the server is
 	// stopping and will run it again at the next start) and must be safe to run again.
 	Run func(ctx context.Context, work Work) error
@@ -169,7 +174,7 @@ func (r *Runner) Kind(name string) (Kind, bool) {
 }
 
 // Start asks for a job. While the same work (kind and target, and for an AnyProfile kind the
-// same profile) is waiting or running, asking again joins it.
+// same profile) is waiting or running, asking again joins it, unless the kind is Distinct.
 func (r *Runner) Start(ctx context.Context, kind string, req Request) (db.Job, error) {
 	k, ok := r.Kind(kind)
 	if !ok {
@@ -183,6 +188,9 @@ func (r *Runner) Start(ctx context.Context, kind string, req Request) (db.Job, e
 		target = fmt.Sprintf("%s@%d", target, req.ProfileID)
 	} else {
 		req.ProfileID = 0
+	}
+	if k.Distinct {
+		target += "#" + db.NewID("req")
 	}
 	if k.Check != nil {
 		if err := k.Check(ctx, req); err != nil {
