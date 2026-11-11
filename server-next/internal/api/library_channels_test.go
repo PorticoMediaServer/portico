@@ -223,3 +223,37 @@ func TestThePreviewIsTheScheduleSavingMakes(t *testing.T) {
 		}
 	}
 }
+
+// A Library Channel's single conditions are the list filters' own: the same field, mode and
+// values match the same titles in the list and on the channel, groups and Exclude work on
+// top of them, and a field that reads the viewer's own state is refused.
+func TestAChannelSpeaksTheListFiltersConditions(t *testing.T) {
+	s, owner, _ := seededWith(t, 600, 0)
+	films := libraryOfKind(t, s, owner, "movies")
+	decade := db.ChannelCondition{Field: "decade", Values: []string{"1990"}}
+	var list ItemPage
+	if w := call(t, s, "POST", "/v1/items/query", owner, ItemQueryRequest{Library: films, Kind: []string{"movie"},
+		Filter: []Condition{{Field: "decade", Values: []string{"1990"}}}, Total: true}, &list); w.Code != 200 || list.Total == nil || *list.Total == 0 {
+		t.Fatalf("the list filtered by decade answered %d: %s", w.Code, w.Body)
+	}
+	b := librarychannels.Builder{Selection: librarychannels.Selection{Libraries: []string{films}, Kinds: []string{"movie"},
+		Conditions: []db.ChannelCondition{decade}}}
+	var preview ChannelPreview
+	if w := call(t, s, "POST", "/v1/admin/library-channels/preview", owner, ChannelPreviewAsk{TimeZone: "UTC", Builder: b}, &preview); w.Code != 200 ||
+		preview.Titles != *list.Total {
+		t.Fatalf("the channel matches %d titles of the decade, the list %d (%d)", preview.Titles, *list.Total, w.Code)
+	}
+	// Exclude on top: the same condition turned around matches every other film.
+	b.Conditions = []db.ChannelCondition{{Field: "decade", Values: []string{"1990"}, Exclude: true}}
+	var others ChannelPreview
+	call(t, s, "POST", "/v1/admin/library-channels/preview", owner, ChannelPreviewAsk{TimeZone: "UTC", Builder: b}, &others)
+	var all ItemPage
+	call(t, s, "POST", "/v1/items/query", owner, ItemQueryRequest{Library: films, Kind: []string{"movie"}, Total: true}, &all)
+	if others.Titles+preview.Titles != *all.Total {
+		t.Fatalf("excluded %d plus included %d is not the %d films", others.Titles, preview.Titles, *all.Total)
+	}
+	b.Conditions = []db.ChannelCondition{{Field: "playCount", Values: []string{"1.."}}}
+	if code := status(t, s, "POST", "/v1/admin/library-channels/preview", owner, ChannelPreviewAsk{TimeZone: "UTC", Builder: b}); code != 400 {
+		t.Fatalf("a channel chosen by play count answered %d", code)
+	}
+}
