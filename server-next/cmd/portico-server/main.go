@@ -72,40 +72,13 @@ func env(name, fallback string) string {
 	return fallback
 }
 
-// packaged reads a setting that the release packages name one way and this server named
-// another. The packaged name wins where both are set and differ, and the log says so: a
-// server that started on an empty data folder in the wrong place would look like a lost one.
-func packaged(log *slog.Logger, packagedName, name, fallback string) string {
-	v, other := os.Getenv(packagedName), os.Getenv(name)
-	if v == "" {
-		return env(name, fallback)
-	}
-	if other != "" && other != v {
-		log.Warn("two settings name the same thing and differ; the first is used", "used", packagedName, "value", v, "ignored", name, "ignoredValue", other)
-	}
-	return v
-}
-
 func run(log *slog.Logger) (err error) {
 	data := flag.String("data", packaged(log, "PORTICO_DATA_DIR", "PORTICO_DATA", ""), "folder for the database and everything else the server keeps (PORTICO_DATA_DIR, or PORTICO_DATA)")
 	listen := flag.String("listen", packaged(log, "PORTICO_BIND", "PORTICO_LISTEN", ":32500"), "address to serve the API on (PORTICO_BIND, or PORTICO_LISTEN)")
 	web := flag.String("web", env("PORTICO_WEB_DIR", ""), "folder of the built web app to serve; without it, a folder named web beside this binary (PORTICO_WEB_DIR)")
-	showVersion := flag.Bool("version", false, "print the version and stop")
-	check := flag.Bool("health-check", false, "ask the server running at the listening address whether it is ready, and stop: exit status 0 when it is")
 	flag.Parse()
-	if *showVersion {
-		fmt.Println(version)
-		return nil
-	}
-	if *check {
-		return healthCheck(*listen)
-	}
-	if *data == "" {
-		folder, err := defaultData()
-		if err != nil {
-			return err
-		}
-		*data = folder
+	if done, err := packagedStart(*listen, data); done || err != nil {
+		return err
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
