@@ -8,7 +8,8 @@ import {parseReportContext, type ReportContext} from '@core/report-context.ts';
 import type {DashboardSessionsPage} from '@core/admin/activity-summary/types.ts';
 import type {AdminSession} from '@core/playback-v1/types.ts';
 import {readServerNowPlaying, stopServerStream, type ServerNowPlayingTotals} from '@core/admin/server-now-playing.ts';
-import {fetchPlayHistory, playHistoryFirstPageQuery, type PlayHistoryApi, type PlayHistoryFilters, type PlayHistoryPage} from '@core/play-history.ts';
+import type {PlayHistoryApi, PlayHistoryFilters} from '@core/play-history.ts';
+import {readServerAccounts, readServerPlayHistory, serverPlayHistoryQuery, type ServerAccount, type ServerPlayPage} from '@core/admin/server-play-history.ts';
 import {parseTelemetryReading, type TelemetryReading} from '@core/telemetry.ts';
 import {dependsOn} from '@core/freshness-hub.ts';
 import {readDocument} from '@core/query/admin-documents.ts';
@@ -43,7 +44,10 @@ export type DashboardBindings = Readonly<{
     telemetry: (range: 'live' | '10m' | '1h' | '24h', signal?: AbortSignal) => Promise<TelemetryReading>;
     report: (filters: DashboardReportQuery, signal?: AbortSignal, fresh?: boolean) => Promise<DashboardReport>;
     people: (filters: DashboardFilters, cursor?: string, signal?: AbortSignal) => Promise<DashboardPeople>;
-    plays: (filters: DashboardFilters, cursor?: string, signal?: AbortSignal, fresh?: boolean) => Promise<PlayHistoryPage>;
+    /** Play history, for the owner and administrators: newest first, no sort and no count. */
+    plays: (filters: DashboardFilters, cursor?: string, signal?: AbortSignal, fresh?: boolean) => Promise<ServerPlayPage>;
+    /** Every account, for Play history's person filter. */
+    accounts: (signal?: AbortSignal) => Promise<readonly ServerAccount[]>;
     /** Owner-only server health and facts for the page header. */
     server: (signal?: AbortSignal) => Promise<DashboardServerHeader>;
   }>;
@@ -97,7 +101,7 @@ export function createDashboardBindings(options: DashboardBindingOptions): Dashb
     return options.events?.resyncReads && signal && (!method || method === 'GET') ? options.events.resyncReads.run(signal, request) : request();
   }};
   const cachedData = cacheApi && new DashboardDataClient(cacheApi);
-  const cached = <T>(read: () => Promise<T>) => ownerRead(async () => {
+  const cached = <T>(read: () => Promise<T>, owner = true) => (owner ? ownerRead : adminRead)(async () => {
     try {return await read();}
     catch (error) {if (error && typeof error === 'object') refused((error as {status?: unknown}).status, (error as {code?: unknown}).code); throw error;}
   });
@@ -108,6 +112,8 @@ export function createDashboardBindings(options: DashboardBindingOptions): Dashb
     return ownerCertificateRequest<T>(options.api, action, body, signal ? AbortSignal.any([signal, life.signal]) : life.signal).then(value => {assert(); return value;});
   }};
   const ownerRead = async <T>(work: () => Promise<T>) => {assert(true); const value = await work(); assert(true); return value;};
+  const adminRead = async <T>(work: () => Promise<T>) => {assert(); const value = await work(); assert(); return value;};
+  const playFilters = ({period, accountId, libraryId, media, search}: DashboardFilters) => ({period: period === '12h' ? '24h' as const : period, accountId, libraryId, media, search});
   return {
     scope: {...options.scope}, role: options.role, context, isCurrent: current, isMainProfile: options.isMainProfile, events: options.events, subscribeAuthority: listener => {listeners.add(listener); return () => {listeners.delete(listener);};}, artwork: options.artwork,
     read: {
@@ -120,7 +126,8 @@ export function createDashboardBindings(options: DashboardBindingOptions): Dashb
       telemetry: (range, signal) => ownerRead(async () => {if (signal?.aborted) throw signal.reason; const value = await consoleClient.telemetry(range, context); if (signal?.aborted) throw signal.reason; return value;}),
       report: (filters, signal, fresh = true) => ownerRead(async () => {const wanted = {...filters, ...context}; const value = await (queries && cachedData ? cached(() => readDocument(queries, dashboardReportQuery(cachedData, wanted), {fresh, signal: waiting(signal)})) : data.report(wanted, signal)); return {...value, load: parseTelemetryReading(value.load)};}),
       people: (filters, cursor, signal) => ownerRead(() => data.people({...filters, ...context}, cursor, 100, signal)),
-      plays: (filters, cursor, signal, fresh = true) => queries && cacheApi && !cursor ? cached(() => readDocument(queries, playHistoryFirstPageQuery(cacheApi, {...filters, ...context}), {fresh, signal: waiting(signal)})) : ownerRead(() => fetchPlayHistory(api, {...filters, ...context}, cursor, signal)),
+      plays: (filters, cursor, signal, fresh = true) => queries && cacheApi && !cursor ? cached(() => readDocument(queries, serverPlayHistoryQuery(cacheApi, playFilters(filters)), {fresh, signal: waiting(signal)}), false) : adminRead(() => readServerPlayHistory(api, playFilters(filters), cursor, signal)),
+      accounts: signal => adminRead(() => readServerAccounts(api, signal)),
       server: signal => ownerRead(async () => {
         const [health, storage] = await Promise.allSettled([consoleClient.measurement('health'), consoleClient.measurement('storage')]);
         if (signal?.aborted) throw signal.reason;

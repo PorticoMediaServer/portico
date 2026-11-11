@@ -130,6 +130,7 @@ export const dashboardMessages = {
   'next.dashboard.audio': 'Audio',
   'next.dashboard.subtitles': 'Subtitles',
   'next.dashboard.original': 'Original',
+  'next.dashboard.removed': 'Removed',
   'next.dashboard.copy': 'Repackaged',
   'next.dashboard.convert': 'Converted to {target}',
   'next.dashboard.converted': 'Converted',

@@ -199,7 +199,8 @@ export class SettingsController {
     if (section.id === 'remote-sources') return this.options.capabilities.manageServer && this.options.role === 'owner' && this.options.environment.signIn === 'local';
     // Troubleshooting is shared with administrators when any of its parts is theirs (parts.ts).
     if (section.id === 'troubleshooting') return this.options.capabilities.manageServer && this.options.role !== 'member' && troubleshootingParts(this.options.role).size > 0;
-    return this.options.capabilities.manageServer && (this.options.role === 'owner' || section.id === 'dashboard' || section.id === 'libraries');
+    // An administrator sees the Dashboard (Now playing) and Play history (console rule 1), and libraries.
+    return this.options.capabilities.manageServer && (this.options.role === 'owner' || section.id === 'dashboard' || section.id === 'history' || section.id === 'libraries');
   };
   eligible = (row: SettingsRow, context?: SettingsContext): boolean => {
     const location = settingsRowIndex.get(row.id);
