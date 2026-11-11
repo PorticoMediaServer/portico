@@ -26,7 +26,7 @@ func recordable(t *testing.T) (*Server, string, string) {
 	fake := fakeProvider(t, s.now())
 	t.Cleanup(s.tuners.Close)
 	addSource(t, s, owner, LiveSourceSave{Kind: "playlist", Name: new("Antenna"), TunerCount: new(2),
-		Config: &live.Config{PlaylistURL: fake.URL + "/recordable.m3u", GuideURL: fake.URL + "/guide.xml.gz"}})
+		Config: &live.SourceConfig{PlaylistURL: fake.URL + "/recordable.m3u", GuideURL: fake.URL + "/guide.xml.gz"}})
 	return s, owner, options.Folder
 }
 
@@ -229,7 +229,7 @@ func TestAClashStopsAViewerAfterACountdownWhenTheOwnerChoseTo(t *testing.T) {
 	fake := fakeProvider(t, s.now())
 	t.Cleanup(s.tuners.Close)
 	addSource(t, s, owner, LiveSourceSave{Kind: "playlist", Name: new("One tuner"), TunerCount: new(1),
-		Config: &live.Config{PlaylistURL: fake.URL + "/recordable.m3u", GuideURL: fake.URL + "/guide.xml.gz"}})
+		Config: &live.SourceConfig{PlaylistURL: fake.URL + "/recordable.m3u", GuideURL: fake.URL + "/guide.xml.gz"}})
 	channels := get[Page[Channel]](t, s, owner, "/v1/live/channels").Items
 	var watching PlaybackSession
 	if w := call(t, s, "POST", "/v1/playback/sessions", owner, PlaybackStart{Channel: channels[1].ID}, &watching); w.Code != 201 {

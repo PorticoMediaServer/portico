@@ -49,7 +49,7 @@ func (s *Service) refreshDue(ctx context.Context) {
 	}
 	now := s.now()
 	for _, src := range sources {
-		var cfg Config
+		var cfg SourceConfig
 		json.Unmarshal([]byte(src.Config), &cfg)
 		every := time.Duration(max(cfg.RefreshHours, 0)) * time.Hour
 		if every == 0 {
@@ -119,28 +119,28 @@ func (s *Service) Refresh(ctx context.Context, publicID string) error {
 	return s.db.SourceRefreshed(context.WithoutCancel(ctx), src.ID, StateUpToDate, "", string(raw), tuners, now)
 }
 
-func (s *Service) refresh(ctx context.Context, src db.LiveSource) (Report, int, error) {
-	var cfg Config
+func (s *Service) refresh(ctx context.Context, src db.LiveSource) (SourceReport, int, error) {
+	var cfg SourceConfig
 	if err := json.Unmarshal([]byte(src.Config), &cfg); err != nil {
-		return Report{}, 0, errors.New("the source's settings could not be read")
+		return SourceReport{}, 0, errors.New("the source's settings could not be read")
 	}
 	var signIn SignIn
 	if src.Kind == "xtream" {
 		var err error
 		if signIn, err = s.SignIn(src.PublicID, src.Secret); err != nil {
-			return Report{}, 0, ErrSignIn
+			return SourceReport{}, 0, ErrSignIn
 		}
 	}
 	var upload io.Reader
 	if cfg.Uploaded {
 		f, err := os.Open(s.UploadPath(src.PublicID, "playlist"))
 		if err != nil {
-			return Report{}, 0, errors.New("the uploaded playlist is missing; upload it again")
+			return SourceReport{}, 0, errors.New("the uploaded playlist is missing; upload it again")
 		}
 		defer f.Close()
 		upload = f
 	}
-	var report Report
+	var report SourceReport
 	pulled, err := s.pull(ctx, src.Kind, cfg, signIn, upload, &report)
 	if err != nil {
 		return report, 0, err
@@ -239,14 +239,14 @@ func (s *Service) refresh(ctx context.Context, src db.LiveSource) (Report, int, 
 
 // Preview is what a source would bring in and leave out, and why, without saving anything.
 type Preview struct {
-	Report   Report
-	Channels []Channel // the first 100, without their addresses
+	Report   SourceReport
+	Channels []SentChannel // the first 100, without their addresses
 	Tuners   int
 }
 
 // Preview reads a source as it is being added. playlist and guide are what the owner
 // uploaded, or "".
-func (s *Service) Preview(ctx context.Context, kind string, cfg Config, signIn SignIn, playlist, guide string) (Preview, error) {
+func (s *Service) Preview(ctx context.Context, kind string, cfg SourceConfig, signIn SignIn, playlist, guide string) (Preview, error) {
 	var out Preview
 	var upload io.Reader
 	if playlist != "" {

@@ -18,15 +18,15 @@ type LiveSource struct {
 	Kind string `json:"kind"` // playlist, xtream, hdhomerun or guide
 	Name string `json:"name"`
 	// Audience is everyone or owner: who may watch its channels.
-	Audience   string       `json:"audience"`
-	TunerCount int          `json:"tunerCount"`
-	Paused     bool         `json:"paused"`
-	State      string       `json:"state"` // new, refreshing, up_to_date, trouble, not_working, needs_sign_in, paused
-	LastError  string       `json:"lastError,omitempty"`
-	Report     *live.Report `json:"report,omitempty"`
-	Refreshed  *time.Time   `json:"refreshedAt,omitempty"`
-	Config     live.Config  `json:"config"`
-	HasSignIn  bool         `json:"hasSignIn"`
+	Audience   string             `json:"audience"`
+	TunerCount int                `json:"tunerCount"`
+	Paused     bool               `json:"paused"`
+	State      string             `json:"state"` // new, refreshing, up_to_date, trouble, not_working, needs_sign_in, paused
+	LastError  string             `json:"lastError,omitempty"`
+	Report     *live.SourceReport `json:"report,omitempty"`
+	Refreshed  *time.Time         `json:"refreshedAt,omitempty"`
+	Config     live.SourceConfig  `json:"config"`
+	HasSignIn  bool               `json:"hasSignIn"`
 	revision   int64
 	status     int
 }
@@ -39,22 +39,22 @@ func (s LiveSource) reply(h http.Header) int {
 // LiveSourceSave adds a source, previews one, or changes one (only what is sent changes).
 // Playlist and Guide are an uploaded playlist and guide, as text.
 type LiveSourceSave struct {
-	Kind       string       `json:"kind,omitempty"`
-	Name       *string      `json:"name,omitempty"`
-	Audience   *string      `json:"audience,omitempty"`
-	TunerCount *int         `json:"tunerCount,omitempty"`
-	Paused     *bool        `json:"paused,omitempty"`
-	Config     *live.Config `json:"config,omitempty"`
-	SignIn     *live.SignIn `json:"signIn,omitempty"`
-	Playlist   string       `json:"playlist,omitempty"`
-	Guide      string       `json:"guide,omitempty"`
+	Kind       string             `json:"kind,omitempty"`
+	Name       *string            `json:"name,omitempty"`
+	Audience   *string            `json:"audience,omitempty"`
+	TunerCount *int               `json:"tunerCount,omitempty"`
+	Paused     *bool              `json:"paused,omitempty"`
+	Config     *live.SourceConfig `json:"config,omitempty"`
+	SignIn     *live.SignIn       `json:"signIn,omitempty"`
+	Playlist   string             `json:"playlist,omitempty"`
+	Guide      string             `json:"guide,omitempty"`
 }
 
 // SourcePreview is what a source would bring in and leave out, and why.
 type SourcePreview struct {
-	Report   live.Report    `json:"report"`
-	Channels []live.Channel `json:"channels"`
-	Tuners   int            `json:"tuners"`
+	Report   live.SourceReport  `json:"report"`
+	Channels []live.SentChannel `json:"channels"`
+	Tuners   int                `json:"tuners"`
 }
 
 // SourceChannel is one channel on the owner's channel map.
@@ -108,7 +108,7 @@ func (s *Server) liveSourceOut(src db.LiveSource) LiveSource {
 	json.Unmarshal([]byte(src.Config), &out.Config)
 	out.Config.PlaylistURL, out.Config.GuideURL = live.Masked(out.Config.PlaylistURL), live.Masked(out.Config.GuideURL)
 	if src.Report != "" {
-		out.Report = &live.Report{}
+		out.Report = &live.SourceReport{}
 		json.Unmarshal([]byte(src.Report), out.Report)
 	}
 	if !src.RefreshedAt.IsZero() {
@@ -139,7 +139,7 @@ func sourceError(err error) error {
 }
 
 // checkSource fills in a source's settings from what was sent and refuses what cannot be saved.
-func checkSource(save *db.LiveSourceSave, cfg *live.Config, req LiveSourceSave, adding bool) error {
+func checkSource(save *db.LiveSourceSave, cfg *live.SourceConfig, req LiveSourceSave, adding bool) error {
 	if save.Name == "" || len([]rune(save.Name)) > 120 {
 		return ErrField("name", "Give the source a name of up to 120 characters.")
 	}
@@ -216,7 +216,7 @@ func (s *Server) createLiveSource(r *http.Request, req LiveSourceSave) (LiveSour
 	if req.Paused != nil {
 		save.Paused = *req.Paused
 	}
-	cfg := live.Config{}
+	cfg := live.SourceConfig{}
 	if req.Config != nil {
 		cfg = *req.Config
 	}
@@ -252,7 +252,7 @@ func (s *Server) keepUploads(sourceID string, req LiveSourceSave) error {
 }
 
 func (s *Server) previewLiveSource(r *http.Request, req LiveSourceSave) (SourcePreview, error) {
-	cfg := live.Config{}
+	cfg := live.SourceConfig{}
 	if req.Config != nil {
 		cfg = *req.Config
 	}
@@ -268,7 +268,7 @@ func (s *Server) previewLiveSource(r *http.Request, req LiveSourceSave) (SourceP
 		return SourcePreview{}, ErrInvalid(err.Error())
 	}
 	if p.Channels == nil {
-		p.Channels = []live.Channel{}
+		p.Channels = []live.SentChannel{}
 	}
 	return SourcePreview{Report: p.Report, Channels: p.Channels, Tuners: p.Tuners}, nil
 }
@@ -305,7 +305,7 @@ func (s *Server) saveLiveSource(r *http.Request, req LiveSourceSave) (LiveSource
 	if req.Paused != nil {
 		save.Paused = *req.Paused
 	}
-	var cfg live.Config
+	var cfg live.SourceConfig
 	json.Unmarshal([]byte(src.Config), &cfg)
 	if req.Config != nil {
 		stored := cfg

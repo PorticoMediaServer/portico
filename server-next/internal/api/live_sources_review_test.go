@@ -14,7 +14,7 @@ func TestReviewALeftOutChannelStaysLeftOutAfterARefresh(t *testing.T) {
 	s, owner, _ := seededWith(t, 50, 0)
 	fake := fakeProvider(t, s.now())
 	src := addSource(t, s, owner, LiveSourceSave{Kind: "playlist", Name: new("Cable"),
-		Config: &live.Config{PlaylistURL: fake.URL + "/playlist.m3u", GuideURL: fake.URL + "/guide.xml.gz"}})
+		Config: &live.SourceConfig{PlaylistURL: fake.URL + "/playlist.m3u", GuideURL: fake.URL + "/guide.xml.gz"}})
 	chans := get[Page[SourceChannel]](t, s, owner, "/v1/admin/live/sources/"+src.ID+"/channels").Items
 	if code := status(t, s, "PATCH", "/v1/admin/live/sources/"+src.ID+"/channels", owner,
 		SourceChannelEdits{Channels: []SourceChannelEdit{{ID: chans[0].ID, BroughtIn: new(false)}}}); code != 204 {
@@ -33,7 +33,7 @@ func TestReviewALeftOutChannelStaysLeftOutAfterARefresh(t *testing.T) {
 func TestReviewAStoredSignInIsNotSentToANewServerAddress(t *testing.T) {
 	s, owner, _ := seededWith(t, 50, 0)
 	fake := fakeProvider(t, s.now())
-	src := addSource(t, s, owner, LiveSourceSave{Kind: "xtream", Name: new("Provider"), Config: &live.Config{ServerURL: fake.URL + "/xtream"},
+	src := addSource(t, s, owner, LiveSourceSave{Kind: "xtream", Name: new("Provider"), Config: &live.SourceConfig{ServerURL: fake.URL + "/xtream"},
 		SignIn: &live.SignIn{Username: "sam", Password: "s3cret-word"}})
 	var got atomic.Bool
 	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -43,7 +43,7 @@ func TestReviewAStoredSignInIsNotSentToANewServerAddress(t *testing.T) {
 		w.WriteHeader(404)
 	}))
 	defer other.Close()
-	code := status(t, s, "PATCH", "/v1/admin/live/sources/"+src.ID, owner, LiveSourceSave{Config: &live.Config{ServerURL: other.URL}})
+	code := status(t, s, "PATCH", "/v1/admin/live/sources/"+src.ID, owner, LiveSourceSave{Config: &live.SourceConfig{ServerURL: other.URL}})
 	if code == 200 {
 		s.sources.Refresh(context.Background(), src.ID)
 	}
