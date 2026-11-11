@@ -48,8 +48,12 @@ type Setting struct {
 	// Group is the part of the key before the first dot; LabelKey names the app's text for it.
 	Group    string `json:"group"`
 	LabelKey string `json:"labelKey"`
+	// MaxItems is the most items a list setting holds.
+	MaxItems int `json:"maxItems,omitempty"`
 
-	maxItems, maxLength int
+	maxLength int
+	// prefixes, when set, are what each item of a list must begin with: what kind of thing it names.
+	prefixes []string
 }
 
 // Values holds settings by key: bool, int64, float64, string or []string.
@@ -182,7 +186,7 @@ func (f Setting) Check(raw any) (any, error) {
 		default:
 			return nil, ErrInvalid
 		}
-		if len(items) > f.maxItems {
+		if len(items) > f.MaxItems {
 			break
 		}
 		out := make([]string, 0, len(items))
@@ -197,6 +201,9 @@ func (f Setting) Check(raw any) (any, error) {
 			}
 			// Subtitles have no "the title's own language" to follow.
 			if !plainText(text, f.maxLength) || slices.Contains(out, text) || text == "@original" && f.Key == "playback.preferredSubtitleLanguages" {
+				return nil, ErrInvalid
+			}
+			if f.prefixes != nil && !slices.ContainsFunc(f.prefixes, func(p string) bool { return len(text) > len(p) && strings.HasPrefix(text, p) }) {
 				return nil, ErrInvalid
 			}
 			out = append(out, text)
