@@ -50,3 +50,45 @@ func TestIdentityProof(t *testing.T) {
 		t.Errorf("the server id changed across a restart: %q then %q", system.ID, again.ID)
 	}
 }
+
+// The identity code is worked out exactly as the apps work it out, so the code the owner reads
+// out is the one an app accepts: the design's test vector.
+func TestIdentityCode(t *testing.T) {
+	public := make([]byte, 32)
+	for i := range public {
+		public[i] = byte(i)
+	}
+	id := sha256.Sum256(append([]byte("portico.server.identity.v1\x00"), public...))
+	serverID := "srv_" + base64.RawURLEncoding.EncodeToString(id[:])
+	if serverID != "srv_Wl4E3ID18LNZFgw_Gjc3R0liIOV67Gd2vD54Ubw6OAY" {
+		t.Fatalf("the vector's server id came out as %s", serverID)
+	}
+	if code := identityCode(serverID); code != "JJWY-C8J8-J26F" {
+		t.Fatalf("the identity code is %s, want JJWY-C8J8-J26F", code)
+	}
+}
+
+// With the owner's own certificate served, the identity proof vouches for it, so an app that
+// met it over HTTPS can trust it, and a renewal asks nothing.
+func TestIdentityProofVouchesForTheOwnCertificate(t *testing.T) {
+	s := newTestServer(t)
+	owner := onMain(t, s, setup(t, s)).AccessToken
+	leaf := writeTestCertificate(t, filepath.Join(filepath.Dir(s.setupFile), "Keys"), "media.example.com")
+	saveRemote(t, s, owner, func(v *RemoteAccessSettings) {
+		v.OwnAddress = OwnAddress{Enabled: true, Domain: "media.example.com", CertificateFile: "cert.pem", KeyFile: "key.pem"}
+	})
+	var proof IdentityProof
+	call(t, s, "POST", "/v1/system/identity-proof", "", IdentityQuestion{BaseURL: "https://media.example.com", Nonce: strings.Repeat("n", 43)}, &proof)
+	payload, _ := base64.RawURLEncoding.DecodeString(proof.Payload)
+	var said struct{ Certificates []string }
+	json.Unmarshal(payload, &said)
+	sum := sha256.Sum256(leaf)
+	if len(said.Certificates) != 1 || said.Certificates[0] != base64.RawURLEncoding.EncodeToString(sum[:]) {
+		t.Fatalf("the proof lists %q", said.Certificates)
+	}
+	var status RemoteAccessStatus
+	call(t, s, "GET", "/v1/admin/remote-access", owner, nil, &status)
+	if status.IdentityCode != identityCode(s.id) || len(status.IdentityCode) != 14 {
+		t.Fatalf("the owner is shown the identity code %q", status.IdentityCode)
+	}
+}
