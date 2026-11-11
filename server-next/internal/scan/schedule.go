@@ -178,8 +178,18 @@ func (m *Manager) rewatch(ctx context.Context, lib db.Library, first bool) {
 		watched = watched && p.RemoteID == 0 && !networkShare(p.Path)
 	}
 	if watched {
-		folders, err := m.scanner.DB.LibraryDirectories(ctx, lib.ID, maxWatched+1)
-		watched = err == nil && len(folders) <= maxWatched
+		// Where one watch covers a folder and everything under it, the library's own folders
+		// are all that is watched; elsewhere every folder the last scan stored is.
+		var folders []string
+		if watchesSubfolders {
+			for _, p := range lib.Paths {
+				folders = append(folders, p.Path)
+			}
+		} else {
+			var err error
+			folders, err = m.scanner.DB.LibraryDirectories(ctx, lib.ID, maxWatched+1)
+			watched = err == nil && len(folders) <= maxWatched
+		}
 		for _, folder := range folders {
 			if !watched {
 				break

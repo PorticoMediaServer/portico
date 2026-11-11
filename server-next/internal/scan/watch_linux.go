@@ -109,3 +109,6 @@ func networkShare(folder string) bool {
 	}
 	return false
 }
+
+// watchesSubfolders: inotify watches one folder at a time.
+const watchesSubfolders = false
