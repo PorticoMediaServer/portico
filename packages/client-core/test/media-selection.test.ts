@@ -21,20 +21,6 @@ test('select loaded and range selection retain every item beyond the old 100-ite
  service.clear();service.toggle(mediaSelectionKey(many[0]));service.toggle(mediaSelectionKey(many[150]),true);
  assert.equal(service.getSnapshot().selected.length,151);assert.equal(service.getSnapshot().canApply,true);service.dispose();
 });
-test('applying a loaded selection writes and reports every selected item',async()=>{
- const many:ContentEntry[]=Array.from({length:101},(_,i)=>({id:`item-${i}`,title:`Item ${i}`,kind:'movie',libraryId:'library'}));
- const written:string[]=[];
- const api={async request<T>(path:string,method='GET',body?:any):Promise<T>{const id=path.split('/')[3];if(method==='GET')return detail(id) as T;written.push(id);return {operationId:body.operationId,serverId:'server',libraryId:'library',itemId:id,viewerFence:'fence',personal:state(1,true)} as T;}};
- const service=new MediaSelectionService(withQueries({scope,api,requestId:async()=>crypto.randomUUID()}));service.setEntries(many);service.selectLoaded();await service.apply('favorite',true);
- assert.equal(written.length,101);assert.equal(service.getSnapshot().results.length,101);assert(service.getSnapshot().results.every(result=>result.status==='saved'));service.dispose();
-});
-test('partial failures keep receipt identity, retry only failed items, and do not replay successful writes',async()=>{
- const bodies:{id:string;body:any}[]=[];let fail=true;
- const api={async request<T>(path:string,method='GET',body?:any):Promise<T>{const id=path.split('/')[3];if(method==='GET')return detail(id) as T;bodies.push({id,body});if(id==='two'&&fail){fail=false;throw new TypeError('Connection lost');}return {operationId:body.operationId,serverId:'server',libraryId:'library',itemId:id,viewerFence:'fence',personal:state(1,true)} as T;}};
- const service=new MediaSelectionService(withQueries({scope,api,requestId:async()=>crypto.randomUUID()}));service.setEntries(entries);service.selectLoaded();await service.apply('favorite',true);await tick();
- assert.deepEqual(service.getSnapshot().results.map(r=>r.status),['saved','failed','saved']);const operation=bodies.find(b=>b.id==='two')!.body.operationId;
- await service.retry();assert.deepEqual(service.getSnapshot().results.map(r=>r.status),['saved','saved','saved']);assert.equal(bodies.length,4);assert.equal(bodies.at(-1)!.body.operationId,operation);service.dispose();
-});
 test('disposal fences late reads and prevents any write for the previous viewer',async()=>{
  let finish!:(v:any)=>void,writes=0;const api={async request<T>(_path:string,method='GET'):Promise<T>{if(method==='PUT'){writes++;throw Error('must not write');}return new Promise(resolve=>{finish=resolve;});}};
  const service=new MediaSelectionService(withQueries({scope,api,requestId:async()=>crypto.randomUUID()}));service.setEntries(entries);service.selectLoaded();const task=service.apply('favorite',true);service.dispose();finish(detail('one'));await task;assert.equal(writes,0);

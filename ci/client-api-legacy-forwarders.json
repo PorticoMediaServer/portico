@@ -1616,6 +1616,19 @@
       "occurrences": 1
     },
     {
+      "binding": "web/src/shell/entry-metadata.tsx#74b5d19b5156c9c5",
+      "file": "web/src/shell/entry-metadata.tsx",
+      "line": 57,
+      "guardHash": "d729c9ec2a37dbfc9506c933c7f892e5c022d13cd7fc25d2a98dae8152424b2c",
+      "owner": "result",
+      "shape": "request",
+      "callHash": "ee64b3c411e3e45b6818e89c0f0b479f568c65ecfc6bf2136f9ed92058a8d2d7",
+      "callText": "api.request<T>(path, method, body, signal)",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6655467024",
+      "reason": "predicate is outside the read-only grammar",
+      "occurrences": 1
+    },
+    {
       "binding": "web/src/shell/entry-metadata.tsx#a43dcffc8886f2de",
       "file": "web/src/shell/entry-metadata.tsx",
       "line": 86,

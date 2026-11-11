@@ -494,14 +494,12 @@ export async function standardHomeApp({
     endpoint: '',
     revision: {catalog: homeVersion, viewer: 1},
   });
+  // `GET /v1/home` as the rebuilt server answers it: the rows it composed, each with its titles.
   const homeDoc = () => ({
-    serverId: pin.serverId,
-    viewerFence: homeFence,
-    rows: [homeRow()],
-    spotlight: [],
-    layout: {revision: 1, rowOrder: ['continue'], hiddenRowIds: []},
-    revision: {catalog: homeVersion, viewer: 1},
-    generatedAt: new Date().toISOString(),
+    rows: [{id: 'continue', title: 'Continue Watching', shape: 'landscape', items: [{
+      id: 'movie', kind: 'movie', libraryId: 'movies', title: homeEntry().title, durationMs: 180000, images: {},
+      state: {watched: false, playCount: 0, favorite: false, inList: false, hidden: false, positionMs: 12000},
+    }]}],
   });
   const effective = {
     'playback.defaultSpeed': 1,

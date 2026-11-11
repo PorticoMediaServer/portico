@@ -81,7 +81,7 @@ import {serverPath} from './query/server-api.ts';
 import {AudioSelection,emptyAudio,type AudioPlan,type AudioBinding,type AudioSelectionSnapshot} from './audio-selection.ts';
 export type {AudioPlan,AudioBinding,AudioSelectionSnapshot} from './audio-selection.ts';
 import {Outbox, sameOutboxScope, type OutboxAnswer, type OutboxEntry, type OutboxScope, type OutboxStore} from './outbox.ts';
-import {isOutboxRoute, outboxKind, type OutboxKind} from './outbox-routes.ts';
+import {isOutboxRoute, outboxBody, outboxKind, type OutboxKind} from './outbox-routes.ts';
 import {castStopKey} from './cast/sender.ts';
 import {readWriteAnswer, writeRoute, type ConfirmedWrite, type WriteAnswer} from './query/write-dependencies.ts';
 export * from './outbox.ts';
@@ -400,14 +400,14 @@ export class HttpLocalApi {
       mine();
       let token = this.token;
       if (this.auth) { token = await waitForAuth(this.auth.token(token), bounded); mine(); if (token !== this.token) throw new Error('The signed-in profile changed.'); }
-      const headers = {...entry.headers, 'Idempotency-Key': entry.id};
-      let response = await this.send(entry.path, entry.method, entry.body, bounded, token, headers);
+      const headers = {...entry.headers, 'Idempotency-Key': entry.id}, sent = () => outboxBody(entry, Date.now());
+      let response = await this.send(entry.path, entry.method, sent(), bounded, token, headers);
       if (response.status === 401 && this.auth) {
         const next = await waitForAuth(this.auth.recover(token), bounded);
         mine();
         if (next && next !== token && next === this.token) {
           void response.body?.cancel().catch(() => {});
-          response = await this.send(entry.path, entry.method, entry.body, bounded, next, headers);
+          response = await this.send(entry.path, entry.method, sent(), bounded, next, headers);
         }
       }
       const answered: Record<string, string> = {};
@@ -2512,7 +2512,7 @@ export {LibraryNavigationService,navigationStorageKey,type NavigationScope,type 
 export {readListeningSimilar,LibraryContentService,type ContentView,type ContentSurface,type ContentRoute,type ContentScope,type ContentReadContext,type LibraryContentApi,type ContentEntryKind,type ContentHeading,type ContentEntry,type ContentSection,type ContentProjection,type LibraryContentSnapshot} from './library-content.ts';
 
 export * from './hosted-security.ts';
-export {DetailService,type DetailScope,type DetailTarget,type DetailApi,type PersonalState,type PersonalOfflineMutation,type PersonalConflict,type DetailAction,type DetailMetadata,type DetailEpisodeInfo,type DetailSongInfo,type DetailBookFileInfo,type DetailItem,type DetailProjection,type PersonalIntent,type DetailError,type DetailSnapshot} from './detail.ts';
+export {DetailService,type DetailScope,type DetailTarget,type DetailApi,type PersonalState,type DetailAction,type DetailMetadata,type DetailEpisodeInfo,type DetailSongInfo,type DetailBookFileInfo,type DetailItem,type DetailProjection,type PersonalIntent,type DetailError,type DetailSnapshot} from './detail.ts';
 export * from "./personal-saved.ts";
 export {SearchService,searchPath,parseSearchHistory,type SearchGroup,type SearchSort,type SearchDirection,type SearchGroupStatus,type SearchGroupErrorCode,type SearchQuery,type SearchEntry,type SearchGroupResult,type SearchGroupCapability,type SearchCapabilities,type SearchData,type SearchSnapshot,type SearchHistoryEntry,type SearchHistoryPage} from './search.ts';
 export {readSearchGenres, releaseSearchGenres, searchGenresReadMetadata, searchGenresPath, parseSearchGenres, parseSearchGenrePreparing, type SearchGenreArt, type SearchGenre, type SearchGenrePage, type SearchGenreRequest, type SearchGenreReadOptions} from './search-genres.ts';
@@ -2555,7 +2555,7 @@ export * from './recommendations.ts';
 export * from './relation-rows.ts';
 export * from './notifications.ts';
 export * from './notification-scope.ts';
-export {detailExtraTypes,type DetailExtra,type DetailExtraType,parseCreditPage,type CreditPage,type DetailCredit} from './detail.ts';
+export {detailExtraTypes,type DetailExtra,type DetailExtraType,type CreditPage,type DetailCredit} from './detail.ts';
 
 export * from './downloads.ts';
 export * from './bulk-jobs.ts';

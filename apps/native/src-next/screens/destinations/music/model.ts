@@ -327,8 +327,7 @@ export class NativeTVMusicController {
       const value=await readListeningSimilar(this.api,this.options.similarScope,this.options.entry.id,{limit:12,by:'sound',signal});
       if(!this.entityCurrent(witness))return;
       const projection=witness.projection;
-      if(value.libraryId!==projection.scope.libraryId||value.itemId!==projection.scope.entityId||
-        value.revision.catalog!==projection.revision.catalog||value.revision.viewer!==projection.revision.viewer)throw membershipFailure('invalid_projection');
+      if(value.libraryId!==projection.scope.libraryId||value.itemId!==projection.scope.entityId)throw membershipFailure('invalid_projection');
       // The row continues to its end on this page's basis and revision.
       this.similarRow?.dispose();
       const row:NativeRelatedRow=nativeSimilarRow(this.api,this.options.similarScope,value,()=>publish());

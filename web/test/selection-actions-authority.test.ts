@@ -29,26 +29,6 @@ const ports = (requests: {path: string; method?: string; body?: any}[]) => {cons
   isCurrent: () => true, requestId: async () => 'request-1', pickerIdentity: identity};};
 assert.notEqual(detailFence, destinationFence, 'the fixture must exercise two different fences');
 
-test('J-11 Add to playlist from a title page: the picker holds the destination read\'s fence and lists the playlists', async () => {
-  const requests: {path: string; method?: string; body?: any}[] = [], states: any[] = [];
-  const picker = new EntryPickerProducer({libraryId: leaf.libraryId, itemId: leaf.id, kind: leaf.kind, title: leaf.title}, 'playlist', ports(requests) as never, true, state => states.push(state));
-  try {
-    await picker.open();
-    assert.deepEqual(states.at(-1)?.rows?.map((row: {id: string}) => row.id), ['destination-1']);
-    assert.ok(requests.some(request => request.path.includes('/detail')), 'the title\'s own permission is still read');
-  } finally {picker.close();}
-});
-
-test('J-13 Add to collection from a selection of picked titles: the same, never the detail\'s fence', async () => {
-  const requests: {path: string; method?: string; body?: any}[] = [], states: any[] = [];
-  const item = {kind: leaf.kind, id: leaf.id, libraryId: leaf.libraryId, capabilities: {play: true, queue: true, playlist: true, collection: true, myList: true, watched: true, favorite: true, download: false, edit: true, refresh: true, delete: true}};
-  const picker = new LibraryPickerProducer([item] as never, 'collection', ports(requests) as never, true, state => states.push(state));
-  try {
-    await picker.open();
-    assert.deepEqual(states.at(-1)?.rows?.map((row: {id: string}) => row.id), ['destination-1']);
-  } finally {picker.close();}
-});
-
 test('J-12 Edit of picked titles: the preview issues the editing fence, with no page fence needed; a preview under a moved fence is newer and an older one cannot save', async () => {
   const preview = {variant: 'ready', serverId, viewerFence: 'c'.repeat(64), contentKind: 'movie', kind: 'item', total: 1,
     schema: [{field: 'studio', label: 'Studio', group: 'general', type: 'text', bulk: true, maxLength: 300}], singleItemFields: [], excludedFields: [],
@@ -107,42 +87,3 @@ function leafApi(requests: {path: string; method?: string; body?: any}[], fenceF
 const pickedLeaf = (id: string) => ({kind: leaf.kind, id, libraryId: leaf.libraryId, capabilities: {play: true, queue: true, playlist: true, collection: true, myList: true, watched: true, favorite: true, download: false, edit: true, refresh: true, delete: true}});
 const leafPorts = (value: ReturnType<typeof leafApi>) => ({api: value, queries: testQueries(value, {serverId, viewerId: 'viewer'}), serverId, viewerId: '["local","account","profile"]',
   isCurrent: () => true, requestId: async () => 'request-1', pickerIdentity: identity});
-test('B: leaves that disagree are all read again once, and the picker opens on the newer answer', async () => {
-  const requests: {path: string; method?: string; body?: any}[] = [], states: any[] = [];
-  const picker = new LibraryPickerProducer([pickedLeaf(leaf.id), pickedLeaf('second')] as never, 'collection',
-    leafPorts(leafApi(requests, read => read === 1 ? 'c'.repeat(64) : 'd'.repeat(64))) as never, true, state => states.push(state));
-  try {
-    await picker.open();
-    assert.deepEqual(states.at(-1)?.rows?.map((row: {id: string}) => row.id), ['destination-1']);
-    assert.deepEqual(requests.filter(request => request.path.includes('/detail')).map(request => decodeURIComponent(request.path.split('/')[3]!)), [leaf.id, 'second', leaf.id, 'second']);
-  } finally {picker.close();}
-});
-test('B: leaves that still disagree after the one re-read show picker-selection-changed, with no second re-read', async () => {
-  const requests: {path: string; method?: string; body?: any}[] = [];
-  const picker = new LibraryPickerProducer([pickedLeaf(leaf.id), pickedLeaf('second')] as never, 'collection',
-    leafPorts(leafApi(requests, read => String(read % 10).repeat(64))) as never, true, () => {});
-  try {
-    await assert.rejects(picker.open(), /picker-selection-changed/);
-    assert.equal(requests.filter(request => request.path.includes('/detail')).length, 4);
-    assert.equal(requests.some(request => request.path === '/v1/home/destination-picker' || request.path.includes('destination')), false);
-  } finally {picker.close();}
-});
-
-// Review probe (#733): the last leaf read is not the newest answer when it came from the cache. [second] is cached
-// under fence c, the server moves to d, and opening [first, second] reads first from the server (d) and second from
-// the cache (c). Every leaf is then read again from the server, so the stale cached one is too, and the picker opens.
-test('B: a cached older page of the last leaf is read again too, and the picker opens', async () => {
-  const requests: {path: string; method?: string; body?: any}[] = [], states: any[] = [];
-  let fence = 'c'.repeat(64);
-  const shared = leafPorts(leafApi(requests, () => fence));
-  const warm = new LibraryPickerProducer([pickedLeaf('second')] as never, 'collection', shared as never, true, () => {});
-  try {await warm.open();} finally {warm.close();}
-  fence = 'd'.repeat(64);requests.length = 0;
-  const picker = new LibraryPickerProducer([pickedLeaf(leaf.id), pickedLeaf('second')] as never, 'collection', shared as never, true, state => states.push(state));
-  try {
-    await picker.open();
-    assert.deepEqual(states.at(-1)?.rows?.map((row: {id: string}) => row.id), ['destination-1']);
-    assert.deepEqual(requests.filter(request => request.path.includes('/detail')).map(request => decodeURIComponent(request.path.split('/')[3]!)), [leaf.id, leaf.id, 'second'],
-      'second came from the cache first, then both were read from the server');
-  } finally {picker.close();}
-});

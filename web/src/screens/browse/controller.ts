@@ -243,13 +243,11 @@ export class BrowseController {
   private openSession(caps: BrowseCapabilities, predicates: readonly BrowseNode[], sort: BrowseSortSelection, epoch: number): BrowseSession<BrowseMember> {
     const session: BrowseSession<BrowseMember> = new BrowseSession<BrowseMember>({query: this.sessionQuery(caps, predicates, sort),
       request: (path, method, body, signal) => this.api.request(path, method, body, signal),
-      ...(this.api.requestRaw ? {requestRaw: this.api.requestRaw.bind(this.api)} : {}),
       current: () => this.current() && epoch === this.epoch && (this.session === session || this.replacing === session),
       item: (entry, page, index) => Object.freeze({membershipId: browseMembershipId(page, index)!, entry}),
       onRevision: revision => this.publish({revision}),
       onWhole: () => this.publish({}),
       onWholeUnavailable: () => this.publish({}),
-      onPreparationError: error => this.publish({error}),
       onStale: error => {
         if (!this.staleRetried && this.state.revision === undefined && this.current() && epoch === this.epoch) {this.staleRetried = true; this.reset({}, true); return;}
         this.publish({revision: undefined, error});

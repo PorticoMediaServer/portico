@@ -68,9 +68,9 @@ export function createNativeLibrarySelectionAction(context: NativeShellBootstrap
 export function createNativeHomeSelectionAction(context: NativeShellBootstrapContext, home: HomeSelectionController,
   signal?: AbortSignal, downloads?: NativeSelectionActionDownloadQueue) {
   const document = context.home.getSnapshot().document;
-  if (!document || document.viewerFence !== context.authority().viewerFence) throw unavailable();
+  if (!document) throw unavailable();
   return createNativeSelectionAction(context, home.selection, {
-    isCurrent: attempted => context.authority().viewerFence === document.viewerFence && (attempted || context.home.getSnapshot().document === document),
+    isCurrent: attempted => attempted || context.home.getSnapshot().document === document,
     subscribe: listener => context.home.subscribe(listener), signal,
   }, downloads);
 }

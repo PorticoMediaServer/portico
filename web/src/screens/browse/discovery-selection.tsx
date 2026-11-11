@@ -50,8 +50,8 @@ export function discoveryDocumentSource(input: Readonly<{service: LibraryContent
       const scope = projection.scope;
       if (scope.libraryId !== route.libraryId || (scope.view ?? '') !== (route.view ?? '') || (scope.entityId ?? '') !== (route.entityId ?? '')) return null;
       return {
-        key: JSON.stringify([generationOf(projection), scope.serverId, scope.libraryId, scope.view ?? '', scope.entityId ?? '', scope.viewerFence ?? '', discoverySections(snapshot).map(section => section.id)]),
-        revision: JSON.stringify([scope.serverId, scope.libraryId, scope.viewerFence ?? '', projection.revision]),
+        key: JSON.stringify([generationOf(projection), scope.serverId, scope.libraryId, scope.view ?? '', scope.entityId ?? '', discoverySections(snapshot).map(section => section.id)]),
+        revision: JSON.stringify([scope.serverId, scope.libraryId, generationOf(projection)]),
         entries: discoveryEntries(snapshot),
       };
     },

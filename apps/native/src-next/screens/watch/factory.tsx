@@ -240,7 +240,7 @@ export function createNativeWatchScreens(ports: NativeWatchFactoryPorts) {
     const token = detail?.item.id === captured.entry.id ? detail.fileInfoOpening : undefined;
     // A Detail that is not ready yet carries no opening; reading it again will.
     if (!detail || !token) throw Object.assign(new Error('file_info_unavailable'), {code: 'metadata_unavailable', retryable: true});
-    const session = new FileInfoSession({api: ports.api, opening: {token, scope: ports.scope, target: {libraryId: detail.scope.libraryId, itemId: detail.scope.itemId}, revision: detail.revision},
+    const session = new FileInfoSession({api: ports.api, opening: {token, scope: ports.scope, target: {libraryId: detail.scope.libraryId, itemId: detail.scope.itemId}, revision: {catalog: 0, viewer: 0}},
       isCurrent: () => current(captured)});
     try {
       // Playable items read versions; any other kind reads its flat files.

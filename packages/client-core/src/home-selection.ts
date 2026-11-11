@@ -1,6 +1,7 @@
 import type {ContentEntryKind} from './library-content.ts';
 import type {HomeActions,HomeSelectionActions,HomeChannel,HomeCollection,HomeEntry,HomeRow} from './home.ts';
 import {selectionCapabilities,type SelectionItem} from './selection-model/index.ts';
+import {selectionKinds} from './selection-model/capabilities.ts';
 import type {EntryCapabilities} from './presentation/entry-actions.ts';
 
 /** Actual platform runtimes narrow server offers; they never create a grant. */
@@ -35,7 +36,8 @@ function offered(actions:HomeSelectionActions|undefined,platform:HomeActionPlatf
 
 /** Displayed catalogue identity, never entry.playback.itemId or a resume child. */
 export function homeEntrySelection(entry:HomeEntry,platform:HomeActionPlatform):HomeCatalogueSelection|undefined {
-  if(!entry.libraryId)return undefined;
+  // A book or comic to read has a card on Home but is not something a selection can act on.
+  if(!entry.libraryId||!selectionKinds.some(kind=>kind===entry.kind))return undefined;
   return Object.freeze({kind:entry.kind,id:entry.id,libraryId:entry.libraryId,capabilities:selectionCapabilities(entry.kind,offered(entry.homeActions?.selection,platform))});
 }
 

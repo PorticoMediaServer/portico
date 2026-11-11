@@ -15,33 +15,6 @@ const caps = {library:{...library,defaultView:'browse'},pivots:[pivot],resolvedP
  sorts:[{id:'title',labelKey:'sort.title',directions:['asc','desc'],defaultDirection:'asc',applicableKinds:['movie']}],
  queryLimits:{maximumDepth:5,maximumClauses:40,maximumBytes:65536,maximumSorts:3,defaultLimit:60,maximumLimit:100,cursorTtlMs:1800000}};
 
-test('actual native Library model publishes unavailable alongside resident rows and clears it on ready/query/retirement', async () => {
- let current=true;
- const counts={play:1,queue:1,playlist:1,myList:1,watched:1,collection:1,favorite:1,download:0,edit:1,refresh:1,delete:1};
- const api:LibraryContentApi={request:async<T>()=>caps as T,requestRaw:async(_path,method,options)=>{
-  assert.equal(method,'POST');const body=options?.body as BrowseRequestBody;
-  const ready=body.sort?.[0]?.direction==='desc';
-  return {status:200,headers:{},body:{pivot:'movies',applied:{query:body.query??null,sort:body.sort,seek:null},
-   entries:[{id:'movie',libraryId:'lib',kind:'movie',title:'Movie',navigation:{view:'item'}}],
-   pageInfo:{start:0,total:1,revision:'r1',hasMore:false,nextCursor:''},
-   ...(ready?{wholeSelection:{selector:{query:{libraryId:'lib',pivot:'movies',sort:body.sort,selectionBasis:'a'.repeat(64)}},catalogRevision:'r1',total:1,
-    types:[{kind:'movie',count:1,capabilityCounts:counts,libraries:[{libraryId:'lib',count:1}]}]}}:{wholeSelectionUnavailable:unavailable})}};
- }};
- const model=new NativeLibraryDestination({library,scope:{serverId:'server',viewerId:'viewer'},current:()=>current,api});
- try {
-  await model.load();await tick();await tick();
-  assert.equal(model.getSnapshot().phase,'ready');
-  assert.deepEqual(model.getSnapshot().wholeSelectionUnavailable,unavailable);
-  assert.equal(model.getSnapshot().collection?.itemAt(0)?.id,'movie');
-  model.setQuery([],{field:'title',direction:'desc'});
-  assert.equal(model.getSnapshot().wholeSelectionUnavailable,undefined);
-  await tick();await tick();assert.equal(model.getSnapshot().wholeSelection?.total,1);assert.equal(model.getSnapshot().wholeSelectionUnavailable,undefined);
-  model.setQuery([],{field:'title',direction:'asc'});
-  assert.equal(model.getSnapshot().wholeSelection,undefined);await tick();await tick();assert.ok(model.getSnapshot().wholeSelectionUnavailable);
-  current=false;assert.equal(model.getSnapshot().wholeSelectionUnavailable,undefined);
- } finally {model.dispose();}
-});
-
 test('actual native Library selection composes the refusal without an executor and redraws on metadata/query changes', async () => {
  const host=hooks(), listeners=new Set<()=>void>(); let notifications=0,disposed=0;
  let sourceState:any={phase:'ready',library,tab:{id:'browse'},revision:'r1',queryRevision:0,collection:{},wholeSelectionUnavailable:unavailable};

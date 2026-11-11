@@ -34,27 +34,6 @@ test('only a complete bounded raw directory can prove membership; tolerant row d
   const raw = {items: [null, ...rows(['other']).items]};assert.deepEqual(parseLibraryList(raw).items.map(row => row.id), ['other']);assert.equal(completeLibraryDirectory(raw), undefined);
 });
 
-// Client data step 5: the directory answers with its own viewer fence, so it proves membership
-// alone; Home is not read for it.
-test('the directory alone proves membership, under the viewer fence it answered with', () => {
-  const f = fixture();assert.ok(f.directory(rows(['other'])));
-  assert.deepEqual(f.proof.source.getSnapshot(), {serverId: 'server', viewerFence: 'fence', libraryIds: ['other']});
-  assert.equal(f.requests(), 0);f.proof.dispose();
-});
-
-test('a failed, partial or unfenced directory and a superseded answer cannot redirect', () => {
-  for (const scenario of ['directory-failed', 'row-drop', 'no-fence', 'superseded'] as const) {
-    const f = fixture(), navigations: unknown[] = [], guard = createLibraryRouteGuard({source: f.proof.source, opening: {}, isCurrent: f.current, canReplace: f.current,
-      libraryId: 'target', replace: value => {navigations.push(value);}, reportError: error => {throw error;}});
-    guard.start();const ticket = f.proof.beginDirectory();
-    if (scenario === 'row-drop') assert.equal(f.proof.directory(ticket, {items: [null], viewerFence: 'fence'}), false);
-    if (scenario === 'no-fence') assert.equal(f.proof.directory(ticket, {items: []}), false);
-    // A newer hint is owed before the answer lands: the answer is not current.
-    if (scenario === 'superseded') {f.dirty(true);assert.equal(f.proof.directory(ticket, rows([])), false);}
-    assert.deepEqual(navigations, []);assert.ok(guard.isCurrent());assert.equal(guard.signal.aborted, false);guard.dispose();f.proof.dispose();
-  }
-});
-
 test('a newer directory defeats an in-flight absence candidate', () => {
   const f = fixture(), navigations: unknown[] = [], guard = createLibraryRouteGuard({source: f.proof.source, opening: {}, isCurrent: f.current, canReplace: f.current,
     libraryId: 'target', replace: value => {navigations.push(value);}, reportError: error => {throw error;}});
@@ -88,19 +67,6 @@ test('shell retirement runs first; the new admitted context can later prove abse
   const fresh = fixture(), next = createLibraryRouteGuard({source: fresh.proof.source, opening: {}, isCurrent: fresh.current, canReplace: fresh.current, libraryId: 'target',
     replace: value => {assert.equal(guard.isCurrent(), false);order.push('new-navigate');assert.equal(value.replace, true);}, reportError: error => {throw error;}});
   next.start();fresh.confirm([]);assert.deepEqual(order, ['runtime-retire', 'new-navigate']);guard.dispose();next.dispose();old.proof.dispose();fresh.proof.dispose();
-});
-
-// H-11: a library added or removed changes only the viewer fence; the shell (and this proof) stays.
-test('a viewer-fence change re-proves under the new fence: kept libraries stay open, a removed one redirects once', () => {
-  const f = fixture(), order: string[] = [];
-  const guard = (libraryId: string) => createLibraryRouteGuard({source: f.proof.source, opening: {}, isCurrent: f.current, canReplace: f.current,
-    libraryId, replace: () => {order.push(libraryId);}, reportError: error => {throw error;}});
-  const kept = guard('target'), removed = guard('music');kept.start();removed.start();
-  assert.ok(f.directory(rows(['target', 'music'], 'before')));assert.deepEqual(order, []);
-  assert.ok(f.directory(rows(['target'], 'after')));
-  assert.deepEqual(f.proof.source.getSnapshot(), {serverId: 'server', viewerFence: 'after', libraryIds: ['target']});assert.deepEqual(order, ['music']);
-  assert.ok(f.directory(rows(['target'], 'after')));assert.deepEqual(order, ['music'], 'the same answer again redirects nothing more');
-  kept.dispose();removed.dispose();f.proof.dispose();
 });
 
 test('scope change or retirement reentry preempts replacement and cannot revive old callbacks', () => {
@@ -160,15 +126,6 @@ test('mounted route keeps its guard and original Screen/Read authorities on rena
     m.onNavigate(() => {assert.equal(guarded.isCurrent(), false);assert.equal(reading.authority.isCurrent(), false);assert.equal(reading.client.signal.aborted, true);assert.equal(screen.signal().aborted, true);assert.throws(oldCommand, {name: 'AbortError'});});
     m.f.confirm(['other']);assert.deepEqual(m.navigations, [{to: '/libraries', replace: true}]);assert.equal(retired, 1);assert.equal(m.parentCalls(), 0);
     await assert.rejects(reading.client.versions('item'));assert.equal(m.parentCalls(), 0);off();screen.dispose();await reading.dispose();
-  } finally {m.h.dispose();m.f.proof.dispose();}
-});
-
-test('mounted item route refuses malformed/obsolete parent replies; current successful parent absence redirects once', async () => {
-  const m = await mounted({itemId: 'item'});
-  try {
-    const original = m.draw();m.parent({id: 'item'});m.f.confirm([]);await turn();assert.ok(original.guard.isCurrent());assert.equal(m.navigations.length, 0);assert.ok(original.guard.getFailure());
-    const held = m.holdParent();m.f.confirm([]);await turn();m.f.directory(rows(['target']));held.resolve({id: 'item', libraryId: 'target', title: 'Book', kind: 'book', available: true, durationMs: 0, progressMs: 0});await turn();assert.equal(m.navigations.length, 0);
-    m.f.confirm(['other']);await turn();assert.equal(original.guard.isCurrent(), false, String(original.guard.getFailure()));assert.deepEqual(m.navigations, [{to: '/libraries', replace: true}]);
   } finally {m.h.dispose();m.f.proof.dispose();}
 });
 

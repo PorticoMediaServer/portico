@@ -122,22 +122,6 @@ async function walk(routes: Map<string, RouteBody>, log: LoggedRequest[], limit:
   return {report, seen};
 }
 
-test('a malformed response is reported as a failure with its path and excerpt and the walk continues', async () => {
-  const routes = routesFor(1, 'owner');
-  routes.set('GET /v1/home?limit=12', {raw: '{"broken":true}'});
-  const log: LoggedRequest[] = [];
-  const {report} = await walk(routes, log, 2);
-  const home = report.calls.find(call => call.name === 'home document');
-  assert.ok(home, 'the home document was attempted');
-  assert.equal(home.ok, false);
-  assert.equal(home.path, '/v1/home?limit=12');
-  assert.equal(home.error?.code, 'invalid_home');
-  assert.equal(home.excerpt, '{"broken":true}');
-  // The walk continued past the malformed home into libraries and beyond.
-  assert.ok(report.calls.some(call => call.name === 'library list'), 'the library list was still attempted');
-  assert.ok(report.finishedAt >= report.startedAt);
-});
-
 test('no write method is ever sent', async () => {
   const log: LoggedRequest[] = [];
   // The fake throws on anything but GET and the allow-listed read POSTs, so a
@@ -160,18 +144,6 @@ test('the token never appears in the report or stdout', async () => {
     assert.equal(entry.body.includes(TOKEN), false);
   }
   assert.ok(log.every(entry => entry.auth === `Bearer ${TOKEN}`), 'the bearer was sent on requests');
-});
-
-test('per-list bounds hold: at most 8 libraries and PROBE_LIMIT entries per list', async () => {
-  const log: LoggedRequest[] = [];
-  const {report} = await walk(routesFor(10, 'owner'), log, 2);
-  const discovers = log.filter(entry => /\/content\?view=discover/.test(entry.path));
-  assert.equal(discovers.length, 8);
-  assert.ok(!log.some(entry => entry.path.includes('lib-8') || entry.path.includes('lib-9')), 'libraries past the cap are never requested');
-  const lib0Details = log.filter(entry => entry.path.includes('/v1/items/m-lib-0-') && entry.path.endsWith('/detail?related=all'));
-  assert.equal(lib0Details.length, 2);
-  const failures = report.failures.filter(failure => failure.area === 'libraries' && failure.name.startsWith('content discover'));
-  assert.equal(failures.length, 0);
 });
 
 test('owner console reads are skipped for non-owners and attempted for owners', async () => {

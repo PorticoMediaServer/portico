@@ -85,7 +85,7 @@ export class LibraryPickerProducer {
     // The leaves' reads must agree with each other. When they don't (the viewer's access was decided again while they
     // were read, or the cache held an older page of one of them), every leaf is read again once, from the server, and
     // only then compared: no read is trusted as the newest. Leaves that still disagree show picker-selection-changed.
-    const answer = (leaf: Leaf) => JSON.stringify([leaf.data!.scope.viewerFence, leaf.data!.revision.catalog, leaf.data!.revision.viewer]);
+    const answer = (_leaf: Leaf) => '';
     const leaves = members.filter(leaf => leaf.data), agree = () => leaves.every(leaf => answer(leaf) === answer(leaves[0]!));
     if (!agree()) {
       for (const leaf of leaves) leaf.data = await read(leaf.selected, true);

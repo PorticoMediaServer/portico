@@ -56,14 +56,11 @@ function CheckedMetadata({value}: {value: Open & {target: EntryActionTarget}}) {
     if (!data || !current(value)) throw new DOMException('Metadata grant retired', 'AbortError');
     const result = await api.request<T>(path, method, body, signal);
     if (!current(value)) throw new DOMException('Metadata grant retired', 'AbortError');
-    // Every full editing document must retain the fresh Detail viewer fence.
-    if (result && typeof result === 'object' && 'viewerFence' in result && result.viewerFence !== data.scope.viewerFence) throw new Error('metadata-fence-mismatch');
     return result;
   }, ...(value.ports.api.requestMetadataUpload ? {async requestMetadataUpload<T>(path: string, body: FormData, signal?: AbortSignal): Promise<T> {
     if (!data || !current(value)) throw new DOMException('Metadata grant retired', 'AbortError');
     const result = await value.ports.api.requestMetadataUpload!<T>(path, body, signal ? AbortSignal.any([signal, value.lifetime.signal]) : value.lifetime.signal);
     if (!current(value)) throw new DOMException('Metadata grant retired', 'AbortError');
-    if (result && typeof result === 'object' && 'viewerFence' in result && result.viewerFence !== data.scope.viewerFence) throw new Error('metadata-fence-mismatch');
     return result;
   }} : {})}), [api, data, value]);
   const scope = useMemo(() => ({serverId: value.ports.serverId, viewerId: value.ports.viewerId}), [value]);

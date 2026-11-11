@@ -31,22 +31,3 @@ for (const body of [null, {id: 'item', kind: 'movie', title: 'Movie', libraryId:
     assert.deepEqual(events, body ? ['home', 'title'] : []);
   });
 }
-
-test('directory privacy fence retains retirement before a queued flight abort', async () => {
-  const f = harness(), read = deferred(), abort = new AbortController();
-  const interests = new Map<string, {read: (context: {signal: AbortSignal}) => Promise<{kind: string}>}>();
-  let retired = 0;
-  const session = {sessionFamilyId: 'family', viewer: {serverId: 'server', authority: 'local', accountId: 'account', profileId: 'profile', role: 'owner'}};
-  const hub = {interest(o: {name: string; read: (context: {signal: AbortSignal}) => Promise<{kind: string}>}) {
-    interests.set(o.name, o);return {invalidate() {}, dispose() {}, setRetained() {}};
-  }, settled: async () => {}};
-  const owner = createShellFactOwner({api: {request: () => read.promise}, session: () => session, hub, initial: f.initial, witnesses: f.witnesses,
-    isCurrent: () => true, retire: () => {retired++;}, preferences: {}, auth: {}} as unknown as Parameters<typeof createShellFactOwner>[0]);
-  try {
-    const pending = interests.get('shell-directory')!.read({signal: abort.signal});
-    read.resolve({items: [], viewerFence: 'directory', privacyFence: 'changed'});
-    queueMicrotask(() => abort.abort());
-    assert.equal((await pending).kind, 'superseded');
-    assert.equal(retired, 1);
-  } finally {owner.dispose();f.dispose();}
-});

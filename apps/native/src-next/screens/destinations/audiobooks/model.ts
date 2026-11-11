@@ -184,7 +184,7 @@ export class NativeAudiobookController {
       if (!live() || this.options.kind !== 'book') return;
       const state = await getContainerState(this.options.context.api, 'book', this.options.id, operation.signal);
       if (!live()) return;
-      const next = await setContainerState(this.options.context.api, 'book', this.options.id, {expectedRevision: state.revision, watched: true}, operation.signal);
+      const next = await setContainerState(this.options.context.api, 'book', this.options.id, {watched: true}, operation.signal);
       if (live()) this.publish({finished: next.watched});
     } catch (error) {
       if (live()) throw error;

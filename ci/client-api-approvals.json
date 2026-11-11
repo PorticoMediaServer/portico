@@ -1850,11 +1850,11 @@
     "occurrences": 1,
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6655467024"
   },
-  "web/src/screens/detail/bindings.ts#fe166b3cbcc3f6a0": {
+  "web/src/screens/detail/bindings.ts#04c3cec289334287": {
     "category": "platform-transport",
     "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
     "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval. Original direct identity-rehash evidence is retained in prior Git history; this new exact ruling explicitly authorizes the transport exception.",
-    "guardHash": "811853a8b77232b7bdd4b1245f70206a15df46a8b680a75a6dff7414fbab14b5",
+    "guardHash": "001362548943760ead2ec3f6b3fc0e05dcfa0f3c2aff1aaa96928808f8884d21",
     "occurrences": 1,
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6655467024"
   },
@@ -1938,11 +1938,11 @@
     "occurrences": 1,
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651098315"
   },
-  "apps/native/src-next/screens/library/model.ts#7e32ecf540433e2e": {
+  "apps/native/src-next/screens/library/model.ts#773f5daaa12692b2": {
     "category": "platform-transport",
     "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
     "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
-    "guardHash": "53c23e5e1fcbb8fedaca6e4ea8f86b4f560218dae9e2d7f6b0ff013dd67e97f1",
+    "guardHash": "7e04060298cb422aa7158d8ebcb53c4779b0f15e08424815456657e95c4403a4",
     "occurrences": 1,
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651098315"
   },
@@ -2034,11 +2034,11 @@
     "occurrences": 1,
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6655467024"
   },
-  "web/src/screens/browse/controller.ts#54d5e5281c0a4cf3": {
+  "web/src/screens/browse/controller.ts#668ba09f50bfc39f": {
     "category": "platform-transport",
     "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
     "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
-    "guardHash": "062354949b4468535c1c4ff38a9c9c4b8eb635a84d014e1ef32fbcb52cec1519",
+    "guardHash": "1e6e08ad37d0b124657b7d7b86537ee778194568a3f2f2199339c8d453cd7bb5",
     "occurrences": 1,
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6655467024"
   },
@@ -2098,11 +2098,11 @@
     "occurrences": 1,
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6655467024"
   },
-  "web/src/shell/entry-metadata.tsx#c7f646a0471f6e15": {
+  "web/src/shell/entry-metadata.tsx#74b5d19b5156c9c5": {
     "category": "platform-transport",
     "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
     "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
-    "guardHash": "39cdc283c205cc9c24b7c54b2415252682fc064a55f4766bb7ee6810207df329",
+    "guardHash": "d729c9ec2a37dbfc9506c933c7f892e5c022d13cd7fc25d2a98dae8152424b2c",
     "occurrences": 1,
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6655467024"
   },

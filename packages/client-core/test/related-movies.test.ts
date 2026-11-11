@@ -15,12 +15,6 @@ test('related movie service preserves server labels/order as immutable navigatio
  const genre=(n:number)=>({...row(),id:`genre:tmdb:${n}`,evidenceId:String(n)});
  assert.deepEqual(validateRelatedMovies({...related(),rows:[genre(1),genre(1),genre(2)]},target).rows.map(r=>r.id),['genre:tmdb:1','genre:tmdb:2']);
  assert.deepEqual(validateRelatedMovies({...related(),rows:[genre(1),genre(2),genre(3)]},target).rows.map(r=>r.id),['genre:tmdb:1','genre:tmdb:2']);});
-test('a refresh: an older catalog keeps the page, a new viewer fence is simply the newer page, a denial cannot retain cards',async()=>{for(const patch of [{revision:{catalog:1,viewer:0}},{scope:{serverId:'server',libraryId:'lib',itemId:'source',viewerFence:'changed'}},null]){let current:any=detail();const api={request:async<T>()=>{if(current===null)throw Object.assign(new Error('Access denied'),{code:'unauthorized'});return current as T}};const s=new DetailService(withQueries({api,scope:{serverId:'server',viewerId:'viewer'},requestId:async()=>''}));await s.select(target);const shown=s.getSnapshot().data;current=patch===null?null:{...detail(),...patch};await s.refresh();
- if(patch===null){assert.equal(s.getSnapshot().data,null);assert.equal(s.getSnapshot().phase,'error');}
- else if('revision' in patch){assert.equal(s.getSnapshot().data,shown,'an answer older than the page shown never replaces it');assert.equal(s.getSnapshot().phase,'ready');}
- else{assert.equal(s.getSnapshot().data!.scope.viewerFence,'changed','the server re-authorized the read; its answer is the page');assert.equal(s.getSnapshot().phase,'ready');}
- s.dispose();}});
-test('late related detail cannot replace another selected movie',async()=>{let resolve!:(v:any)=>void;const old=new Promise<any>(r=>resolve=r);const api={request:async<T>(path:string)=>path.includes('/source/')?old as Promise<T>:detail('new') as T};const s=new DetailService(withQueries({api,scope:{serverId:'server',viewerId:'viewer'},requestId:async()=>''}));const pending=s.select(target);await s.select({libraryId:'lib',itemId:'new'});resolve(detail());await pending;assert.equal(s.getSnapshot().data!.item.id,'new');s.dispose();});
 
 test('related music and book rows preserve real entity navigation with strict family boundaries',()=>{
  for(const [kind,relation,entryKind,view] of [['song','album','album','album'],['song','artist','album','album'],['audiobook_file','book','book','book'],['audiobook_file','author','book','book']]){

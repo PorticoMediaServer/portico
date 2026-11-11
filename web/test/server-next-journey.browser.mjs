@@ -1,10 +1,12 @@
 // The real web app against the rebuilt server (server-next), by script. It starts the server on a
 // fresh data folder and the web development server itself, on localhost, and walks the journeys of
 // the areas that have moved: set up the owner, sign in, choose a profile with a PIN, stay signed in
-// across a server restart, go back to Who's watching when a PIN changes elsewhere, sign out.
+// across a server restart, go back to Who's watching when a PIN changes elsewhere, browse a seeded
+// library (Home, a list and its filter, a film, a show), change what is watched, sign out.
 //
 //   cd server-next && go build -o /path/to/portico-server-next ./cmd/portico-server
-//   cd web && PORTICO_SERVER_NEXT_BIN=/path/to/portico-server-next \
+//   cd server-next && go build -o /path/to/portico-seed ./cmd/portico-seed   (for the browse steps)
+//   cd web && PORTICO_SERVER_NEXT_BIN=/path/to/portico-server-next [PORTICO_SEED_BIN=/path/to/portico-seed] \
 //     [CHROMIUM_PATH=…] [PLAYWRIGHT=/path/to/playwright/index.mjs] node test/server-next-journey.browser.mjs
 //
 // Each step prints "pass" or "FAIL" and the script carries on where it can, so one run says exactly
@@ -12,7 +14,7 @@
 //
 // One stand-in, until the server has the route: GET /v1/preferences is answered here from the
 // recorded answer in server/testdata/contracts. The app cannot open without its settings registry.
-import {spawn} from 'node:child_process';
+import {execFileSync, spawn} from 'node:child_process';
 import http from 'node:http';
 import {mkdtemp, readFile, rm} from 'node:fs/promises';
 import {createServer as netServer} from 'node:net';
@@ -37,6 +39,9 @@ const until = async (what, check, tries = 100) => {
 
 const data = await mkdtemp(join(tmpdir(), 'portico-next-journey-'));
 cleanups.push(() => rm(data, {recursive: true, force: true}));
+// The library is made before the server first starts, the way the load tests make theirs.
+const seedBin = process.env.PORTICO_SEED_BIN;
+if (seedBin) execFileSync(seedBin, ['-db', join(data, 'main.db'), '-items', '3000', '-phase', 'import'], {stdio: 'ignore'});
 const serverPort = await freePort(), serverOrigin = `http://127.0.0.1:${serverPort}`;
 let server;
 async function startServer() {
@@ -167,6 +172,85 @@ try {
     await page.getByRole('button', {name: /owner/}).click();
     await shell(page).waitFor();
   });
+  if (seedBin) {
+    const pressed = name => page.getByRole('button', {name, exact: true}).getAttribute('aria-pressed');
+    const stateOf = async id => (await (await fetch(`${serverOrigin}/v1/items/${id}`, {headers: {Authorization: 'Bearer ' + (await ownerToken()).token}})).json()).state;
+    let film = '';
+    await step('Home shows rows of the library', async () => {
+      await page.getByRole('heading', {name: 'Recently Added'}).waitFor();
+      await page.locator('article[data-card-kind]').first().waitFor();
+      if (!requests.has('GET /v1/home 200')) throw new Error('Home was not read from the server.');
+    });
+    await step('a library lists its films with a count, and a genre filter narrows it', async () => {
+      await page.getByRole('link', {name: 'Films'}).first().click();
+      await page.getByRole('tab', {name: 'Movies'}).click();
+      const count = async () => Number((await page.getByText(/^[\d,]+ movies$/).first().innerText()).replace(/\D/g, ''));
+      await page.locator('article[data-card-kind]').first().waitFor();
+      const all = await count();
+      await page.getByRole('button', {name: 'Filters', exact: true}).click();
+      await page.getByText('Genre', {exact: true}).click();
+      await page.getByRole('checkbox').first().click();
+      await page.getByRole('button', {name: 'Done'}).click();
+      await until('The filtered list', async () => (await count()) < all);
+      if (!requests.seen.some(line => /^GET \/v1\/items 200/.test(line))) throw new Error('The list was not read from the server.');
+      if (!await count()) throw new Error('The filter left nothing.');
+    });
+    await step('My List, watched, Favorites and a rating on a film reach the server and are still there after a reload', async () => {
+      await page.locator('article[data-card-kind] button').first().click();
+      await page.getByRole('button', {name: 'Mark as watched'}).waitFor();
+      film = new URL(page.url()).pathname.split('/').pop();
+      await page.getByRole('button', {name: 'My List', exact: true}).click();
+      await until('My List', async () => (await stateOf(film)).inList);
+      await page.getByRole('button', {name: 'Mark as watched'}).click();
+      await until('Watched', async () => (await stateOf(film)).watched);
+      await page.getByRole('button', {name: 'More', exact: true}).click();
+      await page.getByRole('menuitemradio', {name: 'Add to Favorites'}).click();
+      await until('Favorites', async () => (await stateOf(film)).favorite);
+      await page.getByRole('button', {name: 'More', exact: true}).click();
+      await page.getByRole('menuitem', {name: 'Rate…'}).click();
+      // Typing a digit on the rating control chooses that rating.
+      const rating = page.getByRole('combobox', {name: 'Your rating'});
+      await rating.focus();
+      await page.keyboard.type('7');
+      await until('A rating being chosen', async () => /7 out of 10/.test(await rating.innerText()));
+      await page.getByRole('button', {name: 'Save'}).click();
+      await until('The rating', async () => (await stateOf(film)).rating === 7);
+      // A reload asks Who's watching again on an account with more than one profile, then returns to the page.
+      await page.reload({waitUntil: 'domcontentloaded'});
+      await page.getByRole('button', {name: /owner/}).click();
+      await page.getByRole('button', {name: 'Mark as unwatched'}).waitFor();
+      if (await pressed('My List') !== 'true') throw new Error('My List was not kept.');
+    });
+    await step('a change made in one window shows in another without a reload', async () => {
+      const other = await browser.newContext({viewport: {width: 1440, height: 900}}), second = await other.newPage();
+      try {
+        // Each window is sent to the film's page; opening an address asks Who's watching first.
+        const openFilm = async window => {
+          await window.goto(`${origin}/item/${film}`, {waitUntil: 'domcontentloaded'});
+          await window.getByRole('button', {name: /owner/}).click();
+          await window.getByRole('button', {name: 'Mark as unwatched'}).waitFor();
+        };
+        await signIn(second);
+        await second.getByRole('button', {name: /owner/}).waitFor();
+        await openFilm(second);
+        await openFilm(page);
+        await page.getByRole('button', {name: 'Mark as unwatched'}).click();
+        await second.getByRole('button', {name: 'Mark as watched'}).waitFor({timeout: 15000});
+      } finally {await other.close();}
+    });
+    await step('marking a season watched can be undone', async () => {
+      await page.getByRole('link', {name: 'Shows'}).first().click();
+      await page.getByRole('tab', {name: 'Shows'}).click();
+      await page.locator('article[data-card-kind] button').first().click();
+      await page.getByText(/^0 of \d+ watched$/).waitFor();
+      await page.getByRole('button', {name: 'Season 1 options'}).click();
+      await page.getByRole('menuitem', {name: 'Mark season as watched'}).click();
+      await page.getByText(/^(\d+) of \1 watched$/).waitFor();
+      await page.getByRole('button', {name: 'Undo'}).click();
+      await page.getByText(/^0 of \d+ watched$/).waitFor();
+      if (!requests.has('POST /v1/items/state:undo 204')) throw new Error('The server was not asked to undo.');
+    });
+  }
   await step('sign out returns to sign-in, and stays signed out after a reload', async () => {
     await shell(page).click();
     await page.getByText('Sign out', {exact: true}).click();

@@ -1,5 +1,5 @@
 import {FileInfoSession} from '@core/file-info-session.ts';
-import {DetailService, parseCreditPage, readCreditPageResponse, type DetailProjection, type DetailSnapshot, type DetailTarget, type PersonalIntent} from '@core/detail.ts';
+import {DetailService, readCreditPage, type DetailProjection, type DetailSnapshot, type DetailTarget, type PersonalIntent} from '@core/detail.ts';
 import type {FileInfoFileRow} from '@core/file-info-pages.ts';
 import {readListeningSimilar} from '@core/library-content.ts';
 import type {ListeningViewerScope} from '@core/listening.ts';
@@ -99,7 +99,7 @@ export function createDetailBindings(context: ScreenContext) {
     current(data);
     // The Detail carries its opening only once the title is ready.
     if (!data.fileInfoOpening) return undefined;
-    return new FileInfoSession({api: life.api, opening: {token: data.fileInfoOpening, scope: context.scope, target: data.scope, revision: data.revision},
+    return new FileInfoSession({api: life.api, opening: {token: data.fileInfoOpening, scope: context.scope, target: data.scope, revision: {catalog: 0, viewer: 0}},
       isCurrent: () => life.current() && service.getSnapshot().data === data, signal: life.signal(signal)});
   };
   /** A File info command names the exact occurrence of the opening it was read from. The page
@@ -123,7 +123,7 @@ export function createDetailBindings(context: ScreenContext) {
     const scope: ListeningViewerScope = {serverId: context.scope.serverId, authority: viewer.authority, accountId: viewer.accountId, profileId: viewer.profileId};
     const value = await readListeningSimilar(life.api, scope, data.item.id, {limit: 12, by: 'sound', signal: life.signal(signal)});
     current(data);
-    if (value.itemId !== data.item.id || value.libraryId !== data.item.libraryId || value.revision.catalog !== data.revision.catalog || value.revision.viewer !== data.revision.viewer) throw new DOMException('Title recommendations changed', 'AbortError');
+    if (value.itemId !== data.item.id || value.libraryId !== data.item.libraryId) throw new DOMException('Title recommendations changed', 'AbortError');
     // The scope continues the row (SimilarTitleRow).
     return {value, scope};
   };
@@ -187,9 +187,8 @@ export function createDetailBindings(context: ScreenContext) {
     },
     async readCredits(data: DetailProjection, group: 'cast' | 'crew', cursor?: string, signal?: AbortSignal) {
       current(data);
-      const page = parseCreditPage(await readCreditPageResponse(life.api, data.item.id, group, {limit: 40, cursor}, signal), data.item.id, group);
+      const page = await readCreditPage(life.api, data.item.id, group, {limit: 40, cursor}, signal);
       current(data);
-      if (page.revision.catalog !== data.revision.catalog || page.revision.viewer !== data.revision.viewer) throw new DOMException('Credits revision changed', 'AbortError');
       return page;
     },
     mutate: async (data: DetailProjection, action: PersonalIntent) => { current(data); await service.mutate(action); },
