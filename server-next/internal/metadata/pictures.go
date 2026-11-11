@@ -41,7 +41,54 @@ var pictureRedirects = map[string][]string{
 // machine, play the provider. They are never set outside tests.
 var redirectsOverHTTP, redirectsToPrivate bool
 
-var pictureClient = &http.Client{Timeout: 30 * time.Second, CheckRedirect: checkPictureRedirect}
+var pictureClient = &http.Client{Timeout: 30 * time.Second, CheckRedirect: checkPictureRedirect, Transport: pictureTransport()}
+
+// pictureTransport connects to a host a redirect may lead to only at an address it has just
+// checked is on the Internet, so a name that answered a public address when the redirect was
+// checked cannot answer a local one when the connection is made.
+func pictureTransport() *http.Transport {
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	var dialer net.Dialer
+	t.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+		host, port, err := net.SplitHostPort(address)
+		if err != nil || redirectsToPrivate || !redirectTarget(strings.ToLower(host)) {
+			return dialer.DialContext(ctx, network, address)
+		}
+		addresses, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+		if err != nil {
+			return nil, err
+		}
+		for _, a := range addresses {
+			if !publicAddress(a.IP) {
+				return nil, fmt.Errorf("the picture's address redirected to %s, which is not on the Internet", host)
+			}
+		}
+		for _, a := range addresses {
+			conn, dialErr := dialer.DialContext(ctx, network, net.JoinHostPort(a.IP.String(), port))
+			if dialErr == nil {
+				return conn, nil
+			}
+			err = dialErr
+		}
+		if err == nil {
+			err = fmt.Errorf("%s has no address", host)
+		}
+		return nil, err
+	}
+	return t
+}
+
+// redirectTarget reports whether host is one a provider's redirect may lead to.
+func redirectTarget(host string) bool {
+	for _, targets := range pictureRedirects {
+		for _, a := range targets {
+			if host == a || strings.HasPrefix(a, "*.") && strings.HasSuffix(host, a[1:]) {
+				return true
+			}
+		}
+	}
+	return false
+}
 
 // checkPictureRedirect says whether a picture download may follow a redirect to req.
 func checkPictureRedirect(req *http.Request, via []*http.Request) error {
@@ -62,18 +109,7 @@ func checkPictureRedirect(req *http.Request, via []*http.Request) error {
 	case req.URL.Scheme != "https" && !redirectsOverHTTP:
 		return errors.New("the picture's address redirected to a plain http address")
 	}
-	if redirectsToPrivate {
-		return nil
-	}
-	addresses, err := net.DefaultResolver.LookupIPAddr(req.Context(), host)
-	if err != nil {
-		return err
-	}
-	for _, a := range addresses {
-		if !publicAddress(a.IP) {
-			return fmt.Errorf("the picture's address redirected to %s, which is not on the Internet", host)
-		}
-	}
+	// The host's address is checked when the connection is made: see pictureTransport.
 	return nil
 }
 
@@ -81,8 +117,12 @@ func checkPictureRedirect(req *http.Request, via []*http.Request) error {
 // a link-local address or an unspecified one.
 func publicAddress(ip net.IP) bool {
 	return !(ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() ||
-		ip.IsInterfaceLocalMulticast() || ip.IsMulticast())
+		ip.IsInterfaceLocalMulticast() || ip.IsMulticast() || sharedAddresses.Contains(ip))
 }
+
+// sharedAddresses is 100.64.0.0/10, the carrier-grade NAT range that Tailscale and similar
+// private networks also use.
+var sharedAddresses = &net.IPNet{IP: net.IPv4(100, 64, 0, 0), Mask: net.CIDRMask(10, 32)}
 
 // fetchPicture downloads one picture a provider offers. Every app sees it from the server's
 // own copy and never asks the provider.
