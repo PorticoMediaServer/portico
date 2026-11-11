@@ -18,16 +18,26 @@ const (
 // ContinueWatching lists what the viewer has started and not finished, most recent first. A
 // title the viewer removed from the row stays off it until it is played again. Not interested
 // does not take a title off it: that is for recommendation rows. Books are in Continue your
-// books instead. library is a library's public id, for that library's landing page, or "" for
-// Home, which covers every library.
-func (d *DB) ContinueWatching(ctx context.Context, v Viewer, library string) ([]Item, error) {
+// books instead. It covers every library: Home's row.
+func (d *DB) ContinueWatching(ctx context.Context, v Viewer) ([]Item, error) {
+	return d.continueRow(ctx, v, "NOT IN", "")
+}
+
+// ContinueWatchingIn is ContinueWatching for one library, by its public id: that library's
+// landing page. "" is every library.
+func (d *DB) ContinueWatchingIn(ctx context.Context, v Viewer, library string) ([]Item, error) {
 	return d.continueRow(ctx, v, "NOT IN", library)
 }
 
 // ContinueReading lists the books, comics and issues the viewer has a place in and has not
-// finished, most recently read first: Home's Continue your books, and a reading library's
-// Continue reading. library is as for ContinueWatching.
-func (d *DB) ContinueReading(ctx context.Context, v Viewer, library string) ([]Item, error) {
+// finished, most recently read first: Home's Continue your books.
+func (d *DB) ContinueReading(ctx context.Context, v Viewer) ([]Item, error) {
+	return d.continueRow(ctx, v, "IN", "")
+}
+
+// ContinueReadingIn is ContinueReading for one library, by its public id: a reading library's
+// Continue reading. "" is every library.
+func (d *DB) ContinueReadingIn(ctx context.Context, v Viewer, library string) ([]Item, error) {
 	return d.continueRow(ctx, v, "IN", library)
 }
 
@@ -70,9 +80,14 @@ func (d *DB) continueRow(ctx context.Context, v Viewer, reading, library string)
 // RecentlyAdded lists the newest titles across the libraries the viewer may see: films and
 // books by when they were added, shows and albums by their newest episode or track, so a show
 // with a new episode is new again. It reads the newest few hundred playable items of each
-// library through the "date added" index, whatever the size of the library. library is a
-// library's public id, for that library's landing page, or "" for every library.
-func (d *DB) RecentlyAdded(ctx context.Context, v Viewer, library string) ([]Item, error) {
+// library through the "date added" index, whatever the size of the library.
+func (d *DB) RecentlyAdded(ctx context.Context, v Viewer) ([]Item, error) {
+	return d.RecentlyAddedIn(ctx, v, "")
+}
+
+// RecentlyAddedIn is RecentlyAdded for one library, by its public id: that library's landing
+// page. "" is every library.
+func (d *DB) RecentlyAddedIn(ctx context.Context, v Viewer, library string) ([]Item, error) {
 	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return nil, err
