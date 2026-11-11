@@ -113,11 +113,13 @@ test('a phone stream card draws the drawn lines: artwork shape, username first, 
   assert.doesNotMatch(desktop, /phoneSession|phoneProgress/);
 });
 
-test('a paused phone stream says Paused, and only an owner sees Stop on the card', () => {
+test('a paused phone stream says Paused; the owner and an administrator see Stop, but not on a stream they cannot name', () => {
   const paused = card({state: 'paused'});
   assert.match(paused, /data-state="paused"/);
   assert.match(paused, /class="phoneState"[^>]*><svg[^>]*>[\s\S]*?<\/svg>Paused/);
-  assert.doesNotMatch(card({}, 'admin'), /phoneStop|buttonLabel">Stop</);
+  assert.match(card({}, 'admin'), /phoneStop/);
+  // An administrator held to some libraries is sent a stream outside them untitled: Stop is not offered on it.
+  assert.doesNotMatch(card({title: '', item: undefined, itemId: undefined}, 'admin'), /phoneStop|buttonLabel">Stop</);
 });
 
 test('the phone page header draws only the facts the server returned and offers Refresh, never a pull ring', () => {
