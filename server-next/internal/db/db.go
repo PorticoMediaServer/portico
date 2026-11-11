@@ -20,7 +20,13 @@ import (
 const SchemaVersion = 1
 
 //go:embed schema.sql
-var schemaSQL string
+var schemaCoreSQL string
+
+//go:embed schema_areas.sql
+var schemaAreasSQL string
+
+// schemaSQL is the whole schema: the core tables, then the tables of the areas built on them.
+var schemaSQL = schemaCoreSQL + "\n" + schemaAreasSQL
 
 // DB is the main database. All writes go through the single write connection, so SQLite
 // never sees two writers. Reads use a small pool and never block on the writer in WAL mode.
