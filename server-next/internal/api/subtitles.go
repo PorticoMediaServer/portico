@@ -41,7 +41,8 @@ type LyricLine struct {
 // Lyrics is one set of lyrics for a song.
 type Lyrics struct {
 	ID string `json:"id"`
-	// Origin is where they came from. For now only sidecar: a file beside the song.
+	// Origin is where they came from: pasted (by the owner), tags (the song file's own),
+	// provider (LRCLIB) or sidecar (a file beside the song). The stored ones come first.
 	Origin string `json:"origin"`
 	// Format is lrc (timed) or text.
 	Format string      `json:"format"`
@@ -49,6 +50,8 @@ type Lyrics struct {
 	Lines  []LyricLine `json:"lines"`
 	// OffsetMs is the timing offset written in the file itself.
 	OffsetMs int64 `json:"offsetMs"`
+	// Credit names where lyrics came from when a provider gave them: "Lyrics provided by LRCLIB".
+	Credit string `json:"credit,omitempty"`
 }
 
 func (s *Server) subtitleRoutes() {
@@ -145,21 +148,45 @@ func parseLyrics(text string) (lines []LyricLine, offsetMs int64, timed bool) {
 	return lines, offsetMs, timed
 }
 
-// itemLyrics reads the lyrics files beside a song. Lyrics from inside the file, from a
-// provider, or pasted by the owner arrive with the metadata work.
+// itemLyrics reads a song's lyrics: those kept with it (pasted, from its tags, or the
+// provider's), then the files beside it.
 func (s *Server) itemLyrics(r *http.Request, _ None) (Page[Lyrics], error) {
 	c := CallerFrom(r.Context())
 	lyrics, err := s.lyricsOf(r.Context(), db.Viewer{UserID: c.UserID, ProfileID: c.ProfileID}, r.PathValue("id"))
 	return Page[Lyrics]{Items: lyrics}, err
 }
 
-// lyricsOf reads a song's lyrics files, for the lyrics route and for a download.
+// lyricsOf reads a song's lyrics, those kept with it and its lyrics files, for the lyrics
+// route and for a download.
 func (s *Server) lyricsOf(ctx context.Context, v db.Viewer, itemID string) ([]Lyrics, error) {
 	files, err := s.db.LyricFiles(ctx, v, itemID)
 	if err != nil {
 		return nil, playbackError(err)
 	}
 	out := []Lyrics{}
+	// The lyrics kept with the song (pasted, from its tags, or the provider's) come first: pasted
+	// ones are what everyone sees (definition 04, rule 64).
+	if song, err := s.db.VisibleSong(ctx, v, itemID); err == nil {
+		stored, err := s.db.SongLyrics(ctx, song)
+		switch {
+		case errors.Is(err, db.ErrNotFound):
+		case err != nil:
+			return out, err
+		case stored.Body != "": // a provider's "none" is not shown
+			lines, offset, timed := parseLyrics(stored.Body)
+			lyrics := Lyrics{ID: "lyr0", Origin: map[db.LyricsSource]string{db.LyricsPasted: "pasted", db.LyricsFromFile: "tags",
+				db.LyricsFromProvider: "provider"}[stored.Source], Format: "text", Text: stored.Body, Lines: lines, OffsetMs: offset}
+			if timed {
+				lyrics.Format = "lrc"
+			}
+			if stored.Source == db.LyricsFromProvider {
+				lyrics.Credit = lyricsCredit
+			}
+			out = append(out, lyrics)
+		}
+	} else if !errors.Is(err, db.ErrNotFound) {
+		return out, err
+	}
 	for _, file := range files {
 		f, err := libraryfile.Open(file.Path, []string{file.Folder})
 		if err != nil {

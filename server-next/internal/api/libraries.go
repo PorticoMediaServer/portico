@@ -41,6 +41,9 @@ type LibraryOptions struct {
 	// GroupSeries is "Group films from the same series": a collection appears once two films
 	// of a series are in the library. On unless turned off; left out of an edit, it stays.
 	GroupSeries *bool `json:"groupSeries,omitempty"`
+	// Lyrics is a music library's lyrics source: "" for its files only (the default), or
+	// "lrclib" for its files, then LRCLIB, fetched after each scan for songs without any.
+	Lyrics string `json:"lyrics,omitempty"`
 }
 
 // TrashRule is days (the default, with Days from 1 to 3,650, starting at 30), scan (after
@@ -267,7 +270,7 @@ func libraryOptionsOut(o db.LibraryOptions) LibraryOptions {
 	watch := !o.NoWatch
 	group := o.GroupSeries == nil || *o.GroupSeries
 	out := LibraryOptions{Depth: o.Depth, Trash: TrashRule{Mode: o.Trash.Mode, Days: o.Trash.Days}, AllowDelete: o.AllowDelete,
-		Watch: &watch, RescanMinutes: o.RescanMinutes, GroupSeries: &group}
+		Watch: &watch, RescanMinutes: o.RescanMinutes, GroupSeries: &group, Lyrics: o.Lyrics}
 	if out.Depth == "" {
 		out.Depth = db.DepthBasic
 	}
@@ -282,7 +285,7 @@ func libraryOptionsOut(o db.LibraryOptions) LibraryOptions {
 
 func optionsIn(o LibraryOptions) db.LibraryOptions {
 	return db.LibraryOptions{Depth: o.Depth, Trash: db.TrashRule{Mode: o.Trash.Mode, Days: o.Trash.Days}, AllowDelete: o.AllowDelete,
-		NoWatch: o.Watch != nil && !*o.Watch, RescanMinutes: o.RescanMinutes, GroupSeries: o.GroupSeries}
+		NoWatch: o.Watch != nil && !*o.Watch, RescanMinutes: o.RescanMinutes, GroupSeries: o.GroupSeries, Lyrics: o.Lyrics}
 }
 
 func (s *Server) foldersOut(lib db.Library, folders []db.LibraryFolder) []LibraryFolder {
