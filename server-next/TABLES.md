@@ -1,8 +1,10 @@
 # server-next: the table list
 
-The plan is 73 tables; the budget is 90. A table is added to `internal/db/schema.sql` when its
-area is built, after asking what a user would lose without it. **In schema** means the table
-exists today. Columns are documented in `schema.sql` itself.
+The plan is 67 tables; the budget is 90. A table is added to the schema when its area is
+built, after asking what a user would lose without it. **In schema** means the table exists
+today. The schema is two files loaded as one, `internal/db/schema.sql` (the core) and
+`internal/db/schema_areas.sql` (the areas built on it), because a source file stops at 1,000
+lines; columns are documented there. How the areas use these tables is in `AREAS.md`.
 
 | Area | Table | In schema | What a user would lose without it |
 |---|---|---|---|
@@ -12,7 +14,8 @@ exists today. Columns are documented in `schema.sql` itself.
 | | `idempotency_keys` | yes | A lost reply to "add to playlist" would add the track twice |
 | | `audit_log` | yes | The owner's record of admin and security actions |
 | | `changes` | yes | Open screens updating by themselves; search catching up after a crash |
-| | `outbox` | with webhooks | Webhook deliveries that survive a restart, and their history page |
+| | `outbox` | yes | Webhook messages that survive a restart, and each webhook's delivery log |
+| | `daily_totals` | yes | Statistics for the whole life of the server: plays, watch time, bandwidth, a number a day |
 | Libraries and files | `libraries` | yes | Libraries |
 | | `library_paths` | yes | The folders in a library |
 | | `remote_sources` | yes | WebDAV and rclone storage |
@@ -44,17 +47,44 @@ exists today. Columns are documented in `schema.sql` itself.
 | | `auth_limits` | yes | A guessing limit that a restart does not reset |
 | | `api_keys` | yes | Tools such as Sonarr and Home Assistant |
 | | `preferences` | yes | Per-person and per-device settings |
-| | `notifications`, `notification_reads` | with the console | The notice inbox |
-| | `webhooks` | with webhooks | Outgoing webhooks |
-| | `reports` | with the console | Feedback and problem reports |
-| Remote access | `certificates`, `hosted_links`, `hosted_trust_keys` | with remote access | Built-in remote access and the Portico Account link |
+| | `notifications` | yes | The notice inbox. Read and archived are on the row, so there is no second table |
+| | `webhooks` | yes | Outgoing webhooks |
+| | `reports` | yes | "Report a problem", crash reports, and the owner's reply |
 | Per-user state | `user_item_state` | yes | Watched, progress, favourites, My List, ratings |
-| | `play_history` | yes | History and play statistics |
+| | `play_history` | yes | Each person's History, and the owner's Play history, kept for good |
 | | `lists`, `list_entries`, `list_shares` | yes | Playlists, collections, saved views, and sharing them |
 | | `play_queues`, `queue_entries` | yes | A queue that survives a restart and moves between devices |
-| | `annotations` | with reading | Highlights, bookmarks and notes in books |
+| | `annotations` | yes | Highlights, bookmarks and notes in books |
 | Playback and downloads | `playback_route_failures` | yes | Not hitting the same known-bad playback route after every restart |
-| | `prepared_media`, `downloads`, `download_items` | with downloads | Offline downloads |
-| Live TV and DVR | `live_sources`, `guide_sources`, `channels`, `profile_channels`, `recording_rules`, `recordings`, `recording_owners`, `reminders`, `virtual_channels` | with Live TV | Live TV, the guide, recordings, library channels |
-| `guide.db` | `programmes` | with Live TV | The TV guide |
+| | `prepared_media` | yes | A smaller copy the server already made would be made again for every person and after every restart |
+| | `downloads`, `download_items` | yes | What a device asked for ("keep the next 3"), and "3 of 9 ready" |
+| Live TV and DVR | `live_sources` | yes | Sources of channels and of listings (a guide alone is a source of another kind) |
+| | `channels` | yes | Channels, their numbers and listings; a Library Channel is a channel too |
+| | `profile_channels` | yes | Each profile's favourite and hidden channels |
+| | `library_channels` | yes | The Library Channel builder: what plays, the weekly hours, and where each show had got to |
+| | `recording_rules`, `recordings` | yes | Series rules; bookings, what is recording, and History. A recorded programme is an ordinary title in the one Recorded TV library |
+| | `reminders` | yes | Reminders that follow a profile to every device |
+| `guide.db` | `programmes` | with Live TV | The TV guide, and the schedule made ahead for each Library Channel |
 | `search.db` | full-text indexes, `book_text` | with search | Search |
+
+## Counted
+
+67 planned: 65 in the schema today, less `removed_state` (going: the scanner now forgets a
+title when its trash is emptied), plus `media_artifacts` and `track_embeddings` still to come
+and `account_restrictions`, which is in an open pull request.
+
+Planned once and dropped, with what does the job instead:
+
+| Dropped | Instead |
+|---|---|
+| `certificates`, `hosted_links`, `hosted_trust_keys` | Key and certificate files in the data folder's `Keys/`, and `settings` rows: there is one link and one certificate |
+| `notification_reads` | `read_at` and `archived_at` on the `notifications` row |
+| `guide_sources` | A `live_sources` row of kind `guide` |
+| `recording_owners` | One shared Recorded TV library; a recording says who booked it |
+| `virtual_channels` | `library_channels`, hanging from a `channels` row |
+
+No table, on purpose: watch-together rooms, devices open to play and moves between them, live
+sessions, tuners in use, the rewind stretch, a recording's progress, server load (memory);
+backups and logs (files); schedules (settings and a timer); a history of failed conversions
+(the server log); block presets for Library Channels (one `settings` row); what each device
+holds of its downloads (the device knows).

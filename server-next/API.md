@@ -136,19 +136,18 @@ Assistant) are a separate short document and are not counted here.
 | `GET /v1/lists/{id}/shares`, `PUT /v1/lists/{id}/shares` | Who a list is shared with |
 | `GET /v1/jobs/{id}`, `POST /v1/jobs`, `DELETE /v1/jobs/{id}` | Run a bulk action over a selection, watch it, cancel it |
 
-### Playback (34), playing together and to other devices (21), downloads (10), reading (11), Live TV and DVR (19), notices and reports (9)
+### Playback (34)
 
-Listed route by route when each area's definition is written, just ahead of its build. The
-resources and their counts are fixed now so the whole product fits the budget:
+The rest of playback is listed route by route as it is built. Its resources and count are
+fixed so the whole product fits the budget:
 
 | Area | Resources |
 |---|---|
 | Playback | `GET /v1/items/{id}/playback-options`; `/v1/playback/sessions` (start, read, change, stop, report progress, prepare for AirPlay); your sessions on other devices; `/v1/queues` (11, with gapless prepare and commit); subtitles (6); lyrics (4); `/v1/media/{grant}/…` byte families (4) |
-| Together | `/v1/groups` (10); `/v1/receivers` (6); Cast sign-in for a receiver (3); transfer a session (2) |
-| Downloads | `GET /v1/items/{id}/download-options`; `/v1/downloads` (5); manifest; `POST /v1/downloads/sync` (with the signed offline permission); usage; byte family |
-| Reading | Books and issues are items. `/v1/reading/sessions` (2); page, asset and source bytes (3); `/v1/items/{id}/annotations` (4); search inside a book; save the original |
-| Live TV and DVR | `/v1/live/channels`, `/guide`, `/now`, programme detail, channel favourites and hiding; reminders (3); `/v1/dvr/recordings` (6); `/v1/dvr/rules` (4). Watching a channel is an ordinary playback session. |
-| Notices and reports | Notification inbox (3); feedback reports (2); client log upload (1); app reports (3) |
+
+Setup, playing together, downloads, reading, Live TV, notices and tools are listed route by
+route after playback, each route with who may call it. How each area is built is in
+`AREAS.md`.
 
 ### Playback, route by route (built so far: 22 of 34, and 4 console routes)
 
@@ -179,6 +178,174 @@ session is unknown (`404`), and the app starts again by itself where it was.
 | `GET /v1/admin/playback/stream-limits`, `PUT /v1/admin/playback/stream-limits` | The owner's stream limits: in total, per person, and for one person |
 | `GET /v1/admin/playback/failures`, `DELETE /v1/admin/playback/failures/{id}` | Remembered "this way of playing this file failed on this device", and forgetting one |
 
+### Setup and the kind of sign-in (5 new)
+
+The Console half is under "Setup, remote access and sign-in kind" below. Setup holds nothing
+until it finishes: the first to finish with the setup code is the owner.
+
+| Route | Who | Purpose |
+|---|---|---|
+| `GET /v1/system` | Anyone | Listed above. Adds `signIn` (`portico` or `local`, from the `sign_in_kind` setting), `move` (`to_portico`, `to_local` or absent: a switch has people waiting) and `atHome` |
+| `POST /v1/setup/owner` | Anyone with the setup code, while there is no owner | Exists. Local sign-in: server name, username, password; answers tokens |
+| `POST /v1/setup/portico`, `POST /v1/setup/portico/finish` | Anyone with the setup code, while there is no owner | Portico Accounts: name and code in, the approval address out; then the approval that came back in, tokens out. Nothing is saved between the two |
+| `POST /v1/auth/move/check`, `POST /v1/auth/move/complete` | A person whose account is waiting to move | An old password or a move code in, the username and the next step out; then a Portico Account, or a new username and password, in and tokens out. A wrong, used or expired code has one answer |
+| `POST /v1/me/leave` | A member of a Portico Accounts server (not the owner) | Leave the server, with "also delete my profiles and history" |
+
+Not carried: `GET /v1/setup/state`, `POST /v1/setup/browser`, `/app`, `/remote-check`,
+`/abandon`, `/retry` and `/start-over` (setup holds nothing to resume or abandon);
+`/v1/networking/claim/*` and `/v1/auth/portico-return/exchange` (the two setup and switch
+steps above); `/v1/networking/connection` (`atHome` on `GET /v1/system`). Linking a TV with a
+Portico Account is between the app and Portico Services.
+
+### Playing together and on other devices (20)
+
+All of it is memory: a restart ends every group and every move in flight. Changes arrive on
+`GET /v1/events` as "this group changed" or "this device is being asked"; the app rereads.
+Nothing here takes `If-Match`: the last action wins.
+
+| Route | Who | Purpose |
+|---|---|---|
+| `GET /v1/groups`, `POST /v1/groups` | A profile allowed Watch Together | Groups this profile is in; start one (name, your name in it, who controls) |
+| `POST /v1/groups/join` | A profile allowed Watch Together | Join with a code. A code that did not work has one answer |
+| `GET /v1/groups/{id}` | A member of the group | The room: what is on, the shared clock, members and whether each is in step, the queue, the invitation code, what this member may do. A title this member may not see has no name or picture |
+| `PATCH /v1/groups/{id}` | The host; any member in step for "become host" once the host has been gone two minutes | Who controls; make someone host; become host; a new invitation code |
+| `DELETE /v1/groups/{id}` | The host | End for everyone |
+| `POST /v1/groups/{id}/playback` | Whoever may control | Play, pause, seek, watch this entry, go ahead without someone |
+| `PUT /v1/groups/{id}/queue` | Whoever may control | The whole queue as it should now be (at most 256 titles) |
+| `PUT /v1/groups/{id}/me`, `DELETE /v1/groups/{id}/me` | A member | Where this member is and whether it is ready, which also keeps it present; leave |
+| `GET /v1/receivers` | Any signed-in profile | The account's open devices that accept playback, at home or away, and what each is playing. Cast and AirPlay targets are found by the app, not listed here |
+| `PUT /v1/receivers/current`, `DELETE /v1/receivers/current` | A signed-in device | This device accepts playback from the account's other devices, or stops |
+| `POST /v1/receivers/{id}/requests`, `GET /v1/receivers/{id}/requests/{requestId}` | A device of the same account | Ask a device to play (title, place, audio and subtitle picks, queue) or to be controlled; see allowed, declined, playing or failed. The first device keeps playing until the second is |
+| `GET /v1/receivers/current/requests`, `PATCH /v1/receivers/current/requests/{requestId}` | The receiving device | What is being asked; allow, decline, report playing or failed. The device itself remembers which devices it allowed |
+| `GET /v1/cast/config` | Any signed-in profile, on a Portico Accounts server | The Cast application id. A local server answers `404` and has no `cast` capability |
+| `POST /v1/cast/codes` | Any signed-in profile, on a Portico Accounts server | A pairing code for the TV the sender is casting to |
+| `POST /v1/cast/redeem` | The Cast receiver, with the code | A sign-in that can play what the casting profile may see and nothing else (session scope `cast`), renewed by the ordinary refresh; it ends when the account signs it out or after a day unused |
+
+Controlling a device afterwards is the ordinary `PATCH` and `DELETE /v1/playback/sessions/{id}`,
+which already reach another device of the same account. The queue moves with `POST /v1/queues`
+and `from` another queue. AirPlay is `POST /v1/playback/sessions/{id}/airplay`, counted with
+playback.
+
+Not carried: `/v1/handoffs/*` (the request above is the move, and it is not stored);
+`/v1/receivers/{id}/grants` (permission is remembered by the device that gives it);
+`/v1/receivers/{id}/heartbeat` and `/inbox` (`PUT /v1/receivers/current` and the events feed);
+`GET /v1/groups/{id}/events` (the one events feed); the separate group `heartbeat`,
+`readiness`, `transport`, `settings`, `invites`, `host-transfer`, `leave` and `end` routes
+(folded into the routes above); `/v1/cast/bootstrap`, `/controllers/*`, `/preview` and
+`/reconnect` (taking over a TV is settled on Google's own channel between sender and TV).
+
+### Downloads (10)
+
+| Route | Who | Purpose |
+|---|---|---|
+| `GET /v1/items/{id}/download-options` | A profile allowed to download, for a title it may play | The real choices with the size of each ("about" when estimated), which need the server to prepare a copy first, and why a choice is not offered; with `selection` and `keepNext`, for a show, season, album, artist or playlist as a whole; the room left in the owner's download space |
+| `GET /v1/downloads`, `POST /v1/downloads` | A profile allowed to download | This device's requests, or with `scope=profile` all of the profile's (the browser page); ask for one. `201`, or `200` for the same thing asked twice. A person limited to home can ask only at home |
+| `GET /v1/downloads/{id}` | The profile that asked | One request with its titles and the state of each: waiting, preparing with progress, ready, paused, expired, could not be prepared or included, with the reason |
+| `PATCH /v1/downloads/{id}` | The profile that asked | Pause, resume, retry; change or remove "keep the next" |
+| `DELETE /v1/downloads/{id}` | The profile that asked | Remove the request. The server's prepared copy stays for anyone else who asked for it |
+| `GET /v1/downloads/{id}/items/{itemId}` | The profile that asked | What to fetch for one title: its details, and the addresses, sizes and hashes of its file or files, artwork, subtitles, chapters and markers, and lyrics |
+| `POST /v1/downloads/sync` | A signed-in device | The device says which titles it holds. The answer says which to remove (the profile may no longer see them, or may no longer download), which to add or drop under "keep the next", and until when everything plays offline (30 days from now) |
+| `GET /v1/downloads/usage` | A profile allowed to download | Space the profile's prepared copies take |
+| `GET /v1/media/{grant}/…` | Whoever holds the address | The bytes, by range, so a transfer carries on where it stopped. The grant is in the answer of the items route and is short-lived |
+
+Offline plays, places and watched marks come back through `POST /v1/items/state:batch`, like
+any change made out of reach. In a browser a ready title is saved through the same media
+address.
+
+Not carried: `/v1/downloads/receipts*`, `/receipt-keys`, `/revocations` and
+`/preparations/{id}/grant` (signed offline permissions: the app enforces the 30 days, and
+`sync` says what goes); `/v1/downloads/preparations*` and `/requests*` as two resources (one
+`/v1/downloads`); `POST /v1/downloads/progress` (`state:batch`); `GET`/`PUT
+/v1/downloads/settings` (the `downloads` settings document); seek previews inside a download.
+
+### Reading (8)
+
+A book is an item: its page is `GET /v1/items/{id}`, its place and read mark go through `PUT
+/v1/items/{id}/state`, "mark all read" is a job over a selection, and its lists are `GET
+/v1/items`. Nothing is "open" on the server. Search inside the open book and the highlights
+export are done by the app.
+
+| Route | Who | Purpose |
+|---|---|---|
+| `GET /v1/items/{id}/book` | A profile that may see the book | How to read it: the version chosen (or `version=`), its kind, contents and page list, the addresses of its parts, the fingerprint of the file, and whether the caller may save the file. A book the server cannot open says why |
+| `GET /v1/media/{grant}/pages/{n}` | Whoever holds the address | One comic or image page, no wider than `w`. A page too large to prepare safely is `422` and the rest of the book reads |
+| `GET /v1/media/{grant}/parts/{path}` | Whoever holds the address | One part of an EPUB, named in the book's own list of parts and nothing else |
+| `GET /v1/media/{grant}/source` | Whoever holds the address; saving needs a profile allowed to download | The file's own bytes by range: a PDF read in the app, and Save the file at any size |
+| `GET /v1/items/{id}/annotations` | The profile, for a book it may see | Its bookmarks, highlights and notes in the book, with those deleted since `since=` |
+| `PUT /v1/items/{id}/annotations/{annotationId}`, `DELETE /v1/items/{id}/annotations/{annotationId}` | The profile | Add or change one (the app makes the id, so a repeat changes nothing; the 5,001st is refused); delete one everywhere |
+| `POST /v1/annotations:batch` | The profile | What a device made while out of reach; the later edit to one id wins |
+
+Not carried: `/v1/reading/sessions*` (nothing is open on the server; bytes are media
+addresses); reading `progress` routes and `/v1/reading/offline/progress*` (the one state
+route; the later place wins and nothing is refused); `/v1/items/{id}/reading/mark` and
+`/v1/libraries/{id}/reading/mark-all` (the state route and a job); `/v1/reading/items`,
+`/discover`, `/continue`, series and periodical routes (the item list, the library landing and
+Home); the reading `my-list`, `favorite` and saved-group routes (the state route);
+`GET /v1/reading/search` across every book (put off until someone asks).
+
+### Live TV and recordings (18)
+
+Watching a channel is `POST /v1/playback/sessions` with `channel`; pause, rewind and Go to
+live are the ordinary `PATCH`. "Every tuner is busy" is `409 no_tuner` naming what is using
+them. A countdown before a stream is taken for a recording arrives as a session change.
+Channel logos and programme pictures are `/v1/images/{id}` addresses. A recorded programme is
+a title in the Recorded TV library: it is listed with `GET /v1/items?library=` and played,
+marked and deleted like any title.
+
+| Route | Who | Purpose |
+|---|---|---|
+| `GET /v1/live/channels` | A profile allowed Live TV | Channels it may watch: by source, group, favourites, with its hidden ones on request; by number or name; `around=` for the mini guide. The sources and groups to filter by come with the first page |
+| `GET /v1/live/guide` | A profile allowed Live TV | Programmes for a run of channels and a stretch of time, and whether the guide is out of date |
+| `GET /v1/live/now` | A profile allowed Live TV | On now: favourites first, then by number, with what is on and next |
+| `GET /v1/live/programmes/{id}` | A profile allowed Live TV | One programme, its other airings, and whether it is booked or has a reminder. One the profile's rating limit hides says so and cannot be watched or recorded |
+| `PUT /v1/live/channels/{id}/state` | A profile allowed Live TV | Favourite and hide, for this profile |
+| `GET /v1/live/reminders`, `PUT /v1/live/reminders/{id}`, `DELETE /v1/live/reminders/{id}` | A profile allowed Live TV | Reminders; `{id}` is the programme. The app shows them |
+| `GET /v1/dvr` | A profile allowed Live TV | Counts (upcoming, recorded, unwatched, conflicts), space used and free, about how many hours are left, the keep rule in force |
+| `GET /v1/dvr/recordings`, `POST /v1/dvr/recordings` | Read: a profile allowed Live TV. Book: a profile allowed to record | Upcoming (conflicts first) and History by `state`, the profile's own or with `scope=everyone` all of them; book an airing. An airing already booked answers that booking |
+| `GET /v1/dvr/recordings/{id}`, `PATCH /v1/dvr/recordings/{id}`, `DELETE /v1/dvr/recordings/{id}` | Read: as above. Change and delete: the profile that booked it, the owner and administrators | One booking with what it clashes with and its size; change padding or priority, Keep, "Record this instead" or "Skip this one"; cancel, stop (what was captured is kept), or delete the recording and its file |
+| `GET /v1/dvr/rules`, `POST /v1/dvr/rules` | A profile allowed to record; the owner for any profile with `profile=` | Series rules, the profile's own or with `scope=everyone` all of them for the owner; make one (`?preview=true` answers what it would record and makes nothing) |
+| `PATCH /v1/dvr/rules/{id}`, `DELETE /v1/dvr/rules/{id}` | The profile that made it; the owner | Edit, pause, resume; delete, with `bookings=keep` or `cancel` |
+
+Not carried: `/v1/guide/sources` (comes with the channel list); `/v1/dvr/groups` (recorded
+titles are the item list); `/v1/dvr/recordings/{id}/delete-preview`, `/cancel` and `/keep`
+(the read, `DELETE` and `PATCH` above); `GET /v1/dvr/channels` (the channel list);
+`/v1/dvr/storage` and `/v1/admin/dvr/recording-root` (the `dvr` settings document);
+`/v1/channels/preferences` and `/v1/library-channels/preferences` (one channel state route);
+the seven recording controls the old server never saved.
+
+### Notices and reports (5)
+
+| Route | Who | Purpose |
+|---|---|---|
+| `GET /v1/notifications` | Any signed-in profile | Its notices: unread, all or archived, with the unread count |
+| `PATCH /v1/notifications/{id}`, `POST /v1/notifications/read-all` | Any signed-in profile | Mark read or unread, archive; mark all read |
+| `POST /v1/reports` | Any signed-in profile | Report a problem, or send a crash report, with what was playing and, if the person agrees, the app's log (at most 5 MB) |
+| `GET /v1/reports` | Any signed-in profile | Its own reports and the owner's replies |
+
+Not carried: `/v1/notifications/capabilities`, `/inbox`, `/unread-count` and `/inbox/actions`
+(the three routes above); a separate client log upload and app report routes (`POST
+/v1/reports`).
+
+### For tools (2)
+
+A key, token or app password is turned into its person and profile in one place, where it is
+also refused whenever and wherever that person could not sign in (outside viewing hours, away
+from home for an account limited to home, a blocked network, an account turned off or
+waiting). After that a tool uses the same routes as the apps, within what its key may do
+(Read, Play, Libraries, Administer). No key can make, change or revoke keys, change a
+password, PIN or two-step sign-in, change who is owner or administrator, or restore a backup.
+
+| Route | Who | Purpose |
+|---|---|---|
+| `POST /v1/libraries/changed` | A key allowed Libraries; the owner and administrators | Files changed at these paths: the folders are scanned, and a path outside every library is ignored |
+| `POST /v1/mcp` | A key, while "Assistants" is on | The assistant address. Tools offered: find and read titles, see what is playing, mark watched, scan and report changed files, list unmatched titles, read the guide and recordings, and with Administer read status, storage and recent messages. Nothing that deletes or reconfigures |
+
+The Jellyfin-compatible routes (30 behaviours, their own document, off until the owner turns
+them on) sign in with an app password and nothing else; a tool that then asks for "a key" is
+given access equal to that app password. DLNA (one switch in the `remote-access` document, off by default) answers on its own
+UPnP addresses outside `/v1`, to the home networks only, never through a proxy, and serves
+original files with no sign-in.
+
 ## Console API (about 180)
 
 Listed route by route with each console panel's definition. Resources:
@@ -186,13 +353,13 @@ Listed route by route with each console panel's definition. Resources:
 | Area | Ops | Resources |
 |---|---:|---|
 | People and access | 22 | Members; invitations; members' devices; sign-in policy; security summary and unblock; moving between sign-in kinds |
-| Setup and remote access | 18 | First-run setup (`POST /v1/setup/owner` exists now, needs the setup code the server logs and writes to `setup-code.txt` in its data folder, and works from any network); remote access; certificate; Portico Account link; `GET`/`PUT /v1/admin/settings/network` (exists now: the owner's home networks, which alone decide local and remote, and the reverse proxies whose `X-Forwarded-For` is believed); `GET /v1/admin/blocked-networks` and `DELETE /v1/admin/blocked-networks/{id}` (exist now: the networks blocked for wrong guesses, and unblocking one) |
+| Setup and remote access | 14 | Listed below (10); `GET`/`PUT /v1/admin/settings/network` (exists now: the owner's home networks, which alone decide local and remote, and the reverse proxies whose `X-Forwarded-For` is believed); `GET /v1/admin/blocked-networks` and `DELETE /v1/admin/blocked-networks/{id}` (exist now: the networks blocked for wrong guesses, and unblocking one). First-run setup is in the Client API (`POST /v1/setup/owner` exists now, needs the setup code the server logs and writes to `setup-code.txt` in its data folder, and works from any network) |
 | Libraries, storage, files | 33 | Libraries, folders, scans and their issues; storage sources; folder browser; missing titles; delete; merge and split |
 | Metadata and matching | 18 | `GET`/`PATCH /v1/admin/items/{id}/metadata`; match; refresh; artwork; needs-attention; provider settings |
-| Playback and analysis | 17 | Active sessions; play history; hardware and transcode capacity; remembered playback failures; intro and credits review; analysis jobs |
-| Live TV and DVR setup | 24 | Sources; live settings; DVR settings; library channels |
-| Server operations | 38 | Settings; jobs and schedules; logs; backups; updates; restart; dashboard; storage; diagnostics; notices; feedback triage; resource usage |
-| Keys, tools, webhooks | 9 | Server API keys; webhooks; MCP. A person's own tokens and app passwords are under `/v1/me` |
+| Playback and analysis | 10 | Stream limits; remembered playback failures; intro and credits review; analysis jobs. Active sessions, Play history and hardware are listed with Server operations |
+| Live TV and DVR setup | 25 | Listed below: sources, channels, tuners, Library Channels |
+| Server operations | 42 | Listed below: the settings documents (3), the Dashboard and operations (37), downloads by person (2) |
+| Keys, tools, webhooks | 10 | Listed below: server API keys and webhooks. The assistant address and "files changed" are in the Client API. A person's own tokens and app passwords are under `/v1/me` |
 
 ### Metadata and matching, route by route (16 of 18)
 
@@ -247,11 +414,149 @@ Only the owner. A key made for a tool needs the `library` scope to scan and dele
 | `GET /v1/admin/items/{id}/deletion`, `DELETE /v1/admin/items/{id}?confirm=<title>` | What deleting a title would take; delete its files from disk and remove it |
 | `DELETE /v1/admin/versions/{id}` | Delete one version's files from disk |
 | `GET /v1/jobs/{id}` | Watch a job (listed with the client API above) |
+### Owner settings: one mechanism (3)
 
-## Not on the wire, on purpose
+Every owner setting lives in a named settings document, one row of `settings`, saved whole
+with its `ETag`. Each area owns its documents and every other area reads them from memory, so
+a change applies to the next play or the next job with no restart. A secret inside a
+document is write-only: the answer says only whether it is set.
 
-`viewerFence`, `expectedRevision`, `operationId`, a "preparing" answer on a read, query handles,
-lower-bound totals, write lookups after the fact, conflict choices for offline edits, a
-revision on personal state, per-provider and per-screen route families, and step-by-step
-wizard routes. Each existed for the old storage design. What a person would lose without
-them is nothing: the last deliberate edit wins, a `2xx` means it happened, and reads answer.
+| Route | Who | Purpose |
+|---|---|---|
+| `GET /v1/admin/settings` | Owner; a TV sees values and no secrets | The documents there are, each with its `ETag` |
+| `GET /v1/admin/settings/{name}`, `PUT /v1/admin/settings/{name}` | Owner | One document: each value, its default, and whether the config file sets it (then it cannot be changed here). `PUT` needs `If-Match`; a stale one is `412` with the current document. A value out of range is `422` naming the field |
+
+Documents: `general` (server name, when heavy work runs, background speed, update check),
+`streaming` (Convert when needed, quality and music away from home, upload speed, the
+conversion folder, the graphics device, hardware decoding, conversion limits, End paused video
+after), `storage` (Keep generated files, the free-space warnings), `backups`, `logs`,
+`notices` (who gets server notices, keeping times for notices and Play history), `downloads`
+(on or off, highest quality, space, how long prepared copies are kept), `live` and `dvr`,
+`remote-access` (remote access on or off, Remote security, Secure connections, port mapping,
+the public port, IPv6, your own address and certificate files, who may sign in from outside,
+Find this server at home, and the DLNA switch), `integrations` (Assistants, the compatible
+routes, the cap on members' tokens). Already built under their own addresses and kept there: `network`
+(`/v1/admin/settings/network`), provider keys (`/v1/admin/metadata/settings`), stream limits
+(`/v1/admin/playback/stream-limits`).
+
+### Setup, remote access and sign-in kind, route by route (10)
+
+| Route | Who | Purpose |
+|---|---|---|
+| `GET /v1/admin/sign-in` | Owner | The kind of sign-in, the owner, a switch in progress and who is waiting |
+| `POST /v1/admin/sign-in/preview` | Owner, from the main profile, on the web | What a switch or Start over would do, with this server's real numbers. Changes nothing |
+| `POST /v1/admin/sign-in/switch` | Owner, from the main profile, on the web | Confirm: a username and password for local sign-in, or the approval that came back for Portico Accounts; the server's name typed for Start over. Everyone is signed out |
+| `POST /v1/admin/sign-in/finish` | Owner | Finish now: accounts still waiting are turned off as "Didn't move" |
+| `POST /v1/admin/members/{id}/move-code`, `POST /v1/admin/sign-in/move-codes` | Owner and administrators | A single-use code or link for one waiting person, valid 7 days and shown once; for everyone waiting |
+| `POST /v1/admin/owner` | Owner, with the password or a new Portico approval | Change owner; the previous owner becomes an administrator, a member, or is removed |
+| `GET /v1/admin/remote-access` | Owner | What is true now: the Portico address, the certificate and its expiry, the last error, reachable from outside or not as just checked, outside addresses refused under Enhanced, this device at home or away, the identity code. The switches are the `remote-access` settings document |
+| `POST /v1/admin/remote-access/check` | Owner | Check now; Try again |
+| `POST /v1/hosted/notices` | Portico Services, signed with a key this server trusts | "This account left", "this approval was decided". Refused on a local server |
+
+Not carried: `/v1/admin/sign-in/move*` as seven routes (the four above);
+`/v1/direct/ownership` (`POST /v1/admin/owner`); `/v1/networking/remote*` and
+`/v1/networking/certificate*` (one status read and one settings document; the per-protocol
+router switches, router address and renewal time are gone); `/v1/admin/connectivity/policy`
+and `/status` (the `remote-access` and `network` documents, and the status read).
+
+### Downloads, the owner's side (2)
+
+| Route | Who | Purpose |
+|---|---|---|
+| `GET /v1/admin/downloads` | Owner | Downloads by person: how many titles were asked for and how much space the server's copies take, each copy counted once |
+| `DELETE /v1/admin/members/{id}/downloads` | Owner | Remove their downloads: their requests go and the server's copies nobody else asked for are freed. It does not reach into a device |
+
+Not carried: `POST /v1/admin/downloads/revoke` and `/cache/release` as two removals (one
+removal here; cutting someone off is the Downloads switch on the account or the profile).
+
+### Live TV and recordings setup, route by route (25)
+
+| Route | Who | Purpose |
+|---|---|---|
+| `GET /v1/admin/live/sources`, `POST /v1/admin/live/sources` | Owner | Sources with their state in plain words; add one (a playlist by address or upload, an Xtream sign-in, an HDHomeRun tuner, or a guide alone) |
+| `POST /v1/admin/live/sources/preview` | Owner | What a source would bring in and leave out, and why; saves nothing |
+| `POST /v1/admin/live/sources/discover` | Owner | Tuners found on the home network |
+| `GET /v1/admin/live/sources/{id}`, `PATCH /v1/admin/live/sources/{id}`, `DELETE /v1/admin/live/sources/{id}` | Owner | Read, change (pause, audience, interval, which channels come in, numbering, tuner count; needs `If-Match`), remove with its channels, rules, upcoming recordings and reminders |
+| `POST /v1/admin/live/sources/{id}/refresh` | Owner | Refresh guide now; answers a job |
+| `GET /v1/admin/live/sources/{id}/channels`, `PATCH /v1/admin/live/sources/{id}/channels` | Owner | Its channels, with those not brought in; set number, name, listings and hidden for many rows at once |
+| `GET /v1/admin/dvr/tuners` | Owner | Tuners in use now and clashes in the next 12 hours |
+| `GET /v1/admin/library-channels`, `POST /v1/admin/library-channels` | Owner | Library Channels (at most 100) in the owner's order, each with one sentence saying what it plays, how many titles it chooses from, how far its schedule reaches and its state; make one |
+| `PUT /v1/admin/library-channels/order` | Owner | The owner's order, which is the channels' order everywhere |
+| `GET /v1/admin/library-channels/templates` | Owner | The nine templates, each a whole channel filled in for this server to review, or off with "Not enough media" when fewer than three titles match |
+| `POST /v1/admin/library-channels/preview` | Owner | For a channel as it is being edited: how many titles match and about how many hours that is, some of what plays, how many have no known length, and today's schedule exactly as saving would make it, blocks included |
+| `GET /v1/admin/library-channels/{id}`, `PATCH /v1/admin/library-channels/{id}`, `DELETE /v1/admin/library-channels/{id}` | Owner | The whole builder with its `ETag`, its state and its health (on the air or one sentence why not, how far the schedule reaches, how many programmes, how many titles it could not place); save it or turn it on or off (needs `If-Match`): the rest of the schedule is built again from the end of the programme now on; delete |
+| `POST /v1/admin/library-channels/{id}/regenerate` | Owner | Regenerate schedule: build the rest again from the end of the programme now on; answers a job |
+| `PUT /v1/admin/library-channels/{id}/logo`, `DELETE /v1/admin/library-channels/{id}/logo` | Owner | Upload its logo (up to 10 MB, 16 to 4,096 pixels a side, stored small) or go back to the monogram |
+| `GET /v1/admin/library-channels/presets`, `PUT /v1/admin/library-channels/presets` | Owner | Saved block presets (at most 100), as one list with its `ETag`. Adding a block from a preset copies it: changing or deleting a preset never changes a channel |
+
+Everyone's series rules are `GET /v1/dvr/rules?scope=everyone`. Live TV and recording
+settings (guide length, rewind stretch, retry time, logos; the recordings folder, paddings,
+the keep rule, the space floor and cap, what a tuner clash does) are the `live` and `dvr`
+settings documents.
+
+Not carried: `/v1/admin/live-sources/remote/preview` and `/remote/save` (one preview, one
+create); `/{id}/enabled`, `/remove`, `/logos`, `/configuration` and `/channel-map` (the
+source's `PATCH`, `DELETE` and channels routes); `/v1/admin/dvr/recording-owners`,
+`/recording-permissions` and `/recording-groups` (the account and profile switches, and the
+rules list); `/v1/admin/library-channels/defaults` and `/{id}/health` (templates; the read says what is
+wrong); block presets as four routes (one list); a priority between overlapping blocks, a
+second audience setting and a stored seed (blocks never overlap, and who sees a channel
+follows its libraries).
+
+### Server operations and the Dashboard, route by route (37)
+
+| Route | Who | Purpose |
+|---|---|---|
+| `GET /v1/admin/dashboard` | Owner | Alerts (each one line with one action, present while its cause lasts), totals, tasks running |
+| `GET /v1/admin/sessions`, `DELETE /v1/admin/sessions/{id}` | Owner and administrators | Now playing, a problem first; stop one with a message of up to 500 characters |
+| `GET /v1/admin/load` | Owner | Bandwidth, processor, memory and conversions, `range=live` or `24h`. Kept in memory; starts again after a restart |
+| `GET /v1/admin/statistics` | Owner | The server's whole history in daily totals: plays, watch time, bandwidth at home and away, conversions, by `metric` and a range of days |
+| `GET /v1/admin/play-history`, `GET /v1/admin/play-history/summary` | Owner | Every play, filtered by person, library, kind, text and period; top people, plays over time, busiest times, top played |
+| `GET /v1/admin/jobs`, `POST /v1/admin/jobs/{id}/retry` | Owner | Tasks running, and finished or failed in the last 30 days; run a failed one again. Cancel is `DELETE /v1/jobs/{id}` |
+| `PUT /v1/admin/background/pause`, `DELETE /v1/admin/background/pause` | Owner | Pause heavy work and scheduled backups for an hour; resume. A restart ends it |
+| `GET /v1/admin/hardware`, `POST /v1/admin/hardware/test` | Owner | Graphics devices, the formats each handles, tone mapping, the last test and error; test now, with no restart |
+| `GET /v1/admin/storage`, `POST /v1/admin/storage/cache/empty` | Owner | What uses space, folder by folder; empty the cache of what Portico can rebuild, with no restart |
+| `GET /v1/admin/backups`, `POST /v1/admin/backups`, `DELETE /v1/admin/backups/{id}` | Owner | The backups in the backup folder, and which working credentials a backup holds (the server's keys, source sign-ins, a remote source's key file); back up now (a job); delete one |
+| `POST /v1/admin/backups/inspect`, `POST /v1/admin/backups/restore` | Owner, not on a TV; restore also needs the password or PIN again | Check a listed backup or a path whole before restoring; restore (a job, then a restart; everyone signs in again). One that fails its check is refused whole |
+| `DELETE /v1/admin/upgrade-copy` | Owner | Remove the copy kept before the last upgrade |
+| `GET /v1/admin/updates`, `POST /v1/admin/updates/check` | Owner | This version, the newest, and how to update this kind of install; check now. Nothing is installed |
+| `POST /v1/admin/restart` | Owner | Restart; answers how many are playing unless `confirm=true` |
+| `GET /v1/admin/logs`, `GET /v1/admin/logs/events`, `PUT /v1/admin/logs/detail` | Owner and administrators | Messages, newest first, by level and kind; follow live; start or end "Record more detail" |
+| `GET /v1/admin/audit` | Owner | The activity record, kept a year |
+| `GET /v1/admin/reports`, `GET /v1/admin/reports/{id}`, `PATCH /v1/admin/reports/{id}`, `DELETE /v1/admin/reports/{id}`, `GET /v1/admin/reports/{id}/log` | Owner | Problem and crash reports: read, set the status and reply (the reply arrives as a notice), delete, download the app's log |
+| `GET /v1/admin/capabilities`, `POST /v1/admin/permissions/fix` | Owner | What this server can do and why not; fix the data folder's permissions |
+| `POST /v1/admin/support-export` | Owner | Prepare and download a support export in one request; it is not kept |
+| `POST /v1/admin/notifications` | Owner for `audience=everyone`; a key allowed Administer for `audience=admins` | Message everyone; or a tool's notice to the owner and administrators |
+| `PUT /v1/admin/libraries/order` | Owner | The order of libraries everyone sees (counted with Libraries) |
+| `GET /v1/admin/filesystem` | Owner | The folder explorer: folders under a path, 200 at a time, with `writable` on request (counted with Libraries) |
+
+The owner's read of files Portico could not prepare is a library's skipped files (Libraries);
+remembered playback problems are under Playback. There is no history of failed conversions
+beyond the log and a failed task.
+
+Not carried: `/v1/console/registry`, `/v1/admin/settings/configuration` and
+`/v1/admin/console/settings` (the settings documents); `/v1/admin/console/schedules` and
+`/v1/admin/maintenance/settings` (each timed thing is a setting where it belongs);
+`/v1/admin/playback/history` and `history.csv` (one Play history); `/v1/admin/telemetry*` and
+`/resource-usage` (`load` and `statistics`); `/v1/admin/attention` and `/console/alerts` with
+acknowledge (alerts are on the Dashboard and go by themselves); `/v1/admin/console/panels/*`,
+`/diagnostics/*`, `/exports*` (logs, the activity record, one support export);
+`/v1/admin/storage-usage/{category}/cleanup` (one Empty cache); `/v1/admin/logs/settings` and
+`/v1/admin/notifications/settings` (settings documents); pause and resume of a job.
+
+### Keys and webhooks, route by route (10)
+
+A person's own tokens and app passwords are `/v1/me/tokens` and `/v1/me/app-passwords`, while
+the account's "Access tokens" switch is on; the owner never sees them.
+
+| Route | Who | Purpose |
+|---|---|---|
+| `GET /v1/admin/api-keys`, `POST /v1/admin/api-keys`, `DELETE /v1/admin/api-keys/{id}` | Owner, signed in (never a key) | Server API keys, at most 100: list, make (the secret is in this answer only), revoke |
+| `GET /v1/admin/webhooks`, `POST /v1/admin/webhooks` | Owner | Webhooks, at most 20, each with whether it is in trouble and how many messages were dropped; add one (its secret is in this answer only) |
+| `PATCH /v1/admin/webhooks/{id}`, `DELETE /v1/admin/webhooks/{id}` | Owner | Change the name, address or events, turn on or off (off drops what is waiting); delete with its log |
+| `POST /v1/admin/webhooks/{id}/test`, `POST /v1/admin/webhooks/{id}/secret` | Owner | Send a test, also while it is off; replace the secret |
+| `GET /v1/admin/webhooks/{id}/deliveries` | Owner | The last 200 deliveries: when, which event, the result, how many tries |
+
+Not carried: showing a key or app password again later; the owner making app passwords for
+other people and listing members' tokens (`/v1/admin/access-tokens*`); keys made from an app
+password and tracked under it; the five webhook settings (fixed values).
