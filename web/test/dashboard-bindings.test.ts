@@ -15,17 +15,28 @@ function report() {
 const reportQuery = {period: 'all', window: 'all', peoplePeriod: 'all', topPeriod: 'all', topKind: 'movies'} as const;
 const page = () => ({scope: {serverId: 'server', viewerFence: 'a'.repeat(64)}, observedAt: '2026-10-23T00:00:00Z', items: [], page: {limit: 10, start: 0, total: 0, revision: '1'}, totals: {streams: 0, atHome: 0, away: 0, paused: 0, converting: 0, people: 0, bandwidthKbps: 0}});
 function options(overrides: Partial<DashboardBindingOptions> = {}): DashboardBindingOptions {
-  return {api: {request: async () => emptyHistory() as never, requestRaw: async () => ({status: 200, headers: {}, body: page()})}, context, scope: {serverId: 'server', viewerId: 'viewer'}, role: 'owner', isCurrent: () => true, isMainProfile: () => true, artwork: () => undefined, effects: {openHome() {}, openHistory() {}, openSettings() {}, reportError() {}}, ...overrides};
+  return {api: {request: async (path: string) => (path.startsWith('/v1/admin/sessions') ? {items: []} : emptyHistory()) as never, requestRaw: async () => ({status: 200, headers: {}, body: page()})}, context, scope: {serverId: 'server', viewerId: 'viewer'}, role: 'owner', isCurrent: () => true, isMainProfile: () => true, artwork: () => undefined, effects: {openHome() {}, openHistory() {}, openSettings() {}, reportError() {}}, ...overrides};
 }
-test('Now playing requests 100 rows and retains an opaque continuation cursor', async () => {
+test('Now playing reads every stream at once from the rebuilt server, in the card\'s shape, with its totals', async () => {
   const paths: string[] = [];
-  const b = createDashboardBindings(options({api: {...options().api, requestRaw: async path => {paths.push(path);return {status: 200, headers: {}, body: page()};}}}));
+  const stream = (id: string, more: Record<string, unknown>) => ({id, kind: 'vod', state: 'playing', positionMs: 1000, username: 'max', deviceName: 'Living room TV', away: false,
+    route: 'original', delivery: {video: {action: 'direct'}, audio: {action: 'direct'}}, startedAt: '2026-11-11T10:00:00Z', ...more});
+  const answer = {items: [
+    stream('a', {title: 'Heat', itemId: 'itm_heat', durationMs: 60000, profile: 'Kids', away: true, bitrateKbps: 8000, route: 'converted', delivery: {video: {action: 'transcode', reasons: ['bitrate']}, audio: {action: 'copy'}}}),
+    stream('b', {username: 'ada', state: 'paused', bitrateKbps: 2000}),
+  ]};
+  const b = createDashboardBindings(options({api: {...options().api, request: async path => {paths.push(path); return answer as never;}}}));
   try {
-    await b.read.sessions();await b.read.sessions('next/+?=&');
-    const queries = paths.map(path => new URL(path, 'https://server.invalid').searchParams);
-    assert.equal(queries[0].get('limit'), '100');assert.equal(queries[0].get('cursor'), null);
-    assert.equal(queries[1].get('limit'), '100');assert.equal(queries[1].get('cursor'), 'next/+?=&');
+    const out = await b.read.sessions();
+    assert.deepEqual(paths, ['/v1/admin/sessions']); assert.equal(out.nextCursor, '');
+    const [heat, other] = out.items;
+    assert.equal(heat.user, 'max'); assert.equal(heat.profile, 'Kids'); assert.equal(heat.device, 'Living room TV'); assert.equal(heat.title, 'Heat');
+    assert.equal(heat.itemId, 'itm_heat'); assert.equal(heat.location, 'remote'); assert.equal(heat.durationMs, 60000); assert.equal(heat.decision.video?.action, 'transcode');
+    assert.equal(other.user, 'ada'); assert.equal(other.profile, 'ada', 'no profile name of its own: the account\'s'); assert.equal(other.location, 'local'); assert.equal(other.title, '');
+    assert.deepEqual(out.totals, {streams: 2, paused: 1, converting: 1, bandwidthKbps: 10000, people: 2, atHome: 1, away: 1});
   } finally {b.dispose();}
+  const broken = createDashboardBindings(options({api: {...options().api, request: async () => ({items: [{id: 'a'}]}) as never}}));
+  await assert.rejects(broken.read.sessions(), /invalid_now_playing/); broken.dispose();
 });
 test('administrator reads sessions only; secondary profile and member dispatch nothing', async () => {
   for (const change of [{role: 'member' as const}, {isMainProfile: () => false}]) {let calls = 0; const b = createDashboardBindings(options({...change, api: {request: async () => {calls++; return {} as never;}, requestRaw: async () => {calls++; return {} as never;}}})); await assert.rejects(async () => b.read.sessions()); await assert.rejects(async () => b.read.status()); assert.equal(calls, 0); b.dispose();}
@@ -36,8 +47,7 @@ test('late private response after authority replacement is rejected and disposed
   let current = true, release!: (value: never) => void; const b = createDashboardBindings(options({isCurrent: () => current, api: {...options().api, request: async () => new Promise(resolve => {release = resolve;})}}));
   const pending = b.read.plays({period: 'all'}); current = false; release({entries: [], nextCursor: ''} as never); await assert.rejects(pending); b.dispose(); await assert.rejects(async () => b.read.sessions());
 });
-test('session scope mismatch rejects; history passes exact server query and opaque cursor', async () => {
-  const b = createDashboardBindings(options({api: {...options().api, requestRaw: async () => ({status: 200, headers: {}, body: {...page(), scope: {...page().scope, serverId: 'wrong'}}})}})); await assert.rejects(b.read.sessions()); b.dispose();
+test('history passes exact server query and opaque cursor', async () => {
   let path = ''; const c = createDashboardBindings(options({api: {...options().api, request: async request => {path = request; return emptyHistory() as never;}}})); await c.read.plays({period: 'all', media: 'audiobooks', accountId: 'account', sort: 'watched', direction: 'asc'}, 'opaque');
   const q = new URL(path, 'https://server.invalid').searchParams; assert.equal(q.get('limit'), '100'); assert.equal(q.get('sort'), 'watched'); assert.equal(q.get('cursor'), 'opaque'); assert.equal(q.get('accountId'), 'account'); assert.equal(q.get('media'), 'audiobooks'); assert.equal(q.get('timeZone'), context.timeZone); assert.equal(q.get('until'), context.until); c.dispose();
 });
@@ -54,7 +64,7 @@ test('a refused read tells the page once, so it draws the refusal; the managemen
   assert.equal(refused.isCurrent(), false);
   assert.deepEqual(reported, [{status: 403, code: 'forbidden'}]);
   refused.dispose(); reported.length = 0;
-  const raw = createDashboardBindings({...options(), effects: effects(options()), api: {...options().api, requestRaw: async () => ({status: 403, headers: {}, body: {error: {code: 'forbidden'}}})}});
+  const raw = createDashboardBindings({...options(), effects: effects(options()), api: {...options().api, request: async (path: string) => {if (path.startsWith('/v1/admin/sessions')) throw {status: 403, code: 'forbidden'}; return emptyHistory() as never;}}});
   await assert.rejects(raw.read.sessions()); assert.equal(raw.isCurrent(), false); assert.deepEqual(reported, [{status: 403, code: 'forbidden'}]);
   raw.dispose(); reported.length = 0;
   const signedOut = createDashboardBindings({...options(), effects: effects(options()), api: {...options().api, request: async () => {throw {status: 401, code: 'unauthorized'};}}});
@@ -107,42 +117,17 @@ test('the certificate alert retries through the canonical owner route and refuse
   await assert.rejects(async () => late.effects.retryCertificate!());
 });
 
-// FX114 regression source, UNRUN: a held canonical receipt cannot lend a write to a retired dialog.
-test('retiring the original Move opening between GET and POST refuses the command', async () => {
-  let release!: (value: never) => void; const calls: string[] = [], life = new AbortController();
-  const receipt = {sessionId: 'original', revision: '7', state: 'playing', positionMs: 1000, durationMs: 60000, actions: ['seek']};
-  const b = createDashboardBindings(options({api: {...options().api, request: async (path, method) => {
-    calls.push(`${method ?? 'GET'} ${path}`);
-    return new Promise(resolve => {release = resolve;});
-  }}}));
-  const pending = b.effects.seek!('original', 25000, life.signal);
-  life.abort(); release(receipt as never); await assert.rejects(pending);
-  assert.equal(calls.length, 1); assert.match(calls[0], /^GET /); b.dispose();
+test('the rebuilt server offers no Move to, Pause or Resume of someone\'s stream: none is bound', () => {
+  const b = createDashboardBindings(options());
+  assert.equal(b.effects.seek, undefined); assert.equal(b.effects.transport, undefined); assert.equal(b.read.controls, undefined); b.dispose();
 });
-test('Move keeps the real session revision and absolute target on the canonical route', async () => {
-  const calls: {path: string; method?: string; body?: unknown}[] = [];
-  const receipt = {sessionId: 'original', revision: '7', state: 'playing', positionMs: 1000, durationMs: 60000, actions: ['seek']};
-  const b = createDashboardBindings(options({api: {...options().api, request: async (path, method, body) => {calls.push({path, method, body}); return receipt as never;}}}));
-  await b.effects.seek!('original', 25000, new AbortController().signal);
-  assert.equal(calls.length, 2); assert.equal(calls[0].path, calls[1].path);
-  assert.deepEqual(calls[1].body, {action: 'seek', expectedRevision: '7', positionMs: 25000}); b.dispose();
-});
-
-test('a valid controls document for another session cannot redirect a Move write', async () => {
-  const calls: string[] = [];
-  const other = {sessionId: 'replacement', revision: '8', state: 'playing', positionMs: 1000, durationMs: 60000, actions: ['seek']};
-  const b = createDashboardBindings(options({api: {...options().api, request: async (path, method) => {calls.push(`${method ?? 'GET'} ${path}`); return other as never;}}}));
-  await assert.rejects(b.effects.seek!('original', 25000, new AbortController().signal), /dashboard_controls_session_mismatch/);
-  assert.equal(calls.length, 1); assert.match(calls[0], /^GET /); b.dispose();
-});
-
 test('Dashboard actual session/history GETs share resync admission and queued reads retain their original lifetime', async () => {
   const {EventsClient} = await import('../../packages/client-core/src/playback-v1/events.ts');
   let release!: () => void; const held = new Promise<void>(resolve => {release = resolve;});
   const events = new EventsClient({http: {send: async () => {throw new Error('No event reads');}}});
   const occupied = Array.from({length: 4}, () => events.resyncReads.run(new AbortController().signal, () => held));
   let requests = 0;
-  const b = createDashboardBindings(options({events, api: {...options().api, requestRaw: async () => {requests++; return {status: 200, headers: {}, body: page()};}}}));
+  const b = createDashboardBindings(options({events, api: {...options().api, request: async () => {requests++; return {items: []} as never;}}}));
   try {
     const pending = b.read.sessions();
     for (let i = 0; i < 30; i++) await Promise.resolve();
@@ -150,16 +135,6 @@ test('Dashboard actual session/history GETs share resync admission and queued re
     release(); await Promise.all(occupied); await pending; assert.equal(requests, 1);
   } finally {release(); b.dispose(); events.resyncReads.dispose();}
 });
-test('a moved viewer fence on a later session read answers and retires nothing; another server still ends the lifetime', async () => {
-  let reads = 0, changed = 0;
-  const b = createDashboardBindings(options({api: {...options().api, requestRaw: async () => ({status: 200, headers: {}, body: {...page(), scope: {serverId: 'server', viewerFence: (reads++ ? 'b' : 'a').repeat(64)}}})}}));
-  b.subscribeAuthority!(() => changed++);
-  await b.read.sessions(); const moved = await b.read.sessions();
-  assert.equal(moved.scope.viewerFence, 'b'.repeat(64)); assert.equal(b.isCurrent(), true); assert.equal(changed, 0); b.dispose();
-  let n = 0; const other = createDashboardBindings(options({api: {...options().api, requestRaw: async () => ({status: 200, headers: {}, body: {...page(), scope: {serverId: n++ ? 'wrong' : 'server', viewerFence: 'a'.repeat(64)}}})}}));
-  await other.read.sessions(); await assert.rejects(other.read.sessions()); assert.equal(other.isCurrent(), false); other.dispose();
-});
-
 // Client data step 6: the Dashboard's status, report and first page of plays are read through the viewer's cache.
 const status = () => ({alerts: [], observedAt: '2026-10-22T12:00:00Z', scans: [], tasks: {count: 0, items: []}});
 function cached() {
@@ -234,9 +209,17 @@ test('on the cached reads, a 401 ends the Dashboard without a refusal page, and 
   }
 });
 test('stopping a session here marks what the Dashboard was built from owed', async () => {
-  const c = cached(); const b = createDashboardBindings(options({queries: c.queries, api: {...options().api, request: async path => {c.paths.push(path); return status() as never;}, requestRaw: async () => ({status: 204, headers: {}, body: undefined})}}));
+  const stops: unknown[] = [];
+  const c = cached(); const b = createDashboardBindings(options({queries: c.queries, api: {...options().api, request: async (path, method, body) => {
+    if (method === 'DELETE') {stops.push({path, body}); return undefined as never;}
+    c.paths.push(path); return status() as never;}}}));
   await b.read.status(undefined, false); await b.read.status(undefined, false); assert.equal(c.paths.length, 1);
-  await b.effects.stop('session');
+  await b.effects.stop('session', '  Closing for the night ');
+  assert.deepEqual(stops, [{path: '/v1/admin/sessions/session', body: {message: 'Closing for the night'}}]);
   await b.read.status(undefined, false); assert.equal(c.paths.length, 2, 'the held status is read again');
   b.dispose();
+});
+test('stopping a stream that has already ended is not an error', async () => {
+  const b = createDashboardBindings(options({api: {...options().api, request: async (_path, method) => {if (method === 'DELETE') throw {status: 404, code: 'not_found'}; return {items: []} as never;}}}));
+  await b.effects.stop('gone'); b.dispose();
 });
