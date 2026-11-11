@@ -16,6 +16,8 @@ import (
 	"time"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/contentrating"
 )
 
 // What one source may bring in. What is beyond is left out and the source's report says so.
@@ -285,11 +287,6 @@ func parseXMLTVTime(raw string) (time.Time, error) {
 	return time.Parse("20060102150405 -0700", stamp+" "+zone)
 }
 
-// ratingAges are the ages the common TV and film ratings stand for. A rating not listed is
-// treated as no rating, which most guides send anyway.
-var ratingAges = map[string]int{"TV-Y": 0, "TV-G": 0, "G": 0, "TV-Y7": 7, "TV-Y7-FV": 7, "TV-PG": 8, "PG": 8, "TV-14": 14,
-	"PG-13": 13, "R": 17, "TV-MA": 17, "NC-17": 18}
-
 // GuideChannel is a guide's channel entry: its id and the names it goes by.
 type GuideChannel struct {
 	Key   string
@@ -505,7 +502,7 @@ func decodeProgramme(dec *xml.Decoder, t *xml.StartElement) (Programme, bool, er
 	}
 	if len(row.Ratings) > 0 {
 		p.Rating = strings.TrimSpace(row.Ratings[0].Value)
-		if age, ok := ratingAges[strings.ToUpper(p.Rating)]; ok {
+		if age, ok := contentrating.Age(p.Rating); ok {
 			p.RatingAge = &age
 		}
 	}
