@@ -38,18 +38,22 @@ type Recording struct {
 	Season       *int
 	Episode      *int
 	Details      string
-	StartsAt     time.Time
-	EndsAt       time.Time
-	PadBefore    time.Duration
-	PadAfter     time.Duration
-	Priority     int
-	State        string
-	Reason       string
-	Choice       string
-	InGuide      bool
-	Keep         bool
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	// Rating and RatingAge are the guide's rating of the programme, copied with its facts: who
+	// may see a booking or a recording follows it, and the recorded title carries it.
+	Rating    string
+	RatingAge *int
+	StartsAt  time.Time
+	EndsAt    time.Time
+	PadBefore time.Duration
+	PadAfter  time.Duration
+	Priority  int
+	State     string
+	Reason    string
+	Choice    string
+	InGuide   bool
+	Keep      bool
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 const recordingColumns = `r.id, r.public_id, ifnull(r.channel_id, 0), r.channel_name, ifnull(r.rule_id, 0), ifnull(r.profile_id, 0), r.booked_by,
@@ -65,9 +69,31 @@ func scanRecording(row interface{ Scan(...any) error }) (Recording, error) {
 		&r.SeriesKey, &r.Title, &r.EpisodeTitle, &r.Season, &r.Episode, &r.Details, &starts, &ends, &before, &after, &r.Priority, &r.State,
 		&r.Reason, &r.Choice, &r.InGuide, &r.Keep, &created, &updated)
 	json.Unmarshal([]byte(also), &r.AlsoWantedBy)
+	r.Details, r.Rating, r.RatingAge = readDetails(r.Details)
 	r.StartsAt, r.EndsAt, r.CreatedAt, r.UpdatedAt = time.UnixMilli(starts), time.UnixMilli(ends), time.UnixMilli(created), time.UnixMilli(updated)
 	r.PadBefore, r.PadAfter = time.Duration(before)*time.Millisecond, time.Duration(after)*time.Millisecond
 	return r, err
+}
+
+// programmeDetails is what recordings.details holds: the programme's summary and the guide's
+// rating, copied when it is booked.
+type programmeDetails struct {
+	Summary   string `json:"summary,omitempty"`
+	Rating    string `json:"rating,omitempty"`
+	RatingAge *int   `json:"ratingAge,omitempty"`
+}
+
+func writeDetails(summary, rating string, age *int) string {
+	raw, _ := json.Marshal(programmeDetails{summary, rating, age})
+	return string(raw)
+}
+
+func readDetails(stored string) (summary, rating string, age *int) {
+	var d programmeDetails
+	if json.Unmarshal([]byte(stored), &d) != nil {
+		return stored, "", nil
+	}
+	return d.Summary, d.Rating, d.RatingAge
 }
 
 // Booking is one airing a profile asks to record, with the programme's facts copied.
@@ -85,6 +111,8 @@ type Booking struct {
 	Season       *int
 	Episode      *int
 	Details      string
+	Rating       string
+	RatingAge    *int
 	StartsAt     time.Time
 	EndsAt       time.Time
 	PadBefore    time.Duration
@@ -116,9 +144,12 @@ func (d *DB) BookAiring(ctx context.Context, b Booking) (Recording, bool, error)
 			also, _ := json.Marshal(append(r.AlsoWantedBy, b.ProfilePub))
 			_, err = tx.Exec(`UPDATE recordings SET also_wanted_by = ?, updated_at = ? WHERE id = ?`, string(also), b.Now.UnixMilli(), r.ID)
 			return err
+		case err == nil && r.ItemID != 0:
+			publicID = r.PublicID // recorded already (stopped by hand while still on): that recording answers
+			return nil
 		case err == nil:
-			// A finished, cancelled or skipped row of the same airing is booked again.
-			if _, err := tx.Exec(`DELETE FROM recordings WHERE id = ? AND item_id IS NULL`, r.ID); err != nil {
+			// A failed, cancelled or skipped row of the same airing is booked again.
+			if _, err := tx.Exec(`DELETE FROM recordings WHERE id = ?`, r.ID); err != nil {
 				return err
 			}
 		case !errors.Is(err, sql.ErrNoRows):
@@ -130,7 +161,7 @@ func (d *DB) BookAiring(ctx context.Context, b Booking) (Recording, bool, error)
 			title, episode_title, season_number, episode_number, details, starts_at, ends_at, pad_before_ms, pad_after_ms, priority, created_at, updated_at)
 			VALUES (?, ?, nullif(?, 0), ?, ?, ?, ?, nullif(?, ''), ?, nullif(?, ''), ?, ?, nullif(?, ''), ?, ?, ?, ?, ?, ?, ?)`,
 			publicID, b.ChannelID, b.RuleID, b.ProfileID, b.ProfileName, b.ChannelName, b.ProgrammeKey, b.SeriesKey, b.Title, b.EpisodeTitle,
-			b.Season, b.Episode, b.Details, b.StartsAt.UnixMilli(), b.EndsAt.UnixMilli(), b.PadBefore.Milliseconds(), b.PadAfter.Milliseconds(),
+			b.Season, b.Episode, writeDetails(b.Details, b.Rating, b.RatingAge), b.StartsAt.UnixMilli(), b.EndsAt.UnixMilli(), b.PadBefore.Milliseconds(), b.PadAfter.Milliseconds(),
 			b.Priority, now, now)
 		return err
 	})
@@ -401,17 +432,24 @@ type RecordingCounts struct {
 	Upcoming, Recorded, Unwatched int
 }
 
-// RecordingCounts counts upcoming and recorded rows, and of the recorded titles the ones the
-// profile has not watched. It reads the recordings table, which is as large as the library of
-// recordings: an accepted cost on the Recordings page.
-func (d *DB) RecordingCounts(ctx context.Context, profileID int64) (RecordingCounts, error) {
+// RecordingCounts counts the recorded titles the viewer may see, by the one condition every
+// list uses, and of those the ones it has not watched; upcoming bookings are counted by the
+// caller from the list it may see. It reads the recordings table, which is as large as the
+// library of recordings: an accepted cost on the Recordings page.
+func (d *DB) RecordingCounts(ctx context.Context, v Viewer) (RecordingCounts, error) {
 	var c RecordingCounts
-	err := d.read.QueryRowContext(ctx, `SELECT
-		(SELECT count(*) FROM recordings WHERE state IN ('scheduled', 'recording')),
-		(SELECT count(*) FROM recordings WHERE state IN ('recorded', 'partial') AND item_id IS NOT NULL),
-		(SELECT count(*) FROM recordings r WHERE r.state IN ('recorded', 'partial') AND r.item_id IS NOT NULL AND NOT EXISTS (
-			SELECT 1 FROM user_item_state s WHERE s.profile_id = ? AND s.item_id = r.item_id AND s.played = 1))`, profileID).
-		Scan(&c.Upcoming, &c.Recorded, &c.Unwatched)
+	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return c, err
+	}
+	defer tx.Rollback()
+	acc, err := loadAccess(ctx, tx, v)
+	if err != nil {
+		return c, err
+	}
+	err = tx.QueryRowContext(ctx, `SELECT count(*), ifnull(sum(NOT EXISTS (SELECT 1 FROM user_item_state s WHERE s.profile_id = @viewer_profile
+		AND s.item_id = i.id AND s.played = 1)), 0) FROM recordings r JOIN items i ON i.id = r.item_id
+		WHERE r.state IN ('recorded', 'partial') AND `+acc.visible("i"), v.args()...).Scan(&c.Recorded, &c.Unwatched)
 	return c, err
 }
 
@@ -532,9 +570,26 @@ func (d *DB) DeleteRule(ctx context.Context, publicID string, cancel bool, now t
 			return err
 		}
 		if cancel {
-			if _, err := tx.Exec(`UPDATE recordings SET state = ?, reason = 'Its series rule was deleted', updated_at = ?
-				WHERE rule_id = ? AND state = ?`, RecordingCancelled, now.UnixMilli(), id, RecordingScheduled); err != nil {
+			// Each booking the rule made passes to the next person who also asked for it, as a
+			// cancel by its booker does, and is cancelled only when nobody is left.
+			rows, err := tx.Query(`SELECT `+recordingColumns+` FROM recordings r WHERE r.rule_id = ? AND r.state = ?`, id, RecordingScheduled)
+			if err != nil {
 				return err
+			}
+			var held []Recording
+			for rows.Next() {
+				r, err := scanRecording(rows)
+				if err != nil {
+					rows.Close()
+					return err
+				}
+				held = append(held, r)
+			}
+			rows.Close()
+			for _, r := range held {
+				if err := passOn(tx, r, now); err != nil {
+					return err
+				}
 			}
 		}
 		_, err := tx.Exec(`DELETE FROM recording_rules WHERE id = ?`, id)
@@ -542,17 +597,17 @@ func (d *DB) DeleteRule(ctx context.Context, publicID string, cancel bool, now t
 	})
 }
 
-// GuideAirings reads a series' or a title's airings in the guide from from to until: by the
-// guide's series id through its index, or by title through the title index.
-func (d *DB) GuideAirings(ctx context.Context, seriesKey, title string, from, until time.Time) ([]GuideProgramme, error) {
+// GuideAirings reads up to limit of a series' or a title's airings in the guide from from to
+// until: by the guide's series id through its index, or by title through the title index.
+func (d *DB) GuideAirings(ctx context.Context, seriesKey, title string, from, until time.Time, limit int) ([]GuideProgramme, error) {
 	column, value := "series_key", seriesKey
 	if seriesKey == "" {
 		column, value = "title", title
 	}
 	rows, err := d.guide.read.QueryContext(ctx, `SELECT source_id, guide_key, starts_at, ends_at, programme_key, ifnull(series_key, ''), title,
 		ifnull(episode_title, ''), season_number, episode_number, ifnull(summary, ''), ifnull(rating, ''), rating_age, ifnull(flags, 0)
-		FROM programmes WHERE `+column+` = ? AND starts_at >= ? AND starts_at < ? AND source_id <> 0 ORDER BY starts_at LIMIT 2000`,
-		value, from.UnixMilli(), until.UnixMilli())
+		FROM programmes WHERE `+column+` = ? AND starts_at >= ? AND starts_at < ? AND source_id <> 0 ORDER BY starts_at LIMIT ?`,
+		value, from.UnixMilli(), until.UnixMilli(), limit)
 	if err != nil {
 		return nil, err
 	}
@@ -704,6 +759,66 @@ func (d *DB) ChannelPublicID(ctx context.Context, id int64) (string, error) {
 func (d *DB) RuleRecordings(ctx context.Context, ruleID int64) ([]Recording, error) {
 	rows, err := d.read.QueryContext(ctx, `SELECT `+recordingColumns+` FROM recordings r WHERE r.rule_id = ? AND r.state IN ('recorded', 'partial')
 		AND r.keep = 0 ORDER BY r.starts_at DESC`, ruleID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Recording
+	for rows.Next() {
+		r, err := scanRecording(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// ChannelListings says which listings in the guide are a channel's.
+func (d *DB) ChannelListings(ctx context.Context, channelID int64) (source int64, key string, err error) {
+	err = d.read.QueryRowContext(ctx, `SELECT ifnull(guide_source_id, 0), ifnull(guide_key, '') FROM channels WHERE id = ?`, channelID).
+		Scan(&source, &key)
+	return source, key, notFound(err)
+}
+
+// GuideProgrammeByKey finds a programme of a channel's listings by the guide's own key, where
+// it airs now: one read of the programmes_key index.
+func (d *DB) GuideProgrammeByKey(ctx context.Context, source int64, guideKey, programmeKey string) (GuideProgramme, error) {
+	var p GuideProgramme
+	var starts, ends int64
+	err := d.guide.read.QueryRowContext(ctx, `SELECT starts_at, ends_at, title FROM programmes WHERE source_id = ? AND guide_key = ?
+		AND programme_key = ? ORDER BY starts_at LIMIT 1`, source, guideKey, programmeKey).Scan(&starts, &ends, &p.Title)
+	p.StartsAt, p.EndsAt = time.UnixMilli(starts), time.UnixMilli(ends)
+	return p, notFound(err)
+}
+
+// MoveBooking follows a booking's programme where the guide has moved it, or says it is no
+// longer in the guide (inGuide false), when nothing is recording it yet.
+func (d *DB) MoveBooking(ctx context.Context, id int64, starts, ends time.Time, inGuide bool, now time.Time) error {
+	return d.write(ctx, Background, func(tx *sql.Tx) error {
+		_, err := tx.Exec(`UPDATE recordings SET starts_at = CASE WHEN ? THEN ? ELSE starts_at END, ends_at = CASE WHEN ? THEN ? ELSE ends_at END,
+			in_guide = ?, updated_at = ? WHERE id = ? AND state = ?`, inGuide, starts.UnixMilli(), inGuide, ends.UnixMilli(), inGuide,
+			now.UnixMilli(), id, RecordingScheduled)
+		return err
+	})
+}
+
+// RecordedBytes is how much the recordings in a library take, for the owner's space cap. It
+// adds up the library's files, as many as there are recordings.
+func (d *DB) RecordedBytes(ctx context.Context, libraryID int64) (int64, error) {
+	var n int64
+	err := d.read.QueryRowContext(ctx, `SELECT ifnull(sum(f.size), 0) FROM files f JOIN directories dr ON dr.id = f.directory_id
+		JOIN library_paths p ON p.id = dr.library_path_id WHERE p.library_id = ?`, libraryID).Scan(&n)
+	return n, err
+}
+
+// KeepCandidates lists the recorded titles the owner's default keep rule decides on: not
+// protected by Keep, and not from a series rule with its own keep choice, by show (the series
+// or the title) and newest first.
+func (d *DB) KeepCandidates(ctx context.Context) ([]Recording, error) {
+	rows, err := d.read.QueryContext(ctx, `SELECT `+recordingColumns+` FROM recordings r LEFT JOIN recording_rules u ON u.id = r.rule_id
+		WHERE r.state IN ('recorded', 'partial') AND r.keep = 0 AND u.keep_newest IS NULL AND u.keep_days IS NULL
+		ORDER BY coalesce(r.series_key, r.title), r.starts_at DESC`)
 	if err != nil {
 		return nil, err
 	}

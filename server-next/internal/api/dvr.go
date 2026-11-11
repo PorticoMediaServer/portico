@@ -3,12 +3,14 @@ package api
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"slices"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/diskspace"
+	"github.com/PorticoMediaServer/portico/server-next/internal/dvr"
 )
 
 // Recording is one booking, recording or line of History. A recorded programme is also a
@@ -186,7 +188,7 @@ func (s *Server) dvrSummary(r *http.Request, _ None) (DVR, error) {
 		return DVR{}, err
 	}
 	ctx := r.Context()
-	counts, err := s.db.RecordingCounts(ctx, viewer(r).ProfileID)
+	counts, err := s.db.RecordingCounts(ctx, viewer(r))
 	if err != nil {
 		return DVR{}, err
 	}
@@ -199,13 +201,58 @@ func (s *Server) dvrSummary(r *http.Request, _ None) (DVR, error) {
 		return DVR{}, err
 	}
 	opts := s.dvrOptions()
-	out := DVR{Upcoming: counts.Upcoming, Recorded: counts.Recorded, Unwatched: counts.Unwatched, Conflicts: len(losers),
-		KeepRule: "Until deleted", CanRecord: lv.Record}
+	out := DVR{Recorded: counts.Recorded, Unwatched: counts.Unwatched, KeepRule: keepRule(opts), CanRecord: lv.Record}
+	// Upcoming and conflicts count only the bookings this profile may see.
+	for _, rec := range upcoming {
+		if ok, err := s.maySeeRecording(ctx, r, lv, rec); err != nil {
+			return DVR{}, err
+		} else if ok {
+			out.Upcoming++
+			if losers[rec.ID] {
+				out.Conflicts++
+			}
+		}
+	}
 	if free, err := diskspace.Free(opts.Folder); err == nil {
 		out.FreeBytes, out.FolderOK = max(free-opts.Floor, 0), true
 		out.HoursLeft = int(out.FreeBytes / (3 << 30)) // about 3 GB an hour of broadcast HD
 	}
 	return out, nil
+}
+
+// keepRule is the owner's default keep rule in words.
+func keepRule(o dvr.Options) string {
+	switch {
+	case o.KeepNewest > 0:
+		return fmt.Sprintf("The newest %d of each show", o.KeepNewest)
+	case o.KeepDays > 0:
+		return fmt.Sprintf("%d days", o.KeepDays)
+	}
+	return "Until deleted"
+}
+
+// maySeeRecording says whether a profile may know of a booking or recording: the programme is
+// within its rating limit, and it may watch the channel (the owner always). Anything else is
+// absent from its lists and not found by its id.
+func (s *Server) maySeeRecording(ctx context.Context, r *http.Request, lv db.LiveViewer, rec db.Recording) (bool, error) {
+	if !rated(lv, rec.RatingAge) {
+		return false, nil
+	}
+	if lv.Owner {
+		return true, nil
+	}
+	public, err := s.db.ChannelPublicID(ctx, rec.ChannelID)
+	if errors.Is(err, db.ErrNotFound) {
+		return rec.ProfileID == viewer(r).ProfileID, nil // its channel has gone: its own booker still sees it
+	}
+	if err != nil {
+		return false, err
+	}
+	ch, err := s.db.LiveChannelByID(ctx, viewer(r), public)
+	if errors.Is(err, db.ErrNotFound) {
+		return rec.ProfileID == viewer(r).ProfileID, nil
+	}
+	return err == nil && mayWatch(lv, ch), err
 }
 
 // itemIDs reads the public ids of recordings' titles that the viewer may see.
@@ -220,7 +267,8 @@ func (s *Server) itemIDs(ctx context.Context, v db.Viewer, rows []db.Recording) 
 }
 
 func (s *Server) listRecordings(r *http.Request, _ None) (Page[Recording], error) {
-	if _, err := s.liveAllowed(r, false); err != nil {
+	lv, err := s.liveAllowed(r, false)
+	if err != nil {
 		return Page[Recording]{}, err
 	}
 	ctx := r.Context()
@@ -261,7 +309,11 @@ func (s *Server) listRecordings(r *http.Request, _ None) (Page[Recording], error
 	}
 	out := Page[Recording]{Items: []Recording{}}
 	for _, row := range rows {
-		out.Items = append(out.Items, s.recordingOut(row, losers[row.ID], items))
+		if ok, err := s.maySeeRecording(ctx, r, lv, row); err != nil {
+			return Page[Recording]{}, err
+		} else if ok {
+			out.Items = append(out.Items, s.recordingOut(row, losers[row.ID], items))
+		}
 	}
 	if len(rows) == q.Limit {
 		last := rows[len(rows)-1]
@@ -302,7 +354,8 @@ func (s *Server) bookRecording(r *http.Request, req RecordingBook) (Recording, e
 	opts := s.dvrOptions()
 	b := db.Booking{ProfileID: viewer(r).ProfileID, ProfileName: names.Name, ProfilePub: names.PublicID, ChannelID: ch.ID, ChannelName: ch.Name,
 		ProgrammeKey: p.ProgrammeKey, SeriesKey: p.SeriesKey, Title: p.Title, EpisodeTitle: p.EpisodeTitle, Season: p.Season, Episode: p.Episode,
-		Details: p.Summary, StartsAt: p.StartsAt, EndsAt: p.EndsAt, PadBefore: opts.PadBefore, PadAfter: opts.PadAfter, Now: s.now()}
+		Details: p.Summary, Rating: p.Rating, RatingAge: p.RatingAge, StartsAt: p.StartsAt, EndsAt: p.EndsAt, PadBefore: opts.PadBefore,
+		PadAfter: opts.PadAfter, Now: s.now()}
 	if req.PadBeforeMs != nil {
 		b.PadBefore = time.Duration(max(*req.PadBeforeMs, 0)) * time.Millisecond
 	}
@@ -331,12 +384,19 @@ func (s *Server) mayChange(r *http.Request, rec db.Recording) bool {
 }
 
 func (s *Server) getRecording(r *http.Request, _ None) (Recording, error) {
-	if _, err := s.liveAllowed(r, false); err != nil {
+	lv, err := s.liveAllowed(r, false)
+	if err != nil {
 		return Recording{}, err
 	}
 	rec, err := s.db.Recording(r.Context(), r.PathValue("id"))
 	if err != nil {
 		return Recording{}, sourceError(err)
+	}
+	if ok, err := s.maySeeRecording(r.Context(), r, lv, rec); err != nil || !ok {
+		if err != nil {
+			return Recording{}, err
+		}
+		return Recording{}, ErrNotFound()
 	}
 	items, err := s.itemIDs(r.Context(), viewer(r), []db.Recording{rec})
 	if err != nil {
@@ -355,12 +415,19 @@ func (s *Server) getRecording(r *http.Request, _ None) (Recording, error) {
 
 func (s *Server) changeRecording(r *http.Request, req RecordingChange) (Recording, error) {
 	ctx := r.Context()
-	if _, err := s.liveAllowed(r, false); err != nil {
+	lv, err := s.liveAllowed(r, false)
+	if err != nil {
 		return Recording{}, err
 	}
 	rec, err := s.db.Recording(ctx, r.PathValue("id"))
 	if err != nil {
 		return Recording{}, sourceError(err)
+	}
+	if ok, err := s.maySeeRecording(ctx, r, lv, rec); err != nil || !ok {
+		if err != nil {
+			return Recording{}, err
+		}
+		return Recording{}, ErrNotFound()
 	}
 	if !s.mayChange(r, rec) {
 		return Recording{}, ErrNotPermitted()
@@ -388,7 +455,8 @@ func (s *Server) changeRecording(r *http.Request, req RecordingChange) (Recordin
 // file, stopping anyone playing it.
 func (s *Server) deleteRecording(r *http.Request, _ None) (None, error) {
 	ctx := r.Context()
-	if _, err := s.liveAllowed(r, false); err != nil {
+	lv, err := s.liveAllowed(r, false)
+	if err != nil {
 		return None{}, err
 	}
 	rec, err := s.db.Recording(ctx, r.PathValue("id"))
@@ -397,6 +465,9 @@ func (s *Server) deleteRecording(r *http.Request, _ None) (None, error) {
 	}
 	if err != nil {
 		return None{}, err
+	}
+	if ok, err := s.maySeeRecording(ctx, r, lv, rec); err != nil || !ok {
+		return None{}, err // one it may not know of is as if it were gone
 	}
 	c := CallerFrom(ctx)
 	names, err := s.db.ProfileNames(ctx, c.ProfileID)
