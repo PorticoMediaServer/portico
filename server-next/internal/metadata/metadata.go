@@ -86,6 +86,9 @@ type Query struct {
 	Year  int // 0 when the names give none
 	// Creator is who made it, when that helps find it: an album's artist.
 	Creator string
+	// Layout is, for an album, the number of tracks the files have on each disc, in disc
+	// order: it tells the edition the files are from the album's other editions.
+	Layout []int
 	// IDs are ids the files carry for the title at other providers (an IMDb id in an NFO
 	// file). A provider that can look one up answers that title alone, marked Exact.
 	IDs          []Ref

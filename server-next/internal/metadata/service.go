@@ -98,7 +98,7 @@ func (s *Service) MatchLibrary(ctx context.Context, libraryID int64) (MatchStats
 func (s *Service) match(ctx context.Context, p Provider, locale Locale, item db.MatchItem, artists map[int64]bool) (bool, error) {
 	q := Query{Kind: providerKinds[item.Kind], Title: item.Title, Year: item.Year, Locale: locale, IncludeAdult: s.IncludeAdult}
 	if item.Kind == db.KindAlbum {
-		q.Creator = item.ParentTitle
+		q.Creator, q.Layout = item.ParentTitle, item.Layout
 	}
 	ref := Ref{Provider: p.Name(), Kind: q.Kind}
 	for _, id := range item.ExternalIDs {
