@@ -60,14 +60,18 @@ func run(log *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	if err := os.MkdirAll(*data, 0o700); err != nil {
-		return err
-	}
-	// Nothing in the data folder is ever played as a library file.
+	// The data folder is used from here on by its full path: the media tools' sandbox gives a
+	// conversion only an absolute output folder, so a relative one (the default) made every
+	// conversion fail.
 	serverData, err := filepath.Abs(*data)
 	if err != nil {
 		return err
 	}
+	*data = serverData
+	if err := os.MkdirAll(*data, 0o700); err != nil {
+		return err
+	}
+	// Nothing in the data folder is ever played as a library file.
 	libraryfile.ServerData = serverData
 	// Media tools are started through this binary as their helper. That lets a scan keep a
 	// few confined workers going, where it would otherwise build a sandbox for every file.
