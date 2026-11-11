@@ -107,7 +107,7 @@ func TestAPlaylistAndItsGuideComeIn(t *testing.T) {
 	fake := fakeProvider(t, s.now())
 
 	var preview SourcePreview
-	ask := LiveSourceSave{Kind: "playlist", Config: &live.Config{PlaylistURL: fake.URL + "/playlist.m3u", GuideURL: fake.URL + "/guide.xml.gz"}}
+	ask := LiveSourceSave{Kind: "playlist", Config: &live.SourceConfig{PlaylistURL: fake.URL + "/playlist.m3u", GuideURL: fake.URL + "/guide.xml.gz"}}
 	if w := call(t, s, "POST", "/v1/admin/live/sources/preview", owner, ask, &preview); w.Code != 200 ||
 		preview.Report.Channels != 2 || preview.Report.SkippedChannels != 1 || preview.Report.Programmes != 4 || preview.Report.SkippedProgrammes != 1 {
 		t.Fatalf("preview answered %d %+v", w.Code, preview.Report)
@@ -175,7 +175,7 @@ func TestAPlaylistAndItsGuideComeIn(t *testing.T) {
 func TestAnXtreamSignInIsNeverShownAndATunerSaysItsTuners(t *testing.T) {
 	s, owner, _ := seededWith(t, 50, 0)
 	fake := fakeProvider(t, s.now())
-	src := addSource(t, s, owner, LiveSourceSave{Kind: "xtream", Name: new("Provider"), Config: &live.Config{ServerURL: fake.URL + "/xtream"},
+	src := addSource(t, s, owner, LiveSourceSave{Kind: "xtream", Name: new("Provider"), Config: &live.SourceConfig{ServerURL: fake.URL + "/xtream"},
 		SignIn: &live.SignIn{Username: "sam", Password: "s3cret-word"}})
 	w := call(t, s, "GET", "/v1/admin/live/sources/"+src.ID, owner, nil, nil)
 	if strings.Contains(w.Body.String(), "s3cret-word") || !strings.Contains(w.Body.String(), `"hasSignIn":true`) {
@@ -198,7 +198,7 @@ func TestAnXtreamSignInIsNeverShownAndATunerSaysItsTuners(t *testing.T) {
 		t.Fatal("after a failed refresh the guide does not say it is out of date")
 	}
 
-	tuner := addSource(t, s, owner, LiveSourceSave{Kind: "hdhomerun", Name: new("Antenna"), Config: &live.Config{TunerURL: fake.URL + "/hdhr",
+	tuner := addSource(t, s, owner, LiveSourceSave{Kind: "hdhomerun", Name: new("Antenna"), Config: &live.SourceConfig{TunerURL: fake.URL + "/hdhr",
 		GuideURL: fake.URL + "/guide.xml.gz"}})
 	got := get[LiveSource](t, s, owner, "/v1/admin/live/sources/"+tuner.ID)
 	if got.TunerCount != 2 || got.Report == nil || got.Report.Channels != 1 || got.Report.SkippedChannels != 1 || got.Report.ChannelsWithGuide != 1 {
@@ -213,7 +213,7 @@ func TestWatchingASourcesChannelSharesItsTuner(t *testing.T) {
 	s, owner, members := seededWith(t, 50, 2)
 	fake := fakeProvider(t, s.now())
 	t.Cleanup(s.tuners.Close) // before the fake source closes, which waits for its streams
-	addSource(t, s, owner, LiveSourceSave{Kind: "playlist", Name: new("Antenna"), TunerCount: new(1), Config: &live.Config{PlaylistURL: fake.URL + "/tuned.m3u"}})
+	addSource(t, s, owner, LiveSourceSave{Kind: "playlist", Name: new("Antenna"), TunerCount: new(1), Config: &live.SourceConfig{PlaylistURL: fake.URL + "/tuned.m3u"}})
 	channels := get[Page[Channel]](t, s, members[0], "/v1/live/channels").Items
 	if len(channels) != 2 {
 		t.Fatalf("channels: %+v", channels)
@@ -266,7 +266,7 @@ func TestAnXtreamChannelPlaysWithItsSealedSignIn(t *testing.T) {
 	s, owner, _ := seededWith(t, 50, 0)
 	fake := fakeProvider(t, s.now())
 	t.Cleanup(s.tuners.Close)
-	addSource(t, s, owner, LiveSourceSave{Kind: "xtream", Name: new("Provider"), Config: &live.Config{ServerURL: fake.URL + "/xtream"},
+	addSource(t, s, owner, LiveSourceSave{Kind: "xtream", Name: new("Provider"), Config: &live.SourceConfig{ServerURL: fake.URL + "/xtream"},
 		SignIn: &live.SignIn{Username: "sam", Password: "s3cret-word"}})
 	channels := get[Page[Channel]](t, s, owner, "/v1/live/channels").Items
 	var session PlaybackSession
