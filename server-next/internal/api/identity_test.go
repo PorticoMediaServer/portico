@@ -73,7 +73,9 @@ func TestIdentityProofVouchesForTheOwnCertificate(t *testing.T) {
 		v.OwnAddress = OwnAddress{Enabled: true, Domain: "media.example.com", CertificateFile: "cert.pem", KeyFile: "key.pem"}
 	})
 	var proof IdentityProof
-	call(t, s, "POST", "/v1/system/identity-proof", "", IdentityQuestion{BaseURL: "https://media.example.com", Nonce: strings.Repeat("n", 43)}, &proof)
+	// Asked from home: with the certificate loaded, Enhanced is in force for outside connections.
+	jsonInto(reach(s, "POST", "/v1/system/identity-proof", "", "127.0.0.1", "localhost", false,
+		IdentityQuestion{BaseURL: "https://media.example.com", Nonce: strings.Repeat("n", 43)}), &proof)
 	payload, _ := base64.RawURLEncoding.DecodeString(proof.Payload)
 	var said struct{ Certificates []string }
 	json.Unmarshal(payload, &said)
@@ -82,7 +84,7 @@ func TestIdentityProofVouchesForTheOwnCertificate(t *testing.T) {
 		t.Fatalf("the proof lists %q", said.Certificates)
 	}
 	var status RemoteAccessStatus
-	call(t, s, "GET", "/v1/admin/remote-access", owner, nil, &status)
+	jsonInto(reach(s, "GET", "/v1/admin/remote-access", owner, "127.0.0.1", "localhost", false, nil), &status)
 	if status.IdentityCode != s.identity.code() || len(status.IdentityCode) != 14 {
 		t.Fatalf("the owner is shown the identity code %q", status.IdentityCode)
 	}
