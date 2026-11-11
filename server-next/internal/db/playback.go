@@ -16,14 +16,18 @@ type SessionDevice struct {
 	Name     string
 	// UserPublicID is the account the sign-in belongs to.
 	UserPublicID string
+	Platform     string
+	// SignInPublicID is the sign-in's own id. Another device names it when it remembers
+	// which sign-ins it let control it.
+	SignInPublicID string
 }
 
 // SessionDevice returns the device of a live sign-in.
 func (d *DB) SessionDevice(ctx context.Context, sessionID int64) (SessionDevice, error) {
 	var out SessionDevice
-	err := d.read.QueryRowContext(ctx, `SELECT d.id, d.public_id, d.name, u.public_id FROM sessions s
+	err := d.read.QueryRowContext(ctx, `SELECT d.id, d.public_id, d.name, u.public_id, ifnull(d.platform, ''), s.public_id FROM sessions s
 		JOIN devices d ON d.id = s.device_id JOIN users u ON u.id = s.user_id WHERE s.id = ? AND s.revoked_at IS NULL`, sessionID).
-		Scan(&out.ID, &out.PublicID, &out.Name, &out.UserPublicID)
+		Scan(&out.ID, &out.PublicID, &out.Name, &out.UserPublicID, &out.Platform, &out.SignInPublicID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return out, ErrNotFound
 	}

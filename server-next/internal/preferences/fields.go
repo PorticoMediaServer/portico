@@ -125,6 +125,9 @@ var fields = []Setting{
 	intRange("music.crossfadeMs", 0, 0, 12000, ScopeProfile),
 	flag("music.gapless", true, ScopeProfile),
 
+	// Whether the account's other devices may play on this one and control what it plays.
+	flag("devices.playFromOtherDevices", true, ScopeDevice),
+
 	flag("privacy.pauseWatchHistory", false, ScopeProfile),
 	flag("privacy.showActivityToMembers", false, ScopeProfile),
 	flag("privacy.includeInWatchTogether", true, ScopeProfile),

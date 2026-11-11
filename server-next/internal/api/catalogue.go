@@ -423,7 +423,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, route *Route) {
 	if cursor == "" {
 		cursor = r.URL.Query().Get("cursor")
 	}
-	after, err := strconv.ParseInt(cursor, 10, 64)
+	after, live, err := parseCursor(cursor)
 	if cursor == "" {
 		// A new reader starts from now: it has just read what it shows.
 		given = false
@@ -431,8 +431,9 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, route *Route) {
 			s.writeError(w, r, err)
 			return
 		}
-	} else if err != nil || after < 0 {
-		s.writeError(w, r, ErrField("cursor", "This cursor does not belong to this feed."))
+		live = s.live.Now()
+	} else if err != nil {
+		s.writeError(w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -441,7 +442,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, route *Route) {
 	flusher, _ := w.(http.Flusher)
 	send := func(id int64, event string, data any) {
 		raw, _ := json.Marshal(data)
-		fmt.Fprintf(w, "id: %d\nevent: %s\ndata: %s\n\n", id, event, raw)
+		fmt.Fprintf(w, "id: %s\nevent: %s\ndata: %s\n\n", feedCursor(id, live), event, raw)
 	}
 	if !given {
 		// Tells the app where it starts, so its first reconnect has a cursor.
@@ -481,6 +482,20 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, route *Route) {
 			}
 		}
 		after = next
+		// Then what lives only in memory, in the order it happened.
+		memory, nextLive, lost := s.live.After(v.UserID, v.ProfileID, live)
+		live = nextLive
+		if lost {
+			if after, err = s.db.ChangesHead(ctx); err != nil {
+				return
+			}
+			send(after, "resync", struct{}{})
+		}
+		for _, e := range memory {
+			live = e.Seq
+			send(after, "change", Event{Topic: e.Topic, Op: e.Op, ID: e.ID})
+		}
+		live = nextLive
 		if flusher != nil {
 			flusher.Flush()
 		}
@@ -494,4 +509,26 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, route *Route) {
 		case <-poll.C:
 		}
 	}
+}
+
+// A feed's cursor is where the reader is in the database's changes and, after a dot, in what
+// lives only in memory (see livefeed). A cursor without the second part, or with one from
+// before a restart, gets a "resync" for the memory part.
+func parseCursor(text string) (changes, live int64, err error) {
+	if text == "" {
+		return 0, 0, nil
+	}
+	head, tail, dotted := strings.Cut(text, ".")
+	changes, err = strconv.ParseInt(head, 10, 64)
+	if err == nil && dotted {
+		live, err = strconv.ParseInt(tail, 10, 64)
+	}
+	if err != nil || changes < 0 || live < 0 {
+		return 0, 0, ErrField("cursor", "This cursor does not belong to this feed.")
+	}
+	return changes, live, nil
+}
+
+func feedCursor(changes, live int64) string {
+	return strconv.FormatInt(changes, 10) + "." + strconv.FormatInt(live, 10)
 }
