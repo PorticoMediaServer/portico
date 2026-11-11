@@ -95,6 +95,10 @@ var (
 // folderHook, set by tests, stands for a backup drive that does not answer.
 var folderHook func(folder string)
 
+// folderWork is the work on a backup folder still under way, which can outlast its limit: a
+// drive that answers late lets it carry on and fail. Tests wait for it.
+var folderWork sync.WaitGroup
+
 // ErrFolderSlow: the backup folder did not answer in time.
 var ErrFolderSlow = errors.New("the backup folder did not answer in time")
 
@@ -102,7 +106,7 @@ var ErrFolderSlow = errors.New("the backup folder did not answer in time")
 // network drive can block for ever, and only that goroutine waits on it.
 func within(limit time.Duration, fn func() error) error {
 	done := make(chan error, 1)
-	go func() { done <- fn() }()
+	folderWork.Go(func() { done <- fn() })
 	timer := time.NewTimer(limit)
 	defer timer.Stop()
 	select {
