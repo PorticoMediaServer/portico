@@ -385,7 +385,7 @@ func (s *Server) bookRecording(r *http.Request, req RecordingBook) (Recording, e
 	}
 	out := s.recordingOut(rec, false, nil)
 	if created {
-		go s.recorder.Tick(s.background)
+		s.goBackground(func() { s.recorder.Tick(s.liveContext) })
 	}
 	return out, nil
 }

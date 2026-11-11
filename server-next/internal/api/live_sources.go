@@ -356,11 +356,11 @@ func (s *Server) refreshLiveSource(r *http.Request, _ None) (LiveSource, error) 
 	if err != nil {
 		return LiveSource{}, sourceError(err)
 	}
-	go func() {
-		if err := s.sources.Refresh(s.background, src.PublicID); err != nil {
+	s.goBackground(func() {
+		if err := s.sources.Refresh(s.liveContext, src.PublicID); err != nil {
 			s.log.Warn("refreshing a Live TV source failed", "source", src.PublicID, "error", err)
 		}
-	}()
+	})
 	out := s.liveSourceOut(src)
 	out.State, out.status = "refreshing", http.StatusAccepted
 	return out, nil
