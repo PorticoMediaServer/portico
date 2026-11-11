@@ -274,6 +274,14 @@ func (d *DB) SetLibraryOptions(ctx context.Context, libraryID int64, options Lib
 		if err := options.save(tx, libraryID); err != nil {
 			return err
 		}
+		if options.GroupSeries != nil && !*options.GroupSeries {
+			b := newBatchTx(tx)
+			err := ungroupSeries(b, libraryID, now)
+			b.close()
+			if err != nil {
+				return err
+			}
+		}
 		return appendChange(tx, Change{At: now, Topic: TopicLibrary, Op: OpUpdated, RefID: libraryID, LibraryID: libraryID})
 	})
 }
