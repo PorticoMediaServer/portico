@@ -30,6 +30,7 @@ type JobTarget struct {
 }
 
 func (s *Server) jobRoutes() {
+	s.stateJobs()
 	// The kind decides who may start it, so the route itself only needs someone signed in.
 	// A key needs the library scope.
 	Handle(s, "POST /v1/jobs", SignedIn, s.startJob).with(ScopeLibrary).Status = http.StatusAccepted
