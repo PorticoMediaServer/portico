@@ -111,6 +111,8 @@ func (s *Service) DownloadSubtitle(ctx context.Context, v db.Viewer, itemPublicI
 	sum := sha256.Sum256(text)
 	hash := hex.EncodeToString(sum[:])
 	path := SubtitlePath(s.SubtitleDir, hash)
+	s.subtitleFiles.Lock()
+	defer s.subtitleFiles.Unlock()
 	if _, err := os.Stat(path); err != nil {
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			return db.Subtitle{}, err
@@ -119,24 +121,15 @@ func (s *Service) DownloadSubtitle(ctx context.Context, v db.Viewer, itemPublicI
 			return db.Subtitle{}, err
 		}
 	}
-	sub, err := s.DB.AddSubtitle(ctx, db.Subtitle{MediaID: target.MediaID, Provider: provider.Name(), ProviderRef: chosen.Ref, FileHash: hash,
+	return s.DB.AddSubtitle(ctx, db.Subtitle{MediaID: target.MediaID, Provider: provider.Name(), ProviderRef: chosen.Ref, FileHash: hash,
 		Format: format, Language: chosen.Language, Title: chosen.Release, Forced: chosen.Forced, HearingImpaired: chosen.HearingImpaired})
-	if err != nil {
-		return sub, err
-	}
-	// A removal of the same text at the same moment may have taken the file after it was
-	// found above: the row now names it, so it is written again.
-	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
-		if err := atomicfile.Write(path, text, 0o644); err != nil {
-			return sub, err
-		}
-	}
-	return sub, nil
 }
 
 // RemoveSubtitle removes a downloaded subtitle, and its file when no other version uses it.
 // Only the owner and administrators may; the route checks.
 func (s *Service) RemoveSubtitle(ctx context.Context, publicID string) error {
+	s.subtitleFiles.Lock()
+	defer s.subtitleFiles.Unlock()
 	hash, stillUsed, err := s.DB.RemoveSubtitle(ctx, publicID)
 	if err != nil || stillUsed {
 		return err

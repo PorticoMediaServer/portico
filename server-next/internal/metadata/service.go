@@ -29,6 +29,9 @@ type Service struct {
 	// SubtitleDir the folder in the data folder that downloaded subtitles are kept in.
 	Subtitles   SubtitleProvider
 	SubtitleDir string
+	// subtitleFiles keeps a download's "write the file, add its row" apart from a removal's
+	// "remove the row, remove the file", so a listed subtitle always has its file.
+	subtitleFiles sync.Mutex
 }
 
 // defaultProviders is the provider a library of each kind uses until the owner chooses.
