@@ -49,6 +49,7 @@ type house struct {
 	token  string
 	data   string
 	device string
+	engine *mediaengine.Engine
 }
 
 func (h *house) do(method, path string, body any, header ...string) *http.Response {
@@ -152,7 +153,7 @@ func newHouseWith(t *testing.T, ffmpeg, ffprobe string) (*house, *db.DB, *remote
 		decoder.RestoreToolchain(previous)
 		d.Close()
 	})
-	h := &house{T: t, url: server.URL, data: data}
+	h := &house{T: t, url: server.URL, data: data, engine: engine}
 
 	code, err := os.ReadFile(filepath.Join(data, "setup-code.txt"))
 	if err != nil {
@@ -360,7 +361,7 @@ func TestAScannedFilmPlaysAsItIsAndConverted(t *testing.T) {
 	}
 	deadline := time.Now().Add(10 * time.Second)
 	for {
-		left, _ := os.ReadDir(filepath.Join(h.data, "transcodes"))
+		left, _ := os.ReadDir(filepath.Join(h.data, "transcodes", "1"))
 		if len(left) == 0 {
 			break
 		}
