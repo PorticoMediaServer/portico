@@ -10,3 +10,14 @@ func init() {
 			"so a repeat puts nothing more back (it adds one more History line)",
 	})
 }
+
+// A library's collections.
+func init() {
+	retryAreas = append(retryAreas, func(th *theatre) []retryCase {
+		return []retryCase{
+			{route: "POST /v1/admin/libraries/{id}/collections", path: func() string {
+				return "/v1/admin/libraries/" + th.libs["movies"].PublicID + "/collections"
+			}, body: CollectionCreate{Title: "Retry collection"}, other: CollectionCreate{Title: "Other collection"}},
+		}
+	})
+}
