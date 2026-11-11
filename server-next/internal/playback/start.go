@@ -37,6 +37,8 @@ type ChannelLink struct {
 	ID       string    `json:"id"`
 	StartsAt time.Time `json:"startsAt"`
 	EndsAt   time.Time `json:"endsAt"`
+	// MaxKbps is the channel's Limited bitrate, held for every quality change; 0 for none.
+	MaxKbps int `json:"maxKbps,omitempty"`
 }
 
 // Prepared is the next title of a queue planned and its stream started before the current
@@ -478,6 +480,9 @@ func (s *Service) change(ctx context.Context, id string, c Caller, ch Change, fa
 	}
 	if a.Network == "" {
 		a.Network = before.Network
+	}
+	if before.Channel != nil {
+		a.MaxKbps = before.Channel.MaxKbps // a channel's ceiling holds for the whole session
 	}
 	c.AtHome = before.Network == NetworkLocal
 	r, err := s.resolve(ctx, c, before.Device, before.Item.PublicID, a, &before.Choice)
