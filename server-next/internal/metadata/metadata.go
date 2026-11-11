@@ -54,7 +54,7 @@ type Ref struct {
 	ID       string
 	// Order is, for a show handed to Children, the episode order its seasons and episodes are
 	// numbered by: OrderAired (the zero value), OrderDVD or OrderAbsolute. A provider that does
-	// not have the show in that order answers ErrNotFound. It is no part of the show's identity:
+	// not have the show in that order answers ErrNoOrder. It is no part of the show's identity:
 	// keys and external ids never carry it.
 	Order string
 }
@@ -167,3 +167,7 @@ type Provider interface {
 
 // ErrNotFound is a provider's answer that it has no such title.
 var ErrNotFound = errors.New("the provider has no such title")
+
+// ErrNoOrder is a provider's answer that it has the show, but not in the episode order asked
+// for: TMDB has no absolute order for most shows. The show's episodes then use aired order.
+var ErrNoOrder = errors.New("the provider does not have the show in that episode order")

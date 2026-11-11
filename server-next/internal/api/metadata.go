@@ -70,6 +70,9 @@ type MergeRequest struct {
 // or a version was split off.
 type MatchResult struct {
 	ItemID string `json:"itemId"`
+	// Notice, when set, is a sentence for the person: the show has no episode order of the
+	// kind they chose at its provider, so its episodes use aired order, which is kept.
+	Notice string `json:"notice,omitempty"`
 }
 
 // MetadataRefreshed says whether the title now has a match. A matched title is asked about
@@ -207,13 +210,18 @@ func (s *Server) setMatch(r *http.Request, req MatchRequest) (MatchResult, error
 	if req.EpisodeOffset < -9999 || req.EpisodeOffset > 9999 {
 		return MatchResult{}, ErrField("episodeOffset", "Use a whole number from -9999 to 9999.")
 	}
-	remaining, err := s.metadata.IdentifyShow(r.Context(), id, metadata.Ref{Provider: req.Provider, ID: req.ID, Order: order}, req.EpisodeOffset)
+	remaining, used, err := s.metadata.IdentifyShow(r.Context(), id, metadata.Ref{Provider: req.Provider, ID: req.ID, Order: order}, req.EpisodeOffset)
 	if err != nil && remaining == "" {
 		return MatchResult{}, metadataError(err)
 	}
 	// The title's own details are in. A show's episodes that the provider did not answer for
 	// keep what they had and are fetched at the next refresh.
-	return MatchResult{ItemID: remaining}, nil
+	result := MatchResult{ItemID: remaining}
+	if used != order {
+		result.Notice = map[string]string{metadata.OrderDVD: "This show has no DVD order at its provider, so its episodes use aired order.",
+			metadata.OrderAbsolute: "This show has no absolute order at its provider, so its episodes use aired order."}[order]
+	}
+	return result, nil
 }
 
 func (s *Server) refreshMetadata(r *http.Request, _ None) (MetadataRefreshed, error) {
