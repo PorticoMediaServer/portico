@@ -25,7 +25,7 @@ export function shellAccount(snapshot: DirectSnapshot, profileId: string): Shell
   return {capabilities: snapshot.capabilities, username: snapshot.account.username, profileName: profile.name, profileArt: profile.art,
     primaryProfile: profile.primary, canManageProfiles: snapshot.canManage, manageLocked: snapshot.managePinRequired === true ? true : undefined,
     profiles: snapshot.profiles.map(value => ({id: value.id, name: value.name, initial: Array.from(value.name.trim())[0] ?? '', art: value.art,
-      pinRequired: value.pinRequired, primary: value.primary, revision: value.revision, pinRevision: value.pinRevision, trustRevision: value.trustRevision})), accountFacts: []};
+      pinRequired: value.pinRequired, primary: value.primary, accessMarker: value.accessMarker})), accountFacts: []};
 }
 
 const systemAuthority = (value: ServerSignIn) => JSON.stringify([value.id, value.signIn, value.move, value.setupRequired, value.hostedConfigured, value.hostedAttached]);

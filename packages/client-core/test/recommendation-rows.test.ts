@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {defaultI18n} from '../../i18n/src/index.ts';
-import {homeRowHeading, isPersonalRowId, validateHomeLayoutView, validateHomeRow} from '../src/home.ts';
+import {homeRowHeading, isPersonalRowId, validateHomeRow} from '../src/home.ts';
 import {validateContentProjection as parseContentProjection} from '../src/library-content.ts';
 import {fetchShowRecommendations, moreLikeThisRow, titleRecommendationRows, validateItemRecommendations} from '../src/recommendations.ts';
 import {serverTextLabel} from '../src/presentation/server-text.ts';
@@ -51,15 +51,6 @@ test('titles come from the catalogue, with the fallback for an unknown code or m
   assert.equal(t('home.row.moreWith'), 'Server words', 'a message whose params are missing keeps the server’s words');
   // A content heading names itself the same way.
   assert.equal(serverTextLabel(defaultI18n, {key: 'home.row.fromCreator', params: {name: 'Vince Gilligan'}, fallback: 'From Vince Gilligan'}), 'From Vince Gilligan');
-});
-
-test('the layout lists the family once, under its own title', () => {
-  const view = validateHomeLayoutView({revision: 1, rowOrder: [], hiddenRowIds: ['for_you'], rows: [
-    {id: 'recommended', title: 'Recommended for you', kind: 'recommendation', artworkShape: 'poster', required: false, hideable: true, reorderable: true, hidden: false},
-    {id: 'for_you', title: 'Picks for you', titleText: {code: 'home.row.picksForYou', fallback: 'Picks for you'}, kind: 'family', artworkShape: 'poster', required: false, hideable: true, reorderable: true, hidden: true},
-  ]});
-  assert.equal(view.rows[1]!.titleText?.code, 'home.row.picksForYou');
-  assert.equal(serverTextLabel(defaultI18n, view.rows[1]!.titleText), 'Picks for you');
 });
 
 test('Discover headings carry params', () => {

@@ -734,7 +734,7 @@ export function SettingsEntry() {
   return <><SecureAddressProvider api={selected.api} isCurrent={selected.current} active={route.scope === 'server' && route.section === 'signin' && selected.settings.role === 'owner'}>
     <SettingsScreen bindings={settings} route={route} navigate={navigate} openDetail={openDetail} />
   </SecureAddressProvider>
-    {profilePIN && selected.profiles === profilePIN.source && <ProfilePINDialog key={JSON.stringify([profilePIN.target.id, profilePIN.target.revision, profilePIN.remove])}
+    {profilePIN && selected.profiles === profilePIN.source && <ProfilePINDialog key={JSON.stringify([profilePIN.target.id, profilePIN.remove])}
       request={profilePIN} isCurrent={() => selected.profilePINCurrent(profilePIN) && selected.profiles === profilePIN.source && !!profilePIN.source.getSnapshot().document} onClose={() => selected.closeProfilePIN(profilePIN)} onFailure={() => {if (selected.profilePINCurrent(profilePIN)) setFailure({error: undefined});}} />}
   </>;
 }

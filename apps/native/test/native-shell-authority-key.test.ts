@@ -8,7 +8,7 @@ test('H-11: the shell authority never carries the token horizon, so a renewal ca
   const bootstrap = readFileSync(new URL('../src-next/shell/bootstrap.ts', import.meta.url), 'utf8');
   const epoch = bootstrap.match(/epoch: JSON\.stringify\(\[([^\]]*)\]\), get viewerFence\(\) \{return viewerFence;\}/);
   assert.ok(epoch, 'the shell authority is built in one place');
-  assert.equal(epoch![1], 'session.sessionFamilyId, profile.revision, profile.pinRevision');
+  assert.equal(epoch![1], 'session.sessionFamilyId, profile.pinRequired');
   const renewal = bootstrap.slice(bootstrap.indexOf('if (renewed.authorizationHorizon !== session!.authorizationHorizon) {'), bootstrap.indexOf('// The refresher atomically owns'));
   assert.doesNotMatch(renewal, /onSessionRenewed/, 'a sliding horizon renews in place; it never restarts the app');
   const model = readFileSync(new URL('../src-next/shell/model.ts', import.meta.url), 'utf8');

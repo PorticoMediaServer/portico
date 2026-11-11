@@ -1,77 +1,55 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {fetchHomeLayout, validateHomeLayoutView, type HomeApi} from '../src/home.ts';
+import {readFileSync} from 'node:fs';
+import {HomeService} from '../src/home-service.ts';
+import {HomeLayoutEditor} from '../src/home-layout-editor.ts';
 import {validateContentEntry} from '../src/library-content.ts';
 
-function layoutRow(changes: Record<string, unknown> = {}): any {
-  return {
-    id: 'continue', title: 'Continue Watching', kind: 'continue', artworkShape: 'landscape',
-    required: true, hideable: false, reorderable: true, hidden: false, ...changes,
-  };
-}
-function layoutView(changes: Record<string, unknown> = {}): any {
-  return {
-    revision: 3, rowOrder: ['continue', 'watchlist'], hiddenRowIds: ['trending_now'],
-    rows: [
-      layoutRow(),
-      layoutRow({id: 'recent_movies', title: 'Recently Added in Movies', kind: 'recent', artworkShape: 'poster', libraryId: 'movies', required: false, hideable: true, reorderable: true, hidden: false}),
-      layoutRow({id: 'trending_now', title: 'Trending Now', kind: 'community', artworkShape: 'poster', required: false, hideable: true, reorderable: true, hidden: true}),
-    ],
-    ...changes,
-  };
-}
-function api(handler: (path: string, method?: string, body?: unknown) => unknown): HomeApi {
-  return {request: async <T>(path: string, method?: string, body?: unknown) => handler(path, method, body) as T};
+// Customize Home is saved as two of the profile's settings and applied by GET /v1/home.
+const settings = JSON.parse(readFileSync(new URL('./fixtures/next-preferences.json', import.meta.url), 'utf8'));
+const item = (id: string) => ({id, kind: 'movie', title: id, libraryId: 'lib_films', state: {watched: false, playCount: 0, favorite: false, inList: false}});
+function server(saved: Readonly<{order?: string[]; hidden?: string[]}> = {}) {
+  const sent: unknown[] = [];
+  let order = saved.order ?? [], hidden = saved.hidden ?? [], offline = false;
+  const rows = () => [{id: 'continue', title: 'Continue Watching', shape: 'landscape', items: [item('a')]}, {id: 'recently_added', title: 'Recently Added', shape: 'poster', items: [item('b')]}]
+    .filter(row => row.id === 'continue' || !hidden.includes(row.id)).sort((x, y) => (order.indexOf(x.id) + 1 || 99) - (order.indexOf(y.id) + 1 || 99));
+  const api = {request: async <T>(path: string, method = 'GET', body?: unknown): Promise<T> => {
+    if (path.startsWith('/v1/home')) return {rows: rows()} as T;
+    if (method === 'PATCH') {
+      if (offline) throw Object.assign(new Error('Saved on this device.'), {code: 'sync_pending'});
+      sent.push(body); const values = (body as {values: Record<string, string[] | null>}).values;
+      order = values['home.rowOrder'] ?? []; hidden = values['home.hiddenRowIds'] ?? [];
+    }
+    return {...settings, effective: {...settings.effective, 'home.rowOrder': order, 'home.hiddenRowIds': hidden}} as T;
+  }};
+  return {api, sent, goOffline: () => {offline = true;}};
 }
 
-test('a layout view round-trips and freezes', () => {
-  const parsed = validateHomeLayoutView(layoutView());
-  assert.equal(parsed.revision, 3);
-  assert.deepEqual([...parsed.rowOrder], ['continue', 'watchlist']);
-  assert.deepEqual([...parsed.hiddenRowIds], ['trending_now']);
-  assert.equal(parsed.rows.length, 3);
-  assert.equal(parsed.rows[1].libraryId, 'movies');
-  assert.equal(parsed.rows[2].hidden, true);
-  assert.throws(() => (parsed.rows as unknown as unknown[]).push(layoutRow({id: 'x'})), TypeError);
-  assert.throws(() => ((parsed.rows[0] as unknown as Record<string, unknown>).title = 'x'), TypeError);
+test('Customize Home saves the order and hidden rows as settings, Home follows, and Reset takes both away', async () => {
+  const {api, sent} = server(), home = new HomeService(api), editor = new HomeLayoutEditor(home, {requestId: () => 'r', isCurrent: () => true});
+  await home.load(); await editor.load();
+  assert.deepEqual(editor.getSnapshot().draft!.order, ['continue', 'recently_added']);
+  editor.move('recently_added', 0); editor.show('recently_added', false);
+  assert.equal(await editor.save(), true);
+  assert.deepEqual(sent, [{scope: 'profile-server', deviceClass: 'web', values: {'home.rowOrder': ['recently_added', 'continue'], 'home.hiddenRowIds': ['recently_added']}}]);
+  assert.deepEqual(home.getSnapshot().document!.rows.map(row => row.id), ['continue']);
+  // A hidden row is left out of Home, so the editor names it by the title it was last seen under, and it can be shown again.
+  await editor.load();
+  const hidden = editor.getSnapshot().draft!.view.rows.find(row => row.id === 'recently_added')!;
+  assert.equal(hidden.title, 'Recently Added'); assert.equal(hidden.hidden, true);
+  assert.equal(await editor.reset(), true);
+  assert.deepEqual(sent[1], {scope: 'profile-server', deviceClass: 'web', values: {'home.rowOrder': null, 'home.hiddenRowIds': null}});
+  assert.deepEqual(home.getSnapshot().document!.rows.map(row => row.id), ['continue', 'recently_added']);
 });
 
-test('the revision and bounds of a layout view still refuse the whole document', () => {
-  const cases: unknown[] = [
-    layoutView({rows: 'nope'}),
-    layoutView({rows: Array.from({length: 65}, (_, i) => layoutRow({id: `r${i}`}))}),
-    layoutView({revision: -1}),
-    layoutView({rowOrder: 'nope'}),
-    layoutView({hiddenRowIds: Array.from({length: 65}, (_, i) => `r${i}`)}),
-  ];
-  for (const payload of cases) assert.throws(() => validateHomeLayoutView(payload), {code: 'invalid_home'});
-});
-
-test('one layout row that cannot be read is left out; what a row is only drawn with reads neutrally', () => {
-  const kept = (rows: unknown[]) => validateHomeLayoutView(layoutView({rows})).rows;
-  for (const bad of ['nope', layoutRow({id: ''}), layoutRow({title: ''.padEnd(1025, 'x')}), layoutRow({kind: 'bad\nkind'})]) {
-    assert.deepEqual(kept([bad, layoutRow({id: 'kept'})]).map(r => r.id), ['kept']);
-  }
-  // A repeated row keeps its first appearance.
-  assert.deepEqual(kept([layoutRow({title: 'First'}), layoutRow({title: 'Second'})]).map(r => r.title), ['First']);
-  // A shape this app does not know is a poster; a library id that cannot be read is left out; an unknown field is ignored.
-  const loose = kept([layoutRow({id: 'a', artworkShape: 'circle', libraryId: '', required: 'yes', reorderable: undefined, futureField: 1})])[0];
-  assert.deepEqual(loose, {id: 'a', title: 'Continue Watching', kind: 'continue', artworkShape: 'poster', required: false, hideable: false, reorderable: false, hidden: false});
-  // Contradictory flags take the reading that keeps the row on Home: required wins over hideable, and only a hideable row is hidden.
-  assert.deepEqual(kept([layoutRow({id: 'a', required: true, hideable: true, hidden: true})]).map(r => [r.required, r.hideable, r.hidden]), [[true, false, false]]);
-  assert.deepEqual(kept([layoutRow({id: 'a', required: false, hideable: false, hidden: true})]).map(r => [r.hideable, r.hidden]), [[false, false]]);
-  assert.deepEqual([...validateHomeLayoutView(layoutView({rowOrder: ['a', 'a', 'b']})).rowOrder], ['a', 'b']);
-});
-
-test('fetchHomeLayout hits GET /v1/home/layout with no query', async () => {
-  const seen: string[] = [];
-  const client = api(path => {
-    seen.push(path);
-    return layoutView({revision: 3, rowOrder: ['continue', 'watchlist'], hiddenRowIds: ['trending_now']});
-  });
-  const view = await fetchHomeLayout(client);
-  assert.deepEqual(seen, ['/v1/home/layout']);
-  assert.equal(view.revision, 3);
+test('a layout saved while the server is out of reach counts as saved, and the phone names its own kind of device', async () => {
+  const {api, sent, goOffline} = server(), home = new HomeService(api, {deviceClass: 'mobile'}), editor = new HomeLayoutEditor(home, {requestId: () => 'r', isCurrent: () => true});
+  await home.load(); await editor.load();
+  editor.show('recently_added', false); assert.equal(await editor.save(), true);
+  assert.equal((sent[0] as {deviceClass: string}).deviceClass, 'mobile');
+  goOffline(); editor.show('recently_added', true);
+  assert.equal(await editor.save(), true);
+  assert.equal(editor.getSnapshot().error, undefined);
 });
 
 test('new entry fields are accepted', () => {

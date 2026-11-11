@@ -4,9 +4,9 @@ import type {DirectSnapshot} from '../../../packages/client-core/src/profile-man
 import {nativeAccountMenu, nativeAccountOpenTransition, nativeMenuRouteAvailable} from '../src-next/shell/account';
 import {nativeShellRoutes} from '../src-next/shell/route-registry';
 
-const profile = {id: 'profile', name: 'Demo', primary: true, position: 0, art: 'blue' as const, revision: 1, pinRevision: 1, pinRequired: false};
+const profile = {id: 'profile', name: 'Demo', primary: true, position: 0, art: 'blue' as const, accessMarker: 'a', pinRequired: false};
 const account: DirectSnapshot = {authority: 'local', serverId: 'server', account: {id: 'account', username: 'demo', primaryProfileId: profile.id,
-  role: 'owner', revision: 1, disabled: false, allowedLibraries: []}, profiles: [profile], canManage: true,
+  role: 'owner', disabled: false, allowedLibraries: []}, profiles: [profile], canManage: true,
   capabilities: {manageAccount: true, managePeople: true, manageServer: true, manageSignIn: true}};
 const factory = () => ({render: () => null});
 

@@ -62,8 +62,8 @@ async function fixture({isTV = false, width, height, role = 'owner', sources = t
   const controller = new NativeLiveController(lifetime, api, 'America/Halifax'); await controller.loadSources();
   const account: DirectSnapshot = {authority: 'local', serverId: 'server', canManage: role === 'owner',
     capabilities: {manageAccount: role === 'owner', managePeople: role === 'owner', manageServer: role === 'owner', manageSignIn: role === 'owner'},
-    account: {id: 'owner', username: 'Owner', role, primaryProfileId: 'main', revision: 1, disabled: false, allowedLibraries: []},
-    profiles: [{id: 'main', name: 'Main', primary: true, position: 0, art: 'blue', revision: 1, pinRevision: 0, pinRequired: false}]};
+    account: {id: 'owner', username: 'Owner', role, primaryProfileId: 'main', disabled: false, allowedLibraries: []},
+    profiles: [{id: 'main', name: 'Main', primary: true, position: 0, art: 'blue', accessMarker: 'a', pinRequired: false}]};
   const context: any = {api: {baseUrl: 'https://server.example/'}, account, authority: () => authority, current: () => true,
     navigation: {subscribe: listen, getSnapshot: () => route, isCurrent: () => true}};
   const runtime: any = {retirementSignal: retirement.signal, subscribe: listen, getSnapshot: () => shell, text: {t: defaultI18n.t, locale: 'en-US'},

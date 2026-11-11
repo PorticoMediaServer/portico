@@ -144,6 +144,13 @@ test('Skipping and Still watching each save their settings together; unknown row
   assert.deepEqual(settingsBindingPatch(still, 4, {preferences}).values, {'playback.passoutProtection': true, 'playback.passoutAfterEpisodes': 4});
   assert.throws(() => settingsBindingPatch(still, '4', {preferences}));
   for (const row of ['quality.playerEngine', 'audioSubtitles.burnIn', 'audioSubtitles.passthroughFormats', 'playback.introSkip', 'constructor', '__proto__', 'not.a.row']) assert.equal(settingsBinding(row), undefined, row);
+  // Rewind on resume shows once the server publishes it, with the server's choices.
+  assert.equal(readSettingsBinding(binding('playback.resumeRewindMs'), {preferences}), undefined);
+  const rewind = parsePreferenceSnapshot({...answer, registry: {...answer.registry, fields: [...answer.registry.fields,
+    {key: 'playback.resumeRewindMs', type: 'integer', default: 0, allowedValues: [0, 5000, 10000, 30000], scopes: ['profile-server'], group: 'playback', labelKey: 'preferences.playback.resumeRewindMs'}]}});
+  assert.equal(readSettingsBinding(binding('playback.resumeRewindMs'), {preferences: rewind})?.current, 0);
+  assert.deepEqual(settingsBindingPatch(binding('playback.resumeRewindMs'), 10000, {preferences: rewind}).values, {'playback.resumeRewindMs': 10000});
+  assert.throws(() => settingsBindingPatch(binding('playback.resumeRewindMs'), 15000, {preferences: rewind}));
   // Reading rows go through the reading page's own settings, never a raw key.
   assert.equal(readingSettingsProperty('reading.theme'), 'theme');
   assert.equal(settingsBinding('reading.theme'), undefined);

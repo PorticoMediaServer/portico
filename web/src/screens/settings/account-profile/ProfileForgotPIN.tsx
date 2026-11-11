@@ -31,12 +31,10 @@ export function ProfileForgotPIN({source, api, selectedFamilyId, isCurrent}: {so
     <Button ref={trigger} size="small" variant="glass" disabled={state.busy || !!active.current} onClick={() => {
       const document = source.getSnapshot().document, profile = source.selected();
       if (!isCurrent() || active.current || !document || document.canManage || !profile?.pinRequired) return;
-      const accountId = document.account.id, accountRevision = document.account.revision;
-      const profileId = profile.id, profileRevision = profile.revision;
+      const accountId = document.account.id, profileId = profile.id;
       let retired = false, off = () => {};
       const current = () => !retired && rendered.current === source && isCurrent() && source.getSnapshot().document === document &&
-        document.account.id === accountId && document.account.revision === accountRevision &&
-        source.selected() === profile && profile.id === profileId && profile.revision === profileRevision;
+        document.account.id === accountId && source.selected() === profile && profile.id === profileId;
       const flow = new BrowserProfileRecovery(api, document, profileId, 'local', selectedFamilyId(), current);
       const captured: Opening = {source, flow, current, profileName: profile.name, username: document.account.username,
         retire: () => {if (retired) return;retired = true;off();flow.dispose();}};
