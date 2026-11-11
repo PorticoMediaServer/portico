@@ -79,3 +79,54 @@ func TestUploadSpeedAndTheAwayLimit(t *testing.T) {
 		t.Errorf("lowering the away limit lowered a stream already playing")
 	}
 }
+
+// Three edges of the upload speed. The next episode on a device is not held back by the
+// stream it replaces on that same device. A change that is not a quality change (subtitles)
+// never lowers a stream because the owner lowered the away limit after it began. And music
+// counts toward the upload speed like video.
+func TestUploadSpeedEdges(t *testing.T) {
+	th := newTheatre(t)
+	ladder := ladderEngine{th.engine}
+	th.s.playback.SetEngine(ladder, ladder)
+	owner := th.owner.AccessToken
+	streaming := func(body string) {
+		if code := status(t, th.s, "PUT", "/v1/admin/settings/streaming", owner, json.RawMessage(body)); code != 200 {
+			t.Fatalf("saving %s answered %d", body, code)
+		}
+	}
+	streaming(`{"uploadSpeedKbps":12500}`) // 10,000 kbps shared by away streams
+	phone := onMain(t, th.s, signIn(t, th.s, 1)).AccessToken
+	tv := onMain(t, th.s, signIn(t, th.s, 2)).AccessToken
+	tablet := onMain(t, th.s, signIn(t, th.s, 3)).AccessToken
+
+	// Music counts: a song away from home takes its share first.
+	song := th.play(tablet, th.song)
+	if got := th.quality(song.ID); got != "1080p-low" {
+		t.Fatalf("the song got %q", got)
+	}
+	first := th.play(phone, th.eps[0]) // 2,000 left beside the song
+	if got := th.quality(first.ID); got != "480p" {
+		t.Fatalf("a play beside an away song got %q: music did not count", got)
+	}
+	status(t, th.s, "DELETE", "/v1/playback/sessions/"+song.ID, tablet, nil)
+
+	// The next episode on the phone is offered what the phone's own stream leaves free.
+	tvPlay := th.play(tv, th.film) // 8,500 left beside the phone's 1,500
+	if got := th.quality(tvPlay.ID); got != "1080p-low" {
+		t.Fatalf("the TV got %q", got)
+	}
+	next := th.play(phone, th.eps[1]) // replaces the phone's own: 2,000 left beside the TV
+	if got := th.quality(next.ID); got != "480p" {
+		t.Fatalf("the next episode on the phone got %q", got)
+	}
+
+	// The owner lowers the away limit; a subtitle change on the TV's stream does not lower it.
+	streaming(`{"awayVideoKbps":4000}`)
+	off := ""
+	if code := status(t, th.s, "PATCH", "/v1/playback/sessions/"+tvPlay.ID, tv, PlaybackChange{Subtitles: &SubtitlePick{TrackID: &off}}); code != 200 {
+		t.Fatalf("turning subtitles off answered %d", code)
+	}
+	if got := th.quality(tvPlay.ID); got != "1080p-low" {
+		t.Errorf("a subtitle change lowered the stream to %q", got)
+	}
+}
