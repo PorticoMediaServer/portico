@@ -126,6 +126,10 @@ type QueueChange struct {
 type QueueAdvance struct {
 	Reason  string `json:"reason"`
 	EntryID string `json:"entryId,omitempty"`
+	// FromEntryID is the entry the app is on. With it, a completion, next or previous whose
+	// answer was lost can be sent again: the queue has already moved off that entry, so it
+	// is answered as it stands and does not move a second time.
+	FromEntryID string `json:"fromEntryId,omitempty"`
 }
 
 // QueuePrepare asks for the next entry to be got ready. SessionID is what is playing now.
@@ -384,7 +388,13 @@ func (s *Server) advanceQueue(r *http.Request, req QueueAdvance) (Queue, error) 
 	default:
 		return Queue{}, ErrField("reason", "The reason is completion, next, previous or entry.")
 	}
-	q, err := s.queues.Advance(r.Context(), s.playbackCaller(r), r.PathValue("id"), revision, req.Reason, entry)
+	var from int64
+	if req.FromEntryID != "" {
+		if from = playqueue.ParseEntryID(req.FromEntryID); from < 0 {
+			return Queue{}, ErrField("fromEntryId", "This is not an entry of a queue.")
+		}
+	}
+	q, err := s.queues.Advance(r.Context(), s.playbackCaller(r), r.PathValue("id"), revision, req.Reason, entry, from)
 	return s.queueOut(q), queueError(err)
 }
 

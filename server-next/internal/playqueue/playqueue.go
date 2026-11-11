@@ -477,7 +477,7 @@ func (s *Service) currentItem(ctx context.Context, v db.Viewer, q db.Queue) (db.
 // Advance moves the queue on: reason is completion (the entry played to its end), next,
 // previous or entry (jump to entryID). The app then starts the new current entry. At the
 // end of a queue that does not repeat it is db.ErrQueueEnded.
-func (s *Service) Advance(ctx context.Context, c Caller, id string, ifMatch int64, reason string, entryID int64) (db.Queue, error) {
+func (s *Service) Advance(ctx context.Context, c Caller, id string, ifMatch int64, reason string, entryID, from int64) (db.Queue, error) {
 	s.cancelPrepared(id)
 	q, err := s.db.Queue(ctx, c.Viewer, id)
 	if err != nil {
@@ -485,6 +485,10 @@ func (s *Service) Advance(ctx context.Context, c Caller, id string, ifMatch int6
 	}
 	if ifMatch != 0 && ifMatch != q.Revision {
 		return q, db.ErrStale
+	}
+	if from != 0 && from != q.CurrentEntry && reason != "entry" {
+		// The same move sent again after its answer was lost: it has been made.
+		return q, nil
 	}
 	if q, err = s.refill(ctx, c.Viewer, q); err != nil {
 		return q, err
@@ -518,7 +522,7 @@ func (s *Service) Begin(ctx context.Context, c Caller, id string, entryID int64)
 		return "", err
 	}
 	if q.CurrentEntry != entryID {
-		if _, err := s.Advance(ctx, c, id, 0, "entry", entryID); err != nil {
+		if _, err := s.Advance(ctx, c, id, 0, "entry", entryID, 0); err != nil {
 			return "", err
 		}
 	}
