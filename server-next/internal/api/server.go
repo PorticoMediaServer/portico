@@ -59,8 +59,8 @@ type Server struct {
 	// queues builds and runs play queues. See queues.go.
 	queues  *playqueue.Service
 	network networkState
-	// remote is the owner's remote access settings. See remote_access.go.
-	remote remoteState
+	// access is the owner's remote access settings. See remote_access.go.
+	access remoteState
 	media  func(w http.ResponseWriter, r *http.Request, grant, file string)
 	// feeds caps the change feeds each sign-in holds open. See catalogue.go.
 	feeds feeds
