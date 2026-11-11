@@ -15,10 +15,6 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// SchemaVersion is recorded in schema_migrations. Before the first release the schema file is
-// edited in place and this stays 1; a database made by an older build is deleted, not upgraded.
-const SchemaVersion = 1
-
 //go:embed schema.sql
 var schemaCoreSQL string
 
@@ -51,9 +47,13 @@ type DB struct {
 	// titleData is the title data file the reads use, or nil. See titledata.go.
 	titleData  atomic.Pointer[titleData]
 	nextInsist time.Time
+
+	// upgradesDone closes when the upgrade's background work has stopped. See upgrade.go.
+	upgradesDone chan struct{}
 }
 
-// Open opens the database at path, creating it with the current schema if it is new.
+// Open opens the database at path, creating it with the current schema if it is new and
+// upgrading it if an earlier version of Portico made it (see upgrade.go).
 // Every commit is synced to disk before it returns (synchronous=FULL).
 func Open(ctx context.Context, path string) (*DB, error) {
 	write, err := open(path, "rwc", 1, writeCacheKiB)
@@ -61,6 +61,7 @@ func Open(ctx context.Context, path string) (*DB, error) {
 		return nil, err
 	}
 	d := &DB{writeConn: write, closed: make(chan struct{}), path: path, helperDone: make(chan struct{}), changed: make(chan struct{}, 1)}
+	d.upgradesDone = make(chan struct{})
 	d.queues[User], d.queues[Background] = make(chan writeRequest), make(chan writeRequest)
 	if err := d.ensureSchema(ctx); err != nil {
 		write.Close()
@@ -80,6 +81,7 @@ func Open(ctx context.Context, path string) (*DB, error) {
 	d.helper.Exec(`PRAGMA busy_timeout = 50`)
 	go d.writer()
 	go d.checkpointHelper()
+	go d.finishUpgrades()
 	return d, nil
 }
 
@@ -125,17 +127,12 @@ func (d *DB) ensureSchema(ctx context.Context) error {
 			return fmt.Errorf("create schema: %w", err)
 		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)`,
-			SchemaVersion, time.Now().UnixMilli()); err != nil {
+			schemaVersion(), time.Now().UnixMilli()); err != nil {
 			return err
 		}
 		return tx.Commit()
 	}
-	var version int
-	err := d.writeConn.QueryRowContext(ctx, `SELECT max(version) FROM schema_migrations`).Scan(&version)
-	if err != nil || version != SchemaVersion {
-		return errors.New("this database was made by a different build of Portico; before the first release, delete it and start again")
-	}
-	return nil
+	return d.upgrade(ctx)
 }
 
 // Close stops the writer and the checkpoint helper and closes the connections. SQLite copies
@@ -146,5 +143,6 @@ func (d *DB) Close() error {
 	}
 	close(d.closed)
 	<-d.helperDone
+	<-d.upgradesDone
 	return errors.Join(d.UseTitleData(""), d.read.Close(), d.helper.Close(), d.writeConn.Close())
 }

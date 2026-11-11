@@ -31,7 +31,17 @@ contributor would recognise on first read. If in doubt, leave it out.
    large tables use integer codes checked in the one Go function that inserts into them, so a
    new media type is never a table rewrite.
 8. **Only `internal/db` runs SQL.** No other package holds a transaction or a connection.
-9. **Before the first release there are no migrations.** `schema.sql` is edited in place.
+9. **Changing the schema.** Before the first release, edit the schema files in place and do
+   nothing else: `upgrades` in `internal/db/upgrade.go` stays empty and a database from an
+   earlier build is deleted. From the first release on, every schema change is two edits in
+   one pull request: the schema files, so a new database is made right, and one new step at
+   the end of `upgrades`, so an existing one is brought to the same shape (a new column goes
+   last in its table in both). A step's SQL must cost the same at any library size: a new
+   table, a new column on a table that is not STRICT, a change to a small table. Anything
+   that reads or writes every row of a large table (filling a column, an index, a check)
+   goes in the step's background part, in batches of about 2,000 rows, and the code must work
+   while that is half done. A released step is never edited, moved or removed. Nothing goes
+   back a version. Rebuilding a table is not supported yet.
 
 ## API
 
