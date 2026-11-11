@@ -4,7 +4,9 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
+	"unicode"
 )
 
 // Which web pages, other than the ones this server serves itself, may read its answers.
@@ -20,8 +22,11 @@ import (
 // other page, this server's own included, is out of its reach.
 //
 // What every other page gets: nothing it did not have. It can still make the browser send a
-// plain GET, or a POST with no JSON body, and cannot read the answer; a request with a JSON
-// body or a token needs the browser to ask first (a preflight), and the answer is no.
+// plain GET, or a POST with an empty body or one that is not JSON, and cannot read the
+// answer. Every body that is not empty must be application/json, and a request with a JSON
+// body or a token needs the browser to ask first (a preflight), to which the answer is no.
+// So such a page can send nothing a route acts on; a test holds every route that needs no
+// sign-in to that.
 //
 // Pages this server serves itself are the same origin as the API. A browser asks nothing
 // for them, and nothing here applies to them.
@@ -90,11 +95,25 @@ func webOrigin(typed string) (string, bool) {
 		return "", false
 	}
 	host := strings.ToLower(u.Hostname())
+	// A browser sends a name with letters outside ASCII in its xn-- form, so the name as
+	// typed would never match. The owner is asked for that form.
+	for _, c := range host {
+		if c > unicode.MaxASCII {
+			return "", false
+		}
+	}
 	if strings.Contains(host, ":") {
 		host = "[" + host + "]"
 	}
-	if port := u.Port(); port != "" && !(u.Scheme == "https" && port == "443") && !(u.Scheme == "http" && port == "80") {
-		host += ":" + port
+	if port := u.Port(); port != "" {
+		// A port a browser would write differently, or not at all, would never match either.
+		n, err := strconv.Atoi(port)
+		if err != nil || n < 1 || n > 65535 || strconv.Itoa(n) != port {
+			return "", false
+		}
+		if !(u.Scheme == "https" && n == 443) && !(u.Scheme == "http" && n == 80) {
+			host += ":" + port
+		}
 	}
 	return u.Scheme + "://" + host, true
 }
