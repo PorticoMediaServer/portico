@@ -729,7 +729,8 @@ internal object PorticoDownloadCenter {
         request.header("Range", "bytes=$offset-")
         // The server answers with the rest only if the file is still the one these bytes came
         // from; otherwise it sends the whole file and the bytes here are replaced.
-        request.header("If-Range", if (expected.isNotEmpty()) "\"sha256-$expected\"" else heldTag)
+        // The server tags a copy with its digest, quoted.
+        request.header("If-Range", if (expected.isNotEmpty()) "\"$expected\"" else heldTag)
       }
       val call = http.newCall(request.build())
       transfer.call = call
@@ -744,7 +745,7 @@ internal object PorticoDownloadCenter {
         val answeredTag = response.header("ETag") ?: ""
         val tag = answeredTag.lowercase()
         val appending = status == 206 && offset > 0 && range.startsWith("bytes $offset-") &&
-          (if (expected.isEmpty()) answeredTag.isNotEmpty() && answeredTag == heldTag else tag.isEmpty() || tag == "\"sha256-$expected\"")
+          (if (expected.isEmpty()) answeredTag.isNotEmpty() && answeredTag == heldTag else tag.isEmpty() || tag == "\"$expected\"")
         if (status == 206 && !appending) { part.delete(); return "network" }
         // A file started from the beginning keeps the tag it came under, to be continued under it.
         if (expected.isEmpty() && !appending) writePartialTag(part, answeredTag)
