@@ -74,10 +74,10 @@ func TestTheTitleInsideAFileIsUsedOnlyWhereLocalDetailsAreAllThereIs(t *testing.
 	if before["Leon"] == "" || before["Léon: The Professional"] != "" {
 		t.Fatalf("before it is looked up a film keeps its file's name: %v", before)
 	}
-	// The provider is asked: Leon is not matched, Heat is, and a person named Ronin.
+	// The provider is asked. Heat is matched and a person named Ronin; nothing confident is
+	// found for Leon or for Ronin, which is recorded the way the matcher records it.
 	for _, set := range []string{
-		`UPDATE items SET refreshed_at = 1 WHERE title IN ('Leon', 'Heat', 'Ronin')`,
-		`UPDATE items SET match_state = 1 WHERE title = 'Heat'`,
+		`UPDATE items SET match_state = 1, refreshed_at = 1 WHERE title = 'Heat'`,
 		`UPDATE items SET locked_fields = '["title"]' WHERE title = 'Ronin'`,
 	} {
 		if err := d.ExecForTest(ctx, set); err != nil {
@@ -89,7 +89,10 @@ func TestTheTitleInsideAFileIsUsedOnlyWhereLocalDetailsAreAllThereIs(t *testing.
 		t.Fatal(err)
 	}
 	for _, item := range items.Items {
-		if err := d.UseEmbeddedTitle(ctx, item.ID); err != nil {
+		if item.Title == "Heat" {
+			continue
+		}
+		if err := d.SetUnmatched(ctx, db.Background, item.ID, "No confident match.", ""); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -285,10 +285,19 @@ func (d *DB) SetUnmatched(ctx context.Context, p Priority, itemID int64, reason,
 		if candidates == "" {
 			candidates = "[]"
 		}
+		now := time.Now().UnixMilli()
 		_, err := tx.Exec(`UPDATE items SET match_state = ?, refreshed_at = ?,
 			extra = json_set(ifnull(extra, '{}'), '$.unmatched', json_object('reason', ?, 'matches', json(?)))
-			WHERE id = ? AND match_state = ?`, MatchNeedsAttention, time.Now().UnixMilli(), reason, candidates, itemID, MatchNone)
-		return err
+			WHERE id = ? AND match_state = ?`, MatchNeedsAttention, now, reason, candidates, itemID, MatchNone)
+		if err != nil {
+			return err
+		}
+		// No provider named the title, so local details are all there is: a film or an
+		// episode takes the title written inside its file, where it has one and nothing
+		// better names it (an NFO file, a person's edit, a lock).
+		b := newBatchTx(tx)
+		defer b.close()
+		return useEmbeddedTitle(b, itemID, now)
 	})
 }
 
