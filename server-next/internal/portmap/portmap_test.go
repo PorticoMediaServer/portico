@@ -29,6 +29,7 @@ type fakePMP struct {
 	asked   []string // "map 32400->32500 for 7200s", "delete 32400"
 	refuse  bool
 	assigns int // an external port other than the one asked for, when not 0
+	nonces  map[uint16]string
 }
 
 func newFakePMP(t *testing.T, pcp bool) *fakePMP {
@@ -73,6 +74,18 @@ func (f *fakePMP) serve() {
 			}
 			if f.refuse {
 				resp[3] = 2 // NOT_AUTHORIZED
+			}
+			// As RFC 6887 asks, a request for a mapping already held under another nonce is
+			// refused, and so is its removal.
+			if f.nonces == nil {
+				f.nonces = map[uint16]string{}
+			}
+			if held, ok := f.nonces[internal]; ok && held != string(req[24:36]) {
+				resp[3] = 2
+			} else if life == 0 {
+				delete(f.nonces, internal)
+			} else {
+				f.nonces[internal] = string(req[24:36])
 			}
 			f.mu.Unlock()
 			binary.BigEndian.PutUint32(resp[4:], life)
@@ -339,5 +352,35 @@ func TestOffAndStopCloseThePort(t *testing.T) {
 	want := []string{"map 32400->32500 for 7200s", "delete 32400", "map 32400->32501 for 7200s", "delete 32400"}
 	if fmt.Sprint(f.asked) != fmt.Sprint(want) {
 		t.Fatalf("the router was asked %q, want %q", f.asked, want)
+	}
+}
+
+// A PCP router accepts the renewal and the removal of a mapping only under the nonce it was
+// made with, and a re-ask that fails keeps what the router still holds, so it is still removed.
+func TestPCPRenewsAndRemovesUnderItsNonce(t *testing.T) {
+	ctx := t.Context()
+	f := newFakePMP(t, true)
+	m := mapperFor(Router{Gateway: loopback, PMPPort: f.port()})
+	m.Set(true, 32400, 32500)
+	m.round(ctx)
+	m.round(ctx) // the renewal at half time
+	if st := m.Status(); st.State != "open" {
+		t.Fatalf("the renewal was refused: %+v", st)
+	}
+	f.mu.Lock()
+	f.refuse = true
+	f.mu.Unlock()
+	m.round(ctx)
+	if st := m.Status(); st.State != "failed" {
+		t.Fatalf("a refused re-ask: %+v", st)
+	}
+	f.mu.Lock()
+	f.refuse = false
+	f.mu.Unlock()
+	m.remove(ctx)
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if _, open := f.nonces[32400]; open {
+		t.Fatalf("the mapping is still open on the router after removal; asked %q", f.asked)
 	}
 }
