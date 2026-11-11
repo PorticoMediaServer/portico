@@ -126,6 +126,8 @@ type Runner struct {
 	mu    sync.Mutex
 	kinds map[string]Kind
 	lanes map[string]*lane
+	// working counts the lanes with a job in hand, for Wait.
+	working sync.WaitGroup
 }
 
 // lane is one queue of jobs that run one at a time.
@@ -239,6 +241,7 @@ func (r *Runner) enqueue(k Kind, job db.Job) {
 	l.queue = append(l.queue, job)
 	if !l.working {
 		l.working = true
+		r.working.Add(1)
 		go r.work(l)
 	}
 }
@@ -257,7 +260,20 @@ func (r *Runner) Cancel(ctx context.Context, job db.Job) error {
 	return r.db.CancelJob(ctx, job.ID)
 }
 
+// Wait returns once every job in hand has stopped and been put back to waiting, or when ctx
+// ends. A stopping server calls it before it closes the database: a job whose pause was not
+// written would be taken at the next start for one that was cut short.
+func (r *Runner) Wait(ctx context.Context) {
+	stopped := make(chan struct{})
+	go func() { r.working.Wait(); close(stopped) }()
+	select {
+	case <-stopped:
+	case <-ctx.Done():
+	}
+}
+
 func (r *Runner) work(l *lane) {
+	defer r.working.Done()
 	for {
 		r.mu.Lock()
 		if len(l.queue) == 0 || r.ctx.Err() != nil {
