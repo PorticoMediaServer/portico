@@ -98,3 +98,60 @@ func TestCollectionShowsAChildOnlyWhatItMaySee(t *testing.T) {
 		t.Fatalf("the owner sees %v", titles)
 	}
 }
+
+// A collection the owner makes by hand shows a rating-limited child only while it holds a film
+// the child may see: taking that film out hides it again.
+func TestAHandMadeCollectionFollowsWhatItHolds(t *testing.T) {
+	l := newLibrary(t, 300)
+	owner, child := l.all, l.viewers[9] // the seeder's profile limited to a rating of 13
+	all, err := l.d.AllLibraries(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var films db.Library
+	for _, lib := range all {
+		if lib.Kind == db.LibraryMovies {
+			films = lib
+		}
+	}
+	var family, adult string
+	for _, it := range everything(t, l.d, owner, db.ItemQuery{Library: films.PublicID, Kinds: []db.ItemKind{db.KindMovie}}) {
+		switch {
+		case it.ContentRating == "":
+		case family == "" && slices.Contains([]string{"G", "PG"}, it.ContentRating):
+			family = it.PublicID
+		case adult == "" && slices.Contains([]string{"R", "NC-17"}, it.ContentRating):
+			adult = it.PublicID
+		}
+	}
+	if family == "" || adult == "" {
+		t.Fatal("the seeded films have no family film and adult film to collect")
+	}
+	collection, err := l.d.CreateCollection(ctx, db.NewCollection{Viewer: owner, Library: films.PublicID, Title: "Picks", Items: []string{family, adult}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sees := func() bool {
+		t.Helper()
+		_, err := l.d.Item(ctx, child, collection)
+		if err != nil && !errors.Is(err, db.ErrNotFound) {
+			t.Fatal(err)
+		}
+		return err == nil
+	}
+	if !sees() {
+		t.Fatal("the child does not see a collection that holds a family film")
+	}
+	if err := l.d.EditCollection(ctx, owner, collection, db.CollectionEdit{Remove: []string{family}}); err != nil {
+		t.Fatal(err)
+	}
+	if sees() {
+		t.Fatal("the child still sees the collection after its family film was taken out")
+	}
+	if err := l.d.EditCollection(ctx, owner, collection, db.CollectionEdit{Add: []string{family}}); err != nil {
+		t.Fatal(err)
+	}
+	if !sees() {
+		t.Fatal("the child does not see the collection after the family film was put back")
+	}
+}
