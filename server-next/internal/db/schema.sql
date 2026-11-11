@@ -225,6 +225,11 @@ CREATE TABLE items (
   refreshed_at     INTEGER,
   child_count      INTEGER NOT NULL DEFAULT 0,
   leaf_count       INTEGER NOT NULL DEFAULT 0,
+  -- The labels that cover the item: its own, its season's or album's and its show's or
+  -- artist's, as tag ids in ascending order between commas (",4,11,"), or NULL for none.
+  -- A profile with a blocked label is kept from an item by this one value. Only
+  -- labelsChanged writes it (covering_labels.go).
+  labels           TEXT,
   last_child_added_at INTEGER,
   available        INTEGER NOT NULL DEFAULT 1 CHECK (available IN (0, 1)),
   missing_since_at INTEGER,
@@ -241,6 +246,8 @@ CREATE INDEX items_by_year ON items (library_id, kind, year, id, rating_age);
 CREATE INDEX items_by_release ON items (library_id, kind, release_date, id, rating_age, year);
 -- For a profile with a rating limit: how many titles of a kind it may see, and which, when few.
 CREATE INDEX items_by_rating ON items (library_id, kind, rating_age);
+-- The few items a label covers, so "what does this label hide in this library" reads only them.
+CREATE INDEX items_labelled ON items (library_id, kind, labels) WHERE labels IS NOT NULL;
 CREATE INDEX items_children ON items (parent_id, parent_index, index_number, id);
 -- Ends with rating_age for the same reason: what is under a title is counted for a profile
 -- with a rating limit from the index alone.
