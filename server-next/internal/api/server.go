@@ -25,6 +25,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
 	"github.com/PorticoMediaServer/portico/server-next/internal/settings"
+	"github.com/PorticoMediaServer/portico/server-next/internal/updates"
 )
 
 // APIMajor is the number in the path. It changes only for a break old apps could not survive.
@@ -56,6 +57,8 @@ type Server struct {
 	// queues builds and runs play queues. See queues.go.
 	queues  *playqueue.Service
 	network networkState
+	// updates looks for a newer version. See updates.go.
+	updates *updates.Checker
 	// settings are the owner's settings documents, held in memory. See settings.go.
 	settings *settings.Settings
 	media    func(w http.ResponseWriter, r *http.Request, grant, file string)
@@ -180,6 +183,9 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.systemRoutes()
 	s.networkRoutes()
 	s.settingsRoutes()
+	s.updates = &updates.Checker{Settings: s.settings, Version: version, Now: func() time.Time { return s.now() }}
+	s.updateRoutes()
+	s.storageRoutes(dataDir)
 	s.identityRoutes()
 	s.authRoutes()
 	s.profileRoutes()

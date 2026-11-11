@@ -22,3 +22,15 @@ func freeBytes(path string) (int64, error) {
 	}
 	return int64(available), nil
 }
+
+func totalBytes(path string) (int64, error) {
+	p, e := windows.UTF16PtrFromString(path)
+	if e != nil {
+		return 0, e
+	}
+	var available, total, free uint64
+	if e = windows.GetDiskFreeSpaceEx(p, &available, &total, &free); e != nil {
+		return 0, e
+	}
+	return int64(min(total, uint64(1)<<62)), nil
+}
