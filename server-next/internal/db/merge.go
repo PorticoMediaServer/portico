@@ -60,6 +60,18 @@ func mergeItems(b *batchTx, from, into, now int64) error {
 	case a.library != z.library || a.kind != z.kind || a.parent != z.parent:
 		return invalid("only two titles of the same kind in the same library can be merged")
 	}
+	// The owner's labels on the title merged away stay on the one that remains, or a profile
+	// that blocks one would be shown what the label hid.
+	labels, err := queryInts(b.tx, `SELECT it.tag_id FROM item_tags it JOIN tags t ON t.id = it.tag_id
+		WHERE it.item_id = ? AND t.kind = ?`, from, TagLabel)
+	if err != nil {
+		return err
+	}
+	for _, label := range labels {
+		if err := b.tagItem(into, label); err != nil {
+			return err
+		}
+	}
 	if err := mergeInto(b, a.library, from, into, now); err != nil {
 		return err
 	}
@@ -89,6 +101,10 @@ func mergeItems(b *batchTx, from, into, now int64) error {
 		return err
 	}
 	if err := b.ratingChanged(root); err != nil {
+		return err
+	}
+	// What moved under the remaining title is covered by its labels now.
+	if err := b.labelsChanged(root); err != nil {
 		return err
 	}
 	return settleItem(b, a.library, into, now)
