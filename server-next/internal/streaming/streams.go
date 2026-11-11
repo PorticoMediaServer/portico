@@ -110,6 +110,9 @@ type Stream struct {
 	// Mode is "direct" for the original file by byte range, "audio" for a
 	// planned music stream, "hls" otherwise.
 	Mode string
+	// Audio is a planned music stream's plan with this stream's addresses in it:
+	// what the device's own music engine plays from.
+	Audio *AudioPlan
 }
 
 // StreamStatus is what the session layer can say about a session's stream.
@@ -303,10 +306,17 @@ func (st *stream) public() Stream {
 	if st.mode == "hls" {
 		url = "/v1/media/" + st.grant + "/master.m3u8"
 	}
+	out := Stream{Grant: st.grant, URL: url, Mode: st.mode}
 	if st.mode == "audio" {
-		url = st.audioURL()
+		// The plan was made before this stream had its grant: its addresses are set here.
+		plan := *st.audio
+		out.URL, plan.URL = st.audioURL(), st.audioURL()
+		if plan.SeekIndex != nil {
+			plan.SeekIndex = &AudioSeekIndex{URL: "/v1/media/" + st.grant + "/audio-index"}
+		}
+		out.Audio = &plan
 	}
-	return Stream{Grant: st.grant, URL: url, Mode: st.mode}
+	return out
 }
 
 // token is 128 random bits in URL-safe text: a grant nobody can guess, or the

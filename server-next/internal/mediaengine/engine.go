@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/audiofacts"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
 	"github.com/PorticoMediaServer/portico/server-next/internal/inputbridge"
@@ -68,6 +69,7 @@ type Engine struct {
 
 	mu    sync.Mutex
 	facts map[string]mediafacts.Facts // by path, size and modified time
+	music map[string]*measuredMusic   // the same, for the exact measurement of a music file
 }
 
 // New starts the media engine. Asking ffmpeg what it can do takes several seconds, so it
@@ -187,6 +189,10 @@ type planned struct {
 	text []textTrack
 	// burn is the subtitle that is drawn into the picture, when one is.
 	burn *burnTrack
+	// audio is a planned music stream, which replaces plan and request, and index the
+	// file's seek index for it, when it has one.
+	audio *streaming.AudioPlan
+	index *audiofacts.SeekIndex
 }
 
 // textTrack is one text subtitle: in a file beside the video, or track number index of
@@ -453,6 +459,9 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 			choice.MaxVideoBitrateBPS, choice.MaxAudioBitrateBPS, choice.MaxVideoHeight = q.MaxVideoBitrateKbps*1000, q.MaxAudioBitrateKbps*1000, q.MaxHeight
 		}
 	}
+	if music := e.musicPlan(ctx, r, request, path, place, remoteID, facts, converter); music != nil {
+		return *music, nil
+	}
 	for _, failure := range r.Failures {
 		for strategy, route := range routes {
 			// A failed "converted" is remembered against the cheaper of the two conversions.
@@ -577,6 +586,9 @@ func (e *Engine) Start(ctx context.Context, r playback.StartRequest) (playback.S
 	request := p.request
 	start := streaming.StartRequest{SessionID: r.SessionID, Plan: p.plan, Request: &request, Path: p.path, Size: p.place.Size,
 		Modified: time.Unix(0, p.place.ModifiedNS), PositionMs: r.PositionMs}
+	if p.audio != nil {
+		start.Request, start.Audio, start.SeekIndex = nil, p.audio, p.index
+	}
 	for _, text := range p.text {
 		track := text.track
 		rendition := streaming.TextRenditionPlan{Resource: playback.TrackID(track), Revision: 1, Language: track.Language, Label: track.Title,
@@ -642,7 +654,14 @@ func stream(s streaming.Stream) playback.Stream {
 	if s.Mode == "direct" {
 		mode = "direct"
 	}
-	return playback.Stream{Grant: s.Grant, URL: s.URL, Mode: mode}
+	out := playback.Stream{Grant: s.Grant, URL: s.URL, Mode: mode}
+	if s.Audio != nil {
+		out.AudioRender, _ = json.Marshal(s.Audio)
+		if s.Audio.Mode == "direct" {
+			out.Mode = "direct"
+		}
+	}
+	return out
 }
 
 // Stop ends a session's stream; its address stops working.
