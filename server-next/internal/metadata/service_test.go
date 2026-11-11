@@ -10,6 +10,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata"
+	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/titledata/titledatatest"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/tmdb"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/tmdb/tmdbtest"
 	"github.com/PorticoMediaServer/portico/server-next/internal/scan"
@@ -447,5 +448,32 @@ func TestMergingTwoShowsMergesTheirSeasonsAndEpisodes(t *testing.T) {
 	// A title cannot be merged with one of another kind.
 	if err := f.d.MergeItems(ctx, merged[0].PublicID, show.PublicID); err == nil {
 		t.Error("an episode was merged into a show")
+	}
+}
+
+// A title gets its moods from the title data as soon as it is matched, not at the next daily
+// pass: on a new server the data arrives a minute after start, before any library is scanned.
+func TestAMatchedTitleGetsItsMoodsAtOnce(t *testing.T) {
+	f := newFixture(t, db.LibraryMovies, "the.matrix.1999.1080p.mkv")
+	path := filepath.Join(t.TempDir(), "screen.sqlite")
+	titledatatest.Write(t, path, titledatatest.File{
+		Vocabulary: []titledatatest.Tag{{ID: 1, Key: "mood:cozy", RowLabel: "cozy stories"}},
+		Works:      []titledatatest.Work{{QID: 1, IDs: map[int]string{titledatatest.TMDBMovie: "603"}, Tags: map[int]int{1: 3}}},
+	})
+	if err := db.PrepareTitleData(ctx, path, "screen", "2026.45"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.d.UseTitleData(path); err != nil {
+		t.Fatal(err)
+	}
+	f.match()
+	film := f.title(db.KindMovie, "The Matrix")
+	tags, err := f.d.Tags(ctx, db.TagMood)
+	if err != nil || len(tags) != 1 || tags[0].Name != "mood:cozy" {
+		t.Fatalf("mood tags after the match: %+v, %v", tags, err)
+	}
+	page, err := f.d.Items(ctx, f.viewer, db.ItemQuery{Tag: tags[0].PublicID, Kinds: []db.ItemKind{db.KindMovie}})
+	if err != nil || len(page.Items) != 1 || page.Items[0].PublicID != film.PublicID {
+		t.Fatalf("titles with mood:cozy: %+v, %v", page.Items, err)
 	}
 }
