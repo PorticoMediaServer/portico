@@ -23,7 +23,8 @@ RULES = [
     ('token-compare', {'packages/client-core/src/session-authority.ts'},
      re.compile(r'\.accessToken\s*[!=]==|[!=]==\s*[\w.!?]*\.accessToken\b')),
     ('set-interval', set(), re.compile(r'\bsetInterval\(')),
-    ('retry-after', {'packages/client-core/src/timer.ts', 'packages/client-core/src/http.ts'},
+    # Queued commits can hold the HTTP client at either side of the file split.
+    ('retry-after', {'packages/client-core/src/timer.ts', 'packages/client-core/src/index.ts', 'packages/client-core/src/http.ts'},
      re.compile(r'''['"]retry-after['"]''', re.IGNORECASE)),
     ('throwing-cleanup', {'packages/client-core/src/cleanup.ts'},
      re.compile(r'catch\s*\(\s*(\w+)\s*\)\s*\{\s*(?:await\s+)?[\w.?!]+\.(?:dispose|close|retire|release|revoke|cleanup|stop)\([^;{}()]*\)\s*;?\s*throw\s+\1\s*;?\s*\}')),
