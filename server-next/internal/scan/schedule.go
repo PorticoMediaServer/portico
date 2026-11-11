@@ -15,8 +15,9 @@ const (
 	// settle is how often changes seen in watched folders are turned into scans: a change is
 	// picked up within about ten seconds, and a burst of changes is one scan.
 	settle = 5 * time.Second
-	// unwatchedEvery is how often a local folder that cannot be watched is scanned, and
-	// networkEvery the same for a folder on a network share, unless the owner set an interval.
+	// unwatchedEvery is how often a local folder is scanned that the owner wants watched and
+	// that cannot be, and networkEvery the same for a folder on a network share, unless the
+	// owner set an interval.
 	unwatchedEvery = time.Hour
 	networkEvery   = 6 * time.Hour
 	// maxWatched is the most folders of one library that are watched. A larger library is
@@ -24,9 +25,10 @@ const (
 	maxWatched = 100_000
 )
 
-// Run starts scans by themselves until ctx ends: every library once when the server starts
-// (what changed while it was away), a library when one of its watched folders changes, a
-// library whose rescan interval has passed, and a remote folder when its source is due.
+// Run starts scans by themselves until ctx ends, as the owner chose for each library: when
+// one of its watched folders changes, when its rescan interval has passed, both or neither;
+// and a remote folder when its source is due. Starting the server scans nothing by itself,
+// except a library whose interval passed while the server was off.
 func (m *Manager) Run(ctx context.Context) {
 	w := newWatcher()
 	changed := make(chan string, 256)
@@ -41,8 +43,8 @@ func (m *Manager) Run(ctx context.Context) {
 	libraries, _ := m.scanner.DB.AllLibraries(ctx)
 	for _, lib := range libraries {
 		m.rewatch(ctx, lib, true)
-		m.scheduled(ctx, lib.PublicID)
 	}
+	m.startDue(ctx, time.Now())
 	dirty := map[string]bool{}
 	tick := time.NewTicker(settle)
 	defer tick.Stop()
@@ -107,9 +109,9 @@ func (m *Manager) startDue(ctx context.Context, now time.Time) {
 }
 
 // due reports whether a folder is due a scan by itself. A local folder follows the library's
-// rescan interval; with none set, a watched folder needs no interval, and one that cannot be
-// watched is scanned every hour, or every six on a network share. A remote folder follows
-// its source.
+// rescan interval. With none set it is never due, with one exception: where the owner wants
+// the library watched and its folders cannot be, a scan every hour, or every six on a network
+// share, stands in for the watching. A remote folder follows its source.
 func (m *Manager) due(ctx context.Context, lib db.Library, p db.LibraryPath, now time.Time) bool {
 	var last time.Time
 	if p.LastScanAt != 0 {
@@ -128,7 +130,7 @@ func (m *Manager) due(ctx context.Context, lib db.Library, p db.LibraryPath, now
 		watched := m.watched[lib.PublicID]
 		m.mu.Unlock()
 		switch {
-		case watched:
+		case watched || lib.Options.NoWatch:
 			return false
 		case networkShare(p.Path):
 			every = networkEvery
