@@ -2,8 +2,10 @@ package api
 
 import (
 	"context"
+	"errors"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/jobs"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata"
 )
@@ -23,13 +25,22 @@ func (s *Server) startMetadata(ctx context.Context) error {
 	s.editorRoutes()
 	s.metadataJobs()
 	// What a scan found is looked up when it ends.
-	s.scans.AfterScan = func(ctx context.Context, library string) {
-		if _, err := s.jobs.Start(ctx, jobAfterScan, jobs.Request{Target: jobs.Target{Library: library}}); err != nil && ctx.Err() == nil {
-			s.log.Error("looking up what a scan found could not be started", "library", library, "error", err)
-		}
-	}
+	s.scans.AfterScan = func(ctx context.Context, library string) { s.lookUp(ctx, library) }
 	go s.lookupsAgain(ctx)
 	return nil
+}
+
+// lookUp starts a library's lookup and refresh, unless the library has no provider to ask
+// (local metadata only, or no key for its provider): then there is nothing to do, and no task
+// is listed for it.
+func (s *Server) lookUp(ctx context.Context, library string) {
+	asks, err := s.metadata.Asks(ctx, library)
+	if err == nil && asks {
+		_, err = s.jobs.Start(ctx, jobAfterScan, jobs.Request{Target: jobs.Target{Library: library}})
+	}
+	if err != nil && ctx.Err() == nil && !errors.Is(err, db.ErrNotFound) { // a library removed since is not an error
+		s.log.Error("looking a library's titles up could not be started", "library", library, "error", err)
+	}
 }
 
 // lookupsAgain starts each library's lookup and refresh every hour, as a scan does when it
@@ -50,9 +61,7 @@ func (s *Server) lookupsAgain(ctx context.Context) {
 			s.log.Error("libraries to look up again could not be read", "error", err)
 		}
 		for _, lib := range libraries {
-			if _, err := s.jobs.Start(ctx, jobAfterScan, jobs.Request{Target: jobs.Target{Library: lib.PublicID}}); err != nil && ctx.Err() == nil {
-				s.log.Error("looking titles up again could not be started", "library", lib.PublicID, "error", err)
-			}
+			s.lookUp(ctx, lib.PublicID)
 		}
 	}
 }
