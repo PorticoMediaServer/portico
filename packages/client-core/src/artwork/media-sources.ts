@@ -8,7 +8,17 @@ import type {ProfileAvatar} from '../identity-restrictions.ts';
 /** pixels is the painted width in device pixels and aspect its width ÷ height:
  * the box the picture covers. The slot whose actual pixels fill that box is
  * requested by name and token, so each picture downloads once per slot. */
+/** A picture on the rebuilt server: named by a long hash, never changing, fetched with no token. */
+const pictureAddress = /^\/v1\/images\/[A-Za-z0-9_-]{1,128}$/;
+const sizedPicture = /^\/v1\/images\/[A-Za-z0-9_-]{1,128}\?w=\d{1,5}&h=\d{1,5}$/;
 export function foregroundArtwork(url: string | undefined, pixels: number, aspect: number, identity: AmbientArtworkIdentity) {
+  if (url && pictureAddress.test(url)) {
+    // The server keeps a small and a large size and sends the one that covers the box asked for.
+    // Sizes are asked in steps of 160 so a card that grows a little reuses what is cached.
+    const ratio = aspect > 0 && Number.isFinite(aspect) ? aspect : 1, width = Math.max(160, Math.ceil(pixels / 160) * 160);
+    const selected = `${url}?w=${width}&h=${Math.ceil(width / ratio)}`;
+    return {url: selected, cacheKey: JSON.stringify([identity.serverId, selected])};
+  }
   // The accepted ambient parser also validates selected route, digest and query identity.
   if (!ambientArtworkSource(url, identity)) return undefined;
   const ratio = aspect > 0 && Number.isFinite(aspect) ? aspect : 1;
@@ -87,7 +97,7 @@ export type AuthenticatedArtworkMedia = Readonly<{
 export async function readAuthenticatedArtworkBytes(options: AuthenticatedArtworkMedia,
   request: Readonly<{url: string; kind: 'foreground' | 'ambient'}>, signal: AbortSignal): Promise<Blob> {
   const {api, auth, identity, isCurrent} = options;
-  if (!isCurrent() || !(ambientArtworkSource(request.url, identity) || request.kind === 'foreground' && (channelLogoArtwork(request.url, identity) || memberProfileAvatarArtwork(request.url, identity) || trickplayTileArtwork(request.url, identity)))) throw Object.assign(new Error('Artwork authority changed.'), {status: 403});
+  if (!isCurrent() || !(ambientArtworkSource(request.url, identity) || request.kind === 'foreground' && (sizedPicture.test(request.url) || channelLogoArtwork(request.url, identity) || memberProfileAvatarArtwork(request.url, identity) || trickplayTileArtwork(request.url, identity)))) throw Object.assign(new Error('Artwork authority changed.'), {status: 403});
   const token = await auth.token(options.currentToken());
   signal.throwIfAborted();
   if (!isCurrent()) throw Object.assign(new Error('Artwork authority changed.'), {status: 403});

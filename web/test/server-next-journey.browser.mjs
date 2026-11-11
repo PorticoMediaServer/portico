@@ -33,7 +33,7 @@ const freePort = () => new Promise((resolve, reject) => {
   const probe = netServer().once('error', reject).listen(0, '127.0.0.1', () => {const {port} = probe.address(); probe.close(() => resolve(port));});
 });
 const until = async (what, check, tries = 100) => {
-  for (let n = 0; n < tries; n++) {if (await check().catch(() => false)) return; await new Promise(resolve => setTimeout(resolve, 100));}
+  for (let n = 0; n < tries * Number(process.env.JOURNEY_PATIENCE ?? 1); n++) {if (await check().catch(() => false)) return; await new Promise(resolve => setTimeout(resolve, 100));}
   throw new Error(what + ' did not happen.');
 };
 
@@ -41,7 +41,7 @@ const data = await mkdtemp(join(tmpdir(), 'portico-next-journey-'));
 cleanups.push(() => rm(data, {recursive: true, force: true}));
 // The library is made before the server first starts, the way the load tests make theirs.
 const seedBin = process.env.PORTICO_SEED_BIN;
-if (seedBin) execFileSync(seedBin, ['-db', join(data, 'main.db'), '-items', '3000', '-phase', 'import'], {stdio: 'ignore'});
+if (seedBin) execFileSync(seedBin, ['-db', join(data, 'main.db'), '-items', '3000', '-phase', 'import', '-pictures', '600'], {stdio: 'ignore'});
 const serverPort = await freePort(), serverOrigin = `http://127.0.0.1:${serverPort}`;
 let server;
 async function startServer() {
@@ -78,6 +78,9 @@ const origin = `http://127.0.0.1:${vite.config.server.port}`;
 
 const browser = await chromium.launch({headless: true, executablePath: process.env.CHROMIUM_PATH || undefined, args: ['--no-sandbox']});
 cleanups.push(() => browser.close());
+// On a busy machine the unbundled app loads slowly: JOURNEY_PATIENCE=4 waits four times as long everywhere.
+const patience = Number(process.env.JOURNEY_PATIENCE ?? 1), newContext = browser.newContext.bind(browser);
+browser.newContext = async options => {const context = await newContext(options); context.setDefaultTimeout(30000 * patience); return context;};
 
 /** What the server was asked on this page, so a step can say which request it waited for. */
 function watch(page) {
@@ -187,6 +190,9 @@ try {
       await page.getByRole('heading', {name: 'Recently Added'}).waitFor();
       await page.locator('article[data-card-kind]').first().waitFor();
       if (!requests.has('GET /v1/home 200')) throw new Error('Home was not read from the server.');
+      // The seed wrote plain pictures for some titles: a card draws the one the server named.
+      await until('A card drawing its picture', async () => requests.has('GET /v1/images/')
+        && page.evaluate(() => [...document.querySelectorAll('article[data-card-kind] img')].some(picture => picture.complete && picture.naturalWidth > 0)));
     });
     await step('a library lists its films with a count, and a genre filter narrows it', async () => {
       await page.getByRole('link', {name: 'Films'}).first().click();
