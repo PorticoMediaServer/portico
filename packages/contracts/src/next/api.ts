@@ -1012,6 +1012,8 @@ export interface Member extends Account {
   libraries: string[];
   twoFactorEnabled: boolean;
   notes?: string;
+  lastActiveAt?: string;
+  profiles: string[];
 }
 
 export interface MemberCreate {
@@ -2465,6 +2467,8 @@ export interface Routes {
   'PATCH /v1/admin/members/{id}': {access: 'admin'; request: MemberEdit; response: Member};
   'DELETE /v1/admin/members/{id}': {access: 'admin'; request: undefined; response: undefined};
   'POST /v1/admin/members/{id}/password-reset': {access: 'admin'; request: PasswordResetCreate; response: PasswordResetCode};
+  'GET /v1/admin/members/{id}/devices': {access: 'admin'; request: undefined; response: DevicePage};
+  'DELETE /v1/admin/members/{id}/devices/{deviceId}': {access: 'admin'; request: undefined; response: undefined};
   'GET /v1/admin/invitations': {access: 'admin'; request: undefined; response: InvitationPage};
   'POST /v1/admin/invitations': {access: 'admin'; request: InvitationCreate; response: Invitation};
   'PATCH /v1/admin/invitations/{id}': {access: 'admin'; request: InvitationEdit; response: Invitation};

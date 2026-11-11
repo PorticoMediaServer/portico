@@ -3349,6 +3349,10 @@
               "disabled": {
                 "type": "boolean"
               },
+              "lastActiveAt": {
+                "format": "date-time",
+                "type": "string"
+              },
               "libraries": {
                 "items": {
                   "type": "string"
@@ -3357,6 +3361,12 @@
               },
               "notes": {
                 "type": "string"
+              },
+              "profiles": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
               },
               "twoFactorEnabled": {
                 "type": "boolean"
@@ -3367,7 +3377,8 @@
               "createdAt",
               "allLibraries",
               "libraries",
-              "twoFactorEnabled"
+              "twoFactorEnabled",
+              "profiles"
             ],
             "type": "object"
           }
@@ -9298,6 +9309,81 @@
               }
             },
             "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
+      }
+    },
+    "/v1/admin/members/{id}/devices": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevicePage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
+      }
+    },
+    "/v1/admin/members/{id}/devices/{deviceId}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "deviceId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
           },
           "default": {
             "content": {
