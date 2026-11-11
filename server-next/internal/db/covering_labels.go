@@ -42,7 +42,7 @@ func (b *batchTx) labelsChanged(items ...int64) error {
 	return nil
 }
 
-// covers is the condition that the covering labels in the SQL expression labels include none
+// labelsExclude is the condition that the covering labels in the SQL expression labels include none
 // of these tags.
 func labelsExclude(labels string, tags []int64) string {
 	out := "(" + labels + " IS NULL OR ("

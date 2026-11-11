@@ -228,7 +228,9 @@ CREATE TABLE items (
   -- The labels that cover the item: its own, its season's or album's and its show's or
   -- artist's, as tag ids in ascending order between commas (",4,11,"), or NULL for none.
   -- A profile with a blocked label is kept from an item by this one value. Only
-  -- labelsChanged writes it (covering_labels.go).
+  -- labelsChanged writes it (covering_labels.go). A database that gains this column by an
+  -- upgrade must have it filled (RebuildCoveringLabels) before the server answers anyone:
+  -- until then NULL would show a profile what its blocked labels hide.
   labels           TEXT,
   last_child_added_at INTEGER,
   available        INTEGER NOT NULL DEFAULT 1 CHECK (available IN (0, 1)),

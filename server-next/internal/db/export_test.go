@@ -88,3 +88,67 @@ func CoveringLabels(d *DB) (wrong []string, stored map[int64]string, err error) 
 	}
 	return wrong, stored, rows.Err()
 }
+
+// PutLabel gives a title a label the way the label editor will have to: the tag row, then
+// labelsChanged for the title, in one transaction. off takes it away again.
+func PutLabel(d *DB, publicID, name string, off bool) error {
+	return d.write(context.Background(), User, func(tx *sql.Tx) error {
+		im := &importer{batchTx: newBatchTx(tx), tags: map[TagName]int64{}}
+		defer im.close()
+		var id int64
+		if err := im.queryRow(`SELECT id FROM items WHERE public_id = ?`, publicID).Scan(&id); err != nil {
+			return err
+		}
+		tag, err := im.tagID(TagName{Kind: TagLabel, Name: name})
+		if err != nil {
+			return err
+		}
+		if off {
+			if _, err := im.exec(`DELETE FROM item_tags WHERE item_id = ? AND tag_id = ?`, id, tag); err != nil {
+				return err
+			}
+		} else if err := im.tagItem(id, tag); err != nil {
+			return err
+		}
+		return im.labelsChanged(id)
+	})
+}
+
+// Raw runs a read and returns the first column of each row as text.
+func Raw(d *DB, query string, args ...any) ([]string, error) {
+	rows, err := d.read.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var s sql.NullString
+		if err := rows.Scan(&s); err != nil {
+			return nil, err
+		}
+		out = append(out, s.String)
+	}
+	return out, rows.Err()
+}
+
+// SplitSecondVersions splits one version off every title that has more than one and sits
+// under a parent, and returns how many it split.
+func SplitSecondVersions(d *DB, onlyCovered bool) (int, error) {
+	q := `SELECT m.public_id FROM media m JOIN items i ON i.id = m.item_id WHERE i.parent_id IS NOT NULL AND m.position > 0`
+	if onlyCovered {
+		q += ` AND i.labels IS NOT NULL`
+	}
+	versions, err := Raw(d, q)
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for _, version := range versions {
+		if _, err := d.SplitVersion(context.Background(), version); err != nil {
+			return n, err
+		}
+		n++
+	}
+	return n, nil
+}
