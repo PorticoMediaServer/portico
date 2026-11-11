@@ -2,6 +2,7 @@ import {routeBody} from '../../contracts/src/routes.ts';
 import {routePath} from '../../contracts/src/route-paths.ts';
 import {parseTaggedSignIn,parseDirectSignIn,type DirectSignIn,type ProfileAPI} from './profile-management.ts';
 import {identityCode} from './route-identity.ts';
+import {serverPath} from './query/server-api.ts';
 import {parseTwoFactorState} from './identity-restrictions.ts';
 
 /** Only the original owner-reset request may classify these closed outcomes.
@@ -89,4 +90,10 @@ export async function finishOwnerResetPassword(api:ProfileAPI,grant:DirectSignIn
  if(typeof turnOffTwoStep!=='boolean')throw new Error('The two-step choice is invalid.');
  const body={currentPassword:'',newPassword,code:'',turnOffTwoStep};
  await api.request(routePath('post_direct_password'),'POST',routeBody('post_direct_password',body),signal);
+}
+/** A member chooses a new password with the reset code the owner or an administrator gave them
+ * (`POST /v1/auth/password-reset/confirm`). It signs nobody in: the person then signs in with the new password. A
+ * wrong code, a used one and a username nobody has are the same refusal, and five wrong codes cancel the code. */
+export async function redeemMemberResetCode(api:ProfileAPI,username:string,code:string,newPassword:string,signal?:AbortSignal):Promise<void>{
+ await api.request(serverPath('POST /v1/auth/password-reset/confirm'),'POST',{username:username.trim(),code:code.trim(),newPassword},signal);
 }

@@ -126,7 +126,7 @@ export function signInDevice():DeviceInfo{
  return {installationId:identity.installationId,name:identity.name||identity.platform||'Portico',platform:identity.platform,app:identity.app,appVersion:identity.appVersion};
 }
 /** An account's only profile, when it has no PIN, opens without asking Who's watching. */
-async function openOnlyProfile(api:ProfileAPI,result:DirectSignIn,signal?:AbortSignal):Promise<DirectSignIn>{
+export async function openOnlyProfile(api:ProfileAPI,result:DirectSignIn,signal?:AbortSignal):Promise<DirectSignIn>{
  if(result.kind!=='signed-in'||!result.accountScoped||result.snapshot.profiles.length!==1||result.snapshot.profiles[0]!.pinRequired)return result;
  const account=result.session,only=result.snapshot.profiles[0]!,scoped=api.withAccessToken?.(account.accessToken);
  if(!scoped)return result;
