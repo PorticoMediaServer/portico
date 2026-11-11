@@ -204,7 +204,7 @@ func (d *DB) DeleteLibrary(ctx context.Context, libraryID int64) error {
 func (d *DB) removeTitles(ctx context.Context, libraryID int64, pick string, args []any, last string, lastArg int64) error {
 	for {
 		done := false
-		err := d.write(ctx, Background, func(tx *sql.Tx) error {
+		err := d.write(ctx, Background, func(tx *sql.Tx) (err error) {
 			picked, err := queryInts(tx, pick, args...)
 			if err != nil {
 				return err
@@ -216,6 +216,11 @@ func (d *DB) removeTitles(ctx context.Context, libraryID int64, pick string, arg
 			b := newBatchTx(tx)
 			defer b.close()
 			now := time.Now().UnixMilli()
+			defer func() {
+				if err == nil {
+					err = b.settleWatchedForAll(now)
+				}
+			}()
 			for _, id := range picked {
 				var parent sql.NullInt64
 				err := b.queryRow(`SELECT parent_id FROM items WHERE id = ?`, id).Scan(&parent)
@@ -369,10 +374,15 @@ func (d *DB) deletion(ctx context.Context, v Viewer, where, id string, version b
 // removed title is kept in case it returns. Files that were kept leave their title in place,
 // and the deleted ones are marked missing.
 func (d *DB) Deleted(ctx context.Context, del Deletion, deleted []int64) error {
-	return d.write(ctx, User, func(tx *sql.Tx) error {
+	return d.write(ctx, User, func(tx *sql.Tx) (err error) {
 		b := newBatchTx(tx)
 		defer b.close()
 		now := time.Now().UnixMilli()
+		defer func() {
+			if err == nil {
+				err = b.settleWatchedForAll(now)
+			}
+		}()
 		var parent sql.NullInt64
 		if err := b.queryRow(`SELECT parent_id FROM items WHERE id = ?`, del.ItemID).Scan(&parent); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
