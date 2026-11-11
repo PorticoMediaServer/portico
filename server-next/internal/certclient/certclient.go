@@ -129,6 +129,15 @@ func (c *Client) Linked(issuedAt time.Time) {
 	}
 }
 
+// Unlinked says the server is no longer linked: it switched to local sign-in, or Portico
+// Services said its link has ended. Nothing more is asked of Portico Services until Linked
+// is told of a new link. A certificate already installed is served until it expires.
+func (c *Client) Unlinked() {
+	c.mu.Lock()
+	c.linkAt = time.Time{}
+	c.mu.Unlock()
+}
+
 // Run works in the background until ctx ends.
 func (c *Client) Run(ctx context.Context) {
 	for ctx.Err() == nil {

@@ -299,3 +299,16 @@ func TestLinkingAgainGetsTheNewAddressAndCertificate(t *testing.T) {
 		t.Fatal("a restart asked Portico Services again")
 	}
 }
+
+// A server that switched to local sign-in contacts Portico Services no more, renewal included.
+func TestAServerThatIsNoLongerLinkedAsksNothing(t *testing.T) {
+	r := newRig(t)
+	r.c.Linked(r.linkedAt)
+	r.until("issued")
+	r.c.Unlinked()
+	calls := len(r.f.calls)
+	r.now = r.now.Add(80 * 24 * time.Hour) // past its renewal
+	if next := r.c.Step(context.Background()); !next.IsZero() || len(r.f.calls) != calls {
+		t.Fatal("a server that is no longer linked asked Portico Services for something")
+	}
+}
