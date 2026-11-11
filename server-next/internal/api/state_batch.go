@@ -48,9 +48,11 @@ type BatchError struct {
 }
 
 func (s *Server) stateBatchRoutes() {
-	// Every edit is applied in one transaction. Edits set state rather than add to it, so a
-	// batch sent again after a lost reply changes nothing more; an Idempotency-Key is accepted
-	// and not needed. A show or season marked here offers no undo.
+	// The edits are applied in order, a few hundred titles written at a time (a show marked
+	// watched counts its episodes), so a batch of shows never holds up everyone else's taps.
+	// Edits set state rather than add to it, so a batch sent again after a lost reply changes
+	// nothing more; an Idempotency-Key is accepted and not needed. A show or season marked here
+	// offers no undo.
 	Handle(s, "POST /v1/items/state:batch", WithProfile, func(r *http.Request, req StateBatch) (StateBatchReply, error) {
 		if len(req.Items) == 0 || len(req.Items) > maxBatchEdits {
 			return StateBatchReply{}, ErrField("items", "Send 1 to 500 edits at a time.")

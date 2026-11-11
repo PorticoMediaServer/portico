@@ -1,6 +1,10 @@
 package api
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+)
 
 // Acting on several titles at once: each title is answered for itself, a title the profile
 // may not see or a bad edit is refused without stopping the rest, a batch sent twice changes
@@ -62,5 +66,48 @@ func TestStateBatch(t *testing.T) {
 	}
 	if code := status(t, s, "POST", "/v1/items/state:batch", limited, map[string]any{"items": []any{}}); code != 400 {
 		t.Fatalf("an empty batch answered %d", code)
+	}
+}
+
+// A batch larger than one write, here every show of the library marked watched with a title
+// that is not there in the middle, is answered title by title in the order sent, and
+// every show it may see ends watched.
+func TestALargeBatchIsWrittenInPiecesAndAnsweredInOrder(t *testing.T) {
+	s, _, members := seededWith(t, 3000, 1)
+	viewer := members[0]
+	var shows []Item
+	for _, lib := range get[Libraries](t, s, viewer, "/v1/libraries").Items {
+		if lib.Kind == db.LibraryShows {
+			shows = get[ItemPage](t, s, viewer, "/v1/items?library="+lib.ID+"&kind=show&limit=200").Items
+		}
+	}
+	leaves := 0
+	edits := []map[string]any{}
+	for n, show := range shows {
+		leaves += show.Counts.Leaves
+		if n == len(shows)/2 {
+			edits = append(edits, map[string]any{"itemId": "itm_nothing", "watched": true})
+		}
+		edits = append(edits, map[string]any{"itemId": show.ID, "watched": true})
+	}
+	if leaves <= 2*300 {
+		t.Fatalf("the shows hold %d episodes, too few to need more than one write", leaves)
+	}
+	var reply StateBatchReply
+	if w := call(t, s, "POST", "/v1/items/state:batch", viewer, map[string]any{"items": edits}, &reply); w.Code != 200 || len(reply.Items) != len(edits) {
+		t.Fatalf("the batch answered %d with %d results: %s", w.Code, len(reply.Items), w.Body)
+	}
+	for n, got := range reply.Items {
+		if got.ItemID != edits[n]["itemId"] {
+			t.Fatalf("result %d is for %s, sent %s", n, got.ItemID, edits[n]["itemId"])
+		}
+		if missing := got.ItemID == "itm_nothing"; missing != (got.Error != nil && got.Error.Code == "not_found") || !missing && !got.State.Watched {
+			t.Fatalf("result %d: %+v", n, got)
+		}
+	}
+	for _, show := range shows {
+		if left := get[Item](t, s, viewer, "/v1/items/"+show.ID).Counts.UnwatchedLeaves; left != 0 {
+			t.Fatalf("%s has %d episodes unwatched", show.Title, left)
+		}
 	}
 }
