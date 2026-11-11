@@ -70,7 +70,11 @@ function parseField(raw:unknown):PreferenceField|undefined {
  }
  const field={key:raw.key,type:raw.type as PreferenceType,...(allowed?{allowedValues:allowed}:{}),
   ...(finite(raw.min)?{min:raw.min}:{}),...(finite(raw.max)?{max:raw.max}:{}),scopes:Object.freeze(scopes),group:raw.group,labelKey:raw.labelKey};
- try{return Object.freeze({...field,default:parseValue(field as PreferenceField,raw.default)});}catch{return undefined;}
+ let value:PreferenceValue;
+ try{value=parseValue(field as PreferenceField,raw.default);}catch{return undefined;}
+ // A default outside the setting's own choices describes something the server would refuse.
+ if(allowed&&typeof value!=='object'&&!allowed.includes(value as number|string))return undefined;
+ return Object.freeze({...field,default:value});
 }
 
 /** The values of known settings; anything else is passed over. */
