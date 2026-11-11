@@ -9,7 +9,7 @@ import {ToastHost, type ToastData} from '../../kit/overlays';
 import {Icon} from '../../kit/Icon';
 import type {DashboardAlert, DashboardBindings, DashboardServerHeader, DashboardSessions} from './bindings';
 import {fmtMbps, fmtPct} from './format';
-import {loadTileValue, orderedSessions, sessionStopTitle} from './model';
+import {loadTileValue, orderedSessions, stopWords} from './model';
 import {useDashboardAccounts, useDashboardAuthority, useDashboardRead, type ReadState} from './use-read';
 import {Range, ReadFeedback, Section, t} from './shared';
 import type {ChartSeries} from './Chart';
@@ -107,7 +107,7 @@ function NowPlaying({bindings: b, state, phone = false}: {bindings: DashboardBin
   const [toast, showToast] = useState<ToastData | null>(null);
   const sessions = useMemo(() => orderedSessions(state.value?.items ?? []), [state.value?.items]), totals = state.value?.totals;
   const refresh = (session: ReturnType<typeof orderedSessions>[number], id?: string) => {
-    if (id) showToast({id, message: t('next.dashboard.stopped', {title: sessionStopTitle(session)}), icon: 'i-check', durationMs: 3200});
+    if (id) showToast({id, message: stopWords(session).done, icon: 'i-check', durationMs: 3200});
     state.refresh();
   };
   const empty = phone

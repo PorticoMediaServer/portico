@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {chartPaths, loadTileValue, orderedSessions, quietestHours, sessionTitle, sessionStopTitle, sessionTracks} from '../src/screens/dashboard/model.ts';
+import {chartPaths, loadTileValue, orderedSessions, quietestHours, sessionTitle, sessionStopTitle, sessionTracks, stopWords} from '../src/screens/dashboard/model.ts';
 import type {DashboardSession} from '../src/screens/dashboard/bindings.ts';
 const base: DashboardSession = {id: 'session', user: 'account', profile: 'Kids', device: 'TV', title: 'Actual title', kind: 'vod', state: 'playing', positionMs: 1, location: 'local', startedAt: '2026-10-23T01:00:00Z', decision: {}};
 test('current programme, show and book titles retain their actual meaning in the card and Stop', () => {
@@ -38,4 +38,16 @@ test('current tiles require their actual primary metric or a complete simultaneo
   assert.equal(loadTileValue(reading, 'bandwidth'), undefined);
   const complete = {series: {homeMbps: [{t: 2, v: 8}], awayMbps: [{t: 2, v: 3}]}, status: {homeMbps: {status: 'available'}, awayMbps: {status: 'available'}}} as never;
   assert.equal(loadTileValue(complete, 'bandwidth'), 11);
+});
+
+test('Stop names the title when the stream has one, and the person and device when it is hidden', () => {
+  const shown = stopWords({...base, user: 'max', device: 'Living room TV', title: 'Heat'});
+  assert.equal(shown.title, 'Stop playback of “Heat”?');
+  assert.match(shown.detail!, /max’s Living room TV/);
+  assert.equal(shown.done, 'Stopped Heat');
+  // A stream outside an administrator's libraries arrives with no title, item or channel.
+  const hidden = stopWords({...base, user: 'max', device: 'Living room TV', title: '', itemId: undefined, item: undefined, channel: undefined} as DashboardSession);
+  assert.equal(hidden.title, 'Stop this playback?');
+  assert.match(hidden.detail!, /max’s Living room TV/);
+  assert.equal(hidden.done, 'Playback stopped');
 });
