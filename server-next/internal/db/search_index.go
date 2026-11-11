@@ -51,7 +51,7 @@ var searchFolding = searchtext.Stamp()
 
 // Besides words, a row holds keys, each one word that begins with a character no title, name
 // or query can contain, so nothing a person types ever matches one by chance: the whole title
-// as a single word, which makes "is exactly this title" one lookup; the id of each item the
+// as a single word, which makes "is exactly this title" one lookup; the title's first word; the id of each item the
 // row sits under; and three facts about an item, its library, its rating age and every label
 // that it or anything it sits under carries, so that a count can be narrowed to some
 // libraries and ratings, and can leave out what a blocked label hides, without reading a row
@@ -64,6 +64,7 @@ const (
 	searchLibraryMark = "\uE003"
 	searchRatingMark  = "\uE004"
 	searchTagMark     = "\uE005"
+	searchFirstMark   = "\uE006"
 )
 
 // searchWhole is a title's words as its one-word key.
@@ -303,12 +304,22 @@ type searchDoc struct {
 // searchTitle folds a title or a name into its two indexed forms and their whole-title keys.
 func searchTitle(text string) (title, joined string, keys []string) {
 	split, kept := searchtext.Words(text)
-	title, keys = strings.Join(split, " "), []string{searchWhole(split)}
+	if len(split) == 0 {
+		return "", "", []string{searchWhole(split)}
+	}
+	title, keys = strings.Join(split, " "), []string{searchWhole(split), searchFirst(split[0])}
 	if kept != nil {
 		joined, keys = strings.Join(kept, " "), append(keys, searchWhole(kept))
+		if kept[0] != split[0] {
+			keys = append(keys, searchFirst(kept[0]))
+		}
 	}
 	return title, joined, keys
 }
+
+// searchFirst is the key of a title's first word, which makes "begins with this word" a
+// lookup of the few first words that begin so.
+func searchFirst(word string) string { return searchFirstMark + word }
 
 // searchItemDocs reads items from the main database as index rows. tail is the condition,
 // with any order and limit. present lists every item found, in the order read, including
