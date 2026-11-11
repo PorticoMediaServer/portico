@@ -43,12 +43,20 @@ func delivery(owner settings.StreamingSettings) streaming.DeliveryConfiguration 
 	return c.Normalized()
 }
 
-// applyConversion puts the owner's conversion folder and FFmpeg program in force. One that
-// cannot be used is not: what is in use stays, and the reason is logged for the owner.
-func (e *Engine) applyConversion(owner settings.StreamingSettings) {
-	if err := e.SetConversion(owner.ConversionFolder, owner.FFmpegProgram); err != nil {
+// applyConversion puts the owner's conversion folder and FFmpeg program, as they are saved
+// now, in force. It runs beside the save, because a new program is tried out first and that
+// takes seconds. One that cannot be used is not put in force: what is in use stays, and the
+// owner is told why on the settings page itself (the document's problem line, read back with
+// the document) as well as in the server log.
+func (e *Engine) applyConversion() {
+	owner := e.owner()
+	err := e.SetConversion(owner.ConversionFolder, owner.FFmpegProgram)
+	if err != nil {
 		e.log.Error("the conversion folder or FFmpeg program in Settings could not be used, so the ones in use stay", "error", err)
+		settings.Streaming.Report(e.settings, "This is not in use: "+err.Error()+".")
+		return
 	}
+	settings.Streaming.Report(e.settings, "")
 }
 
 // connection says how the request reached the server: from home or away, and on mobile data
