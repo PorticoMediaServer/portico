@@ -8,13 +8,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/diskspace"
@@ -34,12 +37,19 @@ type Options struct {
 	// default), true stops their stream after a countdown and records.
 	StopViewers bool
 	Countdown   time.Duration
+	// CountdownFloor is the least a viewer is warned for: 10 seconds.
+	CountdownFloor time.Duration
+	// KeepDays and KeepNewest are the owner's default keep rule for recordings a series rule's
+	// own choice does not cover: 0 and 0 keep every recording until it is deleted.
+	KeepDays, KeepNewest int
+	// Cap, when above 0, is the most the recordings may take together.
+	Cap int64
 }
 
 // Defaults are the owner's recording settings until changed.
 func Defaults(home string) Options {
 	return Options{Folder: filepath.Join(home, "Recorded TV"), PadBefore: time.Minute, PadAfter: 3 * time.Minute, Floor: 10 << 30,
-		Countdown: 60 * time.Second}
+		Countdown: 60 * time.Second, CountdownFloor: 10 * time.Second}
 }
 
 // Viewers is what the recorder needs of the live sessions: to warn one before its tuner is
@@ -61,6 +71,8 @@ type Service struct {
 	options func() Options
 	scanner *scan.Scanner
 
+	// ticking makes one Tick at a time, so one booking is never started twice.
+	ticking sync.Mutex
 	mu      sync.Mutex
 	running map[int64]*running
 	warned  map[string]time.Time // a viewing told it will be stopped, and when
@@ -159,6 +171,8 @@ func (s *Service) Resume(ctx context.Context) {
 
 // Tick starts what is due and ends what has passed. It is safe to call at any time.
 func (s *Service) Tick(ctx context.Context) {
+	s.ticking.Lock()
+	defer s.ticking.Unlock()
 	now := s.now()
 	upcoming, err := s.db.Upcoming(ctx, now.Add(12*time.Hour))
 	if err != nil {
@@ -177,6 +191,10 @@ func (s *Service) Tick(ctx context.Context) {
 		case busy, start.After(now):
 		case r.Choice == "skip":
 			s.db.RecordingFinished(ctx, r.ID, db.RecordingSkipped, "Skipped", now)
+		case !r.InGuide && r.State == db.RecordingScheduled && !end.After(now):
+			s.db.RecordingFinished(ctx, r.ID, db.RecordingFailed, "No longer in the guide", now)
+		case !r.InGuide && r.State == db.RecordingScheduled:
+			// The guide no longer lists it: nothing is recorded in its place.
 		case !end.After(now):
 			s.mu.Lock()
 			reason := "The server was off"
@@ -207,7 +225,7 @@ func (s *Service) Tick(ctx context.Context) {
 // start takes a tuner for a recording and writes the stream until end.
 func (s *Service) start(ctx context.Context, r db.Recording, end time.Time) {
 	opts := s.options()
-	if !diskspace.Room(opts.Folder, opts.Floor) {
+	if s.full(ctx) {
 		s.db.RecordingFinished(ctx, r.ID, db.RecordingFailed, "Space ran out", s.now())
 		return
 	}
@@ -286,10 +304,12 @@ func (s *Service) start(ctx context.Context, r db.Recording, end time.Time) {
 				title()
 			}
 		}()
-		err := in.Read(work, time.Time{}, file)
+		err := in.Read(work, time.Time{}, &roomCheck{w: file, full: func() bool { return s.full(context.WithoutCancel(ctx)) }})
 		state, why := db.RecordingRecorded, ""
 		current, _ := s.db.Recording(context.WithoutCancel(ctx), r.PublicID)
 		switch {
+		case errors.Is(err, errNoRoom):
+			state, why = db.RecordingPartial, "Space ran out"
 		case run.byHand:
 			state, why = db.RecordingPartial, "Stopped by hand"
 		case errors.Is(err, context.DeadlineExceeded) || work.Err() == context.DeadlineExceeded:
@@ -305,6 +325,46 @@ func (s *Service) start(ctx context.Context, r db.Recording, end time.Time) {
 		title()
 		s.db.RecordingFinished(context.WithoutCancel(ctx), r.ID, state, why, s.now())
 	}()
+}
+
+// full says recording must stop: the recordings folder's disk is below the owner's free-space
+// floor, or the recordings have reached the owner's cap.
+func (s *Service) full(ctx context.Context) bool {
+	opts := s.options()
+	if !diskspace.Room(opts.Folder, opts.Floor) {
+		return true
+	}
+	if opts.Cap > 0 {
+		lib, err := s.Library(ctx)
+		if err != nil {
+			return true
+		}
+		used, err := s.db.RecordedBytes(ctx, lib.ID)
+		return err != nil || used >= opts.Cap
+	}
+	return false
+}
+
+var errNoRoom = errors.New("space ran out")
+
+// roomCheck writes a recording and checks for room every 64 MB and every two seconds, so a
+// recording stops before the disk falls below the floor rather than filling it.
+type roomCheck struct {
+	w       io.Writer
+	full    func() bool
+	written int64
+	checked time.Time
+}
+
+func (c *roomCheck) Write(p []byte) (int, error) {
+	if c.written >= 64<<20 || time.Since(c.checked) >= 2*time.Second {
+		c.written, c.checked = 0, time.Now()
+		if c.full() {
+			return 0, errNoRoom
+		}
+	}
+	c.written += int64(len(p))
+	return c.w.Write(p)
 }
 
 func (s *Service) address(ctx context.Context, sourceID int64, locator string) (string, error) {
@@ -338,7 +398,8 @@ func (s *Service) openFile(folder, dir, name string, r db.Recording) (*os.File, 
 }
 
 // clash is a recording that found every tuner busy: with the owner's choice to stop a viewer,
-// one viewer on the source is warned, and stopped when the countdown ends.
+// the viewers of one input on the source are warned together, and stopped when the countdown
+// ends, which gives its tuner to the recording.
 func (s *Service) clash(sourceID int64, r db.Recording) {
 	opts := s.options()
 	if !opts.StopViewers || s.viewers == nil {
@@ -347,18 +408,28 @@ func (s *Service) clash(sourceID int64, r db.Recording) {
 	now := s.now()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for _, id := range s.viewers.OnSource(sourceID, r.ChannelID) {
-		if at, ok := s.warned[id]; ok {
-			if !now.Before(at) {
+	viewers := s.viewers.OnSource(sourceID, r.ChannelID)
+	for id := range s.warned {
+		if !slices.Contains(viewers, id) {
+			delete(s.warned, id) // stopped or gone meanwhile
+		}
+	}
+	if len(viewers) == 0 {
+		return
+	}
+	if at, ok := s.warned[viewers[0]]; ok {
+		if !now.Before(at) {
+			for _, id := range viewers {
 				delete(s.warned, id)
 				s.viewers.End(id)
 			}
-			return
 		}
-		wait := max(min(opts.Countdown, r.EndsAt.Sub(now)), 10*time.Second)
+		return
+	}
+	wait := max(min(opts.Countdown, r.EndsAt.Sub(now)), opts.CountdownFloor)
+	for _, id := range viewers {
 		s.warned[id] = now.Add(wait)
 		s.viewers.Warn(id, now.Add(wait), "This stream will stop so that "+r.Title+" can be recorded.")
-		return
 	}
 }
 
@@ -380,17 +451,36 @@ func (s *Service) Recording(id int64) bool {
 }
 
 // Layout is where a recording is written, so another tool reads it too: a folder per show
-// with season folders, and the date in the name where the guide gives no episode number.
+// with season folders, and the date in the name where the guide gives no episode number. Each
+// airing has its own file: the name ends with when and on which channel it aired, worked out
+// from the booking alone so a restart finds the same file. Each part of a name is cut to fit
+// what a disk accepts.
 func Layout(r db.Recording) (dir, name string) {
 	show := clean(r.Title)
-	if r.Season != nil && r.Episode != nil {
-		name = fmt.Sprintf("%s - S%02dE%02d", show, *r.Season, *r.Episode)
-		if r.EpisodeTitle != "" {
-			name += " - " + clean(r.EpisodeTitle)
-		}
-		return fmt.Sprintf("%s/Season %02d", show, *r.Season), name + ".ts"
+	channel := clean(r.ChannelName)
+	if r.ChannelName == "" {
+		channel = fmt.Sprintf("channel %d", r.ChannelID)
 	}
-	return show, fmt.Sprintf("%s - %s.ts", show, r.StartsAt.Format("2006-01-02"))
+	aired := r.StartsAt.Format("2006-01-02 15.04") + " " + cut(channel, 40)
+	if r.Season != nil && r.Episode != nil {
+		name = fmt.Sprintf("%s - S%02dE%02d", cut(show, 100), *r.Season, *r.Episode)
+		if r.EpisodeTitle != "" {
+			name += " - " + cut(clean(r.EpisodeTitle), 60)
+		}
+		return fmt.Sprintf("%s/Season %02d", cut(show, 200), *r.Season), name + " - " + aired + ".ts"
+	}
+	return cut(show, 200), cut(show, 160) + " - " + aired + ".ts"
+}
+
+// cut shortens text to at most n bytes, on a character boundary.
+func cut(text string, n int) string {
+	if len(text) <= n {
+		return text
+	}
+	for n > 0 && !utf8.RuneStart(text[n]) {
+		n--
+	}
+	return strings.TrimRight(text[:n], " .")
 }
 
 func clean(s string) string {
@@ -417,11 +507,13 @@ func NFO(r db.Recording) string {
 		if title == "" {
 			title = fmt.Sprintf("Episode %d", *r.Episode)
 		}
-		return fmt.Sprintf("<episodedetails><title>%s</title><showtitle>%s</showtitle><season>%d</season><episode>%d</episode><plot>%s</plot><aired>%s</aired></episodedetails>\n",
-			esc(title), esc(r.Title), *r.Season, *r.Episode, esc(r.Details), r.StartsAt.Format("2006-01-02"))
+		return fmt.Sprintf("<episodedetails><title>%s</title><showtitle>%s</showtitle><season>%d</season><episode>%d</episode>"+
+			"<plot>%s</plot><aired>%s</aired><mpaa>%s</mpaa></episodedetails>\n",
+			esc(title), esc(r.Title), *r.Season, *r.Episode, esc(r.Details), r.StartsAt.Format("2006-01-02"), esc(r.Rating))
 	}
-	return fmt.Sprintf("<episodedetails><title>%s</title><showtitle>%s</showtitle><plot>%s</plot><aired>%s</aired></episodedetails>\n",
-		esc(r.Title+" "+r.StartsAt.Format("2006-01-02")), esc(r.Title), esc(r.Details), r.StartsAt.Format("2006-01-02"))
+	return fmt.Sprintf("<episodedetails><title>%s</title><showtitle>%s</showtitle>"+
+		"<plot>%s</plot><aired>%s</aired><mpaa>%s</mpaa></episodedetails>\n",
+		esc(r.Title+" "+r.StartsAt.Format("2006-01-02 15.04")), esc(r.Title), esc(r.Details), r.StartsAt.Format("2006-01-02"), esc(r.Rating))
 }
 
 // Clashes works out which upcoming recordings lose a tuner: on each source, wherever more
@@ -463,14 +555,7 @@ func (s *Service) Clashes(ctx context.Context, upcoming []db.Recording) (map[int
 		})
 		var winners []db.Recording
 		for _, a := range list {
-			overlapping := 0
-			for _, w := range winners {
-				// Only the programmes' own times count here: padding gives way first.
-				if w.StartsAt.Before(a.r.EndsAt) && a.r.StartsAt.Before(w.EndsAt) && w.ChannelID != a.r.ChannelID {
-					overlapping++
-				}
-			}
-			if overlapping >= max(a.tuners, 1) {
+			if inUse(winners, a.r) >= max(a.tuners, 1) {
 				losers[a.r.ID] = true
 				continue
 			}
@@ -478,6 +563,29 @@ func (s *Service) Clashes(ctx context.Context, upcoming []db.Recording) (map[int
 		}
 	}
 	return losers, nil
+}
+
+// inUse is the most tuners the winners use at once during a booking's own time, not counting
+// its channel: one channel is one tuner however many of its programmes are booked. The most
+// is reached at the booking's start or at a winner's start within it. Padding gives way.
+func inUse(winners []db.Recording, a db.Recording) int {
+	moments := []time.Time{a.StartsAt}
+	for _, w := range winners {
+		if w.StartsAt.After(a.StartsAt) && w.StartsAt.Before(a.EndsAt) {
+			moments = append(moments, w.StartsAt)
+		}
+	}
+	most := 0
+	for _, at := range moments {
+		channels := map[int64]bool{}
+		for _, w := range winners {
+			if !w.StartsAt.After(at) && at.Before(w.EndsAt) && w.ChannelID != a.ChannelID {
+				channels[w.ChannelID] = true
+			}
+		}
+		most = max(most, len(channels))
+	}
+	return most
 }
 
 // FollowRules books, for every rule that is not paused, each airing in the next two weeks of
@@ -488,6 +596,9 @@ func (s *Service) FollowRules(ctx context.Context) error {
 		return err
 	}
 	now := s.now()
+	if err := s.follow(ctx, now); err != nil {
+		return err
+	}
 	for _, rule := range rules {
 		if rule.Paused {
 			continue
@@ -500,7 +611,7 @@ func (s *Service) FollowRules(ctx context.Context) error {
 }
 
 func (s *Service) followRule(ctx context.Context, rule db.RecordingRule, now time.Time) error {
-	airings, err := s.db.GuideAirings(ctx, rule.SeriesKey, rule.Title, now, now.AddDate(0, 0, 14))
+	airings, err := s.db.GuideAirings(ctx, rule.SeriesKey, rule.Title, now, now.AddDate(0, 0, 14), 2000)
 	if err != nil {
 		return err
 	}
@@ -526,9 +637,13 @@ func (s *Service) followRule(ctx context.Context, rule db.RecordingRule, now tim
 			if c.SourceID != rule.SourceID || rule.ChannelID != 0 && c.ID != rule.ChannelID {
 				continue
 			}
+			if had, err := s.db.AiringRecording(ctx, c.ID, p.ProgrammeKey); err == nil && had.State != db.RecordingCancelled {
+				break // booked already: nothing to write
+			}
 			b := db.Booking{ProfileID: rule.ProfileID, ProfileName: profile.Name, ProfilePub: profile.PublicID, RuleID: rule.ID, ChannelID: c.ID,
 				ChannelName: c.Name, ProgrammeKey: p.ProgrammeKey, SeriesKey: p.SeriesKey, Title: p.Title, EpisodeTitle: p.EpisodeTitle,
-				Season: p.Season, Episode: p.Episode, Details: p.Summary, StartsAt: p.StartsAt, EndsAt: p.EndsAt, PadBefore: opts.PadBefore,
+				Season: p.Season, Episode: p.Episode, Details: p.Summary, Rating: p.Rating, RatingAge: p.RatingAge, StartsAt: p.StartsAt,
+				EndsAt: p.EndsAt, PadBefore: opts.PadBefore,
 				PadAfter: opts.PadAfter, Priority: rule.Priority, Now: now}
 			if rule.PadBefore != nil {
 				b.PadBefore = *rule.PadBefore
@@ -540,6 +655,40 @@ func (s *Service) followRule(ctx context.Context, rule db.RecordingRule, now tim
 				return err
 			}
 			break // one airing of a programme is recorded once
+		}
+	}
+	return nil
+}
+
+// follow moves each upcoming booking with its programme when the guide has moved it, by the
+// guide's own key, and marks one the guide no longer lists, which is then never recorded:
+// a different programme is never recorded in its place.
+func (s *Service) follow(ctx context.Context, now time.Time) error {
+	upcoming, err := s.db.Upcoming(ctx, now.AddDate(0, 0, 15))
+	if err != nil {
+		return err
+	}
+	for _, r := range upcoming {
+		if r.State != db.RecordingScheduled || r.ChannelID == 0 {
+			continue
+		}
+		source, key, err := s.db.ChannelListings(ctx, r.ChannelID)
+		if err != nil || source == 0 {
+			continue
+		}
+		p, err := s.db.GuideProgrammeByKey(ctx, source, key, r.ProgrammeKey)
+		switch {
+		case errors.Is(err, db.ErrNotFound):
+			if r.InGuide {
+				err = s.db.MoveBooking(ctx, r.ID, r.StartsAt, r.EndsAt, false, now)
+			} else {
+				err = nil
+			}
+		case err == nil && (!r.InGuide || !p.StartsAt.Equal(r.StartsAt) || !p.EndsAt.Equal(r.EndsAt)):
+			err = s.db.MoveBooking(ctx, r.ID, p.StartsAt, p.EndsAt, true, now)
+		}
+		if err != nil {
+			return err
 		}
 	}
 	return nil
@@ -571,9 +720,13 @@ func (s *Service) Delete(ctx context.Context, r db.Recording) error {
 	return nil
 }
 
-// Keep deletes what a series rule's own keep choice no longer keeps: beyond its newest few,
-// or older than its days. Keep on a recording protects it; nothing is deleted to make room.
+// Keep deletes what a keep choice no longer keeps: a series rule's own (its newest few, or its
+// days), and for every other recording the owner's default (the newest few of each show, or
+// so many days). Keep on a recording protects it; nothing is deleted to make room.
 func (s *Service) Keep(ctx context.Context) error {
+	if err := s.keepDefault(ctx); err != nil {
+		return err
+	}
 	rules, err := s.db.Rules(ctx, 0)
 	if err != nil {
 		return err
@@ -593,6 +746,35 @@ func (s *Service) Keep(ctx context.Context) error {
 				if err := s.Delete(ctx, r); err != nil {
 					return err
 				}
+			}
+		}
+	}
+	return nil
+}
+
+func (s *Service) keepDefault(ctx context.Context) error {
+	opts := s.options()
+	if opts.KeepDays == 0 && opts.KeepNewest == 0 {
+		return nil // until deleted
+	}
+	recorded, err := s.db.KeepCandidates(ctx)
+	if err != nil {
+		return err
+	}
+	show, n := "", 0
+	for _, r := range recorded {
+		key := r.SeriesKey
+		if key == "" {
+			key = r.Title
+		}
+		if key != show {
+			show, n = key, 0
+		}
+		n++
+		old := opts.KeepNewest > 0 && n > opts.KeepNewest || opts.KeepDays > 0 && r.StartsAt.Before(s.now().AddDate(0, 0, -opts.KeepDays))
+		if old {
+			if err := s.Delete(ctx, r); err != nil {
+				return err
 			}
 		}
 	}
