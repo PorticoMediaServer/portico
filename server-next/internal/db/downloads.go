@@ -450,7 +450,8 @@ type TitlePlace struct {
 }
 
 // TitlePlaces returns where each title sits, for those the viewer may see; a title the viewer
-// may not see is left out. One read whatever the number of titles.
+// may not see is left out, so the keys are the visible ones. One read whatever the number of
+// titles.
 func (d *DB) TitlePlaces(ctx context.Context, v Viewer, itemIDs []int64) (map[int64]TitlePlace, error) {
 	out := map[int64]TitlePlace{}
 	if len(itemIDs) == 0 {

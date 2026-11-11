@@ -424,16 +424,25 @@ func (s *Server) getDownload(r *http.Request, _ None) (Download, error) {
 	if err != nil {
 		return Download{}, err
 	}
+	if len(shaped) == 0 {
+		return Download{}, ErrNotFound()
+	}
 	return shaped[0], nil
 }
 
-// titlesShape shapes requests with their titles, leaving out those the person took out, and
-// says where each title sits (show, season and episode; album and artist) when the profile
-// may see it. One read for the places, whatever the number of requests and titles.
+// titlesShape shapes requests with their titles and says where each title sits (show, season
+// and episode; album and artist). What the profile may not see is absent, not locked: a
+// request for a show, season, album, artist or title it may no longer see is left out (it
+// comes back if access does, and the sync has the device remove the files), as is any title
+// it may not see or the person took out, and the counts are of the titles listed. One read
+// for what the profile may see, whatever the number of requests and titles.
 func (s *Server) titlesShape(ctx context.Context, v db.Viewer, list []db.Download, byRequest map[int64][]db.DownloadTitle) ([]Download, error) {
 	var ids []int64
-	for _, titles := range byRequest {
-		for _, t := range titles {
+	for _, dl := range list {
+		if dl.ItemID != 0 {
+			ids = append(ids, dl.ItemID)
+		}
+		for _, t := range byRequest[dl.ID] {
 			ids = append(ids, t.ItemID)
 		}
 	}
@@ -444,16 +453,28 @@ func (s *Server) titlesShape(ctx context.Context, v db.Viewer, list []db.Downloa
 	keep := time.Duration(s.downloads.Owner().KeepDays) * 24 * time.Hour
 	out := make([]Download, 0, len(list))
 	for _, dl := range list {
+		if _, visible := places[dl.ItemID]; dl.ItemID != 0 && !visible {
+			continue
+		}
 		shaped := downloadShape(dl)
-		shaped.Items = []DownloadTitle{}
+		shaped.Items, shaped.Counts = []DownloadTitle{}, DownloadCounts{}
 		for _, t := range byRequest[dl.ID] {
-			if t.State == db.DownloadDropped {
+			place, visible := places[t.ItemID]
+			if !visible || t.State == db.DownloadDropped {
 				continue
 			}
 			title := s.titleShape(dl, t, keep)
-			place := places[t.ItemID]
 			title.ParentTitle, title.SeasonNumber, title.EpisodeNumber, title.Artist = place.ParentTitle, place.SeasonNumber, place.EpisodeNumber, place.Artist
 			shaped.Items = append(shaped.Items, title)
+			shaped.Counts.Titles++
+			switch title.State {
+			case "ready":
+				shaped.Counts.Ready++
+			case "waiting", "preparing", "paused":
+				shaped.Counts.Waiting++
+			default:
+				shaped.Counts.Failed++
+			}
 		}
 		out = append(out, shaped)
 	}
