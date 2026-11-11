@@ -3,17 +3,20 @@ import type {SettingsValue} from '@core/presentation/settings-spec.ts';
 import type {SettingPresentation} from '../../../kit/settings';
 import type {ProfileSettingsSource} from './source';
 import type {ProfileRestrictionsSource} from './restrictions';
-const flags = { 'profile.allowUnrated': 'allowUnrated', 'profile.allowDownloads': 'allowDownloads', 'profile.allowLiveTv': 'allowLiveTv', 'profile.allowRecordings': 'allowDvr', 'profile.allowWatchTogether': 'allowWatchTogether'} as const;
-export const isProfileRestriction = (id: string) => Object.hasOwn(flags, id) || ['profile.maxRating', 'profile.hiddenLabels'].includes(id);
-/** `serverOwner`: only the server owner may switch Recordings on (Who can record); anyone who
- * manages the profile may switch it off. */
-export function restrictionRow(source: ProfileRestrictionsSource, profiles: ProfileSettingsSource, id: string, serverOwner = false): SettingPresentation | undefined {
+import {CodedError} from '@core/server-messages.ts';
+/** Allow unrated titles, downloads, Live TV, recordings and Watch Together are not limits the server keeps yet,
+ * so their rows are not shown. */
+const absent = ['profile.allowUnrated', 'profile.allowDownloads', 'profile.allowLiveTv', 'profile.allowRecordings', 'profile.allowWatchTogether'];
+export const isProfileRestriction = (id: string) => absent.includes(id) || ['profile.maxRating', 'profile.hiddenLabels'].includes(id);
+export function restrictionRow(source: ProfileRestrictionsSource, profiles: ProfileSettingsSource, id: string, _serverOwner = false): SettingPresentation | undefined {
   if (!isProfileRestriction(id)) return undefined;
+  if (absent.includes(id)) return {present: false};
   const state = source.getSnapshot(), document = state.document;
   if (!document) return {present: false};
   const manager = profiles.getSnapshot().document?.canManage === true;
   const common = {present: true, disabled: state.busy || !manager, readOnly: !manager, saving: state.busy};
-  if (id === 'profile.hiddenLabels') return {...common, value: [...document.blockedLabels]};
+  // Blocked Tags are kept by id; the row shows and takes their names.
+  if (id === 'profile.hiddenLabels') return {...common, value: document.blockedLabels.map(tag => state.tags?.find(choice => choice.id === tag)?.name ?? tag)};
   if (id === 'profile.maxRating') {
     const system = state.systems?.find(system => system.id === document.ratingSystem) ?? (document.ratingSystem === '' ? state.systems?.[0] : undefined);
     return {...common, value: document.maximumAgeRating, choices: [
@@ -21,9 +24,7 @@ export function restrictionRow(source: ProfileRestrictionsSource, profiles: Prof
       ...(system?.values.map(value => ({value: value.code, label: value.label})) ?? []),
     ], disabled: common.disabled || !system};
   }
-  const value = document[flags[id as keyof typeof flags]];
-  if (id === 'profile.allowRecordings' && !value && !serverOwner) return {...common, value, disabled: true};
-  return {...common, value};
+  return undefined;
 }
 export function changeRestriction(source: ProfileRestrictionsSource, id: string, value: SettingsValue): Promise<void> | undefined {
   const document = source.getSnapshot().document;
@@ -33,7 +34,14 @@ export function changeRestriction(source: ProfileRestrictionsSource, id: string,
     if (value !== '' && !system?.values.some(option => option.code === value)) return undefined;
     return source.save({maximumAgeRating: value, ratingSystem: system?.id ?? document.ratingSystem});
   }
-  if (id === 'profile.hiddenLabels' && Array.isArray(value) && value.every(label => typeof label === 'string' && label.length > 0 && label.length <= 120) && value.length <= 64 && new Set(value.map(label => String(label).toLowerCase())).size === value.length) return source.save({blockedLabels: value as string[]});
-  if (Object.hasOwn(flags, id) && typeof value === 'boolean') return source.save({[flags[id as keyof typeof flags]]: value});
+  if (id === 'profile.hiddenLabels' && Array.isArray(value) && value.length <= 200) {
+    const tags = source.getSnapshot().tags ?? [], blocked: string[] = [];
+    for (const entry of value) {
+      const name = String(entry).trim(), tag = tags.find(choice => choice.id === name || choice.name.toLowerCase() === name.toLowerCase());
+      if (!tag) return Promise.reject(new CodedError('unknown_tag', `There is no Tag called ${name}.`));
+      if (!blocked.includes(tag.id)) blocked.push(tag.id);
+    }
+    return source.save({blockedLabels: blocked});
+  }
   return undefined;
 }

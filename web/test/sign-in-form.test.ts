@@ -16,7 +16,7 @@ function setup() {
     resetLocalPassword: async () => {throw new Error('Ordinary sign-in cannot reset a password.');},
     completeChallenge: async (code: string) => {calls.push(['challenge', code]); state = {phase: 'two-step-setup'};},
     beginRequiredTwoStep: async (password: string) => {calls.push(['enrol', password]); return enrolment;},
-    confirmRequiredTwoStep: async (password: string, code: string) => {calls.push(['confirm', password, code]); state = {phase: 'profiles'}; return true;},
+    confirmRequiredTwoStep: async (password: string, code: string) => {calls.push(['confirm', password, code]); state = {phase: 'profiles'}; return enrolment.recoveryCodes;},
   };
   return {port, calls, set: (value: AccountEntryState) => {state = value;}, retire: () => {for (const listener of retired) listener();}};
 }

@@ -9,7 +9,7 @@ export type RequiredFactorState = Readonly<{
 }>;
 export type RequiredFactorPort = Readonly<{
   beginRequiredTwoStep(password: string): Promise<TwoFactorEnrolment | undefined>;
-  confirmRequiredTwoStep(password: string, code: string): Promise<boolean>;
+  confirmRequiredTwoStep(password: string, code: string): Promise<readonly string[] | undefined>;
 }>;
 
 /** Live form lifetime only. The account-entry controller owns all family,
@@ -46,13 +46,12 @@ export class RequiredFactorForm {
     const epoch = ++this.epoch;
     this.publish({phase: 'code', busy: true, enrolment});
     try {
-      const confirmed = await this.port.confirmRequiredTwoStep(this.#password, code);
+      const codes = await this.port.confirmRequiredTwoStep(this.#password, code);
       if (!this.current(epoch)) {this.close(); return;}
-      if (confirmed) {
+      if (codes) {
         this.#password = '';
-        // The key/URI retire at confirmation. Only the server-issued, original
-        // recovery-code sequence remains until Done or this form's retirement.
-        this.publish({phase: 'recovery', busy: false, codes: enrolment.recoveryCodes});
+        // The key retires at confirmation; the recovery codes it answered stay until Done or this form's retirement.
+        this.publish({phase: 'recovery', busy: false, codes});
       } else this.publish({phase: 'code', busy: false, enrolment});
     } catch (error) {if (this.current(epoch)) this.publish({phase: 'code', busy: false, enrolment, error});}
   }

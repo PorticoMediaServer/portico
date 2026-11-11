@@ -131,13 +131,8 @@ export class ProfileSettingsSource {
   }
   rename = (name: string): Promise<void> => this.edit({name});
   color = (art: ProfileArt): Promise<void> => this.edit({art});
-  loadPictures = async (): Promise<void> => {
-    if (!this.current() || !this.snapshot.document || this.snapshot.avatars) return;
-    try {
-      const avatars = await this.identity.avatars(this.lifetime.signal);
-      if (this.current() && this.snapshot.document) this.publish({...this.snapshot, avatars});
-    } catch (error) {if (this.current()) this.publish({loading: false, busy: false, inUseId: this.scope.profileId, error});}
-  };
+  /** Profile pictures are not on the rebuilt server yet, so nothing is read and the picture row offers nothing. */
+  loadPictures = async (): Promise<void> => {};
   picture = (target: Pick<ManagedProfile, 'id' | 'revision'>, file?: File): Promise<void> => this.mutate(async document => {
     const profile = document.profiles.find(candidate => candidate.id === target.id && candidate.revision === target.revision);
     if (!profile) throw new CodedError('conflict', 'Refresh the profiles before trying again.');

@@ -1630,15 +1630,6 @@
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
     "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
   },
-  "web/src/screens/settings/Settings.route.tsx#ce4f350e188d007f": {
-    "category": "platform-transport",
-    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
-    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
-    "guardHash": "1cb25b152865b88b4ad83ce0ee787fce88d5f259d9bb35475b2fc033b157fca8",
-    "occurrences": 1,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
-    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
-  },
   "web/src/screens/settings/Settings.route.tsx#c0a9b0fe63b3e5a5": {
     "category": "platform-transport",
     "reason": "Named core services build each complete request; this transport preserves path/method/body/auth and adds only lifetime/signal checks and its existing GET-only readEventState resync scheduling.",
@@ -1751,7 +1742,7 @@
     "category": "platform-transport",
     "reason": "Named core services build each complete request; this transport preserves path/method/body/auth and adds only lifetime/signal checks and its existing GET-only readEventState resync scheduling.",
     "condition": "Original core-built V1Request or path/method/body/byte-budget is forwarded unchanged; only the original linked signal, lifetime assertions and GET-only readEventState resync scheduling are retained; no construction or selection.",
-    "guardHash": "1cb25b152865b88b4ad83ce0ee787fce88d5f259d9bb35475b2fc033b157fca8",
+    "guardHash": "7315f9223665e56c19887360fce54cf1579b53889896a5b0e650f2f6f95d9697",
     "occurrences": 1,
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646427108",
     "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
@@ -1760,7 +1751,7 @@
     "category": "platform-transport",
     "reason": "Named core services build each complete request; this transport preserves path/method/body/auth and adds only lifetime/signal checks and its existing GET-only readEventState resync scheduling.",
     "condition": "Original core-built V1Request or path/method/body/byte-budget is forwarded unchanged; only the original linked signal, lifetime assertions and GET-only readEventState resync scheduling are retained; no construction or selection.",
-    "guardHash": "1cb25b152865b88b4ad83ce0ee787fce88d5f259d9bb35475b2fc033b157fca8",
+    "guardHash": "7315f9223665e56c19887360fce54cf1579b53889896a5b0e650f2f6f95d9697",
     "occurrences": 1,
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646427108",
     "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
@@ -2835,5 +2826,14 @@
       "https://github.com/PorticoMediaServer/portico/pull/1005",
       "https://github.com/PorticoMediaServer/portico/pull/1015"
     ]
+  },
+  "web/src/screens/settings/Settings.route.tsx#1f91e1f960b20869": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "7315f9223665e56c19887360fce54cf1579b53889896a5b0e650f2f6f95d9697",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/2465#issuecomment-6788320233",
+    "reviewedCommit": "8aadba51d3dd20594c9b28c48f4e634cd9e18b41"
   }
 }
