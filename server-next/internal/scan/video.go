@@ -317,10 +317,13 @@ func (r *run) showUnits(f *folder) []unit {
 		if extra, ok := r.extra(lead, stored, keys); ok {
 			u.items = []db.ImportItem{extra}
 		} else if !ep.placed {
-			// It plays, so it is in the library, under its cleaned file name.
+			// It plays, so it is in the library, under its cleaned file name. It is what it
+			// is, a film or a clip, and it is not hidden; it is listed in Unmatched items
+			// for the owner to name or move, and the show provider is not asked about it.
 			name, year := title(lead)
 			u.items = []db.ImportItem{{Kind: db.KindMovie, Title: name, Year: year, Keys: append(keys, nameKey("movie", name, year)),
-				Versions: []db.ImportVersion{stored}}}
+				Versions:  []db.ImportVersion{stored},
+				Unmatched: "This file is in a show library and its name has no season or episode number."}}
 		} else {
 			u.items = r.episodeItems(v, ep)
 		}

@@ -122,6 +122,10 @@ type ImportItem struct {
 	// title already stored is brought up to date with what the file says now, where neither a
 	// match nor a person's edit has taken those details over.
 	Reread bool
+	// Unmatched, when set, puts a new title straight into the library's Unmatched items with
+	// this reason, and no provider is asked about it: the scan already knows that nothing in
+	// this library's provider can name it (a film in a show library).
+	Unmatched string
 	// ExtraOf makes this item an extra or trailer of the item one of these keys names.
 	ExtraOf   []ItemKey
 	ExtraKind RelationKind
@@ -665,6 +669,12 @@ func (im *importer) createItem(it *ImportItem, parent *importedItem, keys []Item
 	id, err := im.insertItem(row)
 	if err != nil {
 		return err
+	}
+	if it.Unmatched != "" {
+		if _, err := im.exec(`UPDATE items SET match_state = ?, extra = json_set(ifnull(extra, '{}'), '$.unmatched',
+			json_object('reason', ?, 'matches', json('[]'))) WHERE id = ?`, MatchNeedsAttention, it.Unmatched, id); err != nil {
+			return err
+		}
 	}
 	stored := &importedItem{id: id, rootID: row.rootID, parentID: row.parentID, ratingAge: row.ratingAge}
 	im.rows = append(im.rows, stored)
