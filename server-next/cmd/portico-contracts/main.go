@@ -151,7 +151,7 @@ func (g *generator) collect(t reflect.Type) {
 		return
 	}
 	switch t.Kind() {
-	case reflect.Pointer, reflect.Slice, reflect.Map:
+	case reflect.Pointer, reflect.Slice, reflect.Array, reflect.Map:
 		g.collect(t.Elem())
 	case reflect.Struct:
 		if t == timeType || nullable(t) != nil {
@@ -258,7 +258,7 @@ func tsType(t reflect.Type) string {
 		return "number"
 	case reflect.Pointer:
 		return tsType(t.Elem())
-	case reflect.Slice:
+	case reflect.Slice, reflect.Array:
 		return tsType(t.Elem()) + "[]"
 	case reflect.Map:
 		return "Record<string, " + tsType(t.Elem()) + ">"
@@ -330,7 +330,7 @@ func schema(t reflect.Type) object {
 		return object{"type": "integer"}
 	case reflect.Pointer:
 		return schema(t.Elem())
-	case reflect.Slice:
+	case reflect.Slice, reflect.Array:
 		return object{"type": "array", "items": schema(t.Elem())}
 	case reflect.Map:
 		return object{"type": "object", "additionalProperties": schema(t.Elem())}
