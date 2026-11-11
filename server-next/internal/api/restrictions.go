@@ -69,9 +69,16 @@ func (s *Server) restrictionRoutes() {
 		out, err := s.db.SetProfileRestrictions(r.Context(), userID, r.PathValue("id"), db.Restrictions{MaxRatingAge: req.MaxRatingAge,
 			BlockedLabels: req.BlockedLabels, AllLibraries: req.AllLibraries, Libraries: req.Libraries,
 			AllowWatchTogether: req.AllowWatchTogether}, s.now())
-		if err == nil && req.AllowWatchTogether != nil && !*req.AllowWatchTogether {
+		if err == nil {
 			if p, err := s.db.Profile(r.Context(), userID, r.PathValue("id")); err == nil {
-				s.groups.LeaveAll(p.ID)
+				if req.AllowWatchTogether != nil && !*req.AllowWatchTogether {
+					s.groups.LeaveAll(p.ID)
+				}
+				// What the profile may see changed: its groups wait for it, or go ahead
+				// without it, by what it may see now.
+				for _, g := range s.groups.List(p.ID) {
+					s.checkCantSee(r.Context(), g)
+				}
 			}
 		}
 		switch {
