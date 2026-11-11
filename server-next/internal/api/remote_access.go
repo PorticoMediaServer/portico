@@ -194,6 +194,10 @@ type remoteState struct {
 	portico        string
 	porticoReady   bool
 	porticoProblem string
+	// ownCertificateUsable says the certificate files the owner named for their own address
+	// are loaded and valid for it. Until the server serves them (internal/tlsport), it is nil
+	// and they count as not usable. A reverse proxy at the own address (no files) needs none.
+	ownCertificateUsable func() bool
 }
 
 // RefusedAddress is an outside address Enhanced refused, and what would fix it.
@@ -246,6 +250,10 @@ func (st *remoteState) current() (RemoteAccessSettings, []string) {
 func (st *remoteState) security(v RemoteAccessSettings, allowed []string, finished, ready bool) RemoteSecurity {
 	st.mu.RLock()
 	pending, problem := st.portico != "" && !st.porticoReady, st.porticoProblem
+	if v.OwnAddress.Enabled && v.OwnAddress.CertificateFile != "" && (st.ownCertificateUsable == nil || !st.ownCertificateUsable()) {
+		// Enhanced waits on a usable certificate of either kind: the Portico one or the owner's.
+		pending = true
+	}
 	st.mu.RUnlock()
 	out := RemoteSecurity{Chosen: v.RemoteSecurity, Active: "standard"}
 	switch {

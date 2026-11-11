@@ -157,3 +157,31 @@ func TestEnhancedCheckAndConfirmation(t *testing.T) {
 		t.Fatalf("the owner's route with Standard answered %d", code)
 	}
 }
+
+// Enhanced waits on the owner's own certificate as it does on the Portico one: with certificate
+// files named but not usable it works as Standard and says why; once they are, it takes effect.
+func TestEnhancedWaitsForTheOwnCertificate(t *testing.T) {
+	s := newTestServer(t)
+	owner := setupFrom(t, s, "127.0.0.1", SetupRemote{}).AccessToken
+	usable := false
+	s.remote.ownCertificateUsable = func() bool { return usable }
+	var v RemoteAccessSettings
+	jsonInto(reach(s, "GET", "/v1/admin/settings/remote-access", owner, "127.0.0.1", "localhost", false, nil), &v)
+	v.OwnAddress = OwnAddress{Enabled: true, Domain: "media.example.com", CertificateFile: "cert.pem", KeyFile: "key.pem"}
+	if w := reach(s, "PUT", "/v1/admin/settings/remote-access", owner, "127.0.0.1", "localhost", false, RemoteAccessSave{RemoteAccessSettings: v}); w.Code != 200 {
+		t.Fatalf("saving the own address answered %d: %s", w.Code, w.Body)
+	}
+	stranger := func() int { return reach(s, "GET", "/v1/system", "", away, "203.0.113.1:32500", true, nil).Code }
+	security := func() RemoteSecurity {
+		var st RemoteAccessStatus
+		jsonInto(reach(s, "GET", "/v1/admin/remote-access", owner, "127.0.0.1", "localhost", false, nil), &st)
+		return st.RemoteSecurity
+	}
+	if got := security(); got.Waiting != "certificate_not_ready" || stranger() != 200 {
+		t.Fatalf("with the certificate not usable: %+v", got)
+	}
+	usable = true
+	if got := security(); got.Active != "enhanced" || stranger() != 403 {
+		t.Fatalf("with the certificate usable: %+v", got)
+	}
+}
