@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/scan"
@@ -519,9 +520,10 @@ func TestARenamedShowFolderIsTheSameShow(t *testing.T) {
 	}
 }
 
-// A title removed from the trash and added again gets back what each person had on it, by
-// its name and year.
-func TestStateReturnsToATitleThatWasRemovedAndAddedAgain(t *testing.T) {
+// A title removed from the trash is forgotten: added again it is a new title, and what a
+// person had on the old one does not come back. The play they finished stays in the play
+// record the owner sees, under the title's name as it was.
+func TestATitleRemovedFromTheTrashIsForgotten(t *testing.T) {
 	f := newFixture(t, db.LibraryMovies)
 	films(f)
 	f.scan()
@@ -530,6 +532,12 @@ func TestStateReturnsToATitleThatWasRemovedAndAddedAgain(t *testing.T) {
 	}
 	alien := f.film("Alien")
 	f.watch(alien.PublicID)
+	length := f.detail(alien.PublicID).DurationMS
+	finished, err := f.d.SaveProgress(ctx, db.User, []db.Progress{{Viewer: f.viewer, ItemID: alien.PublicID, PlayID: "play-1", PositionMS: length,
+		At: time.Now(), WatchedMS: length}})
+	if err != nil || !finished[0] {
+		t.Fatalf("finishing Alien: %v %v", finished, err)
+	}
 	f.move("Alien.1979.1080p.BluRay.x264-GRP.mkv", "../alien.keep")
 	if stats := f.scan(); stats.Removed != 1 {
 		t.Fatalf("the trash rule removed %d titles; want 1", stats.Removed)
@@ -537,45 +545,14 @@ func TestStateReturnsToATitleThatWasRemovedAndAddedAgain(t *testing.T) {
 	if _, still := f.titles(db.KindMovie)["Alien"]; still {
 		t.Fatal("Alien is still in the library after its trash was emptied")
 	}
+	plays, err := f.d.PlayRecords(ctx, f.viewer.ProfileID, 10)
+	if err != nil || len(plays) != 1 || plays[0].Title != "Alien" {
+		t.Fatalf("the play record after the title was removed: %+v, %v", plays, err)
+	}
 	f.write("Alien (1979)/Alien (1979) remastered.mkv")
 	f.scan()
-	back := f.film("Alien")
-	if back.PublicID == alien.PublicID || !f.watched(back.PublicID) {
-		t.Fatalf("Alien came back without its watched mark")
-	}
-}
-
-// What a person had on a removed title returns when the title is added to another library,
-// and where they already have something on it, the later edit wins field by field.
-func TestKeptStateReturnsInAnotherLibrary(t *testing.T) {
-	f := newFixture(t, db.LibraryMovies)
-	films(f)
-	f.scan()
-	alien := f.film("Alien")
-	f.watch(alien.PublicID)
-	if err := f.d.SetLibraryOptions(ctx, f.lib.ID, db.LibraryOptions{Trash: db.TrashRule{Mode: db.TrashAfterScan}}); err != nil {
-		t.Fatal(err)
-	}
-	f.remove("Alien.1979.1080p.BluRay.x264-GRP.mkv")
-	f.scan()
-	// The same film turns up in a second library.
-	other := filepath.Join(t.TempDir(), "other")
-	if err := os.MkdirAll(other, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(other, "Alien (1979).mkv"), make([]byte, 999), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	second, err := f.d.CreateLibrary(ctx, "Second", db.LibraryMovies, "en", []string{other})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := f.s.Scan(ctx, second); err != nil {
-		t.Fatal(err)
-	}
-	page, err := f.d.Items(ctx, f.viewer, db.ItemQuery{Library: second.PublicID, Kinds: []db.ItemKind{db.KindMovie}})
-	if err != nil || len(page.Items) != 1 || !f.watched(page.Items[0].PublicID) || f.watched(f.film("Heat").PublicID) {
-		t.Fatalf("Alien should be watched again in the second library, and Heat should not be: %+v, %v", page.Items, err)
+	if back := f.film("Alien"); back.PublicID == alien.PublicID || f.watched(back.PublicID) {
+		t.Fatal("Alien added again should be a new title with nothing on it")
 	}
 }
 

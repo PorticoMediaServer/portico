@@ -232,7 +232,6 @@ type importer struct {
 	// available is worked out again for them at the end.
 	changedFiles []int64
 	unsettled    []int64
-	restores     *bool // whether this library has state kept from removed titles
 }
 
 type importedFile struct {
@@ -603,9 +602,6 @@ func (im *importer) createItem(it *ImportItem, parent *importedItem, keys []Item
 		}
 	}
 	if err := im.relate(id, it); err != nil {
-		return err
-	}
-	if err := im.restore(id); err != nil {
 		return err
 	}
 	return appendChange(im.tx, Change{At: im.now, Topic: TopicItem, Op: OpCreated, RefID: id, LibraryID: im.batch.LibraryID})

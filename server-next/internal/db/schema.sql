@@ -858,36 +858,3 @@ CREATE TABLE playback_route_failures (
 CREATE INDEX playback_route_failures_file ON playback_route_failures (file_id);
 CREATE INDEX playback_route_failures_expiry ON playback_route_failures (expires_at);
 
--- large. What each profile had on a title that was removed (its trash was emptied, it was
--- deleted, its folder or its library left), so watched, progress, rating and favourite return
--- when the title is added again, to any library. identity is the title's provider id with its
--- kind when it was matched, else its kind, folded title and year; an episode or a track is its
--- show's or album's identity and its numbers. The other columns are user_item_state's. Rows
--- older than a year are pruned.
-CREATE TABLE removed_state (
-  profile_id       INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-  identity         TEXT    NOT NULL,
-  removed_at       INTEGER NOT NULL,
-  position_ms      INTEGER,
-  position_text    TEXT,
-  position_at      INTEGER,
-  played           INTEGER NOT NULL DEFAULT 0,
-  played_at        INTEGER,
-  play_count       INTEGER NOT NULL DEFAULT 0,
-  last_played_at   INTEGER,
-  favorite         INTEGER NOT NULL DEFAULT 0,
-  favorite_at      INTEGER,
-  in_list          INTEGER NOT NULL DEFAULT 0,
-  in_list_at       INTEGER,
-  hidden           INTEGER NOT NULL DEFAULT 0,
-  hidden_at        INTEGER,
-  rating           INTEGER,
-  rating_at        INTEGER,
-  audio_language   TEXT,
-  subtitle_language TEXT,
-  subtitle_offset_ms INTEGER,
-  updated_at       INTEGER NOT NULL,
-  PRIMARY KEY (profile_id, identity)
-) WITHOUT ROWID;
-CREATE INDEX removed_state_identity ON removed_state (identity);
-CREATE INDEX removed_state_age ON removed_state (removed_at);
