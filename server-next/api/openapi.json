@@ -2727,6 +2727,12 @@
           },
           "options": {
             "$ref": "#/components/schemas/LibraryOptions"
+          },
+          "remoteFolders": {
+            "items": {
+              "$ref": "#/components/schemas/RemoteFolderRef"
+            },
+            "type": "array"
           }
         },
         "required": [
@@ -2752,6 +2758,12 @@
           },
           "options": {
             "$ref": "#/components/schemas/LibraryOptions"
+          },
+          "remoteFolders": {
+            "items": {
+              "$ref": "#/components/schemas/RemoteFolderRef"
+            },
+            "type": "array"
           }
         },
         "type": "object"
@@ -2776,6 +2788,9 @@
           },
           "scanEveryMinutes": {
             "type": "integer"
+          },
+          "source": {
+            "type": "string"
           },
           "watched": {
             "type": "boolean"
@@ -5817,6 +5832,21 @@
         },
         "required": [
           "items"
+        ],
+        "type": "object"
+      },
+      "RemoteFolderRef": {
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "path"
         ],
         "type": "object"
       },
