@@ -33,9 +33,6 @@ var (
 	ErrTV = errors.New("TVs don't download")
 	// ErrQuality says the quality is not one a download can be.
 	ErrQuality = errors.New("not a download quality")
-	// ErrNoConversion says the account may not make the server convert, so it downloads
-	// titles only as they are.
-	ErrNoConversion = errors.New("this account downloads titles only as they are")
 	// ErrAboveLimit says the owner allows no download this good.
 	ErrAboveLimit = errors.New("above the owner's highest download quality")
 )
@@ -208,13 +205,6 @@ func (s *Service) Create(ctx context.Context, a Ask) (db.Download, bool, error) 
 	}
 	if a.Quality == Original && s.Owner().HighestQuality != Original {
 		return db.Download{}, false, ErrAboveLimit
-	}
-	if a.Quality != Original {
-		if limits, err := s.DB.PlayLimits(ctx, a.Viewer.UserID); err != nil {
-			return db.Download{}, false, err
-		} else if limits.NoConversion {
-			return db.Download{}, false, ErrNoConversion
-		}
 	}
 	sources, err := s.Titles(ctx, a.Viewer, a.Item, a.List, a.Selection, a.KeepNext)
 	if err != nil {

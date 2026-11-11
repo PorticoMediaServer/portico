@@ -49,15 +49,4 @@ func TestADownloadAddressIsHeldToHomeAndToViewingHours(t *testing.T) {
 		t.Errorf("an account outside its viewing hours fetched its download: %d", got)
 	}
 
-	// An account that may not make the server convert downloads titles only as they are.
-	limits = noLimits()
-	limits.AllowConversion = false
-	hold(t, rig.s, rig.owner, max.ID, limits)
-	fresh := signInAs(t, rig.s, "max", testPassword, 8).AccessToken
-	if code, _ := rig.ask(fresh, DownloadAsk{ItemID: rig.film, Quality: "480p"}); code != 403 {
-		t.Errorf("an account that may not convert asking for a smaller copy answered %d, want 403", code)
-	}
-	if code, _ := rig.ask(fresh, DownloadAsk{ItemID: rig.film, Quality: "original"}); code != 201 {
-		t.Errorf("an account that may not convert asking for the file as it is answered %d, want 201", code)
-	}
 }

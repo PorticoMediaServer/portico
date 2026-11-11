@@ -9,8 +9,7 @@ import (
 )
 
 // An account held to a bitrate away from home gets a conversion within it there and the
-// file as it is at home; an account that may not convert is refused a file its device cannot
-// play. An account with no limits gets the file as it is, and the conversion.
+// file as it is at home. An account with no cap gets the file as it is away too.
 func TestPlansAreHeldToTheAccountsLimits(t *testing.T) {
 	film := streaming.FileFacts{
 		ID: "m1", Container: "mp4", VideoCodec: "h264", AudioCodec: "aac", Duration: 600, Size: 600 << 20, Width: 1920, Height: 1080,
@@ -39,18 +38,4 @@ func TestPlansAreHeldToTheAccountsLimits(t *testing.T) {
 		t.Fatalf("a capped account at home: %v %v, want the file as it is", p.Strategy, err)
 	}
 
-	old := film
-	old.Container, old.VideoCodec = "avi", "mpeg4"
-	old.Streams = append([]mediafacts.Stream(nil), film.Streams...)
-	old.Streams[0] = mediafacts.Stream{Index: 0, Type: "video", Codec: "mpeg4", Detail: mediafacts.StreamDetail{
-		Profile: "Advanced Simple", Width: 720, Height: 480, FrameRate: 24, BitDepth: 8, DynamicRange: "sdr"}}
-	if p, err := plan(old, streaming.NetworkLocal, db.PlayLimits{}); err != nil || p.VideoAction != "convert" {
-		t.Fatalf("an account that may convert: %v %v, want a conversion", p.VideoAction, err)
-	}
-	if p, err := plan(old, streaming.NetworkLocal, db.PlayLimits{NoConversion: true}); err == nil {
-		t.Fatalf("an account that may not convert was given %v of a file its device cannot play", p.Strategy)
-	}
-	if p, err := plan(film, streaming.NetworkLocal, db.PlayLimits{NoConversion: true}); err != nil || p.Strategy != streaming.DeliveryOriginal {
-		t.Fatalf("an account that may not convert, a file its device plays: %v %v, want the file as it is", p.Strategy, err)
-	}
 }

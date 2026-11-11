@@ -1068,7 +1068,6 @@ export interface MemberLimits {
   maxRatingAge?: number | null;
   allowUnrated: boolean;
   blockedLabels: string[];
-  allowConversion: boolean;
   remoteMaxBitrateKbps?: number | null;
   maxProfiles?: number | null;
   allowWatchTogether: boolean;
@@ -1081,7 +1080,6 @@ export interface MemberLimitsEdit {
   maxRatingAge?: number;
   allowUnrated?: boolean;
   blockedLabels?: string[];
-  allowConversion?: boolean;
   remoteMaxBitrateKbps?: number;
   maxProfiles?: number;
   allowWatchTogether?: boolean;
