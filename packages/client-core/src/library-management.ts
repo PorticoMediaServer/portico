@@ -4,6 +4,7 @@ import {parseLibrarySummary} from './library-summary.ts';
 import type {LibrarySummary} from './library-summary.ts';
 import type {RouteResponse} from "../../contracts/src/route-paths.ts";
 import {encodedRoutePath, routePath} from "../../contracts/src/route-paths.ts";
+import {callServer} from './query/server-api.ts';
 import {unreadableServerResponse} from './server-messages.ts';
 import {firstOfEach,keepReadable,noteSkipped,oneOfOr} from './tolerant.ts';
 import {queryKeys} from './query/keys.ts';
@@ -168,7 +169,32 @@ export class LibraryManagementService{
  /** Read reconciliation only. Never retries a scan, cancellation or CAS command. */
  async reconcile(){this.active();const id=this.state.selectedLibraryId,filter=this.state.jobFilter;await Promise.all([this.loadLibraries(),this.loadJobs(filter),...(id?[this.resource(id,true)]:[])]);}
  /** `metadataAgent`: the library's metadata source, `online` (the server's default) or `local` (local metadata only), applied before the first scan. */
-  createLibrary(input:{expectedRemoteSource?:ExpectedRemoteSource;name:string;kind:ManagedLibrary['kind'];path?:string;folders?:readonly string[];metadataAgent?:'online'|'local';metadataLanguage?:string;/** false: create without the automatic first scan. */scanAfter?:boolean}):Promise<void>{this.active();/* No directory precondition: a library can be created before the owner screen has loaded; the server validates, and the create reconciles the directory. */if(!object(input)||!text(input.name,100)||!input.name.trim()||new TextEncoder().encode(input.name.trim()).length>100||!['movie','tv','anime','music','audiobook','book','comic'].includes(input.kind)||(!(Array.isArray(input.folders)&&input.folders.length>=1&&input.folders.length<=64&&input.folders.every(path=>text(path,8192)&&path))&&(!text(input.path,8192)||!input.path)))throw new Error('Check the library name, kind and server source path.');if(input.metadataAgent!==undefined&&input.metadataAgent!=='online'&&input.metadataAgent!=='local')throw new Error('Choose a metadata source for the library.');if(input.metadataLanguage!==undefined&&!/^[a-z]{2}$/.test(input.metadataLanguage))throw new Error('Choose a metadata language this library offers.');if(input.scanAfter!==undefined&&typeof input.scanAfter!=='boolean')throw new Error('Choose whether to scan the new library.');const capturedRemote=input.expectedRemoteSource===undefined?undefined:expectedRemoteSource(input.expectedRemoteSource);return this.mutate('create','', 'POST',routePath("post_libraries"),{name:input.name.trim(),kind:input.kind,...(capturedRemote?{expectedRemoteSource:capturedRemote}:{}),...(input.folders?{folders:input.folders}:{path:input.path}),...(input.metadataAgent?{metadataAgent:input.metadataAgent}:{}),...(input.scanAfter===false?{scanAfter:false}:{}),...(input.metadataLanguage?{metadataLanguage:input.metadataLanguage}:{})});}
+  /** Creates a library on the rebuilt server (`POST /v1/admin/libraries`), which starts its first scan itself.
+  * Home and every library list read their libraries again. `metadataAgent` and `metadataLanguage` are not on the server's create yet and are not sent. */
+ createLibrary(input:{expectedRemoteSource?:ExpectedRemoteSource;name:string;kind:ManagedLibrary['kind'];path?:string;folders?:readonly string[];metadataAgent?:'online'|'local';metadataLanguage?:string;/** Not on the rebuilt server: a new library is always scanned. */scanAfter?:boolean}):Promise<void>{
+  this.active();
+  const folders=input.folders?.length?[...input.folders]:input.path?[input.path]:[];
+  if(!object(input)||!text(input.name,100)||!input.name.trim()||new TextEncoder().encode(input.name.trim()).length>100||!(input.kind in serverLibraryKinds)||!folders.length||folders.length>64||!folders.every(path=>text(path,8192)&&path))throw new Error('Check the library name, kind and server source path.');
+  if(this.mutationPromise)throw new Error('Wait for the current library command to finish.');
+  const epoch=this.epoch,c=new AbortController();this.mutationController=c;this.mutationKey='create';
+  this.publish({mutation:Object.freeze({phase:'pending',kind:'create',error:null})});
+  const api={request:<T,>(path:string,method?:string,body?:unknown)=>this.api.request<T>(path,method,body,c.signal)};
+  const promise=(async()=>{
+   try{
+    const made=await callServer(api,'POST /v1/admin/libraries',{body:{name:input.name.trim(),kind:serverLibraryKinds[input.kind],folders}});
+    if(!object(made)||!id(made.id))invalid();
+    if(this.disposed||epoch!==this.epoch||c.signal.aborted)return;
+    this.queries?.moved([dependsOn.libraries]);
+    // The owner's library directory is still read from the old server's routes; a failure there does not undo the create.
+    await this.reconcile().catch(()=>{});
+    if(!this.disposed&&epoch===this.epoch&&!c.signal.aborted)this.publish({mutation:Object.freeze({phase:'complete',kind:'create',error:null})});
+   }catch(e){
+    if(this.disposed||epoch!==this.epoch||c.signal.aborted)return;
+    const error=errorInfo(e);this.publish({mutation:Object.freeze({phase:'error',kind:'create',error})});
+   }finally{if(this.mutationController===c){this.mutationPromise=undefined;this.mutationKey='';}}
+  })();
+  this.mutationPromise=promise;return promise;
+ }
  rename(name:string,expectedRevision:number):Promise<void>{this.active();const selected=this.state.selected.data;if(!selected||this.state.selected.phase!=='ready'||!selected.library.actions.includes('rename'))throw new Error('Select a library that allows renaming.');const normalized=name.trim();if(!normalized||new TextEncoder().encode(normalized).length>100||!text(normalized,100)||!integer(expectedRevision)||expectedRevision!==selected.library.revision)throw new Error('The library name or expected revision is invalid.');return this.mutate('rename',selected.library.id,'PATCH',encodedRoutePath("patch_admin_libraries_id", {"id": encodeURIComponent(selected.library.id)}),{name:normalized,expectedRevision});}
  /** `full` re-reads every file, changed or not ("Scan all files"); the default lets the server choose (first import, weekly integrity or incremental). */
  scan(mode?:'full'):Promise<void>{this.active();const selected=this.state.selected.data;if(!selected||this.state.selected.phase!=='ready'||!selected.library.actions.includes('scan'))throw new Error('Select a library that allows scanning.');return this.mutate('scan',selected.library.id,'POST',encodedRoutePath("post_libraries_id_scans", {"id": encodeURIComponent(selected.library.id)})+(mode?'?mode='+mode:''));}
@@ -216,13 +242,27 @@ export function classifyServerPath(path:string,roots:readonly {path:string;class
   if(under&&base.length>best){best=base.length;classification=root.classification;}}
  return best<0?undefined:classification;
 }
+/** One folder of the server's machine for the folder explorer (`GET /v1/admin/filesystem`, 200 folders at a time), in the shape the
+ * picker draws. The top (`path` empty) lists the places to start from as roots. `showHidden` asks for `hidden`, `checkWritable` for
+ * `writable`; each folder says whether it is already a library's (`library`) or cannot be one (`cannotBeChosen`). Only folders are
+ * listed (`includeFiles` is ignored); `prefix` narrows the folders shown here. */
 export async function browseServerFilesystem(api:LibraryContentApi, options:Readonly<{path?:string;cursor?:string;showHidden?:boolean;prefix?:string;checkWritable?:boolean;includeFiles?:boolean;limit?:number}>={}, signal?:AbortSignal):Promise<import('./administration.ts').FilesystemPage>{
- const limit=options.limit??200;
- if(!Number.isInteger(limit)||limit<1||limit>200||options.prefix!==undefined&&(!text(options.prefix,255)||/[\\/]/.test(options.prefix)))throw new Error('Invalid folder explorer query.');
- const q=new URLSearchParams({limit:String(limit)});
- for(const key of ['path','cursor','prefix'] as const){const value=options[key];if(value!==undefined){if(!text(value,8192))throw new Error('Invalid folder explorer path.');q.set(key,value);}}
- for(const key of ['showHidden','checkWritable','includeFiles'] as const)if(options[key]!==undefined)q.set(key,options[key]?'1':'0');
- const {parseFilesystemPage}=await import('./administration.ts');
- const raw=await api.request<RouteResponse<'get_admin_filesystem'>>(routePath('get_admin_filesystem')+'?'+q,'GET',undefined,signal);
- if(!object(raw))invalid();return parseFilesystemPage(raw.result);
+ for(const value of [options.path,options.cursor])if(value!==undefined&&!text(value,8192))throw new Error('Invalid folder explorer path.');
+ const raw=await callServer(api,'GET /v1/admin/filesystem',{query:{path:options.path,cursor:options.cursor,hidden:options.showHidden?'true':undefined,writable:options.checkWritable?'true':undefined},signal});
+ if(!object(raw)||!Array.isArray(raw.folders))invalid();
+ const path=typeof raw.path==='string'?raw.path:'',separator=path.includes('\\')||/^[A-Za-z]:/.test(path)?'\\':'/';
+ const prefix=options.prefix?.toLocaleLowerCase();
+ const folders=raw.folders.filter(folder=>typeof folder?.name==='string'&&typeof folder.path==='string'&&(!prefix||folder.name.toLocaleLowerCase().startsWith(prefix)));
+ const top=path==='';
+ return Object.freeze({path,parent:raw.parent??'',separator,platform:separator==='/'?'linux':'windows',writable:false,writableChecked:false,suggestions:Object.freeze([]),truncated:raw.limited===true,
+  roots:Object.freeze(top?folders.map(folder=>Object.freeze({path:folder.path,name:folder.name,kind:'folder',description:''})):[]),
+  entries:Object.freeze(top?[]:folders.map(raw=>{
+   const folder=raw as typeof raw&{library?:unknown;cannotBeChosen?:unknown;writable?:unknown};
+   return Object.freeze({name:folder.name,path:folder.path,kind:'directory' as const,readable:true,symlink:false,bytes:0,hidden:folder.name.startsWith('.'),
+    ...(typeof folder.library==='string'&&folder.library?{library:folder.library}:{}),...(typeof folder.cannotBeChosen==='string'&&folder.cannotBeChosen?{cannotBeChosen:folder.cannotBeChosen}:{}),
+    ...(typeof folder.writable==='boolean'?{writable:folder.writable}:{})});
+  })),
+  nextCursor:raw.nextCursor??''});
 }
+/** The server's word for each library kind the screens offer. */
+const serverLibraryKinds:Readonly<Record<string,string>>={movie:'movies',tv:'shows',anime:'anime',music:'music',audiobook:'audiobooks',book:'books',comic:'comics'};

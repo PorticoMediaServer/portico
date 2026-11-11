@@ -50,10 +50,13 @@ export {setupBusyMessage, setupEndedMessage, setupErrorMessage, setupFailureKind
 export type SetupStep = Readonly<{id: 'server' | 'account' | 'library'; state: 'done' | 'current' | 'next'; title: string; body: string}>;
 
 /** Steps follow the drawn two-step local setup and three-step Portico setup. */
-export function setupSteps(input: Readonly<{serverName: string; mode: SetupMode; phase: 'form' | 'library'; local: boolean}>): readonly SetupStep[] {
+/** `owner`: the local owner's username once the owner exists; the library step then lists them where a Portico Account would be. */
+export function setupSteps(input: Readonly<{serverName: string; mode: SetupMode; phase: 'form' | 'library'; local: boolean; owner?: string}>): readonly SetupStep[] {
   const server = {id: 'server' as const, state: input.phase === 'library' ? 'done' as const : 'current' as const,
     title: defaultI18n.t('web.setup.stepServer'),
     body: input.phase === 'library' ? input.serverName : input.local ? defaultI18n.t('web.setup.stepServerLocalBody') : defaultI18n.t('web.setup.stepServerBody')};
+  if (input.mode === 'local' && input.phase === 'library' && input.owner) return [server, {id: 'account', state: 'done', title: defaultI18n.t('next.shell.owner'), body: input.owner},
+    {id: 'library', state: 'current', title: defaultI18n.t('web.setup.stepLibrary'), body: defaultI18n.t('web.setup.stepLibraryLater')}];
   if (input.mode === 'local') return [server, {id: 'library', state: input.phase === 'library' ? 'current' : 'next',
     title: defaultI18n.t('web.setup.stepLibrary'), body: input.phase === 'library' ? defaultI18n.t('web.setup.stepLibraryLater') : defaultI18n.t('web.setup.stepLibraryBody')}];
   return [server,

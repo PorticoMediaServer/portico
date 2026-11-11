@@ -5,6 +5,7 @@ import {ApiError, HttpLocalApi, type LocalSession} from './index.ts';
 import type {AppSessionStore} from './app-sessions.ts';
 import {parseLocalSession} from './local-session.ts';
 import {completeOwnerSetup, parseDirectSnapshot} from './profile-management.ts';
+import {callServer} from './query/server-api.ts';
 import {readDirectAccount, readServerSystem, revokeCurrentSession} from './query/connection-operations.ts';
 import {parseServerSignIn} from './sign-in.ts';
 import {parseSetupSession} from './setup-onboarding.ts';
@@ -12,14 +13,13 @@ import type {SetupState} from './setup-state.ts';
 import type {ServerSignIn} from './sign-in.ts';
 import {routeBase64, sameServerPin, webRouteCrypto, type RouteCrypto, type ServerPin} from './route-identity.ts';
 import type {ConnectionEnvironment, rememberNativeSession} from './server-connections.ts';
-import {CodedError} from './server-messages.ts';
+import {CodedError, unreadableServerResponse} from './server-messages.ts';
 import {setupAddressAllowed} from './setup-address.ts';
 import {SETUP_CLAIM_LIFETIME_MS} from './setup-claim-attempt.ts';
 import {requestSetupApproval} from './setup-approval-client.ts';
 import {randomId} from './random-id.ts';
 import type {SetupCredentials, SetupLibrary, SetupPortContext, SetupPorts, SetupRead} from './setup-controller.ts';
 import {isUnreadable, type SetupAttempt, type SetupLocal, type SetupRecord, type SetupStore} from './setup-store.ts';
-import {decodePostLibrariesResponse} from '../../contracts/src/decoders.ts';
 import {serverNow} from './server-clock.ts';
 import {encodedRoutePath, routeBody, routePath} from '../../contracts/src/routes.ts';
 import {finishSetupExchange, type SetupExchangePorts} from './setup-exchange.ts';
@@ -222,9 +222,10 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
         throw error;
       }
     },
-    /** Creates the owner (`POST /v1/setup/owner`) and opens the owner's main profile. The server's
-     * name and remote access are not part of setup on the new server; they are set in Settings. */
-    async initializeLocal(_name, credentials: SetupCredentials, _remote, context) {
+    /** Creates the owner (`POST /v1/setup/owner`) and opens the owner's main profile, then saves the server's name the owner
+     * typed as that owner (`PUT /v1/admin/settings/general`): the setup route takes no name. A name the server refuses leaves
+     * "Portico", which the owner can change in Settings › General. Remote access is set in Settings. */
+    async initializeLocal(name, credentials: SetupCredentials, _remote, context) {
       const p = await pair(context.signal);
       if (!setupCode) throw changed();
       try {
@@ -232,6 +233,7 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
         await assertPaired(p);
         if (grant.kind !== 'signed-in' || grant.snapshot.serverId !== p.pin.serverId) throw changed();
         pendingLocal = grant.session;
+        if (name?.trim()) await callServer(tokenApi(p, grant.session.accessToken), 'PUT /v1/admin/settings/{name}', {id: 'general', body: {name: name.trim()}, signal: context.signal}).catch(() => {});
         return {kind: 'initializeDone'};
       } catch (error) {
         if (refused(error, 'setup_code_invalid')) return {kind: 'setupCodeInvalid'};
@@ -371,12 +373,13 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
         }
       }
     },
+    /** Creates the first library (`POST /v1/admin/libraries`); the server starts its scan. */
     async addLibrary(library: SetupLibrary, context) {
       const api = await ownerApi();
-      const created = decodePostLibrariesResponse(await api.request(routePath('post_libraries'), 'POST', routeBody('post_libraries',
-        {kind: library.kind, name: library.name, ...(library.folders?.length ? {folders: library.folders} : {path: library.path})}), context.signal));
-      await ownerApi();
-      await api.request(encodedRoutePath('post_libraries_id_scans', {id: encodeURIComponent(created.id)}), 'POST', {}, context.signal);
+      const kinds: Readonly<Record<string, string>> = {movie: 'movies', tv: 'shows', anime: 'anime', music: 'music', audiobook: 'audiobooks', book: 'books', comic: 'comics'};
+      const created = await callServer(api, 'POST /v1/admin/libraries', {body: {kind: kinds[library.kind] ?? library.kind, name: library.name,
+        folders: library.folders?.length ? [...library.folders] : [library.path]}, signal: context.signal});
+      if (!created?.id) throw new CodedError('invalid_response', unreadableServerResponse);
       await ownerApi();
       return {kind: 'libraryAdded'};
     },

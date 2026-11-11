@@ -1,6 +1,7 @@
 import {decodeGetMusicMixesResponse, decodePostMusicMixesIdPlaylistResponse, routePath,
   type GetMusicMixesResponse, type PostMusicMixesIdPlaylistResponse} from '../../contracts/src/index.ts';
 import {musicMixDisplayName} from './music-mixes.ts';
+import {notOnThisServer} from './query/server-api.ts';
 import type {V1QueuePlayer} from './playback-v1/v1-queue-player.ts';
 import type {QueueHeader} from './playback-v1/types.ts';
 import type {DetailApi} from './detail.ts';
@@ -86,6 +87,8 @@ export function createMusicMixesController(options: MusicMixesOptions) {
         if (new Set(response.data.mixes.map(mix => mix.id)).size !== response.data.mixes.length) throw invalid();
         raw = freeze(response.data.mixes);publish({phase: 'ready', rows: names()});
       } catch (error) {
+        // Mixes are not on the rebuilt server yet: the row is simply absent, with no message.
+        if (notOnThisServer(error)) {if (current() && ticket === generation && !active.aborted) publish({phase: 'ready', rows: Object.freeze([])});return;}
         if (status(error, 401) || status(error, 403)) dispose();
         if (current() && ticket === generation && !active.aborted) publish({phase: 'error', rows: Object.freeze([]), error});
         throw error;

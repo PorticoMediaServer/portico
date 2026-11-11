@@ -32,7 +32,9 @@ export type DeletePreview=Readonly<{revision:number;confirmation:string;confirma
 export type DeleteReceipt=Readonly<{itemId:string;title:string;removed:boolean;filesDeleted:number;filesKept:number;bytes:number;code:string}>;
 export type DeleteResult=Readonly<{revision:number;removed:number;failed:number;bytesDeleted:number;filesRetained:boolean;receipts:readonly DeleteReceipt[]}>;
 export type FilesystemRoot=Readonly<{path:string;name:string;kind:string;description:string;classification?:'local'|'network'}>;
-export type FilesystemEntry=Readonly<{name:string;path:string;kind:'directory'|'file'|'unknown';readable:boolean;symlink:boolean;bytes:number;hidden:boolean;reason?:string}>;
+/** `library`: the name of the library this folder already belongs to. `cannotBeChosen`: the server's sentence saying why no library
+ * can have this folder (the whole disk, Portico's own data); it can still be opened to choose a folder inside it. */
+export type FilesystemEntry=Readonly<{name:string;path:string;kind:'directory'|'file'|'unknown';readable:boolean;symlink:boolean;bytes:number;hidden:boolean;reason?:string;library?:string;cannotBeChosen?:string;writable?:boolean}>;
 export type FilesystemPage=Readonly<{path:string;parent:string;separator:string;platform:string;writable:boolean;writableChecked:boolean;runsAs?:string;reason?:string;suggestions:readonly string[];truncated:boolean;roots:readonly FilesystemRoot[];entries:readonly FilesystemEntry[];nextCursor:string}>;
 export type LiveTimeshiftMinutes=10|30|60|120;
 export type LiveDefaults=Readonly<{timeshiftMinutes?:LiveTimeshiftMinutes;importLimits:Readonly<{bytes:number;channels:number;programmes:number}>;streamBufferMs:number;retryWindowMs:number;userAgent:string;guideDays:number;logoImport:boolean;discoveryEnabled:boolean}>;

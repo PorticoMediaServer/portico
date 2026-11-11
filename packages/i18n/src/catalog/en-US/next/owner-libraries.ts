@@ -152,6 +152,7 @@ export const ownerLibrariesMessages = {
   'next.ownerLibraries.explorer.hidden': 'Hidden',
   'next.ownerLibraries.explorer.link': 'Link',
   'next.ownerLibraries.explorer.noAccess': 'No access',
+  'next.ownerLibraries.explorer.inLibrary': 'In {library}',
   'next.ownerLibraries.explorer.choose': 'Choose folders…',
   'next.ownerLibraries.addFolder.path': 'Folder path',
   'next.ownerLibraries.addFolder.name': 'Name',

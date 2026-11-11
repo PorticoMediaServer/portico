@@ -40,8 +40,13 @@ export function SetupScreen(props: SetupScreenProps) {
   useEffect(() => {if (view.kind !== 'form' && view.kind !== 'starting') setForm(old => old.password || old.confirm ? {...old, password: '', confirm: ''} : old);}, [view.kind]);
   const serverName = props.serverName() ?? '';
   const name = form.name ?? (('name' in view && view.name) || defaultSetupServerName(serverName, props.hostname ?? location.hostname));
-  const mode = view.kind === 'form' && view.mode === 'local' || view.kind === 'starting' && view.mode === 'local' ? 'local' : 'hosted';
-  const steps = setupSteps({serverName, mode, phase: view.kind === 'library' ? 'library' : 'form', local: mode === 'local'});
+  // The library step's snapshot no longer says which kind of sign-in was chosen: the form's choice is kept for it.
+  const [chosen, setChosen] = useState<'local' | 'hosted'>('hosted');
+  const formMode = view.kind === 'form' || view.kind === 'starting' ? view.mode : undefined;
+  useEffect(() => {if (formMode) setChosen(formMode === 'local' ? 'local' : 'hosted');}, [formMode]);
+  const mode = view.kind === 'library' ? chosen : formMode === 'local' ? 'local' : 'hosted';
+  const steps = setupSteps({serverName: view.kind === 'library' && form.name?.trim() || serverName, mode, phase: view.kind === 'library' ? 'library' : 'form', local: mode === 'local',
+    owner: form.username.trim() || undefined});
   const showSteps = view.kind === 'form' || view.kind === 'starting' || view.kind === 'library';
   return <div className={styles.host}>
     {view.kind === 'library'

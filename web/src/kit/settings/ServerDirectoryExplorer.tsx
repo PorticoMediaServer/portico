@@ -67,6 +67,7 @@ export function ServerDirectoryExplorer({open, onOpenChange, api, onChoose, onCh
     if (root.kind === 'unc') {setTyping(true); setTyped(root.path);} else go(root.path);
   };
   const [page, setPage] = useState<Awaited<ReturnType<typeof browseServerFilesystem>>>();
+  const [marks, setMarks] = useState<Readonly<Record<string, Readonly<{library?: string; cannotBeChosen?: string}>>>>({});
   useLayoutEffect(() => {if (placesOpening && placesOpening.page !== page) {placesRef.current = undefined;setPlacesOpening(undefined);}}, [page, placesOpening]);
   const [typed, setTyped] = useState(''), [failed, setFailed] = useState(false), [busy, setBusy] = useState(false);
   const [uncPath, setUncPath] = useState('');
@@ -104,6 +105,11 @@ export function ServerDirectoryExplorer({open, onOpenChange, api, onChoose, onCh
         ? {...next, entries: [...previous.entries, ...next.entries.filter(entry => !previous.entries.some(value => value.path === entry.path))]}
         : next);
       setTyped(next.path);
+      // What each folder listed already is, kept for when it is the folder open: a library's own, or one no library can have.
+      setMarks(previous => {
+        const learnt = next.entries.filter(entry => entry.library || entry.cannotBeChosen);
+        return learnt.length ? {...previous, ...Object.fromEntries(learnt.map(entry => [entry.path, {library: entry.library, cannotBeChosen: entry.cannotBeChosen}]))} : previous;
+      });
     } catch {
       if (!active.signal.aborted && request.current === active) setFailed(true);
     } finally {
@@ -121,7 +127,8 @@ export function ServerDirectoryExplorer({open, onOpenChange, api, onChoose, onCh
   };
   const go = (path: string) => { if (current()) {setTyping(false); void read(path, showHidden);} };
   const toggle = (path: string) => {if (!current()) return; setChosen(previous => previous.includes(path) ? previous.filter(value => value !== path) : previous.length < 64 ? [...previous, path] : previous);};
-  const canChooseCurrent = current() && !!page?.path && typed === page.path && !busy && !failed;
+  const here = page?.path ? marks[page.path] : undefined;
+  const canChooseCurrent = current() && !!page?.path && typed === page.path && !busy && !failed && !here?.cannotBeChosen;
   const submit = () => {
     if (!current()) return;
     if (onChooseMany) {
@@ -220,10 +227,12 @@ export function ServerDirectoryExplorer({open, onOpenChange, api, onChoose, onCh
           {busy && !page ? <div aria-busy="true"><p role="status">{t('next.ownerLibraries.explorer.reading')}</p>{[0, 1, 2].map(index => <Skeleton key={index} height={52}/>)}</div> : null}
           {page && !page.path ? <div className={styles.pickerRoots}>{places.map(root => rootCard(root))}</div> : null}
           {page?.path ? <ul className={styles.pickerList}>{page.entries.filter(entry => entry.kind === 'directory').map(entry => <li key={entry.path} className={styles.pickerEntry} data-hidden={entry.hidden || undefined}>
-            {onChooseMany ? <input type="checkbox" aria-label={entry.path} checked={chosen.includes(entry.path)} disabled={!entry.readable || busy || !chosen.includes(entry.path) && chosen.length >= 64} onChange={() => toggle(entry.path)}/> : null}
-            <button type="button" className={styles.pickerRow} disabled={!entry.readable || busy} onClick={() => go(entry.path)}><span>{entry.name}</span></button>
+            {onChooseMany ? <input type="checkbox" aria-label={entry.path} checked={chosen.includes(entry.path)} disabled={!entry.readable || busy || !!entry.cannotBeChosen && !chosen.includes(entry.path) || !chosen.includes(entry.path) && chosen.length >= 64} onChange={() => toggle(entry.path)}/> : null}
+            <button type="button" className={styles.pickerRow} disabled={!entry.readable || busy} onClick={() => go(entry.path)}><span>{entry.name}</span>
+              {entry.library ? <small>{t('next.ownerLibraries.explorer.inLibrary', {library: entry.library})}</small> : null}{entry.cannotBeChosen ? <small>{entry.cannotBeChosen}</small> : null}</button>
             {entry.hidden ? <small>{t('next.ownerLibraries.explorer.hidden')}</small> : null}{entry.symlink ? <small>{t('next.ownerLibraries.explorer.link')}</small> : null}{!entry.readable ? <small>{t('next.ownerLibraries.explorer.noAccess')}</small> : null}
           </li>)}</ul> : null}
+          {here?.cannotBeChosen ? <p className={styles.pickerNote} role="note">{here.cannotBeChosen}</p> : here?.library ? <p className={styles.pickerNote}>{t('next.ownerLibraries.explorer.inLibrary', {library: here.library})}</p> : null}
           {page?.path && !page.entries.length ? <p className={styles.pickerNote}>{t('next.ownerLibraries.explorer.noFolders')}</p> : null}
           {page?.truncated && !page.nextCursor ? <p className={styles.pickerNote}>{t('next.ownerLibraries.explorer.truncated')}</p> : null}
           {checkWritable && page?.path && page.writableChecked ? <p className={styles.pickerNote}>{t(page.writable ? 'next.ownerLibraries.explorer.writable' : 'next.ownerLibraries.explorer.notWritable')}</p> : null}

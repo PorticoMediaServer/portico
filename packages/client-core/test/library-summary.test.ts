@@ -8,7 +8,13 @@ test('library summaries are one scoped read and retain exact/lower-bound counts'
  const rows=await readLibrarySummaries(api);assert.equal(calls,1);assert.equal(rows[0].summary.counts[0].count,24);assert.ok(Object.isFrozen(rows[0].summary.counts));assert.equal(parseLibrarySummary({...summary,counts:[{kind:'episode',count:20000,atLeast:true}]}).counts[0].atLeast,true);
  for(const bad of [{...summary,coverUrls:['https://provider.example/image']},{...summary,counts:[{kind:'movie',count:-1,atLeast:false}]},{...summary,counts:[{kind:'movie',count:1,atLeast:false},{kind:'movie',count:2,atLeast:false}]}])assert.throws(()=>parseLibrarySummary(bad));
 });
-test('folder explorer defaults to 200 folders and requests only explicit write checks',async()=>{
- const paths:string[]=[];const api={async request<T>(path:string){paths.push(path);return {result:{path:'/media',parent:'/',separator:'/',platform:'linux',writable:false,writableChecked:false,truncated:false,nextCursor:'',roots:[],entries:[],suggestions:[]}} as T;}};
- await browseServerFilesystem(api);await browseServerFilesystem(api,{path:'/media',showHidden:true,prefix:'Film',checkWritable:true});assert.match(paths[0],/limit=200/);assert.doesNotMatch(paths[0],/includeFiles|checkWritable/);assert.match(paths[1],/showHidden=1/);assert.match(paths[1],/checkWritable=1/);await assert.rejects(()=>browseServerFilesystem(api,{limit:201}));await assert.rejects(()=>browseServerFilesystem(api,{prefix:'../'}));
+test('the folder explorer asks for hidden and writable folders only when wanted, and shows which are a library\'s or cannot be one',async()=>{
+ const paths:string[]=[];
+ const api={async request<T>(path:string){paths.push(path);return {path:'/media',parent:'/',folders:[{name:'Films',path:'/media/Films',library:'Films'},{name:'portico',path:'/media/portico',cannotBeChosen:'This folder holds Portico\'s own data.'},{name:'Music',path:'/media/Music'}],nextCursor:'200'} as T;}};
+ const page=await browseServerFilesystem(api,{path:'/media'});
+ await browseServerFilesystem(api,{path:'/media',showHidden:true,checkWritable:true});
+ assert.equal(paths[0],'/v1/admin/filesystem?path=%2Fmedia');
+ assert.match(paths[1],/hidden=true/);assert.match(paths[1],/writable=true/);
+ assert.deepEqual(page.entries.map(entry=>[entry.name,entry.library,entry.cannotBeChosen]),[['Films','Films',undefined],['portico',undefined,'This folder holds Portico\'s own data.'],['Music',undefined,undefined]]);
+ assert.equal(page.nextCursor,'200');assert.equal(page.parent,'/');
 });
