@@ -200,6 +200,19 @@ func useEmbeddedTitle(b *batchTx, itemID, now int64) error {
 	return err
 }
 
+// TitleFile answers the path, inside its library folder, of the file a title's first version
+// starts with: what its name is read from. A title with no file is ErrNotFound.
+func (d *DB) TitleFile(ctx context.Context, itemID int64) (string, error) {
+	var rel string
+	err := d.read.QueryRowContext(ctx, `SELECT CASE WHEN dir.rel_path = '' THEN f.name ELSE dir.rel_path || '/' || f.name END
+		FROM media m JOIN media_parts p ON p.media_id = m.id AND p.position = 0 JOIN files f ON f.id = p.file_id
+		JOIN directories dir ON dir.id = f.directory_id WHERE m.item_id = ? ORDER BY m.position, m.id LIMIT 1`, itemID).Scan(&rel)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	return rel, err
+}
+
 // UseEmbeddedTitle is for the metadata service to call when a provider was asked about a
 // title and did not match it (after it has set refreshed_at): the title then takes the one
 // written inside its file, if there is one and nothing better names it.

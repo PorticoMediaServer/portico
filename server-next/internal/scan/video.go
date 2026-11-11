@@ -61,6 +61,14 @@ func providerKeys(r *naming.Reading, kind string) ([]db.ItemKey, []db.ExternalID
 }
 
 // title is the title and year the names give a file, falling back to its cleaned file name.
+// FileTitle is the name and year a scan gives a title from one of its files, rel being the
+// file's path inside its library folder. A lookup searches by it, never by a title written
+// inside the file, which is often a release's name.
+func FileTitle(libraryKind, rel string) (string, int) {
+	reading := naming.Read(readPath(rel), namesKind(libraryKind))
+	return title(&found{rel: rel, reading: &reading})
+}
+
 func title(file *found) (string, int) {
 	name, year := file.reading.PreferredTitle()
 	if name == "" {

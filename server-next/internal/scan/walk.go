@@ -553,9 +553,12 @@ func (r *run) units(f *folder) []unit {
 }
 
 // readPath is the path the naming rules read for a file. A disc is read as its folder.
-func (r *run) readPath(file *found) string {
-	if dir := path.Dir(file.rel); discFolder(path.Base(dir)) {
+func (r *run) readPath(file *found) string { return readPath(file.rel) }
+
+// readPath is the path a file's name is read from: a disc folder's own, for a file inside one.
+func readPath(rel string) string {
+	if dir := path.Dir(rel); discFolder(path.Base(dir)) {
 		return dir
 	}
-	return file.rel
+	return rel
 }
