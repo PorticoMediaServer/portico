@@ -1,14 +1,18 @@
 import {serverNow} from '../../../../packages/client-core/src/server-clock';
 import {ApiError} from '../../../../packages/client-core/src';
-import {PeopleInvitationsClient, type PublicInvitation} from '../../../../packages/client-core/src/direct-account';
+import type {PublicInvitation} from '../../../../packages/client-core/src/direct-account';
+import {previewServerInvitation} from '../../../../packages/client-core/src/invitation-join';
 import type {ProfileAPI} from '../../../../packages/client-core/src/profile-management';
 import {parseShortInvitationCode, formatShortInvitationCode} from '../../../../packages/client-core/src/short-invitation-code';
 import {routeOrigin} from '../../../../packages/client-core/src/route-identity';
 import {parseJoinLink} from '../../../../packages/client-core/src/join-link';
 import {passwordStrength} from '../../../../packages/client-core/src/password-strength';
 
-type Capability = Readonly<{code: string} | {shortCode: string}>;
-type Ports<T> = {api: ProfileAPI; origin: string; serverId: string; current: () => boolean; signIn: (username: string, password: string) => Promise<T>};
+export type Capability = Readonly<{code: string} | {shortCode: string}>;
+/** `accept` joins and keeps the sign-in the server answers with; `signIn` is the ordinary password sign-in, for a
+ * join that already succeeded on this page. */
+type Ports<T> = {api: ProfileAPI; origin: string; serverId: string; current: () => boolean; signIn: (username: string, password: string) => Promise<T>;
+  accept: (capability: Capability, username: string, password: string, name: string) => Promise<T>};
 class InvitationExpired extends Error {}
 const cancelled = () => Object.assign(new Error('invitation_retired'), {name: 'AbortError'});
 
@@ -28,18 +32,18 @@ export class NativeLocalInvitation<T> {
   static formatCode(raw: string) {return formatShortInvitationCode(raw) ?? raw;}
   private readonly ports: Ports<T>;
   private readonly abort = new AbortController();
-  private readonly client: PeopleInvitationsClient;
+  private readonly guarded: ProfileAPI;
   private invitation?: {capability: Capability; preview: PublicInvitation};
   private accepted?: {preview: PublicInvitation; username: string};
   private shortEntry = false;
   private busy = false;
   constructor(ports: Ports<T>) {
     this.ports = ports;
-    this.client = new PeopleInvitationsClient({request: async <R,>(path: string, method?: string, body?: unknown) => {
+    this.guarded = {request: async <R,>(path: string, method?: string, body?: unknown) => {
       this.assertCurrent();
       try {const result = await ports.api.request<R>(path, method, body, this.abort.signal); this.assertCurrent(); return result;}
       catch (error) {this.assertCurrent(); throw error;}
-    }});
+    }} as ProfileAPI;
   }
   current = () => !this.abort.signal.aborted;
   private assertCurrent() {if (!this.current() || !this.ports.current()) throw cancelled();}
@@ -52,7 +56,7 @@ export class NativeLocalInvitation<T> {
     const capability: Capability = shortCode ? {shortCode} : {code: link!.code};
     this.busy = true; this.invitation = undefined;
     try {
-      const preview = 'shortCode' in capability ? await this.client.previewShort(capability.shortCode, this.abort.signal) : await this.client.preview(capability.code, this.abort.signal); this.assertCurrent();
+      const preview = await previewServerInvitation(this.guarded, capability, this.abort.signal); this.assertCurrent();
       if (preview.signInMethod !== 'local') throw cancelled();
       if (Date.parse(preview.expiresAt) <= serverNow()) throw new InvitationExpired();
       this.invitation = {capability, preview}; return preview;
@@ -67,20 +71,21 @@ export class NativeLocalInvitation<T> {
     if (this.accepted && (this.accepted.preview !== preview || this.accepted.username !== user)) throw cancelled();
     this.busy = true;
     try {
-      if (!this.accepted) {
-        await this.client.acceptLocal({...invitation!.capability, username: user, password, ...(label ? {name: label} : {})}, this.abort.signal);
-        this.assertCurrent(); this.accepted = {preview, username: user}; this.invitation = undefined;
-      }
       this.assertCurrent();
-      // Creation gives no admission. The existing password command owns every returned grant.
-      return await this.ports.signIn(user, password);
+      if (this.accepted) return await this.ports.signIn(user, password);
+      // Joining is the sign-in: the account is made and this device signed in by the same answer, which the sign-in
+      // command keeps. Sent again after a lost answer, the server signs in to the account the first one made.
+      const signedIn = await this.ports.accept(invitation!.capability, user, password, label);
+      this.accepted = {preview, username: user}; this.invitation = undefined;
+      return signedIn;
     } catch (error) {this.assertCurrent(); throw error;} finally {this.busy = false;}
   }
   failure(error: unknown): 'expired' | 'username' | 'unavailable' | undefined {
     if (this.shortEntry && !this.accepted && (error instanceof InvitationExpired || error instanceof ApiError && (
       error.status === 410 && error.code === 'invitation_expired'
       || error.status === 403 && error.code === 'invitation_for_another_account'))) return 'unavailable';
-    if (error instanceof InvitationExpired || error instanceof ApiError && error.status === 410 && error.code === 'invitation_expired') return 'expired';
+    // The rebuilt server answers a used, ended or unknown code with 404 `invitation_not_found`.
+    if (error instanceof InvitationExpired || error instanceof ApiError && (error.status === 410 && error.code === 'invitation_expired' || error.status === 404 && error.code === 'invitation_not_found')) return 'expired';
     if (error instanceof ApiError && error.status === 409 && error.code === 'username_taken') return 'username';
     return undefined;
   }
