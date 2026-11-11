@@ -1,0 +1,239 @@
+{
+ "source": "app table with invented probe answers, not captured from a device",
+ "document": {
+  "version": 2,
+  "client": {
+   "family": "web",
+   "form": "browser",
+   "app": "portico-web"
+  },
+  "engineSetting": "automatic",
+  "display": {
+   "dynamicRanges": [
+    "sdr"
+   ]
+  },
+  "audioOutput": {
+   "maxChannels": 2
+  },
+  "engines": {
+   "native": {
+    "name": "chromium",
+    "evidence": "probed",
+    "video": [
+     {
+      "codec": "h264",
+      "bitDepths": [
+       8
+      ],
+      "dynamicRanges": [
+       "sdr"
+      ],
+      "evidence": "probed",
+      "chromaSubsampling": [
+       "4:2:0"
+      ],
+      "maxWidth": 7680,
+      "maxHeight": 4320,
+      "maxFrameRate": 60,
+      "limits": [
+       {
+        "bitDepths": [
+         8
+        ],
+        "maxWidth": 7680,
+        "maxHeight": 4320,
+        "maxFrameRate": 60
+       }
+      ]
+     },
+     {
+      "codec": "av1",
+      "bitDepths": [
+       8,
+       10
+      ],
+      "dynamicRanges": [
+       "sdr"
+      ],
+      "evidence": "probed",
+      "chromaSubsampling": [
+       "4:2:0"
+      ],
+      "maxWidth": 7680,
+      "maxHeight": 4320,
+      "maxFrameRate": 60,
+      "limits": [
+       {
+        "bitDepths": [
+         8
+        ],
+        "maxWidth": 7680,
+        "maxHeight": 4320,
+        "maxFrameRate": 60
+       },
+       {
+        "bitDepths": [
+         10
+        ],
+        "maxWidth": 7680,
+        "maxHeight": 4320,
+        "maxFrameRate": 60
+       }
+      ]
+     },
+     {
+      "codec": "vp9",
+      "bitDepths": [
+       8,
+       10
+      ],
+      "dynamicRanges": [
+       "sdr"
+      ],
+      "evidence": "probed",
+      "chromaSubsampling": [
+       "4:2:0"
+      ],
+      "maxWidth": 7680,
+      "maxHeight": 4320,
+      "maxFrameRate": 60,
+      "limits": [
+       {
+        "bitDepths": [
+         8
+        ],
+        "maxWidth": 7680,
+        "maxHeight": 4320,
+        "maxFrameRate": 60
+       },
+       {
+        "bitDepths": [
+         10
+        ],
+        "maxWidth": 7680,
+        "maxHeight": 4320,
+        "maxFrameRate": 60
+       }
+      ]
+     }
+    ],
+    "audio": [
+     {
+      "codec": "aac",
+      "maxChannels": 6,
+      "evidence": "probed"
+     },
+     {
+      "codec": "mp3",
+      "maxChannels": 2,
+      "evidence": "probed"
+     },
+     {
+      "codec": "flac",
+      "maxChannels": 6,
+      "evidence": "probed"
+     },
+     {
+      "codec": "opus",
+      "maxChannels": 6,
+      "evidence": "probed"
+     },
+     {
+      "codec": "vorbis",
+      "maxChannels": 6,
+      "evidence": "probed"
+     }
+    ],
+    "transports": [
+     {
+      "transport": "direct",
+      "containers": [
+       "mp4",
+       "m4v",
+       "mov"
+      ],
+      "video": [
+       "h264",
+       "av1"
+      ],
+      "audio": [
+       "aac",
+       "mp3",
+       "flac",
+       "opus"
+      ]
+     },
+     {
+      "transport": "direct",
+      "containers": [
+       "webm"
+      ],
+      "video": [
+       "av1",
+       "vp9"
+      ],
+      "audio": [
+       "opus",
+       "vorbis"
+      ]
+     },
+     {
+      "transport": "direct",
+      "containers": [
+       "m4a",
+       "m4b",
+       "aac",
+       "mp3",
+       "flac",
+       "opus",
+       "ogg"
+      ],
+      "video": [],
+      "audio": [
+       "aac",
+       "mp3",
+       "flac",
+       "opus",
+       "vorbis"
+      ]
+     },
+     {
+      "transport": "hls_ts",
+      "containers": [
+       "mpegts"
+      ],
+      "video": [
+       "h264"
+      ],
+      "audio": [
+       "aac",
+       "mp3"
+      ]
+     },
+     {
+      "transport": "hls_fmp4",
+      "containers": [
+       "fmp4"
+      ],
+      "video": [
+       "h264",
+       "av1"
+      ],
+      "audio": [
+       "aac",
+       "mp3",
+       "flac",
+       "opus"
+      ]
+     }
+    ],
+    "subtitleRendering": [
+     "text"
+    ],
+    "toneMapsHdr": false,
+    "embeddedAudioSwitching": false
+   }
+  }
+ }
+}

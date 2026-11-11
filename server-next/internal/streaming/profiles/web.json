@@ -1,0 +1,100 @@
+{
+ "source": "app table: written from documentation, not measured on a device",
+ "document": {
+  "version": 2,
+  "client": {
+   "family": "web",
+   "form": "browser",
+   "app": "portico-web"
+  },
+  "engineSetting": "automatic",
+  "display": {
+   "dynamicRanges": [
+    "sdr"
+   ]
+  },
+  "audioOutput": {
+   "maxChannels": 2
+  },
+  "engines": {
+   "native": {
+    "name": "hls.js",
+    "evidence": "declared",
+    "video": [
+     {
+      "codec": "h264",
+      "evidence": "declared",
+      "bitDepths": [
+       8
+      ],
+      "maxWidth": 4096,
+      "maxHeight": 2160,
+      "maxFrameRate": 60,
+      "dynamicRanges": [
+       "sdr"
+      ]
+     }
+    ],
+    "audio": [
+     {
+      "codec": "aac",
+      "maxChannels": 2,
+      "evidence": "declared"
+     },
+     {
+      "codec": "mp3",
+      "maxChannels": 2,
+      "evidence": "declared"
+     }
+    ],
+    "transports": [
+     {
+      "transport": "direct",
+      "containers": [
+       "mp4",
+       "m4v",
+       "mov"
+      ],
+      "video": [
+       "h264"
+      ],
+      "audio": [
+       "aac",
+       "mp3"
+      ]
+     },
+     {
+      "transport": "direct",
+      "containers": [
+       "mp3",
+       "m4a",
+       "m4b",
+       "aac"
+      ],
+      "video": [],
+      "audio": [
+       "aac",
+       "mp3"
+      ]
+     },
+     {
+      "transport": "hls_ts",
+      "containers": [
+       "mpegts"
+      ],
+      "video": [
+       "h264"
+      ],
+      "audio": [
+       "aac",
+       "mp3"
+      ]
+     }
+    ],
+    "subtitleRendering": [
+     "text"
+    ]
+   }
+  }
+ }
+}

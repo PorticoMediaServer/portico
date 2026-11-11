@@ -3,7 +3,6 @@ package streaming
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
@@ -14,13 +13,13 @@ import (
 // named variants changed (older hardware, no HEVC hardware, or player setting).
 func plannerDocuments(t *testing.T) map[string]CapabilityDocument {
 	t.Helper()
-	raw, err := os.ReadFile("testdata/client-profiles.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var documents map[string]CapabilityDocument
-	if err := json.Unmarshal(raw, &documents); err != nil {
-		t.Fatal(err)
+	documents := map[string]CapabilityDocument{}
+	for _, name := range profileNames(t) {
+		var d CapabilityDocument
+		if err := json.Unmarshal(profileDocument(t, name), &d); err != nil {
+			t.Fatal(err)
+		}
+		documents[name] = d
 	}
 	old := documents["tvos"]
 	old.Engines.Native.Video = append([]ClientVideoCodec{}, old.Engines.Native.Video[:1]...)

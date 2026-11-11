@@ -1,0 +1,62 @@
+{
+ "source": "built into the server: the stream prepared for a screen reached over AirPlay",
+ "document": {
+  "version": 2,
+  "client": {
+   "family": "unknown"
+  },
+  "engineSetting": "automatic",
+  "display": {
+   "dynamicRanges": [
+    "sdr"
+   ]
+  },
+  "audioOutput": {
+   "maxChannels": 2
+  },
+  "engines": {
+   "native": {
+    "evidence": "builtin",
+    "video": [
+     {
+      "codec": "h264",
+      "bitDepths": [
+       8
+      ],
+      "maxFrameRate": 60,
+      "dynamicRanges": [
+       "sdr"
+      ]
+     }
+    ],
+    "audio": [
+     {
+      "codec": "aac",
+      "maxChannels": 2
+     },
+     {
+      "codec": "mp3",
+      "maxChannels": 2
+     }
+    ],
+    "transports": [
+     {
+      "transport": "hls_ts",
+      "containers": [
+       "mpegts"
+      ],
+      "video": [
+       "h264"
+      ],
+      "audio": [
+       "aac"
+      ]
+     }
+    ],
+    "subtitleRendering": [
+     "text"
+    ]
+   }
+  }
+ }
+}

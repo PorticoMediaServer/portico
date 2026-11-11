@@ -824,31 +824,8 @@ func ParseClientProfile(raw []byte) (ClientProfile, error) {
 // BaselineCapabilityDocument is what a device that has published nothing is
 // planned against: MP4 with H.264 and AAC or MP3 plays as it is, MPEG-TS HLS
 // carries H.264 with stereo AAC, text subtitles are drawn by the app, and
-// nothing else is assumed.
-func BaselineCapabilityDocument() CapabilityDocument {
-	d := CapabilityDocument{
-		Version:       CapabilityDocumentVersion,
-		Client:        ClientIdentity{Family: "unknown"},
-		EngineSetting: EngineSettingAutomatic,
-		Display:       ClientDisplay{DynamicRanges: []string{"sdr"}},
-		AudioOutput:   ClientAudioOutput{MaxChannels: 2},
-		Engines: CapabilityEngines{Native: &EngineCapabilities{
-			Evidence: EvidenceBuiltin,
-			Video:    []ClientVideoCodec{{Codec: "h264", MaxFrameRate: 60, BitDepths: []int{8}, DynamicRanges: []string{"sdr"}}},
-			Audio:    []ClientAudioCodec{{Codec: "aac", MaxChannels: 2}, {Codec: "mp3", MaxChannels: 2}},
-			Transports: []ClientTransport{
-				{Transport: TransportDirect, Containers: []string{"m4v", "mov", "mp4"}, Video: []string{"h264"}, Audio: []string{"aac", "mp3"}},
-				{Transport: TransportDirect, Containers: []string{"aac", "m4a", "m4b", "mp4"}, Video: []string{}, Audio: []string{"aac"}},
-				{Transport: TransportDirect, Containers: []string{"mp3"}, Video: []string{}, Audio: []string{"mp3"}},
-				{Transport: TransportHLSTS, Containers: []string{"mpegts"}, Video: []string{"h264"}, Audio: []string{"aac", "mp3"}},
-			},
-			SubtitleRendering: []string{SubtitleText},
-		}},
-	}
-	d.normalize()
-	d.Revision = "baseline"
-	return d
-}
+// nothing else is assumed. It is profiles/baseline.json.
+func BaselineCapabilityDocument() CapabilityDocument { return builtinDocument("baseline") }
 
 // BaselineClientProfile is the baseline document's native engine.
 func BaselineClientProfile() ClientProfile {

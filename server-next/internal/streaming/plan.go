@@ -156,11 +156,7 @@ func (r PlanRequest) deliveryInput() DeliveryInput {
 	}
 	if choice.AirPlay {
 		input.Device = nil
-		input.Client = BaselineClientProfile()
-		input.Client.Transports = []ClientTransport{{
-			Transport: TransportHLSTS, Containers: []string{"mpegts"}, Video: []string{"h264"}, Audio: []string{"aac"},
-		}}
-		input.Client.SubtitleRendering = []string{SubtitleText}
+		input.Client = builtinDocument("airplay").Profile(EngineNative)
 		input.Engine = EngineNative
 	}
 	input.BurnIn = r.BurnIn != nil

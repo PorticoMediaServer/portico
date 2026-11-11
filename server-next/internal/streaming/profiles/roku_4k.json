@@ -1,0 +1,273 @@
+{
+ "source": "app table: a draft from general knowledge, unconfirmed on a device",
+ "document": {
+  "version": 2,
+  "engineSetting": "automatic",
+  "client": {
+   "family": "roku",
+   "form": "tv",
+   "platform": "roku",
+   "os": "roku",
+   "app": "portico-roku"
+  },
+  "display": {
+   "width": 3840,
+   "height": 2160,
+   "dynamicRanges": [
+    "sdr",
+    "hdr10",
+    "hlg",
+    "hdr10plus",
+    "dolby_vision"
+   ],
+   "maxFrameRate": 60
+  },
+  "audioOutput": {
+   "route": "hdmi",
+   "maxChannels": 2
+  },
+  "engines": {
+   "native": {
+    "name": "roku-video",
+    "evidence": "declared",
+    "video": [
+     {
+      "codec": "h264",
+      "evidence": "declared",
+      "bitDepths": [
+       8,
+       10
+      ],
+      "maxWidth": 3840,
+      "maxHeight": 2160,
+      "maxLevel": 51,
+      "maxFrameRate": 60,
+      "dynamicRanges": [
+       "sdr",
+       "dolby_vision"
+      ],
+      "dolbyVisionProfiles": [
+       9
+      ],
+      "codecTags": [
+       "avc1",
+       "dva1",
+       "dvav"
+      ]
+     },
+     {
+      "codec": "hevc",
+      "evidence": "declared",
+      "bitDepths": [
+       8,
+       10
+      ],
+      "maxWidth": 3840,
+      "maxHeight": 2160,
+      "maxLevel": 153,
+      "maxFrameRate": 60,
+      "dynamicRanges": [
+       "sdr",
+       "hdr10",
+       "hlg",
+       "hdr10plus",
+       "dolby_vision"
+      ],
+      "dolbyVisionProfiles": [
+       5
+      ],
+      "codecTags": [
+       "dvh1",
+       "dvhe",
+       "hev1",
+       "hvc1"
+      ]
+     },
+     {
+      "codec": "vp9",
+      "evidence": "declared",
+      "bitDepths": [
+       8,
+       10
+      ],
+      "maxWidth": 3840,
+      "maxHeight": 2160,
+      "maxFrameRate": 60,
+      "dynamicRanges": [
+       "sdr",
+       "hdr10",
+       "hlg"
+      ]
+     },
+     {
+      "codec": "av1",
+      "evidence": "declared",
+      "bitDepths": [
+       8,
+       10
+      ],
+      "maxWidth": 3840,
+      "maxHeight": 2160,
+      "maxFrameRate": 60,
+      "dynamicRanges": [
+       "sdr",
+       "hdr10",
+       "hlg",
+       "hdr10plus"
+      ]
+     }
+    ],
+    "audio": [
+     {
+      "codec": "aac",
+      "maxChannels": 6,
+      "evidence": "declared"
+     },
+     {
+      "codec": "mp3",
+      "maxChannels": 2,
+      "evidence": "declared"
+     },
+     {
+      "codec": "flac",
+      "maxChannels": 2,
+      "evidence": "declared"
+     },
+     {
+      "codec": "pcm",
+      "maxChannels": 2,
+      "evidence": "declared"
+     },
+     {
+      "codec": "alac",
+      "maxChannels": 2,
+      "evidence": "declared"
+     },
+     {
+      "codec": "opus",
+      "maxChannels": 2,
+      "evidence": "declared"
+     },
+     {
+      "codec": "vorbis",
+      "maxChannels": 2,
+      "evidence": "declared"
+     }
+    ],
+    "audioPassthrough": [
+     {
+      "codec": "ac3",
+      "maxChannels": 6,
+      "evidence": "declared"
+     },
+     {
+      "codec": "eac3",
+      "maxChannels": 8,
+      "evidence": "declared",
+      "objectAudio": [
+       "atmos"
+      ]
+     },
+     {
+      "codec": "dts",
+      "maxChannels": 8,
+      "evidence": "declared",
+      "variants": [
+       "dts_core"
+      ]
+     }
+    ],
+    "transports": [
+     {
+      "transport": "direct",
+      "containers": [
+       "mp4",
+       "m4v",
+       "mov",
+       "mkv",
+       "ts",
+       "m2ts"
+      ],
+      "video": [
+       "h264",
+       "hevc",
+       "vp9",
+       "av1"
+      ],
+      "audio": [
+       "aac",
+       "mp3",
+       "ac3",
+       "eac3",
+       "flac",
+       "pcm",
+       "alac",
+       "opus",
+       "vorbis",
+       "dts"
+      ]
+     },
+     {
+      "transport": "direct",
+      "containers": [
+       "mp3",
+       "m4a",
+       "aac",
+       "flac",
+       "wav",
+       "ogg"
+      ],
+      "video": [],
+      "audio": [
+       "aac",
+       "mp3",
+       "flac",
+       "pcm",
+       "alac",
+       "opus",
+       "vorbis"
+      ]
+     },
+     {
+      "transport": "hls_ts",
+      "containers": [
+       "mpegts"
+      ],
+      "video": [
+       "h264",
+       "hevc",
+       "vp9",
+       "av1"
+      ],
+      "audio": [
+       "aac",
+       "mp3",
+       "ac3",
+       "eac3"
+      ]
+     },
+     {
+      "transport": "hls_fmp4",
+      "containers": [
+       "fmp4"
+      ],
+      "video": [
+       "h264",
+       "hevc",
+       "vp9",
+       "av1"
+      ],
+      "audio": [
+       "aac",
+       "ac3",
+       "eac3"
+      ]
+     }
+    ],
+    "subtitleRendering": [
+     "text"
+    ]
+   }
+  }
+ }
+}

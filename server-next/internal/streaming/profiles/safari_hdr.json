@@ -1,0 +1,205 @@
+{
+ "source": "app table with invented probe answers, not captured from a device",
+ "document": {
+  "version": 2,
+  "client": {
+   "family": "web",
+   "form": "browser",
+   "app": "portico-web"
+  },
+  "engineSetting": "automatic",
+  "display": {
+   "dynamicRanges": [
+    "sdr",
+    "hdr10",
+    "hlg"
+   ]
+  },
+  "audioOutput": {
+   "maxChannels": 6
+  },
+  "engines": {
+   "native": {
+    "name": "safari",
+    "evidence": "probed",
+    "video": [
+     {
+      "codec": "h264",
+      "bitDepths": [
+       8
+      ],
+      "dynamicRanges": [
+       "sdr"
+      ],
+      "evidence": "probed",
+      "chromaSubsampling": [
+       "4:2:0"
+      ],
+      "maxWidth": 7680,
+      "maxHeight": 4320,
+      "maxFrameRate": 60,
+      "limits": [
+       {
+        "bitDepths": [
+         8
+        ],
+        "maxWidth": 7680,
+        "maxHeight": 4320,
+        "maxFrameRate": 60
+       }
+      ]
+     },
+     {
+      "codec": "hevc",
+      "bitDepths": [
+       8,
+       10
+      ],
+      "dynamicRanges": [
+       "sdr",
+       "hdr10",
+       "hlg"
+      ],
+      "evidence": "probed",
+      "chromaSubsampling": [
+       "4:2:0"
+      ],
+      "codecTags": [
+       "hvc1"
+      ],
+      "maxWidth": 7680,
+      "maxHeight": 4320,
+      "maxFrameRate": 60,
+      "limits": [
+       {
+        "bitDepths": [
+         8
+        ],
+        "maxWidth": 7680,
+        "maxHeight": 4320,
+        "maxFrameRate": 60
+       },
+       {
+        "bitDepths": [
+         10
+        ],
+        "maxWidth": 7680,
+        "maxHeight": 4320,
+        "maxFrameRate": 60
+       }
+      ]
+     }
+    ],
+    "audio": [
+     {
+      "codec": "aac",
+      "maxChannels": 6,
+      "evidence": "probed"
+     },
+     {
+      "codec": "mp3",
+      "maxChannels": 2,
+      "evidence": "probed"
+     },
+     {
+      "codec": "ac3",
+      "maxChannels": 6,
+      "evidence": "probed"
+     },
+     {
+      "codec": "eac3",
+      "maxChannels": 8,
+      "evidence": "probed"
+     },
+     {
+      "codec": "flac",
+      "maxChannels": 6,
+      "evidence": "probed"
+     },
+     {
+      "codec": "alac",
+      "maxChannels": 6,
+      "evidence": "probed"
+     }
+    ],
+    "transports": [
+     {
+      "transport": "direct",
+      "containers": [
+       "mp4",
+       "m4v",
+       "mov"
+      ],
+      "video": [
+       "h264",
+       "hevc"
+      ],
+      "audio": [
+       "aac",
+       "mp3",
+       "ac3",
+       "eac3",
+       "flac",
+       "alac"
+      ]
+     },
+     {
+      "transport": "direct",
+      "containers": [
+       "m4a",
+       "m4b",
+       "aac",
+       "mp3",
+       "flac"
+      ],
+      "video": [],
+      "audio": [
+       "aac",
+       "mp3",
+       "flac",
+       "alac"
+      ]
+     },
+     {
+      "transport": "hls_ts",
+      "containers": [
+       "mpegts"
+      ],
+      "video": [
+       "h264"
+      ],
+      "audio": [
+       "aac",
+       "mp3",
+       "ac3",
+       "eac3"
+      ]
+     },
+     {
+      "transport": "hls_fmp4",
+      "containers": [
+       "fmp4"
+      ],
+      "video": [
+       "h264",
+       "hevc"
+      ],
+      "audio": [
+       "aac",
+       "mp3",
+       "ac3",
+       "eac3",
+       "flac",
+       "alac"
+      ]
+     }
+    ],
+    "subtitleRendering": [
+     "text"
+    ],
+    "toneMapsHdr": false,
+    "embeddedAudioSwitching": true
+   }
+  }
+ }
+}

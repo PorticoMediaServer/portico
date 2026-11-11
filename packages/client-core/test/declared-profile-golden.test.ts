@@ -1,9 +1,21 @@
-import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';
+import test from 'node:test';import assert from 'node:assert/strict';import {existsSync,readFileSync,writeFileSync} from 'node:fs';
 import {declaredProfiles,appleTVRuntimeFacts} from './declared-profile-fixtures.ts';
 import {appleProfile,capabilityDocumentProblem,withMpvEngine} from '../src/client-profile.ts';
-test('Go planner capability fixtures exactly match the declared client tables',()=>{
- for(const [name,profile] of Object.entries(declaredProfiles)) assert.equal(capabilityDocumentProblem(profile),null,name);
- assert.deepEqual(JSON.parse(JSON.stringify(declaredProfiles)),JSON.parse(readFileSync(new URL('../../../server/internal/playback/testdata/client-profiles.json',import.meta.url),'utf8')));
+// The server keeps one recorded copy of every table here, with the routes it expects for each
+// (server-next/internal/streaming/profiles). This holds the copy equal to the table, so what an
+// app sends and what the server's cases were written against cannot drift apart.
+// WRITE_PROFILES=1 rewrites the copies from the tables, and adds the file for a new table.
+test('the server\'s recorded profiles are exactly the declared client tables',()=>{
+ const folder=new URL('../../../server-next/internal/streaming/profiles/',import.meta.url);
+ for(const [name,profile] of Object.entries(declaredProfiles)){
+  assert.equal(capabilityDocumentProblem(profile),null,name);
+  const file=new URL(name+'.json',folder),document=JSON.parse(JSON.stringify(profile));
+  if(process.env.WRITE_PROFILES){
+   const source=existsSync(file)?JSON.parse(readFileSync(file,'utf8')).source:'app table: written from documentation, not measured on a device';
+   writeFileSync(file,JSON.stringify({source,document},null,1)+'\n');
+  }
+  assert.deepEqual(JSON.parse(readFileSync(file,'utf8')).document,document,name);
+ }
 });
 test('synthetic Apple positives require their exact MIME and JOC route responses independently',()=>{
  const noMime=appleProfile({television:true},{...appleTVRuntimeFacts,videoEligibility:undefined});
