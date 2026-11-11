@@ -95,6 +95,9 @@ func TestSystemAndTheErrorFormat(t *testing.T) {
 	if w := call(t, s, "GET", "/v1/system", "", nil, &system); w.Code != 200 {
 		t.Fatalf("system answered %d", w.Code)
 	}
+	if system.SetupCodeFile != s.setupFile || !filepath.IsAbs(system.SetupCodeFile) {
+		t.Fatalf("the setup page is not told where the setup code is: %q", system.SetupCodeFile)
+	}
 	if !system.SetupRequired || system.APIMajor != 1 || system.Capabilities == nil || !strings.HasPrefix(system.ID, "srv_") {
 		t.Fatalf("unexpected system answer: %+v", system)
 	}

@@ -347,7 +347,7 @@ func (s *Server) setupOwner(r *http.Request, req SetupOwnerRequest) (SignInRespo
 	// Anyone who can reach a new server could otherwise make themselves its owner.
 	if s.setupCode == "" || subtle.ConstantTimeCompare([]byte(auth.CodeKey(req.SetupCode)), []byte(auth.CodeKey(s.setupCode))) != 1 {
 		return SignInResponse{}, refusal(http.StatusForbidden, "setup_code_invalid",
-			"That setup code is not correct. It is in the server's log and in setup-code.txt in its data folder.", false)
+			"That setup code is not correct. It is in the server's log and, on the server's own disk, in "+s.setupFile+".", false)
 	}
 	hash, err := s.passwords.Hash(ctx, req.Password)
 	if err != nil {

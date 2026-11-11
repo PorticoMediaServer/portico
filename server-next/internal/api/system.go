@@ -19,6 +19,10 @@ type System struct {
 	Capabilities []string `json:"capabilities"`
 	// SetupRequired is true until the owner account exists.
 	SetupRequired bool `json:"setupRequired"`
+	// SetupCodeFile is the file on the server's own disk that holds the setup code, told
+	// while setup is required so the setup page can say where to look. It is a place, not
+	// the code: reading it takes access to the server's disk.
+	SetupCodeFile string `json:"setupCodeFile,omitempty"`
 	// SignInMethods lists the ways to sign in, in the order to offer them.
 	SignInMethods []string `json:"signInMethods"`
 }
@@ -48,6 +52,9 @@ func (s *Server) systemRoutes() {
 		}
 		out := System{ID: s.id, Name: s.serverName(), APIMajor: APIMajor, Capabilities: []string{},
 			SetupRequired: !hasUsers, SignInMethods: []string{"password"}}
+		if !hasUsers {
+			out.SetupCodeFile = s.setupFile
+		}
 		if _, err := s.admit(r, &Route{Access: SignedIn, Scope: ScopeRead}); err == nil {
 			out.Version = s.version
 		}

@@ -111,8 +111,8 @@ func TestSetupSignInAndChooseAProfile(t *testing.T) {
 	}
 	var system System
 	call(t, s, "GET", "/v1/system", "", nil, &system)
-	if system.SetupRequired {
-		t.Fatal("setup is still required after the owner was created")
+	if system.SetupRequired || system.SetupCodeFile != "" {
+		t.Fatal("setup is still required, or the setup code's place still told, after the owner was created")
 	}
 	var chosen Session
 	if w := call(t, s, "POST", "/v1/profiles/"+first.Profiles[0].ID+"/select", first.Session.AccessToken, ProfileSelect{}, &chosen); w.Code != 200 {
