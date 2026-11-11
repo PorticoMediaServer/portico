@@ -2,6 +2,8 @@ package api
 
 import (
 	"net/http"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/settings"
 )
 
 // System is what an app reads before sign-in to learn what this server is and can do.
@@ -40,15 +42,11 @@ func (s *Server) systemRoutes() {
 		return Health{Status: "ok"}, nil
 	})
 	Handle(s, "GET /v1/system", Public, func(r *http.Request, _ None) (System, error) {
-		name, err := s.serverName(r)
-		if err != nil {
-			return System{}, err
-		}
 		hasUsers, err := s.db.HasUsers(r.Context())
 		if err != nil {
 			return System{}, err
 		}
-		out := System{ID: s.id, Name: name, APIMajor: APIMajor, Capabilities: []string{},
+		out := System{ID: s.id, Name: s.serverName(), APIMajor: APIMajor, Capabilities: []string{},
 			SetupRequired: !hasUsers, SignInMethods: []string{"password"}}
 		if _, err := s.admit(r, &Route{Access: SignedIn, Scope: ScopeRead}); err == nil {
 			out.Version = s.version
@@ -57,11 +55,5 @@ func (s *Server) systemRoutes() {
 	})
 }
 
-// serverName is the name the owner gave this server, or "Portico" until they do.
-func (s *Server) serverName(r *http.Request) (string, error) {
-	name, ok, err := s.db.Setting(r.Context(), "server.name")
-	if err == nil && !ok {
-		name = "Portico"
-	}
-	return name, err
-}
+// serverName is the name the owner gave this server in Settings › General.
+func (s *Server) serverName() string { return settings.General.Get(s.settings).Name }

@@ -151,9 +151,8 @@ func (s *Server) enrolTwoFactor(r *http.Request, req TwoFactorEnrol) (TwoFactorS
 	if err != nil {
 		return TwoFactorSetup{}, err
 	}
-	name, err := s.serverName(r)
-	text, uri := auth.TOTPSetup(secret, name, account.Username)
-	return TwoFactorSetup{Secret: text, URI: uri}, err
+	text, uri := auth.TOTPSetup(secret, s.serverName(), account.Username)
+	return TwoFactorSetup{Secret: text, URI: uri}, nil
 }
 
 func (s *Server) verifyTwoFactor(r *http.Request, req TwoFactorVerify) (RecoveryCodes, error) {
