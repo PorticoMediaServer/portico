@@ -42,10 +42,14 @@ func moodLibrary(t *testing.T) (*library, []db.ItemDetail, []db.ItemDetail) {
 	return l, films, shows
 }
 
-// moodRows asks for the profile's mood rows, lets them be chosen as the server does in the
-// background, and reads them as Home's next request would.
+// moodRows answers the profile's mood rows once they are up to date: the background reads the
+// changes so far, Home asks, the rows are chosen as the server does in the background, and Home
+// reads them on its next request.
 func moodRows(t *testing.T, l *library, v db.Viewer) []db.MoodRow {
 	t.Helper()
+	if err := l.d.RefreshMoodRows(ctx); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := l.d.MoodRows(ctx, v); err != nil {
 		t.Fatal(err)
 	}
@@ -188,5 +192,39 @@ func TestHiddenTitlesDoNotCountTowardsAMoodRow(t *testing.T) {
 	}
 	if rows := moodRows(t, l, v); len(rows) != 0 {
 		t.Fatalf("with one of its three cozy films hidden the profile still has %d mood rows", len(rows))
+	}
+}
+
+// A player reports its position every few seconds. Only the first report on a title can change
+// the taste (the title is now "started"); the later ones must not have the profile's mood rows
+// chosen again, or every playing profile costs one full choice every five seconds.
+func TestLaterProgressReportsDoNotChooseMoodRowsAgain(t *testing.T) {
+	l, films, _ := moodLibrary(t)
+	v := l.viewers[0]
+	for _, film := range films[:3] {
+		watch(t, l, v, film.PublicID)
+	}
+	if rows := moodRows(t, l, v); len(rows) != 1 {
+		t.Fatalf("%d rows", len(rows))
+	}
+	report := func(ms int64) {
+		t.Helper()
+		if _, _, err := l.d.SetState(ctx, v, films[3].PublicID, db.StateEdit{PositionMS: &ms}); err != nil {
+			t.Fatal(err)
+		}
+		if err := l.d.RefreshMoodRows(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	report(10_000) // the title is started: choosing again here is fair
+	made := l.d.MoodChoiceMade(v.ProfileID)
+	if made.IsZero() {
+		t.Fatal("no choice kept")
+	}
+	for n := range 3 {
+		report(int64(20_000 + 10_000*n))
+	}
+	if again := l.d.MoodChoiceMade(v.ProfileID); !again.Equal(made) {
+		t.Fatal("three more progress reports on the same title had the mood rows chosen again")
 	}
 }

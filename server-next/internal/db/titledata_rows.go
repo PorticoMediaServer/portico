@@ -117,9 +117,11 @@ func (k *moodKeeper) waker() chan struct{} {
 	return k.wake
 }
 
-// stale has one profile's choice made again, or every profile's with 0, by the next
-// RefreshMoodRows, so Home's next read has it. A choice Home has not read for a day is dropped
-// instead.
+// stale marks one profile's choice, or every profile's with 0, to be made again when Home next
+// reads it: that read still answers the kept rows, filtered as every read is, and the read after
+// has the new ones. Nothing is made for a profile that is not reading Home, so a player's
+// progress reports every few seconds cost nothing. A choice Home has not read for a day is
+// dropped instead.
 func (k *moodKeeper) stale(profileID int64) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
@@ -132,10 +134,6 @@ func (k *moodKeeper) stale(profileID int64) {
 			continue
 		}
 		c.stale = true
-		if k.wanted == nil {
-			k.wanted = map[int64]Viewer{}
-		}
-		k.wanted[id] = c.viewer
 	}
 }
 
@@ -181,8 +179,8 @@ func (d *DB) KeepMoodRows(ctx context.Context, log *slog.Logger) {
 }
 
 // RefreshMoodRows reads the changes since it last ran, marks the choices they touch stale, and
-// makes every choice Home asked for since and every stale one. KeepMoodRows runs it; a test
-// can run it directly. One caller at a time.
+// makes every choice Home asked for since: none yet, or stale. KeepMoodRows runs it; a test can
+// run it directly. One caller at a time.
 func (d *DB) RefreshMoodRows(ctx context.Context) error {
 	k := &d.moods
 	if !k.followed {
@@ -426,7 +424,7 @@ func (d *DB) chooseMoodRows(ctx context.Context, v Viewer) ([]keptMoodRow, error
 
 // rowLabels answers each row-making tag's row label in the file.
 func (td *titleData) rowLabels(ctx context.Context) (map[string]string, error) {
-	rows, err := td.conn.QueryContext(ctx, `SELECT tag, row_label FROM vocabulary WHERE row_label IS NOT NULL AND retired_in IS NULL`)
+	rows, err := td.conn.QueryContext(ctx, `SELECT tag, row_label FROM vocabulary WHERE trim(row_label) <> '' AND retired_in IS NULL`)
 	if err != nil {
 		return nil, err
 	}
