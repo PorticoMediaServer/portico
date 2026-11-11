@@ -10,15 +10,20 @@
 --     and role columns are integer codes defined in internal/db/codes.go and checked in the
 --     one Go function that inserts into each table.
 --   * No triggers. Counts kept on a row are updated in the same transaction as their cause.
---   * Before the first release this file is edited in place. There are no migrations yet.
+--   * Before the first release this file is edited in place and nothing else is needed.
+--     After it, every change here also needs an upgrade step: see internal/db/upgrade.go.
 
 -- ---------------------------------------------------------------------------------------
 -- A. System
 -- ---------------------------------------------------------------------------------------
 
+-- The database's version is the highest row. A new database has one row; each upgrade step
+-- adds one. background_after is NULL unless the step has background work still to do, and
+-- then says how far that work has got.
 CREATE TABLE schema_migrations (
-  version    INTEGER NOT NULL PRIMARY KEY,
-  applied_at INTEGER NOT NULL
+  version          INTEGER NOT NULL PRIMARY KEY,
+  applied_at       INTEGER NOT NULL,
+  background_after INTEGER
 ) STRICT;
 
 -- Server settings: one row per settings document, as JSON.

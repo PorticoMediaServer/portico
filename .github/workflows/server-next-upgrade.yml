@@ -3,7 +3,9 @@ name: New server upgrade rehearsal
 # default, with ten profiles' personal state) and times what a release after the first could do
 # to it: adding columns to the largest tables, as declared and as STRICT, rebuilding a table, an
 # index, a new table and a backfill (rebuild plan bar 13). The numbers go to the run summary
-# and one JSON artifact. A measurement, not a check; not part of ci/required.
+# and one JSON artifact. Then it runs a trial upgrade through the server's real start-up on a
+# second copy: the copy made first, the quick steps, the background part, and what people's
+# writes and reads take meanwhile. A measurement, not a check; not part of ci/required.
 on:
   workflow_dispatch:
     inputs:
@@ -14,6 +16,8 @@ on:
     paths:
       - .github/workflows/server-next-upgrade.yml
       - server-next/internal/db/upgrade_test.go
+      - server-next/internal/db/upgrade_run_test.go
+      - server-next/internal/db/upgrade.go
 permissions:
   contents: read
 concurrency:
@@ -38,6 +42,7 @@ jobs:
           mkdir -p "$WORK"
           cd server-next && CGO_ENABLED=0 go build -o "$WORK/" ./cmd/portico-seed
           "$WORK/portico-seed" -db "$WORK/main.db" -items "$ITEMS" -profiles 10 > "$WORK/seed.json"
+          cp "$WORK/main.db" "$WORK/run.db"
           ls -l "$WORK" && df -h "$WORK"
       - name: Time the upgrade steps
         working-directory: server-next
@@ -47,6 +52,14 @@ jobs:
         run: |
           go test ./internal/db -run TestUpgradeCost -count=1 -timeout 80m -v | grep -E 'upgrade_test.go|^(ok|FAIL|---)' | tee "$WORK/upgrade.txt"
           { echo "### Upgrade steps on $ITEMS playable items"; echo '```'; sed 's/^ *upgrade_test.go:[0-9]*: //' "$WORK/upgrade.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - name: Run a trial upgrade through the server's start-up
+        working-directory: server-next
+        env:
+          PORTICO_UPGRADE_RUN_DB: ${{ env.WORK }}/run.db
+          PORTICO_UPGRADE_RUN_OUT: ${{ env.WORK }}/upgrade-run.json
+        run: |
+          go test ./internal/db -run TestUpgradeAtSize -count=1 -timeout 30m -v | grep -E 'upgrade_run_test.go|^(ok|FAIL|---)' | tee "$WORK/upgrade-run.txt"
+          { echo "### A trial upgrade on $ITEMS playable items"; echo '```'; sed 's/^ *upgrade_run_test.go:[0-9]*: //' "$WORK/upgrade-run.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
-        with: {name: server-next-upgrade, path: '${{ env.WORK }}/upgrade.json', retention-days: 30}
+        with: {name: server-next-upgrade, path: '${{ env.WORK }}/upgrade*.json', retention-days: 30}
