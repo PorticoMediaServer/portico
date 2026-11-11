@@ -79,7 +79,7 @@ Assistant) are a separate short document and are not counted here.
 | `POST /v1/auth/two-factor` | Finish a two-step sign-in |
 | `POST /v1/auth/refresh` | Renew tokens |
 | `DELETE /v1/auth/session` | Sign out |
-| `POST /v1/auth/portico/challenge`, `POST /v1/auth/portico/exchange` | Sign in with a Portico Account |
+| `POST /v1/auth/portico/challenge`, `POST /v1/auth/portico/exchange` | Sign in with a Portico Account: the server's challenge out; then the challenge, the sign-in note Portico Services signed for it, and an invitation's code for a person joining, in, and tokens out. The note is checked against the root key the server is built with, for this server, this link and this challenge, once. A local server answers `409 local_sign_in` |
 | `POST /v1/auth/codes`, `GET /v1/auth/codes/{id}`, `POST /v1/auth/codes/{id}/approve`, `POST /v1/auth/codes/{id}/redeem` | Sign in on a TV by approving a code on a phone |
 | `GET /v1/auth/invitations/{id}`, `POST /v1/auth/invitations/{id}/accept` | Preview and accept an invitation |
 | `POST /v1/auth/password-reset/confirm` | Choose a new password with a reset code. The owner or an admin makes the code in People; the server sends no email, so there is no route that asks for one |
@@ -455,7 +455,10 @@ routes, the cap on members' tokens). Already built under their own addresses and
 | `POST /v1/admin/owner` | Owner, with the password or a new Portico approval | Change owner; the previous owner becomes an administrator, a member, or is removed |
 | `GET /v1/admin/remote-access` | Owner | What is true now: the Portico address, the certificate and its expiry, the last error, reachable from outside or not as just checked, outside addresses refused under Enhanced, this device at home or away, the identity code. The switches are the `remote-access` settings document |
 | `POST /v1/admin/remote-access/check` | Owner | Check now; Try again |
-| `POST /v1/hosted/notices` | Portico Services, signed with a key this server trusts | "This account left", "this approval was decided". Refused on a local server |
+| `POST /v1/hosted/notices` | Portico Services through the server's open route, or any app carrying the note | `{note}` in, a signed `portico.server-note`; `{ack}` out, the server's signed word on what it has now applied. "These accounts left" and "this server was removed from its owner's account" count only when the note's revision is higher than the last applied, so a repeat, a late note and a note of an earlier link change nothing. No sign-in: the note proves itself. A local server answers `404` |
+| `POST /v1/hosted/approvals/{id}/poll` | The page that started an approval, with the `pollToken` it was given | Whether the approval has been given, for a person approving on another device: `waiting`, or `approved` with the approval to hand to the step being finished. The server asks Portico Services no faster than it was told to, and only about approvals it started |
+| `GET /v1/admin/portico` | Owner | The link to Portico Services: `local`, `linked` or `unlinked`, the owning Portico Account, the last contact, whether Portico Services has the current name and members, and what is wrong in plain words |
+| `POST /v1/admin/portico/link`, `POST /v1/admin/portico/link/finish` | Owner, on a Portico Accounts server | Link again: the approval address, code and poll token out; then the approval that came back in. Only the Portico Account that owns the server can approve; nobody is signed out |
 
 Not carried: `/v1/admin/sign-in/move*` as seven routes (the four above);
 `/v1/direct/ownership` (`POST /v1/admin/owner`); `/v1/networking/remote*` and
