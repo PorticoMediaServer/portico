@@ -326,6 +326,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			s.writeError(w, r, errors.New("panic"))
 		}
 	}()
+	// An allowed web origin may read every answer, a refusal included, and its preflight is
+	// answered here: it carries no token and reaches nothing. See cors.go.
+	if s.crossOrigin(w, r) {
+		return
+	}
 	// What the owner allows from outside the home networks is decided before anything else.
 	if e := s.outsideRefusal(r); e != nil {
 		s.writeError(w, r, e)
