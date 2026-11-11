@@ -60,6 +60,16 @@ func TestIntervalsAndTheTrashWithoutAScan(t *testing.T) {
 	if m.due(ctx, lib, lib.Paths[0], now.Add(48*time.Hour)) {
 		t.Fatal("a watched folder needs no interval")
 	}
+	// What the library's settings are told: watched, or the scan that stands in for watching.
+	m.running = true
+	if watched, every, ok := m.FolderSchedule(lib, lib.Paths[0]); !ok || !watched || every != 0 {
+		t.Fatalf("a watched folder reports %v %v %v", watched, every, ok)
+	}
+	m.watched[lib.PublicID] = false
+	if watched, every, ok := m.FolderSchedule(lib, lib.Paths[0]); !ok || watched || every != time.Hour {
+		t.Fatalf("a folder that cannot be watched reports %v %v %v; want an hourly scan", watched, every, ok)
+	}
+	m.watched[lib.PublicID] = true
 	// Neither watching nor an interval: scanned only when asked.
 	m.watched[lib.PublicID], lib.Options.NoWatch = false, true
 	if m.due(ctx, lib, lib.Paths[0], now.Add(48*time.Hour)) {

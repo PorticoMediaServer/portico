@@ -39,11 +39,19 @@ func (m *Manager) Run(ctx context.Context) {
 	m.mu.Lock()
 	m.watcher, m.changed = w, changed
 	m.mu.Unlock()
+	defer func() {
+		m.mu.Lock()
+		m.running = false
+		m.mu.Unlock()
+	}()
 
 	libraries, _ := m.scanner.DB.AllLibraries(ctx)
 	for _, lib := range libraries {
 		m.rewatch(ctx, lib, true)
 	}
+	m.mu.Lock()
+	m.running = true
+	m.mu.Unlock()
 	m.startDue(ctx, time.Now())
 	dirty := map[string]bool{}
 	tick := time.NewTicker(settle)
@@ -108,6 +116,24 @@ func (m *Manager) startDue(ctx context.Context, now time.Time) {
 	}
 }
 
+// FolderSchedule says how a folder of a library on this machine's disks is kept up to date
+// by itself: whether it is watched, and how often it is scanned (0 for never). Where the
+// owner wants the library watched and it cannot be, the scan every hour, or every six on a
+// network share, that stands in is the interval reported. ok is false until the schedule is
+// running, and for a folder on remote storage, which follows its source.
+func (m *Manager) FolderSchedule(lib db.Library, p db.LibraryPath) (watched bool, every time.Duration, ok bool) {
+	m.mu.Lock()
+	watched, ok = m.watched[lib.PublicID] && !lib.Options.NoWatch, m.running && p.RemoteID == 0
+	m.mu.Unlock()
+	every = time.Duration(lib.Options.RescanMinutes) * time.Minute
+	if every == 0 && !watched && !lib.Options.NoWatch {
+		if every = unwatchedEvery; networkShare(p.Path) {
+			every = networkEvery
+		}
+	}
+	return watched, every, ok
+}
+
 // due reports whether a folder is due a scan by itself. A local folder follows the library's
 // rescan interval. With none set it is never due, with one exception: where the owner wants
 // the library watched and its folders cannot be, a scan every hour, or every six on a network
@@ -124,18 +150,13 @@ func (m *Manager) due(ctx context.Context, lib db.Library, p db.LibraryPath, now
 		_, every, err := m.scanner.Remote(ctx, p.RemoteID)
 		return err == nil && remote.Due(last, every, now)
 	}
+	m.mu.Lock()
+	watched := m.watched[lib.PublicID]
+	m.mu.Unlock()
 	every := time.Duration(lib.Options.RescanMinutes) * time.Minute
-	if every == 0 {
-		m.mu.Lock()
-		watched := m.watched[lib.PublicID]
-		m.mu.Unlock()
-		switch {
-		case watched || lib.Options.NoWatch:
-			return false
-		case networkShare(p.Path):
+	if every == 0 && !watched && !lib.Options.NoWatch {
+		if every = unwatchedEvery; networkShare(p.Path) {
 			every = networkEvery
-		default:
-			every = unwatchedEvery
 		}
 	}
 	return remote.Due(last, every, now)
