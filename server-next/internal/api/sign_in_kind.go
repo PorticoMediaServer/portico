@@ -245,10 +245,7 @@ func (s *Server) signInPreview(r *http.Request, req SignInPreviewRequest) (SignI
 		if u, err := url.Parse(req.ReturnURL); err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
 			return SignInPreview{}, ErrField("returnUrl", "Send the full address of the page to come back to.")
 		}
-		name, err := s.serverName(r)
-		if err != nil {
-			return SignInPreview{}, err
-		}
+		name := s.serverName()
 		approval, err := s.hosted.StartApproval(r.Context(), hosted.ApprovalRequest{ServerID: s.id, ServerName: name,
 			Purpose: hosted.PurposeSwitch, ReturnURL: req.ReturnURL})
 		if err != nil {
@@ -281,10 +278,7 @@ func (s *Server) signInSwitch(r *http.Request, req SignInSwitchRequest) (SignInR
 		return SignInResponse{}, err
 	}
 	if req.StartOver {
-		name, err := s.serverName(r)
-		if err != nil {
-			return SignInResponse{}, err
-		}
+		name := s.serverName()
 		if !strings.EqualFold(strings.TrimSpace(req.ServerName), name) {
 			return SignInResponse{}, ErrField("serverName", "Type the server's name to confirm. This cannot be undone.")
 		}
@@ -526,7 +520,7 @@ func (s *Server) porticoTaken(r *http.Request, err error) error {
 	if !errors.As(err, &taken) {
 		return err
 	}
-	name, _ := s.serverName(r)
+	name := s.serverName()
 	return ErrConflict("portico_account_taken", "That Portico Account is already on "+name+" as "+taken.Username+".")
 }
 
