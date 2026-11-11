@@ -198,14 +198,20 @@ func (d *DB) finishBeforeServing(ctx context.Context) error {
 // version still have. Before a newer step is applied it is called for every step already
 // applied, so that work never meets tables newer than its own.
 func (d *DB) finishSteps(ctx context.Context, upTo int) error {
-	for told := false; ; {
-		var left bool
-		if err := d.writeConn.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE background_after IS NOT NULL AND version <= ?)`, upTo).Scan(&left); err != nil || !left {
+	began, said, batches := time.Now(), time.Now(), 0
+	for {
+		var version sql.NullInt64
+		var reached int64
+		err := d.writeConn.QueryRowContext(ctx, `SELECT min(version), ifnull(min(background_after), 0) FROM schema_migrations
+			WHERE version = (SELECT min(version) FROM schema_migrations WHERE background_after IS NOT NULL AND version <= ?)`, upTo).Scan(&version, &reached)
+		if err != nil || !version.Valid {
 			return err
 		}
-		if !told {
-			told = true
-			slog.Info("finishing part of the upgrade before the server starts")
+		// Said at once and then every ten seconds, so a long start is seen to be moving.
+		if batches == 0 || time.Since(said) >= upgradeProgressEvery {
+			said = time.Now()
+			slog.Info("finishing part of the upgrade before the server starts", "version", version.Int64, "batches", batches,
+				"reached", reached, "seconds", int(time.Since(began).Seconds()))
 		}
 		tx, err := d.writeConn.BeginTx(ctx, nil)
 		if err != nil {
@@ -218,9 +224,12 @@ func (d *DB) finishSteps(ctx context.Context, upTo int) error {
 		if err := tx.Commit(); err != nil {
 			return err
 		}
+		batches++
 		upgradePoint("batch committed")
 	}
 }
+
+const upgradeProgressEvery = 10 * time.Second
 
 // applyStep runs a step's quick part and records the new version, both or neither.
 func (d *DB) applyStep(ctx context.Context, version int, step upgrade) error {
