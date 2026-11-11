@@ -148,7 +148,7 @@ func TestMovingPlaybackToAnotherDevice(t *testing.T) {
 		t.Fatalf("the request after playing: %+v", done)
 	}
 	var stopped PlaybackSession
-	if call(t, th.s, "GET", "/v1/playback/sessions/"+playing.ID, phone, nil, &stopped); stopped.State != "ended" {
+	if call(t, th.s, "GET", "/v1/playback/sessions/"+playing.ID, phone, nil, &stopped); stopped.State != "ended" || stopped.End == nil || stopped.End.Reason != "stopped_elsewhere" {
 		t.Fatalf("the phone still plays after the TV took over: %+v", stopped)
 	}
 
