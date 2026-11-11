@@ -768,20 +768,9 @@ CREATE INDEX user_item_state_my_list ON user_item_state (profile_id, in_list_at)
 -- client_event_id makes a repeated report count once. hidden_from_profile is 1 for a play
 -- made while the profile had history paused: the owner's play record has it, and nothing
 -- the profile itself is shown does.
--- This is also the owner's Play history, which is kept for good: a row outlives its title,
--- its device, its library, its profile and its account (the names are copied, and the
--- references go NULL). away is 1 for a play from outside the home networks; delivery is how
--- it was delivered, as a code. The owner's list is read newest first through play_history_at
--- and, filtered, through the person and library indexes, so a page costs the same at any size.
 CREATE TABLE play_history (
   id              INTEGER NOT NULL PRIMARY KEY,
-  profile_id      INTEGER REFERENCES profiles(id) ON DELETE SET NULL,
-  user_id         INTEGER REFERENCES users(id) ON DELETE SET NULL,
-  library_id      INTEGER REFERENCES libraries(id) ON DELETE SET NULL,
-  person_name     TEXT,
-  device_name     TEXT,
-  away            INTEGER,
-  delivery        INTEGER,
+  profile_id      INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   item_id         INTEGER REFERENCES items(id) ON DELETE SET NULL,
   device_id       INTEGER REFERENCES devices(id) ON DELETE SET NULL,
   client_event_id TEXT    NOT NULL,
@@ -791,12 +780,21 @@ CREATE TABLE play_history (
   title           TEXT    NOT NULL,
   subtitle        TEXT,
   hidden_from_profile INTEGER NOT NULL DEFAULT 0 CHECK (hidden_from_profile IN (0, 1)),
+  -- For the owner's Play history. user_id and library_id are the account and the library, for
+  -- its filters; they go NULL when those are removed, and the job that removes a library or an
+  -- account clears them a batch at a time first, so the delete itself finds none left.
+  -- device_name is the device's name at the play. away is 1 for a play from outside the home
+  -- networks. delivery is how it was delivered, as a code; 0 is not known.
+  user_id         INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  library_id      INTEGER REFERENCES libraries(id) ON DELETE SET NULL,
+  device_name     TEXT    NOT NULL DEFAULT '',
+  away            INTEGER NOT NULL DEFAULT 0 CHECK (away IN (0, 1)),
+  delivery        INTEGER NOT NULL DEFAULT 0,
   UNIQUE (profile_id, client_event_id)
 );
 CREATE INDEX play_history_profile ON play_history (profile_id, played_at);
 CREATE INDEX play_history_item ON play_history (item_id) WHERE item_id IS NOT NULL;
 CREATE INDEX play_history_device ON play_history (device_id) WHERE device_id IS NOT NULL;
-CREATE INDEX play_history_at ON play_history (played_at);
 CREATE INDEX play_history_user ON play_history (user_id, played_at) WHERE user_id IS NOT NULL;
 CREATE INDEX play_history_library ON play_history (library_id, played_at) WHERE library_id IS NOT NULL;
 

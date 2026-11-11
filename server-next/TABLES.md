@@ -1,6 +1,6 @@
 # server-next: the table list
 
-The plan is 67 tables; the budget is 90. A table is added to the schema when its area is
+The plan is 69 tables; the budget is 90. A table is added to the schema when its area is
 built, after asking what a user would lose without it. **In schema** means the table exists
 today. The schema is two files loaded as one, `internal/db/schema.sql` (the core) and
 `internal/db/schema_areas.sql` (the areas built on it), because a source file stops at 1,000
@@ -63,14 +63,16 @@ lines; columns are documented there. How the areas use these tables is in `AREAS
 | | `channels` | yes | Channels, their numbers and listings; a Library Channel is a channel too |
 | | `profile_channels` | yes | Each profile's favourite and hidden channels |
 | | `library_channels` | yes | The Library Channel builder: what plays, the weekly hours, and where each show had got to |
+| | `channel_schedule` | yes | Each Library Channel's week: what has aired and what is on never change, also after a restore or a lost guide file |
+| | `block_presets` | yes | Blocks the owner saved to reuse on any Library Channel |
 | | `recording_rules`, `recordings` | yes | Series rules; bookings, what is recording, and History. A recorded programme is an ordinary title in the one Recorded TV library |
 | | `reminders` | yes | Reminders that follow a profile to every device |
-| `guide.db` | `programmes` | with Live TV | The TV guide, and the schedule made ahead for each Library Channel |
+| `guide.db` | `programmes` | with Live TV | The TV guide. Library Channel programmes in it are a copy of `channel_schedule` |
 | `search.db` | full-text indexes, `book_text` | with search | Search |
 
 ## Counted
 
-67 planned: 65 in the schema today, less `removed_state` (going: the scanner now forgets a
+69 planned: 67 in the schema today, less `removed_state` (going: the scanner now forgets a
 title when its trash is emptied), plus `media_artifacts` and `track_embeddings` still to come
 and `account_restrictions`, which is in an open pull request.
 
@@ -87,5 +89,4 @@ Planned once and dropped, with what does the job instead:
 No table, on purpose: watch-together rooms, devices open to play and moves between them, live
 sessions, tuners in use, the rewind stretch, a recording's progress, server load (memory);
 backups and logs (files); schedules (settings and a timer); a history of failed conversions
-(the server log); block presets for Library Channels (one `settings` row); what each device
-holds of its downloads (the device knows).
+(the server log); what each device holds of its downloads (the device knows).
