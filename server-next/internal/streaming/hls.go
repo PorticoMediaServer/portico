@@ -135,9 +135,11 @@ type hlsWindow struct {
 	served                  int
 	produced                int
 	throttled               bool
-	relocating              bool
-	cancel                  context.CancelFunc
-	done                    chan struct{}
+	// stalled is set when the converter was stopped for going silent.
+	stalled    bool
+	relocating bool
+	cancel     context.CancelFunc
+	done       chan struct{}
 }
 
 // coversDemand keeps near-edge sequential fetches and the first output of a
@@ -446,14 +448,56 @@ func (h *HLS) observeConversion(id string) (func(vod.ConversionProgress), func()
 	return observe, finish
 }
 
-// converterKilled reports whether a converter ended because it was killed, not
-// because it gave up on its input: ended by a signal, or by the exit status a
-// sandbox reports for a child that was.
+// converterKilled reports whether a converter ended because it was stopped or
+// crashed, not because it gave up on its input: ended by a signal, with the exit
+// status a sandbox reports for a child that was (128 plus the signal), or with
+// 255, which is how ffmpeg leaves when it is asked to stop (a plain "kill").
 func converterKilled(err error) bool {
 	var exit *exec.ExitError
 	if !errors.As(err, &exit) {
 		return false
 	}
-	code := exit.ExitCode()
-	return code == -1 || code == 128+9
+	switch code := exit.ExitCode(); code {
+	case -1, 255:
+		return true
+	// Hang-up, interrupt, quit, illegal instruction, abort, bus error, arithmetic
+	// error, kill, segmentation fault, broken pipe, terminate.
+	case 128 + 1, 128 + 2, 128 + 3, 128 + 4, 128 + 6, 128 + 7, 128 + 8, 128 + 9, 128 + 11, 128 + 13, 128 + 15:
+		return true
+	}
+	return false
+}
+
+// A converter that dies by no fault of the film (stopped from outside, crashed,
+// gone silent, or its producer hit a fault of the server's own) is started again
+// by the next request. converterDeaths is how many times in a row that may
+// happen without a single new segment in between: after that the stream fails,
+// so a file that crashes the converter at one spot, or a machine that kills it
+// every time, is never retried for ever.
+const converterDeaths = 3
+
+// converterSilence is how long a running converter may go without finishing a
+// segment, while also not reporting any progress, before it is taken to be stuck
+// (a remote source that stopped sending, a hung helper) and stopped. A slow
+// conversion reports progress and is left alone. It is a variable for the tests.
+var converterSilence = 60 * time.Second
+
+// FailureConverterStopped is the failure of a stream whose converter kept dying.
+const FailureConverterStopped = "converter_keeps_stopping"
+
+// died records that a stream's converter died in the run that started at segment
+// from, and reports whether the next request may start it again.
+func (h *HLS) died(id string, from int, owned *hlsWindow) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	s := h.streams[id]
+	if s == nil || s.state != streamLive {
+		return true
+	}
+	if owned.produced >= from {
+		// This run got somewhere, so it is not the same death over again.
+		s.deaths = 0
+	}
+	s.deaths++
+	return s.deaths <= converterDeaths && h.restartAllowedLocked(id)
 }

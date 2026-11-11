@@ -22,6 +22,19 @@ import (
 
 func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow) {
 	defer func() {
+		// A fault of the server's own in here is a death like any other: the next
+		// request starts the converter again, a few times, and then the stream
+		// fails. Without this every request started another that died the same way.
+		fault := recover()
+		if fault != nil && !h.died(id, from, owned) {
+			h.failedWith(ctx, id, FailureConverterStopped, "")
+		}
+		defer func() {
+			if fault != nil {
+				// The supervisor still hears of it and logs it.
+				panic(fault)
+			}
+		}()
 		if h.windowTeardown != nil {
 			h.windowTeardown(id, owned)
 		}
@@ -519,18 +532,22 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 			decoder.RecordHardwareDeviceFailure(decoder.HardwareBackend(failedBackend), failedDevice)
 		}
 	}
-	if e != nil && !throttled() && ctx.Err() == nil && converterKilled(e) {
-		// Killed from outside, most often by the kernel when memory ran out.
-		// That says nothing about the source, so the stream is not failed: this
-		// window ends, and the next request for a segment starts another, within
-		// the same restart budget a seeking player has.
-		h.mu.Lock()
-		again := h.restartAllowedLocked(id)
-		h.mu.Unlock()
-		if again {
-			log.Printf("Conversion %s: the converter was killed; it starts again on the next request", id)
+	h.mu.Lock()
+	stalled := h.windows[id] == owned && owned.stalled
+	h.mu.Unlock()
+	if e != nil && !throttled() && ctx.Err() == nil && (stalled || converterKilled(e)) {
+		// Stopped from outside (most often by the kernel when memory ran out),
+		// crashed, or stopped here for going silent. None of that says the film
+		// cannot be converted, so the stream is not failed: this window ends and
+		// the next request for a segment starts another. That is allowed a few
+		// times in a row without progress, and within the restart budget a
+		// seeking player has; after that the stream fails.
+		if h.died(id, from, owned) {
+			log.Printf("Conversion %s: the converter stopped; it starts again on the next request", id)
 			return
 		}
+		h.failedWith(ctx, id, FailureConverterStopped, diagnostic)
+		return
 	}
 	if e != nil && !throttled() && ctx.Err() == nil {
 		h.failedWith(ctx, id, classifyConverterFailure(diagnostic), diagnostic)
@@ -609,6 +626,8 @@ func (h *HLS) watchWindow(
 	}
 	tick := time.NewTicker(interval)
 	defer tick.Stop()
+	// progressed is when the converter last finished a segment, or started.
+	progressed, seen := time.Now(), from-1
 	for {
 		select {
 		case <-ctx.Done():
@@ -659,6 +678,17 @@ func (h *HLS) watchWindow(
 				window.produced = produced
 				// Everybody waiting for a segment looks again now, not on their next tick.
 				h.signalLocked(h.streams[id])
+			}
+			if window.produced > seen {
+				progressed, seen = time.Now(), window.produced
+			} else if s := h.streams[id]; time.Since(progressed) > converterSilence && (s == nil || s.speed <= 0 || time.Since(s.speedAt) > 10*time.Second) {
+				// No segment for a long while, and the converter does not report
+				// that it is getting anywhere either (a slow conversion does): it is
+				// stuck. It is stopped, and counted as a death.
+				window.stalled = true
+				h.mu.Unlock()
+				cancel()
+				return false
 			}
 			ahead := (window.produced - max(window.served, window.start-1)) * HLSSegmentSeconds
 			// A copy window that has used up its cut list stops the same way a

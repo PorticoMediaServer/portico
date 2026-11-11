@@ -238,10 +238,16 @@ func (e *Engine) source(ctx context.Context, version db.PlaybackVersion) (string
 	if ok {
 		return path, place, remoteID, facts, nil
 	}
-	if remoteID != 0 {
-		facts, err = e.inspectRemote(ctx, remoteID, path, place.Size)
-	} else {
-		facts, err = e.probe.Inspect(ctx, path)
+	read := func() (mediafacts.Facts, error) {
+		if remoteID != 0 {
+			return e.inspectRemote(ctx, remoteID, path, place.Size)
+		}
+		return e.probe.Inspect(ctx, path)
+	}
+	if facts, err = read(); err != nil && ctx.Err() == nil {
+		// The reader itself can die (stopped from outside, a helper that crashed). One more
+		// try, and only one, tells that from a file that cannot be read.
+		facts, err = read()
 	}
 	if err != nil {
 		return "", place, 0, facts, playback.ErrSourceUnavailable

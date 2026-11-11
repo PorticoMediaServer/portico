@@ -60,6 +60,9 @@ type stream struct {
 	openInput inputOpener
 	disc      bool
 
+	// deaths counts the converter runs in a row that died without finishing a
+	// segment: see converterDeaths.
+	deaths int
 	// served is the furthest segment handed to the viewer: the position the
 	// throttle and the per-stream storage ceiling are measured against.
 	served int
