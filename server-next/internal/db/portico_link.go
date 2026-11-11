@@ -38,6 +38,11 @@ type Link struct {
 	DocumentRevision int64  `json:"documentRevision"`
 	DocumentDigest   string `json:"documentDigest,omitempty"`
 	DocumentSent     int64  `json:"documentSent"`
+	// PeopleDigest is the same document without its addresses, and DocumentSentAt when
+	// Portico Services last took a document: a change of address alone waits a few minutes
+	// after that, a change of anything else does not.
+	PeopleDigest   string `json:"peopleDigest,omitempty"`
+	DocumentSentAt int64  `json:"documentSentAt,omitempty"`
 	// LastContact is the last time Portico Services answered a call from this server.
 	LastContact int64 `json:"lastContact"`
 	// CheckInAt is when the next check-in or its retry is due, and CheckInTries how many

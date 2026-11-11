@@ -406,15 +406,23 @@ type Member struct {
 	Role string `json:"role"`
 }
 
+// Address is one address the server publishes, and the port it is reached at there.
+type Address struct {
+	Address string `json:"address"`
+	Port    int    `json:"port"`
+}
+
 // Document is everything Portico Services knows about this server. It is sent whole when it
 // changes.
 type Document struct {
-	Revision       int64    `json:"revision"`
-	Name           string   `json:"name"`
-	OwnerAccountID string   `json:"ownerAccountId"`
-	Port           int      `json:"port"`
-	Addresses      []string `json:"addresses"`
-	Members        []Member `json:"members"`
+	Revision       int64  `json:"revision"`
+	Name           string `json:"name"`
+	OwnerAccountID string `json:"ownerAccountId"`
+	// Addresses are the addresses apps may reach the server at, each with its own port: a
+	// home address at the port the server listens on, the public one at the port the router
+	// maps. At most 8, in the order apps should try them.
+	Addresses []Address `json:"addresses"`
+	Members   []Member  `json:"members"`
 }
 
 // Stored is Portico Services' answer to a document.
@@ -431,7 +439,7 @@ func (c *Client) SendDocument(ctx context.Context, since time.Time, doc Document
 	ctx, cancel := context.WithTimeout(ctx, backgroundTimeout)
 	defer cancel()
 	if doc.Addresses == nil {
-		doc.Addresses = []string{}
+		doc.Addresses = []Address{}
 	}
 	var out Stored
 	err := c.call(ctx, "PUT", "/v1/servers/"+c.o.ServerID+"/document", since, "", doc, &out)

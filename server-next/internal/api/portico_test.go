@@ -858,3 +858,79 @@ func TestAServerThatLeftSaysSoOnceAndThenGivesUp(t *testing.T) {
 		t.Errorf("after giving up, the server made %d calls, want none ever", made)
 	}
 }
+
+// A home connection whose address flips every minute does not make the server call Portico
+// Services every minute: after a document is taken, one sent only because the addresses
+// changed waits five minutes, and what is sent then is the address that is true then. A
+// first link, a change of members and a change the owner makes by hand still go at once.
+func TestAnAddressThatKeepsChangingIsSentAtMostEveryFewMinutes(t *testing.T) {
+	p := newPorticoRig(t)
+	address := "203.0.113.1"
+	p.s.link.published = func() []hosted.Address {
+		return []hosted.Address{{Address: "192.168.1.20", Port: 32500}, {Address: address, Port: 40123}}
+	}
+	sent := func() int { return p.fake.Count("PUT", "/document") }
+	held := func() string {
+		addresses, _ := p.fake.Document(p.s.id)["addresses"].([]any)
+		if len(addresses) != 2 {
+			t.Fatalf("Portico Services holds the addresses %v, want the home one and the public one", addresses)
+		}
+		public, _ := addresses[1].(map[string]any)
+		if public["port"] != float64(40123) {
+			t.Fatalf("the public address was sent as %v, want it with its own port", public)
+		}
+		return public["address"].(string)
+	}
+	p.link(accountJustin)
+	if sent() != 1 || held() != address {
+		t.Fatalf("the first document: %d sent, holding %s", sent(), held())
+	}
+
+	// An hour of an address that flips every minute.
+	for minute := 1; minute <= 60; minute++ {
+		address = "203.0.113." + itoa(minute+1)
+		p.clock = p.clock.Add(time.Minute)
+		p.step()
+	}
+	if flips := sent() - 1; flips < 10 || flips > 12 {
+		t.Errorf("an hour of an address changing every minute sent %d documents, want one every five minutes", flips)
+	}
+	// It settles: within the gap Portico Services holds the address that is true now.
+	p.run(addressGap)
+	if held() != address {
+		t.Errorf("after the address settled Portico Services holds %s, want %s", held(), address)
+	}
+	settled := sent()
+	p.run(time.Hour)
+	if sent() != settled {
+		t.Errorf("an address that stopped changing sent %d more documents", sent()-settled)
+	}
+
+	// Inside the gap, a person joining and a change the owner makes by hand do not wait.
+	address = "198.51.100.7"
+	p.clock = p.clock.Add(time.Minute)
+	p.step() // more than the gap since the last document: goes at once and starts a new gap
+	if sent() != settled+1 {
+		t.Fatalf("a changed address long after the last document sent %d documents, want one at once", sent()-settled)
+	}
+	address = "198.51.100.8"
+	p.clock = p.clock.Add(time.Minute)
+	p.step()
+	if sent() != settled+1 {
+		t.Fatal("a second change of address a minute later did not wait")
+	}
+	p.owner = onMain(t, p.s, signIn(t, p.s, 7))
+	if code, _, _ := p.signIn(accountSam, p.invite(), 1); code != 200 {
+		t.Fatal("sam could not join")
+	}
+	p.step()
+	if _, members := p.fake.Linked(p.s.id); sent() != settled+2 || members[accountSam.ID] != "member" || held() != address {
+		t.Errorf("a person joining inside the gap: %d documents, members %v", sent()-settled, members)
+	}
+	address = "198.51.100.9"
+	p.s.porticoChangedByOwner()
+	p.step()
+	if sent() != settled+3 || held() != address {
+		t.Errorf("a change the owner made by hand inside the gap sent %d documents, holding %s", sent()-settled, held())
+	}
+}

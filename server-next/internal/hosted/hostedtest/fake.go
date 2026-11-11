@@ -481,8 +481,11 @@ func (f *Services) storeDocument(w http.ResponseWriter, s *server, body []byte) 
 		Name           string
 		OwnerAccountID string
 		Port           int
-		Addresses      []string
-		Members        []struct{ AccountID, Role string }
+		Addresses      []struct {
+			Address string
+			Port    int
+		}
+		Members []struct{ AccountID, Role string }
 	}
 	if json.Unmarshal(body, &in) != nil {
 		return refuse(w, http.StatusBadRequest, "bad_json")

@@ -47,9 +47,12 @@ type porticoLink struct {
 	onUnlinked func()
 	// published is the port and addresses the server publishes in its document, once remote
 	// access finds them; nil publishes none.
-	published func() (port int, addresses []string)
+	published func() []hosted.Address
 
 	mu sync.Mutex
+	// urgent says the owner has just changed something by hand that the document carries,
+	// so the next document does not wait out the gap between address changes.
+	urgent bool
 	// started says the first pass since the process started has been made.
 	started bool
 	// told is the link onLinked was last told about, by its issue time.
@@ -227,19 +230,36 @@ func (s *Server) porticoStep(ctx context.Context) time.Time {
 	}
 
 	// The document: has anything in it changed, and is a changed one due to be sent?
-	doc, digest, err := s.porticoDocument(ctx)
+	doc, digest, people, err := s.porticoDocument(ctx)
 	if err != nil {
 		s.log.Error("could not read this server's members for Portico Services", "error", err)
 		return next
 	}
-	if digest != link.DocumentDigest {
+	s.link.mu.Lock()
+	urgent := s.link.urgent
+	s.link.urgent = false
+	s.link.mu.Unlock()
+	if digest != link.DocumentDigest || urgent {
 		if !update(func(l *db.Link) {
-			if l.DocumentDigest != "" {
+			if l.DocumentDigest != "" && digest != l.DocumentDigest {
 				l.DocumentRevision++
 			}
-			// A wait already running for an earlier change stays: a change made while
-			// Portico Services is away is not a reason to try sooner.
-			l.DocumentDigest = digest
+			switch {
+			case l.DocumentTries > 0:
+				// A wait already running after a failure stays: a change made while
+				// Portico Services is away is not a reason to try sooner.
+			case people != l.PeopleDigest || urgent || l.DocumentSent == 0:
+				// A first document, a change of name, owner or members, or a change the
+				// owner just made by hand goes at once.
+				l.DocumentAt = 0
+			default:
+				// Only the addresses changed, by themselves. However often a network's
+				// address flips, Portico Services hears of it at most once in
+				// addressGap; when the wait ends the document sent is the one that is
+				// true then, never a queue of the ones in between.
+				l.DocumentAt = max(l.DocumentAt, l.DocumentSentAt+int64(addressGap/time.Second))
+			}
+			l.DocumentDigest, l.PeopleDigest = digest, people
 		}) {
 			return next
 		}
@@ -322,7 +342,7 @@ func (s *Server) sendDocument(ctx context.Context, link *db.Link, doc hosted.Doc
 			l.LastContact = now.Unix()
 		default:
 			l.DocumentSent, l.DocumentAt, l.DocumentTries = doc.Revision, 0, 0
-			l.LastContact = now.Unix()
+			l.LastContact, l.DocumentSentAt = now.Unix(), now.Unix()
 		}
 	}) {
 		return false
@@ -369,30 +389,50 @@ func (s *Server) porticoServerName() string {
 	return "Portico"
 }
 
-// porticoDocument is this server's document as it stands, and a digest of it that changes
-// when anything in it does.
-func (s *Server) porticoDocument(ctx context.Context) (hosted.Document, string, error) {
+// addressGap is the shortest time between two documents sent only because the server's
+// addresses changed. Portico Services is sized for about one call a server a day; a home
+// connection whose address flips every minute must not turn that into one a minute.
+const addressGap = 5 * time.Minute
+
+// porticoChangedByOwner says the owner has just changed, by hand, something the document
+// carries (the public port, remote access on or off): the document goes at once.
+func (s *Server) porticoChangedByOwner() {
+	s.link.mu.Lock()
+	s.link.urgent = true
+	s.link.mu.Unlock()
+	s.porticoWake()
+}
+
+// porticoDocument is this server's document as it stands, with a digest of it that changes
+// when anything in it does and a digest of everything in it but the addresses.
+func (s *Server) porticoDocument(ctx context.Context) (doc hosted.Document, digest, people string, err error) {
 	name := s.porticoServerName()
 	members, err := s.db.PorticoMembers(ctx)
 	if err != nil {
-		return hosted.Document{}, "", err
+		return hosted.Document{}, "", "", err
 	}
 	// Portico Services takes at most 5,000 members; the owner comes first.
 	members = members[:min(len(members), 5000)]
-	doc := hosted.Document{Name: name, Addresses: []string{}, Members: make([]hosted.Member, 0, len(members))}
+	doc = hosted.Document{Name: name, Addresses: []hosted.Address{}, Members: make([]hosted.Member, 0, len(members))}
 	for _, m := range members {
 		if m.Role == "owner" {
 			doc.OwnerAccountID = m.AccountID
 		}
 		doc.Members = append(doc.Members, hosted.Member{AccountID: m.AccountID, Role: m.Role})
 	}
+	hash := func() string {
+		raw, _ := json.Marshal(doc)
+		sum := sha256.Sum256(raw)
+		return hex.EncodeToString(sum[:])
+	}
+	people = hash()
 	if s.link.published != nil {
-		doc.Port, doc.Addresses = s.link.published()
+		if doc.Addresses = s.link.published(); doc.Addresses == nil {
+			doc.Addresses = []hosted.Address{}
+		}
 		doc.Addresses = doc.Addresses[:min(len(doc.Addresses), 8)]
 	}
-	raw, _ := json.Marshal(doc)
-	sum := sha256.Sum256(raw)
-	return doc, hex.EncodeToString(sum[:]), nil
+	return doc, hash(), people, nil
 }
 
 // Messages the owner reads when the link has a problem.
