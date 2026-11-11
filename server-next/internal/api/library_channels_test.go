@@ -322,11 +322,8 @@ func TestPresetsFixedTimesAndALogo(t *testing.T) {
 		t.Log("no Sunday 8 PM was free in this week's schedule: a film ran over it") // allowed: outside blocks a film finishes
 	}
 
-	// The on-screen logo needs a logo; an upload is kept small and shown with the channel.
+	// An upload is kept small and shown with the channel.
 	b.LogoOnScreen = librarychannels.Logo{On: true}
-	if code := status(t, s, "PATCH", "/v1/admin/library-channels/"+ch.ID, owner, LibraryChannelSave{Builder: &b}); code != 400 {
-		t.Fatalf("turning the logo on without one answered %d", code)
-	}
 	var picture bytes.Buffer
 	png.Encode(&picture, image.NewRGBA(image.Rect(0, 0, 1200, 600)))
 	r := newRequest("PUT", "/v1/admin/library-channels/"+ch.ID+"/logo", owner, nil)
@@ -350,5 +347,12 @@ func TestPresetsFixedTimesAndALogo(t *testing.T) {
 		if c.ID == ch.ID && c.Logo != withLogo.Logo {
 			t.Fatalf("the channel list shows logo %q", c.Logo)
 		}
+	}
+	// With the logo deleted and the on-screen logo still on, the channel still saves.
+	if code := status(t, s, "DELETE", "/v1/admin/library-channels/"+ch.ID+"/logo", owner, nil); code != 200 {
+		t.Fatalf("deleting the logo answered %d", code)
+	}
+	if code := status(t, s, "PATCH", "/v1/admin/library-channels/"+ch.ID, owner, LibraryChannelSave{Name: new("Renamed"), Builder: &b}); code != 200 {
+		t.Fatalf("saving after the logo was deleted answered %d", code)
 	}
 }
