@@ -57,3 +57,39 @@ func TestAnOwnerNamedDriverFolderIsReadableInTheHardwareSandbox(t *testing.T) {
 		}
 	}
 }
+
+// A driver the owner unpacked by hand needs its own libraries as well: for a hardware job the
+// folders of the server's own LD_LIBRARY_PATH are mounted read-only and come last in the
+// job's library path. A software job gets neither.
+func TestAHardwareJobFindsTheLibrariesOfAnOwnerUnpackedDriver(t *testing.T) {
+	tool, err := resolveExecutable("true")
+	if err != nil {
+		t.Skip("no true(1) on this host")
+	}
+	t.Setenv("LD_LIBRARY_PATH", "/opt/intel/lib:relative")
+	for _, hardware := range []bool{true, false} {
+		argv, err := linuxArgv("/usr/bin/bwrap", Job{Executable: tool, Hardware: hardware}, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		joined, path := strings.Join(argv, " "), ""
+		for i := 0; i+2 < len(argv); i++ {
+			if argv[i] == "--setenv" && argv[i+1] == "LD_LIBRARY_PATH" {
+				if path != "" {
+					t.Fatal("the library path is set twice", argv)
+				}
+				path = argv[i+2]
+			}
+		}
+		mounted := strings.Contains(joined, "--ro-bind-try /opt/intel/lib /opt/intel/lib")
+		if hardware && (!mounted || !strings.HasSuffix(path, ":/opt/intel/lib")) {
+			t.Fatalf("a hardware job: mounted %v, library path %q", mounted, path)
+		}
+		if !hardware && strings.Contains(joined, "/opt/intel/lib") {
+			t.Fatalf("a software job was given the owner's library folder: %v", argv)
+		}
+		if strings.Contains(path, "relative") {
+			t.Fatalf("a relative folder reached the library path: %q", path)
+		}
+	}
+}

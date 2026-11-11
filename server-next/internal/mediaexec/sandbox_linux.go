@@ -111,7 +111,11 @@ func sandboxArgv(job Job, posture Posture) ([]string, error) {
 func LinuxHardwareSandboxArgs(environment [][2]string) []string {
 	args := []string{}
 	for _, kv := range environment {
-		args = append(args, "--setenv", kv[0], kv[1])
+		// The job's library path is set once, by the caller, from the tool's own folders
+		// and HardwareLibraryFolders.
+		if kv[0] != "LD_LIBRARY_PATH" {
+			args = append(args, "--setenv", kv[0], kv[1])
+		}
 	}
 	for _, dir := range hardwareReadable {
 		args = append(args, "--ro-bind-try", dir, dir)
@@ -119,12 +123,11 @@ func LinuxHardwareSandboxArgs(environment [][2]string) []string {
 	// A driver folder the owner named with LIBVA_DRIVERS_PATH (a driver the distribution
 	// does not package, say under /opt) is readable too; without that the variable names
 	// a folder the job cannot see.
+	// The same for the folders in the server's own LD_LIBRARY_PATH, where such a driver's
+	// own libraries are.
 	for _, kv := range environment {
-		if kv[0] != "LIBVA_DRIVERS_PATH" {
-			continue
-		}
-		for _, dir := range filepath.SplitList(kv[1]) {
-			if filepath.IsAbs(dir) && filepath.Clean(dir) == dir && dir != "/" {
+		if kv[0] == "LIBVA_DRIVERS_PATH" || kv[0] == "LD_LIBRARY_PATH" {
+			for _, dir := range ownerFolders(kv[1]) {
 				args = append(args, "--ro-bind-try", dir, dir)
 			}
 		}
@@ -139,6 +142,29 @@ func LinuxHardwareSandboxArgs(environment [][2]string) []string {
 		args = append(args, "--dev-bind-try", device, device)
 	}
 	return args
+}
+
+// ownerFolders is the folders of a path list the owner started the server with that a
+// hardware job may read: absolute, clean, and never the whole file system.
+func ownerFolders(list string) []string {
+	out := []string{}
+	for _, dir := range filepath.SplitList(list) {
+		if filepath.IsAbs(dir) && filepath.Clean(dir) == dir && dir != "/" {
+			out = append(out, dir)
+		}
+	}
+	return out
+}
+
+// HardwareLibraryFolders is the folders of the server's own LD_LIBRARY_PATH, which a
+// hardware job's library path ends with (after the tool's own folders).
+func HardwareLibraryFolders(environment [][2]string) []string {
+	for _, kv := range environment {
+		if kv[0] == "LD_LIBRARY_PATH" {
+			return ownerFolders(kv[1])
+		}
+	}
+	return nil
 }
 
 // LinuxReadOnlyFileArgs preserves exact-file grants outside the hardware trees.
@@ -245,6 +271,9 @@ func linuxArgv(bwrap string, job Job, disableUserns bool) ([]string, error) {
 			seen[dir] = true
 			dirs = append(dirs, dir)
 		}
+	}
+	if job.Hardware {
+		dirs = append(dirs, HardwareLibraryFolders(hardwareEnvironment())...)
 	}
 	if len(dirs) > 0 {
 		args = append(args, "--setenv", "LD_LIBRARY_PATH", strings.Join(dirs, ":"))

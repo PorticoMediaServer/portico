@@ -375,7 +375,10 @@ func HardwareEnvironment() [][2]string { return hardwareEnvironment() }
 // hardwareEnvironment is what a GPU driver inside the Linux sandbox needs.
 func hardwareEnvironment() [][2]string {
 	out := [][2]string{}
-	for _, name := range []string{"LIBVA_DRIVER_NAME", "LIBVA_DRIVERS_PATH", "CUDA_VISIBLE_DEVICES", "NVIDIA_VISIBLE_DEVICES", "NVIDIA_DRIVER_CAPABILITIES"} {
+	// LD_LIBRARY_PATH is here for one case: a driver the owner unpacked outside the system's
+	// folders needs its own libraries found too. The sandbox mounts those folders and adds
+	// them after the tool's own; it is never passed to a software job.
+	for _, name := range []string{"LIBVA_DRIVER_NAME", "LIBVA_DRIVERS_PATH", "CUDA_VISIBLE_DEVICES", "NVIDIA_VISIBLE_DEVICES", "NVIDIA_DRIVER_CAPABILITIES", "LD_LIBRARY_PATH"} {
 		if v, ok := os.LookupEnv(name); ok {
 			out = append(out, [2]string{name, v})
 		} else if name == "LIBVA_DRIVERS_PATH" {
