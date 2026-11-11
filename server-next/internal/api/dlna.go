@@ -31,6 +31,9 @@ type RemoteAccessSettings struct {
 	// home-network names: for a container whose host name is not the machine's, or the owner's
 	// own domain on a proxy. Up to 20.
 	DLNANames []string `json:"dlnaNames"`
+	// Warning is set while DLNA is on and the home networks take in the whole internet: the app
+	// shows it when the switch is turned on and for as long as it is true. Nothing is refused.
+	Warning string `json:"warning,omitempty"`
 	revision
 }
 
@@ -78,15 +81,15 @@ func (s *Server) dlnaHome() []netip.Prefix {
 		return nil
 	}
 	networks, stored := s.network.current(s.now())
-	if stored.Home == nil || coversEverything(networks.Home) {
+	if stored.Home == nil {
 		return nil
 	}
 	return networks.Home
 }
 
-// coversEverything says a home list takes in the whole internet (0.0.0.0/0 or ::/0), which
-// would share every original with anyone. A wide range the owner chose on purpose, such as
-// Tailscale's 100.64.0.0/10, is fine.
+// coversEverything says a home list takes in the whole internet (0.0.0.0/0 or ::/0). With DLNA
+// on that shares every original with anyone who can reach the server. The owner is warned, not
+// stopped (the owner's principle: steer people away from a mistake, never block it).
 func coversEverything(home []netip.Prefix) bool {
 	for _, p := range home {
 		if p.Bits() == 0 {
@@ -111,7 +114,7 @@ func (s *Server) dlnaRoutes() {
 	Handle(s, "GET /v1/admin/settings/remote-access", Owner, func(r *http.Request, _ None) (RemoteAccessSettings, error) {
 		_, saved, err := s.db.SettingDocument(r.Context(), remoteAccessSettingsKey)
 		cur := s.remoteAccess()
-		return RemoteAccessSettings{cur.DLNA, nonNil(cur.DLNANames), revision(saved)}, err
+		return RemoteAccessSettings{cur.DLNA, nonNil(cur.DLNANames), s.dlnaWarning(cur.DLNA), revision(saved)}, err
 	})
 	// Opening the library to every device at home is the owner's, signed in.
 	Handle(s, "PUT /v1/admin/settings/remote-access", Owner, s.saveRemoteAccess).Scope = ScopeSession
@@ -124,13 +127,9 @@ func (s *Server) saveRemoteAccess(r *http.Request, req RemoteAccessSettingsEdit)
 	}
 	next := s.remoteAccess()
 	if req.DLNA != nil {
-		networks, stored := s.network.current(s.now())
+		_, stored := s.network.current(s.now())
 		if *req.DLNA && stored.Home == nil {
 			return RemoteAccessSettings{}, ErrField("dlna", "List your home networks in the network settings first: DLNA answers only there.")
-		}
-		if *req.DLNA && coversEverything(networks.Home) {
-			return RemoteAccessSettings{}, ErrField("dlna",
-				"Your home networks include the whole internet (0.0.0.0/0 or ::/0), so DLNA would share your library with anyone. Remove that entry first.")
 		}
 		next.DLNA = *req.DLNA
 	}
@@ -150,7 +149,7 @@ func (s *Server) saveRemoteAccess(r *http.Request, req RemoteAccessSettingsEdit)
 		return RemoteAccessSettings{}, err
 	}
 	s.remote.Store(&next)
-	return RemoteAccessSettings{next.DLNA, nonNil(next.DLNANames), revision(saved)}, nil
+	return RemoteAccessSettings{next.DLNA, nonNil(next.DLNANames), s.dlnaWarning(next.DLNA), revision(saved)}, nil
 }
 
 // AnnounceDLNA announces the server on the home networks while DLNA is on, for the listener
@@ -214,4 +213,14 @@ func checkNames(typed []string) ([]string, error) {
 		}
 	}
 	return out, nil
+}
+
+// dlnaWarning is the warning for the owner while DLNA is on with a home list that takes in the
+// whole internet, and "" otherwise.
+func (s *Server) dlnaWarning(on bool) string {
+	if networks, stored := s.network.current(s.now()); on && stored.Home != nil && coversEverything(networks.Home) {
+		return "Your home networks include the whole internet, so DLNA shares every original file with anyone on the internet " +
+			"who can reach this server, with no sign-in."
+	}
+	return ""
 }
