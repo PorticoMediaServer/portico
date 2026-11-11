@@ -16,7 +16,7 @@ import (
 // ones: a member who asks for many copies at once cannot queue more than the space holds.
 // Each of these two copies fits the 1 GB space on its own; together they do not.
 func TestCopiesWaitingToBeMadeCountAgainstTheSpace(t *testing.T) {
-	d, v := filmLibrary(t)
+	d, v, _ := filmLibrary(t)
 	ctx := context.Background()
 	store, _, err := settings.Open(ctx, d)
 	if err != nil {
@@ -46,7 +46,7 @@ func TestCopiesWaitingToBeMadeCountAgainstTheSpace(t *testing.T) {
 // and the database has no room for it and two gigabytes more: it waits, and is made once
 // there is room.
 func TestACopyWaitsForRoomOnTheDisk(t *testing.T) {
-	d, film := filmLibrary(t)
+	d, film, wanting := filmLibrary(t)
 	s := service(t, d, t.TempDir(), time.Now)
 	if !s.Converts() {
 		t.Skip("this machine cannot run the sandboxed encoder")
@@ -61,6 +61,8 @@ func TestACopyWaitsForRoomOnTheDisk(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	wanting(p)
+	s.Wake()
 	time.Sleep(time.Second)
 	if waiting, _ := d.PreparedByID(ctx, p.ID); waiting.State != db.PreparedWaiting {
 		t.Fatalf("a copy was started on a disk with no room for it: %s", waiting.State)

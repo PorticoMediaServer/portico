@@ -22,16 +22,28 @@ import (
 // never has, so the media route tells the two apart at a glance.
 const GrantPrefix = "dl."
 
-// grantLife is how long a download address works after it was last used. A device that comes
-// back later, or after a restart, asks for the title's addresses again and carries on from
-// where its file stopped.
-const grantLife = 24 * time.Hour
+// grantIdle is how long a download address works after it was last used, and grantMax how
+// long at most after it was given, however often it is used. A device that comes back later,
+// or after a restart, asks for the title's addresses again (which needs its sign-in) and
+// carries on from where its file stopped.
+const (
+	grantIdle = 24 * time.Hour
+	grantMax  = 7 * 24 * time.Hour
+)
 
-// grant is one title of one request, fetchable by whoever holds its address.
+// grantKey is what an address is for: one sign-in, one request, one title.
+type grantKey struct {
+	session        int64
+	download, item string
+}
+
+// grant is one title of one request, fetchable by whoever holds its address for as long as
+// the sign-in it was given to lasts.
 type grant struct {
+	grantKey
 	viewer       db.Viewer
-	download     string
-	item         string
+	token        string
+	given        time.Time
 	expires      time.Time
 	usedRecorded time.Time
 }
@@ -39,31 +51,41 @@ type grant struct {
 // grants are in memory: an address is a convenience for a device fetching in the background,
 // and nothing a person would miss after a restart.
 type grants struct {
-	mu   sync.Mutex
-	byID map[string]*grant
+	mu      sync.Mutex
+	byToken map[string]*grant
+	byKey   map[grantKey]*grant
 }
 
-// Grant returns the address part for one title of a request, the same one while it works.
-func (s *Service) Grant(v db.Viewer, download, item string) string {
+// Grant returns the address part for one title of a request, given to one sign-in: the same
+// one while it works.
+func (s *Service) Grant(v db.Viewer, session int64, download, item string) string {
 	g := &s.grants
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	now := s.Now()
-	if g.byID == nil {
-		g.byID = map[string]*grant{}
+	if g.byToken == nil {
+		g.byToken, g.byKey = map[string]*grant{}, map[grantKey]*grant{}
 	}
-	for token, held := range g.byID {
-		if now.After(held.expires) {
-			delete(g.byID, token)
-		} else if held.viewer == v && held.download == download && held.item == item {
-			held.expires = now.Add(grantLife)
-			return token
+	key := grantKey{session: session, download: download, item: item}
+	if held := g.byKey[key]; held != nil && now.Before(held.expires) && now.Before(held.given.Add(grantMax-grantIdle)) {
+		held.expires = now.Add(grantIdle)
+		return held.token
+	}
+	// Expired addresses are dropped as new ones are given, so the maps stay as large as the
+	// addresses in use.
+	if len(g.byToken) > 1000 {
+		for token, held := range g.byToken {
+			if now.After(held.expires) {
+				delete(g.byToken, token)
+				delete(g.byKey, held.grantKey)
+			}
 		}
 	}
 	var b [18]byte
 	rand.Read(b[:])
 	token := GrantPrefix + base64.RawURLEncoding.EncodeToString(b[:])
-	g.byID[token] = &grant{viewer: v, download: download, item: item, expires: now.Add(grantLife)}
+	held := &grant{grantKey: key, viewer: v, token: token, given: now, expires: now.Add(grantIdle)}
+	g.byToken[token], g.byKey[key] = held, held
 	return token
 }
 
@@ -71,13 +93,26 @@ func (s *Service) take(token string) (*grant, bool) {
 	g := &s.grants
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	held := g.byID[token]
-	if held == nil || s.Now().After(held.expires) {
+	held := g.byToken[token]
+	now := s.Now()
+	if held == nil || now.After(held.expires) {
 		return nil, false
 	}
-	held.expires = s.Now().Add(grantLife)
+	held.expires = now.Add(grantIdle)
+	if limit := held.given.Add(grantMax); held.expires.After(limit) {
+		held.expires = limit
+	}
 	copied := *held
 	return &copied, true
+}
+
+// recordUse notes that a title's copy was fetched through this address now.
+func (s *Service) recordUse(key grantKey, now time.Time) {
+	s.grants.mu.Lock()
+	defer s.grants.mu.Unlock()
+	if held := s.grants.byKey[key]; held != nil {
+		held.usedRecorded = now
+	}
 }
 
 // File is one file of a downloaded title, open for serving by range.
@@ -108,11 +143,17 @@ func (s *Service) Open(ctx context.Context, token, name string) (*File, error) {
 	if !ok {
 		return nil, ErrGone
 	}
-	if err := s.May(ctx, held.viewer, ""); err != nil {
+	// The sign-in it was given to must still be live, on the same profile, on the request's
+	// own device: signing out, being signed out, or moving to another profile ends it.
+	session, err := s.DB.DownloadSession(ctx, held.session, s.Now())
+	if err != nil || session.ProfileID != held.viewer.ProfileID {
+		return nil, ErrGone
+	}
+	if err := s.May(ctx, held.viewer, session.Platform); err != nil {
 		return nil, ErrGone
 	}
 	dl, title, err := s.DB.DownloadedTitle(ctx, held.viewer.ProfileID, held.download, held.item)
-	if err != nil || title.State != db.DownloadWanted {
+	if err != nil || title.State != db.DownloadWanted || dl.DeviceID != session.DeviceID {
 		return nil, ErrGone
 	}
 	if visible, err := s.DB.Visible(ctx, held.viewer, title.ItemID); err != nil || !visible {
@@ -151,13 +192,7 @@ func (s *Service) openCopy(ctx context.Context, held *grant, title db.DownloadTi
 	// Fetching keeps the copy: its keeping time starts again, at most once an hour per title.
 	if now := s.Now(); now.Sub(held.usedRecorded) > time.Hour {
 		s.DB.UsePrepared(ctx, p.ID, now)
-		s.grants.mu.Lock()
-		for _, g := range s.grants.byID {
-			if g.download == held.download && g.item == held.item {
-				g.usedRecorded = now
-			}
-		}
-		s.grants.mu.Unlock()
+		s.recordUse(held.grantKey, now)
 	}
 	file, err := os.Open(files[n-1])
 	if err != nil {
