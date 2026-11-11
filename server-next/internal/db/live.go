@@ -112,6 +112,8 @@ type LiveChannel struct {
 	Hidden    bool
 	// Audience is a source channel's source's: everyone or owner.
 	Audience string
+	// SourceID is a source channel's source.
+	SourceID int64
 	// GuideSource and GuideKey say which listings in guide.db are this channel's.
 	GuideSource int64
 	GuideKey    string
@@ -126,10 +128,13 @@ type LiveChannelQuery struct {
 	WithHidden bool
 	// NotFavorites leaves the profile's favourites out, for On now's second part.
 	NotFavorites bool
-	AfterNumber  int
-	AfterName    string
-	AfterID      int64
-	Limit        int
+	// Owner reads owner-only sources' channels too. Everyone else's read skips them in the
+	// statement itself, so it never walks a source it may not see.
+	Owner       bool
+	AfterNumber int
+	AfterName   string
+	AfterID     int64
+	Limit       int
 }
 
 // LiveChannels reads a page of channels in use, with the profile's own marks. It reads a run
@@ -143,6 +148,9 @@ func (d *DB) LiveChannels(ctx context.Context, v Viewer, q LiveChannelQuery) ([]
 	from := `channels c LEFT JOIN profile_channels pc ON pc.profile_id = @profile AND pc.channel_id = c.id`
 	// A paused source's channels, and channels the source no longer sends, leave Live TV.
 	where := `c.state = 1 AND c.missing_since_at IS NULL AND ifnull(s.paused, 0) = 0 AND ` + after
+	if !q.Owner {
+		where += ` AND (c.kind = 2 OR s.audience = 'everyone')`
+	}
 	if q.Favorites {
 		from = `profile_channels pc JOIN channels c ON c.id = pc.channel_id`
 		where += ` AND pc.profile_id = @profile AND pc.favorite = 1`
@@ -155,7 +163,7 @@ func (d *DB) LiveChannels(ctx context.Context, v Viewer, q LiveChannelQuery) ([]
 	}
 	rows, err := d.read.QueryContext(ctx, `SELECT c.id, c.public_id, c.kind, c.name, c.sort_name, c.number, ifnull(c.group_name, ''),
 		ifnull(l.libraries, '[]'), ifnull(c.logo_hash, ''), ifnull(pc.favorite, 0), ifnull(pc.hidden, 0), ifnull(c.guide_source_id, 0),
-		ifnull(c.guide_key, ''), ifnull(s.audience, '') FROM `+from+` LEFT JOIN library_channels l ON l.channel_id = c.id
+		ifnull(c.guide_key, ''), ifnull(s.audience, ''), ifnull(c.source_id, 0) FROM `+from+` LEFT JOIN library_channels l ON l.channel_id = c.id
 		LEFT JOIN live_sources s ON s.id = c.source_id
 		WHERE `+where+` ORDER BY `+order+` LIMIT @limit`,
 		sql.Named("profile", v.ProfileID), sql.Named("number", q.AfterNumber), sql.Named("name", q.AfterName), sql.Named("id", q.AfterID),
@@ -169,7 +177,7 @@ func (d *DB) LiveChannels(ctx context.Context, v Viewer, q LiveChannelQuery) ([]
 		var c LiveChannel
 		var libraries string
 		if err := rows.Scan(&c.ID, &c.PublicID, &c.Kind, &c.Name, &c.SortName, &c.Number, &c.Group, &libraries, &c.LogoHash, &c.Favorite,
-			&c.Hidden, &c.GuideSource, &c.GuideKey, &c.Audience); err != nil {
+			&c.Hidden, &c.GuideSource, &c.GuideKey, &c.Audience, &c.SourceID); err != nil {
 			return nil, err
 		}
 		if json.Unmarshal([]byte(libraries), &c.Libraries) != nil {
@@ -191,7 +199,7 @@ func (d *DB) LiveChannelByID(ctx context.Context, v Viewer, publicID string) (Li
 		publicID).Scan(&id, &number); err != nil {
 		return LiveChannel{}, notFound(err)
 	}
-	page, err := d.LiveChannels(ctx, v, LiveChannelQuery{WithHidden: true, AfterNumber: number, AfterID: id - 1, Limit: 1})
+	page, err := d.LiveChannels(ctx, v, LiveChannelQuery{WithHidden: true, Owner: true, AfterNumber: number, AfterID: id - 1, Limit: 1})
 	if err != nil {
 		return LiveChannel{}, err
 	}
