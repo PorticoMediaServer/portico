@@ -285,6 +285,17 @@ func (w *stateWriter) apply(itemID string, edit StateEdit) (State, *undoOffer, e
 	})
 
 	watching := edit.Watched != nil || edit.PositionMS != nil || edit.PositionText != nil
+	// A place in a book that reaches the end of its main text or its last page marks it read.
+	// With Pause history on, no place is kept and no book is marked read by reaching its end;
+	// a mark made by hand still is.
+	finished := false
+	if kind.Reading() && edit.Watched == nil && edit.PositionText != nil {
+		prefs, err := profilePreferences(w.tx, w.viewer.ProfileID)
+		if err != nil {
+			return state, nil, err
+		}
+		watching, finished = watching && prefs[PrefPauseHistory] != "true", readPlace(*edit.PositionText).AtEnd
+	}
 	var offer *undoOffer
 	if watching {
 		switch {
@@ -299,11 +310,12 @@ func (w *stateWriter) apply(itemID string, edit StateEdit) (State, *undoOffer, e
 			set(true, &row.playedAt, func() { row.played = *edit.Watched })
 			set(row.playedAt.Int64 == at, &row.positionAt, position)
 		default:
-			// A progress report from playback.
+			// A progress report from playback, or a reader's place.
 			set(true, &row.positionAt, func() {
 				position()
 				row.lastPlayedAt = sql.NullInt64{Int64: max(row.lastPlayedAt.Int64, at), Valid: true}
 			})
+			set(finished && row.positionAt.Int64 == at, &row.playedAt, func() { row.played = true })
 		}
 	}
 	if changed {
@@ -344,6 +356,9 @@ func (e StateEdit) check(kind ItemKind, durationMS int64) error {
 	}
 	if !kind.Playable() {
 		return invalid("only something playable has a position")
+	}
+	if e.PositionText != nil && kind.Reading() && !readPlace(*e.PositionText).valid {
+		return invalid("a place in a book is a JSON object of at most 4 KB with progression between 0 and 1")
 	}
 	if e.Watched != nil && *e.Watched && e.PositionMS != nil && *e.PositionMS != 0 {
 		return invalid("a position can go with unwatched, not with watched")
