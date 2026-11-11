@@ -74,7 +74,8 @@ func TestALibraryChannelIsMadeAndScheduledAWeekAhead(t *testing.T) {
 	}
 	now := time.Now()
 	rows := programmes(t, s, ch.ID, now, now.Add(8*24*time.Hour))
-	if len(rows) < 50 || rows[len(rows)-1].EndsAt.Before(now.Add(7*24*time.Hour)) || rows[0].StartsAt.After(now) {
+	// The schedule was built from a moment a little before now, truncated to the second.
+	if len(rows) < 50 || rows[len(rows)-1].EndsAt.Before(now.Add(7*24*time.Hour-time.Minute)) || rows[0].StartsAt.After(now) {
 		t.Fatalf("%d programmes, ending %v", len(rows), rows[len(rows)-1].EndsAt)
 	}
 	// Shuffle, no repeats: no film plays twice before every film has played once.
