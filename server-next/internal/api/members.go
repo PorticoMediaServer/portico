@@ -155,6 +155,13 @@ func (s *Server) createMember(r *http.Request, req MemberCreate) (Member, error)
 	if !db.Manages(caller.Role, req.Role) {
 		return Member{}, ErrNotPermitted()
 	}
+	// On a server that uses Portico Accounts nobody has a password here: a person joins with
+	// their Portico Account, through an invitation.
+	if kind, err := s.signInKind(r.Context()); err != nil {
+		return Member{}, err
+	} else if kind == "portico" {
+		return Member{}, ErrConflict("portico_accounts_only", "People join this server with their Portico Account. Invite them instead.")
+	}
 	key, err := idempotencyKey(r)
 	if err != nil {
 		return Member{}, err
