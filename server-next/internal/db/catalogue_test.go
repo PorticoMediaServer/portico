@@ -175,6 +175,29 @@ var ratingAges = map[string]int{"G": 0, "PG": 8, "PG-13": 13, "R": 17, "NC-17": 
 func TestRestrictedProfileNeverReceivesARestrictedTitle(t *testing.T) {
 	l := newLibrary(t, 3000)
 	byRating, byLibrary := l.viewers[9], l.viewers[8]
+	// One show suitable for 13 has every episode rated R on its own, as an NFO file can say.
+	// A profile limited to 13 must then not meet the show or its seasons either.
+	emptyShow, adult := "", 17
+	for _, lib := range l.libs {
+		if lib.Kind != db.LibraryShows {
+			continue
+		}
+		for _, show := range everything(t, l.d, byRating, db.ItemQuery{Library: lib.PublicID, Kinds: []db.ItemKind{db.KindShow}, Limit: 200}) {
+			episodes := everything(t, l.d, l.all, db.ItemQuery{Library: lib.PublicID, Kinds: []db.ItemKind{db.KindEpisode}, Limit: 200})
+			for _, episode := range episodes {
+				if episode.RootID == show.ID {
+					if err := l.d.ApplyDetails(ctx, db.Background, episode.ID, db.ItemDetails{ContentRating: "R", RatingAge: &adult}); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			emptyShow = show.PublicID
+			break
+		}
+	}
+	if emptyShow == "" {
+		t.Fatal("the test library has no show a profile limited to 13 may see")
+	}
 
 	type fact struct {
 		item    db.Item
@@ -182,7 +205,8 @@ func TestRestrictedProfileNeverReceivesARestrictedTitle(t *testing.T) {
 		rating  string
 		labels  []string
 		people  []string
-		genres  []string // its own and those of the title it belongs to
+		genres  []string        // its own and those of the title it belongs to
+		under   map[string]bool // for a show, season, artist or album: the playable titles in it
 	}
 	facts := map[string]*fact{}
 	var ids, people []string
@@ -193,7 +217,7 @@ func TestRestrictedProfileNeverReceivesARestrictedTitle(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				f := &fact{item: item, library: lib.Kind, rating: detail.ContentRating}
+				f := &fact{item: item, library: lib.Kind, rating: detail.ContentRating, under: map[string]bool{}}
 				for _, tag := range detail.Tags {
 					if tag.Kind == db.TagLabel {
 						f.labels = append(f.labels, tag.PublicID)
@@ -208,7 +232,10 @@ func TestRestrictedProfileNeverReceivesARestrictedTitle(t *testing.T) {
 				}
 				if detail.Root != nil { // a show's rating and labels cover its seasons and episodes
 					root := facts[detail.Root.PublicID]
-					f.rating, f.labels = root.rating, append(f.labels, root.labels...)
+					if f.rating == "" { // unless it has a rating of its own
+						f.rating = root.rating
+					}
+					f.labels = append(f.labels, root.labels...)
 					f.genres = append(f.genres, root.genres...)
 				}
 				// A label on a season or an album covers what is in it, like one on the show or artist.
@@ -217,6 +244,13 @@ func TestRestrictedProfileNeverReceivesARestrictedTitle(t *testing.T) {
 				}
 				facts[item.PublicID] = f
 				ids = append(ids, item.PublicID)
+				if item.Kind.Playable() {
+					for _, holder := range []*db.ItemRef{detail.Parent, detail.Root} {
+						if holder != nil {
+							facts[holder.PublicID].under[item.PublicID] = true
+						}
+					}
+				}
 			}
 		}
 	}
@@ -230,7 +264,29 @@ func TestRestrictedProfileNeverReceivesARestrictedTitle(t *testing.T) {
 	if blocked == "" {
 		t.Fatal("the test library has no labelled show")
 	}
-	byLabel, err := l.d.CreateSeedProfile(ctx, db.SeedProfile{Name: "no-label", BlockedTags: []string{blocked}})
+	// It also has blocked a label that every album of some artist carries, but not the artist,
+	// so the artist is left with nothing the profile may see.
+	var emptying string
+	for _, f := range facts {
+		if f.item.Kind != db.KindArtist || len(f.labels) > 0 || len(f.under) == 0 {
+			continue
+		}
+		var common []string
+		for id := range f.under {
+			labels := facts[id].labels
+			if common == nil {
+				common = slices.Clone(labels)
+			}
+			common = slices.DeleteFunc(common, func(label string) bool { return !slices.Contains(labels, label) })
+		}
+		if len(common) > 0 {
+			emptying = common[0]
+		}
+	}
+	if emptying == "" {
+		t.Fatal("the test library has no artist whose albums all carry one label")
+	}
+	byLabel, err := l.d.CreateSeedProfile(ctx, db.SeedProfile{Name: "no-label", BlockedTags: []string{blocked, emptying}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -240,7 +296,21 @@ func TestRestrictedProfileNeverReceivesARestrictedTitle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// A holder is allowed when it is allowed itself and holds nothing, or holds a playable
+	// title that is allowed.
+	var own func(v db.Viewer, f *fact) bool
 	allowed := func(v db.Viewer, f *fact) bool {
+		if !own(v, f) {
+			return false
+		}
+		for id := range f.under {
+			if own(v, facts[id]) {
+				return true
+			}
+		}
+		return len(f.under) == 0
+	}
+	own = func(v db.Viewer, f *fact) bool {
 		switch v {
 		case byRatingOrNone:
 			age, rated := ratingAges[f.rating]
@@ -251,9 +321,20 @@ func TestRestrictedProfileNeverReceivesARestrictedTitle(t *testing.T) {
 		case byLibrary:
 			return f.library == db.LibraryMovies || f.library == db.LibraryMusic
 		case byLabel:
-			return !slices.Contains(f.labels, blocked)
+			return !slices.Contains(f.labels, blocked) && !slices.Contains(f.labels, emptying)
 		}
 		return true
+	}
+	// The rule has something to check: the show above, and the artist.
+	if f := facts[emptyShow]; !own(byRating, f) || allowed(byRating, f) {
+		t.Fatal("the show whose episodes are all rated R is not left empty for the profile limited to 13")
+	}
+	emptiedByLabel := false
+	for _, f := range facts {
+		emptiedByLabel = emptiedByLabel || own(byLabel, f) && !allowed(byLabel, f)
+	}
+	if !emptiedByLabel {
+		t.Fatal("no holder has every title under a blocked label, so the test checks nothing of it")
 	}
 	titles := func(v db.Viewer, person string) (n int) {
 		for _, f := range facts {
