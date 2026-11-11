@@ -1,0 +1,36 @@
+name: New server folder watching on Windows
+# Runs the new server's folder-watching tests on a real Windows machine. Watching on Windows
+# is its own code (server-next/internal/scan/watch_windows.go, ReadDirectoryChangesW) and no
+# other job runs it.
+# Not part of ci/required: it reports.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/server-next-windows-watching.yml
+      - server-next/internal/scan/watch*.go
+      - server-next/internal/scan/schedule*.go
+permissions:
+  contents: read
+concurrency:
+  group: server-next-windows-watching-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  watching:
+    name: Folder watching on Windows
+    if: github.repository == 'PorticoMediaServer/portico'
+    runs-on: windows-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - run: git config --global core.longpaths true
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server-next/go.mod, cache-dependency-path: server-next/go.sum}
+      - name: Run the watching tests
+        working-directory: server-next
+        run: go test ./internal/scan -run 'TestAWatchedFolderIsScannedWhenItChanges|TestAFolderIsFollowedUntilItSettles' -count=1 -v -timeout 5m
