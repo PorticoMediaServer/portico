@@ -96,11 +96,16 @@ export async function addRemoteFolderToLibrary(api: ServerRequester, libraryId: 
   const kept = remoteFoldersOf(library);
   if (kept.some(one => one.source === folder.source && one.path === folder.path)) return library;
   // The route takes the whole list of folders on remote sources (`remoteFolders`), beside the local ones.
-  return callServer(api, 'PATCH /v1/admin/libraries/{id}', {id: libraryId, body: {remoteFolders: [...kept, folder]} as never, signal});
+  return holding(await callServer(api, 'PATCH /v1/admin/libraries/{id}', {id: libraryId, body: {remoteFolders: [...kept, folder]} as never, signal}), folder);
+}
+/** A server without folders on remote sources answers the library without the folder: that is not done, it is not available. */
+function holding(library: AdminLibrary, folder: RemoteFolderRef): AdminLibrary {
+  if (!remoteFoldersOf(library).some(one => one.source === folder.source && one.path === folder.path)) throw notOnServerYet();
+  return library;
 }
 /** Makes a library from a folder of a source; it starts its first scan. */
-export const createLibraryOnRemoteFolder = (api: ServerRequester, library: Readonly<{name: string; kind: string}>, folder: RemoteFolderRef, signal?: AbortSignal): Promise<AdminLibrary> =>
-  callServer(api, 'POST /v1/admin/libraries', {body: {name: library.name.trim(), kind: library.kind, folders: [], remoteFolders: [folder]} as never, signal});
+export const createLibraryOnRemoteFolder = async (api: ServerRequester, library: Readonly<{name: string; kind: string}>, folder: RemoteFolderRef, signal?: AbortSignal): Promise<AdminLibrary> =>
+  holding(await callServer(api, 'POST /v1/admin/libraries', {body: {name: library.name.trim(), kind: library.kind, folders: [], remoteFolders: [folder]} as never, signal}), folder);
 
 /** The refusal for a step the server does not offer yet. Nothing is sent and nothing is pretended. */
 export const notOnServerYet = (): Error => Object.assign(new Error('This is not available on this server yet.'), {code: 'not_on_server'});

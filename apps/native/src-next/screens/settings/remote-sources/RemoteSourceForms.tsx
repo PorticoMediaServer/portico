@@ -19,8 +19,9 @@ export function remoteSourceError(t: Translate, error: unknown): string {
   if (isNotOnServerYet(error)) return t('next.remoteSources.notOnServerYet');
   const code = error && typeof error === 'object' && 'code' in error && typeof error.code === 'string' ? error.code : '';
   const message = (error as {message?: unknown} | null)?.message;
-  if ((code === 'invalid_field' || code === 'invalid_request' || code === 'remote_unreachable') && typeof message === 'string' && message && message.length < 300) return message;
-  const keys = {unauthorized: 'next.remoteSources.error.signIn', forbidden: 'next.remoteSources.error.forbidden', source_in_use: 'next.remoteSources.error.changed'} as const;
+  // A field refusal and a source a library still uses are the server's own sentence.
+  if (['invalid_field', 'invalid_request', 'remote_unreachable', 'source_in_use'].includes(code) && typeof message === 'string' && message.trim() && message.length < 300) return message;
+  const keys = {unauthorized: 'next.remoteSources.error.signIn', forbidden: 'next.remoteSources.error.forbidden', invalid_field: 'next.remoteSources.error.invalid', invalid_request: 'next.remoteSources.error.invalid'} as const;
   return t(Object.prototype.hasOwnProperty.call(keys, code) ? keys[code as keyof typeof keys] : 'next.remoteSources.error.generic');
 }
 export const SourceWizardContext = createContext<Readonly<{step: number; back: () => void}> | undefined>(undefined);
@@ -90,8 +91,9 @@ export function AddSourceFlow({controller, t, isCurrent, onCancel, onSaved}: {co
     driveMode: 'key' as 'key' | 'oauth', key: '', clientId: '', clientSecret: '', signIn: '', redirectedUrl: ''});
   const [preset, setPreset] = useState<RemotePreset>(defaultRemotePreset), [limits, setLimits] = useState<RemoteLimits>(remotePresets[1]!.limits);
   const set = (patch: Partial<typeof f>) => setF(value => ({...value, ...patch}));
-  const field = (label: MessageId, key: keyof typeof f, secure = false) => <TextField label={t(label)} value={String(f[key])} secureTextEntry={secure} editable={!busy}
-    autoCapitalize="none" autoCorrect={false} onChangeText={value => set({[key]: value} as Partial<typeof f>)}/>;
+  // A pasted rclone configuration is several lines: its box keeps them.
+  const field = (label: MessageId, key: keyof typeof f, secure = false, multiline = false) => <TextField label={t(label)} value={String(f[key])} secureTextEntry={secure} editable={!busy}
+    multiline={multiline} autoCapitalize="none" autoCorrect={false} onChangeText={value => set({[key]: value} as Partial<typeof f>)}/>;
   const testAndSave = () => run(async () => {
     let source: RemoteSource;
     if (kind === 'cloud') source = await controller.addCloudToken({name: f.name.trim(), provider: f.provider, token: f.token, path: f.path, preset});
@@ -101,7 +103,7 @@ export function AddSourceFlow({controller, t, isCurrent, onCancel, onSaved}: {co
       const body = remoteSourceCreate(kind === 'webdav' ? {kind, name: f.name, address: f.address, user: f.user, password: f.password}
         : kind === 'rclone' ? {kind, name: f.name, config: f.config, path: f.path}
           : f.driveMode === 'key' ? {kind: 'drive', name: f.name, path: f.path, serviceAccountKey: f.key} : {kind: 'drive', name: f.name, path: f.path, signIn: f.signIn, redirectedUrl: f.redirectedUrl}, preset);
-      if ('missing' in body) throw Object.assign(new Error(''), {code: 'invalid_request'});
+      if ('missing' in body) throw Object.assign(new Error(t('next.remoteSources.error.invalid')), {code: 'invalid_request'});
       source = await controller.add(body);
     }
     if (isCurrent()) {setCreated(source); setStep(3);}
@@ -127,10 +129,10 @@ export function AddSourceFlow({controller, t, isCurrent, onCancel, onSaved}: {co
       {step === 2 && <>
         {field('next.remoteSources.name', 'name')}
         {kind === 'webdav' && <>{field('next.remoteSources.address', 'address')}{field('next.remoteSources.username', 'user')}{field('next.remoteSources.password', 'password', true)}</>}
-        {kind === 'rclone' && <>{field('next.remoteSources.connectRclone', 'config')}{field('next.remoteSources.cloudFolder', 'path')}</>}
+        {kind === 'rclone' && <>{field('next.remoteSources.connectRclone', 'config', false, true)}{field('next.remoteSources.cloudFolder', 'path')}</>}
         {kind === 'cloud' && <>{(['onedrive', 'dropbox'] as const).map(provider => <Choice key={provider} label={t(provider === 'onedrive' ? 'next.remoteSources.cloudOneDrive' : 'next.remoteSources.cloudDropbox')}
           picked={f.provider === provider} onPress={() => set({provider})}/>)}{field('next.remoteSources.cloudToken', 'token')}{field('next.remoteSources.cloudFolder', 'path')}</>}
-        {kind === 'newRclone' && <>{field('next.remoteSources.remoteKind', 'remoteType')}{field('next.remoteSources.connectRcloneHint', 'options')}{field('next.remoteSources.cloudFolder', 'path')}</>}
+        {kind === 'newRclone' && <>{field('next.remoteSources.remoteKind', 'remoteType')}{field('next.remoteSources.connectRcloneHint', 'options', false, true)}{field('next.remoteSources.cloudFolder', 'path')}</>}
         {kind === 'drive' && <>
           <Choice label={t('next.remoteSources.driveServiceAccount')} picked={f.driveMode === 'key'} onPress={() => set({driveMode: 'key'})}/>
           <Choice label={t('next.remoteSources.driveOAuth')} picked={f.driveMode === 'oauth'} onPress={() => set({driveMode: 'oauth'})}/>
@@ -151,8 +153,11 @@ export function FolderStep({controller, t, source, isCurrent, onDone, onCancel}:
   const {busy, error, run} = useRun(t, isCurrent);
   const [path, setPath] = useState(''), [folders, setFolders] = useState<readonly RemoteFolder[]>(), [libraries, setLibraries] = useState<readonly AdminLibrary[]>([]);
   const [target, setTarget] = useState(''), [name, setName] = useState(source.name), [kind, setKind] = useState('movies');
-  useEffect(() => {setFolders(undefined); void controller.folders(source.id, path).then(list => {if (isCurrent()) setFolders(list);}, () => {if (isCurrent()) setFolders([]);});}, [controller, source.id, path, isCurrent]);
-  useEffect(() => {void controller.libraries().then(list => {if (isCurrent()) setLibraries(list);}, () => {});}, [controller, isCurrent]);
+  // isCurrent is read when an answer arrives; a new one each render must not read again.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {setFolders(undefined); void controller.folders(source.id, path).then(list => {if (isCurrent()) setFolders(list);}, () => {if (isCurrent()) setFolders([]);});}, [controller, source.id, path]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {void controller.libraries().then(list => {if (isCurrent()) setLibraries(list);}, () => {});}, [controller]);
   const kinds = ['movies', 'shows', 'anime', 'music', 'audiobooks', 'books', 'comics'] as const;
   return <Page title={t('next.remoteSources.foldersHeader', {name: source.name})} t={t} busy={busy} onCancel={onCancel} wizardStep={4}
     footer={<Button variant="primary" loading={busy} disabled={!target && !name.trim()} onPress={() => run(async () => {
@@ -190,9 +195,9 @@ export function ManageSource({controller, t, source, isCurrent, onClose, onConti
     <TextField label={t('next.remoteSources.name')} value={name} onChangeText={setName} editable={!busy}/>
     <ReadingFields t={t} preset={preset} limits={limits} busy={busy} onPreset={setPreset} onLimits={setLimits}/>
     <TextField label={t(source.kind === 'webdav' ? 'next.remoteSources.password' : source.kind === 'rclone' ? 'next.remoteSources.connectRclone' : 'next.remoteSources.driveKey')}
-      value={secret} secureTextEntry={source.kind === 'webdav'} onChangeText={setSecret} editable={!busy} autoCapitalize="none" autoCorrect={false}/>
+      value={secret} secureTextEntry={source.kind === 'webdav'} multiline={source.kind === 'rclone'} onChangeText={setSecret} editable={!busy} autoCapitalize="none" autoCorrect={false}/>
     {confirm === undefined ? <Button variant="text" onPress={() => setConfirm('')}>{t('next.remoteSources.disconnect')}</Button> : <>
-      <Text>{t('next.remoteSources.disconnectBody')}</Text>
+      <Text>{t('next.remoteSources.disconnectBodyNext')}</Text>
       <TextField label={t('next.remoteSources.disconnectConfirm')} value={confirm} onChangeText={setConfirm}/>
       <Button variant="glass" disabled={busy || confirm !== shown.name} onPress={() => run(async () => {await controller.remove(source.id); if (isCurrent()) onClose();})}>{t('next.remoteSources.disconnect')}</Button></>}
   </Page>;

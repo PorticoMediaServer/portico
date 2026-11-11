@@ -14,7 +14,9 @@ export function SourceFolderBrowser({controller, source, t, isCurrent, onCancel,
   useEffect(() => {
     setFolders(undefined);
     void controller.folders(source.id, path).then(list => {if (isCurrent()) setFolders(list);}, failure => {if (isCurrent()) setError(remoteSourceError(t, failure));});
-  }, [controller, source.id, path, isCurrent, t]);
+    // isCurrent and t are read when the answer arrives; a new one each render must not read the folders again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [controller, source.id, path]);
   const here = {name: path.split('/').pop() || source.name, path};
   const picked = chosen.some(one => one.path === path);
   return <Page title={t('next.remoteSources.foldersHeader', {name: source.name})} t={t} busy={false} onCancel={onCancel}

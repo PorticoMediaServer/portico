@@ -424,4 +424,5 @@ export const remoteSourcesMessages = {
   'next.remoteSources.continueSetup': 'Continue setup',
   'next.remoteSources.notOnServerYet': 'This isn’t available on this server yet.',
   'next.remoteSources.perSecond': 'Requests a second',
+  'next.remoteSources.disconnectBodyNext': 'Portico stops using this source and forgets its sign-in. Nothing on the storage is changed. A source a library folder is still on can’t be disconnected: remove those folders from their libraries first.',
 } as const;
