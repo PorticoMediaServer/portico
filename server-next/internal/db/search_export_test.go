@@ -46,7 +46,7 @@ func (d *DB) DeleteItem(ctx context.Context, publicID string) error {
 }
 
 // LabelItem stands in for the label editor, which is not built yet. It writes what that will:
-// the tag on the title, and the title's change.
+// the tag on the title, the labels that now cover it and what is under it, and the title's change.
 func (d *DB) LabelItem(ctx context.Context, publicID, tagPublicID string) error {
 	return d.write(ctx, User, func(tx *sql.Tx) error {
 		var id, library, tag int64
@@ -57,6 +57,9 @@ func (d *DB) LabelItem(ctx context.Context, publicID, tagPublicID string) error 
 		b := newBatchTx(tx)
 		defer b.close()
 		if err := b.tagItem(id, tag); err != nil {
+			return err
+		}
+		if err := b.labelsChanged(id); err != nil {
 			return err
 		}
 		return appendChange(tx, Change{At: time.Now().UnixMilli(), Topic: TopicItem, Op: OpUpdated, RefID: id, LibraryID: library})
