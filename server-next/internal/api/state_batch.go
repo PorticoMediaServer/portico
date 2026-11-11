@@ -66,7 +66,7 @@ func (s *Server) stateBatchRoutes() {
 			}
 			positions = append(positions, n)
 			edits = append(edits, db.ItemEdit{ItemID: e.ItemID, StateEdit: db.StateEdit{Watched: e.Watched, PositionMS: e.PositionMs,
-				PositionText: e.Position, Favorite: e.Favorite, InList: e.InList, Hidden: e.Hidden, Rating: e.Rating.Value,
+				PositionText: e.Position, Favorite: e.Favorite, InList: e.InList, Hidden: e.NotInterested, DismissContinue: e.ContinueDismissed, Rating: e.Rating.Value,
 				ClearRating: e.Rating.Set && e.Rating.Value == nil, Ago: time.Duration(e.MadeAgoMs) * time.Millisecond}})
 		}
 		states, refusals, err := s.db.SetStates(r.Context(), db.User, viewer(r), edits)
