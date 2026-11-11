@@ -99,11 +99,17 @@ func (s *Service) FetchMissingLyrics(ctx context.Context, libraryID int64, byHan
 }
 
 // fetchLyrics asks about one song with no transaction open, then stores the answer. A
-// provider with nothing for the song is recorded, so the song is not asked about again at once.
+// provider with nothing for the song is recorded, so the song is not asked about again at once,
+// and so is a refusal of that one song (a 400 for a song with no artist in its tags): one song
+// the provider will not take never keeps the songs after it from being asked about. A provider
+// that cannot be asked at all (no answer, its own trouble, a pause) is the error, and the run stops.
 func (s *Service) fetchLyrics(ctx context.Context, p db.Priority, song db.LyricsSong) (bool, error) {
 	answer, err := s.Lyrics.Lyrics(ctx, LyricsQuery{Title: song.Title, Artist: song.Artist, Album: song.Album, DurationMS: song.DurationMS})
 	if err != nil && !errors.Is(err, ErrNotFound) {
-		return false, err
+		if ctx.Err() != nil || providerOutage(err) {
+			return false, err
+		}
+		answer = FoundLyrics{} // recorded as nothing found: the song waits as one with none
 	}
 	stored, err := s.DB.SetLyrics(ctx, p, song.ID, db.Lyrics{Source: db.LyricsFromProvider, Body: answer.Body, Timed: answer.Timed,
 		Language: answer.Language})
