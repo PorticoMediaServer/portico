@@ -594,28 +594,36 @@ func episodeNumbering(b *batchTx, showID int64) (EpisodeNumbering, error) {
 	return n, err
 }
 
-// resetEpisodes takes from a show's episodes everything a provider gave them, as if no
-// provider had been asked: each is named from its number again, and its ids, description,
-// dates, rating, genres and credits go. A field a person locked or the files gave stays.
+// resetEpisodes takes from a show's seasons and episodes everything a provider gave them, as
+// if no provider had been asked: each is named from its number again, and its ids,
+// description, dates, rating, genres and credits go. A field a person locked or the files gave
+// stays.
 func resetEpisodes(b *batchTx, showID, now int64) error {
-	type episode struct {
+	type child struct {
 		id    int64
+		kind  ItemKind
 		index sql.NullInt64
 	}
-	episodes, err := queryAll(context.Background(), b.tx, `SELECT id, index_number FROM items WHERE root_id = ? AND kind = ?`,
-		[]any{showID, KindEpisode}, func(e *episode) []any { return []any{&e.id, &e.index} })
+	children, err := queryAll(context.Background(), b.tx, `SELECT id, kind, index_number FROM items WHERE root_id = ? AND kind IN (?, ?)`,
+		[]any{showID, KindSeason, KindEpisode}, func(c *child) []any { return []any{&c.id, &c.kind, &c.index} })
 	if err != nil {
 		return err
 	}
-	for _, e := range episodes {
+	for _, c := range children {
 		blank := ItemDetails{Replace: true}
-		if e.index.Valid {
-			blank.Title = fmt.Sprintf("Episode %d", e.index.Int64)
+		switch {
+		case !c.index.Valid:
+		case c.kind == KindEpisode:
+			blank.Title = fmt.Sprintf("Episode %d", c.index.Int64)
+		case c.index.Int64 == 0:
+			blank.Title = "Specials"
+		default:
+			blank.Title = fmt.Sprintf("Season %d", c.index.Int64)
 		}
-		if err := applyDetails(b, e.id, &blank, now); err != nil {
+		if err := applyDetails(b, c.id, &blank, now); err != nil {
 			return err
 		}
-		if _, err := b.exec(`DELETE FROM item_external_ids WHERE item_id = ?`, e.id); err != nil {
+		if _, err := b.exec(`DELETE FROM item_external_ids WHERE item_id = ?`, c.id); err != nil {
 			return err
 		}
 	}
