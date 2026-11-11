@@ -158,3 +158,36 @@ func TestWatchTogether(t *testing.T) {
 		t.Fatalf("the ended room: %+v", ended.Ended)
 	}
 }
+
+// Starting and ending groups in a loop stops at eight in two minutes: an ended group is kept
+// that long to tell its members why, and counts until it goes.
+func TestStartingAndEndingGroupsIsBounded(t *testing.T) {
+	th := newTheatre(t)
+	host := th.owner.AccessToken
+	start := func(n int) int {
+		r := newRequest("POST", "/v1/groups", host, GroupCreate{Name: "Night", Control: "host"})
+		r.Header.Set("Idempotency-Key", "loop-"+strings.Repeat("x", n+1))
+		w := serve(th.s, r)
+		var made Room
+		if w.Code == 201 {
+			jsonInto(w, &made)
+			if code := status(t, th.s, http.MethodDelete, "/v1/groups/"+made.ID, host, nil); code != 204 {
+				t.Fatalf("ending answered %d", code)
+			}
+		}
+		return w.Code
+	}
+	for n := range 8 {
+		if code := start(n); code != 201 {
+			t.Fatalf("group %d answered %d", n+1, code)
+		}
+	}
+	if code := start(8); code != 429 {
+		t.Fatalf("a ninth group in two minutes answered %d, want 429", code)
+	}
+	th.clock = th.clock.Add(2*time.Minute + time.Second)
+	th.s.groups.Sweep()
+	if code := start(9); code != 201 {
+		t.Fatalf("a group once the ended ones were dropped answered %d", code)
+	}
+}
