@@ -203,6 +203,9 @@ func TestEveryRefusalWaitsAndTellsTheOwner(t *testing.T) {
 			says: "Portico Services is busy. Trying again at "},
 		{name: "signed a moment before the link", refuse: &refusal{401, "signed_before_link", "This request was signed before this server was linked.", 0, ""},
 			atLeast: 30 * time.Second, says: "Getting your secure address. This usually takes under a minute."},
+		{name: "a Portico Services that issues no certificates", refuse: &refusal{503, "certificates_unavailable",
+			"This Portico Services does not issue certificates.", 6 * 3600, "/orders"}, atLeast: 6 * time.Hour,
+			says: "This Portico Services isn't issuing certificates right now. Your Portico address works without one; Enhanced Security waits for it. Portico will ask again at "},
 		{name: "the authority paused", paused: true, atLeast: 10 * time.Minute,
 			says: "The certificate can't be issued just now. Portico will keep trying; nothing is needed from you."},
 		{name: "unreachable", down: true, atLeast: 30 * time.Second, says: "Portico Services can't be reached. Trying again at "},
@@ -227,6 +230,10 @@ func TestEveryRefusalWaitsAndTellsTheOwner(t *testing.T) {
 			s := r.c.Status()
 			if next.Sub(r.now) < c.atLeast || !strings.HasPrefix(s.Message, c.says) || s.NextTryAt == nil {
 				t.Fatalf("waits %v and says %q", next.Sub(r.now), s.Message)
+			}
+			// Nothing is installed, so Enhanced security goes on waiting.
+			if s.CertificateReady {
+				t.Fatal("a certificate is counted as ready")
 			}
 			calls := len(r.f.calls)
 			r.now = next.Add(-time.Second)
