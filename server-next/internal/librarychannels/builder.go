@@ -71,10 +71,10 @@ type Weight struct {
 type Builder struct {
 	Selection
 	// AvoidRepeats keeps a title from playing again within that many programmes: 5 unless set.
-	AvoidRepeats *int    `json:"avoidRepeats,omitempty"`
-	Blocks       []Block `json:"blocks,omitempty"`
-	Quality      Quality `json:"quality"`
-	LogoOnScreen Logo    `json:"logoOnScreen"`
+	AvoidRepeats *int           `json:"avoidRepeats,omitempty"`
+	Blocks       []Block        `json:"blocks,omitempty"`
+	Quality      ChannelQuality `json:"quality"`
+	LogoOnScreen Logo           `json:"logoOnScreen"`
 }
 
 // Block is a weekly stretch of hours with its own selection.
@@ -98,8 +98,9 @@ type Block struct {
 	IfEmpty string `json:"ifEmpty,omitempty"`
 }
 
-// Quality is auto (each viewer's own settings), original (never converted) or limited.
-type Quality struct {
+// ChannelQuality is a channel's quality: auto (each viewer's own settings), original (never
+// converted) or limited. Named for the contract, where playback.Quality is Quality.
+type ChannelQuality struct {
 	Mode    string `json:"mode,omitempty"`
 	MaxKbps int    `json:"maxKbps,omitempty"`
 }
