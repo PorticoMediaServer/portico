@@ -287,9 +287,9 @@ func (w *workload) browse(ctx context.Context, r *rand.Rand, profile int, pause 
 			}
 			w.record("person", who, started, err)
 		case n < 90: // Home: both rows
-			_, err := w.d.ContinueWatching(ctx, v)
+			_, err := w.d.ContinueWatching(ctx, v, "")
 			if err == nil {
-				_, err = w.d.RecentlyAdded(ctx, v)
+				_, err = w.d.RecentlyAdded(ctx, v, "")
 			}
 			w.record("home", who, started, err)
 		case n < 93: // opening the genre filter of a library screen
