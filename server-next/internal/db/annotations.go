@@ -223,6 +223,14 @@ func openAnnotatedBook(ctx context.Context, tx *sql.Tx, v Viewer, acc access, pu
 		v.ProfileID, book.id, now.Add(-annotationsKept).UnixMilli()); err != nil {
 		return nil, err
 	}
+	// Only the newest MaxAnnotations markers are kept, so making and deleting annotations in a
+	// loop cannot fill the database. An older one dropped early only lets a very late edit to it
+	// back in.
+	if _, err := tx.ExecContext(ctx, `DELETE FROM annotations WHERE id IN (SELECT id FROM annotations
+		WHERE profile_id = ? AND item_id = ? AND deleted_at IS NOT NULL ORDER BY deleted_at DESC, id DESC LIMIT -1 OFFSET ?)`,
+		v.ProfileID, book.id, MaxAnnotations); err != nil {
+		return nil, err
+	}
 	err := tx.QueryRowContext(ctx, `SELECT count(*) FROM annotations WHERE profile_id = ? AND item_id = ? AND deleted_at IS NULL`,
 		v.ProfileID, book.id).Scan(&book.live)
 	return book, err
