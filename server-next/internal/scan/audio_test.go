@@ -370,3 +370,30 @@ func TestAnAlbumGetsItsCoverFromItsFolderOrFromInsideASong(t *testing.T) {
 		t.Fatalf("an unchanged rescan wrote %d rows", again.RowsWritten)
 	}
 }
+
+// A provider never replaces what a song's own tags say; it may name a song that only its
+// file name named.
+func TestAProviderNeverReplacesWhatTagsGave(t *testing.T) {
+	f := newFixture(t, db.LibraryMusic)
+	f.tagged("downloads/a.mp3", "TIT2", "Airbag (my rip)", "TPE1", "Radiohead", "TALB", "OK Computer", "TRCK", "1/12", "TYER", "1997")
+	f.write("Portishead/Dummy/01 - Mysterons.flac")
+	f.scan()
+	artists := f.titles(db.KindArtist)
+	album := f.byTitle(artists["Radiohead"].PublicID)["OK Computer"]
+	tagged := f.children(album.PublicID)[1]
+	named := f.children(f.byTitle(artists["Portishead"].PublicID)["Dummy"].PublicID)[1]
+	for _, item := range []db.Item{album, tagged, named} {
+		if err := f.d.ApplyDetails(ctx, db.Background, item.ID, db.ItemDetails{Title: "The Provider's Name", Year: 2001}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := f.detail(album.PublicID); got.Title != "OK Computer" || got.Year != 1997 {
+		t.Errorf("the album its tags named and dated is now %q, %d", got.Title, got.Year)
+	}
+	if got := f.detail(tagged.PublicID); got.Title != "Airbag (my rip)" {
+		t.Errorf("the song its tags named is now %q", got.Title)
+	}
+	if got := f.detail(named.PublicID); got.Title != "The Provider's Name" {
+		t.Errorf("the song only its file name named is still %q", got.Title)
+	}
+}
