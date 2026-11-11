@@ -107,7 +107,13 @@ func run(log *slog.Logger) (err error) {
 		return nil
 	}
 	if *check {
-		return healthCheck(*listen)
+		// The check says only what it found. It is not the server, and "the server stopped"
+		// in a container's health log would be wrong about a server that is still starting.
+		if err := healthCheck(*listen); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return nil
 	}
 	if *data == "" {
 		folder, err := defaultData()

@@ -1,8 +1,9 @@
 name: New server as a Windows service
 # Builds the new server (server-next) for Windows and runs, on a real Windows machine, what the
 # installer runs: --service-install and --service-start, then checks the server answers, keeps
-# its data in %ProgramData%\Portico and writes its log there, then --service-stop and
-# --service-uninstall. Nothing else runs the Windows service code.
+# its data in %ProgramData%\Portico where only Windows, administrators and the service can
+# reach it, comes back when its worker ends unasked, and survives a stop and a start; then
+# --service-stop and --service-uninstall. Nothing else runs the Windows service code.
 # Not part of ci/required: it reports.
 on:
   workflow_dispatch:
@@ -10,7 +11,7 @@ on:
     paths:
       - .github/workflows/server-next-windows-service.yml
       - server-next/cmd/portico-server/**
-      - server-next/internal/supervise/process.go
+      - server-next/internal/supervise/process*.go
       - packaging/windows/**
 permissions:
   contents: read
@@ -27,8 +28,8 @@ jobs:
       run:
         shell: bash
     env:
-      # A folder the service's account (LocalService) can read, unlike the runner's own.
-      INSTALL: C:\portico-ci
+      # Where the installer puts the program: a path with spaces in it.
+      INSTALL: C:\Program Files\Portico Media Server
       # Where a Windows service keeps its data when it is given no folder.
       DATA: C:\ProgramData\Portico
     steps:
@@ -49,10 +50,48 @@ jobs:
       - name: The health check fails while nothing is running
         run: |
           if "$INSTALL/portico-server.exe" --health-check; then echo "passed with no server"; exit 1; fi
-      - name: --service-install and --service-start
+      - name: A data folder somebody made first, open to every user
+        shell: pwsh
         run: |
-          test ! -e "$DATA" || { echo "the runner already has a Portico data folder"; exit 1; }
+          if (Test-Path $env:DATA) { throw "the runner already has a Portico data folder" }
+          New-Item -ItemType Directory $env:DATA | Out-Null
+          Set-Content "$env:DATA\planted.txt" "x"
+          icacls $env:DATA /grant "*S-1-5-32-545:(OI)(CI)F"; if ($LASTEXITCODE) { throw "icacls" }
+          icacls "$env:DATA\planted.txt" /grant "*S-1-1-0:F"; if ($LASTEXITCODE) { throw "icacls" }
+          # Owned by an ordinary account, as a folder made before the install by another user would be.
+          icacls $env:DATA /setowner $env:USERNAME /T; if ($LASTEXITCODE) { throw "icacls" }
+          (Get-Acl $env:DATA).Owner
+          # What the later steps use to check who can reach a file or folder.
+          Set-Content "$env:RUNNER_TEMP\closed.ps1" @'
+          function Closed($path) {
+            icacls $path
+            $acl = Get-Acl -LiteralPath $path
+            if ($acl.Owner -ne 'BUILTIN\Administrators') { throw "$path is owned by $($acl.Owner)" }
+            $who = @($acl.Access | ForEach-Object { $_.IdentityReference.Value } | Sort-Object -Unique)
+            $allowed = 'NT AUTHORITY\SYSTEM', 'BUILTIN\Administrators', 'NT SERVICE\PorticoMediaServer'
+            $extra = @($who | Where-Object { $allowed -notcontains $_ })
+            if ($extra.Count) { throw "$path can be reached by $($extra -join ', ')" }
+            if ($who -notcontains 'NT SERVICE\PorticoMediaServer') { throw "$path cannot be reached by the service" }
+          }
+          '@
+      - name: --service-install
+        run: |
           "$INSTALL/portico-server.exe" --service-install
+      - name: The service runs as LocalService, from a quoted path
+        shell: pwsh
+        run: |
+          $config = sc.exe qc PorticoMediaServer | Out-String
+          $config
+          if ($config -notmatch 'SERVICE_START_NAME\s*:\s*NT AUTHORITY\\LocalService') { throw "not LocalService" }
+          if ($config -notmatch 'BINARY_PATH_NAME\s*:\s*"C:\\Program Files\\Portico Media Server\\portico-server.exe" --service') { throw "the program path is not quoted" }
+      - name: The install closed the data folder to other users
+        shell: pwsh
+        run: |
+          . "$env:RUNNER_TEMP\closed.ps1"
+          Closed $env:DATA
+          Closed "$env:DATA\planted.txt"
+      - name: --service-start
+        run: |
           "$INSTALL/portico-server.exe" --service-start
       - name: The server answers on loopback
         run: |
@@ -64,24 +103,47 @@ jobs:
       - name: --health-check
         run: |
           "$INSTALL/portico-server.exe" --health-check
-      - name: The data is in %ProgramData%\Portico and the log is being written
+      - name: The data is in %ProgramData%\Portico, closed to other users, and an administrator can read the setup code
+        shell: pwsh
         run: |
-          ls -la "$DATA"
-          test -f "$DATA/main.db"
+          . "$env:RUNNER_TEMP\closed.ps1"
+          Get-ChildItem $env:DATA | Format-Table Name, Length
+          Closed "$env:DATA\main.db"
+          Closed "$env:DATA\setup-code.txt"
+          if (-not (Get-Content "$env:DATA\setup-code.txt")) { throw "the setup code is empty" }
           # The log files arrive with the console's log (package serverlog). From then on this checks them.
-          if [ -d server-next/internal/serverlog ]; then
-            ls -la "$DATA/logs"
-            test -n "$(find "$DATA/logs" -type f -size +0)"
-          else
-            echo "this server has no log files yet"
-          fi
-      - name: The installing user can read the setup code
+          if (Test-Path server-next\internal\serverlog) {
+            if (-not (Get-ChildItem "$env:DATA\logs" -File | Where-Object Length -gt 0)) { throw "no log file is being written" }
+          } else {
+            "this server has no log files yet"
+          }
+      - name: A worker that ends unasked, with exit status 0, is started again
+        shell: pwsh
         run: |
-          test -s "$DATA/setup-code.txt"
+          # What a sign-out from Windows did to a worker with a console: a clean stop nobody asked for.
+          $service = (Get-CimInstance Win32_Service -Filter "Name='PorticoMediaServer'").ProcessId
+          $worker = (Get-CimInstance Win32_Process -Filter "Name='portico-server.exe' AND ParentProcessId=$service").ProcessId
+          if (-not $worker) { throw "no worker found under service process $service" }
+          $k = Add-Type -Name K -Namespace W -PassThru -MemberDefinition '[DllImport("kernel32.dll", SetLastError=true)] public static extern System.IntPtr OpenProcess(uint access, bool inherit, uint id); [DllImport("kernel32.dll", SetLastError=true)] public static extern bool TerminateProcess(System.IntPtr process, uint status);'
+          $handle = $k::OpenProcess(1, $false, [uint32]$worker)
+          if ($handle -eq [IntPtr]::Zero) { throw "the worker could not be opened" }
+          if (-not $k::TerminateProcess($handle, 0)) { throw "the worker could not be ended" }
+          "ended worker $worker of service process $service with exit status 0"
+          foreach ($i in 1..60) {
+            Start-Sleep 1
+            $now = Get-CimInstance Win32_Service -Filter "Name='PorticoMediaServer'"
+            $ready = 0
+            try { $ready = (Invoke-WebRequest -UseBasicParsing http://127.0.0.1:32500/v1/health/ready -TimeoutSec 2).StatusCode } catch {}
+            if ($now.State -eq 'Running' -and $now.ProcessId -ne $service -and $ready -eq 200) { "running again after $i s as process $($now.ProcessId)"; exit 0 }
+          }
+          sc.exe query PorticoMediaServer
+          throw "the service did not come back"
       - name: A stop and a start reuse the data folder
         run: |
           "$INSTALL/portico-server.exe" --service-stop
           if "$INSTALL/portico-server.exe" --health-check; then echo "still answering after the stop"; exit 1; fi
+          # The stop waits for the process, so the installer can replace the program at once.
+          cp "$INSTALL/portico-server.exe" "$INSTALL/copy.exe" && mv -f "$INSTALL/copy.exe" "$INSTALL/portico-server.exe"
           "$INSTALL/portico-server.exe" --service-start
           for i in $(seq 1 60); do
             if [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:32500/v1/health/ready)" = 200 ]; then echo "ready again after $i s"; break; fi
@@ -92,16 +154,11 @@ jobs:
           test -s "$DATA/setup-code.txt"
           # Nothing was started afresh somewhere else.
           test ! -e "$INSTALL/data"
-      - name: --service-stop
-        run: |
-          "$INSTALL/portico-server.exe" --service-stop
-          if "$INSTALL/portico-server.exe" --health-check; then echo "still answering after the stop"; exit 1; fi
-          # The stop waits for the process, so the installer can replace the program at once.
-          cp "$INSTALL/portico-server.exe" "$INSTALL/copy.exe" && mv -f "$INSTALL/copy.exe" "$INSTALL/portico-server.exe"
-      - name: --service-uninstall
+      - name: --service-uninstall while it is running, as the installer's uninstall does
         run: |
           "$INSTALL/portico-server.exe" --service-uninstall
           if sc.exe query PorticoMediaServer; then echo "the service is still there"; exit 1; fi
+          if "$INSTALL/portico-server.exe" --health-check; then echo "still answering after the uninstall"; exit 1; fi
           # Both succeed when there is no service, as the installer relies on.
           "$INSTALL/portico-server.exe" --service-stop
           "$INSTALL/portico-server.exe" --service-uninstall
@@ -111,9 +168,11 @@ jobs:
         run: |
           sc.exe query PorticoMediaServer
           sc.exe qc PorticoMediaServer
+          sc.exe qfailure PorticoMediaServer
           Get-WinEvent -FilterHashtable @{LogName='System'; ProviderName='Service Control Manager'} -MaxEvents 15 -ErrorAction SilentlyContinue | Format-List TimeCreated, Message
-          Get-ChildItem -Recurse -ErrorAction SilentlyContinue "$env:ProgramData\Portico" | Select-Object -First 60 FullName, Length
-          Get-ChildItem -ErrorAction SilentlyContinue "$env:ProgramData\Portico\logs" | ForEach-Object { Get-Content $_.FullName -Tail 60 }
+          Get-ChildItem -Recurse -ErrorAction SilentlyContinue "$env:DATA" | Select-Object -First 60 FullName, Length
+          icacls "$env:DATA"
+          Get-ChildItem -ErrorAction SilentlyContinue "$env:DATA\logs" | ForEach-Object { Get-Content $_.FullName -Tail 60 }
       - name: Leave nothing behind
         if: always()
         run: |
