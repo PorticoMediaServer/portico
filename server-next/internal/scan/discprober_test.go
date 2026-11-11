@@ -36,7 +36,7 @@ func TestADiscIsItsMainFeature(t *testing.T) {
 		a.Codec != "truehd" || a.Language != "eng" || s.Kind != db.StreamSubtitle || s.Codec != "hdmv_pgs_subtitle" {
 		t.Fatalf("the disc's tracks: %+v", facts.Streams)
 	}
-	if _, err := discFacts(disc.Probe{Kind: "bluray", Encryption: "aacs", Titles: []disc.Title{feature}}); err != ErrUnsupported {
+	if _, err := discFacts(disc.Probe{Kind: "bluray", Encryption: "aacs", Titles: []disc.Title{feature}}); err != ErrEncrypted {
 		t.Fatalf("an encrypted disc: %v", err)
 	}
 	if _, err := discFacts(disc.Probe{Kind: "dvd", Encryption: "none", Titles: []disc.Title{}}); err != ErrNotMedia {
