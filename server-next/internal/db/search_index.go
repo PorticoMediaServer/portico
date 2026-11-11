@@ -52,7 +52,7 @@ var searchFolding = searchtext.Stamp()
 // Besides words, a row holds keys, each one word that begins with a character no title, name
 // or query can contain, so nothing a person types ever matches one by chance: the whole title
 // as a single word, which makes "is exactly this title" one lookup; the id of each item the
-// row sits under; and three facts about an item, its library, its rating age and every tag
+// row sits under; and three facts about an item, its library, its rating age and every label
 // that it or anything it sits under carries, so that a count can be narrowed to some
 // libraries and ratings, and can leave out what a blocked label hides, without reading a row
 // of main.db. The facts are not rules: who may see which library or rating, and which labels
@@ -85,7 +85,7 @@ const (
 	searchRetry       = 10 * time.Second
 )
 
-// searchTag is the key of a tag that an item, or something it sits under, carries.
+// searchTag is the key of a label that an item, or something it sits under, carries.
 func searchTag(id int64) string { return searchTagMark + strconv.FormatInt(id, 10) }
 
 // ErrSearchUnavailable is the answer while there is no index to search: for the moment a new
@@ -369,12 +369,15 @@ func (d *DB) searchItemDocs(ctx context.Context, tail string, args ...any) (docs
 		return nil, nil, err
 	}
 	rows.Close()
-	// The tags of each item and of what it sits under, the same reach a blocked label has.
+	// The labels of each item and of what it sits under, the same reach a blocked label has.
+	// Labels are the only tags a profile can block; carrying every tag made the index a
+	// quarter larger at a million items.
 	var carriers []int64
 	for _, line := range lines {
 		carriers = append(carriers, line[:]...)
 	}
-	tagged, err := d.read.QueryContext(ctx, `SELECT item_id, tag_id FROM item_tags WHERE item_id`+inIDs+` ORDER BY tag_id`, idsJSON(carriers))
+	tagged, err := d.read.QueryContext(ctx, `SELECT t.item_id, t.tag_id FROM item_tags t JOIN tags g ON g.id = t.tag_id
+		WHERE t.item_id`+inIDs+` AND g.kind = ? ORDER BY t.tag_id`, idsJSON(carriers), TagLabel)
 	if err != nil {
 		return nil, nil, err
 	}
