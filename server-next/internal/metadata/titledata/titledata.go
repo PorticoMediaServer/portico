@@ -36,6 +36,7 @@ import (
 	"log/slog"
 	"math/rand/v2"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -112,18 +113,27 @@ type Updater struct {
 	Dir    string            // where the file is kept: a folder of its own in the data folder
 	Source Source            // nil fetches over HTTPS
 	Key    ed25519.PublicKey // nil uses PublishedKey
-	Log    *slog.Logger
+	// Address is a test publication's list, which wins over the owner's setting. A release
+	// leaves it empty.
+	Address string
+	Log     *slog.Logger
+}
+
+// ParseKey reads an Ed25519 public key written in standard base64, as PublishedKey is.
+func ParseKey(s string) (ed25519.PublicKey, error) {
+	raw, err := base64.StdEncoding.DecodeString(strings.TrimSpace(s))
+	if err != nil || len(raw) != ed25519.PublicKeySize {
+		return nil, errors.New("not an Ed25519 public key in base64")
+	}
+	return raw, nil
 }
 
 func (u *Updater) key() ed25519.PublicKey {
 	if u.Key != nil {
 		return u.Key
 	}
-	raw, err := base64.StdEncoding.DecodeString(PublishedKey)
-	if err != nil || len(raw) != ed25519.PublicKeySize {
-		return nil
-	}
-	return raw
+	key, _ := ParseKey(PublishedKey)
+	return key
 }
 
 func (u *Updater) source() Source {
@@ -294,6 +304,9 @@ func (u *Updater) Check(ctx context.Context) error {
 		return err
 	}
 	address := s.address()
+	if u.Address != "" {
+		address = u.Address
+	}
 	m, err := u.fetchList(ctx, address, key)
 	if err != nil {
 		return err
@@ -541,22 +554,35 @@ func fileAddress(listAddress, ref string) (string, error) {
 	return target.String(), nil
 }
 
-// HTTPS fetches over HTTPS only. A redirect may move within the same host and nowhere else.
+// HTTPS fetches over HTTPS only, or over plain HTTP from this machine's own loopback address,
+// where a test publication is served. A redirect may move within the same host and nowhere else.
 type HTTPS struct{}
 
 var httpsClient = &http.Client{
 	Timeout: 30 * time.Minute,
 	CheckRedirect: func(r *http.Request, via []*http.Request) error {
-		if len(via) >= 5 || r.URL.Scheme != "https" || r.URL.Host != via[0].URL.Host {
+		if len(via) >= 5 || r.URL.Scheme != via[0].URL.Scheme || r.URL.Host != via[0].URL.Host {
 			return refused("a redirect left the list's host")
 		}
 		return nil
 	},
 }
 
+// usable is an https address, or an http one on a loopback IP address.
+func usable(u *url.URL) bool {
+	if u.Host == "" || u.User != nil {
+		return false
+	}
+	if u.Scheme == "https" {
+		return true
+	}
+	ip, err := netip.ParseAddr(u.Hostname())
+	return u.Scheme == "http" && err == nil && ip.IsLoopback()
+}
+
 func (HTTPS) Open(ctx context.Context, address string) (io.ReadCloser, error) {
 	u, err := url.Parse(address)
-	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil {
+	if err != nil || !usable(u) {
 		return nil, refused("the title data address must be https")
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, address, nil)
