@@ -74,7 +74,8 @@ const proxyEverywhereMessage = "A trusted proxy covers most of the internet, so 
 type NetworkSettingsEdit struct {
 	HomeNetworks   *[]string `json:"homeNetworks,omitempty"`
 	TrustedProxies []string  `json:"trustedProxies"`
-	WebOrigins     []string  `json:"webOrigins"`
+	// WebOrigins left out leaves the list as it is; an empty list clears it.
+	WebOrigins *[]string `json:"webOrigins,omitempty"`
 }
 
 const (
@@ -350,6 +351,16 @@ func (s *Server) loadNetworks(ctx context.Context) error {
 	if err := json.Unmarshal([]byte(raw), &stored); err != nil {
 		return errors.New("the stored network settings are damaged")
 	}
+	// The list is held to the same rule when read as when saved, so a document changed by
+	// hand cannot allow "null", "*" or anything else that is not one origin.
+	stored.Origins = slices.DeleteFunc(stored.Origins, func(origin string) bool {
+		kept, ok := webOrigin(origin)
+		if ok && kept == origin {
+			return false
+		}
+		s.log.Warn("a saved web origin is not one web address (scheme, name and perhaps a port) and is ignored", "origin", origin)
+		return true
+	})
 	return s.network.set(stored)
 }
 
@@ -428,14 +439,19 @@ func (s *Server) saveNetworkSettings(r *http.Request, req NetworkSettingsEdit) (
 	if err != nil || len(proxies) > maxNetworks {
 		return NetworkSettings{}, ErrField("trustedProxies", "List up to 64 addresses or networks such as 10.0.0.2 or 172.18.0.0/16.")
 	}
-	for _, typed := range req.WebOrigins {
-		origin, ok := webOrigin(typed)
-		if !ok || len(req.WebOrigins) > maxWebOrigins {
-			return NetworkSettings{}, ErrField("webOrigins",
-				"List up to 16 web addresses, each only a scheme, a name and perhaps a port, such as https://tools.example or http://localhost:5173.")
-		}
-		if !slices.Contains(stored.Origins, origin) && !slices.Contains(builtInWebOrigins, origin) {
-			stored.Origins = append(stored.Origins, origin)
+	if req.WebOrigins == nil {
+		_, kept := s.network.current(s.now())
+		stored.Origins = slices.Clone(kept.Origins)
+	} else {
+		for _, typed := range *req.WebOrigins {
+			origin, ok := webOrigin(typed)
+			if !ok || len(*req.WebOrigins) > maxWebOrigins {
+				return NetworkSettings{}, ErrField("webOrigins", "List up to 16 web addresses, each only a scheme, a name and perhaps a port, such as "+
+					"https://tools.example or http://localhost:5173. Enter a name with letters outside the English alphabet in its xn-- form.")
+			}
+			if !slices.Contains(stored.Origins, origin) && !slices.Contains(builtInWebOrigins, origin) {
+				stored.Origins = append(stored.Origins, origin)
+			}
 		}
 	}
 	match, err := settingsIfMatch(r)
