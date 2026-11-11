@@ -554,6 +554,30 @@ func TestATitleRemovedFromTheTrashIsForgotten(t *testing.T) {
 	if back := f.film("Alien"); back.PublicID == alien.PublicID || f.watched(back.PublicID) {
 		t.Fatal("Alien added again should be a new title with nothing on it")
 	}
+
+	// The person's account is deleted too. Their own history is gone with them; the play is
+	// still in the server's record, under the names the profile and the account had.
+	members, err := f.d.Members(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, member := range members {
+		if member.ID != f.viewer.UserID {
+			continue
+		}
+		if err := f.d.DeleteMember(ctx, 0, "owner", member.PublicID, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+		if own, err := f.d.PlayRecords(ctx, f.viewer.ProfileID, 10); err != nil || len(own) != 0 {
+			t.Fatalf("the deleted profile's own history: %+v, %v", own, err)
+		}
+		all, err := f.d.ServerPlayRecords(ctx, 10)
+		if err != nil || len(all) != 1 || all[0].Title != "Alien" || all[0].AccountName != member.Username || all[0].ProfileName == "" {
+			t.Fatalf("the server's play record after the account was deleted: %+v, %v", all, err)
+		}
+		return
+	}
+	t.Fatal("the viewer's account was not found")
 }
 
 // A link back to a folder above it does not send the scan round in circles or list a film twice.
