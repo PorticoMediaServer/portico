@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
-	"github.com/PorticoMediaServer/portico/server-next/internal/libraryfile"
+	"github.com/PorticoMediaServer/portico/server-next/internal/remote"
 )
 
 // The formats this server opens, by the file's extension. A book in any other format the
@@ -53,6 +53,9 @@ type Service struct {
 	db  *db.DB
 	key []byte
 	now func() time.Time
+	// remote opens a remote source by its id, behind its throttle (remote.Registry.Open). Nil
+	// when there is none: a book on remote storage then says it cannot be reached that way.
+	remote func(ctx context.Context, sourceID int64) (remote.Storage, time.Duration, error)
 
 	mu    sync.Mutex
 	books map[string]*epub // EPUB package documents already read, by file and fingerprint
@@ -70,9 +73,9 @@ type Reader struct {
 }
 
 // New makes the service. key signs the addresses it hands out; it is kept by the server so
-// an address still works after a restart.
-func New(d *db.DB, key string, now func() time.Time) *Service {
-	return &Service{db: d, key: []byte(key), now: now, books: map[string]*epub{}, checked: map[string]checked{}}
+// an address still works after a restart. sources opens remote sources, as playback's do.
+func New(d *db.DB, key string, now func() time.Time, sources func(context.Context, int64) (remote.Storage, time.Duration, error)) *Service {
+	return &Service{db: d, key: []byte(key), now: now, remote: sources, books: map[string]*epub{}, checked: map[string]checked{}}
 }
 
 // Opened is a book as its reader needs it.
@@ -125,7 +128,7 @@ func Choose(book db.Book, version string) (db.BookVersion, bool) {
 	}
 	for _, format := range []string{FormatEPUB, FormatCBZ, FormatImages, FormatPDF} {
 		for _, v := range book.Versions {
-			if VersionFormat(v) == format && v.Path != "" {
+			if VersionFormat(v) == format {
 				return v, true
 			}
 		}
@@ -140,7 +143,7 @@ func Choose(book db.Book, version string) (db.BookVersion, bool) {
 // part of it. A book that cannot be read says why in Problem, and can still be saved.
 func (s *Service) Open(ctx context.Context, who Reader, book db.Book, v db.BookVersion) Opened {
 	out := Opened{Version: v, Format: VersionFormat(v), Fingerprint: Fingerprint(v.Size, v.ModifiedNS)}
-	if v.Path != "" {
+	if v.Path != "" || s.remote != nil {
 		g := grant{fileID: v.FileID, itemID: book.ID, reader: who, expires: s.now().Add(grantLifetime).Unix()}
 		copy(g.fingerprint[:], fingerprintBytes(v.Size, v.ModifiedNS))
 		out.MediaURL = "/v1/media/" + s.sign(g)
@@ -152,7 +155,7 @@ func (s *Service) Open(ctx context.Context, who Reader, book db.Book, v db.BookV
 	switch {
 	case out.Format != FormatEPUB && out.Format != FormatPDF && out.Format != FormatCBZ && out.Format != FormatImages:
 		out.Problem = ErrFormatLater
-	case v.Path == "":
+	case v.Path == "" && s.remote == nil:
 		out.Problem = ErrRemote
 	case out.Format == FormatImages && len(v.Pages) > maxEntries:
 		// As an archive with more entries is refused: a folder of tens of thousands of photos
@@ -212,20 +215,15 @@ func (s *Service) epub(v db.BookVersion, a *archive) (*epub, error) {
 // withArchive opens a version's file through libraryfile and reads its list of entries. The
 // file must still be the one the scanner recorded.
 func (s *Service) withArchive(ctx context.Context, v db.BookVersion, fn func(*archive) error) error {
-	folders, err := s.db.LibraryFolders(ctx)
+	f, place, err := s.openFile(ctx, v.FileID)
 	if err != nil {
 		return err
 	}
-	f, err := libraryfile.Open(v.Path, folders)
-	if err != nil {
-		return ErrUnavailable
-	}
-	defer f.Close()
-	info, err := f.Stat()
-	if err != nil || info.Size() != v.Size || info.ModTime().UnixNano() != v.ModifiedNS {
+	defer f.close()
+	if place.Size != v.Size || place.ModifiedNS != v.ModifiedNS {
 		return ErrChanged
 	}
-	a, err := openArchive(f, info.Size())
+	a, err := openArchive(f.at, f.size)
 	if err != nil {
 		return err
 	}
