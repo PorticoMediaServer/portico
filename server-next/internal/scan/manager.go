@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/jobs"
@@ -48,6 +49,10 @@ func NewManager(runner *jobs.Runner, scanner *Scanner) *Manager {
 			}
 			return scanner.DB.DeleteLibrary(ctx, lib.ID)
 		}})
+	runner.Tidy("library trash", time.Hour, func(ctx context.Context) error {
+		m.emptyTrash(ctx, time.Now())
+		return nil
+	})
 	return m
 }
 

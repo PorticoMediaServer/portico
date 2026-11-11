@@ -26,9 +26,7 @@ const (
 
 // Run starts scans by themselves until ctx ends: every library once when the server starts
 // (what changed while it was away), a library when one of its watched folders changes, a
-// library whose rescan interval has passed, and a remote folder when its source is due. Once
-// an hour it also empties, from every library's trash, the titles whose days are up, so that
-// "after 30 days" does not wait for the next scan.
+// library whose rescan interval has passed, and a remote folder when its source is due.
 func (m *Manager) Run(ctx context.Context) {
 	w := newWatcher()
 	changed := make(chan string, 256)
@@ -72,9 +70,6 @@ func (m *Manager) Run(ctx context.Context) {
 		}
 		if n%int(time.Minute/settle) == 0 {
 			m.startDue(ctx, time.Now())
-		}
-		if n%int(time.Hour/settle) == 0 {
-			m.emptyTrash(ctx, time.Now())
 		}
 	}
 }
@@ -185,7 +180,8 @@ func (m *Manager) rewatch(ctx context.Context, lib db.Library, first bool) {
 }
 
 // emptyTrash removes, from every library that removes missing titles after a number of days,
-// the ones whose days are up.
+// the ones whose days are up. It is hourly housekeeping, so that "after 30 days" does not wait
+// for the next scan.
 func (m *Manager) emptyTrash(ctx context.Context, now time.Time) {
 	libraries, err := m.scanner.DB.AllLibraries(ctx)
 	if err != nil {

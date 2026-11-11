@@ -346,9 +346,8 @@ func libraryError(err error) error {
 	return err
 }
 
-// RunSchedules starts scans by themselves until ctx ends: when watched folders change, on
-// rescan intervals, and the hourly emptying of trash whose days are up. The program calls it
-// once, beside serving.
+// RunSchedules starts scans by themselves until ctx ends: when watched folders change and on
+// rescan intervals. The program calls it once, beside serving.
 func (s *Server) RunSchedules(ctx context.Context) { s.scans.Run(ctx) }
 
 func (s *Server) libraryRoutes() {
