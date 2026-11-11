@@ -237,6 +237,9 @@ CREATE TABLE items (
   -- upgrade must have it filled (RebuildCoveringLabels) before the server answers anyone:
   -- until then NULL would show a profile what its blocked labels hide.
   labels           TEXT,
+  -- The width of the item's widest version, for the sort by resolution. Whatever adds a
+  -- version, moves one or reads a new picture size calls versionsChanged in the same transaction.
+  best_width       INTEGER,
   last_child_added_at INTEGER,
   available        INTEGER NOT NULL DEFAULT 1 CHECK (available IN (0, 1)),
   missing_since_at INTEGER,
@@ -255,6 +258,7 @@ CREATE INDEX items_by_release ON items (library_id, kind, release_date, id, rati
 -- reads and sorts the whole library.
 CREATE INDEX items_by_duration ON items (library_id, kind, duration_ms, id, rating_age);
 CREATE INDEX items_by_community_rating ON items (library_id, kind, community_rating, id, rating_age);
+CREATE INDEX items_by_resolution ON items (library_id, kind, best_width, id, rating_age);
 -- For a profile with a rating limit: how many titles of a kind it may see, and which, when few.
 CREATE INDEX items_by_rating ON items (library_id, kind, rating_age);
 -- The few items a label covers, so "what does this label hide in this library" reads only them.
