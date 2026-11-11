@@ -66,6 +66,10 @@ func Import(ctx context.Context, d *db.DB, cfg Config, progress func(Totals)) (T
 		err := Batches(cfg, lib, func(batch db.ImportBatch) error {
 			stats, err := d.Import(ctx, batch)
 			totals.LastBatchFiles = limit
+			if cfg.BatchTime == 0 {
+				// As a scan does: full batches, kept short while someone is using the server.
+				limit = d.NextImportFiles(len(batch.Files), cfg.BatchFiles, stats.Took)
+			}
 			if cfg.BatchTime > 0 && stats.Took > 0 && len(batch.Files) > 0 {
 				// Move a third of the way to the size that would have taken BatchTime.
 				fits := float64(len(batch.Files)) * float64(cfg.BatchTime) / float64(stats.Took)
