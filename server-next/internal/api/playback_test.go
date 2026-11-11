@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -119,7 +118,7 @@ type theatre struct {
 	s      *Server
 	engine *fakeEngine
 	owner  Session
-	clock  rigClock
+	clock  *rigClock
 	film   string
 	eps    [2]string
 	song   string
@@ -127,20 +126,12 @@ type theatre struct {
 	path   string
 }
 
-// rigClock is a clock a test moves while the server's own background work reads it.
-type rigClock struct{ at atomic.Pointer[time.Time] }
-
-func (c *rigClock) Now() time.Time      { return *c.at.Load() }
-func (c *rigClock) Set(t time.Time)     { c.at.Store(&t) }
-func (c *rigClock) Add(d time.Duration) { c.Set(c.Now().Add(d)) }
-
 const hour = int64(3_600_000)
 
 func newTheatre(t *testing.T) *theatre {
 	path := filepath.Join(t.TempDir(), "main.db")
 	s := openTestServer(t, path)
-	th := &theatre{T: t, s: s, path: path, engine: &fakeEngine{}, libs: map[string]db.Library{}}
-	th.clock.Set(time.Now())
+	th := &theatre{T: t, s: s, path: path, engine: &fakeEngine{}, clock: newRigClock(time.Now()), libs: map[string]db.Library{}}
 	s.setClock(func() time.Time { return th.clock.Now() })
 	s.playback.SetEngine(th.engine, th.engine)
 	th.owner = onMain(t, s, setup(t, s))
