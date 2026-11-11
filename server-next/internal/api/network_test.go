@@ -46,7 +46,6 @@ func TestTrustedProxiesAndHomeNetworks(t *testing.T) {
 	}
 	for name, edit := range map[string]NetworkSettingsEdit{
 		"a proxy that is not an address": {TrustedProxies: []string{"my-proxy"}},
-		"the whole internet as a proxy":  {TrustedProxies: []string{"0.0.0.0/0"}},
 		"a home network that is not one": {HomeNetworks: &[]string{"192.168.1.0/40"}, TrustedProxies: []string{}},
 	} {
 		if got := status(t, s, "PUT", "/v1/admin/settings/network", owner.AccessToken, edit); got != 400 {
@@ -66,6 +65,25 @@ func TestTrustedProxiesAndHomeNetworks(t *testing.T) {
 	}
 	if got := save(`"0"`, edit); got != http.StatusPreconditionFailed {
 		t.Errorf("a save from a stale copy answered %d, want 412", got)
+	}
+	// Trusting a forwarded address from most of the internet is the owner's choice to make: it
+	// is saved, warned about, and the warning goes once it no longer holds.
+	var risky NetworkSettings
+	if w := call(t, s, "PUT", "/v1/admin/settings/network", owner.AccessToken, NetworkSettingsEdit{TrustedProxies: []string{"0.0.0.0/0"}}, &risky); w.Code != 200 ||
+		len(risky.Warnings) != 1 || risky.Warnings[0].Code != "proxy_everywhere" {
+		t.Fatalf("the whole internet as a proxy answered %d %+v", w.Code, risky)
+	}
+	call(t, s, "GET", "/v1/admin/settings/network", owner.AccessToken, nil, &risky)
+	if len(risky.Warnings) != 1 {
+		t.Fatalf("the warning is not shown while it holds: %+v", risky)
+	}
+	settings = NetworkSettings{}
+	if w := call(t, s, "PUT", "/v1/admin/settings/network", owner.AccessToken, NetworkSettingsEdit{TrustedProxies: []string{}}, &settings); w.Code != 200 ||
+		len(settings.Warnings) != 0 {
+		t.Fatalf("taking it back answered %d %+v", w.Code, settings)
+	}
+	if got := save("", edit); got != 200 {
+		t.Fatalf("saving the settings again answered %d", got)
 	}
 
 	wrong := SignInRequest{Username: "justin", Password: "not the password"}
@@ -153,8 +171,8 @@ func TestListedProxyThatSendsNoAddress(t *testing.T) {
 	const proxy = "192.168.1.2"
 	edit := NetworkSettingsEdit{HomeNetworks: &[]string{"192.168.1.0/24"}, TrustedProxies: []string{proxy}}
 	var saved NetworkSettings
-	if w := call(t, s, "PUT", "/v1/admin/settings/network", owner.AccessToken, edit, &saved); w.Code != 200 || len(saved.Notices) != 0 {
-		t.Fatalf("saving the settings answered %d with notices %v", w.Code, saved.Notices)
+	if w := call(t, s, "PUT", "/v1/admin/settings/network", owner.AccessToken, edit, &saved); w.Code != 200 || len(saved.Warnings) != 0 {
+		t.Fatalf("saving the settings answered %d with warnings %v", w.Code, saved.Warnings)
 	}
 	for n, forwarded := range []string{"", "unknown", "203.0.113.9", "192.168.1.20"} {
 		body := SignInRequest{Username: "justin", Password: testPassword, Device: device(300 + n)}
@@ -169,9 +187,10 @@ func TestListedProxyThatSendsNoAddress(t *testing.T) {
 	if networks["Device 300"] != "away" || networks["Device 301"] != "away" || networks["Device 302"] != "away" || networks["Device 303"] != "home" {
 		t.Errorf("no header, junk, an outside address and a home address are listed as %v, want away, away, away, home", networks)
 	}
-	notices := get[NetworkSettings](t, s, owner.AccessToken, "/v1/admin/settings/network").Notices
-	if len(notices) != 1 || !strings.Contains(notices[0], proxy) || !strings.Contains(notices[0], "X-Forwarded-For") {
-		t.Errorf("the owner's network settings say %q", notices)
+	warnings := get[NetworkSettings](t, s, owner.AccessToken, "/v1/admin/settings/network").Warnings
+	if len(warnings) != 1 || warnings[0].Code != "proxy_without_header" || !strings.Contains(warnings[0].Message, proxy) ||
+		!strings.Contains(warnings[0].Message, "X-Forwarded-For") {
+		t.Errorf("the owner's network settings say %+v", warnings)
 	}
 	// Wrong guesses through the silent proxy are counted against the proxy's address, like
 	// any network away from home, and are not let off as the household's.
@@ -205,8 +224,8 @@ func TestSilentProxiesAreLoggedOnceAndOnlyWhileNoted(t *testing.T) {
 	if lines := strings.Count(log.String(), "with no X-Forwarded-For"); lines != maxSilentProxies {
 		t.Errorf("%d addresses noted twice wrote %d warnings, want one for each of the first %d", maxSilentProxies+4, lines, maxSilentProxies)
 	}
-	if notices := s.networkNotices(); len(notices) != maxSilentProxies {
-		t.Errorf("the owner is shown %d notices, want %d", len(notices), maxSilentProxies)
+	if warnings := s.networkWarnings(s.networks()); len(warnings) != maxSilentProxies {
+		t.Errorf("the owner is shown %d warnings, want %d", len(warnings), maxSilentProxies)
 	}
 }
 
@@ -270,5 +289,26 @@ func TestPINGuessesAcrossDevicesShareOneCount(t *testing.T) {
 	}
 	if code, _ := try(390, "7777"); code != 200 {
 		t.Fatalf("after a right PIN, nine wrong ones elsewhere made a new device wait (%d)", code)
+	}
+}
+
+// The owner reads one list of warnings: the wide proxy list first, then each trusted proxy
+// address seen sending no X-Forwarded-For, each with its own code; saving starts it afresh.
+func TestNetworkWarningsAreOneList(t *testing.T) {
+	s := newTestServer(t)
+	owner := onMainProfile(t, s)
+	if w := call(t, s, "PUT", "/v1/admin/settings/network", owner.AccessToken, NetworkSettingsEdit{TrustedProxies: []string{"0.0.0.0/0"}}, nil); w.Code != 200 {
+		t.Fatalf("saving a wide proxy list answered %d: %s", w.Code, w.Body)
+	}
+	s.noteSilentProxy("203.0.113.9")
+	warnings := get[NetworkSettings](t, s, owner.AccessToken, "/v1/admin/settings/network").Warnings
+	if len(warnings) != 2 || warnings[0].Code != "proxy_everywhere" || warnings[1].Code != "proxy_without_header" ||
+		!strings.Contains(warnings[1].Message, "203.0.113.9") {
+		t.Fatalf("the warnings are %+v", warnings)
+	}
+	var saved NetworkSettings
+	if w := call(t, s, "PUT", "/v1/admin/settings/network", owner.AccessToken, NetworkSettingsEdit{TrustedProxies: []string{}}, &saved); w.Code != 200 ||
+		len(saved.Warnings) != 0 {
+		t.Fatalf("after a narrower save the warnings are %+v", saved.Warnings)
 	}
 }
