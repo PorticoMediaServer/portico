@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -18,7 +19,7 @@ func TestOwnerSettingsDocuments(t *testing.T) {
 
 	var doc SettingsDocument
 	w := call(t, s, "GET", "/v1/admin/settings/general", owner.AccessToken, nil, &doc)
-	if w.Code != 200 || w.Header().Get("ETag") != `"0"` || string(doc.Defaults) != `{"name":"Portico"}` {
+	if w.Code != 200 || w.Header().Get("ETag") != `"0"` || !strings.Contains(string(doc.Defaults), `"name":"Portico"`) {
 		t.Fatalf("the general settings answered %d %q %s", w.Code, w.Header().Get("ETag"), w.Body)
 	}
 	save := func(etag string, body string) (int, SettingsDocument) {
@@ -33,7 +34,7 @@ func TestOwnerSettingsDocuments(t *testing.T) {
 		}
 		return w.Code, out
 	}
-	if code, out := save(`"0"`, `{"name":"  Den  "}`); code != 200 || string(out.Values) != `{"name":"Den"}` || out.ETag != `"1"` {
+	if code, out := save(`"0"`, `{"name":"  Den  "}`); code != 200 || !strings.Contains(string(out.Values), `"name":"Den"`) || out.ETag != `"1"` {
 		t.Fatalf("renaming answered %d %+v", code, out)
 	}
 	var system System

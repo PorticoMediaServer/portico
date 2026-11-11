@@ -35,3 +35,6 @@ func Room(path string, floor int64) bool {
 	}
 	return free >= floor
 }
+
+// Total is the size of the disk that holds path, in bytes.
+func Total(path string) (int64, error) { return totalBytes(path) }
