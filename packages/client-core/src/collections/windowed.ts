@@ -97,6 +97,8 @@ export type WindowedCollection<T> = {
   pin(index: number | undefined): void;
   /** Offset for a letter from the positionIndex, if known. */
   indexOfLetter(letter: string): number | undefined;
+  /** Facts about the list `source` reads that arrive apart from its pages: its exact length, where each letter starts. */
+  learn?(source: FetchPage<T>, facts: Readonly<{total?: number; positionIndex?: Readonly<Record<string, number>>}>): void;
   /** Start a new generation (filter/sort change). The old one stays on screen until the new first page arrives. */
   invalidate(fetchPage?: FetchPage<T>): void;
   /**
@@ -391,6 +393,16 @@ export function createWindowedCollection<T>(options: WindowedCollectionOptions<T
       if (next === pinned) return;
       pinned = next;
       pump();
+    },
+    learn(source, facts) {
+      if (disposed) return;
+      for (const g of [current, pending]) {
+        if (!g || g.fetchPage !== source) continue;
+        // Before the first page there is nothing to correct; that page will carry what is known by then.
+        if (facts.total !== undefined && g.total !== undefined && Number.isFinite(facts.total) && facts.total >= 0) {g.total = Math.floor(facts.total); g.totalIsLowerBound = false;}
+        if (facts.positionIndex) g.positionIndex = {...(g.positionIndex ?? {}), ...facts.positionIndex};
+      }
+      publish();
     },
     indexOfLetter(letter) {
       const index = current.positionIndex;

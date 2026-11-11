@@ -1,7 +1,7 @@
 import {BrowseQueryBuilder, type BrowseCapabilities, type BrowseNode, type BrowseResult, type BrowseSortSelection, type BrowseWholeSelection, type BrowseWholeSelectionUnavailable} from './browse.ts';
 import type {FetchPage} from './collections/windowed.ts';
 import type {ContentEntry} from './library-content.ts';
-import {entriesFromItems, readItems} from './items.ts';
+import {countItems, entriesFromItems, readFacet, readItems} from './items.ts';
 import {libraryItemQuery} from './library-browse.ts';
 import {linkAbortSignals} from './abort-lifetime.ts';
 import {isStaleAnswer} from './freshness-actions.ts';
@@ -61,6 +61,8 @@ export type BrowseSessionOptions<T> = Readonly<{
   onWhole?: (whole: BrowseWholeSelection) => void;
   onWholeUnavailable?: (value: BrowseWholeSelectionUnavailable | undefined) => void;
   onPage?: (page: BrowseResult) => void;
+  /** The list's exact length, or where each letter starts: each comes from its own request, after the first page is already shown. */
+  onFacts?: (facts: Readonly<{total?: number; positionIndex?: Readonly<Record<string, number>>}>) => void;
   /** The list ended under this query. Later pages refuse until a new session. */
   onStale?: (error: unknown) => void;
 }>;
@@ -71,8 +73,8 @@ let readings = 0;
  * Each query gets its own session: a new filter, sort or opening retires the old one,
  * so a late page can never land on the query that replaced it.
  *
- * The server pages by cursor and the screens ask by position, so the session remembers the
- * cursor at each position it has passed and walks forward from the nearest one. */
+ * The screens ask by position: the page after one already read follows its cursor, and any other
+ * position is opened directly. */
 export class BrowseSession<T> {
   readonly query: BrowseSessionQuery;
   private readonly options: BrowseSessionOptions<T>;
@@ -84,6 +86,9 @@ export class BrowseSession<T> {
   /** Where each page starts: position to cursor. Position 0 needs none. */
   private cursors = new Map<number, string>([[0, '']]);
   private total?: number;
+  private counting?: Promise<void>;
+  private lettering?: Promise<void>;
+  private letters?: Readonly<Record<string, number>>;
   /** One walk at a time, so two pages never race for the same cursor. */
   private queue: Promise<unknown> = Promise.resolve();
   constructor(options: BrowseSessionOptions<T>) {
@@ -117,28 +122,36 @@ export class BrowseSession<T> {
     const lifetime = linkAbortSignals([signal, this.life.signal]), active = lifetime.signal;
     const api = {request: <R>(path: string, method = 'GET', body?: unknown, input?: AbortSignal) => this.options.request(path, method, body, input ?? active) as Promise<R>};
     try {
-      // Walk from the nearest position already passed to the one asked for.
-      let at = [...this.cursors.keys()].filter(known => known <= start).reduce((best, known) => Math.max(best, known), 0);
-      for (;;) {
-        const cursor = this.cursors.get(at)!, wanted = at === start;
-        const page = await readItems(api, list, {cursor: cursor || undefined, limit: wanted ? count : Math.min(200, start - at), total: this.total === undefined}, active);
-        if (page.total !== undefined) this.total = page.total;
-        const end = at + page.items.length;
-        if (page.nextCursor && page.items.length) this.cursors.set(end, page.nextCursor);
-        if (!wanted && page.items.length && page.nextCursor) { at = end; continue; }
-        if (this.retired || !this.options.current() || signal.aborted) throw browseSessionClosed();
-        const entries = wanted ? entriesFromItems(page.items, this.query.libraryId) : [];
-        const total = this.total ?? end;
-        const result: BrowseResult = Object.freeze({pivot: this.query.pivot, applied: {query: null, sort: this.query.sorts, seek: null}, entries,
-          pageInfo: {start, total, totalIsLowerBound: false, revision: this.pinned ?? '', hasMore: wanted && !!page.nextCursor, nextCursor: wanted ? page.nextCursor ?? '' : ''}, positionIndex: []});
-        const first = this.pinned === undefined;
-        this.pinned ??= 'reading-' + ++readings;
-        for (const entry of entries) this.entries.add(entry);
-        if (first) this.options.onRevision?.(this.pinned);
-        this.options.onPage?.(result);
-        if (!this.live() || signal.aborted) throw browseSessionClosed();
-        return {items: entries.map((entry, index) => this.options.item(entry, result, index)), total, positionIndex: {}};
-      }
+      // The count is its own request and no page waits for it; until it answers the list is "at least this long".
+      this.counting ??= countItems(api, list, this.life.signal)
+        .then(total => {if (total !== undefined) {this.total = total; if (this.live()) this.options.onFacts?.({total});}}, () => undefined);
+      // The letter rail, for a list in title order: each first letter and how many titles begin with it.
+      const title = this.query.sorts[0]?.field === 'title' ? this.query.sorts[0] : undefined;
+      if (title) this.lettering ??= readFacet(api, 'letter', list, this.life.signal)
+        .then(facet => {
+          const counts = title.direction === 'desc' ? [...facet.values].reverse() : facet.values, letters: Record<string, number> = {};
+          let position = 0;
+          for (const letter of counts) {letters[letter.value] = position; position += letter.count;}
+          this.letters = letters;
+          if (this.live()) this.options.onFacts?.({positionIndex: letters});
+        }).catch(() => undefined);
+      // The next page follows its cursor; anywhere else (a scroll bar, a letter) opens the list at that position.
+      const cursor = this.cursors.get(start);
+      const page = await readItems(api, list, cursor ? {cursor, limit: count} : {at: start, limit: count}, active);
+      const end = start + page.items.length;
+      if (page.nextCursor && page.items.length) this.cursors.set(end, page.nextCursor);
+      if (this.retired || !this.options.current() || signal.aborted) throw browseSessionClosed();
+      const entries = entriesFromItems(page.items, this.query.libraryId);
+      const counted = this.total ?? (page.nextCursor ? undefined : end), total = counted ?? end + 1;
+      const result: BrowseResult = Object.freeze({pivot: this.query.pivot, applied: {query: null, sort: this.query.sorts, seek: null}, entries,
+        pageInfo: {start, total, totalIsLowerBound: counted === undefined, revision: this.pinned ?? '', hasMore: !!page.nextCursor, nextCursor: page.nextCursor ?? ''}, positionIndex: []});
+      const first = this.pinned === undefined;
+      this.pinned ??= 'reading-' + ++readings;
+      for (const entry of entries) this.entries.add(entry);
+      if (first) this.options.onRevision?.(this.pinned);
+      this.options.onPage?.(result);
+      if (!this.live() || signal.aborted) throw browseSessionClosed();
+      return {items: entries.map((entry, index) => this.options.item(entry, result, index)), total, ...(counted === undefined ? {totalIsLowerBound: true} : {}), positionIndex: this.letters ?? {}};
     } catch (error) {
       if (!this.retired && this.options.current() && !signal.aborted && ended(error)) this.end(error);
       throw error;

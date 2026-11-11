@@ -86,8 +86,13 @@ browser.newContext = async options => {const context = await newContext(options)
 /** What the server was asked on this page, so a step can say which request it waited for. */
 function watch(page) {
   const seen = [];
-  page.on('response', answer => {const url = new URL(answer.url()); if (url.pathname.startsWith('/v1/')) seen.push(`${answer.request().method()} ${url.pathname} ${answer.status()}`);});
-  return {seen, has: prefix => seen.some(line => line.startsWith(prefix))};
+  const lists = [];
+  page.on('response', answer => {
+    const url = new URL(answer.url());
+    if (url.pathname.startsWith('/v1/')) seen.push(`${answer.request().method()} ${url.pathname} ${answer.status()}`);
+    if (url.pathname === '/v1/items' && answer.ok()) lists.push(url.searchParams);
+  });
+  return {seen, lists, has: prefix => seen.some(line => line.startsWith(prefix))};
 }
 /** The page's own words for a failure. Areas that have not moved yet show them; a moved area must not. */
 const failureWords = /Something went wrong|Something didn.t load|couldn.t load|ran into a problem/i;
@@ -201,6 +206,25 @@ try {
       const count = async () => Number((await page.getByText(/^[\d,]+ movies$/).first().innerText()).replace(/\D/g, ''));
       await page.locator('article[data-card-kind]').first().waitFor();
       const all = await count();
+      // A page never asks for the count; the count is its own small request.
+      if (!requests.lists.some(query => query.get('library') && !query.has('total') && Number(query.get('limit')) > 1)) throw new Error('No page was read without a count.');
+      if (!requests.lists.some(query => query.get('total') === 'true' && query.get('limit') === '1')) throw new Error('The count was not asked for by itself.');
+      // The end of the list is opened at its position, not reached page by page.
+      await until('The end of the list opening at its position', async () => {
+        await page.evaluate(() => {for (const box of [document.scrollingElement, ...document.querySelectorAll('main, main *')]) if (box && box.scrollHeight > box.clientHeight + 200) box.scrollTop = box.scrollHeight;});
+        return requests.lists.some(query => Number(query.get('at')) > 200);
+      }, 50);
+      await page.evaluate(() => {for (const box of [document.scrollingElement, ...document.querySelectorAll('main, main *')]) if (box) box.scrollTop = 0;});
+      // The letter rail comes from its own request; a letter opens the list where that letter starts.
+      const letter = page.getByRole('button', {name: 'Jump to M', exact: true});
+      await letter.waitFor();
+      if (!requests.seen.some(line => line.startsWith('GET /v1/facets 200'))) throw new Error('The letters were not read.');
+      const jumps = requests.lists.filter(query => query.has('at')).length;
+      await letter.focus();
+      await page.keyboard.press('Enter');
+      await until('The list opening at M', async () => requests.lists.filter(query => query.has('at')).length > jumps
+        && (await page.locator('article[data-card-kind]').allInnerTexts()).some(text => /^(The |A )?M/.test(text.trim())));
+      await page.evaluate(() => {for (const box of [document.scrollingElement, ...document.querySelectorAll('main, main *')]) if (box) box.scrollTop = 0;});
       await page.getByRole('button', {name: 'Filters', exact: true}).click();
       await page.getByText('Genre', {exact: true}).click();
       await page.getByRole('checkbox').first().click();

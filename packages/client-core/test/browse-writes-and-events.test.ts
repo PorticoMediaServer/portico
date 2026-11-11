@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {BrowseSession} from '../src/browse-session.ts';
 import {setContainerState, undoContainerState} from '../src/container-state.ts';
 import {homeDocument} from '../src/home.ts';
 import {homeEntrySelection} from '../src/home-selection.ts';
@@ -67,4 +68,38 @@ test('Home with a film and a book to read can be selected from: the film is sele
   checkedContext(homeSelectionContext({serverId: 'srv', authority: 'local', accountId: 'usr', profileId: 'prf', viewId: 'home'}, home));
   assert.equal(checkedItem(homeEntrySelection(film as never, {platform: 'web'})!).id, 'itm_film');
   assert.equal(homeEntrySelection(book as never, {platform: 'web'}), undefined);
+});
+
+test('a list page never waits for the count, and a jump opens the list at its position', async () => {
+  const asked: string[] = [], facts: object[] = [];
+  let answerCount = (_: unknown): void => {};
+  const film = (n: number) => ({id: 'itm_' + n, kind: 'movie', title: 'Film ' + n, images: {}, state: {watched: false, playCount: 0, favorite: false, inList: false, notInterested: false}});
+  const session = new BrowseSession({query: {libraryId: 'lib_films', pivot: 'movies', capabilities: {} as never, nodes: [], sorts: [{field: 'title', direction: 'asc'}]},
+    current: () => true, item: entry => entry, onFacts: value => {facts.push(value);},
+    request: (path: string) => {
+      const url = new URL(path, 'http://server'), query = url.searchParams;
+      // The letter rail: its own request, never part of a page.
+      if (url.pathname === '/v1/facets') return Promise.resolve({facet: 'letter', values: [{value: '#', count: 3}, {value: 'A', count: 40}, {value: 'B', count: 25}]});
+      asked.push(query.toString());
+      if (query.get('total') === 'true') return new Promise(resolve => {answerCount = resolve;});
+      const at = Number(query.get('at') ?? (query.get('cursor') ? 2 : 0));
+      return Promise.resolve({items: [film(at), film(at + 1)], ...(at + 2 < 450 ? {nextCursor: 'after-' + (at + 1)} : {})});
+    }});
+  const none = new AbortController().signal;
+  // The first page is shown while the count is still out: the list is "at least" what has been read.
+  const first = await session.fetchPage(0, 2, none);
+  assert.deepEqual([first.items.length, first.total, first.totalIsLowerBound], [2, 3, true]);
+  assert.equal(asked.filter(query => query.includes('total=true')).length, 1, 'the count is asked once, by itself');
+  assert.ok(asked.some(query => !query.includes('total') && query.includes('limit=2')), 'the page did not ask for it');
+  answerCount({items: [film(0)], total: 450}); await new Promise(resolve => setImmediate(resolve));
+  // Both facts reach the screen without another page being read: the length, and where each letter starts.
+  assert.deepEqual(facts, [{positionIndex: {'#': 0, A: 3, B: 43}}, {total: 450}]);
+  // The next page follows its cursor and now knows the total.
+  const second = await session.fetchPage(2, 2, none);
+  assert.deepEqual([second.total, second.totalIsLowerBound ?? false], [450, false]);
+  assert.match(asked.at(-1)!, /cursor=after-1/);
+  // A letter or the scroll bar: the list opens there in one request.
+  const far = await session.fetchPage(300, 2, none);
+  assert.match(asked.at(-1)!, /at=300/);
+  assert.equal(far.items[0]!.id, 'itm_300');
 });

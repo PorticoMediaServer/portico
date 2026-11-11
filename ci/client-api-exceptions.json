@@ -1420,11 +1420,11 @@
     "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
     "sites": [
       "apps/native/src-next/screens/library/model.ts#4e971c9a12412f91",
-      "apps/native/src-next/screens/library/model.ts#773f5daaa12692b2"
+      "apps/native/src-next/screens/library/model.ts#6ec510f6ad8aa9ce"
     ],
     "guardHashes": {
       "apps/native/src-next/screens/library/model.ts#4e971c9a12412f91": "741e1c5ebbcefdfb335f0119214a366b35ad4720c3820de611efd3c8083c877b",
-      "apps/native/src-next/screens/library/model.ts#773f5daaa12692b2": "7e04060298cb422aa7158d8ebcb53c4779b0f15e08424815456657e95c4403a4"
+      "apps/native/src-next/screens/library/model.ts#6ec510f6ad8aa9ce": "3b9f4e100197332c3d8fc0886fec1e03f8569f2ed05096b34cc1dc5afd3602e0"
     }
   },
   "apps/native/src-next/screens/library/save-view.ts": {
@@ -1519,10 +1519,10 @@
     "category": "platform-transport",
     "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
     "sites": [
-      "web/src/screens/browse/controller.ts#668ba09f50bfc39f"
+      "web/src/screens/browse/controller.ts#9991631c7981e4ce"
     ],
     "guardHashes": {
-      "web/src/screens/browse/controller.ts#668ba09f50bfc39f": "1e6e08ad37d0b124657b7d7b86537ee778194568a3f2f2199339c8d453cd7bb5"
+      "web/src/screens/browse/controller.ts#9991631c7981e4ce": "e29e0007696d7ee10248a21562f52a376073d2f983848a3264b71c68f6be9f6b"
     }
   },
   "web/src/screens/browse/play-selection.ts": {
