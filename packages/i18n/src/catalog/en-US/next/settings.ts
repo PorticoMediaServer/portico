@@ -89,6 +89,8 @@ export const settingsMessages = {
   'next.settings.notSet': 'Not set',
   'next.settings.member': 'Member',
   'next.settings.allLibraries': 'All libraries',
+  'next.settings.noSuchTag': 'There is no Tag called {name}.',
+  'next.settings.profileLimitsFailed': 'This profile’s limits didn’t load.',
   'next.settings.streams': '{count, plural, one {# stream} other {# streams}}',
   'next.settings.unlimitedStreams': 'Unlimited streams',
   'next.settings.watchingNow': 'Watching now',
