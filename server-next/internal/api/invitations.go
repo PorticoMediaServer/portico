@@ -200,12 +200,11 @@ func (s *Server) previewInvitation(r *http.Request, _ None) (InvitationPreview, 
 	if err != nil {
 		return InvitationPreview{}, err
 	}
-	name, err := s.serverName(r)
-	out := InvitationPreview{ServerName: name, Role: i.Role, AllLibraries: i.AllLibraries, Libraries: i.LibraryNames, ExpiresAt: i.ExpiresAt.UTC()}
+	out := InvitationPreview{ServerName: s.serverName(), Role: i.Role, AllLibraries: i.AllLibraries, Libraries: i.LibraryNames, ExpiresAt: i.ExpiresAt.UTC()}
 	if out.Libraries == nil {
 		out.Libraries = []string{}
 	}
-	return out, err
+	return out, nil
 }
 
 func (s *Server) acceptInvitation(r *http.Request, req InvitationAccept) (SignInResponse, error) {
