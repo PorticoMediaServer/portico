@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"testing"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/artwork"
@@ -43,6 +44,18 @@ var redirectsOverHTTP, redirectsToPrivate bool
 
 var pictureClient = &http.Client{Timeout: 30 * time.Second, CheckRedirect: checkPictureRedirect, Transport: pictureTransport()}
 
+// errLiveCallInTest refuses a picture download a test makes from anything but this machine.
+// The rule: tests never reach a live provider; they use a stand-in on 127.0.0.1. It holds for
+// every address, a provider's picture server and Cover Art Archive's fixed one alike.
+var errLiveCallInTest = errors.New("a test may not reach a live provider: tests use a stand-in on 127.0.0.1")
+
+// thisMachine reports whether host names this machine: localhost or a loopback address. Any
+// other name is not looked up.
+func thisMachine(host string) bool {
+	ip := net.ParseIP(host)
+	return host == "localhost" || ip != nil && ip.IsLoopback()
+}
+
 // pictureTransport connects to a host a redirect may lead to only at an address it has just
 // checked is on the Internet, so a name that answered a public address when the redirect was
 // checked cannot answer a local one when the connection is made.
@@ -51,6 +64,9 @@ func pictureTransport() *http.Transport {
 	var dialer net.Dialer
 	t.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
 		host, port, err := net.SplitHostPort(address)
+		if testing.Testing() && (err != nil || !thisMachine(host)) {
+			return nil, fmt.Errorf("%s: %w", address, errLiveCallInTest)
+		}
 		if err != nil || redirectsToPrivate || !redirectTarget(strings.ToLower(host)) {
 			return dialer.DialContext(ctx, network, address)
 		}
