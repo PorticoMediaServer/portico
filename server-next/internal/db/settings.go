@@ -51,6 +51,14 @@ func (d *DB) HasUsers(ctx context.Context) (bool, error) {
 	return has, err
 }
 
+// SetUpAt is when the server was set up: when its owner account was made. ok is false on a
+// server nobody has set up yet.
+func (d *DB) SetUpAt(ctx context.Context) (at time.Time, ok bool, err error) {
+	var created sql.NullInt64
+	err = d.read.QueryRowContext(ctx, `SELECT min(created_at) FROM users WHERE role = 'owner'`).Scan(&created)
+	return time.UnixMilli(created.Int64), created.Valid, err
+}
+
 // Ping reports whether the database answers a read.
 func (d *DB) Ping(ctx context.Context) error {
 	var one int

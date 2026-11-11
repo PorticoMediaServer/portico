@@ -104,7 +104,7 @@ var ErrFolderSlow = errors.New("the backup folder did not answer in time")
 
 // within runs fn in its own goroutine and gives up waiting after limit: a call into a hung
 // network drive can block for ever, and only that goroutine waits on it.
-func within(limit time.Duration, fn func() error) error {
+func within(ctx context.Context, limit time.Duration, fn func() error) error {
 	done := make(chan error, 1)
 	folderWork.Go(func() { done <- fn() })
 	timer := time.NewTimer(limit)
@@ -114,12 +114,14 @@ func within(limit time.Duration, fn func() error) error {
 		return err
 	case <-timer.C:
 		return ErrFolderSlow
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
 
 // FolderWritable says whether a backup could be written to the backup folder now.
 func (s *Service) FolderWritable() bool {
-	return within(folderCheckLimit, func() error { return s.prepareFolder(s.Folder()) }) == nil
+	return within(context.Background(), folderCheckLimit, func() error { return s.prepareFolder(s.Folder()) }) == nil
 }
 
 // prepareFolder makes the default folder inside the data folder if it is missing, and checks
@@ -176,10 +178,15 @@ type Service struct {
 	Version  string
 	Log      *slog.Logger
 	Now      func() time.Time
+	// Stopping ends when the server begins to stop: a backup being made is then cut off, and
+	// Wait returns once it has let go of the database. Without it a backup is never cut off.
+	Stopping context.Context
 
+	making  sync.WaitGroup // the backups being made
 	mu      sync.Mutex
 	running *Progress
 	last    error // the last scheduled backup's failure, until one succeeds
+	failed  error // that failure once its retries are used up: what the owner is told
 	// newest is the newest backup in the backup folder, read at start and kept as backups are
 	// made and deleted, so the Dashboard never reads a backup folder that may be slow.
 	newest *Backup
@@ -233,7 +240,7 @@ func (s *Service) Newest() (b *Backup, known bool) {
 
 // readNewest reads the newest backup from the backup folder, within the folder's time limit.
 func (s *Service) readNewest() {
-	_ = within(folderCheckLimit, func() error {
+	_ = within(context.Background(), folderCheckLimit, func() error {
 		list, err := s.List()
 		if err != nil {
 			return err
@@ -255,6 +262,23 @@ func (s *Service) LastError() error {
 	return s.last
 }
 
+// Failed is why scheduled backups are failing, once one has failed and been tried again for
+// 4 hours without success, until one succeeds. It is what the owner is alerted to: a first
+// failure is tried again quietly.
+func (s *Service) Failed() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.failed
+}
+
+// GiveUp is called when a scheduled backup has failed and its 4 hours of retries are used
+// up: from now the owner is told, until a scheduled backup succeeds.
+func (s *Service) GiveUp() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.failed = s.last
+}
+
 // Start begins a backup in the background and returns its id at once. scheduled backups are
 // counted against the number kept.
 func (s *Service) Start(scheduled bool) (string, error) {
@@ -267,12 +291,25 @@ func (s *Service) Start(scheduled bool) (string, error) {
 	id := "portico-" + now.Format("20060102-150405")
 	s.running = &Progress{ID: id, StartedAt: now}
 	s.mu.Unlock()
-	go func() {
-		err := s.make(context.Background(), id, scheduled)
+	stopping := s.Stopping
+	if stopping == nil {
+		stopping = context.Background()
+	}
+	s.making.Go(func() {
+		err := s.make(stopping, id, scheduled)
 		s.mu.Lock()
 		s.running = nil
+		if stopping.Err() != nil && err != nil {
+			// Not a failure to tell the owner of: a scheduled backup cut off by a stop is
+			// made again soon after the next start (see missed).
+			s.mu.Unlock()
+			s.Log.Info("a backup was cut off because the server is stopping", "backup", id)
+			return
+		}
 		if scheduled {
-			s.last = err
+			if s.last = err; err == nil {
+				s.failed = nil
+			}
 		}
 		s.mu.Unlock()
 		if err != nil {
@@ -282,9 +319,13 @@ func (s *Service) Start(scheduled bool) (string, error) {
 		if scheduled {
 			s.removeOld()
 		}
-	}()
+	})
 	return id, nil
 }
+
+// Wait returns when no backup is being made. A stopping server calls it after Stopping has
+// ended, before it closes the database a backup copies from.
+func (s *Service) Wait() { s.making.Wait() }
 
 // make writes one backup: the database copied while in use and checked whole, the key files,
 // and the pictures people uploaded; then its description. Nothing is in the backup folder
@@ -338,7 +379,7 @@ func (s *Service) make(ctx context.Context, id string, scheduled bool) error {
 
 	// Only now is the backup folder touched, by this goroutine alone and within a limit.
 	folder := s.Folder()
-	return within(folderWriteLimit, func() error {
+	return within(ctx, folderWriteLimit, func() error {
 		if folderHook != nil {
 			folderHook(folder)
 		}
@@ -411,7 +452,7 @@ func (s *Service) removeLeftovers() {
 			os.RemoveAll(name)
 		}
 	}
-	within(folderCheckLimit, func() error {
+	within(context.Background(), folderCheckLimit, func() error {
 		names, _ := filepath.Glob(filepath.Join(s.Folder(), makingPrefix+"*"))
 		for _, name := range names {
 			os.RemoveAll(name)
