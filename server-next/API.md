@@ -92,7 +92,7 @@ Assistant) are a separate short document and are not counted here.
 | `GET /v1/profiles/{id}`, `PATCH /v1/profiles/{id}`, `DELETE /v1/profiles/{id}` | Read, edit, delete (`?preview=true` says what would be lost) |
 | `POST /v1/profiles/{id}/select` | Choose a profile, with its PIN if it has one; answers tokens bound to it |
 | `PUT /v1/profiles/order` | Reorder |
-| `PUT /v1/profiles/{id}/avatar`, `DELETE /v1/profiles/{id}/avatar` | Avatar |
+| `PUT /v1/profiles/{id}/avatar`, `GET /v1/profiles/{id}/avatar`, `DELETE /v1/profiles/{id}/avatar` | A profile's picture: the body of `PUT` is a JPEG, PNG, GIF or WebP of at most 4 MB; `GET` needs a sign-in to the same account (or `member=<id>` from the owner or an admin) and takes `size=small` or `large` |
 | `PUT /v1/profiles/{id}/pin`, `DELETE /v1/profiles/{id}/pin` | Set, change or remove a PIN. With the account's password, `PUT` replaces a forgotten PIN from any profile. |
 | `GET /v1/profiles/{id}/restrictions`, `PUT /v1/profiles/{id}/restrictions` | Rating limit, blocked labels, library access |
 | `GET /v1/me/two-factor`, `POST /v1/me/two-factor`, `POST /v1/me/two-factor/confirm`, `DELETE /v1/me/two-factor`, `POST /v1/me/two-factor/recovery-codes` | Two-step sign-in |
@@ -301,8 +301,8 @@ marked and deleted like any title.
 | `PUT /v1/live/channels/{id}/state` | A profile allowed Live TV | Favourite and hide, for this profile |
 | `GET /v1/live/reminders`, `PUT /v1/live/reminders/{id}`, `DELETE /v1/live/reminders/{id}` | A profile allowed Live TV | Reminders; `{id}` is the programme. The app shows them |
 | `GET /v1/dvr` | A profile allowed Live TV | Counts (upcoming, recorded, unwatched, conflicts), space used and free, about how many hours are left, the keep rule in force |
-| `GET /v1/dvr/recordings`, `POST /v1/dvr/recordings` | Read: a profile allowed Live TV. Book: a profile allowed to record | Upcoming (conflicts first) and History by `state`, the profile's own or with `scope=everyone` all of them; book an airing. An airing already booked answers that booking |
-| `GET /v1/dvr/recordings/{id}`, `PATCH /v1/dvr/recordings/{id}`, `DELETE /v1/dvr/recordings/{id}` | Read: as above. Change and delete: the profile that booked it, the owner and administrators | One booking with what it clashes with and its size; change padding or priority, Keep, "Record this instead" or "Skip this one"; cancel, stop (what was captured is kept), or delete the recording and its file |
+| `GET /v1/dvr/recordings`, `POST /v1/dvr/recordings` | Read: a profile allowed Live TV. Book: a profile allowed to record | Upcoming (conflicts first) and History by `state`, the profile's own or with `scope=everyone` all of them; book an airing. An airing someone else already booked answers that booking and adds this profile to it, so it is still recorded if the first person cancels |
+| `GET /v1/dvr/recordings/{id}`, `PATCH /v1/dvr/recordings/{id}`, `DELETE /v1/dvr/recordings/{id}` | Read: as above. Change and delete: the profile that booked it, the owner and administrators | One booking with what it clashes with and its size; change padding or priority, Keep, "Record this instead" or "Skip this one"; cancel (the booking passes to the next profile that asked for it, if any), stop (what was captured is kept), or delete the recording and its file |
 | `GET /v1/dvr/rules`, `POST /v1/dvr/rules` | A profile allowed to record; the owner for any profile with `profile=` | Series rules, the profile's own or with `scope=everyone` all of them for the owner; make one (`?preview=true` answers what it would record and makes nothing) |
 | `PATCH /v1/dvr/rules/{id}`, `DELETE /v1/dvr/rules/{id}` | The profile that made it; the owner | Edit, pause, resume; delete, with `bookings=keep` or `cancel` |
 
@@ -357,7 +357,7 @@ Listed route by route with each console panel's definition. Resources:
 | Libraries, storage, files | 33 | Libraries, folders, scans and their issues; storage sources; folder browser; missing titles; delete; merge and split |
 | Metadata and matching | 18 | `GET`/`PATCH /v1/admin/items/{id}/metadata`; match; refresh; artwork; needs-attention; provider settings |
 | Playback and analysis | 10 | Stream limits; remembered playback failures; intro and credits review; analysis jobs. Active sessions, Play history and hardware are listed with Server operations |
-| Live TV and DVR setup | 25 | Listed below: sources, channels, tuners, Library Channels |
+| Live TV and DVR setup | 27 | Listed below: sources, channels, tuners, Library Channels |
 | Server operations | 42 | Listed below: the settings documents (3), the Dashboard and operations (37), downloads by person (2) |
 | Keys, tools, webhooks | 10 | Listed below: server API keys and webhooks. The assistant address and "files changed" are in the Client API. A person's own tokens and app passwords are under `/v1/me` |
 
@@ -383,7 +383,7 @@ Refreshing or editing a selection of titles is a bulk action, `POST /v1/jobs`.
 | `POST /v1/admin/items/{id}/artwork/find` | Find more from the provider, fetch again, or make an episode's picture from the video |
 | `GET /v1/admin/metadata/settings`, `PUT /v1/admin/metadata/settings` | Own provider keys (write-only: the answer says only whether one is set), Include adult titles, cast photos, Download title data, the subtitle account |
 
-### Remote sources, route by route (7 of the 33 for libraries, storage and files)
+### Remote sources, route by route (8 of the 33 for libraries, storage and files)
 
 The owner's alone. A source's password or key is never sent back; it can only be replaced.
 
@@ -395,6 +395,9 @@ The owner's alone. A source's password or key is never sent back; it can only be
 | `DELETE /v1/admin/remote-sources/{id}` | Disconnect, once no library folder is on it (`409 source_in_use` otherwise) |
 | `POST /v1/admin/remote-sources/{id}/test` | Test the saved source now |
 | `GET /v1/admin/remote-sources/{id}/folders?path=` | The folders in one folder of the source, for choosing a library's folders |
+| `POST /v1/admin/remote-sources/drive-sign-in` | Start a Google sign-in with the owner's own OAuth client; the address the browser is sent to is pasted into the Drive source's settings |
+
+A source is `webdav` (an address, user and password), `rclone` (one remote pasted from rclone's configuration, and a folder in it) or `drive` (Google Drive with a service account key or the sign-in above, and a folder in it). rclone and Drive are served by the rclone that comes with Portico.
 
 ### Libraries, scans and files (15 so far)
 
@@ -424,7 +427,8 @@ document is write-only: the answer says only whether it is set.
 | `GET /v1/admin/settings/{name}`, `PUT /v1/admin/settings/{name}` | Owner | One document: each value, its default, and whether the config file sets it (then it cannot be changed here). `PUT` needs `If-Match`; a stale one is `412` with the current document. A value out of range is `422` naming the field |
 
 Documents: `general` (server name, when heavy work runs, background speed, update check),
-`streaming` (Convert when needed, quality and music away from home, upload speed, the
+`streaming` (Convert when needed, quality and music away from home, upload speed, which
+playback reads when a play starts away from home and may refuse it for, the
 conversion folder, the graphics device, hardware decoding, conversion limits, End paused video
 after), `storage` (Keep generated files, the free-space warnings), `backups`, `logs`,
 `notices` (who gets server notices, keeping times for notices and Play history), `downloads`
@@ -466,7 +470,7 @@ and `/status` (the `remote-access` and `network` documents, and the status read)
 Not carried: `POST /v1/admin/downloads/revoke` and `/cache/release` as two removals (one
 removal here; cutting someone off is the Downloads switch on the account or the profile).
 
-### Live TV and recordings setup, route by route (25)
+### Live TV and recordings setup, route by route (27)
 
 | Route | Who | Purpose |
 |---|---|---|
@@ -477,14 +481,15 @@ removal here; cutting someone off is the Downloads switch on the account or the 
 | `POST /v1/admin/live/sources/{id}/refresh` | Owner | Refresh guide now; answers a job |
 | `GET /v1/admin/live/sources/{id}/channels`, `PATCH /v1/admin/live/sources/{id}/channels` | Owner | Its channels, with those not brought in; set number, name, listings and hidden for many rows at once |
 | `GET /v1/admin/dvr/tuners` | Owner | Tuners in use now and clashes in the next 12 hours |
-| `GET /v1/admin/library-channels`, `POST /v1/admin/library-channels` | Owner | Library Channels (at most 100) in the owner's order, each with one sentence saying what it plays, how many titles it chooses from, how far its schedule reaches and its state; make one |
+| `GET /v1/admin/library-channels`, `POST /v1/admin/library-channels` | Owner | Library Channels (at most 1,000) in the owner's order, a page at a time, each with one sentence saying what it plays, how many titles it chooses from, how far its schedule reaches and its state; make one |
 | `PUT /v1/admin/library-channels/order` | Owner | The owner's order, which is the channels' order everywhere |
 | `GET /v1/admin/library-channels/templates` | Owner | The nine templates, each a whole channel filled in for this server to review, or off with "Not enough media" when fewer than three titles match |
 | `POST /v1/admin/library-channels/preview` | Owner | For a channel as it is being edited: how many titles match and about how many hours that is, some of what plays, how many have no known length, and today's schedule exactly as saving would make it, blocks included |
-| `GET /v1/admin/library-channels/{id}`, `PATCH /v1/admin/library-channels/{id}`, `DELETE /v1/admin/library-channels/{id}` | Owner | The whole builder with its `ETag`, its state and its health (on the air or one sentence why not, how far the schedule reaches, how many programmes, how many titles it could not place); save it or turn it on or off (needs `If-Match`): the rest of the schedule is built again from the end of the programme now on; delete |
+| `GET /v1/admin/library-channels/{id}`, `PATCH /v1/admin/library-channels/{id}`, `DELETE /v1/admin/library-channels/{id}` | Owner | The whole builder with its `ETag`, its state and its health (on the air or one sentence why not, how far the schedule reaches, how many programmes, how many titles it could not place); save it or turn it on or off (needs `If-Match`; at most 500 blocks, 500 titles in each pinned list and 2 MB): the rest of the schedule is built again from the end of the programme now on; delete |
 | `POST /v1/admin/library-channels/{id}/regenerate` | Owner | Regenerate schedule: build the rest again from the end of the programme now on; answers a job |
 | `PUT /v1/admin/library-channels/{id}/logo`, `DELETE /v1/admin/library-channels/{id}/logo` | Owner | Upload its logo (up to 10 MB, 16 to 4,096 pixels a side, stored small) or go back to the monogram |
-| `GET /v1/admin/library-channels/presets`, `PUT /v1/admin/library-channels/presets` | Owner | Saved block presets (at most 100), as one list with its `ETag`. Adding a block from a preset copies it: changing or deleting a preset never changes a channel |
+| `GET /v1/admin/library-channels/presets`, `POST /v1/admin/library-channels/presets` | Owner | Saved block presets (at most 1,000), a page at a time; make one |
+| `PATCH /v1/admin/library-channels/presets/{id}`, `DELETE /v1/admin/library-channels/presets/{id}` | Owner | Change one (needs `If-Match`); delete one. Adding a block from a preset copies it: changing or deleting a preset never changes a channel |
 
 Everyone's series rules are `GET /v1/dvr/rules?scope=everyone`. Live TV and recording
 settings (guide length, rewind stretch, retry time, logos; the recordings folder, paddings,
@@ -496,7 +501,7 @@ create); `/{id}/enabled`, `/remove`, `/logos`, `/configuration` and `/channel-ma
 source's `PATCH`, `DELETE` and channels routes); `/v1/admin/dvr/recording-owners`,
 `/recording-permissions` and `/recording-groups` (the account and profile switches, and the
 rules list); `/v1/admin/library-channels/defaults` and `/{id}/health` (templates; the read says what is
-wrong); block presets as four routes (one list); a priority between overlapping blocks, a
+wrong); a priority between overlapping blocks, a
 second audience setting and a stored seed (blocks never overlap, and who sees a channel
 follows its libraries).
 
@@ -508,7 +513,7 @@ follows its libraries).
 | `GET /v1/admin/sessions`, `DELETE /v1/admin/sessions/{id}` | Owner and administrators | Now playing, a problem first; stop one with a message of up to 500 characters |
 | `GET /v1/admin/load` | Owner | Bandwidth, processor, memory and conversions, `range=live` or `24h`. Kept in memory; starts again after a restart |
 | `GET /v1/admin/statistics` | Owner | The server's whole history in daily totals: plays, watch time, bandwidth at home and away, conversions, by `metric` and a range of days |
-| `GET /v1/admin/play-history`, `GET /v1/admin/play-history/summary` | Owner | Every play, filtered by person, library, kind, text and period; top people, plays over time, busiest times, top played |
+| `GET /v1/admin/play-history`, `GET /v1/admin/play-history/summary` | Owner and administrators | Every play, newest first, filtered by person, library, kind, text and period; top people, busiest times and top played over a chosen range. The list is in time order only. A filter by kind or text, and the summary, read the plays of the range: an accepted cost on this page, so the summary answers from at most the newest million plays of its range and says when it stopped there |
 | `GET /v1/admin/jobs`, `POST /v1/admin/jobs/{id}/retry` | Owner | Tasks running, and finished or failed in the last 30 days; run a failed one again. Cancel is `DELETE /v1/jobs/{id}` |
 | `PUT /v1/admin/background/pause`, `DELETE /v1/admin/background/pause` | Owner | Pause heavy work and scheduled backups for an hour; resume. A restart ends it |
 | `GET /v1/admin/hardware`, `POST /v1/admin/hardware/test` | Owner | Graphics devices, the formats each handles, tone mapping, the last test and error; test now, with no restart |
@@ -557,3 +562,11 @@ the account's "Access tokens" switch is on; the owner never sees them.
 Not carried: showing a key or app password again later; the owner making app passwords for
 other people and listing members' tokens (`/v1/admin/access-tokens*`); keys made from an app
 password and tracked under it; the five webhook settings (fixed values).
+
+## Not on the wire, on purpose
+
+`viewerFence`, `expectedRevision`, `operationId`, a "preparing" answer on a read, query handles,
+lower-bound totals, write lookups after the fact, conflict choices for offline edits, a
+revision on personal state, per-provider and per-screen route families, and step-by-step
+wizard routes. Each existed for the old storage design. What a person would lose without
+them is nothing: the last deliberate edit wins, a `2xx` means it happened, and reads answer.
