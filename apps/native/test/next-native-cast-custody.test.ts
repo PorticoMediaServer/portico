@@ -68,7 +68,7 @@ async function fixture(options:{returning?:boolean;legacy?:boolean;validation?:P
   const binding={id:'cct_return',bootstrapId:'cbs_intent',receiverId:'sdk_device',targetId:'cdv_target',targetFamilyId:'target-family',targetGeneration:'1',scope:proofScope};
   const records=new Map(options.legacy?[[`portico.cast.controller:https://server.test:id:sdk_device`,'a'.repeat(48)]]:[[castProofKey(proofContext,'sdk_device'),JSON.stringify({version:2,context:proofContext,binding,controlToken:'a'.repeat(48)})]]);
   let current=true;
-  const api = {baseUrl: 'https://server.test', request: async (path: string, method?: string, body?: any) => {
+  const api = {baseUrl: 'https://server.test', getRouteConnection: () => ({pin: {publicKey: 'a'.repeat(43)}, getMemory: () => undefined, getSnapshot: () => ({origin: 'https://server.test'})}), request: async (path: string, method?: string, body?: any) => {
     requests.push({path, method, body});
     if(path==='/v1/cast/controllers/validate'){await options.validation;return {binding,attemptId:body.attemptId,ticket:'b'.repeat(43)};}
     if(path==='/v1/items/song'){if(requests.filter(request=>request.path===path).length>1)await options.continuation;return {id:'song',kind:'song',title:'Actual title'};}

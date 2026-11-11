@@ -2,7 +2,7 @@ import {readDirectAccount} from '../../../packages/client-core/src/query/connect
 import {HttpLocalApi, type LocalSession} from '@core/index.ts';
 import {AppSessionStore, type AppServerSession, type PorticoAccountScope} from '@core/app-sessions.ts';
 import {ServerSignInProbe} from '@core/sign-in.ts';
-import {parseDirectSnapshot, selectDirectProfile, shouldRetireAccountSession} from '@core/profile-management.ts';
+import {parseDirectSnapshot, selectDirectProfile} from '@core/profile-management.ts';
 import {rememberNativeSession, restoreNativeSession, type ConnectionEnvironment, type RememberedServer} from '@core/server-connections.ts';
 import {browserAppSessions, browserConnectionEnvironment} from './server-connections';
 import {browserAccount} from './account';
@@ -45,14 +45,10 @@ export class BrowserAppSessionActions {
   const scope={authority:'local' as const,serverId:session.viewer.serverId,accountId:session.viewer.accountId,profileId,installationId:installation.installationId};
   const chosen=await selectDirectProfile(api,scope,profileId,{pin,installationId:scope.installationId,...(remember?{remember:true}:{})},signal);
   const env={...this.environment(session.viewer.serverId),storage:this.store.connectionStorage(session.viewer.serverId,{signIn:entry.signIn,hostedAccount:entry.connection.hosted,expectedRevision:state.revision})};
-  try{await rememberNativeSession(api,chosen.session,env,entry.connection.hosted,()=>isCurrent()&&!signal.aborted);}
-  catch(error){const cleanup=new HttpLocalApi(api.baseUrl,chosen.session.accessToken);const route=api.getRouteConnection();if(route)cleanup.useRoutes(route);await cleanup.logout().catch(()=>{});throw error;}
+  // Choosing a profile keeps the same sign-in: if saving it fails, the sign-in saved before still stands.
+  await rememberNativeSession(api,chosen.session,env,entry.connection.hosted,()=>isCurrent()&&!signal.aborted);
   // "Remember this profile on this device": only when asked for and the server agreed.
   recordTabPick(session.viewer.serverId,profileId,remember&&chosen.remembered?{serverId:session.viewer.serverId,familyId:chosen.session.sessionFamilyId,profileId,expiresAt:chosen.remembered.expiresAt}:undefined);
-  if(shouldRetireAccountSession(session,chosen.session)){
-   const cleanup=new HttpLocalApi(api.baseUrl,session.accessToken);const route=api.getRouteConnection();if(route)cleanup.useRoutes(route);
-   await cleanup.logout().catch(()=>{});
-  }
   return chosen.session;
  }
  dispose(){this.probe.dispose();}

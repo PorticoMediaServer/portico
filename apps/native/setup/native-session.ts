@@ -1,4 +1,5 @@
 import { NativeModules, Platform } from 'react-native';
+import {readViewerIdentity} from '../../../packages/client-core/src/query/connection-operations.ts';
 import {
   inspectDirectServer,
   connectPairedServer,
@@ -350,7 +351,7 @@ export class NativeSignInSetup {
     // connection still holds reads the account, not a viewer, so the new sign-in
     // answers as itself.
     api.setAccessToken(session.accessToken);
-    const me = await api.me(this.abort.signal);
+    const me = await readViewerIdentity(api, session.viewer, this.abort.signal);
     this.assertCurrent();
     if (
       (

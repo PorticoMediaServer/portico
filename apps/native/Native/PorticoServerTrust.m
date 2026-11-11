@@ -323,7 +323,7 @@ static NSMutableDictionary<NSString *, NSString *> *PorticoTrustRefused;
       ![parts.scheme isEqualToString:@"https"] || parts.user || parts.password ||
       parts.percentEncodedPath.length || parts.query || parts.fragment ||
       ![method isEqualToString:@"POST"] || ![requestURL isKindOfClass:NSString.class] || ![requestURL hasPrefix:origin] ||
-      ![[requestURL substringFromIndex:origin.length] isEqualToString:@"/v1/networking/identity-proof"] ||
+      ![[requestURL substringFromIndex:origin.length] isEqualToString:@"/v1/system/identity-proof"] ||
       [parts.host containsString:@"%"] || !parts.URL ||
       !PorticoTrustText(fingerprint, @"^[A-Za-z0-9_-]{43}$") || ![[self refusedAt:origin] isEqualToString:fingerprint] ||
       ![body isKindOfClass:NSString.class] || [body lengthOfBytesUsingEncoding:NSUTF8StringEncoding] > 4096) { completion(nil); return; }

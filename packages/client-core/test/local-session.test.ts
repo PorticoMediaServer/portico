@@ -53,12 +53,25 @@ test('empty, oversized and control-character fields are refused', () => {
   assert.equal(parseLocalSession(session({viewer: {...viewer, accountId: 'a'.repeat(256)}})).viewer.accountId.length, 256);
 });
 
-test('an unknown authority or viewer mismatch is refused with its own words', () => {
-  assert.throws(() => parseLocalSession(session({viewer: {...viewer, authority: 'other'}})), {code: 'invalid_current_session'});
+test('a viewer mismatch is refused with its own words', () => {
   assert.throws(
     () => parseLocalSession(session(), {accountId: 'someone-else'}),
     /does not match the selected account/,
   );
+});
+
+test('the server\'s own answer reads the same as the record this device saves', () => {
+  const {sessionFamilyId, authorizationHorizon, viewer: saved, ...rest} = session();
+  const wire = {...rest, sessionId: sessionFamilyId, sessionExpiresAt: authorizationHorizon, viewer: {accountId: saved.accountId, profileId: saved.profileId, serverId: saved.serverId, role: saved.role}};
+  assert.deepEqual(parseLocalSession(wire), parseLocalSession(session()));
+  assert.deepEqual(parseLocalSession(JSON.parse(JSON.stringify(parseLocalSession(wire)))), parseLocalSession(wire), 'and reads back after it is saved');
+});
+
+test('a sign-in that has not chosen a profile has the role account and no profile; any other role needs one', () => {
+  const {profileId: _none, ...account} = {...viewer, role: 'account'};
+  assert.equal(parseLocalSession(session({viewer: account})).viewer.profileId, '');
+  const {profileId: _missing, ...owner} = viewer;
+  assert.throws(() => parseLocalSession(session({viewer: owner})), {code: 'invalid_current_session'});
 });
 
 test('family, generation and horizon bounds hold at the edges', () => {
@@ -74,7 +87,7 @@ test('family, generation and horizon bounds hold at the edges', () => {
   assert.throws(() => parseLocalSession(session({expiresAt: horizon, authorizationHorizon: future})), {code: 'invalid_current_session'});
 });
 
-test('device, installation, refresh and server-identity bounds hold', () => {
+test('device, installation and refresh bounds hold', () => {
   assert.throws(() => parseLocalSession(session({deviceId: ''})));
   assert.throws(() => parseLocalSession(session({installationId: ''})));
   assert.throws(() => parseLocalSession(session({refreshToken: 'short'})));
@@ -82,11 +95,6 @@ test('device, installation, refresh and server-identity bounds hold', () => {
   assert.equal(parseLocalSession(session({refreshToken: 'x'.repeat(16)})).refreshToken?.length, 16);
   assert.equal(parseLocalSession(session({refreshToken: 'x'.repeat(512)})).refreshToken?.length, 512);
   assert.throws(() => parseLocalSession(session({refreshToken: 'has space in it 123456'})));
-  const key = 'A'.repeat(43);
-  assert.equal(parseLocalSession(session({serverIdentity: {publicKey: key, fingerprint: key}})).serverIdentity?.publicKey, key);
-  for (const bad of [{publicKey: 'short', fingerprint: key}, {publicKey: key, fingerprint: 'short'}, {publicKey: key}, 'x', {}]) {
-    assert.throws(() => parseLocalSession(session({serverIdentity: bad})), {code: 'invalid_current_session'}, JSON.stringify(bad));
-  }
 });
 
 test('a stored record forgives expiry, nothing else', () => {

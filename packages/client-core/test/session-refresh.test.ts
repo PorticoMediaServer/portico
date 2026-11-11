@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {me} from './next-wire.ts';
 import assert from 'node:assert/strict';
 import {withUnknownFields} from './unknown-fields.ts';
 import {ApiError, HttpLocalApi, ViewerService, type LocalSession} from '../src/index.ts';
@@ -27,7 +28,6 @@ class FakeAuthServer {
   refresh = 'refresh_000000000001';
   receipts = new Map<string, {requestId: string; response: unknown; until: number}>();
   revoked = false;
-  migrated = false;
   refreshCalls = 0;
   rotations = 0;
   meCalls = 0;
@@ -39,7 +39,7 @@ class FakeAuthServer {
   headers: Record<string, string>[] = [];
   constructor() { this.access.set('access_1', {generation: 1, expires: clock + 15 * MIN}); }
   envelope(access: string, refresh: string, generation: number) {
-    return {accessToken: access, refreshToken: refresh, deviceId: 'dev_1', expiresAt: iso(this.access.get(access)!.expires), viewer:{...viewer,role:this.role}, sessionFamilyId: 'family_1', tokenGeneration: String(generation), authorizationHorizon: iso(this.fixedHorizon ?? clock + 90 * 24 * 60 * MIN)};
+    return {accessToken: access, refreshToken: refresh, deviceId: 'dev_1', expiresAt: iso(this.access.get(access)!.expires), viewer:{accountId:viewer.accountId,profileId:viewer.profileId,serverId:viewer.serverId,role:this.role}, sessionId: 'family_1', tokenGeneration: String(generation), sessionExpiresAt: iso(this.fixedHorizon ?? clock + 90 * 24 * 60 * MIN)};
   }
   initial(): LocalSession { return parseLocalSession(this.envelope('access_1', this.refresh, 1)); }
   expireAccess() { for (const v of this.access.values()) v.expires = clock - 1; }
@@ -56,7 +56,6 @@ class FakeAuthServer {
       const other = this.refreshAnswers.shift();
       if (other) return other();
       const q = JSON.parse(String(init.body)) as {refreshToken: string; installationId: string; requestId: string};
-      if (this.migrated) return json(401, {error: {code: 'session_migrated'}});
       if (this.revoked || q.installationId !== INSTALLATION || !/^[A-Za-z0-9_-]{1,128}$/.test(q.requestId)) return json(401, {error: {code: 'unauthorized'}});
       if (q.refreshToken === this.refresh) {
         for (const v of this.access.values()) v.expires = Math.min(v.expires, clock - 1); // predecessor access retired
@@ -65,7 +64,7 @@ class FakeAuthServer {
         this.refresh = next;
         this.rotations++;
         const response = this.envelope(access, next, g);
-        this.receipts.set(q.refreshToken, {requestId: q.requestId, response, until: Date.parse(response.authorizationHorizon)});
+        this.receipts.set(q.refreshToken, {requestId: q.requestId, response, until: Date.parse(response.sessionExpiresAt)});
         if (this.dropAfterCommit > 0) { this.dropAfterCommit--; throw new TypeError('network connection lost'); }
         return json(200, response);
       }
@@ -78,9 +77,9 @@ class FakeAuthServer {
       const token = headers.authorization?.replace(/^Bearer /, '') ?? '';
       const a = this.access.get(token);
       if (this.revoked || !a || a.expires <= clock) return json(401, {error: {code: 'unauthorized'}});
-      return json(200, {viewer:{...viewer,role:this.role}});
+      return json(200, me({...viewer,role:this.role}));
     }
-    if (url.pathname === '/v1/direct/sign-in') return json(401, {error: {code: 'unauthorized'}});
+    if (url.pathname === '/v1/auth/sign-in') return json(401, {error: {code: 'unauthorized'}});
     return json(404, {error: {code: 'not_found'}});
   };
 }
@@ -152,7 +151,7 @@ test('refreshes proactively two minutes before expiry and stores the rotation at
   assert.equal(refresher.current().accessToken, 'access_2');
   assert.equal('refreshToken' in refresher.current(), false, 'the refresh credential never leaves the store');
   assert.equal(events.rotated.length, 1);
-  assert.deepEqual(await api.request('/v1/me'), {viewer});
+  assert.deepEqual(await api.request('/v1/me'), me(viewer));
   // …and keeps going: the next one is scheduled for the new expiry.
   timers.advance(13 * MIN + 1);
   await settle();
@@ -201,8 +200,8 @@ test('concurrent 401s share one refresh and each request is retried once', async
   const {server, tab} = setup(t);
   const {api, refresher} = tab();
   server.expireAccess(); // e.g. server clock ahead, or the token retired elsewhere
-  const results = await Promise.all(Array.from({length: 8}, () => api.request<{viewer: unknown}>('/v1/me')));
-  assert.ok(results.every(r => r.viewer));
+  const results = await Promise.all(Array.from({length: 8}, () => api.request<{account: unknown}>('/v1/me')));
+  assert.ok(results.every(r => r.account));
   assert.equal(server.refreshCalls, 1);
   assert.equal(server.meCalls, 16, 'each request: one 401, one retry');
   refresher.stop();
@@ -219,17 +218,6 @@ test('revocation ends the sign-in: store cleared, requests fail with 401, no ref
   const calls = server.refreshCalls;
   await assert.rejects(api.request('/v1/me'));
   assert.equal(server.refreshCalls, calls, 'an ended sign-in never refreshes again');
-});
-
-test('a session migration 0120 ended keeps its code (session_migrated), so apps re-admit silently', async t => {
-  const {server, store, events, tab} = setup(t);
-  const {api, refresher} = tab();
-  server.revoked = true; // the old family no longer answers
-  server.migrated = true;
-  await assert.rejects(api.request('/v1/me'), (e: unknown) => e instanceof ApiError && e.status === 401);
-  assert.deepEqual(events.signedOut, ['session_migrated']);
-  assert.equal(store.peek(), undefined, 'the migrated credential is gone either way');
-  assert.equal(refresher.getSnapshot().phase, 'ended');
 });
 
 const refreshDirectly = (env: ConnectionEnvironment, server: FakeAuthServer) => refreshStoredSession({env, api: new HttpLocalApi(ORIGIN, '', server.fetch), family: {sessionFamilyId: 'family_1', serverId: 'srv'}, rejected: 'access_1'});
@@ -290,7 +278,7 @@ test('a protected store that cannot be read right now keeps the sign-in and rene
   timers.advance(15_000);
   await settle();
   assert.equal(refresher.getSnapshot().phase, 'active');
-  assert.deepEqual(await api.request('/v1/me'), {viewer}, 'the refused token is renewed from the kept credential');
+  assert.deepEqual(await api.request('/v1/me'), me(viewer), 'the refused token is renewed from the kept credential');
   assert.equal(store.peek()!.session.accessToken, 'access_2');
   assert.deepEqual(events.signedOut, []);
   refresher.stop();
@@ -361,7 +349,7 @@ test('a refresh whose answer was lost is replayed with the same request id', asy
   assert.equal(server.rotations, 1, 'the retry replayed the receipt; no second rotation');
   assert.equal(store.peek()!.session.accessToken, 'access_2');
   assert.equal(store.peek()!.pendingRefresh, undefined);
-  assert.deepEqual(await api.request('/v1/me'), {viewer});
+  assert.deepEqual(await api.request('/v1/me'), me(viewer));
   refresher.stop();
 });
 
@@ -386,7 +374,7 @@ test('a second tab adopts the first tab’s rotation instead of refreshing (or s
   server.expireAccess();
   await a.api.request('/v1/me'); // tab A rotates; access_1 is retired
   assert.equal(server.rotations, 1);
-  assert.deepEqual(await b.api.request('/v1/me'), {viewer}, 'tab B recovers from the store');
+  assert.deepEqual(await b.api.request('/v1/me'), me(viewer), 'tab B recovers from the store');
   assert.equal(server.refreshCalls, 1, 'tab B made no refresh request');
   assert.equal(b.refresher.current().accessToken, 'access_2');
   assert.deepEqual(events.signedOut, []);
@@ -409,7 +397,7 @@ test('without a refresh credential (plain HTTP) the sign-in ends when the access
 test('credential requests carry the installation claim; other requests never do', async t => {
   const {server} = setup(t);
   const api = new HttpLocalApi(ORIGIN, '', server.fetch);
-  await assert.rejects(api.request('/v1/direct/sign-in', 'POST', {username: 'u', password: 'p'}));
+  await assert.rejects(api.request('/v1/auth/sign-in', 'POST', {username: 'u', password: 'p'}));
   await api.request('/v1/me').catch(() => {});
   const [signIn, me] = server.headers;
   assert.equal(signIn!['x-portico-installation-id'], INSTALLATION);
@@ -460,9 +448,10 @@ test('two tabs with no lock between them (plain HTTP) send one renewal request i
 });
 
 
-test('live role changes refresh the viewer and protected record before token renewal',async t=>{
+test('a changed role is adopted into the viewer and the protected record without renewing the token',async t=>{
  const {server,store,timers,events,tab}=setup(t);const {refresher}=tab();
- server.role='member';timers.advance(30_000);await settle();
+ // A changed role is learnt when something asks (a refused request, or the change feed), never by a timer.
+ server.role='member';assert.equal((await refresher.reconcilePermissions()).kind,'adopted');
  assert.equal(refresher.current().viewer.role,'member');assert.equal(store.peek()!.session.viewer.role,'member');assert.equal(events.rotated.at(-1)!.viewer.role,'member');assert.equal(server.rotations,0);
  server.role='admin';assert.equal(await refresher.permissionDenied(),true);assert.equal(refresher.current().viewer.role,'admin');
  const viewers=new ViewerService();viewers.select(ORIGIN,server.initial());server.role='member';assert.equal(viewers.rotate({...refresher.current(),viewer:{...refresher.current().viewer,role:'member'}}),true);
@@ -563,21 +552,30 @@ test('a renewal answer from a newer server, with fields this app does not know, 
   assert.equal('addedByANewerServer' in store.peek()!.session, false);
 });
 
-test('expired replay validation retains every family, viewer, pin, installation and horizon fence', async t => {
+test('a renewal that comes back with no profile is kept: the profile\'s PIN changed elsewhere and the app asks who is watching', async t => {
+  const {server, store, env} = setup(t);
+  const answer = server.envelope('access_1', 'refresh_000000000002', 2);
+  server.refreshAnswers.push(() => new Response(JSON.stringify({...answer, viewer: {accountId: viewer.accountId, serverId: viewer.serverId, role: 'account'}}), {headers: {'Content-Type': 'application/json'}}));
+  const renewed = await refreshDirectly(env, server);
+  assert.equal(renewed.viewer.role, 'account');
+  assert.equal(renewed.viewer.profileId, '');
+  assert.equal(store.peek()?.session.viewer.profileId, '');
+  assert.equal(store.peek()?.session.tokenGeneration, '2');
+});
+
+test('an expired replayed renewal is refused unless it is this sign-in, account, profile, server, installation and device', async t => {
   const {server, store, env} = setup(t);
   const original = structuredClone(store.peek()!);
   const expired = {...server.envelope('access_1', 'refresh_000000000002', 2), expiresAt: iso(clock - MIN)};
   const invalid = [
-    {...expired, sessionFamilyId: 'other'},
+    {...expired, sessionId: 'other'},
     {...expired, tokenGeneration: '1'},
-    {...expired, viewer: {...viewer, authority: 'hosted'}},
     {...expired, viewer: {...viewer, accountId: 'other'}},
     {...expired, viewer: {...viewer, profileId: 'other'}},
     {...expired, viewer: {...viewer, serverId: 'other'}},
-    {...expired, serverIdentity: {publicKey: 'x'.repeat(43), fingerprint: 'y'.repeat(43)}},
     {...expired, installationId: 'another_'.repeat(6)},
     {...expired, deviceId: 'another_device'},
-    {...expired, authorizationHorizon: iso(clock - 1)},
+    {...expired, sessionExpiresAt: iso(clock - 1)},
     {...expired, refreshToken: original.session.refreshToken},
   ];
   for (const answer of invalid) {

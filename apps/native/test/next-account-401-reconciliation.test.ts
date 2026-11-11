@@ -1,4 +1,5 @@
 // @fabric-react
+import {systemAnswer} from '../../../packages/client-core/test/next-wire.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as React from 'react';
@@ -231,7 +232,7 @@ for (const status of [403, 429, 'network'] as const) {
  * or invitation/member/owner/TV admission. No server-local selection operation is supplied. */
 async function serverCommand(f: F, kind: string, produce?: (hosted: any) => Promise<any>) {
   const installation = {installationId: 'fixture-installation'}, pin = {serverId: 'server', publicKey: 'public', fingerprint: 'fingerprint'};
-  const descriptor = {id: 'server', name: 'Server', version: '1', signIn: 'portico', move: 'to_portico', setupRequired: false, hostedConfigured: true, hostedAttached: true, apiLevel: 1, apiVersion: '1.0', apiMajors: [1], capabilities: []};
+  const descriptor = systemAnswer({id: 'server', name: 'Server', version: '1', signIn: 'portico'});
   const routes = {pin, dispose() {}}, api = {baseUrl: 'https://server.example', getRouteConnection: () => routes,
     request: async (path: string) => {assert.equal(path, localRoutes.routePath('get_system')); return descriptor;}};
   const selection = {revision: 1, selectedServerId: 'server', servers: [{connection: {pin, session: {sessionFamilyId: 'retained-server-local'}}}]}, before = structuredClone(selection);
@@ -258,7 +259,7 @@ async function serverCommand(f: F, kind: string, produce?: (hosted: any) => Prom
   const {NativeServerSignIn} = await screenModule(new URL('../src-next/platform/server-sign-in.ts', import.meta.url), new Proxy(modules,
     {get: (all, name: string) => all[name] ?? new Proxy({}, {get: (_, key) => () => {throw new Error('Unvisited command port ' + name + ':' + String(key));}})}));
   const command = new NativeServerSignIn({accountCredentials: () => f.owner, onCancel: () => () => {}, admission: async () => ({})});
-  return {command, start: () => command.connectPortico({id: 'server'}), member: async () => {await command.inspect(api.baseUrl); const move = await command.createMemberMove('password'); return move.captureHosted();}, selection: () => {assert.deepEqual(selection, before);}};
+  return {command, start: () => command.connectPortico({id: 'server'}), selection: () => {assert.deepEqual(selection, before);}};
 }
 for (const kind of ['directory', 'invitation', 'member', 'owner', 'TV']) {
   test(`actual server-sign-in request closure never repeats ${kind} mutation when 401 renews the original family`, async t => {
@@ -271,9 +272,9 @@ for (const kind of ['directory', 'invitation', 'member', 'owner', 'TV']) {
   });
 }
 
-for (const closure of ['official', 'member'] as const) {
+{
   for (const cancel of [false, true]) {
-    test(`actual ${closure} Hosted closure snapshots nested command JSON before held storage; cancel=${cancel}`, async t => {
+    test(`actual official Hosted closure snapshots nested command JSON before held storage; cancel=${cancel}`, async t => {
       const f = await fixture(), caller = new AbortController(), issued = deferred<ReturnType<F['holdLoad']>>();
       const body = {challenge: 'original-challenge', requestId: 'original-request', target: {id: 'original-target', nested: ['original']}};
       const sent: {path: string; method: string; body: string | null}[] = [];
@@ -281,8 +282,7 @@ for (const closure of ['official', 'member'] as const) {
       const invoke = (hosted: any) => {const hold = f.holdLoad(); issued.resolve(hold);
         return hosted.request('/v1/servers/server/identity', 'POST', body, caller.signal);};
       const operation = await serverCommand(f, 'snapshot', invoke);
-      const member = closure === 'member' ? await operation.member() : undefined;
-      const pending = closure === 'official' ? operation.start() : invoke(member.api);
+      const pending = operation.start();
       const settled = Promise.allSettled([pending]), hold = await issued.promise; await hold.entered.promise;
       assert.equal(sent.length, 0, 'canonical storage is actually holding original admission');
       body.challenge = 'successor-challenge'; body.requestId = 'successor-request'; body.target.id = 'successor-target'; body.target.nested[0] = 'successor';
@@ -297,13 +297,12 @@ for (const closure of ['official', 'member'] as const) {
     });
   }
   for (const body of [undefined, null]) {
-    test(`actual ${closure} Hosted closure preserves ${body === undefined ? 'absent' : 'null'} command body`, async t => {
+    test(`actual official Hosted closure preserves ${body === undefined ? 'absent' : 'null'} command body`, async t => {
       const f = await fixture(), sent: (string | null)[] = [];
       transport(t, async (_path, _method, _headers, wire) => {sent.push(wire); return response(401);});
       const invoke = (hosted: any) => hosted.request('/v1/servers/server/identity', 'POST', body);
       const operation = await serverCommand(f, 'body-shape', invoke);
-      if (closure === 'official') await assert.rejects(operation.start());
-      else {const member = await operation.member(); await assert.rejects(invoke(member.api));}
+      await assert.rejects(operation.start());
       assert.deepEqual(sent, [body === undefined ? null : 'null']); assert.equal(f.renewals.length, 1);
       operation.selection(); operation.command.dispose();
     });

@@ -46,7 +46,7 @@ async function revocation(answer: (attempt: number, signal?: AbortSignal) => Pro
   }
   const module = await screenModule(new URL('../src-next/platform/session-revocation.ts', import.meta.url), {
     react: {default: {}}, '../../../../packages/client-core/src': {HttpLocalApi: FakeApi},
-    '../../../../packages/contracts/src/routes': {routePath: () => '/v1/sessions/current'},
+    '../../../../packages/contracts/src/routes': {routePath: () => '/v1/auth/session'},
     '../../../../packages/client-core/src/server-connections': {refreshStoredSession: async () => ({accessToken: 'renewed'})},
     './queue-storage': {NativeQueueStore: class {async change(key: string, update: (raw: unknown) => {record: unknown; value: unknown}) {
       const result = update(memory.get(key)); if (result.record === null) memory.delete(key); else memory.set(key, result.record); return result.value;}}},
@@ -64,7 +64,7 @@ const settle = () => new Promise(resolve => setTimeout(resolve, 5));
 test('a replaced session is queued first, revoked over the live route, and removed once the server confirms', async () => {
   const {module, memory, requests} = await revocation(async () => {});
   await module.revokeInBackground(record('a'), live);
-  assert.deepEqual(requests, [{token: 'old-a', path: '/v1/sessions/current'}]);
+  assert.deepEqual(requests, [{token: 'old-a', path: '/v1/auth/session'}]);
   assert.equal(memory.has('accounts.revocations.v1'), false, 'confirmed: the last copy of the credential is gone');
 });
 
@@ -126,7 +126,7 @@ test('a queued credential can only ever be used to end its own session', async (
   // Nothing exported reads the queue back: only queue, retry and the one revoke call exist.
   assert.deepEqual(Object.keys(module).sort(), ['REVOCATION_QUEUE_CAP', 'REVOCATION_TIMEOUT_MS', 'drainRevocations', 'revokeInBackground', 'revokeOverLiveRoute']);
   await module.revokeInBackground(record('i'), live);
-  assert.deepEqual(requests.map(request => request.path), ['/v1/sessions/current'], 'the credential is sent only to the sign-out call');
+  assert.deepEqual(requests.map(request => request.path), ['/v1/auth/session'], 'the credential is sent only to the sign-out call');
   // No other source file reads or writes the queue's storage key.
   const {readdir, readFile} = await import('node:fs/promises');
   const root = new URL('../src-next/', import.meta.url);

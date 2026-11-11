@@ -48,7 +48,7 @@ test('route evidence rejects wrong audience, signature, identity and expiry',asy
 });
 test('fresh nonce proof uses no credentials and binds the actual requested origin',async()=>{
  const origin='http://192.168.1.8:32500';let sent=0;
- const fetcher=(async(url,init)=>{sent++;assert.equal(url,origin+'/v1/networking/identity-proof');assert.equal(init?.credentials,'omit');assert.equal(init?.redirect,'error');assert.equal(new Headers(init?.headers).get('Authorization'),null);const q=JSON.parse(String(init?.body));assert.equal(Buffer.from(q.nonce,'base64url').length,32);return new Response(JSON.stringify(signed({kind:'portico.route-proof',version:'1',...pin,...q})),{headers:{'Content-Type':'application/json'}});}) as typeof fetch;
+ const fetcher=(async(url,init)=>{sent++;assert.equal(url,origin+'/v1/system/identity-proof');assert.equal(init?.credentials,'omit');assert.equal(init?.redirect,'error');assert.equal(new Headers(init?.headers).get('Authorization'),null);const q=JSON.parse(String(init?.body));assert.equal(Buffer.from(q.nonce,'base64url').length,32);return new Response(JSON.stringify(signed({kind:'portico.route-proof',version:'1',...pin,...q})),{headers:{'Content-Type':'application/json'}});}) as typeof fetch;
  assert.deepEqual(await probeRoute(origin,pin,{fetcher}),pin);assert.equal(sent,1);
  const wrong=(async()=>new Response(JSON.stringify(signed({kind:'portico.route-proof',version:'1',...pin,baseUrl:origin,nonce:'replayed'})),{headers:{'Content-Type':'application/json'}})) as typeof fetch;
  await assert.rejects(probeRoute(origin,pin,{fetcher:wrong}));

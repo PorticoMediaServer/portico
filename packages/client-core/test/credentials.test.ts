@@ -104,9 +104,9 @@ test('Hosted credentials contain no profiles; the server account keeps its eight
  const current={version:1,revocations:[],active:{session:session(),authority:'refresh-one',context:{}}};
  assert.equal(Object.hasOwn(parseNativeCredentialRecord(current).active!.session,'profiles'),false);
  for(const profiles of [[],[{id:'p',name:'P'}]])assert.throws(()=>parseNativeCredentialRecord({...current,active:{...current.active,session:{...current.active.session,profiles}}}));
- const eight=Array.from({length:8},(_,i)=>({id:`profile-${i}`,name:`Profile ${i}`,primary:i===0,position:i,art:'blue',revision:1,pinRevision:1,pinRequired:false}));
+ const eight=Array.from({length:8},(_,i)=>({id:`profile-${i}`,name:`Profile ${i}`,isPrimary:i===0,color:'blue',pinRequired:false}));
  assert.equal(parseManagedProfiles(eight).length,8);
- assert.throws(()=>parseManagedProfiles([...eight,{id:'profile-8',name:'P8',primary:false,position:8,art:'blue',revision:1,pinRevision:1,pinRequired:false}]));
+ assert.throws(()=>parseManagedProfiles([...eight,{id:'profile-8',name:'P8',isPrimary:false,color:'blue',pinRequired:false}]));
 });
 
 test('a browser credential Hosted refuses (CSRF, origin, mode) ends the sign-in; other refusals do not',async()=>{

@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {me} from './next-wire.ts';
 import assert from 'node:assert/strict';
 import {withUnknownFields} from './unknown-fields.ts';
 import {LocalSessionRefresher, type PermissionReconciliation} from '../src/session-refresh.ts';
@@ -31,7 +32,10 @@ function harness(t:import('node:test').TestContext,options:{onRotated?:(ref:Loca
     setTimer:fn=>{timers.set(++timerId,fn);return timerId;},clearTimer:id=>{timers.delete(id as number);},
     api:{request:async<T>(path:string,_method?:string,_body?:unknown,signal?:AbortSignal)=>{
       gets++;calls.push({path,signal});if(getError)throw getError;
-      return (network?await network:reply??{viewer:{...original().viewer,role}}) as T;
+      // The tests say who the server answers as; `GET /v1/me` says it in the server's own shape.
+      const said=(network?await network:reply??{viewer:{...original().viewer,role}}) as {viewer?:LocalSession['viewer']}|undefined;
+      if(!said||typeof said!=='object'||!said.viewer)return said as T;
+      const {viewer,...unknown}=said;return {...unknown,...me(viewer)} as T;
     },setAccessToken:()=>{},setAuthRecovery:()=>{}},
     refresh:async()=>{const next=options.refresh?.(record!);if(!next)throw options.refreshError??new SessionRefreshError('unavailable','try later',false);record={...record!,session:next};return next;},
     onRotated:session=>{rotated.push(session);options.onRotated?.(ref);},onSignedOut:()=>{signedOut++;}});
@@ -76,7 +80,7 @@ test('a stored updater no-op cannot produce the historical false true wrapper re
 test('every protected principal/family/token/device/installation/pin change supersedes instead of adopting',async t=>{
   const changes:((r:RememberedServer)=>RememberedServer)[]=[
     r=>({...r,selectionId:'another'}),r=>({...r,pin:{...r.pin,serverId:'another'}}),
-    ...(['serverId','accountId','profileId','authority','role'] as const).map(key=>(r:RememberedServer)=>({...r,session:{...r.session,viewer:{...r.session.viewer,[key]:key==='authority'?'hosted':'another'}}})),
+    ...(['serverId','accountId','profileId','role'] as const).map(key=>(r:RememberedServer)=>({...r,session:{...r.session,viewer:{...r.session.viewer,[key]:'another'}}})),
     ...(['sessionFamilyId','accessToken','deviceId','installationId'] as const).map(key=>(r:RememberedServer)=>({...r,session:{...r.session,[key]:'another'}})),
   ];
   for(const change of changes){const h=harness(t),gate=deferred<unknown>();h.role('admin');h.network(gate.promise);const pending=h.ref.reconcilePermissions();await flush();assert.equal(h.counts().gets,1);

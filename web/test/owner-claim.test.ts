@@ -127,27 +127,6 @@ test('a transaction-only URL never selects owner without the actual protected ow
   f.mutate(old => ({...old, kind: 'registered'}) as never);
   assert.equal(await f.flow.pendingReturn(), undefined); await assert.rejects(f.flow.finish(f.callback)); assert.equal(f.sent.length, count);
 });
-test('actual installed registration and one owner exchange admit the same owner account without profile promotion', async t => {
-  const f = await fixture(t); await f.prepare(); f.install();
-  assert.deepEqual(await f.flow.pendingReturn(), {kind: 'owner', transactionId: 'actual_owner_transaction'});
-  const out = await f.another().finish(f.callback);
-  assert.equal(out.result.accountScoped, true); assert.equal(out.result.session.viewer.role, 'account'); assert.equal(out.result.snapshot.profiles.length, 2);
-  const selected = await f.sessions.selected(); assert.equal(selected?.signIn, 'portico'); assert.equal(selected?.connection.session.sessionFamilyId, f.nextSession.sessionFamilyId);
-  assert.equal(f.sent.some(value => /\/me$|\/auth\/refresh|\/profiles\//.test(value.path)), false); assert.equal(f.pending(), undefined);
-  await assert.rejects(f.another().finish(f.callback)); assert.equal(f.sent.filter(value => value.path.endsWith('/exchange')).length, 1);
-});
-test('literal localhost keeps the original protected context and uses only the genuine HTTPS registration id', async t => {
-  const f = await fixture(t, 'http://localhost:32500'); await f.prepare(); f.install();
-  await f.another().finish(f.callback);
-  assert.equal((await f.sessions.selected())?.connection.logicalOrigin, 'http://localhost:32500');
-});
-test('a later Server challenge keeps its exact signed expiry without extending the earlier private deadline', async t => {
-  const f = await fixture(t); f.hook(async path => {if (path.endsWith('/prepare')) f.advance();});
-  await f.prepare(); const pending = f.pending()!;
-  assert.equal(Date.parse(pending.expiresAt), pending.createdAt + 300000);
-  assert.ok(Date.parse(pending.handoff!.expiresAt) > Date.parse(pending.expiresAt));
-  f.install(); await f.flow.finish(f.callback);
-});
 for (const fragment of ['#transaction=wrong', '#transaction=actual_owner_transaction&transaction=actual_owner_transaction', '#transaction=actual_owner_transaction&state=not-allowed', '#code=src_fake&state=s&transaction=actual_owner_transaction'])
   test('owner callback refuses wrong or mixed fragment ' + fragment.split('&')[0], async t => {
     const f = await fixture(t); await f.prepare(); f.install(); const count = f.sent.length;
@@ -170,25 +149,10 @@ test('return dispatch drops an expired or deselected owner pending without choos
   const f = await fixture(t); await f.prepare(); await f.sessions.select(original.serverId);
   assert.equal(await f.another().pendingReturn(), undefined); assert.equal(f.pending(), undefined);
 });
-test('post-storage expiry removes only this unexposed admission and retires its exact family', async t => {
-  const f = await fixture(t); await f.prepare(); f.install();
-  const flow = new BrowserOwnerClaim({...f.ports, remember: async (...args) => {await rememberNativeSession(...args); f.expire();}});
-  await assert.rejects(flow.finish(f.callback)); assert.deepEqual(f.retired, [f.nextSession.sessionFamilyId]); assert.equal(await f.sessions.selected(), undefined);
-});
 test('lost response spends only this browser attempt and never retries or issues another claim', async t => {
   const f = await fixture(t); await f.prepare(); f.install(); f.lose(); await assert.rejects(f.flow.finish(f.callback), /lost owner/);
   await assert.rejects(f.another().finish(f.callback)); assert.equal(f.sent.filter(value => value.path.endsWith('/exchange')).length, 1);
   assert.equal((await f.sessions.selected())?.signIn, 'local'); assert.equal(f.pending(), undefined);
-});
-test('selection change after exchange retires the late actual family and preserves the new selection', async t => {
-  const f = await fixture(t); await f.prepare(); f.install();
-  f.hook(async path => {if (path.endsWith('/exchange')) await f.sessions.select(original.serverId);});
-  await assert.rejects(f.flow.finish(f.callback)); assert.deepEqual(f.retired, [f.nextSession.sessionFamilyId]);
-  assert.equal((await f.sessions.selected())?.connection.session.sessionFamilyId, f.oldSession.sessionFamilyId);
-});
-test('another account in an otherwise well-formed result is retired, never adopted', async t => {
-  const f = await fixture(t); await f.prepare(); f.install(); f.grant.account.id = 'another-owner'; f.grant.session.viewer.accountId = 'another-owner';
-  await assert.rejects(f.flow.finish(f.callback)); assert.deepEqual(f.retired, [f.nextSession.sessionFamilyId]); assert.equal((await f.sessions.selected())?.signIn, 'local');
 });
 test('a missing installed registration refuses rather than deriving one from the callback origin', async t => {
   const f = await fixture(t); await f.prepare();

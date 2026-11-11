@@ -19,7 +19,7 @@ async function setup(t:import('node:test').TestContext,options:{plaintext?:boole
  const store=new BrowserProtectedStore<RememberedServer>('portico.test.permission.vault',options.exactCap?new TextEncoder().encode(JSON.stringify(record)).length:192000);
  await store.change(()=>record);
  let rotations=0,signedOut=0;const changes:Promise<unknown>[]=[];
- const ref=new LocalSessionRefresher({session,env:{storage:{read:()=>store.read(),change:(update,beforeCommit)=>{const p=store.change(update,beforeCommit);changes.push(p.catch(()=>{}));return p;}}},api:{request:async<T>()=>({viewer:{...session.viewer,role:options.role??'admin'}} as T),setAccessToken:()=>{},setAuthRecovery:()=>{}},
+ const ref=new LocalSessionRefresher({session,env:{storage:{read:()=>store.read(),change:(update,beforeCommit)=>{const p=store.change(update,beforeCommit);changes.push(p.catch(()=>{}));return p;}}},api:{request:async<T>()=>({account:{id:session.viewer.accountId,username:'someone',role:options.role??'admin'},profile:{id:session.viewer.profileId},role:options.role??'admin',canManageAccount:true} as T),setAccessToken:()=>{},setAuthRecovery:()=>{}},
   setTimer:()=>1,clearTimer:()=>{},onRotated:()=>{rotations++;},onSignedOut:()=>{signedOut++;}});t.after(()=>ref.stop());
  return {db,store,ref,changes,counts:()=>({rotations,signedOut})};
 }

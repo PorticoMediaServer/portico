@@ -55,8 +55,7 @@ function scope(raw: PorticoAccountScope): PorticoAccountScope {
  * proved issuer. It supplies no Hosted account or directory route authority. */
 function resetOwner(connection: RememberedServer): boolean {
   const session = connection.session;
-  return !connection.hosted && session.viewer.authority === 'local' && session.viewer.role === 'owner' && !session.refreshToken
-    && session.serverIdentity?.publicKey === connection.pin.publicKey && session.serverIdentity.fingerprint === connection.pin.fingerprint;
+  return !connection.hosted && session.viewer.authority === 'local' && session.viewer.role === 'owner' && !session.refreshToken;
 }
 export function parseAppSessionRecord(raw: unknown): AppSessionRecord {
   if (raw === undefined || raw === null) return empty();

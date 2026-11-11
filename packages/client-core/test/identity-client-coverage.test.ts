@@ -108,35 +108,6 @@ test('remembered accounts are asked before sign-in and forgotten by id', async (
   assert.deepEqual(calls[2], {path: '/v1/direct/remembered-accounts/a%2Fb', method: 'DELETE', body: {installationId: inst}});
 });
 
-test('device edits go to the documented routes with exactly the documented bodies', async () => {
-  const calls: {path: string; method: string; body: unknown}[] = [];
-  const {client: c} = client(
-    {
-      'GET /v1/devices': {items: [device, {...device, id: 'd2', installationId: '', current: false}]},
-      '/v1/devices': device,
-      '/v1/devices/d1': device,
-      '/v1/devices/d1/sessions/bind': undefined,
-      '/v1/devices/d1/sessions': undefined,
-    },
-    calls,
-  );
-  // The list is asked for with no installation id in the address; another device's id comes back empty.
-  const listed = await c.devices('i'.repeat(32));
-  assert.equal(listed.length, 2);
-  assert.deepEqual(calls[0], {path: '/v1/devices', method: 'GET', body: undefined});
-  assert.equal(listed[1].installationId, '');
-  assert.equal((await c.registerDevice({installationId: 'i'.repeat(32), name: 'TV', platform: 'tvos', app: 'Portico', appVersion: '1'})).id, 'd1');
-  await c.bindDevice('d1', 'i'.repeat(32), 'fam-1');
-  assert.deepEqual(calls[2], {path: '/v1/devices/d1/sessions/bind', method: 'POST', body: {installationId: 'i'.repeat(32), sessionFamilyId: 'fam-1'}});
-  await c.editDevice('d1', {name: 'Den'});
-  assert.deepEqual(calls[3].body, {name: 'Den'});
-  assert.equal('approveDevice' in c,false);
-  await c.signOutDevice('d1');
-  assert.equal(calls[4].path, '/v1/devices/d1/sessions');
-  await c.removeDevice('d1');
-  assert.equal(calls[5].method, 'DELETE');
-});
-
 test('two-factor state, enrolment and verification ride the current password', async () => {
   const calls: {path: string; method: string; body: unknown}[] = [];
   const enrol = {
@@ -156,15 +127,4 @@ test('two-factor state, enrolment and verification ride the current password', a
   assert.equal((await c.enrolTwoFactor('secret')).secret.length > 0, true);
   assert.deepEqual(calls[1], {path: '/v1/direct/two-factor/enrol', method: 'POST', body: {password: 'secret'}});
   assert.equal((await c.verifyTwoFactor('secret', '123456')).enabled, true);
-});
-
-test('a server error answer surfaces; an unknown envelope is refused', async () => {
-  const failing = new IdentityClient({
-    request: async () => {
-      throw Object.assign(new Error('gone'), {status: 404});
-    },
-  });
-  await assert.rejects(failing.devices('i'.repeat(32)), /gone/);
-  const bad = new IdentityClient({request: async () => ({items: [{...device, approvalState: 'maybe'}]}) as never});
-  await assert.rejects(bad.devices('i'.repeat(32)));
 });

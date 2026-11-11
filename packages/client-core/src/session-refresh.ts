@@ -1,9 +1,8 @@
 import {serverNow} from './server-clock.ts';
-import type {RouteResponse} from "../../contracts/src/route-paths.ts";
-import {routePath} from "../../contracts/src/route-paths.ts";
+import {readViewerIdentity} from './query/connection-operations.ts';
 /**
- * Keeps a device-bound server sign-in alive (lane C, 939a746: 15-minute access tokens with a
- * rotating refresh credential, `POST /v1/auth/refresh`).
+ * Keeps a device-bound server sign-in alive (15-minute access tokens with a rotating refresh
+ * credential, `POST /v1/auth/refresh`).
  *
  * - Proactive: refreshes `leadMs` before the access token expires, and again whenever a request
  *   finds it about to expire (timers sleep with the app; `wake()` on resume too).
@@ -102,7 +101,6 @@ export class LocalSessionRefresher implements AuthRecovery {
   /** A successful proactive rotation that did not advance this family's horizon. */
   private noProgress?: Readonly<{serverId: string; familyId: string; expiresAt: string; horizon: string}>;
   private timer?: unknown;
- private permissionTimer?:unknown;
  private permissionRead?:PermissionFlight;
  private permissionFullWaitUntil=0;
  private permissionCredentialWaitUntil=0;
@@ -131,7 +129,6 @@ export class LocalSessionRefresher implements AuthRecovery {
     this.state = Object.freeze({phase: 'active', expiresAt: this.session.expiresAt, failures: 0});
     options.api.setAuthRecovery(this);
     this.schedule();
-    this.schedulePermissions();
   }
 
   getSnapshot = (): RefresherSnapshot => this.state;
@@ -249,8 +246,8 @@ export class LocalSessionRefresher implements AuthRecovery {
       const stored=permissionRecord(saved);
       if(!saved||!stored||saved.pin.serverId!==current.viewer.serverId||!permissionSessionEqual(stored,flight.proof))return {kind:'superseded',reason:'selection-moved'};
       const witness:PermissionWitness={selectionId:saved.selectionId,pinServer:saved.pin.serverId,session:flight.proof};
-      let raw:RouteResponse<'get_me'>;
-      try{raw=await this.o.api.request<RouteResponse<'get_me'>>(routePath('get_me'),'GET',undefined,flight.controller.signal);}
+      let raw:Awaited<ReturnType<typeof readViewerIdentity>>;
+      try{raw=await readViewerIdentity(this.o.api,current.viewer,flight.controller.signal);}
       catch(error){
         this.permissionFullWaitUntil=Math.max(this.permissionFullWaitUntil,permissionDeadline(error,this.now()));
         const wait=(error as {retryAfterSeconds?:unknown}|null)?.retryAfterSeconds;
@@ -260,9 +257,8 @@ export class LocalSessionRefresher implements AuthRecovery {
         return permissionFailure(error,e?.retryable??!(typeof e?.status==='number'&&e.status>=400&&e.status<500&&![408,425,429].includes(e.status)));
       }
       reason=this.permissionReason(flight);if(reason)return this.permissionSuperseded(reason);
-      if(!raw||typeof raw!=='object'||!('viewer' in raw))throw new Error('Unreadable permission response.');
       const next=parseLocalSession({...current,viewer:raw.viewer},{accountId:current.viewer.accountId,profileId:current.viewer.profileId,
-        serverId:current.viewer.serverId,authority:current.viewer.authority},{stored:true});
+        serverId:current.viewer.serverId},{stored:true});
       if(!['owner','admin','member'].includes(next.viewer.role))return permissionFailure(Object.assign(new Error('Unsupported viewer role.'),{code:'unsupported_role'}),false);
       if(next.viewer.role===current.viewer.role){
         const final=await this.o.env.storage.read();
@@ -293,17 +289,9 @@ export class LocalSessionRefresher implements AuthRecovery {
     flight.controller.abort();
     if(!flight.handover)for(const borrower of flight.borrowers)borrower.finish(this.permissionSuperseded('owner-stopped'));
   }
-  private schedulePermissions(){
-    if(this.permissionTimer!==undefined)this.clearTimer(this.permissionTimer);
-    this.permissionTimer=undefined;
-    if(this.done||this.failures>0)return;
-    this.permissionTimer=this.setTimer(()=>{this.permissionTimer=undefined;void this.permissionDenied().finally(()=>this.schedulePermissions());},Math.max(30_000,this.permissionWaitUntil-this.now()));
-  }
-
   /** Stop keeping this sign-in alive (sign-out, switching viewer). Does not touch storage. */
   stop(): void {
     if (this.timer !== undefined) this.clearTimer(this.timer);
-    if(this.permissionTimer!==undefined)this.clearTimer(this.permissionTimer);this.permissionTimer=undefined;
     this.timer = undefined;
     if (!this.done) this.publish({phase: 'stopped'});
     this.stopPermission();
@@ -352,7 +340,6 @@ export class LocalSessionRefresher implements AuthRecovery {
     // Adoption may synchronously retire this authority and stop the refresher.
     // Keep that terminal state before publishing or installing another timer.
     if (this.done) return;
-    this.schedulePermissions();
     this.publish({phase: 'active', expiresAt: visible.expiresAt, failures: 0, error: undefined});
     this.schedule();
   }
@@ -364,7 +351,6 @@ export class LocalSessionRefresher implements AuthRecovery {
     if (error.signOut || (error.code === 'refresh_unavailable' && this.expiresIn() <= 0)) {
       if (this.timer !== undefined) this.clearTimer(this.timer);
       this.timer = undefined;
-      if(this.permissionTimer!==undefined)this.clearTimer(this.permissionTimer);this.permissionTimer=undefined;
       this.publish({phase: 'ended', error});
       this.stopPermission();
       this.o.api.setAuthRecovery(undefined);
@@ -373,7 +359,6 @@ export class LocalSessionRefresher implements AuthRecovery {
     }
     this.failures++;
     this.permissionCredentialWaitUntil=Math.max(this.permissionCredentialWaitUntil,permissionDeadline(e,this.now()));
-    this.schedulePermissions();
     const asked = (e as {retryAfterSeconds?: unknown} | null)?.retryAfterSeconds;
     // Bounded: a server cannot park renewal for longer than an hour with one header.
     if (typeof asked === 'number' && Number.isFinite(asked) && asked > 0) this.serverWaitUntil = this.now() + Math.min(asked, 3600) * 1000;

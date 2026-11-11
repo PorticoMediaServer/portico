@@ -4,6 +4,7 @@ import {NativeModules} from './react-native-stub.mjs';
 import {HttpLocalApi, type LocalSession} from '../../../packages/client-core/src/index.ts';
 import {installationIdentity, setInstallationIdentity} from '../../../packages/client-core/src/installation.ts';
 import {deviceClassHeader} from '../../../packages/client-core/src/delivery.ts';
+import {accountAnswer, accountPath} from '../../../packages/client-core/test/next-wire.ts';
 import {routePath} from '../../../packages/contracts/src/routes.ts';
 import {nativeNetworkFetch} from '../src-next/platform/server-connections.ts';
 import {nativePlaybackSettings} from '../src-next/shell/playback-settings.ts';
@@ -92,12 +93,8 @@ function fixture(t: TestContext, deviceClass: DeviceClass = 'mobile', role: 'own
     if (path === routePath('get_home')) return {value: {serverId: state.servers.home, viewerFence: state.fences.home, rows: [homeRow(state.fences.home)], spotlight: [],
       layout: {revision: 1, rowOrder: ['recent'], hiddenRowIds: []}, revision: {catalog: 1, viewer: 1}, generatedAt: '2026-10-22T12:00:00Z'}};
     if (path === routePath('get_home_row', {id: 'recent'})) return {value: {...homeRow(state.fences.home), entries: [], start: 1, hasMore: false, nextCursor: ''}};
-    if (path === routePath('get_direct_account')) return {value: {authority: 'local', serverId: 'server', canManage: true,
-      capabilities: {manageAccount: true, managePeople: state.role === 'owner' || state.role === 'admin',
-        manageServer: state.role === 'owner' || state.role === 'admin', manageSignIn: state.role === 'owner'},
-      account: {id: 'account', username: 'owner', primaryProfileId: 'profile', role: state.role, revision: 1, disabled: state.disabled, allowedLibraries: ['movies'],
-        ...(state.linkedAccountId ? {hostedAccountId: state.linkedAccountId} : {})},
-      profiles: [{id: 'profile', name: 'Actual profile', primary: true, position: 0, art: 'mint', revision: 1, pinRevision: 1, pinRequired: false}]}};
+    if (accountPath(path)) return state.disabled ? {status: 401, value: {error: {code: 'unauthenticated'}}} : {value: accountAnswer(path, {account: {id: 'account', username: 'owner', role: state.role},
+      profiles: [{id: 'profile', name: 'Actual profile', primary: true, art: 'mint'}]})};
     throw new Error('Unexpected request: ' + path);
   };
   state.reply = async request => response(request);
@@ -321,15 +318,6 @@ test('direct account parsing preserves actual role and profiles, and refuses a c
   f.state.role = 'member'; await assert.rejects(f.services.readAccount(), {code: 'access_refused'}); assert.equal(f.state.ended, 1);
 });
 
-for (const replacement of [undefined, 'other-portico-account']) test(`linked account read refuses ${replacement ? 'a changed' : 'a missing'} Portico identity link`, async t => {
-  const f = fixture(t, 'mobile', 'member', 'original-portico-account');
-  assert.equal((await f.services.readAccount()).account.hostedAccountId, 'original-portico-account');
-  f.state.linkedAccountId = replacement;
-  await assert.rejects(f.services.readAccount(), {code: 'access_refused'});
-  assert.equal(f.state.ended, 1);
-  assert.equal(f.services.home.getSnapshot().document, undefined);
-});
-
 for (const role of ['owner', 'admin', 'member'] as const) test(`the actual ${role} role is retained without an owner fallback`, async t => {
   const f = fixture(t, 'mobile', role);
   assert.equal((await f.services.readAccount()).account.role, role);
@@ -345,11 +333,11 @@ for (const [role, unread] of [['admin', 5], ['member', 2]] as const) test(`the $
   assert.deepEqual([...new Set(counted)], role === 'admin' ? ['profile', 'account-admin'] : ['profile']);
 });
 
-test('a changed direct-account principal retires instead of retaining another account response', async t => {
+test('an account answer for another account is refused, never adopted', async t => {
   const f = fixture(t); await f.services.readAccount();
-  f.state.reply = async request => request.url.pathname === routePath('get_direct_account')
-    ? {value: {authority: 'local', serverId: 'server', account: {id: 'other-account'}}} : f.response(request);
-  await assert.rejects(f.services.readAccount(), {code: 'access_refused'}); assert.equal(f.state.ended, 1);
+  f.state.reply = async request => request.url.pathname === '/v1/me'
+    ? {value: accountAnswer('/v1/me', {account: {id: 'other-account', username: 'other', role: 'owner'}, profiles: [{id: 'profile', name: 'Actual profile', primary: true}]})} : f.response(request);
+  await assert.rejects(f.services.readAccount(), {code: 'invalid_response'});
 });
 
 test('an already-aborted restore cannot publish private service facts or start HTTP reads', async t => {

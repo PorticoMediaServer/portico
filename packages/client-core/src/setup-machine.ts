@@ -262,7 +262,8 @@ function starting(view: Extract<SetupView, {kind: 'starting'}>, i: SetupInput, n
       return go({kind: 'busy_elsewhere', polls: 0, ...(floor ? {retryAt: now + floor} : {})}, [readAfter(0, floor)]);
     }
     case 'setupCodeRequired': return step === 'start' ? go({kind: 'code', name, invalid: false, resume: view}) : stay(view);
-    case 'setupCodeInvalid': return step === 'start' ? go({kind: 'code', name, invalid: true, resume: view}) : stay(view);
+    // The server checks the setup code when it creates the owner, so a wrong one is learnt at that step: ask again and resume from the start.
+    case 'setupCodeInvalid': return step === 'start' || step === 'initialize' ? go({kind: 'code', name, invalid: true, resume: {...view, step: 'start'}}) : stay(view);
     case 'startDone':
       if (step !== 'start') return stay(view);
       return go({...view, step: 'check'}, [{kind: 'remote-check'}]);

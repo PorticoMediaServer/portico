@@ -6,6 +6,7 @@ import {RouteConnection,sessionRoute} from '../src/route-connection.ts';
 import {type ServerPin} from '../src/route-identity.ts';
 import {parseRememberedServer,rememberNativeSession,restoreNativeSession,rememberRotatedSession,prepareRoutedSession,commitRoutedSession,type RememberedServer,type ServerConnectionStorage} from '../src/server-connections.ts';
 import {SetupCodeService,type SetupCodeJournal} from '../src/setup-code.ts';
+import {me} from './next-wire.ts';
 const tick=()=>new Promise<void>(r=>setTimeout(r,5));
 async function until(check:()=>boolean){for(let i=0;i<120&&!check();i++)await tick();assert.ok(check(),'condition did not settle');}
 function deferred<T>(){let resolve!:(v:T)=>void,reject!:(e:unknown)=>void;const promise=new Promise<T>((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};}
@@ -13,7 +14,7 @@ const keys=generateKeyPairSync('ed25519'),rawKey=keys.publicKey.export({format:'
 const pin:ServerPin={publicKey:rawKey.toString('base64url'),fingerprint:createHash('sha256').update(rawKey).digest('base64url'),serverId:'srv_'+createHash('sha256').update('portico.server.identity.v1\0').update(rawKey).digest('base64url')};
 const lan='http://192.168.1.8:32500',other='http://192.168.1.9:32500';
 const signed=(v:unknown)=>{const raw=Buffer.from(JSON.stringify(v));return{payload:raw.toString('base64url'),signature:sign(null,raw,keys.privateKey).toString('base64url')};};
-function session(token='token_one',generation='1'):LocalSession {const until=new Date(Date.now()+600000).toISOString();return{accessToken:token,tokenGeneration:generation,sessionFamilyId:'same_family',expiresAt:until,authorizationHorizon:until,serverIdentity:{publicKey:pin.publicKey,fingerprint:pin.fingerprint},viewer:{serverId:pin.serverId,accountId:'owner',profileId:'profile',role:'owner',authority:'local'}};}
+function session(token='token_one',generation='1'):LocalSession {const until=new Date(Date.now()+600000).toISOString();return{accessToken:token,tokenGeneration:generation,sessionFamilyId:'same_family',expiresAt:until,authorizationHorizon:until,viewer:{serverId:pin.serverId,accountId:'owner',profileId:'profile',role:'owner',authority:'local'}};}
 function storage(){let value:RememberedServer|undefined;return{read:async()=>structuredClone(value),change:async(update:(v:RememberedServer|undefined)=>RememberedServer|undefined)=>{value=structuredClone(update(structuredClone(value)));}} satisfies ServerConnectionStorage;}
 async function ready(fetcher?:typeof fetch){const connection=new RouteConnection({pin,logicalOrigin:lan,memory:{paired:[lan]},probe:async()=>pin,fetcher});await connection.resolve();const api=new HttpLocalApi(lan,'',fetcher);api.useRoutes(connection);return{connection,api};}
 
@@ -42,17 +43,17 @@ test('old cache owner cannot write over a newer selection of the same family',as
 });
 test('restore rechecks durable selection after proof, before sending a bearer',async()=>{
  const store=storage(),initial=await ready(),proof=deferred<void>();let requested=false,me=0;
- try{await rememberNativeSession(initial.api,session(),{storage:store});const fetcher:typeof fetch=async(input,init)=>{if(String(input).endsWith('/v1/networking/identity-proof')){requested=true;await proof.promise;const q=JSON.parse(String(init?.body));return new Response(JSON.stringify(signed({kind:'portico.route-proof',version:'1',...pin,...q})),{headers:{'Content-Type':'application/json'}});}me++;return new Response(JSON.stringify({viewer:session().viewer}),{headers:{'Content-Type':'application/json'}});};const restored=restoreNativeSession({storage:store,fetcher});const rejection=assert.rejects(restored);await until(()=>requested);await store.change(()=>undefined);proof.resolve();await rejection;assert.equal(me,0);}finally{initial.connection.dispose();}
+ try{await rememberNativeSession(initial.api,session(),{storage:store});const fetcher:typeof fetch=async(input,init)=>{if(String(input).endsWith('/v1/system/identity-proof')){requested=true;await proof.promise;const q=JSON.parse(String(init?.body));return new Response(JSON.stringify(signed({kind:'portico.route-proof',version:'1',...pin,...q})),{headers:{'Content-Type':'application/json'}});}me++;return new Response(JSON.stringify(me(session().viewer)),{headers:{'Content-Type':'application/json'}});};const restored=restoreNativeSession({storage:store,fetcher});const rejection=assert.rejects(restored);await until(()=>requested);await store.change(()=>undefined);proof.resolve();await rejection;assert.equal(me,0);}finally{initial.connection.dispose();}
 });
 test('R-17: a same-family rotation during restore is adopted, not reported as a changed selection',async()=>{
  const store=storage(),initial=await ready(),proof=deferred<void>();let requested=false;const bearers:string[]=[];
- try{await rememberNativeSession(initial.api,session(),{storage:store});const fetcher:typeof fetch=async(input,init)=>{if(String(input).endsWith('/v1/networking/identity-proof')){requested=true;await proof.promise;const q=JSON.parse(String(init?.body));return new Response(JSON.stringify(signed({kind:'portico.route-proof',version:'1',...pin,...q})),{headers:{'Content-Type':'application/json'}});}bearers.push(new Headers(init?.headers).get('Authorization')??'');return new Response(JSON.stringify({viewer:session().viewer}),{headers:{'Content-Type':'application/json'}});};
+ try{await rememberNativeSession(initial.api,session(),{storage:store});const fetcher:typeof fetch=async(input,init)=>{if(String(input).endsWith('/v1/system/identity-proof')){requested=true;await proof.promise;const q=JSON.parse(String(init?.body));return new Response(JSON.stringify(signed({kind:'portico.route-proof',version:'1',...pin,...q})),{headers:{'Content-Type':'application/json'}});}bearers.push(new Headers(init?.headers).get('Authorization')??'');return new Response(JSON.stringify(me(session().viewer)),{headers:{'Content-Type':'application/json'}});};
   const restored=restoreNativeSession({storage:store,fetcher});await until(()=>requested);await rememberRotatedSession({storage:store},session('token_two','2'));proof.resolve();
   const result=await restored;try{assert.equal(result?.session.accessToken,'token_two');assert.equal(result?.session.tokenGeneration,'2');assert.deepEqual(bearers,['Bearer token_two']);}finally{result?.api.getRouteConnection()?.dispose();}}finally{initial.connection.dispose();}
 });
 test('R-17: a conflicting token at the same generation during restore still cancels it',async()=>{
  const store=storage(),initial=await ready(),proof=deferred<void>();let requested=false,me=0;
- try{await rememberNativeSession(initial.api,session(),{storage:store});const fetcher:typeof fetch=async(input,init)=>{if(String(input).endsWith('/v1/networking/identity-proof')){requested=true;await proof.promise;const q=JSON.parse(String(init?.body));return new Response(JSON.stringify(signed({kind:'portico.route-proof',version:'1',...pin,...q})),{headers:{'Content-Type':'application/json'}});}me++;return new Response(JSON.stringify({viewer:session().viewer}),{headers:{'Content-Type':'application/json'}});};
+ try{await rememberNativeSession(initial.api,session(),{storage:store});const fetcher:typeof fetch=async(input,init)=>{if(String(input).endsWith('/v1/system/identity-proof')){requested=true;await proof.promise;const q=JSON.parse(String(init?.body));return new Response(JSON.stringify(signed({kind:'portico.route-proof',version:'1',...pin,...q})),{headers:{'Content-Type':'application/json'}});}me++;return new Response(JSON.stringify(me(session().viewer)),{headers:{'Content-Type':'application/json'}});};
   const restored=restoreNativeSession({storage:store,fetcher});const rejection=assert.rejects(restored,{code:'cancelled'});await until(()=>requested);await store.change(current=>current&&{...current,session:{...current.session,accessToken:'token_two',tokenGeneration:'1'}});proof.resolve();await rejection;assert.equal(me,0);}finally{initial.connection.dispose();}
 });
 test('renewal projection keeps generation monotonic and retains exactly the routed family',async()=>{
@@ -173,11 +174,11 @@ test('restore renews an access token the server no longer accepts instead of los
   const json=(status:number,body:unknown)=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json'}});
   const fetcher:typeof fetch=async(input,init)=>{
    const url=String(input);
-   if(url.endsWith('/v1/networking/identity-proof')){const q=JSON.parse(String(init?.body));return json(200,signed({kind:'portico.route-proof',version:'1',...pin,...q}));}
+   if(url.endsWith('/v1/system/identity-proof')){const q=JSON.parse(String(init?.body));return json(200,signed({kind:'portico.route-proof',version:'1',...pin,...q}));}
    if(url.endsWith('/v1/auth/refresh')){refreshes++;return json(200,renewed);}
    const bearer=new Headers(init?.headers).get('authorization')??'';bearers.push(bearer);
    // The server restarted: the old access token is refused although it has not expired.
-   return bearer==='Bearer token_two'?json(200,{viewer:saved.viewer}):json(401,{error:{code:'unauthorized'}});
+   return bearer==='Bearer token_two'?json(200,me(saved.viewer)):json(401,{error:{code:'unauthorized'}});
   };
   const restored=await restoreNativeSession({storage:store,fetcher});
   assert.equal(restored?.session.accessToken,'token_two');assert.equal(refreshes,1);
@@ -216,10 +217,10 @@ async function restoreAgainst(t:import('node:test').TestContext,meAnswer:(bearer
  const json=(status:number,body:unknown)=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json'}});
  const fetcher:typeof fetch=async(input,init)=>{
   const url=String(input);
-  if(url.endsWith('/v1/networking/identity-proof')){const q=JSON.parse(String(init?.body));return json(200,signed({kind:'portico.route-proof',version:'1',...pin,...q}));}
+  if(url.endsWith('/v1/system/identity-proof')){const q=JSON.parse(String(init?.body));return json(200,signed({kind:'portico.route-proof',version:'1',...pin,...q}));}
   if(url.endsWith('/v1/auth/refresh')){calls.refresh++;return json(200,renewed);}
   calls.me++;const status=meAnswer(new Headers(init?.headers).get('authorization')??'');
-  return status===200?json(200,{viewer:saved.viewer}):json(status,{error:{code:'x'}});
+  return status===200?json(200,me(saved.viewer)):json(status,{error:{code:'x'}});
  };
  const outcome=await restoreNativeSession({storage:store,fetcher}).then(r=>{r?.api.getRouteConnection()?.dispose();return 'restored';},(e:{code?:string})=>e.code);
  initial.connection.dispose();
@@ -244,7 +245,7 @@ test('restore, Try again and the background refresher at once send one refresh a
  const json=(status:number,body:unknown)=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json'}});
  const fetcher:typeof fetch=async(input,init)=>{
   const url=String(input);
-  if(url.endsWith('/v1/networking/identity-proof')){const q=JSON.parse(String(init?.body));return json(200,signed({kind:'portico.route-proof',version:'1',...pin,...q}));}
+  if(url.endsWith('/v1/system/identity-proof')){const q=JSON.parse(String(init?.body));return json(200,signed({kind:'portico.route-proof',version:'1',...pin,...q}));}
   if(url.endsWith('/v1/auth/refresh')){
    // Slow enough that all three callers are waiting on a renewal at the same time.
    refreshes++;await new Promise(r=>setTimeout(r,150));
@@ -254,7 +255,7 @@ test('restore, Try again and the background refresher at once send one refresh a
    return json(200,{...session(access,String(generation)),refreshToken:current});
   }
   const bearer=(new Headers(init?.headers).get('authorization')??'').replace('Bearer ','');
-  return live.has(bearer)?json(200,{viewer:saved.viewer}):json(401,{error:{code:'unauthorized'}});
+  return live.has(bearer)?json(200,me(saved.viewer)):json(401,{error:{code:'unauthorized'}});
  };
  const store=storage(),initial=await ready(fetcher);
  await rememberNativeSession(initial.api,saved,{storage:store});
@@ -275,7 +276,7 @@ assert.equal(c.status==='fulfilled'&&c.value,'access_2');
   for(const r of [a,b])if(r.status==='fulfilled')r.value?.api.getRouteConnection()?.dispose();
  }finally{refresher.stop();initial.connection.dispose();}
 });
-test('a Portico Account member’s server-local session is remembered with its Portico route source; a legacy hosted viewer must still match',async()=>{
+test('a Portico Account member’s server-local session is remembered with its Portico route source',async()=>{
  const store=storage(),a=await ready();
  const hosted={origin:'https://hosted.example',accountId:'acc_portico',key:{} as never};
  try{
@@ -285,63 +286,54 @@ test('a Portico Account member’s server-local session is remembered with its P
   // …and read back at launch (the e2e restore failed on this before).
   const hostedKey={origin:'https://hosted.example',accountId:'acc_portico',key:{keyId:'k',publicKey:'p'.repeat(43)}};
   assert.equal(parseRememberedServer({...structuredClone(saved),hosted:hostedKey})?.session.viewer.authority,'local');
-  assert.throws(()=>parseRememberedServer({...structuredClone(saved),hosted:hostedKey,session:{...structuredClone(saved)!.session,viewer:{...structuredClone(saved)!.session.viewer,authority:'hosted',accountId:'someone_else'}}}));
-  const legacy={...session('token_two'),viewer:{authority:'hosted',accountId:'someone_else',profileId:'profile',serverId:pin.serverId,role:'member'}};
-  await assert.rejects(rememberNativeSession(a.api,legacy,{storage:store},hosted),/another account/);
  }finally{a.connection.dispose();}
 });
 
-function accountRestoreSnapshot(){
- return {authority:'local',serverId:pin.serverId,account:{id:'owner',username:'owner',primaryProfileId:'profile',role:'owner',revision:1,disabled:false,allowedLibraries:[]},
-  profiles:[{id:'profile',name:'Main',primary:true,position:0,art:'blue',revision:1,pinRevision:1,pinRequired:false},{id:'second',name:'Second',primary:false,position:1,art:'blue',revision:1,pinRevision:1,pinRequired:false}],
-  canManage:false,capabilities:{manageAccount:false,managePeople:false,manageServer:false,manageSignIn:false}};
-}
-async function accountRestoreCase(answer:(snapshot:ReturnType<typeof accountRestoreSnapshot>)=>{status:number;body:unknown}){
- const store=storage(),initial=await ready(),saved={...session(),viewer:{...session().viewer,role:'account'}};
- const calls={proof:0,account:0,viewer:0,refresh:0,profile:0};
+/** A sign-in that has not chosen a profile: the role `account` and no profile, saved and on the server. */
+const accountOnly=()=>({...session(),viewer:{...session().viewer,profileId:'',role:'account'}});
+async function accountRestoreCase(answer:(body:ReturnType<typeof me>)=>{status:number;body:unknown}){
+ const store=storage(),initial=await ready(),saved=accountOnly();
+ const calls={proof:0,account:0,refresh:0,profile:0};
  const json=(status:number,body:unknown)=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json'}});
  await rememberNativeSession(initial.api,saved,{storage:store});
  const fetcher:typeof fetch=async(input,init)=>{
   const path=new URL(String(input)).pathname;
-  if(path==='/v1/networking/identity-proof'){
+  if(path==='/v1/system/identity-proof'){
    calls.proof++;assert.equal(new Headers(init?.headers).has('Authorization'),false);
    const q=JSON.parse(String(init?.body));return json(200,signed({kind:'portico.route-proof',version:'1',...pin,...q}));
   }
   assert.equal(new Headers(init?.headers).get('Authorization'),'Bearer '+saved.accessToken);
-  if(path==='/v1/direct'){calls.account++;const out=answer(accountRestoreSnapshot());return json(out.status,out.body);}
-  if(path==='/v1/me'){calls.viewer++;return json(401,{error:{code:'unauthorized'}});}
+  if(path==='/v1/me'){calls.account++;const out=answer(me(saved.viewer));return json(out.status,out.body);}
   if(path==='/v1/auth/refresh')calls.refresh++;
   if(path.endsWith('/select'))calls.profile++;
   throw new Error('unexpected account restoration request');
  };
  return {calls,store,saved,initial,restore:()=>restoreNativeSession({storage:store,fetcher})};
 }
-test('restoration validates a live account grant without treating it as a selected viewer',async()=>{
- const f=await accountRestoreCase(snapshot=>({status:200,body:snapshot}));
+test('restoration validates a live account sign-in without treating it as a selected viewer',async()=>{
+ const f=await accountRestoreCase(body=>({status:200,body}));
  let restored:Awaited<ReturnType<typeof restoreNativeSession>>;
  try{
   restored=await f.restore();
   assert.equal(restored?.session.viewer.role,'account');
   assert.deepEqual(restored?.session.viewer,f.saved.viewer);
-  assert.deepEqual(f.calls,{proof:1,account:1,viewer:0,refresh:0,profile:0});
+  assert.deepEqual(f.calls,{proof:1,account:1,refresh:0,profile:0});
   assert.equal((await f.store.read())?.session.sessionFamilyId,f.saved.sessionFamilyId);
  }finally{restored?.api.getRouteConnection()?.dispose();f.initial.connection.dispose();}
 });
-test('account restoration rejects different account/server/primary profile and disabled facts without viewer fallback',async()=>{
+test('account restoration rejects another account, and a profile nobody chose on this device',async()=>{
  for(const change of [
-  (s:ReturnType<typeof accountRestoreSnapshot>)=>({...s,account:{...s.account,id:'another'}}),
-  (s:ReturnType<typeof accountRestoreSnapshot>)=>({...s,serverId:'another'}),
-  (s:ReturnType<typeof accountRestoreSnapshot>)=>({...s,account:{...s.account,primaryProfileId:'second'},profiles:s.profiles.map(p=>({...p,primary:p.id==='second'}))}),
-  (s:ReturnType<typeof accountRestoreSnapshot>)=>({...s,account:{...s.account,disabled:true}}),
+  (body:ReturnType<typeof me>)=>({...body,account:{...body.account,id:'another'}}),
+  (body:ReturnType<typeof me>)=>me({accountId:'owner',profileId:'second',role:'owner'}),
  ]){
-  const f=await accountRestoreCase(s=>({status:200,body:change(s)}));
-  try{await assert.rejects(f.restore());assert.equal(f.calls.viewer,0);assert.equal(f.calls.refresh,0);assert.equal(f.calls.profile,0);assert.equal((await f.store.read())?.session.viewer.role,'account');}
+  const f=await accountRestoreCase(body=>({status:200,body:change(body)}));
+  try{await assert.rejects(f.restore());assert.equal(f.calls.refresh,0);assert.equal(f.calls.profile,0);assert.equal((await f.store.read())?.session.viewer.role,'account');}
   finally{f.initial.connection.dispose();}
  }
 });
-test('live account denial is not a reason to probe viewer authority or select a profile',async()=>{
+test('live account denial is not a reason to select a profile',async()=>{
  const f=await accountRestoreCase(()=>({status:403,body:{error:{code:'not_permitted'}}}));
- try{await assert.rejects(f.restore(),{code:'access_refused'});assert.deepEqual(f.calls,{proof:1,account:1,viewer:0,refresh:0,profile:0});assert.equal((await f.store.read())?.session.viewer.role,'account');}
+ try{await assert.rejects(f.restore(),{code:'access_refused'});assert.deepEqual(f.calls,{proof:1,account:1,refresh:0,profile:0});assert.equal((await f.store.read())?.session.viewer.role,'account');}
  finally{f.initial.connection.dispose();}
 });
 
@@ -351,23 +343,22 @@ test('account-only restoration rotates once within account scope and refuses an 
  t.after(()=>setInstallationIdentity(undefined));
  for(const mode of ['account','upgrade','refused','revoked'] as const){
   const store=storage(),initial=await ready();
-  const base=session(),saved={...base,refreshToken:'account_refresh_original',viewer:{...base.viewer,role:'account'}};
-  const renewed={...saved,accessToken:'account_access_next',refreshToken:'account_refresh_next',tokenGeneration:'2',viewer:{...saved.viewer,role:mode==='upgrade'?'owner':'account'}};
-  const calls={account:0,refresh:0,viewer:0,profile:0};
+  const base=accountOnly(),saved={...base,refreshToken:'account_refresh_original'};
+  const renewed={...saved,accessToken:'account_access_next',refreshToken:'account_refresh_next',tokenGeneration:'2',viewer:mode==='upgrade'?{...saved.viewer,profileId:'profile',role:'owner'}:saved.viewer};
+  const calls={account:0,refresh:0,profile:0};
   const json=(status:number,body:unknown)=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json'}});
   await rememberNativeSession(initial.api,saved,{storage:store});
   const fetcher:typeof fetch=async(input,init)=>{
    const path=new URL(String(input)).pathname;
-   if(path==='/v1/networking/identity-proof'){
+   if(path==='/v1/system/identity-proof'){
     const q=JSON.parse(String(init?.body));return json(200,signed({kind:'portico.route-proof',version:'1',...pin,...q}));
    }
    if(path==='/v1/auth/refresh'){calls.refresh++;return mode==='revoked'?json(401,{error:{code:'unauthorized'}}):json(200,renewed);}
-   if(path==='/v1/direct'){
+   if(path==='/v1/me'){
     calls.account++;
     assert.equal(new Headers(init?.headers).get('Authorization'),'Bearer '+(calls.account===1?saved.accessToken:renewed.accessToken));
-    return calls.account===1||mode==='refused'?json(401,{error:{code:'unauthorized'}}):json(200,accountRestoreSnapshot());
+    return calls.account===1||mode==='refused'?json(401,{error:{code:'unauthorized'}}):json(200,me(saved.viewer));
    }
-   if(path==='/v1/me')calls.viewer++;
    if(path.endsWith('/select'))calls.profile++;
    throw new Error('unexpected account rotation request');
   };
@@ -376,7 +367,7 @@ test('account-only restoration rotates once within account scope and refuses an 
    const pending=restoreNativeSession({storage:store,fetcher});
    if(mode==='account'){restored=await pending;assert.equal(restored?.session.viewer.role,'account');assert.equal(restored?.session.tokenGeneration,'2');}
    else await assert.rejects(pending,{code:mode==='upgrade'?'refresh_invalid':mode==='revoked'?'refresh_refused':'access_refused'});
-   assert.equal(calls.refresh,1);assert.equal(calls.viewer,0);assert.equal(calls.profile,0);
+   assert.equal(calls.refresh,1);assert.equal(calls.profile,0);
    assert.equal(calls.account,mode==='upgrade'||mode==='revoked'?1:2);
    const current=await store.read();
    if(mode==='revoked')assert.equal(current,undefined);
@@ -394,14 +385,14 @@ async function roleRestoreCase(from: string, to: string, nearExpiry = false) {
  let refreshes=0;
  const json=(value:unknown)=>new Response(JSON.stringify(value),{headers:{'Content-Type':'application/json'}});
  const fetcher:typeof fetch=async(input,init)=>{
-  if(String(input).endsWith('/v1/networking/identity-proof')){
+  if(String(input).endsWith('/v1/system/identity-proof')){
    const q=JSON.parse(String(init?.body));return json(signed({kind:'portico.route-proof',version:'1',...pin,...q}));
   }
   if(String(input).endsWith('/v1/auth/refresh')){
    refreshes++;return json({...session('role_after','2'),refreshToken:'refresh_'+'b'.repeat(24),viewer:{...saved.viewer,role:to}});
   }
   assert.ok(String(input).endsWith('/v1/me'));
-  return json({viewer:{...saved.viewer,role:to}});
+  return json(me({...saved.viewer,role:to}));
  };
  return {store,initial,saved,env:{storage:store,fetcher},refreshes:()=>refreshes};
 }
@@ -429,9 +420,9 @@ test('ordinary restore adopts a reconciled role and keeps its access token',asyn
 });
 
 test('ordinary role reconciliation preserves all stable viewer identity fences',async()=>{
- for(const field of ['accountId','profileId','serverId','authority'] as const){
+ for(const field of ['accountId','profileId'] as const){
   const h=await roleRestoreCase('owner','member'),fetcher:typeof fetch=async(input,init)=>{
-   if(String(input).endsWith('/v1/me'))return new Response(JSON.stringify({viewer:{...h.saved.viewer,role:'member',[field]:field==='authority'?'hosted':'other'}}),{headers:{'Content-Type':'application/json'}});
+   if(String(input).endsWith('/v1/me'))return new Response(JSON.stringify(me({...h.saved.viewer,role:'member',[field]:'other'})),{headers:{'Content-Type':'application/json'}});
    return h.env.fetcher(input,init);
   };
   try{await assert.rejects(restoreNativeSession({...h.env,fetcher}),{code:'identity_mismatch'});assert.equal((await h.store.read())?.session.viewer.role,'owner');}
@@ -469,7 +460,7 @@ test('BOOT-013: cancellation reaches proof and me validation without publishing 
   const h=await roleRestoreCase('owner','owner'),cancelled=new AbortController(),gate=deferred<void>();let requested=false,requestSignal:AbortSignal|undefined;
   const before=await h.store.read();
   const fetcher:typeof fetch=async(input,init)=>{
-   if(String(input).endsWith(stage==='proof'?'/v1/networking/identity-proof':'/v1/me')){
+   if(String(input).endsWith(stage==='proof'?'/v1/system/identity-proof':'/v1/me')){
     requested=true;requestSignal=init?.signal??undefined;await gate.promise;
    }
    return h.env.fetcher(input,init);
@@ -541,4 +532,22 @@ test('BOOT-013: refresh claim and receipt writes recheck cancellation under the 
    assert.deepEqual(await h.store.read(),before);assert.equal(h.refreshes(),write===1?0:1);
   }finally{gate.resolve();h.initial.connection.dispose();}
  }
+});
+
+test('choosing a profile keeps the saved refresh token, and a renewal already sent stays replayable',async()=>{
+ const store=storage(),initial=await ready();
+ try{
+  const account={...accountOnly(),refreshToken:'refresh_'+'a'.repeat(24)};
+  await rememberNativeSession(initial.api,account,{storage:store});
+  await store.change(current=>({...current!,pendingRefresh:'renewal_in_flight'}));
+  // The server answers a profile selection with the same sign-in, a new access token and no refresh token.
+  const chosen={...session('token_for_profile')};
+  await rememberNativeSession(initial.api,chosen,{storage:store});
+  const saved=await store.read();
+  assert.equal(saved?.session.accessToken,'token_for_profile');assert.equal(saved?.session.viewer.profileId,'profile');
+  assert.equal(saved?.session.refreshToken,account.refreshToken);assert.equal(saved?.pendingRefresh,'renewal_in_flight');
+  // A different sign-in never inherits another's refresh token.
+  await rememberNativeSession(initial.api,{...session('token_other'),sessionFamilyId:'other_family'},{storage:store});
+  assert.equal((await store.read())?.session.refreshToken,undefined);
+ }finally{initial.connection.dispose();}
 });

@@ -26,6 +26,7 @@ import * as connectionRoutes from '../../../../packages/contracts/src/routes.ts'
 import * as hostedConnectionRoutes from '../../../../packages/contracts/src/hosted/routes.ts';
 import * as routeIdentity from '../../../../packages/client-core/src/route-identity.ts';
 import * as installation from '../../../../packages/client-core/src/installation.ts';
+import * as serverApi from '../../../../packages/client-core/src/query/server-api.ts';
 
 import * as nativeAccountClient from '../../../../packages/client-core/src/query/native-account-client.ts';
 import * as profileTransport from '../../../../packages/client-core/src/query/profile-security-transport.ts';
@@ -137,7 +138,7 @@ export async function screenModule(file, modules) {
       '../index.ts': {...core, ...(modules['../../../../packages/client-core/src'] ?? modules['../../../../packages/client-core/src/index.ts'])},
       '../../../contracts/src/routes.ts': modules['../../../../packages/contracts/src/routes'] ?? connectionRoutes,
       '../../../contracts/src/hosted/routes.ts': modules['../../../../packages/contracts/src/hosted/routes'] ?? hostedConnectionRoutes,
-      '../route-identity.ts': routeIdentity, '../server-clock.ts': serverClock,
+      '../route-identity.ts': routeIdentity, '../server-clock.ts': serverClock, './server-api.ts': serverApi,
       '../installation.ts': modules['../../../../packages/client-core/src/installation'] ?? installation,
     });
     modules = withModules(modules, Object.fromEntries(connectionImports.map(d => [d.source.value, operations])));

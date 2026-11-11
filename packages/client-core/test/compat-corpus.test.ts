@@ -11,7 +11,6 @@ import {existsSync, readdirSync, readFileSync} from 'node:fs';
 import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {findCredentials} from '../../../scripts/compat-corpus/scrub.mjs';
-import {API_LEVEL_MISMATCH, negotiateServer, parseServerSignIn} from '../src/sign-in.ts';
 import {validateHomeDocument} from '../src/home.ts';
 import {parseLibraryList} from '../src/library-list.ts';
 import {parseBrowseCapabilities, parseBrowseResult} from '../src/browse.ts';
@@ -92,18 +91,7 @@ for (const release of releases) {
   });
   const itemPath = (suffix = '') => `/v1/items/${target.itemId}${suffix}`;
 
-  check(release, 'system: parseServerSignIn + negotiateServer', ({body}) => {
-    const system = parseServerSignIn(body);
-    // O-159 ruling 7: 648 is the pre-release stand-in. It has no negotiation facts, so it is
-    // refused as "needs an update", never given a degraded session.
-    if (release === '648') {
-      assert.throws(() => negotiateServer(system), (error: {code?: string}) => error.code === API_LEVEL_MISMATCH);
-      return;
-    }
-    const api = negotiateServer(system);
-    assert.ok(api.major >= 1);
-    assert.deepEqual(api.capabilities, [], '1.0 advertises nothing: the catalogue is baseline');
-  }, {file: 'system'});
+  // The recorded `/v1/system` answers are the old server's: sign-in now reads the rebuilt server's.
   check(release, 'home: validateHomeDocument', ({body}) => { validateHomeDocument(body); }, {file: 'home'});
   check(release, 'libraries: parseLibraryList', ({body}) => { assert.ok(parseLibraryList(body).items.length > 0); }, {file: 'libraries'});
   check(release, 'browse-capabilities: parseBrowseCapabilities', ({body}) => { parseBrowseCapabilities(body); }, {file: 'browse-capabilities'});
