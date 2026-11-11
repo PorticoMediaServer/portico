@@ -15,7 +15,8 @@ func TestKeysCannotChangeWhoMaySignIn(t *testing.T) {
 		t.Fatalf("making a key answered %d: %s", w.Code, w.Body)
 	}
 	max := addMember(t, s, owner.AccessToken, "max", "member")
-	admin := "admin"
+	sam := addMember(t, s, owner.AccessToken, "sam", "admin")
+	admin, yes := "admin", true
 	for _, c := range []struct {
 		method, path string
 		body         any
@@ -29,6 +30,8 @@ func TestKeysCannotChangeWhoMaySignIn(t *testing.T) {
 		{"POST", "/v1/admin/members", MemberCreate{Username: "eve", Password: testPassword, Role: "admin"}},
 		{"POST", "/v1/admin/invitations", InvitationCreate{Role: "admin"}},
 		{"POST", "/v1/admin/members/" + max.ID + "/password-reset", nil},
+		{"DELETE", "/v1/admin/members/" + sam.ID, nil},
+		{"PATCH", "/v1/admin/members/" + sam.ID, MemberEdit{Disabled: &yes}},
 	} {
 		var refused errorBody
 		if w := call(t, s, c.method, c.path, key.Secret, c.body, &refused); w.Code != 403 || refused.Error.Code != "session_required" {
@@ -75,6 +78,9 @@ func TestKeysRefusedWherePersonCannotSignIn(t *testing.T) {
 	}
 	if got := from(t, s, away, "", "GET", "/v1/me", key.Secret, nil, nil); got != 429 {
 		t.Errorf("the right token from a network blocked for wrong keys answered %d, want 429", got)
+	}
+	if got := from(t, s, away, "", "GET", "/v1/me", "pk_still_guessing", nil, nil); got != 429 {
+		t.Errorf("a wrong key from the blocked network answered %d, want 429 like a right one", got)
 	}
 	if got := from(t, s, "203.0.113.7", "", "GET", "/v1/me", key.Secret, nil, nil); got != 200 {
 		t.Fatalf("the token from another network answered %d, want 200", got)
