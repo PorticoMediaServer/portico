@@ -7,7 +7,8 @@ import (
 )
 
 // The sort by resolution reads a width stored on each title. It must be what the title's
-// versions say after an import, and after a version is split off into a title of its own.
+// versions say after an import, after a version is split off into a title of its own, and
+// after two titles are merged.
 func TestStoredWidthFollowsTheVersions(t *testing.T) {
 	l := newLibrary(t, 1500)
 	check := func(when string) {
@@ -69,6 +70,22 @@ func TestStoredWidthFollowsTheVersions(t *testing.T) {
 		t.Fatal("the test library has no film with two versions")
 	}
 	check("after a split")
+	// Shows are merged in pairs: each episode both had now has the versions of both.
+	for _, lib := range l.libs {
+		if lib.Kind != db.LibraryShows {
+			continue
+		}
+		shows := everything(t, l.d, l.all, db.ItemQuery{Library: lib.PublicID, Kinds: []db.ItemKind{db.KindShow}, Limit: 200})
+		if len(shows) < 2 {
+			t.Fatal("the test library has fewer than two shows")
+		}
+		for n := 0; n+1 < len(shows); n += 2 {
+			if err := l.d.MergeItems(ctx, shows[n].PublicID, shows[n+1].PublicID); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	check("after two shows were merged")
 	// And the list in that order comes from the index: widest first, every title once.
 	page := everything(t, l.d, l.all, db.ItemQuery{Library: l.libs[0].PublicID, Kinds: []db.ItemKind{db.KindMovie}, Sort: db.SortResolution, Desc: true, Limit: 200})
 	if len(page) == 0 {
