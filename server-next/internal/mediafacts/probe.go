@@ -249,7 +249,13 @@ func decodeMediaProbe(data []byte) (Facts, error) {
 		f.OriginUS = int64(math.Round(start * 1e6))
 		f.TimingKnown = true
 	}
+	// The container's own tags (a title written into the file), by lower-case name.
 	f.Tags = map[string]string{}
+	for name, value := range raw.Format.Tags {
+		if value = strings.TrimSpace(streamText(value, 500)); value != "" {
+			f.Tags[strings.ToLower(name)] = value
+		}
+	}
 	f.TagSources = map[string]string{}
 
 	if len(raw.Streams) > 128 {

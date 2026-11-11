@@ -29,8 +29,11 @@ type Facts struct {
 	Container  string
 	DurationMS int64
 	Bitrate    int64
-	Streams    []db.Stream
-	Chapters   []db.Marker // StartMS, EndMS and Title; the rest is filled in when stored
+	// Title is the title written inside the file, if it has one that reads like a title. It
+	// is used only where nothing better names the title: see db.Probe.
+	Title    string
+	Streams  []db.Stream
+	Chapters []db.Marker // StartMS, EndMS and Title; the rest is filled in when stored
 }
 
 // What a Prober says about a file it cannot give facts for. Any other error means the file
@@ -116,7 +119,7 @@ func (r *run) probeFile(file db.UnprobedFile, src Source, local string) *db.Prob
 	switch {
 	case err == nil:
 		probe.Container, probe.DurationMS, probe.Bitrate = facts.Container, facts.DurationMS, facts.Bitrate
-		probe.Streams, probe.Chapters = facts.Streams, facts.Chapters
+		probe.Streams, probe.Chapters, probe.Title = facts.Streams, facts.Chapters, facts.Title
 	case errors.Is(err, ErrDamaged):
 		probe.Problem = db.ProblemDamaged
 	case errors.Is(err, ErrUnsupported):
