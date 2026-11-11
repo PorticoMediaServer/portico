@@ -118,7 +118,9 @@ type RemoteSourceEdit struct {
 }
 
 // UpdateRemoteSource changes a source and moves it to a new revision, so whatever has it open
-// opens it again.
+// opens it again. How the source was last found is kept unless how it is reached changed
+// (a new Secret, given only after a test that worked): a rename does not clear "Needs its
+// sign-in again".
 func (d *DB) UpdateRemoteSource(ctx context.Context, publicID string, e RemoteSourceEdit) (RemoteSource, error) {
 	var secret any // NULL keeps the stored secret
 	if e.Secret != nil {
@@ -126,8 +128,8 @@ func (d *DB) UpdateRemoteSource(ctx context.Context, publicID string, e RemoteSo
 	}
 	err := d.write(ctx, User, func(tx *sql.Tx) error {
 		res, err := tx.Exec(`UPDATE remote_sources SET name = ifnull(?, name), config = ifnull(?, config), secret = ifnull(?, secret),
-			state = 'ok', last_error = NULL, revision = revision + 1, updated_at = ? WHERE public_id = ?`,
-			e.Name, e.Config, secret, e.Now.UnixMilli(), publicID)
+			state = iif(?, 'ok', state), last_error = iif(?, NULL, last_error), revision = revision + 1, updated_at = ? WHERE public_id = ?`,
+			e.Name, e.Config, secret, e.Secret != nil, e.Secret != nil, e.Now.UnixMilli(), publicID)
 		if err != nil {
 			return err
 		}
@@ -199,4 +201,14 @@ func (d *DB) RemoteFileOf(ctx context.Context, fileID int64) (int64, FileOnDisk,
 		return 0, out, ErrNotFound
 	}
 	return source, out, err
+}
+
+// SetRemoteSourceSecret replaces a source's sealed secret with one that holds a token its
+// provider gave, if the source is still at the revision it was opened at. The revision does
+// not move: whatever has the source open goes on with it.
+func (d *DB) SetRemoteSourceSecret(ctx context.Context, id, revision int64, sealed []byte) error {
+	return d.write(ctx, Background, func(tx *sql.Tx) error {
+		_, err := tx.Exec(`UPDATE remote_sources SET secret = ? WHERE id = ? AND revision = ?`, sealed, id, revision)
+		return err
+	})
 }

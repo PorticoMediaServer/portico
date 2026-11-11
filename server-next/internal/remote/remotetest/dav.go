@@ -28,6 +28,9 @@ type DAV struct {
 	SlowDowns atomic.Int64
 	// NoRanges makes GET ignore Range and send the whole file.
 	NoRanges atomic.Bool
+	// Stall makes a GET for more than one byte send its headers and one byte, then nothing
+	// until the client gives up.
+	Stall atomic.Bool
 	// BadNames are names, written as they go in an href (already escaped), that every
 	// folder listing also gives as files: what a server that cannot be trusted might send.
 	BadNames []string
@@ -95,6 +98,18 @@ func (d *DAV) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		if d.NoRanges.Load() {
 			r.Header.Del("Range")
+		}
+		var from int
+		if d.Stall.Load() && r.Header.Get("Range") != "bytes=0-0" && len(body) > 1 {
+			fmt.Sscanf(r.Header.Get("Range"), "bytes=%d-", &from)
+			w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", from, len(body)-1, len(body)))
+			w.WriteHeader(http.StatusPartialContent)
+			w.Write(body[from : from+1])
+			w.(http.Flusher).Flush()
+			d.mu.Unlock()
+			<-r.Context().Done()
+			d.mu.Lock()
+			return
 		}
 		http.ServeContent(w, r, "", d.modified, bytes.NewReader(body))
 	default:

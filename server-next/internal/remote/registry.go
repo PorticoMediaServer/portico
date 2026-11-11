@@ -13,9 +13,12 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/atomicfile"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 )
 
@@ -154,14 +157,13 @@ const keyFile = "remote-sources.key"
 func NewRegistry(d *db.DB, dataDir string) (*Registry, error) {
 	name := filepath.Join(dataDir, keyFile)
 	key, err := os.ReadFile(name)
-	if errors.Is(err, fs.ErrNotExist) {
+	// The key is written whole under another name and then renamed, so a crash leaves it
+	// whole or absent. An empty one (left by a crash while it was made in place) sealed
+	// nothing and is made again.
+	if errors.Is(err, fs.ErrNotExist) || err == nil && len(key) == 0 {
 		key = make([]byte, 32)
 		rand.Read(key)
-		var f *os.File
-		if f, err = os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600); err == nil {
-			_, err = f.Write(key)
-			err = errors.Join(err, f.Sync(), f.Close())
-		}
+		err = atomicfile.Write(name, key, 0o600)
 	}
 	if err != nil {
 		return nil, err
@@ -251,6 +253,9 @@ func (r *Registry) Open(ctx context.Context, id int64) (Storage, time.Duration, 
 	if err != nil {
 		return nil, 0, err
 	}
+	if rc, ok := storage.(*rclone); ok {
+		rc.saved = func(token string) { r.keepToken(id, revision, row.PublicID, row.Kind, &secret, token) }
+	}
 	preset, _ := PresetNamed(c.Preset)
 	throttle := NewThrottle(c.limits())
 	o = &opened{revision: revision, raw: storage, storage: Throttled(storage, throttle), throttle: throttle, every: preset.RescanEvery, listOnly: preset.Name == "list-only",
@@ -262,6 +267,31 @@ func (r *Registry) Open(ctx context.Context, id int64) (Storage, time.Duration, 
 	r.open[id] = o
 	r.mu.Unlock()
 	return watched{o.storage, r, id, o.listOnly}, o.every, nil
+}
+
+// tokenLine is the token line of a pasted rclone remote.
+var tokenLine = regexp.MustCompile(`(?m)^[ \t]*token[ \t]*=.*$`)
+
+// keepToken seals a token rclone got into the source's secret, so the next start signs in
+// with it. It is kept only while the source is at the revision rclone was started for: an
+// edit the owner made since wins.
+func (r *Registry) keepToken(id, revision int64, publicID, kind string, secret *Secret, token string) {
+	switch kind {
+	case "drive":
+		secret.DriveToken = token
+	case "rclone":
+		if tokenLine.MatchString(secret.Rclone) {
+			secret.Rclone = tokenLine.ReplaceAllLiteralString(secret.Rclone, "token = "+token)
+		} else {
+			secret.Rclone = strings.TrimRight(secret.Rclone, "\n") + "\ntoken = " + token + "\n"
+		}
+	default:
+		return
+	}
+	sealed, err := r.Seal(publicID, *secret)
+	if err == nil {
+		_ = r.db.SetRemoteSourceSecret(context.Background(), id, revision, sealed)
+	}
 }
 
 // Waiting reports whether the source was told to slow down and until when.
