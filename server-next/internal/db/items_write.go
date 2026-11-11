@@ -573,9 +573,10 @@ func (im *importer) describe(id int64, it *ImportItem) error {
 		}
 	}
 	if covered {
-		return im.labelsChanged(id)
+		return im.labelsChanged(id) // which flags the holders too
 	}
-	return nil
+	// A title with a rating of its own can leave what holds it empty.
+	return im.flagHolders(id)
 }
 
 // reread brings a stored title up to date with a file that changed where it is: its name,

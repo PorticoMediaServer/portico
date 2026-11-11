@@ -598,7 +598,7 @@ func (s *searcher) totals() (map[int64]searchTotal, error) {
 	// A show, artist or album the profile would find nothing in is not listed, so it is not
 	// counted either: the index's facts cannot say so, so the main database is asked about
 	// each matching one, by the same condition a list uses (access.filled).
-	if filled := s.acc.filled("i", true); filled != "" {
+	if filled := s.acc.filled("i"); filled != "" {
 		for _, g := range searchGroups {
 			if g.code == searchPeople || g.kinds[0].Playable() {
 				continue
