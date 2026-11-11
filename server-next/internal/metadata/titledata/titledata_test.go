@@ -64,18 +64,22 @@ var sample = titledatatest.File{
 
 // A release signed by the server's key is installed. Every way a list or file can be wrong is
 // refused, and each time the copy in use stays, nothing half-downloaded is left, and the next
-// good release still installs.
+// good release still installs. Each case starts from its own server, so no case can pass on
+// what an earlier one left behind.
 func TestOnlyASignedMatchingFileIsUsed(t *testing.T) {
 	key := titledatatest.NewKey(t)
-	u, host := newUpdater(t, key)
-	first := sample
-	first.Version = "2026.44"
-	host.Serve(titledatatest.Publish(t, key, 5, first))
-	if err := u.Check(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if got := files(t, u); !slices.Equal(got, []string{"screen-2026.44.sqlite"}) {
-		t.Fatalf("after the first release the folder holds %v", got)
+	installed := func() (*titledata.Updater, *titledatatest.Host) {
+		u, host := newUpdater(t, key)
+		first := sample
+		first.Version = "2026.44"
+		host.Serve(titledatatest.Publish(t, key, 5, first))
+		if err := u.Check(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if got := files(t, u); !slices.Equal(got, []string{"screen-2026.44.sqlite"}) {
+			t.Fatalf("after the first release the folder holds %v", got)
+		}
+		return u, host
 	}
 
 	next := func() *titledatatest.Release { return titledatatest.Publish(t, key, 6, sample) }
@@ -106,7 +110,12 @@ func TestOnlyASignedMatchingFileIsUsed(t *testing.T) {
 		}(),
 		"a different SHA-256": func() *titledatatest.Release {
 			r := next()
-			r.Full()["sha256"] = "00" + r.Full()["sha256"].(string)[2:]
+			sum, err := hex.DecodeString(r.Full()["sha256"].(string))
+			if err != nil {
+				t.Fatal(err)
+			}
+			sum[0] ^= 0xff // always another value, whatever the real one is
+			r.Full()["sha256"] = hex.EncodeToString(sum)
 			r.Sign()
 			return r
 		}(),
@@ -160,6 +169,7 @@ func TestOnlyASignedMatchingFileIsUsed(t *testing.T) {
 			return r
 		}(),
 	} {
+		u, host := installed()
 		host.Serve(release)
 		if err := u.Check(ctx); !errors.Is(err, titledata.ErrRefused) {
 			t.Errorf("%s: want a refusal, got %v", name, err)
@@ -167,14 +177,19 @@ func TestOnlyASignedMatchingFileIsUsed(t *testing.T) {
 		if got := files(t, u); !slices.Equal(got, []string{"screen-2026.44.sqlite"}) {
 			t.Errorf("%s: the folder holds %v, want only the copy in use", name, got)
 		}
+		host.Serve(next())
+		if err := u.Check(ctx); err != nil {
+			t.Errorf("%s: the good release after it: %v", name, err)
+		}
+		if got := files(t, u); !slices.Equal(got, []string{"screen-2026.45.sqlite"}) {
+			t.Errorf("%s: after a good release the folder holds %v", name, got)
+		}
 	}
 
+	u, host := installed()
 	host.Serve(next())
 	if err := u.Check(ctx); err != nil {
 		t.Fatal(err)
-	}
-	if got := files(t, u); !slices.Equal(got, []string{"screen-2026.45.sqlite"}) {
-		t.Fatalf("after a good release the folder holds %v", got)
 	}
 	requests := host.Requests
 	if err := u.Check(ctx); err != nil || host.Requests != requests+2 {
