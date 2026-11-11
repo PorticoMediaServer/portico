@@ -29,8 +29,9 @@ const (
 	maxAnnotationPlace = 4096
 	maxAnnotationExtra = 16 << 10
 	// annotationsKept is how long a deleted annotation is kept as a marker, so an older edit
-	// from a device that was out of reach cannot bring it back. Apps drop an unsent edit at 30.
-	annotationsKept = 35 * 24 * time.Hour
+	// from a device that was out of reach cannot bring it back: twice the oldest edit applied,
+	// so an edit made offline after the deletion and sent as late as allowed still finds it.
+	annotationsKept = 2 * MaxEditAge
 )
 
 // ErrAnnotationsFull refuses one more annotation in a book that holds MaxAnnotations.
@@ -177,9 +178,8 @@ type annotatedBook struct {
 // SaveAnnotations applies edits in one transaction and answers, for each, the annotation as it
 // now stands or why it was refused. The later edit to one annotation wins, so an edit sent
 // twice, or one made earlier than what is stored, changes nothing. Deleting one keeps a marker
-// for 35 days, and no edit brings it back: an edit to a deleted one answers
-// ErrAnnotationDeleted. A delete that arrives before the annotation itself leaves the marker
-// too, so the annotation never appears.
+// for 70 days, and no edit brings it back: an edit to a deleted one answers
+// ErrAnnotationDeleted. A delete for an annotation the server never had changes nothing.
 func (d *DB) SaveAnnotations(ctx context.Context, v Viewer, edits []AnnotationEdit) ([]Annotation, []error, error) {
 	out, refusals := make([]Annotation, len(edits)), make([]error, len(edits))
 	err := d.write(ctx, User, func(tx *sql.Tx) error {
@@ -256,9 +256,9 @@ func saveAnnotation(ctx context.Context, tx *sql.Tx, v Viewer, book *annotatedBo
 			updated_at = ? WHERE id = ?`, now.UnixMilli(), max(at, stored.UpdatedAt), rowID)
 		return Annotation{}, err
 	case e.Delete:
-		_, err := tx.ExecContext(ctx, `INSERT INTO annotations (profile_id, item_id, public_id, kind, location, progress, created_at, updated_at,
-			deleted_at) VALUES (?, ?, ?, ?, '', 0, ?, ?, ?)`, v.ProfileID, itemID, e.PublicID, AnnotationBookmark, at, at, now.UnixMilli())
-		return Annotation{}, err
+		// One the server never had leaves nothing behind, so deletions cannot fill a book with
+		// markers. (Should the device later resend the annotation itself, it appears.)
+		return Annotation{}, nil
 	case found && stored.UpdatedAt > at:
 		return stored, nil
 	case found:
