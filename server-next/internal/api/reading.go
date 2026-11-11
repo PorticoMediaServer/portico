@@ -25,7 +25,9 @@ type BookAnswer struct {
 	// MediaURL is where the book is read from: MediaURL + "/source" is a PDF's bytes by range,
 	// MediaURL + "/parts/" + a part's path is one part of an EPUB, and MediaURL + "/pages/" +
 	// n (from 0), with "?w=" a width, is one comic page. The address carries its own
-	// permission; when it ends (a day after it was given) the app asks for the book again.
+	// permission while this sign-in holds and this profile may see the book; when it ends (after
+	// a few hours, or at once when the sign-in ends or changes) the app asks for the book again
+	// and carries on at the same page.
 	MediaURL string `json:"mediaUrl,omitempty"`
 	// SaveURL saves the book's own file, of any size. Only a profile allowed to download is given it.
 	SaveURL string `json:"saveUrl,omitempty"`
@@ -68,7 +70,9 @@ type BookContents struct {
 }
 
 func (s *Server) readingRoutes() {
-	Handle(s, "GET /v1/items/{id}/book", WithProfile, s.openBook)
+	// A book's address is tied to the sign-in that asked for it, so this takes a signed-in
+	// person and not a key, as playback does.
+	Handle(s, "GET /v1/items/{id}/book", WithProfile, s.openBook).Scope = ScopeSession
 }
 
 func (s *Server) openBook(r *http.Request, _ None) (BookAnswer, error) {
@@ -80,7 +84,9 @@ func (s *Server) openBook(r *http.Request, _ None) (BookAnswer, error) {
 	if !ok {
 		return BookAnswer{}, ErrNotFound()
 	}
-	opened := s.reading.Open(r.Context(), book, version)
+	c := CallerFrom(r.Context())
+	who := reading.Reader{SessionID: c.SessionID, Stamp: c.Stamp, Viewer: viewer(r)}
+	opened := s.reading.Open(r.Context(), who, book, version)
 	out := BookAnswer{ItemID: book.PublicID, Version: version.PublicID, Versions: []BookVersion{}, Format: opened.Format,
 		Fingerprint: opened.Fingerprint, Size: version.Size, SaveURL: opened.SaveURL}
 	for _, v := range book.Versions {
