@@ -166,6 +166,8 @@ var fields = []Setting{
 
 	list("string-list", "home.rowOrder", []string{}, 64, 128),
 	list("string-list", "home.hiddenRowIds", []string{}, 64, 128),
+	// Saved views put on Home as rows, at most 20, by their ids.
+	list("string-list", "home.savedViews", []string{}, 20, 128),
 	// The profile's pins, in its own order: each names a playlist, collection, saved view or
 	// library by its id. The app names them from the lists and libraries the profile may see,
 	// so a pin to something since deleted or hidden from the profile is simply not shown.

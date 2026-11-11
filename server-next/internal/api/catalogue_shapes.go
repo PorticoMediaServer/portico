@@ -336,6 +336,13 @@ type HomeRow struct {
 	// Hidden is true only on GET /v1/home?hidden=include, for a row the profile hid: it is sent
 	// with its title and no items, so Customize Home can offer to show it again.
 	Hidden bool `json:"hidden,omitempty"`
+	// Library and Query are a saved view's, on its row "view:<id>": the row's titles are
+	// GET /v1/items?library={library}&{query}, which is also how the row loads more.
+	Library string `json:"library,omitempty"`
+	Query   string `json:"query,omitempty"`
+	// Deferred is a saved-view row Home sent without reading its titles. The app reads them as
+	// the row comes near the screen; a deferred row may turn out empty, and is then not drawn.
+	Deferred bool `json:"deferred,omitempty"`
 }
 
 // StateRequest is the body of PUT /v1/items/{id}/state. Only the fields sent change.

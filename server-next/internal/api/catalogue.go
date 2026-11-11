@@ -237,7 +237,14 @@ func (s *Server) catalogueRoutes() {
 			home = append(home, HomeRow{ID: mood.Key, Title: moodRowTitle(mood.Label), Reason: because(mood.Because),
 				Shape: "poster", Items: itemShapes(mood.Items)})
 		}
-		rows, err := s.homeLayout(r.Context(), viewer(r).ProfileID, home, withHidden)
+		views, err := s.savedViewRows(r)
+		if err != nil {
+			return Home{}, err
+		}
+		rows, err := s.homeLayout(r.Context(), viewer(r).ProfileID, append(home, views...), withHidden)
+		if err == nil {
+			err = s.fillViewRows(r, rows)
+		}
 		return Home{Rows: shownRows(rows)}, err
 	})
 	Handle(s, "PUT /v1/items/{id}/state", WithProfile, func(r *http.Request, req StateRequest) (StateReply, error) {
@@ -627,11 +634,12 @@ func because(from []db.MoodReason) string {
 }
 
 // shownRows leaves out a row with nothing in it, so an app never draws an empty shelf. A hidden
-// row sent to the Customize Home editor has no items and is always sent.
+// row sent to the Customize Home editor has no items and is always sent, and so is a deferred
+// saved-view row, whose titles the app reads itself.
 func shownRows(rows []HomeRow) []HomeRow {
 	out := []HomeRow{}
 	for _, row := range rows {
-		if len(row.Items) > 0 || row.Hidden {
+		if len(row.Items) > 0 || row.Hidden || row.Deferred {
 			out = append(out, row)
 		}
 	}
