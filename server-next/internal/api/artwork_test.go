@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"image"
+	"image/color"
+	"image/gif"
 	"image/png"
 	"net/http"
 	"net/http/httptest"
@@ -130,6 +132,18 @@ func TestArtwork(t *testing.T) {
 	}
 	if w := call(t, sh.s, "GET", sh.detail(heat).Images["poster"], "", nil, nil); w.Code != 200 {
 		t.Fatalf("the poster in use was swept: %d", w.Code)
+	}
+
+	// A GIF is taken by its first frame and stored at the large size, 1920 on its longest edge.
+	var animated bytes.Buffer
+	gif.EncodeAll(&animated, &gif.GIF{Image: []*image.Paletted{image.NewPaletted(image.Rect(0, 0, 1200, 2400), color.Palette{color.Black, color.White})},
+		Delay: []int{0}})
+	var gifPoster ArtworkPicture
+	if w := sh.uploadPoster(sh.owner, heat, animated.Bytes()); w.Code != 201 || jsonInto(w, &gifPoster) != nil || gifPoster.Width != 960 || gifPoster.Height != 1920 {
+		t.Fatalf("a large GIF upload: %d %s", w.Code, w.Body)
+	}
+	if got := sh.posters(heat); got[0].ID != gifPoster.ID || got[0].Source != "upload" {
+		t.Fatalf("after the GIF upload: %+v", got)
 	}
 
 	if w := sh.uploadPoster(sh.limitedAdmin, heat, picture.Bytes()); w.Code != http.StatusNotFound {
