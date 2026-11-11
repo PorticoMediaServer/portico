@@ -38,6 +38,7 @@ var repeatSafeWithoutKey = map[string]string{
 	"POST /v1/queues/{id}/advance":                "sets the current entry",
 	"POST /v1/queues/{id}/prepare-next":           "changes nothing that lasts",
 	"POST /v1/queues/{id}/commit-next":            "sets the current entry",
+	"POST /v1/admin/backups/inspect":              "changes nothing: it reads a backup",
 }
 
 // An app that never had the answer to a creating request sends it again with the same
@@ -80,6 +81,13 @@ func TestCreatesAreSafeToRepeat(t *testing.T) {
 			body: QueueSave{Name: "Evening"}, other: QueueSave{Name: "Morning"}},
 		{route: "POST /v1/playback/sessions", body: PlaybackStart{ItemID: th.film}, other: PlaybackStart{ItemID: th.song},
 			inMemoryOnly: true},
+		{route: "POST /v1/admin/backups", count: func() int {
+			for th.s.Backups().Running() != nil {
+				time.Sleep(10 * time.Millisecond)
+			}
+			list, _ := th.s.Backups().List()
+			return len(list)
+		}},
 	}
 
 	keyed := map[string]bool{}
@@ -141,7 +149,8 @@ func TestCreatesAreSafeToRepeat(t *testing.T) {
 				}
 			}
 		}
-		if code, _, answer := send(c.other); code != 422 {
+		// A route that takes no body cannot be sent another one.
+		if code, _, answer := send(c.other); c.other != nil && code != 422 {
 			t.Errorf("%s with the same key and another body answered %d, want 422: %v", c.route, code, answer)
 		}
 	}

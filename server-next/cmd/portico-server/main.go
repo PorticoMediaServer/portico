@@ -92,6 +92,8 @@ func run(log *slog.Logger) error {
 	handler.Playback().SetEngine(engine, engine)
 	handler.ServeMediaWith(engine.ServeMedia)
 	go engine.Run(ctx)
+	// Scheduled backups, at the owner's hour.
+	go handler.Backups().Run(ctx)
 	// The list of changes behind the events feed is kept short. A reader further behind than
 	// what is kept is told to read everything again.
 	go func() {

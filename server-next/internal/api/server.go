@@ -21,6 +21,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/artwork"
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
+	"github.com/PorticoMediaServer/portico/server-next/internal/backup"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
@@ -57,6 +58,8 @@ type Server struct {
 	// queues builds and runs play queues. See queues.go.
 	queues  *playqueue.Service
 	network networkState
+	// backups makes and keeps the owner's backups. See backups.go.
+	backups *backup.Service
 	// settings are the owner's settings documents, held in memory. See settings.go.
 	settings *settings.Settings
 	media    func(w http.ResponseWriter, r *http.Request, grant, file string)
@@ -183,6 +186,8 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.systemRoutes()
 	s.networkRoutes()
 	s.settingsRoutes()
+	s.backups = &backup.Service{DB: d, Settings: s.settings, DataDir: dataDir, Version: version, Log: log, Now: func() time.Time { return s.now() }}
+	s.backupRoutes()
 	s.identityRoutes()
 	s.authRoutes()
 	s.profileRoutes()
