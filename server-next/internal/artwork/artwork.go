@@ -1,5 +1,7 @@
-// Package artwork keeps pictures as files, named by the hash the database knows them by,
-// and serves them at the size a screen asks for.
+// Package artwork keeps pictures as files, named by the hash the database knows them by. Each
+// picture is stored in a small and a large size when it arrives: a provider's picture
+// downloaded, a picture beside the media read, an upload accepted. A screen is served the
+// stored size that fits what it asked for; nothing is resized when it asks.
 package artwork
 
 import (
@@ -8,6 +10,7 @@ import (
 	"fmt"
 	"image"
 	"image/draw"
+	_ "image/gif" // the first frame of a GIF
 	"image/jpeg"
 	"image/png"
 	"io/fs"
@@ -16,23 +19,43 @@ import (
 	"path/filepath"
 	"time"
 
+	_ "golang.org/x/image/webp"
+
 	"github.com/PorticoMediaServer/portico/server-next/internal/atomicfile"
 )
 
 // ErrNotFound: no picture is stored under that name.
 var ErrNotFound = errors.New("no such picture")
 
-// Store is the folder of pictures inside the server's data folder. Originals are kept in
-// "artwork". Smaller copies are made when first asked for and kept in "cache/artwork",
-// which can be deleted at any time.
-type Store struct {
-	originals, sized string
+// ErrNotAPicture: the bytes are not a JPEG, PNG, GIF or WebP this server can read, or the
+// picture is larger than any it decodes.
+var ErrNotAPicture = errors.New("not a picture this server can read")
+
+// Sizes are the two sizes a kind of picture is kept in: the longest edge in pixels of each,
+// and the number of bytes its JPEG aims to stay within.
+type Sizes struct {
+	Small, Large       int
+	SmallCap, LargeCap int
 }
 
+// The sizes, as the old server kept them: library artwork small for cards and lists and large
+// for a full screen; profile pictures small for a list of profiles and large for a profile's
+// own page.
+var (
+	Artwork        = Sizes{Small: 800, Large: 1920, SmallCap: 150_000, LargeCap: 500_000}
+	ProfilePicture = Sizes{Small: 160, Large: 512, SmallCap: 30_000, LargeCap: 120_000}
+)
+
+// qualities are the JPEG qualities tried in turn; the first that stays within the size's cap
+// is kept, and the last is kept whatever its size. A picture is never made smaller in pixels
+// to save bytes.
+var qualities = []int{90, 82, 75}
+
+// Store is the folder of pictures inside the server's data folder.
+type Store struct{ dir string }
+
 // New returns the store inside the server's data folder.
-func New(dataDir string) *Store {
-	return &Store{filepath.Join(dataDir, "artwork"), filepath.Join(dataDir, "cache", "artwork")}
-}
+func New(dataDir string) *Store { return &Store{filepath.Join(dataDir, "artwork")} }
 
 // ValidID says whether id can name a picture: 16 to 64 lower-case hex digits. Nothing else
 // is ever joined to a folder, so a request cannot reach outside the store.
@@ -48,114 +71,138 @@ func ValidID(id string) bool {
 	return true
 }
 
-func place(dir, id, suffix string) string { return filepath.Join(dir, id[:2], id+suffix) }
+func (s *Store) place(id, size string) string { return filepath.Join(s.dir, id[:2], id+"."+size) }
 
-// Put stores a picture under id, replacing nothing if it is already there: the same id is
-// the same picture.
-func (s *Store) Put(id string, data []byte) error {
-	if !ValidID(id) {
-		return fmt.Errorf("artwork: %q cannot name a picture", id)
-	}
-	path := place(s.originals, id, "")
-	if _, err := os.Stat(path); err == nil {
-		return nil
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	return atomicfile.Write(path, data, 0o644)
-}
-
-// widths are the sizes a smaller copy is made at. A request is served the first that is at
-// least as wide as it asked, so a picture has at most this many copies however it is asked for.
-var widths = []int{160, 240, 320, 480, 720, 1080, 1920}
-
-// maxPixels is the largest picture that is decoded to make a smaller copy. A larger one is
-// served as it is. Decoded, a picture takes eight bytes a pixel here, so this is about 200 MB.
+// maxPixels is the largest picture decoded. Decoded, a picture takes four or eight bytes a
+// pixel, so this is at most about 200 MB.
 const maxPixels = 24_000_000
 
-// decoding holds how many pictures are being made smaller at once. The first screenful of a
-// new library asks for forty posters in the same moment, each tens of megabytes once decoded,
-// and the route takes no sign-in: without a limit that is the server's whole memory.
+// decoding holds how many pictures are being decoded at once. A scan of a new library brings
+// many at once, each tens of megabytes decoded: without a limit that is the server's whole memory.
 var decoding = make(chan struct{}, 2)
 
-// Read returns a picture's bytes and content type, made to fit inside w by h when either is
-// given (0 means no limit that way). A picture is never enlarged, and one this server cannot
-// decode is served whole.
+// Put stores library artwork under id in its two sizes. The same id is the same picture: one
+// already stored is left as it is.
+func (s *Store) Put(id string, data []byte) error {
+	_, _, err := s.PutSized(id, data, Artwork)
+	return err
+}
+
+// PutSized stores a picture under id in the two given sizes and answers the large one's
+// width and height. ErrNotAPicture refuses what cannot be read.
+func (s *Store) PutSized(id string, data []byte, sizes Sizes) (width, height int, err error) {
+	if !ValidID(id) {
+		return 0, 0, fmt.Errorf("artwork: %q cannot name a picture", id)
+	}
+	if w, h, err := s.Stored(id); err == nil {
+		return w, h, nil
+	}
+	config, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil || config.Width <= 0 || config.Height <= 0 || config.Width*config.Height > maxPixels {
+		return 0, 0, ErrNotAPicture
+	}
+	decoding <- struct{}{}
+	defer func() { <-decoding }()
+	source, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return 0, 0, ErrNotAPicture
+	}
+	from := image.NewRGBA(image.Rect(0, 0, config.Width, config.Height))
+	draw.Draw(from, from.Bounds(), source, source.Bounds().Min, draw.Src)
+	if err := os.MkdirAll(filepath.Dir(s.place(id, "small")), 0o755); err != nil {
+		return 0, 0, err
+	}
+	// The large size first: a picture whose small size is there is taken as stored.
+	for _, size := range []struct {
+		name      string
+		edge, cap int
+	}{{"large", sizes.Large, sizes.LargeCap}, {"small", sizes.Small, sizes.SmallCap}} {
+		scaled := shrink(from, size.edge)
+		if size.name == "large" {
+			width, height = scaled.Bounds().Dx(), scaled.Bounds().Dy()
+		}
+		encoded, err := encode(scaled, size.cap)
+		if err != nil {
+			return 0, 0, err
+		}
+		if err := atomicfile.Write(s.place(id, size.name), encoded, 0o644); err != nil {
+			return 0, 0, err
+		}
+	}
+	return width, height, nil
+}
+
+// encode makes a picture's file: lossless PNG when it has transparency, otherwise JPEG at the
+// first quality within the cap.
+func encode(picture *image.RGBA, limit int) ([]byte, error) {
+	var out bytes.Buffer
+	if !picture.Opaque() {
+		err := png.Encode(&out, picture)
+		return out.Bytes(), err
+	}
+	for _, quality := range qualities {
+		out.Reset()
+		if err := jpeg.Encode(&out, picture, &jpeg.Options{Quality: quality}); err != nil {
+			return nil, err
+		}
+		if out.Len() <= limit {
+			break
+		}
+	}
+	return out.Bytes(), nil
+}
+
+// Stored answers the width and height of a stored picture's large size.
+func (s *Store) Stored(id string) (width, height int, err error) {
+	if !ValidID(id) {
+		return 0, 0, ErrNotFound
+	}
+	if _, err := os.Stat(s.place(id, "small")); err != nil {
+		return 0, 0, ErrNotFound
+	}
+	f, err := os.Open(s.place(id, "large"))
+	if err != nil {
+		return 0, 0, ErrNotFound
+	}
+	defer f.Close()
+	config, _, err := image.DecodeConfig(f)
+	if err != nil {
+		return 0, 0, err
+	}
+	return config.Width, config.Height, nil
+}
+
+// Read returns a stored picture's bytes and content type: the small size when it is at least
+// as large as w by h asks (0 means no limit that way), else the large size.
 func (s *Store) Read(id string, w, h int) (data []byte, contentType string, err error) {
 	if !ValidID(id) {
 		return nil, "", ErrNotFound
 	}
-	original, err := os.ReadFile(place(s.originals, id, ""))
+	data, err = os.ReadFile(s.place(id, "small"))
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, "", ErrNotFound
 	}
 	if err != nil {
 		return nil, "", err
 	}
-	contentType = http.DetectContentType(original)
-	config, format, err := image.DecodeConfig(bytes.NewReader(original))
-	if err != nil || (w <= 0 && h <= 0) || config.Width*config.Height > maxPixels || config.Height == 0 {
-		return original, contentType, nil
-	}
-	want := config.Width
-	if w > 0 {
-		want = min(want, w)
-	}
-	if h > 0 {
-		want = min(want, (h*config.Width+config.Height-1)/config.Height)
-	}
-	width := 0
-	for _, step := range widths {
-		if step >= want {
-			width = step
-			break
+	config, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil || (w <= 0 && h <= 0) || w > config.Width || h > config.Height {
+		if data, err = os.ReadFile(s.place(id, "large")); err != nil {
+			return nil, "", err
 		}
 	}
-	if width == 0 || width >= config.Width {
-		return original, contentType, nil
-	}
-	suffix, sizedType := fmt.Sprintf(".w%d.jpg", width), "image/jpeg"
-	if format == "png" {
-		suffix, sizedType = fmt.Sprintf(".w%d.png", width), "image/png"
-	}
-	path := place(s.sized, id, suffix)
-	if sized, err := os.ReadFile(path); err == nil {
-		return sized, sizedType, nil
-	}
-	decoding <- struct{}{}
-	defer func() { <-decoding }()
-	// Someone else may have made this copy while this request waited its turn.
-	if sized, err := os.ReadFile(path); err == nil {
-		return sized, sizedType, nil
-	}
-	source, _, err := image.Decode(bytes.NewReader(original))
-	if err != nil {
-		return original, contentType, nil
-	}
-	small := shrink(source, width)
-	var out bytes.Buffer
-	if format == "png" {
-		err = png.Encode(&out, small)
-	} else {
-		err = jpeg.Encode(&out, small, &jpeg.Options{Quality: 82})
-	}
-	if err != nil {
-		return nil, "", err
-	}
-	// Keeping the copy is a saving, not a need: a full disk still serves the picture.
-	if os.MkdirAll(filepath.Dir(path), 0o755) == nil {
-		atomicfile.Write(path, out.Bytes(), 0o644)
-	}
-	return out.Bytes(), sizedType, nil
+	return data, http.DetectContentType(data), nil
 }
 
-// shrink scales a picture down to the given width by averaging the pixels each new pixel covers.
-func shrink(source image.Image, width int) *image.RGBA {
-	bounds := source.Bounds()
-	from := image.NewRGBA(image.Rect(0, 0, bounds.Dx(), bounds.Dy()))
-	draw.Draw(from, from.Bounds(), source, bounds.Min, draw.Src)
-	height := max(1, bounds.Dy()*width/bounds.Dx())
+// shrink scales a picture down so its longest edge is at most edge, averaging the pixels each
+// new pixel covers. A picture already that small is kept as it is; none is enlarged.
+func shrink(from *image.RGBA, edge int) *image.RGBA {
+	bounds := from.Bounds()
+	longest := max(bounds.Dx(), bounds.Dy())
+	if longest <= edge {
+		return from
+	}
+	width, height := max(1, bounds.Dx()*edge/longest), max(1, bounds.Dy()*edge/longest)
 	to := image.NewRGBA(image.Rect(0, 0, width, height))
 	for y := range height {
 		top, bottom := y*bounds.Dy()/height, max((y+1)*bounds.Dy()/height, y*bounds.Dy()/height+1)

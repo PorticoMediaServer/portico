@@ -8,8 +8,8 @@ import (
 	"testing"
 )
 
-// The address an item gives for its poster can be fetched as it is, with no token, at the
-// size asked for; a picture the server does not hold is not found.
+// The address an item gives for its poster can be fetched as it is, with no token, in the
+// stored size that fits what was asked for; a picture the server does not hold is not found.
 func TestAnItemsPictureCanBeFetched(t *testing.T) {
 	s, token, _ := seeded(t)
 	library := get[Libraries](t, s, token, "/v1/libraries").Items[0].ID
@@ -37,7 +37,7 @@ func TestAnItemsPictureCanBeFetched(t *testing.T) {
 	}
 	w := fetch(address + "?w=300")
 	got, _, err := image.DecodeConfig(w.Body)
-	if w.Code != 200 || w.Header().Get("Content-Type") != "image/jpeg" || err != nil || got.Width != 320 || got.Height != 480 {
+	if w.Code != 200 || w.Header().Get("Content-Type") != "image/jpeg" || err != nil || got.Width != 533 || got.Height != 800 {
 		t.Fatalf("the poster at w=300: %d %s %dx%d %v", w.Code, w.Header().Get("Content-Type"), got.Width, got.Height, err)
 	}
 	if w := fetch(address + "?w=wide"); w.Code != 400 {
