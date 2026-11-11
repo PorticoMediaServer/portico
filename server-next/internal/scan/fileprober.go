@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strings"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/inputbridge"
@@ -115,7 +116,8 @@ func factsOf(ctx context.Context, found mediafacts.Facts, err error) (Facts, err
 
 // FromMedia is what the media tool found in a file, as the scanner stores it.
 func FromMedia(found mediafacts.Facts) Facts {
-	facts := Facts{Container: found.Container, DurationMS: int64(math.Round(found.Duration * 1000)), Bitrate: found.BitRate}
+	facts := Facts{Container: found.Container, DurationMS: int64(math.Round(found.Duration * 1000)), Bitrate: found.BitRate,
+		Title: embeddedTitle(found.Tags["title"])}
 	for _, s := range found.Streams {
 		d := s.Detail
 		stream := db.Stream{Codec: s.Codec, Profile: d.Profile, Language: s.Language, Title: s.Title, Default: s.Default, Forced: s.Forced,
@@ -140,4 +142,18 @@ func FromMedia(found mediafacts.Facts) Facts {
 		facts.Chapters = append(facts.Chapters, db.Marker{StartMS: int64(math.Round(c.Start * 1000)), EndMS: int64(math.Round(c.End * 1000)), Title: c.Title})
 	}
 	return facts
+}
+
+// embeddedTitle is a title written inside a file, or "" when what is there is not one: tools
+// often write the release's file name ("Heat.1995.1080p.BluRay.x264-GRP") or their own name
+// into that tag.
+func embeddedTitle(tag string) string {
+	tag = strings.TrimSpace(tag)
+	switch {
+	case tag == "" || len(tag) > 200:
+		return ""
+	case !strings.Contains(tag, " ") && strings.ContainsAny(tag, "._"):
+		return "" // a file name, not a title
+	}
+	return tag
 }

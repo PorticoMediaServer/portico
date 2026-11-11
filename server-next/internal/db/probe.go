@@ -3,8 +3,11 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"path"
 	"time"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/sorttext"
 )
 
 // UnprobedFile is a media file whose inside has not been read yet.
@@ -54,6 +57,9 @@ type Probe struct {
 	Streams    []Stream
 	Chapters   []Marker
 	Problem    FileProblem
+	// Title is the title written inside the file, or "". It is kept with the file, and names
+	// the title only where local details are all there is: see UseEmbeddedTitle.
+	Title string
 }
 
 // StoreProbes writes what a batch of files was found to hold, and brings the versions and
@@ -81,8 +87,10 @@ func storeProbe(b *batchTx, p *Probe, now int64) error {
 			p.Problem, p.FileID, p.Size, p.ModifiedNS, p.Problem)
 		return err
 	}
-	res, err := b.exec(`UPDATE files SET probed_at = ?, container = ?, duration_ms = ?, bitrate = ?, problem = NULL
-		WHERE id = ? AND size = ? AND modified_ns = ?`, now, nz(p.Container), nz(p.DurationMS), nz(p.Bitrate), p.FileID, p.Size, p.ModifiedNS)
+	res, err := b.exec(`UPDATE files SET probed_at = ?, container = ?, duration_ms = ?, bitrate = ?, problem = NULL,
+		extra = CASE WHEN ? = '' THEN json_remove(extra, '$.title') ELSE json_set(ifnull(extra, '{}'), '$.title', ?) END
+		WHERE id = ? AND size = ? AND modified_ns = ?`, now, nz(p.Container), nz(p.DurationMS), nz(p.Bitrate), p.Title, p.Title,
+		p.FileID, p.Size, p.ModifiedNS)
 	if err != nil {
 		return err
 	}
@@ -148,11 +156,59 @@ func storeProbe(b *batchTx, p *Probe, now int64) error {
 				}
 			}
 		}
+		if v.whole {
+			if err := useEmbeddedTitle(b, v.item, now); err != nil {
+				return err
+			}
+		}
 		if err := appendChange(b.tx, Change{At: now, Topic: TopicItem, Op: OpUpdated, RefID: v.item, LibraryID: v.library}); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// providerLocal is the metadata provider of a library that uses local metadata only.
+const providerLocal = "local"
+
+// useEmbeddedTitle names a film or an episode by the title written inside its file, where
+// local details are all there is to go on: in a library that uses local metadata only, or
+// for a title a provider was asked about and did not match. It never replaces a provider's
+// title (a matched title is left alone), a title an NFO file gave or a person typed, or a
+// locked one. A title that has not been looked up yet keeps the name its file name gave it,
+// because that is what it is looked up by. The file is the title's first version, and the
+// only title that file plays.
+func useEmbeddedTitle(b *batchTx, itemID, now int64) error {
+	var title, language string
+	err := b.queryRow(`SELECT ifnull(json_extract(f.extra, '$.title'), ''), ifnull(l.language, '') FROM items i JOIN libraries l ON l.id = i.library_id
+		JOIN media m ON m.id = (SELECT id FROM media WHERE item_id = i.id ORDER BY position, id LIMIT 1)
+		JOIN media_parts p ON p.media_id = m.id AND p.position = 0 JOIN files f ON f.id = p.file_id
+		WHERE i.id = ? AND i.kind IN (?, ?) AND i.match_state IN (?, ?)
+		AND (ifnull(l.metadata_provider, '') = ? OR i.refreshed_at IS NOT NULL)
+		AND json_extract(ifnull(i.local_fields, '{}'), '$.title') IS NULL
+		AND NOT EXISTS (SELECT 1 FROM json_each(ifnull(i.locked_fields, '[]')) WHERE value = 'title')
+		AND (SELECT count(*) FROM media_parts o WHERE o.file_id = f.id) = 1`,
+		itemID, KindMovie, KindEpisode, MatchNone, MatchNeedsAttention, providerLocal).Scan(&title, &language)
+	if errors.Is(err, sql.ErrNoRows) || title == "" {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	_, err = b.exec(`UPDATE items SET title = ?, sort_title = ?, updated_at = ? WHERE id = ? AND title <> ?`,
+		title, sorttext.Key(title, "", language), now, itemID, title)
+	return err
+}
+
+// UseEmbeddedTitle is for the metadata service to call when a provider was asked about a
+// title and did not match it (after it has set refreshed_at): the title then takes the one
+// written inside its file, if there is one and nothing better names it.
+func (d *DB) UseEmbeddedTitle(ctx context.Context, itemID int64) error {
+	return d.write(ctx, Background, func(tx *sql.Tx) error {
+		b := newBatchTx(tx)
+		defer b.close()
+		return useEmbeddedTitle(b, itemID, time.Now().UnixMilli())
+	})
 }
 
 // streamFacts is the part of a version's summary that comes from its first file's tracks.
