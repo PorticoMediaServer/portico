@@ -107,6 +107,9 @@ func statusError(resp *http.Response) error {
 	case code == http.StatusPreconditionFailed:
 		// Only reads of an open file are conditional: the file is not the one opened.
 		return ErrChanged
+	case code == http.StatusRequestedRangeNotSatisfiable && strings.TrimSpace(resp.Header.Get("Content-Range")) == "bytes */0":
+		// The first byte of an empty file: there is none to send.
+		return errEmpty
 	default:
 		return fmt.Errorf("the remote source answered %s", resp.Status)
 	}
@@ -222,10 +225,19 @@ func (w *WebDAV) Open(ctx context.Context, p string) (File, error) {
 		return nil, err
 	}
 	resp, err := w.request(ctx, http.MethodGet, u, "", http.Header{"Range": {"bytes=0-0"}})
+	if errors.Is(err, errEmpty) {
+		// An empty file (a download that failed, say) is read as one, not as a server that
+		// cannot send parts of files. Some servers answer its first byte with 416.
+		return &davFile{w: w, u: u, ctx: ctx}, nil
+	}
 	if err != nil {
 		return nil, err
 	}
 	resp.Body.Close()
+	if resp.StatusCode == http.StatusOK && resp.ContentLength == 0 {
+		// Go's servers (rclone among them) answer a range of an empty file with all of it.
+		return &davFile{w: w, u: u, ctx: ctx}, nil
+	}
 	size, ok := rangeTotal(resp)
 	if !ok {
 		return nil, ErrNoRanges
@@ -240,6 +252,9 @@ func (w *WebDAV) Open(ctx context.Context, p string) (File, error) {
 // ErrChanged says a file was replaced at the source since it was opened: what is read now
 // would not be the file whose first parts were read before.
 var ErrChanged = errors.New("the file changed at the remote source")
+
+// errEmpty says the file asked for has no bytes at all.
+var errEmpty = errors.New("the file is empty")
 
 // rangeTotal reads the whole size from a 206 answer's Content-Range.
 func rangeTotal(resp *http.Response) (int64, bool) {
