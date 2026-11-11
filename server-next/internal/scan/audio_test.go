@@ -260,4 +260,17 @@ func TestAFolderOfPicturesIsAComic(t *testing.T) {
 	if got := pages(f.titles(db.KindComic)["One Shot"].PublicID); strings.Join(got, " ") != "1.png 2.png 3.png 10.png" {
 		t.Fatalf("One Shot's pages after one was added: %v", got)
 	}
+	// So does one that sorts ahead of the first page: it is the new first page of the same
+	// version, not a second version of the comic.
+	f.write("One Shot/0.png")
+	f.write("One Shot/cover.png")
+	if stats := f.scan(); stats.ItemsNew != 0 {
+		t.Fatalf("a new first page made %d new titles", stats.ItemsNew)
+	}
+	if got := pages(f.titles(db.KindComic)["One Shot"].PublicID); strings.Join(got, " ") != "cover.png 0.png 1.png 2.png 3.png 10.png" {
+		t.Fatalf("One Shot's pages after a new first page: %v", got)
+	}
+	if again := f.scan(); again.RowsWritten != 0 {
+		t.Fatalf("an unchanged rescan wrote %d rows", again.RowsWritten)
+	}
 }

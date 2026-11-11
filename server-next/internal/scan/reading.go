@@ -168,7 +168,7 @@ func (r *run) imageComic(f *folder, pages []*found) []unit {
 	if !touched {
 		return nil
 	}
-	version := db.ImportVersion{Name: "images"}
+	version := db.ImportVersion{Name: "images", Whole: true}
 	for _, page := range pages {
 		version.Parts = append(version.Parts, db.ImportPart{File: page.ref()})
 	}
