@@ -124,8 +124,14 @@ func TestAProgrammeIsRecordedIntoTheRecordedTVLibrary(t *testing.T) {
 	if nfo, err := os.ReadFile(strings.TrimSuffix(matches[0], ".ts") + ".nfo"); err != nil || !strings.Contains(string(nfo), "Morning News") {
 		t.Fatalf("the guide's details beside it: %s %v", nfo, err)
 	}
-	if code := status(t, s, "GET", "/v1/items/"+got.ItemID, owner, nil); code != 200 {
-		t.Fatalf("the recorded title answered %d", code)
+	title := get[Item](t, s, owner, "/v1/items/"+got.ItemID)
+	if title.ContentRating != "TV-G" {
+		t.Fatalf("the recorded title carries rating %q, want the guide's TV-G", title.ContentRating)
+	}
+	if title.RootID != "" {
+		if show := get[Item](t, s, owner, "/v1/items/"+title.RootID); show.ContentRating != "TV-G" {
+			t.Fatalf("the recorded show carries rating %q, want the guide's TV-G", show.ContentRating)
+		}
 	}
 
 	var later Recording
@@ -268,7 +274,9 @@ func TestABookingFollowsItsProgrammeInTheGuide(t *testing.T) {
 	}
 	moved := stored.StartsAt.Add(30 * time.Minute)
 	if err := s.db.ReplaceSourceGuide(ctx, source, func(add func(db.GuideProgramme) error) error {
-		return add(db.GuideProgramme{GuideKey: key, StartsAt: moved, EndsAt: moved.Add(time.Hour), ProgrammeKey: stored.ProgrammeKey, Title: "Night Film"})
+		// As the guide parser writes a programme with no id of its own: the channel and the start.
+		return add(db.GuideProgramme{GuideKey: key, StartsAt: moved, EndsAt: moved.Add(time.Hour), ProgrammeKey: fmt.Sprintf("%s@%d", key, moved.Unix()),
+			Title: "Night Film"})
 	}); err != nil {
 		t.Fatal(err)
 	}

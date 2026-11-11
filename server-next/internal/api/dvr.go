@@ -241,6 +241,20 @@ func (s *Server) maySeeRecording(ctx context.Context, r *http.Request, lv db.Liv
 	if lv.Owner {
 		return true, nil
 	}
+	// Someone else's booking or recording only to a profile that may see Recorded TV.
+	if names, err := s.db.ProfileNames(ctx, viewer(r).ProfileID); err != nil {
+		return false, err
+	} else if rec.ProfileID != viewer(r).ProfileID && !slices.Contains(rec.AlsoWantedBy, names.PublicID) {
+		lib, err := s.recorder.Library(ctx)
+		if err != nil {
+			return false, err
+		}
+		if _, err := s.db.Library(ctx, viewer(r), lib.PublicID); errors.Is(err, db.ErrNotFound) {
+			return false, nil
+		} else if err != nil {
+			return false, err
+		}
+	}
 	public, err := s.db.ChannelPublicID(ctx, rec.ChannelID)
 	if errors.Is(err, db.ErrNotFound) {
 		return rec.ProfileID == viewer(r).ProfileID, nil // its channel has gone: its own booker still sees it
@@ -490,12 +504,7 @@ func (s *Server) deleteRecording(r *http.Request, _ None) (None, error) {
 		s.recorder.Stop(rec.ID)
 		return None{}, nil
 	}
-	for _, session := range s.playback.All() {
-		if rec.ItemID != 0 && session.Item.ID == rec.ItemID {
-			s.playback.Terminate(ctx, session.ID, "This recording was deleted.")
-		}
-	}
-	return None{}, s.recorder.Delete(ctx, rec)
+	return None{}, s.recorder.Delete(ctx, rec) // which stops anyone playing it
 }
 
 func ruleOut(rule db.RecordingRule, source, channel string) Rule {
@@ -681,4 +690,13 @@ func (s *Server) dvrTuners(r *http.Request, _ None) (Tuners, error) {
 		}
 	}
 	return out, nil
+}
+
+// stopPlaying ends every session playing a deleted recording, with the reason.
+func (s *Server) stopPlaying(ctx context.Context, itemID int64) {
+	for _, session := range s.playback.All() {
+		if session.Item.ID == itemID {
+			s.playback.Terminate(ctx, session.ID, "This recording was deleted.")
+		}
+	}
 }

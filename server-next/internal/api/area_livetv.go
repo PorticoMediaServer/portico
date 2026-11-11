@@ -56,6 +56,7 @@ func (s *Server) startLiveTV(ctx context.Context) error {
 	}
 	s.setDVROptions(dvr.Defaults(home))
 	s.recorder = dvr.New(s.db, s.tuners, s.sources, s.viewings, s.log, func() time.Time { return s.now() }, s.dvrOptions)
+	s.recorder.Deleted = s.stopPlaying
 	go s.recorder.Run(ctx)
 	s.dvrRoutes()
 	s.liveProgrammeRoutes()
