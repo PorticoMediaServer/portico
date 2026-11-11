@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/backup"
@@ -22,6 +23,9 @@ type consoleArea struct {
 	updates *updates.Checker
 	// backups makes and keeps the owner's backups. See backups.go.
 	backups *backup.Service
+	// restart is closed when the owner asks for a restart. See restore.go.
+	restart     chan struct{}
+	restartOnce sync.Once
 }
 
 // Totals are the server's lifetime statistics: the server runs them, and flushes them as it stops.
@@ -53,5 +57,7 @@ func (s *Server) startConsole(ctx context.Context) error {
 	// Scheduled backups, at the owner's hour.
 	go s.backups.Run(ctx)
 	s.backupRoutes()
+	s.restart = make(chan struct{})
+	s.restoreRoutes()
 	return nil
 }

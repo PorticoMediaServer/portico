@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/api"
+	"github.com/PorticoMediaServer/portico/server-next/internal/backup"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
 	"github.com/PorticoMediaServer/portico/server-next/internal/libraryfile"
@@ -42,7 +43,12 @@ func main() {
 		}
 	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
-	if err := run(log); err != nil {
+	err := run(log)
+	if errors.Is(err, errRestart) {
+		// The same program with the same arguments, in this same process.
+		err = restartSelf()
+	}
+	if err != nil {
 		log.Error("portico-server stopped", "error", err)
 		os.Exit(1)
 	}
@@ -82,12 +88,33 @@ func run(log *slog.Logger) error {
 	if _, err := mediaexec.Configure(mediaexec.Options{}); err != nil {
 		return err
 	}
+	// A restore the owner asked for is made now, before the database opens. If the restored
+	// database will not open, what was in use is put back.
+	restored, undo, err := backup.ApplyPending(*data)
+	if err != nil {
+		log.Error("the restore could not be made; the server is as it was", "error", err)
+	}
 	d, err := db.Open(ctx, filepath.Join(*data, "main.db"))
+	if err != nil && undo != nil {
+		log.Error("the restored database would not open, so the server goes back to what it had", "backup", restored, "error", err)
+		if err := undo(); err != nil {
+			return err
+		}
+		restored = ""
+		d, err = db.Open(ctx, filepath.Join(*data, "main.db"))
+	}
 	if err != nil {
 		return err
 	}
 	defer d.Close()
 	d.StartSearch(filepath.Join(*data, "search.db"), log)
+	if restored != "" {
+		// Everyone signs in again: the restored sign-ins are from before the backup.
+		if err := d.EndEverySignIn(ctx, time.Now()); err != nil {
+			return err
+		}
+		log.Info("the server was restored from a backup; everyone signs in again", "backup", restored)
+	}
 	handler, err := api.New(ctx, d, *data, version, log)
 	if err != nil {
 		return err
@@ -175,10 +202,14 @@ func run(log *slog.Logger) error {
 	go func() { failed <- srv.ListenAndServe() }()
 	log.Info("portico-server is serving", "listen", *listen, "data", *data, "version", version)
 
+	restart := false
 	select {
 	case err := <-failed:
 		return err
 	case <-ctx.Done():
+	case <-handler.RestartRequested():
+		restart = true
+		log.Info("portico-server is restarting, as the owner asked")
 	}
 	// Let requests in flight finish, then close the database.
 	wait, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -197,5 +228,11 @@ func run(log *slog.Logger) error {
 		log.Error("stopping the streams failed", "error", err)
 	}
 	log.Info("portico-server stopped cleanly")
+	if restart {
+		return errRestart
+	}
 	return nil
 }
+
+// errRestart asks main to start the server again once everything has stopped.
+var errRestart = errors.New("restart")
