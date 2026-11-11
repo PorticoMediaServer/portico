@@ -55,6 +55,7 @@ func TestAPictureFollowsARedirectOnlyWithinItsProvider(t *testing.T) {
 		t.Fatal("a redirect to plain http was followed")
 	}
 	redirectsOverHTTP, redirectsToPrivate = true, false
+	pictureClient.CloseIdleConnections() // a connection made while the test allowed this machine is not reused
 	if _, err := fetchPicture(ctx, within.URL+"/release/1/front"); err == nil {
 		t.Fatal("a redirect to this machine was followed")
 	}
@@ -62,7 +63,7 @@ func TestAPictureFollowsARedirectOnlyWithinItsProvider(t *testing.T) {
 		ip     string
 		public bool
 	}{{"127.0.0.1", false}, {"10.1.2.3", false}, {"192.168.1.1", false}, {"169.254.1.1", false}, {"::1", false}, {"fe80::1", false},
-		{"fd00::1", false}, {"0.0.0.0", false}, {"207.241.224.2", true}, {"2620:0:2d0:200::7", true}} {
+		{"fd00::1", false}, {"0.0.0.0", false}, {"100.100.1.1", false}, {"::ffff:127.0.0.1", false}, {"207.241.224.2", true}, {"2620:0:2d0:200::7", true}} {
 		if got := publicAddress(net.ParseIP(c.ip)); got != c.public {
 			t.Errorf("%s: public %v, want %v", c.ip, got, c.public)
 		}
