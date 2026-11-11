@@ -17,6 +17,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/tlsport"
 )
 
 // Remote access: what this server answers from outside the owner's home networks. The home
@@ -73,6 +74,9 @@ type RemoteAccessSettings struct {
 	// address it can allow, which refuses every connection from outside the home networks.
 	// Off, Enhanced with no address waits and works as Standard; the default never turns it on.
 	EnhancedWithoutAddress bool `json:"enhancedWithoutAddress"`
+	// CertificateWarningDays is how many days before the own certificate expires the owner
+	// is warned: 7, 14, 30 or 60.
+	CertificateWarningDays int `json:"certificateWarningDays"`
 
 	revision
 }
@@ -98,7 +102,8 @@ const (
 
 func defaultRemoteAccess() RemoteAccessSettings {
 	return RemoteAccessSettings{RemoteAccess: "on", RemoteSecurity: "enhanced", SecureConnections: "preferred",
-		SignInFromOutside: "anyone", PortMapping: "automatic", PublicPort: defaultPublicPort, AllowedAddresses: []string{}, FindAtHome: true}
+		SignInFromOutside: "anyone", PortMapping: "automatic", PublicPort: defaultPublicPort, AllowedAddresses: []string{}, FindAtHome: true,
+		CertificateWarningDays: 14}
 }
 
 // problem names the first field holding a value it does not take, with what to say.
@@ -125,6 +130,8 @@ func (v *RemoteAccessSettings) problem() (string, string) {
 		return "ownAddress.certificateFile", "Give the name of a file in the Keys folder, such as certificate.pem."
 	case v.OwnAddress.KeyFile != "" && !keysFileName(v.OwnAddress.KeyFile):
 		return "ownAddress.keyFile", "Give the name of a file in the Keys folder, such as certificate.key."
+	case !slices.Contains([]int{7, 14, 30, 60}, v.CertificateWarningDays):
+		return "certificateWarningDays", choice
 	case len(v.AllowedAddresses) > maxAllowed:
 		return "allowedAddresses", "List up to 64 addresses."
 	}
@@ -237,6 +244,18 @@ func approved(v RemoteAccessSettings, portico string) []string {
 	}
 	return allowed
 }
+
+// applyCertificate serves the owner's certificate for their own address, if they gave one.
+func (s *Server) applyCertificate(v RemoteAccessSettings) {
+	src := tlsport.Source{WarnBefore: time.Duration(v.CertificateWarningDays) * 24 * time.Hour}
+	if v.OwnAddress.Enabled && v.OwnAddress.CertificateFile != "" {
+		src.Domain, src.CertificateFile, src.KeyFile = v.OwnAddress.Domain, v.OwnAddress.CertificateFile, v.OwnAddress.KeyFile
+	}
+	s.certs.Use(src)
+}
+
+// Certificates is the owner's certificate as the listener serves it.
+func (s *Server) Certificates() *tlsport.Store { return s.certs }
 
 func (st *remoteState) current() (RemoteAccessSettings, []string) {
 	st.mu.RLock()
@@ -370,6 +389,7 @@ func (s *Server) loadRemoteAccess(ctx context.Context) error {
 		return err
 	}
 	s.access.set(v, finished)
+	s.applyCertificate(v)
 	return nil
 }
 
@@ -415,6 +435,8 @@ type RemoteAccessStatus struct {
 	// Warnings are the risky choices in force now, each in plain words, shown for as long as
 	// they hold. The owner may keep any of them; none is refused.
 	Warnings []Warning `json:"warnings"`
+	// Certificate is the owner's own certificate: none, served, or what is wrong with it.
+	Certificate tlsport.Status `json:"certificate"`
 }
 
 // warningMessages are proposed wording, listed for the owner's approval.
@@ -469,7 +491,9 @@ func (s *Server) remoteAccessRoutes() {
 		v, allowed := s.access.current()
 		sec := s.access.security(v, allowed, s.setupFinished(), false)
 		return RemoteAccessStatus{ThisDevice: ThisDevice{AtHome: s.fromHome(r), Address: s.remoteHost(r)},
-			Refused: s.access.refusedList(), RemoteSecurity: sec, Warnings: s.warnings(v, sec, s.networks())}, nil
+			Refused: s.access.refusedList(), RemoteSecurity: sec, Warnings: s.warnings(v, sec, s.networks()),
+			Certificate: s.certs.Status()}, nil
+
 	})
 	// The dry run: would the connection making this request be refused under these settings?
 	Handle(s, "POST /v1/admin/remote-access/route-check", Owner, func(r *http.Request, req RemoteAccessSettings) (RouteCheck, error) {
@@ -612,6 +636,7 @@ func (s *Server) applyRemoteAccess(r *http.Request, req RemoteAccessSave, match 
 		}
 	}
 	s.access.set(v, true)
+	s.applyCertificate(v)
 	v.revision = revision(saved)
 	return v, nil
 }

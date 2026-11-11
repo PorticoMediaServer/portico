@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"flag"
 	"fmt"
@@ -23,6 +24,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediaengine"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediaexec"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/titledata"
+	"github.com/PorticoMediaServer/portico/server-next/internal/tlsport"
 	"github.com/PorticoMediaServer/portico/server-next/internal/webapp"
 )
 
@@ -160,8 +162,17 @@ func run(log *slog.Logger) error {
 	go (&titledata.Updater{DB: d, Dir: filepath.Join(*data, "title-data"), Log: log}).Run(ctx)
 	// No write timeout: media and the events feed are long replies. Slow request headers are bounded.
 	srv := &http.Server{Addr: *listen, Handler: handler, ReadHeaderTimeout: 10 * time.Second}
+	ln, err := net.Listen("tcp", *listen)
+	if err != nil {
+		return err
+	}
+	// The one port answers plain HTTP and, once the owner gives a certificate for their own
+	// address, HTTPS too. A renewed certificate is picked up without a restart.
+	certs := handler.Certificates()
+	go certs.Run(ctx.Done())
+	tlsConfig := &tls.Config{GetCertificate: certs.GetCertificate, MinVersion: tls.VersionTLS12, NextProtos: []string{"http/1.1"}}
 	failed := make(chan error, 1)
-	go func() { failed <- srv.ListenAndServe() }()
+	go func() { failed <- srv.Serve(tlsport.Listen(ln, tlsConfig)) }()
 	log.Info("portico-server is serving", "listen", *listen, "data", *data, "version", version)
 
 	select {
