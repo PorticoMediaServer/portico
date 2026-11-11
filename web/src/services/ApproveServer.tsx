@@ -105,7 +105,8 @@ function ApprovalCard({approval, byCode}: {approval: Approval; byCode: boolean})
     <ServicesQuiet>{t('next.account.approve.match')}</ServicesQuiet>
     {error ? <ServicesNotice tone="error">{t(problemMessage(error, 'approve'))}</ServicesNotice> : null}
     <ServicesActions>
-      {!final && <Button variant="primary" loading={busy} onClick={() => void decide(true)()}>{t('next.account.approve.approve')}</Button>}
+      {/* Approve waits until the page shows which account will own the server. */}
+      {!final && <Button variant="primary" loading={busy} disabled={!account} onClick={() => void decide(true)()}>{t('next.account.approve.approve')}</Button>}
       <Button disabled={busy} onClick={() => void decide(false)()}>{t('next.account.approve.decline')}</Button>
     </ServicesActions>
     <AuthLinks><button type="button" disabled={busy} onClick={() => void services.signOut()}>{t('next.account.approve.notYou')}</button></AuthLinks>
