@@ -2,7 +2,9 @@ package api
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/jobs"
@@ -114,5 +116,65 @@ func TestStartingReadingAndCancellingJobs(t *testing.T) {
 	}
 	if ended := waitForJob(t, s, member, mine.ID); ended.State != "cancelled" {
 		t.Fatalf("the stopped job is %s", ended.State)
+	}
+}
+
+// A job does not outlive its starter's role: an admin's job still waiting when the admin is
+// made a member is cancelled when its turn comes and never runs. And a failed job's reason
+// names a title to the owner alone: an admin is given the count, or a plain sentence.
+func TestAJobDoesNotOutliveARoleAndItsReasonNamesTitlesToTheOwnerOnly(t *testing.T) {
+	s := newTestServer(t)
+	owner := onMain(t, s, setup(t, s)).AccessToken
+	ann := addMember(t, s, owner, "ann", "admin")
+	admin := signInAs(t, s, "ann", testPassword, 5).AccessToken
+
+	release, first := make(chan struct{}), make(chan struct{})
+	ranLater := false
+	s.jobs.Register(jobs.Kind{Name: "first", Access: jobs.Admins, Lane: "one", Run: func(context.Context, jobs.Work) error {
+		close(first)
+		<-release
+		return nil
+	}})
+	s.jobs.Register(jobs.Kind{Name: "later", Access: jobs.Admins, Lane: "one", Run: func(context.Context, jobs.Work) error {
+		ranLater = true
+		return nil
+	}})
+	s.jobs.Register(jobs.Kind{Name: "counted", Access: jobs.Admins, Run: func(context.Context, jobs.Work) error {
+		return &jobs.Failure{Shown: "1 title could not be matched.", Detail: "Secret Film (1999) could not be matched."}
+	}})
+	s.jobs.Register(jobs.Kind{Name: "plain", Access: jobs.Admins, Run: func(context.Context, jobs.Work) error {
+		return errors.New("Secret Film (1999) has no file")
+	}})
+	start := func(kind string) Job {
+		t.Helper()
+		var job Job
+		if w := call(t, s, "POST", "/v1/jobs", admin, JobStart{Kind: kind, Target: JobTarget{Library: "lib_a"}}, &job); w.Code != 202 {
+			t.Fatalf("starting %s answered %d: %s", kind, w.Code, w.Body)
+		}
+		return job
+	}
+
+	// What a failed job says, to the admin who started it and to the owner.
+	for kind, forAdmin := range map[string]string{"counted": "1 title could not be matched.", "plain": "This did not finish. The owner can see why."} {
+		job := start(kind)
+		if seen := waitForJob(t, s, admin, job.ID); seen.State != "failed" || seen.Error != forAdmin {
+			t.Errorf("%s: the admin was told %q (%s); want %q", kind, seen.Error, seen.State, forAdmin)
+		}
+		if seen := waitForJob(t, s, owner, job.ID); !strings.Contains(seen.Error, "Secret Film (1999)") {
+			t.Errorf("%s: the owner was told %q, without the title", kind, seen.Error)
+		}
+	}
+
+	// A job waits behind another; meanwhile its starter stops being an admin.
+	start("first")
+	<-first
+	waiting := start("later")
+	member := "member"
+	if code := status(t, s, "PATCH", "/v1/admin/members/"+ann.ID, owner, MemberEdit{Role: &member}); code != 200 {
+		t.Fatalf("demoting the admin answered %d", code)
+	}
+	close(release)
+	if ended := waitForJob(t, s, owner, waiting.ID); ended.State != "cancelled" || ranLater {
+		t.Fatalf("the demoted admin's job ended %s, ran: %v; want cancelled and never run", ended.State, ranLater)
 	}
 }
