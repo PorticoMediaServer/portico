@@ -132,6 +132,8 @@ func (d *DB) ApplyTitleData(ctx context.Context, after int64, limit int) (int64,
 		return next, nil
 	}
 	return next, d.write(ctx, Background, func(tx *sql.Tx) error {
+		b := newBatchTx(tx)
+		defer b.close()
 		tags := map[string]int64{}
 		for _, t := range changed {
 			if _, err := tx.ExecContext(ctx, `DELETE FROM item_tags WHERE item_id = ? AND tag_id IN (SELECT id FROM tags WHERE kind = 'mood')`,
@@ -150,9 +152,8 @@ func (d *DB) ApplyTitleData(ctx context.Context, after int64, limit int) (int64,
 					}
 					tags[name] = id
 				}
-				// The title may have been deleted since it was read.
-				if _, err := tx.ExecContext(ctx, `INSERT INTO item_tags (item_id, tag_id, library_id, kind)
-					SELECT id, ?, library_id, kind FROM items WHERE id = ? ON CONFLICT DO NOTHING`, id, t.id); err != nil {
+				// The title may have been deleted since it was read: tagItem then adds nothing.
+				if err := b.tagItem(t.id, id); err != nil {
 					return err
 				}
 			}
