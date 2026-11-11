@@ -64,19 +64,6 @@ func (d *DB) LookupFailed(ctx context.Context, itemID int64, now time.Time) erro
 	})
 }
 
-// LookupsDue lists the libraries (public ids) holding a title whose wait after a failed lookup
-// is over, so the lookup can be started again without waiting for a scan.
-func (d *DB) LookupsDue(ctx context.Context, now time.Time) ([]string, error) {
-	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-	return queryAll(ctx, tx, `SELECT public_id FROM libraries l WHERE EXISTS (SELECT 1 FROM items i WHERE i.library_id = l.id
-		AND i.match_state = 0 AND i.parent_id IS NULL AND i.extra ->> '$.lookupAfter' <= ?)`, []any{now.UnixMilli()},
-		func(id *string) []any { return []any{id} })
-}
-
 // ToMatch lists a library's top-level titles of the given kinds that no provider has been
 // asked about, a page at a time in id order: pass the last id of one page to get the next.
 func (d *DB) ToMatch(ctx context.Context, libraryID int64, kinds []ItemKind, after int64, limit int) ([]MatchItem, error) {

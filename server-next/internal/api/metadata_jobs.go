@@ -149,7 +149,6 @@ func (s *Server) metadataJobs() {
 		Run: s.editItems})
 }
 
-// providerSentence turns a provider that did not answer into the sentence the job shows.
 // matched is how a run of MatchLibrary ends a job: done, saying how many titles the provider
 // failed on (each is asked again later by itself), or failed when the provider was down.
 func matched(stats metadata.MatchStats, err error) error {
@@ -162,6 +161,7 @@ func matched(stats metadata.MatchStats, err error) error {
 	return nil
 }
 
+// providerSentence turns a provider that did not answer into the sentence the job shows.
 func providerSentence(err error) error {
 	switch {
 	case err == nil, errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded), errors.Is(err, db.ErrNotFound):
