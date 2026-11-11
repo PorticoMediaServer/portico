@@ -71,9 +71,9 @@ func TestBackupWhileWritingKeepsTheLogSmall(t *testing.T) {
 	}
 	t.Logf("backed up in %s while %d MB were written; the log was at most %d MB",
 		time.Since(started).Round(time.Millisecond), written.Load()>>20, largest.Load()>>20)
-	bound := int64(walCatchUpBytes + 32<<20)
+	bound := int64(walDrainBytes + 32<<20)
 	if largest.Load() > bound {
-		t.Errorf("the log reached %d MB during the backup; the policy keeps it near %d MB", largest.Load()>>20, walCatchUpBytes>>20)
+		t.Errorf("the log reached %d MB during the backup; the policy keeps it near %d MB", largest.Load()>>20, walDrainBytes>>20)
 	}
 	if written.Load() < 2*bound {
 		t.Errorf("only %d MB were written during the backup: not enough to show the log was kept small", written.Load()>>20)
