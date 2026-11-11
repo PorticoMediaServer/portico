@@ -61,7 +61,9 @@ type Engine struct {
 // called for it to do its housekeeping.
 func New(ctx context.Context, d *db.DB, o Options) (*Engine, error) {
 	e := &Engine{db: d, probe: mediafacts.Probe{Binary: o.FFprobe}, facts: map[string]mediafacts.Facts{}, remote: o.Remote,
-		processes: &processpool.Supervisor{Limit: 4}}
+		// No limit of its own: a limit here would refuse the fifth remote film being converted
+		// at once, since a converter is not made to wait for a slot.
+		processes: &processpool.Supervisor{}}
 	ffmpeg := o.FFmpeg
 	if ffmpeg == "" {
 		ffmpeg = mediatools.Resolve("ffmpeg")
