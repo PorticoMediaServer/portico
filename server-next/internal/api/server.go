@@ -62,7 +62,6 @@ type Server struct {
 	queues       *playqueue.Service
 	network      networkState
 	media        func(w http.ResponseWriter, r *http.Request, grant, file string)
-	dataDir      string
 	signInPolicy policyState
 	// feeds caps the change feeds each sign-in holds open. See catalogue.go.
 	feeds feeds
