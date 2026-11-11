@@ -3,6 +3,9 @@ package api
 import (
 	"context"
 	"github.com/PorticoMediaServer/portico/server-next/internal/hosted"
+	"github.com/PorticoMediaServer/portico/server-next/internal/tlsport"
+	"path/filepath"
+	"time"
 )
 
 // setupArea is what setup and remote access (area 2) keeps on the server. Add this area's fields here and its start-up
@@ -16,6 +19,8 @@ type setupArea struct {
 	hosted hosted.Service
 	// access is the owner's remote access settings. See remote_access.go.
 	access remoteState
+	// certs is the certificate for the owner's own address, read from the Keys folder.
+	certs *tlsport.Store
 }
 
 // startSetup builds this area's services and registers its routes and job kinds. New calls it
@@ -31,6 +36,9 @@ func (s *Server) startSetup(ctx context.Context) error {
 	if err := s.loadNetworks(ctx); err != nil {
 		return err
 	}
+	s.certs = tlsport.NewStore(filepath.Join(s.dataDir, "Keys"), s.log, func() time.Time { return s.now() })
+	// Enhanced waits on the owner's own certificate until it is loaded and valid for the address.
+	s.access.ownCertificateUsable = func() bool { return s.certs.Status().State == "ok" }
 	if err := s.loadRemoteAccess(ctx); err != nil {
 		return err
 	}
