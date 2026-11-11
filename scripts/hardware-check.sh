@@ -20,6 +20,8 @@ bundle() {
 	local root out
 	root=$(git rev-parse --show-toplevel)
 	out=${1:-$PWD/portico-hardware-check}
+	mkdir -p "$out"
+	out=$(cd "$out" && pwd)
 	mkdir -p "$out/mediaengine" "$out/streaming/testdata"
 	(cd "$root/server-next" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go test -c -o "$out/decoder.test" ./internal/decoder &&
 		CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go test -c -o "$out/mediaengine/mediaengine.test" ./internal/mediaengine)
@@ -45,7 +47,7 @@ run() {
 		exit 1
 	fi
 	export PORTICO_TEST_HARDWARE_BACKEND=$backend PORTICO_MEDIA_MATRIX=1
-	local work
+	# The EXIT trap runs after this function returns, so keep its path in script scope.
 	work=$(mktemp -d "$here/work.XXXXXX")
 	trap 'rm -rf "$work"' EXIT
 
