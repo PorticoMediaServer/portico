@@ -21,7 +21,7 @@ import (
 )
 
 // All bundled suite inputs are synthesised tones, not copied recordings.
-func TestMusicLosslessFormatsR29(t *testing.T) {
+func TestMusicLosslessFormats(t *testing.T) {
 	testtier.Media(t, "encodes and decodes actual bounded music fixtures through FFmpeg")
 	ff, e := exec.LookPath("ffmpeg")
 	if e != nil {
@@ -141,7 +141,7 @@ func exerciseMusicFormat(t *testing.T, ff, probe, path, codec string, rate int, 
 // The bundled inputs are procedural tones with construction counts and tool
 // provenance. Optional external recordings stay outside Git and require an
 // explicit absolute-path/hash/rights manifest.
-func TestMusicAPEAndMusepackFormatsR29(t *testing.T) {
+func TestMusicAPEAndMusepackFormats(t *testing.T) {
 	testtier.Media(t, "encodes and decodes actual bounded music fixtures through FFmpeg")
 	manifest := os.Getenv("PORTICO_MUSIC_FORMAT_FIXTURES")
 	bundled := manifest == ""

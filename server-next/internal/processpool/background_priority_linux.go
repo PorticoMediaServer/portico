@@ -18,7 +18,7 @@ func lowerBackgroundPriority(*exec.Cmd) {}
 // Linux nice and I/O priorities are per thread, and a new thread inherits them
 // from the thread that creates it. Lowering only the child's PID (its main
 // thread) left any thread the child had already started at normal priority
-// (B64), and everything those threads spawned inherited it. So every thread
+// and everything those threads spawned inherited it. So every thread
 // listed under /proc/<pid>/task is lowered, twice, to catch a thread created
 // by a not-yet-lowered thread during the first sweep; threads created after
 // that inherit the lowered policy.

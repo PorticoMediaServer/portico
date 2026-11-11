@@ -18,7 +18,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/processpool"
 )
 
-// NEW-29: the audio render measurement (audiofacts.Args through
+// The audio render measurement (audiofacts.Args through
 // RunStreamingProbe, as subtitlevideo.MeasureAudio runs it) reads a real FLAC,
 // AAC and MP3 file through the confined decoder and the private bridge.
 func TestAudioMeasurementReadsRealFilesConfined(t *testing.T) {

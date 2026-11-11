@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestMusicPreparedRateDepthAndNoUpgradeR29(t *testing.T) {
+func TestMusicPreparedRateDepthAndNoUpgrade(t *testing.T) {
 	r := PreparedRecipe{
 		AudioOnly:    true,
 		MusicQuality: "cd-quality",
