@@ -4,7 +4,7 @@ import {mountQuietInput, SettingsOpenContext} from './quiet-refresh';
 import {peopleQuietInputs} from './people-refresh';
 import {useContext, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
 import {defaultI18n} from '@i18n';
-import {SettingsPeopleClient, type SettingsPeoplePage, type SettingsPeopleQuery, type SettingsPersonRow, type SettingsBulkAccess, type SettingsBulkAction} from '@core/settings-people.ts';
+import {accountLimitsOnServer, SettingsPeopleClient, type SettingsPeoplePage, type SettingsPeopleQuery, type SettingsPersonRow, type SettingsBulkAccess, type SettingsBulkAction} from '@core/settings-people.ts';
 import {personMemberResetCodeRow, settingsRowIndex, settingsSpec, type SettingsRow, type SettingsValue} from '@core/presentation/settings-spec.ts';
 import {managesTier, type AccessMember, type AccessTier, type MemberLimits} from '@core/server-administration.ts';
 import {MemberResetCodeSheet, SettingsAction, SettingsGroup, SettingsHours, SettingsSelectionList, SettingsStringList, SettingsPanel, SettingsRows, SettingsTable, type SettingPresentation, type SettingsTableHandle, type TableQuery} from '../../kit/settings';
@@ -51,6 +51,8 @@ const personPanel: NonNullable<typeof personSpec> = {
   } : tab),
 };
 const label = (id: string) => t(settingsRowIndex.get(id)!.row.label);
+/** Status filters that need each account's last activity, which the rebuilt server does not send yet. */
+const lastActivityUnknown = new Set(['month', 'idle']);
 const initialQuery: TableQuery = {search: '', filters: {role: 'all', status: 'all'}, sort: {by: 'active', direction: 'desc'}};
 function queryOf(query: TableQuery): SettingsPeopleQuery {
   return {search: query.search, role: query.filters.role as SettingsPeopleQuery['role'], status: query.filters.status as SettingsPeopleQuery['status'], sort: query.sort.by as SettingsPeopleQuery['sort'], direction: query.sort.direction};
@@ -267,13 +269,14 @@ function PeopleWorkspace({bindings, initialStatus, rowActions, advancedRows}: {b
   const values: Readonly<Record<string, SettingsValue | undefined>> = person ? {
     'people.username': person.username, ...(bindings.signIn === 'portico' && person.email !== undefined ? {'people.email': person.email} : {}), 'people.notes': person.notes ?? '', 'people.role': person.role === 'admin' ? 'administrator' : person.role,
     'people.libraries': person.allowedLibraries.length || chooseLibraries ? 'some' : 'all', ...(bindings.streamLimits ? {'people.maxStreams': bindings.streamLimits.read(person)} : {}),
-    'people.awayAccess': person.limits.allowRemote ? 'allowed' : 'home', 'people.conversions': person.limits.conversion === 'audio' ? 'sound' : person.limits.conversion,
+    // The rebuilt server keeps no whole-account limits yet: those rows stay out until it does.
+    ...(accountLimitsOnServer ? {'people.awayAccess': person.limits.allowRemote ? 'allowed' : 'home', 'people.conversions': person.limits.conversion === 'audio' ? 'sound' : person.limits.conversion,
     'people.hours': person.limits.schedule.windows.length || chooseHours ? 'set' : 'any', 'people.hoursTimezone': person.limits.schedule.timezone,
-    'people.maxRating': person.limits.maxContentRating || 'none', 'people.allowUnrated': person.limits.allowUnrated, 'people.accessTokens': person.limits.accessTokens,
+    'people.maxRating': person.limits.maxContentRating || 'none', 'people.allowUnrated': person.limits.allowUnrated, 'people.accessTokens': person.limits.accessTokens} : {}),
   } : {};
   const state = (row: SettingsRow): SettingPresentation => row.id === personMemberResetCodeRow.id
     ? {present: resetView?.present === true, disabled: !resetView?.canMake}
-    : {present: !!person && (Object.hasOwn(values, row.id) || ['people.turnOff', 'people.delete', 'people.profiles', 'people.hoursList', 'people.hiddenLabels'].includes(row.id) || row.id === 'people.libraryList' && (chooseLibraries || !!person.allowedLibraries.length)),
+    : {present: !!person && (Object.hasOwn(values, row.id) || ['people.turnOff', 'people.delete', 'people.profiles', ...(accountLimitsOnServer ? ['people.hoursList', 'people.hiddenLabels'] : [])].includes(row.id) || row.id === 'people.libraryList' && (chooseLibraries || !!person.allowedLibraries.length)),
       value: values[row.id], displayValue: typeof values[row.id] === 'string' ? values[row.id] as string : undefined, disabled: saving || !canEdit};
   const change = (row: SettingsRow, value: SettingsValue) => {
     if (!person || !canEdit) return;
@@ -365,7 +368,7 @@ function PeopleWorkspace({bindings, initialStatus, rowActions, advancedRows}: {b
     {error && !page && !personId ? <SettingsPageFailure retry={() => setRefresh(value => value + 1)} home={bindings.openHome} /> : <SettingsTable phoneCards ref={tableRef} height={table.height}
       label={t(section.title)} rows={(page?.items ?? []).map(row => peopleTableRow(row, bindings.actor))} columns={table.columns!.map(column => ({id: column.id!, label: t(column.label), kind: column.kind as 'main', sortable: column.sort, width: column.width}))}
       query={query} onQueryChange={admitQuery} filters={table.filters!.map(filter => ({id: filter.id, label: t(filter.label), showAllValue: false,
-        options: [...filter.options.map(option => ({value: option.value, label: t(option.label)})),
+        options: [...filter.options.filter(option => filter.id !== 'status' || !lastActivityUnknown.has(option.value)).map(option => ({value: option.value, label: t(option.label)})),
           ...(filter.id === 'status' && !filter.options.some(option => option.value === 'waiting') ? [{value: 'waiting', label: t('next.settings.personStatus.waiting')}] : [])]}))}
       searchLabel={t(table.search!)} countLabel={page ? t(filtered ? 'next.settings.peopleCount' : 'next.settings.peopleTotal', {matched: page.matchedCount, total: page.totalCount}) : undefined} emptyLabel={t(table.empty!)} loading={loading}
       rowActions={rowActions ? row => {const person = page?.items.find(item => item.accountId === row.id); return person ? rowActions(person) ?? null : null;} : undefined}
@@ -383,7 +386,7 @@ function PeopleWorkspace({bindings, initialStatus, rowActions, advancedRows}: {b
     {advancedRows}
     {personId && <SettingsPanel open onClose={() => {if (resetView && !resetView.leave()) return; admitPerson();}} title={person?.username ?? personRow?.username ?? t(section.title)} audience={t(bindings.actor.role === 'owner' ? 'next.shell.serverVisibility.ownerShared' : 'next.shell.serverVisibility.administrator')}
       returnFocusRef={opener} selectedTab={tab} onTabChange={next => {if (next === tab) return; if (resetView && !resetView.leave()) return; setTab(next);}} saveState={saving ? 'saving' : saved ? 'saved' : undefined}
-      error={error ? t('next.states.pageFailedBody') : undefined} tabs={personPanel.tabs!.map(tab => ({id: tab.id, title: t(tab.title), content: !person ? <p role="status">{t('next.settings.loading')}</p> : tab.id === 'devices' && bindings.devices ? <PeopleDevices key={person.accountId} accountId={person.accountId} api={bindings.devices} isCurrent={bindings.authority.isCurrent} canSignOut={canEdit} onError={failure} /> : <SettingsRows holder={tab} state={state} change={change} reset={() => {}} advancedOpen={advanced} onAdvancedChange={setAdvanced}
+      error={error ? t('next.states.pageFailedBody') : undefined} tabs={personPanel.tabs!.filter(tab => tab.id !== 'devices' || bindings.devices).map(tab => ({id: tab.id, title: t(tab.title), content: !person ? <p role="status">{t('next.settings.loading')}</p> : tab.id === 'devices' && bindings.devices ? <PeopleDevices key={person.accountId} accountId={person.accountId} api={bindings.devices} isCurrent={bindings.authority.isCurrent} canSignOut={canEdit} onError={failure} /> : <SettingsRows holder={tab} state={state} change={change} reset={() => {}} advancedOpen={advanced} onAdvancedChange={setAdvanced}
         renderSpecial={special} />
       }))} />}
     {resetView?.sheet && <MemberResetCodeSheet {...resetView.sheet} />}
@@ -392,7 +395,7 @@ function PeopleWorkspace({bindings, initialStatus, rowActions, advancedRows}: {b
       onClose={() => {if (!saving) {setCommand(undefined); setBulk(undefined);}}} returnFocusRef={confirmOpener}
       confirm={{label: t('next.settings.apply'), pending: saving,
         disabled: bulkLibraryChoice === 'some' && !bulkLibraryIds.length || bulkLibraryChoice === 'keep' && !Object.keys(bulk ?? {}).length, onConfirm: applyCommand}}>
-      <SettingsRows holder={section.panels!.bulkAccess} advancedOpen={false} onAdvancedChange={() => {}} reset={() => {}} state={row => ({present: ['bulk.libraries', 'bulk.awayAccess', 'bulk.maxRating'].includes(row.id) || row.id === 'bulk.maxStreams' && !!bindings.streamLimits, disabled: saving,
+      <SettingsRows holder={section.panels!.bulkAccess} advancedOpen={false} onAdvancedChange={() => {}} reset={() => {}} state={row => ({present: ['bulk.libraries', ...(accountLimitsOnServer ? ['bulk.awayAccess', 'bulk.maxRating'] : [])].includes(row.id) || row.id === 'bulk.maxStreams' && !!bindings.streamLimits, disabled: saving,
         value: row.id === 'bulk.libraries' ? bulkLibraryChoice : row.id === 'bulk.maxStreams' ? bindings.streamLimits?.readBulk(bulk) : row.id === 'bulk.awayAccess' ? bulk?.allowRemote === undefined ? 'keep' : bulk.allowRemote ? 'allowed' : 'home' : bulk?.maxContentRating === undefined ? 'keep' : bulk.maxContentRating || 'none',
         ...(row.id === 'bulk.libraries' ? {control: <div>
           <RichSelect aria-label={t(row.label)} value={bulkLibraryChoice} disabled={saving} options={row.control.options!.map(option => ({value: String(option.value), label: t(option.label), description: option.hint && t(option.hint)}))}
