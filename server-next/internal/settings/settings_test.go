@@ -87,3 +87,44 @@ func TestSaveWatchAndSecrets(t *testing.T) {
 		t.Errorf("an empty passphrase did not remove it")
 	}
 }
+
+type listed struct {
+	Hours []hours        `json:"hours"`
+	Tags  map[string]int `json:"tags"`
+}
+
+type hours struct {
+	From int `json:"from"`
+	To   int `json:"to"`
+}
+
+var listedDoc = Define("listed", listed{}, nil)
+
+// A list or a map that is saved is the one sent, never mixed with the one before it, and a
+// field the document does not have is refused instead of answered as saved.
+func TestASavedListReplacesTheOldOne(t *testing.T) {
+	ctx := context.Background()
+	d, err := db.Open(ctx, filepath.Join(t.TempDir(), "main.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	s, _, err := Open(ctx, d, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, change := range []string{`{"hours":[{"from":1,"to":6}],"tags":{"a":1,"b":2}}`, `{"hours":[{"from":9}],"tags":{"a":5}}`} {
+		if _, err := s.Write(ctx, 0, "listed", json.RawMessage(change), -1, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := listedDoc.Get(s); len(got.Hours) != 1 || got.Hours[0] != (hours{From: 9}) || len(got.Tags) != 1 || got.Tags["a"] != 5 {
+		t.Errorf("the second save left %+v", got)
+	}
+	var invalid *Invalid
+	for _, change := range []string{`{"hour":[]}`, `{"hours":null}`, `[]`, `{"hours":[{"from":"nine"}]}`} {
+		if _, err := s.Write(ctx, 0, "listed", json.RawMessage(change), -1, time.Now()); !errors.As(err, &invalid) {
+			t.Errorf("%s answered %v", change, err)
+		}
+	}
+}
