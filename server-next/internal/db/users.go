@@ -73,10 +73,8 @@ type NewOwner struct {
 	// kind of sign-in is then recorded in the same commit; without it the server is local.
 	PorticoAccountID string
 	ProfileName      string
-	// ServerName is the name the owner gave the server, or "" to keep the default.
-	ServerName string
-	Session    NewSession
-	Now        time.Time
+	Session          NewSession
+	Now              time.Time
 }
 
 // SignInKindKey is the setting that holds the server's kind of sign-in. It is absent on a
@@ -85,9 +83,6 @@ const (
 	SignInKindKey = "sign_in_kind"
 	SignInPortico = "portico_account"
 )
-
-// ServerNameKey is the setting that holds the server's name.
-const ServerNameKey = "server.name"
 
 // CreateOwner creates the owner account, its main profile and a first session, only while
 // no account exists, together with the server's name and kind of sign-in. Two people racing
@@ -113,11 +108,6 @@ func (d *DB) CreateOwner(ctx context.Context, o NewOwner) (SessionState, error) 
 				return err
 			}
 			if err := putSetting(tx, SignInKindKey, SignInPortico, at); err != nil {
-				return err
-			}
-		}
-		if o.ServerName != "" {
-			if err := putSetting(tx, ServerNameKey, o.ServerName, at); err != nil {
 				return err
 			}
 		}

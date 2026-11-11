@@ -3,12 +3,14 @@ package api
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/hosted"
+	"github.com/PorticoMediaServer/portico/server-next/internal/settings"
 )
 
 // fakeHosted stands in for Portico Services. With fail set, any question fails the test: a
@@ -150,5 +152,27 @@ func TestLocalSetupNeverAsksPorticoServices(t *testing.T) {
 	}
 	if code := status(t, s, "POST", "/v1/setup/portico", "", body); code != 409 {
 		t.Fatalf("Portico setup on a set-up server answered %d, want 409", code)
+	}
+}
+
+// The name chosen in setup is the one Settings › General shows and renames, and it is held to
+// General's rule: a name that page would refuse is refused in setup too, before any account
+// is made.
+func TestSetupNameIsTheGeneralSettingsName(t *testing.T) {
+	s := newTestServer(t)
+	long := SetupOwnerRequest{SetupCode: s.setupCode, ServerName: strings.Repeat("n", 51), Username: "justin", Password: testPassword, Device: device(0)}
+	if w := call(t, s, "POST", "/v1/setup/owner", "", long, nil); w.Code != 400 {
+		t.Fatalf("a 51-character name answered %d: %s", w.Code, w.Body)
+	}
+	if has, _ := s.db.HasUsers(t.Context()); has {
+		t.Fatal("a refused name still made an account")
+	}
+	ok := SetupOwnerRequest{SetupCode: s.setupCode, ServerName: " Den ", Username: "justin", Password: testPassword, Device: device(0)}
+	var out SignInResponse
+	if w := call(t, s, "POST", "/v1/setup/owner", "", ok, &out); w.Code != 200 {
+		t.Fatalf("setup answered %d: %s", w.Code, w.Body)
+	}
+	if got := settings.General.Get(s.settings).Name; got != "Den" {
+		t.Fatalf("Settings › General holds %q", got)
 	}
 }
