@@ -50,11 +50,10 @@ func TestAFilmOnRemoteStoragePlays(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	lib, err := d.CreateLibrary(ctx, "Films", db.LibraryMovies, "en", nil)
+	// Made with its folder, as the owner makes one: a library always has a folder.
+	lib, err := d.NewLibrary(ctx, db.NewLibrary{Name: "Films", Kind: db.LibraryMovies, Language: "en",
+		RemoteFolders: []db.RemoteFolder{{SourceID: row.ID, Path: "Media/Films"}}})
 	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := d.AddRemoteFolder(ctx, lib.ID, row.ID, "Media/Films"); err != nil {
 		t.Fatal(err)
 	}
 	libraries, err := d.AllLibraries(ctx)

@@ -345,6 +345,7 @@ func TestALibrarySaysHowItsFoldersAreKeptUpToDate(t *testing.T) {
 func TestALibraryOnARemoteSource(t *testing.T) {
 	s := newTestServer(t)
 	owner := onMain(t, s, setup(t, s)).AccessToken
+	writeFile(t, filepath.Join(t.TempDir(), "sample.mkv"), 0) // makes the sample film
 	dav := remotetest.NewDAV(t, map[string]string{"Media/Films/Heat (1995)/Heat (1995).mkv": string(sampleFilm.data)})
 	var src RemoteSource
 	if w := call(t, s, "POST", "/v1/admin/remote-sources", owner, RemoteSourceCreate{Kind: "webdav", Name: "NAS",
