@@ -35,6 +35,12 @@ type shelf struct {
 
 func newShelf(t *testing.T, files ...string) *shelf {
 	t.Helper()
+	return shelfOf(t, db.LibraryMovies, files...)
+}
+
+// shelfOf is newShelf with a library of the given kind; files may be in folders.
+func shelfOf(t *testing.T, kind string, files ...string) *shelf {
+	t.Helper()
 	ctx := context.Background()
 	s := newTestServer(t)
 	sh := &shelf{t: t, s: s, tmdb: tmdbtest.New(t)}
@@ -43,14 +49,14 @@ func newShelf(t *testing.T, files ...string) *shelf {
 	s.UseProvider(tmdb.New("test-token", sh.tmdb.URL))
 	root := filepath.Join(t.TempDir(), "films")
 	for i, name := range files {
-		if err := os.MkdirAll(root, 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(root, name)), 0o755); err != nil {
 			t.Fatal(err)
 		}
 		if err := os.WriteFile(filepath.Join(root, name), make([]byte, 100+i), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
-	lib, err := s.db.CreateLibrary(ctx, "Films", db.LibraryMovies, "en", []string{root})
+	lib, err := s.db.CreateLibrary(ctx, "Films", kind, "en", []string{root})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -199,5 +205,31 @@ func TestMatchRoutesHideWhatTheCallerMayNotSee(t *testing.T) {
 		if w := call(t, sh.s, c.method, c.path, sh.limitedAdmin, c.body, nil); w.Code != 404 {
 			t.Errorf("the limited admin sent %s %s and was answered %d", c.method, c.path, w.Code)
 		}
+	}
+}
+
+// A show matched in an episode order its provider does not have gets aired order, never
+// blank episodes, and the answer says so in a sentence for the person.
+func TestAnEpisodeOrderTheProviderLacksFallsBackToAired(t *testing.T) {
+	sh := shelfOf(t, db.LibraryShows, "Breaking Bad/Season 01/Breaking Bad - S01E01.mkv")
+	var shows, episodes ItemPage
+	sh.do("GET", "/v1/items?library="+sh.library+"&kind=show", nil, &shows, 200)
+	if len(shows.Items) != 1 {
+		t.Fatalf("shows: %+v", shows.Items)
+	}
+	show := shows.Items[0].ID
+	var result MatchResult
+	sh.do("PUT", "/v1/admin/items/"+show+"/match", MatchRequest{Provider: "tmdb", ID: "1396", EpisodeOrder: "absolute"}, &result, 200)
+	if result.Notice != "This show has no absolute order at its provider, so its episodes use aired order." {
+		t.Fatalf("absolute order for a show with none: %+v", result)
+	}
+	sh.do("GET", "/v1/items?library="+sh.library+"&kind=episode", nil, &episodes, 200)
+	if len(episodes.Items) != 1 || episodes.Items[0].Title != "Pilot" {
+		t.Fatalf("its episode: %+v", episodes.Items)
+	}
+	result = MatchResult{}
+	sh.do("PUT", "/v1/admin/items/"+show+"/match", MatchRequest{Provider: "tmdb", ID: "1396", EpisodeOrder: "dvd"}, &result, 200)
+	if result.Notice != "" {
+		t.Fatalf("DVD order, which the show has: %+v", result)
 	}
 }

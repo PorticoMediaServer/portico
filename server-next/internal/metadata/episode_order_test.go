@@ -1,10 +1,17 @@
 package metadata_test
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"net/http/httputil"
+	"net/url"
+	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata"
+	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/tmdb"
 )
 
 // byNumber is a show's episodes' titles by season and episode number.
@@ -30,7 +37,8 @@ var breakingBad = []string{"Breaking Bad/Season 01/Breaking Bad - S01E01.mkv", "
 // A show matched in DVD order takes each episode's details from its DVD place, and with an
 // offset from the provider's number that far from the files'. The choice is kept through a
 // refresh. TMDB's DVD order of Breaking Bad is its aired order with the last season split in
-// two, so DVD season 6 is the second half of aired season 5. TMDB has no absolute order for it.
+// two, so DVD season 6 is the second half of aired season 5. TMDB has no absolute order for it,
+// so choosing one gives aired order.
 func TestEpisodeOrderAndOffset(t *testing.T) {
 	f := newFixture(t, db.LibraryShows, breakingBad...)
 	f.match()
@@ -41,7 +49,7 @@ func TestEpisodeOrderAndOffset(t *testing.T) {
 	}
 	identify := func(order string, offset int) {
 		t.Helper()
-		if _, err := f.s.IdentifyShow(ctx, show, metadata.Ref{ID: "1396", Order: order}, offset); err != nil {
+		if _, _, err := f.s.IdentifyShow(ctx, show, metadata.Ref{ID: "1396", Order: order}, offset); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -49,10 +57,13 @@ func TestEpisodeOrderAndOffset(t *testing.T) {
 	if got := titles(); got != [4]string{"Pilot", "Cat's in the Bag...", "...And the Bag's in the River", "Blood Money"} {
 		t.Fatalf("DVD order: %q", got)
 	}
-	// A show TMDB has in no such order keeps what its files say.
-	identify(metadata.OrderAbsolute, 0)
-	if got := titles(); got != [4]string{"Episode 1", "Episode 2", "Episode 3", "Episode 1"} {
-		t.Fatalf("absolute order: %q", got)
+	// A show TMDB has in no absolute order gets aired order, never blank episodes, and aired
+	// order is what is kept, so the caller can say so.
+	if _, used, err := f.s.IdentifyShow(ctx, show, metadata.Ref{ID: "1396", Order: metadata.OrderAbsolute}, 0); err != nil || used != metadata.OrderAired {
+		t.Fatalf("absolute order for a show with none: kept %q, %v", used, err)
+	}
+	if got := titles(); got != [4]string{"Pilot", "Cat's in the Bag...", "...And the Bag's in the River", "Episode 1"} {
+		t.Fatalf("absolute order for a show with none: %q", got)
 	}
 	// Files numbered from 0 for a provider that numbers from 1: the offset is 1.
 	identify(metadata.OrderAired, 1)
@@ -66,7 +77,7 @@ func TestEpisodeOrderAndOffset(t *testing.T) {
 	if got := titles(); got != want {
 		t.Fatalf("a refresh lost the offset: %q", got)
 	}
-	if _, err := f.s.IdentifyShow(ctx, show, metadata.Ref{ID: "1396", Order: "broadcast"}, 0); err != metadata.ErrUnknownOrder {
+	if _, _, err := f.s.IdentifyShow(ctx, show, metadata.Ref{ID: "1396", Order: "broadcast"}, 0); err != metadata.ErrUnknownOrder {
 		t.Fatalf("an unknown order: %v", err)
 	}
 }
@@ -108,7 +119,7 @@ func TestUndoOfAShowsMatchChangePutsItsEpisodesAndOrderBack(t *testing.T) {
 	f.match()
 	show := f.title(db.KindShow, "Breaking Bad").PublicID
 	titles := f.titles
-	if _, err := f.s.IdentifyShow(ctx, show, metadata.Ref{ID: "1396", Order: metadata.OrderDVD}, 0); err != nil {
+	if _, _, err := f.s.IdentifyShow(ctx, show, metadata.Ref{ID: "1396", Order: metadata.OrderDVD}, 0); err != nil {
 		t.Fatal(err)
 	}
 	dvd := titles()
@@ -172,5 +183,43 @@ func TestUndoOfAShowsMatchChangeKeepsALabelAddedSince(t *testing.T) {
 	}
 	if doc, err = f.d.MetadataDocument(ctx, episode); err != nil || len(doc.Lists["labels"]) != 1 {
 		t.Fatalf("the episode's labels after Undo: %v %v", doc.Lists["labels"], err)
+	}
+}
+
+// A show whose chosen order its provider no longer has is refreshed in aired order rather
+// than failing every refresh, and the owner's choice is kept for when the order is back.
+func TestARefreshUsesAiredOrderWhileTheChosenOneIsGone(t *testing.T) {
+	f := newFixture(t, db.LibraryShows, breakingBad...)
+	f.match()
+	show := f.title(db.KindShow, "Breaking Bad").PublicID
+	if _, used, err := f.s.IdentifyShow(ctx, show, metadata.Ref{ID: "1396", Order: metadata.OrderDVD}, 0); err != nil || used != metadata.OrderDVD {
+		t.Fatalf("DVD order: kept %q, %v", used, err)
+	}
+	// The stand-in, with the show's episode groups gone while gone is set.
+	var gone atomic.Bool
+	target, _ := url.Parse(f.tmdb.URL)
+	forward := httputil.NewSingleHostReverseProxy(target)
+	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if gone.Load() && strings.HasSuffix(r.URL.Path, "/episode_groups") {
+			w.Write([]byte(`{"results":[]}`))
+			return
+		}
+		forward.ServeHTTP(w, r)
+	}))
+	defer proxy.Close()
+	f.s.Providers["tmdb"] = tmdb.New("test-token", proxy.URL)
+	gone.Store(true)
+	if _, err := f.s.Refresh(ctx, show); err != nil {
+		t.Fatalf("a refresh with the chosen order gone: %v", err)
+	}
+	if got := f.titles(); got[0] != "Pilot" {
+		t.Fatalf("after a refresh in aired order: %q", got)
+	}
+	gone.Store(false)
+	if _, err := f.s.Refresh(ctx, show); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.titles(); got[3] != "Blood Money" {
+		t.Fatalf("the DVD order was not kept: %q", got)
 	}
 }

@@ -214,6 +214,20 @@ func (s *Service) children(ctx context.Context, p Provider, locale Locale, itemI
 		return err
 	}
 	ref.Order = numbering.Order
+	err = s.childGroups(ctx, p, locale, itemID, kind, ref, numbering.Offset)
+	if errors.Is(err, ErrNoOrder) {
+		// The provider no longer has the show in the owner's order: this run uses aired order,
+		// and the owner's choice is kept for the next.
+		ref.Order = OrderAired
+		err = s.childGroups(ctx, p, locale, itemID, kind, ref, numbering.Offset)
+	}
+	return err
+}
+
+// childGroups fetches and stores a title's children (a show's episodes, an album's tracks) in
+// ref.Order, group by group.
+func (s *Service) childGroups(ctx context.Context, p Provider, locale Locale, itemID int64, kind db.ItemKind, ref Ref, offset int) error {
+	var err error
 	groups, apply := []int{1}, -1 // in absolute order the provider has one group, numbered through the show
 	if ref.Order != OrderAbsolute {
 		if groups, err = s.DB.ChildNumbers(ctx, itemID); err != nil {
@@ -231,7 +245,7 @@ func (s *Service) children(ctx context.Context, p Provider, locale Locale, itemI
 		children := make([]db.ItemDetails, len(records))
 		for i, record := range records {
 			children[i] = details(record, db.MatchFound)
-			children[i].Index = record.Index - numbering.Offset
+			children[i].Index = record.Index - offset
 		}
 		if ref.Order != OrderAbsolute {
 			apply = group
@@ -341,42 +355,55 @@ var ErrNoProvider = errors.New("this title's library has no provider to ask")
 // The provider is asked first; the title changes in one transaction after it has answered.
 // A show's episodes then follow as background work before Identify returns.
 func (s *Service) Identify(ctx context.Context, itemID string, ref Ref) (string, error) {
-	return s.IdentifyShow(ctx, itemID, ref, 0)
+	remaining, _, err := s.IdentifyShow(ctx, itemID, ref, 0)
+	return remaining, err
 }
 
 // IdentifyShow is Identify with a show's number offset. For a show, ref.Order and offset are
 // the episode order and number offset the owner chose with the match: they are kept on the
-// show and used by every later refresh. A title that is not a show takes neither.
-func (s *Service) IdentifyShow(ctx context.Context, itemID string, ref Ref, offset int) (string, error) {
+// show and used by every later refresh. A title that is not a show takes neither. A show the
+// provider does not have in the chosen order gets aired order instead, never blank episodes;
+// order is the one kept, so a caller can tell the person.
+func (s *Service) IdentifyShow(ctx context.Context, itemID string, ref Ref, offset int) (remaining, order string, err error) {
 	t, p, locale, err := s.target(ctx, itemID)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	if ref.Provider != "" && ref.Provider != p.Name() {
-		return "", ErrUnknownRef
+		return "", "", ErrUnknownRef
 	}
-	order := ref.Order
+	order = ref.Order
 	ref.Provider, ref.Kind, ref.Order = p.Name(), providerKinds[t.Kind], OrderAired
 	if ref.Kind != "show" && (order != OrderAired || offset != 0) {
-		return "", ErrNotAShow
+		return "", "", ErrNotAShow
 	}
 	if order != OrderAired && order != OrderDVD && order != OrderAbsolute {
-		return "", ErrUnknownOrder
+		return "", "", ErrUnknownOrder
+	}
+	if order != OrderAired {
+		// Asked before the match changes, so a show is never left with its episodes blanked.
+		in := ref
+		in.Order = order
+		if _, err := p.Children(ctx, in, 1, locale); errors.Is(err, ErrNoOrder) {
+			order = OrderAired
+		} else if err != nil && !errors.Is(err, ErrNotFound) {
+			return "", "", err
+		}
 	}
 	record, err := p.Details(ctx, ref, locale)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	chosen := details(record, db.MatchChosen)
 	if ref.Kind == "show" {
 		chosen.Numbering = &db.EpisodeNumbering{Order: order, Offset: offset}
 	}
-	remaining, err := s.DB.ChangeMatch(ctx, db.User, t.ID, chosen)
+	remaining, err = s.DB.ChangeMatch(ctx, db.User, t.ID, chosen)
 	if err != nil || remaining != itemID {
-		return remaining, err // merged into a title that has its details already
+		return remaining, order, err // merged into a title that has its details already
 	}
 	s.moods(ctx, t.ID)
-	return remaining, s.children(ctx, p, locale, t.ID, record.Ref)
+	return remaining, order, s.children(ctx, p, locale, t.ID, record.Ref)
 }
 
 // Rematch looks a title up again as if it had just been scanned: "Look it up again" on the
