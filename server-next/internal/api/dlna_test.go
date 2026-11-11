@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -141,8 +142,13 @@ func TestDLNA(t *testing.T) {
 	}
 	// The proxy that passed on no address is warned about from then on.
 	call(t, s, "GET", "/v1/admin/settings/remote-access", owner, nil, &settings)
-	if !strings.Contains(settings.Warning, "anyone who can reach that proxy") {
+	if !strings.Contains(settings.Warning, "proxy at "+proxy+" ") || !strings.Contains(settings.Warning, "anyone who can reach that proxy") {
 		t.Errorf("after a trusted proxy passed on no address the settings warned %q", settings.Warning)
+	}
+	var network NetworkSettings
+	call(t, s, "GET", "/v1/admin/settings/network", owner, nil, &network)
+	if !slices.ContainsFunc(network.Warnings, func(w Warning) bool { return w.Code == "proxy_without_header" && strings.Contains(w.Message, proxy) }) {
+		t.Errorf("the network settings did not name the proxy: %+v", network.Warnings)
 	}
 	// The owner adds their own domain on the proxy: it is answered, and still nothing else is.
 	names := []string{"Media.Example.com"}
