@@ -122,6 +122,13 @@ func (s *Server) fromHome(r *http.Request) bool {
 	return networks.FromHome(r)
 }
 
+// silentProxyNotice is the one sentence the owner's network settings and the log both use.
+func silentProxyNotice(proxy string) string {
+	return "Requests are arriving from the trusted proxy address " + proxy + " with no X-Forwarded-For, so they count as away from home. " +
+		"If they come through your proxy, set it to add X-Forwarded-For to every request: until it does, your own devices count as away, " +
+		"and a visitor who sends that header themselves can count as at home."
+}
+
 func (s *Server) noteSilentProxy(proxy string) {
 	now := s.now()
 	s.network.mu.Lock()
@@ -129,13 +136,15 @@ func (s *Server) noteSilentProxy(proxy string) {
 	if s.network.silent == nil {
 		s.network.silent = map[string]time.Time{}
 	}
-	if known || len(s.network.silent) < maxSilentProxies {
+	// A full set takes no new address, and says nothing about it either: with a wide
+	// trusted range anyone could otherwise add a line to the log with every request.
+	added := known || len(s.network.silent) < maxSilentProxies
+	if added {
 		s.network.silent[proxy] = now
 	}
 	s.network.mu.Unlock()
-	if !known {
-		s.log.Warn("a trusted proxy is not passing on its visitors' addresses, so everyone who comes through it counts as away from home "+
-			"and shares one count of wrong guesses: set the proxy to send X-Forwarded-For", "proxy", proxy)
+	if !known && added {
+		s.log.Warn(silentProxyNotice(proxy), "proxy", proxy)
 	}
 }
 
@@ -149,8 +158,7 @@ func (s *Server) networkNotices() []string {
 			delete(s.network.silent, proxy)
 			continue
 		}
-		out = append(out, "The trusted proxy "+proxy+" is not passing on its visitors' addresses, so everyone who comes through it counts as away from home. "+
-			"Set it to send X-Forwarded-For.")
+		out = append(out, silentProxyNotice(proxy))
 	}
 	slices.Sort(out)
 	return out
