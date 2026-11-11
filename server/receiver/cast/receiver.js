@@ -335,10 +335,10 @@
   function requireLease(lease){if(!leaseCurrent(lease)){var e=new Error('controller_retired');e.retired=true;throw e;}}
   function commandQueue(lease,work){return serial(function(){requireLease(lease);if(lease&&playback!==lease.occurrence)throw new Error('occurrence_replaced');return work();});}
   async function cleanupResource(owned,witness){
-    // Final refusal stays final. Never renew, get latest, send progress or
-    // downgrade this captured original generation to an ordinary Stop.
+    // Final refusal stays final. Never renew, get latest or send progress: a session nobody
+    // will play is stopped with the credential that made it.
     if(!witness||!owned||!Number.isSafeInteger(owned.generation)||owned.generation<1)return;
-    await request(sessionPath(owned.id),{method:'DELETE',origin:witness.origin,bearer:witness.bearer,body:{expectedGeneration:owned.generation}}).catch(function(){});
+    await request(sessionPath(owned.id),{method:'DELETE',origin:witness.origin,bearer:witness.bearer}).catch(function(){});
   }
   async function cleanupOccurrence(owned,lease){
     if(playback&&owned&&playback.id===owned.id)return;
@@ -838,7 +838,7 @@
     return load;
   }
 
-  var stopMutations=null,stopClockOffset=0,completedStops=new Map();
+  var stopMutations=null,stopClockOffset=0,completedStops=new Map(),stopsAnswered=new Set();
   function stopMutationScope(){
     var current=session,viewer=current&&current.viewer;
     if(!current||!viewer||!current.sessionFamilyId)return undefined;
@@ -857,8 +857,16 @@
       return result;
     };
     stopMutations=new contracts.UserMutationCoordinator({store:new contracts.IndexedDBUserMutationStore(),scope:stopMutationScope,now:function(){return Date.now();},transport:{
-      send:function(entry,signal){return exchange(entry,entry.path,entry.method,entry.body,signal);},
-      lookup:function(entry,signal){return exchange(entry,'/v1/user-mutations/'+encodeURIComponent(entry.key),'GET',undefined,signal);},
+      send:async function(entry,signal){var result=await exchange(entry,entry.path,entry.method,entry.body,signal);if(result.status>=200&&result.status<300)stopsAnswered.add(entry.key);return result;},
+      // The server keeps no receipt of a stop. A stop it answered is done; one whose answer was
+      // lost is sent again, which is safe: a stop for a session it no longer knows stops fine.
+      lookup:async function(entry,signal){
+        var result=stopsAnswered.has(entry.key)?{status:204,headers:{}}:await exchange(entry,entry.path,entry.method,entry.body,signal);
+        if(result.status<200||result.status>=300)return result;
+        stopsAnswered.add(entry.key);if(stopsAnswered.size>64)stopsAnswered.delete(stopsAnswered.values().next().value);
+        var now=Date.now();
+        return {status:200,headers:{},body:{key:entry.key,operation:entry.operation,status:'applied',positionStatus:'applied',committedMs:now,expiresMs:now+86400000}};
+      },
       recover:async function(entry,receipt){if(receipt.status!=='applied'&&receipt.status!=='already_stopped')throw new contracts.UserMutationError('mutation_needs_review',entry.key,receipt);return {status:204,headers:{}};}
     }});
     return stopMutations;
@@ -867,18 +875,10 @@
     requireLease(lease);
     if(!sameControllerStamp(target.controller,controllerStamp(lease)))throw new Error('controller_replaced');
     var originalScope=stopMutationScope();if(!originalScope)throw new Error('mutation_scope_changed');
-    // Read with the captured original bearer/family. Never renew or borrow a
-    // successor credential while reconciling an absent local command.
-    var result=await request('/v1/user-mutations/'+encodeURIComponent(key),{method:'GET',bearer:lease.bearer,origin:lease.origin,raw:true});
-    requireLease(lease);
-    var currentScope=stopMutationScope();
-    if(!currentScope||!PorticoCastContracts.sameUserMutationScope(originalScope,currentScope))throw new Error('mutation_scope_changed');
-    if(result.status===404&&result.body&&result.body.error&&result.body.error.code==='receipt_unknown')return false;
-    if(result.status!==200)throw new Error('mutation_receipt_pending');
-    var receipt=PorticoCastContracts.decodeGetUserMutationResponse(result.body);
-    if(receipt.key!==key||receipt.operation!=='stop_playback_session'||receipt.targetId!==target.occurrence.sessionId||receipt.generation!==target.occurrence.generation||receipt.expiresMs<receipt.committedMs||
-      !(receipt.status==='applied'&&['applied','unchanged'].includes(receipt.positionStatus)||receipt.status==='already_stopped'&&receipt.positionStatus==='already_stopped'))throw new Error('mutation_needs_review');
-    return true;
+    // The server keeps no record of a stop it was sent: an absent local command is unknown, and
+    // the caller sends the stop again, which is safe.
+    if(stopMutationScope()&&!PorticoCastContracts.sameUserMutationScope(originalScope,stopMutationScope()))throw new Error('mutation_scope_changed');
+    return false;
   }
   async function stopPlayback(ended,lease,expected,mutationKey,preserveError) {
     requireLease(lease);if(expected&&playback!==expected)return;
@@ -887,14 +887,10 @@
     // Caller custody survives policy/IDB failure. Capture the final evidence only
     // once, before either await; retry never samples a later renderer position.
     var frozen=owner.stopIntent;
-    if(!frozen)frozen=owner.stopIntent={scope:stopMutationScope(),clock:clockFacts(),body:Object.freeze({generation:generation,positionMs:Math.max(0,Math.round(position()*1000))}),key:PorticoCastContracts.isUserMutationKey(mutationKey||'')?mutationKey:null};
+    if(!frozen)frozen=owner.stopIntent={scope:stopMutationScope(),clock:clockFacts(),body:Object.freeze({positionMs:Math.max(0,Math.round(position()*1000))}),key:PorticoCastContracts.isUserMutationKey(mutationKey||'')?mutationKey:null};
     if(!frozen.scope||!stopMutationScope()||!PorticoCastContracts.sameUserMutationScope(frozen.scope,stopMutationScope()))throw new Error('mutation_scope_changed');
     if(frozen.key&&PorticoCastContracts.isUserMutationKey(mutationKey||'')&&mutationKey!==frozen.key)throw new Error('idempotency_conflict');
-    if(!frozen.key){
-      var policy=await api('/v1/user-mutations/policy',{method:'GET'},lease);
-      if(!Number.isSafeInteger(policy.body.serverTimeMs))throw new Error('mutation_not_queued');
-      stopClockOffset=policy.body.serverTimeMs-Date.now();frozen.key=PorticoCastContracts.newUserMutationKey(policy.body.serverTimeMs);
-    }
+    if(!frozen.key)frozen.key=PorticoCastContracts.newUserMutationKey(Date.now());
     requireLease(lease);
     if(playback!==owner||!stopMutationScope()||!PorticoCastContracts.sameUserMutationScope(frozen.scope,stopMutationScope()))throw new Error('occurrence_replaced');
     var coordinator=stopCoordinator();

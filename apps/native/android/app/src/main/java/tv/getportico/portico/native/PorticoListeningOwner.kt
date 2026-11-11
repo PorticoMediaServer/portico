@@ -1485,35 +1485,6 @@ internal class PorticoListeningOwner(private val context: Context, private val c
     text.trim().toLongOrNull()?.takeIf { it >= 0 }?.let { return if(it > Long.MAX_VALUE/1000) Long.MAX_VALUE else it*1000 }
     return try { maxOf(0, java.text.SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss zzz",java.util.Locale.US).apply { timeZone=TimeZone.getTimeZone("GMT") }.parse(text)!!.time-(mutationIssuedBaseMs+((mono()-mutationClockMono)*1000).toLong())) } catch(e: Exception) { 0 }
   }
-  private fun lookupStop(entry: Map<String, Any?>, token: String, origin: String, floor: Long) {
-    if(!stopAuthorized(entry)) return
-    val exchange = Exchange(byteLimit=65536,timeoutMs=10000)
-    exchange.completion = { status,value,_,headers ->
-      @Suppress("UNCHECKED_CAST") val outer = value as? Map<String,Any?>
-      @Suppress("UNCHECKED_CAST") val receipt = (outer?.get("data") as? Map<String,Any?>) ?: outer
-      val valid = receipt != null && receipt["key"] == entry["key"] && receipt["operation"] == "stop_playback_session" &&
-          receipt["status"] in setOf("applied","already_stopped","deleted","removed","partial","conflict","invalid","terminal") &&
-          whole(receipt["committedMs"],0.0,MAX_INTEGER) && whole(receipt["expiresMs"],num(receipt["committedMs"]) ?: MAX_INTEGER,MAX_INTEGER) &&
-          listOf("revision","generation","positionMs").all { receipt[it] == null || whole(receipt[it],0.0,MAX_INTEGER) } &&
-          (receipt["generation"] == null || whole(receipt["generation"],0.0,2147483647.0)) &&
-          (receipt["targetId"] == null || receipt["targetId"] is String && (receipt["targetId"] as String).toByteArray(Charsets.UTF_8).size <= 128) &&
-          (receipt["positionStatus"] == null || receipt["positionStatus"] in setOf("","applied","already_stopped","not_renderer","policy_rejected","unchanged"))
-      if(status in 200..299 && valid) {
-        val tiny = receipt!!.filterKeys { it in setOf("key","operation","status","targetId","revision","generation","positionMs","positionStatus","committedMs","expiresMs") }
-        val rejected = receipt["status"] in setOf("partial","conflict","invalid","terminal") || receipt["positionStatus"] == "policy_rejected"
-        finishStop(entry,mapOf("state" to if(rejected) "review" else "confirmed","receipt" to tiny,"errorCode" to if(receipt["positionStatus"] == "policy_rejected") "final_position_rejected" else if(rejected) "mutation_needs_review" else ""))
-      } else {
-        val code = errorCode(value)
-        if(status in 400..499 && status != 429 && !(status == 404 && code == "receipt_unknown"))
-          finishStop(entry,mapOf("state" to if(status == 401 || status == 403) "quarantined" else "review","errorCode" to code.ifEmpty { "mutation_needs_review" }))
-        else {
-          val delay = maxOf(1000L,floor,stopRetryFloor(headers)); val now=System.currentTimeMillis()
-          finishStop(entry,mapOf("state" to "pending","errorCode" to "mutation_pending","dueMs" to minOf(MAX_INTEGER.toLong(),if(delay > Long.MAX_VALUE-now) Long.MAX_VALUE else now+delay)))
-        }
-      }
-    }
-    exchange.start(origin+"/v1/user-mutations/"+entry["key"],token,"GET",null,null)
-  }
   private fun reserveStop(position: Double): Map<String,Any?>? {
     val scope = mutationScope
     val id=session["id"] as? String; val generation=generation(session)
@@ -1523,9 +1494,10 @@ internal class PorticoListeningOwner(private val context: Context, private val c
     val identity="stop:$id:${generation.toLong()}"; val path="/v1/playback/sessions/$id"
     val engine=controller.listeningSnapshot(); val binding=engine["binding"] as? Map<*,*>
     val evidence=binding?.get("sessionId") == id && num(binding?.get("generation")) == generation && engine["observed"] == true && engine["seeking"] != true
-    val body=if(evidence) mapOf("generation" to generation.toLong(),"positionMs" to Math.round(maxOf(0.0,if(position.isFinite()) position else 0.0)*1000)) else mapOf("generation" to generation.toLong())
+    // The stop carries the final position when the engine was showing this session; the server keeps it.
+    val body: Map<String,Any?> = if(evidence) mapOf("positionMs" to Math.round(maxOf(0.0,if(position.isFinite()) position else 0.0)*1000)) else emptyMap()
     // All fingerprint object keys recursively sorted, identical to core's canonical JSON.
-    val bodyPrint="{\"generation\":${body["generation"]}"+(if(evidence) ",\"positionMs\":${body["positionMs"]}" else "")+"}"
+    val bodyPrint=if(evidence) "{\"positionMs\":${body["positionMs"]}}" else "{}"
     val fingerprint="{\"body\":$bodyPrint,\"headers\":{},\"method\":\"DELETE\",\"operation\":\"stop_playback_session\",\"path\":\"$path\",\"target\":\"$identity\"}"
     val entry=mapOf("nativeStopOwner" to activeOwner,"key" to key,"operation" to "stop_playback_session","method" to "DELETE","path" to path,"target" to identity,"intentId" to identity,"fingerprint" to fingerprint,"scope" to scope,"body" to body,"headers" to mapOf("Idempotency-Key" to key),"state" to "pending","attempts" to 1,"dueMs" to now,"leaseOwner" to "native:$key","leaseUntilMs" to now+30000)
     return try {
@@ -1539,14 +1511,20 @@ internal class PorticoListeningOwner(private val context: Context, private val c
     if(!ready || token.isEmpty()) { finishStop(entry,mapOf("state" to "pending","errorCode" to "mutation_pending")); return }
     if(!stopAuthorized(entry)) return
     val exchange=Exchange(byteLimit=65536,timeoutMs=10000)
+    // A stop is safe to send again, and one for a session the server no longer knows stops fine:
+    // any 2xx is the stop, a refusal is shown for review, and no answer is tried again later.
     exchange.completion = { status,value,_,headers ->
-      if(status in 400..499 && status != 429) {
+      if(status in 200..299) finishStop(entry,mapOf("state" to "confirmed","errorCode" to "","receipt" to mapOf("key" to entry["key"],"operation" to "stop_playback_session","status" to "applied")))
+      else if(status in 400..499 && status != 429) {
         val code=errorCode(value).ifEmpty { "mutation_needs_review" }
         val change=hashMapOf<String,Any?>("state" to if(status == 401 || status == 403) "quarantined" else "review","errorCode" to code)
         if(status in setOf(400,409,412,422)) change["terminalProof"]=mapOf("kind" to "refused","httpStatus" to status,"code" to code)
         finishStop(entry,change)
       }
-      else lookupStop(entry,token,origin,stopRetryFloor(headers))
+      else {
+        val delay = maxOf(1000L,stopRetryFloor(headers)); val now=System.currentTimeMillis()
+        finishStop(entry,mapOf("state" to "pending","errorCode" to "mutation_pending","dueMs" to minOf(MAX_INTEGER.toLong(),if(delay > Long.MAX_VALUE-now) Long.MAX_VALUE else now+delay)))
+      }
     }
     @Suppress("UNCHECKED_CAST") val body=entry["body"] as Map<String,Any?>
     @Suppress("UNCHECKED_CAST") val headers=entry["headers"] as Map<String,String>

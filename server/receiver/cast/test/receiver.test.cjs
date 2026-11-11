@@ -18,9 +18,6 @@ async function harness(fixture={}){
  const context={document,cast,navigator:fixture.mediaCapabilities?{mediaCapabilities:fixture.mediaCapabilities}:{},URL,URLSearchParams,TextDecoder,AbortController,Uint8Array,console,Number,Promise,setTimeout:(fn,ms)=>{const id=++timer,invoke=()=>{timers.delete(id);fn()};const handle=fixture.schedule?.(invoke,ms);timers.set(id,{fn:invoke,ms,handle});return id},clearTimeout:id=>{const value=timers.get(id);if(value)fixture.cancel?.(value.handle);timers.delete(id)},setInterval:(fn,ms)=>{timers.set(++timer,{fn,ms});return timer},clearInterval:id=>timers.delete(id),fetch:async(url,options)=>{
   const body=options.body?JSON.parse(options.body):undefined;calls.push({url,body,method:options.method,headers:options.headers});
   const path=url.replace(/^https?:\/\/[^/]+/,'');
-  if(path==='/v1/user-mutations/policy'&&fixture.policyFailure)throw new Error('policy unavailable');
-  if(path==='/v1/user-mutations/policy')return reply({serverTimeMs:Date.now(),retiredBeforeMs:0,retentionDays:30});
-  if(path.startsWith('/v1/user-mutations/')){const key=path.split('/').pop();if(fixture.receiptLookup)return fixture.receiptLookup(key,options);if(fixture.receiptHistory?.has(key))return reply(fixture.receiptHistory.get(key));const stop=calls.find(call=>call.method==='DELETE'&&call.headers['Idempotency-Key']===key);return stop?reply({key,operation:'stop_playback_session',status:'applied',targetId:stop.url.split('/').pop(),generation:stop.body.generation,positionMs:stop.body.positionMs,positionStatus:'applied',committedMs:Date.now(),expiresMs:Date.now()+2592000000}):reply({error:{code:'receipt_unknown'}},404);}
   if(path.startsWith('/v2/'))throw new Error('removed v2 route '+path);
   if(path.endsWith('/reconnect')&&fixture.revoked)return reply({error:{code:'cast_device_revoked',message:'That receiver pairing was revoked.',retryable:false}},403);
   if(path.endsWith('/preview'))return reply({controllerBootstrapId:'cbs_'+body.code,expiresAt:'2099-01-01T00:00:00Z',scope:{accountId:String(body.code||'').startsWith('OTHER')?'other':'account',profileId:'profile',authority:'hosted'}});
@@ -63,7 +60,7 @@ async function harness(fixture={}){
    if(options.headers['If-Match']!==String(generation))return reply({error:{code:'precondition_failed',current:sessionFor({},0)}},412);
    generation++;return reply(sessionFor({},body.seek?body.seek.positionMs:body.positionMs||0));
   }
-  if((path==='/v1/playback/sessions/ps_1'||path==='/v1/playback/sessions/ps_2'||path==='/v1/playback/sessions/ps_known')&&options.method==='DELETE'){if(fixture.stopWait){fixture.stopCalled?.();await fixture.stopWait;}if(body?.generation!==undefined){const entry=context.stopStoreState.entries.find(entry=>entry.key===options.headers['Idempotency-Key']);assert(entry,'receiver durable custody precedes Stop HTTP');assert.equal(entry.state,'pending');assert.deepEqual(JSON.parse(JSON.stringify(entry.body)),body);}if(body?.expectedGeneration!==undefined&&body.expectedGeneration!==generation)return reply({error:{code:'revision_mismatch'}},412);if(fixture.stop503&&body?.generation!==undefined)return new Response('<html>upstream unavailable</html>',{status:503,headers:{'Retry-After':'120'}});if(fixture.cleanupStatus)return reply({error:{code:'precondition_failed'}},fixture.cleanupStatus);acceptedStops++;if(fixture.receiptHistory&&body?.generation!==undefined)fixture.receiptHistory.set(options.headers['Idempotency-Key'],{key:options.headers['Idempotency-Key'],operation:'stop_playback_session',status:'applied',targetId:path.split('/').pop(),generation:body.generation,positionMs:body.positionMs,positionStatus:'applied',committedMs:Date.now(),expiresMs:Date.now()+2592000000});return reply({},204);}
+  if((path==='/v1/playback/sessions/ps_1'||path==='/v1/playback/sessions/ps_2'||path==='/v1/playback/sessions/ps_known')&&options.method==='DELETE'){if(fixture.stopWait){fixture.stopCalled?.();await fixture.stopWait;}if(body?.positionMs!==undefined){const entry=context.stopStoreState.entries.find(entry=>entry.key===options.headers['Idempotency-Key']);assert(entry,'receiver durable custody precedes Stop HTTP');assert.equal(entry.state,'pending');assert.deepEqual(JSON.parse(JSON.stringify(entry.body)),body);}if(fixture.stop503&&body?.positionMs!==undefined)return new Response('<html>upstream unavailable</html>',{status:503,headers:{'Retry-After':'120'}});if(fixture.cleanupStatus)return reply({error:{code:'precondition_failed'}},fixture.cleanupStatus);acceptedStops++;return reply({},204);}
   if(path.startsWith('/v1/cast/devices/')&&options.method==='DELETE')return reply({},204);
   throw new Error('unexpected path '+path);
  }};
@@ -848,7 +845,7 @@ test('real preparing resource is cleaned with its original bearer when its contr
  const h=await harness({preparingReal:true});h.senders.push('phone');await h.message('phone',{type:'pair',code:'ABCD',origin:''});
  await h.message('phone',{type:'load',itemId:'movie',requestId:'preparing'});
  const timer=[...h.timers].find(([,v])=>v.ms===500);assert(timer);h.ctxEvents.disconnect({senderId:'phone'});h.fire(timer[0]);await settle0();
- const cleanup=h.calls.filter(x=>x.method==='DELETE'&&x.url.endsWith('/v1/playback/sessions/ps_1'));assert.equal(cleanup.length,1);assert.equal(cleanup[0].headers.Authorization,'Bearer bearer-ABCD');assert.equal(cleanup[0].body.expectedGeneration,1);assert.equal(h.loads.length,0);
+ const cleanup=h.calls.filter(x=>x.method==='DELETE'&&x.url.endsWith('/v1/playback/sessions/ps_1'));assert.equal(cleanup.length,1);assert.equal(cleanup[0].headers.Authorization,'Bearer bearer-ABCD');assert.equal(cleanup[0].body,undefined);assert.equal(h.loads.length,0);
 });
 
 test('late real 202 after retirement cleans the captured resource; retry-only owns none',async()=>{
@@ -919,7 +916,7 @@ test('accepted start retired after the inner response check cleans only its orig
  let h;const fixture={retireAfterAccepted:()=>h.ctxEvents.disconnect({senderId:'phone'})};h=await harness(fixture);h.senders.push('phone');
  await h.message('phone',{type:'pair',code:'ABCD',origin:''});await h.message('phone',{type:'load',itemId:'movie',requestId:'late-accepted'});await settle0();
  const cleanup=h.calls.filter(x=>x.method==='DELETE'&&x.url.endsWith('/v1/playback/sessions/ps_1'));
- assert.equal(cleanup.length,1);assert.equal(cleanup[0].headers.Authorization,'Bearer bearer-ABCD');assert.equal(cleanup[0].body.expectedGeneration,1);assert.equal(h.loads.length,0);
+ assert.equal(cleanup.length,1);assert.equal(cleanup[0].headers.Authorization,'Bearer bearer-ABCD');assert.equal(cleanup[0].body,undefined);assert.equal(h.loads.length,0);
 });
 
 test('canonical decoder admits real playing/paused 202 without granting completion',async()=>{
@@ -950,7 +947,7 @@ test('cleanup 412 is terminal and never fetches/latest-retries or downgrades DEL
  h.ctxEvents.disconnect({senderId:'phone'});h.fire(wait[0]);await settle0();
  const resource=h.calls.filter(c=>c.url.includes('/v1/playback/sessions/ps_1'));
  assert.equal(resource.length,1);assert.equal(resource[0].method,'DELETE');
- assert.equal(resource[0].body.expectedGeneration,1);
+ assert.equal(resource[0].body,undefined);
  assert.equal(resource[0].headers.Authorization,'Bearer bearer-ABCD');assert.equal(h.loads.length,0);
 });
 
@@ -991,12 +988,12 @@ test('composed sender/receiver retains genuine original 202 preparation beyond 1
   assert.equal(h.calls.filter(c=>c.url.endsWith('/v1/cast/reconnect')).length,0,'pending progress never renews credential/server authority');
   const cleanup=h.calls.filter(c=>c.method==='DELETE'&&c.url.endsWith('/v1/playback/sessions/ps_1'));
   assert.equal(cleanup.length,outcome==='201'||resource==='retry-only'?0:1);
-  if(cleanup.length){assert.equal(cleanup[0].body.expectedGeneration,1);assert.equal(cleanup[0].headers.Authorization,'Bearer bearer-ABCD');}
+  if(cleanup.length){assert.equal(cleanup[0].body,undefined);assert.equal(cleanup[0].headers.Authorization,'Bearer bearer-ABCD');}
   controller.dispose();
  }
 });
 
-test('CAF rejection retains conditional original 201 cleanup across unobserved same-id successors',async()=>{
+test('CAF rejection stops the original 201 session with its original credential',async()=>{
  for(const preparing of [false,true])for(const successor of [false,true]){
   let release,reached;const blocked=new Promise(resolve=>{release=resolve}),called=new Promise(resolve=>{reached=resolve});
   const h=await harness({preparingReal:preparing,loadFails:true,cafLoadWait:blocked,cafLoadCalled:reached});await h.receiver.redeem('ABCD');
@@ -1006,9 +1003,9 @@ test('CAF rejection retains conditional original 201 cleanup across unobserved s
   if(successor)h.replaceServerGeneration();
   const before=h.serverState();release();await assert.rejects(start,/decode_error/);await settle0();
   const resource=h.calls.filter(c=>c.url.endsWith('/v1/playback/sessions/ps_1'));
-  assert.equal(resource.length,1);assert.equal(resource[0].method,'DELETE');assert.deepEqual(resource[0].body,{expectedGeneration:1});
+  assert.equal(resource.length,1);assert.equal(resource[0].method,'DELETE');assert.equal(resource[0].body,undefined);
   assert.equal(resource[0].headers.Authorization,'Bearer bearer-ABCD');
-  assert.equal(h.serverState().generation,before.generation);assert.equal(h.serverState().acceptedStops,successor?0:1,'412 preserves the unobserved successor, matching original closes once');
+  assert.equal(h.serverState().generation,before.generation);assert.equal(h.serverState().acceptedStops,1,'the session nobody will play is stopped once');
   assert.equal(h.receiver.state().playbackId,null);assert.equal(h.loads.length,0);assert.equal(h.uiState(),'error');
   assert.equal(h.calls.filter(c=>c.url.endsWith('/v1/cast/reconnect')).length,0);
  }
@@ -1183,7 +1180,7 @@ test('identical targeted Stop lost-ack retry acknowledges original even while a 
  await h.message('phone',{...command,target:{...target,occurrence:{...target.occurrence,generation:2}}});
  assert(h.sent.some(x=>x.body.type==='control-failed'));assert.equal(h.receiver.state().playbackId,'ps_2');
 });
-for(const failure of ['policyFailure','stopStoreFailure'])test('Stop retains frozen final position and owner across '+failure,async()=>{
+for(const failure of ['stopStoreFailure'])test('Stop retains frozen final position and owner across '+failure,async()=>{
  const f={direct:true},h=await harness(f);await h.receiver.redeem('ABC123');await h.receiver.startPlayback('movie',0);
  h.manager.seek(42);f[failure]=true;
  assert.equal(await h.interceptors.STOP({}),null);assert.equal(h.receiver.state().playbackId,'ps_1');assert.equal(h.calls.filter(x=>x.method==='DELETE').length,0);
@@ -1192,12 +1189,12 @@ for(const failure of ['policyFailure','stopStoreFailure'])test('Stop retains fro
  const write=h.calls.find(x=>x.method==='DELETE');assert.equal(write.body.positionMs,42000);assert.match(write.headers['Idempotency-Key'],/^p251_/);
 });
 
-test('Cast malformed Stop 503 preserves pending receipt lookup custody and Retry-After floor',async()=>{
+test('a Stop the server answers 503 stays pending, waits out Retry-After and releases the player',async()=>{
  const h=await harness({direct:true,stop503:true});await h.message('phone',{type:'pair',code:'ABC123',origin:'https://server.test'});
  await h.message('phone',{type:'load',itemId:'movie'});await h.message('phone',{type:'status'});
  const status=h.sent.filter(x=>x.body.type==='status'&&x.body.occurrence).at(-1).body;
  await h.message('phone',{type:'stop',target:{controller:status.controller,occurrence:status.occurrence},requestId:'p251_'+Date.now()+'_'+'b'.repeat(32)});
- const entry=h.mutationState().entries[0];assert.equal(entry.state,'pending');assert.ok(entry.dueMs>=Date.now()+119000);assert.equal(entry.body.generation,1);
+ const entry=h.mutationState().entries[0];assert.equal(entry.state,'pending');assert.ok(entry.dueMs>=Date.now()+119000);assert.ok(Number.isSafeInteger(entry.body.positionMs));
  assert.equal(h.receiver.state().playbackId,null,'durable custody permits renderer release');
  h.ctxEvents.shutdown();
 });
@@ -1212,30 +1209,8 @@ test('targeted Stop reconciles its durable confirmed receipt before requiring a 
  assert(h.sent.some(x=>x.body.type==='stopped'&&x.body.requestId===command.requestId));assert.equal(h.mutationState().entries.length,0);assert.equal(h.calls.filter(x=>x.method==='DELETE').length,1);
 });
 
-test('receiver restart with no local history reconciles original Stop receipt without stopping a successor',async()=>{
- const receiptHistory=new Map(),first=await harness({direct:true,receiptHistory});await first.message('phone',{type:'pair',code:'ABC123',origin:'https://server.test'});await first.message('phone',{type:'load',itemId:'movie'});await first.message('phone',{type:'status'});
- const status=first.sent.filter(x=>x.body.type==='status'&&x.body.occurrence).at(-1).body,command={type:'stop',target:{controller:status.controller,occurrence:status.occurrence},requestId:'p251_'+Date.now()+'_'+'d'.repeat(32)};
- await first.message('phone',command);assert(first.sent.some(x=>x.body.type==='stopped'));assert.equal(first.mutationState().entries.length,0);assert(receiptHistory.has(command.requestId));first.ctxEvents.shutdown();
- for(const successor of [false,true]){
-  const h=await harness({direct:true,receiptHistory,nextSessionId:'ps_2'});try{
-   await h.message('phone',{type:'pair',code:'ABC123',origin:'https://server.test'});if(successor)await h.message('phone',{type:'load',itemId:'successor'});
-   assert.equal(h.mutationState().entries.length,0);await h.message('phone',command);
-   const ack=h.sent.find(x=>x.body.type==='stopped'&&x.body.requestId===command.requestId);assert(ack);assert.deepEqual(j(ack.body.target),j(command.target));assert.equal(ack.body.positionSeconds,undefined);
-   const lookup=h.calls.find(x=>x.url.endsWith('/v1/user-mutations/'+command.requestId));assert(lookup);assert.equal(lookup.headers.Authorization,'Bearer bearer-ABC123');assert.equal(h.calls.filter(x=>x.method==='DELETE').length,0);assert.equal(h.receiver.state().playbackId,successor?'ps_2':null);
-  }finally{h.ctxEvents.shutdown();}
- }
-});
-for(const patch of [{operation:'stop_account_playback'},{targetId:'other-session'},{generation:2},{status:'partial'},{status:'applied',positionStatus:'policy_rejected'},{positionStatus:'not_renderer'},{positionStatus:'invented'}])test('no-history Stop rejects mismatched/review receipt '+JSON.stringify(patch),async()=>{
- const key='p251_'+Date.now()+'_'+'e'.repeat(32),target={controller:{bindingId:'cct_current',controllerGeneration:1,connectionGeneration:1},occurrence:{sessionId:'ps_1',generation:1,itemId:'movie'}};
- const receipt={key,operation:'stop_playback_session',status:'applied',targetId:'ps_1',generation:1,positionStatus:'applied',committedMs:Date.now(),expiresMs:Date.now()+2592000000,...patch};
- const h=await harness({receiptLookup:()=>Response.json(receipt)});try{await h.message('phone',{type:'pair',code:'ABC123',origin:'https://server.test'});await h.message('phone',{type:'stop',target,requestId:key});assert(!h.sent.some(x=>x.body.type==='stopped'));assert(h.sent.some(x=>x.body.type==='control-failed'));assert(!h.calls.some(x=>x.method==='DELETE'));}finally{h.ctxEvents.shutdown();}
-});
-test('unknown original Stop receipt cannot stop a successor occurrence',async()=>{
+test('a Stop naming an earlier occurrence does not stop the one playing now',async()=>{
  const h=await harness({direct:true,nextSessionId:'ps_2'});try{await h.message('phone',{type:'pair',code:'ABC123',origin:'https://server.test'});await h.message('phone',{type:'load',itemId:'successor'});
  const target={controller:{bindingId:'cct_current',controllerGeneration:1,connectionGeneration:1},occurrence:{sessionId:'ps_1',generation:1,itemId:'movie'}},key='p251_'+Date.now()+'_'+'f'.repeat(32);
- await h.message('phone',{type:'stop',target,requestId:key});assert(h.calls.some(x=>x.url.endsWith('/v1/user-mutations/'+key)));assert(!h.calls.some(x=>x.method==='DELETE'));assert.equal(h.receiver.state().playbackId,'ps_2');assert(!h.sent.some(x=>x.body.type==='stopped'));}finally{h.ctxEvents.shutdown();}
-});
-for(const change of ['disconnect','family'])test('no-history Stop lookup cannot acknowledge after '+change+' changes authority',async()=>{
- const gate=held(),entered=held(),key='p251_'+Date.now()+'_'+'a'.repeat(32),h=await harness({receiptLookup:async()=>{entered.resolve();await gate.promise;return Response.json({key,operation:'stop_playback_session',status:'applied',targetId:'ps_1',generation:1,positionStatus:'applied',committedMs:Date.now(),expiresMs:Date.now()+2592000000});}});
- try{await h.message('phone',{type:'pair',code:'ABC123',origin:'https://server.test'});const command={type:'stop',target:{controller:{bindingId:'cct_current',controllerGeneration:1,connectionGeneration:1},occurrence:{sessionId:'ps_1',generation:1,itemId:'movie'}},requestId:key};await h.message('phone',command);await entered.promise;if(change==='disconnect')h.ctxEvents.disconnect({senderId:'phone'});else await h.receiver.redeem('OTHER1');gate.resolve();await settle0();assert(!h.sent.some(x=>x.body.type==='stopped'));assert(!h.calls.some(x=>x.method==='DELETE'));}finally{gate.resolve();h.ctxEvents.shutdown();}
+ await h.message('phone',{type:'stop',target,requestId:key});assert(!h.calls.some(x=>x.method==='DELETE'));assert.equal(h.receiver.state().playbackId,'ps_2');assert(!h.sent.some(x=>x.body.type==='stopped'));}finally{h.ctxEvents.shutdown();}
 });
