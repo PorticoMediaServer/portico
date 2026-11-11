@@ -332,6 +332,12 @@ func (s *Server) signIn(r *http.Request, req SignInRequest) (SignInResponse, err
 	if err != nil {
 		return SignInResponse{}, err
 	}
+	// Only once the password is right does this say who may sign in from here.
+	if ok {
+		if err := s.refuseNonOwnerAway(r, creds.UserID); err != nil {
+			return SignInResponse{}, err
+		}
+	}
 	// If the account has two-step sign-in, this challenge is stored in place of a session.
 	device, _ := json.Marshal(session.Device)
 	challenge := Challenge{Token: auth.NewSecret(), ExpiresAt: now.Add(challengeLife).UTC()}
