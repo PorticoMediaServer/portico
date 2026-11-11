@@ -36,6 +36,9 @@ type Streams interface {
 	Ready(ctx context.Context, sessionID string) error
 }
 
+// ConversionBroken is what a viewer is told when the server could not start converting.
+const ConversionBroken = "This server could not start converting this title. Its owner can find the reason in the server log."
+
 // What planning or starting can refuse. Anything else is a fault.
 var (
 	// ErrUnsupported: no way of delivering this version plays on this device.
@@ -48,6 +51,10 @@ var (
 	ErrUpdateRequired = errors.New("the app needs updating")
 	// ErrSourceUnavailable: the file cannot be reached right now.
 	ErrSourceUnavailable = errors.New("the file can't be reached")
+	// ErrConversionBroken: this server could not start converting at all. It is the server's
+	// own fault (its converter or its conversion folder), so trying again does not help and
+	// another device would fare no better.
+	ErrConversionBroken = errors.New("this server could not start converting this title")
 	// ErrBusy: the server is converting as many streams as the owner allows. The start waits
 	// and is tried again by itself.
 	ErrBusy = errors.New("the server is converting as many streams as it is allowed")
@@ -226,6 +233,9 @@ type Stream struct {
 	// AudioRender is how an app that decodes music itself plays this stream, with the
 	// stream's own addresses in it. It passes through to the app as it is.
 	AudioRender json.RawMessage
+	// Problem, on a stream handed to StartRequest.Failed, says the failure was the server's
+	// own, with what to tell the viewer: no other way of playing is tried. Empty otherwise.
+	Problem string
 }
 
 // NoEngine is the media engine of a server that has none yet: nothing can be played, and it
