@@ -28,7 +28,8 @@ func fakeProvider(t *testing.T, now time.Time) *httptest.Server {
  <programme channel="film.example" start="%[1]s" stop="%[3]s"><title>A Grim Film</title><desc>Not for children.</desc>
   <episode-num system="xmltv_ns">1.4.</episode-num><rating><value>TV-MA</value></rating></programme>
  <programme channel="film.example" start="bad" stop="%[3]s"><title>Broken</title></programme>
-</tv>`, stamp(-30*time.Minute), stamp(30*time.Minute), stamp(2*time.Hour))
+ <programme channel="film.example" start="%[4]s" stop="%[5]s"><title>Night Film</title></programme>
+</tv>`, stamp(-30*time.Minute), stamp(30*time.Minute), stamp(2*time.Hour), stamp(4*time.Hour), stamp(5*time.Hour))
 	var packed bytes.Buffer
 	z := gzip.NewWriter(&packed)
 	z.Write([]byte(guide))
@@ -68,6 +69,10 @@ func fakeProvider(t *testing.T, now time.Time) *httptest.Server {
 		}
 	}
 	mux.HandleFunc("/stream/", stream)
+	mux.HandleFunc("/recordable.m3u", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "#EXTM3U\n#EXTINF:-1 tvg-id=\"news.example\" tvg-chno=\"2\",Example News\nhttp://%[1]s/stream/2.ts\n"+
+			"#EXTINF:-1 tvg-id=\"film.example\" tvg-chno=\"4\",Film Four\nhttp://%[1]s/stream/4.ts\n", r.Host)
+	})
 	mux.HandleFunc("/xtream/live/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/xtream/live/sam/s3cret-word/7.ts" {
 			w.WriteHeader(http.StatusForbidden)
@@ -104,7 +109,7 @@ func TestAPlaylistAndItsGuideComeIn(t *testing.T) {
 	var preview SourcePreview
 	ask := LiveSourceSave{Kind: "playlist", Config: &live.Config{PlaylistURL: fake.URL + "/playlist.m3u", GuideURL: fake.URL + "/guide.xml.gz"}}
 	if w := call(t, s, "POST", "/v1/admin/live/sources/preview", owner, ask, &preview); w.Code != 200 ||
-		preview.Report.Channels != 2 || preview.Report.SkippedChannels != 1 || preview.Report.Programmes != 3 || preview.Report.SkippedProgrammes != 1 {
+		preview.Report.Channels != 2 || preview.Report.SkippedChannels != 1 || preview.Report.Programmes != 4 || preview.Report.SkippedProgrammes != 1 {
 		t.Fatalf("preview answered %d %+v", w.Code, preview.Report)
 	}
 	if strings.Contains(fmt.Sprint(preview.Channels), "streams.invalid") {

@@ -22,6 +22,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/artwork"
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/dvr"
 	"github.com/PorticoMediaServer/portico/server-next/internal/librarychannels"
 	"github.com/PorticoMediaServer/portico/server-next/internal/live"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
@@ -77,6 +78,10 @@ type Server struct {
 	// tuners runs each channel's shared input, and viewings the live sessions on them.
 	tuners   *live.Tuners
 	viewings *live.Viewings
+	// recorder records Live TV; dvrOptions are its settings, defaults until the dvr settings
+	// document exists. See dvr.go.
+	recorder   *dvr.Service
+	dvrOptions func() dvr.Options
 	// background lives as long as the server, for work a request starts and does not wait for.
 	background context.Context
 }
@@ -241,6 +246,16 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	go s.tuners.Run(ctx)
 	go s.viewings.Run(ctx)
 	s.liveStreamRoute()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		home = dataDir
+	}
+	defaults := dvr.Defaults(home)
+	s.dvrOptions = func() dvr.Options { return defaults }
+	s.recorder = dvr.New(d, s.tuners, s.sources, s.viewings, log, func() time.Time { return s.now() }, func() dvr.Options { return s.dvrOptions() })
+	go s.recorder.Run(ctx)
+	s.dvrRoutes()
+	s.liveProgrammeRoutes()
 	return s, nil
 }
 

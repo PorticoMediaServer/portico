@@ -107,15 +107,29 @@ func (t *Tuners) Tune(channelID, sourceID int64, tuners int, locator string, use
 	}
 	busy := 0
 	var using []Use
-	for _, in := range t.inputs {
+	var idle []int64
+	for id, in := range t.inputs {
 		if in.SourceID == sourceID && in.alive() {
 			busy++
 			in.mu.Lock()
 			for u := range in.uses {
 				using = append(using, *u)
 			}
+			if len(in.uses) == 0 {
+				idle = append(idle, id)
+			}
 			in.mu.Unlock()
 		}
+	}
+	// An input nobody holds lingers for a minute in case its viewer comes back; a tuner that is
+	// needed now is taken back from it at once.
+	for _, id := range idle {
+		if busy < max(tuners, 1) {
+			break
+		}
+		t.inputs[id].cancel()
+		delete(t.inputs, id)
+		busy--
 	}
 	if busy >= max(tuners, 1) {
 		return nil, &NoTuner{Using: using}
