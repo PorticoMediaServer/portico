@@ -29,8 +29,6 @@ type MemberLimits struct {
 	AllowUnrated bool `json:"allowUnrated"`
 	// BlockedLabels are the ids of labels whose titles no profile of the account is shown.
 	BlockedLabels []string `json:"blockedLabels"`
-	// AllowConversion false: the account plays only what its device plays without converting.
-	AllowConversion bool `json:"allowConversion"`
 	// RemoteMaxBitrateKbps is the most video bitrate the account gets away from home, or
 	// null for no cap of its own.
 	RemoteMaxBitrateKbps *int `json:"remoteMaxBitrateKbps"`
@@ -50,7 +48,7 @@ func memberLimitsOut(l db.AccountLimits) MemberLimits {
 		labels = []string{}
 	}
 	return MemberLimits{HomeOnly: l.HomeOnly, ViewingHours: l.Hours, MaxRatingAge: l.MaxRatingAge, AllowUnrated: l.AllowUnrated,
-		BlockedLabels: labels, AllowConversion: l.AllowConversion, RemoteMaxBitrateKbps: l.RemoteMaxBitrateKbps, MaxProfiles: l.MaxProfiles,
+		BlockedLabels: labels, RemoteMaxBitrateKbps: l.RemoteMaxBitrateKbps, MaxProfiles: l.MaxProfiles,
 		AllowWatchTogether: l.AllowWatchTogether, AllowTokens: l.AllowTokens}
 }
 
@@ -63,7 +61,6 @@ type MemberLimitsEdit struct {
 	MaxRatingAge         *int               `json:"maxRatingAge,omitempty"`
 	AllowUnrated         *bool              `json:"allowUnrated,omitempty"`
 	BlockedLabels        *[]string          `json:"blockedLabels,omitempty"`
-	AllowConversion      *bool              `json:"allowConversion,omitempty"`
 	RemoteMaxBitrateKbps *int               `json:"remoteMaxBitrateKbps,omitempty"`
 	MaxProfiles          *int               `json:"maxProfiles,omitempty"`
 	AllowWatchTogether   *bool              `json:"allowWatchTogether,omitempty"`
@@ -117,7 +114,7 @@ func memberLimitsIn(l MemberLimits) (db.AccountLimits, error) {
 		return none, ErrField("limits.maxProfiles", "Use 1 to 8, or null for 8.")
 	}
 	return db.AccountLimits{HomeOnly: l.HomeOnly, Hours: l.ViewingHours, MaxRatingAge: l.MaxRatingAge, AllowUnrated: l.AllowUnrated,
-		BlockedLabels: l.BlockedLabels, AllowConversion: l.AllowConversion, RemoteMaxBitrateKbps: l.RemoteMaxBitrateKbps, MaxProfiles: l.MaxProfiles,
+		BlockedLabels: l.BlockedLabels, RemoteMaxBitrateKbps: l.RemoteMaxBitrateKbps, MaxProfiles: l.MaxProfiles,
 		AllowWatchTogether: l.AllowWatchTogether, AllowTokens: l.AllowTokens}, nil
 }
 

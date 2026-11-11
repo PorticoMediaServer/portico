@@ -3545,9 +3545,6 @@
       },
       "MemberLimits": {
         "properties": {
-          "allowConversion": {
-            "type": "boolean"
-          },
           "allowTokens": {
             "type": "boolean"
           },
@@ -3611,7 +3608,6 @@
           "homeOnly",
           "allowUnrated",
           "blockedLabels",
-          "allowConversion",
           "allowWatchTogether",
           "allowTokens"
         ],
@@ -3619,9 +3615,6 @@
       },
       "MemberLimitsEdit": {
         "properties": {
-          "allowConversion": {
-            "type": "boolean"
-          },
           "allowTokens": {
             "type": "boolean"
           },

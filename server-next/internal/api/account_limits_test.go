@@ -20,7 +20,7 @@ const (
 
 // noLimits is an account held to nothing, as every account starts.
 func noLimits() MemberLimits {
-	return MemberLimits{AllowConversion: true, AllowWatchTogether: true, AllowTokens: true}
+	return MemberLimits{AllowWatchTogether: true, AllowTokens: true}
 }
 
 // sent sends one request from an address.
@@ -236,7 +236,7 @@ func TestAnAccountHeldToARatingAndBlockedLabels(t *testing.T) {
 // turned off gets neither. Another member gets all of it.
 func TestAnAccountHeldToFewerProfilesAndSwitchedOff(t *testing.T) {
 	s, owner, max, _ := twoMembers(t)
-	limits := MemberLimits{AllowConversion: true, MaxProfiles: new(2)}
+	limits := MemberLimits{MaxProfiles: new(2)}
 	hold(t, s, owner, max.ID, limits)
 	held, free := signInAs(t, s, "max", testPassword, 2), signInAs(t, s, "eve", testPassword, 3)
 	for name, c := range map[string]struct {
@@ -273,7 +273,7 @@ func TestAnAccountHeldToFewerProfilesAndSwitchedOff(t *testing.T) {
 }
 
 // An edit of limits changes only the fields it names: holding an account to home leaves its
-// converting, Watch Together and tokens as they were, and null lifts one limit.
+// Watch Together and tokens as they were, and null lifts one limit.
 func TestALimitsEditChangesOnlyWhatItNames(t *testing.T) {
 	s, owner, max, _ := twoMembers(t)
 	edit := func(limits string) MemberLimits {
@@ -285,7 +285,7 @@ func TestALimitsEditChangesOnlyWhatItNames(t *testing.T) {
 		return out.Limits
 	}
 	got := edit(`{"homeOnly":true,"maxRatingAge":13,"maxProfiles":2}`)
-	if !got.HomeOnly || !got.AllowConversion || !got.AllowWatchTogether || !got.AllowTokens || got.MaxRatingAge == nil {
+	if !got.HomeOnly || !got.AllowWatchTogether || !got.AllowTokens || got.MaxRatingAge == nil {
 		t.Fatalf("holding the account to home and to 13 left it as %+v", got)
 	}
 	got = edit(`{"maxRatingAge":null,"allowWatchTogether":false}`)
