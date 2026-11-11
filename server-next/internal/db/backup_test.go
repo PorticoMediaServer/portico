@@ -12,9 +12,10 @@ import (
 
 // A backup of a large database while people keep writing finishes, holds what was written
 // before it ended, and never lets the write-ahead log grow past what the checkpoint policy
-// allows: no read it makes lasts long enough to hold the log open. The writes here outpace
-// the backup four to one, so a backup made in one long read would let the log reach several
-// times the bound.
+// allows: no read it makes lasts long enough to hold the log open. Twice the bound is
+// written while the backup is under way, however fast the disk is: the backup is held between
+// two of its steps until that much has been written. A backup made in one long read would
+// let the log reach twice the bound.
 func TestBackupWhileWritingKeepsTheLogSmall(t *testing.T) {
 	if testing.Short() {
 		t.Skip("writes about half a gigabyte")
@@ -62,7 +63,16 @@ func TestBackupWhileWritingKeepsTheLogSmall(t *testing.T) {
 		}
 	}()
 	started := time.Now()
-	if err := d.BackupTo(ctx, dir+"/copy.db", nil); err != nil {
+	bound := int64(walDrainBytes + 32<<20)
+	held := false
+	if err := d.BackupTo(ctx, dir+"/copy.db", func(int) {
+		// After its first step the backup waits for the writes, so that enough is written
+		// during it on a machine of any speed. It holds nothing open while it waits.
+		for !held && written.Load() < 2*bound && len(writing) == 0 && time.Since(started) < 5*time.Minute {
+			time.Sleep(10 * time.Millisecond)
+		}
+		held = true
+	}); err != nil {
 		t.Fatal(err)
 	}
 	close(stop)
@@ -71,7 +81,6 @@ func TestBackupWhileWritingKeepsTheLogSmall(t *testing.T) {
 	}
 	t.Logf("backed up in %s while %d MB were written; the log was at most %d MB",
 		time.Since(started).Round(time.Millisecond), written.Load()>>20, largest.Load()>>20)
-	bound := int64(walDrainBytes + 32<<20)
 	if largest.Load() > bound {
 		t.Errorf("the log reached %d MB during the backup; the policy keeps it near %d MB", largest.Load()>>20, walDrainBytes>>20)
 	}

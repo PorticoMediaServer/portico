@@ -73,8 +73,11 @@ func (s *Server) Backups() *backup.Service { return s.backups }
 
 func (s *Server) backupRoutes() {
 	Handle(s, "GET /v1/admin/backups", Owner, func(r *http.Request, _ None) (Backups, error) {
+		// Asked before the folder is read: a backup that finishes in between is then either
+		// still shown as running or already in the list, never missing from both.
+		running := s.backups.Running()
 		list, err := s.backups.List()
-		out := Backups{Items: list, Running: s.backups.Running(), Folder: s.backups.Folder(), Readable: true,
+		out := Backups{Items: list, Running: running, Folder: s.backups.Folder(), Readable: true,
 			ReadableMeans: []string{"sign_in_as_owner", "use_remote_storage_sign_ins"}, FolderWritable: s.backups.FolderWritable(),
 			PendingRestore: backup.WaitingRestore(s.backups.DataDir, s.now())}
 		if out.Items == nil {
