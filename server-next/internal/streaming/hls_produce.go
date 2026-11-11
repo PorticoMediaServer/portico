@@ -482,7 +482,17 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 		stopWatch()
 		<-watchDone
 	}
-	if e != nil && !throttled() && ctx.Err() == nil && delivery != nil && delivery.VideoAction == "convert" && delivery.HardwareBackend != "" &&
+	// Neither of these says anything about the hardware encoder: a converter stopped here
+	// for going silent (its source stopped sending), and one stopped from outside (the
+	// kernel when memory ran out, somebody's kill). They are not retried in software, the
+	// stream keeps its hardware plan, and nothing is counted against the device. Only an
+	// error of the encoder's own, or a crash, is.
+	innocent := func() bool {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		return h.windows[id] == owned && owned.stalled || converterStoppedOutside(e)
+	}
+	if e != nil && !throttled() && ctx.Err() == nil && !innocent() && delivery != nil && delivery.VideoAction == "convert" && delivery.HardwareBackend != "" &&
 		delivery.HardwareBackend != string(decoder.BackendSoftware) {
 		failedBackend := delivery.HardwareBackend
 		failedDevice := delivery.HardwareDevice
@@ -681,7 +691,7 @@ func (h *HLS) watchWindow(
 			}
 			if window.produced > seen {
 				progressed, seen = time.Now(), window.produced
-			} else if s := h.streams[id]; time.Since(progressed) > converterSilence && (s == nil || s.speed <= 0 || time.Since(s.speedAt) > 10*time.Second) {
+			} else if s := h.streams[id]; time.Since(progressed) > allowance(s, seen < from) && (s == nil || s.speed <= 0 || time.Since(s.speedAt) > 10*time.Second) {
 				// No segment for a long while, and the converter does not report
 				// that it is getting anywhere either (a slow conversion does): it is
 				// stuck. It is stopped, and counted as a death.
@@ -708,6 +718,18 @@ func (h *HLS) watchWindow(
 			return
 		}
 	}
+}
+
+// allowance is how long a converter may be silent: converterSilence, and longer
+// for the first segment of a run that reads a remote source, which has to be
+// opened first.
+func allowance(s *stream, first bool) time.Duration {
+	if s != nil && first {
+		if _, remote := s.source.(windowSource); remote {
+			return converterSilence * converterOpening
+		}
+	}
+	return converterSilence
 }
 
 // recordStages keeps what the conversion graph actually did, so the owner's
