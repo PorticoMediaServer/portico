@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"github.com/PorticoMediaServer/portico/server-next/internal/remote/remotetest"
 	"net/url"
 	"os"
 	"os/exec"
@@ -334,5 +335,53 @@ func TestALibrarySaysHowItsFoldersAreKeptUpToDate(t *testing.T) {
 		if time.Now().After(deadline) {
 			t.Fatalf("the folder never said it was watched: %+v", now.Folders[0])
 		}
+	}
+}
+
+// A library can be made on a folder of a remote source: the folder is listed through the
+// source before it is kept, the scan reads it through the source, and the library says which
+// source each folder is on. A path that climbs out of the source, a source that is not there
+// and a folder the source does not have are refused, and the library keeps at least one folder.
+func TestALibraryOnARemoteSource(t *testing.T) {
+	s := newTestServer(t)
+	owner := onMain(t, s, setup(t, s)).AccessToken
+	dav := remotetest.NewDAV(t, map[string]string{"Media/Films/Heat (1995)/Heat (1995).mkv": string(sampleFilm.data)})
+	var src RemoteSource
+	if w := call(t, s, "POST", "/v1/admin/remote-sources", owner, RemoteSourceCreate{Kind: "webdav", Name: "NAS",
+		WebDAV: &WebDAVSettings{Address: dav.URL, User: dav.User, Password: dav.Password}}, &src); w.Code != 200 {
+		t.Fatalf("adding the source answered %d: %s", w.Code, w.Body)
+	}
+	for _, bad := range []struct {
+		ref  RemoteFolderRef
+		want int
+	}{{RemoteFolderRef{src.ID, "../Media"}, 400}, {RemoteFolderRef{"src_none", "Media"}, 400}, {RemoteFolderRef{src.ID, "Media/Nowhere"}, 422}} {
+		if code := status(t, s, "POST", "/v1/admin/libraries", owner, LibraryCreate{Name: "Films", Kind: "movies", RemoteFolders: []RemoteFolderRef{bad.ref}}); code != bad.want {
+			t.Errorf("%+v answered %d; want %d", bad.ref, code, bad.want)
+		}
+	}
+	var lib AdminLibrary
+	if w := call(t, s, "POST", "/v1/admin/libraries", owner, LibraryCreate{Name: "Films", Kind: "movies",
+		RemoteFolders: []RemoteFolderRef{{src.ID, "/Media/Films/"}}}, &lib); w.Code != 200 || len(lib.Folders) != 1 ||
+		lib.Folders[0].Source != src.ID || lib.Folders[0].Path != "Media/Films" {
+		t.Fatalf("making the library answered %d: %s", w.Code, w.Body)
+	}
+	scanNow(t, s, owner, lib.ID)
+	var page ItemPage
+	if call(t, s, "GET", "/v1/items?library="+lib.ID+"&kind=movie", owner, nil, &page); len(page.Items) != 1 || page.Items[0].Title != "Heat" {
+		t.Fatalf("the library lists %+v", page.Items)
+	}
+	if dav.Reads.Load() == 0 {
+		t.Fatal("the scan did not read the film through the source")
+	}
+	if code := status(t, s, "DELETE", "/v1/admin/remote-sources/"+src.ID, owner, nil); code != 409 {
+		t.Fatalf("disconnecting a source a library uses answered %d", code)
+	}
+	none := []RemoteFolderRef{}
+	if code := status(t, s, "PATCH", "/v1/admin/libraries/"+lib.ID, owner, LibraryEdit{RemoteFolders: &none}); code != 400 {
+		t.Fatalf("taking a library's only folder answered %d", code)
+	}
+	var source RemoteSource
+	if call(t, s, "GET", "/v1/admin/remote-sources/"+src.ID, owner, nil, &source); source.State != "connected" || source.Folders != 1 {
+		t.Fatalf("the source with a library on it: %+v", source)
 	}
 }

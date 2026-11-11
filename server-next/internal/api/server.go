@@ -217,7 +217,8 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.subtitleRoutes()
 
 	s.jobs = jobs.New(ctx, d, log)
-	s.scans = scan.NewManager(s.jobs, &scan.Scanner{DB: d, Prober: scan.FileProber{}, Log: log})
+	s.scans = scan.NewManager(s.jobs, &scan.Scanner{DB: d, Prober: scan.FileProber{}, Log: log,
+		Remote: s.remote.Open, ReaderProber: scan.RemoteProber{}})
 	s.libraryRoutes()
 	s.jobRoutes()
 	// Every kind of job is registered by now: the jobs asked for before the server last

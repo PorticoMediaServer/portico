@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -48,7 +49,10 @@ type TrashRule struct {
 
 // LibraryFolder is one folder of a library and how the last scan found it.
 type LibraryFolder struct {
-	Path      string `json:"path"`
+	Path string `json:"path"`
+	// Source is the remote source the folder is on, with Path the folder within it; absent
+	// for a folder on a disk the server reads.
+	Source    string `json:"source,omitempty"`
 	Available bool   `json:"available"`
 	// Problem says why a folder that is not available could not be scanned.
 	Problem    string     `json:"problem,omitempty"`
@@ -78,21 +82,34 @@ type AdminLibrary struct {
 // LibraryCreate makes a library and starts its first scan. Kind is movies, shows, anime,
 // music, audiobooks, books or comics. Send an Idempotency-Key so a repeat does not make a second.
 type LibraryCreate struct {
-	Name     string          `json:"name"`
-	Kind     string          `json:"kind"`
-	Language string          `json:"language,omitempty"`
-	Folders  []string        `json:"folders"`
-	Options  *LibraryOptions `json:"options,omitempty"`
+	Name     string   `json:"name"`
+	Kind     string   `json:"kind"`
+	Language string   `json:"language,omitempty"`
+	Folders  []string `json:"folders"`
+	// RemoteFolders are folders on the owner's remote sources. A library needs at least one
+	// folder of either kind.
+	RemoteFolders []RemoteFolderRef `json:"remoteFolders,omitempty"`
+	Options       *LibraryOptions   `json:"options,omitempty"`
+}
+
+// RemoteFolderRef is a folder on a remote source: Source is the source's id, Path the folder
+// within it, as GET /v1/admin/remote-sources/{id}/folders gives it ("" is its top).
+type RemoteFolderRef struct {
+	Source string `json:"source"`
+	Path   string `json:"path"`
 }
 
 // LibraryEdit changes a library. Fields left out stay as they are. Folders is the whole
 // list: a folder no longer in it leaves the library with its titles, and files on disk are
 // not touched; an added folder is scanned.
 type LibraryEdit struct {
-	Name     *string         `json:"name,omitempty"`
-	Language *string         `json:"language,omitempty"`
-	Folders  *[]string       `json:"folders,omitempty"`
-	Options  *LibraryOptions `json:"options,omitempty"`
+	Name     *string   `json:"name,omitempty"`
+	Language *string   `json:"language,omitempty"`
+	Folders  *[]string `json:"folders,omitempty"`
+	// RemoteFolders is the whole list of the library's folders on remote sources, as Folders
+	// is for folders on disks here.
+	RemoteFolders *[]RemoteFolderRef `json:"remoteFolders,omitempty"`
+	Options       *LibraryOptions    `json:"options,omitempty"`
 }
 
 // ScanRequest starts a scan. With AllFiles it reads every file again, changed or not; a scan
@@ -246,7 +263,7 @@ func optionsIn(o LibraryOptions) db.LibraryOptions {
 func (s *Server) foldersOut(lib db.Library, folders []db.LibraryFolder) []LibraryFolder {
 	out := []LibraryFolder{}
 	for _, f := range folders {
-		folder := LibraryFolder{Path: f.Path, Available: f.State == "ok", Problem: f.Error, LastScanAt: timePtr(f.LastScanAt)}
+		folder := LibraryFolder{Path: f.Path, Source: f.Source, Available: f.State == "ok", Problem: f.Error, LastScanAt: timePtr(f.LastScanAt)}
 		for _, p := range lib.Paths {
 			if p.ID != f.ID {
 				continue
@@ -435,17 +452,52 @@ func (s *Server) listAdminLibraries(r *http.Request, _ None) (Page[AdminLibrary]
 	return out, nil
 }
 
+// checkRemoteFolders turns folders on remote sources into the library's own, refusing an
+// unknown source, a path that is not plainly inside the source, and a folder the source
+// cannot list now. A folder in have is already the library's and is not listed again.
+func (s *Server) checkRemoteFolders(ctx context.Context, refs []RemoteFolderRef, have map[db.RemoteFolder]bool) ([]db.RemoteFolder, error) {
+	out := []db.RemoteFolder{}
+	for n, ref := range refs {
+		at := "remoteFolders[" + strconv.Itoa(n) + "]"
+		row, err := s.db.RemoteSource(ctx, ref.Source)
+		if errors.Is(err, db.ErrNotFound) {
+			return nil, ErrField(at+".source", "There is no such remote source.")
+		}
+		if err != nil {
+			return nil, err
+		}
+		p := strings.Trim(ref.Path, "/")
+		if p != "" && (path.Clean(p) != p || p == ".." || strings.HasPrefix(p, "../") || strings.ContainsAny(p, "\\\x00")) {
+			return nil, ErrField(at+".path", "Give the folder's path within the source, as the source's folder list shows it.")
+		}
+		folder := db.RemoteFolder{SourceID: row.ID, Path: p}
+		if !have[folder] {
+			if _, err := s.listRemote(ctx, row.ID, p); err != nil {
+				return nil, err
+			}
+		}
+		out = append(out, folder)
+	}
+	return out, nil
+}
+
 func (s *Server) createLibrary(r *http.Request, req LibraryCreate) (AdminLibrary, error) {
 	key := r.Header.Get("Idempotency-Key")
 	if len(key) > 128 {
 		return AdminLibrary{}, ErrInvalid("The Idempotency-Key is at most 128 characters.")
 	}
-	if err := s.checkFolders(req.Folders, "folders"); err != nil {
+	if len(req.Folders) > 0 || len(req.RemoteFolders) == 0 {
+		if err := s.checkFolders(req.Folders, "folders"); err != nil {
+			return AdminLibrary{}, err
+		}
+	}
+	remoteFolders, err := s.checkRemoteFolders(r.Context(), req.RemoteFolders, nil)
+	if err != nil {
 		return AdminLibrary{}, err
 	}
 	caller := CallerFrom(r.Context())
-	n := db.NewLibrary{Name: req.Name, Kind: req.Kind, Language: req.Language, Folders: req.Folders, UserID: caller.UserID,
-		IdempotencyKey: key, RequestHash: requestHash(req)}
+	n := db.NewLibrary{Name: req.Name, Kind: req.Kind, Language: req.Language, Folders: req.Folders, RemoteFolders: remoteFolders,
+		UserID: caller.UserID, IdempotencyKey: key, RequestHash: requestHash(req)}
 	if req.Options != nil {
 		n.Options = optionsIn(*req.Options)
 	}
@@ -470,6 +522,20 @@ func (s *Server) editLibrary(r *http.Request, req LibraryEdit) (AdminLibrary, er
 		return AdminLibrary{}, err
 	}
 	edit := db.LibraryEdit{Name: req.Name, Language: req.Language, Folders: req.Folders}
+	if req.RemoteFolders != nil {
+		// Only folders being added are listed: one already in the library may be away just now.
+		have := map[db.RemoteFolder]bool{}
+		for _, f := range lib.Paths {
+			if f.RemoteID != 0 {
+				have[db.RemoteFolder{SourceID: f.RemoteID, Path: f.Path}] = true
+			}
+		}
+		folders, err := s.checkRemoteFolders(r.Context(), *req.RemoteFolders, have)
+		if err != nil {
+			return AdminLibrary{}, err
+		}
+		edit.RemoteFolders = &folders
+	}
 	if req.Options != nil {
 		options := optionsIn(*req.Options)
 		edit.Options = &options
@@ -478,16 +544,15 @@ func (s *Server) editLibrary(r *http.Request, req LibraryEdit) (AdminLibrary, er
 		// Only folders being added are looked at: one already in the library may be away just now.
 		have := map[string]bool{}
 		for _, folder := range lib.Folders {
-			have[folder.Path] = true
+			if folder.Source == "" {
+				have[folder.Path] = true
+			}
 		}
 		var added []string
 		for _, folder := range *req.Folders {
 			if !have[folder] {
 				added = append(added, folder)
 			}
-		}
-		if len(*req.Folders) == 0 {
-			return AdminLibrary{}, ErrField("folders", "A library needs at least one folder.")
 		}
 		if len(added) > 0 {
 			if err := s.checkFolders(added, "folders"); err != nil {

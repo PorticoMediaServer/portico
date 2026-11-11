@@ -12,8 +12,11 @@ import (
 
 // LibraryFolder is one folder of a library as the owner sees it.
 type LibraryFolder struct {
-	ID         int64
-	Path       string
+	ID   int64
+	Path string
+	// Source is the public id of the remote source the folder is on, or "" for a folder on a
+	// disk here; Path is then the folder within the source.
+	Source     string
 	State      string // "ok", or "unavailable" when the last scan could not list it
 	Error      string
 	LastScanAt int64
@@ -33,7 +36,8 @@ type AdminLibrary struct {
 func (d *DB) AdminLibraries(ctx context.Context, publicID string) ([]AdminLibrary, error) {
 	rows, err := d.read.QueryContext(ctx, `SELECT l.id, l.public_id, l.name, l.kind, ifnull(l.language, ''), l.position, l.created_at, l.updated_at,
 		l.options, l.revision, ifnull(l.last_scan_started_at, 0), ifnull(l.last_scan_finished_at, 0), p.id, p.path, p.state,
-		ifnull(p.last_error, ''), ifnull(p.last_scan_at, 0) FROM libraries l LEFT JOIN library_paths p ON p.library_id = l.id
+		ifnull(p.last_error, ''), ifnull(p.last_scan_at, 0), ifnull(s.public_id, ''), ifnull(p.remote_source_id, 0) FROM libraries l LEFT JOIN library_paths p ON p.library_id = l.id
+		LEFT JOIN remote_sources s ON s.id = p.remote_source_id
 		WHERE ? = '' OR l.public_id = ? ORDER BY l.position, l.id, p.id`, publicID, publicID)
 	if err != nil {
 		return nil, err
@@ -42,10 +46,11 @@ func (d *DB) AdminLibraries(ctx context.Context, publicID string) ([]AdminLibrar
 	var out []AdminLibrary
 	for rows.Next() {
 		var l AdminLibrary
-		var options, folderPath, state, problem sql.NullString
+		var options, folderPath, state, problem, source sql.NullString
 		var folderID, scanned sql.NullInt64
+		var remoteID int64
 		if err := rows.Scan(&l.ID, &l.PublicID, &l.Name, &l.Kind, &l.Language, &l.Position, &l.CreatedAt, &l.UpdatedAt, &options, &l.Revision,
-			&l.ScanStartedAt, &l.ScanFinishedAt, &folderID, &folderPath, &state, &problem, &scanned); err != nil {
+			&l.ScanStartedAt, &l.ScanFinishedAt, &folderID, &folderPath, &state, &problem, &scanned, &source, &remoteID); err != nil {
 			return nil, err
 		}
 		l.Options = parseOptions(options)
@@ -54,8 +59,8 @@ func (d *DB) AdminLibraries(ctx context.Context, publicID string) ([]AdminLibrar
 		}
 		if folderID.Valid {
 			last := &out[len(out)-1]
-			last.Paths = append(last.Paths, LibraryPath{ID: folderID.Int64, Path: folderPath.String})
-			last.Folders = append(last.Folders, LibraryFolder{ID: folderID.Int64, Path: folderPath.String, State: state.String,
+			last.Paths = append(last.Paths, LibraryPath{ID: folderID.Int64, Path: folderPath.String, RemoteID: remoteID})
+			last.Folders = append(last.Folders, LibraryFolder{ID: folderID.Int64, Path: folderPath.String, Source: source.String, State: state.String,
 				Error: problem.String, LastScanAt: scanned.Int64})
 		}
 	}
@@ -69,6 +74,8 @@ type LibraryEdit struct {
 	Language *string
 	Options  *LibraryOptions
 	Folders  *[]string
+	// RemoteFolders is the whole list of the library's folders on remote sources; nil keeps it.
+	RemoteFolders *[]RemoteFolder
 }
 
 // EditLibrary applies an edit. It reports whether a folder was added, which calls for a scan.
@@ -109,9 +116,6 @@ func (d *DB) EditLibrary(ctx context.Context, publicID string, edit LibraryEdit)
 			}
 		}
 		if edit.Folders != nil {
-			if len(*edit.Folders) == 0 {
-				return invalid("a library needs at least one folder")
-			}
 			have := map[string]int64{}
 			rows, err := tx.Query(`SELECT id, path FROM library_paths WHERE library_id = ? AND remote_source_id IS NULL`, id)
 			if err != nil {
@@ -144,6 +148,51 @@ func (d *DB) EditLibrary(ctx context.Context, publicID string, edit LibraryEdit)
 			}
 			for _, pathID := range have {
 				removed = append(removed, pathID)
+			}
+		}
+		if edit.RemoteFolders != nil {
+			have := map[RemoteFolder]int64{}
+			rows, err := tx.Query(`SELECT id, remote_source_id, path FROM library_paths WHERE library_id = ? AND remote_source_id IS NOT NULL`, id)
+			if err != nil {
+				return err
+			}
+			for rows.Next() {
+				var pathID int64
+				var f RemoteFolder
+				if err := rows.Scan(&pathID, &f.SourceID, &f.Path); err != nil {
+					rows.Close()
+					return err
+				}
+				have[f] = pathID
+			}
+			if err := rows.Close(); err != nil {
+				return err
+			}
+			for _, f := range *edit.RemoteFolders {
+				if _, ok := have[f]; ok {
+					delete(have, f)
+					continue
+				}
+				if _, err := tx.Exec(`INSERT INTO library_paths (library_id, remote_source_id, path) VALUES (?, ?, ?)`, id, f.SourceID, f.Path); err != nil {
+					if isUnique(err) {
+						continue
+					}
+					return err
+				}
+				added = true
+			}
+			for _, pathID := range have {
+				removed = append(removed, pathID)
+			}
+		}
+		if edit.Folders != nil || edit.RemoteFolders != nil {
+			// The folders being removed go after this, by RemoveFolder: count what stays.
+			var left int
+			if err := tx.QueryRow(`SELECT count(*) FROM library_paths WHERE library_id = ?`, id).Scan(&left); err != nil {
+				return err
+			}
+			if left-len(removed) <= 0 {
+				return invalid("a library needs at least one folder")
 			}
 		}
 		if _, err := tx.Exec(`UPDATE libraries SET revision = revision + 1, updated_at = ? WHERE id = ?`, now, id); err != nil {
