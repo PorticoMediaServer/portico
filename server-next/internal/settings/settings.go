@@ -86,6 +86,16 @@ func (d *Doc[T]) Get(s *Settings) T {
 	return s.docs[d.def.name].value.(T)
 }
 
+// Check runs the document's own check on v without saving anything, and returns v as the
+// check tidied it. Setup uses it to refuse a value before it starts making the server's owner.
+func (d *Doc[T]) Check(v T) (T, error) {
+	if d.def.check == nil {
+		return v, nil
+	}
+	err := d.def.check(&v)
+	return v, err
+}
+
 // Watch calls fn with the new value after every save, once the save has committed. fn runs
 // before the save is answered, so it must be quick: hand anything slow to a goroutine. It
 // must not save a settings document itself: saves wait for one another. With no Settings
