@@ -581,7 +581,7 @@ func (s *Server) remoteStatus(r *http.Request) RemoteAccessStatus {
 	return RemoteAccessStatus{ThisDevice: ThisDevice{AtHome: s.networks().FromHome(r), Address: s.remoteHost(r)},
 		Refused: s.access.refusedList(), RemoteSecurity: sec, Warnings: s.warnings(v, sec, s.networks()),
 		Certificate: s.certs.Status(), Router: s.ports.Status(), PublicAddress: s.public.Answer(),
-		IdentityCode: identityCode(s.id)}
+		IdentityCode: s.identity.code()}
 }
 
 func (s *Server) setupFinished() bool {
