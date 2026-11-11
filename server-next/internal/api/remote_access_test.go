@@ -3,7 +3,11 @@ package api
 import (
 	"crypto/tls"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strconv"
 	"testing"
+	"time"
 )
 
 // reach sends a request as if from addr ("127.0.0.1" is home by default, "203.0.113.9" is
@@ -164,5 +168,50 @@ func TestRemoteAccessSettingsChecks(t *testing.T) {
 	call(t, s, "GET", "/v1/admin/settings/remote-access", owner, nil, &got)
 	if got.PublicPort != 40000 {
 		t.Fatalf("the saved document reads %+v", got)
+	}
+}
+
+// An owner who shut themselves out creates the reset file and restarts: remote access and the
+// home networks are back to safe defaults, Standard included, and the file is gone.
+func TestResetRemoteAccessFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "main.db")
+	s := openTestServer(t, path)
+	owner := onMain(t, s, setup(t, s)).AccessToken
+	saveRemote(t, s, owner, func(v *RemoteAccessSettings) {
+		v.RemoteAccess, v.RemoteSecurity, v.SecureConnections = "off", "enhanced", "required"
+	})
+	edit := NetworkSettingsEdit{HomeNetworks: &[]string{}, TrustedProxies: []string{}}
+	if w := reach(s, "PUT", "/v1/admin/settings/network", owner, "127.0.0.1", "localhost", false, edit); w.Code != 200 {
+		t.Fatalf("emptying the home networks answered %d: %s", w.Code, w.Body)
+	}
+	if code := reach(s, "GET", "/v1/system", "", "127.0.0.1", "localhost", false, nil).Code; code != 403 {
+		t.Fatalf("with no home networks and remote access off, this machine answered %d, want 403", code)
+	}
+	closeDB(s.db)
+	reset := filepath.Join(filepath.Dir(path), resetRemoteFile)
+	os.WriteFile(reset, nil, 0o600)
+	s = openTestServer(t, path)
+	if _, err := os.Stat(reset); err == nil {
+		t.Fatal("the reset file is still there")
+	}
+	if v, _ := s.remote.current(); v.RemoteAccess != "on" || v.RemoteSecurity != "standard" || v.SecureConnections != "preferred" {
+		t.Fatalf("after the reset: %+v", v)
+	}
+	for _, addr := range []string{"127.0.0.1", "203.0.113.9"} {
+		if code := reach(s, "GET", "/v1/system", "", addr, "localhost", false, nil).Code; code != 200 {
+			t.Fatalf("after the reset %s answered %d", addr, code)
+		}
+	}
+}
+
+// Enhanced keeps the newest refused addresses, and a made-up Host header is never kept.
+func TestRefusedListKeepsTheNewest(t *testing.T) {
+	s := newTestServer(t)
+	for i := range maxRefused + 5 {
+		s.remote.noteRefused("host"+strconv.Itoa(i)+".example:443", "address", []string{"allow"}, time.Now().Add(time.Duration(i)*time.Second))
+	}
+	list := s.remote.refusedList()
+	if len(list) != maxRefused || list[0].Address != "host"+strconv.Itoa(maxRefused+4)+".example:443" {
+		t.Fatalf("the list holds %d, newest %+v", len(list), list[0])
 	}
 }

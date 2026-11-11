@@ -46,6 +46,14 @@ func putSetting(tx *sql.Tx, key, value string, at int64) error {
 	return err
 }
 
+// DeleteSetting removes a setting, so whatever reads it goes back to its default.
+func (d *DB) DeleteSetting(ctx context.Context, key string) error {
+	return d.write(ctx, User, func(tx *sql.Tx) error {
+		_, err := tx.Exec(`DELETE FROM settings WHERE key = ?`, key)
+		return err
+	})
+}
+
 // HasUsers reports whether any account exists. Until one does, the server is in first-run setup.
 func (d *DB) HasUsers(ctx context.Context) (bool, error) {
 	var has bool

@@ -7,6 +7,8 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -31,6 +33,12 @@ import (
 // why, so accepting the default can never refuse everything from outside. Any save that would
 // refuse the connection the owner is using right now is refused unless they confirm it, and
 // can approve that connection's address in the same save.
+//
+// An owner who is shut out anyway (remote access Off, Enhanced or Required with no way in,
+// home networks that no longer hold where they are) creates an empty file named
+// reset-remote-access in the data folder and restarts the server: the remote access and
+// network settings go back to safe defaults (remote access On, Standard, Secure connections
+// Preferred, the server's own home networks) and the file is removed.
 //   - "Only the owner" refuses everyone else's sign-in and every request they make.
 //
 // The settings are one document, kept in memory and read by every request.
@@ -303,7 +311,15 @@ func (st *remoteState) noteRefused(address, reason string, fixes []string, now t
 	key := reason + " " + address
 	r, seen := st.refused[key]
 	if !seen && len(st.refused) >= maxRefused {
-		return
+		// The oldest goes, so a stranger's made-up addresses cannot keep out the one the
+		// owner needs to see.
+		oldest := ""
+		for k, v := range st.refused {
+			if oldest == "" || v.LastAt.Before(st.refused[oldest].LastAt) {
+				oldest = k
+			}
+		}
+		delete(st.refused, oldest)
 	}
 	r.Address, r.Reason, r.Fixes, r.LastAt = address, reason, fixes, now.UTC()
 	r.Refused++
@@ -341,6 +357,33 @@ func (s *Server) loadRemoteAccess(ctx context.Context) error {
 		return err
 	}
 	s.remote.set(v, finished)
+	return nil
+}
+
+// resetRemoteFile is the file an owner shut out creates in the data folder.
+const resetRemoteFile = "reset-remote-access"
+
+// resetRemoteAccess puts the remote access and network settings back to safe defaults when the
+// owner has created the reset file, then removes it. Safe means nothing from anywhere is
+// refused: Standard, not the Enhanced default, which could shut the owner out again.
+func (s *Server) resetRemoteAccess(ctx context.Context, dataDir string) error {
+	path := filepath.Join(dataDir, resetRemoteFile)
+	if _, err := os.Stat(path); err != nil {
+		return nil
+	}
+	v := defaultRemoteAccess()
+	v.RemoteSecurity = "standard"
+	raw, _ := json.Marshal(v)
+	if err := s.db.SaveSetting(ctx, remoteAccessKey, string(raw), s.now()); err != nil {
+		return err
+	}
+	if err := s.db.DeleteSetting(ctx, networkSettingsKey); err != nil {
+		return err
+	}
+	if err := os.Remove(path); err != nil {
+		return err
+	}
+	s.log.Warn("the remote access and network settings were put back to their safe defaults, as the reset-remote-access file in the data folder asked")
 	return nil
 }
 
@@ -470,7 +513,8 @@ func errWouldRefuse(c RouteCheck) *Error {
 		"address":           "Remote security doesn’t allow this address yet.",
 	}[c.Reason]
 	return ErrConflict("would_refuse_this_route", "This address won’t work after this change. "+message+
-		" Approve this address, choose another setting, or confirm.")
+		" Approve this address, choose another setting, or confirm. If you are ever shut out, create an empty file named "+
+		resetRemoteFile+" in the server's data folder and restart it.")
 }
 
 // applyRemoteAccess checks and saves a document for the owner, as Settings and the end of
@@ -581,13 +625,16 @@ func (s *Server) outsideRefusal(r *http.Request) *Error {
 	case "remote_access_off":
 		return refusal(http.StatusForbidden, "remote_access_off", "This server can be used only from its home network.", false)
 	case "http":
-		if slices.Contains(c.Fixes, "standard") {
+		if _, ok := hostPort(c.Address, 80); ok && slices.Contains(c.Fixes, "standard") {
 			s.remote.noteRefused(c.Address, "http", []string{"certificate", "standard"}, s.now())
 		}
 		return refusal(http.StatusForbidden, "secure_connection_required",
 			"This server takes connections from outside its home network only over a secure connection (https).", false)
 	}
-	s.remote.noteRefused(c.Address, "address", c.Fixes, s.now())
+	// Only an address that reads as a host and port is kept: a made-up Host header is not.
+	if _, ok := hostPort(c.Address, 443); ok {
+		s.remote.noteRefused(c.Address, "address", c.Fixes, s.now())
+	}
 	return refusal(http.StatusForbidden, "address_not_allowed", "This server does not answer at this address from outside its home network.", false)
 }
 
