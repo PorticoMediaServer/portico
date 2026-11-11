@@ -4,12 +4,13 @@ import type {LocalSession, PlaybackApi} from '../../../packages/client-core/src/
 import type {OfflineEntry, OfflineSnapshot} from '../platform/offline-downloads';
 import type {LocalMedia, LocalProgress} from '../platform/local-playback';
 import {NativeOfflinePlayback} from '../src-next/platform/playback/offline-playback';
+import {offlineOwnerKey} from '../platform/offline-downloads';
 
 function setup() {
   let session: LocalSession | undefined = {accessToken:'throwaway',expiresAt:'2100-01-01T00:00:00Z',sessionFamilyId:'family-1',tokenGeneration:'1',authorizationHorizon:'2100-01-01T00:00:00Z',viewer:{authority:'local',serverId:'server',accountId:'account',profileId:'profile',role:'viewer'}};
   const viewer = session.viewer;
   const entry: OfflineEntry = {id:'copy',itemId:'movie',title:'Movie',subtitle:'',quality:'original',artworkUrl:'',state:'ready',error:'',waiting:'',held:false,bytes:10,bytesDone:10,addedAt:1,onServer:false,changedOnServer:false,
-    receipt:{receiptId:'receipt',algorithm:'ed25519',keyId:'key',payload:'fixture',signature:'fixture',revision:1,claims:{kind:'portico.download-receipt',version:'1',receiptId:'receipt',keyId:'key',viewer,itemId:'movie',preparationId:'preparation',quality:'original',qualityLabel:'Original',artifact:{sha256:'a'.repeat(64),bytes:10},issuedAt:'2026-01-01T00:00:00Z',expiresAt:'2100-01-01T00:00:00Z'}}};
+    owner:offlineOwnerKey(viewer),copy:{downloadId:'preparation',sha256:'a'.repeat(64),bytes:10}};
   let snapshot: OfflineSnapshot = {supported:true,ready:true,entries:[entry],settings:{wifiOnly:true,deleteWatched:false,autoNext:false,limitBytes:0},freeBytes:100,usedBytes:10,otherBytes:0,pendingProgress:0};
   let reason: ReturnType<import('../platform/offline-downloads').OfflineDownloads['playabilityReason']> = null;
   const media: LocalMedia = {entryId:'copy',itemId:'movie',playId:'play_actual-journal',fileUrl:'file:///private/Downloads/copy/movie.mp4',durationSeconds:600,startSeconds:42};
@@ -132,14 +133,14 @@ test('a parked source reopens the actual device entry with a fresh genuine journ
 
 test('same entry IDs cannot authorize replaced artifacts, another viewer or ambiguous rows', async () => {
   for (const change of ['hash','bytes','viewer','duplicate'] as const) {
-    const x = setup(), source = await x.owner.prepare(x.entry,() => true), receipt = x.entry.receipt!;
-    const claims = {...receipt.claims,...(change==='viewer'?{viewer:{...receipt.claims.viewer,profileId:'other'}}:{}),artifact:{...receipt.claims.artifact,...(change==='hash'?{sha256:'b'.repeat(64)}:change==='bytes'?{bytes:11}:{})}};
-    x.setEntries(change==='duplicate'?[x.entry,x.entry]:[{...x.entry,receipt:{...receipt,claims}}]);
+    const x = setup(), source = await x.owner.prepare(x.entry,() => true), copy = x.entry.copy!;
+    const changed = change==='viewer' ? {...x.entry,owner:'another profile'} : {...x.entry,copy:{...copy,...(change==='hash'?{sha256:'b'.repeat(64)}:change==='bytes'?{bytes:11}:{})}};
+    x.setEntries(change==='duplicate'?[x.entry,x.entry]:[changed]);
     assert.equal(source.current(),false); assert.throws(source.session);
   }
 });
 
-test('current receipt expiry or owner loss drops progress before it reaches the offline journal', async () => {
+test('the 30 days running out or owner loss drops progress before it reaches the offline journal', async () => {
   const x = setup(), source = await x.owner.prepare(x.entry,() => true), session = source.session();
   x.setReason('needs_check_in'); assert.throws(source.session);
   await x.api.localPlayback.progressPlayback(session.id,observed); assert.equal(x.progress.length,0);
@@ -161,9 +162,9 @@ test('retirement withholds the file immediately but permits only a still-current
   assert.equal(x.progress.length, 1); assert.deepEqual(x.network, []);
 });
 
-test('same-artifact receipt renewal stays usable; disposal and nonlocal addresses cannot admit playback', async () => {
+test('the same copy published again stays usable; disposal and nonlocal addresses cannot admit playback', async () => {
   const x = setup(), source = await x.owner.prepare(x.entry,() => true);
-  x.setEntries([{...x.entry,receipt:{...x.entry.receipt!,revision:2,payload:'renewed',signature:'renewed'}}]);
+  x.setEntries([{...x.entry,copy:{...x.entry.copy!}}]);
   assert.equal(source.current(),true); assert.equal(source.session().mode,'local');
   x.owner.dispose(); assert.equal(source.current(),false); assert.throws(source.session);
   for (const fileUrl of ['https://example.invalid/movie','file://other-host/movie','file:///movie?token=not-local']) {

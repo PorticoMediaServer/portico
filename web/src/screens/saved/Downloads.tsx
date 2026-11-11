@@ -278,7 +278,11 @@ const serverShape = (kind: string): 'wide' | 'square' | 'poster' => kind === 'ep
 function ServerFacts({row}: {row: BrowserDownloadRow}) {
   const quality = row.download.quality === 'original' ? t('web.downloads.original') : downloadQualityLabel(row.download.quality);
   const bytes = row.title.sizeBytes ?? 0;
-  const facts = [row.title.kind === 'movie' ? t('search.kind.movie') : undefined, bytes > 0 ? s('next.saved.qualitySize', {quality, size: defaultI18n.bytes(bytes)}) : quality];
+  const {parentTitle, seasonNumber, episodeNumber, artist} = row.title;
+  const episode = row.title.kind === 'episode' && episodeNumber !== undefined ? seasonNumber === undefined
+    ? t('title.episodeOnly', {episode: episodeNumber}) : t('next.kit.episodeCode', {season: seasonNumber, episode: episodeNumber}) : undefined;
+  const facts = [row.title.kind === 'movie' ? t('search.kind.movie') : row.title.kind === 'episode' ? parentTitle : undefined, episode,
+    row.title.kind === 'track' ? artist : undefined, bytes > 0 ? s('next.saved.qualitySize', {quality, size: defaultI18n.bytes(bytes)}) : quality];
   return <small className={styles.facts}>{facts.filter((fact): fact is string => !!fact).map((fact, index) => <span key={index}>{fact}</span>)}</small>;
 }
 function ServerStatus({row}: {row: BrowserDownloadRow}) {

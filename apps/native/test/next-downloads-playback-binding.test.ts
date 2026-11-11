@@ -15,7 +15,7 @@ async function fixture(installed = true) {
   const viewer = {authority: 'local', serverId: 'server', accountId: 'account', profileId: 'profile'};
   const authority = {...viewer, epoch: 'epoch'};
   const entry = {id: 'download', itemId: 'item', state: 'ready', owner: 'actual-owner',
-    receipt: {receiptId: 'receipt', claims: {viewer, artifact: {sha256: 'artifact', bytes: 123}}}};
+    copy: {downloadId: 'dl_1', sha256: 'a'.repeat(64), bytes: 123}};
   let entries = [entry], nav = {route: {kind: 'downloads'}, revision: 1}, alive = true;
   const calls: {entry: unknown; lifetime: {signal: AbortSignal; isCurrent: () => boolean}; resolve: () => void}[] = [];
   const startOffline = (entry: unknown, lifetime: {signal: AbortSignal; isCurrent: () => boolean}) => new Promise<void>(resolve => {calls.push({entry, lifetime, resolve});});
@@ -61,7 +61,7 @@ test('artifact replacement, lease retirement and supersession cancel pending sta
     const first = bound.openOffline(f.entry), second = bound.openOffline(f.entry);
     assert.equal(f.calls[0].lifetime.signal.aborted, true);
     assert.equal(f.calls[1].lifetime.isCurrent(), true);
-    f.replace([{...f.entry, receipt: {...f.entry.receipt, receiptId: 'replacement'}}]);
+    f.replace([{...f.entry, copy: {...f.entry.copy, sha256: 'b'.repeat(64)}}]);
     assert.equal(f.calls[1].lifetime.signal.aborted, true);
     for (const call of f.calls) call.resolve();
     await Promise.all([assert.rejects(first, {code: 'cancelled'}), assert.rejects(second, {code: 'cancelled'})]);

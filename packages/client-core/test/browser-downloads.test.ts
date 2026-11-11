@@ -91,3 +91,12 @@ test('the title\'s download sheet says downloads are off instead of failing, and
   assert.equal(sent.filter(one => one.method === 'POST').length, 1);
   assert.deepEqual(handed, ['https://server.test/v1/media/g1/file/1?save=1']);
 });
+
+test('a server that lists each download with its titles is read once, with no read per download', async () => {
+  const {sent, api} = server(({path}) => path === '/v1/downloads?scope=profile' ? {items: [{...show, items: titles.dl_show}]} : path === '/v1/downloads/usage' ? {copiesBytes: 0} : new Error('unexpected ' + path));
+  const list = new BrowserDownloads(api, 60_000);
+  await list.refresh();
+  assert.equal(list.getSnapshot().rows.length, 2);
+  assert.deepEqual(sent.map(one => one.path).sort(), ['/v1/downloads/usage', '/v1/downloads?scope=profile']);
+  list.dispose();
+});

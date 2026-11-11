@@ -3,7 +3,7 @@ import {serviceText} from '../../../../../packages/client-core/src/presentation/
 import {localPlaybackFence, type LocalPlaybackFence, type LocalPlaybackScope} from '../../../../../packages/player-core/src';
 import {LocalPlayback, type LocalMedia, type LocalProgress} from '../../../platform/local-playback';
 import type {RememberedDownloadsViewer} from '../../shell/remembered-downloads-viewer';
-import type {OfflineDownloads, OfflineEntry} from '../../../platform/offline-downloads';
+import {offlineOwnerKey, type OfflineDownloads, type OfflineEntry} from '../../../platform/offline-downloads';
 
 /** Captured from the genuine installation session, never a server queue/controller scope. */
 export type NativeOfflineOwner = LocalPlaybackScope;
@@ -101,22 +101,21 @@ export class NativeOfflinePlayback {
     return fresh;
   }
   async prepare(entry: OfflineEntry, isCurrent: () => boolean): Promise<NativeOfflineSource> {
-    const owner = this.owner(), claims = entry.receipt?.claims;
-    if (this.disposed || !owner || !claims || !text(entry.id) || !text(entry.itemId) || claims.itemId !== entry.itemId
-      || !text(claims.preparationId) || !/^[a-f0-9]{64}$/.test(claims.artifact.sha256)
-      || !Number.isSafeInteger(claims.artifact.bytes) || claims.artifact.bytes < 1) throw unavailable();
-    const artifact = Object.freeze({...claims.artifact}), preparationId = claims.preparationId;
+    // The copy is the file this owner's request fetched: an original is checked by its size, a smaller copy by its digest as well.
+    const owner = this.owner(), copy = entry.copy;
+    if (this.disposed || !owner || !copy || !text(entry.id) || !text(entry.itemId) || entry.owner !== offlineOwnerKey(owner)
+      || !text(copy.downloadId) || !/^([a-f0-9]{64})?$/.test(copy.sha256)
+      || !Number.isSafeInteger(copy.bytes) || copy.bytes < 1) throw unavailable();
+    const artifact = Object.freeze({sha256: copy.sha256, bytes: copy.bytes}), preparationId = copy.downloadId;
     const currentEntry = (): OfflineEntry | undefined => {
       try {
       const currentOwner = this.owner();
       if (!currentOwner || ownerKey(currentOwner) !== ownerKey(owner)) return;
       const matches = this.device.getSnapshot().entries.filter(value => value.id === entry.id);
       if (matches.length !== 1) return;
-      const live = matches[0]!, receipt = live.receipt?.claims;
-      if (!receipt || live.itemId !== entry.itemId || receipt.itemId !== entry.itemId || receipt.preparationId !== preparationId
-        || receipt.artifact.sha256 !== artifact.sha256 || receipt.artifact.bytes !== artifact.bytes
-        || (['authority', 'serverId', 'accountId', 'profileId'] as const).some(key => receipt.viewer[key] !== owner[key])
-        || this.device.playabilityReason(live) !== null) return;
+      const live = matches[0]!, copy = live.copy;
+      if (!copy || live.itemId !== entry.itemId || copy.downloadId !== preparationId || copy.sha256 !== artifact.sha256 || copy.bytes !== artifact.bytes
+        || live.owner !== offlineOwnerKey(owner) || this.device.playabilityReason(live) !== null) return;
       return live;
       } catch {return undefined;}
     };

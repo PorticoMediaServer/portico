@@ -63,14 +63,11 @@ test('Storage segments require actual volume allocation and never infer capacity
   assert.deepEqual(downloadStorageSegments({totalBytes: 1000, freeBytes: 550, allocatedBytes: 70}), {downloads: .07, other: .38});
 });
 
-test('Menu and artwork identity follow receipt viewer ownership when no legacy owner field exists', () => {
-  const receipt: NonNullable<OfflineEntry['receipt']> = {receiptId: 'receipt', algorithm: 'ed25519', keyId: 'key', payload: 'signed', signature: 'signature', revision: 1,
-    claims: {kind: 'portico.download-receipt', version: '1', receiptId: 'receipt', keyId: 'key', viewer: {authority: 'authority', serverId: 'server', accountId: 'account', profileId: 'profile1'},
-      itemId: 'actual-item', preparationId: 'preparation', quality: 'original', qualityLabel: 'Original', artifact: {sha256: 'actual-artifact', bytes: 100}, issuedAt: '', expiresAt: ''}};
-  const first = entry({owner: undefined, receipt});
-  const other = {...first, receipt: {...receipt, claims: {...receipt.claims, viewer: {...receipt.claims.viewer, profileId: 'profile2'}}}};
-  assert.notEqual(downloadEntryIdentity(first), downloadEntryIdentity(other));
-  assert.equal(downloadEntryIdentity(first), downloadEntryIdentity({...first, bytesDone: 75}), 'transfer updates retain the same actual artifact');
+test('Menu and artwork identity follow the owner and the exact copy a download holds', () => {
+  const first = entry({owner: 'profile1', copy: {downloadId: 'dl_1', sha256: 'a'.repeat(64), bytes: 100}});
+  assert.notEqual(downloadEntryIdentity(first), downloadEntryIdentity({...first, owner: 'profile2'}));
+  assert.notEqual(downloadEntryIdentity(first), downloadEntryIdentity({...first, copy: {...first.copy!, sha256: 'b'.repeat(64)}}));
+  assert.equal(downloadEntryIdentity(first), downloadEntryIdentity({...first, bytesDone: 75}), 'transfer updates retain the same copy');
 });
 
 test('Local groups count actual downloaded episodes and group genuine movies without classifying unknown entries', () => {

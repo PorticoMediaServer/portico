@@ -14,9 +14,7 @@ export type NativeDownloadsCopy = Readonly<{
 
 /** Receipt ownership is authoritative even before/without a legacy owner field. */
 export function downloadEntryIdentity(entry: OfflineEntry): string {
-  const receipt = entry.receipt, viewer = receipt?.claims.viewer;
-  return JSON.stringify([entry.id, entry.itemId, viewer ? [viewer.authority, viewer.accountId, viewer.profileId, viewer.serverId] : entry.owner,
-    receipt?.receiptId, receipt?.claims.artifact.sha256, receipt?.claims.artifact.bytes]);
+  return JSON.stringify([entry.id, entry.itemId, entry.owner, entry.copy?.downloadId, entry.copy?.sha256, entry.copy?.bytes]);
 }
 
 /** Group only the actual local movie entries. Other kinds retain the device's ordering. */

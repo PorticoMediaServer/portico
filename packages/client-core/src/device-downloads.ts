@@ -17,6 +17,10 @@ import type {Download, DownloadAsk, DownloadChange, DownloadedItem, DownloadOpti
   OfflinePlay, StateBatchReply} from '../../contracts/src/next/api.ts';
 import {callServer, type ServerRequester} from './query/server-api.ts';
 
+const OFF = new Set(['downloads_off', 'downloads_not_allowed', 'downloads_not_on_tv']);
+/** The refusal for downloads turned off on this server, for this profile, or on this device. */
+export const downloadsOff = (error: unknown): boolean => OFF.has((error as {code?: string} | null)?.code ?? '');
+
 /** This device's requests, or with `everyDevice` all of the profile's (a browser's Downloads page). */
 export const listDownloads = (api: ServerRequester, everyDevice = false, signal?: AbortSignal): Promise<Download[]> =>
   callServer(api, 'GET /v1/downloads', {query: {scope: everyDevice ? 'profile' : undefined}, signal}).then(page => page.items);
@@ -33,6 +37,18 @@ export const readDownloadUsage = (api: ServerRequester, signal?: AbortSignal): P
 /** What to fetch for one title: its details, the addresses and sizes of its files, subtitles, chapters, markers and lyrics. */
 export const readDownloadedItem = (api: ServerRequester, downloadId: string, itemId: string, signal?: AbortSignal): Promise<DownloadedItem> =>
   callServer(api, 'GET /v1/downloads/{id}/items/{itemId}', {id: downloadId, itemId, signal});
+/**
+ * What to fetch for one title, with every address already resolved against this server: its files, the
+ * subtitles that come as their own files, and its pictures. The device only moves bytes from them.
+ */
+export async function readDownloadedTitle(api: ServerRequester & Readonly<{mediaUrl(path: string): string}>, downloadId: string, itemId: string,
+  signal?: AbortSignal): Promise<DownloadedItem> {
+  const item = await readDownloadedItem(api, downloadId, itemId, signal);
+  const at = (path: string) => api.mediaUrl(path);
+  return {...item, files: item.files.map(file => ({...file, url: at(file.url)})),
+    subtitles: item.subtitles.map(subtitle => subtitle.url ? {...subtitle, url: at(subtitle.url)} : subtitle),
+    item: {...item.item, images: Object.fromEntries(Object.entries(item.item.images ?? {}).map(([role, path]) => [role, at(path)]))}};
+}
 /** Asks for a download. Out of reach, the outbox keeps it and the call rejects with `OutboxWaiting`. */
 export const askForDownload = (api: ServerRequester, ask: DownloadAsk, signal?: AbortSignal): Promise<Download> =>
   callServer(api, 'POST /v1/downloads', {body: ask, signal});
@@ -88,6 +104,18 @@ export async function keepDownloadsInStep(api: ServerRequester, holdings: Downlo
   await holdings.renew(permission);
   return {removed, fetched, permission, failed};
 }
+
+/**
+ * Removes one title of a show, season, album or playlist download from its request, so a device that let it go is
+ * not offered it again. The route is new on the server (`DELETE /v1/downloads/{id}/items/{itemId}`); a server
+ * without it answers 405, and the caller keeps today's behaviour.
+ */
+export const removeDownloadedTitle = (api: ServerRequester, downloadId: string, itemId: string, signal?: AbortSignal): Promise<void> =>
+  api.request<unknown>(`/v1/downloads/${encodeURIComponent(downloadId)}/items/${encodeURIComponent(itemId)}`, 'DELETE', undefined, signal).then(() => undefined);
+
+/** Sends plays a device kept while out of reach, each with how long ago it was made, through the state batch. */
+export const reportDownloadPlays = (api: ServerRequester, plays: readonly OfflinePlay[], signal?: AbortSignal): Promise<StateBatchReply> =>
+  callServer(api, 'POST /v1/items/state:batch', {body: {items: [], plays: [...plays]}, signal});
 
 /** A play id, made when a playing of a download starts and kept with it until it is sent. */
 export const newPlayId = (): string => globalThis.crypto.randomUUID();

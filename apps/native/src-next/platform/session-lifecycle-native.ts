@@ -109,7 +109,7 @@ const defaults = (): Omit<NativeLifecycleDeps, 'fenceShell'> => ({
     remove: async entry => {
       const owner = offlineOwnerKey(captured.connection.session.viewer);
       const live = offlineDownloads.getSnapshot().entries.find(value => value.id === entry.id
-        && (value.receipt ? offlineOwnerKey(value.receipt.claims.viewer) : value.owner) === owner);
+        && value.owner === owner);
       if (live) await offlineDownloads.remove(live);
     },
   }),

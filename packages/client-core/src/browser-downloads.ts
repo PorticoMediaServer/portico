@@ -5,8 +5,9 @@
  * request's titles, and reads it again while a copy is being made.
  */
 import type {Download, DownloadOptions, DownloadTitle} from '../../contracts/src/next/api.ts';
-import {askForDownload, changeDownload, listDownloads, readDownload, readDownloadedItem, readDownloadOptions, readDownloadUsage, removeDownload} from './device-downloads.ts';
+import {askForDownload, changeDownload, downloadsOff, listDownloads, readDownload, readDownloadedItem, readDownloadOptions, readDownloadUsage, removeDownload} from './device-downloads.ts';
 import type {ServerRequester} from './query/server-api.ts';
+export {downloadsOff};
 import {canonicalQualityLadder} from '../../contracts/src/types.ts';
 
 export type BrowserDownloadsApi = ServerRequester & Readonly<{mediaUrl(path: string): string}>;
@@ -14,7 +15,9 @@ export type BrowserDownloadsApi = ServerRequester & Readonly<{mediaUrl(path: str
 export type BrowserDownloadAction = 'pause' | 'resume' | 'cancel' | 'retry' | 'remove';
 /** One title of a request. Actions are offered on a request of one title; a request of a show,
  * season, album or playlist is acted on as a whole, from its own row. */
-export type BrowserDownloadRow = Readonly<{key: string; download: Download; title: DownloadTitle; actions: readonly BrowserDownloadAction[]}>;
+export type BrowserDownloadRow = Readonly<{key: string; download: Download; title: DownloadTitle & DownloadTitlePlace; actions: readonly BrowserDownloadAction[]}>;
+/** Where a title sits, when the server says: its show and place in it, or its artist. Absent from older answers. */
+export type DownloadTitlePlace = Readonly<{parentTitle?: string; seasonNumber?: number; episodeNumber?: number; artist?: string}>;
 export type BrowserDownloadsSnapshot = Readonly<{
   phase: 'idle' | 'loading' | 'ready' | 'error';
   /** Downloads are turned off on this server, for this profile, or on this device. */
@@ -29,9 +32,6 @@ export type BrowserDownloadsSnapshot = Readonly<{
   failure?: unknown;
 }>;
 
-const OFF = new Set(['downloads_off', 'downloads_not_allowed', 'downloads_not_on_tv']);
-/** The refusal for downloads turned off on this server, for this profile, or on this device. */
-export const downloadsOff = (error: unknown): boolean => OFF.has((error as {code?: string} | null)?.code ?? '');
 const making = (title: DownloadTitle) => title.state === 'waiting' || title.state === 'preparing';
 /** A request is of one title when that title is its target. */
 const single = (download: Download) => download.items?.length === 1 && download.items[0]!.itemId === download.target.id;
@@ -89,15 +89,17 @@ export class BrowserDownloads {
     if (this.state.phase === 'idle') this.publish({phase: 'loading'});
     try {
       const [list, usage] = await Promise.all([listDownloads(this.api, true, signal), readDownloadUsage(this.api, signal).catch(() => undefined)]);
-      // A request is read again when its counts moved or a copy of it is still being made.
+      // A request is read again when its counts moved or a copy of it is still being made. A server that lists
+      // each request with its titles answers it all in one read.
       const stale = list.filter(download => {
+        if (download.items) return false;
         const known = this.details.get(download.id);
         return !known || known.paused !== download.paused || JSON.stringify(known.counts) !== JSON.stringify(download.counts) || download.counts.waiting > 0;
       });
       const read = await eachLimited(stale, download => readDownload(this.api, download.id, signal));
       if (generation !== this.generation) return;
       const details = new Map<string, Download>();
-      for (const download of list) details.set(download.id, this.details.get(download.id) ?? download);
+      for (const download of list) details.set(download.id, download.items ? download : this.details.get(download.id) ?? download);
       for (const download of read) details.set(download.id, download);
       this.details = details;
       this.publishList(usage?.copiesBytes);

@@ -34,7 +34,7 @@ export function createRememberedDownloadsDevice(identity: RememberedDownloadsVie
   const findEntry = (entry: OfflineEntry) => {
     check(); const matches = offlineDownloads.getSnapshot().entries.filter(value => value.id === entry.id);
     const live = matches.length === 1 ? matches[0] : undefined;
-    if (!live || !entry.receipt || live.itemId !== entry.itemId || JSON.stringify(live.receipt) !== JSON.stringify(entry.receipt)
+    if (!live || !entry.copy || live.itemId !== entry.itemId || JSON.stringify(live.copy) !== JSON.stringify(entry.copy) || live.owner !== entry.owner
       ) return undefined;
     return live;
   };

@@ -26,7 +26,7 @@ type DownloadsLease = Readonly<{
 }>;
 
 const downloadIdentity = (entry: OfflineEntry): string => JSON.stringify([entry.id, entry.itemId, entry.libraryId,
-  entry.kind, entry.info?.kind, entry.owner, entry.receipt?.receiptId]);
+  entry.kind, entry.info?.kind, entry.owner, entry.copy?.downloadId, entry.copy?.sha256]);
 
 function leaseValid(context: NativeShellBootstrapContext, lease: DownloadsLease): boolean {
   if (lease.signal.aborted || !context.current()) return false;

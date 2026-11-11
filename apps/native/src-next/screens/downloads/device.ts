@@ -1,14 +1,18 @@
 import {DownloadsService} from '../../../../../packages/client-core/src/downloads-service';
+import type {ServerRequester} from '../../../../../packages/client-core/src/query/server-api';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import {nativeDestinationLifetime} from '../destinations/lifetime';
 import {createNativeOfflineDownloadsAdapter, offlineDownloads, type NativeOfflineDownloadsDevice, type OfflineEntry} from '../../platform/offline-downloads';
 import {createNativeOfflineEntryPlayback} from './playback';
 
 import {claimNativeDownloadsDevice} from '../../shell/downloads-device-custody';
-type DownloadDeviceLease = Readonly<{device: NativeOfflineDownloadsDevice; service: DownloadsService;
+type DownloadDeviceLease = Readonly<{device: NativeOfflineDownloadsDevice;
+  /** The old server's downloads service, kept only for the reading sheet's types until reading downloads move. Never started. */
+  service: DownloadsService;
+  /** The signed-in server, for the download sheet's choices. */
+  api: ServerRequester;
   wantPublication: (...args: Parameters<typeof offlineDownloads.wantPublication>) => ReturnType<typeof offlineDownloads.wantPublication>;
   want: (...args: Parameters<typeof offlineDownloads.want>) => ReturnType<typeof offlineDownloads.want>;
-  display: (...args: Parameters<typeof offlineDownloads.display>) => ReturnType<typeof offlineDownloads.display>;
   /** A reader may borrow the same lease without wanting the online service; an
    * ordinary Downloads borrower upgrades it before its own open(). */
   allowService: () => void;
@@ -85,11 +89,10 @@ export function createNativeDownloadsDevice(context: NativeShellBootstrapContext
     localMedia: async entry => {assertBorrowed(); const media = await source.localMedia(entry); assertBorrowed(); return media;},
     ...(openOffline ? {openOffline: async (entry: OfflineEntry) => {assertBorrowed(); await openOffline(entry);}} : {}),
   };
-  return Object.freeze({device: Object.freeze(borrowed), service: current.lease.service,
+  return Object.freeze({device: Object.freeze(borrowed), service: current.lease.service, api: current.lease.api,
     allowService: () => {assertBorrowed(); current.lease.allowService();},
     wantPublication: (...args) => {assertBorrowed(); return current.lease.wantPublication(...args);},
     want: (...args) => {assertBorrowed(); return current.lease.want(...args);},
-    display: (...args) => {assertBorrowed(); return current.lease.display(...args);},
     dispose: () => {
     if (released) return;
     released = true;
@@ -127,14 +130,8 @@ function connectNativeDownloadsDevice(context: NativeShellBootstrapContext, devi
   const connectOnline = () => {
     assertCurrent();
     if (!online || connected || !opened || !adapter.getSnapshot().supported) return;
-    device.connect(api, service, viewer);
-    // The service's list and the device's whole-container requests are only
-    // read while it is started and following this device (legacy downloads
-    // provider did both on active). Without them nothing is ever fetched or
-    // enrolled, even after a persisted want.
-    service.start();
-    const deviceId = context.session()?.deviceId;
-    if (deviceId) service.followDevice(deviceId);
+    // Each contact brings this device in step with the server (client-core keepDownloadsInStep).
+    device.connect(api, viewer);
     connected = true;
   };
   const open = (): Promise<void> => {
@@ -169,11 +166,10 @@ function connectNativeDownloadsDevice(context: NativeShellBootstrapContext, devi
     playabilityReason: entry => {assertCurrent(); return adapter.playabilityReason(entry);},
     note: entry => {assertCurrent(); return adapter.note(entry);},
   };
-  return Object.freeze({device: Object.freeze(guarded), service,
+  return Object.freeze({device: Object.freeze(guarded), service, api,
     allowService: () => {if (!online) {online = true; try {connectOnline();} catch { /* The next open retries the online path. */ }}},
     wantPublication: (...args) => {assertCurrent(); return device.wantPublication(...args);},
     want: (...args) => {assertCurrent(); return device.want(...args);},
-    display: (...args) => {assertCurrent(); return device.display(...args);},
     dispose: () => {
       if (!alive) return; alive = false; abort.abort(); service.stop(); service.dispose();
       // A late retired screen cannot disconnect a newer restored viewer.

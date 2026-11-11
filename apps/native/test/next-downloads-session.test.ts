@@ -164,11 +164,10 @@ test('fresh Home owns collection and sync after its first download sheet closes,
   await owner.open();
   const sheet = createNativeDownloadsDevice(f.context, f.device as any);
   await sheet.device.open();
-  sheet.want([{id: 'preparation', itemId: 'item'}] as any);
+  sheet.want({itemId: 'item', quality: 'original'});
   sheet.dispose(); sheet.dispose();
   try {
-    assert.equal(f.state.connects, 1); assert.equal(f.state.starts, 1);
-    assert.deepEqual(f.state.followed, ['device']); assert.equal(f.state.wants.length, 1);
+    assert.equal(f.state.connects, 1); assert.equal(f.state.wants.length, 1);
     assert.equal(f.state.stops, 0); assert.equal(f.state.disconnects, 0);
     assert.throws(() => sheet.device.getSnapshot(), cancelled);
     await f.state.connection!.api.request('/late-ready-preparation');

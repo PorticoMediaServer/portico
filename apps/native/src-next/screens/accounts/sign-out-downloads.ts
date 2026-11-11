@@ -15,7 +15,7 @@ export function capturedViewerIsCurrent(selected: AppServerSession | undefined, 
     && (['serverId', 'accountId', 'profileId', 'authority'] as const).every(key => connection.session.viewer[key] === expected.session.viewer[key]);
 }
 
-const entryOwner = (entry: OfflineEntry) => entry.receipt ? offlineOwnerKey(entry.receipt.claims.viewer) : entry.owner;
+const entryOwner = (entry: OfflineEntry) => entry.owner;
 
 export type CapturedDownloadPorts = Readonly<{
   /** The actual native selection now, never the rendered servers snapshot. */

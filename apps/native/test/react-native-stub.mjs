@@ -15,7 +15,9 @@ export const device = {
   /** @type {any[]} */ started: [],
   /** @type {boolean|undefined} */ cellular: undefined,
   /** @type {{id: string, startSeconds: number}[]} */ played: [],
+  /** @type {Map<string, string>} */ extras: new Map(),
   reset() {
+    this.extras = new Map();
     this.entries = new Map();
     this.state = '';
     this.removed = [];
@@ -71,7 +73,12 @@ export const NativeModules = {
         quality: request.quality, artworkUrl: request.artworkUrl, state: 'downloading', error: '',
         bytes: request.bytes, bytesDone: 0, addedAt: 0, meta: request.meta,
       });
+      // The real module answers with the entry it published.
+      return {...device.entries.get(request.id)};
     },
+    async writeExtra(id, name, text) { device.extras.set(id + '/' + name, text); },
+    async readExtra(id, name) { return device.extras.get(id + '/' + name) ?? ''; },
+    async fetchExtra(id, name, url) { device.extras.set(id + '/' + name, 'from ' + url); return 'saved'; },
     async pause() {},
     async remove(id) { device.removed.push(id); device.entries.delete(id); },
     async setMeta(id, meta) {

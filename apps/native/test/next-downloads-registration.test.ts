@@ -66,9 +66,7 @@ test('Downloads storage authority retires old actions, requests and disconnects 
     api: {baseUrl: 'https://server.test', mediaUrl: (path: string) => path, request: () => new Promise(resolve => {finish = resolve;})}};
   const first = createNativeDownloadsDevice(context);
   await first.device.open();
-  assert.equal(connections[0][2], viewer);
-  assert.equal(starts, 1, 'the connected service reads its list');
-  assert.deepEqual(followed, ['device-1'], 'whole-container requests are found again on reconnect');
+  assert.equal(connections[0][1], viewer, 'the device is connected to the signed-in viewer, and brings itself in step at each contact');
   assert.equal(stops, 0);
   assert.equal(first.device.openOffline, undefined);
   const retainedSaved = createNativeDownloadsDevice(context);

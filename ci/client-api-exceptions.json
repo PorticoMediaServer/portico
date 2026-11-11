@@ -289,14 +289,6 @@
       }
     }
   },
-  "apps/native/platform/offline-downloads.ts": {
-    "category": "platform-url",
-    "reason": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes only, and no domain JSON is constructed.",
-    "sites": [
-      "apps/native/platform/offline-downloads.ts#131397bcb5eb95b2",
-      "apps/native/platform/offline-downloads.ts#aea29f47f699036a"
-    ]
-  },
   "apps/native/src-next/platform/local-invitation.ts": {
     "category": "platform-transport",
     "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",

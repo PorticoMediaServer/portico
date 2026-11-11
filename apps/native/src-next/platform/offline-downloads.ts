@@ -1,4 +1,4 @@
-import {offlineDownloads, offlineOwnerKey, type OfflineDownloads, type OfflineEntry, type OfflineOthersTarget, type OfflineSettings} from '../../platform/offline-downloads';
+import {offlineDownloads, type OfflineDownloads, type OfflineEntry, type OfflineOthersTarget, type OfflineSettings} from '../../platform/offline-downloads';
 import {serviceText} from '../../../../packages/client-core/src/presentation/service-text';
 
 export {groupOfflineEntries} from '../../platform/offline-downloads';
@@ -43,7 +43,7 @@ export function createNativeOfflineDownloadsAdapter(
 ): NativeOfflineDownloadsDevice {
   const current = (entry: OfflineEntry): OfflineEntry => {
     const live = device.getSnapshot().entries.find(value => value.id === entry.id);
-    const owner = (value: OfflineEntry) => value.receipt ? offlineOwnerKey(value.receipt.claims.viewer) : value.owner;
+    const owner = (value: OfflineEntry) => value.owner;
     if (!live || live.itemId !== entry.itemId || owner(live) !== owner(entry)) throw new Error(serviceText('downloads.offline.otherProfile'));
     return live;
   };
