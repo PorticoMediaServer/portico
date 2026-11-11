@@ -62,7 +62,7 @@ type AccountLimits struct {
 	// HomeOnly: the account can be used on the owner's home networks only.
 	HomeOnly bool
 	// Hours are the times of the week the account may be used; nil is any time.
-	Hours *auth.Hours
+	Hours *auth.ViewingHours
 	// MaxRatingAge is the highest age rating any profile is shown, or nil for no limit.
 	// Under a limit a title with no rating is hidden unless AllowUnrated is set.
 	MaxRatingAge *int
@@ -113,7 +113,7 @@ func scanMember(row interface{ Scan(...any) error }) (Member, error) {
 	}
 	m.CreatedAt, m.Libraries, l.BlockedLabels = time.UnixMilli(created), strings.Fields(libraries), strings.Fields(labels)
 	if hours.Valid {
-		l.Hours = &auth.Hours{}
+		l.Hours = &auth.ViewingHours{}
 		err = json.Unmarshal([]byte(hours.String), l.Hours)
 	}
 	return m, err
@@ -221,8 +221,9 @@ type MemberEdit struct {
 	Libraries    *[]string
 	// AllowDownloads lets the account's profiles download, each within its own switch.
 	AllowDownloads *bool
-	// Limits, when set, replaces everything the account is held to.
-	Limits *AccountLimits
+	// Limits, when set, is given what the account is held to now and returns what it is to
+	// be held to; an error it returns refuses the edit.
+	Limits func(AccountLimits) (AccountLimits, error)
 	Now    time.Time
 }
 
@@ -316,7 +317,11 @@ func (d *DB) UpdateMember(ctx context.Context, e MemberEdit) (Member, error) {
 			did = append(did, map[bool]string{true: "downloads on", false: "downloads off"}[*e.AllowDownloads])
 		}
 		if e.Limits != nil {
-			if err := setAccountLimits(tx, m.ID, *e.Limits); err != nil {
+			next, err := e.Limits(m.Limits)
+			if err != nil {
+				return err
+			}
+			if err := setAccountLimits(tx, m.ID, next); err != nil {
 				return err
 			}
 			did = append(did, "limits")

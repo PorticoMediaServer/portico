@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -36,11 +37,11 @@ func sent(t *testing.T, s *Server, peer, method, path, token string, body, out a
 	return w
 }
 
-// hold sets what a member's account is held to, as the owner.
+// hold sets everything a member's account is held to, as the owner.
 func hold(t *testing.T, s *Server, owner, member string, limits MemberLimits) Member {
 	t.Helper()
 	var out Member
-	if w := call(t, s, "PATCH", "/v1/admin/members/"+member, owner, MemberEdit{Limits: &limits}, &out); w.Code != 200 {
+	if w := call(t, s, "PATCH", "/v1/admin/members/"+member, owner, map[string]any{"limits": limits}, &out); w.Code != 200 {
 		t.Fatalf("setting a member's limits answered %d: %s", w.Code, w.Body)
 	}
 	return out
@@ -101,7 +102,7 @@ func TestAnAccountHeldToHomeAndToViewingHours(t *testing.T) {
 	if w.Code != 200 {
 		t.Fatalf("the same renewal at home answered %d %s", w.Code, w.Body)
 	}
-	if code := status(t, s, "PATCH", "/v1/admin/members/"+max.ID, renewed.AccessToken, MemberEdit{Limits: new(noLimits())}); code != 403 {
+	if code := status(t, s, "PATCH", "/v1/admin/members/"+max.ID, renewed.AccessToken, map[string]any{"limits": noLimits()}); code != 403 {
 		t.Errorf("a member lifting their own limits answered %d, want 403", code)
 	}
 	if w := sent(t, s, away, "POST", choose, renewed.AccessToken, ProfileSelect{}, nil); w.Code != 403 {
@@ -117,14 +118,15 @@ func TestAnAccountHeldToHomeAndToViewingHours(t *testing.T) {
 		t.Errorf("a home-only account's token at home answered %d %s", w.Code, w.Body)
 	}
 
-	for name, bad := range map[string]MemberLimits{
-		"hours in no timezone": {ViewingHours: &auth.Hours{Timezone: "Mars/Olympus", Windows: []auth.Window{{Days: []int{1}, EndMinute: 60}}}},
-		"a rating of 40":       {MaxRatingAge: new(40)},
-		"no profiles at all":   {MaxProfiles: new(0)},
-		"a cap of nothing":     {RemoteMaxBitrateKbps: new(0)},
-		"a label nobody has":   {BlockedLabels: []string{"tag_nothing"}},
+	for name, bad := range map[string]string{
+		"hours in an unknown timezone": `{"viewingHours":{"timezone":"Mars/Olympus","windows":[{"days":[1],"startMinute":0,"endMinute":60}]}}`,
+		"hours with no timezone":       `{"viewingHours":{"windows":[{"days":[1],"startMinute":0,"endMinute":60}]}}`,
+		"a rating of 40":               `{"maxRatingAge":40}`,
+		"no profiles at all":           `{"maxProfiles":0}`,
+		"a cap of nothing":             `{"remoteMaxBitrateKbps":0}`,
+		"a label nobody has":           `{"blockedLabels":["tag_nothing"]}`,
 	} {
-		if code := status(t, s, "PATCH", "/v1/admin/members/"+max.ID, owner, MemberEdit{Limits: &bad}); code != 400 {
+		if code := status(t, s, "PATCH", "/v1/admin/members/"+max.ID, owner, json.RawMessage(`{"limits":`+bad+`}`)); code != 400 {
 			t.Errorf("%s answered %d, want 400", name, code)
 		}
 	}
@@ -133,7 +135,7 @@ func TestAnAccountHeldToHomeAndToViewingHours(t *testing.T) {
 	now := time.Now().UTC()
 	s.setClock(func() time.Time { return now })
 	limits = noLimits()
-	limits.ViewingHours = &auth.Hours{Timezone: "UTC", Windows: []auth.Window{{Days: []int{int(now.Weekday()+1) % 7}, StartMinute: 0, EndMinute: 1440}}}
+	limits.ViewingHours = &auth.ViewingHours{Timezone: "UTC", Windows: []auth.ViewingWindow{{Days: []int{int(now.Weekday()+1) % 7}, StartMinute: 0, EndMinute: 1440}}}
 	if got := hold(t, s, owner, max.ID, limits); got.Limits.ViewingHours == nil || got.Limits.HomeOnly {
 		t.Fatalf("the member reads back as %+v", got.Limits)
 	}
@@ -267,5 +269,34 @@ func TestAnAccountHeldToFewerProfilesAndSwitchedOff(t *testing.T) {
 		if got, err := s.db.GroupMemberOf(context.Background(), caller.ProfileID); err != nil || got.Allowed != c.want {
 			t.Errorf("%s: Watch Together allowed is %v (%v), want %v", name, got.Allowed, err, c.want)
 		}
+	}
+}
+
+// An edit of limits changes only the fields it names: holding an account to home leaves its
+// converting, Watch Together and tokens as they were, and null lifts one limit.
+func TestALimitsEditChangesOnlyWhatItNames(t *testing.T) {
+	s, owner, max, _ := twoMembers(t)
+	edit := func(limits string) MemberLimits {
+		t.Helper()
+		var out Member
+		if w := call(t, s, "PATCH", "/v1/admin/members/"+max.ID, owner, json.RawMessage(`{"limits":`+limits+`}`), &out); w.Code != 200 {
+			t.Fatalf("editing limits %s answered %d: %s", limits, w.Code, w.Body)
+		}
+		return out.Limits
+	}
+	got := edit(`{"homeOnly":true,"maxRatingAge":13,"maxProfiles":2}`)
+	if !got.HomeOnly || !got.AllowConversion || !got.AllowWatchTogether || !got.AllowTokens || got.MaxRatingAge == nil {
+		t.Fatalf("holding the account to home and to 13 left it as %+v", got)
+	}
+	got = edit(`{"maxRatingAge":null,"allowWatchTogether":false}`)
+	if !got.HomeOnly || got.MaxRatingAge != nil || got.AllowWatchTogether || got.MaxProfiles == nil || *got.MaxProfiles != 2 || !got.AllowTokens {
+		t.Fatalf("lifting the rating and turning Watch Together off left it as %+v", got)
+	}
+	hours := `{"viewingHours":{"timezone":"America/Halifax","windows":[{"days":[1,2],"startMinute":480,"endMinute":1200}]}}`
+	if got = edit(hours); got.ViewingHours == nil || got.ViewingHours.Timezone != "America/Halifax" || !got.HomeOnly {
+		t.Fatalf("setting hours left it as %+v", got)
+	}
+	if got = edit(`{"viewingHours":null}`); got.ViewingHours != nil || !got.HomeOnly {
+		t.Fatalf("lifting the hours left it as %+v", got)
 	}
 }

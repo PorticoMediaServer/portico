@@ -604,11 +604,6 @@ export interface HomeRow {
   hidden?: boolean;
 }
 
-export interface Hours {
-  timezone?: string;
-  windows: Window[];
-}
-
 export interface IdentityProof {
   payload: string;
   signature: string;
@@ -1064,12 +1059,12 @@ export interface MemberEdit {
   allLibraries?: boolean;
   libraries?: string[];
   allowDownloads?: boolean;
-  limits?: MemberLimits;
+  limits?: MemberLimitsEdit;
 }
 
 export interface MemberLimits {
   homeOnly: boolean;
-  viewingHours?: Hours | null;
+  viewingHours?: ViewingHours | null;
   maxRatingAge?: number | null;
   allowUnrated: boolean;
   blockedLabels: string[];
@@ -1078,6 +1073,19 @@ export interface MemberLimits {
   maxProfiles?: number | null;
   allowWatchTogether: boolean;
   allowTokens: boolean;
+}
+
+export interface MemberLimitsEdit {
+  homeOnly?: boolean;
+  viewingHours?: ViewingHours;
+  maxRatingAge?: number;
+  allowUnrated?: boolean;
+  blockedLabels?: string[];
+  allowConversion?: boolean;
+  remoteMaxBitrateKbps?: number;
+  maxProfiles?: number;
+  allowWatchTogether?: boolean;
+  allowTokens?: boolean;
 }
 
 export interface MemberPage {
@@ -2395,6 +2403,17 @@ export interface Viewer {
   role: string;
 }
 
+export interface ViewingHours {
+  timezone: string;
+  windows: ViewingWindow[];
+}
+
+export interface ViewingWindow {
+  days: number[];
+  startMinute: number;
+  endMinute: number;
+}
+
 export interface Warning {
   code: string;
   message: string;
@@ -2468,12 +2487,6 @@ export interface WebhookTest {
   delivered: boolean;
   status?: number;
   error?: string;
-}
-
-export interface Window {
-  days: number[];
-  startMinute: number;
-  endMinute: number;
 }
 
 /** The body of every refusal. */
