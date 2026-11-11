@@ -1,0 +1,132 @@
+package api
+
+import (
+	"cmp"
+	"net/http"
+	"slices"
+	"strconv"
+	"strings"
+	"time"
+	"unicode/utf8"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
+)
+
+// Server activity: Now playing with Stop, for the owner and administrators, and the activity
+// record of who did what, for the owner.
+
+// NowPlaying is one stream on the server.
+type NowPlaying struct {
+	ID string `json:"id"`
+	// ItemID and Title are absent for a title the asking administrator may not see.
+	ItemID     string `json:"itemId,omitempty"`
+	Title      string `json:"title,omitempty"`
+	Kind       string `json:"kind"`
+	State      string `json:"state"`
+	PositionMs int64  `json:"positionMs"`
+	DurationMs int64  `json:"durationMs,omitempty"`
+	// Username, then Profile when its name differs, then DeviceName name the person.
+	Username   string `json:"username"`
+	Profile    string `json:"profile,omitempty"`
+	DeviceName string `json:"deviceName"`
+	// Away is true for a stream outside the home networks.
+	Away        bool `json:"away"`
+	BitrateKbps int  `json:"bitrateKbps,omitempty"`
+	// Route is how it reaches the device: original, repackaged or converted; Delivery says
+	// it for the picture, the sound and the subtitles.
+	Route     string            `json:"route"`
+	Delivery  PlaybackDecisions `json:"delivery"`
+	StartedAt time.Time         `json:"startedAt"`
+}
+
+// StreamStop is what the viewer is told when the owner or an administrator stops a stream.
+type StreamStop struct {
+	Message string `json:"message,omitempty"`
+}
+
+// ActivityEntry is one entry of the activity record.
+type ActivityEntry struct {
+	At     time.Time `json:"at"`
+	Actor  string    `json:"actor"`
+	Action string    `json:"action"`
+	Target string    `json:"target,omitempty"`
+	Detail string    `json:"detail,omitempty"`
+}
+
+const activityPage = 100
+
+func (s *Server) activityRoutes() {
+	Handle(s, "GET /v1/admin/sessions", Admin, s.nowPlaying)
+	Handle(s, "DELETE /v1/admin/sessions/{id}", Admin, func(r *http.Request, req StreamStop) (None, error) {
+		req.Message = strings.TrimSpace(req.Message)
+		if utf8.RuneCountInString(req.Message) > 500 {
+			return None{}, ErrField("message", "Write a message of up to 500 characters.")
+		}
+		id := r.PathValue("id")
+		// Stopping a stream that has already ended is fine: the viewer was told once.
+		if !slices.ContainsFunc(s.playback.All(), func(v playback.Session) bool { return v.ID == id }) {
+			return None{}, nil
+		}
+		s.playback.Terminate(r.Context(), id, req.Message)
+		return None{}, s.db.Record(r.Context(), CallerFrom(r.Context()).UserID, "stream.stop", id, req.Message, s.now())
+	})
+	Handle(s, "GET /v1/admin/audit", Owner, func(r *http.Request, _ None) (Page[ActivityEntry], error) {
+		after, err := cursorID(r)
+		if err != nil {
+			return Page[ActivityEntry]{}, err
+		}
+		list, err := s.db.ActivityRecord(r.Context(), r.URL.Query().Get("action"), after, activityPage+1)
+		out := Page[ActivityEntry]{Items: []ActivityEntry{}}
+		if len(list) > activityPage {
+			list = list[:activityPage]
+			out.NextCursor = strconv.FormatInt(list[len(list)-1].ID, 10)
+		}
+		for _, a := range list {
+			out.Items = append(out.Items, ActivityEntry{At: a.At.UTC(), Actor: a.Actor, Action: a.Action, Target: a.Target, Detail: a.Detail})
+		}
+		return out, err
+	})
+}
+
+// nowPlaying lists every stream: conversions first, then the newest start. Paused streams
+// count; a title the asking administrator may not see is unnamed.
+func (s *Server) nowPlaying(r *http.Request, _ None) (Page[NowPlaying], error) {
+	sessions := s.playback.All()
+	ids, profiles := make([]int64, len(sessions)), make([]int64, len(sessions))
+	for n, v := range sessions {
+		ids[n], profiles[n] = v.Item.ID, v.ProfileID
+	}
+	titles, err := s.db.VisibleTitles(r.Context(), viewer(r), ids)
+	if err != nil {
+		return Page[NowPlaying]{}, err
+	}
+	people, err := s.db.ViewingNames(r.Context(), profiles)
+	if err != nil {
+		return Page[NowPlaying]{}, err
+	}
+	slices.SortStableFunc(sessions, func(a, b playback.Session) int {
+		if converting := cmp.Compare(btoi(b.Plan.Route == playback.RouteConverted), btoi(a.Plan.Route == playback.RouteConverted)); converting != 0 {
+			return converting
+		}
+		return b.StartedAt.Compare(a.StartedAt)
+	})
+	out := Page[NowPlaying]{Items: make([]NowPlaying, 0, len(sessions))}
+	for _, v := range sessions {
+		person := people[v.ProfileID]
+		item := NowPlaying{ID: v.ID, Kind: sessionKind(v.Item.Kind), State: v.State, PositionMs: v.PositionMs, Username: person.Username,
+			Profile: person.Profile, DeviceName: v.Device.Name, Away: v.Network != playback.NetworkLocal, BitrateKbps: v.Plan.BitrateKbps,
+			Route: v.Plan.Route, Delivery: decisions(v.Plan), StartedAt: v.StartedAt.UTC()}
+		if title, ok := titles[v.Item.ID]; ok {
+			item.ItemID, item.Title, item.DurationMs = v.Item.PublicID, title, v.Item.DurationMS
+		}
+		out.Items = append(out.Items, item)
+	}
+	return out, nil
+}
+
+func btoi(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
