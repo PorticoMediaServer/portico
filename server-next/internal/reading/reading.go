@@ -39,6 +39,8 @@ var (
 	ErrFormatLater = errors.New("This server can't open this kind of book yet.")
 	ErrRemote      = errors.New("This server can't open books kept on remote storage yet.")
 	ErrUnavailable = errors.New("This book's file can't be reached.")
+	// ErrTooManyPages: a comic made of a folder of more pictures than an archive may hold.
+	ErrTooManyPages = errors.New("This comic has more pages than this server can open.")
 )
 
 // grantLifetime is how long a book's address works. It ends sooner with the sign-in that asked
@@ -152,6 +154,10 @@ func (s *Service) Open(ctx context.Context, who Reader, book db.Book, v db.BookV
 		out.Problem = ErrFormatLater
 	case v.Path == "":
 		out.Problem = ErrRemote
+	case out.Format == FormatImages && len(v.Pages) > maxEntries:
+		// As an archive with more entries is refused: a folder of tens of thousands of photos
+		// is not a comic, and listing it would make the book slow to open.
+		out.Problem = ErrTooManyPages
 	case out.Format == FormatImages:
 		// The pages are the scanner's own list; the folder is never listed.
 		out.Pages = v.Pages
