@@ -43,14 +43,14 @@ func seedServer(t *testing.T, s *Server, items, profiles int) (_ *Server, owner 
 		t.Fatal(err)
 	}
 	for _, v := range viewers {
-		members = append(members, memberToken(t, s, first.Session.AccessToken, v))
+		members = append(members, seededMemberToken(t, s, first.Session.AccessToken, v))
 	}
 	return s, onMain(t, s, first).AccessToken, members
 }
 
-// memberToken mints a token for a seeded member, who has no password. A token is only let in
+// seededMemberToken mints a token for a seeded member, who has no password. A token is only let in
 // if it was made since this server started, and a real sign-in (signedIn) says when that was.
-func memberToken(t *testing.T, s *Server, signedIn string, v db.Viewer) string {
+func seededMemberToken(t *testing.T, s *Server, signedIn string, v db.Viewer) string {
 	t.Helper()
 	started, err := s.tokens.CheckAccess(signedIn, time.Now())
 	if err != nil {
