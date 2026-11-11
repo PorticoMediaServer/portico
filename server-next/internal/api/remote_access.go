@@ -17,6 +17,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/discovery"
 	"github.com/PorticoMediaServer/portico/server-next/internal/portmap"
 	"github.com/PorticoMediaServer/portico/server-next/internal/publicaddr"
 	"github.com/PorticoMediaServer/portico/server-next/internal/tlsport"
@@ -210,6 +211,8 @@ type remoteState struct {
 	ownCertificateUsable func() bool
 	// listenPort is the port the server listens on, the one the router forwards to.
 	listenPort int
+	// finder announces the server to apps at home while Find this server at home is on.
+	finder *discovery.Announcer
 }
 
 // RefusedAddress is an outside address Enhanced refused, and what would fix it.
@@ -266,15 +269,30 @@ func (s *Server) applyCertificate(v RemoteAccessSettings) {
 	s.ports.Set(owned && v.RemoteAccess == "on" && v.PortMapping == "automatic", s.listenPort(), v.PublicPort)
 	// The public address is asked of outside services under the same conditions, mapping or not.
 	s.public.Set(owned && v.RemoteAccess == "on" && s.listenPort() != 0)
+	s.access.mu.RLock()
+	finder := s.access.finder
+	s.access.mu.RUnlock()
+	if finder != nil {
+		finder.Set(v.FindAtHome)
+	}
 }
 
-// ServePortMapping keeps the server's port open on the home router while the owner's settings
-// ask for it, until ctx ends. port is the port the server listens on, or 0 when nothing
-// outside this machine can reach it, and the router is then never asked.
-func (s *Server) ServePortMapping(ctx context.Context, port int) {
+// ServeNetwork announces the server to apps at home, keeps its port open on the home router
+// and finds its public address, each while the owner's settings ask for it, until ctx ends.
+// port is the port the server listens on, or 0 when nothing outside this machine can reach it:
+// then nothing is announced, the router is never asked and no outside service either.
+func (s *Server) ServeNetwork(ctx context.Context, port int) {
 	s.access.mu.Lock()
 	s.access.listenPort = port
 	s.access.mu.Unlock()
+	// Apps at home find the server by its announcement, which needs a port they can reach.
+	if port != 0 {
+		finder := discovery.New(s.log, discovery.Record{ServerID: s.id, Fingerprint: s.identity.fingerprint, Port: port})
+		s.access.mu.Lock()
+		s.access.finder = finder
+		s.access.mu.Unlock()
+		go finder.Run(ctx)
+	}
 	v, _ := s.access.current()
 	s.applyCertificate(v)
 	if port != 0 {
@@ -477,6 +495,9 @@ type RemoteAccessStatus struct {
 	// PublicAddress is this server's public IPv4 address as at least two outside services
 	// (Cloudflare, Google, Amazon, icanhazip; none of them Portico's) agree it is.
 	PublicAddress publicaddr.Answer `json:"publicAddress"`
+	// IdentityCode is the server's identity in twelve characters, for the owner to give to
+	// someone whose app asks for it.
+	IdentityCode string `json:"identityCode"`
 }
 
 // Warning is one risky choice in force.
@@ -559,7 +580,8 @@ func (s *Server) remoteStatus(r *http.Request) RemoteAccessStatus {
 	sec := s.access.security(v, allowed, s.setupFinished(), false)
 	return RemoteAccessStatus{ThisDevice: ThisDevice{AtHome: s.networks().FromHome(r), Address: s.remoteHost(r)},
 		Refused: s.access.refusedList(), RemoteSecurity: sec, Warnings: s.warnings(v, sec, s.networks()),
-		Certificate: s.certs.Status(), Router: s.ports.Status(), PublicAddress: s.public.Answer()}
+		Certificate: s.certs.Status(), Router: s.ports.Status(), PublicAddress: s.public.Answer(),
+		IdentityCode: identityCode(s.id)}
 }
 
 func (s *Server) setupFinished() bool {
