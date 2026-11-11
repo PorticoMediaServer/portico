@@ -3,9 +3,12 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 )
 
 var (
@@ -43,21 +46,60 @@ type Member struct {
 	Libraries []string
 	Notes     string
 	TwoFactor bool
+	Limits    AccountLimits
+}
+
+// AccountLimits are what the owner or an admin holds a whole account to: every profile of
+// it, the main one included. The account's own person cannot change them. Which libraries
+// the account is given is beside them on the member.
+type AccountLimits struct {
+	// HomeOnly: the account can be used on the owner's home networks only.
+	HomeOnly bool
+	// Hours are the times of the week the account may be used; nil is any time.
+	Hours *auth.Hours
+	// MaxRatingAge is the highest age rating any profile is shown, or nil for no limit.
+	// Under a limit a title with no rating is hidden unless AllowUnrated is set.
+	MaxRatingAge *int
+	AllowUnrated bool
+	// BlockedLabels are the public ids of labels whose titles no profile is shown.
+	BlockedLabels []string
+	// AllowConversion false: the account plays only what its device plays without converting.
+	AllowConversion bool
+	// RemoteMaxBitrateKbps is the most video bitrate away from home, or nil for no cap.
+	RemoteMaxBitrateKbps *int
+	// MaxProfiles is how many profiles the account may have, or nil for the server's MaxProfiles.
+	MaxProfiles *int
+	// What the account may do at all; a profile's own switch can only narrow these.
+	AllowDownloads, AllowWatchTogether, AllowTokens bool
 }
 
 const memberColumns = `u.id, u.public_id, u.username, ifnull(u.email, ''), u.role, u.disabled_at IS NOT NULL, u.created_at,
 	u.all_libraries, ifnull(u.notes, ''), u.two_factor_enabled_at IS NOT NULL,
-	ifnull((SELECT group_concat(l.public_id, ' ') FROM library_access a JOIN libraries l ON l.id = a.library_id WHERE a.user_id = u.id), '')`
+	ifnull((SELECT group_concat(l.public_id, ' ') FROM library_access a JOIN libraries l ON l.id = a.library_id WHERE a.user_id = u.id), ''),
+	u.home_only, u.viewing_hours, u.max_rating_age, u.allow_unrated, u.allow_conversion, u.remote_max_bitrate_kbps, u.max_profiles,
+	u.allow_downloads, u.allow_watch_together, u.allow_tokens,
+	ifnull((SELECT group_concat(t.public_id, ' ') FROM account_restrictions r JOIN tags t ON t.id = r.tag_id WHERE r.user_id = u.id), '')`
 
 func scanMember(row interface{ Scan(...any) error }) (Member, error) {
 	var m Member
 	var created int64
-	var libraries string
-	err := row.Scan(&m.ID, &m.PublicID, &m.Username, &m.Email, &m.Role, &m.Disabled, &created, &m.AllLibraries, &m.Notes, &m.TwoFactor, &libraries)
+	var libraries, labels string
+	var hours sql.NullString
+	l := &m.Limits
+	err := row.Scan(&m.ID, &m.PublicID, &m.Username, &m.Email, &m.Role, &m.Disabled, &created, &m.AllLibraries, &m.Notes, &m.TwoFactor, &libraries,
+		&l.HomeOnly, &hours, &l.MaxRatingAge, &l.AllowUnrated, &l.AllowConversion, &l.RemoteMaxBitrateKbps, &l.MaxProfiles,
+		&l.AllowDownloads, &l.AllowWatchTogether, &l.AllowTokens, &labels)
 	if errors.Is(err, sql.ErrNoRows) {
 		return m, ErrNotFound
 	}
-	m.CreatedAt, m.Libraries = time.UnixMilli(created), strings.Fields(libraries)
+	if err != nil {
+		return m, err
+	}
+	m.CreatedAt, m.Libraries, l.BlockedLabels = time.UnixMilli(created), strings.Fields(libraries), strings.Fields(labels)
+	if hours.Valid {
+		l.Hours = &auth.Hours{}
+		err = json.Unmarshal([]byte(hours.String), l.Hours)
+	}
 	return m, err
 }
 
@@ -160,7 +202,9 @@ type MemberEdit struct {
 	// AllLibraries and Libraries say what the member may see.
 	AllLibraries *bool
 	Libraries    *[]string
-	Now          time.Time
+	// Limits, when set, replaces everything the account is held to.
+	Limits *AccountLimits
+	Now    time.Time
 }
 
 // libraryIDs resolves public library ids, refusing any that does not exist.
@@ -246,6 +290,13 @@ func (d *DB) UpdateMember(ctx context.Context, e MemberEdit) (Member, error) {
 			did = append(did, "libraries")
 			accessMoved = true
 		}
+		if e.Limits != nil {
+			if err := setAccountLimits(tx, m.ID, *e.Limits); err != nil {
+				return err
+			}
+			did = append(did, "limits")
+			accessMoved = true
+		}
 		if accessMoved {
 			if err := accessChanged(tx, e.Now, `user_id = ?`, m.ID); err != nil {
 				return err
@@ -266,6 +317,37 @@ func (d *DB) UpdateMember(ctx context.Context, e MemberEdit) (Member, error) {
 		return err
 	})
 	return out, err
+}
+
+// setAccountLimits replaces what an account is held to. An unknown label is ErrUnknownLabel.
+func setAccountLimits(tx *sql.Tx, userID int64, l AccountLimits) error {
+	var hours any
+	if l.Hours != nil && len(l.Hours.Windows) > 0 {
+		encoded, err := json.Marshal(l.Hours)
+		if err != nil {
+			return err
+		}
+		hours = string(encoded)
+	}
+	labels, err := labelIDs(tx, l.BlockedLabels)
+	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`UPDATE users SET home_only = ?, viewing_hours = ?, max_rating_age = ?, allow_unrated = ?, allow_conversion = ?,
+		remote_max_bitrate_kbps = ?, max_profiles = ?, allow_downloads = ?, allow_watch_together = ?, allow_tokens = ? WHERE id = ?`,
+		l.HomeOnly, hours, l.MaxRatingAge, l.AllowUnrated, l.AllowConversion, l.RemoteMaxBitrateKbps, l.MaxProfiles,
+		l.AllowDownloads, l.AllowWatchTogether, l.AllowTokens, userID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM account_restrictions WHERE user_id = ?`, userID); err != nil {
+		return err
+	}
+	for _, tag := range labels {
+		if _, err := tx.Exec(`INSERT INTO account_restrictions (user_id, tag_id) VALUES (?, ?) ON CONFLICT DO NOTHING`, userID, tag); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // DeleteMember removes an account the actor may manage, with its profiles and everything

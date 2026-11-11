@@ -28,6 +28,8 @@ type Member struct {
 	TwoFactorEnabled bool     `json:"twoFactorEnabled"`
 	// Notes are the admins' private notes about the member. The member never sees them.
 	Notes string `json:"notes,omitempty"`
+	// Limits are what the whole account is held to.
+	Limits MemberLimits `json:"limits"`
 }
 
 // MemberCreate makes an account directly, with a first password to pass on to its person.
@@ -46,6 +48,8 @@ type MemberEdit struct {
 	Notes        *string   `json:"notes,omitempty"`
 	AllLibraries *bool     `json:"allLibraries,omitempty"`
 	Libraries    *[]string `json:"libraries,omitempty"`
+	// Limits, when sent, replaces everything the account is held to.
+	Limits *MemberLimits `json:"limits,omitempty"`
 }
 
 // PasswordResetCreate asks for a reset code for a member.
@@ -73,7 +77,7 @@ func memberOut(m db.Member) Member {
 		libraries = []string{}
 	}
 	return Member{Account: accountOut(m.Account), Disabled: m.Disabled, CreatedAt: m.CreatedAt.UTC(), AllLibraries: m.AllLibraries,
-		Libraries: libraries, TwoFactorEnabled: m.TwoFactor, Notes: m.Notes}
+		Libraries: libraries, TwoFactorEnabled: m.TwoFactor, Notes: m.Notes, Limits: memberLimitsOut(m.Limits)}
 }
 
 // memberError maps what the data layer says about a managed account to a refusal.
@@ -85,6 +89,8 @@ func memberError(err error) error {
 		return ErrNotPermitted()
 	case errors.Is(err, db.ErrUnknownLibrary):
 		return ErrField("libraries", "One of these libraries does not exist.")
+	case errors.Is(err, db.ErrUnknownLabel):
+		return ErrField("limits.blockedLabels", "One of these labels does not exist.")
 	case errors.Is(err, db.ErrConflict):
 		return ErrConflict("username_taken", "That username is already in use.")
 	case errors.Is(err, db.ErrKeyReused):
@@ -183,8 +189,12 @@ func (s *Server) editMember(r *http.Request, req MemberEdit) (Member, error) {
 	case req.Libraries != nil && len(*req.Libraries) > 1000:
 		return Member{}, ErrField("libraries", "That is too many libraries.")
 	}
+	limits, err := memberLimitsIn(req.Limits)
+	if err != nil {
+		return Member{}, err
+	}
 	m, err := s.db.UpdateMember(r.Context(), db.MemberEdit{ActorID: caller.UserID, ActorRole: caller.Role, PublicID: r.PathValue("id"),
-		Role: req.Role, Disabled: req.Disabled, Notes: req.Notes, AllLibraries: req.AllLibraries, Libraries: req.Libraries, Now: s.now()})
+		Role: req.Role, Disabled: req.Disabled, Notes: req.Notes, AllLibraries: req.AllLibraries, Libraries: req.Libraries, Limits: limits, Now: s.now()})
 	return memberOut(m), memberError(err)
 }
 

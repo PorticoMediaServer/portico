@@ -126,7 +126,14 @@ type NewProfile struct {
 	Now            time.Time
 }
 
-// CreateProfile adds a profile, up to MaxProfiles per account.
+// ProfileLimitError is ErrProfileLimit with the number the account may have.
+type ProfileLimitError struct{ Limit int }
+
+func (e *ProfileLimitError) Error() string { return ErrProfileLimit.Error() }
+func (e *ProfileLimitError) Unwrap() error { return ErrProfileLimit }
+
+// CreateProfile adds a profile, up to MaxProfiles per account, or fewer where the owner or
+// an admin has lowered the account's number. Lowering it never removes a profile.
 func (d *DB) CreateProfile(ctx context.Context, n NewProfile) (Profile, error) {
 	var out Profile
 	err := d.write(ctx, User, func(tx *sql.Tx) error {
@@ -142,8 +149,16 @@ func (d *DB) CreateProfile(ctx context.Context, n NewProfile) (Profile, error) {
 		if err := tx.QueryRow(`SELECT count(*), ifnull(max(position), 0) FROM profiles WHERE user_id = ?`, n.UserID).Scan(&count, &last); err != nil {
 			return err
 		}
-		if count >= MaxProfiles {
-			return ErrProfileLimit
+		limit := MaxProfiles
+		var held sql.NullInt64
+		if err := tx.QueryRow(`SELECT max_profiles FROM users WHERE id = ?`, n.UserID).Scan(&held); err != nil {
+			return err
+		}
+		if held.Valid && int(held.Int64) < limit {
+			limit = int(held.Int64)
+		}
+		if count >= limit {
+			return &ProfileLimitError{Limit: limit}
 		}
 		at := n.Now.UnixMilli()
 		out, err = scanProfile(tx.QueryRow(`INSERT INTO profiles (public_id, user_id, name, color, position, pin_hash, access_changed_at, created_at, updated_at)
@@ -264,7 +279,9 @@ type ProfileSelection struct {
 	CheckedPINHash string
 	PINOK          bool
 	Limits         []Limit
-	Now            time.Time
+	// AtHome says the request came from one of the owner's home networks.
+	AtHome bool
+	Now    time.Time
 }
 
 // SelectProfile makes the profile the session's own. Tokens the session held for another
@@ -275,6 +292,11 @@ func (d *DB) SelectProfile(ctx context.Context, s ProfileSelection) (SessionStat
 	var refused error
 	stamp, err := d.writeSessionsStamped(ctx, func(tx *sql.Tx, c *changes) error {
 		refused = nil
+		// Choosing a profile answers a fresh token, so it is held to the account's limits as
+		// a renewal is.
+		if err := accountOpen(ctx, tx, s.UserID, s.AtHome, s.Now); err != nil {
+			return err
+		}
 		var pin string
 		err := tx.QueryRow(`SELECT ifnull(pin_hash, '') FROM profiles WHERE id = ? AND user_id = ?`, s.ProfileID, s.UserID).Scan(&pin)
 		if errors.Is(err, sql.ErrNoRows) {

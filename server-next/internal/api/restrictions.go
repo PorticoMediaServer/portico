@@ -11,8 +11,9 @@ import (
 // may see. PUT replaces all of it, so an editor sends back what it read with its changes.
 type Restrictions struct {
 	// MaxRatingAge is the highest age rating shown (13 shows PG-13 and below), or null for
-	// no limit. Under a limit, a title with no rating is not shown.
+	// no limit. Under a limit, a title with no rating is not shown unless AllowUnrated is set.
 	MaxRatingAge *int `json:"maxRatingAge"`
+	AllowUnrated bool `json:"allowUnrated"`
 	// BlockedLabels are the ids of labels whose titles are never shown.
 	BlockedLabels []string `json:"blockedLabels"`
 	// AllLibraries gives the profile every library its account has. Otherwise it is given
@@ -23,6 +24,14 @@ type Restrictions struct {
 	// the profile can never go beyond. They are read-only.
 	AccountAllLibraries bool     `json:"accountAllLibraries"`
 	AccountLibraries    []string `json:"accountLibraries"`
+	// AccountMaxRatingAge, AccountAllowUnrated and AccountBlockedLabels are what the owner or
+	// an administrator holds the whole account to (see MemberLimits). They apply as well as
+	// the profile's own: the lower age wins, an unrated title needs both to allow it, and a
+	// label blocked by either is hidden. They are read-only here, so a screen can say where
+	// the account is the stricter.
+	AccountMaxRatingAge  *int     `json:"accountMaxRatingAge"`
+	AccountAllowUnrated  bool     `json:"accountAllowUnrated"`
+	AccountBlockedLabels []string `json:"accountBlockedLabels"`
 }
 
 // The most labels or libraries one profile's restrictions can name, and the highest age limit.
@@ -32,8 +41,9 @@ const (
 )
 
 func restrictionsOut(r db.Restrictions) Restrictions {
-	return Restrictions{MaxRatingAge: r.MaxRatingAge, BlockedLabels: r.BlockedLabels, AllLibraries: r.AllLibraries, Libraries: r.Libraries,
-		AccountAllLibraries: r.AccountAllLibraries, AccountLibraries: r.AccountLibraries}
+	return Restrictions{MaxRatingAge: r.MaxRatingAge, AllowUnrated: r.AllowUnrated, BlockedLabels: r.BlockedLabels, AllLibraries: r.AllLibraries,
+		Libraries: r.Libraries, AccountAllLibraries: r.AccountAllLibraries, AccountLibraries: r.AccountLibraries,
+		AccountMaxRatingAge: r.AccountMaxRatingAge, AccountAllowUnrated: r.AccountAllowUnrated, AccountBlockedLabels: r.AccountBlockedLabels}
 }
 
 // restrictionRoutes are for the account's main profile, or an owner or admin acting on a
@@ -59,7 +69,7 @@ func (s *Server) restrictionRoutes() {
 		case len(req.Libraries) > maxRestrictionEntries:
 			return Restrictions{}, ErrField("libraries", "That is too many libraries.")
 		}
-		out, err := s.db.SetProfileRestrictions(r.Context(), userID, r.PathValue("id"), db.Restrictions{MaxRatingAge: req.MaxRatingAge,
+		out, err := s.db.SetProfileRestrictions(r.Context(), userID, r.PathValue("id"), db.Restrictions{MaxRatingAge: req.MaxRatingAge, AllowUnrated: req.AllowUnrated,
 			BlockedLabels: req.BlockedLabels, AllLibraries: req.AllLibraries, Libraries: req.Libraries}, s.now())
 		switch {
 		case errors.Is(err, db.ErrUnknownLibrary):

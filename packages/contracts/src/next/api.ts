@@ -577,6 +577,11 @@ export interface HomeRow {
   hidden?: boolean;
 }
 
+export interface Hours {
+  timezone?: string;
+  windows: Window[];
+}
+
 export interface IdentityProof {
   payload: string;
   signature: string;
@@ -1012,6 +1017,7 @@ export interface Member extends Account {
   libraries: string[];
   twoFactorEnabled: boolean;
   notes?: string;
+  limits: MemberLimits;
 }
 
 export interface MemberCreate {
@@ -1027,6 +1033,21 @@ export interface MemberEdit {
   notes?: string;
   allLibraries?: boolean;
   libraries?: string[];
+  limits?: MemberLimits;
+}
+
+export interface MemberLimits {
+  homeOnly: boolean;
+  viewingHours?: Hours | null;
+  maxRatingAge?: number | null;
+  allowUnrated: boolean;
+  blockedLabels: string[];
+  allowConversion: boolean;
+  remoteMaxBitrateKbps?: number | null;
+  maxProfiles?: number | null;
+  allowDownloads: boolean;
+  allowWatchTogether: boolean;
+  allowTokens: boolean;
 }
 
 export interface MemberPage {
@@ -1848,11 +1869,15 @@ export interface RestoreStaged {
 
 export interface Restrictions {
   maxRatingAge?: number | null;
+  allowUnrated: boolean;
   blockedLabels: string[];
   allLibraries: boolean;
   libraries: string[];
   accountAllLibraries: boolean;
   accountLibraries: string[];
+  accountMaxRatingAge?: number | null;
+  accountAllowUnrated: boolean;
+  accountBlockedLabels: string[];
 }
 
 export interface Room {
@@ -2404,6 +2429,12 @@ export interface WebhookTest {
   delivered: boolean;
   status?: number;
   error?: string;
+}
+
+export interface Window {
+  days: number[];
+  startMinute: number;
+  endMinute: number;
 }
 
 /** The body of every refusal. */
