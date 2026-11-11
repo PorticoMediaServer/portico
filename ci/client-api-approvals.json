@@ -2826,5 +2826,14 @@
       "https://github.com/PorticoMediaServer/portico/pull/1005",
       "https://github.com/PorticoMediaServer/portico/pull/1015"
     ]
+  },
+  "web/src/screens/settings/Settings.route.tsx#1f91e1f960b20869": {
+    "category": "platform-transport",
+    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
+    "guardHash": "7315f9223665e56c19887360fce54cf1579b53889896a5b0e650f2f6f95d9697",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/2465#issuecomment-6788320233",
+    "reviewedCommit": "8aadba51d3dd20594c9b28c48f4e634cd9e18b41"
   }
 }
