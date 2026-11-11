@@ -565,7 +565,9 @@ func (im *importer) reread(found *importedItem, it *ImportItem, parent *imported
 	if _, err := im.exec(`DELETE FROM credits WHERE item_id = ?`, found.id); err != nil {
 		return err
 	}
-	if _, err := im.exec(`DELETE FROM item_tags WHERE item_id = ?`, found.id); err != nil {
+	// Only what the files give is replaced: the owner's labels, which can keep the title from
+	// a profile, and moods from title data stay.
+	if _, err := im.exec(`DELETE FROM item_tags WHERE item_id = ? AND tag_id IN (SELECT id FROM tags WHERE kind = ?)`, found.id, TagGenre); err != nil {
 		return err
 	}
 	return im.describe(found.id, it)

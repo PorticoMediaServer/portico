@@ -144,10 +144,11 @@ func (r *run) musicUnits(f *folder) []unit {
 			albumItem.Keys = []db.ItemKey{{Kind: db.KeyEmbedded, Key: "musicbrainz-release:" + id}}
 			albumItem.ExternalIDs = []db.ExternalID{{Provider: "musicbrainz", ID: id}}
 		}
-		// The folder names the album only where the tags do not: songs of two albums kept in
-		// one folder are two albums.
-		if folder := albumFolder(lead.rel); folder != "" && d["album"] == "" {
-			albumItem.Keys = append(albumItem.Keys, db.FolderKey(r.path.ID, folder))
+		// The folder names the album, with the album's name when the tags give one: a
+		// compilation whose songs name different artists is one album, and songs of two albums
+		// kept in one folder are two.
+		if folder := albumFolder(lead.rel); folder != "" {
+			albumItem.Keys = append(albumItem.Keys, albumFolderKey(r.path.ID, folder, d["album"]))
 		}
 		artistItem.Reread, albumItem.Reread = reread, reread
 		u := unit{files: v.files(), items: []db.ImportItem{artistItem, albumItem}}
@@ -479,4 +480,14 @@ func natural(s string) string {
 	}
 	flush(len(s))
 	return strings.ToLower(out.String())
+}
+
+// albumFolderKey is the key that finds an album by its folder: the folder alone where the
+// tags name no album, else the folder and the album's name.
+func albumFolderKey(pathID int64, folder, album string) db.ItemKey {
+	key := db.FolderKey(pathID, folder)
+	if album != "" {
+		key.Key += "|" + fold(album)
+	}
+	return key
 }

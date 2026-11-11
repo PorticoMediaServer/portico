@@ -245,3 +245,21 @@ func TestARetaggedSongIsReadAgain(t *testing.T) {
 		t.Fatalf("an unchanged rescan wrote %d rows", again.RowsWritten)
 	}
 }
+
+// A compilation whose songs name different artists and no album artist is one album, as its
+// folder says.
+func TestACompilationInOneFolderIsOneAlbum(t *testing.T) {
+	f := newFixture(t, db.LibraryMusic)
+	f.tagged("Hits/01.mp3", "TIT2", "One", "TPE1", "Artist A", "TALB", "Hits", "TRCK", "1")
+	f.tagged("Hits/02.mp3", "TIT2", "Two", "TPE1", "Artist B", "TALB", "Hits", "TRCK", "2")
+	f.scan()
+	albums := 0
+	for _, artist := range f.titles(db.KindArtist) {
+		if _, ok := f.byTitle(artist.PublicID)["Hits"]; ok {
+			albums++
+		}
+	}
+	if albums != 1 {
+		t.Fatalf("one folder and one album tag made %d albums", albums)
+	}
+}
