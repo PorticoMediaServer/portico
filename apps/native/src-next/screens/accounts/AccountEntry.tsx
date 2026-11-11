@@ -1144,8 +1144,8 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     const change = (set: (value: string) => void) => (value: string) => {if (current()) set(value);};
     const back = () => {if (current() && !busyRef.current) backRef.current();};
     const failure = ticket?.controller.failure(error);
-    const invitationStatus = failure === 'unavailable'
-      ? <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger, marginBottom: 16}]}>{t('web.directJoin.entryUnavailable')}</Text> : status;
+    const invitationStatus = failure === 'unavailable' || failure === 'mistyped'
+      ? <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger, marginBottom: 16}]}>{t(failure === 'mistyped' ? 'web.directJoin.codeNotRight' : 'web.directJoin.entryUnavailable')}</Text> : status;
     const differentAccount = () => {
       if (!current() || busyRef.current || ticket?.kind !== 'portico') return;
       try {

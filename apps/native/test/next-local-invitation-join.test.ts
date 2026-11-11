@@ -24,7 +24,7 @@ test('a typed code reads the invitation on the rebuilt server, and joining keeps
   assert.deepEqual(f.signIns, [['dana', 'Long enough Password 1']]);
 });
 
-test('a refused join can be tried again as a join, and a used or ended code reads as expired', async () => {
+test('a refused join can be tried again as a join; a typed code the server does not know stays on the form, a link\'s reads as expired', async () => {
   const f = fixture(), read = await f.recipient.preview(code);
   const taken = new ApiError(409, 'username_taken', 'That username is already in use.');
   let refuse = true;
@@ -32,7 +32,11 @@ test('a refused join can be tried again as a join, and a used or ended code read
   await assert.rejects(f.recipient.join(read, 'dana', 'Long enough Password 1', ''), error => error === taken);
   assert.equal(f.recipient.failure(taken), 'username');
   refuse = false; assert.equal(await f.recipient.join(read, 'dana2', 'Long enough Password 1', ''), 'joined');
-  const gone = fixture(() => new ApiError(404, 'invitation_not_found', 'This invitation is no longer valid.'));
-  const error = await gone.recipient.preview(code).catch(value => value);
-  assert.equal(gone.recipient.failure(error), 'expired');
+  const notFound = () => new ApiError(404, 'invitation_not_found', 'This invitation is no longer valid.');
+  // A typed code the server does not know keeps the person on the code form to check what they typed.
+  const typed = fixture(notFound), typedError = await typed.recipient.preview(code).catch(value => value);
+  assert.equal(typed.recipient.failure(typedError), 'mistyped');
+  // A code opened from a link that no longer works is the "can't be used" page.
+  const linked = fixture(notFound), linkError = await linked.recipient.preview('portico://join#code=' + 'c'.repeat(43) + '&server=' + encodeURIComponent(origin)).catch(value => value);
+  assert.equal(linked.recipient.failure(linkError), 'expired');
 });

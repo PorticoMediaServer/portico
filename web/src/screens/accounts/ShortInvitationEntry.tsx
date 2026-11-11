@@ -22,12 +22,13 @@ export function shortInvitationRefusal(error: unknown): boolean {
   const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined;
   return typeof code === 'string' && REFUSAL_CODES.has(code);
 }
-/** The two approved generic sentences; everything else keeps the typed error presentation. */
-export function shortInvitationFormErrorKind(phase: string, error: unknown, invitation: unknown, busy: boolean): 'invalid' | 'unavailable' | 'typed' | undefined {
+/** The approved generic sentences; everything else keeps the typed error presentation. A typed code the server does
+ * not know (`invitation_not_found`, also its answer for a used or ended code) asks the person to check it. */
+export function shortInvitationFormErrorKind(phase: string, error: unknown, invitation: unknown, busy: boolean): 'invalid' | 'unavailable' | 'mistyped' | 'typed' | undefined {
   if (!error || busy) return undefined;
   const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined;
   if (phase === 'address') return code === 'invitation_incomplete' ? 'invalid' : 'typed';
-  if ((phase === 'password' || phase === 'portico') && !invitation) return shortInvitationRefusal(error) ? 'unavailable' : 'typed';
+  if ((phase === 'password' || phase === 'portico') && !invitation) return code === 'invitation_not_found' ? 'mistyped' : shortInvitationRefusal(error) ? 'unavailable' : 'typed';
   return undefined;
 }
 
@@ -71,6 +72,7 @@ function ShortInvitationOperation({entry, onBack, onJoined, account, signedOutCo
   const refusalNotice = refusal ? <p className={styles.error} role="alert">{t('web.directJoin.entryUnavailable')}</p> : undefined;
   const errorKind = shortInvitationFormErrorKind(state.phase, state.error, state.invitation, busy);
   const formError = errorKind === 'invalid' ? <p className={styles.error} role="alert">{t('web.directJoin.entryInvalid')}</p>
+    : errorKind === 'mistyped' ? <p className={styles.error} role="alert">{t('web.directJoin.codeNotRight')}</p>
     : errorKind === 'unavailable' ? refusalNotice
     : errorKind === 'typed' ? <AuthError error={state.error} /> : undefined;
   if (state.phase === 'joined') return null;

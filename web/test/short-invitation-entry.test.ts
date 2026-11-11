@@ -30,10 +30,10 @@ test('the typed invitation field preserves the full input and leaves case, separ
   }
 });
 
-test('only the checked invitation refusal codes get the generic sentence; auth, identity and rate errors stay typed', () => {
+test('only the checked invitation refusal codes get a generic sentence, an unknown typed code asks to check it; auth, identity and rate errors stay typed', () => {
   for (const code of ['invitation_not_found', 'invalid_request', 'invitation_expired', 'invitation_used', 'invitation_for_another_account']) {
     assert.equal(shortInvitationRefusal({code}), true);
-    assert.equal(shortInvitationFormErrorKind('password', {code}, undefined, false), 'unavailable');
+    assert.equal(shortInvitationFormErrorKind('password', {code}, undefined, false), code === 'invitation_not_found' ? 'mistyped' : 'unavailable');
   }
   for (const error of [{code: 'identity_mismatch'}, {code: 'rate_limited'}, {code: 'unauthorized'}, {status: 401}, {status: 403}, {status: 409}, {status: 429}, {status: 500}]) {
     assert.equal(shortInvitationRefusal(error), false);

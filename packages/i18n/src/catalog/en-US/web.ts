@@ -1035,6 +1035,7 @@ export const webMessages = {
   'web.directJoin.entryBody': 'Enter the server’s address and the invitation code they shared with you.',
   'web.directJoin.codePlaceholder': 'XXXX-XXXX-XXXX-XXXX',
   'web.directJoin.entryInvalid': 'Check the invitation code.',
+  'web.directJoin.codeNotRight': 'That code isn’t right, or it has expired. Check it and try again.',
   'web.directJoin.entryUnavailable': 'This invitation isn’t available. Ask the owner for a new code.',
   'web.directJoin.checking': 'Checking the server',
   'web.directJoin.code': 'Invitation code',

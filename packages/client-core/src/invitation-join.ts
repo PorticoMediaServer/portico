@@ -9,8 +9,10 @@ import {CodedError} from './server-messages.ts';
  * invitation's own code (K7QP-2MXD-9HRT-4WNC). */
 export type InvitationCapability = Readonly<{code: string} | {shortCode: string}>;
 
-/** The invitation's code as the server reads it. Anything else is refused before it is sent. */
+/** The invitation's code as the server reads it. A link's long code (from before the rebuilt server) is sent as it is,
+ * so the server can say it no longer works. Anything else is refused before it is sent. */
 function invitationCode(capability: InvitationCapability): string {
+  if (!('shortCode' in capability) && /^[A-Za-z0-9_-]{32,128}$/.test(capability.code)) return capability.code;
   const code = formatShortInvitationCode('shortCode' in capability ? capability.shortCode : capability.code);
   if (!code) throw new CodedError('invitation_incomplete', 'This invitation code is not complete.');
   return code;
