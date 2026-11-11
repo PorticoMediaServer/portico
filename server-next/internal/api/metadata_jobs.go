@@ -32,6 +32,9 @@ const (
 	jobRefreshItems   = "refresh_items"
 	jobEditItems      = "edit_items"
 	jobAfterScan      = "metadata_after_scan"
+	// fetch_lyrics (owner and admins, a music library): Fetch missing lyrics, asking LRCLIB
+	// about every song without any, in any library, a local-only one included.
+	jobFetchLyrics = "fetch_lyrics"
 )
 
 // afterScanRefreshes bounds how many due titles one scan's follow-up refreshes; the rest are
@@ -106,9 +109,19 @@ func (s *Server) metadataJobs() {
 		if _, err := s.metadata.MatchLibrary(ctx, lib.ID); err != nil {
 			return providerSentence(err)
 		}
-		_, err = s.metadata.RefreshLibrary(ctx, lib.ID, time.Now(), afterScanRefreshes)
+		if _, err = s.metadata.RefreshLibrary(ctx, lib.ID, time.Now(), afterScanRefreshes); err != nil {
+			return providerSentence(err)
+		}
+		// Songs without lyrics, where the owner chose "Files, then LRCLIB" (never in a library
+		// set to local metadata only).
+		_, err = s.metadata.FetchMissingLyrics(ctx, lib.ID, false)
 		return providerSentence(err)
 	}})
+	s.jobs.Register(jobs.Kind{Name: jobFetchLyrics, Access: jobs.Admins, Check: libraryCheck,
+		Run: onLibrary(func(ctx context.Context, work jobs.Work, lib db.Library) error {
+			_, err := s.metadata.FetchMissingLyrics(ctx, lib.ID, true)
+			return err
+		})})
 	// A selection: the asker's main profile must see every title, or the job is refused as
 	// if one were not there.
 	selection := func(ctx context.Context, req jobs.Request) ([]db.ItemKind, error) {

@@ -22,6 +22,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/jobs"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata"
+	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/lrclib"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
 	"github.com/PorticoMediaServer/portico/server-next/internal/scan"
@@ -189,7 +190,10 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.queues = playqueue.New(d, s.playback, func() time.Time { return s.now() })
 	s.queueRoutes()
 	s.subtitleRoutes()
+	s.lyricsAdminRoutes()
 	s.metadata = &metadata.Service{DB: d, Providers: map[string]metadata.Provider{}}
+	// LRCLIB needs no key: lyrics are looked up only where the owner chose it, or by hand.
+	s.metadata.Lyrics = lrclib.New(lrclib.Origin, lrclib.Every)
 	s.metadataRoutes()
 	s.editorRoutes()
 	s.jobs = jobs.New(ctx, d, log)
