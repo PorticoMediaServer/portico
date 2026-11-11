@@ -36,6 +36,7 @@ var repeatSafeWithoutKey = map[string]string{
 	"POST /v1/queues/{id}/advance":                "sets the current entry",
 	"POST /v1/queues/{id}/prepare-next":           "changes nothing that lasts",
 	"POST /v1/queues/{id}/commit-next":            "sets the current entry",
+	"POST /v1/annotations:batch":                  "each change names its annotation and the later edit wins: a repeat changes nothing",
 }
 
 // An app that never had the answer to a creating request sends it again with the same

@@ -69,6 +69,7 @@ type BookContents struct {
 
 func (s *Server) readingRoutes() {
 	Handle(s, "GET /v1/items/{id}/book", WithProfile, s.openBook)
+	s.annotationRoutes()
 }
 
 func (s *Server) openBook(r *http.Request, _ None) (BookAnswer, error) {
