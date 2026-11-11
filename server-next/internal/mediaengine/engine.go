@@ -61,6 +61,8 @@ type Engine struct {
 	folder  string
 	opened  int
 	running bool
+	// switching is held for the whole of one change of folder or program.
+	switching sync.Mutex
 	// program is the ffmpeg the server was started with ("" finds it), and the others the
 	// tools found at start: what an owner's own FFmpeg is switched back to.
 	program, startFFmpeg, startFFprobe string
