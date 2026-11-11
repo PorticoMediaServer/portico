@@ -160,6 +160,8 @@ var fields = []Setting{
 
 	list("string-list", "home.rowOrder", []string{}, 64, 128),
 	list("string-list", "home.hiddenRowIds", []string{}, 64, 128),
+	// Saved views put on Home as rows, at most 20, by their ids.
+	list("string-list", "home.savedViews", []string{}, 20, 128),
 
 	flag("appearance.showBackdrops", true, ScopeDeviceClass),
 	intRange("appearance.cardSizePercent", 100, 75, 150, ScopeDeviceClass),
