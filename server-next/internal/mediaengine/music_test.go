@@ -55,12 +55,14 @@ func TestSongsArePlannedForTheAppsOwnMusicEngine(t *testing.T) {
 	}
 
 	// The device says what its own music engine decodes: MP3 and Opus, not FLAC.
-	var document map[string]any
-	profiles, _ := os.ReadFile(filepath.Join("..", "streaming", "testdata", "client-profiles.json"))
-	var documents map[string]json.RawMessage
-	if json.Unmarshal(profiles, &documents) != nil || json.Unmarshal(documents["ios"], &document) != nil {
-		t.Fatal("the device profiles could not be read")
+	var profile struct {
+		Document map[string]any `json:"document"`
 	}
+	raw, _ := os.ReadFile(filepath.Join("..", "streaming", "profiles", "ios.json"))
+	if json.Unmarshal(raw, &profile) != nil || profile.Document == nil {
+		t.Fatal("the iOS device profile could not be read")
+	}
+	document := profile.Document
 	document["audioDecode"] = []map[string]any{{"codec": "mp3", "containers": []string{"mp3"}}, {"codec": "opus", "containers": []string{"ogg"}}}
 	h.call("PUT", "/v1/devices/"+h.device+"/capabilities", document, nil, 204)
 
