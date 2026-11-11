@@ -78,6 +78,9 @@ func ParseRcloneConfig(text string) (map[string]string, error) {
 	if err := rcloneSignInRefusal(options); err != nil {
 		return nil, err
 	}
+	if err := rcloneAddressRefusal(options); err != nil {
+		return nil, err
+	}
 	return options, nil
 }
 
@@ -182,6 +185,9 @@ func (r *rclone) current(ctx context.Context) (*WebDAV, error) {
 		default:
 			return r.dav, nil
 		}
+	}
+	if err := checkRcloneHost(ctx, r.options); err != nil {
+		return nil, err
 	}
 	var secret [16]byte
 	rand.Read(secret[:])
