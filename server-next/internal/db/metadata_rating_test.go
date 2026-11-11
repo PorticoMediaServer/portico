@@ -195,3 +195,50 @@ func showsLibrary(l *library) db.Library {
 	}
 	return db.Library{}
 }
+
+// A show's History keeps its seasons' and episodes' details only where restoring needs them:
+// once in a change of its match, and once in an undo of one; an edit of the show's fields,
+// and an undo of that, keep none.
+func TestShowHistoryKeepsEpisodesOnlyForAMatchChange(t *testing.T) {
+	l := newLibrary(t, 1500)
+	shows := everything(t, l.d, l.all, db.ItemQuery{Library: showsLibrary(l).PublicID, Kinds: []db.ItemKind{db.KindShow}, Limit: 50})
+	var show db.Item
+	for _, s := range shows {
+		if s.ChildCount > 0 {
+			show = s
+			break
+		}
+	}
+	if show.ID == 0 {
+		t.Fatal("the test library has no show with seasons")
+	}
+	title := "Renamed"
+	locks, err := l.d.MetadataLocks(ctx, show.PublicID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.d.EditMetadata(ctx, show.PublicID, locks.Revision, db.MetadataEdit{Title: &title}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.ChangeMatchOf(l.d, show.PublicID, db.ItemDetails{Match: db.MatchChosen, ProviderKey: "tmdb:show:999999", Title: "Another Show"}); err != nil {
+		t.Fatal(err)
+	}
+	history, err := l.d.MetadataHistory(ctx, show.PublicID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.d.UndoMetadata(ctx, show.PublicID, history[1].ID); err != nil { // the field edit
+		t.Fatal(err)
+	}
+	if _, err := l.d.UndoMetadata(ctx, show.PublicID, history[0].ID); err != nil { // the match change
+		t.Fatal(err)
+	}
+	counts, err := db.HistoryChildren(l.d, show.PublicID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Newest first: undo of the match change, undo of the edit, the match change, the edit.
+	if len(counts) != 4 || counts[0] == 0 || counts[1] != 0 || counts[2] == 0 || counts[3] != 0 {
+		t.Fatalf("seasons and episodes kept in each History entry, newest first: %v", counts)
+	}
+}
