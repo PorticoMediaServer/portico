@@ -28,7 +28,11 @@ func (d *DB) MergeItems(ctx context.Context, fromID, intoID string) error {
 		if err != nil {
 			return err
 		}
-		return mergeItems(b, from, into, time.Now().UnixMilli())
+		now := time.Now().UnixMilli()
+		if err := mergeItems(b, from, into, now); err != nil {
+			return err
+		}
+		return b.settleWatchedForAll(now)
 	})
 }
 
@@ -41,7 +45,8 @@ func itemID(b *batchTx, publicID string) (int64, error) {
 	return id, err
 }
 
-// mergeItems merges one top-level title, or one of two siblings, into the other.
+// mergeItems merges one top-level title, or one of two siblings, into the other. The caller's
+// transaction must end with settleWatchedForAll.
 func mergeItems(b *batchTx, from, into, now int64) error {
 	type row struct {
 		library      int64
@@ -78,7 +83,15 @@ func mergeItems(b *batchTx, from, into, now int64) error {
 			return err
 		}
 	}
-	return settleItem(b, a.library, into, now)
+	if err := settleItem(b, a.library, into, now); err != nil {
+		return err
+	}
+	// The watched marks of the title that remains, of what holds it and of what it holds are
+	// worked out again: episodes came under them, and each holder's own state row was joined
+	// as if it were a title's.
+	holders, err := holdersAround(b, into)
+	b.leavesChanged(holders...)
+	return err
 }
 
 const mergeStateColumns = `position_ms, position_text, position_at, played, played_at, play_count, last_played_at, favorite, favorite_at,

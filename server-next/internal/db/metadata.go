@@ -435,6 +435,9 @@ func (d *DB) ChangeMatch(ctx context.Context, p Priority, itemID int64, details 
 			if err := mergeItems(b, itemID, holder, now); err != nil {
 				return err
 			}
+			if err := b.settleWatchedForAll(now); err != nil {
+				return err
+			}
 			return b.queryRow(`SELECT public_id FROM items WHERE id = ?`, holder).Scan(&remaining)
 		}
 		// The old match goes: its ids, the key it was found by, and its place on the Unmatched
@@ -455,6 +458,9 @@ func (d *DB) ChangeMatch(ctx context.Context, p Priority, itemID int64, details 
 		}
 		details.Replace = true
 		if err := applyDetails(b, itemID, &details, now); err != nil {
+			return err
+		}
+		if err := b.settleWatchedForAll(now); err != nil {
 			return err
 		}
 		return b.queryRow(`SELECT public_id FROM items WHERE id = ?`, itemID).Scan(&remaining)
