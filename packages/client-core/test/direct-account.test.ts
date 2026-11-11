@@ -39,40 +39,11 @@ test('invitation preview has explicit public fields and rejects private recipien
  for(const field of ['notes','email','porticoUsername'])assert.throws(()=>parsePublicInvitation({...v,[field]:'private'}));
  for(const patch of [{signInMethod:'other'},{role:'owner'},{libraries:[{}]},{expiresAt:'bad'}])assert.throws(()=>parsePublicInvitation({...v,...patch}));
 });
-test('People invitation list requests whole-set search/sort and preserves authoritative counts',async()=>{
- const {PeopleInvitationsClient,parsePeopleInvitationPage}=await import('../src/direct-account.ts');
- const row={id:'invitation-one',revision:1,role:'member',state:'expired',createdAt:'2026-10-01T00:00:00Z',expiresAt:'2026-10-02T00:00:00Z',allowedLibraries:[],notes:'A genuine link-only note',access:{maxStreamsMode:'inherit',maxStreams:0,allowRemote:true,accessTokens:true,maxContentRating:''}};
- const page={items:[row],limit:2,totalCount:27,matchedCount:13,nextCursor:'actual-next-cursor'};
- const calls:{path:string;method?:string;body?:unknown}[]=[];
- const client=new PeopleInvitationsClient({request:async<T>(path:string,method?:string,body?:unknown)=>{calls.push({path,method,body});return page as T;}});
- const value=await client.list({q:'find this',sort:'status',direction:'asc',state:'expired',limit:2});
- assert.equal(value.totalCount,27);assert.equal(value.matchedCount,13);assert.equal(value.items[0].notes,row.notes);
- const query=new URL(calls[0].path,'https://fixture.invalid');
- assert.equal(query.pathname,'/v1/admin/access/invitations');assert.equal(query.searchParams.get('q'),'find this');assert.equal(query.searchParams.get('state'),'expired');assert.equal(query.searchParams.get('sort'),'status');assert.equal(query.searchParams.get('direction'),'asc');assert.equal(query.searchParams.get('limit'),'2');
- for(const change of [{totalCount:undefined},{matchedCount:undefined},{matchedCount:28},{matchedCount:0},{limit:101},{items:[row,row]},{items:[{...row,email:'fabricated@example.invalid'}]},{items:[{...row,code:'must-never-appear'}]}])assert.throws(()=>parsePeopleInvitationPage({...page,...change}));
- const before=calls.length;await assert.rejects(client.list({limit:101}));await assert.rejects(client.list({q:'😀'.repeat(41)}));assert.equal(calls.length,before);
-});
 test('private notes use Unicode character limits and never accept control or formatting characters',async()=>{
  const {privatePersonNotes}=await import('../src/direct-account.ts');
  assert.equal(privatePersonNotes('  fixture note  '),'fixture note');assert.equal(privatePersonNotes('  '),null);assert.equal(privatePersonNotes(null),null);
  assert.equal(Array.from(privatePersonNotes('😀'.repeat(500))!).length,500);
  for(const s of ['x'.repeat(501),'private\ntext','hidden\u202e'])assert.throws(()=>privatePersonNotes(s));
-});
-test('invitation client recovers only code and expiry against the current revision',async()=>{
- const {PeopleInvitationsClient}=await import('../src/direct-account.ts');const calls:any[]=[];
- const api={request:async<T>(path:string,method?:string,body?:unknown)=>{calls.push({path,method,body});return {code:'x'.repeat(43),expiresAt:'2026-11-01T12:00:00Z',notes:'must never be shared'} as T;}};
- const c=new PeopleInvitationsClient(api);const link=await c.link({id:'fixture',revision:2,state:'pending'});
- assert.deepEqual(link,{code:'x'.repeat(43),expiresAt:'2026-11-01T12:00:00Z'});assert.deepEqual(calls[0],{path:'/v1/admin/access/invitations/fixture/link',method:'POST',body:{expectedRevision:2}});
- await assert.rejects(c.link({id:'fixture',revision:2,state:'accepted'}));assert.equal(calls.length,1);
-});
-test('invitation link preserves only a canonical supplied expected identity and never substitutes an address',async()=>{
- const {PeopleInvitationsClient}=await import('../src/direct-account.ts');
- const serverId='srv_'+'A'.repeat(43),base={code:'x'.repeat(43),expiresAt:'2026-11-01T12:00:00Z'};
- let raw:unknown={...base,serverId,notes:'private'};
- const c=new PeopleInvitationsClient({request:async<T>()=>raw as T});
- assert.deepEqual(await c.link({id:'fixture',revision:2,state:'pending'}),{...base,serverId});
- raw=base;assert.deepEqual(await c.link({id:'fixture',revision:2,state:'pending'}),base);
- for(const serverId of [null,'https://server.test','srv_'+'B'.repeat(43)]){raw={...base,serverId};await assert.rejects(c.link({id:'fixture',revision:2,state:'pending'}));}
 });
 test('person identity is username first, profile only when different and Private viewer stays private',async()=>{
  const {personIdentity}=await import('../src/direct-account.ts');
@@ -80,24 +51,6 @@ test('person identity is username first, profile only when different and Private
  assert.deepEqual(personIdentity('fixture_user','fixture_user'),{username:'fixture_user'});
  assert.deepEqual(personIdentity('fixture_user','Kids',true),{privateViewerKey:'together.privateViewer'});
  assert.throws(()=>personIdentity('','Kids'));
-});
-
-test('short invitation issuance displays once, preserves receipt absence and never resolves a long secret',async()=>{
- const {PeopleInvitationsClient}=await import('../src/direct-account.ts');
- const serverId='srv_'+'A'.repeat(43),expiresAt='2026-11-01T12:00:00Z';
- const calls:{path:string;method?:string;body?:unknown}[]=[];
- let raw:unknown={serverId,expiresAt,shortCode:'0123-4567-89AB-CDEF',notes:'private'};
- const client=new PeopleInvitationsClient({request:async<T>(path:string,method?:string,body?:unknown)=>{calls.push({path,method,body});return raw as T;}});
- const invitation={id:'fixture',revision:2,state:'pending' as const};
- assert.deepEqual(await client.shortCode(invitation,'new-code'),{serverId,expiresAt,shortCode:'0123-4567-89AB-CDEF'});
- assert.deepEqual(calls[0],{path:'/v1/admin/access/invitations/fixture/short-code',method:'POST',body:{expectedRevision:2,operationId:'new-code'}});
- raw={serverId,expiresAt};
- assert.deepEqual(await client.shortCode(invitation,'new-code'),{serverId,expiresAt});
- assert.equal(calls.length,2,'receipt absence never causes an automatic reissue');
- for(const change of [{shortCode:''},{shortCode:null},{shortCode:'x'.repeat(43)},{serverId:'https://server.example'},{code:'x'.repeat(43)}]){
-  raw={serverId,expiresAt,...change};await assert.rejects(client.shortCode(invitation,'next'));
- }
- const before=calls.length;await assert.rejects(client.shortCode({...invitation,state:'accepted'},'next'));assert.equal(calls.length,before);
 });
 
 test('short invitation preview posts only the normalized short capability and rejects URL/long forms locally',async()=>{
@@ -117,4 +70,38 @@ test('an invitation\'s access grant is read exactly, and an inexact one refuses 
  assert.deepEqual(parseServerInvitation({...base,access}).access,access);
  for(const bad of [undefined,{...access,maxStreams:0},{...access,maxStreamsMode:'inherit'},{...access,maxStreamsMode:'some'},{...access,allowRemote:'no'},{...access,maxContentRating:7}])
   assert.throws(()=>parseServerInvitation({...base,access:bad}),JSON.stringify(bad));
+});
+
+test('invitations on the rebuilt server: one list, filtered and sorted here, codes only where they are shown', async () => {
+ const {PeopleInvitationsClient}=await import('../src/direct-account.ts');
+ const at=(day:number)=>`2026-11-${String(day).padStart(2,'0')}T00:00:00Z`;
+ const rows=[{id:'inv_a',code:'K7QP-2MXD-9HRT-4WNC',role:'member',state:'open',allLibraries:true,libraries:[],note:'For Dana',createdAt:at(3),expiresAt:at(10)},
+  {id:'inv_b',role:'admin',state:'accepted',allLibraries:false,libraries:['lib-1'],createdAt:at(1),expiresAt:at(8),acceptedAt:at(2)},
+  {id:'inv_c',role:'member',state:'revoked',allLibraries:true,libraries:[],createdAt:at(2),expiresAt:at(9)}];
+ const calls:{path:string;method?:string;body?:any}[]=[];
+ const client=new PeopleInvitationsClient({request:async<T>(path:string,method?:string,body?:unknown)=>{calls.push({path,method,body});
+  if(method==='POST')return {...rows[0],id:'inv_new',note:(body as any).note} as T;
+  if(method==='DELETE'){rows[0]={...rows[0],state:'revoked',code:undefined as any};return undefined as T;}
+  return (method==='PATCH'?{...rows[0],...(body as object)}:{items:rows}) as T;}});
+ const page=await client.list({sort:'sent',direction:'desc'});
+ assert.deepEqual(page.items.map(row=>[row.id,row.state]),[['inv_a','pending'],['inv_c','revoked'],['inv_b','accepted']]);
+ assert.equal(page.items.some(row=>'code' in row),false,'a list never carries a code');
+ assert.deepEqual(page.items[2].allowedLibraries,['lib-1']);
+ assert.deepEqual((await client.list({state:'pending',q:'dana'})).items.map(row=>row.id),['inv_a']);
+ assert.deepEqual((await client.list({sort:'status',direction:'asc'})).items.map(row=>row.id),['inv_a','inv_b','inv_c']);
+ assert.deepEqual(await client.link({id:'inv_a',revision:1,state:'pending'}),{code:'K7QP-2MXD-9HRT-4WNC',expiresAt:at(10)});
+ assert.deepEqual(await client.shortCode({id:'inv_a',revision:1,state:'pending'},'op'),{serverId:'',expiresAt:at(10),shortCode:'K7QP-2MXD-9HRT-4WNC'});
+ calls.length=0;
+ const created=await client.create({operationId:'op',role:'member',allowedLibraries:['lib-1'],expiresInHours:72,notes:' For Eli '});
+ assert.deepEqual(calls[0],{path:'/v1/admin/invitations',method:'POST',body:{role:'member',allLibraries:false,libraries:['lib-1'],note:'For Eli',expiresInDays:3}});
+ assert.equal(created.code,'K7QP-2MXD-9HRT-4WNC');
+ calls.length=0;
+ await assert.rejects(client.create({operationId:'op',role:'member',allowedLibraries:[],expiresInHours:24,access:{maxStreamsMode:'limit',maxStreams:2,allowRemote:true,accessTokens:true,maxContentRating:''}}),/not available/);
+ await assert.rejects(client.create({operationId:'op',role:'member',allowedLibraries:[],expiresInHours:24,porticoUsername:'dana'}),/not available/);
+ assert.equal(calls.length,0,'what an invitation cannot keep is refused before anything is sent');
+ await client.edit('inv_a',{operationId:'op',expectedRevision:1,role:'admin',allowedLibraries:[],expiresAt:at(10)});
+ assert.deepEqual(calls[0],{path:'/v1/admin/invitations/inv_a',method:'PATCH',body:{role:'admin',allLibraries:true,libraries:[],note:''}});
+ const revoked=await client.revoke({id:'inv_a',revision:1},'op');
+ assert.equal(revoked.state,'revoked');assert.equal(calls[1].method,'DELETE');
+ await assert.rejects(client.link({id:'inv_a',revision:1,state:'pending'}),/no longer usable/);
 });

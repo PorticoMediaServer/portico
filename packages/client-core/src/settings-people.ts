@@ -1,89 +1,200 @@
-import {encodedRoutePath, routePath} from '../../contracts/src/route-paths.ts';
-import {decodeGetAdminAccessMembersResponse, decodePostAdminAccessMembersBulkResponse} from '../../contracts/src/decoders.ts';
-import type {RouteResponse, RouteRequest} from '../../contracts/src/route-paths.ts';
-import {parseAccessMember, parseLimitsDocument, type AccessMember, type AccessTier, type MemberLimits} from './server-administration.ts';
-import {randomId} from './random-id.ts';
+import type {Member, MemberEdit, NowPlayingPage, StreamLimits} from '../../contracts/src/next/api.ts';
+import type {AccessMember, AccessTier, MemberLimits, LimitsDocument, StreamLimitMode} from './server-administration.ts';
+import {callServer, type ServerRequester} from './query/server-api.ts';
+import {CodedError, unreadableServerResponse} from './server-messages.ts';
 
-export type SettingsPersonRow = Readonly<RouteResponse<'get_admin_access_members'>['items'][number]>;
+/** One row of People's table. `revision` and `limitsRevision` are always 1: on the rebuilt server the later save wins.
+ * `streamsKnown` is false when this viewer may not read the owner's stream limits (an administrator), so the stream
+ * cells say nothing rather than guess. `lastActiveAt` and `profileNames` come when the server sends them. */
+export type SettingsPersonRow = Readonly<{accountId: string; username: string; email?: string; role: AccessTier; revision: number; limitsRevision: number;
+  disabled: boolean; status: 'active' | 'off' | 'waiting' | 'left' | 'did_not_move'; hasMoveCode: boolean; allowedLibraries: readonly string[]; libraryNames: readonly string[];
+  maxStreams: number; maxStreamsMode: StreamLimitMode; serverMaxStreams: number | null; effectiveMaxStreams: number | null; streamsKnown: boolean;
+  profileCount: number; profileNames: readonly string[]; liveState: 'idle' | 'watching' | 'listening'; lastActiveAt?: string}>;
 export type SettingsPeoplePage = Readonly<{items: readonly SettingsPersonRow[]; totalCount: number; matchedCount: number; nextCursor: string; limit: number}>;
 export type SettingsPeopleQuery = Readonly<{search: string; role: 'all' | 'owner' | 'admin' | 'member'; status: 'all' | 'now' | 'month' | 'idle' | 'off' | 'waiting' | 'left' | 'did_not_move' | 'active'; sort: 'person' | 'role' | 'access' | 'profiles' | 'active'; direction: 'asc' | 'desc'}>;
-export type SettingsPeopleApi = {request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>};
-export type SettingsBulkAccess = NonNullable<RouteRequest<'post_admin_access_members_bulk'>['access']>;
+export type SettingsPeopleApi = ServerRequester;
+/** What bulk access may change. Only libraries and the stream count are on the rebuilt server yet; the rest is refused. */
+export type SettingsBulkAccess = Readonly<{allowedLibraries?: string[]; maxStreamsMode?: string; maxStreams?: number; allowRemote?: boolean; maxContentRating?: string; accessTokens?: boolean; maxProfiles?: number}>;
 export type SettingsBulkAction = 'disable' | 'enable' | 'remove' | 'access';
-const line = (value: unknown, max: number): value is string => typeof value === 'string' && value.length <= max && !/[\x00-\x1f\x7f]/.test(value);
-const identifier = (value: unknown): value is string => line(value, 160) && /^[A-Za-z0-9_.-]+$/.test(value);
-const integer = (value: unknown, min = 0, max = Number.MAX_SAFE_INTEGER): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= min && value <= max;
-function invalid(): never {throw Object.assign(new Error('invalid_settings_people'), {code: 'invalid_settings_people'});}
+type Library = Readonly<{id: string; name: string}>;
+type Streams = Pick<SettingsPersonRow, 'maxStreams' | 'maxStreamsMode' | 'serverMaxStreams' | 'effectiveMaxStreams' | 'streamsKnown'>;
 
-/** Access lists are whole documents: an unreadable account can never silently disappear. */
-export function parseSettingsPeoplePage(raw: unknown): SettingsPeoplePage {
-  const page = decodeGetAdminAccessMembersResponse(raw);
-  if (!integer(page.limit, 1, 200) || page.items.length > page.limit || !integer(page.totalCount) || !integer(page.matchedCount, 0, page.totalCount) || !line(page.nextCursor ?? '', 4096)) invalid();
-  const seen = new Set<string>();
-  const items = page.items.map(row => {
-    if (!identifier(row.accountId) || seen.has(row.accountId) || !line(row.username, 64) || !row.username || !['owner','admin','member'].includes(row.role) || !integer(row.revision, 1) || !integer(row.limitsRevision, 1)) invalid();
-    if (!['active','off','waiting','left','did_not_move'].includes(row.status) || !['idle','watching','listening'].includes(row.liveState) || !integer(row.maxStreams, 0, 1000) || !integer(row.profileCount, 1, 8) || row.profileNames.length !== row.profileCount) invalid();
-    if (row.maxStreamsMode === 'limit' ? row.maxStreams < 1 : row.maxStreams !== 0) invalid();
-    if (row.serverMaxStreams !== null && !integer(row.serverMaxStreams, 1, 1000) || row.effectiveMaxStreams !== null && !integer(row.effectiveMaxStreams, 1, 1000)) invalid();
-    if (row.profileNames.some(name => !line(name, 120) || !name) || row.allowedLibraries.length > 1000 || row.allowedLibraries.some(value => !identifier(value)) || row.libraryNames.length > 1000 || row.libraryNames.some(value => !line(value, 512))) invalid();
-    if (row.email !== undefined && !line(row.email, 254) || row.lastActiveAt !== undefined && (!line(row.lastActiveAt, 64) || !Number.isFinite(Date.parse(row.lastActiveAt)))) invalid();
-    seen.add(row.accountId); return Object.freeze({...row, allowedLibraries: Object.freeze([...row.allowedLibraries]), libraryNames: Object.freeze([...row.libraryNames]), profileNames: Object.freeze([...row.profileNames])}) as SettingsPersonRow;
-  });
-  return Object.freeze({items: Object.freeze(items), totalCount: page.totalCount, matchedCount: page.matchedCount, nextCursor: page.nextCursor ?? '', limit: page.limit});
+const line = (value: unknown, max: number): value is string => typeof value === 'string' && value.length <= max && !/[\x00-\x1f\x7f]/.test(value);
+function invalid(): never {throw Object.assign(new Error('invalid_settings_people'), {code: 'invalid_settings_people'});}
+const unreadable = (): never => {throw new CodedError('invalid_response', unreadableServerResponse);};
+const notYet = (): never => {throw new CodedError('not_available', 'This is not available on this server yet.');};
+const monthMs = 30 * 24 * 60 * 60 * 1000;
+const roleOrder: Readonly<Record<AccessTier, number>> = {owner: 0, admin: 1, member: 2};
+
+/** What an account is held to on the rebuilt server today: nothing but the owner's stream limits. The other limit rows
+ * stay out of the screens until the server keeps whole-account limits. */
+const noAccountLimits: Omit<MemberLimits, 'maxStreams' | 'maxStreamsMode'> = Object.freeze({accessTokens: true, maxProfiles: 0, allowRemote: true, conversion: 'server',
+  remoteBitrateKbps: 0, ratingSystem: '', maxContentRating: '', maximumAge: -1, allowUnrated: true,
+  schedule: Object.freeze({timezone: '', windows: Object.freeze([])}), channelPolicy: Object.freeze({mode: 'all', channels: Object.freeze([])}), tagPolicy: Object.freeze({deniedLabels: Object.freeze([])})});
+/** True while the rebuilt server keeps no whole-account limits: screens leave those rows out. */
+export const accountLimitsOnServer = false;
+
+/** One account's streams from the owner's limits: its own number wins over the per-person number, and its own 0 is no limit. */
+export function streamsOf(accountId: string, limits: StreamLimits | undefined): Streams {
+  if (!limits) return {maxStreams: 0, maxStreamsMode: 'inherit', serverMaxStreams: null, effectiveMaxStreams: null, streamsKnown: false};
+  const server = limits.perPerson ? limits.perPerson : null, own = limits.people && Object.hasOwn(limits.people, accountId) ? limits.people[accountId] : undefined;
+  if (own === undefined) return {maxStreams: 0, maxStreamsMode: 'inherit', serverMaxStreams: server, effectiveMaxStreams: server, streamsKnown: true};
+  return own > 0 ? {maxStreams: own, maxStreamsMode: 'limit', serverMaxStreams: server, effectiveMaxStreams: own, streamsKnown: true}
+    : {maxStreams: 0, maxStreamsMode: 'unlimited', serverMaxStreams: server, effectiveMaxStreams: null, streamsKnown: true};
 }
 
-/** The selected session owns this client. Handover closes every in-flight read/write. */
+function checkMember(m: Member): Member {
+  if (!line(m?.id, 160) || !m.id || !line(m.username, 64) || !m.username || !(m.role in roleOrder) || typeof m.disabled !== 'boolean' || typeof m.allLibraries !== 'boolean' || !Array.isArray(m.libraries)) unreadable();
+  return m;
+}
+const allowedOf = (m: Member) => Object.freeze(m.allLibraries ? [] : [...m.libraries]);
+const lastActiveOf = (m: Member) => {const at = (m as {lastActiveAt?: unknown}).lastActiveAt; return typeof at === 'string' && Number.isFinite(Date.parse(at)) ? at : undefined;};
+const profilesOf = (m: Member) => {const names = (m as {profiles?: unknown}).profiles; return Object.freeze(Array.isArray(names) ? names.filter((name): name is string => line(name, 120) && !!name) : []);};
+
+function personRow(m: Member, libraries: readonly Library[], limits: StreamLimits | undefined, live: ReadonlyMap<string, SettingsPersonRow['liveState']>): SettingsPersonRow {
+  const allowed = allowedOf(m), names = allowed.map(id => libraries.find(library => library.id === id)?.name).filter((name): name is string => !!name);
+  const profileNames = profilesOf(m), lastActiveAt = lastActiveOf(m);
+  return Object.freeze({accountId: m.id, username: m.username, ...(m.email ? {email: m.email} : {}), role: m.role as AccessTier, revision: 1, limitsRevision: 1,
+    disabled: m.disabled, status: m.disabled ? 'off' : 'active', hasMoveCode: false, allowedLibraries: allowed, libraryNames: Object.freeze(names),
+    ...streamsOf(m.id, limits), profileCount: profileNames.length, profileNames, liveState: live.get(m.username) ?? 'idle', ...(lastActiveAt ? {lastActiveAt} : {})});
+}
+
+/** An account as People's panel edits it. Its limits are the stream count; the rest are the defaults every account has today. */
+export function accessMemberOf(m: Member, streams: Streams): AccessMember {
+  checkMember(m);
+  const {streamsKnown: _known, ...facts} = streams, profileNames = profilesOf(m), lastActiveAt = lastActiveOf(m);
+  return Object.freeze({accountId: m.id, username: m.username, ...(m.email ? {email: m.email} : {}), profileId: '', role: m.role as AccessTier, disabled: m.disabled,
+    ...(m.notes ? {notes: m.notes} : {}), profileNames, ...(lastActiveAt ? {lastActiveAt} : {}), revision: 1, allowedLibraries: allowedOf(m), limitsRevision: 1,
+    limits: Object.freeze({...noAccountLimits, maxStreams: facts.maxStreams, maxStreamsMode: facts.maxStreamsMode}),
+    serverMaxStreams: facts.serverMaxStreams, effectiveMaxStreams: facts.effectiveMaxStreams});
+}
+
+function matches(row: SettingsPersonRow, query: SettingsPeopleQuery, now: number): boolean {
+  const search = query.search.trim().toLocaleLowerCase();
+  if (search && !row.username.toLocaleLowerCase().includes(search) && !row.email?.toLocaleLowerCase().includes(search)) return false;
+  if (query.role !== 'all' && row.role !== query.role) return false;
+  const recent = !!row.lastActiveAt && now - Date.parse(row.lastActiveAt) <= monthMs;
+  switch (query.status) {
+    case 'all': return true;
+    case 'active': return !row.disabled;
+    case 'off': return row.disabled;
+    case 'now': return row.liveState !== 'idle';
+    case 'month': return row.liveState !== 'idle' || recent;
+    case 'idle': return !row.disabled && row.liveState === 'idle' && !recent;
+    default: return false;
+  }
+}
+function compare(a: SettingsPersonRow, b: SettingsPersonRow, sort: SettingsPeopleQuery['sort']): number {
+  const byName = a.username.localeCompare(b.username);
+  switch (sort) {
+    case 'role': return roleOrder[a.role] - roleOrder[b.role] || byName;
+    case 'access': return a.libraryNames.join(', ').localeCompare(b.libraryNames.join(', ')) || byName;
+    case 'profiles': return a.profileCount - b.profileCount || byName;
+    case 'active': return Number(a.liveState !== 'idle') - Number(b.liveState !== 'idle') || (a.lastActiveAt ?? '').localeCompare(b.lastActiveAt ?? '') || -byName;
+    default: return byName;
+  }
+}
+
+/**
+ * People's table and panel on the rebuilt server. The server answers with every account (a household is at most a few
+ * hundred), so search, filters and sorting happen here and the table gets one page. The selected session owns this
+ * client: handover closes every request in flight.
+ */
 export class SettingsPeopleClient {
   private closed = false;
   private requests = new Set<AbortController>();
-  private api: SettingsPeopleApi;
-  private isCurrent: () => boolean;
-  constructor(api: SettingsPeopleApi, isCurrent: () => boolean) {this.api = api; this.isCurrent = isCurrent;}
+  private readonly api: SettingsPeopleApi;
+  private readonly isCurrent: () => boolean;
+  private readonly libraries: () => readonly Library[];
+  /** `libraries` names the libraries an account may open, for the table's Access column. */
+  constructor(api: SettingsPeopleApi, isCurrent: () => boolean, libraries: () => readonly Library[] = () => []) {this.api = api; this.isCurrent = isCurrent; this.libraries = libraries;}
   dispose() {this.closed = true; for (const request of this.requests) request.abort(); this.requests.clear();}
   private active() {if (this.closed || !this.isCurrent()) throw Object.assign(new Error('settings_scope_closed'), {code: 'settings_scope_closed'});}
-  private async call<T>(path: string, method: string, body: unknown, parse: (raw: unknown) => T, signal?: AbortSignal): Promise<T> {
+  /** One request bound to this client. A refusal of the viewer (401, 403) closes the client unless the read is `optional`. */
+  private async call<T>(send: (signal: AbortSignal) => Promise<T>, signal?: AbortSignal, optional = false): Promise<T> {
     this.active(); const controller = new AbortController(), abort = () => controller.abort(); this.requests.add(controller);
     if (signal?.aborted) controller.abort(); else signal?.addEventListener('abort', abort, {once: true});
     const timer = setTimeout(abort, 10000);
-    try {const raw = await this.api.request<unknown>(path, method, body, controller.signal); this.active(); if (controller.signal.aborted) throw Object.assign(new Error('settings_request_ended'), {code: 'settings_request_ended'}); return parse(raw);}
-    catch (error) {const status = error && typeof error === 'object' && 'status' in error ? error.status : undefined; if (status === 401 || status === 403) this.dispose(); throw error;}
+    try {const raw = await send(controller.signal); this.active(); if (controller.signal.aborted) throw Object.assign(new Error('settings_request_ended'), {code: 'settings_request_ended'}); return raw;}
+    catch (error) {const status = error && typeof error === 'object' && 'status' in error ? error.status : undefined; if (!optional && (status === 401 || status === 403)) this.dispose(); throw error;}
     finally {clearTimeout(timer); signal?.removeEventListener('abort', abort); this.requests.delete(controller);}
   }
-  read(query: SettingsPeopleQuery, cursor = '', signal?: AbortSignal): Promise<SettingsPeoplePage> {
+  /** The owner's stream limits, or undefined for a viewer who may not read them (only the owner may). */
+  private streamLimits(signal?: AbortSignal): Promise<StreamLimits | undefined> {
+    return this.call(s => callServer(this.api, 'GET /v1/admin/playback/stream-limits', {signal: s}), signal, true).catch(error => {if (this.closed || signal?.aborted) throw error; return undefined;});
+  }
+  /** Who is playing now, by username. A failed read leaves everyone idle: the table still loads. */
+  private async live(signal?: AbortSignal): Promise<ReadonlyMap<string, SettingsPersonRow['liveState']>> {
+    const page: NowPlayingPage | undefined = await this.call(s => callServer(this.api, 'GET /v1/admin/sessions', {signal: s}), signal, true).catch(error => {if (this.closed || signal?.aborted) throw error; return undefined;});
+    const live = new Map<string, SettingsPersonRow['liveState']>();
+    for (const item of Array.isArray(page?.items) ? page.items : []) if (typeof item?.username === 'string' && live.get(item.username) !== 'watching') live.set(item.username, item.kind === 'audio' ? 'listening' : 'watching');
+    return live;
+  }
+  async read(query: SettingsPeopleQuery, cursor = '', signal?: AbortSignal): Promise<SettingsPeoplePage> {
     if (!line(query.search, 160) || !line(cursor, 4096)) invalid();
-    const params = new URLSearchParams({q: query.search, role: query.role, status: query.status, sort: query.sort, direction: query.direction, limit: '40'});
-    if (cursor) params.set('cursor', cursor);
-    return this.call(routePath('get_admin_access_members') + '?' + params, 'GET', undefined, parseSettingsPeoplePage, signal);
+    const [members, limits, live] = await Promise.all([this.call(s => callServer(this.api, 'GET /v1/admin/members', {signal: s}), signal), this.streamLimits(signal), this.live(signal)]);
+    if (!Array.isArray(members?.items)) unreadable();
+    const seen = new Set<string>(), libraries = this.libraries();
+    const rows = members.items.map(member => {checkMember(member); if (seen.has(member.id)) unreadable(); seen.add(member.id); return personRow(member, libraries, limits, live);});
+    if (cursor) return Object.freeze({items: Object.freeze([]), totalCount: rows.length, matchedCount: 0, nextCursor: '', limit: 1});
+    const now = Date.now(), direction = query.direction === 'desc' ? -1 : 1;
+    const matched = rows.filter(row => matches(row, query, now)).sort((a, b) => direction * compare(a, b, query.sort));
+    return Object.freeze({items: Object.freeze(matched), totalCount: rows.length, matchedCount: matched.length, nextCursor: '', limit: Math.max(1, matched.length)});
   }
-  /** Parsed current-query first page. Installation and tail/detail ownership stay with the caller. */
-  refresh(query: SettingsPeopleQuery, signal?: AbortSignal): Promise<SettingsPeoplePage> {
-    return this.read(query, '', signal);
+  refresh(query: SettingsPeopleQuery, signal?: AbortSignal): Promise<SettingsPeoplePage> {return this.read(query, '', signal);}
+  async person(accountId: string, signal?: AbortSignal): Promise<AccessMember> {
+    if (!line(accountId, 160) || !accountId) invalid();
+    const [member, limits] = await Promise.all([this.call(s => callServer(this.api, 'GET /v1/admin/members/{id}', {id: accountId, signal: s}), signal), this.streamLimits(signal)]);
+    if (member?.id !== accountId) unreadable();
+    return accessMemberOf(member, streamsOf(accountId, limits));
   }
-  person(accountId: string, signal?: AbortSignal): Promise<AccessMember> {
-    if (!identifier(accountId)) invalid();
-    return this.call(encodedRoutePath('get_admin_access_member', {id: encodeURIComponent(accountId)}), 'GET', undefined, raw => {const person = parseAccessMember(raw); if (person.accountId !== accountId) invalid(); return person;}, signal);
+  private async edit(person: AccessMember, body: MemberEdit): Promise<AccessMember> {
+    const member = await this.call(s => callServer(this.api, 'PATCH /v1/admin/members/{id}', {id: person.accountId, body, signal: s}));
+    if (member?.id !== person.accountId) unreadable();
+    return accessMemberOf(member, {maxStreams: person.limits.maxStreams, maxStreamsMode: person.limits.maxStreamsMode, serverMaxStreams: person.serverMaxStreams, effectiveMaxStreams: person.effectiveMaxStreams, streamsKnown: true});
   }
-  notes(person: AccessMember, notes: string): Promise<AccessMember> {
+  async notes(person: AccessMember, notes: string): Promise<AccessMember> {
     if (!line(notes, 2000)) invalid();
-    const body: RouteRequest<'put_admin_access_member_notes'> = {notes, expectedRevision: person.revision, operationId: randomId()};
-    return this.call(encodedRoutePath('put_admin_access_member_notes', {id: encodeURIComponent(person.accountId)}), 'PUT', body, raw => {const value = parseAccessMember(raw); if (value.accountId !== person.accountId) invalid(); return value;});
+    return this.edit(person, {notes});
   }
-  role(person: AccessMember, role: AccessTier): Promise<AccessMember> {
-    const body: RouteRequest<'put_admin_access_members_id_role'> = {role, expectedRevision: person.revision, operationId: randomId()};
-    return this.call(encodedRoutePath('put_admin_access_members_id_role', {id: encodeURIComponent(person.accountId)}), 'PUT', body, raw => {const value = parseAccessMember(raw); if (value.accountId !== person.accountId) invalid(); return value;});
+  async role(person: AccessMember, role: AccessTier): Promise<AccessMember> {
+    if (role === 'owner') invalid();
+    return this.edit(person, {role});
   }
-  limits(person: AccessMember, limits: MemberLimits) {
-    const body: RouteRequest<'put_admin_access_members_id_limits'> = {limits: {...limits, schedule: {...limits.schedule, windows: limits.schedule.windows.map(window => ({...window, days: [...window.days]}))}, channelPolicy: {...limits.channelPolicy, channels: [...limits.channelPolicy.channels]}, tagPolicy: {deniedLabels: [...limits.tagPolicy.deniedLabels]}}, expectedRevision: person.limitsRevision, operationId: randomId()};
-    return this.call(encodedRoutePath('put_admin_access_members_id_limits', {id: encodeURIComponent(person.accountId)}), 'PUT', body, raw => parseLimitsDocument(raw, person.accountId));
+  /** Libraries this account may open: none listed is all of them. */
+  libraryAccess(person: Pick<AccessMember, 'accountId'>, allowedLibraries: readonly string[]): Promise<Member> {
+    return this.call(s => callServer(this.api, 'PATCH /v1/admin/members/{id}', {id: person.accountId, body: {allLibraries: allowedLibraries.length === 0, libraries: [...allowedLibraries]}, signal: s}));
   }
-  /** Exactly one producer transaction, using the revisions already published in the table. */
-  bulk(rows: readonly SettingsPersonRow[], action: SettingsBulkAction, access?: SettingsBulkAccess, operationId = randomId()): Promise<readonly string[]> {
-    if (!rows.length || rows.length > 200 || new Set(rows.map(row => row.accountId)).size !== rows.length || (action === 'access') !== (access !== undefined)) invalid();
-    const body: RouteRequest<'post_admin_access_members_bulk'> = {action, operationId, targets: rows.map(row => ({accountId: row.accountId, expectedRevision: row.revision, expectedLimitsRevision: row.limitsRevision})), ...(access ? {access} : {})};
-    return this.call(routePath('post_admin_access_members_bulk'), 'POST', body, raw => {
-      const result = decodePostAdminAccessMembersBulkResponse(raw);
-      if (result.action !== action || result.accountIds.length !== rows.length || new Set(result.accountIds).size !== rows.length || result.accountIds.some(id => !rows.some(row => row.accountId === id))) invalid();
-      return Object.freeze([...result.accountIds]);
-    });
+  /** Sets accounts' own stream numbers in the owner's limits, keeping everything else in them. Only the owner may. */
+  private async setStreams(accountIds: readonly string[], mode: string | undefined, count: number | undefined): Promise<StreamLimits> {
+    if (mode !== 'inherit' && mode !== 'unlimited' && !(mode === 'limit' && Number.isSafeInteger(count) && count! >= 1 && count! <= 1000)) invalid();
+    const current = await this.call(s => callServer(this.api, 'GET /v1/admin/playback/stream-limits', {signal: s})) ?? {};
+    const people: Record<string, number> = {...current.people};
+    for (const id of accountIds) {if (mode === 'inherit') delete people[id]; else people[id] = mode === 'unlimited' ? 0 : count!;}
+    const body: StreamLimits = {...current, people};
+    await this.call(s => callServer(this.api, 'PUT /v1/admin/playback/stream-limits', {body, signal: s}));
+    return body;
+  }
+  /** Only the stream count can change on the rebuilt server yet; any other limit is refused, never dropped. */
+  async limits(person: AccessMember, limits: MemberLimits): Promise<LimitsDocument> {
+    for (const key of Object.keys(noAccountLimits) as (keyof typeof noAccountLimits)[]) if (JSON.stringify(limits[key]) !== JSON.stringify(person.limits[key])) notYet();
+    const saved = streamsOf(person.accountId, await this.setStreams([person.accountId], limits.maxStreamsMode, limits.maxStreams));
+    return Object.freeze({accountId: person.accountId, revision: 1, limits: Object.freeze({...person.limits, maxStreams: saved.maxStreams, maxStreamsMode: saved.maxStreamsMode}),
+      serverMaxStreams: saved.serverMaxStreams, effectiveMaxStreams: saved.effectiveMaxStreams});
+  }
+  /** One request per account (the server has no bulk route); the accounts done are returned. Library access and the
+   * stream count are what bulk access can change; anything else in `access` is refused before anything is sent. */
+  async bulk(rows: readonly SettingsPersonRow[], action: SettingsBulkAction, access?: SettingsBulkAccess, _operationId?: string): Promise<readonly string[]> {
+    if (!rows.length || rows.length > 1000 || new Set(rows.map(row => row.accountId)).size !== rows.length || (action === 'access') !== (access !== undefined)) invalid();
+    if (access && (['allowRemote', 'maxContentRating', 'accessTokens', 'maxProfiles'] as const).some(key => access[key] !== undefined)) notYet();
+    const done: string[] = [];
+    for (const row of rows) {
+      if (action === 'remove') await this.call(s => callServer(this.api, 'DELETE /v1/admin/members/{id}', {id: row.accountId, signal: s}));
+      else if (action === 'disable' || action === 'enable') await this.call(s => callServer(this.api, 'PATCH /v1/admin/members/{id}', {id: row.accountId, body: {disabled: action === 'disable'}, signal: s}));
+      else if (access?.allowedLibraries) await this.libraryAccess(row, access.allowedLibraries);
+      done.push(row.accountId);
+    }
+    if (access && (access.maxStreamsMode !== undefined || access.maxStreams !== undefined)) await this.setStreams(rows.map(row => row.accountId), access.maxStreamsMode, access.maxStreams);
+    return Object.freeze(done);
   }
 }

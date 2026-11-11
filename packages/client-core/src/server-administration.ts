@@ -1,5 +1,6 @@
 import {encodedRoutePath} from "../../contracts/src/route-paths.ts";
 import {parseServerInvitation,parsePeopleInvitationPage} from './direct-account.ts';
+import {callServer} from './query/server-api.ts';
 /**
  * Wire shapes for server administration: access tiers, invitations, per-member
  * limits, devices, API keys, message logs and connectivity.
@@ -185,27 +186,20 @@ export const parseAccessMemberPage=(raw:unknown)=>page(raw,parseAccessMember,row
  * deleted with a person. `playsKept` rows of the owner's play history stay, with the person's
  * names blanked.
  */
+/** Who deleting removes, read just before the plain confirm that names them. The rebuilt server does not count what
+ * goes with the account, so the counts are absent; `revision` is always 1. */
 export type MemberDeletionPreview=Readonly<{accountId:string;username:string;role:AccessTier;revision:number;porticoAccount:boolean;
- profiles:number;devices:number;playlists:number;savedResources:number;playsKept:number}>;
-export function parseMemberDeletionPreview(raw:unknown):MemberDeletionPreview{
- if(!obj(raw))return invalid();
- return Object.freeze({accountId:str(raw.accountId),username:str(raw.username,64),role:oneOf(raw.role,accessTiers),revision:num(raw.revision,1),
-  porticoAccount:bool(raw.porticoAccount),profiles:num(raw.profiles),devices:num(raw.devices),playlists:num(raw.playlists),
-  savedResources:num(raw.savedResources),playsKept:num(raw.playsKept)});
-}
+ profiles?:number;devices?:number;playlists?:number;savedResources?:number;playsKept?:number}>;
 type MemberDeletionApi=Readonly<{request<T>(path:string,method?:string,body?:unknown,signal?:AbortSignal):Promise<T>}>;
-const memberPath=(accountId:string)=>encodedRoutePath("delete_direct_member", {"id": encodeURIComponent(str(accountId))});
-/** Reads what deleting this member will remove. Changes nothing. */
+/** Reads the member deleting would remove. Changes nothing. */
 export async function previewMemberDeletion(api:MemberDeletionApi,accountId:string,signal?:AbortSignal):Promise<MemberDeletionPreview>{
- const preview=parseMemberDeletionPreview(await api.request<unknown>(memberPath(accountId)+'/deletion-preview','GET',undefined,signal));
- return preview.accountId===accountId?preview:invalid();
+ const member=await callServer(api,'GET /v1/admin/members/{id}',{id:str(accountId),signal});
+ if(!obj(member)||member.id!==accountId)return invalid();
+ return Object.freeze({accountId,username:str(member.username,64),role:oneOf(member.role,accessTiers),revision:1,porticoAccount:false});
 }
-/**
- * Deletes the member the preview describes. The server refuses (412 `revision_mismatch`) when the
- * member changed since the preview was read: read it again and confirm again.
- */
+/** Deletes the member the preview names. */
 export async function deleteMember(api:MemberDeletionApi,preview:MemberDeletionPreview,signal?:AbortSignal):Promise<void>{
- await api.request<void>(memberPath(preview.accountId),'DELETE',{expectedRevision:preview.revision},signal);
+ await callServer(api,'DELETE /v1/admin/members/{id}',{id:str(preview.accountId),signal});
 }
 
 export function parseInvitation(raw:unknown):Invitation{
