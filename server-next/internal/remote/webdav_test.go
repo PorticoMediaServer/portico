@@ -102,3 +102,21 @@ func TestSmallReadsShareARequest(t *testing.T) {
 		t.Fatalf("two megabytes read in small pieces took %d requests", got)
 	}
 }
+
+// A server that stops sending in the middle of a file is given up on, so a scan is not held.
+func TestAStalledReadEnds(t *testing.T) {
+	before := remote.ReadStall
+	remote.ReadStall = 100 * time.Millisecond
+	t.Cleanup(func() { remote.ReadStall = before })
+	dav := remotetest.NewDAV(t, map[string]string{"film.mkv": "0123456789"})
+	src, _ := remote.NewWebDAV(dav.URL, dav.User, dav.Password)
+	file, err := src.Open(ctx, "film.mkv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dav.Stall.Store(true)
+	start := time.Now()
+	if _, err := file.ReadAt(make([]byte, 5), 2); !errors.Is(err, remote.ErrStalled) || time.Since(start) > 5*time.Second {
+		t.Fatalf("a stalled read ended with %v after %s", err, time.Since(start))
+	}
+}

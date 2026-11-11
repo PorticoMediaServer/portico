@@ -59,9 +59,20 @@ func TestRemoteSources(t *testing.T) {
 		RemoteSourceEdit{WebDAV: &WebDAVSettings{Address: dav.URL, User: dav.User, Password: "wrong"}}); code != 422 {
 		t.Fatalf("a wrong new password answered %d", code)
 	}
+	// A rename keeps "Needs its sign-in again"; a change to how the source is reached that
+	// passes its test clears it.
+	stored, _ := s.db.RemoteSource(context.Background(), src.ID)
+	if err := s.db.SetRemoteSourceState(context.Background(), stored.ID, "sign_in", "refused"); err != nil {
+		t.Fatal(err)
+	}
+	renamed := "Shelf"
+	if call(t, s, "PATCH", "/v1/admin/remote-sources/"+src.ID, owner.AccessToken, RemoteSourceEdit{Name: &renamed}, &src); src.State != "sign_in" {
+		t.Fatalf("a rename left the source %q", src.State)
+	}
 	preset := "everything"
 	if w := call(t, s, "PATCH", "/v1/admin/remote-sources/"+src.ID, owner.AccessToken,
-		RemoteSourceEdit{Preset: &preset, WebDAV: &WebDAVSettings{Address: dav.URL, User: dav.User}}, &src); w.Code != 200 || src.Preset != "everything" {
+		RemoteSourceEdit{Preset: &preset, WebDAV: &WebDAVSettings{Address: dav.URL, User: dav.User}}, &src); w.Code != 200 || src.Preset != "everything" ||
+		src.State == "sign_in" {
 		t.Fatalf("an edit keeping the password answered %d %s", w.Code, w.Body)
 	}
 	if code := status(t, s, "POST", "/v1/admin/remote-sources/"+src.ID+"/test", owner.AccessToken, nil); code != 200 {
