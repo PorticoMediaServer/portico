@@ -77,7 +77,9 @@ func mergeItems(b *batchTx, from, into, now int64) error {
 		WHERE id IN (?, ?, ?) OR parent_id = ?`, into, z.parent.Int64, z.root.Int64, into); err != nil {
 		return err
 	}
-	// The merged title and what moved under it are covered by its labels now, the other's among them.
+	// The merged title and what moved under it are covered by its labels now, the other's among
+	// them. labelsChanged also flags the holders: what moved keeps its rating, so the title merged
+	// into, and what holds it, may now hold titles a profile cannot see.
 	if err := b.labelsChanged(into); err != nil {
 		return err
 	}
