@@ -176,3 +176,9 @@ func shrink(source image.Image, width int) *image.RGBA {
 	}
 	return to
 }
+
+// Shrink makes a copy of a picture no wider than width, keeping its shape. A picture already
+// that small is copied as it is.
+func Shrink(source image.Image, width int) *image.RGBA {
+	return shrink(source, min(width, source.Bounds().Dx()))
+}

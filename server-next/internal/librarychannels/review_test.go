@@ -26,7 +26,9 @@ func (f oneShow) ShowEpisodes(ctx context.Context, showID int64, s, n int, id in
 	}
 	return out, nil
 }
-func (f oneShow) ShowEpisodeCount(ctx context.Context, showID int64) (int, error) { return len(f.episodes), nil }
+func (f oneShow) ShowEpisodeCount(ctx context.Context, showID int64) (int, error) {
+	return len(f.episodes), nil
+}
 func (f oneShow) ShowEpisodeAt(ctx context.Context, showID int64, place int) (db.Episode, error) {
 	return f.episodes[place], nil
 }
