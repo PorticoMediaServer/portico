@@ -99,13 +99,22 @@ func profileAccess(b *batchTx, profileID int64) (access, error) {
 	return loadAccess(context.Background(), b.tx, Viewer{UserID: user, ProfileID: profileID})
 }
 
-// leavesChanged notes that something playable left these holders or moved between them, or
-// that state rows under them or their own were put back: any profile's mark may now differ.
-// settleWatchedForAll acts on it.
+// leavesChanged notes that something playable moved between these holders or was split out
+// of them: any profile's mark may now differ. settleWatchedForAll acts on it.
 func (b *batchTx) leavesChanged(holders ...int64) {
 	for _, holder := range holders {
 		if holder != 0 {
 			b.watchedDirty = append(b.watchedDirty, holder)
+		}
+	}
+}
+
+// leavesLeft notes that a holder only lost items. A profile that holds the mark keeps it
+// while it can still see something under the holder, so the show is not read again for it.
+func (b *batchTx) leavesLeft(holders ...int64) {
+	for _, holder := range holders {
+		if holder != 0 {
+			b.watchedLeft = append(b.watchedLeft, holder)
 		}
 	}
 }
@@ -125,16 +134,21 @@ func (b *batchTx) leavesArrived(holder int64, items ...int64) {
 	b.watchedArrived[holder] = append(b.watchedArrived[holder], items...)
 }
 
-// settleWatchedForAll settles the holders noted by leavesChanged and leavesArrived for every
-// profile whose mark could differ. For a holder that lost or exchanged items those are the
+// settleWatchedForAll settles the holders noted by leavesChanged, leavesLeft, leavesArrived
+// and ratingChanged for every profile whose mark could differ. A rating matters only to a
+// profile with a rating limit. For a holder that lost or exchanged items those are the
 // profiles that hold the mark and the ones that have watched anything under it: a profile
 // that has watched nothing there cannot have, or come to have, the mark. It runs at the end
 // of the transaction that made the change.
 func (b *batchTx) settleWatchedForAll(now int64) error {
-	changed, arrived := b.watchedDirty, b.watchedArrived
-	b.watchedDirty, b.watchedArrived = nil, nil
+	changed, arrived, left, rated := b.watchedDirty, b.watchedArrived, b.watchedLeft, b.watchedRated
+	b.watchedDirty, b.watchedArrived, b.watchedLeft, b.watchedRated = nil, nil, nil, nil
 	slices.Sort(changed)
 	changed = slices.Compact(changed)
+	slices.Sort(rated)
+	rated = slices.Compact(rated)
+	slices.Sort(left)
+	left = slices.Compact(left)
 	marked := `SELECT profile_id FROM user_item_state WHERE item_id = ?1 AND played = 1`
 	anyWatched := marked + ` UNION ` + underHolder(`SELECT s.profile_id FROM items c CROSS JOIN user_item_state s ON s.item_id = c.id
 		WHERE {under} AND s.played = 1`, "?1", " UNION ")
@@ -147,6 +161,62 @@ func (b *batchTx) settleWatchedForAll(now int64) error {
 			acc, err := profileAccess(b, profile)
 			if err != nil {
 				return err
+			}
+			if err := settleWatched(b, acc, profile, []int64{holder}, now); err != nil {
+				return err
+			}
+		}
+	}
+	for _, holder := range rated {
+		if _, found := slices.BinarySearch(changed, holder); found {
+			continue
+		}
+		profiles, err := b.queryInts(anyWatched, holder)
+		if err != nil {
+			return err
+		}
+		for _, profile := range profiles {
+			acc, err := profileAccess(b, profile)
+			if err != nil {
+				return err
+			}
+			if acc.maxAge == nil {
+				continue
+			}
+			if err := settleWatched(b, acc, profile, []int64{holder}, now); err != nil {
+				return err
+			}
+		}
+	}
+	for _, holder := range left {
+		if _, found := slices.BinarySearch(changed, holder); found {
+			continue
+		}
+		_, settled := slices.BinarySearch(rated, holder) // for the profiles with a rating limit
+		holding, err := b.queryInts(marked, holder)
+		if err != nil {
+			return err
+		}
+		profiles, err := b.queryInts(anyWatched, holder)
+		if err != nil {
+			return err
+		}
+		for _, profile := range profiles {
+			acc, err := profileAccess(b, profile)
+			if err != nil {
+				return err
+			}
+			if settled && acc.maxAge != nil {
+				continue
+			}
+			if slices.Contains(holding, profile) {
+				var sees bool
+				if err := b.queryRow(`SELECT `+underHolder(`EXISTS (SELECT 1 FROM items c WHERE {under} AND `+acc.visible("c")+`)`, "?1", " OR "), holder).Scan(&sees); err != nil {
+					return err
+				}
+				if sees {
+					continue
+				}
 			}
 			if err := settleWatched(b, acc, profile, []int64{holder}, now); err != nil {
 				return err
