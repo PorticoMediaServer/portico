@@ -52,10 +52,30 @@ var titleChanges = []titleChange{
 			return nil
 		}},
 	{name: "a version is split off a title with a label",
-		covers: []string{"db.SplitVersion"}, run: func(w *world) map[string]string {
-			return w.split()
-		},
-		fault: "the split-off title loses the owner's labels"},
+		covers: []string{"POST /v1/admin/versions/{id}/split", "db.SplitVersion"}, run: func(w *world) map[string]string {
+			return w.splitByRoute()
+		}},
+	{name: "the owner makes a show adults only and labels a film in the editor",
+		covers: []string{"PATCH /v1/admin/items/{id}/metadata", "db.EditMetadata"}, run: func(w *world) map[string]string {
+			w.adultsOnly()
+			return nil
+		}},
+	{name: "Undo puts back an episode's title after its show became adults only",
+		covers: []string{"POST /v1/admin/items/{id}/metadata/history/{entryId}/undo", "db.UndoMetadata"}, run: func(w *world) map[string]string {
+			w.undoAfterRating()
+			return nil
+		}},
+	{name: "a show is merged into an adults-only show",
+		covers: []string{"POST /v1/admin/items/{id}/merge", "db.MergeItems"}, run: func(w *world) map[string]string {
+			w.mergeIntoAdult()
+			return nil
+		}},
+	{name: "a provider looks up labelled films, a match is chosen by hand and merges two, one is kept as is, and episodes are named",
+		covers: []string{"PUT /v1/admin/items/{id}/match", "POST /v1/admin/items/{id}/metadata/refresh", "db.ChangeMatch", "db.SetUnmatched",
+			"db.KeepAsIs", "db.ApplyDetails", "db.MarkRefreshed", "db.ApplyChildren"}, run: func(w *world) map[string]string {
+			w.lookUp()
+			return nil
+		}},
 	{name: "title data takes mood tags off titles and leaves their labels",
 		covers: []string{"db.ApplyTitleData", "db.RemoveTitleDataTags"}, run: func(w *world) map[string]string {
 			w.moods()

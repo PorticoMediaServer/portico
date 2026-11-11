@@ -384,19 +384,6 @@ func (w *world) probeUnread() {
 	}
 }
 
-// split splits the second version off a film with a label.
-func (w *world) split() map[string]string {
-	w.t.Helper()
-	film := w.film(intp(8), []db.TagName{w.label(0)}, "film.mkv", "film - extended.mkv")
-	w.check("the film is added")
-	version := w.idOf(`SELECT m.public_id FROM media m JOIN items i ON i.id = m.item_id WHERE i.public_id = ? ORDER BY m.position LIMIT 1 OFFSET 1`, film)
-	made, err := w.s.db.SplitVersion(background, version)
-	if err != nil {
-		w.t.Fatal(err)
-	}
-	return map[string]string{made: film}
-}
-
 // moods gives a film a mood tag beside a label, then turns title data off.
 func (w *world) moods() {
 	w.t.Helper()
