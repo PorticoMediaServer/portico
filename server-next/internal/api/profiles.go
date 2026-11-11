@@ -179,6 +179,15 @@ func requestHash(req any) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// idempotencyKey reads the Idempotency-Key a creating request may carry.
+func idempotencyKey(r *http.Request) (string, error) {
+	key := r.Header.Get("Idempotency-Key")
+	if len(key) > 128 {
+		return "", ErrInvalid("The Idempotency-Key is at most 128 characters.")
+	}
+	return key, nil
+}
+
 func errKeyReused() *Error {
 	return refusal(http.StatusUnprocessableEntity, "idempotency_key_reused", "This request conflicts with an earlier request.", false)
 }

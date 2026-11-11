@@ -152,14 +152,6 @@ func listIfMatch(r *http.Request) (int64, error) {
 	return revision, nil
 }
 
-func idempotencyKey(r *http.Request) (string, error) {
-	key := r.Header.Get("Idempotency-Key")
-	if len(key) > 128 {
-		return "", ErrInvalid("The Idempotency-Key is at most 128 characters.")
-	}
-	return key, nil
-}
-
 // checkName checks a list's name and description: a name of 1 to 200 characters and a
 // description of up to 4,000.
 func checkName(name *string, description *string) error {
