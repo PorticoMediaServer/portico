@@ -22,6 +22,28 @@ import (
 // maxProfilePicture is the largest picture a person can upload for a profile.
 const maxProfilePicture = 4 << 20
 
+// This server keeps profile pictures only when its people sign in to it directly. Where they
+// sign in with a Portico Account, a person's picture is part of that account and is kept by
+// Portico's hosted service: nothing is stored here, and changing it here is refused.
+
+// signInKindKey is the setting that says how people sign in to this server. Setup writes it
+// when the owner chooses; until Portico Account sign-in is built it is never anything but local.
+const (
+	signInKindKey         = "sign_in_kind"
+	signInPorticoAccounts = "portico_account"
+)
+
+func (s *Server) picturesKeptHere(r *http.Request) error {
+	kind, _, err := s.db.Setting(r.Context(), signInKindKey)
+	if err != nil {
+		return err
+	}
+	if kind == signInPorticoAccounts {
+		return ErrConflict("managed_by_portico_account", "This profile's picture is managed in the person's Portico Account.")
+	}
+	return nil
+}
+
 func (s *Server) profilePictureRoutes() {
 	// The upload's body and the picture's reply are the picture itself, not JSON, so both
 	// are registered by hand.
@@ -56,6 +78,9 @@ func (s *Server) profilePictureRoutes() {
 		if err != nil {
 			return Profile{}, err
 		}
+		if err := s.picturesKeptHere(r); err != nil {
+			return Profile{}, err
+		}
 		p, err := s.db.SetProfilePicture(r.Context(), userID, r.PathValue("id"), "", 0, 0)
 		return profileOut(p), refuse(err)
 	})
@@ -67,6 +92,9 @@ func (s *Server) profilePictureRoutes() {
 func (s *Server) setProfilePicture(w http.ResponseWriter, r *http.Request) (Profile, error) {
 	userID, _, err := s.profileOwner(r)
 	if err != nil {
+		return Profile{}, err
+	}
+	if err := s.picturesKeptHere(r); err != nil {
 		return Profile{}, err
 	}
 	if _, err := s.db.Profile(r.Context(), userID, r.PathValue("id")); err != nil {
