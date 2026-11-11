@@ -118,6 +118,12 @@ function SetupCode({invalid, onSubmit, back}: {invalid: boolean; onSubmit: (code
   return <AuthStage legal={false} contentClassName={styles.content}>
     <h1 className={styles.one}>{t('web.setup.codeTitle')}</h1>
     <p className={styles.quiet}>{t('web.setup.codeHint')}</p>
+    {/* Every folder stays one tap away on a small screen. */}
+    <details className={styles.quiet}><summary>{t('web.setup.codeWhere')}</summary>
+      <ul>{(['web.setup.codeFolderWindows', 'web.setup.codeFolderLinuxPackage', 'web.setup.codeFolderMac', 'web.setup.codeFolderDocker', 'web.setup.codeFolderByHand'] as const)
+        .map(key => <li key={key}>{t(key)}</li>)}</ul>
+      <p>{t('web.setup.codeFolderLog')}</p>
+    </details>
     <form className={styles.field} onSubmit={event => {event.preventDefault();if (code.trim()) onSubmit(code);}}>
       <TextField variant="auth" label={t('web.setup.codeLabel')} value={code} autoFocus autoComplete="one-time-code" autoCapitalize="characters" spellCheck={false}
         error={invalid ? t('web.setup.codeInvalid') : undefined} onChange={event => setCode(event.target.value)}/>
