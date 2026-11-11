@@ -55,6 +55,8 @@ type Server struct {
 	Home func() []netip.Prefix
 	// FromHome is the server's one rule for whether a request comes from home.
 	FromHome func(*http.Request) bool
+	// Names are the further names the owner lets DLNA answer to, in lower case.
+	Names func() []string
 }
 
 const (
@@ -90,18 +92,22 @@ func randomUUID() string {
 // admitted says whether r may be served now. Every refusal answers the same 404, so nobody
 // outside can tell whether DLNA is on.
 func (s *Server) admitted(r *http.Request) bool {
-	return len(s.Home()) > 0 && s.FromHome(r) && OwnHost(r.Host)
+	return len(s.Home()) > 0 && s.FromHome(r) && OwnHost(r.Host, s.Names())
 }
 
-// localSuffixes are the endings a home network's own names take, which nobody on the internet
-// can register.
-var localSuffixes = []string{"", ".local", ".lan", ".home", ".home.arpa", ".internal", ".localdomain"}
+// localEndings are endings that are not public domains by convention: home routers and
+// networks name their machines under them (nas.local, nas.home.lan, nas.fritz.box). .box is
+// also a public top-level domain, accepted by the owner's ruling because Fritz!Box routers use
+// it at home.
+var localEndings = []string{"local", "lan", "home", "home.arpa", "internal", "localdomain", "box", "router", "localnet", "intranet",
+	"private", "corp"}
 
-// OwnHost says whether host (a Host header, with or without a port) is an IP address or one of
-// this server's own names: "localhost", its host name, the host name under a home network's own
-// endings (.local, .lan, .home, .home.arpa, .internal, .localdomain), or its Tailscale MagicDNS
-// name (the host name under .ts.net). Any other name is refused.
-func OwnHost(host string) bool {
+// OwnHost says whether host (a Host header, with or without a port) may be answered: an IP
+// address; "localhost"; this machine's host name; any name under one of the localEndings; the
+// host name under .ts.net (Tailscale MagicDNS); or one of extra, the names the owner added.
+// Any other name is refused: it is how a web page that re-points its own name at this server
+// (DNS rebinding) arrives.
+func OwnHost(host string, extra []string) bool {
 	if h, _, err := net.SplitHostPort(host); err == nil {
 		host = h
 	}
@@ -109,22 +115,24 @@ func OwnHost(host string) bool {
 	if _, err := netip.ParseAddr(host); err == nil || host == "localhost" {
 		return true
 	}
+	for _, name := range extra {
+		if host == name {
+			return true
+		}
+	}
+	for _, ending := range localEndings {
+		if strings.HasSuffix(host, "."+ending) && len(host) > len(ending)+1 {
+			return true
+		}
+	}
 	name, err := os.Hostname()
 	if err != nil || name == "" {
 		return false
 	}
 	name = strings.ToLower(name)
 	short, _, _ := strings.Cut(name, ".")
-	if host == name {
-		return true
-	}
-	for _, suffix := range localSuffixes {
-		if host == short+suffix {
-			return true
-		}
-	}
 	first, rest, _ := strings.Cut(host, ".")
-	return first == short && strings.HasSuffix(rest, ".ts.net")
+	return host == name || host == short || first == short && strings.HasSuffix(rest, ".ts.net")
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {

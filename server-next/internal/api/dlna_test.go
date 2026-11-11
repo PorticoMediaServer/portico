@@ -122,6 +122,9 @@ func TestDLNA(t *testing.T) {
 		{"the server's own name", home, map[string]string{"Host": short + ":32500"}, 200},
 		{"the server's .local name", home, map[string]string{"Host": short + ".local:32500"}, 200},
 		{"the server's MagicDNS name", home, map[string]string{"Host": short + ".tail1234.ts.net"}, 200},
+		{"a name the router made", home, map[string]string{"Host": "nas.fritz.box:32500"}, 200},
+		{"a name of several parts under a home ending", home, map[string]string{"Host": "nas.home.lan"}, 200},
+		{"the owner's own domain, not yet added", home, map[string]string{"Host": "media.example.com"}, 404},
 		{"the owner's proxy passing a home address", proxy, map[string]string{"X-Forwarded-For": home}, 200},
 		{"a device away from home", away, nil, 404},
 		{"the owner's proxy passing an address away", proxy, map[string]string{"X-Forwarded-For": away}, 404},
@@ -132,6 +135,17 @@ func TestDLNA(t *testing.T) {
 		if w := dlnaCall(s, c.peer, "GET", media, "", c.header); w.Code != c.want {
 			t.Errorf("%s was answered %d, want %d", c.what, w.Code, c.want)
 		}
+	}
+	// The owner adds their own domain on the proxy: it is answered, and still nothing else is.
+	names := []string{"Media.Example.com"}
+	if got := status(t, s, "PUT", "/v1/admin/settings/remote-access", owner, RemoteAccessSettingsEdit{DLNANames: &names}); got != 200 {
+		t.Fatalf("adding a name answered %d", got)
+	}
+	if w := dlnaCall(s, home, "GET", media, "", map[string]string{"Host": "media.example.com:443"}); w.Code != 200 {
+		t.Errorf("a name the owner added was answered %d", w.Code)
+	}
+	if w := dlnaCall(s, home, "GET", media, "", map[string]string{"Host": "evil.example.com"}); w.Code != 404 {
+		t.Errorf("another name under the owner's domain was answered %d", w.Code)
 	}
 	setHome("192.168.1.0/24", "::/0")
 	if w := dlnaCall(s, home, "GET", media, "", nil); w.Code != 404 {
