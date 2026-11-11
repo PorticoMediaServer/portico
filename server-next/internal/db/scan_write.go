@@ -266,6 +266,10 @@ func (im *importer) rename(id int64, it *ImportItem, parent *importedItem) (*imp
 			it.Title, sorttext.Key(it.Title, it.SortTitle, it.Language), nz(it.Year), im.now, id); err != nil {
 			return nil, err
 		}
+		// A renamed file is not read again, so the title written inside it is put back here.
+		if err := useEmbeddedTitle(im.batchTx, id, im.now); err != nil {
+			return nil, err
+		}
 	}
 	if parent != nil && (parent.id != item.parentID || it.IndexNumber != nil) {
 		newRoot := parent.rootID
