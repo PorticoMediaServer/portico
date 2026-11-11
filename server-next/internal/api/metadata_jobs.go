@@ -102,16 +102,7 @@ func (s *Server) metadataJobs() {
 		if at < 0 {
 			return nil // removed since
 		}
-		lib := all[at]
-		// A lookup that stops does not keep the library's titles from being refreshed.
-		stats, lookup := s.metadata.MatchLibrary(ctx, lib.ID)
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		if _, err = s.metadata.RefreshLibrary(ctx, lib.ID, time.Now(), afterScanRefreshes); err != nil {
-			return providerSentence(err)
-		}
-		return matched(stats, lookup)
+		return s.lookUpAndRefresh(ctx, all[at].ID, time.Now())
 	}})
 	// A selection: the asker's main profile must see every title, or the job is refused as
 	// if one were not there.
@@ -148,6 +139,20 @@ func (s *Server) metadataJobs() {
 			return err
 		},
 		Run: s.editItems})
+}
+
+// lookUpAndRefresh is the after-scan run for a library: its new titles are looked up, then the
+// titles due at now are refreshed. A lookup that stops, because the provider is down or
+// refusing, does not keep the library's titles from being refreshed.
+func (s *Server) lookUpAndRefresh(ctx context.Context, libraryID int64, now time.Time) error {
+	stats, lookup := s.metadata.MatchLibrary(ctx, libraryID)
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	if _, err := s.metadata.RefreshLibrary(ctx, libraryID, now, afterScanRefreshes); err != nil {
+		return providerSentence(err)
+	}
+	return matched(stats, lookup)
 }
 
 // matched is how a run of MatchLibrary ends a job: done, saying how many titles the provider
