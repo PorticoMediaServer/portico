@@ -404,6 +404,20 @@ export const settingsSpec: readonly SettingsSection[] = [
         ]
       },
       {
+        "rows": [
+          {
+            "id": "profile.askPin",
+            "scope": "profile",
+            "label": "settings.row.askPin",
+            "help": "settings.help.askPin",
+            "control": {
+              "type": "toggle",
+              "default": true
+            }
+          }
+        ]
+      },
+      {
         "title": "next.settingsSpec.account.profile.groups.6.title",
         "rows": [
           {

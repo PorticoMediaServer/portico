@@ -940,6 +940,19 @@
       "occurrences": 1
     },
     {
+      "binding": "apps/native/src-next/screens/settings-live/settings-controller.ts#3c92514366952e39",
+      "file": "apps/native/src-next/screens/settings-live/settings-controller.ts",
+      "line": 49,
+      "guardHash": "c87fc306cb67fe041a6661ab680d7722182e38c1f7c263b97d2f7a973e77c8a9",
+      "owner": "request",
+      "shape": "request",
+      "callHash": "4044a0fc504780cf7a878223344f7e866f2e47811f9207eaf47ae3928c39f307",
+      "callText": "api.request<T>(path, method, body, next)",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+      "reason": "call is not a named guard",
+      "occurrences": 1
+    },
+    {
       "binding": "apps/native/src-next/screens/settings-live/settings-panels.tsx#1b31452e0e60fbc5",
       "file": "apps/native/src-next/screens/settings-live/settings-panels.tsx",
       "line": 124,
@@ -1061,6 +1074,19 @@
       "file": "apps/native/src-next/shell/bootstrap-services.ts",
       "line": 154,
       "guardHash": "4b62d415ec5c785ef36a7993f165dfaa55290e0f51838f59eeede3af604d103f",
+      "owner": "raw",
+      "shape": "request",
+      "callHash": "76df203fcd978035310c392c494176fbb7c52e6a90a7d0b01f276acb2f03ad6d",
+      "callText": "this.api.request<T>(path, method, body, controller.signal)",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6650348707",
+      "reason": "parameter destructuring or default",
+      "occurrences": 1
+    },
+    {
+      "binding": "apps/native/src-next/shell/bootstrap-services.ts#1a07fd72613c8699",
+      "file": "apps/native/src-next/shell/bootstrap-services.ts",
+      "line": 152,
+      "guardHash": "198fbbb107f2b27bfeb3819eb36c4c4dadab0dd4d64c51de2e9e6afc4275dff4",
       "owner": "raw",
       "shape": "request",
       "callHash": "76df203fcd978035310c392c494176fbb7c52e6a90a7d0b01f276acb2f03ad6d",

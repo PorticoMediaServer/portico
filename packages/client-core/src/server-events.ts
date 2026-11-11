@@ -30,6 +30,8 @@ export function serverEventsFrom(frame: Frame): readonly ServerEvent[] {
     case 'item': return library ? [{id, type: 'library.changed', resource: library}] : [{id, type: 'stream.resync'}];
     case 'library': return library && change.op === 'updated' ? pair('libraries.changed', 'library.changed', library) : [{id, type: 'libraries.changed', resource: {kind: 'libraries', id: 'directory'}}];
     case 'access': return [{id, type: accessChangedEvent}];
+    // The profile's own settings changed, on this device or another: they are read again.
+    case 'preferences': return [{id, type: 'settings.changed', resource: {kind: 'settings', id: 'preferences'}}];
     case 'person': case 'list': return [{id, type: change.topic + '.changed', ...(typeof change.id === 'string' && change.id ? {resource: {kind: change.topic, id: change.id}} : {})}];
     default: return [{id, type: 'stream.unknown'}];
   }

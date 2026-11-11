@@ -10,7 +10,7 @@ import {LocalSessionRefresher} from '@core/session-refresh.ts';
 import {selectedViewerRecord} from '@core/viewer-selection.ts';
 import {PreferencesReader} from '@core/preferences-reader.ts';
 import {appearancePreferences, regionPreferences} from '@core/preference-effects.ts';
-import {noPreferences, type PreferenceSnapshot} from '@core/preferences.ts';
+import type {PreferenceSnapshot} from '@core/preferences.ts';
 import {notOnThisServer} from '@core/query/server-api.ts';
 import {parseDirectSnapshot, type DirectSnapshot} from '@core/profile-management.ts';
 import {HomeService} from '@core/home-service.ts';
@@ -140,9 +140,7 @@ export async function readShellIdentity(api: HttpLocalApi, session: LocalSession
   return {libraries: libraries?.items ?? [], ...(libraries ? {} : {librariesUnavailable: true as const}), direct: profile, profile: shellAccount(profile, session.viewer.profileId), system, guide, liveAvailable: !!guide?.sources.length};
 }
 async function readFacts(api: HttpLocalApi, session: LocalSession, preferences: PreferencesReader, inbox: InboxService, signal: AbortSignal): Promise<{facts: ShellFacts; witnesses: ShellFactWitnesses}> {
-  const [read, settings] = await Promise.all([readShellIdentity(api, session, signal),
-    // Preferences are not on the rebuilt server yet: every setting then reads as its default.
-    preferences.preferences('web').catch(error => {if (notOnThisServer(error)) return noPreferences('web'); throw error;})]);
+  const [read, settings] = await Promise.all([readShellIdentity(api, session, signal), preferences.preferences('web', signal)]);
   const {libraries, profile, system, liveAvailable} = read, librariesUnavailable = 'librariesUnavailable' in read;
   rememberShell(session.sessionFamilyId, system.name);
   // O-169: signed in, the server gives the owner's home networks; the route connection keeps
@@ -435,7 +433,7 @@ export class ShellBootstrap {
     // The viewer's role is part of its cache's scope (App.tsx keys the same cache the same way).
     const freshness = freshnessFor(api, viewerQueryScope(session.viewer));
     cleanups.push(() => disposeFreshness(freshness));
-    const preferences = new PreferencesReader(api, {serverId: session.viewer.serverId, viewerId: viewerId(session)});
+    const preferences = new PreferencesReader(api);
     cleanups.push(() => preferences.dispose());
     const notificationApi = {request: <T,>(path: string, method?: string, body?: unknown, requestSignal?: AbortSignal) => {
       const readSignal = requestSignal ? AbortSignal.any([requestSignal, signal]) : signal;

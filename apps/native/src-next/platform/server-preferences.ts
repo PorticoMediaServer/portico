@@ -6,14 +6,14 @@ export type NativeServerPreferencesOwner = Readonly<{
 }>;
 type Ports = Readonly<{
   read: (deviceClass: DeviceClass) => Promise<PreferenceSnapshot>;
-  apply: (scope: PreferenceScope, deviceClass: DeviceClass, revision: number, values: PreferencePatch) => Promise<PreferenceSnapshot>;
+  apply: (scope: PreferenceScope, deviceClass: DeviceClass, values: PreferencePatch) => Promise<PreferenceSnapshot>;
   accept: (next: PreferenceSnapshot) => PreferenceSnapshot;
 }>;
 const sources = new WeakMap<NativeServerPreferencesOwner, NativeServerPreferences>();
 const ended = () => Object.assign(new Error('native_server_preferences_retired'), {name: 'AbortError'});
 
 /** One bootstrap reader and confirmed snapshot. Borrowers own neither its cache
- * nor its lifetime; writes retain the caller's exact server CAS revision. */
+ * nor its lifetime. */
 export class NativeServerPreferences {
   private readonly owner: NativeServerPreferencesOwner;
   private readonly ports: Ports;
@@ -33,12 +33,12 @@ export class NativeServerPreferences {
     if (next.deviceClass !== deviceClass) throw new Error('native_server_preferences_device_class_mismatch');
     return this.ports.accept(next);
   };
-  applyPreferences = async (scope: PreferenceScope, deviceClass: DeviceClass, revision: number, values: PreferencePatch): Promise<PreferenceSnapshot> => {
+  applyPreferences = async (scope: PreferenceScope, deviceClass: DeviceClass, values: PreferencePatch): Promise<PreferenceSnapshot> => {
     this.assert(deviceClass);
     const snapshot = this.owner.preferences();
     if (!snapshot.documents.some(document => document.scope === scope)) throw new Error('native_preferences_scope_missing');
     const patch = validatePreferencePatch(snapshot.registry, scope, values);
-    const next = await this.ports.apply(scope, deviceClass, revision, patch);
+    const next = await this.ports.apply(scope, deviceClass, patch);
     this.assert(deviceClass);
     if (next.deviceClass !== deviceClass) throw new Error('native_server_preferences_device_class_mismatch');
     return this.ports.accept(next);

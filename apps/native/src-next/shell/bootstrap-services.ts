@@ -66,8 +66,7 @@ export class NativeShellBootstrapServices {
   constructor(api: Pick<HttpLocalApi, 'request'>, options: Options) {
     this.api = api; this.options = options;
     nativeShellDirectViewer(options.viewer);
-    this.preferences = new PreferencesReader({request: <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => this.call<T>('preferences', path, method, body, signal, this.preferenceRequestBatch)},
-      {serverId: options.viewer.serverId, viewerId: JSON.stringify([options.viewer.authority, options.viewer.accountId, options.viewer.profileId])});
+    this.preferences = new PreferencesReader({request: <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => this.call<T>('preferences', path, method, body, signal, this.preferenceRequestBatch)});
     this.inbox = new InboxService({request: async <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> => {
       const batch = this.unreadController;
       const noteCancelled = () => {if (batch === this.unreadController && !batch?.signal.aborted) this.inboxFailure = cancelled();};
@@ -117,14 +116,14 @@ export class NativeShellBootstrapServices {
   }
   private checkFence(domain: Domain, raw: unknown): void {
     if (!object(raw)) throw invalid();
-    const scope = domain === 'preferences' || domain === 'inbox' ? raw.scope : raw;
+    const scope = domain === 'inbox' ? raw.scope : raw;
     // Layout mutation receipts have no viewer fence. Their canonical parser still validates them.
     if (domain === 'home' && !('viewerFence' in raw)) return;
     if (!object(scope) || typeof scope.viewerFence !== 'string' || domain !== 'home' && typeof scope.serverId !== 'string') throw invalid();
     // Home row pages carry the Home fence without repeating the server ID.
     if ((domain !== 'home' || 'serverId' in scope) && scope.serverId !== this.options.viewer.serverId) this.retire();
     const fence = scope.viewerFence;
-    if (domain === 'preferences' || domain === 'inbox') {
+    if (domain === 'inbox') {
       if (!/^[a-f0-9]{64}$/.test(fence)) throw invalid();
     } else if (!opaqueFence(fence)) throw invalid();
     if (domain === 'home' && this.checkHomeFence(scope, fence)) return;
@@ -153,7 +152,8 @@ export class NativeShellBootstrapServices {
       const raw = await this.api.request<T>(path, method, body, controller.signal);
       this.assertCurrent();
       if (controller.signal.aborted) throw cancelled();
-      if (domain) this.checkFence(domain, raw);
+      // The rebuilt server's settings answer is the settings themselves, with no envelope to check.
+      if (domain && domain !== 'preferences') this.checkFence(domain, raw);
       return raw;
     } catch (error) {
       if (this.retirement && error === this.retirement) throw error;
@@ -266,7 +266,7 @@ export class NativeShellBootstrapServices {
     this.guideReading = pending; return pending;
   };
   /** Preference operations belong to the authority, not a refresh batch. Closing
-   * that batch must not cancel a concurrent Settings CAS on the same reader. */
+   * that batch must not cancel a concurrent Settings save on the same reader. */
   readPreferences = async (deviceClass: DeviceClass, signal?: AbortSignal): Promise<PreferenceSnapshot> => {
     this.assertCurrent();
     if (signal?.aborted) throw cancelled();
@@ -277,10 +277,10 @@ export class NativeShellBootstrapServices {
     if (next.deviceClass !== deviceClass) throw invalid();
     return next;
   };
-  applyPreferences = async (scope: PreferenceScope, deviceClass: DeviceClass, revision: number, values: PreferencePatch): Promise<PreferenceSnapshot> => {
+  applyPreferences = async (scope: PreferenceScope, deviceClass: DeviceClass, values: PreferencePatch): Promise<PreferenceSnapshot> => {
     this.assertCurrent();
     if (deviceClass !== this.options.deviceClass) throw invalid();
-    const next = await this.preferences.applyPreferences(scope, deviceClass, revision, values);
+    const next = await this.preferences.applyPreferences(scope, deviceClass, values);
     this.assertCurrent();
     if (next.deviceClass !== deviceClass) throw invalid();
     return next;

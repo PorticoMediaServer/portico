@@ -43,7 +43,7 @@ export const assembleShellBindings: ShellAssembler = async context => {
   const feedback = new ShellFeedback(language, current), life = new AbortController();
   const resources: (() => void)[] = [() => retireArtworkScope(artworkScope), feedback.dispose, () => life.abort(), openAppLogContext(current)];
   // An edit made out of reach of the server that will never be saved is said once.
-  resources.push(context.api.onOutboxDropped(kind => { if (current()) feedback.notify(language.t(kind === 'list' ? 'sync.notSaved.list' : 'sync.notSaved.personal')); }));
+  resources.push(context.api.onOutboxDropped(kind => { if (current()) feedback.notify(language.t(kind === 'list' ? 'sync.notSaved.list' : kind === 'settings' ? 'sync.notSaved.settings' : 'sync.notSaved.personal')); }));
   const outbox = context.api.getOutbox();
   const preparingStarts = createWebPreparingStarts(context.api, captured, context.session, current);
   if (preparingStarts) resources.push(preparingStarts.dispose);

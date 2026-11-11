@@ -12,7 +12,7 @@ import {HomeService} from '../../../../packages/client-core/src/home-service';
 import {viewerQueryScope} from '../../../../packages/client-core/src/query/viewer-queries';
 import type {DirectSnapshot} from '../../../../packages/client-core/src/profile-management';
 import {IdentityClient} from '../../../../packages/client-core/src/identity-client';
-import {currentPreferenceSnapshot, type PreferenceSnapshot} from '../../../../packages/client-core/src/preferences';
+import type {PreferenceSnapshot} from '../../../../packages/client-core/src/preferences';
 import {parseLibraryList} from '../../../../packages/client-core/src/library-list';
 import {createRoleProbe} from './role-probe';
 import {LocalSessionRefresher} from '../../../../packages/client-core/src/session-refresh';
@@ -381,7 +381,8 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
     const text = nativeRuntimeRegionText(context);
     bindNativeServerPreferences(context, {read: readers.readPreferences, apply: readers.applyPreferences, accept: next => {
       assertCurrent();
-      const confirmed = currentPreferenceSnapshot(preferences, next);
+      // The reader answers an older read with the newer settings it already holds.
+      const confirmed = next;
       if (confirmed !== preferences) {preferences = confirmed; for (const listener of preferenceListeners) listener();}
       return confirmed;
     }});
@@ -470,7 +471,7 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
         // parallel read must not overwrite a device setting committed meanwhile.
         const nextInstallation = await records.change('preferences:v1', raw => ({record: raw, value: raw})); assertCurrent();
         await accountBinding.assertCurrent(); assertCurrent();
-        preferences = currentPreferenceSnapshot(preferences, nextFacts.preferences); installationSettings = nextInstallation;
+        preferences = nextFacts.preferences; installationSettings = nextInstallation;
         // A directory that did not answer keeps the libraries already known (or stays unavailable).
         if (nextLibraries) readOrder.libraries.apply(tickets.libraries, () => {libraries = Object.freeze(nextLibraries.items); librariesUnavailable = false;});
         text.refreshDeviceRegion();
@@ -507,7 +508,8 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
       preferences: guarded(async requestSignal => {
         const next = await readers.readPreferences(Platform.isTV ? 'television' : 'mobile', requestSignal);
         await resourceCurrent(requestSignal);
-        const confirmed = currentPreferenceSnapshot(preferences, next);
+        // The reader answers an older read with the newer settings it already holds.
+      const confirmed = next;
         if (confirmed !== preferences) {preferences = confirmed; for (const listener of [...preferenceListeners]) listener(); publish();}
       }),
       unread: guarded(async requestSignal => {
