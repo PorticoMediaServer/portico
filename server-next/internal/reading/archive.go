@@ -43,8 +43,16 @@ func openArchive(r io.ReaderAt, size int64) (*archive, error) {
 	if err := checkDirectory(r, size); err != nil {
 		return nil, err
 	}
-	zr, err := zip.NewReader(r, size)
+	// The zip reader does not go by the end record's counts: it reads one entry after another
+	// until something is not an entry. So the list is also bounded while it is read: at most
+	// maxDirectory bytes past the end of the file, and no more than maxEntries entries.
+	budget := &readBudget{r: r, left: maxDirectory + 512<<10}
+	zr, err := zip.NewReader(budget, size)
+	budget.left = -1 // the entries themselves are read through it later, without a limit
 	if err != nil && !errors.Is(err, zip.ErrInsecurePath) {
+		return nil, errDamaged
+	}
+	if len(zr.File) > maxEntries {
 		return nil, errDamaged
 	}
 	a := &archive{entries: make(map[string]*zip.File, len(zr.File))}
@@ -59,6 +67,22 @@ func openArchive(r io.ReaderAt, size int64) (*archive, error) {
 		a.names = append(a.names, f.Name)
 	}
 	return a, nil
+}
+
+// readBudget refuses to read past left bytes in all; a negative left is no limit.
+type readBudget struct {
+	r    io.ReaderAt
+	left int64
+}
+
+func (b *readBudget) ReadAt(p []byte, off int64) (int, error) {
+	if b.left >= 0 {
+		if int64(len(p)) > b.left {
+			return 0, errDamaged
+		}
+		b.left -= int64(len(p))
+	}
+	return b.r.ReadAt(p, off)
 }
 
 // safeName reports whether a name inside an archive is a plain relative path: no "..", no
