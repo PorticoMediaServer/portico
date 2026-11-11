@@ -57,6 +57,11 @@ func fieldList(fields []string) any {
 const (
 	SourceFile = "file" // an NFO file or the file's own tags; a provider never replaces it
 	SourceEdit = "edit" // a person typed it
+	// SourceEmbedded is a title written inside a video file, or a song's own title tag, used
+	// only while nothing else speaks for the title: in a library set to local metadata only,
+	// or for a title its provider could not match. A provider's answer and an NFO file both
+	// replace it (the owner's ruling of 10 November).
+	SourceEmbedded = "embedded"
 )
 
 // fieldSources reads items.local_fields: field name to SourceFile or SourceEdit.

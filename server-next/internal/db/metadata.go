@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/sorttext"
@@ -63,7 +64,7 @@ func (d *DB) ToMatch(ctx context.Context, libraryID int64, kinds []ItemKind, aft
 		list[i] = int64(kind)
 	}
 	// The condition is written as the items_to_match index has it, so the read is the index.
-	items, err := queryAll(ctx, tx, `SELECT id, kind, title, ifnull(year, 0) FROM items WHERE library_id = ? AND match_state = 0
+	items, err := queryAll(ctx, tx, `SELECT id, kind, ifnull(extra ->> '$.namesTitle', title), ifnull(year, 0) FROM items WHERE library_id = ? AND match_state = 0
 		AND parent_id IS NULL AND id > ? AND kind IN `+intList(list)+` ORDER BY id LIMIT ?`, []any{libraryID, after, limit},
 		func(m *MatchItem) []any { return []any{&m.ID, &m.Kind, &m.Title, &m.Year} })
 	if err != nil {
@@ -177,21 +178,22 @@ func applyDetails(b *batchTx, itemID int64, d *ItemDetails, now int64) error {
 	keep := keptFields(locked, sources)
 	sets, args := "refreshed_at = ?, updated_at = ?, revision = revision + 1", []any{now, now}
 	// A field a person edited and later unlocked is the provider's again from this answer on.
-	unlocked := false
+	unlocked, embeddedReplaced := false, false
 	for field, source := range sources {
 		if source == SourceEdit && !keep[field] {
 			delete(sources, field)
 			unlocked = true
 		}
 	}
-	if unlocked {
-		sets += ", local_fields = ?"
-		args = append(args, sourceJSON(sources))
-	}
 	set := func(field, column string, value any, said bool) {
 		if said && !keep[field] {
 			sets += ", " + column + " = ?"
 			args = append(args, value)
+			// A title the file's own tags gave is the provider's from now on.
+			if sources[field] == SourceEmbedded {
+				delete(sources, field)
+				unlocked, embeddedReplaced = true, true
+			}
 		}
 	}
 	set(FieldTitle, "title", d.Title, d.Title != "")
@@ -206,6 +208,10 @@ func applyDetails(b *batchTx, itemID int64, d *ItemDetails, now int64) error {
 	set(FieldContentRating, "content_rating", d.ContentRating, d.ContentRating != "")
 	set(FieldContentRating, "rating_age", d.RatingAge, d.ContentRating != "")
 	set(FieldRating, "community_rating", d.CommunityRating, d.CommunityRating != 0)
+	if unlocked {
+		sets += ", local_fields = ?"
+		args = append(args, sourceJSON(sources))
+	}
 	if d.Match != MatchNone && !keep[FieldMatch] {
 		// A match a person chose is never made the server's own again.
 		sets += ", match_state = CASE WHEN match_state = ? AND ? = ? THEN match_state ELSE ? END"
@@ -213,6 +219,12 @@ func applyDetails(b *batchTx, itemID int64, d *ItemDetails, now int64) error {
 	}
 	if _, err := b.exec(`UPDATE items SET `+sets+` WHERE id = ?`, append(args, itemID)...); err != nil {
 		return err
+	}
+	// The name the files gave was kept only while the title was the file's own.
+	if embeddedReplaced {
+		if _, err := b.exec(`UPDATE items SET extra = json_remove(extra, '$.namesTitle') WHERE id = ?`, itemID); err != nil {
+			return err
+		}
 	}
 	// An episode with no rating of its own uses its show's.
 	if d.ContentRating != "" && !keep[FieldContentRating] && !root.Valid {
@@ -285,10 +297,16 @@ func (d *DB) SetUnmatched(ctx context.Context, p Priority, itemID int64, reason,
 		if candidates == "" {
 			candidates = "[]"
 		}
-		_, err := tx.Exec(`UPDATE items SET match_state = ?, refreshed_at = ?,
+		res, err := tx.Exec(`UPDATE items SET match_state = ?, refreshed_at = ?,
 			extra = json_set(ifnull(extra, '{}'), '$.unmatched', json_object('reason', ?, 'matches', json(?)))
 			WHERE id = ? AND match_state = ?`, MatchNeedsAttention, time.Now().UnixMilli(), reason, candidates, itemID, MatchNone)
-		return err
+		if err != nil {
+			return err
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			return nil
+		}
+		return useEmbeddedTitle(tx, itemID)
 	})
 }
 
@@ -325,4 +343,27 @@ func (d *DB) Unmatched(ctx context.Context, libraryID int64, after *UnmatchedIte
 		func(u *UnmatchedItem) []any {
 			return []any{&u.id, &u.sortTitle, &u.PublicID, &u.Kind, &u.Title, &u.Year, &u.Reason, &u.Matches}
 		})
+}
+
+// useEmbeddedTitle shows a title its provider could not match by the title written inside its
+// file, when the scanner found one (items.extra "embeddedTitle") and no person, NFO file or
+// provider has spoken for the title. The name its files gave is kept ("namesTitle"), so a
+// later lookup still searches by it; a provider's answer or an NFO file replaces the title.
+func useEmbeddedTitle(tx *sql.Tx, itemID int64) error {
+	var title string
+	var embedded, locked, local, language sql.NullString
+	err := tx.QueryRow(`SELECT i.title, i.extra ->> '$.embeddedTitle', i.locked_fields, i.local_fields, l.language FROM items i
+		JOIN libraries l ON l.id = i.library_id WHERE i.id = ?`, itemID).Scan(&title, &embedded, &locked, &local, &language)
+	if err != nil || !embedded.Valid || strings.TrimSpace(embedded.String) == "" {
+		return err
+	}
+	sources := fieldSources(local)
+	if fieldSet(locked)[FieldTitle] || sources[FieldTitle] == SourceFile || sources[FieldTitle] == SourceEdit {
+		return nil
+	}
+	sources[FieldTitle] = SourceEmbedded
+	_, err = tx.Exec(`UPDATE items SET title = ?, sort_title = ?, local_fields = ?, revision = revision + 1,
+		extra = json_set(extra, '$.namesTitle', ifnull(extra ->> '$.namesTitle', ?)) WHERE id = ?`,
+		strings.TrimSpace(embedded.String), sorttext.Key(strings.TrimSpace(embedded.String), "", language.String), sourceJSON(sources), title, itemID)
+	return err
 }
