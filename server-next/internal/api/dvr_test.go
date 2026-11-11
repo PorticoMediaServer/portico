@@ -222,8 +222,9 @@ func TestAClashStopsAViewerAfterACountdownWhenTheOwnerChoseTo(t *testing.T) {
 	s, owner, _ := seededWith(t, 50, 0)
 	folder := t.TempDir()
 	options := dvr.Defaults(folder)
-	// No countdown to wait out: the test needs no clock of its own, so it runs under -race.
-	options.Folder, options.Floor, options.Countdown, options.CountdownFloor = filepath.Join(folder, "Recorded TV"), 0, 0, 0
+	// A one-second countdown on the real clock: the recorder's own loop may tick at any moment,
+	// and a countdown of nothing would let that tick stop the viewer before the warning is read.
+	options.Folder, options.Floor, options.Countdown, options.CountdownFloor = filepath.Join(folder, "Recorded TV"), 0, time.Second, time.Second
 	s.setDVROptions(options)
 	fake := fakeProvider(t, s.now())
 	t.Cleanup(s.tuners.Close)
@@ -249,6 +250,7 @@ func TestAClashStopsAViewerAfterACountdownWhenTheOwnerChoseTo(t *testing.T) {
 	if got.Countdown == nil || !strings.Contains(got.Countdown.Reason, "Morning News") {
 		t.Fatalf("with stop-and-record the viewer's session reads %+v", got)
 	}
+	time.Sleep(time.Until(got.Countdown.EndsAt))
 	s.recorder.Tick(ctx) // the countdown is over: the viewer is stopped
 	s.recorder.Tick(ctx) // and the recording takes the tuner
 	if code := status(t, s, "GET", "/v1/playback/sessions/"+watching.ID, owner, nil); code != 404 {
