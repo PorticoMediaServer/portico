@@ -68,6 +68,54 @@ export interface AudioPick {
   trackId: string;
 }
 
+export interface Backup {
+  id: string;
+  createdAt: string;
+  scheduled: boolean;
+  version: string;
+  size: number;
+  credentials: string[];
+  pictures: number;
+  artwork: boolean;
+  mark?: string;
+}
+
+export interface BackupInspect {
+  id?: string;
+  path?: string;
+}
+
+export interface BackupInspection {
+  pictures: number;
+  keyFiles: string[];
+  credentials: string[];
+  madeHere: boolean;
+  createdAt?: string;
+  restoring: string[];
+}
+
+export interface BackupRestore extends BackupInspect {
+  currentPassword: string;
+  code?: string;
+  notMadeHereConfirmed?: boolean;
+}
+
+export interface BackupStarted {
+  id: string;
+}
+
+export interface Backups {
+  items: Backup[];
+  running?: Progress;
+  lastError?: string;
+  nextAt?: string;
+  folder: string;
+  folderWritable: boolean;
+  pendingRestore?: Pending;
+  readable: boolean;
+  readableMeans: string[];
+}
+
 export interface BatchError {
   code: string;
   message: string;
@@ -249,6 +297,112 @@ export interface DevicePage {
   nextCursor?: string;
 }
 
+export interface Download {
+  id: string;
+  deviceId: string;
+  target: DownloadTarget;
+  versionId?: string;
+  quality: string;
+  selection: string;
+  keepNext?: number;
+  paused: boolean;
+  counts: DownloadCounts;
+  createdAt: string;
+  items?: DownloadTitle[];
+}
+
+export interface DownloadAsk {
+  itemId?: string;
+  listId?: string;
+  versionId?: string;
+  quality: string;
+  selection?: string;
+  keepNext?: number;
+}
+
+export interface DownloadChange {
+  paused?: boolean;
+  retry?: boolean;
+  keepNext?: number;
+}
+
+export interface DownloadChoice {
+  quality: string;
+  label: string;
+  sizeBytes: number;
+  estimated: boolean;
+  prepared: boolean;
+  available: boolean;
+  reason?: string;
+}
+
+export interface DownloadCounts {
+  titles: number;
+  ready: number;
+  waiting: number;
+  failed: number;
+}
+
+export interface DownloadFile {
+  url: string;
+  sizeBytes: number;
+  sha256?: string;
+  container?: string;
+}
+
+export interface DownloadOptions {
+  itemId: string;
+  kind: string;
+  titles: number;
+  items: DownloadChoice[];
+  default: string;
+  roomBytes?: number;
+}
+
+export interface DownloadPage {
+  items: Download[];
+  nextCursor?: string;
+}
+
+export interface DownloadSubtitle extends PlaybackSubtitle {
+  url?: string;
+}
+
+export interface DownloadTarget {
+  kind: string;
+  id: string;
+  title: string;
+}
+
+export interface DownloadTitle {
+  itemId: string;
+  kind: string;
+  title: string;
+  state: string;
+  reason?: string;
+  doneBytes?: number;
+  totalBytes?: number;
+  sizeBytes?: number;
+  keptUntil?: string;
+}
+
+export interface DownloadUsage {
+  copiesBytes: number;
+  roomBytes?: number;
+}
+
+export interface DownloadedItem {
+  item: Item;
+  versionId: string;
+  quality: string;
+  files: DownloadFile[];
+  audio: PlaybackAudio[];
+  subtitles: DownloadSubtitle[];
+  chapters: PlaybackChapter[];
+  markers: PlaybackMarker[];
+  lyrics?: Lyrics[];
+}
+
 export interface DriveSettings {
   serviceAccountKey?: string;
   signIn?: string;
@@ -323,6 +477,11 @@ export interface FolderList {
   folders: FolderChoice[];
   nextCursor?: string;
   limited?: boolean;
+}
+
+export interface FolderUsage {
+  name: string;
+  bytes: number;
 }
 
 export interface GroupAction {
@@ -774,6 +933,27 @@ export interface ListSharesSet {
   shares: ListShare[];
 }
 
+export interface LogDetail {
+  minutes: number;
+}
+
+export interface LogDetailState {
+  detailUntil?: string;
+}
+
+export interface LogLine {
+  time: string;
+  level: string;
+  message: string;
+  attrs?: Record<string, string>;
+}
+
+export interface LogPage {
+  items: LogLine[];
+  nextCursor?: string;
+  detailUntil?: string;
+}
+
 export interface LyricLine {
   atMs?: number;
   text: string;
@@ -880,6 +1060,28 @@ export interface NetworkSettingsEdit {
   trustedProxies: string[];
 }
 
+export interface Notification {
+  id: string;
+  kind: string;
+  params?: unknown;
+  body?: string;
+  ref?: string;
+  createdAt: string;
+  read: boolean;
+  archived: boolean;
+}
+
+export interface NotificationEdit {
+  read?: boolean;
+  archived?: boolean;
+}
+
+export interface Notifications {
+  items: Notification[];
+  nextCursor?: string;
+  unreadCount: number;
+}
+
 export interface NowPlaying {
   id: string;
   itemId?: string;
@@ -931,6 +1133,11 @@ export interface PasswordResetRequest {
   newPassword: string;
 }
 
+export interface Pending {
+  backup: string;
+  stagedAt: string;
+}
+
 export interface Person {
   id: string;
   name: string;
@@ -948,6 +1155,50 @@ export interface Play {
   audioTrackId?: string;
   subtitleTrackId?: string;
   queueId?: string;
+}
+
+export interface PlayEntry {
+  playedAt: string;
+  username: string;
+  profile?: string;
+  deviceName?: string;
+  accountId?: string;
+  libraryId?: string;
+  libraryName?: string;
+  itemId?: string;
+  kind: string;
+  title: string;
+  subtitle?: string;
+  watchedMs: number;
+  away: boolean;
+  delivery?: string;
+}
+
+export interface PlayEntryPage {
+  items: PlayEntry[];
+  nextCursor?: string;
+}
+
+export interface PlayRangeTotals {
+  plays: number;
+  watchedMs: number;
+}
+
+export interface PlaySummary {
+  people: PlayTotal[];
+  titles: PlayTotal[];
+  busiest: number[][];
+  window: number;
+  countedFrom?: string;
+  totals?: PlayRangeTotals;
+}
+
+export interface PlayTotal {
+  id?: string;
+  name: string;
+  detail?: string;
+  plays: number;
+  watchedMs: number;
 }
 
 export interface PlaybackAudio {
@@ -1180,6 +1431,25 @@ export interface Presentation {
   audioRender?: unknown;
 }
 
+export interface ProblemReport {
+  id: string;
+  reporter: string;
+  kind: string;
+  status: string;
+  message?: string;
+  context?: unknown;
+  hasLog: boolean;
+  reply?: string;
+  repliedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProblemReportPage {
+  items: ProblemReport[];
+  nextCursor?: string;
+}
+
 export interface Profile {
   id: string;
   name: string;
@@ -1215,6 +1485,12 @@ export interface ProfilePage {
 
 export interface ProfileSelect {
   pin?: string;
+}
+
+export interface Progress {
+  id: string;
+  startedAt: string;
+  pagesLeft: number;
 }
 
 export interface Quality {
@@ -1460,6 +1736,14 @@ export interface RelatedGroup {
   items: Item[];
 }
 
+export interface Release {
+  version: string;
+  name?: string;
+  notes?: string;
+  url?: string;
+  publishedAt?: string;
+}
+
 export interface RememberedFailure {
   id: string;
   deviceName: string;
@@ -1533,10 +1817,33 @@ export interface RemoteSourcePage {
   nextCursor?: string;
 }
 
+export interface ReportCreate {
+  kind: string;
+  message?: string;
+  context?: unknown;
+  log?: string;
+}
+
+export interface ReportEdit {
+  status?: string;
+  reply?: string;
+}
+
 export interface RequestFrom {
   deviceId: string;
   deviceName: string;
   signInId: string;
+}
+
+export interface Restart {
+  playing: number;
+  canRestart: boolean;
+  restarting: boolean;
+}
+
+export interface RestoreStaged {
+  playing: number;
+  canRestart: boolean;
 }
 
 export interface Restrictions {
@@ -1700,6 +2007,16 @@ export interface SelectionDeletion {
   alsoRemoves: TitleRef[];
 }
 
+export interface ServerMessage {
+  audience: string;
+  message: string;
+}
+
+export interface ServerMessageSent {
+  id: string;
+  sent: number;
+}
+
 export interface Session {
   accessToken: string;
   expiresAt: string;
@@ -1797,6 +2114,15 @@ export interface Sort {
   order: string;
 }
 
+export interface State {
+  version: string;
+  newest?: Release;
+  newer: boolean;
+  checkedAt?: string;
+  error?: string;
+  install: string;
+}
+
 export interface StateBatch {
   items: StateBatchEdit[];
 }
@@ -1829,6 +2155,30 @@ export interface StateRequest {
   continueDismissed?: boolean | null;
   rating?: number | null;
   madeAgoMs: number;
+}
+
+export interface Statistics {
+  from: string;
+  to: string;
+  by: string;
+  firstDay?: string;
+  points: StatisticsPoint[];
+  totals: Record<string, number>;
+}
+
+export interface StatisticsPoint {
+  start: string;
+  values: Record<string, number>;
+}
+
+export interface Storage {
+  dataFolder: string;
+  sharedDrive: boolean;
+  diskBytes: number;
+  freeBytes: number;
+  level: string;
+  folders: FolderUsage[];
+  measuredAt: string;
 }
 
 export interface Stream {
@@ -1885,6 +2235,11 @@ export interface SubtitlePick {
   delivery?: string;
 }
 
+export interface SupportExportRequest {
+  days?: number;
+  includePaths?: boolean;
+}
+
 export interface System {
   id: string;
   name: string;
@@ -1893,6 +2248,7 @@ export interface System {
   capabilities: string[];
   setupRequired: boolean;
   signInMethods: string[];
+  warnings?: Warning[];
 }
 
 export interface Tag {
@@ -2223,6 +2579,34 @@ export interface Routes {
   'GET /v1/admin/sessions': {access: 'admin'; request: undefined; response: NowPlayingPage};
   'DELETE /v1/admin/sessions/{id}': {access: 'admin'; request: StreamStop; response: undefined};
   'GET /v1/admin/audit': {access: 'owner'; request: undefined; response: ActivityEntryPage};
+  'GET /v1/admin/statistics': {access: 'owner'; request: undefined; response: Statistics};
+  'GET /v1/admin/updates': {access: 'owner'; request: undefined; response: State};
+  'POST /v1/admin/updates/check': {access: 'owner'; request: undefined; response: State};
+  'GET /v1/admin/storage': {access: 'owner'; request: undefined; response: Storage};
+  'GET /v1/admin/backups': {access: 'owner'; request: undefined; response: Backups};
+  'POST /v1/admin/backups': {access: 'owner'; request: undefined; response: BackupStarted};
+  'DELETE /v1/admin/backups/{id}': {access: 'owner'; request: undefined; response: undefined};
+  'POST /v1/admin/backups/inspect': {access: 'owner'; request: BackupInspect; response: BackupInspection};
+  'POST /v1/admin/backups/restore': {access: 'owner'; request: BackupRestore; response: RestoreStaged};
+  'DELETE /v1/admin/backups/restore': {access: 'owner'; request: undefined; response: undefined};
+  'POST /v1/admin/restart': {access: 'owner'; request: undefined; response: Restart};
+  'GET /v1/admin/logs': {access: 'admin'; request: undefined; response: LogPage};
+  'PUT /v1/admin/logs/detail': {access: 'admin'; request: LogDetail; response: LogDetailState};
+  'GET /v1/admin/logs/events': {access: 'admin'; request: undefined; response: undefined};
+  'POST /v1/admin/support-export': {access: 'owner'; request: SupportExportRequest; response: undefined};
+  'GET /v1/admin/play-history': {access: 'admin'; request: undefined; response: PlayEntryPage};
+  'GET /v1/admin/play-history/summary': {access: 'admin'; request: undefined; response: PlaySummary};
+  'GET /v1/notifications': {access: 'withProfile'; request: undefined; response: Notifications};
+  'PATCH /v1/notifications/{id}': {access: 'withProfile'; request: NotificationEdit; response: undefined};
+  'POST /v1/notifications/read-all': {access: 'withProfile'; request: undefined; response: undefined};
+  'POST /v1/admin/notifications': {access: 'admin'; request: ServerMessage; response: ServerMessageSent};
+  'POST /v1/reports': {access: 'withProfile'; request: ReportCreate; response: ProblemReport};
+  'GET /v1/reports': {access: 'withProfile'; request: undefined; response: ProblemReportPage};
+  'GET /v1/admin/reports': {access: 'owner'; request: undefined; response: ProblemReportPage};
+  'GET /v1/admin/reports/{id}': {access: 'owner'; request: undefined; response: ProblemReport};
+  'PATCH /v1/admin/reports/{id}': {access: 'owner'; request: ReportEdit; response: ProblemReport};
+  'DELETE /v1/admin/reports/{id}': {access: 'owner'; request: undefined; response: undefined};
+  'GET /v1/admin/reports/{id}/log': {access: 'owner'; request: undefined; response: undefined};
   'GET /v1/admin/webhooks': {access: 'owner'; request: undefined; response: WebhookPage};
   'POST /v1/admin/webhooks': {access: 'owner'; request: WebhookCreate; response: WebhookSecret};
   'PATCH /v1/admin/webhooks/{id}': {access: 'owner'; request: WebhookEdit; response: Webhook};
@@ -2248,5 +2632,13 @@ export interface Routes {
   'PUT /v1/groups/{id}/queue': {access: 'withProfile'; request: GroupQueue; response: Room};
   'PUT /v1/groups/{id}/me': {access: 'withProfile'; request: GroupMe; response: Room};
   'DELETE /v1/groups/{id}/me': {access: 'withProfile'; request: undefined; response: undefined};
+  'GET /v1/items/{id}/download-options': {access: 'withProfile'; request: undefined; response: DownloadOptions};
+  'GET /v1/downloads': {access: 'withProfile'; request: undefined; response: DownloadPage};
+  'POST /v1/downloads': {access: 'withProfile'; request: DownloadAsk; response: Download};
+  'GET /v1/downloads/usage': {access: 'withProfile'; request: undefined; response: DownloadUsage};
+  'GET /v1/downloads/{id}': {access: 'withProfile'; request: undefined; response: Download};
+  'PATCH /v1/downloads/{id}': {access: 'withProfile'; request: DownloadChange; response: Download};
+  'DELETE /v1/downloads/{id}': {access: 'withProfile'; request: undefined; response: undefined};
+  'GET /v1/downloads/{id}/items/{itemId}': {access: 'withProfile'; request: undefined; response: DownloadedItem};
   'GET /v1/items/{id}/book': {access: 'withProfile'; request: undefined; response: BookAnswer};
 }
