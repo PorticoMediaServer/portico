@@ -121,7 +121,6 @@ export function createShellFactOwner(o: Readonly<{
   const adoptPreference = async (context: InterestReadContext, captured: LocalSession): Promise<InterestOutcome> => {
     const result = await preference(context);
     if (!sameRequest(captured, context.signal)) return {kind: 'superseded'};
-    if (result.kind === 'scope-changed') {o.retire(); return {kind: 'superseded'};}
     if (result.kind === 'unreadable') return failed(result.error);
     return publish(context, captured, () => source.update({preferences: result.value}));
   };

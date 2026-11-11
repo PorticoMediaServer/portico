@@ -170,18 +170,18 @@ function motionSnapshot(value: 'follow' | 'reduce', revision = 7, bound = true, 
 
 async function motionFixture(initial = motionSnapshot('follow')) {
   const f = await fixture(); let snapshot = initial;
-  const calls: {scope: string; deviceClass: string; revision: number; values: PreferencePatch}[] = [];
-  let respond: (values: PreferencePatch) => Promise<PreferenceSnapshot> = async values => motionSnapshot(values['appearance.motion'] === 'reduce' ? 'reduce' : 'follow', snapshot.documents[0]!.revision + 1);
+  const calls: {scope: string; deviceClass: string; values: PreferencePatch}[] = [];
+  let respond: (values: PreferencePatch) => Promise<PreferenceSnapshot> = async values => motionSnapshot(values['appearance.motion'] === 'reduce' ? 'reduce' : 'follow');
   Object.assign(f.context, {preferences: () => snapshot});
   const source = bindNativeServerPreferences(f.context, {
     read: async () => snapshot,
-    apply: async (scope, deviceClass, revision, values) => {calls.push({scope, deviceClass, revision, values}); return respond(values);},
+    apply: async (scope, deviceClass, values) => {calls.push({scope, deviceClass, values}); return respond(values);},
     accept: next => {snapshot = next; for (const listener of [...f.listeners]) listener(); return snapshot;},
   });
   return {...f, server: source, calls, respond: (next: typeof respond) => {respond = next;}, replace: (next: PreferenceSnapshot) => {snapshot = next;}};
 }
 
-test('motion borrows canonical profile-device values and waits for the exact CAS acknowledgement before rereading', async () => records(async state => {
+test('motion borrows canonical profile-device values and waits for the server\'s answer before rereading', async () => records(async state => {
   const f = await motionFixture(motionSnapshot('reduce', 7, true, false)), consumer = nativeDevicePreferences(f.context);
   assert.equal(consumer.read('reduceMotion'), true, 'effective default is not confused with a missing local override');
   assert.equal(nativeServerPreferences(f.context), f.server);
@@ -191,7 +191,7 @@ test('motion borrows canonical profile-device values and waits for the exact CAS
   let settled = false;
   const writing = consumer.write('reduceMotion', true).then(value => {settled = true; return value;});
   await begun.promise;
-  assert.deepEqual(f.calls, [{scope: 'profile-device', deviceClass: 'mobile', revision: 7, values: {'appearance.motion': 'reduce'}}]);
+  assert.deepEqual(f.calls, [{scope: 'profile-device', deviceClass: 'mobile', values: {'appearance.motion': 'reduce'}}]);
   assert.equal(settled, false); assert.deepEqual(seen, []); assert.equal(consumer.read('reduceMotion'), true);
   ack.resolve();
   assert.equal(await writing, false, 'return actual committed effective value, never echo the requested true');
@@ -201,11 +201,11 @@ test('motion borrows canonical profile-device values and waits for the exact CAS
   off(); assert.equal(f.listeners.size, 0); assert.equal(nativeServerPreferences(f.context), f.server);
 }));
 
-test('motion uses the latest revision, maps false to follow and retains confirmed state on refusal', async () => records(async state => {
+test('motion maps false to follow and retains confirmed state on refusal', async () => records(async state => {
   const f = await motionFixture(motionSnapshot('reduce')), consumer = nativeDevicePreferences(f.context);
   f.replace(motionSnapshot('reduce', 12));
   assert.equal(await consumer.write('reduceMotion', false), false);
-  assert.deepEqual(f.calls[0], {scope: 'profile-device', deviceClass: 'mobile', revision: 12, values: {'appearance.motion': 'follow'}});
+  assert.deepEqual(f.calls[0], {scope: 'profile-device', deviceClass: 'mobile', values: {'appearance.motion': 'follow'}});
   let notifications = 0; const off = consumer.subscribe(() => {notifications++;});
   f.respond(async () => {throw new Error('motion CAS refused');});
   await assert.rejects(consumer.write('reduceMotion', true), /motion CAS refused/);
@@ -251,12 +251,12 @@ test('TV text-size row borrows the same canonical source and returns its durable
   f.respond(async () => {begun.resolve(); await ack.promise; return textSizeSnapshot('large', 22);});
   let settled = false; const writing = consumer.write('textSize', 'large').then(value => {settled = true; return value;});
   await begun.promise;
-  assert.deepEqual(f.calls[0], {scope: 'profile-device', deviceClass: 'television', revision: 21, values: {'appearance.textSize': 'large'}});
+  assert.deepEqual(f.calls[0], {scope: 'profile-device', deviceClass: 'television', values: {'appearance.textSize': 'large'}});
   assert.equal(settled, false); assert.equal(consumer.read('textSize'), 'standard'); assert.equal(notifications, 0);
   ack.resolve(); assert.equal(await writing, 'large'); assert.equal(consumer.read('textSize'), 'large'); assert.equal(notifications, 1);
   f.respond(async () => textSizeSnapshot('large', 23));
   assert.equal(await consumer.write('textSize', 'standard'), 'large', 'the actual committed reread wins over the requested choice');
-  assert.deepEqual(f.calls[1], {scope: 'profile-device', deviceClass: 'television', revision: 22, values: {'appearance.textSize': 'standard'}});
+  assert.deepEqual(f.calls[1], {scope: 'profile-device', deviceClass: 'television', values: {'appearance.textSize': 'standard'}});
   const confirmed = f.server.getSnapshot();
   f.respond(async () => {throw new Error('text-size CAS refused');});
   await assert.rejects(consumer.write('textSize', 'standard'), /text-size CAS refused/);

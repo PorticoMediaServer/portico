@@ -26,7 +26,7 @@ test('opening Metadata reads the owner settings the switch is bound to', async (
     calls.push(path);
     return {scope: {serverId, viewerFence: fence}, data: {name: path.split('/').at(-1), observedAt: 1000, freshUntil: 31000, facts: {}}} as T;
   }};
-  const reader = new PreferencesReader(api, {serverId, viewerId: 'captured-viewer'});
+  const reader = new PreferencesReader(api);
   const controller = new SettingsController({api, serverId, viewerId: 'captured-viewer', role: 'owner', mainProfile: true,
     capabilities: {manageServer: true, managePeople: false, manageSignIn: false}, preferences, reader,
     isCurrent: () => true, reportError: () => {},

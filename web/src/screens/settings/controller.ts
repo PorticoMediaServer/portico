@@ -252,6 +252,8 @@ export class SettingsController {
   }
   rowState = (row: SettingsRow, context?: SettingsContext): SettingPresentation => {
     if (row.id === 'troubleshooting.detailLength' && this.forms.logs?.status()?.logDetailMinutes === undefined) return {present: false};
+    // The PIN asked again guards the main profile's owner and account pages; other profiles have none to guard.
+    if (row.id === 'profile.askPin' && !this.options.mainProfile) return {present: false};
     const location = settingsRowIndex.get(row.id);
     if (!location || !this.sectionVisible(location.section)) return {present: false};
     if (this.options.role !== 'member' && !troubleshootingRowShown(row.id, this.options.role)) return {present: false};
@@ -353,7 +355,7 @@ export class SettingsController {
     const field = this.preferences.registry.fields.find(field => field.key === key);
     if (!field) throw new Error('settings_preference_unavailable');
     const location = settingsRowIndex.get(row.id);
-    const scope = location?.section.id === 'reading' ? 'profile-server' : settingsBinding(row.id)?.scope;
+    const scope = (location?.section.id === 'reading' ? undefined : settingsBinding(row.id)?.scope) ?? (field.scopes.length === 1 ? field.scopes[0] : undefined);
     if (!scope || !field.scopes.includes(scope)) throw new Error('settings_preference_scope_unavailable');
     return scope;
   }
@@ -399,10 +401,9 @@ export class SettingsController {
         } else patches.set(patch.form, {...patches.get(patch.form), ...patch.values});
       }
       for (const [scope, values] of preferencePatches) {
-        const document = this.preferences.documents.find(document => document.scope === scope);
-        if (!document) throw new Error('settings_preference_document_unavailable');
+        if (!this.preferences.documents.some(document => document.scope === scope)) throw new Error('settings_preference_document_unavailable');
         const patch = validatePreferencePatch(this.preferences.registry, scope, values as PreferencePatch);
-        this.preferences = await this.preferencesReader.applyPreferences(scope, this.preferences.deviceClass, document.revision, patch);
+        this.preferences = await this.preferencesReader.applyPreferences(scope, this.preferences.deviceClass, patch, this.lifetime.signal);
         if (!this.current()) return;
       }
       for (const [id, patch] of patches) {

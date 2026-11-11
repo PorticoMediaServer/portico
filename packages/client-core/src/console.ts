@@ -6,7 +6,6 @@ import {parseFFmpegValidation,type FFmpegValidation} from './storage-status.ts';
 import {wireInstants} from './wire-units.ts';
 import {parseFeedbackList,parseFeedbackReport,type FeedbackItemStatus} from './notifications.ts';
 /** Selected-server operations wire contract. No Hosted transport is accepted. */
-import {parsePreferenceSnapshot,type DeviceClass,type PreferencePatch,type PreferenceScope} from './preferences.ts';
 import {parseTelemetryReading,parseTelemetrySample,parseTranscodeCapacity,type TelemetryWindow} from './telemetry.ts';
 import {parseAttention} from './attention.ts';
 import {parsePlaybackHistory,type PlaybackHistoryPeriod} from './playback-history.ts';
@@ -148,7 +147,6 @@ export class ConsoleClient {
   try{const value=await this.call(path,intent.method,{...body,idempotencyKey:intent.key},intent.parse);if(this.intents.get(path)===intent)this.intents.delete(path);
    if(path===routePath("post_admin_console_exports"))this.recoveredExport=value as SupportExport;
    if(path===routePath("get_console_settings")){this.drafts.delete('runtime-settings');this.pendingSettings=undefined;this.rememberSettings(value as SettingsDocument);}
-   else if(path===routePath("get_preferences"))this.drafts.delete('preferences:'+body.scope);
    else if(path===routePath("get_admin_console_schedules"))this.drafts.delete('schedule');
    for(const fn of this.reconciled)fn();
   }catch(e){if(obj(e)&&[400,404,409,410,429].includes(e.status)){if(this.intents.get(path)===intent)this.intents.delete(path);for(const fn of this.reconciled)fn();}throw e;}
@@ -220,9 +218,6 @@ export class ConsoleClient {
    this.rememberSettings(doc);return doc;
   }finally{if(!this.intents.has(path))this.pendingSettings=undefined;}
  }
- preferences(deviceClass:DeviceClass){return this.call(routePath("get_preferences") + "?deviceClass=" + (deviceClass),'GET',undefined,parsePreferenceSnapshot);}
- /** `values` carries only the keys that change; `null` clears that override. */
- applyPreferences(scope:PreferenceScope,deviceClass:DeviceClass,expectedRevision:number,values:PreferencePatch){return this.mutate(routePath("patch_preferences"),'PATCH',{scope,deviceClass,expectedRevision,values},parsePreferenceSnapshot);}
  /** Owner triage: every viewer report, newest first, a page the server bounds. */
  feedbackReports(cursor=''){return this.call(routePath("get_admin_feedback_reports")+(cursor?'?cursor='+encodeURIComponent(cursor):''),'GET',undefined,parseFeedbackList);}
  feedbackReport(id:string){return this.call(encodedRoutePath('get_admin_feedback_reports_id',{id:encodeURIComponent(id)}),'GET',undefined,parseFeedbackReport);}

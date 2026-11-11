@@ -4,4 +4,5 @@ export const syncMessages = {
  'sync.kept':'Saved on this device. It will sync when your server can be reached.',
  'sync.notSaved.personal':'A change you made earlier to what you have watched, rated or saved could not be saved on your server.',
  'sync.notSaved.list':'A change you made earlier to a list or playlist could not be saved on your server.',
+ 'sync.notSaved.settings':'A change you made earlier to your settings could not be saved on your server.',
 } as const;
