@@ -3,7 +3,7 @@ import {t, locale, environment as env} from './text';
 import {useId, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject} from 'react';
 import type {DetailProjection} from '@core/detail.ts';
 import type {ContentEntry} from '@core/library-content.ts';
-import type {DownloadOptionsView} from '@core/downloads.ts';
+import type {BrowserDownloadChoices} from '@core/attachment-download.ts';
 import type {BrowserDownloadTarget} from '../../platform/browser-download';
 import type {EntryActionTarget} from '../../shell/entry-actions';
 import {DownloadNotice} from './DownloadNotice';
@@ -243,7 +243,7 @@ function TitleMore({binding, data}: {binding: DetailBindings; data: DetailProjec
     && detailActions(data, {platform: 'web'}).more.some(group => group.actions.some(action => action.id === 'download'));
   type ActiveDownload = Readonly<{target: BrowserDownloadTarget; data: DetailProjection; request: AbortController; current: () => boolean; port: NonNullable<typeof binding.context.effects.download>}>;
   const downloadRef = useRef<ActiveDownload | undefined>(undefined);
-  const [downloadView, setDownloadView] = useState<Readonly<{active: ActiveDownload; options?: DownloadOptionsView; busy: boolean; failed: boolean}>>();
+  const [downloadView, setDownloadView] = useState<Readonly<{active: ActiveDownload; options?: BrowserDownloadChoices; busy: boolean; failed: boolean}>>();
   const closeDownload = () => { downloadRef.current?.request.abort(); downloadRef.current = undefined; setDownloadView(undefined); };
   const loadDownload = async (active: ActiveDownload) => {
     if (!active.current()) return;
@@ -267,8 +267,8 @@ function TitleMore({binding, data}: {binding: DetailBindings; data: DetailProjec
     void loadDownload(active);
   };
   const saveDownload = async (active: ActiveDownload, quality: string) => {
-    if (!active.current() || downloadView?.busy || !downloadView?.options?.policy.allowDownloads
-      || !downloadView.options.options.some(option => option.quality === quality && option.available)) return;
+    if (!active.current() || downloadView?.busy || !downloadView?.options?.allowed
+      || !downloadView.options.items.some(option => option.quality === quality && option.available)) return;
     setDownloadView(previous => previous?.active === active ? {...previous, busy: true} : previous);
     try {
       await active.port.save(active.target, quality, active.request.signal, active.current);
@@ -350,7 +350,7 @@ function TitleMore({binding, data}: {binding: DetailBindings; data: DetailProjec
       </MenuGroup>
       {ownerRows && <MenuGroup label={t(sheet ? 'next.overlays.ownerOnly' : 'next.overlays.owner')} ownerOnly>{canEditMetadata && <MenuItem icon="i-edit" onSelect={() => destination(binding.context.effects.editMetadata)}>{t('entry.editMetadata')}</MenuItem>}{refreshPath && <MenuItem icon="i-refresh" onSelect={refresh}>{t('entry.refreshMetadata')}</MenuItem>}{canDelete && <MenuItem icon="i-trash" destructive onSelect={() => destination(binding.context.effects.deleteTitle)}>{t('entry.delete')}</MenuItem>}</MenuGroup>}
     </Menu>
-    {downloadView && downloadView.active.data === data && (downloadView.options?.policy.allowDownloads
+    {downloadView && downloadView.active.data === data && (downloadView.options?.allowed
       ? <DownloadNotice open onOpenChange={value => { if (!value) closeDownload(); }} title={data.item.title} artwork={binding.context.artwork.foreground(data.item.posterUrl, 88, 2 / 3)} options={downloadView.options} busy={downloadView.busy}
           onChoose={quality => { void saveDownload(downloadView.active, quality); }} returnFocusRef={trigger} />
       : <Dialog open onOpenChange={value => { if (!value) closeDownload(); }} title={t('next.detail.download')} description={data.item.title} returnFocusRef={trigger}>

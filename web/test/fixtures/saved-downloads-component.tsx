@@ -1,7 +1,7 @@
 import {createRoot} from 'react-dom/client';
 import {useRef, useState} from 'react';
 import {defaultI18n} from '@i18n';
-import {DownloadsService} from '@core/downloads-service.ts';
+import {BrowserDownloads} from '@core/browser-downloads.ts';
 import {ServerDownloads} from '../../src/screens/saved/Downloads';
 import {SavedOperations} from '../../src/screens/saved/operations';
 import {ResourceFields} from '../../src/screens/saved/ResourceFields';
@@ -12,12 +12,12 @@ import '../../src/kit/tokens.css';
 import '../../src/kit/fonts.css';
 import '../../src/bootstrap.css';
 
-// Component-only failure proof: the actual DownloadsService reads through a
+// Component-only failure proof: the actual BrowserDownloads reads through a
 // real loopback proxy whose upstream refuses the connection. No rows, native
 // store, authority, successful API response or application shell is fabricated.
 let current = true;
 const operations = new SavedOperations(() => current);
-const service = new DownloadsService({async request<T>(path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> {
+const service = new BrowserDownloads({async request<T>(path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> {
   const response = await fetch(path, {method, body: body === undefined ? undefined : JSON.stringify(body), signal});
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return await response.json() as T;

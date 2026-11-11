@@ -132,7 +132,7 @@ export function SavedScreen(bindings: SavedBindings) {
   const dataBindings = readerRoute === route ? viewBindings : {...viewBindings, route: readerRoute};
   const active = readerRoute.view;
   const tabs = (Object.keys(tabLabels) as (keyof typeof tabLabels)[]).filter(tab => tab !== 'downloads' || bindings.downloadsOffered || localUsable);
-  const server = <ServerDownloads key={viewKey} service={runtime.downloads} operations={operations} effects={effects} artwork={bindings.preparationArtwork} online={bindings.online} />;
+  const server = <ServerDownloads key={viewKey} service={runtime.browserDownloads} operations={operations} effects={effects} artwork={bindings.preparationArtwork} online={bindings.online} />;
   return <main className={styles.page}>
     {presentation.backdrop && <div className={styles.wash} aria-hidden="true"><AmbientArt source={presentation.backdrop} treatment="hero" /></div>}
     {phone && active in tabLabels ? <SavedPhoneNav title={t(tabLabels[active as keyof typeof tabLabels])} onBack={() => effects.selectRoute({view: 'home'})}
@@ -144,7 +144,7 @@ export function SavedScreen(bindings: SavedBindings) {
         items={tabs.map(tab => ({value: tab, label: t(tabLabels[tab])}))} />
     </>}
     {route.view === 'downloads' ? localUsable && bindings.localDownloads
-      ? <LocalDownloads key={viewKey} port={bindings.localDownloads} operations={operations} effects={effects} server={<ServerDownloads service={runtime.downloads} operations={operations} effects={effects} artwork={bindings.preparationArtwork} online={bindings.online} embedded managed={!!effects.saveReadyPreparation} />} /> : server
+      ? <LocalDownloads key={viewKey} port={bindings.localDownloads} operations={operations} effects={effects} server={<ServerDownloads service={runtime.browserDownloads} operations={operations} effects={effects} artwork={bindings.preparationArtwork} online={bindings.online} embedded />} /> : server
       : route.view === 'history' ? <SavedHistory key={viewKey} bindings={dataBindings} />
         : readerRoute.view === 'collections' || readerRoute.view === 'views' ? <PersonalResources key={viewKey} {...dataBindings} onCreate={() => setCreating({viewKey, kind: 'collection'})} />
           : <SavedLists key={viewKey} {...dataBindings} onCreate={() => setCreating({viewKey, kind: 'playlist'})} />}

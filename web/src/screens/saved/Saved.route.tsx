@@ -3,6 +3,8 @@ import {createSavedCatalogueSelection, savedCatalogueEntry} from './catalogue-se
 import {useRef, useLayoutEffect, useMemo, useState, useSyncExternalStore} from 'react';
 import {useSearch} from '@tanstack/react-router';
 import type {ContentEntry} from '@core/library-content.ts';
+import {browserSaveAddresses} from '@core/browser-downloads.ts';
+import {saveFromAddress} from '../../platform/browser-download';
 import {defineWebScreen} from '../../route-registry';
 import {useProtectedWebScreenContext} from '../../route-registry-view';
 import {router} from '../../router';
@@ -108,7 +110,6 @@ function CommittedSaved({captured, lease, appearance, choice, setChoice}: {captu
   const posters = useSyncExternalStore(runtime.posters.subscribe, runtime.posters.getSnapshot, runtime.posters.getSnapshot);
   const squares = useSyncExternalStore(runtime.squares.subscribe, runtime.squares.getSnapshot, runtime.squares.getSnapshot);
   const personal = useSyncExternalStore(runtime.personal.subscribe, runtime.personal.getSnapshot, runtime.personal.getSnapshot);
-  const downloads = useSyncExternalStore(runtime.downloads.subscribe, runtime.downloads.getSnapshot, runtime.downloads.getSnapshot);
   const online = useSyncExternalStore(networkSubscribe, networkSnapshot, () => true), width = useShellWidth();
   const effects: SavedEffects = useMemo(() => {
     // One canonical data route for every witness: `home` is the UI identity only.
@@ -149,12 +150,12 @@ function CommittedSaved({captured, lease, appearance, choice, setChoice}: {captu
       },
       selectRoute(value) {if (lease.current()) void router.navigate({to: '/saved', search: value}).catch(reportError);},
       openItem(itemId) {if (lease.current()) void router.navigate({to: '/item/$itemId', params: {itemId}}).catch(reportError);},
-      async saveFile(preparation, input) {
-        const active = lease.signal(input), current = () => lease.current() && runtime.downloads.getSnapshot().items.includes(preparation) && downloads.items.includes(preparation);
+      async saveFile(row, input) {
+        const active = lease.signal(input), current = () => lease.current() && runtime.browserDownloads.getSnapshot().rows.includes(row);
         active.throwIfAborted();if (!current()) throw new DOMException('Saved download changed', 'AbortError');
-        const grant = await runtime.downloads.grant(preparation);
+        const addresses = await browserSaveAddresses(context.api, row.download.id, row.title.itemId, active);
         active.throwIfAborted();if (!current()) throw new DOMException('Saved download changed', 'AbortError');
-        window.location.assign(context.api.mediaUrl(grant.url));
+        for (const href of addresses) saveFromAddress(href);
       },
       reportError,
       ...(native.saveReadyPreparation ? {saveReadyPreparation: native.saveReadyPreparation} : {}),
@@ -168,17 +169,17 @@ function CommittedSaved({captured, lease, appearance, choice, setChoice}: {captu
           {signal: lease.signal(input), isCurrent: current}, {shuffle: target.shuffle});
       }} : {}),
     };
-  }, [context, lease, runtime, route, playback, saved, posters, squares, personal, downloads, native.saveReadyPreparation]);
+  }, [context, lease, runtime, route, playback, saved, posters, squares, personal, native.saveReadyPreparation]);
   return <>{pinsShown && pinEditor.element}<SavedScreen catalogueSelection={selection} runtime={lease.viewRuntime} localDownloads={native.localDownloads} route={route} online={online} downloadsOffered artwork={context.artwork}
     libraries={context.identity?.libraries}
     pins={pinsShown ? {list: pinned.pins, edit: pinEditor.open} : undefined}
-    preparationArtwork={preparation => {
+    preparationArtwork={row => {
       if (!lease.current()) return undefined;
       // Reuse only authorized bounded Home facts, with no catalogue scan.
-      const find = (entries: readonly ContentEntry[]) => entries.find(entry => entry.id === preparation.itemId && entry.libraryId === preparation.libraryId);
+      const itemId = row.title.itemId, find = (entries: readonly ContentEntry[]) => entries.find(entry => entry.id === itemId);
       const document = captured.context.home.getSnapshot().document;
-      const entry = document && (find(document.spotlight.map(slide => slide.entry)) ?? document.rows.flatMap(row => row.entries).find(entry => entry.id === preparation.itemId && entry.libraryId === preparation.libraryId));
-      return context.artwork.foreground(entry?.posterUrl, 120, preparation.title.kind === 'book' || preparation.title.kind === 'album' || preparation.title.kind === 'song' ? 1 : 2 / 3);
+      const entry = document && (find(document.spotlight.map(slide => slide.entry)) ?? find(document.rows.flatMap(row => row.entries)));
+      return context.artwork.foreground(entry?.posterUrl, 120, ['book', 'album', 'track', 'audiobook'].includes(row.title.kind) ? 1 : 2 / 3);
     }}
     presentation={{view: choice?.defaultView === appearance.libraryView ? choice.view : appearance.libraryView,
       cardWidth: (width < 600 ? 112 : 173.5) * appearance.cardSizePercent / 100, backdrops: appearance.showBackdrops, reducedMotion: appearance.reducedMotion,

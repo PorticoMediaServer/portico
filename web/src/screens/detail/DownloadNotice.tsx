@@ -1,6 +1,6 @@
 import type {RefObject} from 'react';
 import {defaultI18n} from '@i18n';
-import type {DownloadOptionsView} from '@core/downloads.ts';
+import type {BrowserDownloadChoices} from '@core/attachment-download.ts';
 import {Artwork, type ArtworkSource} from '../../kit/artwork';
 import {Button} from '../../kit/controls';
 import {BottomSheet} from '../../kit/overlays';
@@ -15,7 +15,7 @@ export function DownloadNotice({open, onOpenChange, title, artwork, options, bus
   onOpenChange: (open: boolean) => void;
   title: string;
   artwork?: ArtworkSource;
-  options: DownloadOptionsView;
+  options: BrowserDownloadChoices;
   busy?: boolean;
   onChoose: (quality: string) => void;
   returnFocusRef?: RefObject<HTMLElement | null>;
@@ -25,11 +25,11 @@ export function DownloadNotice({open, onOpenChange, title, artwork, options, bus
     title={<span className={styles.title}>{artwork && <Artwork source={artwork} alt="" className={styles.poster} />}<span><b>{t('next.detail.download')}</b><small>{title}</small></span></span>}
     headerAction={<Button variant="icon" size="small" icon="i-close" iconOnly aria-label={t('next.states.close')} onClick={() => onOpenChange(false)} />}>
     <p className={styles.section}>{t('next.detail.downloadQuality')}</p>
-    <div className={styles.options}>{options.options.map(option => <button key={option.quality} type="button" className={styles.option}
-      disabled={busy || !options.policy.allowDownloads || !option.available} onClick={() => onChoose(option.quality)}>
-      <span className={styles.copy}><b>{option.kind === 'source' ? t('web.downloads.original') : option.label}</b><small>{t(option.kind === 'source' ? 'next.detail.downloadOriginalFile' : 'next.detail.downloadSmaller')}</small></span>
-      <span className={styles.size}>{option.estimatedBytes > 0 ? option.estimated ? t('web.downloads.about', {size: defaultI18n.bytes(option.estimatedBytes)}) : defaultI18n.bytes(option.estimatedBytes) : null}
-        {option.requiresPreparation && <small>{t('next.detail.downloadPreparesFirst')}</small>}</span>
+    <div className={styles.options}>{options.items.map(option => <button key={option.quality} type="button" className={styles.option}
+      disabled={busy || !options.allowed || !option.available} onClick={() => onChoose(option.quality)}>
+      <span className={styles.copy}><b>{option.quality === 'original' ? t('web.downloads.original') : option.label}</b><small>{t(option.quality === 'original' ? 'next.detail.downloadOriginalFile' : 'next.detail.downloadSmaller')}</small></span>
+      <span className={styles.size}>{option.sizeBytes > 0 ? option.estimated ? t('web.downloads.about', {size: defaultI18n.bytes(option.sizeBytes)}) : defaultI18n.bytes(option.sizeBytes) : null}
+        {option.prepared && <small>{t('next.detail.downloadPreparesFirst')}</small>}</span>
       <span className={styles.download} aria-hidden="true"><Icon name="i-download" size={18} /></span>
     </button>)}</div>
   </BottomSheet>;

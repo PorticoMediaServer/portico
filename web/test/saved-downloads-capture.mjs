@@ -43,7 +43,7 @@ try {
   await page.screenshot({path: join(process.env.PORTICO_RUNNER_OUTPUT, 'downloads-load-failure-panel.jpg'), type: 'jpeg', quality: 95, clip: {x: 510, y: 270, width: 420, height: 360}});
   // Count the same response stream as the failed-read proof. Resource Timing may
   // omit failed requests, and its count need not match Playwright's response count.
-  const retryResponse = page.waitForResponse(response => response.url().includes('/v1/downloads/preparations') && response.status() >= 500);
+  const retryResponse = page.waitForResponse(response => response.url().includes('/v1/downloads?scope=profile') && response.status() >= 500);
   await dialog.getByRole('button', {name: 'Try again', exact: true}).click();
   await retryResponse;
   await dialog.waitFor({state: 'visible'});

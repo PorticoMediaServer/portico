@@ -677,13 +677,6 @@
     "occurrences": 1,
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
   },
-  "web/src/screens/saved/Saved.route.tsx#816b9d4e902eb35a": {
-    "category": "platform-url",
-    "reason": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes only, and no domain JSON is constructed.",
-    "condition": "The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
-    "occurrences": 1,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
-  },
   "apps/native/src-next/platform/local-invitation.ts#2ee476c643df9a2e": {
     "category": "platform-transport",
     "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",

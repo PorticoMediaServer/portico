@@ -1,14 +1,14 @@
 import {Fragment, useEffect, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
 import {defaultI18n} from '@i18n';
-import type {DownloadAction, DownloadPreparation, DownloadTitle} from '@core/downloads.ts';
-import type {DownloadsService, DownloadsSnapshot} from '@core/downloads-service.ts';
+import type {DownloadTitle} from '@core/downloads.ts';
+import {downloadQualityLabel, type BrowserDownloadAction, type BrowserDownloadRow, type BrowserDownloads, type BrowserDownloadsSnapshot} from '@core/browser-downloads.ts';
 import {Artwork, type ArtworkSource} from '../../kit/artwork';
 import {Button, Select, Switch} from '../../kit/controls';
 import {Dialog, Menu, type MenuEntry} from '../../kit/overlays';
 import {Icon} from '../../kit/Icon';
 import {StateView} from '../../kit/states';
 import {sameSavedDownloadsScope, type SavedDownloadsPort, type SavedDownloadRules, type SavedDownloadsSnapshot, type SavedLocalDownload, type SavedLocalDownloadGroup, type SavedOtherDownloadsConfirmation} from './downloads-port.ts';
-import {diskFractions, downloadShape, localDownloadGroups, localGroupPercent, measuredPercent, preparationPercent} from './downloads-model.ts';
+import {diskFractions, downloadShape, localDownloadGroups, localGroupPercent, measuredPercent} from './downloads-model.ts';
 import type {SavedOperations} from './operations.ts';
 import type {SaveReadyPreparation} from './ready-downloads.ts';
 import {savedText as s} from './text.ts';
@@ -18,24 +18,22 @@ import styles from './saved.module.css';
 const t = defaultI18n.t;
 export type SavedDownloadEffects = Readonly<{
   openItem(itemId: string): void;
-  /** The parent supplies its real selected-authority browser file handoff. */
-  saveFile(preparation: DownloadPreparation, signal: AbortSignal): Promise<void>;
+  /** The parent hands the browser this title's file addresses to save. */
+  saveFile(row: BrowserDownloadRow, signal: AbortSignal): Promise<void>;
   /** Optional native handoff, closed over this runtime's preparation service and
    * genuine authenticated coordinator by the parent. Never a browser store. */
   saveReadyPreparation?: SaveReadyPreparation;
   reportError(error: unknown): void;
   openServerSettings?: () => void;
 }>;
-type ArtworkForPreparation = (preparation: DownloadPreparation) => ArtworkSource | undefined;
+type ArtworkForRow = (row: BrowserDownloadRow) => ArtworkSource | undefined;
 
-function DownloadFacts({title, quality, bytes, browser = false}: {title: DownloadTitle; quality?: string; bytes?: number; browser?: boolean}) {
+function DownloadFacts({title, quality, bytes}: {title: DownloadTitle; quality?: string; bytes?: number}) {
   const episode = title.kind === 'episode' && title.number !== null ? title.groupNumber === null
     ? t('title.episodeOnly', {episode: title.number}) : t('next.kit.episodeCode', {season: title.groupNumber, episode: title.number}) : undefined;
-  const kind = browser && title.kind === 'movie' ? t('search.kind.movie') : undefined;
-  const qualitySize = browser && quality && bytes !== undefined && bytes > 0 ? s('next.saved.qualitySize', {quality, size: defaultI18n.bytes(bytes)}) : undefined;
-  const facts = [browser && title.kind === 'episode' ? title.parentTitle : kind, episode,
+  const facts = [episode,
     title.kind === 'song' || title.kind === 'album' ? title.artist : title.kind !== 'episode' && title.year ? defaultI18n.number(title.year, {useGrouping: false}) : undefined,
-    qualitySize ?? quality, !qualitySize && bytes !== undefined && bytes > 0 ? defaultI18n.bytes(bytes) : undefined].filter((fact): fact is string => !!fact);
+    quality, bytes !== undefined && bytes > 0 ? defaultI18n.bytes(bytes) : undefined].filter((fact): fact is string => !!fact);
   return <small className={styles.facts}>{facts.map((fact, index) => <span key={index}>{fact}</span>)}</small>;
 }
 function Progress({percent}: {percent: number | undefined}) {
@@ -218,75 +216,81 @@ function DownloadRules({snapshot, busy, onChange, onChooseFolder}: {snapshot: Sa
   </div>;
 }
 
-export function ServerDownloads({service, operations, effects, artwork, online, embedded = false, managed = false}: {service: DownloadsService; operations: SavedOperations; effects: SavedDownloadEffects; artwork: ArtworkForPreparation; online: boolean; embedded?: boolean; managed?: boolean}) {
+export function ServerDownloads({service, operations, effects, artwork, online, embedded = false}: {service: BrowserDownloads; operations: SavedOperations; effects: SavedDownloadEffects; artwork: ArtworkForRow; online: boolean; embedded?: boolean}) {
   const snapshot = useSyncExternalStore(service.subscribe, service.getSnapshot, service.getSnapshot);
-  const [qualities, setQualities] = useState<ReadonlyMap<string, string>>(new Map()), [confirmation, setConfirmation] = useState<Readonly<{item: DownloadPreparation; action: 'remove' | 'cancel'}>>();
-  const [dismissedFailure, setDismissedFailure] = useState<DownloadsSnapshot>();
+  const [confirmation, setConfirmation] = useState<Readonly<{downloadId: string; action: 'remove' | 'cancel'}>>();
+  const [dismissedFailure, setDismissedFailure] = useState<BrowserDownloadsSnapshot>();
   const pendingSaves = useRef(new Set<string>()), [saving, setSaving] = useState<readonly string[]>([]);
   const cancel = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!online || !operations.current) return;
-    if (!managed) service.start(); const controller = new AbortController();
-    void service.qualities(controller.signal).then(choices => { if (!controller.signal.aborted && operations.current) setQualities(new Map(choices.map(choice => [choice.quality, choice.label]))); }).catch(() => {});
-    return () => { controller.abort(); if (!managed) service.stop(); };
-  }, [service, operations, online, managed]);
-  const act = (item: DownloadPreparation, action: DownloadAction) => {
-    if (!online || !operations.current || service.getSnapshot().busy.includes(item.id)) return;
-    void operations.run(async () => {
-      await service.act(item, action);
-      const failure = service.getSnapshot().failure;
-      if (failure) throw failure;
-    }, () => setConfirmation(undefined)).catch(effects.reportError);
+    service.start();
+    return () => service.stop();
+  }, [service, operations, online]);
+  const act = (downloadId: string, action: BrowserDownloadAction) => {
+    if (!online || !operations.current || service.getSnapshot().busy.includes(downloadId)) return;
+    void operations.run(() => service.act(downloadId, action), () => setConfirmation(undefined)).catch(effects.reportError);
   };
-  const saveFile = (item: DownloadPreparation) => {
-    if (!online || !operations.current || item.state !== 'ready' || pendingSaves.current.has(item.id)) return;
-    pendingSaves.current.add(item.id); setSaving([...pendingSaves.current]);
+  const saveFile = (row: BrowserDownloadRow) => {
+    if (!online || !operations.current || row.title.state !== 'ready' || pendingSaves.current.has(row.key)) return;
+    pendingSaves.current.add(row.key); setSaving([...pendingSaves.current]);
     void operations.run(async signal => {
-      try { await effects.saveFile(item, signal); }
-      finally { pendingSaves.current.delete(item.id); }
+      try { await effects.saveFile(row, signal); }
+      finally { pendingSaves.current.delete(row.key); }
     }, () => setSaving([...pendingSaves.current])).catch(error => {
       setSaving([...pendingSaves.current]); effects.reportError(error);
     });
   };
+  const actionLabel = (action: BrowserDownloadAction) => t(action === 'pause' ? 'action.pause' : action === 'resume' ? 'web.downloads.resume' : action === 'cancel' ? 'web.downloads.stop' : action === 'retry' ? 'action.tryAgain' : 'action.removeShort');
   if (!operations.current) return null;
   if (snapshot.unavailable) return embedded ? null : <StateView title={t('web.downloads.offTitle')} body={t(effects.openServerSettings ? 'web.downloads.offOwner' : 'web.downloads.offMember')}
     primary={effects.openServerSettings ? {id: 'settings', label: s('next.saved.openServerSettings'), onPress: effects.openServerSettings} : undefined} />;
+  const busy = (row: BrowserDownloadRow) => snapshot.busy.includes(row.download.id);
   return <div className={styles.serverDownloads} data-embedded={embedded || undefined}>
-    <div className={styles.downloadHeading}><h2>{embedded ? t('downloads.onServer') : s('next.saved.prepared')}</h2>{!embedded && snapshot.usage && <span>{t('web.downloads.usage', {size: defaultI18n.bytes(snapshot.usage.profileBytes)})}</span>}</div>
+    <div className={styles.downloadHeading}><h2>{embedded ? t('downloads.onServer') : s('next.saved.prepared')}</h2>{!embedded && snapshot.copiesBytes !== undefined && <span>{t('web.downloads.usage', {size: defaultI18n.bytes(snapshot.copiesBytes)})}</span>}</div>
     {!embedded && <p className={styles.browserNote}><Icon name="i-info" size={18} />{s('next.saved.browserNote')}</p>}
-    {snapshot.phase === 'ready' && !snapshot.items.length && !snapshot.requests.length && !embedded && <StateView variant="empty" icon="i-dl" title={t('web.downloads.emptyTitle')} body={t('web.downloads.emptyBody')} />}
+    {snapshot.phase === 'ready' && !snapshot.rows.length && !snapshot.requests.length && !embedded && <StateView variant="empty" icon="i-dl" title={t('web.downloads.emptyTitle')} body={t('web.downloads.emptyBody')} />}
     <SavedDialog width={380} open={!embedded && snapshot.phase === 'error' && snapshot !== dismissedFailure} onOpenChange={open => { if (!open) setDismissedFailure(snapshot); }} title={s('next.saved.loadFailed')} description={s('next.saved.loadFailedBody')}
       footer={<><Button size="small" onClick={() => setDismissedFailure(snapshot)}>{t('action.close')}</Button><Button size="small" variant="primary" disabled={!online} onClick={() => { setDismissedFailure(snapshot); void service.refresh(); }}>{t('action.tryAgain')}</Button></>}>
       <Fragment />
     </SavedDialog>
-    <div className={styles.downloadList} role="list">{snapshot.items.map(item => <div key={item.id} className={styles.downloadRow} role="listitem">
-      <span className={styles.art} data-shape={downloadShape(item.title)}><Artwork source={artwork(item)} alt="" /></span>
-      <div className={styles.title}><b>{item.title.title}</b><DownloadFacts title={item.title} quality={item.quality === 'original' ? t('web.downloads.original') : qualities.get(item.quality)} bytes={item.artifact.bytes} browser /></div>
-      <ServerStatus item={item} service={service} />
+    <div className={styles.downloadList} role="list">{snapshot.rows.map(row => <div key={row.key} className={styles.downloadRow} role="listitem">
+      <span className={styles.art} data-shape={serverShape(row.title.kind)}><Artwork source={artwork(row)} alt="" /></span>
+      <div className={styles.title}><b>{row.title.title}</b><ServerFacts row={row} /></div>
+      <ServerStatus row={row} />
       <span className={styles.actions}>
-        {!embedded && item.state === 'ready' && <Button variant="primary" className={styles.rowButton} size="small" icon="i-download" disabled={!online} loading={saving.includes(item.id)} onClick={() => saveFile(item)}>{t('web.downloads.save')}</Button>}
-        {item.actions.filter(action => action !== 'remove').map(action => <Button key={action} className={styles.rowButton} size="small" disabled={!online} loading={snapshot.busy.includes(item.id)} onClick={() => { if (action === 'cancel') setConfirmation({item, action}); else act(item, action); }}>{t(action === 'pause' ? 'action.pause' : action === 'resume' ? 'web.downloads.resume' : action === 'cancel' ? 'web.downloads.stop' : 'action.tryAgain')}</Button>)}
-        <DownloadMenu items={[{id: 'go', label: t('web.downloads.goToTitle'), onSelect: () => { if (operations.current) effects.openItem(item.itemId); }},
-          ...(item.actions.includes('remove') ? [{id: 'remove', label: t('action.removeShort'), destructive: true, disabled: snapshot.busy.includes(item.id), onSelect: () => setConfirmation({item, action: 'remove'})}] : [])]} />
+        {!embedded && row.title.state === 'ready' && <Button variant="primary" className={styles.rowButton} size="small" icon="i-download" disabled={!online} loading={saving.includes(row.key)} onClick={() => saveFile(row)}>{t('web.downloads.save')}</Button>}
+        {row.actions.filter(action => action !== 'remove').map(action => <Button key={action} className={styles.rowButton} size="small" disabled={!online} loading={busy(row)} onClick={() => { if (action === 'cancel') setConfirmation({downloadId: row.download.id, action}); else act(row.download.id, action); }}>{actionLabel(action)}</Button>)}
+        <DownloadMenu items={[{id: 'go', label: t('web.downloads.goToTitle'), onSelect: () => { if (operations.current) effects.openItem(row.title.itemId); }},
+          ...(row.actions.includes('remove') ? [{id: 'remove', label: t('action.removeShort'), destructive: true, disabled: busy(row), onSelect: () => setConfirmation({downloadId: row.download.id, action: 'remove'})}] : [])]} />
       </span>
     </div>)}</div>
-    {!!snapshot.requests.length && <><div className={styles.downloadHeading}><h2>{t('web.downloads.requestsTitle')}</h2></div><div className={styles.downloadList} role="list">{snapshot.requests.map(({request, title}) => <div className={styles.request} key={request.requestId} role="listitem"><b>{title}</b><span>{request.totalKnown ? t('web.downloads.requestProgress', {ready: request.ready, total: request.total}) : t('web.downloads.requestPreparing')}{request.failed > 0 && <small>{t('web.downloads.requestFailed', {failed: request.failed})}</small>}<Progress percent={request.totalKnown && request.total > 0 ? request.ready / request.total * 100 : undefined} /></span></div>)}</div></>}
-    {snapshot.nextCursor && <Button size="small" className={styles.showMore} loading={snapshot.loadingMore} disabled={!online} onClick={() => { void service.loadMore(); }}>{t('action.showMore')}</Button>}
-    <Dialog open={!!confirmation} onOpenChange={open => { if (!open && (!confirmation || !service.getSnapshot().busy.includes(confirmation.item.id))) setConfirmation(undefined); }} initialFocusRef={cancel}
+    {!!snapshot.requests.length && <><div className={styles.downloadHeading}><h2>{t('web.downloads.requestsTitle')}</h2></div><div className={styles.downloadList} role="list">{snapshot.requests.map(({download, actions}) => <div className={styles.request} key={download.id} role="listitem"><b>{download.target.title}</b><span>{t('web.downloads.requestProgress', {ready: download.counts.ready, total: download.counts.titles})}{download.counts.failed > 0 && <small>{t('web.downloads.requestFailed', {failed: download.counts.failed})}</small>}<Progress percent={download.counts.titles > 0 ? download.counts.ready / download.counts.titles * 100 : undefined} /></span>
+      <DownloadMenu items={actions.map(action => ({id: action, label: actionLabel(action), destructive: action === 'remove', disabled: !online || snapshot.busy.includes(download.id),
+        onSelect: () => { if (action === 'remove') setConfirmation({downloadId: download.id, action}); else act(download.id, action); }}))} /></div>)}</div></>}
+    <Dialog open={!!confirmation} onOpenChange={open => { if (!open && (!confirmation || !snapshot.busy.includes(confirmation.downloadId))) setConfirmation(undefined); }} initialFocusRef={cancel}
       title={t(confirmation?.action === 'cancel' ? 'confirm.stopPreparing.title' : 'confirm.removePrepared.title')}
       description={t(confirmation?.action === 'cancel' ? 'confirm.stopPreparing.body' : 'confirm.removePrepared.body')}
-      footer={<><Button ref={cancel} size="small" disabled={!!confirmation && snapshot.busy.includes(confirmation.item.id)} onClick={() => setConfirmation(undefined)}>{t('action.cancel')}</Button><Button size="small" variant="primary" disabled={!online} className={confirmation?.action === 'remove' ? styles.destructive : undefined} loading={!!confirmation && snapshot.busy.includes(confirmation.item.id)} onClick={() => { if (confirmation) act(confirmation.item, confirmation.action); }}>{t(confirmation?.action === 'cancel' ? 'web.downloads.stop' : 'action.removeShort')}</Button></>}><Fragment /></Dialog>
+      footer={<><Button ref={cancel} size="small" disabled={!!confirmation && snapshot.busy.includes(confirmation.downloadId)} onClick={() => setConfirmation(undefined)}>{t('action.cancel')}</Button><Button size="small" variant="primary" disabled={!online} className={confirmation?.action === 'remove' ? styles.destructive : undefined} loading={!!confirmation && snapshot.busy.includes(confirmation.downloadId)} onClick={() => { if (confirmation) act(confirmation.downloadId, confirmation.action); }}>{t(confirmation?.action === 'cancel' ? 'web.downloads.stop' : 'action.removeShort')}</Button></>}><Fragment /></Dialog>
   </div>;
 }
-function ServerStatus({item, service}: {item: DownloadPreparation; service: DownloadsService}) {
-  const percent = preparationPercent(item), label = item.state === 'running' ? percent === undefined ? t('web.downloads.state.preparing') : s('next.saved.preparing', {percent: Math.floor(percent)})
-    : item.state === 'ready' ? t('web.downloads.state.ready') : item.state === 'queued' ? t('web.downloads.state.waiting') : item.state === 'paused' ? t('downloads.paused') : item.state === 'expired' ? t('web.downloads.state.expired') : service.reason(item);
-  return <span className={styles.status}><b data-tone={item.state === 'ready' ? 'healthy' : undefined}>{label}</b>
-    {item.state === 'ready' && item.expiresAt && <small>{t('web.downloads.keptUntil', {date: defaultI18n.date(item.expiresAt, 'dayMonth')})}</small>}
-    {item.state === 'running' && item.progress.etaSeconds !== null && <small>{t('web.downloads.minutesLeft', {count: Math.max(1, Math.ceil(item.progress.etaSeconds / 60))})}</small>}
-    {item.state === 'queued' && <small>{s('next.saved.waitingPreparation')}</small>}
-    {item.state === 'paused' && percent !== undefined && <small>{s('next.saved.atPercent', {percent: Math.floor(percent)})}</small>}
-    {item.state === 'expired' && <small>{s('next.saved.expiredHelp')}</small>}
-    {item.state === 'running' && <Progress percent={percent} />}
+const serverShape = (kind: string): 'wide' | 'square' | 'poster' => kind === 'episode' ? 'wide' : ['track', 'album', 'audiobook', 'book'].includes(kind) ? 'square' : 'poster';
+function ServerFacts({row}: {row: BrowserDownloadRow}) {
+  const quality = row.download.quality === 'original' ? t('web.downloads.original') : downloadQualityLabel(row.download.quality);
+  const bytes = row.title.sizeBytes ?? 0;
+  const facts = [row.title.kind === 'movie' ? t('search.kind.movie') : undefined, bytes > 0 ? s('next.saved.qualitySize', {quality, size: defaultI18n.bytes(bytes)}) : quality];
+  return <small className={styles.facts}>{facts.filter((fact): fact is string => !!fact).map((fact, index) => <span key={index}>{fact}</span>)}</small>;
+}
+function ServerStatus({row}: {row: BrowserDownloadRow}) {
+  const {state, doneBytes, totalBytes, keptUntil, reason} = row.title;
+  const percent = state === 'preparing' && totalBytes ? measuredPercent((doneBytes ?? 0) / totalBytes * 100) : undefined;
+  const label = state === 'preparing' ? percent === undefined ? t('web.downloads.state.preparing') : s('next.saved.preparing', {percent: Math.floor(percent)})
+    : state === 'ready' ? t('web.downloads.state.ready') : state === 'waiting' ? t('web.downloads.state.waiting') : state === 'paused' ? t('downloads.paused')
+      : state === 'expired' ? t('web.downloads.state.expired') : reason || s('next.saved.stopped');
+  return <span className={styles.status}><b data-tone={state === 'ready' ? 'healthy' : undefined}>{label}</b>
+    {state === 'ready' && keptUntil && <small>{t('web.downloads.keptUntil', {date: defaultI18n.date(keptUntil, 'dayMonth')})}</small>}
+    {state === 'waiting' && <small>{s('next.saved.waitingPreparation')}</small>}
+    {state === 'expired' && <small>{s('next.saved.expiredHelp')}</small>}
+    {state === 'preparing' && <Progress percent={percent} />}
   </span>;
 }

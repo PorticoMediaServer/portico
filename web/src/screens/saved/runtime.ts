@@ -3,6 +3,7 @@ import {readingSavedReferencePath, type ReadingSavedReferenceCommand} from '@cor
 import {SavedService, type SavedApi, type SavedRestore, type SavedRoute} from '@core/saved.ts';
 import {PersonalSavedService, isPersonalSavedRoute} from '@core/personal-saved.ts';
 import {DownloadsService} from '@core/downloads-service.ts';
+import {BrowserDownloads} from '@core/browser-downloads.ts';
 import {randomId} from '@core/random-id.ts';
 import type {SavedDownloadsScope} from './downloads-port.ts';
 import {SavedOperations} from './operations.ts';
@@ -45,11 +46,13 @@ export function createSavedRuntime(input: Readonly<{api: SavedApi; scope: SavedD
   const serverScope = Object.freeze({serverId: scope.serverId, viewerId: JSON.stringify([scope.authority, scope.accountId, scope.profileId, scope.sessionFamilyId])});
   const makeSaved = () => new SavedService({api, scope: serverScope, requestId: async () => randomId()});
   const saved = makeSaved(), posters = makeSaved(), squares = makeSaved(), personal = new PersonalSavedService(api, serverScope, async () => randomId()), downloads = new DownloadsService(api);
+  /** The server's downloads for this profile on the new server: what a browser saves as files. */
+  const browserDownloads = new BrowserDownloads(api);
   const summary = new SavedSummary(api, serverScope, operations);
   let readyDownloads: SavedReadyDownloads | undefined;
   if (input.deviceId) downloads.followDevice(input.deviceId);
   return {
-    scope, operations, saved, posters, squares, personal, downloads, summary,
+    scope, operations, saved, posters, squares, personal, downloads, browserDownloads, summary,
     canRemoveReadingGroup(referenceId: string): boolean {return operations.current && readingSavedReferencePath(referenceId) !== undefined;},
     removeReadingGroup(referenceId: string, command: ReadingSavedReferenceCommand, signal: AbortSignal) {
       return removeSavedReadingGroup(api, scope.serverId, referenceId, command, signal, () => {if (!operations.current) throw abort();});
@@ -73,7 +76,7 @@ export function createSavedRuntime(input: Readonly<{api: SavedApi; scope: SavedD
       readyDownloads?.dispose();
       summary.dispose();
       operations.dispose(); for (const controller of controllers) controller.abort(); controllers.clear();
-      saved.dispose(); posters.dispose(); squares.dispose(); personal.dispose(); downloads.dispose();
+      saved.dispose(); posters.dispose(); squares.dispose(); personal.dispose(); downloads.dispose(); browserDownloads.dispose();
     },
   };
 }

@@ -1,6 +1,6 @@
 import {useEffect, useRef, useState} from 'react';
 import type {ContentEntry, ContentProjection} from '@core/library-content.ts';
-import type {DownloadOptionsView} from '@core/downloads.ts';
+import type {BrowserDownloadChoices} from '@core/attachment-download.ts';
 import {Button} from '../../../kit/controls';
 import {Menu, MenuItem} from '../../../kit/overlays';
 import {DownloadNotice} from '../DownloadNotice';
@@ -12,7 +12,7 @@ import type {AudiobookBindings} from './bindings';
 /** Container ids never masquerade as a picker/download leaf. */
 /** `variant`: the desktop action row draws More as a glass button beside the others; rows keep ghost. */
 export function AudiobookMore({binding, page, entry, variant = 'ghost'}: {binding: AudiobookBindings; page: ContentProjection; entry: ContentEntry; variant?: 'ghost' | 'glass'}) {
-  const [open, setOpen] = useState(false), [download, setDownload] = useState<Readonly<{options: DownloadOptionsView; request: AbortController; busy: boolean}>>();
+  const [open, setOpen] = useState(false), [download, setDownload] = useState<Readonly<{options: BrowserDownloadChoices; request: AbortController; busy: boolean}>>();
   const anchor = useRef<HTMLButtonElement>(null), active = useRef<AbortController | undefined>(undefined);
   const effects = binding.context.effects;
   const leaf = entry.kind === 'audiobook_file' && entry.available !== false && !entry.missing;
@@ -28,7 +28,7 @@ export function AudiobookMore({binding, page, entry, variant = 'ghost'}: {bindin
     close();const request = new AbortController();active.current = request;
     const valid = () => active.current === request && !request.signal.aborted && current();
     const options = await effects.download.options(target, request.signal, valid);
-    if (valid() && options.policy.allowDownloads) setDownload({options, request, busy: false});
+    if (valid() && options.allowed) setDownload({options, request, busy: false});
   });
   // The book page's own More edits the whole book; a part's More edits that part.
   const metadata: MetadataTarget | undefined = entry === page.entity && page.scope.view === 'book' && entry.kind === 'book'

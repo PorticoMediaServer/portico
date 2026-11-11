@@ -137,7 +137,7 @@ test('parent disposal aborts both real shape-service transports and drops delaye
 
 // FX216: exercise the actual Web consumer against the real service's failure
 // snapshot. Reuse the existing component hook fixture; no browser/runner job.
-import {DownloadsService} from '@core/downloads-service.ts';
+import {BrowserDownloads} from '@core/browser-downloads.ts';
 import {defaultI18n} from '@i18n';
 import {componentModule, hooks} from './helpers/component-harness.mjs';
 import {savedText} from '../src/screens/saved/text.ts';
@@ -147,15 +147,16 @@ test('actual ServerDownloads keeps Retry for transient failures and shows featur
     {error: Object.assign(new Error('busy'), {status: 503, code: 'server_busy'}), absent: false},
     {error: Object.assign(new Error('timeout'), {status: 503, code: 'timeout'}), absent: false},
     {error: new TypeError('offline'), absent: false},
-    {error: Object.assign(new Error('unsupported route'), {status: 404}), absent: true},
-    {error: Object.assign(new Error('disabled'), {status: 503, code: 'downloads_unavailable'}), absent: true},
+    {error: Object.assign(new Error('off on the server'), {status: 403, code: 'downloads_off'}), absent: true},
+    {error: Object.assign(new Error('off for the profile'), {status: 403, code: 'downloads_not_allowed'}), absent: true},
   ];
   for (const {error, absent} of failures) {
     let failure: unknown = error, listReads = 0;
-    const service = new DownloadsService({request: async <T>(path: string): Promise<T> => {
-      if (!path.startsWith('/v1/downloads/preparations?')) throw new Error(`Unexpected fixture request: ${path}`);
+    const service = new BrowserDownloads({request: async <T>(path: string): Promise<T> => {
+      if (path === '/v1/downloads/usage') return {copiesBytes: 0} as T;
+      if (path !== '/v1/downloads?scope=profile') throw new Error(`Unexpected fixture request: ${path}`);
       listReads++; if (failure) throw failure;
-      return {items: [], nextCursor: ''} as T;
+      return {items: []} as T;
     }});
     const operations = new SavedOperations(() => true), host = hooks();
     const screen = await componentModule(new URL('../src/screens/saved/Downloads.tsx', import.meta.url), {
@@ -164,7 +165,7 @@ test('actual ServerDownloads keeps Retry for transient failures and shows featur
       '../../kit/overlays': {Dialog: 'Dialog', Menu: 'Menu'}, '../../kit/Icon': {Icon: 'Icon'},
       '../../kit/states': {StateView: 'StateView'}, './SavedDialog': {SavedDialog: 'SavedDialog'},
     });
-    const render = (embedded = false) => host.render(() => screen.ServerDownloads({service, operations, embedded, managed: true, online: true,
+    const render = (embedded = false) => host.render(() => screen.ServerDownloads({service, operations, embedded, online: true,
       artwork: () => undefined, effects: {openItem() {}, saveFile: async () => {}, reportError(error: unknown) {throw error;}}}));
     type Node = {type: unknown; props: Record<string, any>};
     const nodes = (value: unknown): Node[] => {
