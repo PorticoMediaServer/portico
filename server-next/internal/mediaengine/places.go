@@ -92,6 +92,11 @@ func (e *Engine) SetConversion(folder, ffmpeg string) error {
 	// big folder or asking a program never holds up a play or a media request.
 	e.switching.Lock()
 	defer e.switching.Unlock()
+	return e.setConversion(folder, ffmpeg)
+}
+
+// setConversion is SetConversion for a caller that holds e.switching.
+func (e *Engine) setConversion(folder, ffmpeg string) error {
 	e.mu.Lock()
 	current, target, program := e.current, e.folder, e.program
 	inUse := map[string]bool{current.folder: true}
