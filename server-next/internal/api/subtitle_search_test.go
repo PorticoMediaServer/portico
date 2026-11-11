@@ -2,8 +2,11 @@ package api
 
 import (
 	"net/url"
+	"strconv"
 	"testing"
+	"time"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/metadata"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/opensubtitles/opensubtitlestest"
 )
 
@@ -93,5 +96,28 @@ func TestSubtitleSearchAndDownload(t *testing.T) {
 	server.AllowanceUsed.Store(true)
 	if code := as(sh.member, "POST", "/v1/items/"+film+"/subtitles", SubtitleDownload{Ref: results.Items[1].Ref}, nil); code != 429 {
 		t.Fatalf("a used-up allowance answered %d", code)
+	}
+}
+
+// Searching the same title again and again, in one language and then another, never stops
+// the latest search's results from being downloaded.
+func TestTheLatestSubtitleSearchCanAlwaysBeDownloaded(t *testing.T) {
+	var m subtitleSearches
+	key := searchKey{profile: 1, item: "itm_a"}
+	now := time.Now()
+	ref := ""
+	for search := range 8 {
+		var found []metadata.SubtitleResult
+		for i := range 40 {
+			ref = strconv.Itoa(search*100 + i + 1)
+			found = append(found, metadata.SubtitleResult{Ref: ref, Language: "eng"})
+		}
+		m.keep(key, found, now)
+	}
+	if _, ok := m.find(key, ref, now); !ok {
+		t.Fatal("the latest search's last result cannot be downloaded")
+	}
+	if _, ok := m.find(searchKey{profile: 2, item: "itm_a"}, ref, now); ok {
+		t.Fatal("another profile can download from this profile's search")
 	}
 }
