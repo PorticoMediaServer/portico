@@ -7,6 +7,7 @@ import {Button, TextField} from '../../../kit/controls';
 import {Dialog} from '../../../kit/overlays/Dialog';
 import {useRetained} from '../../../kit/overlays';
 import {BackupConfirmationDialog, BackupList, ServerFolderPicker, SettingsAction} from '../../../kit/settings';
+import {restoreReady, sentAsConfirmed} from './restore-gate';
 import styles from './server.module.css';
 
 const t = defaultI18n.t;
@@ -53,24 +54,30 @@ export function StorageBackupNow(props: BackupSurfaceProps) {
 /** A restore that waits for a restart: Restart now (asking first, with how many are playing) or Cancel. */
 function PendingRestore(props: BackupSurfaceProps) {
   const state = useBackups(props), pending = state.backups?.pendingRestore;
-  const [confirm, setConfirm] = useState(false), [error, setError] = useState<string>(), [byHand, setByHand] = useState(false);
+  // What a restart would do is asked of the server, never taken from what this page saw when it staged the
+  // restore: another tab, another device or a reload staged nothing here (rule 64).
+  const [asks, setAsks] = useState<Readonly<{playing: number; canRestart: boolean}>>();
+  const [confirm, setConfirm] = useState(false), [error, setError] = useState<string>();
+  const ask = async () => {const now = await props.source.restartAsks();if (props.isCurrent()) setAsks(now);return now;};
+  useEffect(() => {setAsks(undefined);if (pending) void ask().catch(() => undefined);
+    // Asked again for each restore that waits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pending?.backup, pending?.stagedAt]);
   if (state.restarting) return <p role="status" className={styles.storageNote}>{t('server.backups.restarting')}</p>;
   if (!pending) return null;
-  // Where the server cannot start itself again (it says so when staging, or when asked), it is restarted by hand.
-  const canRestart = state.staged?.canRestart !== false && !byHand;
   const act = (work: () => Promise<unknown>) => {setError(undefined);void work().catch(e => {if (props.isCurrent()) setError(message(e));});};
   return <div className={styles.restoreStatus} role="status">
     <b>{t('server.backups.pending', {name: pending.backup})}</b>
-    {!canRestart && <p className={styles.storageNote}>{t('server.backups.restartByHand')}</p>}
+    {asks && !asks.canRestart && <p className={styles.storageNote}>{t('server.backups.restartByHand')}</p>}
     <div>
-      {canRestart && <SettingsAction size="small" appearance="primary" disabled={state.busy} onClick={() => setConfirm(true)}>{t('server.backups.restartNow')}</SettingsAction>}
+      {asks?.canRestart && <SettingsAction size="small" appearance="primary" disabled={state.busy} onClick={() => act(async () => {if ((await ask()).canRestart && props.isCurrent()) setConfirm(true);})}>{t('server.backups.restartNow')}</SettingsAction>}
       <Button size="small" variant="glass" disabled={state.busy} onClick={() => act(() => props.source.cancelRestore())}>{t('server.backups.cancelRestore')}</Button>
     </div>
     {error && <p role="alert" className={styles.backupFailure}>{error}</p>}
-    <Dialog open={confirm} onOpenChange={open => {if (!open) setConfirm(false);}} title={t('server.backups.restartTitle')}
+    <Dialog open={confirm && !!asks} onOpenChange={open => {if (!open) setConfirm(false);}} title={t('server.backups.restartTitle')}
       footer={<><Button size="small" onClick={() => setConfirm(false)}>{t('next.settings.cancel')}</Button>
-        <SettingsAction size="small" appearance="primary" disabled={state.busy} onClick={() => {setConfirm(false);act(async () => {if (!await props.source.restart() && props.isCurrent()) setByHand(true);});}}>{t('server.backups.restartNow')}</SettingsAction></>}>
-      <p>{t('server.backups.restartBody', {count: state.staged?.playing ?? 0})}</p>
+        <SettingsAction size="small" appearance="primary" disabled={state.busy} onClick={() => {setConfirm(false);act(async () => {if (!await props.source.restart() && props.isCurrent()) setAsks({playing: asks?.playing ?? 0, canRestart: false});});}}>{t('server.backups.restartNow')}</SettingsAction></>}>
+      <p>{t('server.backups.restartBody', {count: asks?.playing ?? 0})}</p>
     </Dialog>
   </div>;
 }
@@ -95,9 +102,9 @@ function RestoreDialog(props: BackupSurfaceProps & Readonly<{target?: RestoreTar
   }, [target, props.source]);
   useEffect(() => () => request.current?.abort(), []);
   const word = t('server.backups.restoreWord');
-  // Every restore asks for the typed word (rule 60); a backup not made here also shows the server's warning.
-  const elsewhere = !!inspection && !inspection.madeHere || warning !== undefined;
-  const ready = !!inspection && !busy && password.length > 0 && typed === word;
+  // A backup not made here also shows the warning (the check's, or the server's on the first press).
+  const elsewhere = !!inspection && sentAsConfirmed({madeHere: inspection.madeHere, warned: warning !== undefined});
+  const ready = restoreReady({checked: !!inspection, busy, password, typed, word});
   const restore = async () => {
     if (!target || !ready || !props.isCurrent()) return;
     const controller = request.current = new AbortController();setBusy(true);setRefused(undefined);

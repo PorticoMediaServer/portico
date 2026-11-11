@@ -108,6 +108,12 @@ export class ServerBackupSource {
     await this.command(async s => {await callServer(this.api, 'DELETE /v1/admin/backups/restore', {signal: s});this.publish({staged: undefined});});
   }
 
+  /** What a restart would do now, asked of the server and restarting nothing: how many streams it would stop,
+   * and whether the server can start itself again (where it cannot, the owner restarts it by hand). */
+  restartAsks(signal?: AbortSignal): Promise<Readonly<{playing: number; canRestart: boolean}>> {
+    return this.run(async s => {const out = await callServer(this.api, 'POST /v1/admin/restart', {signal: s});return {playing: out.playing, canRestart: out.canRestart};}, signal);
+  }
+
   /** Restarts the server now, which makes the waiting restore. Everyone signs in again afterwards. */
   async restart(): Promise<boolean> {
     let restarting = false;
