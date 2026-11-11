@@ -801,6 +801,9 @@ func (im *importer) ensureVersion(itemID int64, v *ImportVersion) error {
 			return err
 		}
 		im.unsettled = append(im.unsettled, owner, itemID)
+		if err := im.versionsChanged(owner, itemID); err != nil {
+			return err
+		}
 	}
 	if err := im.ensureParts(mediaID, v, facts); err != nil {
 		return err

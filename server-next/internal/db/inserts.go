@@ -146,7 +146,23 @@ func (b *batchTx) insertMedia(itemID int64, position int, v *ImportVersion, fact
 	if err != nil {
 		return 0, err
 	}
-	return res.LastInsertId()
+	id, err := res.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+	return id, b.versionsChanged(itemID)
+}
+
+// versionsChanged must be called, in the same transaction, by whatever has just given an item
+// a version, taken one from it, or changed a version's picture size. It writes the width of
+// the item's widest version on the item, which the sort by resolution is read from.
+func (b *batchTx) versionsChanged(items ...int64) error {
+	for _, id := range items {
+		if _, err := b.exec(`UPDATE items SET best_width = (SELECT max(m.width) FROM media m WHERE m.item_id = items.id) WHERE id = ?`, id); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (b *batchTx) insertMarker(mediaID int64, m Marker) error {

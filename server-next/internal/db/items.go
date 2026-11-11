@@ -135,7 +135,7 @@ var sortSpecs = map[string]sortSpec{
 	SortCommunityRating: {columns: []string{"i.community_rating"}, nullable: true},
 	SortCriticRating:    {columns: []string{"i.critic_rating"}, nullable: true},
 	SortLatest:          {columns: []string{"i.last_child_added_at"}, nullable: true},
-	SortResolution:      {columns: []string{"(SELECT max(m.width) FROM media m WHERE m.item_id = i.id)"}, nullable: true},
+	SortResolution:      {columns: []string{"i.best_width"}, nullable: true},
 	SortUserRating:      {columns: []string{ownState("rating")}, nullable: true},
 	SortLastPlayed:      {columns: []string{ownState("last_played_at")}, nullable: true},
 	SortPlayCount:       {columns: []string{ownState("nullif(play_count, 0)")}, nullable: true},
