@@ -75,7 +75,9 @@ curl -sf -X PUT "$api/v1/admin/settings/network" -H "Authorization: Bearer $toke
 check lan-device home
 check outside-device away
 # The listed network holds the gateway, so what Docker relays through it counts as at home
-# too, as the owner said, and the owner is told so (#2647).
+# too, as the owner said, and the owner is told so (#2647) once a relayed visitor arrives
+# again: saving the settings starts the sightings afresh.
+sign_in wan 172.31.0.1 3 relayed-device
 check relayed-device home
 [ "$(warned container_no_home)" = false ] || { echo '::error::the warning stays after the owner listed home networks'; exit 1; }
 [ "$(warned gateway_at_home)" = true ] || { echo '::error::the owner is not told that relayed visitors count as at home'; exit 1; }
