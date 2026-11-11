@@ -6,6 +6,8 @@ import (
 	"errors"
 	"net/http"
 	"net/netip"
+	"slices"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -25,18 +27,24 @@ type RemoteAccessSettings struct {
 	// library access, rating limits, viewing hours and stream limits, never converts, and
 	// records nothing. Off by default.)
 	DLNA bool `json:"dlna"`
+	// DLNANames are further names DLNA answers to, besides addresses and the server's own and
+	// home-network names: for a container whose host name is not the machine's, or the owner's
+	// own domain on a proxy. Up to 20.
+	DLNANames []string `json:"dlnaNames"`
 	revision
 }
 
 // RemoteAccessSettingsEdit changes the document; a field left out stays as it is.
 type RemoteAccessSettingsEdit struct {
-	DLNA *bool `json:"dlna,omitempty"`
+	DLNA      *bool     `json:"dlna,omitempty"`
+	DLNANames *[]string `json:"dlnaNames,omitempty"`
 }
 
 const remoteAccessSettingsKey = "remote-access"
 
 type storedRemoteAccess struct {
-	DLNA bool `json:"dlna"`
+	DLNA      bool     `json:"dlna"`
+	DLNANames []string `json:"dlnaNames,omitempty"`
 }
 
 type remoteAccessState struct {
@@ -91,6 +99,8 @@ func coversEverything(home []netip.Prefix) bool {
 func (s *Server) dlnaRoutes() {
 	s.dlna = &dlna.Server{DB: s.db, Log: s.log, ServerID: func() string { return s.id }, Version: s.version, Home: s.dlnaHome,
 		FromHome: func(r *http.Request) bool { return s.networks().FromHome(r) },
+		// When area 2 adds the owner's own address for the server, its name joins these.
+		Names: func() []string { return s.remoteAccess().DLNANames },
 		Name: func() string {
 			name, ok, _ := s.db.Setting(context.Background(), "server.name")
 			if !ok {
@@ -100,7 +110,8 @@ func (s *Server) dlnaRoutes() {
 		}}
 	Handle(s, "GET /v1/admin/settings/remote-access", Owner, func(r *http.Request, _ None) (RemoteAccessSettings, error) {
 		_, saved, err := s.db.SettingDocument(r.Context(), remoteAccessSettingsKey)
-		return RemoteAccessSettings{s.remoteAccess().DLNA, revision(saved)}, err
+		cur := s.remoteAccess()
+		return RemoteAccessSettings{cur.DLNA, nonNil(cur.DLNANames), revision(saved)}, err
 	})
 	// Opening the library to every device at home is the owner's, signed in.
 	Handle(s, "PUT /v1/admin/settings/remote-access", Owner, s.saveRemoteAccess).Scope = ScopeSession
@@ -123,6 +134,13 @@ func (s *Server) saveRemoteAccess(r *http.Request, req RemoteAccessSettingsEdit)
 		}
 		next.DLNA = *req.DLNA
 	}
+	if req.DLNANames != nil {
+		names, err := checkNames(*req.DLNANames)
+		if err != nil {
+			return RemoteAccessSettings{}, err
+		}
+		next.DLNANames = names
+	}
 	raw, _ := json.Marshal(next)
 	saved, err := s.db.SaveSettingDocument(r.Context(), CallerFrom(r.Context()).UserID, remoteAccessSettingsKey, string(raw), match, s.now())
 	if errors.Is(err, db.ErrStale) {
@@ -132,7 +150,7 @@ func (s *Server) saveRemoteAccess(r *http.Request, req RemoteAccessSettingsEdit)
 		return RemoteAccessSettings{}, err
 	}
 	s.remoteAccessDoc.Store(&next)
-	return RemoteAccessSettings{next.DLNA, revision(saved)}, nil
+	return RemoteAccessSettings{next.DLNA, nonNil(next.DLNANames), revision(saved)}, nil
 }
 
 // AnnounceDLNA announces the server on the home networks while DLNA is on, for the listener
@@ -170,4 +188,30 @@ func (s *Server) AnnounceDLNA(ctx context.Context, listen string) {
 		case <-tick.C:
 		}
 	}
+}
+
+func nonNil(names []string) []string {
+	if names == nil {
+		return []string{}
+	}
+	return names
+}
+
+// checkNames reads the names the owner typed: host names only, in lower case, at most 20.
+func checkNames(typed []string) ([]string, error) {
+	if len(typed) > 20 {
+		return nil, ErrField("dlnaNames", "List at most 20 names.")
+	}
+	out := []string{}
+	for _, name := range typed {
+		name = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(name)), ".")
+		if name == "" || len(name) > 253 || strings.Trim(name, "abcdefghijklmnopqrstuvwxyz0123456789.-") != "" ||
+			strings.HasPrefix(name, ".") || strings.Contains(name, "..") {
+			return nil, ErrField("dlnaNames", "Enter names such as media.example.com, without http:// or a port.")
+		}
+		if !slices.Contains(out, name) {
+			out = append(out, name)
+		}
+	}
+	return out, nil
 }
