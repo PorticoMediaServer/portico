@@ -506,9 +506,9 @@ type RemoteAccessStatus struct {
 	// they hold. The owner may keep any of them; none is refused.
 	Warnings []Warning `json:"warnings"`
 	// Certificate is the owner's own certificate: none, served, or what is wrong with it.
-	Certificate tlsport.Status `json:"certificate"`
+	Certificate OwnCertificateStatus `json:"certificate"`
 	// Router is what the home router last said about opening the public port.
-	Router portmap.Status `json:"router"`
+	Router PortMappingStatus `json:"router"`
 	// PublicAddress is this server's public IPv4 address as at least two outside services
 	// (Cloudflare, Google, Amazon, icanhazip; none of them Portico's) agree it is.
 	PublicAddress publicaddr.Answer `json:"publicAddress"`
@@ -516,6 +516,14 @@ type RemoteAccessStatus struct {
 	// someone whose app asks for it.
 	IdentityCode string `json:"identityCode"`
 }
+
+// OwnCertificateStatus and PortMappingStatus are the certificate's and the router's status
+// under names of their own: the contract names a shape by its type, and more than one package
+// has a Status. The JSON is the same.
+type (
+	OwnCertificateStatus tlsport.Status
+	PortMappingStatus    portmap.Status
+)
 
 // warningMessages are proposed wording, listed for the owner's approval.
 var warningMessages = map[string]string{
@@ -597,7 +605,7 @@ func (s *Server) remoteStatus(r *http.Request) RemoteAccessStatus {
 	sec := s.access.security(v, allowed, s.setupFinished(), false)
 	return RemoteAccessStatus{ThisDevice: ThisDevice{AtHome: s.fromHome(r), Address: s.remoteHost(r)},
 		Refused: s.access.refusedList(), RemoteSecurity: sec, Warnings: s.warnings(v, sec, s.networks()),
-		Certificate: s.certs.Status(), Router: s.ports.Status(), PublicAddress: s.public.Answer(),
+		Certificate: OwnCertificateStatus(s.certs.Status()), Router: PortMappingStatus(s.ports.Status()), PublicAddress: s.public.Answer(),
 		IdentityCode: s.identity.code()}
 }
 
