@@ -11,6 +11,7 @@ func init() {
 		"POST /v1/admin/items/{id}/metadata/history/{entryId}/undo": "Undo puts back only what still holds the change's value, " +
 			"so a repeat puts nothing more back (it adds one more History line)",
 		"POST /v1/admin/metadata/settings/opensubtitles/check": "Test connection only asks OpenSubtitles and keeps what it answered in memory; a repeat asks again",
+		"POST /v1/admin/items/{id}/lyrics/fetch":               "a repeat asks LRCLIB again and keeps its answer in the song's one lyrics row; pasted lyrics are never replaced",
 		"POST /v1/items/{id}/subtitles":                        "a repeat answers the subtitle already kept for this version and result, without downloading it again",
 	})
 }
