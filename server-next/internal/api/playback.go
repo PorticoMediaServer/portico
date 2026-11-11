@@ -145,9 +145,7 @@ func subtitleAsk(pick *SubtitlePick) (track *string, delivery string, err error)
 		return nil, "", nil
 	}
 	switch pick.Delivery {
-	case "", "auto", "sidecar", "embeddedClient":
-	case "burn":
-		return nil, "", notYet("subtitle_delivery_unavailable", "This server can't burn subtitles into the picture yet. Let it choose.")
+	case "", "auto", "sidecar", "embeddedClient", "burn":
 	default:
 		return nil, "", ErrField("subtitles.delivery", "The delivery is auto, sidecar, embeddedClient or burn.")
 	}
