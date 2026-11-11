@@ -236,3 +236,24 @@ func (d *DB) RemovePicture(ctx context.Context, publicID, imageID string) error 
 		return err
 	})
 }
+
+// PictureHashes calls fn with the name of every picture any images row uses (titles', people's,
+// profiles'), each once, in ascending order: what the picture store keeps. It reads in one pass
+// over the table, so it is for the daily tidy-up, not for a request.
+func (d *DB) PictureHashes(ctx context.Context, fn func(hash string) error) error {
+	rows, err := d.read.QueryContext(ctx, `SELECT DISTINCT file_hash FROM images WHERE file_hash IS NOT NULL ORDER BY file_hash`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var hash string
+		if err := rows.Scan(&hash); err != nil {
+			return err
+		}
+		if err := fn(hash); err != nil {
+			return err
+		}
+	}
+	return rows.Err()
+}
