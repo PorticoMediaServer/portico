@@ -64,13 +64,10 @@ func (s *Server) restoreRoutes() {
 		if err != nil {
 			return RestoreStaged{}, proofError(err)
 		}
-		// The backup is checked whole before the password is counted as used for it.
-		if _, err := backup.Inspect(r.Context(), archive, s.backups.DataDir); err != nil {
-			return RestoreStaged{}, backupRefusal(err)
-		}
 		if err := s.db.ConfirmRestore(r.Context(), proof, name, s.now()); err != nil {
 			return RestoreStaged{}, proofError(err)
 		}
+		// Unpacked once; the database that will be put in place is the one checked.
 		if err := backup.Stage(r.Context(), archive, s.backups.DataDir, name, s.now()); err != nil {
 			return RestoreStaged{}, backupRefusal(err)
 		}
