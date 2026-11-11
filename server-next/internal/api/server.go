@@ -501,9 +501,14 @@ func (s *Server) admit(r *http.Request, route *Route) (*http.Request, error) {
 		c = Caller{SessionID: claims.SessionID, UserID: claims.UserID, ProfileID: claims.ProfileID, Role: claims.Role, Manage: claims.Manage,
 			Stamp: db.TokenStamp{Boot: claims.Boot, Seq: claims.Seq}}
 	}
+	if c.Role == roleCast {
+		if may, err := s.castMay(r, route.Pattern, c); err != nil {
+			return r, err
+		} else if !may {
+			return r, refusal(http.StatusForbidden, "playback_only", "This sign-in can only play what it was sent.", false)
+		}
+	}
 	switch {
-	case c.Role == roleCast && !castMay(route.Pattern):
-		return r, refusal(http.StatusForbidden, "playback_only", "This sign-in can only play.", false)
 	case route.Access == WithProfile && c.ProfileID == 0:
 		return r, ErrConflict("profile_selection_required", "Choose a profile to continue.")
 	case route.Access == Admin && c.Role != "owner" && c.Role != "admin", route.Access == Owner && c.Role != "owner":
