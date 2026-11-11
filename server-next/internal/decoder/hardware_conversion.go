@@ -451,11 +451,13 @@ func BuildConversion(r ConversionRequest) (ConversionGraph, error) {
 		}
 		out.Video = append(out.Video, videoRateArgs(target, encoder, preset)...)
 		colour := videoColorArgs(target)
-		if native && r.ToneMap {
-			// The device's tone mapper writes BT.709 itself. Asking the encoder for
-			// that matrix as well makes ffmpeg 8 put a processor scaler after the
-			// device's frames, which fails, so the whole conversion fell back to
-			// the processor (a 4K film at half real time on VA-API).
+		if native && r.ToneMap && backend == BackendVAAPI {
+			// VA-API's tone mapper writes BT.709 itself (matrix=bt709). Asking the
+			// encoder for that matrix as well makes ffmpeg 8 put a processor scaler
+			// after the chip's frames, which fails, so the whole conversion fell back
+			// to the processor (a 4K film at half real time). Quick Sync's and
+			// NVENC's tone maps do not state a matrix, so they keep -colorspace: a
+			// fall back there is slow but right, a missing tag could be wrong colours.
 			colour = withoutMatrix(colour)
 		}
 		out.Video = append(out.Video, colour...)

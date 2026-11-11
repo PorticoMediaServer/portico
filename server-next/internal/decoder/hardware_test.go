@@ -171,28 +171,28 @@ func TestSoftwareToneMapArgumentsAndAlgorithms(t *testing.T) {
 	}
 }
 
-// A tone map on the graphics device leaves the matrix to the device's own filter: with
-// -colorspace on the encoder as well, ffmpeg 8 cannot join the device's frames to the
-// encoder and the whole conversion falls back to the processor. The picture is still
-// described as BT.709 by its primaries and transfer.
-func TestDeviceToneMapLeavesTheMatrixToTheDevice(t *testing.T) {
-	for _, backend := range []HardwareBackend{BackendVAAPI, BackendQSV, BackendNVENC} {
-		if !backendSpecs[backend].supported() {
+// A tone map on a VA-API chip leaves the matrix to the chip's own filter, which states
+// BT.709: with -colorspace on the encoder as well, ffmpeg 8 cannot join the chip's frames
+// to the encoder and the whole conversion falls back to the processor. The picture is
+// still described as BT.709 by its primaries and transfer. Quick Sync's and NVENC's tone
+// maps state no matrix, so they and the processor keep -colorspace.
+func TestVAAPIToneMapLeavesTheMatrixToTheChip(t *testing.T) {
+	for _, backend := range []HardwareBackend{BackendVAAPI, BackendQSV, BackendNVENC, BackendSoftware} {
+		if backend != BackendSoftware && !backendSpecs[backend].supported() {
 			continue
 		}
 		graph, err := BuildConversion(ConversionRequest{ConvertVideo: true, ToneMap: true,
-			Probe: HardwareProbe{Backend: backend, Available: true, NativeFilters: true}})
+			Probe: HardwareProbe{Backend: backend, Available: backend != BackendSoftware, NativeFilters: true}})
 		if err != nil {
 			t.Fatal(backend, err)
 		}
 		joined := strings.Join(graph.Video, " ")
-		if strings.Contains(joined, "-colorspace") || !strings.Contains(joined, "-color_primaries bt709 -color_trc bt709") {
+		if device := map[HardwareBackend]string{BackendVAAPI: "tonemap_vaapi", BackendQSV: "vpp_qsv=tonemap", BackendNVENC: "tonemap_cuda"}[backend]; !strings.Contains(joined, device) {
+			t.Fatalf("%s did not tone-map on the device: %s", backend, joined)
+		}
+		if strings.Contains(joined, "-colorspace bt709") == (backend == BackendVAAPI) || !strings.Contains(joined, "-color_primaries bt709 -color_trc bt709") {
 			t.Fatalf("%s: %s", backend, joined)
 		}
-	}
-	graph, err := BuildConversion(ConversionRequest{ConvertVideo: true, ToneMap: true})
-	if err != nil || !strings.Contains(strings.Join(graph.Video, " "), "-colorspace bt709") {
-		t.Fatal("the processor's tone map should still name its matrix", graph.Video, err)
 	}
 }
 
