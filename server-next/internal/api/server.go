@@ -74,6 +74,9 @@ type Server struct {
 	channels *librarychannels.Service
 	// sources refreshes Live TV sources. See live_sources.go.
 	sources *live.Service
+	// tuners runs each channel's shared input, and viewings the live sessions on them.
+	tuners   *live.Tuners
+	viewings *live.Viewings
 	// background lives as long as the server, for work a request starts and does not wait for.
 	background context.Context
 }
@@ -232,6 +235,12 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.background = ctx
 	go s.sources.Run(ctx)
 	s.liveSourceRoutes()
+	s.tuners = live.NewTuners(filepath.Join(dataDir, "transcodes", "live"), live.StreamClient(), log, func() time.Time { return s.now() },
+		func() live.Tuning { return live.DefaultTuning })
+	s.viewings = live.NewViewings(func() time.Time { return s.now() })
+	go s.tuners.Run(ctx)
+	go s.viewings.Run(ctx)
+	s.liveStreamRoute()
 	return s, nil
 }
 
