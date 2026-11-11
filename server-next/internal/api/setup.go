@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"crypto/subtle"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/url"
@@ -36,8 +37,9 @@ type SetupOwnerRequest struct {
 	SetupCode string `json:"setupCode"`
 	// ServerName names the server. Left out, it keeps the name it has ("Portico").
 	ServerName string `json:"serverName,omitempty"`
-	Username   string `json:"username"`
-	Password   string `json:"password"`
+	SetupRemote
+	Username string `json:"username"`
+	Password string `json:"password"`
 	// ProfileName names the owner's main profile. It defaults to the username.
 	ProfileName string     `json:"profileName,omitempty"`
 	Device      DeviceInfo `json:"device"`
@@ -61,8 +63,29 @@ type SetupPorticoApproval struct {
 // SetupPorticoFinish brings the approval back. The approving Portico Account becomes the
 // owner and this device is signed in to it.
 type SetupPorticoFinish struct {
-	Approval string     `json:"approval"`
-	Device   DeviceInfo `json:"device"`
+	Approval string `json:"approval"`
+	SetupRemote
+	Device DeviceInfo `json:"device"`
+}
+
+// SetupRemote is setup's remote access step, sent with the request that makes the owner.
+type SetupRemote struct {
+	// RemoteAccess is "on" (the default) or "off".
+	RemoteAccess string `json:"remoteAccess,omitempty"`
+	// ConfirmRefusal accepts that Remote access Off refuses the connection setting the server
+	// up, which comes from outside the home networks.
+	ConfirmRefusal bool `json:"confirmRefusal,omitempty"`
+}
+
+// SetupFinish ends first-run setup with its remote security choice. From here Enhanced, the
+// default, may take effect.
+type SetupFinish struct {
+	// RemoteSecurity is "enhanced" (the default) or "standard".
+	RemoteSecurity string `json:"remoteSecurity,omitempty"`
+	// AllowThisAddress approves the address this request uses; ConfirmRefusal accepts that it
+	// will be refused. Either is needed only when Enhanced would refuse it.
+	AllowThisAddress bool `json:"allowThisAddress,omitempty"`
+	ConfirmRefusal   bool `json:"confirmRefusal,omitempty"`
 }
 
 const setupCodeFile = "setup-code.txt"
@@ -71,6 +94,47 @@ func (s *Server) setupRoutes() {
 	Handle(s, "POST /v1/setup/owner", Public, s.setupOwner)
 	Handle(s, "POST /v1/setup/portico", Public, s.setupPortico)
 	Handle(s, "POST /v1/setup/portico/finish", Public, s.setupPorticoFinish)
+	Handle(s, "POST /v1/setup/finish", Owner, s.setupFinish).Scope = ScopeSession
+}
+
+// setupRemote checks setup's remote access step and makes the remote access document it starts
+// the server with: remote access as chosen, everything else at its defaults, Remote security
+// Enhanced (it waits until setup finishes). Remote access Off chosen from outside the home
+// networks would shut out the very connection doing setup, so it must be confirmed.
+func (s *Server) setupRemote(r *http.Request, step SetupRemote) (map[string]string, error) {
+	v := defaultRemoteAccess()
+	if step.RemoteAccess != "" {
+		v.RemoteAccess = step.RemoteAccess
+	}
+	if field, message := v.problem(); field != "" {
+		return nil, ErrField(field, message)
+	}
+	if check := s.judge(r, v, nil, false, false); check.Refused && !step.ConfirmRefusal {
+		return nil, errWouldRefuse(check)
+	}
+	raw, _ := json.Marshal(v)
+	return map[string]string{remoteAccessKey: string(raw)}, nil
+}
+
+// setupFinish is the last step of setup: Remote security as chosen, Enhanced unless the owner
+// picks Standard. Enhanced is checked against the connection in use like any other save.
+func (s *Server) setupFinish(r *http.Request, req SetupFinish) (RemoteSecurity, error) {
+	v, _ := s.remote.current()
+	switch req.RemoteSecurity {
+	case "":
+		v.RemoteSecurity = "enhanced"
+	case "enhanced", "standard":
+		v.RemoteSecurity = req.RemoteSecurity
+	default:
+		return RemoteSecurity{}, ErrField("remoteSecurity", "Choose enhanced or standard.")
+	}
+	saved, err := s.applyRemoteAccess(r, RemoteAccessSave{RemoteAccessSettings: v, AllowThisAddress: req.AllowThisAddress,
+		ConfirmRefusal: req.ConfirmRefusal}, -1)
+	if err != nil {
+		return RemoteSecurity{}, err
+	}
+	_, allowed := s.remote.current()
+	return s.remote.security(saved, allowed, true, false), nil
 }
 
 // loadSetupCode makes the setup code of a server with no owner, or reads back the one it made
@@ -149,8 +213,10 @@ func checkServerName(name string) (string, error) {
 }
 
 // setupDone deletes the setup code once an owner exists; it is never asked for again.
-func (s *Server) setupDone() {
+// It also puts the remote access document setup just wrote in force, without a restart.
+func (s *Server) setupDone(ctx context.Context) error {
 	os.Remove(s.setupFile)
+	return s.loadRemoteAccess(ctx)
 }
 
 func (s *Server) setupOwner(r *http.Request, req SetupOwnerRequest) (SignInResponse, error) {
@@ -172,6 +238,10 @@ func (s *Server) setupOwner(r *http.Request, req SetupOwnerRequest) (SignInRespo
 	if err != nil {
 		return SignInResponse{}, err
 	}
+	settings, err := s.setupRemote(r, req.SetupRemote)
+	if err != nil {
+		return SignInResponse{}, err
+	}
 	session, refresh, err := s.newSession(r, req.Device, now)
 	if err != nil {
 		return SignInResponse{}, err
@@ -186,14 +256,16 @@ func (s *Server) setupOwner(r *http.Request, req SetupOwnerRequest) (SignInRespo
 		return SignInResponse{}, err
 	}
 	st, err := s.db.CreateOwner(ctx, db.NewOwner{Username: username, PasswordHash: hash, ProfileName: req.ProfileName,
-		ServerName: serverName, Session: session, Now: now})
+		ServerName: serverName, Settings: settings, Session: session, Now: now})
 	if errors.Is(err, db.ErrSetupDone) {
 		return SignInResponse{}, errSetupDone()
 	}
 	if err != nil {
 		return SignInResponse{}, err
 	}
-	s.setupDone()
+	if err := s.setupDone(ctx); err != nil {
+		return SignInResponse{}, err
+	}
 	return s.signedIn(ctx, st, now, refresh)
 }
 
@@ -208,6 +280,17 @@ func hostedError(err error) error {
 		return ErrConflict("approval_declined", "The approval was declined or has expired. Nothing has changed; start again.")
 	}
 	return err
+}
+
+// setupHostedError is hostedError in setup, where the person can always choose local sign-in
+// instead: nothing has been saved, and setting the server up that way needs no Portico Services.
+func setupHostedError(err error) error {
+	out := hostedError(err)
+	if e, ok := asError(out); ok && e.Code == "portico_unavailable" {
+		e.Message = "Portico Services can't be reached, so this server can't be set up with Portico Accounts right now. " +
+			"Nothing has been saved. Try again in a moment, or set it up with local sign-in instead."
+	}
+	return out
 }
 
 // setupPortico checks the setup code and asks Portico Services where the person approves this
@@ -231,7 +314,7 @@ func (s *Server) setupPortico(r *http.Request, req SetupPorticoRequest) (SetupPo
 	approval, err := s.hosted.StartApproval(r.Context(), hosted.ApprovalRequest{ServerID: s.id, ServerName: serverName,
 		Purpose: hosted.PurposeSetup, ReturnURL: req.ReturnURL})
 	if err != nil {
-		return SetupPorticoApproval{}, hostedError(err)
+		return SetupPorticoApproval{}, setupHostedError(err)
 	}
 	return SetupPorticoApproval{ApprovalURL: approval.URL, ExpiresAt: approval.ExpiresAt.UTC()}, nil
 }
@@ -244,6 +327,10 @@ func (s *Server) setupPorticoFinish(r *http.Request, req SetupPorticoFinish) (Si
 	ctx, now := r.Context(), s.now()
 	if req.Approval == "" || len(req.Approval) > 8192 {
 		return SignInResponse{}, ErrField("approval", "Send the approval exactly as it came back.")
+	}
+	settings, err := s.setupRemote(r, req.SetupRemote)
+	if err != nil {
+		return SignInResponse{}, err
 	}
 	session, refresh, err := s.newSession(r, req.Device, now)
 	if err != nil {
@@ -259,7 +346,7 @@ func (s *Server) setupPorticoFinish(r *http.Request, req SetupPorticoFinish) (Si
 		err = hosted.ErrDeclined
 	}
 	if err != nil {
-		return SignInResponse{}, hostedError(err)
+		return SignInResponse{}, setupHostedError(err)
 	}
 	username, ok := auth.Username(decision.Account.Username)
 	if !ok {
@@ -274,14 +361,16 @@ func (s *Server) setupPorticoFinish(r *http.Request, req SetupPorticoFinish) (Si
 		serverName = ""
 	}
 	st, err := s.db.CreateOwner(ctx, db.NewOwner{Username: username, PorticoAccountID: decision.Account.ID, ProfileName: profileName,
-		ServerName: serverName, Session: session, Now: now})
+		ServerName: serverName, Settings: settings, Session: session, Now: now})
 	if errors.Is(err, db.ErrSetupDone) {
 		return SignInResponse{}, errSetupDone()
 	}
 	if err != nil {
 		return SignInResponse{}, err
 	}
-	s.setupDone()
+	if err := s.setupDone(ctx); err != nil {
+		return SignInResponse{}, err
+	}
 	return s.signedIn(ctx, st, now, refresh)
 }
 

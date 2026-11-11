@@ -1,0 +1,159 @@
+package api
+
+import (
+	"strings"
+	"testing"
+)
+
+const away = "203.0.113.9"
+
+// setupFrom sets a new server up from addr with the remote access step's choice and returns
+// the owner's sign-in on the main profile, chosen from home; nil when setup was refused.
+func setupFrom(t *testing.T, s *Server, addr string, step SetupRemote) *Session {
+	t.Helper()
+	body := SetupOwnerRequest{SetupCode: s.setupCode, SetupRemote: step, Username: "Justin", Password: testPassword, Device: device(0)}
+	w := reach(s, "POST", "/v1/setup/owner", "", addr, "203.0.113.1:32500", true, body)
+	if w.Code != 200 {
+		return nil
+	}
+	var in SignInResponse
+	jsonInto(w, &in)
+	var out Session
+	if w := reach(s, "POST", "/v1/profiles/"+in.Profiles[0].ID+"/select", in.Session.AccessToken, "127.0.0.1", "localhost", false, ProfileSelect{}); w.Code != 200 {
+		t.Fatalf("choosing the main profile answered %d: %s", w.Code, w.Body)
+	} else {
+		jsonInto(w, &out)
+	}
+	return &out
+}
+
+// Setup's remote access step: On unless the person turns it off, and turning it off from
+// outside the home networks, which would shut out the connection doing setup, must be confirmed.
+func TestSetupRemoteAccessStep(t *testing.T) {
+	s := newTestServer(t)
+	if setupFrom(t, s, away, SetupRemote{RemoteAccess: "off"}) != nil {
+		t.Fatal("Remote access Off from outside was accepted without confirming")
+	}
+	owner := setupFrom(t, s, away, SetupRemote{RemoteAccess: "off", ConfirmRefusal: true})
+	if owner == nil {
+		t.Fatal("a confirmed Remote access Off was refused")
+	}
+	if v, _ := s.remote.current(); v.RemoteAccess != "off" || v.RemoteSecurity != "enhanced" {
+		t.Fatalf("setup left %+v", v)
+	}
+	if w := reach(s, "GET", "/v1/system", "", away, "203.0.113.1:32500", true, nil); w.Code != 403 {
+		t.Fatalf("outside after setup with Remote access Off answered %d", w.Code)
+	}
+
+	on := newTestServer(t)
+	if setupFrom(t, on, away, SetupRemote{}) == nil {
+		t.Fatal("setup with the default remote access was refused")
+	}
+	if v, _ := on.remote.current(); v.RemoteAccess != "on" {
+		t.Fatalf("the default remote access is %q", v.RemoteAccess)
+	}
+}
+
+// Enhanced is chosen from the start but takes effect only once setup has finished, and then
+// only once there is an address it can allow; with a Portico address it waits for the
+// certificate, saying so in the owner's words, and turns on by itself when it arrives.
+func TestEnhancedWaitsForSetupAndCertificate(t *testing.T) {
+	s := newTestServer(t)
+	owner := setupFrom(t, s, "127.0.0.1", SetupRemote{}).AccessToken
+	s.SetPorticoAddress("cabin.portico.example", true, "")
+	stranger := func() int { return reach(s, "GET", "/v1/system", "", away, "203.0.113.1:32500", true, nil).Code }
+	security := func() RemoteSecurity {
+		var st RemoteAccessStatus
+		jsonInto(reach(s, "GET", "/v1/admin/remote-access", owner, "127.0.0.1", "localhost", false, nil), &st)
+		return st.RemoteSecurity
+	}
+	if got := security(); got.Chosen != "enhanced" || got.Active != "standard" || got.Waiting != "setup_not_finished" || stranger() != 200 {
+		t.Fatalf("during setup: %+v", got)
+	}
+	if w := reach(s, "POST", "/v1/setup/finish", owner, "127.0.0.1", "localhost", false, SetupFinish{}); w.Code != 200 {
+		t.Fatalf("finishing setup answered %d: %s", w.Code, w.Body)
+	}
+	if got := security(); got.Active != "enhanced" || stranger() != 403 {
+		t.Fatalf("after setup: %+v", got)
+	}
+	if code := reach(s, "GET", "/v1/system", "", away, "cabin.portico.example", true, nil).Code; code != 200 {
+		t.Fatalf("the Portico address under Enhanced answered %d", code)
+	}
+
+	s.SetPorticoAddress("cabin.portico.example", false, "")
+	got := security()
+	if got.Active != "standard" || got.Waiting != "certificate_not_ready" || stranger() != 200 ||
+		got.Message != "Enhanced Security requires an SSL certificate, which may take a few minutes to be issued to your server. "+
+			"This feature will be enabled automatically once that certificate is available." {
+		t.Fatalf("waiting for the certificate: %+v", got)
+	}
+	s.SetPorticoAddress("cabin.portico.example", true, "")
+	if got := security(); got.Active != "enhanced" || stranger() != 403 {
+		t.Fatalf("once the certificate arrived: %+v", got)
+	}
+
+	// With no address to allow at all, Enhanced never refuses everything: it waits, and says why.
+	bare := newTestServer(t)
+	token := setupFrom(t, bare, "127.0.0.1", SetupRemote{}).AccessToken
+	reach(bare, "POST", "/v1/setup/finish", token, "127.0.0.1", "localhost", false, SetupFinish{})
+	var st RemoteAccessStatus
+	call(t, bare, "GET", "/v1/admin/remote-access", token, nil, &st)
+	if st.RemoteSecurity.Waiting != "no_approved_address" || reach(bare, "GET", "/v1/system", "", away, "x.example", true, nil).Code != 200 {
+		t.Fatalf("with no approved address: %+v", st.RemoteSecurity)
+	}
+}
+
+// The dry run says whether the connection asking would be refused under proposed settings, and
+// changes nothing; finishing setup from a connection Enhanced would refuse asks first, and the
+// owner can approve this address in the same step, or keep Standard.
+func TestEnhancedCheckAndConfirmation(t *testing.T) {
+	s := newTestServer(t)
+	s.SetPorticoAddress("cabin.portico.example", true, "")
+	owner := setupFrom(t, s, away, SetupRemote{}).AccessToken
+	current, _ := s.remote.current()
+	check := func(host string) RouteCheck {
+		var out RouteCheck
+		w := reach(s, "POST", "/v1/admin/remote-access/route-check", owner, away, host, true, current)
+		if err := jsonInto(w, &out); err != nil || w.Code != 200 {
+			t.Fatalf("the check answered %d: %s", w.Code, w.Body)
+		}
+		return out
+	}
+	if c := check("media.example.com"); !c.Refused || c.Reason != "address" || c.Address != "media.example.com:443" || c.Fixes[0] != "allow" {
+		t.Fatalf("a route Enhanced would refuse: %+v", c)
+	}
+	if c := check("cabin.portico.example"); c.Refused {
+		t.Fatalf("the Portico address was said to be refused: %+v", c)
+	}
+	if got, _ := s.remote.current(); got.RemoteSecurity != current.RemoteSecurity || s.setupFinished() {
+		t.Fatal("the check changed something")
+	}
+
+	finish := func(req SetupFinish) (int, string) {
+		w := reach(s, "POST", "/v1/setup/finish", owner, away, "media.example.com", true, req)
+		return w.Code, w.Body.String()
+	}
+	if code, body := finish(SetupFinish{}); code != 409 || !strings.Contains(body, "would_refuse_this_route") {
+		t.Fatalf("finishing from a route Enhanced would refuse answered %d: %s", code, body)
+	}
+	if code, body := finish(SetupFinish{AllowThisAddress: true}); code != 200 {
+		t.Fatalf("finishing with Allow this address answered %d: %s", code, body)
+	}
+	if v, _ := s.remote.current(); len(v.AllowedAddresses) != 1 || v.AllowedAddresses[0] != "media.example.com:443" {
+		t.Fatalf("the approved addresses are %q", v.AllowedAddresses)
+	}
+	if code := reach(s, "GET", "/v1/me", owner, away, "media.example.com", true, nil).Code; code != 200 {
+		t.Fatalf("the owner's route after approving it answered %d", code)
+	}
+
+	// Declining: keep Standard, and the route goes on working.
+	other := newTestServer(t)
+	other.SetPorticoAddress("den.portico.example", true, "")
+	token := setupFrom(t, other, away, SetupRemote{}).AccessToken
+	if w := reach(other, "POST", "/v1/setup/finish", token, away, "media.example.com", true, SetupFinish{RemoteSecurity: "standard"}); w.Code != 200 {
+		t.Fatalf("keeping Standard answered %d: %s", w.Code, w.Body)
+	}
+	if code := reach(other, "GET", "/v1/me", token, away, "media.example.com", true, nil).Code; code != 200 {
+		t.Fatalf("the owner's route with Standard answered %d", code)
+	}
+}

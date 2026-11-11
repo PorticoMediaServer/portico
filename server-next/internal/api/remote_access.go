@@ -23,8 +23,14 @@ import (
 // From outside, in this order:
 //   - Remote access Off refuses everything.
 //   - Secure connections Required, or Remote security Enhanced, refuses plain HTTP.
-//   - Enhanced answers only at the addresses the owner approved (their own domain and the
-//     addresses they added), each a host and a port.
+//   - Enhanced answers only at the approved addresses (the Portico address, the owner's own
+//     domain and the addresses they added), each a host and a port.
+//
+// Enhanced is the default, but it is active only once first-run setup has finished and there
+// is at least one approved address. Before that it works like Standard and the owner is told
+// why, so accepting the default can never refuse everything from outside. Any save that would
+// refuse the connection the owner is using right now is refused unless they confirm it, and
+// can approve that connection's address in the same save.
 //   - "Only the owner" refuses everyone else's sign-in and every request they make.
 //
 // The settings are one document, kept in memory and read by every request.
@@ -78,7 +84,7 @@ const (
 )
 
 func defaultRemoteAccess() RemoteAccessSettings {
-	return RemoteAccessSettings{RemoteAccess: "on", RemoteSecurity: "standard", SecureConnections: "preferred",
+	return RemoteAccessSettings{RemoteAccess: "on", RemoteSecurity: "enhanced", SecureConnections: "preferred",
 		SignInFromOutside: "anyone", PortMapping: "automatic", PublicPort: defaultPublicPort, AllowedAddresses: []string{}, FindAtHome: true}
 }
 
@@ -166,6 +172,15 @@ type remoteState struct {
 	value   RemoteAccessSettings
 	allowed []string // the approved host:port pairs, the own domain included
 	refused map[string]RefusedAddress
+	// finished says first-run setup has finished, so Enhanced may take effect.
+	finished bool
+	// portico is the Portico address, approved under Enhanced like the owner's own, and
+	// porticoReady says its certificate has been issued. Until it has, Enhanced waits and the
+	// server works as Standard; porticoProblem says why it has not, when something failed.
+	// Nothing sets them yet: they come with Portico Services (internal/hosted).
+	portico        string
+	porticoReady   bool
+	porticoProblem string
 }
 
 // RefusedAddress is an outside address Enhanced refused, and what would fix it.
@@ -181,7 +196,14 @@ type RefusedAddress struct {
 	Refused int       `json:"refused"`
 }
 
-func (st *remoteState) set(v RemoteAccessSettings) {
+func (st *remoteState) set(v RemoteAccessSettings, finished bool) {
+	st.mu.Lock()
+	st.value, st.allowed, st.finished = v, approved(v, st.portico), finished
+	st.mu.Unlock()
+}
+
+// approved are the host:port pairs Enhanced answers at under v.
+func approved(v RemoteAccessSettings, portico string) []string {
 	var allowed []string
 	for _, a := range v.AllowedAddresses {
 		hp, _ := hostPort(a, 443)
@@ -193,15 +215,83 @@ func (st *remoteState) set(v RemoteAccessSettings) {
 			allowed = append(allowed, hp)
 		}
 	}
-	st.mu.Lock()
-	st.value, st.allowed = v, allowed
-	st.mu.Unlock()
+	if hp, ok := hostPort(portico, 443); portico != "" && ok {
+		allowed = append(allowed, hp)
+	}
+	return allowed
 }
 
 func (st *remoteState) current() (RemoteAccessSettings, []string) {
 	st.mu.RLock()
 	defer st.mu.RUnlock()
 	return st.value, st.allowed
+}
+
+// security is Remote security as it works now under v. With ready, a certificate still being
+// issued is counted as there, which is what a save is checked against: it will turn Enhanced on
+// by itself when it arrives.
+func (st *remoteState) security(v RemoteAccessSettings, allowed []string, finished, ready bool) RemoteSecurity {
+	st.mu.RLock()
+	pending, problem := st.portico != "" && !st.porticoReady, st.porticoProblem
+	st.mu.RUnlock()
+	out := RemoteSecurity{Chosen: v.RemoteSecurity, Active: "standard"}
+	switch {
+	case v.RemoteSecurity != "enhanced":
+	case !finished:
+		out.Waiting = "setup_not_finished"
+	case len(allowed) == 0:
+		out.Waiting = "no_approved_address"
+	case pending && !ready:
+		out.Waiting, out.Problem = "certificate_not_ready", problem
+	default:
+		out.Active = "enhanced"
+	}
+	out.Message = waitingMessages[out.Waiting]
+	return out
+}
+
+// SetPorticoAddress is how Portico Services' side of the server says what the Portico address
+// is and whether its certificate has been issued, with why not when something failed (Portico
+// Services out of reach, the certificate authority busy). Enhanced waits for the certificate,
+// working as Standard, and turns on by itself when it arrives. An empty address removes it.
+func (s *Server) SetPorticoAddress(address string, certificateReady bool, problem string) {
+	v, allowed := s.remote.current()
+	finished := s.setupFinished()
+	before := s.remote.security(v, allowed, finished, false).Active
+	s.remote.mu.Lock()
+	s.remote.portico, s.remote.porticoReady, s.remote.porticoProblem = address, certificateReady, problem
+	s.remote.mu.Unlock()
+	s.remote.set(v, finished)
+	v, allowed = s.remote.current()
+	if after := s.remote.security(v, allowed, finished, false).Active; after != before {
+		// The owner sees it on the Remote access page; a notice joins this when notices exist.
+		s.log.Info("remote security changed by itself", "inForce", after, "portico", address)
+	}
+}
+
+// RemoteSecurity is the owner's choice and what is in force.
+type RemoteSecurity struct {
+	// Chosen is "enhanced" or "standard"; Active is what the server does now.
+	Chosen string `json:"chosen"`
+	Active string `json:"active"`
+	// Waiting says why Enhanced, chosen, is not active yet: "setup_not_finished",
+	// "no_approved_address" (no Portico address, own address or added address to answer at)
+	// or "certificate_not_ready" (the Portico certificate is still being issued; Enhanced turns
+	// on by itself when it is ready).
+	Waiting string `json:"waiting,omitempty"`
+	// Message says it in words the owner reads, when Enhanced is waiting.
+	Message string `json:"message,omitempty"`
+	// Problem says why the certificate has not been issued, when something failed.
+	Problem string `json:"problem,omitempty"`
+}
+
+// waitingMessages are what the owner reads while Enhanced waits. The certificate's is the
+// owner's own wording; the other two are proposed and listed for his approval.
+var waitingMessages = map[string]string{
+	"certificate_not_ready": "Enhanced Security requires an SSL certificate, which may take a few minutes to be issued to your server. " +
+		"This feature will be enabled automatically once that certificate is available.",
+	"setup_not_finished":  "Enhanced Security turns on when setup is finished. Until then this server works as Standard.",
+	"no_approved_address": "Enhanced Security needs an address it can allow: a Portico address, your own address, or one you add. Until then this server works as Standard.",
 }
 
 func (st *remoteState) noteRefused(address, reason string, fixes []string, now time.Time) {
@@ -246,9 +336,17 @@ func (s *Server) loadRemoteAccess(ctx context.Context) error {
 			return errors.New("the stored remote access settings are damaged at " + field)
 		}
 	}
-	s.remote.set(v)
+	_, finished, err := s.db.Setting(ctx, setupFinishedKey)
+	if err != nil {
+		return err
+	}
+	s.remote.set(v, finished)
 	return nil
 }
+
+// setupFinishedKey is the setting that says first-run setup has finished, after which Enhanced
+// may take effect.
+const setupFinishedKey = "setup.finished"
 
 // RemoteAccessStatus is what is true now, for the owner's Remote access page.
 type RemoteAccessStatus struct {
@@ -256,6 +354,8 @@ type RemoteAccessStatus struct {
 	ThisDevice ThisDevice `json:"thisDevice"`
 	// Refused are the outside addresses Enhanced refused since the server started, newest first.
 	Refused []RefusedAddress `json:"refused"`
+	// RemoteSecurity is the owner's choice and what is in force, with why they differ.
+	RemoteSecurity RemoteSecurity `json:"remoteSecurity"`
 }
 
 // ThisDevice is the asking device as the server sees it.
@@ -275,37 +375,154 @@ func (s *Server) remoteAccessRoutes() {
 	})
 	Handle(s, "PUT /v1/admin/settings/remote-access", Owner, s.saveRemoteAccess)
 	Handle(s, "GET /v1/admin/remote-access", Owner, func(r *http.Request, _ None) (RemoteAccessStatus, error) {
+		v, allowed := s.remote.current()
 		return RemoteAccessStatus{ThisDevice: ThisDevice{AtHome: s.networks().FromHome(r), Address: s.remoteHost(r)},
-			Refused: s.remote.refusedList()}, nil
+			Refused: s.remote.refusedList(), RemoteSecurity: s.remote.security(v, allowed, s.setupFinished(), false)}, nil
+	})
+	// The dry run: would the connection making this request be refused under these settings?
+	Handle(s, "POST /v1/admin/remote-access/route-check", Owner, func(r *http.Request, req RemoteAccessSettings) (RouteCheck, error) {
+		if err := cleanRemoteAccess(&req); err != nil {
+			return RouteCheck{}, err
+		}
+		return s.judge(r, req, approved(req, s.porticoAddress()), true, true), nil
 	})
 }
 
-// saveRemoteAccess replaces the whole document. Saving it from outside the home networks can
-// shut the owner out of what they are using; the app warns before it sends that.
-func (s *Server) saveRemoteAccess(r *http.Request, req RemoteAccessSettings) (RemoteAccessSettings, error) {
-	if req.AllowedAddresses == nil {
-		req.AllowedAddresses = []string{}
+func (s *Server) setupFinished() bool {
+	s.remote.mu.RLock()
+	defer s.remote.mu.RUnlock()
+	return s.remote.finished
+}
+
+func (s *Server) porticoAddress() string {
+	s.remote.mu.RLock()
+	defer s.remote.mu.RUnlock()
+	return s.remote.portico
+}
+
+// RouteCheck says whether the connection that asked would be refused, why, and what fixes it.
+type RouteCheck struct {
+	Refused bool `json:"refused"`
+	// Reason is "remote_access_off", "http" (plain HTTP from outside) or "address" (not an
+	// approved address under Enhanced).
+	Reason string `json:"reason,omitempty"`
+	// Address is the host and port this connection uses, as the server sees it.
+	Address string `json:"address"`
+	// Fixes are what would let it in: "allow" (approve this address), "standard" (use
+	// Standard) and "preferred" (Secure connections Preferred). None for Remote access Off.
+	Fixes []string `json:"fixes"`
+	// RemoteSecurity is what these settings would put in force.
+	RemoteSecurity RemoteSecurity `json:"remoteSecurity"`
+}
+
+// judge works out what v would do to the request r. Through listed proxies only, the scheme,
+// host and port are the person's; otherwise they are this server's connection's own.
+// With ready, a Portico certificate still being issued is counted as there (see security).
+func (s *Server) judge(r *http.Request, v RemoteAccessSettings, allowed []string, finished, ready bool) RouteCheck {
+	secure := s.secure(r)
+	out := RouteCheck{Address: s.requestAddress(r, secure), Fixes: []string{}, RemoteSecurity: s.remote.security(v, allowed, finished, ready)}
+	if s.networks().FromHome(r) {
+		return out
 	}
-	req.OwnAddress.Domain = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(req.OwnAddress.Domain), "."))
-	if field, message := req.problem(); field != "" {
-		return RemoteAccessSettings{}, ErrField(field, message)
+	enhanced := out.RemoteSecurity.Active == "enhanced"
+	switch {
+	case v.RemoteAccess == "off":
+		out.Refused, out.Reason = true, "remote_access_off"
+	case !secure && (enhanced || v.SecureConnections == "required"):
+		out.Refused, out.Reason = true, "http"
+		if enhanced {
+			out.Fixes = append(out.Fixes, "standard")
+		}
+		if v.SecureConnections == "required" {
+			out.Fixes = append(out.Fixes, "preferred")
+		}
+	case enhanced && !slices.Contains(allowed, out.Address):
+		out.Refused, out.Reason, out.Fixes = true, "address", []string{"allow", "standard"}
 	}
-	match, err := settingsIfMatch(r)
-	if err != nil {
+	return out
+}
+
+func cleanRemoteAccess(v *RemoteAccessSettings) error {
+	if v.AllowedAddresses == nil {
+		v.AllowedAddresses = []string{}
+	}
+	v.OwnAddress.Domain = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(v.OwnAddress.Domain), "."))
+	if field, message := v.problem(); field != "" {
+		return ErrField(field, message)
+	}
+	return nil
+}
+
+// RemoteAccessSave is a save of the whole document, with what to do about the connection in use.
+type RemoteAccessSave struct {
+	RemoteAccessSettings
+	// AllowThisAddress approves the address this request uses, in the same save.
+	AllowThisAddress bool `json:"allowThisAddress,omitempty"`
+	// ConfirmRefusal accepts that this connection will be refused after the save.
+	ConfirmRefusal bool `json:"confirmRefusal,omitempty"`
+}
+
+// errWouldRefuse answers a save that would refuse the connection in use, unconfirmed.
+func errWouldRefuse(c RouteCheck) *Error {
+	message := map[string]string{
+		"remote_access_off": "Remote access doesn’t include this network.",
+		"http":              "Remote security allows only HTTPS from outside.",
+		"address":           "Remote security doesn’t allow this address yet.",
+	}[c.Reason]
+	return ErrConflict("would_refuse_this_route", "This address won’t work after this change. "+message+
+		" Approve this address, choose another setting, or confirm.")
+}
+
+// applyRemoteAccess checks and saves a document for the owner, as Settings and the end of
+// setup both do. match is the ETag the owner read, or -1.
+func (s *Server) applyRemoteAccess(r *http.Request, req RemoteAccessSave, match int64) (RemoteAccessSettings, error) {
+	v := req.RemoteAccessSettings
+	if err := cleanRemoteAccess(&v); err != nil {
 		return RemoteAccessSettings{}, err
 	}
-	req.revision = 0
-	raw, _ := json.Marshal(req)
-	saved, err := s.db.SaveSettingDocument(r.Context(), CallerFrom(r.Context()).UserID, remoteAccessKey, string(raw), match, s.now())
+	if req.AllowThisAddress {
+		if !s.secure(r) {
+			return RemoteAccessSettings{}, ErrField("allowThisAddress", "This connection isn’t secure (https), so approving its address won’t let it in.")
+		}
+		if address := s.requestAddress(r, true); !slices.Contains(approved(v, ""), address) {
+			v.AllowedAddresses = append(v.AllowedAddresses, address)
+		}
+		if err := cleanRemoteAccess(&v); err != nil {
+			return RemoteAccessSettings{}, err
+		}
+	}
+	if check := s.judge(r, v, approved(v, s.porticoAddress()), true, true); check.Refused && !req.ConfirmRefusal {
+		return RemoteAccessSettings{}, errWouldRefuse(check)
+	}
+	v.revision = 0
+	raw, _ := json.Marshal(v)
+	ctx := r.Context()
+	saved, err := s.db.SaveSettingDocument(ctx, CallerFrom(ctx).UserID, remoteAccessKey, string(raw), match, s.now())
 	if errors.Is(err, db.ErrStale) {
 		return RemoteAccessSettings{}, errStale()
 	}
 	if err != nil {
 		return RemoteAccessSettings{}, err
 	}
-	s.remote.set(req)
-	req.revision = revision(saved)
-	return req, nil
+	// Saved after the document, so a failure here only leaves Enhanced waiting a little longer.
+	if !s.setupFinished() {
+		if err := s.db.SaveSetting(ctx, setupFinishedKey, "1", s.now()); err != nil {
+			return RemoteAccessSettings{}, err
+		}
+	}
+	s.remote.set(v, true)
+	v.revision = revision(saved)
+	return v, nil
+}
+
+// saveRemoteAccess replaces the whole document. A save that would refuse the connection
+// making it is refused unless confirmed (see applyRemoteAccess).
+func (s *Server) saveRemoteAccess(r *http.Request, req RemoteAccessSave) (RemoteAccessSettings, error) {
+	match, err := settingsIfMatch(r)
+	if err != nil {
+		return RemoteAccessSettings{}, err
+	}
+	return s.applyRemoteAccess(r, req, match)
 }
 
 // fromTrustedProxy reports whether the connection itself is one of the owner's trusted proxies,
@@ -352,30 +569,26 @@ func (s *Server) requestAddress(r *http.Request, secure bool) string {
 // remote access settings do not allow, or nil. Requests from home are never refused here.
 func (s *Server) outsideRefusal(r *http.Request) *Error {
 	v, allowed := s.remote.current()
-	if v.RemoteAccess == "on" && v.RemoteSecurity == "standard" && v.SecureConnections == "preferred" {
+	finished := s.setupFinished()
+	if v.RemoteAccess == "on" && v.SecureConnections == "preferred" && s.remote.security(v, allowed, finished, false).Active == "standard" {
 		return nil
 	}
-	if s.networks().FromHome(r) {
+	c := s.judge(r, v, allowed, finished, false)
+	if !c.Refused {
 		return nil
 	}
-	if v.RemoteAccess == "off" {
+	switch c.Reason {
+	case "remote_access_off":
 		return refusal(http.StatusForbidden, "remote_access_off", "This server can be used only from its home network.", false)
-	}
-	secure := s.secure(r)
-	enhanced := v.RemoteSecurity == "enhanced"
-	if !secure {
-		if enhanced {
-			fixes := []string{"certificate", "standard"}
-			s.remote.noteRefused(s.requestAddress(r, false), "http", fixes, s.now())
+	case "http":
+		if slices.Contains(c.Fixes, "standard") {
+			s.remote.noteRefused(c.Address, "http", []string{"certificate", "standard"}, s.now())
 		}
 		return refusal(http.StatusForbidden, "secure_connection_required",
 			"This server takes connections from outside its home network only over a secure connection (https).", false)
 	}
-	if address := s.requestAddress(r, true); enhanced && !slices.Contains(allowed, address) {
-		s.remote.noteRefused(address, "address", []string{"allow", "standard"}, s.now())
-		return refusal(http.StatusForbidden, "address_not_allowed", "This server does not answer at this address from outside its home network.", false)
-	}
-	return nil
+	s.remote.noteRefused(c.Address, "address", c.Fixes, s.now())
+	return refusal(http.StatusForbidden, "address_not_allowed", "This server does not answer at this address from outside its home network.", false)
 }
 
 // ownerOnlyAway reports whether this request comes from outside the home networks while only
