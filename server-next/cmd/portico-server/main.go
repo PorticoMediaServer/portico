@@ -90,7 +90,7 @@ func run(log *slog.Logger) error {
 	go handler.RunSchedules(ctx)
 	// The media engine plans and runs the streams. Its conversions folder is emptied at start:
 	// no stream outlives a restart.
-	engine, err := mediaengine.New(ctx, d, mediaengine.Options{Folder: filepath.Join(*data, "transcodes"), Log: log, Remote: handler.RemoteSources().Open})
+	engine, err := mediaengine.New(ctx, d, mediaengine.Options{Folder: filepath.Join(*data, "transcodes"), Kept: filepath.Join(*data, "ffmpeg-abilities.json"), Log: log, Remote: handler.RemoteSources().Open})
 	if err != nil {
 		return err
 	}
