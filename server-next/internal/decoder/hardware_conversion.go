@@ -272,7 +272,7 @@ func BuildConversion(r ConversionRequest) (ConversionGraph, error) {
 		}
 		if r.Toolchain != nil && r.ToneMap {
 			filter := map[HardwareBackend]string{BackendNVENC: "tonemap_cuda", BackendVAAPI: "tonemap_vaapi", BackendQSV: "vpp_qsv"}[backend]
-			native = native && r.Toolchain.Filters[filter] && (backend != BackendVAAPI || r.Toolchain.Filters["procamp_vaapi"])
+			native = native && r.Toolchain.Filters[filter]
 		}
 		if r.ToneMap && !native && r.Toolchain != nil && (!r.Toolchain.Filters["zscale"] || !r.Toolchain.Filters["tonemap"]) &&
 			((!r.Toolchain.VulkanAvailable && !r.Toolchain.OpenCLAvailable) || spec.upload != "") {
