@@ -1,5 +1,6 @@
-import type {RouteResponse} from "../../contracts/src/route-paths.ts";
-import {routePath} from "../../contracts/src/route-paths.ts";
+import type {SearchResults as ServerSearchResults, SearchHistory as ServerSearchHistory, Item as ServerItem, Person as ServerPerson} from "../../contracts/src/next/api.ts";
+import {serverPath} from './query/server-api.ts';
+import {entryFromItem} from './items.ts';
 import {unreadableServerResponse} from './server-messages.ts';
 /** Authorized server search projections. No local matching, grouping, ranking or query persistence.
  * Groups are independent: one group may fail while the response as a whole succeeds, and the
@@ -114,7 +115,7 @@ function capabilities(v:unknown):SearchCapabilities{
  */
 function parse(raw:unknown,op:Operation,s:ContentScope,limit:number):SearchData{
  if(!object(raw)||!object(raw.scope)||!object(raw.revision)||!object(raw.query))invalid();const scope=raw.scope,r=raw.revision,q=raw.query;
- if(scope.serverId!==s.serverId||scope.libraryId!==''||scope.libraryKind!=='mixed'||scope.view!=='search'||scope.entityId!==''||!id(scope.viewerFence)||!count(r.catalog)||!count(r.viewer))invalid();
+ if(scope.serverId!==s.serverId&&scope.serverId!==SERVER_SCOPE||scope.libraryId!==''||scope.libraryKind!=='mixed'||scope.view!=='search'||scope.entityId!==''||!id(scope.viewerFence)||!count(r.catalog)||!count(r.viewer))invalid();
  if(!text(q.q,512)||!q.q||q.group!==(op.query.group??'')||q.limit!==limit)invalid();
  if(q.q!==op.query.q)invalid();
  // The order the client asked for must be the order answered; an order it left to the server and does not know reads as relevance, best first.
@@ -150,7 +151,10 @@ function parse(raw:unknown,op:Operation,s:ContentScope,limit:number):SearchData{
   }),e=>e.id);
   const nextCursor=(value.nextCursor??'') as string;
   // The count is at least the results kept, and more are offered exactly when there is a cursor to ask with.
-  return Object.freeze({id:group,title:(value.title??'') as string,...(text(value.labelKey,512)?{labelKey:value.labelKey}:{}),entityKind:value.entityKind as string,status,errorCode:'' as const,items:Object.freeze(items),totalCount:Math.max(count(value.totalCount)?value.totalCount:0,items.length),totalCountExact:value.totalCountExact===true&&count(value.totalCount)&&value.totalCount>=items.length,hasMore:!!nextCursor,nextCursor});
+  // A later page carries no count of its own: the first page's real count still stands.
+  const earlier=count(value.totalCount)?undefined:op.fence?.groups.find(g=>g.id===group);
+  const total=earlier?earlier.totalCount:count(value.totalCount)?value.totalCount:0,exact=earlier?earlier.totalCountExact:value.totalCountExact===true&&count(value.totalCount)&&value.totalCount>=items.length;
+  return Object.freeze({id:group,title:(value.title??'') as string,...(text(value.labelKey,512)?{labelKey:value.labelKey}:{}),entityKind:value.entityKind as string,status,errorCode:'' as const,items:Object.freeze(items),totalCount:Math.max(total,items.length),totalCountExact:exact,hasMore:!!nextCursor,nextCursor});
  }),g=>g.id);
  // An answer none of whose groups could be read is refused rather than shown as no results.
  if(!results.length&&(raw.groups as unknown[]).length)invalid();
@@ -178,39 +182,76 @@ export function parseSearchHistory(raw:unknown,scope:ContentScope):SearchHistory
  }),e=>e.q);
  return Object.freeze({serverId:scope.serverId,...(viewerFence?{viewerFence}:{}),...(typeof raw.remembered==='boolean'?{remembered:raw.remembered}:{}),entries:Object.freeze(entries),maxEntries});
 }
+/** The rebuilt server's kind for each group this app shows. Collections, authors and Live TV are not searched there yet. */
+const serverKinds:Readonly<Partial<Record<SearchGroup,string>>>={movies:'movie',shows:'show',episodes:'episode',artists:'artist',albums:'album',songs:'track',books:'audiobook',reading:'book',people:'person'};
+const groupOfKind:Readonly<Record<string,SearchGroup>>={movie:'movies',show:'shows',episode:'episodes',person:'people',artist:'artists',album:'albums',track:'songs',audiobook:'books',book:'reading',comic:'reading'};
+const serverSorts:Readonly<Record<SearchSort,string>>={relevance:'',title:'title',releaseYear:'year',dateAdded:'added'};
+/** Groups that sort only by best match or title (people and artists); the others also by year and date added. */
+const nameGroups:readonly SearchGroup[]=['people','artists'];
+/** The address of one search on the rebuilt server (`GET /v1/search`). With no group, every group comes with its first
+ * results (at most 12 each); with a group, that group a page at a time. `record` puts it at the top of the recents. */
+export function searchPath(q:SearchQuery,limit:number,cursor?:string|null):string{
+ const kind=q.group?serverKinds[q.group]:undefined;
+ if(q.group&&!kind)throw new Failure('search_group_unavailable','This kind of result cannot be searched on this server yet.');
+ return serverPath('GET /v1/search',{query:{q:q.q,limit:q.group?limit:Math.min(limit,SEARCH_PREVIEW_LIMIT),kind,sort:q.sort?serverSorts[q.sort]||undefined:undefined,order:q.direction,record:q.record?true:undefined,cursor:cursor||undefined}});
+}
+/** One person, as the search answer's rows read. */
+const personRow=(p:ServerPerson)=>({id:p?.id,kind:'person',title:p?.name,...(p?.images&&(p.images.thumb??p.images.profile??p.images.poster)?{posterUrl:p.images.thumb??p.images.profile??p.images.poster}:{}),navigation:{view:'person',entityId:p?.id}});
+/** One title as a card, in the units the card check reads (milliseconds); a book or comic opens its page rather than playing. */
+function titleRow(item:ServerItem,group:SearchGroup):unknown{
+ const entry=entryFromItem(item) as Record<string,unknown>|undefined;
+ if(!entry)return undefined;
+ const {duration,progressSeconds,playback,...rest}=entry as {duration?:number;progressSeconds?:number;playback?:{itemId:string;startSeconds?:number}}&Record<string,unknown>;
+ const ms=(seconds:number|undefined)=>seconds===undefined?undefined:Math.round(seconds*1000);
+ return {...rest,...(duration===undefined?{}:{durationMs:ms(duration)}),...(progressSeconds===undefined?{}:{progressMs:ms(progressSeconds)}),
+  ...(playback&&group!=='reading'?{playback:{itemId:playback.itemId,...(playback.startSeconds===undefined?{}:{startMs:ms(playback.startSeconds)})}}:{})};
+}
+/**
+ * Reads one search from the rebuilt server and answers it in the shape this module checks: the query it echoes, every
+ * group in the server's order with its real count, and what each group can be sorted by. The server keeps no catalogue
+ * revisions for search, so they read 0; its scope is this viewer's.
+ */
+export async function readSearch(api:LibraryContentApi,q:SearchQuery,limit:number,cursor?:string|null,signal?:AbortSignal):Promise<unknown>{
+ const raw=await api.request<ServerSearchResults>(searchPath(q,limit,cursor),'GET',undefined,signal);
+ if(!object(raw)||!Array.isArray(raw.groups))invalid();
+ const answered=raw.groups.filter(g=>object(g)&&groupOfKind[g.kind]&&(!q.group||groupOfKind[g.kind]===q.group)&&(!q.groups||q.groups.includes(groupOfKind[g.kind]!)));
+ const names=[...new Set(answered.map(g=>groupOfKind[g.kind]!))];
+ return {
+  scope:{serverId:SERVER_SCOPE,libraryId:'',libraryKind:'mixed',view:'search',entityId:'',viewerFence:'viewer'},revision:{catalog:0,viewer:0},
+  query:{q:q.q,group:q.group??'',groups:names,limit,...(q.sort?{sort:q.sort}:{}),...(q.direction?{direction:q.direction}:{}),recorded:q.record===true},
+  // Every group the server searches, whatever this answer holds, so the type chips stay the same while one type is open.
+  capabilities:{maxLimit:40,groupBudgetMs:15000,sorts,directions,groups:(Object.keys(serverKinds) as SearchGroup[]).map(id=>({id,title:'',available:true,reason:'',sorts:nameGroups.includes(id)?['relevance','title']:sorts}))},
+  groups:answered.map(g=>{
+   const id=groupOfKind[g.kind]!,items=id==='people'?(g.people??[]).map(personRow):(g.items??[]).map(item=>titleRow(item,id)).filter(Boolean);
+   return {id,title:'',entityKind:kinds[id],status:'success',items,...(typeof g.total==='number'?{totalCount:g.total,totalCountExact:!g.totalIsMinimum}:{}),nextCursor:g.nextCursor??''};
+  }),
+ };
+}
+/** The scope a search answer is bound to: the reader fills in the viewer's server when it checks the answer. */
+const SERVER_SCOPE='__viewer_server__';
 /** The profile's recent searches, newest first, as the server keeps them (it keeps none while the profile has history turned off). */
 export async function readSearchHistory(api:LibraryContentApi,scope:ContentScope,signal?:AbortSignal):Promise<SearchHistoryPage>{
- return parseSearchHistory(await api.request<RouteResponse<"get_search_history">>(routePath("get_search_history"),'GET',undefined,signal),bound(scope));
+ const raw=await api.request<ServerSearchHistory>(serverPath('GET /v1/search/history'),'GET',undefined,signal);
+ if(!object(raw)||!Array.isArray(raw.items))invalid();
+ return parseSearchHistory({entries:raw.items.map(entry=>({query:entry?.query}))},bound(scope));
 }
 /** Forgets every search the server kept for this profile. */
 export async function clearSearchHistory(api:LibraryContentApi,signal?:AbortSignal):Promise<void>{
- await api.request<RouteResponse<"delete_search_history">>(routePath("delete_search_history"),'DELETE',undefined,signal);
+ await api.request<void>(serverPath('DELETE /v1/search/history'),'DELETE',undefined,signal);
 }
-/** Removes the one retained query the viewer named, at the server's own canonical identity,
- * and answers with the page the server now holds. Nothing is inferred locally. */
+/** Removes the one recent search the viewer named, and answers with the recents the server now holds. */
 export async function deleteSearchHistoryEntry(api:LibraryContentApi,scope:ContentScope,query:string,signal?:AbortSignal):Promise<SearchHistoryPage>{
  const named=query.trim();
  if(!named)throw new Error('invalid_search_history_query');
- const namedQuery=new URLSearchParams({query:named}).toString();
- return parseSearchHistory(await api.request<RouteResponse<"delete_search_history">>(routePath("delete_search_history")+'?'+namedQuery,'DELETE',undefined,signal),bound(scope));
+ await api.request<void>(serverPath('DELETE /v1/search/history',{query:{query:named}}),'DELETE',undefined,signal);
+ return readSearchHistory(api,scope,signal);
 }
-/** Records one committed query in this viewer's history (`record=1`), as opening a result does
- * (httpapi/search.go:236). One read of a single named group at the smallest page; it answers
- * whether the server recorded it, which it declines when history is off for this profile. */
+/** Records one committed query in this viewer's recents, as opening a result does: one read of a single group at the
+ * smallest page with `record`. The server keeps nothing while the profile has remembering off. */
 export async function recordSearch(api:LibraryContentApi,q:string,group:SearchGroup,signal?:AbortSignal):Promise<boolean>{
- const raw=await api.request<unknown>(searchPath({q,group,record:true},1),'GET',undefined,signal);
- return object(raw)&&object(raw.query)&&raw.query.recorded===true&&raw.query.q===q;
-}
-export function searchPath(q:SearchQuery,limit:number,cursor?:string|null):string{
- const params=new URLSearchParams({q:q.q,limit:String(limit)});
- if(q.group)params.set('group',q.group);
- if(q.groups)params.set('groups',q.groups.join(','));
- if(q.sort)params.set('sort',q.sort);
- if(q.direction)params.set('direction',q.direction);
- if(q.libraryIds)params.set('libraryIds',q.libraryIds.join(','));
- if(q.record)params.set('record','1');
- if(cursor)params.set('cursor',cursor);
- return routePath("search") + "?" + (params);
+ const searchable=serverKinds[group]?group:'movies';
+ await api.request<unknown>(searchPath({q,group:searchable,record:true},1),'GET',undefined,signal);
+ return true;
 }
 /** What a search's results move with: titles, the libraries, this profile's state and preferences.
  * The cached first pages and a Search screen kept current while open (web and native) declare the same. */
@@ -221,7 +262,7 @@ export function searchResultsQuery(queries:ViewerQueries,q:SearchQuery,limit=40)
  const read={...q,record:undefined};
  return {
   queryKey:queryKeys.searchResults(read.q,read.group??'',read.groups??[],read.sort??'',read.direction??'',read.libraryIds??[],limit),
-  queryFn:({signal})=>queries.api.request<unknown>(searchPath(read,limit),'GET',undefined,signal),
+  queryFn:({signal})=>readSearch(queries.api,read,limit,null,signal),
   meta:{dependencies:searchDependencies()},
  };
 }
@@ -265,7 +306,7 @@ export class SearchService{
  /** A first page comes from the first-page reader when there is one; a recording read, and every later page, is the server's. */
  private async request(op:Page,signal:AbortSignal,fresh:boolean):Promise<unknown>{
   if(this.firstPages&&!op.cursor&&!op.query.record)return this.firstPages.read(op.query,fresh);
-  const raw=await this.api.request<unknown>(searchPath(op.query,this.pageSize,op.cursor),'GET',undefined,signal);
+  const raw=await readSearch(this.api,op.query,this.pageSize,op.cursor,signal);
   if(this.firstPages&&!op.cursor&&op.query.record)this.firstPages.recorded(op.query,raw);
   return raw;
  }
@@ -333,7 +374,7 @@ export class SearchService{
   if(this.firstPages&&!op.cursor&&!op.query.record){const held=this.firstPages.peek(op.query);if(held!==undefined){try{const data=parse(held,op,this.scope,this.pageSize);this.stop();this.operation=op;this.displayedOperation=op;this.publish({generation:this.generation,query:op.query,phase:'ready',data,groups:data.groups,error:null,pagination:Object.freeze({cursor:null,canPrevious:false})});return Promise.resolve();}catch{/* read it again below */}}}
   this.stop();this.key=key;this.operation=op;const generation=this.generation,controller=new AbortController();this.controller=controller;const retain=this.state.query?.q===op.query.q&&this.state.query?.group===op.query.group;if(!retain)this.displayedOperation=undefined;this.publish({generation,query:op.query,phase:'loading',...(retain?{}:{data:null,groups:Object.freeze([])}),error:null,pagination:Object.freeze({cursor:op.cursor,canPrevious:op.history.length>0})});if(this.disposed||generation!==this.generation||controller.signal.aborted)return Promise.resolve();const task=this.fetch(op,this.api,this.scope,controller,generation);if(generation===this.generation)this.pending=task;return task;}
  private async fetch(op:Operation,api:LibraryContentApi,scope:ContentScope,controller:AbortController,generation:number){let timer:ReturnType<typeof setTimeout>|undefined;let abort:()=>void=()=>{};
-  try{const raw=await Promise.race([api===this.api?this.request(op,controller.signal,false):api.request<unknown>(searchPath(op.query,this.pageSize,op.cursor),'GET',undefined,controller.signal),new Promise<never>((_,reject)=>{abort=()=>reject(new Failure('cancelled','Search cancelled.'));controller.signal.addEventListener('abort',abort,{once:true});timer=setTimeout(()=>{reject(new Failure('timeout','Search took too long. Try again.',true));controller.abort();},this.timeoutMs);})]);if(this.disposed||generation!==this.generation)return;const data=parse(raw,op,scope,this.pageSize);
+  try{const raw=await Promise.race([api===this.api?this.request(op,controller.signal,false):readSearch(api,op.query,this.pageSize,op.cursor,controller.signal),new Promise<never>((_,reject)=>{abort=()=>reject(new Failure('cancelled','Search cancelled.'));controller.signal.addEventListener('abort',abort,{once:true});timer=setTimeout(()=>{reject(new Failure('timeout','Search took too long. Try again.',true));controller.abort();},this.timeoutMs);})]);if(this.disposed||generation!==this.generation)return;const data=parse(raw,op,scope,this.pageSize);
    // A later page read after the library moved is still a valid page; only another viewer's answer is refused.
    // A continuation under another viewer fence is the server's to refuse (its cursor is bound to the fence: `invalid_cursor`, which reloads the first page below); a first page is simply current.
    // A cursor that comes back again would page for ever: that group has reached its end.
