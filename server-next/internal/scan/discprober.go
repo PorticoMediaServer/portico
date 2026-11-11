@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/disc"
@@ -21,6 +22,11 @@ func probeDisc(ctx context.Context, folder string) (Facts, error) {
 	// otherwise leave the disc without a length or tracks and without a word why.
 	if _, err := exec.LookPath(mediatools.Resolve("portico-disc")); err != nil {
 		return Facts{}, ErrNoDiscReader
+	}
+	// The Blu-ray reader opens the disc itself, the folder that holds BDMV; a DVD is read
+	// from its VIDEO_TS folder.
+	if strings.EqualFold(filepath.Base(folder), "BDMV") {
+		folder = filepath.Dir(folder)
 	}
 	dir, err := os.Open(folder)
 	if err != nil {
