@@ -127,7 +127,7 @@ func (s *Server) createKey(r *http.Request, k keyKind, req KeyCreate) (KeyCreate
 		return KeyCreated{}, err
 	}
 	// A repeat answers the key made the first time: see KeyCreated and db.CreateAPIKey.
-	n := db.NewAPIKey{UserID: caller.UserID, Kind: k.kind, Name: req.Name, Limit: k.limit, IdempotencyKey: key,
+	n := db.NewAPIKey{UserID: caller.UserID, ProfileID: caller.ProfileID, Kind: k.kind, Name: req.Name, Limit: k.limit, IdempotencyKey: key,
 		RequestHash: requestHash(struct {
 			Kind string
 			KeyCreate
@@ -161,6 +161,8 @@ func (s *Server) createKey(r *http.Request, k keyKind, req KeyCreate) (KeyCreate
 	}
 	made, secretIsNew, err := s.db.CreateAPIKey(r.Context(), n)
 	switch {
+	case errors.Is(err, db.ErrNotPermitted):
+		return KeyCreated{}, refusal(http.StatusForbidden, "tokens_not_allowed", "The owner has not allowed this account access tokens.", false)
 	case errors.Is(err, db.ErrKeyLimit):
 		return KeyCreated{}, ErrConflict("credential_limit", "There are too many of these already. Revoke one first.")
 	case errors.Is(err, db.ErrKeyReused):
