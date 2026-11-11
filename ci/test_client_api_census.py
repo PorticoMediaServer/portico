@@ -43,8 +43,19 @@ class ClientApiCensus(unittest.TestCase):
         historical=lambda path:subprocess.check_output(['git','show',source+':'+path],cwd=ROOT)
         approvals=json.loads(historical(APPROVALS))
         files={};budgets=Counter()
+        current=json.loads((ROOT/APPROVALS).read_text())
         for row in packet['sites']:
             with self.subTest(binding=row['binding']):
+                if 'previousBinding' in row:
+                    # A lead ruling re-pins a snapshot row whose guard function changed: the
+                    # call, owner, shape and budget stay the snapshot's; guard and ruling are new.
+                    previous=next(r for r in packet['sites'] if r['binding']==row['previousBinding'] and 'previousBinding' not in r)
+                    for key in ('file','owner','shape','callHash','callText','occurrences'):self.assertEqual(row[key],previous[key])
+                    self.assertNotEqual(row['rulingUrl'],previous['rulingUrl'])
+                    self.assertEqual(current[row['binding']]['rulingUrl'],row['rulingUrl'])
+                    self.assertEqual(current[row['binding']]['guardHash'],row['guardHash'])
+                    self.assertIn(row['callText'],(ROOT/row['file']).read_text())
+                    continue
                 approval=approvals[row['binding']]
                 self.assertEqual(approval['category'],'platform-transport')
                 self.assertEqual(row.get('guardSpan'),approval.get('guardSpan'))

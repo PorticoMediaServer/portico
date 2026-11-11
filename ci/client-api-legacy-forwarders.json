@@ -954,6 +954,7 @@
     },
     {
       "binding": "apps/native/src-next/screens/settings-live/settings-panels.tsx#4780b74351c9b50b",
+      "previousBinding": "apps/native/src-next/screens/settings-live/settings-panels.tsx#1b31452e0e60fbc5",
       "file": "apps/native/src-next/screens/settings-live/settings-panels.tsx",
       "line": 123,
       "guardHash": "333d1eb25a5bb3af4b90f5df97894d688f87b763061cb5c551c876b96c54c2f6",
