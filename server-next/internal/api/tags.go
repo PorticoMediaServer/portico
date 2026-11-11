@@ -9,9 +9,9 @@ type TagPage struct {
 }
 
 func (s *Server) tagRoutes() {
-	// The tags on the server: for a screen that chooses among them, such as the labels a
-	// profile is kept from. The owner and admins get every tag in use; anyone else only the
-	// tags on titles they may see, and never a label they are kept from.
+	// The Tags on the server: for a screen that chooses among them, such as the Tags a
+	// profile is kept from. The owner and admins get every Tag in use; anyone else only the
+	// Tags on titles they may see, and never a Tag they are kept from.
 	Handle(s, "GET /v1/tags", WithProfile, func(r *http.Request, _ None) (TagPage, error) {
 		query := r.URL.Query()
 		limit, err := limitParam(query)

@@ -121,7 +121,7 @@ Assistant) are a separate short document and are not counted here.
 | `GET /v1/search/history`, `DELETE /v1/search/history` | Your recent searches: read; clear, or remove one with `query` |
 | `GET /v1/home`, `GET /v1/home/rows/{id}` | Home, composed by the server in the profile's order without the rows it hid; one row paged. Customize Home saves the settings `home.rowOrder` and `home.hiddenRowIds` with `PATCH /v1/preferences`; the Continue rows cannot be hidden. `hidden=include` (for the Customize Home editor) also sends each hidden row in its place, with `hidden: true`, its title and no items |
 | `GET /v1/people`, `GET /v1/people/{id}` | People |
-| `GET /v1/tags` | Tags by kind and then name, paged (`kind`, `cursor`, `limit`): every tag in use for the owner and admins, otherwise only tags on titles the profile may see and never a label it is kept from |
+| `GET /v1/tags` | Tags by kind and then name, paged (`kind`, `cursor`, `limit`): every tag in use for the owner and admins, otherwise only Tags on titles the profile may see and never a Tag it is kept from |
 | `GET /v1/genres` | Genres with artwork, per library |
 | `GET /v1/music/mixes` | Mixes built from your library |
 | `GET /v1/images/{id}` | Artwork bytes: the stored small size when it covers `w` and `h`, else the large |

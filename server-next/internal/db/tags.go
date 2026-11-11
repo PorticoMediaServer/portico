@@ -19,16 +19,22 @@ type tagCursor struct {
 	Name string `json:"n"`
 }
 
-// VisibleTags lists the tags in use on the server, by kind and then name: with all, every one (for
-// the owner and admins, who set the labels other profiles are kept from); otherwise only
-// those on at least one title the viewer may see, and never a label the viewer is kept from.
+// VisibleTags lists the Tags in use on the server, by kind and then name: with all, every one
+// (for the owner and admins, who set the Tags other profiles are kept from); otherwise only
+// those on at least one title the viewer may see, and never a Tag the viewer is kept from.
 // kind, when set, lists one kind.
 //
 // The list walks the tags table in its (kind, norm_name) order and stops when the page is
-// full, so a page reads its own tags and those skipped beside them, never the whole table.
-// For each tag it looks for one title that carries it and that the viewer may see, through
-// item_tags_tag: the first row answers for a tag the viewer sees, and a tag only on titles
-// the viewer may not see costs a look at each of them.
+// full. For each Tag it looks, through item_tags_tag, for one title that carries it and that
+// the viewer may see: the first row answers for a Tag the viewer sees, and a Tag only on
+// titles the viewer may not see costs a look at each of them. So the owner, admins and a
+// profile that sees everything pay one look per Tag listed, whatever the library's size; a
+// limited profile also pays for every Tag it skips. A narrow one that sees fewer Tags than a
+// page holds walks every Tag and nearly every tag row on each call (188 ms for a profile
+// allowed only the book library, at 100,000 titles), a cost that grows with tag rows. That is
+// accepted while only the owner's screen reads this route. If a screen for limited profiles
+// reads it, or a load run at 400,000 passes 300 ms, start a profile limited to a few
+// libraries from item_tags_library instead.
 func (d *DB) VisibleTags(ctx context.Context, v Viewer, all bool, kind, cursor string, limit int) (TagPage, error) {
 	var page TagPage
 	after := tagCursor{}
@@ -59,7 +65,7 @@ func (d *DB) VisibleTags(ctx context.Context, v Viewer, all bool, kind, cursor s
 		}
 		in += ` AND ` + acc.libraryVisible("it.library_id") + acc.rated("it", "")
 		if len(acc.blockedTags) > 0 {
-			// The title itself is read only when labels are blocked: neither it nor what it
+			// The title itself is read only when Tags are blocked: neither it nor what it
 			// sits under may carry one.
 			in = `SELECT 1 FROM item_tags it CROSS JOIN items i ON i.id = it.item_id WHERE it.tag_id = t.id AND ` +
 				acc.libraryVisible("it.library_id") + acc.rated("it", "") + acc.unblocked("i")
