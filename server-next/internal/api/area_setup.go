@@ -23,6 +23,9 @@ func (s *Server) startSetup(ctx context.Context) error {
 	if err := s.loadSetupCode(ctx, s.dataDir); err != nil {
 		return err
 	}
+	if err := s.resetRemoteAccess(ctx, s.dataDir); err != nil {
+		return err
+	}
 	s.setupRoutes()
 	return nil
 }
