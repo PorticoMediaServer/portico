@@ -32,6 +32,7 @@ var repeatSafeWithoutKey = map[string]string{
 	"POST /v1/profiles/{id}/select":               "sets the device's profile",
 	"POST /v1/admin/members/{id}/password-reset":  "replaces the member's reset code",
 	"POST /v1/system/identity-proof":              "changes nothing",
+	"POST /v1/admin/remote-access/check":          "asks the router and reads the certificate again; changes no setting",
 	"POST /v1/items/state:undo":                   "uses up its undo offer: a repeat is refused",
 	"POST /v1/queues/{id}/entries":                "needs If-Match: a repeat has an old revision and is refused",
 	"POST /v1/queues/{id}/entries/{entryId}/move": "needs If-Match: a repeat has an old revision and is refused",

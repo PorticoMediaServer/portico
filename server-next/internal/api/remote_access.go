@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/portmap"
 	"github.com/PorticoMediaServer/portico/server-next/internal/tlsport"
 )
 
@@ -173,6 +174,8 @@ type remoteState struct {
 	value   RemoteAccessSettings
 	allowed []string // the approved host:port pairs, the own domain included
 	refused map[string]RefusedAddress
+	// listenPort is the port the server listens on, the one the router forwards to.
+	listenPort int
 }
 
 // RefusedAddress is an outside address Enhanced refused, and what would fix it.
@@ -212,6 +215,25 @@ func (s *Server) applyCertificate(v RemoteAccessSettings) {
 		src.Domain, src.CertificateFile, src.KeyFile = v.OwnAddress.Domain, v.OwnAddress.CertificateFile, v.OwnAddress.KeyFile
 	}
 	s.certs.Use(src)
+	s.ports.Set(v.RemoteAccess == "on" && v.PortMapping == "automatic", s.listenPort(), v.PublicPort)
+}
+
+// ServePortMapping keeps the server's port open on the home router while the owner's settings
+// ask for it, until ctx ends. port is the port the server listens on, or 0 when nothing
+// outside this machine can reach it, and the router is then never asked.
+func (s *Server) ServePortMapping(ctx context.Context, port int) {
+	s.remote.mu.Lock()
+	s.remote.listenPort = port
+	s.remote.mu.Unlock()
+	v, _ := s.remote.current()
+	s.applyCertificate(v)
+	s.ports.Run(ctx)
+}
+
+func (s *Server) listenPort() int {
+	s.remote.mu.RLock()
+	defer s.remote.mu.RUnlock()
+	return s.remote.listenPort
 }
 
 // Certificates is the owner's certificate as the listener serves it.
@@ -278,6 +300,8 @@ type RemoteAccessStatus struct {
 	Refused []RefusedAddress `json:"refused"`
 	// Certificate is the owner's own certificate: none, served, or what is wrong with it.
 	Certificate tlsport.Status `json:"certificate"`
+	// Router is what the home router last said about opening the public port.
+	Router portmap.Status `json:"router"`
 }
 
 // ThisDevice is the asking device as the server sees it.
@@ -297,9 +321,21 @@ func (s *Server) remoteAccessRoutes() {
 	})
 	Handle(s, "PUT /v1/admin/settings/remote-access", Owner, s.saveRemoteAccess)
 	Handle(s, "GET /v1/admin/remote-access", Owner, func(r *http.Request, _ None) (RemoteAccessStatus, error) {
-		return RemoteAccessStatus{ThisDevice: ThisDevice{AtHome: s.networks().FromHome(r), Address: s.remoteHost(r)},
-			Refused: s.remote.refusedList(), Certificate: s.certs.Status()}, nil
+		return s.remoteStatus(r), nil
 	})
+	// Check now, and Try again: ask the router again and read the certificate files again.
+	Handle(s, "POST /v1/admin/remote-access/check", Owner, func(r *http.Request, _ None) (RemoteAccessStatus, error) {
+		s.certs.Check()
+		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+		defer cancel()
+		s.ports.CheckNow(ctx)
+		return s.remoteStatus(r), nil
+	})
+}
+
+func (s *Server) remoteStatus(r *http.Request) RemoteAccessStatus {
+	return RemoteAccessStatus{ThisDevice: ThisDevice{AtHome: s.networks().FromHome(r), Address: s.remoteHost(r)},
+		Refused: s.remote.refusedList(), Certificate: s.certs.Status(), Router: s.ports.Status()}
 }
 
 // saveRemoteAccess replaces the whole document. Saving it from outside the home networks can

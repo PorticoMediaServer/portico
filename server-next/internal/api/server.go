@@ -24,6 +24,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/hosted"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
+	"github.com/PorticoMediaServer/portico/server-next/internal/portmap"
 	"github.com/PorticoMediaServer/portico/server-next/internal/tlsport"
 )
 
@@ -63,6 +64,9 @@ type Server struct {
 	remote remoteState
 	// certs is the certificate for the owner's own address, read from the Keys folder.
 	certs *tlsport.Store
+	// ports asks the home router to open the public port. It asks nothing until
+	// ServePortMapping runs it, which tests never do.
+	ports *portmap.Mapper
 	media func(w http.ResponseWriter, r *http.Request, grant, file string)
 	// feeds caps the change feeds each sign-in holds open. See catalogue.go.
 	feeds feeds
@@ -170,6 +174,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 		return nil, err
 	}
 	s.certs = tlsport.NewStore(filepath.Join(dataDir, "Keys"), log, func() time.Time { return s.now() })
+	s.ports = portmap.New(log, nil)
 	if err := s.loadRemoteAccess(ctx); err != nil {
 		return nil, err
 	}
