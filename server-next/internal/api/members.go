@@ -174,8 +174,8 @@ func (s *Server) editMember(r *http.Request, req MemberEdit) (Member, error) {
 	switch {
 	case req.Role != nil && caller.SessionID == 0:
 		return Member{}, errKeyCannot("change who is an administrator")
-	case req.Disabled != nil && *req.Disabled && s.keyMayNotRemoveAdmin(r, caller, "turn off an administrator") != nil:
-		return Member{}, s.keyMayNotRemoveAdmin(r, caller, "turn off an administrator")
+	case req.Disabled != nil && s.keyMayNotRemoveAdmin(r, caller, "turn an administrator off or on") != nil:
+		return Member{}, s.keyMayNotRemoveAdmin(r, caller, "turn an administrator off or on")
 	case req.Role != nil && !validRole(*req.Role):
 		return Member{}, ErrField("role", "A role is member or admin.")
 	case req.Notes != nil && len(*req.Notes) > 4000:
@@ -241,9 +241,9 @@ func errKeyCannot(what string) *Error {
 	return refusal(http.StatusForbidden, "session_required", "A key cannot "+what+": sign in as a person to do this.", false)
 }
 
-// keyMayNotRemoveAdmin refuses a key that would delete or turn off an administrator or the
-// owner: that changes who administers the server, which only a signed-in person may do. A
-// key may still remove members.
+// keyMayNotRemoveAdmin refuses a key that would delete, turn off or turn back on an
+// administrator or the owner: that changes who administers the server, which only a
+// signed-in person may do. A key may still remove members.
 func (s *Server) keyMayNotRemoveAdmin(r *http.Request, caller Caller, what string) error {
 	if caller.SessionID != 0 {
 		return nil

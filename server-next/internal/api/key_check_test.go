@@ -16,7 +16,11 @@ func TestKeysCannotChangeWhoMaySignIn(t *testing.T) {
 	}
 	max := addMember(t, s, owner.AccessToken, "max", "member")
 	sam := addMember(t, s, owner.AccessToken, "sam", "admin")
-	admin, yes := "admin", true
+	pat := addMember(t, s, owner.AccessToken, "pat", "admin")
+	admin, yes, no := "admin", true, false
+	if got := status(t, s, "PATCH", "/v1/admin/members/"+pat.ID, owner.AccessToken, MemberEdit{Disabled: &yes}); got != 200 {
+		t.Fatalf("turning an administrator off answered %d", got)
+	}
 	for _, c := range []struct {
 		method, path string
 		body         any
@@ -32,6 +36,7 @@ func TestKeysCannotChangeWhoMaySignIn(t *testing.T) {
 		{"POST", "/v1/admin/members/" + max.ID + "/password-reset", nil},
 		{"DELETE", "/v1/admin/members/" + sam.ID, nil},
 		{"PATCH", "/v1/admin/members/" + sam.ID, MemberEdit{Disabled: &yes}},
+		{"PATCH", "/v1/admin/members/" + pat.ID, MemberEdit{Disabled: &no}},
 	} {
 		var refused errorBody
 		if w := call(t, s, c.method, c.path, key.Secret, c.body, &refused); w.Code != 403 || refused.Error.Code != "session_required" {
