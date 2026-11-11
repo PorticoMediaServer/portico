@@ -118,6 +118,13 @@ func removeItem(b *batchTx, libraryID, id, now int64) error {
 	if _, err := b.exec(`DELETE FROM items WHERE id = ?`, id); err != nil {
 		return err
 	}
+	// Whoever had watched everything else under them may now have watched all of it.
+	// Settled here and not left to the caller, so every path that removes a title is covered:
+	// a missing file, the emptied trash, a deleted title, a deleted library.
+	b.leavesChanged(parent.Int64, root.Int64)
+	if err := b.settleWatchedForAll(now); err != nil {
+		return err
+	}
 	for _, gone := range ids {
 		if err := appendChange(b.tx, Change{At: now, Topic: TopicItem, Op: OpDeleted, RefID: gone, LibraryID: libraryID}); err != nil {
 			return err
@@ -169,7 +176,7 @@ func (d *DB) EmptyTrash(ctx context.Context, libraryID int64, missingBy time.Tim
 	removed := 0
 	for {
 		n := 0
-		err := d.write(ctx, Background, func(tx *sql.Tx) error {
+		err := d.write(ctx, Background, func(tx *sql.Tx) (err error) {
 			ids, err := queryInts(tx, `SELECT i.id`+topMissing+` AND i.missing_since_at <= ? LIMIT 20`, libraryID, KindExtra, missingBy.UnixMilli())
 			if err != nil {
 				return err
@@ -177,6 +184,11 @@ func (d *DB) EmptyTrash(ctx context.Context, libraryID int64, missingBy time.Tim
 			b := newBatchTx(tx)
 			defer b.close()
 			now := time.Now().UnixMilli()
+			defer func() {
+				if err == nil {
+					err = b.settleWatchedForAll(now)
+				}
+			}()
 			for _, id := range ids {
 				var parent sql.NullInt64
 				if err := b.queryRow(`SELECT parent_id FROM items WHERE id = ?`, id).Scan(&parent); err != nil {

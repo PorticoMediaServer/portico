@@ -589,6 +589,12 @@ func (d *DB) saveProgressStep(ctx context.Context, p Priority, batch []Progress,
 			}
 			finished[n] = done
 		}
+		// A play that reached the end may have finished a season or a show.
+		for _, w := range writers {
+			if err := w.settleMarks(); err != nil {
+				return err
+			}
+		}
 		return nil
 	})
 }
