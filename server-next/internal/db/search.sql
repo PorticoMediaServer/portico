@@ -5,7 +5,8 @@
 --
 -- The text columns hold words already folded by internal/searchtext, separated by spaces, so
 -- the plain "ascii" tokeniser only has to split on those spaces. The prefix indexes make the
--- first letters a person types cheap.
+-- first letters a person types cheap; they reach four characters because a first-word key is
+-- one mark longer than the word, and a word of up to three letters is what matches most.
 
 -- format: what build of this schema wrote the file. folding: the word rules and Unicode tables
 -- its text was folded with. cursor: the last row of main.db's changes table the index reflects.
@@ -21,7 +22,8 @@ CREATE TABLE meta (
 --   joined  the same with words that punctuation breaks kept whole ("spiderman"); empty when no different
 --   other   an item's original title, and the titles it sits under (its show, artist or album)
 --   keys    words no person can type: the whole title as one word, to find a title that is exactly
---           what was typed; the id of each item it sits under, to find everything under a renamed
+--           what was typed or begins with it; its first word, to find the titles that begin with
+--           one typed word; the id of each item it sits under, to find everything under a renamed
 --           or deleted title; and an item's library, its rating age and the labels it and what it sits
 --           under carry, to narrow a count
-CREATE VIRTUAL TABLE search_titles USING fts5(title, joined, other, keys, tokenize = 'ascii', prefix = '1 2 3');
+CREATE VIRTUAL TABLE search_titles USING fts5(title, joined, other, keys, tokenize = 'ascii', prefix = '1 2 3 4');

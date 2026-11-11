@@ -128,7 +128,17 @@ type searchMatch struct {
 func (t searchTerms) match() searchMatch {
 	const title = "{title joined}"
 	exact := t.either(func(w []string) string { return `"` + searchWhole(w) + `"` })
-	begins := t.either(func(w []string) string { return `(` + title + ` : ^ "` + strings.Join(w, " ") + `" *)` })
+	// A title that begins with what was typed is found by its keys. Asking the title column
+	// for the words at its start reads the position of every match, and for a common word
+	// that few titles begin with ("of") that is all of them. One typed word is looked up
+	// among first words, which are few; more words among whole titles, where what was typed
+	// is specific enough to match few.
+	begins := t.either(func(w []string) string {
+		if len(w) == 1 {
+			return `"` + searchFirst(w[0]) + `" *`
+		}
+		return `"` + searchWhole(w) + `" *`
+	})
 	every := func(columns string) string {
 		return t.either(func(w []string) string { return `(` + columns + `("` + strings.Join(w, `"* AND "`) + `"*))` })
 	}
