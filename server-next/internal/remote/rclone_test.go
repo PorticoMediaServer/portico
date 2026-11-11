@@ -81,7 +81,7 @@ func fakeRcloneBinary(t *testing.T) {
 // rclone refuses fails to start.
 func TestRclone(t *testing.T) {
 	fakeRcloneBinary(t)
-	options, err := remote.ParseRcloneConfig("# pasted\n[gdrive]\ntype = drive\ntoken = " + fakeToken + "\n")
+	options, err := remote.ParseRcloneConfig("# pasted\n[gdrive]\ntype = drive\nclient_id = own-client\ntoken = " + fakeToken + "\n")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +129,7 @@ func TestRclone(t *testing.T) {
 	if _, err := remote.ParseRcloneConfig("[a]\ntoken " + fakeToken + "\n"); err == nil || strings.Contains(err.Error(), fakeToken) {
 		t.Fatalf("a bad line: %v", err)
 	}
-	wrong, _ := remote.ParseRcloneConfig("[a]\ntype = drive\ntoken = other\n")
+	wrong, _ := remote.ParseRcloneConfig("[a]\ntype = drive\nclient_id = own-client\ntoken = other\n")
 	if _, err := remote.NewRclone(wrong, "").List(ctx, ""); !errors.Is(err, remote.ErrNeedsAttention) {
 		t.Fatalf("a remote rclone refused: %v", err)
 	}
