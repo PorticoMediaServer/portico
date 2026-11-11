@@ -391,6 +391,7 @@ func libraryError(err error) error {
 func (s *Server) RunSchedules(ctx context.Context) { s.scans.Run(ctx) }
 
 func (s *Server) libraryRoutes() {
+	s.explorerRoutes()
 	Handle(s, "GET /v1/admin/libraries", Owner, s.listAdminLibraries)
 	Handle(s, "POST /v1/admin/libraries", Owner, s.createLibrary)
 	Handle(s, "GET /v1/admin/libraries/{id}", Owner, func(r *http.Request, _ None) (AdminLibrary, error) {
