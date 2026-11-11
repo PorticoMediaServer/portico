@@ -48,8 +48,9 @@ func TestArtwork(t *testing.T) {
 		t.Fatalf("posters after matching: %+v", got)
 	}
 	var found Page[ArtworkPicture]
+	// TMDB has 96 posters of Heat in English or without words: the title's own and 20 more.
 	sh.do("POST", "/v1/admin/items/"+heat+"/artwork/find?role=poster", nil, &found, 200)
-	if len(found.Items) != 2 {
+	if len(found.Items) != 21 {
 		t.Fatalf("Find more: %+v", found.Items)
 	}
 	other := found.Items[1].ID
@@ -75,7 +76,7 @@ func TestArtwork(t *testing.T) {
 	}
 	upload, uploadURL := sh.posters(heat)[0].ID, sh.posters(heat)[0].URL
 	sh.do("DELETE", "/v1/admin/items/"+heat+"/artwork/"+upload, nil, nil, 204)
-	if got := sh.posters(heat); len(got) != 2 || got[0].Source != "provider" || got[0].Locked {
+	if got := sh.posters(heat); len(got) != 21 || got[0].Source != "provider" || got[0].Locked {
 		t.Fatalf("after removing the upload: %+v", got)
 	}
 	sh.do("DELETE", "/v1/admin/items/"+heat+"/artwork/"+other, nil, nil, 409) // a provider's picture stays to choose from
