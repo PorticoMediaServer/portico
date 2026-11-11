@@ -67,3 +67,26 @@ func (d *DB) Book(ctx context.Context, v Viewer, publicID string) (Book, error) 
 		})
 	return out, err
 }
+
+// BookAccess reports whether the viewer may still see the book and the file is still one of
+// its versions, and whether the viewer may save the file (the profile and its account may
+// download). A book's address asks this, a few seconds apart, while it is read through.
+func (d *DB) BookAccess(ctx context.Context, v Viewer, itemID, fileID int64) (visible, maySave bool, err error) {
+	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return false, false, err
+	}
+	defer tx.Rollback()
+	acc, err := loadAccess(ctx, tx, v)
+	if err != nil {
+		return false, false, err
+	}
+	err = tx.QueryRowContext(ctx, `SELECT (SELECT p.allow_downloads AND u.allow_downloads FROM profiles p JOIN users u ON u.id = p.user_id
+		WHERE p.id = @viewer_profile) FROM items i WHERE i.id = @item AND `+acc.visible("i")+`
+		AND EXISTS (SELECT 1 FROM media m JOIN media_parts mp ON mp.media_id = m.id WHERE m.item_id = i.id AND mp.file_id = @file)`,
+		append(v.args(), sql.Named("item", itemID), sql.Named("file", fileID))...).Scan(&maySave)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, false, nil
+	}
+	return err == nil, maySave, err
+}
