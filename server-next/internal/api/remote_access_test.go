@@ -220,7 +220,6 @@ func TestRefusedListKeepsTheNewest(t *testing.T) {
 	}
 }
 
-
 // An owner may choose what is risky for their own server: warned at the moment of choosing,
 // reminded while it holds, never refused. Enhanced with no address to allow is the example:
 // the default path never puts anyone there, but an owner who asks for it gets it.
