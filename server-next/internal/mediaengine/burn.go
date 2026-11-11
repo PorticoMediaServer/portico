@@ -85,20 +85,20 @@ func (e *Engine) burnLoader(p *planned) func(context.Context) (*streaming.BurnSu
 		out := &streaming.BurnSubtitle{Format: b.format, OffsetUS: b.nudgeMs * 1000}
 		var err error
 		if !b.track.Sidecar {
-			out.Data, err = e.streams.SubtitleTrack(ctx, p.path, p.place.Size, time.Unix(0, p.place.ModifiedNS), b.index, !b.picture)
+			out.Data, err = e.place("").streams.SubtitleTrack(ctx, p.path, p.place.Size, time.Unix(0, p.place.ModifiedNS), b.index, !b.picture)
 			return out, err
 		}
 		beside, err := e.db.FileOnDisk(ctx, b.track.FileID)
 		if err != nil {
 			return nil, err
 		}
-		if out.Data, err = e.streams.SubtitleFile(ctx, beside.Path, beside.Size, time.Unix(0, beside.ModifiedNS)); err != nil {
+		if out.Data, err = e.place("").streams.SubtitleFile(ctx, beside.Path, beside.Size, time.Unix(0, beside.ModifiedNS)); err != nil {
 			return nil, err
 		}
 		switch {
 		case b.kind == "vobsub":
 			// The pictures are in the .sub file of the same name, which the scanner does not record.
-			out.Companion, err = e.streams.SubtitleFile(ctx, strings.TrimSuffix(beside.Path, filepath.Ext(beside.Path))+".sub", 0, time.Time{})
+			out.Companion, err = e.place("").streams.SubtitleFile(ctx, strings.TrimSuffix(beside.Path, filepath.Ext(beside.Path))+".sub", 0, time.Time{})
 		case b.kind == "text":
 			out.Data, err = subtitles.TextAsASS(out.Data, subtitleFormat(b.track), 0)
 		}
