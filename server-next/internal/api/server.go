@@ -72,6 +72,8 @@ type Route struct {
 	Scope    Scope
 	Request  reflect.Type
 	Response reflect.Type
+	// BodyLimit is the largest request body the route takes, when it is not maxBody.
+	BodyLimit int64
 }
 
 // Scope is what a key made for a tool must have been given to use a route. A signed-in
@@ -276,7 +278,8 @@ func (p *statusOnly) WriteHeader(status int)      { p.status = status }
 func Handle[Req, Resp any](s *Server, pattern string, access Access, fn func(r *http.Request, req Req) (Resp, error)) *Route {
 	noBody := reflect.TypeFor[Req]() == reflect.TypeFor[None]()
 	noReply := reflect.TypeFor[Resp]() == reflect.TypeFor[None]()
-	route := &Route{pattern, access, defaultScope(pattern, access), reflect.TypeFor[Req](), reflect.TypeFor[Resp]()}
+	route := &Route{Pattern: pattern, Access: access, Scope: defaultScope(pattern, access), Request: reflect.TypeFor[Req](),
+		Response: reflect.TypeFor[Resp]()}
 	s.routes = append(s.routes, route)
 	s.mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
 		r, err := s.admit(r, route)
@@ -285,7 +288,11 @@ func Handle[Req, Resp any](s *Server, pattern string, access Access, fn func(r *
 			return
 		}
 		var req Req
-		if err := readBody(w, r, &req, noBody); err != nil {
+		limit := int64(maxBody)
+		if route.BodyLimit > 0 {
+			limit = route.BodyLimit
+		}
+		if err := readBody(w, r, &req, noBody, limit); err != nil {
 			s.writeError(w, r, err)
 			return
 		}
@@ -321,8 +328,8 @@ type JSON = json.RawMessage
 
 // readBody reads a bounded JSON body into out. Fields this server does not know are ignored,
 // so a newer app can talk to an older server; /v1/system says what the server understands.
-func readBody(w http.ResponseWriter, r *http.Request, out any, noBody bool) error {
-	body := http.MaxBytesReader(w, r.Body, maxBody)
+func readBody(w http.ResponseWriter, r *http.Request, out any, noBody bool, limit int64) error {
+	body := http.MaxBytesReader(w, r.Body, limit)
 	if noBody {
 		// Many HTTP libraries send an empty object, "{}", with every request; it says nothing.
 		raw, err := io.ReadAll(body)
