@@ -273,5 +273,13 @@ func (b *batchTx) ratingChanged(itemID int64) error {
 	}
 	b.watchedRated = append(b.watchedRated, holders...)
 	// A title rated differently from what holds it can leave that holder empty.
-	return b.flagHolders(itemID)
+	if err := b.flagHolders(itemID); err != nil {
+		return err
+	}
+	// A collection holding the title takes the lowest rating of its films: see collection_rating.go.
+	collections, err := queryInts(b.tx, `SELECT item_id FROM item_relations WHERE kind = ? AND related_item_id = ?`, RelationCollectionMember, itemID)
+	if err != nil {
+		return err
+	}
+	return b.collectionsRated(collections...)
 }

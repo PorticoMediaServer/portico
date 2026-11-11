@@ -82,4 +82,19 @@ func TestCollectionShowsAChildOnlyWhatItMaySee(t *testing.T) {
 			t.Fatalf("a queue from the collection holds %d, want %d: %v", len(queue), want, err)
 		}
 	}
+
+	// The collection's one film the child could see becomes adults only: the collection goes too.
+	var familyFilm string
+	for _, it := range everything(t, l.d, child, db.ItemQuery{Collection: mixedID}) {
+		familyFilm = it.PublicID
+	}
+	if err := db.SetRatingAge(l.d, familyFilm, 18); err != nil {
+		t.Fatal(err)
+	}
+	if _, titles := collections(child); len(titles) != 0 {
+		t.Fatalf("after its last family film became adults only, the child sees %v", titles)
+	}
+	if _, titles := collections(owner); len(titles) != 2 {
+		t.Fatalf("the owner sees %v", titles)
+	}
 }
