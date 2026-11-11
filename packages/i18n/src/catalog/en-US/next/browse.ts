@@ -87,6 +87,13 @@ export const browseMessages = {
   'next.browse.noMatch': 'No titles match',
   'next.browse.emptyHelp': 'Loosen a filter or clear them all.',
   'next.browse.emptyNothingIn': 'Nothing in {library} is {filters}.',
+  /** Yes-or-no and watched filters, worded to follow "Nothing in {library} is". */
+  'next.browse.emptyFavorite': 'a favorite',
+  'next.browse.emptyNotFavorite': 'not a favorite',
+  'next.browse.emptyInList': 'in My List',
+  'next.browse.emptyNotInList': 'not in My List',
+  'next.browse.emptyWatched': 'watched',
+  'next.browse.emptyUnwatched': 'unwatched',
   'next.browse.emptyBoth': 'both {first} and {second}',
   'next.browse.emptyFrom': 'from the {decade}',
   /** Decades by operator: none-of "anything but the 1990s or 2000s", a range "from the 1990s to the 2000s". */

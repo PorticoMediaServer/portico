@@ -30,6 +30,10 @@ export function emptyFilterValues(field: string, operator: string, values: reado
       : none ? t('next.browse.emptyNotFrom', {decade: defaultI18n.list(decades, 'or')})
       : t('next.browse.emptyFrom', {decade: defaultI18n.list(decades, operator === 'contains-all' ? 'and' : 'or')});
   }
+  // A yes-or-no filter is said in words; its value alone would read "is true".
+  if (field === 'favorite' && typeof values[0] === 'boolean') return t(values[0] ? 'next.browse.emptyFavorite' : 'next.browse.emptyNotFavorite');
+  if (field === 'watchlisted' && typeof values[0] === 'boolean') return t(values[0] ? 'next.browse.emptyInList' : 'next.browse.emptyNotInList');
+  if (field === 'playState' && (values[0] === 'played' || values[0] === 'unplayed')) return t(values[0] === 'played' ? 'next.browse.emptyWatched' : 'next.browse.emptyUnwatched');
   const items = values.map(value => String(value));
   return range ? t('next.browse.emptyRange', {start: items[0]!, end: items[1]!})
     : operator === 'contains-all' ? defaultI18n.list(items, 'and')
@@ -51,7 +55,7 @@ export function BrowseFilteredEmpty({controller, model, labels, predicates, libr
     const values = (Array.isArray(node.value) ? node.value : [node.value]).filter(value => value !== null && value !== undefined);
     if (!values.length) return [{id: String(index), at: index, field: node.field, phrase: name.toLocaleLowerCase(), display: name, relaxed: t('next.browse.emptyAnything')}];
     const display = emptyFilterValues(node.field, node.operator, values);
-    const phrase = node.field === 'decade' ? display : lower(display);
+    const phrase = node.field === 'decade' || node.field === 'watchlisted' ? display : lower(display);
     const relaxed = node.field === 'decade' || node.field === 'year' ? t('next.browse.emptyAnyYear') : t('next.browse.emptyAnything');
     return [{id: String(index), at: index, field: node.field, phrase, display, relaxed}];
   }), [predicates, fields, labels]);
