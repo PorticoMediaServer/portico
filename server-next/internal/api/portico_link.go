@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -360,16 +361,18 @@ func (s *Server) sendLeave(ctx context.Context, leave db.QueuedLeave, now time.T
 	return time.Unix(min(leave.TryAt, leave.GiveUpAt), 0)
 }
 
+// porticoServerName is the server's name as Portico Services is given it, which must not be empty.
+func (s *Server) porticoServerName() string {
+	if name := strings.TrimSpace(s.serverName()); name != "" {
+		return name
+	}
+	return "Portico"
+}
+
 // porticoDocument is this server's document as it stands, and a digest of it that changes
 // when anything in it does.
 func (s *Server) porticoDocument(ctx context.Context) (hosted.Document, string, error) {
-	name, ok, err := s.db.Setting(ctx, "server.name")
-	if err != nil {
-		return hosted.Document{}, "", err
-	}
-	if !ok {
-		name = "Portico"
-	}
+	name := s.porticoServerName()
 	members, err := s.db.PorticoMembers(ctx)
 	if err != nil {
 		return hosted.Document{}, "", err
@@ -615,11 +618,7 @@ func (s *Server) porticoLinkAgain(r *http.Request, req PorticoLinkRequest) (Port
 	} else if !linked {
 		return PorticoApproval{}, errLocalSignIn()
 	}
-	name, err := s.serverName(r)
-	if err != nil {
-		return PorticoApproval{}, err
-	}
-	approval, err := s.hosted.StartApproval(r.Context(), hosted.ApprovalRequest{ServerID: s.id, ServerName: name,
+	approval, err := s.hosted.StartApproval(r.Context(), hosted.ApprovalRequest{ServerID: s.id, ServerName: s.porticoServerName(),
 		Purpose: hosted.PurposeSwitch, ReturnURL: req.ReturnURL})
 	if err != nil {
 		return PorticoApproval{}, porticoError(err)
