@@ -66,6 +66,9 @@ func (s *Server) UseLog(l *serverlog.Log) {
 func (s *Server) logRoutes() {
 	Handle(s, "GET /v1/admin/logs", Admin, func(r *http.Request, _ None) (LogPage, error) {
 		out := LogPage{Items: []LogLine{}}
+		if err := s.mayReadMessages(r); err != nil {
+			return out, err
+		}
 		if s.serverLog == nil {
 			return out, nil
 		}
@@ -95,6 +98,9 @@ func (s *Server) logRoutes() {
 		return out, err
 	})
 	Handle(s, "PUT /v1/admin/logs/detail", Admin, func(r *http.Request, req LogDetail) (LogDetailState, error) {
+		if err := s.mayReadMessages(r); err != nil {
+			return LogDetailState{}, err
+		}
 		if req.Minutes < 0 || req.Minutes > 240 {
 			return LogDetailState{}, ErrField("minutes", "Record more detail for 1 to 240 minutes, or 0 to stop.")
 		}
@@ -114,6 +120,9 @@ func (s *Server) logRoutes() {
 	s.routes = append(s.routes, follow)
 	s.mux.HandleFunc(follow.Pattern, func(w http.ResponseWriter, r *http.Request) {
 		r, err := s.admit(r, follow)
+		if err == nil {
+			err = s.mayReadMessages(r)
+		}
 		if err != nil {
 			s.writeError(w, r, err)
 			return
@@ -142,6 +151,19 @@ func (s *Server) logRoutes() {
 		}
 		s.supportExport(w, r, req)
 	})
+}
+
+// mayReadMessages admits the owner and the administrators whose account has every library:
+// messages name the files of every library, which an administrator held to some may not read.
+func (s *Server) mayReadMessages(r *http.Request) error {
+	all, err := s.db.HasAllLibraries(r.Context(), CallerFrom(r.Context()).UserID)
+	if err != nil {
+		return err
+	}
+	if !all {
+		return ErrNotPermitted()
+	}
+	return nil
 }
 
 func logLine(e serverlog.Entry) LogLine {
@@ -193,20 +215,48 @@ func (s *Server) followLog(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// pathLike finds what looks like a file path: a drive letter or a slash, and at least two
-// parts. The API's own addresses (/v1/...) are left as they are.
-var pathLike = regexp.MustCompile(`(?:[A-Za-z]:\\|/)(?:[^\s"'<>|:/\\]+[/\\])+[^\s"'<>|:]*`)
-
-// wholePath is a value that is a path from its first character.
-var wholePath = regexp.MustCompile(`^(?:[A-Za-z]:\\|/)[^/\\]`)
+// pathLike finds a file path: from a drive letter or a slash to where Go ends a path in an
+// error (": ") or to the end of the text. A path can hold spaces, so this errs towards hiding
+// the rest of a sentence. The API's own addresses (/v1/...) are left as they are.
+var pathLike = regexp.MustCompile(`(?:[A-Za-z]:\\|/)[^\n"<>|]*?(?:: |$)`)
 
 func hidePaths(text string) string {
 	return pathLike.ReplaceAllStringFunc(text, func(p string) string {
-		if len(p) > 4 && p[:4] == "/v1/" {
+		if strings.HasPrefix(p, "/v1/") {
 			return p
+		}
+		if strings.HasSuffix(p, ": ") {
+			return "[path]: "
 		}
 		return "[path]"
 	})
+}
+
+// cleanValues cleans every string inside a JSON document, as decoded: a Windows path is
+// written with doubled backslashes in JSON and would not be found in its text.
+func cleanValues(raw json.RawMessage, clean func(string) string) json.RawMessage {
+	var v any
+	if json.Unmarshal(raw, &v) != nil {
+		return raw
+	}
+	var walk func(any) any
+	walk = func(v any) any {
+		switch t := v.(type) {
+		case string:
+			return clean(t)
+		case []any:
+			for i := range t {
+				t[i] = walk(t[i])
+			}
+		case map[string]any:
+			for k := range t {
+				t[k] = walk(t[k])
+			}
+		}
+		return v
+	}
+	out, _ := json.Marshal(walk(v))
+	return out
 }
 
 // supportExport writes a zip of the messages and activity of the last days, the settings
@@ -215,6 +265,7 @@ func hidePaths(text string) string {
 func (s *Server) supportExport(w http.ResponseWriter, r *http.Request, req SupportExportRequest) {
 	from := s.now().AddDate(0, 0, -req.Days)
 	clean := func(text string) string {
+		text = serverlog.Clean(text)
 		if req.IncludePaths {
 			return text
 		}
@@ -235,7 +286,7 @@ func (s *Server) supportExport(w http.ResponseWriter, r *http.Request, req Suppo
 	settingsOut := map[string]json.RawMessage{}
 	for _, name := range s.settings.Names() {
 		if doc, err := s.settings.Read(name); err == nil {
-			settingsOut[name] = json.RawMessage(clean(string(doc.Values)))
+			settingsOut[name] = cleanValues(doc.Values, clean)
 		}
 	}
 	add("settings.json").Encode(settingsOut)
@@ -249,10 +300,6 @@ func (s *Server) supportExport(w http.ResponseWriter, r *http.Request, req Suppo
 				line := logLine(e)
 				line.Message = clean(line.Message)
 				for k, v := range line.Attrs {
-					// A value that is a path is replaced whole: a path can hold spaces.
-					if !req.IncludePaths && wholePath.MatchString(v) && !strings.HasPrefix(v, "/v1/") {
-						v = "[path]"
-					}
 					line.Attrs[k] = clean(v)
 				}
 				messages.Encode(line)

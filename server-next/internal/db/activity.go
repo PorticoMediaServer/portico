@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"strings"
 	"time"
 )
@@ -151,4 +152,15 @@ func (d *DB) AccountTitles(ctx context.Context, userID int64, itemIDs []int64) (
 		out[id] = title
 	}
 	return out, rows.Err()
+}
+
+// HasAllLibraries says whether an account has every library. Messages name the files of every
+// library, so they are for the owner and the administrators who have all of them.
+func (d *DB) HasAllLibraries(ctx context.Context, userID int64) (bool, error) {
+	var all bool
+	err := d.read.QueryRowContext(ctx, `SELECT all_libraries = 1 OR role = 'owner' FROM users WHERE id = ?`, userID).Scan(&all)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return all, err
 }
