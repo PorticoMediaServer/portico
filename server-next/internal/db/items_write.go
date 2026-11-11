@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"path"
+	"slices"
 	"strings"
 	"time"
 
@@ -522,6 +523,18 @@ func (im *importer) describe(id int64, it *ImportItem) error {
 		if err := im.insertCredit(id, position, personID, credit.Role, credit.Character); err != nil {
 			return err
 		}
+	}
+	// The item is covered by its own labels and by those of what it sits under. Nearly no
+	// item is, so the row is written only when one of the two is so.
+	covered := slices.ContainsFunc(it.Tags, func(tag TagName) bool { return tag.Kind == TagLabel })
+	if !covered {
+		if err := im.queryRow(`SELECT ifnull((SELECT p.labels IS NOT NULL FROM items p WHERE p.id = i.parent_id), 0) FROM items i WHERE i.id = ?`,
+			id).Scan(&covered); err != nil {
+			return err
+		}
+	}
+	if covered {
+		return im.labelsChanged(id)
 	}
 	return nil
 }

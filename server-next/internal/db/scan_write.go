@@ -324,6 +324,10 @@ func (im *importer) rename(id int64, it *ImportItem, parent *importedItem) (*imp
 				im.count(newRoot).leaves += leaf
 			}
 			im.unsettled = append(im.unsettled, item.parentID)
+			// It and what is under it are now covered by the labels of where it has moved to.
+			if err := im.labelsChanged(id); err != nil {
+				return nil, err
+			}
 			item.parentID, item.rootID = parent.id, newRoot
 		}
 	}
