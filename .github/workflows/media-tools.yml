@@ -11,6 +11,7 @@ name: Media tools
 #   helper     portico-disc, then the disc tests against the fixtures
 #   configure  FFmpeg's configure step alone
 #   bundle     ffmpeg and ffprobe, the helper, and the finished bundle as a run artifact
+#   test       the server's media and disc tests against the bundle of an earlier run
 #
 # The kept layers are container images named build-cache-ffmpeg-* in the project's registry.
 # They are build caches. Nothing here signs or publishes a release.
@@ -31,9 +32,13 @@ on:
         description: The one stage to run
         type: choice
         default: check
-        options: [check, sources, compiler, libraries, helper, configure, bundle]
+        options: [check, sources, compiler, libraries, helper, configure, bundle, test]
       library:
         description: With "libraries", build only this recipe (for example portico-soxr); nothing is kept
+        type: string
+        default: ''
+      bundle_run:
+        description: With "test", the number of the run whose bundle to test
         type: string
         default: ''
 permissions:
@@ -151,3 +156,62 @@ jobs:
           path: .media-tools/${{ env.PLATFORM }}/portico-media-tools-${{ env.PLATFORM }}.tar.xz
           retention-days: 30
           compression-level: 0
+
+  test:
+    # The new server's whole test suite, media tests included, with the bundle as its FFmpeg, and
+    # the disc tests with the bundle's helper. Not part of ci/required.
+    if: github.event_name == 'workflow_dispatch' && inputs.stage == 'test'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      actions: read
+    env:
+      PORTICO_REQUIRE_DECODER_SANDBOX: '1'
+      PORTICO_TEST_TIER: all
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: portico-media-tools-${{ env.PLATFORM }}
+          run-id: ${{ inputs.bundle_run }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/download
+      - name: Unpack the bundle and check every file against its manifest
+        run: |
+          mkdir -p "$RUNNER_TEMP/bundle"
+          tar -xJf "$RUNNER_TEMP/download/portico-media-tools-$PLATFORM.tar.xz" -C "$RUNNER_TEMP/bundle"
+          python3 - "$RUNNER_TEMP/bundle" <<'EOF'
+          import hashlib, json, pathlib, sys
+          root = pathlib.Path(sys.argv[1])
+          manifest = json.loads((root / 'manifest.json').read_text())
+          for name, digest in manifest['files'].items():
+              assert hashlib.sha256((root / name).read_bytes()).hexdigest() == digest, name
+          print(len(manifest['files']), 'files match;', len(manifest['libraries']), 'libraries listed')
+          EOF
+          "$RUNNER_TEMP/bundle/bin/ffmpeg" -hide_banner -version | head -1
+          echo "PORTICO_FFMPEG=$RUNNER_TEMP/bundle/bin/ffmpeg" >> "$GITHUB_ENV"
+          echo "PORTICO_FFPROBE=$RUNNER_TEMP/bundle/bin/ffprobe" >> "$GITHUB_ENV"
+          echo "PORTICO_DISC_TEST_BINARY=$RUNNER_TEMP/bundle/bin/portico-disc" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/bundle/bin" >> "$GITHUB_PATH"
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with:
+          go-version-file: server-next/go.mod
+          cache: true
+          cache-dependency-path: server-next/go.sum
+      - name: Install bubblewrap and allow unprivileged user namespaces on this VM
+        run: |
+          sudo apt-get install -y --no-install-recommends bubblewrap || { sudo apt-get update && sudo apt-get install -y --no-install-recommends bubblewrap; }
+          for setting in kernel.apparmor_restrict_unprivileged_userns=0 kernel.unprivileged_userns_clone=1; do
+            key=${setting%%=*}
+            if [ -e "/proc/sys/${key//.//}" ]; then sudo sysctl -w "$setting"; fi
+          done
+          bwrap --unshare-all --die-with-parent --ro-bind / / --proc /proc --dev /dev --cap-drop ALL /bin/true
+      - name: Disc tests with the bundle's helper
+        working-directory: server-next
+        run: go test ./internal/disc -count=1 -v 2>&1 | grep -E '^(--- |PASS|FAIL|ok|panic|\s+\S+_test.go)' ; exit "${PIPESTATUS[0]}"
+      - name: Every server test, media tests included, with the bundle as FFmpeg
+        working-directory: server-next
+        run: go test ./... 2>&1 | tee "$RUNNER_TEMP/test.log" | grep -vE '^ok ' ; exit "${PIPESTATUS[0]}"
