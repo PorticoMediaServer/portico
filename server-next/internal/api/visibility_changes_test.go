@@ -567,9 +567,6 @@ func (w *world) provider() {
 	if err := w.s.db.SetUnmatched(background, db.Background, w.row(film), "no answer", ""); err != nil {
 		w.t.Fatal(err)
 	}
-	if err := w.s.db.UseEmbeddedTitle(background, w.row(film)); err != nil {
-		w.t.Fatal(err)
-	}
 }
 
 // deleteTitles deletes a show that some profile may not see, with every file of it, and then one

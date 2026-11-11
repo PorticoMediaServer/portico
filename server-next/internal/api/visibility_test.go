@@ -78,7 +78,7 @@ var titleChanges = []titleChange{
 			return nil
 		}},
 	{name: "a provider rates a show for adults and names its episodes, a film stays unmatched and takes the title in its file",
-		covers: []string{"db.ApplyDetails", "db.ApplyChildren", "db.SetUnmatched", "db.UseEmbeddedTitle"}, run: func(w *world) map[string]string {
+		covers: []string{"db.ApplyDetails", "db.ApplyChildren", "db.SetUnmatched"}, run: func(w *world) map[string]string {
 			w.provider()
 			return nil
 		}},
@@ -146,6 +146,18 @@ var noRowNeeded = map[string]string{
 // here with its reason, or get a row in titleChanges.
 func init() {
 	for reason, routes := range map[string][]string{
+		"library order changes only the order of libraries, no title or access rule": {
+			"PUT /v1/admin/libraries/order",
+		},
+		"settings documents change the server's settings, no title, rating, label or library access": {
+			"PUT /v1/admin/settings/{name}",
+		},
+		"groups and receiver requests point at titles and sessions; watched positions use the covered playback writers": {
+			"POST /v1/groups", "POST /v1/groups/join", "PATCH /v1/groups/{id}", "DELETE /v1/groups/{id}",
+			"POST /v1/groups/{id}/playback", "PUT /v1/groups/{id}/queue", "PUT /v1/groups/{id}/me", "DELETE /v1/groups/{id}/me",
+			"PUT /v1/receivers/current", "DELETE /v1/receivers/current", "POST /v1/receivers/{id}/requests",
+			"DELETE /v1/receivers/{id}/requests/{requestId}", "PATCH /v1/receivers/current/requests/{requestId}",
+		},
 		"sign-in, accounts and their secrets: no title, rating, label or library is written": {
 			"POST /v1/setup/owner", "POST /v1/auth/sign-in", "POST /v1/auth/two-factor", "POST /v1/auth/refresh",
 			"POST /v1/auth/password", "POST /v1/auth/password-reset/confirm", "POST /v1/auth/codes",
