@@ -38,21 +38,14 @@ const detailPage = (id: string) => ({scope: {serverId: 'server', libraryId: 'lib
   item: {id, libraryId: 'library', kind: 'movie', title: id, durationMs: 1000, progressMs: 0, available: true},
   personal: {watchlisted: false, favorite: false, rating: null, revision: 1, watched: false, progressMs: 0, lastPlayedAt: '', status: 'current', conflicts: []},
   actions: [], metadata: {status: 'unavailable', ratings: [], genres: [], credits: []}});
-function searchPage(path: string, fence = 'search-only') {
-  const params = new URL(path, 'https://local.invalid').searchParams, selected = params.get('group') ?? '';
-  const ids = (['movies', 'shows'] as const).filter(id => selected ? selected === id : params.get('groups')?.split(',').includes(id));
-  const libraryIds = params.get('libraryIds')?.split(',') ?? [], libraryId = libraryIds[0] ?? 'library';
-  const groups = ids.map(id => {
-    const itemId = libraryId + '-' + id, kind = id === 'movies' ? 'movie' : 'show';
-    return {id, title: id, entityKind: kind, status: 'success', errorCode: '',
-      items: [{id: itemId, libraryId, kind, title: itemId, navigation: {view: id === 'movies' ? 'item' : 'show', entityId: itemId}}],
-      totalCount: (id === 'movies' ? 5 : 7) * (libraryId === 'other' ? 10 : 1), totalCountExact: true, hasMore: false, nextCursor: ''};
-  });
-  return {scope: {serverId: 'server', libraryId: '', libraryKind: 'mixed', view: 'search', entityId: '', viewerFence: fence}, revision: {catalog: 4, viewer: 5},
-    heading: {key: 'search.title', fallback: ''}, query: {q: params.get('q'), sort: params.get('sort') ?? 'relevance', direction: params.get('direction') ?? 'desc',
-      group: selected, groups: ids, libraryIds, limit: Number(params.get('limit')), searchMode: 'normalized_prefix', recorded: params.get('record') === '1'},
-    groups, capabilities: {groups: groups.map(group => ({id: group.id, entityKind: group.entityKind, title: group.title, available: true, sorts: ['relevance', 'title']})),
-      sorts: ['relevance', 'title'], directions: ['asc', 'desc'], maxLimit: 40, groupBudgetMs: 600}};
+/** The rebuilt server's search answer: movies and shows, or the one kind asked for. */
+function searchPage(path: string) {
+  const params = new URL(path, 'https://local.invalid').searchParams, kind = params.get('kind') ?? '', q = params.get('q') ?? '';
+  const ids = (['movies', 'shows'] as const).filter(id => !kind || kind === (id === 'movies' ? 'movie' : 'show'));
+  return {groups: ids.map(id => {
+    const itemKind = id === 'movies' ? 'movie' : 'show', itemId = 'library-' + id;
+    return {kind: itemKind, total: (id === 'movies' ? 5 : 7) * (q === 'other' ? 10 : 1), items: [{id: itemId, libraryId: 'library', kind: itemKind, title: itemId}] as any[], nextCursor: ''};
+  })};
 }
 
 test('Search All continuation admits its appended action objects and withdraws them with the parent query', async () => {
@@ -60,9 +53,8 @@ test('Search All continuation admits its appended action objects and withdraws t
   const owner = setup(async path => {
     const params = new URL(path, 'https://local.invalid').searchParams, next = !!params.get('cursor'), raw = searchPage(path);
     for (const result of raw.groups) {
-      result.nextCursor = next ? '' : 'offered-cursor';result.hasMore = !next;
-      result.items = result.items.map(item => ({...item, id: item.id + (next ? '-next' : ''), available: true,
-        playback: {itemId: item.id + (next ? '-next' : ''), startMs: 7000}, navigation: {...item.navigation, entityId: item.id + (next ? '-next' : '')}}));
+      result.nextCursor = next ? '' : 'offered-cursor';
+      result.items = result.items.map(item => ({...item, id: item.id + (next ? '-next' : ''), title: item.title, available: true, state: {positionMs: 7000}}));
     }
     return raw;
   });
@@ -88,18 +80,17 @@ test('Search All continuation admits its appended action objects and withdraws t
   } finally {binding.dispose();}
 });
 
-test('Search summary counts follow actual library scope and ordering when the text and revisions stay the same', async () => {
+test('Search summary counts stay while one group of the same search is opened, and go when the ordering changes', async () => {
   const owner = setup(async path => searchPage(path)), binding = createSearchBindings(owner.context);
   try {
-    await binding.select('harbor', {groups: ['movies', 'shows'], libraryIds: ['library']});
+    await binding.select('harbor', {groups: ['movies', 'shows']});
     assert.equal(binding.service.getSnapshot().phase, 'ready');
     assert.deepEqual(binding.summary().map(group => group.totalCount), [5, 7]);
-    await binding.select('harbor', {group: 'movies', libraryIds: ['library']});
+    await binding.select('harbor', {group: 'movies'});
     assert.deepEqual(binding.summary().map(group => group.totalCount), [5, 7], 'same-query group narrowing retains server summary');
-    await binding.select('harbor', {group: 'movies', libraryIds: ['other']});assert.deepEqual(binding.summary(), []);
-    await binding.select('harbor', {groups: ['movies', 'shows'], libraryIds: ['other']});
+    await binding.select('other', {groups: ['movies', 'shows']});
     assert.deepEqual(binding.summary().map(group => group.totalCount), [50, 70]);
-    await binding.select('harbor', {group: 'movies', libraryIds: ['other'], sort: 'title'});assert.deepEqual(binding.summary(), []);
+    await binding.select('other', {group: 'movies', sort: 'title'});assert.deepEqual(binding.summary(), []);
   } finally {binding.dispose();}
 });
 
@@ -107,14 +98,14 @@ test('Search summary is immutable and unavailable during replacement reads or au
   const held = deferred<unknown>();let hold = false, heldPath = '';
   const owner = setup(async path => {if (hold) {heldPath = path;return held.promise;}return searchPage(path);}), binding = createSearchBindings(owner.context);
   try {
-    await binding.select('harbor', {groups: ['movies', 'shows'], libraryIds: ['library']});
+    await binding.select('harbor', {groups: ['movies', 'shows']});
     const summary = binding.summary();assert(Object.isFrozen(summary));assert(Object.isFrozen(summary[0]));
     hold = true;
-    const read = binding.select('harbor', {group: 'movies', libraryIds: ['other']});
+    const read = binding.select('other', {group: 'movies'});
     assert.deepEqual(binding.summary(), []);
     held.resolve(searchPage(heldPath));await read;
     assert.deepEqual(binding.summary(), []);
-    hold = false;await binding.select('harbor', {groups: ['movies', 'shows'], libraryIds: ['library']});
+    hold = false;await binding.select('harbor', {groups: ['movies', 'shows']});
     assert.deepEqual(binding.summary().map(group => group.totalCount), [5, 7]);
     owner.retire();assert.deepEqual(binding.summary(), []);
   } finally {binding.dispose();}
@@ -124,8 +115,7 @@ test('a changed Search query retires its original caller through the actual scre
   const held = deferred<void>();let guard: (() => boolean) | undefined;
   const owner = setup(async path => {
     const raw = searchPage(path);
-    return {...raw, groups: raw.groups.map(group => ({...group, items: group.items.map(item => item.kind === 'movie'
-      ? {...item, available: true, playback: {itemId: item.id, startMs: 0}} : item)}))};
+    return {...raw, groups: raw.groups.map(group => ({...group, items: group.items.map(item => item.kind === 'movie' ? {...item, available: true} : item)}))};
   });
   const effect = createScreenPlayEffect({isCurrent: owner.context.isCurrent, runtime: () => runtime});
   const runtime = {async playFromScreen(_target: unknown, lifetime: {signal: AbortSignal; isCurrent: () => boolean}) {guard = lifetime.isCurrent;await held.promise;}};
@@ -143,8 +133,7 @@ test('paused or restarted Search never revives an original Play when the same qu
     const held = deferred<void>();let guard: (() => boolean) | undefined;
     const owner = setup(async path => {
       const raw = searchPage(path);
-      return {...raw, groups: raw.groups.map(group => ({...group, items: group.items.map(item => item.kind === 'movie'
-        ? {...item, available: true, playback: {itemId: item.id, startMs: 0}} : item)}))};
+      return {...raw, groups: raw.groups.map(group => ({...group, items: group.items.map(item => item.kind === 'movie' ? {...item, available: true} : item)}))};
     });
     const runtime = {async playFromScreen(_target: unknown, lifetime: {signal: AbortSignal; isCurrent: () => boolean}) {
       guard = lifetime.isCurrent;await held.promise;
