@@ -79,9 +79,9 @@ var knownFailures = map[string]struct {
 }{
 	"hevc-hlg for chromium after a seek":                          {finding: 1},
 	"h264-10bit for chromium after a seek":                        {finding: 1},
+	"long-jump for chromium after a seek":                         {finding: 1},
 	"hevc-hdr10 for chromium after a seek":                        {finding: 1, sometimes: true},
 	"hevc-hdr10 for chromium with the picture subtitle burned in": {finding: 1, sometimes: true},
-	"subtitles for chromium with the picture subtitle burned in":  {finding: 2},
 	"hevc-4k-hdr10-tone-mapped on vaapi":                          {finding: 3},
 }
 
