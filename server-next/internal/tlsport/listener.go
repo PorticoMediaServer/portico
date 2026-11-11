@@ -2,6 +2,7 @@ package tlsport
 
 import (
 	"bufio"
+	"io"
 	"crypto/tls"
 	"errors"
 	"net"
@@ -102,3 +103,7 @@ type peeked struct {
 }
 
 func (p *peeked) Read(b []byte) (int, error) { return p.r.Read(b) }
+
+// ReadFrom keeps the kernel's file-to-socket copy (sendfile) that net/http uses for media:
+// io.Copy hands over to the TCP connection's own ReadFrom. Writes never pass the peek buffer.
+func (p *peeked) ReadFrom(r io.Reader) (int64, error) { return io.Copy(p.Conn, r) }
