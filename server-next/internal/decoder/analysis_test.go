@@ -41,7 +41,7 @@ func TestAnalysisPreviewColorAndDisplayGeometry(t *testing.T) {
 	for _, kind := range []string{"image", "trickplay", "scenes"} {
 		args, err := AnalysisArgs("input", AnalysisSpec{Kind: kind, MaxDurationUS: 60000000, IntervalUS: 1000000, MaxFrames: 12, SourceVideo: PreviewVideoFacts{DynamicRange: "hdr10"}})
 		graph := strings.Join(args, " ")
-		if err != nil || !strings.Contains(graph, "reset_sar=1") || !strings.Contains(graph, "zscale=t=linear") || !strings.Contains(graph, "tonemap=") {
+		if err != nil || !strings.Contains(graph, "scale=iw*sar:ih,") || !strings.Contains(graph, "zscale=t=linear") || !strings.Contains(graph, "tonemap=") {
 			t.Fatal(graph, err)
 		}
 	}
