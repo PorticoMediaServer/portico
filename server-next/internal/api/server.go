@@ -25,6 +25,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
 	"github.com/PorticoMediaServer/portico/server-next/internal/remote"
+	"github.com/PorticoMediaServer/portico/server-next/internal/settings"
 )
 
 // APIMajor is the number in the path. It changes only for a break old apps could not survive.
@@ -56,6 +57,8 @@ type Server struct {
 	// queues builds and runs play queues. See queues.go.
 	queues  *playqueue.Service
 	network networkState
+	// settings are the owner's settings documents, held in memory. See settings.go.
+	settings *settings.Settings
 	media   func(w http.ResponseWriter, r *http.Request, grant, file string)
 	// feeds caps the change feeds each sign-in holds open. See catalogue.go.
 	feeds feeds
@@ -170,8 +173,16 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	if err := s.loadNetworks(ctx); err != nil {
 		return nil, err
 	}
+	var damaged []error
+	if s.settings, damaged, err = settings.Open(ctx, d, nil); err != nil {
+		return nil, err
+	}
+	for _, err := range damaged {
+		log.Warn("a settings document could not be read and is at its defaults until the owner saves it", "error", err)
+	}
 	s.systemRoutes()
 	s.networkRoutes()
+	s.settingsRoutes()
 	s.identityRoutes()
 	s.authRoutes()
 	s.profileRoutes()
