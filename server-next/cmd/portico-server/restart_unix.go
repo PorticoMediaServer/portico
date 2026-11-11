@@ -22,6 +22,9 @@ func restartSelf() error {
 	if err != nil {
 		return err
 	}
+	// After the program file was replaced (an update copied over it), Linux names the running
+	// one "<path> (deleted)": the new file at that path is the one to start.
+	self = strings.TrimSuffix(self, " (deleted)")
 	return syscall.Exec(self, os.Args, os.Environ())
 }
 

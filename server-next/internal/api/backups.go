@@ -73,7 +73,7 @@ func (s *Server) backupRoutes() {
 		list, err := s.backups.List()
 		out := Backups{Items: list, Running: s.backups.Running(), Folder: s.backups.Folder(), Readable: true,
 			ReadableMeans: []string{"sign_in_as_owner", "use_remote_storage_sign_ins"}, FolderWritable: s.backups.FolderWritable(),
-			PendingRestore: backup.PendingRestore(s.backups.DataDir)}
+			PendingRestore: backup.WaitingRestore(s.backups.DataDir, s.now())}
 		if out.Items == nil {
 			out.Items = []backup.Backup{}
 		}
