@@ -137,7 +137,7 @@ export function NativeAccountSecurityPanel({kind, context, lifetime, t, runtime,
       actions = <Button testID="account-security-verify" loading={busy} disabled={busy || !/^\d{6}$/.test(code.replace(/\s/g, ''))} onPress={() => {
         const verificationCode = code.replace(/\s/g, ''); if (!/^\d{6}$/.test(verificationCode)) return;
         void perform(async client => {const value = await client.verifyTwoFactor(password, verificationCode); if (!value.enabled) throw new Error('invalid_two_factor_state'); return value;}, value => {
-          setFactor(value); revealCodes(enrolment.recoveryCodes); setEnrolment(undefined); setPassword(''); setCode('');
+          setFactor(value); revealCodes(value.recoveryCodes); setEnrolment(undefined); setPassword(''); setCode('');
         });
       }}>{t('security.twoStep.verify')}</Button>;
     } else if (!factor.enabled) {

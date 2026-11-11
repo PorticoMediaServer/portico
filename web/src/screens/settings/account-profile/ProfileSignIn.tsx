@@ -39,7 +39,7 @@ type HostedIntent={readonly owner:Opening;readonly kind:HostedSecurityTaskKind;r
 const ended=()=>new DOMException('The original account security opening ended.','AbortError');
 
 type ProfileSignInProps={
-  profiles:ProfileSettingsSource;api:ProfileAPI;commandApi:ProfileAPI;signIn:'local'|'portico';isCurrent:()=>boolean;onEnded:()=>void;onFacts?:(facts:ProfileSecurityFacts)=>void;session:()=>LocalSession;
+  profiles:ProfileSettingsSource;api:ProfileAPI;commandApi:ProfileAPI;signIn:'local'|'portico';isCurrent:()=>boolean;onFacts?:(facts:ProfileSecurityFacts)=>void;session:()=>LocalSession;
 };
 
 /** Sign-in belongs to the account, not the selected editable profile.
@@ -75,7 +75,7 @@ function PorticoAccountSignIn({profiles,isCurrent,session}:ProfileSignInProps){
  </SettingsGroup>;
 }
 
-function AccountSecurity({profiles,api,commandApi,signIn,isCurrent,onEnded,onFacts,session}:ProfileSignInProps){
+function AccountSecurity({profiles,api,commandApi,signIn,isCurrent,onFacts,session}:ProfileSignInProps){
  const document=useSyncExternalStore(profiles.subscribe,profiles.getSnapshot).document;
  const account=document?.account;
  const scope=document?.canManage&&document.capabilities.manageAccount&&account&&!account.disabled?
@@ -161,13 +161,14 @@ function AccountSecurity({profiles,api,commandApi,signIn,isCurrent,onEnded,onFac
   held.busy=true;setBusy(true);setError(undefined);clearSecrets();
   try{
    if(!intentCurrent(intent))throw ended();
+   // A new password signs the account's other devices out and keeps this one; turning two-step off signs nobody out.
    if(ownedTask==='password'){
     await held.local.changePassword(proof,newPassword,submittedCode);
-    // A known terminal acknowledgement retires the original shell, never a successor.
-    onEnded();return;
+    if(!intentCurrent(intent))return;intent.live=false;localIntentRef.current=undefined;setTask(undefined);return;
    }
    if(ownedTask==='disable'){
-    await held.local.disableTwoFactor(proof,submittedCode);onEnded();return;
+    await held.local.disableTwoFactor(proof,submittedCode);
+    if(!intentCurrent(intent))return;intent.live=false;localIntentRef.current=undefined;setTask(undefined);setFactor(Object.freeze({enabled:false,pendingEnrolment:false,recoveryCodesRemaining:0}));return;
    }
    if(ownedTask==='codes'){
     const fresh=await held.local.replaceRecoveryCodes(proof,submittedCode,held.abort.signal);
@@ -178,7 +179,7 @@ function AccountSecurity({profiles,api,commandApi,signIn,isCurrent,onEnded,onFac
    }else{
     const originalPassword=intent.enrolPassword!;intent.enrolPassword=undefined;
     const fresh=await held.local.verifyTwoFactor(originalPassword,submittedCode);
-    if(!intentCurrent(intent))return;setFactor(fresh);setCodes(prior.recoveryCodes);setTask(undefined);setEnrolment(undefined);
+    if(!intentCurrent(intent))return;setFactor(fresh);setCodes(fresh.recoveryCodes);setTask(undefined);setEnrolment(undefined);
    }
   }catch(failure){if(intentCurrent(intent)){if(ownedTask==='enrol'&&prior){intent.enrolPassword=undefined;setEnrolment(undefined);}setError(failure);}}
   finally{held.busy=false;if(held.current())setBusy(false);}

@@ -1369,6 +1369,19 @@
       "occurrences": 1
     },
     {
+      "binding": "web/src/screens/settings/Settings.route.tsx#ce4f350e188d007f",
+      "file": "web/src/screens/settings/Settings.route.tsx",
+      "line": 217,
+      "guardHash": "bafc5aee2b764ed20159fc0e2374b35de8e324fe8cbfadc1f29bc0358d2a2ff6",
+      "owner": "value",
+      "shape": "fetch-signal-options",
+      "callHash": "300e782ac9c6b05eacec211a5e1dce897eb589da7a203679a1c6bc8a4e9ffe83",
+      "callText": "originalApi.routeFetch(input, {...options, signal: signal(options?.signal ?? (input instanceof Request ? input.signal : undefined))})",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
+      "reason": "predicate reads request or response data",
+      "occurrences": 1
+    },
+    {
       "binding": "web/src/screens/settings/Settings.route.tsx#c0a9b0fe63b3e5a5",
       "file": "web/src/screens/settings/Settings.route.tsx",
       "line": 391,

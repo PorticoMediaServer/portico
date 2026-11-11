@@ -459,7 +459,6 @@ type ProfileLimitsOwner = {
   readonly profile: Readonly<Pick<ManagedProfile, 'id' | 'revision'>>;
   readonly lease: ProfileLease;
   controller?: AbortController;
-  loadedRevision?: number;
   retired: boolean;
 };
 
@@ -488,7 +487,6 @@ function ProfileLimitsSheet({profile, lease, serverOwner, identityFor, onClose, 
     const identity = identityFor(controller);
     Promise.all([identity.restrictions(profileId, controller.signal), identity.ratingSystems(controller.signal)]).then(([currentRestrictions, list]) => {
       if (!live() || currentRestrictions.profileId !== next.profile.id) return;
-      next.loadedRevision = currentRestrictions.revision;
       draftRef.current = currentRestrictions;
       setRestrictions(currentRestrictions); setSystems(list); setDraft(currentRestrictions);
     }, failure => {if (live() && !controller.signal.aborted) setError(failure);});
@@ -508,7 +506,7 @@ function ProfileLimitsSheet({profile, lease, serverOwner, identityFor, onClose, 
   const save = () => {
     const sheet = owner, currentRestrictions = restrictions, chosen = draft;
     if (!sheet || !current(sheet) || !currentRestrictions || !chosen || currentRestrictions.profileId !== sheet.profile.id
-      || currentRestrictions.revision !== sheet.loadedRevision || sheet.profile.revision !== profile.revision || draftRef.current !== chosen || busyRef.current) return;
+      || sheet.profile.revision !== profile.revision || draftRef.current !== chosen || busyRef.current) return;
     const controller = new AbortController();
     sheet.controller?.abort();
     sheet.controller = controller;
@@ -518,8 +516,7 @@ function ProfileLimitsSheet({profile, lease, serverOwner, identityFor, onClose, 
       ratingSystem: chosen.ratingSystem, maximumAgeRating: chosen.maximumAgeRating, allowUnrated: chosen.allowUnrated, blockedLabels: chosen.blockedLabels,
       allowDownloads: chosen.allowDownloads, allowLiveTv: chosen.allowLiveTv, allowDvr: chosen.allowDvr, allowWatchTogether: chosen.allowWatchTogether,
     }).then(next => {
-      if (!current(sheet) || controller.signal.aborted || next.profileId !== sheet.profile.id || next.revision <= (sheet.loadedRevision ?? 0)) return;
-      sheet.loadedRevision = next.revision;
+      if (!current(sheet) || controller.signal.aborted || next.profileId !== sheet.profile.id) return;
       draftRef.current = next; busyRef.current = false;
       setRestrictions(next); setDraft(next); setBusy(false); onSaved();
     }, failure => {
