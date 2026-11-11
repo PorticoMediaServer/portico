@@ -185,7 +185,16 @@ func SourceKey(addr netip.Addr) string {
 
 // DefaultHome is what counts as home until the owner says otherwise: this machine, and
 // the private networks it is directly attached to. A public address is never home by default.
+//
+// In a container on a network of its own (a bridge), nothing is home by default: Docker
+// Desktop, rootless Docker and Podman, and a host with its firewall rules off relay every
+// visitor, from outside too, so that they arrive from an address on the container's network,
+// and the server cannot tell who is at home. Everyone counts as away until the owner lists
+// their home networks or runs the container with host networking.
 func DefaultHome() []netip.Prefix {
+	if ContainerNetwork() {
+		return []netip.Prefix{}
+	}
 	out := []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8"), netip.MustParsePrefix("::1/128")}
 	addrs, _ := net.InterfaceAddrs()
 	for _, a := range addrs {
@@ -199,6 +208,49 @@ func DefaultHome() []netip.Prefix {
 		}
 	}
 	return out
+}
+
+// ContainerNetwork reports whether this server runs in a container on a network of its own. It
+// is a variable so tests on any machine can say either.
+var ContainerNetwork = containerNetwork
+
+// containerNetwork: a container says so by /.dockerenv (Docker), /run/.containerenv (Podman),
+// the container variable (Podman, systemd-nspawn, LXC) or a runtime named in the first
+// process's control group (Kubernetes and others). With host networking the container sees
+// the host's own interfaces, the container runtime's bridge among them, and then it is not on
+// a network of its own. A wrong "yes" costs only that the household is away until the owner
+// lists their home networks; a wrong "no" leaves the guess the server makes on a plain machine.
+func containerNetwork() bool {
+	_, docker := os.Stat("/.dockerenv")
+	_, podman := os.Stat("/run/.containerenv")
+	cgroup, _ := os.ReadFile("/proc/1/cgroup")
+	if docker != nil && podman != nil && os.Getenv("container") == "" && !runtimeIn(string(cgroup)) {
+		return false
+	}
+	ifaces, _ := net.Interfaces()
+	for _, i := range ifaces {
+		if hostBridge(i.Name) {
+			return false
+		}
+	}
+	return true
+}
+
+// runtimeIn reports whether a /proc/1/cgroup text names a container runtime.
+func runtimeIn(cgroup string) bool {
+	for _, name := range []string{"docker", "kubepods", "containerd", "libpod", "lxc"} {
+		if strings.Contains(cgroup, name) {
+			return true
+		}
+	}
+	return false
+}
+
+// hostBridge reports whether an interface name is a container runtime's bridge or a container's
+// end of one, which only the host's own network namespace has.
+func hostBridge(name string) bool {
+	return name == "docker0" || name == "podman0" || name == "cni-podman0" || name == "cni0" ||
+		strings.HasPrefix(name, "br-") || strings.HasPrefix(name, "veth")
 }
 
 // ErrNetwork: an entry is not an address or a network such as 192.168.1.0/24.

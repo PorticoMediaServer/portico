@@ -184,3 +184,24 @@ func TestTheGatewayIsNotHomeByDefault(t *testing.T) {
 		t.Error("the owner listed a network holding the gateway, and it does not count as home")
 	}
 }
+
+// A container runtime is recognised in the first process's control group, and the host's own
+// bridges are told apart from a container's interfaces.
+func TestContainerSigns(t *testing.T) {
+	for text, want := range map[string]bool{
+		"0::/system.slice/docker-1a2b.scope\n":             true,
+		"12:pids:/kubepods/besteffort/pod1234/abcd\n":      true,
+		"0::/machine.slice/libpod-5678.scope/container\n":  true,
+		"0::/init.scope\n":                                 false,
+		"0::/user.slice/user-1000.slice/session-2.scope\n": false,
+	} {
+		if got := runtimeIn(text); got != want {
+			t.Errorf("%q: %v, want %v", text, got, want)
+		}
+	}
+	for name, want := range map[string]bool{"docker0": true, "br-1a2b3c": true, "veth12ab": true, "podman0": true, "eth0": false, "enp3s0": false, "lo": false} {
+		if got := hostBridge(name); got != want {
+			t.Errorf("%s: %v, want %v", name, got, want)
+		}
+	}
+}
