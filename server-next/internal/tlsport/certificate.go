@@ -6,8 +6,10 @@
 package tlsport
 
 import (
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -174,6 +176,18 @@ func (s *Store) Status() Status {
 		out.ExpiresSoon = s.now().Add(s.source.WarnBefore).After(expires)
 	}
 	return out
+}
+
+// Fingerprints are the SHA-256 fingerprints, base64url, of the certificate being served, for
+// the server's identity proof to vouch for.
+func (s *Store) Fingerprints() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.leaf == nil {
+		return nil
+	}
+	sum := sha256.Sum256(s.leaf.Raw)
+	return []string{base64.RawURLEncoding.EncodeToString(sum[:])}
 }
 
 // GetCertificate is for tls.Config: the owner's certificate while it is valid, otherwise none,

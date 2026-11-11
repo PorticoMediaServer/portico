@@ -8,9 +8,11 @@ import (
 	"strings"
 )
 
-// codeAlphabet leaves out the letters and digits people mix up when reading a code aloud
+// CodeAlphabet leaves out the letters and digits people mix up when reading a code aloud
 // or off a television: I, L, O, 0 and 1.
-const codeAlphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+const CodeAlphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+
+const codeAlphabet = CodeAlphabet
 
 // NewCode returns a random code of the given number of groups of four symbols, such as
 // "K7QP-2MXD". It is for codes a person reads and types.
