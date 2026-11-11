@@ -103,15 +103,16 @@ func (s *Service) Sync(ctx context.Context, v db.Viewer, deviceID int64, platfor
 		return out, err
 	}
 	for _, request := range requests {
+		titles := byRequest[request.ID]
 		if request.KeepNext > 0 {
-			if err := s.keepNext(ctx, v, request, held, have, watched, &out); err != nil {
+			if titles, err = s.keepNext(ctx, v, request, titles, held, have, watched, &out); err != nil {
 				return out, err
 			}
 		}
 		if request.Paused {
 			continue
 		}
-		for _, t := range byRequest[request.ID] {
+		for _, t := range titles {
 			h := Held{Download: request.PublicID, Item: t.ItemPublicID}
 			ready := t.State == db.DownloadWanted && (request.Quality == Original || t.Prepared != nil && t.Prepared.State == db.PreparedReady)
 			if _, known := have[h]; ready && !known {
@@ -123,38 +124,54 @@ func (s *Service) Sync(ctx context.Context, v db.Viewer, deviceID int64, platfor
 }
 
 // keepNext brings a "keep the next" request up to date: its titles become the next ones the
-// profile has not watched, new episodes included as they arrive. A held title that is no
-// longer among them is removed from the device: watched, or passed over. Nothing is stored
-// for the titles beyond the next ones; they are worked out again at every sync.
-func (s *Service) keepNext(ctx context.Context, v db.Viewer, request db.Download, held []Held, have map[Held]bool, watched map[string]bool, out *Synced) error {
+// profile has not watched, new episodes included as they arrive, and a title among them whose
+// copy expired before the device fetched it is asked for again. A held title that is no longer
+// among them is removed from the device: watched, or passed over. Nothing is stored for the
+// titles beyond the next ones; they are worked out again at every sync. It returns the
+// request's titles as they now are.
+func (s *Service) keepNext(ctx context.Context, v db.Viewer, request db.Download, titles []db.DownloadTitle, held []Held,
+	have map[Held]bool, watched map[string]bool, out *Synced) ([]db.DownloadTitle, error) {
 	next, err := s.Titles(ctx, v, request.ItemPublicID, request.ListPublicID, "next", request.KeepNext)
 	if err != nil {
-		return err
+		return titles, err
 	}
-	_, titles, err := s.DB.DownloadOf(ctx, v.ProfileID, request.PublicID)
-	if err != nil {
-		return err
-	}
-	stored := map[int64]bool{}
+	stored := map[int64]db.DownloadTitle{}
 	for _, t := range titles {
-		stored[t.ItemID] = true
+		stored[t.ItemID] = t
 	}
 	wanted := map[string]bool{}
 	var keep []int64
 	var add []db.DownloadTitle
+	changed := false
 	for position, source := range next {
 		wanted[source.PublicID] = true
-		if stored[source.ID] {
-			keep = append(keep, source.ID)
-		} else {
+		t, ok := stored[source.ID]
+		switch {
+		case !ok:
 			add = append(add, s.plan(ctx, source, "", request.Quality, position))
+		case t.State == db.DownloadWanted && request.Quality != Original && t.Prepared == nil:
+			keep = append(keep, source.ID)
+			if planned := s.plan(ctx, source, "", request.Quality, position); planned.Prepared != nil {
+				if err := s.DB.UseCopy(ctx, request.ID, source.ID, planned.Prepared.ID); err != nil {
+					return titles, err
+				}
+				changed = true
+			}
+		default:
+			keep = append(keep, source.ID)
 		}
 	}
 	if len(add) > 0 || len(keep) < len(titles) {
 		if err := s.DB.KeepTitles(ctx, request.ID, keep, add); err != nil {
-			return err
+			return titles, err
 		}
+		changed = true
+	}
+	if changed {
 		s.Prepare.Wake()
+		if _, titles, err = s.DB.DownloadOf(ctx, v.ProfileID, request.PublicID); err != nil {
+			return titles, err
+		}
 	}
 	for _, h := range held {
 		if h.Download != request.PublicID || wanted[h.Item] || !have[h] {
@@ -166,7 +183,7 @@ func (s *Service) keepNext(ctx context.Context, v db.Viewer, request db.Download
 		}
 		out.Remove, have[h] = append(out.Remove, Removal{Held: h, Reason: reason}), false
 	}
-	return nil
+	return titles, nil
 }
 
 // deleteWatched is the device's "Delete watched downloads" rule, off unless it was turned on.
