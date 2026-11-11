@@ -104,8 +104,16 @@ func (d *DB) EditLibrary(ctx context.Context, publicID string, edit LibraryEdit)
 			}
 		}
 		if edit.Options != nil {
-			if _, err := tx.Exec(`UPDATE libraries SET options = `+keepRemoved+` WHERE id = ?`, edit.Options.json(), edit.Options.json(), id); err != nil {
+			if _, err := tx.Exec(`UPDATE libraries SET options = `+keepRemoved+` WHERE id = ?`, edit.Options.json(), id); err != nil {
 				return err
+			}
+			if edit.Options.GroupSeries != nil && !*edit.Options.GroupSeries {
+				b := newBatchTx(tx)
+				err := ungroupSeries(b, id, time.Now().UnixMilli())
+				b.close()
+				if err != nil {
+					return err
+				}
 			}
 		}
 		if edit.Folders != nil {
