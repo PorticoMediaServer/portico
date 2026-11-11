@@ -11,6 +11,12 @@ func init() {
 				call(th.T, th.s, "PUT", "/v1/receivers/current", onMain(th.T, th.s, signIn(th.T, th.s, 1)).AccessToken, nil, &tv)
 				return "/v1/receivers/" + tv.ID + "/requests"
 			}, body: ReceiverAsk{Kind: "control"}, other: ReceiverAsk{Kind: "play", Play: &receivers.Play{ItemID: th.film}}, inMemoryOnly: true},
+			{route: "POST /v1/groups", body: GroupCreate{Name: "Movie night", Control: "host"},
+				other: GroupCreate{Name: "Movie night", Control: "everyone"}, inMemoryOnly: true},
 		}
+	})
+	safeToRepeat(map[string]string{
+		"POST /v1/groups/join":          "a member who joins again stays one member and uses up no join",
+		"POST /v1/groups/{id}/playback": "sets the group's clock: the same action twice lands in the same place",
 	})
 }
