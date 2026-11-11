@@ -32,8 +32,10 @@ func (s *Server) startMetadata(ctx context.Context) error {
 	return nil
 }
 
-// lookupsAgain starts the lookup, hourly, for each library holding a title whose wait after the
-// provider failed on it is over, so it does not wait for the library's next scan.
+// lookupsAgain starts each library's lookup and refresh every hour, as a scan does when it
+// ends, so a title the provider failed on is asked again once its wait is over and matched
+// titles are refreshed when due, in a library nobody rescans. Asking again while a library's
+// run is waiting or going joins it, and a run with nothing to do reads two small indexes.
 func (s *Server) lookupsAgain(ctx context.Context) {
 	tick := time.NewTicker(time.Hour)
 	defer tick.Stop()
@@ -43,13 +45,13 @@ func (s *Server) lookupsAgain(ctx context.Context) {
 			return
 		case <-tick.C:
 		}
-		libraries, err := s.db.LookupsDue(ctx, time.Now())
+		libraries, err := s.db.AllLibraries(ctx)
 		if err != nil && ctx.Err() == nil {
-			s.log.Error("titles to look up again could not be read", "error", err)
+			s.log.Error("libraries to look up again could not be read", "error", err)
 		}
-		for _, library := range libraries {
-			if _, err := s.jobs.Start(ctx, jobAfterScan, jobs.Request{Target: jobs.Target{Library: library}}); err != nil && ctx.Err() == nil {
-				s.log.Error("looking titles up again could not be started", "library", library, "error", err)
+		for _, lib := range libraries {
+			if _, err := s.jobs.Start(ctx, jobAfterScan, jobs.Request{Target: jobs.Target{Library: lib.PublicID}}); err != nil && ctx.Err() == nil {
+				s.log.Error("looking titles up again could not be started", "library", lib.PublicID, "error", err)
 			}
 		}
 	}
