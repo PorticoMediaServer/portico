@@ -488,8 +488,8 @@ removal here; cutting someone off is the Downloads switch on the account or the 
 | `GET /v1/admin/library-channels/{id}`, `PATCH /v1/admin/library-channels/{id}`, `DELETE /v1/admin/library-channels/{id}` | Owner | The whole builder with its `ETag`, its state and its health (on the air or one sentence why not, how far the schedule reaches, how many programmes, how many titles it could not place); save it or turn it on or off (needs `If-Match`; at most 500 blocks, 500 titles in each pinned list and 2 MB): the rest of the schedule is built again from the end of the programme now on; delete |
 | `POST /v1/admin/library-channels/{id}/regenerate` | Owner | Regenerate schedule: build the rest again from the end of the programme now on; answers a job |
 | `PUT /v1/admin/library-channels/{id}/logo`, `DELETE /v1/admin/library-channels/{id}/logo` | Owner | Upload its logo (up to 10 MB, 16 to 4,096 pixels a side, stored small) or go back to the monogram |
-| `GET /v1/admin/library-channels/presets`, `POST /v1/admin/library-channels/presets` | Owner | Saved block presets (at most 1,000), a page at a time; make one |
-| `PATCH /v1/admin/library-channels/presets/{id}`, `DELETE /v1/admin/library-channels/presets/{id}` | Owner | Change one (needs `If-Match`); delete one. Adding a block from a preset copies it: changing or deleting a preset never changes a channel |
+| `GET /v1/admin/block-presets`, `POST /v1/admin/block-presets` | Owner | Saved block presets (at most 1,000), a page at a time; make one |
+| `PATCH /v1/admin/block-presets/{id}`, `DELETE /v1/admin/block-presets/{id}` | Owner | Change one (needs `If-Match`); delete one. Adding a block from a preset copies it: changing or deleting a preset never changes a channel |
 
 Everyone's series rules are `GET /v1/dvr/rules?scope=everyone`. Live TV and recording
 settings (guide length, rewind stretch, retry time, logos; the recordings folder, paddings,
