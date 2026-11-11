@@ -70,11 +70,11 @@ func (s *Server) catalogueRoutes() {
 		if err != nil {
 			return Home{}, refuse(err)
 		}
-		continuing, err := s.db.ContinueWatching(r.Context(), viewer(r), l.PublicID)
+		continuing, err := s.db.ContinueWatchingIn(r.Context(), viewer(r), l.PublicID)
 		if err != nil {
 			return Home{}, err
 		}
-		recent, err := s.db.RecentlyAdded(r.Context(), viewer(r), l.PublicID)
+		recent, err := s.db.RecentlyAddedIn(r.Context(), viewer(r), l.PublicID)
 		if err != nil {
 			return Home{}, err
 		}
@@ -198,11 +198,11 @@ func (s *Server) catalogueRoutes() {
 		if !withHidden && r.URL.Query().Get("hidden") != "" {
 			return Home{}, ErrField("hidden", `Leave this out, or send "include".`)
 		}
-		continuing, err := s.db.ContinueWatching(r.Context(), viewer(r), "")
+		continuing, err := s.db.ContinueWatching(r.Context(), viewer(r))
 		if err != nil {
 			return Home{}, err
 		}
-		recent, err := s.db.RecentlyAdded(r.Context(), viewer(r), "")
+		recent, err := s.db.RecentlyAdded(r.Context(), viewer(r))
 		if err != nil {
 			return Home{}, err
 		}
