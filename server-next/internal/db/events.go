@@ -63,6 +63,10 @@ func (d *DB) Events(ctx context.Context, v Viewer, after int64, limit int) (even
 			continue // another profile's state or access
 		case c.Topic == TopicAccess, c.Topic == TopicPreferences, c.Topic == TopicHistory:
 			// The profile's own access, settings or History changed: nothing to look up.
+		case c.Topic == TopicNotice:
+			if c.RefID != v.UserID {
+				continue // another account's inbox
+			}
 		case c.Topic == TopicList:
 			// A deleted list was announced to each profile that could read it, by name.
 			if c.Op != OpDeleted {
