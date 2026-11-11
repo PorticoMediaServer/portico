@@ -313,3 +313,75 @@ func TestTheOwnersSwitchIsActedOnAtOnce(t *testing.T) {
 	soon("switched on", true, func() bool { return slices.Equal(files(t, u), []string{"screen-2026.45.sqlite"}) })
 	soon("switched off", false, func() bool { return len(files(t, u)) == 0 })
 }
+
+// saveState writes what a server remembers about its title data, as an older build left it.
+func saveState(t *testing.T, d *db.DB, st map[string]any) {
+	t.Helper()
+	raw, _ := json.Marshal(st)
+	if err := d.SaveSetting(ctx, "title_data_state", string(raw), timeNow()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A new format of the data is published in a folder of its own whose release numbers start
+// again at 1. A server that moves to the new format accepts its first release, though it had
+// accepted a higher number in the old format, and never opens the file it kept in the old one.
+// (The test moves from the format before this server's to this server's.)
+func TestANewFormatStartsItsOwnReleaseNumbers(t *testing.T) {
+	key := titledatatest.NewKey(t)
+	u, host := newUpdater(t, key)
+	if err := os.MkdirAll(u.Dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	// A usable file, so only its format keeps it out.
+	titledatatest.Write(t, filepath.Join(u.Dir, "screen-2026.30.sqlite"), sample)
+	saveState(t, u.DB, map[string]any{"schema": db.TitleDataSchema - 1, "sequence": 40, "version": "2026.30",
+		"file": "screen-2026.30.sqlite"})
+	if err := u.Open(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := files(t, u); len(got) != 0 {
+		t.Fatalf("the file kept in the old format is still there after a restart: %v", got)
+	}
+	host.Serve(titledatatest.Publish(t, key, 1, sample))
+	if err := u.Check(ctx); err != nil {
+		t.Fatalf("release 1 of the new format is refused: %v", err)
+	}
+	if got := files(t, u); !slices.Equal(got, []string{"screen-2026.45.sqlite"}) {
+		t.Fatalf("after release 1 of the new format the folder holds %v", got)
+	}
+	// From here the new format's numbers count: an older one of it is refused.
+	host.Serve(titledatatest.Publish(t, key, 2, sample))
+	if err := u.Check(ctx); err != nil {
+		t.Fatal(err)
+	}
+	host.Serve(titledatatest.Publish(t, key, 1, sample))
+	if err := u.Check(ctx); !errors.Is(err, titledata.ErrRefused) {
+		t.Fatalf("release 1 after release 2 of the same format: %v", err)
+	}
+}
+
+// What a server saved before it recorded the format is the format it read then, 3: an older
+// release of that format is still refused, and its file is still opened.
+func TestAStateSavedBeforeTheFormatWasRecordedIsFormat3(t *testing.T) {
+	if db.TitleDataSchema != 3 {
+		t.Skip("this server reads another format: such a state is now the old format")
+	}
+	key := titledatatest.NewKey(t)
+	u, host := newUpdater(t, key)
+	host.Serve(titledatatest.Publish(t, key, 5, sample))
+	if err := u.Check(ctx); err != nil {
+		t.Fatal(err)
+	}
+	saveState(t, u.DB, map[string]any{"sequence": 5, "version": "2026.45", "file": "screen-2026.45.sqlite"})
+	if err := u.Open(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := files(t, u); !slices.Equal(got, []string{"screen-2026.45.sqlite"}) {
+		t.Fatalf("after a restart the folder holds %v", got)
+	}
+	host.Serve(titledatatest.Publish(t, key, 4, sample))
+	if err := u.Check(ctx); !errors.Is(err, titledata.ErrRefused) {
+		t.Fatalf("release 4 after release 5: %v", err)
+	}
+}
