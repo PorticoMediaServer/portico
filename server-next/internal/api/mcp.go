@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mcp"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 )
@@ -120,18 +121,20 @@ func (s *Server) mcpTools(r *http.Request, c Caller) []mcp.Tool {
 		{Name: "now_playing", Description: "What is playing now on this account; with an administrator key, on the whole server.",
 			InputSchema: mcp.Schema(nil, nil),
 			Run: func(context.Context, json.RawMessage) (any, error) {
-				sessions := s.playback.AccountSessions(c.UserID)
-				if compatSeesEveryone(c) {
-					sessions = s.playback.All()
-				}
+				sessions, err := s.streamsSeenBy(r.Context(), db.Viewer{UserID: c.UserID, ProfileID: c.ProfileID}, compatSeesEveryone(c))
 				out := []map[string]any{}
 				for _, p := range sessions {
-					if p.State != playback.StateEnded {
-						out = append(out, map[string]any{"title": p.Item.Title, "titleId": p.Item.PublicID, "device": p.Device.Name,
-							"state": p.State, "positionMs": p.PositionMs, "durationMs": p.Item.DurationMS})
+					if p.State == playback.StateEnded {
+						continue
 					}
+					stream := map[string]any{"device": p.Device.Name, "state": p.State, "positionMs": p.PositionMs}
+					// A title the key's profile may not see is left out; the stream is still listed.
+					if p.Visible {
+						stream["title"], stream["titleId"], stream["durationMs"] = p.Title, p.Item.PublicID, p.Item.DurationMS
+					}
+					out = append(out, stream)
 				}
-				return map[string]any{"playing": out}, nil
+				return map[string]any{"playing": out}, err
 			}},
 		{Name: "mark_watched", Description: "Mark a title watched or not watched for this key's profile.",
 			InputSchema: mcp.Schema([]string{"id", "watched"}, map[string]string{"id": "The title's id.", "watched": "(boolean) true for watched, false for not watched."}),
