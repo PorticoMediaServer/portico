@@ -50,7 +50,9 @@ type Filter struct {
 }
 
 // ItemPage is one page of GET /v1/items. NextCursor is absent at the end. Total is present
-// when the request asked for it with total=true. A request with at=<position> in place of a
+// when the request asked for it with total=true, and only then is it counted: a count reads
+// in proportion to the list, so an app shows the page first and asks for the total, and for
+// a filter's choices (GET /v1/facets), in their own requests. A page never carries choices. A request with at=<position> in place of a
 // cursor gets the page that starts at that position, counting from 0, in the sort asked for.
 type ItemPage struct {
 	Items      []Item `json:"items"`

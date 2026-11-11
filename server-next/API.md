@@ -22,6 +22,7 @@ Assistant) are a separate short document and are not counted here.
 |---|---|
 | Identifiers | Opaque strings (`itm_…`, `prf_…`). The path parameter is always `{id}`. Clients never parse or build one. |
 | Lists | `cursor` and `limit` in; `items`, `nextCursor` and, where asked for with `total=true`, `total` out. No `nextCursor` means the end. Cursors are opaque and may expire; an expired cursor is `400 cursor_expired` and the client starts again. |
+| Lists and their counts | A page of a list never waits for a count. It carries no filter-choice counts at all, and its `total` only when the request asked with `total=true`. A count reads in proportion to the list where a page does not, so an app shows the page from a request without `total`, and fills the total (the same request with `total=true&limit=1`) and each filter's choices (`GET /v1/facets`) from their own requests when those return. A screen must not hold the list back for either. |
 | Errors | One format everywhere: `{"error": {"code", "message", "retry", "requestId", "fields"?}}` with ordinary HTTP statuses. `code` is an open string; clients act on the status and a short documented list of codes. `retry` is `true` when sending the same request again may work. `Retry-After` is set on `429` and `503`. |
 | Repeating a request | `PUT`, `PATCH` and `DELETE` are safe to repeat by design. A `POST` that creates something takes an `Idempotency-Key` header; a repeat returns what was created, and the same key with a different body is `422 idempotency_key_reused`. A `2xx` always means it happened. |
 | Edits by two people | `ETag` out and `If-Match` in, only on documents two people or devices edit: owner settings, the metadata editor, shared lists, queues. A stale `If-Match` is `412`. Never on watched, favourite, rating or progress: the last tap wins. |
@@ -111,7 +112,7 @@ Assistant) are a separate short document and are not counted here.
 | `POST /v1/items/query` | The same list with a structured filter body, for filters too long for a query string |
 | `GET /v1/items/{id}` | Detail, with your state |
 | `GET /v1/items/{id}/credits`, `GET /v1/items/{id}/related`, `GET /v1/items/{id}/files` | Cast and crew; related titles; file facts |
-| `GET /v1/facets` | Counted filter choices for a list. `facet=letter` is the letter rail: each first letter in title order with its count, so a letter's position is the sum of the counts before it |
+| `GET /v1/facets` | Counted filter choices for a list, asked for when someone opens the filter and never with the page (see "Lists and their counts"). `facet=letter` is the letter rail: each first letter in title order with its count, so a letter's position is the sum of the counts before it |
 | `GET /v1/search`, `GET /v1/search/suggestions` | Search across what you may see |
 | `GET /v1/search/history`, `DELETE /v1/search/history` | Your recent searches |
 | `GET /v1/home`, `GET /v1/home/rows/{id}` | Home, composed by the server; one row paged |
