@@ -854,7 +854,7 @@ function farewell(path: string, method: string, body: unknown) {return api.farew
                 self.assertEqual(self.check(root)[0],1)
 
     def test_cw_rulings_keep_exact_file_qualified_budgets_and_hashes(self):
-        rulings={'6651098315','6654511777','6655467024','6673584916'}
+        rulings={'6651098315','6654511777','6655467024','6673584916','6785659638'}
         ledger=json.loads((ROOT/APPROVALS).read_text())
         approved={key:value for key,value in ledger.items()
                   if value['rulingUrl'].rsplit('-',1)[-1] in rulings}
