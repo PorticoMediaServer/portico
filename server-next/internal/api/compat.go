@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -8,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -207,13 +209,29 @@ func lowerQuery(q url.Values) url.Values {
 // callAs runs a /v1 route in-process as the caller, so it gets exactly the access the caller
 // would over the network, and decodes its JSON answer into out.
 func (s *Server) callAs(r *http.Request, c Caller, method, path string, query url.Values, out any) error {
+	return s.callAsWith(r, c, method, path, query, nil, out)
+}
+
+// callAsWith is callAs with a JSON body.
+func (s *Server) callAsWith(r *http.Request, c Caller, method, path string, query url.Values, body, out any) error {
 	target := path
 	if len(query) > 0 {
 		target += "?" + query.Encode()
 	}
-	req, err := http.NewRequestWithContext(context.WithValue(r.Context(), presetCallerKey, c), method, target, http.NoBody)
+	var reader io.Reader = http.NoBody
+	if body != nil {
+		raw, err := json.Marshal(body)
+		if err != nil {
+			return err
+		}
+		reader = bytes.NewReader(raw)
+	}
+	req, err := http.NewRequestWithContext(context.WithValue(r.Context(), presetCallerKey, c), method, target, reader)
 	if err != nil {
 		return err
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
 	}
 	rec := httptest.NewRecorder()
 	s.mux.ServeHTTP(rec, req)
