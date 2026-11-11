@@ -233,7 +233,8 @@ func addMembers(ctx context.Context, b *batchTx, acc access, library, collection
 			return err
 		}
 	}
-	return nil
+	// The collection's rating follows what it holds now, after any removed in the same change.
+	return b.collectionsRated(collection)
 }
 
 // orderMembers puts the named members first in the given order and the rest after them, as

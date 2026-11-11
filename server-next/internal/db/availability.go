@@ -143,6 +143,8 @@ func removeItem(b *batchTx, libraryID, id, now int64) error {
 			if err := removeItem(b, libraryID, holder, now); err != nil {
 				return err
 			}
+		} else if err := b.collectionsRated(holder); err != nil {
+			return err
 		}
 	}
 	return nil
