@@ -150,11 +150,17 @@ func (h *HLS) failedWith(ctx context.Context, id, code, diagnostic string) {
 	if code == FailureOutOfSpace && h.retryMemoryOutput(id) {
 		return
 	}
-	if !h.failed(ctx, id) {
-		return
-	}
-	h.rememberConversionFailure(id, code, diagnostic)
+	h.fail(ctx, id, code, diagnostic)
 }
+
+// FailureNotStarted is the failure of a stream whose converter could not be started at all
+// (the media sandbox refused it). It is the server's fault, not the film's or the device's.
+const FailureNotStarted = "converter_not_started"
+
+// notStarted marks an error from before the converter ran.
+type notStarted struct{ error }
+
+func (e *notStarted) Unwrap() error { return e.error }
 
 // A clean retry or new published output followed by throttling establishes
 // that software can convert this window. Earlier output is not retry evidence.
@@ -193,10 +199,15 @@ func containsReason(codes []string, code string) bool {
 // stream, for whoever asks about this playback, and in a short list of recent
 // failures for the owner. Neither outlives the process; the log has the rest.
 func (h *HLS) rememberConversionFailure(id, code, diagnostic string) {
-	diagnostic = sanitizeConverterOutput(diagnostic, h.root, h.memoryRoot)
-	failure := ConversionFailure{Code: code, Diagnostic: diagnostic, At: time.Now()}
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	h.rememberLocked(id, code, diagnostic)
+}
+
+// rememberLocked is rememberConversionFailure for a caller that holds h.mu.
+func (h *HLS) rememberLocked(id, code, diagnostic string) ConversionFailure {
+	diagnostic = sanitizeConverterOutput(diagnostic, h.root, h.memoryRoot)
+	failure := ConversionFailure{Code: code, Diagnostic: diagnostic, At: time.Now()}
 	if s := h.streams[id]; s != nil {
 		if s.plan != nil {
 			failure.Strategy, failure.Backend = string(s.plan.Strategy), s.plan.HardwareBackend
@@ -208,6 +219,7 @@ func (h *HLS) rememberConversionFailure(id, code, diagnostic string) {
 	if len(h.failures) > recentFailures {
 		h.failures = append([]ConversionFailure{}, h.failures[len(h.failures)-recentFailures:]...)
 	}
+	return failure
 }
 
 // recentFailures is how many conversion failures the owner can look back over.

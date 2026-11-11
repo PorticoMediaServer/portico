@@ -419,7 +419,14 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 		}
 		cmd, err := mediaexec.CommandContext(processCtx, job)
 		if err != nil {
-			return err, ""
+			// The sandbox would not run the converter at all. Its reason is the diagnostic:
+			// it used to be dropped here, and the stream failed without a word.
+			why := "the media sandbox refused to start the converter: " + err.Error()
+			if !filepath.IsAbs(dir) {
+				// The one cause met so far, named: the sandbox's own words do not say it.
+				why += " (the conversion folder is not a full path, and the sandbox only writes to one that is)"
+			}
+			return &notStarted{err}, why
 		}
 		cmd.WaitDelay = 2 * time.Second
 		if progress != nil {
@@ -560,7 +567,11 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 		return
 	}
 	if e != nil && !throttled() && ctx.Err() == nil {
-		h.failedWith(ctx, id, classifyConverterFailure(diagnostic), diagnostic)
+		code := classifyConverterFailure(diagnostic)
+		if refused := (*notStarted)(nil); errors.As(e, &refused) {
+			code = FailureNotStarted
+		}
+		h.failedWith(ctx, id, code, diagnostic)
 		return
 	}
 	if input.Validate != nil {
@@ -746,6 +757,13 @@ func (h *HLS) recordStages(ctx context.Context, id string, plan *DeliveryPlan, s
 // that was moved, spilled or cancelled fails nothing: its error is its own
 // cancellation, and the stream it belonged to carries on with another window.
 func (h *HLS) failed(ctx context.Context, id string) bool {
+	return h.fail(ctx, id, FailureConverter, "")
+}
+
+// fail is failed with the reason. The reason is kept for the owner's playback details and
+// written to the server log, which is the only history of failed conversions there is: a
+// stream never fails without one line there saying why, with the program and the folder.
+func (h *HLS) fail(ctx context.Context, id, code, diagnostic string) bool {
 	h.mu.Lock()
 	moving := h.moving[id] != nil
 	if w, _ := ctx.Value(producerWindowKey{}).(*hlsWindow); w != nil {
@@ -762,9 +780,16 @@ func (h *HLS) failed(ctx context.Context, id string) bool {
 		return false
 	}
 	s.state, s.output = streamFailed, "failed"
+	failure := h.rememberLocked(id, code, diagnostic)
+	why := failure.Diagnostic
+	if why == "" {
+		why = "the converter gave no reason"
+	}
+	log.Printf("Conversion %s failed (%s): %s. Program: %s. Conversion folder: %s", id, code, why, h.binary, h.root)
 	h.signalLocked(s)
 	if s.failedHook != nil {
 		hook, failed := s.failedHook, s.public()
+		failed.Failure = code
 		supervise.Go("streaming.failed", func() { hook(failed) })
 	}
 	return true
