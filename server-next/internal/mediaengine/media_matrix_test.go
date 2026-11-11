@@ -355,12 +355,27 @@ func newMatrix(t *testing.T, ffmpeg, ffprobe string) *matrix {
 	h.token = session.AccessToken
 
 	m := &matrix{house: h, db: d, rec: rec, ffmpeg: ffmpeg, ffprobe: ffprobe}
-	profiles, err := os.ReadFile(filepath.Join("..", "streaming", "testdata", "client-profiles.json"))
-	if err != nil {
-		t.Fatal(err)
+	// Each device profile is a file of its own, its capability document under "document".
+	files, _ := filepath.Glob(filepath.Join("..", "streaming", "profiles", "*.json"))
+	m.documents = map[string]json.RawMessage{}
+	for _, file := range files {
+		if strings.HasSuffix(file, ".cases.json") {
+			continue
+		}
+		raw, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var profile struct {
+			Document json.RawMessage `json:"document"`
+		}
+		if err := json.Unmarshal(raw, &profile); err != nil {
+			t.Fatalf("%s: %v", file, err)
+		}
+		m.documents[strings.TrimSuffix(filepath.Base(file), ".json")] = profile.Document
 	}
-	if err := json.Unmarshal(profiles, &m.documents); err != nil {
-		t.Fatal(err)
+	if len(m.documents) == 0 {
+		t.Fatal("no device profiles in ../streaming/profiles")
 	}
 	out, err := exec.Command(ffmpeg, "-hide_banner", "-encoders").Output()
 	if err != nil {
@@ -431,6 +446,9 @@ func (m *matrix) start(t *testing.T, profile string, body api.PlaybackStart) (*a
 	m.rec.device, m.rec.started = m.documents[profile], nil
 	if profile == "baseline" {
 		m.rec.device = nil
+	} else if m.rec.device == nil {
+		m.rec.mu.Unlock()
+		t.Fatalf("no device profile %q in ../streaming/profiles", profile)
 	}
 	m.rec.mu.Unlock()
 	key := fmt.Sprintf("%s-%d", profile, time.Now().UnixNano())
