@@ -62,15 +62,6 @@ test('unknown or foreign source/session/options facts produce no parent panel gr
  const f=fixture();f.set({...f.live,offers:{...f.live.offers!,subtitlePlan:null}});assert.deepEqual(f.model()!.subtitles,[],'absence never becomes a fake Off row');
 });
 
-test('same-title replacement and refreshed original metadata invalidate old row commands before dispatch',async()=>{
- for(const mutate of [
-  (f:ReturnType<typeof fixture>)=>({...f.live,fence:{...fence,generation:2}}),
-  (f:ReturnType<typeof fixture>)=>({...f.live,session:{...f.live.session!,revision:'2'}}),
-  (f:ReturnType<typeof fixture>)=>({...f.live,options:{...f.live.options!}}),
-  (f:ReturnType<typeof fixture>)=>({...f.live,disposed:true}),
-  (f:ReturnType<typeof fixture>)=>({...f.live,authority:{...f.live.authority,viewerFence:'replaced-home-viewer'}}),
- ]){const f=fixture(),model=f.model()!;f.set(mutate(f));assert.equal(model.isCurrent(),false);await assert.rejects(model.selectAudio('a3'),{name:'AbortError'});assert.deepEqual(f.calls,[]);}
-});
 
 test('an unknown selected audio stays unselected while Automatic uses the actual bound offer rung',()=>{
  const f=fixture();f.set({...f.live,session:{...f.live.session!,presentation:{...f.live.session!.presentation,audioTrackId:undefined,quality:{mode:'automatic'}}}});

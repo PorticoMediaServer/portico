@@ -5,7 +5,7 @@ import {serviceProblem,serviceText} from './presentation/service-text.ts';
 import {SOCIAL_PROTOCOL,parseHandoff,parseReceiver,parseReceiverGrant,parseReceiverList,type Handoff,type Receiver,type ReceiverGrant} from './social-playback.ts';
 import type {EventsClient} from './playback-v1/events.ts';
 import {SessionsClient,type SessionChange} from './playback-v1/sessions.ts';
-import {PlaybackApiError,type V1Request,type V1Response} from './playback-v1/http.ts';
+import {type V1Request,type V1Response} from './playback-v1/http.ts';
 import type {Session} from './playback-v1/types.ts';
 import {serverNow} from './server-clock.ts';
 
@@ -106,13 +106,7 @@ export class HandoffController{
    this.publish({controlling:true});
    try{
     if(!change){await sessions.stop(id);this.publish({receiverPlaybackId:undefined,remoteSession:undefined,phase:'idle'});return true;}
-    let current=await sessions.get(id),next:Session;
-    try{next=await sessions.patch(id,current.revision,change);}catch(e){
-     if(!(e instanceof PlaybackApiError)||e.status!==412||!e.current)throw e;
-     const fresh=e.current as Session;
-     if(change.seek||fresh.state!==current.state||fresh.presentation.generation!==current.presentation.generation)throw e;
-     next=await sessions.patch(id,fresh.revision,change);
-    }
+    const next:Session=await sessions.patch(id,change);
     if(this.state.receiverPlaybackId===id)this.publish({remoteSession:next});return true;
    }catch(e){this.publish({message:serviceProblem(e,'devices','playOn.controlUnavailable','action')});return false;}
    finally{this.publish({controlling:false});}

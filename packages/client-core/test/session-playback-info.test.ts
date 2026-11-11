@@ -29,16 +29,6 @@ test('SessionsClient reads exact sparse source/delivery comparison independently
  assert.ok(!JSON.stringify(session.playbackInfo).includes('secret'));
 });
 
-test('missing, ended, non-VOD and malformed comparisons never poison valid session authority',async()=>{
- for(const playbackInfo of [undefined,null,[],{}, {...info(),route:'original'}, {...info(),losses:Array(9).fill({})}, {...info(),source:{video:{codec:'hevc',interlaced:null}}}, {...info(),delivered:{audio:{codec:'flac',sampleRate:-1}}}]) {
-  const session=await wire(resource(playbackInfo)).client.get('session');assert.equal(session.id,'session');assert.equal(session.revision,'1');assert.equal(session.playbackInfo,undefined);
- }
- assert.equal((await wire({...resource(info()),state:'ended'}).client.get('session')).playbackInfo,undefined);
- assert.equal((await wire({...resource(info()),kind:'audio'}).client.get('session')).playbackInfo,undefined);
- const noReport=await wire({...resource(),presentation:{...resource().presentation,generation:2}}).client.get('session');
- assert.equal(noReport.playbackInfo,undefined);
- assert.throws(()=>parsePlaybackInfo({...info(),basis:'capability_guess'}));
-});
 
 test('explicit negative RPU/base observations remain negative and missing ones remain unknown',()=>{
  const raw=info();

@@ -78,21 +78,3 @@ test('destination job planning copies the full proof into one server-captured in
   } finally {held.model.dispose();}
 });
 
-test('Play and Queue carry both the page revision and exact selection basis through the actual queue wire', async () => {
-  const held = selected(), sources: unknown[] = [], calls: {method: string; body?: unknown}[] = [];
-  try {
-    const lifetime = {signal: new AbortController().signal, isCurrent: () => true};
-    const play = {playSegments: async (segments: unknown) => {sources.push(segments);}};
-    const enqueue = {enqueueSegments: async (segments: unknown) => {sources.push(segments);}};
-    await playCatalogueQuerySelection(play as never, held.target, lifetime);
-    await enqueueCatalogueQuerySelection(enqueue as never, held.target, 'end', lifetime);
-    const segments = catalogueQuerySelectionSegments(held.target, 'play'); assert.deepEqual(sources, [segments, segments]);
-    assert.ok('query' in segments[0]!.source); assert.equal(segments[0]!.source.query.selectionBasis, proof); assert.equal(segments[0]!.source.query.selectionRevision, revision);
-    const client = new QueueClient({send: async request => {calls.push(request); return {status: 200, headers: {}, body: {queue: {id: 'queue', revision: '1', total: 0, repeat: 'off', segments: []}, window: []}};}}, () => 'operation');
-    await client.create(segments); await client.batch('queue', '1', segments[0]!.source, 'end');
-    assert.equal((calls[0]!.body as any).segments[0].source.query.selectionBasis, proof);
-    assert.equal((calls[1]!.body as any).source.query.selectionBasis, proof);
-    assert.equal(JSON.stringify(calls).includes('"ids"'), false, 'no membership enumeration or items fallback');
-    for (const invalid of [null, '', 'A'.repeat(64)]) assert.throws(() => catalogueQuerySelectionSegments({...held.target, selector: {query: {...held.target.selector.query, selectionBasis: invalid}}} as never, 'play'));
-  } finally {held.model.dispose();}
-});

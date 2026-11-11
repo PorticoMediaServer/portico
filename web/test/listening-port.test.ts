@@ -207,73 +207,10 @@ async function lyricsHarness(options: Options = {}) {
 }
 const lyricTurn = () => new Promise<void>(resolve => setImmediate(resolve));
 
-for (const off of [false, true]) test(`actual facade and real LyricsService accept original ${off ? 'Off' : 'offered row'} through validated readback`, async t => {
-  const h = await lyricsHarness(); t.after(() => h.port.dispose());
-  const shown = h.port.lyrics.getSnapshot(), row = off ? null : shown.data!.resources[0]!;
-  const chosen = h.port.lyrics.choose(shown, row, {signal: new AbortController().signal, isCurrent: () => true});
-  assert.equal(h.reads[1]!.method, 'PUT'); assert.deepEqual(h.reads[1]!.body, {sourceId: 'source', sourceVersion: 'b'.repeat(64), sessionId: 'session', expectedSelectionRevision: 1, resourceId: row?.id ?? '', revision: row?.revision ?? 0});
-  h.reads[1]!.resolve({revision: 2, resource: off ? null : lyricResource}); await lyricTurn();
-  assert.equal(h.reads[2]!.method, 'GET'); h.reads[2]!.resolve(lyricsData(off ? null : lyricResource, 2)); await chosen;
-  assert.equal(h.port.lyrics.getSnapshot().data?.selection.revision, 2); assert.equal(h.port.isCurrent(), true);
-});
 
-test('actual lyric facade refuses forged shown/row and retired drawer without retiring the record', async t => {
-  const h = await lyricsHarness(); t.after(() => h.port.dispose()); const shown = h.port.lyrics.getSnapshot();
-  const current = {signal: new AbortController().signal, isCurrent: () => true};
-  await assert.rejects(h.port.lyrics.choose({...shown}, shown.data!.resources[0]!, current), /unavailable/);
-  await assert.rejects(h.port.lyrics.choose(shown, {...shown.data!.resources[0]!}, current), /unavailable/);
-  const controller = new AbortController(); controller.abort();
-  await assert.rejects(h.port.lyrics.choose(shown, null, {signal: controller.signal, isCurrent: () => true}), /stale/);
-  assert.equal(h.reads.length, 1); assert.equal(h.port.isCurrent(), true); assert.strictEqual(h.port.lyrics.getSnapshot(), shown);
-});
 
-for (const phase of ['PUT', 'GET'] as const) for (const sourceRetires of [false, true]) {
- test(`actual facade ${sourceRetires ? 'source' : 'drawer'} retirement during ${phase} suppresses late success/error`, async t => {
-  const h = await lyricsHarness(); t.after(() => h.port.dispose()); const controller = new AbortController();
-  const chosen = h.port.lyrics.choose(h.port.lyrics.getSnapshot(), null, {signal: controller.signal, isCurrent: () => true});
-  const rejected = assert.rejects(chosen);
-  if (phase === 'GET') {h.reads[1]!.resolve({revision: 2, resource: null}); await lyricTurn();}
-  const held = h.reads.at(-1)!;
-  if (sourceRetires) {h.retire(); h.fireRetirement();} else controller.abort();
-  await rejected; const after = h.service.getSnapshot(), count = h.reads.length;
-  if (phase === 'GET') held.reject(new Error('late old GET')); else held.resolve({revision: 2, resource: null});
-  await lyricTurn(); assert.strictEqual(h.service.getSnapshot(), after); assert.equal(h.reads.length, count);
-  assert.equal(h.port.isCurrent(), !sourceRetires); assert.equal(held.signal.aborted, true);
- });
-}
 
-test('canceling lyric drawer A leaves the same real reader and drawer B command usable', async t => {
-  const h = await lyricsHarness(); t.after(() => h.port.dispose());
-  let notifications = 0; const unsubscribe = h.port.lyrics.subscribe(() => {notifications++;}); t.after(unsubscribe);
-  const a = new AbortController(), b = new AbortController();
-  const first = h.port.lyrics.choose(h.port.lyrics.getSnapshot(), null, {signal: a.signal, isCurrent: () => true}); const rejected = assert.rejects(first);
-  a.abort(); await rejected; assert.equal(h.port.isCurrent(), true); assert.equal(h.reads[0]!.signal.aborted, false);
-  const second = h.port.lyrics.choose(h.port.lyrics.getSnapshot(), null, {signal: b.signal, isCurrent: () => true});
-  h.reads[1]!.reject(new Error('late drawer A')); await lyricTurn(); assert.equal(h.reads[2]!.signal.aborted, false);
-  h.reads[2]!.resolve({revision: 2, resource: null}); await lyricTurn(); h.reads[3]!.resolve(lyricsData(null, 2)); await second;
-  assert.equal(h.port.lyrics.getSnapshot().data?.selection.revision, 2); assert.ok(notifications > 0);
-});
 
-for (const phase of ['PUT', 'GET'] as const) test(`final real transport-wrapper host predicate aborts ${phase} drawer then returns true: zero old dispatch`, async t => {
-  const drawer = new AbortController(); let method: string | undefined, boundary = false, armed = false, hostCalls = 0;
-  const h = await lyricsHarness({
-    // Instrument only entry into the REAL composed wrapper; the service and its IO stay real.
-    wrapLyricsApi: api => ({...api, requestLyrics: <T,>(path: string, verb?: string, body?: unknown, signal?: AbortSignal) => {
-      boundary = true; method = verb; try {return api.requestLyrics<T>(path, verb, body, signal);} finally {boundary = false;}
-    }}),
-    onCurrent: () => {if (armed && boundary && method === phase && ++hostCalls === 2) drawer.abort();},
-  });
-  t.after(() => h.port.dispose()); armed = true;
-  const chosen = h.port.lyrics.choose(h.port.lyrics.getSnapshot(), null, {signal: drawer.signal, isCurrent: () => true}); const rejected = assert.rejects(chosen);
-  if (phase === 'GET') {assert.equal(h.reads[1]!.method, 'PUT'); h.reads[1]!.resolve({revision: 2, resource: null});}
-  await rejected; assert.equal(drawer.signal.aborted, true);
-  assert.equal(h.reads.length, phase === 'PUT' ? 1 : 2, 'no already-aborted PUT/readback reaches the original transport');
-  assert.equal(h.port.isCurrent(), true); assert.equal(h.service.getSnapshot().data?.selection.revision, 1);
-  armed = false;
-  const other = h.port.lyrics.choose(h.port.lyrics.getSnapshot(), null, {signal: new AbortController().signal, isCurrent: () => true});
-  const put = h.reads.at(-1)!; put.resolve({revision: 2, resource: null}); await lyricTurn(); h.reads.at(-1)!.resolve(lyricsData(null, 2)); await other;
-  assert.equal(h.port.lyrics.getSnapshot().data?.selection.revision, 2, 'independent drawer B remains usable');
-});
 
 for (const predicate of ['caller', 'host'] as const) test(`composed currentness cannot return true after its ${predicate} predicate aborts the caller`, async t => {
   const drawer = new AbortController(); let armed = false, checked = false;

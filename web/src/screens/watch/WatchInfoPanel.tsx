@@ -15,7 +15,7 @@ type Props = Readonly<{
 
 /** The stable facts a panel belongs to. Observation ticks refresh the objects
  * but not these scalars, so they keep one lease and one read. */
-const sessionFacts = (session: WebPlaybackRuntimeSnapshot['session']) => session ? `${session.id}|${session.revision}|${session.presentation.generation}` : '';
+const sessionFacts = (session: WebPlaybackRuntimeSnapshot['session']) => session ? `${session.id}|${session.presentation.generation}` : '';
 type InfoTuple = Readonly<{runtime: WebShellPlaybackRuntime; fence: string; session: string; title: string; deviceName?: string; i18n: I18n}>;
 /** One opening. `live` is the only mutable field: the accepted close and the
  * cleanup consume it in place before clearing, so nothing speaks afterwards. */

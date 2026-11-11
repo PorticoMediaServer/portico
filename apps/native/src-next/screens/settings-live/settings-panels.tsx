@@ -6,7 +6,6 @@ import {IntroCreditsReview} from './owner-libraries/IntroCreditsReview';
 import React, {useEffect, useLayoutEffect, useMemo, useState, useSyncExternalStore} from 'react';
 import {NativeModules, Text, View} from 'react-native';
 import {repeat} from '../../../../../packages/client-core/src/timer';
-import {isStaleAnswer} from '../../../../../packages/client-core/src/freshness-actions';
 import {idempotencyKey} from '../../../../../packages/client-core/src/playback-v1/http';
 import {localV1Http} from '../../../../../packages/client-core/src/playback-v1/local-http';
 import {SessionsClient} from '../../../../../packages/client-core/src/playback-v1/sessions';
@@ -133,12 +132,7 @@ function RemoteControlsPanel({context, lifetime, t}: NativeSettingsPanelDeps) {
   const send = (target: RemotePlaybackControls, what: TransportCommand | 'stop') => {
     lifetime.assert();
     const work = what === 'stop' ? sessions.stop(target.sessionId) : (async () => {
-      const change = (from: Readonly<{revision: string; positionMs: number}>) => sessions.patch(target.sessionId, from.revision, what === 'pause' || what === 'resume' ? {state: what === 'pause' ? 'paused' : 'playing'} : {seek: {positionMs: seekTarget(what, from.positionMs) ?? 0, id: idempotencyKey(() => nativeRequestId())}});
-      try {await change(target);} catch (error) {
-        const current = (error as {current?: Readonly<{revision?: unknown; positionMs?: unknown}>} | null)?.current;
-        if (!isStaleAnswer(error) || typeof current?.revision !== 'string') throw error;
-        await change({revision: current.revision, positionMs: typeof current.positionMs === 'number' ? current.positionMs : target.positionMs});
-      }
+      await sessions.patch(target.sessionId, what === 'pause' || what === 'resume' ? {state: what === 'pause' ? 'paused' : 'playing'} : {seek: {positionMs: seekTarget(what, target.positionMs) ?? 0, id: idempotencyKey(() => nativeRequestId())}});
     })();
     void work.then(() => controls.remote().then(value => setItems(value.items), () => {}), () => {});
   };

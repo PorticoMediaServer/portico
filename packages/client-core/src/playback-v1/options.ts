@@ -1,19 +1,19 @@
-import {encodedRoutePath, routePath} from "../../../contracts/src/route-paths.ts";
 /**
- * Playback options (spec §4.1) and device capabilities (§3).
+ * Playback options and device capabilities.
  *
  * `options(itemId, preview?)` reads what an item offers and what the server would choose for this
  * device (`plan`); `preview` asks "what if I chose this quality/track/version", so the UI can label
  * choices ("Plays as original", "Converts audio") before starting. Capabilities are published with
- * `PUT /v1/me/devices/current/capabilities` only when they change.
+ * `PUT /v1/devices/current/capabilities` only when they change.
  */
 import type {CapabilityDocument, StoredCapabilities} from '../client-profile.ts';
 import {capabilityDocumentProblem} from '../client-profile.ts';
-import {PlaybackApiError, call, enc, type V1Http} from './http.ts';
+import {PlaybackApiError, call, type V1Http} from './http.ts';
+import {playbackPath} from './routes.ts';
 import {ContractError, parseDiscTitleRef, parseOptions, type DiscTitleRef, type AudioStream, type MediaVersion, type PlaybackOptions, type PlaybackPlan, type SubtitleStream} from './types.ts';
 import type {QualityRequest} from './quality.ts';
 
-export type OptionsPreview = Readonly<{versionId?: string; discTitle?: DiscTitleRef; partId?: string; quality?: QualityRequest; audioId?: string; subtitleId?: string | null; throughputKbps?: number}>;
+export type OptionsPreview = Readonly<{versionId?: string; discTitle?: DiscTitleRef; quality?: QualityRequest; audioId?: string; subtitleId?: string | null; throughputKbps?: number}>;
 
 function query(p: OptionsPreview): string {
   const q = new URLSearchParams();
@@ -21,10 +21,9 @@ function query(p: OptionsPreview): string {
   if (p.versionId) q.set('versionId', p.versionId);
   if (p.discTitle !== undefined) {
     const title = parseDiscTitleRef(p.discTitle);
-    if (!title || !p.versionId || p.partId !== undefined) throw new ContractError('disc title preview');
+    if (!title || !p.versionId) throw new ContractError('disc title preview');
     q.set('discTitleId', title.id); q.set('discTitleRevision', title.revision);
   }
-  if (p.partId) q.set('partId', p.partId);
   if (p.audioId) q.set('audioId', p.audioId);
   if (p.subtitleId !== undefined) q.set('subtitleId', p.subtitleId ?? 'none');
   if (p.quality) {
@@ -46,7 +45,7 @@ export class PlaybackOptionsClient {
 
   async options(itemId: string, preview: OptionsPreview = {}, signal?: AbortSignal): Promise<PlaybackOptions> {
     const title = parseDiscTitleRef(preview.discTitle), versionId = preview.versionId;
-    const r = await call(this.http, {method: 'GET', path: encodedRoutePath("get_playback_options", {"itemId": enc(itemId)}) + (query({...preview, discTitle: title})), signal});
+    const r = await call(this.http, {method: 'GET', path: playbackPath('GET /v1/items/{id}/playback-options', {id: itemId}) + query({...preview, discTitle: title}), signal});
     const options = parseOptions(r.body);
     if (title) {
       const versions = options.versions.filter(version => version.id === versionId);
@@ -69,10 +68,11 @@ export type PlanSummary = Readonly<{
 }>;
 
 export function summarizePlan(plan: PlaybackPlan, version?: MediaVersion): PlanSummary {
-  const kinds = (id: string) => (version?.video.some(v => v.id === id) ? 'video' : version?.audio.some(a => a.id === id) ? 'audio' : version?.subtitles.some(s => s.id === id) ? 'subtitles' : undefined);
+  // The plan's streams are named by the kind of track they are about: video, audio, subtitles.
+  const kinds = (id: string) => (id === 'video' || id === 'audio' || id === 'subtitles' ? id : version?.video.some(v => v.id === id) ? 'video' : version?.audio.some(a => a.id === id) ? 'audio' : version?.subtitles.some(s => s.id === id) ? 'subtitles' : undefined);
   let convertsVideo = false, convertsAudio = false, burnsSubtitles = false;
   for (const s of plan.streams) {
-    const k = kinds(s.id) ?? (s.id.startsWith('v') ? 'video' : s.id.startsWith('a') ? 'audio' : s.id.startsWith('s') ? 'subtitles' : undefined);
+    const k = kinds(s.id);
     if (s.action === 'burn') { burnsSubtitles = true; convertsVideo = true; }
     else if (s.action === 'transcode') { if (k === 'video') convertsVideo = true; else if (k === 'audio') convertsAudio = true; }
   }
@@ -97,8 +97,8 @@ export function markerAt(o: PlaybackOptions, positionMs: number) {
 
 /**
  * Publishes this device's capability document (`client-profile.ts`) when it differs from the last
- * one the server accepted: `PUT /v1/me/devices/current/capabilities`, answered 204 with the new
- * revision in `ETag`. The document belongs to the device, not the sign-in, so one publish serves
+ * one the server accepted: `PUT /v1/devices/current/capabilities`, answered 204. The document
+ * belongs to the device, not the sign-in, so one publish serves
  * later requests in that server/device scope. A document the server would refuse is never sent. On a
  * failure the server may still hold an older, broader document: a start gate must retry once
  * and refuse to start unless the result is `accepted` or `current`. Superseded requests also
@@ -144,7 +144,7 @@ export class CapabilityPublisher {
         else if (current()) {
           // A failed PUT is ambiguous: it may have replaced the previous document.
           this.last = undefined;
-          await call(this.http, {method: 'PUT', path: routePath("put_device_capabilities"), body: next.document, signal: next.signal});
+          await call(this.http, {method: 'PUT', path: playbackPath('PUT /v1/devices/{id}/capabilities', {id: 'current'}), body: next.document, signal: next.signal});
           if (current()) { this.last = next.key; result = this.desired ? 'failed' : 'accepted'; }
         }
       } catch { /* Failure remains explicit; a start gate cannot treat it as current. */ }
@@ -161,10 +161,11 @@ export class CapabilityPublisher {
   /** What the server holds for this device, or undefined when it has published nothing. */
   async read(signal?: AbortSignal): Promise<StoredCapabilities | undefined> {
     try {
-      const r = await call(this.http, {method: 'GET', path: routePath("get_device_capabilities"), signal});
-      const b = r.body as {revision?: unknown; capabilities?: unknown} | undefined;
-      if (!b || typeof b.revision !== 'number' || !b.capabilities || typeof b.capabilities !== 'object') return undefined;
-      return Object.freeze({revision: b.revision, capabilities: b.capabilities as CapabilityDocument});
+      // The server keeps the document exactly as this device sent it; an empty one is none.
+      const r = await call(this.http, {method: 'GET', path: playbackPath('GET /v1/devices/{id}/capabilities', {id: 'current'}), signal});
+      const b = r.body;
+      if (!b || typeof b !== 'object' || Array.isArray(b) || Object.keys(b).length === 0) return undefined;
+      return Object.freeze({revision: 0, capabilities: b as CapabilityDocument});
     } catch (e) {
       if (e instanceof PlaybackApiError && e.status === 404) return undefined;
       throw e;

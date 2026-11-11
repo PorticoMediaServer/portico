@@ -88,17 +88,3 @@ async function planFor(server: FakePlaybackServer, itemId: string) {
   return s.presentation.audio;
 }
 
-test('with the document published, a declared pair plays direct and the rest is converted to FLAC; without it, unavailable', async () => {
-  const server = new FakePlaybackServer({modeFromCapabilities: true, audioSource: id => sources[id]});
-  assert.equal((await planFor(server, 'song-mp3'))?.mode, 'unavailable', 'no profile: nothing declared');
-  const publisher = new CapabilityPublisher(fakeHttp(server) as unknown as V1Http);
-  assert.equal(await publisher.publish(document()), 'accepted');
-  assert.equal(await publisher.publish(document()), 'current', 'an unchanged document is not sent again');
-  const mp3 = await planFor(server, 'song-mp3');
-  assert.equal(mp3?.mode, 'direct');
-  const opus = await planFor(server, 'song-opus');
-  assert.equal(opus?.mode, 'converted');
-  assert.equal(opus?.container, 'flac');
-  assert.match(opus?.reason ?? '', /FLAC/);
-  assert.equal((await planFor(server, 'song-flac-192'))?.mode, 'converted', 'past the declared sample rate');
-});

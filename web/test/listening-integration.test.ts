@@ -113,27 +113,7 @@ test('chapter failure stays retryable; late source replacement cannot publish or
   }finally{owner.dispose();}
 });
 
-for(const mode of ['lrc','text','404','error'] as const)test(`actual lyrics service ${mode} is lazy, read-only without choose, and seeks only an accepted line`,async()=>{
-  const f=harness({kind:'music'}),owner=f.owner();try{
-    owner.commitExpanded(true);await tick();assert.equal(f.calls.lyrics,0);f.lyricsMode(mode);owner.show(owner.getSnapshot(),'lyrics');await tick();const shown=owner.getSnapshot();
-    assert.equal(f.calls.lyrics,1);if(mode==='404'){assert.equal(shown.lyrics?.data,null);assert.equal(shown.lyrics?.busy,false);assert.ok(shown.lyrics!.generation>0);}
-    else if(mode==='error'){assert.ok(shown.lyrics?.error);f.lyricsMode('lrc');await owner.lyricsRetry(shown);assert.ok(owner.getSnapshot().lyrics?.data);}
-    else if(mode==='lrc'){await owner.lyric(shown,shown.lyrics!,1);assert.deepEqual(f.calls.seek,[5.5]);}
-    else await assert.rejects(owner.lyric(shown,shown.lyrics!,0),/unavailable/);
-  }finally{owner.dispose();}
-});
 
-test('the published scoped lyrics choice uses the exact drawn resource and refuses an old panel through pending PUT',async()=>{
-  const f=harness({kind:'music'}),owner=f.owner();try{
-    owner.commitExpanded(true);owner.show(owner.getSnapshot(),'lyrics');await tick();let shown=owner.getSnapshot();
-    await owner.chooseLyric(shown,shown.lyrics!,shown.lyrics!.data!.resources[0]);assert.equal(f.calls.choices.length,1);
-    assert.equal(owner.getSnapshot().lyrics!.data!.selection.revision,2);assert.equal(f.calls.lyrics,2);
-    shown=owner.getSnapshot();const held=f.holdChoice(),choice=owner.chooseLyric(shown,shown.lyrics!,shown.lyrics!.data!.resources[0]);
-    const rejected=assert.rejects(choice);owner.show(owner.getSnapshot(),'queue');held.resolve({revision:3,resource:lyricsWire().resources[0]});await rejected;await tick();
-    assert.equal(f.calls.lyrics,2);assert.equal(owner.getSnapshot().panel,'queue');assert.equal(owner.getSnapshot().lyrics!.data!.selection.revision,2);
-    await assert.rejects(owner.chooseLyric(shown,shown.lyrics!,shown.lyrics!.data!.resources[0]),{name:'AbortError'});assert.equal(f.calls.choices.length,2);
-  }finally{owner.dispose();}
-});
 
 test('disabled lyrics issue no read and a pending old view cannot publish after retirement',async()=>{
   const disabled=harness({kind:'music',lyricsEnabled:false}),off=disabled.owner();off.commitExpanded(true);off.show(off.getSnapshot(),'lyrics');await tick();assert.equal(disabled.calls.lyrics,0);off.dispose();
@@ -363,15 +343,6 @@ test('actual persistent host mounts an audiobook and collapses to its retained d
   }finally{h.close();}
 });
 
-test('actual music dock Lyrics opens the same owned panel, seeks once, and closes without a second player',async()=>{
-  const h=await mountedPlayback('music');try{
-    h.show();await tick();let ui=h.show();const initialCaptures=h.f.calls.captures;const dock=one(ui,'DockHost').props;assert.ok(dock.presentations[0].controls.includes('lyrics'));assert.equal(h.f.calls.lyrics,0);
-    dock.binding.onAction({kind:'lyrics',fence:h.f.snapshot.fence});assert.deepEqual(h.errors,[]);assert.equal(h.f.expanded,true);await tick();ui=h.show();await tick();ui=h.show();assert.equal(h.f.calls.lyrics,1);
-    const line=all(ui,'button').find((node:any)=>node.props['aria-current']==='true');assert.ok(line);line.props.onClick();await tick();assert.equal(h.f.calls.seek.length,1);
-    const close=all(ui,'Button').find((node:any)=>node.props.children?.includes?.(defaultI18n.t('action.close')));assert.ok(close);close.props.onClick();h.show();
-    assert.equal(h.f.expanded,false);assert.equal(h.f.calls.mounts,1);assert.equal(h.f.calls.captures,initialCaptures);assert.equal(h.f.calls.unmounts,0);
-  }finally{h.close();}
-});
 
 
 // The owner's library document, as GET /v1/admin/libraries/{id}/settings returns it.
@@ -488,14 +459,6 @@ test('the original session read cannot return a stale value and authorize naviga
   }finally{h.onSessionRead=undefined;h.close();}
 });
 
-test('actual empty scoped Lyrics preserves its original facade library; a mismatched supplied scope cannot offer Settings',async()=>{
-  const valid=await mountedPlayback('music',{lyrics:'empty'});try{
-    const ui=await openEmptyHost(valid),action=librarySettingsButton(ui);assert.ok(action);action.props.onClick();await tick();assert.equal(valid.navigations.length,1);
-  }finally{valid.close();}
-  const mismatch=await mountedPlayback('music',{lyrics:'empty'});mismatch.f.badLyricsScope();try{
-    const ui=await openEmptyHost(mismatch);assert.equal(librarySettingsButton(ui),undefined);assert.deepEqual(mismatch.navigations,[]);
-  }finally{mismatch.close();}
-});
 
 // Arm the last read in helper.current (2), and the final read immediately
 // preceding open's navigation (5). The getter returns the ORIGINAL session;

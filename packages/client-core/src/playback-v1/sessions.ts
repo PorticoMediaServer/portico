@@ -1,31 +1,28 @@
-import {routePath, encodedRoutePath} from "../../../contracts/src/route-paths.ts";
-import {decodeOpen} from '../../../contracts/src/runtime.ts';
-import type {StartPlaybackSessionResponse} from '../../../contracts/src/types.ts';
+import {PlaybackApiError, call, idempotencyKey, type V1Http} from './http.ts';
+import {playbackPath} from './routes.ts';
 /**
- * Playback sessions (spec §5) and the controller that plays one on a `MediaPlayer`.
+ * Playback sessions and the controller that plays one on a `MediaPlayer`.
  *
- * `SessionsClient` is the wire: idempotent start (201, or 202 while preparing: the same request
- * is replayed with the same `Idempotency-Key` after `retryAfterMs`), `PATCH` with `If-Match`
- * (412 carries the current session), `DELETE`, timeline.
+ * `SessionsClient` is the wire. A start sends an `Idempotency-Key`: the server answers 201 with
+ * the session, 200 for a repeat of the same key, or 202 while the stream gets ready. A 202 already
+ * is the session (it has its id); the same request is sent again after `retryAfterMs` until the
+ * stream is ready. A change (`PATCH`) names only what changes. Progress is the latest position.
+ * Stop is safe to repeat. A session lives in the server's memory: after a server restart it is
+ * unknown (404), and the controller starts the title again where it was.
  *
- * `PlaybackSessionController` is what a platform wires: it owns the generation gate, the timeline
- * reporter and the player port, serialises changes, recovers from 412 by adopting the server's
- * session and re-applying only the newest intent, and ends cleanly when the server ends the
- * session (stop elsewhere, transfer, admin terminate). A session another request made (a queue
- * create or advance) is handed to it with `attach`; a lapsed lease is given back to the owner
- * (`onLeaseExpired`) so the title starts again where it was instead of showing an error.
+ * `PlaybackSessionController` is what a platform wires: it owns the presentation gate, the
+ * progress reporter and the player port, serialises changes, and ends cleanly when the server
+ * ends the session (stopped from another device, removed access, an administrator). A session
+ * another request made is handed to it with `attach`; a session the server no longer knows is
+ * given back to the owner (`onLeaseExpired`) so the title starts again where it was instead of
+ * showing an error.
  */
 import {GenerationGate} from './generation.ts';
-import {PlaybackApiError, call, callOnce, enc, header, idempotencyKey, type V1Http} from './http.ts';
-import type {ObservationAck, ObservationSample, ObserverGrant} from './observation.ts';
-
-/** An observation that has not answered in this long is replaced by the next one. */
-const observationDeadlineMs = 1500;
 import type {MediaPlayer, PlayerEvent, PlayerObservation} from './port.ts';
 import type {QualityRequest} from './quality.ts';
 import type {PlayerFailureCode} from '../client-profile.ts';
-import {ObservationReporter, type ObservationReporterOptions} from './observation.ts';
-import {ContractError, id, parseDiscTitleRef, parseSession, parseSessionEnd, parsePresentation, type Presentation, type DiscTitleRef, type Session, type SessionEnd} from './types.ts';
+import {ProgressReporter, type ProgressAnswer, type ProgressReport, type ProgressReporterOptions} from './progress.ts';
+import {ContractError, obj, parseSession, parseSessionEnd, type DiscTitleRef, type Session, type SessionEnd} from './types.ts';
 import {requireSessionChangeCurrent, sessionChangeCurrent, type SessionChangeContext} from './change-context.ts';
 export type {SessionChangeContext} from './change-context.ts';
 
@@ -37,73 +34,62 @@ export type StartTarget =
 
 export type StartOptions = Readonly<{
   versionId?: string;
-  /** Exact measured title; never substituted by a later main-title choice. */
+  /** One title of a disc. The server cannot play discs yet and refuses such a start by name. */
   discTitle?: DiscTitleRef;
-  partIndex?: number;
   startPositionMs?: number;
   startFrom?: 'resume' | 'beginning' | 'live' | 'startOver';
   state?: 'playing' | 'paused';
+  /** A quality the viewer chose for this playback. A start that names none gets the quality saved
+   * in Settings on this device, which the server reads itself. */
   quality?: QualityRequest;
-  audio?: Readonly<{trackId: string; channels?: number}>;
+  audio?: Readonly<{trackId: string}>;
   subtitles?: Readonly<{trackId: string | null; delivery?: 'auto' | 'sidecar' | 'embeddedClient' | 'burn'}>;
+  /** `cellular` when the app knows it is on mobile data; the server tells home from away. */
   network?: 'local' | 'remote' | 'cellular';
-  replacesSessionId?: string;
   /** The client's own estimate of what its connection to this server carries. With Automatic the
-   * start lands on the widest quality that fits; with any other quality a start the connection
-   * plainly cannot carry is refused (`connection_too_slow`, whose `reason` names a quality that fits). */
+   * start lands on the widest quality that fits; with a fixed quality a start the connection
+   * plainly cannot carry is refused (`connection_too_slow`). */
   throughputKbps?: number;
 }>;
 
 export type SessionChange = Readonly<{
-  /** Re-read this device's capability document and plan again, keeping this occurrence's choices. */
+  /** Plan again from this device's capability document, keeping this playback's choices. */
   replan?: boolean;
   state?: 'playing' | 'paused';
   versionId?: string;
-  partIndex?: number;
-  audio?: Readonly<{trackId: string; channels?: number}>;
+  audio?: Readonly<{trackId: string}>;
   subtitles?: Readonly<{trackId: string | null; delivery?: 'auto' | 'sidecar' | 'embeddedClient' | 'burn'}>;
   quality?: QualityRequest;
   seek?: Readonly<{positionMs: number; id: string}>;
-  subtitleOffsetUs?: string;
   subtitleOffsetMs?: number;
   /** Where the player is now: a change that starts a new presentation starts it there. */
   positionMs?: number;
   /** The client's current connection estimate; checked against a quality asked for in the same change. */
   throughputKbps?: number;
   /** The player could not play the current presentation. The server remembers that for this file
-   * on this device and re-plans the same session the next way up (`unsupported_media`: there is none). */
+   * on this device and moves the session to the next way of playing it (`unsupported_media`: there is none). */
   failure?: Readonly<{code: PlayerFailureCode; detail?: string}>;
 }>;
 
 /** Whether a change makes the server plan the presentation again (so the player's position should travel with it). */
-const replans = (c: SessionChange) => c.replan === true || c.versionId !== undefined || c.partIndex !== undefined || c.audio !== undefined || c.quality !== undefined || c.subtitles !== undefined || c.failure !== undefined;
+const replans = (c: SessionChange) => c.replan === true || c.versionId !== undefined || c.audio !== undefined || c.quality !== undefined || c.subtitles !== undefined || c.failure !== undefined;
 
 export type Timers = Readonly<{now?: () => number; setTimer?: (fn: () => void, ms: number) => unknown; clearTimer?: (t: unknown) => void}>;
 
-/** Actual server-directed start preparation, including replies with no session.
- * Players render the catalogue key while the same original start keeps retrying. */
+/** The stream is getting ready: players show the catalogue key while the same start is sent again. */
 export type StartPreparation = Readonly<{messageId: 'player.preparing.slowStart'; retryAfterMs: number}>;
 
-/** An actual declared session-backed 202, never a fabricated playable Session. */
-export type PreparingSessionView = Extract<StartPlaybackSessionResponse, {variant: 'session'}>;
+/** The session a 202 named while its stream got ready. It exists on the server from that answer on. */
+export type PreparingSessionView = Session;
 export type StartContext = Readonly<{
   signal?: AbortSignal;
   isCurrent?: () => boolean;
   onPreparing?: (retryAfterMs: number, preparation: StartPreparation) => void;
-  /** Issue a purpose-specific original-start receipt when the actual view first arrives.
-   * Its captured cleanup must re-prove original identity, registration and noninstallation;
-   * a current queue-selection receipt or a later id lookup is not equivalent. */
+  /** Called once with the session a 202 named. What it returns is run if the start is then
+   * abandoned, so a session nobody will play is stopped rather than left to run out. */
   capturePreparing?: (session: PreparingSessionView) => (() => void | Promise<void>) | undefined;
 }>;
 const startRetired = () => Object.assign(new Error('Playback start retired'), {name: 'AbortError'});
-const startIdentity = (value: unknown): Readonly<{id: string; generation: number}> => {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new ContractError('start response');
-  const sessionId = id(Reflect.get(value, 'id'), 'session id'), presentation = Reflect.get(value, 'presentation');
-  if (!presentation || typeof presentation !== 'object' || Array.isArray(presentation)) throw new ContractError('start presentation');
-  const generation: unknown = Reflect.get(presentation, 'generation');
-  if (typeof generation !== 'number' || !Number.isSafeInteger(generation) || generation < 0) throw new ContractError('generation');
-  return {id: sessionId, generation};
-};
 const freezeWire = <T,>(value: T): T => {
   if (value !== null && typeof value === 'object') {
     for (const child of Object.values(value)) freezeWire(child);
@@ -112,21 +98,13 @@ const freezeWire = <T,>(value: T): T => {
   return value;
 };
 
-/** Decode the official union, then impose the required 202 timing on either branch.
- * A retry-only reply never passes through parseSession or gains a resource identity. */
+/** A 202's wait and the session it names. */
 export function parseStartPreparation(value: unknown): Readonly<{retryAfterMs: number; session?: PreparingSessionView}> {
-  let decoded: StartPlaybackSessionResponse;
-  // O-159 open tier (R-09): an optional member or list entry with a newer server's enum value is left out.
-  try {decoded = decodeOpen('StartPlaybackSessionResponse', value) as StartPlaybackSessionResponse;} catch {throw new ContractError('preparation response');}
-  // R-09b: the server's tag says which shape this is. A tag this app does not know is a start it
-  // cannot follow: the start watch shows "Couldn't start playback" instead of guessing.
-  if ('unknownVariant' in decoded) throw new ContractError('preparation variant');
-  const retryAfterMs: unknown = Reflect.get(decoded, 'retryAfterMs');
-  if (typeof retryAfterMs !== 'number' || !Number.isSafeInteger(retryAfterMs) || retryAfterMs < 1 || retryAfterMs > 10_000)
-    throw new ContractError('preparation retry');
-  // Only a native vod/audio start is ever prepared; a channel session never carries a wait.
-  if (decoded.variant === 'session' && decoded.kind !== 'vod' && decoded.kind !== 'audio') throw new ContractError('preparation kind');
-  return Object.freeze({retryAfterMs, ...(decoded.variant === 'session' ? {session: freezeWire(decoded as PreparingSessionView)} : {})});
+  const wait = obj(value) ? value.retryAfterMs : undefined;
+  const retryAfterMs = typeof wait === 'number' && Number.isFinite(wait) ? Math.min(10_000, Math.max(250, Math.round(wait))) : 1000;
+  let session: Session | undefined;
+  try { session = parseSession(value); } catch { session = undefined; }
+  return Object.freeze({retryAfterMs, ...(session ? {session} : {})});
 }
 
 export class SessionsClient {
@@ -139,70 +117,49 @@ export class SessionsClient {
     this.clearTimer = timers.clearTimer ?? (timer => clearTimeout(timer as ReturnType<typeof setTimeout>));
   }
 
-  /** Start (or replay the same start). A valid server 202 keeps this original
-   * request waiting until success, a real refusal or caller retirement. Server
-   * preparation/authority deadlines remain server-owned and are never renewed. */
+  /** Start, or send the same start again. A 202 waits and sends it again, with the same key and
+   * body, until the stream is ready, the server refuses, or the caller moves on. */
   async start(target: StartTarget, options: StartOptions, key: string, extra: StartContext = {}): Promise<Session> {
     return this.startOriginal(target, options, key, extra, parseSession);
   }
 
-  /** The channel adapter retains the actual declared linear projection beside
-   * its final response identity. Both use this same status/retry/lifetime path;
-   * an existing channel may have no media URL until its ordinary join/read.
-   * A retry-only body can never be returned as a completed start. The adapter's
-   * decoder runs inside the original receipt's failure/cleanup boundary. */
+  /** `start` with the caller's own reading of the answer (a channel's view beside the session). */
   async startResponse<T>(target: StartTarget, options: StartOptions, key: string, extra: StartContext, decode: (body: unknown) => T): Promise<Readonly<{id: string; generation: number; body: T}>> {
-    return this.startOriginal(target, options, key, extra, body => ({...startIdentity(body), body: decode(body)}));
+    return this.startOriginal(target, options, key, extra, body => {
+      const session = parseSession(body);
+      return {id: session.id, generation: session.presentation.generation, body: decode(body)};
+    });
   }
 
   private async startOriginal<T>(target: StartTarget, options: StartOptions, key: string, extra: StartContext, read: (body: unknown) => T): Promise<T> {
-    // Capture the original wire and lifetime once, before callbacks or asynchronous work.
     const http = this.http, signal = extra.signal, isCurrent = extra.isCurrent;
     const onPreparing = extra.onPreparing, capturePreparing = extra.capturePreparing;
     const setTimer = this.setTimer, clearTimer = this.clearTimer;
     if (typeof key !== 'string') throw new ContractError('start key');
-    let body: StartOptions & StartTarget;
+    let body: Record<string, unknown>;
     try {body = JSON.parse(JSON.stringify({...target, ...options}));} catch {throw new ContractError('start request');}
-    const discTitle = parseDiscTitleRef(body.discTitle);
-    if (discTitle && (!body.versionId || body.partIndex !== undefined && body.partIndex !== 0
-      || !('itemId' in body) && !('queue' in body))) throw new ContractError('disc title start');
-    if (discTitle) body = {...body, discTitle};
-    freezeWire(body);
-    const request = Object.freeze({method: 'POST' as const, path: routePath('start_playback_session'),
-      headers: Object.freeze({'Idempotency-Key': key}), body, signal});
+    const request = Object.freeze({method: 'POST' as const, path: playbackPath('POST /v1/playback/sessions'),
+      headers: Object.freeze({'Idempotency-Key': key}), body: Object.freeze(body), signal});
     const current = () => {try {return (isCurrent ? isCurrent() === true : true) && !signal?.aborted;} catch {return false;}};
     const check = () => {if (!current()) throw startRetired();};
-    let prepared: PreparingSessionView | undefined;
+    let prepared: Session | undefined;
     let abandon: (() => void | Promise<void>) | undefined;
     try {
       for (;;) {
         check();
         const r = await call(http, request, [201, 200, 202]);
-        // A late real success must reach the existing caller's unowned-session cleanup.
         if (r.status !== 202) {
           const result = read(r.body);
-          const actual = startIdentity(r.body);
-          if (prepared && (prepared.id !== actual.id || prepared.presentation.generation !== actual.generation))
-            throw new ContractError('preparation session changed');
+          if (prepared && parseSession(r.body).id !== prepared.id) throw new ContractError('preparation session changed');
           return result;
         }
         const preparing = parseStartPreparation(r.body);
-        if (preparing.session) {
-          const offered = preparing.session;
-          if ('queue' in body ? offered.queue?.queueId !== body.queue.queueId || offered.queue?.entryId !== body.queue.entryId
-            : 'itemId' in body ? offered.itemId !== body.itemId : 'channelId' in body ? offered.channelId !== body.channelId : false)
-            throw new ContractError('preparation target');
-          if (prepared && (prepared.id !== offered.id || prepared.presentation.generation !== offered.presentation.generation))
-            throw new ContractError('preparation session changed');
-          if (!prepared) {
-            prepared = offered;
-            abandon = capturePreparing?.(offered);
-            if (abandon !== undefined && typeof abandon !== 'function') throw new ContractError('preparation ownership receipt');
-          }
+        if (preparing.session && !prepared) {
+          prepared = preparing.session;
+          abandon = capturePreparing?.(prepared);
         }
         check();
-        // Retain the existing 250ms pacing floor without accepting an invalid wire wait.
-        const wait = Math.max(250, preparing.retryAfterMs);
+        const wait = preparing.retryAfterMs;
         onPreparing?.(wait, Object.freeze({messageId: 'player.preparing.slowStart', retryAfterMs: wait}));
         check();
         await new Promise<void>((resolve, reject) => {
@@ -224,71 +181,42 @@ export class SessionsClient {
         });
       }
     } catch (error) {
-      // Only the captured host can retire this genuine resource, with its own
-      // original principal and unowned proof. Retry-only responses supply none.
-      // A cleanup receipt owns its bounded settlement; it cannot replace this
-      // original start's outcome or acquire another operation while DELETE is uncertain.
-      if (abandon) {try {void Promise.resolve(abandon()).catch(() => {});} catch { /* Preserve the original start failure. */ }}
+      // A session the server made while its stream got ready is stopped when nobody will play it.
+      if (prepared) {
+        if (abandon) {try {void Promise.resolve(abandon()).catch(() => {});} catch { /* Keep the start's own failure. */ }}
+        else void this.stop(prepared.id).catch(() => {});
+      }
       throw error;
     }
   }
 
-  async prepareAirPlay(session: Session, positionMs: number, signal?: AbortSignal): Promise<Readonly<{sessionId: string; generation: number; choiceRevision: number; presentation: Presentation}>> {
-    signal?.throwIfAborted();
-    const input = {generation: session.presentation.generation, choiceRevision: session.presentation.choiceRevision ?? 1, positionMs: Math.max(0, Math.round(positionMs))};
-    const raw = (await call(this.http, {method: 'POST', path: encodedRoutePath('prepare_airplay_receiver', {id: enc(session.id)}), body: input, signal})).body as Record<string, unknown>;
-    signal?.throwIfAborted();
-    if (raw.sessionId !== session.id || raw.generation !== input.generation || raw.choiceRevision !== input.choiceRevision) throw new ContractError('AirPlay preparation fence');
-    const presentation = parsePresentation(raw.presentation);
-    if (presentation.mode !== 'stream' || presentation.generation !== input.generation || presentation.choiceRevision !== input.choiceRevision || !/^\/v1\/media\/[A-Za-z0-9_-]+\/master\.m3u8$/.test(presentation.url)) throw new ContractError('AirPlay presentation');
-    const selected = session.presentation.subtitle;
-    if (session.presentation.audioTrackId && presentation.audioTrackId !== session.presentation.audioTrackId || (selected?.trackId ?? null) !== (presentation.subtitle?.trackId ?? null) || selected && presentation.subtitle?.delivery !== (selected.delivery === 'sidecar' || selected.kind === 'text' ? 'sidecar' : 'burn') || !selected && presentation.subtitles.length > 0) throw new ContractError('AirPlay choices');
-    return Object.freeze({sessionId: session.id, ...input, presentation});
-  }
-
   async get(id: string, signal?: AbortSignal): Promise<Session> {
-    return parseSession((await call(this.http, {method: 'GET', path: encodedRoutePath("get_playback_session", {"id": enc(id)}), signal})).body);
+    return parseSession((await call(this.http, {method: 'GET', path: playbackPath('GET /v1/playback/sessions/{id}', {id}), signal})).body);
   }
 
-  /** `PATCH` with `If-Match`. A 412 throws `PlaybackApiError` whose `current` is the parsed session. */
-  async patch(id: string, revision: string, change: SessionChange, signal?: AbortSignal): Promise<Session> {
-    try {
-      return parseSession((await call(this.http, {method: 'PATCH', path: encodedRoutePath("change_playback_session", {"id": enc(id)}), headers: {'If-Match': revision, 'Content-Type': 'application/merge-patch+json'}, body: change, signal})).body);
-    } catch (e) {
-      if (e instanceof PlaybackApiError && e.status === 412 && e.current !== undefined) {
-        let current: Session | undefined;
-        try { current = parseSession(e.current); } catch { current = undefined; }
-        throw new PlaybackApiError(412, e.code, 'after_refresh', current, e.retryAfterMs);
-      }
-      throw e;
-    }
+  /** A change to a running session. Only what is sent changes. */
+  async patch(id: string, change: SessionChange, signal?: AbortSignal): Promise<Session> {
+    return parseSession((await call(this.http, {method: 'PATCH', path: playbackPath('PATCH /v1/playback/sessions/{id}', {id}), body: change, signal})).body);
   }
 
-  async stop(id: string, positionMs?: number, signal?: AbortSignal, generation?: number): Promise<void> {
-    const body = {...(positionMs !== undefined ? {positionMs: Math.max(0, Math.round(positionMs))} : {}), ...(generation !== undefined ? {generation} : {})};
-    const request = {method: 'DELETE', path: encodedRoutePath("stop_playback_session", {"id": enc(id)}), ...(signal ? {signal} : {}), ...(Object.keys(body).length ? {body} : {})} as const;
-    // A session the server no longer knows (it restarted, or already ended it) is stopped. So is one whose
-    // stop got no answer: the outbox keeps it, and the final position is sent when the server is back.
+  /** Stop, with the final position. A session the server no longer knows (it restarted, or already
+   * ended it) is stopped. So is one whose stop got no answer: the outbox keeps it, and the final
+   * position is sent when the server is back. */
+  async stop(id: string, positionMs?: number, signal?: AbortSignal): Promise<void> {
+    const request = {method: 'DELETE', path: playbackPath('DELETE /v1/playback/sessions/{id}', {id}), ...(signal ? {signal} : {}),
+      ...(positionMs !== undefined ? {body: {positionMs: Math.max(0, Math.round(positionMs))}} : {})} as const;
     await call(this.http, request, [204, 200]).catch(e => {
       const gone = e instanceof PlaybackApiError && (e.status === 404 || e.status === 410);
       if (!gone && (e as {code?: unknown} | null)?.code !== 'sync_pending') throw e;
     });
   }
 
-  /** Become the player reporting this session (P2-20): the epoch its samples carry. */
-  async claimObserver(id: string, body: Readonly<{generation: number; replaces?: string}>, signal?: AbortSignal): Promise<ObserverGrant> {
-    const v = (await call(this.http, {method: 'POST', path: encodedRoutePath("claim_playback_observer", {"id": enc(id)}), body, ...(signal ? {signal} : {})})).body as Record<string, unknown> | undefined;
-    if (!v || typeof v.epoch !== 'string' || !/^[A-Za-z0-9_-]{22}$/.test(v.epoch)) throw new ContractError('observer grant');
-    return Object.freeze({epoch: v.epoch, everyMs: typeof v.everyMs === 'number' && Number.isSafeInteger(v.everyMs) ? v.everyMs : 1000, ...(typeof v.leaseUntil === 'string' ? {leaseUntil: v.leaseUntil} : {})});
-  }
-
-  /** One observation: a single attempt with a short deadline. A failed one is replaced by the next. */
-  async observe<S = Session>(id: string, sample: ObservationSample, signal?: AbortSignal, parse: (body: unknown) => S = parseSession as (body: unknown) => S): Promise<ObservationAck<S>> {
-    const v = (await callOnce(this.http, {method: 'PUT', path: encodedRoutePath("put_playback_observation", {"id": enc(id)}), body: sample, deadlineMs: observationDeadlineMs, singleAttempt: true, ...(signal ? {signal} : {})})).body as Record<string, unknown> | undefined;
-    if (!v || typeof v.acceptedSeq !== 'number') throw new ContractError('observation ack');
-    let session: S | undefined;
-    if (v.session !== undefined) { try { session = parse(v.session); } catch { session = undefined; } }
-    return Object.freeze({acceptedSeq: v.acceptedSeq, ...(typeof v.leaseUntil === 'string' ? {leaseUntil: v.leaseUntil} : {}), ...(typeof v.viewTag === 'string' ? {viewTag: v.viewTag} : {}), ...(session ? {session} : {})});
+  /** One progress report: a single attempt with a short deadline. A failed one is replaced by the next. */
+  async progress(id: string, report: ProgressReport, signal?: AbortSignal): Promise<ProgressAnswer> {
+    const r = await call(this.http, {method: 'PUT', path: playbackPath('PUT /v1/playback/sessions/{id}/progress', {id}), body: report, deadlineMs: 5000, singleAttempt: true, ...(signal ? {signal} : {})}, [200]);
+    const v = obj(r.body) ? r.body : {};
+    return Object.freeze({...(typeof v.expiresAt === 'string' ? {expiresAt: v.expiresAt} : {}), ...(typeof v.reportEveryMs === 'number' ? {reportEveryMs: v.reportEveryMs} : {}),
+      ...(typeof v.generation === 'number' ? {generation: v.generation} : {})});
   }
 }
 
@@ -299,11 +227,11 @@ export type ControllerSnapshot = Readonly<{
   /** Present only after a genuine 202; no fabricated session is installed. */
   preparation?: StartPreparation;
   session?: Session;
-  /** The last observation of the current generation (position, state). */
+  /** The last reading of the current presentation (position, state). */
   observation?: PlayerObservation;
   error?: PlaybackApiError | Error;
   /** Why the server ended the session (phase "ended"): "terminated" by an administrator with
-   * their message, "transferred", "lease_expired"… Absent when this device stopped it. Show it with
+   * their message, "access_removed"… Absent when this device stopped it. Show it with
    * `sessionEndMessage`. */
   ended?: SessionEnd;
   /** A change is being sent. */
@@ -315,16 +243,14 @@ export type ControllerOptions = Readonly<{
   player: MediaPlayer;
   timers?: Timers;
   key?: () => string;
-  reporter?: Partial<Omit<ObservationReporterOptions, 'claim' | 'send' | 'onEnded' | 'onLeaseRisk' | 'now' | 'setTimer' | 'clearTimer'>>;
+  reporter?: Partial<Pick<ProgressReporterOptions, 'onConnection'>>;
   /** Called when the server ended the session (transfer committed, admin terminate, stop elsewhere). */
   onServerEnded?: (session: Session, end: SessionEnd) => void;
-  /** A pause or play asked elsewhere (RN-09). The host's own playback owner applies it; without
-   * one the player is paused or played directly. */
-  onRemoteControl?: (state: 'playing' | 'paused') => void;
   /**
-   * The lease lapsed while this device could not report (a sleeping laptop, a long outage). The
-   * owner starts the title again at `positionMs` (a queue restarts its entry). Without it the
-   * controller restarts a plain item start by itself; anything else ends.
+   * The server no longer knows the session (it restarted, or the session ran out while this
+   * device could not report: a sleeping laptop, a long outage). The owner starts the title again
+   * at `positionMs` (a queue restarts its entry). Without it the controller restarts a plain item
+   * start by itself; anything else ends.
    */
   onLeaseExpired?: (session: Session, positionMs: number) => void;
   /**
@@ -339,8 +265,8 @@ export type ControllerOptions = Readonly<{
 }>;
 
 /**
- * Whether a seek must go through the server (spec §5.7): only when something is transcoded or
- * burned, since the server must restart production. Direct play and stream copy seek locally.
+ * Whether a seek must go through the server: only when something is converted or burned in, since
+ * the server must start the conversion again there. Direct play and copied streams seek locally.
  */
 export function seekNeedsServer(session: Session): boolean {
   const d = session.presentation.decision;
@@ -357,13 +283,10 @@ export class PlaybackSessionController {
   private readonly timers: Timers;
   private readonly reporterOptions: ControllerOptions['reporter'];
   private readonly onServerEnded?: (session: Session, end: SessionEnd) => void;
-  private readonly onRemoteControl?: (state: 'playing' | 'paused') => void;
   private readonly onLeaseExpired?: (session: Session, positionMs: number) => void;
   private readonly serverSeek: (session: Session) => boolean;
   private readonly wantsPlaying?: () => boolean;
-  private reporter?: ObservationReporter;
-  /** The newest command revision (RN-09) this controller has applied, per session. */
-  private appliedControl?: Readonly<{sessionId: string; revision: number}>;
+  private reporter?: ProgressReporter;
   private state: ControllerSnapshot = Object.freeze({phase: 'idle', changing: false});
   private listeners = new Set<() => void>();
   private offPlayer: () => void;
@@ -376,6 +299,8 @@ export class PlaybackSessionController {
   /** When playback was last restarted because the server no longer knew the session. */
   private lostRestartAt = -Infinity;
   private lastStart?: {target: StartTarget; options: StartOptions};
+  /** Where the player last was while it played, paused or buffered: a failed element reports 0. */
+  private heardMs?: number;
   private carriedFor?: number;
 
   constructor(o: ControllerOptions) {
@@ -385,7 +310,6 @@ export class PlaybackSessionController {
     this.timers = o.timers ?? {};
     this.reporterOptions = o.reporter;
     this.onServerEnded = o.onServerEnded;
-    this.onRemoteControl = o.onRemoteControl;
     this.onLeaseExpired = o.onLeaseExpired;
     this.serverSeek = o.serverSeek ?? seekNeedsServer;
     this.wantsPlaying = o.wantsPlaying;
@@ -398,8 +322,8 @@ export class PlaybackSessionController {
     ...(p.phase && p.phase !== 'preparing' ? {preparation: undefined} : {})}); for (const l of [...this.listeners]) l(); }
 
   /**
-   * Play something. A session already playing on this device is replaced atomically
-   * (`replacesSessionId`), so queue advance, version switch and channel surfing keep one slot.
+   * Play something. The server ends whatever this device was playing when it starts the new
+   * session, so a queue advance or a version switch keeps one stream.
    */
   async start(target: StartTarget, options: StartOptions = {}, signal?: AbortSignal,
     context: Pick<StartContext, 'isCurrent' | 'capturePreparing' | 'onPreparing'> = {}): Promise<Session | undefined> {
@@ -415,11 +339,10 @@ export class PlaybackSessionController {
       this.publish({preparation: undefined});
       if (!admitted() || token !== this.startToken || this.disposed) return undefined;
     }
-    const previous = this.state.session, wasActive = this.state.phase === 'active';
     const originalTarget: StartTarget = freezeWire(JSON.parse(JSON.stringify(target)));
     const originalOptions: StartOptions = freezeWire(JSON.parse(JSON.stringify(options)));
     if (!admitted() || token !== this.startToken || this.disposed) return undefined;
-    const body: StartOptions = {...originalOptions, ...(previous && wasActive && !originalOptions.replacesSessionId ? {replacesSessionId: previous.id} : {})};
+    const body: StartOptions = originalOptions;
     this.lastStart = {target: originalTarget, options: originalOptions};
     this.retireReporter();
     this.publish({phase: 'starting', error: undefined, ended: undefined, changing: false});
@@ -434,10 +357,11 @@ export class PlaybackSessionController {
       if (!admitted() || token !== this.startToken || this.disposed) {
         if (token === this.startToken && !this.disposed) this.publish({preparation: undefined});
         // The request may have created a session even though its caller moved on.
-        if (this.state.session?.id !== session.id || this.disposed) await this.client.stop(session.id, undefined, undefined, session.presentation.generation);
+        if (this.state.session?.id !== session.id || this.disposed) await this.client.stop(session.id);
         return undefined;
       }
       this.gate.reset();
+      this.heardMs = undefined;
       this.carriedFor = undefined;
       this.state = Object.freeze({...this.state, observation: undefined});
       this.leaseAtRisk = false;
@@ -462,6 +386,7 @@ export class PlaybackSessionController {
       this.startToken++;
       this.retireReporter();
       this.gate.reset();
+      this.heardMs = undefined;
       this.leaseAtRisk = false;
       this.carriedFor = undefined;
       this.state = Object.freeze({...this.state, observation: undefined, error: undefined, ended: undefined, changing: false});
@@ -475,12 +400,13 @@ export class PlaybackSessionController {
     this.startToken++;
     this.retireReporter();
     this.gate.reset();
+    this.heardMs = undefined;
     this.leaseAtRisk = false;
     this.publish({phase: 'idle', session: undefined, observation: undefined, error: undefined, ended: undefined, changing: false});
   }
 
   /** Reload the current presentation after a renderer handoff. The host must retire
-   * the old renderer first; the same session keeps its reporter and increasing seq. */
+   * the old renderer first; the same session keeps its reporter. */
   reloadMedia(options: Readonly<{autoplay?: boolean; startPositionMs?: number}> = {}): void {
     const session = this.state.session;
     if (this.disposed || this.state.phase !== 'active' || !session) return;
@@ -491,26 +417,13 @@ export class PlaybackSessionController {
     return this.wantsPlaying ? this.wantsPlaying() : session.state !== 'paused';
   }
 
-  /** Adopt a server session (start, 412 recovery, `session.updated`): load a new generation's URL. */
+  /** Adopt a server session (a start, a change, a re-read): load a new presentation's address. */
   private adopt(session: Session, autoplay: boolean, startPositionMs?: number) {
     if (this.disposed || (this.gate.value !== undefined && session.presentation.generation < this.gate.value)) return;
     if (session.state === 'ended') { this.publish({session}); void this.serverEnded(session.end ?? {reason: 'stopped'}); return; }
     const fresh = this.gate.advance(session.presentation.generation);
-    if (!this.reporter) this.reporter = this.newReporter(session.id);
+    if (!this.reporter) this.reporter = this.newReporter(session);
     this.publish({session, phase: 'active', ended: undefined});
-    const control = session.control ? Number(session.control.revision) : undefined;
-    const applied = this.appliedControl?.sessionId === session.id ? this.appliedControl.revision : undefined;
-    if (control !== undefined && (applied === undefined || control > applied)) {
-      this.appliedControl = Object.freeze({sessionId: session.id, revision: control});
-      // A newer command revision on the same presentation is a pause or play asked elsewhere (an
-      // administrator, another device). This player's own reports never move it, so applying it
-      // once cannot undo a newer local choice.
-      if (!fresh && applied !== undefined && session.control) {
-        const state = session.control.state;
-        if (this.onRemoteControl) this.onRemoteControl(state);
-        else if (state === 'paused') this.player.pause(); else this.player.play();
-      }
-    }
     if (!fresh) return;
     this.reporter.setGeneration(session.presentation.generation);
     this.loadMedia(session, autoplay, startPositionMs);
@@ -526,14 +439,18 @@ export class PlaybackSessionController {
     });
   }
 
-  private newReporter(sessionId: string): ObservationReporter {
-    return new ObservationReporter({
+  private newReporter(session: Session): ProgressReporter {
+    const sessionId = session.id;
+    return new ProgressReporter({
       ...this.reporterOptions,
+      everyMs: session.lease.reportEveryMs,
       now: this.timers.now, setTimer: this.timers.setTimer, clearTimer: this.timers.clearTimer,
-      claim: body => this.client.claimObserver(sessionId, body),
-      send: sample => this.client.observe(sessionId, sample),
+      send: report => this.client.progress(sessionId, report),
       onLeaseRisk: () => { if (this.state.session?.id === sessionId) this.leaseAtRisk = true; },
       onEnded: () => { if (this.state.session?.id === sessionId) void this.serverEnded(); },
+      // The server moved the session to another way of playing (a failure it planned around):
+      // read it again and load the new address.
+      onNewer: () => { void this.sessionUpdated(sessionId); },
     });
   }
 
@@ -550,21 +467,21 @@ export class PlaybackSessionController {
     let lost = false;
     if (!end && session) end = await this.client.get(session.id).then(s => s.end, e => { lost = e instanceof PlaybackApiError && (e.status === 404 || e.status === 410); return undefined; });
     if (this.disposed || token !== this.startToken || (session && this.state.session?.id !== session.id)) return; // replaced while its end was read
-    // A lapsed lease is resumed, and so is a session the server no longer knows (it restarted):
-    // the title starts again where it was. An administrator's stop or a move elsewhere is final.
-    // The server names a lapse; when the reason can't be read, a lease this device knew was at risk is one.
-    // A server that keeps forgetting the session gets one restart every few seconds, not a loop.
+    // A session the server no longer knows (it restarted, or the session ran out while this
+    // device was silent) starts again where it was, quietly. An administrator's stop, removed
+    // access or a stop from another device is final. A server that keeps forgetting the session
+    // gets one restart every few seconds, not a loop.
     const now = this.timers.now?.() ?? Date.now();
     if (lost && now - this.lostRestartAt < LOST_SESSION_RESTART_MS) lost = false;
     else if (lost) this.lostRestartAt = now;
     const lapsed = end ? end.reason === 'lease_expired' : this.leaseAtRisk || lost;
     if (lapsed && session) {
-      const at = this.state.observation?.positionMs ?? session.presentation.startPositionMs;
+      const at = this.heardMs ?? this.state.observation?.positionMs ?? session.presentation.startPositionMs;
       this.leaseAtRisk = false;
       if (this.onLeaseExpired) { this.onLeaseExpired(session, at); return; }
       if (this.lastStart && 'itemId' in this.lastStart.target) {
         // Start again where we were.
-        await this.start(this.lastStart.target, {...this.lastStart.options, startPositionMs: at, startFrom: undefined, replacesSessionId: undefined}).catch(() => {});
+        await this.start(this.lastStart.target, {...this.lastStart.options, startPositionMs: at, startFrom: undefined}).catch(() => {});
         return;
       }
     }
@@ -583,6 +500,7 @@ export class PlaybackSessionController {
     const generation = this.gate.value;
     if (generation === undefined || !this.state.session || this.state.phase === 'ended') return;
     const o: PlayerObservation = Object.freeze({generation, state: reading.state, positionMs: Math.max(0, Math.round(reading.positionMs)), rate: reading.rate ?? 1, ...(reading.volume !== undefined ? {volume: reading.volume} : {}), ...(reading.muted !== undefined ? {muted: reading.muted} : {})});
+    if (o.state === 'playing' || o.state === 'paused' || o.state === 'buffering') this.heardMs = o.positionMs;
     this.publish({observation: o});
     this.reporter?.observe(o, cause);
   }
@@ -600,28 +518,22 @@ export class PlaybackSessionController {
     if (t.lastAccepted !== 'ended' && !t.stopped) throw new PlaybackApiError(503, 'timeline_unconfirmed', 'same_request');
   }
 
-  /** A marker skip the caller performed itself (it seeks): evidence for the next report (spec §4.2). */
-  noteSkip(skipped: Readonly<{markerId: string; mode: 'automatic' | 'manual'; positionMs: number}>): void {
-    if (skipped.markerId) this.reporter?.skipped({markerId: skipped.markerId, mode: skipped.mode, positionMs: Math.max(0, Math.round(skipped.positionMs))});
-  }
 
   /** Send the newest reading now (the page is being hidden or closed). */
   flush(): Promise<void> { return this.reporter?.flush() ?? Promise.resolve(); }
 
-  /** Hand this session's observations to a native owner: this controller stops reporting it and
-   * returns the epoch the owner claims with (`replaces`), so the server lets it take over at once. */
+  /** Hand this session's progress to a native owner: this controller stops reporting it. */
   handOverObserver(sessionId: string): string | undefined {
-    if (this.state.session?.id !== sessionId || !this.reporter) return undefined;
-    const epoch = this.reporter.snapshot().epoch;
-    this.retireReporter();
-    return epoch;
+    if (this.state.session?.id === sessionId) this.retireReporter();
+    return undefined;
   }
 
   private playerEvent(e: PlayerEvent) {
     const o = e.observation;
     if (!this.gate.accepts(o.generation)) return;
+    if (o.state === 'playing' || o.state === 'paused' || o.state === 'buffering') this.heardMs = o.positionMs;
     this.publish({observation: o});
-    if (e.type === 'error') { this.reporter?.failed(o.generation, e.code, e.detail); return; }
+    if (e.type === 'error') { this.reporter?.failed(o.generation); return; }
     // PiP or AirPlay can't show an overlay the app draws: ask for the same track in the manifest,
     // which the system renders wherever the picture is (Plan §8.3). Once per generation.
     if (o.subtitlesCarried === false && o.subtitleTrackId && this.carriedFor !== o.generation) {
@@ -631,10 +543,7 @@ export class PlaybackSessionController {
     this.reporter?.observe(o, e.type === 'time' ? 'time' : e.type === 'seeked' ? 'seeked' : 'state');
   }
 
-  /**
-   * Send a change. Changes are serialised; on 412 the controller adopts the server's session and
-   * re-applies this change only if no newer change is waiting (newest intent wins, invariant 2).
-   */
+  /** Send a change. Changes are sent one after another, so the newest intent is the one that lands. */
   change(change: SessionChange, context?: SessionChangeContext): Promise<Session | undefined> {
     try {requireSessionChangeCurrent(context);} catch (error) {return Promise.reject(error);}
     const token = this.startToken, sessionId = this.state.session?.id;
@@ -651,23 +560,7 @@ export class PlaybackSessionController {
       try {
         if (!session || !owns()) {if (context) check();return undefined;}
         this.publish({changing: true});
-        // A change that makes new bytes resumes where the server last heard this device was:
-        // tell it now, so the new stream starts at the picture's position, not ten seconds back.
-        if (context?.recoverEnded !== false && (change.quality || change.audio || change.versionId || change.partIndex !== undefined)) await this.reporter?.flush().catch(() => {});
-        if (!owns()) {if (context) check();return undefined;}
-        let updated: Session;
-        try {
-          updated = await this.client.patch(session.id, session.revision, change, context?.signal);
-        } catch (e) {
-          if (!owns()) {if (context) check();return undefined;}
-          if (!(e instanceof PlaybackApiError) || e.status !== 412 || !e.current) throw e;
-          if ((e.current as Session).id !== session.id) throw e;
-          if ((e.current as Session).state === 'ended') {if (context?.recoverEnded === false) throw new PlaybackApiError(410, 'session_ended', 'never');void this.serverEnded((e.current as Session).end); return undefined;}
-          if (context) check();
-          this.adopt(e.current as Session, this.wantsPlaying ? this.wantsPlaying() : this.state.observation?.state !== 'paused');
-          if (serial !== this.changeSerial) return this.state.session;
-          updated = await this.client.patch((e.current as Session).id, (e.current as Session).revision, change, context?.signal);
-        }
+        const updated = await this.client.patch(session.id, change, context?.signal);
         if (!owns()) {if (context) check();return undefined;} // replaced meanwhile
         if (context && (updated.id !== session.id || updated.presentation.generation < (this.state.session?.presentation.generation ?? 0))) throw new Error('Playback session changed during replan');
         if (context?.recoverEnded === false && updated.state === 'ended') throw new PlaybackApiError(410, 'session_ended', 'never');
@@ -732,19 +625,16 @@ export class PlaybackSessionController {
    * when there is no other way. */
   playerFailed(code: PlayerFailureCode, detail = '') { return this.change({failure: {code, detail: detail.replace(/[\x00-\x1f\x7f]/g, ' ').slice(0, 500)}}); }
 
-  /** Skips a marker (spec §4.2): a seek to its end plus a `skipped` note in the next timeline
-   * report. `automatic` is for the viewer's `auto` preference, and only on a marker the server
-   * marks `automaticSafe`; the server ignores anything else as evidence. */
-  skip(marker: Readonly<{id: string; endMs: number}>, mode: 'automatic' | 'manual' = 'manual') {
-    if (marker.id) this.reporter?.skipped({markerId: marker.id, mode, positionMs: Math.max(0, Math.round(this.state.observation?.positionMs ?? 0))});
+  /** Skips a marker (an intro, the credits): a seek to its end. */
+  skip(marker: Readonly<{id: string; endMs: number}>, _mode: 'automatic' | 'manual' = 'manual') {
     return this.seek(marker.endMs);
   }
 
-  /** A `session.updated` event for our session (with its payload when the app has it): an end
-   * with its reason is taken as is; otherwise the session is re-read if its revision moved. */
-  async sessionUpdated(sessionId: string, revision?: string, data?: unknown, recovery?: {signal?: AbortSignal; strict?: boolean}): Promise<void> {
+  /** Our session changed on the server (a progress answer named a later presentation, or the
+   * owner was told): an end with its reason is taken as is; otherwise the session is read again. */
+  async sessionUpdated(sessionId: string, _revision?: string, data?: unknown, recovery?: {signal?: AbortSignal; strict?: boolean}): Promise<void> {
     const session = this.state.session;
-    if (recovery?.signal?.aborted || this.disposed || !session || session.id !== sessionId || this.state.phase !== 'active' || (revision !== undefined && revision === session.revision)) return;
+    if (recovery?.signal?.aborted || this.disposed || !session || session.id !== sessionId || this.state.phase !== 'active') return;
     const token = this.startToken, serial = ++this.updateSerial;
     const owns = () => !recovery?.signal?.aborted && !this.disposed && token === this.startToken && serial === this.updateSerial && this.state.session?.id === sessionId && this.state.phase === 'active';
     const end = data && typeof data === 'object' && (data as {state?: unknown}).state === 'ended' ? parseSessionEnd(data) : undefined;
@@ -753,7 +643,7 @@ export class PlaybackSessionController {
       const fresh = await this.client.get(sessionId, recovery?.signal);
       if (!owns()) return;
       if (fresh.state === 'ended') { void this.serverEnded(fresh.end ?? {reason: 'stopped'}); return; }
-      if (this.state.session?.revision !== session.revision && fresh.presentation.generation <= (this.gate.value ?? 0)) return;
+      if (this.state.session !== session && fresh.presentation.generation <= (this.gate.value ?? 0)) return;
       this.adopt(fresh, this.autoplay(fresh));
     } catch (e) {
       if (!owns()) return;
@@ -772,7 +662,7 @@ export class PlaybackSessionController {
     this.player.pause();
     this.publish({phase: 'ended', changing: false});
     await finalReport;
-    if (session) {try {await this.client.stop(session.id, at, undefined, session.presentation.generation);} catch (error) {this.publish({phase:'error',error:error as Error});throw error;}}
+    if (session) {try {await this.client.stop(session.id, at);} catch (error) {this.publish({phase:'error',error:error as Error});throw error;}}
   }
 
   dispose() {

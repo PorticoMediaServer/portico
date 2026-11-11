@@ -63,7 +63,7 @@ export class WebPreparingStarts {
             if (captured || !flight.held()) return undefined;
             if ('transferId' in body || offered.role !== 'local' || offered.state === 'ended' ||
               ('queue' in body ? offered.queue?.queueId !== body.queue.queueId || offered.queue?.entryId !== body.queue.entryId
-                : 'itemId' in body ? offered.itemId !== body.itemId : 'channelId' in body ? offered.channelId !== body.channelId : true) ||
+                : 'itemId' in body ? offered.itemId !== body.itemId : true) ||
               body.versionId !== undefined && offered.versionId !== body.versionId ||
               body.discTitle !== undefined && (offered.discTitle?.id !== body.discTitle.id || offered.discTitle.revision !== body.discTitle.revision)) {captured = true;return undefined;}
             if (channel && (!['live', 'channel'].includes(offered.kind) || offered.queue || offered.itemId || offered.versionId || offered.discTitle)) {captured = true;return undefined;}

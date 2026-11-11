@@ -1,11 +1,10 @@
 /**
- * Plays Playback Protocol v1 sessions through `PlaybackService` and the native engines (Apple
- * AVPlayer, Android). The web no longer uses this file: it runs on `PlaybackSessionController`
- * (see the web app's `playback-v1/web-playback.ts`), and this bridge goes when the native apps
- * make the same move. `V1PlaybackApi` is the `PlaybackApi` the
- * service calls for a session's progress and stop, spoken as v1: observations (one reporter per
- * session: the latest reading once a second, never queued or resent) and `DELETE` with the last
- * position. `toPlaybackSession` turns a v1 session into the service's session shape.
+ * Plays sessions through `PlaybackService` and the native engines (Apple AVPlayer, Android). The
+ * web does not use this file: it runs on `PlaybackSessionController` (the web app's
+ * `web-playback.ts`). `V1PlaybackApi` is the `PlaybackApi` the service calls for a session's
+ * progress and stop: progress reports (one reporter per session, the latest reading at the
+ * server's pace, never queued or resent) and `DELETE` with the last position.
+ * `toPlaybackSession` turns a session into the service's session shape.
  */
 import type {PlaybackApi, PlaybackSession} from '../index.ts';
 import {idempotencyKey, PlaybackApiError, type V1Http} from './http.ts';
@@ -13,14 +12,14 @@ import {PlaybackOptionsClient} from './options.ts';
 import {SessionsClient, type SessionChange, type StartContext, type StartOptions, type StartTarget, type Timers} from './sessions.ts';
 import {requireSessionChangeCurrent, type SessionChangeContext} from './change-context.ts';
 import type {PlayerFailureCode} from '../client-profile.ts';
-import {ObservationReporter, type ObservationSample, type ObservationState} from './observation.ts';
+import {ProgressReporter, type ProgressState} from './progress.ts';
 import {parseSessionEnd, type DiscTitleRef, type Session, type SessionEnd} from './types.ts';
 import {toPlaybackSession} from './session-shape.ts';
 import {QueueSelectionRegistrations, type QueueSelectionRegistration} from './selection-registration.ts';
 
 export {toPlaybackSession};
 
-type Tracked = {reporter: ObservationReporter; stopping?: boolean; stopPromise?: Promise<void>; generation: number; positionMs: number; state: ObservationState;
+type Tracked = {reporter: ProgressReporter; stopping?: boolean; stopPromise?: Promise<void>; generation: number; positionMs: number; state: ProgressState;
   /** When `positionMs` was last set by the player. */
   positionAt?: number};
 
@@ -80,7 +79,7 @@ export class V1PlaybackApi implements PlaybackApi {
   adopt(session: Session, durationSeconds: number): PlaybackSession {
     const prior = this.tracked.get(session.id);
     // A presentation change keeps the same session, its observer epoch and its pending skip.
-    const tracked = prior ?? {reporter: this.reporterFor(session.id), generation: session.presentation.generation, positionMs: session.presentation.startPositionMs, state: 'playing' as ObservationState};
+    const tracked = prior ?? {reporter: this.reporterFor(session.id), generation: session.presentation.generation, positionMs: session.presentation.startPositionMs, state: 'playing' as ProgressState};
     tracked.generation = session.presentation.generation;
     tracked.positionMs = session.presentation.startPositionMs;
     tracked.positionAt = this.now();
@@ -97,8 +96,7 @@ export class V1PlaybackApi implements PlaybackApi {
    * One re-plan of a playing session (`PATCH`, spec §5.7): a quality, version, audio or subtitle
    * change, or a reported player failure. The session keeps its id, its queue and its place in
    * it; when the bytes change it comes back as a new generation (a new URL, possibly another
-   * engine) at the player's position. A revision that moved meanwhile is read again once, so the
-   * viewer only ever sees a conflict when the session really ended.
+   * engine) at the player's position.
    */
   async change(id: string, change: SessionChange, durationSeconds?: number, context?: SessionChangeContext): Promise<{session: Session; playback: PlaybackSession}> {
     requireSessionChangeCurrent(context);
@@ -114,16 +112,7 @@ export class V1PlaybackApi implements PlaybackApi {
       if (context && session.id !== id) throw new Error('Playback session changed during replan');
       if (context?.recoverEnded === false && session.state === 'ended') throw new PlaybackApiError(410, 'session_ended', 'never');
     };
-    let current = await this.sessions.get(id, context?.signal);checkSession(current);
-    let updated: Session;
-    try {
-      updated = await this.sessions.patch(id, current.revision, body, context?.signal);
-    } catch (e) {
-      requireSessionChangeCurrent(context);
-      if (!(e instanceof PlaybackApiError) || e.status !== 412) throw e;
-      current = (e.current as Session | undefined) ?? await this.sessions.get(id, context?.signal);checkSession(current);
-      updated = await this.sessions.patch(id, current.revision, body, context?.signal);
-    }
+    const updated = await this.sessions.patch(id, body, context?.signal);
     checkSession(updated);
     const duration = updated.discTitle ? await this.duration(updated.itemId ?? '', updated.versionId, context?.signal, updated.discTitle)
       : durationSeconds ?? await this.duration(updated.itemId ?? '', updated.versionId, context?.signal);
@@ -159,9 +148,8 @@ export class V1PlaybackApi implements PlaybackApi {
     if (!t) return this.sessions.stop(id, undefined, signal);
     if (t.stopPromise) return t.stopPromise;
     t.stopping = true;
-    // One last attempt for the newest reading (a skip it carries), then the reliable DELETE with
-    // the final position, which the server writes after the latest observation it holds.
-    const work = t.reporter.flush().catch(() => {}).then(async () => {
+    // The DELETE carries the final position, which the server keeps.
+    const work = Promise.resolve().then(async () => {
       t.reporter.stop();
       if (this.tracked.get(id) !== t) return;
       await this.sessions.stop(id, t.positionMs, signal);
@@ -201,17 +189,9 @@ export class V1PlaybackApi implements PlaybackApi {
     if (r.lastAccepted !== 'ended' && !r.stopped) throw new PlaybackApiError(503, 'timeline_unconfirmed', 'same_request');
   }
 
-  /** The viewer skipped a marker (spec §4.2): carried by the session's samples until accepted. */
-  async markerSkipped(id: string, skipped: NonNullable<ObservationSample['skipped']>): Promise<void> {
-    const t = this.tracked.get(id);
-    if (!t || this.retired.has(id)) return;
-    t.reporter.skipped(skipped);
-  }
-
-  private reporterFor(id: string): ObservationReporter {
-    return new ObservationReporter({
-      claim: body => this.sessions.claimObserver(id, body),
-      send: sample => this.sessions.observe(id, sample),
+  private reporterFor(id: string): ProgressReporter {
+    return new ProgressReporter({
+      send: report => this.sessions.progress(id, report),
       onEnded: () => { if (this.tracked.has(id)) void this.learnEnd(id); },
       ...(this.timers?.setTimer ? {setTimer: this.timers.setTimer} : {}), ...(this.timers?.clearTimer ? {clearTimer: this.timers.clearTimer} : {}), ...(this.clock ? {now: this.clock} : {}),
     });
@@ -298,14 +278,10 @@ export class V1PlaybackApi implements PlaybackApi {
     return true;
   }
 
-  /** Hand a session's observations to a native owner (plan §9.3 C3): this reporter stops, and
-   * the epoch it held is returned for the owner to claim with (`replaces`). */
+  /** Hand a session's progress to a native owner: this reporter stops, and the owner reports. */
   handOverObserver(id: string): string | undefined {
-    const t = this.tracked.get(id);
-    if (!t) return undefined;
-    const epoch = t.reporter.snapshot().epoch;
-    t.reporter.stop();
-    return epoch;
+    this.tracked.get(id)?.reporter.stop();
+    return undefined;
   }
 
   /** The last position the service reported for a session, in ms. */
