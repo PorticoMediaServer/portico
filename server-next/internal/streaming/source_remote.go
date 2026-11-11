@@ -70,7 +70,7 @@ func (r *remoteReader) Read(p []byte) (int, error) {
 	if r.body == nil {
 		body, err := remote.StreamFrom(r.file, r.pos)
 		if err != nil {
-			return 0, err
+			return 0, changed(err)
 		}
 		r.body = body
 	}
@@ -107,6 +107,15 @@ func (r *remoteReader) Close() error {
 		r.body.Close()
 	}
 	return r.file.Close()
+}
+
+// changed says a file replaced at its source since the stream opened it in the stream's own
+// words: the plan made from the file's facts no longer describes it.
+func changed(err error) error {
+	if errors.Is(err, remote.ErrChanged) {
+		return ErrSourceChanged
+	}
+	return err
 }
 
 // windowSource is a source the converter cannot be handed as a file. It is served to the
@@ -161,7 +170,7 @@ func (r *sequentialReaderAt) ReadAt(p []byte, off int64) (int, error) {
 		body, err := remote.StreamFrom(r.file, off)
 		if err != nil {
 			r.body = nil
-			return 0, err
+			return 0, changed(err)
 		}
 		r.body, r.pos = body, off
 	}

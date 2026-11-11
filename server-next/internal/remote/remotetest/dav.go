@@ -35,6 +35,12 @@ type DAV struct {
 	// Stall makes a GET for more than one byte send its headers and one byte, then nothing
 	// until the client gives up.
 	Stall atomic.Bool
+	// Markers says what a file's answer carries to tell its versions apart: "both" (the
+	// default: an ETag and Last-Modified), "date" (Last-Modified only) or "none".
+	Markers string
+	// IgnoreConditions makes GET answer as if If-Match and If-Unmodified-Since were not sent,
+	// as some servers do.
+	IgnoreConditions atomic.Bool
 	// BadNames are names, written as they go in an href (already escaped), that every
 	// folder listing also gives as files: what a server that cannot be trusted might send.
 	BadNames []string
@@ -42,6 +48,7 @@ type DAV struct {
 	prefix   string
 	mu       sync.Mutex
 	files    map[string][]byte
+	versions map[string]int // bumped by Put, so a replaced file is a new version
 	modified time.Time
 }
 
@@ -58,7 +65,7 @@ func NewDAV(t testing.TB, files map[string]string) *DAV {
 // a test that serves it itself.
 func NewHandler(files map[string]string, prefix string) *DAV {
 	d := &DAV{User: "viewer", Password: "pw-" + fmt.Sprint(time.Now().UnixNano()), files: map[string][]byte{}, modified: time.Unix(1700000000, 0).UTC(),
-		prefix: strings.TrimSuffix(prefix, "/")}
+		prefix: strings.TrimSuffix(prefix, "/"), versions: map[string]int{}}
 	for name, body := range files {
 		d.files[name] = []byte(body)
 	}
@@ -66,8 +73,13 @@ func NewHandler(files map[string]string, prefix string) *DAV {
 }
 
 // Put adds or replaces a file; Remove takes one away.
-func (d *DAV) Put(name, body string) { d.mu.Lock(); d.files[name] = []byte(body); d.mu.Unlock() }
-func (d *DAV) Remove(name string)    { d.mu.Lock(); delete(d.files, name); d.mu.Unlock() }
+func (d *DAV) Put(name, body string) {
+	d.mu.Lock()
+	d.files[name] = []byte(body)
+	d.versions[name]++
+	d.mu.Unlock()
+}
+func (d *DAV) Remove(name string) { d.mu.Lock(); delete(d.files, name); d.mu.Unlock() }
 
 func (d *DAV) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if user, password, ok := r.BasicAuth(); !ok || user != d.User || password != d.Password {
@@ -106,10 +118,22 @@ func (d *DAV) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if spec := r.Header.Get("Range"); spec != "" && spec != "bytes=0-0" && d.Breaks.Add(-1) >= 0 {
 			panic(http.ErrAbortHandler)
 		}
+		version := d.versions[rel]
+		modified := d.modified.Add(time.Duration(version) * time.Hour)
+		switch d.Markers {
+		case "none":
+			modified = time.Time{}
+		case "date":
+		default:
+			w.Header().Set("ETag", fmt.Sprintf(`"v%d-%d"`, version, len(body)))
+		}
 		var from int
 		if d.Stall.Load() && r.Header.Get("Range") != "bytes=0-0" && len(body) > 1 {
 			fmt.Sscanf(r.Header.Get("Range"), "bytes=%d-", &from)
 			w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", from, len(body)-1, len(body)))
+			if !modified.IsZero() {
+				w.Header().Set("Last-Modified", modified.UTC().Format(http.TimeFormat))
+			}
 			w.WriteHeader(http.StatusPartialContent)
 			w.Write(body[from : from+1])
 			w.(http.Flusher).Flush()
@@ -118,7 +142,11 @@ func (d *DAV) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			d.mu.Lock()
 			return
 		}
-		http.ServeContent(w, r, "", d.modified, bytes.NewReader(body))
+		if d.IgnoreConditions.Load() {
+			r.Header.Del("If-Match")
+			r.Header.Del("If-Unmodified-Since")
+		}
+		http.ServeContent(w, r, "", modified, bytes.NewReader(body))
 	default:
 		http.Error(w, "not allowed", http.StatusMethodNotAllowed)
 	}
@@ -165,7 +193,7 @@ func (d *DAV) propfind(w http.ResponseWriter, r *http.Request, rel string) {
 			props = `<D:resourcetype><D:collection/></D:resourcetype>`
 		}
 		fmt.Fprintf(&out, `<D:response><D:href>%s</D:href><D:propstat><D:prop>%s<D:getlastmodified>%s</D:getlastmodified></D:prop>`+
-			`<D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>`, href, props, d.modified.Format(http.TimeFormat))
+			`<D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>`, href, props, d.modified.Add(time.Duration(d.versions[p])*time.Hour).Format(http.TimeFormat))
 	}
 	if !isDir {
 		entry(rel, children[""])
