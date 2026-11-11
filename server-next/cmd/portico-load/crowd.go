@@ -42,6 +42,10 @@ func crowd(ctx context.Context, d *db.DB, cfg seed.Config, people, streams int, 
 		log.Fatal(err)
 	}
 	w.countFailures = true
+	device, err := d.SeedDevice(ctx, "crowd")
+	if err != nil {
+		log.Fatal(err)
+	}
 	w.reads = map[string][]time.Duration{}
 	ctx, cancel := context.WithCancel(ctx)
 	var wg sync.WaitGroup
@@ -62,7 +66,7 @@ func crowd(ctx context.Context, d *db.DB, cfg seed.Config, people, streams int, 
 	for n := range streams {
 		wg.Go(func() {
 			r := rand.New(rand.NewPCG(uint64(n), 8))
-			v, item, play := viewers[r.IntN(len(viewers))], pick(r, w.leaves), fmt.Sprint("crowd-", n, "-", time.Now().UnixNano())
+			v, item, play := viewers[r.IntN(len(viewers))], pick(r, w.videos), fmt.Sprint("crowd-", n, "-", time.Now().UnixNano())
 			var file *os.File
 			if streamFile != "" {
 				if file, err = os.Open(streamFile); err != nil {
@@ -99,11 +103,11 @@ func crowd(ctx context.Context, d *db.DB, cfg seed.Config, people, streams int, 
 				if second%10 != 0 {
 					continue
 				}
-				// Ten minutes in already, so the position is past where a title counts as
-				// started and every report is a real write.
+				// A film or an episode, ten minutes in already: past where a title counts as
+				// started, so every report is a real write of the resume point.
 				watched := time.Since(started)
 				at := time.Now()
-				_, err := d.SaveProgress(ctx, db.User, []db.Progress{{Viewer: v, ItemID: item, PlayID: play,
+				_, err := d.SaveProgress(ctx, db.User, []db.Progress{{Viewer: v, ItemID: item, DeviceID: device, PlayID: play,
 					PositionMS: (10*time.Minute + watched).Milliseconds(), At: at, WatchedMS: watched.Milliseconds()}})
 				w.mu.Lock()
 				if err != nil && ctx.Err() == nil {
