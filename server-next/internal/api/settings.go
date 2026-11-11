@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -59,6 +60,16 @@ func (s *Server) settingsRoutes() {
 		if len(change) == 0 {
 			return SettingsDocument{}, ErrInvalid("Send the settings to change.")
 		}
+		if CallerFrom(r.Context()).SessionID == 0 {
+			var fields map[string]json.RawMessage
+			_ = json.Unmarshal(change, &fields)
+			for _, field := range personOnly[r.PathValue("name")] {
+				if _, sent := fields[field]; sent {
+					return SettingsDocument{}, refusal(http.StatusForbidden, "session_required",
+						"A key cannot change which program or folder the server uses: sign in as a person to do this.", false)
+				}
+			}
+		}
 		doc, err := s.settings.Write(r.Context(), CallerFrom(r.Context()).UserID, r.PathValue("name"), change, match, s.now())
 		var invalid *settings.Invalid
 		switch {
@@ -74,6 +85,11 @@ func (s *Server) settingsRoutes() {
 		return settingsDocument(doc), nil
 	})
 }
+
+// personOnly are the settings a key may not change, by document: the ones that choose a
+// program the server runs or a folder it empties. A key that leaked could not be allowed
+// that, so they take a signed-in owner, as pointing a webhook elsewhere does.
+var personOnly = map[string][]string{"streaming": {"conversionFolder", "ffmpegProgram"}}
 
 func settingsDocument(doc settings.Document) SettingsDocument {
 	out := SettingsDocument{Name: doc.Name, Values: JSON(doc.Values), Defaults: JSON(doc.Defaults),
