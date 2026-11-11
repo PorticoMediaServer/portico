@@ -768,8 +768,17 @@ type FileOnDisk struct {
 	ModifiedNS int64
 	// Read says a scan has read the file's facts and tracks.
 	Read bool
-	// AudioExact is a music file's exact measurement as the scan kept it, or "".
+	// AudioExact is a music file's exact measurement as KeepAudioExact kept it, or "".
 	AudioExact string
+}
+
+// KeepAudioExact keeps a music file's exact measurement with the file, if the file is still
+// the size and age it was measured at.
+func (d *DB) KeepAudioExact(ctx context.Context, fileID int64, file FileOnDisk, exact string) error {
+	return d.write(ctx, Background, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `UPDATE files SET audio_exact = ? WHERE id = ? AND size = ? AND modified_ns = ?`, exact, fileID, file.Size, file.ModifiedNS)
+		return err
+	})
 }
 
 // FileOnDisk returns where a local file is on disk. A file of remote storage, or one that
