@@ -3,7 +3,9 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -46,18 +48,35 @@ type PlayQuery struct {
 	Limit  int
 }
 
-func (q PlayQuery) where() (string, []any) {
+// indexed is the part of a query an index answers: the person, the library and the period,
+// with the cursor. It chooses which plays are read, newest first.
+func (q PlayQuery) indexed() (string, []any) {
 	where := []string{`1 = 1`}
 	var args []any
-	where = append(where, `(h.library_id IS NULL OR (SELECT all_libraries FROM users WHERE id = ?) = 1
-		OR h.library_id IN (SELECT library_id FROM library_access WHERE user_id = ?))`)
-	args = append(args, q.Asker, q.Asker)
 	if q.AccountID != "" {
 		where, args = append(where, `h.user_id = (SELECT id FROM users WHERE public_id = ?)`), append(args, q.AccountID)
 	}
 	if q.LibraryID != "" {
 		where, args = append(where, `h.library_id = (SELECT id FROM libraries WHERE public_id = ?)`), append(args, q.LibraryID)
 	}
+	if !q.From.IsZero() {
+		where, args = append(where, `h.played_at >= ?`), append(args, q.From.UnixMilli())
+	}
+	if !q.To.IsZero() {
+		where, args = append(where, `h.played_at < ?`), append(args, q.To.UnixMilli())
+	}
+	if q.Before > 0 {
+		where = append(where, `(h.played_at, h.id) < ((SELECT played_at FROM play_history WHERE id = ?), ?)`)
+		args = append(args, q.Before, q.Before)
+	}
+	return strings.Join(where, " AND "), args
+}
+
+// filtered is the part no index answers, tested on each play read: what the asking account may
+// read (a play of a removed library only by one with every library), the kind and the text.
+func (q PlayQuery) filtered() (string, []any) {
+	where := []string{accountSees("h.library_id")}
+	args := accountSeesArgs(q.Asker)
 	if len(q.Kinds) > 0 {
 		marks := strings.TrimSuffix(strings.Repeat("?,", len(q.Kinds)), ",")
 		where = append(where, `h.item_kind IN (`+marks+`)`)
@@ -70,47 +89,65 @@ func (q PlayQuery) where() (string, []any) {
 		where = append(where, `(h.title LIKE ? ESCAPE '\' OR h.subtitle LIKE ? ESCAPE '\')`)
 		args = append(args, "%"+escaped+"%", "%"+escaped+"%")
 	}
-	if !q.From.IsZero() {
-		where, args = append(where, `h.played_at >= ?`), append(args, q.From.UnixMilli())
-	}
-	if !q.To.IsZero() {
-		where, args = append(where, `h.played_at < ?`), append(args, q.To.UnixMilli())
-	}
 	return strings.Join(where, " AND "), args
 }
 
-// Plays lists plays newest first.
-func (d *DB) Plays(ctx context.Context, q PlayQuery) ([]Play, error) {
-	where, args := q.where()
-	if q.Before > 0 {
-		where += ` AND (h.played_at, h.id) < ((SELECT played_at FROM play_history WHERE id = ?), ?)`
-		args = append(args, q.Before, q.Before)
+// playsWindow is how many plays one page of the list reads at most. A filter no index answers
+// (a kind, text, or an administrator held to some libraries) is tested on the newest plays of
+// the window; a page that finds fewer than it asked for still answers a cursor, and the next
+// page reads the next window. At three million plays a window answers in tens of milliseconds
+// whatever the filter, where reading until a page is full took seconds.
+const playsWindow = 50_000
+
+// Plays lists plays newest first. next is the cursor of the next page, 0 at the end: the last
+// play of the page, or, when the window ran out before the page was full, the last play read.
+func (d *DB) Plays(ctx context.Context, q PlayQuery) (out []Play, next int64, err error) {
+	indexed, iargs := q.indexed()
+	filtered, fargs := q.filtered()
+	var edgeAt, edgeID int64
+	err = d.read.QueryRowContext(ctx, `SELECT h.played_at, h.id FROM play_history h WHERE `+indexed+`
+		ORDER BY h.played_at DESC, h.id DESC LIMIT 1 OFFSET ?`, append(iargs, playsWindow-1)...).Scan(&edgeAt, &edgeID)
+	window := ""
+	switch {
+	case err == nil:
+		window = ` AND (h.played_at, h.id) >= (?, ?)`
+	case errors.Is(err, sql.ErrNoRows):
+		err = nil // fewer plays than a window: all of them are read
+	default:
+		return nil, 0, err
+	}
+	args := append(append([]any{}, iargs...), fargs...)
+	if window != "" {
+		args = append(args, edgeAt, edgeID)
 	}
 	rows, err := d.read.QueryContext(ctx, `SELECT h.id, h.played_at, h.account_name, h.profile_name, ifnull(u.public_id, ''),
 		ifnull(l.public_id, ''), ifnull(l.name, ''), ifnull(i.public_id, ''), h.item_kind, h.title, ifnull(h.subtitle, ''), h.device_name,
 		ifnull(h.watched_ms, 0), h.away, h.delivery
 		FROM play_history h LEFT JOIN users u ON u.id = h.user_id LEFT JOIN libraries l ON l.id = h.library_id LEFT JOIN items i ON i.id = h.item_id
-		WHERE `+where+` ORDER BY h.played_at DESC, h.id DESC LIMIT ?`, append(args, q.Limit)...)
+		WHERE `+indexed+` AND `+filtered+window+` ORDER BY h.played_at DESC, h.id DESC LIMIT ?`, append(args, q.Limit+1)...)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
-	var out []Play
 	for rows.Next() {
 		var p Play
 		var at int64
 		if err := rows.Scan(&p.ID, &at, &p.AccountName, &p.ProfileName, &p.AccountID, &p.LibraryID, &p.LibraryName, &p.ItemID, &p.Kind,
 			&p.Title, &p.Subtitle, &p.DeviceName, &p.WatchedMS, &p.Away, &p.Delivery); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		p.PlayedAt = time.UnixMilli(at)
 		out = append(out, p)
 	}
-	return out, rows.Err()
+	switch {
+	case len(out) > q.Limit:
+		out = out[:q.Limit]
+		next = out[len(out)-1].ID
+	case window != "":
+		next = edgeID // the window ran out: the next page reads on from its last play
+	}
+	return out, next, rows.Err()
 }
-
-// summaryCap is the most plays a summary reads.
-const summaryCap = 1_000_000
 
 // PlaySummary is the top people, busiest times and top played over a range.
 type PlaySummary struct {
@@ -118,8 +155,10 @@ type PlaySummary struct {
 	Titles []PlayCount
 	// Busiest counts plays by weekday (0 is Sunday) and hour, in the server's time zone.
 	Busiest [7][24]int
-	// Stopped says the range held more than a million plays and only the newest were read.
-	Stopped bool
+	// Stopped says the range held more plays than are counted; CountedFrom is when the
+	// oldest play counted was.
+	Stopped     bool
+	CountedFrom time.Time
 }
 
 // PlayCount is how much one person or one title was played.
@@ -130,24 +169,38 @@ type PlayCount struct {
 	WatchedMS    int64
 }
 
-// SummarizePlays reads the summary of a range's plays, the newest million at most.
+// SummaryWindow is how many plays the summary counts: the newest of its range. Top people,
+// Top played and Busiest times need the plays themselves (the daily totals hold no person,
+// title or hour), so they are counted from this window and the page says so; the range's
+// totals come from the daily totals instead, whatever its length. At three million plays the
+// three counts, run side by side, answer in a few hundred milliseconds.
+const SummaryWindow = 20_000
+
+// SummarizePlays counts top people, top played and busiest times over the newest
+// SummaryWindow plays of the range. CountedFrom says when the oldest play counted was, when
+// the range held more than that. The three counts are separate short reads, run at once.
 func (d *DB) SummarizePlays(ctx context.Context, q PlayQuery) (PlaySummary, error) {
 	var out PlaySummary
-	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
-	if err != nil {
+	q.Before = 0
+	indexed, iargs := q.indexed()
+	filtered, fargs := q.filtered()
+	var edgeAt, edgeID int64
+	err := d.read.QueryRowContext(ctx, `SELECT h.played_at, h.id FROM play_history h WHERE `+indexed+`
+		ORDER BY h.played_at DESC, h.id DESC LIMIT 1 OFFSET ?`, append(iargs, SummaryWindow-1)...).Scan(&edgeAt, &edgeID)
+	window := ""
+	switch {
+	case err == nil:
+		window, out.Stopped, out.CountedFrom = ` AND (h.played_at, h.id) >= (?, ?)`, true, time.UnixMilli(edgeAt)
+	case !errors.Is(err, sql.ErrNoRows):
 		return out, err
 	}
-	defer tx.Rollback()
-	where, args := q.where()
-	plays := `(SELECT h.* FROM play_history h WHERE ` + where + ` ORDER BY h.played_at DESC LIMIT ` + itoa(summaryCap) + `)`
-	var n int
-	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM (SELECT 1 FROM play_history h WHERE `+where+` LIMIT `+itoa(summaryCap+1)+`)`,
-		args...).Scan(&n); err != nil {
-		return out, err
+	args := append(append([]any{}, iargs...), fargs...)
+	if window != "" {
+		args = append(args, edgeAt, edgeID)
 	}
-	out.Stopped = n > summaryCap
+	from := ` FROM play_history h WHERE ` + indexed + ` AND ` + filtered + window
 	top := func(query string) ([]PlayCount, error) {
-		rows, err := tx.QueryContext(ctx, query, args...)
+		rows, err := d.read.QueryContext(ctx, query, args...)
 		if err != nil {
 			return nil, err
 		}
@@ -162,28 +215,45 @@ func (d *DB) SummarizePlays(ctx context.Context, q PlayQuery) (PlaySummary, erro
 		}
 		return list, rows.Err()
 	}
-	if out.People, err = top(`SELECT p.account_name, '', ifnull(u.public_id, ''), count(*), ifnull(sum(p.watched_ms), 0) FROM ` + plays + ` p
-		LEFT JOIN users u ON u.id = p.user_id GROUP BY ifnull(p.user_id, -1), p.account_name ORDER BY count(*) DESC, 1 LIMIT 10`); err != nil {
-		return out, err
-	}
-	if out.Titles, err = top(`SELECT p.title, ifnull(p.subtitle, ''), ifnull(i.public_id, ''), count(*), ifnull(sum(p.watched_ms), 0) FROM ` + plays + ` p
-		LEFT JOIN items i ON i.id = p.item_id GROUP BY ifnull(p.item_id, -1), p.title, p.subtitle ORDER BY count(*) DESC, 1 LIMIT 10`); err != nil {
-		return out, err
-	}
-	rows, err := tx.QueryContext(ctx, `SELECT CAST(strftime('%w', played_at / 1000, 'unixepoch', 'localtime') AS INTEGER),
-		CAST(strftime('%H', played_at / 1000, 'unixepoch', 'localtime') AS INTEGER), count(*) FROM `+plays+` GROUP BY 1, 2`, args...)
-	if err != nil {
-		return out, err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var day, hour, count int
-		if err := rows.Scan(&day, &hour, &count); err != nil {
-			return out, err
+	busiest := func() error {
+		rows, err := d.read.QueryContext(ctx, `SELECT CAST(strftime('%w', h.played_at / 1000, 'unixepoch', 'localtime') AS INTEGER),
+			CAST(strftime('%H', h.played_at / 1000, 'unixepoch', 'localtime') AS INTEGER), count(*)`+from+` GROUP BY 1, 2`, args...)
+		if err != nil {
+			return err
 		}
-		if day >= 0 && day < 7 && hour >= 0 && hour < 24 {
-			out.Busiest[day][hour] = count
+		defer rows.Close()
+		for rows.Next() {
+			var day, hour, count int
+			if err := rows.Scan(&day, &hour, &count); err != nil {
+				return err
+			}
+			if day >= 0 && day < 7 && hour >= 0 && hour < 24 {
+				out.Busiest[day][hour] = count
+			}
 		}
+		return rows.Err()
 	}
-	return out, rows.Err()
+	var wg sync.WaitGroup
+	errs := make([]error, 3)
+	wg.Add(3)
+	go func() {
+		defer wg.Done()
+		out.People, errs[0] = top(`SELECT p.name, '', ifnull(u.public_id, ''), p.plays, p.watched FROM (SELECT h.user_id AS user_id,
+			max(h.account_name) AS name, count(*) AS plays, ifnull(sum(h.watched_ms), 0) AS watched` + from + `
+			GROUP BY ifnull(h.user_id, -1), CASE WHEN h.user_id IS NULL THEN h.account_name END ORDER BY plays DESC, name LIMIT 10) p
+			LEFT JOIN users u ON u.id = p.user_id ORDER BY p.plays DESC, p.name`)
+	}()
+	go func() {
+		defer wg.Done()
+		out.Titles, errs[1] = top(`SELECT t.title, t.subtitle, ifnull(i.public_id, ''), t.plays, t.watched FROM (SELECT h.item_id AS item_id,
+			max(h.title) AS title, ifnull(max(h.subtitle), '') AS subtitle, count(*) AS plays, ifnull(sum(h.watched_ms), 0) AS watched` + from + `
+			GROUP BY ifnull(h.item_id, -1), CASE WHEN h.item_id IS NULL THEN h.title END ORDER BY plays DESC, title LIMIT 10) t
+			LEFT JOIN items i ON i.id = t.item_id ORDER BY t.plays DESC, t.title`)
+	}()
+	go func() {
+		defer wg.Done()
+		errs[2] = busiest()
+	}()
+	wg.Wait()
+	return out, errors.Join(errs...)
 }

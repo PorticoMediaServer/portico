@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/console"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 )
 
@@ -42,8 +43,20 @@ type PlaySummary struct {
 	Titles []PlayTotal `json:"titles"`
 	// Busiest counts plays by weekday (0 is Sunday) and hour, in the server's time zone.
 	Busiest [7][24]int `json:"busiest"`
-	// Partial says the range held more than a million plays and the newest million were read.
-	Partial bool `json:"partial,omitempty"`
+	// People, Titles and Busiest are counted from the newest plays of the range, at most
+	// Window of them. CountedFrom is when the oldest play counted was, present when the range
+	// held more: the page says "from your latest 20,000 plays, since …".
+	Window      int        `json:"window"`
+	CountedFrom *time.Time `json:"countedFrom,omitempty"`
+	// Totals are the whole range's plays and time played, from the server's daily totals,
+	// for the owner and administrators with every library and with no other filter set.
+	Totals *PlayRangeTotals `json:"totals,omitempty"`
+}
+
+// PlayRangeTotals are a range's plays and time played, from the daily totals.
+type PlayRangeTotals struct {
+	Plays     int64 `json:"plays"`
+	WatchedMs int64 `json:"watchedMs"`
 }
 
 // PlayTotal is how much one person or one title was played.
@@ -63,12 +76,13 @@ func (s *Server) playHistoryRoutes() {
 		if err != nil {
 			return Page[PlayEntry]{}, err
 		}
-		q.Limit = playsPage + 1
-		plays, err := s.db.Plays(r.Context(), q)
+		q.Limit = playsPage
+		plays, next, err := s.db.Plays(r.Context(), q)
 		out := Page[PlayEntry]{Items: []PlayEntry{}}
-		if len(plays) > playsPage {
-			plays = plays[:playsPage]
-			out.NextCursor = strconv.FormatInt(plays[len(plays)-1].ID, 10)
+		if next > 0 {
+			// A page can come back short with a cursor: a filter matched few of the plays one
+			// page reads (see db.playsWindow). Reading on gives the older ones.
+			out.NextCursor = strconv.FormatInt(next, 10)
 		}
 		for _, p := range plays {
 			entry := PlayEntry{PlayedAt: p.PlayedAt.UTC(), Username: p.AccountName, DeviceName: p.DeviceName, AccountID: p.AccountID,
@@ -87,7 +101,17 @@ func (s *Server) playHistoryRoutes() {
 			return PlaySummary{}, err
 		}
 		sum, err := s.db.SummarizePlays(r.Context(), q)
-		out := PlaySummary{People: []PlayTotal{}, Titles: []PlayTotal{}, Busiest: sum.Busiest, Partial: sum.Stopped}
+		if err != nil {
+			return PlaySummary{}, err
+		}
+		out := PlaySummary{People: []PlayTotal{}, Titles: []PlayTotal{}, Busiest: sum.Busiest, Window: db.SummaryWindow}
+		if sum.Stopped {
+			from := sum.CountedFrom.UTC()
+			out.CountedFrom = &from
+		}
+		if out.Totals, err = s.rangeTotals(r, q); err != nil {
+			return PlaySummary{}, err
+		}
 		for _, c := range sum.People {
 			out.People = append(out.People, PlayTotal{ID: c.ID, Name: c.Name, Plays: c.Plays, WatchedMs: c.WatchedMS})
 		}
@@ -96,6 +120,42 @@ func (s *Server) playHistoryRoutes() {
 		}
 		return out, err
 	})
+}
+
+// rangeTotals are the range's plays and time played from the daily totals, which are kept for
+// the whole server: only for an asker with every library, and only with no filter that the
+// totals cannot follow (a person, a library, a kind, text).
+func (s *Server) rangeTotals(r *http.Request, q db.PlayQuery) (*PlayRangeTotals, error) {
+	if q.AccountID != "" || q.LibraryID != "" || len(q.Kinds) > 0 || q.Text != "" {
+		return nil, nil
+	}
+	if all, err := s.db.HasAllLibraries(r.Context(), q.Asker); err != nil || !all {
+		return nil, err
+	}
+	to := q.To
+	if to.IsZero() {
+		to = s.now()
+	}
+	first, last := console.Day(q.From.In(time.Local)), console.Day(to.In(time.Local))
+	out := &PlayRangeTotals{}
+	add := func(metric string, n int64) {
+		switch {
+		case strings.HasPrefix(metric, console.MetricPlays+"."):
+			out.Plays += n
+		case strings.HasPrefix(metric, console.MetricPlayedMs+"."):
+			out.WatchedMs += n
+		}
+	}
+	rows, err := s.db.DailyTotals(r.Context(), first, last, "")
+	for _, row := range rows {
+		add(row.Metric, row.Value)
+	}
+	if day, today := s.totals.Today(); day >= first && day <= last {
+		for metric, n := range today {
+			add(metric, n)
+		}
+	}
+	return out, err
 }
 
 // playQuery reads the filters the list and the summary share: person, library, kind, text and
