@@ -206,6 +206,11 @@ func (d *DB) CreateDownload(ctx context.Context, n NewDownload, now time.Time) (
 		}
 		if ref != "" {
 			out, err = scanDownload(tx.QueryRowContext(ctx, `SELECT `+downloadColumns+downloadFrom+` WHERE d.public_id = ?`, ref))
+			if err == nil && n.IdempotencyKey == "" && (out.Selection != n.Selection || out.KeepNext != n.KeepNext || out.VersionPublicID != n.VersionPublicID) {
+				// The same thing asked for again with other choices: say so, rather than
+				// answer as if the new choices were in force.
+				return ErrConflict
+			}
 			return err
 		}
 		created = true
@@ -397,4 +402,23 @@ func (d *DB) DownloadedTitle(ctx context.Context, profileID int64, downloadPubli
 		}
 	}
 	return dl, DownloadTitle{}, ErrNotFound
+}
+
+// DownloadSession is a live sign-in a download address was given to.
+type DownloadSession struct {
+	ProfileID, DeviceID int64
+	Platform            string
+}
+
+// DownloadSession returns a sign-in that has not ended or expired, with the profile it is on
+// now and its device. Anything else is ErrNotFound.
+func (d *DB) DownloadSession(ctx context.Context, sessionID int64, now time.Time) (DownloadSession, error) {
+	var out DownloadSession
+	err := d.read.QueryRowContext(ctx, `SELECT ifnull(s.profile_id, 0), s.device_id, ifnull(dv.platform, '') FROM sessions s
+		JOIN devices dv ON dv.id = s.device_id WHERE s.id = ? AND s.revoked_at IS NULL AND s.expires_at > ?`, sessionID, now.UnixMilli()).
+		Scan(&out.ProfileID, &out.DeviceID, &out.Platform)
+	if errors.Is(err, sql.ErrNoRows) {
+		return out, ErrNotFound
+	}
+	return out, err
 }
