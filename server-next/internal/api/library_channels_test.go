@@ -1,0 +1,205 @@
+package api
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/librarychannels"
+)
+
+func libraryOfKind(t *testing.T, s *Server, token, kind string) string {
+	t.Helper()
+	for _, l := range get[Libraries](t, s, token, "/v1/libraries").Items {
+		if l.Kind == kind {
+			return l.ID
+		}
+	}
+	t.Fatalf("no %s library", kind)
+	return ""
+}
+
+func makeChannel(t *testing.T, s *Server, owner, name string, b librarychannels.Builder) LibraryChannel {
+	t.Helper()
+	var ch LibraryChannel
+	if w := call(t, s, "POST", "/v1/admin/library-channels", owner, LibraryChannelSave{Name: &name, Builder: &b}, &ch); w.Code != 201 {
+		t.Fatalf("making %q answered %d: %s", name, w.Code, w.Body)
+	}
+	if err := s.channels.Schedule(context.Background(), ch.ID); err != nil {
+		t.Fatal(err)
+	}
+	return ch
+}
+
+// programmes reads a channel's schedule from the main database and checks it has no gaps
+// and no overlaps: each programme starts the moment the one before ends.
+func programmes(t *testing.T, s *Server, channelID string, from, to time.Time) []db.ScheduleRow {
+	t.Helper()
+	ch, err := s.db.LibraryChannel(context.Background(), channelID, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := s.db.ChannelProgrammes(context.Background(), ch.ID, from, to)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for n := 1; n < len(rows); n++ {
+		if !rows[n].StartsAt.Equal(rows[n-1].EndsAt) {
+			t.Fatalf("programme %d starts at %v, the one before ends at %v", n, rows[n].StartsAt, rows[n-1].EndsAt)
+		}
+	}
+	return rows
+}
+
+// The owner makes a film channel from a template, it is on the air a week ahead with no
+// gaps, and saving a change on an out-of-date copy, an overlapping block or a missing library
+// is refused with the field named.
+func TestALibraryChannelIsMadeAndScheduledAWeekAhead(t *testing.T) {
+	s, owner, _ := seededWith(t, 600, 0)
+	var templates Page[ChannelTemplate]
+	call(t, s, "GET", "/v1/admin/library-channels/templates", owner, nil, &templates)
+	if len(templates.Items) != 9 || !templates.Items[0].Available {
+		t.Fatalf("templates: %+v", templates.Items)
+	}
+	if templates.Items[6].Key != "anime" || templates.Items[6].Available || templates.Items[6].Reason != "Not enough media" {
+		t.Fatalf("a template with no media is offered: %+v", templates.Items[6])
+	}
+	ch := makeChannel(t, s, owner, "Movies", templates.Items[0].Builder)
+
+	var read LibraryChannel
+	w := call(t, s, "GET", "/v1/admin/library-channels/"+ch.ID, owner, nil, &read)
+	if w.Code != 200 || read.State != "onAir" || read.Health == nil || !read.Health.OnAir || read.Titles == 0 || w.Header().Get("ETag") == "" {
+		t.Fatalf("the new channel is not on the air: %d %+v %+v", w.Code, read, read.Health)
+	}
+	now := time.Now()
+	rows := programmes(t, s, ch.ID, now, now.Add(8*24*time.Hour))
+	if len(rows) < 50 || rows[len(rows)-1].EndsAt.Before(now.Add(7*24*time.Hour)) || rows[0].StartsAt.After(now) {
+		t.Fatalf("%d programmes, ending %v", len(rows), rows[len(rows)-1].EndsAt)
+	}
+	// Shuffle, no repeats: no film plays twice before every film has played once.
+	seen := map[int64]bool{}
+	for n, r := range rows[:min(len(rows), read.Titles)] {
+		if seen[r.ItemID] {
+			for _, r := range rows[:3] {
+				t.Logf("%v %v %d", r.StartsAt, r.EndsAt, r.ItemID)
+			}
+			t.Fatalf("film %d (programme %d of %d) repeated within the first round of %d", r.ItemID, n, len(rows), read.Titles)
+		}
+		seen[r.ItemID] = true
+	}
+
+	films := libraryOfKind(t, s, owner, "movies")
+	b := templates.Items[0].Builder
+	b.Blocks = []librarychannels.Block{
+		{ID: "evening", Days: []string{"mon", "tue"}, From: "19:00", To: "23:00"},
+		{ID: "late", Days: []string{"tue"}, From: "22:00", To: "02:00"},
+	}
+	stale := newRequest("PATCH", "/v1/admin/library-channels/"+ch.ID, owner, LibraryChannelSave{Builder: &b})
+	stale.Header.Set("If-Match", `"999"`)
+	if w := serve(s, stale); w.Code != 412 {
+		t.Fatalf("a save on an out-of-date copy answered %d", w.Code)
+	}
+	for _, c := range []struct {
+		save  LibraryChannelSave
+		field string
+	}{
+		{LibraryChannelSave{Builder: &b}, "builder.blocks[1]"},
+		{LibraryChannelSave{Builder: &librarychannels.Builder{Selection: librarychannels.Selection{Kinds: []string{"movie"}}}}, "builder.libraries"},
+		{LibraryChannelSave{Builder: &librarychannels.Builder{Selection: librarychannels.Selection{Libraries: []string{films}}}}, "builder.kinds"},
+		{LibraryChannelSave{TimeZone: new("Mars/Olympus")}, "timeZone"},
+	} {
+		var e struct {
+			Error Error `json:"error"`
+		}
+		w := call(t, s, "PATCH", "/v1/admin/library-channels/"+ch.ID, owner, c.save, &e)
+		if w.Code != 400 || len(e.Error.Fields) == 0 || e.Error.Fields[0].Path != c.field {
+			t.Errorf("saving %+v answered %d %+v, want the field %s named", c.save, w.Code, e.Error, c.field)
+		}
+	}
+}
+
+// A TV channel plays each show's episodes in order, and Regenerate schedule builds the rest
+// again from the end of the programme now on without skipping the week of episodes it threw away.
+func TestShowsPlayInEpisodeOrderAndRegenerateKeepsTheirPlace(t *testing.T) {
+	s, owner, _ := seededWith(t, 600, 0)
+	ctx := context.Background()
+	shows := libraryOfKind(t, s, owner, "shows")
+	ch := makeChannel(t, s, owner, "TV", librarychannels.Builder{Selection: librarychannels.Selection{Libraries: []string{shows},
+		Kinds: []string{"show"}, Order: "inOrder", Episodes: "rotate"}})
+	now := time.Now()
+	before := programmes(t, s, ch.ID, now, now.Add(8*24*time.Hour))
+	var ids []int64
+	for _, r := range before {
+		ids = append(ids, r.ItemID)
+	}
+	titles, err := s.db.ProgrammeTitles(ctx, ids)
+	if err != nil {
+		t.Fatal(err)
+	}
+	last := map[int64][2]int{}
+	for _, r := range before {
+		e := titles[r.ItemID]
+		if e.ShowID == 0 || e.Season == nil || e.Episode == nil {
+			t.Fatalf("programme %+v is not an episode", e)
+		}
+		place := [2]int{*e.Season, *e.Episode}
+		// A show that has played to its end starts again from its first episode.
+		if prev, ok := last[e.ShowID]; ok && place != [2]int{1, 1} && (place[0] < prev[0] || place[0] == prev[0] && place[1] <= prev[1]) {
+			t.Fatalf("show %d went from %v to %v", e.ShowID, prev, place)
+		}
+		last[e.ShowID] = place
+	}
+
+	var regenerated LibraryChannel
+	if w := call(t, s, "POST", "/v1/admin/library-channels/"+ch.ID+"/regenerate", owner, nil, &regenerated); w.Code != 202 || regenerated.State != "building" {
+		t.Fatalf("regenerate answered %d %+v", w.Code, regenerated)
+	}
+	if err := s.channels.Schedule(ctx, ch.ID); err != nil {
+		t.Fatal(err)
+	}
+	after := programmes(t, s, ch.ID, now, now.Add(8*24*time.Hour))
+	for n := 0; n < 20 && n < len(before); n++ {
+		if after[n] != before[n] {
+			t.Fatalf("programme %d was %+v and after Regenerate is %+v", n, before[n], after[n])
+		}
+	}
+}
+
+// In a block that cuts programmes off, nothing runs past the block's end; outside it a film
+// always finishes, so the block can start late.
+func TestABlockThatCutsOffEndsOnTime(t *testing.T) {
+	s, owner, _ := seededWith(t, 600, 0)
+	films := libraryOfKind(t, s, owner, "movies")
+	shows := libraryOfKind(t, s, owner, "shows")
+	zone := "America/Halifax"
+	b := librarychannels.Builder{Selection: librarychannels.Selection{Libraries: []string{films}, Kinds: []string{"movie"}},
+		Blocks: []librarychannels.Block{{ID: "cartoons", Days: []string{"sun", "mon", "tue", "wed", "thu", "fri", "sat"}, From: "19:00", To: "21:00",
+			Overrun: "cut", Selection: &librarychannels.Selection{Libraries: []string{shows}, Kinds: []string{"show"}}}}}
+	var ch LibraryChannel
+	if w := call(t, s, "POST", "/v1/admin/library-channels", owner, LibraryChannelSave{Name: new("Evenings"), TimeZone: &zone, Builder: &b}, &ch); w.Code != 201 {
+		t.Fatalf("making the channel answered %d: %s", w.Code, w.Body)
+	}
+	if len(ch.Libraries) != 2 {
+		t.Fatalf("the block's library is not among the channel's libraries: %v", ch.Libraries)
+	}
+	if err := s.channels.Schedule(context.Background(), ch.ID); err != nil {
+		t.Fatal(err)
+	}
+	loc, _ := time.LoadLocation(zone)
+	now := time.Now()
+	inBlock := 0
+	for _, r := range programmes(t, s, ch.ID, now, now.Add(8*24*time.Hour)) {
+		start := r.StartsAt.In(loc)
+		end := time.Date(start.Year(), start.Month(), start.Day(), 21, 0, 0, 0, loc)
+		if start.Hour() >= 19 && start.Hour() < 21 {
+			inBlock++
+			if r.EndsAt.After(end) {
+				t.Fatalf("a programme in the block runs from %v to %v, past %v", start, r.EndsAt.In(loc), end)
+			}
+		}
+	}
+	if inBlock < 7 {
+		t.Fatalf("only %d programmes in a week of evening blocks", inBlock)
+	}
+}
