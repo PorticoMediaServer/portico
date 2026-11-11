@@ -273,7 +273,7 @@ func navContents(a *archive, name string, inSpine map[string]bool) []Contents {
 					link = nil
 				}
 			case "ol", "ul":
-				lists--
+				lists = max(lists-1, 0)
 			case "nav":
 				if inTOC {
 					return out
@@ -318,7 +318,7 @@ func ncxContents(a *archive, name string, inSpine map[string]bool) []Contents {
 					if attr.Name.Local == "src" {
 						if part, fragment, ok := resolve(path.Dir(name), attr.Value); ok && inSpine[part] {
 							if title := cleanTitle(stack[len(stack)-1].title); title != "" {
-								out = append(out, Contents{Title: title, Part: part, Fragment: fragment, Depth: min(depth-1, maxContentDepth)})
+								out = append(out, Contents{Title: title, Part: part, Fragment: fragment, Depth: min(max(depth-1, 0), maxContentDepth)})
 							}
 						}
 					}
@@ -336,7 +336,7 @@ func ncxContents(a *archive, name string, inSpine map[string]bool) []Contents {
 				if len(stack) > 0 {
 					stack = stack[:len(stack)-1]
 				}
-				depth--
+				depth = max(depth-1, 0)
 			}
 		}
 	}
