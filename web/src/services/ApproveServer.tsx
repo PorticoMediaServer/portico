@@ -1,5 +1,5 @@
 import {useEffect, useState, useSyncExternalStore} from 'react';
-import {AuthLinks} from '../kit/accounts';
+import {AuthLinks} from '../kit/accounts/AuthStage';
 import {ServicesActions, ServicesAuthStage, ServicesFacts, ServicesHeading, ServicesLead, ServicesNotice, ServicesQuiet, ServicesStateIcon} from '../kit/accounts/ServicesAuth';
 import {Button, TextField} from '../kit/controls';
 import {servicesI18n} from './i18n';

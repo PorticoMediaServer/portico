@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState, type FormEvent} from 'react';
-import {AuthLinks} from '../kit/accounts';
+import {AuthLinks} from '../kit/accounts/AuthStage';
 import {ServicesActions, ServicesAuthStage, ServicesDivider, ServicesHeading, ServicesLabel, ServicesLead, ServicesNotice, ServicesProviderButton, ServicesProviderContext, ServicesQuiet, ServicesTerms} from '../kit/accounts/ServicesAuth';
 import {Button, TextField} from '../kit/controls';
 import {goTo} from '../platform/hosted-navigation';

@@ -38,7 +38,7 @@ async function pages() {
   const went = [];
   const named = new Proxy({}, {get: (_, key) => String(key)});
   const common = {
-    react: h.react, '../kit/accounts': named, '../kit/accounts/ServicesAuth': named, '../kit/controls': named,
+    react: h.react, '../kit/accounts/AuthStage': named, '../kit/accounts/ServicesAuth': named, '../kit/controls': named,
     '../platform/hosted-navigation': {goTo: to => went.push(to)},
     './i18n': {servicesI18n: () => ({t: (id, values) => values ? `${id} ${JSON.stringify(values)}` : id, date: value => value})},
     './services-api': api, './account-session': session, './account-problem': problems, './account-sign-up-memory': signUpMemory,
@@ -240,7 +240,7 @@ test('after Google or Apple, the one-use code leaves the address at once and is 
   const {h, went} = await pages();
   const named = new Proxy({}, {get: (_, key) => String(key)});
   const providers = await componentModule(new URL('../src/services/AccountProviders.tsx', import.meta.url), {
-    react: h.react, '../kit/accounts': named, '../kit/accounts/ServicesAuth': named, '../kit/controls': named,
+    react: h.react, '../kit/accounts/AuthStage': named, '../kit/accounts/ServicesAuth': named, '../kit/controls': named,
     '../platform/hosted-navigation': {goTo: to => went.push(to)}, './i18n': {servicesI18n: () => ({t: id => id})},
     './services-api': api, './account-session': session, './account-problem': problems, './AccountTwoStep': {AccountTwoStep: () => null},
     './AccountSignIn': {signInPath: next => `/sign-in?next=${next}`}, './services.module.css': {default: named},

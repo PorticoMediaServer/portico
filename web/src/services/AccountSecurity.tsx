@@ -1,5 +1,5 @@
 import {useEffect, useState, type FormEvent, type ReactNode} from 'react';
-import {AuthPasswordField} from '../kit/accounts';
+import {AuthPasswordField} from '../kit/accounts/AuthStage';
 import {ServicesAuthenticator, ServicesBadge, ServicesDangerAction, ServicesGroup, ServicesRecoveryCodes, ServicesWorkspaceRow} from '../kit/accounts/ServicesWorkspace';
 import {ServicesLabel, ServicesNotice, ServicesQuiet, ServicesStrength} from '../kit/accounts/ServicesAuth';
 import {Button, TextField} from '../kit/controls';

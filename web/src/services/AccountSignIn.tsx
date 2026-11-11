@@ -1,5 +1,5 @@
 import {useState, type FormEvent, type ReactNode} from 'react';
-import {AuthLinks, AuthPasswordField} from '../kit/accounts';
+import {AuthLinks, AuthPasswordField} from '../kit/accounts/AuthStage';
 import {ServicesActions, ServicesAuthStage, ServicesHeading, ServicesLead, ServicesNotice} from '../kit/accounts/ServicesAuth';
 import {Button, TextField} from '../kit/controls';
 import {goTo} from '../platform/hosted-navigation';
