@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -148,11 +149,17 @@ func parseLyrics(text string) (lines []LyricLine, offsetMs int64, timed bool) {
 // provider, or pasted by the owner arrive with the metadata work.
 func (s *Server) itemLyrics(r *http.Request, _ None) (Page[Lyrics], error) {
 	c := CallerFrom(r.Context())
-	files, err := s.db.LyricFiles(r.Context(), db.Viewer{UserID: c.UserID, ProfileID: c.ProfileID}, r.PathValue("id"))
+	lyrics, err := s.lyricsOf(r.Context(), db.Viewer{UserID: c.UserID, ProfileID: c.ProfileID}, r.PathValue("id"))
+	return Page[Lyrics]{Items: lyrics}, err
+}
+
+// lyricsOf reads a song's lyrics files, for the lyrics route and for a download.
+func (s *Server) lyricsOf(ctx context.Context, v db.Viewer, itemID string) ([]Lyrics, error) {
+	files, err := s.db.LyricFiles(ctx, v, itemID)
 	if err != nil {
-		return Page[Lyrics]{}, playbackError(err)
+		return nil, playbackError(err)
 	}
-	out := Page[Lyrics]{Items: []Lyrics{}}
+	out := []Lyrics{}
 	for _, file := range files {
 		f, err := libraryfile.Open(file.Path, []string{file.Folder})
 		if err != nil {
@@ -172,7 +179,7 @@ func (s *Server) itemLyrics(r *http.Request, _ None) (Page[Lyrics], error) {
 		if timed {
 			lyrics.Format = "lrc"
 		}
-		out.Items = append(out.Items, lyrics)
+		out = append(out, lyrics)
 	}
 	return out, nil
 }

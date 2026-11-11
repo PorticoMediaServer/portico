@@ -56,8 +56,17 @@ var (
 	audiobookSpeeds = []float64{0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3}
 )
 
-// fields is every setting, in the order settings pages show them. The settings for downloads
-// join the list when the server can download.
+// downloadQualities are the choices for a download: ask each time, the original, or a step
+// of the ladder (Automatic means nothing for a file kept on a device).
+func downloadQualities() []string {
+	out := []string{"ask", "original"}
+	for _, p := range qualityladder.Fixed() {
+		out = append(out, p.ID)
+	}
+	return out
+}
+
+// fields is every setting, in the order settings pages show them.
 var fields = []Setting{
 	intOf("playback.skipBackMs", 10000, []int{5000, 10000, 15000, 30000}, ScopeProfile),
 	intOf("playback.skipForwardMs", 30000, []int{10000, 15000, 30000, 60000}, ScopeProfile),
@@ -127,6 +136,13 @@ var fields = []Setting{
 
 	// Whether the account's other devices may play on this one and control what it plays.
 	flag("devices.playFromOtherDevices", true, ScopeDevice),
+	// Downloads belong to one device, and so do their rules. "ask" asks each time.
+	oneOf("downloads.quality", "original", downloadQualities(), ScopeDevice),
+	oneOf("downloads.musicQuality", "320", qualityladder.MusicIDs(), ScopeDevice),
+	flag("downloads.wifiOnly", true, ScopeDevice),
+	flag("downloads.deleteWatched", false, ScopeDevice),
+	// The most the device's downloads may take, in gigabytes; 0 is no limit.
+	intRange("downloads.storageLimitGB", 0, 0, 100_000, ScopeDevice),
 
 	flag("privacy.pauseWatchHistory", false, ScopeProfile),
 	flag("privacy.showActivityToMembers", false, ScopeProfile),
