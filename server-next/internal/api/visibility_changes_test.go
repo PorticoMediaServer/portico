@@ -520,3 +520,99 @@ func (w *world) remint() {
 		}
 	}
 }
+
+// row is the row of the title with this id.
+func (w *world) row(id string) int64 {
+	w.t.Helper()
+	var row int64
+	if err := w.raw.QueryRow(`SELECT id FROM items WHERE public_id = ?`, id).Scan(&row); err != nil {
+		w.t.Fatal(err)
+	}
+	return row
+}
+
+// provider has a provider answer about a show that every profile may see: it is for adults,
+// and an episode of its first season has a name. A film is asked about and not matched, and
+// takes the title written in its file if it has one.
+func (w *world) provider() {
+	w.t.Helper()
+	f := w.read()
+	var show, film string
+	for _, id := range f.byTitle() {
+		it := f.items[id]
+		if it.kind == db.KindShow && it.rating.Valid && it.rating.Int64 <= 8 && show == "" {
+			show = id
+		}
+		if it.kind == db.KindMovie && film == "" {
+			film = id
+		}
+	}
+	if show == "" || film == "" {
+		w.t.Fatal("the seeded library has no show rated for children, or no film")
+	}
+	age := 18
+	if err := w.s.db.ApplyDetails(background, db.Background, w.row(show), db.ItemDetails{Match: db.MatchFound, Title: "Rated for adults",
+		ContentRating: "NC-17", RatingAge: &age, Tags: []db.TagName{{Kind: db.TagGenre, Name: "Drama"}}}); err != nil {
+		w.t.Fatal(err)
+	}
+	w.check("the show is rated for adults")
+	var season int
+	if err := w.raw.QueryRow(`SELECT ifnull(min(parent_index), 1) FROM items WHERE root_id = ? AND kind = ?`, w.row(show), db.KindEpisode).Scan(&season); err != nil {
+		w.t.Fatal(err)
+	}
+	if err := w.s.db.ApplyChildren(background, db.Background, w.row(show), db.KindEpisode, season,
+		[]db.ItemDetails{{Index: 1, Title: "Named by the provider"}}); err != nil {
+		w.t.Fatal(err)
+	}
+	if err := w.s.db.SetUnmatched(background, db.Background, w.row(film), "no answer", ""); err != nil {
+		w.t.Fatal(err)
+	}
+	if err := w.s.db.UseEmbeddedTitle(background, w.row(film)); err != nil {
+		w.t.Fatal(err)
+	}
+}
+
+// deleteTitles deletes a show that some profile may not see, with every file of it, and then one
+// version of a film that has two: the files are said to be gone from disk, as the route says
+// once it has deleted them.
+func (w *world) deleteTitles() {
+	w.t.Helper()
+	owner, f := w.viewers[0], w.read()
+	claims, err := w.s.tokens.CheckAccess(owner.token, time.Now())
+	if err != nil {
+		w.t.Fatal(err)
+	}
+	v := db.Viewer{UserID: claims.UserID, ProfileID: claims.ProfileID}
+	gone := func(del db.Deletion, err error) {
+		w.t.Helper()
+		if err != nil {
+			w.t.Fatal(err)
+		}
+		var files []int64
+		for _, file := range del.Files {
+			files = append(files, file.ID)
+		}
+		if err := w.s.db.Deleted(background, del, files); err != nil {
+			w.t.Fatal(err)
+		}
+	}
+	// A show some profile is kept from, so its going must change nobody's counts wrongly.
+	var show string
+	for _, id := range f.byTitle() {
+		if f.items[id].kind == db.KindShow && slices.ContainsFunc(w.viewers, func(v profileUnderTest) bool { return f.hidden(v.profile, id) }) {
+			show = id
+			break
+		}
+	}
+	if show == "" {
+		w.t.Fatal("the seeded library has no show that some profile is kept from")
+	}
+	gone(w.s.db.ItemDeletion(background, v, show))
+	w.check("the show is deleted")
+	var version string
+	if err := w.raw.QueryRow(`SELECT m.public_id FROM media m WHERE m.position = 1 AND (SELECT count(*) FROM media o WHERE o.item_id = m.item_id) = 2
+		ORDER BY m.id LIMIT 1`).Scan(&version); err != nil {
+		w.t.Fatal(err)
+	}
+	gone(w.s.db.VersionDeletion(background, v, version))
+}

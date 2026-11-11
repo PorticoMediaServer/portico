@@ -389,7 +389,7 @@ func (w *world) facets(stage string, v profileUnderTest, f *facts, path string, 
 			add(f.tagKind[tag], tag)
 		}
 		if it.year > 0 {
-			add(db.FacetDecade, strconv.Itoa(it.year/10*10))
+			add(db.FacetDecade, fmt.Sprintf("%d..%d", it.year/10*10, it.year/10*10+9)) // the value is the range to send back as the filter
 		}
 		if it.certificate != "" {
 			add(db.FacetRating, it.certificate)
@@ -505,8 +505,12 @@ func (w *world) people(stage string, v profileUnderTest, f *facts, changed map[s
 		switch {
 		case visible == 0 && code != 404:
 			w.fail("%s: %s: person %s, credited only on titles it may not see, answered %d", stage, v.name, person, code)
-		case visible > 0 && (code != 200 || p.TitleCount != visible):
-			w.fail("%s: %s: person %s answered %d with %d titles; it may see %d", stage, v.name, person, code, p.TitleCount, visible)
+		case visible > 0 && (code != 200 || p.TitleCount == nil || *p.TitleCount != visible):
+			count := -1
+			if p.TitleCount != nil {
+				count = *p.TitleCount
+			}
+			w.fail("%s: %s: person %s answered %d with %d titles; it may see %d", stage, v.name, person, code, count, visible)
 		}
 		w.expect(stage, v, f, "/v1/items?person="+person, map[string]Item{})
 	}
