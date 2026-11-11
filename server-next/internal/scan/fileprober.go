@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"syscall"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/inputbridge"
@@ -42,11 +43,16 @@ func pooled(ctx context.Context, binary string, args []string, path string, mode
 	if !mediaexec.ProbePoolAccepts(job) {
 		return false, nil
 	}
-	file, err := os.Open(path)
+	// O_NONBLOCK: a named pipe put where the file was opens at once and is refused here,
+	// where a plain open would wait for ever for somebody to write to it.
+	file, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return true, err
 	}
 	defer file.Close()
+	if info, err := file.Stat(); err != nil || !info.Mode().IsRegular() {
+		return true, fmt.Errorf("%w: not a regular file", errToolRefused)
+	}
 	result, handled, err := mediaexec.RunPooledProbe(ctx, mediaexec.PooledProbe{Job: job, Input: file, OutputLimit: 4 << 20, LowPriority: true})
 	if !handled || err != nil {
 		return handled, err

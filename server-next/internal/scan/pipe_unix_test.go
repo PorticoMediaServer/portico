@@ -34,3 +34,24 @@ func TestTheScannerRefusesANamedPipeWithoutWaiting(t *testing.T) {
 		t.Fatal("opening a named pipe waited")
 	}
 }
+
+// The prober is handed a path the scan found. A named pipe there is refused at once.
+func TestTheProberRefusesANamedPipeWithoutWaiting(t *testing.T) {
+	pipe := filepath.Join(t.TempDir(), "film.mkv")
+	if err := syscall.Mkfifo(pipe, 0600); err != nil {
+		t.Skip(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		_, err := FileProber{}.Probe(context.Background(), pipe)
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("a named pipe was read as a film")
+		}
+	case <-time.After(20 * time.Second):
+		t.Fatal("reading a named pipe waited")
+	}
+}
