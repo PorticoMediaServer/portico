@@ -121,7 +121,7 @@ func run(log *slog.Logger) (err error) {
 	}()
 	// Media tools are started through this binary as their helper. That lets a scan keep a
 	// few confined workers going, where it would otherwise build a sandbox for every file.
-	if _, err := mediaexec.Configure(mediaexec.Options{}); err != nil {
+	if _, err := mediaexec.Configure(mediaexec.Options{DataFolder: *data}); err != nil {
 		return err
 	}
 	// The database, after a restore the owner staged, if there is one: see backup.OpenData.

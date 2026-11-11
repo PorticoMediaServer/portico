@@ -144,18 +144,6 @@ func LinuxHardwareSandboxArgs(environment [][2]string) []string {
 	return args
 }
 
-// ownerFolders is the folders of a path list the owner started the server with that a
-// hardware job may read: absolute, clean, and never the whole file system.
-func ownerFolders(list string) []string {
-	out := []string{}
-	for _, dir := range filepath.SplitList(list) {
-		if filepath.IsAbs(dir) && filepath.Clean(dir) == dir && dir != "/" {
-			out = append(out, dir)
-		}
-	}
-	return out
-}
-
 // HardwareLibraryFolders is the folders of the server's own LD_LIBRARY_PATH, which a
 // hardware job's library path ends with (after the tool's own folders).
 func HardwareLibraryFolders(environment [][2]string) []string {

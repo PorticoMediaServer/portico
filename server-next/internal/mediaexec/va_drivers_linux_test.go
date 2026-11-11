@@ -93,3 +93,71 @@ func TestAHardwareJobFindsTheLibrariesOfAnOwnerUnpackedDriver(t *testing.T) {
 		}
 	}
 }
+
+func withDataFolder(t *testing.T, folder string) {
+	t.Helper()
+	configured.Lock()
+	saved := configured.dataFolder
+	configured.dataFolder = resolvedFolder(folder)
+	configured.Unlock()
+	t.Cleanup(func() {
+		configured.Lock()
+		configured.dataFolder = saved
+		configured.Unlock()
+	})
+}
+
+// A folder the owner names that is or contains the server's data folder is not shown to
+// hardware jobs, and the owner is told why; a folder inside the data folder, and any other,
+// still is.
+func TestAFolderHoldingTheDataFolderIsNotShownToHardwareJobs(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("TMPDIR", t.TempDir())
+	data, drivers := filepath.Join(home, "portico"), filepath.Join(home, "drivers")
+	inside := filepath.Join(data, "drivers")
+	for _, dir := range []string{inside, drivers} {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	link := filepath.Join(home, "link-to-home")
+	if err := os.Symlink(home, link); err != nil {
+		t.Fatal(err)
+	}
+	withDataFolder(t, data)
+	shown, skipped := sortOwnerFolders(strings.Join([]string{home, data, link, drivers, inside}, ":"))
+	if !slices.Equal(shown, []string{drivers, inside}) {
+		t.Fatalf("shown to hardware jobs: %v", shown)
+	}
+	if len(skipped) != 3 || skipped[0][0] != home || skipped[1][0] != data || skipped[2][0] != link || !strings.Contains(skipped[0][1], "data folder") {
+		t.Fatalf("skipped: %v", skipped)
+	}
+	args := strings.Join(LinuxHardwareSandboxArgs([][2]string{{"LD_LIBRARY_PATH", home + ":" + drivers}}), " ") + " "
+	if strings.Contains(args, "--ro-bind-try "+home+" ") || !strings.Contains(args, "--ro-bind-try "+drivers+" ") {
+		t.Fatalf("the sandbox: %v", args)
+	}
+	if got := HardwareLibraryFolders([][2]string{{"LD_LIBRARY_PATH", home + ":" + drivers}}); !slices.Equal(got, []string{drivers}) {
+		t.Fatalf("the job's library path: %v", got)
+	}
+}
+
+// A folder that is or contains the temporary folder is not shown either: it would be mounted
+// over the job's own private one.
+func TestAFolderHoldingTheTemporaryFolderIsNotShownToHardwareJobs(t *testing.T) {
+	root := t.TempDir()
+	temporary, drivers := filepath.Join(root, "tmp"), filepath.Join(root, "drivers")
+	for _, dir := range []string{temporary, drivers} {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("TMPDIR", temporary)
+	withDataFolder(t, "")
+	shown, skipped := sortOwnerFolders(strings.Join([]string{temporary, root, drivers}, ":"))
+	if !slices.Equal(shown, []string{drivers}) {
+		t.Fatalf("shown to hardware jobs: %v", shown)
+	}
+	if len(skipped) != 2 || skipped[0][0] != temporary || skipped[1][0] != root || !strings.Contains(skipped[1][1], "temporary folder") {
+		t.Fatalf("skipped: %v", skipped)
+	}
+}
