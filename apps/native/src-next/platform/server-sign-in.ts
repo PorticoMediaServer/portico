@@ -24,6 +24,7 @@ import {rememberNativeServerDisplay} from './server-display';
 import {nativeAppSessions, subscribeNativeAppSessions} from './app-session-storage';
 import {NativeMemberAccountMove} from './member-account-move';
 import {NativeLocalInvitation} from './local-invitation';
+import {acceptServerInvitation, type InvitationCapability} from '../../../../packages/client-core/src/invitation-join';
 import {NativePorticoInvitation, NativeInvitationUnavailable, readPorticoInvitationPreview} from './portico-invitation';
 import {nativeCertificatePlatform} from './server-connections';
 import {pendingCertificate, confirmIdentityCode, clearPendingCertificate, type PendingCertificate} from './certificate-trust';
@@ -358,8 +359,17 @@ export class NativeServerSignIn {
         && live.serverId === pin.serverId && live.publicKey === pin.publicKey && live.fingerprint === pin.fingerprint;
     };
     const invitationApi = new HttpLocalApi(api.baseUrl, '', nativeNetworkFetch); invitationApi.useRoutes(routes);
-    this.localInvitation = new NativeLocalInvitation({api: invitationApi, origin: routeOrigin(api.baseUrl), serverId: pin.serverId, current: this.current, signIn: (username, password) => this.signInLocal(username, password)});
+    this.localInvitation = new NativeLocalInvitation({api: invitationApi, origin: routeOrigin(api.baseUrl), serverId: pin.serverId, current: this.current, signIn: (username, password) => this.signInLocal(username, password),
+      accept: (capability, username, password, name) => this.joinLocal(capability, username, password, name)});
     return this.localInvitation;
+  }
+  /** Joins with an invitation and keeps the sign-in the server answers with, as a password sign-in is kept. */
+  joinLocal(capability: InvitationCapability, username: string, password: string, name: string) {
+    return this.run(async () => {
+      if (this.server?.signIn !== 'local' || !this.api || this.account || !this.admission) throw mismatch();
+      if (this.expectedTarget) this.assertSignInTarget(this.expectedTarget.serverId, this.expectedTarget.fingerprint);
+      return this.consume(await acceptServerInvitation(this.api, capability, {username, password, profileName: name}, this.controller.signal));
+    });
   }
   signInLocal(username: string, password: string) {
     return this.run(async () => {
