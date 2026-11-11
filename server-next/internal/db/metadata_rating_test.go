@@ -1,6 +1,7 @@
 package db_test
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
@@ -240,5 +241,126 @@ func TestShowHistoryKeepsEpisodesOnlyForAMatchChange(t *testing.T) {
 	// Newest first: undo of the match change, undo of the edit, the match change, the edit.
 	if len(counts) != 4 || counts[0] == 0 || counts[1] != 0 || counts[2] == 0 || counts[3] != 0 {
 		t.Fatalf("seasons and episodes kept in each History entry, newest first: %v", counts)
+	}
+}
+
+// A provider's refresh is not a person's change: Undo of an edit made before a refresh made
+// the film adults only leaves the film adults only.
+func TestUndoOfAnEditKeepsARatingARefreshGaveSince(t *testing.T) {
+	l := newLibrary(t, 1500)
+	age := 13
+	limited, err := l.d.CreateSeedProfile(ctx, db.SeedProfile{Name: "limited-by-rating", MaxRatingAge: &age})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var films db.Library
+	for _, lib := range l.libs {
+		if lib.Kind == db.LibraryMovies {
+			films = lib
+		}
+	}
+	visible := everything(t, l.d, limited, db.ItemQuery{Library: films.PublicID, Kinds: []db.ItemKind{db.KindMovie}, Limit: 5})
+	if len(visible) < 2 {
+		t.Fatal("no film the limited profile sees")
+	}
+	film := visible[0]
+	locks, err := l.d.MetadataLocks(ctx, film.PublicID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	title := "Renamed"
+	if _, err := l.d.EditMetadata(ctx, film.PublicID, locks.Revision, db.MetadataEdit{Title: &title}); err != nil {
+		t.Fatal(err)
+	}
+	adult := 18
+	if err := l.d.ApplyDetails(ctx, db.Background, film.ID, db.ItemDetails{ContentRating: "NC-17", RatingAge: &adult}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.d.Item(ctx, limited, film.PublicID); err == nil {
+		t.Fatal("the refresh did not hide the film")
+	}
+	undoOldest := func() {
+		t.Helper()
+		history, err := l.d.MetadataHistory(ctx, film.PublicID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := l.d.UndoMetadata(ctx, film.PublicID, history[len(history)-1].ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	undoOldest()
+	if _, err := l.d.Item(ctx, limited, film.PublicID); err == nil {
+		t.Fatal("Undo of a title edit handed the limited profile a film a refresh made adults only since")
+	}
+
+	// The same for a person's own later edit: Undo of an older rating edit leaves a rating set since.
+	other := visible[1]
+	for _, rating := range []string{"PG", "NC-17"} {
+		locks, err := l.d.MetadataLocks(ctx, other.PublicID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := l.d.EditMetadata(ctx, other.PublicID, locks.Revision, db.MetadataEdit{ContentRating: &rating}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	film = other
+	undoOldest()
+	if _, err := l.d.Item(ctx, limited, film.PublicID); err == nil {
+		t.Fatal("Undo of an older rating edit handed the limited profile a film made adults only by a later edit")
+	}
+	// It stays locked as the person's, so the next refresh does not replace it either.
+	locks, err = l.d.MetadataLocks(ctx, film.PublicID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(locks.Locked, db.FieldContentRating) || locks.Sources[db.FieldContentRating] != db.SourceEdit {
+		t.Fatalf("Undo of an older rating edit unlocked the rating set since: %+v", locks)
+	}
+}
+
+// Undo of a show's match change puts its episodes back only where the change could reach them:
+// an episode the owner made adults only since stays adults only, and stays locked.
+func TestUndoOfAShowsMatchChangeKeepsAnEpisodesRatingSetSince(t *testing.T) {
+	l := newLibrary(t, 1500)
+	age := 13
+	limited, err := l.d.CreateSeedProfile(ctx, db.SeedProfile{Name: "limited-by-rating", MaxRatingAge: &age})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ep db.Item
+	for _, e := range everything(t, l.d, limited, db.ItemQuery{Library: showsLibrary(l).PublicID, Kinds: []db.ItemKind{db.KindEpisode}, Limit: 200}) {
+		if e.ContentRating == "" {
+			ep = e
+			break
+		}
+	}
+	if ep.ID == 0 {
+		t.Fatal("the test library has no episode the limited profile sees without a rating of its own")
+	}
+	if err := db.ChangeMatchOf(l.d, ep.RootPublicID, db.ItemDetails{Match: db.MatchChosen, ProviderKey: "tmdb:show:999999", Title: "Another Show"}); err != nil {
+		t.Fatal(err)
+	}
+	locks, err := l.d.MetadataLocks(ctx, ep.PublicID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rating := "NC-17"
+	if _, err := l.d.EditMetadata(ctx, ep.PublicID, locks.Revision, db.MetadataEdit{ContentRating: &rating}); err != nil {
+		t.Fatal(err)
+	}
+	history, err := l.d.MetadataHistory(ctx, ep.RootPublicID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.d.UndoMetadata(ctx, ep.RootPublicID, history[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.d.Item(ctx, limited, ep.PublicID); err == nil {
+		t.Fatal("Undo of the show's match change handed the limited profile an episode the owner made adults only since")
+	}
+	if locks, err = l.d.MetadataLocks(ctx, ep.PublicID); err != nil || !slices.Contains(locks.Locked, db.FieldContentRating) {
+		t.Fatalf("the episode's rating lock: %+v %v", locks, err)
 	}
 }

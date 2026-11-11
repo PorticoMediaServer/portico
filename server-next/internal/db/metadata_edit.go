@@ -370,6 +370,9 @@ func (d *DB) EditMetadata(ctx context.Context, publicID string, revision int64, 
 				return err
 			}
 		}
+		if err := rememberAfter(b, id); err != nil {
+			return err
+		}
 		next = current + 1
 		return appendChange(tx, Change{At: now, Topic: TopicItem, Op: OpUpdated, RefID: id, LibraryID: library})
 	})

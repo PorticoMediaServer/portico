@@ -471,14 +471,17 @@ CREATE TABLE lyrics (
 
 -- large. The changes people made to a title's details, pictures or match: the editor's
 -- History, and what "Undo to before this" puts back. before is the title as it was before
--- the change (fields, lists, locks, chosen pictures and match) as JSON. The newest 20 per
--- title are kept. Refreshes and scans are not recorded.
+-- the change (fields, lists, locks, chosen pictures and match) as JSON, and after the title
+-- as the change left it, written in the same transaction: Undo puts back only what differs
+-- between the two, so a refresh or a later change is never taken for this one. The newest 20
+-- per title are kept. Refreshes and scans are not recorded.
 CREATE TABLE metadata_history (
   id      INTEGER NOT NULL PRIMARY KEY,
   item_id INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
   at      INTEGER NOT NULL,
   kind    INTEGER NOT NULL,
-  before  TEXT    NOT NULL
+  before  TEXT    NOT NULL,
+  after   TEXT
 );
 CREATE INDEX metadata_history_item ON metadata_history (item_id, id);
 

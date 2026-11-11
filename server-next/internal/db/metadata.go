@@ -479,6 +479,11 @@ func (d *DB) ChangeMatch(ctx context.Context, p Priority, itemID int64, details 
 				return err
 			}
 		}
+		if details.Match == MatchChosen {
+			if err := rememberAfter(b, itemID); err != nil {
+				return err
+			}
+		}
 		return b.queryRow(`SELECT public_id FROM items WHERE id = ?`, itemID).Scan(&remaining)
 	})
 	return remaining, err
