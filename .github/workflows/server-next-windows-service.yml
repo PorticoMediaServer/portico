@@ -75,6 +75,23 @@ jobs:
           else
             echo "this server has no log files yet"
           fi
+      - name: The installing user can read the setup code
+        run: |
+          test -s "$DATA/setup-code.txt"
+      - name: A stop and a start reuse the data folder
+        run: |
+          "$INSTALL/portico-server.exe" --service-stop
+          if "$INSTALL/portico-server.exe" --health-check; then echo "still answering after the stop"; exit 1; fi
+          "$INSTALL/portico-server.exe" --service-start
+          for i in $(seq 1 60); do
+            if [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:32500/v1/health/ready)" = 200 ]; then echo "ready again after $i s"; break; fi
+            sleep 1
+          done
+          "$INSTALL/portico-server.exe" --health-check
+          test -f "$DATA/main.db"
+          test -s "$DATA/setup-code.txt"
+          # Nothing was started afresh somewhere else.
+          test ! -e "$INSTALL/data"
       - name: --service-stop
         run: |
           "$INSTALL/portico-server.exe" --service-stop
