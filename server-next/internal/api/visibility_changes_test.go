@@ -515,7 +515,7 @@ func (w *world) remint() {
 	for n, v := range w.viewers[1:] {
 		for _, row := range rows {
 			if row.ProfileID == v.profile {
-				w.viewers[n+1].token = memberToken(w.t, w.s, w.owner, row)
+				w.viewers[n+1].token = seededMemberToken(w.t, w.s, w.owner, row)
 			}
 		}
 	}

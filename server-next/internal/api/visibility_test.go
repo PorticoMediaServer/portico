@@ -35,8 +35,7 @@ var titleChanges = []titleChange{
 			w.check("before the move")
 			w.moveEpisode(mild, strict)
 			return nil
-		},
-		fault: "the moved episode keeps the rating of the show it came from"},
+		}},
 	{name: "a file goes, the trash is emptied, and the file comes back",
 		covers: []string{"db.Import", "db.EmptyTrash"}, run: func(w *world) map[string]string {
 			return w.goneAndBack()
@@ -235,7 +234,7 @@ func newWorld(t *testing.T) *world {
 		if err != nil {
 			t.Fatal(err)
 		}
-		w.viewers = append(w.viewers, profileUnderTest{p.Name, memberToken(t, s, owner, v), v.ProfileID})
+		w.viewers = append(w.viewers, profileUnderTest{p.Name, seededMemberToken(t, s, owner, v), v.ProfileID})
 	}
 	for _, l := range get[Libraries](t, s, owner, "/v1/libraries").Items {
 		for _, v := range get[Library](t, s, owner, "/v1/libraries/"+l.ID).Views {
