@@ -25,6 +25,7 @@ if (typeof window !== 'undefined') window.addEventListener('storage', event => {
   for (const listener of listeners) listener();
 });
 
+// compareSessionAuthority is for media server sign-ins; a Portico Services sign-in has no session family or generation, so the sign-in held is compared as itself.
 const held: HeldSignIn = {current: () => current, keep: write, forget: tokens => { if (current === tokens) write(undefined); }};
 
 export const accountSession = {
