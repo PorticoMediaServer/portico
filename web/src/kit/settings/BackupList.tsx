@@ -20,7 +20,7 @@ export type BackupListProps = Readonly<{
   requestDelete: (backup: BackupSummary) => void;
 }>;
 
-/** Current Settings rows omit the retired file path, schema and server-version columns. */
+/** Each backup shows its date, whether it was scheduled, its size and the version that made it (console rule 54). */
 export function BackupList(props: BackupListProps) {
   const current = useSyncExternalStore(props.subscribeAuthority, props.isCurrent, props.isCurrent);
   return current ? <BackupListRows key={props.scopeKey} {...props} /> : null;
@@ -37,7 +37,7 @@ function BackupListRow({backup, busy, isCurrent, newest, format, requestRestore,
   const run = (action: (backup: BackupSummary) => void) => {if (!busy && isCurrent()) action(backup);};
   return <div className={styles.backupListRow}>
     <Icon name="i-storage" size={20} />
-    <div className={styles.backupListTitle}><b>{title}</b><small>{kind}, {format.bytes(backup.bytes)}</small></div>
+    <div className={styles.backupListTitle}><b>{title}</b><small>{kind}, {format.bytes(backup.bytes)}{backup.serverVersion ? `, ${format.t('server.backups.madeBy', {version: backup.serverVersion})}` : ''}</small></div>
     {newest?.id === backup.id && <span className={styles.backupNewest}>{newest.label}</span>}
     <Button className={styles.backupRestore} size="xs" variant="glass" disabled={disabled} onClick={() => run(requestRestore)}>{format.t('web.maintenance.restoreBackup')}</Button>
     <Button ref={anchor} size="xs" variant="icon" icon="i-more" iconOnly aria-label={format.t('next.home.moreFor', {title})} disabled={disabled} onClick={() => setOpen(value => !value)} />

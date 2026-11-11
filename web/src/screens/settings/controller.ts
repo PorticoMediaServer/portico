@@ -27,7 +27,7 @@ import {settingsPresetOptions} from './preset-options';
 import {SettingsSectionReads} from './section-loading';
 import {SettingsLibrarySource} from './library-source';
 import {SettingsLibraryFoldersSource} from './library-folders-source';
-import {SettingsBackupSource} from './backup-source';
+import {ServerBackupSource} from './backup-source';
 type DocumentForm = Readonly<{
   invalidateQuiet: () => void; refresh: () => Promise<QuietRefreshOutcome>; subscribe: (listener: () => void) => () => void; blocked: () => boolean; settlement: () => unknown;
   load: () => Promise<void>; dispose: () => void;
@@ -109,7 +109,7 @@ export class SettingsController {
   private readonly library: SettingsLibrarySource;
   /** The one folder source for the selected library; its headless port is `folders`. */
   readonly folders: SettingsLibraryFoldersSource;
-  readonly backups: SettingsBackupSource;
+  readonly backups: ServerBackupSource;
   private readonly listeners = new Set<() => void>();
   private readonly lifetime = new AbortController();
   private readonly rowErrors = new Map<string, unknown>();
@@ -152,7 +152,7 @@ export class SettingsController {
     // A folder read is tab-scoped: its headless port carries the error, so it never fails the whole section.
     this.folders = new SettingsLibraryFoldersSource(options.api, scope, libraryCurrent, () => this.publish({}), () => {});
     this.console = new ConsoleClient(options.api, scope);
-    this.backups = new SettingsBackupSource(options.api, options.serverId, () => this.current() && !!this.forms.runtime, () => this.publish({}));
+    this.backups = new ServerBackupSource(options.api, () => this.current() && !!this.forms.runtime, () => this.publish({}));
     this.preferencesReader = options.reader;
     this.offPreferences = options.reader.subscribe(() => {const snapshot = options.reader.getSnapshot('web');if (snapshot && this.current()) {this.preferences = snapshot;this.publish({});}});
     this.offDevice = options.device?.subscribe(() => this.publish({}));
@@ -219,7 +219,7 @@ export class SettingsController {
   private backupValue(rowId: string): SettingsBindingValue | undefined {
     const settings = this.backups.getSnapshot().settings;
     if (!settings) return undefined;
-    const current = rowId === 'storage.backupFolder' ? settings.backupFolder : rowId === 'storage.backupArtwork' ? settings.includeArtwork : rowId === 'storage.backupPassphrase' ? settings.passphraseProtected : undefined;
+    const current = rowId === 'storage.backupFolder' ? this.backups.getSnapshot().backups?.folder : rowId === 'storage.backupArtwork' ? settings.includeArtwork : undefined;
     return current === undefined ? undefined : {current, effective: current, default: undefined, source: 'server', configOnly: false};
   }
   private sources(): SettingsBindingSources {
@@ -365,8 +365,8 @@ export class SettingsController {
       if (isSignInPolicyRow(row.id)) {await this.writeSignInPolicy(row, value); return;}
       if (row.id === 'storage.backupFolder' || row.id === 'storage.backupArtwork') {
         if (row.id === 'storage.backupFolder' && typeof value !== 'string' || row.id === 'storage.backupArtwork' && typeof value !== 'boolean') throw new Error('invalid_backup_setting');
-        const saved = await this.backups.save(row.id === 'storage.backupFolder' ? {backupFolder: String(value)} : {includeArtwork: value === true});
-        if (this.current()) this.publish({saveState: saved ? 'saved' : undefined});
+        await this.backups.saveSettings(row.id === 'storage.backupFolder' ? {folder: String(value)} : {includeArtwork: value === true});
+        if (this.current()) this.publish({saveState: 'saved'});
         return;
       }
       if (this.libraryRow(context) && context?.recordId) {
