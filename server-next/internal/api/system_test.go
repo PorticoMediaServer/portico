@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -32,7 +33,7 @@ func openTestServer(t *testing.T, path string) *Server {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { closeDB(d) })
-	s, err := New(context.Background(), d, filepath.Dir(path), "test", slog.New(slog.NewTextHandler(io.Discard, nil)))
+	s, err := New(context.Background(), d, filepath.Dir(path), "test", slog.New(slog.NewTextHandler(testLog(), nil)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,4 +133,12 @@ func TestSignedInRoutesRefuseWithoutAToken(t *testing.T) {
 			t.Errorf("token %q: got %d, want 401", token, w.Code)
 		}
 	}
+}
+
+// testLog is where a test server logs: nowhere, unless PORTICO_TEST_LOG is set.
+func testLog() io.Writer {
+	if os.Getenv("PORTICO_TEST_LOG") != "" {
+		return os.Stderr
+	}
+	return io.Discard
 }

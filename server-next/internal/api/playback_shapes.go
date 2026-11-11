@@ -206,7 +206,9 @@ type PlaybackSession struct {
 	// and going back reach as far as the programme's start, and Go to live joins it again.
 	Channel *playback.ChannelLink `json:"channel,omitempty"`
 	// Live is what a live session can play, from its oldest kept moment to live.
-	Live         *LiveWindow   `json:"live,omitempty"`
+	Live *LiveWindow `json:"live,omitempty"`
+	// Countdown is a live stream about to stop so a recording can take its tuner.
+	Countdown    *Countdown    `json:"countdown,omitempty"`
 	Lease        PlaybackLease `json:"lease"`
 	Presentation Presentation  `json:"presentation"`
 	PlaybackInfo JSON          `json:"playbackInfo,omitempty"`
