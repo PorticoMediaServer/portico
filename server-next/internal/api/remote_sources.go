@@ -329,7 +329,8 @@ func (s *Server) createRemoteSource(r *http.Request, req RemoteSourceCreate) (Re
 	if len(key) > 128 {
 		return RemoteSource{}, ErrInvalid("The Idempotency-Key is at most 128 characters.")
 	}
-	if err := s.testSource(ctx, req.Kind, c, secret); err != nil {
+	secret, err := s.testSource(ctx, req.Kind, c, secret)
+	if err != nil {
 		return RemoteSource{}, err
 	}
 	config, _ := json.Marshal(c)
@@ -397,7 +398,7 @@ func (s *Server) editRemoteSource(r *http.Request, req RemoteSourceEdit) (Remote
 				return RemoteSource{}, ErrConflict("source_secret_lost", "Paste the remote's configuration again.")
 			}
 		}
-		if err := s.testSource(ctx, row.Kind, c, secret); err != nil {
+		if secret, err = s.testSource(ctx, row.Kind, c, secret); err != nil {
 			return RemoteSource{}, err
 		}
 		if edit.Secret, err = s.remote.Seal(row.PublicID, secret); err != nil {
@@ -419,7 +420,7 @@ func (s *Server) editRemoteSource(r *http.Request, req RemoteSourceEdit) (Remote
 				return RemoteSource{}, ErrConflict("source_secret_lost", "Give the source's password again.")
 			}
 		}
-		if err := s.testSource(ctx, row.Kind, c, secret); err != nil {
+		if secret, err = s.testSource(ctx, row.Kind, c, secret); err != nil {
 			return RemoteSource{}, err
 		}
 		if edit.Secret, err = s.remote.Seal(row.PublicID, secret); err != nil {
@@ -436,11 +437,13 @@ func (s *Server) editRemoteSource(r *http.Request, req RemoteSourceEdit) (Remote
 	return s.remoteSourceOut(row), err
 }
 
-// testSource tries a source's settings before anything is kept.
-func (s *Server) testSource(ctx context.Context, kind string, c remote.Config, secret remote.Secret) error {
+// testSource tries a source's settings before anything is kept, and returns the secret to
+// keep: with a token rclone was given during the test in place of the one sent.
+func (s *Server) testSource(ctx context.Context, kind string, c remote.Config, secret remote.Secret) (remote.Secret, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	return reachRefusal(remote.Test(ctx, kind, c, secret))
+	secret, err := remote.Test(ctx, kind, c, secret)
+	return secret, reachRefusal(err)
 }
 
 // reach lists a folder of a saved source, which also records how the source was found.
