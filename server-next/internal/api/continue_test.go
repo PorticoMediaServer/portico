@@ -12,7 +12,7 @@ func TestRemoveFromContinueWatching(t *testing.T) {
 	token := th.owner.AccessToken
 	stopAt := func(positionMs int64) {
 		t.Helper()
-		th.clock = time.Now() // the player reports where it is now
+		th.clock.Set(time.Now()) // the player reports where it is now
 		session := th.play(token, th.film)
 		status(t, th.s, "DELETE", "/v1/playback/sessions/"+session.ID, token, PlaybackStop{PositionMs: &positionMs})
 		// Each step is at least a millisecond after the one before, as a person's taps are.

@@ -434,10 +434,10 @@ func TestIdleQueuesAreRemovedAfterThirtyDays(t *testing.T) {
 		t.Fatalf("the device's queues: %+v", mine.Items)
 	}
 	// Twenty days on the music is played; twenty more and only the video queue is idle.
-	th.clock = th.clock.Add(20 * 24 * time.Hour)
+	th.clock.Add(20 * 24 * time.Hour)
 	th.owner = onMain(t, th.s, signIn(t, th.s, 0))
 	th.queue("POST", "/v1/queues/"+music.ID+"/advance", "", QueueAdvance{Reason: "next"}, nil)
-	th.clock = th.clock.Add(20 * 24 * time.Hour)
+	th.clock.Add(20 * 24 * time.Hour)
 	phone := onMain(t, th.s, signIn(t, th.s, 6))
 	if w := call(t, th.s, "POST", "/v1/queues", phone.AccessToken, QueueCreate{Source: playqueue.QueueSource{Container: th.song}}, nil); w.Code != 201 {
 		t.Fatalf("a new queue elsewhere answered %d", w.Code)

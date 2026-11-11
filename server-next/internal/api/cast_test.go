@@ -36,8 +36,8 @@ func TestCastOnlyWithPorticoAccounts(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	th.s.db.SaveSetting(ctx, "sign_in_kind", "portico_account", th.clock)
-	th.s.db.SaveSetting(ctx, castApplicationSetting, "ABCD1234", th.clock)
+	th.s.db.SaveSetting(ctx, "sign_in_kind", "portico_account", th.clock.Now())
+	th.s.db.SaveSetting(ctx, castApplicationSetting, "ABCD1234", th.clock.Now())
 	call(t, th.s, "GET", "/v1/system", "", nil, &system)
 	var config CastConfig
 	if call(t, th.s, "GET", "/v1/cast/config", phone, nil, &config); config.ApplicationID != "ABCD1234" || !slices.Contains(system.Capabilities, "cast") {
@@ -76,8 +76,8 @@ func TestCastOnlyWithPorticoAccounts(t *testing.T) {
 func pairCast(t *testing.T, th *theatre) SignInResponse {
 	t.Helper()
 	ctx := context.Background()
-	th.s.db.SaveSetting(ctx, "sign_in_kind", "portico_account", th.clock)
-	th.s.db.SaveSetting(ctx, castApplicationSetting, "ABCD1234", th.clock)
+	th.s.db.SaveSetting(ctx, "sign_in_kind", "portico_account", th.clock.Now())
+	th.s.db.SaveSetting(ctx, castApplicationSetting, "ABCD1234", th.clock.Now())
 	var code CastCode
 	call(t, th.s, "POST", "/v1/cast/codes", th.owner.AccessToken, nil, &code)
 	var paired SignInResponse

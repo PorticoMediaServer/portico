@@ -192,7 +192,7 @@ func TestPlayOnRefusals(t *testing.T) {
 	_, late := th.ask(phone, opened.ID, "move-1", ReceiverAsk{Kind: "play", SessionID: playing.ID, Play: &receivers.Play{ItemID: th.film}})
 	for range 2 {
 		// The TV says it is still open every minute, as it is told to.
-		th.clock = th.clock.Add(time.Minute + time.Second)
+		th.clock.Add(time.Minute + time.Second)
 		call(t, th.s, "PUT", "/v1/receivers/current", tv, nil, nil)
 		th.report(phone, playing.ID, "playing", 120_000)
 	}
@@ -277,7 +277,7 @@ func TestAFailedMoveLeavesTheAccountAsItWas(t *testing.T) {
 			}
 		case "timed_out":
 			for range 2 {
-				th.clock = th.clock.Add(time.Minute + time.Second)
+				th.clock.Add(time.Minute + time.Second)
 				call(t, th.s, "PUT", "/v1/receivers/current", tv, nil, nil)
 				th.report(phone, playing.ID, "playing", 300_000)
 				th.report(tv, onTV.ID, "playing", 300_000)
