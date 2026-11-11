@@ -152,26 +152,46 @@ func (d *DB) SetState(ctx context.Context, v Viewer, itemID string, edit StateEd
 	return state, undo, err
 }
 
-// SetStates applies many edits in one transaction and returns each item's state, or the
-// reason it was refused, in the same order. It offers no undo.
+// statesWritten is about how many titles one write of SetStates changes, counting each episode
+// or track a show, season or album marked watched or unwatched writes. A batch of 500 shows
+// is some 25,000 episodes; as one write it would keep everyone's taps and position saves
+// waiting for most of a second, so it is written in pieces of this size instead.
+const statesWritten = 300
+
+// SetStates applies many edits and returns each item's state, or the reason it was refused,
+// in the same order. The edits are written in order, in as few writes as keep each to about
+// statesWritten titles written; one holder that marks more is a write of its own. If a write
+// fails, the edits before it stand and the error is returned. It offers no undo.
 func (d *DB) SetStates(ctx context.Context, p Priority, v Viewer, edits []ItemEdit) ([]State, []error, error) {
 	states, refusals := make([]State, len(edits)), make([]error, len(edits))
-	err := d.write(ctx, p, func(tx *sql.Tx) error {
-		w, err := newStateWriter(ctx, tx, v)
-		if err != nil {
-			return err
-		}
-		defer w.close()
-		for n, edit := range edits {
-			state, _, err := w.apply(edit.ItemID, edit.StateEdit)
-			if err != nil && !errors.Is(err, ErrNotFound) && !errors.Is(err, ErrInvalid) {
+	for start := 0; start < len(edits); {
+		next := start
+		err := d.write(ctx, p, func(tx *sql.Tx) error {
+			w, err := newStateWriter(ctx, tx, v)
+			if err != nil {
 				return err
 			}
-			states[n], refusals[n] = state, err
+			defer w.close()
+			written := 0
+			for n := start; n < len(edits) && written < statesWritten; n++ {
+				state, offer, err := w.apply(edits[n].ItemID, edits[n].StateEdit)
+				if err != nil && !errors.Is(err, ErrNotFound) && !errors.Is(err, ErrInvalid) {
+					return err
+				}
+				states[n], refusals[n], next = state, err, n+1
+				written++
+				if offer != nil {
+					written += len(offer.leaves)
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			return states, refusals, err
 		}
-		return nil
-	})
-	return states, refusals, err
+		start = next
+	}
+	return states, refusals, nil
 }
 
 type stateWriter struct {
