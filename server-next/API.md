@@ -119,7 +119,7 @@ Assistant) are a separate short document and are not counted here.
 | `GET /v1/search` | Search titles and people you may see, by `q`. Results come in groups by kind, each with its total. With `kind`, one group a page at a time (`cursor`, `limit`), best match first or by `sort` and `order`. `record=true` also keeps the search in your recent searches. `503 search_unavailable` (retry) while the index is being built. |
 | `GET /v1/search/suggestions` | The few best titles and names for what has been typed so far |
 | `GET /v1/search/history`, `DELETE /v1/search/history` | Your recent searches: read; clear, or remove one with `query` |
-| `GET /v1/home`, `GET /v1/home/rows/{id}` | Home, composed by the server in the profile's order without the rows it hid; one row paged. Customize Home saves the settings `home.rowOrder` and `home.hiddenRowIds` with `PATCH /v1/preferences`; the Continue rows cannot be hidden |
+| `GET /v1/home`, `GET /v1/home/rows/{id}` | Home, composed by the server in the profile's order without the rows it hid; one row paged. Customize Home saves the settings `home.rowOrder` and `home.hiddenRowIds` with `PATCH /v1/preferences`; the Continue rows cannot be hidden. `hidden=include` (for the Customize Home editor) also sends each hidden row in its place, with `hidden: true`, its title and no items |
 | `GET /v1/people`, `GET /v1/people/{id}` | People |
 | `GET /v1/genres` | Genres with artwork, per library |
 | `GET /v1/music/mixes` | Mixes built from your library |
@@ -171,7 +171,7 @@ session is unknown (`404`), and the app starts again by itself where it was.
 | `GET /v1/queues/{id}`, `PATCH /v1/queues/{id}`, `DELETE /v1/queues/{id}` | The queue with its `ETag`; repeat and shuffle; clear |
 | `GET /v1/queues/{id}/entries` | A run of entries: `from` and `limit`, or `around=current` with `before` and `after` |
 | `POST /v1/queues/{id}/entries`, `DELETE /v1/queues/{id}/entries/{entryId}`, `POST /v1/queues/{id}/entries/{entryId}/move` | Play next, play later, remove, move. These need `If-Match`; a stale one is `412`. |
-| `POST /v1/queues/{id}/advance` | The entry ended, Next, Previous, or jump to an entry |
+| `POST /v1/queues/{id}/advance` | The entry ended, Next, Previous, or jump to an entry. "Ended" names the playback `sessionId` that ended, so a resent one counts once towards "Still watching?", with repeat one too |
 | `POST /v1/queues/{id}/prepare-next`, `POST /v1/queues/{id}/commit-next` | Get the next song ready before this one ends, then make it the session, for a join without a gap |
 | `POST /v1/queues/{id}/playlist` | Save the queue as a playlist |
 | `GET /v1/media/{grant}/{file}` | The bytes a session plays, at the address the session gave: the file itself by byte range (`original`), or a conversion's playlists and segments (`master.m3u8` and what it names). No sign-in header: the grant is the permission, and it dies when the session stops or changes stream. Anything else is `404`. |
