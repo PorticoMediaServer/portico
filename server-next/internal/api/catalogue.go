@@ -156,6 +156,11 @@ func (s *Server) catalogueRoutes() {
 		return out, nil
 	})
 	Handle(s, "GET /v1/home", WithProfile, func(r *http.Request, _ None) (Home, error) {
+		// The Customize Home editor asks with hidden=include, to name the rows it can show again.
+		withHidden := r.URL.Query().Get("hidden") == "include"
+		if !withHidden && r.URL.Query().Get("hidden") != "" {
+			return Home{}, ErrField("hidden", `Leave this out, or send "include".`)
+		}
 		continuing, err := s.db.ContinueWatching(r.Context(), viewer(r))
 		if err != nil {
 			return Home{}, err
@@ -164,17 +169,18 @@ func (s *Server) catalogueRoutes() {
 		if err != nil {
 			return Home{}, err
 		}
-		// A row with nothing in it is left out, so an app never draws an empty shelf.
-		out := Home{Rows: []HomeRow{}}
-		for _, row := range []HomeRow{
+		rows, err := s.homeLayout(r.Context(), viewer(r).ProfileID, []HomeRow{
 			{ID: "continue", Title: "Continue Watching", Shape: "landscape", Items: itemShapes(continuing)},
 			{ID: "recently_added", Title: "Recently Added", Shape: "poster", Items: itemShapes(recent)},
-		} {
-			if len(row.Items) > 0 {
+		}, withHidden)
+		// A row with nothing in it is left out, so an app never draws an empty shelf. A hidden
+		// row sent to the editor has no items and is always sent.
+		out := Home{Rows: []HomeRow{}}
+		for _, row := range rows {
+			if len(row.Items) > 0 || row.Hidden {
 				out.Rows = append(out.Rows, row)
 			}
 		}
-		out.Rows, err = s.homeLayout(r.Context(), viewer(r).ProfileID, out.Rows)
 		return out, err
 	})
 	Handle(s, "PUT /v1/items/{id}/state", WithProfile, func(r *http.Request, req StateRequest) (StateReply, error) {

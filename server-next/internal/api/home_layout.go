@@ -16,10 +16,11 @@ import (
 // alwaysOnRows can be moved but never hidden: what a person is part-way through stays on Home.
 var alwaysOnRows = []string{"continue", "continue_listening", "continue_books"}
 
-// homeLayout puts the rows in the profile's saved order and leaves out the ones it hid. A row
-// the order does not name keeps its usual place after the named ones; an id that names no row
-// is passed over, so a row that goes away and comes back keeps its place.
-func (s *Server) homeLayout(ctx context.Context, profileID int64, rows []HomeRow) ([]HomeRow, error) {
+// homeLayout puts the rows in the profile's saved order and leaves out the ones it hid, or
+// with withHidden keeps them in their place marked hidden and without items. A row the order
+// does not name keeps its usual place after the named ones; an id that names no row is passed
+// over, so a row that goes away and comes back keeps its place.
+func (s *Server) homeLayout(ctx context.Context, profileID int64, rows []HomeRow, withHidden bool) ([]HomeRow, error) {
 	stored, err := s.db.Preferences(ctx, profileID, 0)
 	if err != nil {
 		return nil, err
@@ -33,7 +34,11 @@ func (s *Server) homeLayout(ctx context.Context, profileID int64, rows []HomeRow
 	}
 	out := make([]HomeRow, 0, len(rows))
 	for _, row := range rows {
-		if !slices.Contains(hidden, row.ID) || slices.Contains(alwaysOnRows, row.ID) {
+		switch {
+		case !slices.Contains(hidden, row.ID) || slices.Contains(alwaysOnRows, row.ID):
+			out = append(out, row)
+		case withHidden:
+			row.Hidden, row.Items = true, []Item{}
 			out = append(out, row)
 		}
 	}
