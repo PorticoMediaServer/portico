@@ -67,7 +67,7 @@ func TestSavedViewsOnHome(t *testing.T) {
 		if !strings.HasPrefix(row.ID, "view:") {
 			continue
 		}
-		if row.Library != films || row.Query == "" || row.Deferred == filled || (len(row.Items) > 0) != filled || filled && len(row.Items) > viewRowItems {
+		if row.Library != films || row.Query == "" || row.Deferred == filled || (len(row.Items) > 0) != filled || filled && len(row.Items) > viewRowLength {
 			t.Fatalf("row %d %s: library %q query %q deferred %v, %d items", n, row.ID, row.Library, row.Query, row.Deferred, len(row.Items))
 		}
 	}
@@ -85,6 +85,23 @@ func TestSavedViewsOnHome(t *testing.T) {
 	}
 	if rows := get[Home](t, s, other, "/v1/home").Rows; len(rows) != 1 {
 		t.Fatalf("another profile's Home has %d rows", len(rows))
+	}
+
+	// Out of time, the view rows are sent deferred and Home still answers.
+	if code := save(map[string]any{"home.hiddenRowIds": nil}); code != 200 {
+		t.Fatalf("showing the row again answered %d", code)
+	}
+	budget := viewRowsBudget
+	viewRowsBudget = 0
+	late := get[Home](t, s, token, "/v1/home").Rows
+	viewRowsBudget = budget
+	for _, row := range late {
+		if strings.HasPrefix(row.ID, "view:") && (!row.Deferred || len(row.Items) > 0) {
+			t.Fatalf("a view row read with no time left: %+v", row)
+		}
+	}
+	if len(late) != 8 { // the empty view is not read, so it is sent deferred too
+		t.Fatalf("Home out of time has %d rows", len(late))
 	}
 
 	tooMany := make([]string, 21)
