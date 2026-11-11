@@ -85,6 +85,19 @@ class PorticoDownloadWorkTest {
   }
 
   @Test
+  fun aFileWithNoDigestIsCheckedByItsExactSize() {
+    val directory = Files.createTempDirectory("portico-download-size-only").toFile()
+    try {
+      val file = File(directory, "media")
+      check(!verifiedDownloadFile(file, 3, "") { false })
+      file.writeText("abc")
+      check(verifiedDownloadFile(file, 3, "") { false })
+      check(!verifiedDownloadFile(file, 4, "") { false })
+      check(!verifiedDownloadFile(file, 3, "") { true })
+    } finally { directory.deleteRecursively() }
+  }
+
+  @Test
   fun cancellationDuringTheFinalFileCheckNeverAdoptsIt() {
     val directory = Files.createTempDirectory("portico-download-final-cancel").toFile()
     try {

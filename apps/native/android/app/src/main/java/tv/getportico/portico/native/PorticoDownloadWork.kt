@@ -63,7 +63,7 @@ internal fun prepareDownloadPartial(directory: File, digest: String): Boolean = 
 /** A crash can leave the verified final file ahead of its ready manifest commit. It is
  * adopted only after checking both its complete size and digest on the file worker. */
 internal fun verifiedDownloadFile(file: File, bytes: Long, digest: String, cancelled: () -> Boolean): Boolean =
-    file.isFile && file.length() == bytes && downloadFileDigest(file, cancelled) == digest && !cancelled()
+    file.isFile && file.length() == bytes && (digest.isEmpty() || downloadFileDigest(file, cancelled) == digest) && !cancelled()
 
 internal enum class DownloadStart { ADOPT, WAIT_FOR_WIFI, TRANSFER }
 

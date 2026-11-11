@@ -498,7 +498,10 @@ static NSString *PorticoSafeFileName(NSString *value) {
   [self retirePublicationGeneration:identifier];
   NSString *expected = [entry[@"sha256"] isKindOfClass:NSString.class] ? entry[@"sha256"] : @"";
   NSString *actual = expected.length ? [self digestOf:holding] : @"";
-  if (expected.length && ![actual isEqualToString:expected.lowercaseString]) {
+  // A file the server gives no digest for (an original) is checked by its exact size.
+  NSNumber *held = [[NSFileManager defaultManager] attributesOfItemAtPath:holding.path error:nil][NSFileSize];
+  BOOL sizeWrong = !expected.length && (![entry[@"bytes"] isKindOfClass:NSNumber.class] || [entry[@"bytes"] longLongValue] < 1 || held.longLongValue != [entry[@"bytes"] longLongValue]);
+  if (sizeWrong || (expected.length && ![actual isEqualToString:expected.lowercaseString])) {
     [[NSFileManager defaultManager] removeItemAtURL:holding error:nil];
     [[NSFileManager defaultManager] removeItemAtURL:[self resumeURLFor:identifier] error:nil];
     entry[@"state"] = @"failed"; entry[@"error"] = @"verification_failed"; entry[@"waiting"] = @"";
@@ -655,6 +658,12 @@ static NSString *PorticoSafeFileName(NSString *value) {
   // The bytes already fetched belong to one exact file.
   NSString *wanted = [request[@"sha256"] isKindOfClass:NSString.class] ? [request[@"sha256"] lowercaseString] : @"";
   BOOL sameFile = wanted.length > 0 && [entry[@"sha256"] isKindOfClass:NSString.class] && [[entry[@"sha256"] lowercaseString] isEqual:wanted];
+  // With no digest, the bytes here are the same title's file of the same size; the system continues them only
+  // under the server's own tag for that file (If-Range), and begins again if the server's file changed.
+  if (!wanted.length && [request[@"bytes"] isKindOfClass:NSNumber.class]) {
+    NSString *before = [entry[@"sha256"] isKindOfClass:NSString.class] ? entry[@"sha256"] : @"";
+    sameFile = !before.length && [request[@"itemId"] isEqual:entry[@"itemId"]] && [request[@"bytes"] isEqual:entry[@"bytes"]];
+  }
   for (NSString *key in @[@"itemId", @"title", @"subtitle", @"quality", @"fileName", @"sha256", @"contentType", @"meta"]) if ([request[key] isKindOfClass:NSString.class]) entry[key] = request[key];
   entry[@"id"] = identifier;
   entry[@"bytes"] = [request[@"bytes"] isKindOfClass:NSNumber.class] ? request[@"bytes"] : @0;

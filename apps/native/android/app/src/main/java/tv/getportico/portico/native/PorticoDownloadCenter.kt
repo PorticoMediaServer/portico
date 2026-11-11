@@ -215,7 +215,8 @@ internal object PorticoDownloadCenter {
     val url = request["url"] as? String
     val wanted = (request["sha256"] as? String)?.lowercase() ?: ""
     val bytes = PorticoMpvSupport.integer(request["bytes"])
-    if (!safeIdentifier(id) || !SHA256.matches(wanted) || bytes == null || url == null || !(url.startsWith("https://") || url.startsWith("http://"))) return null
+    // A file the server gives no digest for (an original) is checked by its exact size.
+    if (!safeIdentifier(id) || bytes == null || !checkable(wanted, bytes) || url == null || !(url.startsWith("https://") || url.startsWith("http://"))) return null
     id!!
     val entry = entries[id] ?: HashMap()
     if (entry["state"] == "removed") return null
@@ -252,7 +253,7 @@ internal object PorticoDownloadCenter {
     active.remove(id)?.let { it.stopped = "superseded"; it.call?.cancel() }
     val digest = (entry["sha256"] as? String)?.lowercase() ?: ""
     val bytes = PorticoMpvSupport.integer(entry["bytes"])
-    if (!SHA256.matches(digest) || bytes == null) {
+    if (bytes == null || !checkable(digest, bytes)) {
       entry["state"] = "failed"; entry["error"] = "verification_failed"; entry["waiting"] = ""
       save(); changed(id, true); release()
       return
@@ -703,7 +704,8 @@ internal object PorticoDownloadCenter {
       post { accepts(id, transfer)?.let { it["waiting"] = ""; changed(id, true) } }
     }
     if (transfer.stopped != null) return
-    val digest = if (failure == null) sha256(part, transfer) else ""
+    // With no digest to compare, the size is the check and the file is not read again.
+    val digest = if (failure == null && transfer.digest.isNotEmpty()) sha256(part, transfer) else ""
     if (transfer.stopped != null) return
     post { finish(id, transfer, part, failure, digest) }
   }
@@ -718,12 +720,16 @@ internal object PorticoDownloadCenter {
       // Everything is already here (the last attempt died between the last byte and the check).
       if (size > 0 && offset == size) return null
       if (size > 0 && offset > size) { part.delete(); offset = 0L }
+      // With no digest, the bytes here are continued only under the server's own tag for the file
+      // they came from; without one kept, the file starts again from the beginning.
+      val heldTag = if (expected.isEmpty()) readPartialTag(part) else ""
+      if (expected.isEmpty() && offset > 0 && heldTag.isEmpty()) { part.delete(); offset = 0L }
       val request = Request.Builder().url(url)
       if (offset > 0) {
         request.header("Range", "bytes=$offset-")
         // The server answers with the rest only if the file is still the one these bytes came
         // from; otherwise it sends the whole file and the bytes here are replaced.
-        if (expected.isNotEmpty()) request.header("If-Range", "\"sha256-$expected\"")
+        request.header("If-Range", if (expected.isNotEmpty()) "\"sha256-$expected\"" else heldTag)
       }
       val call = http.newCall(request.build())
       transfer.call = call
@@ -735,9 +741,13 @@ internal object PorticoDownloadCenter {
         if (status !in 200..299) return if (status == 401 || status == 403 || status == 404 || status == 409 || status == 410) "grant_expired" else "server_refused"
         // 206 must continue exactly where the bytes here end, of the same file.
         val range = response.header("Content-Range") ?: ""
-        val tag = (response.header("ETag") ?: "").lowercase()
-        val appending = status == 206 && offset > 0 && range.startsWith("bytes $offset-") && (expected.isEmpty() || tag.isEmpty() || tag == "\"sha256-$expected\"")
+        val answeredTag = response.header("ETag") ?: ""
+        val tag = answeredTag.lowercase()
+        val appending = status == 206 && offset > 0 && range.startsWith("bytes $offset-") &&
+          (if (expected.isEmpty()) answeredTag.isNotEmpty() && answeredTag == heldTag else tag.isEmpty() || tag == "\"sha256-$expected\"")
         if (status == 206 && !appending) { part.delete(); return "network" }
+        // A file started from the beginning keeps the tag it came under, to be continued under it.
+        if (expected.isEmpty() && !appending) writePartialTag(part, answeredTag)
         val body = response.body ?: return "transfer_failed"
         val length = body.contentLength()
         var done = if (appending) offset else 0L
@@ -782,7 +792,7 @@ internal object PorticoDownloadCenter {
     retirePublicationGeneration(id)
     var error = failure
     if (error == null) {
-      if (digest != transfer.digest || part.length() != transfer.bytes) error = "verification_failed"
+      if (transfer.digest.isNotEmpty() && digest != transfer.digest || part.length() != transfer.bytes) error = "verification_failed"
     }
     if (error == "verification_failed") part.delete()
     if (error == null) {
@@ -842,6 +852,13 @@ internal object PorticoDownloadCenter {
   private val extras = Executors.newFixedThreadPool(2) { Thread(it, "portico-download-extras") }
   private val IDENTIFIER = Regex("^[A-Za-z0-9_-]{1,160}$")
   private val SHA256 = Regex("^[a-f0-9]{64}$")
+  /** A file is checked by its digest when the server gives one, and otherwise by its exact size, which must be known. */
+  private fun checkable(digest: String, bytes: Long?): Boolean = bytes != null && (SHA256.matches(digest) || digest.isEmpty() && bytes > 0)
+  private fun partialTag(part: File) = File(part.parentFile, "partial.etag")
+  private fun readPartialTag(part: File): String = try { partialTag(part).takeIf { it.isFile && it.length() in 1..512 }?.readText() ?: "" } catch (_: Exception) { "" }
+  private fun writePartialTag(part: File, tag: String) {
+    try { if (tag.isEmpty() || tag.length > 512) partialTag(part).delete() else partialTag(part).writeText(tag) } catch (_: Exception) { partialTag(part).delete() }
+  }
   private val TEXT_FIELDS = listOf("itemId", "title", "subtitle", "quality", "fileName", "sha256", "contentType", "artworkUrl", "meta")
 }
 
