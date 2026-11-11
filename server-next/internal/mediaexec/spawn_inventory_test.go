@@ -31,6 +31,8 @@ var processSpawns = map[string]string{
 	"cmd/portico-crash/main.go:command":              "a test tool starting the server binary, and itself to run an import, so it can kill them; no media",
 	"cmd/portico-server/restart_unix.go:childPIDs":   "lists the server's own child processes before a restart; no media",
 	"cmd/portico-server/restart_unix.go:restartSelf": "the server starting its own program again in place; no media",
+
+	"internal/remote/rclone_new.go:rcloneTool": "rclone config providers and rclone obscure, input on stdin, while the owner makes a new remote; no media",
 }
 
 type spawn struct{ file, function string }
