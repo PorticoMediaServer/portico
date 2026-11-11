@@ -51,6 +51,9 @@ type DB struct {
 
 	// upgradesDone closes when the upgrade's background work has stopped. See upgrade.go.
 	upgradesDone chan struct{}
+
+	// guide is guide.db, beside the main database. See guide.go.
+	guide *guideDB
 }
 
 // Open opens the database at path, creating it with the current schema if it is new and
@@ -83,6 +86,12 @@ func Open(ctx context.Context, path string) (*DB, error) {
 	}
 	// The helper never waits long for anyone: what it cannot do now it does next time.
 	d.helper.Exec(`PRAGMA busy_timeout = 50`)
+	if d.guide, err = openGuide(ctx, guidePath(path)); err != nil {
+		write.Close()
+		d.read.Close()
+		d.helper.Close()
+		return nil, err
+	}
 	go d.writer()
 	go d.checkpointHelper()
 	go d.finishUpgrades()
@@ -170,7 +179,7 @@ func (d *DB) Close() error {
 	close(d.closed)
 	<-d.helperDone
 	<-d.upgradesDone
-	return errors.Join(d.UseTitleData(""), d.read.Close(), d.helper.Close(), d.writeConn.Close())
+	return errors.Join(d.UseTitleData(""), d.guide.close(), d.read.Close(), d.helper.Close(), d.writeConn.Close())
 }
 
 // SkipDiskSync makes commits return without waiting for the disk. It is for the load tool
