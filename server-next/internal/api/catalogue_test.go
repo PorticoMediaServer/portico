@@ -73,6 +73,14 @@ func TestBrowse(t *testing.T) {
 	}
 
 	list := "/v1/items?library=" + films.ID + "&kind=movie&limit=40"
+	// A page is not held up by a count: without total=true it carries none, and the count
+	// comes from a request of its own.
+	if bare := get[ItemPage](t, s, token, list); bare.Total != nil || len(bare.Items) != 40 {
+		t.Fatalf("a page asked for without its total: %d items, total %v", len(bare.Items), bare.Total)
+	}
+	if alone := get[ItemPage](t, s, token, "/v1/items?library="+films.ID+"&kind=movie&total=true&limit=1"); alone.Total == nil || *alone.Total != 90 || len(alone.Items) != 1 {
+		t.Fatalf("the total asked for by itself: %d items, total %v", len(alone.Items), alone.Total)
+	}
 	page := get[ItemPage](t, s, token, list+"&total=true")
 	if page.Total == nil || *page.Total != 90 || len(page.Items) != 40 || page.NextCursor == "" {
 		t.Fatalf("first page: %d items, total %v, cursor %q", len(page.Items), page.Total, page.NextCursor)
