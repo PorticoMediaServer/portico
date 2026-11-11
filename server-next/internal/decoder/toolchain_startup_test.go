@@ -4,11 +4,15 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/capabilityreport"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediaexec"
+	"github.com/PorticoMediaServer/portico/server-next/internal/mediatools"
 )
 
 // Controlled results establish admission/lifecycle behavior, not host GPU proof.
@@ -20,11 +24,15 @@ func startupInventory(t *testing.T, runtime func(context.Context, mediaexec.Job)
 		if deadline, ok := ctx.Deadline(); !ok || time.Until(deadline) > 5*time.Second {
 			t.Fatal("unbounded toolchain command")
 		}
-		if job.Hardware || job.Loopback != "" || len(job.ReadPaths) != 0 || len(job.WriteDirs) != 0 {
-			t.Fatal("toolchain probe gained source, network, write or hardware permissions")
+		if job.Loopback != "" || len(job.ReadPaths) != 0 || len(job.WriteDirs) != 0 {
+			t.Fatal("toolchain probe gained source, network or write permissions")
 		}
+		// Only the trial of a graphics-device filter may see the graphics drivers.
 		if slices.Contains(job.Args, "-init_hw_device") {
 			return runtime(ctx, job)
+		}
+		if job.Hardware {
+			t.Fatal("an inventory question gained graphics access")
 		}
 		if len(job.Args) != 2 || job.Args[0] != "-hide_banner" {
 			t.Fatalf("unexpected inventory command: %v", job.Args)
@@ -231,5 +239,69 @@ func TestToolchainLearnsPorticoAdditionsFromFFmpegItself(t *testing.T) {
 				t.Fatalf("portico=%v but profile conversion=%v, HDR10+ carry=%v", portico, facts.DolbyVisionProfile7To81, facts.HDR10PlusLibX265Encode)
 			}
 		})
+	}
+}
+
+// Until the trial has run the owner is told nothing about Dolby Vision; when it has failed
+// the owner's log says once, plainly, what cannot be converted and what FFmpeg said.
+func TestAFailedVulkanTrialTellsTheOwnerWhy(t *testing.T) {
+	defer RestoreToolchain(CurrentToolchain())
+	path := fakeFFmpeg(t)
+	runner := startupInventory(t, func(context.Context, mediaexec.Job) (string, error) {
+		return "[Vulkan @ 0x55d0c0ffee00] Unable to open the libvulkan library!\nDevice creation failed: -1313558101.\n", errors.New("exit status 171")
+	})
+	inventory, err := probeToolchainInventory(context.Background(), path, runner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	said := func() string {
+		for _, status := range capabilityreport.All() {
+			if status.Capability == capabilityreport.DolbyVision {
+				return status.Detail
+			}
+		}
+		return ""
+	}
+	before := said()
+	ConfigureToolchain(inventory)
+	if said() != before {
+		t.Fatalf("the owner was told about Dolby Vision before the trial ran: %q", said())
+	}
+	tried, err := tryGraphicsFilters(context.Background(), path, inventory, runner)
+	if err != nil || tried.VulkanAvailable || tried.VulkanReason != "Unable to open the libvulkan library!" {
+		t.Fatalf("the failed trial: %+v, %v", tried, err)
+	}
+	ConfigureToolchain(tried)
+	if got := said(); !strings.Contains(got, "profile 5") || !strings.Contains(got, "cannot be converted on this server") ||
+		!strings.Contains(got, "Unable to open the libvulkan library!") {
+		t.Fatalf("what the owner is told: %q", got)
+	}
+}
+
+// With a real FFmpeg that has the filter, the trial runs inside its sandbox: where a Vulkan
+// device exists it passes, and where none does it says what FFmpeg said.
+func TestTheVulkanTrialRunsInItsSandbox(t *testing.T) {
+	ffmpeg := mediatools.Resolve("ffmpeg")
+	if _, err := exec.LookPath(ffmpeg); err != nil {
+		t.Skip("ffmpeg is not installed")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	inventory, err := ProbeToolchain(ctx, ffmpeg)
+	if err != nil {
+		t.Skipf("ffmpeg could not be asked what it can do here: %v", err)
+	}
+	if !inventory.Filters["libplacebo"] || !inventory.HWAccels["vulkan"] {
+		t.Skip("this ffmpeg has no libplacebo filter or no Vulkan support")
+	}
+	tried, err := ProbeToolchainGraphics(ctx, ffmpeg, inventory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !tried.VulkanAvailable {
+		if tried.VulkanReason == "" {
+			t.Fatal("the trial failed without a reason for the owner")
+		}
+		t.Skipf("no working Vulkan device here, as the owner would be told: %s", tried.VulkanReason)
 	}
 }

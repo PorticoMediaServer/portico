@@ -29,15 +29,18 @@ type ToolchainFacts struct {
 
 	BitstreamFilters map[string]bool `json:"bitstreamFilters"`
 	VulkanAvailable  bool            `json:"vulkanAvailable"`
-	OpenCLAvailable  bool            `json:"openclAvailable"`
-	Version          string          `json:"version"`
-	Configuration    string          `json:"configuration"`
-	Encoders         map[string]bool `json:"encoders"`
-	Decoders         map[string]bool `json:"decoders"`
-	Filters          map[string]bool `json:"filters"`
-	Muxers           map[string]bool `json:"muxers"`
-	HWAccels         map[string]bool `json:"hwaccels"`
-	Identity         string          `json:"identity"`
+	// VulkanReason is what FFmpeg said when the Vulkan trial failed, for the owner's log.
+	VulkanReason    string `json:"-"`
+	graphicsTried   bool
+	OpenCLAvailable bool            `json:"openclAvailable"`
+	Version         string          `json:"version"`
+	Configuration   string          `json:"configuration"`
+	Encoders        map[string]bool `json:"encoders"`
+	Decoders        map[string]bool `json:"decoders"`
+	Filters         map[string]bool `json:"filters"`
+	Muxers          map[string]bool `json:"muxers"`
+	HWAccels        map[string]bool `json:"hwaccels"`
+	Identity        string          `json:"identity"`
 }
 
 // What "ffmpeg -h" prints for the two options Portico's FFmpeg build adds.
@@ -53,7 +56,7 @@ func ConfigureToolchain(f ToolchainFacts) {
 	installedToolchain.Store(&f)
 	switch {
 	case f.Filters["libplacebo"] && f.VulkanAvailable:
-		capabilityreport.Report(capabilityreport.DolbyVision, true, "", errors.New("Dolby Vision files without a compatible base layer are converted only with a qualified color reshaping filter."))
+		capabilityreport.Report(capabilityreport.DolbyVision, true, "", errors.New("Dolby Vision films without a compatible base layer (profile 5) are converted on this server's Vulkan graphics device."))
 	case !f.Filters["libplacebo"]:
 		capabilityreport.Report(
 			capabilityreport.DolbyVision,
@@ -61,16 +64,25 @@ func ConfigureToolchain(f ToolchainFacts) {
 			"dolby_vision_reshaping_unavailable",
 			errors.New("Dolby Vision files without a compatible base layer need the libplacebo filter for conversion. Use compatible direct playback or another FFmpeg build."),
 		)
-	default:
+	case f.graphicsTried:
+		// Before the trial has run there is nothing to say yet.
 		capabilityreport.Report(
 			capabilityreport.DolbyVision,
 			false,
 			"dolby_vision_reshaping_unavailable",
-			errors.New(
-				"Dolby Vision files without a compatible base layer need a qualified Vulkan color reshaping filter for conversion. Use compatible direct playback when that filter is unavailable.",
-			),
+			errors.New(dolbyVisionNoVulkan(f.VulkanReason)),
 		)
 	}
+}
+
+// dolbyVisionNoVulkan is the owner's one line for a server whose FFmpeg has the filter but
+// found no graphics device to run it on.
+func dolbyVisionNoVulkan(reason string) string {
+	text := "Dolby Vision films without a compatible base layer (profile 5) cannot be converted on this server: FFmpeg found no working Vulkan graphics device"
+	if reason != "" {
+		text += " (" + reason + ")"
+	}
+	return text + ". They still play on a device that plays Dolby Vision itself."
 }
 func CurrentToolchain() *ToolchainFacts { return installedToolchain.Load() }
 
@@ -120,9 +132,14 @@ func parseToolList(raw, kind string) map[string]bool {
 // Software encoders may select these filters, so qualify them without the
 // device and driver grants reserved for hardware jobs. A host-only GPU filter
 // must not displace the CPU tone mapper inside the software sandbox.
+// The trial gets what a conversion using the filter gets (a tone-map stage on a graphics
+// device makes the conversion a hardware job): read access to the system's graphics driver
+// libraries and the render device. Without it no trial can find a device. It gets no input,
+// no output folder and no network.
 func toneMapProbeJob(path, device, graph string) mediaexec.Job {
 	return mediaexec.Job{
 		Executable: path,
+		Hardware:   true,
 		Args: []string{
 			"-v",
 			"error",
@@ -256,27 +273,49 @@ func probeToolchainRuntime(ctx context.Context, ffmpeg string, runner toolchainP
 	if err != nil {
 		return ToolchainFacts{}, err
 	}
+	return tryGraphicsFilters(ctx, ffmpeg, out, runner)
+}
+
+// ProbeToolchainGraphics tries the graphics-device filters (the Vulkan and OpenCL tone maps)
+// of an FFmpeg whose inventory is already known, so a server that kept the inventory between
+// starts does not ask for it again. Each trial is one small job of at most five seconds.
+func ProbeToolchainGraphics(ctx context.Context, ffmpeg string, inventory ToolchainFacts) (ToolchainFacts, error) {
+	return tryGraphicsFilters(ctx, ffmpeg, inventory, runToolchainProbe)
+}
+
+func tryGraphicsFilters(ctx context.Context, ffmpeg string, out ToolchainFacts, runner toolchainProbeRunner) (ToolchainFacts, error) {
 	path, err := exec.LookPath(ffmpeg)
 	if err != nil {
 		return ToolchainFacts{}, err
 	}
 	identity := out.Identity
 
-	probeDevice := func(device, graph string) bool {
+	probeDevice := func(device, graph string) (bool, string) {
 		bounded, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
-		// Use the same permissions as a software conversion, including fallback.
-		_, err := runner(bounded, toneMapProbeJob(path, device, graph))
-		return err == nil
+		said, err := runner(bounded, toneMapProbeJob(path, device, graph))
+		if err == nil {
+			return true, ""
+		}
+		// FFmpeg's first line names the cause; the rest repeat that the device failed.
+		reason, _, _ := strings.Cut(strings.TrimSpace(said), "\n")
+		if _, after, found := strings.Cut(reason, "] "); found && strings.HasPrefix(reason, "[") {
+			reason = after
+		}
+		if len(reason) > 200 {
+			reason = reason[:200]
+		}
+		return false, reason
 	}
+	out.graphicsTried = true
 	if out.Filters["libplacebo"] && out.HWAccels["vulkan"] {
-		out.VulkanAvailable = probeDevice(
+		out.VulkanAvailable, out.VulkanReason = probeDevice(
 			"vulkan=tone",
 			"format=yuv420p,hwupload,libplacebo=tonemapping=bt.2390:colorspace=bt709:color_primaries=bt709:color_trc=bt709:format=yuv420p,hwdownload,format=yuv420p",
 		)
 	}
 	if !out.VulkanAvailable && out.Filters["tonemap_opencl"] && out.HWAccels["opencl"] {
-		out.OpenCLAvailable = probeDevice("opencl=tone", "format=p010,hwupload,tonemap_opencl=tonemap=hable:desat=0:format=nv12,hwdownload,format=nv12")
+		out.OpenCLAvailable, _ = probeDevice("opencl=tone", "format=p010,hwupload,tonemap_opencl=tonemap=hable:desat=0:format=nv12,hwdownload,format=nv12")
 	}
 	if err := ctx.Err(); err != nil {
 		return ToolchainFacts{}, err

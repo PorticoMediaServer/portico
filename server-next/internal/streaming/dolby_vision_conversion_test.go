@@ -46,4 +46,9 @@ func TestProfile5ForAnHDRDisplayConvertsToHD(t *testing.T) {
 	if err != nil || !strings.Contains(strings.Join(graph.Video, " "), "libplacebo=") {
 		t.Fatal("profile 5 HDR10 conversion does not reshape", graph, err)
 	}
+	// The picture is decoded and encoded in software, and the job still gets the graphics
+	// device the reshaping filter runs on.
+	if !conversionJobHardware(&plan, graph.Stages) {
+		t.Fatal("a profile 5 conversion planned in software does not reach the graphics device", graph.Stages)
+	}
 }

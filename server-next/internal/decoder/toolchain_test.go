@@ -65,14 +65,17 @@ func TestHardwareRuntimeCircuit(t *testing.T) {
 	}
 }
 
-func TestSoftwareToneMapProbeUsesSoftwarePermissions(t *testing.T) {
+// The trial of a graphics-device filter gets what a conversion using that filter gets, read
+// access to the graphics drivers and the render device, and nothing else: no source, no
+// network, no folder to write in.
+func TestTheGraphicsFilterTrialGetsGraphicsAccessAndNothingElse(t *testing.T) {
 	for _, device := range []string{"vulkan=tone", "opencl=tone"} {
 		job := toneMapProbeJob("/usr/bin/ffmpeg", device, "hwupload,hwdownload")
-		if job.Hardware {
-			t.Fatalf("%s probe gets permissions denied to software conversion", device)
+		if !job.Hardware {
+			t.Fatalf("the %s trial cannot see a graphics driver, so it can never pass", device)
 		}
-		if job.Loopback != "" || len(job.ReadPaths) > 0 || len(job.WriteDirs) > 0 {
-			t.Fatal("probe must not gain source, network or output access", job)
+		if job.Loopback != "" || len(job.ReadPaths) > 0 || len(job.WriteDirs) > 0 || len(job.Files) > 0 {
+			t.Fatal("the trial must not gain source, network or output access", job)
 		}
 	}
 }
