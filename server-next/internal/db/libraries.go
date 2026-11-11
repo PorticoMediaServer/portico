@@ -229,12 +229,20 @@ func (d *DB) SetLibraryOptions(ctx context.Context, libraryID int64, options Lib
 	return d.write(ctx, User, func(tx *sql.Tx) error {
 		now := time.Now().UnixMilli()
 		res, err := tx.Exec(`UPDATE libraries SET options = `+keepRemoved+`, revision = revision + 1, updated_at = ? WHERE id = ?`,
-			options.json(), options.json(), now, libraryID)
+			options.json(), now, libraryID)
 		if err != nil {
 			return err
 		}
 		if n, _ := res.RowsAffected(); n == 0 {
 			return ErrNotFound
+		}
+		if options.GroupSeries != nil && !*options.GroupSeries {
+			b := newBatchTx(tx)
+			err := ungroupSeries(b, libraryID, now)
+			b.close()
+			if err != nil {
+				return err
+			}
 		}
 		return appendChange(tx, Change{At: now, Topic: TopicLibrary, Op: OpUpdated, RefID: libraryID, LibraryID: libraryID})
 	})
