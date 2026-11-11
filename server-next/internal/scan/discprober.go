@@ -9,6 +9,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/disc"
+	"github.com/PorticoMediaServer/portico/server-next/internal/mediatools"
 )
 
 // probeDisc reads a film disc kept as a folder (BDMV or VIDEO_TS) with the disc reader, which
@@ -16,6 +17,11 @@ import (
 // its main feature: the longest title of at least a minute. A copy-protected disc is refused
 // as one; a disc with no title long enough is not a film.
 func probeDisc(ctx context.Context, folder string) (Facts, error) {
+	// A server whose media tools came without the disc reader says so, where it would
+	// otherwise leave the disc without a length or tracks and without a word why.
+	if _, err := exec.LookPath(mediatools.Resolve("portico-disc")); err != nil {
+		return Facts{}, ErrNoDiscReader
+	}
 	dir, err := os.Open(folder)
 	if err != nil {
 		return Facts{}, err
