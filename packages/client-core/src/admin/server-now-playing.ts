@@ -21,9 +21,11 @@ const text = (v: unknown, nonempty = true) => typeof v === 'string' && (!nonempt
 const whole = (v: unknown) => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
 
 /** One stream in the card's shape. The person is the account's username, then the profile's name
- * where it differs; the server gives names, not ids, and nothing on the card needs an id. */
+ * where it differs; the server gives names, not ids, and nothing on the card needs an id. A stream whose
+ * profile was just deleted comes with no name (it ends within seconds): its card shows none, and the
+ * rest of the list still shows. */
 export function adminSessionFromServer(value: unknown): AdminSession {
-  if (!object(value) || !text(value.id) || !text(value.kind) || !text(value.state) || !whole(value.positionMs) || !text(value.username) ||
+  if (!object(value) || !text(value.id) || !text(value.kind) || !text(value.state) || !whole(value.positionMs) || !text(value.username, false) ||
       !text(value.deviceName, false) || typeof value.away !== 'boolean' || !text(value.startedAt) || !object(value.delivery)) throw new ServerNowPlayingError();
   return parseAdminSession({
     id: value.id, user: value.username, profile: text(value.profile) ? value.profile : value.username, device: value.deviceName,
