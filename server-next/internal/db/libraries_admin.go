@@ -120,6 +120,14 @@ func (d *DB) EditLibrary(ctx context.Context, publicID string, edit LibraryEdit)
 			if err := edit.Options.save(tx, id); err != nil {
 				return err
 			}
+			if edit.Options.GroupSeries != nil && !*edit.Options.GroupSeries {
+				b := newBatchTx(tx)
+				err := ungroupSeries(b, id, time.Now().UnixMilli())
+				b.close()
+				if err != nil {
+					return err
+				}
+			}
 		}
 		if edit.Folders != nil {
 			have := map[string]int64{}
