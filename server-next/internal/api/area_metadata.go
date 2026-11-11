@@ -20,9 +20,10 @@ type metadataArea struct {
 // startMetadata builds this area's service and registers its routes. New calls it once, after
 // the job runner exists and before the jobs left from the last run are taken up.
 func (s *Server) startMetadata(ctx context.Context) error {
-	s.metadata = &metadata.Service{DB: s.db, Providers: map[string]metadata.Provider{}}
+	s.metadata = &metadata.Service{DB: s.db, Providers: map[string]metadata.Provider{}, Pictures: s.artwork}
 	s.metadataRoutes()
 	s.editorRoutes()
+	s.artworkRoutes()
 	s.metadataJobs()
 	// What a scan found is looked up when it ends.
 	s.scans.AfterScan = func(ctx context.Context, library string) { s.lookUp(ctx, library) }

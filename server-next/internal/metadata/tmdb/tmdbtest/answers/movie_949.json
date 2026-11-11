@@ -11,4 +11,7 @@
    {"id":380,"name":"Robert De Niro","character":"Neil McCauley","order":1}],
   "crew":[{"id":638,"name":"Michael Mann","department":"Directing","job":"Director"}]},
  "release_dates":{"results":[{"iso_3166_1":"US","release_dates":[{"certification":"R","type":3,"release_date":"1995-12-15T00:00:00.000Z"}]}]},
- "external_ids":{"imdb_id":"tt0113277"}}
+ "external_ids":{"imdb_id":"tt0113277"},
+ "images":{"backdrops":[{"file_path":"/rfEXNlql4CafRmzUwNkUnJCD7DX.jpg","width":1920,"height":1080,"iso_639_1":null}],
+  "posters":[{"file_path":"/umSVjVdbVwtx5ryCA2QXL44Durm.jpg","width":1000,"height":1500,"iso_639_1":"en"},{"file_path":"/obpPQskaVpSksZyGGW7BDVOhVHT.jpg","width":1000,"height":1500,"iso_639_1":"en"}],
+  "logos":[{"file_path":"/kLDzMBsAfwRPuEBrnhiLLLy0cpc.png","width":800,"height":200,"iso_639_1":"en"}]}}

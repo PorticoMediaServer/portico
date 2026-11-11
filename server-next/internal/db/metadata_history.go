@@ -38,12 +38,24 @@ type snapshot struct {
 	Tags        []TagName      `json:"tags"`
 	Credits     []snapCredit   `json:"credits"`
 	Pictures    []int64        `json:"lockedPictures"` // images rows locked as the role's choice
+	// Uploads are the pictures a person uploaded for the title, so Undo can put back one
+	// removed since. Their files stay in the picture store while a History entry names them.
+	Uploads []snapUpload `json:"uploads,omitempty"`
 }
 
 type snapCredit struct {
 	Person    int64      `json:"person"`
 	Role      CreditRole `json:"role"`
 	Character string     `json:"character,omitempty"`
+}
+
+// snapUpload is one uploaded picture as a snapshot keeps it.
+type snapUpload struct {
+	ID     int64     `json:"id"`
+	Role   ImageRole `json:"role"`
+	Hash   string    `json:"hash"`
+	Width  int       `json:"width,omitempty"`
+	Height int       `json:"height,omitempty"`
 }
 
 // snapshotColumns are the items columns a person's change can alter.
@@ -98,7 +110,12 @@ func takeSnapshot(b *batchTx, itemID int64) (snapshot, error) {
 		[]any{itemID}, func(c *snapCredit) []any { return []any{&c.Person, &c.Role, &c.Character} }); err != nil {
 		return s, err
 	}
-	s.Pictures, err = queryInts(b.tx, `SELECT id FROM images WHERE item_id = ? AND locked = 1 ORDER BY id`, itemID)
+	if s.Pictures, err = queryInts(b.tx, `SELECT id FROM images WHERE item_id = ? AND locked = 1 ORDER BY id`, itemID); err != nil {
+		return s, err
+	}
+	s.Uploads, err = queryAll(ctx, b.tx, `SELECT id, role, file_hash, ifnull(width, 0), ifnull(height, 0) FROM images WHERE item_id = ? AND source = ?
+		AND file_hash IS NOT NULL ORDER BY id`, []any{itemID, ImageFromUpload},
+		func(u *snapUpload) []any { return []any{&u.ID, &u.Role, &u.Hash, &u.Width, &u.Height} })
 	return s, err
 }
 
@@ -206,6 +223,35 @@ func (d *DB) UndoMetadata(ctx context.Context, publicID, entryID string) (int64,
 		if err := remember(b, id, HistoryUndo, now); err != nil {
 			return err
 		}
+		// An upload the change removed comes back, under a new id; its file is still in the
+		// store. Its lock, if it had one, then lands on the new row.
+		kept := map[string]bool{}
+		for _, u := range after.Uploads {
+			kept[u.Hash+"/"+strconv.Itoa(int(u.Role))] = true
+		}
+		for _, u := range s.Uploads {
+			if kept[u.Hash+"/"+strconv.Itoa(int(u.Role))] {
+				continue
+			}
+			var row int64
+			err := b.queryRow(`SELECT id FROM images WHERE item_id = ? AND role = ? AND source = ? AND file_hash = ?`, id, u.Role,
+				ImageFromUpload, u.Hash).Scan(&row)
+			if errors.Is(err, sql.ErrNoRows) {
+				res, err := b.exec(`INSERT INTO images (item_id, role, source, file_hash, width, height, position) VALUES (?, ?, ?, ?, ?, ?, 0)`,
+					id, u.Role, ImageFromUpload, u.Hash, nz(u.Width), nz(u.Height))
+				if err != nil {
+					return err
+				}
+				row, _ = res.LastInsertId()
+			} else if err != nil {
+				return err
+			}
+			for n, picture := range s.Pictures {
+				if picture == u.ID {
+					s.Pictures[n] = row
+				}
+			}
+		}
 		im := &importer{batchTx: b, now: now, tags: map[TagName]int64{}, people: map[string]int64{}}
 		if err := restoreChanged(b, im, library, id, &s, &after, &current, now); err != nil {
 			return err
@@ -237,6 +283,20 @@ func (d *DB) UndoMetadata(ctx context.Context, publicID, entryID string) (int64,
 			return err
 		}
 		b.leavesChanged(holders...)
+		// The chosen pictures are shown again, and every other role shows its best.
+		if _, err := b.exec(`UPDATE images SET selected = locked WHERE item_id = ?1 AND role IN (SELECT role FROM images WHERE item_id = ?1
+			AND locked = 1)`, id); err != nil {
+			return err
+		}
+		roles, err := queryInts(b.tx, `SELECT DISTINCT role FROM images WHERE item_id = ?`, id)
+		if err != nil {
+			return err
+		}
+		for _, role := range roles {
+			if err := selectPicture(b, id, ImageRole(role)); err != nil {
+				return err
+			}
+		}
 		if err := rememberAfter(b, id); err != nil {
 			return err
 		}
@@ -440,9 +500,11 @@ func restoreChanged(b *batchTx, im *importer, library, id int64, before, after, 
 			}
 		}
 	}
+	// A role chosen again since keeps that later choice: a role has one chosen picture.
 	for p := range wasLocked {
 		if !leftLocked[p] {
-			if _, err := b.exec(`UPDATE images SET locked = 1 WHERE id = ? AND item_id = ?`, p, id); err != nil {
+			if _, err := b.exec(`UPDATE images SET locked = 1 WHERE id = ?1 AND item_id = ?2 AND NOT EXISTS (SELECT 1 FROM images o
+				WHERE o.item_id = ?2 AND o.role = images.role AND o.locked = 1)`, p, id); err != nil {
 				return err
 			}
 		}
