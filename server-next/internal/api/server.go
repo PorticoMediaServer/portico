@@ -21,6 +21,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata"
+	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/opensubtitles"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/tmdb"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
@@ -191,10 +192,13 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 		return nil, err
 	}
 	s.providers.tmdbHost = tmdb.Origin
+	s.providers.subtitleHost, s.providers.subtitleEvery = opensubtitles.Origin, opensubtitles.Every
+	s.metadata.SubtitleDir = filepath.Join(dataDir, "subtitles")
 	if err := s.loadMetadataSettings(ctx); err != nil {
 		return nil, err
 	}
 	s.metadataSettingsRoutes()
+	s.subtitleSearchRoutes()
 	s.subtitleRoutes()
 	return s, nil
 }

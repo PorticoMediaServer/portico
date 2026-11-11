@@ -7,8 +7,10 @@ import (
 	"errors"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata"
+	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/opensubtitles"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/tmdb"
 	"github.com/PorticoMediaServer/portico/server-next/internal/secrets"
 )
@@ -87,6 +89,9 @@ type providers struct {
 	box      *secrets.Box
 	current  providerSettings
 	tmdbHost string // TMDB's address; a stand-in's for testing
+	// subtitleHost and subtitleEvery are OpenSubtitles' address and spacing; a stand-in's for testing.
+	subtitleHost  string
+	subtitleEvery time.Duration
 }
 
 func (s *Server) metadataSettingsRoutes() {
@@ -243,6 +248,21 @@ func (s *Server) useProviders(p providerSettings) {
 		online["tmdb"] = tmdb.New(p.TMDBKey, s.providers.tmdbHost)
 	}
 	s.metadata.Use(online, p.IncludeAdult)
+	// Subtitle search needs the API key and the account (definition 07, rule 67). A new client
+	// is made for every save, so a refused password is tried again only once the owner changes it.
+	var subtitles metadata.SubtitleProvider
+	if p.SubtitleKey != "" && p.SubtitleUser != "" && p.SubtitlePassword != "" {
+		subtitles = opensubtitles.New(s.providers.subtitleHost, s.providers.subtitleEvery, p.SubtitleKey, p.SubtitleUser, p.SubtitlePassword)
+	}
+	s.metadata.UseSubtitles(subtitles)
+}
+
+// UseSubtitleHost points the server's OpenSubtitles client at a stand-in, for testing.
+func (s *Server) UseSubtitleHost(origin string) {
+	s.providers.mu.Lock()
+	defer s.providers.mu.Unlock()
+	s.providers.subtitleHost, s.providers.subtitleEvery = origin, 0
+	s.useProviders(s.providers.current)
 }
 
 // UseTMDBHost points the server's TMDB client at another address: a stand-in, for testing.

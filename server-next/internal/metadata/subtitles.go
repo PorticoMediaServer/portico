@@ -58,7 +58,8 @@ func SubtitlePath(dir, hash string) string { return filepath.Join(dir, hash[:2],
 // Anyone who may play a title may search, in a library set to local metadata only too: it is
 // a person asking, never the server by itself.
 func (s *Service) SearchSubtitles(ctx context.Context, v db.Viewer, itemPublicID string, languages []string) ([]SubtitleResult, error) {
-	if s.Subtitles == nil {
+	provider := s.subtitleProvider()
+	if provider == nil {
 		return nil, ErrNoSubtitleProvider
 	}
 	target, err := s.DB.SubtitleTarget(ctx, v, itemPublicID, "")
@@ -79,7 +80,7 @@ func (s *Service) SearchSubtitles(ctx context.Context, v db.Viewer, itemPublicID
 		q.Title, q.Year, q.Season, q.Episode = target.Show, 0, target.Season, target.Episode
 		q.ShowIMDbID, q.ShowTMDBID = id(target.ShowIDs, "imdb"), id(target.ShowIDs, "tmdb")
 	}
-	return s.Subtitles.Search(ctx, q)
+	return provider.Search(ctx, q)
 }
 
 // DownloadSubtitle downloads a subtitle a search found and keeps it with a version of the
@@ -87,14 +88,15 @@ func (s *Service) SearchSubtitles(ctx context.Context, v db.Viewer, itemPublicID
 // it. The language and kinds are the chosen result's. Downloading the same one again answers
 // the one already kept.
 func (s *Service) DownloadSubtitle(ctx context.Context, v db.Viewer, itemPublicID, versionPublicID string, chosen SubtitleResult) (db.Subtitle, error) {
-	if s.Subtitles == nil {
+	provider := s.subtitleProvider()
+	if provider == nil {
 		return db.Subtitle{}, ErrNoSubtitleProvider
 	}
 	target, err := s.DB.SubtitleTarget(ctx, v, itemPublicID, versionPublicID)
 	if err != nil {
 		return db.Subtitle{}, err
 	}
-	raw, format, err := s.Subtitles.Download(ctx, chosen.Ref)
+	raw, format, err := provider.Download(ctx, chosen.Ref)
 	if err != nil {
 		return db.Subtitle{}, err
 	}
@@ -117,7 +119,7 @@ func (s *Service) DownloadSubtitle(ctx context.Context, v db.Viewer, itemPublicI
 			return db.Subtitle{}, err
 		}
 	}
-	return s.DB.AddSubtitle(ctx, db.Subtitle{MediaID: target.MediaID, Provider: s.Subtitles.Name(), ProviderRef: chosen.Ref, FileHash: hash,
+	return s.DB.AddSubtitle(ctx, db.Subtitle{MediaID: target.MediaID, Provider: provider.Name(), ProviderRef: chosen.Ref, FileHash: hash,
 		Format: format, Language: chosen.Language, Title: chosen.Release, Forced: chosen.Forced, HearingImpaired: chosen.HearingImpaired})
 }
 
@@ -132,4 +134,17 @@ func (s *Service) RemoveSubtitle(ctx context.Context, publicID string) error {
 		return err
 	}
 	return nil
+}
+
+// UseSubtitles replaces the subtitle provider as the owner's settings change; nil is none.
+func (s *Service) UseSubtitles(p SubtitleProvider) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Subtitles = p
+}
+
+func (s *Service) subtitleProvider() SubtitleProvider {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.Subtitles
 }

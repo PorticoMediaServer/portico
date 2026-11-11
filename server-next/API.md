@@ -172,6 +172,8 @@ session is unknown (`404`), and the app starts again by itself where it was.
 | `POST /v1/queues/{id}/prepare-next`, `POST /v1/queues/{id}/commit-next` | Get the next song ready before this one ends, then make it the session, for a join without a gap |
 | `POST /v1/queues/{id}/playlist` | Save the queue as a playlist |
 | `GET /v1/items/{id}/subtitles`, `PUT /v1/items/{id}/subtitles/offset` | A title's subtitles (in the file, or beside it) and the timing nudge this profile gave them, which is kept for that title |
+| `GET /v1/items/{id}/subtitles/search?languages=`, `POST /v1/items/{id}/subtitles` | Search OpenSubtitles for a title the profile may play, in up to ten languages; the answer carries the credit "Subtitles provided by OpenSubtitles.com". Download one result for a version (`versionId`, else the first): it is then offered to everyone who may play that version. What is sent back is checked (a language code, the result's ref, a release name of at most 200 characters that can be shown). `409 subtitle_search_not_set_up` until the owner sets up OpenSubtitles; `429` for a used-up daily allowance or a pause |
+| `DELETE /v1/admin/items/{id}/subtitles/{subtitleId}` | The owner and administrators remove a downloaded subtitle (`d…` ids in the title's list) |
 | `GET /v1/items/{id}/lyrics` | A song's lyrics from files beside it, timed lines in order |
 | `GET /v1/admin/playback/stream-limits`, `PUT /v1/admin/playback/stream-limits` | The owner's stream limits: in total, per person, and for one person |
 | `GET /v1/admin/playback/failures`, `DELETE /v1/admin/playback/failures/{id}` | Remembered "this way of playing this file failed on this device", and forgetting one |
