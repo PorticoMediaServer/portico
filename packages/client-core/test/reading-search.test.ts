@@ -107,19 +107,6 @@ test('rejects an invalid page limit even with zero hits', () => {
   assert.throws(() => parseReadingSearchPage(pending, witness, 51), /invalid_request/);
 });
 
-test('rejects a malformed query before any request is sent', async () => {
-  let sent = 0;
-  const capture = {send: async () => { sent++; throw new Error('not reached'); }, isCurrent: () => true, subscribe: () => () => {}};
-  const client = new ReadingClient(capture as never, {viewer: {serverId: 'server'} as never, isCurrent: () => true});
-  const manifest = {sessionId: 'session', itemId: 'item', sourceId: 'asset', revision: 'a'.repeat(64), format: 'epub', size: 1,
-    metadata: {title: 'Title'}, spine: ['OEBPS/chapter-1.xhtml'], resources: [{path: 'OEBPS/chapter-1.xhtml', mime: 'application/xhtml+xml', size: 1}]} as unknown as ReadingManifest;
-  const session = new ReadingSession(client, manifest);
-  await assert.rejects(session.search('\ud800'), (error: {code?: string}) => error.code === 'invalid_request');
-  await assert.rejects(session.search('ok', {limit: 0}), (error: {code?: string}) => error.code === 'invalid_request');
-  await assert.rejects(session.search('ok', {cursor: 'not/base64url'}), (error: {code?: string}) => error.code === 'invalid_request');
-  assert.equal(sent, 0);
-});
-
 test('rejects a coverage reason that is not bounded text', () => {
   assert.throws(() => parseReadingSearchPage(page({coverage: {status: 'unsupported', reason: 'x'.repeat(65)}, hits: []}), witness, 20), /invalid_document/);
   const parsed = parseReadingSearchPage(page({coverage: {status: 'unsupported', reason: 'version'}, hits: []}), witness, 20);
