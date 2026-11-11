@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/settings"
 )
 
 const (
@@ -155,6 +156,8 @@ type session struct {
 	sampleAt time.Time
 	playedMs int64
 	dirty    bool
+	// awayKbps is what this stream takes of the upload speed, 0 at home. See away.go.
+	awayKbps int
 }
 
 type startKey struct {
@@ -177,6 +180,8 @@ type Service struct {
 	streams Streams
 	log     *slog.Logger
 	now     func() time.Time
+	// settings are the owner's settings, for the limits away from home. See away.go.
+	settings *settings.Settings
 
 	mu       sync.Mutex
 	sessions map[string]*session
