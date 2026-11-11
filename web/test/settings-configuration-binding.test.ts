@@ -48,6 +48,11 @@ test('Settings reads canonical configuration through its captured ConsoleClient,
   } finally {f.dispose();}
 });
 
+test('a server with no configuration route opens the page with nothing configured there', async () => {
+  const f = fixture({readConfiguration: async () => {throw Object.assign(new Error('Not found.'), {status: 404, code: 'not_found'});}});
+  try {await f.controller.load(section);assert.equal(f.controller.getSnapshot(section).error, undefined);assert.deepEqual(f.controller.configurationMatches('integrations.max_webhooks'), []);}
+  finally {f.dispose();}
+});
 test('foreign configuration fails the real section read and is never searchable', async () => {
   const f = fixture({foreign: true});
   try {await f.controller.load(section);assert.ok(f.controller.getSnapshot(section).error);assert.deepEqual(f.controller.configurationMatches('integrations.max_webhooks'), []);}
@@ -77,7 +82,7 @@ test('current-section quiet configuration bypasses successful memoization withou
  let reads=0;const f=fixture({readConfiguration:async()=>({...configuration,revision:++reads,path:reads===1?'/first':'/fresh'})});
  try{await f.controller.load(section);const before=f.controller.getSnapshot(section),inputs=f.controller.quietInputs(section),configurationInput=inputs.find(input=>input.id==='configuration')!;
   assert.deepEqual(await configurationInput.refresh(),{kind:'adopted'});assert.equal(reads,2);assert.equal(f.controller.configurationMatches('integrations.max_webhooks')?.[0]?.path,'/fresh');assert.deepEqual(f.controller.getSnapshot(section),before);
-  assert.deepEqual(inputs.map(input=>input.id),['configuration','header/health','header/storage']);
+  assert.deepEqual(inputs.map(input=>input.id),['configuration','header/storage']);
  }finally{f.dispose();}
 });
 

@@ -40,6 +40,9 @@ export function DashboardScreen(props: DashboardScreenProps) {
   const b = props.bindings;
   return <DashboardView key={JSON.stringify([b.scope.serverId, b.scope.viewerId, b.role])} {...props} />;
 }
+/** The panels whose reads are on the rebuilt server. Server load and the statistics join when their own
+ * screens move; until then they are left out rather than shown failing. */
+const onServer = {load: false, statistics: false} as const;
 function DashboardView({bindings: b, embedded = false, initialSection, phone = false, chrome}: DashboardScreenProps) {
   const current = useDashboardAuthority(b);
   const ref = useRef<HTMLDivElement>(null), allowed = current && b.isMainProfile() && (b.role === 'owner' || b.role === 'admin');
@@ -48,28 +51,28 @@ function DashboardView({bindings: b, embedded = false, initialSection, phone = f
   const sessionsLoad = useCallback((signal: AbortSignal) => readNowPlaying(b, signal), [b]);
   const sessions = useDashboardRead(b, sessionsLoad, allowed, 10000);
   const liveLoad = useCallback((signal: AbortSignal) => b.read.telemetry('live', signal), [b]);
-  const live = useDashboardRead(b, liveLoad, allowed && b.role === 'owner' && !phone, 2000);
+  const live = useDashboardRead(b, liveLoad, onServer.load && allowed && b.role === 'owner' && !phone, 2000);
   const [healthRange, setHealthRange] = useState<'10m' | '1h' | '24h'>('1h');
   const healthLoad = useCallback((signal: AbortSignal) => b.read.telemetry(healthRange, signal), [b, healthRange]);
-  const health = useDashboardRead(b, healthLoad, allowed && b.role === 'owner' && phone, 2000);
+  const health = useDashboardRead(b, healthLoad, onServer.load && allowed && b.role === 'owner' && phone, 2000);
   const serverLoad = useCallback((signal: AbortSignal) => b.read.server(signal), [b]);
   const server = useDashboardRead<DashboardServerHeader>(b, serverLoad, allowed && b.role === 'owner' && phone, 60000);
-  const report = useDashboardReport(b, allowed && b.role === 'owner');
-  const accounts = useDashboardAccounts(b, allowed && b.role === 'owner' && !phone);
+  const report = useDashboardReport(b, onServer.statistics && allowed && b.role === 'owner');
+  const accounts = useDashboardAccounts(b, onServer.statistics && allowed && b.role === 'owner' && !phone);
   const [updatedAt, setUpdatedAt] = useState(() => Date.now());
   useEffect(() => {if (sessions.value && !sessions.loading) setUpdatedAt(Date.now());}, [sessions.value, sessions.loading]);
   useEffect(() => {if (!phone && initialSection) ref.current?.querySelector(`[data-dashboard-section="${initialSection}"]`)?.scrollIntoView({block: 'start'});}, [initialSection, phone]);
   if (!allowed) return null;
-  const failed = sessions.failed || b.role === 'owner' && (status.failed || (phone ? health.failed : live.failed || accounts.failed) || report.state.failed);
+  const failed = sessions.failed || b.role === 'owner' && (status.failed || onServer.load && (phone ? health.failed : live.failed) || onServer.statistics && (accounts.failed || report.state.failed));
   const retry = () => {sessions.refresh(); if (b.role === 'owner') {status.refresh(); if (phone) health.refresh(); else live.refresh(); report.state.refresh(); accounts.refresh(); server.refresh();}};
   /* settings.html's Dashboard (lead, 4 Nov): Alerts, Now playing, Server load, the statistics, then Background tasks, quiet or busy. */
   const groupedQuiet = !phone && !failed && b.role === 'owner';
   const sections = phone
     ? <><div data-dashboard-section="streams"><NowPlaying bindings={b} state={sessions} phone /></div>
-        {b.role === 'owner' && <><Status bindings={b} status={status} phone /><Tasks status={status} phone /><PhoneHealth reading={health.value} loading={health.loading} failed={health.failed} range={healthRange} onRangeChange={range => {if (b.isCurrent()) setHealthRange(range);}} onRetry={health.refresh} /><div data-dashboard-section="activity"><PhoneStatistics bindings={b} report={report} /></div></>}</>
+        {b.role === 'owner' && <><Status bindings={b} status={status} phone /><Tasks status={status} phone />{onServer.load && <PhoneHealth reading={health.value} loading={health.loading} failed={health.failed} range={healthRange} onRangeChange={range => {if (b.isCurrent()) setHealthRange(range);}} onRetry={health.refresh} />}{onServer.statistics && <div data-dashboard-section="activity"><PhoneStatistics bindings={b} report={report} /></div>}</>}</>
     : <>{b.role === 'owner' && <Status bindings={b} status={status} />}
         <div data-dashboard-section="streams"><NowPlaying bindings={b} state={sessions} /></div>
-        {b.role === 'owner' && <><div className={quietStyles.slot} data-dashboard-quiet-slot="load"><Load bindings={b} report={report} live={live} /></div><div data-dashboard-section="activity"><Analytics bindings={b} report={report} accounts={accounts} /></div><div className={quietStyles.slot} data-dashboard-quiet-slot="tasks"><Tasks status={status} /></div></>}</>;
+        {b.role === 'owner' && <>{onServer.load && <div className={quietStyles.slot} data-dashboard-quiet-slot="load"><Load bindings={b} report={report} live={live} /></div>}{onServer.statistics && <div data-dashboard-section="activity"><Analytics bindings={b} report={report} accounts={accounts} /></div>}<div className={quietStyles.slot} data-dashboard-quiet-slot="tasks"><Tasks status={status} /></div></>}</>;
   if (phone) return <PhonePage chrome={chrome ?? {serverName: '', audience: b.role === 'owner' ? 'owner' : 'administrators'}} server={server.value}
     updatedAt={updatedAt} onBack={() => {if (history.length > 1) history.back(); else b.effects.openHome();}} onRefresh={retry} initialSection={initialSection}>
     {failed && !sessions.value ? <ReadFeedback openHome={b.effects.openHome} height={420} state={{failed: true, loading: false, refresh: retry}} /> : sections}
