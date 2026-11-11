@@ -11,6 +11,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/jobs"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/lrclib"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/lrclib/lrclibtest"
+	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/tmdb"
 	"github.com/PorticoMediaServer/portico/server-next/internal/seed"
 )
 
@@ -122,5 +123,62 @@ func TestLyricsRoutes(t *testing.T) {
 	}
 	if w := call(t, s, "PUT", "/v1/admin/items/"+songs["Come Together"]+"/lyrics", member, LyricsPaste{Text: "mine"}, nil); w.Code != 403 {
 		t.Fatalf("a member pasting lyrics: %d", w.Code)
+	}
+}
+
+// A scan's new songs are asked about for lyrics even when the title lookup the scan starts
+// fails, since nothing asks about them again by itself; the job still ends failed, saying
+// why. No music library has a title provider yet, so a films library that holds a song
+// beside a film, with its provider down, stands in for one.
+func TestNewSongsGetLyricsWhenTheLookupAfterAScanFails(t *testing.T) {
+	ctx := context.Background()
+	s := newTestServer(t)
+	owner := onMain(t, s, setup(t, s)).AccessToken
+	server := lrclibtest.New(t)
+	s.metadata.Lyrics = lrclib.New(server.URL, 0)
+	s.UseProvider(tmdb.New("test-token", "http://127.0.0.1:1")) // a closed port: the lookup fails
+	started := time.Now().Add(-time.Second)
+	lib, err := s.db.CreateLibrary(ctx, "Films", db.LibraryMovies, "en", []string{t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var admin AdminLibrary
+	call(t, s, "GET", "/v1/admin/libraries/"+lib.PublicID, owner, nil, &admin)
+	options := admin.Options
+	options.Lyrics = "lrclib"
+	if w := call(t, s, "PATCH", "/v1/admin/libraries/"+lib.PublicID, owner, LibraryEdit{Options: &options}, nil); w.Code != 200 {
+		t.Fatalf("choosing LRCLIB: %d", w.Code)
+	}
+	libraries, _ := s.db.AllLibraries(ctx)
+	artist, album := db.ItemKey{Kind: db.KeyName, Key: "artist"}, db.ItemKey{Kind: db.KeyName, Key: "album"}
+	film, song := db.FileRef{Name: "Heat (1995).mkv"}, db.FileRef{Name: "Come Together.flac"}
+	index, disc := 1, 1
+	if _, err := s.db.Import(ctx, db.ImportBatch{LibraryID: lib.ID, PathID: libraries[0].Paths[0].ID, Scan: 1, Dirs: []db.ImportDir{{RelPath: ""}},
+		Files: []db.ImportFile{{FileRef: film, Role: db.FileMedia, Size: 1000, Container: "mkv", DurationMS: 60_000},
+			{FileRef: song, Role: db.FileMedia, Size: 1001, Container: "flac", DurationMS: 260_000}},
+		Items: []db.ImportItem{{Kind: db.KindMovie, Title: "Heat", Keys: []db.ItemKey{{Kind: db.KeyFile, Key: film.Name}},
+			Versions: []db.ImportVersion{{Parts: []db.ImportPart{{File: film}}}}},
+			{Kind: db.KindArtist, Title: "The Beatles", Keys: []db.ItemKey{artist}},
+			{Kind: db.KindAlbum, Title: "Abbey Road", Parent: &artist, Keys: []db.ItemKey{album}},
+			{Kind: db.KindTrack, Title: "Come Together", Parent: &album, IndexNumber: &index, ParentIndex: &disc,
+				Keys: []db.ItemKey{{Kind: db.KeyFile, Key: song.Name}}, Versions: []db.ImportVersion{{Parts: []db.ImportPart{{File: song}}}}}}}); err != nil {
+		t.Fatal(err)
+	}
+	params, _ := json.Marshal(afterScanParams{AddedSince: started.UnixMilli()})
+	job, err := s.jobs.Start(ctx, jobAfterScan, jobs.Request{Target: jobs.Target{Library: lib.PublicID}, Params: params})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The lookup's failure is said: the job fails, or ends with the note that titles could not
+	// be asked about (they are asked again later).
+	if done := waitForJob(t, s, owner, job.PublicID); done.Error == "" {
+		t.Fatalf("the lookup after a scan with its provider down says nothing: %+v", done)
+	}
+	songs := get[ItemPage](t, s, owner, "/v1/items?kind=track&library="+lib.PublicID).Items
+	if len(songs) != 1 {
+		t.Fatalf("songs: %+v", songs)
+	}
+	if got := get[Page[Lyrics]](t, s, owner, "/v1/items/"+songs[0].ID+"/lyrics").Items; len(got) != 1 || got[0].Origin != "provider" {
+		t.Fatalf("the scan's new song after a failed lookup: %+v", got)
 	}
 }
