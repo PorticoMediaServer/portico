@@ -42,6 +42,16 @@ func (d *DB) LibrarySource(ctx context.Context, libraryID int64) (LibrarySource,
 	return src, err
 }
 
+// LibraryID is the row id of the library with this public id.
+func (d *DB) LibraryID(ctx context.Context, publicID string) (int64, error) {
+	var id int64
+	err := d.read.QueryRowContext(ctx, `SELECT id FROM libraries WHERE public_id = ?`, publicID).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, ErrNotFound
+	}
+	return id, err
+}
+
 // MatchItem is a top-level title no provider has been asked about yet.
 type MatchItem struct {
 	ID          int64
