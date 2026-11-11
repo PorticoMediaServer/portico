@@ -180,6 +180,11 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.live = livefeed.New(clock)
 	s.receivers = receivers.New(s.live, clock)
 	s.groups = together.New(s.live, clock)
+	// A move that does not end playing stops what the asked device started under it, so two
+	// devices never keep playing as one stream.
+	s.receivers.OnUndo(func(u receivers.Undo) {
+		s.playback.Stop(context.Background(), u.SessionID, u.UserID, 0, nil)
+	})
 	s.systemRoutes()
 	s.networkRoutes()
 	s.identityRoutes()

@@ -123,7 +123,7 @@ func (s *Server) receiverRoutes() {
 		}),
 		Handle(s, "POST /v1/receivers/{id}/requests", WithProfile, s.askReceiver),
 		Handle(s, "GET /v1/receivers/{id}/requests/{requestId}", WithProfile, func(r *http.Request, _ None) (ReceiverRequest, error) {
-			req, err := s.receivers.Get(CallerFrom(r.Context()).UserID, r.PathValue("requestId"))
+			req, err := s.receivers.Get(CallerFrom(r.Context()).SessionID, r.PathValue("requestId"))
 			if err == nil && req.To.PublicID != r.PathValue("id") && r.PathValue("id") != "current" {
 				err = db.ErrNotFound
 			}
@@ -254,10 +254,17 @@ func (s *Server) askReceiver(r *http.Request, req ReceiverAsk) (ReceiverRequest,
 		if req.Play == nil || req.Play.ItemID == "" {
 			return ReceiverRequest{}, ErrField("play.itemId", "Say which title to play.")
 		}
-		// Nobody can make another device play what they may not see themselves.
+		// Nobody can make another device play what they may not see themselves, nor ask a
+		// device for what the profile on it may not see: both are not found.
 		ids, err := s.db.PlayableItems(ctx, c.Viewer, []string{req.Play.ItemID})
 		if err == nil && len(ids) != 1 {
 			err = db.ErrNotFound
+		}
+		if to, open := s.receivers.Find(c.Viewer.UserID, r.PathValue("id")); err == nil && open {
+			there := db.Viewer{UserID: to.UserID, ProfileID: to.ProfileID}
+			if ids, err = s.db.PlayableItems(ctx, there, []string{req.Play.ItemID}); err == nil && len(ids) != 1 {
+				err = db.ErrNotFound
+			}
 		}
 		if err != nil {
 			return ReceiverRequest{}, receiverError(err)
@@ -292,7 +299,7 @@ func (s *Server) answerRequest(r *http.Request, req ReceiverAnswer) (ReceiverReq
 	switch req.Answer {
 	case receivers.StateAllowed, receivers.StateDeclined, receivers.StateFailed:
 	case receivers.StatePlaying:
-		asked, err := s.receivers.Get(c.Viewer.UserID, r.PathValue("requestId"))
+		asked, err := s.receivers.Get(c.SignInID, r.PathValue("requestId"))
 		if err != nil {
 			return ReceiverRequest{}, receiverError(err)
 		}
