@@ -127,7 +127,7 @@ func (s *Service) refresh(ctx context.Context, src db.LiveSource) (Report, int, 
 	var signIn SignIn
 	if src.Kind == "xtream" {
 		var err error
-		if signIn, err = s.open(src.Secret); err != nil {
+		if signIn, err = s.SignIn(src.PublicID, src.Secret); err != nil {
 			return Report{}, 0, ErrSignIn
 		}
 	}
