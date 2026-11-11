@@ -3,9 +3,11 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/console"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
@@ -36,7 +38,17 @@ func (s *Server) playbackRoutes() {
 			s.writeError(w, r, ErrNotFound())
 			return
 		}
-		s.media(w, r, r.PathValue("grant"), r.PathValue("file"))
+		grant := r.PathValue("grant")
+		counted := &countingWriter{ResponseWriter: w}
+		s.media(counted, r, grant, r.PathValue("file"))
+		// What was sent counts towards the day's data sent, at home or away.
+		if split, away, ok := s.playback.StreamFacts(grant); ok && s.totals != nil {
+			metric := console.MetricBytesHome
+			if away {
+				metric = console.MetricBytesAway
+			}
+			s.totals.Add(metric+split, counted.n)
+		}
 	})
 	// Playback belongs to a device, so these take a signed-in person and not a key.
 	for _, route := range []*Route{
@@ -57,6 +69,39 @@ func (s *Server) playbackRoutes() {
 	Handle(s, "GET /v1/admin/playback/failures", Owner, s.listPlaybackFailures)
 	Handle(s, "DELETE /v1/admin/playback/failures/{id}", Owner, s.forgetPlaybackFailure)
 }
+
+// countingWriter counts the bytes of a reply.
+type countingWriter struct {
+	http.ResponseWriter
+	n int64
+}
+
+func (c *countingWriter) Write(b []byte) (int, error) {
+	n, err := c.ResponseWriter.Write(b)
+	c.n += int64(n)
+	return n, err
+}
+
+// Flush passes a flush through, for a stream that is written as it is made.
+func (c *countingWriter) Flush() {
+	if f, ok := c.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+// ReadFrom keeps the file copy the server makes without passing through this process's
+// memory (sendfile) when a file is sent as it is.
+func (c *countingWriter) ReadFrom(r io.Reader) (int64, error) {
+	if from, ok := c.ResponseWriter.(io.ReaderFrom); ok {
+		n, err := from.ReadFrom(r)
+		c.n += n
+		return n, err
+	}
+	return io.Copy(struct{ io.Writer }{c}, r)
+}
+
+// Unwrap lets http.ResponseController reach the connection beneath.
+func (c *countingWriter) Unwrap() http.ResponseWriter { return c.ResponseWriter }
 
 // The refusals of playback. Each says what happened in plain words and whether trying again
 // can help.
