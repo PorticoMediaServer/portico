@@ -45,9 +45,10 @@ func TestMain(m *testing.M) {
 // with the owner signed in on the main profile.
 type house struct {
 	*testing.T
-	url   string
-	token string
-	data  string
+	url    string
+	token  string
+	data   string
+	device string
 }
 
 func (h *house) do(method, path string, body any, header ...string) *http.Response {
@@ -174,6 +175,7 @@ func newHouseWith(t *testing.T, ffmpeg, ffprobe string) (*house, *db.DB, *remote
 	if err := json.Unmarshal(profiles, &documents); err != nil {
 		t.Fatal(err)
 	}
+	h.device = session.DeviceID
 	h.call("PUT", "/v1/devices/"+session.DeviceID+"/capabilities", documents["chromium"], nil, 204)
 	return h, d, handler.RemoteSources()
 }

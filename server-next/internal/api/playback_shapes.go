@@ -363,6 +363,10 @@ func sessionOut(v playback.Session) PlaybackSession {
 		SeekID: v.SeekID, Engine: v.Plan.Player, Route: v.Plan.Route, Container: v.Plan.Container, BitrateKbps: v.Plan.BitrateKbps,
 		Quality: v.Plan.Quality, AudioTrackID: v.Plan.AudioTrackID, Subtitle: v.Plan.Subtitle, Subtitles: subtitles,
 		Decision: decisions(v.Plan), HDR: v.Plan.HDR, AudioRender: v.Plan.AudioRender}
+	if v.Stream.AudioRender != nil {
+		// A stream's own render plan carries its addresses; the plan's is a preview without them.
+		out.Presentation.AudioRender = JSON(v.Stream.AudioRender)
+	}
 	if v.End != nil {
 		out.End = &SessionEnd{Reason: v.End.Reason, Message: v.End.Message}
 	}

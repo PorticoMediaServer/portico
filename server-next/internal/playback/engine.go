@@ -223,6 +223,9 @@ type Stream struct {
 	URL       string
 	Mode      string
 	Subtitles []SubtitleFile
+	// AudioRender is how an app that decodes music itself plays this stream, with the
+	// stream's own addresses in it. It passes through to the app as it is.
+	AudioRender json.RawMessage
 }
 
 // NoEngine is the media engine of a server that has none yet: nothing can be played, and it
