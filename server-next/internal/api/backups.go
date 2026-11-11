@@ -23,6 +23,10 @@ type Backups struct {
 	// NextAt is when the next scheduled backup runs; absent for Never.
 	NextAt *time.Time `json:"nextAt,omitempty"`
 	Folder string     `json:"folder"`
+	// PendingRestore is a restore staged and waiting for a restart; it is dropped if the
+	// server has not restarted within an hour of staging it. Cancel is
+	// DELETE /v1/admin/backups/restore.
+	PendingRestore *backup.Pending `json:"pendingRestore,omitempty"`
 	// Readable says that anyone with a backup file can read the working credentials inside it
 	// (the server's keys, remote sources' sign-ins and the key file that opens them): no
 	// backup here has a passphrase.
@@ -60,7 +64,8 @@ func (s *Server) Backups() *backup.Service { return s.backups }
 func (s *Server) backupRoutes() {
 	Handle(s, "GET /v1/admin/backups", Owner, func(r *http.Request, _ None) (Backups, error) {
 		list, err := s.backups.List()
-		out := Backups{Items: list, Running: s.backups.Running(), Folder: s.backups.Folder(), Readable: true}
+		out := Backups{Items: list, Running: s.backups.Running(), Folder: s.backups.Folder(), Readable: true,
+			PendingRestore: backup.PendingRestore(s.backups.DataDir)}
 		if out.Items == nil {
 			out.Items = []backup.Backup{}
 		}
@@ -143,7 +148,8 @@ func (s *Server) inspectBackup(r *http.Request, req BackupInspect) (BackupInspec
 		return BackupInspection{}, err
 	}
 	out := BackupInspection{Pictures: contents.Pictures, KeyFiles: contents.KeyFiles, Credentials: contents.Credentials, CreatedAt: made,
-		Restoring: []string{"everything_since_undone", "server_restarts", "everyone_signs_in_again", "keys_in_backup_work_again"}}
+		Restoring: []string{"everything_since_undone", "removed_people_return", "server_restarts", "everyone_signs_in_again",
+			"keys_in_backup_work_again"}}
 	if out.KeyFiles == nil {
 		out.KeyFiles = []string{}
 	}

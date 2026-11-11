@@ -1,10 +1,13 @@
 package api
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/backup"
 )
 
 // The owner backs up now, sees the backup listed with the credentials it holds, checks it and
@@ -62,8 +65,10 @@ func TestOwnerBackups(t *testing.T) {
 // A restore needs the owner's password again and is refused for a wrong one; an administrator
 // cannot restore; Restart says how many are playing until it is confirmed.
 func TestRestoreNeedsThePasswordAgain(t *testing.T) {
-	s := newTestServer(t)
-	owner := onMainProfile(t, s).AccessToken
+	path := filepath.Join(t.TempDir(), "main.db")
+	s := openTestServer(t, path)
+	in := setup(t, s)
+	owner := onMain(t, s, in).AccessToken
 	addMember(t, s, owner, "ada", "admin")
 	admin := signInAs(t, s, "ada", testPassword, 1).AccessToken
 	var started BackupStarted
@@ -83,11 +88,37 @@ func TestRestoreNeedsThePasswordAgain(t *testing.T) {
 	if w := call(t, s, "POST", "/v1/admin/backups/restore", owner, restore, &staged); w.Code != 200 {
 		t.Fatalf("the restore answered %d: %s", w.Code, w.Body)
 	}
+	var page Backups
+	if call(t, s, "GET", "/v1/admin/backups", owner, nil, &page); page.PendingRestore == nil || page.PendingRestore.Backup != started.ID {
+		t.Errorf("the page does not show the restore waiting: %+v", page.PendingRestore)
+	}
 	var restart Restart
 	if call(t, s, "POST", "/v1/admin/restart", owner, nil, &restart); restart.Restarting {
 		t.Errorf("a restart started without being confirmed")
 	}
-	if code := status(t, s, "DELETE", "/v1/admin/backups/restore", owner, nil); code != 204 {
+
+	// The next start makes it. Stopped before the sign-ins are ended, the one after still
+	// ends them: the owner's sign-in from before the restore cannot be renewed.
+	closeDB(s.db)
+	dir := filepath.Dir(path)
+	if restored, _, err := backup.Prepare(dir, time.Now()); err != nil || restored != started.ID {
+		t.Fatalf("making the restore: %q %v", restored, err)
+	}
+	if restored, _, _ := backup.Prepare(dir, time.Now()); restored != started.ID {
+		t.Fatalf("after a stop the restore was forgotten")
+	}
+	s = openTestServer(t, path)
+	if err := backup.Opened(context.Background(), s.db, dir, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if code, _ := renew(t, s, in.Session.RefreshToken, 0, "after-restore"); code != 401 {
+		t.Errorf("a sign-in from before the restore renewed: %d", code)
+	}
+
+	// A restore staged and then cancelled is not made.
+	owner = onMain(t, s, signIn(t, s, 0)).AccessToken
+	call(t, s, "POST", "/v1/admin/backups/restore", owner, restore, nil)
+	if code := status(t, s, "DELETE", "/v1/admin/backups/restore", owner, nil); code != 204 || backup.PendingRestore(dir) != nil {
 		t.Errorf("cancelling the restore answered %d", code)
 	}
 }
