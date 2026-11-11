@@ -359,3 +359,26 @@ func TestAStopDuringARestoreNeverLosesTheDatabase(t *testing.T) {
 		t.Errorf("an old staged restore: %q %q %v", restored, note, err)
 	}
 }
+
+// The page shows a staged restore only while the next start would make it; and what a stop
+// left in the middle of a backup, a check or a restore is cleared when the server starts.
+func TestWaitingRestoreAndLeftoversAtStart(t *testing.T) {
+	dir := stagedServer(t)
+	if WaitingRestore(dir, time.Now()) == nil {
+		t.Errorf("a restore staged now is not shown as waiting")
+	}
+	if WaitingRestore(dir, time.Now().Add(2*time.Hour)) != nil {
+		t.Errorf("a restore past its hour is shown as waiting")
+	}
+	s := newService(t)
+	for _, name := range []string{".staging-1", ".backup-2", ".checking-3"} {
+		os.MkdirAll(filepath.Join(s.DataDir, name), 0o700)
+		os.WriteFile(filepath.Join(s.DataDir, name, "main.db"), []byte("a whole copy"), 0o600)
+	}
+	s.removeLeftovers()
+	for _, name := range []string{".staging-1", ".backup-2", ".checking-3"} {
+		if exists(filepath.Join(s.DataDir, name)) {
+			t.Errorf("%s was left after a start", name)
+		}
+	}
+}
