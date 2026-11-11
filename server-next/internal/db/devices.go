@@ -79,19 +79,47 @@ func (d *DB) RenameDevice(ctx context.Context, userID int64, publicID, name stri
 // changes nothing.
 func (d *DB) ForgetDevice(ctx context.Context, userID int64, publicID string, now time.Time) error {
 	return d.writeSessions(ctx, func(tx *sql.Tx, c *changes) error {
-		id, err := userDevice(tx, userID, publicID)
-		if errors.Is(err, ErrNotFound) {
-			return nil
-		}
+		_, err := forgetDevice(tx, c, userID, publicID, now)
+		return err
+	})
+}
+
+// forgetDevice is ForgetDevice inside a transaction. It returns the device's name, or "" when
+// the device was not on the user's list.
+func forgetDevice(tx *sql.Tx, c *changes, userID int64, publicID string, now time.Time) (string, error) {
+	id, err := userDevice(tx, userID, publicID)
+	if errors.Is(err, ErrNotFound) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	if err := revoke(tx, c, now, "device_forgotten", `user_id = ? AND device_id = ?`, userID, id); err != nil {
+		return "", err
+	}
+	// Sessions that had already ended are marked too, so the device leaves the list.
+	if _, err := tx.Exec(`UPDATE sessions SET revoked_at = ifnull(revoked_at, ?), revoked_reason = 'device_forgotten'
+		WHERE user_id = ? AND device_id = ?`, now.UnixMilli(), userID, id); err != nil {
+		return "", err
+	}
+	var name string
+	err = tx.QueryRow(`SELECT name FROM devices WHERE id = ?`, id).Scan(&name)
+	return name, err
+}
+
+// ForgetMemberDevice signs an account the actor may manage out of one device and takes the
+// device off that account's list, as ForgetDevice does for a person's own. The owner's log
+// records it.
+func (d *DB) ForgetMemberDevice(ctx context.Context, actorID int64, actorRole, memberID, deviceID string, now time.Time) error {
+	return d.writeSessions(ctx, func(tx *sql.Tx, c *changes) error {
+		m, err := managed(tx, actorID, actorRole, memberID)
 		if err != nil {
 			return err
 		}
-		if err := revoke(tx, c, now, "device_forgotten", `user_id = ? AND device_id = ?`, userID, id); err != nil {
+		name, err := forgetDevice(tx, c, m.ID, deviceID, now)
+		if err != nil || name == "" {
 			return err
 		}
-		// Sessions that had already ended are marked too, so the device leaves the list.
-		_, err = tx.Exec(`UPDATE sessions SET revoked_at = ifnull(revoked_at, ?), revoked_reason = 'device_forgotten'
-			WHERE user_id = ? AND device_id = ?`, now.UnixMilli(), userID, id)
-		return err
+		return audit(tx, actorID, "member.device_sign_out", m.PublicID, m.Username+": "+name, now)
 	})
 }
