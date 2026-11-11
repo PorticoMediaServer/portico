@@ -258,8 +258,12 @@ type DiskFile struct {
 
 // Deletion is what deleting a title or a version would take: Delete shows it first.
 type Deletion struct {
-	LibraryID   int64
-	ItemID      int64
+	LibraryID int64
+	ItemID    int64
+	// ParentID and RootID are the titles that hold this one (a season, a show), or 0. Titles
+	// nest at most three deep, so these two are everything above it.
+	ParentID    int64
+	RootID      int64
 	MediaID     int64 // set when one version is being deleted
 	Title       string
 	AllowDelete bool
@@ -302,8 +306,9 @@ func (d *DB) deletion(ctx context.Context, v Viewer, where, id string, version b
 	}
 	defer tx.Rollback()
 	var options sql.NullString
-	err = tx.QueryRowContext(ctx, `SELECT i.id, i.library_id, i.title, l.options FROM items i JOIN libraries l ON l.id = i.library_id WHERE `+where, id).
-		Scan(&out.ItemID, &out.LibraryID, &out.Title, &options)
+	err = tx.QueryRowContext(ctx, `SELECT i.id, i.library_id, i.title, l.options, ifnull(i.parent_id, 0), ifnull(i.root_id, 0)
+		FROM items i JOIN libraries l ON l.id = i.library_id WHERE `+where, id).
+		Scan(&out.ItemID, &out.LibraryID, &out.Title, &options, &out.ParentID, &out.RootID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return out, ErrNotFound
 	}

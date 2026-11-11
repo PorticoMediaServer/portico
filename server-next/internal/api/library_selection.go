@@ -100,11 +100,19 @@ func (s *Server) previewSelectionDeletion(r *http.Request, req SelectionDelete) 
 	for _, id := range req.IDs {
 		selected[id] = true
 	}
+	holders := map[int64]bool{}
+	for _, del := range all {
+		holders[del.ItemID] = true
+	}
 	files := map[int64]bool{}
 	for _, del := range all {
-		out.Titles += del.Titles
-		out.ListEntries += del.ListEntries
-		out.OtherPeople += del.OtherStates
+		// A title selected together with the show, season or album that holds it is already
+		// counted, with everything on it, under that holder.
+		if !holders[del.ParentID] && !holders[del.RootID] {
+			out.Titles += del.Titles
+			out.ListEntries += del.ListEntries
+			out.OtherPeople += del.OtherStates
+		}
 		for _, f := range del.Files {
 			if !files[f.ID] {
 				files[f.ID] = true
