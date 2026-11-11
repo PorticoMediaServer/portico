@@ -233,3 +233,129 @@ func TestAMissingBackupDriveKeepsTheSettings(t *testing.T) {
 }
 
 func strconvQuote(s string) string { raw, _ := json.Marshal(s); return string(raw) }
+
+// stagedServer is a data folder holding "the database in use" and a key, with a backup staged.
+func stagedServer(t *testing.T) (dir string) {
+	t.Helper()
+	ctx := context.Background()
+	s := newService(t)
+	if err := s.make(ctx, "portico-20261101-030000", false); err != nil {
+		t.Fatal(err)
+	}
+	archive, _ := s.Path("portico-20261101-030000")
+	dir = t.TempDir()
+	os.WriteFile(filepath.Join(dir, "main.db"), []byte("the database in use"), 0o600)
+	os.WriteFile(filepath.Join(dir, "main.db-wal"), []byte("its log"), 0o600)
+	os.WriteFile(filepath.Join(dir, "remote-sources.key"), []byte("the key in use"), 0o600)
+	if err := Stage(ctx, archive, dir, "portico-20261101-030000", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+func read(dir, name string) string {
+	raw, _ := os.ReadFile(filepath.Join(dir, name))
+	return string(raw)
+}
+
+// A staged restore is made at the next start, and the restore is remembered until its
+// sign-ins have been ended, across any number of stops. If the restored database will not
+// open, the original goes back.
+func TestRestoreIsMadeAtTheNextStartAndCanBeUndone(t *testing.T) {
+	ctx := context.Background()
+	dir := stagedServer(t)
+	if p := PendingRestore(dir); p == nil || p.Backup != "portico-20261101-030000" {
+		t.Fatalf("pending: %+v", p)
+	}
+	if read(dir, "main.db") != "the database in use" {
+		t.Fatalf("staging changed the database in use")
+	}
+	restored, _, err := Prepare(dir, time.Now())
+	if err != nil || restored != "portico-20261101-030000" {
+		t.Fatalf("the restore: %q %v", restored, err)
+	}
+	if err := db.CheckCopy(ctx, filepath.Join(dir, "main.db")); err != nil || exists(filepath.Join(dir, "main.db-wal")) {
+		t.Errorf("the restored database: %v", err)
+	}
+	// The server stops before the sign-ins are ended: the next start still knows.
+	if again, _, _ := Prepare(dir, time.Now()); again != restored {
+		t.Fatalf("after a stop the restore was forgotten: %q", again)
+	}
+	d, err := db.Open(ctx, filepath.Join(dir, "main.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Opened(ctx, d, dir, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	d.Close()
+	if again, _, _ := Prepare(dir, time.Now()); again != "" {
+		t.Errorf("the restore is still remembered after its sign-ins were ended")
+	}
+
+	// A restore whose database will not open goes back.
+	dir = stagedServer(t)
+	Prepare(dir, time.Now())
+	if back, err := PutBack(dir); !back || err != nil {
+		t.Fatalf("putting back: %v %v", back, err)
+	}
+	if read(dir, "main.db") != "the database in use" || read(dir, "main.db-wal") != "its log" || read(dir, "remote-sources.key") != "the key in use" {
+		t.Errorf("the original did not come back whole")
+	}
+}
+
+// A stop at any point of the swap leaves either the backup in place or the original, never an
+// empty data folder, and never removes the original. A restore staged over an hour before the
+// start is dropped.
+func TestAStopDuringARestoreNeverLosesTheDatabase(t *testing.T) {
+	cases := map[string]func(dir string){
+		"after the journal": func(dir string) {
+			raw, _ := os.ReadFile(filepath.Join(dir, pendingDir, readyFile))
+			os.MkdirAll(filepath.Join(dir, previousDir), 0o700)
+			os.WriteFile(filepath.Join(dir, journalFile), raw, 0o600)
+		},
+		"after the original moved aside": func(dir string) {
+			raw, _ := os.ReadFile(filepath.Join(dir, pendingDir, readyFile))
+			os.MkdirAll(filepath.Join(dir, previousDir), 0o700)
+			os.WriteFile(filepath.Join(dir, journalFile), raw, 0o600)
+			os.Rename(filepath.Join(dir, "main.db"), filepath.Join(dir, previousDir, "main.db"))
+		},
+	}
+	for name, stop := range cases {
+		dir := stagedServer(t)
+		stop(dir)
+		restored, _, err := Prepare(dir, time.Now())
+		if err != nil || restored != "" || read(dir, "main.db") != "the database in use" || read(dir, "main.db-wal") != "its log" {
+			t.Errorf("%s: %q %v, the database reads %q", name, restored, err, read(dir, "main.db"))
+		}
+	}
+
+	// The backup's database had moved in: the start finishes the restore.
+	dir := stagedServer(t)
+	raw, _ := os.ReadFile(filepath.Join(dir, pendingDir, readyFile))
+	os.MkdirAll(filepath.Join(dir, previousDir), 0o700)
+	os.WriteFile(filepath.Join(dir, journalFile), raw, 0o600)
+	for _, f := range []string{"main.db", "main.db-wal", "remote-sources.key"} {
+		os.Rename(filepath.Join(dir, f), filepath.Join(dir, previousDir, f))
+	}
+	os.Rename(filepath.Join(dir, pendingDir, "main.db"), filepath.Join(dir, "main.db"))
+	if restored, _, err := Prepare(dir, time.Now()); err != nil || restored == "" || exists(filepath.Join(dir, journalFile)) ||
+		read(dir, "remote-sources.key") == "the key in use" || read(dir, previousDir+"/main.db") != "the database in use" {
+		t.Errorf("finishing a cut-short restore: %q %v", restored, err)
+	}
+
+	// No database in place, the original set aside and no journal: it comes back.
+	dir = t.TempDir()
+	os.MkdirAll(filepath.Join(dir, previousDir), 0o700)
+	os.WriteFile(filepath.Join(dir, previousDir, "main.db"), []byte("the database in use"), 0o600)
+	if _, _, err := Prepare(dir, time.Now()); err != nil || read(dir, "main.db") != "the database in use" {
+		t.Errorf("an empty data folder with the original aside: %v", err)
+	}
+
+	// Staged more than an hour before the start: dropped, nothing changes.
+	dir = stagedServer(t)
+	restored, note, err := Prepare(dir, time.Now().Add(2*time.Hour))
+	if err != nil || restored != "" || note == "" || PendingRestore(dir) != nil || read(dir, "main.db") != "the database in use" {
+		t.Errorf("an old staged restore: %q %q %v", restored, note, err)
+	}
+}

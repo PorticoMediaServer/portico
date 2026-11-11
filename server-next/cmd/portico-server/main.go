@@ -80,19 +80,20 @@ func run(log *slog.Logger) error {
 	if _, err := mediaexec.Configure(mediaexec.Options{}); err != nil {
 		return err
 	}
-	// A restore the owner asked for is made now, before the database opens. If the restored
-	// database will not open, what was in use is put back.
-	restored, undo, err := backup.ApplyPending(*data)
+	// A restore the owner staged is made now, before the database opens; one a stop cut
+	// short is finished or undone. See package backup.
+	restored, note, err := backup.Prepare(*data, time.Now())
 	if err != nil {
 		log.Error("the restore could not be made; the server is as it was", "error", err)
+	} else if note != "" {
+		log.Info(note)
 	}
 	d, err := db.Open(ctx, filepath.Join(*data, "main.db"))
-	if err != nil && undo != nil {
+	if err != nil && restored != "" {
 		log.Error("the restored database would not open, so the server goes back to what it had", "backup", restored, "error", err)
-		if err := undo(); err != nil {
+		if _, err := backup.PutBack(*data); err != nil {
 			return err
 		}
-		restored = ""
 		d, err = db.Open(ctx, filepath.Join(*data, "main.db"))
 	}
 	if err != nil {
@@ -100,11 +101,12 @@ func run(log *slog.Logger) error {
 	}
 	defer d.Close()
 	d.StartSearch(filepath.Join(*data, "search.db"), log)
+	// After a restore everyone signs in again: the restored sign-ins are from before the
+	// backup. Until this has committed, every start does it again.
+	if err := backup.Opened(ctx, d, *data, time.Now()); err != nil {
+		return err
+	}
 	if restored != "" {
-		// Everyone signs in again: the restored sign-ins are from before the backup.
-		if err := d.EndEverySignIn(ctx, time.Now()); err != nil {
-			return err
-		}
 		log.Info("the server was restored from a backup; everyone signs in again", "backup", restored)
 	}
 	handler, err := api.New(ctx, d, *data, version, log)

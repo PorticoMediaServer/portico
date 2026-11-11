@@ -34,6 +34,11 @@ func CheckCopy(ctx context.Context, path string) error {
 	if version.Int64 > SchemaVersion {
 		return fmt.Errorf("it was made by a newer version of Portico")
 	}
+	// A database that cannot answer who its people are will not serve as this server.
+	var people int
+	if err := copied.QueryRowContext(ctx, `SELECT count(*) FROM users`).Scan(&people); err != nil {
+		return fmt.Errorf("its accounts cannot be read: %w", err)
+	}
 	want, err := schemaObjects(ctx, nil)
 	if err != nil {
 		return err
