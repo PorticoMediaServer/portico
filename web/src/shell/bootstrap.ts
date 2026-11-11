@@ -41,7 +41,7 @@ import {viewerQueryScope} from '@core/query/viewer-queries.ts';
 import {authenticatedArtwork, type ShellArtwork} from './artwork';
 import type {ShellBindings} from './bindings';
 import type {ShellIdentity} from './Shell';
-import {admitProfile, admittedProfile, forgetTabServer, tabAdmits} from '../platform/tab-session-gate';
+import {admitProfile, admittedProfile, forgetTabServer, tabAdmits, tabHadOpen} from '../platform/tab-session-gate';
 
 export type ShellFacts = Readonly<{identity: ShellIdentity; preferences: PreferenceSnapshot; serverName: string}>;
 export type ShellAssemblyContext = Readonly<{
@@ -362,15 +362,17 @@ export class ShellBootstrap {
     let session = selectedViewerRecord(api.baseUrl, restored.session).session;
     if (session.viewer.role === 'account') { this.publish({phase: 'signed-out'}); api.getRouteConnection()?.dispose(); return; }
     // Launch gate (C-DESIGN §2): a profile remembered on this device, or already opened in this page
-    // load, opens; so does an account's only profile with no PIN. Otherwise Who's watching first.
+    // load, opens; so does an account's only profile with no PIN, and the profile this tab had open
+    // before a reload when it has no PIN. Otherwise Who's watching first.
     const held = {serverId: session.viewer.serverId, familyId: session.sessionFamilyId, profileId: session.viewer.profileId};
     if (!tabAdmits(held)) {
       let direct: DirectSnapshot;
       try {direct = parseDirectSnapshot(await readDirectAccount(api, signal), {authority: 'local', accountId: session.viewer.accountId, serverId: session.viewer.serverId});}
       catch (error) {api.getRouteConnection()?.dispose(); throw error;}
       const only = direct.profiles.length === 1 && direct.profiles[0]!.id === held.profileId && !direct.profiles[0]!.pinRequired;
+      const kept = tabHadOpen(held) && direct.profiles.some(profile => profile.id === held.profileId && !profile.pinRequired);
       if (!isCurrent()) {api.getRouteConnection()?.dispose(); return;}
-      if (!only) {
+      if (!only && !kept) {
         // Focus the profile this tab had open (another tab chose a different one), else the saved one.
         const focus = admittedProfile(held.serverId) ?? held.profileId;
         api.getRouteConnection()?.dispose(); this.clearWait(); this.publish({phase: 'choose-profile', focus}); return;
