@@ -18,7 +18,8 @@ import (
 // NowPlaying is one stream on the server.
 type NowPlaying struct {
 	ID string `json:"id"`
-	// ItemID and Title are absent for a title the asking administrator may not see.
+	// ItemID and Title are absent for a title in a library the asking administrator's account
+	// does not have. Kind is still given: it names no title.
 	ItemID     string `json:"itemId,omitempty"`
 	Title      string `json:"title,omitempty"`
 	Kind       string `json:"kind"`
@@ -89,14 +90,14 @@ func (s *Server) activityRoutes() {
 }
 
 // nowPlaying lists every stream: conversions first, then the newest start. Paused streams
-// count; a title the asking administrator may not see is unnamed.
+// count; a title in a library the asking administrator's account does not have is unnamed.
 func (s *Server) nowPlaying(r *http.Request, _ None) (Page[NowPlaying], error) {
 	sessions := s.playback.All()
 	ids, profiles := make([]int64, len(sessions)), make([]int64, len(sessions))
 	for n, v := range sessions {
 		ids[n], profiles[n] = v.Item.ID, v.ProfileID
 	}
-	titles, err := s.db.VisibleTitles(r.Context(), viewer(r), ids)
+	titles, err := s.db.AccountTitles(r.Context(), CallerFrom(r.Context()).UserID, ids)
 	if err != nil {
 		return Page[NowPlaying]{}, err
 	}
@@ -129,4 +130,17 @@ func btoi(b bool) int {
 		return 1
 	}
 	return 0
+}
+
+// cursorID reads a list's cursor: the id of the last row of the page before, 0 for the first.
+func cursorID(r *http.Request) (int64, error) {
+	raw := r.URL.Query().Get("cursor")
+	if raw == "" {
+		return 0, nil
+	}
+	n, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || n <= 0 {
+		return 0, ErrField("cursor", "This is not a cursor this list gave.")
+	}
+	return n, nil
 }
