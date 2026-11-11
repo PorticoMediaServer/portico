@@ -102,14 +102,22 @@ func coversEverything(home []netip.Prefix) bool {
 
 func (s *Server) dlnaRoutes() {
 	s.dlna = &dlna.Server{DB: s.db, Log: s.log, ServerID: func() string { return s.id }, Version: s.version, Home: s.dlnaHome,
-		// From home by the server's own rule, and never as this machine's loopback or a proxy the
-		// owner listed: a proxy that passes on no visitor's address would make every visitor
-		// look like the proxy itself, and an owner who put a plain proxy in front has not chosen
-		// to publish the library. Players never connect from either.
+		// From home by the server's own rule, and never from this machine's loopback, where a
+		// proxy on the same machine that passes on no visitor's address would make the whole
+		// internet look like this machine. A proxy the owner listed that passes on no address is
+		// served (the owner's ruling, 11 November), and the settings warn about it from then on.
 		FromHome: func(r *http.Request) bool {
 			n := s.networks()
 			from, ok := n.Client(r)
-			return ok && n.FromHome(r) && !from.IsLoopback() && !(auth.Networks{Home: n.Proxies}).AtHome(from)
+			if !ok || from.IsLoopback() {
+				return false
+			}
+			silent := (auth.Networks{Home: n.Proxies}).AtHome(from)
+			if silent && n.AtHome(from) {
+				s.silentProxySeen.Store(true)
+				return true
+			}
+			return n.FromHome(r)
 		},
 		// When area 2 adds the owner's own address for the server, its name joins these.
 		Names: func() []string { return s.remoteAccess().DLNANames },
@@ -227,9 +235,14 @@ func checkNames(typed []string) ([]string, error) {
 // dlnaWarning is the warning for the owner while DLNA is on with a home list that takes in the
 // whole internet, and "" otherwise.
 func (s *Server) dlnaWarning(on bool) string {
+	var warnings []string
 	if networks, stored := s.network.current(s.now()); on && stored.Home != nil && coversEverything(networks.Home) {
-		return "Your home networks include the whole internet, so DLNA shares every original file with anyone on the internet " +
-			"who can reach this server, with no sign-in."
+		warnings = append(warnings, "Your home networks include the whole internet, so DLNA shares every original file with anyone on the "+
+			"internet who can reach this server, with no sign-in.")
 	}
-	return ""
+	if on && s.silentProxySeen.Load() {
+		warnings = append(warnings, "A trusted proxy is passing DLNA requests on without saying who sent them, so anyone who can reach "+
+			"that proxy can read every original file, with no sign-in.")
+	}
+	return strings.Join(warnings, " ")
 }
