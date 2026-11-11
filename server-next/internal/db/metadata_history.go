@@ -160,9 +160,12 @@ func (d *DB) MetadataHistory(ctx context.Context, publicID string) ([]MetadataHi
 		func(h *MetadataHistoryEntry) []any { return []any{&h.ID, &h.At, &h.Kind} })
 }
 
-// UndoMetadata puts a title's details, lists, locks, chosen pictures and match back to how they
-// were before one of its History entries, in one transaction, and adds the undo to History.
-// What the title's files gave since is left as it is. It returns the title's new revision.
+// UndoMetadata undoes one of a title's History entries: it puts back what that one change made
+// to the title's details, lists, locks, chosen pictures and match, and only where nobody has
+// changed it since. A later edit, a refresh, a label added since and anything the title's files
+// gave since all stay, so an Undo never throws a later change away or brings back a lower
+// rating. Undoing an older entry does not undo the newer ones. It runs in one transaction,
+// adds the undo to History and returns the title's new revision.
 func (d *DB) UndoMetadata(ctx context.Context, publicID, entryID string) (int64, error) {
 	entry, err := strconv.ParseInt(entryID, 10, 64)
 	if err != nil {
