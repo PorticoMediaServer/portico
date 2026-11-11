@@ -348,8 +348,13 @@ func (im *importer) relate(id int64, it *ImportItem) error {
 	if err := checkCode("item_relations.kind", relationKindNames, it.ExtraKind); err != nil {
 		return err
 	}
-	_, err = im.exec(`INSERT INTO item_relations (item_id, kind, related_item_id) VALUES (?, ?, ?) ON CONFLICT DO NOTHING`, owner.id, it.ExtraKind, id)
-	return err
+	if _, err = im.exec(`INSERT INTO item_relations (item_id, kind, related_item_id) VALUES (?, ?, ?) ON CONFLICT DO NOTHING`, owner.id, it.ExtraKind, id); err != nil {
+		return err
+	}
+	if it.ExtraKind == RelationCollectionMember {
+		return im.collectionsRated(owner.id)
+	}
+	return nil
 }
 
 // ensureParts rewrites a stored version's parts when the files that make it up changed: the
