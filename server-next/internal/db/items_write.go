@@ -196,11 +196,18 @@ type ImportStats struct {
 // Import writes one batch in one background transaction.
 func (d *DB) Import(ctx context.Context, batch ImportBatch) (ImportStats, error) {
 	var stats ImportStats
-	err := d.write(ctx, Background, func(tx *sql.Tx) error {
+	err := d.write(ctx, Background, func(tx *sql.Tx) (err error) {
 		im := &importer{batchTx: newBatchTx(tx), batch: batch, now: time.Now().UnixMilli(),
 			dirs: map[string]int64{}, files: map[FileRef]*importedFile{}, items: map[ItemKey]*importedItem{},
 			tags: map[TagName]int64{}, people: map[string]int64{}, counts: map[int64]*countChange{}}
 		defer im.close()
+		// Whatever came under a holder, left it or moved in this batch settles the holder's
+		// watched mark for every profile, last of all.
+		defer func() {
+			if err == nil {
+				err = im.settleWatchedForAll(im.now)
+			}
+		}()
 		started := time.Now()
 		defer func() { stats.Took = time.Since(started) }()
 		stats = ImportStats{Files: len(batch.Files), Items: len(batch.Items)}
@@ -284,6 +291,7 @@ func (im *importer) run(stats *ImportStats) error {
 		}
 	}
 	for id, c := range im.counts {
+		im.leavesChanged(id)
 		if _, err := im.exec(`UPDATE items SET child_count = child_count + ?, leaf_count = leaf_count + ?,
 			last_child_added_at = max(ifnull(last_child_added_at, 0), ?) WHERE id = ?`, c.children, c.leaves, c.lastAdded, id); err != nil {
 			return err

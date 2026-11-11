@@ -12,6 +12,9 @@ import (
 type batchTx struct {
 	tx    *sql.Tx
 	stmts map[string]*sql.Stmt
+	// watchedDirty are the holders whose watched marks this transaction must settle for
+	// every profile before it ends. See watched_marks.go.
+	watchedDirty []int64
 }
 
 func newBatchTx(tx *sql.Tx) *batchTx { return &batchTx{tx: tx, stmts: map[string]*sql.Stmt{}} }

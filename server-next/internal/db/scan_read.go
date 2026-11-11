@@ -120,10 +120,15 @@ func (d *DB) MarkFolderGone(ctx context.Context, libraryID, pathID int64, rel st
 	args := []any{pathID, rel, rel + "/", rel + "0"}
 	for {
 		done := false
-		err := d.write(ctx, Background, func(tx *sql.Tx) error {
+		err := d.write(ctx, Background, func(tx *sql.Tx) (err error) {
 			b := newBatchTx(tx)
 			defer b.close()
 			now := time.Now().UnixMilli()
+			defer func() {
+				if err == nil {
+					err = b.settleWatchedForAll(now)
+				}
+			}()
 			var changed []int64
 			if err := goneFiles(b, now, &changed, `id IN (SELECT f.id FROM files f JOIN directories d ON d.id = f.directory_id
 				WHERE f.missing_since_at IS NULL AND d.`+under+` LIMIT 300)`, args...); err != nil {

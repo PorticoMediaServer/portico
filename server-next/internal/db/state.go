@@ -147,7 +147,7 @@ func (d *DB) SetState(ctx context.Context, v Viewer, itemID string, edit StateEd
 		if offer != nil {
 			undo = d.undo.add(offer)
 		}
-		return nil
+		return w.settleMarks()
 	})
 	return state, undo, err
 }
@@ -169,7 +169,7 @@ func (d *DB) SetStates(ctx context.Context, p Priority, v Viewer, edits []ItemEd
 			}
 			states[n], refusals[n] = state, err
 		}
-		return nil
+		return w.settleMarks()
 	})
 	return states, refusals, err
 }
@@ -179,6 +179,17 @@ type stateWriter struct {
 	viewer Viewer
 	access access
 	now    int64
+	// marks are the holders whose watched mark this writer's edits may have changed.
+	// settleMarks settles them once, however many edits touched them.
+	marks []int64
+}
+
+// settleMarks brings the watched mark of every holder touched since the last call into line
+// with what is under it. Each entry point that uses a stateWriter calls it before it commits.
+func (w *stateWriter) settleMarks() error {
+	marks := w.marks
+	w.marks = nil
+	return settleWatched(w.batchTx, w.access, w.viewer.ProfileID, marks, w.now)
 }
 
 // stateRow is a user_item_state row with the time of each field's last edit.
@@ -210,13 +221,13 @@ func (w *stateWriter) named(extra ...any) []any { return append(w.viewer.args(),
 
 func (w *stateWriter) apply(itemID string, edit StateEdit) (State, *undoOffer, error) {
 	var state State
-	var id, libraryID, duration int64
+	var id, libraryID, duration, parent, root int64
 	var kind ItemKind
 	var cleared sql.NullInt64
-	err := w.queryRow(`SELECT i.id, i.kind, i.library_id, ifnull(i.duration_ms, 0),
+	err := w.queryRow(`SELECT i.id, i.kind, i.library_id, ifnull(i.duration_ms, 0), ifnull(i.parent_id, 0), ifnull(i.root_id, 0),
 		(SELECT history_cleared_at FROM profiles WHERE id = @viewer_profile)
 		FROM items i WHERE i.public_id = @item AND `+w.access.visible("i"), w.named(sql.Named("item", itemID))...).
-		Scan(&id, &kind, &libraryID, &duration, &cleared)
+		Scan(&id, &kind, &libraryID, &duration, &parent, &root, &cleared)
 	if errors.Is(err, sql.ErrNoRows) {
 		return state, nil, ErrNotFound
 	}
@@ -233,6 +244,7 @@ func (w *stateWriter) apply(itemID string, edit StateEdit) (State, *undoOffer, e
 	if err != nil {
 		return state, nil, err
 	}
+	wasPlayed := row.played
 	changed := false
 	set := func(apply bool, fieldAt *sql.NullInt64, write func()) {
 		if apply && (!fieldAt.Valid || at >= fieldAt.Int64) {
@@ -275,6 +287,11 @@ func (w *stateWriter) apply(itemID string, edit StateEdit) (State, *undoOffer, e
 			if offer, err = w.markLeaves(id, *edit.Watched, at); err != nil {
 				return state, nil, err
 			}
+			around, err := holdersAround(w.batchTx, id)
+			if err != nil {
+				return state, nil, err
+			}
+			w.marks = append(w.marks, around...)
 		case edit.Watched != nil:
 			// A deliberate mark also decides where to resume: from the start, or from the
 			// position sent with "unwatched". It stamps the position's time as well, which is
@@ -292,6 +309,9 @@ func (w *stateWriter) apply(itemID string, edit StateEdit) (State, *undoOffer, e
 	if changed {
 		if err := w.store(id, row); err != nil {
 			return state, nil, err
+		}
+		if kind.Playable() && row.played != wasPlayed {
+			w.marks = append(w.marks, parent, root)
 		}
 	}
 	if offer != nil && len(offer.leaves) == 0 {
@@ -439,6 +459,18 @@ func (d *DB) UndoState(ctx context.Context, v Viewer, token string) error {
 				leaf.positionAt, time.Now().UnixMilli(), offer.profileID, leaf.itemID, offer.madeAt); err != nil {
 				return err
 			}
+		}
+		// The marks of the holder, of what it sits under and of what is under it go back with them.
+		acc, err := profileAccess(b, offer.profileID)
+		if err != nil {
+			return err
+		}
+		around, err := holdersAround(b, offer.itemID)
+		if err != nil {
+			return err
+		}
+		if err := settleWatched(b, acc, offer.profileID, around, time.Now().UnixMilli()); err != nil {
+			return err
 		}
 		return appendChange(tx, Change{At: time.Now().UnixMilli(), Topic: TopicState, Op: OpUpdated, RefID: offer.itemID,
 			LibraryID: offer.libraryID, ProfileID: offer.profileID})
