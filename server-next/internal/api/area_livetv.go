@@ -20,5 +20,6 @@ func (s *Server) startLiveTV(ctx context.Context) error {
 	s.channels = librarychannels.New(s.db, s.log, func() time.Time { return s.now() })
 	go s.channels.Run(ctx)
 	s.libraryChannelRoutes()
+	s.liveRoutes()
 	return nil
 }

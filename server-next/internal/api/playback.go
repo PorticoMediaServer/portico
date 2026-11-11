@@ -256,6 +256,31 @@ func (s *Server) startPlayback(r *http.Request, req PlaybackStart) (PlaybackSess
 	if key == "" {
 		key = db.NewID("once") // a start sent without a key is never taken for a repeat
 	}
+	hash := requestHash(req) // of the request as sent: joining a channel fills in its title below
+	var channel *playback.ChannelLink
+	if req.Channel != "" {
+		if req.ItemID != "" || req.Queue != nil {
+			return PlaybackSession{}, ErrField("channel", "Say which title, queue entry or channel to play: one of them.")
+		}
+		tuned, err := s.tuneChannel(r.Context(), viewer(r), req.Channel)
+		if err != nil {
+			return PlaybackSession{}, err
+		}
+		req.ItemID = tuned.ItemID
+		offset := tuned.Offset.Milliseconds()
+		req.StartPositionMs = &offset
+		channel = &playback.ChannelLink{ID: req.Channel, StartsAt: tuned.StartsAt.UTC(), EndsAt: tuned.EndsAt.UTC()}
+		// The channel's quality choice: Original only never converts, and Limited bitrate is a
+		// ceiling no viewer's own choice goes above.
+		switch tuned.Quality.Mode {
+		case "original":
+			req.Quality = &playback.Quality{Mode: playback.QualityOriginal}
+		case "limited":
+			if req.Quality == nil || req.Quality.Mode != playback.QualityLimit || req.Quality.MaxVideoBitrateKbps > tuned.Quality.MaxKbps {
+				req.Quality = &playback.Quality{Mode: playback.QualityLimit, MaxVideoBitrateKbps: tuned.Quality.MaxKbps}
+			}
+		}
+	}
 	if (req.ItemID == "") == (req.Queue == nil) {
 		return PlaybackSession{}, ErrField("itemId", "Say which title to play, or which queue entry.")
 	}
@@ -274,7 +299,7 @@ func (s *Server) startPlayback(r *http.Request, req PlaybackStart) (PlaybackSess
 			return PlaybackSession{}, queueError(err)
 		}
 	}
-	in := playback.StartInput{Caller: s.playbackCaller(r), Key: key, Hash: requestHash(req), ItemID: req.ItemID, Queue: req.Queue,
+	in := playback.StartInput{Caller: s.playbackCaller(r), Key: key, Hash: hash, ItemID: req.ItemID, Queue: req.Queue, Channel: channel,
 		PositionMs: req.StartPositionMs, FromStart: req.StartFrom == "beginning" || req.StartFrom == "startOver",
 		Paused: req.State == playback.StatePaused,
 		Ask:    playback.Ask{VersionID: req.VersionID, Quality: req.Quality, Network: req.Network, ThroughputKbps: req.ThroughputKbps}}
