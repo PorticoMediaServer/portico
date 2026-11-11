@@ -230,7 +230,9 @@ CREATE TABLE items (
 CREATE INDEX items_by_title ON items (library_id, kind, sort_title, id, rating_age);
 CREATE INDEX items_by_added ON items (library_id, kind, added_at, id, rating_age);
 CREATE INDEX items_by_year ON items (library_id, kind, year, id, rating_age);
-CREATE INDEX items_by_release ON items (library_id, kind, release_date, id, rating_age);
+-- by_release also ends with year. A list of one decade in release order starts at the oldest
+-- release and passes every earlier title; with the year here it passes them in the index.
+CREATE INDEX items_by_release ON items (library_id, kind, release_date, id, rating_age, year);
 -- For a profile with a rating limit: how many titles of a kind it may see, and which, when few.
 CREATE INDEX items_by_rating ON items (library_id, kind, rating_age);
 CREATE INDEX items_children ON items (parent_id, parent_index, index_number, id);
