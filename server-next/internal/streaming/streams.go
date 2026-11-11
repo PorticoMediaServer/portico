@@ -113,6 +113,9 @@ type Stream struct {
 	// Audio is a planned music stream's plan with this stream's addresses in it:
 	// what the device's own music engine plays from.
 	Audio *AudioPlan
+	// Failure is why the stream failed, as a ConversionFailure code, on the copy handed to
+	// StartRequest.Failed.
+	Failure string
 }
 
 // StreamStatus is what the session layer can say about a session's stream.

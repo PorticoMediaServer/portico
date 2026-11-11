@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -53,6 +55,12 @@ type mediaRig struct {
 
 func newMediaRig(t *testing.T) *mediaRig {
 	t.Helper()
+	return newMediaRigIn(t, t.TempDir())
+}
+
+// newMediaRigIn is newMediaRig with the conversion folder given.
+func newMediaRigIn(t *testing.T, folder string) *mediaRig {
+	t.Helper()
 	ffmpeg, ffprobe := decodertest.QualifiedFFmpeg(t), decodertest.QualifiedFFprobe(t)
 	previous := decoder.CurrentToolchain()
 	toolchain, err := decoder.ProbeToolchain(context.Background(), ffmpeg)
@@ -61,7 +69,7 @@ func newMediaRig(t *testing.T) *mediaRig {
 	}
 	decoder.ConfigureToolchain(toolchain)
 	t.Cleanup(func() { decoder.RestoreToolchain(previous) })
-	rig := &mediaRig{t: t, library: t.TempDir(), folder: t.TempDir(), ffmpeg: ffmpeg, ffprobe: ffprobe}
+	rig := &mediaRig{t: t, library: t.TempDir(), folder: folder, ffmpeg: ffmpeg, ffprobe: ffprobe}
 	ctx, cancel := context.WithCancel(context.Background())
 	streams, err := New(ctx, Options{
 		Folder: rig.folder, FFmpeg: ffmpeg, Libraries: func() []string { return []string{rig.library} },
@@ -841,5 +849,81 @@ func TestAConverterThatKeepsDyingFailsTheStream(t *testing.T) {
 			time.Sleep(50 * time.Millisecond)
 		}
 		rig.streams.Stop(session)
+	}
+}
+
+// lockedLog collects the server log while other goroutines write to it.
+type lockedLog struct {
+	mu   sync.Mutex
+	text strings.Builder
+}
+
+func (l *lockedLog) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.text.Write(p)
+}
+
+func (l *lockedLog) String() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.text.String()
+}
+
+// A conversion the media sandbox refuses to start (here: a conversion folder that is not a
+// full path, which is how this was found on a real machine) fails its stream with that
+// named, and leaves one line in the server log saying why, with the program and the folder.
+// It used to fail without a word.
+func TestAConversionTheSandboxRefusesSaysWhyInTheLog(t *testing.T) {
+	here, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	folder, err := filepath.Rel(here, t.TempDir())
+	if err != nil {
+		t.Skip(err)
+	}
+	said := &lockedLog{}
+	log.SetOutput(said)
+	t.Cleanup(func() { log.SetOutput(os.Stderr) })
+	rig := newMediaRigIn(t, folder)
+	path := rig.generate("refused.avi", 30, "-c:v", "mpeg4", "-q:v", "5", "-c:a", "mp3")
+	told := make(chan Stream, 1)
+	request, info := rig.request(path)
+	plan, err := Plan(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stream, err := rig.streams.Start(context.Background(), StartRequest{SessionID: "refused", Plan: plan, Request: &request, Path: path,
+		Size: info.Size(), Modified: info.ModTime(), Failed: func(s Stream) { told <- s }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rig.streams.Stop("refused")
+	for deadline := time.Now().Add(20 * time.Second); ; time.Sleep(50 * time.Millisecond) {
+		rig.get(context.Background(), stream.Grant, "segment-000000.ts", "")
+		status, _ := rig.streams.Status("refused")
+		if status.State == "failed" {
+			if status.Failure == nil || status.Failure.Code != FailureNotStarted || !strings.Contains(status.Failure.Diagnostic, "sandbox refused") {
+				t.Fatalf("failed as %+v, want %s with the sandbox's reason", status.Failure, FailureNotStarted)
+			}
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("a conversion into a folder the sandbox refuses is still %s", status.State)
+		}
+	}
+	select {
+	case failed := <-told:
+		if failed.Failure != FailureNotStarted || failed.Grant != stream.Grant {
+			t.Fatalf("the session layer was told %+v", failed)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the session layer was not told the stream failed")
+	}
+	line := said.String()
+	if !strings.Contains(line, "failed ("+FailureNotStarted+")") || !strings.Contains(line, "sandbox refused") || !strings.Contains(line, "not a full path") ||
+		!strings.Contains(line, "Program: "+rig.ffmpeg) || !strings.Contains(line, "Conversion folder: "+folder) {
+		t.Fatalf("the server log says:\n%s", line)
 	}
 }
