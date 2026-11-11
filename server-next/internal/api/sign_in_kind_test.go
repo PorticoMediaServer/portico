@@ -1,9 +1,13 @@
 package api
 
 import (
+	"encoding/base32"
+	"fmt"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/hosted"
 )
@@ -31,7 +35,7 @@ func porticoServer(t *testing.T) (*Server, string, string) {
 	fake.decision = hosted.Decision{Purpose: hosted.PurposeSwitch, Account: hosted.Account{ID: "pa_1", Username: "justin"}}
 	approval := "approved-for-" + s.id
 	var switched SignInResponse
-	body := SignInSwitchRequest{To: "portico", Approval: approval, Device: device(1)}
+	body := SignInSwitchRequest{To: "portico", CurrentPassword: testPassword, Approval: approval, Device: device(1)}
 	if w := call(t, s, "POST", "/v1/admin/sign-in/switch", owner, body, &switched); w.Code != 200 {
 		t.Fatalf("switching to Portico Accounts answered %d: %s", w.Code, w.Body)
 	}
@@ -47,7 +51,7 @@ func porticoServer(t *testing.T) (*Server, string, string) {
 	if w := call(t, s, "POST", "/v1/auth/move/check", "", MoveCheckRequest{Username: "sam", Password: testPassword}, &check); w.Code != 200 || check.Next != "portico_account" {
 		t.Fatalf("checking an old password answered %d: %s", w.Code, w.Body)
 	}
-	fake.decision = hosted.Decision{Purpose: hosted.PurposeSwitch, Account: hosted.Account{ID: "pa_2", Username: "sammy"}}
+	fake.decision = hosted.Decision{Purpose: hosted.PurposeLink, Account: hosted.Account{ID: "pa_2", Username: "sammy"}}
 	var moved SignInResponse
 	done := MoveCompleteRequest{Username: "sam", Password: testPassword, Approval: approval, Device: device(5)}
 	if w := call(t, s, "POST", "/v1/auth/move/complete", "", done, &moved); w.Code != 200 || moved.Account.Username != "sammy" {
@@ -212,7 +216,8 @@ func TestChangeOwner(t *testing.T) {
 func TestOnlyALeavingPorticoServerQueuesItsMessage(t *testing.T) {
 	s := newTestServer(t)
 	owner := onMain(t, s, setup(t, s)).AccessToken
-	body := SignInSwitchRequest{To: "local", StartOver: true, ServerName: "Portico", Username: "justin", Password: testPassword, Device: device(1)}
+	body := SignInSwitchRequest{To: "local", StartOver: true, ServerName: "Portico", CurrentPassword: testPassword, Username: "justin",
+		Password: testPassword, Device: device(1)}
 	if w := call(t, s, "POST", "/v1/admin/sign-in/switch", owner, body, nil); w.Code != 200 {
 		t.Fatalf("Start over answered %d: %s", w.Code, w.Body)
 	}
@@ -225,5 +230,110 @@ func TestOnlyALeavingPorticoServerQueuesItsMessage(t *testing.T) {
 	}
 	if _, queued, _ := p.db.Setting(t.Context(), db.LeftMessageKey); !queued {
 		t.Fatal("a server leaving Portico Accounts did not queue its one message")
+	}
+}
+
+// A switch or Start over on a server with local sign-in replaces the owner's password and can
+// remove everyone else, so the owner's current password must be typed fresh: the owner's
+// sign-in token and the public server name are not enough.
+func TestSwitchNeedsTheOwnersPassword(t *testing.T) {
+	s := newTestServer(t)
+	owner := onMain(t, s, setup(t, s)).AccessToken
+	call(t, s, "POST", "/v1/admin/members", owner, MemberCreate{Username: "sam", Password: testPassword}, nil)
+	body := SignInSwitchRequest{To: "local", StartOver: true, ServerName: "Portico", Username: "mallory", Password: "a new password", Device: device(1)}
+	for _, current := range []string{"", "not the password"} {
+		body.CurrentPassword = current
+		if code := status(t, s, "POST", "/v1/admin/sign-in/switch", owner, body); code != 403 {
+			t.Fatalf("Start over with the current password %q answered %d, want 403", current, code)
+		}
+	}
+	if got := memberState(t, s, owner, "sam"); got != "active" {
+		t.Fatalf("a refused Start over still removed sam: %q", got)
+	}
+	body.CurrentPassword = testPassword
+	if code := status(t, s, "POST", "/v1/admin/sign-in/switch", owner, body); code != 200 {
+		t.Fatalf("Start over with the owner's password answered %d", code)
+	}
+}
+
+// An account the owner turned off stays off through a switch: it does not wait, gets no move
+// code, and neither a code nor its old password brings it back.
+func TestTurnedOffStaysOffThroughASwitch(t *testing.T) {
+	s := newTestServer(t)
+	fake := &fakeHosted{t: t}
+	s.hosted = fake
+	owner := onMain(t, s, setup(t, s)).AccessToken
+	var alex Member
+	call(t, s, "POST", "/v1/admin/members", owner, MemberCreate{Username: "sam", Password: testPassword}, nil)
+	call(t, s, "POST", "/v1/admin/members", owner, MemberCreate{Username: "alex", Password: testPassword}, &alex)
+	off := true
+	if w := call(t, s, "PATCH", "/v1/admin/members/"+alex.ID, owner, MemberEdit{Disabled: &off}, nil); w.Code != 200 {
+		t.Fatalf("turning alex off answered %d: %s", w.Code, w.Body)
+	}
+	fake.decision = hosted.Decision{Purpose: hosted.PurposeSwitch, Account: hosted.Account{ID: "pa_1", Username: "justin"}}
+	approval := "approved-for-" + s.id
+	var switched SignInResponse
+	body := SignInSwitchRequest{To: "portico", CurrentPassword: testPassword, Approval: approval, Device: device(1)}
+	if w := call(t, s, "POST", "/v1/admin/sign-in/switch", owner, body, &switched); w.Code != 200 {
+		t.Fatalf("the switch answered %d: %s", w.Code, w.Body)
+	}
+	owner = onMain(t, s, switched).AccessToken
+	var codes Page[MoveCodeOut]
+	call(t, s, "POST", "/v1/admin/sign-in/move-codes", owner, nil, &codes)
+	if len(codes.Items) != 1 || codes.Items[0].Username != "sam" {
+		t.Fatalf("codes were made for %+v, want sam alone", codes.Items)
+	}
+	if code := status(t, s, "POST", "/v1/admin/members/"+alex.ID+"/move-code", owner, nil); code != 409 {
+		t.Fatalf("a move code for a turned-off account answered %d, want 409", code)
+	}
+	fake.decision = hosted.Decision{Purpose: hosted.PurposeLink, Account: hosted.Account{ID: "pa_9", Username: "alex"}}
+	if code := status(t, s, "POST", "/v1/auth/move/check", "", MoveCheckRequest{Username: "alex", Password: testPassword}); code != 401 {
+		t.Fatalf("a turned-off account's old password answered %d on the check, want 401", code)
+	}
+	done := MoveCompleteRequest{Username: "alex", Password: testPassword, Approval: approval, Device: device(2)}
+	if code := status(t, s, "POST", "/v1/auth/move/complete", "", done); code != 401 {
+		t.Fatalf("a turned-off account's old password moved it (%d)", code)
+	}
+}
+
+// An account with two-step sign-in never moves on its old password alone: it needs the owner's
+// move code. Wrong old passwords count against the account, as at sign-in.
+func TestOldPasswordMoveIsAsStrictAsSignIn(t *testing.T) {
+	s := newTestServer(t)
+	fake := &fakeHosted{t: t}
+	s.hosted = fake
+	owner := onMain(t, s, setup(t, s)).AccessToken
+	call(t, s, "POST", "/v1/admin/members", owner, MemberCreate{Username: "sam", Password: testPassword}, nil)
+	sam := signInAs(t, s, "sam", testPassword, 3).AccessToken
+	var enrol TwoFactorSetup
+	call(t, s, "POST", "/v1/me/two-factor", sam, TwoFactorEnrol{CurrentPassword: testPassword}, &enrol)
+	secret, _ := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(enrol.Secret)
+	if w := call(t, s, "POST", "/v1/me/two-factor/confirm", sam, TwoFactorVerify{Code: auth.TOTPCode(secret, auth.TOTPStep(time.Now()))}, nil); w.Code != 200 {
+		t.Fatalf("confirming two-step sign-in answered %d: %s", w.Code, w.Body)
+	}
+	fake.decision = hosted.Decision{Purpose: hosted.PurposeSwitch, Account: hosted.Account{ID: "pa_1", Username: "justin"}}
+	body := SignInSwitchRequest{To: "portico", CurrentPassword: testPassword, Approval: "approved-for-" + s.id, Device: device(1)}
+	if w := call(t, s, "POST", "/v1/admin/sign-in/switch", owner, body, nil); w.Code != 200 {
+		t.Fatalf("the switch answered %d: %s", w.Code, w.Body)
+	}
+	if w := call(t, s, "POST", "/v1/auth/move/check", "", MoveCheckRequest{Username: "sam", Password: testPassword}, nil); w.Code != 409 ||
+		!strings.Contains(w.Body.String(), "move_code_required") {
+		t.Fatalf("a two-step account's old password answered %d: %s", w.Code, w.Body)
+	}
+	// Guesses from many networks at one account slow every new network down.
+	for i := range 6 {
+		r := newRequest("POST", "/v1/auth/move/check", "", MoveCheckRequest{Username: "sam", Password: "wrong guess"})
+		r.RemoteAddr = fmt.Sprintf("203.0.113.%d:4000", i+1)
+		serve(s, r)
+	}
+	// A new network's first wrong guess starts from the account's count, so its next waits.
+	codes := []int{}
+	for range 2 {
+		r := newRequest("POST", "/v1/auth/move/check", "", MoveCheckRequest{Username: "sam", Password: "wrong guess"})
+		r.RemoteAddr = "198.51.100.77:4000"
+		codes = append(codes, serve(s, r).Code)
+	}
+	if codes[0] != 401 || codes[1] != 429 {
+		t.Fatalf("a new network guessing at an account guessed at from many answered %v, want [401 429]", codes)
 	}
 }
