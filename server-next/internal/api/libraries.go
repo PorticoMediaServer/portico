@@ -32,8 +32,9 @@ type LibraryOptions struct {
 	// up within about ten seconds. It starts on; leaving it out of an edit keeps it on.
 	Watch *bool `json:"watch,omitempty"`
 	// RescanMinutes is how often the library's folders are scanned by themselves, from 15
-	// minutes to 30 days. 0 leaves it to the server: not at all while the folders are
-	// watched, every hour when they cannot be, every six hours on a network share.
+	// minutes to 30 days; 0 is no periodic scan. With watch off and 0 here the library is
+	// scanned only when asked. Where watch is on and the folders cannot be watched, they are
+	// scanned every hour instead, or every six on a network share.
 	RescanMinutes int `json:"rescanMinutes"`
 }
 
