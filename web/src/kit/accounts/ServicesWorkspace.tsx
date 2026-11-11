@@ -80,20 +80,23 @@ export function ServicesWorkspaceActions({children}: {children: ReactNode}) {
   const slots = useContext(WorkspaceSlots);
   return <>{slots.heading && createPortal(children, slots.heading)}{slots.phone && createPortal(children, slots.phone)}</>;
 }
-export function ServicesWorkspace({header, account, section, onSection, onSignOut, description, actions, phoneActions, unread = 0, children}: {
+export function ServicesWorkspace({header, account, section, onSection, onSignOut, description, actions, phoneActions, unread = 0, shown, children}: {
+  /** The sections this workspace offers; all of them when absent. */
+  shown?: readonly ServicesSection[];
   header: ReactNode; account: {name: string; email?: string; initial: string}; section: ServicesSection;
   onSection: (section: ServicesSection) => void; onSignOut: () => void; description?: ReactNode; actions?: ReactNode; phoneActions?: ReactNode; unread?: number; children: ReactNode;
 }) {
+  const offered = shown ? sections.filter(item => shown.includes(item.id)) : sections;
   const selected = sections.find(item => item.id === section)!;
   const [heading, setHeading] = useState<HTMLDivElement | null>(null), [phone, setPhone] = useState<HTMLDivElement | null>(null);
   return <WorkspaceSlots.Provider value={{heading, phone}}><div className={styles.workspace}>{header}<ColourBackdrop />
     <div className={styles.workspaceGrid}><aside className={styles.aside}>
       <h1>{t('services.workspace.title')}</h1><div className={styles.who}><ProfileAvatarFace initial={account.initial} size={48} /><span><b>{account.name}</b>{account.email && <small>{account.email}</small>}</span></div>
-      <nav aria-label={t('services.workspace.sections')}>{sections.map(item => <button type="button" key={item.id} aria-current={item.id === section ? 'page' : undefined} onClick={() => onSection(item.id)}><Icon name={item.icon} size={19} />{item.label}</button>)}<div className={styles.navSpacer} /><button type="button" onClick={onSignOut}><Icon name="i-signout" size={19} />{t('action.signOut')}</button></nav>
+      <nav aria-label={t('services.workspace.sections')}>{offered.map(item => <button type="button" key={item.id} aria-current={item.id === section ? 'page' : undefined} onClick={() => onSection(item.id)}><Icon name={item.icon} size={19} />{item.label}</button>)}<div className={styles.navSpacer} /><button type="button" onClick={onSignOut}><Icon name="i-signout" size={19} />{t('action.signOut')}</button></nav>
     </aside><main className={styles.pane}>
       <span className={styles.pill}><Icon name="i-person" size={16} />{t('services.workspace.title')}<span>{t('services.workspace.subtitle')}</span></span>
       <div className={styles.heading}><h2>{selected.label}</h2><div ref={setHeading} className={styles.headingActions}>{actions}</div></div>{description && <p className={styles.lead}>{description}</p>}
-      <nav className={styles.phoneTabs} aria-label={t('services.workspace.sections')}>{sections.map(item => <button key={item.id} type="button" aria-current={item.id === section ? 'page' : undefined} onClick={() => onSection(item.id)}>{item.label}</button>)}</nav>
+      <nav className={styles.phoneTabs} aria-label={t('services.workspace.sections')}>{offered.map(item => <button key={item.id} type="button" aria-current={item.id === section ? 'page' : undefined} onClick={() => onSection(item.id)}>{item.label}</button>)}</nav>
       {children}
       <div ref={setPhone} className={styles.phoneActions}>{phoneActions}</div>
     </main></div>

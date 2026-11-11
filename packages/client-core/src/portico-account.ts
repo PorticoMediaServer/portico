@@ -1,0 +1,157 @@
+/** A Portico Account at Portico Services: one named operation for each route the account pages use.
+ * Every route, its body and its refusals are the Services contract's
+ * (`hosted-services/hosted-next/API.md` in the private repository); nothing here invents one.
+ * The caller keeps the sign-in (`HeldSignIn`): a browser in its own storage, an app in its own. */
+import {servicesRoute, type ServicesRoute} from '../../contracts/src/services/routes.ts';
+
+export class ServicesError extends Error {
+  constructor(readonly status: number, readonly code: string, readonly fields: Readonly<Record<string, string>> = {}) {
+    super(code);
+  }
+}
+
+export type Tokens = Readonly<{accessToken: string; refreshToken: string; expiresAt: string}>;
+export type Device = Readonly<{name: string; kind: string}>;
+/** What a change that could take the account away asks for: the password typed now, and the two-step code when it is on. */
+export type Proof = Readonly<{currentPassword?: string; twoStepCode?: string}>;
+export type SignInAnswer = Readonly<{tokens?: Tokens; twoStep?: {challengeId: string}}>;
+export type Provider = 'google' | 'apple';
+export type Account = Readonly<{
+  id: string; email: string; newEmailWaiting?: string; username: string; displayName: string;
+  hasPassword: boolean; providers: readonly string[]; twoStep: boolean; ownsServer: boolean;
+}>;
+export type SignedInDevice = Readonly<{id: string; name: string; kind: string; createdAt: string; lastUsedAt: string; current: boolean}>;
+export type ApprovalPurpose = 'setup' | 'switch' | 'change_owner';
+export type Approval = Readonly<{id: string; serverId: string; serverName: string; purpose: ApprovalPurpose; state?: 'waiting' | 'approved' | 'declined'}>;
+export type ApprovalDecision = Readonly<{state: 'approved' | 'declined'; returnUrl: string; approval?: string}>;
+export type ListedServer = Readonly<{serverId: string; name: string; role: string; owner: boolean}>;
+export type ProviderCompletion = Readonly<{tokens?: Tokens; twoStep?: {challengeId: string}; connected?: Provider; created?: boolean}>;
+export type TVCode = Readonly<{id: string; device: Device}>;
+
+/** The sign-in this device holds. `forget(held)` forgets it only if it is still the one held. */
+export type HeldSignIn = Readonly<{current: () => Tokens | undefined; keep: (tokens: Tokens) => void; forget: (held: Tokens) => void}>;
+
+type Options = Readonly<{token?: string; create?: boolean; signal?: AbortSignal}>;
+
+/** A signed document's contents, for showing. The apps and servers that act on one check its signature. */
+export function envelopePayload<T>(envelope: {payload: string}): T {
+  const base64 = envelope.payload.replace(/-/g, '+').replace(/_/g, '/');
+  const bytes = Uint8Array.from(atob(base64 + '='.repeat((4 - base64.length % 4) % 4)), c => c.charCodeAt(0));
+  return JSON.parse(new TextDecoder().decode(bytes)) as T;
+}
+
+/** One call. A POST that makes something (`create`) carries a fresh Idempotency-Key, so a repeat
+ * of the same press is answered once; a new press is a new request. */
+async function send<T>(origin: string, route: ServicesRoute, values: Readonly<Record<string, string>>, body: unknown, options: Options): Promise<T> {
+  const {method, path} = servicesRoute(route, values);
+  const headers: Record<string, string> = {Accept: 'application/json'};
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  if (options.token) headers.Authorization = `Bearer ${options.token}`;
+  if (options.create) headers['Idempotency-Key'] = crypto.randomUUID();
+  let response: Response;
+  try {
+    response = await fetch(origin + path, {method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: options.signal, credentials: 'omit', cache: 'no-store'}); // query-read: kept (Portico Services, the person's Portico Account: not a media server document)
+  } catch (error) {
+    if (options.signal?.aborted) throw error;
+    throw new ServicesError(0, 'unreachable');
+  }
+  if (response.status === 204) return undefined as T;
+  const text = await response.text();
+  let value: unknown;
+  try { value = text ? JSON.parse(text) : undefined; } catch { value = undefined; }
+  if (response.ok) return value as T;
+  const problem = (value as {error?: {code?: unknown; fields?: unknown}} | undefined)?.error;
+  const code = typeof problem?.code === 'string' ? problem.code : response.status >= 500 ? 'internal' : 'bad_request';
+  const fields = problem?.fields && typeof problem.fields === 'object' ? problem.fields as Record<string, string> : {};
+  throw new ServicesError(response.status, code, fields);
+}
+
+/** The account's operations. `origin` is Portico Services' own (empty on its own pages). */
+export function porticoAccount(held: HeldSignIn, origin = '') {
+  type Values = Readonly<Record<string, string>>;
+  const anyone = <T>(route: ServicesRoute, values: Values = {}, body?: unknown, options: Options = {}) => send<T>(origin, route, values, body, options);
+  let renewing: Promise<Tokens | undefined> | undefined;
+  /** Renews the access token once it has run out. A renewal sent twice (two tabs) gets the same
+   * answer from Services, so the tabs never sign each other out. */
+  const renew = (): Promise<Tokens | undefined> => {
+    const before = held.current();
+    if (!before) return Promise.resolve(undefined);
+    renewing ??= anyone<Tokens>('refresh', {}, {refreshToken: before.refreshToken})
+      .then(tokens => { held.keep(tokens); return tokens; })
+      .catch(error => { if (error instanceof ServicesError && error.code === 'signed_out') held.forget(before); throw error; })
+      .finally(() => { renewing = undefined; });
+    return renewing;
+  };
+  /** A call as the signed-in person: a token that has run out is renewed first; a sign-in that has
+   * ended (signed out elsewhere, password changed) is forgotten here too. */
+  const person = async <T>(route: ServicesRoute, values: Values = {}, body?: unknown, options: Omit<Options, 'token'> = {}): Promise<T> => {
+    let tokens = held.current();
+    if (tokens && Date.parse(tokens.expiresAt) - Date.now() < 60_000) tokens = await renew();
+    if (!tokens) throw new ServicesError(401, 'signed_out');
+    try {
+      return await anyone<T>(route, values, body, {...options, token: tokens.accessToken});
+    } catch (error) {
+      if (!(error instanceof ServicesError) || error.code !== 'signed_out') throw error;
+      // Another tab may have renewed already: a different held sign-in is the newer one.
+      const now = held.current();
+      const renewed = now && now !== tokens ? now : await renew().catch(() => undefined);
+      if (!renewed) { held.forget(tokens); throw error; }
+      return anyone<T>(route, values, body, {...options, token: renewed.accessToken});
+    }
+  };
+  const tokensKept = <T extends {tokens?: Tokens}>(answer: T): T => { if (answer.tokens) held.keep(answer.tokens); return answer; };
+
+  return {
+    capabilities: () => anyone<{capabilities?: string[]}>('system').then(value => value.capabilities ?? []),
+    signUp: (details: {email: string; username: string; password: string; displayName: string}) =>
+      anyone<{accountId: string; email: string}>('signUp', {}, details, {create: true}),
+    confirmSignUp: (accountId: string, code: string, device: Device) =>
+      anyone<{tokens: Tokens}>('confirm', {}, {accountId, code, device}).then(tokensKept),
+    resendConfirmation: (accountId: string) => anyone<void>('resendConfirmation', {}, {accountId}),
+    signIn: (login: string, password: string, device: Device) =>
+      anyone<SignInAnswer>('signIn', {}, {login, password, device}, {create: true}).then(tokensKept),
+    finishTwoStep: (challengeId: string, code: string) =>
+      anyone<{tokens: Tokens}>('twoStepSignIn', {}, {challengeId, code}, {create: true}).then(tokensKept),
+    askPasswordReset: (email: string) => anyone<void>('passwordReset', {}, {email}),
+    finishPasswordReset: (email: string, code: string, password: string) =>
+      anyone<{providers?: string[]}>('passwordResetConfirm', {}, {email, code, password}),
+    /** Starts Sign in with Google or Apple; with `proof`, connects it to the signed-in account instead. */
+    startProvider: (provider: Provider, secretHash: string, proof?: Proof) => proof
+      ? person<{id: string; authorizeUrl: string}>('providerStart', {}, {provider, secretHash, ...proof})
+      : anyone<{id: string; authorizeUrl: string}>('providerStart', {}, {provider, secretHash}),
+    completeProvider: (flow: string, code: string, secret: string, device: Device, chosen: {username?: string; displayName?: string} = {}) =>
+      anyone<ProviderCompletion>('providerComplete', {}, {id: flow, code, secret, device, ...chosen}, {create: true}).then(tokensKept),
+    signOut: async () => {
+      const before = held.current();
+      try { await person<void>('signOut'); } finally { if (before) held.forget(before); }
+    },
+    account: (signal?: AbortSignal) => person<Account>('account', {}, undefined, {signal}),
+    changePassword: (proof: Proof, newPassword: string) => person<void>('password', {}, {...proof, newPassword}),
+    askEmailChange: (proof: Proof, newEmail: string) => person<{email: string}>('email', {}, {...proof, newEmail}),
+    confirmEmailChange: (email: string, code: string) => anyone<{email: string}>('confirm', {}, {email, code}),
+    deleteAccount: async (proof: Proof) => {
+      const before = held.current();
+      await person<void>('deleteAccount', {}, proof);
+      if (before) held.forget(before);
+    },
+    devices: () => person<{items: SignedInDevice[]}>('sessions').then(answer => answer.items),
+    signOutDevice: (device: string) => person<void>('endSession', {id: device}),
+    signOutOthers: () => person<void>('endOtherSessions'),
+    disconnectProvider: (provider: Provider, proof: Proof) => person<void>('disconnectProvider', {provider}, proof),
+    twoStep: () => person<{on: boolean; recoveryCodesLeft: number}>('twoStep'),
+    beginTwoStep: (proof: Proof) => person<{secret: string; qrAddress: string}>('twoStepBegin', {}, proof),
+    confirmTwoStep: (code: string) => person<{recoveryCodes: string[]}>('twoStepConfirm', {}, {code}),
+    turnOffTwoStep: (proof: Proof) => person<void>('twoStepOff', {}, proof),
+    newRecoveryCodes: (proof: Proof) => person<{recoveryCodes: string[]}>('recoveryCodes', {}, proof),
+    approval: (approval: string, signal?: AbortSignal) => person<Approval>('approval', {id: approval}, undefined, {signal}),
+    lookupApproval: (code: string) => person<Approval>('approvalLookup', {}, {code}),
+    decideApproval: (approval: string, approve: boolean) => person<ApprovalDecision>('approvalDecision', {id: approval}, {approve}),
+    /** The account's servers, read from its signed list for showing; an app that opens one checks the signature. */
+    servers: () => person<{list: {payload: string}}>('servers').then(answer => envelopePayload<{servers: ListedServer[]}>(answer.list).servers),
+    leaveServer: (server: string) => person<void>('leaveServer', {id: server}),
+    removeServer: (server: string) => person<void>('removeServer', {id: server}),
+    lookupTV: (code: string) => person<TVCode>('tvLookup', {}, {code}),
+    decideTV: (code: string, approve: boolean) => person<{state: string}>('tvDecision', {id: code}, {approve}),
+  };
+}
+export type PorticoAccount = ReturnType<typeof porticoAccount>;

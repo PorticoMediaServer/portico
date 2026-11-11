@@ -5,7 +5,7 @@ import type {DeletionPreview, IdentityProvider, SecurityIntent, SecurityPurpose,
 import {passwordStrength} from '@core/password-strength.ts';
 import {providerOnlySignIn} from '@core/hosted-security.ts';
 import {ApiError} from '@core/index.ts';
-import {AuthCodeBoxes, AuthPasswordField, AuthLinks} from '../kit/accounts';
+import {AuthCodeBoxes, AuthPasswordField, AuthLinks} from '../kit/accounts/AuthStage';
 import {ServicesAuthenticator, ServicesBadge, ServicesDangerAction, ServicesGroup, ServicesRecoveryCodes, ServicesGroupNote, ServicesRowNote, ServicesQuietLink, ServicesWorkspaceRow} from '../kit/accounts/ServicesWorkspace';
 import {HostedError, ServicesLabel, ServicesNotice, ServicesQuiet, ServicesRegistrationLead, ServicesStrength, ServicesAuthStage, ServicesHeading, ServicesActions} from '../kit/accounts/ServicesAuth';
 import {Button, TextField} from '../kit/controls';
