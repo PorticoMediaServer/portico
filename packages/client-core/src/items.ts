@@ -72,9 +72,13 @@ export type ItemsPage = Readonly<{items: readonly Item[]; nextCursor?: string; t
 
 export const readLibrary = (api: ServerRequester, id: string, signal?: AbortSignal): Promise<WireLibrary> => callServer(api, 'GET /v1/libraries/{id}', {id, signal});
 
-/** One page. `total` is counted only when asked for, which a screen does once per list. */
-export function readItems(api: ServerRequester, query: ItemListQuery, page: Readonly<{cursor?: string; limit?: number; total?: boolean}> = {}, signal?: AbortSignal): Promise<ItemsPage> {
-  return callServer(api, 'GET /v1/items', {query: {...query, cursor: page.cursor, limit: page.limit, total: page.total || undefined}, signal});
+/** One page, from a cursor or opened at a position (`at`, counting from 0). A page never asks for the count: that is `countItems`. */
+export function readItems(api: ServerRequester, query: ItemListQuery, page: Readonly<{cursor?: string; at?: number; limit?: number; total?: boolean}> = {}, signal?: AbortSignal): Promise<ItemsPage> {
+  return callServer(api, 'GET /v1/items', {query: {...query, cursor: page.cursor, at: page.cursor ? undefined : page.at || undefined, limit: page.limit, total: page.total || undefined}, signal});
+}
+/** How many titles the list holds. Its own request, because a count takes longer than a page as a list grows. */
+export async function countItems(api: ServerRequester, query: ItemListQuery, signal?: AbortSignal): Promise<number | undefined> {
+  return (await readItems(api, query, {limit: 1, total: true}, signal)).total ?? undefined;
 }
 /** Every item of a short list (a show's seasons, an album's tracks): its pages read one after another, up to `most`. */
 export async function readAllItems(api: ServerRequester, query: ItemListQuery, signal?: AbortSignal, most = 2000): Promise<Item[]> {
