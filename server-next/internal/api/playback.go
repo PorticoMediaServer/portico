@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -368,18 +369,18 @@ func (s *Server) stopPlayback(r *http.Request, req PlaybackStop) (None, error) {
 // stream limit can see it and stop one.
 func (s *Server) accountPlayback(r *http.Request, _ None) (AccountPlayback, error) {
 	c := s.playbackCaller(r)
-	sessions := s.playback.AccountSessions(c.Viewer.UserID)
-	ids := make([]int64, len(sessions))
-	for n, v := range sessions {
-		ids[n] = v.Item.ID
-	}
-	titles, err := s.db.VisibleTitles(r.Context(), c.Viewer, ids)
+	sessions, err := s.streamsSeenBy(r.Context(), c.Viewer, false)
 	if err != nil {
 		return AccountPlayback{}, err
 	}
 	out := AccountPlayback{Items: make([]AccountStream, 0, len(sessions))}
 	for _, v := range sessions {
-		out.Items = append(out.Items, streamOut(v, titles, c.SignInID))
+		stream := AccountStream{ID: v.ID, DeviceID: v.Device.PublicID, DeviceName: v.Device.Name, Kind: sessionKind(v.Item.Kind),
+			State: v.State, PositionMs: v.PositionMs, StartedAt: v.StartedAt.UTC(), Current: v.SignInID == c.SignInID}
+		if v.Visible {
+			stream.ItemID, stream.Title, stream.DurationMs = v.Item.PublicID, v.Title, v.Item.DurationMS
+		}
+		out.Items = append(out.Items, stream)
 	}
 	out.Limit, err = s.playback.AccountLimit(r.Context(), c.SignInID)
 	return out, err
@@ -421,4 +422,41 @@ func (s *Server) listPlaybackFailures(r *http.Request, _ None) (Page[RememberedF
 
 func (s *Server) forgetPlaybackFailure(r *http.Request, _ None) (None, error) {
 	return None{}, s.db.ForgetRouteFailure(r.Context(), r.PathValue("id"))
+}
+
+// SeenStream is a stream as one caller may see it. Visible is false, and Title empty, for a
+// title the caller's profile may not see: the stream is listed (the account's stream limit
+// counts it) but what it plays is absent.
+type SeenStream struct {
+	playback.Session
+	Visible bool
+	Title   string
+}
+
+// streamsSeenBy is the one rule for the streams a caller may see: the account's own, each
+// title only if the viewer's profile may see it; or, with everyone (an owner or administrator
+// allowed to see the whole server, as on Now Playing), every stream with its title. The
+// account's streams list, the compatible routes' sessions and the assistant's now_playing all
+// use it.
+func (s *Server) streamsSeenBy(ctx context.Context, viewer db.Viewer, everyone bool) ([]SeenStream, error) {
+	if everyone {
+		all := s.playback.All()
+		out := make([]SeenStream, len(all))
+		for n, v := range all {
+			out[n] = SeenStream{v, true, v.Item.Title}
+		}
+		return out, nil
+	}
+	sessions := s.playback.AccountSessions(viewer.UserID)
+	ids := make([]int64, len(sessions))
+	for n, v := range sessions {
+		ids[n] = v.Item.ID
+	}
+	titles, err := s.db.VisibleTitles(ctx, viewer, ids)
+	out := make([]SeenStream, len(sessions))
+	for n, v := range sessions {
+		title, ok := titles[v.Item.ID]
+		out[n] = SeenStream{v, ok, title}
+	}
+	return out, err
 }
