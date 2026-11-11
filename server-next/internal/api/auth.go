@@ -206,12 +206,13 @@ func (s *Server) newSession(r *http.Request, device DeviceInfo, now time.Time) (
 }
 
 // remoteHost is the address a request came from, as the owner's network settings read it.
-// It is empty for a request passed on by a proxy the owner has not listed: the only address
-// known is the proxy's, and keeping that would list the device as on the home network.
+// It is empty for a request passed on by a proxy the owner has not listed, and for one from
+// a listed proxy that passed on no visitor's address: the only address known is the proxy's,
+// and keeping that would list the device as on the home network.
 func (s *Server) remoteHost(r *http.Request) string {
 	networks := s.networks()
 	addr, ok := networks.Client(r)
-	if !ok || networks.ThroughUnlistedProxy(r) {
+	if !ok || networks.ThroughUnlistedProxy(r) || networks.ProxyGaveNoAddress(r) {
 		return ""
 	}
 	return addr.String()
@@ -224,7 +225,7 @@ func (s *Server) remoteHost(r *http.Request) string {
 func (s *Server) sourceLimit(r *http.Request) []db.Limit {
 	networks := s.networks()
 	addr, ok := networks.Client(r)
-	if !ok || networks.FromHome(r) {
+	if !ok || s.fromHome(r) {
 		return nil
 	}
 	return []db.Limit{{Bucket: "source", Key: auth.SourceKey(addr), Delay: auth.SourceDelay, Doubling: true}}

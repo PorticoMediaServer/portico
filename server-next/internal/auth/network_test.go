@@ -93,3 +93,37 @@ func TestUnlistedProxyIsNeverHome(t *testing.T) {
 		}
 	}
 }
+
+// A listed proxy is believed about where its visitors are, and when it does not say, they
+// are away: the proxy's own address is usually a home one and must not stand for them.
+func TestListedProxyThatGivesNoAddressIsNeverHome(t *testing.T) {
+	n := Networks{Home: []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8"), netip.MustParsePrefix("192.168.1.0/24")},
+		Proxies: []netip.Prefix{netip.MustParsePrefix("192.168.1.2/32"), netip.MustParsePrefix("127.0.0.1/32")}}
+	for name, c := range map[string]struct {
+		peer      string
+		forwarded []string
+		home      bool
+	}{
+		"a forwarded home address":    {"192.168.1.2", []string{"192.168.1.20"}, true},
+		"a forwarded outside address": {"192.168.1.2", []string{"203.0.113.9"}, false},
+		"no header":                   {"192.168.1.2", nil, false},
+		"no header, on this machine":  {"127.0.0.1", nil, false},
+		"an empty header":             {"192.168.1.2", []string{""}, false},
+		"junk":                        {"192.168.1.2", []string{"unknown"}, false},
+		"junk after a home address":   {"192.168.1.2", []string{"192.168.1.20, _hidden"}, false},
+		"only the proxies themselves": {"192.168.1.2", []string{"127.0.0.1"}, false},
+	} {
+		r := httptest.NewRequest("GET", "/", nil)
+		r.RemoteAddr = c.peer + ":4000"
+		for _, line := range c.forwarded {
+			r.Header.Add("X-Forwarded-For", line)
+		}
+		if got := n.FromHome(r); got != c.home {
+			t.Errorf("%s: from home is %v, want %v", name, got, c.home)
+		}
+		// Wrong guesses are still counted against something: the proxy's own address.
+		if addr, ok := n.Client(r); !c.home && len(c.forwarded) == 0 && (!ok || addr.String() != c.peer) {
+			t.Errorf("%s: counted against %v, want the proxy %s", name, addr, c.peer)
+		}
+	}
+}

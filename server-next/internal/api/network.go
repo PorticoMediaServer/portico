@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/netip"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -31,6 +32,10 @@ type NetworkSettings struct {
 	// TrustedProxies are the reverse proxies whose X-Forwarded-For header is believed. The
 	// header from any other address is ignored.
 	TrustedProxies []string `json:"trustedProxies"`
+	// Notices are plain sentences for the owner about something wrong that these settings
+	// cannot show by themselves: today, a trusted proxy that is not passing on its visitors'
+	// addresses. It is empty when nothing is wrong, and is not part of what is saved.
+	Notices []string `json:"notices"`
 
 	revision
 }
@@ -64,7 +69,16 @@ type networkState struct {
 	defaults    []netip.Prefix
 	defaultsAt  time.Time
 	warnedProxy bool
+	// silent is when each trusted proxy last sent a request with no visitor's address.
+	silent map[string]time.Time
 }
+
+const (
+	// silentProxyFor is how long a proxy stays in the owner's notices after it last sent a
+	// request with no visitor's address: long enough to be seen, gone once it is fixed.
+	silentProxyFor   = 24 * time.Hour
+	maxSilentProxies = 16
+)
 
 func (n *networkState) set(stored storedNetworks) error {
 	var home []netip.Prefix
@@ -80,7 +94,8 @@ func (n *networkState) set(stored storedNetworks) error {
 	}
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	n.stored, n.home, n.proxies = stored, home, proxies
+	// A saved change starts the notices afresh: the proxy named may no longer be listed.
+	n.stored, n.home, n.proxies, n.silent = stored, home, proxies, nil
 	return nil
 }
 
@@ -95,6 +110,50 @@ func (n *networkState) current(now time.Time) (auth.Networks, storedNetworks) {
 		n.defaults, n.defaultsAt = auth.DefaultHome(), now
 	}
 	return auth.Networks{Home: n.defaults, Proxies: n.proxies}, n.stored
+}
+
+// fromHome reports whether a request came from home, and notes a trusted proxy that passed
+// on no visitor's address: its visitors all count as away, and only the owner can fix that.
+func (s *Server) fromHome(r *http.Request) bool {
+	networks := s.networks()
+	if networks.ProxyGaveNoAddress(r) {
+		s.noteSilentProxy(peerAddr(r))
+	}
+	return networks.FromHome(r)
+}
+
+func (s *Server) noteSilentProxy(proxy string) {
+	now := s.now()
+	s.network.mu.Lock()
+	_, known := s.network.silent[proxy]
+	if s.network.silent == nil {
+		s.network.silent = map[string]time.Time{}
+	}
+	if known || len(s.network.silent) < maxSilentProxies {
+		s.network.silent[proxy] = now
+	}
+	s.network.mu.Unlock()
+	if !known {
+		s.log.Warn("a trusted proxy is not passing on its visitors' addresses, so everyone who comes through it counts as away from home "+
+			"and shares one count of wrong guesses: set the proxy to send X-Forwarded-For", "proxy", proxy)
+	}
+}
+
+// networkNotices are the sentences the owner's network settings show.
+func (s *Server) networkNotices() []string {
+	now, out := s.now(), []string{}
+	s.network.mu.Lock()
+	defer s.network.mu.Unlock()
+	for proxy, at := range s.network.silent {
+		if now.Sub(at) > silentProxyFor {
+			delete(s.network.silent, proxy)
+			continue
+		}
+		out = append(out, "The trusted proxy "+proxy+" is not passing on its visitors' addresses, so everyone who comes through it counts as away from home. "+
+			"Set it to send X-Forwarded-For.")
+	}
+	slices.Sort(out)
+	return out
 }
 
 func (s *Server) networks() auth.Networks {
@@ -163,7 +222,7 @@ func prefixStrings(prefixes []netip.Prefix) []string {
 func (s *Server) networkSettings(saved int64) NetworkSettings {
 	networks, stored := s.network.current(s.now())
 	return NetworkSettings{HomeNetworks: prefixStrings(networks.Home), HomeNetworksDefault: stored.Home == nil,
-		TrustedProxies: prefixStrings(networks.Proxies), revision: revision(saved)}
+		TrustedProxies: prefixStrings(networks.Proxies), Notices: s.networkNotices(), revision: revision(saved)}
 }
 
 func (s *Server) saveNetworkSettings(r *http.Request, req NetworkSettingsEdit) (NetworkSettings, error) {
