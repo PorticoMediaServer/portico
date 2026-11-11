@@ -26,7 +26,6 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediaengine"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediaexec"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/titledata"
-	"github.com/PorticoMediaServer/portico/server-next/internal/serverlog"
 	"github.com/PorticoMediaServer/portico/server-next/internal/webapp"
 )
 
@@ -46,26 +45,10 @@ func main() {
 		}
 	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
-	err := run(log)
-	if errors.Is(err, errRestart) {
-		// The same program with the same arguments, in this same process. If that fails (the
-		// program file was removed, or replaced by one that cannot run here), the server has
-		// already stopped cleanly and stays stopped unless a service manager starts it again.
-		if err = restartSelf(); err != nil {
-			err = fmt.Errorf("the server stopped to restart and could not start itself again, so it stays stopped unless a service manager starts it: %w", err)
-		}
-	}
-	if err != nil {
-		// A failure after the log opened was written there already (see run).
-		if _, ok := err.(loggedError); !ok {
-			log.Error("portico-server stopped", "error", err)
-		}
+	if stopped(log, run(log)) {
 		os.Exit(1)
 	}
 }
-
-// loggedError is a failure run has written to the server's log as well as to stderr.
-type loggedError struct{ error }
 
 func env(name, fallback string) string {
 	if v := os.Getenv(name); v != "" {
@@ -102,23 +85,13 @@ func run(log *slog.Logger) (err error) {
 	defer held.Release()
 	// Nothing in the data folder is ever played as a library file.
 	libraryfile.ServerData = serverData
-	// Everything logged from here on is also kept in the data folder for Messages.
-	serverLog, err := serverlog.Open(filepath.Join(*data, "logs"), os.Stderr)
+	// Everything logged from here on is also kept in the data folder for Messages (console.go).
+	serverLog, log, err := openServerLog(*data)
 	if err != nil {
 		return err
 	}
-	defer serverLog.Close()
-	log = slog.New(serverLog.Handler())
-	slog.SetDefault(log)
+	defer closeServerLog(serverLog, log, &err)
 	held.Warn(log)
-	// From here a failure to start or to keep serving goes to the log file as well, so
-	// Messages shows why after the next start. One before this point goes to stderr only.
-	defer func() {
-		if err != nil && !errors.Is(err, errRestart) {
-			log.Error("portico-server stopped", "error", err)
-			err = loggedError{err}
-		}
-	}()
 	// Media tools are started through this binary as their helper. That lets a scan keep a
 	// few confined workers going, where it would otherwise build a sandbox for every file.
 	if _, err := mediaexec.Configure(mediaexec.Options{}); err != nil {
@@ -292,6 +265,3 @@ func waitFor(ctx context.Context, group *sync.WaitGroup) {
 	case <-ctx.Done():
 	}
 }
-
-// errRestart asks main to start the server again once everything has stopped.
-var errRestart = errors.New("restart")
