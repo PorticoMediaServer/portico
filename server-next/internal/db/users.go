@@ -66,15 +66,32 @@ var ErrSetupDone = errors.New("setup is already done")
 // NewOwner is the first account on a new server.
 type NewOwner struct {
 	// Username is already in its stored form: see auth.Username.
-	Username     string
+	Username string
+	// PasswordHash is empty for an owner who signs in with a Portico Account.
 	PasswordHash string
-	ProfileName  string
-	Session      NewSession
-	Now          time.Time
+	// PorticoAccountID is set when the server is set up with Portico Accounts. The server's
+	// kind of sign-in is then recorded in the same commit; without it the server is local.
+	PorticoAccountID string
+	ProfileName      string
+	// ServerName is the name the owner gave the server, or "" to keep the default.
+	ServerName string
+	Session    NewSession
+	Now        time.Time
 }
 
+// SignInKindKey is the setting that holds the server's kind of sign-in. It is absent on a
+// server whose people sign in to it directly, and SignInPortico on one that uses Portico Accounts.
+const (
+	SignInKindKey = "sign_in_kind"
+	SignInPortico = "portico_account"
+)
+
+// ServerNameKey is the setting that holds the server's name.
+const ServerNameKey = "server.name"
+
 // CreateOwner creates the owner account, its main profile and a first session, only while
-// no account exists. Two people racing to set up a new server get one owner.
+// no account exists, together with the server's name and kind of sign-in. Two people racing
+// to set up a new server get one owner.
 func (d *DB) CreateOwner(ctx context.Context, o NewOwner) (SessionState, error) {
 	var out SessionState
 	stamp, err := d.writeSessionsStamped(ctx, func(tx *sql.Tx, _ *changes) error {
@@ -88,6 +105,21 @@ func (d *DB) CreateOwner(ctx context.Context, o NewOwner) (SessionState, error) 
 		userID, err := insertUser(tx, o.Username, o.PasswordHash, "owner", o.ProfileName, o.Now)
 		if err != nil {
 			return err
+		}
+		at := o.Now.UnixMilli()
+		if o.PorticoAccountID != "" {
+			if _, err := tx.Exec(`UPDATE users SET password_hash = NULL, password_changed_at = NULL, portico_account_id = ? WHERE id = ?`,
+				o.PorticoAccountID, userID); err != nil {
+				return err
+			}
+			if err := putSetting(tx, SignInKindKey, SignInPortico, at); err != nil {
+				return err
+			}
+		}
+		if o.ServerName != "" {
+			if err := putSetting(tx, ServerNameKey, o.ServerName, at); err != nil {
+				return err
+			}
 		}
 		out, err = startSession(tx, userID, o.Session, o.Now)
 		return err
