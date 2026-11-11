@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 // The Dashboard's upgrade task: none once every step's background part is done; the oldest
@@ -18,6 +19,13 @@ func TestUpgradeLeft(t *testing.T) {
 	if _, _, _, ok, err := d.UpgradeLeft(ctx); err != nil || ok {
 		t.Fatalf("a new database has upgrade work left: %v %v", ok, err)
 	}
+	// Open starts the upgrade's background work and does not wait for it. With nothing left
+	// it stops at once, but only once it has stopped does a step read as waiting.
+	select {
+	case <-d.upgradesDone:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the upgrade's background work did not stop on a database with nothing left to do")
+	}
 	var newest int
 	if err := d.read.QueryRowContext(ctx, `SELECT max(version) FROM schema_migrations`).Scan(&newest); err != nil {
 		t.Fatal(err)
@@ -25,8 +33,7 @@ func TestUpgradeLeft(t *testing.T) {
 	if _, err := d.writeConn.ExecContext(ctx, `UPDATE schema_migrations SET background_after = 4200 WHERE version = ?`, newest); err != nil {
 		t.Fatal(err)
 	}
-	// The background work has already stopped in this test (nothing was left at open), so the
-	// step reads as waiting for the next start.
+	// The background work has stopped, so the step reads as waiting for the next start.
 	if version, reached, running, ok, err := d.UpgradeLeft(ctx); err != nil || !ok || running || version != newest || reached != 4200 {
 		t.Errorf("upgrade work left reads %d %d %v %v %v", version, reached, running, ok, err)
 	}

@@ -184,7 +184,13 @@ func TestASlowBackupFolderNeverHoldsWrites(t *testing.T) {
 	folderWriteLimit = 500 * time.Millisecond
 	release := make(chan struct{})
 	folderHook = func(string) { <-release }
-	defer func() { folderWriteLimit, folderHook = saved, nil; close(release) }()
+	// The backup that gave up is still waiting on its folder. It is let go and waited for, so
+	// that nothing is writing into the test's folders when they are removed.
+	defer func() {
+		close(release)
+		folderWork.Wait()
+		folderWriteLimit, folderHook = saved, nil
+	}()
 
 	done := make(chan error, 1)
 	go func() { done <- s.make(ctx, "portico-20261101-030000", false) }()
