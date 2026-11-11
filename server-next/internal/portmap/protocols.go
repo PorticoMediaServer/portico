@@ -30,6 +30,9 @@ type mapping struct {
 	lifetime     time.Duration
 	// internal and asked are the ports this server asked for, to tell when the owner changed them.
 	internal, asked int
+	// nonce is the PCP mapping's own: its renewals and its removal must carry it (RFC 6887
+	// section 11.2), or the router refuses them.
+	nonce []byte
 }
 
 // localAddrTowards is this machine's address on the way to the router.
@@ -107,9 +110,10 @@ func natPMP(ctx context.Context, router netip.AddrPort, internal, external int, 
 		externalIP: netip.AddrFrom4([4]byte(addr[8:12])), lifetime: time.Duration(binary.BigEndian.Uint32(resp[12:])) * time.Second}, nil
 }
 
-// pcp asks with PCP (RFC 6887), MAP for TCP. lifetime 0 removes the mapping. A router that
-// answers in NAT-PMP's version says it does not speak PCP.
-func pcp(ctx context.Context, router netip.AddrPort, internal, external int, lifetime time.Duration) (mapping, error) {
+// pcp asks with PCP (RFC 6887), MAP for TCP. lifetime 0 removes the mapping. nonce is the held
+// mapping's, for a renewal or a removal; nil asks for a new mapping under a new nonce. A router
+// that answers in NAT-PMP's version says it does not speak PCP.
+func pcp(ctx context.Context, router netip.AddrPort, internal, external int, lifetime time.Duration, held []byte) (mapping, error) {
 	// The request names the address the router sees this server at, which is only known once
 	// a socket is open towards it.
 	probe, err := net.DialUDP("udp", nil, net.UDPAddrFromAddrPort(router))
@@ -124,7 +128,11 @@ func pcp(ctx context.Context, router netip.AddrPort, internal, external int, lif
 	client := netip.AddrFrom16(local.As16())
 	copy(req[8:24], client.AsSlice())
 	nonce := req[24:36]
-	rand.Read(nonce)
+	if len(held) == len(nonce) {
+		copy(nonce, held)
+	} else {
+		rand.Read(nonce)
+	}
 	req[36] = 6 // TCP
 	binary.BigEndian.PutUint16(req[40:], uint16(internal))
 	binary.BigEndian.PutUint16(req[42:], uint16(external))
@@ -148,7 +156,7 @@ func pcp(ctx context.Context, router netip.AddrPort, internal, external int, lif
 	}
 	ip, _ := netip.AddrFromSlice(resp[44:60])
 	return mapping{protocol: "PCP", externalPort: int(binary.BigEndian.Uint16(resp[42:])), externalIP: ip.Unmap(),
-		lifetime: time.Duration(binary.BigEndian.Uint32(resp[4:])) * time.Second}, nil
+		lifetime: time.Duration(binary.BigEndian.Uint32(resp[4:])) * time.Second, nonce: append([]byte(nil), nonce...)}, nil
 }
 
 // maxDescription bounds the router's description document and every SOAP answer.

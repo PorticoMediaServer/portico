@@ -234,6 +234,8 @@ func (s *Server) saveServerName(ctx context.Context, ownerID int64, name string)
 // It also puts the remote access document setup just wrote in force, without a restart.
 func (s *Server) setupDone(ctx context.Context) error {
 	os.Remove(s.setupFile)
+	// The remote access document setup just wrote goes in force without a restart, and with it
+	// port mapping, which waits for an owner (loadRemoteAccess calls applyCertificate).
 	return s.loadRemoteAccess(ctx)
 }
 
