@@ -96,10 +96,15 @@ func (d *DB) Book(ctx context.Context, v Viewer, publicID string) (Book, error) 
 	return out, err
 }
 
-// imagePages lists the pages of a comic made of pictures, with their total size and newest change.
+// maxImagePages is the most pages a comic made of pictures is read with: as many entries as a
+// book's archive may hold. One more is listed, so the reader can tell the comic has too many.
+const maxImagePages = 20_000
+
+// imagePages lists the pages of a comic made of pictures, with their total size and newest
+// change, up to one more than maxImagePages.
 func imagePages(ctx context.Context, tx *sql.Tx, version string) (pages []string, size, newest int64, err error) {
 	rows, err := tx.QueryContext(ctx, `SELECT f.name, f.size, f.modified_ns FROM media m JOIN media_parts mp ON mp.media_id = m.id
-		JOIN files f ON f.id = mp.file_id WHERE m.public_id = ? ORDER BY mp.position`, version)
+		JOIN files f ON f.id = mp.file_id WHERE m.public_id = ? ORDER BY mp.position LIMIT ?`, version, maxImagePages+1)
 	if err != nil {
 		return nil, 0, 0, err
 	}
