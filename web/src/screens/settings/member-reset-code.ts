@@ -88,7 +88,8 @@ export class MemberResetCodeOpening {
   private valid(result: MemberResetCode, previous?: MemberResetCode) {
     if (result.serverId !== undefined && result.serverId !== this.options.serverId) throw changed();
     if (Date.parse(result.expiresAt) <= this.now()) throw changed();
-    if (previous && (result.expiresAt !== previous.expiresAt || result.code === previous.code)) throw changed();
+    // A replacement is a new code with its own expiry.
+    if (previous && result.code === previous.code) throw changed();
   }
   issue = async () => {
     if (this.started || this.flight || !this.current()) return;
