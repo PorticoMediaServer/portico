@@ -38,8 +38,8 @@ func (d *DB) CreateSeedProfile(ctx context.Context, p SeedProfile) (Viewer, erro
 			}
 		}
 		for _, tag := range p.BlockedTags {
-			if _, err := tx.Exec(`INSERT INTO profile_restrictions (profile_id, tag_id) SELECT ?, id FROM tags WHERE public_id = ?`,
-				v.ProfileID, tag); err != nil {
+			if _, err := tx.Exec(`INSERT INTO profile_restrictions (profile_id, tag_id) SELECT ?, id FROM tags WHERE public_id = ? AND kind = ?`,
+				v.ProfileID, tag, TagLabel); err != nil { // only a label can be blocked, as in the restrictions route
 				return err
 			}
 		}
