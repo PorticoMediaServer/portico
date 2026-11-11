@@ -162,6 +162,7 @@ type Service struct {
 	started  int64
 	// accessChecked is when running sessions were last checked against what may be seen.
 	accessChecked time.Time
+	notify        func(event string, sess Session)
 }
 
 // New returns the session service. Run must be started for leases and progress to be kept.
@@ -312,7 +313,28 @@ func (s *Service) setStateLocked(sess *session, state string, now time.Time) {
 	if state == StatePaused && sess.State != StatePaused {
 		sess.pausedSince = now
 	}
+	was := sess.State
 	sess.State = state
+	switch {
+	case state == StatePaused && was == StatePlaying:
+		s.tell(StatePaused, sess)
+	case state == StatePlaying && was == StatePaused:
+		s.tell("resumed", sess)
+	}
+}
+
+// Notify sets who hears that a session started (playing), paused, resumed or ended. fn is
+// called with the service locked, so it must not wait for anything.
+func (s *Service) Notify(fn func(event string, sess Session)) {
+	s.mu.Lock()
+	s.notify = fn
+	s.mu.Unlock()
+}
+
+func (s *Service) tell(event string, sess *session) {
+	if s.notify != nil {
+		s.notify(event, sess.Session)
+	}
 }
 
 func (s *Service) sampleLocked(sess *session, positionMs, playedMs int64, now time.Time) {
@@ -399,6 +421,7 @@ func (s *Service) end(ctx context.Context, id, reason, message string) {
 // reports are refused. finish must follow, outside the lock.
 func (s *Service) endLocked(sess *session, reason, message string) {
 	sess.State, sess.End, sess.endedAt = StateEnded, &End{Reason: reason, Message: message}, s.now()
+	s.tell(StateEnded, sess)
 }
 
 // finish saves an ended session's last position and stops its stream, whose addresses stop
