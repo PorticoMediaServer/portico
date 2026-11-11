@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/dlna"
 )
@@ -101,7 +102,15 @@ func coversEverything(home []netip.Prefix) bool {
 
 func (s *Server) dlnaRoutes() {
 	s.dlna = &dlna.Server{DB: s.db, Log: s.log, ServerID: func() string { return s.id }, Version: s.version, Home: s.dlnaHome,
-		FromHome: func(r *http.Request) bool { return s.networks().FromHome(r) },
+		// From home by the server's own rule, and never as this machine's loopback or a proxy the
+		// owner listed: a proxy that passes on no visitor's address would make every visitor
+		// look like the proxy itself, and an owner who put a plain proxy in front has not chosen
+		// to publish the library. Players never connect from either.
+		FromHome: func(r *http.Request) bool {
+			n := s.networks()
+			from, ok := n.Client(r)
+			return ok && n.FromHome(r) && !from.IsLoopback() && !(auth.Networks{Home: n.Proxies}).AtHome(from)
+		},
 		// When area 2 adds the owner's own address for the server, its name joins these.
 		Names: func() []string { return s.remoteAccess().DLNANames },
 		Name: func() string {
