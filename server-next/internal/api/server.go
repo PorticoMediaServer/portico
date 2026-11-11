@@ -288,6 +288,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			s.writeError(w, r, errors.New("panic"))
 		}
 	}()
+	if s.crossOrigin(w, r) {
+		return
+	}
 	if _, pattern := s.mux.Handler(r); pattern == "" {
 		// An address that is no route of the API, and is not under /v1/ at all, is the web
 		// app's: its files, and the pages inside it. Nothing under /v1/ ever goes there.
