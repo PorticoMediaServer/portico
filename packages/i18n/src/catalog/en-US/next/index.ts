@@ -1,4 +1,5 @@
 import {platformMessages} from './platform.ts';
+import {accountPagesMessages} from './account-pages.ts';
 import {controlsMessages} from './controls.ts';
 import {overlaysMessages} from './overlays.ts';
 import {artworkMessages} from './artwork.ts';
@@ -86,6 +87,7 @@ export const nextMessages = {
   ...musicMessages,
   ...deviceCapabilitiesMessages,
   ...playerMessages,
+  ...accountPagesMessages,
 } as const satisfies Record<`next.${string}`, string>;
 
 export type NextMessageId = keyof typeof nextMessages;

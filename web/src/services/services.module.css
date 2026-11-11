@@ -17,3 +17,4 @@
   .phoneOnly { display: contents; }
   .desktopOnly { display: none; }
 }
+.serverId { font: 500 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }

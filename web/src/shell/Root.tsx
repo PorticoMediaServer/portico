@@ -16,7 +16,7 @@ import {useServerAway} from './ConnectionAway';
 import {announceRoute, routeDocumentTitle, routeHeading, routeLabelKey, routeTitleUpdates} from './route-accessibility';
 import bootStyles from './boot.module.css';
 import {currentWebEnvironment} from '../platform/environment';
-import {HostedServicesHost, hostedServicesPaths, useHostedInPageNavigation} from '../screens/accounts/HostedServicesHost';
+import {HostedServicesHost, isHostedServicesPath, useHostedInPageNavigation} from '../screens/accounts/HostedServicesHost';
 
 function RouteContent() {
   const content = useRef<HTMLDivElement>(null);
@@ -88,7 +88,7 @@ export function ShellRoot() {
   const serverAway = useServerAway(binding?.api);
   const hosted = currentWebEnvironment().hostedWeb;
   const path = useRouterState({select: state => state.location.pathname});
-  const accountPages = hosted && hostedServicesPaths.has(path);
+  const accountPages = hosted && isHostedServicesPath(path);
   useHostedInPageNavigation(hosted);
   const content = accountPages ? null : bootstrap?.snapshot.phase === 'restoring' && bootstrap.snapshot.waiting ? <BootShell><RouteContent /></BootShell>
     : !binding || !viewer || screenId && (webScreens.chrome(screenId) !== 'shell' || phone && webScreens.phoneChrome(screenId) === 'standalone') ? <RouteContent />
