@@ -9,7 +9,6 @@ package settings
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,8 +22,8 @@ import (
 )
 
 // Doc is one declared document. T is its Go shape: a struct whose fields carry json names.
-// A string field tagged `settings:"secret"` is sealed when stored and is never read back
-// over the wire: the answer says only whether it is set.
+// A secret is not a setting: it lives in its own row, sealed with the server's key, behind a
+// route that only ever writes it, so no reader or export of a document can carry one.
 type Doc[T any] struct{ def *definition }
 
 type definition struct {
@@ -32,7 +31,6 @@ type definition struct {
 	typ      reflect.Type
 	defaults any // a T
 	check    func(any) error
-	secrets  []string // the json names of the secret fields
 }
 
 var (
@@ -42,8 +40,9 @@ var (
 
 // Define declares a document. defaults is the value it has until the owner changes it, and
 // must work as it is. check refuses a value the server cannot act on (return an *Invalid
-// naming the field); it may also tidy the value, such as trimming spaces. Define is called
-// from a package-level var, once per name.
+// naming the field); it may also tidy the value, such as trimming spaces. The check also
+// runs on the stored value when the server starts, so it looks at nothing but the value: not
+// the disk, not the network. Define is called from a package-level var, once per name.
 func Define[T any](name string, defaults T, check func(*T) error) *Doc[T] {
 	typ := reflect.TypeFor[T]()
 	if typ.Kind() != reflect.Struct {
@@ -52,16 +51,6 @@ func Define[T any](name string, defaults T, check func(*T) error) *Doc[T] {
 	def := &definition{name: name, typ: typ, defaults: defaults}
 	if check != nil {
 		def.check = func(v any) error { return check(v.(*T)) }
-	}
-	for i := range typ.NumField() {
-		f := typ.Field(i)
-		if f.Tag.Get("settings") != "secret" {
-			continue
-		}
-		if f.Type.Kind() != reflect.String {
-			panic("settings: a secret is a string: " + name + "." + f.Name)
-		}
-		def.secrets = append(def.secrets, jsonName(f))
 	}
 	definedMu.Lock()
 	defer definedMu.Unlock()
@@ -125,19 +114,11 @@ var ErrStale = errors.New("the settings were changed since they were read")
 // ErrNoDocument: no document has that name.
 var ErrNoDocument = errors.New("no such settings document")
 
-// Sealer seals and opens secrets with the server's key. belongsTo binds a sealed value to the
-// field it was sealed for, so it cannot be moved to another field and opened there.
-type Sealer interface {
-	Seal(belongsTo string, plain []byte) []byte
-	Open(belongsTo string, sealed []byte) ([]byte, error)
-}
-
 // Settings is one server's documents, held in memory.
 type Settings struct {
-	db     *db.DB
-	sealer Sealer
-	mu     sync.RWMutex
-	docs   map[string]*loaded
+	db   *db.DB
+	mu   sync.RWMutex
+	docs map[string]*loaded
 	// saving puts saves of one document in order, so watchers see them in the order they
 	// committed.
 	saving sync.Mutex
@@ -152,10 +133,9 @@ type loaded struct {
 
 // Open reads every declared document. A stored document this build cannot read, or one its
 // check now refuses, is used at its defaults and the problem is returned in damaged, so the
-// server still starts; the owner's next save replaces it. sealer may be nil while no
-// document has a secret.
-func Open(ctx context.Context, d *db.DB, sealer Sealer) (s *Settings, damaged []error, err error) {
-	s = &Settings{db: d, sealer: sealer, docs: map[string]*loaded{}}
+// server still starts; the owner's next save replaces it.
+func Open(ctx context.Context, d *db.DB) (s *Settings, damaged []error, err error) {
+	s = &Settings{db: d, docs: map[string]*loaded{}}
 	definedMu.Lock()
 	defs := make([]*definition, 0, len(defined))
 	for _, def := range defined {
@@ -178,7 +158,7 @@ func Open(ctx context.Context, d *db.DB, sealer Sealer) (s *Settings, damaged []
 }
 
 // decode reads a stored document over its defaults, so a field this build added since it was
-// saved has its default, and opens its secrets.
+// saved has its default.
 func (s *Settings) decode(def *definition, raw string) (any, error) {
 	ptr := reflect.New(def.typ)
 	ptr.Elem().Set(reflect.ValueOf(s.copyOf(def, def.defaults)))
@@ -187,20 +167,6 @@ func (s *Settings) decode(def *definition, raw string) (any, error) {
 	}
 	if err := json.Unmarshal([]byte(raw), ptr.Interface()); err != nil {
 		return nil, err
-	}
-	for _, name := range def.secrets {
-		field := secretField(ptr.Elem(), name)
-		sealed, err := base64.StdEncoding.DecodeString(field.String())
-		var plain []byte
-		if err == nil && field.String() != "" && s.sealer != nil {
-			plain, err = s.sealer.Open(def.name+"."+name, sealed)
-		}
-		// A secret this server cannot open (its key file was replaced) is not set: the owner
-		// enters it again.
-		if err != nil || s.sealer == nil {
-			plain = nil
-		}
-		field.SetString(string(plain))
 	}
 	if def.check != nil {
 		if err := def.check(ptr.Interface()); err != nil {
@@ -215,29 +181,17 @@ func (s *Settings) copyOf(def *definition, v any) any {
 	raw, _ := json.Marshal(v)
 	ptr := reflect.New(def.typ)
 	json.Unmarshal(raw, ptr.Interface())
-	// Secrets are not left out of json.Marshal on a plain struct, so they copy too.
 	return ptr.Elem().Interface()
-}
-
-func secretField(v reflect.Value, name string) reflect.Value {
-	for i := range v.NumField() {
-		if jsonName(v.Type().Field(i)) == name {
-			return v.Field(i)
-		}
-	}
-	panic("settings: no field " + name)
 }
 
 // Document is one document as the owner's pages read it.
 type Document struct {
 	Name string
-	// Values are the document's fields, secrets left out.
+	// Values are the document's fields.
 	Values json.RawMessage
 	// Defaults are what each field is until the owner changes it, so a page can say a value
 	// is changed and offer Reset.
 	Defaults json.RawMessage
-	// Secrets says, for each secret field, whether one is set.
-	Secrets  map[string]bool
 	Revision int64
 }
 
@@ -270,34 +224,14 @@ func (s *Settings) Read(name string) (Document, error) {
 }
 
 func (s *Settings) document(def *definition, value any, revision int64) Document {
-	out := Document{Name: def.name, Revision: revision, Secrets: map[string]bool{}}
-	v := reflect.ValueOf(value)
-	for _, name := range def.secrets {
-		out.Secrets[name] = secretField(v, name).String() != ""
-	}
-	out.Values = withoutSecrets(def, value)
-	out.Defaults = withoutSecrets(def, def.defaults)
-	return out
-}
-
-func withoutSecrets(def *definition, value any) json.RawMessage {
-	raw, _ := json.Marshal(value)
-	if len(def.secrets) == 0 {
-		return raw
-	}
-	var fields map[string]json.RawMessage
-	json.Unmarshal(raw, &fields)
-	for _, name := range def.secrets {
-		delete(fields, name)
-	}
-	raw, _ = json.Marshal(fields)
-	return raw
+	values, _ := json.Marshal(value)
+	defaults, _ := json.Marshal(def.defaults)
+	return Document{Name: def.name, Revision: revision, Values: values, Defaults: defaults}
 }
 
 // Write saves a change to one document made by a person (actorID, for the activity record).
 // change is JSON laid over the document as it is now: a field left out keeps its value, so a
-// page that saves one row sends one field, and a secret left out stays as it is (an empty
-// string removes it). match is the revision the caller read, or -1 to save over whatever is
+// page that saves one row sends one field. match is the revision the caller read, or -1 to save over whatever is
 // there. The document is checked whole before it is saved, and its watchers are told before
 // Write returns.
 func (s *Settings) Write(ctx context.Context, actorID int64, name string, change json.RawMessage, match int64, now time.Time) (Document, error) {
@@ -329,11 +263,11 @@ func (s *Settings) Write(ctx context.Context, actorID int64, name string, change
 		}
 	}
 	value := ptr.Elem().Interface()
-	stored, err := s.encode(def, value)
+	stored, err := json.Marshal(value)
 	if err != nil {
 		return Document{}, err
 	}
-	revision, err = s.db.SaveSettingDocument(ctx, actorID, name, stored, match, now)
+	revision, err = s.db.SaveSettingDocument(ctx, actorID, name, string(stored), match, now)
 	if errors.Is(err, db.ErrStale) {
 		return Document{}, ErrStale
 	}
@@ -348,31 +282,6 @@ func (s *Settings) Write(ctx context.Context, actorID int64, name string, change
 		fn(value)
 	}
 	return s.document(def, value, revision), nil
-}
-
-// encode is the document as it is stored: secrets sealed, or left out when not set.
-func (s *Settings) encode(def *definition, value any) (string, error) {
-	raw, err := json.Marshal(value)
-	if err != nil || len(def.secrets) == 0 {
-		return string(raw), err
-	}
-	var fields map[string]json.RawMessage
-	json.Unmarshal(raw, &fields)
-	v := reflect.ValueOf(value)
-	for _, name := range def.secrets {
-		plain := secretField(v, name).String()
-		if plain == "" {
-			delete(fields, name)
-			continue
-		}
-		if s.sealer == nil {
-			return "", &Invalid{Field: name, Message: "This server cannot keep a secret yet."}
-		}
-		sealed := base64.StdEncoding.EncodeToString(s.sealer.Seal(def.name+"."+name, []byte(plain)))
-		fields[name], _ = json.Marshal(sealed)
-	}
-	raw, err = json.Marshal(fields)
-	return string(raw), err
 }
 
 // overlay lays a change over a document one field at a time. A field that is sent replaces

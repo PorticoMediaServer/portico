@@ -19,7 +19,7 @@ type consoleArea struct {
 func (s *Server) startConsole(ctx context.Context) error {
 	var damaged []error
 	var err error
-	if s.settings, damaged, err = settings.Open(ctx, s.db, nil); err != nil {
+	if s.settings, damaged, err = settings.Open(ctx, s.db); err != nil {
 		return err
 	}
 	for _, err := range damaged {
