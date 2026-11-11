@@ -64,15 +64,18 @@ type LibraryFolder struct {
 
 // AdminLibrary is a library as its owner manages it.
 type AdminLibrary struct {
-	ID                 string          `json:"id"`
-	Name               string          `json:"name"`
-	Kind               string          `json:"kind"`
-	Language           string          `json:"language,omitempty"`
-	Folders            []LibraryFolder `json:"folders"`
-	Options            LibraryOptions  `json:"options"`
-	Scanning           bool            `json:"scanning"`
-	LastScanStartedAt  *time.Time      `json:"lastScanStartedAt,omitempty"`
-	LastScanFinishedAt *time.Time      `json:"lastScanFinishedAt,omitempty"`
+	ID       string          `json:"id"`
+	Name     string          `json:"name"`
+	Kind     string          `json:"kind"`
+	Language string          `json:"language,omitempty"`
+	Folders  []LibraryFolder `json:"folders"`
+	Options  LibraryOptions  `json:"options"`
+	// WatchNote is one sentence for where the watching switch is shown, while watching is
+	// on: what watching does not cover.
+	WatchNote          string     `json:"watchNote,omitempty"`
+	Scanning           bool       `json:"scanning"`
+	LastScanStartedAt  *time.Time `json:"lastScanStartedAt,omitempty"`
+	LastScanFinishedAt *time.Time `json:"lastScanFinishedAt,omitempty"`
 }
 
 // LibraryCreate makes a library and starts its first scan. Kind is movies, shows, anime,
@@ -137,6 +140,11 @@ type ScanCounts struct {
 	FilesMissing int `json:"filesMissing"`
 	TitlesNew    int `json:"titlesNew"`
 	FilesRead    int `json:"filesRead"`
+	// FilesToRead is how many files still have their details (length, picture and sound
+	// tracks) to be read. Titles are in the library, and can be played, as soon as their
+	// folders have been walked; this counts down after that, so a large first scan with
+	// titles listed and this above 0 is not stuck, it is reading.
+	FilesToRead int `json:"filesToRead"`
 }
 
 // SkippedFile is a file the last scan could not use. Reason is damaged, not_supported,
@@ -292,9 +300,16 @@ func jobOut(r *http.Request, j db.Job) *Job {
 	return out
 }
 
+// watchNote is shown with the watching switch. Starting the server scans nothing by itself
+// (the owner's ruling), so what changed while it was off waits for a scan.
+const watchNote = "Changes made while the server was off are picked up at the next scheduled scan or Scan now, not when the server starts."
+
 func (s *Server) libraryOut(r *http.Request, l db.AdminLibrary) (AdminLibrary, error) {
 	out := AdminLibrary{ID: l.PublicID, Name: l.Name, Kind: l.Kind, Language: l.Language, Folders: s.foldersOut(l.Library, l.Folders),
 		Options: libraryOptionsOut(l.Options), LastScanStartedAt: timePtr(l.ScanStartedAt), LastScanFinishedAt: timePtr(l.ScanFinishedAt)}
+	if !l.Options.NoWatch {
+		out.WatchNote = watchNote
+	}
 	job, err := s.db.JobFor(r.Context(), db.JobScan, l.PublicID)
 	if err != nil && !errors.Is(err, db.ErrNotFound) {
 		return out, err
@@ -598,7 +613,7 @@ func (s *Server) scanStatus(r *http.Request, _ None) (ScanStatus, error) {
 	}
 	if stats, ok := s.scans.Stats(lib.PublicID); ok {
 		out.Counts = &ScanCounts{Files: stats.Files, FilesNew: stats.FilesNew, FilesChanged: stats.FilesChanged, FilesMoved: stats.FilesMoved,
-			FilesMissing: stats.FilesGone, TitlesNew: stats.ItemsNew, FilesRead: stats.Probed}
+			FilesMissing: stats.FilesGone, TitlesNew: stats.ItemsNew, FilesRead: stats.Probed, FilesToRead: stats.Unread}
 	}
 	return out, nil
 }

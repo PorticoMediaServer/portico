@@ -683,3 +683,25 @@ func TestAStrayFilmInAShowLibraryIsUnmatched(t *testing.T) {
 		t.Fatalf("an unchanged rescan wrote %d rows", again.RowsWritten)
 	}
 }
+
+// A scan says how many files still have their details to be read: it counts up while the
+// folders are walked, includes what an earlier scan left unread, and is back at none when
+// the reading pass ends.
+func TestAScanSaysHowManyFilesAreStillToBeRead(t *testing.T) {
+	f := newFixture(t, db.LibraryMovies)
+	films(f)
+	// A first scan that only lists: nothing reads, so nothing is waiting to be read.
+	f.s.Prober = nil
+	if listed := f.scan(); listed.Unread != 0 || listed.ItemsNew == 0 {
+		t.Fatalf("a scan that reads nothing: %+v", listed)
+	}
+	// The next scan reads what that one left: its walk finds nothing new, and the count
+	// still starts at every film.
+	most := 0
+	f.s.Prober = f.probes
+	f.s.Progress = func(stats scan.Stats) { most = max(most, stats.Unread) }
+	done := f.scan()
+	if want := len(f.titles(db.KindMovie)); most < want || done.Unread != 0 || done.Probed < want {
+		t.Fatalf("still to be read: at most %d seen, %d at the end, %d read; the library has %d films", most, done.Unread, done.Probed, want)
+	}
+}

@@ -45,6 +45,17 @@ func (d *DB) UnprobedFiles(ctx context.Context, libraryID, after int64, limit in
 	return out, rows.Err()
 }
 
+// UnprobedCount is how many media files of a library have not been read: what UnprobedFiles
+// would return in all. It reads as many rows as the reading pass is about to, so a scan asks
+// once and counts down from it.
+func (d *DB) UnprobedCount(ctx context.Context, libraryID int64) (int, error) {
+	var n int
+	err := d.read.QueryRowContext(ctx, `SELECT count(*) FROM files f
+		JOIN directories d ON d.id = f.directory_id JOIN library_paths p ON p.id = d.library_path_id
+		WHERE f.probed_at IS NULL AND f.probe_version = 0 AND f.role = 1 AND f.missing_since_at IS NULL AND p.library_id = ?`, libraryID).Scan(&n)
+	return n, err
+}
+
 // Probe is what reading one file found. With Problem set the file could not be read: it goes
 // on the Files skipped list, keeps the title its name gave it and stays unread.
 type Probe struct {
