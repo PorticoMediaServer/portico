@@ -203,6 +203,9 @@ type DownloadFile struct {
 type DownloadSubtitle struct {
 	PlaybackSubtitle
 	URL string `json:"url,omitempty"`
+	// Part is the file it goes with (from 1), for a smaller copy of a title in several files,
+	// whose subtitles come from inside each part's own file.
+	Part int `json:"part,omitempty"`
 }
 
 // DownloadedItem is everything one title needs to play with no server: its details and
@@ -690,13 +693,30 @@ func (s *Server) downloadedItem(r *http.Request, _ None) (DownloadedItem, error)
 			out.Subtitles = append(out.Subtitles, DownloadSubtitle{PlaybackSubtitle: subtitle})
 		default:
 			// A copy has no subtitle tracks; a text one was written out beside it.
-			if _, err := os.Stat(s.prepare.SubtitleFile(*title.Prepared, inside)); err == nil {
+			if _, err := os.Stat(s.prepare.SubtitleFile(*title.Prepared, 1, inside)); err == nil {
 				subtitle.Format = "vtt"
-				out.Subtitles = append(out.Subtitles, DownloadSubtitle{PlaybackSubtitle: subtitle, URL: base + "subtitles/" + playback.TrackID(track)})
+				out.Subtitles = append(out.Subtitles, DownloadSubtitle{PlaybackSubtitle: subtitle, URL: base + "subtitles/" + playback.TrackID(track),
+					Part: partOf(len(version.Parts), 1)})
 			}
 		}
 		if subtitle.Source != "sidecar" {
 			inside++
+		}
+	}
+	// The subtitles inside the later files of a title in several files, for a copy.
+	for n := 1; dl.Quality != downloads.Original && n < len(version.Parts); n++ {
+		place := 0
+		for _, stream := range version.Parts[n].Streams {
+			if stream.Kind != db.StreamSubtitle {
+				continue
+			}
+			id := downloads.PartSubtitleID(n+1, place)
+			if _, err := os.Stat(s.prepare.SubtitleFile(*title.Prepared, n+1, place)); err == nil {
+				out.Subtitles = append(out.Subtitles, DownloadSubtitle{PlaybackSubtitle: PlaybackSubtitle{ID: id, Format: "vtt", Source: "embedded",
+					Language: stream.Language, Title: stream.Title, Forced: stream.Forced, SDH: stream.HearingImpaired, Default: stream.Default},
+					URL: base + "subtitles/" + id, Part: n + 1})
+			}
+			place++
 		}
 	}
 	for _, m := range version.Markers {
@@ -713,6 +733,14 @@ func (s *Server) downloadedItem(r *http.Request, _ None) (DownloadedItem, error)
 		}
 	}
 	return out, nil
+}
+
+// partOf is the part a subtitle goes with, said only for a title in several files.
+func partOf(parts, part int) int {
+	if parts > 1 {
+		return part
+	}
+	return 0
 }
 
 // subtitleTrack is the nth subtitle track of a version, in the order versionOut lists them.
