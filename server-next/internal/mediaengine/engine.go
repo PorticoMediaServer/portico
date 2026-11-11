@@ -27,6 +27,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/qualityladder"
 	"github.com/PorticoMediaServer/portico/server-next/internal/remote"
 	"github.com/PorticoMediaServer/portico/server-next/internal/scan"
+	"github.com/PorticoMediaServer/portico/server-next/internal/settings"
 	"github.com/PorticoMediaServer/portico/server-next/internal/streaming"
 	"github.com/PorticoMediaServer/portico/server-next/internal/subtitleoffer"
 	"github.com/PorticoMediaServer/portico/server-next/internal/subtitles"
@@ -47,6 +48,9 @@ type Options struct {
 	// Remote opens a remote source by its id, behind its throttle (remote.Registry.Open).
 	// With none, a file on remote storage does not play.
 	Remote func(ctx context.Context, sourceID int64) (remote.Storage, time.Duration, error)
+	// Settings are the owner's settings; Settings › Streaming is read at every plan and every
+	// conversion, so a change applies to the next one. Nil uses the defaults.
+	Settings *settings.Settings
 }
 
 // Engine is the session layer's Planner and Streams, backed by the real media engine.
@@ -67,6 +71,8 @@ type Engine struct {
 	running bool
 	// kept is the file what an ffmpeg can do is kept in between starts.
 	kept string
+	// settings are the owner's settings documents; nil is the defaults.
+	settings *settings.Settings
 	// switching is held for the whole of one change of folder or program.
 	switching sync.Mutex
 	// program is the ffmpeg the server was started with ("" finds it), and the others the
@@ -89,7 +95,7 @@ type Engine struct {
 // do its housekeeping.
 func New(ctx context.Context, d *db.DB, o Options) (*Engine, error) {
 	e := &Engine{db: d, ctx: ctx, log: o.Log, probe: mediafacts.Probe{Binary: o.FFprobe}, facts: map[string]mediafacts.Facts{}, remote: o.Remote,
-		by: map[string]*place{}, folder: o.Folder, program: o.FFmpeg, kept: o.Kept,
+		by: map[string]*place{}, folder: o.Folder, program: o.FFmpeg, kept: o.Kept, settings: o.Settings,
 		// No limit of its own: a limit here would refuse the fifth remote film being converted
 		// at once, since a converter is not made to wait for a slot.
 		processes: &processpool.Supervisor{}}
@@ -103,6 +109,15 @@ func New(ctx context.Context, d *db.DB, o Options) (*Engine, error) {
 	e.asking = e.ask(o.FFmpeg)
 	current, err := e.open(o.Folder, o.FFmpeg)
 	e.current = current
+	if err == nil && e.settings != nil {
+		// The owner's own conversion folder and FFmpeg program. A change is put in force when
+		// it is saved, beside the save, because a new program is tried out first and that
+		// takes seconds; what was saved before this start is put in force the same way now.
+		settings.Streaming.Watch(e.settings, func(owner settings.StreamingSettings) { go e.applyConversion(owner) })
+		if owner := e.owner(); owner.ConversionFolder != "" || owner.FFmpegProgram != "" {
+			go e.applyConversion(owner)
+		}
+	}
 	return e, err
 }
 
@@ -435,11 +450,12 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 	if err != nil {
 		return playback.Plan{}, err
 	}
+	owner := e.Delivery()
 	request := streaming.PlanRequest{
 		File: streaming.FileFacts{ID: r.Version.PublicID, Container: facts.Container, VideoCodec: facts.VideoCodec, AudioCodec: facts.AudioCodec,
 			Duration: facts.Duration, Size: place.Size, Width: facts.Width, Height: facts.Height,
 			DetailVersion: mediafacts.StreamDetailVersion, StreamsCurrent: true, Streams: facts.Streams},
-		Settings: streaming.DefaultDeliveryConfiguration(), TranscodingEnabled: true, FragmentedOutput: fragmented, NoConverter: !converter,
+		Settings: owner, TranscodingEnabled: owner.ConversionMode != "never", FragmentedOutput: fragmented, NoConverter: !converter,
 		Connection:  streaming.DeliveryContext{NetworkClass: streaming.NetworkRemote},
 		Preferences: saved(r.Preferences),
 	}
@@ -448,16 +464,20 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 		// to be tried out.
 		request.Hardware = tools.hardware.SelectCached(tools.ffmpeg, request.Settings.HardwareBackend, "")
 	}
-	if r.Network == playback.NetworkLocal {
-		request.Connection.NetworkClass = streaming.NetworkLocal
+	if owner.SoftwareDecode {
+		// Hardware decoding is off: the graphics device still writes the conversion.
+		request.Hardware.DecodeCodecs = nil
 	}
+	connection(&request.Connection, r)
+	// After connection: the member's limits apply only away from home.
 	holdToLimits(&request, r.Limits)
 	if len(r.Capabilities) > 0 {
-		device, err := streaming.ParseCapabilityDocument(r.Capabilities)
-		if err != nil {
-			return playback.Plan{}, playback.ErrUpdateRequired
+		// A document this server cannot read (a newer or an older version, or damaged) is not a
+		// reason to refuse: the device is planned for as one that has said nothing, which plays
+		// the most widely supported formats.
+		if device, err := streaming.ParseCapabilityDocument(r.Capabilities); err == nil {
+			request.Device = &device
 		}
-		request.Device = &device
 	}
 	choice := &request.Choice
 	choice.AssetID, choice.SubtitleOff = r.Version.PublicID, r.Choice.SubtitlesOff
@@ -507,14 +527,28 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 		return playback.Plan{}, err
 	}
 	if burn != nil {
-		if burn.picture {
+		// The planner is told what the chosen subtitle is, so that it prefers a player that
+		// draws it. Words (plain or styled) can also be sent beside a stream as text, so they
+		// never call for burning by themselves; pictures cannot.
+		if burn.kind != "text" {
 			choice.SubtitleKind = burn.kind
 		}
+		choice.SubtitleBesideStream = !burn.picture
 		if r.Choice.SubtitleDelivery == "burn" {
 			request.BurnIn = &streaming.BurnInSpec{ResourceID: r.Choice.SubtitleTrackID, Revision: 1, Format: burn.format}
 		}
 	}
 	plan, err := streaming.Plan(request)
+	if err != nil && !errors.Is(err, streaming.ErrTranscodingDisabled) && owner.ConversionMode != "all" {
+		// Nothing plays under the owner's "Convert when needed". If it would with converting
+		// allowed, that setting is the reason, and the viewer is told so, not that the device
+		// cannot play the title.
+		allowed := request
+		allowed.Settings.ConversionMode, allowed.TranscodingEnabled = "all", true
+		if _, would := streaming.Plan(allowed); would == nil {
+			err = streaming.ErrTranscodingDisabled
+		}
+	}
 	switch {
 	case errors.Is(err, streaming.ErrTranscodingDisabled):
 		return playback.Plan{}, playback.ErrConversionOff
