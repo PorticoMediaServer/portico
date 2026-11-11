@@ -386,7 +386,7 @@ func BuildConversion(r ConversionRequest) (ConversionGraph, error) {
 					toneExecution = ExecutionHardware
 				} else if r.Toolchain != nil && r.Toolchain.OpenCLAvailable && spec.upload == "" && (!r.Toolchain.Filters["zscale"] || !r.Toolchain.Filters["tonemap"]) {
 					out.Input = append(out.Input, "-init_hw_device", "opencl=tone", "-filter_hw_device", "tone")
-					filters = append(filters, "format=p010,hwupload,tonemap_opencl=tonemap=hable:desat=0:format=nv12,hwdownload,format=nv12")
+					filters = append(filters, "format=p010,hwupload,tonemap_opencl=tonemap="+algorithm+":desat=0:format=nv12,hwdownload,format=nv12")
 					toneExecution = ExecutionHardware
 				} else {
 					filters = append(filters, SoftwareToneMap(algorithm))
