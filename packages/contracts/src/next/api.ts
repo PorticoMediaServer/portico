@@ -852,6 +852,7 @@ export interface LibraryCreate {
   kind: string;
   language?: string;
   folders: string[];
+  remoteFolders?: RemoteFolderRef[];
   options?: LibraryOptions;
 }
 
@@ -859,11 +860,13 @@ export interface LibraryEdit {
   name?: string;
   language?: string;
   folders?: string[];
+  remoteFolders?: RemoteFolderRef[];
   options?: LibraryOptions;
 }
 
 export interface LibraryFolder {
   path: string;
+  source?: string;
   available: boolean;
   problem?: string;
   lastScanAt?: string;
@@ -1811,6 +1814,11 @@ export interface RemoteFolder {
 export interface RemoteFolderPage {
   items: RemoteFolder[];
   nextCursor?: string;
+}
+
+export interface RemoteFolderRef {
+  source: string;
+  path: string;
 }
 
 export interface RemoteLimits {
