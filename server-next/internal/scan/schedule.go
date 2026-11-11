@@ -240,3 +240,8 @@ func (m *Manager) emptyTrash(ctx context.Context, now time.Time) {
 		}
 	}
 }
+
+// NetworkShare reports whether a folder is on a network share or a mount another program
+// provides, where this machine is not the only one that can reach the files. The server
+// asks it of its data folder at start.
+func NetworkShare(folder string) bool { return networkShare(folder) }
