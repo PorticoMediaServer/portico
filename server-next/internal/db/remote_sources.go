@@ -171,21 +171,6 @@ func (d *DB) SetRemoteSourceState(ctx context.Context, id int64, state, lastErro
 	})
 }
 
-// AddRemoteFolder adds a folder on a remote source to a library: path is the folder within
-// the source. It tells open screens that the library changed.
-func (d *DB) AddRemoteFolder(ctx context.Context, libraryID, sourceID int64, path string) (LibraryPath, error) {
-	out := LibraryPath{Path: path, RemoteID: sourceID}
-	err := d.write(ctx, User, func(tx *sql.Tx) error {
-		res, err := tx.Exec(`INSERT INTO library_paths (library_id, remote_source_id, path) VALUES (?, ?, ?)`, libraryID, sourceID, path)
-		if err != nil {
-			return err
-		}
-		out.ID, _ = res.LastInsertId()
-		return appendChange(tx, Change{At: time.Now().UnixMilli(), Topic: TopicLibrary, Op: OpUpdated, RefID: libraryID, LibraryID: libraryID})
-	})
-	return out, err
-}
-
 // RemoteFileOf returns where a file on remote storage is: its source, and its path within
 // the source (the library folder's path there, then the file's place beneath it), with its
 // size and modified time as scanned. A local file, or one that has gone missing, is
