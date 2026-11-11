@@ -81,7 +81,9 @@ type RemoteProber struct {
 	Processes *processpool.Supervisor
 }
 
-var remoteProbes = &processpool.Supervisor{Limit: 4}
+// A scan reads four files at once by itself. A limit of four here as well would refuse, not
+// queue, the probes of a second remote library scanned at the same time.
+var remoteProbes = &processpool.Supervisor{}
 
 func (p RemoteProber) ProbeReader(ctx context.Context, file io.ReaderAt, size int64) (Facts, error) {
 	processes := p.Processes
