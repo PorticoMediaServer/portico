@@ -45,6 +45,13 @@ func TestADiscIsItsMainFeature(t *testing.T) {
 	if folder, ok := discOf("/films/Heat (1995)/BDMV/index.bdmv"); !ok || folder != "/films/Heat (1995)/BDMV" {
 		t.Fatalf("the disc a file stands for: %q %v", folder, ok)
 	}
+	// The reader is handed the folder that holds BDMV, and a DVD's VIDEO_TS folder itself.
+	if got := readerFolder("/films/Heat (1995)/BDMV"); got != "/films/Heat (1995)" {
+		t.Fatalf("the folder the reader is handed for a Blu-ray: %q", got)
+	}
+	if got := readerFolder("/films/Heat (1995)/VIDEO_TS"); got != "/films/Heat (1995)/VIDEO_TS" {
+		t.Fatalf("the folder the reader is handed for a DVD: %q", got)
+	}
 	if _, ok := discOf("/films/Heat (1995)/BDMV/STREAM/00001.m2ts"); ok {
 		t.Fatal("a clip inside a disc was taken for the disc")
 	}
