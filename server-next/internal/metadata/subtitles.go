@@ -133,8 +133,19 @@ func (s *Service) DownloadSubtitle(ctx context.Context, v db.Viewer, itemPublicI
 			return db.Subtitle{}, err
 		}
 	}
-	return s.DB.AddSubtitle(ctx, db.Subtitle{MediaID: target.MediaID, Provider: provider.Name(), ProviderRef: chosen.Ref, FileHash: hash,
+	sub, err := s.DB.AddSubtitle(ctx, db.Subtitle{MediaID: target.MediaID, Provider: provider.Name(), ProviderRef: chosen.Ref, FileHash: hash,
 		Format: format, Language: chosen.Language, Title: chosen.Release, Forced: chosen.Forced, HearingImpaired: chosen.HearingImpaired})
+	if err != nil {
+		return sub, err
+	}
+	// A removal of the same text at the same moment may have taken the file after it was
+	// found above: the row now names it, so it is written again.
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+		if err := atomicfile.Write(path, text, 0o644); err != nil {
+			return sub, err
+		}
+	}
+	return sub, nil
 }
 
 // RemoveSubtitle removes a downloaded subtitle, and its file when no other version uses it.
