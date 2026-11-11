@@ -268,6 +268,14 @@ A book is an item: its page is `GET /v1/items/{id}`, its place and read mark go 
 /v1/items`. Nothing is "open" on the server. Search inside the open book and the highlights
 export are done by the app.
 
+A place is the state's `position`: a JSON object of at most 4 KB that the reader writes, with
+`progression` (0 to 1) and `fingerprint` (the file it was made in) read by the server and the
+exact spot in the reader's own notation. The later place wins. `"atEnd": true` (the end of the
+main text, or the last page) also marks the book read. With Pause history on neither is kept;
+a mark by hand still is, and clears the place. The book route answers the place with
+`placeExact`, false when it was made in another file: the reader opens at its progression.
+Home has a "Continue your books" row (`continue_reading`); books are not in Continue Watching.
+
 | Route | Who | Purpose |
 |---|---|---|
 | `GET /v1/items/{id}/book` | A profile that may see the book | How to read it: the version chosen (or `version=`), its kind, contents and page list, the addresses of its parts, the fingerprint of the file, and whether the caller may save the file. A book the server cannot open says why |

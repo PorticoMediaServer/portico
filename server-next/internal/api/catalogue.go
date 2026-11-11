@@ -160,6 +160,10 @@ func (s *Server) catalogueRoutes() {
 		if err != nil {
 			return Home{}, err
 		}
+		reading, err := s.db.ContinueReading(r.Context(), viewer(r))
+		if err != nil {
+			return Home{}, err
+		}
 		recent, err := s.db.RecentlyAdded(r.Context(), viewer(r))
 		if err != nil {
 			return Home{}, err
@@ -168,6 +172,7 @@ func (s *Server) catalogueRoutes() {
 		out := Home{Rows: []HomeRow{}}
 		for _, row := range []HomeRow{
 			{ID: "continue", Title: "Continue Watching", Shape: "landscape", Items: itemShapes(continuing)},
+			{ID: "continue_reading", Title: "Continue your books", Shape: "poster", Items: itemShapes(reading)},
 			{ID: "recently_added", Title: "Recently Added", Shape: "poster", Items: itemShapes(recent)},
 		} {
 			if len(row.Items) > 0 {

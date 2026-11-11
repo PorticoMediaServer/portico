@@ -17,8 +17,19 @@ const (
 
 // ContinueWatching lists what the viewer has started and not finished, most recent first. A
 // title the viewer removed from the row stays off it until it is played again. Not interested
-// does not take a title off it: that is for recommendation rows.
+// does not take a title off it: that is for recommendation rows. Books are in Continue your
+// books instead.
 func (d *DB) ContinueWatching(ctx context.Context, v Viewer) ([]Item, error) {
+	return d.continueRow(ctx, v, "NOT IN")
+}
+
+// ContinueReading lists the books, comics and issues the viewer has a place in and has not
+// finished, most recently read first: Home's Continue your books.
+func (d *DB) ContinueReading(ctx context.Context, v Viewer) ([]Item, error) {
+	return d.continueRow(ctx, v, "IN")
+}
+
+func (d *DB) continueRow(ctx context.Context, v Viewer, reading string) ([]Item, error) {
 	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return nil, err
@@ -31,7 +42,8 @@ func (d *DB) ContinueWatching(ctx context.Context, v Viewer) ([]Item, error) {
 	// Read from the viewer's own recent state, newest first, and stop at a row's worth.
 	rows, err := tx.QueryContext(ctx, `SELECT `+itemColumns+` FROM user_item_state s CROSS JOIN items i ON i.id = s.item_id
 		WHERE s.profile_id = @viewer_profile AND s.last_played_at > @since AND s.played = 0 AND s.last_played_at > ifnull(s.continue_dismissed_at, 0)
-		AND (s.position_ms > 0 OR s.position_text IS NOT NULL) AND `+acc.visible("i")+`
+		AND (s.position_ms > 0 OR s.position_text IS NOT NULL) AND i.kind `+reading+fmt.Sprintf(" (%d, %d, %d) AND ", KindBook, KindComic, KindIssue)+
+		acc.visible("i")+`
 		ORDER BY s.last_played_at DESC LIMIT `+fmt.Sprint(homeRowSize),
 		append(v.args(), sql.Named("since", time.Now().Add(-continueWindow).UnixMilli()))...)
 	if err != nil {
