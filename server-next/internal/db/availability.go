@@ -175,6 +175,8 @@ func removeItem(b *batchTx, libraryID, id, now int64) error {
 	if _, err := b.exec(`DELETE FROM items WHERE id = ?`, id); err != nil {
 		return err
 	}
+	// Whoever had watched everything else under them may now have watched all of it.
+	b.leavesChanged(parent.Int64, root.Int64)
 	for _, gone := range ids {
 		if err := appendChange(b.tx, Change{At: now, Topic: TopicItem, Op: OpDeleted, RefID: gone, LibraryID: libraryID}); err != nil {
 			return err
@@ -199,6 +201,9 @@ func (im *importer) restore(id int64) error {
 	if !*im.restores {
 		return nil
 	}
+	// A holder's own row comes back with the mark it had, and a leaf's with its watched
+	// state: both are settled against what is there now.
+	im.leavesChanged(id)
 	return restoreState(im.batchTx, id)
 }
 
@@ -294,7 +299,7 @@ func (d *DB) EmptyTrash(ctx context.Context, libraryID int64, missingBy time.Tim
 	removed := 0
 	for {
 		n := 0
-		err := d.write(ctx, Background, func(tx *sql.Tx) error {
+		err := d.write(ctx, Background, func(tx *sql.Tx) (err error) {
 			ids, err := queryInts(tx, `SELECT i.id`+topMissing+` AND i.missing_since_at <= ? LIMIT 20`, libraryID, KindExtra, missingBy.UnixMilli())
 			if err != nil {
 				return err
@@ -302,6 +307,11 @@ func (d *DB) EmptyTrash(ctx context.Context, libraryID int64, missingBy time.Tim
 			b := newBatchTx(tx)
 			defer b.close()
 			now := time.Now().UnixMilli()
+			defer func() {
+				if err == nil {
+					err = b.settleWatchedForAll(now)
+				}
+			}()
 			for _, id := range ids {
 				var parent sql.NullInt64
 				if err := b.queryRow(`SELECT parent_id FROM items WHERE id = ?`, id).Scan(&parent); err != nil {
