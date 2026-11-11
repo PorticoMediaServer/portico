@@ -447,6 +447,9 @@ func (r *run) audiobookUnit(f *folder, book string, here []*found, elsewhere []d
 	item := db.ImportItem{Kind: db.KindAudiobook, Title: bookTitle, Year: year, Summary: d["description"], Tags: genreTags(d),
 		Credits: append(credits(db.RoleAuthor, authors), credits(db.RoleNarrator, narrators)...),
 		Keys:    []db.ItemKey{{Kind: db.KeyName, Key: "audiobook|" + fold(bookTitle) + "|" + fold(strings.Join(authors, ","))}}}
+	given(&item, fieldIf(d["album"] != "" || folders.Title == "" && d["title"] != "", db.FieldTitle), fieldIf(d.year() > 0, db.FieldYear),
+		fieldIf(d["description"] != "", db.FieldSummary), fieldIf(len(item.Tags) > 0, db.FieldGenres),
+		fieldIf(len(d.names("authors", "author"))+len(d.names("album_artists", "album_artist"))+len(d.names("artists", "artist")) > 0, db.FieldCredits))
 	// A first file changed where it is was most likely retagged: the book is read again.
 	item.Reread = lead.state == changed && r.tagLed()
 	for _, scheme := range []string{"asin", "isbn"} {
