@@ -75,7 +75,14 @@ const noGrid: BrowseState = Object.freeze({phase: 'loading', predicates: [], que
 const noGridSnapshot = () => noGrid;
 type PeriodicalTab = Readonly<{id: 'magazines' | 'newspapers'; label: 'library.tab.magazines' | 'library.tab.newspapers'; pivot: 'magazines' | 'newspapers'; shows: 'periodicals'; publicationType: ReadingPeriodicalType}>;
 type ReadingTab = LibraryTab | PeriodicalTab;
+/** The rebuilt server has no Discover page for a Read library and no magazine or newspaper kind:
+ * a Read library opens on its grid, and those tabs are not offered. */
 function readingTabs(capabilities: BrowseCapabilities | undefined, kind: string): readonly ReadingTab[] {
+  const offered = (tabs: readonly ReadingTab[]) => tabs.filter(tab => tab.id !== 'discover' && tab.shows !== 'periodicals');
+  const all = allReadingTabs(capabilities, kind), kept = offered(all);
+  return kept.length ? kept : all;
+}
+function allReadingTabs(capabilities: BrowseCapabilities | undefined, kind: string): readonly ReadingTab[] {
   const base = readingTabModel(capabilities) ?? libraryTabs(kind);
   if (!capabilities || capabilities.library.kind !== 'book') return base;
   const out: ReadingTab[] = [base.find(tab => tab.id === 'discover') ?? base[0]!];
@@ -207,8 +214,7 @@ function LiveReadingLibrary({captured, library, search, onMarked, context, life}
   if (selected.shows === 'facet') return <>{header}<FacetPage libraryId={library.id} field={selected.facetSource?.field === 'series' ? 'series' : 'author'}
     pivot={gridPivot ?? (library.kind === 'comic' ? 'comics' : 'books')} request={request}
     onSelect={value => {if (selected.facetSource?.field === 'author') navigate({view: 'browse', ...(gridPivot ? {pivot: gridPivot} : {}), query: authorPredicate(value.value)}); else if (value.seriesId) navigate({view: 'series', entityId: value.seriesId});}}/></>;
-  if (search.view === 'browse' || search.query) return <BoundLibrary captured={captured} library={library} search={search} tabs={tabs} readingMarkAll={markAll}/>;
-  return <ReadLibraryEntry captured={captured} libraryId={library.id} header={header} view="discover"/>;
+  return <BoundLibrary captured={captured} library={library} search={search} tabs={tabs} readingMarkAll={markAll}/>;
 }
 function LibraryShow({captured, libraryId, search}: {captured: ProtectedLibraryScreen; libraryId: string; search: LibraryScreenSearch}) {
   const href = useLocation({select: location => location.href});
