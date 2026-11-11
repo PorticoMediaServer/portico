@@ -224,6 +224,10 @@ func (d *DB) UndoMetadata(ctx context.Context, publicID, entryID string) (int64,
 		if err := b.ratingChanged(id); err != nil {
 			return err
 		}
+		// A label put back or taken off covers the title and everything under it again.
+		if err := b.labelsChanged(id); err != nil {
+			return err
+		}
 		if err := rememberAfter(b, id); err != nil {
 			return err
 		}

@@ -343,6 +343,12 @@ func (d *DB) EditMetadata(ctx context.Context, publicID string, revision int64, 
 				}
 			}
 		}
+		// A label put on or taken off covers the title and everything under it.
+		if edit.Labels != nil {
+			if err := b.labelsChanged(id); err != nil {
+				return err
+			}
+		}
 		if edit.Credits != nil {
 			if _, err := b.exec(`DELETE FROM credits WHERE item_id = ?`, id); err != nil {
 				return err
