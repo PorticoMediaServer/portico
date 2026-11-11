@@ -1,6 +1,7 @@
 package db
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -32,11 +33,11 @@ const historyKept = 20
 // own and an undo of an edit to them puts them back too. Everyone's state is not.
 type snapshot struct {
 	Columns     map[string]any `json:"columns"`
-	ExternalIDs []ExternalID   `json:"externalIds"`
-	Keys        []string       `json:"providerKeys"`
-	Tags        []TagName      `json:"tags"`
-	Credits     []snapCredit   `json:"credits"`
-	Pictures    []int64        `json:"lockedPictures"` // images rows locked as the role's choice
+	ExternalIDs []ExternalID   `json:"externalIds,omitempty"`
+	Keys        []string       `json:"providerKeys,omitempty"`
+	Tags        []TagName      `json:"tags,omitempty"`
+	Credits     []snapCredit   `json:"credits,omitempty"`
+	Pictures    []int64        `json:"lockedPictures,omitempty"` // images rows locked as the role's choice
 	// For a show: its episode order and offset, and, before its match changed, each season's
 	// and episode's own details, so Undo puts the show back as a whole.
 	Numbering *EpisodeNumbering `json:"numbering,omitempty"`
@@ -86,7 +87,9 @@ func takeSnapshot(b *batchTx, itemID int64) (snapshot, error) {
 		if raw, ok := values[i].([]byte); ok {
 			values[i] = string(raw)
 		}
-		s.Columns[column] = values[i]
+		if values[i] != nil { // an empty value is left out: a snapshot reads a missing one as empty
+			s.Columns[column] = values[i]
+		}
 	}
 	var err error
 	ctx := context.Background()
@@ -114,6 +117,12 @@ func takeSnapshot(b *batchTx, itemID int64) (snapshot, error) {
 // remember records, inside a person's change, the title as it was before it, and keeps only
 // the newest entries.
 func remember(b *batchTx, itemID int64, kind HistoryKind, now int64) error {
+	return rememberShow(b, itemID, kind, kind == HistoryMatch, now)
+}
+
+// rememberShow is remember for a show, with its seasons' and episodes' own details when
+// children is true: only for a change of its match, or an undo of one, once in each entry.
+func rememberShow(b *batchTx, itemID int64, kind HistoryKind, children bool, now int64) error {
 	s, err := takeSnapshot(b, itemID)
 	if err != nil {
 		return err
@@ -130,7 +139,7 @@ func remember(b *batchTx, itemID int64, kind HistoryKind, now int64) error {
 		s.Numbering = &numbering
 		// A new match gives the seasons and episodes the new show's details, and an undo of one
 		// puts the old back: either is kept with theirs, so it can be undone in turn.
-		if kind == HistoryMatch || kind == HistoryUndo {
+		if children {
 			children, err := queryInts(b.tx, `SELECT id FROM items WHERE root_id = ? AND kind IN (?, ?) ORDER BY id`, itemID, KindSeason, KindEpisode)
 			if err != nil {
 				return err
@@ -195,9 +204,8 @@ func (d *DB) UndoMetadata(ctx context.Context, publicID, entryID string) (int64,
 		var id, library int64
 		var root sql.NullInt64
 		var raw string
-		var undone HistoryKind
-		err := b.queryRow(`SELECT i.id, i.library_id, i.root_id, h.kind, h.before FROM metadata_history h JOIN items i ON i.id = h.item_id
-			WHERE i.public_id = ? AND h.id = ?`, publicID, entry).Scan(&id, &library, &root, &undone, &raw)
+		err := b.queryRow(`SELECT i.id, i.library_id, i.root_id, h.before FROM metadata_history h JOIN items i ON i.id = h.item_id
+			WHERE i.public_id = ? AND h.id = ?`, publicID, entry).Scan(&id, &library, &root, &raw)
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrNotFound
 		}
@@ -208,14 +216,21 @@ func (d *DB) UndoMetadata(ctx context.Context, publicID, entryID string) (int64,
 		if err := json.Unmarshal([]byte(raw), &s); err != nil {
 			return err
 		}
+		// What the entry changed is the difference between the title before it and the title it
+		// left: the next entry's before, or the title as it is now. Only that is put back, so a
+		// later change to anything else, a label added since among them, stays.
+		after, err := afterEntry(b, id, entry)
+		if err != nil {
+			return err
+		}
 		now := time.Now().UnixMilli()
-		if err := remember(b, id, HistoryUndo, now); err != nil {
+		if err := rememberShow(b, id, HistoryUndo, len(s.Children) > 0, now); err != nil {
 			return err
 		}
 		im := &importer{batchTx: b, now: now, tags: map[TagName]int64{}, people: map[string]int64{}}
 		// A match change never touches labels, so undoing one leaves them as they are now: a
 		// label the owner added since may be what keeps the title from a limited profile.
-		if err := restore(b, im, library, id, &s, undone != HistoryMatch, now); err != nil {
+		if err := restoreChanged(b, im, library, id, &s, &after, now); err != nil {
 			return err
 		}
 		// A show's seasons and episodes as they were before its match changed, those still here.
@@ -230,7 +245,7 @@ func (d *DB) UndoMetadata(ctx context.Context, publicID, entryID string) (int64,
 				}
 			}
 		}
-		if s.Numbering != nil {
+		if s.Numbering != nil && !same(s.Numbering, after.Numbering) {
 			if _, err := b.exec(`UPDATE items SET extra = json_set(ifnull(extra, '{}'), '$.episodeOrder', ?, '$.episodeOffset', ?) WHERE id = ?`,
 				s.Numbering.Order, s.Numbering.Offset, id); err != nil {
 				return err
@@ -271,10 +286,8 @@ func restore(b *batchTx, im *importer, library, id int64, s *snapshot, labels bo
 	}
 	sets, args := "updated_at = ?, revision = revision + 1", []any{now}
 	for _, column := range snapshotColumns {
-		if value, ok := s.Columns[column]; ok {
-			sets += ", " + column + " = ?"
-			args = append(args, value)
-		}
+		sets += ", " + column + " = ?"
+		args = append(args, s.Columns[column])
 	}
 	if _, err := b.exec(`UPDATE items SET `+sets+` WHERE id = ?`, append(args, id)...); err != nil {
 		return err
@@ -328,6 +341,167 @@ func restore(b *batchTx, im *importer, library, id int64, s *snapshot, labels bo
 	for _, picture := range s.Pictures {
 		if _, err := b.exec(`UPDATE images SET locked = 1 WHERE id = ? AND item_id = ?`, picture, id); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+// afterEntry is a title as a History entry left it: the next entry's before, or the title now.
+func afterEntry(b *batchTx, itemID, entry int64) (snapshot, error) {
+	var raw string
+	err := b.queryRow(`SELECT before FROM metadata_history WHERE item_id = ? AND id > ? ORDER BY id LIMIT 1`, itemID, entry).Scan(&raw)
+	if errors.Is(err, sql.ErrNoRows) {
+		return takeSnapshot(b, itemID)
+	}
+	if err != nil {
+		return snapshot{}, err
+	}
+	var s snapshot
+	return s, json.Unmarshal([]byte(raw), &s)
+}
+
+// same reports whether two values of a snapshot are the same.
+func same(a, b any) bool {
+	x, _ := json.Marshal(a)
+	y, _ := json.Marshal(b)
+	return bytes.Equal(x, y)
+}
+
+// restoreChanged puts back on a title what one change made, and nothing else: each column the
+// change altered, each lock and value source it set or cleared, each tag it added or removed,
+// and its ids, credits and chosen pictures if it changed them. before is the title before the
+// change and after the title it left.
+func restoreChanged(b *batchTx, im *importer, library, id int64, before, after *snapshot, now int64) error {
+	var locked, local sql.NullString
+	if err := b.queryRow(`SELECT locked_fields, local_fields FROM items WHERE id = ?`, id).Scan(&locked, &local); err != nil {
+		return err
+	}
+	sets, args := "updated_at = ?, revision = revision + 1", []any{now}
+	for _, column := range snapshotColumns {
+		if column == "locked_fields" || column == "local_fields" || same(before.Columns[column], after.Columns[column]) {
+			continue
+		}
+		sets += ", " + column + " = ?"
+		args = append(args, before.Columns[column])
+	}
+	// Locks and sources field by field: what the change set goes, what it cleared comes back.
+	text := func(v any) sql.NullString { s, ok := v.(string); return sql.NullString{String: s, Valid: ok} }
+	locks, was, left := fieldSet(locked), fieldSet(text(before.Columns["locked_fields"])), fieldSet(text(after.Columns["locked_fields"]))
+	for field := range left {
+		if !was[field] {
+			delete(locks, field)
+		}
+	}
+	for field := range was {
+		if !left[field] {
+			locks[field] = true
+		}
+	}
+	sources, wasFrom, leftFrom := fieldSources(local), fieldSources(text(before.Columns["local_fields"])), fieldSources(text(after.Columns["local_fields"]))
+	for _, from := range []map[string]string{wasFrom, leftFrom} {
+		for field := range from {
+			if wasFrom[field] == leftFrom[field] {
+				continue
+			}
+			if wasFrom[field] == "" {
+				delete(sources, field)
+			} else {
+				sources[field] = wasFrom[field]
+			}
+		}
+	}
+	sets += ", locked_fields = ?, local_fields = ?"
+	args = append(args, fieldList(sortedFields(locks)), sourceJSON(sources))
+	if _, err := b.exec(`UPDATE items SET `+sets+` WHERE id = ?`, append(args, id)...); err != nil {
+		return err
+	}
+	if !same(before.ExternalIDs, after.ExternalIDs) || !same(before.Keys, after.Keys) {
+		for _, step := range []string{`DELETE FROM item_external_ids WHERE item_id = ?`, `DELETE FROM item_keys WHERE item_id = ? AND kind = ` + strconv.Itoa(int(KeyProvider))} {
+			if _, err := b.exec(step, id); err != nil {
+				return err
+			}
+		}
+		for _, ext := range before.ExternalIDs {
+			if _, err := b.exec(`INSERT INTO item_external_ids (item_id, provider, external_id) VALUES (?, ?, ?)`, id, ext.Provider, ext.ID); err != nil {
+				return err
+			}
+		}
+		for _, key := range before.Keys {
+			// Another title that has taken the id since keeps it: the server never merges by itself.
+			if _, err := b.exec(`INSERT INTO item_keys (library_id, kind, key, item_id) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING`,
+				library, KeyProvider, key, id); err != nil {
+				return err
+			}
+		}
+	}
+	// Tags one by one: one the change added goes, one it removed comes back; any other stays.
+	key := func(t TagName) TagName { return TagName{Kind: t.Kind, Name: normTag(t.Name)} }
+	had, has := map[TagName]bool{}, map[TagName]bool{}
+	for _, t := range before.Tags {
+		had[key(t)] = true
+	}
+	for _, t := range after.Tags {
+		has[key(t)] = true
+	}
+	for _, t := range after.Tags {
+		if !had[key(t)] {
+			if _, err := b.exec(`DELETE FROM item_tags WHERE item_id = ? AND tag_id IN (SELECT id FROM tags WHERE kind = ? AND norm_name = ?)`,
+				id, t.Kind, normTag(t.Name)); err != nil {
+				return err
+			}
+		}
+	}
+	for _, t := range before.Tags {
+		if has[key(t)] {
+			continue
+		}
+		tagID, err := im.tagID(t)
+		if err != nil {
+			return err
+		}
+		if err := b.tagItem(id, tagID); err != nil {
+			return err
+		}
+	}
+	if !same(before.Credits, after.Credits) {
+		if _, err := b.exec(`DELETE FROM credits WHERE item_id = ?`, id); err != nil {
+			return err
+		}
+		position := 0
+		for _, c := range before.Credits {
+			var exists bool
+			if err := b.queryRow(`SELECT EXISTS (SELECT 1 FROM people WHERE id = ?)`, c.Person).Scan(&exists); err != nil {
+				return err
+			}
+			if !exists {
+				continue // a person no title holds any more has gone
+			}
+			if err := b.insertCredit(id, position, c.Person, c.Role, c.Character); err != nil {
+				return err
+			}
+			position++
+		}
+	}
+	// Chosen pictures one by one, as locks.
+	wasLocked, leftLocked := map[int64]bool{}, map[int64]bool{}
+	for _, p := range before.Pictures {
+		wasLocked[p] = true
+	}
+	for _, p := range after.Pictures {
+		leftLocked[p] = true
+	}
+	for p := range leftLocked {
+		if !wasLocked[p] {
+			if _, err := b.exec(`UPDATE images SET locked = 0 WHERE id = ? AND item_id = ?`, p, id); err != nil {
+				return err
+			}
+		}
+	}
+	for p := range wasLocked {
+		if !leftLocked[p] {
+			if _, err := b.exec(`UPDATE images SET locked = 1 WHERE id = ? AND item_id = ?`, p, id); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
