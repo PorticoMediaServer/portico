@@ -610,10 +610,17 @@ export class BrowserAccountEntry {
    // two-step code when the account still has two-step on (the code typed here answers it).
    await redeemMemberResetCode(api,proof.username,proof.code,newPassword,op.signal);
    if(!op.current())return;
-   let result=await directSignIn(api,proof.username,newPassword,op.signal);
-   if(result.kind==='challenge'&&secondFactorCode.trim())result=await completeDirectSignInChallenge(api,result.token,secondFactorCode,op.signal);
+   let result=await directSignIn(api,proof.username,newPassword,op.signal),factorRefusal:unknown;
+   // The new password is in force now and the reset code is used up. A two-step code that is refused (a typo, or
+   // its 30 seconds ran out) must not send the person back to the reset form: they go on at the ordinary two-step
+   // step with the sign-in's challenge, which is still good, and are told why.
+   if(result.kind==='challenge'&&secondFactorCode.trim()){
+    try{result=await completeDirectSignInChallenge(api,result.token,secondFactorCode,op.signal);}
+    catch(error){if(!op.current())return;factorRefusal=error;}
+   }
    if(!op.current())return;
    await this.accept(result,api,revision,op);
+   if(factorRefusal!==undefined&&op.current()&&this.state.phase==='challenge')this.publish({...this.state,error:factorRefusal});
   }catch(error){if(op.current())this.publish({...state,busy:false,error});}
  }
  /** Factor setup keeps the existing restricted account family. Passwords,
