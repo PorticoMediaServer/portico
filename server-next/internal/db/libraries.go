@@ -94,11 +94,18 @@ func (d *DB) CreateLibrary(ctx context.Context, name, kind, language string, pat
 	return d.NewLibrary(ctx, NewLibrary{Name: name, Kind: kind, Language: language, Folders: paths})
 }
 
+// RemoteFolder is a library folder on a remote source: Path is the folder within the source.
+type RemoteFolder struct {
+	SourceID int64
+	Path     string
+}
+
 // NewLibrary is a library to make. With an IdempotencyKey, the same request sent twice makes
 // one library and answers with it both times.
 type NewLibrary struct {
 	Name, Kind, Language string
 	Folders              []string
+	RemoteFolders        []RemoteFolder
 	Options              LibraryOptions
 	UserID               int64
 	IdempotencyKey       string
@@ -144,6 +151,17 @@ func (d *DB) NewLibrary(ctx context.Context, n NewLibrary) (Library, error) {
 			}
 			id, _ := res.LastInsertId()
 			lib.Paths = append(lib.Paths, LibraryPath{ID: id, Path: p})
+		}
+		for _, f := range n.RemoteFolders {
+			res, err := tx.Exec(`INSERT INTO library_paths (library_id, remote_source_id, path) VALUES (?, ?, ?)`, lib.ID, f.SourceID, f.Path)
+			if err != nil {
+				return err
+			}
+			id, _ := res.LastInsertId()
+			lib.Paths = append(lib.Paths, LibraryPath{ID: id, Path: f.Path, RemoteID: f.SourceID})
+		}
+		if len(lib.Paths) == 0 {
+			return invalid("a library needs at least one folder")
 		}
 		if err := rememberCreated(tx, n.UserID, n.IdempotencyKey, n.RequestHash, lib.PublicID, now); err != nil {
 			return err

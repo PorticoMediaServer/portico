@@ -415,7 +415,7 @@ Only the owner. A key made for a tool needs the `library` scope to scan and dele
 
 | Route | Purpose |
 |---|---|
-| `GET /v1/admin/libraries`, `POST /v1/admin/libraries` | The libraries with their folders and options; make one (kind, name, folders, language, options), which starts its first scan |
+| `GET /v1/admin/libraries`, `POST /v1/admin/libraries` | The libraries with their folders and options; make one (kind, name, folders, language, options), which starts its first scan. `remoteFolders` (`source`, `path`) are folders on remote sources, listed through the source before they are kept; a folder on one says its `source` |
 | `GET /v1/admin/libraries/{id}`, `PATCH /v1/admin/libraries/{id}` | One library with its `ETag`; rename it, change its options, give the whole list of its folders (an added folder is scanned, a removed folder's titles leave). An edit may send `If-Match`; a stale one is `412` |
 | `DELETE /v1/admin/libraries/{id}?confirm=<name>` | Remove the library; answers `202` with a job. Files on disk are not touched |
 | `POST /v1/admin/libraries/{id}/scan`, `DELETE …/scan`, `GET …/scan` | Scan now, or Scan all files with `allFiles` (`202` with a job; joins a scan already asked for), cancel, and the scan's state, counts and folders |
