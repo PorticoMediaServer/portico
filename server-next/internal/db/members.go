@@ -45,7 +45,7 @@ type Member struct {
 	TwoFactor bool
 }
 
-const memberColumns = `u.id, u.public_id, u.username, ifnull(u.email, ''), u.role, u.disabled_at IS NOT NULL, u.created_at,
+const memberColumns = `u.id, u.public_id, u.username, ifnull(u.email, ''), u.role, u.disabled_at IS NOT NULL, u.state, u.created_at,
 	u.all_libraries, ifnull(u.notes, ''), u.two_factor_enabled_at IS NOT NULL,
 	ifnull((SELECT group_concat(l.public_id, ' ') FROM library_access a JOIN libraries l ON l.id = a.library_id WHERE a.user_id = u.id), '')`
 
@@ -53,7 +53,7 @@ func scanMember(row interface{ Scan(...any) error }) (Member, error) {
 	var m Member
 	var created int64
 	var libraries string
-	err := row.Scan(&m.ID, &m.PublicID, &m.Username, &m.Email, &m.Role, &m.Disabled, &created, &m.AllLibraries, &m.Notes, &m.TwoFactor, &libraries)
+	err := row.Scan(&m.ID, &m.PublicID, &m.Username, &m.Email, &m.Role, &m.Disabled, &m.State, &created, &m.AllLibraries, &m.Notes, &m.TwoFactor, &libraries)
 	if errors.Is(err, sql.ErrNoRows) {
 		return m, ErrNotFound
 	}
