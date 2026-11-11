@@ -136,7 +136,7 @@ func (s *Service) match(ctx context.Context, p Provider, locale Locale, libraryK
 	}
 	q := Query{Kind: providerKinds[item.Kind], Title: title, Year: year, Locale: locale, IncludeAdult: s.IncludeAdult}
 	if item.Kind == db.KindAlbum {
-		q.Creator = item.ParentTitle
+		q.Creator, q.Layout = item.ParentTitle, item.Layout
 	}
 	ref := Ref{Provider: p.Name(), Kind: q.Kind}
 	for _, id := range item.ExternalIDs {

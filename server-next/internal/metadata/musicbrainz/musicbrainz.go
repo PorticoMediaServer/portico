@@ -3,7 +3,7 @@
 // send at most one request a second and to name itself, and answers 503 when asked faster.
 //
 // An album is a MusicBrainz release: the files of an album are one edition of it, and a
-// release's media are its discs. Album covers are Cover Art Archive's picture of the release.
+// release's media are its discs. Album covers are Cover Art Archive's.
 package musicbrainz
 
 import (
@@ -26,8 +26,8 @@ import (
 const (
 	// Origin is where MusicBrainz's API is.
 	Origin = "https://musicbrainz.org"
-	// covers is where Cover Art Archive serves a release's front cover.
-	covers     = "https://coverartarchive.org/release/"
+	// covers is Cover Art Archive, which serves albums' covers.
+	covers     = "https://coverartarchive.org/"
 	maxResults = 10
 	maxGenres  = 10
 )
@@ -192,6 +192,7 @@ type release struct {
 	Country        string   `json:"country"`
 	Disambiguation string   `json:"disambiguation"`
 	Score          float64  `json:"score"`
+	Status         string   `json:"status"`
 	TrackCount     int      `json:"track-count"`
 	ArtistCredit   []credit `json:"artist-credit"`
 	Genres         []genre  `json:"genres"`
@@ -208,8 +209,9 @@ type release struct {
 		Front bool `json:"front"`
 	} `json:"cover-art-archive"`
 	Media []struct {
-		Position int `json:"position"`
-		Tracks   []struct {
+		Position   int `json:"position"`
+		TrackCount int `json:"track-count"`
+		Tracks     []struct {
 			Position     int      `json:"position"`
 			Title        string   `json:"title"`
 			ArtistCredit []credit `json:"artist-credit"`
@@ -236,8 +238,9 @@ func (c *Client) Search(ctx context.Context, q metadata.Query) ([]metadata.Candi
 		if err := c.get(ctx, "/release", url.Values{"query": {query}, "limit": {"25"}}, &page); err != nil {
 			return nil, err
 		}
-		// One answer an album: of its editions, the one from the year asked about or the
-		// closest, so a 2009 remaster does not stand for a 1969 album.
+		// One answer an album: of its editions, the one most like the files (see better), so
+		// two editions do not look like two albums and a deluxe edition does not stand for
+		// the album the files are.
 		var picked []release
 		group := map[string]int{}
 		for _, r := range page.Releases {
@@ -249,7 +252,7 @@ func (c *Client) Search(ctx context.Context, q metadata.Query) ([]metadata.Candi
 			case !seen || r.ReleaseGroup.ID == "":
 				group[r.ReleaseGroup.ID] = len(picked)
 				picked = append(picked, r)
-			case q.Year != 0 && year(r.Date) != 0 && abs(year(r.Date)-q.Year) < abs(year(picked[at].Date)-q.Year):
+			case better(r, picked[at], q):
 				r.Score = picked[at].Score
 				picked[at] = r
 			}
@@ -279,11 +282,48 @@ func (c *Client) Search(ctx context.Context, q metadata.Query) ([]metadata.Candi
 	return nil, fmt.Errorf("musicbrainz has no %q", q.Kind)
 }
 
+// cover is the address of an album's cover at Cover Art Archive: the edition's own front cover
+// when a lookup says it has one, else the album's (its release group's) front cover, which
+// Cover Art Archive answers from whichever edition has one. A search's answers do not say
+// whether there is a cover, so an album with none at all answers 404 there, and the server's
+// picture fetch shows none.
 func (r *release) cover() string {
-	if !r.CoverArt.Front {
-		return ""
+	switch {
+	case r.CoverArt.Front:
+		return covers + "release/" + r.ID + "/front"
+	case mbid.MatchString(r.ReleaseGroup.ID):
+		return covers + "release-group/" + r.ReleaseGroup.ID + "/front"
 	}
-	return covers + r.ID + "/front"
+	return ""
+}
+
+// better reports whether edition a is more like the album the files are than edition b: the
+// same discs with the same number of tracks each, then the same number of tracks, then the
+// year closest to the files', then an official release, then the earliest. MusicBrainz scores
+// every edition of an album alike and lists them in no useful order: with no year, the first
+// listed for Abbey Road is a 2019 three-disc deluxe edition.
+func better(a, b release, q metadata.Query) bool {
+	if la, lb := sameLayout(a, q.Layout), sameLayout(b, q.Layout); la != lb {
+		return la
+	}
+	if n := total(q.Layout); n > 0 {
+		if ta, tb := a.TrackCount == n, b.TrackCount == n; ta != tb {
+			return ta
+		}
+	}
+	if q.Year != 0 {
+		da, db := distance(a.Date, q.Year), distance(b.Date, q.Year)
+		if da != db {
+			return da < db
+		}
+	}
+	if oa, ob := a.Status == "Official", b.Status == "Official"; oa != ob {
+		return oa
+	}
+	if a.Date == "" || b.Date == "" {
+		return a.Date != ""
+	}
+	return a.Date < b.Date
 }
 
 // release answers one release with its discs and tracks.
@@ -349,6 +389,35 @@ func (c *Client) Details(ctx context.Context, ref metadata.Ref, _ metadata.Local
 		return out, nil
 	}
 	return metadata.Record{}, fmt.Errorf("musicbrainz has no %q", ref.Kind)
+}
+
+// sameLayout reports whether an edition has the files' discs with the files' number of tracks on each.
+func sameLayout(r release, layout []int) bool {
+	if len(layout) == 0 || len(r.Media) != len(layout) {
+		return false
+	}
+	for i, m := range r.Media {
+		if m.TrackCount != layout[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func total(layout []int) int {
+	n := 0
+	for _, tracks := range layout {
+		n += tracks
+	}
+	return n
+}
+
+// distance is how many years a date is from a year; an undated edition is furthest.
+func distance(date string, want int) int {
+	if y := year(date); y != 0 {
+		return abs(y - want)
+	}
+	return 1 << 30
 }
 
 func abs(n int) int {
