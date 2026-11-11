@@ -329,6 +329,9 @@ func (s *Server) signInSwitch(r *http.Request, req SignInSwitchRequest) (SignInR
 		return SignInResponse{}, ErrConflict("username_taken", "That username is already in use.")
 	case errors.Is(err, db.ErrNotPermitted):
 		return SignInResponse{}, ErrNotPermitted()
+	case errors.Is(err, db.ErrNotTheLinkedAccount):
+		return SignInResponse{}, refusal(http.StatusForbidden, "not_the_linked_account",
+			"This server belongs to another Portico Account. Approve with the Portico Account that owns it.", false)
 	case err != nil:
 		return SignInResponse{}, proofError(s.porticoTaken(r, err))
 	}
