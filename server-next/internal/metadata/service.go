@@ -283,7 +283,16 @@ func (s *Service) Rematch(ctx context.Context, itemID string) (bool, error) {
 	if t.Match == db.MatchChosen {
 		return false, ErrMatchLocked
 	}
-	q := Query{Kind: providerKinds[t.Kind], Title: t.Title, Year: t.Year, Locale: locale, IncludeAdult: s.IncludeAdult}
+	// Searched by the same name a scan's lookup uses, never a title written inside the file.
+	src, err := s.DB.LibrarySource(ctx, t.LibraryID)
+	if err != nil {
+		return false, err
+	}
+	title, year, err := s.searchName(ctx, src.Kind, t.MatchItem)
+	if err != nil {
+		return false, err
+	}
+	q := Query{Kind: providerKinds[t.Kind], Title: title, Year: year, Locale: locale, IncludeAdult: s.IncludeAdult}
 	ref := Ref{Provider: p.Name(), Kind: q.Kind}
 	if t.Match != db.MatchFound {
 		// The ids of a title the server has not matched are the ones its name or NFO file
