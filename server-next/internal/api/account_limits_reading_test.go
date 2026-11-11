@@ -15,7 +15,7 @@ func TestABooksAddressIsHeldToHomeAndToViewingHours(t *testing.T) {
 	b := newBookShelf(t)
 	s, owner := b.s, b.owner.AccessToken
 	base, later := time.Now().UTC(), time.Duration(0)
-	s.now = func() time.Time { return base.Add(later) }
+	s.setClock(func() time.Time { return base.Add(later) })
 	max, _ := addMember(t, s, owner, "max", "member"), addMember(t, s, owner, "eve", "member")
 	// Home only, and hours that are open for the next hour.
 	limits := noLimits()

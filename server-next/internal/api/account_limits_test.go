@@ -134,7 +134,7 @@ func TestAnAccountHeldToHomeAndToViewingHours(t *testing.T) {
 
 	// Viewing hours: tomorrow only, all day. Today everything is refused; tomorrow it works.
 	now := time.Now().UTC()
-	s.now = func() time.Time { return now }
+	s.setClock(func() time.Time { return now })
 	limits = noLimits()
 	limits.ViewingHours = &auth.ViewingHours{Timezone: "UTC", Windows: []auth.ViewingWindow{{Days: []int{int(now.Weekday()+1) % 7}, StartMinute: 0, EndMinute: 1440}}}
 	if got := hold(t, s, owner, max.ID, limits); got.Limits.ViewingHours == nil || got.Limits.HomeOnly {
