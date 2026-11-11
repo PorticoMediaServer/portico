@@ -43,6 +43,8 @@ type Server struct {
 	passwords *auth.Passwords
 	log       *slog.Logger
 	scans     *scan.Manager
+	// web, when set, answers every address that is not the API's with the web app.
+	web http.Handler
 	// jobs runs slow work in the background. Each area registers its kinds in New, before
 	// the jobs left from the last run are taken up again.
 	jobs *jobs.Runner
@@ -252,6 +254,10 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 // RemoteSources opens the owner's remote sources for the scanner and for playback.
 func (s *Server) RemoteSources() *remote.Registry { return s.remote }
 
+// ServeWebWith gives the server the web app to answer with at every address that is not the
+// API's. Call it before serving.
+func (s *Server) ServeWebWith(web http.Handler) { s.web = web }
+
 // Routes lists every registered operation.
 func (s *Server) Routes() []*Route { return s.routes }
 
@@ -283,6 +289,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 	if _, pattern := s.mux.Handler(r); pattern == "" {
+		// An address that is no route of the API, and is not under /v1/ at all, is the web
+		// app's: its files, and the pages inside it. Nothing under /v1/ ever goes there.
+		if s.web != nil && r.URL.Path != "/v1" && !strings.HasPrefix(r.URL.Path, "/v1/") {
+			s.web.ServeHTTP(w, r)
+			return
+		}
 		// A token that is no longer good is told so whatever the address, so an app that
 		// asks for something this server does not have still learns to renew its sign-in.
 		if strings.HasPrefix(r.URL.Path, "/v1/") && r.Header.Get("Authorization") != "" {
