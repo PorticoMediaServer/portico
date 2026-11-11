@@ -1,7 +1,6 @@
 package librarychannels
 
 import (
-	"encoding/json"
 	"slices"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
@@ -15,13 +14,8 @@ type Template struct {
 	Builder     Builder
 }
 
-func condition(field, op string, values ...any) db.ChannelCondition {
-	c := db.ChannelCondition{Field: field, Op: op}
-	for _, v := range values {
-		raw, _ := json.Marshal(v)
-		c.Values = append(c.Values, raw)
-	}
-	return c
+func condition(field string, values ...string) db.ChannelCondition {
+	return db.ChannelCondition{Field: field, Values: values}
 }
 
 // Templates are the nine starting points, filled in with this server's libraries of each kind.
@@ -53,13 +47,13 @@ func Templates(libraryKinds map[string]string) []Template {
 		{"television", "Television channel", "Shows from your TV libraries, each in episode order, rotating among shows.",
 			Builder{Selection: Selection{Libraries: shows, Kinds: []string{"show"}, Order: "shuffle", Episodes: "showOrder"}}},
 		{"eighties", "Eighties movies", "Movies released from 1980 through 1989.",
-			Builder{Selection: film(Selection{Conditions: []db.ChannelCondition{condition("year", "between", 1980, 1989)}})}},
+			Builder{Selection: film(Selection{Conditions: []db.ChannelCondition{condition("year", "1980..1989")}})}},
 		{"nineties", "Nineties movies", "Movies released from 1990 through 1999.",
-			Builder{Selection: film(Selection{Conditions: []db.ChannelCondition{condition("year", "between", 1990, 1999)}})}},
+			Builder{Selection: film(Selection{Conditions: []db.ChannelCondition{condition("year", "1990..1999")}})}},
 		{"thriller", "Thriller channel", "Thrillers from your movies.",
-			Builder{Selection: film(Selection{Conditions: []db.ChannelCondition{condition("genre", "any", "Thriller")}})}},
+			Builder{Selection: film(Selection{Conditions: []db.ChannelCondition{condition("genre", "Thriller")}})}},
 		{"family", "Family movies", "Movies in the Family genre.",
-			Builder{Selection: film(Selection{Conditions: []db.ChannelCondition{condition("genre", "any", "Family")}})}},
+			Builder{Selection: film(Selection{Conditions: []db.ChannelCondition{condition("genre", "Family")}})}},
 		{"anime", "Anime channel", "Shows from your anime libraries, each in episode order.",
 			Builder{Selection: Selection{Libraries: anime, Kinds: []string{"show"}, Order: "shuffle", Episodes: "showOrder"}}},
 		{"recent", "Recently added movies", "Movies added in the last 30 days, newest first.",
