@@ -770,6 +770,25 @@ func hasEntry(folder string) bool {
 
 // deleteFiles deletes a title's or a version's files from disk, then takes what is gone out
 // of the library. A file is only deleted while it is still the file Portico last read.
+// foldersThere refuses a delete when a library folder holding one of the files is not there,
+// or is empty where it has files: a disk that is not connected. Nothing is deleted then and
+// no title is removed. checked remembers the folders already looked at, so that a selection
+// looks at each of its folders once, before any of its titles is deleted. A folder is looked
+// at only for a first entry: a show has thousands of files under one folder that may hold
+// thousands of others.
+func foldersThere(checked map[string]bool, files []db.DiskFile) error {
+	for _, f := range files {
+		if checked[f.Root] {
+			continue
+		}
+		checked[f.Root] = true
+		if !hasEntry(f.Root) {
+			return ErrConflict("folder_unavailable", "The library folder "+f.Root+" can't be reached: its disk may not be connected. Nothing was deleted.")
+		}
+	}
+	return nil
+}
+
 func (s *Server) deleteFiles(r *http.Request, del db.Deletion) (DeletionResult, error) {
 	out := DeletionResult{Kept: []KeptFile{}, AlsoRemoved: []TitleRef{}}
 	if !del.AllowDelete {
@@ -780,19 +799,8 @@ func (s *Server) deleteFiles(r *http.Request, del db.Deletion) (DeletionResult, 
 			return out, ErrConflict("remote_storage", "Portico can't delete files on remote storage")
 		}
 	}
-	// A library folder that is not there, or is empty where it has files, is a disk that is
-	// not connected: nothing is deleted and no title is removed.
-	// Each folder is looked at once and only for a first entry: a show has thousands of files
-	// under one folder that may hold thousands of others.
-	checked := map[string]bool{}
-	for _, f := range del.Files {
-		if checked[f.Root] {
-			continue
-		}
-		checked[f.Root] = true
-		if !hasEntry(f.Root) {
-			return out, ErrConflict("folder_unavailable", "The library folder "+f.Root+" can't be reached: its disk may not be connected. Nothing was deleted.")
-		}
+	if err := foldersThere(map[string]bool{}, del.Files); err != nil {
+		return out, err
 	}
 	var deleted []int64
 	for _, f := range del.Files {
@@ -818,7 +826,10 @@ func (s *Server) deleteFiles(r *http.Request, del db.Deletion) (DeletionResult, 
 		}
 		deleted = append(deleted, f.ID)
 	}
-	if err := s.db.Deleted(r.Context(), del, deleted); err != nil {
+	// The files are gone from disk whatever becomes of the request: the record of it is
+	// written even if the browser, or a proxy on the way, gave up waiting meanwhile. A title
+	// would otherwise stay listed with no files until the next scan.
+	if err := s.db.Deleted(context.WithoutCancel(r.Context()), del, deleted); err != nil {
 		return out, err
 	}
 	if out.Removed = len(out.Kept) == 0; out.Removed {

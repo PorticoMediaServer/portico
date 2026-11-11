@@ -376,9 +376,9 @@ func (d *DB) deletion(ctx context.Context, v Viewer, where, id string, version b
 }
 
 // Deleted records that files were deleted from disk. With every file of the deletion gone
-// the title (or the one version) is removed at once, never Missing; what each person had on a
-// removed title is kept in case it returns. Files that were kept leave their title in place,
-// and the deleted ones are marked missing.
+// the title (or the one version) is removed at once, never Missing, and what each person had on
+// it is forgotten with it; the plays they finished stay in the play record. Files that were
+// kept leave their title in place, and the deleted ones are marked missing.
 func (d *DB) Deleted(ctx context.Context, del Deletion, deleted []int64) error {
 	return d.write(ctx, User, func(tx *sql.Tx) error {
 		b := newBatchTx(tx)

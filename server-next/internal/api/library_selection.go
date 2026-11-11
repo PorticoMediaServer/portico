@@ -59,7 +59,7 @@ func (s *Server) selection(r *http.Request, req SelectionDelete) ([]db.Deletion,
 	case len(req.IDs) > maxSelectionDelete:
 		return nil, ErrField("ids", "Delete at most 200 titles at once")
 	}
-	seen := map[string]bool{}
+	seen, folders := map[string]bool{}, map[string]bool{}
 	var all []db.Deletion
 	for n, id := range req.IDs {
 		at := "ids[" + strconv.Itoa(n) + "]"
@@ -86,6 +86,14 @@ func (s *Server) selection(r *http.Request, req SelectionDelete) ([]db.Deletion,
 			}
 		}
 		all = append(all, del)
+	}
+	// Every library folder the selection touches must be there before any title is deleted:
+	// with one disk away, deleting the titles on the other and then refusing would leave the
+	// owner told that nothing was deleted when files are gone for good.
+	for _, del := range all {
+		if err := foldersThere(folders, del.Files); err != nil {
+			return nil, err
+		}
 	}
 	return all, nil
 }
