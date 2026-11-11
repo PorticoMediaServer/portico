@@ -218,6 +218,11 @@ func (s *Service) serveImagePage(w http.ResponseWriter, r *http.Request, g grant
 		return io.NopCloser(f), err
 	}
 	sendPicture(r.Context(), w, page.Path, uint64(info.Size()), open, width, func() {
+		// Deciding whether to make the page smaller may have read its header: start again.
+		if _, err := f.Seek(0, io.SeekStart); err != nil {
+			writeError(w, http.StatusUnprocessableEntity, "page_damaged", "This page can't be shown.")
+			return
+		}
 		w.Header().Set("Cache-Control", "private, max-age=86400")
 		w.Header().Set("Content-Type", contentType)
 		w.Header().Set("Content-Length", strconv.FormatInt(info.Size(), 10))
