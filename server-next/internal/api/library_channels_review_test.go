@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
@@ -16,7 +15,7 @@ func TestReviewABadConditionValueNeverLeavesTheChannelBuilding(t *testing.T) {
 	films := libraryOfKind(t, s, owner, "movies")
 	name := "Bad"
 	b := librarychannels.Builder{Selection: librarychannels.Selection{Libraries: []string{films}, Kinds: []string{"movie"},
-		Conditions: []db.ChannelCondition{{Field: "year", Op: "between", Values: []json.RawMessage{json.RawMessage(`"nineteen"`)}}}}}
+		Conditions: []db.ChannelCondition{{Field: "year", Values: []string{"nineteen"}}}}}
 	var ch LibraryChannel
 	w := call(t, s, "POST", "/v1/admin/library-channels", owner, LibraryChannelSave{Name: &name, Builder: &b}, &ch)
 	if w.Code != 201 {
