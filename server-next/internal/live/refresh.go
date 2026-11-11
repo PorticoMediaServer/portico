@@ -158,7 +158,7 @@ func (s *Service) refresh(ctx context.Context, src db.LiveSource) (Report, int, 
 			return report, 0, errors.New("the uploaded guide is missing; upload it again")
 		}
 	case pulled.guideURL != "":
-		if guide, err = s.fetch(ctx, pulled.guideURL, maxGuideBytes); err != nil {
+		if guide, err = s.download(ctx, pulled.guideURL, src.PublicID); err != nil {
 			return report, 0, err
 		}
 	}
@@ -280,4 +280,42 @@ func (s *Service) Preview(ctx context.Context, kind string, cfg Config, signIn S
 		err = ParseGuide(r, &out.Report, func(GuideChannel) error { return nil }, func(Programme) error { out.Report.Programmes++; return nil })
 	}
 	return out, err
+}
+
+// download fetches a guide into a file in the data folder first, so the guide's writer is
+// held only while programmes are written, never while a slow provider sends them. The file
+// is removed when it is closed.
+func (s *Service) download(ctx context.Context, address, sourceID string) (io.ReadCloser, error) {
+	body, err := s.fetch(ctx, address, maxGuideBytes)
+	if err != nil {
+		return nil, err
+	}
+	defer body.Close()
+	if err := os.MkdirAll(s.dir, 0o700); err != nil {
+		return nil, err
+	}
+	path := s.UploadPath(sourceID, "download")
+	file, err := os.Create(path)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := io.Copy(file, body); err != nil {
+		file.Close()
+		os.Remove(path)
+		return nil, errors.New("the guide could not be downloaded")
+	}
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		file.Close()
+		os.Remove(path)
+		return nil, err
+	}
+	return removeOnClose{file}, nil
+}
+
+type removeOnClose struct{ *os.File }
+
+func (f removeOnClose) Close() error {
+	err := f.File.Close()
+	os.Remove(f.Name())
+	return err
 }
