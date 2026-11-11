@@ -158,13 +158,18 @@ func TestJoiningALibraryChannelStartsWhereTheProgrammeIs(t *testing.T) {
 	if got := session.Presentation.StartPositionMs; got != (25 * time.Minute).Milliseconds() {
 		t.Fatalf("joined %d ms in, want 25 minutes", got)
 	}
-	if code := th.report(token, session.ID, "playing", (40 * time.Minute).Milliseconds()); code != 200 {
+	if code := th.report(token, session.ID, "playing", (59 * time.Minute).Milliseconds()); code != 200 {
 		t.Fatalf("progress answered %d", code)
 	}
 	if code := status(t, th.s, "DELETE", "/v1/playback/sessions/"+session.ID, token, nil); code != 204 {
 		t.Fatalf("stop answered %d", code)
 	}
 	if state := th.state(th.film); state.PositionMS != 0 || state.Watched {
-		t.Fatalf("watching a channel left a place in the film: %+v", state)
+		t.Fatalf("watching a channel to the end left a place or a watched mark in the film: %+v", state)
+	}
+	// The play is in the owner's record of plays, and not in the viewer's own History.
+	records, err := th.s.db.PlayRecords(context.Background(), 1, 5)
+	if err != nil || len(records) != 1 || !records[0].HiddenFromProfile {
+		t.Fatalf("the owner's play record holds %+v (%v)", records, err)
 	}
 }
