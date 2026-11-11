@@ -80,8 +80,16 @@ type IdentityQuestion struct {
 }
 
 // IdentityProof is the answer. Payload is JSON in base64url: the question's two values with
-// this server's id, public key and the key's fingerprint. Signature is the server's Ed25519
-// signature of the payload's bytes, in base64url.
+// this server's id, public key, the key's fingerprint and the fingerprints of the certificates
+// it serves itself. Signature is the server's Ed25519 signature of the payload's bytes, in
+// base64url.
+//
+// A proof alone can be relayed: an impostor in the path can pass the question to the real
+// server and return its answer. What defeats that is the app comparing the certificate of the
+// connection it is actually on with the fingerprints the proof lists; over plain HTTP the proof
+// shows only that the real server can be reached from there. And "a first meeting at home asks
+// nothing" must rest on the app's own evidence (it found the server by its announcement, on its
+// own private network), never on atHome from GET /v1/system, which an impostor can set.
 type IdentityProof struct {
 	Payload   string `json:"payload"`
 	Signature string `json:"signature"`
