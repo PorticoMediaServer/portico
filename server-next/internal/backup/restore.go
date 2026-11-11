@@ -167,6 +167,20 @@ func PendingRestore(dataDir string) *Pending {
 	return &p
 }
 
+// WaitingRestore is the staged restore the next start would make, for the owner's page: none
+// once its hour is up, or when it was staged "after" now (a clock was wrong), since the start
+// drops it then.
+func WaitingRestore(dataDir string, now time.Time) *Pending {
+	p := PendingRestore(dataDir)
+	if p == nil {
+		return nil
+	}
+	if age := now.Sub(p.StagedAt); age > pendingFor || age < -pendingFor {
+		return nil
+	}
+	return p
+}
+
 // CancelRestore drops a staged restore. One already being made at a start cannot be dropped.
 func CancelRestore(dataDir string) error {
 	if exists(filepath.Join(dataDir, journalFile)) {
@@ -212,11 +226,23 @@ func Prepare(dataDir string, now time.Time) (restored string, note string, err e
 		note = "the database set aside by a restore was put back"
 	case PendingRestore(dataDir) != nil:
 		p := PendingRestore(dataDir)
-		if now.Sub(p.StagedAt) > pendingFor {
-			return made(dataDir), "the restore of " + p.Backup + " was staged more than an hour ago and was dropped", os.RemoveAll(pending)
+		// Staged "after" this start means a clock was wrong at one end: its age is unknown.
+		if age := now.Sub(p.StagedAt); age > pendingFor || age < -pendingFor {
+			os.RemoveAll(pending)
+			return made(dataDir), "the restore of " + p.Backup + " was not staged within the last hour and was dropped", nil
 		}
 		if err := swap(dataDir, p); err != nil {
-			return "", "", err
+			// Not made. If the backup's database has not moved in, put back what moved out
+			// and drop the restore; only then is the folder fit to open.
+			if !exists(filepath.Join(pending, "main.db")) {
+				return "", "", err
+			}
+			if back := moveBack(dataDir, false); back != nil {
+				return "", "", errors.Join(err, back)
+			}
+			os.Remove(journal)
+			os.RemoveAll(pending)
+			return made(dataDir), "the restore of " + p.Backup + " could not be made and was dropped; the server is as it was: " + err.Error(), dirsync.Sync(dataDir)
 		}
 		note = "the server was restored from " + p.Backup
 	default:
