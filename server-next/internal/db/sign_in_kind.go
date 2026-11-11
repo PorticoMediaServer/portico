@@ -41,6 +41,10 @@ type Move struct {
 // ErrAccountWaiting: the password was right, but the account waits to move to Portico Accounts.
 var ErrAccountWaiting = errors.New("the account is waiting to move")
 
+// ErrNotTheLinkedAccount: the approval came from a Portico Account other than the one the owner
+// is linked to now. While that link stands, only its own account may switch or start over.
+var ErrNotTheLinkedAccount = errors.New("the approval is not from the owner's Portico Account")
+
 func readMove(ctx context.Context, q queryer) (Move, bool, error) {
 	var raw string
 	err := q.QueryRowContext(ctx, `SELECT value FROM settings WHERE key = ?`, MoveKey).Scan(&raw)
@@ -194,6 +198,16 @@ func (d *DB) SwitchSignIn(ctx context.Context, sw Switch) (SessionState, error) 
 				}
 			}
 		case "portico":
+			// A server whose owner is linked to a Portico Account switches or starts over only
+			// on that account's approval: the owner's sign-in token alone must never hand the
+			// server to another account.
+			var linked string
+			if err := tx.QueryRow(`SELECT ifnull(portico_account_id, '') FROM users WHERE id = ?`, sw.OwnerID).Scan(&linked); err != nil {
+				return err
+			}
+			if linked != "" && linked != sw.PorticoAccountID {
+				return ErrNotTheLinkedAccount
+			}
 			if err := porticoAccountFree(tx, sw.PorticoAccountID, sw.OwnerID); err != nil {
 				return err
 			}
