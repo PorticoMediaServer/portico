@@ -51,6 +51,8 @@ func (r *run) bookUnits(f *folder) []unit {
 			Keys: []db.ItemKey{db.FileKey(r.path.ID, file.rel, 0),
 				{Kind: db.KeyName, Key: "book|" + fold(bookTitle) + "|" + fold(strings.Join(authors, ","))}},
 			Versions: []db.ImportVersion{{Name: strings.TrimPrefix(strings.ToLower(path.Ext(file.rel)), "."), Parts: []db.ImportPart{{File: file.ref()}}}}}
+		given(&item, fieldIf(d["album"] != "", db.FieldTitle), fieldIf(d.year() > 0, db.FieldYear), fieldIf(d["description"] != "", db.FieldSummary),
+			fieldIf(len(item.Tags) > 0, db.FieldGenres), fieldIf(len(d.names("authors", "author")) > 0, db.FieldCredits))
 		if isbn := d["isbn"]; isbn != "" {
 			item.ExternalIDs = []db.ExternalID{{Provider: "isbn", ID: isbn}}
 		}
