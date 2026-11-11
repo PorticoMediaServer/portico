@@ -11,8 +11,6 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
-	"os"
-	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -56,9 +54,6 @@ type Server struct {
 	identity identity
 	routes   []*Route
 	now      func() time.Time
-	// setupCode is what creating the owner needs. It is made at start while there is no
-	// account, and written to the log and to setupFile, never sent to an app.
-	setupCode, setupFile string
 	// artwork is where pictures are kept. See images.go.
 	artwork *artwork.Store
 	// playback runs the viewing sessions. See playback.go.
@@ -188,15 +183,6 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	}
 	s := &Server{db: d, dataDir: dataDir, tokens: tokens, log: log, mux: http.NewServeMux(), version: version, id: identity.id, identity: identity, now: time.Now,
 		passwords: auth.NewPasswords(auth.PasswordCost, auth.PINCost)}
-	if set, err := d.HasUsers(ctx); err != nil {
-		return nil, err
-	} else if !set {
-		s.setupCode, s.setupFile = auth.NewCode(2), filepath.Join(dataDir, "setup-code.txt")
-		if err := os.WriteFile(s.setupFile, []byte(s.setupCode+"\n"), 0o600); err != nil {
-			return nil, err
-		}
-		log.Info("this server has no owner yet: create one with this setup code", "setupCode", s.setupCode, "file", s.setupFile)
-	}
 	if err := s.loadNetworks(ctx); err != nil {
 		return nil, err
 	}

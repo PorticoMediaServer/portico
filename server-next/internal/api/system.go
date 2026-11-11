@@ -21,6 +21,12 @@ type System struct {
 	SetupRequired bool `json:"setupRequired"`
 	// SignInMethods lists the ways to sign in, in the order to offer them.
 	SignInMethods []string `json:"signInMethods"`
+	// SignIn is the server's kind of sign-in: "portico" when people sign in with a Portico
+	// Account, "local" when they sign in to this server directly. Apps read it before showing
+	// any sign-in form.
+	SignIn string `json:"signIn"`
+	// AtHome says the caller is on one of the owner's home networks, as this server sees it.
+	AtHome bool `json:"atHome"`
 }
 
 // Health is the answer of the health checks.
@@ -46,8 +52,17 @@ func (s *Server) systemRoutes() {
 		if err != nil {
 			return System{}, err
 		}
+		kind, err := s.signInKind(r.Context())
+		if err != nil {
+			return System{}, err
+		}
+		methods := []string{"password"}
+		if kind == "portico" {
+			methods = []string{"portico"}
+		}
 		out := System{ID: s.id, Name: s.serverName(), APIMajor: APIMajor, Capabilities: []string{},
-			SetupRequired: !hasUsers, SignInMethods: []string{"password"}}
+			SetupRequired: !hasUsers, SignInMethods: methods, SignIn: kind, AtHome: s.fromHome(r)}
+
 		if _, err := s.admit(r, &Route{Access: SignedIn, Scope: ScopeRead}); err == nil {
 			out.Version = s.version
 		}
