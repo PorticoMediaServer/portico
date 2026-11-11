@@ -28,7 +28,11 @@ func (d *DB) MergeItems(ctx context.Context, fromID, intoID string) error {
 		if err != nil {
 			return err
 		}
-		return mergeItems(b, from, into, time.Now().UnixMilli())
+		now := time.Now().UnixMilli()
+		if err := mergeItems(b, from, into, now); err != nil {
+			return err
+		}
+		return b.settleWatchedForAll(now)
 	})
 }
 
@@ -41,7 +45,8 @@ func itemID(b *batchTx, publicID string) (int64, error) {
 	return id, err
 }
 
-// mergeItems merges one top-level title, or one of two siblings, into the other.
+// mergeItems merges one top-level title, or one of two siblings, into the other. The caller's
+// transaction must end with settleWatchedForAll.
 func mergeItems(b *batchTx, from, into, now int64) error {
 	type row struct {
 		library      int64
@@ -72,6 +77,17 @@ func mergeItems(b *batchTx, from, into, now int64) error {
 		WHERE id IN (?, ?, ?) OR parent_id = ?`, into, z.parent.Int64, z.root.Int64, into); err != nil {
 		return err
 	}
+	// What moved under the merged title is covered by its labels now. Its watched marks, and
+	// those of what holds it and what it holds, are worked out again: episodes came under
+	// them, and each holder's own state row was joined as if it were a title's.
+	if err := b.labelsChanged(into); err != nil {
+		return err
+	}
+	holders, err := holdersAround(b, into)
+	if err != nil {
+		return err
+	}
+	b.leavesChanged(holders...)
 	for _, change := range []Change{{Op: OpDeleted, RefID: from}, {Op: OpUpdated, RefID: into}} {
 		change.At, change.Topic, change.LibraryID = now, TopicItem, a.library
 		if err := appendChange(b.tx, change); err != nil {
