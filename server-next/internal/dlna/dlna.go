@@ -5,17 +5,20 @@
 // nothing behind: no session, no play history, no watched mark, no Now Playing entry. It will
 // never be expanded.
 //
-// The only boundary is the home network, and it is checked on every request:
+// Who may use it is decided on every request:
 //
-//   - the switch is on and the owner has listed home networks (the defaults the server
-//     guesses before the owner chooses do not count);
-//   - the socket peer is in one of them and is not this machine's loopback, so a proxy on
-//     this machine cannot make the internet look local;
-//   - the request carries no forwarding header: a proxied request is never served.
+//   - the switch is on and the owner has listed home networks (the defaults the server guesses
+//     before the owner chooses do not count), none of which covers the whole internet;
+//   - the request comes from home by the same rule as the rest of the server (a proxy the owner
+//     listed counts by the address it passes on; one the owner did not list never counts);
+//   - its Host is an IP address or one of this server's own names. A web page on the internet
+//     that re-points its own name at this server (DNS rebinding) arrives with that name, and is
+//     refused; players use the address the server announced, so they never notice.
 //
-// A file that is streaming asks again every few seconds, so turning DLNA off, or taking a
-// network off the list, stops what is playing too. Subscriptions are accepted but never
-// called back (CallStranger, CVE-2020-12695): the server makes no request on a player's behalf.
+// Every refusal is the same 404, whether DLNA is on or off. A file that is streaming asks again
+// every few seconds, so turning DLNA off stops what is playing too. Subscriptions are accepted
+// but never called back (CallStranger, CVE-2020-12695): the server makes no request on a
+// player's behalf.
 package dlna
 
 import (
@@ -50,6 +53,8 @@ type Server struct {
 	// Home is the home networks the owner listed while DLNA is on, and nil while it is off or
 	// the owner has listed none. It is read on every request, so a change applies at once.
 	Home func() []netip.Prefix
+	// FromHome is the server's one rule for whether a request comes from home.
+	FromHome func(*http.Request) bool
 }
 
 const (
@@ -82,51 +87,49 @@ func randomUUID() string {
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }
 
-// forwardingHeaders mark a request passed on by a proxy.
-var forwardingHeaders = []string{"Forwarded", "X-Forwarded-For", "X-Forwarded-Host", "X-Real-Ip", "Cf-Connecting-Ip", "True-Client-Ip"}
+// admitted says whether r may be served now. Every refusal answers the same 404, so nobody
+// outside can tell whether DLNA is on.
+func (s *Server) admitted(r *http.Request) bool {
+	return len(s.Home()) > 0 && s.FromHome(r) && OwnHost(r.Host)
+}
 
-func contains(prefixes []netip.Prefix, addr netip.Addr) bool {
-	addr = addr.Unmap()
-	for _, p := range prefixes {
-		if p.Contains(addr) {
+// localSuffixes are the endings a home network's own names take, which nobody on the internet
+// can register.
+var localSuffixes = []string{"", ".local", ".lan", ".home", ".home.arpa", ".internal", ".localdomain"}
+
+// OwnHost says whether host (a Host header, with or without a port) is an IP address or one of
+// this server's own names: "localhost", its host name, the host name under a home network's own
+// endings (.local, .lan, .home, .home.arpa, .internal, .localdomain), or its Tailscale MagicDNS
+// name (the host name under .ts.net). Any other name is refused.
+func OwnHost(host string) bool {
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	host = strings.TrimSuffix(strings.ToLower(strings.Trim(host, "[]")), ".")
+	if _, err := netip.ParseAddr(host); err == nil || host == "localhost" {
+		return true
+	}
+	name, err := os.Hostname()
+	if err != nil || name == "" {
+		return false
+	}
+	name = strings.ToLower(name)
+	short, _, _ := strings.Cut(name, ".")
+	if host == name {
+		return true
+	}
+	for _, suffix := range localSuffixes {
+		if host == short+suffix {
 			return true
 		}
 	}
-	return false
-}
-
-// peer is the address the request's connection came from.
-func peer(r *http.Request) (netip.Addr, bool) {
-	ap, err := netip.ParseAddrPort(r.RemoteAddr)
-	if err != nil {
-		return netip.Addr{}, false
-	}
-	return ap.Addr().Unmap().WithZone(""), true
-}
-
-// admitted says whether r may be served now, and the status to refuse it with.
-func (s *Server) admitted(r *http.Request) (bool, int) {
-	home := s.Home()
-	if len(home) == 0 {
-		return false, http.StatusNotFound
-	}
-	for key := range r.Header {
-		for _, forwarded := range forwardingHeaders {
-			if strings.EqualFold(key, forwarded) {
-				return false, http.StatusForbidden
-			}
-		}
-	}
-	addr, ok := peer(r)
-	if !ok || addr.IsLoopback() || !contains(home, addr) {
-		return false, http.StatusForbidden
-	}
-	return true, 0
+	first, rest, _ := strings.Cut(host, ".")
+	return first == short && strings.HasSuffix(rest, ".ts.net")
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if ok, status := s.admitted(r); !ok {
-		http.Error(w, http.StatusText(status), status)
+	if !s.admitted(r) {
+		http.NotFound(w, r)
 		return
 	}
 	w.Header().Set("Server", s.serverHeader())
@@ -394,7 +397,7 @@ var errStopped = errors.New("DLNA was turned off for this player")
 
 func (a *stillAllowed) Read(p []byte) (int, error) {
 	if time.Since(a.checked) >= recheckEvery {
-		if ok, _ := a.s.admitted(a.r); !ok {
+		if !a.s.admitted(a.r) {
 			return 0, errStopped
 		}
 		a.checked = time.Now()

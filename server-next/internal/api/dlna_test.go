@@ -17,7 +17,12 @@ import (
 func dlnaCall(s *Server, peer, method, path, body string, header map[string]string) *httptest.ResponseRecorder {
 	r := httptest.NewRequest(method, path, strings.NewReader(body))
 	r.RemoteAddr = peer + ":40000"
+	r.Host = "192.168.1.10:32500" // the address the server announced, as players use it
 	for k, v := range header {
+		if k == "Host" {
+			r.Host = v
+			continue
+		}
 		r.Header.Set(k, v)
 	}
 	w := httptest.NewRecorder()
@@ -34,9 +39,11 @@ func browse(s *Server, peer, id, flag string) *httptest.ResponseRecorder {
 }
 
 // DLNA is off until the owner turns it on, and can be turned on only once the owner has listed
-// the home networks. Then a device there, with no sign-in, browses the video libraries and plays
-// an original by range, and nothing is recorded; a device anywhere else, a request through a
-// proxy, and this machine's loopback are refused; turning it off refuses at once.
+// home networks that do not cover the whole internet. Then a device at home (Tailscale and a
+// proxy the owner listed included), with no sign-in, browses the libraries and plays an
+// original by range, and nothing is recorded. A device away, a proxy the owner did not list,
+// and a web page that re-points its own name at the server are refused, with the same 404 as
+// when DLNA is off.
 func TestDLNA(t *testing.T) {
 	s := newTestServer(t)
 	owner := onMainProfile(t, s).AccessToken
@@ -58,7 +65,7 @@ func TestDLNA(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	const home, away = "192.168.1.20", "198.51.100.9"
+	const home, away, proxy = "192.168.1.20", "198.51.100.9", "192.168.1.5"
 	if w := dlnaCall(s, home, "GET", "/dlna/device.xml", "", nil); w.Code != 404 {
 		t.Fatalf("with DLNA off a device at home was answered %d", w.Code)
 	}
@@ -66,10 +73,18 @@ func TestDLNA(t *testing.T) {
 	if got := status(t, s, "PUT", "/v1/admin/settings/remote-access", owner, RemoteAccessSettingsEdit{DLNA: &on}); got != 400 {
 		t.Errorf("turning DLNA on before listing the home networks answered %d, want 400", got)
 	}
-	networks := NetworkSettingsEdit{HomeNetworks: &[]string{"192.168.1.0/24", "127.0.0.0/8"}, TrustedProxies: []string{}}
-	if got := status(t, s, "PUT", "/v1/admin/settings/network", owner, networks); got != 200 {
-		t.Fatalf("saving the home networks answered %d", got)
+	setHome := func(home ...string) {
+		t.Helper()
+		networks := NetworkSettingsEdit{HomeNetworks: &home, TrustedProxies: []string{proxy}}
+		if got := status(t, s, "PUT", "/v1/admin/settings/network", owner, networks); got != 200 {
+			t.Fatalf("saving the home networks answered %d", got)
+		}
 	}
+	setHome("192.168.1.0/24", "0.0.0.0/0")
+	if got := status(t, s, "PUT", "/v1/admin/settings/remote-access", owner, RemoteAccessSettingsEdit{DLNA: &on}); got != 400 {
+		t.Errorf("turning DLNA on with the whole internet listed as home answered %d, want 400", got)
+	}
+	setHome("192.168.1.0/24", "100.64.0.0/10")
 	if got := status(t, s, "PUT", "/v1/admin/settings/remote-access", owner, RemoteAccessSettingsEdit{DLNA: &on}); got != 200 {
 		t.Fatalf("turning DLNA on answered %d", got)
 	}
@@ -96,18 +111,33 @@ func TestDLNA(t *testing.T) {
 		t.Error("a DLNA play started a playback session")
 	}
 
+	name, _ := os.Hostname()
+	short, _, _ := strings.Cut(strings.ToLower(name), ".")
 	for _, c := range []struct {
 		what, peer string
 		header     map[string]string
+		want       int
 	}{
-		{"a device away from home", away, nil},
-		{"a request through a proxy", home, map[string]string{"X-Forwarded-For": home}},
-		{"this machine's loopback, although listed", "127.0.0.1", nil},
+		{"a device on Tailscale, listed as home", "100.101.102.103", nil, 200},
+		{"the server's own name", home, map[string]string{"Host": short + ":32500"}, 200},
+		{"the server's .local name", home, map[string]string{"Host": short + ".local:32500"}, 200},
+		{"the server's MagicDNS name", home, map[string]string{"Host": short + ".tail1234.ts.net"}, 200},
+		{"the owner's proxy passing a home address", proxy, map[string]string{"X-Forwarded-For": home}, 200},
+		{"a device away from home", away, nil, 404},
+		{"the owner's proxy passing an address away", proxy, map[string]string{"X-Forwarded-For": away}, 404},
+		{"a proxy the owner did not list", home, map[string]string{"X-Forwarded-For": home}, 404},
+		{"a web page that re-pointed its own name", home, map[string]string{"Host": "evil.example:32500"}, 404},
+		{"a look-alike name", home, map[string]string{"Host": short + ".evil.example"}, 404},
 	} {
-		if w := dlnaCall(s, c.peer, "GET", media, "", c.header); w.Code != 403 {
-			t.Errorf("%s was answered %d, want 403", c.what, w.Code)
+		if w := dlnaCall(s, c.peer, "GET", media, "", c.header); w.Code != c.want {
+			t.Errorf("%s was answered %d, want %d", c.what, w.Code, c.want)
 		}
 	}
+	setHome("192.168.1.0/24", "::/0")
+	if w := dlnaCall(s, home, "GET", media, "", nil); w.Code != 404 {
+		t.Errorf("with the whole internet listed as home DLNA still answered %d", w.Code)
+	}
+	setHome("192.168.1.0/24")
 	status(t, s, "PUT", "/v1/admin/settings/remote-access", owner, RemoteAccessSettingsEdit{DLNA: &off})
 	if w := dlnaCall(s, home, "GET", media, "", nil); w.Code != 404 {
 		t.Errorf("with DLNA turned off a device at home was answered %d", w.Code)
