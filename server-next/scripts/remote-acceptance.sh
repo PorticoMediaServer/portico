@@ -4,18 +4,42 @@
 # each, and play every film as it is and converted, with the sources' request limits on.
 # Prints a report and keeps it as report.txt.
 #
-#   server-next/scripts/remote-acceptance.sh <ssh-host> [--keep]
+#   server-next/scripts/remote-acceptance.sh <ssh-host> --dir <folder> --dav-port <n> --port <n> [--keep]
 #
-# Run from a Portico checkout. It builds portico-server here, copies it and this script to
-# <ssh-host>:~/portico-acceptance, and runs the rest there. The host needs ffmpeg, ffprobe,
-# rclone, curl and jq; nothing is installed for you. Everything on the host listens on
-# 127.0.0.1 only, on free ports above 20000, and is stopped by PID at the end; --keep leaves
-# the folder (media, logs, the server's data) for a look.
+#   --dir       the folder on the host to work in, relative to the home folder or absolute. It
+#               is made if missing; a run replaces what an earlier run left there.
+#   --dav-port  the port the WebDAV server listens on, on 127.0.0.1.
+#   --port      the port the Portico server listens on, on 127.0.0.1.
+#   --keep      leave the media, the logs and the server's data for a look.
+#
+# All three are required, so a run cannot land on what another server on the host uses; a
+# port that is taken stops the run before anything starts. Run from a Portico checkout: it
+# builds portico-server here, copies it and this script into the folder, and runs the rest
+# there. The host needs ffmpeg, ffprobe, rclone, curl and jq; nothing is installed. Every
+# server it starts listens on 127.0.0.1 only and is stopped by its PID at the end, whether
+# the run passed, failed or was interrupted; the Portico server stops the rclone it started.
 set -euo pipefail
 
-if [[ "${1:-}" != "--on-host" ]]; then
-	host="${1:?usage: remote-acceptance.sh <ssh-host> [--keep]}"
-	keep="${2:-}"
+usage() { sed -n '7,14p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+host="" dir="" dav_port="" port="" keep="" on_host=""
+while [[ $# -gt 0 ]]; do
+	case "$1" in
+	--on-host) on_host=1 ;;
+	--dir) dir="${2:-}"; shift ;;
+	--dav-port) dav_port="${2:-}"; shift ;;
+	--port) port="${2:-}"; shift ;;
+	--keep) keep=--keep ;;
+	-*) usage ;;
+	*) host="$1" ;;
+	esac
+	shift
+done
+[[ -n "$dir" && "$dir" != "/" && "$dir" != "~" && "$dir" != "." && "$dir" != *..* && "$dir" =~ ^[A-Za-z0-9._/-]+$ ]] || usage
+for p in "$dav_port" "$port"; do [[ "$p" =~ ^[0-9]+$ && "$p" -ge 1024 && "$p" -le 65535 ]] || usage; done
+[[ "$dav_port" != "$port" ]] || usage
+
+if [[ -z "$on_host" ]]; then
+	[[ -n "$host" ]] || usage
 	here="$(cd "$(dirname "$0")/.." && pwd)"
 	arch="$(ssh "$host" uname -m)"
 	case "$arch" in x86_64) goarch=amd64 ;; aarch64 | arm64) goarch=arm64 ;; *) echo "unknown host arch $arch" >&2; exit 1 ;; esac
@@ -24,16 +48,20 @@ if [[ "${1:-}" != "--on-host" ]]; then
 	(cd "$here" && GOOS=linux GOARCH="$goarch" CGO_ENABLED=0 GO_OFFLOAD_OFF=1 go build -o "$build/portico-server" ./cmd/portico-server)
 	cp "$0" "$build/acceptance.sh"
 	cp "$here/internal/streaming/testdata/client-profiles.json" "$build/"
-	ssh "$host" 'mkdir -p ~/portico-acceptance'
-	scp -q "$build/portico-server" "$build/acceptance.sh" "$build/client-profiles.json" "$host:portico-acceptance/"
-	ssh "$host" "bash ~/portico-acceptance/acceptance.sh --on-host $keep"
-	scp -q "$host:portico-acceptance/report.txt" "./remote-acceptance-$host-$(date -u +%Y%m%dT%H%M%SZ).txt" && echo "report copied here"
-	exit 0
+	ssh "$host" "mkdir -p '$dir'"
+	scp -q "$build/portico-server" "$build/acceptance.sh" "$build/client-profiles.json" "$host:$dir/"
+	status=0
+	ssh "$host" "bash '$dir/acceptance.sh' --on-host --dir '$dir' --dav-port $dav_port --port $port $keep" || status=$?
+	scp -q "$host:$dir/report.txt" "./remote-acceptance-$host-$(date -u +%Y%m%dT%H%M%SZ).txt" && echo "report copied here"
+	exit "$status"
 fi
 
 # ---- on the host ----
-keep="${2:-}"
-cd ~/portico-acceptance
+cd ~ && cd "$dir"
+taken() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
+for p in "$dav_port" "$port"; do
+	if taken "$p"; then echo "port $p on 127.0.0.1 is in use on this host; choose another" >&2; exit 1; fi
+done
 for tool in ffmpeg ffprobe rclone curl jq; do
 	command -v "$tool" >/dev/null || { echo "missing on this host: $tool" >&2; exit 1; }
 done
@@ -44,18 +72,21 @@ check() { # check <name> <ok:0/1> <detail>
 	if [[ "$2" == 0 ]]; then report "PASS $1: $3"; else report "FAIL $1: $3"; fi
 }
 since() { awk -v a="$1" -v b="$(date +%s.%N)" 'BEGIN { printf "%.1f", b - a }'; }
-free_port() {
-	while :; do
-		p=$((20000 + RANDOM % 40000))
-		(exec 3<>"/dev/tcp/127.0.0.1/$p") 2>/dev/null || { echo "$p"; return; }
-	done
-}
 pids=()
+# cleanup stops what this run started, by PID only: the Portico server first (it stops its
+# own rclone as it shuts down), then the WebDAV server, waiting for each to exit.
 cleanup() {
-	for pid in "${pids[@]}"; do kill "$pid" 2>/dev/null || true; done
-	[[ "$keep" == "--keep" ]] || rm -rf media data
+	local pid
+	for ((i = ${#pids[@]} - 1; i >= 0; i--)); do
+		pid=${pids[i]}
+		kill "$pid" 2>/dev/null || continue
+		for _ in $(seq 100); do kill -0 "$pid" 2>/dev/null || break; sleep 0.1; done
+		kill -9 "$pid" 2>/dev/null || true
+	done
+	[[ "$keep" == "--keep" ]] || rm -rf media data portico-server
 }
 trap cleanup EXIT
+trap 'exit 130' INT TERM
 
 report "Portico remote storage acceptance on $(hostname), $(date -u +%FT%TZ)"
 report "rclone $(rclone version | head -1), $(ffmpeg -version | head -1)"
@@ -78,14 +109,12 @@ rm media/clip.mkv
 report "media made: $(du -sh media | cut -f1)"
 
 # The WebDAV server: rclone serving the media folder, logging every request.
-dav_port=$(free_port)
 dav_pass=$(head -c 12 /dev/urandom | od -An -tx1 | tr -d ' \n')
 rclone serve webdav media --addr "127.0.0.1:$dav_port" --user viewer --pass "$dav_pass" --read-only -vv --log-file logs/webdav.log &
 pids+=($!)
 for _ in $(seq 50); do curl -fsu "viewer:$dav_pass" -X PROPFIND -H 'Depth: 0' "http://127.0.0.1:$dav_port/" >/dev/null 2>&1 && break; sleep 0.2; done
 
 # The Portico server, with the host's rclone as the one that comes with it.
-port=$(free_port)
 PORTICO_RCLONE="$(command -v rclone)" ./portico-server -listen "127.0.0.1:$port" -data data >logs/server.log 2>&1 &
 pids+=($!)
 api="http://127.0.0.1:$port"
