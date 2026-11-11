@@ -12,8 +12,8 @@ import (
 // since a time, whatever its age: Refresh metadata on a library. Pass when it was asked for,
 // so running it again after a restart carries on where it stopped. Each title is asked about
 // outside any transaction and stored in its own small one at Background priority. progress
-// is told how many titles are done. An error means the provider could not be asked; the
-// titles not reached are as they were.
+// is told how many titles are done. A title the provider fails on is passed over (see
+// failures); a provider that is down stops the run, and the titles not reached are as they were.
 func (s *Service) RefreshAll(ctx context.Context, libraryID int64, since time.Time, progress func(done int64)) error {
 	src, err := s.DB.LibrarySource(ctx, libraryID)
 	if err != nil {
@@ -24,12 +24,16 @@ func (s *Service) RefreshAll(ctx context.Context, libraryID int64, since time.Ti
 		return nil
 	}
 	locale := Locale{Language: src.Language, Region: src.Region}
+	f := &failures{s: s}
 	var after *db.RefreshItem
 	done := int64(0)
 	for {
 		page, err := s.DB.ToRefresh(ctx, libraryID, since.UnixMilli()-1, after, 200)
-		if err != nil || len(page) == 0 {
+		if err != nil {
 			return err
+		}
+		if len(page) == 0 {
+			return f.end(ctx)
 		}
 		for i := range page {
 			after = &page[i]
@@ -39,8 +43,9 @@ func (s *Service) RefreshAll(ctx context.Context, libraryID int64, since time.Ti
 			if page[i].ExternalIDs, err = s.DB.ExternalIDs(ctx, page[i].ID); err != nil {
 				return err
 			}
-			if err := s.refresh(ctx, p, locale, page[i], db.Background); err != nil {
-				return err
+			// A title the provider fails on is passed over, as in RefreshLibrary.
+			if _, stop := f.took(ctx, page[i].ID, s.refresh(ctx, p, locale, page[i], db.Background)); stop != nil {
+				return stop
 			}
 			done++
 			progress(done)

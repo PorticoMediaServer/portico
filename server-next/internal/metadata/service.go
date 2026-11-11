@@ -4,9 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"sync"
-	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/contentrating"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
@@ -19,11 +16,6 @@ type Service struct {
 	Providers map[string]Provider // by Name
 	// IncludeAdult is the owner's "Include adult titles" switch.
 	IncludeAdult bool
-
-	// When each library's matched titles were last all looked through for a refresh. It is
-	// running state: after a restart the first call looks through them once.
-	walks  sync.Mutex
-	walked map[int64]time.Time
 }
 
 // defaultProviders is the provider a library of each kind uses until the owner chooses.
@@ -65,23 +57,9 @@ type MatchStats struct {
 	Matched   int
 	Unmatched int
 	// Failed counts the titles the provider failed on this time: an error, a refusal, no
-	// answer in time. Each is asked again after a wait (see db.LookupFailed).
+	// answer in time. Each is asked again after a wait (see failures).
 	Failed int
 }
-
-// downAfter is how many titles in a row the provider may fail on before a run stops: by then
-// it is down, not refusing one title, and asking it about every other title would only fail too.
-const downAfter = 5
-
-// ErrProviderDown is a run of MatchLibrary stopped because the provider failed on several
-// titles in a row. The titles not reached are as they were.
-var ErrProviderDown = errors.New("the metadata provider did not answer")
-
-// providerError is an error from the provider itself, as opposed to one of this server's.
-type providerError struct{ err error }
-
-func (e providerError) Error() string { return e.err.Error() }
-func (e providerError) Unwrap() error { return e.err }
 
 // MatchLibrary asks the library's provider about every title it has not been asked about:
 // a confident answer's details are stored, and anything else goes on the library's Unmatched
@@ -108,21 +86,7 @@ func (s *Service) MatchLibrary(ctx context.Context, libraryID int64) (MatchStats
 		kinds = append(kinds, kind)
 	}
 	locale := Locale{Language: src.Language, Region: src.Region}
-	// failed are the titles the provider failed on since it last answered. They are recorded as
-	// failures only once it answers for a later title: until then it may simply be down, and a
-	// title is not to wait for a fault that was not its own.
-	var failed []int64
-	var lastErr error
-	answered := false
-	settle := func() error {
-		for _, id := range failed {
-			if err := s.DB.LookupFailed(ctx, id, time.Now()); err != nil {
-				return err
-			}
-		}
-		failed = failed[:0]
-		return nil
-	}
+	f := &failures{s: s}
 	after := int64(0)
 	for {
 		items, err := s.DB.ToMatch(ctx, libraryID, kinds, after, 50)
@@ -130,10 +94,8 @@ func (s *Service) MatchLibrary(ctx context.Context, libraryID int64) (MatchStats
 			return stats, err
 		}
 		if len(items) == 0 {
-			if len(failed) > 0 && !answered {
-				return stats, fmt.Errorf("%w: %w", ErrProviderDown, lastErr)
-			}
-			return stats, settle()
+			stats.Failed = f.count
+			return stats, f.end(ctx)
 		}
 		for _, item := range items {
 			after = item.ID
@@ -141,20 +103,13 @@ func (s *Service) MatchLibrary(ctx context.Context, libraryID int64) (MatchStats
 			if ctx.Err() != nil {
 				return stats, ctx.Err()
 			}
-			if errors.As(err, new(providerError)) {
-				stats.Failed++
-				failed, lastErr = append(failed, item.ID), err
-				if len(failed) >= downAfter {
-					return stats, fmt.Errorf("%w: %w", ErrProviderDown, err)
-				}
+			handled, stop := f.took(ctx, item.ID, err)
+			stats.Failed = f.count
+			if stop != nil {
+				return stats, stop
+			}
+			if handled {
 				continue
-			}
-			if err != nil {
-				return stats, err
-			}
-			answered = true
-			if err := settle(); err != nil {
-				return stats, err
 			}
 			if matched {
 				stats.Matched++
