@@ -534,7 +534,7 @@ libraries = []
 for line in pathlib.Path(rows).read_text().splitlines():
     if not line.strip() or line.startswith('#'):
         continue
-    recipe, name, licence, use = [part.strip() for part in line.split('|')]
+    recipe, name, licence, use = [part.strip() for part in line.split('|')][:4]  # a fifth column names the licence text
     if use.startswith('build only'):
         continue
     texts = sorted(str(p.relative_to(bundle)) for p in (bundle / 'LICENSES' / recipe).glob('*') if p.is_file())
