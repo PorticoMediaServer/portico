@@ -32,8 +32,33 @@ var bundleTools = sync.OnceValues(func() (toolPair, error) {
 	return toolPair{ffmpeg, probe}, err
 })
 
+// named is the FFmpeg the person running the tests chose, as the server reads it:
+// PORTICO_FFMPEG, and PORTICO_FFPROBE or else the ffprobe beside that FFmpeg. "" when
+// neither is set. A test run against a bundle must run against it, never quietly
+// against whatever FFmpeg is on the PATH.
+func named(tool string) string {
+	ffmpeg := os.Getenv("PORTICO_FFMPEG")
+	if tool == "ffmpeg" {
+		return ffmpeg
+	}
+	if probe := os.Getenv("PORTICO_FFPROBE"); probe != "" {
+		return probe
+	}
+	if ffmpeg != "" {
+		return filepath.Join(filepath.Dir(ffmpeg), mediatools.Name("ffprobe"))
+	}
+	return ""
+}
+
 func qualified(t testing.TB, tool string) string {
 	t.Helper()
+	if path := named(tool); path != "" {
+		found, err := exec.LookPath(path)
+		if err != nil {
+			t.Fatalf("the %s named by PORTICO_FFMPEG or PORTICO_FFPROBE cannot be run: %v", tool, err)
+		}
+		return found
+	}
 	pair, err := bundleTools()
 	if err == nil {
 		if tool == "ffprobe" {
