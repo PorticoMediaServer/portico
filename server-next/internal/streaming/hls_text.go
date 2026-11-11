@@ -19,12 +19,14 @@ type TextRenditionPlan struct {
 	// Format is what the track is written in: srt, vtt, ass, ssa, smi or ttml.
 	// Path, with the size and modified time the scanner recorded, is a subtitle
 	// file beside the video, inside a library folder; with no Path the track is
-	// track number Track of the stream's own file.
+	// track number Track of the stream's own file. OffsetUS is the viewer's
+	// timing nudge, moved into every cue the server sends: later when positive.
 	Format   string
 	Path     string
 	Size     int64
 	Modified time.Time
 	Track    int
+	OffsetUS int64
 }
 
 func publishTextManifests(dir string, p *DeliveryPlan) error {
