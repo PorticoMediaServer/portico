@@ -157,16 +157,18 @@ func TestPlannerOutputDeviceSourceMatrix(t *testing.T) {
 			"video_conversion/hevc/flac/2/sdr/native",
 			"video_conversion/hevc/aac/2/sdr/native",
 		},
+		// An HDR film tone-mapped for a browser is software H.264, not software
+		// AV1 10-bit, which could not keep up with a 4K film.
 		"Chrome": {
 			"original/h264/aac/2/sdr/native",
-			"video_conversion/av1/flac/2/sdr/native",
+			"video_conversion/h264/flac/2/sdr/native",
 			"refused",
-			"video_conversion/av1/aac/2/sdr/native",
-			"video_conversion/av1/aac/2/sdr/native",
+			"video_conversion/h264/aac/2/sdr/native",
+			"video_conversion/h264/aac/2/sdr/native",
 			"original/av1/aac/2/sdr/native",
 			"video_conversion/h264/flac/2/sdr/native",
 			"video_conversion/h264/flac/2/sdr/native",
-			"video_conversion/av1/aac/2/sdr/native",
+			"video_conversion/h264/aac/2/sdr/native",
 		},
 		"Safari": {
 			"original/h264/aac/2/sdr/native",
@@ -236,14 +238,14 @@ func TestPlannerOutputDeviceSourceMatrix(t *testing.T) {
 		},
 		"Firefox": {
 			"original/h264/aac/2/sdr/native",
-			"video_conversion/av1/flac/2/sdr/native",
+			"video_conversion/h264/flac/2/sdr/native",
 			"refused",
-			"video_conversion/av1/aac/2/sdr/native",
-			"video_conversion/av1/aac/2/sdr/native",
+			"video_conversion/h264/aac/2/sdr/native",
+			"video_conversion/h264/aac/2/sdr/native",
 			"original/av1/aac/2/sdr/native",
 			"video_conversion/h264/flac/2/sdr/native",
 			"video_conversion/h264/flac/2/sdr/native",
-			"video_conversion/av1/aac/2/sdr/native",
+			"video_conversion/h264/aac/2/sdr/native",
 		},
 	}
 
