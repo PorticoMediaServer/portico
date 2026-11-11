@@ -25,6 +25,10 @@ type writeRequest struct {
 	fn    func(tx *sql.Tx) error
 	after func()
 	done  chan error
+	// raw, when set, is run with the write connection's driver connection instead of fn in a
+	// transaction: for a step of an online backup, which must run on the connection that
+	// writes so that what it writes between steps reaches the copy.
+	raw func(driverConn any) error
 }
 
 // write runs fn in one transaction on the single write connection and commits it.
@@ -91,6 +95,14 @@ func (d *DB) writer() {
 func (d *DB) run(req writeRequest) error {
 	if err := req.ctx.Err(); err != nil {
 		return err
+	}
+	if req.raw != nil {
+		conn, err := d.writeConn.Conn(context.WithoutCancel(req.ctx))
+		if err != nil {
+			return err
+		}
+		defer conn.Close()
+		return conn.Raw(req.raw)
 	}
 	tx, err := d.writeConn.BeginTx(context.WithoutCancel(req.ctx), nil)
 	if err != nil {
