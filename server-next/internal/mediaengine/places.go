@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
@@ -58,6 +59,10 @@ func (e *Engine) open(base, ffmpeg string) (*place, error) {
 // empty removes what an earlier run of the server left in a conversion folder. It is only
 // ever called on a folder the server made for itself.
 func empty(base string) error {
+	// A link is never followed: emptying through one would empty wherever it points.
+	if info, err := os.Lstat(base); err == nil && !info.IsDir() {
+		return fmt.Errorf("%s is a link or a file; the server only uses a real folder there, so that it never empties anything else", base)
+	}
 	if err := os.MkdirAll(base, 0o700); err != nil {
 		return err
 	}
@@ -73,19 +78,32 @@ func empty(base string) error {
 // SetConversion changes where conversions are written and which ffmpeg makes them, with no
 // restart. folder is a folder of the owner's choosing, in which the server keeps a folder
 // of its own; ffmpeg is a path to the program. Empty means the one the server started with.
-// Streams that are playing are not touched. A folder that cannot be written to, or a
-// program that is not there, is refused and nothing changes.
+// Streams that are playing are not touched.
+//
+// Nothing changes, and the reason is returned, when the folder cannot be used or the
+// program is not a working ffmpeg. A new program is asked what it can do before the
+// switch, so the call takes a few seconds for a program the server has not seen (and the
+// owner's save shows that it is being checked); once it returns, no play waits. Run it
+// beside a request, not in one that must be quick.
 func (e *Engine) SetConversion(folder, ffmpeg string) error {
+	// One switch at a time, start to finish: two close together cannot cross over which
+	// program's abilities are in force. mu is held only for the swap itself, so emptying a
+	// big folder or asking a program never holds up a play or a media request.
+	e.switching.Lock()
+	defer e.switching.Unlock()
 	e.mu.Lock()
-	defer e.mu.Unlock()
-	target := e.folder
+	current, target, program := e.current, e.folder, e.program
+	inUse := map[string]bool{current.folder: true}
+	for _, p := range e.retired {
+		inUse[p.folder] = true
+	}
+	e.mu.Unlock()
 	if folder != "" {
 		if !filepath.IsAbs(folder) {
 			return errors.New("the conversion folder must be a full path")
 		}
 		target = filepath.Join(folder, ownedFolder)
 	}
-	program := e.program
 	if ffmpeg != "" {
 		path, err := exec.LookPath(ffmpeg)
 		if err != nil || !filepath.IsAbs(path) {
@@ -93,42 +111,93 @@ func (e *Engine) SetConversion(folder, ffmpeg string) error {
 		}
 		program = path
 	}
-	if target == e.current.folder && program == e.current.ffmpeg {
+	if target == current.folder && program == current.ffmpeg {
 		return nil
 	}
-	if target != e.current.folder {
-		// A folder nothing plays from: what an earlier run left in it goes.
-		if err := empty(target); err != nil {
-			return fmt.Errorf("the conversion folder cannot be written to: %w", err)
-		}
-	}
-	next, err := e.open(target, program)
-	if err != nil {
-		return err
-	}
-	if program != e.current.ffmpeg {
-		// Everything that finds the tools by itself (the scanner's reader, previews) follows,
-		// and the new program is asked what it can do beside this: a play waits for the answer.
-		pair, probe := e.startFFmpeg, e.startFFprobe
+	var tools *toolset
+	var facts decoder.ToolchainFacts
+	pair, probe := e.startFFmpeg, e.startFFprobe
+	if program != current.ffmpeg {
+		// The program is tried before anything is switched: it must say it is ffmpeg, and
+		// then answer what it can do, in its sandbox, as at start.
+		var err error
 		if ffmpeg != "" {
+			if err = isFFmpeg(e.ctx, program); err != nil {
+				return fmt.Errorf("%s is not a working FFmpeg, so the one in use stays: %w", ffmpeg, err)
+			}
 			pair = program
 			if sibling, err := exec.LookPath(filepath.Join(filepath.Dir(program), mediatools.Name("ffprobe"))); err == nil {
 				probe = sibling
 			}
 		}
+		if tools, facts, err = e.answer(e.ctx, program, probe); err != nil && ffmpeg != "" {
+			return fmt.Errorf("%s is not a working FFmpeg, so the one in use stays: %w", ffmpeg, err)
+		}
+	}
+	// A folder that streams still play from (the owner switched away and back) is used as it
+	// is. Any other has what an earlier run left in it removed.
+	if !inUse[target] {
+		if err := empty(target); err != nil {
+			return fmt.Errorf("the conversion folder cannot be used: %w", err)
+		}
+	}
+	if warning := e.ConversionFolderWarning(folder); warning != "" {
+		e.log.Warn(warning)
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	next, err := e.open(target, program)
+	if err != nil {
+		return fmt.Errorf("the conversion folder cannot be used: %w", err)
+	}
+	if tools != nil {
+		// Everything that finds the tools by itself (the scanner's reader, previews) follows.
 		if err := mediatools.ConfigurePair(pair, probe); err != nil && ffmpeg != "" {
 			next.stop()
-			return fmt.Errorf("FFmpeg at %s cannot be used: %w", ffmpeg, err)
+			return fmt.Errorf("%s cannot be used, so the one in use stays: %w", ffmpeg, err)
 		}
-		e.asking = e.ask(program)
+		if tools.converter {
+			decoder.ConfigureToolchain(facts)
+		}
+		e.asking = tools
 	}
-	old := e.current
 	e.current = next
 	if e.running {
 		go next.streams.Run(next.ctx)
 	}
-	e.retired = append(e.retired, old)
+	e.retired = append(e.retired, current)
 	e.closeIdleLocked()
+	return nil
+}
+
+// ConversionFolderWarning is what the owner should be told about a folder they chose for
+// conversions, or "": inside a library, scans see the files being converted come and go.
+// It is a warning. The choice is theirs.
+func (e *Engine) ConversionFolderWarning(folder string) string {
+	if folder == "" {
+		return ""
+	}
+	for _, library := range e.folders() {
+		if relative, err := filepath.Rel(library, folder); err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(os.PathSeparator)) {
+			return "The conversion folder " + folder + " is inside the library folder " + library +
+				". Scans will see files being converted there. A folder outside your libraries is better."
+		}
+	}
+	return ""
+}
+
+// isFFmpeg asks a program its version, which takes a moment, and refuses one that does
+// not answer as ffmpeg (ffprobe picked by mistake, some other program).
+func isFFmpeg(ctx context.Context, program string) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, program, "-version").Output()
+	if err != nil {
+		return fmt.Errorf("it did not answer -version: %w", err)
+	}
+	if !strings.HasPrefix(string(out), "ffmpeg version ") {
+		return errors.New("it does not say it is ffmpeg")
+	}
 	return nil
 }
 
@@ -239,35 +308,56 @@ func (t *toolset) wait(ctx context.Context) (converter, fragmented bool, err err
 	}
 }
 
-// ask asks an ffmpeg what it can do. That takes several seconds, so it happens beside the
-// caller: the server serves at once, and only a play that arrives in those seconds waits.
-func (e *Engine) ask(ffmpeg string) *toolset {
+// answer asks an ffmpeg what it can do and waits for the answer. Nothing is put in force.
+// A server with no ffmpeg at all gets a toolset that converts nothing, and no error.
+func (e *Engine) answer(ctx context.Context, ffmpeg, ffprobe string) (*toolset, decoder.ToolchainFacts, error) {
 	t := &toolset{asked: make(chan struct{})}
+	close(t.asked)
 	if ffmpeg == "" {
 		ffmpeg = mediatools.Resolve("ffmpeg")
 	}
+	path, err := exec.LookPath(ffmpeg)
+	if err != nil {
+		return t, decoder.ToolchainFacts{}, nil
+	}
+	facts, err := decoder.ProbeToolchainKept(ctx, ffmpeg, e.kept)
+	if err != nil {
+		return t, facts, err
+	}
+	t.converter, t.fragmented = true, facts.Muxers["mp4"] && facts.Muxers["hls"]
+	t.ffmpeg, t.hardware = path, &decoder.HardwareDetector{}
+	if libraries, err := decoder.ResolveLibraries(path, ffprobe, nil); err == nil {
+		t.hardware.Libraries = libraries
+	}
+	return t, facts, nil
+}
+
+// ask asks the ffmpeg the server starts with what it can do. That takes several seconds,
+// so it happens beside the start: the server serves at once, and only a play that arrives
+// in those seconds waits.
+func (e *Engine) ask(ffmpeg string) *toolset {
+	t := &toolset{asked: make(chan struct{})}
 	go func() {
 		defer close(t.asked)
-		path, err := exec.LookPath(ffmpeg)
-		if err != nil {
-			return
-		}
-		tools, err := decoder.ProbeToolchainKept(e.ctx, ffmpeg, e.kept)
+		answered, facts, err := e.answer(e.ctx, ffmpeg, mediatools.Resolve("ffprobe"))
 		if err != nil {
 			if e.ctx.Err() == nil {
 				e.log.Error("ffmpeg could not be asked what it can do, so only original files will play", "error", err)
 			}
 			return
 		}
-		decoder.ConfigureToolchain(tools)
-		t.converter, t.fragmented = true, tools.Muxers["mp4"] && tools.Muxers["hls"]
+		// A switch made meanwhile has put another program in force: this answer is not
+		// made the server's.
+		e.switching.Lock()
+		defer e.switching.Unlock()
+		t.converter, t.fragmented, t.ffmpeg, t.hardware = answered.converter, answered.fragmented, answered.ffmpeg, answered.hardware
+		if e.tools() != t || !answered.converter {
+			return
+		}
+		decoder.ConfigureToolchain(facts)
 		// The hardware encoders are tried out now, beside the start, so no play waits for
 		// that: until it is done a conversion is planned in software.
-		t.ffmpeg, t.hardware = path, &decoder.HardwareDetector{}
-		if libraries, err := decoder.ResolveLibraries(path, mediatools.Resolve("ffprobe"), nil); err == nil {
-			t.hardware.Libraries = libraries
-		}
-		t.hardware.SelectCached(path, "auto", "")
+		t.hardware.SelectCached(t.ffmpeg, "auto", "")
 	}()
 	return t
 }
