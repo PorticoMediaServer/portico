@@ -32,6 +32,9 @@ type SlowDown struct {
 	Until    time.Time
 }
 
+// ProviderOutage says the failure is the provider's own, not about the request: a pause is.
+func (e *SlowDown) ProviderOutage() bool { return true }
+
 func (e *SlowDown) Error() string {
 	return fmt.Sprintf("%s asked for a pause until %s", e.Provider, e.Until.Format(time.TimeOnly))
 }
@@ -45,6 +48,17 @@ type Status struct {
 }
 
 func (e *Status) Error() string { return fmt.Sprintf("%s answered %d", e.Provider, e.Code) }
+
+// ProviderOutage says whether the answer is the provider's own trouble rather than about the
+// request: a 5xx, a request to slow down (429), or a key it refuses (401, 403), which is refused
+// for every request alike. Another 4xx is a refusal of that one request.
+func (e *Status) ProviderOutage() bool {
+	switch e.Code {
+	case http.StatusUnauthorized, http.StatusForbidden, http.StatusTooManyRequests:
+		return true
+	}
+	return e.Code >= 500
+}
 
 // ErrLiveCallInTest refuses a request a test makes to anything but this machine. The rule:
 // tests never reach a live provider; they use a stand-in on 127.0.0.1, such as tmdbtest. It
