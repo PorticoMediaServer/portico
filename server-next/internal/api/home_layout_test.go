@@ -41,6 +41,16 @@ func TestHomeFollowsTheSavedLayout(t *testing.T) {
 	if got := rows(token); !slices.Equal(got, []string{"continue"}) {
 		t.Fatalf("Home after hiding both rows: %v", got)
 	}
+	// The Customize Home editor asks for the hidden rows too, by name, in their place, without
+	// items; the always-on row it could not hide is sent as usual.
+	editor := get[Home](t, s, token, "/v1/home?hidden=include").Rows
+	if len(editor) != 2 || editor[0].ID != "recently_added" || !editor[0].Hidden || editor[0].Title != "Recently Added" ||
+		len(editor[0].Items) != 0 || editor[1].ID != "continue" || editor[1].Hidden || len(editor[1].Items) == 0 {
+		t.Fatalf("Home for the editor: %+v", editor)
+	}
+	if code := status(t, s, "GET", "/v1/home?hidden=yes", token, nil); code != 400 {
+		t.Fatalf("an unknown hidden value answered %d", code)
+	}
 	if got := rows(limited); !slices.Equal(got, usual) {
 		t.Fatalf("another profile's Home changed: %v", got)
 	}

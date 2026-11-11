@@ -330,6 +330,9 @@ type HomeRow struct {
 	Title string `json:"title"`
 	Shape string `json:"shape"`
 	Items []Item `json:"items"`
+	// Hidden is true only on GET /v1/home?hidden=include, for a row the profile hid: it is sent
+	// with its title and no items, so Customize Home can offer to show it again.
+	Hidden bool `json:"hidden,omitempty"`
 }
 
 // StateRequest is the body of PUT /v1/items/{id}/state. Only the fields sent change.
