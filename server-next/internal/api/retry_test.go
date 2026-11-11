@@ -143,7 +143,7 @@ func createdID(answer map[string]any) string {
 			return id
 		}
 	}
-	for _, inner := range []string{"key", "queue", "session", "list"} {
+	for _, inner := range []string{"key", "queue", "session", "list", "webhook"} {
 		if m, ok := answer[inner].(map[string]any); ok {
 			return createdID(m)
 		}
