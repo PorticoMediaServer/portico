@@ -111,6 +111,9 @@ type Request struct {
 	Play   *Play
 	// Moving is the asking device's own session that stops once the device plays.
 	Moving string
+	// Started is the session the device started under this request. If the move does not end
+	// playing, it is stopped, so the account is left as it was.
+	Started string
 	// Playing is the device's session once it reports playing.
 	Playing   string
 	CreatedAt time.Time
@@ -139,6 +142,33 @@ type Service struct {
 	mu        sync.Mutex
 	receivers map[int64]*receiver // by sign-in
 	requests  map[string]*Request
+	// undo are sessions started under moves that failed, to be stopped once the lock is let go.
+	undo   []Undo
+	onUndo func(Undo)
+}
+
+// Undo is a session a device started under a move that did not end playing.
+type Undo struct {
+	UserID    int64
+	SignInID  int64
+	SessionID string
+}
+
+// OnUndo sets the function that stops a session started under a move that failed, was
+// declined, cancelled or ran out of time. It is called without the service's lock held. Call
+// it before the server starts serving.
+func (s *Service) OnUndo(fn func(Undo)) { s.onUndo = fn }
+
+// unlock lets the lock go, then stops what failed moves had started.
+func (s *Service) unlock() {
+	undo := s.undo
+	s.undo = nil
+	s.mu.Unlock()
+	for _, u := range undo {
+		if s.onUndo != nil {
+			s.onUndo(u)
+		}
+	}
 }
 
 // New returns the service. now is the server's clock.
@@ -154,7 +184,7 @@ func (s *Service) tell(userID int64, op, id string) {
 // for Present. Another sign-in of the same device and account gives way to this one.
 func (s *Service) Open(d Device) Receiver {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	defer s.unlock()
 	s.sweepLocked()
 	r := s.receivers[d.SignInID]
 	if r == nil {
@@ -175,7 +205,7 @@ func (s *Service) Open(d Device) Receiver {
 // forgotten and what was being asked of it fails.
 func (s *Service) Close(signInID int64) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	defer s.unlock()
 	s.closeLocked(signInID)
 }
 
@@ -202,7 +232,7 @@ func (r *receiver) copy() Receiver {
 // List returns the account's devices that accept playback, in the order they opened.
 func (s *Service) List(userID int64) []Receiver {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	defer s.unlock()
 	s.sweepLocked()
 	var out []Receiver
 	for _, r := range s.receivers {
@@ -228,7 +258,7 @@ func (s *Service) find(userID int64, publicID string) *receiver {
 // A device that is not open to playback lets nobody.
 func (s *Service) Allows(receiverSignIn, controllerSignIn int64) bool {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	defer s.unlock()
 	s.sweepLocked()
 	r := s.receivers[receiverSignIn]
 	return r != nil && slices.Contains(r.Allowed, controllerSignIn)
@@ -239,7 +269,7 @@ func (s *Service) Allows(receiverSignIn, controllerSignIn int64) bool {
 // return the same request; created says this call made it.
 func (s *Service) Ask(from Device, to string, kind string, play *Play, moving, key, hash string) (req Request, created bool, err error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	defer s.unlock()
 	s.sweepLocked()
 	if key != "" {
 		for _, other := range s.requests {
@@ -264,6 +294,15 @@ func (s *Service) Ask(from Device, to string, kind string, play *Play, moving, k
 	if held >= perReceiver {
 		return Request{}, false, ErrBusy
 	}
+	if moving != "" {
+		// One move at a time from one session: an earlier one still open gives way, and what
+		// it started stops.
+		for _, other := range s.requests {
+			if other.From.UserID == from.UserID && other.Moving == moving && other.Open() {
+				s.finishLocked(other, StateCancelled, "")
+			}
+		}
+	}
 	now := s.now()
 	out := &Request{ID: db.NewID("rcq"), Kind: kind, From: from, To: r.Device, State: StateAsking, Play: play, Moving: moving,
 		CreatedAt: now, UpdatedAt: now, key: key, hash: hash}
@@ -276,22 +315,63 @@ func (s *Service) Ask(from Device, to string, kind string, play *Play, moving, k
 	return *out, true, nil
 }
 
-// Get returns one of the account's requests.
-func (s *Service) Get(userID int64, id string) (Request, error) {
+// Get returns a request to the device that made it or the device it asks. Nobody else, not
+// even another profile of the account, reads it: it names a title and a queue.
+func (s *Service) Get(signInID int64, id string) (Request, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	defer s.unlock()
 	s.sweepLocked()
 	req := s.requests[id]
-	if req == nil || req.From.UserID != userID {
+	if req == nil || req.From.SignInID != signInID && req.To.SignInID != signInID {
 		return Request{}, db.ErrNotFound
 	}
 	return *req, nil
 }
 
+// Find returns one of the account's open devices.
+func (s *Service) Find(userID int64, publicID string) (Receiver, bool) {
+	s.mu.Lock()
+	defer s.unlock()
+	s.sweepLocked()
+	r := s.find(userID, publicID)
+	if r == nil {
+		return Receiver{}, false
+	}
+	return r.copy(), true
+}
+
+// Started records the session the asked device started for an open move. It is false when
+// the move is no longer open: the caller then stops the session itself.
+func (s *Service) Started(signInID int64, id, session string) bool {
+	s.mu.Lock()
+	defer s.unlock()
+	s.sweepLocked()
+	req := s.requests[id]
+	if req == nil || req.To.SignInID != signInID || req.Kind != KindPlay || !req.Open() {
+		return false
+	}
+	req.Started = session
+	return true
+}
+
+// QueueOffered reports whether an open move to this device names the queue, which it may
+// then copy.
+func (s *Service) QueueOffered(signInID int64, queueID string) bool {
+	s.mu.Lock()
+	defer s.unlock()
+	s.sweepLocked()
+	for _, req := range s.requests {
+		if req.To.SignInID == signInID && req.Open() && req.Play != nil && req.Play.QueueID == queueID {
+			return true
+		}
+	}
+	return false
+}
+
 // Pending lists what is being asked of a device now, oldest first.
 func (s *Service) Pending(signInID int64) []Request {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	defer s.unlock()
 	s.sweepLocked()
 	var out []Request
 	for _, req := range s.requests {
@@ -307,7 +387,7 @@ func (s *Service) Pending(signInID int64) []Request {
 // changes nothing.
 func (s *Service) Cancel(signInID int64, id string) (Request, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	defer s.unlock()
 	s.sweepLocked()
 	req := s.requests[id]
 	if req == nil || req.From.SignInID != signInID {
@@ -325,7 +405,7 @@ func (s *Service) Cancel(signInID int64, id string) (Request, error) {
 // request allows it too.
 func (s *Service) Answer(signInID int64, id, answer, session string) (Request, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	defer s.unlock()
 	s.sweepLocked()
 	req := s.requests[id]
 	r := s.receivers[signInID]
@@ -367,6 +447,9 @@ func (s *Service) Answer(signInID int64, id, answer, session string) (Request, e
 
 func (s *Service) finishLocked(req *Request, state, failed string) {
 	req.State, req.Failed, req.UpdatedAt = state, failed, s.now()
+	if req.Kind == KindPlay && state != StatePlaying && req.Started != "" {
+		s.undo = append(s.undo, Undo{UserID: req.To.UserID, SignInID: req.To.SignInID, SessionID: req.Started})
+	}
 	s.tell(req.From.UserID, livefeed.OpUpdated, req.ID)
 }
 
@@ -393,6 +476,6 @@ func (s *Service) sweepLocked() {
 // device even when nobody asks. The server calls it every few seconds.
 func (s *Service) Sweep() {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	defer s.unlock()
 	s.sweepLocked()
 }
