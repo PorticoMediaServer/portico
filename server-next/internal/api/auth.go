@@ -151,7 +151,8 @@ func (s *Server) authRoutes() {
 }
 
 // session mints the tokens that say what st says. issued is when they count from.
-func (s *Server) session(st db.SessionState, issued time.Time, refreshToken string) Session {
+// claimsOf is what a token for a session says, from what the database says of it now.
+func claimsOf(st db.SessionState) auth.Claims {
 	// Before a profile is selected the session can only choose one. Only the main profile
 	// carries the account's role and may manage the account; any other profile is a member,
 	// whoever owns the account. So is a TV that was approved from one of those profiles.
@@ -162,9 +163,28 @@ func (s *Server) session(st db.SessionState, issued time.Time, refreshToken stri
 			role, manage = st.UserRole, true
 		}
 	}
-	access, expires := s.tokens.Access(auth.Claims{SessionID: st.ID, UserID: st.UserID, ProfileID: st.ProfileID, Role: role, Manage: manage,
-		Boot: st.Stamp.Boot, Seq: st.Stamp.Seq},
-		issued, st.ExpiresAt)
+	return auth.Claims{SessionID: st.ID, UserID: st.UserID, ProfileID: st.ProfileID, Role: role, Manage: manage,
+		Boot: st.Stamp.Boot, Seq: st.Stamp.Seq}
+}
+
+// stillTrue reports whether a token minted before the server last started says what the
+// database says now: its sign-in has not ended, and its account, profile and role are the
+// same. Such a token is as good as one renewed this moment, so a restart signs nobody out
+// and makes no app renew. It costs one read for each request until the token runs out, a
+// quarter of an hour after the restart at most.
+func (s *Server) stillTrue(ctx context.Context, claims auth.Claims) bool {
+	st, err := s.db.SessionState(ctx, claims.SessionID, s.now())
+	if err != nil {
+		return false
+	}
+	now := claimsOf(st)
+	return now.UserID == claims.UserID && now.ProfileID == claims.ProfileID && now.Role == claims.Role && now.Manage == claims.Manage
+}
+
+func (s *Server) session(st db.SessionState, issued time.Time, refreshToken string) Session {
+	claims := claimsOf(st)
+	role := claims.Role
+	access, expires := s.tokens.Access(claims, issued, st.ExpiresAt)
 	return Session{
 		AccessToken: access, ExpiresAt: expires.UTC(), RefreshToken: refreshToken,
 		SessionID: st.PublicID, TokenGeneration: strconv.FormatInt(st.Generation, 10), SessionExpiresAt: st.ExpiresAt.UTC(),
