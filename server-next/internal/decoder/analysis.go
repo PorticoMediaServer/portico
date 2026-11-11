@@ -127,7 +127,7 @@ func AnalysisArgs(input string, s AnalysisSpec) ([]string, error) {
 		if s.Width != 0 || s.Height != 0 || s.IntervalUS != 1000000 || s.MaxFrames < 1 || s.MaxFrames > 65536 {
 			return nil, ErrInvalidConfiguration
 		}
-		filter := "fps=1:start_time=0,scale=256:144:force_original_aspect_ratio=decrease:reset_sar=1,pad=256:144:(ow-iw)/2:(oh-ih)/2,setsar=1" + tone + ",format=gray"
+		filter := "fps=1:start_time=0,scale=iw*sar:ih,scale=256:144:force_original_aspect_ratio=decrease,pad=256:144:(ow-iw)/2:(oh-ih)/2,setsar=1" + tone + ",format=gray"
 		args = append(args, "-map", "0:v:0", "-an", "-sn", "-dn", "-vf", filter, "-frames:v", fmt.Sprint(s.MaxFrames), "-pix_fmt", "gray", "-f", "rawvideo", "pipe:1")
 	case "loudness_full":
 		// Native rate/layout, double precision; no stereo quantization before measurement.
@@ -195,7 +195,7 @@ func AnalysisArgs(input string, s AnalysisSpec) ([]string, error) {
 			"-sn",
 			"-dn",
 			"-vf",
-			"scale=320:180:force_original_aspect_ratio=decrease:reset_sar=1,pad=320:180:(ow-iw)/2:(oh-ih)/2,setsar=1"+tone,
+			"scale=iw*sar:ih,scale=320:180:force_original_aspect_ratio=decrease,pad=320:180:(ow-iw)/2:(oh-ih)/2,setsar=1"+tone,
 			"-frames:v",
 			"1",
 			"-c:v",
@@ -225,7 +225,7 @@ func AnalysisArgs(input string, s AnalysisSpec) ([]string, error) {
 			scale, pixel = "32:18", "gray"
 		}
 		filter := fmt.Sprintf(
-			"fps=1000000/%d:start_time=0,scale=%s:force_original_aspect_ratio=decrease:reset_sar=1,pad=%s:(ow-iw)/2:(oh-ih)/2,setsar=1%s,format=%s",
+			"fps=1000000/%d:start_time=0,scale=iw*sar:ih,scale=%s:force_original_aspect_ratio=decrease,pad=%s:(ow-iw)/2:(oh-ih)/2,setsar=1%s,format=%s",
 			s.IntervalUS,
 			scale,
 			scale,
