@@ -49,6 +49,9 @@ func (s *SlowDown) Error() string { return "the remote source asked to be given 
 type Limits struct {
 	Connections int     `json:"connections"` // requests in flight at once
 	PerSecond   float64 `json:"perSecond"`   // requests started a second
+	// DownloadBytesPerSecond caps how fast everything read from the source arrives, scans
+	// and playback together; 0 is no limit, which every preset starts with.
+	DownloadBytesPerSecond int64 `json:"downloadBytesPerSecond,omitempty"`
 }
 
 // Preset is one of the four plain choices a source is given: how often it is scanned by
@@ -62,10 +65,10 @@ type Preset struct {
 
 // The presets, by the name stored with the source. "read-once" is the default.
 var Presets = []Preset{
-	{"list-only", 24 * time.Hour, Limits{2, 2}},
-	{"read-once", 6 * time.Hour, Limits{4, 4}},
-	{"everything", time.Hour, Limits{8, 10}},
-	{"on-request", 0, Limits{2, 2}},
+	{"list-only", 24 * time.Hour, Limits{2, 2, 0}},
+	{"read-once", 6 * time.Hour, Limits{4, 4, 0}},
+	{"everything", time.Hour, Limits{8, 10, 0}},
+	{"on-request", 0, Limits{2, 2, 0}},
 }
 
 // Due reports whether a source scanned by itself every so often is due again. A local disk
@@ -81,11 +84,13 @@ func Due(lastScan time.Time, every time.Duration, now time.Time) bool {
 type Throttle struct {
 	slots chan struct{}
 	every time.Duration
+	bytes int64 // bytes a second, or 0 for no limit
 
-	mu      sync.Mutex
-	next    time.Time     // when the next request may start
-	backoff time.Duration // the wait used the last time the provider named none
-	until   time.Time     // the provider asked for a rest until then
+	mu        sync.Mutex
+	bytesNext time.Time     // when what was read so far is paid for at the download limit
+	next      time.Time     // when the next request may start
+	backoff   time.Duration // the wait used the last time the provider named none
+	until     time.Time     // the provider asked for a rest until then
 }
 
 // NewThrottle makes a throttle. Limits of zero or less become one connection and one request
@@ -97,7 +102,31 @@ func NewThrottle(l Limits) *Throttle {
 	if l.PerSecond <= 0 {
 		l.PerSecond = 1
 	}
-	return &Throttle{slots: make(chan struct{}, l.Connections), every: time.Duration(float64(time.Second) / l.PerSecond)}
+	return &Throttle{slots: make(chan struct{}, l.Connections), every: time.Duration(float64(time.Second) / l.PerSecond), bytes: max(l.DownloadBytesPerSecond, 0)}
+}
+
+// pace holds back the reader of n bytes just read until they fit the download limit, shared
+// by everything reading the source.
+func (t *Throttle) pace(ctx context.Context, n int) error {
+	if t.bytes == 0 || n <= 0 {
+		return nil
+	}
+	t.mu.Lock()
+	now := time.Now()
+	if t.bytesNext.Before(now) {
+		t.bytesNext = now
+	}
+	t.bytesNext = t.bytesNext.Add(time.Duration(float64(n) * float64(time.Second) / float64(t.bytes)))
+	wait := t.bytesNext.Sub(now)
+	t.mu.Unlock()
+	timer := time.NewTimer(wait)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // Waiting reports whether the provider asked for a rest that is not over, and until when:
@@ -289,13 +318,31 @@ type throttledFile struct {
 	ctx context.Context
 }
 
-// Stream starts within the source's limits; what it sends after that is not counted again.
+// Stream starts within the source's limits; what it sends after that is not counted again as
+// a request, and arrives within the download limit.
 func (f throttledFile) Stream(off int64) (body io.ReadCloser, err error) {
 	err = f.t.Do(f.ctx, func() error {
 		body, err = StreamFrom(f.File, off)
 		return err
 	})
-	return body, err
+	if err != nil {
+		return nil, err
+	}
+	return pacedBody{body, f.t, f.ctx}, nil
+}
+
+type pacedBody struct {
+	io.ReadCloser
+	t   *Throttle
+	ctx context.Context
+}
+
+func (b pacedBody) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	if paced := b.t.pace(b.ctx, n); err == nil {
+		err = paced
+	}
+	return n, err
 }
 
 func (f throttledFile) ReadAt(p []byte, off int64) (n int, err error) {
@@ -303,5 +350,8 @@ func (f throttledFile) ReadAt(p []byte, off int64) (n int, err error) {
 		n, err = f.File.ReadAt(p, off)
 		return err
 	})
+	if paced := f.t.pace(f.ctx, n); err == nil {
+		err = paced
+	}
 	return n, err
 }
