@@ -335,7 +335,7 @@ func (s *Server) remoteChange(r *http.Request, id string, req PlaybackChange) (P
 		return PlaybackSession{}, refusal(http.StatusForbidden, "control_not_allowed",
 			"That device hasn't allowed this one to control it. Ask it from Play on.", false)
 	case req.VersionID != "" || req.Quality != nil || req.SubtitleOffsetMs != nil || req.PositionMs != nil || req.Replan ||
-		req.Failure != nil || req.ThroughputKbps != 0:
+		req.Failure != nil:
 		return PlaybackSession{}, ErrInvalid("Only play, pause, seek, skip, audio and subtitles can be changed from another device.")
 	}
 	from, err := s.db.SessionDevice(r.Context(), c.SessionID)

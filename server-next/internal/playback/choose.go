@@ -137,24 +137,21 @@ type Ask struct {
 	SubtitleOffsetMs *int64
 	Quality          *Quality
 	Network          string
-	ThroughputKbps   int
 	// MaxKbps, when above 0, is a ceiling no quality goes above: a Library Channel's Limited
 	// bitrate. It applies to the quality in force however it was chosen.
 	MaxKbps int
 }
 
 // ceiling holds a quality at or below maxKbps. The original, or a fixed entry, becomes a limit
-// at the cap; a higher limit comes down to it; Automatic stays automatic, told the connection
-// is no faster than the cap.
-func ceiling(q Quality, throughput, maxKbps int) (Quality, int) {
+// at the cap; a higher limit comes down to it. Automatic stays as it is: it used to be told the
+// connection was no faster than the cap, but the planner never read that hint, so it was never
+// held to the cap either, and the hint is gone.
+func ceiling(q Quality, maxKbps int) Quality {
 	if maxKbps <= 0 {
-		return q, throughput
+		return q
 	}
 	switch q.Mode {
 	case QualityAutomatic:
-		if throughput == 0 || throughput > maxKbps {
-			throughput = maxKbps
-		}
 	case QualityLimit:
 		if q.MaxVideoBitrateKbps == 0 || q.MaxVideoBitrateKbps > maxKbps {
 			q.MaxVideoBitrateKbps = maxKbps
@@ -162,7 +159,7 @@ func ceiling(q Quality, throughput, maxKbps int) (Quality, int) {
 	default:
 		q = Quality{Mode: QualityLimit, MaxVideoBitrateKbps: maxKbps}
 	}
-	return q, throughput
+	return q
 }
 
 // Who is asking, and from where.
@@ -416,10 +413,9 @@ func (s *Service) resolve(ctx context.Context, c Caller, device db.SessionDevice
 			a.err = err
 			return a
 		}
-		throughput := ask.ThroughputKbps
-		a.choice.Quality, throughput = ceiling(a.choice.Quality, throughput, ask.MaxKbps)
+		a.choice.Quality = ceiling(a.choice.Quality, ask.MaxKbps)
 		request := PlanRequest{Item: item, Version: version, Capabilities: capabilities, Choice: a.choice, Network: out.network,
-			ThroughputKbps: throughput, Failures: failures, Preferences: prefs, Limits: limits}
+			Failures: failures, Preferences: prefs, Limits: limits}
 		a.plan, a.err = s.planner.Plan(request)
 		if a.err == nil && current == nil && (ask.Audio != nil || ask.Subtitle != nil) {
 			// Was the request's track a pick, or just what the server would have played anyway?
