@@ -1,6 +1,7 @@
 package api
 
 import (
+	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"strconv"
 	"strings"
 	"testing"
@@ -116,4 +117,116 @@ func TestProfileOrderCapAndDeletionPreview(t *testing.T) {
 	if left := get[Page[Profile]](t, s, owner.AccessToken, "/v1/profiles"); len(left.Items) != 3 {
 		t.Errorf("asking what a deletion removes deleted something: %d profiles left", len(left.Items))
 	}
+}
+
+// The owner holds a member's whole account to a rating limit and a blocked label. The member
+// is shown less on every profile, cannot lift it from their own main profile, sees that the
+// account is the stricter one, and a narrower limit of their own still applies on top.
+func TestOwnerHoldsAMembersAccountToLimits(t *testing.T) {
+	s, _, _ := seeded(t)
+	owner := onMain(t, s, signIn(t, s, 1))
+	max := addMember(t, s, owner.AccessToken, "max", "member")
+	in := SignInResponse{}
+	if w := call(t, s, "POST", "/v1/auth/sign-in", "", SignInRequest{Username: "max", Password: testPassword, Device: device(2)}, &in); w.Code != 200 {
+		t.Fatalf("the member could not sign in: %d", w.Code)
+	}
+	member, refresh, renewals := onMain(t, s, in), in.Session.RefreshToken, 0
+	renewed := func() {
+		t.Helper()
+		renewals++
+		code, next := renew(t, s, refresh, 2, "limits-"+strconv.Itoa(renewals))
+		if code != 200 {
+			t.Fatalf("the member's app renewing after a change of limits answered %d", code)
+		}
+		member, refresh = next, next.RefreshToken
+	}
+	films := get[Libraries](t, s, owner.AccessToken, "/v1/libraries").Items[0].ID
+	count := func() int {
+		t.Helper()
+		return *get[ItemPage](t, s, member.AccessToken, "/v1/items?library="+films+"&kind=movie&limit=1&total=true").Total
+	}
+	all := count()
+	limits := "/v1/admin/members/" + max.ID + "/limits"
+	age := 13
+	var saved MemberLimits
+	if w := call(t, s, "PUT", limits, owner.AccessToken, MemberLimits{MaxRatingAge: &age, AllowUnrated: true}, &saved); w.Code != 200 || saved.MaxRatingAge == nil || !saved.AllowUnrated {
+		t.Fatalf("holding the account to a limit answered %d %+v", w.Code, saved)
+	}
+	if code := status(t, s, "GET", "/v1/libraries", member.AccessToken, nil); code != 401 {
+		t.Errorf("the member's token from before the limit answered %d, want 401", code)
+	}
+	renewed()
+	held := count()
+	if held == 0 || held >= all {
+		t.Fatalf("under the owner's limit the member is shown %d films of %d", held, all)
+	}
+
+	// The member lifts everything they can on their own main profile: nothing changes.
+	own := "/v1/profiles/" + in.Profiles[0].ID + "/restrictions"
+	var seen Restrictions
+	if w := call(t, s, "PUT", own, member.AccessToken, Restrictions{AllLibraries: true}, &seen); w.Code != 200 || seen.MaxRatingAge != nil ||
+		seen.AccountMaxRatingAge == nil || *seen.AccountMaxRatingAge != 13 || !seen.AccountAllowUnrated {
+		t.Fatalf("the member's own limits read back as %d %+v", w.Code, seen)
+	}
+	renewed()
+	if still := count(); still != held {
+		t.Errorf("after the member lifted their own limits they are shown %d films, want the owner's %d", still, held)
+	}
+	// A narrower limit of the member's own applies on top: no unrated titles.
+	if code := status(t, s, "PUT", own, member.AccessToken, Restrictions{MaxRatingAge: &age, AllLibraries: true}); code != 200 {
+		t.Fatalf("the member narrowing their own profile answered %d", code)
+	}
+	renewed()
+	if narrower := count(); narrower >= held {
+		t.Errorf("with the member's own stricter limit they are shown %d films, want fewer than %d", narrower, held)
+	}
+
+	for name, c := range map[string]struct {
+		token, method, path string
+		body                any
+		want                int
+	}{
+		"the member reads the owner's limits": {member.AccessToken, "GET", limits, nil, 403},
+		"the member lifts the owner's limits": {member.AccessToken, "PUT", limits, MemberLimits{}, 403},
+		"a limit out of range":                {owner.AccessToken, "PUT", limits, map[string]any{"maxRatingAge": 40}, 400},
+		"a label that does not exist":         {owner.AccessToken, "PUT", limits, MemberLimits{BlockedLabels: []string{"tag_nothing"}}, 400},
+		"a person who does not exist":         {owner.AccessToken, "GET", "/v1/admin/members/usr_nobody/limits", nil, 404},
+		"the owner holding their own account": {owner.AccessToken, "PUT", "/v1/admin/members/" + ownerID(t, s, owner.AccessToken) + "/limits", MemberLimits{}, 403},
+	} {
+		if code := status(t, s, c.method, c.path, c.token, c.body); code != c.want {
+			t.Errorf("%s: answered %d, want %d", name, code, c.want)
+		}
+	}
+	// A label the owner blocks for the account hides its titles from the member too.
+	labels, err := s.db.Tags(t.Context(), db.TagLabel)
+	if err != nil || len(labels) == 0 {
+		t.Fatalf("the seeded library has no labels: %v", err)
+	}
+	if code := status(t, s, "PUT", limits, owner.AccessToken, MemberLimits{BlockedLabels: []string{labels[0].PublicID}}); code != 200 {
+		t.Fatalf("blocking a label for the account answered %d", code)
+	}
+	renewed()
+	if code := status(t, s, "PUT", own, member.AccessToken, Restrictions{AllLibraries: true}); code != 200 {
+		t.Fatalf("the member lifting their own limit answered %d", code)
+	}
+	renewed()
+	if hidden := count(); hidden == 0 || hidden >= all {
+		t.Errorf("with a label blocked for the account the member is shown %d films of %d", hidden, all)
+	}
+	if code := status(t, s, "PUT", limits, owner.AccessToken, MemberLimits{}); code != 200 {
+		t.Fatalf("lifting the owner's limits answered %d", code)
+	}
+	renewed()
+	if code := status(t, s, "PUT", own, member.AccessToken, Restrictions{AllLibraries: true}); code != 200 {
+		t.Fatalf("the member lifting their own limit answered %d", code)
+	}
+	renewed()
+	if back := count(); back != all {
+		t.Errorf("with every limit lifted the member is shown %d films of %d", back, all)
+	}
+}
+
+func ownerID(t *testing.T, s *Server, token string) string {
+	t.Helper()
+	return get[Me](t, s, token, "/v1/me").Account.ID
 }
