@@ -7,7 +7,7 @@ import {captureReportContext} from '../../packages/client-core/src/report-contex
 import {METRIC_NAMES} from '../../packages/client-core/src/telemetry.ts';
 const context = captureReportContext('UTC', Date.UTC(2026, 9, 22, 12, 17, 31));
 const interval = (period = 'all') => ({period, ...context, from: context.until, buckets: []});
-const emptyHistory = () => ({...interval(), entries: [], total: 0, nextCursor: ''});
+const emptyHistory = () => ({...interval(), entries: [], items: [], total: 0, nextCursor: ''});
 function report() {
   const bounds = interval();
   return {context, history: {...bounds, topKind: 'movies', top: [], busiestTimes: Array.from({length: 7}, () => Array(24).fill(0)), quietestStartHour: null}, people: {...bounds, items: [], nextCursor: ''}, summary: {...bounds, plays: 0, people: 0, watchedMs: 0, converted: 0, mostPlayed: [], mostActive: []}, topPlayed: {...bounds, topKind: 'movies', items: []}, table: emptyHistory(), load: {...bounds, window: 'all', observedAt: Date.parse(context.until), series: Object.fromEntries(METRIC_NAMES.map(k => [k, []])), status: Object.fromEntries(METRIC_NAMES.map(k => [k, {status: 'unavailable', value: 0}]))}};
@@ -44,10 +44,10 @@ test('Now playing reads every stream at once from the rebuilt server, in the car
   const broken = createDashboardBindings(options({api: {...options().api, request: async () => ({items: [{id: 'a'}]}) as never}}));
   await assert.rejects(broken.read.sessions(), /invalid_now_playing/); broken.dispose();
 });
-test('an administrator reads streams only; a secondary profile and a member dispatch nothing', async () => {
+test('an administrator reads streams and Play history only; a secondary profile and a member dispatch nothing', async () => {
   for (const change of [{role: 'member' as const}, {isMainProfile: () => false}]) {let calls = 0; const b = createDashboardBindings(options({...change, api: {request: async () => {calls++; return {} as never;}, requestRaw: async () => {calls++; return {} as never;}}})); await assert.rejects(async () => b.read.sessions()); await assert.rejects(async () => b.read.status()); assert.equal(calls, 0); b.dispose();}
-  const b = createDashboardBindings(options({role: 'admin'})); assert.equal((await b.read.sessions()).totals.streams, 0);
-  for (const read of [() => b.read.status(), () => b.read.people({period: 'all'}), () => b.read.report(reportQuery), () => b.read.telemetry('live'), () => b.read.plays({period: 'all'}), () => b.effects.openHistory()]) await assert.rejects(async () => read()); b.dispose();
+  const b = createDashboardBindings(options({role: 'admin'})); assert.equal((await b.read.sessions()).totals.streams, 0); assert.deepEqual((await b.read.plays({period: 'all'})).entries, []);
+  for (const read of [() => b.read.status(), () => b.read.people({period: 'all'}), () => b.read.report(reportQuery), () => b.read.telemetry('live'), () => b.effects.openHistory()]) await assert.rejects(async () => read()); b.dispose();
 });
 test('an administrator may stop a stream (console definition, rule 1); a member and a secondary profile may not', async () => {
   const stops: unknown[] = [];
@@ -71,7 +71,8 @@ test('late private response after authority replacement is rejected and disposed
 });
 test('history passes exact server query and opaque cursor', async () => {
   let path = ''; const c = createDashboardBindings(options({api: {...options().api, request: async request => {path = request; return emptyHistory() as never;}}})); await c.read.plays({period: 'all', media: 'audiobooks', accountId: 'account', sort: 'watched', direction: 'asc'}, 'opaque');
-  const q = new URL(path, 'https://server.invalid').searchParams; assert.equal(q.get('limit'), '100'); assert.equal(q.get('sort'), 'watched'); assert.equal(q.get('cursor'), 'opaque'); assert.equal(q.get('accountId'), 'account'); assert.equal(q.get('media'), 'audiobooks'); assert.equal(q.get('timeZone'), context.timeZone); assert.equal(q.get('until'), context.until); c.dispose();
+  const url = new URL(path, 'https://server.invalid'), q = url.searchParams; assert.equal(url.pathname, '/v1/admin/play-history');
+  assert.equal(q.get('cursor'), 'opaque'); assert.equal(q.get('person'), 'account'); assert.equal(q.get('kind'), 'audiobook'); assert.equal(q.get('sort'), null); c.dispose();
 });
 test('terminal private-read refusal synchronously retires every mounted consumer', async () => {
   let changed = 0;
@@ -113,18 +114,19 @@ test('one checked report dispatch supplies all aggregate panels and cannot overr
   assert.equal(url.searchParams.get('timeZone'), context.timeZone); assert.equal(url.searchParams.get('until'), context.until); assert.equal(out.context.until, context.until);
   assert.equal(out.history.until, out.people.until); assert.equal(out.history.until, out.load.until); assert.equal(out.history.until, out.table.until); b.dispose();
 });
-test('Today stays distinct from24h and See full history carries the captured context', async () => {
+test('Today starts at midnight and See full history carries the captured context', async () => {
   const paths: string[] = []; let carried: unknown;
-  const today = {...context, period: 'today', from: '2026-10-22T00:00:00Z', buckets: [{start: '2026-10-22T00:00:00Z', end: context.until, partial: true}], entries: [], total: 0, nextCursor: ''};
+  const today = {items: []};
   const b = createDashboardBindings(options({effects: {...options().effects, openHistory: value => {carried = value;}}, api: {...options().api, request: async path => {paths.push(path); return today as never;}}}));
-  await b.read.plays({period: 'today'}); const url = new URL(paths[0], 'https://server.invalid'); assert.equal(url.searchParams.get('period'), 'today');
+  await b.read.plays({period: 'today'}); const url = new URL(paths[0], 'https://server.invalid'); const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
+  assert.equal(Date.parse(url.searchParams.get('from')!), midnight.getTime());
   b.effects.openHistory(); assert.equal(carried, b.context); assert.deepEqual(carried, context); assert.equal(Object.isFrozen(b.context), true); b.dispose();
 });
-test('fresh same-context history may include late facts; no immutable count is promised', async () => {  let calls = 0;
-  const bounds = {...interval(), from: '2026-10-01T00:00:00Z', buckets: [{start: '2026-10-01T00:00:00Z', end: context.until, partial: true}]};
-  const entry = {id: 'late', user: 'person', accountId: 'actual-account', kind: 'movie', title: 'Late known fact', libraryId: 'library', startedAt: '2026-10-22T11:59:00Z', positionMs: 1000, durationMs: 60000, watchedMs: 1000, completed: false};
-  const b = createDashboardBindings(options({api: {...options().api, request: async () => {calls++; return {...bounds, entries: calls === 1 ? [] : [entry], total: calls === 1 ? 0 : 1, nextCursor: ''} as never;}}}));
-  assert.equal((await b.read.plays({period: 'all'})).total, 0); assert.equal((await b.read.plays({period: 'all'})).total, 1); assert.equal(calls, 2); assert.equal(b.context.until, context.until); b.dispose();
+test('a fresh read of the history shows a play that ended since', async () => {
+  let calls = 0;
+  const play = {playedAt: '2026-10-22T11:59:00Z', username: 'person', accountId: 'actual-account', kind: 'movie', title: 'Late known fact', libraryId: 'library', watchedMs: 1000, away: false};
+  const b = createDashboardBindings(options({api: {...options().api, request: async () => {calls++; return {items: calls === 1 ? [] : [play]} as never;}}}));
+  assert.equal((await b.read.plays({period: 'all'})).entries.length, 0); assert.equal((await b.read.plays({period: 'all'})).entries.length, 1); assert.equal(calls, 2); b.dispose();
 });
 const certificate = () => ({configured: false, authorityId: '', config: {enabled: false, publicPort: 443, publicAddress: '', revision: '0'}, state: 'unconfigured', environment: 'staging', tlsReady: false, publiclyTrusted: false, listenerBound: false, listenPort: 0, reachability: 'probe_required'});
 test('the certificate alert retries through the canonical owner route and refuses after authority loss', async () => {
@@ -183,12 +185,12 @@ test('a Dashboard opened again shows its status, report and first page of plays 
   await again.read.plays({period: 'all'}, 'cursor', undefined, false); assert.equal(c.paths.length, 7, 'and never held');
   c.queries.moved([]); again.dispose();
 });
-test('two Dashboards of one viewer share one read; another range or sort is its own document', async () => {
+test('two Dashboards of one viewer share one read; another range is its own document', async () => {
   const c = cached(); const a = c.open(), b = c.open();
   await Promise.all([a.read.plays({period: 'all'}, undefined, undefined, false), b.read.plays({period: 'all'}, undefined, undefined, false)]);
   assert.equal(c.paths.length, 1);
-  await a.read.plays({period: 'all', sort: 'watched', direction: 'asc'}, undefined, undefined, false); assert.equal(c.paths.length, 2);
-  await a.read.plays({period: '7d'} as never, undefined, undefined, false).catch(() => undefined); assert.equal(c.paths.length, 3);
+  await a.read.plays({period: 'all', sort: 'watched', direction: 'asc'}, undefined, undefined, false); assert.equal(c.paths.length, 1, 'the server has no sort');
+  await a.read.plays({period: '7d'}, undefined, undefined, false); assert.equal(c.paths.length, 2);
   a.dispose(); b.dispose();
 });
 test('the Dashboard that started a shared read closes, and another one waiting on it still gets the status, report and plays', async () => {

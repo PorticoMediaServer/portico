@@ -18,18 +18,10 @@ export async function readNowPlaying(bindings: {read: Pick<DashboardBindings['re
   return {...page, items: [...items.values()]};
 }
 
-/** Every option is an actual account ID. The drawn picker has no extra
- * continuation option; enumerating it does not establish an analytics total. */
-export async function readDashboardAccounts(bindings: {read: Pick<DashboardBindings['read'], 'people'>}, signal: AbortSignal) {
-  const items = new Map<string, Awaited<ReturnType<DashboardBindings['read']['people']>>['items'][number]>(), seen = new Set<string>();
-  let cursor: string | undefined;
-  do {
-    signal.throwIfAborted();
-    if (cursor) {if (seen.has(cursor)) throw new Error('invalid_dashboard_people_cursor'); seen.add(cursor);}
-    const page = await bindings.read.people({period: 'all'}, cursor, signal);
-    signal.throwIfAborted();
-    for (const person of page.items) items.set(person.accountId, person);
-    cursor = page.nextCursor;
-  } while (cursor);
-  return [...items.values()];
+/** Every account, for the person filters. */
+export async function readDashboardAccounts(bindings: {read: Pick<DashboardBindings['read'], 'accounts'>}, signal: AbortSignal) {
+  signal.throwIfAborted();
+  const items = await bindings.read.accounts(signal);
+  signal.throwIfAborted();
+  return items;
 }

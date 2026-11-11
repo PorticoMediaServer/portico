@@ -18,6 +18,10 @@ import type {ViewerQueryOptions} from './query/react.ts';
  */
 export type PlayHistoryEntry = Readonly<{
   watchedMs?:number;location?:string;
+  /** The library's name; on the rebuilt server, absent once the library is removed. */
+  libraryName?: string;
+  /** How it was delivered: original, repackaged or converted, where the server knows. */
+  delivery?: string;
   id: string;
   user: string;
   /** Named only for a profile other than the account's first. */
