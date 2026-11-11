@@ -77,3 +77,16 @@ test('Back up now follows the backup until it is listed; Restart now asks the se
   assert.ok(calls.some(c => c.method === 'POST' && c.path === '/v1/admin/restart?confirm=true'));
   assert.equal(source.getSnapshot().restarting, true);
 });
+
+test('Restart now says how many streams the server has now, on a page that did not stage the restore itself', async () => {
+  const {api, calls} = server(call => {
+    if (call.method === 'GET' && call.path === '/v1/admin/backups') return page({pendingRestore: {backup: 'bkp_1', stagedAt: '2026-11-11T20:00:00Z'}});
+    if (call.method === 'POST' && call.path === '/v1/admin/restart') return {playing: 3, canRestart: true, restarting: false};
+    return reads(call);
+  });
+  const source = new ServerBackupSource(api, () => true, () => {}, 1);
+  await source.load(); // a reload, another tab or another device: this page staged nothing
+  assert.deepEqual(await source.restartAsks(), {playing: 3, canRestart: true});
+  assert.ok(calls.some(c => c.method === 'POST' && c.path === '/v1/admin/restart'), 'the server was asked, without confirm');
+  assert.ok(!calls.some(c => c.path === '/v1/admin/restart?confirm=true'), 'and nothing was restarted by asking');
+});
