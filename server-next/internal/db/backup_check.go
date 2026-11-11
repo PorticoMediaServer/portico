@@ -42,6 +42,13 @@ func CheckCopy(ctx context.Context, path string) error {
 	if err != nil {
 		return err
 	}
+	// A copy with a table or an index missing would open and then fail on the first request
+	// that needs it, with nothing to put back.
+	for name := range want {
+		if _, held := have[name]; !held {
+			return fmt.Errorf("it lacks %s, which Portico's schema defines", name)
+		}
+	}
 	for name, sql := range have {
 		// SQLite's own tables for row numbers and query statistics appear by themselves.
 		if name == "table sqlite_sequence" || name == "table sqlite_stat1" || name == "table sqlite_stat4" {
