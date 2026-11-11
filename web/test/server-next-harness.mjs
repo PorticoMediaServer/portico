@@ -87,6 +87,12 @@ export async function startJourney({seedItems = 0} = {}) {
   const origin = `http://127.0.0.1:${vite.config.server.port}`;
   const browser = await chromium.launch({headless: true, executablePath: process.env.CHROMIUM_PATH || undefined, args: ['--no-sandbox']});
   cleanups.push(() => browser.close());
+  // The development server compiles the app on the first visit, which takes minutes on a busy machine. Do that once
+  // here, so a step's own wait measures the app and not the compiler.
+  const warm = await browser.newPage();
+  await warm.goto(origin + '/', {waitUntil: 'domcontentloaded', timeout: 240_000});
+  await warm.locator('input, button').first().waitFor({timeout: 240_000});
+  await warm.close();
 
   /** One request as another device would send it. Answers `{status, body}`. */
   const call = async (method, path, body, token) => {
