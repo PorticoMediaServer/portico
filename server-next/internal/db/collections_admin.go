@@ -152,13 +152,28 @@ func (d *DB) EditCollection(ctx context.Context, v Viewer, collection string, ed
 			if err != nil {
 				return err
 			}
-			if _, err := b.exec(`DELETE FROM item_relations WHERE item_id = ? AND kind = ? AND related_item_id = ?`,
-				id, RelationCollectionMember, member); err != nil {
+			res, err := b.exec(`DELETE FROM item_relations WHERE item_id = ? AND kind = ? AND related_item_id = ?`,
+				id, RelationCollectionMember, member)
+			if err != nil {
 				return err
+			}
+			// Taken out of an automatic collection, the film stays out of it.
+			if n, _ := res.RowsAffected(); n == 1 {
+				if err := filmTakenOut(b, library, id, member, false); err != nil {
+					return err
+				}
 			}
 		}
 		if err := addMembers(ctx, b, acc, library, id, edit.Add); err != nil {
 			return err
+		}
+		for _, publicID := range edit.Add {
+			// A film put back by hand is no longer kept out.
+			if member, err := memberID(ctx, b, acc, publicID); err != nil {
+				return err
+			} else if err := filmTakenOut(b, library, id, member, true); err != nil {
+				return err
+			}
 		}
 		if len(edit.Order) > 0 {
 			if err := orderMembers(ctx, b, acc, id, edit.Order); err != nil {

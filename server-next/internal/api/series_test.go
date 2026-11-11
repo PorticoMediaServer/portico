@@ -3,6 +3,8 @@ package api
 import (
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 )
 
@@ -36,35 +38,84 @@ func (sh *shelf) setGroupSeries(on bool) {
 	sh.do("PATCH", "/v1/admin/libraries/"+sh.library, LibraryEdit{Options: &options}, nil, 200)
 }
 
+// matrix is the one automatic collection's id and films, failing the test unless there is
+// exactly one collection named The Matrix.
+func (sh *shelf) matrix() (string, []string) {
+	sh.t.Helper()
+	got := sh.collections()
+	for name, films := range got {
+		if len(got) == 1 && strings.HasSuffix(name, " The Matrix") {
+			return strings.TrimSuffix(name, " The Matrix"), films
+		}
+	}
+	sh.t.Fatalf("collections: %v", got)
+	return "", nil
+}
+
+func (sh *shelf) addFilm(name string) {
+	sh.t.Helper()
+	if err := os.WriteFile(filepath.Join(sh.root, name), make([]byte, 50+len(name)), 0o644); err != nil {
+		sh.t.Fatal(err)
+	}
+	sh.startJob(JobStart{Kind: "scan", Target: JobTarget{Library: sh.library}})
+	sh.startJob(JobStart{Kind: "match_library", Target: JobTarget{Library: sh.library}}) // after the scan's own lookup
+}
+
 // Films of one series are grouped once two are in the library, named without "Collection", in
-// release order; with Group films from the same series off they are not; a collection the
-// owner deletes does not come back through a refresh or a change of the library's options.
+// release order, and later films join. A film the owner takes out stays out, and only that
+// one. With grouping turned off a collection nobody changed goes; one the owner changed stays
+// as an ordinary collection and is not made again beside it. A deleted one does not come back.
 func TestAutomaticCollections(t *testing.T) {
 	sh := newShelf(t, "the.matrix.1999.1080p.mkv")
 	if got := sh.collections(); len(got) != 0 {
 		t.Fatalf("one film of a series made %v", got)
 	}
-	sh.setGroupSeries(false)
-	if err := os.WriteFile(filepath.Join(sh.root, "The Matrix Reloaded (2003).mkv"), make([]byte, 77), 0o644); err != nil {
-		t.Fatal(err)
+	sh.addFilm("The Matrix Reloaded (2003).mkv")
+	id, films := sh.matrix()
+	if !slices.Equal(films, []string{"The Matrix", "The Matrix Reloaded"}) {
+		t.Fatalf("the series: %v", films)
 	}
-	sh.startJob(JobStart{Kind: "scan", Target: JobTarget{Library: sh.library}})
-	sh.startJob(JobStart{Kind: "match_library", Target: JobTarget{Library: sh.library}}) // after the scan's own lookup
+
+	// Grouping off: nobody changed it, so it goes.
+	sh.setGroupSeries(false)
 	if got := sh.collections(); len(got) != 0 {
 		t.Fatalf("with grouping off: %v", got)
 	}
 	sh.setGroupSeries(true)
 	sh.startJob(JobStart{Kind: "refresh_library", Target: JobTarget{Library: sh.library}})
-	got := sh.collections()
-	var id string
-	for name, films := range got {
-		if len(got) != 1 || name[len(name)-len(" The Matrix"):] != " The Matrix" || len(films) != 2 || films[0] != "The Matrix" || films[1] != "The Matrix Reloaded" {
-			t.Fatalf("with grouping on: %v", got)
+	id, _ = sh.matrix()
+
+	// Take Reloaded out: it stays out through a refresh, and a new film still joins.
+	var page ItemPage
+	sh.do("GET", "/v1/items?kind=movie&library="+sh.library, nil, &page, 200)
+	var reloaded string
+	for _, film := range page.Items {
+		if film.Title == "The Matrix Reloaded" {
+			reloaded = film.ID
 		}
-		id = name[:len(name)-len(" The Matrix")]
 	}
+	sh.do("PATCH", "/v1/admin/collections/"+id, CollectionEdit{Remove: []string{reloaded}}, nil, 204)
+	sh.addFilm("The Matrix Revolutions (2003).mkv")
+	sh.startJob(JobStart{Kind: "refresh_library", Target: JobTarget{Library: sh.library}})
+	if _, films := sh.matrix(); !slices.Equal(films, []string{"The Matrix", "The Matrix Revolutions"}) {
+		t.Fatalf("after taking one film out and adding another: %v", films)
+	}
+
+	// Grouping off again: the owner changed this one, so it stays, as an ordinary collection,
+	// and turning grouping back on does not make a second.
+	sh.setGroupSeries(false)
+	if kept, _ := sh.matrix(); kept != id {
+		t.Fatalf("a collection the owner changed went when grouping was turned off")
+	}
+	sh.setGroupSeries(true)
+	sh.startJob(JobStart{Kind: "refresh_library", Target: JobTarget{Library: sh.library}})
+	if kept, films := sh.matrix(); kept != id || len(films) != 2 {
+		t.Fatalf("after grouping came back: %s %v", kept, films)
+	}
+
+	// Deleting it: it does not come back through an options save or a refresh.
 	sh.do("DELETE", "/v1/admin/collections/"+id, nil, nil, 204)
-	sh.setGroupSeries(true) // saving the options keeps what the owner removed
+	sh.setGroupSeries(true)
 	sh.startJob(JobStart{Kind: "refresh_library", Target: JobTarget{Library: sh.library}})
 	if got := sh.collections(); len(got) != 0 {
 		t.Fatalf("a deleted collection came back: %v", got)
