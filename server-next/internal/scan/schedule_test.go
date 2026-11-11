@@ -14,14 +14,16 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/scan"
 )
 
-// With the schedule running, a library is scanned when the server starts, and a film put into
-// one of its folders afterwards, also into a folder made afterwards, turns up by itself.
+// With the schedule running, starting the server scans nothing; a film put into a watched
+// folder afterwards, also into a folder made afterwards, turns up by itself.
 func TestAWatchedFolderIsScannedWhenItChanges(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("folders are watched on Linux only")
 	}
 	f := newFixture(t, db.LibraryMovies)
 	f.write("Heat (1995).mkv")
+	f.scan()
+	f.write("Leon (1994).mkv") // put there while the server was off
 	run, stop := context.WithCancel(ctx)
 	defer stop()
 	runner := jobs.New(run, f.d, slog.New(slog.NewTextHandler(io.Discard, nil)))
@@ -43,9 +45,13 @@ func TestAWatchedFolderIsScannedWhenItChanges(t *testing.T) {
 			}
 		}
 	}
-	appears("Heat")
+	time.Sleep(2 * time.Second)
+	if _, scanned := f.titles(db.KindMovie)["Leon"]; scanned {
+		t.Fatal("starting the server scanned the library")
+	}
 	f.write("Alien (1979).mkv")
 	appears("Alien")
+	appears("Leon") // the scan a change starts sees everything
 	f.write("Ronin (1998)/Ronin (1998).mkv")
 	appears("Ronin")
 	// The folder made since is watched too.

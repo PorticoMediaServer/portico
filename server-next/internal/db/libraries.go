@@ -43,9 +43,8 @@ type LibraryOptions struct {
 	AllowDelete bool      `json:"allowDelete,omitempty"`
 	// NoWatch turns off watching the library's folders for changes.
 	NoWatch bool `json:"noWatch,omitempty"`
-	// RescanMinutes is how often the library's local folders are scanned by themselves. 0
-	// leaves it to the server: not at all while the folders are watched, every hour when
-	// they cannot be, every six hours on a network share.
+	// RescanMinutes is how often the library's local folders are scanned by themselves; 0 is
+	// no periodic scan. Watching and a periodic scan are separate choices: one, both or neither.
 	RescanMinutes int `json:"rescanMinutes,omitempty"`
 }
 
