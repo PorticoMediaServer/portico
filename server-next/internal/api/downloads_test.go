@@ -515,9 +515,9 @@ func TestKeepTheNextAsksAgainForAnExpiredCopy(t *testing.T) {
 			break
 		}
 	}
-	rig.s.now = func() time.Time { return time.Now().Add(31 * 24 * time.Hour) }
+	rig.s.setClock(func() time.Time { return time.Now().Add(31 * 24 * time.Hour) })
 	err := rig.s.prepare.Tidy(context.Background())
-	rig.s.now = time.Now
+	rig.s.setClock(time.Now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -629,11 +629,11 @@ func TestAnExpiredCopyIsMadeAgainOnRetry(t *testing.T) {
 	}
 	_, dl := rig.ask(rig.owner, DownloadAsk{ItemID: rig.film, Quality: "240p"})
 	rig.waitReady(rig.owner, dl.ID)
-	rig.s.now = func() time.Time { return time.Now().Add(31 * 24 * time.Hour) }
+	rig.s.setClock(func() time.Time { return time.Now().Add(31 * 24 * time.Hour) })
 	if err := rig.s.prepare.Tidy(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	rig.s.now = time.Now
+	rig.s.setClock(time.Now)
 	expired := get[Download](t, rig.s, rig.owner, "/v1/downloads/"+dl.ID)
 	if expired.Items[0].State != "expired" || expired.Counts.Ready != 0 {
 		t.Fatalf("an unused copy past the keeping time reads %+v", expired.Items)
