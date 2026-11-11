@@ -68,12 +68,12 @@ func (s *Server) keyRoutes() {
 			path = "/v1/me/app-passwords"
 		}
 		Handle(s, "GET "+path, SignedIn, func(r *http.Request, _ None) (Page[Key], error) { return s.listKeys(r, k) })
-		Handle(s, "POST "+path, SignedIn, func(r *http.Request, req KeyCreate) (KeyCreated, error) { return s.createKey(r, k, req) })
-		Handle(s, "DELETE "+path+"/{id}", SignedIn, func(r *http.Request, _ None) (None, error) { return s.revokeKey(r, k) })
+		sensitive(Handle(s, "POST "+path, SignedIn, func(r *http.Request, req KeyCreate) (KeyCreated, error) { return s.createKey(r, k, req) }))
+		sensitive(Handle(s, "DELETE "+path+"/{id}", SignedIn, func(r *http.Request, _ None) (None, error) { return s.revokeKey(r, k) }))
 	}
 	Handle(s, "GET /v1/admin/api-keys", Owner, func(r *http.Request, _ None) (Page[Key], error) { return s.listKeys(r, apiKeys) }).Scope = ScopeSession
-	Handle(s, "POST /v1/admin/api-keys", Owner, func(r *http.Request, req KeyCreate) (KeyCreated, error) { return s.createKey(r, apiKeys, req) }).Scope = ScopeSession
-	Handle(s, "DELETE /v1/admin/api-keys/{id}", Owner, func(r *http.Request, _ None) (None, error) { return s.revokeKey(r, apiKeys) }).Scope = ScopeSession
+	sensitive(Handle(s, "POST /v1/admin/api-keys", Owner, func(r *http.Request, req KeyCreate) (KeyCreated, error) { return s.createKey(r, apiKeys, req) })).Scope = ScopeSession
+	sensitive(Handle(s, "DELETE /v1/admin/api-keys/{id}", Owner, func(r *http.Request, _ None) (None, error) { return s.revokeKey(r, apiKeys) })).Scope = ScopeSession
 }
 
 func keyOut(k db.APIKey) Key {

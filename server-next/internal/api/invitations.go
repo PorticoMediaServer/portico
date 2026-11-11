@@ -93,9 +93,9 @@ func errNoInvitation() *Error {
 
 func (s *Server) invitationRoutes() {
 	Handle(s, "GET /v1/admin/invitations", Admin, s.listInvitations)
-	Handle(s, "POST /v1/admin/invitations", Admin, s.createInvitation)
-	Handle(s, "PATCH /v1/admin/invitations/{id}", Admin, s.editInvitation)
-	Handle(s, "DELETE /v1/admin/invitations/{id}", Admin, s.revokeInvitation)
+	sensitive(Handle(s, "POST /v1/admin/invitations", Admin, s.createInvitation))
+	sensitive(Handle(s, "PATCH /v1/admin/invitations/{id}", Admin, s.editInvitation))
+	sensitive(Handle(s, "DELETE /v1/admin/invitations/{id}", Admin, s.revokeInvitation))
 	// For the person invited, the id in the path is the code they were given.
 	Handle(s, "GET /v1/auth/invitations/{id}", Public, s.previewInvitation)
 	Handle(s, "POST /v1/auth/invitations/{id}/accept", Public, s.acceptInvitation)

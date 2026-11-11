@@ -110,12 +110,12 @@ func memberError(err error) error {
 
 func (s *Server) memberRoutes() {
 	Handle(s, "GET /v1/admin/members", Admin, s.listMembers)
-	Handle(s, "POST /v1/admin/members", Admin, s.createMember)
+	sensitive(Handle(s, "POST /v1/admin/members", Admin, s.createMember))
 	Handle(s, "GET /v1/admin/members/{id}", Admin, s.getMember)
-	Handle(s, "PATCH /v1/admin/members/{id}", Admin, s.editMember)
-	Handle(s, "DELETE /v1/admin/members/{id}", Admin, s.deleteMember)
+	sensitive(Handle(s, "PATCH /v1/admin/members/{id}", Admin, s.editMember))
+	sensitive(Handle(s, "DELETE /v1/admin/members/{id}", Admin, s.deleteMember))
 	// Passing a code that takes over an account is for a signed-in person, never a key.
-	Handle(s, "POST /v1/admin/members/{id}/password-reset", Admin, s.issuePasswordReset).Scope = ScopeSession
+	sensitive(Handle(s, "POST /v1/admin/members/{id}/password-reset", Admin, s.issuePasswordReset)).Scope = ScopeSession
 }
 
 func (s *Server) listMembers(r *http.Request, _ None) (Page[Member], error) {

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -88,7 +89,7 @@ func (s *Server) profileRoutes() {
 	Handle(s, "PATCH /v1/profiles/{id}", SignedIn, s.editProfile)
 	Handle(s, "PUT /v1/profiles/{id}/pin", SignedIn, s.setProfilePIN)
 	Handle(s, "DELETE /v1/profiles/{id}/pin", SignedIn, s.removeProfilePIN)
-	Handle(s, "DELETE /v1/profiles/{id}", SignedIn, s.deleteProfile)
+	Handle(s, "DELETE /v1/profiles/{id}", SignedIn, s.deleteProfile).Sensitive = true
 	Handle(s, "POST /v1/profiles/{id}/select", SignedIn, s.selectProfile)
 	s.restrictionRoutes()
 }
@@ -98,20 +99,35 @@ func (s *Server) profileRoutes() {
 // or not the main profile has a PIN.
 func manager(r *http.Request) (Caller, error) {
 	c := CallerFrom(r.Context())
-	switch {
-	case c.PINNeeded:
-		return c, errPINToManage()
-	case !c.Manage:
+	if !c.Manage {
 		return c, ErrNotPermitted()
 	}
 	return c, nil
 }
 
-// manageWindow is how long a typed PIN lets a device that remembers PINs manage the account.
+// manageWindow is how long a typed PIN counts as just typed on a device that remembers PINs.
 const manageWindow = time.Hour
 
+// pinRecheckSetting is a person's own switch for the check below. It is on unless they turn it off.
+const pinRecheckSetting = "security.askPinForSensitiveSettings"
+
 func errPINToManage() *Error {
-	return refusal(http.StatusForbidden, "profile_pin_manage", "Enter this profile's PIN to manage the account.", false)
+	return refusal(http.StatusForbidden, "profile_pin_manage", "Enter this profile's PIN to change this.", false)
+}
+
+// pinRecheck asks for the PIN again before something sensitive is changed from a main
+// profile that was entered with a remembered PIN: a TV left on the owner's profile shows
+// the owner's pages, but cannot change a password, a PIN, a person or a limit until the PIN
+// is typed, which then counts for an hour. Each person can turn this off for themselves.
+func (s *Server) pinRecheck(ctx context.Context, c Caller) error {
+	if !c.PINStale {
+		return nil
+	}
+	off, err := s.db.ProfilePreference(ctx, c.ProfileID, pinRecheckSetting)
+	if err != nil || off == "false" {
+		return err
+	}
+	return errPINToManage()
 }
 
 // pinMemory is what a device keeps to show that it was allowed to remember a profile's PIN.
@@ -132,11 +148,6 @@ func pinFingerprint(hash string) string { return auth.Hash("pin|" + hash)[:16] }
 // devices back to the chooser.
 func (s *Server) profileOwner(r *http.Request) (userID, sessionID int64, err error) {
 	caller := CallerFrom(r.Context())
-	// A main profile entered with a remembered PIN still carries its owner or admin role,
-	// so a member's profiles are kept from it here until the PIN is typed.
-	if caller.PINNeeded {
-		return 0, 0, errPINToManage()
-	}
 	member := r.URL.Query().Get("member")
 	if member == "" {
 		if !caller.Manage {
@@ -289,6 +300,10 @@ func (s *Server) changeProfilePIN(r *http.Request, hash string, proof *db.Passwo
 	if proof == nil {
 		var err error
 		if userID, sessionID, err = s.profileOwner(r); err != nil {
+			return Profile{}, err
+		}
+		// Without the password, a PIN is changed only by someone who has just typed one.
+		if err := s.pinRecheck(r.Context(), caller); err != nil {
 			return Profile{}, err
 		}
 	}

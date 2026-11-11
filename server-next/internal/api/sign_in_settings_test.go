@@ -266,8 +266,9 @@ func mustClaims(t *testing.T, s *Server, token string) auth.Claims {
 }
 
 // A device may remember a profile's PIN for as long as the owner allows. What it keeps works
-// only on that device and only until the PIN changes, and entering the main profile with it
-// does not let anyone manage the account: that asks for the PIN, and for an hour at a time.
+// only on that device and only until the PIN changes. Entering the main profile with it opens
+// every page the profile has, but changing something sensitive asks for the PIN, for an hour
+// at a time, unless the person turned that check off.
 func TestRememberPIN(t *testing.T) {
 	s := newTestServer(t)
 	now := time.Now()
@@ -297,34 +298,65 @@ func TestRememberPIN(t *testing.T) {
 	if got := status(t, s, "GET", "/v1/devices", typed.AccessToken, nil); got != 200 {
 		t.Errorf("managing straight after typing the PIN answered %d", got)
 	}
-	// An hour after the PIN was typed on a device that remembers it, managing asks for it
-	// again, and typing it gives another hour.
+	// An hour after the PIN was typed on a device that remembers it, the owner's pages still
+	// open, and changing something sensitive asks for the PIN, which then counts for an hour.
 	hour := signIn(t, s, 6)
 	var first Session
 	call(t, s, "POST", main+"/select", hour.Session.AccessToken, ProfileSelect{PIN: "2468", RememberPIN: true}, &first)
 	now = now.Add(61 * time.Minute)
 	_, later := renew(t, s, hour.Session.RefreshToken, 6, "an-hour-on")
+	for _, path := range []string{"/v1/devices", "/v1/admin/members", "/v1/admin/settings/sign-in"} {
+		if got := status(t, s, "GET", path, later.AccessToken, nil); got != 200 {
+			t.Errorf("%s an hour after the PIN was typed answered %d, want 200", path, got)
+		}
+	}
+	newMember := MemberCreate{Username: "late", Password: testPassword}
 	var lapsed errorBody
-	if w := call(t, s, "GET", "/v1/devices", later.AccessToken, nil, &lapsed); w.Code != 403 || lapsed.Error.Code != "profile_pin_manage" {
-		t.Errorf("managing an hour after the PIN was typed answered %d %s, want 403 profile_pin_manage", w.Code, lapsed.Error.Code)
+	if w := call(t, s, "POST", "/v1/admin/members", later.AccessToken, newMember, &lapsed); w.Code != 403 || lapsed.Error.Code != "profile_pin_manage" {
+		t.Errorf("adding a person an hour after the PIN was typed answered %d %s, want 403 profile_pin_manage", w.Code, lapsed.Error.Code)
 	}
 	var retyped Session
 	call(t, s, "POST", main+"/select", later.AccessToken, ProfileSelect{PIN: "2468", RememberPIN: true}, &retyped)
-	if got := status(t, s, "GET", "/v1/devices", retyped.AccessToken, nil); got != 200 {
-		t.Errorf("managing after typing the PIN again answered %d", got)
+	if got := status(t, s, "POST", "/v1/admin/members", retyped.AccessToken, newMember); got != 200 {
+		t.Errorf("adding a person after typing the PIN again answered %d", got)
 	}
 	code, remembered, _ := selectWith(3, ProfileSelect{PINToken: typed.PINToken})
 	if code != 200 || remembered.Viewer.Role != "owner" {
 		t.Fatalf("entering with the remembered PIN: %d %+v", code, remembered.Viewer)
 	}
-	var refused errorBody
-	for _, path := range []string{"/v1/devices", "/v1/admin/members", "/v1/profiles?member=usr_someone"} {
-		if w := call(t, s, "GET", path, remembered.AccessToken, nil, &refused); w.Code != 403 || refused.Error.Code != "profile_pin_manage" {
-			t.Errorf("%s from a remembered main profile answered %d %s, want 403 profile_pin_manage", path, w.Code, refused.Error.Code)
-		}
-	}
+	member := get[Page[Member]](t, s, remembered.AccessToken, "/v1/admin/members").Items[1].ID
 	if got := status(t, s, "GET", "/v1/libraries", remembered.AccessToken, nil); got != 200 {
 		t.Errorf("watching from a remembered profile answered %d", got)
+	}
+	off := PreferencesEdit{Scope: "profile-server", DeviceClass: "web", Values: map[string]any{"security.askPinForSensitiveSettings": false}}
+	var refused errorBody
+	for name, c := range map[string]struct {
+		method, path string
+		body         any
+	}{
+		"changing the password":            {"POST", "/v1/auth/password", PasswordRequest{CurrentPassword: testPassword, NewPassword: "another password"}},
+		"removing the PIN":                 {"DELETE", main + "/pin", nil},
+		"changing the sign-in settings":    {"PATCH", "/v1/admin/settings/sign-in", SignInSettingsEdit{StaySignedInDays: to(30)}},
+		"deleting a person":                {"DELETE", "/v1/admin/members/" + member, nil},
+		"making a token":                   {"POST", "/v1/me/tokens", KeyCreate{Name: "Script", Scopes: []string{"read"}}},
+		"lifting a member profile's limit": {"PUT", "/v1/profiles/prf_any/restrictions?member=" + member, Restrictions{AllLibraries: true}},
+		"turning this check off":           {"PATCH", "/v1/preferences", off},
+	} {
+		if w := call(t, s, c.method, c.path, remembered.AccessToken, c.body, &refused); w.Code != 403 || refused.Error.Code != "profile_pin_manage" {
+			t.Errorf("%s from a remembered main profile answered %d %s, want 403 profile_pin_manage", name, w.Code, refused.Error.Code)
+		}
+	}
+	// The person turns the check off, having typed the PIN, and the remembered profile may
+	// then change those things too.
+	if got := status(t, s, "PATCH", "/v1/preferences", retyped.AccessToken, off); got != 200 {
+		t.Fatalf("turning the check off after typing the PIN answered %d", got)
+	}
+	if got := status(t, s, "PATCH", "/v1/admin/settings/sign-in", remembered.AccessToken, SignInSettingsEdit{StaySignedInDays: to(90)}); got != 200 {
+		t.Errorf("with the check turned off, a remembered main profile changing a setting answered %d", got)
+	}
+	off.Values["security.askPinForSensitiveSettings"] = true
+	if got := status(t, s, "PATCH", "/v1/preferences", retyped.AccessToken, off); got != 200 {
+		t.Fatalf("turning the check back on answered %d", got)
 	}
 	// What one device keeps is no use on another, and a made-up one counts against nobody.
 	if code, _, why := selectWith(4, ProfileSelect{PINToken: typed.PINToken}); code != 403 || why != "profile_pin_reentry" {
