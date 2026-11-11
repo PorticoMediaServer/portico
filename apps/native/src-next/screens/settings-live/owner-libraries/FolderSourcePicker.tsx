@@ -1,7 +1,7 @@
 import React, {useEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {FlatList, Text, View} from 'react-native';
 import type {LibraryContentApi} from '../../../../../../packages/client-core/src/library-content';
-import type {RemoteSource} from '../../../../../../packages/client-core/src/remote-sources';
+import type {RemoteSource} from '../../../../../../packages/client-core/src/remote-storage';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {Button} from '../../../kit/controls/Button';
 import {BottomSheet} from '../../../kit/overlays/BottomSheet';
@@ -11,8 +11,7 @@ import type {NativeSettingsLivePorts} from '../ports';
 import {NativeRemoteSourcesController} from '../../settings/remote-sources/controller';
 import {NativeRemoteSourcesScreen} from '../../settings/remote-sources/NativeRemoteSourcesScreen';
 import {SourceFolderBrowser} from '../../settings/remote-sources/SourceFolderBrowser';
-import type {ChosenSourceFolder} from '../../settings/remote-sources/SourceLibraryAssignment';
-import {Problem, remoteSourceError} from '../../settings/remote-sources/RemoteSourceForms';
+import {Problem, remoteSourceError, type ChosenSourceFolder} from '../../settings/remote-sources/RemoteSourceForms';
 import {FolderExplorer, type ExplorerFolder} from './FolderExplorer';
 import {LibraryGroup, LibraryRow} from './controls';
 
@@ -50,7 +49,7 @@ function SourcePicker({controller, ports, runtime, ...props}: Props & {controlle
     if (flight.current || !current() || !folders.length || props.multiple === false && folders.length !== 1) return;
     flight.current = true;
     try {
-      await controller.validateAssignmentFolders(source, folders, current);
+      // The folders were listed through the source just now; the server checks them again when they are kept.
       if (current()) {props.onUse({source, folders, remoteFolders: folders}); props.onOpenChange(false);}
     } finally {flight.current = false;}
   };
@@ -60,21 +59,20 @@ function SourcePicker({controller, ports, runtime, ...props}: Props & {controlle
     onUse={folders => {props.onUse({folders}); props.onOpenChange(false);}}/>;
   return <BottomSheet open onOpenChange={props.onOpenChange} title={t('web.libraries.addFolder')} scrollable={false} detents={[760]}>
     {mode.kind === 'remote' ? <View style={{flex: 1}}><SourceFolderBrowser controller={controller} source={mode.source} t={t} isCurrent={current} multiple={props.multiple}
-      initial={props.chosen.source?.id === mode.source.id && props.chosen.source.generation === mode.source.generation ? props.chosen.remoteFolders : undefined}
       onCancel={menu} onChoose={folders => chooseRemote(mode.source, folders)}/></View>
     : mode.kind === 'create' ? <NativeRemoteSourcesScreen ports={ports} runtime={runtime} initialCreate multipleFolders={props.multiple} onDismiss={() => {menu(); void controller.load();}}
       onChooseFolders={chooseRemote}/>
-    : <FlatList data={snapshot.allowed ? snapshot.sources.sources : []} keyExtractor={source => source.id}
+    : <FlatList data={snapshot.allowed ? snapshot.sources : []} keyExtractor={source => source.id}
       initialNumToRender={16} maxToRenderPerBatch={16} windowSize={7} contentContainerStyle={{gap: 12}}
       ListHeaderComponent={<View style={{gap: 12}}>
         {!!props.chosen.folders.length && <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('next.ownerLibraries.explorer.replacesSelection')}</Text>}
         <LibraryGroup><LibraryRow first icon="i-folder" label={t('next.settingsSpec.server.libraries.panels.library.tabs.1.groups.0.rows.0.control.addMenu.0.label')} onPress={() => setMode({kind: 'local'})}/></LibraryGroup>
       </View>}
-      renderItem={({item: source}) => <LibraryGroup><LibraryRow first icon="i-disk" label={source.name} help={source.origin} onPress={() => setMode({kind: 'remote', source})}/></LibraryGroup>}
+      renderItem={({item: source}) => <LibraryGroup><LibraryRow first icon="i-disk" label={source.name} help={source.webdav?.address ?? source.rclone?.type} onPress={() => setMode({kind: 'remote', source})}/></LibraryGroup>}
       ListFooterComponent={<View style={{gap: 12}}>
         {snapshot.allowed && <LibraryGroup><LibraryRow first icon="i-plus" label={t('next.remoteSources.add')} onPress={() => setMode({kind: 'create'})}/></LibraryGroup>}
-        {snapshot.sources.loading && <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('next.remoteSources.loading')}</Text>}
-        {snapshot.sources.error && <><Problem message={remoteSourceError(t, {code: snapshot.sources.errorCode})}/><Button variant="glass" onPress={() => {void controller.load();}}>{t('action.tryAgain')}</Button></>}
+        {snapshot.loading && <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('next.remoteSources.loading')}</Text>}
+        {snapshot.error !== undefined && <><Problem message={remoteSourceError(t, snapshot.error)}/><Button variant="glass" onPress={() => {void controller.load();}}>{t('action.tryAgain')}</Button></>}
       </View>}/>
     }
   </BottomSheet>;
