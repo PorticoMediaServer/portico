@@ -11,7 +11,8 @@ export type ReadingMarkAllReceipt = ReadingMarkAllProjection & Readonly<{operati
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const integer = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 const identifier = (value: unknown): value is string => typeof value === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(value);
-const exact = (value: Record<string, unknown>, keys: readonly string[]) => Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key));
+// A field this app does not know is ignored: a newer server may say more.
+const exact = (value: Record<string, unknown>, keys: readonly string[]) => keys.every(key => Object.hasOwn(value, key));
 const bad = (): never => {throw new Error('invalid_reading_mark_all');};
 function pair(value: unknown): ReadingMarkAllPair {
   if (!record(value) || !exact(value, ['catalog', 'viewer']) || !integer(value.catalog) || !integer(value.viewer)) return bad();

@@ -55,9 +55,11 @@ test('the wire key is capabilityCounts and the selector is query-only', () => {
   const container = {...descriptor, selector: {query: descriptor.selector.query, container: {kind: 'library', id: 'movies'}}};
   assert.equal(parseWholeSelection(container), undefined);
   const unknownKey = {...descriptor, selector: {query: {...descriptor.selector.query, extra: 1}}};
+  // The selector says which titles a command acts on, so a part of it this app cannot read is still refused.
   assert.equal(parseWholeSelection(unknownKey), undefined);
+  // A count for an action this app does not know is ignored, not a reason to refuse the answer.
   const unknownCapability = {...descriptor, types: [{...descriptor.types[0], capabilityCounts: {...capabilityCounts, shuffle: 0}}]};
-  assert.equal(parseWholeSelection(unknownCapability), undefined);
+  assert.equal('shuffle' in parseWholeSelection(unknownCapability)!.types[0]!.capabilities, false);
 });
 
 test('counts must partition one closed kind and one library', () => {
