@@ -111,3 +111,39 @@ func TestALargeBatchIsWrittenInPiecesAndAnsweredInOrder(t *testing.T) {
 		}
 	}
 }
+
+// A device back from a trip sends the plays it made offline, with no edits: a finished play
+// is counted once however often the batch is sent, and claims no more time than the title
+// lasts; a play of a title that is gone, or one too old, is refused on its own; and none of
+// it uses a stream of the account's.
+func TestOfflinePlaysArriveInTheBatch(t *testing.T) {
+	th := newTheatre(t)
+	body := map[string]any{"plays": []OfflinePlay{
+		{ItemID: th.film, PlayID: "trip-1", PositionMs: hour, PlayedMs: 1000 * hour, MadeAgoMs: 2 * hour},
+		{ItemID: "itm_gone", PlayID: "trip-2", PositionMs: hour, MadeAgoMs: hour},
+		{ItemID: th.eps[0], PlayID: "trip-3", PositionMs: hour, MadeAgoMs: 40 * 24 * hour},
+	}}
+	for range 2 {
+		var reply StateBatchReply
+		if w := call(t, th.s, "POST", "/v1/items/state:batch", th.owner.AccessToken, body, &reply); w.Code != 200 || len(reply.Plays) != 3 {
+			t.Fatalf("the batch answered %d: %s", w.Code, w.Body)
+		}
+		if p := reply.Plays; !p[0].Finished || p[0].Error != nil || p[1].Error == nil || p[1].Error.Code != "not_found" ||
+			p[2].Error == nil || p[2].Error.Code != "invalid_request" {
+			t.Fatalf("the plays were answered %+v", reply.Plays)
+		}
+	}
+	if state := th.state(th.film); !state.Watched || state.PlayCount != 1 {
+		t.Fatalf("after the batch twice the film is %+v; want watched, played once", state)
+	}
+	var history struct {
+		Items []HistoryEntry `json:"items"`
+	}
+	call(t, th.s, "GET", "/v1/history", th.owner.AccessToken, nil, &history)
+	if len(history.Items) != 1 || history.Items[0].WatchedMs > hour {
+		t.Fatalf("the play history is %+v; want one play of at most an hour", history.Items)
+	}
+	if th.engine.streams() != 0 {
+		t.Fatal("reporting offline plays started a stream")
+	}
+}
