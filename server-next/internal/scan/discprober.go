@@ -23,12 +23,7 @@ func probeDisc(ctx context.Context, folder string) (Facts, error) {
 	if _, err := exec.LookPath(mediatools.Resolve("portico-disc")); err != nil {
 		return Facts{}, ErrNoDiscReader
 	}
-	// The Blu-ray reader opens the disc itself, the folder that holds BDMV; a DVD is read
-	// from its VIDEO_TS folder.
-	if strings.EqualFold(filepath.Base(folder), "BDMV") {
-		folder = filepath.Dir(folder)
-	}
-	dir, err := os.Open(folder)
+	dir, err := os.Open(readerFolder(folder))
 	if err != nil {
 		return Facts{}, err
 	}
@@ -49,6 +44,15 @@ func probeDisc(ctx context.Context, folder string) (Facts, error) {
 		return Facts{}, err
 	}
 	return discFacts(found)
+}
+
+// readerFolder is the folder the disc reader is handed for a disc folder. The Blu-ray reader
+// opens the disc itself, the folder that holds BDMV; a DVD is read from its VIDEO_TS folder.
+func readerFolder(folder string) string {
+	if strings.EqualFold(filepath.Base(folder), "BDMV") {
+		return filepath.Dir(folder)
+	}
+	return folder
 }
 
 // discCodecs names what a disc's stream coding numbers are.
