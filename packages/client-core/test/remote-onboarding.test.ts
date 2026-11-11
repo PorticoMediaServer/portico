@@ -84,7 +84,7 @@ test('Bonjour hints cannot introduce public, expired or conflicting identities',
  assert.equal(discoveredRoutes([good,{...good,serverId:'other'}],pin).length,0);
 });
 test('transport remaps only the verified server and never blind-replays a mutation',async()=>{
- let calls=0;const connection=new RouteConnection({pin,logicalOrigin:'https://logical.example',memory:{paired:['http://192.168.1.8:32500']},probe:async()=>pin,fetcher:async input=>{if(!String(input).endsWith('/v1/networking/connection'))calls++;throw new Error('lost response');}});
+ let calls=0;const connection=new RouteConnection({pin,logicalOrigin:'https://logical.example',memory:{paired:['http://192.168.1.8:32500']},probe:async()=>pin,fetcher:async input=>{if(!String(input).endsWith('/v1/system'))calls++;throw new Error('lost response');}});
  try{assert.equal(connection.mediaURL('/media'),'');await connection.resolve();assert.equal(connection.mediaURL('/media?ticket=opaque'),'http://192.168.1.8:32500/media?ticket=opaque');await assert.rejects(connection.fetch('https://logical.example/v1/action',{method:'POST'}));assert.equal(calls,1);await assert.rejects(connection.fetch('https://other.example/v1/action',{method:'POST'}));assert.equal(calls,1);}finally{connection.dispose();}
 });
 function journalStore<T>(initial?:SetupCodeJournal<T>){let value=initial;return {read:()=>value,change:async(update:(v:SetupCodeJournal<T>|undefined)=>SetupCodeJournal<T>)=>{value=update(value);return value;}};}
