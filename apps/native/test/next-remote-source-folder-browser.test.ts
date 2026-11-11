@@ -34,7 +34,7 @@ test('Add library chooses several folders of a source, each opened in turn, and 
     b.choose();
     assert.deepEqual(b.chosen.at(-1), [{name: 'Films', path: 'Films'}, {name: 'Classics', path: 'Films/Classics'}]);
     assert.deepEqual(b.opened, ['', 'Films', 'Films/Classics']);
-  } finally {b.h.unmountAll?.();}
+  } finally {b.h.dispose();}
 });
 
 test('when Add library takes one folder, choosing another replaces the first', async () => {
@@ -45,5 +45,5 @@ test('when Add library takes one folder, choosing another replaces the first', a
     await b.press('Shows'); await b.press('Shows');
     b.choose();
     assert.deepEqual(b.chosen.at(-1), [{name: 'Shows', path: 'Shows'}]);
-  } finally {b.h.unmountAll?.();}
+  } finally {b.h.dispose();}
 });

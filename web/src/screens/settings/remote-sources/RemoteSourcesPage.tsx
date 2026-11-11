@@ -297,8 +297,12 @@ function ManageSourceDialog({api, source, isCurrent, onClose, onContinue}: Reado
       </span>
       <TextField label={t('next.remoteSources.name')} value={name} disabled={busy} onChange={event => setName(event.currentTarget.value)}/>
       <ReadingFields name={shown.name} preset={preset} limits={limits} disabled={busy} onPreset={value => {setPreset(value); setLimits(remotePresets.find(one => one.id === value)!.limits);}} onLimits={setLimits}/>
-      <TextField label={t(source.kind === 'webdav' ? 'next.remoteSources.password' : source.kind === 'rclone' ? 'next.remoteSources.connectRclone' : 'next.remoteSources.driveKey')}
-        type={source.kind === 'webdav' ? 'password' : undefined} value={secret} disabled={busy} autoCapitalize="off" spellCheck={false} onChange={event => setSecret(event.currentTarget.value)}/>
+      {source.kind === 'rclone'
+        // A replacement configuration is several lines, like the one pasted when the source was added.
+        ? <label className={styles.multiline}><span>{t('next.remoteSources.connectRclone')}</span><textarea value={secret} rows={6} disabled={busy} autoCapitalize="off" spellCheck={false}
+          onChange={event => setSecret(event.currentTarget.value)}/></label>
+        : <TextField label={t(source.kind === 'webdav' ? 'next.remoteSources.password' : 'next.remoteSources.driveKey')}
+          type={source.kind === 'webdav' ? 'password' : undefined} value={secret} disabled={busy} autoCapitalize="off" spellCheck={false} onChange={event => setSecret(event.currentTarget.value)}/>}
       {confirm === undefined ? <Button size="small" variant="text" onClick={() => setConfirm('')}>{t('next.remoteSources.disconnect')}</Button> : <>
         <p>{t('next.remoteSources.disconnectBodyNext')}</p>
         <TextField label={t('next.remoteSources.disconnectConfirm')} value={confirm} onChange={event => setConfirm(event.currentTarget.value)}/>
