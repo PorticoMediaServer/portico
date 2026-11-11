@@ -94,9 +94,8 @@ export function nativeDevicePreferences(context: NativeShellBootstrapContext): N
     const snapshot = server.getSnapshot(), binding = settingsBinding(row.row);
     if (!binding || binding.form !== 'preferences' || binding.fields || binding.scope !== 'profile-device') return;
     const value = readSettingsBinding(binding, {preferences: snapshot});
-    const document = snapshot.documents.find(item => item.scope === binding.scope);
-    if (!value || !document || row.shown(value.effective) === undefined) return;
-    return {source: server, snapshot, binding, document, value, row};
+    if (!value || !snapshot.documents.some(item => item.scope === binding.scope) || row.shown(value.effective) === undefined) return;
+    return {source: server, snapshot, binding, value, row};
   };
   const facade: NativeDevicePreferences = Object.freeze({
     read: id => {
@@ -112,11 +111,11 @@ export function nativeDevicePreferences(context: NativeShellBootstrapContext): N
         if (!current) throw unsupported();
         const asked = current.row.asked(value);
         if (asked === undefined) throw new Error('Invalid setting value.');
-        const {source, snapshot, binding, document} = current;
+        const {source, snapshot, binding} = current;
         const patch = settingsBindingPatch(binding, asked, {preferences: snapshot});
         const written = patch.values[binding.key];
         if (patch.form !== 'preferences' || Object.keys(patch.values).length !== 1 || typeof written !== 'string') throw unsupported();
-        await source.applyPreferences('profile-device', snapshot.deviceClass, document.revision, {[binding.key]: written});
+        await source.applyPreferences('profile-device', snapshot.deviceClass, {[binding.key]: written});
         const confirmed = profileDevice(id);
         const committed = confirmed?.row.shown(confirmed.value.effective);
         if (committed === undefined) throw new Error('native_device_preference_unreadable');

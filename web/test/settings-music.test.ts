@@ -34,7 +34,7 @@ test('Account Music exposes only the rows with a real web or server consumer', (
   // The audio engine reads the first five through music-preferences.ts; the server applies
   // the away quality and DSD gain when it builds the playback plan.
   assert.equal(settingsBinding('music.audioNormalization')?.key, 'music.audioNormalization');
-  assert.equal(settingsBinding('music.qualityAway')?.scope, 'profile-device-class');
+  assert.equal(settingsBinding('music.qualityAway')?.scope, 'profile-device');
 });
 
 test('rows without a web consumer stay hidden; Synced lyrics and Pause when idle have one', () => {

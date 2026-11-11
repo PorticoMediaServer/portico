@@ -2,6 +2,7 @@ import test, {type TestContext} from 'node:test';
 import assert from 'node:assert/strict';
 import * as notifications from '../../../packages/client-core/src/notifications.ts';
 import * as preferenceValues from '../../../packages/client-core/src/preferences.ts';
+import * as serverApi from '../../../packages/client-core/src/query/server-api.ts';
 import * as tolerant from '../../../packages/client-core/src/tolerant.ts';
 import * as messages from '../../../packages/client-core/src/server-messages.ts';
 import {screenModule} from './helpers/screen-harness.mjs';
@@ -24,7 +25,7 @@ const inbox = await screenModule(new URL('../../../packages/client-core/src/inbo
 });
 const preferences = await screenModule(new URL('../../../packages/client-core/src/preferences-reader.ts', import.meta.url), {
   react,
-  '../../contracts/src/routes.ts': routes, '../../contracts/src/route-paths.ts': routes, './preferences.ts': preferenceValues,
+  '../../contracts/src/routes.ts': routes, '../../contracts/src/route-paths.ts': routes, './preferences.ts': preferenceValues, './query/server-api.ts': serverApi,
 });
 const guide = await screenModule(new URL('../../../packages/client-core/src/guide/directory.ts', import.meta.url), {
   react,
@@ -45,7 +46,7 @@ const {NativeShellBootstrapServices} = await screenModule(new URL('../src-next/s
   react, './shared-read': await import('../src-next/shell/shared-read.ts'), './account-binding': await import('../src-next/shell/account-binding.ts'), './home-read-log': await import('../src-next/shell/home-read-log.ts'),
   '../../../../packages/client-core/src/home-service': {HomeService: HomePort},
   '../../../../packages/client-core/src/inbox': inbox, '../../../../packages/client-core/src/notifications': notifications,
-  '../../../../packages/client-core/src/preferences-reader': preferences, '../../../../packages/client-core/src/guide/directory': guide,
+  '../../../../packages/client-core/src/preferences-reader': preferences, '../../../../packages/client-core/src/query/server-api': serverApi, '../../../../packages/client-core/src/guide/directory': guide,
   '../../../../packages/client-core/src/profile-management': {parseDirectSnapshot: unsupported}, '../../../../packages/contracts/src/routes': routes,
 });
 
@@ -67,8 +68,7 @@ function fixture(context: TestContext) {
   const calls: Request[] = [], owner = new AbortController(); let current = true, ended = 0;
   const held: {resource: Resource; method: string; pending: ReturnType<typeof deferred<unknown>>; request?: Request}[] = [];
   const reply = (request: Request): unknown => {
-    if (request.resource === 'preferences') return {scope: {serverId: 'server', viewerFence: 'a'.repeat(64)},
-      data: preferenceData(request.method === 'PATCH' ? 1.5 : 1, request.method === 'PATCH' ? 2 : 1)};
+    if (request.resource === 'preferences') return preferenceData(request.method === 'PATCH' ? 1.5 : 1, request.method === 'PATCH' ? 2 : 1);
     if (request.resource === 'guide') return {protocolVersion: '1.0', serverId: 'server', viewerFence: 'guide-fence', revision: 'guide-1', sources: []};
     if (request.resource === 'home') return {serverId: 'server', viewerFence: 'home-fence', rows: []};
     return {scope: {serverId: 'server', viewerFence: 'b'.repeat(64)}, data: {
@@ -166,7 +166,7 @@ test('pending unread and guide leave required preferences and the admitted Home 
 test('cancelling an event preference GET leaves a concurrent Settings PATCH independent', async context => {
   const f = fixture(context), get = f.hold('preferences'), patch = f.hold('preferences', 'PATCH'), owner = new AbortController();
   const refresh = f.services.readPreferences('mobile', owner.signal); void refresh.catch(() => {});
-  const save = f.services.applyPreferences('profile-server', 'mobile', 1, {'playback.defaultSpeed': 1.5});
+  const save = f.services.applyPreferences('profile-server', 'mobile', {'playback.defaultSpeed': 1.5});
   assert.ok(get.request); assert.ok(patch.request); owner.abort();
   assert.equal(get.request.signal.aborted, true); assert.equal(patch.request.signal.aborted, false);
   get.finish(); patch.finish(); await assert.rejects(refresh, abortError);

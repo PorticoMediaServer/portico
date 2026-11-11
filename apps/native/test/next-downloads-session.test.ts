@@ -92,7 +92,6 @@ const bootModules: Record<string, Record<string, unknown>> = {
   '../../../../packages/contracts/src/routes': {routePath: (name: string) => name},
   '../../../../packages/client-core/src/home-service': {HomeService: class {}},
   '../../../../packages/client-core/src/identity-client': {IdentityClient: class {avatars = async () => []; }},
-  '../../../../packages/client-core/src/preferences': {currentPreferenceSnapshot: (_previous: unknown, next: unknown) => next},
   '../../../../packages/client-core/src/library-list': {parseLibraryList: (value: unknown) => value},
   '../../../../packages/client-core/src/session-refresh': {LocalSessionRefresher: class {stop = noop; wake = noop;}},
   '../../../../packages/client-core/src/playback-v1/events': {EventsClient: class {onResync = subscribe; on = subscribe; onAny = subscribe; prime = async () => false;}},

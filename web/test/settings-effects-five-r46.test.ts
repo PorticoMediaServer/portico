@@ -45,15 +45,16 @@ test('account-playback shows exactly its backed rows, including the Advanced bar
     'playback.skipForwardMs',
     'playback.playedThresholdPercent',
     'playback.startedThresholdPercent',
+    'playback.resumeRewindMs',
   ]);
   for (const id of visible) assert.equal(settingsBinding(id)?.form, 'preferences', id);
 });
 
-test('Resuming stays hidden because neither drawn row has an engine or binding', () => {
-  for (const id of ['playback.resumeRewindMs', 'playback.stopAtSeasonEnd']) {
-    assert.equal(settingsBinding(id), undefined, id);
-    assert.equal(hasWebPreferenceEffect(settingsRowIndex.get(id)!.row), false, id);
-  }
+test('Rewind on resume is bound because the server applies it; Stop at season end stays hidden with no player reading it', () => {
+  assert.equal(settingsBinding('playback.resumeRewindMs')?.key, 'playback.resumeRewindMs');
+  assert.equal(hasWebPreferenceEffect(settingsRowIndex.get('playback.resumeRewindMs')!.row), true);
+  assert.equal(settingsBinding('playback.stopAtSeasonEnd'), undefined);
+  assert.equal(hasWebPreferenceEffect(settingsRowIndex.get('playback.stopAtSeasonEnd')!.row), false);
   const row = settingsRowIndex.get('playback.autoplayNext')!.row;
   assert.equal(hasWebPreferenceEffect({...row, id: 'unpublished.effects-five'}), false);
 });

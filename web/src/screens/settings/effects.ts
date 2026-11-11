@@ -17,6 +17,8 @@ const preferenceEffects = new Set([
   'playback.defaultSpeed', 'playback.introSkip', 'playback.creditsSkip', 'playback.recapSkip',
   'playback.passoutProtection', 'playback.passoutAfterEpisodes', 'playback.skipBackMs', 'playback.skipForwardMs', 'audiobooks.defaultSpeed',
   'audiobooks.skipBackMs', 'audiobooks.skipForwardMs', 'audiobooks.resumeRewindMs',
+  // Rewind on resume for films and episodes: the server starts a resumed play that much earlier.
+  'playback.resumeRewindMs',
   'accessibility.reducedMotion', 'appearance.motion', 'appearance.showBackdrops', 'appearance.cardSizePercent',
   'appearance.libraryView', 'appearance.episodesLayout', 'notifications.badges',
   // `shellLanguage` builds the shell's one I18n from regionPreferences, so words, clock,
@@ -37,6 +39,10 @@ const preferenceEffects = new Set([
   // The server selects home/remote by reach and mobile by actual cellular transport.
   // These are saved defaults; a plain start supplies no client quality authority.
   'quality.home', 'quality.remote', 'quality.mobile',
+  // How this device may be sent a title; the server reads them, with the qualities, for this device only.
+  'delivery.directPlay', 'delivery.directStream', 'delivery.transcode',
+  // The server asks for the main profile's PIN again before a sensitive change unless this is off.
+  'security.askPinForSensitiveSettings',
   // The saved download default: the server reads it when a download asks for no
   // quality of its own (downloads/options.go -> requestedDownloadQuality).
   /* Account Privacy: the server applies all four in the profile's own session. personal_activity.go

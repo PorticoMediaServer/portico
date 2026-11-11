@@ -7,6 +7,7 @@ import type {DeviceClass, PreferencePatch, PreferenceScope, PreferenceSnapshot} 
 import {fetchGuideSourceSummaries} from '../../../../packages/client-core/src/guide/directory';
 import {parseDirectSnapshot, type DirectSnapshot} from '../../../../packages/client-core/src/profile-management';
 import {routePath} from '../../../../packages/contracts/src/routes';
+import {notOnThisServer} from '../../../../packages/client-core/src/query/server-api';
 import {createSharedReads} from './shared-read';
 import {profileSessionRole} from './account-binding';
 import {createHomeReadLog} from './home-read-log';
@@ -66,8 +67,7 @@ export class NativeShellBootstrapServices {
   constructor(api: Pick<HttpLocalApi, 'request'>, options: Options) {
     this.api = api; this.options = options;
     nativeShellDirectViewer(options.viewer);
-    this.preferences = new PreferencesReader({request: <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => this.call<T>('preferences', path, method, body, signal, this.preferenceRequestBatch)},
-      {serverId: options.viewer.serverId, viewerId: JSON.stringify([options.viewer.authority, options.viewer.accountId, options.viewer.profileId])});
+    this.preferences = new PreferencesReader({request: <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => this.call<T>('preferences', path, method, body, signal, this.preferenceRequestBatch)});
     this.inbox = new InboxService({request: async <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> => {
       const batch = this.unreadController;
       const noteCancelled = () => {if (batch === this.unreadController && !batch?.signal.aborted) this.inboxFailure = cancelled();};
@@ -91,7 +91,7 @@ export class NativeShellBootstrapServices {
     this.home = new HomeService({request: <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal) =>
       (method ?? 'GET') === 'GET' && body === undefined && path.split('?')[0] === routePath('get_home')
         ? homeReads<T>(path, signal, shared => {logHomeRead(); return this.call<T>('home', path, method, body, shared);})
-        : this.call<T>('home', path, method, body, signal)});
+        : this.call<T>('home', path, method, body, signal)}, {deviceClass: options.deviceClass});
     // Core disposal aborts owned reads but retains its last snapshot. A retained runtime
     // must never expose that body after this authority has been retired.
     const readHome = this.home.getSnapshot;
@@ -116,15 +116,17 @@ export class NativeShellBootstrapServices {
     throw error;
   }
   private checkFence(domain: Domain, raw: unknown): void {
+    // The rebuilt server's settings answer is the settings themselves, with no envelope to check.
+    if (domain === 'preferences') return;
     if (!object(raw)) throw invalid();
-    const scope = domain === 'preferences' || domain === 'inbox' ? raw.scope : raw;
+    const scope = domain === 'inbox' ? raw.scope : raw;
     // Layout mutation receipts have no viewer fence. Their canonical parser still validates them.
     if (domain === 'home' && !('viewerFence' in raw)) return;
     if (!object(scope) || typeof scope.viewerFence !== 'string' || domain !== 'home' && typeof scope.serverId !== 'string') throw invalid();
     // Home row pages carry the Home fence without repeating the server ID.
     if ((domain !== 'home' || 'serverId' in scope) && scope.serverId !== this.options.viewer.serverId) this.retire();
     const fence = scope.viewerFence;
-    if (domain === 'preferences' || domain === 'inbox') {
+    if (domain === 'inbox') {
       if (!/^[a-f0-9]{64}$/.test(fence)) throw invalid();
     } else if (!opaqueFence(fence)) throw invalid();
     if (domain === 'home' && this.checkHomeFence(scope, fence)) return;
@@ -197,6 +199,8 @@ export class NativeShellBootstrapServices {
     return account;
   };
   private async readInbox(): Promise<number> {
+    // The rebuilt server has no notifications yet: no badge, as on the web.
+    if (this.inboxAbsent) return 0;
     const batch = this.unreadController;
     const currentRead = () => {this.assertCurrent(); if (batch !== this.unreadController || batch?.signal.aborted) throw cancelled();};
     this.inboxFailure = undefined;
@@ -204,6 +208,7 @@ export class NativeShellBootstrapServices {
     // alone tells an owner or administrator that the badge counts account-admin too (N5-2).
     if (!this.inboxLoaded) {
       await this.inbox.load('profile'); currentRead();
+      if (notOnThisServer(this.inboxFailure)) {this.inboxAbsent = true; this.inboxFailure = undefined; return 0;}
       if (this.inboxFailure) throw this.inboxFailure;
       if (this.inbox.getSnapshot().phase !== 'ready') throw invalid();
       this.inboxLoaded = true;
@@ -211,15 +216,19 @@ export class NativeShellBootstrapServices {
     await this.inbox.refreshUnread(); currentRead();
     // InboxService intentionally preserves the badge on failure. Bootstrap must still
     // report that failed read and must never mistake a swallowed denial for success.
+    if (notOnThisServer(this.inboxFailure)) {this.inboxAbsent = true; this.inboxFailure = undefined; return 0;}
     if (this.inboxFailure) throw this.inboxFailure;
     return this.inbox.getSnapshot().unread;
   }
+  private inboxAbsent = false;
   private async readGuide() {
     try {return await fetchGuideSourceSummaries({request: <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => this.call<T>('guide', path, method, body, signal)},
       this.options.viewer.serverId, Intl.DateTimeFormat().resolvedOptions().timeZone, this.options.signal);}
     catch (error) {
       this.assertCurrent();
       if (object(error) && error.status === 403 && !this.fences.has('guide')) {this.guideDenied = true; return undefined;}
+      // The rebuilt server has no Live TV guide yet: no Live TV, as on the web.
+      if (notOnThisServer(error)) return undefined;
       throw error;
     }
   }
@@ -266,7 +275,7 @@ export class NativeShellBootstrapServices {
     this.guideReading = pending; return pending;
   };
   /** Preference operations belong to the authority, not a refresh batch. Closing
-   * that batch must not cancel a concurrent Settings CAS on the same reader. */
+   * that batch must not cancel a concurrent Settings save on the same reader. */
   readPreferences = async (deviceClass: DeviceClass, signal?: AbortSignal): Promise<PreferenceSnapshot> => {
     this.assertCurrent();
     if (signal?.aborted) throw cancelled();
@@ -277,10 +286,10 @@ export class NativeShellBootstrapServices {
     if (next.deviceClass !== deviceClass) throw invalid();
     return next;
   };
-  applyPreferences = async (scope: PreferenceScope, deviceClass: DeviceClass, revision: number, values: PreferencePatch): Promise<PreferenceSnapshot> => {
+  applyPreferences = async (scope: PreferenceScope, deviceClass: DeviceClass, values: PreferencePatch): Promise<PreferenceSnapshot> => {
     this.assertCurrent();
     if (deviceClass !== this.options.deviceClass) throw invalid();
-    const next = await this.preferences.applyPreferences(scope, deviceClass, revision, values);
+    const next = await this.preferences.applyPreferences(scope, deviceClass, values);
     this.assertCurrent();
     if (next.deviceClass !== deviceClass) throw invalid();
     return next;

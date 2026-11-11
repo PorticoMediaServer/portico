@@ -14,11 +14,13 @@ export interface ProfileAPI {request<T>(path:string,method?:string,body?:unknown
 export type ProfileAuthority='local'|'hosted';
 export const PROFILE_ART=['blue','violet','mint','coral','gold','slate','rose','sky'] as const;
 export type ProfileArt=typeof PROFILE_ART[number];
-export type ManagedProfile=Readonly<{id:string;name:string;primary:boolean;position:number;art:ProfileArt;revision:number;pinRevision:number;pinRequired:boolean;trustRevision?:number;allowedLibraries?:readonly string[]|null}>;
+/** `accessMarker` changes whenever what the profile may see changes (its libraries, its limits, its account's role).
+ * The server keeps no revision of a profile: the later save wins. */
+export type ManagedProfile=Readonly<{id:string;name:string;primary:boolean;position:number;art:ProfileArt;pinRequired:boolean;accessMarker:string;allowedLibraries?:readonly string[]|null}>;
 /** `hostedAccountId`: a Portico Account member (Spec — Hosted at Scale). Its password, email and
  * two-step verification are managed at the Portico Account; profiles, PINs, sessions and devices
  * here, exactly as for a direct account. */
-export type DirectAccount=Readonly<{id:string;username:string;primaryProfileId:string;role:'owner'|'admin'|'member';revision:number;disabled:boolean;allowedLibraries:readonly string[];hostedAccountId?:string}>;
+export type DirectAccount=Readonly<{id:string;username:string;primaryProfileId:string;role:'owner'|'admin'|'member';disabled:boolean;allowedLibraries:readonly string[];hostedAccountId?:string}>;
 /** `custodyPending`: the owner is a Portico Account, but Hosted's custody of the server's claim
  * (retiring it, its certificates) is not with it yet: after a transfer to it, or after a direct
  * owner. Ask the owner to accept it (`acceptPorticoCustody`). */
@@ -52,9 +54,9 @@ export type ProfileScope=Readonly<{authority:ProfileAuthority;accountId:string;s
 export type ProfileSelectionInput=Readonly<{pin?:string;installationId?:string;remember?:boolean}>;
 /** `remembered`: the new sign-in remembers its profile until `expiresAt`. */
 export type DirectSelection=Readonly<{session:LocalSession;remembered?:Readonly<{expiresAt:string}>}>;
-/** What the confirmation shows before a profile is deleted. `revision` and `lifetime` are kept for
- * the screens that pass a preview back; the server deletes a profile in one step and reads neither. */
-export type ProfileDeletion=Readonly<{id?:string;profileId:string;revision:number;lifetime:string;name?:string;primary:boolean;status?:string;playlists?:number;savedResources?:number;servers?:readonly {id:string;name:string;acknowledged:boolean}[]}>;
+/** What the confirmation shows before a profile is deleted. `lifetime` is kept for the screens that pass a
+ * preview back; the server deletes a profile in one step and reads nothing from it. */
+export type ProfileDeletion=Readonly<{id?:string;profileId:string;lifetime:string;name?:string;primary:boolean;status?:string;playlists?:number;savedResources?:number;servers?:readonly {id:string;name:string;acknowledged:boolean}[]}>;
 /** A deleted profile is `removed` as soon as the server answers. */
 export type ProfileRetirementState='removing'|'removed'|'blocked';
 export type ProfileRetirement=Readonly<{profileId:string;lifetime:string;state:ProfileRetirementState}>;
@@ -71,13 +73,14 @@ function notYet():never{throw new CodedError('not_available','This is not availa
  * `blue`, the colour a new profile starts with. Where the whole list is relied on (sign-in, the account snapshot) one
  * unreadable profile refuses the list; with `readable`, a list read for display leaves that profile out instead. Either
  * way there is exactly one main profile, no id appears twice and the list is no longer than an account may hold.
- * `position` is the server's order. `revision` and `pinRevision` are always 1: the later save wins on the new server.
+ * `position` is the server's order.
  */
 export function parseManagedProfiles(raw:unknown,readable=false):readonly ManagedProfile[]{
  if(!Array.isArray(raw)||raw.length<1||raw.length>8)invalid();
  const positions=new Map<unknown,number>(raw.map((value,index)=>[value,index]));
  const row=(v:unknown):ManagedProfile=>{if(!obj(v)||!text(v.id,128)||!text(v.name,120)||typeof v.isPrimary!=='boolean'||!text(v.color,64)||typeof v.pinRequired!=='boolean')invalid();
-  return Object.freeze({id:v.id,name:v.name,primary:v.isPrimary,position:positions.get(v)??0,art:oneOfOr('profiles','profile.art',v.color,PROFILE_ART,'blue'),revision:1,pinRevision:1,pinRequired:v.pinRequired});};
+  return Object.freeze({id:v.id,name:v.name,primary:v.isPrimary,position:positions.get(v)??0,art:oneOfOr('profiles','profile.art',v.color,PROFILE_ART,'blue'),pinRequired:v.pinRequired,
+   accessMarker:typeof v.accessMarker==='string'&&v.accessMarker.length<=64?v.accessMarker:''});};
  const result:ManagedProfile[]=readable?keepReadable('profiles','rows',raw,row):raw.map(row);
  if(new Set(result.map(v=>v.id)).size!==result.length||result.filter(v=>v.primary).length!==1)invalid();
  return Object.freeze(result);
@@ -88,7 +91,7 @@ function accountSnapshot(serverId:string,account:unknown,profileRows:unknown,rol
  if(!text(serverId,128)||!obj(account)||!text(account.id,128)||!text(account.username,64)||!['owner','admin','member'].includes(account.role as string))invalid();
  const profiles=parseManagedProfiles(profileRows,readable),primary=profiles.find(p=>p.primary);if(!primary)invalid();
  const staff=canManage&&(role==='owner'||role==='admin');
- return Object.freeze({authority:'local',serverId,account:Object.freeze({id:account.id,username:account.username,primaryProfileId:primary.id,role:account.role as DirectAccount['role'],revision:1,disabled:false,allowedLibraries:Object.freeze([])}),
+ return Object.freeze({authority:'local',serverId,account:Object.freeze({id:account.id,username:account.username,primaryProfileId:primary.id,role:account.role as DirectAccount['role'],disabled:false,allowedLibraries:Object.freeze([])}),
   profiles,capabilities:Object.freeze({manageAccount:canManage,managePeople:staff,manageServer:staff,manageSignIn:canManage&&role==='owner'}),canManage,rememberProfiles:false});
 }
 /** Reads what `readDirectAccount` fetched (`GET /v1/me` and `GET /v1/profiles`) for the server the caller is signed in to. */
@@ -186,7 +189,7 @@ export class ManagedProfilesClient {
  /** The server has no preview of what a deletion removes yet, so the confirmation names the profile only. */
  async previewDelete(profile:ManagedProfile,_signal?:AbortSignal):Promise<ProfileDeletion>{
   if(profile.primary)throw new Error('The primary profile is managed through account settings.');
-  return Object.freeze({profileId:profile.id,name:profile.name,revision:1,lifetime:'',primary:false});
+  return Object.freeze({profileId:profile.id,name:profile.name,lifetime:'',primary:false});
  }
  /** Deletes the profile for good and returns its devices to Who's watching (`DELETE /v1/profiles/{id}`). */
  async delete(preview:ProfileDeletion,options:ProfileDeletionOptions={}):Promise<ProfileRetirement>{
