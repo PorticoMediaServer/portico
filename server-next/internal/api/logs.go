@@ -138,7 +138,7 @@ func (s *Server) logRoutes() {
 			return
 		}
 		var req SupportExportRequest
-		if err := readBody(w, r, &req, false); err != nil {
+		if err := readBody(w, r, &req, false, maxBody); err != nil {
 			s.writeError(w, r, err)
 			return
 		}
