@@ -40,6 +40,9 @@ type Selection struct {
 	AddedWithinDays int      `json:"addedWithinDays,omitempty"`
 	Always          []string `json:"always,omitempty"`
 	Never           []string `json:"never,omitempty"`
+	// OnlyAlways plays the Always titles and nothing else: with a block, a title or a show at
+	// a fixed time each week.
+	OnlyAlways bool `json:"onlyAlways,omitempty"`
 	// Order is shuffle (the default: every title once before any again), random (repeats
 	// allowed), inOrder, inOrderThenShuffle, or leastPlayed.
 	Order string `json:"order,omitempty"`
@@ -83,6 +86,10 @@ type Block struct {
 	To   string   `json:"to"`
 	// Selection is the block's own copy; none plays the channel's own selection.
 	Selection *Selection `json:"selection,omitempty"`
+	// FromPreset, on a save, names a block preset to copy: its selection, and its days, start
+	// and length where the block does not set them. The saved block keeps the copy, not the
+	// name, so changing or deleting the preset never changes the channel.
+	FromPreset string `json:"fromPreset,omitempty"`
 	// Overrun is finish (the default), cut or fit.
 	Overrun string `json:"overrun,omitempty"`
 	// Resume is pickUp (the default) or restart.
@@ -220,6 +227,9 @@ func (b *Builder) Check(libraryKinds, titleLibraries map[string]string, moods bo
 	ids := map[string]bool{}
 	for n, blk := range b.Blocks {
 		field := fmt.Sprintf("blocks[%d]", n)
+		if blk.FromPreset != "" {
+			return fieldError(field+".fromPreset", "That block preset no longer exists.")
+		}
 		if blk.ID == "" || ids[blk.ID] {
 			return fieldError(field+".id", "Each block needs its own id.")
 		}
@@ -268,6 +278,9 @@ func (s *Selection) check(prefix string, libraryKinds, titleLibraries map[string
 	}
 	if len(s.Kinds) == 0 {
 		return fieldError(prefix+"kinds", "Choose movies, TV shows, or both.")
+	}
+	if s.OnlyAlways && len(s.Always) == 0 {
+		return fieldError(prefix+"always", "Pin at least one title to play.")
 	}
 	for _, k := range s.Kinds {
 		if k != "movie" && k != "show" {
@@ -501,4 +514,49 @@ func (b *Builder) DropGone(titleLibraries map[string]string) int {
 		}
 	}
 	return dropped
+}
+
+// Copy fills a block from a preset as Add a block from a preset does: the preset's selection,
+// and its days, start and length where the block sets none. libraryKind is the kind of the
+// preset's library.
+func (r Recipe) Copy(blk *Block, name, library, libraryKind string) {
+	kinds := []string{"show"}
+	switch libraryKind {
+	case db.LibraryMovies:
+		kinds = []string{"movie"}
+	case db.LibraryAnime:
+		kinds = []string{"movie", "show"}
+	}
+	sel := &Selection{Libraries: []string{library}, Kinds: kinds, Match: "all", Conditions: r.Clauses}
+	switch r.Order {
+	case "inOrder":
+		sel.Order, sel.Sort = "inOrder", "title"
+	case "recent":
+		sel.Order, sel.Sort = "inOrder", "recent"
+	case "leastPlayed":
+		sel.Order = "leastPlayed"
+	default:
+		sel.Order = "shuffle"
+	}
+	blk.Selection, blk.FromPreset = sel, ""
+	if blk.Name == "" {
+		blk.Name = name
+	}
+	if len(blk.Days) == 0 {
+		blk.Days = slices.Clone(r.Days)
+		if len(blk.Days) == 0 {
+			blk.Days = slices.Clone(weekdays)
+		}
+	}
+	if blk.From == "" {
+		blk.From = r.StartsAt
+		if blk.From == "" {
+			blk.From = "00:00"
+		}
+	}
+	if blk.To == "" {
+		from, _ := clock(blk.From)
+		end := (from + r.Minutes) % (24 * 60)
+		blk.To = fmt.Sprintf("%02d:%02d", end/60, end%60)
+	}
 }
