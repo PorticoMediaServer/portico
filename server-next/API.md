@@ -30,7 +30,7 @@ Assistant) are a separate short document and are not counted here.
 | Time | Timestamps are RFC 3339 UTC strings ending `At`. Durations and positions are whole milliseconds ending `Ms`. |
 | Unknown things | Clients ignore fields, enum values and event types they do not know. Every enum is open. The server ignores unknown request fields. |
 | Server-tuned values | The server tells clients how often to report progress, how long to wait before retrying and the largest page it will serve. Clients do not hard-code them. |
-| Media and artwork | The server returns addresses that are their own permission, and clients fetch them and never build them. A media address (`/v1/media/{grant}/{file}`) is short-lived. An artwork address (`/v1/images/{id}`) is named by a long hash that only a reply about something the caller may see contains; the picture behind it never changes, so it takes no token and can be cached for good. A client may add `w` and `h` to get it no larger than it will draw it. |
+| Media and artwork | The server returns addresses that are their own permission, and clients fetch them and never build them. A media address (`/v1/media/{grant}/{file}`) is short-lived. An artwork address (`/v1/images/{id}`) is named by a long hash that only a reply about something the caller may see contains; the picture behind it never changes, so it takes no token and can be cached for good. Each picture is stored in a small and a large size when it arrives (library artwork 800 and 1920 pixels on its longest edge, profile pictures 160 and 512); a client may add `w` and `h`, the size it will draw at, and is served the small size when that is large enough, else the large. Nothing is resized when a screen asks. |
 | Sign-in | `Authorization: Bearer <access token>`. Access tokens last 15 minutes; the refresh token rotates on every renewal; a renewal repeated with the same `requestId` gets the same answer; an older refresh token used again ends the session. A token that is no longer good is answered `401` at every address under `/v1`, an unknown one included. |
 | Versioning | `/v1` in the path. After release, additions are optional fields and new routes, announced in `capabilities` on `GET /v1/system`. |
 
@@ -119,7 +119,7 @@ Assistant) are a separate short document and are not counted here.
 | `GET /v1/people`, `GET /v1/people/{id}` | People |
 | `GET /v1/genres` | Genres with artwork, per library |
 | `GET /v1/music/mixes` | Mixes built from your library |
-| `GET /v1/images/{id}` | Artwork bytes, sized by `w` and `h` |
+| `GET /v1/images/{id}` | Artwork bytes: the stored small size when it covers `w` and `h`, else the large |
 
 ### Your state and lists (26)
 
