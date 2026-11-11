@@ -19,6 +19,7 @@ import (
 type storage struct {
 	root     string
 	listings atomic.Int64
+	opens    atomic.Int64
 	slowed   atomic.Bool
 }
 
@@ -43,6 +44,7 @@ type remoteFile struct{ *os.File }
 func (f remoteFile) Size() int64 { info, _ := f.Stat(); return info.Size() }
 
 func (s *storage) Open(_ context.Context, path string) (remote.File, error) {
+	s.opens.Add(1)
 	f, err := os.Open(filepath.Join(s.root, path))
 	return remoteFile{f}, err
 }
@@ -123,14 +125,21 @@ func TestListOnlyReadsNothing(t *testing.T) {
 	f := newFixture(t, db.LibraryMovies)
 	f.write("Alien (1979).mkv")
 	reads := &reader{}
+	store := &storage{root: f.root}
+	if err := os.WriteFile(filepath.Join(f.root, "Alien (1979).nfo"), []byte(`<movie><title>Alien</title></movie>`), 0600); err != nil {
+		t.Fatal(err)
+	}
 	f.s.Remote = func(context.Context, int64) (remote.Storage, time.Duration, error) {
-		return listOnly{&storage{root: f.root}}, time.Hour, nil
+		return listOnly{store}, time.Hour, nil
 	}
 	f.s.ReaderProber = reads
 	f.lib = f.library()
 	f.lib.Paths[0].RemoteID, f.lib.Paths[0].Path = 1, ""
 	if _, err := f.s.Scan(ctx, f.lib); err != nil {
 		t.Fatal(err)
+	}
+	if store.opens.Load() != 0 {
+		t.Fatalf("a list-only source was opened %d times", store.opens.Load())
 	}
 	if reads.calls.Load() != 0 || !f.detail(f.film("Alien").PublicID).Available {
 		t.Fatalf("a list-only source: %d files read", reads.calls.Load())

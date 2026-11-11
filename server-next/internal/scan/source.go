@@ -202,7 +202,11 @@ func (r Remote) Exists(ctx context.Context, rel string) (bool, error) {
 	return false, nil
 }
 
+// Open is a scan read: a list-only preset leaves tags, sidecars and file facts unread.
 func (r Remote) Open(ctx context.Context, rel string) (File, error) {
+	if !r.readsFiles() {
+		return nil, fs.ErrPermission
+	}
 	return r.Storage.Open(ctx, r.at(rel))
 }
 
