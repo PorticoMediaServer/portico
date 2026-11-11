@@ -39,6 +39,9 @@ type Options struct {
 	Folder string
 	// FFmpeg and FFprobe are the tools to run; empty finds the bundled or installed ones.
 	FFmpeg, FFprobe string
+	// Kept is a file in which what ffmpeg can do is kept between starts, so only the first
+	// start with a program asks it; empty keeps nothing.
+	Kept string
 	// Log is told when ffmpeg cannot be asked what it can do; nil uses the default logger.
 	Log *slog.Logger
 	// Remote opens a remote source by its id, behind its throttle (remote.Registry.Open).
@@ -92,7 +95,7 @@ func New(ctx context.Context, d *db.DB, o Options) (*Engine, error) {
 		if _, err := exec.LookPath(ffmpeg); err != nil {
 			return
 		}
-		tools, err := decoder.ProbeToolchain(ctx, ffmpeg)
+		tools, err := decoder.ProbeToolchainKept(ctx, ffmpeg, o.Kept)
 		if err != nil {
 			if ctx.Err() == nil {
 				log.Error("ffmpeg could not be asked what it can do, so only original files will play", "error", err)
