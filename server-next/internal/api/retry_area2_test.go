@@ -7,5 +7,6 @@ func init() {
 		"POST /v1/setup/portico/finish":            "happens once: a repeat is told the server is set up",
 		"POST /v1/setup/finish":                    "sets Remote security: a repeat sets it again",
 		"POST /v1/admin/remote-access/route-check": "changes nothing",
+		"POST /v1/admin/remote-access/check":       "asks the router and reads the certificate again; changes no setting",
 	})
 }
