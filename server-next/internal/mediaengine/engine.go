@@ -75,7 +75,10 @@ type Engine struct {
 // arrives in those first seconds waits for the answer. Run must be called for the engine to
 // do its housekeeping.
 func New(ctx context.Context, d *db.DB, o Options) (*Engine, error) {
-	e := &Engine{db: d, probe: mediafacts.Probe{Binary: o.FFprobe}, facts: map[string]mediafacts.Facts{}, asked: make(chan struct{}), remote: o.Remote, processes: &processpool.Supervisor{Limit: 4}}
+	e := &Engine{db: d, probe: mediafacts.Probe{Binary: o.FFprobe}, facts: map[string]mediafacts.Facts{}, remote: o.Remote, asked: make(chan struct{}),
+		// No limit of its own: a limit here would refuse the fifth remote film being converted
+		// at once, since a converter is not made to wait for a slot.
+		processes: &processpool.Supervisor{}}
 	ffmpeg := o.FFmpeg
 	if ffmpeg == "" {
 		ffmpeg = mediatools.Resolve("ffmpeg")
