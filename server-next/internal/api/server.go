@@ -14,7 +14,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -72,6 +71,8 @@ type Server struct {
 	remote *remote.Registry
 	// driveSignIns are Google sign-ins for Drive sources under way.
 	driveSignIns remote.DriveSignIns
+	// keyRequests slows a key that makes too many requests. See key_check.go.
+	keyRequests keyRequests
 }
 
 // Route is one operation, kept so the contract can be generated and the operation budget counted.
@@ -423,6 +424,8 @@ type Caller struct {
 	// Manage says the caller is on the account's main profile, and so may change the account
 	// itself: its profiles, devices, sessions and password.
 	Manage bool
+	// KeyScopes are what the key the request came with may do; nil for a signed-in person.
+	KeyScopes []string
 }
 
 // CallerFrom returns the signed-in caller of a route whose access is not Public.
@@ -445,18 +448,10 @@ func (s *Server) admit(r *http.Request, route *Route) (*http.Request, error) {
 	}
 	var c Caller
 	if strings.HasPrefix(token, keyPrefix) {
-		key, err := s.db.KeyCaller(r.Context(), auth.Hash(token), s.now())
-		switch {
-		case errors.Is(err, db.ErrNotFound):
-			return r, ErrUnauthorized()
-		case err != nil:
+		key, err := s.db.KeyCaller(r.Context(), keyHash(token), s.now())
+		if c, err = s.keyCheck(r, key, err, route.Scope); err != nil {
 			return r, err
-		case route.Scope == ScopeSession:
-			return r, refusal(http.StatusForbidden, "session_required", "This needs a signed-in person, not a key.", false)
-		case !slices.Contains(key.Scopes, string(route.Scope)) && !slices.Contains(key.Scopes, string(ScopeAdmin)):
-			return r, refusal(http.StatusForbidden, "insufficient_scope", "This key was not given the scope this needs.", false)
 		}
-		c = Caller{UserID: key.UserID, ProfileID: key.ProfileID, Role: key.Role}
 	} else {
 		claims, err := s.tokens.CheckAccess(token, s.now())
 		// A token of a session that has since been ended, or whose profile or role has changed,

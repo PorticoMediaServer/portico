@@ -43,11 +43,13 @@ func scanKey(row interface{ Scan(...any) error }) (APIKey, error) {
 
 // NewAPIKey is a key to create.
 type NewAPIKey struct {
-	UserID  int64
-	Kind    string
-	Name    string
-	KeyHash string
-	Scopes  []string
+	UserID int64
+	// ProfileID is the profile the key acts as: the one it was made from. 0 is the main profile.
+	ProfileID int64
+	Kind      string
+	Name      string
+	KeyHash   string
+	Scopes    []string
 	// ExpiresAt is zero for a key that does not expire.
 	ExpiresAt time.Time
 	// Limit is how many live keys of this kind the account may hold.
@@ -88,6 +90,14 @@ func (d *DB) CreateAPIKey(ctx context.Context, n NewAPIKey) (out APIKey, secretI
 			}
 			return err
 		}
+		// A person whose "Access tokens" permission is off has no tokens or app passwords.
+		var allowed bool
+		if err := tx.QueryRow(`SELECT allow_tokens = 1 OR ? = 'api_key' FROM users WHERE id = ?`, n.Kind, n.UserID).Scan(&allowed); err != nil {
+			return err
+		}
+		if !allowed {
+			return ErrNotPermitted
+		}
 		var live int
 		if err := tx.QueryRow(`SELECT count(*) FROM api_keys WHERE user_id = ? AND kind = ? AND `+liveKey, n.UserID, n.Kind, at).Scan(&live); err != nil {
 			return err
@@ -99,8 +109,8 @@ func (d *DB) CreateAPIKey(ctx context.Context, n NewAPIKey) (out APIKey, secretI
 		if !n.ExpiresAt.IsZero() {
 			expires = n.ExpiresAt.UnixMilli()
 		}
-		out, err = scanKey(tx.QueryRow(`INSERT INTO api_keys (public_id, user_id, kind, name, key_hash, scopes, created_at, expires_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING `+keyColumns, NewID("key"), n.UserID, n.Kind, n.Name, n.KeyHash, strings.Join(n.Scopes, " "), at, expires))
+		out, err = scanKey(tx.QueryRow(`INSERT INTO api_keys (public_id, user_id, kind, name, key_hash, scopes, created_at, expires_at, profile_id)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, nullif(?, 0)) RETURNING `+keyColumns, NewID("key"), n.UserID, n.Kind, n.Name, n.KeyHash, strings.Join(n.Scopes, " "), at, expires, n.ProfileID))
 		if err != nil {
 			return err
 		}
@@ -150,33 +160,64 @@ func (d *DB) RevokeAPIKey(ctx context.Context, userID int64, kind, publicID stri
 
 // KeyCaller is who a request carrying a key acts for.
 type KeyCaller struct {
+	// KeyID is the key's own row, which the request limit counts by.
+	KeyID  int64
 	UserID int64
-	// ProfileID is the account's main profile: a key acts as its owner's main profile.
+	// ProfileID is the profile the key acts as and sees as: the one it was made from, or the
+	// account's main profile.
 	ProfileID int64
-	Role      string
-	Scopes    []string
+	// Role is the account's role on its main profile; a key made from another profile is a
+	// member, as that profile is.
+	Role   string
+	Scopes []string
 }
 
-// KeyCaller looks a presented key up. A key that is unknown, revoked, expired, an app
-// password (which only signs in to other apps' protocols) or whose account is disabled is
-// ErrNotFound. Unlike a session's token, a key is read from the database on every request,
-// so revoking one or disabling its account takes effect at once.
+// ErrAccountUnavailable: the key is good but its account is turned off, or waiting to move to
+// another kind of sign-in, so it could not sign in either.
+var ErrAccountUnavailable = errors.New("the account cannot be used now")
+
+// KeyCaller looks a presented key up. A key that is unknown, revoked, expired or an app
+// password (which only signs in to other apps' protocols) is ErrNotFound; a personal token
+// whose person may no longer hold tokens is too. A key whose account is turned off or not
+// active is ErrAccountUnavailable. Unlike a session's token, a key is read from the database
+// on every request, so revoking one or turning its account off takes effect at once.
 func (d *DB) KeyCaller(ctx context.Context, keyHash string, now time.Time) (KeyCaller, error) {
+	return d.keyCaller(ctx, keyHash, now, "'api_key', 'personal_token'", "")
+}
+
+// AppPasswordCaller is KeyCaller for an app password, which only a tool's username and
+// password sign-in accepts. username must be the app password's own account.
+func (d *DB) AppPasswordCaller(ctx context.Context, username, keyHash string, now time.Time) (KeyCaller, error) {
+	if username == "" {
+		return KeyCaller{}, ErrNotFound
+	}
+	return d.keyCaller(ctx, keyHash, now, "'app_password'", username)
+}
+
+func (d *DB) keyCaller(ctx context.Context, keyHash string, now time.Time, kinds, username string) (KeyCaller, error) {
 	var c KeyCaller
-	var id int64
 	var scopes string
 	var used sql.NullInt64
-	err := d.read.QueryRowContext(ctx, `SELECT k.id, k.scopes, k.last_used_at, u.id, u.role, p.id
-		FROM api_keys k JOIN users u ON u.id = k.user_id JOIN profiles p ON p.user_id = u.id AND p.is_primary = 1
-		WHERE k.key_hash = ? AND k.kind IN ('api_key', 'personal_token') AND u.disabled_at IS NULL
-			AND k.revoked_at IS NULL AND (k.expires_at IS NULL OR k.expires_at > ?)`, keyHash, now.UnixMilli()).
-		Scan(&id, &scopes, &used, &c.UserID, &c.Role, &c.ProfileID)
+	var usable bool
+	err := d.read.QueryRowContext(ctx, `SELECT k.id, k.scopes, k.last_used_at, u.id,
+			CASE WHEN p.is_primary = 1 THEN u.role ELSE 'member' END, p.id,
+			u.disabled_at IS NULL AND u.state = 'active'
+		FROM api_keys k JOIN users u ON u.id = k.user_id
+			JOIN profiles p ON p.user_id = u.id AND (p.id = k.profile_id OR k.profile_id IS NULL AND p.is_primary = 1)
+		WHERE k.key_hash = ? AND k.kind IN (`+kinds+`) AND (k.kind = 'api_key' OR u.allow_tokens = 1)
+			AND k.revoked_at IS NULL AND (k.expires_at IS NULL OR k.expires_at > ?) AND (? = '' OR u.username = ? COLLATE NOCASE)`,
+		keyHash, now.UnixMilli(), username, username).
+		Scan(&c.KeyID, &scopes, &used, &c.UserID, &c.Role, &c.ProfileID, &usable)
 	if errors.Is(err, sql.ErrNoRows) {
 		return c, ErrNotFound
 	}
 	if err != nil {
 		return c, err
 	}
+	if !usable {
+		return c, ErrAccountUnavailable
+	}
+	id := c.KeyID
 	c.Scopes = strings.Fields(scopes)
 	// "Last used" is for the owner to spot a key nobody uses. An hour's precision is plenty,
 	// and it is not worth making a read wait for a write, except once: the first use is
