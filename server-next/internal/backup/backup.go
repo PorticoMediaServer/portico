@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -263,12 +264,52 @@ func (s *Service) LastError() error {
 }
 
 // Failed is why scheduled backups are failing, once one has failed and been tried again for
-// 4 hours without success, until one succeeds. It is what the owner is alerted to: a first
+// 4 hours without success, until a backup succeeds, scheduled or made by hand. It is what the owner is alerted to: a first
 // failure is tried again quietly.
 func (s *Service) Failed() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.failed
+}
+
+// failingSinceKey is the setting that holds when scheduled backups began to fail, in
+// milliseconds, empty while they work. It is kept in the database so that the 4 hours before
+// the owner is told are not begun again by every restart: a computer switched off each
+// evening would otherwise never tell its owner.
+const failingSinceKey = "backup.failing_since"
+
+// failingSince is when scheduled backups began to fail, zero while they work.
+func (s *Service) failingSince() time.Time {
+	value, _, _ := s.DB.Setting(context.Background(), failingSinceKey)
+	ms, _ := strconv.ParseInt(value, 10, 64)
+	if ms == 0 {
+		return time.Time{}
+	}
+	return time.UnixMilli(ms)
+}
+
+// noteFailing records the first of a run of failed scheduled backups, and forgets it when
+// a backup succeeds.
+func (s *Service) noteFailing(failed bool) {
+	since, value := s.failingSince(), ""
+	if failed == !since.IsZero() {
+		return
+	}
+	if failed {
+		value = strconv.FormatInt(s.Now().UnixMilli(), 10)
+	}
+	if err := s.DB.SaveSetting(context.Background(), failingSinceKey, value, s.Now()); err != nil {
+		s.Log.Warn("when scheduled backups began to fail could not be recorded", "error", err)
+	}
+}
+
+// forgetFailure ends the alert and what led to it: the owner has chosen Never, so no
+// scheduled backup can succeed to end it.
+func (s *Service) forgetFailure() {
+	s.mu.Lock()
+	s.last, s.failed = nil, nil
+	s.mu.Unlock()
+	s.noteFailing(false)
 }
 
 // GiveUp is called when a scheduled backup has failed and its 4 hours of retries are used
@@ -306,12 +347,17 @@ func (s *Service) Start(scheduled bool) (string, error) {
 			s.Log.Info("a backup was cut off because the server is stopping", "backup", id)
 			return
 		}
-		if scheduled {
-			if s.last = err; err == nil {
-				s.failed = nil
-			}
+		// Any backup that succeeds, by hand or scheduled, ends the alert: the owner who fixed
+		// the folder and backed up by hand has a backup. Only a scheduled one begins it.
+		if err == nil {
+			s.last, s.failed = nil, nil
+		} else if scheduled {
+			s.last = err
 		}
 		s.mu.Unlock()
+		if err == nil || scheduled {
+			s.noteFailing(err != nil)
+		}
 		if err != nil {
 			s.Log.Error("a backup failed", "backup", id, "error", err)
 			return
