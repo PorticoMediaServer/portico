@@ -306,9 +306,10 @@ func better(a, b db.PlaybackVersion) bool {
 // resolve reads a title for a viewer and plans it for the device asking. With no version
 // named it picks the best version the device plays as it is, otherwise the best one.
 // current is the quality in force on the session being changed, if there is one. self is that
-// session, and withUpload says the upload speed may narrow the quality (see away.go).
+// session, and admitting says the play is starting or its quality is changing, the only times
+// the away limits apply (see away.go).
 func (s *Service) resolve(ctx context.Context, c Caller, device db.SessionDevice, itemID string, ask Ask, current *Choice,
-	self string, withUpload bool) (resolved, error) {
+	self string, admitting bool) (resolved, error) {
 	var out resolved
 	item, err := s.db.PlaybackItem(ctx, c.Viewer, itemID)
 	if err != nil {
@@ -328,7 +329,7 @@ func (s *Service) resolve(ctx context.Context, c Caller, device db.SessionDevice
 		return out, err
 	}
 	out.item, out.device, out.network, out.prefs = item, device, network(ask.Network, c.AtHome), prefs
-	roomKbps, limited, upload := s.room(item.Kind, out.network, self, withUpload)
+	roomKbps, limited, upload := s.room(item.Kind, out.network, self, device.ID, admitting)
 
 	type attempt struct {
 		version db.PlaybackVersion
