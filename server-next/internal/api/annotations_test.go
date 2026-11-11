@@ -97,6 +97,10 @@ func TestAnnotations(t *testing.T) {
 	if w := call(t, b.s, "POST", "/v1/annotations:batch", owner, map[string]any{"changes": deletions}, &results); w.Code != 200 || results.Results[0].Error != nil {
 		t.Fatalf("deleting unknown annotations answered %d", w.Code)
 	}
+	if code, _ := put(owner, book+"/annotations/never-0", map[string]any{"kind": "bookmark", "location": "x", "progress": 0.3}); code != 200 {
+		t.Fatalf("an annotation sent after a deletion of it the server never had answered %d", code)
+	}
+	call(t, b.s, "DELETE", book+"/annotations/never-0", owner, nil, nil)
 
 	// The largest annotation fits one request, and a full batch of ordinary highlights fits another.
 	big := map[string]any{"kind": "highlight", "color": "pink", "location": strings.Repeat("l", 4000), "progress": 0.9,
