@@ -510,19 +510,21 @@ type RouteCheck struct {
 // judge works out what v would do to the request r. Through listed proxies only, the scheme,
 // host and port are the person's; otherwise they are this server's connection's own.
 // With ready, a Portico certificate still being issued is counted as there (see security).
+// Home is decided by s.fromHome, the one rule every home-or-away decision uses.
 func (s *Server) judge(r *http.Request, v RemoteAccessSettings, allowed []string, finished, ready bool) RouteCheck {
-	return s.judgeWith(r, v, allowed, finished, ready, s.networks())
+	return s.judgeAt(r, v, allowed, finished, ready, s.fromHome(r))
 }
 
-// judgeWith is judge with the home networks given, for a save of the network settings.
+// judgeWith is judge under home networks the owner is about to save. Home is that list's own
+// answer: the warnings about proxies are for the settings in force, not for a proposal.
 func (s *Server) judgeWith(r *http.Request, v RemoteAccessSettings, allowed []string, finished, ready bool, n auth.Networks) RouteCheck {
+	return s.judgeAt(r, v, allowed, finished, ready, n.FromHome(r))
+}
+
+func (s *Server) judgeAt(r *http.Request, v RemoteAccessSettings, allowed []string, finished, ready, home bool) RouteCheck {
 	secure := s.secure(r)
 	out := RouteCheck{Address: s.requestAddress(r, secure), Fixes: []string{}, RemoteSecurity: s.access.security(v, allowed, finished, ready)}
-	// This save preview uses the proposed networks rather than the current ones.
-	if n.ProxyGaveNoAddress(r) {
-		s.noteSilentProxy(peerAddr(r))
-	}
-	if n.FromHome(r) {
+	if home {
 		return out
 	}
 	enhanced := out.RemoteSecurity.Active == "enhanced"
