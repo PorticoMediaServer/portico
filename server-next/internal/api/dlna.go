@@ -122,13 +122,7 @@ func (s *Server) dlnaRoutes() {
 		},
 		// When area 2 adds the owner's own address for the server, its name joins these.
 		Names: func() []string { return s.remoteAccess().DLNANames },
-		Name: func() string {
-			name, ok, _ := s.db.Setting(context.Background(), "server.name")
-			if !ok {
-				name = "Portico"
-			}
-			return name
-		}}
+		Name:  s.serverName}
 	Handle(s, "GET /v1/admin/settings/remote-access", Owner, func(r *http.Request, _ None) (RemoteAccessSettings, error) {
 		_, saved, err := s.db.SettingDocument(r.Context(), remoteAccessSettingsKey)
 		cur := s.remoteAccess()

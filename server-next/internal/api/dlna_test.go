@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -88,8 +89,15 @@ func TestDLNA(t *testing.T) {
 		t.Fatalf("turning DLNA on answered %d with warning %q", w.Code, settings.Warning)
 	}
 
-	if w := dlnaCall(s, home, "GET", "/dlna/device.xml", "", nil); w.Code != 200 || !strings.Contains(w.Body.String(), "MediaServer:1") {
-		t.Fatalf("the device description answered %d", w.Code)
+	// TVs list the server by the name the owner gave it in Settings › General.
+	rename := newRequest("PUT", "/v1/admin/settings/general", owner, json.RawMessage(`{"name":"Den"}`))
+	rename.Header.Set("If-Match", `"0"`)
+	if w := serve(s, rename); w.Code != 200 {
+		t.Fatalf("renaming the server answered %d", w.Code)
+	}
+	if w := dlnaCall(s, home, "GET", "/dlna/device.xml", "", nil); w.Code != 200 || !strings.Contains(w.Body.String(), "MediaServer:1") ||
+		!strings.Contains(w.Body.String(), "<friendlyName>Den</friendlyName>") {
+		t.Fatalf("the device description answered %d: %s", w.Code, w.Body)
 	}
 	root := browse(s, home, "0", "BrowseDirectChildren").Body.String()
 	if !strings.Contains(root, "Films") {
