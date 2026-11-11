@@ -219,14 +219,15 @@ func (d *DB) ImportSourceChannels(ctx context.Context, sourceID int64, channels 
 				var edited channelEdits
 				json.Unmarshal([]byte(editedText.String), &edited)
 				name, number, listings := !slices.Contains(edited, "name"), !slices.Contains(edited, "number"), !slices.Contains(edited, "listings")
-				hidden := slices.Contains(edited, "hidden")
+				// The owner's own hide, or choice to bring the channel in or leave it out, stays.
+				keepState := slices.Contains(edited, "hidden") || slices.Contains(edited, "broughtIn")
 				if _, err := tx.Exec(`UPDATE channels SET name = CASE WHEN ? THEN ? ELSE name END, sort_name = CASE WHEN ? THEN ? ELSE sort_name END,
 					number = CASE WHEN ? THEN ? ELSE number END, source_number = nullif(?, 0), group_name = nullif(?, ''),
 					state = CASE WHEN ? THEN state WHEN ? THEN ? ELSE ? END,
 					guide_source_id = CASE WHEN ? THEN nullif(?, 0) ELSE guide_source_id END, guide_key = CASE WHEN ? THEN nullif(?, '') ELSE guide_key END,
 					locator = ?, logo_url = nullif(?, ''), missing_since_at = NULL, updated_at = ? WHERE id = ?`,
 					name, c.Name, name, sorttext.Key(c.Name, "", ""), number, c.Number, c.SourceNumber, c.Group,
-					hidden, c.BroughtIn, ChannelInUse, ChannelNotIn, listings, c.GuideSource, listings, c.GuideKey,
+					keepState, c.BroughtIn, ChannelInUse, ChannelNotIn, listings, c.GuideSource, listings, c.GuideKey,
 					c.Locator, c.Logo, now.UnixMilli(), id); err != nil {
 					return err
 				}
@@ -355,6 +356,7 @@ func (d *DB) EditSourceChannels(ctx context.Context, sourceID int64, edits []Cha
 				state = ChannelInUse
 			}
 			if e.BroughtIn != nil {
+				mark("broughtIn")
 				state = map[bool]int{true: ChannelInUse, false: ChannelNotIn}[*e.BroughtIn]
 			}
 			raw, _ := json.Marshal(edited)
