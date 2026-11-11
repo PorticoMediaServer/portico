@@ -143,31 +143,38 @@ func TestAFilmIsMatchedAndGetsItsDetails(t *testing.T) {
 		t.Error("matching gave the film a new id")
 	}
 	if film.Year != 1999 || film.ReleaseDate != "1999-03-31" || film.Tagline != "Believe the unbelievable." ||
-		!strings.HasPrefix(film.Summary, "Set in the 22nd century") || film.ContentRating != "R" || film.CommunityRating != 8.2 {
+		!strings.HasPrefix(film.Summary, "Set in the 22nd century") || film.ContentRating != "R" || film.CommunityRating != 8.263 {
 		t.Errorf("details: %+v", film)
 	}
 	if got := tagNames(film, db.TagGenre); !slices.Equal(got, []string{"Action", "Science Fiction"}) {
 		t.Errorf("genres: %q", got)
 	}
-	if got := tagNames(film, db.TagStudio); !slices.Equal(got, []string{"Village Roadshow Pictures", "Warner Bros. Pictures"}) {
+	if got := tagNames(film, db.TagStudio); !slices.Equal(got, []string{"Groucho II Film Partnership", "Silver Pictures", "Village Roadshow Pictures", "Warner Bros. Pictures"}) {
 		t.Errorf("studios: %q", got)
 	}
 	if !slices.Contains(film.ExternalIDs, db.ExternalID{Provider: "tmdb", ID: "603"}) ||
 		!slices.Contains(film.ExternalIDs, db.ExternalID{Provider: "imdb", ID: "tt0133093"}) {
 		t.Errorf("ids: %+v", film.ExternalIDs)
 	}
-	// Two directors, a writer who is one of them, a producer, then four actors. The director
-	// of photography is not listed.
-	if film.CreditTotal != 8 || film.Credits[0].Name != "Lana Wachowski" || film.Credits[0].Role != db.RoleDirector {
+	// The two directors first (TMDB's crew list starts with a producer), then the writers,
+	// who are the same two people, six producers and the composer, then 37 actors. The rest
+	// of the crew of 177, such as the director of photography, is not listed.
+	if film.CreditTotal != 49 || film.Credits[0].Name != "Lana Wachowski" || film.Credits[0].Role != db.RoleDirector ||
+		film.Credits[1].Name != "Lilly Wachowski" || film.Credits[1].Role != db.RoleDirector {
 		t.Fatalf("credits: %d, %+v", film.CreditTotal, film.Credits)
 	}
-	neo := film.Credits[4]
+	neo := film.Credits[12]
 	if neo.Name != "Keanu Reeves" || neo.Role != db.RoleActor || neo.Character != "Neo" {
 		t.Errorf("first actor: %+v", neo)
 	}
 	// Lana Wachowski directed and wrote: one person, two credits.
-	if film.Credits[0].PersonID != film.Credits[2].PersonID {
+	if film.Credits[0].PersonID != film.Credits[2].PersonID || film.Credits[2].Role != db.RoleWriter {
 		t.Error("one person was stored twice")
+	}
+	for _, credit := range film.Credits {
+		if credit.Name == "Bill Pope" {
+			t.Errorf("the director of photography is listed: %+v", credit)
+		}
 	}
 
 	// What could not be matched stays in the library under its own name, and is listed.
@@ -242,8 +249,16 @@ func TestAShowIsMatchedWithItsEpisodes(t *testing.T) {
 	if got := tagNames(show, db.TagNetwork); !slices.Equal(got, []string{"AMC"}) {
 		t.Errorf("networks: %q", got)
 	}
-	if show.CreditTotal != 5 || show.Credits[2].Name != "Bryan Cranston" || show.Credits[2].Character != "Walter White" {
+	// Its creator, three executive producers and its composer, then the first 50 of its 348
+	// actors. The 25 people who directed an episode are on their episodes, not on the show.
+	if show.CreditTotal != 55 || show.Credits[0].Name != "Vince Gilligan" || show.Credits[0].Role != db.RoleWriter ||
+		show.Credits[5].Name != "Bryan Cranston" || show.Credits[5].Character != "Walter White" {
 		t.Errorf("credits: %d, %+v", show.CreditTotal, show.Credits)
+	}
+	for _, credit := range show.Credits {
+		if credit.Role == db.RoleDirector {
+			t.Errorf("an episode's director is on the show: %+v", credit)
+		}
 	}
 	pilot := f.title(db.KindEpisode, "Pilot")
 	if pilot.ReleaseDate != "2008-01-20" || !strings.HasPrefix(pilot.Summary, "When an unassuming") {
@@ -254,7 +269,7 @@ func TestAShowIsMatchedWithItsEpisodes(t *testing.T) {
 	for _, credit := range pilot.Credits {
 		roles = append(roles, credit.Role)
 	}
-	if !slices.Equal(roles, []db.CreditRole{db.RoleDirector, db.RoleWriter, db.RoleGuest}) {
+	if len(roles) != 19 || !slices.Equal(roles[:3], []db.CreditRole{db.RoleDirector, db.RoleWriter, db.RoleGuest}) {
 		t.Errorf("pilot credits: %+v", pilot.Credits)
 	}
 	f.title(db.KindEpisode, "Cat's in the Bag...")
