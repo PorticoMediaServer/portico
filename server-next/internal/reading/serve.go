@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
-	"github.com/PorticoMediaServer/portico/server-next/internal/libraryfile"
 )
 
 // ServeMedia answers one request under a book's address:
@@ -43,29 +42,23 @@ func (s *Service) ServeMedia(w http.ResponseWriter, r *http.Request, token, file
 		writeError(w, http.StatusNotFound, "not_found", "This is not available.")
 		return
 	}
-	place, err := s.db.FileOnDisk(ctx, g.fileID)
-	if err != nil {
+	f, place, err := s.openFile(ctx, g.fileID)
+	switch {
+	case errors.Is(err, ErrChanged):
+		writeError(w, http.StatusConflict, "book_changed", ErrChanged.Error())
+		return
+	case errors.Is(err, context.Canceled):
+		return
+	case err != nil:
 		writeError(w, http.StatusNotFound, "not_found", "This is not available.")
 		return
 	}
-	folders, err := s.db.LibraryFolders(ctx)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal", "Something went wrong.")
-		return
-	}
-	version := db.BookVersion{FileID: g.fileID, Path: place.Path, Size: place.Size, ModifiedNS: place.ModifiedNS}
-	f, err := libraryfile.Open(place.Path, folders)
-	if err != nil {
-		writeError(w, http.StatusNotFound, "not_found", "This is not available.")
-		return
-	}
-	defer f.Close()
-	info, err := f.Stat()
-	if err != nil || info.Size() != place.Size || info.ModTime().UnixNano() != place.ModifiedNS ||
-		string(fingerprintBytes(place.Size, place.ModifiedNS)) != string(g.fingerprint[:]) {
+	defer f.close()
+	if string(fingerprintBytes(place.Size, place.ModifiedNS)) != string(g.fingerprint[:]) {
 		writeError(w, http.StatusConflict, "book_changed", ErrChanged.Error())
 		return
 	}
+	version := db.BookVersion{FileID: g.fileID, Size: place.Size, ModifiedNS: place.ModifiedNS}
 	format := Format(place.Path)
 	// Nothing served here is a page of this server's own: a part opened on its own can run no
 	// script and reach nothing, and no type is guessed from the bytes.
@@ -83,10 +76,16 @@ func (s *Service) ServeMedia(w http.ResponseWriter, r *http.Request, token, file
 		if save {
 			w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": path.Base(place.Path)}))
 		}
-		http.ServeContent(w, r, "", info.ModTime(), f)
+		whole, err := f.whole()
+		if err != nil {
+			writeError(w, http.StatusNotFound, "not_found", "This is not available.")
+			return
+		}
+		defer whole.Close()
+		http.ServeContent(w, r, "", f.modified, whole)
 	case strings.HasPrefix(file, "parts/") && format == FormatEPUB:
 		deadline(w)
-		a, err := openArchive(f, info.Size())
+		a, err := openArchive(f.at, f.size)
 		if err != nil {
 			writeError(w, http.StatusUnprocessableEntity, "book_damaged", err.Error())
 			return
@@ -109,7 +108,7 @@ func (s *Service) ServeMedia(w http.ResponseWriter, r *http.Request, token, file
 		if r.URL.Query().Get("w") == "" {
 			width, werr = 0, nil
 		}
-		a, aerr := openArchive(f, info.Size())
+		a, aerr := openArchive(f.at, f.size)
 		if aerr != nil {
 			writeError(w, http.StatusUnprocessableEntity, "book_damaged", aerr.Error())
 			return
