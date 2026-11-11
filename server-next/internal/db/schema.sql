@@ -1,4 +1,4 @@
--- Portico main database.
+-- Portico main database. (Second part: schema_areas.sql, loaded with this file as one schema.)
 --
 -- Conventions (see server-next/RULES.md):
 --   * Times are whole milliseconds since 1970 UTC, in columns ending _at. Durations end _ms.
@@ -515,6 +515,19 @@ CREATE TABLE users (
   password_changed_at INTEGER,
   role                TEXT    NOT NULL CHECK (role IN ('owner', 'admin', 'member')),
   all_libraries       INTEGER NOT NULL DEFAULT 1 CHECK (all_libraries IN (0, 1)),
+  -- Added with the seven-area outline. portico_account_id is the Portico Account this account
+  -- signs in with, and is NULL for every account of a local server. state is 'active', or why
+  -- the account cannot sign in for now: 'waiting' to move after the kind of sign-in changed,
+  -- 'left' the server, or 'not_moved' when the owner finished a move without it. The allow_
+  -- switches are what the whole account may do; a profile's own switch can only narrow them.
+  -- The owner may always record, whatever allow_dvr says.
+  portico_account_id  TEXT,
+  state               TEXT    NOT NULL DEFAULT 'active' CHECK (state IN ('active', 'waiting', 'left', 'not_moved')),
+  allow_downloads     INTEGER NOT NULL DEFAULT 1 CHECK (allow_downloads IN (0, 1)),
+  allow_live_tv       INTEGER NOT NULL DEFAULT 1 CHECK (allow_live_tv IN (0, 1)),
+  allow_dvr           INTEGER NOT NULL DEFAULT 0 CHECK (allow_dvr IN (0, 1)),
+  allow_watch_together INTEGER NOT NULL DEFAULT 1 CHECK (allow_watch_together IN (0, 1)),
+  allow_tokens        INTEGER NOT NULL DEFAULT 1 CHECK (allow_tokens IN (0, 1)),
   two_factor_secret   BLOB,
   two_factor_enabled_at INTEGER,
   two_factor_last_step INTEGER,
@@ -525,6 +538,7 @@ CREATE TABLE users (
   created_at          INTEGER NOT NULL,
   updated_at          INTEGER NOT NULL
 ) STRICT;
+CREATE UNIQUE INDEX users_portico_account ON users (portico_account_id) WHERE portico_account_id IS NOT NULL;
 
 -- Viewing profiles. Each account has one main profile (is_primary), made with the account: it
 -- cannot be deleted, and only it carries the account's owner or admin role. access_changed_at moves whenever what the profile may see changes, and
@@ -544,6 +558,7 @@ CREATE TABLE profiles (
   allow_downloads    INTEGER NOT NULL DEFAULT 1 CHECK (allow_downloads IN (0, 1)),
   allow_live_tv      INTEGER NOT NULL DEFAULT 1 CHECK (allow_live_tv IN (0, 1)),
   allow_dvr          INTEGER NOT NULL DEFAULT 1 CHECK (allow_dvr IN (0, 1)),
+  allow_watch_together INTEGER NOT NULL DEFAULT 1 CHECK (allow_watch_together IN (0, 1)),
   access_changed_at  INTEGER NOT NULL,
   history_cleared_at INTEGER,
   extra              TEXT,
@@ -590,7 +605,7 @@ CREATE UNIQUE INDEX library_access_profile ON library_access (profile_id, librar
 CREATE UNIQUE INDEX library_access_invitation ON library_access (invitation_id, library_id) WHERE invitation_id IS NOT NULL;
 CREATE INDEX library_access_library ON library_access (library_id);
 
--- Labels a profile must never be shown. (Blocked channels join this table with Live TV.)
+-- Tags a profile must never be shown.
 CREATE TABLE profile_restrictions (
   profile_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   tag_id     INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
@@ -682,9 +697,13 @@ CREATE TABLE api_keys (
   created_at   INTEGER NOT NULL,
   last_used_at INTEGER,
   expires_at   INTEGER,
-  revoked_at   INTEGER
+  revoked_at   INTEGER,
+  -- The profile the key acts as and sees as: the one it was made from. NULL is the account's
+  -- main profile.
+  profile_id   INTEGER REFERENCES profiles(id) ON DELETE CASCADE
 ) STRICT;
 CREATE INDEX api_keys_user ON api_keys (user_id);
+CREATE INDEX api_keys_profile ON api_keys (profile_id) WHERE profile_id IS NOT NULL;
 
 -- A profile's own settings, as key and JSON value. A row with no device_class and no device
 -- applies everywhere; one with a device_class to that kind of device (web, mobile, tablet,
@@ -763,12 +782,24 @@ CREATE TABLE play_history (
   title           TEXT    NOT NULL,
   subtitle        TEXT,
   hidden_from_profile INTEGER NOT NULL DEFAULT 0 CHECK (hidden_from_profile IN (0, 1)),
+  -- For the owner's Play history. user_id and library_id are the account and the library, for
+  -- its filters; they go NULL when those are removed, and the job that removes a library or an
+  -- account clears them a batch at a time first, so the delete itself finds none left.
+  -- device_name is the device's name at the play. away is 1 for a play from outside the home
+  -- networks. delivery is how it was delivered, as a code; 0 is not known.
+  user_id         INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  library_id      INTEGER REFERENCES libraries(id) ON DELETE SET NULL,
+  device_name     TEXT    NOT NULL DEFAULT '',
+  away            INTEGER NOT NULL DEFAULT 0 CHECK (away IN (0, 1)),
+  delivery        INTEGER NOT NULL DEFAULT 0,
   UNIQUE (profile_id, client_event_id)
 );
 CREATE INDEX play_history_profile ON play_history (profile_id, played_at);
 CREATE INDEX play_history_played ON play_history (played_at);
 CREATE INDEX play_history_item ON play_history (item_id) WHERE item_id IS NOT NULL;
 CREATE INDEX play_history_device ON play_history (device_id) WHERE device_id IS NOT NULL;
+CREATE INDEX play_history_user ON play_history (user_id, played_at) WHERE user_id IS NOT NULL;
+CREATE INDEX play_history_library ON play_history (library_id, played_at) WHERE library_id IS NOT NULL;
 
 -- Playlists, collections people make, and saved views, each belonging to the profile that
 -- made it. A library's own collections, made automatically or by the owner, are items of kind
