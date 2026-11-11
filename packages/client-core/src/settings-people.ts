@@ -1,5 +1,5 @@
 import type {Member, MemberEdit, NowPlayingPage, StreamLimits} from '../../contracts/src/next/api.ts';
-import type {AccessMember, AccessTier, MemberLimits, LimitsDocument, StreamLimitMode} from './server-administration.ts';
+import type {AccessMember, AccessTier, AccountLimits, MemberLimits, LimitsDocument, StreamLimitMode} from './server-administration.ts';
 import {callServer, type ServerRequester} from './query/server-api.ts';
 import {CodedError, unreadableServerResponse} from './server-messages.ts';
 
@@ -9,7 +9,9 @@ import {CodedError, unreadableServerResponse} from './server-messages.ts';
 export type SettingsPersonRow = Readonly<{accountId: string; username: string; email?: string; role: AccessTier; revision: number; limitsRevision: number;
   disabled: boolean; status: 'active' | 'off' | 'waiting' | 'left' | 'did_not_move'; hasMoveCode: boolean; allowedLibraries: readonly string[]; libraryNames: readonly string[];
   maxStreams: number; maxStreamsMode: StreamLimitMode; serverMaxStreams: number | null; effectiveMaxStreams: number | null; streamsKnown: boolean;
-  profileCount: number; profileNames: readonly string[]; liveState: 'idle' | 'watching' | 'listening'; lastActiveAt?: string}>;
+  profileCount: number; profileNames: readonly string[]; liveState: 'idle' | 'watching' | 'listening'; lastActiveAt?: string;
+  /** The server keeps this account's whole-account limits (home only, hours, rating and the rest), so they can be shown and set. */
+  accountLimits: boolean}>;
 export type SettingsPeoplePage = Readonly<{items: readonly SettingsPersonRow[]; totalCount: number; matchedCount: number; nextCursor: string; limit: number}>;
 export type SettingsPeopleQuery = Readonly<{search: string; role: 'all' | 'owner' | 'admin' | 'member'; status: 'all' | 'now' | 'month' | 'idle' | 'off' | 'waiting' | 'left' | 'did_not_move' | 'active'; sort: 'person' | 'role' | 'access' | 'profiles' | 'active'; direction: 'asc' | 'desc'}>;
 export type SettingsPeopleApi = ServerRequester;
@@ -26,13 +28,49 @@ const notYet = (): never => {throw new CodedError('not_available', 'This is not 
 const monthMs = 30 * 24 * 60 * 60 * 1000;
 const roleOrder: Readonly<Record<AccessTier, number>> = {owner: 0, admin: 1, member: 2};
 
-/** What an account is held to on the rebuilt server today: nothing but the owner's stream limits. The other limit rows
- * stay out of the screens until the server keeps whole-account limits. */
+/** What an account is held to when the server keeps no whole-account limits: nothing but the owner's stream limits. */
 const noAccountLimits: Omit<MemberLimits, 'maxStreams' | 'maxStreamsMode'> = Object.freeze({accessTokens: true, maxProfiles: 0, allowRemote: true, conversion: 'server',
   remoteBitrateKbps: 0, ratingSystem: '', maxContentRating: '', maximumAge: -1, allowUnrated: true,
   schedule: Object.freeze({timezone: '', windows: Object.freeze([])}), channelPolicy: Object.freeze({mode: 'all', channels: Object.freeze([])}), tagPolicy: Object.freeze({deniedLabels: Object.freeze([])})});
-/** True while the rebuilt server keeps no whole-account limits: screens leave those rows out. */
-export const accountLimitsOnServer = false;
+/** The highest-rating choices People offers, each the age the server keeps for it (13 shows PG-13 and below). */
+const ratingAges: Readonly<Record<string, number>> = {G: 0, PG: 8, 'PG-13': 13, R: 17};
+/** The choice that shows a stored age: the highest whose age is at or below it. */
+const ratingOf = (age: number) => Object.entries(ratingAges).filter(([, at]) => at <= age).pop()?.[0] ?? 'G';
+
+/** The server's whole-account limits in the shape People's rows read. Live TV channels are not among them yet. */
+function screenLimits(a: AccountLimits): Omit<MemberLimits, 'maxStreams' | 'maxStreamsMode'> {
+  const age = a.maxRatingAge ?? null;
+  return Object.freeze({accessTokens: a.allowTokens, maxProfiles: a.maxProfiles ?? 0, allowRemote: !a.homeOnly, conversion: a.allowConversion ? 'server' : 'none',
+    remoteBitrateKbps: a.remoteMaxBitrateKbps ?? 0, ratingSystem: age === null ? '' : 'age', maxContentRating: age === null ? '' : ratingOf(age), maximumAge: age ?? -1,
+    allowUnrated: a.allowUnrated, schedule: Object.freeze({timezone: a.viewingHours?.timezone || deviceZone(), windows: Object.freeze([...(a.viewingHours?.windows ?? [])])}),
+    channelPolicy: noAccountLimits.channelPolicy, tagPolicy: Object.freeze({deniedLabels: Object.freeze([...a.blockedLabels])})});
+}
+/** The zone viewing hours are kept in when the owner has not chosen one: this device's. */
+const deviceZone = () => {try {return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';} catch {return 'UTC';}};
+type LimitChanges = {-readonly [K in keyof AccountLimits]?: AccountLimits[K]};
+/** What People's edited rows change in the server's limits. A save names only those fields; the server keeps the rest.
+ * A choice the server cannot keep (converting sound only, Live TV channels, a rating it has no age for) is refused, never
+ * dropped. Viewing hours always carry a zone. */
+function limitChanges(before: MemberLimits, next: MemberLimits): LimitChanges {
+  if (next.conversion === 'audio' || JSON.stringify(next.channelPolicy) !== JSON.stringify(before.channelPolicy)) notYet();
+  const out: LimitChanges = {};
+  if (next.allowRemote !== before.allowRemote) out.homeOnly = !next.allowRemote;
+  if (next.accessTokens !== before.accessTokens) out.allowTokens = next.accessTokens;
+  if (next.conversion !== before.conversion) out.allowConversion = next.conversion === 'server';
+  if (next.allowUnrated !== before.allowUnrated) out.allowUnrated = next.allowUnrated;
+  if (next.maxContentRating !== before.maxContentRating) {
+    const age = next.maxContentRating === '' ? null : ratingAges[next.maxContentRating];
+    if (age === undefined) notYet();
+    out.maxRatingAge = age;
+  }
+  if (JSON.stringify(next.tagPolicy.deniedLabels) !== JSON.stringify(before.tagPolicy.deniedLabels)) out.blockedLabels = [...next.tagPolicy.deniedLabels];
+  if (next.remoteBitrateKbps !== before.remoteBitrateKbps) out.remoteMaxBitrateKbps = next.remoteBitrateKbps > 0 ? next.remoteBitrateKbps : null;
+  if (next.maxProfiles !== before.maxProfiles) out.maxProfiles = next.maxProfiles > 0 ? next.maxProfiles : null;
+  if (JSON.stringify(next.schedule) !== JSON.stringify(before.schedule))
+    out.viewingHours = next.schedule.windows.length ? {timezone: next.schedule.timezone || deviceZone(), windows: next.schedule.windows.map(w => ({...w, days: [...w.days]}))} : null;
+  return out;
+}
+const accountLimitsOf = (m: Member) => {const limits = (m as {limits?: unknown}).limits; return limits && typeof limits === 'object' ? limits as AccountLimits : undefined;};
 
 /** One account's streams from the owner's limits: its own number wins over the per-person number, and its own 0 is no limit. */
 export function streamsOf(accountId: string, limits: StreamLimits | undefined): Streams {
@@ -56,17 +94,19 @@ function personRow(m: Member, libraries: readonly Library[], limits: StreamLimit
   const profileNames = profilesOf(m), lastActiveAt = lastActiveOf(m);
   return Object.freeze({accountId: m.id, username: m.username, ...(m.email ? {email: m.email} : {}), role: m.role as AccessTier, revision: 1, limitsRevision: 1,
     disabled: m.disabled, status: m.disabled ? 'off' : 'active', hasMoveCode: false, allowedLibraries: allowed, libraryNames: Object.freeze(names),
-    ...streamsOf(m.id, limits), profileCount: profileNames.length, profileNames, liveState: live.get(m.username) ?? 'idle', ...(lastActiveAt ? {lastActiveAt} : {})});
+    ...streamsOf(m.id, limits), profileCount: profileNames.length, profileNames, liveState: live.get(m.username) ?? 'idle', ...(lastActiveAt ? {lastActiveAt} : {}),
+    accountLimits: !!accountLimitsOf(m)});
 }
 
-/** An account as People's panel edits it. Its limits are the stream count; the rest are the defaults every account has today. */
+/** An account as People's panel edits it: its stream count from the owner's limits, and its whole-account limits when the
+ * server keeps them (else the defaults every account has). */
 export function accessMemberOf(m: Member, streams: Streams): AccessMember {
   checkMember(m);
-  const {streamsKnown: _known, ...facts} = streams, profileNames = profilesOf(m), lastActiveAt = lastActiveOf(m);
+  const {streamsKnown: _known, ...facts} = streams, profileNames = profilesOf(m), lastActiveAt = lastActiveOf(m), account = accountLimitsOf(m);
   return Object.freeze({accountId: m.id, username: m.username, ...(m.email ? {email: m.email} : {}), profileId: '', role: m.role as AccessTier, disabled: m.disabled,
     ...(m.notes ? {notes: m.notes} : {}), profileNames, ...(lastActiveAt ? {lastActiveAt} : {}), revision: 1, allowedLibraries: allowedOf(m), limitsRevision: 1,
-    limits: Object.freeze({...noAccountLimits, maxStreams: facts.maxStreams, maxStreamsMode: facts.maxStreamsMode}),
-    serverMaxStreams: facts.serverMaxStreams, effectiveMaxStreams: facts.effectiveMaxStreams});
+    limits: Object.freeze({...(account ? screenLimits(account) : noAccountLimits), maxStreams: facts.maxStreams, maxStreamsMode: facts.maxStreamsMode}),
+    ...(account ? {accountLimits: account} : {}), serverMaxStreams: facts.serverMaxStreams, effectiveMaxStreams: facts.effectiveMaxStreams});
 }
 
 function matches(row: SettingsPersonRow, query: SettingsPeopleQuery, now: number): boolean {
@@ -175,23 +215,40 @@ export class SettingsPeopleClient {
     await this.call(s => callServer(this.api, 'PUT /v1/admin/playback/stream-limits', {body, signal: s}));
     return body;
   }
-  /** Only the stream count can change on the rebuilt server yet; any other limit is refused, never dropped. */
+  /** The stream count goes to the owner's stream limits; the rest to the account's own limits, naming only what changed.
+   * An account whose limits the server does not keep has only the stream count: anything else is refused. */
   async limits(person: AccessMember, limits: MemberLimits): Promise<LimitsDocument> {
-    for (const key of Object.keys(noAccountLimits) as (keyof typeof noAccountLimits)[]) if (JSON.stringify(limits[key]) !== JSON.stringify(person.limits[key])) notYet();
-    const saved = streamsOf(person.accountId, await this.setStreams([person.accountId], limits.maxStreamsMode, limits.maxStreams));
-    return Object.freeze({accountId: person.accountId, revision: 1, limits: Object.freeze({...person.limits, maxStreams: saved.maxStreams, maxStreamsMode: saved.maxStreamsMode}),
+    const accountChanged = (Object.keys(noAccountLimits) as (keyof typeof noAccountLimits)[]).some(key => JSON.stringify(limits[key]) !== JSON.stringify(person.limits[key]));
+    const streamsChanged = limits.maxStreams !== person.limits.maxStreams || limits.maxStreamsMode !== person.limits.maxStreamsMode;
+    if (accountChanged && !person.accountLimits) notYet();
+    const body = accountChanged ? limitChanges(person.limits, limits) : undefined;
+    let next = person;
+    if (body) next = await this.edit(person, {limits: body} as MemberEdit);
+    const saved = streamsChanged ? streamsOf(person.accountId, await this.setStreams([person.accountId], limits.maxStreamsMode, limits.maxStreams))
+      : {maxStreams: person.limits.maxStreams, maxStreamsMode: person.limits.maxStreamsMode, serverMaxStreams: person.serverMaxStreams, effectiveMaxStreams: person.effectiveMaxStreams};
+    return Object.freeze({accountId: person.accountId, revision: 1, limits: Object.freeze({...next.limits, maxStreams: saved.maxStreams, maxStreamsMode: saved.maxStreamsMode}),
       serverMaxStreams: saved.serverMaxStreams, effectiveMaxStreams: saved.effectiveMaxStreams});
   }
-  /** One request per account (the server has no bulk route); the accounts done are returned. Library access and the
-   * stream count are what bulk access can change; anything else in `access` is refused before anything is sent. */
+  /** One request per account (the server has no bulk route); the accounts done are returned. Bulk access sets libraries
+   * and, where the server keeps them, away from home, the highest rating, tokens and the profile count; the stream count
+   * goes to the owner's stream limits. An account whose limits the server does not keep is refused before anything is sent. */
   async bulk(rows: readonly SettingsPersonRow[], action: SettingsBulkAction, access?: SettingsBulkAccess, _operationId?: string): Promise<readonly string[]> {
     if (!rows.length || rows.length > 1000 || new Set(rows.map(row => row.accountId)).size !== rows.length || (action === 'access') !== (access !== undefined)) invalid();
-    if (access && (['allowRemote', 'maxContentRating', 'accessTokens', 'maxProfiles'] as const).some(key => access[key] !== undefined)) notYet();
+    const limited = !!access && (['allowRemote', 'maxContentRating', 'accessTokens', 'maxProfiles'] as const).some(key => access[key] !== undefined);
+    if (limited && rows.some(row => !row.accountLimits)) notYet();
+    const rating = access?.maxContentRating === undefined ? undefined : access.maxContentRating === '' ? null : ratingAges[access.maxContentRating];
+    if (rating === undefined && access?.maxContentRating !== undefined) notYet();
+    const bulkLimits: LimitChanges = {...(access?.allowRemote !== undefined ? {homeOnly: !access.allowRemote} : {}), ...(rating !== undefined ? {maxRatingAge: rating} : {}),
+      ...(access?.accessTokens !== undefined ? {allowTokens: access.accessTokens} : {}), ...(access?.maxProfiles !== undefined ? {maxProfiles: access.maxProfiles > 0 ? access.maxProfiles : null} : {})};
     const done: string[] = [];
     for (const row of rows) {
       if (action === 'remove') await this.call(s => callServer(this.api, 'DELETE /v1/admin/members/{id}', {id: row.accountId, signal: s}));
       else if (action === 'disable' || action === 'enable') await this.call(s => callServer(this.api, 'PATCH /v1/admin/members/{id}', {id: row.accountId, body: {disabled: action === 'disable'}, signal: s}));
-      else if (access?.allowedLibraries) await this.libraryAccess(row, access.allowedLibraries);
+      else if (access) {
+        const body: Record<string, unknown> = access.allowedLibraries ? {allLibraries: access.allowedLibraries.length === 0, libraries: [...access.allowedLibraries]} : {};
+        if (limited) body.limits = bulkLimits;
+        if (Object.keys(body).length) await this.call(s => callServer(this.api, 'PATCH /v1/admin/members/{id}', {id: row.accountId, body: body as MemberEdit, signal: s}));
+      }
       done.push(row.accountId);
     }
     if (access && (access.maxStreamsMode !== undefined || access.maxStreams !== undefined)) await this.setStreams(rows.map(row => row.accountId), access.maxStreamsMode, access.maxStreams);

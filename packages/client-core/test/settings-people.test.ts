@@ -115,3 +115,42 @@ test('the account permission boundary preserves false token and away permissions
   assert.equal(parseMemberLimits(limits).accessTokens, false); assert.equal(parseMemberLimits(limits).allowRemote, false);
   for (const key of ['accessTokens', 'maxProfiles', 'allowRemote', 'conversion', 'maxStreams', 'maxStreamsMode']) {const raw = {...limits} as Record<string, unknown>; delete raw[key]; assert.throws(() => parseMemberLimits(raw));}
 });
+
+test('an account the server holds to limits shows them, and a save names only what changed', async () => {
+  const read = {homeOnly: true, viewingHours: {timezone: 'America/Halifax', windows: [{days: [1, 2], startMinute: 960, endMinute: 1260}]}, maxRatingAge: 10, allowUnrated: false,
+    blockedLabels: ['tag-horror'], allowConversion: true, remoteMaxBitrateKbps: 4000, maxProfiles: 3, allowDownloads: false, allowWatchTogether: true, allowTokens: false};
+  const held = {...member('dee'), limits: read};
+  const calls: Call[] = [];
+  const client = new SettingsPeopleClient({request: async <T,>(path: string, method?: string, body?: unknown): Promise<T> => {
+    calls.push({path, method, body});
+    if (path === '/v1/admin/members') return {items: [held, member('eli')]} as T;
+    if (path === '/v1/admin/members/dee') return (method === 'PATCH' ? {...held, limits: {...read, ...(body as {limits?: object}).limits}} : held) as T;
+    if (path === '/v1/admin/playback/stream-limits') return {} as T;
+    return {items: []} as T;
+  }}, () => true);
+  const rows = (await client.read(query)).items;
+  assert.deepEqual(rows.map(row => [row.accountId, row.accountLimits]), [['dee', true], ['eli', false]]);
+  const dee = await client.person('dee');
+  assert.deepEqual([dee.limits.allowRemote, dee.limits.maxContentRating, dee.limits.maximumAge, dee.limits.accessTokens, dee.limits.conversion, dee.limits.remoteBitrateKbps, dee.limits.maxProfiles],
+    [false, 'PG', 10, false, 'server', 4000, 3]);
+  assert.deepEqual(dee.limits.schedule, read.viewingHours); assert.deepEqual(dee.limits.tagPolicy.deniedLabels, ['tag-horror']);
+  calls.length = 0;
+  const saved = await client.limits(dee, {...dee.limits, allowRemote: true});
+  assert.deepEqual(calls.map(call => [call.method, call.path]), [['PATCH', '/v1/admin/members/dee']], 'the stream limits are not touched');
+  assert.deepEqual(calls[0].body, {limits: {homeOnly: false}}, 'the rating age 10 is not rewritten as PG\'s 8');
+  assert.equal(saved.limits.allowRemote, true);
+  calls.length = 0;
+  await client.limits(dee, {...dee.limits, maxContentRating: 'PG-13', schedule: {timezone: 'America/Halifax', windows: []}});
+  assert.deepEqual(calls[0].body, {limits: {maxRatingAge: 13, viewingHours: null}});
+  calls.length = 0;
+  await client.limits(dee, {...dee.limits, schedule: {timezone: '', windows: [{days: [6], startMinute: 0, endMinute: 600}]}});
+  assert.equal(typeof calls[0].body.limits.viewingHours.timezone, 'string'); assert.ok(calls[0].body.limits.viewingHours.timezone, 'hours always carry a zone');
+  calls.length = 0;
+  await assert.rejects(client.limits(dee, {...dee.limits, conversion: 'audio'}), /not available/);
+  await assert.rejects(client.bulk(rows, 'access', {allowRemote: false}), /not available/, 'eli has no limits on the server');
+  assert.equal(calls.length, 0);
+  await client.bulk(rows.slice(0, 1), 'access', {allowRemote: true, maxContentRating: 'G', allowedLibraries: []});
+  assert.deepEqual(calls.map(call => [call.method, call.path]), [['PATCH', '/v1/admin/members/dee']], 'one request, nothing read first');
+  assert.deepEqual(calls[0].body, {allLibraries: true, libraries: [], limits: {homeOnly: false, maxRatingAge: 0}});
+  client.dispose();
+});

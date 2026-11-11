@@ -4,7 +4,7 @@ import {
  parseAccessMember,parseAccessMemberPage,parseLimitsDocument,parseMemberLimits,parseInvitation,parseInvitationPage,
  parseAccessDevicePage,parseLogPage,parseLogSettings,parseLogEvent,parseClientLogUploadPage,
  parseConnectivityPolicy,parseConnectivityStatus,grantsTier,managesTier,
- previewMemberDeletion,deleteMember,
+ previewMemberDeletion,deleteMember,readMemberDevices,signOutMemberDevice,signOutMemberDevices,
 } from '../src/server-administration.ts';
 
 const limits={accessTokens:true,maxProfiles:8,allowRemote:true,conversion:'server',maxStreams:1,maxStreamsMode:'limit',remoteBitrateKbps:4000,maxContentRating:'PG-13',allowUnrated:true,
@@ -251,4 +251,18 @@ test('member deletion: the account is read for the confirm, then deleted', async
  assert.deepEqual(calls,[{path:'/v1/admin/members/acct_1',method:'GET'},{path:'/v1/admin/members/acct_1',method:'DELETE'}]);
  // A preview that answers for a different member is refused rather than confirmed.
  await assert.rejects(previewMemberDeletion(api,'acct_2'));
+});
+
+test('a member\'s devices are their own Signed-in devices list, and signing out is one DELETE per device', async () => {
+ const calls: {path: string; method?: string}[] = [];
+ const api={request:async <T,>(path:string,method?:string):Promise<T>=>{calls.push({path,method});return (method==='GET'?{items:[
+  {id:'dev_1',name:'Living room TV',platform:'android-tv',createdAt:'2026-11-01T00:00:00Z',lastSeenAt:'2026-11-10T00:00:00Z',network:'home',signedIn:true,current:false},
+  {id:'dev_2',name:'Phone',createdAt:'2026-11-02T00:00:00Z',lastSeenAt:'2026-11-09T00:00:00Z',signedIn:true,current:false}]}:undefined) as T;}};
+ const page=await readMemberDevices(api,'acct 1');
+ assert.deepEqual(page.items.map(device=>[device.id,device.accountId,device.name,device.lastNetwork]),[['dev_1','acct 1','Living room TV','home'],['dev_2','acct 1','Phone','']]);
+ assert.equal(page.nextCursor,'');
+ calls.length=0;await signOutMemberDevice(api,'acct 1','dev_1');
+ assert.deepEqual(calls,[{path:'/v1/admin/members/acct%201/devices/dev_1',method:'DELETE'}]);
+ calls.length=0;await signOutMemberDevices(api,'acct 1');
+ assert.deepEqual(calls.map(call=>call.method),['GET','DELETE','DELETE']);
 });

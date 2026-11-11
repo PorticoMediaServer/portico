@@ -1,4 +1,3 @@
-import {encodedRoutePath} from "../../contracts/src/route-paths.ts";
 import {parseServerInvitation,parsePeopleInvitationPage} from './direct-account.ts';
 import {callServer} from './query/server-api.ts';
 /**
@@ -48,6 +47,9 @@ export type MemberLimits=Readonly<{
  maximumAge:number;
  allowUnrated:boolean;
  schedule:AccessSchedule;channelPolicy:ChannelPolicy;tagPolicy:TagPolicy}>;
+/** A person's whole-account limits on the rebuilt server (`limits` on a member). Sending them replaces all of them. */
+export type AccountLimits=Readonly<{homeOnly:boolean;viewingHours?:Readonly<{timezone?:string;windows:readonly ScheduleWindow[]}>|null;maxRatingAge?:number|null;allowUnrated:boolean;
+ blockedLabels:readonly string[];allowConversion:boolean;remoteMaxBitrateKbps?:number|null;maxProfiles?:number|null;allowDownloads:boolean;allowWatchTogether:boolean;allowTokens:boolean}>;
 export type LimitsDocument=Readonly<{accountId:string;revision:number;updatedAt?:string;limits:MemberLimits}> & StreamLimitFacts;
 /**
  * `disabledAt` and `disabledReason` are present while the account is off: when it was turned off,
@@ -57,7 +59,9 @@ export type LimitsDocument=Readonly<{accountId:string;revision:number;updatedAt?
 export type AccessMember=Readonly<{accountId:string;username:string;email?:string;displayName?:string;profileId:string;role:AccessTier;disabled:boolean;
  disabledAt?:string;disabledReason?:'owner'|'left'|'did_not_move';
  hostedAccountId?:string;notes?:string;joinedVia?:string;joinedAt?:string;profileNames?:readonly string[];lastActiveAt?:string;liveState?:'idle'|'watching'|'listening';
- revision:number;allowedLibraries:readonly string[];limitsRevision:number;limits:MemberLimits}> & StreamLimitFacts;
+ revision:number;allowedLibraries:readonly string[];limitsRevision:number;limits:MemberLimits;
+ /** The rebuilt server's own whole-account limits as read, when it keeps them: a save sends them back whole with the changes. */
+ accountLimits?:AccountLimits}> & StreamLimitFacts;
 export type Invitation=Readonly<{id:string;email?:never;notes?:string;serverId?:string;role:'member'|'admin';allowedLibraries:readonly string[];state:InvitationState;
  createdAt:string;expiresAt:string;acceptedAt?:string;accountId?:string;revision:number;code?:string;
  /** The one Portico Account this invitation is for, when the owner named one. */
@@ -220,12 +224,23 @@ export function parseAccessDevicePage(raw:unknown):AdministrationPage<AccessDevi
  if(!obj(raw)||Object.hasOwn(raw,'approvalRequired'))return invalid();
  return page(raw,parseAccessDevice,row=>row.id,true);
 }
-/** Ends only this person's captured device family/families; future normal sign-in is allowed. */
-export async function signOutMemberDevice(api:MemberDeletionApi,accountId:string,deviceId:string,signal?:AbortSignal):Promise<void>{
- await api.request(encodedRoutePath('post_direct_member_device_sign_out',{id:encodeURIComponent(str(accountId)),deviceId:encodeURIComponent(str(deviceId))}),'POST',undefined,signal);
+type NextDevice=Readonly<{id:string;name:string;platform?:string;app?:string;appVersion?:string;createdAt:string;lastSeenAt:string;network?:string;signedIn:boolean}>;
+const memberDevicesPath=(accountId:string)=>`/v1/admin/members/${encodeURIComponent(str(accountId))}/devices`;
+/** The devices of a person the viewer manages: the list that person sees under Signed-in devices. One page. */
+export async function readMemberDevices(api:MemberDeletionApi,accountId:string,signal?:AbortSignal):Promise<AdministrationPage<AccessDevice>>{
+ const raw=await api.request<{items?:unknown}>(memberDevicesPath(accountId),'GET',undefined,signal);
+ if(!obj(raw)||!Array.isArray(raw.items))return invalid();
+ const items=(raw.items as NextDevice[]).map(device=>parseAccessDevice({id:device?.id,accountId,name:device?.name??'',platform:device?.platform??'',app:device?.app??'',appVersion:device?.appVersion??'',
+  lastNetwork:device?.network??'',liveState:'idle',firstSeenAt:device?.createdAt,lastSeenAt:device?.lastSeenAt,revision:1}));
+ return Object.freeze({limit:Math.max(1,items.length),nextCursor:'',items:Object.freeze(items)});
 }
+/** Signs this person out of one device at once; signing in on it again is allowed. */
+export async function signOutMemberDevice(api:MemberDeletionApi,accountId:string,deviceId:string,signal?:AbortSignal):Promise<void>{
+ await api.request(memberDevicesPath(accountId)+'/'+encodeURIComponent(str(deviceId)),'DELETE',undefined,signal);
+}
+/** Signs this person out of every device on their list, one at a time (the server has no route for all at once). */
 export async function signOutMemberDevices(api:MemberDeletionApi,accountId:string,signal?:AbortSignal):Promise<void>{
- await api.request(encodedRoutePath('post_direct_member_devices_sign_out',{id:encodeURIComponent(str(accountId))}),'POST',undefined,signal);
+ for(const device of (await readMemberDevices(api,accountId,signal)).items)await signOutMemberDevice(api,accountId,device.id,signal);
 }
 
 
