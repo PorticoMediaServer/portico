@@ -246,6 +246,7 @@ export class BrowseController {
       current: () => this.current() && epoch === this.epoch && (this.session === session || this.replacing === session),
       item: (entry, page, index) => Object.freeze({membershipId: browseMembershipId(page, index)!, entry}),
       onRevision: revision => this.publish({revision}),
+      onFacts: facts => this.collection.learn?.(session.fetchPage, facts),
       onWhole: () => this.publish({}),
       onWholeUnavailable: () => this.publish({}),
       onStale: error => {
