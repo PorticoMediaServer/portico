@@ -64,6 +64,7 @@ const codes = new Set([
   'access_refused',
   'identity_mismatch',
   'route_unavailable',
+  'insecure_route_unconfirmed',
   'certificate_unverified',
   'certificate_untrusted',
   'identity_code_needed',
@@ -106,7 +107,7 @@ const classes = new Set([
 const probeCodes = new Set<RouteProbeFailure['code']>([
   'invalid_address', 'invalid_identity', 'invalid_response', 'identity_mismatch', 'invalid_signature', 'invalid_routes',
   'route_stale', 'insecure_context', 'authentication_required', 'access_denied', 'rate_limited',
-  'route_unavailable', 'certificate_unverified', 'certificate_untrusted', 'cancelled', 'other',
+  'route_unavailable', 'insecure_route_unconfirmed', 'certificate_unverified', 'certificate_untrusted', 'cancelled', 'other',
 ]);
 const probeNames = new Set<RouteProbeFailure['name']>(['RouteError', 'Error', 'TypeError', 'SyntaxError', 'ReferenceError', 'RangeError', 'AbortError', 'unknown']);
 const origins = new Set([

@@ -111,7 +111,7 @@ function factsOf(error: unknown): Facts {
 
 const exact: Record<string, ErrorCategory> = {
   cancelled: 'cancelled', canceled: 'cancelled', aborted: 'cancelled',
-  network: 'unreachable', request_failed: 'unreachable', server_unavailable: 'unreachable', route_unavailable: 'unreachable', console_unavailable: 'unreachable', delivery_http_failure: 'unreachable', remote_unavailable: 'unreachable',
+  network: 'unreachable', request_failed: 'unreachable', server_unavailable: 'unreachable', route_unavailable: 'unreachable', insecure_route_unconfirmed: 'unreachable', console_unavailable: 'unreachable', delivery_http_failure: 'unreachable', remote_unavailable: 'unreachable',
   timeout: 'timeout', remote_stalled: 'timeout',
   unauthorized: 'authentication', authentication_required: 'authentication', session_expired: 'authentication', invalid_token: 'authentication', unauthenticated: 'authentication',
   forbidden: 'permission', permission_changed: 'permission', access_revoked: 'permission', owner_required: 'permission', remote_denied: 'permission', remote_sign_in_not_allowed: 'permission', outside_allowed_hours: 'permission',
