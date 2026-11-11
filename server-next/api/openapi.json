@@ -1884,6 +1884,9 @@
       },
       "HomeRow": {
         "properties": {
+          "deferred": {
+            "type": "boolean"
+          },
           "hidden": {
             "type": "boolean"
           },
@@ -1895,6 +1898,12 @@
               "$ref": "#/components/schemas/Item"
             },
             "type": "array"
+          },
+          "library": {
+            "type": "string"
+          },
+          "query": {
+            "type": "string"
           },
           "shape": {
             "type": "string"

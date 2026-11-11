@@ -575,6 +575,9 @@ export interface HomeRow {
   shape: string;
   items: Item[];
   hidden?: boolean;
+  library?: string;
+  query?: string;
+  deferred?: boolean;
 }
 
 export interface IdentityProof {
