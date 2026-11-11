@@ -60,7 +60,6 @@ type DB struct {
 	draining     atomic.Bool // background work is held back while the WAL is emptied
 	holdUntil    time.Time   // when the present hold ends whether or not the file emptied
 	holdAgain    time.Time   // after a hold that ran out: when the next may begin
-
 	// file is the database file, held only so the helper can sync it, and copied is how many
 	// WAL pages its last copy had reached. The file is closed after SQLite's own connections:
 	// closing it sooner would drop the locks SQLite holds on the same file.
@@ -213,7 +212,6 @@ func (d *DB) Close() error {
 	<-d.helperDone
 	<-d.upgradesDone
 	return errors.Join(d.UseTitleData(""), d.read.Close(), d.helper.Close(), d.writeConn.Close(), d.file.Close())
-
 }
 
 // SkipDiskSync makes commits return without waiting for the disk. It is for the load tool
