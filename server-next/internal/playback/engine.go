@@ -48,6 +48,9 @@ var (
 	ErrUpdateRequired = errors.New("the app needs updating")
 	// ErrSourceUnavailable: the file cannot be reached right now.
 	ErrSourceUnavailable = errors.New("the file can't be reached")
+	// ErrDisc: the title is a film disc kept as a folder, and this server has no disc reader.
+	// Trying again does not help.
+	ErrDisc = errors.New("discs can't be played on this server")
 	// ErrBusy: the server is converting as many streams as the owner allows. The start waits
 	// and is tried again by itself.
 	ErrBusy = errors.New("the server is converting as many streams as it is allowed")

@@ -2,6 +2,7 @@ package scan
 
 import (
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
@@ -91,6 +92,13 @@ func stem(name string) string {
 // discFolder reports whether a folder name is the inside of a film disc.
 func discFolder(name string) bool {
 	return strings.EqualFold(name, "BDMV") || strings.EqualFold(name, "VIDEO_TS")
+}
+
+// DiscTitle reports whether a path is the file the scanner lists for a film disc kept as a
+// folder (BDMV/index.bdmv, VIDEO_TS/VIDEO_TS.IFO): the disc's index, not something to play.
+func DiscTitle(file string) bool {
+	folder := path.Base(path.Dir(filepath.ToSlash(file)))
+	return discFolder(folder) && discTitle(folder, path.Base(filepath.ToSlash(file)))
 }
 
 // discTitle reports whether a file inside a disc folder is the one that stands for the disc.
