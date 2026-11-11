@@ -61,6 +61,28 @@ func TestIntervalsAndTheTrashWithoutAScan(t *testing.T) {
 		t.Fatal("a watched folder needs no interval")
 	}
 
+	// A scan that the server died under twice is not started again by the schedule.
+	job, err := m.Scan(ctx, lib.PublicID, 0, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for state := ""; state != db.JobDone; time.Sleep(5 * time.Millisecond) {
+		again, _ := d.JobFor(ctx, db.JobScan, lib.PublicID)
+		state = again.State
+	}
+	if _, err := m.Scan(ctx, lib.PublicID, 0, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.FinishJob(ctx, job.ID, db.JobFailed, jobs.Interrupted); err != nil {
+		t.Fatal(err)
+	}
+	if again, _ := d.JobFor(ctx, db.JobScan, lib.PublicID); again.State == db.JobFailed {
+		m.scheduled(ctx, lib.PublicID)
+		if after, _ := d.JobFor(ctx, db.JobScan, lib.PublicID); after.State != db.JobFailed {
+			t.Fatalf("the schedule started a scan that was cut short twice: %s", after.State)
+		}
+	}
+
 	// A film goes missing. Its 30 days pass with no scan.
 	if err := os.Remove(film); err != nil {
 		t.Fatal(err)

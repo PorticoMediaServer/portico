@@ -82,6 +82,11 @@ func (m *Manager) Run(ctx context.Context) {
 // scheduled asks for a scan nobody asked for. It joins a scan of the library already waiting
 // or running, and reports whether a scan that has yet to start is now waiting.
 func (m *Manager) scheduled(ctx context.Context, library string) bool {
+	// A scan that was cut short twice by the server dying is not started again by itself:
+	// it may be what brings the server down. The owner's Scan now starts it afresh.
+	if last, err := m.scanner.DB.JobFor(ctx, db.JobScan, library); err == nil && last.State == db.JobFailed && last.Error == jobs.Interrupted {
+		return true
+	}
 	params, _ := json.Marshal(ScanParams{Scheduled: true})
 	job, err := m.jobs.Start(ctx, db.JobScan, jobs.Request{Target: jobs.Target{Library: library}, Params: params})
 	if err != nil && ctx.Err() == nil {
