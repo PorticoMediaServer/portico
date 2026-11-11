@@ -7,6 +7,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/certclient"
 	"github.com/PorticoMediaServer/portico/server-next/internal/hosted"
+	"github.com/PorticoMediaServer/portico/server-next/internal/portmap"
 	"github.com/PorticoMediaServer/portico/server-next/internal/tlsport"
 	"path/filepath"
 	"time"
@@ -30,6 +31,9 @@ type setupArea struct {
 	access remoteState
 	// certs is the certificate for the owner's own address, read from the Keys folder.
 	certs *tlsport.Store
+	// ports asks the home router to open the public port. It asks nothing until
+	// ServePortMapping runs it, which tests never do.
+	ports *portmap.Mapper
 }
 
 // startSetup builds this area's services and registers its routes and job kinds. New calls it
@@ -51,6 +55,7 @@ func (s *Server) startSetup(ctx context.Context) error {
 	s.certs = tlsport.NewStore(filepath.Join(s.dataDir, "Keys"), s.log, func() time.Time { return s.now() })
 	// Enhanced waits on the owner's own certificate until it is loaded and valid for the address.
 	s.access.ownCertificateUsable = func() bool { return s.certs.Status().State == "ok" }
+	s.ports = portmap.New(s.log, nil)
 	if err := s.loadRemoteAccess(ctx); err != nil {
 		return err
 	}
