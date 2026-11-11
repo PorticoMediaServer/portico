@@ -81,6 +81,14 @@ func mergeItems(b *batchTx, from, into, now int64) error {
 	return settleItem(b, a.library, into, now)
 }
 
+const mergeStateColumns = `position_ms, position_text, position_at, played, played_at, play_count, last_played_at, favorite, favorite_at,
+	in_list, in_list_at, hidden, hidden_at, rating, rating_at, audio_language, subtitle_language, subtitle_offset_ms, updated_at`
+
+func later(column, at string) string {
+	return column + ` = CASE WHEN ifnull(excluded.` + at + `, 0) > ifnull(user_item_state.` + at + `, 0) THEN excluded.` + column +
+		` ELSE user_item_state.` + column + ` END`
+}
+
 var mergeStateSQL = func() string {
 	sets := []string{later("position_ms", "position_at"), later("position_text", "position_at"),
 		`played = max(user_item_state.played, excluded.played)`, `favorite = max(user_item_state.favorite, excluded.favorite)`,
@@ -92,7 +100,7 @@ var mergeStateSQL = func() string {
 	for _, at := range []string{"position_at", "played_at", "favorite_at", "in_list_at", "rating_at", "last_played_at", "updated_at"} {
 		sets = append(sets, at+` = nullif(max(ifnull(excluded.`+at+`, 0), ifnull(user_item_state.`+at+`, 0)), 0)`)
 	}
-	return `INSERT INTO user_item_state (profile_id, item_id, ` + keptColumns + `) SELECT profile_id, ?, ` + keptColumns + `
+	return `INSERT INTO user_item_state (profile_id, item_id, ` + mergeStateColumns + `) SELECT profile_id, ?, ` + mergeStateColumns + `
 		FROM user_item_state WHERE item_id = ? AND true ON CONFLICT (profile_id, item_id) DO UPDATE SET ` + strings.Join(sets, ", ")
 }()
 
