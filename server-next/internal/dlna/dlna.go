@@ -95,15 +95,18 @@ func (s *Server) admitted(r *http.Request) bool {
 	return len(s.Home()) > 0 && s.FromHome(r) && OwnHost(r.Host, s.Names())
 }
 
-// localEndings are endings that are not public domains by convention: home routers and
-// networks name their machines under them (nas.local, nas.home.lan, nas.fritz.box). .box is
-// also a public top-level domain, accepted by the owner's ruling because Fritz!Box routers use
-// it at home.
-var localEndings = []string{"local", "lan", "home", "home.arpa", "internal", "localdomain", "box", "router", "localnet", "intranet",
-	"private", "corp"}
+// localEndings are endings that are not public top-level domains: each is reserved
+// (.local for multicast DNS, .home.arpa, .internal) or has never been delegated and is used
+// only inside home and office networks (.lan, .home, .localdomain, .localnet, .intranet,
+// .private, .corp, .router). Nobody can buy a name under them. A delegated domain is never on
+// this list, since anyone who bought a name under it could point that name at this server.
+// Fritz!Box routers name machines under fritz.box, which is a name of the public .box domain:
+// only that one name is accepted, not .box.
+var localEndings = []string{"local", "lan", "home", "home.arpa", "internal", "localdomain", "localnet", "intranet", "private", "corp",
+	"router", "fritz.box"}
 
 // OwnHost says whether host (a Host header, with or without a port) may be answered: an IP
-// address; "localhost"; this machine's host name; any name under one of the localEndings; the
+// address; "localhost"; this machine's host name; fritz.box or any name under one of the localEndings; the
 // host name under .ts.net (Tailscale MagicDNS); or one of extra, the names the owner added.
 // Any other name is refused: it is how a web page that re-points its own name at this server
 // (DNS rebinding) arrives.
@@ -121,7 +124,7 @@ func OwnHost(host string, extra []string) bool {
 		}
 	}
 	for _, ending := range localEndings {
-		if strings.HasSuffix(host, "."+ending) && len(host) > len(ending)+1 {
+		if strings.HasSuffix(host, "."+ending) || host == "fritz.box" && ending == host {
 			return true
 		}
 	}
