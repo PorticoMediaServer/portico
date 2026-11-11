@@ -2,7 +2,6 @@ package api
 
 import (
 	"net/url"
-	"strings"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/opensubtitles/opensubtitlestest"
@@ -13,10 +12,15 @@ import (
 // film is then offered. What they send back is checked. A profile that may not see the film
 // is told nothing; only the owner and administrators remove a download.
 func TestSubtitleSearchAndDownload(t *testing.T) {
-	sh := newShelf(t, "the.matrix.1999.1080p.mkv")
+	sh := newShelf(t, "the.matrix.1999.1080p.mkv", "Heat (1995).mkv")
 	var films ItemPage
 	sh.do("GET", "/v1/items?kind=movie&library="+sh.library, nil, &films, 200)
-	film := films.Items[0].ID
+	film := ""
+	for _, f := range films.Items {
+		if f.Title == "The Matrix" {
+			film = f.ID
+		}
+	}
 	search := "/v1/items/" + film + "/subtitles/search?languages=eng"
 	as := func(token, method, path string, body, out any) int {
 		t.Helper()
@@ -43,21 +47,32 @@ func TestSubtitleSearchAndDownload(t *testing.T) {
 	}
 
 	result := results.Items[0]
-	for name, bad := range map[string]SubtitleDownload{
-		"a control character in the release": {SubtitleResult: SubtitleResult{Ref: result.Ref, Language: result.Language, Release: "Matrix\x1b[2J"}},
-		"a release longer than any":          {SubtitleResult: SubtitleResult{Ref: result.Ref, Language: result.Language, Release: strings.Repeat("x", 201)}},
-		"text turned around for the reader":  {SubtitleResult: SubtitleResult{Ref: result.Ref, Language: result.Language, Release: "abc‮dcb"}},
-		"a language that is not a code":      {SubtitleResult: SubtitleResult{Ref: result.Ref, Language: "English"}},
-		"a ref that is a path":               {SubtitleResult: SubtitleResult{Ref: "../../etc/passwd", Language: result.Language}},
+	heat := ""
+	for _, f := range films.Items {
+		if f.ID != film {
+			heat = f.ID
+		}
+	}
+	// Only a result of this profile's recent search for this title can be downloaded.
+	for name, c := range map[string]struct {
+		token, item string
+		body        SubtitleDownload
+	}{
+		"a ref never searched":                {sh.member, film, SubtitleDownload{Ref: "9999999"}},
+		"a ref from another title's search":   {sh.member, heat, SubtitleDownload{Ref: result.Ref}},
+		"a ref from another profile's search": {sh.owner, film, SubtitleDownload{Ref: result.Ref}},
+		"a ref that is a path":                {sh.member, film, SubtitleDownload{Ref: "../../etc/passwd"}},
 	} {
-		if code := as(sh.member, "POST", "/v1/items/"+film+"/subtitles", bad, nil); code != 400 {
+		if code := as(c.token, "POST", "/v1/items/"+c.item+"/subtitles", c.body, nil); code != 400 {
 			t.Errorf("%s answered %d", name, code)
 		}
 	}
+	// Whatever else is sent, the subtitle is labelled as the search answered.
 	var got ItemSubtitle
-	if code := as(sh.member, "POST", "/v1/items/"+film+"/subtitles", SubtitleDownload{SubtitleResult: result}, &got); code != 200 ||
-		got.Source != "downloaded" || got.Language != result.Language {
-		t.Fatalf("download: %d %+v", code, got)
+	labelled := map[string]any{"ref": result.Ref, "language": "fre", "release": "Something else", "sdh": !result.SDH}
+	if code := as(sh.member, "POST", "/v1/items/"+film+"/subtitles", labelled, &got); code != 200 || got.Source != "downloaded" ||
+		got.Language != result.Language || got.Title != result.Release || got.SDH != result.SDH {
+		t.Fatalf("download: %d %+v, the search answered %+v", code, got, result)
 	}
 	var list ItemSubtitles
 	sh.do("GET", "/v1/items/"+film+"/subtitles", nil, &list, 200)
@@ -76,7 +91,7 @@ func TestSubtitleSearchAndDownload(t *testing.T) {
 	}
 
 	server.AllowanceUsed.Store(true)
-	if code := as(sh.member, "POST", "/v1/items/"+film+"/subtitles", SubtitleDownload{SubtitleResult: results.Items[1]}, nil); code != 429 {
+	if code := as(sh.member, "POST", "/v1/items/"+film+"/subtitles", SubtitleDownload{Ref: results.Items[1].Ref}, nil); code != 429 {
 		t.Fatalf("a used-up allowance answered %d", code)
 	}
 }

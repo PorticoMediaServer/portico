@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
@@ -38,11 +39,83 @@ type SubtitleResults struct {
 	Credit string           `json:"credit"`
 }
 
-// SubtitleDownload downloads a result a search answered for one version of the title (the
-// first when VersionID is left out). Send the result as the search gave it.
+// SubtitleDownload downloads a result of a search this profile made for this title in the
+// last 30 minutes, for one version of the title (the first when VersionID is left out). Its
+// language, release name and kinds are what the search answered, never what is sent.
 type SubtitleDownload struct {
 	VersionID string `json:"versionId,omitempty"`
-	SubtitleResult
+	Ref       string `json:"ref"`
+}
+
+// searchKept is how long a search's results can be downloaded from; maxSearches and
+// maxResultsKept bound what is remembered.
+const (
+	searchKept     = 30 * time.Minute
+	maxSearches    = 1000
+	maxResultsKept = 200
+)
+
+// subtitleSearches remembers what each profile's searches for each title answered, so a
+// download can only be one of those results, labelled as the provider labelled it. It is
+// running state: after a restart, search again.
+type subtitleSearches struct {
+	mu      sync.Mutex
+	entries map[searchKey]*searchEntry
+}
+
+type searchKey struct {
+	profile int64
+	item    string
+}
+
+type searchEntry struct {
+	at      time.Time
+	results map[string]metadata.SubtitleResult
+}
+
+// keep remembers a search's results, beside the same profile's other recent ones for the title.
+func (m *subtitleSearches) keep(key searchKey, results []metadata.SubtitleResult, now time.Time) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.entries == nil {
+		m.entries = map[searchKey]*searchEntry{}
+	}
+	var oldest *searchKey
+	for k, e := range m.entries {
+		if now.Sub(e.at) > searchKept {
+			delete(m.entries, k)
+		} else if oldest == nil || e.at.Before(m.entries[*oldest].at) {
+			k := k
+			oldest = &k
+		}
+	}
+	entry := m.entries[key]
+	if entry == nil {
+		if len(m.entries) >= maxSearches && oldest != nil {
+			delete(m.entries, *oldest)
+		}
+		entry = &searchEntry{results: map[string]metadata.SubtitleResult{}}
+		m.entries[key] = entry
+	}
+	entry.at = now
+	for _, r := range results {
+		if len(entry.results) >= maxResultsKept {
+			break
+		}
+		entry.results[r.Ref] = r
+	}
+}
+
+// find answers a result of a recent search by this profile for this title.
+func (m *subtitleSearches) find(key searchKey, ref string, now time.Time) (metadata.SubtitleResult, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	entry := m.entries[key]
+	if entry == nil || now.Sub(entry.at) > searchKept {
+		return metadata.SubtitleResult{}, false
+	}
+	r, ok := entry.results[ref]
+	return r, ok
 }
 
 var (
@@ -106,6 +179,7 @@ func (s *Server) searchSubtitles(r *http.Request, _ None) (SubtitleResults, erro
 	if err != nil {
 		return out, subtitleError(err)
 	}
+	s.subtitleSearches.keep(searchKey{CallerFrom(r.Context()).ProfileID, r.PathValue("id")}, found, s.now())
 	for _, f := range found {
 		out.Items = append(out.Items, SubtitleResult{Ref: f.Ref, Language: f.Language, Release: f.Release, SDH: f.HearingImpaired,
 			Forced: f.Forced, Downloads: f.Downloads})
@@ -114,20 +188,23 @@ func (s *Server) searchSubtitles(r *http.Request, _ None) (SubtitleResults, erro
 }
 
 func (s *Server) downloadSubtitle(r *http.Request, req SubtitleDownload) (ItemSubtitle, error) {
-	req.Language = strings.ToLower(strings.TrimSpace(req.Language))
-	req.Release = strings.TrimSpace(req.Release)
 	switch {
 	case !providerRef.MatchString(req.Ref):
-		return ItemSubtitle{}, ErrField("ref", "Send the result as the search gave it.")
-	case !languageCode.MatchString(req.Language):
-		return ItemSubtitle{}, ErrField("language", "Give the language as a two or three letter code.")
+		return ItemSubtitle{}, ErrField("ref", "Search again and choose a result.")
 	case req.VersionID != "" && !providerRef.MatchString(req.VersionID):
 		return ItemSubtitle{}, ErrNotFound()
 	}
-	if err := checkLabel("release", req.Release, maxRelease); err != nil {
-		return ItemSubtitle{}, err
+	// Only a result this profile's search for this title answered, labelled as it was answered:
+	// a person cannot attach another file, or name its language, for everyone who plays it.
+	chosen, ok := s.subtitleSearches.find(searchKey{CallerFrom(r.Context()).ProfileID, r.PathValue("id")}, req.Ref, s.now())
+	if !ok {
+		return ItemSubtitle{}, ErrField("ref", "Search again and choose a result.")
 	}
-	chosen := metadata.SubtitleResult{Ref: req.Ref, Language: req.Language, Release: req.Release, HearingImpaired: req.SDH, Forced: req.Forced}
+	// The provider's own release name is shown to everyone too: one that cannot be shown is left out.
+	chosen.Release = strings.TrimSpace(chosen.Release)
+	if checkLabel("release", chosen.Release, maxRelease) != nil {
+		chosen.Release = ""
+	}
 	sub, err := s.metadata.DownloadSubtitle(r.Context(), viewer(r), r.PathValue("id"), req.VersionID, chosen)
 	if err != nil {
 		return ItemSubtitle{}, subtitleError(err)
