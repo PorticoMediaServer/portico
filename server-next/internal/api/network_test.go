@@ -70,7 +70,7 @@ func TestTrustedProxiesAndHomeNetworks(t *testing.T) {
 		t.Fatalf("the whole internet as a proxy answered %d %+v", w.Code, risky)
 	}
 	call(t, s, "GET", "/v1/admin/settings/network", owner.AccessToken, nil, &risky)
-	if len(risky.Warnings) != 1 {
+	if len(risky.Warnings) == 0 || risky.Warnings[0].Code != "proxy_everywhere" {
 		t.Fatalf("the warning is not shown while it holds: %+v", risky)
 	}
 	settings = NetworkSettings{}
@@ -218,5 +218,27 @@ func TestPINGuessesAcrossDevicesShareOneCount(t *testing.T) {
 	}
 	if code, _ := try(390, "7777"); code != 200 {
 		t.Fatalf("after a right PIN, nine wrong ones elsewhere made a new device wait (%d)", code)
+	}
+}
+
+// A listed proxy that passes requests on without X-Forwarded-For makes nobody count as at
+// home, and the owner's network settings say why.
+func TestBareProxyIsNeverHome(t *testing.T) {
+	s := newTestServer(t)
+	owner := onMainProfile(t, s)
+	edit := NetworkSettingsEdit{HomeNetworks: &[]string{"192.168.1.0/24"}, TrustedProxies: []string{"192.168.1.2"}}
+	if w := call(t, s, "PUT", "/v1/admin/settings/network", owner.AccessToken, edit, nil); w.Code != 200 {
+		t.Fatalf("saving the networks answered %d: %s", w.Code, w.Body)
+	}
+	r := newRequest("GET", "/v1/system", "", nil)
+	r.RemoteAddr = "192.168.1.2:4000"
+	serve(s, r)
+	if s.networks().FromHome(r) {
+		t.Fatal("a bare request from the listed proxy counts as home")
+	}
+	var settings NetworkSettings
+	call(t, s, "GET", "/v1/admin/settings/network", owner.AccessToken, nil, &settings)
+	if len(settings.Warnings) != 1 || settings.Warnings[0].Code != "proxy_without_header" {
+		t.Fatalf("the owner is told %+v", settings.Warnings)
 	}
 }

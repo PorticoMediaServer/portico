@@ -45,6 +45,9 @@ type Warning struct {
 }
 
 // proxyEverywhereMessage is proposed wording, listed for the owner's approval.
+const proxyWithoutHeaderMessage = "A trusted proxy is passing requests on without saying who sent them (no X-Forwarded-For), " +
+	"so nobody it passes on counts as at home, your own devices included. Make the proxy send X-Forwarded-For."
+
 const proxyEverywhereMessage = "A trusted proxy covers most of the internet, so anyone can say they are at home " +
 	"and skip what applies to people away from home. List only your own proxy's address unless you mean this."
 
@@ -77,6 +80,8 @@ type networkState struct {
 	defaults    []netip.Prefix
 	defaultsAt  time.Time
 	warnedProxy bool
+	// sawBareProxy is set when a listed proxy passed on a request without X-Forwarded-For.
+	sawBareProxy bool
 }
 
 func (n *networkState) set(stored storedNetworks) error {
@@ -94,6 +99,8 @@ func (n *networkState) set(stored storedNetworks) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.stored, n.home, n.proxies = stored, home, proxies
+	// What a proxy did is noted again under the new list.
+	n.sawBareProxy = false
 	return nil
 }
 
@@ -131,6 +138,17 @@ func (s *Server) loadNetworks(ctx context.Context) error {
 // from a proxy the owner has not listed. Until they list it, nobody behind that proxy
 // counts as at home, and everyone behind it counts as the proxy's own address, so one
 // person's wrong guesses count against all of them.
+// noteBareProxy remembers, for the owner's network settings, that a listed proxy passed a
+// request on without X-Forwarded-For. One memory flag; nothing is stored.
+func (s *Server) noteBareProxy(r *http.Request) {
+	if r.Header.Get("X-Forwarded-For") != "" || !s.networks().BareProxy(r) {
+		return
+	}
+	s.network.mu.Lock()
+	s.network.sawBareProxy = true
+	s.network.mu.Unlock()
+}
+
 func (s *Server) noteForwarded(r *http.Request) {
 	if r.Header.Get("X-Forwarded-For") == "" {
 		return
@@ -214,6 +232,12 @@ func (s *Server) networkSettings(saved int64) NetworkSettings {
 			out.Warnings = append(out.Warnings, Warning{Code: "proxy_everywhere", Message: proxyEverywhereMessage})
 			break
 		}
+	}
+	s.network.mu.Lock()
+	bare := s.network.sawBareProxy
+	s.network.mu.Unlock()
+	if bare {
+		out.Warnings = append(out.Warnings, Warning{Code: "proxy_without_header", Message: proxyWithoutHeaderMessage})
 	}
 	return out
 }
