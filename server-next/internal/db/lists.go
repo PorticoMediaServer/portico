@@ -393,8 +393,14 @@ func (d *DB) EditList(ctx context.Context, v Viewer, publicID string, revision i
 			if e.kind != ListCollection {
 				return invalid("only a collection is made visible to everyone")
 			}
-			_, err := e.tx.Exec(`UPDATE lists SET everyone = ? WHERE id = ?`, *c.Everyone, e.id)
-			return err
+			res, err := e.tx.Exec(`UPDATE lists SET everyone = ? WHERE id = ? AND everyone != ?`, *c.Everyone, e.id, *c.Everyone)
+			if err != nil {
+				return err
+			}
+			if changed, _ := res.RowsAffected(); !*c.Everyone && changed > 0 {
+				return appendChange(e.tx, Change{At: e.at, Topic: TopicList, Op: OpDeleted, RefID: e.id})
+			}
+			return nil
 		}
 		return nil
 	}, &out)
