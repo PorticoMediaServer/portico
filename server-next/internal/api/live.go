@@ -18,8 +18,10 @@ type Channel struct {
 	Name   string `json:"name"`
 	Number string `json:"number"`
 	// Kind is source or library.
-	Kind     string `json:"kind"`
-	Group    string `json:"group,omitempty"`
+	Kind  string `json:"kind"`
+	Group string `json:"group,omitempty"`
+	// Logo is a Library Channel's uploaded logo, or absent for the monogram.
+	Logo     string `json:"logo,omitempty"`
 	Favorite bool   `json:"favorite"`
 	Hidden   bool   `json:"hidden"`
 }
@@ -117,6 +119,9 @@ func rated(v db.LiveViewer, age *int) bool {
 func channelOut(c db.LiveChannel) Channel {
 	out := Channel{ID: c.PublicID, Name: c.Name, Kind: "library", Group: c.Group, Favorite: c.Favorite, Hidden: c.Hidden,
 		Number: strconv.Itoa(c.Number)}
+	if c.LogoHash != "" {
+		out.Logo = "/v1/images/" + c.LogoHash
+	}
 	if c.Kind == db.ChannelFromSource {
 		out.Kind = "source"
 		if minor := c.Number % 1000; minor != 0 {
