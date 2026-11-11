@@ -77,6 +77,10 @@ func TestTheConversionFolderChangesWithoutARestart(t *testing.T) {
 			t.Fatalf("%q was accepted as the conversion folder", bad)
 		}
 	}
+	// A folder inside a library is the owner's to choose, with a warning; one outside has none.
+	if h.engine.ConversionFolderWarning(filepath.Join(library, "conversions")) == "" || h.engine.ConversionFolderWarning(chosen) != "" {
+		t.Fatal("the warning for a conversion folder inside a library is wrong")
+	}
 	if err := h.engine.SetConversion(chosen, ""); err != nil {
 		t.Fatal(err)
 	}
