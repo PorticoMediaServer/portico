@@ -1,5 +1,6 @@
 /** The Portico Account pages at web.getportico.tv, speaking the Portico Services API. */
 export const accountPagesMessages = {
+  'next.account.brand': 'Account',
   // Sign in
   'next.account.signIn.title': 'Sign in to your Portico Account',
   'next.account.signIn.lead': 'One Portico Account reaches every server you own or that someone shares with you.',
