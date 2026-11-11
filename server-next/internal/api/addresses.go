@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"net"
 	"net/netip"
+	"strconv"
 	"strings"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
@@ -20,7 +21,12 @@ import (
 // A router with DNS-rebinding protection refuses a public DNS answer that points at a private
 // address, so on such a router the home name does not resolve and the apps go on to the next
 // address (the public one, through the router). The owner can allow portico.direct in the
-// router's DNS settings.
+// router's DNS settings. A phone that uses its own DNS (Private DNS, DNS over HTTPS) is not
+// behind the router's filter, and the name resolves for it anyway.
+//
+// A server in a container on bridge networking sees only the container's own address, so it
+// publishes no home route a device at home can use: the owner runs it with host networking, or
+// devices at home use the public route.
 
 // maxHomeAddresses bounds the home addresses published; the document holds eight in all.
 const maxHomeAddresses = 4
@@ -44,11 +50,13 @@ func (s *Server) PublishedAddresses() []PublishedAddress {
 	if port == 0 {
 		return []PublishedAddress{}
 	}
-	var mine []netip.Addr
-	if addrs, err := net.InterfaceAddrs(); err == nil {
+	var mine []interfaceAddress
+	ifaces, _ := net.Interfaces()
+	for _, iface := range ifaces {
+		addrs, _ := iface.Addrs()
 		for _, a := range addrs {
 			if p, err := netip.ParsePrefix(a.String()); err == nil {
-				mine = append(mine, p.Addr().Unmap())
+				mine = append(mine, interfaceAddress{iface.Name, p.Addr().Unmap()})
 			}
 		}
 	}
@@ -74,10 +82,20 @@ func publish(home []netip.Addr, homePort int, public string, publicPort int, zon
 	for _, ip := range home {
 		out = append(out, PublishedAddress{Address: ip.String(), Port: homePort, Home: true, Name: porticoName(ip, zone)})
 	}
-	if ip, err := netip.ParseAddr(public); err == nil && ip.Is4() && !ip.IsPrivate() {
+	if ip, err := netip.ParseAddr(public); err == nil && routable(ip) {
 		out = append(out, PublishedAddress{Address: ip.String(), Port: publicPort, Name: porticoName(ip, zone)})
 	}
 	return out
+}
+
+// sharedAddressSpace is 100.64.0.0/10, the carrier's NAT range: never reachable from outside.
+var sharedAddressSpace = netip.MustParsePrefix("100.64.0.0/10")
+
+// routable reports whether ip is an IPv4 address the internet can route to. A router behind a
+// carrier's NAT reports 100.64.x.x, and many report 0.0.0.0 while their line is down: no
+// public address is published rather than one nobody can reach.
+func routable(ip netip.Addr) bool {
+	return ip.Is4() && ip.IsGlobalUnicast() && !ip.IsPrivate() && !sharedAddressSpace.Contains(ip)
 }
 
 // towardsRouter is this machine's address on the way to the router, or none.
@@ -93,19 +111,44 @@ func towardsRouter(gateway netip.Addr) netip.Addr {
 	return conn.LocalAddr().(*net.UDPAddr).AddrPort().Addr().Unmap()
 }
 
-// homeAddresses are the private IPv4 addresses among mine that are on the home networks, the
-// one used towards the router first, at most maxHomeAddresses.
-func homeAddresses(mine []netip.Addr, first netip.Addr, networks auth.Networks) []netip.Addr {
+// interfaceAddress is one of this machine's addresses with the interface it is on.
+type interfaceAddress struct {
+	name string
+	addr netip.Addr
+}
+
+// virtualInterfaces are the name prefixes of container bridges, virtual machine bridges and VPN
+// tunnels. An address on one is never a home address: no device at home reaches the server
+// there, and it would be a dead route tried before the real one, or push the real one out.
+var virtualInterfaces = []string{"docker", "br-", "virbr", "wg", "tun", "tap", "veth"}
+
+func virtualInterface(name string) bool {
+	for _, prefix := range virtualInterfaces {
+		if strings.HasPrefix(name, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// homeAddresses are the private IPv4 addresses among mine that are on the home networks and not
+// on a virtual interface, the one used towards the router first, at most maxHomeAddresses.
+func homeAddresses(mine []interfaceAddress, first netip.Addr, networks auth.Networks) []netip.Addr {
 	usable := func(ip netip.Addr) bool {
 		return ip.Is4() && ip.IsPrivate() && networks.AtHome(ip)
 	}
 	var out []netip.Addr
+	for _, m := range mine {
+		if m.addr == first && virtualInterface(m.name) {
+			first = netip.Addr{}
+		}
+	}
 	if usable(first) {
 		out = append(out, first)
 	}
-	for _, ip := range mine {
-		if usable(ip) && ip != first && len(out) < maxHomeAddresses {
-			out = append(out, ip)
+	for _, m := range mine {
+		if usable(m.addr) && m.addr != first && !virtualInterface(m.name) && len(out) < maxHomeAddresses {
+			out = append(out, m.addr)
 		}
 	}
 	return out
@@ -117,6 +160,27 @@ func porticoName(ip netip.Addr, zone string) string {
 		return ""
 	}
 	return strings.ReplaceAll(ip.String(), ".", "-") + "." + zone
+}
+
+// underOwnZone reports whether address ("host:port") is a name in this server's own Portico
+// zone at a port the server publishes: the listen port, the public port, or the port the
+// router mapped. Under Enhanced such a name is approved, whatever IP it carries, so the name
+// published for a changing public address keeps working. Another server's zone is not.
+func (s *Server) underOwnZone(address string, v RemoteAccessSettings) bool {
+	zone := s.porticoZone()
+	host, portText, err := net.SplitHostPort(address)
+	if zone == "" || err != nil || !strings.HasSuffix(strings.ToLower(host), "."+zone) {
+		return false
+	}
+	port, err := strconv.Atoi(portText)
+	if err != nil {
+		return false
+	}
+	if port == s.listenPort() || port == v.PublicPort {
+		return true
+	}
+	router := s.ports.Status()
+	return router.State == "open" && port == router.ExternalPort
 }
 
 func (s *Server) porticoZone() string {
@@ -131,6 +195,10 @@ func (s *Server) porticoZone() string {
 // included, and the owner's own for any other. An empty zone stops it.
 func (s *Server) SetPorticoZone(zone string, certificate func(*tls.ClientHelloInfo) (*tls.Certificate, error)) {
 	zone = strings.ToLower(strings.TrimSuffix(zone, "."))
+	if certificate == nil {
+		// No name is published that the server could not serve a certificate for.
+		zone = ""
+	}
 	s.access.mu.Lock()
 	s.access.zone = zone
 	s.access.mu.Unlock()
