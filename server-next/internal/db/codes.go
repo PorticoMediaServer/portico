@@ -299,11 +299,14 @@ const (
 	// TopicHistory: an entry was removed from a profile's History, or it was cleared: its
 	// other devices read History again.
 	TopicHistory ChangeTopic = 8
+	// TopicNotice: an account's notifications changed. RefID is the account: its apps read
+	// their inbox and its unread count again.
+	TopicNotice ChangeTopic = 9
 )
 
 var changeTopicNames = map[ChangeTopic]string{
 	TopicItem: "item", TopicLibrary: "library", TopicState: "state", TopicPerson: "person",
-	TopicAccess: "access", TopicList: "list", TopicPreferences: "preferences", TopicHistory: "history",
+	TopicAccess: "access", TopicList: "list", TopicPreferences: "preferences", TopicHistory: "history", TopicNotice: "notice",
 }
 
 func (t ChangeTopic) String() string { return changeTopicNames[t] }

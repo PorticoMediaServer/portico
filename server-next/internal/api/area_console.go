@@ -64,5 +64,14 @@ func (s *Server) startConsole(ctx context.Context) error {
 	s.restoreRoutes()
 	s.logRoutes()
 	s.playHistoryRoutes()
+	s.notificationRoutes()
+	s.reportRoutes()
+	// The console's part of the daily tidy-up: notices past the owner's keeping time, crash
+	// reports after 30 days and app logs no report names, the activity record after a year.
+	s.jobs.Tidy("notices", 24*time.Hour, s.notices().Tidy)
+	s.jobs.Tidy("reports", 24*time.Hour, s.TidyReports)
+	s.jobs.Tidy("activity record", 24*time.Hour, func(ctx context.Context) error {
+		return s.db.RemoveOldActivity(ctx, s.now().AddDate(-1, 0, 0))
+	})
 	return nil
 }
