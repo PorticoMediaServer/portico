@@ -18,6 +18,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/portmap"
+	"github.com/PorticoMediaServer/portico/server-next/internal/publicaddr"
 	"github.com/PorticoMediaServer/portico/server-next/internal/tlsport"
 )
 
@@ -263,6 +264,8 @@ func (s *Server) applyCertificate(v RemoteAccessSettings) {
 		s.log.Error("could not tell whether this server has an owner", "error", err)
 	}
 	s.ports.Set(owned && v.RemoteAccess == "on" && v.PortMapping == "automatic", s.listenPort(), v.PublicPort)
+	// The public address is asked of outside services under the same conditions, mapping or not.
+	s.public.Set(owned && v.RemoteAccess == "on" && s.listenPort() != 0)
 }
 
 // ServePortMapping keeps the server's port open on the home router while the owner's settings
@@ -274,6 +277,9 @@ func (s *Server) ServePortMapping(ctx context.Context, port int) {
 	s.access.mu.Unlock()
 	v, _ := s.access.current()
 	s.applyCertificate(v)
+	if port != 0 {
+		go s.public.Run(ctx)
+	}
 	s.ports.Run(ctx)
 }
 
@@ -468,6 +474,9 @@ type RemoteAccessStatus struct {
 	Certificate tlsport.Status `json:"certificate"`
 	// Router is what the home router last said about opening the public port.
 	Router portmap.Status `json:"router"`
+	// PublicAddress is this server's public IPv4 address as at least two outside services
+	// (Cloudflare, Google, Amazon, icanhazip; none of them Portico's) agree it is.
+	PublicAddress publicaddr.Answer `json:"publicAddress"`
 }
 
 // Warning is one risky choice in force.
@@ -540,6 +549,7 @@ func (s *Server) remoteAccessRoutes() {
 		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 		defer cancel()
 		s.ports.CheckNow(ctx)
+		s.public.CheckNow(ctx)
 		return s.remoteStatus(r), nil
 	})
 }
@@ -549,7 +559,7 @@ func (s *Server) remoteStatus(r *http.Request) RemoteAccessStatus {
 	sec := s.access.security(v, allowed, s.setupFinished(), false)
 	return RemoteAccessStatus{ThisDevice: ThisDevice{AtHome: s.networks().FromHome(r), Address: s.remoteHost(r)},
 		Refused: s.access.refusedList(), RemoteSecurity: sec, Warnings: s.warnings(v, sec, s.networks()),
-		Certificate: s.certs.Status(), Router: s.ports.Status()}
+		Certificate: s.certs.Status(), Router: s.ports.Status(), PublicAddress: s.public.Answer()}
 }
 
 func (s *Server) setupFinished() bool {
