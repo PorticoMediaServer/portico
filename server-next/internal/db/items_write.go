@@ -325,13 +325,8 @@ func (im *importer) run(stats *ImportStats) error {
 			return err
 		}
 	}
-	// A matched show or album that gained an episode or a track is due a refresh at once, so
-	// the new one gets its details now and not when the title is next due. Zero sorts first.
-	for id := range im.grown {
-		if _, err := im.exec(`UPDATE items SET refreshed_at = 0 WHERE id = ? AND match_state IN (?, ?) AND refreshed_at > 0`,
-			id, MatchFound, MatchChosen); err != nil {
-			return err
-		}
+	if err := im.refreshGrown(); err != nil {
+		return err
 	}
 	return im.settle()
 }
