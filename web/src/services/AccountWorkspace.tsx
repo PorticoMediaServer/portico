@@ -33,7 +33,7 @@ function SignedInWorkspace() {
   const {t} = servicesI18n();
   const [account, setAccount] = useState<Account>(), [error, setError] = useState<unknown>(), [section, setSection] = useState(() => sectionOf(location.search));
   const reload = useCallback(async () => {
-    try { setAccount(await personCall<Account>('GET', '/v1/account')); setError(undefined); } catch (caught) { setError(caught); }
+    try { setAccount(await personCall<Account>('GET', '/v1/account')); setError(undefined); } catch (caught) { setError(caught); } // query-read: kept (Portico Services account pages: the person's Portico Account, not a media server document)
   }, []);
   useEffect(() => { void reload(); }, [reload]);
   useEffect(() => {

@@ -32,7 +32,7 @@ export function AccountSecurity({account, reload}: {account: Account; reload: ()
   const [notice, setNotice] = useState<ReactNode>(() => { const value = new URLSearchParams(location.search).get('connected'); return value === 'google' || value === 'apple' ? t('next.account.security.connectedNotice', {provider: providerName(value)}) : undefined; });
   const [twoStep, setTwoStep] = useState<{on: boolean; recoveryCodesLeft: number}>();
   const [password, setPassword] = useState(''), [code, setCode] = useState(''), [newPassword, setNewPassword] = useState(''), [newEmail, setNewEmail] = useState(''), [emailCode, setEmailCode] = useState('');
-  const loadTwoStep = () => personCall<{on: boolean; recoveryCodesLeft: number}>('GET', '/v1/account/two-step').then(setTwoStep, () => undefined);
+  const loadTwoStep = () => personCall<{on: boolean; recoveryCodesLeft: number}>('GET', '/v1/account/two-step').then(setTwoStep, () => undefined); // query-read: kept (Portico Services account pages: the person's Portico Account, not a media server document)
   useEffect(() => { void loadTwoStep(); }, [account.twoStep]);
   // Back from connecting Google or Apple: say so once, and take the note out of the address.
   const [arrivedConnected] = useState(() => { const value = new URLSearchParams(location.search).get('connected'); return value === 'google' || value === 'apple' ? value : undefined; });

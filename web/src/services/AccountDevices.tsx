@@ -13,7 +13,7 @@ export function AccountDevices() {
   const {t, date} = servicesI18n();
   const [devices, setDevices] = useState<readonly Device[]>(), [error, setError] = useState<unknown>(), [busy, setBusy] = useState<string>(), [done, setDone] = useState(false);
   const load = useCallback(async () => {
-    try { setDevices((await personCall<{items: Device[]}>('GET', '/v1/account/sessions')).items); } catch (caught) { setError(caught); }
+    try { setDevices((await personCall<{items: Device[]}>('GET', '/v1/account/sessions')).items); } catch (caught) { setError(caught); } // query-read: kept (Portico Services account pages: the person's Portico Account, not a media server document)
   }, []);
   useEffect(() => { void load(); }, [load]);
   const act = async (id: string, work: () => Promise<unknown>) => {

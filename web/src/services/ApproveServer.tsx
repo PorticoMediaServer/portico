@@ -49,14 +49,14 @@ function ApprovalById({id}: {id: string}) {
   useEffect(() => {
     const controller = new AbortController();
     setError(undefined);
-    personCall<Approval>('GET', `/v1/approvals/${encodeURIComponent(id)}`, undefined, {signal: controller.signal}).then(setApproval, caught => { if (!controller.signal.aborted) setError(caught); });
+    personCall<Approval>('GET', `/v1/approvals/${encodeURIComponent(id)}`, undefined, {signal: controller.signal}).then(setApproval, caught => { if (!controller.signal.aborted) setError(caught); }); // query-read: kept (Portico Services account pages: the person's Portico Account, not a media server document)
     return () => controller.abort();
   }, [id, attempt]);
   if (error) return <ServicesAuthStage variant="state">
     <ServicesStateIcon tone="warning" icon="i-warn" />
     <ServicesHeading>{t('next.account.approve.codeTitle')}</ServicesHeading>
     <ServicesNotice tone="error">{t(problemMessage(error, 'approve'))}</ServicesNotice>
-    {error instanceof ServicesError && error.retryAfter === 0 && error.code !== 'approval_gone' && <ServicesActions><Button onClick={() => setAttempt(value => value + 1)}>{t('next.account.problem.tryAgain')}</Button></ServicesActions>}
+    {error instanceof ServicesError && error.code !== 'approval_gone' && <ServicesActions><Button onClick={() => setAttempt(value => value + 1)}>{t('next.account.problem.tryAgain')}</Button></ServicesActions>}
   </ServicesAuthStage>;
   if (!approval) return <ServicesAuthStage><></></ServicesAuthStage>;
   return <ApprovalCard approval={approval} byCode={false} />;
@@ -67,7 +67,7 @@ function ApprovalCard({approval, byCode}: {approval: Approval; byCode: boolean})
   const [account, setAccount] = useState<Account>();
   const [decided, setDecided] = useState<Decision | undefined>(() => approval.state === 'declined' ? {state: 'declined', returnUrl: ''} : undefined);
   const {busy, error, run} = useAction();
-  useEffect(() => { void personCall<Account>('GET', '/v1/account').then(setAccount, () => undefined); }, []);
+  useEffect(() => { void personCall<Account>('GET', '/v1/account').then(setAccount, () => undefined); }, []); // query-read: kept (Portico Services account pages: the person's Portico Account, not a media server document)
   const server = approval.serverName;
   const decide = (approve: boolean) => run(async () => {
     const answer = await personCall<Decision>('POST', `/v1/approvals/${encodeURIComponent(approval.id)}/decision`, {approve});

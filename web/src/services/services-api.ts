@@ -4,7 +4,7 @@
  * invents one. */
 
 export class ServicesError extends Error {
-  constructor(readonly status: number, readonly code: string, readonly fields: Readonly<Record<string, string>> = {}, readonly retryAfter = 0) {
+  constructor(readonly status: number, readonly code: string, readonly fields: Readonly<Record<string, string>> = {}) {
     super(code);
   }
 }
@@ -29,7 +29,7 @@ export async function servicesCall<T>(method: string, path: string, body?: unkno
   if (options.create) headers['Idempotency-Key'] = crypto.randomUUID();
   let response: Response;
   try {
-    response = await fetch(path, {method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: options.signal, credentials: 'omit', cache: 'no-store'});
+    response = await fetch(path, {method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: options.signal, credentials: 'omit', cache: 'no-store'}); // query-read: kept (the Portico Services account pages' one requester)
   } catch (error) {
     if (options.signal?.aborted) throw error;
     throw new ServicesError(0, 'unreachable');
@@ -42,7 +42,7 @@ export async function servicesCall<T>(method: string, path: string, body?: unkno
   const problem = (value as {error?: {code?: unknown; fields?: unknown}} | undefined)?.error;
   const code = typeof problem?.code === 'string' ? problem.code : response.status >= 500 ? 'internal' : 'bad_request';
   const fields = problem?.fields && typeof problem.fields === 'object' ? problem.fields as Record<string, string> : {};
-  throw new ServicesError(response.status, code, fields, Number(response.headers.get('Retry-After')) || 0);
+  throw new ServicesError(response.status, code, fields);
 }
 
 /** A signed document's contents. The pages only show what is in it; the apps and servers that

@@ -79,7 +79,7 @@ function TVDecision({found, onAnother}: {found: Found; onAnother: () => void}) {
   const {t} = servicesI18n();
   const [account, setAccount] = useState<string>(), [answer, setAnswer] = useState<'approved' | 'denied'>(), [canDeny, setCanDeny] = useState(true);
   const {busy, error, run} = useAction();
-  useEffect(() => { void personCall<{username: string}>('GET', '/v1/account').then(value => setAccount(value.username), () => undefined); }, []);
+  useEffect(() => { void personCall<{username: string}>('GET', '/v1/account').then(value => setAccount(value.username), () => undefined); }, []); // query-read: kept (Portico Services account pages: the person's Portico Account, not a media server document)
   // The person who approved may still deny until the TV collects its sign-in, which it does
   // within seconds; after that a denial would only be refused.
   useEffect(() => {

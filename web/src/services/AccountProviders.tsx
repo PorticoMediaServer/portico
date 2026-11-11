@@ -38,7 +38,7 @@ export async function startProvider(provider: Provider, next: string, proof?: {c
 /** Which of Google and Apple this Portico Services offers (`GET /v1/system`), asked once a page. */
 let offered: Promise<readonly string[]> | undefined;
 function offeredProviders(): Promise<readonly string[]> {
-  offered ??= servicesCall<{capabilities?: string[]}>('GET', '/v1/system').then(value => value.capabilities ?? [], () => { offered = undefined; return []; });
+  offered ??= servicesCall<{capabilities?: string[]}>('GET', '/v1/system').then(value => value.capabilities ?? [], () => { offered = undefined; return []; }); // query-read: kept (Portico Services account pages: the person's Portico Account, not a media server document)
   return offered;
 }
 

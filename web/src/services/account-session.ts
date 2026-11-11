@@ -11,7 +11,8 @@ let renewing: Promise<Tokens | undefined> | undefined;
 function read(): Tokens | undefined {
   try {
     const value = JSON.parse(localStorage.getItem(key) ?? 'null') as Tokens | null;
-    return value && typeof value.accessToken === 'string' && typeof value.refreshToken === 'string' ? value : undefined;
+    const text = (field: unknown) => typeof field === 'string';
+    return value && text(value.accessToken) && text(value.refreshToken) ? value : undefined;
   } catch { return undefined; }
 }
 function write(tokens: Tokens | undefined) {
@@ -55,8 +56,9 @@ export async function personCall<T>(method: string, path: string, body?: unknown
     return await servicesCall<T>(method, path, body, {...options, token: tokens.accessToken});
   } catch (error) {
     if (!(error instanceof ServicesError) || error.code !== 'signed_out') throw error;
-    const renewed = current && current.accessToken !== tokens.accessToken ? current : await renew().catch(() => undefined);
-    if (!renewed) { if (current?.accessToken === tokens.accessToken) write(undefined); throw error; }
+    // Another tab may have renewed already: a different held sign-in is the newer one.
+    const renewed = current && current !== tokens ? current : await renew().catch(() => undefined);
+    if (!renewed) { if (current === tokens) write(undefined); throw error; }
     return servicesCall<T>(method, path, body, {...options, token: renewed.accessToken});
   }
 }

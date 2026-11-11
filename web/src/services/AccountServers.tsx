@@ -18,7 +18,7 @@ export function AccountServers() {
   const [asking, setAsking] = useState<Listed>(), [busy, setBusy] = useState(false), [dialogError, setDialogError] = useState<unknown>();
   const load = useCallback(async () => {
     try {
-      const answer = await personCall<{list: {payload: string}}>('GET', '/v1/servers');
+      const answer = await personCall<{list: {payload: string}}>('GET', '/v1/servers'); // query-read: kept (Portico Services account pages: the person's Portico Account, not a media server document)
       setServers(envelopePayload<{servers: Listed[]}>(answer.list).servers);
     } catch (caught) { setError(caught); }
   }, []);
