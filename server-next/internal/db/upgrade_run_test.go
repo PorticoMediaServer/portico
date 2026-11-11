@@ -182,7 +182,7 @@ func TestAnUpgradeKilledAtAnyPointResumes(t *testing.T) {
 			t.Fatalf("killed at point %d (%s), the database is not at a whole version: %+v", killAt, point, s)
 		}
 		// Once anything has changed, the copy from before is there and is the first release's database.
-		copied := backupPath(path, firstVersion)
+		copied := copyPath(path, firstVersion, 3)
 		if _, err := os.Stat(copied); err == nil {
 			if b := readUpgradeState(t, copied); b != (upgradeState{version: firstVersion, titles: titles}) {
 				t.Fatalf("killed at point %d (%s), the copy from before the upgrade is %+v", killAt, point, b)
@@ -268,7 +268,7 @@ func TestANewerDatabaseIsRefused(t *testing.T) {
 	if err == nil {
 		t.Fatal("the first release opened a database two versions newer")
 	}
-	for _, want := range []string{"newer version of Portico", "version 3", "version 1", backupPath(path, 1)} {
+	for _, want := range []string{"newer version of Portico", "version 3", "version 1", copyPath(path, 1, 3)} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("the refusal does not mention %q: %v", want, err)
 		}
@@ -277,7 +277,7 @@ func TestANewerDatabaseIsRefused(t *testing.T) {
 		t.Errorf("the refused database changed from %+v to %+v", after, now)
 	}
 	// The copy it points to is one the first release opens.
-	d, err = Open(ctx, backupPath(path, 1))
+	d, err = Open(ctx, copyPath(path, 1, 3))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -310,6 +310,60 @@ func TestAFailedStepLeavesTheVersionBeforeIt(t *testing.T) {
 	d.Close()
 	if s := readUpgradeState(t, path); s != (upgradeState{version: 3, titles: 3, notesTable: true, lengthColumn: true, lengthIndex: true}) {
 		t.Fatalf("after the step was put right the database is %+v", s)
+	}
+}
+
+// Three releases, each with one step, installed one after the other, leave one copy of the
+// database: the one from before the latest upgrade.
+func TestOneCopyIsKeptFromBeforeTheLatestUpgrade(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "main.db")
+	firstReleaseDatabase(t, path, 3)
+	steps := []upgrade{
+		{what: "one", sql: `CREATE TABLE trial_one (id INTEGER PRIMARY KEY) STRICT`},
+		{what: "two", sql: `CREATE TABLE trial_two (id INTEGER PRIMARY KEY) STRICT`},
+		{what: "three", sql: `CREATE TABLE trial_three (id INTEGER PRIMARY KEY) STRICT`},
+	}
+	for release := 1; release <= len(steps); release++ {
+		useUpgrades(t, steps[:release])
+		d, err := Open(ctx, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		d.Close()
+	}
+	copies := upgradeCopies(path)
+	if len(copies) != 1 || copies[0].from != 3 || copies[0].to != 4 {
+		t.Fatalf("after three upgrades the copies kept are %+v, want the one from before the latest", copies)
+	}
+	if s := readUpgradeState(t, copies[0].path); s.version != 3 {
+		t.Fatalf("the copy kept is version %d, want 3", s.version)
+	}
+}
+
+// A release adds a column filled in the background; the next release's step takes the
+// column away again. A person who installs both before the first has finished, or skips a
+// release, must not be left with background work that can never finish: the earlier work is
+// finished before the newer step is applied.
+func TestEarlierBackgroundWorkIsFinishedBeforeANewerStep(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "main.db")
+	firstReleaseDatabase(t, path, 30)
+	filled := 0
+	steps := trialUpgrades(10)
+	fill := steps[1].background
+	steps[1].background = func(tx *sql.Tx, after int64) (int64, bool, error) {
+		filled++
+		return fill(tx, after)
+	}
+	steps = append(steps, upgrade{what: "titles lose their length again", sql: `DROP INDEX items_by_title_length; ALTER TABLE items DROP COLUMN title_length`})
+	useUpgrades(t, steps)
+	d, err := Open(context.Background(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Close()
+	if s := readUpgradeState(t, path); s != (upgradeState{version: 4, titles: 30, notesTable: true}) || filled != 4 {
+		t.Fatalf("the database is %+v after %d background batches, want version 4 with nothing left to do after 4", s, filled)
 	}
 }
 
@@ -407,7 +461,7 @@ func TestUpgradeAtSize(t *testing.T) {
 	if s.version != 3 || s.backgroundPending || !s.lengthIndex || s.wrongLengths != 0 {
 		t.Errorf("the upgrade did not finish: %+v", s)
 	}
-	backup, _ := os.Stat(backupPath(path, firstVersion))
+	backup, _ := os.Stat(copyPath(path, firstVersion, 3))
 	ms := func(d time.Duration) float64 { return float64(d.Microseconds()) / 1000 }
 	p99 := func(times []time.Duration) float64 {
 		slices.Sort(times)
