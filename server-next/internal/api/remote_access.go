@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/tlsport"
 )
 
 // Remote access: what this server answers from outside the owner's home networks. The home
@@ -54,6 +55,9 @@ type RemoteAccessSettings struct {
 	AllowedAddresses []string `json:"allowedAddresses"`
 	// FindAtHome lets apps on the home network list this server without typing an address.
 	FindAtHome bool `json:"findAtHome"`
+	// CertificateWarningDays is how many days before the own certificate expires the owner
+	// is warned: 7, 14, 30 or 60.
+	CertificateWarningDays int `json:"certificateWarningDays"`
 
 	revision
 }
@@ -79,7 +83,8 @@ const (
 
 func defaultRemoteAccess() RemoteAccessSettings {
 	return RemoteAccessSettings{RemoteAccess: "on", RemoteSecurity: "standard", SecureConnections: "preferred",
-		SignInFromOutside: "anyone", PortMapping: "automatic", PublicPort: defaultPublicPort, AllowedAddresses: []string{}, FindAtHome: true}
+		SignInFromOutside: "anyone", PortMapping: "automatic", PublicPort: defaultPublicPort, AllowedAddresses: []string{}, FindAtHome: true,
+		CertificateWarningDays: 14}
 }
 
 // problem names the first field holding a value it does not take, with what to say.
@@ -106,6 +111,8 @@ func (v *RemoteAccessSettings) problem() (string, string) {
 		return "ownAddress.certificateFile", "Give the name of a file in the Keys folder, such as certificate.pem."
 	case v.OwnAddress.KeyFile != "" && !keysFileName(v.OwnAddress.KeyFile):
 		return "ownAddress.keyFile", "Give the name of a file in the Keys folder, such as certificate.key."
+	case !slices.Contains([]int{7, 14, 30, 60}, v.CertificateWarningDays):
+		return "certificateWarningDays", choice
 	case len(v.AllowedAddresses) > maxAllowed:
 		return "allowedAddresses", "List up to 64 addresses."
 	}
@@ -198,6 +205,18 @@ func (st *remoteState) set(v RemoteAccessSettings) {
 	st.mu.Unlock()
 }
 
+// applyCertificate serves the owner's certificate for their own address, if they gave one.
+func (s *Server) applyCertificate(v RemoteAccessSettings) {
+	src := tlsport.Source{WarnBefore: time.Duration(v.CertificateWarningDays) * 24 * time.Hour}
+	if v.OwnAddress.Enabled && v.OwnAddress.CertificateFile != "" {
+		src.Domain, src.CertificateFile, src.KeyFile = v.OwnAddress.Domain, v.OwnAddress.CertificateFile, v.OwnAddress.KeyFile
+	}
+	s.certs.Use(src)
+}
+
+// Certificates is the owner's certificate as the listener serves it.
+func (s *Server) Certificates() *tlsport.Store { return s.certs }
+
 func (st *remoteState) current() (RemoteAccessSettings, []string) {
 	st.mu.RLock()
 	defer st.mu.RUnlock()
@@ -247,6 +266,7 @@ func (s *Server) loadRemoteAccess(ctx context.Context) error {
 		}
 	}
 	s.remote.set(v)
+	s.applyCertificate(v)
 	return nil
 }
 
@@ -256,6 +276,8 @@ type RemoteAccessStatus struct {
 	ThisDevice ThisDevice `json:"thisDevice"`
 	// Refused are the outside addresses Enhanced refused since the server started, newest first.
 	Refused []RefusedAddress `json:"refused"`
+	// Certificate is the owner's own certificate: none, served, or what is wrong with it.
+	Certificate tlsport.Status `json:"certificate"`
 }
 
 // ThisDevice is the asking device as the server sees it.
@@ -276,7 +298,7 @@ func (s *Server) remoteAccessRoutes() {
 	Handle(s, "PUT /v1/admin/settings/remote-access", Owner, s.saveRemoteAccess)
 	Handle(s, "GET /v1/admin/remote-access", Owner, func(r *http.Request, _ None) (RemoteAccessStatus, error) {
 		return RemoteAccessStatus{ThisDevice: ThisDevice{AtHome: s.networks().FromHome(r), Address: s.remoteHost(r)},
-			Refused: s.remote.refusedList()}, nil
+			Refused: s.remote.refusedList(), Certificate: s.certs.Status()}, nil
 	})
 }
 
@@ -304,6 +326,7 @@ func (s *Server) saveRemoteAccess(r *http.Request, req RemoteAccessSettings) (Re
 		return RemoteAccessSettings{}, err
 	}
 	s.remote.set(req)
+	s.applyCertificate(req)
 	req.revision = revision(saved)
 	return req, nil
 }
