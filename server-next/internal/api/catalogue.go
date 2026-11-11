@@ -202,12 +202,19 @@ func (s *Server) catalogueRoutes() {
 			home = append(home, HomeRow{ID: mood.Key, Title: moodRowTitle(mood.Label), Reason: because(mood.Because),
 				Shape: "poster", Items: itemShapes(mood.Items)})
 		}
-		rows, err := s.homeLayout(r.Context(), viewer(r).ProfileID, home, withHidden)
+		views, err := s.savedViewRows(r)
+		if err != nil {
+			return Home{}, err
+		}
+		rows, err := s.homeLayout(r.Context(), viewer(r).ProfileID, append(home, views...), withHidden)
+		if err == nil {
+			err = s.fillViewRows(r, rows)
+		}
 		// A row with nothing in it is left out, so an app never draws an empty shelf. A hidden
-		// row sent to the editor has no items and is always sent.
+		// row sent to the editor has no items and is always sent, and so is a deferred one.
 		out := Home{Rows: []HomeRow{}}
 		for _, row := range rows {
-			if len(row.Items) > 0 || row.Hidden {
+			if len(row.Items) > 0 || row.Hidden || row.Deferred {
 				out.Rows = append(out.Rows, row)
 			}
 		}
