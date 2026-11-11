@@ -150,6 +150,9 @@ func (d *DB) pictureEdit(ctx context.Context, publicID string, role ImageRole, d
 		if err := selectPicture(b, id, role); err != nil {
 			return err
 		}
+		if err := rememberAfter(b, id); err != nil {
+			return err
+		}
 		if _, err := b.exec(`UPDATE items SET updated_at = ?, revision = revision + 1 WHERE id = ?`, now, id); err != nil {
 			return err
 		}
