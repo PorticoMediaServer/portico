@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http/httptest"
+	"slices"
 	"testing"
 )
 
@@ -66,11 +67,11 @@ func TestMetadataEditorHistoryAndUndo(t *testing.T) {
 	if len(history.Items) != 2 || history.Items[0].Kind != "match_changed" || history.Items[1].Kind != "fields_edited" {
 		t.Fatalf("history: %+v", history.Items)
 	}
-	// Undo to before the edit: the provider's title, cast and no labels, and the match as the
-	// server made it.
+	// Undo to before the edit: the provider's title, cast and no labels. The match chosen after
+	// the edit is another change, and stays.
 	sh.do("POST", "/v1/admin/items/"+heat+"/metadata/history/"+history.Items[1].ID+"/undo", nil, &doc, 200)
 	if doc.Fields["title"].Value != "Heat" || doc.Fields["title"].Locked || len(doc.Credits.Values) != cast ||
-		len(doc.Lists["labels"].Values) != 0 || doc.Match.State != "matched" {
+		len(doc.Lists["labels"].Values) != 0 || doc.Match.State != "chosen" {
 		t.Fatalf("after Undo: %+v", doc)
 	}
 	sh.do("GET", "/v1/admin/items/"+heat+"/metadata/history", nil, &history, 200)
@@ -79,5 +80,36 @@ func TestMetadataEditorHistoryAndUndo(t *testing.T) {
 	}
 	if w := call(t, sh.s, "GET", "/v1/admin/items/"+heat+"/metadata", sh.limitedAdmin, nil, nil); w.Code != 404 {
 		t.Fatalf("an admin limited to 13 and under opened an R-rated film's editor: %d", w.Code)
+	}
+}
+
+// Undo of an older change puts back only what that change made: a label and a genre added
+// after it, and a field edited after it, all stay.
+func TestUndoOfAnOlderChangeKeepsWhatCameAfter(t *testing.T) {
+	sh := newShelf(t, "Heat (1995).mkv")
+	var items ItemPage
+	sh.do("GET", "/v1/items?kind=movie&library="+sh.library, nil, &items, 200)
+	heat := items.Items[0].ID
+	var doc MetadataDocument
+	sh.do("GET", "/v1/admin/items/"+heat+"/metadata", nil, &doc, 200)
+	title := "Heat (an older edit)"
+	sh.patch(heat, doc.Revision, MetadataPatch{Title: &title}, &doc, 200)
+	labels, genres, tagline := []string{"Kids"}, append(doc.Lists["genres"].Values, "Heist"), "A later tagline."
+	sh.patch(heat, doc.Revision, MetadataPatch{Labels: &labels, Genres: &genres, Tagline: &tagline}, &doc, 200)
+
+	var history Page[MetadataHistoryEntry]
+	sh.do("GET", "/v1/admin/items/"+heat+"/metadata/history", nil, &history, 200)
+	sh.do("POST", "/v1/admin/items/"+heat+"/metadata/history/"+history.Items[1].ID+"/undo", nil, &doc, 200)
+	if doc.Fields["title"].Value != "Heat" || doc.Fields["title"].Locked {
+		t.Fatalf("the older edit was not undone: %+v", doc.Fields["title"])
+	}
+	if got := doc.Lists["labels"].Values; len(got) != 1 || got[0] != "Kids" {
+		t.Fatalf("Undo of an older edit removed a label added since: %v", got)
+	}
+	if got := doc.Lists["genres"].Values; !slices.Contains(got, "Heist") || !doc.Lists["genres"].Locked {
+		t.Fatalf("Undo of an older edit removed a genre added since: %+v", doc.Lists["genres"])
+	}
+	if f := doc.Fields["tagline"]; f.Value != tagline || !f.Locked {
+		t.Fatalf("Undo of an older edit changed a field edited since: %+v", f)
 	}
 }
