@@ -60,13 +60,15 @@ jobs:
           icacls "$env:DATA\planted.txt" /grant "*S-1-1-0:F"; if ($LASTEXITCODE) { throw "icacls" }
           # Owned by an ordinary account, as a folder made before the install by another user would be.
           icacls $env:DATA /setowner $env:USERNAME /T; if ($LASTEXITCODE) { throw "icacls" }
-          (Get-Acl $env:DATA).Owner
+          "owner before the install: $((Get-Acl $env:DATA).Owner)"
           # What the later steps use to check who can reach a file or folder.
           Set-Content "$env:RUNNER_TEMP\closed.ps1" @'
           function Closed($path) {
             icacls $path
             $acl = Get-Acl -LiteralPath $path
-            if ($acl.Owner -ne 'BUILTIN\Administrators') { throw "$path is owned by $($acl.Owner)" }
+            "owner: $($acl.Owner)"
+            # What the install found is given to administrators; what the service makes afterwards is its own.
+            if ('BUILTIN\Administrators', 'NT AUTHORITY\LOCAL SERVICE' -notcontains $acl.Owner) { throw "$path is owned by $($acl.Owner)" }
             $who = @($acl.Access | ForEach-Object { $_.IdentityReference.Value } | Sort-Object -Unique)
             $allowed = 'NT AUTHORITY\SYSTEM', 'BUILTIN\Administrators', 'NT SERVICE\PorticoMediaServer'
             $extra = @($who | Where-Object { $allowed -notcontains $_ })
@@ -90,6 +92,10 @@ jobs:
           . "$env:RUNNER_TEMP\closed.ps1"
           Closed $env:DATA
           Closed "$env:DATA\planted.txt"
+          # Before the service has made anything, everything there belongs to administrators.
+          foreach ($path in $env:DATA, "$env:DATA\planted.txt") {
+            if ((Get-Acl -LiteralPath $path).Owner -ne 'BUILTIN\Administrators') { throw "$path was left with its old owner" }
+          }
       - name: --service-start
         run: |
           "$INSTALL/portico-server.exe" --service-start
