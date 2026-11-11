@@ -332,6 +332,9 @@ func (s *Server) createGroup(r *http.Request, req GroupCreate) (Room, error) {
 		return Room{}, err
 	}
 	g, created, err := s.groups.Create(m, name, req.Control, key, requestHash(req))
+	if err == nil {
+		err = s.stillAllowed(r, g.ID)
+	}
 	out, err := s.room(r, g, err)
 	if created {
 		out.status = http.StatusCreated
@@ -346,9 +349,23 @@ func (s *Server) joinGroup(r *http.Request, req GroupJoin) (Room, error) {
 	}
 	g, err := s.groups.Join(req.Code, m)
 	if err == nil {
-		s.checkCantSee(r.Context(), g)
+		err = s.stillAllowed(r, g.ID)
+	}
+	if err == nil {
+		g = s.checkCantSee(r.Context(), g)
 	}
 	return s.room(r, g, err)
+}
+
+// stillAllowed reads the profile's Watch Together switch again once it is in a group. A switch
+// turned off while it was joining took it out of the groups it was in before; this takes it
+// out of the one it just joined.
+func (s *Server) stillAllowed(r *http.Request, groupID string) error {
+	if err := s.mayWatchTogether(r); err != nil {
+		s.groups.Leave(groupID, CallerFrom(r.Context()).ProfileID)
+		return err
+	}
+	return nil
 }
 
 func (s *Server) groupPlayback(r *http.Request, req GroupAction) (Room, error) {
