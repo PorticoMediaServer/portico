@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {isRecommendationRow, notInterestedTarget, parseRecommendationsReset, RESET_RECOMMENDATIONS_PATH, resetRecommendations, setNotInterested} from '../src/recommendation-feedback.ts';
-import {personalBatchBody} from '../src/personal-saved.ts';
 import {entryActionList, entryActions} from '../src/presentation/entry-actions.ts';
 
 type Call = {path: string; method?: string; body?: any};
@@ -11,22 +10,20 @@ function fakeApi(answer: (call: Call) => unknown) {
 }
 const receipt = (call: Call, row: Record<string, unknown>) => ({serverId: 's1', viewerFence: 'f', operationId: call.body.operationId, updated: row.ok ? 1 : 0, failed: row.ok ? 0 : 1, results: [{itemId: call.body.items[0].itemId, ...row}]});
 
-test('Not interested rides the personal batch, and Undo sends false', async () => {
-  const api = fakeApi(call => receipt(call, {ok: true, personal: {revision: call.body.items[0].notInterested ? 4 : 5, notInterested: call.body.items[0].notInterested}}));
-  assert.deepEqual(await setNotInterested(api, {itemId: 'm1', notInterested: true, serverId: 's1', operationId: 'op-1'}), {revision: 4});
-  assert.equal(api.calls[0]!.path, '/v1/items/personal-state:batch');
+test('Not interested is one PUT of the title\'s own state, and Undo sends false', async () => {
+  const api = fakeApi(call => ({watched: false, playCount: 0, favorite: false, inList: false, notInterested: call.body.notInterested}));
+  assert.deepEqual(await setNotInterested(api, {itemId: 'm1', notInterested: true}), {revision: 1});
+  assert.equal(api.calls[0]!.path, '/v1/items/m1/state');
   assert.equal(api.calls[0]!.method, 'PUT');
-  assert.deepEqual(api.calls[0]!.body, {operationId: 'op-1', items: [{itemId: 'm1', notInterested: true}]});
-  await setNotInterested(api, {itemId: 'm1', notInterested: false, serverId: 's1', operationId: 'op-2'});
-  assert.deepEqual(api.calls[1]!.body.items, [{itemId: 'm1', notInterested: false}]);
+  assert.deepEqual(api.calls[0]!.body, {notInterested: true});
+  await setNotInterested(api, {itemId: 'm1', notInterested: false});
+  assert.deepEqual(api.calls[1]!.body, {notInterested: false});
 });
 
-test('a refused row rejects with its code, so the card comes back', async () => {
-  const api = fakeApi(call => receipt(call, {ok: false, code: 'not_found', message: 'gone'}));
-  await assert.rejects(setNotInterested(api, {itemId: 'm1', notInterested: true, serverId: 's1', operationId: 'op-1'}), (e: {code?: string}) => e.code === 'not_found');
-  // Another server's receipt is not an answer.
-  const other = fakeApi(call => ({...receipt(call, {ok: true}), serverId: 's2'}));
-  await assert.rejects(setNotInterested(other, {itemId: 'm1', notInterested: true, serverId: 's1', operationId: 'op-1'}));
+test('a refusal rejects with the server\'s code, so the card comes back', async () => {
+  const refused = Object.assign(new Error('gone'), {status: 404, code: 'not_found'});
+  const api = fakeApi(() => {throw refused;});
+  await assert.rejects(setNotInterested(api, {itemId: 'm1', notInterested: true}), (e: {code?: string}) => e.code === 'not_found');
 });
 
 test('a show, album or book card names its own id; a film or episode the item', () => {
@@ -45,11 +42,6 @@ test('only recommendation rows offer it', () => {
   assert.equal(isRecommendationRow({id: 'for_you:genre:g:drama'}), true);
   assert.equal(isRecommendationRow({id: 'recently_added'}), false);
   assert.equal(isRecommendationRow({id: 'continue_watching'}), false);
-});
-
-test('the batch body carries notInterested alone', () => {
-  assert.deepEqual(personalBatchBody('op', [{itemId: 'a', notInterested: true}]).items, [{itemId: 'a', notInterested: true}]);
-  assert.throws(() => personalBatchBody('op', [{itemId: 'a'}]));
 });
 
 test('the actions menu offers Not interested only when asked, with the personal actions', () => {

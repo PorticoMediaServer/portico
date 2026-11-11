@@ -101,7 +101,10 @@ export const readFacet = (api: ServerRequester, facet: string, query: ItemListQu
 export const readHomeRows = (api: ServerRequester, signal?: AbortSignal) => callServer(api, 'GET /v1/home', {signal});
 
 /** What a person can change about a title for themselves. A rating is in half stars out of five, or `null` for none. */
-export type ItemStateChange = Readonly<{watched?: boolean; favorite?: boolean; inList?: boolean; hidden?: boolean; rating?: number | null; positionMs?: number}>;
+/** `notInterested` takes the title out of recommendation rows and hides nothing else; `continueDismissed` takes it off
+ * Continue Watching until it is played again (false puts it back). */
+export type ItemStateChange = Readonly<{watched?: boolean; favorite?: boolean; inList?: boolean; hidden?: boolean; rating?: number | null; positionMs?: number;
+  notInterested?: boolean; continueDismissed?: boolean}>;
 /** The title's state after a change. `undo` is offered for a short time after changing everything under a show, season or album. */
 export type ItemStateAnswer = Readonly<{state: ItemState; undo?: Readonly<{token: string; expiresAt: string}>}>;
 
