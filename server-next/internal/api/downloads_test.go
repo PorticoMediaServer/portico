@@ -41,6 +41,7 @@ type downloadRig struct {
 	owner, kid string
 	film       string
 	clip       []byte
+	shows      *db.Library
 }
 
 func newDownloadRig(t *testing.T) *downloadRig {
@@ -312,5 +313,98 @@ func TestADeviceIsToldToRemoveWhatItsProfileLost(t *testing.T) {
 	}
 	if after := get[DownloadsByPerson](t, rig.s, rig.owner, "/v1/admin/downloads"); len(after.Items) != 0 {
 		t.Fatalf("their downloads were kept: %+v", after.Items)
+	}
+}
+
+// importShow adds a show with episodes 1 to n of season 1 (or, called again, more of them).
+// The files need not exist: nothing here fetches them.
+func (rig *downloadRig) importShow(from, to int) string {
+	rig.Helper()
+	ctx := context.Background()
+	if rig.shows == nil {
+		lib, err := rig.s.db.CreateLibrary(ctx, "Shows", db.LibraryShows, "en", []string{rig.TempDir()})
+		if err != nil {
+			rig.Fatal(err)
+		}
+		rig.shows = &lib
+	}
+	lib := *rig.shows
+	one := 1
+	batch := db.ImportBatch{LibraryID: lib.ID, PathID: lib.Paths[0].ID, Scan: int64(to), Dirs: []db.ImportDir{{}}, Items: []db.ImportItem{
+		{Kind: db.KindShow, Keys: []db.ItemKey{{Kind: db.KeyFolder, Key: "show"}}, Title: "Show"},
+		{Kind: db.KindSeason, Keys: []db.ItemKey{{Kind: db.KeyName, Key: "show/1"}}, Parent: &db.ItemKey{Kind: db.KeyFolder, Key: "show"},
+			Title: "Season 1", IndexNumber: &one}}}
+	for n := from; n <= to; n++ {
+		name := fmt.Sprintf("e%d.mkv", n)
+		number := n
+		batch.Files = append(batch.Files, db.ImportFile{FileRef: db.FileRef{Name: name}, Role: db.FileMedia, Size: 1000, Container: "matroska",
+			DurationMS: 60_000, Streams: []db.Stream{{Kind: db.StreamVideo, Codec: "h264", Width: 640, Height: 360}}})
+		batch.Items = append(batch.Items, db.ImportItem{Kind: db.KindEpisode, Keys: []db.ItemKey{{Kind: db.KeyFile, Key: name}},
+			Parent: &db.ItemKey{Kind: db.KeyName, Key: "show/1"}, Title: fmt.Sprintf("Episode %d", n), IndexNumber: &number, ParentIndex: &one,
+			Versions: []db.ImportVersion{{Parts: []db.ImportPart{{File: db.FileRef{Name: name}}}}}})
+	}
+	if _, err := rig.s.db.Import(ctx, batch); err != nil {
+		rig.Fatal(err)
+	}
+	shows := get[ItemPage](rig.T, rig.s, rig.owner, "/v1/items?library="+lib.PublicID+"&kind=show")
+	return shows.Items[0].ID
+}
+
+// "Keep the next 3" on a show: the device is told to fetch the first three episodes; once
+// one is watched it is told to remove it and fetch the fourth; an episode added later joins
+// when its turn comes. With "Delete watched downloads" on, a watched film is removed too.
+func TestKeepTheNextFollowsWhatIsWatchedAndWhatArrives(t *testing.T) {
+	rig := newDownloadRig(t)
+	show := rig.importShow(1, 4)
+	code, dl := rig.ask(rig.owner, DownloadAsk{ItemID: show, Quality: "original", Selection: "next", KeepNext: 3})
+	if code != 201 || dl.Counts.Titles != 3 || dl.KeepNext != 3 {
+		t.Fatalf("asking answered %d %+v", code, dl)
+	}
+	episodes := get[Download](t, rig.s, rig.owner, "/v1/downloads/"+dl.ID).Items
+	sync := func(holds []HeldTitle) DownloadSyncReply {
+		t.Helper()
+		var out DownloadSyncReply
+		if w := call(t, rig.s, "POST", "/v1/downloads/sync", rig.owner, DownloadSync{Holds: holds}, &out); w.Code != 200 {
+			t.Fatalf("syncing answered %d: %s", w.Code, w.Body)
+		}
+		return out
+	}
+	holds := sync(nil).Fetch
+	if len(holds) != 3 || holds[0].ItemID != episodes[0].ItemID {
+		t.Fatalf("a new device was told to fetch %+v", holds)
+	}
+	watched := true
+	if w := call(t, rig.s, "PUT", "/v1/items/"+episodes[0].ItemID+"/state", rig.owner, map[string]any{"watched": watched}, nil); w.Code != 200 {
+		t.Fatalf("marking watched answered %d: %s", w.Code, w.Body)
+	}
+	next := sync(holds)
+	if len(next.Remove) != 1 || next.Remove[0].ItemID != episodes[0].ItemID || next.Remove[0].Reason != "watched" || len(next.Fetch) != 1 {
+		t.Fatalf("after episode 1 was watched the device was told %+v", next)
+	}
+	holds = append(holds[1:], next.Fetch...)
+	if titles := get[Download](t, rig.s, rig.owner, "/v1/downloads/"+dl.ID).Items; len(titles) != 3 || titles[2].Title != "Episode 4" {
+		t.Fatalf("the request now holds %+v", titles)
+	}
+
+	rig.importShow(5, 5)
+	call(t, rig.s, "PUT", "/v1/items/"+episodes[1].ItemID+"/state", rig.owner, map[string]any{"watched": watched}, nil)
+	arrived := sync(holds)
+	titles := get[Download](t, rig.s, rig.owner, "/v1/downloads/"+dl.ID).Items
+	if len(arrived.Fetch) != 1 || len(titles) != 3 || titles[2].Title != "Episode 5" || arrived.Fetch[0].ItemID != titles[2].ItemID {
+		t.Fatalf("a new episode did not join: told %+v, holding %+v", arrived, titles)
+	}
+
+	code, film := rig.ask(rig.owner, DownloadAsk{ItemID: rig.film, Quality: "original"})
+	held := HeldTitle{DownloadID: film.ID, ItemID: rig.film}
+	call(t, rig.s, "PUT", "/v1/items/"+rig.film+"/state", rig.owner, map[string]any{"watched": watched}, nil)
+	if kept := sync([]HeldTitle{held}); code != 201 || len(kept.Remove) != 0 {
+		t.Fatalf("a watched film was removed with Delete watched downloads off: %+v", kept)
+	}
+	edit := PreferencesEdit{Scope: "profile-device", DeviceClass: "mobile", Values: map[string]any{"downloads.deleteWatched": true}}
+	if w := call(t, rig.s, "PATCH", "/v1/preferences", rig.owner, edit, nil); w.Code != 200 {
+		t.Fatalf("turning on Delete watched downloads answered %d: %s", w.Code, w.Body)
+	}
+	if gone := sync([]HeldTitle{held}); len(gone.Remove) != 1 || gone.Remove[0].Reason != "watched" {
+		t.Fatalf("a watched film was kept with Delete watched downloads on: %+v", gone)
 	}
 }

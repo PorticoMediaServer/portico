@@ -401,19 +401,19 @@ func (d *DB) DownloadedTitle(ctx context.Context, profileID int64, downloadPubli
 	return dl, DownloadTitle{}, ErrNotFound
 }
 
-// HiddenTitles returns those of the titles that are still on the server and that the viewer
-// may no longer see. A title that has left the server is not among them: a download of it
-// keeps playing on the device.
-func (d *DB) HiddenTitles(ctx context.Context, v Viewer, publicIDs []string) (map[string]bool, error) {
-	out := map[string]bool{}
+// HeldTitles says, of the titles a device holds, which are still on the server and may no
+// longer be seen by the viewer (hidden), and which the profile has watched. A title that has
+// left the server is in neither: a download of it keeps playing on the device.
+func (d *DB) HeldTitles(ctx context.Context, v Viewer, publicIDs []string) (hidden, watched map[string]bool, err error) {
+	hidden, watched = map[string]bool{}, map[string]bool{}
 	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer tx.Rollback()
 	acc, err := loadAccess(ctx, tx, v)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	for start := 0; start < len(publicIDs); start += 500 {
 		chunk := publicIDs[start:min(start+500, len(publicIDs))]
@@ -423,25 +423,42 @@ func (d *DB) HiddenTitles(ctx context.Context, v Viewer, publicIDs []string) (ma
 			marks[n] = "@t" + strconv.Itoa(n)
 			args = append(args, sql.Named("t"+strconv.Itoa(n), id))
 		}
-		rows, err := tx.QueryContext(ctx, `SELECT i.public_id FROM items i WHERE i.public_id IN (`+strings.Join(marks, ", ")+`)
-			AND NOT (`+acc.visible("i")+`)`, args...)
+		rows, err := tx.QueryContext(ctx, `SELECT i.public_id, `+acc.visible("i")+`, ifnull(s.played, 0) FROM items i
+			LEFT JOIN user_item_state s ON s.profile_id = @viewer_profile AND s.item_id = i.id
+			WHERE i.public_id IN (`+strings.Join(marks, ", ")+`)`, args...)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		for rows.Next() {
 			var id string
-			if err := rows.Scan(&id); err != nil {
+			var visible, played bool
+			if err := rows.Scan(&id, &visible, &played); err != nil {
 				rows.Close()
-				return nil, err
+				return nil, nil, err
 			}
-			out[id] = true
+			hidden[id], watched[id] = !visible, played
 		}
 		rows.Close()
 		if err := rows.Err(); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
-	return out, nil
+	return hidden, watched, nil
+}
+
+// KeepTitles makes a "keep the next" request hold exactly keep and add: its other titles go,
+// and the new ones are added in their places.
+func (d *DB) KeepTitles(ctx context.Context, downloadID int64, keep []int64, add []DownloadTitle) error {
+	all := append([]int64{}, keep...)
+	for _, t := range add {
+		all = append(all, t.ItemID)
+	}
+	return d.write(ctx, User, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM download_items WHERE download_id = ? AND item_id NOT IN `+intList(all), downloadID); err != nil {
+			return err
+		}
+		return insertDownloadTitles(ctx, tx, downloadID, add)
+	})
 }
 
 // PersonDownloads is one account's downloads, for the owner's Storage page.

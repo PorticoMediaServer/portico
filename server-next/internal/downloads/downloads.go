@@ -117,7 +117,16 @@ func (s *Service) Titles(ctx context.Context, v db.Viewer, item, list, selection
 	if err != nil {
 		return nil, err
 	}
-	if len(ids) > 1 && selection != "all" {
+	// A selection chooses among a holder's titles; one title asked for by itself is that title.
+	holder := list != ""
+	if !holder {
+		_, kind, err := s.DB.VisibleItem(ctx, v, item)
+		if err != nil {
+			return nil, err
+		}
+		holder = !kind.Playable()
+	}
+	if holder && selection != "all" {
 		watched, err := s.DB.Watched(ctx, v.ProfileID, ids)
 		if err != nil {
 			return nil, err
