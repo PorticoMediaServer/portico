@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"syscall"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/inputbridge"
@@ -41,11 +42,16 @@ func pooled(ctx context.Context, binary string, args []string, path string, mode
 	if !mediaexec.ProbePoolAccepts(job) {
 		return false, nil
 	}
-	file, err := os.Open(path)
+	// O_NONBLOCK: a named pipe put where the file was opens at once and is refused, where a
+	// plain open would wait for ever for somebody to write to it.
+	file, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return true, err
 	}
 	defer file.Close()
+	if info, err := file.Stat(); err != nil || !info.Mode().IsRegular() {
+		return true, errNotRegular
+	}
 	result, handled, err := mediaexec.RunPooledProbe(ctx, mediaexec.PooledProbe{Job: job, Input: file, OutputLimit: 4 << 20, LowPriority: true})
 	if !handled || err != nil {
 		return handled, err
@@ -59,6 +65,9 @@ func pooled(ctx context.Context, binary string, args []string, path string, mode
 	return true, nil
 }
 
+// errNotRegular says what is at the path is not a file: a named pipe, a device.
+var errNotRegular = errors.New("not a regular file")
+
 // errToolRefused says the tool ran on a pooled worker and could not make sense of the file.
 var errToolRefused = errors.New("the media tool could not read the file")
 
@@ -68,6 +77,13 @@ func (FileProber) Probe(ctx context.Context, path string) (Facts, error) {
 	real, err := filepath.EvalSymlinks(path)
 	if err != nil {
 		return Facts{}, err
+	}
+	// Only a regular file is given to the tool: on the path that hands it the file's name, a
+	// named pipe would hold it until its time ran out.
+	if info, err := os.Stat(real); err != nil {
+		return Facts{}, err
+	} else if !info.Mode().IsRegular() {
+		return Facts{}, ErrNotMedia
 	}
 	found, err := mediafacts.Probe{ScanCommand: pooled}.Inspect(ctx, real)
 	return factsOf(ctx, found, err)
@@ -101,7 +117,7 @@ func factsOf(ctx context.Context, found mediafacts.Facts, err error) (Facts, err
 	case err == nil:
 	case ctx.Err() != nil:
 		return Facts{}, ctx.Err()
-	case errors.Is(err, mediafacts.ErrNoTimedStream):
+	case errors.Is(err, mediafacts.ErrNoTimedStream), errors.Is(err, errNotRegular):
 		return Facts{}, ErrNotMedia
 	case errors.As(err, &exit), errors.Is(err, errToolRefused):
 		// The tool ran and could not make sense of the file.
