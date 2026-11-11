@@ -953,6 +953,19 @@
       "occurrences": 1
     },
     {
+      "binding": "apps/native/src-next/screens/settings-live/settings-panels.tsx#4780b74351c9b50b",
+      "file": "apps/native/src-next/screens/settings-live/settings-panels.tsx",
+      "line": 123,
+      "guardHash": "333d1eb25a5bb3af4b90f5df97894d688f87b763061cb5c551c876b96c54c2f6",
+      "owner": "controls",
+      "shape": "request",
+      "callHash": "e119605afbc8b336126caf139a34d7a91346b7e70c81cc70eedab0f5f541f494",
+      "callText": "context.api.request<T>(path, method, body, signal)",
+      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/2631#issuecomment-6788807344",
+      "reason": "call is not a named guard",
+      "occurrences": 1
+    },
+    {
       "binding": "apps/native/src-next/screens/settings-live/together-session.ts#935d9e70052d9758",
       "file": "apps/native/src-next/screens/settings-live/together-session.ts",
       "line": 22,

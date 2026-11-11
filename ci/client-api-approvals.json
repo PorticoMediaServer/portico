@@ -2306,13 +2306,13 @@
     "occurrences": 1,
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6650348707"
   },
-  "apps/native/src-next/screens/settings-live/settings-panels.tsx#1b31452e0e60fbc5": {
+  "apps/native/src-next/screens/settings-live/settings-panels.tsx#4780b74351c9b50b": {
     "category": "platform-transport",
     "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
     "condition": "Exact full canonical guard span and file-qualified occurrence budget. Core builds path, method, body, auth and header sequence; platform constructs nothing. Notifications consume exactly two combined occurrences; each share file has its own count-one allowance. Any span change voids approval.",
-    "guardHash": "13f80ea3c80bca29adfa2bb828f45685bb0e0ff16c70fa263942da395b2deaa7",
+    "guardHash": "333d1eb25a5bb3af4b90f5df97894d688f87b763061cb5c551c876b96c54c2f6",
     "occurrences": 1,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6650348707"
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/2631#issuecomment-6788807344"
   },
   "apps/native/src-next/screens/share/NativeContentLinks.tsx#54deab9656f7855c": {
     "category": "platform-transport",
