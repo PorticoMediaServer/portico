@@ -178,3 +178,44 @@ func TestTwoStepStateNeedsTheMainProfile(t *testing.T) {
 		t.Errorf("the main profile was answered %d, want 200", got)
 	}
 }
+
+// A change kept on a device while the server was out of reach says how long ago it was made.
+// Sent after a later change from another device, it does not overwrite it; a later clear wins
+// over an older value in the same way, and playback reads a cleared setting as not saved.
+func TestTheLaterSettingsChangeWins(t *testing.T) {
+	s := newTestServer(t)
+	phone := onMainProfile(t, s).AccessToken
+	tv := onMain(t, s, signIn(t, s, 5)).AccessToken
+	save := func(token string, ago int64, values map[string]any) Preferences {
+		t.Helper()
+		var out Preferences
+		body := PreferencesEdit{Scope: "profile-server", DeviceClass: "web", Values: values, MadeAgoMs: ago}
+		if w := call(t, s, "PATCH", "/v1/preferences", token, body, &out); w.Code != 200 {
+			t.Fatalf("saving %v answered %d: %s", values, w.Code, w.Body)
+		}
+		return out
+	}
+	save(tv, 0, map[string]any{"playback.skipBackMs": 30000})
+	// The phone's change was made a minute ago, offline, and reaches the server only now.
+	if got := save(phone, 60_000, map[string]any{"playback.skipBackMs": 5000}); got.Effective["playback.skipBackMs"] != 30000.0 {
+		t.Fatalf("an older offline change overwrote a later one: %v", got.Effective["playback.skipBackMs"])
+	}
+	if got := save(phone, 0, map[string]any{"playback.skipBackMs": 5000}); got.Effective["playback.skipBackMs"] != 5000.0 {
+		t.Fatalf("a change made now did not apply: %v", got.Effective["playback.skipBackMs"])
+	}
+	// Cleared now on the TV; a value the phone kept from a minute ago does not bring it back.
+	save(tv, 0, map[string]any{"playback.skipBackMs": nil})
+	if got := save(phone, 60_000, map[string]any{"playback.skipBackMs": 15000}); got.EffectiveSource["playback.skipBackMs"] != "default" {
+		t.Fatalf("an older offline value undid a later clear: %v", got.Effective["playback.skipBackMs"])
+	}
+
+	// Playback reads a cleared setting as not saved, so its default applies.
+	claims, _ := s.tokens.CheckAccess(phone, time.Now())
+	if stored, err := s.db.Preferences(context.Background(), claims.ProfileID, 0); err != nil || stored["playback.skipBackMs"] != "" {
+		t.Fatalf("playback reads %q for a cleared setting, %v", stored["playback.skipBackMs"], err)
+	}
+	if code := status(t, s, "PATCH", "/v1/preferences", phone, PreferencesEdit{Scope: "profile-server", DeviceClass: "web",
+		Values: map[string]any{"playback.autoplayNext": true}, MadeAgoMs: -1}); code != 400 {
+		t.Fatalf("a negative madeAgoMs answered %d", code)
+	}
+}
