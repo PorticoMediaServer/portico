@@ -88,7 +88,7 @@ func (s *Server) loadSetupCode(ctx context.Context, dataDir string) error {
 	if raw, err := os.ReadFile(s.setupFile); err == nil && validSetupCode(strings.TrimSpace(string(raw))) {
 		s.setupCode = strings.TrimSpace(string(raw))
 	} else {
-		s.setupCode = auth.NewCode(2)
+		s.setupCode = auth.NewCode(4)
 		if err := os.WriteFile(s.setupFile, []byte(s.setupCode+"\n"), 0o600); err != nil {
 			return err
 		}
@@ -99,17 +99,20 @@ func (s *Server) loadSetupCode(ctx context.Context, dataDir string) error {
 
 func validSetupCode(code string) bool {
 	key := auth.CodeKey(code)
-	return len(key) == 8 && strings.Trim(key, "ABCDEFGHJKMNPQRSTUVWXYZ23456789") == ""
+	return len(key) == 16 && strings.Trim(key, "ABCDEFGHJKMNPQRSTUVWXYZ23456789") == ""
 }
 
 func errSetupDone() *Error {
 	return ErrConflict("setup_complete", "This server is already set up. Sign in instead.")
 }
 
-// checkSetupCode refuses a server that already has an owner, then a wrong setup code. Wrong
-// codes count against the network they came from, at home too: a proxy can make everyone look
-// local, so home earns nothing here. The waits are a password's, a minute at most, so setup is
-// slowed and never locked.
+// checkSetupCode refuses a server that already has an owner, then a wrong setup code. The right
+// code always gets through, whatever wait is in force: behind a reverse proxy every visitor is
+// one source, and a stranger sending wrong codes must not keep the owner out. Wrong codes count
+// against the network they came from, at home too (a proxy can make everyone look local), and
+// are slowed as passwords are, a minute at most; they never feed the day-long block of a
+// network away from home. With waits no longer bounding guesses, the code itself carries the
+// weight: 16 characters, about 79 bits.
 func (s *Server) checkSetupCode(r *http.Request, code string) error {
 	ctx, now := r.Context(), s.now()
 	if done, err := s.db.HasUsers(ctx); err != nil {
@@ -121,20 +124,20 @@ func (s *Server) checkSetupCode(r *http.Request, code string) error {
 	if addr, ok := s.networks().Client(r); ok {
 		source = auth.SourceKey(addr)
 	}
-	limits := append([]db.Limit{{Bucket: "setup", Key: source, Delay: auth.StandardPasswords.Delay}}, s.sourceLimit(r)...)
+	limits := []db.Limit{{Bucket: "setup", Key: source, Delay: auth.StandardPasswords.Delay}}
+	if s.setupCode != "" && subtle.ConstantTimeCompare([]byte(auth.CodeKey(code)), []byte(auth.CodeKey(s.setupCode))) == 1 {
+		return nil
+	}
 	if wait, err := s.db.LimitWait(ctx, now, limits...); err != nil {
 		return err
 	} else if wait > 0 {
 		return errTooManyAttempts(wait)
 	}
-	if s.setupCode == "" || subtle.ConstantTimeCompare([]byte(auth.CodeKey(code)), []byte(auth.CodeKey(s.setupCode))) != 1 {
-		if err := s.db.RecordFailure(ctx, now, limits...); err != nil {
-			return err
-		}
-		return refusal(http.StatusForbidden, "setup_code_invalid",
-			"That setup code is not correct. It is in setup-code.txt in the server's data folder; the server's log names that folder when it starts.", false)
+	if err := s.db.RecordFailure(ctx, now, limits...); err != nil {
+		return err
 	}
-	return nil
+	return refusal(http.StatusForbidden, "setup_code_invalid",
+		"That setup code is not correct. It is in setup-code.txt in the server's data folder; the server's log names that folder when it starts.", false)
 }
 
 func checkServerName(name string) (string, error) {

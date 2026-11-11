@@ -32,6 +32,7 @@ type System struct {
 	// any sign-in form.
 	SignIn string `json:"signIn"`
 	// AtHome says the caller is on one of the owner's home networks, as this server sees it.
+	// An app must never take it as proof that it is at home: an impostor server can say true.
 	AtHome bool `json:"atHome"`
 }
 
