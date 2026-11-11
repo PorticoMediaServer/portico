@@ -17,6 +17,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/artwork"
@@ -63,6 +64,9 @@ type Server struct {
 	// queues builds and runs play queues. See queues.go.
 	queues  *playqueue.Service
 	network networkState
+	// restart is closed when the owner asks for a restart. See restore.go.
+	restart     chan struct{}
+	restartOnce sync.Once
 	// backups makes and keeps the owner's backups. See backups.go.
 	backups *backup.Service
 	// settings are the owner's settings documents, held in memory. See settings.go.
@@ -198,6 +202,8 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.settingsRoutes()
 	s.backups = &backup.Service{DB: d, Settings: s.settings, DataDir: dataDir, Version: version, Log: log, Now: func() time.Time { return s.now() }}
 	s.backupRoutes()
+	s.restart = make(chan struct{})
+	s.restoreRoutes()
 	s.identityRoutes()
 	s.authRoutes()
 	s.profileRoutes()
