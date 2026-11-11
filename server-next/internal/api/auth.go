@@ -345,6 +345,9 @@ func (s *Server) signIn(r *http.Request, req SignInRequest) (SignInResponse, err
 		return SignInResponse{}, errTooManyAttempts(limited.Wait)
 	case errors.Is(err, db.ErrBadCredentials):
 		return SignInResponse{}, errBadSignIn()
+	case errors.Is(err, db.ErrAccountWaiting):
+		name, _ := s.serverName(r)
+		return SignInResponse{}, ErrConflict("account_waiting", name+" now uses Portico Accounts. Sign in or create one to keep your profiles.")
 	case err != nil:
 		return SignInResponse{}, err
 	case challenged:
