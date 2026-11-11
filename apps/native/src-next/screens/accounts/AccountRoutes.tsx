@@ -454,9 +454,9 @@ function ProfileActionRow({label, description, onPress, testID}: {label: string;
 }
 
 type ProfileLimitsOwner = {
-  /** Private witness: the opening names only the id and revision it was drawn for. The sheet's
+  /** Private witness: the opening names only the profile it was drawn for. The sheet's
    * copy and its own save guard keep reading the original profile prop. */
-  readonly profile: Readonly<Pick<ManagedProfile, 'id' | 'revision'>>;
+  readonly profile: Readonly<Pick<ManagedProfile, 'id'>>;
   readonly lease: ProfileLease;
   controller?: AbortController;
   loadedRevision?: number;
@@ -471,12 +471,12 @@ function ProfileLimitsSheet({profile, lease, serverOwner, identityFor, onClose, 
   const [restrictions, setRestrictions] = useState<ProfileRestrictions>(), [systems, setSystems] = useState<readonly RatingSystem[]>();
   const [draft, setDraft] = useState<ProfileRestrictions>(), [error, setError] = useState<unknown>(), [busy, setBusy] = useState(false), [attempt, setAttempt] = useState(0);
   const draftRef = useRef<ProfileRestrictions | undefined>(undefined), busyRef = useRef(false);
-  const profileId = profile.id, profileRevision = profile.revision;
+  const profileId = profile.id;
   const current = (candidate: ProfileLimitsOwner) => candidate === ownerRef.current && !candidate.retired && candidate.profile.id === profileId
-    && candidate.profile.revision === profileRevision && candidate.lease.current();
+    && candidate.lease.current();
 
   useLayoutEffect(() => {
-    const next: ProfileLimitsOwner = {profile: {id: profileId, revision: profileRevision}, lease, retired: false};
+    const next: ProfileLimitsOwner = {profile: {id: profileId}, lease, retired: false};
     const controller = new AbortController();
     next.controller = controller;
     ownerRef.current = next;
@@ -484,7 +484,7 @@ function ProfileLimitsSheet({profile, lease, serverOwner, identityFor, onClose, 
     draftRef.current = undefined; busyRef.current = false;
     setRestrictions(undefined); setSystems(undefined); setDraft(undefined); setError(undefined); setBusy(false);
     const live = () => next === ownerRef.current && !next.retired && next.profile.id === profileId
-      && next.profile.revision === profileRevision && next.lease.current();
+      && next.lease.current();
     const identity = identityFor(controller);
     Promise.all([identity.restrictions(profileId, controller.signal), identity.ratingSystems(controller.signal)]).then(([currentRestrictions, list]) => {
       if (!live() || currentRestrictions.profileId !== next.profile.id) return;
@@ -498,7 +498,7 @@ function ProfileLimitsSheet({profile, lease, serverOwner, identityFor, onClose, 
       if (ownerRef.current === next) ownerRef.current = undefined;
       setOwner(value => value === next ? undefined : value);
     };
-  }, [identityFor, lease, profileId, profileRevision, attempt]);
+  }, [identityFor, lease, profileId, attempt]);
 
   const updateDraft = (change: Partial<ProfileRestrictions>) => {
     if (!owner || !current(owner) || busyRef.current || !draft || draftRef.current !== draft) return;
@@ -508,7 +508,7 @@ function ProfileLimitsSheet({profile, lease, serverOwner, identityFor, onClose, 
   const save = () => {
     const sheet = owner, currentRestrictions = restrictions, chosen = draft;
     if (!sheet || !current(sheet) || !currentRestrictions || !chosen || currentRestrictions.profileId !== sheet.profile.id
-      || currentRestrictions.revision !== sheet.loadedRevision || sheet.profile.revision !== profile.revision || draftRef.current !== chosen || busyRef.current) return;
+      || currentRestrictions.revision !== sheet.loadedRevision || sheet.profile.id !== profile.id || draftRef.current !== chosen || busyRef.current) return;
     const controller = new AbortController();
     sheet.controller?.abort();
     sheet.controller = controller;

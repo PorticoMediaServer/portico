@@ -41,13 +41,14 @@ export function outboxKind(path: string, method: string): OutboxKind | undefined
 export const isOutboxRoute = (path: string, method: string): boolean => outboxKind(path, method) !== undefined;
 
 /**
- * What is sent for a kept edit. A change to a title's state says how long ago the person made it
- * (`madeAgoMs`), so the server can order it against edits from other devices; the server never
- * reads this device's clock, only that length of time.
+ * What is sent for a kept edit. A change to a title's state or to the profile's settings says how
+ * long ago the person made it (`madeAgoMs`), so the server can order it against changes from other
+ * devices; the server never reads this device's clock, only that length of time.
  */
 export function outboxBody(entry: Readonly<{path: string; method: string; body?: unknown; createdAt: number}>, now: number): unknown {
   const segments = entry.path.split('?')[0]!.split('/');
-  const state = entry.method === itemState.method && segments.length === itemState.parts.length && itemState.parts.every((part, i) => part.startsWith('{') ? !!segments[i] : part === segments[i]);
-  if (!state || typeof entry.body !== 'object' || entry.body === null) return entry.body;
+  const ordered = [itemState, settings].some(route => entry.method === route.method && segments.length === route.parts.length
+    && route.parts.every((part, i) => part.startsWith('{') ? !!segments[i] : part === segments[i]));
+  if (!ordered || typeof entry.body !== 'object' || entry.body === null) return entry.body;
   return {...entry.body, madeAgoMs: Math.max(0, Math.round(now - entry.createdAt))};
 }

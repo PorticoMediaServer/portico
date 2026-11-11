@@ -20,7 +20,7 @@ const account = (role: 'owner' | 'admin' | 'member', hostedAccountId?: string): 
   authority: 'local', serverId: 'server-1', canManage: true,
   capabilities: {manageAccount: true, managePeople: role !== 'member', manageServer: role !== 'member', manageSignIn: role === 'owner'},
   account: {id: 'account-1', username: 'justin', primaryProfileId: 'profile-1', role, revision: 1, disabled: false, allowedLibraries: [], ...(hostedAccountId ? {hostedAccountId} : {})},
-  profiles: [{id: 'profile-1', name: 'Justin', primary: true, position: 0, art: 'blue' as const, revision: 1, pinRevision: 0, pinRequired: false}],
+  profiles: [{id: 'profile-1', name: 'Justin', primary: true, position: 0, art: 'blue' as const, accessMarker: 'a', pinRequired: false}],
 });
 
 const source = (role: 'owner' | 'admin' | 'member', hostedAccountId?: string) => ({account: account(role, hostedAccountId), preferences: () => preferences, session: () => ({sessionFamilyId: 'family-1', accessToken: 'test-only', expiresAt: '2030-01-01T00:00:00Z', tokenGeneration: '1', authorizationHorizon: 'h', viewer: {serverId: 'server-1', accountId: 'account-1', profileId: 'profile-1', role, authority: 'local'}} as LocalSession)});

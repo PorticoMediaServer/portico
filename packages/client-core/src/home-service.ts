@@ -11,9 +11,12 @@
  *
  * No React and no timers of its own beyond the read deadline: tested under Node.
  */
-import {fetchHome, fetchHomeLayout, resetHomeLayout, saveHomeLayout, type HomeApi, type HomeDocument, type HomeLayout, type HomeLayoutView} from './home.ts';
+import {readHomeLayoutSettings, saveHomeLayoutSettings} from './home-layout-settings.ts';
+import type {DeviceClass} from './preferences.ts';
+import {fetchHome, type HomeApi, type HomeDocument, type HomeLayout, type HomeLayoutView} from './home.ts';
 
-export type HomeServiceOptions = Readonly<{timeoutMs?: number}>;
+/** `deviceClass`: the kind of device this app is, which a settings save names (Customize Home is saved as settings). */
+export type HomeServiceOptions = Readonly<{timeoutMs?: number; deviceClass?: DeviceClass}>;
 
 /** One opening of the layout editor; a save it started is not the next opening's. */
 export type HomeLayoutWriteLifetime = Readonly<{signal: AbortSignal; isCurrent(): boolean}>;
@@ -63,10 +66,12 @@ export class HomeService {
   private disposed = false;
   private readonly api: () => HomeApi;
   private readonly timeoutMs: number;
+  private readonly deviceClass: DeviceClass;
 
   constructor(api: HomeApi | (() => HomeApi), options: HomeServiceOptions = {}) {
     this.api = typeof api === 'function' ? api : () => api;
     this.timeoutMs = options.timeoutMs ?? 15_000;
+    this.deviceClass = options.deviceClass ?? 'web';
   }
 
   getSnapshot = (): HomeSnapshot => this.state;
@@ -129,23 +134,25 @@ export class HomeService {
     return refused(this.state.document.rows.some(row => row.id === rowId) ? 'no_cursor' : 'row_missing');
   }
 
-  loadLayout = (signal?: AbortSignal): Promise<HomeLayoutView> => fetchHomeLayout(this.api(), signal);
+  /** Customize Home: Home's rows with the profile's saved order and hidden rows (`home-layout-settings.ts`). */
+  loadLayout = (signal?: AbortSignal): Promise<HomeLayoutView> => readHomeLayoutSettings(this.api(), this.deviceClass, signal);
 
   private assertLayoutOpen(lifetime?: HomeLayoutWriteLifetime): void {
     let open = !this.disposed && !lifetime?.signal.aborted;
     try { if (lifetime && !lifetime.isCurrent()) open = false; } catch { open = false; }
     if (!open) throw layoutClosed();
   }
-  async saveLayout(rowOrder: readonly string[], hiddenRowIds: readonly string[], idempotencyKey: () => string, layoutRevision?: number, lifetime?: HomeLayoutWriteLifetime): Promise<HomeLayout> {
+  /** The later save wins; the server keeps no revision of the layout. */
+  async saveLayout(rowOrder: readonly string[], hiddenRowIds: readonly string[], _idempotencyKey: () => string, _layoutRevision?: number, lifetime?: HomeLayoutWriteLifetime): Promise<HomeLayout> {
     this.assertLayoutOpen(lifetime);
-    const saved = await saveHomeLayout(this.api(), {revision: layoutRevision ?? this.state.document?.layout.revision ?? 0, rowOrder, hiddenRowIds, idempotencyKey: idempotencyKey()}, lifetime?.signal);
+    const saved = await saveHomeLayoutSettings(this.api(), this.deviceClass, {rowOrder, hiddenRowIds}, lifetime?.signal);
     this.assertLayoutOpen(lifetime);
     await this.refresh({signal: lifetime?.signal});
     return saved;
   }
-  async resetLayout(idempotencyKey: () => string, layoutRevision?: number, lifetime?: HomeLayoutWriteLifetime): Promise<void> {
+  async resetLayout(_idempotencyKey: () => string, _layoutRevision?: number, lifetime?: HomeLayoutWriteLifetime): Promise<void> {
     this.assertLayoutOpen(lifetime);
-    await resetHomeLayout(this.api(), idempotencyKey(), lifetime?.signal, layoutRevision);
+    await saveHomeLayoutSettings(this.api(), this.deviceClass, null, lifetime?.signal);
     this.assertLayoutOpen(lifetime);
     await this.refresh({signal: lifetime?.signal});
   }

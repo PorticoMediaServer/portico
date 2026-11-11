@@ -21,9 +21,9 @@ function fixture(portico = true) {
     session: () => state.session, pin: () => state.pin, readSelected: () => state.read()});
   const snapshot: DirectSnapshot = {authority: 'local', serverId: 'server', canManage: false,
     capabilities: {manageAccount: false, managePeople: false, manageServer: false, manageSignIn: false},
-    account: {id: 'local-member', username: 'actual-member', primaryProfileId: 'profile', role: 'member', revision: 1,
+    account: {id: 'local-member', username: 'actual-member', primaryProfileId: 'profile', role: 'member', 
       disabled: false, allowedLibraries: ['movies'], ...(portico ? {hostedAccountId: 'portico-account'} : {})},
-    profiles: [{id: 'profile', name: 'Actual profile', primary: true, position: 0, art: 'mint', revision: 1, pinRevision: 1, pinRequired: false}]};
+    profiles: [{id: 'profile', name: 'Actual profile', primary: true, position: 0, art: 'mint', accessMarker: 'a', pinRequired: false}]};
   return {binding, state, selected, session, snapshot};
 }
 

@@ -186,12 +186,9 @@ const speeds: SettingsChoice[] = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map(speedCho
 const audiobookSpeeds: SettingsChoice[] = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3].map(speedChoice);
 const skipChoices = (key: string): SettingsChoice[] => (['ask', 'auto', 'off'] as const).map(value => ({value, label: `pref.value.${key}.${value}` as MessageId}));
 /** The saved default qualities (`quality.home`, `quality.remote`): the original, automatic, then the server's ladder. */
-const qualityChoices: SettingsChoice[] = [
-  {value: 'original', label: 'settings.quality.limit.original'},
-  {value: 'automatic', label: 'settings.quality.limit.automatic'},
-  {value: '2160p', label: 'pref.unit.4k'},
-  ...(['1440', '1080', '720', '480', '360'] as const).map(value => ({value: value + 'p', label: 'pref.unit.height' as MessageId, labelValues: {value}})),
-];
+// The server's quality ladder (the values `quality.*` takes), drawn with the web's words for each rung.
+const qualityChoices: SettingsChoice[] = (['original', 'automatic', '2160p', '1080p-high', '1080p-low', '720p-high', '720p-low', '480p', '240p'] as const)
+  .map((value, index) => ({value, label: `next.settingsSpec.account.quality.groups.0.rows.0.control.options.${index}.label` as MessageId}));
 const pref = (key: string, label: MessageId, control: SettingsControl, more: Partial<RowCopy> & Only = {}): Authored<SettingsRow> => ({kind: 'preference', key, label, control, ...more});
 const toggle = (key: string, label: MessageId, more: Partial<RowCopy> & Only = {}) => pref(key, label, {type: 'switch'}, more);
 const custom = (id: SettingsCustomId, label?: MessageId, only: Only = {}): Authored<SettingsRow> => ({kind: 'custom', id, ...(label ? {label} : {}), ...only});

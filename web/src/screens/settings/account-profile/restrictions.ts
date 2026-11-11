@@ -54,7 +54,7 @@ export class ProfileRestrictionsSource {
       if (!this.current() || epoch !== this.epoch || this.state.document !== captured) return false;
       const liveAccount = this.profiles.getSnapshot().document, liveTarget = this.profiles.selected();
       return liveAccount?.canManage === true && liveAccount.capabilities.manageAccount === true &&
-        liveTarget?.id === target.id && liveTarget.revision === target.revision && liveTarget.id === captured.profileId;
+        liveTarget?.id === target.id && liveTarget.id === captured.profileId;
     };
     const client = this.guardedClient(admitted);
     this.publish({...state, busy: true});

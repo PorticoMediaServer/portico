@@ -56,8 +56,8 @@ async function fixture({isTV = true, role = 'owner', primary = 'main', canManage
   const owner = new NativeLiveOwnerController(lifetime, api, () => 'operation');
   const account: DirectSnapshot = {authority: 'local', serverId: 'server', canManage,
     capabilities: {manageAccount: canManage, managePeople: canManage && role !== 'member', manageServer: canManage && role !== 'member', manageSignIn: canManage && role === 'owner'},
-    account: {id: 'owner', username: 'Owner', role: role as DirectSnapshot['account']['role'], primaryProfileId: primary, revision: 1, disabled, allowedLibraries: []},
-    profiles: [{id: primary, name: 'Main', primary: true, position: 0, art: 'blue', revision: 1, pinRevision: 0, pinRequired: false}]};
+    account: {id: 'owner', username: 'Owner', role: role as DirectSnapshot['account']['role'], primaryProfileId: primary, disabled, allowedLibraries: []},
+    profiles: [{id: primary, name: 'Main', primary: true, position: 0, art: 'blue', accessMarker: 'a', pinRequired: false}]};
   const context: any = {api: {baseUrl: origin}, account, authority: () => authority,
     current: () => current, navigation: {subscribe: listen, getSnapshot: () => {if (disposed) {disposedReads++; throw new Error('native_shell_cancelled');} return route;}, isCurrent: () => current}};
   const runtime: any = {retirementSignal: retirement.signal, subscribe: listen, getSnapshot: () => {if (disposed) {disposedReads++; throw new Error('native_shell_cancelled');} return shell;}, text: {t: defaultI18n.t, locale: 'en-US'},

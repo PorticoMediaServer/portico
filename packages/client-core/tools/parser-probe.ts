@@ -24,7 +24,7 @@ import {pathToFileURL} from 'node:url';
 import {HttpLocalApi} from '../src/index.ts';
 import {compatContentApi} from '../src/presentation/content-compat.ts';
 import {viewerScope} from '../src/presentation/content.ts';
-import {fetchHome, fetchHomeLayout, fetchHomeRow} from '../src/home.ts';
+import {fetchHome, fetchHomeRow} from '../src/home.ts';
 import {fetchItemRecommendations, fetchSuggestions} from '../src/recommendations.ts';
 import {LibraryContentService, type ContentProjection, type ContentRoute, type ContentView} from '../src/library-content.ts';
 import {BrowseQueryBuilder, parseBrowseCapabilities, parseBrowseFacets, parseBrowseResult, type BrowseCapabilities} from '../src/browse.ts';
@@ -241,7 +241,6 @@ export async function walkProbe(api: HttpLocalApi, input: ProbeInput): Promise<P
   // 2. Home.
   const home = await rec.check('home', 'home document', 'GET', '/v1/home?limit=12', () => fetchHome(api, 12)) as
     {rows?: {id: string}[]} | undefined;
-  await rec.check('home', 'home layout', 'GET', '/v1/home/layout', () => fetchHomeLayout(api));
   if (home && Array.isArray(home.rows)) {
     for (const row of home.rows) {
       await rec.check('home', `home row ${row.id}`, 'GET', `/v1/home/rows/${encodeURIComponent(row.id)}`, () =>

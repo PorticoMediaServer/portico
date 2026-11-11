@@ -244,16 +244,16 @@ try {
   // Settings. A second browser is a second device of the same kind (web) on the same profile.
   const other = await browser.newContext({viewport: {width: 1440, height: 900}}), second = await other.newPage();
   cleanups.push(() => other.close());
-  /** Opens a settings page; opening an address asks Who's watching first on this account. */
+  /** Opens a settings page; a window that has chosen its profile opens the address straight away. */
   const openSettings = async (window, section, title) => {
     await window.goto(`${origin}/settings?scope=account&section=${section}`, {waitUntil: 'domcontentloaded'});
-    await window.getByRole('button', {name: /owner/}).click();
     await window.getByRole('heading', {name: title, level: 1}).waitFor();
   };
   const atHome = window => window.getByRole('combobox', {name: 'At home'});
   await step('quality chosen on one device stays on it: another device on the same profile keeps its own', async () => {
     await signIn(second);
-    await second.getByRole('button', {name: /owner/}).waitFor();
+    await second.getByRole('button', {name: /owner/}).click();
+    await shell(second).waitFor();
     await openSettings(page, 'quality', 'Quality & data');
     await atHome(page).click();
     await page.getByRole('option', {name: /^720p High/}).click();

@@ -17,6 +17,8 @@ const preferenceEffects = new Set([
   'playback.defaultSpeed', 'playback.introSkip', 'playback.creditsSkip', 'playback.recapSkip',
   'playback.passoutProtection', 'playback.passoutAfterEpisodes', 'playback.skipBackMs', 'playback.skipForwardMs', 'audiobooks.defaultSpeed',
   'audiobooks.skipBackMs', 'audiobooks.skipForwardMs', 'audiobooks.resumeRewindMs',
+  // Rewind on resume for films and episodes: the server starts a resumed play that much earlier.
+  'playback.resumeRewindMs',
   'accessibility.reducedMotion', 'appearance.motion', 'appearance.showBackdrops', 'appearance.cardSizePercent',
   'appearance.libraryView', 'appearance.episodesLayout', 'notifications.badges',
   // `shellLanguage` builds the shell's one I18n from regionPreferences, so words, clock,

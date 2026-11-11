@@ -46,7 +46,7 @@ const {NativeShellBootstrapServices} = await screenModule(new URL('../src-next/s
   react, './shared-read': await import('../src-next/shell/shared-read.ts'), './account-binding': await import('../src-next/shell/account-binding.ts'), './home-read-log': await import('../src-next/shell/home-read-log.ts'),
   '../../../../packages/client-core/src/home-service': {HomeService: HomePort},
   '../../../../packages/client-core/src/inbox': inbox, '../../../../packages/client-core/src/notifications': notifications,
-  '../../../../packages/client-core/src/preferences-reader': preferences, '../../../../packages/client-core/src/guide/directory': guide,
+  '../../../../packages/client-core/src/preferences-reader': preferences, '../../../../packages/client-core/src/query/server-api': serverApi, '../../../../packages/client-core/src/guide/directory': guide,
   '../../../../packages/client-core/src/profile-management': {parseDirectSnapshot: unsupported}, '../../../../packages/contracts/src/routes': routes,
 });
 

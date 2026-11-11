@@ -31,7 +31,7 @@ const t=defaultI18n.t;
 type Task='password'|'enrol'|'disable'|'codes';
 type Opening={
   live:boolean;busy:boolean;readonly abort:AbortController;readonly current:()=>boolean;
-  readonly local:IdentityClient;readonly accountId:string;readonly revision:number;readonly link:string;
+  readonly local:IdentityClient;readonly accountId:string;readonly link:string;
   hosted?:ServicesAccount;identity?:AccountIdentity;providerReady?:boolean;enabledProviders?:IdentityProvider[];
 };
 type LocalIntent={readonly owner:Opening;readonly task:Task;live:boolean;enrolPassword?:string};
@@ -79,7 +79,7 @@ function AccountSecurity({profiles,api,commandApi,signIn,isCurrent,onEnded,onFac
  const document=useSyncExternalStore(profiles.subscribe,profiles.getSnapshot).document;
  const account=document?.account;
  const scope=document?.canManage&&document.capabilities.manageAccount&&account&&!account.disabled?
-  JSON.stringify([document.serverId,session().sessionFamilyId,account.id,account.revision,account.role,account.hostedAccountId??'',profiles.getSnapshot().inUseId]):'';
+  JSON.stringify([document.serverId,session().sessionFamilyId,account.id,account.role,account.hostedAccountId??'',profiles.getSnapshot().inUseId]):'';
  const active=useRef<Opening|undefined>(undefined),localIntentRef=useRef<LocalIntent|undefined>(undefined),hostedIntentRef=useRef<HostedIntent|undefined>(undefined),sequence=useRef(0);
  const [opening,setOpening]=useState<Opening>(),[factor,setFactor]=useState<TwoFactorState>(),[hostedState,setHostedState]=useState<SecurityState>();
  const [task,setTask]=useState<Task>(),[hostedTask,setHostedTask]=useState<HostedIntent>();
@@ -98,15 +98,15 @@ function AccountSecurity({profiles,api,commandApi,signIn,isCurrent,onEnded,onFac
   setOpening(undefined);setFactor(undefined);setHostedState(undefined);setTask(undefined);setHostedTask(undefined);setEnrolment(undefined);setCodes(undefined);clearSecrets();setBusy(false);setError(undefined);
   if(!scope||!account||!isCurrent())return;
   const familyId=session().sessionFamilyId;
-  const expected={serverId:document!.serverId,familyId,accountId:account.id,revision:account.revision,role:account.role,link:account.hostedAccountId??'',profileId:profiles.getSnapshot().inUseId};
+  const expected={serverId:document!.serverId,familyId,accountId:account.id,role:account.role,link:account.hostedAccountId??'',profileId:profiles.getSnapshot().inUseId};
   const ownedSession=session();
   if(ownedSession.viewer.serverId!==expected.serverId||ownedSession.viewer.accountId!==expected.accountId||ownedSession.viewer.profileId!==expected.profileId||ownedSession.viewer.authority!=='local'||ownedSession.sessionFamilyId!==familyId)return;
   const abort=new AbortController();
-  const held:Opening={live:true,busy:false,abort,accountId:expected.accountId,revision:expected.revision,link:expected.link,
+  const held:Opening={live:true,busy:false,abort,accountId:expected.accountId,link:expected.link,
    current:()=>{
     if(!held.live||active.current!==held||abort.signal.aborted||!isCurrent())return false;
     const now=profiles.getSnapshot(),doc=now.document,principal=session();
-    return principal.sessionFamilyId===expected.familyId&&principal.viewer.serverId===expected.serverId&&principal.viewer.accountId===expected.accountId&&principal.viewer.profileId===expected.profileId&&principal.viewer.authority==='local'&&!!doc&&doc.serverId===expected.serverId&&doc.canManage&&doc.capabilities.manageAccount&&!doc.account.disabled&&doc.account.id===expected.accountId&&doc.account.revision===expected.revision&&
+    return principal.sessionFamilyId===expected.familyId&&principal.viewer.serverId===expected.serverId&&principal.viewer.accountId===expected.accountId&&principal.viewer.profileId===expected.profileId&&principal.viewer.authority==='local'&&!!doc&&doc.serverId===expected.serverId&&doc.canManage&&doc.capabilities.manageAccount&&!doc.account.disabled&&doc.account.id===expected.accountId&&
      doc.account.role===expected.role&&(doc.account.hostedAccountId??'')===expected.link&&now.inUseId===expected.profileId;
    },local:new IdentityClient({request:(path,method,body,input)=>{
     if(!held.current())throw ended();
