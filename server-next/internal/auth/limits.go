@@ -2,9 +2,6 @@ package auth
 
 import "time"
 
-// SessionIdle is how long a sign-in lasts without being used. Each renewal starts it again.
-const SessionIdle = 90 * 24 * time.Hour
-
 // The guessing limits. Each makes whoever is guessing wait longer the more they get wrong;
 // none locks an account. A strictness is a table of numbers: Standard is the only one so
 // far, and Relaxed and Strict will be two more values of the same types.
