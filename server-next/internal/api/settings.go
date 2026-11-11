@@ -15,13 +15,11 @@ import (
 // SettingsDocument is one settings document.
 type SettingsDocument struct {
 	Name string `json:"name"`
-	// Values are the document's fields. A secret is never here.
+	// Values are the document's fields.
 	Values JSON `json:"values"`
 	// Defaults are what each field is until the owner changes it: a page shows a changed
 	// value as changed and offers Reset, which saves the default.
 	Defaults JSON `json:"defaults"`
-	// Secrets says, for each secret field, whether one is set. A secret is only ever written.
-	Secrets map[string]bool `json:"secrets,omitempty"`
 	// ETag is the document's ETag, also sent as the ETag header on a read of one document.
 	ETag string `json:"etag"`
 
@@ -76,9 +74,6 @@ func (s *Server) settingsRoutes() {
 func settingsDocument(doc settings.Document) SettingsDocument {
 	out := SettingsDocument{Name: doc.Name, Values: JSON(doc.Values), Defaults: JSON(doc.Defaults),
 		ETag: `"` + strconv.FormatInt(doc.Revision, 10) + `"`, revision: revision(doc.Revision)}
-	if len(doc.Secrets) > 0 {
-		out.Secrets = doc.Secrets
-	}
 	return out
 }
 
