@@ -2,6 +2,7 @@ package backup
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"context"
 	"database/sql"
@@ -12,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -421,5 +423,43 @@ func TestABackupNotMadeHereNeedsConfirming(t *testing.T) {
 	}
 	if err := Stage(ctx, ours, here.DataDir, "changed", time.Now(), false); !errors.Is(err, ErrNotMadeHere) {
 		t.Errorf("a changed backup without confirming: %v", err)
+	}
+}
+
+// The mark's key is written whole, and two backups starting at once keep one key. A key that
+// cannot be read (cut short, say) stops neither a backup, made without its mark, nor a
+// confirmed restore; an unconfirmed one is warned.
+func TestAnUnreadableMarkKeyWarnsAndDoesNotBlock(t *testing.T) {
+	ctx := context.Background()
+	s := newService(t)
+	keys := make([][]byte, 8)
+	var wg sync.WaitGroup
+	for i := range keys {
+		wg.Add(1)
+		go func() { defer wg.Done(); keys[i], _ = markKey(s.DataDir) }()
+	}
+	wg.Wait()
+	for _, k := range keys {
+		if len(k) != 32 || !bytes.Equal(k, keys[0]) {
+			t.Fatalf("backups starting at once made different keys")
+		}
+	}
+	if left, _ := filepath.Glob(filepath.Join(s.DataDir, markKeyFile+".new-*")); len(left) > 0 {
+		t.Errorf("making the key left %v", left)
+	}
+
+	os.WriteFile(filepath.Join(s.DataDir, markKeyFile), keys[0][:9], 0o600)
+	if problem := MarkKeyProblem(s.DataDir); !strings.Contains(problem, "can't be read") {
+		t.Errorf("a key cut short reads as %q", problem)
+	}
+	if err := s.make(ctx, "portico-20261101-030000", false); err != nil {
+		t.Fatalf("a backup with the key cut short: %v", err)
+	}
+	path, _ := s.Path("portico-20261101-030000")
+	if err := Stage(ctx, path, s.DataDir, "unmarked", time.Now(), false); !errors.Is(err, ErrNotMadeHere) {
+		t.Errorf("restoring without confirming: %v", err)
+	}
+	if err := Stage(ctx, path, s.DataDir, "unmarked", time.Now(), true); err != nil {
+		t.Errorf("restoring, confirmed: %v", err)
 	}
 }
