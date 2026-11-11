@@ -111,3 +111,44 @@ func (d *DB) ViewingNames(ctx context.Context, profileIDs []int64) (map[int64]Vi
 	}
 	return out, rows.Err()
 }
+
+// accountSees is the one rule for what the owner's and administrators' pages name: a library
+// is theirs to read about when their account has all libraries or that library. It decides
+// both Now playing and Play history, so the two never disagree. A profile's own rating limit
+// and blocked tags are a choice about what to watch and do not apply here; owner pages are
+// entered only from an account's main profile. It takes the account reading as its two
+// arguments, in the place it stands among the statement's others: accountSeesArgs.
+func accountSees(library string) string {
+	return `((SELECT all_libraries FROM users WHERE id = ?) = 1 OR ` + library +
+		` IN (SELECT library_id FROM library_access WHERE user_id = ? AND library_id IS NOT NULL))`
+}
+
+func accountSeesArgs(userID int64) []any { return []any{userID, userID} }
+
+// AccountTitles names the titles among itemIDs whose library the account may read about.
+func (d *DB) AccountTitles(ctx context.Context, userID int64, itemIDs []int64) (map[int64]string, error) {
+	out := map[int64]string{}
+	if len(itemIDs) == 0 {
+		return out, nil
+	}
+	var args []any
+	for _, id := range itemIDs {
+		args = append(args, id)
+	}
+	args = append(args, accountSeesArgs(userID)...)
+	rows, err := d.read.QueryContext(ctx, `SELECT i.id, i.title FROM items i WHERE i.id IN (`+
+		strings.TrimSuffix(strings.Repeat("?,", len(itemIDs)), ",")+`) AND `+accountSees("i.library_id"), args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		var title string
+		if err := rows.Scan(&id, &title); err != nil {
+			return nil, err
+		}
+		out[id] = title
+	}
+	return out, rows.Err()
+}
