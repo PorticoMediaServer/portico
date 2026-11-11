@@ -53,6 +53,12 @@ func (s *Server) systemRoutes() {
 		if _, err := s.admit(r, &Route{Access: SignedIn, Scope: ScopeRead}); err == nil {
 			out.Version = s.version
 		}
+		// Google Cast is offered only on a server that uses Portico Accounts.
+		if _, err := s.castApplication(r.Context()); err == nil {
+			out.Capabilities = append(out.Capabilities, "cast")
+		} else if _, missing := asError(err); !missing {
+			return System{}, err
+		}
 		return out, nil
 	})
 }
