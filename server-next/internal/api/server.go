@@ -26,6 +26,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
 	"github.com/PorticoMediaServer/portico/server-next/internal/remote"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/reading"
 	"github.com/PorticoMediaServer/portico/server-next/internal/scan"
 )
 
@@ -68,6 +69,8 @@ type Server struct {
 	remote *remote.Registry
 	// driveSignIns are Google sign-ins for Drive sources under way.
 	driveSignIns remote.DriveSignIns
+	// reading opens books. See reading.go.
+	reading *reading.Service
 }
 
 // Route is one operation, kept so the contract can be generated and the operation budget counted.
@@ -213,6 +216,13 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 		return nil, err
 	}
 	s.libraryRoutes()
+	// Book addresses are signed with a key the server keeps, so they work across a restart.
+	bookKey, err := d.SettingOrCreate(ctx, "reading.address_key", auth.NewKey)
+	if err != nil {
+		return nil, err
+	}
+	s.reading = reading.New(d, bookKey, func() time.Time { return s.now() })
+	s.readingRoutes()
 	return s, nil
 }
 
