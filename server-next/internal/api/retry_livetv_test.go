@@ -17,11 +17,16 @@ func init() {
 				Recipe: &librarychannels.Recipe{Order: "shuffle", Minutes: 120}}, other: BlockPresetSave{Name: new("Mornings"),
 				Library: new(films), Recipe: &librarychannels.Recipe{Order: "shuffle", Minutes: 60}},
 				count: func() int { return th.named("/v1/admin/library-channels/presets", "name", "Evenings") }},
+			{route: "POST /v1/admin/live/sources", body: LiveSourceSave{Kind: "guide", Name: new("Listings"), Guide: "<tv></tv>"},
+				other: LiveSourceSave{Kind: "guide", Name: new("Other"), Guide: "<tv></tv>"},
+				count: func() int { return th.named("/v1/admin/live/sources", "name", "Listings") }},
 		}
 	})
 	safeToRepeat(map[string]string{
 		"POST /v1/admin/library-channels/preview":         "changes nothing",
 		"POST /v1/admin/library-channels/{id}/regenerate": "sets the channel to be built again",
+		"POST /v1/admin/live/sources/preview":             "changes nothing",
+		"POST /v1/admin/live/sources/{id}/refresh":        "a refresh already running is waited for, not repeated",
 	})
 }
 
