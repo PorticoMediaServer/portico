@@ -206,7 +206,6 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.queues = playqueue.New(d, s.playback, func() time.Time { return s.now() })
 	s.queueRoutes()
 	s.subtitleRoutes()
-	s.searchRoutes()
 
 	// Scans and library removals asked for before the server last stopped are taken up again.
 	s.scans = scan.NewManager(ctx, &scan.Scanner{DB: d, Prober: scan.FileProber{}, Log: log})
