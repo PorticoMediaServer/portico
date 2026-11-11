@@ -523,6 +523,8 @@ const (
 		"If this lasts three days, nobody will be able to sign in with a Portico Account until you link this server again."
 	msgPorticoOwner = "Portico Services can't list this server: the Portico Account of its owner has not approved it. " +
 		"Change owner again and have the new owner approve with their Portico Account, or link this server again."
+	msgPorticoRelink = "Portico Services no longer accepts this server's requests. That happens when the server's data was put back " +
+		"from an older backup. Link this server again."
 	msgPorticoDetails = "Portico Services didn't accept this server's details, so the server isn't listed in people's apps. " +
 		"Give the server a name of at most 120 characters on one line; if that doesn't help, link this server again."
 )
@@ -558,9 +560,14 @@ func (s *Server) porticoProblem(err error) {
 		s.link.setProblem("")
 	case errors.As(err, &refused):
 		// An answer, and a no: trying again changes nothing until the owner does something.
-		if refused.Code == "owner_not_approved" {
+		switch {
+		case refused.Code == "owner_not_approved":
 			s.link.setProblem(msgPorticoOwner)
-		} else {
+		case refused.Status == http.StatusUnauthorized:
+			// Not the clock (that is a ClockError): Portico Services holds a newer link for
+			// this server than the server does, or no longer takes its key.
+			s.link.setProblem(msgPorticoRelink)
+		default:
 			s.link.setProblem(msgPorticoDetails)
 		}
 		s.log.Warn("Portico Services refused a request from this server", "status", refused.Status, "code", refused.Code, "answer", refused.Detail)
@@ -721,6 +728,30 @@ func (s *Server) porticoLinkState(r *http.Request, _ None) (PorticoLinkState, er
 		out.Problem, out.Listed = msgPorticoUnknown, false
 	}
 	return out, nil
+}
+
+// porticoLetBackIn turns a person who left back on, so they can sign in with their Portico
+// Account again. Their profiles and everything they had are as they were. It is the owner's
+// way to undo a departure, including one Portico Services reported wrongly. People shows who
+// has left (a member's state is "left").
+func (s *Server) porticoLetBackIn(r *http.Request, _ None) (None, error) {
+	err := s.db.LetBackIn(r.Context(), CallerFrom(r.Context()).UserID, r.PathValue("id"), s.now())
+	if errors.Is(err, db.ErrNotFound) {
+		return None{}, ErrNotFound()
+	} else if err != nil {
+		return None{}, err
+	}
+	// Portico Services dropped this person from the server's list when they left, so the
+	// document goes again even when it reads the same as the last one sent.
+	if link, linked, err := s.db.Link(r.Context()); err != nil {
+		return None{}, err
+	} else if linked {
+		if _, err := s.db.UpdateLink(r.Context(), link.IssuedAt, s.now(), func(l *db.Link) { l.DocumentDigest, l.PeopleDigest = "resend", "" }); err != nil && !errors.Is(err, db.ErrNoLink) {
+			return None{}, err
+		}
+	}
+	s.porticoWake()
+	return None{}, nil
 }
 
 // porticoLinkAgain asks Portico Services where the owner approves this server again. It is

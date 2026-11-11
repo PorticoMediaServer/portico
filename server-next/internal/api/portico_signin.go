@@ -35,6 +35,7 @@ func (s *Server) porticoRoutes() {
 	Handle(s, "GET /v1/admin/portico", Owner, s.porticoLinkState).Scope = ScopeSession
 	Handle(s, "POST /v1/admin/portico/link", Owner, s.porticoLinkAgain).Scope = ScopeSession
 	Handle(s, "POST /v1/admin/portico/link/finish", Owner, s.porticoLinkFinish).Scope = ScopeSession
+	Handle(s, "POST /v1/admin/portico/left/{id}/let-back-in", Owner, s.porticoLetBackIn).Scope = ScopeSession
 }
 
 // PorticoChallengeRequest asks for a sign-in challenge. It says nothing: the route has a body

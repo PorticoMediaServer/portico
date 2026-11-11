@@ -217,6 +217,12 @@ func (f *Services) LastApproval() string {
 // It is what POST /v1/servers/{id}/identity answers an app.
 func (f *Services) Identity(account Account, serverID, challenge string) trust.Envelope {
 	now := f.Now().UTC()
+	// Asking to sign in to a server again is how a person who left it comes back.
+	f.mu.Lock()
+	if s := f.servers[serverID]; s != nil {
+		delete(s.gone, account.ID)
+	}
+	f.mu.Unlock()
 	return f.Sign(trust.Identity{Kind: trust.IdentityKind, AccountID: account.ID, Username: account.Username, DisplayName: account.DisplayName,
 		Email: account.Email, ServerID: serverID, Challenge: challenge, Nonce: "n", IssuedAt: now, ExpiresAt: now.Add(5 * time.Minute),
 		Pictures: []trust.Picture{}})
