@@ -457,3 +457,47 @@ func TestKeepTheNextFollowsWhatIsWatchedAndWhatArrives(t *testing.T) {
 		t.Fatalf("a watched film was kept with Delete watched downloads on: %+v", gone)
 	}
 }
+
+// "Keep the next" is a rule for a download of the next unwatched titles; on a download of
+// all of them it is refused rather than left to remove the rest. And a kept title whose copy
+// the server removed before the device fetched it (a phone away from Wi-Fi past the owner's
+// keeping time) is asked for again at the next sync.
+func TestKeepTheNextAsksAgainForAnExpiredCopy(t *testing.T) {
+	rig := newDownloadRig(t)
+	if !rig.s.prepare.Converts() {
+		t.Skip("this machine cannot convert")
+	}
+	show := rig.importShow(1, 2)
+	_, all := rig.ask(rig.owner, DownloadAsk{ItemID: show, Quality: "original"})
+	three := 3
+	if w := call(t, rig.s, "PATCH", "/v1/downloads/"+all.ID, rig.owner, DownloadChange{KeepNext: &three}, nil); w.Code != 400 {
+		t.Fatalf("keep the next on a download of all the titles answered %d", w.Code)
+	}
+
+	code, dl := rig.ask(rig.owner, DownloadAsk{ItemID: show, Quality: "240p", Selection: "next", KeepNext: 1})
+	if code != 201 || dl.Counts.Titles != 1 {
+		t.Fatalf("asking answered %d %+v", code, dl)
+	}
+	// The episodes' files are not real, so the copy fails; either way it is not being made
+	// when the keeping time runs out.
+	for deadline := time.Now().Add(time.Minute); time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {
+		if state := get[Download](t, rig.s, rig.owner, "/v1/downloads/"+dl.ID).Items[0].State; state != "waiting" && state != "preparing" {
+			break
+		}
+	}
+	rig.s.now = func() time.Time { return time.Now().Add(31 * 24 * time.Hour) }
+	err := rig.s.prepare.Tidy(context.Background())
+	rig.s.now = time.Now
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state := get[Download](t, rig.s, rig.owner, "/v1/downloads/"+dl.ID).Items[0].State; state != "expired" {
+		t.Fatalf("the swept copy reads %s", state)
+	}
+	if w := call(t, rig.s, "POST", "/v1/downloads/sync", rig.owner, DownloadSync{}, nil); w.Code != 200 {
+		t.Fatalf("syncing answered %d", w.Code)
+	}
+	if state := get[Download](t, rig.s, rig.owner, "/v1/downloads/"+dl.ID).Items[0].State; state == "expired" {
+		t.Fatal("a kept title whose copy expired was not asked for again")
+	}
+}
