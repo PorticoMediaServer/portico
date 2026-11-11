@@ -134,7 +134,9 @@ func (r *run) album(f *folder, folder string, lead *found, tags audiotags.Tags, 
 	artistGiven = albumTags["album_artist"] != "" || d["artist"] != ""
 	artistItem = db.ImportItem{Kind: db.KindArtist, Title: artist, SortTitle: d["album_artist_sort"],
 		Keys: []db.ItemKey{{Kind: db.KeyName, Key: "artist|" + fold(artist)}}}
-	given(&artistItem, fieldIf(artistGiven, db.FieldTitle), fieldIf(d["album_artist_sort"] != "", db.FieldSortTitle))
+	// A title from tags never beats a provider's (rule 6): it names the artist, album or song
+	// while it is unmatched or in a local-only library, and only album.nfo's is the files' own.
+	given(&artistItem, fieldIf(local.nfo["album_artist"] != "", db.FieldTitle))
 	if id := d["musicbrainz_albumartistid"]; id != "" {
 		artistItem.Keys = append([]db.ItemKey{{Kind: db.KeyEmbedded, Key: "musicbrainz-artist:" + id}}, artistItem.Keys...)
 		artistItem.ExternalIDs = []db.ExternalID{{Provider: "musicbrainz", ID: id}}
@@ -142,8 +144,7 @@ func (r *run) album(f *folder, folder string, lead *found, tags audiotags.Tags, 
 	albumItem = db.ImportItem{Kind: db.KindAlbum, Title: album, SortTitle: d["album_sort"], Year: albumTags.year(), ParentRow: 1,
 		ChildKey: "album|" + fold(album), Tags: genreTags(albumTags), Credits: credits(db.RoleArtist, []string{artist}),
 		Summary: albumTags["description"]}
-	given(&albumItem, fieldIf(albumTags["album"] != "", db.FieldTitle), fieldIf(d["album_sort"] != "", db.FieldSortTitle),
-		fieldIf(albumItem.Year != 0, db.FieldYear), fieldIf(len(albumItem.Tags) > 0, db.FieldGenres),
+	given(&albumItem, fieldIf(local.nfo["album"] != "", db.FieldTitle), fieldIf(albumItem.Year != 0, db.FieldYear), fieldIf(len(albumItem.Tags) > 0, db.FieldGenres),
 		fieldIf(artistGiven, db.FieldCredits), fieldIf(albumItem.Summary != "", db.FieldSummary))
 	if id := albumTags["musicbrainz_albumid"]; id != "" {
 		albumItem.Keys = []db.ItemKey{{Kind: db.KeyEmbedded, Key: "musicbrainz-release:" + id}}
@@ -234,7 +235,7 @@ func (r *run) musicUnits(f *folder) []unit {
 					Year: albumItem.Year, IndexNumber: &track, ParentIndex: &disc, ParentRow: 2, ChildKey: fmt.Sprintf("d%dt%d", disc, track),
 					Keys: []db.ItemKey{db.FileKey(r.path.ID, lead.rel, track)}, Credits: trackArtists, Reread: reread,
 					Versions: []db.ImportVersion{{Parts: []db.ImportPart{part}}}}
-				given(&item, fieldIf(chapter.Title != "", db.FieldTitle), fieldIf(item.Year != 0, db.FieldYear), fieldIf(artistGiven, db.FieldCredits))
+				given(&item, fieldIf(item.Year != 0, db.FieldYear), fieldIf(artistGiven, db.FieldCredits))
 				u.items = append(u.items, item)
 			}
 			units = append(units, u)
@@ -244,8 +245,7 @@ func (r *run) musicUnits(f *folder) []unit {
 		name, _ := title(lead)
 		track := db.ImportItem{Kind: db.KindTrack, Title: firstOf(d["title"], name), SortTitle: d["title_sort"], Year: albumItem.Year,
 			ParentIndex: &disc, ParentRow: 2, Keys: keys, Credits: trackArtists, Versions: []db.ImportVersion{stored}, Reread: reread}
-		given(&track, fieldIf(d["title"] != "", db.FieldTitle), fieldIf(d["title_sort"] != "", db.FieldSortTitle),
-			fieldIf(track.Year != 0, db.FieldYear), fieldIf(artistGiven, db.FieldCredits))
+		given(&track, fieldIf(track.Year != 0, db.FieldYear), fieldIf(artistGiven, db.FieldCredits))
 		track.Lyrics = tagLyrics(tags)
 		if n := firstNumber(number(d["track"]), first(read.TrackNumbers), 0); n > 0 {
 			track.IndexNumber, track.ChildKey = &n, fmt.Sprintf("d%dt%d", disc, n)
