@@ -47,6 +47,8 @@ func (s *Server) startConsole(ctx context.Context) error {
 	}
 	// The Dashboard's load charts, sampled in memory. See load.go.
 	s.loadRoutes(ctx)
+	// Playback reads the owner's limits on plays away from home from them.
+	s.playback.UseSettings(s.settings)
 	s.settingsRoutes()
 	s.upgradeCopyRoutes()
 	s.activityRoutes()
@@ -79,3 +81,6 @@ func (s *Server) startConsole(ctx context.Context) error {
 	})
 	return nil
 }
+
+// Settings are the owner's settings documents, for the parts of the server outside the API.
+func (s *Server) Settings() *settings.Settings { return s.settings }

@@ -805,13 +805,15 @@ func (p ClientProfile) RendersSubtitle(kind string) bool {
 	return kind == "" || containsString(p.SubtitleRendering, kind)
 }
 
-// presents reports whether a dynamic range the engine decodes can be shown:
-// the display shows it, the display did not say, or the engine tone-maps.
+// presents reports whether a dynamic range the engine decodes can be shown: the
+// display says it shows it, or the engine says it tone-maps. A device that says
+// nothing about its display is taken to show standard range only, so the server
+// tone-maps for it: decoding HDR is not the same as showing it.
 func (p ClientProfile) presents(dynamicRange string) bool {
 	// HDR10+ is HDR10 with dynamic metadata: a display that declares the
 	// extension shows the base picture too (VIDEO §3 VS-2a).
 	hdr10Plus := dynamicRange == "hdr10" && containsString(p.Display.DynamicRanges, "hdr10plus")
-	return dynamicRange == "" || dynamicRange == "sdr" || p.ToneMapsHDR || len(p.Display.DynamicRanges) == 0 || containsString(p.Display.DynamicRanges, dynamicRange) || hdr10Plus
+	return dynamicRange == "" || dynamicRange == "sdr" || p.ToneMapsHDR || containsString(p.Display.DynamicRanges, dynamicRange) || hdr10Plus
 }
 
 // ParseClientProfile reads back an engine view a plan or a channel session
