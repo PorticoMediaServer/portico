@@ -30,8 +30,9 @@ type Crowd struct {
 	RequestsPerSec float64 `json:"readsPerSecond"`
 }
 
-// crowd is an ordinary busy evening: people streaming by direct play, each sending its
-// position every ten seconds and, if a file is given, reading a mebibyte of it a second, and
+// crowd is an ordinary busy evening: people streaming by direct play, each reading a
+// mebibyte a second of a file if one is given, their positions saved together every ten
+// seconds by one background write as the server's playback does, and
 // people browsing with a second or two between requests, half of them as a restricted
 // profile. An import runs through the middle half. All of them share the seeded profiles.
 func crowd(ctx context.Context, d *db.DB, cfg seed.Config, people, streams int, length time.Duration, streamFile string, report *Report) {
@@ -73,62 +74,77 @@ func crowd(ctx context.Context, d *db.DB, cfg seed.Config, people, streams int, 
 			w.browse(ctx, r, profile, func() time.Duration { return time.Second + time.Duration(r.Int64N(int64(time.Second))) })
 		})
 	}
+	// As the server's playback does: each stream only reads its file, and every ten seconds
+	// one background write saves the position of all of them.
+	type playing struct {
+		viewer  db.Viewer
+		item    string
+		play    string
+		started time.Time
+	}
+	plays := make([]playing, streams)
 	for n := range streams {
+		r := rand.New(rand.NewPCG(uint64(n), 8))
+		plays[n] = playing{viewers[r.IntN(len(viewers))], pick(r, w.videos), fmt.Sprint("crowd-", n, "-", time.Now().UnixNano()), time.Now()}
+		if streamFile == "" {
+			continue
+		}
 		wg.Go(func() {
-			r := rand.New(rand.NewPCG(uint64(n), 8))
-			v, item, play := viewers[r.IntN(len(viewers))], pick(r, w.videos), fmt.Sprint("crowd-", n, "-", time.Now().UnixNano())
-			var file *os.File
-			if streamFile != "" {
-				if file, err = os.Open(streamFile); err != nil {
-					log.Fatal(err)
-				}
-				defer file.Close()
+			file, err := os.Open(streamFile)
+			if err != nil {
+				log.Fatal(err)
 			}
-			size, block := int64(0), make([]byte, 1<<20)
-			if file != nil {
-				info, _ := file.Stat()
-				size = info.Size()
-			}
+			defer file.Close()
+			info, _ := file.Stat()
+			size, block := info.Size(), make([]byte, 1<<20)
 			offset := r.Int64N(max(size, 1))
-			time.Sleep(time.Duration(r.Int64N(int64(10 * time.Second))))
-			started := time.Now()
 			tick := time.NewTicker(time.Second)
 			defer tick.Stop()
-			for second := 1; ; second++ {
+			for {
 				select {
 				case <-ctx.Done():
 					return
 				case <-tick.C:
 				}
-				if file != nil {
-					if offset+int64(len(block)) > size {
-						offset = 0
-					}
-					read, _ := file.ReadAt(block, offset)
-					offset += int64(read)
-					streamedMu.Lock()
-					streamed += int64(read)
-					streamedMu.Unlock()
+				if offset+int64(len(block)) > size {
+					offset = 0
 				}
-				if second%10 != 0 {
-					continue
-				}
-				// A film or an episode, ten minutes in already: past where a title counts as
-				// started, so every report is a real write of the resume point.
-				watched := time.Since(started)
-				at := time.Now()
-				_, err := d.SaveProgress(ctx, db.User, []db.Progress{{Viewer: v, ItemID: item, DeviceID: device, PlayID: play,
-					PositionMS: (10*time.Minute + watched).Milliseconds(), At: at, WatchedMS: watched.Milliseconds()}})
-				w.mu.Lock()
-				if err != nil && ctx.Err() == nil {
-					w.failures++
-					println("progress failed:", err.Error())
-				}
-				w.writes = append(w.writes, time.Since(at))
-				w.mu.Unlock()
+				read, _ := file.ReadAt(block, offset)
+				offset += int64(read)
+				streamedMu.Lock()
+				streamed += int64(read)
+				streamedMu.Unlock()
 			}
 		})
 	}
+	wg.Go(func() {
+		tick := time.NewTicker(10 * time.Second)
+		defer tick.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-tick.C:
+			}
+			// A film or an episode, ten minutes in already: past where a title counts as
+			// started, so every position is a real write of the resume point.
+			at := time.Now()
+			batch := make([]db.Progress, len(plays))
+			for n, p := range plays {
+				watched := at.Sub(p.started)
+				batch[n] = db.Progress{Viewer: p.viewer, ItemID: p.item, DeviceID: device, PlayID: p.play,
+					PositionMS: (10*time.Minute + watched).Milliseconds(), At: at, WatchedMS: watched.Milliseconds()}
+			}
+			_, err := d.SaveProgress(ctx, db.Background, batch)
+			w.mu.Lock()
+			if err != nil && ctx.Err() == nil {
+				w.failures++
+				println("position save failed:", err.Error())
+			}
+			w.writes = append(w.writes, time.Since(at))
+			w.mu.Unlock()
+		}
+	})
 
 	begun, cpu := time.Now(), cpuTime()
 	var imported seed.Totals
@@ -160,7 +176,7 @@ func crowd(ctx context.Context, d *db.DB, cfg seed.Config, people, streams int, 
 		people, c.Seconds, streams, people-streams, c.RequestsPerSec, c.Failures)
 	fmt.Printf("  %d profiles, each its own account; import transactions ended at %d files each\n", c.Profiles, imported.LastBatchFiles)
 	fmt.Printf("  taps (favourite, My List, watched): n=%d p50 %.2f ms  p90 %.2f ms  p99 %.2f ms  max %.2f ms\n", c.Taps.N, c.Taps.P50, c.Taps.P90, c.Taps.P99, c.Taps.Max)
-	fmt.Printf("  position reports: n=%d p50 %.2f ms  p90 %.2f ms  p99 %.2f ms  max %.2f ms\n", c.Progress.N, c.Progress.P50, c.Progress.P90, c.Progress.P99, c.Progress.Max)
+	fmt.Printf("  position saves, every stream in one background write each ten seconds: n=%d p50 %.2f ms  max %.2f ms\n", c.Progress.N, c.Progress.P50, c.Progress.Max)
 	fmt.Printf("  CPU: %.2f cores on average; streams read %d MiB; import meanwhile %d files at %.0f files/s\n",
 		c.CPUCores, c.StreamedMiB, c.ImportedFiles, c.ImportPerSec)
 	for _, who := range []string{" (unrestricted)", " (label)", " (library)", " (rating)"} {
@@ -172,7 +188,7 @@ func crowd(ctx context.Context, d *db.DB, cfg seed.Config, people, streams int, 
 		report.bar("crowd: counts"+who+", p99", "at most 300 ms", counts.P99, "ms", counts.P99 <= 300)
 	}
 	report.bar("crowd: taps, p99", "at most 25 ms", c.Taps.P99, "ms", c.Taps.P99 <= 25)
-	report.bar("crowd: position reports, p99", "at most 100 ms", c.Progress.P99, "ms", c.Progress.P99 <= 100)
+	report.bar("crowd: slowest position save", "at most 100 ms", c.Progress.Max, "ms", c.Progress.Max <= 100)
 	report.bar("crowd: failed requests", "0", float64(c.Failures), "", c.Failures == 0)
 }
 
