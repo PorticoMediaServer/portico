@@ -75,6 +75,9 @@ type Server struct {
 	media   func(w http.ResponseWriter, r *http.Request, grant, file string)
 	// feeds caps the change feeds each sign-in holds open. See catalogue.go.
 	feeds feeds
+	// stopping is closed when the server begins to stop. See EndHeldReplies.
+	stopping     chan struct{}
+	stoppingOnce sync.Once
 	// remote opens the owner's remote sources. See remote_sources.go.
 	remote *remote.Registry
 	// driveSignIns are Google sign-ins for Drive sources under way.
@@ -195,7 +198,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 		return nil, err
 	}
 	s := &Server{db: d, dataDir: dataDir, tokens: tokens, log: log, mux: http.NewServeMux(), version: version, id: identity.id, identity: identity,
-		passwords: auth.NewPasswords(auth.PasswordCost, auth.PINCost)}
+		passwords: auth.NewPasswords(auth.PasswordCost, auth.PINCost), stopping: make(chan struct{})}
 	s.setClock(time.Now)
 	if set, err := d.HasUsers(ctx); err != nil {
 		return nil, err
@@ -285,6 +288,12 @@ func (s *Server) Wait(ctx context.Context) {
 	case <-ctx.Done():
 	}
 }
+
+// EndHeldReplies ends the replies the server holds open for as long as an app listens: the
+// change feed and the followed log. A stopping server calls it first. Without it those
+// replies, one for every open app, keep the stop waiting until its time runs out. An app
+// takes the ended feed as it takes any dropped one, and connects again.
+func (s *Server) EndHeldReplies() { s.stoppingOnce.Do(func() { close(s.stopping) }) }
 
 // RemoteSources opens the owner's remote sources for the scanner and for playback.
 func (s *Server) RemoteSources() *remote.Registry { return s.remote }

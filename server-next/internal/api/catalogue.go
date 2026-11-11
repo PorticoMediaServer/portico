@@ -538,6 +538,8 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, route *Route) {
 		select {
 		case <-ctx.Done():
 			return
+		case <-s.stopping:
+			return
 		case <-end.C:
 			return
 		case <-heartbeat.C:
