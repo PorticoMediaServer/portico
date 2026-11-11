@@ -2,9 +2,9 @@ package tlsport
 
 import (
 	"bufio"
-	"io"
 	"crypto/tls"
 	"errors"
+	"io"
 	"net"
 	"sync"
 	"time"
