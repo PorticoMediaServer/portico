@@ -633,6 +633,47 @@ func TestDevicesAndSessions(t *testing.T) {
 	}
 }
 
+// A change made BEFORE a restart to what a token says is still refused after it, by the
+// database check alone: nothing in memory remembers it.
+func TestAChangeBeforeARestartStillRefusesTheOldToken(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "main.db")
+	s := openTestServer(t, path)
+	owner := onMain(t, s, setup(t, s))
+
+	ann := addMember(t, s, owner.AccessToken, "ann", "admin")
+	admin := signInAs(t, s, "ann", testPassword, 3)
+	role := "member"
+	if code := status(t, s, "PATCH", "/v1/admin/members/"+ann.ID, owner.AccessToken, MemberEdit{Role: &role}); code != 200 {
+		t.Fatalf("the demotion answered %d", code)
+	}
+
+	var gone, locked Profile
+	call(t, s, "POST", "/v1/profiles", owner.AccessToken, ProfileCreate{Name: "Gone"}, &gone)
+	call(t, s, "POST", "/v1/profiles", owner.AccessToken, ProfileCreate{Name: "Locked"}, &locked)
+	var onGone, onLocked Session
+	call(t, s, "POST", "/v1/profiles/"+gone.ID+"/select", signIn(t, s, 4).Session.AccessToken, ProfileSelect{}, &onGone)
+	call(t, s, "POST", "/v1/profiles/"+locked.ID+"/select", signIn(t, s, 5).Session.AccessToken, ProfileSelect{}, &onLocked)
+	status(t, s, "DELETE", "/v1/profiles/"+gone.ID, owner.AccessToken, nil)
+	status(t, s, "PUT", "/v1/profiles/"+locked.ID+"/pin", owner.AccessToken, ProfilePIN{PIN: "4321"})
+
+	closeDB(s.db)
+	time.Sleep(2 * time.Millisecond)
+	s = openTestServer(t, path)
+
+	if code := status(t, s, "GET", "/v1/libraries", owner.AccessToken, nil); code != 200 {
+		t.Fatalf("the owner's untouched token answered %d after the restart", code)
+	}
+	if code := status(t, s, "GET", "/v1/admin/members", admin.AccessToken, nil); code != 401 {
+		t.Fatalf("a demoted admin's token from before the restart answered %d, want 401", code)
+	}
+	if code := status(t, s, "GET", "/v1/libraries", onGone.AccessToken, nil); code != 401 {
+		t.Fatalf("the token of a device on a deleted profile answered %d, want 401", code)
+	}
+	if code := status(t, s, "GET", "/v1/libraries", onLocked.AccessToken, nil); code != 401 {
+		t.Fatalf("the token of a device on a profile given a PIN answered %d, want 401", code)
+	}
+}
+
 // A restart signs nobody out and makes no app renew: a token from before it works as long as
 // the database still says what the token says. A sign-in ended before the restart stays
 // ended, a person turned off before it stays out, and a token that no longer matches its

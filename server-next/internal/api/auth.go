@@ -177,8 +177,11 @@ func (s *Server) stillTrue(ctx context.Context, claims auth.Claims) bool {
 	if err != nil {
 		return false
 	}
+	// Everything a token says is compared, so a claim added later is compared too. Where
+	// the token sits in the order of changes and when it runs out are its own.
 	now := claimsOf(st)
-	return now.UserID == claims.UserID && now.ProfileID == claims.ProfileID && now.Role == claims.Role && now.Manage == claims.Manage
+	now.Boot, now.Seq, now.ExpiresAt = claims.Boot, claims.Seq, claims.ExpiresAt
+	return now == claims
 }
 
 func (s *Server) session(st db.SessionState, issued time.Time, refreshToken string) Session {
