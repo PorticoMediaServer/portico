@@ -64,6 +64,19 @@ func (d *DB) LookupFailed(ctx context.Context, itemID int64, now time.Time) erro
 	})
 }
 
+// refreshGrown makes a matched show or album that gained an episode or a track in this import
+// due a refresh at once, so the new one gets its details now and not when the title is next
+// due. Zero sorts first.
+func (im *importer) refreshGrown() error {
+	for id := range im.grown {
+		if _, err := im.exec(`UPDATE items SET refreshed_at = 0 WHERE id = ? AND match_state IN (?, ?) AND refreshed_at > 0`,
+			id, MatchFound, MatchChosen); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // ToMatch lists a library's top-level titles of the given kinds that no provider has been
 // asked about, a page at a time in id order: pass the last id of one page to get the next.
 func (d *DB) ToMatch(ctx context.Context, libraryID int64, kinds []ItemKind, after int64, limit int) ([]MatchItem, error) {
