@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -166,3 +167,69 @@ func TestSchedule(t *testing.T) {
 		t.Errorf("Never has a next run")
 	}
 }
+
+// A backup drive that stops answering never holds the server's writes: the database is
+// copied and checked on the data folder's disk, nothing reaches the backup folder until then,
+// and the backup gives up after its limit.
+func TestASlowBackupFolderNeverHoldsWrites(t *testing.T) {
+	ctx := context.Background()
+	s := newService(t)
+	folder := t.TempDir()
+	if _, err := s.Settings.Write(ctx, 0, "backups", json.RawMessage(`{"folder":`+strconvQuote(folder)+`}`), -1, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	saved := folderWriteLimit
+	folderWriteLimit = 500 * time.Millisecond
+	release := make(chan struct{})
+	folderHook = func(string) { <-release }
+	defer func() { folderWriteLimit, folderHook = saved, nil; close(release) }()
+
+	done := make(chan error, 1)
+	go func() { done <- s.make(ctx, "portico-20261101-030000", false) }()
+	// While the backup is waiting on its folder, a person's write goes through at once.
+	time.Sleep(100 * time.Millisecond)
+	started := time.Now()
+	if _, err := s.Settings.Write(ctx, 0, "general", json.RawMessage(`{"name":"Still here"}`), -1, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if waited := time.Since(started); waited > 300*time.Millisecond {
+		t.Errorf("a write waited %s for the backup", waited)
+	}
+	if entries, _ := os.ReadDir(folder); len(entries) != 0 {
+		t.Errorf("the backup folder was written before the copy was done: %v", entries)
+	}
+	if err := <-done; !errors.Is(err, ErrFolderSlow) {
+		t.Errorf("a backup whose folder did not answer: %v", err)
+	}
+}
+
+// A chosen backup folder that is not there at start (a drive not mounted yet) keeps the
+// owner's settings and is not made on the disk beneath; the page says it cannot be written,
+// and a backup fails saying why.
+func TestAMissingBackupDriveKeepsTheSettings(t *testing.T) {
+	ctx := context.Background()
+	s := newService(t)
+	missing := filepath.Join(t.TempDir(), "nas", "portico")
+	if _, err := s.Settings.Write(ctx, 0, "backups", json.RawMessage(`{"folder":`+strconvQuote(missing)+`,"keep":3}`), -1, time.Now()); err != nil {
+		t.Fatalf("saving a folder that is not there: %v", err)
+	}
+	again, damaged, err := settings.Open(ctx, s.DB, nil)
+	if err != nil || len(damaged) > 0 {
+		t.Fatal(err, damaged)
+	}
+	s.Settings = again
+	if got := Document.Get(again); got.Folder != missing || got.Keep != 3 {
+		t.Errorf("after a start the settings are %+v", got)
+	}
+	if s.FolderWritable() {
+		t.Errorf("a missing folder reads as writable")
+	}
+	if err := s.make(ctx, "portico-20261101-030000", false); err == nil || !strings.Contains(err.Error(), "not there") {
+		t.Errorf("a backup to a missing folder: %v", err)
+	}
+	if _, err := os.Stat(missing); err == nil {
+		t.Errorf("the missing folder was made")
+	}
+}
+
+func strconvQuote(s string) string { raw, _ := json.Marshal(s); return string(raw) }
