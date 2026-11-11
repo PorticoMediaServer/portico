@@ -17,6 +17,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -60,14 +61,16 @@ type Log struct {
 	// Keep says how many days of files to keep; nil keeps 30.
 	Keep func() int
 
-	mu    sync.Mutex
-	file  *os.File
-	day   string
-	ring  []Entry
-	seq   int64
-	more  chan struct{} // closed when a line is added
-	until time.Time     // when "Record more detail" ends
-	timer *time.Timer
+	mu   sync.Mutex
+	file *os.File
+	day  string
+	// written is how much today's file holds.
+	written int64
+	ring    []Entry
+	seq     int64
+	more    chan struct{} // closed when a line is added
+	until   time.Time     // when "Record more detail" ends
+	timer   *time.Timer
 }
 
 // Open starts the log, its files in dir. Lines also go to stderr as text.
@@ -126,12 +129,12 @@ func (h *handler) WithGroup(name string) slog.Handler {
 
 func (h *handler) Handle(ctx context.Context, r slog.Record) error {
 	err := h.inner.Handle(ctx, r)
-	e := Entry{Time: r.Time, Level: strings.ToLower(r.Level.String()), Message: r.Message}
+	e := Entry{Time: r.Time, Level: strings.ToLower(r.Level.String()), Message: Clean(r.Message)}
 	add := func(a slog.Attr) {
 		if e.Attrs == nil {
 			e.Attrs = map[string]string{}
 		}
-		value := a.Value.Resolve().String()
+		value := Clean(a.Value.Resolve().String())
 		if secretName(a.Key) {
 			value = "[hidden]"
 		}
@@ -148,16 +151,72 @@ func (h *handler) Handle(ctx context.Context, r slog.Record) error {
 	return errors.Join(err, h.log.add(e))
 }
 
-// secretName says a value is one never to keep: a password, token, secret, key or code.
+// secretName says a value is one never to keep, by its name: a password, token, secret, key,
+// PIN, code, cookie, credential or signature. Names are compared without "_", "-" and ".".
 func secretName(name string) bool {
-	name = strings.ToLower(name)
-	for _, word := range []string{"password", "token", "secret", "authorization", "setupcode", "passphrase", "apikey"} {
+	name = strings.NewReplacer("_", "", "-", "", ".", "").Replace(strings.ToLower(name))
+	for _, word := range []string{"password", "passwd", "token", "secret", "authorization", "passphrase", "apikey", "cookie", "credential",
+		"signature"} {
 		if strings.Contains(name, word) {
+			return true
+		}
+	}
+	for _, end := range []string{"key", "pin", "code"} {
+		if strings.HasSuffix(name, end) {
 			return true
 		}
 	}
 	return false
 }
+
+// Secrets inside text: an error that carries the address it called holds its key in the query,
+// a tool's own output holds "token = …", a JSON answer holds "access_token": "…". Every
+// message and value is cleaned of them before it is kept, shown or exported.
+var secretPatterns = []struct {
+	re   *regexp.Regexp
+	with string
+}{
+	{regexp.MustCompile(`(?i)\b(api_?key|access_token|refresh_token|id_token|client_secret|token|secret|password|passwd|pass|pwd|sig|signature|key|code|pin)(\s*[=:]\s*)[^&\s"',;]+`), "$1$2[hidden]"},
+	{regexp.MustCompile(`(?i)"(api_?key|access_token|refresh_token|id_token|client_secret|private_key|token|secret|password|passwd|pin)"\s*:\s*"[^"]*"`), `"$1":"[hidden]"`},
+	{regexp.MustCompile(`(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=-]{8,}`), "$1 [hidden]"},
+	{regexp.MustCompile(`\bpk_[A-Za-z0-9_-]+`), "pk_[hidden]"},
+}
+
+var (
+	hiddenMu     sync.RWMutex
+	hiddenValues []string
+)
+
+// Hide registers a secret's value as it is loaded (a source's password, a provider's key), so
+// that wherever it appears in a log line it is replaced. Short values are not registered:
+// they would hide ordinary words.
+func Hide(value string) {
+	if len(value) < 6 {
+		return
+	}
+	hiddenMu.Lock()
+	defer hiddenMu.Unlock()
+	if !slices.Contains(hiddenValues, value) {
+		hiddenValues = append(hiddenValues, value)
+	}
+}
+
+// Clean hides every secret a piece of text holds, as it would be kept in the log.
+func Clean(text string) string {
+	hiddenMu.RLock()
+	for _, v := range hiddenValues {
+		text = strings.ReplaceAll(text, v, "[hidden]")
+	}
+	hiddenMu.RUnlock()
+	for _, p := range secretPatterns {
+		text = p.re.ReplaceAllString(text, p.with)
+	}
+	return text
+}
+
+// dayFileLimit is the most one day's file holds. Past it the day's file says so once and
+// keeps nothing more; standard error still has every line.
+var dayFileLimit int64 = 256 << 20
 
 func (l *Log) add(e Entry) error {
 	line, _ := json.Marshal(e)
@@ -182,9 +241,24 @@ func (l *Log) add(e Entry) error {
 			return err
 		}
 		l.file, l.day = f, day
+		l.written = 0
+		if info, err := f.Stat(); err == nil {
+			l.written = info.Size()
+		}
 		l.removeOld(e.Time)
 	}
-	_, err := l.file.Write(append(line, '\n'))
+	switch {
+	case l.written >= dayFileLimit+1:
+		return nil
+	case l.written+int64(len(line))+1 > dayFileLimit:
+		// One last line, and nothing more today.
+		full, _ := json.Marshal(Entry{Time: e.Time, Level: "warn", Message: "today's message file is full; more messages go to standard error only"})
+		_, err := l.file.Write(append(full, '\n'))
+		l.written = dayFileLimit + 1
+		return err
+	}
+	n, err := l.file.Write(append(line, '\n'))
+	l.written += int64(n)
 	return err
 }
 

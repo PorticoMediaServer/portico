@@ -3,6 +3,7 @@ package api
 import (
 	"archive/zip"
 	"bytes"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"path/filepath"
@@ -27,18 +28,36 @@ func TestMessagesAndSupportExport(t *testing.T) {
 	owner := onMainProfile(t, s)
 	addMember(t, s, owner.AccessToken, "ada", "admin")
 	addMember(t, s, owner.AccessToken, "max", "member")
+	held := addMember(t, s, owner.AccessToken, "kit", "admin")
+	none, no := []string{}, false
+	if code := status(t, s, "PATCH", "/v1/admin/members/"+held.ID, owner.AccessToken, MemberEdit{AllLibraries: &no, Libraries: &none}); code != 200 {
+		t.Fatalf("holding an administrator to some libraries answered %d", code)
+	}
+	limited := signInAs(t, s, "kit", testPassword, 3).AccessToken
 	admin := signInAs(t, s, "ada", testPassword, 1).AccessToken
 	member := signInAs(t, s, "max", testPassword, 2).AccessToken
 	s.log.Warn("a library folder cannot be read", "path", "/srv/media/films/Heat (1995)/heat.mkv", "password", "hunter2")
+	s.log.Error("a file could not be opened", "error", "open /media/Films/The Thing (1982)/The Thing (1982).mkv: no such file or directory")
+	if code := status(t, s, "PUT", "/v1/admin/settings/backups", owner.AccessToken, json.RawMessage(`{"folder":"/mnt/nas/The Archive"}`)); code != 200 {
+		t.Fatalf("setting the backup folder answered %d", code)
+	}
 
 	var page LogPage
-	if w := call(t, s, "GET", "/v1/admin/logs?level=warn", admin, nil, &page); w.Code != 200 || len(page.Items) != 1 ||
-		!strings.Contains(page.Items[0].Attrs["path"], "heat.mkv") || page.Items[0].Attrs["password"] != "[hidden]" {
+	if w := call(t, s, "GET", "/v1/admin/logs?level=warn", admin, nil, &page); w.Code != 200 || len(page.Items) != 2 ||
+		!strings.Contains(page.Items[1].Attrs["path"], "heat.mkv") || page.Items[1].Attrs["password"] != "[hidden]" {
 		t.Fatalf("an administrator's Messages answered %d: %s", w.Code, w.Body)
 	}
-	for _, c := range []struct{ method, path string }{{"GET", "/v1/admin/logs"}, {"PUT", "/v1/admin/logs/detail"}, {"GET", "/v1/admin/logs/events"}} {
-		if code := status(t, s, c.method, c.path, member, LogDetail{Minutes: 30}); code != 403 {
-			t.Errorf("a member: %s %s answered %d", c.method, c.path, code)
+	// Messages name the files of every library: not for a member, nor for an administrator
+	// held to some libraries.
+	for _, token := range []string{member, limited} {
+		for _, c := range []struct{ method, path string }{{"GET", "/v1/admin/logs"}, {"PUT", "/v1/admin/logs/detail"}, {"GET", "/v1/admin/logs/events"}} {
+			var body any
+			if c.method == "PUT" {
+				body = LogDetail{Minutes: 30}
+			}
+			if code := status(t, s, c.method, c.path, token, body); code != 403 {
+				t.Errorf("a member or limited administrator: %s %s answered %d", c.method, c.path, code)
+			}
 		}
 	}
 	var detail LogDetailState
@@ -65,8 +84,12 @@ func TestMessagesAndSupportExport(t *testing.T) {
 		files[f.Name] = string(raw)
 	}
 	messages := files["messages.jsonl"]
-	if !strings.Contains(messages, "a library folder cannot be read") || strings.Contains(messages, "heat.mkv") || strings.Contains(messages, "hunter2") {
+	if !strings.Contains(messages, "a library folder cannot be read") || strings.Contains(messages, "heat.mkv") || strings.Contains(messages, "hunter2") ||
+		strings.Contains(messages, "Thing") || !strings.Contains(messages, "no such file") {
 		t.Errorf("the exported messages: %s", messages)
+	}
+	if strings.Contains(files["settings.json"], "Archive") {
+		t.Errorf("the export's settings name the backup folder: %s", files["settings.json"])
 	}
 	if !strings.Contains(files["settings.json"], `"general"`) || !strings.Contains(files["activity.jsonl"], "member.") {
 		t.Errorf("the export's settings and activity: %s / %s", files["settings.json"], files["activity.jsonl"])

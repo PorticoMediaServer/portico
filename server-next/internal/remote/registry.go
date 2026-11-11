@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/serverlog"
 )
 
 // Config is a source's settings, kept as JSON with it. Nothing in it is secret: the owner's
@@ -200,7 +201,14 @@ func (r *Registry) unseal(publicID string, sealed []byte) (Secret, error) {
 		// Sealed with another key: the key file was lost or replaced.
 		return s, ErrSignIn
 	}
-	return s, json.Unmarshal(plain, &s)
+	if err := json.Unmarshal(plain, &s); err != nil {
+		return s, err
+	}
+	// Wherever a sign-in shows up in an error, the log keeps it hidden.
+	for _, secret := range []string{s.Password, s.DriveClientSecret} {
+		serverlog.Hide(secret)
+	}
+	return s, nil
 }
 
 // Secret returns a saved source's secret, to test a change to how the source is reached.
