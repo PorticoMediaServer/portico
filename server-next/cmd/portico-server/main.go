@@ -113,10 +113,29 @@ func run(log *slog.Logger) error {
 	handler.ServeMediaWith(engine.ServeMedia)
 	// The web app is served by this same server, at every address that is not the API's, so
 	// an install needs no web server in front of it.
-	if dir := webapp.Find(*web); dir != "" {
+	dir := webapp.Find(*web)
+	if dir != "" && webapp.Holds(dir, *data) {
+		// Everything in the web folder is handed to anyone who can reach the server, signed
+		// in or not. The data folder holds the database, the token keys and the setup code.
+		log.Error("the web folder is the server's data folder, or holds it, so the web app is NOT served: only the API is answered. "+
+			"Give the web app a folder of its own", "web", dir, "data", *data)
+		dir = ""
+	} else if dir != "" {
+		// A library inside the web folder would be handed out unsigned-in the same way, file
+		// by file. Libraries change while the server runs, so this is said once, at start.
+		if folders, err := d.LibraryFolders(ctx); err == nil {
+			for _, folder := range folders {
+				if webapp.Holds(dir, folder) || webapp.Holds(folder, dir) {
+					log.Warn("the web folder and a library folder overlap: files of the library under the web folder can be fetched by anyone who "+
+						"can reach the server, without signing in. Give the web app a folder of its own", "web", dir, "library", folder)
+				}
+			}
+		}
+	}
+	if dir != "" {
 		handler.ServeWebWith(webapp.Handler(dir))
 		log.Info("serving the web app", "folder", dir)
-	} else {
+	} else if webapp.Find(*web) == "" {
 		log.Warn("no web app to serve: only the API is answered. Give its folder with -web, or put it in a folder named web beside this binary")
 	}
 	go engine.Run(ctx)

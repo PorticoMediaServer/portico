@@ -56,6 +56,21 @@ func Find(given string) string {
 	return ""
 }
 
+// Holds reports whether other is dir or a folder inside it. The web folder is handed to
+// anyone who can reach the server, so it must never hold the data folder.
+func Holds(dir, other string) bool {
+	for _, p := range []*string{&dir, &other} {
+		if abs, err := filepath.Abs(*p); err == nil {
+			*p = abs
+		}
+		if real, err := filepath.EvalSymlinks(*p); err == nil {
+			*p = real
+		}
+	}
+	rel, err := filepath.Rel(dir, other)
+	return err == nil && filepath.IsLocal(rel)
+}
+
 // Handler serves the web app in dir. A file that is there is served; any other address a
 // browser opens as a page gets the app's own page, which routes inside itself. It answers
 // GET and HEAD only.
@@ -70,7 +85,8 @@ func Handler(dir string) http.Handler {
 		if name == "" {
 			name = "index.html"
 		}
-		if !fs.ValidPath(name) || strings.ContainsAny(name, "\\\x00") {
+		// A hidden file (.env, .git) is never part of the build.
+		if !fs.ValidPath(name) || strings.ContainsAny(name, "\\\x00") || strings.HasPrefix(name, ".") || strings.Contains(name, "/.") {
 			http.NotFound(w, r)
 			return
 		}
