@@ -121,6 +121,7 @@ Assistant) are a separate short document and are not counted here.
 | `GET /v1/home`, `GET /v1/home/rows/{id}` | Home, composed by the server; one row paged |
 | `GET /v1/home/layout`, `PUT /v1/home/layout` | Which rows you show and in what order |
 | `GET /v1/people`, `GET /v1/people/{id}` | People |
+| `GET /v1/tags` | Tags by kind and then name, paged (`kind`, `cursor`, `limit`): every tag in use for the owner and admins, otherwise only tags on titles the profile may see and never a label it is kept from |
 | `GET /v1/genres` | Genres with artwork, per library |
 | `GET /v1/music/mixes` | Mixes built from your library |
 | `GET /v1/images/{id}` | Artwork bytes: the stored small size when it covers `w` and `h`, else the large |
