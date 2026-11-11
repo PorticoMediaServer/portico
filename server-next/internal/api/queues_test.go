@@ -333,6 +333,42 @@ func TestALongViewRefillsAndAFullQueueRefusesMore(t *testing.T) {
 		t.Fatalf("shuffle off in a long view: playing %s (view place %d), then %v", playing, at, got[:min(3, len(got))])
 	}
 
+	// playAll plays a queue to its end and returns what played, in order.
+	playAll := func(q Queue) []string {
+		path = "/v1/queues/" + q.ID
+		played := []string{current()}
+		for len(played) <= len(titles) {
+			if w := th.queue("POST", path+"/advance", "", QueueAdvance{Reason: "completion"}, &q); w.Code != 200 {
+				return played
+			}
+			played = append(played, current())
+		}
+		return played
+	}
+	// The view's filters decide what plays, shuffled or not: here every title but the one
+	// that is an hour long.
+	short := *view
+	short.Filter = []playqueue.Condition{{Field: "durationMs", Mode: "none", Values: []string{"3600000", "1"}}}
+	for _, shuffle := range []bool{false, true} {
+		played = playAll(th.create(QueueCreate{Source: playqueue.QueueSource{View: &short}, Shuffle: shuffle}).Queue)
+		if got := slices.Sorted(slices.Values(played)); !slices.Equal(got, slices.Sorted(slices.Values(tracks))) {
+			t.Fatalf("a filtered view (shuffle %v) played %d titles, the long song among them: %v", shuffle, len(played), slices.Contains(played, th.song))
+		}
+	}
+	// Play on a title of a long list sorted at random: that title, then every other one once.
+	random := *view
+	random.Sort = db.SortRandom
+	w := th.queue("POST", "/v1/queues", "", QueueCreate{Source: playqueue.QueueSource{View: &random}, StartAt: tracks[19]}, &QueueCreated{})
+	if w.Code != 201 {
+		t.Fatalf("playing from a long list sorted at random answered %d: %s", w.Code, w.Body)
+	}
+	var created QueueCreated
+	jsonInto(w, &created)
+	played = playAll(created.Queue)
+	if got := slices.Sorted(slices.Values(played)); played[0] != tracks[19] || !slices.Equal(got, slices.Sorted(slices.Values(titles))) {
+		t.Fatalf("a long random list from the 20th title began with %s and played %d titles", played[0], len(played))
+	}
+
 	// A queue that holds everything it plays is full at its limit.
 	album, _ := th.album("Other", 28)
 	q = th.create(QueueCreate{Source: playqueue.QueueSource{Container: album}}).Queue
@@ -341,7 +377,7 @@ func TestALongViewRefillsAndAFullQueueRefusesMore(t *testing.T) {
 	if q.Total != 30 {
 		t.Fatalf("a queue filled to its limit holds %d", q.Total)
 	}
-	w := th.queue("POST", path+"/entries", q.Revision, QueueAdd{Source: playqueue.QueueSource{Items: []string{tracks[1]}}}, nil)
+	w = th.queue("POST", path+"/entries", q.Revision, QueueAdd{Source: playqueue.QueueSource{Items: []string{tracks[1]}}}, nil)
 	if w.Code != 422 || !strings.Contains(w.Body.String(), "This queue is too long. Remove some of it or start a new one.") {
 		t.Fatalf("adding to a full queue answered %d: %s", w.Code, w.Body)
 	}

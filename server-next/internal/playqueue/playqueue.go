@@ -57,8 +57,18 @@ type QueueView struct {
 	Favorite   *bool    `json:"favorite,omitempty"`
 	InList     *bool    `json:"inList,omitempty"`
 	Resolution string   `json:"resolution,omitempty"`
-	Sort       string   `json:"sort,omitempty"`
-	Desc       bool     `json:"desc,omitempty"`
+	// Filter holds the list's conditions, as POST /v1/items/query takes them: each a field,
+	// some values, and whether an item needs any, all or none of them. All have to pass.
+	Filter []Condition `json:"filter,omitempty"`
+	Sort   string      `json:"sort,omitempty"`
+	Desc   bool        `json:"desc,omitempty"`
+}
+
+// Condition is one filter of a view. Mode is "any" (the default), "all" or "none".
+type Condition struct {
+	Field  string   `json:"field"`
+	Mode   string   `json:"mode,omitempty"`
+	Values []string `json:"values"`
 }
 
 func (v QueueView) query() (db.ItemQuery, error) {
@@ -71,7 +81,25 @@ func (v QueueView) query() (db.ItemQuery, error) {
 		}
 		q.Kinds = append(q.Kinds, kind)
 	}
+	for _, c := range v.Filter {
+		q.Conditions = append(q.Conditions, db.Condition{Field: c.Field, Mode: c.Mode, Values: c.Values})
+	}
 	return q, nil
+}
+
+// carryOn makes a selection go on after one of its view's titles: the one that was pressed,
+// or the one playing when shuffle is turned off. In the view's own order that is the next
+// title of the list. A view sorted at random has no place to find the title at (every
+// reading of it is a new order), so it goes on in a random order of its own that leaves
+// that title out.
+func (s *Service) carryOn(ctx context.Context, v db.Viewer, sel *selection, q db.ItemQuery, item int64, publicID string) (err error) {
+	if q.Sort == db.SortRandom {
+		sel.Shuffle, sel.Seed, sel.Skip = true, newSeed(), item
+		return nil
+	}
+	sel.Cursor, _, err = s.db.ViewCursorAt(ctx, v, q, publicID)
+	sel.Skip = 0
+	return err
 }
 
 // QueueSource is what a queue, or an addition to one, is built from. Exactly one field is set.
@@ -350,10 +378,9 @@ func (s *Service) fromView(ctx context.Context, v db.Viewer, view QueueView, shu
 		if err != nil {
 			return nil, nil, err
 		}
-		if sel.Cursor, _, err = s.db.ViewCursorAt(ctx, v, q, public); err != nil {
+		if err = s.carryOn(ctx, v, sel, q, startAt, public); err != nil {
 			return nil, nil, err
 		}
-		sel.Skip = 0
 	}
 	taken, err := s.take(ctx, v, sel, Fill)
 	return append(items, taken...), sel, err
@@ -452,7 +479,7 @@ func (s *Service) Change(ctx context.Context, c Caller, id string, ifMatch int64
 		if err != nil {
 			return q, err
 		}
-		if next.Cursor, _, err = s.db.ViewCursorAt(ctx, c.Viewer, view, current.PublicID); err != nil {
+		if err = s.carryOn(ctx, c.Viewer, next, view, current.ID, current.PublicID); err != nil {
 			return q, err
 		}
 	}
