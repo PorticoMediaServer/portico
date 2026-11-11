@@ -122,8 +122,10 @@ table held in memory by that package's service.
   and AZW3 after, with their readers).
 - Durable: `annotations`. The place is `user_item_state.position_text` (the exact spot and how
   far through, one small JSON value) with `position_at`; reader defaults are `preferences` by
-  kind of device. Annotations and the place go when the book leaves the trash. Memory: open
-  archives, a short while.
+  kind of device. Annotations and the place go when the book leaves the trash. Memory: the
+  EPUB package documents last read (64 at most). Nothing else is kept: a book's address is
+  signed and carries its file, so it needs no memory and survives a restart, and an archive's
+  list of entries is read again for each part, which costs less than keeping files open.
 - Interfaces: a book is an item; `GET /v1/items/{id}/book` answers media grants and the bytes
   are served like playback's. Nothing is open on the server. Reading adds "Continue your
   books" to Home and the annotation count to the profile deletion preview.
@@ -131,6 +133,10 @@ table held in memory by that package's service.
   readers, and refuse the one page, never the book.
 - Order: (1) the book route and bytes for EPUB and PDF; (2) comics; (3) annotations and the
   batch route; (4) the second group of formats.
+- Not yet: folders of images (the scanner does not list a folder of pictures as a comic yet;
+  once it does, the pages route reads them from the folder by the scanner's own list) and
+  books on remote storage (they say so, as playback's titles do, until files there can be
+  opened).
 - `Review: full`: the three byte routes and archive reading (untrusted files; a part is named
   by the book's own list, never by the request). Annotations are `quick`.
 

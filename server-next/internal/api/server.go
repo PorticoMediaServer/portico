@@ -24,6 +24,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
+	"github.com/PorticoMediaServer/portico/server-next/internal/reading"
 )
 
 // APIMajor is the number in the path. It changes only for a break old apps could not survive.
@@ -58,6 +59,8 @@ type Server struct {
 	media   func(w http.ResponseWriter, r *http.Request, grant, file string)
 	// feeds caps the change feeds each sign-in holds open. See catalogue.go.
 	feeds feeds
+	// reading opens books. See reading.go.
+	reading *reading.Service
 }
 
 // Route is one operation, kept so the contract can be generated and the operation budget counted.
@@ -185,6 +188,13 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.playbackRoutes()
 	s.queues = playqueue.New(d, s.playback, func() time.Time { return s.now() })
 	s.queueRoutes()
+	// Book addresses are signed with a key the server keeps, so they work across a restart.
+	bookKey, err := d.SettingOrCreate(ctx, "reading.address_key", auth.NewKey)
+	if err != nil {
+		return nil, err
+	}
+	s.reading = reading.New(d, bookKey, func() time.Time { return s.now() })
+	s.readingRoutes()
 	return s, nil
 }
 
