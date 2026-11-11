@@ -521,8 +521,16 @@ const (
 	VideoCompletionCredits   = "credits"
 )
 
-// SaveProgress saves a batch of playback positions in one transaction, and reports for each
-// whether that playing has now reached the end and been counted.
+// progressStep is how many positions one background transaction saves. The periodic save
+// holds every stream's position; written in one transaction, eighty of them kept the writer
+// for a twentieth of a second and a person's tap waited behind it. In steps, a waiting
+// person's write goes between two of them.
+const progressStep = 8
+
+// SaveProgress saves a batch of playback positions, and reports for each whether that playing
+// has now reached the end and been counted. A person's own save (User) is one transaction.
+// Background work saves progressStep positions to a transaction; if a step fails, the steps
+// before it are saved and the error is returned, and saving the same positions again is safe.
 //
 // A position past the profile's "Mark as watched at", or at trusted credits where the library
 // goes by them, marks the title watched, clears the resume point, adds one to the play count
@@ -534,10 +542,22 @@ const (
 // finished play is still recorded for the owner, hidden from the profile.
 func (d *DB) SaveProgress(ctx context.Context, p Priority, batch []Progress) ([]bool, error) {
 	finished := make([]bool, len(batch))
-	if len(batch) == 0 {
-		return finished, nil
+	step := len(batch)
+	if p == Background {
+		step = progressStep
 	}
-	err := d.write(ctx, p, func(tx *sql.Tx) error {
+	for from := 0; from < len(batch); from += step {
+		to := min(from+step, len(batch))
+		if err := d.saveProgressStep(ctx, p, batch[from:to], finished[from:to]); err != nil {
+			return finished, err
+		}
+	}
+	return finished, nil
+}
+
+// saveProgressStep saves some positions in one transaction.
+func (d *DB) saveProgressStep(ctx context.Context, p Priority, batch []Progress, finished []bool) error {
+	return d.write(ctx, p, func(tx *sql.Tx) error {
 		writers := map[Viewer]*stateWriter{}
 		defer func() {
 			for _, w := range writers {
@@ -566,7 +586,6 @@ func (d *DB) SaveProgress(ctx context.Context, p Priority, batch []Progress) ([]
 		}
 		return nil
 	})
-	return finished, err
 }
 
 func profilePreferences(tx *sql.Tx, profileID int64) (map[string]string, error) {
