@@ -80,6 +80,10 @@ func (s *Service) RefreshLibrary(ctx context.Context, libraryID int64, now time.
 	if p == nil {
 		return 0, nil
 	}
+	// A title matched before due times were kept has none: it is due at once.
+	if err := s.DB.ScheduleUnscheduled(ctx, libraryID); err != nil {
+		return 0, err
+	}
 	locale := Locale{Language: src.Language, Region: src.Region}
 	f := &failures{s: s}
 	done := 0

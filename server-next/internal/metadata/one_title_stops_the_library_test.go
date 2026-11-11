@@ -3,6 +3,7 @@ package metadata_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
@@ -54,7 +55,7 @@ func TestOneTitleTheProviderFailsOnDoesNotStopTheRestOfTheLibrary(t *testing.T) 
 type down struct{ metadata.Provider }
 
 func (down) Search(context.Context, metadata.Query) ([]metadata.Candidate, error) {
-	return nil, errors.New("tmdb did not answer within 20s")
+	return nil, fmt.Errorf("tmdb did not answer within 20s: %w", context.DeadlineExceeded)
 }
 
 // A provider that fails on every title is down: the run stops after a few in a row instead of

@@ -103,14 +103,15 @@ func (s *Server) metadataJobs() {
 			return nil // removed since
 		}
 		lib := all[at]
-		stats, err := s.metadata.MatchLibrary(ctx, lib.ID)
-		if err != nil {
-			return providerSentence(err)
+		// A lookup that stops does not keep the library's titles from being refreshed.
+		stats, lookup := s.metadata.MatchLibrary(ctx, lib.ID)
+		if ctx.Err() != nil {
+			return ctx.Err()
 		}
 		if _, err = s.metadata.RefreshLibrary(ctx, lib.ID, time.Now(), afterScanRefreshes); err != nil {
 			return providerSentence(err)
 		}
-		return matched(stats, nil)
+		return matched(stats, lookup)
 	}})
 	// A selection: the asker's main profile must see every title, or the job is refused as
 	// if one were not there.
