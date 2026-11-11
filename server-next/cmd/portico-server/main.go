@@ -94,11 +94,11 @@ func run(log *slog.Logger) (err error) {
 		return err
 	}
 	// One server to a data folder, taken before anything in the folder is written.
-	release, err := datalock.Hold(serverData, log)
+	held, err := datalock.Hold(serverData)
 	if err != nil {
 		return err
 	}
-	defer release()
+	defer held.Release()
 	// Nothing in the data folder is ever played as a library file.
 	libraryfile.ServerData = serverData
 	// Everything logged from here on is also kept in the data folder for Messages.
@@ -109,6 +109,7 @@ func run(log *slog.Logger) (err error) {
 	defer serverLog.Close()
 	log = slog.New(serverLog.Handler())
 	slog.SetDefault(log)
+	held.Warn(log)
 	// From here a failure to start or to keep serving goes to the log file as well, so
 	// Messages shows why after the next start. One before this point goes to stderr only.
 	defer func() {
