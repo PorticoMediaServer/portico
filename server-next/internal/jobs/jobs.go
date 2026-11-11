@@ -12,8 +12,10 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
+	"runtime/debug"
 	"slices"
 	"strings"
 	"sync"
@@ -197,15 +199,27 @@ func (r *Runner) Start(ctx context.Context, kind string, req Request) (db.Job, e
 	return job, err
 }
 
+// Interrupted is why a job ended that was cut short twice.
+const Interrupted = "The server stopped unexpectedly twice while doing this, so it was not started again."
+
 // Resume takes up the jobs that were waiting or running when the server last stopped. A job
-// of a kind this server no longer has is ended as failed.
+// is marked as running before its work begins, and a server that stops in good order puts it
+// back to waiting; so a job found running was cut short: by a crash, a kill or a power cut.
+// It is run again once. Found cut short a second time it is ended as failed, because it may
+// be the job that brings the server down, and a server must stay up. A job of a kind this
+// server no longer has is ended as failed too.
 func (r *Runner) Resume() error {
 	unfinished, err := r.db.UnfinishedJobs(r.ctx)
 	for _, job := range unfinished {
-		if k, ok := r.Kind(job.Kind); ok {
-			r.enqueue(k, job)
-		} else {
+		k, ok := r.Kind(job.Kind)
+		switch {
+		case !ok:
 			r.db.FinishJob(r.ctx, job.ID, db.JobFailed, "This server no longer does this kind of work.")
+		case job.State == db.JobRunning && job.Attempts >= 2:
+			r.log.Error("job not run again: it was cut short twice", "kind", job.Kind, "target", job.Target)
+			r.db.FinishJob(r.ctx, job.ID, db.JobFailed, Interrupted)
+		default:
+			r.enqueue(k, job)
 		}
 	}
 	return err
@@ -240,7 +254,7 @@ func (r *Runner) Cancel(ctx context.Context, job db.Job) error {
 		l.queue = slices.DeleteFunc(l.queue, func(queued db.Job) bool { return queued.ID == job.ID })
 	}
 	r.mu.Unlock()
-	return r.db.FinishJob(ctx, job.ID, db.JobCancelled, "")
+	return r.db.CancelJob(ctx, job.ID)
 }
 
 func (r *Runner) work(l *lane) {
@@ -262,13 +276,18 @@ func (r *Runner) work(l *lane) {
 		stopped := ctx.Err() != nil
 		stop()
 		r.mu.Lock()
+		cancelled := l.cancelled
 		l.current, l.stop, l.cancelled = 0, nil, false
 		r.mu.Unlock()
 		switch {
+		case stopped && !cancelled:
+			// The server is stopping in good order: the job waits for the next start.
+			pause, done := context.WithTimeout(context.Background(), 2*time.Second)
+			r.db.PauseJob(pause, job.ID)
+			done()
 		case stopped:
-			// The server is stopping, and the job is run again at the next start; or the job
-			// was cancelled, and Cancel has recorded that. Nothing is recorded here, because
-			// the same work may already have been asked for again under the same row.
+			// The job was cancelled, and Cancel has recorded that. Nothing is recorded here,
+			// because the same work may already have been asked for again under the same row.
 		case err != nil:
 			r.log.Error("job failed", "kind", job.Kind, "target", job.Target, "error", err)
 			r.db.FinishJob(r.ctx, job.ID, db.JobFailed, err.Error())
@@ -278,7 +297,8 @@ func (r *Runner) work(l *lane) {
 	}
 }
 
-func (r *Runner) run(ctx context.Context, k Kind, job db.Job) error {
+func (r *Runner) run(ctx context.Context, k Kind, job db.Job) (err error) {
+	// The job is marked as running, in a write of its own, before any of its work begins.
 	if ran, err := r.db.RunJob(ctx, job.ID); err != nil || !ran {
 		return err
 	}
@@ -287,15 +307,50 @@ func (r *Runner) run(ctx context.Context, k Kind, job db.Job) error {
 		return fmt.Errorf("the job's stored request cannot be read: %w", err)
 	}
 	work.UserID = job.OwnerID
-	var reported time.Time
+	if k.Access == AnyProfile {
+		// A job that runs as a profile does not outlive it: with the account or the profile
+		// gone it is cancelled, never run as the server.
+		there, err := r.db.ProfileOfUser(ctx, work.ProfileID, job.OwnerID)
+		if err != nil {
+			return err
+		}
+		if !there || job.OwnerID == 0 {
+			return r.db.CancelJob(ctx, job.ID)
+		}
+	}
+	// A fault in a kind's code ends that job as failed and takes nothing else down.
+	defer func() {
+		if fault := recover(); fault != nil {
+			r.log.Error("job panicked", "kind", job.Kind, "target", job.Target, "panic", fault, "stack", string(debug.Stack()))
+			err = errors.New("This stopped because of a fault in the server. The server's log has the details.")
+		}
+	}()
 	var mu sync.Mutex
+	var reported time.Time
+	var last, written [2]int64
 	work.Progress = func(done, total int64) {
 		mu.Lock()
 		defer mu.Unlock()
+		last = [2]int64{done, total}
 		if time.Since(reported) > 2*time.Second {
-			reported = time.Now()
+			reported, written = time.Now(), last
 			r.db.JobProgress(ctx, job.ID, done, total)
 		}
 	}
-	return k.Run(ctx, work)
+	err = k.Run(ctx, work)
+	// The last count is always written, so a job that ends shows how far it really got.
+	mu.Lock()
+	defer mu.Unlock()
+	if last != written {
+		r.db.JobProgress(context.WithoutCancel(ctx), job.ID, last[0], last[1])
+	}
+	return err
+}
+
+// ProfileOf is the profile a job runs as: the one that started it, for a kind any profile
+// may start. It is 0 for every other job.
+func ProfileOf(job db.Job) int64 {
+	var req Request
+	json.Unmarshal([]byte(job.Payload), &req)
+	return req.ProfileID
 }

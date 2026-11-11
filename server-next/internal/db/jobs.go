@@ -24,27 +24,29 @@ const (
 
 // Job is one piece of background work.
 type Job struct {
-	ID         int64
-	PublicID   string
-	Kind       string
-	Target     string
-	State      string
-	Payload    string
-	Error      string
-	Done       int64
-	Total      int64 // 0 when the size of the work is not known
-	OwnerID    int64
+	ID       int64
+	PublicID string
+	Kind     string
+	Target   string
+	State    string
+	Payload  string
+	Error    string
+	Done     int64
+	Total    int64 // 0 when the size of the work is not known
+	OwnerID  int64
+	// Attempts is how many times the job's work has been started since it was asked for.
+	Attempts   int
 	CreatedAt  int64
 	StartedAt  int64
 	FinishedAt int64
 }
 
 const jobColumns = `id, public_id, kind, target, state, ifnull(payload, ''), ifnull(last_error, ''), progress_done, ifnull(progress_total, 0),
-	ifnull(owner_user_id, 0), created_at, ifnull(started_at, 0), ifnull(finished_at, 0)`
+	ifnull(owner_user_id, 0), attempts, created_at, ifnull(started_at, 0), ifnull(finished_at, 0)`
 
 func (j *Job) dest() []any {
 	return []any{&j.ID, &j.PublicID, &j.Kind, &j.Target, &j.State, &j.Payload, &j.Error, &j.Done, &j.Total, &j.OwnerID,
-		&j.CreatedAt, &j.StartedAt, &j.FinishedAt}
+		&j.Attempts, &j.CreatedAt, &j.StartedAt, &j.FinishedAt}
 }
 
 // NewJob is a piece of work being asked for.
@@ -165,4 +167,30 @@ func (d *DB) FinishJob(ctx context.Context, id int64, state, problem string) err
 			state, problem, time.Now().UnixMilli(), id)
 		return err
 	})
+}
+
+// CancelJob records that a person stopped a job. It is that person's write, not background
+// work, so it does not wait behind whatever is holding background writes up.
+func (d *DB) CancelJob(ctx context.Context, id int64) error {
+	return d.write(context.WithoutCancel(ctx), User, func(tx *sql.Tx) error {
+		_, err := tx.Exec(`UPDATE jobs SET state = 'cancelled', last_error = NULL, finished_at = ? WHERE id = ? AND state IN ('waiting', 'running')`,
+			time.Now().UnixMilli(), id)
+		return err
+	})
+}
+
+// PauseJob puts a running job back to waiting when the server stops in good order, so that
+// the next start runs it again and does not count this run as one that was cut short.
+func (d *DB) PauseJob(ctx context.Context, id int64) error {
+	return d.write(ctx, User, func(tx *sql.Tx) error {
+		_, err := tx.Exec(`UPDATE jobs SET state = 'waiting', attempts = max(attempts - 1, 0) WHERE id = ? AND state = 'running'`, id)
+		return err
+	})
+}
+
+// ProfileOfUser reports whether a profile is still there and still belongs to an account.
+func (d *DB) ProfileOfUser(ctx context.Context, profileID, userID int64) (bool, error) {
+	var there bool
+	err := d.read.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM profiles WHERE id = ? AND user_id = ?)`, profileID, userID).Scan(&there)
+	return there, err
 }
