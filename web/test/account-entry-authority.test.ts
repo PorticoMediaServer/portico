@@ -33,7 +33,7 @@ async function fixture(required = true, recovery = false) {
     calls.push(path);
     if (path === '/v1/system') return systemAnswer(system);
     if (accountPath(path)) {directStarted = true; await directGate; return accountAnswer(path, snapshot());}
-    if (path === '/v1/direct/profiles/main/pin-reset') {profileRevision++;pinRevision++;return undefined;}
+    if (path === '/v1/profiles/main/pin') return undefined;
     if (path === '/v1/direct/two-factor/enrol') {enrolStarted = true;await enrolGate;return {secret: 'ABCDEFGHIJKLMNOP', uri: 'otpauth://totp/Actual?secret=ABCDEFGHIJKLMNOP', recoveryCodes: ['ephemeral-code']};}
     throw new Error('Unexpected fixture route');
   }) as HttpLocalApi['request'];

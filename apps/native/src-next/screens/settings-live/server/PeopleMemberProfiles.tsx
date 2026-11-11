@@ -40,7 +40,7 @@ export function Profiles({source, runtime}: {source: NativeMemberProfilesSource;
     {state.loading && <StateView title={t('status.loading')}/>}
     {state.changed && <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('error.changed')}</Text>}
     {state.error !== undefined && <StateView variant="inline" {...runtime.error(state.error, () => {void source.load();}, 'server-console')}/>}
-    {state.managing && <MemberProfileEditor key={`${state.managing.id}:${state.managing.revision}:${state.managing.restrictions.revision}`} source={source} profile={state.managing} runtime={runtime}/>}
+    {state.managing && <MemberProfileEditor key={`${state.managing.id}:${state.managing.revision}`} source={source} profile={state.managing} runtime={runtime}/>}
   </View>;
 }
 

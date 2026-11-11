@@ -29,10 +29,10 @@ function fixture() {
     calls.push({path, body});if (path === holdPath) await pending;
     if (path === '/v1/system') return systemAnswer(system);
     if (path === '/v1/auth/sign-in') return signInAnswer({...snapshot(), session: {...session, sessionFamilyId: ++signIns === 1 ? session.sessionFamilyId : 'successor-family'}, ...(passwordChange ? {passwordChangeRequired: true} : {})});
-    if (path === '/v1/direct/password') {passwordChange = false;return {};}
+    if (path === '/v1/auth/password') {passwordChange = false;return {};}
     if (accountPath(path)) return accountAnswer(path, snapshot());
-    if (path === '/v1/direct/two-factor/enrol') return enrolment;
-    if (path === '/v1/direct/two-factor/verify') return {enabled: true, pendingEnrolment: false, recoveryCodesRemaining: 1};
+    if (path === '/v1/me/two-factor') return {secret: enrolment.secret, uri: enrolment.uri};
+    if (path === '/v1/me/two-factor/confirm') return {recoveryCodes: enrolment.recoveryCodes};
     throw new Error('Unexpected fixture route: ' + path);
   }) as HttpLocalApi['request'];
   const entry = new BrowserAccountEntry({
@@ -55,6 +55,6 @@ async function dispatched(f: ReturnType<typeof fixture>, path: string) {
 test('a selected successor refuses setup before dispatching password or factor proof', async () => {
   const f = fixture();await signIn(f);f.replaceSelection();
   assert.equal(await f.entry.beginRequiredTwoStep(password), undefined);
-  assert.equal(await f.entry.confirmRequiredTwoStep(password, '123456'), false);
-  assert.equal(f.calls.some(call => call.path.includes('/two-factor/')), false);assert.equal(f.entry.getSnapshot().busy, false);f.entry.dispose();
+  assert.equal(await f.entry.confirmRequiredTwoStep(password, '123456'), undefined);
+  assert.equal(f.calls.some(call => call.path.includes('/two-factor')), false);assert.equal(f.entry.getSnapshot().busy, false);f.entry.dispose();
 });

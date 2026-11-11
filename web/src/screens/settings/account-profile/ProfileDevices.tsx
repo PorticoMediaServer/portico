@@ -14,7 +14,6 @@ export function ProfileDevices({source, isCurrent, onFailure, signOut}: {source:
   const [target, setTarget] = useState<Device>();
   const active = useRef<Device | undefined>(undefined), pending = useRef(false), live = useRef(true), trigger = useRef<HTMLElement | null>(null);
   useEffect(() => {live.current = true;void source.load();return () => {live.current = false;active.current = undefined;};}, [source]);
-  useEffect(() => {if (state.error && isCurrent()) onFailure();}, [state.error, isCurrent, onFailure]);
   const finish = () => {active.current = undefined;setTarget(undefined);};
   const close = () => {if (!pending.current) finish();};
   const run = async (captured: Device) => {
@@ -26,6 +25,8 @@ export function ProfileDevices({source, isCurrent, onFailure, signOut}: {source:
     } catch {if (live.current && isCurrent()) {finish();if (!source.getSnapshot().error) onFailure();}}
     finally {pending.current = false;}
   };
+  // A failure here says so in this section; the rest of the page stays.
+  if (isCurrent() && !state.devices && state.error) return <p role="status">{defaultI18n.t('error.title.load', {subject: 'devices'})}</p>;
   if (!isCurrent() || !state.devices) return null;
   return <>
     <ul className={styles.profiles} aria-label={t('next.settingsSpec.account.profile.groups.6.rows.0.label')}>

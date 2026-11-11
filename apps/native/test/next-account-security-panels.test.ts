@@ -31,8 +31,8 @@ async function fixture(kind: security.NativeAccountSecurityKind, enabled = false
     constructor(scope: any) {this.scope = scope;}
     async twoFactor() {assert.equal(this.scope.current(), true); return {enabled, pendingEnrolment: false, recoveryCodesRemaining: 2};}
     async changePassword(...args: any[]) {assert.equal(this.scope.current(), true); calls.push(['changePassword', ...args]); await passwordReply();}
-    async enrolTwoFactor(password: string) {assert.equal(this.scope.current(), true); calls.push(['enrolTwoFactor', password]); return {secret: 'ABCDEFGHIJKLMNOP', uri: 'otpauth://totp/Fixture?secret=ABCDEFGHIJKLMNOP', recoveryCodes: ['fixture-code-one', 'fixture-code-two']};}
-    async verifyTwoFactor(...args: any[]) {assert.equal(this.scope.current(), true); calls.push(['verifyTwoFactor', ...args]); return {enabled: true, pendingEnrolment: false, recoveryCodesRemaining: 2};}
+    async enrolTwoFactor(password: string) {assert.equal(this.scope.current(), true); calls.push(['enrolTwoFactor', password]); return {secret: 'ABCDEFGHIJKLMNOP', uri: 'otpauth://totp/Fixture?secret=ABCDEFGHIJKLMNOP'};}
+    async verifyTwoFactor(...args: any[]) {assert.equal(this.scope.current(), true); calls.push(['verifyTwoFactor', ...args]); return {enabled: true, pendingEnrolment: false, recoveryCodesRemaining: 2, recoveryCodes: ['fixture-code-one', 'fixture-code-two']};}
     async disableTwoFactor(...args: any[]) {assert.equal(this.scope.current(), true); calls.push(['disableTwoFactor', ...args]);}
     async replaceRecoveryCodes(...args: any[]) {calls.push(['replaceRecoveryCodes', ...args]); return ['replacement-one', 'replacement-two'];}
     async devices() {assert.equal(this.scope.current(), true); return devices;}

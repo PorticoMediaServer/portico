@@ -649,17 +649,17 @@ export class BrowserAccountEntry {
   try{const enrolment=await client.enrolTwoFactor(password);if(!op.current())return;this.publish({...state,busy:false,error:undefined});return enrolment;}
   catch(error){if(op.current())this.publish({...state,busy:false,error});}
  }
- async confirmRequiredTwoStep(password:string,code:string):Promise<boolean>{
-  if(!password||!code.trim())return false;
-  const attempt=this.requiredFactorAttempt();if(!attempt)return false;
+ /** Turns on the required two-step sign-in; the answer is its recovery codes, shown once. */
+ async confirmRequiredTwoStep(password:string,code:string):Promise<readonly string[]|undefined>{
+  if(!password||!code.trim())return undefined;
+  const attempt=this.requiredFactorAttempt();if(!attempt)return undefined;
   const {state,op,client,readSnapshot}=attempt;
   try{
    const factor=await client.verifyTwoFactor(password,code.trim());
-   if(!factor.enabled||factor.pendingEnrolment)throw new CodedError('invalid_response',unreadableServerResponse);
    const snapshot=await readSnapshot();
    if(snapshot.twoStepSetupRequired)throw new CodedError('invalid_response',unreadableServerResponse);
-   this.publish({...state,snapshot,phase:'profiles',busy:false,error:undefined});return true;
-  }catch(error){if(op.current())this.publish({...state,busy:false,error});return false;}
+   this.publish({...state,snapshot,phase:'profiles',busy:false,error:undefined});return factor.recoveryCodes;
+  }catch(error){if(op.current())this.publish({...state,busy:false,error});return undefined;}
  }
  /** Canonical return controllers already remembered a signed-in result. Only
   * reread its exact admitted selection; never repeat accept/remember here. */
@@ -875,7 +875,7 @@ export class BrowserAccountEntry {
    const fresh=parseDirectSnapshot(await readDirectAccount(api, op.signal),{authority:'local',accountId:snapshot.account.id,serverId:snapshot.serverId});
    if(!current())return;
    const target=fresh.profiles.find(profile=>profile.id===profileId);
-   if(fresh.account.revision!==snapshot.account.revision||fresh.account.disabled||fresh.twoStepSetupRequired||!target||target.pinRevision<=original.pinRevision||target.revision<original.revision)throw new CodedError('cancelled','The profile changed. Choose it again.');
+   if(fresh.account.disabled||fresh.twoStepSetupRequired||!target||!target.pinRequired)throw new CodedError('cancelled','The profile changed. Choose it again.');
    const after=await this.ports.store.read();if(!current())return;if(after.revision!==before.revision||!selected(after))throw new CodedError('cancelled','The server selection changed.');
    // Dispatch on this original API/session under this one operation. Never call
    // the public chooser later and let it discover a successor entry.
