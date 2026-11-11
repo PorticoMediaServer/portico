@@ -131,7 +131,11 @@ func (d *DB) ApplyDetails(ctx context.Context, p Priority, itemID int64, details
 	return d.write(ctx, p, func(tx *sql.Tx) error {
 		b := newBatchTx(tx)
 		defer b.close()
-		return applyDetails(b, itemID, &details, time.Now().UnixMilli())
+		now := time.Now().UnixMilli()
+		if err := applyDetails(b, itemID, &details, now); err != nil {
+			return err
+		}
+		return b.settleWatchedForAll(now)
 	})
 }
 
@@ -156,7 +160,7 @@ func (d *DB) ApplyChildren(ctx context.Context, p Priority, itemID int64, kind I
 				return err
 			}
 		}
-		return nil
+		return b.settleWatchedForAll(now)
 	})
 }
 
@@ -164,9 +168,9 @@ func applyDetails(b *batchTx, itemID int64, d *ItemDetails, now int64) error {
 	var library int64
 	var kind ItemKind
 	var locked, local, language sql.NullString
-	var root sql.NullInt64
-	err := b.queryRow(`SELECT i.library_id, i.kind, i.root_id, i.locked_fields, i.local_fields, l.language FROM items i
-		JOIN libraries l ON l.id = i.library_id WHERE i.id = ?`, itemID).Scan(&library, &kind, &root, &locked, &local, &language)
+	var root, ratedBefore sql.NullInt64
+	err := b.queryRow(`SELECT i.library_id, i.kind, i.root_id, i.rating_age, i.locked_fields, i.local_fields, l.language FROM items i
+		JOIN libraries l ON l.id = i.library_id WHERE i.id = ?`, itemID).Scan(&library, &kind, &root, &ratedBefore, &locked, &local, &language)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ErrNotFound
 	}
@@ -214,10 +218,19 @@ func applyDetails(b *batchTx, itemID int64, d *ItemDetails, now int64) error {
 	if _, err := b.exec(`UPDATE items SET `+sets+` WHERE id = ?`, append(args, itemID)...); err != nil {
 		return err
 	}
+	var ratedNow sql.NullInt64
+	if err := b.queryRow(`SELECT rating_age FROM items WHERE id = ?`, itemID).Scan(&ratedNow); err != nil {
+		return err
+	}
+	rated := ratedNow != ratedBefore
 	// An episode with no rating of its own uses its show's.
 	if d.ContentRating != "" && !keep[FieldContentRating] && !root.Valid {
-		if _, err := b.exec(`UPDATE items SET rating_age = ? WHERE root_id = ? AND content_rating IS NULL`, d.RatingAge, itemID); err != nil {
+		res, err := b.exec(`UPDATE items SET rating_age = ?1 WHERE root_id = ?2 AND content_rating IS NULL AND rating_age IS NOT ?1`, d.RatingAge, itemID)
+		if err != nil {
 			return err
+		}
+		if n, _ := res.RowsAffected(); n > 0 {
+			rated = true
 		}
 	}
 	for _, ext := range d.ExternalIDs {
@@ -255,10 +268,13 @@ func applyDetails(b *batchTx, itemID int64, d *ItemDetails, now int64) error {
 			return err
 		}
 	}
-	// The rating may have changed, on the title and on what is under it that has none of its
-	// own: the copies of it elsewhere follow in this transaction, after the tags are written.
-	if err := b.ratingChanged(itemID); err != nil {
-		return err
+	// Where the rating changed, on the title or on what is under it that has none of its own,
+	// the copies of it and the watched marks it decides follow in this transaction. A tag
+	// written just above took the present rating with it.
+	if rated {
+		if err := b.ratingChanged(itemID); err != nil {
+			return err
+		}
 	}
 	if len(d.Credits) > 0 && !keep[FieldCredits] {
 		if _, err := b.exec(`DELETE FROM credits WHERE item_id = ?`, itemID); err != nil {
