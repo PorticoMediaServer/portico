@@ -85,6 +85,8 @@ func run(log *slog.Logger) error {
 	}
 	// rclone, which remote sources run, stops with the server.
 	defer handler.RemoteSources().Close()
+	// While the owner has DLNA on, TVs at home are told the server is here.
+	go handler.AnnounceDLNA(ctx, *listen)
 	// The media engine plans and runs the streams. Its conversions folder is emptied at start:
 	// no stream outlives a restart.
 	engine, err := mediaengine.New(ctx, d, mediaengine.Options{Folder: filepath.Join(*data, "transcodes"), Log: log, Remote: handler.RemoteSources().Open})

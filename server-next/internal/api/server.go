@@ -22,6 +22,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/artwork"
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/dlna"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
 	"github.com/PorticoMediaServer/portico/server-next/internal/remote"
@@ -68,6 +69,9 @@ type Server struct {
 	remote *remote.Registry
 	// driveSignIns are Google sign-ins for Drive sources under way.
 	driveSignIns remote.DriveSignIns
+	// remoteAccessDoc is the remote-access settings, and dlna the DLNA server they switch. See dlna.go.
+	remoteAccessDoc remoteAccessState
+	dlna            *dlna.Server
 }
 
 // Route is one operation, kept so the contract can be generated and the operation budget counted.
@@ -180,8 +184,12 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	if err := s.loadNetworks(ctx); err != nil {
 		return nil, err
 	}
+	if err := s.loadRemoteAccess(ctx); err != nil {
+		return nil, err
+	}
 	s.systemRoutes()
 	s.networkRoutes()
+	s.dlnaRoutes()
 	s.identityRoutes()
 	s.authRoutes()
 	s.profileRoutes()
@@ -248,6 +256,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			s.writeError(w, r, errors.New("panic"))
 		}
 	}()
+	// DLNA answers on its own addresses, with no sign-in, to the home networks only.
+	if strings.HasPrefix(r.URL.Path, dlna.Prefix) {
+		s.dlna.ServeHTTP(w, r)
+		return
+	}
 	if _, pattern := s.mux.Handler(r); pattern == "" {
 		// A token that is no longer good is told so whatever the address, so an app that
 		// asks for something this server does not have still learns to renew its sign-in.
