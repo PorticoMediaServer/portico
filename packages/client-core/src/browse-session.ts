@@ -1,7 +1,7 @@
 import {BrowseQueryBuilder, type BrowseCapabilities, type BrowseNode, type BrowseResult, type BrowseSortSelection, type BrowseWholeSelection, type BrowseWholeSelectionUnavailable} from './browse.ts';
 import type {FetchPage} from './collections/windowed.ts';
 import type {ContentEntry} from './library-content.ts';
-import {countItems, entriesFromItems, readItems} from './items.ts';
+import {countItems, entriesFromItems, readFacet, readItems} from './items.ts';
 import {libraryItemQuery} from './library-browse.ts';
 import {linkAbortSignals} from './abort-lifetime.ts';
 import {isStaleAnswer} from './freshness-actions.ts';
@@ -61,6 +61,8 @@ export type BrowseSessionOptions<T> = Readonly<{
   onWhole?: (whole: BrowseWholeSelection) => void;
   onWholeUnavailable?: (value: BrowseWholeSelectionUnavailable | undefined) => void;
   onPage?: (page: BrowseResult) => void;
+  /** The list's exact length, or where each letter starts: each comes from its own request, after the first page is already shown. */
+  onFacts?: (facts: Readonly<{total?: number; positionIndex?: Readonly<Record<string, number>>}>) => void;
   /** The list ended under this query. Later pages refuse until a new session. */
   onStale?: (error: unknown) => void;
 }>;
@@ -85,6 +87,8 @@ export class BrowseSession<T> {
   private cursors = new Map<number, string>([[0, '']]);
   private total?: number;
   private counting?: Promise<void>;
+  private lettering?: Promise<void>;
+  private letters?: Readonly<Record<string, number>>;
   /** One walk at a time, so two pages never race for the same cursor. */
   private queue: Promise<unknown> = Promise.resolve();
   constructor(options: BrowseSessionOptions<T>) {
@@ -120,7 +124,17 @@ export class BrowseSession<T> {
     try {
       // The count is its own request and no page waits for it; until it answers the list is "at least this long".
       this.counting ??= countItems({request: <R>(path: string, method = 'GET', body?: unknown, input?: AbortSignal) => this.options.request(path, method, body, input ?? this.life.signal) as Promise<R>}, list, this.life.signal)
-        .then(total => {if (total !== undefined) this.total = total;}, () => undefined);
+        .then(total => {if (total !== undefined) {this.total = total; if (this.live()) this.options.onFacts?.({total});}}, () => undefined);
+      // The letter rail, for a list in title order: each first letter and how many titles begin with it.
+      const title = this.query.sorts[0]?.field === 'title' ? this.query.sorts[0] : undefined;
+      if (title) this.lettering ??= readFacet({request: <R>(path: string, method = 'GET', body?: unknown, input?: AbortSignal) => this.options.request(path, method, body, input ?? this.life.signal) as Promise<R>}, 'letter', list, this.life.signal)
+        .then(facet => {
+          const counts = title.direction === 'desc' ? [...facet.values].reverse() : facet.values, letters: Record<string, number> = {};
+          let position = 0;
+          for (const letter of counts) {letters[letter.value] = position; position += letter.count;}
+          this.letters = letters;
+          if (this.live()) this.options.onFacts?.({positionIndex: letters});
+        }).catch(() => undefined);
       // The next page follows its cursor; anywhere else (a scroll bar, a letter) opens the list at that position.
       const cursor = this.cursors.get(start);
       const page = await readItems(api, list, cursor ? {cursor, limit: count} : {at: start, limit: count}, active);
@@ -137,7 +151,7 @@ export class BrowseSession<T> {
       if (first) this.options.onRevision?.(this.pinned);
       this.options.onPage?.(result);
       if (!this.live() || signal.aborted) throw browseSessionClosed();
-      return {items: entries.map((entry, index) => this.options.item(entry, result, index)), total, ...(counted === undefined ? {totalIsLowerBound: true} : {}), positionIndex: {}};
+      return {items: entries.map((entry, index) => this.options.item(entry, result, index)), total, ...(counted === undefined ? {totalIsLowerBound: true} : {}), positionIndex: this.letters ?? {}};
     } catch (error) {
       if (!this.retired && this.options.current() && !signal.aborted && ended(error)) this.end(error);
       throw error;
