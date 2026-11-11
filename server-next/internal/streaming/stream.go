@@ -68,6 +68,9 @@ type stream struct {
 	// deaths counts the converter runs in a row that died without finishing a
 	// segment: see converterDeaths.
 	deaths int
+	// audioEnds is, by audio rendition, the first slot a converter that exited cleanly
+	// did not write: that track has no media from there (it is shorter than the title).
+	audioEnds map[int]int
 	// served is the furthest segment handed to the viewer: the position the
 	// throttle and the per-stream storage ceiling are measured against.
 	served int

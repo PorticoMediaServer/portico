@@ -42,12 +42,22 @@ func hlsSegmentIndex(name string) (int, bool) {
 
 func hlsSegmentFile(index int) string { return fmt.Sprintf("segment-%06d.ts", index) }
 
+// hlsShortestTail is the shortest last slot the grid lists. A shorter remainder (a film
+// of 12.021 s has 0.021 s after its second slot) belongs to the slot before it: a
+// converter started that close to the end may write nothing at all, and a listed slot
+// that never comes stalls the player. That slot is then up to 7 s, which the manifests'
+// target duration of 7 allows.
+const hlsShortestTail = 1.0
+
 // hlsSegmentCount is the number of grid slots one duration occupies.
 func hlsSegmentCount(duration float64) int {
 	if !hlsDurationSupported(duration) {
 		return 0
 	}
 	n := int(math.Ceil(duration / HLSSegmentSeconds))
+	if n > 1 && duration-float64((n-1)*HLSSegmentSeconds) < hlsShortestTail {
+		n--
+	}
 	if n < 1 {
 		n = 1
 	}
@@ -74,7 +84,8 @@ func hlsTimelineManifest(duration float64) []byte {
 	remaining := duration
 	for i := 0; i < count; i++ {
 		length := float64(HLSSegmentSeconds)
-		if remaining < length {
+		if remaining < length || i == count-1 {
+			// The last slot holds whatever is left, a short tail included.
 			length = remaining
 		}
 		if length <= 0 {
