@@ -83,7 +83,7 @@ func main() {
 		}
 		os.Exit(0)
 	}
-	mode := flag.String("mode", "", "import, rescan, mixed or tree")
+	mode := flag.String("mode", "", "import, rescan, mixed, crowd, tree or search")
 	path := flag.String("db", "main.db", "database file")
 	items := flag.Int("items", 20_000, "playable items: the library size for import and rescan, the size of each extra import for mixed")
 	seedValue := flag.Uint64("seed", 1, "seed of the library")
@@ -98,6 +98,8 @@ func main() {
 	crowdTime := flag.Duration("crowd-time", 4*time.Minute, "crowd: how long, with an import through the middle half")
 	streamFile := flag.String("stream-file", "", "crowd: a large file each stream reads a mebibyte a second of")
 	noSync := flag.Bool("no-sync", false, "commit without syncing to disk, to time everything but the disk")
+	flag.StringVar(&treeRoot, "tree", "", "a folder of real files: with it, import, rescan and mixed use the real scanner over it; -mode tree writes it")
+	flag.BoolVar(&realFiles, "real", false, "with -tree: the files are small real films and songs (made with ffmpeg) and the scanner reads them with the real prober")
 	flag.Parse()
 	log.SetFlags(log.Ltime)
 	if realFiles {
