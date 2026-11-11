@@ -53,7 +53,7 @@ func (e *Engine) measured(ctx context.Context, path string, place db.FileOnDisk)
 			// Not this request's: it outlives a plan that stopped waiting.
 			run, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 			defer cancel()
-			m.facts, m.index, m.err = e.streams.MeasureAudio(run, path, place.Size, time.Unix(0, place.ModifiedNS))
+			m.facts, m.index, m.err = e.place("").streams.MeasureAudio(run, path, place.Size, time.Unix(0, place.ModifiedNS))
 		}()
 	}
 	e.mu.Unlock()
