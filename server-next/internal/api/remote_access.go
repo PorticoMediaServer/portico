@@ -209,6 +209,10 @@ type remoteState struct {
 	// are loaded and valid for it. Until the server serves them (internal/tlsport), it is nil
 	// and they count as not usable. A reverse proxy at the own address (no files) needs none.
 	ownCertificateUsable func() bool
+	// zone is the Portico zone, "<name space>.portico.direct", once the server has one; the
+	// published addresses are named under it. onAddressesChange is told when they may change.
+	zone              string
+	onAddressesChange func()
 	// listenPort is the port the server listens on, the one the router forwards to.
 	listenPort int
 	// finder announces the server to apps at home while Find this server at home is on.
@@ -498,6 +502,9 @@ type RemoteAccessStatus struct {
 	// IdentityCode is the server's identity in twelve characters, for the owner to give to
 	// someone whose app asks for it.
 	IdentityCode string `json:"identityCode"`
+	// Addresses are the addresses this server publishes for its apps, home first, each with
+	// its port and, with a Portico Account, its Portico name.
+	Addresses []PublishedAddress `json:"addresses"`
 }
 
 // warningMessages are proposed wording, listed for the owner's approval.
@@ -576,7 +583,7 @@ func (s *Server) remoteStatus(r *http.Request) RemoteAccessStatus {
 	return RemoteAccessStatus{ThisDevice: ThisDevice{AtHome: s.fromHome(r), Address: s.remoteHost(r)},
 		Refused: s.access.refusedList(), RemoteSecurity: sec, Warnings: s.warnings(v, sec, s.networks()),
 		Certificate: s.certs.Status(), Router: s.ports.Status(), PublicAddress: s.public.Answer(),
-		IdentityCode: s.identity.code()}
+		IdentityCode: s.identity.code(), Addresses: s.PublishedAddresses()}
 }
 
 func (s *Server) setupFinished() bool {

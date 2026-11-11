@@ -59,8 +59,13 @@ func (s *Server) startSetup(ctx context.Context) error {
 	s.access.ownCertificateUsable = func() bool { return s.certs.Status().State == "ok" }
 	s.ports = portmap.New(s.log, nil)
 	s.public = publicaddr.New(s.log)
-	// When Portico Services is connected, a new public address is reported to it here.
-	s.public.OnChange = func(address string) { s.log.Info("this server's public address changed", "address", address) }
+	// A new public address, or a change of this machine's own, changes the addresses the
+	// server publishes; the signed document is sent again through OnAddressesChange.
+	s.public.OnChange = func(address string) {
+		s.log.Info("this server's public address changed", "address", address)
+		s.addressesChanged()
+	}
+	s.public.OnLocalChange = s.addressesChanged
 	if err := s.loadRemoteAccess(ctx); err != nil {
 		return err
 	}
