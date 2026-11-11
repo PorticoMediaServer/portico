@@ -102,7 +102,12 @@ func (s *Server) runStateJob(ctx context.Context, work jobs.Work) error {
 	for {
 		page, err := s.db.Items(ctx, v, q)
 		if err != nil {
-			return ctx.Err() // a cancel or a stop; otherwise the view itself has gone
+			if ctx.Err() != nil {
+				return ctx.Err() // a cancel or a stop
+			}
+			// The view has gone (its library was removed, or the profile may no longer see
+			// it) or could not be read. The job must not say it finished.
+			return fmt.Errorf("This view can no longer be read. %d titles were done and the rest were left as they were.", done)
 		}
 		if q.WithTotal {
 			total, q.WithTotal = int64(page.Total), false
