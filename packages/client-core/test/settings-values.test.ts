@@ -5,6 +5,7 @@ import {canonicalMusicQualityLadder} from '../../contracts/src/types.ts';
 import {parsePreferenceSnapshot, preferenceGroups, preferenceValue, validatePreferencePatch, withPreferencePatch, type PreferenceSnapshot, type PreferenceValue} from '../src/preferences.ts';
 import {settingsBinding, readSettingsBinding, settingsBindingPatch, readingSettingsProperty, exactPresetValue, presetPatch, changedFromDefault} from '../src/presentation/settings-bindings.ts';
 import {settingsRowIndex} from '../src/presentation/settings-spec.ts';
+import {settingsStructure} from '../src/presentation/settings-structure.ts';
 
 // How each settings row shows and saves a value, against `GET /v1/preferences` as the rebuilt server answers it.
 const answer = JSON.parse(readFileSync(new URL('./fixtures/next-preferences.json', import.meta.url), 'utf8'));
@@ -174,4 +175,13 @@ test('the list is read in published order and a save is checked against it befor
   assert.equal(outside.registry.fields.some(field => field.key === 'playback.skipBackMs'), false);
   // Only an answer with no device class or no list is refused.
   for (const broken of [null, {...answer, deviceClass: 'watch'}, {...answer, registry: {}}]) assert.throws(() => parsePreferenceSnapshot(broken));
+});
+
+test('the phone and TV quality list is the server\'s own ladder, so every choice it offers can be saved', () => {
+  const published = fresh().registry.fields.find(field => field.key === 'quality.home')!.allowedValues;
+  for (const platform of ['phone', 'tv'] as const) {
+    const rows = settingsStructure({platform, owner: false, capabilities: {}} as Parameters<typeof settingsStructure>[0]).headings.flatMap(h => h.pages.flatMap(p => p.sections.flatMap(s => s.rows)));
+    const home = rows.find(row => row.kind === 'preference' && row.key === 'quality.home') as {control: {choices: readonly {value: unknown}[]}};
+    assert.deepEqual(home.control.choices.map(choice => choice.value), published, platform);
+  }
 });
