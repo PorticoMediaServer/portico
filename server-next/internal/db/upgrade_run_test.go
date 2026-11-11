@@ -403,6 +403,57 @@ func TestAStepCanFinishItsBackgroundPartBeforeTheServerAnswers(t *testing.T) {
 	d.Close()
 }
 
+// When the work that must be finished before serving fails, the refusal names the copy
+// from before the upgrade, at the start that applied the step and at every start after.
+func TestAFailureBeforeServingNamesTheCopyFromBeforeTheUpgrade(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "main.db")
+	firstReleaseDatabase(t, path, 30)
+	steps := trialUpgrades(10)
+	steps[1].beforeServing = true
+	steps[1].background = func(tx *sql.Tx, after int64) (int64, bool, error) { return 0, false, errors.New("disk I/O error") }
+	useUpgrades(t, steps)
+	for start := 1; start <= 2; start++ {
+		_, err := Open(ctx, path)
+		if err == nil || !strings.Contains(err.Error(), "cannot start until it is finished") || !strings.Contains(err.Error(), copyPath(path, 1, 3)) {
+			t.Errorf("start %d: the refusal does not name the copy from before the upgrade: %v", start, err)
+		}
+	}
+}
+
+// Stopping the server while it finishes an upgrade before serving is not reported as a
+// failure, keeps what was done, and the next start carries on.
+func TestAStopDuringWorkBeforeServingIsNotAFailure(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "main.db")
+	firstReleaseDatabase(t, path, 30)
+	steps := trialUpgrades(10)
+	steps[1].beforeServing = true
+	ctx, stop := context.WithCancel(context.Background())
+	fill := steps[1].background
+	steps[1].background = func(tx *sql.Tx, after int64) (int64, bool, error) {
+		if after == 10 {
+			stop()
+		}
+		return fill(tx, after)
+	}
+	useUpgrades(t, steps)
+	_, err := Open(ctx, path)
+	if err == nil || !strings.Contains(err.Error(), "was stopped") || strings.Contains(err.Error(), "failed") {
+		t.Fatalf("a stop during the work: %v", err)
+	}
+	if s := readUpgradeState(t, path); s.version != 3 || !s.backgroundPending || s.backgroundAfter < 10 || s.wrongLengths != 0 {
+		t.Fatalf("after the stop the database is %+v, want version 3 with at least the first batch kept", s)
+	}
+	d, err := Open(context.Background(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Close()
+	if s := readUpgradeState(t, path); s.backgroundPending || !s.lengthIndex || s.wrongLengths != 0 {
+		t.Fatalf("after the next start the database is %+v, want the work finished", s)
+	}
+}
+
 func copyFile(t *testing.T, from, to string) {
 	t.Helper()
 	in, err := os.Open(from)
