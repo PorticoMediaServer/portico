@@ -212,7 +212,7 @@ func (s *Server) editMember(r *http.Request, req MemberEdit) (Member, error) {
 	}
 	var limits func(db.AccountLimits) (db.AccountLimits, error)
 	if req.Limits != nil {
-		limits = req.Limits.over
+		limits = req.Limits.over(caller.Role)
 	}
 	m, err := s.db.UpdateMember(r.Context(), db.MemberEdit{ActorID: caller.UserID, ActorRole: caller.Role, PublicID: r.PathValue("id"),
 		Role: req.Role, Disabled: req.Disabled, Notes: req.Notes, AllLibraries: req.AllLibraries, Libraries: req.Libraries,
