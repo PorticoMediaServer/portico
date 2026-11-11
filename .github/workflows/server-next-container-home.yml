@@ -1,0 +1,37 @@
+name: New server in a container counts nobody as at home until told
+# Runs the new server (server-next) in a real Docker container on a bridge network with a
+# published port, the way most people install it, and checks who it counts as at home: a
+# device on the container's network and one arriving through the host's published port from
+# another network are both away while the server is guessing, and once the owner lists the
+# first network as home that one is home and the other is still away.
+# Not part of ci/required.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/server-next-container-home.yml
+      - ci/server-next-container-home.sh
+      - server-next/internal/auth/network.go
+      - server-next/internal/api/network.go
+permissions:
+  contents: read
+concurrency:
+  group: server-next-container-home-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  container:
+    name: Home and away in a bridge-networked container
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server-next/go.mod, cache-dependency-path: server-next/go.sum}
+      - name: Build the server
+        run: cd server-next && CGO_ENABLED=0 go build -o "$RUNNER_TEMP/portico-server" ./cmd/portico-server
+      - name: Ask who is at home
+        run: bash ci/server-next-container-home.sh "$RUNNER_TEMP/portico-server"
+      - name: The server's log of a failed run
+        if: failure()
+        run: docker logs portico || true
