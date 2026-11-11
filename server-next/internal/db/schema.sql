@@ -697,7 +697,10 @@ CREATE TABLE sessions (
   last_used_at          INTEGER NOT NULL,
   revoked_at            INTEGER,
   revoked_reason        TEXT,
-  remote_addr           TEXT
+  remote_addr           TEXT,
+  -- When a main profile entered with a remembered PIN last counts as having typed it; NULL
+  -- when the PIN was typed and is not remembered, or there is none.
+  manage_until_at       INTEGER
 ) STRICT;
 CREATE INDEX sessions_user ON sessions (user_id);
 CREATE INDEX sessions_profile ON sessions (profile_id) WHERE profile_id IS NOT NULL;

@@ -292,7 +292,13 @@ type ProfileSelection struct {
 	Limits         []Limit
 	// AtHome says the request came from one of the owner's home networks.
 	AtHome bool
-	Now    time.Time
+	// Remembered: the device showed that it remembers the PIN instead of the PIN being typed.
+	// Wrong guesses are not at stake, and the PIN counts as not typed.
+	Remembered bool
+	// TypedFor, when not zero, is how long a typed PIN counts as just typed on a device that
+	// will remember it from now on.
+	TypedFor time.Duration
+	Now      time.Time
 }
 
 // SelectProfile makes the profile the session's own. Tokens the session held for another
@@ -316,7 +322,17 @@ func (d *DB) SelectProfile(ctx context.Context, s ProfileSelection) (SessionStat
 		if err != nil {
 			return err
 		}
-		if pin != "" {
+		var manageUntil any
+		if pin != "" && s.Remembered {
+			if !s.PINOK || pin != s.CheckedPINHash {
+				refused = ErrBadPIN
+				return nil
+			}
+			manageUntil = s.Now.UnixMilli()
+		} else if pin != "" {
+			if s.TypedFor > 0 {
+				manageUntil = s.Now.Add(s.TypedFor).UnixMilli()
+			}
 			wait, err := limitWait(ctx, tx, s.Now, s.Limits)
 			if err != nil {
 				return err
@@ -333,7 +349,8 @@ func (d *DB) SelectProfile(ctx context.Context, s ProfileSelection) (SessionStat
 				return err
 			}
 		}
-		res, err := tx.Exec(`UPDATE sessions SET profile_id = ? WHERE id = ? AND user_id = ? AND revoked_at IS NULL`, s.ProfileID, s.SessionID, s.UserID)
+		res, err := tx.Exec(`UPDATE sessions SET profile_id = ?, manage_until_at = ? WHERE id = ? AND user_id = ? AND revoked_at IS NULL`,
+			s.ProfileID, manageUntil, s.SessionID, s.UserID)
 		if err != nil {
 			return err
 		}
@@ -395,4 +412,36 @@ func (d *DB) ProfilePictureName(ctx context.Context, userID int64, publicID stri
 		return "", ErrNotFound
 	}
 	return name, err
+}
+
+// OrderProfiles puts an account's profiles in the order given, by public id. The list must
+// name every profile of the account once; anything else is ErrInvalid. The main profile is
+// always shown first, wherever the list has it.
+func (d *DB) OrderProfiles(ctx context.Context, userID int64, publicIDs []string, now time.Time) ([]Profile, error) {
+	err := d.write(ctx, User, func(tx *sql.Tx) error {
+		var count int
+		if err := tx.QueryRow(`SELECT count(*) FROM profiles WHERE user_id = ?`, userID).Scan(&count); err != nil {
+			return err
+		}
+		if count != len(publicIDs) {
+			return invalid("Send every profile of the account once, in the order wanted.")
+		}
+		for position, id := range publicIDs {
+			// Position 0 is never given out here, so a profile named twice is seen below.
+			res, err := tx.Exec(`UPDATE profiles SET position = ?, updated_at = ? WHERE user_id = ? AND public_id = ? AND position >= 0`,
+				-(position + 1), now.UnixMilli(), userID, id)
+			if err != nil {
+				return err
+			}
+			if n, _ := res.RowsAffected(); n != 1 {
+				return invalid("Send every profile of the account once, in the order wanted.")
+			}
+		}
+		_, err := tx.Exec(`UPDATE profiles SET position = -position WHERE user_id = ?`, userID)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return d.Profiles(ctx, userID)
 }

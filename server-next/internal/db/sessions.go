@@ -201,6 +201,9 @@ type SessionState struct {
 	MemberOnly bool
 	// Cast: a Cast receiver's sign-in, which can only play, on its one profile. See cast.go.
 	Cast bool
+	// ManageUntil is when the session's profile last counts as having had its PIN typed, on
+	// a device that remembers the PIN. Zero is no such limit.
+	ManageUntil time.Time
 	// Enrol: the session can only set up two-step sign-in. See NewSession.
 	Enrol bool
 
@@ -214,22 +217,25 @@ type SessionState struct {
 
 func sessionState(ctx context.Context, q queryer, id int64) (SessionState, error) {
 	var s SessionState
-	var expires, renewed int64
+	var expires, renewed, manageUntil int64
 	err := q.QueryRowContext(ctx, `
 		SELECT s.id, s.public_id, s.token_generation, s.expires_at, ifnull(s.previous_at, s.created_at),
 			s.revoked_at IS NOT NULL, s.refresh_hash, ifnull(s.previous_refresh_hash, ''), ifnull(s.previous_request_id, ''),
 			u.id, u.public_id, u.role, u.disabled_at IS NOT NULL,
-			ifnull(p.id, 0), ifnull(p.public_id, ''), ifnull(p.is_primary, 0), s.scope = 'member', s.scope = 'cast', s.scope = 'enrol',
+			ifnull(p.id, 0), ifnull(p.public_id, ''), ifnull(p.is_primary, 0), s.scope = 'member', s.scope = 'cast', s.scope = 'enrol', ifnull(s.manage_until_at, 0),
 			d.public_id, d.client_id
 		FROM sessions s JOIN users u ON u.id = s.user_id JOIN devices d ON d.id = s.device_id
 		LEFT JOIN profiles p ON p.id = s.profile_id
 		WHERE s.id = ?`, id).Scan(&s.ID, &s.PublicID, &s.Generation, &expires, &renewed,
 		&s.revoked, &s.refreshHash, &s.previousHash, &s.previousRequestID,
 		&s.UserID, &s.UserPublicID, &s.UserRole, &s.disabled,
-		&s.ProfileID, &s.ProfilePublicID, &s.ProfilePrimary, &s.MemberOnly, &s.Cast, &s.Enrol,
+		&s.ProfileID, &s.ProfilePublicID, &s.ProfilePrimary, &s.MemberOnly, &s.Cast, &s.Enrol, &manageUntil,
 		&s.DevicePublicID, &s.InstallationID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return s, ErrNotFound
+	}
+	if manageUntil != 0 {
+		s.ManageUntil = time.UnixMilli(manageUntil)
 	}
 	s.ExpiresAt, s.RenewedAt = time.UnixMilli(expires), time.UnixMilli(renewed)
 	return s, err

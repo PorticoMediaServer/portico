@@ -63,6 +63,10 @@ type Session struct {
 	DeviceID         string    `json:"deviceId"`
 	InstallationID   string    `json:"installationId"`
 	Viewer           Viewer    `json:"viewer"`
+	// PINToken is present after choosing a profile with its PIN and rememberPin: this device
+	// sends it in place of the PIN until PINTokenExpiresAt, or until the PIN changes.
+	PINToken          string     `json:"pinToken,omitempty"`
+	PINTokenExpiresAt *time.Time `json:"pinTokenExpiresAt,omitempty"`
 	// TwoStepSetupRequired says the owner requires two-step sign-in and this account has not
 	// set it up: until it has, the session can use only the two-step setup routes and
 	// GET /v1/me. Once set up, the app renews and carries on.
@@ -163,7 +167,11 @@ func claimsOf(st db.SessionState) auth.Claims {
 		// Held back until two-step sign-in is set up: no role and nothing to manage.
 		role, manage = "account", false
 	}
-	return auth.Claims{SessionID: st.ID, UserID: st.UserID, ProfileID: st.ProfileID, Role: role, Manage: manage, Enrol: st.Enrol,
+	var typedUntil int64
+	if manage && !st.ManageUntil.IsZero() {
+		typedUntil = st.ManageUntil.UnixMilli()
+	}
+	return auth.Claims{SessionID: st.ID, UserID: st.UserID, ProfileID: st.ProfileID, Role: role, Manage: manage, ManageUntil: typedUntil, Enrol: st.Enrol,
 		Boot: st.Stamp.Boot, Seq: st.Stamp.Seq}
 }
 
