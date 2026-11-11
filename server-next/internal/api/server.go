@@ -59,6 +59,8 @@ type Server struct {
 	metadata *metadata.Service
 	// providers is the owner's provider keys and switches. See metadata_settings.go.
 	providers providers
+	// subtitleSearches remembers recent subtitle searches. See subtitle_search.go.
+	subtitleSearches subtitleSearches
 	// remote opens the owner's remote sources. See remote_sources.go.
 	remote *remote.Registry
 }
