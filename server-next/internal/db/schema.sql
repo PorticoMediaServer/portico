@@ -237,6 +237,13 @@ CREATE TABLE items (
   -- upgrade must have it filled (RebuildCoveringLabels) before the server answers anyone:
   -- until then NULL would show a profile what its blocked labels hide.
   labels           TEXT,
+  -- For a show, season, artist or album: 1 when some playable title under it is rated or
+  -- covered by labels differently from it, so a profile may see it and none of what it
+  -- holds. Every other holder skips that check. Only flagHolders writes it, and ordinary
+  -- writes only ever set it (holder_flags.go). A database that gains this column by an
+  -- upgrade must have it filled (RebuildHolderFlags) before the server answers anyone:
+  -- until then a holder whose titles are all hidden from a profile still lists for it.
+  may_empty        INTEGER NOT NULL DEFAULT 0 CHECK (may_empty IN (0, 1)),
   last_child_added_at INTEGER,
   available        INTEGER NOT NULL DEFAULT 1 CHECK (available IN (0, 1)),
   missing_since_at INTEGER,
@@ -255,6 +262,8 @@ CREATE INDEX items_by_release ON items (library_id, kind, release_date, id, rati
 CREATE INDEX items_by_rating ON items (library_id, kind, rating_age);
 -- The few items a label covers, so "what does this label hide in this library" reads only them.
 CREATE INDEX items_labelled ON items (library_id, kind, labels) WHERE labels IS NOT NULL;
+-- The few holders a profile could be left with nothing under (see may_empty).
+CREATE INDEX items_may_empty ON items (library_id, kind) WHERE may_empty = 1;
 CREATE INDEX items_children ON items (parent_id, parent_index, index_number, id);
 -- Ends with rating_age for the same reason: what is under a title is counted for a profile
 -- with a rating limit from the index alone.

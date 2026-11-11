@@ -425,26 +425,29 @@ func total(ctx context.Context, tx *sql.Tx, where *query, acc access) (int, erro
 		count = where.tagTotal
 	}
 	err := tx.QueryRowContext(ctx, count, where.args...).Scan(&all)
-	if err != nil || len(acc.blockedTags) == 0 || all == 0 {
+	// What is hidden: the rows a blocked label covers, and the holders left with nothing the
+	// profile may see. Both are few, and found from their own small indexes.
+	var hiddenSets []string
+	if len(acc.blockedTags) > 0 {
+		kinds := where.kinds
+		if where.plainKinds != "" {
+			kinds = where.plainKinds
+		}
+		hiddenSets = append(hiddenSets, acc.blockedIDs(where.library, kinds))
+	}
+	if where.emptied != "" {
+		hiddenSets = append(hiddenSets, where.emptied)
+	}
+	if err != nil || len(hiddenSets) == 0 || all == 0 {
 		return all, err
 	}
+	hiddenSet := strings.Join(hiddenSets, " UNION ")
 	if where.plainKinds != "" {
-		// The whole of a library and kind: what is hidden in it is found from the labels alone,
-		// and then the shows or albums left with nothing the profile may see.
-		err = tx.QueryRowContext(ctx, `SELECT count(*) FROM (`+acc.blockedIDs(where.plainLibrary, where.plainKinds)+`)`).Scan(&hidden)
-		if emptied := acc.emptied(where.plainLibrary, where.holderKinds); err == nil && emptied != "" {
-			var holders int
-			err = tx.QueryRowContext(ctx, `SELECT count(*) FROM items i WHERE `+emptied).Scan(&holders)
-			hidden += holders
-		}
+		// The whole of a library and kind: what is hidden in it is counted from those alone.
+		err = tx.QueryRowContext(ctx, `SELECT count(*) FROM (`+hiddenSet+`)`).Scan(&hidden)
 	} else {
-		// The rows a label hides, and the holders it may have emptied, each checked in full.
-		candidates := acc.blockedIDs(where.library, where.kinds)
-		if where.holderKinds != "" || where.kinds == "" {
-			candidates += " UNION " + acc.emptiedCandidates(where.library)
-		}
 		err = tx.QueryRowContext(ctx, `SELECT count(*) FROM items i NOT INDEXED WHERE `+where.hiddenWhere()+
-			` AND i.id IN (`+candidates+`) AND NOT (1`+acc.unblocked("i")+where.holders+`)`, where.args...).Scan(&hidden)
+			` AND i.id IN (`+hiddenSet+`)`, where.args...).Scan(&hidden)
 	}
 	// What is hidden is counted within the same list, so it can never be more than the list.
 	// Should the two statements ever disagree, a total is still never less than nothing.
@@ -569,7 +572,6 @@ var rareTag = 2000
 func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access) (bool, error) {
 	w.add("(", acc.libraryVisible("i.library_id"), acc.rated("i", "{rated}"), "){labels}{holders}")
 	w.labels = acc.unblocked("i")
-	w.holders, w.ratedHolders = acc.filled("i", true), acc.filled("i", false)
 	scoped := false
 	var library int64
 	var kindList string
@@ -694,9 +696,7 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		// With nothing asked for but a library, kinds and the tag, the total reads no row of
 		// items: item_tags knows each tagged item's library, kind and rating, and what is
 		// under a tagged title is counted from an index that holds each one's rating too.
-		// A rating limit over shows or albums needs each one looked at for an episode or a
-		// track within the limit, so that total is counted row by row instead.
-		if library != 0 && under != "" && (w.ratedHolders == "" || w.holderKinds == "") && q.Parent == "" && q.Person == "" && q.YearFrom == 0 && q.YearTo == 0 &&
+		if library != 0 && under != "" && q.Parent == "" && q.Person == "" && q.YearFrom == 0 && q.YearTo == 0 &&
 			q.Favorite == nil && q.InList == nil && q.Watched == nil && q.Resolution == "" && len(q.Conditions) == 0 {
 			// When nothing of these kinds carries the tag itself, as with episodes, nothing can
 			// be counted twice, and each tagged title's run of descendants is simply counted.
@@ -771,6 +771,21 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 	}
 	if found, err := q.conditions(ctx, tx, w, &scoped); err != nil || !found {
 		return false, err
+	}
+	// A list that can hold shows, seasons, artists or albums leaves out those the viewer would
+	// find nothing under; one of films, episodes or tracks alone needs no such check.
+	// The holders are found once for the request, and are nearly always none.
+	if len(q.Kinds) == 0 || w.holderKinds != "" {
+		if set := acc.emptiedSet(library, w.holderKinds); set != "" {
+			emptied, err := ids(ctx, tx, set)
+			if err != nil {
+				return false, err
+			}
+			if len(emptied) > 0 {
+				w.holders = " AND i.id NOT IN " + intList(emptied)
+				w.emptied = "SELECT id FROM items WHERE id IN " + intList(emptied)
+			}
+		}
 	}
 	if !scoped {
 		return false, invalid("Choose a library, a title, a person, a genre, Favorites or My List to list.")
