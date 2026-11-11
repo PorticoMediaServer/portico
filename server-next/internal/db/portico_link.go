@@ -47,8 +47,15 @@ type Link struct {
 	CheckInTries  int   `json:"checkInTries,omitempty"`
 	DocumentAt    int64 `json:"documentAt,omitempty"`
 	DocumentTries int   `json:"documentTries,omitempty"`
-	// Unlinked: Portico Services said this link has ended (the owner removed the server from
-	// their account). Nothing more is asked until the server is linked again.
+	// Unknown counts the check-ins, at least a day apart, that Portico Services answered
+	// with "I do not know this server", and UnknownAt is when the last one was counted. One
+	// such answer proves nothing (Portico Services may have been put back empty), so the
+	// link ends only at the third. A good check-in sets both back to zero.
+	Unknown   int   `json:"unknown,omitempty"`
+	UnknownAt int64 `json:"unknownAt,omitempty"`
+	// Unlinked: this link has ended. Portico Services said so in a signed note (the owner
+	// removed the server from their account), or did not know the server three days running.
+	// Nothing more is asked until the server is linked again.
 	Unlinked bool `json:"unlinked,omitempty"`
 }
 
@@ -296,11 +303,11 @@ type Note struct {
 // numbers the caller acknowledges. Left and Unlinked count only when the note's revision is
 // higher than the last applied: a repeat, a late note and a note of an earlier link (whose
 // numbers all lie below this link's first) change nothing. A higher fleet number alone moves
-// only the fleet number, so no note is ever let through on its strength.
-func (d *DB) ApplyNote(ctx context.Context, n Note, now time.Time) (Link, error) {
-	var l Link
-	err := d.writeSessions(ctx, func(tx *sql.Tx, c *changes) error {
-		l = Link{}
+// only the fleet number, so no note is ever let through on its strength. changed says the
+// note wrote something.
+func (d *DB) ApplyNote(ctx context.Context, n Note, now time.Time) (l Link, changed bool, err error) {
+	err = d.writeSessions(ctx, func(tx *sql.Tx, c *changes) error {
+		l, changed = Link{}, false
 		had, err := readJSONSetting(ctx, tx, linkKey, &l)
 		if err != nil {
 			return err
@@ -312,6 +319,7 @@ func (d *DB) ApplyNote(ctx context.Context, n Note, now time.Time) (Link, error)
 			// Nothing new: a note anyone can send again must not cost a write each time.
 			return nil
 		}
+		changed = true
 		if n.Revision > l.NoteRevision {
 			if err := markLeft(tx, c, n.Left, now); err != nil {
 				return err
@@ -325,7 +333,7 @@ func (d *DB) ApplyNote(ctx context.Context, n Note, now time.Time) (Link, error)
 		}
 		return saveJSONSetting(tx, linkKey, l, now.UnixMilli())
 	})
-	return l, err
+	return l, changed, err
 }
 
 // MarkLeft turns off the accounts Portico Services answered a document with: ones that left
@@ -489,4 +497,84 @@ func joinWithPortico(tx *sql.Tx, p PorticoSignIn) (int64, error) {
 		return 0, err
 	}
 	return userID, audit(tx, userID, "invitation.accept", "", username, p.Now)
+}
+
+// LocalReset is the owner taking the server back to local sign-in from its own data folder,
+// with no sign-in at all: see ResetToLocalSignIn.
+type LocalReset struct {
+	// Username, in its stored form, and PasswordHash are the owner's from now on.
+	Username, PasswordHash string
+	// GiveUp is until when the one "this server has left" is tried.
+	GiveUp  time.Time
+	Session NewSession
+	Now     time.Time
+}
+
+// ResetToLocalSignIn switches a server that uses Portico Accounts to local sign-in in one
+// commit, for an owner who cannot sign in: the owner gets a username and password, every
+// sign-in ends, unused invitations and codes are cancelled, every other account waits to
+// move as after any switch, no account keeps a Portico Account, the link ends and its one
+// "this server has left" is queued. Nothing is deleted. It asks nobody, so it works with
+// Portico Services out of reach. A server with no link is ErrNoLink; a username another
+// account has is ErrConflict.
+func (d *DB) ResetToLocalSignIn(ctx context.Context, r LocalReset) (SessionState, error) {
+	var out SessionState
+	stamp, err := d.writeSessionsStamped(ctx, func(tx *sql.Tx, c *changes) error {
+		var l Link
+		if had, err := readJSONSetting(ctx, tx, linkKey, &l); err != nil {
+			return err
+		} else if !had {
+			return ErrNoLink
+		}
+		at := r.Now.UnixMilli()
+		var ownerID int64
+		if err := tx.QueryRow(`SELECT id FROM users WHERE role = 'owner'`).Scan(&ownerID); err != nil {
+			return err
+		}
+		var taken bool
+		if err := tx.QueryRow(`SELECT EXISTS (SELECT 1 FROM users WHERE username = ? AND id <> ?)`, r.Username, ownerID).Scan(&taken); err != nil {
+			return err
+		}
+		if taken {
+			return ErrConflict
+		}
+		if err := revoke(tx, c, r.Now, "sign_in_changed", `1 = 1`); err != nil {
+			return err
+		}
+		for _, statement := range []string{
+			`UPDATE invitations SET state = 'revoked' WHERE state = 'open'`,
+			`DELETE FROM auth_codes`,
+			`UPDATE users SET portico_account_id = NULL WHERE portico_account_id IS NOT NULL`,
+			// The kind of sign-in as the setup area records it: absent is local.
+			`DELETE FROM settings WHERE key = 'sign_in_kind'`,
+		} {
+			if _, err := tx.Exec(statement); err != nil {
+				return err
+			}
+		}
+		res, err := tx.Exec(`UPDATE users SET state = 'waiting', updated_at = ? WHERE id <> ? AND state = 'active'`, at, ownerID)
+		if err != nil {
+			return err
+		}
+		if waiting, _ := res.RowsAffected(); waiting > 0 {
+			// People waiting to move, as the setup area records a switch that has some.
+			if err := saveJSONSetting(tx, "sign_in_move", map[string]any{"to": "local", "at": at}, at); err != nil {
+				return err
+			}
+		}
+		if _, err := tx.Exec(`UPDATE users SET username = ?, password_hash = ?, password_changed_at = ?, state = 'active', disabled_at = NULL, updated_at = ?
+			WHERE id = ?`, r.Username, r.PasswordHash, at, at, ownerID); err != nil {
+			return err
+		}
+		if err := unlinkServer(tx, r.GiveUp, r.Now); err != nil {
+			return err
+		}
+		if err := audit(tx, ownerID, "sign_in.reset", "", "to local, from the data folder", r.Now); err != nil {
+			return err
+		}
+		out, err = startSession(tx, ownerID, r.Session, r.Now)
+		return err
+	})
+	out.Stamp = stamp
+	return out, err
 }

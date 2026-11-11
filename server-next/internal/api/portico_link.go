@@ -31,14 +31,19 @@ type porticoLink struct {
 	client *hosted.Client
 	// wake tells the background work that something changed.
 	wake chan struct{}
-	// stop ends the background work, and done closes when it has ended.
+	// run starts the background work; stop ends it, and done closes when it has ended.
+	run  func()
 	stop func()
 	done chan struct{}
 	// random draws the spread of every wait, in [0, 1).
 	random func() float64
-	// onLinked is told each time the server turns out to be linked: at start, and after
-	// every new link. The certificate client's Linked goes here.
-	onLinked func()
+	// onLinked is told, with the issue time of the link's approval, each time the server
+	// turns out to be linked: at start, and after every new link. A time it has not seen
+	// before means a new link. onUnlinked is told once when a link it was told of has ended:
+	// the server left, or the link is over. The certificate client's Linked and Unlinked go
+	// here, so that it too stops calling Portico Services.
+	onLinked   func(issuedAt time.Time)
+	onUnlinked func()
 	// published is the port and addresses the server publishes in its document, once remote
 	// access finds them; nil publishes none.
 	published func() (port int, addresses []string)
@@ -54,7 +59,14 @@ type porticoLink struct {
 	// answered, until each runs out.
 	challengeKey []byte
 	used         map[string]time.Time
+	// resetCode is the setup code that switches the server to local sign-in, when the owner
+	// asked for one from the data folder; see portico_reset.go.
+	resetCode string
 }
+
+// porticoTransport carries the server's calls to Portico Services; nil is the ordinary one.
+// The tests of this package set it to one that refuses, so no test can reach the real service.
+var porticoTransport http.RoundTripper
 
 func (l *porticoLink) setProblem(problem string) {
 	l.mu.Lock()
@@ -66,20 +78,25 @@ func (l *porticoLink) setProblem(problem string) {
 // document has changed. It is not a call to anyone.
 const porticoTick = time.Minute
 
-// startPortico builds the client and starts the background work. It contacts nothing.
+// startPortico builds the client and the routes. It contacts nothing. The background work
+// is started by startSetup, after the hooks it calls have been set.
 func (s *Server) startPortico(ctx context.Context) error {
 	ctx, stop := context.WithCancel(ctx)
 	s.link = &porticoLink{wake: make(chan struct{}, 1), stop: stop, done: make(chan struct{}), random: rand.Float64,
 		challengeKey: porticoChallengeSecret(), used: map[string]time.Time{},
-		client: hosted.New(hosted.Options{ServerID: s.id, Key: s.identity.key, Now: func() time.Time { return s.now() }})}
+		client: hosted.New(hosted.Options{HTTP: &http.Client{Transport: porticoTransport}, ServerID: s.id, Key: s.identity.key,
+			Now: func() time.Time { return s.now() }})}
 	s.hosted = s.link.client
 	if link, linked, err := s.db.Link(ctx); err != nil {
 		return err
 	} else if linked {
 		s.link.client.Keep(parseCertificate(link.Certificate))
 	}
+	if err := s.loadSignInReset(ctx); err != nil {
+		return err
+	}
 	s.porticoRoutes()
-	go s.runPortico(ctx)
+	s.link.run = func() { go s.runPortico(ctx) }
 	return nil
 }
 
@@ -127,7 +144,9 @@ func sooner(a, b time.Time) time.Time {
 func retryWait(policy schedule.Retry, tries *int, err error, r float64) time.Duration {
 	var busy *hosted.BusyError
 	if errors.As(err, &busy) {
-		return schedule.After(busy.Wait)
+		// Never longer than a day: one answer that says years, a fault at Portico Services,
+		// must not silence this server for good.
+		return min(schedule.After(busy.Wait), 24*time.Hour)
 	}
 	wait := policy.Wait(*tries, r)
 	*tries++
@@ -175,16 +194,23 @@ func (s *Server) porticoStep(ctx context.Context) time.Time {
 	s.link.mu.Lock()
 	first := !s.link.started
 	s.link.started = true
-	tell := linked && !link.Unlinked && s.link.told != link.IssuedAt && s.link.onLinked != nil
+	live := linked && !link.Unlinked
+	tell := live && s.link.told != link.IssuedAt && s.link.onLinked != nil
+	ended := !live && s.link.told != 0
 	if tell {
 		s.link.told = link.IssuedAt
+	} else if ended {
+		s.link.told = 0
 	}
 	s.link.mu.Unlock()
-	if !linked || link.Unlinked {
+	if ended && s.link.onUnlinked != nil {
+		s.link.onUnlinked()
+	}
+	if !live {
 		return next
 	}
 	if tell {
-		s.link.onLinked()
+		s.link.onLinked(time.Unix(link.IssuedAt, 0))
 	}
 	update := func(change func(*db.Link)) bool {
 		link, err = s.db.UpdateLink(ctx, link.IssuedAt, now, change)
@@ -217,7 +243,8 @@ func (s *Server) porticoStep(ctx context.Context) time.Time {
 			return next
 		}
 	}
-	if link.DocumentSent < link.DocumentRevision && doc.OwnerAccountID != "" {
+	// While Portico Services says it does not know this server, only the daily check-in asks.
+	if link.DocumentSent < link.DocumentRevision && doc.OwnerAccountID != "" && link.Unknown == 0 {
 		if link.DocumentAt > now.Unix() {
 			next = sooner(next, time.Unix(link.DocumentAt, 0))
 		} else if !s.sendDocument(ctx, &link, doc, now, update) {
@@ -234,11 +261,17 @@ func (s *Server) porticoStep(ctx context.Context) time.Time {
 		NoteRevision: link.NoteRevision, Fleet: link.Fleet})
 	s.porticoProblem(failed)
 	if errors.Is(failed, hosted.ErrUnknownServer) {
-		update(func(l *db.Link) { l.Unlinked = true })
-		return next
+		if update(func(l *db.Link) { unknownServer(l, s.id, now) }) && link.Unlinked {
+			s.log.Warn("Portico Services has not known this server on three check-ins: its link has ended")
+			return now
+		}
+		return sooner(next, time.Unix(link.CheckInAt, 0))
 	}
 	if !update(func(l *db.Link) {
 		checkedIn(l, s.id, now, failed, s.link.random())
+		if failed == nil {
+			l.Unknown, l.UnknownAt = 0, 0
+		}
 		// A newer signing certificate that came with the answer is kept across restarts.
 		if held := s.link.client.Certificate(); held != nil && held.Revision > l.CertificateRevision {
 			l.Certificate, _ = json.Marshal(held)
@@ -271,18 +304,20 @@ func (s *Server) sendDocument(ctx context.Context, link *db.Link, doc hosted.Doc
 	doc.Revision = link.DocumentRevision
 	stored, err := s.link.client.SendDocument(ctx, time.Unix(link.IssuedAt, 0), doc)
 	s.porticoProblem(err)
-	if errors.Is(err, hosted.ErrUnknownServer) {
-		update(func(l *db.Link) { l.Unlinked = true })
-		return false
-	}
 	if !update(func(l *db.Link) {
 		switch {
 		case err != nil:
+			// "I do not know this server" included: the daily check-in is what judges that.
 			l.DocumentAt = now.Add(retryWait(schedule.ChangeRetry, &l.DocumentTries, err, s.link.random())).Unix()
 		case stored.Revision > l.DocumentRevision:
 			// Portico Services holds a later revision than this server knows of (a database
-			// put back from a backup): go above it and send again.
-			l.DocumentRevision, l.DocumentAt, l.DocumentTries = stored.Revision+1, 0, 0
+			// put back from a backup): go above it and send again, at once the first time
+			// and on the usual backoff if it keeps happening.
+			l.DocumentRevision, l.DocumentAt = stored.Revision+1, 0
+			if l.DocumentTries > 0 {
+				l.DocumentAt = now.Add(schedule.ChangeRetry.Wait(l.DocumentTries, s.link.random())).Unix()
+			}
+			l.DocumentTries++
 			l.LastContact = now.Unix()
 		default:
 			l.DocumentSent, l.DocumentAt, l.DocumentTries = doc.Revision, 0, 0
@@ -363,15 +398,51 @@ const (
 	msgPorticoBusy        = "Portico Services is busy. This server will try again shortly."
 	msgPorticoClock       = "This server's clock is wrong, so Portico Services can't accept its requests. Correct the clock."
 	msgPorticoUnlinked    = "This server is no longer linked to a Portico Account. Link it again, or switch to local sign-in."
+	msgPorticoUnknown     = "Portico Services doesn't recognise this server right now. People who are signed in are not affected. " +
+		"If this lasts three days, nobody will be able to sign in with a Portico Account until you link this server again."
+	msgPorticoOwner = "Portico Services can't list this server: the Portico Account of its owner has not approved it. " +
+		"Change owner again and have the new owner approve with their Portico Account, or link this server again."
+	msgPorticoDetails = "Portico Services didn't accept this server's details, so the server isn't listed in people's apps. " +
+		"Give the server a name of at most 120 characters on one line; if that doesn't help, link this server again."
 )
+
+// unknownDays is how many check-ins, at least a day apart, must find Portico Services not
+// knowing this server before its link is taken to have ended.
+const unknownDays = 3
+
+// unknownServer records a check-in answered with "I do not know this server". The answer
+// carries no signature and Portico Services' own records can be lost, so one such answer
+// changes nothing but what the owner is shown. The next check-in is on the server's own
+// second, a day on; the link ends at the third.
+func unknownServer(l *db.Link, serverID string, now time.Time) {
+	if l.UnknownAt == 0 || now.Unix()-l.UnknownAt >= int64(24*time.Hour/time.Second) {
+		l.Unknown++
+		l.UnknownAt = now.Unix()
+	}
+	l.CheckInTries = 0
+	l.CheckInAt = schedule.NextCheckIn(serverID, now).Unix()
+	if l.Unknown >= unknownDays {
+		l.Unlinked = true
+	}
+}
 
 // porticoProblem keeps why the last background call failed, for the owner.
 func (s *Server) porticoProblem(err error) {
 	var busy *hosted.BusyError
 	var clock *hosted.ClockError
+	var refused *hosted.RefusedError
 	switch {
 	case err == nil, errors.Is(err, hosted.ErrUnknownServer):
+		// "Unknown" is shown from the link itself, which counts it.
 		s.link.setProblem("")
+	case errors.As(err, &refused):
+		// An answer, and a no: trying again changes nothing until the owner does something.
+		if refused.Code == "owner_not_approved" {
+			s.link.setProblem(msgPorticoOwner)
+		} else {
+			s.link.setProblem(msgPorticoDetails)
+		}
+		s.log.Warn("Portico Services refused a request from this server", "status", refused.Status, "code", refused.Code, "answer", refused.Detail)
 	case errors.As(err, &busy):
 		s.link.setProblem(msgPorticoBusy)
 	case errors.As(err, &clock):
@@ -395,11 +466,14 @@ func (s *Server) applyNote(ctx context.Context, envelope trust.Envelope) (trust.
 		in.Certificate, _ = json.Marshal(held)
 		in.CertificateRevision = held.Revision
 	}
-	link, err := s.db.ApplyNote(ctx, in, s.now())
+	link, changed, err := s.db.ApplyNote(ctx, in, s.now())
 	if err != nil {
 		return trust.SignedAck{}, err
 	}
-	s.porticoWake()
+	if changed {
+		// Only then: a note anyone can send again must not set the background work going.
+		s.porticoWake()
+	}
 	return s.link.client.Ack(link.NoteRevision, link.Fleet), nil
 }
 
@@ -408,6 +482,7 @@ func (s *Server) applyNote(ctx context.Context, envelope trust.Envelope) (trust.
 func porticoError(err error) error {
 	var busy *hosted.BusyError
 	var clock *hosted.ClockError
+	var refused *hosted.RefusedError
 	switch {
 	case errors.As(err, &busy):
 		e := refusal(http.StatusServiceUnavailable, "services_busy", "Portico Services is busy. Try again in a minute.", true)
@@ -418,6 +493,9 @@ func porticoError(err error) error {
 			"This server's clock is "+clockOff(clock.Off)+" out, so Portico Services can't accept its requests. Correct the server's clock, then try again.", false)
 	case errors.Is(err, hosted.ErrDeclined):
 		return ErrConflict("approval_declined", "The server wasn't approved. Nothing has changed; start again.")
+	case errors.As(err, &refused):
+		return refusal(http.StatusBadGateway, "services_refused", "Portico Services didn't accept this server's details. "+
+			"Give the server a name of at most 120 characters on one line, then try again.", false)
 	case errors.Is(err, hosted.ErrNotConnected), errors.Is(err, hosted.ErrUnknownServer):
 		e := refusal(http.StatusServiceUnavailable, "services_unreachable", "Portico Services can't be reached. Try again later.", true)
 		e.RetryAfterMs = 30_000
@@ -515,8 +593,11 @@ func (s *Server) porticoLinkState(r *http.Request, _ None) (PorticoLinkState, er
 	s.link.mu.Lock()
 	out.Problem = s.link.problem
 	s.link.mu.Unlock()
-	if link.Unlinked {
+	switch {
+	case link.Unlinked:
 		out.State, out.Problem, out.Listed = "unlinked", msgPorticoUnlinked, false
+	case link.Unknown > 0:
+		out.Problem, out.Listed = msgPorticoUnknown, false
 	}
 	return out, nil
 }

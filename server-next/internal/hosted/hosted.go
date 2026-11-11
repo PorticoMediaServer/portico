@@ -43,6 +43,19 @@ type ClockError struct{ Off time.Duration }
 
 func (e *ClockError) Error() string { return fmt.Sprintf("this server's clock is %s out", e.Off) }
 
+// RefusedError: Portico Services answered and said no, for a reason that trying again will
+// not change by itself. Code is its word for the reason ("owner_not_approved", "invalid");
+// Detail is its whole answer, for the log.
+type RefusedError struct {
+	Status int
+	Code   string
+	Detail string
+}
+
+func (e *RefusedError) Error() string {
+	return fmt.Sprintf("portico services refused the request: %d %s", e.Status, e.Code)
+}
+
 // Purpose is what an approval is for. The words are the contract's.
 type Purpose string
 

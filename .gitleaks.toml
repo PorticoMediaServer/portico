@@ -14,6 +14,14 @@ paths = ['''^web(?:-next)?/src/platform/account-entry\.ts$''']
 regexTarget = "match"
 regexes = ['''^this\.api,proof=this\.moveProof;$''']
 
+# The copied Portico Services trust folder carries one fixture written by the
+# first service, made from fixed test phrases; its sealing fields are sample
+# values no key ever protected. The copy must stay byte for byte, so the
+# exception is this one file for this one rule.
+[[rules.allowlists]]
+description = "Portico Services trust fixture from the first service"
+paths = ['''^server-next/internal/hosted/trust/testdata/old_service\.json$''']
+
 # Earlier commits of the regression fixture quote that same non-secret code.
 # Keep the exception on that one literal line; real keys in the helper still fail.
 [[rules.allowlists]]
