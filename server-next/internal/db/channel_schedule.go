@@ -193,6 +193,9 @@ func (sel ChannelSelection) where(ctx context.Context, tx *sql.Tx, q *query) err
 		if match, err = conditionGroup(ctx, tx, q, sel.Match, sel.Conditions); err != nil {
 			return err
 		}
+		if match == "" {
+			match = "1"
+		}
 	}
 	if !sel.AddedSince.IsZero() {
 		match = "(" + match + ") AND i.added_at >= " + q.arg(sel.AddedSince.UnixMilli())
@@ -223,7 +226,9 @@ func conditionGroup(ctx context.Context, tx *sql.Tx, q *query, match string, con
 		var err error
 		switch {
 		case c.group():
-			part, err = conditionGroup(ctx, tx, q, c.Match, c.Conditions)
+			if part, err = conditionGroup(ctx, tx, q, c.Match, c.Conditions); err == nil && part == "" {
+				continue // an empty group, or one of conditions this server cannot test
+			}
 		case !c.Known():
 			continue // a condition this server cannot test
 		default:
@@ -240,12 +245,10 @@ func conditionGroup(ctx context.Context, tx *sql.Tx, q *query, match string, con
 			return "", err
 		}
 		if c.Exclude {
-			part = "NOT (" + part + ")"
+			// A title the condition does not match, including one with no value, is kept.
+			part = "NOT ifnull((" + part + "), 0)"
 		}
 		parts = append(parts, "("+part+")")
-	}
-	if len(parts) == 0 {
-		return neutral, nil
 	}
 	return strings.Join(parts, joiner), nil
 }
