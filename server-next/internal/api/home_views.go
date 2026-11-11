@@ -1,9 +1,11 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 )
@@ -13,14 +15,18 @@ import (
 // a row "view:<id>", named after the view, placed and hidden by home.rowOrder and
 // home.hiddenRowIds like any row.
 //
-// A row's titles cost one read of the view's list, so Home fills only the first
-// filledViewRows of them, in the profile's order, whatever the profile put on Home. The rest
-// are sent deferred, with no items: the app reads them with GET /v1/items?library=…&{query}
-// when they come near the screen, and leaves one out that turns out empty.
+// A row's titles cost one read of the view's list, and some views are slow to read (a random
+// order over a whole library is), so Home fills only the first filledViewRows of them, in the
+// profile's order, and stops when those reads have taken viewRowsBudget: the read under way
+// is stopped. The rest are sent deferred, with no items: the app reads them with
+// GET /v1/items?library=…&{query} when they come near the screen, and leaves one out that
+// turns out empty. Whatever a profile puts on Home, it costs at most the budget more.
 const (
 	filledViewRows = 4
-	viewRowItems   = 20
+	viewRowLength  = 20
 )
+
+var viewRowsBudget = 40 * time.Millisecond
 
 // savedViewRows are the profile's saved-view rows in the order it put them on Home, without
 // items. An id that names no saved view the profile may read gives no row and no name.
@@ -50,6 +56,8 @@ func (s *Server) savedViewRows(r *http.Request) ([]HomeRow, error) {
 
 // fillViewRows reads the titles of the first saved-view rows Home shows, in place.
 func (s *Server) fillViewRows(r *http.Request, rows []HomeRow) error {
+	ctx, cancel := context.WithTimeout(r.Context(), viewRowsBudget)
+	defer cancel()
 	filled := 0
 	for n := range rows {
 		row := &rows[n]
@@ -60,7 +68,11 @@ func (s *Server) fillViewRows(r *http.Request, rows []HomeRow) error {
 			continue
 		}
 		filled++
-		items, err := s.viewRowItems(r, row.Library, row.Query)
+		items, err := s.viewRowItems(ctx, r, row.Library, row.Query)
+		if ctx.Err() != nil && r.Context().Err() == nil {
+			filled = filledViewRows // out of time: this row and the rest stay deferred
+			continue
+		}
 		if err != nil {
 			return err
 		}
@@ -72,7 +84,7 @@ func (s *Server) fillViewRows(r *http.Request, rows []HomeRow) error {
 // viewRowItems reads the first titles of a saved view. When that finds nothing, the view is
 // read again as it opens (see openView): a filter naming something that no longer exists is
 // left out, as it is when the person opens the view.
-func (s *Server) viewRowItems(r *http.Request, library, query string) ([]Item, error) {
+func (s *Server) viewRowItems(ctx context.Context, r *http.Request, library, query string) ([]Item, error) {
 	read := func(query string) ([]Item, error) {
 		values, err := url.ParseQuery(query)
 		if err != nil {
@@ -82,8 +94,8 @@ func (s *Server) viewRowItems(r *http.Request, library, query string) ([]Item, e
 		if err != nil {
 			return nil, db.ErrInvalid
 		}
-		q.Library, q.Limit, q.WithTotal = library, viewRowItems, false
-		page, err := s.db.Items(r.Context(), viewer(r), q)
+		q.Library, q.Limit, q.WithTotal = library, viewRowLength, false
+		page, err := s.db.Items(ctx, viewer(r), q)
 		if errors.Is(err, db.ErrNotFound) || errors.Is(err, db.ErrInvalid) {
 			return []Item{}, nil
 		}
