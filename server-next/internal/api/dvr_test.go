@@ -140,7 +140,7 @@ func TestAProgrammeIsRecordedIntoTheRecordedTVLibrary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.now = func() time.Time { return time.Now().Add(6 * time.Hour) }
+	s.setClock(func() time.Time { return time.Now().Add(6 * time.Hour) })
 	owner, _ = s.tokens.Access(claims, s.now(), s.now().Add(time.Hour))
 	s.recorder.Resume(context.Background())
 	if got := get[Recording](t, s, owner, "/v1/dvr/recordings/"+later.ID); got.State != "failed" || got.Reason != "The server was off" {
