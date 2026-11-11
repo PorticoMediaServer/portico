@@ -53,23 +53,30 @@ func token(n int) string {
 // IsLive says whether a playback session id names a live viewing.
 func IsLive(id string) bool { return strings.HasPrefix(id, "lvs_") }
 
-// Start records a viewing of an input the caller has already tuned with use. A device
-// watching something else live stops watching it.
-func (v *Viewings) Start(userID, profileID, signInID int64, channelID string, in *Input, use *Use) *Viewing {
+// StopDevice ends what one sign-in is watching live, before it tunes something else: changing
+// channel gives its tuner back first, so a device can change channel on a source whose tuners
+// are all in use, one of them by the device itself.
+func (v *Viewings) StopDevice(userID, signInID int64) {
 	v.mu.Lock()
-	var replaced []*Viewing
+	var mine []*Viewing
 	for _, other := range v.byID {
-		if signInID != 0 && other.SignInID == signInID {
-			replaced = append(replaced, other)
+		if other.UserID == userID && other.SignInID == signInID {
+			mine = append(mine, other)
 		}
 	}
+	v.mu.Unlock()
+	for _, w := range mine {
+		v.Stop(w.ID, userID)
+	}
+}
+
+// Start records a viewing of an input the caller has already tuned with use.
+func (v *Viewings) Start(userID, profileID, signInID int64, channelID string, in *Input, use *Use) *Viewing {
+	v.mu.Lock()
 	w := &Viewing{ID: "lvs_" + token(10), UserID: userID, ProfileID: profileID, SignInID: signInID, ChannelID: channelID, Grant: token(24),
 		Input: in, use: use, Lease: v.now().Add(Lease)}
 	v.byID[w.ID], v.byGrant[w.Grant] = w, w
 	v.mu.Unlock()
-	for _, old := range replaced {
-		v.Stop(old.ID, old.UserID)
-	}
 	return w
 }
 
@@ -121,13 +128,14 @@ func (v *Viewings) Stop(id string, userID int64) {
 	w.Input.Leave(w.use)
 }
 
-// Count is how many live viewings an account has, and the server altogether, for stream limits.
-func (v *Viewings) Count(userID int64) (account, total int) {
+// Count is how many live viewings an account has on other sign-ins, and the server
+// altogether, for stream limits: the asking device's own is about to be replaced.
+func (v *Viewings) Count(userID, signInID int64) (account, total int) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	for _, w := range v.byID {
 		total++
-		if w.UserID == userID {
+		if w.UserID == userID && w.SignInID != signInID {
 			account++
 		}
 	}
