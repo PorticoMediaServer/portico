@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
@@ -203,5 +204,60 @@ func TestACueAlbumOfTwentyTracks(t *testing.T) {
 	}
 	if len(tracks) != 20 || len(starts) != 20 || tracks[20].Title != "Song 20" {
 		t.Fatalf("%d tracks at %d places; want 20 of each", len(tracks), len(starts))
+	}
+}
+
+// A folder of pictures in a comics library is one comic whose pages are its pictures in
+// natural order, the cover first. Pictures beside a comic file, and a folder holding only
+// artwork, are not comics.
+func TestAFolderOfPicturesIsAComic(t *testing.T) {
+	f := newFixture(t, db.LibraryComics)
+	for _, page := range []string{"010.jpg", "002.jpg", "001.jpg", "cover.jpg"} {
+		f.write("Saga/Saga 003 (2012)/" + page)
+	}
+	f.write("Saga/Saga 001 (2012).cbz")
+	f.write("Saga/folder.jpg") // artwork of the series, beside its issues
+	for _, page := range []string{"10.png", "2.png", "1.png"} {
+		f.write("One Shot/" + page)
+	}
+	f.write("Artwork Only/poster.jpg")
+	f.write("Artwork Only/fanart.jpg")
+	f.scan()
+	pages := func(id string) []string {
+		t.Helper()
+		versions := f.detail(id).Versions
+		if len(versions) != 1 {
+			t.Fatalf("%d versions; want one", len(versions))
+		}
+		var names []string
+		for _, part := range versions[0].Parts {
+			names = append(names, part.Name)
+		}
+		return names
+	}
+	saga := f.children(f.titles(db.KindSeries)["Saga"].PublicID)
+	if len(saga) != 2 || saga[1].PublicID == "" || saga[3].PublicID == "" {
+		t.Fatalf("Saga's issues: %v", saga)
+	}
+	if got := pages(saga[3].PublicID); strings.Join(got, " ") != "cover.jpg 001.jpg 002.jpg 010.jpg" {
+		t.Fatalf("the picture issue's pages: %v", got)
+	}
+	comics := f.titles(db.KindComic)
+	if len(comics) != 1 || comics["One Shot"].PublicID == "" {
+		t.Fatalf("comics by themselves: %v; want only One Shot", keys(comics))
+	}
+	if got := pages(comics["One Shot"].PublicID); strings.Join(got, " ") != "1.png 2.png 10.png" {
+		t.Fatalf("One Shot's pages: %v", got)
+	}
+	if again := f.scan(); again.RowsWritten != 0 {
+		t.Fatalf("an unchanged rescan wrote %d rows", again.RowsWritten)
+	}
+	// A page added later joins the same comic at its place.
+	f.write("One Shot/3.png")
+	if stats := f.scan(); stats.ItemsNew != 0 {
+		t.Fatalf("a new page made %d new titles", stats.ItemsNew)
+	}
+	if got := pages(f.titles(db.KindComic)["One Shot"].PublicID); strings.Join(got, " ") != "1.png 2.png 3.png 10.png" {
+		t.Fatalf("One Shot's pages after one was added: %v", got)
 	}
 }
