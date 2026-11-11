@@ -3,6 +3,7 @@ package metadata
 import (
 	"bytes"
 	"context"
+	"errors"
 	"image"
 	"image/png"
 	"net"
@@ -78,6 +79,18 @@ func TestAPictureFollowsARedirectOnlyWithinItsProvider(t *testing.T) {
 		err := checkPictureRedirect(next, []*http.Request{{URL: cover}})
 		if (err == nil) != want {
 			t.Errorf("coverartarchive.org to %s: %v", host, err)
+		}
+	}
+}
+
+// Under go test a picture is never downloaded from anything but this machine: TMDB's picture
+// server and Cover Art Archive are refused before a connection is made, naming the rule.
+func TestATestCannotDownloadALivePicture(t *testing.T) {
+	ctx := context.Background()
+	for _, address := range []string{"https://image.tmdb.org/t/p/original/a.jpg", "https://coverartarchive.org/release/1/front",
+		"http://10.0.0.1/a.jpg", "http://[2606:4700::1]/a.jpg"} {
+		if _, err := fetchPicture(ctx, address); !errors.Is(err, errLiveCallInTest) {
+			t.Errorf("%s: %v, want refused as a live call", address, err)
 		}
 	}
 }
