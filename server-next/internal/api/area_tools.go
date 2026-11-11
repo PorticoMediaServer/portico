@@ -31,11 +31,7 @@ func (s *Server) startTools(ctx context.Context) error {
 		return err
 	}
 	s.webhooks = webhooks.New(s.db, box, s.log, func() time.Time { return s.now() }, func() (string, string) {
-		name, ok, _ := s.db.Setting(context.WithoutCancel(ctx), "server.name")
-		if !ok {
-			name = "Portico"
-		}
-		return s.id, name
+		return s.id, s.serverName()
 	})
 	s.webhookRoutes()
 	s.startWebhooks(ctx)
