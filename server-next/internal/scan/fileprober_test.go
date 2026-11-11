@@ -40,7 +40,7 @@ func TestFileProberReadsARealFile(t *testing.T) {
 	dir := t.TempDir()
 	film := filepath.Join(dir, "film.mkv")
 	out, err := exec.Command(ffmpeg, "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=25", "-f", "lavfi", "-i",
-		"sine=frequency=440:sample_rate=48000", "-t", "2", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-metadata:s:a:0", "language=eng", film).CombinedOutput()
+		"sine=frequency=440:sample_rate=48000", "-t", "2", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-metadata:s:a:0", "language=eng", "-metadata", "title=A Small Film", film).CombinedOutput()
 	if err != nil {
 		decodertest.Unavailable(t, fmt.Sprintf("fixture encode unavailable: %v %s", err, out))
 	}
@@ -54,6 +54,9 @@ func TestFileProberReadsARealFile(t *testing.T) {
 	}
 	if facts.DurationMS < 1900 || facts.DurationMS > 2200 || len(facts.Streams) != 2 {
 		t.Fatalf("facts = %+v", facts)
+	}
+	if facts.Title != "A Small Film" {
+		t.Fatalf("the title written inside the file was read as %q", facts.Title)
 	}
 	video, audio := facts.Streams[0], facts.Streams[1]
 	if video.Kind != db.StreamVideo || video.Codec != "h264" || video.Width != 320 || video.Height != 180 || video.HDR != "" {
