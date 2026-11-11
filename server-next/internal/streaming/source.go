@@ -3,6 +3,7 @@ package streaming
 import (
 	"context"
 	"errors"
+	"github.com/PorticoMediaServer/portico/server-next/internal/mediaexec"
 	"io"
 	"os"
 	"runtime"
@@ -73,8 +74,11 @@ func converterInput(ctx context.Context, source Source) (*PlaybackInput, error) 
 		opened.Close()
 		return nil, errors.New("this kind of source cannot be converted yet")
 	}
+	// A library file is read as one of the single-file media formats and nothing else: a
+	// file that is really a playlist would otherwise have ffmpeg open what the playlist names.
+	options := []string{"-format_whitelist", mediaexec.LocalInputFormats}
 	if runtime.GOOS == "windows" {
-		return &PlaybackInput{File: file, Argument: file.Name()}, nil
+		return &PlaybackInput{File: file, Argument: file.Name(), Options: options}, nil
 	}
-	return &PlaybackInput{File: file, Argument: "/dev/fd/3", Inherit: true}, nil
+	return &PlaybackInput{File: file, Argument: "/dev/fd/3", Inherit: true, Options: options}, nil
 }

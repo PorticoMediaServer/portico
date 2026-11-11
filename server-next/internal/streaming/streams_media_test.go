@@ -635,6 +635,70 @@ func TestDeletedSourceFailsTheStreamCleanly(t *testing.T) {
 	rig.streams.Stop("s1")
 }
 
+// A library file that is really a playlist must not make the converter open the
+// file the playlist names. The sandbox would hide that file too, so it is turned
+// off here: this holds on a host that has no sandbox.
+func TestAPlaylistInALibraryIsNotFollowedToAnotherFile(t *testing.T) {
+	t.Setenv("PORTICO_DECODER_SANDBOX", "off")
+	rig := newMediaRig(t)
+	// What the scanner saw: an ordinary film. What is there when it is played: a playlist
+	// naming a file outside the library.
+	film := rig.generate("film.avi", 20, "-c:v", "mpeg4", "-q:v", "5", "-c:a", "mp3")
+	request, _ := rig.request(film)
+	plan, err := Plan(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(t.TempDir(), "outside.ts")
+	if out, err := exec.Command(rig.ffmpeg, "-nostdin", "-loglevel", "error", "-y", "-i", film, "-c:v", "mpeg2video", "-c:a", "mp2", outside).CombinedOutput(); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	// A recording in a format outside the list stands for every other such format: unlike
+	// the two playlists, every ffmpeg would otherwise convert it, whatever its own guards.
+	wtv := filepath.Join(t.TempDir(), "recording.wtv")
+	if out, err := exec.Command(rig.ffmpeg, "-nostdin", "-loglevel", "error", "-i", outside, "-c", "copy", wtv).CombinedOutput(); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	recording, err := os.ReadFile(wtv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, body := range map[string]string{
+		"hls.avi":    "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:20\n#EXTINF:20.0,\n" + outside + "\n#EXT-X-ENDLIST\n",
+		"concat.avi": "ffconcat version 1.0\nfile '" + outside + "'\n",
+		"wtv.avi":    string(recording),
+	} {
+		path := filepath.Join(rig.library, name)
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		info, _ := os.Stat(path)
+		stream, err := rig.streams.Start(context.Background(), StartRequest{
+			SessionID: name, Plan: plan, Request: &request, Path: path, Size: info.Size(), Modified: info.ModTime(),
+		})
+		if err != nil {
+			t.Fatalf("%s: start: %v", name, err)
+		}
+		deadline := time.Now().Add(60 * time.Second)
+		for {
+			if response := rig.get(context.Background(), stream.Grant, "segment-000000.ts", ""); response.Code == http.StatusOK {
+				t.Fatalf("%s: the converter followed the playlist and produced %d bytes from another file", name, response.Body.Len())
+			}
+			if response := rig.get(context.Background(), stream.Grant, "segment-000000.m4s", ""); response.Code == http.StatusOK {
+				t.Fatalf("%s: the converter followed the playlist and produced %d bytes from another file", name, response.Body.Len())
+			}
+			if status, _ := rig.streams.Status(name); status.State == "failed" {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("%s: the stream neither failed nor played", name)
+			}
+			time.Sleep(200 * time.Millisecond)
+		}
+		rig.streams.Stop(name)
+	}
+}
+
 func TestStopDuringStartLeavesNothing(t *testing.T) {
 	rig := newMediaRig(t)
 	path := rig.generate("stop.avi", 60, "-c:v", "mpeg4", "-q:v", "5", "-c:a", "mp3")

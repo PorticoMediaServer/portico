@@ -102,7 +102,7 @@ func localPacketTimelineProbe(ffprobe string, input *PlaybackInput) timelinePack
 		if input.File != nil {
 			_, _ = input.File.Seek(0, io.SeekStart)
 		}
-		args := []string{"-v", "error", "-protocol_whitelist", "file,pipe", "-fflags", "+genpts", "-select_streams", "v:0", "-show_entries", "packet=pts_time,flags", "-of", "csv=p=0", input.Argument}
+		args := []string{"-v", "error", "-protocol_whitelist", "file,pipe", "-format_whitelist", mediaexec.LocalInputFormats, "-fflags", "+genpts", "-select_streams", "v:0", "-show_entries", "packet=pts_time,flags", "-of", "csv=p=0", input.Argument}
 		cmd, err := mediaexec.CommandContext(ctx, mediaexec.Job{Executable: ffprobe, Args: args, Files: input.ExtraFiles(), ReadPaths: input.ReadPaths()})
 		if err != nil {
 			return err
