@@ -26,7 +26,7 @@ export function retryProgress(startedAt: number, nextRetryAt: number, now: numbe
  * protocol fact from the transport; anything else (and any message) stays off
  * the page, so a credential-bearing value can never be disclosed by accident. */
 const DISPLAYABLE_CODES: ReadonlySet<string> = new Set([
-  'network', 'request_failed', 'server_unavailable', 'route_unavailable', 'offline',
+  'network', 'request_failed', 'server_unavailable', 'route_unavailable', 'insecure_route_unconfirmed', 'offline',
   'timeout', 'remote_stalled', 'console_unavailable', 'delivery_http_failure', 'remote_unavailable',
 ]);
 

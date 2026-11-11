@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useId, useLayoutEffect, useRef, useState} from 'react';
 import {defaultI18n} from '@i18n';
 import type {LibraryContentApi} from '@core/library-content.ts';
-import {browseServerFilesystem, classifyServerPath} from '@core/library-management.ts';
+import {browseServerFilesystem, classifyServerPath, typedServerPath} from '@core/library-management.ts';
 import {Button, Switch, TextField} from '../controls';
 import {Icon, type IconName} from '../Icon';
 import {BottomSheet} from '../overlays/BottomSheet';
@@ -203,12 +203,12 @@ export function ServerDirectoryExplorer({open, onOpenChange, api, onChoose, onCh
         {phone ? <Button icon="i-disk" onClick={openPlaces}>{t('next.ownerLibraries.explorer.places')}</Button>
           : <Button disabled={busy || !page?.parent} aria-label={t('next.ownerLibraries.explorer.up')} onClick={() => {if (page?.parent) go(page.parent);}}>{t('next.settings.up')}</Button>}
         {typing || !breadcrumbs.length ? <TextField label={t('next.settings.folderPath')} list={suggestionId} autoComplete="off" disabled={busy} error={failed ? t('next.ownerLibraries.explorer.failed') : undefined} value={typed} onChange={event => {if (current()) {setTyped(event.currentTarget.value);setFailed(false);}}} onKeyDown={event => {
-          if (event.key === 'Enter' && !event.nativeEvent.isComposing && !busy) {event.preventDefault(); go(typed);}
+          if (event.key === 'Enter' && !event.nativeEvent.isComposing && !busy) {event.preventDefault(); go(typedServerPath(typed));}
         }}/> : <nav className={styles.pickerBreadcrumbs} aria-label={t('next.settings.folderPath')}>
           {breadcrumbs.map((crumb, index) => <Button key={crumb.path} variant="text" size="small" disabled={busy} aria-current={index === breadcrumbs.length - 1 ? 'location' : undefined} onClick={() => go(crumb.path)}>{crumb.label}</Button>)}
           <Button variant="text" size="small" onClick={() => {if (current()) setTyping(true);}}>{t('next.ownerLibraries.explorer.typePath')}</Button>
         </nav>}
-        {typing || !breadcrumbs.length ? <Button disabled={busy || !typed} onClick={() => go(typed)}>{t('next.settings.go')}</Button> : null}
+        {typing || !breadcrumbs.length ? <Button disabled={busy || !typed} onClick={() => go(typedServerPath(typed))}>{t('next.settings.go')}</Button> : null}
         {onChooseMany && !phone ? <Button disabled={!canChooseCurrent || !!page && !chosen.includes(page.path) && chosen.length >= 64} onClick={() => {if (canChooseCurrent && page && !chosen.includes(page.path)) toggle(page.path);}}>{t('next.settings.chooseThisFolder')}</Button> : null}
         <datalist id={suggestionId}>{suggestions.map(path => <option key={path} value={path}/>)}</datalist>
       </div>

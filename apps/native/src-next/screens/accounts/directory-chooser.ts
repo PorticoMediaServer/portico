@@ -30,7 +30,7 @@ export type DirectoryFailure = 'other' | 'opening' | 'waiting' | 'unreachable';
 /** Route/connection refusals that mean the server could not be reached, not a feature
  * or resource that is unavailable. Generic `busy`/`unavailable` codes keep their own
  * error presentation rather than becoming a keep-trying chooser state. */
-const connectionCodes: ReadonlySet<string> = new Set(['server_unavailable', 'route_unavailable']);
+const connectionCodes: ReadonlySet<string> = new Set(['server_unavailable', 'route_unavailable', 'insecure_route_unconfirmed']);
 
 /** Which chooser state a connect attempt is in. A silent cancellation is `other`, so the
  * caller returns to the list without drawing a failure. */

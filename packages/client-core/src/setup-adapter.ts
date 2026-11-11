@@ -6,7 +6,7 @@ import type {AppSessionStore} from './app-sessions.ts';
 import {parseLocalSession} from './local-session.ts';
 import {completeOwnerSetup, parseDirectSnapshot} from './profile-management.ts';
 import {callServer} from './query/server-api.ts';
-import {cleanServerPath} from './library-management.ts';
+import {cleanServerPath, typedServerPath} from './library-management.ts';
 import {readDirectAccount, readServerSystem, revokeCurrentSession} from './query/connection-operations.ts';
 import {parseServerSignIn} from './sign-in.ts';
 import {parseSetupSession} from './setup-onboarding.ts';
@@ -380,7 +380,7 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
       const api = await ownerApi();
       const kinds: Readonly<Record<string, string>> = {movie: 'movies', tv: 'shows', anime: 'anime', music: 'music', audiobook: 'audiobooks', book: 'books', comic: 'comics'};
       const created = await callServer(api, 'POST /v1/admin/libraries', {body: {kind: kinds[library.kind] ?? library.kind, name: library.name,
-        folders: (library.folders?.length ? [...library.folders] : [library.path]).map(cleanServerPath)}, signal: context.signal});
+        folders: (library.folders?.length ? [...library.folders] : [typedServerPath(library.path)]).map(cleanServerPath)}, signal: context.signal});
       if (!created?.id) throw new CodedError('invalid_response', unreadableServerResponse);
       await ownerApi();
       return {kind: 'libraryAdded'};

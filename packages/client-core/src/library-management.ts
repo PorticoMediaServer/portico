@@ -173,7 +173,7 @@ export class LibraryManagementService{
   * Home and every library list read their libraries again. `metadataAgent` and `metadataLanguage` are not on the server's create yet and are not sent. */
  createLibrary(input:{expectedRemoteSource?:ExpectedRemoteSource;name:string;kind:ManagedLibrary['kind'];path?:string;folders?:readonly string[];metadataAgent?:'online'|'local';metadataLanguage?:string;/** Not on the rebuilt server: a new library is always scanned. */scanAfter?:boolean}):Promise<void>{
   this.active();
-  const folders=(input.folders?.length?[...input.folders]:input.path?[input.path]:[]).map(cleanServerPath).filter(Boolean);
+  const folders=(input.folders?.length?[...input.folders]:input.path?[typedServerPath(input.path)]:[]).map(cleanServerPath).filter(Boolean);
   if(!object(input)||!text(input.name,100)||!input.name.trim()||new TextEncoder().encode(input.name.trim()).length>100||!(input.kind in serverLibraryKinds)||!folders.length||folders.length>64||!folders.every(path=>text(path,8192)&&path))throw new Error('Check the library name, kind and server source path.');
   if(this.mutationPromise)throw new Error('Wait for the current library command to finish.');
   const epoch=this.epoch,c=new AbortController();this.mutationController=c;this.mutationKey='create';
@@ -264,13 +264,15 @@ export async function browseServerFilesystem(api:LibraryContentApi, options:Read
   })),
   nextCursor:raw.nextCursor??''});
 }
-/** A folder path as typed, in the form the server takes: no trailing slash or backslash (but `/` and `C:\\` stay), so
- * `/srv/media/` reads as `/srv/media` rather than being refused as not a full path. */
+/** A folder path in the form the server takes: no trailing slash or backslash (but `/` and `C:\\` stay), so
+ * `/srv/media/` reads as `/srv/media` rather than being refused as not a full path. Nothing else changes: a folder's
+ * name may end in a space, so padding is trimmed only where a person types (`typedServerPath`). */
 export function cleanServerPath(path:string):string{
- const trimmed=path.trim();
- if(/^[A-Za-z]:[\\/]*$/.test(trimmed))return trimmed.slice(0,2)+'\\';
- const cleaned=trimmed.replace(/[\\/]+$/,'');
- return cleaned||(trimmed.startsWith('/')?'/':trimmed.startsWith('\\')?'\\':'');
+ if(/^[A-Za-z]:[\\/]*$/.test(path))return path.slice(0,2)+'\\';
+ const cleaned=path.replace(/[\\/]+$/,'');
+ return cleaned||(path.startsWith('/')?'/':path.startsWith('\\')?'\\':'');
 }
+/** A path a person typed: the spaces around it are not part of it. */
+export const typedServerPath=(typed:string):string=>typed.trim();
 /** The server's word for each library kind the screens offer. */
 const serverLibraryKinds:Readonly<Record<string,string>>={movie:'movies',tv:'shows',anime:'anime',music:'music',audiobook:'audiobooks',book:'books',comic:'comics'};

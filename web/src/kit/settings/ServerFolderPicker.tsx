@@ -1,6 +1,6 @@
 import {Fragment, useCallback, useEffect, useRef, useState} from 'react';
 import {defaultI18n} from '@i18n';
-import {browseServerFilesystem} from '@core/library-management.ts';
+import {browseServerFilesystem, typedServerPath} from '@core/library-management.ts';
 import type {LibraryContentApi} from '@core/library-content.ts';
 import type {FilesystemPage} from '@core/administration.ts';
 import {ServerDirectoryExplorer} from './ServerDirectoryExplorer';
@@ -50,7 +50,7 @@ function BackupFolderPicker({open, onClose, api, initialPath = '', onChoose, mul
   const entries = page?.entries.filter(entry => entry.kind === 'directory' || backup && entry.kind === 'file' && /\.(?:db|pba)$/i.test(entry.name)) ?? [];
   return <Dialog open={open} onOpenChange={value => {if (!value) close();}} title={t(backup ? 'web.maintenance.chooseBackupTitle' : many ? 'next.settings.chooseFolders' : 'next.settings.chooseFolder')} description={backup ? t('web.maintenance.chooseBackupLede') : undefined} size="lg" width={backup ? 636 : 720} returnFocusRef={returnFocusRef} bodyClassName={backup ? styles.backupPickerBody : styles.folderBody} className={backup ? styles.backupPicker : undefined} headerClassName={backup ? styles.backupPickerHeader : undefined} footerClassName={backup ? styles.backupPickerFooter : undefined} showCloseButton={!backup}
     footer={<><Button size="compact" onClick={close}>{t('next.settings.cancel')}</Button><Button size="compact" variant="primary" disabled={!page?.path || busy || failed} onClick={choose}>{t(backup ? 'web.maintenance.useBackupSource' : many && selected.length ? 'next.settings.chooseSelected' : 'next.settings.chooseThisFolder', {count: selected.length})}</Button></>}>
-    {!backup && <form className={styles.folderPath} onSubmit={event => {event.preventDefault(); void load(path, hidden);}}><TextField aria-label={t('next.settings.folderPath')} value={path} onChange={event => setPath(event.currentTarget.value)} /><Button type="submit" size="xs" disabled={busy}>{t('next.settings.go')}</Button></form>}
+    {!backup && <form className={styles.folderPath} onSubmit={event => {event.preventDefault(); void load(typedServerPath(path), hidden);}}><TextField aria-label={t('next.settings.folderPath')} value={path} onChange={event => setPath(event.currentTarget.value)} /><Button type="submit" size="xs" disabled={busy}>{t('next.settings.go')}</Button></form>}
     <nav className={styles.crumbs} aria-label={t('next.settings.folderBreadcrumbs')}>{backup && <Button className={styles.backupPickerUp} size="xs" variant="icon" iconOnly icon="i-left" aria-label={t('next.settings.up')} disabled={!page?.parent || busy} onClick={() => {void load(page!.parent, hidden);}} />}<div className={backup ? styles.backupPickerCrumbs : styles.folderCrumbs}><Button size="xs" variant="text" disabled={busy} onClick={() => {void load('', hidden);}}>{backup ? page?.separator ?? '/' : t('next.settings.roots')}</Button>{segments.map((segment, index) => {
       const full = (page!.path.startsWith(page!.separator) ? page!.separator : '') + segments.slice(0, index + 1).join(page!.separator) + (page!.separator === '\\' && index === 0 ? '\\' : '');
       return <Fragment key={full}>{backup && <Icon name="i-right" size={14} />}<Button size="xs" variant="text" disabled={busy} onClick={() => {void load(full, hidden);}}>{segment}</Button></Fragment>;

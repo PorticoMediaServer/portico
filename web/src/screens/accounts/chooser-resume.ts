@@ -32,6 +32,6 @@ function retryableFailure(error: unknown) {
   const value = error as {retryable?: unknown; code?: unknown; name?: unknown};
   if (value.retryable === true) return true;
   if (value.name === 'TimeoutError') return true;
-  return typeof value.code === 'string' && ['probe_timeout', 'timeout', 'request_failed', 'route_unavailable', 'offline', 'network'].includes(value.code);
+  return typeof value.code === 'string' && ['probe_timeout', 'timeout', 'request_failed', 'route_unavailable', 'insecure_route_unconfirmed', 'offline', 'network'].includes(value.code);
 }
 

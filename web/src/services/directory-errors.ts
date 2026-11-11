@@ -26,5 +26,5 @@ export function directoryFailurePhase(error: unknown, automatic: boolean): 'acco
   if (!(error instanceof RouteError)) return;
   if (error.code === 'api_level_mismatch') return 'update';
   if (['identity_mismatch','invalid_address','invalid_identity','invalid_routes','invalid_signature','invalid_account_key','certificate_unverified','untrusted_certificate','route_stale'].includes(error.code)) return 'identity';
-  if (['route_unavailable','server_unavailable','network_unavailable'].includes(error.code)) return automatic ? 'waiting' : 'unreachable';
+  if (['route_unavailable','insecure_route_unconfirmed','server_unavailable','network_unavailable'].includes(error.code)) return automatic ? 'waiting' : 'unreachable';
 }
