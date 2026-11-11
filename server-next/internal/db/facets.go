@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strings"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/sorttext"
 )
