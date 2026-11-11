@@ -198,14 +198,17 @@ type PlaybackSession struct {
 	// Kind is vod or audio.
 	Kind string `json:"kind"`
 	// State is playing, paused or ended.
-	State        string              `json:"state"`
-	ItemID       string              `json:"itemId"`
-	VersionID    string              `json:"versionId"`
-	Queue        *playback.QueueLink `json:"queue,omitempty"`
-	Lease        PlaybackLease       `json:"lease"`
-	Presentation Presentation        `json:"presentation"`
-	PlaybackInfo JSON                `json:"playbackInfo,omitempty"`
-	End          *SessionEnd         `json:"end,omitempty"`
+	State     string              `json:"state"`
+	ItemID    string              `json:"itemId"`
+	VersionID string              `json:"versionId"`
+	Queue     *playback.QueueLink `json:"queue,omitempty"`
+	// Channel is the Library Channel this session joined, with the programme's times: pausing
+	// and going back reach as far as the programme's start, and Go to live joins it again.
+	Channel      *playback.ChannelLink `json:"channel,omitempty"`
+	Lease        PlaybackLease         `json:"lease"`
+	Presentation Presentation          `json:"presentation"`
+	PlaybackInfo JSON                  `json:"playbackInfo,omitempty"`
+	End          *SessionEnd           `json:"end,omitempty"`
 	// Command is the latest thing another of the account's devices asked this device to do:
 	// it does each command once, by its id, through its own routes.
 	Command *playback.Command `json:"command,omitempty"`
@@ -234,8 +237,10 @@ type SubtitlePick struct {
 // PlaybackStart asks to play a title. Send an Idempotency-Key: the same key and body is the
 // same start, however often it is sent.
 type PlaybackStart struct {
-	// ItemID is the title to play, or Queue the queue entry: one of the two.
+	// ItemID is the title to play, Queue the queue entry, or Channel a Library Channel to join
+	// where it is now: one of the three.
 	ItemID    string              `json:"itemId,omitempty"`
+	Channel   string              `json:"channel,omitempty"`
 	Queue     *playback.QueueLink `json:"queue,omitempty"`
 	VersionID string              `json:"versionId,omitempty"`
 	// StartPositionMs starts there. Without it StartFrom decides: resume (the default) or beginning.
@@ -362,7 +367,7 @@ func decisions(p playback.Plan) PlaybackDecisions {
 
 func sessionOut(v playback.Session) PlaybackSession {
 	out := PlaybackSession{ID: v.ID, Kind: sessionKind(v.Item.Kind), State: v.State, ItemID: v.Item.PublicID, VersionID: v.VersionID,
-		Queue: v.Queue, Lease: PlaybackLease{ExpiresAt: v.LeaseUntil.UTC(), ReportEveryMs: v.ReportEvery().Milliseconds()},
+		Queue: v.Queue, Channel: v.Channel, Lease: PlaybackLease{ExpiresAt: v.LeaseUntil.UTC(), ReportEveryMs: v.ReportEvery().Milliseconds()},
 		PlaybackInfo: v.Plan.PlaybackInfo, Command: v.Command}
 	subtitles := v.Stream.Subtitles
 	if subtitles == nil {
