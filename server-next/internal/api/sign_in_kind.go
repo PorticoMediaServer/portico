@@ -312,12 +312,10 @@ func (s *Server) signInSwitch(r *http.Request, req SignInSwitchRequest) (SignInR
 	switch {
 	case errors.Is(err, db.ErrConflict) && req.To == "local":
 		return SignInResponse{}, ErrConflict("username_taken", "That username is already in use.")
-	case errors.Is(err, db.ErrConflict):
-		return SignInResponse{}, ErrConflict("portico_account_taken", "That Portico Account is already on this server as another account.")
 	case errors.Is(err, db.ErrNotPermitted):
 		return SignInResponse{}, ErrNotPermitted()
 	case err != nil:
-		return SignInResponse{}, err
+		return SignInResponse{}, s.porticoTaken(r, err)
 	}
 	return s.signedIn(ctx, st, now, refresh)
 }
@@ -439,12 +437,7 @@ func (s *Server) moveComplete(r *http.Request, req MoveCompleteRequest) (SignInR
 		return SignInResponse{}, errBadMoveCode()
 	}
 	if move.To == "portico" {
-		// Linking a Portico Account to a waiting account needs Portico Services to check the
-		// approval, which is not connected yet.
-		if _, err := s.approved(r, req.Approval, hosted.PurposeSwitch); err != nil {
-			return SignInResponse{}, err
-		}
-		return SignInResponse{}, hostedError(hosted.ErrNotConnected)
+		return s.moveToPortico(r, req)
 	}
 	username, ok := auth.Username(req.Username)
 	if !ok {
@@ -476,6 +469,64 @@ func (s *Server) moveComplete(r *http.Request, req MoveCompleteRequest) (SignInR
 		return SignInResponse{}, ErrConflict("username_taken", "That username is already in use.")
 	case err != nil:
 		return SignInResponse{}, err
+	}
+	return s.signedIn(ctx, st, now, refresh)
+}
+
+// porticoTaken answers a Portico Account that is already on this server as another account.
+func (s *Server) porticoTaken(r *http.Request, err error) error {
+	var taken *db.PorticoAccountTaken
+	if !errors.As(err, &taken) {
+		return err
+	}
+	name, _ := s.serverName(r)
+	return ErrConflict("portico_account_taken", "That Portico Account is already on "+name+" as "+taken.Username+".")
+}
+
+// moveToPortico links a waiting person's account to the Portico Account they approved with,
+// proven by their move code or, within 30 days of the switch, their old password.
+func (s *Server) moveToPortico(r *http.Request, req MoveCompleteRequest) (SignInResponse, error) {
+	ctx, now := r.Context(), s.now()
+	session, refresh, err := s.newSession(r, req.Device, now)
+	if err != nil {
+		return SignInResponse{}, err
+	}
+	limits := s.moveLimits(r)
+	if wait, err := s.db.LimitWait(ctx, now, limits...); err != nil {
+		return SignInResponse{}, err
+	} else if wait > 0 {
+		return SignInResponse{}, errTooManyAttempts(wait)
+	}
+	account, err := s.approved(r, req.Approval, hosted.PurposeSwitch)
+	if err != nil {
+		return SignInResponse{}, err
+	}
+	m := db.MoveToPortico{PorticoAccountID: account.ID, Limits: limits, Session: session, Now: now}
+	m.Username, _ = auth.Username(account.Username)
+	if req.Code != "" {
+		m.CodeHash = moveHash(req.Code)
+	} else {
+		key, _ := auth.Username(req.Username)
+		creds, err := s.db.CredentialsByUsername(ctx, key)
+		if err != nil {
+			return SignInResponse{}, err
+		}
+		ok, err := s.passwords.Check(ctx, creds.PasswordHash, req.Password)
+		if err != nil {
+			return SignInResponse{}, err
+		}
+		if !ok {
+			// The transaction counts the wrong guess; a hash nobody has never stands.
+			creds.PasswordHash = "-"
+		}
+		m.UserID, m.CheckedHash = creds.UserID, creds.PasswordHash
+	}
+	st, err := s.db.CompleteMoveToPortico(ctx, m)
+	switch {
+	case errors.Is(err, db.ErrBadCredentials):
+		return SignInResponse{}, errBadMoveCode()
+	case err != nil:
+		return SignInResponse{}, s.porticoTaken(r, err)
 	}
 	return s.signedIn(ctx, st, now, refresh)
 }
