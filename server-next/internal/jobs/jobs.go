@@ -123,9 +123,10 @@ type Runner struct {
 	ctx context.Context
 	log *slog.Logger
 
-	mu    sync.Mutex
-	kinds map[string]Kind
-	lanes map[string]*lane
+	mu     sync.Mutex
+	kinds  map[string]Kind
+	lanes  map[string]*lane
+	tidies []*tidy
 	// working counts the lanes with a job in hand, for Wait.
 	working sync.WaitGroup
 }
