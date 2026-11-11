@@ -38,6 +38,11 @@ try {
     if (named !== 'Living room') throw new Error(`The server is called "${named}".`);
     const steps = await page.getByLabel('Setup steps').innerText();
     if (/Portico Account/.test(steps) || !/Owner/.test(steps) || !/owner/.test(steps)) throw new Error('The setup steps read: ' + steps.replace(/\s+/g, ' '));
+    // A reload at the library step still knows the server uses local sign-in.
+    await page.reload({waitUntil: 'domcontentloaded'});
+    await page.getByRole('heading', {name: 'Add your first library'}).waitFor();
+    const again = await page.getByLabel('Setup steps').innerText();
+    if (/Portico Account/.test(again)) throw new Error('After a reload the setup steps read: ' + again.replace(/\s+/g, ' '));
   });
 
   await step('the first library is added by choosing its folder in the folder explorer, and scanned', async () => {
@@ -58,7 +63,7 @@ try {
       .some(library => library.kind === 'music' && library.lastScanFinishedAt), 300);
   });
 
-  await step('from Home, a library is added by typing its folder\'s path in the folder explorer', async () => {
+  await step('from Home, a library is added by typing its folder\'s path, with a trailing slash, in the folder explorer', async () => {
     // Home offers Add library while the server has none, so the first one is removed first, as another device would.
     const owner = await j.signInAs('owner', password);
     for (const library of (await call("GET", "/v1/admin/libraries", undefined, owner.token)).body.items) {
@@ -74,7 +79,7 @@ try {
     const dialog = page.getByRole('dialog');
     await dialog.getByRole('button', {name: 'Choose folders…'}).click();
     const explorer = page.getByRole('dialog').last();
-    await explorer.getByLabel('Folder path').fill(music);
+    await explorer.getByLabel('Folder path').fill(music + '/');
     await explorer.getByRole('button', {name: 'Go'}).click();
     await explorer.getByRole('button', {name: /^Kelquin/}).waitFor();
     await explorer.getByRole('button', {name: 'Choose this folder'}).click();

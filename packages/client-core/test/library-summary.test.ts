@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {parseLibrarySummary,readLibrarySummaries} from '../src/library-summary.ts';
-import {browseServerFilesystem} from '../src/library-management.ts';
+import {browseServerFilesystem, cleanServerPath} from '../src/library-management.ts';
 const summary={counts:[{kind:'movie',count:24,atLeast:false}],coverUrls:['/art/a'],latestArtwork:'/art/wash',firstScan:false,empty:false,emptyKnown:true};
 test('library summaries are one scoped read and retain exact/lower-bound counts',async()=>{
  let calls=0;const api={async request<T>(path:string){calls++;assert.equal(path,'/v1/libraries');return {items:[{id:'library',name:'Films',kind:'movie',summary}]} as T;}};
@@ -17,4 +17,7 @@ test('the folder explorer asks for hidden and writable folders only when wanted,
  assert.match(paths[1],/hidden=true/);assert.match(paths[1],/writable=true/);
  assert.deepEqual(page.entries.map(entry=>[entry.name,entry.library,entry.cannotBeChosen]),[['Films','Films',undefined],['portico',undefined,'This folder holds Portico\'s own data.'],['Music',undefined,undefined]]);
  assert.equal(page.nextCursor,'200');assert.equal(page.parent,'/');
+});
+test('a typed folder path loses its trailing slash, so /srv/media/ is the folder /srv/media',()=>{
+ for(const [typed,clean] of [['/srv/media/','/srv/media'],[' /srv/media// ','/srv/media'],['/','/'],['C:\\Media\\','C:\\Media'],['C:\\','C:\\']])assert.equal(cleanServerPath(typed),clean);
 });

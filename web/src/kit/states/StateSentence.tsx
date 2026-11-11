@@ -6,6 +6,7 @@ type SentenceValues = {
   'next.states.convertingOffBody': {title: string};
   'next.states.droppedBody': {position: string};
   'next.states.awayLine': {server: string};
+  'next.states.awayInsecureLine': {server: string};
 };
 export type StateSentenceId = keyof SentenceValues;
 export type StateSentenceProps<K extends StateSentenceId = StateSentenceId> = Readonly<{messageId: K; values: SentenceValues[K]; locale?: SupportedLocale}>;
@@ -15,6 +16,7 @@ const emphasis: Readonly<Record<StateSentenceId, readonly string[]>> = {
   'next.states.droppedBody': ['position'],
   // states.html 4b and the Banner piece: "Can't reach **Portico demo**. Trying again."
   'next.states.awayLine': ['server'],
+  'next.states.awayInsecureLine': ['server'],
 };
 
 /** Catalogue argument boundaries preserve the emphasis drawn in states 4b and 8–10. No HTML or sentence splitting. */

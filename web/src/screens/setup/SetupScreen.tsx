@@ -19,6 +19,8 @@ export type SetupScreenProps = Readonly<{
   controller: SetupController;
   /** The paired server's own name, once known. */
   serverName: () => string | undefined;
+  /** The paired server's kind of sign-in, once known. */
+  signIn?: () => 'local' | 'portico' | undefined;
   /** The admitted owner's folder listing; absent until the owner is admitted. */
   libraryFolders?: LibraryContentApi;
   hostname?: string;
@@ -44,7 +46,8 @@ export function SetupScreen(props: SetupScreenProps) {
   const [chosen, setChosen] = useState<'local' | 'hosted'>('hosted');
   const formMode = view.kind === 'form' || view.kind === 'starting' ? view.mode : undefined;
   useEffect(() => {if (formMode) setChosen(formMode === 'local' ? 'local' : 'hosted');}, [formMode]);
-  const mode = view.kind === 'library' ? chosen : formMode === 'local' ? 'local' : 'hosted';
+  // After a reload at the library step the form's choice is gone; the server's own kind of sign-in says it.
+  const mode = view.kind === 'library' ? (props.signIn?.() === 'local' ? 'local' : chosen) : formMode === 'local' ? 'local' : 'hosted';
   const steps = setupSteps({serverName: view.kind === 'library' && form.name?.trim() || serverName, mode, phase: view.kind === 'library' ? 'library' : 'form', local: mode === 'local',
     owner: form.username.trim() || undefined});
   const showSteps = view.kind === 'form' || view.kind === 'starting' || view.kind === 'library';

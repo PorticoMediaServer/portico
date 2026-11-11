@@ -48,6 +48,8 @@ export type ShellProps = Readonly<{
   dockVisible: boolean;
   /** The verified connection reports the server away; the native desktop host draws one quiet line. */
   serverAway?: boolean;
+  /** The connection line says the only route found is a plain-HTTP one this device could not confirm as at home. */
+  insecureRefused?: boolean;
   /** states.html 4b: the shell's reads have failed for a while (the freshness hub's reachability, as on native).
    * A browser draws the same quiet line from it; the desktop host keeps its own `serverAway`. */
   reachability?: Readonly<{getSnapshot: () => 'reachable' | 'unreachable'; subscribe: (listener: () => void) => () => void}>;
@@ -72,7 +74,7 @@ const collapseMemoryKey = 'portico.next.sidebar-collapsed';
 export function Shell(props: ShellProps) {
   return <PhoneSelectionProvider><ShellFrame {...props}/></PhoneSelectionProvider>;
 }
-function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, reachability, onSignOut,onSwitchProfile,manageGate,onSwitchServer,savedServers,onFeedback,outbox, phoneSelection, overlays, windowChrome, children}: ShellProps) {
+function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, insecureRefused, reachability, onSignOut,onSwitchProfile,manageGate,onSwitchServer,savedServers,onFeedback,outbox, phoneSelection, overlays, windowChrome, children}: ShellProps) {
   useWindowScrollAnchor();
   const sizeClass = useSizeClass(), coarsePointer = useCoarsePointer();
   // A live screen selection draws its own action bar here, in place of the tab bar.
@@ -257,7 +259,7 @@ function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, reachabil
         </nav>)}
       </>}
     </div>
-    {awayShown && <ConnectionAway serverName={identity.serverName} downloads={chrome.os !== undefined} />}
+    {awayShown && <ConnectionAway serverName={identity.serverName} downloads={chrome.os !== undefined} insecure={insecureRefused === true} />}
     {children}
     <Dialog open={!!profileChoice&&(profileChoice.pinRequired===true||!!profileError)} onOpenChange={open=>{if(!open){profileProof.current=undefined;profileRequest.current?.abort();setProfileChoice(undefined);setProfilePin('');setProfileError(undefined);}}} title={profileDisplay?.name??identity.profileName}
       description={unlocking ? t('error.profilePinManage') : undefined}

@@ -187,6 +187,10 @@ test('the derived HTTP twin wins only once every secure route has failed (router
  await assert.rejects(race([auto('lan','192.168.1.10')],async origin=>{if(origin.startsWith('https:'))await fail();},{policy:{insecure:'never',platform:'native'}}));
 });
 
+test('when the only route that answered is a plain-HTTP one this device could not confirm as at home, the check says so',async()=>{
+ await assert.rejects(race([auto('lan','192.168.1.10')],async origin=>{if(origin.startsWith('https:'))await fail();},{readConnection:async()=>({})}),{code:'insecure_route_unconfirmed'});
+ await assert.rejects(race([auto('lan','192.168.1.10')],async()=>{await fail();},{readConnection:async()=>({})}),(error:{code?:string})=>error.code!=='insecure_route_unconfirmed');
+});
 test('an insecure route the server counts as away is dropped before credentials',async()=>{
  await assert.rejects(race([auto('lan','192.168.1.10')],async origin=>{if(origin.startsWith('https:'))await fail();},{readConnection:async()=>({remote:true})}));
  await assert.rejects(race([auto('lan','192.168.1.10')],async origin=>{if(origin.startsWith('https:'))await fail();},{readConnection:async()=>{throw new Error('no answer');}}));

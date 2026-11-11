@@ -3,6 +3,9 @@ import {candidateAllowed,DEFAULT_CONNECTION_POLICY,derivedLocalOrigin,insecureNe
 import {addressClass,hostAddress,isLocalHost,parseCIDR,type ServerNetworkPolicy} from './network-locality.ts';
 import {RouteError,SECURE_CONNECTION_REQUIRED,probeRoute,routeJSON,routeOrigin,routeBytes,observedRouteTLSLeaf,privateRouteHost,sameServerPin,webRouteCrypto,type RouteCrypto,type RouteCandidate,type RouteProof,type ServerPin,type VerifiedRoutes} from './route-identity.ts';
 export type DiscoveryRoute = Readonly<{baseUrl:string;serverId:string;fingerprint:string;port:number;path:string;expiresAt:number}>;
+/** Why a route check found nothing: the only routes were plain-HTTP ones this device could not confirm as on the home network.
+ * The way out is the person's: type the address, or use the server's secure address. */
+export const INSECURE_ROUTE_UNCONFIRMED='insecure_route_unconfirmed';
 export type RouteSnapshot = Readonly<{phase:'idle'|'probing'|'ready'|'offline'|'identity_mismatch'|'unconfirmed';errorCode?:string;origin:string|null;
  /** The server's own answer for `origin`: whether it counts this device as away from home. */
  remote?:boolean;revision:number;network:string;message:string;discovery:'unknown'|'available'|'unsupported'|'denied'|'empty'}>;
@@ -184,7 +187,7 @@ export class RouteConnection {
   * device as home. Anything else (away, no answer, unreadable) drops the route. */
  private async confirmLocal(origin:string,signal:AbortSignal):Promise<void>{
   const controller=new AbortController(),cancel=()=>controller.abort();signal.addEventListener('abort',cancel,{once:true});const timer=setTimeout(cancel,3000);
-  try{const facts=parseNetworkFacts(await this.readFacts(origin,controller.signal));this.learnPolicy(facts.policy);if(facts.remote!==false)throw new RouteError('route_unavailable','The server counts this device as away from home.');}
+  try{const facts=parseNetworkFacts(await this.readFacts(origin,controller.signal));this.learnPolicy(facts.policy);if(facts.remote!==false)throw new RouteError(INSECURE_ROUTE_UNCONFIRMED,'This plain-HTTP route could not be confirmed as on the home network.');}
   finally{clearTimeout(timer);signal.removeEventListener('abort',cancel);}
  }
  private factsAt=0;
@@ -264,7 +267,7 @@ export class RouteConnection {
   return new Promise<string>((resolve,reject)=>{const abort=()=>reject(new RouteError('cancelled','Connection request cancelled.'));signal.addEventListener('abort',abort,{once:true});void this.run!.promise.then(resolve,reject).finally(()=>signal.removeEventListener('abort',abort));if(signal.aborted)abort();});
  }
  private race(signal:AbortSignal):Promise<string>{
-  const now=Date.now(),queue:RaceEntry[]=[],seen=new Set<string>(),controllers=new Set<AbortController>();let active=0,activeLocal=0,lastStart=0,finished=false,freshStarted=false,freshDone=!this.options.fresh||Date.now()<this.freshNotBefore,discoveryDone=!this.options.discover,mismatch=false,certificateFailures=0,otherFailures=0,secureRequired=false;
+  const now=Date.now(),queue:RaceEntry[]=[],seen=new Set<string>(),controllers=new Set<AbortController>();let active=0,activeLocal=0,lastStart=0,finished=false,freshStarted=false,freshDone=!this.options.fresh||Date.now()<this.freshNotBefore,discoveryDone=!this.options.discover,mismatch=false,certificateFailures=0,otherFailures=0,insecureRefused=0,secureRequired=false;
   let freshAllowed:Set<string>|undefined,held:string|undefined;const independent=new Set(this.memory.paired),inflight=new Map<AbortController,RaceEntry>();
   let derivedAllowed=new Set<string>();
   const eligible=(baseUrl:string)=>!freshAllowed||freshAllowed.has(baseUrl)||independent.has(baseUrl)||derivedAllowed.has(baseUrl);
@@ -274,7 +277,7 @@ export class RouteConnection {
   const initial=[...listed,...this.memory.paired.map(baseUrl=>this.entry({baseUrl,class:'lan',insecure:baseUrl.startsWith('http:'),quality:'probe_required',generation:'1'},'typed')),...derivedNow.map(c=>this.entry(c,'derived'))];
   const localAtStart=initial.some(e=>e.local&&this.allowed(e));
   return new Promise<string>((resolve,reject)=>{
-   const failure=()=>new RouteError(mismatch?'identity_mismatch':secureRequired&&otherFailures===0?SECURE_CONNECTION_REQUIRED:certificateFailures>0&&otherFailures===0&&active===0&&queue.length===0?'certificate_unverified':'route_unavailable',secureRequired&&!mismatch&&otherFailures===0?'This server requires a secure connection.':failureMessage);
+   const failure=()=>!mismatch&&!secureRequired&&insecureRefused>0?new RouteError(INSECURE_ROUTE_UNCONFIRMED,'The server answered only on a plain-HTTP route this device could not confirm as on the home network.'):new RouteError(mismatch?'identity_mismatch':secureRequired&&otherFailures===0?SECURE_CONNECTION_REQUIRED:certificateFailures>0&&otherFailures===0&&active===0&&queue.length===0?'certificate_unverified':'route_unavailable',secureRequired&&!mismatch&&otherFailures===0?'This server requires a secure connection.':failureMessage);
    let boundary:ReturnType<typeof setTimeout>|undefined,pacer:ReturnType<typeof setTimeout>|undefined;const deadline=setTimeout(()=>held?finish(held):finish(undefined,failure()),8500);
    const abort=()=>finish(undefined,new RouteError('cancelled','Connection check cancelled.'));
    const finish=(origin?:string,error?:Error)=>{if(finished)return;finished=true;clearTimeout(deadline);if(boundary)clearTimeout(boundary);if(pacer)clearTimeout(pacer);signal.removeEventListener('abort',abort);for(const c of controllers)c.abort();origin?resolve(origin):reject(error??new RouteError('route_unavailable',failureMessage));};
@@ -301,7 +304,7 @@ export class RouteConnection {
       if(signal.aborted||controller.signal.aborted||!eligible(candidate.baseUrl))return;
       if(!e.secure&&insecureNeedsLocalConfirmation(candidate.baseUrl,e.source,this.connectionPolicy())){await this.confirmLocal(candidate.baseUrl,controller.signal);if(signal.aborted||controller.signal.aborted||finished)return;this.confirmedLocal=candidate.baseUrl;}
       this.rejected.delete(candidate.baseUrl+'|'+candidate.generation);won(e);
-     }).catch(error=>{if(finished||signal.aborted||controller.signal.aborted)return;try{this.options.onProbeFailure?.(probeFailure(error));}catch{/* Diagnostics never change route admission or recovery. */}const code=routeFailureCode(error);if(code===SECURE_CONNECTION_REQUIRED){requireSecure();return;}if(certificateFailure(code))certificateFailures++;else otherFailures++;if(code==='identity_mismatch'){mismatch=true;const key=candidate.baseUrl+'|'+candidate.generation,attempts=Math.min(7,(this.rejected.get(key)?.attempts??0)+1);this.rejected.set(key,{attempts,retryAt:Date.now()+Math.min(300000,5000*2**(attempts-1))});while(this.rejected.size>64)this.rejected.delete(this.rejected.keys().next().value!);}lastStart=0;}).finally(()=>{active--;if(e.local)activeLocal--;controllers.delete(controller);inflight.delete(controller);pump();});
+     }).catch(error=>{if(finished||signal.aborted||controller.signal.aborted)return;try{this.options.onProbeFailure?.(probeFailure(error));}catch{/* Diagnostics never change route admission or recovery. */}const code=routeFailureCode(error);if(code===SECURE_CONNECTION_REQUIRED){requireSecure();return;}if(certificateFailure(code))certificateFailures++;else otherFailures++;if(code===INSECURE_ROUTE_UNCONFIRMED)insecureRefused++;if(code==='identity_mismatch'){mismatch=true;const key=candidate.baseUrl+'|'+candidate.generation,attempts=Math.min(7,(this.rejected.get(key)?.attempts??0)+1);this.rejected.set(key,{attempts,retryAt:Date.now()+Math.min(300000,5000*2**(attempts-1))});while(this.rejected.size>64)this.rejected.delete(this.rejected.keys().next().value!);}lastStart=0;}).finally(()=>{active--;if(e.local)activeLocal--;controllers.delete(controller);inflight.delete(controller);pump();});
     }
     if(held&&!securePending()){finish(held);return;}
     if(!queue.length&&!active){if(!freshStarted)fresh();if(freshDone&&discoveryDone)finish(undefined,failure());}
