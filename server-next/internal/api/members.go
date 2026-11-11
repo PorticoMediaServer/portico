@@ -28,6 +28,9 @@ type Member struct {
 	TwoFactorEnabled bool     `json:"twoFactorEnabled"`
 	// Notes are the admins' private notes about the member. The member never sees them.
 	Notes string `json:"notes,omitempty"`
+	// AllowDownloads is the account's Downloads switch. Turned off, its devices remove
+	// their downloads the next time they reach the server.
+	AllowDownloads bool `json:"allowDownloads"`
 }
 
 // MemberCreate makes an account directly, with a first password to pass on to its person.
@@ -46,6 +49,8 @@ type MemberEdit struct {
 	Notes        *string   `json:"notes,omitempty"`
 	AllLibraries *bool     `json:"allLibraries,omitempty"`
 	Libraries    *[]string `json:"libraries,omitempty"`
+	// AllowDownloads turns downloads on or off for the whole account.
+	AllowDownloads *bool `json:"allowDownloads,omitempty"`
 }
 
 // PasswordResetCreate asks for a reset code for a member.
@@ -73,7 +78,7 @@ func memberOut(m db.Member) Member {
 		libraries = []string{}
 	}
 	return Member{Account: accountOut(m.Account), Disabled: m.Disabled, CreatedAt: m.CreatedAt.UTC(), AllLibraries: m.AllLibraries,
-		Libraries: libraries, TwoFactorEnabled: m.TwoFactor, Notes: m.Notes}
+		Libraries: libraries, TwoFactorEnabled: m.TwoFactor, Notes: m.Notes, AllowDownloads: m.AllowDownloads}
 }
 
 // memberError maps what the data layer says about a managed account to a refusal.
@@ -184,7 +189,8 @@ func (s *Server) editMember(r *http.Request, req MemberEdit) (Member, error) {
 		return Member{}, ErrField("libraries", "That is too many libraries.")
 	}
 	m, err := s.db.UpdateMember(r.Context(), db.MemberEdit{ActorID: caller.UserID, ActorRole: caller.Role, PublicID: r.PathValue("id"),
-		Role: req.Role, Disabled: req.Disabled, Notes: req.Notes, AllLibraries: req.AllLibraries, Libraries: req.Libraries, Now: s.now()})
+		Role: req.Role, Disabled: req.Disabled, Notes: req.Notes, AllLibraries: req.AllLibraries, Libraries: req.Libraries,
+		AllowDownloads: req.AllowDownloads, Now: s.now()})
 	return memberOut(m), memberError(err)
 }
 
