@@ -544,7 +544,11 @@ func (s *Service) Advance(ctx context.Context, c Caller, id string, ifMatch int6
 	}
 	s.mu.Lock()
 	if reason == "completion" {
-		s.advances[id]++
+		// Two resends may pass the early check while the database write waits.
+		// Check again under the same lock as the counter.
+		if session == "" || s.ended[id] != session {
+			s.advances[id]++
+		}
 		if session != "" {
 			s.ended[id] = session
 		}
