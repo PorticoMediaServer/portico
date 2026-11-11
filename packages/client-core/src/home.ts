@@ -1,6 +1,5 @@
-import {routeBody} from "../../contracts/src/routes.ts";
 import type {RouteResponse} from "../../contracts/src/route-paths.ts";
-import {routePath, encodedRoutePath} from "../../contracts/src/route-paths.ts";
+import {encodedRoutePath} from "../../contracts/src/route-paths.ts";
 import {unreadableServerResponse} from './server-messages.ts';
 /** Server-composed home rows. Clients render membership, order and policy as published; they never rank, hide or page a row themselves. */
 import {validateContentEntry, type ContentEntry} from './library-content.ts';
@@ -338,25 +337,6 @@ export function validateHomeLayout(value: unknown): HomeLayout {
   return Object.freeze({revision: value.revision, rowOrder: Object.freeze(ids('layout.rowOrder', value.rowOrder)), hiddenRowIds: Object.freeze(ids('layout.hiddenRowIds', value.hiddenRowIds))});
 }
 
-export function validateHomeLayoutView(value: unknown): HomeLayoutView {
-  const layout = validateHomeLayout(value);
-  if (!object(value) || !Array.isArray(value.rows) || value.rows.length > 64) invalid();
-  // A row that cannot be read is left out of Customize Home alone; contradictory flags take the reading that keeps a row visible.
-  const rows = firstOfEach('home', 'layout.rows', keepReadable('home', 'layout.rows', value.rows as unknown[], entry => {
-    if (!object(entry) || !id(entry.id)) invalid();
-    const row = entry as Record<string, unknown>;
-    const required = row.required === true, hideable = row.hideable === true && !required;
-    const titleText = titleTextOf(row.titleText);
-    return Object.freeze({
-      ...(row.availabilityText?{availabilityText:titleTextOf(row.availabilityText)}:{}),
-      id: row.id as string, title: words(row.title, 1024), ...(titleText ? {titleText} : {}), kind: words(row.kind, 256), artworkShape: oneOfOr('home', 'layout.artworkShape', row.artworkShape, shapes, 'poster'),
-      ...(id(row.libraryId) ? {libraryId: row.libraryId} : {}),
-      required, hideable, reorderable: row.reorderable === true, hidden: row.hidden === true && hideable,
-    });
-  }), row => row.id);
-  return Object.freeze({...layout, rows: Object.freeze(rows)});
-}
-
 /** Home as the server composes it for this profile: the rows it sends, in its order. A row with nothing in it is not sent. */
 export function homeDocument(home: Home): HomeDocument {
   const rows = firstOfEach('home', 'rows', keepReadable('home', 'rows', home.rows, raw => {
@@ -387,10 +367,6 @@ function pageQuery(page: HomeRowPage): string {
 
 export async function fetchHome(api: HomeApi, signal?: AbortSignal): Promise<HomeDocument> {
   return homeDocument(await readHomeRows(api, signal));
-}
-
-export async function fetchHomeLayout(api: HomeApi, signal?: AbortSignal): Promise<HomeLayoutView> {
-  return validateHomeLayoutView(await api.request<RouteResponse<"get_home_layout">>(routePath("get_home_layout"), 'GET', undefined, signal));
 }
 
 /** Start the next server page with about ten loaded cards left. */
@@ -438,13 +414,3 @@ export async function fetchHomeRow(api: HomeApi, rowId: string, page: HomeRowPag
   return row;
 }
 
-export async function saveHomeLayout(api: HomeApi, intent: HomeLayoutIntent, signal?: AbortSignal): Promise<HomeLayout> {
-  return validateHomeLayout(await api.request<RouteResponse<"put_home_layout">>(routePath("put_home_layout"), 'PUT', routeBody("put_home_layout", {
-    expectedRevision: intent.revision, idempotencyKey: intent.idempotencyKey ?? '',
-    rowOrder: [...intent.rowOrder], hiddenRowIds: [...intent.hiddenRowIds],
-  }), signal));
-}
-
-export async function resetHomeLayout(api: HomeApi, idempotencyKey = '', signal?: AbortSignal, revision?: number): Promise<HomeLayout> {
-  return validateHomeLayout(await api.request<RouteResponse<"post_home_layout_reset">>(routePath("post_home_layout_reset"), 'POST', routeBody("post_home_layout_reset", {idempotencyKey, ...(revision === undefined ? {} : {expectedRevision: revision})}), signal));
-}

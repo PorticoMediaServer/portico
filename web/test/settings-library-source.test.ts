@@ -138,7 +138,7 @@ test('the existing Settings panel loads only its actual record and dispatches ch
     return server as T;
   }};
   const preferences: PreferenceSnapshot = {deviceClass: 'web', registry: {revision: 'test', fields: []}, documents: [], effective: {}, effectiveSource: {}, clampedFields: [], registryRevision: 'test'};
-  const reader = new PreferencesReader(api, {serverId: 'server', viewerId: 'viewer'});
+  const reader = new PreferencesReader(api);
   const controller = new SettingsController({api, serverId: 'server', viewerId: 'viewer', role: 'admin', mainProfile: true,
     capabilities: {manageServer: true, managePeople: false, manageSignIn: false}, preferences, reader, isCurrent: () => true, reportError: error => {throw error;},
     environment: {platform: 'web', os: 'browser'}, eligibility: {hasEngine: () => false, library: () => undefined},

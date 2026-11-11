@@ -2,7 +2,8 @@
 // fresh data folder and the web development server itself, on localhost, and walks the journeys of
 // the areas that have moved: set up the owner, sign in, choose a profile with a PIN, stay signed in
 // across a server restart, go back to Who's watching when a PIN changes elsewhere, browse a seeded
-// library (Home, a list and its filter, a film, a show), change what is watched, sign out.
+// library (Home, a list and its filter, a film, a show), change what is watched, change settings on
+// one device and see which follow on another, sign out.
 //
 //   cd server-next && go build -o /path/to/portico-server-next ./cmd/portico-server
 //   cd server-next && go build -o /path/to/portico-seed ./cmd/portico-seed   (for the browse steps)
@@ -11,11 +12,7 @@
 //
 // Each step prints "pass" or "FAIL" and the script carries on where it can, so one run says exactly
 // which steps hold. It exits 1 when any step failed.
-//
-// One stand-in, until the server has the route: GET /v1/preferences is answered here from the
-// recorded answer in server/testdata/contracts. The app cannot open without its settings registry.
 import {execFileSync, spawn} from 'node:child_process';
-import http from 'node:http';
 import {mkdtemp, readFile, rm} from 'node:fs/promises';
 import {createServer as netServer} from 'node:net';
 import {tmpdir} from 'node:os';
@@ -55,22 +52,7 @@ async function stopServer() {
 }
 await startServer();
 cleanups.push(() => stopServer());
-const system = await (await fetch(serverOrigin + '/v1/system')).json();
-
-// The stand-in for the one missing route; everything else goes to the server untouched.
-const recorded = JSON.parse(await readFile(join(web, '..', 'server', 'testdata', 'contracts', 'get-preferences.json'), 'utf8')).response;
-const preferences = JSON.stringify({scope: {serverId: system.id, viewerFence: recorded.scope.viewerFence}, data: recorded.data});
-const front = http.createServer((request, response) => {
-  if (request.method === 'GET' && request.url.startsWith('/v1/preferences')) {response.writeHead(200, {'Content-Type': 'application/json'}); response.end(preferences); return;}
-  const forward = http.request({host: '127.0.0.1', port: serverPort, path: request.url, method: request.method, headers: request.headers},
-    answer => {response.writeHead(answer.statusCode, answer.headers); answer.pipe(response);});
-  forward.on('error', () => {response.writeHead(502); response.end();});
-  request.pipe(forward);
-});
-await new Promise(resolve => front.listen(0, '127.0.0.1', resolve));
-cleanups.push(() => new Promise(resolve => {front.closeAllConnections(); front.close(resolve);}));
-
-process.env.PORTICO_DEV_SERVER_URL = `http://127.0.0.1:${front.address().port}`;
+process.env.PORTICO_DEV_SERVER_URL = serverOrigin;
 const {createServer} = await import('vite');
 const vite = await createServer({root: web, logLevel: 'error', server: {host: '127.0.0.1', port: await freePort(), strictPort: true}});
 await vite.listen();
@@ -119,7 +101,8 @@ try {
   await step('set up the owner with the setup code from the data folder', async () => {
     const page = await setup.newPage(), requests = watch(page);
     await page.goto(origin + '/', {waitUntil: 'domcontentloaded'});
-    await page.getByRole('radio', {name: /Local sign-in/}).check();
+    // The first page of a run can wait for the development server to build the app, and reload once.
+    await page.getByRole('radio', {name: /Local sign-in/}).check({timeout: 120000});
     await page.getByLabel('Username').fill('owner');
     await page.getByLabel('Password', {exact: true}).fill(password);
     await page.getByLabel('Confirm password').fill(password);
@@ -287,6 +270,49 @@ try {
       if (!requests.has('POST /v1/items/state:undo 204')) throw new Error('The server was not asked to undo.');
     });
   }
+  // Settings. A second browser is a second device of the same kind (web) on the same profile.
+  const other = await browser.newContext({viewport: {width: 1440, height: 900}}), second = await other.newPage();
+  cleanups.push(() => other.close());
+  /** Opens a settings page; a window that has chosen its profile opens the address straight away. */
+  const openSettings = async (window, section, title) => {
+    await window.goto(`${origin}/settings?scope=account&section=${section}`, {waitUntil: 'domcontentloaded'});
+    await window.getByRole('heading', {name: title, level: 1}).waitFor();
+  };
+  const atHome = window => window.getByRole('combobox', {name: 'At home'});
+  await step('quality chosen on one device stays on it: another device on the same profile keeps its own', async () => {
+    await signIn(second);
+    await second.getByRole('button', {name: /owner/}).click();
+    await shell(second).waitFor();
+    await openSettings(page, 'quality', 'Quality & data');
+    await atHome(page).click();
+    await page.getByRole('option', {name: /^720p High/}).click();
+    await until('The quality being saved', async () => requests.has('PATCH /v1/preferences 200') && /720p High/.test(await atHome(page).innerText()));
+    await openSettings(second, 'quality', 'Quality & data');
+    if (!/Original/.test(await atHome(second).innerText())) throw new Error('The other device took this device\'s quality.');
+    await openSettings(page, 'quality', 'Quality & data');
+    if (!/720p High/.test(await atHome(page).innerText())) throw new Error('This device did not keep its quality after a reload.');
+  });
+  await step('a setting for the whole profile changed on one device shows on the other without a reload', async () => {
+    await openSettings(page, 'playback', 'Playback');
+    await openSettings(second, 'playback', 'Playback');
+    const autoplay = window => window.getByRole('switch', {name: 'Autoplay next episode'});
+    await until('Autoplay showing on', async () => await autoplay(second).isChecked() && await autoplay(page).isChecked());
+    await autoplay(page).click();
+    await until('The other device following', async () => !await autoplay(second).isChecked(), 150);
+  });
+  await step('a setting changed while the server is out of reach is kept and saved when it is back', async () => {
+    const skipBack = page.getByRole('combobox', {name: 'Skip back'});
+    await stopServer();
+    await skipBack.click();
+    await page.getByRole('option', {name: /^30 seconds/}).click();
+    await until('The change showing at once', async () => /30 seconds/.test(await skipBack.innerText()));
+    await startServer();
+    const saved = async () => {
+      const answer = await fetch(serverOrigin + '/v1/preferences?deviceClass=web', {headers: {Authorization: 'Bearer ' + (await ownerToken()).token}});
+      return (await answer.json()).effective['playback.skipBackMs'] === 30000;
+    };
+    await until('The kept change reaching the server', saved, 300);
+  });
   await step('sign out returns to sign-in, and stays signed out after a reload', async () => {
     await shell(page).click();
     await page.getByText('Sign out', {exact: true}).click();

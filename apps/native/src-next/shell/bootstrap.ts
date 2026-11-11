@@ -12,7 +12,7 @@ import {HomeService} from '../../../../packages/client-core/src/home-service';
 import {viewerQueryScope} from '../../../../packages/client-core/src/query/viewer-queries';
 import type {DirectSnapshot} from '../../../../packages/client-core/src/profile-management';
 import {IdentityClient} from '../../../../packages/client-core/src/identity-client';
-import {currentPreferenceSnapshot, type PreferenceSnapshot} from '../../../../packages/client-core/src/preferences';
+import type {PreferenceSnapshot} from '../../../../packages/client-core/src/preferences';
 import {parseLibraryList} from '../../../../packages/client-core/src/library-list';
 import {createRoleProbe} from './role-probe';
 import {LocalSessionRefresher} from '../../../../packages/client-core/src/session-refresh';
@@ -39,6 +39,7 @@ import {nativeAppSessions, readNativeSelectedViewer} from '../platform/app-sessi
 import {nativeSignInEnded, rememberNativeSignInHint, type NativeSignInHint, type NativeSignInEnded} from '../platform/sign-in-ended';
 import {nativeIdentityFailure, nativeRouteIdentityFailure, type NativeIdentityFailure, type NativeIdentityServer} from '../platform/identity-failure';
 import {profilePictureSource} from '../platform/profile-avatars';
+import {notOnThisServer} from '../../../../packages/client-core/src/query/server-api';
 import {nativeAmbientSource, type ProfileOption} from '../kit/artwork';
 import {LastLibraryMemory} from './library-memory';
 import {createNativeShellPlaybackAdapter} from '../platform/playback';
@@ -66,6 +67,8 @@ import {retainNativeDownloadsDevice} from '../screens/downloads/device';
 import {bindNativeTopShelf} from '../platform/top-shelf';
 import {bindNativeAppleActivity} from '../platform/apple-activity';
 import {readWatchlist} from '../../../../packages/client-core/src/saved';
+
+const noPictures = (error: unknown): [] => {if (notOnThisServer(error)) return []; throw error;};
 
 export type NativeRememberedProfile = Readonly<{
   /** True while this device opens the profile that is open now without asking. */
@@ -275,7 +278,8 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
     const [librariesResult, initialAccount, initialAvatars, initialPreferences, server] = await Promise.all([
       readLibraries(readers, signal.signal).then(value => value, error => tolerateLibraryDirectory(error, signal.signal)),
       readers.readAccount(),
-      identities.avatars(signal.signal),
+      // The rebuilt server has no profile pictures yet: every profile shows its colour and initial.
+      identities.avatars(signal.signal).catch(noPictures),
       readers.readPreferences(Platform.isTV ? 'television' : 'mobile', signal.signal),
       rememberNativeServerDisplay(local, {serverId: session.viewer.serverId,
         signal: signal.signal, isCurrent: () => alive && installation.current()}),
@@ -305,7 +309,9 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
       // fence or sign-out may change it; a token renewal sliding the inactivity horizon must not,
       // and neither may a library added or removed. That only moves `viewerFence`, read live by
       // Home-data checks, while this object (and everything keyed on it) stays the same.
-      epoch: JSON.stringify([session.sessionFamilyId, profile.revision, profile.pinRevision]), get viewerFence() {return viewerFence;},
+      // A PIN set or removed elsewhere changes it; the server keeps no revision of a profile, and a change of
+      // access arrives as its own event.
+      epoch: JSON.stringify([session.sessionFamilyId, profile.pinRequired]), get viewerFence() {return viewerFence;},
       // Who the viewer is and what they may see: the library directory's privacy fence (client
       // data step 5). The key never follows the live viewer fence: a directory that did not answer
       // at start keys the shell on the Home fence it opened with, and its first answer is adopted.
@@ -381,7 +387,8 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
     const text = nativeRuntimeRegionText(context);
     bindNativeServerPreferences(context, {read: readers.readPreferences, apply: readers.applyPreferences, accept: next => {
       assertCurrent();
-      const confirmed = currentPreferenceSnapshot(preferences, next);
+      // The reader answers an older read with the newer settings it already holds.
+      const confirmed = next;
       if (confirmed !== preferences) {preferences = confirmed; for (const listener of preferenceListeners) listener();}
       return confirmed;
     }});
@@ -450,13 +457,13 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
         const [selection, me, nextLibraries, nextFacts, nextAccount, nextAvatars] = await Promise.all([
           readNativeSelectedViewer(), readViewerIdentity(readers, session!.viewer, round.signal),
           readLibraries(readers, round.signal).then(value => value, error => tolerateLibraryDirectory(error, round.signal)), readers.read(round.signal),
-          readers.readAccount(round.signal), identities.avatars(round.signal),
+          readers.readAccount(round.signal), identities.avatars(round.signal).catch(noPictures),
         ]);
         assertCurrent();
         const nextProfile = nextAccount.profiles.find(value => value.id === authority.profileId);
         if (!selection || selection.serverUrl !== original.serverUrl || !sameViewer(selection.session, session!)
           || (['accountId', 'profileId', 'serverId', 'authority'] as const).some(key => me.viewer[key] !== session!.viewer[key])
-          || !nextProfile || nextProfile.revision !== profile.revision || nextProfile.pinRevision !== profile.pinRevision) {end(); return;}
+          || !nextProfile) {end(); return;}
         if (me.viewer.role !== session!.viewer.role || nextAccount.account.role !== currentAccount().account.role) {rebuild(); return;}
         // Revalidate Home before committing the other private facts. Same-scope read failures
         // retain the entire published body; a changed Home fence retires it in the transport.
@@ -470,7 +477,7 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
         // parallel read must not overwrite a device setting committed meanwhile.
         const nextInstallation = await records.change('preferences:v1', raw => ({record: raw, value: raw})); assertCurrent();
         await accountBinding.assertCurrent(); assertCurrent();
-        preferences = currentPreferenceSnapshot(preferences, nextFacts.preferences); installationSettings = nextInstallation;
+        preferences = nextFacts.preferences; installationSettings = nextInstallation;
         // A directory that did not answer keeps the libraries already known (or stays unavailable).
         if (nextLibraries) readOrder.libraries.apply(tickets.libraries, () => {libraries = Object.freeze(nextLibraries.items); librariesUnavailable = false;});
         text.refreshDeviceRegion();
@@ -507,7 +514,8 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
       preferences: guarded(async requestSignal => {
         const next = await readers.readPreferences(Platform.isTV ? 'television' : 'mobile', requestSignal);
         await resourceCurrent(requestSignal);
-        const confirmed = currentPreferenceSnapshot(preferences, next);
+        // The reader answers an older read with the newer settings it already holds.
+      const confirmed = next;
         if (confirmed !== preferences) {preferences = confirmed; for (const listener of [...preferenceListeners]) listener(); publish();}
       }),
       unread: guarded(async requestSignal => {
@@ -524,12 +532,12 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
         const ticket = readOrder.identity.begin();
         const [me, nextAccount, nextAvatars] = await Promise.all([
           readViewerIdentity(readers, session!.viewer, requestSignal),
-          readers.readAccount(requestSignal), identities.avatars(requestSignal),
+          readers.readAccount(requestSignal), identities.avatars(requestSignal).catch(noPictures),
         ]);
         await resourceCurrent(requestSignal);
         const nextProfile = nextAccount.profiles.find(value => value.id === authority.profileId);
         if ((['accountId', 'profileId', 'serverId', 'authority'] as const).some(key => me.viewer[key] !== session!.viewer[key])
-          || !nextProfile || nextProfile.revision !== profile.revision || nextProfile.pinRevision !== profile.pinRevision) {end(); return;}
+          || !nextProfile) {end(); return;}
         if (me.viewer.role !== session!.viewer.role || nextAccount.account.role !== currentAccount().account.role) {rebuild(); return;}
         readOrder.identity.apply(ticket, () => {account = nextAccount; avatars = nextAvatars; publish();});
       }),

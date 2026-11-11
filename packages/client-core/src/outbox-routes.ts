@@ -3,8 +3,9 @@ import {apiRoot, routes} from '../../contracts/src/routes.ts';
 
 /**
  * The writes the outbox carries: what a person does while the server is out of reach. Personal
- * state, list and playlist edits, and the final position of a stop. Nothing else: an owner's
- * settings save that gets no answer shows an error and the form reads the current value again.
+ * state, list and playlist edits, a profile's own settings, and the final position of a stop. Nothing
+ * else: an owner's server settings save that gets no answer shows an error and the form reads the
+ * current value again.
  */
 const kinds = {
   personal: ['put_items_itemId_reading_favorite', 'put_items_itemId_reading_mark', 'put_items_itemId_reading_my_list', 'put_reading_group_my_list',
@@ -14,13 +15,16 @@ const kinds = {
     'put_saved_pins_order', 'put_saved_pins_kind_id'],
   stop: ['stop_playback_session'],
 } as const;
-export type OutboxKind = keyof typeof kinds;
+export type OutboxKind = keyof typeof kinds | 'settings';
 const kindOf = new Map<string, OutboxKind>(Object.entries(kinds).flatMap(([kind, ids]) => ids.map(id => [id, kind as OutboxKind] as const)));
 /** A person's own state on a title: watched, favourite, My List, rating, hidden and position, on the one route that sets them. */
 const itemStateRoute: keyof Routes = 'PUT /v1/items/{id}/state';
 const itemState = {kind: 'personal' as OutboxKind, method: 'PUT', parts: itemStateRoute.slice(itemStateRoute.indexOf(' ') + 1).split('/')};
-const outboxRoutes = [itemState, ...routes.filter(route => kindOf.has(route.id)).map(route => ({kind: kindOf.get(route.id)!, method: route.method, parts: route.path.split('/')}))];
-if (outboxRoutes.length !== kindOf.size + 1) throw new Error('An outbox route is missing from the generated routes.');
+/** A profile's own settings: the server keeps the last save. */
+const settingsRoute: keyof Routes = 'PATCH /v1/preferences';
+const settings = {kind: 'settings' as OutboxKind, method: 'PATCH', parts: settingsRoute.slice(settingsRoute.indexOf(' ') + 1).split('/')};
+const outboxRoutes = [itemState, settings, ...routes.filter(route => kindOf.has(route.id)).map(route => ({kind: kindOf.get(route.id)!, method: route.method, parts: route.path.split('/')}))];
+if (outboxRoutes.length !== kindOf.size + 2) throw new Error('An outbox route is missing from the generated routes.');
 
 /** Which kind of write this is, when the outbox carries it: the words for it differ, and a stop is never reported. */
 export function outboxKind(path: string, method: string): OutboxKind | undefined {
@@ -37,13 +41,14 @@ export function outboxKind(path: string, method: string): OutboxKind | undefined
 export const isOutboxRoute = (path: string, method: string): boolean => outboxKind(path, method) !== undefined;
 
 /**
- * What is sent for a kept edit. A change to a title's state says how long ago the person made it
- * (`madeAgoMs`), so the server can order it against edits from other devices; the server never
- * reads this device's clock, only that length of time.
+ * What is sent for a kept edit. A change to a title's state or to the profile's settings says how
+ * long ago the person made it (`madeAgoMs`), so the server can order it against changes from other
+ * devices; the server never reads this device's clock, only that length of time.
  */
 export function outboxBody(entry: Readonly<{path: string; method: string; body?: unknown; createdAt: number}>, now: number): unknown {
   const segments = entry.path.split('?')[0]!.split('/');
-  const state = entry.method === itemState.method && segments.length === itemState.parts.length && itemState.parts.every((part, i) => part.startsWith('{') ? !!segments[i] : part === segments[i]);
-  if (!state || typeof entry.body !== 'object' || entry.body === null) return entry.body;
+  const ordered = [itemState, settings].some(route => entry.method === route.method && segments.length === route.parts.length
+    && route.parts.every((part, i) => part.startsWith('{') ? !!segments[i] : part === segments[i]));
+  if (!ordered || typeof entry.body !== 'object' || entry.body === null) return entry.body;
   return {...entry.body, madeAgoMs: Math.max(0, Math.round(now - entry.createdAt))};
 }

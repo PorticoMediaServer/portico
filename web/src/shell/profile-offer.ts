@@ -3,7 +3,7 @@ import type {ProfileIdentity} from '../kit/shell';
 
 /** Display names, artwork, ordering, unread and library labels are not opening proof. */
 export function profileTargetKey(profile: ProfileIdentity | undefined): string {
-  return JSON.stringify(profile ? [profile.id, profile.revision, profile.pinRevision, profile.trustRevision, profile.pinRequired === true] : null);
+  return JSON.stringify(profile ? [profile.id, profile.accessMarker, profile.pinRequired === true] : null);
 }
 export function switchAuthorityKey(identity: ShellIdentity): string {
   const viewer = identity.viewer;

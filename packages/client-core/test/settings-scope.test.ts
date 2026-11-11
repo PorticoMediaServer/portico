@@ -18,17 +18,15 @@ test('a setting the server keeps per kind of device names the kind, never "This 
   assert.equal(settingsScopeLabel(undefined, 'web'), undefined);
 });
 
-test('rows stored in the registry are never marked as this one device, and rows the device keeps are', () => {
+test('rows the device keeps say This device, and so do quality and delivery, which the server keeps for each device', () => {
   for (const platform of ['web', 'phone', 'tv'] as const) {
     for (const row of rows(platform)) {
-      if (row.kind === 'preference') assert.notEqual(row.scope, 'device', `${row.key} is stored on the server`);
-      if (row.kind === 'composite' && row.storage === 'registry') assert.notEqual(row.scope, 'device', `${row.id} is stored on the server`);
       if (row.kind === 'composite' && row.storage === 'device') assert.equal(row.scope, 'device', `${row.id} is kept by the device`);
     }
   }
-  // The saved quality away from home is the server's `quality.remote`, kept per kind of device.
+  // Two phones on one profile keep their own quality (owner's ruling): `quality.remote` is saved for one device.
   const quality = rows('web').find(row => row.kind === 'preference' && row.key === 'quality.remote');
-  assert.equal(quality && 'scope' in quality ? quality.scope : undefined, 'deviceClass');
+  assert.equal(quality && 'scope' in quality ? quality.scope : undefined, 'device');
 });
 
 test('Quality & data does not offer the retired Player or passthrough controls', () => {

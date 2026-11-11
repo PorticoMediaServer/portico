@@ -520,7 +520,6 @@ export async function standardHomeApp({
   };
   const prefs = () => ({
     deviceClass: 'mobile',
-    registryRevision: 'fixture-preferences',
     registry: {
       revision: 'fixture-preferences',
       fields: Object.entries(effective).map(([key, value]) => ({
@@ -534,16 +533,12 @@ export async function standardHomeApp({
     },
     documents: ['profile-server', 'profile-device-class'].map(scope => ({
       scope,
-      revision: 1,
-      activeRevision: 1,
-      digest: 'd'.repeat(64),
       values: scope === 'profile-server' ? effective : {},
     })),
     effective,
     effectiveSource: Object.fromEntries(
       Object.keys(effective).map(key => [key, 'profile-server']),
     ),
-    clampedFields: [],
   });
   const envelope = (domain, value) => ({
     scope: {
@@ -604,7 +599,7 @@ export async function standardHomeApp({
     if (accountPath(path)) return {status: 200, body: accountAnswer(path, described())};
     if (path === routePath('get_home')) return {status: 200, body: homeDoc()};
     if (path === routePath('get_preferences'))
-      return {status: 200, body: envelope('preferences', prefs())};
+      return {status: 200, body: prefs()};
     if (path === routePath('get_libraries'))
       return {
         status: 200,
