@@ -43,6 +43,8 @@ type DB struct {
 	path       string
 	helper     *sql.DB
 	helperDone chan struct{}
+	// backingUp is set while an online backup runs. See checkpointHelper.
+	backingUp atomic.Bool
 
 	// titleData is the title data file the reads use, or nil. See titledata.go.
 	titleData  atomic.Pointer[titleData]
