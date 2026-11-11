@@ -1,0 +1,247 @@
+package api
+
+import (
+	"context"
+	"fmt"
+	"crypto/sha256"
+	"encoding/hex"
+	"io"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
+	"github.com/PorticoMediaServer/portico/server-next/internal/mediaexec"
+)
+
+// The sandbox that makes download copies starts this test binary again as its helper.
+func TestMain(m *testing.M) {
+	for _, helper := range []func([]string) (bool, error){decoder.RunHelper, mediaexec.RunHelper} {
+		if handled, err := helper(os.Args[1:]); handled {
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+			os.Exit(0)
+		}
+	}
+	os.Exit(m.Run())
+}
+
+// downloadRig is a server with a real two-second film (rated 16) and a subtitle file beside
+// it, the owner on the main profile, and a kid's profile limited to 12 on another device.
+type downloadRig struct {
+	*testing.T
+	s          *Server
+	owner, kid string
+	film       string
+	clip       []byte
+}
+
+func newDownloadRig(t *testing.T) *downloadRig {
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skip("ffmpeg is not installed")
+	}
+	folder := t.TempDir()
+	clip := filepath.Join(folder, "film.mkv")
+	cmd := exec.Command("ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=25:duration=2",
+		"-f", "lavfi", "-i", "sine=frequency=440:duration=2", "-c:v", "libx264", "-b:v", "3M", "-c:a", "aac", "-shortest", clip)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("making the clip failed: %v %s", err, out)
+	}
+	os.WriteFile(filepath.Join(folder, "film.en.srt"), []byte("1\n00:00:00,000 --> 00:00:01,000\nHello\n"), 0o600)
+	s := newTestServer(t)
+	rig := &downloadRig{T: t, s: s, owner: onMain(t, s, setup(t, s)).AccessToken}
+	rig.clip, _ = os.ReadFile(clip)
+	ctx := context.Background()
+	lib, err := s.db.CreateLibrary(ctx, "Films", db.LibraryMovies, "en", []string{folder})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stat := func(name string) (int64, int64) {
+		info, _ := os.Stat(filepath.Join(folder, name))
+		return info.Size(), info.ModTime().UnixNano()
+	}
+	filmSize, filmTime := stat("film.mkv")
+	srtSize, srtTime := stat("film.en.srt")
+	age := 16
+	_, err = s.db.Import(ctx, db.ImportBatch{LibraryID: lib.ID, PathID: lib.Paths[0].ID, Scan: 1, Dirs: []db.ImportDir{{}},
+		Files: []db.ImportFile{
+			{FileRef: db.FileRef{Name: "film.mkv"}, Role: db.FileMedia, Size: filmSize, ModifiedNS: filmTime, Container: "matroska",
+				DurationMS: 2000, Bitrate: 3_000_000, Streams: []db.Stream{
+					{Kind: db.StreamVideo, Codec: "h264", Width: 640, Height: 360, BitDepth: 8},
+					{Kind: db.StreamAudio, Codec: "aac", Channels: 1, SampleRate: 44100, Default: true}}},
+			{FileRef: db.FileRef{Name: "film.en.srt"}, Role: db.FileSubtitle, Size: srtSize, ModifiedNS: srtTime,
+				Streams: []db.Stream{{Kind: db.StreamSubtitle, Codec: "subrip", Language: "eng"}}}},
+		Items: []db.ImportItem{{Kind: db.KindMovie, Keys: []db.ItemKey{{Kind: db.KeyFile, Key: "film"}}, Title: "Film", RatingAge: &age,
+			Versions: []db.ImportVersion{{Parts: []db.ImportPart{{File: db.FileRef{Name: "film.mkv"}}},
+				Sidecars: []db.FileRef{{Name: "film.en.srt"}}}}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := get[ItemPage](t, s, rig.owner, "/v1/items?library="+lib.PublicID+"&kind=movie")
+	if len(page.Items) != 1 {
+		t.Fatal("the film was not imported")
+	}
+	rig.film = page.Items[0].ID
+	var kid Profile
+	call(t, s, "POST", "/v1/profiles", rig.owner, ProfileCreate{Name: "Kid"}, &kid)
+	limit := 12
+	if w := call(t, s, "PUT", "/v1/profiles/"+kid.ID+"/restrictions", rig.owner, Restrictions{MaxRatingAge: &limit, AllLibraries: true}, nil); w.Code != 200 {
+		t.Fatalf("limiting the kid answered %d: %s", w.Code, w.Body)
+	}
+	var onKid Session
+	if w := call(t, s, "POST", "/v1/profiles/"+kid.ID+"/select", signIn(t, s, 1).Session.AccessToken, ProfileSelect{}, &onKid); w.Code != 200 {
+		t.Fatalf("choosing the kid's profile answered %d", w.Code)
+	}
+	rig.kid = onKid.AccessToken
+	return rig
+}
+
+func (rig *downloadRig) ask(token string, body DownloadAsk) (int, Download) {
+	rig.Helper()
+	var out Download
+	w := call(rig.T, rig.s, "POST", "/v1/downloads", token, body, &out)
+	return w.Code, out
+}
+
+// fetch sends a GET for a media address with optional headers, and no sign-in.
+func (rig *downloadRig) fetch(url string, headers ...string) (*http.Response, []byte) {
+	r := newRequest("GET", url, "", nil)
+	for n := 0; n+1 < len(headers); n += 2 {
+		r.Header.Set(headers[n], headers[n+1])
+	}
+	res := serve(rig.s, r).Result()
+	body, _ := io.ReadAll(res.Body)
+	return res, body
+}
+
+// Someone downloads a film at Original: asking twice is one download, the device fetches the
+// file by range from an address that needs no sign-in and carries on where it stopped, and
+// the subtitle beside it comes too. A kid limited below the film's rating cannot download
+// it or learn it exists, a TV cannot download, and once the download is removed its address
+// stops working.
+func TestAnOriginalDownloadIsFetchedByRangeAndOnlyByWhoMaySeeIt(t *testing.T) {
+	rig := newDownloadRig(t)
+	code, first := rig.ask(rig.owner, DownloadAsk{ItemID: rig.film, Quality: "original"})
+	if code != 201 || first.Counts.Ready != 1 || first.Counts.Titles != 1 {
+		t.Fatalf("asking answered %d %+v", code, first)
+	}
+	if code, again := rig.ask(rig.owner, DownloadAsk{ItemID: rig.film, Quality: "original"}); code != 200 || again.ID != first.ID {
+		t.Fatalf("asking again answered %d %+v", code, again)
+	}
+	var item DownloadedItem
+	if w := call(t, rig.s, "GET", "/v1/downloads/"+first.ID+"/items/"+rig.film, rig.owner, nil, &item); w.Code != 200 || len(item.Files) != 1 {
+		t.Fatalf("the title's files answered %d: %s", w.Code, w.Body)
+	}
+	if item.Files[0].SizeBytes != int64(len(rig.clip)) || item.Item.Title != "Film" {
+		t.Fatalf("the file is described wrongly: %+v", item.Files[0])
+	}
+	res, body := rig.fetch(item.Files[0].URL, "Range", "bytes=100-199")
+	if res.StatusCode != 206 || string(body) != string(rig.clip[100:200]) {
+		t.Fatalf("a range answered %d with %d bytes", res.StatusCode, len(body))
+	}
+	// Carrying on after a lost connection: the same file still, so the rest comes.
+	res, body = rig.fetch(item.Files[0].URL, "Range", "bytes=200-", "If-Range", res.Header.Get("ETag"))
+	if res.StatusCode != 206 || string(body) != string(rig.clip[200:]) {
+		t.Fatalf("carrying on answered %d with %d bytes", res.StatusCode, len(body))
+	}
+	var subtitle string
+	for _, s := range item.Subtitles {
+		if s.Source == "sidecar" {
+			subtitle = s.URL
+		}
+	}
+	if res, body := rig.fetch(subtitle); res.StatusCode != 200 || !strings.Contains(string(body), "Hello") {
+		t.Fatalf("the subtitle beside the film answered %d %q", res.StatusCode, body)
+	}
+
+	for _, path := range []string{"/v1/items/" + rig.film + "/download-options", "/v1/downloads/" + first.ID,
+		"/v1/downloads/" + first.ID + "/items/" + rig.film} {
+		if w := call(t, rig.s, "GET", path, rig.kid, nil, nil); w.Code != 404 {
+			t.Fatalf("the kid's %s answered %d", path, w.Code)
+		}
+	}
+	if code, _ := rig.ask(rig.kid, DownloadAsk{ItemID: rig.film, Quality: "original"}); code != 404 {
+		t.Fatalf("the kid asking for a film above their limit answered %d", code)
+	}
+	var tv SignInResponse
+	tvDevice := device(7)
+	tvDevice.Platform = "tvos"
+	call(t, rig.s, "POST", "/v1/auth/sign-in", "", SignInRequest{Username: "justin", Password: testPassword, Device: tvDevice}, &tv)
+	onTV := onMain(t, rig.s, tv).AccessToken
+	if code, _ := rig.ask(onTV, DownloadAsk{ItemID: rig.film, Quality: "original"}); code != 403 {
+		t.Fatalf("a TV asking to download answered %d", code)
+	}
+	if w := call(t, rig.s, "GET", "/v1/downloads?scope=profile", onTV, nil, nil); w.Code != 403 {
+		t.Fatalf("a TV listing downloads answered %d", w.Code)
+	}
+
+	if w := call(t, rig.s, "DELETE", "/v1/downloads/"+first.ID, rig.owner, nil, nil); w.Code != 204 {
+		t.Fatalf("removing answered %d", w.Code)
+	}
+	if res, _ := rig.fetch(item.Files[0].URL); res.StatusCode != 404 {
+		t.Fatalf("a removed download's address answered %d", res.StatusCode)
+	}
+}
+
+// Two profiles ask for the same film at 240p: the server prepares it once, both are ready
+// with the same copy counted once, and the file fetched is the one whose hash the device
+// is told. A browser saves it under the title's name.
+func TestASmallerCopyIsPreparedOnceForEveryoneWhoAsks(t *testing.T) {
+	rig := newDownloadRig(t)
+	if !rig.s.prepare.Converts() {
+		t.Skip("this machine cannot run the sandboxed encoder")
+	}
+	var options DownloadOptions
+	call(t, rig.s, "GET", "/v1/items/"+rig.film+"/download-options", rig.owner, nil, &options)
+	if len(options.Items) != 2 || options.Items[1].Quality != "240p" || !options.Items[1].Prepared || !options.Items[1].Available {
+		t.Fatalf("a 360-line film offers %+v", options.Items)
+	}
+	code, dl := rig.ask(rig.owner, DownloadAsk{ItemID: rig.film, Quality: "240p"})
+	if code != 201 {
+		t.Fatalf("asking answered %d", code)
+	}
+	deadline := time.Now().Add(2 * time.Minute)
+	for dl.Counts.Ready == 0 && time.Now().Before(deadline) {
+		time.Sleep(100 * time.Millisecond)
+		call(t, rig.s, "GET", "/v1/downloads/"+dl.ID, rig.owner, nil, &dl)
+		if dl.Counts.Failed > 0 {
+			t.Fatalf("the copy failed: %+v", dl.Items)
+		}
+	}
+	if dl.Counts.Ready != 1 || dl.Items[0].State != "ready" || dl.Items[0].KeptUntil == nil {
+		t.Fatalf("the copy was not made: %+v", dl)
+	}
+
+	var partner Profile
+	call(t, rig.s, "POST", "/v1/profiles", rig.owner, ProfileCreate{Name: "Partner"}, &partner)
+	var onPartner Session
+	call(t, rig.s, "POST", "/v1/profiles/"+partner.ID+"/select", signIn(t, rig.s, 2).Session.AccessToken, ProfileSelect{}, &onPartner)
+	code, theirs := rig.ask(onPartner.AccessToken, DownloadAsk{ItemID: rig.film, Quality: "240p"})
+	if code != 201 || theirs.Counts.Ready != 1 {
+		t.Fatalf("a second person waited for a copy already made: %d %+v", code, theirs)
+	}
+	used, _ := rig.s.db.PreparedSpace(context.Background())
+	if used != dl.Items[0].SizeBytes {
+		t.Fatalf("the server's space counts %d for one copy of %d", used, dl.Items[0].SizeBytes)
+	}
+	var item DownloadedItem
+	call(t, rig.s, "GET", "/v1/downloads/"+theirs.ID+"/items/"+rig.film, onPartner.AccessToken, nil, &item)
+	if len(item.Files) != 1 || item.Files[0].SHA256 == "" {
+		t.Fatalf("the copy's file is not described: %+v", item.Files)
+	}
+	res, body := rig.fetch(item.Files[0].URL + "?save=1")
+	sum := sha256.Sum256(body)
+	if res.StatusCode != 200 || hex.EncodeToString(sum[:]) != item.Files[0].SHA256 || int64(len(body)) != item.Files[0].SizeBytes {
+		t.Fatalf("the copy fetched is not the one described: %d, %d bytes", res.StatusCode, len(body))
+	}
+	if disposition := res.Header.Get("Content-Disposition"); !strings.Contains(disposition, "attachment") || !strings.Contains(disposition, "Film.mp4") {
+		t.Fatalf("a browser is not told to save it as Film.mp4: %q", disposition)
+	}
+}

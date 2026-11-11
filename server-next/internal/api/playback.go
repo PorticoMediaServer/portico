@@ -5,8 +5,10 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/downloads"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
 	"github.com/PorticoMediaServer/portico/server-next/internal/reading"
@@ -30,6 +32,10 @@ func (s *Server) playbackRoutes() {
 	s.mux.HandleFunc(media.Pattern, func(w http.ResponseWriter, r *http.Request) {
 		if reading.IsGrant(r.PathValue("grant")) {
 			s.reading.ServeMedia(w, r, r.PathValue("grant"), r.PathValue("file"))
+			return
+		}
+		if grant := r.PathValue("grant"); strings.HasPrefix(grant, downloads.GrantPrefix) {
+			s.serveDownload(w, r, grant, r.PathValue("file"))
 			return
 		}
 		if s.media == nil {
