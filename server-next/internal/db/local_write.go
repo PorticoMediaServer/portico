@@ -89,9 +89,14 @@ func (im *importer) reread(id int64, it *ImportItem) error {
 		if err != nil {
 			return err
 		}
-		if _, err := im.exec(`INSERT INTO item_tags (item_id, tag_id) VALUES (?, ?) ON CONFLICT DO NOTHING`, id, tagID); err != nil {
+		if err := im.tagItem(id, tagID); err != nil {
 			return err
 		}
+	}
+	// The file may have changed the rating, on the title and on what is under it that has
+	// none of its own: the copies of it elsewhere follow in this transaction.
+	if err := im.ratingChanged(id); err != nil {
+		return err
 	}
 	if local[FieldCredits] && len(it.Credits) > 0 {
 		if _, err := im.exec(`DELETE FROM credits WHERE item_id = ?`, id); err != nil {
