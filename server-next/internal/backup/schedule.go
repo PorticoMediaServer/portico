@@ -52,6 +52,7 @@ func (s *Service) Next() time.Time { return nextDue(Document.Get(s.Settings), s.
 // Run makes the scheduled backups until ctx ends.
 func (s *Service) Run(ctx context.Context) {
 	s.removeLeftovers()
+	s.readNewest()
 	changed := make(chan struct{}, 1)
 	Document.Watch(s.Settings, func(Settings) {
 		select {
@@ -80,6 +81,7 @@ func (s *Service) Run(ctx context.Context) {
 			return
 		case <-changed:
 			timer.Stop()
+			s.readNewest() // the backup folder may have changed
 			wait = -1
 			continue
 		case <-timer.C:

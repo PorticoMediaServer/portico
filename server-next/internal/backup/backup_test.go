@@ -463,3 +463,33 @@ func TestAnUnreadableMarkKeyWarnsAndDoesNotBlock(t *testing.T) {
 		t.Errorf("restoring, confirmed: %v", err)
 	}
 }
+
+// The newest backup is known without reading the backup folder on every look: it is read once
+// at start, then kept as backups are made and deleted.
+func TestTheNewestBackupIsKept(t *testing.T) {
+	ctx := context.Background()
+	s := newService(t)
+	if _, known := s.Newest(); known {
+		t.Errorf("the newest backup is known before the folder was read")
+	}
+	for _, id := range []string{"portico-20261101-030000", "portico-20261102-030000"} {
+		if err := s.make(ctx, id, true); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if b, known := s.Newest(); !known || b == nil || b.ID != "portico-20261102-030000" {
+		t.Errorf("after two backups the newest is %+v", b)
+	}
+	// A restart reads it from the folder.
+	started := &Service{DB: s.DB, Settings: s.Settings, DataDir: s.DataDir, Version: s.Version, Log: s.Log, Now: s.Now}
+	started.readNewest()
+	if b, known := started.Newest(); !known || b == nil || b.ID != "portico-20261102-030000" {
+		t.Errorf("read at start, the newest is %+v", b)
+	}
+	if err := started.Delete("portico-20261102-030000"); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := started.Newest(); b == nil || b.ID != "portico-20261101-030000" {
+		t.Errorf("after deleting the newest, it is %+v", b)
+	}
+}

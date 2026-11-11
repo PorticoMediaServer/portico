@@ -67,6 +67,13 @@ func (d *DB) ReportsToday(ctx context.Context, v Viewer, now time.Time) (int, er
 	return n, err
 }
 
+// OpenReports counts the reports nobody has answered yet, for the Dashboard.
+func (d *DB) OpenReports(ctx context.Context) (int, error) {
+	var n int
+	err := d.read.QueryRowContext(ctx, `SELECT count(*) FROM reports WHERE status = 'open'`).Scan(&n)
+	return n, err
+}
+
 // ReportLogs are the app logs the reports name, by hash: what the tidy-up keeps.
 func (d *DB) ReportLogs(ctx context.Context) (map[string]bool, error) {
 	rows, err := d.read.QueryContext(ctx, `SELECT DISTINCT log_hash FROM reports WHERE log_hash IS NOT NULL`)

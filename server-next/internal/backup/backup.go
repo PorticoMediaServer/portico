@@ -176,6 +176,10 @@ type Service struct {
 	mu      sync.Mutex
 	running *Progress
 	last    error // the last scheduled backup's failure, until one succeeds
+	// newest is the newest backup in the backup folder, read at start and kept as backups are
+	// made and deleted, so the Dashboard never reads a backup folder that may be slow.
+	newest *Backup
+	known  bool // newest has been read
 }
 
 // Progress is a backup being made.
@@ -209,6 +213,35 @@ func (s *Service) Running() *Progress {
 	}
 	p := *s.running
 	return &p
+}
+
+// Newest is the newest backup in the backup folder. known is false until the folder has been
+// read since the server started (a backup drive that does not answer stays unknown).
+func (s *Service) Newest() (b *Backup, known bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.newest != nil {
+		copied := *s.newest
+		b = &copied
+	}
+	return b, s.known
+}
+
+// readNewest reads the newest backup from the backup folder, within the folder's time limit.
+func (s *Service) readNewest() {
+	_ = within(folderCheckLimit, func() error {
+		list, err := s.List()
+		if err != nil {
+			return err
+		}
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.newest, s.known = nil, true
+		if len(list) > 0 {
+			s.newest = &list[0]
+		}
+		return nil
+	})
 }
 
 // LastError is why the last scheduled backup failed, while none has succeeded since.
@@ -335,7 +368,15 @@ func (s *Service) make(ctx context.Context, id string, scheduled bool) error {
 		if err := os.Rename(partial, filepath.Join(folder, id+".tar.gz")); err != nil {
 			return err
 		}
-		return os.Rename(description, filepath.Join(folder, id+".json"))
+		if err := os.Rename(description, filepath.Join(folder, id+".json")); err != nil {
+			return err
+		}
+		s.mu.Lock()
+		if s.newest == nil || !desc.CreatedAt.Before(s.newest.CreatedAt) {
+			s.newest, s.known = &desc, true // the one just made is the newest
+		}
+		s.mu.Unlock()
+		return nil
 	})
 }
 
@@ -484,7 +525,11 @@ func (s *Service) Delete(id string) error {
 		return ErrNotFound
 	}
 	folder := s.Folder()
-	return errors.Join(ignoreMissing(os.Remove(filepath.Join(folder, id+".tar.gz"))), ignoreMissing(os.Remove(filepath.Join(folder, id+".json"))))
+	err := errors.Join(ignoreMissing(os.Remove(filepath.Join(folder, id+".tar.gz"))), ignoreMissing(os.Remove(filepath.Join(folder, id+".json"))))
+	if newest, _ := s.Newest(); newest != nil && newest.ID == id {
+		s.readNewest()
+	}
+	return err
 }
 
 func ignoreMissing(err error) error {
