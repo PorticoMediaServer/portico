@@ -178,7 +178,7 @@ func (s *Server) authRoutes() {
 	Handle(s, "POST /v1/auth/sign-in", Public, s.signIn)
 	Handle(s, "POST /v1/auth/refresh", Public, s.refresh)
 	Handle(s, "DELETE /v1/auth/session", Public, s.signOut)
-	Handle(s, "POST /v1/auth/password", SignedIn, s.changePassword)
+	sensitive(Handle(s, "POST /v1/auth/password", SignedIn, s.changePassword))
 	// A tool with a key can ask who it is acting for.
 	me := Handle(s, "GET /v1/me", SignedIn, s.me)
 	me.Scope, me.Enrolling = ScopeRead, true

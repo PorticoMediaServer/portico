@@ -149,9 +149,9 @@ func (s *Server) networkRoutes() {
 		_, saved, err := s.db.SettingDocument(r.Context(), networkSettingsKey)
 		return s.networkSettings(saved), err
 	})
-	Handle(s, "PUT /v1/admin/settings/network", Owner, s.saveNetworkSettings)
+	sensitive(Handle(s, "PUT /v1/admin/settings/network", Owner, s.saveNetworkSettings))
 	Handle(s, "GET /v1/admin/blocked-networks", Admin, s.blockedNetworks)
-	Handle(s, "DELETE /v1/admin/blocked-networks/{id}", Admin, s.unblockNetwork)
+	sensitive(Handle(s, "DELETE /v1/admin/blocked-networks/{id}", Admin, s.unblockNetwork))
 }
 
 // BlockedNetwork is a network away from home that sent so many wrong passwords, PINs or

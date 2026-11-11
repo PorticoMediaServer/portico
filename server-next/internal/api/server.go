@@ -85,6 +85,10 @@ type Route struct {
 	Status int
 	// Enrolling routes also take a sign-in that may only set up two-step sign-in.
 	Enrolling bool
+	// Sensitive routes change something a person would not want changed from a device left
+	// on their profile: from a main profile entered with a remembered PIN they ask for the
+	// PIN again, unless that person turned the check off. See pinRecheck.
+	Sensitive bool
 }
 
 // Scope is what a key made for a tool must have been given to use a route. A signed-in
@@ -343,6 +347,12 @@ func Handle[Req, Resp any](s *Server, pattern string, access Access, fn func(r *
 	return route
 }
 
+// sensitive marks a route as one that asks for the PIN again. See Route.Sensitive.
+func sensitive(route *Route) *Route {
+	route.Sensitive = true
+	return route
+}
+
 // replier is a response that is not a plain 200: it can set headers (an ETag) and return a
 // status other than 200 (201 for something created, 202 for a start still preparing).
 // Returning 0 leaves the status alone.
@@ -419,9 +429,10 @@ type Caller struct {
 	// Manage says the caller is on the account's main profile, and so may change the account
 	// itself: its profiles, devices, sessions and password.
 	Manage bool
-	// PINNeeded says the caller is on the main profile but entered it with a remembered PIN
-	// more than an hour after the PIN was last typed: managing needs the PIN again.
-	PINNeeded bool
+	// PINStale says the caller is on the main profile of an account, entered it with a
+	// remembered PIN, and has not typed the PIN in the last hour. It can do everything the
+	// profile can except what pinRecheck guards.
+	PINStale bool
 	// Enrol says the caller may only set up two-step sign-in, which the owner requires.
 	Enrol bool
 }
@@ -466,19 +477,20 @@ func (s *Server) admit(r *http.Request, route *Route) (*http.Request, error) {
 			return r, ErrUnauthorized()
 		}
 		c = Caller{SessionID: claims.SessionID, UserID: claims.UserID, ProfileID: claims.ProfileID, Role: claims.Role, Manage: claims.Manage, Enrol: claims.Enrol}
-		if c.Manage && claims.ManageUntil != 0 && s.now().UnixMilli() >= claims.ManageUntil {
-			c.Manage, c.PINNeeded = false, true
-		}
+		c.PINStale = c.Manage && claims.ManageUntil != 0 && s.now().UnixMilli() >= claims.ManageUntil
 	}
 	switch {
 	case c.Enrol && !route.Enrolling:
 		return r, refusal(http.StatusForbidden, "factor_setup_required", "Set up two-step sign-in to finish signing in.", false)
-	case c.PINNeeded && (route.Access == Admin || route.Access == Owner):
-		return r, errPINToManage()
 	case route.Access == WithProfile && c.ProfileID == 0:
 		return r, ErrConflict("profile_selection_required", "Choose a profile to continue.")
 	case route.Access == Admin && c.Role != "owner" && c.Role != "admin", route.Access == Owner && c.Role != "owner":
 		return r, ErrNotPermitted()
+	}
+	if route.Sensitive {
+		if err := s.pinRecheck(r.Context(), c); err != nil {
+			return r, err
+		}
 	}
 	return r.WithContext(context.WithValue(r.Context(), callerKey, c)), nil
 }
