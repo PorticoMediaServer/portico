@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -235,6 +236,34 @@ func TestWatchTogetherSwitch(t *testing.T) {
 		if w := call(t, th.s, c.method, c.path, onKid.AccessToken, body, &refused); w.Code != 403 || refused.Error.Code != "watch_together_off" {
 			t.Errorf("%s %s with Watch Together off answered %d %s", c.method, c.path, w.Code, refused.Error.Code)
 		}
+	}
+}
+
+// Turning Watch Together off for a member's whole account through its limits takes that
+// account's profiles out of the groups they are in at once; a member whose account is left
+// alone stays.
+func TestWatchTogetherOffForAWholeAccount(t *testing.T) {
+	th := newTheatre(t)
+	host := th.owner.AccessToken
+	max, eve := addMember(t, th.s, host, "max", "member"), addMember(t, th.s, host, "eve", "member")
+	held, free := signInAs(t, th.s, "max", testPassword, 3).AccessToken, signInAs(t, th.s, "eve", testPassword, 4).AccessToken
+	_, made := th.room("POST", "/v1/groups", host, GroupCreate{Name: "Film night", Control: "everyone"})
+	for name, token := range map[string]string{"max": held, "eve": free} {
+		if code, _ := th.room("POST", "/v1/groups/join", token, GroupJoin{Code: made.Invitation.Code}); code != 200 {
+			t.Fatalf("%s joining answered %d", name, code)
+		}
+	}
+	if code := status(t, th.s, "PATCH", "/v1/admin/members/"+eve.ID, host, json.RawMessage(`{"limits":{"homeOnly":false}}`)); code != 200 {
+		t.Fatalf("an edit of another limit answered %d", code)
+	}
+	if _, room := th.room("GET", "/v1/groups/"+made.ID, host, nil); len(room.Members) != 3 {
+		t.Fatalf("before the switch the group has %d members, want 3", len(room.Members))
+	}
+	if code := status(t, th.s, "PATCH", "/v1/admin/members/"+max.ID, host, json.RawMessage(`{"limits":{"allowWatchTogether":false}}`)); code != 200 {
+		t.Fatalf("turning Watch Together off for the account answered %d", code)
+	}
+	if _, room := th.room("GET", "/v1/groups/"+made.ID, host, nil); len(room.Members) != 2 {
+		t.Errorf("after the switch the group has %d members, want the host and the member left alone", len(room.Members))
 	}
 }
 
