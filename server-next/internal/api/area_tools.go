@@ -58,8 +58,13 @@ func (s *Server) startTools(ctx context.Context) error {
 }
 
 // serveTools answers the addresses outside tools have outside the ordinary routes, and says
-// whether it did. The Jellyfin-compatible routes live outside /v1, whatever their capitals.
+// whether it did. DLNA answers on its own addresses, with no sign-in, to the home networks
+// only. The Jellyfin-compatible routes live outside /v1, whatever their capitals.
 func (s *Server) serveTools(w http.ResponseWriter, r *http.Request) bool {
+	if strings.HasPrefix(r.URL.Path, dlna.Prefix) {
+		s.dlna.ServeHTTP(w, r)
+		return true
+	}
 	if strings.HasPrefix(r.URL.Path, "/v1/") {
 		return false
 	}
