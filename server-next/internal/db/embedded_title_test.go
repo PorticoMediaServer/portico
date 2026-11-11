@@ -106,7 +106,19 @@ func TestTheTitleInsideAFileIsUsedOnlyWhereLocalDetailsAreAllThereIs(t *testing.
 	if _, err := scanner.Scan(ctx, local); err != nil {
 		t.Fatal(err)
 	}
-	if got := titles(local); got["Léon: The Professional"] == "" {
-		t.Fatalf("a local-only library: %v", got)
+	named := titles(local)
+	if named["Léon: The Professional"] == "" {
+		t.Fatalf("a local-only library: %v", named)
+	}
+	// Renamed on disk, the file is not read again: the film is the same film and keeps the
+	// title written inside it.
+	if err := os.Rename(filepath.Join(root, "local", "leon.mkv"), filepath.Join(root, "local", "Leon (1994).mkv")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := scanner.Scan(ctx, local); err != nil {
+		t.Fatal(err)
+	}
+	if got := titles(local); got["Léon: The Professional"] != named["Léon: The Professional"] || len(got) != 1 {
+		t.Fatalf("after its file was renamed: %v", got)
 	}
 }
