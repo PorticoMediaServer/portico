@@ -31,6 +31,12 @@ type Member struct {
 	// AllowDownloads is the account's Downloads switch. Turned off, its devices remove
 	// their downloads the next time they reach the server.
 	AllowDownloads bool `json:"allowDownloads"`
+	// LastActiveAt is when any of the account's sign-ins was last used. It is left out for an
+	// account with no sign-in on record. It moves when a device renews its sign-in, so it is
+	// right to within a few minutes.
+	LastActiveAt *time.Time `json:"lastActiveAt,omitempty"`
+	// Profiles are the names of the account's profiles in picker order, the main one first.
+	Profiles []string `json:"profiles"`
 }
 
 // MemberCreate makes an account directly, with a first password to pass on to its person.
@@ -77,8 +83,16 @@ func memberOut(m db.Member) Member {
 	if libraries == nil {
 		libraries = []string{}
 	}
-	return Member{Account: accountOut(m.Account), Disabled: m.Disabled, CreatedAt: m.CreatedAt.UTC(), AllLibraries: m.AllLibraries,
-		Libraries: libraries, TwoFactorEnabled: m.TwoFactor, Notes: m.Notes, AllowDownloads: m.AllowDownloads}
+	out := Member{Account: accountOut(m.Account), Disabled: m.Disabled, CreatedAt: m.CreatedAt.UTC(), AllLibraries: m.AllLibraries,
+		Libraries: libraries, TwoFactorEnabled: m.TwoFactor, Notes: m.Notes, AllowDownloads: m.AllowDownloads, Profiles: m.Profiles}
+	if out.Profiles == nil {
+		out.Profiles = []string{}
+	}
+	if !m.LastActiveAt.IsZero() {
+		active := m.LastActiveAt.UTC()
+		out.LastActiveAt = &active
+	}
+	return out
 }
 
 // memberError maps what the data layer says about a managed account to a refusal.
@@ -106,6 +120,7 @@ func (s *Server) memberRoutes() {
 	Handle(s, "DELETE /v1/admin/members/{id}", Admin, s.deleteMember)
 	// Passing a code that takes over an account is for a signed-in person, never a key.
 	Handle(s, "POST /v1/admin/members/{id}/password-reset", Admin, s.issuePasswordReset).Scope = ScopeSession
+	s.memberDeviceRoutes()
 }
 
 func (s *Server) listMembers(r *http.Request, _ None) (Page[Member], error) {

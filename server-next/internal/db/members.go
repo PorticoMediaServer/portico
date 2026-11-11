@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -45,25 +46,42 @@ type Member struct {
 	TwoFactor bool
 	// AllowDownloads is the account's Downloads switch.
 	AllowDownloads bool
+	// LastActiveAt is when any of the account's sign-ins was last used; zero if none is kept.
+	LastActiveAt time.Time
+	// Profiles are the account's profile names, in the order its picker shows them.
+	Profiles []string
 }
 
 const memberColumns = `u.id, u.public_id, u.username, ifnull(u.email, ''), u.role, u.disabled_at IS NOT NULL, u.created_at,
 	u.all_libraries, ifnull(u.notes, ''), u.two_factor_enabled_at IS NOT NULL, u.allow_downloads,
-	ifnull((SELECT group_concat(l.public_id, ' ') FROM library_access a JOIN libraries l ON l.id = a.library_id WHERE a.user_id = u.id), '')`
+	ifnull((SELECT group_concat(l.public_id, ' ') FROM library_access a JOIN libraries l ON l.id = a.library_id WHERE a.user_id = u.id), ''),
+	ifnull((SELECT max(s.last_used_at) FROM sessions s WHERE s.user_id = u.id), 0),
+	(SELECT json_group_array(name) FROM (SELECT p.name FROM profiles p WHERE p.user_id = u.id ORDER BY p.is_primary DESC, p.position, p.id))`
 
 func scanMember(row interface{ Scan(...any) error }) (Member, error) {
 	var m Member
-	var created int64
-	var libraries string
-	err := row.Scan(&m.ID, &m.PublicID, &m.Username, &m.Email, &m.Role, &m.Disabled, &created, &m.AllLibraries, &m.Notes, &m.TwoFactor, &m.AllowDownloads, &libraries)
+	var created, active int64
+	var libraries, profiles string
+	err := row.Scan(&m.ID, &m.PublicID, &m.Username, &m.Email, &m.Role, &m.Disabled, &created, &m.AllLibraries, &m.Notes, &m.TwoFactor, &m.AllowDownloads, &libraries,
+		&active, &profiles)
 	if errors.Is(err, sql.ErrNoRows) {
 		return m, ErrNotFound
+	}
+	if err != nil {
+		return m, err
+	}
+	if active != 0 {
+		m.LastActiveAt = time.UnixMilli(active)
+	}
+	if err := json.Unmarshal([]byte(profiles), &m.Profiles); err != nil {
+		return m, err
 	}
 	m.CreatedAt, m.Libraries = time.UnixMilli(created), strings.Fields(libraries)
 	return m, err
 }
 
-// Members lists every account, the owner first, then by name.
+// Members lists every account, the owner first, then by name. It is one statement however
+// many people there are.
 func (d *DB) Members(ctx context.Context) ([]Member, error) {
 	rows, err := d.read.QueryContext(ctx, `SELECT `+memberColumns+` FROM users u ORDER BY u.role = 'owner' DESC, u.username`)
 	if err != nil {

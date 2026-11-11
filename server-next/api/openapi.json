@@ -1228,6 +1228,9 @@
           },
           {
             "properties": {
+              "part": {
+                "type": "integer"
+              },
               "url": {
                 "type": "string"
               }
@@ -1235,6 +1238,50 @@
             "type": "object"
           }
         ]
+      },
+      "DownloadSync": {
+        "properties": {
+          "holds": {
+            "items": {
+              "$ref": "#/components/schemas/HeldTitle"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "holds"
+        ],
+        "type": "object"
+      },
+      "DownloadSyncReply": {
+        "properties": {
+          "fetch": {
+            "items": {
+              "$ref": "#/components/schemas/HeldTitle"
+            },
+            "type": "array"
+          },
+          "playableForMs": {
+            "type": "integer"
+          },
+          "playableUntil": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "remove": {
+            "items": {
+              "$ref": "#/components/schemas/HeldRemoval"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "playableUntil",
+          "playableForMs",
+          "remove",
+          "fetch"
+        ],
+        "type": "object"
       },
       "DownloadTarget": {
         "properties": {
@@ -1365,6 +1412,27 @@
           "subtitles",
           "chapters",
           "markers"
+        ],
+        "type": "object"
+      },
+      "DownloadsByPerson": {
+        "properties": {
+          "copiesBytes": {
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PersonDownloads"
+            },
+            "type": "array"
+          },
+          "roomBytes": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "copiesBytes"
         ],
         "type": "object"
       },
@@ -1816,6 +1884,39 @@
         },
         "required": [
           "status"
+        ],
+        "type": "object"
+      },
+      "HeldRemoval": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/HeldTitle"
+          },
+          {
+            "properties": {
+              "reason": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "reason"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "HeldTitle": {
+        "properties": {
+          "downloadId": {
+            "type": "string"
+          },
+          "itemId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "downloadId",
+          "itemId"
         ],
         "type": "object"
       },
@@ -3342,12 +3443,19 @@
               "allLibraries": {
                 "type": "boolean"
               },
+              "allowDownloads": {
+                "type": "boolean"
+              },
               "createdAt": {
                 "format": "date-time",
                 "type": "string"
               },
               "disabled": {
                 "type": "boolean"
+              },
+              "lastActiveAt": {
+                "format": "date-time",
+                "type": "string"
               },
               "libraries": {
                 "items": {
@@ -3358,6 +3466,12 @@
               "notes": {
                 "type": "string"
               },
+              "profiles": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
               "twoFactorEnabled": {
                 "type": "boolean"
               }
@@ -3367,7 +3481,9 @@
               "createdAt",
               "allLibraries",
               "libraries",
-              "twoFactorEnabled"
+              "twoFactorEnabled",
+              "allowDownloads",
+              "profiles"
             ],
             "type": "object"
           }
@@ -3397,6 +3513,9 @@
       "MemberEdit": {
         "properties": {
           "allLibraries": {
+            "type": "boolean"
+          },
+          "allowDownloads": {
             "type": "boolean"
           },
           "disabled": {
@@ -3817,6 +3936,29 @@
           "id",
           "name",
           "images"
+        ],
+        "type": "object"
+      },
+      "PersonDownloads": {
+        "properties": {
+          "copiesBytes": {
+            "type": "integer"
+          },
+          "titles": {
+            "type": "integer"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "userId",
+          "username",
+          "titles",
+          "copiesBytes"
         ],
         "type": "object"
       },
@@ -6043,6 +6185,9 @@
           "accountAllLibraries": {
             "type": "boolean"
           },
+          "accountAllowDownloads": {
+            "type": "boolean"
+          },
           "accountLibraries": {
             "items": {
               "type": "string"
@@ -6050,6 +6195,9 @@
             "type": "array"
           },
           "allLibraries": {
+            "type": "boolean"
+          },
+          "allowDownloads": {
             "type": "boolean"
           },
           "blockedLabels": {
@@ -6080,7 +6228,8 @@
           "allLibraries",
           "libraries",
           "accountAllLibraries",
-          "accountLibraries"
+          "accountLibraries",
+          "accountAllowDownloads"
         ],
         "type": "object"
       },
@@ -8317,6 +8466,33 @@
         "x-access": "admin"
       }
     },
+    "/v1/admin/downloads": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DownloadsByPerson"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
     "/v1/admin/filesystem": {
       "get": {
         "responses": {
@@ -9311,6 +9487,111 @@
           }
         },
         "x-access": "admin"
+      }
+    },
+    "/v1/admin/members/{id}/devices": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevicePage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
+      }
+    },
+    "/v1/admin/members/{id}/devices/{deviceId}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "deviceId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
+      }
+    },
+    "/v1/admin/members/{id}/downloads": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
       }
     },
     "/v1/admin/members/{id}/password-reset": {
@@ -11373,6 +11654,43 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Download"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/downloads/sync": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DownloadSync"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DownloadSyncReply"
                 }
               }
             },
