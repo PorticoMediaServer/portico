@@ -259,3 +259,7 @@
 }
 
 .consoleLink { align-self: flex-start; color: var(--color-accent); font-size: var(--type-caption-size); text-decoration: underline; }
+
+.multiline { display: grid; gap: 6px; }
+.multiline textarea { font: inherit; font-family: var(--font-mono, monospace); min-height: 8em; padding: 10px 12px; border-radius: 10px;
+  border: 1px solid var(--line, currentColor); background: var(--field, transparent); color: inherit; resize: vertical; }

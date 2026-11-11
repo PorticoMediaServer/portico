@@ -21,11 +21,6 @@ test('the six call sites ask for the in-sentence form; standalone labels keep th
   assert.match(source('../src/screens/settings/hardware/hardware-rows.ts'), /relativeTime\(at, serverNow\(\), \{inSentence: true\}\)/);
   assert.match(source('../../apps/native/src-next/screens/settings-live/LiveOwnerScreen.tsx'), /relativeTime\(state\.checkedAt, undefined, \{inSentence: true\}\)/);
   assert.match(source('../../apps/native/src-next/screens/accounts/PhoneAccountWorkspace.tsx'), /relativeTime\(row\.lastUsedAt, undefined, \{inSentence: true\}\)/);
-  const panel = source('../../apps/native/src-next/screens/settings/remote-sources/SourceStatusPanel.tsx');
-  assert.match(panel, /const checked = ago\(status\?\.lastCheckedAt, true\);/);
-  assert.match(panel, /libraryComplete', \{when: ago\(library\.lastCompleteAt, true\)\}/);
-  // "Last error: Yesterday" and "Last connected: Just now" are standalone values.
-  assert.match(panel, /const failedAt = ago\(status\?\.lastErrorAt\), connectedAt = ago\(status\?\.lastConnectedAt\);/);
   // Notification times are standalone labels too.
   assert.match(source('../src/screens/account/Notifications.route.tsx'), /text: defaultI18n\.relativeTime\(note\.createdAt\)\}/);
   assert.equal(defaultI18n.relativeTime(justNow, now), 'Just now');

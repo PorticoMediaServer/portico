@@ -51,10 +51,11 @@ export function remoteErrorText(error: unknown): string {
   const code = error && typeof error === 'object' && typeof (error as {code?: unknown}).code === 'string' ? (error as {code: string}).code : '';
   if (code === 'unauthorized') return t('next.remoteSources.error.signIn');
   if (code === 'forbidden') return t('next.remoteSources.error.forbidden');
-  if (code === 'source_in_use') return t('next.remoteSources.error.changed');
-  // A field refusal (an address that did not answer, a configuration that is not one remote) is the server's own sentence.
+  // A field refusal (an address that did not answer, a configuration that is not one remote) and a source a library still
+  // uses are the server's own sentence.
   const message = (error as {message?: unknown} | null)?.message;
-  if ((code === 'invalid_field' || code === 'invalid_request' || code === 'remote_unreachable') && typeof message === 'string' && message.length < 300) return message;
+  if (['invalid_field', 'invalid_request', 'remote_unreachable', 'source_in_use'].includes(code) && typeof message === 'string' && message.trim() && message.length < 300) return message;
+  if (code === 'invalid_field' || code === 'invalid_request') return t('next.remoteSources.error.invalid');
   return t('next.remoteSources.error.generic');
 }
 
@@ -64,7 +65,9 @@ export function RemoteSourcesPage({api, isCurrent, reportError}: RemoteSourcesPa
   const addButton = useRef<HTMLButtonElement>(null);
   const load = useCallback(() => {
     void listRemoteSources(api).then(list => {if (isCurrent()) {setSources(list); setError('');}}, failure => {if (isCurrent()) setError(remoteErrorText(failure));});
-  }, [api, isCurrent]);
+    // isCurrent is read when the answer arrives; a new one each render must not read the list again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [api]);
   useEffect(load, [load]);
   const needing = (sources ?? []).filter(source => stateTone(source) === 'danger');
   return <div className={styles.page}>
@@ -138,10 +141,12 @@ export function AddSourceDialog({api, open, returnFocusRef, isCurrent, onClose, 
           : fields.driveMode === 'key' ? {kind: 'drive', name: fields.name, path: fields.path, serviceAccountKey: fields.key} as const
             : {kind: 'drive', name: fields.name, path: fields.path, signIn: fields.signIn, redirectedUrl: fields.redirectedUrl} as const;
       const body = remoteSourceCreate(draft, preset);
-      if ('missing' in body) throw Object.assign(new Error(''), {code: 'invalid_request'});
+      if ('missing' in body) throw Object.assign(new Error(t('next.remoteSources.error.invalid')), {code: 'invalid_request'});
       source = await addRemoteSource(api, body);
     }
     if (!isCurrent()) return;
+    // The secrets were needed only to try again after a refusal: they go the moment the source is saved.
+    set({password: '', config: '', key: '', token: '', options: '', clientSecret: '', redirectedUrl: '', signIn: '', signInAddress: ''});
     setCreated(source); onCreated(source); setStep('reading');
   });
   const saveReading = () => run(async () => {
@@ -152,15 +157,18 @@ export function AddSourceDialog({api, open, returnFocusRef, isCurrent, onClose, 
   const signInToGoogle = () => run(async () => {
     const started = await startDriveSignIn(api, fields.clientId, fields.clientSecret);
     if (!isCurrent()) return;
+    // Shown as a link the owner presses, so no pop-up blocker stands in the way.
     set({signIn: started.signIn, signInAddress: started.address});
-    window.open(started.address, '_blank', 'noopener,noreferrer');
   });
   const steps = [{title: t('next.remoteSources.whatToConnect'), detail: t(kinds.find(one => one.id === kind)!.label)},
     {title: t('next.remoteSources.remote'), detail: created?.name}, {title: t('next.remoteSources.howTreated'), detail: created ? t(presetLabel(preset)) : undefined},
     {title: t('next.remoteSources.foldersSection')}, {title: t('next.remoteSources.done')}];
   const order: Step[] = ['what', 'remote', 'reading', 'folders', 'done'];
-  const field = (label: MessageId, key: keyof Fields, extra: Readonly<{type?: string; multiline?: boolean}> = {}) =>
-    <TextField label={t(label)} value={String(fields[key])} type={extra.type} disabled={busy} autoCapitalize="off" spellCheck={false}
+  const field = (label: MessageId, key: keyof Fields, extra: Readonly<{type?: string; multiline?: boolean}> = {}) => extra.multiline
+    // A pasted rclone configuration is several lines; a one-line box would join them.
+    ? <label className={styles.multiline}><span>{t(label)}</span><textarea value={String(fields[key])} rows={6} disabled={busy} autoCapitalize="off" spellCheck={false}
+      onChange={event => set({[key]: event.currentTarget.value} as Partial<Fields>)}/></label>
+    : <TextField label={t(label)} value={String(fields[key])} type={extra.type} disabled={busy} autoCapitalize="off" spellCheck={false}
       onChange={event => set({[key]: event.currentTarget.value} as Partial<Fields>)}/>;
   const footer = step === 'what' ? <><Button size="compact" variant="glass" onClick={onClose}>{t('next.remoteSources.cancel')}</Button><Button size="compact" variant="primary" onClick={() => setStep('remote')}>{t('next.remoteSources.continue')}</Button></>
     : step === 'remote' ? <><Button size="compact" variant="glass" disabled={busy} onClick={() => setStep('what')}>{t('next.remoteSources.back')}</Button><Button size="compact" variant="primary" loading={busy} disabled={!fields.name.trim()} onClick={testAndSave}>{t('next.remoteSources.test')}</Button></>
@@ -178,12 +186,12 @@ export function AddSourceDialog({api, open, returnFocusRef, isCurrent, onClose, 
     {step === 'remote' && <div className={styles.fields}>
       {field('next.remoteSources.name', 'name')}
       {kind === 'webdav' && <>{field('next.remoteSources.address', 'address')}{field('next.remoteSources.username', 'user')}{field('next.remoteSources.password', 'password', {type: 'password'})}</>}
-      {kind === 'rclone' && <><p className={styles.muted}>{t('next.remoteSources.configChecksOnSave')}</p>{field('next.remoteSources.connectRclone', 'config')}{field('next.remoteSources.cloudFolder', 'path')}</>}
+      {kind === 'rclone' && <><p className={styles.muted}>{t('next.remoteSources.configChecksOnSave')}</p>{field('next.remoteSources.connectRclone', 'config', {multiline: true})}{field('next.remoteSources.cloudFolder', 'path')}</>}
       {kind === 'cloud' && <><RadioGroup.Root className={styles.remoteKinds} aria-label={t('next.remoteSources.cloudProvider')} value={fields.provider} onValueChange={value => set({provider: value as Fields['provider']})}>
         {(['onedrive', 'dropbox'] as const).map(provider => <RadioGroup.Item key={provider} value={provider} className={styles.whatCard} data-picked={fields.provider === provider || undefined}>
           <span className={styles.choiceRadio} aria-hidden="true"/><b>{provider === 'onedrive' ? t('next.remoteSources.cloudOneDrive') : t('next.remoteSources.cloudDropbox')}</b></RadioGroup.Item>)}
       </RadioGroup.Root><p className={styles.muted}>{t('next.remoteSources.cloudTokenHelp')}</p>{field('next.remoteSources.cloudToken', 'token')}{field('next.remoteSources.cloudFolder', 'path')}</>}
-      {kind === 'newRclone' && <>{field('next.remoteSources.remoteKind', 'remoteType')}{field('next.remoteSources.connectRcloneHint', 'options')}{field('next.remoteSources.cloudFolder', 'path')}</>}
+      {kind === 'newRclone' && <>{field('next.remoteSources.remoteKind', 'remoteType')}{field('next.remoteSources.connectRcloneHint', 'options', {multiline: true})}{field('next.remoteSources.cloudFolder', 'path')}</>}
       {kind === 'drive' && <><RadioGroup.Root className={styles.remoteKinds} aria-label={t('next.remoteSources.driveSignIn')} value={fields.driveMode} onValueChange={value => set({driveMode: value as Fields['driveMode']})}>
         <RadioGroup.Item value="key" className={styles.whatCard} data-picked={fields.driveMode === 'key' || undefined}><span className={styles.choiceRadio} aria-hidden="true"/><span className={styles.whatBody}><b>{t('next.remoteSources.driveServiceAccount')}</b><span className={styles.choiceHint}>{t('next.remoteSources.driveServiceAccountHint')}</span></span></RadioGroup.Item>
         <RadioGroup.Item value="oauth" className={styles.whatCard} data-picked={fields.driveMode === 'oauth' || undefined}><span className={styles.choiceRadio} aria-hidden="true"/><span className={styles.whatBody}><b>{t('next.remoteSources.driveOAuth')}</b><span className={styles.choiceHint}>{t('next.remoteSources.driveOAuthHint')}</span></span></RadioGroup.Item>
@@ -191,7 +199,8 @@ export function AddSourceDialog({api, open, returnFocusRef, isCurrent, onClose, 
         {fields.driveMode === 'key' ? <><p className={styles.muted}>{t('next.remoteSources.driveKeyHelp')}</p>{field('next.remoteSources.driveKey', 'key')}</> : <>
           {field('next.remoteSources.driveClientId', 'clientId')}{field('next.remoteSources.driveClientSecret', 'clientSecret', {type: 'password'})}
           <Button size="small" disabled={busy || !fields.clientId.trim() || !fields.clientSecret} onClick={signInToGoogle}>{t('next.remoteSources.driveOAuthSignIn')}</Button>
-          {fields.signIn && <><p className={styles.muted}>{t('next.remoteSources.driveOAuthPaste')}</p>{field('next.remoteSources.driveOAuthPasteAction', 'redirectedUrl')}</>}</>}
+          {fields.signIn && <><a href={fields.signInAddress} target="_blank" rel="noopener noreferrer">{t('next.remoteSources.driveOAuthSignIn')}</a>
+            <p className={styles.muted}>{t('next.remoteSources.driveOAuthPaste')}</p>{field('next.remoteSources.driveOAuthPasteAction', 'redirectedUrl')}</>}</>}
         {field('next.remoteSources.cloudFolder', 'path')}</>}
     </div>}
     {step === 'reading' && created && <ReadingFields name={created.name} preset={preset} limits={limits} disabled={busy}
@@ -226,8 +235,11 @@ function FolderStep({api, source, isCurrent, onDone}: Readonly<{api: ServerReque
   useEffect(() => {
     setFolders(undefined);
     void remoteSourceFolders(api, source.id, path).then(list => {if (isCurrent()) setFolders(list);}, failure => {if (isCurrent()) setError(remoteErrorText(failure));});
-  }, [api, source.id, path, isCurrent]);
-  useEffect(() => {void listAdminLibraries(api).then(list => {if (isCurrent()) setLibraries(list);}, () => {});}, [api, isCurrent]);
+    // isCurrent is read when the answer arrives; a new one each render must not read again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [api, source.id, path]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {void listAdminLibraries(api).then(list => {if (isCurrent()) setLibraries(list);}, () => {});}, [api]);
   const add = () => {
     if (busy) return;
     setBusy(true); setError('');
@@ -288,7 +300,7 @@ function ManageSourceDialog({api, source, isCurrent, onClose, onContinue}: Reado
       <TextField label={t(source.kind === 'webdav' ? 'next.remoteSources.password' : source.kind === 'rclone' ? 'next.remoteSources.connectRclone' : 'next.remoteSources.driveKey')}
         type={source.kind === 'webdav' ? 'password' : undefined} value={secret} disabled={busy} autoCapitalize="off" spellCheck={false} onChange={event => setSecret(event.currentTarget.value)}/>
       {confirm === undefined ? <Button size="small" variant="text" onClick={() => setConfirm('')}>{t('next.remoteSources.disconnect')}</Button> : <>
-        <p>{t('next.remoteSources.disconnectBody')}</p>
+        <p>{t('next.remoteSources.disconnectBodyNext')}</p>
         <TextField label={t('next.remoteSources.disconnectConfirm')} value={confirm} onChange={event => setConfirm(event.currentTarget.value)}/>
         <Button size="small" disabled={busy || confirm !== shown.name} onClick={() => run(async () => {await removeRemoteSource(api, source.id); if (isCurrent()) onClose();})}>{t('next.remoteSources.disconnect')}</Button></>}
     </div>
