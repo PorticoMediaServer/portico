@@ -25,6 +25,14 @@ const keyRate = 600
 // password has no scopes; its tool gets what its person may do).
 func (s *Server) keyCheck(r *http.Request, key db.KeyCaller, err error, scope Scope) (Caller, error) {
 	limits := s.sourceLimit(r)
+	// A network blocked for wrong guesses is blocked for keys too, before the key is even
+	// looked up: otherwise it could keep guessing, and a right key would answer differently
+	// from a wrong one.
+	if wait, err := s.db.LimitWait(r.Context(), s.now(), limits...); err != nil {
+		return Caller{}, err
+	} else if wait > 0 {
+		return Caller{}, errTooManyAttempts(wait)
+	}
 	switch {
 	case errors.Is(err, db.ErrNotFound):
 		// A wrong key counts as a wrong guess from its network, like a wrong password.
@@ -36,12 +44,6 @@ func (s *Server) keyCheck(r *http.Request, key db.KeyCaller, err error, scope Sc
 		return Caller{}, refusal(http.StatusForbidden, "account_unavailable", "This key's account is turned off.", false)
 	case err != nil:
 		return Caller{}, err
-	}
-	// A network blocked for wrong guesses is blocked for keys too.
-	if wait, err := s.db.LimitWait(r.Context(), s.now(), limits...); err != nil {
-		return Caller{}, err
-	} else if wait > 0 {
-		return Caller{}, errTooManyAttempts(wait)
 	}
 	// A key is no way round the account's limits: a token made while the hours are open, or
 	// at home, would otherwise work at any time and from anywhere.
