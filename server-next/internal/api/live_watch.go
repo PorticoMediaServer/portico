@@ -12,6 +12,12 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 )
 
+// Countdown says a live stream stops at EndsAt so a recording can take its tuner.
+type Countdown struct {
+	EndsAt time.Time `json:"endsAt"`
+	Reason string    `json:"reason"`
+}
+
 // LiveWindow is what a live session can play: from its oldest kept moment to live. The app
 // pauses and rewinds within it by asking the stream for a moment with at=.
 type LiveWindow struct {
@@ -145,6 +151,9 @@ func (s *Server) liveSessionOut(v live.Viewing) PlaybackSession {
 		Lease:        PlaybackLease{ExpiresAt: v.Lease.UTC(), ReportEveryMs: live.ReportEvery.Milliseconds()},
 		Presentation: Presentation{Mode: "live", URL: "/v1/live/streams/" + v.Grant, Engine: "copy", Route: "original"},
 		Live:         &LiveWindow{OldestAt: oldest.UTC(), LiveAt: now.UTC()}}
+	if !v.CountdownTo.IsZero() {
+		out.Countdown = &Countdown{EndsAt: v.CountdownTo.UTC(), Reason: v.CountdownReason}
+	}
 	if err := v.Input.Stopped(); err != nil {
 		out.State, out.End = playback.StateEnded, &SessionEnd{Reason: "failed", Message: "The channel stopped."}
 	}

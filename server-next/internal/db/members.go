@@ -283,6 +283,16 @@ func (d *DB) DeleteMember(ctx context.Context, actorID int64, actorRole, publicI
 		if err := revoke(tx, c, now, "account_removed", `user_id = ?`, m.ID); err != nil {
 			return err
 		}
+		// Each profile's bookings pass to the next person who asked, exactly as a cancel does.
+		profiles, err := ids(context.Background(), tx, `SELECT id FROM profiles WHERE user_id = ?`, m.ID)
+		if err != nil {
+			return err
+		}
+		for _, id := range profiles {
+			if err := letGoOfBookings(tx, id, now); err != nil {
+				return err
+			}
+		}
 		if _, err := tx.Exec(`DELETE FROM users WHERE id = ?`, m.ID); err != nil {
 			return err
 		}

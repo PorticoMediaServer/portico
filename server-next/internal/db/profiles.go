@@ -243,6 +243,10 @@ func (d *DB) DeleteProfile(ctx context.Context, userID int64, publicID string, n
 		if _, err := tx.Exec(`UPDATE sessions SET profile_id = NULL WHERE profile_id = ?`, p.ID); err != nil {
 			return err
 		}
+		// The profile's bookings pass to the next person who asked, exactly as a cancel does.
+		if err := letGoOfBookings(tx, p.ID, now); err != nil {
+			return err
+		}
 		_, err = tx.Exec(`DELETE FROM profiles WHERE id = ?`, p.ID)
 		return err
 	})
