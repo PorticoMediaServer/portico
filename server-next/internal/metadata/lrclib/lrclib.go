@@ -1,5 +1,5 @@
 // Package lrclib asks LRCLIB (lrclib.net) for a song's lyrics: the lyrics provider a music
-// library can use after its files (definition rule 64). It needs no key.
+// library can use after its files (definition rule 64). It needs no key (owner's ruling).
 package lrclib
 
 import (
@@ -18,9 +18,9 @@ import (
 const (
 	// Origin is where LRCLIB's API is.
 	Origin = "https://lrclib.net"
-	// Every is the spacing the server keeps between two requests. LRCLIB states no limit;
-	// two a second is polite for a library-wide fetch.
-	Every = 500 * time.Millisecond
+	// Every is the spacing the server keeps between two requests. LRCLIB states no limit and
+	// asks for no key; one a second, as MusicBrainz asks, is polite for a library-wide fetch.
+	Every = time.Second
 )
 
 // Client asks LRCLIB. Make one with New and share it.
