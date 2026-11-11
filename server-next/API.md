@@ -102,7 +102,7 @@ Assistant) are a separate short document and are not counted here.
 | `GET /v1/preferences`, `PATCH /v1/preferences` | A profile's own settings: the list of settings with their defaults, what the profile saved for everywhere, for this kind of device and for this device, and the values in force. The last save wins. |
 | `/v1/me/tokens`, `/v1/me/app-passwords` | Your personal tokens and app passwords: list, make, revoke. A key's secret is shown once and not kept, so a repeat of the same `Idempotency-Key` answers the key made the first time: with a new secret while that key has never been used (the unseen first one stops working), and with no secret and a `note` once it has been used; this holds for `/v1/admin/api-keys` too. |
 
-### Browse, search and Home (23)
+### Browse, search and Home (21)
 
 | Route | Purpose |
 |---|---|
@@ -115,8 +115,7 @@ Assistant) are a separate short document and are not counted here.
 | `GET /v1/facets` | Counted filter choices for a list, asked for when someone opens the filter and never with the page (see "Lists and their counts"). `facet=letter` is the letter rail: each first letter in title order with its count, so a letter's position is the sum of the counts before it |
 | `GET /v1/search`, `GET /v1/search/suggestions` | Search across what you may see |
 | `GET /v1/search/history`, `DELETE /v1/search/history` | Your recent searches |
-| `GET /v1/home`, `GET /v1/home/rows/{id}` | Home, composed by the server; one row paged |
-| `GET /v1/home/layout`, `PUT /v1/home/layout` | Which rows you show and in what order |
+| `GET /v1/home`, `GET /v1/home/rows/{id}` | Home, composed by the server in the profile's order without the rows it hid; one row paged. Customize Home saves the settings `home.rowOrder` and `home.hiddenRowIds` with `PATCH /v1/preferences`; the Continue rows cannot be hidden |
 | `GET /v1/people`, `GET /v1/people/{id}` | People |
 | `GET /v1/genres` | Genres with artwork, per library |
 | `GET /v1/music/mixes` | Mixes built from your library |

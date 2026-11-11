@@ -173,7 +173,8 @@ func (s *Server) catalogueRoutes() {
 				out.Rows = append(out.Rows, row)
 			}
 		}
-		return out, nil
+		out.Rows, err = s.homeLayout(r.Context(), viewer(r).ProfileID, out.Rows)
+		return out, err
 	})
 	Handle(s, "PUT /v1/items/{id}/state", WithProfile, func(r *http.Request, req StateRequest) (StateReply, error) {
 		if req.MadeAgoMs < 0 || req.MadeAgoMs > db.MaxEditAge.Milliseconds() {
