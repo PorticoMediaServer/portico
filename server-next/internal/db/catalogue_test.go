@@ -640,14 +640,14 @@ func TestHomeRowsAndEvents(t *testing.T) {
 	state(t, l.d, v, films[0].PublicID, db.StateEdit{PositionMS: position(60_000)})
 	state(t, l.d, v, films[1].PublicID, db.StateEdit{PositionMS: position(60_000)})
 	state(t, l.d, v, films[1].PublicID, db.StateEdit{Watched: &yes})
-	row, err := l.d.ContinueWatching(ctx, v)
+	row, err := l.d.ContinueWatching(ctx, v, "")
 	if err != nil || len(row) != 1 || row[0].PublicID != films[0].PublicID {
 		t.Fatalf("continue watching: %d items, %v; want only the unfinished film", len(row), err)
 	}
-	if other, _ := l.d.ContinueWatching(ctx, limited); len(other) != 0 {
+	if other, _ := l.d.ContinueWatching(ctx, limited, ""); len(other) != 0 {
 		t.Fatal("another profile's progress showed on this profile's Home")
 	}
-	recent, err := l.d.RecentlyAdded(ctx, limited)
+	recent, err := l.d.RecentlyAdded(ctx, limited, "")
 	if err != nil || len(recent) == 0 {
 		t.Fatalf("recently added: %d items, %v", len(recent), err)
 	}
@@ -661,8 +661,34 @@ func TestHomeRowsAndEvents(t *testing.T) {
 	if kinds[db.KindEpisode] || kinds[db.KindTrack] || !kinds[db.KindMovie] {
 		t.Fatalf("recently added should hold whole titles, films among them: %v", kinds)
 	}
-	if everyone, _ := l.d.RecentlyAdded(ctx, v); !kinds[db.KindMovie] || len(everyone) != 40 {
+	if everyone, _ := l.d.RecentlyAdded(ctx, v, ""); !kinds[db.KindMovie] || len(everyone) != 40 {
 		t.Fatalf("recently added for the unrestricted profile has %d titles", len(everyone))
+	}
+	// A library's landing page has the same rows for that library alone: titles from it and
+	// no other, and nothing from a library the profile may not open.
+	byLibrary := l.viewers[8]
+	for _, lib := range l.libs {
+		if row, _ := l.d.ContinueWatching(ctx, v, lib.PublicID); (lib.PublicID == l.libs[0].PublicID) != (len(row) == 1) {
+			t.Fatalf("continue watching of %s has %d titles; only the films library has the unfinished film", lib.Kind, len(row))
+		}
+		for _, who := range []db.Viewer{v, limited, byLibrary} {
+			recent, err := l.d.RecentlyAdded(ctx, who, lib.PublicID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			opens := who != byLibrary || lib.Kind == db.LibraryMovies || lib.Kind == db.LibraryMusic
+			if who == v && len(recent) == 0 || !opens && len(recent) > 0 {
+				t.Fatalf("recently added of %s for profile %d: %d titles", lib.Kind, who.ProfileID, len(recent))
+			}
+			for _, item := range recent {
+				if item.LibraryID != lib.PublicID {
+					t.Fatalf("recently added of %s held %q from another library", lib.Kind, item.Title)
+				}
+				if _, err := l.d.Item(ctx, who, item.PublicID); err != nil {
+					t.Fatalf("recently added of %s showed %q, which the profile may not open: %v", lib.Kind, item.Title, err)
+				}
+			}
+		}
 	}
 
 	events, next, reread, err := l.d.Events(ctx, limited, 0, 100_000)

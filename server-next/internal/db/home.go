@@ -18,18 +18,20 @@ const (
 // ContinueWatching lists what the viewer has started and not finished, most recent first. A
 // title the viewer removed from the row stays off it until it is played again. Not interested
 // does not take a title off it: that is for recommendation rows. Books are in Continue your
-// books instead.
-func (d *DB) ContinueWatching(ctx context.Context, v Viewer) ([]Item, error) {
-	return d.continueRow(ctx, v, "NOT IN")
+// books instead. library is a library's public id, for that library's landing page, or "" for
+// Home, which covers every library.
+func (d *DB) ContinueWatching(ctx context.Context, v Viewer, library string) ([]Item, error) {
+	return d.continueRow(ctx, v, "NOT IN", library)
 }
 
 // ContinueReading lists the books, comics and issues the viewer has a place in and has not
-// finished, most recently read first: Home's Continue your books.
-func (d *DB) ContinueReading(ctx context.Context, v Viewer) ([]Item, error) {
-	return d.continueRow(ctx, v, "IN")
+// finished, most recently read first: Home's Continue your books, and a reading library's
+// Continue reading. library is as for ContinueWatching.
+func (d *DB) ContinueReading(ctx context.Context, v Viewer, library string) ([]Item, error) {
+	return d.continueRow(ctx, v, "IN", library)
 }
 
-func (d *DB) continueRow(ctx context.Context, v Viewer, reading string) ([]Item, error) {
+func (d *DB) continueRow(ctx context.Context, v Viewer, reading, library string) ([]Item, error) {
 	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return nil, err
@@ -44,8 +46,9 @@ func (d *DB) continueRow(ctx context.Context, v Viewer, reading string) ([]Item,
 		WHERE s.profile_id = @viewer_profile AND s.last_played_at > @since AND s.played = 0 AND s.last_played_at > ifnull(s.continue_dismissed_at, 0)
 		AND (s.position_ms > 0 OR s.position_text IS NOT NULL) AND i.kind `+reading+fmt.Sprintf(" (%d, %d, %d) AND ", KindBook, KindComic, KindIssue)+
 		acc.visible("i")+`
+		AND (@library = '' OR i.library_id = (SELECT id FROM libraries WHERE public_id = @library))
 		ORDER BY s.last_played_at DESC LIMIT `+fmt.Sprint(homeRowSize),
-		append(v.args(), sql.Named("since", time.Now().Add(-continueWindow).UnixMilli()))...)
+		append(v.args(), sql.Named("since", time.Now().Add(-continueWindow).UnixMilli()), sql.Named("library", library))...)
 	if err != nil {
 		return nil, err
 	}
@@ -67,8 +70,9 @@ func (d *DB) continueRow(ctx context.Context, v Viewer, reading string) ([]Item,
 // RecentlyAdded lists the newest titles across the libraries the viewer may see: films and
 // books by when they were added, shows and albums by their newest episode or track, so a show
 // with a new episode is new again. It reads the newest few hundred playable items of each
-// library through the "date added" index, whatever the size of the library.
-func (d *DB) RecentlyAdded(ctx context.Context, v Viewer) ([]Item, error) {
+// library through the "date added" index, whatever the size of the library. library is a
+// library's public id, for that library's landing page, or "" for every library.
+func (d *DB) RecentlyAdded(ctx context.Context, v Viewer, library string) ([]Item, error) {
 	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return nil, err
@@ -82,7 +86,8 @@ func (d *DB) RecentlyAdded(ctx context.Context, v Viewer) ([]Item, error) {
 		id      int64
 		addedAt int64
 	}
-	libraries, err := ids(ctx, tx, `SELECT l.id FROM libraries l WHERE `+acc.libraryVisible("l.id"))
+	libraries, err := ids(ctx, tx, `SELECT l.id FROM libraries l WHERE `+acc.libraryVisible("l.id")+` AND (? = '' OR l.public_id = ?)`,
+		library, library)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +97,7 @@ func (d *DB) RecentlyAdded(ctx context.Context, v Viewer) ([]Item, error) {
 		kind  ItemKind
 		title string // the column that names the title a leaf belongs to
 	}{{KindMovie, "i.id"}, {KindEpisode, "ifnull(i.root_id, i.id)"}, {KindTrack, "ifnull(i.parent_id, i.id)"}, {KindBook, "i.id"},
-		{KindAudiobook, "i.id"}} {
+		{KindAudiobook, "i.id"}, {KindComic, "i.id"}, {KindIssue, "ifnull(i.parent_id, i.id)"}} {
 		for _, library := range libraries {
 			from := "items i"
 			rated, err := acc.ratedIn(ctx, tx, library, fmt.Sprintf("(%d)", leaf.kind))

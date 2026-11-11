@@ -64,6 +64,39 @@ func (s *Server) catalogueRoutes() {
 		out.Views, out.Sorts, out.Filters = browseBy(l.Kind)
 		return out, nil
 	})
+	// A library's landing page (its Discover tab): Home's rows, for this library alone, in the
+	// same shape. A row's "See all" is the item list: Recently Added is the library's titles
+	// sorted by date added.
+	Handle(s, "GET /v1/libraries/{id}/landing", WithProfile, func(r *http.Request, _ None) (Home, error) {
+		l, err := s.db.Library(r.Context(), viewer(r), r.PathValue("id"))
+		if err != nil {
+			return Home{}, refuse(err)
+		}
+		// A reading library's row is what is being read; Continue Watching leaves reading out.
+		continueRow := s.db.ContinueWatching
+		if l.Kind == db.LibraryBooks || l.Kind == db.LibraryComics {
+			continueRow = s.db.ContinueReading
+		}
+		continuing, err := continueRow(r.Context(), viewer(r), l.PublicID)
+		if err != nil {
+			return Home{}, err
+		}
+		recent, err := s.db.RecentlyAdded(r.Context(), viewer(r), l.PublicID)
+		if err != nil {
+			return Home{}, err
+		}
+		title, shape := "Continue Watching", "landscape"
+		switch l.Kind {
+		case db.LibraryMusic, db.LibraryAudiobooks:
+			title, shape = "Continue Listening", "poster"
+		case db.LibraryBooks:
+			title, shape = "Continue your books", "poster"
+		}
+		return Home{Rows: shownRows([]HomeRow{
+			{ID: "continue", Title: title, Shape: shape, Items: itemShapes(continuing)},
+			{ID: "recently_added", Title: "Recently Added", Shape: "poster", Items: itemShapes(recent)},
+		})}, nil
+	})
 	Handle(s, "GET /v1/items", WithProfile, func(r *http.Request, _ None) (ItemPage, error) {
 		q, err := itemQuery(r.URL.Query())
 		if err != nil {
@@ -177,15 +210,15 @@ func (s *Server) catalogueRoutes() {
 		if !withHidden && r.URL.Query().Get("hidden") != "" {
 			return Home{}, ErrField("hidden", `Leave this out, or send "include".`)
 		}
-		continuing, err := s.db.ContinueWatching(r.Context(), viewer(r))
+		continuing, err := s.db.ContinueWatching(r.Context(), viewer(r), "")
 		if err != nil {
 			return Home{}, err
 		}
-		reading, err := s.db.ContinueReading(r.Context(), viewer(r))
+		reading, err := s.db.ContinueReading(r.Context(), viewer(r), "")
 		if err != nil {
 			return Home{}, err
 		}
-		recent, err := s.db.RecentlyAdded(r.Context(), viewer(r))
+		recent, err := s.db.RecentlyAdded(r.Context(), viewer(r), "")
 		if err != nil {
 			return Home{}, err
 		}
@@ -203,15 +236,7 @@ func (s *Server) catalogueRoutes() {
 				Shape: "poster", Items: itemShapes(mood.Items)})
 		}
 		rows, err := s.homeLayout(r.Context(), viewer(r).ProfileID, home, withHidden)
-		// A row with nothing in it is left out, so an app never draws an empty shelf. A hidden
-		// row sent to the editor has no items and is always sent.
-		out := Home{Rows: []HomeRow{}}
-		for _, row := range rows {
-			if len(row.Items) > 0 || row.Hidden {
-				out.Rows = append(out.Rows, row)
-			}
-		}
-		return out, err
+		return Home{Rows: shownRows(rows)}, err
 	})
 	Handle(s, "PUT /v1/items/{id}/state", WithProfile, func(r *http.Request, req StateRequest) (StateReply, error) {
 		if req.MadeAgoMs < 0 || req.MadeAgoMs > db.MaxEditAge.Milliseconds() {
@@ -596,4 +621,16 @@ func because(from []db.MoodReason) string {
 		}
 	}
 	return line
+}
+
+// shownRows leaves out a row with nothing in it, so an app never draws an empty shelf. A hidden
+// row sent to the Customize Home editor has no items and is always sent.
+func shownRows(rows []HomeRow) []HomeRow {
+	out := []HomeRow{}
+	for _, row := range rows {
+		if len(row.Items) > 0 || row.Hidden {
+			out = append(out, row)
+		}
+	}
+	return out
 }

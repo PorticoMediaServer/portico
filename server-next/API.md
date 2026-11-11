@@ -110,7 +110,7 @@ Assistant) are a separate short document and are not counted here.
 | Route | Purpose |
 |---|---|
 | `GET /v1/libraries`, `GET /v1/libraries/{id}` | Libraries you may see; one library with its views, sorts and filters |
-| `GET /v1/libraries/{id}/landing` | The library's landing page, composed by the server |
+| `GET /v1/libraries/{id}/landing` | The library's landing page (its Discover tab), composed by the server in Home's shape: Home's rows for this library alone (Continue, Recently Added); a row with nothing in it is left out. A row's See all is `GET /v1/items` (Recently Added: the library's titles by `sort=added`) |
 | `GET /v1/items` | **The one list.** By `library`, `parent`, `person`, `tag`, `list`; `kind`; filters; `sort`; `cursor`, `limit`, `total`. `at=<position>` opens the list at any position in place of a cursor, for a scroll bar or a letter |
 | `POST /v1/items/query` | The same list with a structured filter body, for filters too long for a query string |
 | `GET /v1/items/{id}` | Detail, with your state |
