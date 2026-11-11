@@ -7,4 +7,7 @@ func init() {
 			other: DownloadAsk{ItemID: th.eps[0], Quality: "original"},
 			count: func() int { return len(get[Page[Download]](th.T, th.s, th.owner.AccessToken, "/v1/downloads").Items) }}}
 	})
+	safeToRepeat(map[string]string{
+		"POST /v1/downloads/sync": "reads what a device must remove and fetch, and changes nothing",
+	})
 }

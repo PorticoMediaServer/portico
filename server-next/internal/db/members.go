@@ -43,17 +43,19 @@ type Member struct {
 	Libraries []string
 	Notes     string
 	TwoFactor bool
+	// AllowDownloads is the account's Downloads switch.
+	AllowDownloads bool
 }
 
 const memberColumns = `u.id, u.public_id, u.username, ifnull(u.email, ''), u.role, u.disabled_at IS NOT NULL, u.created_at,
-	u.all_libraries, ifnull(u.notes, ''), u.two_factor_enabled_at IS NOT NULL,
+	u.all_libraries, ifnull(u.notes, ''), u.two_factor_enabled_at IS NOT NULL, u.allow_downloads,
 	ifnull((SELECT group_concat(l.public_id, ' ') FROM library_access a JOIN libraries l ON l.id = a.library_id WHERE a.user_id = u.id), '')`
 
 func scanMember(row interface{ Scan(...any) error }) (Member, error) {
 	var m Member
 	var created int64
 	var libraries string
-	err := row.Scan(&m.ID, &m.PublicID, &m.Username, &m.Email, &m.Role, &m.Disabled, &created, &m.AllLibraries, &m.Notes, &m.TwoFactor, &libraries)
+	err := row.Scan(&m.ID, &m.PublicID, &m.Username, &m.Email, &m.Role, &m.Disabled, &created, &m.AllLibraries, &m.Notes, &m.TwoFactor, &m.AllowDownloads, &libraries)
 	if errors.Is(err, sql.ErrNoRows) {
 		return m, ErrNotFound
 	}
@@ -160,7 +162,9 @@ type MemberEdit struct {
 	// AllLibraries and Libraries say what the member may see.
 	AllLibraries *bool
 	Libraries    *[]string
-	Now          time.Time
+	// AllowDownloads lets the account's profiles download, each within its own switch.
+	AllowDownloads *bool
+	Now            time.Time
 }
 
 // libraryIDs resolves public library ids, refusing any that does not exist.
@@ -245,6 +249,12 @@ func (d *DB) UpdateMember(ctx context.Context, e MemberEdit) (Member, error) {
 			}
 			did = append(did, "libraries")
 			accessMoved = true
+		}
+		if e.AllowDownloads != nil {
+			if _, err := tx.Exec(`UPDATE users SET allow_downloads = ? WHERE id = ?`, *e.AllowDownloads, m.ID); err != nil {
+				return err
+			}
+			did = append(did, map[bool]string{true: "downloads on", false: "downloads off"}[*e.AllowDownloads])
 		}
 		if accessMoved {
 			if err := accessChanged(tx, e.Now, `user_id = ?`, m.ID); err != nil {
