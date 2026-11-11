@@ -106,6 +106,8 @@ type Route struct {
 	Status int
 	// BodyLimit is the largest request body the route takes, when it is not maxBody.
 	BodyLimit int64
+	// Enrolling routes also take a sign-in that may only set up two-step sign-in.
+	Enrolling bool
 }
 
 // Scope is what a key made for a tool must have been given to use a route. A signed-in
@@ -517,6 +519,8 @@ type Caller struct {
 	Manage bool
 	// Key says the request came with a key, token or app password rather than a sign-in.
 	Key bool
+	// Enrol says the caller may only set up two-step sign-in, which the owner requires.
+	Enrol bool
 	// KeyScopes are what the key may do; nil for a signed-in person and for an app password.
 	KeyScopes []string
 	// KeyID is the key's own row, for a key, token or app password; 0 for a signed-in person.
@@ -566,7 +570,7 @@ func (s *Server) admit(r *http.Request, route *Route) (*http.Request, error) {
 		if err != nil || s.db.TokenRefused(claims.SessionID, stamp) || s.db.EarlierRun(stamp) && !s.stillTrue(r.Context(), claims) {
 			return r, ErrUnauthorized()
 		}
-		c = Caller{SessionID: claims.SessionID, UserID: claims.UserID, ProfileID: claims.ProfileID, Role: claims.Role, Manage: claims.Manage,
+		c = Caller{SessionID: claims.SessionID, UserID: claims.UserID, ProfileID: claims.ProfileID, Role: claims.Role, Manage: claims.Manage, Enrol: claims.Enrol,
 			Stamp: db.TokenStamp{Boot: claims.Boot, Seq: claims.Seq}}
 	}
 	if err := s.refuseNonOwnerAway(r, c.UserID); err != nil {
@@ -580,6 +584,8 @@ func (s *Server) admit(r *http.Request, route *Route) (*http.Request, error) {
 		}
 	}
 	switch {
+	case c.Enrol && !route.Enrolling:
+		return r, refusal(http.StatusForbidden, "two_step_setup_required", "Set up two-step sign-in to finish signing in.", false)
 	case route.Access == WithProfile && c.ProfileID == 0:
 		return r, ErrConflict("profile_selection_required", "Choose a profile to continue.")
 	case route.Access == Admin && c.Role != "owner" && c.Role != "admin", route.Access == Owner && c.Role != "owner":

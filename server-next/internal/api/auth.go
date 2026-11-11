@@ -11,6 +11,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/settings"
 )
 
 // DeviceInfo is what an app says about the install it runs on when it signs in.
@@ -62,6 +63,10 @@ type Session struct {
 	DeviceID         string    `json:"deviceId"`
 	InstallationID   string    `json:"installationId"`
 	Viewer           Viewer    `json:"viewer"`
+	// TwoStepSetupRequired says the owner requires two-step sign-in and this account has not
+	// set it up: until it has, the session can use only the two-step setup routes and
+	// GET /v1/me. Once set up, the app renews and carries on.
+	TwoStepSetupRequired bool `json:"twoStepSetupRequired,omitempty"`
 }
 
 // Viewer is who a session acts for.
@@ -129,8 +134,10 @@ func (s *Server) authRoutes() {
 	Handle(s, "DELETE /v1/auth/session", Public, s.signOut)
 	Handle(s, "POST /v1/auth/password", SignedIn, s.changePassword)
 	// A tool with a key can ask who it is acting for.
-	Handle(s, "GET /v1/me", SignedIn, s.me).Scope = ScopeRead
+	me := Handle(s, "GET /v1/me", SignedIn, s.me)
+	me.Scope, me.Enrolling = ScopeRead, true
 	Handle(s, "POST /v1/auth/password-reset/confirm", Public, s.resetPassword)
+	s.ownerResetRoutes()
 	s.twoFactorRoutes()
 	s.codeRoutes()
 }
@@ -152,7 +159,11 @@ func claimsOf(st db.SessionState) auth.Claims {
 			role, manage = st.UserRole, true
 		}
 	}
-	return auth.Claims{SessionID: st.ID, UserID: st.UserID, ProfileID: st.ProfileID, Role: role, Manage: manage,
+	if st.Enrol {
+		// Held back until two-step sign-in is set up: no role and nothing to manage.
+		role, manage = "account", false
+	}
+	return auth.Claims{SessionID: st.ID, UserID: st.UserID, ProfileID: st.ProfileID, Role: role, Manage: manage, Enrol: st.Enrol,
 		Boot: st.Stamp.Boot, Seq: st.Stamp.Seq}
 }
 
@@ -181,7 +192,8 @@ func (s *Server) session(st db.SessionState, issued time.Time, refreshToken stri
 		AccessToken: access, ExpiresAt: expires.UTC(), RefreshToken: refreshToken,
 		SessionID: st.PublicID, TokenGeneration: strconv.FormatInt(st.Generation, 10), SessionExpiresAt: st.ExpiresAt.UTC(),
 		DeviceID: st.DevicePublicID, InstallationID: st.InstallationID,
-		Viewer: Viewer{AccountID: st.UserPublicID, ProfileID: st.ProfilePublicID, ServerID: s.id, Role: role},
+		Viewer:               Viewer{AccountID: st.UserPublicID, ProfileID: st.ProfilePublicID, ServerID: s.id, Role: role},
+		TwoStepSetupRequired: st.Enrol,
 	}
 }
 
@@ -198,12 +210,20 @@ func checkDevice(device DeviceInfo) (db.DeviceInfo, error) {
 	return db.DeviceInfo{InstallationID: device.InstallationID, Name: device.Name, Platform: device.Platform, App: device.App, AppVersion: device.AppVersion}, nil
 }
 
+// signInSettings are the owner's sign-in settings as they are now.
+func (s *Server) signInSettings() settings.SignInSettings { return settings.SignIn.Get(s.settings) }
+
+// sessionIdle is how long a sign-in lasts without being used. Each renewal starts it again.
+func (s *Server) sessionIdle() time.Duration {
+	return time.Duration(s.signInSettings().StaySignedInDays) * 24 * time.Hour
+}
+
 // mintSession prepares a session and its first refresh token. The device is filled in by
 // the caller, or by the stored request the session answers.
 func (s *Server) mintSession(r *http.Request, now time.Time) (db.NewSession, string) {
 	id := db.NewSessionID()
 	refresh := s.tokens.FirstRefresh(id)
-	return db.NewSession{ID: id, RefreshHash: auth.Hash(refresh), ExpiresAt: now.Add(auth.SessionIdle), RemoteAddr: s.remoteHost(r),
+	return db.NewSession{ID: id, RefreshHash: auth.Hash(refresh), ExpiresAt: now.Add(s.sessionIdle()), RemoteAddr: s.remoteHost(r),
 		AtHome: s.fromHome(r)}, refresh
 }
 
@@ -351,6 +371,7 @@ func (s *Server) signIn(r *http.Request, req SignInRequest) (SignInResponse, err
 		ok = account.State == "waiting"
 
 	}
+	session.TwoStepRequired = s.signInSettings().TwoStepRequired
 	// If the account has two-step sign-in, this challenge is stored in place of a session.
 	device, _ := json.Marshal(session.Device)
 	challenge := Challenge{Token: auth.NewSecret(), ExpiresAt: now.Add(challengeLife).UTC()}
@@ -389,7 +410,7 @@ func (s *Server) refresh(r *http.Request, req RefreshRequest) (Session, error) {
 	next := s.tokens.NextRefresh(req.RefreshToken, ref, req.RequestID)
 	st, replayed, err := s.db.RenewSession(r.Context(), db.Renewal{SessionID: ref.SessionID, Generation: ref.Generation,
 		Hash: auth.Hash(req.RefreshToken), NextHash: auth.Hash(next), RequestID: req.RequestID, InstallationID: req.InstallationID,
-		ExpiresAt: now.Add(auth.SessionIdle), RemoteAddr: s.remoteHost(r), AtHome: s.fromHome(r), Now: now})
+		ExpiresAt: now.Add(s.sessionIdle()), RemoteAddr: s.remoteHost(r), AtHome: s.fromHome(r), Now: now})
 	if errors.Is(err, db.ErrBadCredentials) {
 		return Session{}, errSignInEnded()
 	}

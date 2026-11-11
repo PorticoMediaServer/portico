@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strconv"
 	"time"
 )
 
@@ -170,6 +171,112 @@ func (d *DB) ChangePassword(ctx context.Context, p PasswordProof, newHash string
 			return err
 		}
 		return revoke(tx, c, now, "password_changed", `user_id = ? AND id <> ?`, p.UserID, keepSessionID)
+	})
+	if err == nil {
+		err = refused
+	}
+	return err
+}
+
+// IssueOwnerReset stores a one-time code that lets its holder choose a new password for the
+// owner. publish puts the code where the owner can read it; it runs before the code is
+// stored, so a failure in between leaves a file that opens nothing, never a code that works
+// and that nobody was given.
+//
+// While a code is live (not used, not run out, not cancelled by wrong tries) nothing is
+// written and nothing recorded: someone outside who keeps asking cannot replace the code the
+// owner is typing, nor fill the activity record. Once it is over, a new one is written no
+// sooner than every after the old one was made or ended. wait is every, or the time left
+// before a new code can be written.
+func (d *DB) IssueOwnerReset(ctx context.Context, codeHash string, expires time.Time, every time.Duration, now time.Time, publish func() error) (wait time.Duration, err error) {
+	err = d.write(ctx, User, func(tx *sql.Tx) error {
+		wait = every
+		var ownerID int64
+		if err := tx.QueryRow(`SELECT id FROM users WHERE role = 'owner' AND portico_account_id IS NULL`).Scan(&ownerID); errors.Is(err, sql.ErrNoRows) {
+			return nil // no owner yet, or one who signs in with a Portico Account: the same answer, nothing to reset
+		} else if err != nil {
+			return err
+		}
+		var live bool
+		var last int64
+		err := tx.QueryRow(`SELECT used_at IS NULL AND expires_at > ?, max(created_at, ifnull(used_at, 0)) FROM auth_codes
+			WHERE user_id = ? AND kind = 'owner_reset'`, now.UnixMilli(), ownerID).Scan(&live, &last)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		if live {
+			return nil
+		}
+		if since := now.Sub(time.UnixMilli(last)); err == nil && since >= 0 && since < every {
+			wait = every - since
+			return nil
+		}
+		if err := publish(); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`DELETE FROM auth_codes WHERE user_id = ? AND kind = 'owner_reset'`, ownerID); err != nil {
+			return err
+		}
+		if err := insertCode(tx, Code{Kind: "owner_reset", Hash: codeHash, UserID: ownerID, ExpiresAt: expires}, now); err != nil {
+			return err
+		}
+		return audit(tx, ownerID, "owner.reset_code_written", "", "to a file in the server's data folder, asked for at the sign-in page", now)
+	})
+	return wait, err
+}
+
+// RedeemOwnerReset sets the owner's new password if the code is the one in the file, unused
+// and in time. Everything signed in as the owner is signed out in the same commit: whoever
+// held the old password must not keep a session made with it. Five wrong codes cancel the
+// code. Every refusal is ErrBadCredentials or a *LimitedError.
+func (d *DB) RedeemOwnerReset(ctx context.Context, codeHash, newHash string, turnOffTwoStep bool, limits []Limit, now time.Time) error {
+	var refused error
+	err := d.writeSessions(ctx, func(tx *sql.Tx, c *changes) error {
+		refused = nil
+		if wait, err := limitWait(ctx, tx, now, limits); err != nil {
+			return err
+		} else if wait > 0 {
+			refused = &LimitedError{Wait: wait}
+			return nil
+		}
+		at := now.UnixMilli()
+		var ownerID int64
+		var pending string
+		var attempts int
+		err := tx.QueryRow(`SELECT u.id, c.code_hash, c.attempts FROM users u JOIN auth_codes c ON c.user_id = u.id
+			WHERE u.role = 'owner' AND c.kind = 'owner_reset' AND c.used_at IS NULL AND c.expires_at > ?`, at).Scan(&ownerID, &pending, &attempts)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		if err != nil || pending != codeHash {
+			refused = ErrBadCredentials
+			if err == nil {
+				// The code stays in the table, spent, so the wait before a new file still counts.
+				query := `UPDATE auth_codes SET attempts = attempts + 1 WHERE code_hash = ?`
+				if attempts+1 >= resetAttempts {
+					query = `UPDATE auth_codes SET attempts = attempts + 1, used_at = ` + strconv.FormatInt(at, 10) + ` WHERE code_hash = ?`
+				}
+				if _, err := tx.Exec(query, pending); err != nil {
+					return err
+				}
+			}
+			return limitFail(tx, now, limits)
+		}
+		if _, err := redeemCode(tx, "owner_reset", codeHash, now); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`UPDATE users SET password_hash = ?, password_changed_at = ?, updated_at = ? WHERE id = ?`, newHash, at, at, ownerID); err != nil {
+			return err
+		}
+		if turnOffTwoStep {
+			if err := clearTwoFactor(tx, ownerID, now); err != nil {
+				return err
+			}
+		}
+		if err := revoke(tx, c, now, "owner_reset", `user_id = ?`, ownerID); err != nil {
+			return err
+		}
+		return audit(tx, ownerID, "owner.password_reset", "", "with the code from the file in the server's data folder", now)
 	})
 	if err == nil {
 		err = refused
