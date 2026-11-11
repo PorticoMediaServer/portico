@@ -179,6 +179,16 @@ func TestQueueEditsPagingRepeatAndRestart(t *testing.T) {
 	if q.Current.Position != 2 {
 		t.Fatalf("previous: %+v", q)
 	}
+	// A Next whose answer was lost is sent again, naming the entry it left: it moves once.
+	th.queue("PATCH", path, "", QueueChange{Repeat: "off"}, &q)
+	resent := QueueAdvance{Reason: "next", FromEntryID: q.Current.EntryID}
+	th.queue("POST", path+"/advance", "", resent, &q)
+	th.queue("POST", path+"/advance", "", resent, &q)
+	if q.Current.Position != 3 {
+		t.Fatalf("a repeated Next moved to %+v", q.Current)
+	}
+	th.queue("POST", path+"/advance", "", QueueAdvance{Reason: "previous"}, &q)
+	th.queue("PATCH", path, "", QueueChange{Repeat: "one"}, &q)
 	// Jump to the last entry. With repeat off the queue ends there; with repeat all it wraps.
 	th.queue("PATCH", path, "", QueueChange{Repeat: "off"}, &q)
 	th.queue("GET", path+"/entries?from=12&limit=1", "", nil, &page)
