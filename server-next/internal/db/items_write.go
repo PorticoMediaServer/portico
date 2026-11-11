@@ -201,6 +201,10 @@ func (d *DB) Import(ctx context.Context, batch ImportBatch) (ImportStats, error)
 			dirs: map[string]int64{}, files: map[FileRef]*importedFile{}, items: map[ItemKey]*importedItem{},
 			tags: map[TagName]int64{}, people: map[string]int64{}, counts: map[int64]*countChange{}}
 		defer im.close()
+		// Took is how long the transaction held the writer before its commit, with the
+		// settling of watched marks below, which is part of what a waiting tap waits for.
+		started := time.Now()
+		defer func() { stats.Took = time.Since(started) }()
 		// Whatever came under a holder, left it or moved in this batch settles the holder's
 		// watched mark for every profile, last of all.
 		defer func() {
@@ -208,8 +212,6 @@ func (d *DB) Import(ctx context.Context, batch ImportBatch) (ImportStats, error)
 				err = im.settleWatchedForAll(im.now)
 			}
 		}()
-		started := time.Now()
-		defer func() { stats.Took = time.Since(started) }()
 		stats = ImportStats{Files: len(batch.Files), Items: len(batch.Items)}
 		var before int64
 		if err := tx.QueryRow(`SELECT total_changes()`).Scan(&before); err != nil {
@@ -293,8 +295,6 @@ func (im *importer) run(stats *ImportStats) error {
 	for id, c := range im.counts {
 		if c.leaves < 0 {
 			im.leavesChanged(id)
-		} else {
-			im.leavesArrived(id)
 		}
 		if _, err := im.exec(`UPDATE items SET child_count = child_count + ?, leaf_count = leaf_count + ?,
 			last_child_added_at = max(ifnull(last_child_added_at, 0), ?) WHERE id = ?`, c.children, c.leaves, c.lastAdded, id); err != nil {
@@ -584,6 +584,13 @@ func (im *importer) createItem(it *ImportItem, parent *importedItem, keys []Item
 	}
 	stored := &importedItem{id: id, rootID: row.rootID, parentID: row.parentID, ratingAge: row.ratingAge}
 	im.rows = append(im.rows, stored)
+	if it.Kind.Playable() {
+		// Whoever had finished its season or its show, and can see it, has not any more.
+		im.leavesArrived(row.parentID, id)
+		if row.rootID != row.parentID {
+			im.leavesArrived(row.rootID, id)
+		}
+	}
 	for _, key := range keys {
 		if err := im.insertItemKey(im.batch.LibraryID, key, id); err != nil {
 			return err

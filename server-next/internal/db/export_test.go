@@ -35,7 +35,12 @@ func WatchedMarks(d *DB) (stored map[[2]int64]bool, wrong []string, err error) {
 				return err
 			}
 			for _, holder := range holders {
-				leaves, watched, err := watchedUnder(b, acc, profile, holder)
+				// Counted here in full, apart from the statement the server uses.
+				var leaves, watched int
+				err := b.queryRow(`SELECT count(*), count(played) FROM (`+underHolder(`SELECT c.id, w.item_id AS played FROM items c
+					LEFT JOIN user_item_state w ON w.profile_id = @viewer_profile AND w.item_id = c.id AND w.played = 1
+					WHERE {under} AND `+acc.visible("c"), "@id", " UNION ")+`)`,
+					sql.Named("viewer_profile", profile), sql.Named("id", holder)).Scan(&leaves, &watched)
 				if err != nil {
 					return err
 				}

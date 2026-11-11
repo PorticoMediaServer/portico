@@ -27,14 +27,19 @@ import (
 //
 // RebuildWatchedMarks works every mark out again from nothing.
 
-// watchedUnder counts the playable items under a holder that a profile may see, and how many
-// of those it has watched.
-func watchedUnder(b *batchTx, acc access, profileID, holder int64) (leaves, watched int, err error) {
-	err = b.queryRow(`SELECT count(*), count(played) FROM (`+underHolder(`SELECT c.id, w.item_id AS played FROM items c
-		LEFT JOIN user_item_state w ON w.profile_id = @viewer_profile AND w.item_id = c.id AND w.played = 1
-		WHERE {under} AND `+acc.visible("c"), "@id", " UNION ")+`)`,
-		sql.Named("viewer_profile", profileID), sql.Named("id", holder)).Scan(&leaves, &watched)
-	return leaves, watched, err
+// watchedAll reports whether a profile has watched everything it may see under a holder, and
+// may see something. It is one statement that stops at the first unwatched item it finds, so
+// a show someone is part-way through costs a few rows however long it is; only a show that
+// is in fact finished is read to its end.
+func watchedAll(b *batchTx, acc access, profileID, holder int64) (bool, error) {
+	visible := `SELECT 1 FROM items c WHERE {under} AND ` + acc.visible("c")
+	unwatched := visible + ` AND NOT EXISTS (SELECT 1 FROM user_item_state w
+		WHERE w.profile_id = @viewer_profile AND w.item_id = c.id AND w.played = 1)`
+	var all bool
+	err := b.queryRow(`SELECT (`+underHolder(`EXISTS (`+visible+`)`, "@id", " OR ")+`) AND NOT (`+
+		underHolder(`EXISTS (`+unwatched+`)`, "@id", " OR ")+`)`,
+		sql.Named("viewer_profile", profileID), sql.Named("id", holder)).Scan(&all)
+	return all, err
 }
 
 // settleWatched is the one place a holder's watched mark is written. It works the mark out
@@ -52,27 +57,35 @@ func settleWatched(b *batchTx, acc access, profileID int64, holders []int64, now
 		if err != nil {
 			return err
 		}
-		leaves, watched, err := watchedUnder(b, acc, profileID, holder)
+		all, err := watchedAll(b, acc, profileID, holder)
 		if err != nil {
 			return err
 		}
-		var res sql.Result
-		if leaves > 0 && watched == leaves {
-			res, err = b.exec(`INSERT INTO user_item_state (profile_id, item_id, played, updated_at) VALUES (?, ?, 1, ?)
-				ON CONFLICT (profile_id, item_id) DO UPDATE SET played = 1, updated_at = excluded.updated_at WHERE played = 0`,
-				profileID, holder, now)
-		} else {
-			res, err = b.exec(`UPDATE user_item_state SET played = 0, updated_at = ? WHERE profile_id = ? AND item_id = ? AND played = 1`,
-				now, profileID, holder)
-		}
-		if err != nil {
+		if err := storeWatched(b, profileID, holder, library, all, now); err != nil {
 			return err
 		}
-		if changed, _ := res.RowsAffected(); changed > 0 {
-			if err := appendChange(b.tx, Change{At: now, Topic: TopicState, Op: OpUpdated, RefID: holder, LibraryID: library, ProfileID: profileID}); err != nil {
-				return err
-			}
-		}
+	}
+	return nil
+}
+
+// storeWatched writes one profile's mark on one holder where it differs from what is stored,
+// and tells the profile's open apps when it did.
+func storeWatched(b *batchTx, profileID, holder, library int64, watched bool, now int64) error {
+	var res sql.Result
+	var err error
+	if watched {
+		res, err = b.exec(`INSERT INTO user_item_state (profile_id, item_id, played, updated_at) VALUES (?, ?, 1, ?)
+			ON CONFLICT (profile_id, item_id) DO UPDATE SET played = 1, updated_at = excluded.updated_at WHERE played = 0`,
+			profileID, holder, now)
+	} else {
+		res, err = b.exec(`UPDATE user_item_state SET played = 0, updated_at = ? WHERE profile_id = ? AND item_id = ? AND played = 1`,
+			now, profileID, holder)
+	}
+	if err != nil {
+		return err
+	}
+	if changed, _ := res.RowsAffected(); changed > 0 {
+		return appendChange(b.tx, Change{At: now, Topic: TopicState, Op: OpUpdated, RefID: holder, LibraryID: library, ProfileID: profileID})
 	}
 	return nil
 }
@@ -97,15 +110,19 @@ func (b *batchTx) leavesChanged(holders ...int64) {
 	}
 }
 
-// leavesArrived notes that these holders gained new items nobody has watched. That can only
-// take the mark away, so only the profiles that hold it are looked at: one index look for a
-// holder nobody had finished, which is every holder during a first import.
-func (b *batchTx) leavesArrived(holders ...int64) {
-	for _, holder := range holders {
-		if holder != 0 {
-			b.watchedArrived = append(b.watchedArrived, holder)
-		}
+// leavesArrived notes that a holder gained new items nobody has watched. That can only take
+// the mark away, and only from a profile that holds it and can see one of the new items. So
+// nothing under the holder is read: one index look for a holder nobody had finished, which
+// is every holder during a first import, and one look at the new items for each profile that
+// had.
+func (b *batchTx) leavesArrived(holder int64, items ...int64) {
+	if holder == 0 {
+		return
 	}
+	if b.watchedArrived == nil {
+		b.watchedArrived = map[int64][]int64{}
+	}
+	b.watchedArrived[holder] = append(b.watchedArrived[holder], items...)
 }
 
 // settleWatchedForAll settles the holders noted by leavesChanged and leavesArrived for every
@@ -121,8 +138,8 @@ func (b *batchTx) settleWatchedForAll(now int64) error {
 	marked := `SELECT profile_id FROM user_item_state WHERE item_id = ?1 AND played = 1`
 	anyWatched := marked + ` UNION ` + underHolder(`SELECT s.profile_id FROM items c CROSS JOIN user_item_state s ON s.item_id = c.id
 		WHERE {under} AND s.played = 1`, "?1", " UNION ")
-	settle := func(holder int64, candidates string) error {
-		profiles, err := b.queryInts(candidates, holder)
+	for _, holder := range changed {
+		profiles, err := b.queryInts(anyWatched, holder)
 		if err != nil {
 			return err
 		}
@@ -135,20 +152,36 @@ func (b *batchTx) settleWatchedForAll(now int64) error {
 				return err
 			}
 		}
-		return nil
 	}
-	for _, holder := range changed {
-		if err := settle(holder, anyWatched); err != nil {
-			return err
-		}
-	}
-	slices.Sort(arrived)
-	for _, holder := range slices.Compact(arrived) {
-		if _, found := slices.BinarySearch(changed, holder); found {
+	for holder, items := range arrived {
+		if _, found := slices.BinarySearch(changed, holder); found || len(items) == 0 {
 			continue
 		}
-		if err := settle(holder, marked); err != nil {
+		profiles, err := b.queryInts(marked, holder)
+		if err != nil || len(profiles) == 0 {
+			if err != nil {
+				return err
+			}
+			continue
+		}
+		var library int64
+		if err := b.queryRow(`SELECT library_id FROM items WHERE id = ?`, holder).Scan(&library); err != nil {
 			return err
+		}
+		for _, profile := range profiles {
+			acc, err := profileAccess(b, profile)
+			if err != nil {
+				return err
+			}
+			var sees bool
+			if err := b.queryRow(`SELECT EXISTS (SELECT 1 FROM items c WHERE c.id IN ` + intList(items) + ` AND ` + acc.visible("c") + `)`).Scan(&sees); err != nil {
+				return err
+			}
+			if sees {
+				if err := storeWatched(b, profile, holder, library, false, now); err != nil {
+					return err
+				}
+			}
 		}
 	}
 	return nil
