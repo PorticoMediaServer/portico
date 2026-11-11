@@ -121,8 +121,6 @@ type PlanRequest struct {
 	Capabilities json.RawMessage
 	Choice       Choice
 	Network      string
-	// ThroughputKbps is the app's own measure of its connection, 0 when it has none.
-	ThroughputKbps int
 	// Failures are the ways of delivering this file that failed on this device and are still
 	// remembered.
 	Failures []db.RouteFailure

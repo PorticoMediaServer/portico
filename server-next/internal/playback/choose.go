@@ -137,7 +137,6 @@ type Ask struct {
 	SubtitleOffsetMs *int64
 	Quality          *Quality
 	Network          string
-	ThroughputKbps   int
 }
 
 // Who is asking, and from where.
@@ -388,7 +387,7 @@ func (s *Service) resolve(ctx context.Context, c Caller, device db.SessionDevice
 			return a
 		}
 		request := PlanRequest{Item: item, Version: version, Capabilities: capabilities, Choice: a.choice, Network: out.network,
-			ThroughputKbps: ask.ThroughputKbps, Failures: failures, Preferences: prefs}
+			Failures: failures, Preferences: prefs}
 		a.plan, a.err = s.planner.Plan(request)
 		if a.err == nil && current == nil && (ask.Audio != nil || ask.Subtitle != nil) {
 			// Was the request's track a pick, or just what the server would have played anyway?
