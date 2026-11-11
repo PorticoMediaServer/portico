@@ -192,9 +192,11 @@ func (s *Server) compatOp(r *http.Request, op string, values []string) (any, err
 		return s.compatCommand(r, c, values[0], values[1])
 	case compat.Plugins:
 		return []any{}, nil
+	case compat.NotifyAdmins:
+		return nil, s.compatNotifyAdmins(r, c)
 	}
-	// Reports of changed files, a library refresh, a title's subtitle refresh and a notice to
-	// administrators wait for the scan and notice services they would hand over to.
+	// Reports of changed files, a library refresh and a title's subtitle refresh wait for the
+	// scan services they would hand over to.
 	return nil, refusal(http.StatusNotImplemented, "not_available", "This server cannot take this request yet.", false)
 }
 
@@ -264,6 +266,23 @@ func (s *Server) compatInfo(r *http.Request, signedIn bool) (any, error) {
 		out["SupportsLibraryMonitor"] = false
 	}
 	return out, nil
+}
+
+// compatNotifyAdmins puts a tool's notice in the owner's and administrators' Notifications
+// (area 13 rule 38), through the route the console's message to administrators uses, as the
+// tool's caller: only an owner's or administrator's key or app password may.
+func (s *Server) compatNotifyAdmins(r *http.Request, c Caller) error {
+	var in struct{ Name, Description, URL string }
+	if err := json.NewDecoder(http.MaxBytesReader(nil, r.Body, maxBody)).Decode(&in); err != nil {
+		return ErrInvalid("Send the notice's name and description.")
+	}
+	var lines []string
+	for _, line := range []string{in.Name, in.Description, in.URL} {
+		if line = strings.TrimSpace(line); line != "" {
+			lines = append(lines, line)
+		}
+	}
+	return s.callAsWith(r, c, "POST", "/v1/admin/notifications", nil, ServerMessage{Audience: "admins", Message: strings.Join(lines, "\n")}, nil)
 }
 
 // compatSignIn signs a tool in with a username and an app password, never the account's
