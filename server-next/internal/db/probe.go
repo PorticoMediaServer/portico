@@ -53,6 +53,8 @@ type Probe struct {
 	Bitrate    int64
 	Streams    []Stream
 	Chapters   []Marker
+	// AudioExact is a music file's exact measurement, as the JSON files.audio_exact keeps.
+	AudioExact string
 	Problem    FileProblem
 }
 
@@ -81,8 +83,8 @@ func storeProbe(b *batchTx, p *Probe, now int64) error {
 			p.Problem, p.FileID, p.Size, p.ModifiedNS, p.Problem)
 		return err
 	}
-	res, err := b.exec(`UPDATE files SET probed_at = ?, container = ?, duration_ms = ?, bitrate = ?, problem = NULL
-		WHERE id = ? AND size = ? AND modified_ns = ?`, now, nz(p.Container), nz(p.DurationMS), nz(p.Bitrate), p.FileID, p.Size, p.ModifiedNS)
+	res, err := b.exec(`UPDATE files SET probed_at = ?, container = ?, duration_ms = ?, bitrate = ?, audio_exact = ?, problem = NULL
+		WHERE id = ? AND size = ? AND modified_ns = ?`, now, nz(p.Container), nz(p.DurationMS), nz(p.Bitrate), nz(p.AudioExact), p.FileID, p.Size, p.ModifiedNS)
 	if err != nil {
 		return err
 	}

@@ -20,10 +20,13 @@ import (
 // trim from each end and where it can seek, which is what lets one song run into the next
 // without a gap. That plan needs the file measured exactly, by decoding it once.
 //
-// The measurement is made the first time a file is planned and kept in memory until the
-// file changes or the server restarts. A plan waits a short while for it. If it takes longer
-// (a long audiobook), this play is planned the ordinary way and the measurement carries on
-// beside it, so the next play of the file, and the next song got ready in advance, has it.
+// The scan makes the measurement when it reads the file and keeps it with the file
+// (files.audio_exact), so a play has it at once. A file the scan could not measure that way
+// (a very long one, a platform without the scan's worker, a file scanned before this was
+// built) is measured the first time it is planned, and that is kept in memory until the
+// file changes or the server restarts. A plan waits a short while for it; if it takes
+// longer, this play is planned the ordinary way and the measurement carries on beside it,
+// so the next play of the file has it.
 
 // musicWait is how long a plan waits for a file to be measured.
 const musicWait = 3 * time.Second
@@ -53,7 +56,13 @@ func (e *Engine) measured(ctx context.Context, path string, place db.FileOnDisk)
 			// Not this request's: it outlives a plan that stopped waiting.
 			run, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 			defer cancel()
-			m.facts, m.index, m.err = e.streams.MeasureAudio(run, path, place.Size, time.Unix(0, place.ModifiedNS))
+			modified := time.Unix(0, place.ModifiedNS)
+			if place.AudioExact != "" && json.Unmarshal([]byte(place.AudioExact), &m.facts) == nil && m.facts.SampleRate > 0 {
+				// The scan measured it. Only the seek index is made now, which is quick.
+				m.index, m.err = e.streams.AudioSeekIndex(run, path, place.Size, modified, &m.facts)
+				return
+			}
+			m.facts, m.index, m.err = e.streams.MeasureAudio(run, path, place.Size, modified)
 		}()
 	}
 	e.mu.Unlock()
