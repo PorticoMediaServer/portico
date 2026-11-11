@@ -2,20 +2,15 @@ package remote
 
 import (
 	"context"
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
 	"net/url"
-	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/secrets"
 )
 
 // Config is a source's settings, kept as JSON with it. Nothing in it is secret: the owner's
@@ -93,8 +88,8 @@ var ErrNeedsAttention = errors.New("the source needs attention")
 // Registry opens saved sources for scans and playback. It keeps one throttle per source, so
 // everything Portico asks of a source shares its limits.
 type Registry struct {
-	db   *db.DB
-	aead cipher.AEAD
+	db  *db.DB
+	box *secrets.Box
 
 	mu   sync.Mutex
 	open map[int64]*opened
@@ -108,32 +103,14 @@ type opened struct {
 	state    string
 }
 
-// keyFile holds the key that seals sources' secrets. It is beside the database, not in it,
-// so a copy of the database alone, sent with a support request, signs in to nothing.
-const keyFile = "remote-sources.key"
-
-// NewRegistry opens the registry, making the sealing key in dataDir the first time.
+// NewRegistry opens the registry. Sources' secrets are sealed with the server's key (package
+// secrets), made in dataDir the first time.
 func NewRegistry(d *db.DB, dataDir string) (*Registry, error) {
-	name := filepath.Join(dataDir, keyFile)
-	key, err := os.ReadFile(name)
-	if errors.Is(err, fs.ErrNotExist) {
-		key = make([]byte, 32)
-		rand.Read(key)
-		var f *os.File
-		if f, err = os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600); err == nil {
-			_, err = f.Write(key)
-			err = errors.Join(err, f.Sync(), f.Close())
-		}
-	}
+	box, err := secrets.Open(dataDir)
 	if err != nil {
 		return nil, err
 	}
-	if len(key) != 32 {
-		return nil, fmt.Errorf("%s is not a key Portico made", name)
-	}
-	block, _ := aes.NewCipher(key)
-	aead, _ := cipher.NewGCM(block)
-	return &Registry{db: d, aead: aead, open: map[int64]*opened{}}, nil
+	return &Registry{db: d, box: box, open: map[int64]*opened{}}, nil
 }
 
 // Seal seals a secret to the source it belongs to.
@@ -142,9 +119,7 @@ func (r *Registry) Seal(publicID string, s Secret) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	nonce := make([]byte, r.aead.NonceSize())
-	rand.Read(nonce)
-	return r.aead.Seal(nonce, nonce, plain, []byte(publicID)), nil
+	return r.box.Seal(publicID, plain), nil
 }
 
 func (r *Registry) unseal(publicID string, sealed []byte) (Secret, error) {
@@ -152,11 +127,7 @@ func (r *Registry) unseal(publicID string, sealed []byte) (Secret, error) {
 	if len(sealed) == 0 {
 		return s, nil
 	}
-	n := r.aead.NonceSize()
-	if len(sealed) < n {
-		return s, ErrSignIn
-	}
-	plain, err := r.aead.Open(nil, sealed[:n], sealed[n:], []byte(publicID))
+	plain, err := r.box.Open(publicID, sealed)
 	if err != nil {
 		// Sealed with another key: the key file was lost or replaced.
 		return s, ErrSignIn
