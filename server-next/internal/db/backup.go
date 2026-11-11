@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/url"
 	"time"
 
 	"modernc.org/sqlite"
@@ -48,7 +49,7 @@ func (d *DB) BackupTo(ctx context.Context, path string, progress func(left int))
 			return errors.New("this SQLite driver cannot make an online backup")
 		}
 		var err error
-		b, err = conn.NewBackup("file:" + path)
+		b, err = conn.NewBackup("file:" + url.PathEscape(path))
 		return err
 	})
 	if err != nil {
