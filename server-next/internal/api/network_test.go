@@ -1,6 +1,9 @@
 package api
 
 import (
+	"bytes"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -184,6 +187,26 @@ func TestListedProxyThatSendsNoAddress(t *testing.T) {
 	right := SignInRequest{Username: "justin", Password: testPassword, Device: device(500)}
 	if got := from(t, s, proxy, "", "POST", "/v1/auth/sign-in", "", right, nil); got != 429 {
 		t.Errorf("after 30 wrong guesses through the silent proxy the next sign-in answered %d, want 429", got)
+	}
+}
+
+// The log says once that an address in the trusted list sent no visitor's address, and
+// once sixteen are noted it says nothing about any more: a wide trusted range must not let
+// anyone add a line to the owner's log with every request.
+func TestSilentProxiesAreLoggedOnceAndOnlyWhileNoted(t *testing.T) {
+	s := newTestServer(t)
+	var log bytes.Buffer
+	s.log = slog.New(slog.NewTextHandler(&log, nil))
+	for range 2 {
+		for n := range maxSilentProxies + 4 {
+			s.noteSilentProxy(fmt.Sprintf("172.18.0.%d", n+1))
+		}
+	}
+	if lines := strings.Count(log.String(), "with no X-Forwarded-For"); lines != maxSilentProxies {
+		t.Errorf("%d addresses noted twice wrote %d warnings, want one for each of the first %d", maxSilentProxies+4, lines, maxSilentProxies)
+	}
+	if notices := s.networkNotices(); len(notices) != maxSilentProxies {
+		t.Errorf("the owner is shown %d notices, want %d", len(notices), maxSilentProxies)
 	}
 }
 
