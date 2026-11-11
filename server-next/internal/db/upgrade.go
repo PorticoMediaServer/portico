@@ -58,6 +58,12 @@ type upgrade struct {
 	// before. It only ever runs against its own version's tables: a start that has a newer
 	// step to apply finishes it first.
 	background func(tx *sql.Tx, after int64) (next int64, done bool, err error)
+	// beforeServing says the background part must be finished before the server answers
+	// anyone. It is for a new column whose empty value already means something, so that a
+	// row not yet filled would be read wrongly: an empty list of the labels that hide a title
+	// means "nothing hides it". The work still runs in batches and carries on after a kill,
+	// but every start finishes it, and whatever is before it, while starting.
+	beforeServing bool
 }
 
 // upgrades is every step since the first release, oldest first. The step at position i
@@ -120,7 +126,7 @@ func (d *DB) upgrade(ctx context.Context) error {
 		return errors.New(problem)
 	}
 	if version == current {
-		return nil
+		return d.finishBeforeServing(ctx)
 	}
 	slog.Info("upgrading the database; the server starts when this is done", "from", version, "to", current)
 	earlier := upgradeCopies(d.path)
@@ -139,7 +145,7 @@ func (d *DB) upgrade(ctx context.Context) error {
 	slog.Info("the database as it was before the upgrade is kept until the next upgrade; it can be deleted sooner, once this version is working well", "file", copied)
 	for ; version < current; version++ {
 		step := upgrades[version-firstVersion]
-		if err := d.finishEarlierSteps(ctx); err != nil {
+		if err := d.finishSteps(ctx, version); err != nil {
 			return fmt.Errorf("finishing an earlier upgrade's background work failed, and the database stays at version %d; the database as it was before the upgrade is at %s: %w",
 				version, copied, err)
 		}
@@ -154,19 +160,54 @@ func (d *DB) upgrade(ctx context.Context) error {
 			slog.Info("the copy kept from an earlier upgrade is removed", "file", c.path)
 		}
 	}
+	return d.finishBeforeServing(ctx)
+}
+
+// finishBeforeServing finishes, while the server starts, the background work of every step
+// that asks for that, and of the steps before it, since background parts run in order.
+func (d *DB) finishBeforeServing(ctx context.Context) error {
+	rows, err := d.writeConn.QueryContext(ctx, `SELECT version FROM schema_migrations WHERE background_after IS NOT NULL`)
+	if err != nil {
+		return err
+	}
+	last := 0
+	for rows.Next() {
+		var version int
+		if err := rows.Scan(&version); err != nil {
+			rows.Close()
+			return err
+		}
+		if at := version - firstVersion - 1; at >= 0 && at < len(upgrades) && upgrades[at].beforeServing {
+			last = max(last, version)
+		}
+	}
+	if err := errors.Join(rows.Err(), rows.Close()); err != nil || last == 0 {
+		return err
+	}
+	if err := d.finishSteps(ctx, last); err != nil {
+		return fmt.Errorf("finishing the upgrade to version %d failed, and the server cannot start until it is finished: %w", last, err)
+	}
 	return nil
 }
 
-// finishEarlierSteps runs, before a newer step is applied, whatever background work the
-// steps already applied still have, so that work never meets tables newer than its own.
-func (d *DB) finishEarlierSteps(ctx context.Context) error {
+// finishSteps runs, while the server starts, whatever background work the steps up to a
+// version still have. Before a newer step is applied it is called for every step already
+// applied, so that work never meets tables newer than its own.
+func (d *DB) finishSteps(ctx context.Context, upTo int) error {
 	for told := false; ; {
+		var left bool
+		if err := d.writeConn.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE background_after IS NOT NULL AND version <= ?)`, upTo).Scan(&left); err != nil || !left {
+			return err
+		}
+		if !told {
+			told = true
+			slog.Info("finishing part of the upgrade before the server starts")
+		}
 		tx, err := d.writeConn.BeginTx(ctx, nil)
 		if err != nil {
 			return err
 		}
-		more, err := upgradeBatch(tx)
-		if err != nil {
+		if _, err := upgradeBatch(tx); err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -174,13 +215,6 @@ func (d *DB) finishEarlierSteps(ctx context.Context) error {
 			return err
 		}
 		upgradePoint("batch committed")
-		if !more {
-			return nil
-		}
-		if !told {
-			told = true
-			slog.Info("finishing an earlier upgrade's background work before the next step")
-		}
 	}
 }
 
