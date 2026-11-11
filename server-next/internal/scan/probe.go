@@ -34,6 +34,8 @@ type Facts struct {
 	Title    string
 	Streams  []db.Stream
 	Chapters []db.Marker // StartMS, EndMS and Title; the rest is filled in when stored
+	// AudioExact is a music file's exact measurement (audiofacts.Facts as JSON), or "".
+	AudioExact string
 }
 
 // What a Prober says about a file it cannot give facts for. Any other error means the file
@@ -140,7 +142,7 @@ func (r *run) probeFile(file db.UnprobedFile, src Source, local string) *db.Prob
 	switch {
 	case err == nil:
 		probe.Container, probe.DurationMS, probe.Bitrate = facts.Container, facts.DurationMS, facts.Bitrate
-		probe.Streams, probe.Chapters, probe.Title = facts.Streams, facts.Chapters, facts.Title
+		probe.Streams, probe.Chapters, probe.Title, probe.AudioExact = facts.Streams, facts.Chapters, facts.Title, facts.AudioExact
 	case errors.Is(err, ErrDamaged):
 		probe.Problem = db.ProblemDamaged
 	case errors.Is(err, ErrUnsupported):
