@@ -334,7 +334,8 @@ func (s *Service) Save(ctx context.Context, p db.Priority, only ...string) {
 		sess.dirty = false
 		owners = append(owners, sess)
 		batch = append(batch, db.Progress{Viewer: sess.Viewer(), ItemID: sess.Item.PublicID, DeviceID: sess.Device.ID,
-			PlayID: sess.ID, PositionMS: sess.PositionMs, At: sess.sampleAt, WatchedMS: sess.playedMs})
+			PlayID: sess.ID, PositionMS: sess.PositionMs, At: sess.sampleAt, WatchedMS: sess.playedMs,
+			Away: sess.Network != NetworkLocal, Delivery: db.ParseDelivery(sess.Plan.Route)})
 	}
 	if len(only) > 0 {
 		for _, id := range only {

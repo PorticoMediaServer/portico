@@ -498,6 +498,10 @@ type Progress struct {
 	At time.Time
 	// WatchedMS is how long the title has actually played in this playing.
 	WatchedMS int64
+	// Away is true for a play from outside the home networks, and Delivery how it reached the
+	// device: both are for the owner's Play history.
+	Away     bool
+	Delivery Delivery
 }
 
 // Settings a profile can change that decide what a position means. Values are percentages.
@@ -638,11 +642,16 @@ func (w *stateWriter) saveProgress(sample Progress, prefs map[string]string) (fi
 	if done {
 		// The profile's and the account's names are copied: the play stays in the owner's
 		// record after either is deleted.
+		// The account, the library, the device's name, home or away and how it was delivered
+		// are for the owner's Play history and its filters.
 		res, err := w.exec(`INSERT INTO play_history (profile_id, profile_name, account_name, item_id, device_id, client_event_id, played_at,
-			watched_ms, item_kind, title, subtitle, hidden_from_profile)
-			SELECT p.id, p.name, u.username, ?, ?, ?, ?, ?, ?, ?, nullif(?, ''), ? FROM profiles p JOIN users u ON u.id = p.user_id WHERE p.id = ?
+			watched_ms, item_kind, title, subtitle, hidden_from_profile, user_id, library_id, device_name, away, delivery)
+			SELECT p.id, p.name, u.username, ?1, ?2, ?3, ?4, ?5, ?6, ?7, nullif(?8, ''), ?9, u.id,
+				(SELECT library_id FROM items WHERE id = ?1), ifnull((SELECT name FROM devices WHERE id = ?2), ''), ?11, ?12
+			FROM profiles p JOIN users u ON u.id = p.user_id WHERE p.id = ?10
 			ON CONFLICT (profile_id, client_event_id) DO NOTHING`,
-			id, nz(sample.DeviceID), sample.PlayID, sample.At.UnixMilli(), sample.WatchedMS, kind, title, holder, paused, w.viewer.ProfileID)
+			id, nz(sample.DeviceID), sample.PlayID, sample.At.UnixMilli(), sample.WatchedMS, kind, title, holder, paused, w.viewer.ProfileID,
+			sample.Away, sample.Delivery)
 		if err != nil {
 			return false, err
 		}
