@@ -13,7 +13,8 @@ type BookAnswer struct {
 	// different version".
 	Version  string        `json:"version"`
 	Versions []BookVersion `json:"versions"`
-	// Format is epub, pdf or cbz for a book this server opens; any other is one it cannot yet.
+	// Format is epub, pdf, cbz or images (a comic made of a folder of pictures) for a book this
+	// server opens; any other is one it cannot yet.
 	Format string `json:"format"`
 	// Fingerprint names this exact file. A place or a highlight made on another fingerprint was
 	// made on another copy of the book, and is placed by how far through the book it was.
@@ -90,7 +91,7 @@ func (s *Server) openBook(r *http.Request, _ None) (BookAnswer, error) {
 	out := BookAnswer{ItemID: book.PublicID, Version: version.PublicID, Versions: []BookVersion{}, Format: opened.Format,
 		Fingerprint: opened.Fingerprint, Size: version.Size, SaveURL: opened.SaveURL}
 	for _, v := range book.Versions {
-		out.Versions = append(out.Versions, BookVersion{ID: v.PublicID, Format: reading.Format(v.FileName), Name: v.Name})
+		out.Versions = append(out.Versions, BookVersion{ID: v.PublicID, Format: reading.VersionFormat(v), Name: v.Name})
 	}
 	if opened.Problem != nil {
 		out.Unreadable = &BookProblem{Code: bookProblemCode(opened.Problem), Message: opened.Problem.Error()}
