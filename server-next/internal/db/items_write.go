@@ -761,11 +761,8 @@ func (im *importer) createItem(it *ImportItem, parent *importedItem, keys []Item
 			return err
 		}
 	}
-	// Lyrics the file's tags hold that cannot be kept (too long) are passed over, not the song.
-	if it.Lyrics != nil {
-		if _, err := putLyrics(im.tx, id, *it.Lyrics, im.now); err != nil && !errors.Is(err, ErrInvalid) {
-			return err
-		}
+	if err := im.tagLyrics(id, it.Lyrics); err != nil {
+		return err
 	}
 	for i := range it.Versions {
 		if err := im.createVersion(id, i, &it.Versions[i], versions[i], row.addedAt); err != nil {
