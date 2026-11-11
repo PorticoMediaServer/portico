@@ -238,12 +238,20 @@ func run(log *slog.Logger) (err error) {
 		restart = true
 		log.Info("portico-server is restarting, as the owner asked")
 	}
-	// Let requests in flight finish, then close the database.
-	wait, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	if err := srv.Shutdown(wait); err != nil && !errors.Is(err, context.DeadlineExceeded) {
+	// Let requests in flight finish, then close the database. The replies held open for every
+	// open app (the change feed) are ended first, or each stop would wait here its whole time.
+	// What is still being sent when the time is up, a film to a player, is cut off.
+	handler.EndHeldReplies()
+	inFlight, cancelInFlight := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelInFlight()
+	if err := srv.Shutdown(inFlight); errors.Is(err, context.DeadlineExceeded) {
+		srv.Close()
+	} else if err != nil {
 		return err
 	}
+	// The work below has its own time, whatever the requests took.
+	wait, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 	// Everything the server does by itself stops and is waited for before the database closes:
 	// jobs in hand are put back to waiting, the webhook sender records the attempt it was
 	// making, playback saves where everyone had got to. A restart the owner asked for has not
@@ -258,7 +266,11 @@ func run(log *slog.Logger) (err error) {
 	if err := engine.Shutdown(wait); err != nil {
 		log.Error("stopping the streams failed", "error", err)
 	}
-	log.Info("portico-server stopped cleanly")
+	if wait.Err() != nil {
+		log.Warn("portico-server stopped, but took too long over it, so some of its work may not have been saved")
+	} else {
+		log.Info("portico-server stopped cleanly")
+	}
 	if restart {
 		return errRestart
 	}
