@@ -15,13 +15,10 @@ func (h *HLS) prepareBurnInput(ctx context.Context, id, dir string, position flo
 	if plan == nil || plan.BurnIn == nil {
 		return nil, noop, nil
 	}
-	h.mu.Lock()
-	var asset *BurnSubtitle
-	if s := h.streams[id]; s != nil {
-		asset = s.burn
+	asset, e := h.burnAsset(ctx, id)
+	if e != nil {
+		return nil, noop, e
 	}
-	h.mu.Unlock()
-	var e error
 	if asset == nil {
 		return nil, noop, errors.New("selected subtitle unavailable")
 	}
@@ -92,4 +89,31 @@ func (h *HLS) openWindowInput(ctx context.Context, id string, plan *DeliveryPlan
 	}
 	input, err := converterInput(ctx, s.source)
 	return input, nil, err
+}
+
+// burnAsset is the subtitle a stream burns in, read now if it has not been yet.
+// ctx is the converter window's, so the reading stops when the stream does.
+func (h *HLS) burnAsset(ctx context.Context, id string) (*BurnSubtitle, error) {
+	h.mu.Lock()
+	s := h.streams[id]
+	h.mu.Unlock()
+	if s == nil {
+		return nil, ErrGrantEnded
+	}
+	s.burnReading.Lock()
+	defer s.burnReading.Unlock()
+	h.mu.Lock()
+	asset, load := s.burn, s.burnLoad
+	h.mu.Unlock()
+	if asset != nil || load == nil {
+		return asset, nil
+	}
+	asset, err := load(ctx)
+	if err != nil {
+		return nil, err
+	}
+	h.mu.Lock()
+	s.burn = asset
+	h.mu.Unlock()
+	return asset, nil
 }

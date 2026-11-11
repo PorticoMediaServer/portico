@@ -3,6 +3,7 @@ package streaming
 import (
 	"context"
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/audiofacts"
@@ -47,12 +48,16 @@ type stream struct {
 	plan *DeliveryPlan
 	// request is what the plan was made from, kept so the producer can plan
 	// again when the picture cannot be copied after all. Nil refuses that.
-	request   *PlanRequest
-	duration  float64
-	text      []TextRenditionPlan
-	burn      *BurnSubtitle
-	audio     *AudioPlan
-	seekIndex *audiofacts.SeekIndex
+	request  *PlanRequest
+	duration float64
+	text     []TextRenditionPlan
+	burn     *BurnSubtitle
+	// burnLoad reads burn when it is first needed; burnReading lets one window
+	// read at a time.
+	burnLoad    func(context.Context) (*BurnSubtitle, error)
+	burnReading sync.Mutex
+	audio       *AudioPlan
+	seekIndex   *audiofacts.SeekIndex
 	// cues holds each text subtitle once it has been read, by Resource.
 	cues map[string]*textCues
 	// openInput replaces opening source as one file, and disc keeps the output on
