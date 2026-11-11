@@ -17,8 +17,8 @@ import (
 // With the schedule running, starting the server scans nothing; a film put into a watched
 // folder afterwards, also into a folder made afterwards, turns up by itself.
 func TestAWatchedFolderIsScannedWhenItChanges(t *testing.T) {
-	if runtime.GOOS != "linux" {
-		t.Skip("folders are watched on Linux only")
+	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" && runtime.GOOS != "windows" {
+		t.Skip("folders are not watched on this system")
 	}
 	f := newFixture(t, db.LibraryMovies)
 	f.write("Heat (1995).mkv")
