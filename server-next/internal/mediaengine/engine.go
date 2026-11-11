@@ -597,6 +597,10 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 	}
 	sum := sha256.Sum256(append(raw, []byte(path)...))
 	out.Key = hex.EncodeToString(sum[:8])
+	if burn != nil && burn.nudgeMs != 0 {
+		// A burned subtitle's timing is in the picture: another nudge is another stream.
+		out.Key += fmt.Sprint("+", burn.nudgeMs)
+	}
 	return out, nil
 }
 
