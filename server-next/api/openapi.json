@@ -222,6 +222,27 @@
         ],
         "type": "object"
       },
+      "Condition": {
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "field",
+          "values"
+        ],
+        "type": "object"
+      },
       "Credit": {
         "properties": {
           "character": {
@@ -546,6 +567,55 @@
         },
         "required": [
           "status"
+        ],
+        "type": "object"
+      },
+      "HistoryEntry": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "item": {
+            "$ref": "#/components/schemas/Item"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "playedAt": {
+            "type": "string"
+          },
+          "subtitle": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "watchedMs": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "playedAt",
+          "kind",
+          "title"
+        ],
+        "type": "object"
+      },
+      "HistoryPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/HistoryEntry"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
         ],
         "type": "object"
       },
@@ -926,6 +996,57 @@
         ],
         "type": "object"
       },
+      "ItemFile": {
+        "properties": {
+          "container": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": "integer"
+          },
+          "endMs": {
+            "type": "integer"
+          },
+          "missingSinceAt": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "startMs": {
+            "type": "integer"
+          },
+          "streams": {
+            "items": {
+              "$ref": "#/components/schemas/Stream"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "path",
+          "size",
+          "streams"
+        ],
+        "type": "object"
+      },
+      "ItemFiles": {
+        "properties": {
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/VersionFiles"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "versions"
+        ],
+        "type": "object"
+      },
       "ItemPage": {
         "properties": {
           "items": {
@@ -944,6 +1065,59 @@
         "required": [
           "items"
         ],
+        "type": "object"
+      },
+      "ItemQueryRequest": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "favorite": {
+            "type": "boolean"
+          },
+          "filter": {
+            "items": {
+              "$ref": "#/components/schemas/Condition"
+            },
+            "type": "array"
+          },
+          "inList": {
+            "type": "boolean"
+          },
+          "kind": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "library": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "order": {
+            "type": "string"
+          },
+          "parent": {
+            "type": "string"
+          },
+          "person": {
+            "type": "string"
+          },
+          "sort": {
+            "type": "string"
+          },
+          "tag": {
+            "type": "string"
+          },
+          "total": {
+            "type": "boolean"
+          },
+          "watched": {
+            "type": "boolean"
+          }
+        },
         "type": "object"
       },
       "ItemRef": {
@@ -973,14 +1147,14 @@
           "favorite": {
             "type": "boolean"
           },
-          "hidden": {
-            "type": "boolean"
-          },
           "inList": {
             "type": "boolean"
           },
           "lastPlayedAt": {
             "type": "string"
+          },
+          "notInterested": {
+            "type": "boolean"
           },
           "playCount": {
             "type": "integer"
@@ -1006,7 +1180,43 @@
           "playCount",
           "favorite",
           "inList",
-          "hidden"
+          "notInterested"
+        ],
+        "type": "object"
+      },
+      "ItemSubtitle": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlaybackSubtitle"
+          },
+          {
+            "properties": {
+              "versionId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "versionId"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "ItemSubtitles": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ItemSubtitle"
+            },
+            "type": "array"
+          },
+          "offsetMs": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "offsetMs"
         ],
         "type": "object"
       },
@@ -1072,13 +1282,15 @@
           "key": {
             "$ref": "#/components/schemas/Key"
           },
+          "note": {
+            "type": "string"
+          },
           "secret": {
             "type": "string"
           }
         },
         "required": [
-          "key",
-          "secret"
+          "key"
         ],
         "type": "object"
       },
@@ -1147,6 +1359,71 @@
           "id",
           "name",
           "kind"
+        ],
+        "type": "object"
+      },
+      "LyricLine": {
+        "properties": {
+          "atMs": {
+            "type": "integer"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "type": "object"
+      },
+      "Lyrics": {
+        "properties": {
+          "format": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/LyricLine"
+            },
+            "type": "array"
+          },
+          "offsetMs": {
+            "type": "integer"
+          },
+          "origin": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "origin",
+          "format",
+          "text",
+          "lines",
+          "offsetMs"
+        ],
+        "type": "object"
+      },
+      "LyricsPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Lyrics"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
         ],
         "type": "object"
       },
@@ -1353,6 +1630,51 @@
         },
         "required": [
           "items"
+        ],
+        "type": "object"
+      },
+      "NetworkSettings": {
+        "properties": {
+          "homeNetworks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "homeNetworksDefault": {
+            "type": "boolean"
+          },
+          "trustedProxies": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "homeNetworks",
+          "homeNetworksDefault",
+          "trustedProxies"
+        ],
+        "type": "object"
+      },
+      "NetworkSettingsEdit": {
+        "properties": {
+          "homeNetworks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "trustedProxies": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "trustedProxies"
         ],
         "type": "object"
       },
@@ -2450,6 +2772,9 @@
           "entryId": {
             "type": "string"
           },
+          "fromEntryId": {
+            "type": "string"
+          },
           "reason": {
             "type": "string"
           }
@@ -2790,6 +3115,31 @@
         },
         "type": "object"
       },
+      "RcloneSettings": {
+        "properties": {
+          "config": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "RcloneShown": {
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
       "RecoveryCodes": {
         "properties": {
           "recoveryCodes": {
@@ -2910,6 +3260,165 @@
           "items": {
             "items": {
               "$ref": "#/components/schemas/RememberedFailure"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "RemoteFolder": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "path"
+        ],
+        "type": "object"
+      },
+      "RemoteFolderPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RemoteFolder"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "RemoteLimits": {
+        "properties": {
+          "connections": {
+            "type": "integer"
+          },
+          "perSecond": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "connections",
+          "perSecond"
+        ],
+        "type": "object"
+      },
+      "RemoteSource": {
+        "properties": {
+          "folders": {
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/RemoteLimits"
+          },
+          "name": {
+            "type": "string"
+          },
+          "preset": {
+            "type": "string"
+          },
+          "problem": {
+            "type": "string"
+          },
+          "rclone": {
+            "$ref": "#/components/schemas/RcloneShown"
+          },
+          "state": {
+            "type": "string"
+          },
+          "waitingUntil": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "webdav": {
+            "$ref": "#/components/schemas/WebDAVShown"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "preset",
+          "limits",
+          "state",
+          "folders"
+        ],
+        "type": "object"
+      },
+      "RemoteSourceCreate": {
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/RemoteLimits"
+          },
+          "name": {
+            "type": "string"
+          },
+          "preset": {
+            "type": "string"
+          },
+          "rclone": {
+            "$ref": "#/components/schemas/RcloneSettings"
+          },
+          "webdav": {
+            "$ref": "#/components/schemas/WebDAVSettings"
+          }
+        },
+        "required": [
+          "kind",
+          "name"
+        ],
+        "type": "object"
+      },
+      "RemoteSourceEdit": {
+        "properties": {
+          "limits": {
+            "$ref": "#/components/schemas/RemoteLimits"
+          },
+          "name": {
+            "type": "string"
+          },
+          "preset": {
+            "type": "string"
+          },
+          "rclone": {
+            "$ref": "#/components/schemas/RcloneSettings"
+          },
+          "webdav": {
+            "$ref": "#/components/schemas/WebDAVSettings"
+          }
+        },
+        "type": "object"
+      },
+      "RemoteSourcePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RemoteSource"
             },
             "type": "array"
           },
@@ -3248,7 +3757,7 @@
       },
       "StateRequest": {
         "properties": {
-          "favorite": {
+          "continueDismissed": {
             "anyOf": [
               {
                 "type": "boolean"
@@ -3258,7 +3767,7 @@
               }
             ]
           },
-          "hidden": {
+          "favorite": {
             "anyOf": [
               {
                 "type": "boolean"
@@ -3280,6 +3789,16 @@
           },
           "madeAgoMs": {
             "type": "integer"
+          },
+          "notInterested": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "position": {
             "anyOf": [
@@ -3448,6 +3967,17 @@
           "trackId",
           "kind",
           "delivery"
+        ],
+        "type": "object"
+      },
+      "SubtitleOffset": {
+        "properties": {
+          "offsetMs": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "offsetMs"
         ],
         "type": "object"
       },
@@ -3640,6 +4170,27 @@
         ],
         "type": "object"
       },
+      "VersionFiles": {
+        "properties": {
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/ItemFile"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "files"
+        ],
+        "type": "object"
+      },
       "View": {
         "properties": {
           "kind": {
@@ -3670,6 +4221,41 @@
           "accountId",
           "serverId",
           "role"
+        ],
+        "type": "object"
+      },
+      "WebDAVSettings": {
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "user": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "address"
+        ],
+        "type": "object"
+      },
+      "WebDAVShown": {
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "passwordSet": {
+            "type": "boolean"
+          },
+          "user": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "address",
+          "passwordSet"
         ],
         "type": "object"
       }
@@ -4235,6 +4821,314 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StreamLimits"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/remote-sources": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoteSourcePage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoteSourceCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoteSource"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/remote-sources/{id}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoteSource"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "patch": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoteSourceEdit"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoteSource"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/remote-sources/{id}/folders": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoteFolderPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/remote-sources/{id}/test": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoteSource"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/settings/network": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NetworkSettings"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "put": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NetworkSettingsEdit"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NetworkSettings"
                 }
               }
             },
@@ -4979,6 +5873,81 @@
         "x-access": "public"
       }
     },
+    "/v1/history": {
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      },
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoryPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/history/{id}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
     "/v1/home": {
       "get": {
         "responses": {
@@ -5006,8 +5975,76 @@
         "x-access": "withProfile"
       }
     },
+    "/v1/images/{id}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "security": [],
+        "x-access": "public"
+      }
+    },
     "/v1/items": {
       "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/items/query": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemQueryRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "content": {
@@ -5137,6 +6174,80 @@
         "x-access": "withProfile"
       }
     },
+    "/v1/items/{id}/files": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemFiles"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
+      }
+    },
+    "/v1/items/{id}/lyrics": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LyricsPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
     "/v1/items/{id}/playback-options": {
       "get": {
         "parameters": [
@@ -5239,6 +6350,90 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StateReply"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/items/{id}/subtitles": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemSubtitles"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/items/{id}/subtitles/offset": {
+      "put": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubtitleOffset"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubtitleOffset"
                 }
               }
             },
@@ -5770,6 +6965,37 @@
           }
         },
         "x-access": "signedIn"
+      }
+    },
+    "/v1/media/{grant}/{file...}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "grant",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "security": [],
+        "x-access": "public"
       }
     },
     "/v1/people/{id}": {

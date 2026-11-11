@@ -74,6 +74,12 @@ export interface CodeStarted {
   intervalMs: number;
 }
 
+export interface Condition {
+  field: string;
+  mode?: string;
+  values: string[];
+}
+
 export interface Credit {
   personId: string;
   name: string;
@@ -170,6 +176,21 @@ export interface HDR {
 
 export interface Health {
   status: string;
+}
+
+export interface HistoryEntry {
+  id: string;
+  playedAt: string;
+  watchedMs?: number;
+  kind: string;
+  title: string;
+  subtitle?: string;
+  item?: Item;
+}
+
+export interface HistoryPage {
+  items: HistoryEntry[];
+  nextCursor?: string;
 }
 
 export interface Home {
@@ -282,10 +303,42 @@ export interface ItemCounts {
   unwatchedLeaves: number;
 }
 
+export interface ItemFile {
+  path: string;
+  size: number;
+  container?: string;
+  durationMs?: number;
+  missingSinceAt?: string;
+  startMs?: number;
+  endMs?: number;
+  streams: Stream[];
+}
+
+export interface ItemFiles {
+  versions: VersionFiles[];
+}
+
 export interface ItemPage {
   items: Item[];
   nextCursor?: string;
   total?: number;
+}
+
+export interface ItemQueryRequest {
+  library?: string;
+  parent?: string;
+  person?: string;
+  tag?: string;
+  kind?: string[];
+  filter?: Condition[];
+  watched?: boolean;
+  favorite?: boolean;
+  inList?: boolean;
+  sort?: string;
+  order?: string;
+  cursor?: string;
+  limit?: number;
+  total?: boolean;
 }
 
 export interface ItemRef {
@@ -303,9 +356,18 @@ export interface ItemState {
   lastPlayedAt?: string;
   favorite: boolean;
   inList: boolean;
-  hidden: boolean;
+  notInterested: boolean;
   rating?: number;
   updatedAt?: string;
+}
+
+export interface ItemSubtitle extends PlaybackSubtitle {
+  versionId: string;
+}
+
+export interface ItemSubtitles {
+  items: ItemSubtitle[];
+  offsetMs: number;
 }
 
 export interface Key {
@@ -325,7 +387,8 @@ export interface KeyCreate {
 
 export interface KeyCreated {
   key: Key;
-  secret: string;
+  secret?: string;
+  note?: string;
 }
 
 export interface KeyPage {
@@ -344,6 +407,25 @@ export interface Library {
   views?: View[];
   sorts?: Sort[];
   filters?: Filter[];
+}
+
+export interface LyricLine {
+  atMs?: number;
+  text: string;
+}
+
+export interface Lyrics {
+  id: string;
+  origin: string;
+  format: string;
+  text: string;
+  lines: LyricLine[];
+  offsetMs: number;
+}
+
+export interface LyricsPage {
+  items: Lyrics[];
+  nextCursor?: string;
 }
 
 export interface Marker {
@@ -405,6 +487,17 @@ export interface MemberEdit {
 export interface MemberPage {
   items: Member[];
   nextCursor?: string;
+}
+
+export interface NetworkSettings {
+  homeNetworks: string[];
+  homeNetworksDefault: boolean;
+  trustedProxies: string[];
+}
+
+export interface NetworkSettingsEdit {
+  homeNetworks?: string[];
+  trustedProxies: string[];
 }
 
 export interface Part {
@@ -750,6 +843,7 @@ export interface QueueAdd {
 export interface QueueAdvance {
   reason: string;
   entryId?: string;
+  fromEntryId?: string;
 }
 
 export interface QueueChange {
@@ -862,6 +956,16 @@ export interface Ratings {
   critic?: number;
 }
 
+export interface RcloneSettings {
+  config?: string;
+  path?: string;
+}
+
+export interface RcloneShown {
+  type: string;
+  path?: string;
+}
+
 export interface RecoveryCodes {
   recoveryCodes: string[];
 }
@@ -897,6 +1001,57 @@ export interface RememberedFailure {
 
 export interface RememberedFailurePage {
   items: RememberedFailure[];
+  nextCursor?: string;
+}
+
+export interface RemoteFolder {
+  name: string;
+  path: string;
+}
+
+export interface RemoteFolderPage {
+  items: RemoteFolder[];
+  nextCursor?: string;
+}
+
+export interface RemoteLimits {
+  connections: number;
+  perSecond: number;
+}
+
+export interface RemoteSource {
+  id: string;
+  kind: string;
+  name: string;
+  preset: string;
+  limits: RemoteLimits;
+  webdav?: WebDAVShown;
+  rclone?: RcloneShown;
+  state: string;
+  waitingUntil?: string;
+  problem?: string;
+  folders: number;
+}
+
+export interface RemoteSourceCreate {
+  kind: string;
+  name: string;
+  preset?: string;
+  limits?: RemoteLimits;
+  webdav?: WebDAVSettings;
+  rclone?: RcloneSettings;
+}
+
+export interface RemoteSourceEdit {
+  name?: string;
+  preset?: string;
+  limits?: RemoteLimits;
+  webdav?: WebDAVSettings;
+  rclone?: RcloneSettings;
+}
+
+export interface RemoteSourcePage {
+  items: RemoteSource[];
   nextCursor?: string;
 }
 
@@ -998,7 +1153,8 @@ export interface StateRequest {
   position?: string | null;
   favorite?: boolean | null;
   inList?: boolean | null;
-  hidden?: boolean | null;
+  notInterested?: boolean | null;
+  continueDismissed?: boolean | null;
   rating?: number | null;
   madeAgoMs: number;
 }
@@ -1042,6 +1198,10 @@ export interface SubtitleInForce {
   trackId: string;
   kind: string;
   delivery: string;
+}
+
+export interface SubtitleOffset {
+  offsetMs: number;
 }
 
 export interface SubtitlePick {
@@ -1103,6 +1263,12 @@ export interface UndoRequest {
   token: string;
 }
 
+export interface VersionFiles {
+  id: string;
+  name?: string;
+  files: ItemFile[];
+}
+
 export interface View {
   kind: string;
 }
@@ -1112,6 +1278,18 @@ export interface Viewer {
   profileId?: string;
   serverId: string;
   role: string;
+}
+
+export interface WebDAVSettings {
+  address: string;
+  user?: string;
+  password?: string;
+}
+
+export interface WebDAVShown {
+  address: string;
+  user?: string;
+  passwordSet: boolean;
 }
 
 /** The body of every refusal. */
@@ -1124,6 +1302,8 @@ export interface Routes {
   'GET /v1/health/live': {access: 'public'; request: undefined; response: Health};
   'GET /v1/health/ready': {access: 'public'; request: undefined; response: Health};
   'GET /v1/system': {access: 'public'; request: undefined; response: System};
+  'GET /v1/admin/settings/network': {access: 'owner'; request: undefined; response: NetworkSettings};
+  'PUT /v1/admin/settings/network': {access: 'owner'; request: NetworkSettingsEdit; response: NetworkSettings};
   'POST /v1/system/identity-proof': {access: 'public'; request: IdentityQuestion; response: IdentityProof};
   'POST /v1/setup/owner': {access: 'public'; request: SetupOwnerRequest; response: SignInResponse};
   'POST /v1/auth/sign-in': {access: 'public'; request: SignInRequest; response: SignInResponse};
@@ -1184,6 +1364,7 @@ export interface Routes {
   'GET /v1/libraries': {access: 'withProfile'; request: undefined; response: Libraries};
   'GET /v1/libraries/{id}': {access: 'withProfile'; request: undefined; response: Library};
   'GET /v1/items': {access: 'withProfile'; request: undefined; response: ItemPage};
+  'POST /v1/items/query': {access: 'withProfile'; request: ItemQueryRequest; response: ItemPage};
   'GET /v1/items/{id}': {access: 'withProfile'; request: undefined; response: Item};
   'GET /v1/items/{id}/credits': {access: 'withProfile'; request: undefined; response: CreditPage};
   'GET /v1/items/{id}/related': {access: 'withProfile'; request: undefined; response: Related};
@@ -1193,6 +1374,19 @@ export interface Routes {
   'PUT /v1/items/{id}/state': {access: 'withProfile'; request: StateRequest; response: StateReply};
   'POST /v1/items/state:undo': {access: 'withProfile'; request: UndoRequest; response: undefined};
   'GET /v1/events': {access: 'withProfile'; request: undefined; response: undefined};
+  'GET /v1/items/{id}/files': {access: 'admin'; request: undefined; response: ItemFiles};
+  'GET /v1/images/{id}': {access: 'public'; request: undefined; response: undefined};
+  'GET /v1/admin/remote-sources': {access: 'owner'; request: undefined; response: RemoteSourcePage};
+  'POST /v1/admin/remote-sources': {access: 'owner'; request: RemoteSourceCreate; response: RemoteSource};
+  'GET /v1/admin/remote-sources/{id}': {access: 'owner'; request: undefined; response: RemoteSource};
+  'PATCH /v1/admin/remote-sources/{id}': {access: 'owner'; request: RemoteSourceEdit; response: RemoteSource};
+  'DELETE /v1/admin/remote-sources/{id}': {access: 'owner'; request: undefined; response: undefined};
+  'POST /v1/admin/remote-sources/{id}/test': {access: 'owner'; request: undefined; response: RemoteSource};
+  'GET /v1/admin/remote-sources/{id}/folders': {access: 'owner'; request: undefined; response: RemoteFolderPage};
+  'GET /v1/history': {access: 'withProfile'; request: undefined; response: HistoryPage};
+  'DELETE /v1/history/{id}': {access: 'withProfile'; request: undefined; response: undefined};
+  'DELETE /v1/history': {access: 'withProfile'; request: undefined; response: undefined};
+  'GET /v1/media/{grant}/{file...}': {access: 'public'; request: undefined; response: undefined};
   'GET /v1/devices/{id}/capabilities': {access: 'signedIn'; request: undefined; response: CapabilityDocument};
   'PUT /v1/devices/{id}/capabilities': {access: 'signedIn'; request: CapabilityDocument; response: undefined};
   'GET /v1/items/{id}/playback-options': {access: 'withProfile'; request: undefined; response: PlaybackOptions};
@@ -1219,4 +1413,7 @@ export interface Routes {
   'POST /v1/queues/{id}/prepare-next': {access: 'withProfile'; request: QueuePrepare; response: PreparedNext};
   'POST /v1/queues/{id}/commit-next': {access: 'withProfile'; request: QueueCommit; response: QueueCommitted};
   'POST /v1/queues/{id}/playlist': {access: 'withProfile'; request: QueueSave; response: SavedPlaylist};
+  'GET /v1/items/{id}/subtitles': {access: 'withProfile'; request: undefined; response: ItemSubtitles};
+  'PUT /v1/items/{id}/subtitles/offset': {access: 'withProfile'; request: SubtitleOffset; response: SubtitleOffset};
+  'GET /v1/items/{id}/lyrics': {access: 'withProfile'; request: undefined; response: LyricsPage};
 }
