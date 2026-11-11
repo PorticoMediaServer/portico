@@ -238,6 +238,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.jobs.Tidy("unused prepared copies", 6*time.Hour, s.prepare.Tidy)
 	s.downloads = &downloads.Service{DB: d, Prepare: s.prepare, Settings: s.settings, Now: func() time.Time { return s.now() }}
 	s.downloadRoutes()
+	s.stateBatchRoutes()
 	s.libraryRoutes()
 	s.jobRoutes()
 	// Every kind of job is registered by now: the jobs asked for before the server last
