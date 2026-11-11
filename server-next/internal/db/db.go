@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"sync/atomic"
 	"time"
 
@@ -56,6 +57,9 @@ type DB struct {
 // upgrading it if an earlier version of Portico made it (see upgrade.go).
 // Every commit is synced to disk before it returns (synchronous=FULL).
 func Open(ctx context.Context, path string) (*DB, error) {
+	if err := checkIsOurs(ctx, path); err != nil {
+		return nil, err
+	}
 	write, err := open(path, "rwc", 1, writeCacheKiB)
 	if err != nil {
 		return nil, err
@@ -92,6 +96,28 @@ const (
 	writeCacheKiB = 64 << 10
 	readCacheKiB  = 16 << 10
 )
+
+// checkIsOurs refuses a file that is there and is not a Portico database, before anything
+// is opened for writing: opening a database the way Portico does switches it to WAL mode,
+// and a file from another program must be left exactly as it was.
+func checkIsOurs(ctx context.Context, path string) error {
+	if info, err := os.Stat(path); err != nil || info.Size() == 0 {
+		return nil // not there yet, or empty: Open makes it
+	}
+	look, err := sql.Open("sqlite", "file:"+url.PathEscape(path)+"?mode=ro")
+	if err != nil {
+		return err
+	}
+	defer look.Close()
+	var ours bool
+	if err := look.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations')`).Scan(&ours); err != nil {
+		return fmt.Errorf("%s could not be read as a database, and nothing in it has been changed: %w", path, err)
+	}
+	if !ours {
+		return fmt.Errorf("%s is a database Portico did not make; nothing in it has been changed. Choose another data folder, or move the file away", path)
+	}
+	return nil
+}
 
 func open(path, mode string, conns, cacheKiB int) (*sql.DB, error) {
 	q := url.Values{}

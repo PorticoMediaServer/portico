@@ -103,8 +103,12 @@ func upgradeCopies(path string) []upgradeCopy {
 
 // upgrade brings an existing database up to this program's version, or refuses it.
 func (d *DB) upgrade(ctx context.Context) error {
-	var version int
-	if err := d.writeConn.QueryRowContext(ctx, `SELECT max(version) FROM schema_migrations`).Scan(&version); err != nil || version < firstVersion {
+	var recorded sql.NullInt64
+	if err := d.writeConn.QueryRowContext(ctx, `SELECT max(version) FROM schema_migrations`).Scan(&recorded); err != nil {
+		return fmt.Errorf("reading the database's version failed, and nothing in it has been changed: %w", err)
+	}
+	version := int(recorded.Int64)
+	if version < firstVersion {
 		return errors.New("this database was made by a different build of Portico; before the first release, delete it and start again")
 	}
 	current := schemaVersion()
