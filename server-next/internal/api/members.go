@@ -184,10 +184,8 @@ func (s *Server) createMember(r *http.Request, req MemberCreate) (Member, error)
 	}
 	// On a server that uses Portico Accounts nobody has a password here: a person joins with
 	// their Portico Account, through an invitation.
-	if kind, err := s.signInKind(r.Context()); err != nil {
+	if err := s.refuseOnPortico(r); err != nil {
 		return Member{}, err
-	} else if kind == "portico" {
-		return Member{}, ErrConflict("portico_accounts_only", "People join this server with their Portico Account. Invite them instead.")
 	}
 	key, err := idempotencyKey(r)
 	if err != nil {
@@ -253,6 +251,9 @@ func resetHash(typed string) string { return auth.Hash("reset|" + auth.CodeKey(t
 
 func (s *Server) issuePasswordReset(r *http.Request, req PasswordResetCreate) (PasswordResetCode, error) {
 	caller, now := CallerFrom(r.Context()), s.now()
+	if err := s.refuseOnPortico(r); err != nil {
+		return PasswordResetCode{}, err
+	}
 	out := PasswordResetCode{Code: auth.NewCode(3), ExpiresAt: now.Add(resetCodeLife).UTC()}
 	err := s.db.IssuePasswordReset(r.Context(), db.PasswordReset{ActorID: caller.UserID, ActorRole: caller.Role, PublicID: r.PathValue("id"),
 		CodeHash: resetHash(out.Code), ResetTwoFactor: req.ResetTwoFactor, ExpiresAt: out.ExpiresAt, Now: now})
@@ -264,6 +265,9 @@ func (s *Server) issuePasswordReset(r *http.Request, req PasswordResetCreate) (P
 // the account's code, and every wrong one counts against the network it came from.
 func (s *Server) resetPassword(r *http.Request, req PasswordResetRequest) (None, error) {
 	ctx, now := r.Context(), s.now()
+	if err := s.refuseOnPortico(r); err != nil {
+		return None{}, err
+	}
 	if problem := auth.PasswordProblem(req.NewPassword); problem != "" {
 		return None{}, ErrField("newPassword", problem)
 	}
