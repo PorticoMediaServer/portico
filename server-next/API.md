@@ -172,7 +172,7 @@ session is unknown (`404`), and the app starts again by itself where it was.
 | `GET /v1/queues/{id}`, `PATCH /v1/queues/{id}`, `DELETE /v1/queues/{id}` | The queue with its `ETag`; repeat and shuffle; clear |
 | `GET /v1/queues/{id}/entries` | A run of entries: `from` and `limit`, or `around=current` with `before` and `after` |
 | `POST /v1/queues/{id}/entries`, `DELETE /v1/queues/{id}/entries/{entryId}`, `POST /v1/queues/{id}/entries/{entryId}/move` | Play next, play later, remove, move. These need `If-Match`; a stale one is `412`. |
-| `POST /v1/queues/{id}/advance` | The entry ended, Next, Previous, or jump to an entry. "Ended" names the playback `sessionId` that ended, so a resent one counts once towards "Still watching?", with repeat one too |
+| `POST /v1/queues/{id}/advance` | The entry ended, Next, Previous, or jump to an entry |
 | `POST /v1/queues/{id}/prepare-next`, `POST /v1/queues/{id}/commit-next` | Get the next song ready before this one ends, then make it the session, for a join without a gap |
 | `POST /v1/queues/{id}/playlist` | Save the queue as a playlist |
 | `GET /v1/media/{grant}/{file}` | The bytes a session plays, at the address the session gave: the file itself by byte range (`original`), or a conversion's playlists and segments (`master.m3u8` and what it names). No sign-in header: the grant is the permission, and it dies when the session stops or changes stream. Anything else is `404`. |

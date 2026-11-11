@@ -41,6 +41,13 @@ type FolderChoice struct {
 	Path string `json:"path"`
 	// Writable is given when asked for: whether Portico may write into the folder.
 	Writable *bool `json:"writable,omitempty"`
+	// Library is the name of the library this folder already belongs to, when it is one of
+	// a library's own folders.
+	Library string `json:"library,omitempty"`
+	// CannotBeChosen says, in a sentence, why this folder cannot be a library's folder, when
+	// saving it would be refused: it is the whole disk, or Portico's own data is in it. It
+	// can still be opened to pick a folder inside it.
+	CannotBeChosen string `json:"cannotBeChosen,omitempty"`
 }
 
 const (
@@ -102,10 +109,30 @@ func (s *Server) exploreFolders(r *http.Request, _ None) (FolderList, error) {
 			out.Parent = &top
 		}
 	}
+	// What each folder shown already is: a library's folder, or one no library can have.
+	libraries, err := s.db.AdminLibraries(r.Context(), "")
+	if err != nil {
+		return out, err
+	}
+	inLibrary := map[string]string{}
+	for _, lib := range libraries {
+		for _, folder := range lib.Folders {
+			inLibrary[real(folder.Path)] = lib.Name
+		}
+	}
+	data := real(s.dataDir)
 	for at := offset; at < len(names) && at < offset+explorerPage; at++ {
 		choice := FolderChoice{Name: names[at], Path: filepath.Join(out.Path, names[at])}
 		if out.Path == "" {
 			choice.Path = names[at]
+		}
+		here := real(choice.Path)
+		choice.Library = inLibrary[here]
+		switch {
+		case here == string(filepath.Separator):
+			choice.CannotBeChosen = "The whole disk cannot be a library. Choose the folder your media is in."
+		case s.dataDir != "" && (within(here, data) || within(data, here)):
+			choice.CannotBeChosen = "This folder holds Portico's own data, or is inside it. Choose another folder."
 		}
 		if q.Get("writable") == "true" {
 			writable := canWrite(choice.Path)
