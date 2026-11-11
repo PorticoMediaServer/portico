@@ -26,6 +26,10 @@ func settleItem(b *batchTx, libraryID, id, now int64) error {
 		}
 		var has, available bool
 		if kind.Playable() {
+			// A file of one of its versions came or went: its widest playable version may differ.
+			if err := b.versionsChanged(id); err != nil {
+				return err
+			}
 			err = b.queryRow(`SELECT EXISTS (SELECT 1 FROM media WHERE item_id = ?), EXISTS (SELECT 1 FROM media m WHERE m.item_id = ?
 				AND EXISTS (SELECT 1 FROM media_parts p WHERE p.media_id = m.id) AND NOT EXISTS (SELECT 1 FROM media_parts p
 				JOIN files f ON f.id = p.file_id WHERE p.media_id = m.id AND f.missing_since_at IS NOT NULL))`, id, id).Scan(&has, &available)
