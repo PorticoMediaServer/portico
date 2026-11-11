@@ -393,3 +393,25 @@ func TestPicturesGoWhenEachPersonMoves(t *testing.T) {
 		t.Fatal("sam's picture is still stored here after he moved")
 	}
 }
+
+// On a server whose owner is linked to a Portico Account, Start over (or a switch) to Portico
+// Accounts takes only that account's approval: another account's is refused and nothing
+// changes; the owning account's is accepted.
+func TestOnlyTheLinkedAccountMayStartOver(t *testing.T) {
+	s, owner, _ := porticoServer(t)
+	fake := &fakeHosted{t: t}
+	s.hosted = fake
+	approval := "approved-for-" + s.id
+	body := SignInSwitchRequest{To: "portico", StartOver: true, ServerName: "Portico", Approval: approval, Device: device(3)}
+	fake.decision = hosted.Decision{Purpose: hosted.PurposeSwitch, Account: hosted.Account{ID: "pa_9", Username: "mallory"}}
+	if w := call(t, s, "POST", "/v1/admin/sign-in/switch", owner, body, nil); w.Code != 403 || !strings.Contains(w.Body.String(), "not_the_linked_account") {
+		t.Fatalf("another account's approval answered %d: %s", w.Code, w.Body)
+	}
+	if got := memberState(t, s, owner, "alex"); got != "waiting" {
+		t.Fatalf("a refused Start over still changed the server: alex is %q", got)
+	}
+	fake.decision = hosted.Decision{Purpose: hosted.PurposeSwitch, Account: hosted.Account{ID: "pa_1", Username: "justin"}}
+	if w := call(t, s, "POST", "/v1/admin/sign-in/switch", owner, body, nil); w.Code != 200 {
+		t.Fatalf("the owning account's approval answered %d: %s", w.Code, w.Body)
+	}
+}
