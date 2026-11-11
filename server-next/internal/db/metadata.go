@@ -61,25 +61,12 @@ type MatchItem struct {
 	ExternalIDs []ExternalID // ids its names or an NFO file gave
 }
 
-// LookupFailed records that the provider failed on a title not yet matched: it is passed
-// over until a wait has gone by, an hour the first time and twice as long each time after, up
-// to a week, so a title the provider keeps refusing is not asked about at every run.
-func (d *DB) LookupFailed(ctx context.Context, itemID int64, now time.Time) error {
-	return d.write(ctx, Background, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, `UPDATE items SET extra = json_set(ifnull(extra, '{}'),
-			'$.lookupTries', ifnull(extra ->> '$.lookupTries', 0) + 1,
-			'$.lookupAfter', ?2 + min(3600000 << min(ifnull(extra ->> '$.lookupTries', 0), 8), 604800000))
-			WHERE id = ?1 AND match_state = 0`, itemID, now.UnixMilli())
-		return err
-	})
-}
-
 // refreshGrown makes a matched show or album that gained an episode or a track in this import
 // due a refresh at once, so the new one gets its details now and not when the title is next
 // due. Zero sorts first.
 func (im *importer) refreshGrown() error {
 	for id := range im.grown {
-		if _, err := im.exec(`UPDATE items SET refreshed_at = 0 WHERE id = ? AND match_state IN (?, ?) AND refreshed_at > 0`,
+		if _, err := im.exec(`UPDATE items SET refreshed_at = 0, refresh_due = 0 WHERE id = ? AND match_state IN (?, ?) AND refreshed_at > 0`,
 			id, MatchFound, MatchChosen); err != nil {
 			return err
 		}
@@ -100,7 +87,7 @@ func (d *DB) ToMatch(ctx context.Context, libraryID int64, kinds []ItemKind, aft
 		list[i] = int64(kind)
 	}
 	// The condition is written as the items_to_match index has it, so the read is the index. A
-	// title the provider failed on waits until its time comes round again (see LookupFailed).
+	// title the provider failed on waits until its time comes round again (see ProviderFailed).
 	items, err := queryAll(ctx, tx, `SELECT id, kind, title, ifnull(year, 0) FROM items WHERE library_id = ? AND match_state = 0
 		AND parent_id IS NULL AND id > ? AND kind IN `+intList(list)+` AND ifnull(extra ->> '$.lookupAfter', 0) <= ?
 		ORDER BY id LIMIT ?`, []any{libraryID, after, time.Now().UnixMilli(), limit},
@@ -273,6 +260,9 @@ func applyDetails(b *batchTx, itemID int64, d *ItemDetails, now int64) error {
 		args = append(args, *d.Continuing)
 	}
 	if _, err := b.exec(`UPDATE items SET `+sets+` WHERE id = ?`, append(args, itemID)...); err != nil {
+		return err
+	}
+	if err := b.scheduleRefresh(itemID, now); err != nil {
 		return err
 	}
 	var ratedNow sql.NullInt64
