@@ -462,10 +462,15 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		// under a tagged title is counted from an index that holds each one's rating too.
 		if library != 0 && under != "" && q.Parent == "" && q.Person == "" && q.YearFrom == 0 && q.YearTo == 0 &&
 			q.Favorite == nil && q.InList == nil && q.Watched == nil && q.Resolution == "" {
-			w.tagTotal = fmt.Sprintf(`SELECT count(*) FROM (
-				SELECT h.item_id FROM item_tags h WHERE h.tag_id = %[1]d AND h.library_id = %[2]d AND h.kind IN %[3]s%[4]s
-				UNION SELECT d.id FROM item_tags h CROSS JOIN items d ON d.root_id = h.item_id
-				WHERE h.tag_id = %[1]d AND h.library_id = %[2]d AND d.kind IN %[3]s%[5]s)`, tag, library, kindList,
+			// When nothing of these kinds carries the tag itself, as with episodes, nothing can
+			// be counted twice, and each tagged title's run of descendants is simply counted.
+			w.tagTotal = fmt.Sprintf(`SELECT CASE WHEN EXISTS (SELECT 1 FROM item_tags h WHERE h.tag_id = %[1]d AND h.library_id = %[2]d AND h.kind IN %[3]s)
+				THEN (SELECT count(*) FROM (
+					SELECT h.item_id FROM item_tags h WHERE h.tag_id = %[1]d AND h.library_id = %[2]d AND h.kind IN %[3]s%[4]s
+					UNION SELECT d.id FROM item_tags h CROSS JOIN items d ON d.root_id = h.item_id
+					WHERE h.tag_id = %[1]d AND h.library_id = %[2]d AND d.kind IN %[3]s%[5]s))
+				ELSE (SELECT count(*) FROM item_tags h CROSS JOIN items d ON d.root_id = h.item_id
+					WHERE h.tag_id = %[1]d AND h.library_id = %[2]d AND d.kind IN %[3]s%[5]s) END`, tag, library, kindList,
 				acc.rated("h", ""), acc.rated("d", ""))
 		}
 		w.add("{tag}")
