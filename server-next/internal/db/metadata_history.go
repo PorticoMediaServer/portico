@@ -37,12 +37,24 @@ type snapshot struct {
 	Tags        []TagName      `json:"tags"`
 	Credits     []snapCredit   `json:"credits"`
 	Pictures    []int64        `json:"lockedPictures"` // images rows locked as the role's choice
+	// Uploads are the pictures a person uploaded for the title, so Undo can put back one
+	// removed since. Their files stay in the picture store while a History entry names them.
+	Uploads []snapUpload `json:"uploads,omitempty"`
 }
 
 type snapCredit struct {
 	Person    int64      `json:"person"`
 	Role      CreditRole `json:"role"`
 	Character string     `json:"character,omitempty"`
+}
+
+// snapUpload is one uploaded picture as a snapshot keeps it.
+type snapUpload struct {
+	ID     int64     `json:"id"`
+	Role   ImageRole `json:"role"`
+	Hash   string    `json:"hash"`
+	Width  int       `json:"width,omitempty"`
+	Height int       `json:"height,omitempty"`
 }
 
 // snapshotColumns are the items columns a person's change can alter.
@@ -97,7 +109,12 @@ func takeSnapshot(b *batchTx, itemID int64) (snapshot, error) {
 		[]any{itemID}, func(c *snapCredit) []any { return []any{&c.Person, &c.Role, &c.Character} }); err != nil {
 		return s, err
 	}
-	s.Pictures, err = queryInts(b.tx, `SELECT id FROM images WHERE item_id = ? AND locked = 1 ORDER BY id`, itemID)
+	if s.Pictures, err = queryInts(b.tx, `SELECT id FROM images WHERE item_id = ? AND locked = 1 ORDER BY id`, itemID); err != nil {
+		return s, err
+	}
+	s.Uploads, err = queryAll(ctx, b.tx, `SELECT id, role, file_hash, ifnull(width, 0), ifnull(height, 0) FROM images WHERE item_id = ? AND source = ?
+		AND file_hash IS NOT NULL ORDER BY id`, []any{itemID, ImageFromUpload},
+		func(u *snapUpload) []any { return []any{&u.ID, &u.Role, &u.Hash, &u.Width, &u.Height} })
 	return s, err
 }
 
@@ -246,7 +263,28 @@ func (d *DB) UndoMetadata(ctx context.Context, publicID, entryID string) (int64,
 			}
 			position++
 		}
+		// An upload removed since comes back, under a new id; its file is still in the store.
+		uploaded := map[int64]int64{}
+		for _, u := range s.Uploads {
+			var row int64
+			err := b.queryRow(`SELECT id FROM images WHERE item_id = ? AND role = ? AND source = ? AND file_hash = ?`, id, u.Role,
+				ImageFromUpload, u.Hash).Scan(&row)
+			if errors.Is(err, sql.ErrNoRows) {
+				res, err := b.exec(`INSERT INTO images (item_id, role, source, file_hash, width, height, position) VALUES (?, ?, ?, ?, ?, ?, 0)`,
+					id, u.Role, ImageFromUpload, u.Hash, nz(u.Width), nz(u.Height))
+				if err != nil {
+					return err
+				}
+				row, _ = res.LastInsertId()
+			} else if err != nil {
+				return err
+			}
+			uploaded[u.ID] = row
+		}
 		for _, picture := range s.Pictures {
+			if moved, ok := uploaded[picture]; ok {
+				picture = moved
+			}
 			if _, err := b.exec(`UPDATE images SET locked = 1 WHERE id = ? AND item_id = ?`, picture, id); err != nil {
 				return err
 			}
