@@ -33,15 +33,29 @@ contributor would recognise on first read. If in doubt, leave it out.
 8. **Only `internal/db` runs SQL.** No other package holds a transaction or a connection.
 9. **Changing the schema.** Before the first release, edit the schema files in place and do
    nothing else: `upgrades` in `internal/db/upgrade.go` stays empty and a database from an
-   earlier build is deleted. From the first release on, every schema change is two edits in
+   earlier build is deleted. At the first release, the two schema files are saved, joined, as
+   `internal/db/testdata/released/1.sql`. From then on every schema change is two edits in
    one pull request: the schema files, so a new database is made right, and one new step at
    the end of `upgrades`, so an existing one is brought to the same shape (a new column goes
-   last in its table in both). A step's SQL must cost the same at any library size: a new
-   table, a new column on a table that is not STRICT, a change to a small table. Anything
-   that reads or writes every row of a large table (filling a column, an index, a check)
-   goes in the step's background part, in batches of about 2,000 rows, and the code must work
-   while that is half done. A released step is never edited, moved or removed. Nothing goes
-   back a version. Rebuilding a table is not supported yet.
+   last in its table in both, and an index is spelled the same in both); a test fails when
+   the two disagree.
+   - A step's SQL must cost the same at any library size: a new table, a new column on a
+     table that is not STRICT, a change to a small table. An index over existing columns of
+     a large table may go there too when that is simpler; the accepted cost is one start
+     after an upgrade about a second longer at a million titles.
+   - Anything else that reads or writes every row of a large table (filling a column, a
+     check) goes in the step's background part, in batches of about 2,000 rows. The code
+     must work while that is half done, and from the step on every write must keep the new
+     column right itself: the background part only fills what was there before.
+   - A step may rely on every earlier step being finished, background part included: a
+     start that has a newer step to apply finishes earlier background work first.
+   - A released step is never edited, moved or removed. Nothing goes back a version.
+     Rebuilding a table is not supported yet.
+   - Before an upgrade the database is copied beside itself. One copy is kept, from before
+     the latest upgrade; an older one is removed when a later upgrade's steps have all been
+     applied, and an upgrade cut short keeps its copy and makes no second.
+   - A backup or a restore is checked with `db.CheckSchema`, which compares tables by their
+     columns, not their text, and accepts a database from an older version.
 
 ## API
 

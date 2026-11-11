@@ -26,7 +26,10 @@ import (
 // writes, and remembers how far it has got, so it carries on where it stopped.
 //
 // Before the first step of a start the whole database is copied to a file beside it, so
-// there is always a way back to the version the person came from.
+// there is always a way back to the version the person came from. One copy is kept: the one
+// from before the latest upgrade. An older one is removed once a later upgrade's steps have
+// all been applied. A start that finds an upgrade cut short part way keeps the copy that
+// upgrade made and makes no second one, because that copy is still the way back.
 //
 // Not here, on purpose: steps that go back a version, and anything that rebuilds a table
 // (SQLite needs foreign keys switched off for that; add it with the first step that needs it).
@@ -40,15 +43,20 @@ type upgrade struct {
 	// what says what the step changes, for the log.
 	what string
 	// sql is the quick part. It must cost the same at any library size: a new table, a new
-	// column on a table that is not STRICT, a change to a small table. It may not rely on the
-	// background part of any step having finished.
+	// column on a table that is not STRICT, a change to a small table. An index over a large
+	// table may go here too when that is simpler: it makes the one start after an upgrade
+	// about a second longer at a million titles. It may rely on every earlier step being
+	// finished, background part included.
 	sql string
 	// background, if set, is the slow part, one small batch at a time. It is given the
 	// position the batch before it returned (0 the first time) and returns its own, and done
 	// once nothing is left. A batch must not hold the writer for long: about 2,000 rows of a
 	// large table. One statement that cannot be split, such as creating an index, is a batch
 	// of its own. Until it is done the server runs with the work half finished, so whatever
-	// reads the new column or index must work without it.
+	// reads the new column or index must work without it, and every write from the step on
+	// must keep the new column right itself: the background part only fills what was there
+	// before. It only ever runs against its own version's tables: a start that has a newer
+	// step to apply finishes it first.
 	background func(tx *sql.Tx, after int64) (next int64, done bool, err error)
 }
 
@@ -64,9 +72,33 @@ func schemaVersion() int { return firstVersion + len(upgrades) }
 // process there.
 var upgradePoint = func(string) {}
 
-// backupPath is where the copy made before upgrading from a version is kept.
-func backupPath(path string, version int) string {
-	return fmt.Sprintf("%s.before-upgrade-%d", path, version)
+// copyPath is where the copy made before upgrading from one version to another is kept.
+// Releases look for the copies of other releases by this name, so it does not change.
+func copyPath(path string, from, to int) string {
+	return fmt.Sprintf("%s.before-upgrade-%d-to-%d", path, from, to)
+}
+
+// upgradeCopy is one copy kept beside the database.
+type upgradeCopy struct {
+	path     string
+	from, to int
+	made     time.Time
+}
+
+func upgradeCopies(path string) []upgradeCopy {
+	entries, _ := os.ReadDir(filepath.Dir(path))
+	var out []upgradeCopy
+	for _, entry := range entries {
+		c := upgradeCopy{path: filepath.Join(filepath.Dir(path), entry.Name())}
+		if _, err := fmt.Sscanf(entry.Name(), filepath.Base(path)+".before-upgrade-%d-to-%d", &c.from, &c.to); err != nil || c.path != copyPath(path, c.from, c.to) {
+			continue
+		}
+		if info, err := entry.Info(); err == nil {
+			c.made = info.ModTime()
+		}
+		out = append(out, c)
+	}
+	return out
 }
 
 // upgrade brings an existing database up to this program's version, or refuses it.
@@ -79,9 +111,11 @@ func (d *DB) upgrade(ctx context.Context) error {
 	if version > current {
 		problem := fmt.Sprintf("this database was last used by a newer version of Portico (the database is at version %d, this program reads up to version %d). "+
 			"Nothing in it has been changed. Install the newer version of Portico again to use it", version, current)
-		if copied := backupPath(d.path, current); fileExists(copied) {
-			problem += fmt.Sprintf(". To go back instead, losing everything since the upgrade: stop Portico, delete %s-wal and %s-shm if they are there, and put a copy of %s in place of %s",
-				d.path, d.path, copied, d.path)
+		for _, c := range upgradeCopies(d.path) {
+			if c.from == current {
+				problem += fmt.Sprintf(". To go back instead, losing everything since the upgrade on %s: stop Portico, delete %s-wal and %s-shm if they are there, and put a copy of %s in place of %s",
+					c.made.Format("2 January 2006"), d.path, d.path, c.path, d.path)
+			}
 		}
 		return errors.New(problem)
 	}
@@ -89,20 +123,65 @@ func (d *DB) upgrade(ctx context.Context) error {
 		return nil
 	}
 	slog.Info("upgrading the database; the server starts when this is done", "from", version, "to", current)
-	copied, err := d.backupBeforeUpgrade(ctx, version)
-	if err != nil {
-		return fmt.Errorf("the database needs upgrading and could not be copied first, so nothing in it has been changed: %w", err)
+	earlier := upgradeCopies(d.path)
+	copied := ""
+	for _, c := range earlier {
+		if c.from < version && version < c.to {
+			copied = c.path // an upgrade cut short part way: its copy is still the way back
+		}
 	}
-	slog.Info("the database as it was before the upgrade is kept; it can be deleted once this version is working well", "file", copied)
+	if copied == "" {
+		var err error
+		if copied, err = d.backupBeforeUpgrade(ctx, version, current); err != nil {
+			return fmt.Errorf("the database needs upgrading and could not be copied first, so nothing in it has been changed: %w", err)
+		}
+	}
+	slog.Info("the database as it was before the upgrade is kept until the next upgrade; it can be deleted sooner, once this version is working well", "file", copied)
 	for ; version < current; version++ {
 		step := upgrades[version-firstVersion]
+		if err := d.finishEarlierSteps(ctx); err != nil {
+			return fmt.Errorf("finishing an earlier upgrade's background work failed, and the database stays at version %d; the database as it was before the upgrade is at %s: %w",
+				version, copied, err)
+		}
 		if err := d.applyStep(ctx, version+1, step); err != nil {
 			return fmt.Errorf("upgrading the database to version %d (%s) failed, and it stays at version %d; the database as it was before the upgrade is at %s: %w",
 				version+1, step.what, version, copied, err)
 		}
 		slog.Info("database upgraded", "version", version+1, "change", step.what)
 	}
+	for _, c := range earlier {
+		if c.path != copied && os.Remove(c.path) == nil {
+			slog.Info("the copy kept from an earlier upgrade is removed", "file", c.path)
+		}
+	}
 	return nil
+}
+
+// finishEarlierSteps runs, before a newer step is applied, whatever background work the
+// steps already applied still have, so that work never meets tables newer than its own.
+func (d *DB) finishEarlierSteps(ctx context.Context) error {
+	for told := false; ; {
+		tx, err := d.writeConn.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		more, err := upgradeBatch(tx)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+		if err := tx.Commit(); err != nil {
+			return err
+		}
+		upgradePoint("batch committed")
+		if !more {
+			return nil
+		}
+		if !told {
+			told = true
+			slog.Info("finishing an earlier upgrade's background work before the next step")
+		}
+	}
 }
 
 // applyStep runs a step's quick part and records the new version, both or neither.
@@ -136,8 +215,8 @@ func (d *DB) applyStep(ctx context.Context, version int, step upgrade) error {
 // backupBeforeUpgrade copies the whole database to a file beside it and returns the file's
 // name. The copy gets its name only once it is complete and on disk, so a file with that
 // name is always a whole database.
-func (d *DB) backupBeforeUpgrade(ctx context.Context, version int) (string, error) {
-	final := backupPath(d.path, version)
+func (d *DB) backupBeforeUpgrade(ctx context.Context, from, to int) (string, error) {
+	final := copyPath(d.path, from, to)
 	partial := final + ".partial"
 	if err := os.Remove(partial); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return "", err
@@ -158,16 +237,12 @@ func (d *DB) copyTo(ctx context.Context, path string) error {
 	if _, err := d.writeConn.ExecContext(ctx, `VACUUM INTO ?`, path); err != nil {
 		return err
 	}
-	file, err := os.Open(path)
+	// Opened for writing because Windows refuses to sync a file opened only for reading.
+	file, err := os.OpenFile(path, os.O_RDWR, 0)
 	if err != nil {
 		return err
 	}
 	return errors.Join(file.Sync(), file.Close())
-}
-
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
 }
 
 // finishUpgrades runs the background parts that are not finished, oldest step first, until
