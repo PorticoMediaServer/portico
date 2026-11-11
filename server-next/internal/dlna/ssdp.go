@@ -334,3 +334,13 @@ func (a Advertisement) serve(ctx context.Context, s ssdpSocket, port int, budget
 		})
 	}
 }
+
+func contains(prefixes []netip.Prefix, addr netip.Addr) bool {
+	addr = addr.Unmap()
+	for _, p := range prefixes {
+		if p.Contains(addr) {
+			return true
+		}
+	}
+	return false
+}
