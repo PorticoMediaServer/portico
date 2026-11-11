@@ -85,3 +85,52 @@ func TestAnotherShowLeavesNothingOfTheFirstOnItsEpisodes(t *testing.T) {
 		t.Fatalf("the second episode kept the first show's details: %+v", detail)
 	}
 }
+
+// Undo of a show's match change puts the show back as a whole: its episodes' details and ids,
+// and the episode order and offset the owner had chosen, which a refresh then keeps using.
+func TestUndoOfAShowsMatchChangePutsItsEpisodesAndOrderBack(t *testing.T) {
+	f := newFixture(t, db.LibraryShows, "Breaking Bad/Season 01/Breaking Bad - S01E01.mkv", "Breaking Bad/Season 01/Breaking Bad - S01E02.mkv",
+		"Breaking Bad/Season 01/Breaking Bad - S01E03.mkv")
+	f.match()
+	show := f.title(db.KindShow, "Breaking Bad").PublicID
+	titles := func() [3]string {
+		t.Helper()
+		e := f.byNumber()
+		return [3]string{e[[2]int{1, 1}].Title, e[[2]int{1, 2}].Title, e[[2]int{1, 3}].Title}
+	}
+	if _, err := f.s.IdentifyShow(ctx, show, metadata.Ref{ID: "1396", Order: metadata.OrderDVD}, 0); err != nil {
+		t.Fatal(err)
+	}
+	dvd := titles()
+	if _, err := f.s.Identify(ctx, show, metadata.Ref{ID: "60059"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := titles(); got != [3]string{"Uno", "Episode 2", "Episode 3"} {
+		t.Fatalf("after matching another show: %q", got)
+	}
+	history, err := f.d.MetadataHistory(ctx, show)
+	if err != nil || len(history) != 2 {
+		t.Fatalf("history: %+v %v", history, err)
+	}
+	if _, err := f.d.UndoMetadata(ctx, show, history[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	if got := titles(); got != dvd || dvd != [3]string{"Cat's in the Bag...", "Pilot", "Episode 3"} {
+		t.Fatalf("after Undo: %q, before the change: %q", got, dvd)
+	}
+	doc, err := f.d.MetadataDocument(ctx, show)
+	if err != nil || doc.Fields[db.FieldTitle] != "Breaking Bad" || doc.Numbering.Order != metadata.OrderDVD {
+		t.Fatalf("the show after Undo: %+v %v", doc, err)
+	}
+	first, err := f.d.Item(ctx, f.viewer, f.byNumber()[[2]int{1, 1}].PublicID)
+	if err != nil || len(first.ExternalIDs) != 1 || first.ExternalIDs[0].ID != "62086" {
+		t.Fatalf("the first episode's ids after Undo: %+v %v", first.ExternalIDs, err)
+	}
+	// The order put back is the one a refresh uses.
+	if _, err := f.s.Refresh(ctx, show); err != nil {
+		t.Fatal(err)
+	}
+	if got := titles(); got != dvd {
+		t.Fatalf("a refresh after Undo: %q", got)
+	}
+}
