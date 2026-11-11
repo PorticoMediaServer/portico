@@ -45,7 +45,7 @@ func (e *Invalid) Error() string { return e.Field + ": " + e.Message }
 // Unplayable is a refusal to play one version, with the versions of the title that would
 // play on this device instead.
 type Unplayable struct {
-	// Err is ErrUnsupported, ErrConversionOff, ErrTooSlow, ErrUpdateRequired or ErrSourceUnavailable.
+	// Err is ErrUnsupported, ErrConversionOff, ErrTooSlow, ErrUpdateRequired, ErrSourceUnavailable or ErrUploadFull.
 	Err          error
 	Alternatives []Alternative
 }
@@ -275,6 +275,8 @@ type resolved struct {
 	// audioPicked and subtitlePicked say the request's own track differs from what the server
 	// would have chosen: a pick to remember.
 	audioPicked, subtitlePicked bool
+	// awayKbps is what the play takes of the upload speed, 0 at home.
+	awayKbps int
 }
 
 func versionLabel(v db.PlaybackVersion) string {
@@ -299,8 +301,10 @@ func better(a, b db.PlaybackVersion) bool {
 
 // resolve reads a title for a viewer and plans it for the device asking. With no version
 // named it picks the best version the device plays as it is, otherwise the best one.
-// current is the quality in force on the session being changed, if there is one.
-func (s *Service) resolve(ctx context.Context, c Caller, device db.SessionDevice, itemID string, ask Ask, current *Choice) (resolved, error) {
+// current is the quality in force on the session being changed, if there is one. self is that
+// session, and withUpload says the upload speed may narrow the quality (see away.go).
+func (s *Service) resolve(ctx context.Context, c Caller, device db.SessionDevice, itemID string, ask Ask, current *Choice,
+	self string, withUpload bool) (resolved, error) {
 	var out resolved
 	item, err := s.db.PlaybackItem(ctx, c.Viewer, itemID)
 	if err != nil {
@@ -320,6 +324,7 @@ func (s *Service) resolve(ctx context.Context, c Caller, device db.SessionDevice
 		return out, err
 	}
 	out.item, out.device, out.network, out.prefs = item, device, network(ask.Network, c.AtHome), prefs
+	roomKbps, limited, upload := s.room(item.Kind, out.network, self, withUpload)
 
 	type attempt struct {
 		version db.PlaybackVersion
@@ -329,6 +334,7 @@ func (s *Service) resolve(ctx context.Context, c Caller, device db.SessionDevice
 		err     error
 		// What planning chose with the request's own tracks left out.
 		autoAudio, autoSubtitle string
+		awayKbps                int
 	}
 	plan := func(version db.PlaybackVersion) attempt {
 		a := attempt{version: version, menu: s.planner.Qualities(version, item.Kind, out.network)}
@@ -380,6 +386,11 @@ func (s *Service) resolve(ctx context.Context, c Caller, device db.SessionDevice
 				return a
 			}
 		}
+		if limited {
+			if a.menu, a.choice.Quality, a.err = fit(version, item.Kind, a.menu, a.choice.Quality, roomKbps, upload); a.err != nil {
+				return a
+			}
+		}
 		failures, err := s.db.RouteFailures(ctx, device.ID, version.FileID, s.now())
 		if err != nil {
 			a.err = err
@@ -388,6 +399,11 @@ func (s *Service) resolve(ctx context.Context, c Caller, device db.SessionDevice
 		request := PlanRequest{Item: item, Version: version, Capabilities: capabilities, Choice: a.choice, Network: out.network,
 			ThroughputKbps: ask.ThroughputKbps, Failures: failures, Preferences: prefs}
 		a.plan, a.err = s.planner.Plan(request)
+		if out.network != NetworkLocal {
+			if a.awayKbps = measure(version, item.Kind, a.menu, a.choice.Quality); a.awayKbps == 0 {
+				a.awayKbps = a.plan.BitrateKbps
+			}
+		}
 		if a.err == nil && current == nil && (ask.Audio != nil || ask.Subtitle != nil) {
 			// Was the request's track a pick, or just what the server would have played anyway?
 			request.Choice = remembered
@@ -429,7 +445,7 @@ func (s *Service) resolve(ctx context.Context, c Caller, device db.SessionDevice
 	}
 	if chosen == nil {
 		err := attempts[0].err
-		for _, sentinel := range []error{ErrUnsupported, ErrConversionOff, ErrTooSlow, ErrUpdateRequired, ErrSourceUnavailable} {
+		for _, sentinel := range []error{ErrUnsupported, ErrConversionOff, ErrTooSlow, ErrUpdateRequired, ErrSourceUnavailable, ErrUploadFull} {
 			if !errors.Is(err, sentinel) {
 				continue
 			}
@@ -449,7 +465,7 @@ func (s *Service) resolve(ctx context.Context, c Caller, device db.SessionDevice
 		}
 		return out, err
 	}
-	out.version, out.choice, out.plan, out.menu = chosen.version, chosen.choice, chosen.plan, chosen.menu
+	out.version, out.choice, out.plan, out.menu, out.awayKbps = chosen.version, chosen.choice, chosen.plan, chosen.menu, chosen.awayKbps
 	out.audioPicked = ask.Audio != nil && current == nil && *ask.Audio != chosen.autoAudio
 	out.subtitlePicked = ask.Subtitle != nil && current == nil && *ask.Subtitle != chosen.autoSubtitle
 	for n := range attempts {
@@ -501,7 +517,7 @@ func (s *Service) Options(ctx context.Context, c Caller, itemID string, ask Ask)
 	if err != nil {
 		return Options{}, err
 	}
-	r, err := s.resolve(ctx, c, device, itemID, ask, nil)
+	r, err := s.resolve(ctx, c, device, itemID, ask, nil, "", true)
 	if err != nil {
 		return Options{}, err
 	}

@@ -79,6 +79,10 @@ func playbackError(err error) error {
 	case errors.Is(err, playback.ErrTooSlow):
 		return refusal(http.StatusUnprocessableEntity, "connection_too_slow",
 			"Your connection to this server is too slow for this quality. Choose a lower quality or Automatic.", false)
+	case errors.Is(err, playback.ErrUploadFull):
+		e := refusal(http.StatusServiceUnavailable, "upload_full", "This server's internet connection is full right now. Try again in a few minutes.", true)
+		e.RetryAfterMs = 2 * 60 * 1000
+		return e
 	case errors.Is(err, playback.ErrUpdateRequired):
 		return refusal(http.StatusBadRequest, "client_update_required", "Update the app to play on this server.", false)
 	case errors.Is(err, playback.ErrSourceUnavailable):

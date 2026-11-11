@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/settings"
 )
 
 // StartInput is a request to play a title.
@@ -59,7 +60,7 @@ func (s *Service) Prepare(ctx context.Context, c Caller, itemID, from string) (*
 		ask.Quality, ask.Network = &quality, running.Network
 		c.AtHome = running.Network == NetworkLocal
 	}
-	r, err := s.resolve(ctx, c, device, itemID, ask, nil)
+	r, err := s.resolve(ctx, c, device, itemID, ask, nil, "", true)
 	if err != nil {
 		return nil, err
 	}
@@ -202,7 +203,7 @@ func (s *Service) create(ctx context.Context, in StartInput) (*session, error) {
 	var r resolved
 	if in.Prepared != nil {
 		r = in.Prepared.r
-	} else if r, err = s.resolve(ctx, c, device, in.ItemID, in.Ask, nil); err != nil {
+	} else if r, err = s.resolve(ctx, c, device, in.ItemID, in.Ask, nil, "", true); err != nil {
 		return nil, err
 	}
 	limits, err := s.Limits(ctx)
@@ -217,7 +218,7 @@ func (s *Service) create(ctx context.Context, in StartInput) (*session, error) {
 	case in.FromStart:
 		position = 0
 	}
-	sess := &session{version: r.version}
+	sess := &session{version: r.version, awayKbps: r.awayKbps}
 	sess.Session = Session{ID: db.NewID("pbs"), UserID: c.Viewer.UserID, ProfileID: c.Viewer.ProfileID, SignInID: c.SignInID,
 		Device: device, Item: r.item, VersionID: r.version.PublicID, fileID: r.version.FileID, Queue: in.Queue,
 		State: StatePlaying, Choice: r.choice, Network: r.network, Plan: r.plan, Generation: 1,
@@ -259,6 +260,12 @@ func (s *Service) create(ctx context.Context, in StartInput) (*session, error) {
 	if limits.Total > 0 && total >= limits.Total {
 		s.mu.Unlock()
 		return nil, &LimitReached{Scope: "server", Limit: limits.Total}
+	}
+	// Another away play may have started since this one was planned.
+	if upload := settings.Streaming.Get(s.settings).UploadSpeedKbps; upload > 0 && r.network != NetworkLocal &&
+		s.awayInUseLocked("")+sess.awayKbps > upload*uploadSharePercent/100 {
+		s.mu.Unlock()
+		return nil, &Unplayable{Err: ErrUploadFull}
 	}
 	for _, other := range replaced {
 		s.endLocked(other, EndReplaced, "")
@@ -405,7 +412,7 @@ func (s *Service) Change(ctx context.Context, id string, c Caller, ch Change) (S
 		a.Network = before.Network
 	}
 	c.AtHome = before.Network == NetworkLocal
-	r, err := s.resolve(ctx, c, before.Device, before.Item.PublicID, a, &before.Choice)
+	r, err := s.resolve(ctx, c, before.Device, before.Item.PublicID, a, &before.Choice, id, a.Quality != nil)
 	if err != nil {
 		return Session{}, err
 	}
@@ -435,7 +442,7 @@ func (s *Service) Change(ctx context.Context, id string, c Caller, ch Change) (S
 	ended := sess.State == StateEnded
 	if !ended {
 		sess.version, sess.VersionID, sess.fileID = r.version, r.version.PublicID, r.version.FileID
-		sess.Choice, sess.Plan, sess.Stream = r.choice, r.plan, stream
+		sess.Choice, sess.Plan, sess.Stream, sess.awayKbps = r.choice, r.plan, stream, r.awayKbps
 		if generation != sess.Generation {
 			sess.Generation, sess.StartPositionMs = generation, position
 		}

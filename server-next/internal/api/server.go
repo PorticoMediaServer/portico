@@ -192,12 +192,16 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.artwork = artwork.New(dataDir)
 	s.imageRoutes()
 	s.playback = playback.New(d, playback.NoEngine{}, playback.NoEngine{}, log, func() time.Time { return s.now() })
+	s.playback.UseSettings(s.settings)
 	go s.playback.Run(ctx)
 	s.playbackRoutes()
 	s.queues = playqueue.New(d, s.playback, func() time.Time { return s.now() })
 	s.queueRoutes()
 	return s, nil
 }
+
+// Settings are the owner's settings documents, for the parts of the server outside the API.
+func (s *Server) Settings() *settings.Settings { return s.settings }
 
 // Routes lists every registered operation.
 func (s *Server) Routes() []*Route { return s.routes }

@@ -25,6 +25,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/preferences"
 	"github.com/PorticoMediaServer/portico/server-next/internal/qualityladder"
 	"github.com/PorticoMediaServer/portico/server-next/internal/scan"
+	"github.com/PorticoMediaServer/portico/server-next/internal/settings"
 	"github.com/PorticoMediaServer/portico/server-next/internal/streaming"
 	"github.com/PorticoMediaServer/portico/server-next/internal/subtitleoffer"
 	"github.com/PorticoMediaServer/portico/server-next/internal/subtitles"
@@ -38,6 +39,9 @@ type Options struct {
 	FFmpeg, FFprobe string
 	// Log is told when ffmpeg cannot be asked what it can do; nil uses the default logger.
 	Log *slog.Logger
+	// Settings are the owner's settings; Settings › Streaming is read at every plan and every
+	// conversion, so a change applies to the next one. Nil uses the defaults.
+	Settings *settings.Settings
 }
 
 // Engine is the session layer's Planner and Streams, backed by the real media engine.
@@ -55,6 +59,7 @@ type Engine struct {
 	// machine's hardware encoders. Both are set before asked is closed.
 	ffmpeg   string
 	hardware *decoder.HardwareDetector
+	settings *settings.Settings
 
 	mu    sync.Mutex
 	facts map[string]mediafacts.Facts // by path, size and modified time
@@ -65,7 +70,8 @@ type Engine struct {
 // arrives in those first seconds waits for the answer. Run must be called for the engine to
 // do its housekeeping.
 func New(ctx context.Context, d *db.DB, o Options) (*Engine, error) {
-	e := &Engine{db: d, probe: mediafacts.Probe{Binary: o.FFprobe}, facts: map[string]mediafacts.Facts{}, asked: make(chan struct{})}
+	e := &Engine{db: d, probe: mediafacts.Probe{Binary: o.FFprobe}, facts: map[string]mediafacts.Facts{}, asked: make(chan struct{}),
+		settings: o.Settings}
 	ffmpeg := o.FFmpeg
 	if ffmpeg == "" {
 		ffmpeg = mediatools.Resolve("ffmpeg")
@@ -98,9 +104,33 @@ func New(ctx context.Context, d *db.DB, o Options) (*Engine, error) {
 			e.hardware.SelectCached(path, "auto", "")
 		}
 	}()
-	streams, err := streaming.New(ctx, streaming.Options{Folder: o.Folder, FFmpeg: o.FFmpeg, Libraries: e.folders})
+	streams, err := streaming.New(ctx, streaming.Options{Folder: o.Folder, FFmpeg: o.FFmpeg, Libraries: e.folders, Settings: e})
 	e.streams = streams
 	return e, err
+}
+
+// Delivery is the owner's Settings › Streaming as the streams read it.
+func (e *Engine) Delivery() streaming.DeliveryConfiguration {
+	c := streaming.DefaultDeliveryConfiguration()
+	owner := settings.Streaming.Get(e.settings)
+	switch owner.ConvertWhenNeeded {
+	case settings.ConvertSoundOnly:
+		c.ConversionMode = "sound"
+	case settings.ConvertNever:
+		c.ConversionMode = "never"
+	default:
+		c.ConversionMode = "all"
+	}
+	switch owner.GraphicsDevice {
+	case "automatic":
+	case "processor":
+		c.HardwareBackend, c.HardwareSelection = string(decoder.BackendSoftware), string(decoder.BackendSoftware)
+	default:
+		c.HardwareBackend = owner.GraphicsDevice
+	}
+	c.SoftwareDecode = !owner.HardwareDecoding
+	c.MaxConversions = owner.ConversionsAtOnce
+	return c
 }
 
 // tools waits until ffmpeg has said what it can do, and reports whether this server can
@@ -364,7 +394,7 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 		File: streaming.FileFacts{ID: r.Version.PublicID, Container: facts.Container, VideoCodec: facts.VideoCodec, AudioCodec: facts.AudioCodec,
 			Duration: facts.Duration, Size: place.Size, Width: facts.Width, Height: facts.Height,
 			DetailVersion: mediafacts.StreamDetailVersion, StreamsCurrent: true, Streams: facts.Streams},
-		Settings: streaming.DefaultDeliveryConfiguration(), TranscodingEnabled: true, FragmentedOutput: fragmented, NoConverter: !converter,
+		Settings: e.Delivery().Normalized(), TranscodingEnabled: true, FragmentedOutput: fragmented, NoConverter: !converter,
 		Connection:  streaming.DeliveryContext{NetworkClass: streaming.NetworkRemote},
 		Preferences: saved(r.Preferences),
 	}
