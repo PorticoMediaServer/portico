@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"net/netip"
 	"os"
 	"strconv"
 	"strings"
@@ -160,7 +159,7 @@ func ErrViewingHoursEnded() *Error {
 // owner has to do, since nothing they can do themselves will help.
 func (s *Server) errAwayFromHome(r *http.Request) *Error {
 	message := "This account can be used only on the home network."
-	if s.throughUnlistedProxy(r) {
+	if s.networks().ThroughUnlistedProxy(r) {
 		message += " This request came through a proxy the server does not know. If you are at home, ask the server's owner to add the proxy to Trusted proxies in the network settings."
 	}
 	return refusal(http.StatusForbidden, "away_from_home", message, false)
@@ -269,28 +268,7 @@ func (s *Server) remoteHost(r *http.Request) string {
 
 // atHome reports whether a request came from one of the owner's home networks.
 func (s *Server) atHome(r *http.Request) bool {
-	networks := s.networks()
-	addr, ok := networks.Client(r)
-	return ok && networks.AtHome(addr) && !s.throughUnlistedProxy(r)
-}
-
-// throughUnlistedProxy reports whether a request carries X-Forwarded-For from an address
-// that is not one of the owner's trusted proxies. Such a request was passed on by
-// something, so the connection's address is not the person's and it is never home.
-func (s *Server) throughUnlistedProxy(r *http.Request) bool {
-	if r.Header.Get("X-Forwarded-For") == "" {
-		return false
-	}
-	peer, err := netip.ParseAddrPort(r.RemoteAddr)
-	if err != nil {
-		return true
-	}
-	for _, proxy := range s.networks().Proxies {
-		if proxy.Contains(peer.Addr().Unmap().WithZone("")) {
-			return false
-		}
-	}
-	return true
+	return s.networks().FromHome(r)
 }
 
 // sourceLimit counts everything one network away from home gets wrong: passwords, PINs and
