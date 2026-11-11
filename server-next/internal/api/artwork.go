@@ -1,20 +1,17 @@
 package api
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"image"
-	_ "image/jpeg" // uploads are judged by their contents
-	_ "image/png"
 	"io"
 	"net/http"
 	"reflect"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/artwork"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata"
 )
@@ -147,9 +144,10 @@ func pictureOut(p db.Picture) ArtworkPicture {
 		Language: p.Language, Selected: p.Selected, Locked: p.Locked}
 }
 
-// upload takes a JPEG, PNG or WebP of at most 10 MB as the request body, judged by its
-// contents and not its name or Content-Type, keeps it in the picture store and makes it the
-// role's choice. The same picture sent again is the same picture.
+// upload takes a JPEG, PNG, GIF (its first frame) or WebP of at most 10 MB as the request body,
+// judged by its contents and not its name or Content-Type. It is stored in the picture store's
+// two sizes, as every picture is when it arrives, and made the role's choice. The same picture
+// sent again is the same picture.
 func (s *Server) upload(w http.ResponseWriter, r *http.Request) (ArtworkPicture, error) {
 	id, role, err := s.artworkTarget(r, r.URL.Query().Get("role"))
 	if err != nil {
@@ -163,13 +161,14 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) (ArtworkPicture,
 	case err != nil:
 		return ArtworkPicture{}, err
 	}
-	width, height, ok := pictureSize(data)
-	if !ok {
-		return ArtworkPicture{}, refusal(http.StatusUnsupportedMediaType, "unsupported_media_type", "Upload a JPEG, PNG or WebP picture.", false)
-	}
 	sum := sha256.Sum256(data)
 	hash := hex.EncodeToString(sum[:])
-	if err := s.artwork.Put(hash, data); err != nil {
+	// Stored in its two sizes now; the original is not kept.
+	width, height, err := s.artwork.PutSized(hash, data, artwork.Artwork)
+	if errors.Is(err, artwork.ErrNotAPicture) {
+		return ArtworkPicture{}, refusal(http.StatusUnsupportedMediaType, "unsupported_media_type", "Upload a JPEG, PNG, GIF or WebP picture.", false)
+	}
+	if err != nil {
 		return ArtworkPicture{}, err
 	}
 	imageID, err := s.db.UploadPicture(r.Context(), id, db.NewPicture{Role: role, Hash: hash, Width: width, Height: height})
@@ -178,19 +177,6 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) (ArtworkPicture,
 	}
 	return ArtworkPicture{ID: imageID, Source: db.ImageFromUpload.String(), URL: "/v1/images/" + hash, Width: width, Height: height,
 		Selected: true, Locked: true}, nil
-}
-
-// pictureSize says whether data is a JPEG, PNG or WebP picture, and its size where it can
-// be read without decoding it (not for WebP).
-func pictureSize(data []byte) (width, height int, ok bool) {
-	if len(data) >= 12 && string(data[:4]) == "RIFF" && string(data[8:12]) == "WEBP" {
-		return 0, 0, true
-	}
-	config, format, err := image.DecodeConfig(bytes.NewReader(data))
-	if err != nil || (format != "jpeg" && format != "png") || config.Width <= 0 || config.Height <= 0 {
-		return 0, 0, false
-	}
-	return config.Width, config.Height, true
 }
 
 // pictureGrace is how long a picture is kept after it is stored before the sweep may take it:

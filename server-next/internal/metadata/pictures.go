@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/artwork"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 )
 
@@ -85,7 +86,10 @@ func (s *Service) storePictures(ctx context.Context, itemID int64, pictures []Pi
 		}
 		sum := sha256.Sum256(data)
 		hash := hex.EncodeToString(sum[:])
-		if err := s.Pictures.Put(hash, data); err != nil {
+		// Stored in its two sizes now. A picture this server cannot read is passed over.
+		if err := s.Pictures.Put(hash, data); errors.Is(err, artwork.ErrNotAPicture) {
+			continue
+		} else if err != nil {
 			return err
 		}
 		found = append(found, db.NewPicture{Role: code, Hash: hash, SourceURL: p.URL, Width: p.Width, Height: p.Height, Language: p.Language})
