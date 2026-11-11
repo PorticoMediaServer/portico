@@ -70,3 +70,45 @@ func TestGenreChoicesFollowARatingChangedByAProvider(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// The same for a rating a person types in the editor: the genre choices of a profile with a
+// rating limit follow it in the same write.
+func TestGenreChoicesFollowARatingChangedByHand(t *testing.T) {
+	l := newLibrary(t, 1500)
+	age := 13
+	limited, err := l.d.CreateSeedProfile(ctx, db.SeedProfile{Name: "limited-by-rating", MaxRatingAge: &age})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var shows db.Library
+	for _, lib := range l.libs {
+		if lib.Kind == db.LibraryShows {
+			shows = lib
+		}
+	}
+	q := db.ItemQuery{Library: shows.PublicID, Kinds: []db.ItemKind{db.KindShow}}
+	visible := everything(t, l.d, limited, db.ItemQuery{Library: shows.PublicID, Kinds: []db.ItemKind{db.KindShow}, Limit: 200})
+	if len(visible) < 2 {
+		t.Fatalf("the test library shows the limited profile %d shows", len(visible))
+	}
+	rating := "NC-17"
+	for _, show := range visible[:len(visible)/2] {
+		locks, err := l.d.MetadataLocks(ctx, show.PublicID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := l.d.EditMetadata(ctx, show.PublicID, locks.Revision, db.MetadataEdit{ContentRating: &rating}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	choices, err := l.d.Facets(ctx, limited, q, db.FacetGenre)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, choice := range choices {
+		listed := len(everything(t, l.d, limited, db.ItemQuery{Library: shows.PublicID, Kinds: []db.ItemKind{db.KindShow}, Tag: choice.Value, Limit: 200}))
+		if listed != choice.Count {
+			t.Fatalf("genre %q: the choice says %d, the list holds %d", choice.Label, choice.Count, listed)
+		}
+	}
+}
