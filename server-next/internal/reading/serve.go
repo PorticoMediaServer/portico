@@ -10,6 +10,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/libraryfile"
@@ -84,6 +85,7 @@ func (s *Service) ServeMedia(w http.ResponseWriter, r *http.Request, token, file
 		}
 		http.ServeContent(w, r, "", info.ModTime(), f)
 	case strings.HasPrefix(file, "parts/") && format == FormatEPUB:
+		deadline(w)
 		a, err := openArchive(f, info.Size())
 		if err != nil {
 			writeError(w, http.StatusUnprocessableEntity, "book_damaged", err.Error())
@@ -101,6 +103,7 @@ func (s *Service) ServeMedia(w http.ResponseWriter, r *http.Request, token, file
 		}
 		sendEntry(w, a, part.Path, part.Type)
 	case strings.HasPrefix(file, "pages/") && format == FormatCBZ:
+		deadline(w)
 		n, err := strconv.Atoi(strings.TrimPrefix(file, "pages/"))
 		width, werr := strconv.Atoi(r.URL.Query().Get("w"))
 		if r.URL.Query().Get("w") == "" {
@@ -136,6 +139,10 @@ func (s *Service) sendPage(ctx context.Context, w http.ResponseWriter, a *archiv
 		case errors.Is(err, errPageTooLarge):
 			writeError(w, http.StatusUnprocessableEntity, "page_too_large", errPageTooLarge.Error())
 			return
+		case errors.Is(err, errBusy):
+			w.Header().Set("Retry-After", "5")
+			writeErrorRetry(w, http.StatusServiceUnavailable, "busy", errBusy.Error())
+			return
 		case err != nil:
 			writeError(w, http.StatusUnprocessableEntity, "page_damaged", "This page can't be shown.")
 			return
@@ -168,6 +175,16 @@ func sendEntry(w http.ResponseWriter, a *archive, name, contentType string) {
 	io.Copy(w, rc)
 }
 
+// sendWithin is the longest one part or page may take to send. A reader that stops reading is
+// cut off, so it cannot hold the memory a smaller page counts, or a file, open for ever. (The
+// whole file, saved, may take as long as it needs.)
+const sendWithin = 2 * time.Minute
+
+func deadline(w http.ResponseWriter) {
+	// A writer that cannot take a deadline (only ever a test's) is sent without one.
+	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(sendWithin))
+}
+
 func fileType(format string) string {
 	switch format {
 	case FormatPDF:
@@ -181,7 +198,14 @@ func fileType(format string) string {
 }
 
 func writeError(w http.ResponseWriter, status int, code, message string) {
-	retry := false
+	writeErrorAs(w, status, code, message, false)
+}
+
+func writeErrorRetry(w http.ResponseWriter, status int, code, message string) {
+	writeErrorAs(w, status, code, message, true)
+}
+
+func writeErrorAs(w http.ResponseWriter, status int, code, message string, retry bool) {
 	w.Header().Del("Content-Security-Policy")
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
