@@ -51,6 +51,8 @@ type NetworkSettings struct {
 	//     home from away and counts them as away.
 	//   - gateway_at_home: the same, but the owner's own home networks hold the gateway, so
 	//     they count as at home, as the owner said.
+	//   - container_no_home: the server runs in a container on a network of its own and the
+	//     owner has not listed home networks, so nothing counts as at home.
 	Warnings []Warning `json:"warnings"`
 
 	revision
@@ -105,6 +107,9 @@ type networkState struct {
 	// when a request last arrived from it without a forwarded address.
 	gateway   netip.Addr
 	gatewayAt time.Time
+	// container is whether the server runs in a container on a network of its own, read
+	// with the defaults.
+	container bool
 }
 
 const (
@@ -138,7 +143,7 @@ func (n *networkState) current(now time.Time) (auth.Networks, storedNetworks) {
 	defer n.mu.Unlock()
 	// The machine's own networks can change while the server runs: a laptop, a new lease.
 	if n.defaults == nil || now.Sub(n.defaultsAt) > defaultHomeFor {
-		n.defaults, n.gateway, n.defaultsAt = auth.DefaultHome(), defaultGateway(), now
+		n.defaults, n.gateway, n.container, n.defaultsAt = auth.DefaultHome(), defaultGateway(), auth.ContainerNetwork(), now
 	}
 	// The owner's own list decides alone. While the server guesses, the gateway is left out.
 	if n.stored.Home != nil {
@@ -167,6 +172,10 @@ func gatewayAwayMessage(named, router string) string {
 		"use the server's home address at home, or add your home network to Home networks " +
 		"if you accept that outside visitors who arrive through the router would count as at home too."
 }
+
+// containerNoHomeMessage is proposed wording, listed for the owner's approval.
+const containerNoHomeMessage = "This server runs in a container on its own network, so it can't tell who is at home: " +
+	"everyone counts as away until you list your home networks here, or run the container with host networking."
 
 func gatewayHomeMessage(named string) string {
 	return "Requests are arriving from " + named + ", which is in your home networks, so they all count as at home. " +
@@ -384,6 +393,7 @@ func (s *Server) networkWarnings(networks auth.Networks) []Warning {
 		unlisted = append(unlisted, proxy)
 	}
 	gateway, gatewaySeen := s.network.gateway, now.Sub(s.network.gatewayAt) <= silentProxyFor
+	containerNoHome := s.network.container && s.network.stored.Home == nil
 	latest, others := "", -1
 	for address, at := range s.network.public {
 		if now.Sub(at) > silentProxyFor {
@@ -409,6 +419,9 @@ func (s *Server) networkWarnings(networks auth.Networks) []Warning {
 	}
 	if w, ok := gatewayWarning(networks, gateway, networks.Home, true); ok && gatewaySeen {
 		out = append(out, w)
+	}
+	if containerNoHome {
+		out = append(out, Warning{Code: "container_no_home", Message: containerNoHomeMessage})
 	}
 	return out
 }

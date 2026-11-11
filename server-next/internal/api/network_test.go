@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 )
 
 // from sends a request from one connection address, with a forwarded header if given.
@@ -536,5 +538,54 @@ func TestNetworkWarningsAreOneList(t *testing.T) {
 	if w := call(t, s, "PUT", "/v1/admin/settings/network", owner.AccessToken, NetworkSettingsEdit{TrustedProxies: []string{}}, &saved); w.Code != 200 ||
 		len(saved.Warnings) != 0 {
 		t.Fatalf("after a narrower save the warnings are %+v", saved.Warnings)
+	}
+}
+
+// In a container on a network of its own the server cannot tell who is at home: a relay can
+// make an outside visitor arrive from any address on the container's network. So while it is
+// guessing, nothing is home and the owner is told; once they list their home networks, those
+// count as home and the warning goes.
+func TestAContainerOnItsOwnNetworkGuessesNothingIsHome(t *testing.T) {
+	old := auth.ContainerNetwork
+	auth.ContainerNetwork = func() bool { return true }
+	t.Cleanup(func() { auth.ContainerNetwork = old })
+	s := newTestServer(t)
+	owner := onMainProfile(t, s)
+	for n, peer := range []string{"172.18.0.3", "127.0.0.1"} {
+		body := SignInRequest{Username: "justin", Password: testPassword, Device: device(600 + n)}
+		if got := from(t, s, peer, "", "POST", "/v1/auth/sign-in", "", body, nil); got != 200 {
+			t.Fatalf("signing in from %s answered %d", peer, got)
+		}
+	}
+	networks := func() map[string]string {
+		out := map[string]string{}
+		for _, d := range get[Page[Device]](t, s, owner.AccessToken, "/v1/devices").Items {
+			out[d.Name] = d.Network
+		}
+		return out
+	}
+	if got := networks(); got["Device 600"] != "away" || got["Device 601"] != "away" {
+		t.Fatalf("in a container a container-network address and this machine are listed as %v, want away", got)
+	}
+	settings := get[NetworkSettings](t, s, owner.AccessToken, "/v1/admin/settings/network")
+	found := false
+	for _, w := range settings.Warnings {
+		found = found || w.Code == "container_no_home"
+	}
+	if len(settings.HomeNetworks) != 0 || !found {
+		t.Fatalf("the network settings say %+v", settings)
+	}
+	edit := NetworkSettingsEdit{HomeNetworks: &[]string{"172.18.0.0/16"}, TrustedProxies: []string{}}
+	var saved NetworkSettings
+	if w := call(t, s, "PUT", "/v1/admin/settings/network", owner.AccessToken, edit, &saved); w.Code != 200 {
+		t.Fatalf("saving home networks answered %d: %s", w.Code, w.Body)
+	}
+	for _, w := range saved.Warnings {
+		if w.Code == "container_no_home" {
+			t.Fatal("the container warning stays after the owner listed home networks")
+		}
+	}
+	if got := networks(); got["Device 600"] != "home" {
+		t.Fatalf("after listing the container network as home it is listed as %v", got)
 	}
 }
