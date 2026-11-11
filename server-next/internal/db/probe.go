@@ -67,6 +67,8 @@ type Probe struct {
 	Bitrate    int64
 	Streams    []Stream
 	Chapters   []Marker
+	// AudioExact is a music file's exact measurement, as the JSON files.audio_exact keeps.
+	AudioExact string
 	Problem    FileProblem
 	// Title is the title written inside the file, or "". It is kept with the file, and names
 	// the title only where local details are all there is: see useEmbeddedTitle.
@@ -98,9 +100,9 @@ func storeProbe(b *batchTx, p *Probe, now int64) error {
 			p.Problem, p.FileID, p.Size, p.ModifiedNS, p.Problem)
 		return err
 	}
-	res, err := b.exec(`UPDATE files SET probed_at = ?, container = ?, duration_ms = ?, bitrate = ?, problem = NULL,
+	res, err := b.exec(`UPDATE files SET probed_at = ?, container = ?, duration_ms = ?, bitrate = ?, audio_exact = ?, problem = NULL,
 		extra = CASE WHEN ? = '' THEN json_remove(extra, '$.title') ELSE json_set(ifnull(extra, '{}'), '$.title', ?) END
-		WHERE id = ? AND size = ? AND modified_ns = ?`, now, nz(p.Container), nz(p.DurationMS), nz(p.Bitrate), p.Title, p.Title,
+		WHERE id = ? AND size = ? AND modified_ns = ?`, now, nz(p.Container), nz(p.DurationMS), nz(p.Bitrate), nz(p.AudioExact), p.Title, p.Title,
 		p.FileID, p.Size, p.ModifiedNS)
 	if err != nil {
 		return err
