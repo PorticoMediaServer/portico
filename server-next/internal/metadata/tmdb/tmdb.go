@@ -434,7 +434,7 @@ var episodeGroupTypes = map[string]int{metadata.OrderAbsolute: 2, metadata.Order
 // groupChildren answers a show's episodes in DVD or absolute order from TMDB's episode groups:
 // the show's first group of that type. In DVD order each of its groups is a season, numbered
 // by the group's order; in absolute order there is one group, 1, and the episodes are
-// numbered through the whole show. A show TMDB has in no such order is ErrNotFound.
+// numbered through the whole show. A show TMDB has in no such order is metadata.ErrNoOrder.
 func (c *Client) groupChildren(ctx context.Context, parent metadata.Ref, group int, locale metadata.Locale) ([]metadata.Record, error) {
 	kind, known := episodeGroupTypes[parent.Order]
 	if !known {
@@ -460,7 +460,7 @@ func (c *Client) groupChildren(ctx context.Context, parent metadata.Ref, group i
 		}
 	}
 	if id == "" {
-		return nil, metadata.ErrNotFound
+		return nil, metadata.ErrNoOrder
 	}
 	var answer struct {
 		Groups []episodeGroup `json:"groups"`
