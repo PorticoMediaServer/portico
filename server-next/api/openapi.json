@@ -1565,6 +1565,17 @@
         ],
         "type": "object"
       },
+      "FinishedMove": {
+        "properties": {
+          "notMoved": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "notMoved"
+        ],
+        "type": "object"
+      },
       "FolderChoice": {
         "properties": {
           "cannotBeChosen": {
@@ -2657,6 +2668,17 @@
         ],
         "type": "object"
       },
+      "LeaveRequest": {
+        "properties": {
+          "deleteData": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "deleteData"
+        ],
+        "type": "object"
+      },
       "Libraries": {
         "properties": {
           "items": {
@@ -3358,12 +3380,16 @@
               "notes": {
                 "type": "string"
               },
+              "state": {
+                "type": "string"
+              },
               "twoFactorEnabled": {
                 "type": "boolean"
               }
             },
             "required": [
               "disabled",
+              "state",
               "createdAt",
               "allLibraries",
               "libraries",
@@ -3483,6 +3509,115 @@
         ],
         "type": "object"
       },
+      "MoveCheck": {
+        "properties": {
+          "next": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "username",
+          "next"
+        ],
+        "type": "object"
+      },
+      "MoveCheckRequest": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "MoveCodeOut": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "code",
+          "expiresAt"
+        ],
+        "type": "object"
+      },
+      "MoveCodeOutPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MoveCodeOut"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "MoveCompleteRequest": {
+        "properties": {
+          "approval": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "device": {
+            "$ref": "#/components/schemas/DeviceInfo"
+          },
+          "password": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "device"
+        ],
+        "type": "object"
+      },
+      "MoveState": {
+        "properties": {
+          "since": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "to",
+          "since"
+        ],
+        "type": "object"
+      },
       "NetworkSettings": {
         "properties": {
           "homeNetworks": {
@@ -3517,6 +3652,9 @@
       },
       "NetworkSettingsEdit": {
         "properties": {
+          "confirmRefusal": {
+            "type": "boolean"
+          },
           "homeNetworks": {
             "items": {
               "type": "string"
@@ -3679,6 +3817,82 @@
         },
         "required": [
           "items"
+        ],
+        "type": "object"
+      },
+      "OwnAddress": {
+        "properties": {
+          "certificateFile": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "keyFile": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled",
+          "domain",
+          "certificateFile",
+          "keyFile"
+        ],
+        "type": "object"
+      },
+      "OwnCertificateStatus": {
+        "properties": {
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expiresSoon": {
+            "type": "boolean"
+          },
+          "names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "problem": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "type": "object"
+      },
+      "OwnerChangeRequest": {
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "approval": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "newAccount": {
+            "$ref": "#/components/schemas/MemberCreate"
+          },
+          "password": {
+            "type": "string"
+          },
+          "previousOwner": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "previousOwner"
         ],
         "type": "object"
       },
@@ -4564,6 +4778,33 @@
         ],
         "type": "object"
       },
+      "PortMappingStatus": {
+        "properties": {
+          "checkedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "externalAddress": {
+            "type": "string"
+          },
+          "externalPort": {
+            "type": "integer"
+          },
+          "problem": {
+            "type": "string"
+          },
+          "protocol": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "type": "object"
+      },
       "PreferenceDocument": {
         "properties": {
           "scope": {
@@ -4942,6 +5183,27 @@
           "startedAt",
           "pagesLeft"
         ],
+        "type": "object"
+      },
+      "PublicAddressAnswer": {
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "agreedBy": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "checkedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "problem": {
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "Quality": {
@@ -5665,6 +5927,37 @@
         ],
         "type": "object"
       },
+      "RefusedAddress": {
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "fixes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "lastAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "refused": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "address",
+          "reason",
+          "fixes",
+          "lastAt",
+          "refused"
+        ],
+        "type": "object"
+      },
       "Related": {
         "properties": {
           "groups": {
@@ -5788,6 +6081,131 @@
         ],
         "type": "object"
       },
+      "RemoteAccessSave": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RemoteAccessSettings"
+          },
+          {
+            "properties": {
+              "allowThisAddress": {
+                "type": "boolean"
+              },
+              "confirmRefusal": {
+                "type": "boolean"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "RemoteAccessSettings": {
+        "properties": {
+          "allowedAddresses": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "certificateWarningDays": {
+            "type": "integer"
+          },
+          "enhancedWithoutAddress": {
+            "type": "boolean"
+          },
+          "enhancedWithoutHome": {
+            "type": "boolean"
+          },
+          "findAtHome": {
+            "type": "boolean"
+          },
+          "ipv6": {
+            "type": "boolean"
+          },
+          "ownAddress": {
+            "$ref": "#/components/schemas/OwnAddress"
+          },
+          "portMapping": {
+            "type": "string"
+          },
+          "publicPort": {
+            "type": "integer"
+          },
+          "remoteAccess": {
+            "type": "string"
+          },
+          "remoteSecurity": {
+            "type": "string"
+          },
+          "secureConnections": {
+            "type": "string"
+          },
+          "signInFromOutside": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "remoteAccess",
+          "remoteSecurity",
+          "secureConnections",
+          "signInFromOutside",
+          "portMapping",
+          "publicPort",
+          "ipv6",
+          "ownAddress",
+          "allowedAddresses",
+          "findAtHome",
+          "enhancedWithoutAddress",
+          "enhancedWithoutHome",
+          "certificateWarningDays"
+        ],
+        "type": "object"
+      },
+      "RemoteAccessStatus": {
+        "properties": {
+          "certificate": {
+            "$ref": "#/components/schemas/OwnCertificateStatus"
+          },
+          "identityCode": {
+            "type": "string"
+          },
+          "publicAddress": {
+            "$ref": "#/components/schemas/PublicAddressAnswer"
+          },
+          "refused": {
+            "items": {
+              "$ref": "#/components/schemas/RefusedAddress"
+            },
+            "type": "array"
+          },
+          "remoteSecurity": {
+            "$ref": "#/components/schemas/RemoteSecurity"
+          },
+          "router": {
+            "$ref": "#/components/schemas/PortMappingStatus"
+          },
+          "thisDevice": {
+            "$ref": "#/components/schemas/ThisDevice"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/Warning"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "thisDevice",
+          "refused",
+          "remoteSecurity",
+          "warnings",
+          "certificate",
+          "router",
+          "publicAddress",
+          "identityCode"
+        ],
+        "type": "object"
+      },
       "RemoteFolder": {
         "properties": {
           "name": {
@@ -5832,6 +6250,30 @@
         "required": [
           "connections",
           "perSecond"
+        ],
+        "type": "object"
+      },
+      "RemoteSecurity": {
+        "properties": {
+          "active": {
+            "type": "string"
+          },
+          "chosen": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "problem": {
+            "type": "string"
+          },
+          "waiting": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "chosen",
+          "active"
         ],
         "type": "object"
       },
@@ -6320,6 +6762,35 @@
           "host",
           "mayControl",
           "mayBecomeHost"
+        ],
+        "type": "object"
+      },
+      "RouteCheck": {
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "fixes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "refused": {
+            "type": "boolean"
+          },
+          "remoteSecurity": {
+            "$ref": "#/components/schemas/RemoteSecurity"
+          }
+        },
+        "required": [
+          "refused",
+          "address",
+          "fixes",
+          "remoteSecurity"
         ],
         "type": "object"
       },
@@ -6840,29 +7311,194 @@
         ],
         "type": "object"
       },
-      "SetupOwnerRequest": {
+      "SetupFinish": {
         "properties": {
-          "device": {
-            "$ref": "#/components/schemas/DeviceInfo"
+          "allowThisAddress": {
+            "type": "boolean"
           },
-          "password": {
+          "confirmRefusal": {
+            "type": "boolean"
+          },
+          "remoteSecurity": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SetupOwnerRequest": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SetupRemote"
+          },
+          {
+            "properties": {
+              "device": {
+                "$ref": "#/components/schemas/DeviceInfo"
+              },
+              "password": {
+                "type": "string"
+              },
+              "profileName": {
+                "type": "string"
+              },
+              "serverName": {
+                "type": "string"
+              },
+              "setupCode": {
+                "type": "string"
+              },
+              "username": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "setupCode",
+              "username",
+              "password",
+              "device"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "SetupPorticoApproval": {
+        "properties": {
+          "approvalUrl": {
             "type": "string"
           },
-          "profileName": {
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "approvalUrl",
+          "expiresAt"
+        ],
+        "type": "object"
+      },
+      "SetupPorticoFinish": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SetupRemote"
+          },
+          {
+            "properties": {
+              "approval": {
+                "type": "string"
+              },
+              "device": {
+                "$ref": "#/components/schemas/DeviceInfo"
+              }
+            },
+            "required": [
+              "approval",
+              "device"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "SetupPorticoRequest": {
+        "properties": {
+          "returnUrl": {
+            "type": "string"
+          },
+          "serverName": {
             "type": "string"
           },
           "setupCode": {
-            "type": "string"
-          },
-          "username": {
             "type": "string"
           }
         },
         "required": [
           "setupCode",
-          "username",
-          "password",
-          "device"
+          "returnUrl"
+        ],
+        "type": "object"
+      },
+      "SetupRemote": {
+        "properties": {
+          "confirmRefusal": {
+            "type": "boolean"
+          },
+          "remoteAccess": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SignInPreview": {
+        "properties": {
+          "approvalUrl": {
+            "type": "string"
+          },
+          "invitationsCancelled": {
+            "type": "integer"
+          },
+          "keysPaused": {
+            "type": "integer"
+          },
+          "keysRemoved": {
+            "type": "integer"
+          },
+          "porticoAddressRemoved": {
+            "type": "boolean"
+          },
+          "porticoUnavailable": {
+            "type": "boolean"
+          },
+          "profilesKept": {
+            "type": "integer"
+          },
+          "profilesRemoved": {
+            "type": "integer"
+          },
+          "removed": {
+            "type": "integer"
+          },
+          "signInAgain": {
+            "type": "integer"
+          },
+          "signedOut": {
+            "type": "integer"
+          },
+          "startOver": {
+            "type": "boolean"
+          },
+          "to": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "to",
+          "startOver",
+          "signInAgain",
+          "removed",
+          "profilesRemoved",
+          "profilesKept",
+          "signedOut",
+          "invitationsCancelled",
+          "keysPaused",
+          "keysRemoved",
+          "porticoAddressRemoved"
+        ],
+        "type": "object"
+      },
+      "SignInPreviewRequest": {
+        "properties": {
+          "returnUrl": {
+            "type": "string"
+          },
+          "startOver": {
+            "type": "boolean"
+          },
+          "to": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "to"
         ],
         "type": "object"
       },
@@ -6903,6 +7539,67 @@
             "$ref": "#/components/schemas/Session"
           }
         },
+        "type": "object"
+      },
+      "SignInState": {
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "move": {
+            "$ref": "#/components/schemas/MoveState"
+          },
+          "owner": {
+            "$ref": "#/components/schemas/Account"
+          },
+          "waiting": {
+            "items": {
+              "$ref": "#/components/schemas/WaitingAccount"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "kind",
+          "owner",
+          "waiting"
+        ],
+        "type": "object"
+      },
+      "SignInSwitchRequest": {
+        "properties": {
+          "approval": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "currentPassword": {
+            "type": "string"
+          },
+          "device": {
+            "$ref": "#/components/schemas/DeviceInfo"
+          },
+          "password": {
+            "type": "string"
+          },
+          "serverName": {
+            "type": "string"
+          },
+          "startOver": {
+            "type": "boolean"
+          },
+          "to": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "to",
+          "device"
+        ],
         "type": "object"
       },
       "SkippedFile": {
@@ -7424,6 +8121,9 @@
           "apiMajor": {
             "type": "integer"
           },
+          "atHome": {
+            "type": "boolean"
+          },
           "capabilities": {
             "items": {
               "type": "string"
@@ -7433,11 +8133,17 @@
           "id": {
             "type": "string"
           },
+          "move": {
+            "type": "string"
+          },
           "name": {
             "type": "string"
           },
           "setupRequired": {
             "type": "boolean"
+          },
+          "signIn": {
+            "type": "string"
           },
           "signInMethods": {
             "items": {
@@ -7461,7 +8167,9 @@
           "apiMajor",
           "capabilities",
           "setupRequired",
-          "signInMethods"
+          "signInMethods",
+          "signIn",
+          "atHome"
         ],
         "type": "object"
       },
@@ -7498,6 +8206,21 @@
         },
         "required": [
           "items"
+        ],
+        "type": "object"
+      },
+      "ThisDevice": {
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "atHome": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "atHome",
+          "address"
         ],
         "type": "object"
       },
@@ -7704,6 +8427,25 @@
           "accountId",
           "serverId",
           "role"
+        ],
+        "type": "object"
+      },
+      "WaitingAccount": {
+        "properties": {
+          "codeExpiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "username"
         ],
         "type": "object"
       },
@@ -9313,6 +10055,43 @@
         "x-access": "admin"
       }
     },
+    "/v1/admin/members/{id}/move-code": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoveCodeOut"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
+      }
+    },
     "/v1/admin/members/{id}/password-reset": {
       "post": {
         "parameters": [
@@ -9395,6 +10174,36 @@
           }
         },
         "x-access": "admin"
+      }
+    },
+    "/v1/admin/owner": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnerChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
       }
     },
     "/v1/admin/play-history": {
@@ -9551,6 +10360,97 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StreamLimits"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/remote-access": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoteAccessStatus"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/remote-access/check": {
+      "post": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoteAccessStatus"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/remote-access/route-check": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoteAccessSettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteCheck"
                 }
               }
             },
@@ -10203,6 +11103,68 @@
         "x-access": "owner"
       }
     },
+    "/v1/admin/settings/remote-access": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoteAccessSettings"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "put": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoteAccessSave"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoteAccessSettings"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
     "/v1/admin/settings/{name}": {
       "get": {
         "parameters": [
@@ -10266,6 +11228,161 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SettingsDocument"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/sign-in": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInState"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/sign-in/finish": {
+      "post": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinishedMove"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/sign-in/move-codes": {
+      "post": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoveCodeOutPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
+      }
+    },
+    "/v1/admin/sign-in/preview": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignInPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInPreview"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/sign-in/switch": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignInSwitchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInResponse"
                 }
               }
             },
@@ -10926,6 +12043,82 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/InvitationAccept"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "security": [],
+        "x-access": "public"
+      }
+    },
+    "/v1/auth/move/check": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveCheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoveCheck"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "security": [],
+        "x-access": "public"
+      }
+    },
+    "/v1/auth/move/complete": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveCompleteRequest"
               }
             }
           },
@@ -13430,6 +14623,36 @@
         "x-access": "signedIn"
       }
     },
+    "/v1/me/leave": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeaveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "signedIn"
+      }
+    },
     "/v1/me/sessions": {
       "delete": {
         "responses": {
@@ -15667,6 +16890,43 @@
         "x-access": "withProfile"
       }
     },
+    "/v1/setup/finish": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetupFinish"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoteSecurity"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
     "/v1/setup/owner": {
       "post": {
         "requestBody": {
@@ -15674,6 +16934,82 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/SetupOwnerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "security": [],
+        "x-access": "public"
+      }
+    },
+    "/v1/setup/portico": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetupPorticoRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupPorticoApproval"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "security": [],
+        "x-access": "public"
+      }
+    },
+    "/v1/setup/portico/finish": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetupPorticoFinish"
               }
             }
           },

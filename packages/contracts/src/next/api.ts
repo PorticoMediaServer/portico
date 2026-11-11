@@ -463,6 +463,10 @@ export interface Filter {
   values?: string[];
 }
 
+export interface FinishedMove {
+  notMoved: number;
+}
+
 export interface FolderChoice {
   name: string;
   path: string;
@@ -803,6 +807,10 @@ export interface KeyPage {
   nextCursor?: string;
 }
 
+export interface LeaveRequest {
+  deleteData: boolean;
+}
+
 export interface Libraries {
   items: Library[];
 }
@@ -1007,6 +1015,7 @@ export interface Media {
 
 export interface Member extends Account {
   disabled: boolean;
+  state: string;
   createdAt: string;
   allLibraries: boolean;
   libraries: string[];
@@ -1048,6 +1057,42 @@ export interface MissingTitles {
   total: number;
 }
 
+export interface MoveCheck {
+  username: string;
+  next: string;
+}
+
+export interface MoveCheckRequest {
+  code?: string;
+  username?: string;
+  password?: string;
+}
+
+export interface MoveCodeOut {
+  id: string;
+  username: string;
+  code: string;
+  expiresAt: string;
+}
+
+export interface MoveCodeOutPage {
+  items: MoveCodeOut[];
+  nextCursor?: string;
+}
+
+export interface MoveCompleteRequest {
+  code?: string;
+  username?: string;
+  password?: string;
+  approval?: string;
+  device: DeviceInfo;
+}
+
+export interface MoveState {
+  to: string;
+  since: string;
+}
+
 export interface NetworkSettings {
   homeNetworks: string[];
   homeNetworksDefault: boolean;
@@ -1058,6 +1103,7 @@ export interface NetworkSettings {
 export interface NetworkSettingsEdit {
   homeNetworks?: string[];
   trustedProxies: string[];
+  confirmRefusal?: boolean;
 }
 
 export interface Notification {
@@ -1103,6 +1149,30 @@ export interface NowPlaying {
 export interface NowPlayingPage {
   items: NowPlaying[];
   nextCursor?: string;
+}
+
+export interface OwnAddress {
+  enabled: boolean;
+  domain: string;
+  certificateFile: string;
+  keyFile: string;
+}
+
+export interface OwnCertificateStatus {
+  state: string;
+  problem?: string;
+  names?: string[];
+  expiresAt?: string;
+  expiresSoon?: boolean;
+}
+
+export interface OwnerChangeRequest {
+  password?: string;
+  code?: string;
+  accountId?: string;
+  newAccount?: MemberCreate;
+  approval?: string;
+  previousOwner: string;
 }
 
 export interface Part {
@@ -1378,6 +1448,15 @@ export interface PlaybackVideo {
   bitrateKbps?: number;
 }
 
+export interface PortMappingStatus {
+  state: string;
+  protocol?: string;
+  externalAddress?: string;
+  externalPort?: number;
+  problem?: string;
+  checkedAt?: string;
+}
+
 export interface PreferenceDocument {
   scope: string;
   values: Record<string, unknown>;
@@ -1491,6 +1570,13 @@ export interface Progress {
   id: string;
   startedAt: string;
   pagesLeft: number;
+}
+
+export interface PublicAddressAnswer {
+  address?: string;
+  agreedBy?: string[];
+  problem?: string;
+  checkedAt?: string;
 }
 
 export interface Quality {
@@ -1727,6 +1813,14 @@ export interface RefreshRequest {
   requestId: string;
 }
 
+export interface RefusedAddress {
+  address: string;
+  reason: string;
+  fixes: string[];
+  lastAt: string;
+  refused: number;
+}
+
 export interface Related {
   groups: RelatedGroup[];
 }
@@ -1763,6 +1857,38 @@ export interface RememberedFailurePage {
   nextCursor?: string;
 }
 
+export interface RemoteAccessSave extends RemoteAccessSettings {
+  allowThisAddress?: boolean;
+  confirmRefusal?: boolean;
+}
+
+export interface RemoteAccessSettings {
+  remoteAccess: string;
+  remoteSecurity: string;
+  secureConnections: string;
+  signInFromOutside: string;
+  portMapping: string;
+  publicPort: number;
+  ipv6: boolean;
+  ownAddress: OwnAddress;
+  allowedAddresses: string[];
+  findAtHome: boolean;
+  enhancedWithoutAddress: boolean;
+  enhancedWithoutHome: boolean;
+  certificateWarningDays: number;
+}
+
+export interface RemoteAccessStatus {
+  thisDevice: ThisDevice;
+  refused: RefusedAddress[];
+  remoteSecurity: RemoteSecurity;
+  warnings: Warning[];
+  certificate: OwnCertificateStatus;
+  router: PortMappingStatus;
+  publicAddress: PublicAddressAnswer;
+  identityCode: string;
+}
+
 export interface RemoteFolder {
   name: string;
   path: string;
@@ -1776,6 +1902,14 @@ export interface RemoteFolderPage {
 export interface RemoteLimits {
   connections: number;
   perSecond: number;
+}
+
+export interface RemoteSecurity {
+  chosen: string;
+  active: string;
+  waiting?: string;
+  message?: string;
+  problem?: string;
 }
 
 export interface RemoteSource {
@@ -1923,6 +2057,14 @@ export interface RoomYou {
   host: boolean;
   mayControl: boolean;
   mayBecomeHost: boolean;
+}
+
+export interface RouteCheck {
+  refused: boolean;
+  reason?: string;
+  address: string;
+  fixes: string[];
+  remoteSecurity: RemoteSecurity;
 }
 
 export interface SavedPlaylist {
@@ -2077,12 +2219,62 @@ export interface SettingsDocumentPage {
   nextCursor?: string;
 }
 
-export interface SetupOwnerRequest {
+export interface SetupFinish {
+  remoteSecurity?: string;
+  allowThisAddress?: boolean;
+  confirmRefusal?: boolean;
+}
+
+export interface SetupOwnerRequest extends SetupRemote {
   setupCode: string;
+  serverName?: string;
   username: string;
   password: string;
   profileName?: string;
   device: DeviceInfo;
+}
+
+export interface SetupPorticoApproval {
+  approvalUrl: string;
+  expiresAt: string;
+}
+
+export interface SetupPorticoFinish extends SetupRemote {
+  approval: string;
+  device: DeviceInfo;
+}
+
+export interface SetupPorticoRequest {
+  setupCode: string;
+  serverName?: string;
+  returnUrl: string;
+}
+
+export interface SetupRemote {
+  remoteAccess?: string;
+  confirmRefusal?: boolean;
+}
+
+export interface SignInPreview {
+  to: string;
+  startOver: boolean;
+  signInAgain: number;
+  removed: number;
+  profilesRemoved: number;
+  profilesKept: number;
+  signedOut: number;
+  invitationsCancelled: number;
+  keysPaused: number;
+  keysRemoved: number;
+  porticoAddressRemoved: boolean;
+  approvalUrl?: string;
+  porticoUnavailable?: boolean;
+}
+
+export interface SignInPreviewRequest {
+  to: string;
+  startOver?: boolean;
+  returnUrl?: string;
 }
 
 export interface SignInRequest {
@@ -2096,6 +2288,25 @@ export interface SignInResponse {
   account?: Account;
   profiles?: Profile[];
   challenge?: Challenge;
+}
+
+export interface SignInState {
+  kind: string;
+  owner: Account;
+  move?: MoveState;
+  waiting: WaitingAccount[];
+}
+
+export interface SignInSwitchRequest {
+  to: string;
+  startOver?: boolean;
+  serverName?: string;
+  currentPassword?: string;
+  code?: string;
+  username?: string;
+  password?: string;
+  approval?: string;
+  device: DeviceInfo;
 }
 
 export interface SkippedFile {
@@ -2249,6 +2460,9 @@ export interface System {
   setupRequired: boolean;
   signInMethods: string[];
   warnings?: Warning[];
+  signIn: string;
+  atHome: boolean;
+  move?: string;
 }
 
 export interface Tag {
@@ -2260,6 +2474,11 @@ export interface Tag {
 export interface TagPage {
   items: Tag[];
   nextCursor?: string;
+}
+
+export interface ThisDevice {
+  atHome: boolean;
+  address: string;
 }
 
 export interface TitleRef {
@@ -2329,6 +2548,12 @@ export interface Viewer {
   profileId?: string;
   serverId: string;
   role: string;
+}
+
+export interface WaitingAccount {
+  id: string;
+  username: string;
+  codeExpiresAt?: string;
 }
 
 export interface Warning {
@@ -2416,12 +2641,7 @@ export interface Routes {
   'GET /v1/health/live': {access: 'public'; request: undefined; response: Health};
   'GET /v1/health/ready': {access: 'public'; request: undefined; response: Health};
   'GET /v1/system': {access: 'public'; request: undefined; response: System};
-  'GET /v1/admin/settings/network': {access: 'owner'; request: undefined; response: NetworkSettings};
-  'PUT /v1/admin/settings/network': {access: 'owner'; request: NetworkSettingsEdit; response: NetworkSettings};
-  'GET /v1/admin/blocked-networks': {access: 'admin'; request: undefined; response: BlockedNetworkPage};
-  'DELETE /v1/admin/blocked-networks/{id}': {access: 'admin'; request: undefined; response: undefined};
   'POST /v1/system/identity-proof': {access: 'public'; request: IdentityQuestion; response: IdentityProof};
-  'POST /v1/setup/owner': {access: 'public'; request: SetupOwnerRequest; response: SignInResponse};
   'POST /v1/auth/sign-in': {access: 'public'; request: SignInRequest; response: SignInResponse};
   'POST /v1/auth/refresh': {access: 'public'; request: RefreshRequest; response: Session};
   'DELETE /v1/auth/session': {access: 'public'; request: undefined; response: undefined};
@@ -2607,6 +2827,29 @@ export interface Routes {
   'PATCH /v1/admin/reports/{id}': {access: 'owner'; request: ReportEdit; response: ProblemReport};
   'DELETE /v1/admin/reports/{id}': {access: 'owner'; request: undefined; response: undefined};
   'GET /v1/admin/reports/{id}/log': {access: 'owner'; request: undefined; response: undefined};
+  'GET /v1/admin/settings/network': {access: 'owner'; request: undefined; response: NetworkSettings};
+  'PUT /v1/admin/settings/network': {access: 'owner'; request: NetworkSettingsEdit; response: NetworkSettings};
+  'GET /v1/admin/blocked-networks': {access: 'admin'; request: undefined; response: BlockedNetworkPage};
+  'DELETE /v1/admin/blocked-networks/{id}': {access: 'admin'; request: undefined; response: undefined};
+  'GET /v1/admin/settings/remote-access': {access: 'owner'; request: undefined; response: RemoteAccessSettings};
+  'PUT /v1/admin/settings/remote-access': {access: 'owner'; request: RemoteAccessSave; response: RemoteAccessSettings};
+  'GET /v1/admin/remote-access': {access: 'owner'; request: undefined; response: RemoteAccessStatus};
+  'POST /v1/admin/remote-access/route-check': {access: 'owner'; request: RemoteAccessSettings; response: RouteCheck};
+  'POST /v1/admin/remote-access/check': {access: 'owner'; request: undefined; response: RemoteAccessStatus};
+  'POST /v1/setup/owner': {access: 'public'; request: SetupOwnerRequest; response: SignInResponse};
+  'POST /v1/setup/portico': {access: 'public'; request: SetupPorticoRequest; response: SetupPorticoApproval};
+  'POST /v1/setup/portico/finish': {access: 'public'; request: SetupPorticoFinish; response: SignInResponse};
+  'POST /v1/setup/finish': {access: 'owner'; request: SetupFinish; response: RemoteSecurity};
+  'GET /v1/admin/sign-in': {access: 'owner'; request: undefined; response: SignInState};
+  'POST /v1/admin/sign-in/preview': {access: 'owner'; request: SignInPreviewRequest; response: SignInPreview};
+  'POST /v1/admin/sign-in/switch': {access: 'owner'; request: SignInSwitchRequest; response: SignInResponse};
+  'POST /v1/admin/sign-in/finish': {access: 'owner'; request: undefined; response: FinishedMove};
+  'POST /v1/admin/members/{id}/move-code': {access: 'admin'; request: undefined; response: MoveCodeOut};
+  'POST /v1/admin/sign-in/move-codes': {access: 'admin'; request: undefined; response: MoveCodeOutPage};
+  'POST /v1/admin/owner': {access: 'owner'; request: OwnerChangeRequest; response: undefined};
+  'POST /v1/auth/move/check': {access: 'public'; request: MoveCheckRequest; response: MoveCheck};
+  'POST /v1/auth/move/complete': {access: 'public'; request: MoveCompleteRequest; response: SignInResponse};
+  'POST /v1/me/leave': {access: 'signedIn'; request: LeaveRequest; response: undefined};
   'GET /v1/admin/webhooks': {access: 'owner'; request: undefined; response: WebhookPage};
   'POST /v1/admin/webhooks': {access: 'owner'; request: WebhookCreate; response: WebhookSecret};
   'PATCH /v1/admin/webhooks/{id}': {access: 'owner'; request: WebhookEdit; response: Webhook};
