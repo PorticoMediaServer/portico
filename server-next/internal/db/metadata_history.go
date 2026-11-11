@@ -241,6 +241,20 @@ func (d *DB) UndoMetadata(ctx context.Context, publicID, entryID string) (int64,
 				return err
 			}
 		}
+		// The chosen pictures are shown again, and every other role shows its best.
+		if _, err := b.exec(`UPDATE images SET selected = locked WHERE item_id = ?1 AND role IN (SELECT role FROM images WHERE item_id = ?1
+			AND locked = 1)`, id); err != nil {
+			return err
+		}
+		roles, err := queryInts(b.tx, `SELECT DISTINCT role FROM images WHERE item_id = ?`, id)
+		if err != nil {
+			return err
+		}
+		for _, role := range roles {
+			if err := selectPicture(b, id, ImageRole(role)); err != nil {
+				return err
+			}
+		}
 		if err := b.queryRow(`SELECT revision FROM items WHERE id = ?`, id).Scan(&revision); err != nil {
 			return err
 		}

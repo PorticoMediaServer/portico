@@ -62,6 +62,9 @@ func (s *Service) refresh(ctx context.Context, p Provider, locale Locale, item d
 	if err := s.DB.ApplyDetails(ctx, priority, item.ID, stored); err != nil {
 		return err
 	}
+	if err := s.storePictures(ctx, item.ID, record.Pictures, "", db.Background); err != nil {
+		return err
+	}
 	return s.children(ctx, p, locale, item.ID, ref)
 }
 

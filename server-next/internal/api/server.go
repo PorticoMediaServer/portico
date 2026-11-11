@@ -179,9 +179,10 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.playbackRoutes()
 	s.queues = playqueue.New(d, s.playback, func() time.Time { return s.now() })
 	s.queueRoutes()
-	s.metadata = &metadata.Service{DB: d, Providers: map[string]metadata.Provider{}}
+	s.metadata = &metadata.Service{DB: d, Providers: map[string]metadata.Provider{}, Pictures: s.artwork}
 	s.metadataRoutes()
 	s.editorRoutes()
+	s.artworkRoutes()
 	return s, nil
 }
 
