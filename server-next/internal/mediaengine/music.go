@@ -95,7 +95,9 @@ func (e *Engine) musicPlan(ctx context.Context, r playback.PlanRequest, request 
 	choice.AudioDecode, choice.Remote = request.Device.DecodeCaps(), r.Network != playback.NetworkLocal
 	source := streaming.SourceFromFacts(request.File)
 	plan, err := streaming.PlanAudio(streaming.AudioPlanRequest{StreamID: r.Version.PublicID, Generation: 1, Facts: m.facts, Measured: true,
-		Size: place.Size, Source: &source, Choice: &choice, Settings: request.Settings, Preferences: request.Preferences, TranscodingEnabled: converter})
+		Size: place.Size, Source: &source, Choice: &choice, Settings: request.Settings, Preferences: request.Preferences,
+		// "Never" holds here too: the plan reads only this, not the conversion mode.
+		TranscodingEnabled: converter && request.Settings.AudioConversionAllowed(true)})
 	if err != nil || plan.Mode != "direct" && plan.Mode != "converted" {
 		return nil
 	}

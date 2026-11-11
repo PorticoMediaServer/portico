@@ -49,6 +49,11 @@ func (s *Service) room(kind db.ItemKind, network, self string, deviceID int64, a
 	}
 	s.mu.Lock()
 	left := owner.UploadSpeedKbps*uploadSharePercent/100 - s.awayInUseLocked(self, deviceID)
+	if playing := s.sessions[self]; playing != nil {
+		// A stream may always be changed to what it already takes or less, so a viewer can
+		// lower it when the owner has since lowered the upload speed.
+		left = max(left, playing.awayKbps)
+	}
 	s.mu.Unlock()
 	if !limited || left < kbps {
 		return left, true, true
@@ -113,6 +118,7 @@ func fit(version db.PlaybackVersion, kind db.ItemKind, menu []QualityOption, q Q
 			kept = append(kept, o)
 			continue
 		}
+		chosen := o.Mode == QualityFixed || o.Mode == QualityLimit || o.Mode == QualityCD
 		if o.Mode == QualityFixed || o.Mode == QualityLimit {
 			lowest = &menu[i]
 		}
@@ -120,7 +126,7 @@ func fit(version db.PlaybackVersion, kind db.ItemKind, menu []QualityOption, q Q
 			continue
 		}
 		kept = append(kept, o)
-		if best == nil && (o.Mode == QualityFixed || o.Mode == QualityLimit) {
+		if best == nil && chosen {
 			best = &menu[i]
 		}
 	}
