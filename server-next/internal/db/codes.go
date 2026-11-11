@@ -88,13 +88,15 @@ type FileProblem int
 const (
 	ProblemNone           FileProblem = 0
 	ProblemDamaged        FileProblem = 1 // it could not be read as media
-	ProblemUnsupported    FileProblem = 2 // a path too long or too deep, an encrypted disc
+	ProblemUnsupported    FileProblem = 2 // a path too long or too deep
 	ProblemNotMedia       FileProblem = 3 // it is named like media and is not
 	ProblemUnreadableName FileProblem = 4 // its name is not valid text; the stored name is a readable stand-in
+	ProblemEncryptedDisc  FileProblem = 5 // a film disc that is copy-protected, which Portico does not read
 )
 
 var fileProblemNames = map[FileProblem]string{
 	ProblemDamaged: "damaged", ProblemUnsupported: "not_supported", ProblemNotMedia: "not_media", ProblemUnreadableName: "unreadable_name",
+	ProblemEncryptedDisc: "encrypted_disc",
 }
 
 func (p FileProblem) String() string { return fileProblemNames[p] }
