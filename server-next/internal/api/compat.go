@@ -696,27 +696,30 @@ func (s *Server) compatImage(r *http.Request, values []string) (any, error) {
 // an owner or administrator allowed to see everyone. Home Assistant reads these; they say they
 // cannot be controlled from there, because its controls also browse and start playback.
 func (s *Server) compatSessions(r *http.Request, c Caller) (any, error) {
-	var sessions []playback.Session
-	if compatSeesEveryone(c) {
-		sessions = s.playback.All()
-	} else {
-		sessions = s.playback.AccountSessions(c.UserID)
+	sessions, err := s.streamsSeenBy(r.Context(), db.Viewer{UserID: c.UserID, ProfileID: c.ProfileID}, compatSeesEveryone(c))
+	if err != nil {
+		return nil, err
 	}
 	out := []map[string]any{}
 	for _, p := range sessions {
 		if p.State == playback.StateEnded {
 			continue
 		}
-		item := map[string]any{"Id": compat.ID(p.Item.PublicID), "Name": p.Item.Title, "Type": compat.Kind(p.Item.Kind.String()),
-			"RunTimeTicks": compat.Ticks(p.Item.DurationMS)}
-		if p.Item.Root != nil {
-			item["SeriesName"], item["SeriesId"] = p.Item.Root.Title, compat.ID(p.Item.Root.PublicID)
-		}
-		out = append(out, map[string]any{"Id": compat.ID(p.ID), "UserId": compat.ID(p.Device.UserPublicID), "DeviceId": p.Device.PublicID,
-			"DeviceName": p.Device.Name, "Client": "Portico", "ApplicationVersion": "", "NowPlayingItem": item, "SupportsMediaControl": false,
+		stream := map[string]any{"Id": compat.ID(p.ID), "UserId": compat.ID(p.Device.UserPublicID), "DeviceId": p.Device.PublicID,
+			"DeviceName": p.Device.Name, "Client": "Portico", "ApplicationVersion": "", "SupportsMediaControl": false,
 			"SupportsRemoteControl": false, "SupportedCommands": []string{}, "PlayableMediaTypes": []string{},
 			"Capabilities": map[string]any{"SupportsMediaControl": false, "SupportedCommands": []string{}},
-			"PlayState":    map[string]any{"PositionTicks": compat.Ticks(p.PositionMs), "IsPaused": p.State == playback.StatePaused, "CanSeek": false}})
+			"PlayState":    map[string]any{"PositionTicks": compat.Ticks(p.PositionMs), "IsPaused": p.State == playback.StatePaused, "CanSeek": false}}
+		// A title the caller's profile may not see is left out; the stream itself is listed.
+		if p.Visible {
+			item := map[string]any{"Id": compat.ID(p.Item.PublicID), "Name": p.Title, "Type": compat.Kind(p.Item.Kind.String()),
+				"RunTimeTicks": compat.Ticks(p.Item.DurationMS)}
+			if p.Item.Root != nil {
+				item["SeriesName"], item["SeriesId"] = p.Item.Root.Title, compat.ID(p.Item.Root.PublicID)
+			}
+			stream["NowPlayingItem"] = item
+		}
+		out = append(out, stream)
 	}
 	return out, nil
 }
