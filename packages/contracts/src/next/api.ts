@@ -2063,6 +2063,7 @@ export interface Setting {
   scopes: string[];
   group: string;
   labelKey: string;
+  maxItems?: number;
 }
 
 export interface SettingsDocument {

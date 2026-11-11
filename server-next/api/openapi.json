@@ -6781,6 +6781,9 @@
           "max": {
             "type": "number"
           },
+          "maxItems": {
+            "type": "integer"
+          },
           "min": {
             "type": "number"
           },
