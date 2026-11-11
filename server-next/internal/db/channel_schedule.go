@@ -3,40 +3,42 @@ package db
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 )
 
-// ChannelCondition is one test of a Library Channel's selection, or a group of tests when
-// Conditions is set. The fields and operators are those of a library's Filters, without
-// anything personal, because a channel is shared:
-//
-//	year            is, between, before, after   whole years
-//	decade          in                           1980, 1990, ...
-//	genre, tag, studio, network, country, mood   any, all     names
-//	contentRating   in                           "PG-13", ...
-//	communityRating atLeast, atMost, between     0 to 10
-//	length          atLeast, atMost, between     minutes; a show has no length, so it is not tested
-//	actor, director, writer, collection          any          public ids
-//	resolution      in                           sd, 720p, 1080p, 4k
-//	language        any                          an audio track's language code: "en", "fr"
-//
-// A condition this server does not know is kept in the document and not tested.
+// ChannelCondition is one condition of a Library Channel's selection, or a group of them when
+// Conditions is set. A single condition is the list filters' own (Condition: a field, how its
+// values combine, the values), named, valued and turned into SQL by the same code, so the
+// apps build one field-and-value picker. On top, and only for a channel: Exclude turns a
+// condition or a group around, and a group holds conditions with its own all or any (one
+// level deep). Fields that read the viewer's own state are refused: a channel is shared. A
+// field this server does not know is kept in the document and not tested.
 type ChannelCondition struct {
 	Field      string             `json:"field,omitempty"`
-	Op         string             `json:"op,omitempty"`
-	Values     []json.RawMessage  `json:"values,omitempty"`
+	Mode       string             `json:"mode,omitempty"`
+	Values     []string           `json:"values,omitempty"`
 	Exclude    bool               `json:"exclude,omitempty"`
 	Match      string             `json:"match,omitempty"`
 	Conditions []ChannelCondition `json:"conditions,omitempty"`
 }
 
+// MaxChannelConditionValues is how many values one Library Channel condition may hold.
+const MaxChannelConditionValues = 500
+
+func (c ChannelCondition) group() bool { return c.Conditions != nil || c.Match != "" }
+
+// Leaf is a single condition as the list filters have it.
+func (c ChannelCondition) Leaf() Condition {
+	return Condition{Field: c.Field, Mode: c.Mode, Values: c.Values}
+}
+
 // Known says whether this server can test the condition.
 func (c ChannelCondition) Known() bool {
-	if c.Conditions != nil || c.Match != "" {
+	if c.group() {
 		for _, inner := range c.Conditions {
 			if !inner.Known() {
 				return false
@@ -44,30 +46,15 @@ func (c ChannelCondition) Known() bool {
 		}
 		return true
 	}
-	ops, ok := conditionOps[c.Field]
-	return ok && strings.Contains(" "+ops+" ", " "+c.Op+" ")
+	return slices.Contains(ConditionFields, c.Field) && !PersonalFields[c.Field]
 }
 
-var conditionOps = map[string]string{
-	"year": "is between before after", "decade": "in", "contentRating": "in", "communityRating": "atLeast atMost between",
-	"length": "atLeast atMost between", "resolution": "in",
-	"genre": "any all", "tag": "any all", "studio": "any all", "network": "any all", "country": "any all", "mood": "any all",
-	"actor": "any", "director": "any", "writer": "any", "collection": "any", "language": "any",
-}
-
-// MaxChannelConditionValues is how many values one Library Channel condition may hold.
-const MaxChannelConditionValues = 500
-
-var conditionTagKinds = map[string]string{"genre": TagGenre, "tag": TagLabel, "studio": TagStudio, "network": TagNetwork,
-	"country": TagCountry, "mood": TagMood}
-
-var conditionRoles = map[string]CreditRole{"actor": RoleActor, "director": RoleDirector, "writer": RoleWriter}
-
-// CheckValues refuses a known condition whose values the schedule could not use: the wrong
-// number for its operator, the wrong type, an unknown resolution word, or too many. A group
-// checks each of its conditions. A condition this server does not know is kept unchecked.
+// CheckValues refuses a condition whose values the schedule could not use: a personal field,
+// a mode that is not any, all or none, no values or too many, or a value its field cannot
+// take, judged by the code that turns it into SQL. A group checks each of its conditions. A
+// condition this server does not know is kept unchecked.
 func (c ChannelCondition) CheckValues() error {
-	if c.Conditions != nil || c.Match != "" {
+	if c.group() {
 		for _, inner := range c.Conditions {
 			if err := inner.CheckValues(); err != nil {
 				return err
@@ -75,37 +62,24 @@ func (c ChannelCondition) CheckValues() error {
 		}
 		return nil
 	}
+	if PersonalFields[c.Field] {
+		return invalid("a channel is shared, so it can't be chosen by %s", c.Field)
+	}
 	if !c.Known() {
 		return nil
+	}
+	if err := checkMode(c.Mode); err != nil {
+		return err
 	}
 	if len(c.Values) == 0 || len(c.Values) > MaxChannelConditionValues {
 		return invalid("a condition holds 1 to %d values", MaxChannelConditionValues)
 	}
-	switch c.Op {
-	case "is", "before", "after", "atLeast", "atMost":
-		if len(c.Values) != 1 {
-			return invalid("this condition takes one value")
-		}
-	case "between":
-		if len(c.Values) != 2 {
-			return invalid("this condition takes two values")
+	for _, v := range c.Values {
+		if err := CheckValue(c.Field, v); err != nil {
+			return err
 		}
 	}
-	switch c.Field {
-	case "year", "decade", "communityRating", "length":
-		_, err := numbers(c.Values)
-		return err
-	case "resolution":
-		words, err := texts(c.Values)
-		for _, w := range words {
-			if _, ok := resolutionClasses[w]; !ok && err == nil {
-				err = invalid("%q is not a resolution", w)
-			}
-		}
-		return err
-	}
-	_, err := texts(c.Values)
-	return err
+	return nil
 }
 
 // HasTitleData says whether the server has Portico's title data, which moods come from.
@@ -168,9 +142,10 @@ func (d *DB) ChannelCandidates(ctx context.Context, sel ChannelSelection, fn fun
 	if sel.Plays {
 		plays = "(SELECT count(*) FROM play_history h WHERE h.item_id = i.id)"
 	}
+	where := strings.NewReplacer("{+}", "", "{tag}", "", "{labels}", "", "{rated}", "").Replace(q.sql.String())
 	rows, err := tx.QueryContext(ctx, `SELECT i.id, i.public_id, i.kind, ifnull(i.duration_ms, 0), i.title, `+summary+`, i.sort_title,
 		ifnull(i.year, 0), ifnull(i.release_date, ''), i.added_at, ifnull(i.community_rating, 0), `+plays+`
-		FROM items i WHERE `+q.sql.String(), q.args...)
+		FROM items i WHERE `+where, q.args...)
 	if err != nil {
 		return err
 	}
@@ -246,16 +221,23 @@ func conditionGroup(ctx context.Context, tx *sql.Tx, q *query, match string, con
 	for _, c := range conditions {
 		var part string
 		var err error
-		if c.Conditions != nil || c.Match != "" {
+		switch {
+		case c.group():
 			part, err = conditionGroup(ctx, tx, q, c.Match, c.Conditions)
-		} else {
-			part, err = condition(ctx, tx, q, c, neutral)
+		case !c.Known():
+			continue // a condition this server cannot test
+		default:
+			if part, err = c.Leaf().test(ctx, tx, q); err == nil && c.Field == "durationMs" {
+				// A show has no length of its own: a length never tests one, either way.
+				show := neutral
+				if c.Exclude {
+					show = map[string]string{"1": "0", "0": "1"}[neutral]
+				}
+				part = "CASE WHEN i.kind = " + fmt.Sprint(int(KindShow)) + " THEN " + show + " ELSE " + part + " END"
+			}
 		}
 		if err != nil {
 			return "", err
-		}
-		if part == "" {
-			continue // a condition this server cannot test
 		}
 		if c.Exclude {
 			part = "NOT (" + part + ")"
@@ -264,170 +246,6 @@ func conditionGroup(ctx context.Context, tx *sql.Tx, q *query, match string, con
 	}
 	if len(parts) == 0 {
 		return neutral, nil
-	}
-	return strings.Join(parts, joiner), nil
-}
-
-func numbers(values []json.RawMessage) ([]float64, error) {
-	out := make([]float64, len(values))
-	for n, raw := range values {
-		if err := json.Unmarshal(raw, &out[n]); err != nil {
-			return nil, invalid("a value of this condition must be a number")
-		}
-	}
-	return out, nil
-}
-
-func texts(values []json.RawMessage) ([]string, error) {
-	out := make([]string, len(values))
-	for n, raw := range values {
-		if err := json.Unmarshal(raw, &out[n]); err != nil {
-			return nil, invalid("a value of this condition must be text")
-		}
-	}
-	return out, nil
-}
-
-// range2 is the SQL for a number column against atLeast, atMost or between.
-func range2(q *query, column, op string, values []float64, scale float64) (string, error) {
-	need := map[string]int{"atLeast": 1, "atMost": 1, "between": 2, "is": 1, "before": 1, "after": 1}[op]
-	if len(values) != need {
-		return "", invalid("this condition takes %d value(s)", need)
-	}
-	switch op {
-	case "atLeast":
-		return column + " >= " + q.arg(values[0]*scale), nil
-	case "atMost":
-		return column + " <= " + q.arg(values[0]*scale), nil
-	case "between":
-		return column + " BETWEEN " + q.arg(min(values[0], values[1])*scale) + " AND " + q.arg(max(values[0], values[1])*scale), nil
-	case "is":
-		return column + " = " + q.arg(values[0]*scale), nil
-	case "before":
-		return column + " < " + q.arg(values[0]*scale), nil
-	}
-	return column + " > " + q.arg(values[0]*scale), nil
-}
-
-func condition(ctx context.Context, tx *sql.Tx, q *query, c ChannelCondition, neutral string) (string, error) {
-	if !c.Known() {
-		return "", nil
-	}
-	if len(c.Values) == 0 {
-		return "", invalid("the condition on %s has no values", c.Field)
-	}
-	switch c.Field {
-	case "year", "communityRating":
-		values, err := numbers(c.Values)
-		if err != nil {
-			return "", err
-		}
-		column := "i.year"
-		if c.Field == "communityRating" {
-			column = "i.community_rating"
-		}
-		return range2(q, column, c.Op, values, 1)
-	case "length":
-		values, err := numbers(c.Values)
-		if err != nil {
-			return "", err
-		}
-		test, err := range2(q, "i.duration_ms", c.Op, values, 60000)
-		if c.Exclude {
-			// Exclude flips the test, and a show is never tested: keep it neutral either way.
-			neutral = map[string]string{"1": "0", "0": "1"}[neutral]
-		}
-		return "CASE WHEN i.kind = " + fmt.Sprint(int(KindShow)) + " THEN " + neutral + " ELSE " + test + " END", err
-	case "decade":
-		values, err := numbers(c.Values)
-		if err != nil {
-			return "", err
-		}
-		var parts []string
-		for _, v := range values {
-			parts = append(parts, "i.year BETWEEN "+q.arg(int(v)/10*10)+" AND "+q.arg(int(v)/10*10+9))
-		}
-		return strings.Join(parts, " OR "), nil
-	case "contentRating":
-		values, err := texts(c.Values)
-		if err != nil {
-			return "", err
-		}
-		return "i.content_rating IN (" + q.list(values) + ")", nil
-	case "resolution":
-		values, err := texts(c.Values)
-		if err != nil {
-			return "", err
-		}
-		var classes []string
-		for _, v := range values {
-			class, ok := resolutionClasses[v]
-			if !ok {
-				return "", invalid("%q is not a resolution", v)
-			}
-			classes = append(classes, fmt.Sprint(class))
-		}
-		return "EXISTS (SELECT 1 FROM media m WHERE m.item_id = i.id AND m.width IS NOT NULL AND " + resolutionSQL + " IN (" +
-			strings.Join(classes, ", ") + "))", nil
-	}
-	values, err := texts(c.Values)
-	if err != nil {
-		return "", err
-	}
-	var ids []int64
-	var each func(id int64) string
-	if kind, ok := conditionTagKinds[c.Field]; ok {
-		for _, name := range values {
-			var id int64
-			err := tx.QueryRowContext(ctx, `SELECT id FROM tags WHERE kind = ? AND norm_name = ?`, kind, normTag(name)).Scan(&id)
-			if err != nil && !errors.Is(err, sql.ErrNoRows) {
-				return "", err
-			}
-			ids = append(ids, id) // 0 is a name no title carries: it matches nothing
-		}
-		each = func(id int64) string {
-			return fmt.Sprintf("EXISTS (SELECT 1 FROM item_tags t WHERE t.item_id = i.id AND t.tag_id = %d)", id)
-		}
-	} else if role, ok := conditionRoles[c.Field]; ok {
-		for _, publicID := range values {
-			var id int64
-			err := tx.QueryRowContext(ctx, `SELECT id FROM people WHERE public_id = ?`, publicID).Scan(&id)
-			if err != nil && !errors.Is(err, sql.ErrNoRows) {
-				return "", err
-			}
-			ids = append(ids, id)
-		}
-		each = func(id int64) string {
-			return fmt.Sprintf("EXISTS (SELECT 1 FROM credits k WHERE k.person_id = %d AND k.role = %d AND k.item_id = i.id)", id, role)
-		}
-	} else if c.Field == "language" {
-		args := make([]string, len(values))
-		for n, v := range values {
-			args[n] = q.arg(strings.ToLower(v))
-		}
-		return fmt.Sprintf(`EXISTS (SELECT 1 FROM media m JOIN media_parts p ON p.media_id = m.id JOIN media_streams st ON st.file_id = p.file_id
-			WHERE m.item_id = i.id AND st.kind = %d AND lower(st.language) IN (%s))`, StreamAudio, strings.Join(args, ", ")), nil
-	} else { // collection
-		for _, publicID := range values {
-			var id int64
-			err := tx.QueryRowContext(ctx, `SELECT id FROM items WHERE public_id = ? AND kind = ?`, publicID, KindCollection).Scan(&id)
-			if err != nil && !errors.Is(err, sql.ErrNoRows) {
-				return "", err
-			}
-			ids = append(ids, id)
-		}
-		each = func(id int64) string {
-			return fmt.Sprintf("EXISTS (SELECT 1 FROM item_relations r WHERE r.item_id = %d AND r.kind = %d AND r.related_item_id = i.id)",
-				id, RelationCollectionMember)
-		}
-	}
-	parts := make([]string, len(ids))
-	for n, id := range ids {
-		parts[n] = each(id)
-	}
-	joiner := " OR "
-	if c.Op == "all" {
-		joiner = " AND "
 	}
 	return strings.Join(parts, joiner), nil
 }
