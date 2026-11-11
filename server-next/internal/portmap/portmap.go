@@ -143,6 +143,11 @@ func (m *Mapper) Run(ctx context.Context) {
 		case <-m.kick:
 		case <-timer.C:
 		}
+		// A request to look again that came in before this round is answered by it.
+		select {
+		case <-m.kick:
+		default:
+		}
 		next := m.round(ctx)
 		m.mu.Lock()
 		close(m.rounds)
