@@ -24,7 +24,8 @@ type System struct {
 	// Warnings are for the person setting the server up, and are sent only until the owner
 	// account exists: today, that this request arrived from the server's network gateway, so
 	// the server cannot tell home from away as it is set up. The codes are those of the
-	// owner's network settings, where the same warning is shown afterwards.
+	// owner's network settings, where the same warning is shown afterwards with the
+	// gateway's address, which is left out here.
 	Warnings []Warning `json:"warnings,omitempty"`
 }
 
@@ -58,7 +59,7 @@ func (s *Server) systemRoutes() {
 		}
 		// Setup works from any network. This only tells whoever is doing it what to expect.
 		if gateway, from := s.fromGateway(r); from && !hasUsers {
-			if w, ok := gatewayWarning(s.networks(), gateway, s.networks().Home); ok {
+			if w, ok := gatewayWarning(s.networks(), gateway, s.networks().Home, false); ok {
 				out.Warnings = []Warning{w}
 			}
 		}
