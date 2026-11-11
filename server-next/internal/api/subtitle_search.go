@@ -90,10 +90,12 @@ func (m *subtitleSearches) keep(key searchKey, results []metadata.SubtitleResult
 		}
 	}
 	entry := m.entries[key]
-	if entry == nil {
-		if len(m.entries) >= maxSearches && oldest != nil {
-			delete(m.entries, *oldest)
-		}
+	if entry == nil && len(m.entries) >= maxSearches && oldest != nil {
+		delete(m.entries, *oldest)
+	}
+	// A search that would go past the limit starts afresh, so the latest search can always be
+	// downloaded from, however many searches came before it.
+	if entry == nil || len(entry.results)+len(results) > maxResultsKept {
 		entry = &searchEntry{results: map[string]metadata.SubtitleResult{}}
 		m.entries[key] = entry
 	}

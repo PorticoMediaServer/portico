@@ -27,6 +27,9 @@ type Service struct {
 	// SubtitleDir is the folder in the data folder that downloaded subtitles are kept in. The
 	// subtitle provider is set with UseSubtitles, as the owner saves its key and account.
 	SubtitleDir string
+	// subtitleFiles keeps a download's "write the file, add its row" apart from a removal's
+	// "remove the row, remove the file", so a listed subtitle always has its file.
+	subtitleFiles sync.Mutex
 
 	mu        sync.RWMutex // guards Providers and subtitles
 	subtitles SubtitleProvider
