@@ -45,6 +45,10 @@ type Options struct {
 	Helper string
 	// Libraries are extra exact dependency files for the sandbox.
 	Libraries []string
+	// DataFolder is the server's data folder. A folder the owner names for hardware
+	// jobs (LIBVA_DRIVERS_PATH, LD_LIBRARY_PATH) is never shown to them if it is or
+	// contains this one.
+	DataFolder string
 	// SkipOrphanKill leaves the previous runs' media process groups alone. The
 	// server sets it when the single-instance lock is unavailable: without the
 	// lock another server may still be running against this state directory,
@@ -59,6 +63,7 @@ var configured struct {
 	instance      string
 	libraries     []string
 	instanceGuard bool
+	dataFolder    string
 }
 
 // Configure enables the limits shim and the orphan ledger, and reaps the media
@@ -104,7 +109,9 @@ func Configure(o Options) (int, error) {
 	configured.helper, configured.ledger, configured.instance = helper, ledger, instanceID
 	configured.instanceGuard = guard
 	configured.libraries = append([]string{}, o.Libraries...)
+	configured.dataFolder = resolvedFolder(o.DataFolder)
 	configured.Unlock()
+	reportOwnerFolders()
 	if ledger == "" {
 		return 0, nil
 	}
