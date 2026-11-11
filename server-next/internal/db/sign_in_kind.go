@@ -81,20 +81,23 @@ type SwitchCounts struct {
 func (d *DB) SignInCounts(ctx context.Context, ownerID int64, now time.Time) (SwitchCounts, error) {
 	var c SwitchCounts
 	err := d.read.QueryRowContext(ctx, `SELECT
-		(SELECT count(*) FROM users WHERE id <> ?1 AND state = 'active'),
+		(SELECT count(*) FROM users WHERE id <> ?1 AND state = 'active' AND disabled_at IS NULL),
 		(SELECT count(*) FROM users WHERE id <> ?1),
 		(SELECT count(*) FROM profiles),
 		(SELECT count(*) FROM profiles WHERE user_id <> ?1),
 		(SELECT count(*) FROM sessions WHERE revoked_at IS NULL AND expires_at > ?2),
 		(SELECT count(*) FROM invitations WHERE state = 'open' AND expires_at > ?2),
 		(SELECT count(*) FROM api_keys WHERE user_id <> ?1 AND revoked_at IS NULL),
-		(SELECT count(*) FROM users WHERE state = 'waiting')`, ownerID, now.UnixMilli()).
+		(SELECT count(*) FROM users WHERE state = 'waiting' AND disabled_at IS NULL)`, ownerID, now.UnixMilli()).
 		Scan(&c.People, &c.OtherAccounts, &c.Profiles, &c.OtherProfiles, &c.SignedIn, &c.Invitations, &c.Keys, &c.Waiting)
 	return c, err
 }
 
 // Switch is the owner confirming a change of the kind of sign-in.
 type Switch struct {
+	// Proof is the owner's current password (and two-step code), proven in the switch's own
+	// commit; nil on a server that uses Portico Accounts, where the owner has no password.
+	Proof   *PasswordProof
 	OwnerID int64
 	// To is "local" or "portico".
 	To        string
@@ -113,7 +116,14 @@ type Switch struct {
 // A username or Portico Account another account has is ErrConflict.
 func (d *DB) SwitchSignIn(ctx context.Context, sw Switch) (SessionState, error) {
 	var out SessionState
+	var refused error
 	stamp, err := d.writeSessionsStamped(ctx, func(tx *sql.Tx, c *changes) error {
+		refused = nil
+		if sw.Proof != nil {
+			if ok, err := proven(tx, sw.Now, *sw.Proof, &refused); err != nil || !ok {
+				return err
+			}
+		}
 		var role string
 		if err := tx.QueryRow(`SELECT role FROM users WHERE id = ?`, sw.OwnerID).Scan(&role); err != nil || role != "owner" {
 			return errors.Join(ErrNotPermitted, err)
@@ -145,7 +155,7 @@ func (d *DB) SwitchSignIn(ctx context.Context, sw Switch) (SessionState, error) 
 				return err
 			}
 		} else {
-			if _, err := tx.Exec(`UPDATE users SET state = 'waiting', updated_at = ? WHERE id <> ? AND state = 'active'`, at, sw.OwnerID); err != nil {
+			if _, err := tx.Exec(`UPDATE users SET state = 'waiting', updated_at = ? WHERE id <> ? AND state = 'active' AND disabled_at IS NULL`, at, sw.OwnerID); err != nil {
 				return err
 			}
 			raw, _ := json.Marshal(Move{To: sw.To, AtMs: at})
@@ -213,6 +223,9 @@ func (d *DB) SwitchSignIn(ctx context.Context, sw Switch) (SessionState, error) 
 		out, err = startSession(tx, sw.OwnerID, sw.Session, sw.Now)
 		return err
 	})
+	if err == nil {
+		err = refused
+	}
 	out.Stamp = stamp
 	return out, err
 }
@@ -251,7 +264,7 @@ type Waiting struct {
 func (d *DB) WaitingAccounts(ctx context.Context, now time.Time) ([]Waiting, error) {
 	rows, err := d.read.QueryContext(ctx, `SELECT u.id, u.public_id, u.username,
 			ifnull((SELECT max(expires_at) FROM auth_codes a WHERE a.user_id = u.id AND a.kind = 'move' AND a.used_at IS NULL AND a.expires_at > ?), 0)
-		FROM users u WHERE u.state = 'waiting' ORDER BY u.username`, now.UnixMilli())
+		FROM users u WHERE u.state = 'waiting' AND u.disabled_at IS NULL ORDER BY u.username`, now.UnixMilli())
 	if err != nil {
 		return nil, err
 	}
@@ -287,11 +300,12 @@ func (d *DB) IssueMoveCodes(ctx context.Context, actorID int64, actorRole string
 			if err != nil {
 				return err
 			}
+			// An account the owner turned off stays off through any switch and gets no code.
 			var state string
 			if err := tx.QueryRow(`SELECT state FROM users WHERE id = ?`, m.ID).Scan(&state); err != nil {
 				return err
 			}
-			if state != "waiting" {
+			if state != "waiting" || m.Disabled {
 				return ErrConflict
 			}
 			if _, err := tx.Exec(`DELETE FROM auth_codes WHERE user_id = ? AND kind = 'move'`, m.ID); err != nil {
@@ -313,7 +327,7 @@ func (d *DB) IssueMoveCodes(ctx context.Context, actorID int64, actorRole string
 func (d *DB) MoveCodeAccount(ctx context.Context, hash string, now time.Time) (Account, error) {
 	var id int64
 	err := d.read.QueryRowContext(ctx, `SELECT a.user_id FROM auth_codes a JOIN users u ON u.id = a.user_id
-		WHERE a.code_hash = ? AND a.kind = 'move' AND a.used_at IS NULL AND a.expires_at > ? AND u.state = 'waiting'`,
+		WHERE a.code_hash = ? AND a.kind = 'move' AND a.used_at IS NULL AND a.expires_at > ? AND u.state = 'waiting' AND u.disabled_at IS NULL`,
 		hash, now.UnixMilli()).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Account{}, ErrBadCredentials
