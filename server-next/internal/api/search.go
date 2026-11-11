@@ -70,6 +70,7 @@ func searchRefusal(err error) error {
 }
 
 func (s *Server) searchRoutes() {
+	s.genreRoutes()
 	// q is what was typed. With no kind, every group comes with its first results (limit, 12
 	// by default, at most 40). With kind, that group comes a page at a time (cursor, limit),
 	// best match first or by sort (title; for titles also year or added) and order (asc,
