@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"path"
@@ -37,12 +38,20 @@ func NewWebDAV(address, user, password string) (*WebDAV, error) {
 	if err != nil || (base.Scheme != "http" && base.Scheme != "https") || base.Host == "" || base.User != nil || base.RawQuery != "" || base.Fragment != "" {
 		return nil, errors.New("a WebDAV address starts with http:// or https:// and has no user name, query or # in it")
 	}
+	if kind, _ := textKind(base.Hostname()); kind == linkLocalAddress {
+		return nil, ErrAddressRefused
+	}
 	if !strings.HasSuffix(base.Path, "/") {
 		base.Path += "/"
 	}
 	base.RawPath = ""
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.ResponseHeaderTimeout = 30 * time.Second
+	// What a name resolves to is checked as it is dialed, every time, for the request dialing.
+	transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+		dialer := net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second, Control: dialControl(ctx)}
+		return dialer.DialContext(ctx, network, address)
+	}
 	client := &http.Client{Transport: transport, CheckRedirect: func(req *http.Request, via []*http.Request) error {
 		// A debrid service sends a file's bytes from another host. The password never goes
 		// to it (Go drops it when the host changes), and never over http after https.
@@ -52,7 +61,11 @@ func NewWebDAV(address, user, password string) (*WebDAV, error) {
 		if req.URL.Scheme != "https" && via[0].URL.Scheme == "https" {
 			return errors.New("the WebDAV server redirected from https to http")
 		}
-		return nil
+		from := make([]*url.URL, len(via))
+		for i, v := range via {
+			from[i] = v.URL
+		}
+		return checkRedirect(req.URL, from, req.Context())
 	}}
 	return &WebDAV{base: base, user: user, password: password, client: client}, nil
 }
@@ -73,7 +86,7 @@ func (w *WebDAV) at(p string, dir bool) (*url.URL, error) {
 }
 
 func (w *WebDAV) request(ctx context.Context, method string, u *url.URL, body string, header http.Header) (*http.Response, error) {
-	req, err := http.NewRequestWithContext(ctx, method, u.String(), strings.NewReader(body))
+	req, err := http.NewRequestWithContext(withChain(ctx), method, u.String(), strings.NewReader(body))
 	if err != nil {
 		return nil, err
 	}

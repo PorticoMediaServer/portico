@@ -72,6 +72,9 @@ func ParseRcloneConfig(text string) (map[string]string, error) {
 	if options["type"] == "" || !rcloneKey.MatchString(options["type"]) {
 		return nil, errors.New("the rclone configuration does not say the remote's type")
 	}
+	if err := rcloneAddressRefusal(options); err != nil {
+		return nil, err
+	}
 	if rcloneRefusedTypes[options["type"]] {
 		return nil, fmt.Errorf("a remote of type %q reads this computer's own disk or wraps another remote, which Portico does not allow", options["type"])
 	}
@@ -182,6 +185,9 @@ func (r *rclone) current(ctx context.Context) (*WebDAV, error) {
 		default:
 			return r.dav, nil
 		}
+	}
+	if err := checkRcloneHost(ctx, r.options); err != nil {
+		return nil, err
 	}
 	var secret [16]byte
 	rand.Read(secret[:])
