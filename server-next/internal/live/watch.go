@@ -22,6 +22,10 @@ type Viewing struct {
 	use       *Use
 	Paused    bool
 	Lease     time.Time
+	// CountdownTo, when set, is when this stream stops so a recording can take its tuner, and
+	// CountdownReason says so in a sentence.
+	CountdownTo     time.Time
+	CountdownReason string
 }
 
 // Viewings holds every live viewing.
@@ -155,5 +159,38 @@ func (v *Viewings) Run(ctx context.Context) {
 		for _, w := range gone {
 			v.Stop(w.ID, w.UserID)
 		}
+	}
+}
+
+// OnSource lists the viewings watching a source's channels other than one, for a recording
+// that needs one of their tuners. The oldest come first.
+func (v *Viewings) OnSource(sourceID, exceptChannel int64) []string {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	var out []string
+	for id, w := range v.byID {
+		if w.Input.SourceID == sourceID && w.Input.ChannelID != exceptChannel {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+// Warn tells a viewing, through its session, that its stream stops at until and why.
+func (v *Viewings) Warn(id string, until time.Time, reason string) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if w := v.byID[id]; w != nil {
+		w.CountdownTo, w.CountdownReason = until, reason
+	}
+}
+
+// End stops a viewing whatever account it belongs to: the recorder taking its tuner.
+func (v *Viewings) End(id string) {
+	v.mu.Lock()
+	w := v.byID[id]
+	v.mu.Unlock()
+	if w != nil {
+		v.Stop(id, w.UserID)
 	}
 }
