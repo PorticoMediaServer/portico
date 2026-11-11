@@ -53,7 +53,8 @@ func oldServerData(data string) error {
 	}
 	for _, old := range []string{filepath.Join("Database", "server.sqlite"), "server.sqlite"} {
 		if _, err := os.Stat(filepath.Join(data, old)); err == nil {
-			return errors.New("the data folder " + data + " holds the data of an earlier Portico server, which this version cannot read: choose another data folder, or move that one away")
+			return errors.New("the data folder " + data + " holds the data of an earlier Portico server, which this version cannot read: " +
+				"choose another data folder (-data, or PORTICO_DATA_DIR), or move that one away")
 		}
 	}
 	return nil
