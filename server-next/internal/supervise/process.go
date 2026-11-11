@@ -27,6 +27,7 @@ func Process(ctx context.Context, executable string, args []string) error {
 		cmd := exec.Command(executable, args...)
 		cmd.Env = append(os.Environ(), WorkerEnvironment+"=1")
 		cmd.Stdin, cmd.Stdout, cmd.Stderr = reader, os.Stdout, os.Stderr
+		noConsole(cmd)
 		err = cmd.Start()
 		reader.Close()
 		if err != nil {
