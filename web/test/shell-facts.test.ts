@@ -127,3 +127,11 @@ test('guide Retry-After remains binding when later hints switch server, live-sou
   await h.time.advance(1);assert.equal(guideReads(),2,'all three groups coalesce at the original response-time floor');
   assert.equal(h.counts().retired,0);h.dispose();assert.equal(h.time.pending(),0);
 });
+
+test('a server without Live TV answers the guide read with 404: that is no guide, never "Can\'t reach" the server', async () => {
+  const h=harness();
+  h.guideFailure(Object.assign(new Error('This is not available.'),{status:404,code:'not_found'}));
+  h.owner.request('server');await h.time.advance(60_000);
+  assert.equal(h.hub.getReachability(),'reachable');
+  h.dispose();
+});
