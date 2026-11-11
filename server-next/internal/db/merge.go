@@ -141,6 +141,10 @@ func mergeInto(b *batchTx, library, from, into, now int64) error {
 			return err
 		}
 	}
+	// The title now has the other's versions too, and is as wide as the widest of them all.
+	if err := b.versionsChanged(into); err != nil {
+		return err
+	}
 	type child struct {
 		id    int64
 		kind  ItemKind
