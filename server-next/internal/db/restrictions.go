@@ -26,6 +26,98 @@ type Restrictions struct {
 	// screen can say where the account is the stricter of the two.
 	AccountAllLibraries bool
 	AccountLibraries    []string
+	// Account is what the owner holds the whole account to. It applies as well as the above.
+	Account AccountLimits
+}
+
+// AccountLimits are what the owner holds a whole account, every profile of it, to. The
+// account's own person cannot lift them; what they set on a profile applies on top.
+type AccountLimits struct {
+	MaxRatingAge  *int
+	AllowUnrated  bool
+	BlockedLabels []string
+}
+
+func accountLimits(tx *sql.Tx, userID int64) (AccountLimits, error) {
+	var out AccountLimits
+	if err := tx.QueryRow(`SELECT max_rating_age, allow_unrated FROM users WHERE id = ?`, userID).Scan(&out.MaxRatingAge, &out.AllowUnrated); err != nil {
+		return out, err
+	}
+	var err error
+	out.BlockedLabels, err = publicIDs(tx, `SELECT t.public_id FROM account_restrictions r JOIN tags t ON t.id = r.tag_id WHERE r.user_id = ? ORDER BY t.norm_name`, userID)
+	return out, err
+}
+
+// labelIDs resolves the public ids of labels, refusing any that does not exist.
+func labelIDs(tx *sql.Tx, publicIDs []string) ([]int64, error) {
+	var labels []int64
+	for _, label := range publicIDs {
+		var tag int64
+		err := tx.QueryRow(`SELECT id FROM tags WHERE public_id = ? AND kind = ?`, label, TagLabel).Scan(&tag)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrUnknownLabel
+		}
+		if err != nil {
+			return nil, err
+		}
+		labels = append(labels, tag)
+	}
+	return labels, nil
+}
+
+// MemberLimits returns what an account the actor may manage is held to.
+func (d *DB) MemberLimits(ctx context.Context, actorID int64, actorRole, publicID string) (AccountLimits, error) {
+	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return AccountLimits{}, err
+	}
+	defer tx.Rollback()
+	m, err := managed(tx, actorID, actorRole, publicID)
+	if err != nil {
+		return AccountLimits{}, err
+	}
+	return accountLimits(tx, m.ID)
+}
+
+// SetMemberLimits replaces what an account the actor may manage is held to. Every profile
+// of the account is told its access changed and its sign-ins take new tokens, so a title
+// already playing that is now out of reach stops; nobody is signed out.
+func (d *DB) SetMemberLimits(ctx context.Context, actorID int64, actorRole, publicID string, l AccountLimits, now time.Time) (AccountLimits, error) {
+	var out AccountLimits
+	err := d.writeSessions(ctx, func(tx *sql.Tx, c *changes) error {
+		m, err := managed(tx, actorID, actorRole, publicID)
+		if err != nil {
+			return err
+		}
+		labels, err := labelIDs(tx, l.BlockedLabels)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`UPDATE users SET max_rating_age = ?, allow_unrated = ?, updated_at = ?, revision = revision + 1 WHERE id = ?`,
+			l.MaxRatingAge, l.AllowUnrated, now.UnixMilli(), m.ID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`DELETE FROM account_restrictions WHERE user_id = ?`, m.ID); err != nil {
+			return err
+		}
+		for _, tag := range labels {
+			if _, err := tx.Exec(`INSERT INTO account_restrictions (user_id, tag_id) VALUES (?, ?) ON CONFLICT DO NOTHING`, m.ID, tag); err != nil {
+				return err
+			}
+		}
+		if err := accessChanged(tx, now, `user_id = ?`, m.ID); err != nil {
+			return err
+		}
+		if err := markStale(tx, c, `user_id = ?`, m.ID); err != nil {
+			return err
+		}
+		if err := audit(tx, actorID, "member.update", m.PublicID, m.Username+": limits", now); err != nil {
+			return err
+		}
+		out, err = accountLimits(tx, m.ID)
+		return err
+	})
+	return out, err
 }
 
 func publicIDs(q interface {
@@ -64,7 +156,10 @@ func restrictions(tx *sql.Tx, userID int64, publicID string) (int64, Restriction
 	if out.Libraries, err = publicIDs(tx, `SELECT l.public_id FROM library_access a JOIN libraries l ON l.id = a.library_id WHERE a.profile_id = ? ORDER BY l.id`, id); err != nil {
 		return 0, out, err
 	}
-	out.AccountLibraries, err = publicIDs(tx, `SELECT l.public_id FROM library_access a JOIN libraries l ON l.id = a.library_id WHERE a.user_id = ? ORDER BY l.id`, userID)
+	if out.AccountLibraries, err = publicIDs(tx, `SELECT l.public_id FROM library_access a JOIN libraries l ON l.id = a.library_id WHERE a.user_id = ? ORDER BY l.id`, userID); err != nil {
+		return 0, out, err
+	}
+	out.Account, err = accountLimits(tx, userID)
 	return id, out, err
 }
 
@@ -95,17 +190,9 @@ func (d *DB) SetProfileRestrictions(ctx context.Context, userID int64, publicID 
 		if err != nil {
 			return err
 		}
-		var labels []int64
-		for _, label := range r.BlockedLabels {
-			var tag int64
-			err := tx.QueryRow(`SELECT id FROM tags WHERE public_id = ? AND kind = ?`, label, TagLabel).Scan(&tag)
-			if errors.Is(err, sql.ErrNoRows) {
-				return ErrUnknownLabel
-			}
-			if err != nil {
-				return err
-			}
-			labels = append(labels, tag)
+		labels, err := labelIDs(tx, r.BlockedLabels)
+		if err != nil {
+			return err
 		}
 		if _, err := tx.Exec(`UPDATE profiles SET max_rating_age = ?, allow_unrated = ?, all_libraries = ?, updated_at = ? WHERE id = ?`,
 			r.MaxRatingAge, r.AllowUnrated, r.AllLibraries, now.UnixMilli(), id); err != nil {

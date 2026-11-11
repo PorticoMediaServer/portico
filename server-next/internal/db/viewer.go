@@ -31,9 +31,9 @@ type access struct {
 	known        bool    // the profile exists and belongs to the account
 	allLibraries bool    // no library limit on the account or the profile
 	libraries    []int64 // otherwise, the libraries both allow
-	maxAge       *int    // the profile's rating limit
+	maxAge       *int    // the lower of the account's rating limit and the profile's
 	allowUnrated bool    // with a limit: whether a title with no rating is shown
-	blockedTags  []int64 // labels the profile must never be shown
+	blockedTags  []int64 // labels the account or the profile must never be shown
 }
 
 func ids(ctx context.Context, tx *sql.Tx, query string, args ...any) ([]int64, error) {
@@ -56,8 +56,11 @@ func ids(ctx context.Context, tx *sql.Tx, query string, args ...any) ([]int64, e
 func loadAccess(ctx context.Context, tx *sql.Tx, v Viewer) (access, error) {
 	var a access
 	var userAll, profileAll bool
-	err := tx.QueryRowContext(ctx, `SELECT u.all_libraries, p.all_libraries, p.max_rating_age, p.allow_unrated FROM profiles p
-		JOIN users u ON u.id = p.user_id WHERE p.id = ? AND u.id = ?`, v.ProfileID, v.UserID).Scan(&userAll, &profileAll, &a.maxAge, &a.allowUnrated)
+	var accountAge *int
+	var accountUnrated bool
+	err := tx.QueryRowContext(ctx, `SELECT u.all_libraries, p.all_libraries, p.max_rating_age, p.allow_unrated, u.max_rating_age, u.allow_unrated FROM profiles p
+		JOIN users u ON u.id = p.user_id WHERE p.id = ? AND u.id = ?`, v.ProfileID, v.UserID).
+		Scan(&userAll, &profileAll, &a.maxAge, &a.allowUnrated, &accountAge, &accountUnrated)
 	if errors.Is(err, sql.ErrNoRows) {
 		return a, nil
 	}
@@ -65,6 +68,15 @@ func loadAccess(ctx context.Context, tx *sql.Tx, v Viewer) (access, error) {
 		return a, err
 	}
 	a.known, a.allLibraries = true, userAll && profileAll
+	// The owner's limit on the whole account and the profile's own both apply: the lower
+	// age wins, and an unrated title is shown only if every limit that is set allows it.
+	if accountAge != nil {
+		if a.maxAge == nil {
+			a.maxAge, a.allowUnrated = accountAge, accountUnrated
+		} else {
+			a.maxAge, a.allowUnrated = new(min(*a.maxAge, *accountAge)), a.allowUnrated && accountUnrated
+		}
+	}
 	if !a.allLibraries {
 		// The account must be allowed the library, and so must the profile.
 		if a.libraries, err = ids(ctx, tx, `SELECT id FROM libraries WHERE
@@ -74,7 +86,8 @@ func loadAccess(ctx context.Context, tx *sql.Tx, v Viewer) (access, error) {
 			return a, err
 		}
 	}
-	a.blockedTags, err = ids(ctx, tx, `SELECT tag_id FROM profile_restrictions WHERE profile_id = ?`, v.ProfileID)
+	a.blockedTags, err = ids(ctx, tx, `SELECT tag_id FROM profile_restrictions WHERE profile_id = ?
+		UNION SELECT tag_id FROM account_restrictions WHERE user_id = ?`, v.ProfileID, v.UserID)
 	return a, err
 }
 

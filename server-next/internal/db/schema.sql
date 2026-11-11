@@ -502,6 +502,8 @@ CREATE INDEX metadata_history_item ON metadata_history (item_id, id);
 -- two_factor_last_step is the last authenticator time step accepted, so one code works once.
 -- viewing_hours is the times of the week the account may be used, as JSON; NULL is any time.
 -- home_only limits the account to the owner's home networks.
+-- max_rating_age and allow_unrated are the limit the owner holds the whole account to: every
+-- profile of the account is kept within it, whatever the account's own person sets on a profile.
 -- max_profiles is how many profiles the account may have when the owner lowered it; NULL is eight.
 CREATE TABLE users (
   id                  INTEGER NOT NULL PRIMARY KEY,
@@ -518,6 +520,8 @@ CREATE TABLE users (
   disabled_at         INTEGER,
   viewing_hours       TEXT,
   home_only           INTEGER NOT NULL DEFAULT 0 CHECK (home_only IN (0, 1)),
+  max_rating_age      INTEGER,
+  allow_unrated       INTEGER NOT NULL DEFAULT 0 CHECK (allow_unrated IN (0, 1)),
   max_profiles        INTEGER,
   notes               TEXT,
   extra               TEXT,
@@ -598,6 +602,14 @@ CREATE TABLE profile_restrictions (
   PRIMARY KEY (profile_id, tag_id)
 ) STRICT, WITHOUT ROWID;
 CREATE INDEX profile_restrictions_tag ON profile_restrictions (tag_id);
+
+-- Labels the owner keeps from every profile of an account. The account's own person cannot lift them.
+CREATE TABLE account_restrictions (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  tag_id  INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+  PRIMARY KEY (user_id, tag_id)
+) STRICT, WITHOUT ROWID;
+CREATE INDEX account_restrictions_tag ON account_restrictions (tag_id);
 
 -- One row per sign-in. The refresh token rotates on each renewal. The previous token's hash and
 -- the request id it was renewed with are kept until the next renewal, so a renewal whose reply
