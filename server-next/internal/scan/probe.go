@@ -41,6 +41,7 @@ type Facts struct {
 var (
 	ErrDamaged     = errors.New("the file is damaged")
 	ErrUnsupported = errors.New("the file is of a kind that is not supported")
+	ErrEncrypted   = errors.New("the disc is copy-protected")
 	ErrNotMedia    = errors.New("the file is not a media file")
 )
 
@@ -126,6 +127,8 @@ func (r *run) probeFile(file db.UnprobedFile, src Source, local string) *db.Prob
 		probe.Problem = db.ProblemDamaged
 	case errors.Is(err, ErrUnsupported):
 		probe.Problem = db.ProblemUnsupported
+	case errors.Is(err, ErrEncrypted):
+		probe.Problem = db.ProblemEncryptedDisc
 	case errors.Is(err, ErrNotMedia):
 		probe.Problem = db.ProblemNotMedia
 	default:
