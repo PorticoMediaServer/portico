@@ -52,15 +52,26 @@ func Open(ctx context.Context, source io.ReaderAt, size int64) (*Bridge, error) 
 		return nil, ErrInput
 	}
 	var listeners []net.Listener
-	ipv4, err := listenIPv4()
+	ipv4, err := listenIPv4(0)
 	var ipv6 *net.TCPListener
 	if err != nil {
-		// A host with IPv6 loopback only: the tool is told [::1].
+		// 127.0.0.1 could not be bound. Bind [::1], then the same port on IPv4: a host that
+		// has IPv4 loopback after all (its ports ran out a moment ago) is refused rather than
+		// left with this port unheld there; a host with IPv6 loopback only is told [::1].
 		if ipv6, err = listenIPv6(0); err != nil {
 			return nil, err
 		}
-		ipv4 = nil
-		listeners = append(listeners, ipv6)
+		port := ipv6.Addr().(*net.TCPAddr).Port
+		if ipv4, err = listenIPv4(port); err == nil {
+			listeners = append(listeners, ipv4, ipv6)
+		} else if probe, probeErr := listenIPv4(0); probeErr == nil {
+			probe.Close()
+			ipv6.Close()
+			return nil, err
+		} else {
+			ipv4 = nil
+			listeners = append(listeners, ipv6)
+		}
 	} else {
 		listeners = append(listeners, ipv4)
 		ipv6, err = listenIPv6(ipv4.Addr().(*net.TCPAddr).Port)
@@ -103,8 +114,8 @@ func Open(ctx context.Context, source io.ReaderAt, size int64) (*Bridge, error) 
 
 // listenIPv4 and listenIPv6 are replaced in tests to stand in for a host without one of
 // the two loopbacks.
-var listenIPv4 = func() (*net.TCPListener, error) {
-	return net.ListenTCP("tcp4", &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1)})
+var listenIPv4 = func(port int) (*net.TCPListener, error) {
+	return net.ListenTCP("tcp4", &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: port})
 }
 
 var listenIPv6 = func(port int) (*net.TCPListener, error) {
