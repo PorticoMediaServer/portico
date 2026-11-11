@@ -4,12 +4,11 @@ import type {SettingsRow} from '@core/presentation/settings-spec.ts';
 import type {SettingPresentation} from '../../../kit/settings';
 import {Icon} from '../../../kit/Icon';
 import type {SettingsPageSnapshot} from '../Settings';
-import type {SettingsBackupSource} from '../backup-source';
+import type {ServerBackupSource} from '../backup-source';
 import {StorageBackupFolder, StorageBackupNow, StorageBackups, StorageRestoreFile, type BackupSurfaceProps} from './Backups';
 import {SettingsCacheSource} from './cache-source';
 import {EmptyCache} from './EmptyCache';
 import {StorageDataFolder, StorageUsage} from './StorageUsage';
-import {BackupProtection} from '../server-storage/BackupProtection';
 import {DownloadsUsage} from '../server-storage/DownloadsUsage';
 import {DownloadRemovalSource} from '../server-storage/download-removal-source';
 import {DownloadsUsageSource} from '../server-storage/downloads-usage-source';
@@ -33,7 +32,7 @@ export type SettingsServerSurfaces = Readonly<{
 export type SettingsServerOptions = Readonly<{
   transport: StorageTransport; serverId: string; isCurrent: () => boolean; openTarget: (target: SettingsTarget) => void;
   /** The controller's own owner-scoped backup reader; it is already loaded for this section. */
-  backups: SettingsBackupSource; subscribe: (listener: () => void) => () => void; scopeKey: string; reportError: (error: unknown) => void;
+  backups: ServerBackupSource; subscribe: (listener: () => void) => () => void; scopeKey: string; reportError: (error: unknown) => void;
 }>;
 
 /** Owner-only Storage facts and controls. One shared sweep feeds both drawn rows. */
@@ -45,7 +44,7 @@ export function createServerSettingsSurfaces(options: SettingsServerOptions): Se
   const backups: BackupSurfaceProps = {source: options.backups, subscribe: options.subscribe, isCurrent: options.isCurrent, scopeKey: options.scopeKey, reportError: options.reportError};
   const facts = (): StorageRowFacts => {
     const snapshot = options.backups.getSnapshot();
-    return {live: options.isCurrent(), backups: !!snapshot.settings || !!snapshot.document, dataDirectoryOnNetwork: storage.getSnapshot().report?.stateDirectoryOnNetwork, backupProtectionKnown: typeof snapshot.settings?.passphraseProtected === 'boolean'};
+    return {live: options.isCurrent(), backups: !!snapshot.backups, dataDirectoryOnNetwork: storage.getSnapshot().report?.stateDirectoryOnNetwork, backupsReadable: snapshot.backups?.readable};
   };
   let cachedPage: {base: SettingsPageSnapshot; facts: ReturnType<typeof storage.getSnapshot>; value: SettingsPageSnapshot} | undefined;
   const pageSnapshot = (base: SettingsPageSnapshot): SettingsPageSnapshot => {
@@ -67,7 +66,6 @@ export function createServerSettingsSurfaces(options: SettingsServerOptions): Se
         : row.id === 'storage.usage' ? <StorageUsage source={storage} label={label} />
         : row.id === 'storage.downloads' ? <DownloadsUsage source={downloads} removal={downloadRemoval} label={label} />
         : row.id === 'storage.backupKeysNote' ? <span className={styles.storageNote}>{t('next.settings.backup.keysNotice')}</span>
-        : row.id === 'storage.backupPassphrase' ? <BackupProtection {...backups} label={label} />
         : row.id === 'storage.backupFolder' ? <StorageBackupFolder {...backups} api={options.transport} />
         : row.id === 'storage.backupNow' ? <StorageBackupNow {...backups} />
         : row.id === 'storage.backups' ? <StorageBackups {...backups} />

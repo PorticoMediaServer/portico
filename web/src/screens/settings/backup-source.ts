@@ -1,2 +1,2 @@
-export {SettingsBackupSource} from '@core/server-admin/backup-source.ts';
-export type {SettingsBackupSnapshot, SettingsRestoreSelection} from '@core/server-admin/backup-source.ts';
+export {ServerBackupSource} from '@core/server-admin/server-backups.ts';
+export type {ServerBackupSnapshot} from '@core/server-admin/server-backups.ts';

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type {BackupTransport} from '@core/backups.ts';
 import type {BackupsDocument} from '@core/administration.ts';
-import {SettingsBackupSource} from '../src/screens/settings/backup-source.ts';
+import {SettingsBackupSource} from '@core/server-admin/backup-source.ts';
 
 const serverId = 'captured-server';
 const settings = {backupFolder: '/actual/backups', includeArtwork: true, passphraseProtected: false, passphraseSet: false};
