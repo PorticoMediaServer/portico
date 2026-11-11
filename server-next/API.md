@@ -403,7 +403,7 @@ Home has a "Continue your books" row (`continue_reading`); books are not in Cont
 | `GET /v1/media/{grant}/pages/{n}` | Whoever holds the address | One comic or image page, no wider than `w`. A page too large to prepare safely is `422` and the rest of the book reads |
 | `GET /v1/media/{grant}/parts/{path}` | Whoever holds the address | One part of an EPUB, named in the book's own list of parts and nothing else |
 | `GET /v1/media/{grant}/source` | Whoever holds the address; saving needs a profile allowed to download | The file's own bytes by range: a PDF read in the app, and Save the file at any size |
-| `GET /v1/items/{id}/annotations` | The profile, for a book it may see | Its bookmarks, highlights and notes in the book, with those deleted since `since=` |
+| `GET /v1/items/{id}/annotations` | The profile, for a book it may see | Its bookmarks, highlights and notes in the book, in book order, a page at a time. Deleted ones are not listed: an app removes those it sent before and no longer finds (a `since=` would miss edits made out of reach, which carry the time they were made) |
 | `PUT /v1/items/{id}/annotations/{annotationId}`, `DELETE /v1/items/{id}/annotations/{annotationId}` | The profile | Add or change one (the app makes the id, so a repeat changes nothing; the 5,001st is refused); delete one everywhere |
 | `POST /v1/annotations:batch` | The profile | What a device made while out of reach; the later edit to one id wins |
 
