@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func size(t *testing.T, data []byte) (int, int, string) {
@@ -110,5 +111,36 @@ func TestPicturesOfEachKindAreNormalised(t *testing.T) {
 		if err := s.Put("55aa11bb22cc33dd", data); !errors.Is(err, ErrNotAPicture) {
 			t.Errorf("%s: %v, want refused", name, err)
 		}
+	}
+}
+
+// A picture nothing named when the sweep read the rows, but that is stored again while the
+// sweep runs (the same bytes for another title, or a provider's picture coming back), is kept:
+// the row that names it again was written after the sweep looked.
+func TestASweepKeepsAPictureStoredAgainWhileItRuns(t *testing.T) {
+	s := New(t.TempDir())
+	var file bytes.Buffer
+	png.Encode(&file, image.NewRGBA(image.Rect(0, 0, 4, 6)))
+	const kept, gone = "00aa11bb22cc33dd", "ffee11bb22cc33dd"
+	old := time.Now().Add(-2 * time.Hour)
+	for _, id := range []string{kept, gone} {
+		if err := s.Put(id, file.Bytes()); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(s.place(id, "small"), old, old); err != nil {
+			t.Fatal(err)
+		}
+	}
+	removed, err := s.Sweep(time.Now().Add(-time.Hour), func(func(string) error) error {
+		return s.Put(kept, file.Bytes()) // no row named either when the rows were read
+	})
+	if err != nil || removed != 1 {
+		t.Fatalf("removed %d, %v", removed, err)
+	}
+	if _, _, err := s.Read(kept, 0, 0); err != nil {
+		t.Fatalf("the picture stored again was taken: %v", err)
+	}
+	if _, _, err := s.Read(gone, 0, 0); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("the unused picture stayed: %v", err)
 	}
 }
