@@ -38,7 +38,13 @@ func intRange(key string, def, low, high int, scope string) Setting {
 
 func list(kind, key string, def []string, maxItems, maxLength int) Setting {
 	f := setting(key, kind, def, ScopeProfile)
-	f.maxItems, f.maxLength = maxItems, maxLength
+	f.MaxItems, f.maxLength = maxItems, maxLength
+	return f
+}
+
+func pins() Setting {
+	f := list("string-list", "pins", []string{}, 200, 128)
+	f.prefixes = []string{"playlist:", "collection:", "view:", "library:"}
 	return f
 }
 
@@ -160,6 +166,10 @@ var fields = []Setting{
 
 	list("string-list", "home.rowOrder", []string{}, 64, 128),
 	list("string-list", "home.hiddenRowIds", []string{}, 64, 128),
+	// The profile's pins, in its own order: each names a playlist, collection, saved view or
+	// library by its id. The app names them from the lists and libraries the profile may see,
+	// so a pin to something since deleted or hidden from the profile is simply not shown.
+	pins(),
 
 	flag("appearance.showBackdrops", true, ScopeDeviceClass),
 	intRange("appearance.cardSizePercent", 100, 75, 150, ScopeDeviceClass),

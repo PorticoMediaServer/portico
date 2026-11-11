@@ -49,6 +49,8 @@ func TestCheck(t *testing.T) {
 		{"playback.preferredAudioLanguages", []any{"fr", "fr"}, nil},
 		{"playback.preferredSubtitleLanguages", []any{"@original"}, nil},
 		{"home.hiddenRowIds", []any{"continue", 3.0}, nil},
+		{"pins", []any{"view:lst_1", "library:lib_1"}, []string{"view:lst_1", "library:lib_1"}},
+		{"pins", []any{"album:alb_1"}, nil},
 	} {
 		f, ok := Find(c.key)
 		if !ok {
