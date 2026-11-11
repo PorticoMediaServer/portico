@@ -160,6 +160,8 @@ type Backup struct {
 	// Pictures is how many pictures it holds.
 	Pictures int  `json:"pictures"`
 	Artwork  bool `json:"artwork"`
+	// Mark is made over the archive with this server's key; see mark.go.
+	Mark string `json:"mark,omitempty"`
 }
 
 // Service makes and keeps backups.
@@ -316,6 +318,13 @@ func (s *Service) make(ctx context.Context, id string, scheduled bool) error {
 			return err
 		}
 		desc.Size = info.Size()
+		key, err := markKey(s.DataDir)
+		if err != nil {
+			return err
+		}
+		if desc.Mark, err = markOf(key, partial); err != nil {
+			return err
+		}
 		raw, _ := json.MarshalIndent(desc, "", "  ")
 		description := filepath.Join(folder, makingPrefix+id+".json")
 		defer os.Remove(description)
