@@ -27,6 +27,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediaexec"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/titledata"
 	"github.com/PorticoMediaServer/portico/server-next/internal/serverlog"
+	"github.com/PorticoMediaServer/portico/server-next/internal/supervise"
 	"github.com/PorticoMediaServer/portico/server-next/internal/webapp"
 )
 
@@ -44,6 +45,14 @@ func main() {
 			}
 			os.Exit(0)
 		}
+	}
+	// The Windows installer's service arguments, and the service itself.
+	if handled, err := serviceCommand(); handled {
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
 	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	err := run(log)
@@ -85,6 +94,11 @@ func run(log *slog.Logger) (err error) {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	// The worker of a Windows service is told to stop by its standard input closing, which
+	// also happens if the service process dies.
+	if os.Getenv(supervise.WorkerEnvironment) == "1" {
+		supervise.WatchParent(stop, os.Stdin)
+	}
 
 	// The data folder is used from here on by its full path: the media tools' sandbox gives a
 	// conversion only an absolute output folder, so a relative one (the default) made every

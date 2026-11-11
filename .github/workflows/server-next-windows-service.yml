@@ -1,0 +1,120 @@
+name: New server as a Windows service
+# Builds the new server (server-next) for Windows and runs, on a real Windows machine, what the
+# installer runs: --service-install and --service-start, then checks the server answers, keeps
+# its data in %ProgramData%\Portico and writes its log there, then --service-stop and
+# --service-uninstall. Nothing else runs the Windows service code.
+# Not part of ci/required: it reports.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/server-next-windows-service.yml
+      - server-next/cmd/portico-server/**
+      - server-next/internal/supervise/process.go
+      - packaging/windows/**
+permissions:
+  contents: read
+concurrency:
+  group: server-next-windows-service-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  service:
+    name: Install, start, stop and remove the service
+    if: github.repository == 'PorticoMediaServer/portico'
+    runs-on: windows-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    env:
+      # A folder the service's account (LocalService) can read, unlike the runner's own.
+      INSTALL: C:\portico-ci
+      # Where a Windows service keeps its data when it is given no folder.
+      DATA: C:\ProgramData\Portico
+    steps:
+      - run: git config --global core.longpaths true
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server-next/go.mod, cache-dependency-path: server-next/go.sum}
+      - name: Build the server
+        working-directory: server-next
+        run: |
+          mkdir -p "$INSTALL"
+          CGO_ENABLED=0 go build -o "$INSTALL/portico-server.exe" ./cmd/portico-server
+      - name: --version
+        run: |
+          "$INSTALL/portico-server.exe" --version
+      - name: The health check fails while nothing is running
+        run: |
+          if "$INSTALL/portico-server.exe" --health-check; then echo "passed with no server"; exit 1; fi
+      - name: --service-install and --service-start
+        run: |
+          test ! -e "$DATA" || { echo "the runner already has a Portico data folder"; exit 1; }
+          "$INSTALL/portico-server.exe" --service-install
+          "$INSTALL/portico-server.exe" --service-start
+      - name: The server answers on loopback
+        run: |
+          for i in $(seq 1 60); do
+            if [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:32500/v1/health/ready)" = 200 ]; then echo "ready after $i s"; exit 0; fi
+            sleep 1
+          done
+          echo "not ready after 60 s"; exit 1
+      - name: --health-check
+        run: |
+          "$INSTALL/portico-server.exe" --health-check
+      - name: The data is in %ProgramData%\Portico and the log is being written
+        run: |
+          ls -la "$DATA"
+          test -f "$DATA/main.db"
+          # The log files arrive with the console's log (package serverlog). From then on this checks them.
+          if [ -d server-next/internal/serverlog ]; then
+            ls -la "$DATA/logs"
+            test -n "$(find "$DATA/logs" -type f -size +0)"
+          else
+            echo "this server has no log files yet"
+          fi
+      - name: The installing user can read the setup code
+        run: |
+          test -s "$DATA/setup-code.txt"
+      - name: A stop and a start reuse the data folder
+        run: |
+          "$INSTALL/portico-server.exe" --service-stop
+          if "$INSTALL/portico-server.exe" --health-check; then echo "still answering after the stop"; exit 1; fi
+          "$INSTALL/portico-server.exe" --service-start
+          for i in $(seq 1 60); do
+            if [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:32500/v1/health/ready)" = 200 ]; then echo "ready again after $i s"; break; fi
+            sleep 1
+          done
+          "$INSTALL/portico-server.exe" --health-check
+          test -f "$DATA/main.db"
+          test -s "$DATA/setup-code.txt"
+          # Nothing was started afresh somewhere else.
+          test ! -e "$INSTALL/data"
+      - name: --service-stop
+        run: |
+          "$INSTALL/portico-server.exe" --service-stop
+          if "$INSTALL/portico-server.exe" --health-check; then echo "still answering after the stop"; exit 1; fi
+          # The stop waits for the process, so the installer can replace the program at once.
+          cp "$INSTALL/portico-server.exe" "$INSTALL/copy.exe" && mv -f "$INSTALL/copy.exe" "$INSTALL/portico-server.exe"
+      - name: --service-uninstall
+        run: |
+          "$INSTALL/portico-server.exe" --service-uninstall
+          if sc.exe query PorticoMediaServer; then echo "the service is still there"; exit 1; fi
+          # Both succeed when there is no service, as the installer relies on.
+          "$INSTALL/portico-server.exe" --service-stop
+          "$INSTALL/portico-server.exe" --service-uninstall
+      - name: What Windows says, when a step failed
+        if: failure()
+        shell: pwsh
+        run: |
+          sc.exe query PorticoMediaServer
+          sc.exe qc PorticoMediaServer
+          Get-WinEvent -FilterHashtable @{LogName='System'; ProviderName='Service Control Manager'} -MaxEvents 15 -ErrorAction SilentlyContinue | Format-List TimeCreated, Message
+          Get-ChildItem -Recurse -ErrorAction SilentlyContinue "$env:ProgramData\Portico" | Select-Object -First 60 FullName, Length
+          Get-ChildItem -ErrorAction SilentlyContinue "$env:ProgramData\Portico\logs" | ForEach-Object { Get-Content $_.FullName -Tail 60 }
+      - name: Leave nothing behind
+        if: always()
+        run: |
+          "$INSTALL/portico-server.exe" --service-uninstall || true
