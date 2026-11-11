@@ -59,7 +59,13 @@ func fakeRclone(args []string) int {
 	dav := remotetest.NewHandler(files, "")
 	dav.User, dav.Password = os.Getenv("RCLONE_USER"), os.Getenv("RCLONE_PASS")
 	dav.BadNames = []string{"..", ".", "back%5Cslash.mkv", "slash%2Fname.mkv"}
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	addr := "127.0.0.1:0"
+	for i, arg := range args {
+		if arg == "--addr" && i+1 < len(args) {
+			addr = args[i+1]
+		}
+	}
+	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		return 1
 	}
@@ -131,5 +137,32 @@ func TestRclone(t *testing.T) {
 	wrong, _ := remote.ParseRcloneConfig("[a]\ntype = drive\ntoken = other\n")
 	if _, err := remote.NewRclone(wrong, "").List(ctx, ""); !errors.Is(err, remote.ErrNeedsAttention) {
 		t.Fatalf("a remote rclone refused: %v", err)
+	}
+}
+
+// A token rclone is given during Test connection, in place of the pasted one, is the one kept:
+// for a provider that replaces its refresh token on use the pasted one no longer works.
+func TestATokenRefreshedDuringTestConnectionIsKept(t *testing.T) {
+	fakeRcloneBinary(t)
+	kept, err := remote.Test(ctx, "rclone", remote.Config{Path: "Media"}, remote.Secret{Rclone: "[mine]\ntype = drive\ntoken = " + fakeToken + "\n"})
+	if err != nil || !strings.Contains(kept.Rclone, "token = "+refreshedToken) || strings.Count(kept.Rclone, "token =") != 1 {
+		t.Fatalf("after the test: %v %q", err, kept.Rclone)
+	}
+}
+
+// On a host with IPv6 loopback only, rclone serves on [::1] and is read there.
+func TestRcloneOnAHostWithIPv6LoopbackOnly(t *testing.T) {
+	if l, err := net.Listen("tcp6", "[::1]:0"); err != nil {
+		t.Skip("this host has no IPv6 loopback")
+	} else {
+		l.Close()
+	}
+	fakeRcloneBinary(t)
+	defer remote.SetIPv4Loopback(false)()
+	options, _ := remote.ParseRcloneConfig("[a]\ntype = drive\ntoken = " + refreshedToken + "\n")
+	src := remote.NewRclone(options, "Media")
+	defer src.Close()
+	if listed, err := src.List(ctx, "Films"); err != nil || len(listed) != 1 {
+		t.Fatalf("listing over [::1]: %v %+v", err, listed)
 	}
 }

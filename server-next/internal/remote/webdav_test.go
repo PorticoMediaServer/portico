@@ -120,3 +120,17 @@ func TestAStalledReadEnds(t *testing.T) {
 		t.Fatalf("a stalled read ended with %v after %s", err, time.Since(start))
 	}
 }
+
+// An empty file (a download that failed, say) opens as an empty file, not as a server that
+// cannot send parts of files.
+func TestAnEmptyFileOpensAsEmpty(t *testing.T) {
+	dav := remotetest.NewDAV(t, map[string]string{"Films/broken.mkv": ""})
+	src, _ := remote.NewWebDAV(dav.URL, dav.User, dav.Password)
+	file, err := src.Open(ctx, "Films/broken.mkv")
+	if err != nil || file.Size() != 0 {
+		t.Fatalf("opening an empty file: %v", err)
+	}
+	if n, err := file.ReadAt(make([]byte, 4), 0); n != 0 || err != io.EOF {
+		t.Fatalf("reading it: %d %v", n, err)
+	}
+}

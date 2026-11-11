@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -170,7 +171,12 @@ func (r *rclone) current(ctx context.Context) (*WebDAV, error) {
 	if err := os.WriteFile(config, nil, 0o600); err != nil {
 		return nil, err
 	}
-	cmd := exec.Command(RcloneBinary(), "serve", "webdav", "portico:"+r.root, "--read-only", "--addr", "127.0.0.1:0")
+	addr := "127.0.0.1:0"
+	if !ipv4Loopback() {
+		// A host with IPv6 loopback only, as the input bridge allows.
+		addr = "[::1]:0"
+	}
+	cmd := exec.Command(RcloneBinary(), "serve", "webdav", "portico:"+r.root, "--read-only", "--addr", addr)
 	// Its own process group, killed with the server if the server dies.
 	childprocess.Configure(cmd)
 	cmd.Env = []string{"RCLONE_CONFIG=" + config, "RCLONE_USER=portico", "RCLONE_PASS=" + password, "HOME=" + home, "PATH=" + os.Getenv("PATH")}
@@ -272,7 +278,16 @@ func (r *rclone) token() string {
 	return r.latest
 }
 
-var servingAt = regexp.MustCompile(`http://127\.0\.0\.1:[0-9]{1,5}/`)
+var servingAt = regexp.MustCompile(`http://(127\.0\.0\.1|\[::1\]):[0-9]{1,5}/`)
+
+// ipv4Loopback reports whether 127.0.0.1 can be listened on here. Tests replace it.
+var ipv4Loopback = func() bool {
+	l, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err == nil {
+		l.Close()
+	}
+	return err == nil
+}
 
 func (r *rclone) List(ctx context.Context, dir string) ([]Entry, error) {
 	dav, err := r.current(ctx)

@@ -114,14 +114,21 @@ func Build(kind string, c Config, s Secret) (Storage, error) {
 
 // Test reaches a source that is not saved yet: its top folder is listed once, within the
 // source's limits. A slow-down answer is waited for until ctx ends.
-func Test(ctx context.Context, kind string, c Config, s Secret) error {
+// It returns the secret to keep: the one given, with any token rclone was given in its place
+// during the test (a provider such as Box replaces its refresh token on every use, so the
+// pasted one no longer works afterwards).
+func Test(ctx context.Context, kind string, c Config, s Secret) (Secret, error) {
 	storage, err := Build(kind, c, s)
 	if err != nil {
-		return err
+		return s, err
 	}
-	defer closeStorage(storage)
+	if rc, ok := storage.(*rclone); ok {
+		rc.saved = func(token string) { withToken(kind, &s, token) }
+	}
 	_, err = Throttled(storage, NewThrottle(c.limits())).List(ctx, "")
-	return err
+	// Close waits for rclone to stop, and for its file to be read for a token one last time.
+	closeStorage(storage)
+	return s, err
 }
 
 // ErrNeedsAttention says the source's saved details no longer work as they are: the
@@ -284,6 +291,18 @@ var tokenLine = regexp.MustCompile(`(?m)^[ \t]*token[ \t]*=.*$`)
 // with it. It is kept only while the source is at the revision rclone was started for: an
 // edit the owner made since wins.
 func (r *Registry) keepToken(id, revision int64, publicID, kind string, secret *Secret, token string) {
+	if !withToken(kind, secret, token) {
+		return
+	}
+	sealed, err := r.Seal(publicID, *secret)
+	if err == nil {
+		_ = r.db.SetRemoteSourceSecret(context.Background(), id, revision, sealed)
+	}
+}
+
+// withToken writes a token rclone got into a source's secret: the pasted remote's token line,
+// or a Drive sign-in's token. It reports false for a kind that has none.
+func withToken(kind string, secret *Secret, token string) bool {
 	switch kind {
 	case "drive":
 		secret.DriveToken = token
@@ -294,12 +313,9 @@ func (r *Registry) keepToken(id, revision int64, publicID, kind string, secret *
 			secret.Rclone = strings.TrimRight(secret.Rclone, "\n") + "\ntoken = " + token + "\n"
 		}
 	default:
-		return
+		return false
 	}
-	sealed, err := r.Seal(publicID, *secret)
-	if err == nil {
-		_ = r.db.SetRemoteSourceSecret(context.Background(), id, revision, sealed)
-	}
+	return true
 }
 
 // Waiting reports whether the source was told to slow down and until when.
