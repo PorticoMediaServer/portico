@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"path"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/localmetadata"
+	"github.com/PorticoMediaServer/portico/server-next/internal/sorttext"
 )
 
 // bookUnits turns a book library's folder into books. Each file is a book; two formats of one
@@ -79,8 +81,11 @@ var issueNumber = regexp.MustCompile(`(?i)(?:^|[ #_.-])(?:#|v|vol\.? ?|issue ?)?
 
 // comicUnits turns a comic library's folder into comics. The files of a folder are the issues
 // of one series, named after the folder and numbered from their names. A file at the top of
-// the library is a comic by itself.
+// the library is a comic by itself. A folder of pictures is one comic: see imagePages.
 func (r *run) comicUnits(f *folder) []unit {
+	if pages := imagePages(f); pages != nil {
+		return r.imageComic(f, pages)
+	}
 	var units []unit
 	for _, file := range f.media {
 		if !file.touched() {
@@ -107,4 +112,82 @@ func (r *run) comicUnits(f *folder) []unit {
 		units = append(units, u)
 	}
 	return units
+}
+
+// artworkName is a picture's name, without its extension, when it is artwork for whatever is
+// in its folder and not a page.
+var artworkName = regexp.MustCompile(`(?i)^(poster|folder|fanart|backdrop|background|logo|banner|thumb|clearart|landscape)$|-(poster|fanart|logo|banner|thumb)$`)
+
+// imagePages are the pages of a folder that is a comic made of pictures, in reading order, or
+// nil for a folder that is not one. Such a folder is told apart from artwork kept beside
+// something else in three ways: it is in a comics library; nothing else in it is a comic
+// (beside a .cbz or .pdf, pictures are that comic's artwork); and at least two of its pictures
+// are not named as artwork is (poster, folder, fanart and the like), so a series folder that
+// holds only "folder.jpg" and its issues' folders is not a one-page comic. Pages are in the
+// natural order of their names (2 before 10), with a picture named "cover" first.
+func imagePages(f *folder) []*found {
+	if len(f.media) > 0 || f.rel == "" {
+		return nil
+	}
+	var pages []*found
+	real := 0
+	for _, file := range f.files {
+		if file.role != db.FileArtwork || file.problem != db.ProblemNone {
+			continue
+		}
+		stem := strings.TrimSuffix(file.entry.Name, path.Ext(file.entry.Name))
+		if !artworkName.MatchString(stem) {
+			real++
+		}
+		pages = append(pages, file)
+	}
+	if real < 2 {
+		return nil
+	}
+	order := func(file *found) string {
+		stem := strings.TrimSuffix(file.entry.Name, path.Ext(file.entry.Name))
+		if strings.EqualFold(stem, "cover") {
+			return ""
+		}
+		return sorttext.Key(stem, stem, "")
+	}
+	sort.SliceStable(pages, func(i, j int) bool { return order(pages[i]) < order(pages[j]) })
+	return pages
+}
+
+// imageComic is the one comic a folder of pictures is: an issue of the series its parent
+// folder names, or a comic by itself when the folder is at the top of the library. Its one
+// version has a part for every page, in reading order, so whoever serves the pages reads
+// them from the scanner's own list and never lists the folder.
+func (r *run) imageComic(f *folder, pages []*found) []unit {
+	touched := false
+	for _, page := range pages {
+		touched = touched || page.state != same
+		page.role = db.FileMedia
+	}
+	if !touched {
+		return nil
+	}
+	version := db.ImportVersion{Name: "images"}
+	for _, page := range pages {
+		version.Parts = append(version.Parts, db.ImportPart{File: page.ref()})
+	}
+	name := cleanName(path.Base(f.rel) + ".")
+	u := unit{files: pages}
+	parent := path.Dir(f.rel)
+	if parent == "." {
+		u.items = []db.ImportItem{{Kind: db.KindComic, Title: name, Versions: []db.ImportVersion{version},
+			Keys: []db.ItemKey{db.FolderKey(r.path.ID, f.rel), {Kind: db.KeyName, Key: "comic|" + fold(name)}}}}
+		return []unit{u}
+	}
+	series := cleanName(path.Base(parent) + ".")
+	issue := db.ImportItem{Kind: db.KindIssue, Title: name, ParentRow: 1, Versions: []db.ImportVersion{version},
+		Keys: []db.ItemKey{db.FolderKey(r.path.ID, f.rel)}, ChildKey: "issue|" + fold(name)}
+	if m := issueNumber.FindStringSubmatch(name); m != nil {
+		n, _ := strconv.Atoi(m[1])
+		issue.IndexNumber, issue.ChildKey = &n, fmt.Sprintf("i%d", n)
+	}
+	u.items = []db.ImportItem{{Kind: db.KindSeries, Title: series,
+		Keys: []db.ItemKey{{Kind: db.KeyName, Key: "series|" + fold(series)}, db.FolderKey(r.path.ID, parent)}}, issue}
+	return []unit{u}
 }
