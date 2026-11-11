@@ -3,6 +3,7 @@ package downloads
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
@@ -28,6 +29,8 @@ const (
 	RemoveWatched = "watched"
 	// RemoveNotNext: under "keep the next", the title is no longer among the next ones.
 	RemoveNotNext = "not_next"
+	// RemoveDropped: the person took the title out of the download.
+	RemoveDropped = "removed"
 )
 
 // Removal is a title the device must remove, and why.
@@ -104,6 +107,7 @@ func (s *Service) Sync(ctx context.Context, v db.Viewer, deviceID int64, platfor
 	}
 	for _, request := range requests {
 		titles := byRequest[request.ID]
+		removeDropped(request, titles, have, &out)
 		if request.KeepNext > 0 {
 			if titles, err = s.keepNext(ctx, v, request, titles, held, have, watched, &out); err != nil {
 				return out, err
@@ -131,16 +135,23 @@ func (s *Service) Sync(ctx context.Context, v db.Viewer, deviceID int64, platfor
 // request's titles as they now are.
 func (s *Service) keepNext(ctx context.Context, v db.Viewer, request db.Download, titles []db.DownloadTitle, held []Held,
 	have map[Held]bool, watched map[string]bool, out *Synced) ([]db.DownloadTitle, error) {
-	next, err := s.Titles(ctx, v, request.ItemPublicID, request.ListPublicID, "next", request.KeepNext)
-	if err != nil {
-		return titles, err
-	}
+	// A title the person took out is passed over, and its row kept so it stays out.
+	var keep []int64
 	stored := map[int64]db.DownloadTitle{}
 	for _, t := range titles {
 		stored[t.ItemID] = t
+		if t.State == db.DownloadDropped {
+			keep = append(keep, t.ItemID)
+		}
 	}
+	dropped := len(keep)
+	next, err := s.Titles(ctx, v, request.ItemPublicID, request.ListPublicID, "next", request.KeepNext+dropped)
+	if err != nil {
+		return titles, err
+	}
+	next = slices.DeleteFunc(next, func(source db.DownloadSource) bool { return stored[source.ID].State == db.DownloadDropped })
+	next = next[:min(len(next), request.KeepNext)]
 	wanted := map[string]bool{}
-	var keep []int64
 	var add []db.DownloadTitle
 	changed := false
 	for position, source := range next {
@@ -184,6 +195,17 @@ func (s *Service) keepNext(ctx context.Context, v db.Viewer, request db.Download
 		out.Remove, have[h] = append(out.Remove, Removal{Held: h, Reason: reason}), false
 	}
 	return titles, nil
+}
+
+// removeDropped tells the device to remove each title of a request that the person took out
+// of it and the device still holds.
+func removeDropped(request db.Download, titles []db.DownloadTitle, have map[Held]bool, out *Synced) {
+	for _, t := range titles {
+		h := Held{Download: request.PublicID, Item: t.ItemPublicID}
+		if t.State == db.DownloadDropped && have[h] {
+			out.Remove, have[h] = append(out.Remove, Removal{Held: h, Reason: RemoveDropped}), false
+		}
+	}
 }
 
 // deleteWatched is the device's "Delete watched downloads" rule, off unless it was turned on.

@@ -244,17 +244,18 @@ Not carried: `/v1/handoffs/*` (the request above is the move, and it is not stor
 (folded into the routes above); `/v1/cast/bootstrap`, `/controllers/*`, `/preview` and
 `/reconnect` (taking over a TV is settled on Google's own channel between sender and TV).
 
-### Downloads (10)
+### Downloads (11)
 
 | Route | Who | Purpose |
 |---|---|---|
 | `GET /v1/items/{id}/download-options` | A profile allowed to download, for a title it may play | The real choices with the size of each ("about" when estimated), which need the server to prepare a copy first, and why a choice is not offered; with `selection` and `keepNext`, for a show, season, album, artist or playlist as a whole; the room left in the owner's download space |
-| `GET /v1/downloads`, `POST /v1/downloads` | A profile allowed to download | This device's requests, or with `scope=profile` all of the profile's (the browser page); ask for one. `201`, or `200` for the same thing asked twice. A person limited to home can ask only at home |
-| `GET /v1/downloads/{id}` | The profile that asked | One request with its titles and the state of each: waiting, preparing with progress, ready, paused, expired, could not be prepared or included, with the reason |
+| `GET /v1/downloads`, `POST /v1/downloads` | A profile allowed to download | This device's requests, or with `scope=profile` all of the profile's (the browser page), each with its titles as `GET /v1/downloads/{id}` gives them, in a fixed few reads; ask for one. `201`, or `200` for the same thing asked twice. A person limited to home can ask only at home |
+| `GET /v1/downloads/{id}` | The profile that asked | One request with its titles and the state of each: waiting, preparing with progress, ready, paused, expired, could not be prepared or included, with the reason. Each title the profile may see also says where it sits: an episode's show (`parentTitle`), `seasonNumber` and `episodeNumber`; a track's album (`parentTitle`) and `artist` |
 | `PATCH /v1/downloads/{id}` | The profile that asked | `paused`, `retry`, `keepNext` (0 removes the rule and keeps what is there). A copy nobody waits for any more stops being made |
 | `DELETE /v1/downloads/{id}` | The profile that asked | Remove the request. The server's prepared copy stays for anyone else who asked for it |
+| `DELETE /v1/downloads/{id}/items/{itemId}` | The profile that asked | Take one title out of a show, season, album, artist or playlist download: it leaves the list, the device is told to remove it (`removed`) at its next contact, and it does not come back, under "keep the next" either. Safe to repeat. Its copy stays for anyone else who asked for it |
 | `GET /v1/downloads/{id}/items/{itemId}` | The profile that asked | What to fetch for one title: its details, and the addresses, sizes and hashes of its file or files, artwork, subtitles, chapters and markers, and lyrics |
-| `POST /v1/downloads/sync` | A signed-in device | The device says which titles it holds. The answer says which to remove (the profile may no longer see them, or may no longer download), which to add or drop under "keep the next", and until when everything plays offline (30 days from now) |
+| `POST /v1/downloads/sync` | A signed-in device | The device says which titles it holds. The answer says which to remove (the profile may no longer see them, or may no longer download, or the person took them out), which to add or drop under "keep the next", and until when everything plays offline (30 days from now) |
 | `GET /v1/downloads/usage` | A profile allowed to download | Space the profile's prepared copies take |
 | `GET /v1/media/{grant}/file/{n}`, `…/subtitles/{trackId}` | Whoever holds the address | The bytes of the title's nth file, or a subtitle file beside it, by range with `If-Range`, so a transfer carries on where it stopped; `?save=1` asks a browser to save it under the title's name. The grant is in the answer of the items route, works for a day after its last use, and is checked against the profile's access on every request |
 
