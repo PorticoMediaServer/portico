@@ -666,6 +666,7 @@ func (s *Server) downloadedItem(r *http.Request, _ None) (DownloadedItem, error)
 				Container: p.Container})
 		}
 	}
+	inside := 0 // a track's place among the subtitle tracks inside the file
 	for n, subtitle := range shaped.Subtitles {
 		track := subtitleTrack(version, n)
 		switch {
@@ -674,6 +675,15 @@ func (s *Server) downloadedItem(r *http.Request, _ None) (DownloadedItem, error)
 		case dl.Quality == downloads.Original:
 			// Inside the file the device keeps.
 			out.Subtitles = append(out.Subtitles, DownloadSubtitle{PlaybackSubtitle: subtitle})
+		default:
+			// A copy has no subtitle tracks; a text one was written out beside it.
+			if _, err := os.Stat(s.prepare.SubtitleFile(*title.Prepared, inside)); err == nil {
+				subtitle.Format = "vtt"
+				out.Subtitles = append(out.Subtitles, DownloadSubtitle{PlaybackSubtitle: subtitle, URL: base + "subtitles/" + playback.TrackID(track)})
+			}
+		}
+		if subtitle.Source != "sidecar" {
+			inside++
 		}
 	}
 	for _, m := range version.Markers {
