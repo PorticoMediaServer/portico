@@ -67,9 +67,7 @@ type Server struct {
 	// queues builds and runs play queues. See queues.go.
 	queues  *playqueue.Service
 	network networkState
-	// access is the owner's remote access settings. See remote_access.go.
-	access remoteState
-	media  func(w http.ResponseWriter, r *http.Request, grant, file string)
+	media   func(w http.ResponseWriter, r *http.Request, grant, file string)
 	// feeds caps the change feeds each sign-in holds open. See catalogue.go.
 	feeds feeds
 	// stopping is closed when the server begins to stop. See EndHeldReplies.
@@ -197,15 +195,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s := &Server{db: d, dataDir: dataDir, tokens: tokens, log: log, mux: http.NewServeMux(), version: version, id: identity.id, identity: identity,
 		passwords: auth.NewPasswords(auth.PasswordCost, auth.PINCost), stopping: make(chan struct{})}
 	s.setClock(time.Now)
-	if err := s.loadNetworks(ctx); err != nil {
-		return nil, err
-	}
-	if err := s.loadRemoteAccess(ctx); err != nil {
-		return nil, err
-	}
 	s.systemRoutes()
-	s.networkRoutes()
-	s.remoteAccessRoutes()
 	s.identityRoutes()
 	s.authRoutes()
 	s.profileRoutes()
