@@ -185,3 +185,23 @@ func TestEnhancedWaitsForTheOwnCertificate(t *testing.T) {
 		t.Fatalf("with the certificate usable: %+v", got)
 	}
 }
+
+// Port mapping waits for an owner, and starts as setup finishes, with no restart. The router
+// is never asked here: the mapper is not running, and only what it is told to want is read.
+func TestPortMappingStartsWhenSetupFinishes(t *testing.T) {
+	s := newTestServer(t)
+	s.access.mu.Lock()
+	s.access.listenPort = 32400 // as ServeNetwork would set it for a server the network can reach
+	s.access.mu.Unlock()
+	v, _ := s.access.current()
+	s.applyCertificate(v)
+	if s.ports.Wanted() {
+		t.Fatal("a server with no owner wants its port open on the router")
+	}
+	if setupFrom(t, s, "127.0.0.1", SetupRemote{}) == nil {
+		t.Fatal("setup was refused")
+	}
+	if !s.ports.Wanted() {
+		t.Fatal("port mapping did not start when setup finished")
+	}
+}

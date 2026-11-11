@@ -111,6 +111,13 @@ func (m *Mapper) CheckNow(ctx context.Context) Status {
 	return m.Status()
 }
 
+// Wanted says whether the port should be open now: what the server last asked for.
+func (m *Mapper) Wanted() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.want
+}
+
 // Status is the router's last answer.
 func (m *Mapper) Status() Status {
 	m.mu.Lock()
