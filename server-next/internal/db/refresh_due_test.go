@@ -75,6 +75,21 @@ func TestARefreshFallsDueByKindAndAge(t *testing.T) {
 	if d := due(show); d != 14*day {
 		t.Errorf("an older show that has ended falls due in %v; want 14 days", d)
 	}
+	// A matched title with no due time, as in a database made before due times were kept, is due at once.
+	if err := l.d.ExecForTest(ctx, `UPDATE items SET refresh_due = NULL WHERE id = ?`, film.ID); err != nil {
+		t.Fatal(err)
+	}
+	filmLibrary, err := l.d.LibraryID(ctx, film.LibraryID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := l.d.ScheduleUnscheduled(ctx, filmLibrary); err != nil {
+		t.Fatal(err)
+	}
+	if page, err := l.d.DueForRefresh(ctx, filmLibrary, time.Now().UnixMilli(), nil, 100); err != nil || len(page) != 1 || page[0].ID != film.ID {
+		t.Errorf("a matched film with no due time is not due now: %v, %v", page, err)
+	}
+	match(film, false)
 	// Nothing is due now, and the read says so from the index.
 	library, err := l.d.LibraryID(ctx, film.LibraryID)
 	if err != nil {

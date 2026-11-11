@@ -61,3 +61,19 @@ func (d *DB) DueForRefresh(ctx context.Context, libraryID, now int64, after *Ref
 		ORDER BY refresh_due, id LIMIT ?`, append(args, limit),
 		func(r *RefreshItem) []any { return []any{&r.ID, &r.Kind, &r.RefreshedAt, &r.AddedAt, &r.Due} })
 }
+
+// ScheduleUnscheduled makes due at once a library's matched titles that have no due time, so no
+// title can be left never refreshed. Only a database made before refresh_due existed has any;
+// finding there are none is one look at the items_due index.
+func (d *DB) ScheduleUnscheduled(ctx context.Context, libraryID int64) error {
+	var found bool
+	if err := d.read.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM items WHERE library_id = ? AND match_state IN (1, 2)
+		AND parent_id IS NULL AND refresh_due IS NULL)`, libraryID).Scan(&found); err != nil || !found {
+		return err
+	}
+	return d.write(ctx, Background, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `UPDATE items SET refresh_due = 0 WHERE library_id = ? AND match_state IN (1, 2)
+			AND parent_id IS NULL AND refresh_due IS NULL`, libraryID)
+		return err
+	})
+}

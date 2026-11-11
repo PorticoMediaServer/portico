@@ -60,7 +60,7 @@ func (c *Client) get(ctx context.Context, path string, q url.Values, out any) er
 	case res.StatusCode == http.StatusNotFound:
 		return metadata.ErrNotFound
 	case res.StatusCode != http.StatusOK:
-		return fmt.Errorf("tmdb answered %d for %s", res.StatusCode, path)
+		return metadata.StatusError{Provider: "tmdb", Status: res.StatusCode, Path: path}
 	}
 	raw, err := io.ReadAll(io.LimitReader(res.Body, maxAnswer+1))
 	if err != nil {

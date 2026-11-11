@@ -45,6 +45,7 @@ package metadata
 import (
 	"context"
 	"errors"
+	"fmt"
 )
 
 // Ref names one thing at a provider: TMDB's film 603 is {"tmdb", "movie", "603"}.
@@ -167,3 +168,15 @@ type Provider interface {
 
 // ErrNotFound is a provider's answer that it has no such title.
 var ErrNotFound = errors.New("the provider has no such title")
+
+// StatusError is a provider's answer with a status other than found or not found: a refusal
+// of one request (4xx), its own trouble (5xx) or a request to slow down (429).
+type StatusError struct {
+	Provider string
+	Status   int
+	Path     string
+}
+
+func (e StatusError) Error() string {
+	return fmt.Sprintf("%s answered %d for %s", e.Provider, e.Status, e.Path)
+}
