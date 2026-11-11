@@ -190,6 +190,10 @@ type planned struct {
 	remoteID int64
 	// text is the version's text subtitles, which are served beside the stream.
 	text []textTrack
+	// nudgeMs is the viewer's subtitle timing nudge. sent says the server moves it into the
+	// subtitles it sends; otherwise the app is told it and applies it.
+	nudgeMs int64
+	sent    bool
 	// burn is the video file's track that is drawn into the picture, when one is.
 	burn *int
 	// audio is a planned music stream, which replaces plan and request, and index the
@@ -558,9 +562,19 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 			out.Subtitle = &playback.SubtitleInForce{TrackID: id, Kind: "text", Delivery: "sidecar"}
 		}
 	}
+	// The viewer's timing nudge. An app that fetches subtitles to draw them itself (it asked
+	// for "sidecar") is told the nudge in force when its stream starts and applies any
+	// change itself, at once, with nothing restarted. For
+	// every other player the server moves the nudge into the subtitles it sends, because a
+	// player that only follows the playlist cannot: a change of nudge is then a new stream,
+	// which takes a few seconds, as any change that alters the stream does.
+	detail.nudgeMs, detail.sent = r.Choice.SubtitleOffsetMs, r.Choice.SubtitleDelivery != "sidecar"
 	// Two plans that would produce the same stream share a key, so a change that alters
 	// nothing in the stream does not interrupt it.
 	raw, _ := json.Marshal(plan)
+	if detail.sent && detail.nudgeMs != 0 && out.Subtitle != nil && out.Subtitle.Delivery == "sidecar" {
+		raw = append(raw, fmt.Sprint("nudge ", detail.nudgeMs)...)
+	}
 	sum := sha256.Sum256(append(raw, []byte(path)...))
 	out.Key = hex.EncodeToString(sum[:8])
 	return out, nil
@@ -582,6 +596,9 @@ func (e *Engine) Start(ctx context.Context, r playback.StartRequest) (playback.S
 		track := text.track
 		rendition := streaming.TextRenditionPlan{Resource: playback.TrackID(track), Revision: 1, Language: track.Language, Label: track.Title,
 			Selected: text.selected, Forced: track.Forced, HearingImpaired: track.HearingImpaired, Format: text.format, Track: text.index}
+		if p.sent {
+			rendition.OffsetUS = p.nudgeMs * 1000
+		}
 		if track.Sidecar {
 			// A subtitle file the scanner no longer has is left out; the film still plays.
 			beside, err := e.db.FileOnDisk(ctx, track.FileID)
@@ -614,8 +631,11 @@ func (e *Engine) Start(ctx context.Context, r playback.StartRequest) (playback.S
 	stream := func(s streaming.Stream) playback.Stream {
 		out := stream(s)
 		for _, text := range start.Subtitles {
-			out.Subtitles = append(out.Subtitles, playback.SubtitleFile{TrackID: text.Resource, Format: "vtt",
-				URL: streaming.TextURL(s.Grant, text.Resource, text.Revision)})
+			file := playback.SubtitleFile{TrackID: text.Resource, Format: "vtt", URL: streaming.TextURL(s.Grant, text.Resource, text.Revision)}
+			if !p.sent {
+				file.OffsetMs = p.nudgeMs
+			}
+			out.Subtitles = append(out.Subtitles, file)
 		}
 		return out
 	}

@@ -79,15 +79,30 @@ func (s *Streams) serveText(w http.ResponseWriter, r *http.Request, file string)
 	}
 	cues.once.Do(func() {
 		// The first reader's request does not own the work: others wait on it too.
+		// It ends when the stream does, so a track is not taken out of a large
+		// file for a viewer who has gone.
 		ctx, cancel := context.WithTimeout(s.hls.ctx, 2*time.Minute)
 		defer cancel()
+		go func() {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(500 * time.Millisecond):
+					if _, err := s.grant(st.grant); err != nil {
+						cancel()
+						return
+					}
+				}
+			}
+		}()
 		cues.document, cues.err = s.readText(ctx, st, *track)
 	})
 	if cues.err != nil {
 		mediaError(w, ErrHLSArtifactNotFound)
 		return
 	}
-	body, err := subtitles.ManifestWebVTT(bytes.NewReader(cues.document), 0, segment)
+	body, err := subtitles.ManifestWebVTT(bytes.NewReader(cues.document), track.OffsetUS, segment)
 	if err != nil {
 		mediaError(w, ErrHLSArtifactNotFound)
 		return
