@@ -33,6 +33,9 @@ type Service struct {
 	wake chan struct{}
 	// building is held while one channel's schedule is built, so two builds never race.
 	building sync.Mutex
+	// failed is when each channel's last build failed: it is tried again an hour later, or as
+	// soon as the owner saves anything.
+	failed sync.Map
 }
 
 // New makes the service. Run starts its background work.
@@ -61,6 +64,7 @@ func (s *Service) Run(ctx context.Context) {
 
 // Wake asks the job to look for work now: a channel was saved, turned on or regenerated.
 func (s *Service) Wake() {
+	s.failed.Clear()
 	select {
 	case s.wake <- struct{}{}:
 	default:
@@ -76,9 +80,17 @@ func (s *Service) scheduleDue(ctx context.Context) {
 		return
 	}
 	for _, id := range ids {
+		if at, ok := s.failed.Load(id); ok && s.now().Sub(at.(time.Time)) < time.Hour {
+			continue
+		}
 		if err := s.Schedule(ctx, id); err != nil && ctx.Err() == nil {
+			s.failed.Store(id, s.now())
 			s.log.Error("building a Library Channel's schedule failed", "channel", id, "error", err)
 		}
+	}
+	// A copy into the guide that failed is made again here, not only at the next start.
+	if err := s.copyMissing(ctx); err != nil && ctx.Err() == nil {
+		s.log.Error("copying Library Channel schedules into the guide failed", "error", err)
 	}
 }
 
@@ -96,37 +108,18 @@ func (s *Service) Schedule(ctx context.Context, publicID string) error {
 		return err
 	}
 	now := s.now().Truncate(time.Second)
-	b, err := Parse(ch.Builder)
+	b, loc, st, from, discarded, err := s.plan(ctx, ch, now)
+	var rows []db.ScheduleRow
+	var report Report
+	if err == nil {
+		rows, report, err = Build(ctx, s.db, b, loc, &st, from, now.Add(ahead), now, discarded)
+	}
 	if err != nil {
-		return err
-	}
-	loc, err := LoadZone(ch.TimeZone)
-	if err != nil {
-		return err
-	}
-	var st State
-	if ch.State != "" && json.Unmarshal([]byte(ch.State), &st) != nil {
-		st = State{} // a state that cannot be read starts the orders again
-	}
-	from := ch.ScheduledThrough
-	var discarded []Discarded
-	if ch.Rebuild || from.Before(now) {
-		from = now
-		current, err := s.db.ChannelProgrammes(ctx, ch.ChannelID, now, now.Add(time.Millisecond))
-		if err != nil {
-			return err
+		if ctx.Err() == nil {
+			// Say why on the channel's row instead of "building" for good.
+			s.db.LibraryChannelFailed(context.WithoutCancel(ctx), ch.ChannelID, ch.Revision,
+				"This channel's schedule couldn't be made. Check its conditions, then save it again.")
 		}
-		if len(current) > 0 && !current[0].StartsAt.After(now) {
-			from = current[0].EndsAt
-		}
-		if ch.Rebuild && ch.ScheduledThrough.After(from) {
-			if discarded, err = s.discarded(ctx, ch.ChannelID, from, ch.ScheduledThrough); err != nil {
-				return err
-			}
-		}
-	}
-	rows, report, err := Build(ctx, s.db, b, loc, &st, from, now.Add(ahead), now, discarded)
-	if err != nil {
 		return err
 	}
 	st.Titles, st.Unplaceable = report.Titles, report.Unplaceable
@@ -145,6 +138,43 @@ func (s *Service) Schedule(ctx context.Context, publicID string) error {
 		return err
 	}
 	return s.copyGuide(ctx, publicID, from, now, rows)
+}
+
+// plan reads what building a channel's schedule starts from: its document, its time zone,
+// its stored orders, where the new part begins (the end of the programme now on, for a
+// rebuild or a schedule that has run out) and the programmes a rebuild throws away.
+func (s *Service) plan(ctx context.Context, ch db.LibraryChannelSchedule, now time.Time) (*Builder, *time.Location, State, time.Time,
+	[]Discarded, error) {
+	var st State
+	b, err := Parse(ch.Builder)
+	if err != nil {
+		return nil, nil, st, time.Time{}, nil, err
+	}
+	loc, err := LoadZone(ch.TimeZone)
+	if err != nil {
+		return nil, nil, st, time.Time{}, nil, err
+	}
+	if ch.State != "" && json.Unmarshal([]byte(ch.State), &st) != nil {
+		st = State{} // a state that cannot be read starts the orders again
+	}
+	from := ch.ScheduledThrough
+	var discarded []Discarded
+	if ch.Rebuild || from.Before(now) {
+		from = now
+		current, err := s.db.ChannelProgrammes(ctx, ch.ChannelID, now, now.Add(time.Millisecond))
+		if err != nil {
+			return nil, nil, st, time.Time{}, nil, err
+		}
+		if len(current) > 0 && !current[0].StartsAt.After(now) {
+			from = current[0].EndsAt
+		}
+		if ch.Rebuild && ch.ScheduledThrough.After(from) {
+			if discarded, err = s.discarded(ctx, ch.ChannelID, from, ch.ScheduledThrough); err != nil {
+				return nil, nil, st, time.Time{}, nil, err
+			}
+		}
+	}
+	return b, loc, st, from, discarded, nil
 }
 
 func (s *Service) discarded(ctx context.Context, channelID int64, from, through time.Time) ([]Discarded, error) {
