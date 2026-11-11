@@ -67,9 +67,16 @@ func packaged(log *slog.Logger, packagedName, name, fallback string) string {
 }
 
 func run(log *slog.Logger) error {
-	data := flag.String("data", packaged(log, "PORTICO_DATA_DIR", "PORTICO_DATA", "data"), "folder for the database and everything else the server keeps (PORTICO_DATA_DIR, or PORTICO_DATA)")
+	data := flag.String("data", packaged(log, "PORTICO_DATA_DIR", "PORTICO_DATA", ""), "folder for the database and everything else the server keeps (PORTICO_DATA_DIR, or PORTICO_DATA)")
 	listen := flag.String("listen", packaged(log, "PORTICO_BIND", "PORTICO_LISTEN", ":32500"), "address to serve the API on (PORTICO_BIND, or PORTICO_LISTEN)")
 	flag.Parse()
+	if *data == "" {
+		folder, err := defaultData()
+		if err != nil {
+			return err
+		}
+		*data = folder
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -83,6 +90,9 @@ func run(log *slog.Logger) error {
 	}
 	*data = serverData
 	if err := os.MkdirAll(*data, 0o700); err != nil {
+		return err
+	}
+	if err := oldServerData(*data); err != nil {
 		return err
 	}
 	// Nothing in the data folder is ever played as a library file.
