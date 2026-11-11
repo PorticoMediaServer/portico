@@ -82,10 +82,8 @@ func (s *Server) exploreFolders(r *http.Request, _ None) (FolderList, error) {
 		if !filepath.IsAbs(out.Path) || filepath.Clean(out.Path) != out.Path {
 			return out, ErrField("path", "Give the folder's full path.")
 		}
-		for _, refused := range refusedFolders {
-			if out.Path == refused || strings.HasPrefix(out.Path, refused+"/") {
-				return out, ErrField("path", "This folder cannot be used for a library.")
-			}
+		if notForFiles(out.Path) {
+			return out, ErrField("path", "This folder cannot be used for a library.")
 		}
 		listed, limited, err := foldersIn(out.Path, q.Get("hidden") == "true")
 		switch {

@@ -287,6 +287,20 @@ func within(folder, parent string) bool {
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
+// notForFiles reports whether a path is one of the places that are not for files, or inside
+// one: as it is written, and where it leads once links are followed (/var/run is /run on
+// most systems, and a link kept in a media folder can point anywhere).
+func notForFiles(folder string) bool {
+	for _, path := range []string{folder, real(folder)} {
+		for _, refused := range refusedFolders {
+			if path == refused || strings.HasPrefix(path, refused+"/") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // checkFolders refuses a folder the server cannot use, saying which and why.
 func (s *Server) checkFolders(folders []string, field string) error {
 	if len(folders) == 0 {
@@ -297,10 +311,8 @@ func (s *Server) checkFolders(folders []string, field string) error {
 		if !filepath.IsAbs(folder) || filepath.Clean(folder) != folder {
 			return ErrField(at, "Give the folder's full path.")
 		}
-		for _, refused := range refusedFolders {
-			if folder == refused || strings.HasPrefix(folder, refused+"/") {
-				return ErrField(at, "This folder cannot be used for a library.")
-			}
+		if notForFiles(folder) {
+			return ErrField(at, "This folder cannot be used for a library.")
 		}
 		info, err := os.Stat(folder)
 		switch {
