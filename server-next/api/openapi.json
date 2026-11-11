@@ -2012,23 +2012,6 @@
         ],
         "type": "object"
       },
-      "Hours": {
-        "properties": {
-          "timezone": {
-            "type": "string"
-          },
-          "windows": {
-            "items": {
-              "$ref": "#/components/schemas/Window"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "windows"
-        ],
-        "type": "object"
-      },
       "IdentityProof": {
         "properties": {
           "payload": {
@@ -3549,7 +3532,7 @@
             "type": "array"
           },
           "limits": {
-            "$ref": "#/components/schemas/MemberLimits"
+            "$ref": "#/components/schemas/MemberLimitsEdit"
           },
           "notes": {
             "type": "string"
@@ -3616,7 +3599,7 @@
           "viewingHours": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Hours"
+                "$ref": "#/components/schemas/ViewingHours"
               },
               {
                 "type": "null"
@@ -3632,6 +3615,44 @@
           "allowWatchTogether",
           "allowTokens"
         ],
+        "type": "object"
+      },
+      "MemberLimitsEdit": {
+        "properties": {
+          "allowConversion": {
+            "type": "boolean"
+          },
+          "allowTokens": {
+            "type": "boolean"
+          },
+          "allowUnrated": {
+            "type": "boolean"
+          },
+          "allowWatchTogether": {
+            "type": "boolean"
+          },
+          "blockedLabels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "homeOnly": {
+            "type": "boolean"
+          },
+          "maxProfiles": {
+            "type": "integer"
+          },
+          "maxRatingAge": {
+            "type": "integer"
+          },
+          "remoteMaxBitrateKbps": {
+            "type": "integer"
+          },
+          "viewingHours": {
+            "$ref": "#/components/schemas/ViewingHours"
+          }
+        },
         "type": "object"
       },
       "MemberPage": {
@@ -7979,6 +8000,46 @@
         ],
         "type": "object"
       },
+      "ViewingHours": {
+        "properties": {
+          "timezone": {
+            "type": "string"
+          },
+          "windows": {
+            "items": {
+              "$ref": "#/components/schemas/ViewingWindow"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "timezone",
+          "windows"
+        ],
+        "type": "object"
+      },
+      "ViewingWindow": {
+        "properties": {
+          "days": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "endMinute": {
+            "type": "integer"
+          },
+          "startMinute": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "days",
+          "startMinute",
+          "endMinute"
+        ],
+        "type": "object"
+      },
       "Warning": {
         "properties": {
           "code": {
@@ -8222,28 +8283,6 @@
         },
         "required": [
           "delivered"
-        ],
-        "type": "object"
-      },
-      "Window": {
-        "properties": {
-          "days": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array"
-          },
-          "endMinute": {
-            "type": "integer"
-          },
-          "startMinute": {
-            "type": "integer"
-          }
-        },
-        "required": [
-          "days",
-          "startMinute",
-          "endMinute"
         ],
         "type": "object"
       }

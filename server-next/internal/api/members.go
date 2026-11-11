@@ -59,8 +59,8 @@ type MemberEdit struct {
 	Libraries    *[]string `json:"libraries,omitempty"`
 	// AllowDownloads turns downloads on or off for the whole account.
 	AllowDownloads *bool `json:"allowDownloads,omitempty"`
-	// Limits, when sent, replaces everything the account is held to.
-	Limits *MemberLimits `json:"limits,omitempty"`
+	// Limits changes what the account is held to: only the fields it names.
+	Limits *MemberLimitsEdit `json:"limits,omitempty"`
 }
 
 // PasswordResetCreate asks for a reset code for a member.
@@ -210,9 +210,9 @@ func (s *Server) editMember(r *http.Request, req MemberEdit) (Member, error) {
 	case req.Libraries != nil && len(*req.Libraries) > 1000:
 		return Member{}, ErrField("libraries", "That is too many libraries.")
 	}
-	limits, err := memberLimitsIn(req.Limits)
-	if err != nil {
-		return Member{}, err
+	var limits func(db.AccountLimits) (db.AccountLimits, error)
+	if req.Limits != nil {
+		limits = req.Limits.over
 	}
 	m, err := s.db.UpdateMember(r.Context(), db.MemberEdit{ActorID: caller.UserID, ActorRole: caller.Role, PublicID: r.PathValue("id"),
 		Role: req.Role, Disabled: req.Disabled, Notes: req.Notes, AllLibraries: req.AllLibraries, Libraries: req.Libraries,

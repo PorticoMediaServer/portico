@@ -15,6 +15,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/http"
 	"path"
 	"strings"
 	"sync"
@@ -49,6 +50,9 @@ type Service struct {
 	db  *db.DB
 	key []byte
 	now func() time.Time
+	// FromHome says whether a request came from the home network. With it set, a book's
+	// address is held to its account's home-only limit; viewing hours are held either way.
+	FromHome func(*http.Request) bool
 
 	mu    sync.Mutex
 	books map[string]*epub // EPUB package documents already read, by file and fingerprint

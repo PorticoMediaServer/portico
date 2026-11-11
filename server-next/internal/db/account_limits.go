@@ -35,7 +35,7 @@ func accountOpen(ctx context.Context, q queryer, userID int64, atHome bool, now 
 		return ErrAwayFromHome
 	}
 	if stored.Valid {
-		var hours auth.Hours
+		var hours auth.ViewingHours
 		if err := json.Unmarshal([]byte(stored.String), &hours); err != nil {
 			return err
 		}

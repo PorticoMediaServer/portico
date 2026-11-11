@@ -24,6 +24,7 @@ func (s *Server) startReading(ctx context.Context) error {
 		return err
 	}
 	s.reading = reading.New(s.db, bookKey, func() time.Time { return s.now() })
+	s.reading.FromHome = s.fromHome
 	s.readingRoutes()
 	return nil
 }

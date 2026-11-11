@@ -43,6 +43,19 @@ func (s *Service) ServeMedia(w http.ResponseWriter, r *http.Request, token, file
 		writeError(w, http.StatusNotFound, "not_found", "This is not available.")
 		return
 	}
+	// An address lives for hours. An account held to the home network, or to viewing hours,
+	// reads nothing outside them with an address it was given inside them.
+	switch err := s.db.AccountOpen(ctx, g.reader.Viewer.UserID, s.FromHome == nil || s.FromHome(r), s.now()); {
+	case errors.Is(err, db.ErrAwayFromHome):
+		writeError(w, http.StatusForbidden, "away_from_home", "This account can only be used on the home network.")
+		return
+	case errors.Is(err, db.ErrOutsideHours):
+		writeError(w, http.StatusForbidden, "outside_viewing_hours", "Viewing hours have ended for this account.")
+		return
+	case err != nil:
+		writeError(w, http.StatusInternalServerError, "internal", "Something went wrong.")
+		return
+	}
 	place, err := s.db.FileOnDisk(ctx, g.fileID)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "not_found", "This is not available.")
