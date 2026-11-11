@@ -6,6 +6,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/livefeed"
 	"github.com/PorticoMediaServer/portico/server-next/internal/receivers"
+	"github.com/PorticoMediaServer/portico/server-next/internal/together"
 )
 
 // togetherArea is what playing together and other devices (area 8) keeps on the server. Add this area's fields here and its start-up
@@ -15,6 +16,8 @@ type togetherArea struct {
 	live *livefeed.Publisher
 	// receivers are the devices open to playback from other devices. See receivers.go.
 	receivers *receivers.Service
+	// groups are the Watch Together groups. See groups.go.
+	groups *together.Service
 }
 
 // startTogether builds this area's services and registers its routes and job kinds. New calls it
@@ -28,11 +31,13 @@ func (s *Server) startTogether(ctx context.Context) error {
 	s.receivers.OnUndo(func(u receivers.Undo) {
 		s.playback.Stop(context.Background(), u.SessionID, u.UserID, 0, nil)
 	})
+	s.groups = together.New(s.live, clock)
 	// The account's other devices hear when one of its sessions starts, ends, pauses or plays.
 	s.playback.OnChange(func(userID int64, id string) {
 		s.live.ToAccount(userID, livefeed.TopicPlayback, livefeed.OpUpdated, id)
 	})
 	go s.sweepMemory(ctx)
 	s.receiverRoutes()
+	s.groupRoutes()
 	return nil
 }
