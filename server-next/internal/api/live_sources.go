@@ -106,6 +106,7 @@ func (s *Server) liveSourceOut(src db.LiveSource) LiveSource {
 	out := LiveSource{ID: src.PublicID, Kind: src.Kind, Name: src.Name, Audience: src.Audience, TunerCount: src.TunerCount, Paused: src.Paused,
 		State: src.State, LastError: src.LastError, HasSignIn: len(src.Secret) > 0, revision: src.Revision}
 	json.Unmarshal([]byte(src.Config), &out.Config)
+	out.Config.PlaylistURL, out.Config.GuideURL = live.Masked(out.Config.PlaylistURL), live.Masked(out.Config.GuideURL)
 	if src.Report != "" {
 		out.Report = &live.Report{}
 		json.Unmarshal([]byte(src.Report), out.Report)
@@ -201,7 +202,8 @@ func (s *Server) createLiveSource(r *http.Request, req LiveSourceSave) (LiveSour
 	if err != nil {
 		return LiveSource{}, err
 	}
-	save := db.LiveSourceSave{Kind: req.Kind, Audience: "everyone", TunerCount: 1, IdempotencyKey: key, RequestHash: requestHash(req), Now: s.now()}
+	save := db.LiveSourceSave{PublicID: db.NewID("lsr"), Kind: req.Kind, Audience: "everyone", TunerCount: 1, IdempotencyKey: key,
+		RequestHash: requestHash(req), Now: s.now()}
 	if req.Name != nil {
 		save.Name = *req.Name
 	}
@@ -222,7 +224,7 @@ func (s *Server) createLiveSource(r *http.Request, req LiveSourceSave) (LiveSour
 		return LiveSource{}, err
 	}
 	if req.SignIn != nil {
-		save.Secret = s.sources.Seal(*req.SignIn)
+		save.Secret = s.sources.Seal(save.PublicID, *req.SignIn)
 	}
 	src, err := s.db.CreateLiveSource(r.Context(), CallerFrom(r.Context()).UserID, save)
 	if err != nil {
@@ -306,15 +308,27 @@ func (s *Server) saveLiveSource(r *http.Request, req LiveSourceSave) (LiveSource
 	var cfg live.Config
 	json.Unmarshal([]byte(src.Config), &cfg)
 	if req.Config != nil {
+		stored := cfg
 		uploaded, guideUploaded := cfg.Uploaded, cfg.GuideUploaded
 		cfg = *req.Config
+		// An address shown masked and sent back unchanged keeps the stored one.
+		if cfg.PlaylistURL == live.Masked(stored.PlaylistURL) {
+			cfg.PlaylistURL = stored.PlaylistURL
+		}
+		if cfg.GuideURL == live.Masked(stored.GuideURL) {
+			cfg.GuideURL = stored.GuideURL
+		}
+		// A stored sign-in is sent only to the server it was entered for.
+		if src.Kind == "xtream" && req.SignIn == nil && !live.SameServer(stored.ServerURL, cfg.ServerURL) {
+			return LiveSource{}, ErrField("signIn", "Enter the sign-in again for the new server address.")
+		}
 		cfg.Uploaded, cfg.GuideUploaded = cfg.Uploaded || uploaded && cfg.PlaylistURL == "", cfg.GuideUploaded || guideUploaded && cfg.GuideURL == ""
 	}
 	if err := checkSource(&save, &cfg, req, false); err != nil {
 		return LiveSource{}, err
 	}
 	if req.SignIn != nil {
-		save.Secret, save.KeepSecret = s.sources.Seal(*req.SignIn), false
+		save.Secret, save.KeepSecret = s.sources.Seal(src.PublicID, *req.SignIn), false
 	}
 	saved, err := s.db.SaveLiveSource(ctx, CallerFrom(ctx).UserID, src.PublicID, save, match)
 	if err != nil {
