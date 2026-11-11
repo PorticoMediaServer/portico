@@ -348,8 +348,9 @@ func (s *Service) convert(ctx context.Context, p db.Prepared) (container string,
 		}
 	}
 	if !Music(kind) {
+		// What the subtitles take counts in the copy's size, against the owner's space.
 		for n, part := range v.Parts {
-			s.writeSubtitles(ctx, p, part, n+1)
+			written += s.writeSubtitles(ctx, p, part, n+1)
 		}
 	}
 	return container, written, ready.ContentHash, nil
