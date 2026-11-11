@@ -225,6 +225,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.invitationRoutes()
 	s.keyRoutes()
 	s.integrationRoutes()
+	s.mcpRoutes()
 	s.catalogueRoutes()
 	s.tagRoutes()
 	s.itemFileRoutes()
