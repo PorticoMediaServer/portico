@@ -8,9 +8,11 @@ import (
 )
 
 // VisibleItems answers which of the titles named the viewer may see, by the same one
-// condition every list uses. It reads as many rows as it is given ids.
-func (d *DB) VisibleItems(ctx context.Context, v Viewer, itemIDs []int64) (map[int64]bool, error) {
-	out := map[int64]bool{}
+// condition every list uses, each with its public id: a caller holding an id copied earlier
+// compares it, since a row id can be used again after a title is deleted. It reads as many
+// rows as it is given ids.
+func (d *DB) VisibleItems(ctx context.Context, v Viewer, itemIDs []int64) (map[int64]string, error) {
+	out := map[int64]string{}
 	if len(itemIDs) == 0 {
 		return out, nil
 	}
@@ -25,12 +27,23 @@ func (d *DB) VisibleItems(ctx context.Context, v Viewer, itemIDs []int64) (map[i
 	}
 	for start := 0; start < len(itemIDs); start += 200 {
 		part := itemIDs[start:min(start+200, len(itemIDs))]
-		got, err := ids(ctx, tx, `SELECT i.id FROM items i WHERE i.id IN `+intList(part)+` AND i.available = 1 AND `+acc.visible("i"))
+		rows, err := tx.QueryContext(ctx, `SELECT i.id, i.public_id FROM items i WHERE i.id IN `+intList(part)+` AND i.available = 1 AND `+
+			acc.visible("i"))
 		if err != nil {
 			return nil, err
 		}
-		for _, id := range got {
-			out[id] = true
+		for rows.Next() {
+			var id int64
+			var public string
+			if err := rows.Scan(&id, &public); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			out[id] = public
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return nil, err
 		}
 	}
 	return out, nil
