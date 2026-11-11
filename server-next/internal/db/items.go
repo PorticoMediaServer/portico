@@ -429,11 +429,22 @@ func total(ctx context.Context, tx *sql.Tx, where *query, acc access) (int, erro
 		return all, err
 	}
 	if where.plainKinds != "" {
-		// The whole of a library and kind: what is hidden in it is found from the labels alone.
+		// The whole of a library and kind: what is hidden in it is found from the labels alone,
+		// and then the shows or albums left with nothing the profile may see.
 		err = tx.QueryRowContext(ctx, `SELECT count(*) FROM (`+acc.blockedIDs(where.plainLibrary, where.plainKinds)+`)`).Scan(&hidden)
+		if emptied := acc.emptied(where.plainLibrary, where.holderKinds); err == nil && emptied != "" {
+			var holders int
+			err = tx.QueryRowContext(ctx, `SELECT count(*) FROM items i WHERE `+emptied).Scan(&holders)
+			hidden += holders
+		}
 	} else {
+		// The rows a label hides, and the holders it may have emptied, each checked in full.
+		candidates := acc.blockedIDs(where.library, where.kinds)
+		if where.holderKinds != "" || where.kinds == "" {
+			candidates += " UNION " + acc.emptiedCandidates(where.library)
+		}
 		err = tx.QueryRowContext(ctx, `SELECT count(*) FROM items i NOT INDEXED WHERE `+where.hiddenWhere()+
-			` AND i.id IN (`+acc.blockedIDs(where.library, where.kinds)+`)`, where.args...).Scan(&hidden)
+			` AND i.id IN (`+candidates+`) AND NOT (1`+acc.unblocked("i")+where.holders+`)`, where.args...).Scan(&hidden)
 	}
 	// What is hidden is counted within the same list, so it can never be more than the list.
 	// Should the two statements ever disagree, a total is still never less than nothing.
@@ -556,8 +567,9 @@ var rareTag = 2000
 // filters writes the condition for everything but the page position: what the viewer may see,
 // and what was asked for. It reports false when a named tag does not exist, so nothing matches.
 func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access) (bool, error) {
-	w.add("(", acc.libraryVisible("i.library_id"), acc.rated("i", "{rated}"), "){labels}")
+	w.add("(", acc.libraryVisible("i.library_id"), acc.rated("i", "{rated}"), "){labels}{holders}")
 	w.labels = acc.unblocked("i")
+	w.holders, w.ratedHolders = acc.filled("i", true), acc.filled("i", false)
 	scoped := false
 	var library int64
 	var kindList string
@@ -596,6 +608,15 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		}
 		kindList = "(" + strings.Join(kinds, ", ") + ")"
 		w.kinds = kindList
+		var holderKinds []string
+		for n, kind := range q.Kinds {
+			if !kind.Playable() {
+				holderKinds = append(holderKinds, kinds[n])
+			}
+		}
+		if len(holderKinds) > 0 {
+			w.holderKinds = "(" + strings.Join(holderKinds, ", ") + ")"
+		}
 		if library != 0 {
 			rated, err := acc.ratedIn(ctx, tx, library, kindList)
 			if err != nil || rated == 0 {
@@ -673,7 +694,9 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		// With nothing asked for but a library, kinds and the tag, the total reads no row of
 		// items: item_tags knows each tagged item's library, kind and rating, and what is
 		// under a tagged title is counted from an index that holds each one's rating too.
-		if library != 0 && under != "" && q.Parent == "" && q.Person == "" && q.YearFrom == 0 && q.YearTo == 0 &&
+		// A rating limit over shows or albums needs each one looked at for an episode or a
+		// track within the limit, so that total is counted row by row instead.
+		if library != 0 && under != "" && (w.ratedHolders == "" || w.holderKinds == "") && q.Parent == "" && q.Person == "" && q.YearFrom == 0 && q.YearTo == 0 &&
 			q.Favorite == nil && q.InList == nil && q.Watched == nil && q.Resolution == "" && len(q.Conditions) == 0 {
 			// When nothing of these kinds carries the tag itself, as with episodes, nothing can
 			// be counted twice, and each tagged title's run of descendants is simply counted.

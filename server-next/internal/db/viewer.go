@@ -111,8 +111,65 @@ func (a access) libraryVisible(library string) string {
 // the same as suitable.
 //
 // A profile with no restriction gets the condition "1", so its reads cost nothing extra.
+//
+// A show, season, artist or album whose every playable title is hidden from the profile is
+// hidden too, so a restricted profile never meets an empty holder. See filled.
 func (a access) visible(alias string) string {
-	return "(" + a.libraryVisible(alias+".library_id") + a.rated(alias, "+") + a.unblocked(alias) + ")"
+	return "(" + a.libraryVisible(alias+".library_id") + a.rated(alias, "+") + a.unblocked(alias) + a.filled(alias, true) + ")"
+}
+
+// filled is the holder part of visible, as " AND ..." or nothing: the row is playable, holds
+// nothing, or holds at least one playable title the profile may see. With labels false it
+// asks only that one is within the rating limit, for a total that subtracts what labels hide
+// (see total). A holder's titles are in its library, so only a rating limit or a blocked label
+// can hide all of them, and a profile with neither gets nothing here. The check stops at the
+// first title the profile may see, which is usually the first one under the holder.
+func (a access) filled(alias string, labels bool) string {
+	leaf := alias + "_leaf" // its own name, as visible may itself be checking a row named c
+	check := a.rated(leaf, "")
+	if labels {
+		check += a.unblocked(leaf)
+	}
+	if check == "" {
+		return ""
+	}
+	// Titles nest at most three deep, so a holder is the root or the parent of its titles;
+	// each is found through its own index (see underHolder).
+	under := func(column string) string {
+		return "EXISTS (SELECT 1 FROM items " + leaf + " WHERE " + leaf + "." + column + " = " + alias + ".id AND " +
+			leaf + ".kind IN " + playableKindsSQL + check + ")"
+	}
+	return " AND (" + alias + ".kind IN " + playableKindsSQL + " OR " + alias + ".leaf_count = 0 OR " +
+		under("root_id") + " OR " + under("parent_id") + ")"
+}
+
+// emptiedCandidates is a query for the ids that may be holders emptied by a blocked label:
+// what holds an item that carries one. A holder all of whose titles a label hides holds at
+// least one labelled item (a title, or the season or album above it), so a total looks only
+// at these, never at every holder of a library. library narrows it; 0 means any.
+func (a access) emptiedCandidates(library int64) string {
+	in := ""
+	if library != 0 {
+		in = fmt.Sprintf(" AND h.library_id = %d", library)
+	}
+	tags := intList(a.blockedTags)
+	return `SELECT c.parent_id FROM item_tags h CROSS JOIN items c ON c.id = h.item_id WHERE h.tag_id IN ` + tags + in + ` AND c.parent_id IS NOT NULL
+		UNION SELECT c.root_id FROM item_tags h CROSS JOIN items c ON c.id = h.item_id WHERE h.tag_id IN ` + tags + in + ` AND c.root_id IS NOT NULL`
+}
+
+// emptied is the condition for the rows of a library and some holder kinds that a profile
+// would see but for having nothing under them it may see: they pass the rating limit and carry
+// no blocked label themselves. With a rating limit every holder of those kinds in the library
+// is checked; otherwise only the label candidates are. It is "" when there are none to check.
+func (a access) emptied(library int64, kinds string) string {
+	if kinds == "" || a.filled("i", true) == "" {
+		return ""
+	}
+	scope := fmt.Sprintf("i.library_id = %d AND i.kind IN %s", library, kinds)
+	if a.maxAge == nil {
+		scope = "i.id IN (" + a.emptiedCandidates(library) + ") AND " + scope
+	}
+	return scope + a.rated("i", "") + a.unblocked("i") + " AND NOT (1" + a.filled("i", true) + ")"
 }
 
 // rated is the rating part of visible, as " AND ..." or nothing. plus is "+" to keep it a
@@ -201,29 +258,37 @@ type query struct {
 	library int64
 	kinds   string
 	tagWalk string
+	// holderKinds is the list's kinds that hold others (shows, seasons, artists, albums), as
+	// an SQL list, or "" when it names none. Only these can be emptied; see access.emptied.
+	holderKinds string
+	// holders is the viewer's empty-holder condition (see access.filled), standing in for
+	// "{holders}" on a page and in a count that checks labels row by row; ratedHolders is
+	// its rating-only form, for a total that subtracts what labels hide.
+	holders, ratedHolders string
 	// whole is set when the list is all of that library and those kinds with nothing else
 	// asked for, whatever the viewer's rating limit. Its tag choices are counted from indexes.
 	whole bool
 }
 
 func (q *query) pageWhere() string {
-	return strings.NewReplacer("{tag}", q.tagPage, "{+}", q.pagePlus, "{labels}", q.labels, "{rated}", q.ratingPlus).Replace(q.sql.String())
+	return strings.NewReplacer("{tag}", q.tagPage, "{+}", q.pagePlus, "{labels}", q.labels, "{holders}", q.holders,
+		"{rated}", q.ratingPlus).Replace(q.sql.String())
 }
 
 // countWhere is the condition for a total or a facet. With labels false the blocked-label
 // check is left out, for a caller that subtracts instead.
 func (q *query) countWhere(labels bool) string {
-	check := ""
+	check, holders := "", q.ratedHolders
 	if labels {
-		check = q.labels
+		check, holders = q.labels, q.holders
 	}
-	return strings.NewReplacer("{tag}", q.tagCount, "{+}", "", "{labels}", check, "{rated}", "").Replace(q.sql.String())
+	return strings.NewReplacer("{tag}", q.tagCount, "{+}", "", "{labels}", check, "{holders}", holders, "{rated}", "").Replace(q.sql.String())
 }
 
 // hiddenWhere is the list's condition for the few rows a blocked label hides: no label check,
 // and the tag as a check on each row.
 func (q *query) hiddenWhere() string {
-	return strings.NewReplacer("{tag}", q.tagWalk, "{+}", "", "{labels}", "", "{rated}", "").Replace(q.sql.String())
+	return strings.NewReplacer("{tag}", q.tagWalk, "{+}", "", "{labels}", "", "{holders}", q.ratedHolders, "{rated}", "").Replace(q.sql.String())
 }
 
 func newQuery(v Viewer) *query {

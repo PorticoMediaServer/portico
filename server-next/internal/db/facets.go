@@ -132,6 +132,10 @@ func (d *DB) Facets(ctx context.Context, v Viewer, q ItemQuery, facet string) ([
 			if len(acc.blockedTags) > 0 {
 				counts += ` UNION ALL ` + byRow("-", `i.id IN (`+acc.blockedIDs(w.library, w.kinds)+`)`+acc.rated("i", ""))
 			}
+			// So are the shows or albums left with nothing under them the profile may see.
+			if emptied := acc.emptied(w.library, w.holderKinds); emptied != "" {
+				counts += ` UNION ALL ` + byRow("-", emptied)
+			}
 		}
 		// The tags are named only after counting, and at most 200 are returned. MATERIALIZED
 		// has the counting done once; left to itself SQLite folds it into the outer statement
