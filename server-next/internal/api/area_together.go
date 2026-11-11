@@ -39,5 +39,6 @@ func (s *Server) startTogether(ctx context.Context) error {
 	go s.sweepMemory(ctx)
 	s.receiverRoutes()
 	s.groupRoutes()
+	s.castRoutes()
 	return nil
 }

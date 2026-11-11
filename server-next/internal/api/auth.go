@@ -156,7 +156,11 @@ func (s *Server) session(st db.SessionState, issued time.Time, refreshToken stri
 	// carries the account's role and may manage the account; any other profile is a member,
 	// whoever owns the account. So is a TV that was approved from one of those profiles.
 	role, manage := "account", false
-	if st.ProfileID != 0 {
+	switch {
+	case st.Cast:
+		// A Cast receiver plays for its one profile and does nothing else. See cast.go.
+		role = roleCast
+	case st.ProfileID != 0:
 		role = "member"
 		if st.ProfilePrimary && !st.MemberOnly {
 			role, manage = st.UserRole, true

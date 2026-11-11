@@ -220,9 +220,9 @@ Nothing here takes `If-Match`: the last action wins.
 | `PUT /v1/receivers/current`, `DELETE /v1/receivers/current` | A signed-in device | This device accepts playback from the account's other devices, or stops |
 | `POST /v1/receivers/{id}/requests`, `GET /v1/receivers/{id}/requests/{requestId}`, `DELETE /v1/receivers/{id}/requests/{requestId}` | A device of the same account | Ask a device to play (title, place, audio and subtitle picks, queue) or to be controlled; see allowed, declined, playing or failed; cancel. The first device keeps playing until the second is, and a move not playing in two minutes has failed |
 | `GET /v1/receivers/current/requests`, `PATCH /v1/receivers/current/requests/{requestId}` | The receiving device | What is being asked; allow, decline, report playing or failed. The device itself remembers which devices it allowed |
-| `GET /v1/cast/config` | Any signed-in profile, on a Portico Accounts server | The Cast application id. A local server answers `404` and has no `cast` capability |
+| `GET /v1/cast/config` | Any signed-in profile, on a Portico Accounts server | The Cast application id (the `cast.application_id` settings row). A local server, or one without the id, answers `404` and has no `cast` capability |
 | `POST /v1/cast/codes` | Any signed-in profile, on a Portico Accounts server | A pairing code for the TV the sender is casting to |
-| `POST /v1/cast/redeem` | The Cast receiver, with the code | A sign-in that can play what the casting profile may see and nothing else (session scope `cast`), renewed by the ordinary refresh; it ends when the account signs it out or after a day unused |
+| `POST /v1/cast/redeem` | The Cast receiver, with the code | A sign-in that can play what the casting profile may see and nothing else (session scope `cast`, role `cast` in the token: playback, queues, the title and the feed; anything else is `403 playback_only`), renewed by the ordinary refresh; it ends when the account signs it out or after a day unused. The answer is the session only, nothing of the account or its profiles |
 
 Controlling a device afterwards is the ordinary `PATCH` and `DELETE /v1/playback/sessions/{id}`.
 `DELETE` stops any of the account's sessions, as the stream limit screen needs. `PATCH` on a
