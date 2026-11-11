@@ -104,6 +104,24 @@ func TestBooksOnARemoteSource(t *testing.T) {
 		t.Fatalf("a page asked for while the source said slow down answered %d", r.StatusCode)
 	}
 
+	// A network that blinks while a page is read is "try again", not "damaged"; and so it is
+	// for the book itself while its list of pages is read. Asked again, both read.
+	dav.Breaks.Store(1)
+	if r := b.fetch(far.MediaURL + "/pages/1"); r.StatusCode != 503 || !strings.Contains(body(r), `"source_unreachable"`) || r.Header.Get("Retry-After") == "" {
+		t.Fatalf("a page whose source blinked answered %d %s", r.StatusCode, body(r))
+	}
+	if r := b.fetch(far.MediaURL + "/pages/1"); r.StatusCode != 200 {
+		t.Fatalf("the page asked for again answered %d", r.StatusCode)
+	}
+	dav.Breaks.Store(1)
+	again := get[BookAnswer](t, b.s, token, "/v1/items/"+b.find(db.KindComic, "Far Away")+"/book")
+	if again.Unreadable == nil || again.Unreadable.Code != "source_unreachable" {
+		t.Fatalf("a comic whose source blinked while it opened: %+v", again.Unreadable)
+	}
+	if again = get[BookAnswer](t, b.s, token, "/v1/items/"+b.find(db.KindComic, "Far Away")+"/book"); again.Unreadable != nil {
+		t.Fatalf("the comic opened again: %+v", again.Unreadable)
+	}
+
 	dav.Put("Books/Remote Tale.epub", strings.Replace(tale, "cold", "warm", 1)+"and more")
 	if r := b.fetch(book.MediaURL + "/parts/OEBPS/text/chapter 1.xhtml"); r.StatusCode != 409 {
 		t.Fatalf("a file changed at the source answered %d", r.StatusCode)
