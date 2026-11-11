@@ -277,6 +277,23 @@ func (im *importer) rename(id int64, it *ImportItem, parent *importedItem) (*imp
 			return nil, err
 		}
 		if parent.id != item.parentID {
+			// What a title inherits from its holder moves with it, in this same write: the
+			// rating that decides which profiles may see it, and the top of its tree, for it
+			// and for everything under it. An episode moved from a show rated 8 into one
+			// rated 18 is then hidden from a profile limited to 8 at once.
+			rating := it.RatingAge
+			if rating == nil {
+				rating = parent.ratingAge
+			}
+			if _, err := im.exec(`UPDATE items SET rating_age = ? WHERE id = ?`, rating, id); err != nil {
+				return nil, err
+			}
+			if _, err := im.exec(`WITH RECURSIVE t(id) AS (SELECT id FROM items WHERE parent_id = ? UNION ALL
+				SELECT i.id FROM items i JOIN t ON i.parent_id = t.id)
+				UPDATE items SET root_id = ?, rating_age = ? WHERE id IN (SELECT id FROM t)`, id, newRoot, rating); err != nil {
+				return nil, err
+			}
+			item.ratingAge = rating
 			leaf := 0
 			if it.Kind.Playable() {
 				leaf = 1
