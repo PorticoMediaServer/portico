@@ -200,3 +200,43 @@ func TestWatchedMarkFollowsAMove(t *testing.T) {
 	}
 	p.check("after the move")
 }
+
+// Two shows are merged. A profile had finished the one merged into; the other brings an
+// episode it has not watched, so the show is no longer watched. A profile that had finished
+// both has finished the merged show.
+func TestWatchedMarkFollowsAMerge(t *testing.T) {
+	ctx := context.Background()
+	p := newMarkProbe(t, "Bluey/Season 1/Bluey - S01E01.mkv", "Bluey 2018/Season 1/Bluey 2018 - S01E02.mkv", "Bluey 2018/Season 2/Bluey 2018 - S02E01.mkv")
+	some, err := p.d.CreateSeedProfile(ctx, db.SeedProfile{Name: "finished one"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	all, err := p.d.CreateSeedProfile(ctx, db.SeedProfile{Name: "finished both"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	yes := true
+	into, from := p.show(some, "Bluey"), p.show(some, "Bluey 2018")
+	if _, _, err := p.d.SetState(ctx, some, into.PublicID, db.StateEdit{Watched: &yes}); err != nil {
+		t.Fatal(err)
+	}
+	for _, show := range []db.Item{into, from} {
+		if _, _, err := p.d.SetState(ctx, all, show.PublicID, db.StateEdit{Watched: &yes}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	p.check("before the merge")
+	if err := p.d.MergeItems(ctx, from.PublicID, into.PublicID); err != nil {
+		t.Fatal(err)
+	}
+	if got := len(p.items(some, db.ItemQuery{Kinds: []db.ItemKind{db.KindEpisode}})); got != 3 {
+		t.Fatalf("%d episodes after the merge; want 3", got)
+	}
+	if p.listedWatched(some, "Bluey") {
+		t.Error("a show that gained two unwatched episodes by a merge is still listed as watched")
+	}
+	if !p.listedWatched(all, "Bluey") {
+		t.Error("a profile that had finished both shows has not finished the merged one")
+	}
+	p.check("after the merge")
+}
