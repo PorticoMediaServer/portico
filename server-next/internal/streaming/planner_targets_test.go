@@ -67,7 +67,7 @@ func TestEveryRegisteredOutputHasAnExecutablePlannerTarget(t *testing.T) {
 					mediafacts.StreamDetail{BitDepth: output.BitDepth, Width: 1920, Height: 1080, FrameRate: 24, DynamicRange: dr},
 					SourceAudio{Index: 1, Codec: "aac", Channels: 2},
 				)
-				selected := plan(source, *onTheChip(ConversionOutputs{Video: []ConversionVideoOutput{output}, Audio: outputs.Audio}))
+				selected := plan(source, ConversionOutputs{Video: []ConversionVideoOutput{output}, Audio: outputs.Audio})
 				if selected.OutputVideoCodec != output.Codec || selected.OutputBitDepth != output.BitDepth || selected.OutputRange != dr {
 					t.Fatal(selected.ConversionTarget)
 				}

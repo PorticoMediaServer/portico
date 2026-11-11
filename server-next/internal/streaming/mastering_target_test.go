@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediafacts"
 )
 
@@ -29,7 +28,6 @@ func TestKeptHDR10CarriesMasteringMetadata(t *testing.T) {
 			Source:             source,
 			Client:             client,
 			Server:             plannerToolchain(),
-			Outputs:            onTheChip(decoder.AvailableConversionOutputs(plannerToolchain())),
 			FMP4Output:         true,
 			Policy:             openPolicy(),
 			Target:             QualityTarget{RungID: "original", Kind: QualityAutomatic, AllowHDR: true},
@@ -51,7 +49,6 @@ func TestKeptHDR10CarriesMasteringMetadata(t *testing.T) {
 			Source:             source,
 			Client:             client,
 			Server:             plannerToolchain(),
-			Outputs:            onTheChip(decoder.AvailableConversionOutputs(plannerToolchain())),
 			FMP4Output:         true,
 			Policy:             openPolicy(),
 			Target:             QualityTarget{RungID: "original", Kind: QualityAutomatic, AllowHDR: true},

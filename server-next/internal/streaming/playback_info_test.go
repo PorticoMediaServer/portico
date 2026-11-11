@@ -354,7 +354,6 @@ func TestHDR10PlusConversionReportsMetadataLossForHDRAndSDR(t *testing.T) {
 		plan := decide(t, source, appleTVProfile(), func(in *DeliveryInput) {
 			in.FMP4Output = true
 			in.Server = matrixToolchain()
-			in.Outputs = onTheChip(decoder.AvailableConversionOutputs(in.Server))
 			in.Target = QualityTarget{RungID: "720p", Kind: QualityFixed, MaxVideoHeight: 720, MaxVideoBitrateBPS: 2_000_000, AllowHDR: allowHDR}
 		})
 		if plan.VideoAction != "convert" || !containsString(plan.Trace.Notes, NoteHDR10PlusLost) {

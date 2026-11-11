@@ -74,19 +74,21 @@ func keptRange(v *SourceVideo, client ClientProfile, codec *ClientVideoCodec) st
 // chooseVideoOutput picks the picture a conversion produces for this device. ok is
 // false when no output of this server reaches the device.
 //
-// The source's HDR is kept through a conversion only where the device shows it and
-// the chip's own encoder makes the 10-bit output: converting 4K HDR in software is
-// not real time, and a film that plays beats HDR that stutters. Otherwise the
-// picture is standard range, and what matters is that it converts in real time:
-// the chip's encoders first, then software HEVC and H.264, then software AV1. Within each of those, a picture tone-mapped from HDR is made at
+// The source's HDR is kept where the device shows it and an output carries it (ten
+// bits): HDR is tone-mapped only for a screen without it (playback rule 13), even
+// where software is slow. The chip's encoders come first, then software, AV1 last.
+// Otherwise the picture is standard range, and what matters is that it converts in
+// real time: the chip's encoders first, then software HEVC and H.264, then software
+// AV1. Within each of those, a picture tone-mapped from HDR is made at
 // 8 bits before 10 (ten bits keep nothing once it is standard range), and a 10-bit
 // standard-range source keeps its 10 bits where the device plays them, so animation
 // does not band. Software AV1 at 10 bits, which a browser was given for every HDR
 // film before, is several times too slow for a 4K film.
 //
-// For a browser, a tone-mapped picture is made on software H.264 before software HEVC.
-// And until AV1 after a seek is settled (playback proof finding 1 on #2604), a browser
-// is given the chip's AV1 only when no other output of the chip reaches it.
+// For a browser, a tone-mapped picture is made on software H.264 before software HEVC,
+// and until AV1 after a seek is settled (playback proof finding 1 on #2604) the chip's
+// AV1 comes after the chip's other outputs. Keeping HDR outranks that: a browser shown
+// HDR whose only chip 10-bit output it plays is AV1 gets the chip's AV1.
 func chooseVideoOutput(v *SourceVideo, client ClientProfile, transports []ClientTransport, allowHDR bool, outputs ConversionOutputs, audio *SourceAudio, target QualityTarget) (videoOutput, bool) {
 	browser := client.Client.Family == "web" || client.Client.Form == "browser"
 	toneMapped := v != nil && v.DynamicRange != "" && v.DynamicRange != mediafacts.RangeSDR
@@ -109,19 +111,8 @@ func chooseVideoOutput(v *SourceVideo, client ClientProfile, transports []Client
 		})
 		return out
 	}
-	// For a browser, the chip's AV1 is a last resort while any other chip output reaches it.
-	chipOther := false
-	for _, o := range outputs.Video {
-		if browser && o.Hardware && o.Codec != "av1" {
-			if _, ok := tryVideoOutput(o, mediafacts.RangeSDR, client, transports, outputs, audio, target); ok {
-				chipOther = true
-			}
-		}
-	}
 	if allowHDR {
-		hdr := ranked(func(o ConversionVideoOutput) bool {
-			return o.BitDepth >= 10 && o.Hardware && !(browser && chipOther && o.Codec == "av1")
-		}, true)
+		hdr := ranked(func(o ConversionVideoOutput) bool { return o.BitDepth >= 10 }, true)
 		for _, o := range hdr {
 			codec := client.videoCodec(o.Codec)
 			if kept := keptRange(v, client, codec); kept != "" && containsString(o.Ranges, kept) {

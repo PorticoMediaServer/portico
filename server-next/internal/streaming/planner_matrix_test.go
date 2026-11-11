@@ -118,8 +118,8 @@ func plannerSources() []*DeliverySource {
 		videoSource("mkv", "vc1", vc1, SourceAudio{Index: 1, Codec: "dts", Channels: 8, StreamDetail: mediafacts.StreamDetail{Profile: "DTS-HD MA", SampleRate: 96000, BitDepth: 24}}),
 		videoSource("mp4", "hevc", hlg, audio),
 		videoSource("mkv", "h264", deep, audio),
-		// An HDR film most TVs and phones cannot play as it is: a conversion keeps its HDR
-		// only on a chip that encodes 10 bits, and this server has none.
+		// An HDR film most TVs and phones cannot play as it is: a device that shows HDR keeps
+		// it through the conversion, one that does not is tone-mapped.
 		videoSource("mkv", "av1", mediafacts.StreamDetail{Profile: "Main", Width: 3840, Height: 2160, FrameRate: 24, BitDepth: 10, DynamicRange: "hdr10", CodecTag: "av01"}, audio),
 	)
 	return sources
@@ -147,7 +147,7 @@ func TestPlannerOutputDeviceSourceMatrix(t *testing.T) {
 			"video_conversion/hevc/flac/2/sdr/native",
 			"original/hevc/aac/2/hlg/native",
 			"video_conversion/hevc/aac/2/sdr/native/10bit",
-			"video_conversion/hevc/aac/2/sdr/native",
+			"video_conversion/hevc/aac/2/hdr10/native",
 		},
 		"Vega": {
 			"original/h264/aac/2/sdr/native",
@@ -173,8 +173,7 @@ func TestPlannerOutputDeviceSourceMatrix(t *testing.T) {
 			"original/vc1/dts/8/sdr/mpv",
 			"original/hevc/aac/2/hlg/mpv",
 			"original/h264/aac/2/sdr/mpv",
-			// main kept HDR10 here on software HEVC; with no chip that encodes 10 bits, SDR.
-			"video_conversion/hevc/aac/2/sdr/mpv",
+			"video_conversion/hevc/aac/2/hdr10/mpv",
 		},
 		"iPhone": {
 			"original/h264/aac/2/sdr/native",
@@ -229,8 +228,7 @@ func TestPlannerOutputDeviceSourceMatrix(t *testing.T) {
 			"video_conversion/hevc/flac/6/sdr/native",
 			"original/hevc/aac/2/hlg/native",
 			"video_conversion/hevc/aac/2/sdr/native/10bit",
-			// main kept HDR10 here on software HEVC; with no chip that encodes 10 bits, SDR.
-			"video_conversion/h264/aac/2/sdr/native",
+			"video_conversion/hevc/aac/2/hdr10/native",
 		},
 		"AppleTV4K-native": {
 			"original/h264/aac/2/sdr/native",
@@ -243,8 +241,7 @@ func TestPlannerOutputDeviceSourceMatrix(t *testing.T) {
 			"video_conversion/hevc/flac/8/sdr/native",
 			"original/hevc/aac/2/hlg/native",
 			"video_conversion/hevc/aac/2/sdr/native/10bit",
-			// main kept HDR10 here on software HEVC; with no chip that encodes 10 bits, SDR.
-			"video_conversion/hevc/aac/2/sdr/native",
+			"video_conversion/hevc/aac/2/hdr10/native",
 		},
 		"AppleTVHD": {
 			"original/h264/aac/2/sdr/native",
