@@ -318,11 +318,11 @@ func (s *Service) make(ctx context.Context, id string, scheduled bool) error {
 			return err
 		}
 		desc.Size = info.Size()
-		key, err := markKey(s.DataDir)
-		if err != nil {
-			return err
-		}
-		if desc.Mark, err = markOf(key, partial); err != nil {
+		// A key that cannot be read does not stop the backup: it is made without a mark, and
+		// restoring it asks the owner to confirm.
+		if key, err := markKey(s.DataDir); err != nil {
+			s.Log.Warn("a backup is made without its mark", "error", err)
+		} else if desc.Mark, err = markOf(key, partial); err != nil {
 			return err
 		}
 		raw, _ := json.MarshalIndent(desc, "", "  ")

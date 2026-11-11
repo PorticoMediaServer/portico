@@ -66,9 +66,10 @@ func Stage(ctx context.Context, archivePath, dataDir, name string, now time.Time
 		return err
 	}
 	defer os.RemoveAll(work)
-	key, err := markKey(dataDir)
-	if err != nil {
-		return err
+	// Without a readable key the mark cannot be checked, and only a confirmed restore goes on.
+	key, keyErr := markKey(dataDir)
+	if keyErr != nil && !notMadeHereOK {
+		return ErrNotMadeHere
 	}
 	m := newMarker(key)
 	if err := unpack(archivePath, work, dataDir, m); err != nil {

@@ -26,8 +26,14 @@ type BackupRestore struct {
 	NotMadeHereConfirmed bool `json:"notMadeHereConfirmed,omitempty"`
 }
 
-// notMadeHere is the warning for a backup without this server's mark.
-func notMadeHere() *Error {
+// notMadeHere is the warning for a backup without this server's mark. Where this server's
+// key cannot be read, it says that instead: the restore still goes on once confirmed.
+func (s *Server) notMadeHere() *Error {
+	if problem := backup.MarkKeyProblem(s.backups.DataDir); problem != "" {
+		s.log.Warn("a restore cannot check the backup's mark", "error", problem)
+		return ErrConflict("backup_not_made_here", "This server's backup key can't be read, so it can't tell whether this backup was made here "+
+			"or has been changed since. Restoring it replaces every account, including yours, with what is in the file.")
+	}
 	return ErrConflict("backup_not_made_here", "This backup wasn't made by this server, or has been changed since. "+
 		"Restoring it replaces every account, including yours, with what is in the file.")
 }
@@ -72,7 +78,7 @@ func (s *Server) restoreRoutes() {
 		}
 		// A backup this server did not make is warned of before anything else is asked.
 		if !req.NotMadeHereConfirmed && !backup.MadeHere(s.backups.DataDir, archive) {
-			return RestoreStaged{}, notMadeHere()
+			return RestoreStaged{}, s.notMadeHere()
 		}
 		proof, err := s.passwordProof(r, req.CurrentPassword, req.Code)
 		if err != nil {
@@ -85,7 +91,7 @@ func (s *Server) restoreRoutes() {
 		// mark is checked over the very bytes unpacked.
 		err = backup.Stage(r.Context(), archive, s.backups.DataDir, name, s.now(), req.NotMadeHereConfirmed)
 		if errors.Is(err, backup.ErrNotMadeHere) {
-			return RestoreStaged{}, notMadeHere()
+			return RestoreStaged{}, s.notMadeHere()
 		}
 		if err != nil {
 			return RestoreStaged{}, backupRefusal(err)

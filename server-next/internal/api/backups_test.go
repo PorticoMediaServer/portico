@@ -167,4 +167,15 @@ func TestRestoreWarnsOfABackupNotMadeHere(t *testing.T) {
 	if code := status(t, s, "POST", "/v1/admin/backups/restore", owner, restore); code != 200 {
 		t.Errorf("restoring it, confirmed, answered %d", code)
 	}
+
+	// A key that cannot be read is said plainly, and a confirmed restore still goes on.
+	os.WriteFile(filepath.Join(s.Backups().DataDir, "backup-mark.key"), []byte("cut short"), 0o600)
+	restore.NotMadeHereConfirmed = false
+	if w := call(t, s, "POST", "/v1/admin/backups/restore", owner, restore, nil); w.Code != 409 || !strings.Contains(w.Body.String(), "backup key can't be read") {
+		t.Errorf("restoring with the key unreadable answered %d: %s", w.Code, w.Body)
+	}
+	restore.NotMadeHereConfirmed = true
+	if code := status(t, s, "POST", "/v1/admin/backups/restore", owner, restore); code != 200 {
+		t.Errorf("restoring with the key unreadable, confirmed, answered %d", code)
+	}
 }
