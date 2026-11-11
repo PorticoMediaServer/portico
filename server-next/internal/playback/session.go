@@ -85,6 +85,8 @@ type Session struct {
 	VersionID string
 	fileID    int64
 	Queue     *QueueLink
+	// Channel is the Library Channel the session joined, or nil.
+	Channel *ChannelLink
 
 	State   string
 	Choice  Choice
@@ -432,7 +434,7 @@ func (s *Service) Save(ctx context.Context, p db.Priority, only ...string) {
 		sess.dirty = false
 		owners = append(owners, sess)
 		batch = append(batch, db.Progress{Viewer: sess.Viewer(), ItemID: sess.Item.PublicID, DeviceID: sess.Device.ID,
-			PlayID: sess.ID, PositionMS: sess.PositionMs, At: sess.sampleAt, WatchedMS: sess.playedMs})
+			PlayID: sess.ID, PositionMS: sess.PositionMs, At: sess.sampleAt, WatchedMS: sess.playedMs, OwnerOnly: sess.Channel != nil})
 	}
 	if len(only) > 0 {
 		for _, id := range only {
