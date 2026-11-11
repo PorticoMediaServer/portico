@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -118,7 +119,7 @@ type theatre struct {
 	s      *Server
 	engine *fakeEngine
 	owner  Session
-	clock  time.Time
+	clock  rigClock
 	film   string
 	eps    [2]string
 	song   string
@@ -126,13 +127,21 @@ type theatre struct {
 	path   string
 }
 
+// rigClock is a clock a test moves while the server's own background work reads it.
+type rigClock struct{ at atomic.Pointer[time.Time] }
+
+func (c *rigClock) Now() time.Time      { return *c.at.Load() }
+func (c *rigClock) Set(t time.Time)     { c.at.Store(&t) }
+func (c *rigClock) Add(d time.Duration) { c.Set(c.Now().Add(d)) }
+
 const hour = int64(3_600_000)
 
 func newTheatre(t *testing.T) *theatre {
 	path := filepath.Join(t.TempDir(), "main.db")
 	s := openTestServer(t, path)
-	th := &theatre{T: t, s: s, path: path, engine: &fakeEngine{}, clock: time.Now(), libs: map[string]db.Library{}}
-	s.setClock(func() time.Time { return th.clock })
+	th := &theatre{T: t, s: s, path: path, engine: &fakeEngine{}, libs: map[string]db.Library{}}
+	th.clock.Set(time.Now())
+	s.setClock(func() time.Time { return th.clock.Now() })
 	s.playback.SetEngine(th.engine, th.engine)
 	th.owner = onMain(t, s, setup(t, s))
 	ctx := context.Background()
@@ -352,12 +361,12 @@ func TestStopTwiceAndLeaseExpiry(t *testing.T) {
 	// A device that goes quiet for two minutes loses its session; its last word is saved.
 	session = th.play(token, th.film)
 	th.report(token, session.ID, "playing", 30*60_000)
-	th.clock = th.clock.Add(119 * time.Second)
+	th.clock.Add(119 * time.Second)
 	th.s.playback.Sweep(context.Background())
 	if code := th.report(token, session.ID, "playing", 32*60_000); code != 200 {
 		t.Fatalf("a report inside the lease answered %d", code)
 	}
-	th.clock = th.clock.Add(121 * time.Second)
+	th.clock.Add(121 * time.Second)
 	th.s.playback.Sweep(context.Background())
 	var ended PlaybackSession
 	call(t, th.s, "GET", "/v1/playback/sessions/"+session.ID, token, nil, &ended)
@@ -365,7 +374,7 @@ func TestStopTwiceAndLeaseExpiry(t *testing.T) {
 		t.Fatalf("after the lease ran out: %+v, position %d", ended, th.state(th.film).PositionMS)
 	}
 	// Later the ended session is forgotten: the app is told it is unknown and starts again.
-	th.clock = th.clock.Add(3 * time.Minute)
+	th.clock.Add(3 * time.Minute)
 	th.s.playback.Sweep(context.Background())
 	if code := th.report(token, session.ID, "playing", 0); code != 404 {
 		t.Fatalf("a report to a forgotten session answered %d", code)
@@ -544,7 +553,7 @@ func TestProgressBatchesAndThePlayIsCountedOnce(t *testing.T) {
 	token := th.owner.AccessToken
 	ctx := context.Background()
 	session := th.play(token, th.film)
-	th.clock = th.clock.Add(10 * time.Second)
+	th.clock.Add(10 * time.Second)
 	th.report(token, session.ID, "playing", 10*60_000)
 	if got := th.state(th.film); got.PositionMS != 0 {
 		t.Fatalf("a report was written before the batch: %d", got.PositionMS)
@@ -553,14 +562,14 @@ func TestProgressBatchesAndThePlayIsCountedOnce(t *testing.T) {
 	if got := th.state(th.film); got.PositionMS != 10*60_000 || got.Watched {
 		t.Fatalf("after the batch: %+v", got)
 	}
-	th.clock = th.clock.Add(10 * time.Second)
+	th.clock.Add(10 * time.Second)
 	th.report(token, session.ID, "paused", 10*60_000+10_000)
 	if got := th.state(th.film); got.PositionMS != 10*60_000+10_000 {
 		t.Fatalf("a pause was not written at once: %d", got.PositionMS)
 	}
 	// Past 95%: watched, no resume point, one play.
 	for n, position := range []int64{57 * 60_000, 58 * 60_000, 59 * 60_000} {
-		th.clock = th.clock.Add(time.Minute)
+		th.clock.Add(time.Minute)
 		th.report(token, session.ID, "playing", position)
 		th.s.playback.Save(ctx, db.Background)
 		if got := th.state(th.film); !got.Watched || got.PositionMS != 0 || got.PlayCount != 1 {
@@ -572,7 +581,7 @@ func TestProgressBatchesAndThePlayIsCountedOnce(t *testing.T) {
 	if _, _, err := th.s.db.SetState(ctx, db.Viewer{UserID: 1, ProfileID: 1}, th.film, db.StateEdit{Watched: &no}); err != nil {
 		t.Fatal(err)
 	}
-	th.clock = th.clock.Add(10 * time.Second)
+	th.clock.Add(10 * time.Second)
 	th.report(token, session.ID, "playing", 59*60_000+30_000)
 	status(t, th.s, "DELETE", "/v1/playback/sessions/"+session.ID, token, PlaybackStop{PositionMs: ptr(hour)})
 	if got := th.state(th.film); got.Watched || got.PlayCount != 1 {
@@ -668,12 +677,12 @@ func TestATitleRemovedWhilePlayingEndsWithinAMinute(t *testing.T) {
 			t.Fatalf("removing the film: %d, %v", n, err)
 		}
 	}
-	th.clock = th.clock.Add(30 * time.Second)
+	th.clock.Add(30 * time.Second)
 	th.s.playback.Sweep(ctx)
 	if th.engine.streams() != 1 {
 		t.Fatal("playback ended before the check was due")
 	}
-	th.clock = th.clock.Add(31 * time.Second)
+	th.clock.Add(31 * time.Second)
 	th.s.playback.Sweep(ctx)
 	var over PlaybackSession
 	call(t, th.s, "GET", "/v1/playback/sessions/"+session.ID, token, nil, &over)
@@ -791,7 +800,7 @@ func TestRememberedFailures(t *testing.T) {
 		}
 	}
 	// An uncertain failure is forgotten after six hours, and Original is tried again.
-	th.clock = th.clock.Add(6*time.Hour + time.Minute)
+	th.clock.Add(6*time.Hour + time.Minute)
 	again = onMain(t, th.s, signIn(t, th.s, 0)).AccessToken
 	if next := th.play(again, th.film); next.Presentation.Route != "original" {
 		t.Fatalf("after six hours the start took the %s way", next.Presentation.Route)
@@ -971,7 +980,7 @@ func TestCreditsPausedHistoryAndWhatIsNotAvailableYet(t *testing.T) {
 	}
 
 	// History paused: the film is played to the end. Nothing of the profile's changes.
-	if err := th.s.db.SetProfilePreference(ctx, 1, db.PrefPauseHistory, "true", th.clock); err != nil {
+	if err := th.s.db.SetProfilePreference(ctx, 1, db.PrefPauseHistory, "true", th.clock.Now()); err != nil {
 		t.Fatal(err)
 	}
 	stopAt(th.film, 30*60_000)

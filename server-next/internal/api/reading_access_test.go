@@ -30,7 +30,7 @@ func TestABookAddressEndsWithItsSignInAndAccess(t *testing.T) {
 	if w := call(t, b.s, "PUT", "/v1/profiles/"+kid.ID+"/restrictions", owner, Restrictions{MaxRatingAge: &age, AllLibraries: true}, nil); w.Code != 200 {
 		t.Fatalf("limiting the kid answered %d", w.Code)
 	}
-	b.clock = b.clock.Add(checkForTest)
+	b.clock.Add(checkForTest)
 	if r := b.fetch(address + part); r.StatusCode != 404 {
 		t.Fatalf("an address kept working after its profile lost the book: %d", r.StatusCode)
 	}

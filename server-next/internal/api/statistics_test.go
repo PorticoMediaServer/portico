@@ -12,11 +12,11 @@ func TestLifetimeStatistics(t *testing.T) {
 	th := newTheatre(t)
 	// Midday, so moving the clock on never crosses into the next day's totals.
 	now := time.Now()
-	th.clock = time.Date(now.Year(), now.Month(), now.Day(), 12, 0, 0, 0, time.Local)
+	th.clock.Set(time.Date(now.Year(), now.Month(), now.Day(), 12, 0, 0, 0, time.Local))
 	th.owner = onMain(t, th.s, signIn(t, th.s, 0)) // signed in at that time
 	owner := th.owner.AccessToken
 	session := th.play(owner, th.film)
-	th.clock = th.clock.Add(10 * time.Minute)
+	th.clock.Add(10 * time.Minute)
 	if code := status(t, th.s, "PUT", "/v1/playback/sessions/"+session.ID+"/progress", owner,
 		PlaybackProgress{State: "playing", PositionMs: 600_000, PlayClockMs: 600_000}); code != 200 {
 		t.Fatalf("progress answered %d", code)

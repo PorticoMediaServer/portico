@@ -202,7 +202,7 @@ func kidsKey(t *testing.T, th *theatre) string {
 	}
 	secret := keyPrefix + "kids-tool"
 	if _, _, err := th.s.db.CreateAPIKey(ctx, db.NewAPIKey{UserID: 1, ProfileID: p.ID, Kind: "personal_token", Name: "Kids tool",
-		KeyHash: keyHash(secret), Scopes: []string{"read"}, Limit: 25, Now: th.clock}); err != nil {
+		KeyHash: keyHash(secret), Scopes: []string{"read"}, Limit: 25, Now: th.clock.Now()}); err != nil {
 		t.Fatal(err)
 	}
 	th.play(th.owner.AccessToken, th.film)
