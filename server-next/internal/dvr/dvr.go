@@ -375,7 +375,7 @@ func (s *Service) address(ctx context.Context, sourceID int64, locator string) (
 	if err != nil {
 		return "", err
 	}
-	var cfg live.Config
+	var cfg live.SourceConfig
 	json.Unmarshal([]byte(src.Config), &cfg)
 	var signIn live.SignIn
 	if src.Kind == "xtream" {
