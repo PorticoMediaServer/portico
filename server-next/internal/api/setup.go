@@ -224,9 +224,7 @@ func (s *Server) setupPortico(r *http.Request, req SetupPorticoRequest) (SetupPo
 		return SetupPorticoApproval{}, err
 	}
 	if serverName == "" {
-		if serverName, err = s.serverName(r); err != nil {
-			return SetupPorticoApproval{}, err
-		}
+		serverName = s.serverName()
 	}
 	approval, err := s.hosted.StartApproval(r.Context(), hosted.ApprovalRequest{ServerID: s.id, ServerName: serverName,
 		Purpose: hosted.PurposeSetup, ReturnURL: req.ReturnURL})
