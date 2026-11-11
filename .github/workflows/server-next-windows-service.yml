@@ -2,8 +2,9 @@ name: New server as a Windows service
 # Builds the new server (server-next) for Windows and runs, on a real Windows machine, what the
 # installer runs: --service-install and --service-start, then checks the server answers, keeps
 # its data in %ProgramData%\Portico where only Windows, administrators and the service can
-# reach it, comes back when its worker ends unasked, and survives a stop and a start; then
-# --service-stop and --service-uninstall. Nothing else runs the Windows service code.
+# reach it, writes its log there, comes back when its worker ends unasked, survives a stop and
+# a start, and says in its log file why when it refuses to start; then --service-stop and
+# --service-uninstall. Nothing else runs the Windows service code.
 # Not part of ci/required: it reports.
 on:
   workflow_dispatch:
@@ -121,12 +122,9 @@ jobs:
           Closed "$env:DATA\main.db"
           Closed "$env:DATA\setup-code.txt"
           if (-not (Get-Content "$env:DATA\setup-code.txt")) { throw "the setup code is empty" }
-          # The log files arrive with the console's log (package serverlog). From then on this checks them.
-          if (Test-Path server-next\internal\serverlog) {
-            if (-not (Get-ChildItem "$env:DATA\logs" -File | Where-Object Length -gt 0)) { throw "no log file is being written" }
-          } else {
-            "this server has no log files yet"
-          }
+          # A service has no standard error: the log file is the only place it can say anything.
+          if (-not (Get-ChildItem "$env:DATA\logs" -File | Where-Object Length -gt 0)) { throw "no log file is being written" }
+          Closed (Get-ChildItem "$env:DATA\logs" -File | Select-Object -First 1).FullName
       - name: A worker that ends unasked, with exit status 0, is started again
         shell: pwsh
         run: |
@@ -172,6 +170,26 @@ jobs:
           # Both succeed when there is no service, as the installer relies on.
           "$INSTALL/portico-server.exe" --service-stop
           "$INSTALL/portico-server.exe" --service-uninstall
+      - name: A service that refuses to start says why in its log file
+        shell: pwsh
+        run: |
+          # The data folder of the server before this one, which this server refuses.
+          Get-ChildItem $env:DATA -Filter "main.db*" | Remove-Item -Force
+          New-Item -ItemType Directory "$env:DATA\Database" | Out-Null
+          Set-Content "$env:DATA\Database\server.sqlite" "x"
+          $program = "$env:INSTALL\portico-server.exe"
+          & $program --service-install; if ($LASTEXITCODE) { throw "install" }
+          & $program --service-start; if ($LASTEXITCODE) { throw "start" }
+          $said = $false
+          foreach ($i in 1..30) {
+            Start-Sleep 1
+            if (Select-String -Path "$env:DATA\logs\*.log" -Pattern "earlier Portico server" -Quiet) { $said = $true; "the refusal was in the log file after $i s"; break }
+          }
+          if (-not $said) { throw "the log file does not say why the server did not start" }
+          if (Test-Path "$env:DATA\main.db") { throw "the server started a new database beside the old one" }
+          & $program --health-check 2>$null; if ($LASTEXITCODE -eq 0) { throw "a server that refused to start is answering" }
+          & $program --service-uninstall; if ($LASTEXITCODE) { throw "uninstall" }
+          exit 0
       - name: What Windows says, when a step failed
         if: failure()
         shell: pwsh

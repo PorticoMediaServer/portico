@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -109,13 +110,16 @@ func run(log *slog.Logger) (err error) {
 	if err := os.MkdirAll(*data, 0o700); err != nil {
 		return err
 	}
-	if err := oldServerData(*data); err != nil {
-		return err
-	}
 	// Nothing in the data folder is ever played as a library file.
 	libraryfile.ServerData = serverData
 	// Everything logged from here on is also kept in the data folder for Messages.
-	serverLog, err := serverlog.Open(filepath.Join(*data, "logs"), os.Stderr)
+	// A package whose service manager keeps no output says so (PORTICO_LOG_STDERR=off): the
+	// files are then the only log.
+	var stderr io.Writer = os.Stderr
+	if os.Getenv("PORTICO_LOG_STDERR") == "off" {
+		stderr = io.Discard
+	}
+	serverLog, err := serverlog.Open(filepath.Join(*data, "logs"), stderr)
 	if err != nil {
 		return err
 	}
@@ -130,6 +134,11 @@ func run(log *slog.Logger) (err error) {
 			err = loggedError{err}
 		}
 	}()
+	// Refused here, after the log has opened, so that the reason is in the log file: a service
+	// on Windows or under launchd has no other place to say why it did not start.
+	if err := oldServerData(*data); err != nil {
+		return err
+	}
 	// Media tools are started through this binary as their helper. That lets a scan keep a
 	// few confined workers going, where it would otherwise build a sandbox for every file.
 	if _, err := mediaexec.Configure(mediaexec.Options{}); err != nil {
