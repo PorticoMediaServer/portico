@@ -17,10 +17,13 @@ import (
 
 // Limits on one channel's document. Most people never come near them.
 const (
-	MaxBlocks      = 500
-	MaxPinned      = 500
-	MaxWeights     = 100
-	MaxConditions  = 100
+	MaxBlocks     = 500
+	MaxPinned     = 500
+	MaxWeights    = 100
+	MaxConditions = 100
+	// MaxValues is how many values a selection's conditions hold together. A real channel holds
+	// tens; each value is a test on every candidate, and 10,000 took a schedule build 37 s.
+	MaxValues      = 1000
 	MaxBuilderSize = 2 << 20
 )
 
@@ -297,6 +300,16 @@ func (s *Selection) check(prefix string, libraryKinds, titleLibraries map[string
 	}
 	if count > MaxConditions {
 		return fieldError(prefix+"conditions", "A channel holds up to %d conditions.", MaxConditions)
+	}
+	values := 0
+	for _, c := range s.Conditions {
+		values += len(c.Values)
+		for _, inner := range c.Conditions {
+			values += len(inner.Values)
+		}
+	}
+	if values > MaxValues {
+		return fieldError(prefix+"conditions", "A channel's conditions hold up to %d values together. Choose fewer, or use a broader condition.", MaxValues)
 	}
 	if s.AddedWithinDays < 0 {
 		return fieldError(prefix+"addedWithinDays", "Choose how recently titles were added.")
