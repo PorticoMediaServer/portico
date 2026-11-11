@@ -5,6 +5,8 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,14 +30,17 @@ func serviceCommand() (bool, error) {
 		return false, nil
 	}
 	if os.Args[1] != "--service" {
-		return true, manageWindowsService(os.Args[1])
+		if err := manageWindowsService(os.Args[1]); err != nil {
+			return true, fmt.Errorf("%s: %w", os.Args[1], err)
+		}
+		return true, nil
 	}
 	executable, err := os.Executable()
 	if err != nil {
 		return true, err
 	}
 	for key, value := range map[string]string{
-		"PORTICO_DATA_DIR":   filepath.Join(env("ProgramData", `C:\ProgramData`), "Portico"),
+		"PORTICO_DATA_DIR":   serviceData(),
 		"PORTICO_SERVICE":    "1",
 		"PORTICO_WEB_DIR":    filepath.Join(filepath.Dir(executable), "web"),
 		"PORTICO_LOG_STDERR": "off",
@@ -93,6 +98,11 @@ func manageWindowsService(action string) error {
 			return err
 		}
 		defer service.Close()
+		// Who may read the database and the setup code is decided here, on every install, and
+		// not left to the installer.
+		if err := secureData(serviceData()); err != nil {
+			return fmt.Errorf("the data folder's permissions could not be set: %w", err)
+		}
 		if !created {
 			return nil
 		}
@@ -175,11 +185,10 @@ func (windowsService) Execute(_ []string, requests <-chan svc.ChangeRequest, sta
 	status <- svc.Status{State: svc.Running, Accepts: svc.AcceptStop | svc.AcceptShutdown}
 	for {
 		select {
-		case err := <-done:
-			if err != nil {
-				return true, 1
-			}
-			return false, 0
+		case <-done:
+			// The worker ended and nobody asked it to. Whatever its exit status, the service
+			// reports a failure, so that Windows starts it again as its recovery says.
+			return true, 1
 		case request := <-requests:
 			switch request.Cmd {
 			case svc.Interrogate:
@@ -199,4 +208,77 @@ func (windowsService) Execute(_ []string, requests <-chan svc.ChangeRequest, sta
 			}
 		}
 	}
+}
+
+// serviceData is where the service keeps its data: the folder it was given, or Portico in
+// ProgramData.
+func serviceData() string {
+	return env("PORTICO_DATA_DIR", filepath.Join(env("ProgramData", `C:\ProgramData`), "Portico"))
+}
+
+// secureData makes the data folder, and makes it and everything in it readable and writable
+// only by Windows itself, administrators and this service. A folder under ProgramData is
+// otherwise readable by every user of the machine: the database and the setup code with it.
+// The owner is set as well, on the folder and on everything in it: any user may make a folder
+// in ProgramData, and one who made this folder before the install would own it, and an owner
+// can give themselves access again.
+func secureData(folder string) error {
+	if err := os.MkdirAll(folder, 0o700); err != nil {
+		return err
+	}
+	// A link put where the folder should be would have these permissions set on whatever it
+	// points at.
+	if info, err := os.Lstat(folder); err != nil {
+		return err
+	} else if !info.IsDir() || info.Mode()&(fs.ModeSymlink|fs.ModeIrregular) != 0 {
+		return errors.New(folder + " is a link or not a folder; remove it and install again")
+	}
+	service, _, _, err := windows.LookupSID("", `NT SERVICE\PorticoMediaServer`)
+	if err != nil {
+		return err
+	}
+	// Owner: administrators. Nothing inherited from above; full control, here and below, for
+	// Windows (SY), administrators (BA) and the service.
+	top, err := windows.SecurityDescriptorFromString("O:BAD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;FA;;;" + service.String() + ")")
+	if err != nil {
+		return err
+	}
+	owner, _, err := top.Owner()
+	if err != nil {
+		return err
+	}
+	access, _, err := top.DACL()
+	if err != nil {
+		return err
+	}
+	// Everything below has no permissions of its own, only what the folder hands down.
+	below, err := windows.SecurityDescriptorFromString("D:AI")
+	if err != nil {
+		return err
+	}
+	inherited, _, err := below.DACL()
+	if err != nil {
+		return err
+	}
+	if access == nil || inherited == nil {
+		// A missing list would mean "everyone may do everything".
+		return errors.New("Windows returned no permission list")
+	}
+	const ownerAndAccess = windows.OWNER_SECURITY_INFORMATION | windows.DACL_SECURITY_INFORMATION
+	if err := windows.SetNamedSecurityInfo(folder, windows.SE_FILE_OBJECT, ownerAndAccess|windows.PROTECTED_DACL_SECURITY_INFORMATION, owner, nil, access, nil); err != nil {
+		return err
+	}
+	return filepath.WalkDir(folder, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil || path == folder {
+			return err
+		}
+		// A link inside is left as it is, and not followed: its target is not the server's.
+		if entry.Type()&(fs.ModeSymlink|fs.ModeIrregular) != 0 {
+			if entry.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		return windows.SetNamedSecurityInfo(path, windows.SE_FILE_OBJECT, ownerAndAccess|windows.UNPROTECTED_DACL_SECURITY_INFORMATION, owner, nil, inherited, nil)
+	})
 }

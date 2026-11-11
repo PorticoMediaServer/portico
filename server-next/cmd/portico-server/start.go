@@ -23,7 +23,13 @@ func packagedStart(listen string, data *string) (done bool, err error) {
 		return true, nil
 	}
 	if *check {
-		return true, healthCheck(listen)
+		// The check says only what it found. It is not the server, and "the server stopped"
+		// in a container's health log would be wrong about a server that is still starting.
+		if err := healthCheck(listen); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return true, nil
 	}
 	if *data == "" {
 		folder, err := defaultData()
