@@ -85,7 +85,9 @@ func crowd(ctx context.Context, d *db.DB, cfg seed.Config, people, streams int, 
 	plays := make([]playing, streams)
 	for n := range streams {
 		r := rand.New(rand.NewPCG(uint64(n), 8))
-		plays[n] = playing{viewers[r.IntN(len(viewers))], pick(r, w.videos), fmt.Sprint("crowd-", n, "-", time.Now().UnixNano()), time.Now()}
+		// The video sample is unrestricted; a restricted profile can silently skip its
+		// position save, understating how much work the reported stream count writes.
+		plays[n] = playing{viewers[pick(r, open)], pick(r, w.videos), fmt.Sprint("crowd-", n, "-", time.Now().UnixNano()), time.Now()}
 		if streamFile == "" {
 			continue
 		}
