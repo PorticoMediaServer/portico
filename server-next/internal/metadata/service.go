@@ -7,6 +7,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/contentrating"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/scan"
 )
 
 // Service gives titles their details from the providers it is handed.
@@ -73,7 +74,7 @@ func (s *Service) MatchLibrary(ctx context.Context, libraryID int64) (MatchStats
 		}
 		for _, item := range items {
 			after = item.ID
-			matched, err := s.match(ctx, p, locale, item)
+			matched, err := s.match(ctx, p, locale, src.Kind, item)
 			if err != nil {
 				return stats, err
 			}
@@ -86,8 +87,12 @@ func (s *Service) MatchLibrary(ctx context.Context, libraryID int64) (MatchStats
 	}
 }
 
-func (s *Service) match(ctx context.Context, p Provider, locale Locale, item db.MatchItem) (bool, error) {
-	q := Query{Kind: providerKinds[item.Kind], Title: item.Title, Year: item.Year, Locale: locale, IncludeAdult: s.IncludeAdult}
+func (s *Service) match(ctx context.Context, p Provider, locale Locale, libraryKind string, item db.MatchItem) (bool, error) {
+	title, year, err := s.searchName(ctx, libraryKind, item)
+	if err != nil {
+		return false, err
+	}
+	q := Query{Kind: providerKinds[item.Kind], Title: title, Year: year, Locale: locale, IncludeAdult: s.IncludeAdult}
 	ref := Ref{Provider: p.Name(), Kind: q.Kind}
 	for _, id := range item.ExternalIDs {
 		if id.Provider == p.Name() {
@@ -210,4 +215,23 @@ func details(r Record, match db.MatchState) db.ItemDetails {
 			Person: db.ExternalID{Provider: c.Person.Provider, ID: c.Person.ID}})
 	}
 	return d
+}
+
+// searchName is what a title is looked up by: the name and year its files give, read again
+// from its first file with the scanner's own naming, never the title shown, which after a
+// lookup that did not match may be one written inside the file. A title with no file is
+// looked up by the title it has.
+func (s *Service) searchName(ctx context.Context, libraryKind string, item db.MatchItem) (string, int, error) {
+	rel, err := s.DB.TitleFile(ctx, item.ID)
+	if errors.Is(err, db.ErrNotFound) {
+		return item.Title, item.Year, nil
+	}
+	if err != nil {
+		return "", 0, err
+	}
+	title, year := scan.FileTitle(libraryKind, rel)
+	if year == 0 {
+		year = item.Year
+	}
+	return title, year, nil
 }
