@@ -90,13 +90,16 @@ func (s *Store) Put(id string, data []byte) error {
 }
 
 // PutSized stores a picture under id in the two given sizes and answers the large one's
-// width and height. ErrNotAPicture refuses what cannot be read.
+// width and height. ErrNotAPicture refuses what cannot be read. A picture already stored is
+// marked as just stored, so a sweep running now does not take it before the row that names it
+// again is written.
 func (s *Store) PutSized(id string, data []byte, sizes Sizes) (width, height int, err error) {
 	if !ValidID(id) {
 		return 0, 0, fmt.Errorf("artwork: %q cannot name a picture", id)
 	}
 	if w, h, err := s.Stored(id); err == nil {
-		return w, h, nil
+		now := time.Now()
+		return w, h, os.Chtimes(s.place(id, "small"), now, now)
 	}
 	config, _, err := image.DecodeConfig(bytes.NewReader(data))
 	if err != nil || config.Width <= 0 || config.Height <= 0 || config.Width*config.Height > maxPixels {
@@ -278,12 +281,18 @@ func (s *Store) Sweep(before time.Time, used func(yield func(id string) error) e
 		return 0, err
 	}
 	unused = append(unused, stored...)
+	removed := 0
 	for _, id := range unused {
+		// Stored again while the sweep ran: it may be named by a row the sweep did not see.
+		if info, err := os.Stat(s.place(id, "small")); err != nil || !info.ModTime().Before(before) {
+			continue
+		}
+		removed++
 		for _, size := range []string{"small", "large"} {
 			if err := os.Remove(s.place(id, size)); err != nil && !errors.Is(err, fs.ErrNotExist) {
 				return 0, err
 			}
 		}
 	}
-	return len(unused), nil
+	return removed, nil
 }

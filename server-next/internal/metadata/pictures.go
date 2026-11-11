@@ -26,7 +26,10 @@ const maxPictureBytes = 10 << 20
 var pictureRoles = map[string]db.ImageRole{"poster": db.ImagePoster, "backdrop": db.ImageBackdrop, "logo": db.ImageLogo,
 	"thumb": db.ImageThumb, "banner": db.ImageBanner, "cover": db.ImageCover, "portrait": db.ImagePortrait}
 
-var pictureClient = &http.Client{Timeout: 30 * time.Second}
+var pictureClient = &http.Client{Timeout: 30 * time.Second,
+	// The address is the provider's picture server and a path; an answer pointing elsewhere is
+	// not followed, so the server only ever connects to the provider's own host.
+	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 
 // fetchPicture downloads one picture a provider offers. Every app sees it from the server's
 // own copy and never asks the provider.
