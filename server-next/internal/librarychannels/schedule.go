@@ -253,7 +253,8 @@ func (bd *build) pool(key string, sel *Selection) (*pool, error) {
 		return p, nil
 	}
 	query := db.ChannelSelection{Libraries: sel.Libraries, Match: sel.Match, Conditions: sel.Conditions, Always: sel.Always, Never: sel.Never,
-		Films: slices.Contains(sel.Kinds, "movie"), Shows: slices.Contains(sel.Kinds, "show"), Text: sel.Mentions != "",
+		OnlyAlways: sel.OnlyAlways,
+		Films:      slices.Contains(sel.Kinds, "movie"), Shows: slices.Contains(sel.Kinds, "show"), Text: sel.Mentions != "",
 		Plays: sel.Order == "leastPlayed"}
 	if sel.AddedWithinDays > 0 {
 		query.AddedSince = bd.now.AddDate(0, 0, -sel.AddedWithinDays)
