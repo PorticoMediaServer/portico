@@ -68,3 +68,15 @@ func (d *DB) SeedViewers(ctx context.Context) ([]Viewer, error) {
 	}
 	return out, rows.Err()
 }
+
+// SeedDevice registers a device with no session, so a load run can report playback as one.
+func (d *DB) SeedDevice(ctx context.Context, name string) (int64, error) {
+	var id int64
+	now := time.Now().UnixMilli()
+	err := d.write(ctx, Background, func(tx *sql.Tx) error {
+		return tx.QueryRow(`INSERT INTO devices (public_id, client_id, name, created_at, last_seen_at) VALUES (?, ?, ?, ?, ?)
+			ON CONFLICT (client_id) DO UPDATE SET last_seen_at = excluded.last_seen_at RETURNING id`,
+			NewID("dev"), "seed-"+name, name, now, now).Scan(&id)
+	})
+	return id, err
+}
