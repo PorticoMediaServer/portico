@@ -20,19 +20,6 @@ func TestReviewTwoFeedsSharingAGuideIDBothComeIn(t *testing.T) {
 	}
 }
 
-func TestReviewOneHugeProgrammeElement(t *testing.T) {
-	desc := strings.Repeat("a", 64<<20)
-	guide := `<tv><programme channel="x" start="20261110000000 +0000" stop="20261110010000 +0000"><title>T</title><desc>` + desc + `</desc></programme></tv>`
-	desc = ""
-	runtime.GC()
-	var before, after runtime.MemStats
-	runtime.ReadMemStats(&before)
-	var report Report
-	err := ParseGuide(strings.NewReader(guide), &report, func(GuideChannel) error { return nil }, func(Programme) error { return nil })
-	runtime.ReadMemStats(&after)
-	t.Logf("err=%v allocated %d MB while reading one 64 MB element", err, (after.TotalAlloc-before.TotalAlloc)>>20)
-}
-
 // One enormous element in a guide stops the refresh with a reason, never takes the memory
 // it claims.
 func TestAHugeGuideElementIsRefusedWithinItsBudget(t *testing.T) {
