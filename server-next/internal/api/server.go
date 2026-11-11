@@ -17,6 +17,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/artwork"
@@ -72,6 +73,10 @@ type Server struct {
 	// remoteAccessDoc is the remote-access settings, and dlna the DLNA server they switch. See dlna.go.
 	remoteAccessDoc remoteAccessState
 	dlna            *dlna.Server
+	// silentProxySeen says DLNA has served a request from a trusted proxy that passed on no
+	// visitor's address since the server started; the remote-access settings warn about it.
+	// (The record #2328 keeps of such a proxy replaces this once both are on main.)
+	silentProxySeen atomic.Bool
 }
 
 // Route is one operation, kept so the contract can be generated and the operation budget counted.
