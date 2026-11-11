@@ -71,11 +71,14 @@ type moodChoice struct {
 // moodKeeper holds each profile's chosen mood rows, and which profiles Home asked for whose
 // choice is missing or stale.
 type moodKeeper struct {
-	mu       sync.Mutex
-	choices  map[int64]*moodChoice
-	wanted   map[int64]Viewer
-	wake     chan struct{}
-	cursor   int64 // the last change read
+	mu      sync.Mutex
+	choices map[int64]*moodChoice
+	wanted  map[int64]Viewer
+	wake    chan struct{}
+	cursor  int64 // the last change read
+	// marked counts calls of stale: a choice made while one came is kept stale, since it may
+	// have been made from the tags or file as they were before.
+	marked   int64
 	followed bool
 }
 
@@ -125,6 +128,7 @@ func (k *moodKeeper) waker() chan struct{} {
 func (k *moodKeeper) stale(profileID int64) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
+	k.marked++
 	for id, c := range k.choices {
 		if profileID != 0 && id != profileID {
 			continue
@@ -137,17 +141,18 @@ func (k *moodKeeper) stale(profileID int64) {
 	}
 }
 
-func (k *moodKeeper) next() (Viewer, bool) {
+// next answers a profile whose choice is to be made, and the count of stale marks so far.
+func (k *moodKeeper) next() (Viewer, int64, bool) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 	for id, v := range k.wanted {
 		delete(k.wanted, id)
-		return v, true
+		return v, k.marked, true
 	}
-	return Viewer{}, false
+	return Viewer{}, 0, false
 }
 
-func (k *moodKeeper) keep(v Viewer, rows []keptMoodRow) {
+func (k *moodKeeper) keep(v Viewer, rows []keptMoodRow, marked int64) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 	if k.choices == nil {
@@ -158,7 +163,7 @@ func (k *moodKeeper) keep(v Viewer, rows []keptMoodRow) {
 	if old := k.choices[v.ProfileID]; old != nil {
 		asked = old.asked // a remake is not Home asking
 	}
-	k.choices[v.ProfileID] = &moodChoice{viewer: v, rows: rows, made: now, asked: asked}
+	k.choices[v.ProfileID] = &moodChoice{viewer: v, rows: rows, made: now, asked: asked, stale: marked != k.marked}
 }
 
 // KeepMoodRows makes the mood rows Home asks for, in the background, until ctx ends.
@@ -213,7 +218,7 @@ func (d *DB) RefreshMoodRows(ctx context.Context) error {
 		}
 	}
 	for {
-		v, ok := k.next()
+		v, marked, ok := k.next()
 		if !ok {
 			return nil
 		}
@@ -224,7 +229,7 @@ func (d *DB) RefreshMoodRows(ctx context.Context) error {
 			k.mu.Unlock()
 			return err
 		}
-		k.keep(v, rows)
+		k.keep(v, rows, marked)
 	}
 }
 
