@@ -74,7 +74,7 @@ func TestAPlaceInABook(t *testing.T) {
 		t.Fatalf("marking unread by hand should clear the place: %+v", got.ItemState)
 	}
 
-	if err := b.s.db.SetProfilePreference(context.Background(), 1, db.PrefPauseHistory, "true", b.clock); err != nil {
+	if err := b.s.db.SetProfilePreference(context.Background(), 1, db.PrefPauseHistory, "true", b.clock.Now()); err != nil {
 		t.Fatal(err)
 	}
 	if got := b.state(nineteen, map[string]any{"position": place(0.7, `,"atEnd":true`)}); got.Position != "" || got.Watched {
