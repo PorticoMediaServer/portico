@@ -20,8 +20,16 @@ type Book struct {
 	MaySave bool
 }
 
-// BookVersion is one file of a book. Path is empty for a file on remote storage.
+// ImageVersion is the name the scanner gives the one version of a comic made of a folder of
+// pictures. It has a part for every page, in reading order.
+const ImageVersion = "images"
+
+// BookVersion is one file of a book. Path is empty for a file on remote storage. For a comic
+// made of pictures, the file is its first page, Pages names every page in reading order, and
+// Size and ModifiedNS are the pages' total size and newest change, which its fingerprint is
+// made from.
 type BookVersion struct {
+	Pages      []string
 	PublicID   string
 	Name       string
 	FileID     int64
@@ -66,7 +74,57 @@ func (d *DB) Book(ctx context.Context, v Viewer, publicID string) (Book, error) 
 		func(b *BookVersion) []any {
 			return []any{&b.PublicID, &b.Name, &b.FileID, &b.FileName, &b.Path, &b.Size, &b.ModifiedNS}
 		})
-	return out, err
+	if err != nil {
+		return out, err
+	}
+	for n := range out.Versions {
+		if v := &out.Versions[n]; v.Name == ImageVersion {
+			if v.Pages, v.Size, v.ModifiedNS, err = imagePages(ctx, tx, v.PublicID); err != nil {
+				return out, err
+			}
+		}
+	}
+	return out, nil
+}
+
+// imagePages lists the pages of a comic made of pictures, with their total size and newest change.
+func imagePages(ctx context.Context, tx *sql.Tx, version string) (pages []string, size, newest int64, err error) {
+	rows, err := tx.QueryContext(ctx, `SELECT f.name, f.size, f.modified_ns FROM media m JOIN media_parts mp ON mp.media_id = m.id
+		JOIN files f ON f.id = mp.file_id WHERE m.public_id = ? ORDER BY mp.position`, version)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	defer rows.Close()
+	pages = []string{}
+	for rows.Next() {
+		var name string
+		var s, m int64
+		if err := rows.Scan(&name, &s, &m); err != nil {
+			return nil, 0, 0, err
+		}
+		pages, size, newest = append(pages, name), size+s, max(newest, m)
+	}
+	return pages, size, newest, rows.Err()
+}
+
+// ImagePage is page n (from 0) of the comic made of pictures whose first page is the file
+// firstPage, with the whole comic's total size and newest change, which its fingerprint is
+// made from. A page that is not there is ErrNotFound.
+func (d *DB) ImagePage(ctx context.Context, firstPage int64, n int) (page FileOnDisk, size, newest int64, err error) {
+	var mediaID, pageFile int64
+	err = d.read.QueryRowContext(ctx, `SELECT m.id, ifnull((SELECT sum(f.size) FROM media_parts p JOIN files f ON f.id = p.file_id WHERE p.media_id = m.id), 0),
+		ifnull((SELECT max(f.modified_ns) FROM media_parts p JOIN files f ON f.id = p.file_id WHERE p.media_id = m.id), 0),
+		ifnull((SELECT file_id FROM media_parts WHERE media_id = m.id AND position = ?), 0)
+		FROM media_parts mp JOIN media m ON m.id = mp.media_id WHERE mp.file_id = ? AND mp.position = 0 AND m.name = ? LIMIT 1`,
+		n, firstPage, ImageVersion).Scan(&mediaID, &size, &newest, &pageFile)
+	if errors.Is(err, sql.ErrNoRows) || err == nil && (pageFile == 0 || n < 0) {
+		return page, 0, 0, ErrNotFound
+	}
+	if err != nil {
+		return page, 0, 0, err
+	}
+	page, err = d.FileOnDisk(ctx, pageFile)
+	return page, size, newest, err
 }
 
 // BookAccess reports whether the sign-in that was given a book's address is still live and on

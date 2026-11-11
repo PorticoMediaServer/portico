@@ -133,9 +133,9 @@ table held in memory by that package's service.
   readers, and refuse the one page, never the book.
 - Order: (1) the book route and bytes for EPUB and PDF; (2) comics; (3) annotations and the
   batch route; (4) the second group of formats.
-- Not yet: folders of images (the scanner does not list a folder of pictures as a comic yet;
-  once it does, the pages route reads them from the folder by the scanner's own list) and
-  books on remote storage (they say so, as playback's titles do, until files there can be
+- A comic made of a folder of pictures is one version named `images` with a part per page;
+  the pages route reads page n as the file of part n, through `libraryfile`, never listing the
+  folder. Not yet: books on remote storage (they say so, as playback's titles do, until files there can be
   opened).
 - `Review: full`: the three byte routes and archive reading (untrusted files; a part is named
   by the book's own list, never by the request). Annotations are `quick`.

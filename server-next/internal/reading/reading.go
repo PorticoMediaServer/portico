@@ -30,6 +30,8 @@ const (
 	FormatEPUB = "epub"
 	FormatPDF  = "pdf"
 	FormatCBZ  = "cbz"
+	// FormatImages is a comic made of a folder of pictures, one page each.
+	FormatImages = "images"
 )
 
 // Why a book cannot be opened. Each is a sentence the app shows as it is.
@@ -93,6 +95,14 @@ func Format(fileName string) string {
 	return strings.TrimPrefix(strings.ToLower(path.Ext(fileName)), ".")
 }
 
+// VersionFormat is a book version's format: its file's, or images for a folder of pictures.
+func VersionFormat(v db.BookVersion) string {
+	if v.Name == db.ImageVersion && v.Pages != nil {
+		return FormatImages
+	}
+	return Format(v.FileName)
+}
+
 // Fingerprint names one exact file of a book: its size and when it was last changed. A file
 // that is replaced has a new one; one that is only moved keeps it, as the scanner does.
 func Fingerprint(size, modifiedNS int64) string {
@@ -111,9 +121,9 @@ func Choose(book db.Book, version string) (db.BookVersion, bool) {
 		}
 		return db.BookVersion{}, false
 	}
-	for _, format := range []string{FormatEPUB, FormatCBZ, FormatPDF} {
+	for _, format := range []string{FormatEPUB, FormatCBZ, FormatImages, FormatPDF} {
 		for _, v := range book.Versions {
-			if Format(v.FileName) == format && v.Path != "" {
+			if VersionFormat(v) == format && v.Path != "" {
 				return v, true
 			}
 		}
@@ -127,22 +137,26 @@ func Choose(book db.Book, version string) (db.BookVersion, bool) {
 // Open reads what a reader needs to know about one version of a book before it asks for any
 // part of it. A book that cannot be read says why in Problem, and can still be saved.
 func (s *Service) Open(ctx context.Context, who Reader, book db.Book, v db.BookVersion) Opened {
-	out := Opened{Version: v, Format: Format(v.FileName), Fingerprint: Fingerprint(v.Size, v.ModifiedNS)}
+	out := Opened{Version: v, Format: VersionFormat(v), Fingerprint: Fingerprint(v.Size, v.ModifiedNS)}
 	if v.Path != "" {
 		g := grant{fileID: v.FileID, itemID: book.ID, reader: who, expires: s.now().Add(grantLifetime).Unix()}
 		copy(g.fingerprint[:], fingerprintBytes(v.Size, v.ModifiedNS))
 		out.MediaURL = "/v1/media/" + s.sign(g)
-		if book.MaySave {
+		// A folder of pictures is not one file, so it has nothing to save.
+		if book.MaySave && out.Format != FormatImages {
 			out.SaveURL = out.MediaURL + "/source?save=1"
 		}
 	}
 	switch {
-	case out.Format != FormatEPUB && out.Format != FormatPDF && out.Format != FormatCBZ:
+	case out.Format != FormatEPUB && out.Format != FormatPDF && out.Format != FormatCBZ && out.Format != FormatImages:
 		out.Problem = ErrFormatLater
 	case v.Path == "":
 		out.Problem = ErrRemote
+	case out.Format == FormatImages:
+		// The pages are the scanner's own list; the folder is never listed.
+		out.Pages = v.Pages
 	}
-	if out.Problem != nil || out.Format == FormatPDF {
+	if out.Problem != nil || out.Format == FormatPDF || out.Format == FormatImages {
 		return out
 	}
 	err := s.withArchive(ctx, v, func(a *archive) error {
