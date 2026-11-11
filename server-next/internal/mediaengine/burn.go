@@ -24,6 +24,8 @@ type burnTrack struct {
 	// handed: mks (a track copied out as it is), ass, pgs or vobsub.
 	kind, format string
 	picture      bool
+	// nudgeMs is the viewer's timing nudge, which is burned in with the subtitle.
+	nudgeMs int64
 }
 
 // burning is the chosen subtitle as something that can be burned, or nil when there is no
@@ -39,7 +41,7 @@ func burning(r playback.PlanRequest, facts mediafacts.Facts) (*burnTrack, error)
 		if track.Kind != db.StreamSubtitle || playback.TrackID(track) != r.Choice.SubtitleTrackID {
 			continue
 		}
-		b := &burnTrack{track: track}
+		b := &burnTrack{track: track, nudgeMs: r.Choice.SubtitleOffsetMs}
 		switch format := subtitleFormat(track); {
 		case format == "pgs" || format == "sup":
 			b.kind, b.format, b.picture = "pgs", "pgs", true
@@ -80,7 +82,7 @@ func (e *Engine) burnLoader(p *planned) func(context.Context) (*streaming.BurnSu
 		// slow disk; the stream stopping ends it sooner.
 		ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 		defer cancel()
-		out := &streaming.BurnSubtitle{Format: b.format}
+		out := &streaming.BurnSubtitle{Format: b.format, OffsetUS: b.nudgeMs * 1000}
 		var err error
 		if !b.track.Sidecar {
 			out.Data, err = e.streams.SubtitleTrack(ctx, p.path, p.place.Size, time.Unix(0, p.place.ModifiedNS), b.index, !b.picture)

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -105,7 +106,9 @@ func TestSubtitlesAreBurnedIntoThePicture(t *testing.T) {
 
 	// brightest is the brightest point of a part of the picture two seconds in: blue is dark,
 	// a subtitle is white.
-	brightest := func(session api.PlaybackSession, crop string) byte {
+	var brightestAt func(session api.PlaybackSession, crop string, frame int) byte
+	brightest := func(session api.PlaybackSession, crop string) byte { return brightestAt(session, crop, 48) }
+	brightestAt = func(session api.PlaybackSession, crop string, frame int) byte {
 		t.Helper()
 		if session.Presentation.Subtitle == nil || session.Presentation.Subtitle.Delivery != "burn" || session.Presentation.Container != "mpegts_hls" {
 			t.Fatalf("the subtitle should be burned into a converted picture: %+v", session.Presentation)
@@ -118,7 +121,7 @@ func TestSubtitlesAreBurnedIntoThePicture(t *testing.T) {
 		file := filepath.Join(t.TempDir(), "segment.ts")
 		os.WriteFile(file, segment, 0o600)
 		var complaint bytes.Buffer
-		read := exec.Command(ffmpeg, "-v", "error", "-i", file, "-vf", "select='eq(n,48)',crop="+crop, "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "gray", "-")
+		read := exec.Command(ffmpeg, "-v", "error", "-i", file, "-vf", fmt.Sprintf("select='eq(n,%d)',crop=%s", frame, crop), "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "gray", "-")
 		read.Stderr = &complaint
 		raw, err := read.Output()
 		if err != nil || len(raw) == 0 {
@@ -144,6 +147,22 @@ func TestSubtitlesAreBurnedIntoThePicture(t *testing.T) {
 		if light := brightest(session, c.crop); light < 180 {
 			t.Fatalf("%s: where the subtitle should be the picture is no brighter than %d", name, light)
 		}
+	}
+
+	// The viewer's timing nudge is burned in with the subtitle. The box inside the video is
+	// gone by five seconds in; nudged three seconds later, it is still there then. (Last, because
+	// a nudge is kept for the title.)
+	late := int64(3000)
+	var nudged api.PlaybackSession
+	track := tracks["embedded eng"]
+	h.call("POST", "/v1/playback/sessions", api.PlaybackStart{ItemID: page.Items[0].ID, Subtitles: &api.SubtitlePick{TrackID: &track, Delivery: "burn"}}, &nudged, 201)
+	plain := nudged.Presentation.URL
+	h.call("PATCH", "/v1/playback/sessions/"+nudged.ID, api.PlaybackChange{SubtitleOffsetMs: &late}, &nudged, 200)
+	if nudged.Presentation.URL == plain {
+		t.Fatal("a new nudge for a burned subtitle should be a new stream")
+	}
+	if light := brightestAt(nudged, "200:30:220:40", 120); light < 180 {
+		t.Fatalf("five seconds in, a box nudged three seconds later should still be there; the picture is no brighter than %d", light)
 	}
 }
 
