@@ -126,6 +126,15 @@ def run_go(args, cwd, timeout=900):
 def execute(args,cwd=ROOT):
     subprocess.run(args,cwd=cwd,check=True,timeout=900)
 
+def fetch(args,cwd=ROOT):
+    for attempt in range(3):
+        try:
+            execute(args,cwd)
+            return
+        except (subprocess.CalledProcessError,subprocess.TimeoutExpired):
+            if attempt==2: raise
+            time.sleep(2)
+
 def go(plan,index,report=None):
     validate_tags(plan)
     helper=ROOT/'ci-tools/portico-server'
@@ -233,7 +242,7 @@ def build_helper(plan):
     execute(['go','build','-tags',plan['tags'],'-o',str(ROOT/'ci-tools/portico-server'),'./cmd/server'],ROOT/'server')
 
 def download():
-    for module in ['server','apikit']: execute(['go','mod','download'],ROOT/module)
+    for module in ['server','apikit']: fetch(['go','mod','download'],ROOT/module)
 
 def install_ffmpeg():
     """CI-1: the distribution FFmpeg (with libsoxr), without recommended extras.
@@ -251,7 +260,7 @@ def install_ffmpeg():
     try:
         execute(install+['ffmpeg'])
     except subprocess.CalledProcessError:
-        execute(['sudo','apt-get','update']); execute(install+['ffmpeg'])
+        fetch(['sudo','apt-get','update']); execute(install+['ffmpeg'])
     if cache:
         # apt writes as root; the cache action saves the directory as the runner user.
         execute(['sudo','chown','-R',f'{os.getuid()}:{os.getgid()}',cache])
