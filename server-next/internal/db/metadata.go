@@ -248,9 +248,8 @@ func applyDetails(b *batchTx, itemID int64, d *ItemDetails, now int64) error {
 	if d.ProviderKey != "" && !keep[FieldMatch] {
 		// Another title that already has this id keeps the key: the server never merges two
 		// titles by itself, or a version a person split off would be merged straight back.
-		_, err := b.exec(`INSERT INTO item_keys (library_id, kind, key, item_id) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING`,
-			library, KeyProvider, d.ProviderKey, itemID)
-		if err != nil {
+		if _, err := b.exec(`INSERT INTO item_keys (library_id, kind, key, item_id) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING`,
+			library, KeyProvider, d.ProviderKey, itemID); err != nil {
 			return err
 		}
 	}
