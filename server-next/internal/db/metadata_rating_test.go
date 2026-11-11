@@ -197,6 +197,53 @@ func showsLibrary(l *library) db.Library {
 	return db.Library{}
 }
 
+// A show's History keeps its seasons' and episodes' details only where restoring needs them:
+// once in a change of its match, and once in an undo of one; an edit of the show's fields,
+// and an undo of that, keep none.
+func TestShowHistoryKeepsEpisodesOnlyForAMatchChange(t *testing.T) {
+	l := newLibrary(t, 1500)
+	shows := everything(t, l.d, l.all, db.ItemQuery{Library: showsLibrary(l).PublicID, Kinds: []db.ItemKind{db.KindShow}, Limit: 50})
+	var show db.Item
+	for _, s := range shows {
+		if s.ChildCount > 0 {
+			show = s
+			break
+		}
+	}
+	if show.ID == 0 {
+		t.Fatal("the test library has no show with seasons")
+	}
+	title := "Renamed"
+	locks, err := l.d.MetadataLocks(ctx, show.PublicID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.d.EditMetadata(ctx, show.PublicID, locks.Revision, db.MetadataEdit{Title: &title}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.ChangeMatchOf(l.d, show.PublicID, db.ItemDetails{Match: db.MatchChosen, ProviderKey: "tmdb:show:999999", Title: "Another Show"}); err != nil {
+		t.Fatal(err)
+	}
+	history, err := l.d.MetadataHistory(ctx, show.PublicID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.d.UndoMetadata(ctx, show.PublicID, history[1].ID); err != nil { // the field edit
+		t.Fatal(err)
+	}
+	if _, err := l.d.UndoMetadata(ctx, show.PublicID, history[0].ID); err != nil { // the match change
+		t.Fatal(err)
+	}
+	counts, err := db.HistoryChildren(l.d, show.PublicID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Newest first: undo of the match change, undo of the edit, the match change, the edit.
+	if len(counts) != 4 || counts[0] == 0 || counts[1] != 0 || counts[2] == 0 || counts[3] != 0 {
+		t.Fatalf("seasons and episodes kept in each History entry, newest first: %v", counts)
+	}
+}
+
 // A provider's refresh is not a person's change: Undo of an edit made before a refresh made
 // the film adults only leaves the film adults only.
 func TestUndoOfAnEditKeepsARatingARefreshGaveSince(t *testing.T) {
@@ -270,5 +317,50 @@ func TestUndoOfAnEditKeepsARatingARefreshGaveSince(t *testing.T) {
 	}
 	if !slices.Contains(locks.Locked, db.FieldContentRating) || locks.Sources[db.FieldContentRating] != db.SourceEdit {
 		t.Fatalf("Undo of an older rating edit unlocked the rating set since: %+v", locks)
+	}
+}
+
+// Undo of a show's match change puts its episodes back only where the change could reach them:
+// an episode the owner made adults only since stays adults only, and stays locked.
+func TestUndoOfAShowsMatchChangeKeepsAnEpisodesRatingSetSince(t *testing.T) {
+	l := newLibrary(t, 1500)
+	age := 13
+	limited, err := l.d.CreateSeedProfile(ctx, db.SeedProfile{Name: "limited-by-rating", MaxRatingAge: &age})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ep db.Item
+	for _, e := range everything(t, l.d, limited, db.ItemQuery{Library: showsLibrary(l).PublicID, Kinds: []db.ItemKind{db.KindEpisode}, Limit: 200}) {
+		if e.ContentRating == "" {
+			ep = e
+			break
+		}
+	}
+	if ep.ID == 0 {
+		t.Fatal("the test library has no episode the limited profile sees without a rating of its own")
+	}
+	if err := db.ChangeMatchOf(l.d, ep.RootPublicID, db.ItemDetails{Match: db.MatchChosen, ProviderKey: "tmdb:show:999999", Title: "Another Show"}); err != nil {
+		t.Fatal(err)
+	}
+	locks, err := l.d.MetadataLocks(ctx, ep.PublicID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rating := "NC-17"
+	if _, err := l.d.EditMetadata(ctx, ep.PublicID, locks.Revision, db.MetadataEdit{ContentRating: &rating}); err != nil {
+		t.Fatal(err)
+	}
+	history, err := l.d.MetadataHistory(ctx, ep.RootPublicID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.d.UndoMetadata(ctx, ep.RootPublicID, history[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.d.Item(ctx, limited, ep.PublicID); err == nil {
+		t.Fatal("Undo of the show's match change handed the limited profile an episode the owner made adults only since")
+	}
+	if locks, err = l.d.MetadataLocks(ctx, ep.PublicID); err != nil || !slices.Contains(locks.Locked, db.FieldContentRating) {
+		t.Fatalf("the episode's rating lock: %+v %v", locks, err)
 	}
 }

@@ -238,3 +238,33 @@ func MatchTitle(d *DB, publicID, key string, chosen bool) error {
 	_, err := d.ChangeMatch(context.Background(), User, id, ItemDetails{Match: MatchChosen, ProviderKey: key})
 	return err
 }
+
+// HistoryChildren says, newest entry first, how many seasons and episodes each History entry
+// of a title keeps.
+func HistoryChildren(d *DB, publicID string) ([]int, error) {
+	rows, err := d.read.Query(`SELECT ifnull(json_array_length(h.before, '$.children'), 0) FROM metadata_history h
+		JOIN items i ON i.id = h.item_id WHERE i.public_id = ? ORDER BY h.id DESC`, publicID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []int
+	for rows.Next() {
+		var n int
+		if err := rows.Scan(&n); err != nil {
+			return nil, err
+		}
+		out = append(out, n)
+	}
+	return out, rows.Err()
+}
+
+// ChangeMatchOf is ChangeMatch for a title named by its public id.
+func ChangeMatchOf(d *DB, publicID string, details ItemDetails) error {
+	var id int64
+	if err := d.read.QueryRow(`SELECT id FROM items WHERE public_id = ?`, publicID).Scan(&id); err != nil {
+		return err
+	}
+	_, err := d.ChangeMatch(context.Background(), User, id, details)
+	return err
+}
