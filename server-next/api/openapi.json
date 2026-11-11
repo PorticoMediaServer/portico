@@ -2012,6 +2012,23 @@
         ],
         "type": "object"
       },
+      "Hours": {
+        "properties": {
+          "timezone": {
+            "type": "string"
+          },
+          "windows": {
+            "items": {
+              "$ref": "#/components/schemas/Window"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "windows"
+        ],
+        "type": "object"
+      },
       "IdentityProof": {
         "properties": {
           "payload": {
@@ -3463,6 +3480,9 @@
                 },
                 "type": "array"
               },
+              "limits": {
+                "$ref": "#/components/schemas/MemberLimits"
+              },
               "notes": {
                 "type": "string"
               },
@@ -3483,7 +3503,8 @@
               "libraries",
               "twoFactorEnabled",
               "allowDownloads",
-              "profiles"
+              "profiles",
+              "limits"
             ],
             "type": "object"
           }
@@ -3527,6 +3548,9 @@
             },
             "type": "array"
           },
+          "limits": {
+            "$ref": "#/components/schemas/MemberLimits"
+          },
           "notes": {
             "type": "string"
           },
@@ -3534,6 +3558,80 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "MemberLimits": {
+        "properties": {
+          "allowConversion": {
+            "type": "boolean"
+          },
+          "allowTokens": {
+            "type": "boolean"
+          },
+          "allowUnrated": {
+            "type": "boolean"
+          },
+          "allowWatchTogether": {
+            "type": "boolean"
+          },
+          "blockedLabels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "homeOnly": {
+            "type": "boolean"
+          },
+          "maxProfiles": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "maxRatingAge": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "remoteMaxBitrateKbps": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "viewingHours": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Hours"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "homeOnly",
+          "allowUnrated",
+          "blockedLabels",
+          "allowConversion",
+          "allowWatchTogether",
+          "allowTokens"
+        ],
         "type": "object"
       },
       "MemberPage": {
@@ -6188,16 +6286,38 @@
           "accountAllowDownloads": {
             "type": "boolean"
           },
+          "accountAllowUnrated": {
+            "type": "boolean"
+          },
+          "accountBlockedLabels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "accountLibraries": {
             "items": {
               "type": "string"
             },
             "type": "array"
           },
+          "accountMaxRatingAge": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "allLibraries": {
             "type": "boolean"
           },
           "allowDownloads": {
+            "type": "boolean"
+          },
+          "allowUnrated": {
             "type": "boolean"
           },
           "blockedLabels": {
@@ -6224,12 +6344,15 @@
           }
         },
         "required": [
+          "allowUnrated",
           "blockedLabels",
           "allLibraries",
           "libraries",
           "accountAllLibraries",
           "accountLibraries",
-          "accountAllowDownloads"
+          "accountAllowDownloads",
+          "accountAllowUnrated",
+          "accountBlockedLabels"
         ],
         "type": "object"
       },
@@ -8099,6 +8222,28 @@
         },
         "required": [
           "delivered"
+        ],
+        "type": "object"
+      },
+      "Window": {
+        "properties": {
+          "days": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "endMinute": {
+            "type": "integer"
+          },
+          "startMinute": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "days",
+          "startMinute",
+          "endMinute"
         ],
         "type": "object"
       }

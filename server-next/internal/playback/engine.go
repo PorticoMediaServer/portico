@@ -131,6 +131,9 @@ type PlanRequest struct {
 	Failures []db.RouteFailure
 	// Preferences are the profile's and the device's settings, key to JSON value.
 	Preferences map[string]string
+	// Limits are what the viewer's account is held to: no converting, and a bitrate cap that
+	// applies away from home.
+	Limits db.PlayLimits
 }
 
 // Routes a plan can take, cheapest first.

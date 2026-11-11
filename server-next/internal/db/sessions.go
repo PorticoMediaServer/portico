@@ -248,13 +248,20 @@ type NewSession struct {
 	ExpiresAt   time.Time
 	Device      DeviceInfo
 	RemoteAddr  string
+	// AtHome says the request came from one of the owner's home networks.
+	AtHome bool
 	// MemberOnly starts a session that never has more than a member's rights, whichever
 	// profile it is on: a TV approved by someone who was not on the account's main profile.
 	MemberOnly bool
 }
 
 // startSession registers the device and inserts the session, for a user already proven.
+// For an account held to home or to viewing hours it is ErrAwayFromHome or ErrOutsideHours
+// outside them, and the caller's transaction then changes nothing.
 func startSession(tx *sql.Tx, userID int64, n NewSession, now time.Time) (SessionState, error) {
+	if err := accountOpen(context.Background(), tx, userID, n.AtHome, now); err != nil {
+		return SessionState{}, err
+	}
 	at := now.UnixMilli()
 	var deviceID int64
 	// A name someone gave the device is kept; the app's own facts are brought up to date.
@@ -416,13 +423,17 @@ type Renewal struct {
 	InstallationID string
 	ExpiresAt      time.Time
 	RemoteAddr     string
-	Now            time.Time
+	// AtHome says the request came from one of the owner's home networks.
+	AtHome bool
+	Now    time.Time
 }
 
 // RenewSession rotates the refresh token. replayed is true when this is the same renewal
 // sent again (the previous token with the request id it was renewed with): nothing changes
 // and the caller answers with the same tokens as before. Any other use of a token that has
-// been replaced means it leaked, so the session is revoked. Every refusal is ErrBadCredentials.
+// been replaced means it leaked, so the session is revoked. Every refusal is ErrBadCredentials,
+// except that an account held to home or to viewing hours is ErrAwayFromHome or
+// ErrOutsideHours outside them: the token is not used up, and the same renewal works later.
 func (d *DB) RenewSession(ctx context.Context, r Renewal) (out SessionState, replayed bool, err error) {
 	var refused error
 	var stamp TokenStamp
@@ -438,6 +449,12 @@ func (d *DB) RenewSession(ctx context.Context, r Renewal) (out SessionState, rep
 		// A request from another install is refused without touching the session.
 		if s.revoked || s.disabled || !s.ExpiresAt.After(r.Now) || s.InstallationID != r.InstallationID {
 			return nil
+		}
+		if err := accountOpen(ctx, tx, s.UserID, r.AtHome, r.Now); errors.Is(err, ErrAwayFromHome) || errors.Is(err, ErrOutsideHours) {
+			refused = err
+			return nil
+		} else if err != nil {
+			return err
 		}
 		switch {
 		case r.Generation == s.Generation && r.Hash == s.refreshHash:
