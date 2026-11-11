@@ -69,6 +69,9 @@ type LibraryEdit struct {
 	Language *string
 	Options  *LibraryOptions
 	Folders  *[]string
+	// Revision, when not 0, is the revision the edit was made on: the edit is ErrStale if
+	// the library has changed since.
+	Revision int64
 }
 
 // EditLibrary applies an edit. It reports whether a folder was added, which calls for a scan.
@@ -81,12 +84,15 @@ func (d *DB) EditLibrary(ctx context.Context, publicID string, edit LibraryEdit)
 	}
 	err = d.write(ctx, User, func(tx *sql.Tx) error {
 		added, removed = false, nil
-		var id int64
-		if err := tx.QueryRow(`SELECT id FROM libraries WHERE public_id = ?`, publicID).Scan(&id); err != nil {
+		var id, revision int64
+		if err := tx.QueryRow(`SELECT id, revision FROM libraries WHERE public_id = ?`, publicID).Scan(&id, &revision); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return ErrNotFound
 			}
 			return err
+		}
+		if edit.Revision != 0 && edit.Revision != revision {
+			return ErrStale
 		}
 		now := time.Now().UnixMilli()
 		if edit.Name != nil {
