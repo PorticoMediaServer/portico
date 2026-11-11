@@ -1,12 +1,10 @@
 package scan_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
@@ -68,31 +66,6 @@ func TestFileProberReadsARealFile(t *testing.T) {
 	}
 	if audio.Kind != db.StreamAudio || audio.Codec != "aac" || audio.Language != "eng" || audio.SampleRate != 48000 {
 		t.Fatalf("audio = %+v", audio)
-	}
-
-	// A film has no exact audio measurement; a song gets one when the scan reads it, where
-	// the scan's worker runs: its real length in frames and what to trim from its start.
-	if facts.AudioExact != "" {
-		t.Fatalf("a film was measured as music: %s", facts.AudioExact)
-	}
-	song := filepath.Join(dir, "song.mp3")
-	if out, err := exec.Command(ffmpeg, "-v", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100", "-t", "3",
-		"-c:a", "libmp3lame", song).CombinedOutput(); err != nil {
-		decodertest.Unavailable(t, fmt.Sprintf("fixture encode unavailable: %v %s", err, out))
-	}
-	if facts, err = (scan.FileProber{}).Probe(ctx, song); err != nil {
-		t.Fatal(err)
-	}
-	var exact struct {
-		Codec                       string
-		SampleRate                  int
-		DurationFrames, StartFrames int64
-	}
-	if runtime.GOOS == "linux" {
-		if err := json.Unmarshal([]byte(facts.AudioExact), &exact); err != nil || exact.Codec != "mp3" || exact.SampleRate != 44100 ||
-			exact.DurationFrames < 44100*2 || exact.DurationFrames > 44100*4 || exact.StartFrames == 0 {
-			t.Fatalf("the song's exact measurement is %q (%v)", facts.AudioExact, err)
-		}
 	}
 
 	text := filepath.Join(dir, "notes.mkv")

@@ -1,13 +1,9 @@
 package scan
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/PorticoMediaServer/portico/server-next/internal/audiofacts"
-	"github.com/PorticoMediaServer/portico/server-next/internal/mediatools"
 	"io"
 	"math"
 	"os"
@@ -88,35 +84,7 @@ func (FileProber) Probe(ctx context.Context, path string) (Facts, error) {
 		return Facts{}, err
 	}
 	found, err := mediafacts.Probe{ScanCommand: pooled}.Inspect(ctx, real)
-	facts, err := factsOf(ctx, found, err)
-	if err == nil && found.VideoCodec == "" && found.AudioCodec != "" {
-		facts.AudioExact = measureAudio(ctx, real)
-	}
-	return facts, err
-}
-
-// measureAudio measures a music file exactly, by decoding it once: how many frames it
-// really holds and what a gapless player must trim from each end. It is made here, once,
-// so that no play has to wait for it. A file that cannot be measured this way (a very long
-// one, whose listing outgrows the worker's limit; a platform without the worker) has none,
-// and is measured when it is first played.
-func measureAudio(ctx context.Context, file string) string {
-	args := audiofacts.Args(file)
-	for i := range args {
-		if args[i] == "-protocol_whitelist" {
-			args[i+1] = "file"
-		}
-	}
-	var out bytes.Buffer
-	if handled, err := pooled(ctx, mediatools.Resolve("ffprobe"), args, file, mediafacts.ScanFile, &out); !handled || err != nil {
-		return ""
-	}
-	measured, err := audiofacts.Parse(&out)
-	if err != nil {
-		return ""
-	}
-	raw, _ := json.Marshal(measured)
-	return string(raw)
+	return factsOf(ctx, found, err)
 }
 
 // RemoteProber is the ReaderProber a server runs: ffprobe on the decoder's isolated bridge,

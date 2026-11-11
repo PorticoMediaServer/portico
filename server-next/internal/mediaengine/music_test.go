@@ -44,6 +44,23 @@ func TestSongsArePlannedForTheAppsOwnMusicEngine(t *testing.T) {
 	if _, err := (&scan.Scanner{DB: d, Prober: scan.FileProber{}}).Scan(ctx, lib); err != nil {
 		t.Fatal(err)
 	}
+	// The scan measures nothing: the measurement is made at a song's first play and kept
+	// with the file. The two songs are this new library's first two files.
+	kept := func() (n int) {
+		for id := int64(1); id <= 2; id++ {
+			file, err := d.FileOnDisk(ctx, id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if file.AudioExact != "" {
+				n++
+			}
+		}
+		return n
+	}
+	if kept() != 0 {
+		t.Fatal("the scan measured a song")
+	}
 	var page api.ItemPage
 	h.call("GET", "/v1/items?library="+lib.PublicID+"&kind=track", nil, &page, 200)
 	songs := map[string]string{}
@@ -99,6 +116,10 @@ func TestSongsArePlannedForTheAppsOwnMusicEngine(t *testing.T) {
 	}
 	if code, _, body := h.media(plan.SeekIndex.URL); code != 200 || !strings.Contains(string(body), `"offsets"`) {
 		t.Fatalf("the seek index answered %d: %s", code, body)
+	}
+
+	if kept() != 1 {
+		t.Fatalf("after one song was played %d measurements are kept, want 1", kept())
 	}
 
 	session, plan = play("Second")
