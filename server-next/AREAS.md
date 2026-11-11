@@ -47,6 +47,9 @@ table held in memory by that package's service.
 - **Keys.** `internal/auth` turns a key, token or app password into a person and profile in
   one function, and refuses it there whenever that person could not sign in. Every route,
   `/v1/mcp` and the compatible routes go through it.
+  `Admin` and `Owner` routes default to the admin scope, so a key with it may call them. Restoring a backup and
+  changing who is owner must each be registered session-only (`.Scope = ScopeSession`) when they are built (the
+  owner's ruling, 11 November); nothing else stops a key, so whoever reviews those routes checks for it.
 - **Switches.** What a profile may do is `profiles.allow_downloads`, `allow_live_tv`,
   `allow_dvr`, `allow_watch_together`, each within the same switch on `users`, which also has
   `allow_tokens`; the owner may always record. Each area adds its switch to the restrictions
