@@ -284,8 +284,9 @@ type checked struct {
 // allowed reports whether an address may still be used, and whether its profile may save the
 // file. The sign-in is checked every time, in memory: ended, signed out, or changed since the
 // address was given (another profile chosen, access or role changed) all end the address. The
-// profile's right to the book, and to download, is read from the database at most once every
-// few seconds per address.
+// profile's right to the book, and to download, and the sign-in itself (the in-memory note of
+// an ended sign-in is dropped after 16 minutes; an address lives for hours), are read from the
+// database at most once every few seconds per address.
 func (s *Service) allowed(ctx context.Context, token string, g grant) (ok, maySave bool, err error) {
 	if g.reader.SessionID == 0 || s.db.TokenRefused(g.reader.SessionID, g.reader.Stamp) {
 		return false, false, nil
@@ -297,7 +298,7 @@ func (s *Service) allowed(ctx context.Context, token string, g grant) (ok, maySa
 	if found && now.Before(c.until) {
 		return true, c.maySave, nil
 	}
-	visible, maySave, err := s.db.BookAccess(ctx, g.reader.Viewer, g.itemID, g.fileID)
+	visible, maySave, err := s.db.BookAccess(ctx, g.reader.Viewer, g.reader.SessionID, g.itemID, g.fileID, now)
 	if err != nil || !visible {
 		return false, false, err
 	}

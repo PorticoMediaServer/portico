@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 )
 
 // Book is what opening a book needs: its versions' files, and whether the reader may save
@@ -68,10 +69,13 @@ func (d *DB) Book(ctx context.Context, v Viewer, publicID string) (Book, error) 
 	return out, err
 }
 
-// BookAccess reports whether the viewer may still see the book and the file is still one of
-// its versions, and whether the viewer may save the file (the profile and its account may
-// download). A book's address asks this, a few seconds apart, while it is read through.
-func (d *DB) BookAccess(ctx context.Context, v Viewer, itemID, fileID int64) (visible, maySave bool, err error) {
+// BookAccess reports whether the sign-in that was given a book's address is still live and on
+// the viewer's profile, the viewer may still see the book and the file is still one of its
+// versions, and whether the viewer may save the file (the profile and its account may
+// download). A book's address asks this, a few seconds apart, while it is read through. The
+// sign-in is read here, and not only from the in-memory marks, because those are dropped once
+// no access token could still carry them (16 minutes), while an address lives for hours.
+func (d *DB) BookAccess(ctx context.Context, v Viewer, sessionID, itemID, fileID int64, now time.Time) (visible, maySave bool, err error) {
 	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return false, false, err
@@ -83,8 +87,11 @@ func (d *DB) BookAccess(ctx context.Context, v Viewer, itemID, fileID int64) (vi
 	}
 	err = tx.QueryRowContext(ctx, `SELECT (SELECT p.allow_downloads AND u.allow_downloads FROM profiles p JOIN users u ON u.id = p.user_id
 		WHERE p.id = @viewer_profile) FROM items i WHERE i.id = @item AND `+acc.visible("i")+`
-		AND EXISTS (SELECT 1 FROM media m JOIN media_parts mp ON mp.media_id = m.id WHERE m.item_id = i.id AND mp.file_id = @file)`,
-		append(v.args(), sql.Named("item", itemID), sql.Named("file", fileID))...).Scan(&maySave)
+		AND EXISTS (SELECT 1 FROM media m JOIN media_parts mp ON mp.media_id = m.id WHERE m.item_id = i.id AND mp.file_id = @file)
+		AND EXISTS (SELECT 1 FROM sessions s WHERE s.id = @session AND s.profile_id = @viewer_profile AND s.revoked_at IS NULL
+			AND s.expires_at > @now)`,
+		append(v.args(), sql.Named("item", itemID), sql.Named("file", fileID), sql.Named("session", sessionID),
+			sql.Named("now", now.UnixMilli()))...).Scan(&maySave)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, false, nil
 	}
