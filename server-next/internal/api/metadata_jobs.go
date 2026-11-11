@@ -113,22 +113,25 @@ func (s *Server) metadataJobs() {
 		if at < 0 {
 			return nil // removed since
 		}
-		err = s.lookUpAndRefresh(ctx, all[at].ID, time.Now())
+		looked := s.lookUpAndRefresh(ctx, all[at].ID, time.Now())
 		s.fetchPicturesLater(ctx, all[at].PublicID)
-		if err != nil {
-			return err
+		if ctx.Err() != nil {
+			return ctx.Err()
 		}
 		// Lyrics for the songs this scan added, where the owner chose "Files, then LRCLIB" (never
 		// in a library set to local metadata only). The rest of the library is asked about only
-		// when a person starts Fetch missing lyrics.
+		// when a person starts Fetch missing lyrics. Asked even when the lookup above failed:
+		// these songs are never asked about again by themselves.
 		var params afterScanParams
 		if len(work.Params) > 0 {
 			json.Unmarshal(work.Params, &params)
 		}
 		if params.AddedSince > 0 {
-			_, err = s.metadata.FetchNewLyrics(ctx, all[at].ID, time.UnixMilli(params.AddedSince))
+			if _, err := s.metadata.FetchNewLyrics(ctx, all[at].ID, time.UnixMilli(params.AddedSince)); err != nil && looked == nil {
+				looked = providerSentence(err)
+			}
 		}
-		return providerSentence(err)
+		return looked
 	}})
 	s.jobs.Register(jobs.Kind{Name: jobFetchLyrics, Access: jobs.Admins, Check: libraryCheck,
 		Run: onLibrary(func(ctx context.Context, work jobs.Work, lib db.Library) error {
