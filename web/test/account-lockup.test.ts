@@ -7,15 +7,15 @@ import {AuthStage} from '../src/kit/accounts/AuthStage.tsx';
 import {componentModule} from './helpers/component-harness.mjs';
 import {createRenderer, tree} from './helpers/interaction-harness.mjs';
 
-test('the web lockup uses its catalogue label in every supported locale without renaming Account settings', () => {
+test('the Portico Account pages\' lockup says Account in every supported locale', () => {
   for (const locale of supportedLocales) {
     const {t} = createI18n(resolveRegion({locale}, {locales: ['en-US']}));
-    assert.equal(t('web.brand.player'), 'Web Player', locale);
+    assert.equal(t('next.account.brand'), 'Account', locale);
     assert.equal(t('next.shell.account'), 'Account', locale);
   }
   const html = renderToStaticMarkup(createElement(AuthStage, {service: true, children: 'Content'}));
-  assert.match(html, /<header[^>]*><img[^>]*alt="Portico"[^>]*\/><span>Web Player<\/span><\/header>/);
-  assert.doesNotMatch(renderToStaticMarkup(createElement(AuthStage, {children: 'Content'})), /Web Player/);
+  assert.match(html, /<header[^>]*><img[^>]*alt="Portico"[^>]*\/><span>Account<\/span><\/header>/);
+  assert.doesNotMatch(renderToStaticMarkup(createElement(AuthStage, {children: 'Content'})), /<span>Account<\/span>/);
 });
 
 test('the shared password field keeps its value, autocomplete and eye action when revealing it', async () => {
