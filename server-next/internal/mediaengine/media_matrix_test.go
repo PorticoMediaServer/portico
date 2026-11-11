@@ -196,10 +196,31 @@ const assText = "[Script Info]\nScriptType: v4.00+\nPlayResX: 320\nPlayResY: 180
 	"Dialogue: 0,0:00:05.00,0:00:07.50,Default,{\\an8\\c&H00FF00&}Styled words\n" +
 	"Dialogue: 0,0:00:15.00,0:00:17.00,Default,{\\b0}Styled after the seek\n"
 
-// The cues each text subtitle must deliver, in title time, whatever the stream.
-var textCues = map[string][]string{
-	"srt": {`00:00:02\.000 --> 00:00:04\.500[^\n]*\nWords from the SRT track\n`, `00:00:14\.000 --> 00:00:16\.000[^\n]*\nA line after the seek\n`},
-	"ass": {`00:00:05\.000 --> 00:00:07\.500[^\n]*\nStyled words\n`, `00:00:15\.000 --> 00:00:17\.000[^\n]*\nStyled after the seek\n`},
+// The cues each text subtitle must deliver, in title time, whatever the stream. A cue may
+// move by a frame or so (the source file's own start); more than a tenth of a second is wrong.
+type cue struct {
+	words    string
+	from, to float64
+}
+
+var textCues = map[string][]cue{
+	"srt": {{"Words from the SRT track", 2, 4.5}, {"A line after the seek", 14, 16}},
+	"ass": {{"Styled words", 5, 7.5}, {"Styled after the seek", 15, 17}},
+}
+
+var vttCue = regexp.MustCompile(`(\d+):(\d\d):(\d\d)\.(\d{3}) --> (\d+):(\d\d):(\d\d)\.(\d{3})[^\n]*\n([^\n]+)`)
+
+// cues reads a WebVTT file's cues: their words and times in seconds.
+func cues(vtt string) []cue {
+	var out []cue
+	seconds := func(h, m, s, ms string) float64 {
+		n := func(v string) float64 { f, _ := strconv.ParseFloat(v, 64); return f }
+		return n(h)*3600 + n(m)*60 + n(s) + n(ms)/1000
+	}
+	for _, c := range vttCue.FindAllStringSubmatch(vtt, -1) {
+		out = append(out, cue{words: strings.TrimSpace(c[9]), from: seconds(c[1], c[2], c[3], c[4]), to: seconds(c[5], c[6], c[7], c[8])})
+	}
+	return out
 }
 
 // pgsBox is a picture subtitle: a white box w×h at x,y on a width×height picture, shown from
@@ -535,28 +556,43 @@ func (m *matrix) probe(t *testing.T, path string, packets bool) (video, audio *p
 	return video, audio
 }
 
-// segments fetches segments [from, to) of every playlist of a stream, joins each
-// playlist's as a player's buffer would, and returns what is in them.
-func (m *matrix) segments(t *testing.T, url string, from, to int) (video, audio *probed, files []string) {
+// playlist is one media playlist of a stream: its initialization file, if any, and its
+// segments with how long each says it is.
+type playlist struct {
+	init, name string
+	parts      []string
+	lengths    []float64
+}
+
+// at is where segment i starts on the stream's clock, by the playlist's own lengths.
+func (l playlist) at(i int) float64 {
+	var sum float64
+	for _, d := range l.lengths[:min(i, len(l.lengths))] {
+		sum += d
+	}
+	return sum
+}
+
+// playlists reads a stream's master playlist and the picture and sound playlists it names.
+func (m *matrix) playlists(t *testing.T, url string) (string, []playlist) {
 	t.Helper()
 	base := url[:strings.LastIndex(url, "/")+1]
-	type list struct {
-		init, name string
-		parts      []string
-	}
-	var lists []list
+	var lists []playlist
 	var read func(name string)
 	read = func(name string) {
 		code, _, body := m.media(base + name)
 		if code != 200 {
 			t.Fatalf("%s answered %d", name, code)
 		}
-		l := list{name: name}
+		l := playlist{name: name}
 		for _, line := range strings.Split(string(body), "\n") {
 			line = strings.TrimSpace(line)
 			switch {
 			case strings.HasPrefix(line, "#EXT-X-MAP:"):
 				l.init = attribute(line, "URI")
+			case strings.HasPrefix(line, "#EXTINF:"):
+				length, _ := strconv.ParseFloat(strings.TrimSuffix(strings.SplitN(line[len("#EXTINF:"):], ",", 2)[0], ","), 64)
+				l.lengths = append(l.lengths, length)
 			case strings.HasPrefix(line, "#EXT-X-MEDIA:") && strings.Contains(line, "TYPE=AUDIO"):
 				if uri := attribute(line, "URI"); uri != "" {
 					read(uri)
@@ -572,6 +608,31 @@ func (m *matrix) segments(t *testing.T, url string, from, to int) (video, audio 
 		}
 	}
 	read(url[len(base):])
+	if len(lists) == 0 {
+		t.Fatalf("%s names no segments", url)
+	}
+	return base, lists
+}
+
+// segmentAt is the segment of the stream's first playlist that holds a time.
+func (m *matrix) segmentAt(t *testing.T, url string, seconds float64) int {
+	t.Helper()
+	_, lists := m.playlists(t, url)
+	for i := range lists[0].parts {
+		if lists[0].at(i+1) > seconds {
+			return i
+		}
+	}
+	return len(lists[0].parts) - 1
+}
+
+// segments fetches segments [from, to) of every playlist of a stream, joins each
+// playlist's as a player's buffer would, and returns what is in them, with where the first
+// playlist says those segments start and end.
+func (m *matrix) segments(t *testing.T, url string, from, to int) (video, audio *probed, files []string, start, end float64) {
+	t.Helper()
+	base, lists := m.playlists(t, url)
+	start, end = lists[0].at(from), lists[0].at(to)
 	for _, l := range lists {
 		if from >= len(l.parts) {
 			t.Fatalf("%s has %d segments, wanted from %d", l.name, len(l.parts), from)
@@ -605,7 +666,7 @@ func (m *matrix) segments(t *testing.T, url string, from, to int) (video, audio 
 			audio = a
 		}
 	}
-	return video, audio, files
+	return video, audio, files, start, end
 }
 
 func attribute(line, name string) string {
@@ -786,14 +847,19 @@ func (m *matrix) checkText(f *finding, session *api.PlaybackSession, tracks map[
 		f.check(code == 200 && strings.HasPrefix(string(body), "WEBVTT"), "subtitle %s answered %d: %.80q", s.TrackID, code, body)
 		served[s.TrackID] = string(body)
 	}
-	for kind, cues := range textCues {
+	for kind, wanted := range textCues {
 		vtt, ok := served[tracks[kind]]
 		if !ok {
 			f.check(false, "the %s subtitle is not delivered beside the stream", kind)
 			continue
 		}
-		for _, cue := range cues {
-			f.check(regexp.MustCompile(cue).MatchString(vtt), "the %s subtitle lacks %q in:\n%s", kind, cue, vtt)
+		got := cues(vtt)
+		for _, want := range wanted {
+			found := false
+			for _, c := range got {
+				found = found || c.words == want.words && math.Abs(c.from-want.from) <= 0.1 && math.Abs(c.to-want.to) <= 0.1
+			}
+			f.check(found, "the %s subtitle lacks %q from %.1fs to %.1fs in:\n%s", kind, want.words, want.from, want.to, vtt)
 		}
 		f.check(!strings.Contains(vtt, `{\`), "the %s subtitle still carries styling codes:\n%s", kind, vtt)
 	}
@@ -870,10 +936,10 @@ func (m *matrix) play(t *testing.T, name, path, item string, subtitles map[strin
 		return
 	}
 
-	outVideo, outAudio, files := m.segments(t, p.URL, 0, 2)
+	outVideo, outAudio, files, _, end := m.segments(t, p.URL, 0, 3)
 	checkVideo(f, plan, video, outVideo, s.vfr)
 	checkAudio(f, plan, audio, outAudio)
-	checkTimeline(f, outVideo, outAudio, 0, 2*streaming.HLSSegmentSeconds)
+	checkTimeline(f, outVideo, outAudio, 0, min(end, clipSeconds))
 	if s.text {
 		m.checkText(f, session, subtitles)
 	}
@@ -904,9 +970,9 @@ func (m *matrix) play(t *testing.T, name, path, item string, subtitles map[strin
 	defer m.stop(sought)
 	f = &finding{t: t}
 	f.check(soughtPlan.Strategy == plan.Strategy, "the seek is planned %s, the start %s", soughtPlan.Strategy, plan.Strategy)
-	segment := seekMs / 1000 / streaming.HLSSegmentSeconds
-	seekVideo, seekAudio, _ := m.segments(t, sought.Presentation.URL, segment, segment+2)
-	checkTimeline(f, seekVideo, seekAudio, float64(segment*streaming.HLSSegmentSeconds), clipSeconds)
+	segment := m.segmentAt(t, sought.Presentation.URL, seekMs/1000.0)
+	seekVideo, seekAudio, _, from, to := m.segments(t, sought.Presentation.URL, segment, segment+2)
+	checkTimeline(f, seekVideo, seekAudio, from, min(to, clipSeconds))
 	if s.text {
 		m.checkText(f, sought, subtitles)
 	}
@@ -940,7 +1006,7 @@ func (m *matrix) burn(t *testing.T, where, profile, item, pgs, plain string) {
 	m.note(fmt.Sprintf("%-18s %-11s %s (picture subtitle burned)", strings.Fields(where)[0], profile, describe(plan)))
 	f := &finding{t: t}
 	f.check(plan.VideoAction == "convert", "burning in needs the picture converted, but it is planned %s", plan.VideoAction)
-	_, _, files := m.segments(t, session.Presentation.URL, 0, 2)
+	_, _, files, _, _ := m.segments(t, session.Presentation.URL, 0, 3)
 	shown := (pgsFrom + pgsTo) / 2
 	inside, outside := boxChange(m.frame(t, float64(shown), "-i", files[0]), m.frame(t, float64(shown), "-i", plain))
 	f.check(inside > 40 && outside < 15, "at %ds the box should differ from the plain stream inside (%.0f, want > 40) and not outside (%.0f, want < 15)", shown, inside, outside)
@@ -1095,7 +1161,7 @@ func TestMediaMatrixHardware(t *testing.T) {
 			f := &finding{t: t}
 			f.check(plan.HardwareBackend == backend, "planned on %s, not %s: see the hardware trial lines for why", plan.HardwareBackend, backend)
 			video, audio := m.probe(t, c.path, false)
-			outVideo, outAudio, files := m.segments(t, session.Presentation.URL, 0, 99)
+			outVideo, outAudio, files, _, _ := m.segments(t, session.Presentation.URL, 0, 99)
 			elapsed := time.Since(began)
 			speed := float64(clipSeconds) / elapsed.Seconds()
 			t.Logf("SPEED %s on %s: %d seconds of %dx%d made in %.1fs, %.2fx real time", c.name, plan.HardwareBackend, clipSeconds, video.Width, video.Height, elapsed.Seconds(), speed)
