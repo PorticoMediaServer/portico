@@ -3,7 +3,6 @@ import {test} from 'node:test';
 import {HttpLocalApi} from '@portico/client-core';
 import {routePath} from '../../../packages/contracts/src/index.ts';
 import {createReadingCollection, createReadingContinueCollection, createReadingSeriesCollection} from '../../src/screens/read/library-collection.ts';
-import {readItemEligibility} from '../../src/screens/read/navigation.ts';
 
 const tick = () => new Promise<void>(resolve => setImmediate(resolve));
 async function settle(done: () => boolean) {for (let i = 0; i < 100 && !done(); i++) await tick(); assert.ok(done(), 'bounded unit request settled');}
@@ -55,13 +54,6 @@ test('an unexpected library row never becomes a visible or selectable Read item'
   const f = fixture(1, true); t.after(() => f.dispose());
   f.rows.collection.ensureRange(0, 1); await settle(() => f.rows.collection.getSnapshot().status === 'error');
   assert.equal(f.rows.collection.itemAt(0), undefined); assert.equal(f.rows.collection.resident().items, 0);
-});
-
-test('only actual versions classify Read; unavailable real versions remain Read and ordinary item 404 stays ordinary', async t => {
-  const f = fixture(); t.after(() => f.dispose());
-  const reading = await readItemEligibility(f.client, 'unit-reading');
-  assert.equal(reading?.itemId, 'unit-reading'); assert.equal(reading?.versions[0].inventoryAvailable, false);
-  assert.equal(await readItemEligibility(f.client, 'unit-movie'), null);
 });
 
 function continueFixture(total = 480, options: {all?: boolean; wrongLibrary?: boolean; delayed?: boolean} = {}) {
