@@ -41,6 +41,8 @@ test('a link\'s or a typed code reads the same invitation, which names the serve
   await assert.rejects(previewServerInvitation(s.api, {shortCode: 'K7QP-2MXD'}), {code: 'invitation_incomplete'});
   await assert.rejects(previewServerInvitation(s.api, {code: '../admin'}), {code: 'invitation_incomplete'});
   assert.equal(s.calls.length, 2, 'an incomplete code is never sent');
+  await assert.rejects(previewServerInvitation(s.api, {code: 'c'.repeat(43)}), {code: 'not_found'});
+  assert.equal(s.calls.at(-1)!.path, '/v1/auth/invitations/' + 'c'.repeat(43), 'a link\'s old long code is sent, so the server can say it no longer works');
 });
 
 test('joining makes the account and is the sign-in: the answer is kept, and a one-profile account opens its profile', async () => {

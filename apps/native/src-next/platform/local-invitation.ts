@@ -80,7 +80,10 @@ export class NativeLocalInvitation<T> {
       return signedIn;
     } catch (error) {this.assertCurrent(); throw error;} finally {this.busy = false;}
   }
-  failure(error: unknown): 'expired' | 'username' | 'unavailable' | undefined {
+  /** `mistyped`: a code the person typed that the server does not know (404 `invitation_not_found`, which is also its
+   * answer for a used or ended code). They stay on the code form to check it; a code opened from a link is `expired`. */
+  failure(error: unknown): 'expired' | 'username' | 'unavailable' | 'mistyped' | undefined {
+    if (this.shortEntry && !this.accepted && error instanceof ApiError && error.status === 404 && error.code === 'invitation_not_found') return 'mistyped';
     if (this.shortEntry && !this.accepted && (error instanceof InvitationExpired || error instanceof ApiError && (
       error.status === 410 && error.code === 'invitation_expired'
       || error.status === 403 && error.code === 'invitation_for_another_account'))) return 'unavailable';
