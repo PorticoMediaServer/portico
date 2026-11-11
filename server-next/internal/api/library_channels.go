@@ -34,11 +34,14 @@ type LibraryChannel struct {
 	ScheduledThrough *time.Time `json:"scheduledThrough,omitempty"`
 	// UnknownConditions says the builder holds conditions this server cannot test; they are
 	// kept as they are.
-	UnknownConditions bool                     `json:"unknownConditions,omitempty"`
-	Builder           *librarychannels.Builder `json:"builder,omitempty"`
-	Health            *ChannelHealth           `json:"health,omitempty"`
-	revision          int64
-	status            int
+	UnknownConditions bool `json:"unknownConditions,omitempty"`
+	// DroppedTitles is how many pinned or weighted titles that no longer exist this save took
+	// out of the builder.
+	DroppedTitles int                      `json:"droppedTitles,omitempty"`
+	Builder       *librarychannels.Builder `json:"builder,omitempty"`
+	Health        *ChannelHealth           `json:"health,omitempty"`
+	revision      int64
+	status        int
 }
 
 func (c LibraryChannel) reply(h http.Header) int {
@@ -83,10 +86,12 @@ type ChannelTemplate struct {
 	Builder     librarychannels.Builder `json:"builder"`
 }
 
-// ChannelPreviewAsk is a channel as it is being edited.
+// ChannelPreviewAsk is a channel as it is being edited. ChannelID, for one that exists,
+// previews it as saving would: from the end of the programme now on, with its own places.
 type ChannelPreviewAsk struct {
-	TimeZone string                  `json:"timeZone"`
-	Builder  librarychannels.Builder `json:"builder"`
+	ChannelID string                  `json:"channelId,omitempty"`
+	TimeZone  string                  `json:"timeZone"`
+	Builder   librarychannels.Builder `json:"builder"`
 }
 
 // ChannelPreview is what the channel being edited would play.
@@ -246,34 +251,36 @@ func (s *Server) listLibraryChannels(r *http.Request, _ None) (Page[LibraryChann
 	return out, nil
 }
 
-// checkBuilder refuses a builder that cannot be saved and answers it as stored.
-func (s *Server) checkBuilder(ctx context.Context, b *librarychannels.Builder, zone string) (string, error) {
+// checkBuilder refuses a builder that cannot be saved and answers it as stored, with how many
+// pinned or weighted titles that no longer exist it took out.
+func (s *Server) checkBuilder(ctx context.Context, b *librarychannels.Builder, zone string) (string, int, error) {
 	if _, err := librarychannels.LoadZone(zone); err != nil {
-		return "", channelError(err)
+		return "", 0, channelError(err)
 	}
 	kinds, err := s.db.LibraryKinds(ctx)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	titles, err := s.db.TitleLibraries(ctx, append(b.Pinned(), b.Weighted()...))
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
-	if err := b.Check(kinds, titles); err != nil {
+	dropped := b.DropGone(titles)
+	if err := b.Check(kinds, titles, s.db.HasTitleData()); err != nil {
 		var field *librarychannels.FieldError
 		if errors.As(err, &field) {
-			return "", ErrField("builder."+field.Field, field.Message)
+			return "", 0, ErrField("builder."+field.Field, field.Message)
 		}
-		return "", err
+		return "", 0, err
 	}
 	raw, err := json.Marshal(b)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	if len(raw) > librarychannels.MaxBuilderSize {
-		return "", ErrField("builder", "This channel's settings are larger than 2 MB.")
+		return "", 0, ErrField("builder", "This channel's settings are larger than 2 MB.")
 	}
-	return string(raw), nil
+	return string(raw), dropped, nil
 }
 
 func checkChannelName(name string) error {
@@ -341,7 +348,8 @@ func (s *Server) createLibraryChannel(r *http.Request, req LibraryChannelSave) (
 	if req.Builder == nil {
 		return LibraryChannel{}, ErrField("builder.libraries", "Choose at least one library.")
 	}
-	if save.Builder, err = s.checkBuilder(r.Context(), req.Builder, save.TimeZone); err != nil {
+	var dropped int
+	if save.Builder, dropped, err = s.checkBuilder(r.Context(), req.Builder, save.TimeZone); err != nil {
 		return LibraryChannel{}, err
 	}
 	save.Libraries = req.Builder.Libraries()
@@ -352,7 +360,7 @@ func (s *Server) createLibraryChannel(r *http.Request, req LibraryChannelSave) (
 	s.channels.Wake()
 	b, _ := librarychannels.Parse(ch.Builder)
 	out := s.libraryChannelOut(ch, b, true)
-	out.status = http.StatusCreated
+	out.status, out.DroppedTitles = http.StatusCreated, dropped
 	return out, nil
 }
 
@@ -419,23 +427,31 @@ func (s *Server) saveLibraryChannel(r *http.Request, req LibraryChannelSave) (Li
 	if req.On != nil {
 		save.On = *req.On
 	}
+	// Only a builder that was sent is checked: a rename, a new description or Turn off saves even
+	// when a library the stored builder names has gone since. A new time zone is checked alone.
 	b := req.Builder
-	if b == nil {
+	dropped := 0
+	if b != nil {
+		if save.Builder, dropped, err = s.checkBuilder(ctx, b, save.TimeZone); err != nil {
+			return LibraryChannel{}, err
+		}
+		save.Libraries = b.Libraries()
+	} else {
+		if _, err := librarychannels.LoadZone(save.TimeZone); err != nil {
+			return LibraryChannel{}, channelError(err)
+		}
 		if b, err = librarychannels.Parse(ch.Builder); err != nil {
 			return LibraryChannel{}, err
 		}
 	}
-	// The builder is checked again whatever changed: a library or a pinned title may have gone.
-	if save.Builder, err = s.checkBuilder(ctx, b, save.TimeZone); err != nil {
-		return LibraryChannel{}, err
-	}
-	save.Libraries = b.Libraries()
 	saved, err := s.db.SaveLibraryChannel(ctx, CallerFrom(ctx).UserID, ch.PublicID, save, match)
 	if err != nil {
 		return LibraryChannel{}, channelError(err)
 	}
 	s.channels.Wake()
-	return s.libraryChannelOut(saved, b, true), nil
+	out := s.libraryChannelOut(saved, b, true)
+	out.DroppedTitles = dropped
+	return out, nil
 }
 
 func (s *Server) deleteLibraryChannel(r *http.Request, _ None) (None, error) {
@@ -499,11 +515,14 @@ func (s *Server) previewLibraryChannel(r *http.Request, req ChannelPreviewAsk) (
 	if zone == "" {
 		zone = s.serverZone()
 	}
-	if _, err := s.checkBuilder(ctx, &req.Builder, zone); err != nil {
+	if _, _, err := s.checkBuilder(ctx, &req.Builder, zone); err != nil {
 		return ChannelPreview{}, err
 	}
 	loc, _ := librarychannels.LoadZone(zone)
-	p, err := s.channels.Preview(ctx, &req.Builder, loc)
+	p, err := s.channels.Preview(ctx, &req.Builder, loc, req.ChannelID)
+	if errors.Is(err, db.ErrNotFound) {
+		return ChannelPreview{}, ErrField("channelId", "This channel no longer exists.")
+	}
 	if err != nil {
 		return ChannelPreview{}, err
 	}

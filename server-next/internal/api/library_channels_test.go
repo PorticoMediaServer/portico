@@ -203,3 +203,22 @@ func TestABlockThatCutsOffEndsOnTime(t *testing.T) {
 		t.Fatalf("only %d programmes in a week of evening blocks", inBlock)
 	}
 }
+
+// The preview plays the same titles in the same order as the schedule saving makes.
+func TestThePreviewIsTheScheduleSavingMakes(t *testing.T) {
+	s, owner, _ := seededWith(t, 600, 0)
+	films := libraryOfKind(t, s, owner, "movies")
+	b := librarychannels.Builder{Selection: librarychannels.Selection{Libraries: []string{films}, Kinds: []string{"movie"}}}
+	var preview ChannelPreview
+	if w := call(t, s, "POST", "/v1/admin/library-channels/preview", owner, ChannelPreviewAsk{TimeZone: "UTC", Builder: b}, &preview); w.Code != 200 {
+		t.Fatalf("preview answered %d: %s", w.Code, w.Body)
+	}
+	ch := makeChannel(t, s, owner, "Same", b)
+	rows := programmes(t, s, ch.ID, time.Now().Add(-time.Minute), time.Now().Add(24*time.Hour))
+	for n := 0; n < 5 && n < len(preview.Today) && n < len(rows); n++ {
+		got, _ := s.db.ProgrammeTitles(context.Background(), []int64{rows[n].ItemID})
+		if preview.Today[n].Title == nil || got[rows[n].ItemID].PublicID != preview.Today[n].Title.ID {
+			t.Fatalf("programme %d: the preview showed %+v, saving made %s", n, preview.Today[n].Title, got[rows[n].ItemID].PublicID)
+		}
+	}
+}
