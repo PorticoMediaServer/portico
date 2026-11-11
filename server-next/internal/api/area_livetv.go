@@ -2,9 +2,11 @@ package api
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/dvr"
 	"github.com/PorticoMediaServer/portico/server-next/internal/librarychannels"
 	"github.com/PorticoMediaServer/portico/server-next/internal/live"
 )
@@ -21,6 +23,10 @@ type liveTVArea struct {
 	// tuners runs each channel's shared input, and viewings the live sessions on them.
 	tuners   *live.Tuners
 	viewings *live.Viewings
+	// recorder records Live TV; dvrOptions are its settings, defaults until the dvr settings
+	// document exists. See dvr.go.
+	recorder   *dvr.Service
+	dvrOptions func() dvr.Options
 }
 
 // startLiveTV builds this area's services and registers its routes and job kinds. New calls it
@@ -43,5 +49,15 @@ func (s *Server) startLiveTV(ctx context.Context) error {
 	go s.tuners.Run(ctx)
 	go s.viewings.Run(ctx)
 	s.liveStreamRoute()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		home = s.dataDir
+	}
+	defaults := dvr.Defaults(home)
+	s.dvrOptions = func() dvr.Options { return defaults }
+	s.recorder = dvr.New(s.db, s.tuners, s.sources, s.viewings, s.log, func() time.Time { return s.now() }, func() dvr.Options { return s.dvrOptions() })
+	go s.recorder.Run(ctx)
+	s.dvrRoutes()
+	s.liveProgrammeRoutes()
 	return nil
 }
