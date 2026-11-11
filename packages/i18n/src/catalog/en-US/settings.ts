@@ -124,6 +124,8 @@ export const settingsMessages = {
   'settings.help.backdrops': 'Artwork behind title pages and Home.',
   'settings.help.reduceMotionDevice': 'Shorter transitions. Portico also follows the Reduce Motion setting of this device.',
   'settings.row.textSize': 'Text size',
+  'settings.row.askPin': 'Ask for my PIN for sensitive settings',
+  'settings.help.askPin': 'On a device that remembers your PIN, changing a password, PIN, limits or people asks for it again. Turning this off asks for it once.',
   'settings.row.layout': 'Layout',
   'settings.help.layout': 'Television: remote-control focus and large type. Touch: phone and tablet screens. Portico restarts to change it.',
   'settings.layout.automatic': 'Automatic',

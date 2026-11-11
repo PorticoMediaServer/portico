@@ -220,16 +220,18 @@ const source69PreferenceBindings:Readonly<Record<string,SettingsBinding>>={
  'privacy.showActivity':{form:'preferences',key:'privacy.showActivityToMembers',scope:'profile-server'},
  'privacy.includeWatchTogether':{form:'preferences',key:'privacy.includeInWatchTogether',scope:'profile-server'},
  'privacy.pauseHistory':{form:'preferences',key:'privacy.pauseWatchHistory',scope:'profile-server'},
+ // Asked again for the main profile's PIN, on a device that remembers it, before a sensitive change.
+ 'profile.askPin':{form:'preferences',key:'security.askPinForSensitiveSettings',scope:'profile-server'},
  'privacy.rememberSearches':{form:'preferences',key:'search.rememberHistory',scope:'profile-server'},
  'appearance.notificationDot':{form:'preferences',key:'notifications.badges',scope:'profile-server'},
- 'quality.home':{form:'preferences',key:'quality.home',scope:'profile-device-class',codec:'video-quality-choice'},
- 'quality.remote':{form:'preferences',key:'quality.remote',scope:'profile-device-class',codec:'video-quality-choice'},
+ 'quality.home':{form:'preferences',key:'quality.home',scope:'profile-device',codec:'video-quality-choice'},
+ 'quality.remote':{form:'preferences',key:'quality.remote',scope:'profile-device',codec:'video-quality-choice'},
  // The saved Download quality the server applies when a download names none (downloads/music.go
  // videoDownloadQuality). `ask` is offered only once the registry publishes it.
- 'quality.downloadQuality':{form:'preferences',key:'quality.downloads',scope:'profile-device-class',codec:'video-quality-choice'},
- 'quality.directPlay':{form:'preferences',key:'delivery.directPlay',scope:'profile-device-class'},
- 'quality.directStream':{form:'preferences',key:'delivery.directStream',scope:'profile-device-class'},
- 'quality.transcode':{form:'preferences',key:'delivery.transcode',scope:'profile-device-class'},
+ 'quality.downloadQuality':{form:'preferences',key:'quality.downloads',scope:'profile-device',codec:'video-quality-choice'},
+ 'quality.directPlay':{form:'preferences',key:'delivery.directPlay',scope:'profile-device'},
+ 'quality.directStream':{form:'preferences',key:'delivery.directStream',scope:'profile-device'},
+ 'quality.transcode':{form:'preferences',key:'delivery.transcode',scope:'profile-device'},
 };
 // Runtime keys and scopes come from the published Music registry. CD is only
 // the drawn choice value; the canonical stored quality remains cd-quality.
@@ -240,10 +242,10 @@ const musicPreferenceBindings:Readonly<Record<string,SettingsBinding>>={
  'music.neverBoost':{form:'preferences',key:'music.neverBoost',scope:'profile-server'},
  'music.smoothTransitions':{form:'preferences',key:'music.smoothTransitions',scope:'profile-server'},
  'music.dsdGainDb':{form:'preferences',key:'music.dsdGainDb',scope:'profile-server'},
- 'music.qualityHome':{form:'preferences',key:'music.qualityHome',scope:'profile-device-class',codec:'music-quality-choice'},
- 'music.qualityAway':{form:'preferences',key:'music.qualityAway',scope:'profile-device-class',codec:'music-quality-choice'},
- 'music.qualityMobile':{form:'preferences',key:'music.qualityMobile',scope:'profile-device-class',codec:'music-quality-choice'},
- 'music.downloadQuality':{form:'preferences',key:'music.qualityDownloads',scope:'profile-device-class',codec:'music-quality-choice'},
+ 'music.qualityHome':{form:'preferences',key:'music.qualityHome',scope:'profile-device',codec:'music-quality-choice'},
+ 'music.qualityAway':{form:'preferences',key:'music.qualityAway',scope:'profile-device',codec:'music-quality-choice'},
+ 'music.qualityMobile':{form:'preferences',key:'music.qualityMobile',scope:'profile-device',codec:'music-quality-choice'},
+ 'music.downloadQuality':{form:'preferences',key:'music.qualityDownloads',scope:'profile-device',codec:'music-quality-choice'},
  // The generated Music page's Audiobooks group. Their row ids are the profile
  // preference keys themselves, so the generic row-id map had no entry for them.
  'audiobooks.skipBackMs':{form:'preferences',key:'audiobooks.skipBackMs',scope:'profile-server'},

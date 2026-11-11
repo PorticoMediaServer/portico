@@ -26,7 +26,7 @@ function fixture(request: LibraryContentApi['request'], access: Partial<{role: '
   const calls: string[] = [];
   const api: LibraryContentApi = {request: async <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => {calls.push(path);return request<T>(path, method, body, signal);}};
   const preferences: PreferenceSnapshot = {deviceClass: 'web', registry: {revision: 'test', fields: []}, documents: [], effective: {}, effectiveSource: {}, clampedFields: [], registryRevision: 'test'};
-  const reader = new PreferencesReader(api, {serverId: 'server', viewerId: 'viewer'});
+  const reader = new PreferencesReader(api);
   const controller = new SettingsController({api, serverId: 'server', viewerId: 'viewer', role: access.role ?? 'admin', mainProfile: access.mainProfile ?? true,
     capabilities: {manageServer: access.manageServer ?? true, managePeople: false, manageSignIn: false}, preferences, reader, isCurrent: () => current, reportError: error => {throw error;},
     environment: {platform: 'web', os: 'browser'}, eligibility: {hasEngine: () => false, library: () => undefined},

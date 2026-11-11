@@ -1126,10 +1126,10 @@
     "category": "platform-transport",
     "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
     "sites": [
-      "apps/native/src-next/screens/settings-live/settings-controller.ts#a24c5fcb0366cced"
+      "apps/native/src-next/screens/settings-live/settings-controller.ts#3c92514366952e39"
     ],
     "guardHashes": {
-      "apps/native/src-next/screens/settings-live/settings-controller.ts#a24c5fcb0366cced": "e31ce40081fb20451a41f0e93e1615160ee11b6283c19380dd408e2143ea42b2"
+      "apps/native/src-next/screens/settings-live/settings-controller.ts#3c92514366952e39": "c87fc306cb67fe041a6661ab680d7722182e38c1f7c263b97d2f7a973e77c8a9"
     }
   },
   "apps/native/src-next/screens/settings-live/use-settings-request-scope.ts": {
@@ -1753,10 +1753,10 @@
     "category": "platform-transport",
     "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
     "sites": [
-      "apps/native/src-next/shell/bootstrap-services.ts#de7bb4bc80ff725c"
+      "apps/native/src-next/shell/bootstrap-services.ts#1a07fd72613c8699"
     ],
     "guardHashes": {
-      "apps/native/src-next/shell/bootstrap-services.ts#de7bb4bc80ff725c": "4b62d415ec5c785ef36a7993f165dfaa55290e0f51838f59eeede3af604d103f"
+      "apps/native/src-next/shell/bootstrap-services.ts#1a07fd72613c8699": "198fbbb107f2b27bfeb3819eb36c4c4dadab0dd4d64c51de2e9e6afc4275dff4"
     }
   },
   "web/src/screens/account/feedback-controller.ts": {

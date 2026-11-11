@@ -81,12 +81,11 @@ test('a real Settings ACK republishes bootstrap text only after confirmation and
   const app = await standardHomeApp({mountUI: false, nativeResponse: async (request: any, fixture: any) => {
     if (!request.path.startsWith('/v1/preferences')) return;
     if (request.method === 'PATCH') {
-      assert.equal(request.body.expectedRevision, confirmed.documents[0]!.revision);
       if (rejectWrite) return {status: 409, body: {error: {code: 'preference_conflict', message: 'region save refused'}}};
       begun.resolve(); await release.promise;
-      confirmed = preferences(request.body.values['region.locale'], request.body.values['region.formats'], confirmed.documents[0]!.revision + 1);
+      confirmed = preferences(request.body.values['region.locale'], request.body.values['region.formats']);
     }
-    return {status: 200, body: {scope: {serverId: fixture.pin.serverId, viewerFence: 'a'.repeat(64)}, data: confirmed}};
+    return {status: 200, body: confirmed};
   }});
   let runtime: RestoredNativeShellRuntime | undefined;
   try {
@@ -98,7 +97,7 @@ test('a real Settings ACK republishes bootstrap text only after confirmation and
     assert.ok(runtime); assert.ok(captured);
     const source = nativeServerPreferences(captured), before = runtime.getSnapshot(), oldText = runtime.text.t('next.kit.items', {count: 1234});
     let publications = 0; const off = runtime.subscribe(() => {publications++;});
-    const writing = source.applyPreferences('profile-server', 'mobile', 1, {'region.locale': 'en-GB', 'region.formats': 'de-DE'});
+    const writing = source.applyPreferences('profile-server', 'mobile', {'region.locale': 'en-GB', 'region.formats': 'de-DE'});
     await begun.promise;
     assert.equal(runtime.text.locale, 'en-US'); assert.equal(runtime.getSnapshot(), before);
     release.resolve(); await writing;
@@ -106,7 +105,7 @@ test('a real Settings ACK republishes bootstrap text only after confirmation and
     assert.notEqual(runtime.getSnapshot(), before); assert.ok(publications > 0);
     assert.equal(captured.preferences(), source.getSnapshot());
     rejectWrite = true;
-    await assert.rejects(source.applyPreferences('profile-server', 'mobile', 2, {'region.locale': 'en-US'}), {code: 'preference_conflict'});
+    await assert.rejects(source.applyPreferences('profile-server', 'mobile', {'region.locale': 'en-US'}), {code: 'preference_conflict'});
     assert.equal(runtime.text.locale, 'en-GB');
     off(); runtime.dispose();
     assert.throws(() => runtime!.text.locale, {name: 'AbortError'});

@@ -255,10 +255,10 @@ test('late DVR mutation receipt cannot report success after the viewer changes',
   assert.equal(controller.getSnapshot().summary, undefined);
   controller.dispose(); lifetime.dispose();
 });
-const preferences = (revision = 1, value = true): PreferenceSnapshot => ({deviceClass: 'television', registryRevision: 'r1',
+const preferences = (_revision = 1, value = true): PreferenceSnapshot => ({deviceClass: 'television', deviceBound: false,
   registry: {revision: 'r1', fields: [{key: 'playback.autoplayNext', type: 'boolean', default: true, scopes: ['profile-server'], group: 'playback', labelKey: 'autoplay'}]},
-  documents: [{scope: 'profile-server', revision, activeRevision: revision, digest: 'a'.repeat(64), values: {'playback.autoplayNext': value}}, {scope: 'profile-device-class', revision: 1, activeRevision: 1, digest: 'b'.repeat(64), values: {}}],
-  effective: {'playback.autoplayNext': value}, effectiveSource: {'playback.autoplayNext': 'profile-server'}, clampedFields: []});
+  documents: [{scope: 'profile-server', values: {'playback.autoplayNext': value}}, {scope: 'profile-device-class', values: {}}],
+  effective: {'playback.autoplayNext': value}, effectiveSource: {'playback.autoplayNext': 'profile-server'}});
 
 test('replaced shell authority aborts in-flight work and refuses a late successful response', async () => {
   const owner = authority(), lifetime = new NativeScreenLifetime(owner);
@@ -283,7 +283,7 @@ test('each viewport abort belongs to that read, without retiring another current
   lifetime.dispose();
 });
 
-test('settings commits only the response, with the actual document revision and canonical scope', async () => {
+test('settings commits only the response, saved at the setting\'s own scope', async () => {
   const lifetime = new NativeScreenLifetime(authority());
   let complete!: (value: PreferenceSnapshot) => void;
   const calls: unknown[][] = [];
@@ -293,13 +293,11 @@ test('settings commits only the response, with the actual document revision and 
   assert.equal(controller.getSnapshot().preferences.effective['playback.autoplayNext'], true);
   assert.equal(controller.getSnapshot().saved, 0);
   assert.equal(await controller.apply('profile-server', {'playback.autoplayNext': true}), false);
-  assert.deepEqual(calls, [['profile-server', 'television', 7, {'playback.autoplayNext': false}]]);
+  assert.deepEqual(calls, [['profile-server', 'television', {'playback.autoplayNext': false}]]);
   complete(preferences(8, false));
   assert.equal(await pending, true);
   assert.equal(controller.getSnapshot().preferences.effective['playback.autoplayNext'], false);
   assert.equal(controller.getSnapshot().saved, 1);
-  controller.accept(preferences(6, true));
-  assert.equal(controller.getSnapshot().preferences.documents[0].revision, 8);
   controller.dispose(); lifetime.dispose();
 });
 
