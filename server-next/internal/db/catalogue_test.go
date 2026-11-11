@@ -654,7 +654,7 @@ func TestEverySortPagesEveryRowOnce(t *testing.T) {
 	whole := everything(t, l.d, v, films)
 	// Some state of the viewer's own to sort by: ratings, plays and one film played twice.
 	for n, film := range whole[:40] {
-		rating := n % 11
+		rating := 1 + n%10
 		state(t, l.d, v, film.PublicID, db.StateEdit{Rating: &rating})
 		if n%2 == 0 {
 			state(t, l.d, v, film.PublicID, db.StateEdit{Watched: &yes})
