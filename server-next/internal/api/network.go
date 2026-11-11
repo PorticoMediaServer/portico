@@ -32,13 +32,28 @@ type NetworkSettings struct {
 	// TrustedProxies are the reverse proxies whose X-Forwarded-For header is believed. The
 	// header from any other address is ignored.
 	TrustedProxies []string `json:"trustedProxies"`
-	// Notices are plain sentences for the owner about something wrong that these settings
-	// cannot show by themselves: today, a trusted proxy that is not passing on its visitors'
-	// addresses. It is empty when nothing is wrong, and is not part of what is saved.
-	Notices []string `json:"notices"`
+	// Warnings are what the owner should know about these settings, each a code and a plain
+	// sentence, for as long as it holds. It is empty when nothing is wrong, and is not part of
+	// what is saved. Two codes so far:
+	//   - proxy_everywhere: the trusted proxies cover most of the internet, so anyone can say
+	//     they are at home. The owner's choice: it is saved, and said.
+	//   - proxy_without_header: requests came from a trusted proxy's address with no
+	//     X-Forwarded-For in the last day, so they count as away. One for each such address,
+	//     naming it.
+	Warnings []Warning `json:"warnings"`
 
 	revision
 }
+
+// Warning is one risky choice in force.
+type Warning struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+// proxyEverywhereMessage is proposed wording, listed for the owner's approval.
+const proxyEverywhereMessage = "A trusted proxy covers most of the internet, so anyone can say they are at home " +
+	"and skip what applies to people away from home. List only your own proxy's address unless you mean this."
 
 // NetworkSettingsEdit replaces the network settings. HomeNetworks left out or null goes
 // back to the server's own choice.
@@ -74,7 +89,7 @@ type networkState struct {
 }
 
 const (
-	// silentProxyFor is how long a proxy stays in the owner's notices after it last sent a
+	// silentProxyFor is how long a proxy stays in the owner's warnings after it last sent a
 	// request with no visitor's address: long enough to be seen, gone once it is fixed.
 	silentProxyFor   = 24 * time.Hour
 	maxSilentProxies = 16
@@ -94,7 +109,7 @@ func (n *networkState) set(stored storedNetworks) error {
 	}
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	// A saved change starts the notices afresh: the proxy named may no longer be listed.
+	// A saved change starts the warnings afresh: the proxy named may no longer be listed.
 	n.stored, n.home, n.proxies, n.silent = stored, home, proxies, nil
 	return nil
 }
@@ -148,19 +163,33 @@ func (s *Server) noteSilentProxy(proxy string) {
 	}
 }
 
-// networkNotices are the sentences the owner's network settings show.
-func (s *Server) networkNotices() []string {
-	now, out := s.now(), []string{}
+// networkWarnings are what the owner's network settings warn about, the wide proxy list first,
+// then each trusted proxy address seen sending no X-Forwarded-For in the last day.
+func (s *Server) networkWarnings(networks auth.Networks) []Warning {
+	out := []Warning{}
+	// Believing a forwarded address from most of the internet lets anyone claim to be at home.
+	// It is the owner's choice about their own server, so it is saved, and said plainly.
+	for _, p := range networks.Proxies {
+		if p.Bits() < 8 {
+			out = append(out, Warning{Code: "proxy_everywhere", Message: proxyEverywhereMessage})
+			break
+		}
+	}
+	now := s.now()
+	var silent []string
 	s.network.mu.Lock()
-	defer s.network.mu.Unlock()
 	for proxy, at := range s.network.silent {
 		if now.Sub(at) > silentProxyFor {
 			delete(s.network.silent, proxy)
 			continue
 		}
-		out = append(out, silentProxyNotice(proxy))
+		silent = append(silent, proxy)
 	}
-	slices.Sort(out)
+	s.network.mu.Unlock()
+	slices.Sort(silent)
+	for _, proxy := range silent {
+		out = append(out, Warning{Code: "proxy_without_header", Message: silentProxyNotice(proxy)})
+	}
 	return out
 }
 
@@ -260,7 +289,7 @@ func prefixStrings(prefixes []netip.Prefix) []string {
 func (s *Server) networkSettings(saved int64) NetworkSettings {
 	networks, stored := s.network.current(s.now())
 	return NetworkSettings{HomeNetworks: prefixStrings(networks.Home), HomeNetworksDefault: stored.Home == nil,
-		TrustedProxies: prefixStrings(networks.Proxies), Notices: s.networkNotices(), revision: revision(saved)}
+		TrustedProxies: prefixStrings(networks.Proxies), Warnings: s.networkWarnings(networks), revision: revision(saved)}
 }
 
 func (s *Server) saveNetworkSettings(r *http.Request, req NetworkSettingsEdit) (NetworkSettings, error) {
@@ -276,12 +305,6 @@ func (s *Server) saveNetworkSettings(r *http.Request, req NetworkSettingsEdit) (
 	proxies, err := auth.ParseNetworks(stored.Proxies)
 	if err != nil || len(proxies) > maxNetworks {
 		return NetworkSettings{}, ErrField("trustedProxies", "List up to 64 addresses or networks such as 10.0.0.2 or 172.18.0.0/16.")
-	}
-	for _, p := range proxies {
-		// Believing a forwarded address from everywhere would let anyone claim to be at home.
-		if p.Bits() < 8 {
-			return NetworkSettings{}, ErrField("trustedProxies", "A trusted proxy is your own proxy's address or network, not most of the internet.")
-		}
 	}
 	match, err := settingsIfMatch(r)
 	if err != nil {
