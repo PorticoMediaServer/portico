@@ -82,6 +82,14 @@ func (d *DB) SplitVersion(ctx context.Context, versionID string) (string, error)
 		if _, err := b.exec(`UPDATE media SET item_id = ?, position = 0 WHERE id = ?`, id, media); err != nil {
 			return err
 		}
+		// The new title is the same film or episode to a restricted profile: it carries the
+		// rating and the labels of the title it came from.
+		if _, err := b.exec(`UPDATE items SET content_rating = (SELECT content_rating FROM items WHERE id = ?) WHERE id = ?`, item, id); err != nil {
+			return err
+		}
+		if _, err := b.exec(copyLabels, id, item); err != nil {
+			return err
+		}
 		// The new title sits where the old one did, under the same labels.
 		if err := b.labelsChanged(id); err != nil {
 			return err
