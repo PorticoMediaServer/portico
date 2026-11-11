@@ -248,16 +248,9 @@ func applyDetails(b *batchTx, itemID int64, d *ItemDetails, now int64) error {
 	if d.ProviderKey != "" && !keep[FieldMatch] {
 		// Another title that already has this id keeps the key: the server never merges two
 		// titles by itself, or a version a person split off would be merged straight back.
-		res, err := b.exec(`INSERT INTO item_keys (library_id, kind, key, item_id) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING`,
-			library, KeyProvider, d.ProviderKey, itemID)
-		if err != nil {
+		if _, err := b.exec(`INSERT INTO item_keys (library_id, kind, key, item_id) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING`,
+			library, KeyProvider, d.ProviderKey, itemID); err != nil {
 			return err
-		}
-		// What everyone had on this title before it was removed comes back with its id.
-		if n, _ := res.RowsAffected(); n == 1 {
-			if err := restoreState(b, itemID); err != nil {
-				return err
-			}
 		}
 	}
 	// The importer's lookups of tags and people by name, so a provider's genre or person is
