@@ -102,3 +102,39 @@ func TestSmallReadsShareARequest(t *testing.T) {
 		t.Fatalf("two megabytes read in small pieces took %d requests", got)
 	}
 }
+
+// A file replaced at the source after it was opened, by one of exactly the same size, is
+// answered "changed" rather than read as the old file mixed with the new: by its ETag, by its
+// date where the server gives no ETag, and by checking the answer where the server ignores
+// the condition. A server that gives neither is held to the size alone.
+func TestAReplacedFileIsNotMixedIn(t *testing.T) {
+	for _, c := range []struct {
+		markers string
+		ignore  bool
+	}{{"both", false}, {"date", false}, {"both", true}, {"date", true}, {"none", false}} {
+		dav := remotetest.NewDAV(t, map[string]string{"film.mkv": "AAAAAAAAAA"})
+		dav.Markers = c.markers
+		dav.IgnoreConditions.Store(c.ignore)
+		src, _ := remote.NewWebDAV(dav.URL, dav.User, dav.Password)
+		file, err := src.Open(ctx, "film.mkv")
+		if err != nil {
+			t.Fatal(err)
+		}
+		part := make([]byte, 5)
+		if _, err := file.ReadAt(part, 0); err != nil || string(part) != "AAAAA" {
+			t.Fatalf("%+v: first read %v %q", c, err, part)
+		}
+		dav.Put("film.mkv", "BBBBBBBBBB")
+		_, err = file.ReadAt(part, 5)
+		if c.markers == "none" {
+			if err != nil || string(part) != "BBBBB" {
+				t.Fatalf("with no marker the same size reads on: %v %q", err, part)
+			}
+			dav.Put("film.mkv", "CCCCCCCCCCC")
+			_, err = file.ReadAt(part, 5)
+		}
+		if !errors.Is(err, remote.ErrChanged) {
+			t.Fatalf("%+v: a replaced file read %v %q", c, err, part)
+		}
+	}
+}

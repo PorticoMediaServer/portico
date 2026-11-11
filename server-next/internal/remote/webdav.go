@@ -104,6 +104,9 @@ func statusError(resp *http.Response) error {
 		return &SlowDown{After: retryAfter(resp.Header.Get("Retry-After"))}
 	case code == http.StatusUnauthorized || code == http.StatusForbidden:
 		return ErrSignIn
+	case code == http.StatusPreconditionFailed:
+		// Only reads of an open file are conditional: the file is not the one opened.
+		return ErrChanged
 	default:
 		return fmt.Errorf("the remote source answered %s", resp.Status)
 	}
@@ -227,8 +230,16 @@ func (w *WebDAV) Open(ctx context.Context, p string) (File, error) {
 	if !ok {
 		return nil, ErrNoRanges
 	}
-	return &davFile{w: w, u: u, size: size, ctx: ctx}, nil
+	f := &davFile{w: w, u: u, size: size, ctx: ctx, modified: resp.Header.Get("Last-Modified")}
+	if etag := resp.Header.Get("ETag"); etag != "" && !strings.HasPrefix(etag, "W/") {
+		f.etag = etag
+	}
+	return f, nil
 }
+
+// ErrChanged says a file was replaced at the source since it was opened: what is read now
+// would not be the file whose first parts were read before.
+var ErrChanged = errors.New("the file changed at the remote source")
 
 // rangeTotal reads the whole size from a 206 answer's Content-Range.
 func rangeTotal(resp *http.Response) (int64, bool) {
@@ -242,11 +253,18 @@ func rangeTotal(resp *http.Response) (int64, bool) {
 
 // davFile is an open file. Like a throttled file it lives as long as the work that opened
 // it, so its reads end with that work.
+//
+// Every read is tied to the version of the file that was opened: a server's strong ETag is
+// sent as If-Match, or else its Last-Modified as If-Unmodified-Since, and the answer's own
+// marker and size are checked too, for a server that ignores the condition. A server that
+// gives neither marker is held to the size alone, so a file replaced by one of exactly the
+// same size cannot be told apart there.
 type davFile struct {
-	w    *WebDAV
-	u    *url.URL
-	size int64
-	ctx  context.Context
+	w              *WebDAV
+	u              *url.URL
+	size           int64
+	ctx            context.Context
+	etag, modified string // as the server gave them when the file was opened; "" for none
 }
 
 func (f *davFile) Size() int64  { return f.size }
@@ -288,13 +306,26 @@ func (f *davFile) get(off, length int64) (io.ReadCloser, error) {
 	if length > 0 {
 		spec += strconv.FormatInt(off+length-1, 10)
 	}
-	resp, err := f.w.request(f.ctx, http.MethodGet, f.u, "", http.Header{"Range": {spec}})
+	header := http.Header{"Range": {spec}}
+	switch {
+	case f.etag != "":
+		header.Set("If-Match", f.etag)
+	case f.modified != "":
+		header.Set("If-Unmodified-Since", f.modified)
+	}
+	resp, err := f.w.request(f.ctx, http.MethodGet, f.u, "", header)
 	if err != nil {
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusPartialContent || !strings.HasPrefix(resp.Header.Get("Content-Range"), fmt.Sprintf("bytes %d-", off)) {
 		resp.Body.Close()
 		return nil, ErrNoRanges
+	}
+	total, _ := rangeTotal(resp)
+	if total != f.size || f.etag != "" && resp.Header.Get("ETag") != f.etag ||
+		f.etag == "" && f.modified != "" && resp.Header.Get("Last-Modified") != f.modified {
+		resp.Body.Close()
+		return nil, ErrChanged
 	}
 	return resp.Body, nil
 }
