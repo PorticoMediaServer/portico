@@ -801,6 +801,8 @@ func (m *matrix) play(t *testing.T, name, path, item string, subtitles map[strin
 			m.checkText(f, session, subtitles)
 		}
 		f.report(where)
+		// The file as it is, against which a burned stream is compared.
+		m.burnFor(t, s, where, profile, item, subtitles, path)
 		return
 	}
 
@@ -861,19 +863,25 @@ func (m *matrix) play(t *testing.T, name, path, item string, subtitles map[strin
 	f.report(where + " after a seek")
 	m.stop(sought)
 
+	if len(files) > 0 {
+		m.burnFor(t, s, where, profile, item, subtitles, files[0])
+	}
+}
+
+// burnFor burns the sample's picture subtitle when the sample asks for it on this device,
+// comparing against plain: the stream without it, or the file as it is.
+func (m *matrix) burnFor(t *testing.T, s sample, where, profile, item string, subtitles map[string]string, plain string) {
+	t.Helper()
 	for _, burnFor := range s.burn {
 		if burnFor != profile {
 			continue
 		}
 		id, ok := subtitles["pgs"]
-		if len(files) == 0 {
-			continue
-		}
 		if !ok {
 			t.Errorf("FINDING %s: the picture subtitle was not found in the file", where)
 			continue
 		}
-		m.burn(t, where, profile, item, id, files[0])
+		m.burn(t, where, profile, item, id, plain)
 	}
 }
 
