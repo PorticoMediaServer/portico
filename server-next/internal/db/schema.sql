@@ -179,7 +179,8 @@ CREATE TABLE files (
   extra         TEXT,
   problem       INTEGER,
   -- A music file measured exactly, as JSON: what a player's own music engine needs to join
-  -- one song to the next without a gap. Made once, when the scan reads the file.
+  -- one song to the next without a gap. Made the first time the file is played that way; a
+  -- scan that reads the file again clears it.
   audio_exact   TEXT,
   UNIQUE (directory_id, name)
 );
