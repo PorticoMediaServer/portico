@@ -518,7 +518,7 @@ Refreshing or editing a selection of titles is a bulk action, `POST /v1/jobs`.
 
 ### Remote sources, route by route (8 of the 33 for libraries, storage and files)
 
-The owner's alone. A source's password or key is never sent back; it can only be replaced.
+The owner's alone. Adding, changing and disconnecting a source, and starting a Drive sign-in, take the owner signed in: a key is refused with `403 session_required`, while an admin-scope key still reads, browses and tests. A source's password or key is never sent back; it can only be replaced.
 
 | Route | Purpose |
 |---|---|
