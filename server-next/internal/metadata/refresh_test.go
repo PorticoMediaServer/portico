@@ -64,7 +64,7 @@ func TestARefreshNeverOverwritesAHandEdit(t *testing.T) {
 		t.Errorf("a refresh overwrote a hand edit: %+v", edited)
 	}
 	// What nobody edited is still the provider's.
-	if edited.Year != 1999 || !slices.Equal(tagNames(edited, db.TagStudio), []string{"Village Roadshow Pictures", "Warner Bros. Pictures"}) {
+	if edited.Year != 1999 || !slices.Equal(tagNames(edited, db.TagStudio), []string{"Groucho II Film Partnership", "Silver Pictures", "Village Roadshow Pictures", "Warner Bros. Pictures"}) {
 		t.Errorf("a refresh lost the provider's details: %+v", edited)
 	}
 
