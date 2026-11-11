@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/diskspace"
 )
 
 // Use is one thing holding a channel's input: a viewer or a recording.
@@ -26,15 +28,20 @@ type NoTuner struct{ Using []Use }
 
 func (e *NoTuner) Error() string { return "every tuner is busy" }
 
-// Tuning settings: how much can be rewound, and how long a source that stops sending is
-// tried again before the channel is said to have stopped.
+// Tuning settings: how much can be rewound (in time and at most in bytes, per channel), and
+// how long a source that stops sending is tried again before the channel is said to have
+// stopped.
 type Tuning struct {
-	Stretch time.Duration
-	Retry   time.Duration
+	Stretch  time.Duration
+	MaxBytes int64
+	Retry    time.Duration
 }
 
-// DefaultTuning is the owner's defaults: 30 minutes of rewind, 60 seconds of retrying.
-var DefaultTuning = Tuning{Stretch: 30 * time.Minute, Retry: 60 * time.Second}
+// DefaultTuning is the owner's defaults: 30 minutes of rewind but never more than 1.5 GB a
+// channel (30 minutes of a broadcast HD channel is about 4 GB, so the rewind of such a
+// channel is shorter), and 60 seconds of retrying. They become the owner's live settings with
+// the settings package.
+var DefaultTuning = Tuning{Stretch: 30 * time.Minute, MaxBytes: 1536 << 20, Retry: 60 * time.Second}
 
 const (
 	segmentLength = 4 * time.Second
@@ -107,15 +114,29 @@ func (t *Tuners) Tune(channelID, sourceID int64, tuners int, locator string, use
 	}
 	busy := 0
 	var using []Use
-	for _, in := range t.inputs {
+	var idle []int64
+	for id, in := range t.inputs {
 		if in.SourceID == sourceID && in.alive() {
 			busy++
 			in.mu.Lock()
 			for u := range in.uses {
 				using = append(using, *u)
 			}
+			if len(in.uses) == 0 {
+				idle = append(idle, id)
+			}
 			in.mu.Unlock()
 		}
+	}
+	// An input nobody holds lingers for a minute in case its viewer comes back; a tuner that is
+	// needed now is taken back from it at once.
+	for _, id := range idle {
+		if busy < max(tuners, 1) {
+			break
+		}
+		t.inputs[id].cancel()
+		delete(t.inputs, id)
+		busy--
 	}
 	if busy >= max(tuners, 1) {
 		return nil, &NoTuner{Using: using}
@@ -231,16 +252,26 @@ func (in *Input) pump(ctx context.Context) {
 		in.stop(err)
 		return
 	}
+	// A source that drops is connected again at once. It is given up on only when it has sent
+	// nothing for the retry time and at least three connections in a row have brought nothing,
+	// as playback gives up on a stream that fails three times without progress. Any data
+	// starts the count again, so a source that blips now and then keeps playing.
 	var failingSince time.Time
+	failures := 0
 	for ctx.Err() == nil {
-		err := in.read(ctx)
+		delivered, err := in.read(ctx)
 		if ctx.Err() != nil {
 			break
+		}
+		if delivered {
+			failingSince, failures = in.t.now(), 0 // it dropped just now, after sending
+		} else {
+			failures++
 		}
 		if failingSince.IsZero() {
 			failingSince = in.t.now()
 		}
-		if in.t.now().Sub(failingSince) >= in.t.tuning().Retry {
+		if failures >= 3 && in.t.now().Sub(failingSince) >= in.t.tuning().Retry {
 			in.stop(fmt.Errorf("the channel stopped: %w", err))
 			return
 		}
@@ -264,20 +295,21 @@ func (in *Input) stop(err error) {
 	in.mu.Unlock()
 }
 
-// read copies one connection to the source into segments until it ends.
-func (in *Input) read(ctx context.Context) error {
+// read copies one connection to the source into segments until it ends, and says whether it
+// brought any data.
+func (in *Input) read(ctx context.Context) (delivered bool, _ error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, in.locator, nil)
 	if err != nil {
-		return err
+		return false, err
 	}
 	req.Header.Set("User-Agent", "Portico")
 	resp, err := in.t.client.Do(req)
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("the source answered %d", resp.StatusCode)
+		return false, fmt.Errorf("the source answered %d", resp.StatusCode)
 	}
 	buf := make([]byte, packet*348) // about 64 KiB
 	var file *os.File
@@ -298,12 +330,13 @@ func (in *Input) read(ctx context.Context) error {
 					file.Close()
 				}
 				if file, err = in.newSegment(now); err != nil {
-					return err
+					return delivered, err
 				}
 			}
 			if _, werr := file.Write(buf[:whole]); werr != nil {
-				return werr
+				return delivered, werr
 			}
+			delivered = true
 			in.mu.Lock()
 			in.segments[len(in.segments)-1].size += int64(whole)
 			in.changed.Broadcast()
@@ -314,7 +347,7 @@ func (in *Input) read(ctx context.Context) error {
 			if errors.Is(err, io.ErrUnexpectedEOF) {
 				err = io.EOF
 			}
-			return err
+			return delivered, err
 		}
 	}
 }
@@ -337,10 +370,18 @@ func (in *Input) newSegment(now time.Time) (*os.File, error) {
 		in.segments[n-1].open = false
 	}
 	in.segments = append(in.segments, segment{path: path, start: now, open: true})
-	// Keep the rewind stretch and one segment more; a reader on a dropped file keeps reading
-	// it, since a removed file stays readable while open.
-	stretch := in.t.tuning().Stretch
-	for len(in.segments) > 2 && now.Sub(in.segments[1].start) > stretch {
+	// Keep the rewind stretch and one segment more, within the channel's bytes; a reader on a
+	// dropped file keeps reading it, since a removed file stays readable while open. When the
+	// disk is short of room for new files, keep only the newest: the rewind shortens, live
+	// keeps playing, and the database's disk never fills.
+	tuning := in.t.tuning()
+	var held int64
+	for _, seg := range in.segments {
+		held += seg.size
+	}
+	short := !diskspace.Room(in.dir, diskspace.ProducerFloor)
+	for len(in.segments) > 2 && (now.Sub(in.segments[1].start) > tuning.Stretch || tuning.MaxBytes > 0 && held > tuning.MaxBytes || short) {
+		held -= in.segments[0].size
 		os.Remove(in.segments[0].path)
 		in.segments = in.segments[1:]
 	}
