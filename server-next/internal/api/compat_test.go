@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -8,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/compat"
+	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 )
 
 // compatCall sends a request the way a companion tool does: header names and paths as the
@@ -177,5 +179,46 @@ func TestCompatibleRoutesForTools(t *testing.T) {
 	status(t, s, "PUT", "/v1/admin/settings/integrations", owner, IntegrationSettingsEdit{CompatibleRoutes: &on})
 	if code, _, _ := compatCall(s, "GET", "/System/Info", "", header); code != 401 {
 		t.Errorf("a sign-in made before the routes were turned off answered %d, want 401", code)
+	}
+}
+
+// kidsKey makes a read-only token that acts as a profile limited to the shows library, while
+// the account's main profile plays a film. Keys are made only from the main profile today,
+// so the token is put in directly.
+func kidsKey(t *testing.T, th *theatre) string {
+	t.Helper()
+	var kid Profile
+	if w := call(t, th.s, "POST", "/v1/profiles", th.owner.AccessToken, ProfileCreate{Name: "Kids"}, &kid); w.Code >= 300 {
+		t.Fatalf("making a profile answered %d: %s", w.Code, w.Body)
+	}
+	limits := Restrictions{Libraries: []string{th.libs["shows"].PublicID}, BlockedLabels: []string{}}
+	if got := status(t, th.s, "PUT", "/v1/profiles/"+kid.ID+"/restrictions", th.owner.AccessToken, limits); got != 200 {
+		t.Fatalf("limiting the profile answered %d", got)
+	}
+	ctx := context.Background()
+	p, err := th.s.db.Profile(ctx, 1, kid.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secret := keyPrefix + "kids-tool"
+	if _, _, err := th.s.db.CreateAPIKey(ctx, db.NewAPIKey{UserID: 1, ProfileID: p.ID, Kind: "personal_token", Name: "Kids tool",
+		KeyHash: keyHash(secret), Scopes: []string{"read"}, Limit: 25, Now: th.clock}); err != nil {
+		t.Fatal(err)
+	}
+	th.play(th.owner.AccessToken, th.film)
+	return secret
+}
+
+// A tool whose key acts as a limited profile sees that the account has a stream, but not the
+// title the profile may not see.
+func TestCompatSessionsHideTitlesTheKeyMayNotSee(t *testing.T) {
+	th := newTheatre(t)
+	on := true
+	status(t, th.s, "PUT", "/v1/admin/settings/integrations", th.owner.AccessToken, IntegrationSettingsEdit{CompatibleRoutes: &on})
+	key := kidsKey(t, th)
+	code, _, list := compatCall(th.s, "GET", "/Sessions?api_key="+key, "", nil)
+	raw, _ := json.Marshal(list)
+	if code != 200 || len(list) != 1 || strings.Contains(string(raw), "Heat") || strings.Contains(string(raw), compat.ID(th.film)) {
+		t.Errorf("a limited profile's tool was shown %d %s", code, raw)
 	}
 }
