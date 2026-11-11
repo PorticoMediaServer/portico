@@ -227,7 +227,10 @@ func TestARetaggedSongIsReadAgain(t *testing.T) {
 		return f.children(found.PublicID)
 	}
 	misspelt := album("OK Computer")[3]
-	f.watch(misspelt.PublicID)
+	yes := true
+	if _, _, err := f.d.SetState(ctx, f.viewer, misspelt.PublicID, db.StateEdit{Favorite: &yes}); err != nil {
+		t.Fatal(err)
+	}
 	probes := f.probes.calls.Load()
 
 	// The typo and the track number are fixed; the other song belongs to another album.
@@ -235,7 +238,7 @@ func TestARetaggedSongIsReadAgain(t *testing.T) {
 	f.tagged("in/a.mp3", "TIT2", "Airbag", "TPE1", "Radiohead", "TALB", "Airbag / How Am I Driving?", "TRCK", "1")
 	stats := f.scan()
 	fixed := album("OK Computer")
-	if stats.ItemsNew != 1 || len(fixed) != 1 || fixed[2].Title != "Paranoid Android" || fixed[2].PublicID != misspelt.PublicID || !f.watched(misspelt.PublicID) {
+	if stats.ItemsNew != 1 || len(fixed) != 1 || fixed[2].Title != "Paranoid Android" || fixed[2].PublicID != misspelt.PublicID || !f.detail(misspelt.PublicID).State.Favorite {
 		t.Fatalf("after retagging: %+v, OK Computer %v", stats, fixed)
 	}
 	if moved := album("Airbag / How Am I Driving?"); len(moved) != 1 || moved[1].Title != "Airbag" {
