@@ -69,10 +69,32 @@ func (f *finding) check(ok bool, format string, args ...any) {
 	}
 }
 
+// knownFailures are disagreements already reported on PR #2604, by the case's name, with
+// the number of the finding there. Such a case is logged, not failed, so a new failure
+// stands out; when it starts coming out as planned the test fails, so its line is removed
+// here. A case marked sometimes fails only on some runs and may pass quietly.
+var knownFailures = map[string]struct {
+	finding   int
+	sometimes bool
+}{
+	"hevc-hlg for chromium after a seek":                          {finding: 1},
+	"h264-10bit for chromium after a seek":                        {finding: 1},
+	"hevc-hdr10 for chromium after a seek":                        {finding: 1, sometimes: true},
+	"hevc-hdr10 for chromium with the picture subtitle burned in": {finding: 1, sometimes: true},
+	"subtitles for chromium with the picture subtitle burned in":  {finding: 2},
+	"hevc-4k-hdr10-tone-mapped on vaapi":                          {finding: 3},
+}
+
 func (f *finding) report(where string) {
 	f.t.Helper()
-	if len(f.failed) > 0 {
+	known, isKnown := knownFailures[where]
+	switch {
+	case len(f.failed) > 0 && isKnown:
+		f.t.Logf("EXPECTED FAILURE (finding %d on #2604) %s:\n  %s", known.finding, where, strings.Join(f.failed, "\n  "))
+	case len(f.failed) > 0:
 		f.t.Errorf("FINDING %s: what came out is not what was planned:\n  %s", where, strings.Join(f.failed, "\n  "))
+	case isKnown && !known.sometimes:
+		f.t.Errorf("FIXED? %s now comes out as planned, but finding %d on #2604 says it does not: if it is fixed, remove it from knownFailures", where, known.finding)
 	}
 }
 

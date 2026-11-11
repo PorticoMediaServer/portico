@@ -90,8 +90,20 @@ type sample struct {
 	burn []string
 	// owner says it is one of the owner's clips, not made from the test picture.
 	owner bool
+	// seconds is its length when it is not clipSeconds.
+	seconds int
+	// jump is where a player seeks to within the same stream, when it does.
+	jump float64
 	// text says it carries the SRT and ASS subtitles, checked for words and times.
 	text bool
+}
+
+// length is how long the sample is.
+func (s sample) length() float64 {
+	if s.seconds > 0 {
+		return float64(s.seconds)
+	}
+	return clipSeconds
 }
 
 func lavfi(size string, rate int) []string {
@@ -173,12 +185,19 @@ var samples = []sample{
 			return [][]string{common(out, append(lavfi("320x180", 24), "-pix_fmt", "yuv420p", "-c:v", "libx264", "-preset", "ultrafast",
 				"-af", "aformat=channel_layouts=5.1", "-c:a", "dca", "-strict", "-2")...)}
 		}},
+	// Long enough that a jump to 80 seconds passes where the converter has stopped running
+	// ahead (a minute past what was fetched), and converted for every device.
+	{name: "long-jump", file: "Long Jump (2020).mkv", needs: []string{"libx264", "aac"}, seconds: 100, jump: 80,
+		args: func(dir, out string) [][]string {
+			return [][]string{append(lavfi("320x180", 24), "-pix_fmt", "yuv420p10le", "-c:v", "libx264", "-preset", "ultrafast", "-profile:v", "high10",
+				"-c:a", "aac", "-ac", "2", "-t", "100", "-g", "48", out)}
+		}},
 	{name: "flac-7.1", file: "Seven One (2020).mkv", needs: []string{"libx264", "flac"},
 		args: func(dir, out string) [][]string {
 			return [][]string{common(out, append(lavfi("320x180", 24), "-pix_fmt", "yuv420p", "-c:v", "libx264", "-preset", "ultrafast",
 				"-af", "aformat=channel_layouts=7.1", "-c:a", "flac")...)}
 		}},
-	{name: "subtitles", file: "Subtitled (2020).mkv", needs: []string{"libx264", "aac", "srt", "ass"}, text: true, burn: []string{"chromium"},
+	{name: "subtitles", file: "Subtitled (2020).mkv", needs: []string{"libx264", "aac", "srt", "ass"}, text: true, burn: matrixProfiles,
 		args: func(dir, out string) [][]string {
 			args := append(lavfi("320x180", 24), "-i", filepath.Join(dir, "words.srt"), "-i", filepath.Join(dir, "styled.ass"), "-i", filepath.Join(dir, "box.sup"),
 				"-map", "0:v", "-map", "1:a", "-map", "2:s", "-map", "3:s", "-map", "4:s",
@@ -631,13 +650,14 @@ func (m *matrix) segmentAt(t *testing.T, url string, seconds float64) int {
 // segments fetches segments [from, to) of every playlist of a stream, joins each
 // playlist's as a player's buffer would, and returns what is in them, with where the first
 // playlist says those segments start and end.
-func (m *matrix) segments(t *testing.T, url string, from, to int) (video, audio *probed, files []string, start, end float64) {
+func (m *matrix) segments(t *testing.T, f *finding, url string, from, to int) (video, audio *probed, files []string, start, end float64) {
 	t.Helper()
 	base, lists := m.playlists(t, url)
 	start, end = lists[0].at(from), lists[0].at(to)
 	for _, l := range lists {
 		if from >= len(l.parts) {
-			t.Fatalf("%s has %d segments, wanted from %d", l.name, len(l.parts), from)
+			f.check(false, "%s has %d segments, wanted from %d", l.name, len(l.parts), from)
+			continue
 		}
 		var joined []byte
 		if l.init != "" {
@@ -647,7 +667,8 @@ func (m *matrix) segments(t *testing.T, url string, from, to int) (video, audio 
 		for i := from; i < to && i < len(l.parts); i++ {
 			code, _, body := m.media(base + l.parts[i])
 			if code != 200 || len(body) == 0 {
-				t.Fatalf("FINDING: %s, named in %s, answered %d: %.200q", l.parts[i], l.name, code, body)
+				f.check(false, "%s, named in %s, answered %d: %.200q", l.parts[i], l.name, code, body)
+				break
 			}
 			joined = append(joined, body...)
 		}
@@ -751,14 +772,14 @@ func (m *matrix) play(t *testing.T, name, path, item string, subtitles map[strin
 		return
 	}
 
-	outVideo, outAudio, files, _, end := m.segments(t, p.URL, 0, 3)
+	outVideo, outAudio, files, _, end := m.segments(t, f, p.URL, 0, 3)
 	checkVideo(f, plan, video, outVideo, s.vfr)
 	checkAudio(f, plan, audio, outAudio)
-	checkTimeline(f, outVideo, outAudio, 0, min(end, clipSeconds))
+	checkTimeline(f, outVideo, outAudio, 0, min(end, s.length()))
 	if s.text {
 		m.checkText(f, session, subtitles)
 	}
-	if plan.ToneMap && outVideo != nil {
+	if plan.ToneMap && outVideo != nil && len(files) > 0 {
 		// Tone-mapped back, the picture looks about as the SDR picture it was made from; an
 		// owner's clip is held to being neither black nor washed out.
 		mean, black, clipped := brightness(m.frame(t, 3, "-i", files[0]))
@@ -776,6 +797,17 @@ func (m *matrix) play(t *testing.T, name, path, item string, subtitles map[strin
 	}
 	f.report(where)
 
+	if s.jump > 0 {
+		// A player that seeks far ahead in the same stream asks for a segment the converter
+		// has not reached: the converter moves there, and the segment starts where the
+		// playlist says it does.
+		f = &finding{t: t}
+		segment := m.segmentAt(t, p.URL, s.jump)
+		jumpVideo, jumpAudio, _, from, to := m.segments(t, f, p.URL, segment, segment+2)
+		checkTimeline(f, jumpVideo, jumpAudio, from, min(to, s.length()))
+		f.report(where + " after a jump within the stream")
+	}
+
 	// A seek: the stream begins again in the third segment, on time, with no hole.
 	position := int64(seekMs)
 	body.StartPositionMs, body.StartFrom = &position, ""
@@ -789,8 +821,8 @@ func (m *matrix) play(t *testing.T, name, path, item string, subtitles map[strin
 	f = &finding{t: t}
 	f.check(soughtPlan.Strategy == plan.Strategy, "the seek is planned %s, the start %s", soughtPlan.Strategy, plan.Strategy)
 	segment := m.segmentAt(t, sought.Presentation.URL, seekMs/1000.0)
-	seekVideo, seekAudio, _, from, to := m.segments(t, sought.Presentation.URL, segment, segment+2)
-	checkTimeline(f, seekVideo, seekAudio, from, min(to, clipSeconds))
+	seekVideo, seekAudio, _, from, to := m.segments(t, f, sought.Presentation.URL, segment, segment+2)
+	checkTimeline(f, seekVideo, seekAudio, from, min(to, s.length()))
 	if s.text {
 		m.checkText(f, sought, subtitles)
 	}
@@ -802,6 +834,9 @@ func (m *matrix) play(t *testing.T, name, path, item string, subtitles map[strin
 			continue
 		}
 		id, ok := subtitles["pgs"]
+		if len(files) == 0 {
+			continue
+		}
 		if !ok {
 			t.Errorf("FINDING %s: the picture subtitle was not found in the file", where)
 			continue
@@ -824,7 +859,11 @@ func (m *matrix) burn(t *testing.T, where, profile, item, pgs, plain string) {
 	m.note(fmt.Sprintf("%-18s %-11s %s (picture subtitle burned)", strings.Fields(where)[0], profile, describe(plan)))
 	f := &finding{t: t}
 	f.check(plan.VideoAction == "convert", "burning in needs the picture converted, but it is planned %s", plan.VideoAction)
-	_, _, files, _, _ := m.segments(t, session.Presentation.URL, 0, 3)
+	_, _, files, _, _ := m.segments(t, f, session.Presentation.URL, 0, 3)
+	if len(files) == 0 {
+		f.report(where + " with the picture subtitle burned in")
+		return
+	}
 	shown := (pgsFrom + pgsTo) / 2
 	inside, outside := boxChange(m.frame(t, float64(shown), "-i", files[0]), m.frame(t, float64(shown), "-i", plain))
 	f.check(inside > 40 && outside < 15, "at %ds the box should differ from the plain stream inside (%.0f, want > 40) and not outside (%.0f, want < 15)", shown, inside, outside)

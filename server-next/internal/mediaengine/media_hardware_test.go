@@ -1,11 +1,16 @@
 package mediaengine_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -34,6 +39,12 @@ func TestMediaMatrixHardware(t *testing.T) {
 		t.Logf("hardware trial: %s available=%v reason=%s encoder=%s native filters=%v", probe.Backend, probe.Available, probe.Reason, probe.Encoder, probe.NativeFilters)
 	}
 	m := newMatrix(t, ffmpeg, ffprobe)
+	// The server logs one line for each launch of a conversion, saying where it ran: kept
+	// here too, so a conversion planned on the chip that ran in software is caught.
+	launches := &launchLog{}
+	previous := log.Writer()
+	log.SetOutput(io.MultiWriter(previous, launches))
+	t.Cleanup(func() { log.SetOutput(previous) })
 	t.Cleanup(func() { t.Logf("what was planned:\n%s", strings.Join(m.summary, "\n")) })
 	dir := t.TempDir()
 	sup := filepath.Join(dir, "box.sup")
@@ -85,19 +96,24 @@ func TestMediaMatrixHardware(t *testing.T) {
 				time.Sleep(5 * time.Second)
 			}
 			defer m.stop(session)
+			seen := launches.size()
 			m.note(fmt.Sprintf("%-26s web  %s", c.name, describe(plan)))
 			f := &finding{t: t}
 			f.check(plan.HardwareBackend == backend, "planned on %s, not %s: see the hardware trial lines for why", plan.HardwareBackend, backend)
 			video, audio := m.probe(t, c.path, false)
-			outVideo, outAudio, files, _, _ := m.segments(t, session.Presentation.URL, 0, 99)
+			outVideo, outAudio, files, _, _ := m.segments(t, f, session.Presentation.URL, 0, 99)
 			elapsed := time.Since(began)
 			speed := float64(clipSeconds) / elapsed.Seconds()
 			t.Logf("SPEED %s on %s: %d seconds of %dx%d made in %.1fs, %.2fx real time", c.name, plan.HardwareBackend, clipSeconds, video.Width, video.Height, elapsed.Seconds(), speed)
 			f.check(speed >= 1, "made at %.2fx real time: a viewer would wait", speed)
+			for _, launch := range launches.since(seen) {
+				f.check(!launch.Fallback && launch.Encoder.Execution == "hardware",
+					"planned on %s, but a conversion ran with %s in %s (fell back: %v)", backend, launch.Encoder.Name, launch.Encoder.Execution, launch.Fallback)
+			}
 			checkVideo(f, plan, video, outVideo, false)
 			checkAudio(f, plan, audio, outAudio)
 			checkTimeline(f, outVideo, outAudio, 0, clipSeconds)
-			if plan.ToneMap && outVideo != nil {
+			if plan.ToneMap && outVideo != nil && len(files) > 0 {
 				mean, black, clipped := brightness(m.frame(t, 3, "-i", files[0]))
 				wantMean, wantBlack, wantClipped := brightness(m.frame(t, 3, "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=24:duration=4"))
 				t.Logf("tone-mapped brightness %.0f against %.0f for the SDR original", mean, wantMean)
@@ -105,7 +121,7 @@ func TestMediaMatrixHardware(t *testing.T) {
 					"tone-mapped picture: mean %.0f, black %.2f, clipped %.2f; the SDR original: mean %.0f, black %.2f, clipped %.2f",
 					mean, black, clipped, wantMean, wantBlack, wantClipped)
 			}
-			if c.burn {
+			if c.burn && len(files) > 0 {
 				// The box covers the middle of the picture from 5 to 9 seconds.
 				shown := m.frame(t, 7, "-i", files[0])
 				after := m.frame(t, 3, "-i", files[0])
@@ -122,4 +138,49 @@ func TestMediaMatrixHardware(t *testing.T) {
 			f.report(c.name + " on " + backend)
 		})
 	}
+}
+
+// launchLog keeps what the server logs, to read its conversion launches back.
+type launchLog struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (l *launchLog) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.buf.Write(p)
+}
+
+func (l *launchLog) size() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.buf.Len()
+}
+
+// launch is one conversion_started line: where the encoder ran, and whether the stream fell
+// back from what it was planned on.
+type launch struct {
+	Event   string `json:"event"`
+	Encoder struct {
+		Name      string `json:"name"`
+		Execution string `json:"execution"`
+	} `json:"encoder"`
+	Fallback bool `json:"fallback"`
+}
+
+// since is the launches logged after the first n bytes.
+func (l *launchLog) since(n int) []launch {
+	l.mu.Lock()
+	text := l.buf.String()[n:]
+	l.mu.Unlock()
+	var out []launch
+	for _, line := range strings.Split(text, "\n") {
+		start := strings.Index(line, "{")
+		var one launch
+		if start >= 0 && json.Unmarshal([]byte(line[start:]), &one) == nil && one.Event == "conversion_started" {
+			out = append(out, one)
+		}
+	}
+	return out
 }
