@@ -32,7 +32,8 @@ func TestGenreChoicesFollowAChangedRating(t *testing.T) {
 				t.Fatal(err)
 			}
 			// The list is counted from item rows here: a rare tag's total reads them.
-			if listed := len(everything(t, l.d, limited, db.ItemQuery{Library: shows.PublicID, Kinds: []db.ItemKind{kind}, Tag: choice.Value, Limit: 200})); listed != choice.Count || page.Total != choice.Count {
+			all := db.ItemQuery{Library: shows.PublicID, Kinds: []db.ItemKind{kind}, Tag: choice.Value, Limit: 200}
+			if listed := len(everything(t, l.d, limited, all)); listed != choice.Count || page.Total != choice.Count {
 				t.Fatalf("kind %d, genre %q: the choice says %d, the total %d, the list holds %d", kind, choice.Label, choice.Count, page.Total, listed)
 			}
 			sum += choice.Count
