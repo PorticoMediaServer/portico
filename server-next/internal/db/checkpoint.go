@@ -58,7 +58,11 @@ func (d *DB) checkpointHelper() {
 			case size != lastSize || !modified.Equal(lastModified):
 				lastSize, lastModified = size, modified
 				d.helper.Exec(`PRAGMA wal_checkpoint(PASSIVE)`)
-			case size > 0:
+			case size > 0 && !d.backingUp.Load():
+				// Emptying the file from this connection makes the write connection read the
+				// database afresh, which starts an online backup again from its first page:
+				// on a server that writes now and then a backup would never end. The file is
+				// emptied once the backup is done.
 				d.helper.Exec(`PRAGMA wal_checkpoint(TRUNCATE)`)
 			}
 		}

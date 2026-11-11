@@ -34,7 +34,7 @@ func TestBackupWhileWritingKeepsTheLogSmall(t *testing.T) {
 			return err
 		})
 	}
-	for n := range 96 { // a database of about 100 MB
+	for n := range 192 { // a database of about 200 MB
 		if err := put(Background, fmt.Sprintf("fill-%d", n)); err != nil {
 			t.Fatal(err)
 		}
@@ -84,11 +84,54 @@ func TestBackupWhileWritingKeepsTheLogSmall(t *testing.T) {
 	}
 	defer copied.Close()
 	var fills int
-	if err := copied.read.QueryRow(`SELECT count(*) FROM settings WHERE key LIKE 'fill-%'`).Scan(&fills); err != nil || fills != 96 {
-		t.Errorf("the copy holds %d of the 96 rows written before it: %v", fills, err)
+	if err := copied.read.QueryRow(`SELECT count(*) FROM settings WHERE key LIKE 'fill-%'`).Scan(&fills); err != nil || fills != 192 {
+		t.Errorf("the copy holds %d of the 192 rows written before it: %v", fills, err)
 	}
 	var check string
 	if err := copied.read.QueryRow(`PRAGMA quick_check`).Scan(&check); err != nil || check != "ok" {
 		t.Errorf("the copy's check: %q %v", check, err)
+	}
+}
+
+// A backup on a server that writes only now and then (a progress report, then quiet) is not
+// started again from its first page when the write-ahead log is emptied in the quiet after
+// the write. Before the helper stopped emptying the log during a backup, every such write
+// sent the copy back to the start, and a backup that took longer than the gap between
+// writes never ended.
+func TestBackupIsNotStartedAgainAfterAQuietWrite(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	d, err := Open(ctx, dir+"/main.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	put := func(key string, size int) {
+		t.Helper()
+		if err := d.write(ctx, User, func(tx *sql.Tx) error {
+			_, err := tx.Exec(`INSERT INTO settings (key, value, updated_at) VALUES (?, ?, 0)`, key, strings.Repeat("x", size))
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for n := range 24 {
+		put(fmt.Sprintf("fill-%d", n), 1<<20)
+	}
+	steps, last, wentBack := 0, 1<<30, false
+	err = d.BackupTo(ctx, dir+"/copy.db", func(left int) {
+		if steps++; steps == 2 {
+			put("a progress report", 10)
+		}
+		wentBack = wentBack || left > last
+		last = left
+		// Long enough for the helper to see the write and then a quiet half second.
+		time.Sleep(60 * time.Millisecond)
+	})
+	if err != nil || wentBack {
+		t.Fatalf("the backup ended with %v after %d steps; started again: %v", err, steps, wentBack)
+	}
+	if err := CheckCopy(ctx, dir+"/copy.db"); err != nil {
+		t.Errorf("the copy's check: %v", err)
 	}
 }
