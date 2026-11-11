@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -153,4 +154,35 @@ func (d *DB) RecentlyAdded(ctx context.Context, v Viewer) ([]Item, error) {
 		return nil, err
 	}
 	return items, loadLeafCounts(ctx, tx, v, acc, items)
+}
+
+// HomeView is a saved view put on Home: its name, its library and its sort and filters.
+type HomeView struct {
+	PublicID, Name, Library, Query string
+}
+
+// HomeViews reads the saved views with these ids that the viewer may read, in no particular
+// order. One that was deleted, is not a saved view, or is of a library the viewer may no longer
+// see is left out, so Home never names it.
+func (d *DB) HomeViews(ctx context.Context, v Viewer, publicIDs []string) ([]HomeView, error) {
+	if len(publicIDs) == 0 {
+		return nil, nil
+	}
+	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	acc, err := loadAccess(ctx, tx, v)
+	if err != nil {
+		return nil, err
+	}
+	args, marks := v.args(), make([]string, len(publicIDs))
+	for n, id := range publicIDs {
+		marks[n] = fmt.Sprint("@view", n)
+		args = append(args, sql.Named(fmt.Sprint("view", n), id))
+	}
+	return queryAll(ctx, tx, `SELECT l.public_id, l.name, ifnull((SELECT public_id FROM libraries WHERE id = l.library_id), ''),
+		ifnull(l.rules, '') FROM lists l WHERE l.kind = '`+ListSavedView+`' AND l.public_id IN (`+strings.Join(marks, ", ")+`) AND `+acc.readable(),
+		args, func(h *HomeView) []any { return []any{&h.PublicID, &h.Name, &h.Library, &h.Query} })
 }
