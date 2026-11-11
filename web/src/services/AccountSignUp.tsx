@@ -18,7 +18,8 @@ export function codeInput(value: string): string {
   return plain.length > 4 ? `${plain.slice(0, 4)}-${plain.slice(4)}` : plain;
 }
 
-function useAction() {
+/** A form's one action at a time: busy while it runs, and the refusal it met. */
+export function useAction() {
   const [busy, setBusy] = useState(false), [error, setError] = useState<unknown>();
   const run = (work: () => Promise<void>) => async (event?: FormEvent) => {
     event?.preventDefault();
@@ -28,7 +29,6 @@ function useAction() {
   };
   return {busy, error, setError, run};
 }
-export {useAction};
 
 export function AccountSignUp({next}: {next: string}) {
   const {t} = servicesI18n();

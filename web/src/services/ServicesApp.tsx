@@ -11,6 +11,7 @@ import {AccountReset} from './AccountReset';
 import {ApproveServer} from './ApproveServer';
 import {AccountProviderReturn} from './AccountProviders';
 import {AccountWorkspace} from './AccountWorkspace';
+import {LinkTV} from './LinkTV';
 import {isServicesPath} from './paths';
 
 type Arrival = {id?: string; code?: string; failed: boolean};
@@ -30,6 +31,7 @@ const routes = (arrival?: Arrival) => [
   createRoute({getParentRoute: () => root, path: '/approve', component: () => <ApproveServer />}),
   createRoute({getParentRoute: () => root, path: '/approve/$id', component: function ApproveById() { const {id} = useParams({strict: false}) as {id: string}; return <ApproveServer id={id} />; }}),
   createRoute({getParentRoute: () => root, path: '/account', component: () => <AccountWorkspace />}),
+  createRoute({getParentRoute: () => root, path: '/tv', component: () => <LinkTV />}),
   createRoute({getParentRoute: () => root, path: '/app/account-return', component: () => <AccountProviderReturn arrival={arrival ?? {failed: true}} />}),
 ];
 

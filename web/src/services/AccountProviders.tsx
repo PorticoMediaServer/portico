@@ -35,16 +35,25 @@ export async function startProvider(provider: Provider, next: string, proof?: {c
   location.assign(answer.authorizeUrl);
 }
 
+/** Which of Google and Apple this Portico Services offers (`GET /v1/system`), asked once a page. */
+let offered: Promise<readonly string[]> | undefined;
+function offeredProviders(): Promise<readonly string[]> {
+  offered ??= servicesCall<{capabilities?: string[]}>('GET', '/v1/system').then(value => value.capabilities ?? [], () => { offered = undefined; return []; });
+  return offered;
+}
+
 export function ProviderButtons({next, disabled, divider}: {next: string; disabled: boolean; divider: string}) {
   const {t} = servicesI18n();
-  const [leaving, setLeaving] = useState(false), [error, setError] = useState<unknown>();
+  const [leaving, setLeaving] = useState(false), [error, setError] = useState<unknown>(), [providers, setProviders] = useState<readonly string[]>([]);
+  useEffect(() => { let live = true; void offeredProviders().then(value => { if (live) setProviders(value); }); return () => { live = false; }; }, []);
   const start = (provider: Provider) => {
     setLeaving(true); setError(undefined);
     startProvider(provider, next).catch(caught => { setError(caught); setLeaving(false); });
   };
+  if (!providers.includes('apple') && !providers.includes('google')) return null;
   return <>
-    <ServicesProviderButton provider="apple" disabled={disabled || leaving} onClick={() => start('apple')}>{t('next.account.signIn.apple')}</ServicesProviderButton>
-    <ServicesProviderButton provider="google" disabled={disabled || leaving} onClick={() => start('google')}>{t('next.account.signIn.google')}</ServicesProviderButton>
+    {providers.includes('apple') && <ServicesProviderButton provider="apple" disabled={disabled || leaving} onClick={() => start('apple')}>{t('next.account.signIn.apple')}</ServicesProviderButton>}
+    {providers.includes('google') && <ServicesProviderButton provider="google" disabled={disabled || leaving} onClick={() => start('google')}>{t('next.account.signIn.google')}</ServicesProviderButton>}
     {error ? <ServicesNotice tone="error">{t(providerProblem(error))}</ServicesNotice> : null}
     <ServicesDivider>{divider}</ServicesDivider>
   </>;
