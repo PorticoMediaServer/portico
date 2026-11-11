@@ -224,3 +224,24 @@ func TestPlayOnRefusals(t *testing.T) {
 		t.Fatalf("opening a device with the setting off answered %d", w.Code)
 	}
 }
+
+// Another of the account's devices may stop a stream, but where it says it is does not become
+// that stream's resume point.
+func TestStoppingAnotherDeviceKeepsItsPlace(t *testing.T) {
+	th := newTheatre(t)
+	phone := th.owner.AccessToken
+	tablet := onMain(t, th.s, signIn(t, th.s, 1)).AccessToken
+	playing := th.play(phone, th.film)
+	th.report(phone, playing.ID, "paused", 600_000)
+	end := int64(hour - 60_000)
+	if code := status(t, th.s, "DELETE", "/v1/playback/sessions/"+playing.ID, tablet, PlaybackStop{PositionMs: &end}); code != 204 {
+		t.Fatalf("stopping from the tablet answered %d", code)
+	}
+	if state := th.state(th.film); state.PositionMS != 600_000 || state.Watched {
+		t.Fatalf("the phone's place became the tablet's: %+v", state)
+	}
+	var stopped PlaybackSession
+	if call(t, th.s, "GET", "/v1/playback/sessions/"+playing.ID, phone, nil, &stopped); stopped.End == nil || stopped.End.Reason != "stopped_elsewhere" {
+		t.Fatalf("the phone is told %+v", stopped.End)
+	}
+}

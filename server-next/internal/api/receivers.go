@@ -309,7 +309,7 @@ func (s *Server) answerRequest(r *http.Request, req ReceiverAnswer) (ReceiverReq
 	}
 	if answered.State == receivers.StatePlaying && answered.Moving != "" {
 		// Moved: the device that asked stops, and its app hears so.
-		s.playback.Stop(ctx, answered.Moving, c.Viewer.UserID, nil)
+		s.playback.Stop(ctx, answered.Moving, c.Viewer.UserID, c.SignInID, nil)
 	}
 	return requestOut(answered), nil
 }
