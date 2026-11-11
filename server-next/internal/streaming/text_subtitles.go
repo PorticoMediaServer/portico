@@ -150,12 +150,33 @@ func (s *Streams) extractText(ctx context.Context, st *stream, track int, format
 	return s.extractTrack(ctx, st.source, track, subtitles.MaxInputBytes, "-f", format)
 }
 
-// SubtitleTrack copies one subtitle track out of a library file, untouched, as a
-// Matroska subtitle file: what a stream that burns the subtitle into its picture
-// is started with (BurnSubtitle, format "mks"). It reads the whole file once.
-func (s *Streams) SubtitleTrack(ctx context.Context, path string, size int64, modified time.Time, track int) ([]byte, error) {
+// SubtitleTrack takes one subtitle track out of a library file for burning into
+// a picture: untouched, as a Matroska subtitle file (BurnSubtitle format "mks"),
+// or with asASS as an ASS script, which is how a text track is drawn. It reads
+// the whole file once.
+func (s *Streams) SubtitleTrack(ctx context.Context, path string, size int64, modified time.Time, track int, asASS bool) ([]byte, error) {
 	source := libraryFile{path: path, size: size, modified: modified, roots: s.libraries}
+	if asASS {
+		return s.extractTrack(ctx, source, track, subtitles.BinaryLimitBytes(), "-f", "ass")
+	}
 	return s.extractTrack(ctx, source, track, subtitles.BinaryLimitBytes(), "-c:s", "copy", "-f", "matroska")
+}
+
+// SubtitleFile reads a subtitle file beside a video, inside a library folder,
+// whole. A zero size and time take the file as it is now (the second file of a
+// VobSub pair, which the scanner does not record).
+func (s *Streams) SubtitleFile(ctx context.Context, path string, size int64, modified time.Time) ([]byte, error) {
+	file, _, _, err := libraryFile{path: path, size: size, modified: modified, roots: s.libraries}.Open(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	limit := subtitles.BinaryLimitBytes()
+	raw, err := io.ReadAll(io.LimitReader(file, int64(limit)+1))
+	if err == nil && len(raw) > limit {
+		err = subtitles.ErrCapacity
+	}
+	return raw, err
 }
 
 // extractTrack runs ffmpeg in its sandbox, which is handed the open file and
