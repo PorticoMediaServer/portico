@@ -132,8 +132,13 @@ func (d *DB) Facets(ctx context.Context, v Viewer, q ItemQuery, facet string) ([
 			if len(acc.blockedTags) > 0 {
 				counts += ` UNION ALL ` + byRow("-", `i.id IN (`+acc.blockedIDs(w.library, w.kinds)+`)`+acc.rated("i", ""))
 			}
-			// So are the shows or albums left with nothing under them the profile may see.
-			if emptied := acc.emptied(w.library, w.holderKinds); emptied != "" {
+			// So are the shows or albums left with nothing under them the profile may see, once
+			// each: one a blocked label covers was taken away just above.
+			if w.emptied != "" {
+				emptied := `i.id IN (` + w.emptied + `)` + acc.rated("i", "")
+				if len(acc.blockedTags) > 0 {
+					emptied += ` AND i.id NOT IN (` + acc.blockedIDs(w.library, w.kinds) + `)`
+				}
 				counts += ` UNION ALL ` + byRow("-", emptied)
 			}
 		}
