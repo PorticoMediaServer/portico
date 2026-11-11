@@ -8,6 +8,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediaexec"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediatools"
 	"os/exec"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -18,12 +19,12 @@ import (
 type ToolchainFacts struct {
 	inventoryCacheable       bool
 	DolbyVisionDualLayerJoin bool `json:"-"`
-	// Only exact bundle-qualified libx265 opt-in carry may set this. It does
-	// not qualify rendering transforms or activate any conversion recipe.
+	// libx265 can carry HDR10+ scene brightness through a conversion. Portico's
+	// FFmpeg build adds the option; it is true when this FFmpeg has it, off by default.
 	HDR10PlusLibX265Encode bool `json:"-"`
-	// Only a bundle's qualified packet conversion may enable this fact. A BSF
-	// name, stock dovi_rpu options or a generic device probe is insufficient.
-	// It remains false until the libdovi-backed mode-2 fixture gate is wired.
+	// A Dolby Vision profile 7 film can be rewritten as profile 8.1 without
+	// converting the picture. Portico's FFmpeg build adds the dovi_profile
+	// filter; it is true when this FFmpeg has that filter with its one mode.
 	DolbyVisionProfile7To81 bool `json:"dolbyVisionProfile7To81"`
 
 	BitstreamFilters map[string]bool `json:"bitstreamFilters"`
@@ -38,6 +39,10 @@ type ToolchainFacts struct {
 	HWAccels         map[string]bool `json:"hwaccels"`
 	Identity         string          `json:"identity"`
 }
+
+// What "ffmpeg -h" prints for the two options Portico's FFmpeg build adds.
+var doviProfileMode = regexp.MustCompile(`(?m)^\s+-mode\s+<int>.*\(from 2 to 2\).*\(default 2\)`)
+var hdr10PlusOption = regexp.MustCompile(`(?m)^\s+-hdr10plus\s+<boolean>.*\(default false\)`)
 
 var installedToolchain atomic.Pointer[ToolchainFacts]
 var toolchainCache sync.Map
@@ -213,6 +218,16 @@ func probeToolchainInventory(ctx context.Context, ffmpeg string, runner toolchai
 	if out.Version == "" || len(out.Encoders) == 0 || len(out.Muxers) == 0 {
 		return ToolchainFacts{}, errors.New("incomplete toolchain probe")
 	}
+	// Portico's own FFmpeg build adds these two to stock FFmpeg. The tool says
+	// whether it has each, so a stock build simply goes without them.
+	has := func(help string, option *regexp.Regexp) bool {
+		run, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		text, err := runner(run, mediaexec.Job{Executable: path, Args: []string{"-hide_banner", "-h", help}})
+		return err == nil && option.MatchString(text)
+	}
+	out.DolbyVisionProfile7To81 = out.BitstreamFilters["dovi_profile"] && has("bsf=dovi_profile", doviProfileMode)
+	out.HDR10PlusLibX265Encode = out.Encoders["libx265"] && has("encoder=libx265", hdr10PlusOption)
 	if err := ctx.Err(); err != nil {
 		return ToolchainFacts{}, err
 	}
