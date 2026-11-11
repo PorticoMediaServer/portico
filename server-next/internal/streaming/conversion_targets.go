@@ -78,15 +78,53 @@ func keptRange(v *SourceVideo, client ClientProfile, codec *ClientVideoCodec) st
 // bits), in the inventory's order: the chip's encoders first, then software, AV1
 // last. Otherwise the picture is standard range, and what matters is that it
 // converts in real time: the chip's encoders first, then software HEVC and H.264,
-// then software AV1, each at 8 bits before 10. Ten bits keep nothing once the
-// picture is standard range, and software AV1 at 10 bits, which a browser was
-// given for every HDR film before, is several times too slow for a 4K film.
+// then software AV1. Within each of those, a picture tone-mapped from HDR is made at
+// 8 bits before 10 (ten bits keep nothing once it is standard range), and a 10-bit
+// standard-range source keeps its 10 bits where the device plays them, so animation
+// does not band. Software AV1 at 10 bits, which a browser was given for every HDR
+// film before, is several times too slow for a 4K film.
+//
+// A browser keeps HDR only on the chip's own 10-bit encoder: a film that plays beats
+// HDR that stutters, so without one it gets standard range, tone-mapped on software
+// H.264 before software HEVC. And until AV1 after a seek is settled (playback proof finding 1 on
+// #2604), a browser is given the chip's AV1 only when no other output of the chip
+// reaches it.
 func chooseVideoOutput(v *SourceVideo, client ClientProfile, transports []ClientTransport, allowHDR bool, outputs ConversionOutputs, audio *SourceAudio, target QualityTarget) (videoOutput, bool) {
-	if allowHDR {
+	browser := client.Client.Family == "web" || client.Client.Form == "browser"
+	toneMapped := v != nil && v.DynamicRange != "" && v.DynamicRange != mediafacts.RangeSDR
+	ranked := func(keep func(ConversionVideoOutput) bool, deeperFirst bool) []ConversionVideoOutput {
+		out := []ConversionVideoOutput{}
 		for _, o := range outputs.Video {
-			if o.BitDepth < 10 {
-				continue
+			if keep(o) {
+				out = append(out, o)
 			}
+		}
+		sort.SliceStable(out, func(i, j int) bool {
+			a, b := realTimeRank(out[i], browser, toneMapped), realTimeRank(out[j], browser, toneMapped)
+			if a != b {
+				return a < b
+			}
+			if deeperFirst {
+				return out[i].BitDepth > out[j].BitDepth
+			}
+			return out[i].BitDepth < out[j].BitDepth
+		})
+		return out
+	}
+	// For a browser, the chip's AV1 is a last resort while any other chip output reaches it.
+	chipOther := false
+	for _, o := range outputs.Video {
+		if browser && o.Hardware && o.Codec != "av1" {
+			if _, ok := tryVideoOutput(o, mediafacts.RangeSDR, client, transports, outputs, audio, target); ok {
+				chipOther = true
+			}
+		}
+	}
+	if allowHDR {
+		hdr := ranked(func(o ConversionVideoOutput) bool {
+			return o.BitDepth >= 10 && (!browser || o.Hardware && !(chipOther && o.Codec == "av1"))
+		}, true)
+		for _, o := range hdr {
 			codec := client.videoCodec(o.Codec)
 			if kept := keptRange(v, client, codec); kept != "" && containsString(o.Ranges, kept) {
 				if chosen, ok := tryVideoOutput(o, kept, client, transports, outputs, audio, target); ok {
@@ -95,15 +133,8 @@ func chooseVideoOutput(v *SourceVideo, client ClientProfile, transports []Client
 			}
 		}
 	}
-	standard := append([]ConversionVideoOutput{}, outputs.Video...)
-	sort.SliceStable(standard, func(i, j int) bool {
-		a, b := realTimeRank(standard[i]), realTimeRank(standard[j])
-		if a != b {
-			return a < b
-		}
-		return standard[i].BitDepth < standard[j].BitDepth
-	})
-	for _, o := range standard {
+	deepSDR := !toneMapped && v != nil && v.BitDepth >= 10
+	for _, o := range ranked(func(ConversionVideoOutput) bool { return true }, deepSDR) {
 		if chosen, ok := tryVideoOutput(o, mediafacts.RangeSDR, client, transports, outputs, audio, target); ok {
 			return chosen, true
 		}
@@ -111,17 +142,23 @@ func chooseVideoOutput(v *SourceVideo, client ClientProfile, transports []Client
 	return videoOutput{}, false
 }
 
-// realTimeRank orders standard-range outputs by how surely they convert in real
-// time: the chip's encoders, then software HEVC and H.264 (in the inventory's
-// order), then software AV1, whose encoders are several times slower.
-func realTimeRank(o ConversionVideoOutput) int {
+// realTimeRank orders outputs by how surely they convert in real time: the chip's
+// encoders, then software HEVC and H.264 (in the inventory's order), then software
+// AV1, whose encoders are several times slower. For a browser the chip's AV1 comes
+// after the chip's other outputs, and a picture tone-mapped from HDR (most often 4K,
+// the heaviest case) is made on software H.264 before software HEVC.
+func realTimeRank(o ConversionVideoOutput, browser, toneMapped bool) int {
 	switch {
+	case o.Hardware && browser && o.Codec == "av1":
+		return 1
 	case o.Hardware:
 		return 0
+	case browser && toneMapped && o.Codec == "h264":
+		return 2
 	case o.Codec != "av1":
-		return 1
+		return 3
 	}
-	return 2
+	return 4
 }
 
 // tryVideoOutput is one output in one range, if the device decodes it and one of

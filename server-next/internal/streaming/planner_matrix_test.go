@@ -92,12 +92,19 @@ func plannerSources() []*DeliverySource {
 	vc1.CodecTag = ""
 	hlg := hdr
 	hlg.DynamicRange = "hlg"
+	// A 10-bit standard-range source, common for animation: a conversion keeps its 10 bits
+	// where the device plays them and the server converts them in real time.
+	deep := sdr
+	deep.Profile = "High 10"
+	deep.Level = 51
+	deep.BitDepth = 10
 	sources = append(
 		sources,
 		videoSource("mp4", "av1", av1, audio),
 		videoSource("mkv", "mpeg2video", mpeg, SourceAudio{Index: 1, Codec: "ac3", Channels: 6, StreamDetail: mediafacts.StreamDetail{SampleRate: 48000, BitRate: 640000}}),
 		videoSource("mkv", "vc1", vc1, SourceAudio{Index: 1, Codec: "dts", Channels: 8, StreamDetail: mediafacts.StreamDetail{Profile: "DTS-HD MA", SampleRate: 96000, BitDepth: 24}}),
 		videoSource("mp4", "hevc", hlg, audio),
+		videoSource("mkv", "h264", deep, audio),
 	)
 	return sources
 }
@@ -105,7 +112,7 @@ func plannerSources() []*DeliverySource {
 // Compact expected plans name the route, video/audio codecs, channel count,
 // range and engine. Rejected no-base DV has no plausible fallback picture.
 func TestPlannerOutputDeviceSourceMatrix(t *testing.T) {
-	names := []string{"H264-SDR", "HEVC-HDR10-TrueHD71", "DV5", "DV7", "DV8", "AV1", "MPEG2-interlaced-AC3", "VC1-DTSHD", "HLG"}
+	names := []string{"H264-SDR", "HEVC-HDR10-TrueHD71", "DV5", "DV7", "DV8", "AV1", "MPEG2-interlaced-AC3", "VC1-DTSHD", "HLG", "H264-10bit-SDR"}
 	facts := &decoder.ToolchainFacts{
 		Encoders:         map[string]bool{"libx264": true, "libx265": true, "libaom-av1": true, "aac": true, "ac3": true, "eac3": true, "flac": true, "libopus": true},
 		Decoders:         map[string]bool{"h264": true, "hevc": true, "av1": true, "mpeg2video": true, "vc1": true, "truehd": true, "aac": true, "ac3": true, "dca": true},
@@ -123,6 +130,7 @@ func TestPlannerOutputDeviceSourceMatrix(t *testing.T) {
 			"video_conversion/hevc/aac/2/sdr/native",
 			"video_conversion/hevc/aac/2/sdr/native",
 			"video_conversion/hevc/aac/2/sdr/native",
+			"video_conversion/hevc/aac/2/sdr/native/10bit",
 		},
 		"AppleTV4K-mpv": {
 			"original/h264/aac/2/sdr/mpv",
@@ -134,6 +142,7 @@ func TestPlannerOutputDeviceSourceMatrix(t *testing.T) {
 			"original/mpeg2video/ac3/6/sdr/mpv",
 			"original/vc1/dts/8/sdr/mpv",
 			"original/hevc/aac/2/hlg/mpv",
+			"original/h264/aac/2/sdr/mpv",
 		},
 		"iPhone": {
 			"original/h264/aac/2/sdr/native",
@@ -145,6 +154,7 @@ func TestPlannerOutputDeviceSourceMatrix(t *testing.T) {
 			"video_conversion/hevc/ac3/6/sdr/native",
 			"video_conversion/hevc/flac/2/sdr/native",
 			"video_conversion/hevc/aac/2/sdr/native",
+			"video_conversion/hevc/aac/2/sdr/native/10bit",
 		},
 		"Android-HEVC": {
 			"original/h264/aac/2/sdr/native",
@@ -156,6 +166,7 @@ func TestPlannerOutputDeviceSourceMatrix(t *testing.T) {
 			"video_conversion/hevc/flac/2/sdr/native",
 			"video_conversion/hevc/flac/2/sdr/native",
 			"video_conversion/hevc/aac/2/sdr/native",
+			"video_conversion/hevc/aac/2/sdr/native/8bit",
 		},
 		// An HDR film tone-mapped for a browser is software H.264, not software
 		// AV1 10-bit, which could not keep up with a 4K film.
@@ -169,6 +180,8 @@ func TestPlannerOutputDeviceSourceMatrix(t *testing.T) {
 			"video_conversion/h264/flac/2/sdr/native",
 			"video_conversion/h264/flac/2/sdr/native",
 			"video_conversion/h264/aac/2/sdr/native",
+			// main gave software AV1 10-bit here: not real time, so H.264 8-bit.
+			"video_conversion/h264/aac/2/sdr/native/8bit",
 		},
 		"Safari": {
 			"original/h264/aac/2/sdr/native",
@@ -180,6 +193,7 @@ func TestPlannerOutputDeviceSourceMatrix(t *testing.T) {
 			"video_conversion/hevc/ac3/6/sdr/native",
 			"video_conversion/hevc/flac/6/sdr/native",
 			"original/hevc/aac/2/hlg/native",
+			"video_conversion/hevc/aac/2/sdr/native/10bit",
 		},
 		"AppleTV4K-native": {
 			"original/h264/aac/2/sdr/native",
@@ -191,6 +205,7 @@ func TestPlannerOutputDeviceSourceMatrix(t *testing.T) {
 			"video_conversion/hevc/ac3/6/sdr/native",
 			"video_conversion/hevc/flac/8/sdr/native",
 			"original/hevc/aac/2/hlg/native",
+			"video_conversion/hevc/aac/2/sdr/native/10bit",
 		},
 		"AppleTVHD": {
 			"original/h264/aac/2/sdr/native",
@@ -202,6 +217,7 @@ func TestPlannerOutputDeviceSourceMatrix(t *testing.T) {
 			"video_conversion/h264/ac3/6/sdr/native",
 			"video_conversion/h264/flac/2/sdr/native",
 			"video_conversion/h264/aac/2/sdr/native",
+			"video_conversion/h264/aac/2/sdr/native/8bit",
 		},
 		"Android-no-HEVC": {
 			"original/h264/aac/2/sdr/native",
@@ -213,6 +229,7 @@ func TestPlannerOutputDeviceSourceMatrix(t *testing.T) {
 			"video_conversion/h264/flac/2/sdr/native",
 			"video_conversion/h264/flac/2/sdr/native",
 			"video_conversion/h264/aac/2/sdr/native",
+			"video_conversion/h264/aac/2/sdr/native/8bit",
 		},
 		"FireTVStick": {
 			"original/h264/aac/2/sdr/native",
@@ -224,6 +241,7 @@ func TestPlannerOutputDeviceSourceMatrix(t *testing.T) {
 			"video_conversion/hevc/flac/2/sdr/native",
 			"video_conversion/hevc/flac/2/sdr/native",
 			"video_conversion/hevc/aac/2/sdr/native",
+			"video_conversion/hevc/aac/2/sdr/native/8bit",
 		},
 		"Chromecast": {
 			"original/h264/aac/2/sdr/native",
@@ -235,6 +253,7 @@ func TestPlannerOutputDeviceSourceMatrix(t *testing.T) {
 			"video_conversion/h264/aac/2/sdr/native",
 			"video_conversion/h264/aac/2/sdr/native",
 			"video_conversion/h264/aac/2/sdr/native",
+			"video_conversion/h264/aac/2/sdr/native/8bit",
 		},
 		"Firefox": {
 			"original/h264/aac/2/sdr/native",
@@ -246,6 +265,8 @@ func TestPlannerOutputDeviceSourceMatrix(t *testing.T) {
 			"video_conversion/h264/flac/2/sdr/native",
 			"video_conversion/h264/flac/2/sdr/native",
 			"video_conversion/h264/aac/2/sdr/native",
+			// main gave software AV1 10-bit here: not real time, so H.264 8-bit.
+			"video_conversion/h264/aac/2/sdr/native/8bit",
 		},
 	}
 
@@ -274,6 +295,10 @@ func TestPlannerOutputDeviceSourceMatrix(t *testing.T) {
 						}
 						dr := p.Trace.Video.OutputRange
 						actual = fmt.Sprintf("%s/%s/%s/%d/%s/%s", p.Strategy, p.OutputVideoCodec, p.OutputAudioCodec, channels, dr, p.Engine)
+						if names[i] == "H264-10bit-SDR" && p.VideoAction == "convert" {
+							// The bits a converted picture keeps are this row's point.
+							actual += fmt.Sprintf("/%dbit", p.OutputBitDepth)
+						}
 						if p.VideoAction == "convert" || p.AudioAction == "convert" {
 							if p.ConversionTarget == nil {
 								t.Fatal("no executable target")

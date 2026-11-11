@@ -1,6 +1,7 @@
 package streaming
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
@@ -88,41 +89,89 @@ func TestPlannerRanksOnlyMeasuredHardwareOutputsAheadOfSoftware(t *testing.T) {
 	}
 }
 
-// An HDR film for Chromium, with and without a chip that encodes H.264: Chromium is not
-// shown HDR, so the picture is tone-mapped to standard range on H.264 (the chip's when
-// there is one), not on software AV1 at 10 bits, which a 4K film would outrun.
-func TestAnHDRFilmForChromiumIsToneMappedToH264(t *testing.T) {
+// What a browser is given for an HDR film it cannot play as it is, by what the server's chip
+// encodes. A film that plays beats HDR that stutters: HDR is kept only on the chip's 10-bit
+// encoder, and otherwise the picture is standard-range H.264, not software AV1 or HEVC at 10
+// bits, which a 4K film would outrun. The chip's AV1 is used only when no other chip output
+// reaches the browser, until AV1 after a seek is settled (proof finding 1 on #2604).
+func TestWhatABrowserIsGivenForAnHDRFilm(t *testing.T) {
 	facts := &decoder.ToolchainFacts{Identity: "unit-selected-device",
 		Encoders: map[string]bool{"libx264": true, "libx265": true, "libaom-av1": true, "aac": true, "ac3": true, "eac3": true, "flac": true, "libopus": true},
-		Decoders: map[string]bool{"h264": true, "hevc": true, "av1": true, "truehd": true, "aac": true},
+		Decoders: map[string]bool{"h264": true, "hevc": true, "av1": true, "vp9": true, "truehd": true, "aac": true},
 		Filters:  map[string]bool{"zscale": true, "tonemap": true}}
-	chip := decoder.HardwareProbe{Available: true, Identity: facts.Identity, Device: "unit-device",
-		OutputEncoders: map[string]bool{"h264:8": true}, OutputQuality: map[string]bool{"h264:8": true}}
-	for _, backend := range decoder.HardwareBackends {
-		chip.Backend = backend
-		if outputs := decoder.AvailableConversionOutputsForHardware(facts, chip); len(outputs.Video) > 0 && outputs.Video[0].Hardware {
+	chip := func(encodes ...string) decoder.HardwareProbe {
+		p := decoder.HardwareProbe{Available: true, Identity: facts.Identity, Device: "unit-device", OutputEncoders: map[string]bool{}, OutputQuality: map[string]bool{}}
+		for _, e := range encodes {
+			p.OutputEncoders[e], p.OutputQuality[e] = true, true
+		}
+		return p
+	}
+	backend := decoder.HardwareBackend("")
+	for _, b := range decoder.HardwareBackends {
+		probe := chip("h264:8")
+		probe.Backend = b
+		if outputs := decoder.AvailableConversionOutputsForHardware(facts, probe); len(outputs.Video) > 0 && outputs.Video[0].Hardware {
+			backend = b
 			break
 		}
-		chip.Backend = ""
 	}
-	chromium := plannerDocuments(t)["Chrome"]
-	hdr := mediafacts.StreamDetail{Profile: "Main 10", Level: 153, Width: 3840, Height: 2160, FrameRate: 24, BitDepth: 10, DynamicRange: mediafacts.RangeHDR10, CodecTag: "hvc1"}
-	source := videoSource("mkv", "hevc", hdr, SourceAudio{Index: 1, Codec: "aac", Channels: 2, StreamDetail: mediafacts.StreamDetail{SampleRate: 48000, BitRate: 192000}})
-	for _, selected := range []decoder.HardwareProbe{{}, chip} {
-		if selected.Available && selected.Backend == "" {
-			continue // no compiled hardware backend on this platform
+	documents := plannerDocuments(t)
+	chromiumSDR, safariHDR := documents["Chrome"], documents["Safari"]
+	chromiumHDR := documents["Chrome"]
+	chromiumHDR.Display.DynamicRanges = []string{"sdr", "hdr10", "hlg"}
+	native := *chromiumHDR.Engines.Native
+	native.Video = append([]ClientVideoCodec{}, native.Video...)
+	for i := range native.Video {
+		if native.Video[i].Codec == "av1" {
+			native.Video[i].DynamicRanges = []string{"sdr", "hdr10", "hlg"}
 		}
-		p, err := planDelivery(DeliveryInput{Source: source, Device: &chromium, Server: facts, Hardware: selected, Policy: openPolicy(),
-			Target: QualityTarget{RungID: "original", Kind: QualityAutomatic, AllowHDR: true}, Config: DefaultDeliveryConfiguration(), TranscodingEnabled: true, FMP4Output: true})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if p.OutputVideoCodec != "h264" || p.OutputBitDepth != 8 || p.Trace.Video.OutputRange != mediafacts.RangeSDR || !p.ToneMap {
-			t.Fatalf("chip %q: %s %d-bit %s, tone map %v", selected.Backend, p.OutputVideoCodec, p.OutputBitDepth, p.Trace.Video.OutputRange, p.ToneMap)
-		}
-		t.Logf("chip %q: %s %d-bit on %s", selected.Backend, p.OutputVideoCodec, p.OutputBitDepth, p.HardwareBackend)
-		if selected.Backend != "" && p.HardwareBackend != string(chip.Backend) {
-			t.Fatalf("the chip's H.264 was not used: %s", p.HardwareBackend)
-		}
+	}
+	chromiumHDR.Engines.Native = &native
+	if err := chromiumHDR.Accept(); err != nil {
+		t.Fatal(err)
+	}
+	hevcHDR := mediafacts.StreamDetail{Profile: "Main 10", Level: 153, Width: 3840, Height: 2160, FrameRate: 24, BitDepth: 10, DynamicRange: mediafacts.RangeHDR10, CodecTag: "hvc1"}
+	vp9HDR := mediafacts.StreamDetail{Profile: "Profile 2", Width: 3840, Height: 2160, FrameRate: 24, BitDepth: 10, DynamicRange: mediafacts.RangeHDR10}
+	aac := SourceAudio{Index: 1, Codec: "aac", Channels: 2, StreamDetail: mediafacts.StreamDetail{SampleRate: 48000, BitRate: 192000}}
+	for _, tc := range []struct {
+		name   string
+		doc    CapabilityDocument
+		source *DeliverySource
+		chip   []string // what the chip encodes; nil is no chip
+		want   string   // codec, depth, range, and "chip" or "software"
+	}{
+		{"Chromium shown SDR, no chip", chromiumSDR, videoSource("mkv", "hevc", hevcHDR, aac), nil, "h264 8 sdr software"},
+		{"Chromium shown SDR, chip H.264", chromiumSDR, videoSource("mkv", "hevc", hevcHDR, aac), []string{"h264:8"}, "h264 8 sdr chip"},
+		{"Chromium shown SDR, chip H.264 and AV1", chromiumSDR, videoSource("mkv", "hevc", hevcHDR, aac), []string{"h264:8", "av1:8", "av1:10"}, "h264 8 sdr chip"},
+		{"Chromium shown HDR, no chip", chromiumHDR, videoSource("mkv", "hevc", hevcHDR, aac), nil, "h264 8 sdr software"},
+		{"Chromium shown HDR, chip H.264 and AV1", chromiumHDR, videoSource("mkv", "hevc", hevcHDR, aac), []string{"h264:8", "av1:10"}, "h264 8 sdr chip"},
+		{"Chromium shown HDR, chip AV1 only", chromiumHDR, videoSource("mkv", "hevc", hevcHDR, aac), []string{"av1:10"}, "av1 10 hdr10 chip"},
+		{"Safari shown HDR, no chip", safariHDR, videoSource("mkv", "vp9", vp9HDR, aac), nil, "h264 8 sdr software"},
+		{"Safari shown HDR, chip HEVC 10-bit", safariHDR, videoSource("mkv", "vp9", vp9HDR, aac), []string{"hevc:10", "h264:8"}, "hevc 10 hdr10 chip"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			selected := decoder.HardwareProbe{}
+			if tc.chip != nil {
+				if backend == "" {
+					t.Skip("no compiled hardware backend on this platform")
+				}
+				selected = chip(tc.chip...)
+				selected.Backend = backend
+			}
+			p, err := planDelivery(DeliveryInput{Source: tc.source, Device: &tc.doc, Server: facts, Hardware: selected, Policy: openPolicy(),
+				Target: QualityTarget{RungID: "original", Kind: QualityAutomatic, AllowHDR: true}, Config: DefaultDeliveryConfiguration(), TranscodingEnabled: true, FMP4Output: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			where := "software"
+			if p.HardwareBackend != "" && p.HardwareBackend != string(decoder.BackendSoftware) {
+				where = "chip"
+			}
+			got := fmt.Sprintf("%s %d %s %s", p.OutputVideoCodec, p.OutputBitDepth, p.Trace.Video.OutputRange, where)
+			t.Log(got)
+			if got != tc.want {
+				t.Fatalf("got %s, want %s", got, tc.want)
+			}
+		})
 	}
 }
