@@ -166,7 +166,12 @@ func (s *Service) unmatched(ctx context.Context, itemID int64, reason string, ca
 	if err != nil {
 		return err
 	}
-	return s.DB.SetUnmatched(ctx, db.Background, itemID, reason, string(raw))
+	if err := s.DB.SetUnmatched(ctx, db.Background, itemID, reason, string(raw)); err != nil {
+		return err
+	}
+	// The provider was asked and did not match: the title written inside the file, if there is
+	// one and nothing better names the title, is shown instead (the owner's ruling).
+	return s.DB.UseEmbeddedTitle(ctx, itemID)
 }
 
 var creditRoles = map[string]db.CreditRole{
