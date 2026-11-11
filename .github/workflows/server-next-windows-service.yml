@@ -12,6 +12,7 @@ on:
       - .github/workflows/server-next-windows-service.yml
       - server-next/cmd/portico-server/**
       - server-next/internal/supervise/process*.go
+      - server-next/internal/childprocess/**
       - packaging/windows/**
 permissions:
   contents: read
@@ -44,6 +45,9 @@ jobs:
         run: |
           mkdir -p "$INSTALL"
           CGO_ENABLED=0 go build -o "$INSTALL/portico-server.exe" ./cmd/portico-server
+      - name: A tool the server starts has no console of its own
+        working-directory: server-next
+        run: go test ./internal/childprocess -run TestAStartedToolHasNoConsole -count=1 -v
       - name: --version
         run: |
           "$INSTALL/portico-server.exe" --version
