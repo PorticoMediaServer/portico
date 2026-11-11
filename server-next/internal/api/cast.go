@@ -121,16 +121,63 @@ func (s *Server) redeemCast(r *http.Request, req CastRedeem) (SignInResponse, er
 	return SignInResponse{Session: s.session(st, now, refresh)}, nil
 }
 
-// castMay lists what a Cast receiver's sign-in may do: play, with its queue, and read what it
-// needs to show the title. Everything else, choosing another profile included, is refused.
-func castMay(pattern string) bool {
-	method, path, _ := strings.Cut(pattern, " ")
-	switch {
-	case strings.HasPrefix(path, "/v1/playback/sessions"), path == "/v1/devices/{id}/capabilities", path == "/v1/events",
-		path == "/v1/items/{id}/playback-options", method == "GET" && (path == "/v1/items/{id}" || path == "/v1/me"):
-		return true
-	case strings.HasPrefix(path, "/v1/queues"):
-		return path != "/v1/queues/{id}/playlist"
+// castRoutes is everything a Cast receiver's sign-in may call: read the title it was sent,
+// play it, report on its own session, publish its own capabilities and run its own queue.
+// Everything else is refused, and so is any of these on another device's session, queue or
+// capabilities. Signing out (DELETE /v1/auth/session) needs no sign-in check and stays open.
+var castRoutes = map[string]bool{
+	"GET /v1/items/{id}":                          true,
+	"GET /v1/items/{id}/playback-options":         true,
+	"POST /v1/playback/sessions":                  true,
+	"GET /v1/playback/sessions/{id}":              true,
+	"PATCH /v1/playback/sessions/{id}":            true,
+	"PUT /v1/playback/sessions/{id}/progress":     true,
+	"DELETE /v1/playback/sessions/{id}":           true,
+	"GET /v1/devices/{id}/capabilities":           true,
+	"PUT /v1/devices/{id}/capabilities":           true,
+	"POST /v1/queues":                             true,
+	"GET /v1/queues":                              true,
+	"GET /v1/queues/{id}":                         true,
+	"PATCH /v1/queues/{id}":                       true,
+	"DELETE /v1/queues/{id}":                      true,
+	"GET /v1/queues/{id}/entries":                 true,
+	"POST /v1/queues/{id}/entries":                true,
+	"DELETE /v1/queues/{id}/entries/{entryId}":    true,
+	"POST /v1/queues/{id}/entries/{entryId}/move": true,
+	"POST /v1/queues/{id}/advance":                true,
+	"POST /v1/queues/{id}/prepare-next":           true,
+	"POST /v1/queues/{id}/commit-next":            true,
+}
+
+// castMay says whether a Cast receiver may make this request: a route on the list, and only
+// on its own session, its own queue and its own capabilities.
+func (s *Server) castMay(r *http.Request, pattern string, c Caller) (bool, error) {
+	if !castRoutes[pattern] {
+		return false, nil
 	}
-	return false
+	id := r.PathValue("id")
+	_, path, _ := strings.Cut(pattern, " ")
+	switch {
+	case strings.HasPrefix(path, "/v1/devices/"):
+		return id == "current", nil
+	case strings.HasPrefix(path, "/v1/playback/sessions/"):
+		_, err := s.playback.Get(id, db.Viewer{UserID: c.UserID, ProfileID: c.ProfileID}, c.SessionID)
+		return err == nil, nil
+	case strings.HasPrefix(path, "/v1/queues/"):
+		return s.ownQueue(r.Context(), c, id)
+	}
+	return true, nil
+}
+
+// ownQueue says whether a queue is one of the caller's own device's.
+func (s *Server) ownQueue(ctx context.Context, c Caller, id string) (bool, error) {
+	q, err := s.db.Queue(ctx, db.Viewer{UserID: c.UserID, ProfileID: c.ProfileID}, id)
+	if errors.Is(err, db.ErrNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	device, err := s.db.SessionDevice(ctx, c.SessionID)
+	return err == nil && device.ID == q.DeviceID, err
 }
