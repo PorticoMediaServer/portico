@@ -381,6 +381,7 @@ func TestRememberPIN(t *testing.T) {
 		"deleting a person":                {"DELETE", "/v1/admin/members/" + member, nil},
 		"making a token":                   {"POST", "/v1/me/tokens", KeyCreate{Name: "Script", Scopes: []string{"read"}}},
 		"lifting a member profile's limit": {"PUT", "/v1/profiles/prf_any/restrictions?member=" + member, Restrictions{AllLibraries: true}},
+		"changing how many may stream":     {"PUT", "/v1/admin/playback/stream-limits", map[string]any{}},
 		"turning this check off":           {"PATCH", "/v1/preferences", off},
 	} {
 		if w := call(t, s, c.method, c.path, remembered.AccessToken, c.body, &refused); w.Code != 403 || refused.Error.Code != "profile_pin_manage" {
