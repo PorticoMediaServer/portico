@@ -261,7 +261,9 @@ export function SettingsEntry() {
       if (profilePage.profiles !== list || profilePage.limits !== limits) profilePage = {profiles: list, limits, value: Object.freeze({...list})};
       return profilePage.value!;
     };
-    // A profile's limits that fail to read leave their rows out; the rest of the page stays. A failed save is reported where it is made.
+    // A profile's limits that fail to read say so on their own row; the rest of the page stays. A Tag name nobody has is told in
+    // place on the Blocked Tags row; any other refused save is reported as before.
+    const limitsFailure = (error: unknown) => {if ((error as {code?: unknown} | null)?.code !== 'unknown_tag') reportError(error);};
     const profileDevices = profiles && identity.signIn === 'local' ? new ProfileDevicesSource(api, profiles, current) : undefined;
     const otherDeviceSignOut = profiles ? new ProfileOtherDeviceSignOut(api, profiles, current) : undefined;
     const offProfileFailures = profiles ? observeProfileFailures(profiles, current, reportError) : undefined;
@@ -508,7 +510,7 @@ export function SettingsEntry() {
         if (row.id === 'profile.pinForgot' && profiles && identity.signIn === 'local') return <ProfileForgotPIN source={profiles} api={api} selectedFamilyId={() => context.session().sessionFamilyId} isCurrent={current} />;
         if (row.id === 'profile.signOutElsewhere' && otherDeviceSignOut) return <ProfileOtherSignOut command={otherDeviceSignOut} isCurrent={current} disabled={state.disabled} onFailure={reportError} />;
         if (row.id === 'profile.signOut') return <ProfileSignOut serverName={buildContext.facts.identity.serverName} isCurrent={current} signOut={context.signOut} />;
-        if (row.id === 'profile.hiddenLabels' && restrictions) return <SettingsStringList label={defaultI18n.t(row.label)} values={(profiles ? restrictionRow(restrictions, profiles, row.id)?.value as string[] | undefined : undefined) ?? []} addLabel={defaultI18n.t(row.control.addLabel!)} disabled={state.disabled} onChange={value => {void changeRestriction(restrictions, row.id, value)?.catch(reportError);}} />;
+        if (row.id === 'profile.hiddenLabels' && restrictions) return <SettingsStringList label={defaultI18n.t(row.label)} values={(profiles ? restrictionRow(restrictions, profiles, row.id)?.value as string[] | undefined : undefined) ?? []} addLabel={defaultI18n.t(row.control.addLabel!)} disabled={state.disabled} onChange={value => {void changeRestriction(restrictions, row.id, value)?.catch(limitsFailure);}} />;
         if (row.id === 'remote.homeNets') return <SettingsStringList label={defaultI18n.t(row.label)} values={Array.isArray(state.value) ? state.value as string[] : []} addLabel={defaultI18n.t(row.control.addLabel!)} disabled={state.disabled} onChange={value => controller.change(row, value, rowContext)} />;
         if (row.id === 'profile.picture' && profiles) return <ProfilePicture source={profiles} isCurrent={current} onFailure={reportError} />;
         if (row.id === 'profile.delete' && profiles) return <ProfileDelete source={profiles} isCurrent={current} onFailure={reportError} />;
@@ -627,7 +629,7 @@ export function SettingsEntry() {
         if (!current()) return;
         if (remoteForm?.has(row.id)) {remoteForm.change(row.id, value);return;}
         if (certificate?.has(row.id)) {certificate.change(row.id, value);return;}
-        if (restrictions && isProfileRestriction(row.id)) {void changeRestriction(restrictions, row.id, value)?.catch(reportError);return;}
+        if (restrictions && isProfileRestriction(row.id)) {void changeRestriction(restrictions, row.id, value)?.catch(limitsFailure);return;}
         if (profiles && row.id === 'profile.pin' && typeof value === 'boolean') {openProfilePIN(!value);return;}
         if (profiles && profileRow(row.id)) {void changeProfileSetting(profiles, row.id, value)?.catch(reportError);return;}
         source.change(row, value, selected);
