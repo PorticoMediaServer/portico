@@ -75,8 +75,10 @@ type NewOwner struct {
 	ProfileName      string
 	// ServerName is the name the owner gave the server, or "" to keep the default.
 	ServerName string
-	Session    NewSession
-	Now        time.Time
+	// Settings are more settings rows setup decides, such as the remote access document.
+	Settings map[string]string
+	Session  NewSession
+	Now      time.Time
 }
 
 // SignInKindKey is the setting that holds the server's kind of sign-in. It is absent on a
@@ -118,6 +120,11 @@ func (d *DB) CreateOwner(ctx context.Context, o NewOwner) (SessionState, error) 
 		}
 		if o.ServerName != "" {
 			if err := putSetting(tx, ServerNameKey, o.ServerName, at); err != nil {
+				return err
+			}
+		}
+		for key, value := range o.Settings {
+			if err := putSetting(tx, key, value, at); err != nil {
 				return err
 			}
 		}
