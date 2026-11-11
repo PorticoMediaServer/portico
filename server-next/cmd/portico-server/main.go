@@ -79,8 +79,8 @@ func run(log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	// The owner enters provider keys in Settings › Metadata. PORTICO_TMDB_ORIGIN points the
-	// TMDB client at a stand-in, for testing only.
+	// TMDB uses Portico's built-in key unless the owner enters their own in Settings › Metadata.
+	// PORTICO_TMDB_ORIGIN points the TMDB client at a stand-in, for testing only.
 	if origin := os.Getenv("PORTICO_TMDB_ORIGIN"); origin != "" {
 		handler.UseTMDBHost(origin)
 	}
