@@ -78,6 +78,19 @@ func mergeItems(b *batchTx, from, into, now int64) error {
 			return err
 		}
 	}
+	// What moved under the remaining title and has no rating of its own takes that title's, so a
+	// moved episode is hidden wherever its new show is, and the copies on its tag rows follow.
+	root := into
+	if z.root.Valid {
+		root = z.root.Int64
+	}
+	if _, err := b.exec(`UPDATE items SET rating_age = (SELECT rating_age FROM items WHERE id = ?1) WHERE root_id = ?1
+		AND content_rating IS NULL`, root); err != nil {
+		return err
+	}
+	if err := b.ratingChanged(root); err != nil {
+		return err
+	}
 	return settleItem(b, a.library, into, now)
 }
 

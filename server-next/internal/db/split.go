@@ -79,6 +79,18 @@ func (d *DB) SplitVersion(ctx context.Context, versionID string) (string, error)
 		if err != nil {
 			return err
 		}
+		// The owner's labels stay on the version split off, or a profile that blocks one would
+		// see the new title.
+		labels, err := queryInts(tx, `SELECT it.tag_id FROM item_tags it JOIN tags t ON t.id = it.tag_id
+			WHERE it.item_id = ? AND t.kind = ?`, item, TagLabel)
+		if err != nil {
+			return err
+		}
+		for _, label := range labels {
+			if err := b.tagItem(id, label); err != nil {
+				return err
+			}
+		}
 		if _, err := b.exec(`UPDATE media SET item_id = ?, position = 0 WHERE id = ?`, id, media); err != nil {
 			return err
 		}

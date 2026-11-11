@@ -185,12 +185,17 @@ func (d *DB) UndoMetadata(ctx context.Context, publicID, entryID string) (int64,
 		if _, err := b.exec(`UPDATE items SET `+sets+` WHERE id = ?`, append(args, id)...); err != nil {
 			return err
 		}
-		// Episodes with no rating of their own follow their show's again.
-		if !root.Valid {
-			if _, err := b.exec(`UPDATE items SET rating_age = (SELECT rating_age FROM items WHERE id = ?1) WHERE root_id = ?1
-				AND content_rating IS NULL`, id); err != nil {
+		// What has no rating of its own uses its show's: a show's episodes follow it again, and an
+		// episode or season put back follows its show as it is now, not as the snapshot found it,
+		// or a show made adults-only since would have an episode a child can open.
+		if root.Valid {
+			if _, err := b.exec(`UPDATE items SET rating_age = (SELECT rating_age FROM items WHERE id = ?) WHERE id = ?
+				AND content_rating IS NULL`, root.Int64, id); err != nil {
 				return err
 			}
+		} else if _, err := b.exec(`UPDATE items SET rating_age = (SELECT rating_age FROM items WHERE id = ?1) WHERE root_id = ?1
+			AND content_rating IS NULL`, id); err != nil {
+			return err
 		}
 		steps := []string{`DELETE FROM item_external_ids WHERE item_id = ?`, `DELETE FROM item_keys WHERE item_id = ? AND kind = ` + strconv.Itoa(int(KeyProvider)),
 			`DELETE FROM item_tags WHERE item_id = ? AND tag_id IN (SELECT id FROM tags WHERE kind IN ('genre', 'studio', 'network', 'country', 'label'))`,
