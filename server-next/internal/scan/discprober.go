@@ -13,8 +13,8 @@ import (
 
 // probeDisc reads a film disc kept as a folder (BDMV or VIDEO_TS) with the disc reader, which
 // is confined and handed the folder itself, never its path. The disc is one title that plays
-// its main feature: the longest title of at least a minute. An encrypted disc is not
-// supported; a disc with no title long enough is not a film.
+// its main feature: the longest title of at least a minute. A copy-protected disc is refused
+// as one; a disc with no title long enough is not a film.
 func probeDisc(ctx context.Context, folder string) (Facts, error) {
 	dir, err := os.Open(folder)
 	if err != nil {
@@ -25,7 +25,7 @@ func probeDisc(ctx context.Context, folder string) (Facts, error) {
 	var exit *exec.ExitError
 	switch {
 	case errors.Is(err, disc.ErrEncrypted):
-		return Facts{}, ErrUnsupported
+		return Facts{}, ErrEncrypted
 	case ctx.Err() != nil:
 		return Facts{}, ctx.Err()
 	case errors.As(err, &exit), errors.Is(err, disc.ErrProtocol):
@@ -48,7 +48,7 @@ var discCodecs = map[int]string{0x01: "mpeg1video", 0x02: "mpeg2video", 0x1b: "h
 // its picture, sound and subtitle tracks with their languages, and its chapters.
 func discFacts(found disc.Probe) (Facts, error) {
 	if found.Encryption != "none" && found.Encryption != "" {
-		return Facts{}, ErrUnsupported
+		return Facts{}, ErrEncrypted
 	}
 	main, ok := found.MainTitle()
 	if !ok {
