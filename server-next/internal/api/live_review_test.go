@@ -48,7 +48,7 @@ func TestReviewLibraryLimitedProfileAndTheProgrammeLeftOnAfterAnEdit(t *testing.
 		t.Fatal(err)
 	}
 	clock := episodeStart.Add(time.Minute)
-	s.now = func() time.Time { return clock }
+	s.setClock(func() time.Time { return clock })
 	owner, _ = s.tokens.Access(ownerClaims, clock, clock.Add(time.Hour))
 	filmsOnly, _ = s.tokens.Access(memberClaims, clock, clock.Add(time.Hour))
 
