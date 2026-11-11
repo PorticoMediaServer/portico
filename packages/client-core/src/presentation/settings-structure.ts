@@ -245,6 +245,10 @@ const accountPages: readonly AuthoredPage[] = [
         pref('playback.recapSkip', 'pref.label.playback.recapSkip', {type: 'choice', choices: skipChoices('playback.recapSkip')}),
         pref('playback.skipBackMs', 'pref.label.playback.skipBackMs', {type: 'choice', choices: seconds(5, 10, 15, 30)}, {help: 'pref.help.playback.skipBackMs'}),
         pref('playback.skipForwardMs', 'pref.label.playback.skipForwardMs', {type: 'choice', choices: seconds(10, 15, 30, 60)}, {help: 'pref.help.playback.skipForwardMs'}),
+        pref('playback.resumeRewindMs', 'pref.label.audiobooks.resumeRewindMs', {type: 'choice', choices: [
+          {value: 0, label: 'pref.value.audiobooks.resumeRewindMs.0'},
+          ...[5, 15, 30].map(count => ({value: count * 1000, label: 'pref.value.audiobooks.resumeRewindMs.earlier' as MessageId, labelValues: {count}})),
+        ]}, {scope: 'profile'}),
       ]},
       // No music speed: a song plays at the speed it was recorded.
       {id: 'speed', title: 'settings.section.speed', needs: c => c.playbackSpeed !== false, rows: [

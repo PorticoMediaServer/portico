@@ -75,6 +75,7 @@ var fields = []Setting{
 	intOf("audiobooks.skipBackMs", 15000, []int{10000, 15000, 30000, 60000}, ScopeProfile),
 	intOf("audiobooks.skipForwardMs", 30000, []int{15000, 30000, 60000, 90000}, ScopeProfile),
 	intOf("audiobooks.resumeRewindMs", 0, []int{0, 5000, 15000, 30000}, ScopeProfile),
+	intOf("playback.resumeRewindMs", 0, []int{0, 5000, 15000, 30000}, ScopeProfile),
 	intOf("playback.sleepTimerMinutes", 0, []int{0, 30, 60, 90, 120}, ScopeProfile),
 	intRange("playback.startedThresholdPercent", 5, 1, 25, ScopeProfile),
 	intRange("playback.playedThresholdPercent", 95, 50, 100, ScopeProfile),

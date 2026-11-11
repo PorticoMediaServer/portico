@@ -13,7 +13,7 @@ import (
 
 // The settings that decide what a start plays, as the settings list (package preferences)
 // names them: the saved quality for each kind of connection, for video and for music, and
-// an audiobook's "Rewind when resuming". The qualities are saved for one device and stay on
+// "Rewind when resuming". The qualities are saved for one device and stay on
 // it: a device with none saved has the list's default, whatever the profile's other devices chose.
 var (
 	qualitySettings = map[string][2]string{
@@ -21,7 +21,8 @@ var (
 		NetworkRemote:   {"quality.remote", "music.qualityAway"},
 		NetworkCellular: {"quality.mobile", "music.qualityMobile"},
 	}
-	rewindSetting = "audiobooks.resumeRewindMs"
+	// "Rewind when resuming" is one setting for audiobooks and one for everything else.
+	rewindSettings = map[bool]string{true: "audiobooks.resumeRewindMs", false: "playback.resumeRewindMs"}
 )
 
 // setting is a saved setting, or the settings list's default for it.
@@ -510,12 +511,12 @@ func (s *Service) Options(ctx context.Context, c Caller, itemID string, ask Ask)
 		ResumeMs: resumeAt(r.item, r.prefs)}, nil
 }
 
-// resumeAt is where a title resumes: where the viewer stopped, and for an audiobook that
-// less "Rewind when resuming".
+// resumeAt is where a title resumes: where the viewer stopped, less the profile's "Rewind
+// when resuming" (nothing unless they chose one). A song starts where it was.
 func resumeAt(item db.PlaybackItem, prefs map[string]string) int64 {
-	if item.Kind != db.KindAudiobook {
+	if item.Kind == db.KindTrack {
 		return item.PositionMS
 	}
-	rewind, _ := setting(prefs, rewindSetting).(int64)
+	rewind, _ := setting(prefs, rewindSettings[item.Kind == db.KindAudiobook]).(int64)
 	return max(item.PositionMS-rewind, 0)
 }
