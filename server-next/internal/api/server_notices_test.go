@@ -13,10 +13,11 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 )
 
-// When an alert's cause starts the owner gets one notice, not one at every look; administrators
-// get it too only once the owner chooses so; a cause that ends and comes back is told again; a
-// restart tells nothing already told, a newer version included before the first check after the
-// start; and a later version is told although the last was not installed.
+// When an alert's cause has lasted a few minutes the owner gets one notice, not one at every look;
+// administrators get it too only once the owner chooses so; a cause that has been well for a
+// while and comes back is told again; a restart tells nothing already told, a newer version
+// included before the first check after the start; and a later version is told although the
+// last was not installed.
 func TestServerNoticesAreSentOnceWhenACauseStarts(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "main.db")
@@ -28,12 +29,19 @@ func TestServerNoticesAreSentOnceWhenACauseStarts(t *testing.T) {
 	if code := status(t, s, "PUT", "/v1/admin/settings/storage", owner, json.RawMessage(`{"warnPercent":1,"majorPercent":1}`)); code != 200 {
 		t.Fatalf("setting the storage warnings answered %d", code)
 	}
-	tell := func() {
+	// Each look is noticeAfter later than the one before on the notices' clock; sign-ins stay
+	// on the real one.
+	clock := time.Now()
+	look := func(after time.Duration) {
 		t.Helper()
+		clock = clock.Add(after)
+		s.now = func() time.Time { return clock }
+		defer func() { s.now = time.Now }()
 		if err := s.tellNewAlerts(ctx); err != nil {
 			t.Fatal(err)
 		}
 	}
+	tell := func() { t.Helper(); look(noticeAfter) }
 	inbox := func(token string) []Notification {
 		t.Helper()
 		var n Notifications
@@ -93,7 +101,9 @@ func TestServerNoticesAreSentOnceWhenACauseStarts(t *testing.T) {
 	}
 	s.db.SetRemoteSourceState(ctx, nas.ID, "ok", "")
 	tell()
+	look(wellAfter)
 	s.db.SetRemoteSourceState(ctx, nas.ID, "sign_in", "401 Unauthorized")
+	tell()
 	tell()
 	if got := kinds(owner); !slices.Equal(got, []string{"remote_unreachable", "remote_unreachable", "update_available"}) {
 		t.Errorf("the owner's notices after the source came back and failed again: %v", got)
@@ -113,6 +123,7 @@ func TestServerNoticesAreSentOnceWhenACauseStarts(t *testing.T) {
 	}
 	tag = "v1.2.0"
 	checkForUpdates()
+	tell()
 	tell()
 	if got := kinds(owner); len(got) != 4 || inbox(owner)[0].Kind != "update_available" || jsonField(t, inbox(owner)[0].Params, "latest") != `"v1.2.0"` {
 		t.Errorf("a later version was not told: %v", got)
