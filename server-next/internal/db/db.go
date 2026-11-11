@@ -66,6 +66,9 @@ type DB struct {
 	// closing it sooner would drop the locks SQLite holds on the same file.
 	file   *os.File
 	copied int
+
+	// guide is guide.db, beside the main database. See guide.go.
+	guide *guideDB
 }
 
 // Open opens the database at path, creating it with the current schema if it is new and
@@ -104,6 +107,13 @@ func Open(ctx context.Context, path string) (*DB, error) {
 	}
 	// The helper never waits long for anyone: what it cannot do now it does next time.
 	d.helper.Exec(`PRAGMA busy_timeout = 50`)
+	if d.guide, err = openGuide(ctx, guidePath(path)); err != nil {
+		write.Close()
+		d.read.Close()
+		d.helper.Close()
+		d.file.Close()
+		return nil, err
+	}
 	d.writerDone = make(chan struct{})
 	go func() {
 		defer close(d.writerDone)
@@ -212,7 +222,7 @@ func (d *DB) Close() error {
 	<-d.writerDone
 	<-d.helperDone
 	<-d.upgradesDone
-	return errors.Join(d.UseTitleData(""), d.read.Close(), d.helper.Close(), d.writeConn.Close(), d.file.Close())
+	return errors.Join(d.UseTitleData(""), d.guide.close(), d.read.Close(), d.helper.Close(), d.writeConn.Close(), d.file.Close())
 }
 
 // SkipDiskSync makes commits return without waiting for the disk. It is for the load tool
