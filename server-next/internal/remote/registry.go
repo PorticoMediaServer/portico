@@ -172,6 +172,14 @@ func NewRegistry(d *db.DB, dataDir string) (*Registry, error) {
 		return nil, fmt.Errorf("%s is not a key Portico made", name)
 	}
 	RcloneHome = filepath.Join(dataDir, "rclone")
+	// rclone's files hold a sign-in token in plain text while it runs, and are removed when it
+	// stops. One left by a crash or a power cut (with rclone's own temporary file beside it
+	// while it saved) is removed now, before any rclone starts.
+	if left, _ := filepath.Glob(filepath.Join(RcloneHome, "*.conf*")); len(left) > 0 {
+		for _, name := range left {
+			os.Remove(name)
+		}
+	}
 	block, _ := aes.NewCipher(key)
 	aead, _ := cipher.NewGCM(block)
 	return &Registry{db: d, aead: aead, open: map[int64]*opened{}}, nil
