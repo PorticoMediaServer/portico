@@ -242,7 +242,7 @@ export const accountPagesMessages = {
   'next.account.provider.usernameLead': 'One last thing for your new Portico Account.',
   'next.account.provider.usernameTime': 'You have about ten minutes to finish before you need to start again.',
   'next.account.provider.failedTitle': 'Sign-in didn’t finish',
-  'next.account.provider.failed': 'That sign-in didn’t finish. It may have been cancelled, taken too long, or been opened in another browser. Start again.',
+  'next.account.provider.failed': 'That sign-in didn’t finish. It may have been canceled, taken too long, or been opened in another browser. Start again.',
   'next.account.provider.backToAccount': 'Back to your account',
   'next.account.provider.finishing': 'Finishing sign-in…',
   'next.account.problem.noPassword': 'Your account signs in with Google or Apple and has no password, so its email address can’t be changed here. Set a password first (Forgot password sends you a code), then change it.',
