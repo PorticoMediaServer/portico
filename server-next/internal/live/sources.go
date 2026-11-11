@@ -93,6 +93,9 @@ func New(d *db.DB, log *slog.Logger, now func() time.Time, dataDir string) (*Ser
 		wake: make(chan struct{}, 1), tried: map[int64]time.Time{}, running: map[int64]chan struct{}{}}, nil
 }
 
+// Client is the HTTP client sources are read with; tuners read streams with it too.
+func (s *Service) Client() *http.Client { return s.client }
+
 // SetClient replaces the HTTP client, for tests that answer from fake servers.
 func (s *Service) SetClient(c *http.Client) { s.client = c }
 
