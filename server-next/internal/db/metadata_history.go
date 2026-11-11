@@ -195,8 +195,9 @@ func (d *DB) UndoMetadata(ctx context.Context, publicID, entryID string) (int64,
 		var id, library int64
 		var root sql.NullInt64
 		var raw string
-		err := b.queryRow(`SELECT i.id, i.library_id, i.root_id, h.before FROM metadata_history h JOIN items i ON i.id = h.item_id
-			WHERE i.public_id = ? AND h.id = ?`, publicID, entry).Scan(&id, &library, &root, &raw)
+		var undone HistoryKind
+		err := b.queryRow(`SELECT i.id, i.library_id, i.root_id, h.kind, h.before FROM metadata_history h JOIN items i ON i.id = h.item_id
+			WHERE i.public_id = ? AND h.id = ?`, publicID, entry).Scan(&id, &library, &root, &undone, &raw)
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrNotFound
 		}
@@ -212,7 +213,9 @@ func (d *DB) UndoMetadata(ctx context.Context, publicID, entryID string) (int64,
 			return err
 		}
 		im := &importer{batchTx: b, now: now, tags: map[TagName]int64{}, people: map[string]int64{}}
-		if err := restore(b, im, library, id, &s, now); err != nil {
+		// A match change never touches labels, so undoing one leaves them as they are now: a
+		// label the owner added since may be what keeps the title from a limited profile.
+		if err := restore(b, im, library, id, &s, undone != HistoryMatch, now); err != nil {
 			return err
 		}
 		// A show's seasons and episodes as they were before its match changed, those still here.
@@ -222,7 +225,7 @@ func (d *DB) UndoMetadata(ctx context.Context, publicID, entryID string) (int64,
 				return err
 			}
 			if under {
-				if err := restore(b, im, library, s.Children[i].ID, &s.Children[i].snapshot, now); err != nil {
+				if err := restore(b, im, library, s.Children[i].ID, &s.Children[i].snapshot, false, now); err != nil {
 					return err
 				}
 			}
@@ -259,8 +262,13 @@ func (d *DB) UndoMetadata(ctx context.Context, publicID, entryID string) (int64,
 }
 
 // restore puts one title's details, ids, tags, credits and chosen pictures back as a
-// snapshot has them. The caller makes ratings follow and tells their copies.
-func restore(b *batchTx, im *importer, library, id int64, s *snapshot, now int64) error {
+// snapshot has them, its labels too only when labels is true. The caller makes ratings follow
+// and tells their copies.
+func restore(b *batchTx, im *importer, library, id int64, s *snapshot, labels bool, now int64) error {
+	kinds := "'genre', 'studio', 'network', 'country'"
+	if labels {
+		kinds += ", 'label'"
+	}
 	sets, args := "updated_at = ?, revision = revision + 1", []any{now}
 	for _, column := range snapshotColumns {
 		if value, ok := s.Columns[column]; ok {
@@ -272,7 +280,7 @@ func restore(b *batchTx, im *importer, library, id int64, s *snapshot, now int64
 		return err
 	}
 	steps := []string{`DELETE FROM item_external_ids WHERE item_id = ?`, `DELETE FROM item_keys WHERE item_id = ? AND kind = ` + strconv.Itoa(int(KeyProvider)),
-		`DELETE FROM item_tags WHERE item_id = ? AND tag_id IN (SELECT id FROM tags WHERE kind IN ('genre', 'studio', 'network', 'country', 'label'))`,
+		`DELETE FROM item_tags WHERE item_id = ? AND tag_id IN (SELECT id FROM tags WHERE kind IN (` + kinds + `))`,
 		`DELETE FROM credits WHERE item_id = ?`, `UPDATE images SET locked = 0 WHERE item_id = ? AND locked = 1`}
 	for _, step := range steps {
 		if _, err := b.exec(step, id); err != nil {
@@ -292,6 +300,9 @@ func restore(b *batchTx, im *importer, library, id int64, s *snapshot, now int64
 		}
 	}
 	for _, tag := range s.Tags {
+		if tag.Kind == TagLabel && !labels {
+			continue
+		}
 		tagID, err := im.tagID(tag)
 		if err != nil {
 			return err
