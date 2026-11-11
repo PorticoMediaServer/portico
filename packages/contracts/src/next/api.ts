@@ -27,6 +27,19 @@ export interface AccountStream {
   current: boolean;
 }
 
+export interface ActivityEntry {
+  at: string;
+  actor: string;
+  action: string;
+  target?: string;
+  detail?: string;
+}
+
+export interface ActivityEntryPage {
+  items: ActivityEntry[];
+  nextCursor?: string;
+}
+
 export interface AdminLibrary {
   id: string;
   name: string;
@@ -865,6 +878,29 @@ export interface NetworkSettings {
 export interface NetworkSettingsEdit {
   homeNetworks?: string[];
   trustedProxies: string[];
+}
+
+export interface NowPlaying {
+  id: string;
+  itemId?: string;
+  title?: string;
+  kind: string;
+  state: string;
+  positionMs: number;
+  durationMs?: number;
+  username: string;
+  profile?: string;
+  deviceName: string;
+  away: boolean;
+  bitrateKbps?: number;
+  route: string;
+  delivery: PlaybackDecisions;
+  startedAt: string;
+}
+
+export interface NowPlayingPage {
+  items: NowPlaying[];
+  nextCursor?: string;
 }
 
 export interface Part {
@@ -1823,6 +1859,10 @@ export interface StreamLimits {
   endPausedVideoAfterMs?: number;
 }
 
+export interface StreamStop {
+  message?: string;
+}
+
 export interface SubtitleFile {
   trackId: string;
   format: string;
@@ -2180,6 +2220,9 @@ export interface Routes {
   'GET /v1/admin/settings': {access: 'owner'; request: undefined; response: SettingsDocumentPage};
   'GET /v1/admin/settings/{name}': {access: 'owner'; request: undefined; response: SettingsDocument};
   'PUT /v1/admin/settings/{name}': {access: 'owner'; request: JSON; response: SettingsDocument};
+  'GET /v1/admin/sessions': {access: 'admin'; request: undefined; response: NowPlayingPage};
+  'DELETE /v1/admin/sessions/{id}': {access: 'admin'; request: StreamStop; response: undefined};
+  'GET /v1/admin/audit': {access: 'owner'; request: undefined; response: ActivityEntryPage};
   'GET /v1/admin/webhooks': {access: 'owner'; request: undefined; response: WebhookPage};
   'POST /v1/admin/webhooks': {access: 'owner'; request: WebhookCreate; response: WebhookSecret};
   'PATCH /v1/admin/webhooks/{id}': {access: 'owner'; request: WebhookEdit; response: Webhook};
