@@ -51,6 +51,7 @@ func (s *Service) Next() time.Time { return nextDue(Document.Get(s.Settings), s.
 
 // Run makes the scheduled backups until ctx ends.
 func (s *Service) Run(ctx context.Context) {
+	s.removeLeftovers()
 	changed := make(chan struct{}, 1)
 	Document.Watch(s.Settings, func(Settings) {
 		select {
