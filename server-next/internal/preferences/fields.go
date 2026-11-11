@@ -56,8 +56,8 @@ var (
 	audiobookSpeeds = []float64{0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3}
 )
 
-// fields is every setting, in the order settings pages show them. The settings for reading
-// and for downloads join the list when the server can read and download.
+// fields is every setting, in the order settings pages show them. The settings for downloads
+// join the list when the server can download.
 var fields = []Setting{
 	intOf("playback.skipBackMs", 10000, []int{5000, 10000, 15000, 30000}, ScopeProfile),
 	intOf("playback.skipForwardMs", 30000, []int{10000, 15000, 30000, 60000}, ScopeProfile),
@@ -146,4 +146,21 @@ var fields = []Setting{
 	oneOf("appearance.episodesLayout", "auto", []string{"auto", "tiles", "list"}, ScopeDevice),
 
 	flag("notifications.badges", true, ScopeProfile),
+
+	// How a book's page looks belongs to one device: a phone and a desktop keep their own text
+	// size. A change made inside the reader is the reader's own until the book closes, and is
+	// not saved here.
+	oneOf("reading.theme", "dark", []string{"dark", "black", "sepia", "light"}, ScopeDevice),
+	oneOf("reading.font", "literata", []string{"publisher", "literata", "manrope"}, ScopeDevice),
+	intRange("reading.textSize", 5, 1, 7, ScopeDevice),
+	oneOf("reading.lineSpacing", "normal", []string{"tight", "normal", "loose"}, ScopeDevice),
+	oneOf("reading.margins", "normal", []string{"narrow", "normal", "wide"}, ScopeDevice),
+	oneOf("reading.alignment", "justified", []string{"left", "justified"}, ScopeDevice),
+	oneOf("reading.layout", "pages", []string{"pages", "scroll"}, ScopeDevice),
+	// Two pages side by side when the screen is wide enough: a tablet on its side, a foldable
+	// opened like a book.
+	flag("reading.twoPages", true, ScopeDevice),
+	oneOf("comics.fit", "auto", []string{"auto", "width", "height"}, ScopeDevice),
+	// "file" follows the comic: one that says it reads right to left opens that way.
+	oneOf("comics.direction", "file", []string{"file", "ltr", "rtl", "vertical"}, ScopeDevice),
 }
