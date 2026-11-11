@@ -29,6 +29,8 @@ jobs:
     env:
       # A folder the service's account (LocalService) can read, unlike the runner's own.
       INSTALL: C:\portico-ci
+      # Where a Windows service keeps its data when it is given no folder.
+      DATA: C:\ProgramData\Portico
     steps:
       - run: git config --global core.longpaths true
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -49,7 +51,7 @@ jobs:
           if "$INSTALL/portico-server.exe" --health-check; then echo "passed with no server"; exit 1; fi
       - name: --service-install and --service-start
         run: |
-          test ! -e "$PROGRAMDATA/Portico" || { echo "the runner already has a Portico data folder"; exit 1; }
+          test ! -e "$DATA" || { echo "the runner already has a Portico data folder"; exit 1; }
           "$INSTALL/portico-server.exe" --service-install
           "$INSTALL/portico-server.exe" --service-start
       - name: The server answers on loopback
@@ -64,12 +66,12 @@ jobs:
           "$INSTALL/portico-server.exe" --health-check
       - name: The data is in %ProgramData%\Portico and the log is being written
         run: |
-          ls -la "$PROGRAMDATA/Portico"
-          test -f "$PROGRAMDATA/Portico/main.db"
+          ls -la "$DATA"
+          test -f "$DATA/main.db"
           # The log files arrive with the console's log (package serverlog). From then on this checks them.
           if [ -d server-next/internal/serverlog ]; then
-            ls -la "$PROGRAMDATA/Portico/logs"
-            test -n "$(find "$PROGRAMDATA/Portico/logs" -type f -size +0)"
+            ls -la "$DATA/logs"
+            test -n "$(find "$DATA/logs" -type f -size +0)"
           else
             echo "this server has no log files yet"
           fi
