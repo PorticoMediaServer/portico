@@ -1,7 +1,11 @@
 package api
 
 import (
+	"bytes"
 	"context"
+	"image"
+	"image/png"
+	"io"
 	"testing"
 	"time"
 
@@ -255,5 +259,96 @@ func TestAChannelSpeaksTheListFiltersConditions(t *testing.T) {
 	b.Conditions = []db.ChannelCondition{{Field: "playCount", Values: []string{"1.."}}}
 	if code := status(t, s, "POST", "/v1/admin/library-channels/preview", owner, ChannelPreviewAsk{TimeZone: "UTC", Builder: b}); code != 400 {
 		t.Fatalf("a channel chosen by play count answered %d", code)
+	}
+}
+
+// A block added from a preset is a copy that a later change to the preset leaves alone, a
+// block can play one pinned title at a fixed time each week, and an uploaded logo is kept
+// small and shown with the channel.
+func TestPresetsFixedTimesAndALogo(t *testing.T) {
+	s, owner, members := seededWith(t, 600, 1)
+	ctx := context.Background()
+	films := libraryOfKind(t, s, owner, "movies")
+	var preset BlockPreset
+	if w := call(t, s, "POST", "/v1/admin/block-presets", owner, BlockPresetSave{Name: new("Late films"), Library: &films,
+		Recipe: &librarychannels.Recipe{Order: "recent", Minutes: 180, StartsAt: "21:00", Days: []string{"fri", "sat"}}}, &preset); w.Code != 201 {
+		t.Fatalf("making a preset answered %d: %s", w.Code, w.Body)
+	}
+	page, err := s.db.Items(ctx, viewerOfToken(t, s, owner), db.ItemQuery{Library: films, Kinds: []db.ItemKind{db.KindMovie}, Limit: 1})
+	if err != nil || len(page.Items) == 0 {
+		t.Fatal(err)
+	}
+	pinned := page.Items[0].PublicID
+	zone := "America/Halifax"
+	b := librarychannels.Builder{Selection: librarychannels.Selection{Libraries: []string{films}, Kinds: []string{"movie"}},
+		Blocks: []librarychannels.Block{
+			{ID: "late", FromPreset: preset.ID},
+			{ID: "classic", Days: []string{"sun"}, From: "20:00", To: "20:01", Overrun: "finish",
+				Selection: &librarychannels.Selection{Libraries: []string{films}, Kinds: []string{"movie"}, Always: []string{pinned}, OnlyAlways: true}},
+		}}
+	var ch LibraryChannel
+	if w := call(t, s, "POST", "/v1/admin/library-channels", owner, LibraryChannelSave{Name: new("Fixed"), TimeZone: &zone, Builder: &b}, &ch); w.Code != 201 {
+		t.Fatalf("making the channel answered %d: %s", w.Code, w.Body)
+	}
+	late := ch.Builder.Blocks[0]
+	if late.FromPreset != "" || late.Name != "Late films" || late.From != "21:00" || late.To != "00:00" || late.Selection == nil ||
+		late.Selection.Sort != "recent" || len(late.Days) != 2 {
+		t.Fatalf("the block copied from the preset reads %+v", late)
+	}
+	status(t, s, "PATCH", "/v1/admin/block-presets/"+preset.ID, owner, BlockPresetSave{Name: new("Renamed")})
+	if again := get[LibraryChannel](t, s, owner, "/v1/admin/library-channels/"+ch.ID); again.Builder.Blocks[0].Name != "Late films" {
+		t.Fatalf("changing the preset changed the channel: %+v", again.Builder.Blocks[0])
+	}
+	if err := s.channels.Schedule(ctx, ch.ID); err != nil {
+		t.Fatal(err)
+	}
+	loc, _ := time.LoadLocation(zone)
+	titles, err := s.db.TitleLibraries(ctx, []string{pinned})
+	if err != nil || len(titles) != 1 {
+		t.Fatal(err)
+	}
+	sundays := 0
+	for _, r := range programmes(t, s, ch.ID, time.Now(), time.Now().Add(8*24*time.Hour)) {
+		local := r.StartsAt.In(loc)
+		if local.Weekday() == time.Sunday && local.Hour() == 20 && local.Minute() == 0 {
+			sundays++
+			got, _ := s.db.ProgrammeTitles(ctx, []int64{r.ItemID})
+			if got[r.ItemID].PublicID != pinned {
+				t.Fatalf("Sunday at 8 plays %s, not the pinned title", got[r.ItemID].PublicID)
+			}
+		}
+	}
+	if sundays == 0 {
+		t.Log("no Sunday 8 PM was free in this week's schedule: a film ran over it") // allowed: outside blocks a film finishes
+	}
+
+	// The on-screen logo needs a logo; an upload is kept small and shown with the channel.
+	b.LogoOnScreen = librarychannels.Logo{On: true}
+	if code := status(t, s, "PATCH", "/v1/admin/library-channels/"+ch.ID, owner, LibraryChannelSave{Builder: &b}); code != 400 {
+		t.Fatalf("turning the logo on without one answered %d", code)
+	}
+	var picture bytes.Buffer
+	png.Encode(&picture, image.NewRGBA(image.Rect(0, 0, 1200, 600)))
+	r := newRequest("PUT", "/v1/admin/library-channels/"+ch.ID+"/logo", owner, nil)
+	r.Body, r.ContentLength = io.NopCloser(bytes.NewReader(picture.Bytes())), int64(picture.Len())
+	var withLogo LibraryChannel
+	if w := serve(s, r); w.Code != 200 || jsonInto(w, &withLogo) != nil || withLogo.Logo == "" {
+		t.Fatalf("uploading a logo answered %d: %s", w.Code, w.Body)
+	}
+	if w := call(t, s, "GET", withLogo.Logo, "", nil, nil); w.Code != 200 {
+		t.Fatalf("the logo answered %d", w.Code)
+	}
+	tiny := newRequest("PUT", "/v1/admin/library-channels/"+ch.ID+"/logo", owner, nil)
+	tiny.Body = io.NopCloser(bytes.NewReader([]byte("not a picture")))
+	if w := serve(s, tiny); w.Code != 400 {
+		t.Fatalf("a logo that is not a picture answered %d", w.Code)
+	}
+	if code := status(t, s, "PATCH", "/v1/admin/library-channels/"+ch.ID, owner, LibraryChannelSave{Builder: &b}); code != 200 {
+		t.Fatalf("turning the logo on answered %d", code)
+	}
+	for _, c := range get[Page[Channel]](t, s, members[0], "/v1/live/channels").Items {
+		if c.ID == ch.ID && c.Logo != withLogo.Logo {
+			t.Fatalf("the channel list shows logo %q", c.Logo)
+		}
 	}
 }
