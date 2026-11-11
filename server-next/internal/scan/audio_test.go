@@ -338,3 +338,35 @@ func TestACompilationInOneFolderIsOneAlbum(t *testing.T) {
 		t.Fatalf("one folder and one album tag made %d albums", albums)
 	}
 }
+
+// kept is a picture store that remembers what it was given.
+type kept struct{ puts map[string]int }
+
+func (k *kept) Put(id string, data []byte) error {
+	k.puts[id] += len(data)
+	return nil
+}
+
+// An album gets its picture from a cover file beside its songs, read once however many songs
+// there are, and failing that from the picture inside a song.
+func TestAnAlbumGetsItsCoverFromItsFolderOrFromInsideASong(t *testing.T) {
+	f := newFixture(t, db.LibraryMusic)
+	store := &kept{puts: map[string]int{}}
+	f.s.Pictures = store
+	f.write("Portishead/Dummy/01 - Mysterons.flac")
+	f.write("Portishead/Dummy/02 - Sour Times.flac")
+	f.text("Portishead/Dummy/cover.jpg", "the cover file")
+	f.tagged("Tricky/Maxinquaye/01.mp3", "TIT2", "Overcome", "TPE1", "Tricky", "TALB", "Maxinquaye", "APIC", "image/jpeg\x00\x03\x00the picture inside")
+	f.scan()
+	if len(store.puts) != 2 {
+		t.Fatalf("pictures kept: %v; want the cover file and the picture inside the song", store.puts)
+	}
+	for _, size := range store.puts {
+		if size != len("the cover file") && size != len("the picture inside") {
+			t.Fatalf("a picture was kept more than once or is not one of the two: %v", store.puts)
+		}
+	}
+	if again := f.scan(); again.RowsWritten != 0 {
+		t.Fatalf("an unchanged rescan wrote %d rows", again.RowsWritten)
+	}
+}
