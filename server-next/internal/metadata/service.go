@@ -117,6 +117,7 @@ func (s *Service) match(ctx context.Context, p Provider, locale Locale, item db.
 	if err := s.DB.ApplyDetails(ctx, db.Background, item.ID, details(record, db.MatchFound)); err != nil {
 		return false, err
 	}
+	s.moods(ctx, item.ID)
 	return true, s.children(ctx, p, locale, item.ID, ref)
 }
 
@@ -253,6 +254,7 @@ func (s *Service) Identify(ctx context.Context, itemID string, ref Ref) (string,
 	if err != nil || remaining != itemID {
 		return remaining, err // merged into a title that has its details already
 	}
+	s.moods(ctx, t.ID)
 	return remaining, s.children(ctx, p, locale, t.ID, record.Ref)
 }
 
@@ -302,5 +304,12 @@ func (s *Service) Rematch(ctx context.Context, itemID string) (bool, error) {
 	if _, err := s.DB.ChangeMatch(ctx, db.User, t.ID, details(record, db.MatchFound)); err != nil {
 		return false, err
 	}
+	s.moods(ctx, t.ID)
 	return true, s.children(ctx, p, locale, t.ID, record.Ref)
+}
+
+// moods gives a title that has just been matched its moods from the title data. It cannot fail
+// the match: a title it misses gets them at the daily pass.
+func (s *Service) moods(ctx context.Context, itemID int64) {
+	_ = s.DB.TagFromTitleData(ctx, itemID)
 }

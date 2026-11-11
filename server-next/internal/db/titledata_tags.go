@@ -60,6 +60,23 @@ func titleDataWork(ctx context.Context, td *titleData, kind ItemKind, ids map[st
 // use, loses its mood tags. It writes only what changed, at Background priority, one batch per
 // transaction; reading the file happens before the write starts.
 func (d *DB) ApplyTitleData(ctx context.Context, after int64, limit int) (int64, error) {
+	// Walked by id, not through the parent index, which would read every top-level title of
+	// every kind and sort them for each step: one pass reads the table once.
+	return d.applyTitleData(ctx, `id > ? AND kind IN (?, ?) AND +parent_id IS NULL ORDER BY id LIMIT ?`,
+		after, KindMovie, KindShow, limit)
+}
+
+// TagFromTitleData gives one film or show the mood tags the title data in use has for it now,
+// as the daily pass would: the matcher calls it once a title has its ids, so a new title does
+// not wait a day for its moods. Anything else is left alone.
+func (d *DB) TagFromTitleData(ctx context.Context, itemID int64) error {
+	_, err := d.applyTitleData(ctx, `id = ? AND kind IN (?, ?) AND parent_id IS NULL`, itemID, KindMovie, KindShow)
+	return err
+}
+
+// applyTitleData does ApplyTitleData for the films and shows where picks, and answers the last
+// one's id.
+func (d *DB) applyTitleData(ctx context.Context, where string, args ...any) (int64, error) {
 	type title struct {
 		id   int64
 		kind ItemKind
@@ -72,10 +89,8 @@ func (d *DB) ApplyTitleData(ctx context.Context, after int64, limit int) (int64,
 		return 0, err
 	}
 	defer tx.Rollback()
-	// Walked by id, not through the parent index, which would read every top-level title of
-	// every kind and sort them for each step: one pass reads the table once.
-	titles, err := queryAll(ctx, tx, `SELECT id, kind FROM items WHERE id > ? AND kind IN (?, ?) AND +parent_id IS NULL ORDER BY id LIMIT ?`,
-		[]any{after, KindMovie, KindShow, limit}, func(t *title) []any { return []any{&t.id, &t.kind} })
+	titles, err := queryAll(ctx, tx, `SELECT id, kind FROM items WHERE `+where, args,
+		func(t *title) []any { return []any{&t.id, &t.kind} })
 	if err != nil || len(titles) == 0 {
 		return 0, err
 	}
