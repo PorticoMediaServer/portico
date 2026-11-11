@@ -26,6 +26,8 @@ type toolsArea struct {
 	// remoteAccessDoc is the remote-access settings, and dlna the DLNA server they switch. See dlna.go.
 	remoteAccessDoc remoteAccessState
 	dlna            *dlna.Server
+	// toolNotices bounds the notices each key sends. See tool_notices.go.
+	toolNotices toolNotices
 }
 
 // startTools builds this area's services and registers its routes and job kinds. New calls it
