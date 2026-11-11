@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
+	"github.com/PorticoMediaServer/portico/server-next/internal/mediaexec"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediatools"
 	"github.com/PorticoMediaServer/portico/server-next/internal/streaming"
 )
@@ -191,7 +192,12 @@ func (e *Engine) ConversionFolderWarning(folder string) string {
 func isFFmpeg(ctx context.Context, program string) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, program, "-version").Output()
+	// In the same sandbox as every other run of the program: it is not trusted yet.
+	ask, err := mediaexec.CommandContext(ctx, mediaexec.Job{Executable: program, Args: []string{"-version"}})
+	if err != nil {
+		return fmt.Errorf("it cannot be run: %w", err)
+	}
+	out, err := ask.Output()
 	if err != nil {
 		return fmt.Errorf("it did not answer -version: %w", err)
 	}
