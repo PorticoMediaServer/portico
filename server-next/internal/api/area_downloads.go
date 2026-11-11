@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/downloads"
 	"github.com/PorticoMediaServer/portico/server-next/internal/prepare"
 )
 
@@ -13,6 +14,8 @@ import (
 type downloadsArea struct {
 	// prepare makes the smaller copies people download. See package prepare.
 	prepare *prepare.Service
+	// downloads answers what profiles ask to have on their devices. See downloads.go.
+	downloads *downloads.Service
 }
 
 // startDownloads builds this area's services and registers its routes and job kinds. New calls it
@@ -26,5 +29,7 @@ func (s *Server) startDownloads(ctx context.Context) error {
 	}
 	go s.prepare.Run(ctx)
 	s.jobs.Tidy("unused prepared copies", 6*time.Hour, s.prepare.Tidy)
+	s.downloads = &downloads.Service{DB: s.db, Prepare: s.prepare, Settings: s.settings, Now: func() time.Time { return s.now() }}
+	s.downloadRoutes()
 	return nil
 }

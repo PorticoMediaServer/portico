@@ -37,8 +37,9 @@ func TestMain(m *testing.M) {
 }
 
 // A film in a library, as a scan would have recorded it: a real two-second clip made with
-// ffmpeg, 640 by 360.
-func filmLibrary(t *testing.T) (*db.DB, db.Version) {
+// ffmpeg, 640 by 360. wanting stores a request for a copy of it, which is what the queue
+// makes copies for.
+func filmLibrary(t *testing.T) (*db.DB, db.Version, func(db.Prepared)) {
 	t.Helper()
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
 		t.Skip("ffmpeg is not installed")
@@ -72,7 +73,17 @@ func filmLibrary(t *testing.T) (*db.DB, db.Version) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	viewer, err := d.CreateSeedProfile(ctx, db.SeedProfile{Name: "viewer"})
+	owner, err := d.CreateOwner(ctx, db.NewOwner{Username: "owner", ProfileName: "Owner", Now: time.Now(),
+		Session: db.NewSession{RefreshHash: "refresh", ExpiresAt: time.Now().Add(time.Hour), Device: db.DeviceInfo{InstallationID: "phone", Name: "Phone"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	profiles, err := d.Profiles(ctx, owner.UserID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	viewer := db.Viewer{UserID: owner.UserID, ProfileID: profiles[0].ID}
+	phone, err := d.SessionDevice(ctx, owner.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +95,14 @@ func filmLibrary(t *testing.T) (*db.DB, db.Version) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return d, item.Versions[0].Version
+	wanting := func(p db.Prepared) {
+		t.Helper()
+		if _, _, err := d.CreateDownload(ctx, db.NewDownload{Viewer: viewer, DeviceID: phone.ID, ItemPublicID: item.PublicID, Quality: p.Recipe,
+			Selection: "all", Titles: []db.DownloadTitle{{ItemID: item.ID, MediaID: p.MediaID, Prepared: &p}}}, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return d, item.Versions[0].Version, wanting
 }
 
 func service(t *testing.T, d *db.DB, folder string, now func() time.Time) *Service {
@@ -122,7 +140,7 @@ func waitReady(t *testing.T, d *db.DB, id int64) db.Prepared {
 // Thirty days after anyone last asked for or fetched it, the copy and its file are gone,
 // along with any file in the folder that no copy names.
 func TestACopyIsMadeOnceSharedAndRemovedWhenUnused(t *testing.T) {
-	d, film := filmLibrary(t)
+	d, film, wanting := filmLibrary(t)
 	clock := time.Now()
 	folder := t.TempDir()
 	s := service(t, d, folder, func() time.Time { return clock })
@@ -140,6 +158,8 @@ func TestACopyIsMadeOnceSharedAndRemovedWhenUnused(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	wanting(first)
+	s.Wake()
 	ready := waitReady(t, d, first.ID)
 	if ready.State != db.PreparedReady || ready.Container != "mp4" || ready.Size == 0 {
 		t.Fatalf("the copy was not made: %+v", ready)
