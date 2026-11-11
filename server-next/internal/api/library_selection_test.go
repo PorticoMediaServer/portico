@@ -66,6 +66,44 @@ func TestTheOwnerDeletesASelectionAndEditsAreNotLost(t *testing.T) {
 		t.Errorf("the delete sent again answered %d; want 400", code)
 	}
 
+	// A show selected together with one of its episodes: the episode is counted once, under
+	// the show, in the number the owner is shown before confirming.
+	shows := filepath.Join(t.TempDir(), "shows")
+	for n := 1; n <= 3; n++ {
+		writeFile(t, filepath.Join(shows, "Lost", "Season 1", "Lost - S01E0"+strconv.Itoa(n)+".mkv"), 30+n)
+	}
+	var tv AdminLibrary
+	create = LibraryCreate{Name: "Shows", Kind: "shows", Folders: []string{shows},
+		Options: &LibraryOptions{Depth: "basic", Trash: TrashRule{Mode: "manual"}, AllowDelete: true}}
+	if w := call(t, s, "POST", "/v1/admin/libraries", owner, create, &tv); w.Code != 200 {
+		t.Fatalf("creating the show library answered %d: %s", w.Code, w.Body)
+	}
+	scanNow(t, s, owner, tv.ID)
+	listed := func(kind string) []string {
+		t.Helper()
+		var page struct {
+			Items []struct{ ID string }
+		}
+		if w := call(t, s, "GET", "/v1/items?kind="+kind+"&library="+tv.ID, owner, nil, &page); w.Code != 200 {
+			t.Fatalf("listing %ss answered %d: %s", kind, w.Code, w.Body)
+		}
+		var ids []string
+		for _, item := range page.Items {
+			ids = append(ids, item.ID)
+		}
+		return ids
+	}
+	show, episodes := listed("show"), listed("episode")
+	if len(show) != 1 || len(episodes) != 3 {
+		t.Fatalf("the show library: %d shows, %d episodes", len(show), len(episodes))
+	}
+	var whole, nested SelectionDeletion
+	call(t, s, "POST", "/v1/admin/items/deletion", owner, SelectionDelete{IDs: show}, &whole)
+	if w := call(t, s, "POST", "/v1/admin/items/deletion", owner, SelectionDelete{IDs: []string{episodes[0], show[0]}}, &nested); w.Code != 200 ||
+		nested.Count != 2 || nested.Titles != whole.Titles || nested.Files != 3 || whole.Titles != 5 {
+		t.Fatalf("a show with one of its episodes: %s; the show alone is %d titles", w.Body, whole.Titles)
+	}
+
 	// Two edits made on the same copy of the library: the second is refused.
 	base := "/v1/admin/libraries/" + lib.ID
 	r := newRequest("GET", base, owner, nil)
