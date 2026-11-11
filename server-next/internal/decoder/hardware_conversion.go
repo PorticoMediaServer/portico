@@ -450,7 +450,15 @@ func BuildConversion(r ConversionRequest) (ConversionGraph, error) {
 			out.Video = append(out.Video, "-pix_fmt", pixel)
 		}
 		out.Video = append(out.Video, videoRateArgs(target, encoder, preset)...)
-		out.Video = append(out.Video, videoColorArgs(target)...)
+		colour := videoColorArgs(target)
+		if native && r.ToneMap {
+			// The device's tone mapper writes BT.709 itself. Asking the encoder for
+			// that matrix as well makes ffmpeg 8 put a processor scaler after the
+			// device's frames, which fails, so the whole conversion fell back to
+			// the processor (a 4K film at half real time on VA-API).
+			colour = withoutMatrix(colour)
+		}
+		out.Video = append(out.Video, colour...)
 		if target.VideoCodec == "h264" {
 			level := target.VideoLevel
 			if level == 0 {
