@@ -23,7 +23,7 @@ func onMainProfile(t *testing.T, s *Server) Session {
 func TestTwoStepSignIn(t *testing.T) {
 	s := newTestServer(t)
 	now := time.Now()
-	s.now = func() time.Time { return now }
+	s.setClock(func() time.Time { return now })
 	first := setup(t, s)
 	if code := status(t, s, "POST", "/v1/me/two-factor", first.Session.AccessToken, TwoFactorEnrol{CurrentPassword: testPassword}); code != 403 {
 		t.Fatalf("a sign-in that is not on the main profile set up two-step sign-in (%d)", code)
