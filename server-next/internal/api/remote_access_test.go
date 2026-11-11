@@ -1,7 +1,13 @@
 package api
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/pem"
+	"math/big"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -270,5 +276,47 @@ func TestOwnCertificateStatus(t *testing.T) {
 	call(t, s, "GET", "/v1/admin/remote-access", owner, nil, &status)
 	if status.Certificate.State != "problem" || status.Certificate.Problem != "The certificate file fullchain.pem is not in the Keys folder." {
 		t.Fatalf("the certificate status is %+v", status.Certificate)
+	}
+}
+
+// writeTestCertificate writes a self-signed cert.pem and key.pem for name into dir and returns
+// the certificate's DER bytes.
+func writeTestCertificate(t *testing.T, dir, name string) []byte {
+	t.Helper()
+	os.MkdirAll(dir, 0o700)
+	key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	tmpl := &x509.Certificate{SerialNumber: big.NewInt(1), DNSNames: []string{name},
+		NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(90 * 24 * time.Hour)}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyDER, _ := x509.MarshalECPrivateKey(key)
+	os.WriteFile(filepath.Join(dir, "cert.pem"), pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0o600)
+	os.WriteFile(filepath.Join(dir, "key.pem"), pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER}), 0o600)
+	return der
+}
+
+// With the owner's own certificate loaded and valid for the address, Enhanced takes effect at
+// once; while the files are missing it waits as Standard.
+func TestEnhancedWithTheOwnCertificateLoaded(t *testing.T) {
+	s := newTestServer(t)
+	owner := onMain(t, s, setup(t, s)).AccessToken
+	keys := filepath.Join(filepath.Dir(s.setupFile), "Keys")
+	security := func() RemoteSecurity {
+		var st RemoteAccessStatus
+		jsonInto(reach(s, "GET", "/v1/admin/remote-access", owner, "127.0.0.1", "localhost", false, nil), &st)
+		return st.RemoteSecurity
+	}
+	saveRemote(t, s, owner, func(v *RemoteAccessSettings) {
+		v.OwnAddress = OwnAddress{Enabled: true, Domain: "media.example.com", CertificateFile: "cert.pem", KeyFile: "key.pem"}
+	})
+	if got := security(); got.Waiting != "certificate_not_ready" {
+		t.Fatalf("with no certificate files: %+v", got)
+	}
+	writeTestCertificate(t, keys, "media.example.com")
+	s.certs.Check()
+	if got := security(); got.Active != "enhanced" {
+		t.Fatalf("with the certificate loaded: %+v", got)
 	}
 }
