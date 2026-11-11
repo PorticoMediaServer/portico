@@ -214,13 +214,21 @@ func useEmbeddedTitle(b *batchTx, itemID, now int64) error {
 	return err
 }
 
-// TitleFile answers the path, inside its library folder, of the file a title's first version
-// starts with: what its name is read from. A title with no file is ErrNotFound.
-func (d *DB) TitleFile(ctx context.Context, itemID int64) (string, error) {
+// EmbeddedTitleFile answers the path, inside its library folder, of the file a title's first
+// version starts with, when the title shown is the one written inside that file: no provider
+// matched the title, no person typed or locked it, and it is the file's own. Such a title is
+// looked up by the name the file's name gives instead. A title an NFO file, a person or a
+// provider gave, or one with no file, is ErrNotFound: it is looked up by the title it has.
+func (d *DB) EmbeddedTitleFile(ctx context.Context, itemID int64) (string, error) {
 	var rel string
 	err := d.read.QueryRowContext(ctx, `SELECT CASE WHEN dir.rel_path = '' THEN f.name ELSE dir.rel_path || '/' || f.name END
-		FROM media m JOIN media_parts p ON p.media_id = m.id AND p.position = 0 JOIN files f ON f.id = p.file_id
-		JOIN directories dir ON dir.id = f.directory_id WHERE m.item_id = ? ORDER BY m.position, m.id LIMIT 1`, itemID).Scan(&rel)
+		FROM items i JOIN media m ON m.id = (SELECT id FROM media WHERE item_id = i.id ORDER BY position, id LIMIT 1)
+		JOIN media_parts p ON p.media_id = m.id AND p.position = 0 JOIN files f ON f.id = p.file_id
+		JOIN directories dir ON dir.id = f.directory_id
+		WHERE i.id = ? AND i.match_state IN (?, ?) AND json_extract(f.extra, '$.title') = i.title
+		AND json_extract(ifnull(i.local_fields, '{}'), '$.title') IS NULL
+		AND NOT EXISTS (SELECT 1 FROM json_each(ifnull(i.locked_fields, '[]')) WHERE value = 'title')`,
+		itemID, MatchNone, MatchNeedsAttention).Scan(&rel)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", ErrNotFound
 	}
