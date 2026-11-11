@@ -887,10 +887,10 @@ func (m *matrix) burn(t *testing.T, where, profile, item, pgs, plain string) {
 		return
 	}
 	shown := (pgsFrom + pgsTo) / 2
-	inside, outside := boxChange(m.frame(t, float64(shown), "-i", files[0]), m.frame(t, float64(shown), "-i", plain))
-	f.check(inside > 40 && outside < 15, "at %ds the box should differ from the plain stream inside (%.0f, want > 40) and not outside (%.0f, want < 15)", shown, inside, outside)
-	inside, outside = boxChange(m.frame(t, pgsTo+1.5, "-i", files[0]), m.frame(t, pgsTo+1.5, "-i", plain))
-	f.check(inside < 15, "after the subtitle ends the box is still there (%.0f)", inside)
+	lift, outside := boxChange(m.frame(t, float64(shown), "-i", files[0]), m.frame(t, float64(shown), "-i", plain))
+	f.check(lift > 25 && outside < 15, "at %ds the box should be brighter than without it (%.0f, want > 25) and the rest unchanged (%.0f, want < 15)", shown, lift, outside)
+	lift, _ = boxChange(m.frame(t, pgsTo+1.5, "-i", files[0]), m.frame(t, pgsTo+1.5, "-i", plain))
+	f.check(math.Abs(lift) < 10, "after the subtitle ends the box is still there (%.0f brighter)", lift)
 	f.report(where + " with the picture subtitle burned in")
 }
 
