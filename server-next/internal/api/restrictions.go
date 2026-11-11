@@ -26,6 +26,52 @@ type Restrictions struct {
 	// the profile can never go beyond. They are read-only.
 	AccountAllLibraries bool     `json:"accountAllLibraries"`
 	AccountLibraries    []string `json:"accountLibraries"`
+	// AccountMaxRatingAge, AccountAllowUnrated and AccountBlockedLabels are what the server's
+	// owner holds the whole account to. They apply as well as the profile's own: the lower
+	// age wins, an unrated title needs both to allow it, and a label blocked by either is
+	// hidden. They are read-only here, so a screen can say where the account is stricter.
+	AccountMaxRatingAge  *int     `json:"accountMaxRatingAge"`
+	AccountAllowUnrated  bool     `json:"accountAllowUnrated"`
+	AccountBlockedLabels []string `json:"accountBlockedLabels"`
+}
+
+// MemberLimits are what the owner or an admin holds a person's whole account to: every
+// profile of it, whatever that person sets on their own profiles. Which libraries the
+// account is given is part of the member edit. PUT replaces all of it.
+type MemberLimits struct {
+	// MaxRatingAge is the highest age rating any profile of the account is shown, or null
+	// for no limit. Under a limit, a title with no rating is hidden unless AllowUnrated is set.
+	MaxRatingAge *int `json:"maxRatingAge"`
+	AllowUnrated bool `json:"allowUnrated"`
+	// BlockedLabels are the ids of labels whose titles no profile of the account is shown.
+	BlockedLabels []string `json:"blockedLabels"`
+}
+
+func memberLimitsOut(l db.AccountLimits) MemberLimits {
+	return MemberLimits{MaxRatingAge: l.MaxRatingAge, AllowUnrated: l.AllowUnrated, BlockedLabels: l.BlockedLabels}
+}
+
+func (s *Server) memberLimitRoutes() {
+	Handle(s, "GET /v1/admin/members/{id}/limits", Admin, func(r *http.Request, _ None) (MemberLimits, error) {
+		caller := CallerFrom(r.Context())
+		out, err := s.db.MemberLimits(r.Context(), caller.UserID, caller.Role, r.PathValue("id"))
+		return memberLimitsOut(out), memberError(err)
+	})
+	sensitive(Handle(s, "PUT /v1/admin/members/{id}/limits", Admin, func(r *http.Request, req MemberLimits) (MemberLimits, error) {
+		caller := CallerFrom(r.Context())
+		switch {
+		case req.MaxRatingAge != nil && (*req.MaxRatingAge < 0 || *req.MaxRatingAge > maxRatingAge):
+			return MemberLimits{}, ErrField("maxRatingAge", "Use an age from 0 to 21, or null for no limit.")
+		case len(req.BlockedLabels) > maxRestrictionEntries:
+			return MemberLimits{}, ErrField("blockedLabels", "That is too many labels.")
+		}
+		out, err := s.db.SetMemberLimits(r.Context(), caller.UserID, caller.Role, r.PathValue("id"),
+			db.AccountLimits{MaxRatingAge: req.MaxRatingAge, AllowUnrated: req.AllowUnrated, BlockedLabels: req.BlockedLabels}, s.now())
+		if errors.Is(err, db.ErrUnknownLabel) {
+			return MemberLimits{}, ErrField("blockedLabels", "One of these labels does not exist.")
+		}
+		return memberLimitsOut(out), memberError(err)
+	}))
 }
 
 // The most labels or libraries one profile's restrictions can name, and the highest age limit.
@@ -36,12 +82,14 @@ const (
 
 func restrictionsOut(r db.Restrictions) Restrictions {
 	return Restrictions{MaxRatingAge: r.MaxRatingAge, AllowUnrated: r.AllowUnrated, BlockedLabels: r.BlockedLabels, AllLibraries: r.AllLibraries, Libraries: r.Libraries,
-		AccountAllLibraries: r.AccountAllLibraries, AccountLibraries: r.AccountLibraries}
+		AccountAllLibraries: r.AccountAllLibraries, AccountLibraries: r.AccountLibraries,
+		AccountMaxRatingAge: r.Account.MaxRatingAge, AccountAllowUnrated: r.Account.AllowUnrated, AccountBlockedLabels: r.Account.BlockedLabels}
 }
 
 // restrictionRoutes are for the account's main profile, or an owner or admin acting on a
 // member with ?member=. A profile can never read or lift its own limits from inside itself.
 func (s *Server) restrictionRoutes() {
+	s.memberLimitRoutes()
 	Handle(s, "GET /v1/profiles/{id}/restrictions", SignedIn, func(r *http.Request, _ None) (Restrictions, error) {
 		userID, _, err := s.profileOwner(r)
 		if err != nil {
