@@ -185,8 +185,8 @@ type planned struct {
 	remoteID int64
 	// text is the version's text subtitles, which are served beside the stream.
 	text []textTrack
-	// burn is the video file's track that is drawn into the picture, when one is.
-	burn *int
+	// burn is the subtitle that is drawn into the picture, when one is.
+	burn *burnTrack
 }
 
 // textTrack is one text subtitle: in a file beside the video, or track number index of
@@ -468,23 +468,19 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 			request.RouteFailures[failure.Player][strategy] = streaming.RouteRejection{Code: failure.Code, Detail: failure.Detail}
 		}
 	}
-	// A subtitle made of pictures can be drawn into the picture, for a screen that shows the
-	// video alone (Cast, AirPlay, picture in picture). The app asks for that by name.
-	var burn *int
-	if r.Choice.SubtitleDelivery == "burn" && r.Choice.SubtitleTrackID != "" && !r.Choice.SubtitlesOff {
-		for _, track := range r.Version.Tracks {
-			if track.Kind != db.StreamSubtitle || playback.TrackID(track) != r.Choice.SubtitleTrackID {
-				continue
-			}
-			format := subtitleFormat(track)
-			index, found := fileTrack(r.Version, facts, db.StreamSubtitle, "subtitle", r.Choice.SubtitleTrackID)
-			if track.Sidecar || !found || format != "pgs" && format != "vobsub" && format != "dvb" {
-				return playback.Plan{}, &playback.Invalid{Field: "subtitles.delivery",
-					Message: "Only a picture subtitle inside the video can be burned in. Text subtitles are sent beside the stream."}
-			}
-			burn = &index
-			choice.SubtitleKind = format
-			request.BurnIn = &streaming.BurnInSpec{ResourceID: r.Choice.SubtitleTrackID, Revision: 1, Format: "mks"}
+	// The chosen subtitle is drawn into the picture when the app asks for that by name (a
+	// screen that shows the video alone: Cast, AirPlay, picture in picture), and by itself
+	// when it is made of pictures and nothing on the device would draw it: see burning.
+	burn, err := burning(r, facts)
+	if err != nil {
+		return playback.Plan{}, err
+	}
+	if burn != nil {
+		if burn.picture {
+			choice.SubtitleKind = burn.kind
+		}
+		if r.Choice.SubtitleDelivery == "burn" {
+			request.BurnIn = &streaming.BurnInSpec{ResourceID: r.Choice.SubtitleTrackID, Revision: 1, Format: burn.format}
 		}
 	}
 	plan, err := streaming.Plan(request)
@@ -495,6 +491,24 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 		return playback.Plan{}, &playback.Invalid{Field: "quality", Message: "This is not a quality this title offers."}
 	case err != nil:
 		return playback.Plan{}, playback.ErrUnsupported
+	}
+
+	if burn != nil && request.BurnIn == nil {
+		// Nobody asked for burning. A subtitle made of pictures is burned all the same when
+		// the player this plan chose does not draw that kind, or would be handed a stream
+		// (a picture subtitle cannot be sent beside one). Text never is: it is sent beside.
+		device := streaming.BaselineCapabilityDocument()
+		if request.Device != nil {
+			device = *request.Device
+		}
+		if burn.picture && streaming.SubtitleNeedsBurnIn(device.Profile(plan.Engine), burn.kind, plan.Mode, false) {
+			request.BurnIn = &streaming.BurnInSpec{ResourceID: r.Choice.SubtitleTrackID, Revision: 1, Format: burn.format}
+			if plan, err = streaming.Plan(request); err != nil {
+				return playback.Plan{}, playback.ErrUnsupported
+			}
+		} else {
+			burn = nil
+		}
 	}
 
 	out := playback.Plan{Mode: "stream", Player: plan.Engine, Route: routes[plan.Strategy], Container: plan.OutputContainer,
@@ -521,7 +535,7 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 	// stream. A subtitle made of pictures on a converted stream waits on burning in.
 	detail := out.Detail.(*planned)
 	if detail.burn = burn; burn != nil {
-		out.Subtitle = &playback.SubtitleInForce{TrackID: r.Choice.SubtitleTrackID, Kind: choice.SubtitleKind, Delivery: "burn"}
+		out.Subtitle = &playback.SubtitleInForce{TrackID: r.Choice.SubtitleTrackID, Kind: burn.kind, Delivery: "burn"}
 	}
 	for _, track := range r.Version.Tracks {
 		format := subtitleFormat(track)
@@ -582,18 +596,8 @@ func (e *Engine) Start(ctx context.Context, r playback.StartRequest) (playback.S
 		}
 	}
 	if p.burn != nil {
-		// The track is copied out of the file before the stream starts, which reads the
-		// whole file once. A start that waits longer than this is told to try again.
-		wait, cancel := context.WithTimeout(ctx, 2*time.Minute)
-		data, err := e.streams.SubtitleTrack(wait, p.path, p.place.Size, time.Unix(0, p.place.ModifiedNS), *p.burn)
-		cancel()
-		if err != nil {
-			if ctx.Err() == nil && wait.Err() != nil {
-				return playback.Stream{}, playback.ErrBusy
-			}
-			return playback.Stream{}, playback.ErrSourceUnavailable
-		}
-		start.Burn = &streaming.BurnSubtitle{Format: "mks", Data: data}
+		// Read when the converter first needs it, beside the start: see StartRequest.BurnLoad.
+		start.BurnLoad = e.burnLoader(p)
 	}
 	// stream adds the addresses of the subtitles to what the session is told.
 	stream := func(s streaming.Stream) playback.Stream {
