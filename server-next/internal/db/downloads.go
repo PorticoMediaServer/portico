@@ -41,10 +41,13 @@ type Download struct {
 	Titles, Ready, Waiting, Failed int
 }
 
-// The states of one title of a download, as stored.
+// The states of one title of a download, as stored. A dropped title is one the person took
+// out of the request: it is not listed, counted or fetched, the device is told to remove it,
+// and "keep the next" does not bring it back.
 const (
 	DownloadWanted  = 0
 	DownloadLeftOut = 1
+	DownloadDropped = 2
 )
 
 // DownloadTitle is one title of a download, with the copy it uses when it uses one.
@@ -76,13 +79,13 @@ type NewDownload struct {
 const downloadColumns = `d.id, d.public_id, d.profile_id, d.device_id, dv.public_id, ifnull(d.item_id, 0), ifnull(i.public_id, ''),
 	ifnull(i.kind, 0), ifnull(d.list_id, 0), ifnull(l.public_id, ''), coalesce(i.title, l.name, ''), ifnull(m.public_id, ''), d.quality,
 	d.selection, ifnull(d.keep_next, 0), d.paused, d.created_at, d.updated_at,
-	(SELECT count(*) FROM download_items x WHERE x.download_id = d.id),
+	(SELECT count(*) FROM download_items x WHERE x.download_id = d.id AND x.state <> 2),
 	(SELECT count(*) FROM download_items x LEFT JOIN prepared_media p ON p.id = x.prepared_id WHERE x.download_id = d.id AND x.state = 0
 		AND (d.quality = 'original' OR p.state = 'ready')),
 	(SELECT count(*) FROM download_items x JOIN prepared_media p ON p.id = x.prepared_id WHERE x.download_id = d.id AND x.state = 0
 		AND p.state IN ('waiting', 'preparing')),
 	(SELECT count(*) FROM download_items x LEFT JOIN prepared_media p ON p.id = x.prepared_id WHERE x.download_id = d.id
-		AND (x.state <> 0 OR d.quality <> 'original' AND (p.id IS NULL OR p.state = 'failed')))`
+		AND (x.state = 1 OR x.state = 0 AND d.quality <> 'original' AND (p.id IS NULL OR p.state = 'failed')))`
 
 const downloadFrom = ` FROM downloads d JOIN devices dv ON dv.id = d.device_id LEFT JOIN items i ON i.id = d.item_id
 	LEFT JOIN lists l ON l.id = d.list_id LEFT JOIN media m ON m.id = d.media_id`
@@ -333,13 +336,13 @@ func downloadTitles(ctx context.Context, tx *sql.Tx, downloadID int64) ([]Downlo
 	return out, rows.Err()
 }
 
-// DeviceDownloadTitles returns every title of a profile's requests on one device, with the
-// copy each uses, by request id, in one read: what a sync works from, however many requests
-// the device has.
+// DeviceDownloadTitles returns every title of a profile's requests on one device, or on every
+// device with deviceID 0, with the copy each uses, by request id, in one read: what a sync
+// and the Downloads page work from, however many requests there are.
 func (d *DB) DeviceDownloadTitles(ctx context.Context, profileID, deviceID int64) (map[int64][]DownloadTitle, error) {
 	rows, err := d.read.QueryContext(ctx, `SELECT x.download_id, `+downloadTitleColumns+downloadTitleFrom+`
-		JOIN downloads d ON d.id = x.download_id WHERE d.device_id = ? AND d.profile_id = ? ORDER BY x.download_id, x.position, x.item_id`,
-		deviceID, profileID)
+		JOIN downloads d ON d.id = x.download_id WHERE (?1 = 0 OR d.device_id = ?1) AND d.profile_id = ?2
+		ORDER BY x.download_id, x.position, x.item_id`, deviceID, profileID)
 	if err != nil {
 		return nil, err
 	}
@@ -408,6 +411,97 @@ func (d *DB) DeleteDownload(ctx context.Context, profileID int64, publicID strin
 		return err
 	})
 	return copies, err
+}
+
+// DropDownloadTitle takes one title out of a profile's request, so it is not fetched again and
+// the device is told to remove it. It returns the copy the title used, if any. Dropping a
+// title that is not in the request, or already dropped, succeeds.
+func (d *DB) DropDownloadTitle(ctx context.Context, profileID int64, downloadPublicID, itemPublicID string, now time.Time) ([]int64, error) {
+	var copies []int64
+	err := d.write(ctx, User, func(tx *sql.Tx) error {
+		where := ` WHERE download_id = (SELECT id FROM downloads WHERE public_id = ? AND profile_id = ?)
+			AND item_id = (SELECT id FROM items WHERE public_id = ?)`
+		var err error
+		if copies, err = ids(ctx, tx, `SELECT prepared_id FROM download_items`+where+` AND prepared_id IS NOT NULL`,
+			downloadPublicID, profileID, itemPublicID); err != nil {
+			return err
+		}
+		res, err := tx.ExecContext(ctx, `UPDATE download_items SET state = 2, reason = NULL, prepared_id = NULL`+where+` AND state <> 2`,
+			downloadPublicID, profileID, itemPublicID)
+		if err != nil {
+			return err
+		}
+		if n, _ := res.RowsAffected(); n > 0 {
+			_, err = tx.ExecContext(ctx, `UPDATE downloads SET updated_at = ? WHERE public_id = ? AND profile_id = ?`, now.UnixMilli(),
+				downloadPublicID, profileID)
+		}
+		return err
+	})
+	return copies, err
+}
+
+// TitlePlace is where a title sits, for a list of downloads: an episode's show, season and
+// episode numbers; a track's album and artist.
+type TitlePlace struct {
+	ParentTitle   string
+	SeasonNumber  *int
+	EpisodeNumber *int
+	Artist        string
+}
+
+// TitlePlaces returns where each title sits, for those the viewer may see; a title the viewer
+// may not see is left out. One read whatever the number of titles.
+func (d *DB) TitlePlaces(ctx context.Context, v Viewer, itemIDs []int64) (map[int64]TitlePlace, error) {
+	out := map[int64]TitlePlace{}
+	if len(itemIDs) == 0 {
+		return out, nil
+	}
+	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	acc, err := loadAccess(ctx, tx, v)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT i.id, i.kind, ifnull(p.title, ''), ifnull(r.title, ''), ifnull(r.kind, 0),
+		coalesce(i.parent_index, p.index_number), i.index_number FROM items i
+		LEFT JOIN items p ON p.id = i.parent_id LEFT JOIN items r ON r.id = i.root_id
+		WHERE i.id IN `+intList(itemIDs)+` AND `+acc.visible("i"), v.args()...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		var kind, rootKind ItemKind
+		var parent, root string
+		var season, episode sql.NullInt64
+		if err := rows.Scan(&id, &kind, &parent, &root, &rootKind, &season, &episode); err != nil {
+			return nil, err
+		}
+		var place TitlePlace
+		switch kind {
+		case KindEpisode:
+			place.ParentTitle = root
+			if season.Valid {
+				n := int(season.Int64)
+				place.SeasonNumber = &n
+			}
+			if episode.Valid {
+				n := int(episode.Int64)
+				place.EpisodeNumber = &n
+			}
+		case KindTrack:
+			place.ParentTitle = parent
+			if rootKind == KindArtist {
+				place.Artist = root
+			}
+		}
+		out[id] = place
+	}
+	return out, rows.Err()
 }
 
 // CopyWanted says whether a request that is not paused still waits for a copy.

@@ -28,6 +28,7 @@ func (s *Server) downloadRoutes() {
 		Handle(s, "PATCH /v1/downloads/{id}", WithProfile, s.changeDownload),
 		Handle(s, "DELETE /v1/downloads/{id}", WithProfile, s.deleteDownload),
 		Handle(s, "GET /v1/downloads/{id}/items/{itemId}", WithProfile, s.downloadedItem),
+		Handle(s, "DELETE /v1/downloads/{id}/items/{itemId}", WithProfile, s.dropDownloadTitle),
 		Handle(s, "POST /v1/downloads/sync", WithProfile, s.syncDownloads),
 	} {
 		route.Scope = ScopeSession
@@ -130,7 +131,7 @@ type Download struct {
 	Paused    bool           `json:"paused"`
 	Counts    DownloadCounts `json:"counts"`
 	CreatedAt time.Time      `json:"createdAt"`
-	// Items is every title, on the detail read only.
+	// Items is every title, on the list and the detail read.
 	Items  []DownloadTitle `json:"items,omitempty"`
 	status int
 }
@@ -144,8 +145,14 @@ type DownloadTitle struct {
 	ItemID string `json:"itemId"`
 	Kind   string `json:"kind"`
 	Title  string `json:"title"`
-	State  string `json:"state"`
-	Reason string `json:"reason,omitempty"`
+	// ParentTitle is an episode's show or a track's album; SeasonNumber and EpisodeNumber an
+	// episode's, Artist a track's. Each only for a title the profile may see.
+	ParentTitle   string `json:"parentTitle,omitempty"`
+	SeasonNumber  *int   `json:"seasonNumber,omitempty"`
+	EpisodeNumber *int   `json:"episodeNumber,omitempty"`
+	Artist        string `json:"artist,omitempty"`
+	State         string `json:"state"`
+	Reason        string `json:"reason,omitempty"`
 	// DoneBytes and TotalBytes are how far a copy being prepared has got; the total is an
 	// estimate.
 	DoneBytes  int64 `json:"doneBytes,omitempty"`
@@ -392,11 +399,16 @@ func (s *Server) listDownloads(r *http.Request, _ None) (Page[Download], error) 
 		deviceID = 0
 	}
 	list, err := s.db.Downloads(r.Context(), v.ProfileID, deviceID)
-	out := Page[Download]{Items: make([]Download, 0, len(list))}
-	for _, d := range list {
-		out.Items = append(out.Items, downloadShape(d))
+	if err != nil {
+		return Page[Download]{}, err
 	}
-	return out, err
+	// Every request's titles in one read, so the page needs no read per request.
+	byRequest, err := s.db.DeviceDownloadTitles(r.Context(), v.ProfileID, deviceID)
+	if err != nil {
+		return Page[Download]{}, err
+	}
+	shaped, err := s.titlesShape(r.Context(), v, list, byRequest)
+	return Page[Download]{Items: shaped}, err
 }
 
 func (s *Server) getDownload(r *http.Request, _ None) (Download, error) {
@@ -408,11 +420,42 @@ func (s *Server) getDownload(r *http.Request, _ None) (Download, error) {
 	if err != nil {
 		return Download{}, downloadError(err)
 	}
-	out := downloadShape(dl)
-	out.Items = make([]DownloadTitle, 0, len(titles))
+	shaped, err := s.titlesShape(r.Context(), v, []db.Download{dl}, map[int64][]db.DownloadTitle{dl.ID: titles})
+	if err != nil {
+		return Download{}, err
+	}
+	return shaped[0], nil
+}
+
+// titlesShape shapes requests with their titles, leaving out those the person took out, and
+// says where each title sits (show, season and episode; album and artist) when the profile
+// may see it. One read for the places, whatever the number of requests and titles.
+func (s *Server) titlesShape(ctx context.Context, v db.Viewer, list []db.Download, byRequest map[int64][]db.DownloadTitle) ([]Download, error) {
+	var ids []int64
+	for _, titles := range byRequest {
+		for _, t := range titles {
+			ids = append(ids, t.ItemID)
+		}
+	}
+	places, err := s.db.TitlePlaces(ctx, v, ids)
+	if err != nil {
+		return nil, err
+	}
 	keep := time.Duration(s.downloads.Owner().KeepDays) * 24 * time.Hour
-	for _, t := range titles {
-		out.Items = append(out.Items, s.titleShape(dl, t, keep))
+	out := make([]Download, 0, len(list))
+	for _, dl := range list {
+		shaped := downloadShape(dl)
+		shaped.Items = []DownloadTitle{}
+		for _, t := range byRequest[dl.ID] {
+			if t.State == db.DownloadDropped {
+				continue
+			}
+			title := s.titleShape(dl, t, keep)
+			place := places[t.ItemID]
+			title.ParentTitle, title.SeasonNumber, title.EpisodeNumber, title.Artist = place.ParentTitle, place.SeasonNumber, place.EpisodeNumber, place.Artist
+			shaped.Items = append(shaped.Items, title)
+		}
+		out = append(out, shaped)
 	}
 	return out, nil
 }
@@ -482,6 +525,17 @@ func (s *Server) deleteDownload(r *http.Request, _ None) (None, error) {
 		return None{}, err
 	}
 	return None{}, downloadError(s.downloads.Delete(r.Context(), v, r.PathValue("id")))
+}
+
+// dropDownloadTitle takes one title out of a show, season, album, artist or playlist download:
+// the device is told to remove it at its next contact and it does not come back. Safe to
+// repeat: a title already taken out, or not in the download, succeeds.
+func (s *Server) dropDownloadTitle(r *http.Request, _ None) (None, error) {
+	v, _, err := s.downloadCaller(r)
+	if err != nil {
+		return None{}, err
+	}
+	return None{}, downloadError(s.downloads.Drop(r.Context(), v, r.PathValue("id"), r.PathValue("itemId")))
 }
 
 func (s *Server) downloadRoom(ctx context.Context) (*int64, error) {

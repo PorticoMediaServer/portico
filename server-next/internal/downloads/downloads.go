@@ -279,6 +279,16 @@ func (s *Service) Delete(ctx context.Context, v db.Viewer, id string) error {
 	return err
 }
 
+// Drop takes one title out of a request: the device is told to remove it at its next contact,
+// and it does not come back. Its copy stays for anyone else who asked for it.
+func (s *Service) Drop(ctx context.Context, v db.Viewer, id, item string) error {
+	copies, err := s.DB.DropDownloadTitle(ctx, v.ProfileID, id, item, s.Now())
+	if err == nil {
+		s.stopUnwanted(ctx, copies)
+	}
+	return err
+}
+
 func (s *Service) stopUnwanted(ctx context.Context, copies []int64) {
 	for _, id := range copies {
 		if wanted, err := s.DB.CopyWanted(ctx, id); err == nil && !wanted {
