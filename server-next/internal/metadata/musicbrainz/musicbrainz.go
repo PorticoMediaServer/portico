@@ -57,6 +57,14 @@ func New(origin string, every time.Duration) *Client {
 	c := fetch.New("musicbrainz", every, time.Minute)
 	c.Busy503 = true
 	c.MovedIsAnswer = true
+	// MusicBrainz counts searches apart from lookups, and its search allowance is shared by
+	// every client of the service, so the two are paced by its headers apart.
+	c.Bucket = func(r *http.Request) string {
+		if r.URL.Query().Has("query") {
+			return "search"
+		}
+		return "lookup"
+	}
 	return &Client{origin: strings.TrimRight(origin, "/"), http: c}
 }
 

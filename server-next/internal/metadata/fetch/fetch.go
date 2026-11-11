@@ -58,17 +58,30 @@ type Client struct {
 	// that carries the other's whole answer (MusicBrainz does), so that body is the answer.
 	// The redirect itself is still never followed.
 	MovedIsAnswer bool
-	http          *http.Client
+	// Bucket names the share of the provider's allowance a request is counted against, for a
+	// provider that counts kinds of request apart (MusicBrainz counts searches, which every
+	// client of the service shares, apart from lookups). Nil counts every request together.
+	Bucket func(*http.Request) string
+	http   *http.Client
 
-	mu     sync.Mutex
-	next   time.Time // the earliest the next request may start, by spacing
-	paused time.Time // the end of the last pause the provider asked for
+	mu      sync.Mutex
+	next    time.Time // the earliest the next request may start, by spacing
+	paused  time.Time // the end of the last pause the provider asked for
+	budgets map[string]*budget
+}
+
+// budget is what a provider's X-RateLimit headers last said about one bucket: how many
+// requests are left of how many, until when.
+type budget struct {
+	limit, left int
+	reset       time.Time
+	next        time.Time // the earliest the next request of this bucket may start
 }
 
 // New makes a client that starts at most one request every `every` and waits out a pause of
 // up to maxWait.
 func New(name string, every, maxWait time.Duration) *Client {
-	return &Client{name: name, every: every, maxWait: maxWait, http: &http.Client{
+	return &Client{name: name, every: every, maxWait: maxWait, budgets: map[string]*budget{}, http: &http.Client{
 		Timeout: 20 * time.Second,
 		// Every address is built by the provider's own code; an answer that points elsewhere
 		// is not followed.
@@ -84,8 +97,12 @@ func (c *Client) Do(req *http.Request) ([]byte, error) {
 	if req.Header.Get("User-Agent") == "" {
 		req.Header.Set("User-Agent", UserAgent)
 	}
+	bucket := ""
+	if c.Bucket != nil {
+		bucket = c.Bucket(req)
+	}
 	for try := 0; ; try++ {
-		if err := c.wait(req.Context()); err != nil {
+		if err := c.wait(req.Context(), bucket); err != nil {
 			return nil, err
 		}
 		send := req
@@ -103,6 +120,7 @@ func (c *Client) Do(req *http.Request) ([]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", c.name, err)
 		}
+		c.count(bucket, res.Header)
 		raw, err := io.ReadAll(io.LimitReader(res.Body, maxAnswer+1))
 		res.Body.Close()
 		if err != nil {
@@ -133,21 +151,29 @@ func (c *Client) Do(req *http.Request) ([]byte, error) {
 	}
 }
 
-// wait holds a request until its turn. A pause longer than the client waits out fails it at once.
-func (c *Client) wait(ctx context.Context) error {
+// wait holds a request until its turn. A pause longer than the client waits out fails it at
+// once, and so does an allowance that is used up until later than that.
+func (c *Client) wait(ctx context.Context, bucket string) error {
 	c.mu.Lock()
 	now := time.Now()
-	if c.paused.Sub(now) > c.maxWait {
+	hold := c.paused
+	if t := c.allowance(bucket, now); t.After(hold) {
+		hold = t
+	}
+	if hold.Sub(now) > c.maxWait {
 		c.mu.Unlock()
-		return &SlowDown{Provider: c.name, Until: c.paused}
+		return &SlowDown{Provider: c.name, Until: hold}
 	}
 	start := now
-	for _, t := range []time.Time{c.next, c.paused} {
+	for _, t := range []time.Time{c.next, hold} {
 		if t.After(start) {
 			start = t
 		}
 	}
 	c.next = start.Add(c.every)
+	if b := c.budgets[bucket]; b != nil && b.left > 0 {
+		b.left-- // counted now, so requests sent together do not all see the same allowance
+	}
 	c.mu.Unlock()
 	if start.After(now) {
 		t := time.NewTimer(start.Sub(now))
@@ -159,6 +185,53 @@ func (c *Client) wait(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// allowance is the earliest a request of a bucket may start by what the provider last said
+// is left of its allowance. A used-up allowance waits for its reset. Under a tenth left, the
+// rest is spread to the reset, using at most half of it, so the server slows down before it
+// is refused and leaves some for the provider's other clients. Called with mu held.
+func (c *Client) allowance(bucket string, now time.Time) time.Time {
+	b := c.budgets[bucket]
+	if b == nil || !b.reset.After(now) {
+		return time.Time{}
+	}
+	switch {
+	case b.left <= 0:
+		return b.reset
+	case b.left*10 < b.limit:
+		gap := b.reset.Sub(now) / time.Duration(max(b.left/2, 1))
+		start := b.next
+		if start.Before(now) {
+			start = now
+		}
+		b.next = start.Add(gap)
+		return start
+	}
+	return time.Time{}
+}
+
+// count keeps what a provider's X-RateLimit headers say about a bucket. The reset is Unix
+// seconds, or seconds from now for a small number.
+func (c *Client) count(bucket string, h http.Header) {
+	limit, err1 := strconv.Atoi(h.Get("X-RateLimit-Limit"))
+	left, err2 := strconv.Atoi(h.Get("X-RateLimit-Remaining"))
+	reset, err3 := strconv.ParseInt(h.Get("X-RateLimit-Reset"), 10, 64)
+	if err1 != nil || err2 != nil || err3 != nil || limit <= 0 {
+		return
+	}
+	at := time.Unix(reset, 0)
+	if reset < 1e9 {
+		at = time.Now().Add(time.Duration(reset) * time.Second)
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	b := c.budgets[bucket]
+	if b == nil {
+		b = &budget{}
+		c.budgets[bucket] = b
+	}
+	b.limit, b.left, b.reset = limit, left, at
 }
 
 // pause records how long the provider asked everyone to wait: Retry-After in seconds or as a
