@@ -155,7 +155,9 @@ func (d *DB) SwitchSignIn(ctx context.Context, sw Switch) (SessionState, error) 
 				return err
 			}
 		} else {
-			if _, err := tx.Exec(`UPDATE users SET state = 'waiting', updated_at = ? WHERE id <> ? AND state = 'active' AND disabled_at IS NULL`, at, sw.OwnerID); err != nil {
+			// A turned-off account waits too, so turning it on after the switch lets it move. While
+			// it is off it is not listed, gets no code and no sign-in.
+			if _, err := tx.Exec(`UPDATE users SET state = 'waiting', updated_at = ? WHERE id <> ? AND state = 'active'`, at, sw.OwnerID); err != nil {
 				return err
 			}
 			raw, _ := json.Marshal(Move{To: sw.To, AtMs: at})

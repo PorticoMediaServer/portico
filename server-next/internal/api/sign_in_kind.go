@@ -426,7 +426,7 @@ func (s *Server) moveCheck(r *http.Request, req MoveCheckRequest) (MoveCheck, er
 		return MoveCheck{}, err
 	}
 	if creds.UserID != 0 && moving && move.To == "portico" && now.Sub(move.At) < db.OldPasswordWorks {
-		if account, err := s.db.Account(ctx, creds.UserID); err == nil && account.State == "waiting" {
+		if account, err := s.db.Account(ctx, creds.UserID); err == nil && account.State == "waiting" && !account.Disabled {
 			return MoveCheck{Username: account.Username, Next: next}, nil
 		}
 	}

@@ -294,6 +294,20 @@ func TestTurnedOffStaysOffThroughASwitch(t *testing.T) {
 	if code := status(t, s, "POST", "/v1/auth/move/complete", "", done); code != 401 {
 		t.Fatalf("a turned-off account's old password moved it (%d)", code)
 	}
+	// Turned on after the switch, the account is waiting like everyone else and can move.
+	on := false
+	if w := call(t, s, "PATCH", "/v1/admin/members/"+alex.ID, owner, MemberEdit{Disabled: &on}, nil); w.Code != 200 {
+		t.Fatalf("turning alex on answered %d: %s", w.Code, w.Body)
+	}
+	if got := memberState(t, s, owner, "alex"); got != "waiting" {
+		t.Fatalf("alex turned on after the switch is %q, want waiting", got)
+	}
+	if code := status(t, s, "POST", "/v1/admin/members/"+alex.ID+"/move-code", owner, nil); code != 200 {
+		t.Fatalf("a move code for alex turned on answered %d", code)
+	}
+	if code := status(t, s, "POST", "/v1/auth/move/complete", "", done); code != 200 {
+		t.Fatalf("alex turned on could not move with the old password (%d)", code)
+	}
 }
 
 // An account with two-step sign-in never moves on its old password alone: it needs the owner's
