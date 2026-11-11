@@ -1,0 +1,49 @@
+name: New server plays real media
+# The media matrix (server-next/internal/mediaengine/media_matrix_test.go): small real files
+# made with ffmpeg are played through the media engine for four kinds of device, and what
+# comes out is checked against what was planned. It runs when media code changes and reports;
+# it is not part of ci/required.
+# It uses the runner's stock ffmpeg. To run it against another ffmpeg (Portico's own bundle),
+# set PORTICO_FFMPEG and PORTICO_FFPROBE to its two programs.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/server-next-media.yml
+      - server-next/go.mod
+      - server-next/internal/mediaengine/**
+      - server-next/internal/streaming/**
+      - server-next/internal/decoder/**
+      - server-next/internal/mediafacts/**
+      - server-next/internal/mediatools/**
+      - server-next/internal/mediaexec/**
+      - server-next/internal/inputbridge/**
+      - server-next/internal/subtitles/**
+      - server-next/internal/subtitleoffer/**
+permissions:
+  contents: read
+concurrency:
+  group: server-next-media-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  matrix:
+    name: Real media through the engine
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with: {go-version-file: server-next/go.mod, cache-dependency-path: server-next/go.sum}
+      - name: Install ffmpeg and bubblewrap, and allow unprivileged user namespaces on this VM
+        run: |
+          sudo apt-get update -q && sudo apt-get install -yq --no-install-recommends ffmpeg bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          sudo sysctl -w kernel.unprivileged_userns_clone=1 || true
+      - name: Which ffmpeg this is
+        run: ffmpeg -hide_banner -version | head -3
+      - name: Play every file for every device
+        working-directory: server-next
+        env:
+          PORTICO_MEDIA_MATRIX: '1'
+        run: go test -count=1 -timeout 18m -run 'TestMediaMatrix$' -v ./internal/mediaengine
