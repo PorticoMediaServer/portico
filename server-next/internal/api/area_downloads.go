@@ -31,5 +31,6 @@ func (s *Server) startDownloads(ctx context.Context) error {
 	s.jobs.Tidy("unused prepared copies", 6*time.Hour, s.prepare.Tidy)
 	s.downloads = &downloads.Service{DB: s.db, Prepare: s.prepare, Settings: s.settings, Now: func() time.Time { return s.now() }}
 	s.downloadRoutes()
+	s.stateBatchRoutes()
 	return nil
 }
