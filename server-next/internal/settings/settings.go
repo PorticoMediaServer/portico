@@ -138,6 +138,8 @@ type loaded struct {
 	def      *definition
 	value    any // a T
 	revision int64
+	// problem is what Doc.Report last said about putting this document in force.
+	problem  string
 	watchers []func(any)
 }
 
@@ -203,6 +205,9 @@ type Document struct {
 	// is changed and offer Reset.
 	Defaults json.RawMessage
 	Revision int64
+	// Problem is one plain line for the owner when what the document says could not be put
+	// in force, or "". See Doc.Report.
+	Problem string
 }
 
 // Names lists the documents there are, in name order.
@@ -223,14 +228,33 @@ func (s *Settings) Read(name string) (Document, error) {
 	doc := s.docs[name]
 	var value any
 	var revision int64
+	var problem string
 	if doc != nil {
-		value, revision = doc.value, doc.revision
+		value, revision, problem = doc.value, doc.revision, doc.problem
 	}
 	s.mu.RUnlock()
 	if doc == nil {
 		return Document{}, ErrNoDocument
 	}
-	return s.document(doc.def, value, revision), nil
+	out := s.document(doc.def, value, revision)
+	out.Problem = problem
+	return out, nil
+}
+
+// Report says whether what the document holds could be put in force, for a setting that is
+// applied after its save has been answered (a program that has to be tried out first). The
+// line is shown to the owner on the next read of the document, where they made the change;
+// an empty line says all is well. It is kept in memory: after a restart the setting is
+// applied again and reports again.
+func (d *Doc[T]) Report(s *Settings, problem string) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if doc := s.docs[d.def.name]; doc != nil {
+		doc.problem = problem
+	}
 }
 
 func (s *Settings) document(def *definition, value any, revision int64) Document {
