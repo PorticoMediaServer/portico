@@ -251,9 +251,14 @@ func applyDetails(b *batchTx, itemID int64, d *ItemDetails, now int64) error {
 		if err != nil {
 			return err
 		}
-		if _, err := b.exec(`INSERT INTO item_tags (item_id, tag_id) VALUES (?, ?) ON CONFLICT DO NOTHING`, itemID, tagID); err != nil {
+		if err := b.tagItem(itemID, tagID); err != nil {
 			return err
 		}
+	}
+	// The rating may have changed, on the title and on what is under it that has none of its
+	// own: the copies of it elsewhere follow in this transaction, after the tags are written.
+	if err := b.ratingChanged(itemID); err != nil {
+		return err
 	}
 	if len(d.Credits) > 0 && !keep[FieldCredits] {
 		if _, err := b.exec(`DELETE FROM credits WHERE item_id = ?`, itemID); err != nil {
