@@ -4,8 +4,8 @@ import {ServicesActions, ServicesAuthStage, ServicesHeading, ServicesLead, Servi
 import {Button, TextField} from '../kit/controls';
 import {goTo} from '../platform/hosted-navigation';
 import {servicesI18n} from './i18n';
-import {accountSession} from './account-session';
-import {servicesCall, ServicesError, thisDevice, type Tokens} from './services-api';
+import {account} from './account-session';
+import {ServicesError, thisDevice} from './services-api';
 import {problemMessage} from './account-problem';
 import {rememberSignUp} from './account-sign-up-memory';
 import {ProviderButtons} from './AccountProviders';
@@ -32,9 +32,9 @@ export function AccountSignIn({next, lead, notice}: {next: string; lead?: ReactN
     if (busy) return;
     setBusy(true); setError(undefined); setGone(false);
     try {
-      const answer = await servicesCall<{tokens?: Tokens; twoStep?: {challengeId: string}}>('POST', '/v1/sessions', {login, password, device: thisDevice()}, {create: true});
+      const answer = await account.signIn(login, password, thisDevice());
       if (answer.twoStep) setChallenge(answer.twoStep.challengeId);
-      else if (answer.tokens) { accountSession.keep(answer.tokens); goTo(next, {replace: true}); }
+      else if (answer.tokens) goTo(next, {replace: true});
     } catch (caught) {
       // The password was right but the address was never confirmed: a fresh code is on its way,
       // and this sign-in's own answer names the account to confirm (never a link's).

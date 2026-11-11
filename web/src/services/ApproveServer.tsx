@@ -3,7 +3,7 @@ import {AuthLinks} from '../kit/accounts/AuthStage';
 import {ServicesActions, ServicesAuthStage, ServicesFacts, ServicesHeading, ServicesLead, ServicesNotice, ServicesQuiet, ServicesStateIcon} from '../kit/accounts/ServicesAuth';
 import {Button, TextField} from '../kit/controls';
 import {servicesI18n} from './i18n';
-import {accountSession, personCall, signOut} from './account-session';
+import {account as services, accountSession} from './account-session';
 import {ServicesError} from './services-api';
 import {problemMessage} from './account-problem';
 import {AccountSignIn} from './AccountSignIn';
@@ -31,7 +31,7 @@ function ApprovalByCode() {
   const [code, setCode] = useState(''), [found, setFound] = useState<Approval>();
   const {busy, error, run} = useAction();
   if (found) return <ApprovalCard approval={found} byCode />;
-  const lookup = run(async () => { setFound(await personCall<Approval>('POST', '/v1/approvals/lookup', {code})); });
+  const lookup = run(async () => { setFound(await services.lookupApproval(code)); });
   return <ServicesAuthStage>
     <ServicesHeading>{t('next.account.approve.codeTitle')}</ServicesHeading>
     <ServicesLead>{t('next.account.approve.codeLead')}</ServicesLead>
@@ -49,7 +49,7 @@ function ApprovalById({id}: {id: string}) {
   useEffect(() => {
     const controller = new AbortController();
     setError(undefined);
-    personCall<Approval>('GET', `/v1/approvals/${encodeURIComponent(id)}`, undefined, {signal: controller.signal}).then(setApproval, caught => { if (!controller.signal.aborted) setError(caught); }); // query-read: kept (Portico Services account pages: the person's Portico Account, not a media server document)
+    services.approval(id, controller.signal).then(setApproval, caught => { if (!controller.signal.aborted) setError(caught); });
     return () => controller.abort();
   }, [id, attempt]);
   if (error) return <ServicesAuthStage variant="state">
@@ -67,10 +67,10 @@ function ApprovalCard({approval, byCode}: {approval: Approval; byCode: boolean})
   const [account, setAccount] = useState<Account>();
   const [decided, setDecided] = useState<Decision | undefined>(() => approval.state === 'declined' ? {state: 'declined', returnUrl: ''} : undefined);
   const {busy, error, run} = useAction();
-  useEffect(() => { void personCall<Account>('GET', '/v1/account').then(setAccount, () => undefined); }, []); // query-read: kept (Portico Services account pages: the person's Portico Account, not a media server document)
+  useEffect(() => { void services.account().then(setAccount, () => undefined); }, []);
   const server = approval.serverName;
   const decide = (approve: boolean) => run(async () => {
-    const answer = await personCall<Decision>('POST', `/v1/approvals/${encodeURIComponent(approval.id)}/decision`, {approve});
+    const answer = await services.decideApproval(approval.id, approve);
     setDecided(answer);
     // By link the browser carries the approval back to the server that asked; by code the server
     // asks Services itself, so this device stays here.
@@ -108,6 +108,6 @@ function ApprovalCard({approval, byCode}: {approval: Approval; byCode: boolean})
       {!final && <Button variant="primary" loading={busy} onClick={() => void decide(true)()}>{t('next.account.approve.approve')}</Button>}
       <Button disabled={busy} onClick={() => void decide(false)()}>{t('next.account.approve.decline')}</Button>
     </ServicesActions>
-    <AuthLinks><button type="button" disabled={busy} onClick={() => void signOut()}>{t('next.account.approve.notYou')}</button></AuthLinks>
+    <AuthLinks><button type="button" disabled={busy} onClick={() => void services.signOut()}>{t('next.account.approve.notYou')}</button></AuthLinks>
   </ServicesAuthStage>;
 }

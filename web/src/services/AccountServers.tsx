@@ -4,11 +4,9 @@ import {ServicesNotice} from '../kit/accounts/ServicesAuth';
 import {Button} from '../kit/controls';
 import {Dialog} from '../kit/overlays';
 import {servicesI18n} from './i18n';
-import {personCall} from './account-session';
-import {envelopePayload} from './services-api';
+import {account} from './account-session';
+import type {ListedServer as Listed} from '@core/portico-account.ts';
 import {problemMessage} from './account-problem';
-
-type Listed = Readonly<{serverId: string; name: string; role: string; owner: boolean}>;
 
 /** The account's servers, from its signed server list. A member can leave one; the owner can
  * remove one that is gone. Opening a server is the server chooser's job, not this page's. */
@@ -18,8 +16,7 @@ export function AccountServers() {
   const [asking, setAsking] = useState<Listed>(), [busy, setBusy] = useState(false), [dialogError, setDialogError] = useState<unknown>();
   const load = useCallback(async () => {
     try {
-      const answer = await personCall<{list: {payload: string}}>('GET', '/v1/servers'); // query-read: kept (Portico Services account pages: the person's Portico Account, not a media server document)
-      setServers(envelopePayload<{servers: Listed[]}>(answer.list).servers);
+      setServers(await account.servers());
     } catch (caught) { setError(caught); }
   }, []);
   useEffect(() => { void load(); }, [load]);
@@ -27,7 +24,7 @@ export function AccountServers() {
     if (!asking) return;
     setBusy(true); setDialogError(undefined);
     try {
-      await personCall('DELETE', asking.owner ? `/v1/servers/${encodeURIComponent(asking.serverId)}` : `/v1/servers/${encodeURIComponent(asking.serverId)}/membership`);
+      await (asking.owner ? account.removeServer(asking.serverId) : account.leaveServer(asking.serverId));
       setAsking(undefined);
       await load();
     } catch (caught) { setDialogError(caught); } finally { setBusy(false); }

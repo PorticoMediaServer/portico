@@ -4,8 +4,8 @@ import {ServicesActions, ServicesAuthStage, ServicesHeading, ServicesLead, Servi
 import {Button, TextField} from '../kit/controls';
 import {goTo} from '../platform/hosted-navigation';
 import {servicesI18n} from './i18n';
-import {accountSession} from './account-session';
-import {servicesCall, ServicesError, type Tokens} from './services-api';
+import {account} from './account-session';
+import {ServicesError} from './services-api';
 import {problemMessage} from './account-problem';
 import styles from './services.module.css';
 
@@ -20,8 +20,7 @@ export function AccountTwoStep({challenge, next, onGone}: {challenge: string; ne
     if (busy) return;
     setBusy(true); setError(undefined);
     try {
-      const answer = await servicesCall<{tokens: Tokens}>('POST', '/v1/sessions/two-step', {challengeId: challenge, code: code.trim()}, {create: true});
-      accountSession.keep(answer.tokens);
+      await account.finishTwoStep(challenge, code.trim());
       goTo(next, {replace: true});
     } catch (caught) {
       if (caught instanceof ServicesError && caught.code === 'challenge_gone') { onGone(); return; }

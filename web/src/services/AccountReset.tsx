@@ -4,8 +4,7 @@ import {ServicesActions, ServicesAuthStage, ServicesHeading, ServicesLabel, Serv
 import {Button, TextField} from '../kit/controls';
 import {goTo} from '../platform/hosted-navigation';
 import {servicesI18n} from './i18n';
-import {accountSession} from './account-session';
-import {servicesCall} from './services-api';
+import {account, accountSession} from './account-session';
 import {problemField, problemMessage} from './account-problem';
 import {codeInput, useAction} from './AccountSignUp';
 import {signInPath} from './AccountSignIn';
@@ -31,7 +30,7 @@ export function AccountReset({next}: {next: string}) {
     <ServicesHeading>{t('next.account.reset.title')}</ServicesHeading>
     <ServicesLead>{t('next.account.reset.lead')}</ServicesLead>
     {problem}
-    <form className={styles.form} onSubmit={run(async () => { await servicesCall('POST', '/v1/password-reset', {email}); setSent(true); })}>
+    <form className={styles.form} onSubmit={run(async () => { await account.askPasswordReset(email); setSent(true); })}>
       <TextField variant="auth" label={t('next.account.reset.email')} name="email" type="email" autoComplete="email" value={email} onChange={event => setEmail(event.currentTarget.value)} error={problemField(error) ? t(problemMessage(error, 'reset')) : undefined} disabled={busy} required autoFocus />
       <ServicesActions><Button variant="primary" type="submit" loading={busy} disabled={!email.trim()}>{t('next.account.reset.send')}</Button></ServicesActions>
     </form>
@@ -39,7 +38,7 @@ export function AccountReset({next}: {next: string}) {
     {back}
   </ServicesAuthStage>;
   const finish = run(async () => {
-    const answer = await servicesCall<{providers: string[]}>('POST', '/v1/password-reset/confirm', {email, code, password});
+    const answer = await account.finishPasswordReset(email, code, password);
     accountSession.forget();
     setProviders(answer.providers ?? []);
   });
@@ -53,7 +52,7 @@ export function AccountReset({next}: {next: string}) {
       <div><AuthPasswordField label={<ServicesLabel detail={t('next.account.signUp.passwordRule')}>{t('next.account.reset.newPassword')}</ServicesLabel>} name="new-password" autoComplete="new-password" value={password} onChange={event => setPassword(event.currentTarget.value)} error={problemField(error) ? t(problemMessage(error, 'reset')) : undefined} disabled={busy} required /><ServicesStrength password={password} id="reset-strength" /></div>
       <ServicesActions><Button variant="primary" type="submit" loading={busy} disabled={code.length !== 9 || [...password].length < 8}>{t('next.account.reset.submit')}</Button></ServicesActions>
     </form>
-    <AuthLinks><button type="button" disabled={busy} onClick={() => void run(async () => { await servicesCall('POST', '/v1/password-reset', {email}); })()}>{t('next.account.confirm.resend')}</button></AuthLinks>
+    <AuthLinks><button type="button" disabled={busy} onClick={() => void run(async () => { await account.askPasswordReset(email); })()}>{t('next.account.confirm.resend')}</button></AuthLinks>
     {back}
   </ServicesAuthStage>;
 }

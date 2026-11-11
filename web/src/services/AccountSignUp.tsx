@@ -4,8 +4,8 @@ import {ServicesActions, ServicesAuthStage, ServicesHeading, ServicesLabel, Serv
 import {Button, TextField} from '../kit/controls';
 import {goTo} from '../platform/hosted-navigation';
 import {servicesI18n} from './i18n';
-import {accountSession} from './account-session';
-import {servicesCall, thisDevice, type Tokens} from './services-api';
+import {account} from './account-session';
+import {thisDevice} from './services-api';
 import {problemField, problemMessage} from './account-problem';
 import {forgetSignUp, rememberSignUp, signUpInProgress} from './account-sign-up-memory';
 import {ProviderButtons} from './AccountProviders';
@@ -37,7 +37,7 @@ export function AccountSignUp({next}: {next: string}) {
   const field = problemField(error);
   const fieldError = (name: string) => field === name ? t(problemMessage(error, 'signUp')) : undefined;
   const submit = run(async () => {
-    const answer = await servicesCall<{accountId: string; email: string}>('POST', '/v1/accounts', {email, username, password, displayName: name}, {create: true});
+    const answer = await account.signUp({email, username, password, displayName: name});
     rememberSignUp({accountId: answer.accountId, email: answer.email, next});
     goTo(`/sign-up/confirm?next=${encodeURIComponent(next)}`);
   });
@@ -76,13 +76,12 @@ export function AccountConfirm({next}: {next: string}) {
     <ServicesActions><Button variant="primary" onClick={() => goTo(signInPath(next), {replace: true})}>{t('next.account.signIn.submit')}</Button></ServicesActions>
   </ServicesAuthStage>;
   const confirm = run(async () => {
-    const answer = await servicesCall<{tokens: Tokens}>('POST', '/v1/accounts/confirm', {accountId: signUp.accountId, code, device: thisDevice()});
+    await account.confirmSignUp(signUp.accountId, code, thisDevice());
     forgetSignUp();
-    accountSession.keep(answer.tokens);
     goTo(signUp.next ?? next, {replace: true});
   });
   const resend = run(async () => {
-    await servicesCall('POST', '/v1/accounts/confirm/resend', {accountId: signUp.accountId});
+    await account.resendConfirmation(signUp.accountId);
     setResent(true);
   });
   return <ServicesAuthStage variant="reset">

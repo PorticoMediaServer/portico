@@ -227,11 +227,11 @@ test('a sign-in that has run out is renewed before the call, and one ended elsew
   session.accountSession.keep({...tokens, expiresAt: new Date(Date.now() - 1000).toISOString()});
   routes['POST /v1/sessions/refresh'] = () => [200, {...tokens, accessToken: 'pat_renewed'}];
   routes['GET /v1/account'] = () => [200, {username: 'ada'}];
-  await session.personCall('GET', '/v1/account');
+  await session.account.account();
   assert.equal(calls.at(-1).headers.Authorization, 'Bearer pat_renewed');
   routes['GET /v1/account'] = () => [401, refusal('signed_out')];
   routes['POST /v1/sessions/refresh'] = () => [401, refusal('signed_out')];
-  await assert.rejects(session.personCall('GET', '/v1/account'));
+  await assert.rejects(session.account.account());
   assert.equal(session.accountSession.signedIn(), false);
 });
 

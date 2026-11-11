@@ -4,14 +4,15 @@ import {ServicesActions, ServicesAuthStage, ServicesDivider, ServicesHeading, Se
 import {Button, TextField} from '../kit/controls';
 import {goTo} from '../platform/hosted-navigation';
 import {servicesI18n} from './i18n';
-import {accountSession, personCall} from './account-session';
-import {servicesCall, ServicesError, thisDevice, type Tokens} from './services-api';
+import {account} from './account-session';
+import {ServicesError, thisDevice} from './services-api';
 import {problemField, problemMessage} from './account-problem';
 import {AccountTwoStep} from './AccountTwoStep';
 import {signInPath} from './AccountSignIn';
 import styles from './services.module.css';
 
-export type Provider = 'google' | 'apple';
+export type {Provider} from '@core/portico-account.ts';
+import type {Provider} from '@core/portico-account.ts';
 /** A browser sign-in out at Google or Apple: the secret only this tab holds (Services has its
  * digest), where to go afterwards, and whether it connects the provider to the signed-in
  * account rather than signing in. */
@@ -27,10 +28,7 @@ function base64url(bytes: Uint8Array): string {
 export async function startProvider(provider: Provider, next: string, proof?: {currentPassword?: string; twoStepCode?: string}): Promise<void> {
   const secret = base64url(crypto.getRandomValues(new Uint8Array(32)));
   const secretHash = base64url(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(secret))));
-  const body = {provider, secretHash, ...proof};
-  const answer = proof
-    ? await personCall<{id: string; authorizeUrl: string}>('POST', '/v1/sessions/provider', body)
-    : await servicesCall<{id: string; authorizeUrl: string}>('POST', '/v1/sessions/provider', body);
+  const answer = await account.startProvider(provider, secretHash, proof);
   sessionStorage.setItem(startedKey(answer.id), JSON.stringify({secret, next, provider, connect: Boolean(proof)} satisfies Started));
   location.assign(answer.authorizeUrl);
 }
@@ -38,7 +36,7 @@ export async function startProvider(provider: Provider, next: string, proof?: {c
 /** Which of Google and Apple this Portico Services offers (`GET /v1/system`), asked once a page. */
 let offered: Promise<readonly string[]> | undefined;
 function offeredProviders(): Promise<readonly string[]> {
-  offered ??= servicesCall<{capabilities?: string[]}>('GET', '/v1/system').then(value => value.capabilities ?? [], () => { offered = undefined; return []; }); // query-read: kept (Portico Services account pages: the person's Portico Account, not a media server document)
+  offered ??= account.capabilities().catch(() => { offered = undefined; return []; });
   return offered;
 }
 
@@ -73,8 +71,6 @@ function providerProblem(error: unknown) {
   return problemMessage(error, 'signIn');
 }
 
-type Completed = {tokens?: Tokens; twoStep?: {challengeId: string}; connected?: Provider; created?: boolean};
-
 /** `/app/account-return#tx=…&code=…`: where Services sends the browser after Google or Apple.
  * The address is read once and scrubbed before anything else, then finished with the secret
  * this tab kept: neither half alone finishes a sign-in. */
@@ -90,10 +86,9 @@ export function AccountProviderReturn({arrival}: {arrival: {id?: string; code?: 
   const finish = async (extra: {username?: string; displayName?: string} = {}) => {
     if (!flow || !arrival.id || !arrival.code) return;
     try {
-      const answer = await servicesCall<Completed>('POST', '/v1/sessions/provider/complete', {id: arrival.id, code: arrival.code, secret: flow.secret, device: thisDevice(), ...extra}, {create: true});
+      const answer = await account.completeProvider(arrival.id, arrival.code, flow.secret, thisDevice(), extra);
       sessionStorage.removeItem(startedKey(arrival.id));
       if (answer.twoStep) { setState({phase: 'twoStep', challenge: answer.twoStep.challengeId}); return; }
-      if (answer.tokens) accountSession.keep(answer.tokens);
       goTo(answer.connected ? `/account?tab=security&connected=${answer.connected}` : flow.next, {replace: true});
     } catch (caught) {
       if (caught instanceof ServicesError && (caught.code === 'username_needed' || caught.code === 'username_taken' || caught.code === 'invalid')) {

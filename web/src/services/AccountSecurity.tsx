@@ -6,8 +6,7 @@ import {Button, TextField} from '../kit/controls';
 import {Dialog} from '../kit/overlays';
 import {goTo} from '../platform/hosted-navigation';
 import {servicesI18n} from './i18n';
-import {accountSession, personCall} from './account-session';
-import {servicesCall} from './services-api';
+import {account as services} from './account-session';
 import {problemMessage} from './account-problem';
 import {startProvider, type Provider} from './AccountProviders';
 import {codeInput} from './AccountSignUp';
@@ -32,7 +31,7 @@ export function AccountSecurity({account, reload}: {account: Account; reload: ()
   const [notice, setNotice] = useState<ReactNode>(() => { const value = new URLSearchParams(location.search).get('connected'); return value === 'google' || value === 'apple' ? t('next.account.security.connectedNotice', {provider: providerName(value)}) : undefined; });
   const [twoStep, setTwoStep] = useState<{on: boolean; recoveryCodesLeft: number}>();
   const [password, setPassword] = useState(''), [code, setCode] = useState(''), [newPassword, setNewPassword] = useState(''), [newEmail, setNewEmail] = useState(''), [emailCode, setEmailCode] = useState('');
-  const loadTwoStep = () => personCall<{on: boolean; recoveryCodesLeft: number}>('GET', '/v1/account/two-step').then(setTwoStep, () => undefined); // query-read: kept (Portico Services account pages: the person's Portico Account, not a media server document)
+  const loadTwoStep = () => services.twoStep().then(setTwoStep, () => undefined);
   useEffect(() => { void loadTwoStep(); }, [account.twoStep]);
   // Back from connecting Google or Apple: say so once, and take the note out of the address.
   const [arrivedConnected] = useState(() => { const value = new URLSearchParams(location.search).get('connected'); return value === 'google' || value === 'apple' ? value : undefined; });
@@ -63,45 +62,44 @@ export function AccountSecurity({account, reload}: {account: Account; reload: ()
     if (!task) return;
     switch (task.kind) {
       case 'password':
-        await personCall('POST', '/v1/account/password', {...proof(), newPassword});
+        await services.changePassword(proof(), newPassword);
         return finish(t('next.account.passwordDialog.done'));
       case 'email': {
-        const answer = await personCall<{email: string}>('POST', '/v1/account/email', {...proof(), newEmail});
+        const answer = await services.askEmailChange(proof(), newEmail);
         await reload();
         setTask({kind: 'emailCode', email: answer.email}); setEmailCode('');
         return;
       }
       case 'emailCode': {
-        const answer = await servicesCall<{email: string}>('POST', '/v1/accounts/confirm', {email: task.email, code: emailCode});
+        const answer = await services.confirmEmailChange(task.email, emailCode);
         return finish(t('next.account.emailDialog.done', {address: answer.email}));
       }
       case 'connect':
         return startProvider(task.provider, '/account?tab=security', proof());
       case 'disconnect':
-        await personCall('DELETE', `/v1/account/providers/${task.provider}`, proof());
+        await services.disconnectProvider(task.provider, proof());
         return finish();
       case 'twoStepOn': {
-        const answer = await personCall<{secret: string; qrAddress: string}>('POST', '/v1/account/two-step', proof());
+        const answer = await services.beginTwoStep(proof());
         setTask({kind: 'scan', secret: answer.secret, uri: answer.qrAddress}); setCode('');
         return;
       }
       case 'scan': {
-        const answer = await personCall<{recoveryCodes: string[]}>('POST', '/v1/account/two-step/confirm', {code: code.trim()});
+        const answer = await services.confirmTwoStep(code.trim());
         setTask({kind: 'codes', codes: answer.recoveryCodes});
         await reload();
         return;
       }
       case 'twoStepOff':
-        await personCall('DELETE', '/v1/account/two-step', proof());
+        await services.turnOffTwoStep(proof());
         return finish();
       case 'newCodes': {
-        const answer = await personCall<{recoveryCodes: string[]}>('POST', '/v1/account/two-step/recovery-codes', proof());
+        const answer = await services.newRecoveryCodes(proof());
         setTask({kind: 'codes', codes: answer.recoveryCodes});
         return;
       }
       case 'delete':
-        await personCall('POST', '/v1/account/delete', proof());
-        accountSession.forget();
+        await services.deleteAccount(proof());
         goTo('/sign-in', {replace: true});
         return;
     }

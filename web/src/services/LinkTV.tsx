@@ -3,7 +3,7 @@ import {AuthLinks} from '../kit/accounts/AuthStage';
 import {ServicesActions, ServicesAuthStage, ServicesHeading, ServicesLead, ServicesNotice, ServicesStateIcon} from '../kit/accounts/ServicesAuth';
 import {Button, TextField} from '../kit/controls';
 import {servicesI18n} from './i18n';
-import {accountSession, personCall} from './account-session';
+import {account as services, accountSession} from './account-session';
 import {ServicesError} from './services-api';
 import {problemMessage} from './account-problem';
 import {AccountSignIn} from './AccountSignIn';
@@ -41,7 +41,7 @@ function SignedInLinkTV() {
   const [code, setCode] = useState(() => fromAddress ?? ''), [found, setFound] = useState<Found>();
   const {busy, error, setError, run} = useAction();
   const lookup = (value: string, fromLink: boolean) => run(async () => {
-    const answer = await personCall<{id: string; device: {name: string; kind: string}}>('POST', '/v1/tv-codes/lookup', {code: value});
+    const answer = await services.lookupTV(value);
     setFound({...answer, code: value, fromLink});
   });
   // A code from the address is looked up at once: the person still sees it, with the warning
@@ -79,7 +79,7 @@ function TVDecision({found, onAnother}: {found: Found; onAnother: () => void}) {
   const {t} = servicesI18n();
   const [account, setAccount] = useState<string>(), [answer, setAnswer] = useState<'approved' | 'denied'>(), [canDeny, setCanDeny] = useState(true);
   const {busy, error, run} = useAction();
-  useEffect(() => { void personCall<{username: string}>('GET', '/v1/account').then(value => setAccount(value.username), () => undefined); }, []); // query-read: kept (Portico Services account pages: the person's Portico Account, not a media server document)
+  useEffect(() => { void services.account().then(value => setAccount(value.username), () => undefined); }, []);
   // The person who approved may still deny until the TV collects its sign-in, which it does
   // within seconds; after that a denial would only be refused.
   useEffect(() => {
@@ -88,7 +88,7 @@ function TVDecision({found, onAnother}: {found: Found; onAnother: () => void}) {
     return () => clearTimeout(timer);
   }, [answer]);
   const decide = (approve: boolean) => run(async () => {
-    await personCall('POST', `/v1/tv-codes/${encodeURIComponent(found.id)}/decision`, {approve});
+    await services.decideTV(found.id, approve);
     setAnswer(approve ? 'approved' : 'denied');
   });
   const name = plain(found.device.name, 40), kind = plain(found.device.kind, 20);

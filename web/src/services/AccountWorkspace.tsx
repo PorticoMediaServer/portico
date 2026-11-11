@@ -5,7 +5,7 @@ import {ProfileAvatarFace} from '../kit/shell/AccountSurfaces';
 import {Button} from '../kit/controls';
 import {goTo} from '../platform/hosted-navigation';
 import {servicesI18n} from './i18n';
-import {accountSession, personCall, signOut} from './account-session';
+import {account as services, accountSession} from './account-session';
 import {problemMessage} from './account-problem';
 import {AccountSignIn} from './AccountSignIn';
 import {AccountDevices} from './AccountDevices';
@@ -33,7 +33,7 @@ function SignedInWorkspace() {
   const {t} = servicesI18n();
   const [account, setAccount] = useState<Account>(), [error, setError] = useState<unknown>(), [section, setSection] = useState(() => sectionOf(location.search));
   const reload = useCallback(async () => {
-    try { setAccount(await personCall<Account>('GET', '/v1/account')); setError(undefined); } catch (caught) { setError(caught); } // query-read: kept (Portico Services account pages: the person's Portico Account, not a media server document)
+    try { setAccount(await services.account()); setError(undefined); } catch (caught) { setError(caught); }
   }, []);
   useEffect(() => { void reload(); }, [reload]);
   useEffect(() => {
@@ -52,7 +52,7 @@ function SignedInWorkspace() {
   const initial = Array.from(name)[0]?.toLocaleUpperCase() ?? '';
   const lead: Record<ServicesSection, ReactNode> = {devices: t('next.account.workspace.devicesLead'), security: t('next.account.workspace.securityLead'), servers: t('next.account.workspace.serversLead'), notifications: null};
   return <ServicesWorkspace header={<ServicesHeader notifications={false} avatar={<ProfileAvatarFace initial={initial} size={40} />} />}
-    account={{name, email: account.email, initial}} section={section} onSection={open} shown={shown} onSignOut={() => void signOut()} description={lead[section]}>
+    account={{name, email: account.email, initial}} section={section} onSection={open} shown={shown} onSignOut={() => void services.signOut()} description={lead[section]}>
     {section === 'devices' ? <AccountDevices /> : section === 'servers' ? <AccountServers /> : <AccountSecurity account={account} reload={reload} />}
   </ServicesWorkspace>;
 }
