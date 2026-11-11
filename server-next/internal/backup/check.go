@@ -14,6 +14,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/artwork"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/diskspace"
 )
 
 // Checking a backup whole, before it is restored. A backup that fails any part of the check is
@@ -32,9 +33,6 @@ type Contents struct {
 type ErrDamaged struct{ Reason string }
 
 func (e *ErrDamaged) Error() string { return "this backup cannot be restored: " + e.Reason }
-
-// maxEntry bounds one entry of an archive, so a crafted archive cannot fill the disk.
-const maxEntry = 1 << 40
 
 // Inspect checks the archive at path whole. scratch is a folder it may write the database
 // to while checking it; nothing is left there.
@@ -66,11 +64,16 @@ func Inspect(ctx context.Context, archivePath, scratch string) (Contents, error)
 		if err != nil {
 			return out, &ErrDamaged{"it is cut short or damaged"}
 		}
-		if h.Typeflag != tar.TypeReg || h.Size < 0 || h.Size > maxEntry {
+		if h.Typeflag != tar.TypeReg || h.Size < 0 {
 			return out, &ErrDamaged{fmt.Sprintf("it holds %q, which is not a file a backup holds", h.Name)}
 		}
 		switch kind := entryKind(h.Name); kind {
 		case "database":
+			// The database is unpacked to be checked: one larger than the free space there
+			// is refused rather than filling the disk.
+			if free, err := diskspace.Free(scratch); err == nil && h.Size > free {
+				return out, fmt.Errorf("the data folder's disk has too little free space to check this backup")
+			}
 			if out.Database {
 				return out, &ErrDamaged{"it holds two databases"}
 			}
