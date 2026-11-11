@@ -294,3 +294,72 @@ func TestADownloadAddressDoesNotLiveForEver(t *testing.T) {
 		t.Fatalf("after a week of steady use the address answered %d; want 404", res.StatusCode)
 	}
 }
+
+// A device reaching the server learns what to fetch and that its downloads play for 30 more
+// days. When its profile may no longer see a title, the device is told to remove that one;
+// when Downloads is turned off for the profile, everything, and it may not ask again.
+func TestADeviceIsToldToRemoveWhatItsProfileLost(t *testing.T) {
+	rig := newDownloadRig(t)
+	var partner Profile
+	call(t, rig.s, "POST", "/v1/profiles", rig.owner, ProfileCreate{Name: "Partner"}, &partner)
+	var onPartner Session
+	call(t, rig.s, "POST", "/v1/profiles/"+partner.ID+"/select", signIn(t, rig.s, 2).Session.AccessToken, ProfileSelect{}, &onPartner)
+	token := onPartner.AccessToken
+	code, dl := rig.ask(token, DownloadAsk{ItemID: rig.film, Quality: "original"})
+	if code != 201 {
+		t.Fatalf("asking answered %d", code)
+	}
+	sync := func(holds ...HeldTitle) DownloadSyncReply {
+		t.Helper()
+		var out DownloadSyncReply
+		if w := call(t, rig.s, "POST", "/v1/downloads/sync", token, DownloadSync{Holds: holds}, &out); w.Code != 200 {
+			t.Fatalf("syncing answered %d: %s", w.Code, w.Body)
+		}
+		return out
+	}
+	held := HeldTitle{DownloadID: dl.ID, ItemID: rig.film}
+	first := sync()
+	if len(first.Fetch) != 1 || first.Fetch[0] != held || first.PlayableForMs != 30*24*3_600_000 ||
+		first.PlayableUntil.Before(time.Now().Add(29*24*time.Hour)) {
+		t.Fatalf("a device holding nothing was told %+v", first)
+	}
+	if again := sync(held); len(again.Fetch) != 0 || len(again.Remove) != 0 {
+		t.Fatalf("a device holding its download was told %+v", again)
+	}
+	// A title that has left the server keeps playing: nothing says to remove it.
+	if gone := sync(held, HeldTitle{DownloadID: dl.ID, ItemID: "itm_gone"}); len(gone.Remove) != 0 {
+		t.Fatalf("a title no longer on the server was removed: %+v", gone.Remove)
+	}
+
+	limit := 12
+	restrictions := "/v1/profiles/" + partner.ID + "/restrictions"
+	call(t, rig.s, "PUT", restrictions, rig.owner, Restrictions{MaxRatingAge: &limit, AllLibraries: true}, nil)
+	if lost := sync(held); len(lost.Remove) != 1 || lost.Remove[0].Reason != "no_access" || len(lost.Fetch) != 0 {
+		t.Fatalf("a device whose profile lost the film was told %+v", lost)
+	}
+
+	off := false
+	var saved Restrictions
+	call(t, rig.s, "PUT", restrictions, rig.owner, Restrictions{AllLibraries: true, AllowDownloads: &off}, &saved)
+	if saved.AllowDownloads == nil || *saved.AllowDownloads || !saved.AccountAllowDownloads {
+		t.Fatalf("turning Downloads off for the profile saved %+v", saved)
+	}
+	if offNow := sync(held); len(offNow.Remove) != 1 || offNow.Remove[0].Reason != "downloads_off" {
+		t.Fatalf("a device whose profile may no longer download was told %+v", offNow)
+	}
+	if code, _ := rig.ask(token, DownloadAsk{ItemID: rig.film, Quality: "original"}); code != 403 {
+		t.Fatalf("asking with Downloads off answered %d", code)
+	}
+
+	// The owner sees the request by person and removes it; no device is reached.
+	byPerson := get[DownloadsByPerson](t, rig.s, rig.owner, "/v1/admin/downloads")
+	if len(byPerson.Items) != 1 || byPerson.Items[0].Titles != 1 {
+		t.Fatalf("the owner's page lists %+v", byPerson.Items)
+	}
+	if w := call(t, rig.s, "DELETE", "/v1/admin/members/"+byPerson.Items[0].UserID+"/downloads", rig.owner, nil, nil); w.Code != 204 {
+		t.Fatalf("removing their downloads answered %d", w.Code)
+	}
+	if after := get[DownloadsByPerson](t, rig.s, rig.owner, "/v1/admin/downloads"); len(after.Items) != 0 {
+		t.Fatalf("their downloads were kept: %+v", after.Items)
+	}
+}
