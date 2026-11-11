@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"sync/atomic"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/dlna"
@@ -18,10 +17,6 @@ type toolsArea struct {
 	// remoteAccessDoc is the remote-access settings, and dlna the DLNA server they switch. See dlna.go.
 	remoteAccessDoc remoteAccessState
 	dlna            *dlna.Server
-	// silentProxySeen says DLNA has served a request from a trusted proxy that passed on no
-	// visitor's address since the server started; the remote-access settings warn about it.
-	// (The record #2328 keeps of such a proxy replaces this once both are on main.)
-	silentProxySeen atomic.Bool
 }
 
 // startTools builds this area's services and registers its routes and job kinds. New calls it

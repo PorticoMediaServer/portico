@@ -105,7 +105,8 @@ func (s *Server) dlnaRoutes() {
 		// From home by the server's own rule, and never from this machine's loopback, where a
 		// proxy on the same machine that passes on no visitor's address would make the whole
 		// internet look like this machine. A proxy the owner listed that passes on no address is
-		// served (the owner's ruling, 11 November), and the settings warn about it from then on.
+		// served (the owner's ruling, 11 November), and noted as the network settings note it, so
+		// the remote-access settings name it in their warning for a day after.
 		FromHome: func(r *http.Request) bool {
 			n := s.networks()
 			from, ok := n.Client(r)
@@ -114,7 +115,7 @@ func (s *Server) dlnaRoutes() {
 			}
 			silent := (auth.Networks{Home: n.Proxies}).AtHome(from)
 			if silent && n.AtHome(from) {
-				s.silentProxySeen.Store(true)
+				s.noteSilentProxy(peerAddr(r))
 				return true
 			}
 			return n.FromHome(r)
@@ -233,16 +234,35 @@ func checkNames(typed []string) ([]string, error) {
 }
 
 // dlnaWarning is the warning for the owner while DLNA is on with a home list that takes in the
-// whole internet, and "" otherwise.
+// whole internet or a trusted proxy has passed DLNA requests on with no visitor's address in the
+// last day (each such proxy named), and "" otherwise.
 func (s *Server) dlnaWarning(on bool) string {
 	var warnings []string
 	if networks, stored := s.network.current(s.now()); on && stored.Home != nil && coversEverything(networks.Home) {
 		warnings = append(warnings, "Your home networks include the whole internet, so DLNA shares every original file with anyone on the "+
 			"internet who can reach this server, with no sign-in.")
 	}
-	if on && s.silentProxySeen.Load() {
-		warnings = append(warnings, "A trusted proxy is passing DLNA requests on without saying who sent them, so anyone who can reach "+
-			"that proxy can read every original file, with no sign-in.")
+	for _, proxy := range s.silentProxies() {
+		if on {
+			warnings = append(warnings, "The trusted proxy at "+proxy+" is passing DLNA requests on without saying who sent them, so "+
+				"anyone who can reach that proxy can read every original file, with no sign-in.")
+		}
 	}
 	return strings.Join(warnings, " ")
+}
+
+// silentProxies are the trusted proxies seen passing on no visitor's address in the last day,
+// from the record the network settings warn from.
+func (s *Server) silentProxies() []string {
+	now := s.now()
+	s.network.mu.Lock()
+	defer s.network.mu.Unlock()
+	var out []string
+	for proxy, at := range s.network.silent {
+		if now.Sub(at) <= silentProxyFor {
+			out = append(out, proxy)
+		}
+	}
+	slices.Sort(out)
+	return out
 }
