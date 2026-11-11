@@ -22,8 +22,9 @@ import (
 //	parts/{path}   one part of an EPUB, named in the book's own package document
 //	pages/{n}      one page of a comic, counting from 0, no wider than w when w is given
 //
-// An address that was altered, has ended, or names a file the scanner no longer has is the
-// same hidden "not found". A file changed since the address was given is "book changed", and
+// An address that was altered, has ended, whose sign-in has ended or changed, whose profile may
+// no longer see the book, or that names a file the scanner no longer has is the same hidden
+// "not found". A file changed since the address was given is "book changed", and
 // the app opens the book again.
 func (s *Service) ServeMedia(w http.ResponseWriter, r *http.Request, token, file string) {
 	g, ok := s.parse(token)
@@ -32,6 +33,15 @@ func (s *Service) ServeMedia(w http.ResponseWriter, r *http.Request, token, file
 		return
 	}
 	ctx := r.Context()
+	ok, maySave, err := s.allowed(ctx, token, g)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "Something went wrong.")
+		return
+	}
+	if !ok {
+		writeError(w, http.StatusNotFound, "not_found", "This is not available.")
+		return
+	}
 	place, err := s.db.FileOnDisk(ctx, g.fileID)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "not_found", "This is not available.")
@@ -63,7 +73,7 @@ func (s *Service) ServeMedia(w http.ResponseWriter, r *http.Request, token, file
 	switch {
 	case file == "source":
 		save := r.URL.Query().Get("save") == "1"
-		if (save || format != FormatPDF) && !g.save {
+		if (save || format != FormatPDF) && !maySave {
 			writeError(w, http.StatusForbidden, "not_permitted", "This profile can't save books.")
 			return
 		}
@@ -171,9 +181,10 @@ func fileType(format string) string {
 }
 
 func writeError(w http.ResponseWriter, status int, code, message string) {
+	retry := false
 	w.Header().Del("Content-Security-Policy")
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(map[string]any{"error": map[string]any{"code": code, "message": message, "retry": false}})
+	json.NewEncoder(w).Encode(map[string]any{"error": map[string]any{"code": code, "message": message, "retry": retry}})
 }

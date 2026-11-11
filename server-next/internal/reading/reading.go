@@ -39,9 +39,10 @@ var (
 	ErrUnavailable = errors.New("This book's file can't be reached.")
 )
 
-// grantLifetime is how long a book's address works. An app whose address has ended asks for
-// the book again and carries on at the same page.
-const grantLifetime = 24 * time.Hour
+// grantLifetime is how long a book's address works. It ends sooner with the sign-in that asked
+// for it. An app whose address has ended asks for the book again, which gives it a new one,
+// and carries on at the same page.
+const grantLifetime = 4 * time.Hour
 
 // Service opens books.
 type Service struct {
@@ -51,12 +52,23 @@ type Service struct {
 
 	mu    sync.Mutex
 	books map[string]*epub // EPUB package documents already read, by file and fingerprint
+	// checked remembers, for a few seconds, that an address's profile may still see its book,
+	// so a page turn costs no database read. See allowed.
+	checked map[string]checked
+}
+
+// Reader is who asked for a book: the sign-in, the stamp of the token it asked with, and the
+// profile. A book's address is good only while all three still hold.
+type Reader struct {
+	SessionID int64
+	Stamp     db.TokenStamp
+	db.Viewer
 }
 
 // New makes the service. key signs the addresses it hands out; it is kept by the server so
 // an address still works after a restart.
 func New(d *db.DB, key string, now func() time.Time) *Service {
-	return &Service{db: d, key: []byte(key), now: now, books: map[string]*epub{}}
+	return &Service{db: d, key: []byte(key), now: now, books: map[string]*epub{}, checked: map[string]checked{}}
 }
 
 // Opened is a book as its reader needs it.
@@ -114,10 +126,10 @@ func Choose(book db.Book, version string) (db.BookVersion, bool) {
 
 // Open reads what a reader needs to know about one version of a book before it asks for any
 // part of it. A book that cannot be read says why in Problem, and can still be saved.
-func (s *Service) Open(ctx context.Context, book db.Book, v db.BookVersion) Opened {
+func (s *Service) Open(ctx context.Context, who Reader, book db.Book, v db.BookVersion) Opened {
 	out := Opened{Version: v, Format: Format(v.FileName), Fingerprint: Fingerprint(v.Size, v.ModifiedNS)}
 	if v.Path != "" {
-		g := grant{fileID: v.FileID, save: book.MaySave, expires: s.now().Add(grantLifetime).Unix()}
+		g := grant{fileID: v.FileID, itemID: book.ID, reader: who, expires: s.now().Add(grantLifetime).Unix()}
 		copy(g.fingerprint[:], fingerprintBytes(v.Size, v.ModifiedNS))
 		out.MediaURL = "/v1/media/" + s.sign(g)
 		if book.MaySave {
@@ -203,15 +215,20 @@ func (s *Service) withArchive(ctx context.Context, v db.BookVersion, fn func(*ar
 // ErrChanged says the file is no longer the one the reader was given; the app opens the book again.
 var ErrChanged = errors.New("This book changed.")
 
-// grant is what a book's address carries: which file, which exact copy of it, whether the
-// holder may save it, and until when. It is signed, so it cannot be altered or made up, and
-// needs nothing kept in memory: an address still works after a restart.
+// grant is what a book's address carries: which book and file, which exact copy of it, who
+// asked (the sign-in, its token's stamp and the profile), and until when. It is signed, so it
+// cannot be altered or made up. Every request through it checks that the sign-in still holds
+// and that the profile may still see the book, so an address dies with its sign-in and with the
+// profile's right to the book, and one that leaks is worth no more than the sign-in it came from.
 type grant struct {
 	fileID      int64
+	itemID      int64
 	fingerprint [8]byte
-	save        bool
+	reader      Reader
 	expires     int64
 }
+
+const grantLen = 8*8 + 8 // seven numbers, the fingerprint and the expiry
 
 func fingerprintBytes(size, modifiedNS int64) []byte {
 	raw, _ := hex.DecodeString(Fingerprint(size, modifiedNS))
@@ -225,14 +242,12 @@ const grantPrefix = "b."
 func IsGrant(token string) bool { return strings.HasPrefix(token, grantPrefix) }
 
 func (s *Service) sign(g grant) string {
-	payload := make([]byte, 0, 25+16)
-	payload = binary.BigEndian.AppendUint64(payload, uint64(g.fileID))
-	payload = append(payload, g.fingerprint[:]...)
-	flag := byte(0)
-	if g.save {
-		flag = 1
+	payload := make([]byte, 0, grantLen+16)
+	for _, n := range []int64{g.fileID, g.itemID, g.reader.SessionID, g.reader.Stamp.Boot, g.reader.Stamp.Seq, g.reader.UserID,
+		g.reader.ProfileID} {
+		payload = binary.BigEndian.AppendUint64(payload, uint64(n))
 	}
-	payload = append(payload, flag)
+	payload = append(payload, g.fingerprint[:]...)
 	payload = binary.BigEndian.AppendUint64(payload, uint64(g.expires))
 	return grantPrefix + base64.RawURLEncoding.EncodeToString(append(payload, s.mac(payload)...))
 }
@@ -247,10 +262,50 @@ func (s *Service) mac(payload []byte) []byte {
 // parse checks a book address. One that was altered, made up or has ended is not a grant.
 func (s *Service) parse(token string) (grant, bool) {
 	raw, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(token, grantPrefix))
-	if !IsGrant(token) || err != nil || len(raw) != 25+16 || !hmac.Equal(raw[25:], s.mac(raw[:25])) {
+	if !IsGrant(token) || err != nil || len(raw) != grantLen+16 || !hmac.Equal(raw[grantLen:], s.mac(raw[:grantLen])) {
 		return grant{}, false
 	}
-	g := grant{fileID: int64(binary.BigEndian.Uint64(raw)), save: raw[16] == 1, expires: int64(binary.BigEndian.Uint64(raw[17:]))}
-	copy(g.fingerprint[:], raw[8:16])
+	n := func(i int) int64 { return int64(binary.BigEndian.Uint64(raw[i*8:])) }
+	g := grant{fileID: n(0), itemID: n(1), reader: Reader{SessionID: n(2), Stamp: db.TokenStamp{Boot: n(3), Seq: n(4)},
+		Viewer: db.Viewer{UserID: n(5), ProfileID: n(6)}}, expires: n(8)}
+	copy(g.fingerprint[:], raw[56:64])
 	return g, s.now().Unix() < g.expires
+}
+
+// checkFor is how long the answer to "may this profile still see this book" is reused. A
+// profile that loses a book stops reading it within this time.
+const checkFor = 5 * time.Second
+
+type checked struct {
+	maySave bool
+	until   time.Time
+}
+
+// allowed reports whether an address may still be used, and whether its profile may save the
+// file. The sign-in is checked every time, in memory: ended, signed out, or changed since the
+// address was given (another profile chosen, access or role changed) all end the address. The
+// profile's right to the book, and to download, is read from the database at most once every
+// few seconds per address.
+func (s *Service) allowed(ctx context.Context, token string, g grant) (ok, maySave bool, err error) {
+	if g.reader.SessionID == 0 || s.db.TokenRefused(g.reader.SessionID, g.reader.Stamp) {
+		return false, false, nil
+	}
+	now := s.now()
+	s.mu.Lock()
+	c, found := s.checked[token]
+	s.mu.Unlock()
+	if found && now.Before(c.until) {
+		return true, c.maySave, nil
+	}
+	visible, maySave, err := s.db.BookAccess(ctx, g.reader.Viewer, g.itemID, g.fileID)
+	if err != nil || !visible {
+		return false, false, err
+	}
+	s.mu.Lock()
+	if len(s.checked) >= 10_000 {
+		clear(s.checked)
+	}
+	s.checked[token] = checked{maySave: maySave, until: now.Add(checkFor)}
+	s.mu.Unlock()
+	return true, maySave, nil
 }
