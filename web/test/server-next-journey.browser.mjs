@@ -45,7 +45,8 @@ if (seedBin) execFileSync(seedBin, ['-db', join(data, 'main.db'), '-items', '300
 const serverPort = await freePort(), serverOrigin = `http://127.0.0.1:${serverPort}`;
 let server;
 async function startServer() {
-  server = spawn(serverBin, ['-data', data, '-listen', `127.0.0.1:${serverPort}`], {stdio: 'ignore'});
+  // The server would look titles up at the real TMDB; a check never does. Port 9 on this machine answers nobody.
+  server = spawn(serverBin, ['-data', data, '-listen', `127.0.0.1:${serverPort}`], {stdio: 'ignore', env: {...process.env, PORTICO_TMDB_ORIGIN: process.env.PORTICO_TMDB_ORIGIN ?? 'http://127.0.0.1:9'}});
   await until('The server starting', async () => (await fetch(serverOrigin + '/v1/system')).ok);
 }
 async function stopServer() {
