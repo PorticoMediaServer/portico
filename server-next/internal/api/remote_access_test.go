@@ -257,3 +257,18 @@ func TestRiskyChoicesAreWarnedAndAllowed(t *testing.T) {
 		t.Fatalf("the warnings are %q", got)
 	}
 }
+
+// Naming certificate files the Keys folder does not hold is saved, and the owner's status
+// says plainly what is missing.
+func TestOwnCertificateStatus(t *testing.T) {
+	s := newTestServer(t)
+	owner := onMain(t, s, setup(t, s)).AccessToken
+	saveRemote(t, s, owner, func(v *RemoteAccessSettings) {
+		v.OwnAddress = OwnAddress{Enabled: true, Domain: "media.example.com", CertificateFile: "fullchain.pem", KeyFile: "privkey.pem"}
+	})
+	var status RemoteAccessStatus
+	call(t, s, "GET", "/v1/admin/remote-access", owner, nil, &status)
+	if status.Certificate.State != "problem" || status.Certificate.Problem != "The certificate file fullchain.pem is not in the Keys folder." {
+		t.Fatalf("the certificate status is %+v", status.Certificate)
+	}
+}
