@@ -285,6 +285,21 @@ func (s *Server) setupPorticoFinish(r *http.Request, req SetupPorticoFinish) (Si
 	return s.signedIn(ctx, st, now, refresh)
 }
 
+// errPorticoOnly refuses giving anyone a password on a server that uses Portico Accounts, where
+// nobody has one: people sign in, and join, with their Portico Account.
+func errPorticoOnly() *Error {
+	return ErrConflict("portico_accounts_only", "People sign in to this server with their Portico Account, so it keeps no passwords.")
+}
+
+// refuseOnPortico refuses a route that makes or sets a password on a Portico Accounts server.
+func (s *Server) refuseOnPortico(r *http.Request) error {
+	kind, err := s.signInKind(r.Context())
+	if err == nil && kind == "portico" {
+		return errPorticoOnly()
+	}
+	return err
+}
+
 // signInKind is the server's kind of sign-in: "portico" when it uses Portico Accounts,
 // otherwise "local".
 func (s *Server) signInKind(ctx context.Context) (string, error) {
