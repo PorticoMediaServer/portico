@@ -40,7 +40,7 @@ func TestStorageSizesAreReused(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "main.db")
 	s := openTestServer(t, path)
 	clock := time.Now()
-	s.now = func() time.Time { return clock }
+	s.setClock(func() time.Time { return clock })
 	owner := onMainProfile(t, s).AccessToken
 	read := func() Storage {
 		var out Storage

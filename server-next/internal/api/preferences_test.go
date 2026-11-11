@@ -139,7 +139,7 @@ func TestABadTokenIsToldSoAtAnUnknownAddress(t *testing.T) {
 	s := newTestServer(t)
 	owner := onMainProfile(t, s)
 	old := owner.AccessToken
-	s.now = func() time.Time { return time.Now().Add(16 * time.Minute) }
+	s.setClock(func() time.Time { return time.Now().Add(16 * time.Minute) })
 	for token, want := range map[string]int{"": 404, "made-up": 401, old: 401} {
 		for _, method := range []string{"GET", "POST"} {
 			if got := status(t, s, method, "/v1/nothing/here", token, nil); got != want {
@@ -147,7 +147,7 @@ func TestABadTokenIsToldSoAtAnUnknownAddress(t *testing.T) {
 			}
 		}
 	}
-	s.now = time.Now
+	s.setClock(time.Now)
 	if got := status(t, s, "GET", "/v1/nothing/here", old, nil); got != 404 {
 		t.Errorf("a good token at an unknown address answered %d, want 404", got)
 	}

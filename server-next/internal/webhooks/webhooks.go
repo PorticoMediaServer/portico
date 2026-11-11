@@ -199,9 +199,17 @@ func (s *Service) message(event string, now time.Time, data any) (db.WebhookMess
 	return db.WebhookMessage{Event: event, Payload: string(body), At: now}, err
 }
 
-// Run writes emitted messages and sends what is due, until ctx ends.
+// Run writes emitted messages and sends what is due, until ctx ends. An attempt under way
+// when ctx ends is cut short and recorded, and Run returns only once its writer has stopped
+// too, so a server that waits for Run may close the database.
 func (s *Service) Run(ctx context.Context) {
-	go s.write(ctx)
+	var writer sync.WaitGroup
+	writer.Add(1)
+	go func() {
+		defer writer.Done()
+		s.write(ctx)
+	}()
+	defer writer.Wait()
 	for {
 		sent, err := s.sendDue(ctx)
 		if ctx.Err() != nil {

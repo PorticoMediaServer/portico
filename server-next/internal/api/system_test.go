@@ -24,7 +24,8 @@ func newTestServer(t *testing.T) *Server {
 }
 
 // openTestServer opens the database at path with cheap password hashing. The server's
-// clock is the real one until a test replaces s.now.
+// clock is the real one until a test calls setClock. The server stops, as the program stops
+// it, before its database closes: when the test ends, or when the test restarts it.
 func openTestServer(t *testing.T, path string) *Server {
 	t.Helper()
 	d, err := db.Open(context.Background(), path)
@@ -32,12 +33,39 @@ func openTestServer(t *testing.T, path string) *Server {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { closeDB(d) })
-	s, err := New(context.Background(), d, filepath.Dir(path), "test", slog.New(slog.NewTextHandler(io.Discard, nil)))
+	ctx, cancel := context.WithCancel(context.Background())
+	s, err := New(ctx, d, filepath.Dir(path), "test", slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
+		cancel()
 		t.Fatal(err)
 	}
+	stopWhenDone(t, s, cancel)
 	s.passwords = auth.NewPasswords(bcrypt.MinCost, bcrypt.MinCost)
 	return s
+}
+
+// stops holds how to stop each test server.
+var stops sync.Map
+
+// stopWhenDone stops a server as the program does, by ending its context and waiting for its
+// background work, when the test ends or when stopServer is called, whichever is first.
+func stopWhenDone(t *testing.T, s *Server, cancel context.CancelFunc) {
+	if s == nil {
+		cancel()
+		return
+	}
+	stops.Store(s, func() {
+		cancel()
+		s.Wait(context.Background())
+	})
+	t.Cleanup(func() { stopServer(s) })
+}
+
+// stopServer stops a test server's background work and waits for it, once.
+func stopServer(s *Server) {
+	if stop, ok := stops.LoadAndDelete(s); ok {
+		stop.(func())()
+	}
 }
 
 var closed sync.Map

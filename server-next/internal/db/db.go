@@ -32,8 +32,10 @@ type DB struct {
 	read      *sql.DB
 	queues    [2]chan writeRequest
 	closed    chan struct{}
-	marks     tokenMarks
-	undo      undoOffers
+	// writerDone is closed when the writer has stopped. See Close.
+	writerDone chan struct{}
+	marks      tokenMarks
+	undo       undoOffers
 	// sessionWatch is told about ended and changed sign-ins. See WatchSessions.
 	sessionWatch func(ended, changed []int64)
 	// changed is signalled after every commit, to wake the search indexer. See search_index.go.
@@ -85,7 +87,11 @@ func Open(ctx context.Context, path string) (*DB, error) {
 	}
 	// The helper never waits long for anyone: what it cannot do now it does next time.
 	d.helper.Exec(`PRAGMA busy_timeout = 50`)
-	go d.writer()
+	d.writerDone = make(chan struct{})
+	go func() {
+		defer close(d.writerDone)
+		d.writer()
+	}()
 	go d.checkpointHelper()
 	go d.finishUpgrades()
 	return d, nil
@@ -184,6 +190,9 @@ func (d *DB) Close() error {
 		d.search.stop()
 	}
 	close(d.closed)
+	// A write under way finishes before its connection closes: an open transaction left
+	// behind would hold the database's lock, and the next open would find it busy.
+	<-d.writerDone
 	<-d.helperDone
 	<-d.upgradesDone
 	return errors.Join(d.UseTitleData(""), d.read.Close(), d.helper.Close(), d.writeConn.Close())

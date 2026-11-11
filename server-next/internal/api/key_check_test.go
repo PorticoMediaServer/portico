@@ -53,7 +53,7 @@ func TestKeysCannotChangeWhoMaySignIn(t *testing.T) {
 func TestKeysRefusedWherePersonCannotSignIn(t *testing.T) {
 	s := newTestServer(t)
 	now := time.Now()
-	s.now = func() time.Time { return now }
+	s.setClock(func() time.Time { return now })
 	owner := onMainProfile(t, s)
 	addMember(t, s, owner.AccessToken, "max", "member")
 	var key KeyCreated

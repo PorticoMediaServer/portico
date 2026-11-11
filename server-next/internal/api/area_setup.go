@@ -23,6 +23,6 @@ type setupArea struct {
 func (s *Server) startSetup(ctx context.Context) error {
 	s.portico = certclient.New(certclient.Options{ServerID: s.id, Key: s.identity.key, Keys: filepath.Join(s.dataDir, "Keys"),
 		Log: s.log, Now: func() time.Time { return s.now() }})
-	go s.portico.Run(ctx)
+	s.goBackground(func() { s.portico.Run(ctx) })
 	return nil
 }

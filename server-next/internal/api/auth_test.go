@@ -293,7 +293,7 @@ func TestNothingWorksAfterASessionIsEnded(t *testing.T) {
 	}
 	// Signing out twice, or with a token that has run out, is fine.
 	last := signIn(t, s, 0).Session
-	s.now = func() time.Time { return time.Now().Add(time.Hour) }
+	s.setClock(func() time.Time { return time.Now().Add(time.Hour) })
 	for range 2 {
 		if code := status(t, s, "DELETE", "/v1/auth/session", last.AccessToken, nil); code != 204 {
 			t.Errorf("sign-out with an expired token answered %d, want 204", code)
@@ -356,7 +356,7 @@ func TestGuessingIsSlowedTheSameForKnownAndUnknownNames(t *testing.T) {
 	s := openTestServer(t, path)
 	setup(t, s)
 	now := time.Now()
-	s.now = func() time.Time { return now }
+	s.setClock(func() time.Time { return now })
 
 	guess := func(s *Server, from, username, password string) (int, string) {
 		r := newRequest("POST", "/v1/auth/sign-in", "", SignInRequest{Username: username, Password: password, Device: device(3)})
@@ -389,9 +389,10 @@ func TestGuessingIsSlowedTheSameForKnownAndUnknownNames(t *testing.T) {
 	if code, _ := guess(s, cafe, "justin", "wrong password"); code != 401 {
 		t.Fatalf("the guess after waiting answered %d, want 401", code)
 	}
+	stopServer(s)
 	closeDB(s.db)
 	s = openTestServer(t, path)
-	s.now = func() time.Time { return now }
+	s.setClock(func() time.Time { return now })
 	if code, _ := guess(s, cafe, "justin", testPassword); code != 429 {
 		t.Fatalf("after a restart the right password answered %d inside the wait, want 429", code)
 	}
@@ -435,7 +436,7 @@ func TestGuessesSentTogetherGainNothing(t *testing.T) {
 func TestProfilesPINsAndWhoMayManage(t *testing.T) {
 	s := newTestServer(t)
 	now := time.Now()
-	s.now = func() time.Time { return now }
+	s.setClock(func() time.Time { return now })
 	first := setup(t, s)
 	mainID := first.Profiles[0].ID
 	// A sign-in that has not chosen the main profile manages nothing, PIN or no PIN.
@@ -656,6 +657,7 @@ func TestAChangeBeforeARestartStillRefusesTheOldToken(t *testing.T) {
 	status(t, s, "DELETE", "/v1/profiles/"+gone.ID, owner.AccessToken, nil)
 	status(t, s, "PUT", "/v1/profiles/"+locked.ID+"/pin", owner.AccessToken, ProfilePIN{PIN: "4321"})
 
+	stopServer(s)
 	closeDB(s.db)
 	time.Sleep(2 * time.Millisecond)
 	s = openTestServer(t, path)
@@ -697,6 +699,7 @@ func TestARestartSignsNobodyOut(t *testing.T) {
 	}
 
 	for range 2 {
+		stopServer(s)
 		closeDB(s.db)
 		time.Sleep(2 * time.Millisecond)
 		s = openTestServer(t, path)

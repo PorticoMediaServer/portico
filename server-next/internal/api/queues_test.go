@@ -246,6 +246,7 @@ func TestQueueEditsPagingRepeatAndRestart(t *testing.T) {
 
 	// After a restart the queue has the same order, current entry and repeat.
 	before := th.order(q.ID)
+	stopServer(th.s)
 	closeDB(th.s.db)
 	restarted := openTestServer(t, th.path)
 	after, header, err := restarted.db.QueueEntries(context.Background(), db.Viewer{UserID: 1, ProfileID: 1}, q.ID, 0, 200)
