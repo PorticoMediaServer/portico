@@ -17,6 +17,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	_ "golang.org/x/image/webp"
 
@@ -88,13 +90,16 @@ func (s *Store) Put(id string, data []byte) error {
 }
 
 // PutSized stores a picture under id in the two given sizes and answers the large one's
-// width and height. ErrNotAPicture refuses what cannot be read.
+// width and height. ErrNotAPicture refuses what cannot be read. A picture already stored is
+// marked as just stored, so a sweep running now does not take it before the row that names it
+// again is written.
 func (s *Store) PutSized(id string, data []byte, sizes Sizes) (width, height int, err error) {
 	if !ValidID(id) {
 		return 0, 0, fmt.Errorf("artwork: %q cannot name a picture", id)
 	}
 	if w, h, err := s.Stored(id); err == nil {
-		return w, h, nil
+		now := time.Now()
+		return w, h, os.Chtimes(s.place(id, "small"), now, now)
 	}
 	config, _, err := image.DecodeConfig(bytes.NewReader(data))
 	if err != nil || config.Width <= 0 || config.Height <= 0 || config.Width*config.Height > maxPixels {
@@ -222,4 +227,72 @@ func shrink(from *image.RGBA, edge int) *image.RGBA {
 		}
 	}
 	return to
+}
+
+// Sweep removes the pictures nothing uses any more: every one stored before a time whose id
+// used does not name. used calls yield with every id in use, in ascending order; a picture
+// stored since the time is kept, as one just stored may not be recorded yet. Both sizes go. It returns how many pictures it removed.
+func (s *Store) Sweep(before time.Time, used func(yield func(id string) error) error) (int, error) {
+	prefixes, err := os.ReadDir(s.dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	var stored []string // the pictures of the folders read so far, not yet compared
+	next := 0           // the next folder to read
+	var unused []string
+	// fill reads folders until a picture at or after id is waiting, or there are no more.
+	fill := func(id string) error {
+		for next < len(prefixes) && (len(stored) == 0 || stored[len(stored)-1] < id) {
+			entries, err := os.ReadDir(filepath.Join(s.dir, prefixes[next].Name()))
+			next++
+			if err != nil {
+				return err
+			}
+			for _, e := range entries {
+				info, err := e.Info()
+				// One entry a picture: its small size, the last of its two files to be written.
+				id, small := strings.CutSuffix(e.Name(), ".small")
+				if err == nil && small && ValidID(id) && info.ModTime().Before(before) {
+					stored = append(stored, id)
+				}
+			}
+		}
+		return nil
+	}
+	err = used(func(id string) error {
+		if err := fill(id); err != nil {
+			return err
+		}
+		for len(stored) > 0 && stored[0] <= id {
+			if stored[0] != id {
+				unused = append(unused, stored[0])
+			}
+			stored = stored[1:]
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	if err := fill("~"); err != nil { // after every id
+		return 0, err
+	}
+	unused = append(unused, stored...)
+	removed := 0
+	for _, id := range unused {
+		// Stored again while the sweep ran: it may be named by a row the sweep did not see.
+		if info, err := os.Stat(s.place(id, "small")); err != nil || !info.ModTime().Before(before) {
+			continue
+		}
+		removed++
+		for _, size := range []string{"small", "large"} {
+			if err := os.Remove(s.place(id, size)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+				return 0, err
+			}
+		}
+	}
+	return removed, nil
 }
