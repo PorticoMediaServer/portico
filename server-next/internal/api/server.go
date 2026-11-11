@@ -67,7 +67,9 @@ type Server struct {
 	// queues builds and runs play queues. See queues.go.
 	queues  *playqueue.Service
 	network networkState
-	media   func(w http.ResponseWriter, r *http.Request, grant, file string)
+	// remote is the owner's remote access settings. See remote_access.go.
+	remote remoteState
+	media  func(w http.ResponseWriter, r *http.Request, grant, file string)
 	// feeds caps the change feeds each sign-in holds open. See catalogue.go.
 	feeds feeds
 	// remote opens the owner's remote sources. See remote_sources.go.
@@ -195,8 +197,12 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	if err := s.loadNetworks(ctx); err != nil {
 		return nil, err
 	}
+	if err := s.loadRemoteAccess(ctx); err != nil {
+		return nil, err
+	}
 	s.systemRoutes()
 	s.networkRoutes()
+	s.remoteAccessRoutes()
 	s.identityRoutes()
 	s.authRoutes()
 	s.profileRoutes()
@@ -319,6 +325,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			s.writeError(w, r, errors.New("panic"))
 		}
 	}()
+	// What the owner allows from outside the home networks is decided before anything else.
+	if e := s.outsideRefusal(r); e != nil {
+		s.writeError(w, r, e)
+		return
+	}
 	// Outside tools answer some addresses of their own. See area_tools.go.
 	if s.serveTools(w, r) {
 		return
@@ -554,6 +565,9 @@ func (s *Server) admit(r *http.Request, route *Route) (*http.Request, error) {
 		}
 		c = Caller{SessionID: claims.SessionID, UserID: claims.UserID, ProfileID: claims.ProfileID, Role: claims.Role, Manage: claims.Manage,
 			Stamp: db.TokenStamp{Boot: claims.Boot, Seq: claims.Seq}}
+	}
+	if err := s.refuseNonOwnerAway(r, c.UserID); err != nil {
+		return r, err
 	}
 	if c.Role == roleCast {
 		if may, err := s.castMay(r, route.Pattern, c); err != nil {
