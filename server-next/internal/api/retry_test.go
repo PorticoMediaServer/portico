@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/librarychannels"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
 )
 
@@ -14,28 +15,30 @@ import (
 // Every other POST creates something and must honour the key; the test below fails for a POST
 // in neither list, so a new creating route cannot be added without it.
 var repeatSafeWithoutKey = map[string]string{
-	"POST /v1/setup/owner":                        "happens once: a repeat is told the server is set up",
-	"POST /v1/auth/sign-in":                       "a lost answer leaves a sign-in nobody holds, which expires",
-	"POST /v1/auth/two-factor":                    "the second step of a sign-in: as sign-in",
-	"POST /v1/auth/refresh":                       "carries its own request id: a repeat gets the same tokens",
-	"POST /v1/auth/password":                      "sets the password",
-	"POST /v1/auth/password-reset/confirm":        "uses up its code: a repeat is refused",
-	"POST /v1/auth/codes":                         "a lost answer leaves a TV code nobody holds, which expires",
-	"POST /v1/auth/codes/{id}/approve":            "sets the code's state",
-	"POST /v1/auth/codes/{id}/redeem":             "uses up its code: a repeat is refused",
-	"POST /v1/auth/invitations/{id}/accept":       "uses up its invitation: a repeat is refused",
-	"POST /v1/me/two-factor":                      "starts two-step sign-in again, replacing what was not confirmed",
-	"POST /v1/me/two-factor/confirm":              "sets the state",
-	"POST /v1/me/two-factor/recovery-codes":       "replaces the codes; the answer is the only copy either way",
-	"POST /v1/profiles/{id}/select":               "sets the device's profile",
-	"POST /v1/admin/members/{id}/password-reset":  "replaces the member's reset code",
-	"POST /v1/system/identity-proof":              "changes nothing",
-	"POST /v1/items/state:undo":                   "uses up its undo offer: a repeat is refused",
-	"POST /v1/queues/{id}/entries":                "needs If-Match: a repeat has an old revision and is refused",
-	"POST /v1/queues/{id}/entries/{entryId}/move": "needs If-Match: a repeat has an old revision and is refused",
-	"POST /v1/queues/{id}/advance":                "sets the current entry",
-	"POST /v1/queues/{id}/prepare-next":           "changes nothing that lasts",
-	"POST /v1/queues/{id}/commit-next":            "sets the current entry",
+	"POST /v1/setup/owner":                            "happens once: a repeat is told the server is set up",
+	"POST /v1/auth/sign-in":                           "a lost answer leaves a sign-in nobody holds, which expires",
+	"POST /v1/auth/two-factor":                        "the second step of a sign-in: as sign-in",
+	"POST /v1/auth/refresh":                           "carries its own request id: a repeat gets the same tokens",
+	"POST /v1/auth/password":                          "sets the password",
+	"POST /v1/auth/password-reset/confirm":            "uses up its code: a repeat is refused",
+	"POST /v1/auth/codes":                             "a lost answer leaves a TV code nobody holds, which expires",
+	"POST /v1/auth/codes/{id}/approve":                "sets the code's state",
+	"POST /v1/auth/codes/{id}/redeem":                 "uses up its code: a repeat is refused",
+	"POST /v1/auth/invitations/{id}/accept":           "uses up its invitation: a repeat is refused",
+	"POST /v1/me/two-factor":                          "starts two-step sign-in again, replacing what was not confirmed",
+	"POST /v1/me/two-factor/confirm":                  "sets the state",
+	"POST /v1/me/two-factor/recovery-codes":           "replaces the codes; the answer is the only copy either way",
+	"POST /v1/profiles/{id}/select":                   "sets the device's profile",
+	"POST /v1/admin/members/{id}/password-reset":      "replaces the member's reset code",
+	"POST /v1/system/identity-proof":                  "changes nothing",
+	"POST /v1/items/state:undo":                       "uses up its undo offer: a repeat is refused",
+	"POST /v1/queues/{id}/entries":                    "needs If-Match: a repeat has an old revision and is refused",
+	"POST /v1/queues/{id}/entries/{entryId}/move":     "needs If-Match: a repeat has an old revision and is refused",
+	"POST /v1/queues/{id}/advance":                    "sets the current entry",
+	"POST /v1/queues/{id}/prepare-next":               "changes nothing that lasts",
+	"POST /v1/queues/{id}/commit-next":                "sets the current entry",
+	"POST /v1/admin/library-channels/preview":         "changes nothing",
+	"POST /v1/admin/library-channels/{id}/regenerate": "sets the channel to be built again",
 }
 
 // An app that never had the answer to a creating request sends it again with the same
@@ -74,6 +77,13 @@ func TestCreatesAreSafeToRepeat(t *testing.T) {
 			body: QueueSave{Name: "Evening"}, other: QueueSave{Name: "Morning"}},
 		{route: "POST /v1/playback/sessions", body: PlaybackStart{ItemID: th.film}, other: PlaybackStart{ItemID: th.song},
 			inMemoryOnly: true},
+		{route: "POST /v1/admin/library-channels", body: LibraryChannelSave{Name: new("Films"), Builder: th.filmChannel()},
+			other: LibraryChannelSave{Name: new("Other"), Builder: th.filmChannel()},
+			count: func() int { return th.named("/v1/admin/library-channels", "name", "Films") }},
+		{route: "POST /v1/admin/library-channels/presets", body: BlockPresetSave{Name: new("Evenings"), Library: new(th.libs[db.LibraryMovies].PublicID),
+			Recipe: &librarychannels.Recipe{Order: "shuffle", Minutes: 120}}, other: BlockPresetSave{Name: new("Mornings"),
+			Library: new(th.libs[db.LibraryMovies].PublicID), Recipe: &librarychannels.Recipe{Order: "shuffle", Minutes: 60}},
+			count: func() int { return th.named("/v1/admin/library-channels/presets", "name", "Evenings") }},
 	}
 
 	keyed := map[string]bool{}
@@ -200,4 +210,9 @@ func (th *theatre) restart() {
 		th.Fatalf("renewing after the restart answered %d", code)
 	}
 	th.owner = renewed
+}
+
+func (th *theatre) filmChannel() *librarychannels.Builder {
+	return &librarychannels.Builder{Selection: librarychannels.Selection{Libraries: []string{th.libs[db.LibraryMovies].PublicID},
+		Kinds: []string{"movie"}}}
 }

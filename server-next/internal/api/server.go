@@ -22,6 +22,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/artwork"
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/librarychannels"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
 )
@@ -58,6 +59,8 @@ type Server struct {
 	media   func(w http.ResponseWriter, r *http.Request, grant, file string)
 	// feeds caps the change feeds each sign-in holds open. See catalogue.go.
 	feeds feeds
+	// channels builds Library Channel schedules and says what is on. See library_channels.go.
+	channels *librarychannels.Service
 }
 
 // Route is one operation, kept so the contract can be generated and the operation budget counted.
@@ -69,6 +72,8 @@ type Route struct {
 	Scope    Scope
 	Request  reflect.Type
 	Response reflect.Type
+	// MaxBody, when set, is this route's own bound on its JSON body in place of maxBody.
+	MaxBody int64
 }
 
 // Scope is what a key made for a tool must have been given to use a route. A signed-in
@@ -185,6 +190,9 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.playbackRoutes()
 	s.queues = playqueue.New(d, s.playback, func() time.Time { return s.now() })
 	s.queueRoutes()
+	s.channels = librarychannels.New(d, log, func() time.Time { return s.now() })
+	go s.channels.Run(ctx)
+	s.libraryChannelRoutes()
 	return s, nil
 }
 
@@ -266,7 +274,8 @@ func (p *statusOnly) WriteHeader(status int)      { p.status = status }
 func Handle[Req, Resp any](s *Server, pattern string, access Access, fn func(r *http.Request, req Req) (Resp, error)) *Route {
 	noBody := reflect.TypeFor[Req]() == reflect.TypeFor[None]()
 	noReply := reflect.TypeFor[Resp]() == reflect.TypeFor[None]()
-	route := &Route{pattern, access, defaultScope(pattern, access), reflect.TypeFor[Req](), reflect.TypeFor[Resp]()}
+	route := &Route{Pattern: pattern, Access: access, Scope: defaultScope(pattern, access), Request: reflect.TypeFor[Req](),
+		Response: reflect.TypeFor[Resp]()}
 	s.routes = append(s.routes, route)
 	s.mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
 		r, err := s.admit(r, route)
@@ -275,7 +284,11 @@ func Handle[Req, Resp any](s *Server, pattern string, access Access, fn func(r *
 			return
 		}
 		var req Req
-		if err := readBody(w, r, &req, noBody); err != nil {
+		limit := int64(maxBody)
+		if route.MaxBody > 0 {
+			limit = route.MaxBody
+		}
+		if err := readBody(w, r, &req, noBody, limit); err != nil {
 			s.writeError(w, r, err)
 			return
 		}
@@ -311,8 +324,8 @@ type JSON = json.RawMessage
 
 // readBody reads a bounded JSON body into out. Fields this server does not know are ignored,
 // so a newer app can talk to an older server; /v1/system says what the server understands.
-func readBody(w http.ResponseWriter, r *http.Request, out any, noBody bool) error {
-	body := http.MaxBytesReader(w, r.Body, maxBody)
+func readBody(w http.ResponseWriter, r *http.Request, out any, noBody bool, limit int64) error {
+	body := http.MaxBytesReader(w, r.Body, limit)
 	if noBody {
 		// Many HTTP libraries send an empty object, "{}", with every request; it says nothing.
 		raw, err := io.ReadAll(body)
