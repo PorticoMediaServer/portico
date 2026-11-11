@@ -80,13 +80,10 @@ func TestDLNA(t *testing.T) {
 			t.Fatalf("saving the home networks answered %d", got)
 		}
 	}
-	setHome("192.168.1.0/24", "0.0.0.0/0")
-	if got := status(t, s, "PUT", "/v1/admin/settings/remote-access", owner, RemoteAccessSettingsEdit{DLNA: &on}); got != 400 {
-		t.Errorf("turning DLNA on with the whole internet listed as home answered %d, want 400", got)
-	}
 	setHome("192.168.1.0/24", "100.64.0.0/10")
-	if got := status(t, s, "PUT", "/v1/admin/settings/remote-access", owner, RemoteAccessSettingsEdit{DLNA: &on}); got != 200 {
-		t.Fatalf("turning DLNA on answered %d", got)
+	var settings RemoteAccessSettings
+	if w := call(t, s, "PUT", "/v1/admin/settings/remote-access", owner, RemoteAccessSettingsEdit{DLNA: &on}, &settings); w.Code != 200 || settings.Warning != "" {
+		t.Fatalf("turning DLNA on answered %d with warning %q", w.Code, settings.Warning)
 	}
 
 	if w := dlnaCall(s, home, "GET", "/dlna/device.xml", "", nil); w.Code != 200 || !strings.Contains(w.Body.String(), "MediaServer:1") {
@@ -149,11 +146,23 @@ func TestDLNA(t *testing.T) {
 	if w := dlnaCall(s, home, "GET", media, "", map[string]string{"Host": "evil.example.com"}); w.Code != 404 {
 		t.Errorf("another name under the owner's domain was answered %d", w.Code)
 	}
-	setHome("192.168.1.0/24", "::/0")
-	if w := dlnaCall(s, home, "GET", media, "", nil); w.Code != 404 {
-		t.Errorf("with the whole internet listed as home DLNA still answered %d", w.Code)
+	// The owner lists the whole internet as home: warned, not stopped. Anyone can then play.
+	setHome("192.168.1.0/24", "0.0.0.0/0")
+	call(t, s, "GET", "/v1/admin/settings/remote-access", owner, nil, &settings)
+	if !strings.Contains(settings.Warning, "anyone on the internet") {
+		t.Errorf("with the whole internet listed as home the settings warned %q", settings.Warning)
+	}
+	if w := dlnaCall(s, away, "GET", media, "", nil); w.Code != 200 {
+		t.Errorf("with the whole internet listed as home DLNA answered %d, want 200: the owner chose it", w.Code)
+	}
+	if w := dlnaCall(s, away, "GET", media, "", map[string]string{"Host": "evil.example"}); w.Code != 404 {
+		t.Errorf("a re-pointed name was answered %d even so", w.Code)
 	}
 	setHome("192.168.1.0/24")
+	settings = RemoteAccessSettings{}
+	if call(t, s, "GET", "/v1/admin/settings/remote-access", owner, nil, &settings); settings.Warning != "" {
+		t.Errorf("the warning stayed after the range was removed: %q", settings.Warning)
+	}
 	status(t, s, "PUT", "/v1/admin/settings/remote-access", owner, RemoteAccessSettingsEdit{DLNA: &off})
 	if w := dlnaCall(s, home, "GET", media, "", nil); w.Code != 404 {
 		t.Errorf("with DLNA turned off a device at home was answered %d", w.Code)
