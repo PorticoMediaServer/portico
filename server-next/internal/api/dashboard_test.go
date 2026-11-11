@@ -145,7 +145,7 @@ func TestOwnerDashboard(t *testing.T) {
 	scanNow(t, s, owner, films.ID)
 	s.db.SetRemoteSourceState(ctx, nas.ID, "ok", "")
 	status(t, s, "PUT", "/v1/admin/settings/backups", owner, json.RawMessage(`{"folder":""}`))
-	th.clock = th.clock.Add(time.Second) // a new backup's id
+	th.clock.Add(time.Second) // a new backup's id
 	backupNow()
 	s.updates.Version = "1.1.0"
 	call(t, s, "POST", "/v1/admin/updates/check", owner, nil, nil)

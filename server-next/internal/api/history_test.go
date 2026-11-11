@@ -19,12 +19,12 @@ func TestHistory(t *testing.T) {
 		end := hour
 		session := th.play(token, item)
 		status(t, th.s, "DELETE", "/v1/playback/sessions/"+session.ID, token, PlaybackStop{PositionMs: &end})
-		th.clock = th.clock.Add(time.Minute)
+		th.clock.Add(time.Minute)
 	}
 	finish(th.eps[0])
 	finish(th.film)
 	// A play while history is paused is the owner's record only.
-	if err := th.s.db.SetProfilePreference(context.Background(), 1, db.PrefPauseHistory, "true", th.clock); err != nil {
+	if err := th.s.db.SetProfilePreference(context.Background(), 1, db.PrefPauseHistory, "true", th.clock.Now()); err != nil {
 		t.Fatal(err)
 	}
 	finish(th.eps[1])
@@ -41,7 +41,7 @@ func TestHistory(t *testing.T) {
 	if day := get[HistoryPage](t, th.s, token, "/v1/history?period=24h"); len(day.Items) != 2 {
 		t.Fatalf("the last 24 hours: %+v", day.Items)
 	}
-	th.clock = th.clock.Add(48 * time.Hour)
+	th.clock.Add(48 * time.Hour)
 	code, renewed := renew(t, th.s, th.owner.RefreshToken, 0, "two-days-later")
 	if code != 200 {
 		t.Fatalf("renewing two days later answered %d", code)
@@ -70,7 +70,7 @@ func TestHistory(t *testing.T) {
 
 	// The owner's other devices hear of each removal and of the clear; the kid's do not.
 	ownerView := db.Viewer{UserID: 1, ProfileID: 1}
-	kidClaims, err := th.s.tokens.CheckAccess(onKid.AccessToken, th.clock)
+	kidClaims, err := th.s.tokens.CheckAccess(onKid.AccessToken, th.clock.Now())
 	if err != nil {
 		t.Fatal(err)
 	}

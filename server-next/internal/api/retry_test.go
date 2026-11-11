@@ -175,7 +175,7 @@ func (th *theatre) restart() {
 	stopServer(th.s)
 	closeDB(th.s.db)
 	th.s = openTestServer(th.T, th.path)
-	th.s.setClock(func() time.Time { return th.clock })
+	th.s.setClock(func() time.Time { return th.clock.Now() })
 	th.s.playback.SetEngine(th.engine, th.engine)
 	code, renewed := renew(th.T, th.s, th.owner.RefreshToken, 0, "after-restart-"+db.NewID("req"))
 	if code != 200 {

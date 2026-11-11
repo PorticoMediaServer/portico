@@ -100,7 +100,7 @@ func TestWatchTogether(t *testing.T) {
 	if watching.CantSee != 1 || watching.Clock.WaitUntil == nil {
 		t.Fatalf("watching a title the kid may not see: %+v", watching.Clock)
 	}
-	th.clock = th.clock.Add(6 * time.Second)
+	th.clock.Add(6 * time.Second)
 	th.s.groups.Sweep()
 	if _, still := th.room("GET", "/v1/groups/"+made.ID, host, nil); still.Clock.WaitUntil == nil {
 		t.Fatal("the group started a title someone may not see without the host going ahead")
@@ -126,7 +126,7 @@ func TestWatchTogether(t *testing.T) {
 
 	// The host's device goes quiet. At two minutes playback pauses and Ada, in step, may become host.
 	for range 4 {
-		th.clock = th.clock.Add(30 * time.Second)
+		th.clock.Add(30 * time.Second)
 		_, now := th.room("GET", "/v1/groups/"+made.ID, ada, nil)
 		state := "playing"
 		if !now.Clock.Playing {
@@ -136,7 +136,7 @@ func TestWatchTogether(t *testing.T) {
 		th.here(kidToken, made.ID, "paused", 0, "")
 		th.s.groups.Sweep()
 	}
-	th.clock = th.clock.Add(time.Second)
+	th.clock.Add(time.Second)
 	th.s.groups.Sweep()
 	_, paused := th.room("GET", "/v1/groups/"+made.ID, ada, nil)
 	if paused.Clock.Playing || paused.Host.Present {
@@ -185,7 +185,7 @@ func TestStartingAndEndingGroupsIsBounded(t *testing.T) {
 	if code := start(8); code != 429 {
 		t.Fatalf("a ninth group in two minutes answered %d, want 429", code)
 	}
-	th.clock = th.clock.Add(2*time.Minute + time.Second)
+	th.clock.Add(2*time.Minute + time.Second)
 	th.s.groups.Sweep()
 	if code := start(9); code != 201 {
 		t.Fatalf("a group once the ended ones were dropped answered %d", code)
