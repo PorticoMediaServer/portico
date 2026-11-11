@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"slices"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/preferences"
@@ -13,7 +14,7 @@ import (
 // A profile's own settings. The server publishes the whole list with every default, so an
 // app draws its settings pages from this answer and has no defaults of its own. A setting is
 // saved for the profile everywhere, for one kind of device, or for one device; the narrowest
-// saved value wins, and the last save wins.
+// saved value wins, and of two changes to one setting the one made later wins.
 
 // PreferenceRegistry is the list of settings this server has. Revision changes when the list does.
 type PreferenceRegistry struct {
@@ -49,6 +50,11 @@ type PreferencesEdit struct {
 	Scope       string         `json:"scope"`
 	DeviceClass string         `json:"deviceClass"`
 	Values      map[string]any `json:"values"`
+	// MadeAgoMs is how long ago the person made this change, by the device's own measure, for
+	// a change kept while the device was out of reach. Of two changes to one setting, the one
+	// made later wins, whichever reaches the server first. The server never reads a device's
+	// clock.
+	MadeAgoMs int64 `json:"madeAgoMs,omitempty"`
 }
 
 func (s *Server) preferenceRoutes() {
@@ -131,6 +137,9 @@ func (s *Server) editPreferences(r *http.Request, req PreferencesEdit) (Preferen
 	if !slices.Contains(preferences.DeviceClasses, req.DeviceClass) {
 		return Preferences{}, ErrField("deviceClass", "Say which kind of device this is: web, mobile, tablet or television.")
 	}
+	if req.MadeAgoMs < 0 || req.MadeAgoMs > db.MaxEditAge.Milliseconds() {
+		return Preferences{}, ErrField("madeAgoMs", "This must be between 0 and 35 days.")
+	}
 	deviceID, err := s.callerDevice(r)
 	if err != nil {
 		return Preferences{}, err
@@ -163,7 +172,8 @@ func (s *Server) editPreferences(r *http.Request, req PreferencesEdit) (Preferen
 		set[key] = string(stored)
 	}
 	if len(set)+len(clear) > 0 {
-		if err := s.db.SetPreferences(r.Context(), CallerFrom(r.Context()).ProfileID, class, device, set, clear, s.now()); err != nil {
+		if err := s.db.SetPreferences(r.Context(), CallerFrom(r.Context()).ProfileID, class, device, set, clear,
+			s.now().Add(-time.Duration(req.MadeAgoMs)*time.Millisecond)); err != nil {
 			return Preferences{}, err
 		}
 	}

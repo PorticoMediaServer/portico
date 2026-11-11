@@ -342,7 +342,7 @@ func (d *DB) VisibleTitles(ctx context.Context, v Viewer, itemIDs []int64) (map[
 // saved for a kind of device is not read here: nothing that decides playback is saved that way.
 func (d *DB) Preferences(ctx context.Context, profileID, deviceID int64) (map[string]string, error) {
 	rows, err := d.read.QueryContext(ctx, `SELECT key, value FROM preferences
-		WHERE profile_id = ?1 AND (device_id = ?2 OR device_id IS NULL AND device_class = '')
+		WHERE profile_id = ?1 AND (device_id = ?2 OR device_id IS NULL AND device_class = '') AND value <> '`+clearedValue+`'
 		ORDER BY device_id IS NOT NULL`, profileID, deviceID)
 	if err != nil {
 		return nil, err
@@ -566,7 +566,7 @@ func (d *DB) SaveProgress(ctx context.Context, p Priority, batch []Progress) ([]
 }
 
 func profilePreferences(tx *sql.Tx, profileID int64) (map[string]string, error) {
-	rows, err := tx.Query(`SELECT key, value FROM preferences WHERE profile_id = ? AND device_class = '' AND device_id IS NULL AND key IN (?, ?, ?)`,
+	rows, err := tx.Query(`SELECT key, value FROM preferences WHERE profile_id = ? AND device_class = '' AND device_id IS NULL AND value <> '`+clearedValue+`' AND key IN (?, ?, ?)`,
 		profileID, PrefWatchedAt, PrefStartedAt, PrefPauseHistory)
 	if err != nil {
 		return nil, err

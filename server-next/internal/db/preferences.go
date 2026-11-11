@@ -21,7 +21,8 @@ type StoredPreference struct {
 // device. deviceID is 0 for a caller with no device, such as a tool with a key.
 func (d *DB) StoredPreferences(ctx context.Context, profileID int64, deviceClass string, deviceID int64) ([]StoredPreference, error) {
 	rows, err := d.read.QueryContext(ctx, `SELECT device_class, device_id IS NOT NULL, key, value FROM preferences
-		WHERE profile_id = ? AND (device_id = ? OR device_id IS NULL AND device_class IN ('', ?))`, profileID, deviceID, deviceClass)
+		WHERE profile_id = ? AND (device_id = ? OR device_id IS NULL AND device_class IN ('', ?)) AND value <> '`+clearedValue+`'`,
+		profileID, deviceID, deviceClass)
 	if err != nil {
 		return nil, err
 	}
@@ -37,25 +38,35 @@ func (d *DB) StoredPreferences(ctx context.Context, profileID int64, deviceClass
 	return out, rows.Err()
 }
 
+// clearedValue is what a cleared setting keeps instead of a value: the row stays so that it
+// keeps the time it was cleared, and every read passes it over.
+const clearedValue = "null"
+
 // SetPreferences saves settings for a profile at one width: everywhere (deviceClass "" and
 // deviceID 0), one kind of device, or one device. A key in clear goes back to whatever the
-// next wider setting or the default says. The profile's other open apps are told.
-func (d *DB) SetPreferences(ctx context.Context, profileID int64, deviceClass string, deviceID int64, set map[string]string, clear []string, now time.Time) error {
+// next wider setting or the default says. madeAt is when the person made the change; a change
+// to a setting that was changed later already, on another device, is passed over, so two
+// devices that sync in either order end the same. The profile's other open apps are told.
+func (d *DB) SetPreferences(ctx context.Context, profileID int64, deviceClass string, deviceID int64, set map[string]string, clear []string,
+	madeAt time.Time) error {
 	return d.write(ctx, User, func(tx *sql.Tx) error {
-		at := now.UnixMilli()
+		save := func(key, value string) error {
+			_, err := tx.Exec(`INSERT INTO preferences (profile_id, device_class, device_id, key, value, updated_at) VALUES (?, ?, nullif(?, 0), ?, ?, ?)
+				ON CONFLICT (profile_id, device_class, ifnull(device_id, 0), key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+				WHERE preferences.updated_at <= excluded.updated_at`,
+				profileID, deviceClass, deviceID, key, value, madeAt.UnixMilli())
+			return err
+		}
 		for key, value := range set {
-			if _, err := tx.Exec(`INSERT INTO preferences (profile_id, device_class, device_id, key, value, updated_at) VALUES (?, ?, nullif(?, 0), ?, ?, ?)
-				ON CONFLICT (profile_id, device_class, ifnull(device_id, 0), key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
-				profileID, deviceClass, deviceID, key, value, at); err != nil {
+			if err := save(key, value); err != nil {
 				return err
 			}
 		}
 		for _, key := range clear {
-			if _, err := tx.Exec(`DELETE FROM preferences WHERE profile_id = ? AND device_class = ? AND ifnull(device_id, 0) = ? AND key = ?`,
-				profileID, deviceClass, deviceID, key); err != nil {
+			if err := save(key, clearedValue); err != nil {
 				return err
 			}
 		}
-		return appendChange(tx, Change{At: at, Topic: TopicPreferences, Op: OpUpdated, RefID: profileID, ProfileID: profileID})
+		return appendChange(tx, Change{At: time.Now().UnixMilli(), Topic: TopicPreferences, Op: OpUpdated, RefID: profileID, ProfileID: profileID})
 	})
 }
