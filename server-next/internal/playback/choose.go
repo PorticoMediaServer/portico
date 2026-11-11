@@ -279,8 +279,10 @@ type resolved struct {
 	// audioPicked and subtitlePicked say the request's own track differs from what the server
 	// would have chosen: a pick to remember.
 	audioPicked, subtitlePicked bool
-	// awayKbps is what the play takes of the upload speed, 0 at home.
+	// awayKbps is what the play takes of the upload speed, 0 at home. held says the upload
+	// speed lowered the quality it asked for.
 	awayKbps int
+	held     bool
 }
 
 func versionLabel(v db.PlaybackVersion) string {
@@ -340,6 +342,8 @@ func (s *Service) resolve(ctx context.Context, c Caller, device db.SessionDevice
 		// What planning chose with the request's own tracks left out.
 		autoAudio, autoSubtitle string
 		awayKbps                int
+		// held says the upload speed lowered the quality this play asked for.
+		held bool
 	}
 	plan := func(version db.PlaybackVersion) attempt {
 		a := attempt{version: version, menu: s.planner.Qualities(version, item.Kind, out.network)}
@@ -393,9 +397,11 @@ func (s *Service) resolve(ctx context.Context, c Caller, device db.SessionDevice
 			}
 		}
 		if limited {
+			asked := a.choice.Quality
 			if a.menu, a.choice.Quality, a.err = fit(version, item.Kind, a.menu, a.choice.Quality, roomKbps, upload); a.err != nil {
 				return a
 			}
+			a.held = upload && a.choice.Quality != asked
 		}
 		failures, err := s.db.RouteFailures(ctx, device.ID, version.FileID, s.now())
 		if err != nil {
@@ -473,6 +479,7 @@ func (s *Service) resolve(ctx context.Context, c Caller, device db.SessionDevice
 		return out, err
 	}
 	out.version, out.choice, out.plan, out.menu, out.awayKbps = chosen.version, chosen.choice, chosen.plan, chosen.menu, chosen.awayKbps
+	out.held = chosen.held
 	out.audioPicked = ask.Audio != nil && current == nil && *ask.Audio != chosen.autoAudio
 	out.subtitlePicked = ask.Subtitle != nil && current == nil && *ask.Subtitle != chosen.autoSubtitle
 	for n := range attempts {
