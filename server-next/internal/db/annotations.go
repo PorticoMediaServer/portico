@@ -287,3 +287,26 @@ func saveAnnotation(ctx context.Context, tx *sql.Tx, v Viewer, book *annotatedBo
 	e.CreatedAt, e.UpdatedAt = at, at
 	return e.Annotation, err
 }
+
+// PruneDeletedAnnotations removes the markers of annotations deleted longer ago than they are
+// kept, in every book, a page at a time in background writes. A book written to is tidied
+// then too; this reaches the books nobody writes to again. It returns how many went.
+func (d *DB) PruneDeletedAnnotations(ctx context.Context, now time.Time) (deleted int64, err error) {
+	const batch = 2000
+	for {
+		var n int64
+		err = d.write(ctx, Background, func(tx *sql.Tx) error {
+			res, err := tx.Exec(`DELETE FROM annotations WHERE id IN (SELECT id FROM annotations WHERE deleted_at < ? LIMIT ?)`,
+				now.Add(-annotationsKept).UnixMilli(), batch)
+			if err != nil {
+				return err
+			}
+			n, _ = res.RowsAffected()
+			return nil
+		})
+		deleted += n
+		if err != nil || n < batch {
+			return deleted, err
+		}
+	}
+}

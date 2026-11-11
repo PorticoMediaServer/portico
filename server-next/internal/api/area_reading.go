@@ -25,5 +25,11 @@ func (s *Server) startReading(ctx context.Context) error {
 	}
 	s.reading = reading.New(s.db, bookKey, func() time.Time { return s.now() })
 	s.readingRoutes()
+	// A deleted annotation is kept as a marker for 70 days, so an older edit cannot bring it
+	// back; once a day the markers past that go, in books nobody has written to since.
+	s.jobs.Tidy("deleted annotations", 24*time.Hour, func(ctx context.Context) error {
+		_, err := s.db.PruneDeletedAnnotations(ctx, s.now())
+		return err
+	})
 	return nil
 }
