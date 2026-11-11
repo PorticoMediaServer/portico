@@ -562,7 +562,11 @@ func resetEpisodes(b *batchTx, showID, now int64) error {
 			return err
 		}
 	}
-	// An episode with no rating of its own uses its show's.
-	_, err = b.exec(`UPDATE items SET rating_age = (SELECT rating_age FROM items WHERE id = ?1) WHERE root_id = ?1 AND content_rating IS NULL`, showID)
-	return err
+	// An episode with no rating of its own uses its show's, and the copies of each episode's
+	// rating on its tag rows follow.
+	if _, err = b.exec(`UPDATE items SET rating_age = (SELECT rating_age FROM items WHERE id = ?1) WHERE root_id = ?1 AND content_rating IS NULL`,
+		showID); err != nil {
+		return err
+	}
+	return b.ratingChanged(showID)
 }
