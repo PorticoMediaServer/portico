@@ -290,34 +290,68 @@ func (d *DB) DownloadOf(ctx context.Context, profileID int64, publicID string) (
 	return dl, titles, err
 }
 
+const downloadTitleColumns = `x.item_id, i.public_id, i.kind, i.title, ifnull(x.media_id, 0), x.state, ifnull(x.reason, ''),
+	x.position, p.id IS NOT NULL, p.id, p.public_id, p.media_id, p.recipe, p.state, p.error, p.container, p.size, p.content_hash,
+	p.created_at, p.last_used_at`
+
+const downloadTitleFrom = ` FROM download_items x JOIN items i ON i.id = x.item_id LEFT JOIN prepared_media p ON p.id = x.prepared_id`
+
+// scanDownloadTitle reads one title, after any columns of the caller's own in front.
+func scanDownloadTitle(rows *sql.Rows, front ...any) (DownloadTitle, error) {
+	var t DownloadTitle
+	var has bool
+	var pid, media, size sql.NullInt64
+	var public, recipe, state, reason, container, hash sql.NullString
+	var created, used sql.NullInt64
+	if err := rows.Scan(append(front, &t.ItemID, &t.ItemPublicID, &t.Kind, &t.Title, &t.MediaID, &t.State, &t.Reason, &t.Position, &has,
+		&pid, &public, &media, &recipe, &state, &reason, &container, &size, &hash, &created, &used)...); err != nil {
+		return t, err
+	}
+	if has {
+		t.Prepared = &Prepared{ID: pid.Int64, PublicID: public.String, MediaID: media.Int64, Recipe: recipe.String, State: state.String,
+			Error: reason.String, Container: container.String, Size: size.Int64, ContentHash: hash.String,
+			CreatedAt: time.UnixMilli(created.Int64), LastUsedAt: time.UnixMilli(used.Int64)}
+	}
+	return t, nil
+}
+
 func downloadTitles(ctx context.Context, tx *sql.Tx, downloadID int64) ([]DownloadTitle, error) {
-	rows, err := tx.QueryContext(ctx, `SELECT x.item_id, i.public_id, i.kind, i.title, ifnull(x.media_id, 0), x.state, ifnull(x.reason, ''),
-		x.position, p.id IS NOT NULL, p.id, p.public_id, p.media_id, p.recipe, p.state, p.error, p.container, p.size, p.content_hash,
-		p.created_at, p.last_used_at FROM download_items x JOIN items i ON i.id = x.item_id
-		LEFT JOIN prepared_media p ON p.id = x.prepared_id WHERE x.download_id = ? ORDER BY x.position, x.item_id`, downloadID)
+	rows, err := tx.QueryContext(ctx, `SELECT `+downloadTitleColumns+downloadTitleFrom+` WHERE x.download_id = ? ORDER BY x.position, x.item_id`,
+		downloadID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	var out []DownloadTitle
 	for rows.Next() {
-		var t DownloadTitle
-		var has bool
-		var p Prepared
-		var pid, media, size sql.NullInt64
-		var public, recipe, state, reason, container, hash sql.NullString
-		var created, used sql.NullInt64
-		if err := rows.Scan(&t.ItemID, &t.ItemPublicID, &t.Kind, &t.Title, &t.MediaID, &t.State, &t.Reason, &t.Position, &has,
-			&pid, &public, &media, &recipe, &state, &reason, &container, &size, &hash, &created, &used); err != nil {
+		t, err := scanDownloadTitle(rows)
+		if err != nil {
 			return nil, err
 		}
-		if has {
-			p = Prepared{ID: pid.Int64, PublicID: public.String, MediaID: media.Int64, Recipe: recipe.String, State: state.String,
-				Error: reason.String, Container: container.String, Size: size.Int64, ContentHash: hash.String,
-				CreatedAt: time.UnixMilli(created.Int64), LastUsedAt: time.UnixMilli(used.Int64)}
-			t.Prepared = &p
-		}
 		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+// DeviceDownloadTitles returns every title of a profile's requests on one device, with the
+// copy each uses, by request id, in one read: what a sync works from, however many requests
+// the device has.
+func (d *DB) DeviceDownloadTitles(ctx context.Context, profileID, deviceID int64) (map[int64][]DownloadTitle, error) {
+	rows, err := d.read.QueryContext(ctx, `SELECT x.download_id, `+downloadTitleColumns+downloadTitleFrom+`
+		JOIN downloads d ON d.id = x.download_id WHERE d.device_id = ? AND d.profile_id = ? ORDER BY x.download_id, x.position, x.item_id`,
+		deviceID, profileID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[int64][]DownloadTitle{}
+	for rows.Next() {
+		var download int64
+		t, err := scanDownloadTitle(rows, &download)
+		if err != nil {
+			return nil, err
+		}
+		out[download] = append(out[download], t)
 	}
 	return out, rows.Err()
 }
