@@ -1,9 +1,9 @@
-import {readOwnerLibraries, readOwnerAccessDevices} from '../../../../../../packages/client-core/src/owner-requests';
+import {readOwnerLibraries} from '../../../../../../packages/client-core/src/owner-requests';
 import {parseLibraryList} from '../../../../../../packages/client-core/src/library-list';
 import type {Library} from '../../../../../../packages/client-core/src';
 import {SettingsPeopleClient, type SettingsPeoplePage, type SettingsPeopleQuery, type SettingsPersonRow} from '../../../../../../packages/client-core/src/settings-people';
 import {PeopleInvitationsClient, privatePersonNotes, type PeopleInvitationPage, type ServerInvitation} from '../../../../../../packages/client-core/src/direct-account';
-import {deleteMember, previewMemberDeletion, parseAccessDevicePage, signOutMemberDevice, signOutMemberDevices, type AccessDevice, type AccessMember, type MemberDeletionPreview, type MemberLimits} from '../../../../../../packages/client-core/src/server-administration';
+import {deleteMember, previewMemberDeletion, readMemberDevices, signOutMemberDevice, signOutMemberDevices, type AccessDevice, type AccessMember, type MemberDeletionPreview, type MemberLimits} from '../../../../../../packages/client-core/src/server-administration';
 import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
 import {NativeScreenLifetime, screenScopeEnded} from '../lifetime';
 import {nativeStorageOwner} from './storage/space-source';
@@ -139,8 +139,8 @@ export class NativePeopleSource {
     const owns = () => this.current() && this.state.person === person && this.deviceFlight === flight && !flight.signal.aborted;
     this.publish({devicesLoading: true, devicesError: undefined, ...(!more ? {devices: undefined} : {})});
     try {
-      const params = new URLSearchParams({account: person.accountId, limit: '40', ...(cursor ? {cursor} : {})});
-      const page = parseAccessDevicePage(await readOwnerAccessDevices(this.api, '?' + params, flight.signal));
+      // The rebuilt server answers with the person's whole list in one read.
+      const page = await readMemberDevices(this.api, person.accountId, flight.signal);
       if (!owns()) return;
       if (page.items.some(device => device.accountId !== person.accountId)) throw new Error('native_people_device_scope_mismatch');
       const items = [...(previous?.items ?? [])], seen = new Set(items.map(device => device.id));
