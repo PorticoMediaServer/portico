@@ -121,6 +121,9 @@ type build struct {
 	st    *State
 	now   time.Time
 	pools map[string]*pool
+	// whole is the whole length of the Only-start-what-fits block being filled, 0 otherwise:
+	// an episode longer than it can never start there.
+	whole int64
 	// base is the seed new orders are made from: a hash of the builder, so a preview and the
 	// save of the same document make the same order.
 	base      uint64
@@ -512,7 +515,9 @@ func (bd *build) episode(show int64, sel *Selection, o *Order, room int64) (db.E
 			continue
 		}
 		e := next[0]
-		if !playable(e.DurationMS) {
+		// One that can never be scheduled here (unplayable, or longer than the whole block) is
+		// passed over for good; one that only misses the time left stays next for its show.
+		if !playable(e.DurationMS) || bd.whole > 0 && e.DurationMS > bd.whole {
 			bd.st.Shows[show] = Place{e.Season, e.Number, e.ID}
 			continue
 		}
@@ -626,6 +631,18 @@ func (bd *build) airingsFrom(t time.Time, days int) []airing {
 	return out
 }
 
+// fullWeek says the blocks cover every hour of the week, so the channel's own selection plays
+// only in them.
+func (bd *build) fullWeek() bool {
+	total := 0
+	for _, blk := range bd.b.Blocks {
+		from, _ := clock(blk.From)
+		to, _ := clock(blk.To)
+		total += len(blk.Days) * ((to-from+24*60-1)%(24*60) + 1)
+	}
+	return total >= week
+}
+
 func (bd *build) add(start time.Time, ms int64, item int64) time.Time {
 	end := start.Add(time.Duration(ms) * time.Millisecond)
 	bd.rows = append(bd.rows, db.ScheduleRow{StartsAt: start, EndsAt: end, ItemID: item})
@@ -687,8 +704,15 @@ func (bd *build) run(from, until time.Time) error {
 			poolKey, sel = "", &bd.b.Selection
 		}
 		var room int64
+		bd.whole = 0
 		if blk.Overrun == "fit" {
 			room = now.end.Sub(t).Milliseconds()
+			// An episode longer than the whole block can never start in it. It is passed over for
+			// good when its show plays nowhere else: the block plays its own selection, or the
+			// channel's own selection has no hours outside its blocks.
+			if blk.Selection != nil || bd.fullWeek() {
+				bd.whole = now.end.Sub(now.start).Milliseconds()
+			}
 		}
 		item, ms, ok, err := bd.next(poolKey, blk.ID, sel, room)
 		if err == nil && !ok && blk.IfEmpty != "slate" && blk.Selection != nil {
