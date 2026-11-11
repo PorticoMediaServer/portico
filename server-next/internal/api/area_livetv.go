@@ -19,8 +19,8 @@ type liveTVArea struct {
 	channels *librarychannels.Service
 	// sources refreshes Live TV sources. See live_sources.go.
 	sources *live.Service
-	// background lives as long as the server, for work a request starts and does not wait for.
-	background context.Context
+	// liveContext lives as long as the server, for work a request starts and does not wait for.
+	liveContext context.Context
 	// tuners runs each channel's shared input, and viewings the live sessions on them.
 	tuners   *live.Tuners
 	viewings *live.Viewings
@@ -34,21 +34,21 @@ type liveTVArea struct {
 // once, after the job runner exists and before the jobs left from the last run are taken up.
 func (s *Server) startLiveTV(ctx context.Context) error {
 	s.channels = librarychannels.New(s.db, s.log, func() time.Time { return s.now() })
-	go s.channels.Run(ctx)
+	s.goBackground(func() { s.channels.Run(ctx) })
 	s.libraryChannelRoutes()
 	s.liveRoutes()
 	var err error
 	if s.sources, err = live.New(s.db, s.log, func() time.Time { return s.now() }, s.dataDir); err != nil {
 		return err
 	}
-	s.background = ctx
-	go s.sources.Run(ctx)
+	s.liveContext = ctx
+	s.goBackground(func() { s.sources.Run(ctx) })
 	s.liveSourceRoutes()
 	s.tuners = live.NewTuners(filepath.Join(s.dataDir, "transcodes", "live"), live.StreamClient(), s.log, func() time.Time { return s.now() },
 		func() live.Tuning { return live.DefaultTuning })
 	s.viewings = live.NewViewings(func() time.Time { return s.now() })
-	go s.tuners.Run(ctx)
-	go s.viewings.Run(ctx)
+	s.goBackground(func() { s.tuners.Run(ctx) })
+	s.goBackground(func() { s.viewings.Run(ctx) })
 	s.liveStreamRoute()
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -57,7 +57,7 @@ func (s *Server) startLiveTV(ctx context.Context) error {
 	s.setDVROptions(dvr.Defaults(home))
 	s.recorder = dvr.New(s.db, s.tuners, s.sources, s.viewings, s.log, func() time.Time { return s.now() }, s.dvrOptions)
 	s.recorder.Deleted = s.stopPlaying
-	go s.recorder.Run(ctx)
+	s.goBackground(func() { s.recorder.Run(ctx) })
 	s.dvrRoutes()
 	s.liveProgrammeRoutes()
 	return nil
