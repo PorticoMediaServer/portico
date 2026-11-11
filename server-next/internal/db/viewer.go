@@ -128,33 +128,28 @@ func (a access) rated(alias, plus string) string {
 	return " AND " + plus + alias + ".rating_age <= " + strconv.Itoa(*a.maxAge)
 }
 
-// unblocked is the label part of visible, as " AND ..." or nothing: neither the row nor what
-// it sits under carries a blocked label. It is a few key lookups per row, which suits a page
-// (the list is read in order and stops when the page is full) and a single item.
+// unblocked is the label part of visible, as " AND ..." or nothing: none of the labels that
+// cover the row is one the profile has blocked. The row carries them itself (see
+// covering_labels.go), so this looks nothing up.
 func (a access) unblocked(alias string) string {
 	if len(a.blockedTags) == 0 {
 		return ""
 	}
-	return " AND NOT EXISTS (SELECT 1 FROM item_tags blocked WHERE blocked.item_id IN (" + alias + ".id, " + alias + ".parent_id, " +
-		alias + ".root_id) AND blocked.tag_id IN " + intList(a.blockedTags) + ")"
+	return " AND " + labelsExclude(alias+".labels", a.blockedTags)
 }
 
-// blockedIDs is a query for the id of every item a blocked label hides: the items that carry
-// one, and everything under them. A total subtracts these instead of checking every row.
-// library and kinds narrow it to one library and some kinds; 0 and "" mean any. item_tags
-// carries each labelled item's library and kind, and what is under a labelled title is found
-// with its kind from an index, so within a library this reads almost no item rows.
+// blockedIDs is a query for the id of every item a blocked label hides. A total subtracts
+// these instead of checking every row. library and kinds narrow it to one library and some
+// kinds; 0 and "" mean any. It reads the index of the items that have labels at all.
 func (a access) blockedIDs(library int64, kinds string) string {
-	tags, in, own, under := intList(a.blockedTags), "", "", ""
+	in := ""
 	if library != 0 {
 		in = fmt.Sprintf(" AND h.library_id = %d", library)
 	}
 	if kinds != "" {
-		own, under = " AND h.kind IN "+kinds, " AND c.kind IN "+kinds
+		in += " AND h.kind IN " + kinds
 	}
-	return `SELECT h.item_id FROM item_tags h WHERE h.tag_id IN ` + tags + in + own + `
-		UNION SELECT c.id FROM item_tags h CROSS JOIN items c ON c.parent_id = h.item_id WHERE h.tag_id IN ` + tags + in + under + `
-		UNION SELECT c.id FROM item_tags h CROSS JOIN items c ON c.root_id = h.item_id WHERE h.tag_id IN ` + tags + in + under
+	return `SELECT h.id FROM items h WHERE h.labels IS NOT NULL AND NOT ` + labelsExclude("h.labels", a.blockedTags) + in
 }
 
 // sparseRated is how few visible titles make a rating-limited list "sparse". See ratedIn.
