@@ -43,7 +43,11 @@ func CheckCopy(ctx context.Context, path string) error {
 		return err
 	}
 	for name, sql := range have {
-		if want[name] != sql {
+		// SQLite's own tables for row numbers and query statistics appear by themselves.
+		if name == "table sqlite_sequence" || name == "table sqlite_stat1" || name == "table sqlite_stat4" {
+			continue
+		}
+		if have, defined := want[name]; !defined || have != sql {
 			return fmt.Errorf("it holds %s, which Portico's schema does not define", name)
 		}
 	}
@@ -65,7 +69,9 @@ func schemaObjects(ctx context.Context, from *sql.DB) (map[string]string, error)
 		}
 		from = fresh
 	}
-	rows, err := from.QueryContext(ctx, `SELECT type, name, ifnull(sql, '') FROM sqlite_master WHERE name NOT LIKE 'sqlite\_%' ESCAPE '\'`)
+	// Every row is read, SQLite's own names included: a trigger or a view can be given a name
+	// beginning sqlite_ by writing to the schema table directly, and SQLite runs it.
+	rows, err := from.QueryContext(ctx, `SELECT type, name, ifnull(sql, '') FROM sqlite_master`)
 	if err != nil {
 		return nil, err
 	}

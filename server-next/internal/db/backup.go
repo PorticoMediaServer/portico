@@ -26,6 +26,10 @@ type backuper interface {
 // BackupTo copies the database to a new file at path. progress, when set, is told how many
 // pages are left after each step. On failure the partial copy is the caller's to remove.
 func (d *DB) BackupTo(ctx context.Context, path string, progress func(left int)) error {
+	if !d.backingUp.CompareAndSwap(false, true) {
+		return errors.New("a backup is already being made")
+	}
+	defer d.backingUp.Store(false)
 	var b *sqlite.Backup
 	step := func(fn func(driverConn any) error) error {
 		req := writeRequest{ctx: ctx, raw: fn, done: make(chan error, 1)}
