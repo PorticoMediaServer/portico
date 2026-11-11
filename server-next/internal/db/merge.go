@@ -72,6 +72,11 @@ func mergeItems(b *batchTx, from, into, now int64) error {
 		WHERE id IN (?, ?, ?) OR parent_id = ?`, into, z.parent.Int64, z.root.Int64, into); err != nil {
 		return err
 	}
+	// What moved keeps its rating and labels, so the title merged into, and what holds it, may
+	// now hold titles a profile cannot see.
+	if err := b.flagHolders(into); err != nil {
+		return err
+	}
 	for _, change := range []Change{{Op: OpDeleted, RefID: from}, {Op: OpUpdated, RefID: into}} {
 		change.At, change.Topic, change.LibraryID = now, TopicItem, a.library
 		if err := appendChange(b.tx, change); err != nil {

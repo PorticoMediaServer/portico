@@ -220,3 +220,18 @@ func HolderFlags(d *DB) (missing []string, extra int, stored map[int64]bool, err
 	}
 	return missing, extra, stored, nil
 }
+
+// MatchTitle gives a title the provider match key, as the metadata service does: found by the
+// server, or chosen by a person, which merges it into another title of the library that has
+// that match already.
+func MatchTitle(d *DB, publicID, key string, chosen bool) error {
+	var id int64
+	if err := d.read.QueryRow(`SELECT id FROM items WHERE public_id = ?`, publicID).Scan(&id); err != nil {
+		return err
+	}
+	if !chosen {
+		return d.ApplyDetails(context.Background(), Background, id, ItemDetails{Match: MatchFound, ProviderKey: key})
+	}
+	_, err := d.ChangeMatch(context.Background(), User, id, ItemDetails{Match: MatchChosen, ProviderKey: key})
+	return err
+}
