@@ -190,8 +190,9 @@ func (b *Builder) HasUnknownConditions() bool {
 
 // Check refuses a document that cannot be saved, naming the field. libraryKinds maps each
 // library that exists to its kind, and titleLibraries each pinned title to its library.
-func (b *Builder) Check(libraryKinds, titleLibraries map[string]string) error {
-	if err := b.Selection.check("", libraryKinds, titleLibraries); err != nil {
+// moods says the server has Portico's title data, which a Mood condition needs.
+func (b *Builder) Check(libraryKinds, titleLibraries map[string]string, moods bool) error {
+	if err := b.Selection.check("", libraryKinds, titleLibraries, moods); err != nil {
 		return err
 	}
 	if b.AvoidRepeats != nil && (*b.AvoidRepeats < 0 || *b.AvoidRepeats > 1000) {
@@ -237,7 +238,7 @@ func (b *Builder) Check(libraryKinds, titleLibraries map[string]string) error {
 			return fieldError(field, "Choose what happens at the end, each time it starts and if nothing matches.")
 		}
 		if blk.Selection != nil {
-			if err := blk.Selection.check(field+".selection.", libraryKinds, titleLibraries); err != nil {
+			if err := blk.Selection.check(field+".selection.", libraryKinds, titleLibraries, moods); err != nil {
 				return err
 			}
 		}
@@ -249,7 +250,7 @@ func oneOf(value string, choices ...string) bool {
 	return value == "" || slices.Contains(choices, value)
 }
 
-func (s *Selection) check(prefix string, libraryKinds, titleLibraries map[string]string) error {
+func (s *Selection) check(prefix string, libraryKinds, titleLibraries map[string]string, moods bool) error {
 	if len(s.Libraries) == 0 {
 		return fieldError(prefix+"libraries", "Choose at least one library.")
 	}
@@ -275,6 +276,12 @@ func (s *Selection) check(prefix string, libraryKinds, titleLibraries map[string
 	}
 	count := 0
 	for _, c := range s.Conditions {
+		if err := c.CheckValues(); err != nil {
+			return fieldError(prefix+"conditions", "A condition's values can't be used: %s.", strings.TrimPrefix(err.Error(), "invalid: "))
+		}
+		if !moods && (c.Field == "mood" || slices.ContainsFunc(c.Conditions, func(i db.ChannelCondition) bool { return i.Field == "mood" })) {
+			return fieldError(prefix+"conditions", "Mood needs Portico's title data, which this server doesn't have.")
+		}
 		count++
 		if c.Conditions != nil || c.Match != "" {
 			if !oneOf(c.Match, "all", "any") {
@@ -429,6 +436,12 @@ func CheckRecipe(r *Recipe) error {
 		if c.Conditions != nil || c.Match != "" {
 			return fieldError("recipe.clauses", "A preset's clauses cannot be grouped.")
 		}
+		if !c.Known() {
+			return fieldError("recipe.clauses", "A preset selects by Genre, Tag, Studio, Network, Content rating, Decade, Year, Language, Country, Collection or Mood.")
+		}
+		if err := c.CheckValues(); err != nil {
+			return fieldError("recipe.clauses", "A clause's values can't be used: %s.", strings.TrimPrefix(err.Error(), "invalid: "))
+		}
 	}
 	return nil
 }
@@ -443,4 +456,36 @@ func LoadZone(name string) (*time.Location, error) {
 		return nil, fieldError("timeZone", "Enter a time zone like America/New_York.")
 	}
 	return loc, nil
+}
+
+// DropGone takes out of every pinned and weighted list the titles that no longer exist:
+// rule 79 says such a title leaves the choice at once. It answers how many it took out.
+func (b *Builder) DropGone(titleLibraries map[string]string) int {
+	dropped := 0
+	clean := func(s *Selection) {
+		keep := func(ids []string) []string {
+			return slices.DeleteFunc(ids, func(id string) bool {
+				_, ok := titleLibraries[id]
+				if !ok {
+					dropped++
+				}
+				return !ok
+			})
+		}
+		s.Always, s.Never = keep(s.Always), keep(s.Never)
+		s.Weights = slices.DeleteFunc(s.Weights, func(w Weight) bool {
+			_, ok := titleLibraries[w.ID]
+			if !ok {
+				dropped++
+			}
+			return !ok
+		})
+	}
+	clean(&b.Selection)
+	for n := range b.Blocks {
+		if b.Blocks[n].Selection != nil {
+			clean(b.Blocks[n].Selection)
+		}
+	}
+	return dropped
 }
