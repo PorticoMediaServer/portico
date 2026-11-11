@@ -356,7 +356,7 @@ func (s *Server) remoteAccessRoutes() {
 
 func (s *Server) remoteStatus(r *http.Request) RemoteAccessStatus {
 	return RemoteAccessStatus{ThisDevice: ThisDevice{AtHome: s.networks().FromHome(r), Address: s.remoteHost(r)},
-		Refused: s.remote.refusedList(), Certificate: s.certs.Status(), Router: s.ports.Status(), IdentityCode: identityCode(s.id)}
+		Refused: s.remote.refusedList(), Certificate: s.certs.Status(), Router: s.ports.Status(), IdentityCode: s.identity.code()}
 }
 
 // saveRemoteAccess replaces the whole document. Saving it from outside the home networks can

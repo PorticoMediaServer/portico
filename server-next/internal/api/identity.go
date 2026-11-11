@@ -2,14 +2,16 @@ package api
 
 import (
 	"crypto/ed25519"
+	"sync"
+
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"golang.org/x/crypto/argon2"
 	"math/big"
 	"net/http"
-	"strings"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 )
@@ -21,6 +23,8 @@ import (
 // a token. The server's id is made from the public key, so the two cannot be told apart.
 type identity struct {
 	key         ed25519.PrivateKey
+	codeOnce    *sync.Once
+	codeValue   string
 	id          string
 	publicKey   string
 	fingerprint string
@@ -36,20 +40,21 @@ func newIdentity(seed string) (identity, error) {
 	id := sha256.Sum256(append([]byte("portico.server.identity.v1\x00"), public...))
 	digest := sha256.Sum256(public)
 	enc := base64.RawURLEncoding.EncodeToString
-	return identity{key: key, id: "srv_" + enc(id[:]), publicKey: enc(public), fingerprint: enc(digest[:])}, nil
+	return identity{key: key, codeOnce: &sync.Once{}, id: "srv_" + enc(id[:]), publicKey: enc(public), fingerprint: enc(digest[:])}, nil
 }
 
 // identityCode is the server's identity in twelve characters a person can read out, such as
 // "JJWY-C8J8-J26F". The owner reads it in Remote access; an app that meets this server away
 // from home through the owner's own certificate, with nothing else to vouch for it, asks for
-// it once. It is the first 8 bytes of the digest in the server id, taken modulo 31^12 and
-// written in the code alphabet, so the app works it out from the proof the same way.
-func identityCode(serverID string) string {
-	raw, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(serverID, "srv_"))
-	if err != nil || len(raw) < 8 {
-		return ""
-	}
-	n := new(big.Int).SetUint64(binary.BigEndian.Uint64(raw[:8]))
+// it once. The code is public, so it only helps if making a key with the same code is out of
+// reach: it is the first 8 bytes of Argon2id of the server's public key (the salt
+// "portico identity code", 3 passes, 64 MiB, one lane), taken modulo 31^12 and written in the
+// code alphabet. Each try costs a quarter of a second and 64 MiB, so the 2^59 tries a matching
+// key needs are out of reach, while an app pays it once per first meeting. The app works it out
+// from the public key in the proof the same way; these parameters can never change once one does.
+func identityCode(publicKey []byte) string {
+	sum := argon2.IDKey(publicKey, []byte("portico identity code"), 3, 64<<10, 1, 8)
+	n := new(big.Int).SetUint64(binary.BigEndian.Uint64(sum))
 	radix := big.NewInt(int64(len(auth.CodeAlphabet)))
 	n.Mod(n, new(big.Int).Exp(radix, big.NewInt(12), nil))
 	out := make([]byte, 12)
@@ -59,6 +64,12 @@ func identityCode(serverID string) string {
 		out[i] = auth.CodeAlphabet[digit.Int64()]
 	}
 	return string(out[:4]) + "-" + string(out[4:8]) + "-" + string(out[8:])
+}
+
+// code is this server's identity code, worked out once, when first asked for.
+func (i *identity) code() string {
+	i.codeOnce.Do(func() { i.codeValue = identityCode(i.key.Public().(ed25519.PublicKey)) })
+	return i.codeValue
 }
 
 // IdentityQuestion is what an app asks an address before trusting it: the address it used

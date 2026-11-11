@@ -52,19 +52,14 @@ func TestIdentityProof(t *testing.T) {
 }
 
 // The identity code is worked out exactly as the apps work it out, so the code the owner reads
-// out is the one an app accepts: the design's test vector.
+// out is the one an app accepts. This vector is the one the apps test against.
 func TestIdentityCode(t *testing.T) {
 	public := make([]byte, 32)
 	for i := range public {
 		public[i] = byte(i)
 	}
-	id := sha256.Sum256(append([]byte("portico.server.identity.v1\x00"), public...))
-	serverID := "srv_" + base64.RawURLEncoding.EncodeToString(id[:])
-	if serverID != "srv_Wl4E3ID18LNZFgw_Gjc3R0liIOV67Gd2vD54Ubw6OAY" {
-		t.Fatalf("the vector's server id came out as %s", serverID)
-	}
-	if code := identityCode(serverID); code != "JJWY-C8J8-J26F" {
-		t.Fatalf("the identity code is %s, want JJWY-C8J8-J26F", code)
+	if code := identityCode(public); code != "6HE7-HZHV-74SJ" {
+		t.Fatalf("the identity code is %s", code)
 	}
 }
 
@@ -88,7 +83,7 @@ func TestIdentityProofVouchesForTheOwnCertificate(t *testing.T) {
 	}
 	var status RemoteAccessStatus
 	call(t, s, "GET", "/v1/admin/remote-access", owner, nil, &status)
-	if status.IdentityCode != identityCode(s.id) || len(status.IdentityCode) != 14 {
+	if status.IdentityCode != s.identity.code() || len(status.IdentityCode) != 14 {
 		t.Fatalf("the owner is shown the identity code %q", status.IdentityCode)
 	}
 }
