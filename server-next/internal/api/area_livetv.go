@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/librarychannels"
 	"github.com/PorticoMediaServer/portico/server-next/internal/live"
 )
@@ -27,11 +26,8 @@ func (s *Server) startLiveTV(ctx context.Context) error {
 	go s.channels.Run(ctx)
 	s.libraryChannelRoutes()
 	s.liveRoutes()
-	signInKey, err := s.db.SettingOrCreate(ctx, "live.signin_key", auth.NewKey)
-	if err != nil {
-		return err
-	}
-	if s.sources, err = live.New(s.db, s.log, func() time.Time { return s.now() }, s.dataDir, signInKey); err != nil {
+	var err error
+	if s.sources, err = live.New(s.db, s.log, func() time.Time { return s.now() }, s.dataDir); err != nil {
 		return err
 	}
 	s.background = ctx
