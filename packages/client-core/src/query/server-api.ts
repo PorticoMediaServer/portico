@@ -4,11 +4,13 @@ import type {Routes} from '../../../contracts/src/next/api.ts';
 export type ServerRequester = {request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>};
 
 /** The address of a route on the new server, with its `{id}` and query filled in. */
-export function serverPath(route: keyof Routes, options: Readonly<{id?: string; query?: Readonly<Record<string, string | number | boolean | undefined>>}> = {}): string {
+export function serverPath(route: keyof Routes, options: Readonly<{id?: string; itemId?: string; query?: Readonly<Record<string, string | number | boolean | undefined>>}> = {}): string {
   let path = route.slice(route.indexOf(' ') + 1);
-  if (path.includes('{id}')) {
-    if (!options.id) throw new Error('This route needs an id.');
-    path = path.replace('{id}', encodeURIComponent(options.id));
+  for (const name of ['id', 'itemId'] as const) {
+    if (!path.includes('{' + name + '}')) continue;
+    const value = options[name];
+    if (!value) throw new Error('This route needs an ' + name + '.');
+    path = path.replace('{' + name + '}', encodeURIComponent(value));
   }
   const query = new URLSearchParams();
   for (const [name, value] of Object.entries(options.query ?? {})) if (value !== undefined && value !== '') query.set(name, String(value));
@@ -17,7 +19,7 @@ export function serverPath(route: keyof Routes, options: Readonly<{id?: string; 
 
 /** One request to the new server, typed by the route table generated from the server's own routes. */
 export function callServer<K extends keyof Routes>(api: ServerRequester, route: K,
-  options: Readonly<{id?: string; query?: Readonly<Record<string, string | number | boolean | undefined>>; body?: Routes[K]['request']; signal?: AbortSignal}> = {}): Promise<Routes[K]['response']> {
+  options: Readonly<{id?: string; itemId?: string; query?: Readonly<Record<string, string | number | boolean | undefined>>; body?: Routes[K]['request']; signal?: AbortSignal}> = {}): Promise<Routes[K]['response']> {
   return api.request<Routes[K]['response']>(serverPath(route, options), route.slice(0, route.indexOf(' ')), options.body, options.signal);
 }
 

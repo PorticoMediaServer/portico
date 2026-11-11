@@ -16,11 +16,16 @@ const kinds = {
 } as const;
 export type OutboxKind = keyof typeof kinds;
 const kindOf = new Map<string, OutboxKind>(Object.entries(kinds).flatMap(([kind, ids]) => ids.map(id => [id, kind as OutboxKind] as const)));
+/** One route of the new server the outbox carries. */
+const nextRoute = (route: keyof Routes) => ({kind: 'personal' as OutboxKind, method: route.slice(0, route.indexOf(' ')), parts: route.slice(route.indexOf(' ') + 1).split('/')});
 /** A person's own state on a title: watched, favourite, My List, rating, hidden and position, on the one route that sets them. */
-const itemStateRoute: keyof Routes = 'PUT /v1/items/{id}/state';
-const itemState = {kind: 'personal' as OutboxKind, method: 'PUT', parts: itemStateRoute.slice(itemStateRoute.indexOf(' ') + 1).split('/')};
-const outboxRoutes = [itemState, ...routes.filter(route => kindOf.has(route.id)).map(route => ({kind: kindOf.get(route.id)!, method: route.method, parts: route.path.split('/')}))];
-if (outboxRoutes.length !== kindOf.size + 1) throw new Error('An outbox route is missing from the generated routes.');
+const itemState = nextRoute('PUT /v1/items/{id}/state');
+/** Several of those at once, and the plays a device made out of reach (a download played with no server). */
+const stateBatch = nextRoute('POST /v1/items/state:batch');
+/** Asking for a download, and removing one: a wish made out of reach is sent later, like any other tap. */
+const nextRoutes = [itemState, stateBatch, nextRoute('POST /v1/downloads'), nextRoute('DELETE /v1/downloads/{id}')];
+const outboxRoutes = [...nextRoutes, ...routes.filter(route => kindOf.has(route.id)).map(route => ({kind: kindOf.get(route.id)!, method: route.method, parts: route.path.split('/')}))];
+if (outboxRoutes.length !== kindOf.size + nextRoutes.length) throw new Error('An outbox route is missing from the generated routes.');
 
 /** Which kind of write this is, when the outbox carries it: the words for it differ, and a stop is never reported. */
 export function outboxKind(path: string, method: string): OutboxKind | undefined {
@@ -36,14 +41,24 @@ export function outboxKind(path: string, method: string): OutboxKind | undefined
 /** Whether a write to this path goes through the outbox. */
 export const isOutboxRoute = (path: string, method: string): boolean => outboxKind(path, method) !== undefined;
 
+const matches = (route: {method: string; parts: string[]}, method: string, segments: string[]) =>
+  method === route.method && segments.length === route.parts.length && route.parts.every((part, i) => part.startsWith('{') ? !!segments[i] : part === segments[i]);
+
 /**
  * What is sent for a kept edit. A change to a title's state says how long ago the person made it
  * (`madeAgoMs`), so the server can order it against edits from other devices; the server never
- * reads this device's clock, only that length of time.
+ * reads this device's clock, only that length of time. In a batch every edit and every play
+ * says so, adding the time it waited here to any age it already carried.
  */
 export function outboxBody(entry: Readonly<{path: string; method: string; body?: unknown; createdAt: number}>, now: number): unknown {
   const segments = entry.path.split('?')[0]!.split('/');
-  const state = entry.method === itemState.method && segments.length === itemState.parts.length && itemState.parts.every((part, i) => part.startsWith('{') ? !!segments[i] : part === segments[i]);
-  if (!state || typeof entry.body !== 'object' || entry.body === null) return entry.body;
-  return {...entry.body, madeAgoMs: Math.max(0, Math.round(now - entry.createdAt))};
+  if (typeof entry.body !== 'object' || entry.body === null) return entry.body;
+  const waited = Math.max(0, Math.round(now - entry.createdAt));
+  if (matches(itemState, entry.method, segments)) return {...entry.body, madeAgoMs: waited};
+  if (!matches(stateBatch, entry.method, segments)) return entry.body;
+  const aged = (list: unknown) => Array.isArray(list)
+    ? list.map(one => typeof one === 'object' && one !== null ? {...one, madeAgoMs: Math.max(0, Number((one as {madeAgoMs?: unknown}).madeAgoMs) || 0) + waited} : one)
+    : list;
+  const batch = entry.body as {items?: unknown; plays?: unknown};
+  return {...batch, items: aged(batch.items ?? []), ...(batch.plays === undefined ? {} : {plays: aged(batch.plays)})};
 }
