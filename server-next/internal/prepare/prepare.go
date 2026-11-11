@@ -98,6 +98,9 @@ func New(o Options) (*Service, error) {
 	return s, nil
 }
 
+// Wake looks for copies to make now: a request was resumed or retried.
+func (s *Service) Wake() { s.kick() }
+
 func (s *Service) kick() {
 	select {
 	case s.wake <- struct{}{}:
@@ -268,7 +271,10 @@ func reason(err error) string {
 	return "The server couldn't convert this title."
 }
 
-var errSource = errors.New("the source cannot be opened")
+// ErrSource says a library file cannot be opened now: gone, moved or unreachable.
+var ErrSource = errors.New("the file for this title can't be reached right now")
+
+var errSource = ErrSource
 
 // convert makes the file of each part of the version, then puts them in place.
 func (s *Service) convert(ctx context.Context, p db.Prepared) (container string, size int64, hash string, err error) {
@@ -317,7 +323,7 @@ func (s *Service) convert(ctx context.Context, p db.Prepared) (container string,
 // earlier parts wrote, for the progress.
 func (s *Service) convertPart(ctx context.Context, p db.Prepared, part db.Part, recipe decoder.PreparedRecipe, temp string,
 	before int64) (string, int64, error) {
-	source, size, err := s.open(ctx, part.FileID)
+	source, size, _, err := s.OpenFile(ctx, part.FileID)
 	if err != nil {
 		return "", 0, err
 	}
@@ -361,46 +367,52 @@ func (s *Service) convertPart(ctx context.Context, p db.Prepared, part db.Part, 
 	return hex.EncodeToString(sum.Sum(nil)), counter.n, err
 }
 
-// open opens a part's file by the scanner's record of it, never by anything a request said.
-func (s *Service) open(ctx context.Context, fileID int64) (interface {
+// Source is a library file opened for reading anywhere in it.
+type Source interface {
 	io.ReaderAt
 	io.Closer
-}, int64, error) {
+}
+
+// OpenFile opens a library file by the scanner's record of it, never by anything a request
+// said: on a disk here through libraryfile, or on remote storage through its source. A file
+// that changed size since the scan is refused. It returns the size and the modified time the
+// scanner recorded.
+func (s *Service) OpenFile(ctx context.Context, fileID int64) (Source, int64, time.Time, error) {
 	place, err := s.DB.FileOnDisk(ctx, fileID)
 	if err == nil {
 		folders, err := s.DB.LibraryFolders(ctx)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, time.Time{}, err
 		}
 		file, err := libraryfile.Open(place.Path, folders)
 		if err != nil {
-			return nil, 0, errSource
+			return nil, 0, time.Time{}, errSource
 		}
 		if info, err := file.Stat(); err != nil || info.Size() != place.Size {
 			file.Close()
-			return nil, 0, errSource
+			return nil, 0, time.Time{}, errSource
 		}
-		return file, place.Size, nil
+		return file, place.Size, time.Unix(0, place.ModifiedNS), nil
 	}
 	if !errors.Is(err, db.ErrNotFound) || s.Remote == nil {
-		return nil, 0, errSource
+		return nil, 0, time.Time{}, errSource
 	}
 	sourceID, place, err := s.DB.RemoteFileOf(ctx, fileID)
 	if err != nil {
-		return nil, 0, errSource
+		return nil, 0, time.Time{}, errSource
 	}
 	storage, _, err := s.Remote(ctx, sourceID)
 	if err != nil {
-		return nil, 0, errSource
+		return nil, 0, time.Time{}, errSource
 	}
 	file, err := storage.Open(ctx, place.Path)
 	if err != nil || file.Size() != place.Size {
 		if file != nil {
 			file.Close()
 		}
-		return nil, 0, errSource
+		return nil, 0, time.Time{}, errSource
 	}
-	return file, place.Size, nil
+	return file, place.Size, time.Unix(0, place.ModifiedNS), nil
 }
 
 type counting struct {

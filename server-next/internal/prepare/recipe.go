@@ -30,17 +30,24 @@ func Recipes(v db.Version, kind db.ItemKind, highest string) []string {
 		// A book, a comic or anything else without a picture to make smaller.
 		return nil
 	}
-	limit := 1 << 30
-	if p, ok := qualityladder.Find(highest); ok {
-		limit = p.VideoBitrateBPS
-	}
 	for _, p := range qualityladder.Fixed() {
-		if p.ID == "2160p" || v.Height > 0 && p.Height > v.Height || p.VideoBitrateBPS > limit || p.SameAsSource(v.Height, v.Bitrate) {
+		if p.ID == "2160p" || v.Height > 0 && p.Height > v.Height || !WithinLimit(p.ID, highest) || p.SameAsSource(v.Height, v.Bitrate) {
 			continue
 		}
 		out = append(out, p.ID)
 	}
 	return out
+}
+
+// WithinLimit says a quality is at or below the owner's highest download quality. Music
+// bitrates are never above it.
+func WithinLimit(quality, highest string) bool {
+	limit, capped := qualityladder.Find(highest)
+	if !capped {
+		return quality != "original" || highest == "original"
+	}
+	p, video := qualityladder.Find(quality)
+	return !video && quality != "original" || video && p.VideoBitrateBPS <= limit.VideoBitrateBPS
 }
 
 // EstimatedSize is about how many bytes a copy of the version at the recipe will take.

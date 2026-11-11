@@ -22,6 +22,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/artwork"
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/downloads"
 	"github.com/PorticoMediaServer/portico/server-next/internal/jobs"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
@@ -71,6 +72,8 @@ type Server struct {
 	media    func(w http.ResponseWriter, r *http.Request, grant, file string)
 	// prepare makes the smaller copies people download. See prepare.
 	prepare *prepare.Service
+	// downloads answers what profiles ask to have on their devices. See downloads.go.
+	downloads *downloads.Service
 	// feeds caps the change feeds each sign-in holds open. See catalogue.go.
 	feeds feeds
 	// remote opens the owner's remote sources. See remote_sources.go.
@@ -233,6 +236,8 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	}
 	go s.prepare.Run(ctx)
 	s.jobs.Tidy("unused prepared copies", 6*time.Hour, s.prepare.Tidy)
+	s.downloads = &downloads.Service{DB: d, Prepare: s.prepare, Settings: s.settings, Now: func() time.Time { return s.now() }}
+	s.downloadRoutes()
 	s.libraryRoutes()
 	s.jobRoutes()
 	// Every kind of job is registered by now: the jobs asked for before the server last
