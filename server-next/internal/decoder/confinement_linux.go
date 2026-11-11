@@ -81,12 +81,12 @@ func decodeLinux(text string) (linuxSpec, error) {
 			return v, ErrInvalidConfiguration
 		}
 	}
-	if len(v.HardwareEnvironment) > 5 || !v.Hardware && len(v.HardwareEnvironment) > 0 {
+	if len(v.HardwareEnvironment) > 6 || !v.Hardware && len(v.HardwareEnvironment) > 0 {
 		return v, ErrInvalidConfiguration
 	}
 	for _, kv := range v.HardwareEnvironment {
 		switch kv[0] {
-		case "LIBVA_DRIVER_NAME", "LIBVA_DRIVERS_PATH", "CUDA_VISIBLE_DEVICES", "NVIDIA_VISIBLE_DEVICES", "NVIDIA_DRIVER_CAPABILITIES":
+		case "LIBVA_DRIVER_NAME", "LIBVA_DRIVERS_PATH", "CUDA_VISIBLE_DEVICES", "NVIDIA_VISIBLE_DEVICES", "NVIDIA_DRIVER_CAPABILITIES", "LD_LIBRARY_PATH":
 		default:
 			return v, ErrInvalidConfiguration
 		}
@@ -270,6 +270,9 @@ func sandboxArgs(v linuxSpec, socket string, n int) ([]string, error) {
 		}
 		args = append(args, mount...)
 		dirs = append(dirs, filepath.Dir(p))
+	}
+	if v.Hardware {
+		dirs = append(dirs, mediaexec.HardwareLibraryFolders(v.HardwareEnvironment)...)
 	}
 	if len(dirs) > 0 {
 		args = append(args, "--setenv", "LD_LIBRARY_PATH", strings.Join(dirs, ":"))
