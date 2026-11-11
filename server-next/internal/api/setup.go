@@ -204,11 +204,14 @@ func (s *Server) checkSetupCode(r *http.Request, code string) error {
 
 // checkServerName checks a name setup was given with Settings › General's own rule, so the
 // name setup saves is one the console accepts. "" keeps the name the server has.
-func checkServerName(name string) (string, error) {
+func (s *Server) checkServerName(name string) (string, error) {
 	if strings.TrimSpace(name) == "" {
 		return "", nil
 	}
-	checked, err := settings.General.Check(settings.GeneralSettings{Name: name})
+	// The other General settings are the server's own, so only the name is judged.
+	general := settings.General.Get(s.settings)
+	general.Name = name
+	checked, err := settings.General.Check(general)
 	var invalid *settings.Invalid
 	if errors.As(err, &invalid) {
 		return "", ErrField("serverName", invalid.Message)
@@ -254,7 +257,7 @@ func (s *Server) setupOwner(r *http.Request, req SetupOwnerRequest) (SignInRespo
 	if !auth.ValidName(req.ProfileName) {
 		return SignInResponse{}, ErrField("profileName", "Give the profile a name of at most 120 characters.")
 	}
-	serverName, err := checkServerName(req.ServerName)
+	serverName, err := s.checkServerName(req.ServerName)
 	if err != nil {
 		return SignInResponse{}, err
 	}
@@ -317,7 +320,7 @@ func setupHostedError(err error) error {
 // setupPortico checks the setup code and asks Portico Services where the person approves this
 // server. The server saves nothing: if the approval never comes back, it is as it was.
 func (s *Server) setupPortico(r *http.Request, req SetupPorticoRequest) (SetupPorticoApproval, error) {
-	serverName, err := checkServerName(req.ServerName)
+	serverName, err := s.checkServerName(req.ServerName)
 	if err != nil {
 		return SetupPorticoApproval{}, err
 	}
@@ -375,7 +378,7 @@ func (s *Server) setupPorticoFinish(r *http.Request, req SetupPorticoFinish) (Si
 	if !auth.ValidName(profileName) || profileName == "" {
 		profileName = decision.Account.Username
 	}
-	serverName, err := checkServerName(decision.ServerName)
+	serverName, err := s.checkServerName(decision.ServerName)
 	if err != nil {
 		serverName = ""
 	}
