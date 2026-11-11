@@ -171,6 +171,31 @@ func TestSoftwareToneMapArgumentsAndAlgorithms(t *testing.T) {
 	}
 }
 
+// A tone map on the graphics device leaves the matrix to the device's own filter: with
+// -colorspace on the encoder as well, ffmpeg 8 cannot join the device's frames to the
+// encoder and the whole conversion falls back to the processor. The picture is still
+// described as BT.709 by its primaries and transfer.
+func TestDeviceToneMapLeavesTheMatrixToTheDevice(t *testing.T) {
+	for _, backend := range []HardwareBackend{BackendVAAPI, BackendQSV, BackendNVENC} {
+		if !backendSpecs[backend].supported() {
+			continue
+		}
+		graph, err := BuildConversion(ConversionRequest{ConvertVideo: true, ToneMap: true,
+			Probe: HardwareProbe{Backend: backend, Available: true, NativeFilters: true}})
+		if err != nil {
+			t.Fatal(backend, err)
+		}
+		joined := strings.Join(graph.Video, " ")
+		if strings.Contains(joined, "-colorspace") || !strings.Contains(joined, "-color_primaries bt709 -color_trc bt709") {
+			t.Fatalf("%s: %s", backend, joined)
+		}
+	}
+	graph, err := BuildConversion(ConversionRequest{ConvertVideo: true, ToneMap: true})
+	if err != nil || !strings.Contains(strings.Join(graph.Video, " "), "-colorspace bt709") {
+		t.Fatal("the processor's tone map should still name its matrix", graph.Video, err)
+	}
+}
+
 func TestHDRDetectionFromProbeFacts(t *testing.T) {
 	for _, transfer := range HDRTransfers {
 		if !IsHDR(transfer, "bt2020") {

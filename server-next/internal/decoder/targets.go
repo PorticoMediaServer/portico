@@ -227,6 +227,17 @@ func videoColorArgs(t ConversionTarget) []string {
 	return []string{"-color_primaries", primaries, "-color_trc", transfer, "-colorspace", matrix, "-color_range", "tv"}
 }
 
+// withoutMatrix is the colour description without its matrix (-colorspace).
+func withoutMatrix(args []string) []string {
+	out := make([]string, 0, len(args))
+	for i := 0; i < len(args); i += 2 {
+		if args[i] != "-colorspace" {
+			out = append(out, args[i], args[i+1])
+		}
+	}
+	return out
+}
+
 func videoRateArgs(t ConversionTarget, encoder, preset string) []string {
 	quality := t.Quality
 	if quality == 0 {
