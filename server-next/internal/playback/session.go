@@ -360,16 +360,30 @@ func (s *Service) Save(ctx context.Context, p db.Priority, only ...string) {
 }
 
 // Stop ends a session from its own device, or from another of the account's devices (the
-// stream limit screen lists them to be stopped). positionMs, when not nil, is the device's
-// final position. Stopping a session that is unknown or already over succeeds.
-func (s *Service) Stop(ctx context.Context, id string, userID int64, positionMs *int64) {
+// stream limit screen lists them to be stopped). positionMs, when not nil, is the final
+// position, and is taken only from the device that was playing: a stop from any other device
+// ends the stream and saves nothing that device sent, so the session keeps the last place
+// its own device reported. Stopping a session that is unknown or already over succeeds.
+func (s *Service) Stop(ctx context.Context, id string, userID, signInID int64, positionMs *int64) {
 	s.mu.Lock()
 	sess := s.sessions[id]
 	if sess == nil || sess.UserID != userID || sess.State == StateEnded {
 		s.mu.Unlock()
 		return
 	}
-	if positionMs != nil {
+	playing, own := sess.Device.ID, sess.SignInID == signInID
+	s.mu.Unlock()
+	if !own && positionMs != nil {
+		// A new sign-in on the device that is playing is still that device.
+		device, err := s.db.SessionDevice(ctx, signInID)
+		own = err == nil && device.ID == playing
+	}
+	s.mu.Lock()
+	if sess.State == StateEnded {
+		s.mu.Unlock()
+		return
+	}
+	if own && positionMs != nil {
 		s.sampleLocked(sess, *positionMs, sess.playedMs, s.now())
 	}
 	s.endLocked(sess, EndStopped, "")

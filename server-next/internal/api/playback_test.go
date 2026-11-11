@@ -710,6 +710,39 @@ func TestSavedQualityStaysOnItsDevice(t *testing.T) {
 	}
 }
 
+// Any profile of an account may stop any of the account's streams, but a stop from a device
+// other than the one playing saves nothing that device sent: the title keeps the place its
+// own device last reported, and is not marked watched.
+func TestAStopFromAnotherDeviceSavesNothingItSent(t *testing.T) {
+	th := newTheatre(t)
+	main := th.owner.AccessToken
+	var kid Profile
+	if w := call(t, th.s, "POST", "/v1/profiles", main, ProfileCreate{Name: "Kid"}, &kid); w.Code != 200 {
+		t.Fatalf("making a profile answered %d: %s", w.Code, w.Body)
+	}
+	var tablet Session
+	if w := call(t, th.s, "POST", "/v1/profiles/"+kid.ID+"/select", signIn(t, th.s, 5).Session.AccessToken, ProfileSelect{}, &tablet); w.Code != 200 {
+		t.Fatalf("choosing the profile answered %d: %s", w.Code, w.Body)
+	}
+	session := th.play(main, th.film)
+	th.report(main, session.ID, "playing", 10*60_000)
+	if code := status(t, th.s, "DELETE", "/v1/playback/sessions/"+session.ID, tablet.AccessToken, PlaybackStop{PositionMs: ptr(59 * 60_000)}); code != 204 {
+		t.Fatalf("a stop from another device answered %d", code)
+	}
+	if th.engine.streams() != 0 {
+		t.Fatal("the stream was not stopped")
+	}
+	if state := th.state(th.film); state.PositionMS != 10*60_000 || state.Watched {
+		t.Fatalf("the main profile's place after another device stopped its film: %+v", state)
+	}
+	// The device that is playing still says where it stopped.
+	session = th.play(main, th.film)
+	status(t, th.s, "DELETE", "/v1/playback/sessions/"+session.ID, main, PlaybackStop{PositionMs: ptr(20 * 60_000)})
+	if state := th.state(th.film); state.PositionMS != 20*60_000 {
+		t.Fatalf("the place after the playing device stopped: %+v", state)
+	}
+}
+
 // A way of playing that failed on a device is remembered for that device and file: the
 // session moves to the next way, the next start begins there, the owner can see it and
 // forget it, and it expires by itself.

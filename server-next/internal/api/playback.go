@@ -275,7 +275,8 @@ func (s *Server) reportPlayback(r *http.Request, req PlaybackProgress) (Playback
 
 // stopPlayback is safe to repeat: stopping a session that is unknown or already over succeeds.
 func (s *Server) stopPlayback(r *http.Request, req PlaybackStop) (None, error) {
-	s.playback.Stop(r.Context(), r.PathValue("id"), CallerFrom(r.Context()).UserID, req.PositionMs)
+	c := CallerFrom(r.Context())
+	s.playback.Stop(r.Context(), r.PathValue("id"), c.UserID, c.SessionID, req.PositionMs)
 	return None{}, nil
 }
 
