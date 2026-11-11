@@ -78,6 +78,10 @@ type RemoteAccessSettings struct {
 	// address it can allow, which refuses every connection from outside the home networks.
 	// Off, Enhanced with no address waits and works as Standard; the default never turns it on.
 	EnhancedWithoutAddress bool `json:"enhancedWithoutAddress"`
+	// EnhancedWithoutHome is the owner's explicit choice to have Enhanced in force while the
+	// server knows no home networks, when everyone counts as outside, the household included.
+	// Off, Enhanced waits for home networks and works as Standard; the default never turns it on.
+	EnhancedWithoutHome bool `json:"enhancedWithoutHome"`
 	// CertificateWarningDays is how many days before the own certificate expires the owner
 	// is warned: 7, 14, 30 or 60.
 	CertificateWarningDays int `json:"certificateWarningDays"`
@@ -209,6 +213,8 @@ type remoteState struct {
 	// are loaded and valid for it. Until the server serves them (internal/tlsport), it is nil
 	// and they count as not usable. A reverse proxy at the own address (no files) needs none.
 	ownCertificateUsable func() bool
+	// homeKnown says the server has home networks, guessed or listed. Unset, it has.
+	homeKnown func() bool
 	// listenPort is the port the server listens on, the one the router forwards to.
 	listenPort int
 	// finder announces the server to apps at home while Find this server at home is on.
@@ -320,6 +326,13 @@ func (st *remoteState) current() (RemoteAccessSettings, []string) {
 // issued is counted as there, which is what a save is checked against: it will turn Enhanced on
 // by itself when it arrives.
 func (st *remoteState) security(v RemoteAccessSettings, allowed []string, finished, ready bool) RemoteSecurity {
+	return st.securityAt(v, allowed, finished, ready, st.homeKnown == nil || st.homeKnown())
+}
+
+// securityAt is security for a server that has home networks or, with homeKnown false, none.
+// With none everyone counts as outside, so Enhanced never turns on by itself: a certificate
+// that arrives must not shut the household out of a server that cannot tell who is at home.
+func (st *remoteState) securityAt(v RemoteAccessSettings, allowed []string, finished, ready, homeKnown bool) RemoteSecurity {
 	st.mu.RLock()
 	pending, problem := st.portico != "" && !st.porticoReady, st.porticoProblem
 	if v.OwnAddress.Enabled && v.OwnAddress.CertificateFile != "" && (st.ownCertificateUsable == nil || !st.ownCertificateUsable()) {
@@ -334,6 +347,8 @@ func (st *remoteState) security(v RemoteAccessSettings, allowed []string, finish
 		out.Waiting = "setup_not_finished"
 	case len(allowed) == 0 && !v.EnhancedWithoutAddress:
 		out.Waiting = "no_approved_address"
+	case !homeKnown && !v.EnhancedWithoutHome:
+		out.Waiting = "no_home_networks"
 	case pending && !ready:
 		out.Waiting, out.Problem = "certificate_not_ready", problem
 	default:
@@ -383,7 +398,9 @@ type RemoteSecurity struct {
 var waitingMessages = map[string]string{
 	"certificate_not_ready": "Enhanced Security requires an SSL certificate, which may take a few minutes to be issued to your server. " +
 		"This feature will be enabled automatically once that certificate is available.",
-	"setup_not_finished":  "Enhanced Security turns on when setup is finished. Until then this server works as Standard.",
+	"setup_not_finished": "Enhanced Security turns on when setup is finished. Until then this server works as Standard.",
+	"no_home_networks": "This server knows no home networks, so Enhanced Security would treat everyone as outside, the people at home included. " +
+		"Set your home networks first, or turn Enhanced on yourself. Until then this server works as Standard.",
 	"no_approved_address": "Enhanced Security needs an address it can allow: a Portico address, your own address, or one you add. Until then this server works as Standard.",
 }
 
@@ -509,6 +526,8 @@ var warningMessages = map[string]string{
 	"plain_http_outside": "Connections from outside your home networks may use plain HTTP, so what they send, passwords included, " +
 		"can be read on the way. Add a certificate, or use Portico Accounts, to secure them.",
 	"no_home_networks": "No home networks are listed, so every connection counts as away from home, even from this server's own machine.",
+	"owner_only_no_home": "Only the owner can sign in from outside, and this server knows no home networks, so nobody else can sign in at all, even at home. " +
+		"List your home networks, or let anyone with an account sign in from outside.",
 }
 
 // warnings are the risky choices in force under v and the home networks n.
@@ -524,6 +543,9 @@ func (s *Server) warnings(v RemoteAccessSettings, sec RemoteSecurity, n auth.Net
 	}
 	if len(n.Home) == 0 {
 		codes = append(codes, "no_home_networks")
+		if v.SignInFromOutside == "owner" {
+			codes = append(codes, "owner_only_no_home")
+		}
 	}
 	out := []Warning{}
 	for _, c := range codes {
@@ -611,18 +633,18 @@ type RouteCheck struct {
 // With ready, a Portico certificate still being issued is counted as there (see security).
 // Home is decided by s.fromHome, the one rule every home-or-away decision uses.
 func (s *Server) judge(r *http.Request, v RemoteAccessSettings, allowed []string, finished, ready bool) RouteCheck {
-	return s.judgeAt(r, v, allowed, finished, ready, s.fromHome(r))
+	return s.judgeAt(r, v, allowed, finished, ready, s.fromHome(r), len(s.networks().Home) > 0)
 }
 
 // judgeWith is judge under home networks the owner is about to save. Home is that list's own
 // answer: the warnings about proxies are for the settings in force, not for a proposal.
 func (s *Server) judgeWith(r *http.Request, v RemoteAccessSettings, allowed []string, finished, ready bool, n auth.Networks) RouteCheck {
-	return s.judgeAt(r, v, allowed, finished, ready, n.FromHome(r))
+	return s.judgeAt(r, v, allowed, finished, ready, n.FromHome(r), len(n.Home) > 0)
 }
 
-func (s *Server) judgeAt(r *http.Request, v RemoteAccessSettings, allowed []string, finished, ready, home bool) RouteCheck {
+func (s *Server) judgeAt(r *http.Request, v RemoteAccessSettings, allowed []string, finished, ready, home, homeKnown bool) RouteCheck {
 	secure := s.secure(r)
-	out := RouteCheck{Address: s.requestAddress(r, secure), Fixes: []string{}, RemoteSecurity: s.access.security(v, allowed, finished, ready)}
+	out := RouteCheck{Address: s.requestAddress(r, secure), Fixes: []string{}, RemoteSecurity: s.access.securityAt(v, allowed, finished, ready, homeKnown)}
 	if home {
 		return out
 	}
@@ -693,6 +715,13 @@ func (s *Server) applyRemoteAccess(r *http.Request, req RemoteAccessSave, match 
 	}
 	if check := s.judge(r, v, approved(v, s.porticoAddress()), true, true); check.Refused && !req.ConfirmRefusal {
 		return RemoteAccessSettings{}, errWouldRefuse(check)
+	}
+	// Owner only, on a server that knows no home networks, leaves nobody else able to sign in
+	// even at home: warned and confirmed when it is chosen, like Off, never refused.
+	if before, _ := s.access.current(); v.SignInFromOutside == "owner" && before.SignInFromOutside != "owner" &&
+		len(s.networks().Home) == 0 && !req.ConfirmRefusal {
+		return RemoteAccessSettings{}, ErrConflict("would_refuse_sign_in", "This server knows no home networks, so with this change nobody but the owner can sign in, even at home. "+
+			"List your home networks first, choose another setting, or confirm.")
 	}
 	v.revision = 0
 	raw, _ := json.Marshal(v)
