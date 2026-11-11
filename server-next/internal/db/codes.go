@@ -380,3 +380,28 @@ func checkCode[C comparable](column string, names map[C]string, code C) error {
 	}
 	return nil
 }
+
+// PlayDelivery is how a play reached its device, for the owner's Play history.
+type PlayDelivery int
+
+const (
+	PlayDeliveryUnknown    PlayDelivery = 0
+	PlayDeliveryOriginal   PlayDelivery = 1
+	PlayDeliveryRepackaged PlayDelivery = 2
+	PlayDeliveryConverted  PlayDelivery = 3
+)
+
+var playDeliveryNames = map[PlayDelivery]string{PlayDeliveryUnknown: "", PlayDeliveryOriginal: "original", PlayDeliveryRepackaged: "repackaged",
+	PlayDeliveryConverted: "converted"}
+
+func (d PlayDelivery) String() string { return playDeliveryNames[d] }
+
+// ParsePlayDelivery reads a route's name; anything else is not known.
+func ParsePlayDelivery(name string) PlayDelivery {
+	for code, n := range playDeliveryNames {
+		if n == name && n != "" {
+			return code
+		}
+	}
+	return PlayDeliveryUnknown
+}
