@@ -120,7 +120,12 @@ function RemoteControlsPanel({context, lifetime, t}: NativeSettingsPanelDeps) {
   const theme = useTheme();
   const [items, setItems] = useState<readonly RemotePlaybackControls[]>([]);
   const [menu, setMenu] = useState<RemotePlaybackControls>();
-  const controls = useMemo(() => playbackControlsService(<T,>(path: string, method?: string, body?: unknown) => lifetime.request(signal => context.api.request<T>(path, method, body, signal))), [context, lifetime]);
+  const controls = useMemo(() => playbackControlsService(async <T,>(path: string, method?: string, body?: unknown): Promise<T> => {
+    lifetime.assert();
+    const value = await context.api.request<T>(path, method, body, lifetime.signal);
+    lifetime.assert();
+    return value;
+  }), [context, lifetime]);
   const sessions = useMemo(() => new SessionsClient(localV1Http(context.api)), [context]);
   useEffect(() => {
     // A failed read leaves what is drawn as it is; repeat backs the next one off.

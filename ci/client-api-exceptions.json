@@ -1721,10 +1721,10 @@
     "category": "platform-transport",
     "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
     "sites": [
-      "apps/native/src-next/screens/settings-live/settings-panels.tsx#4780b74351c9b50b"
+      "apps/native/src-next/screens/settings-live/settings-panels.tsx#6c2c9782306ec000"
     ],
     "guardHashes": {
-      "apps/native/src-next/screens/settings-live/settings-panels.tsx#4780b74351c9b50b": "333d1eb25a5bb3af4b90f5df97894d688f87b763061cb5c551c876b96c54c2f6"
+      "apps/native/src-next/screens/settings-live/settings-panels.tsx#6c2c9782306ec000": "376e7d61233a5dd82c7c9985bb2b5b2d41bf42f4079b70490cc1f2406444a4cc"
     }
   },
   "apps/native/src-next/screens/share/NativeContentLinks.tsx": {
