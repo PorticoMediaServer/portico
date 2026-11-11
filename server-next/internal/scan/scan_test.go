@@ -687,7 +687,7 @@ func TestAStrayFilmInAShowLibraryIsUnmatched(t *testing.T) {
 	if !ok {
 		t.Fatalf("the stray film is not in the library; films: %v", keys(f.titles(db.KindMovie)))
 	}
-	unmatched, err := f.d.Unmatched(ctx, f.lib.ID, nil, 10)
+	unmatched, err := f.d.Unmatched(ctx, f.viewer, f.lib.ID, nil, 10)
 	if err != nil || len(unmatched) != 1 || unmatched[0].PublicID != stray.PublicID || unmatched[0].Kind != db.KindMovie || unmatched[0].Reason == "" {
 		t.Fatalf("Unmatched items: %+v, %v", unmatched, err)
 	}
