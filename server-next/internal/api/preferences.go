@@ -160,6 +160,10 @@ func (s *Server) editPreferences(r *http.Request, req PreferencesEdit) (Preferen
 		if !known || !slices.Contains(field.Scopes, req.Scope) {
 			return Preferences{}, ErrField("values."+key, "This server has no such setting at this scope.")
 		}
+		// Turning the extra PIN check off is itself something the check guards.
+		if key == pinRecheckSetting && CallerFrom(r.Context()).PINStale {
+			return Preferences{}, errPINAgain()
+		}
 		if raw == nil {
 			clear = append(clear, key)
 			continue

@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 )
 
@@ -69,4 +70,16 @@ func (d *DB) SetPreferences(ctx context.Context, profileID int64, deviceClass st
 		}
 		return appendChange(tx, Change{At: time.Now().UnixMilli(), Topic: TopicPreferences, Op: OpUpdated, RefID: profileID, ProfileID: profileID})
 	})
+}
+
+// ProfilePreference returns the JSON value a profile saved for one setting everywhere, or
+// "" if it saved none.
+func (d *DB) ProfilePreference(ctx context.Context, profileID int64, key string) (string, error) {
+	var value string
+	err := d.read.QueryRowContext(ctx, `SELECT value FROM preferences WHERE profile_id = ? AND device_class = '' AND device_id IS NULL AND key = ?`,
+		profileID, key).Scan(&value)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return value, err
 }

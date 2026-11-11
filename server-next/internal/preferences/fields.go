@@ -156,6 +156,10 @@ var fields = []Setting{
 
 	flag("search.rememberHistory", true, ScopeProfile),
 
+	// On the account's main profile: a device that remembers the PIN asks for it again
+	// before a sensitive setting is changed.
+	flag("security.askPinForSensitiveSettings", true, ScopeProfile),
+
 	// There is no time zone: every app shows times in its device's own zone.
 	locale("region.locale"),
 	locale("region.formats"),
