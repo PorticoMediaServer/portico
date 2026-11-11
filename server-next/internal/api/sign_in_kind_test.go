@@ -351,3 +351,45 @@ func TestOldPasswordMoveIsAsStrictAsSignIn(t *testing.T) {
 		t.Fatalf("a new network guessing at an account guessed at from many answered %v, want [401 429]", codes)
 	}
 }
+
+// Moving to Portico Accounts, each person's pictures stored here go when that person moves:
+// the owner's with the switch, everyone else's with their own move, and not before.
+func TestPicturesGoWhenEachPersonMoves(t *testing.T) {
+	s := newTestServer(t)
+	fake := &fakeHosted{t: t}
+	s.hosted = fake
+	owner := onMain(t, s, setup(t, s)).AccessToken
+	call(t, s, "POST", "/v1/admin/members", owner, MemberCreate{Username: "sam", Password: testPassword}, nil)
+	ctx := t.Context()
+	pictures := map[string]string{}
+	for _, name := range []string{"justin", "sam"} {
+		creds, _ := s.db.CredentialsByUsername(ctx, name)
+		profiles, _ := s.db.Profiles(ctx, creds.UserID)
+		if _, err := s.db.SetProfilePicture(ctx, creds.UserID, profiles[0].PublicID, "picture-of-"+name, 160, 160); err != nil {
+			t.Fatal(err)
+		}
+		pictures[name] = profiles[0].PublicID
+	}
+	has := func(name string) bool {
+		creds, _ := s.db.CredentialsByUsername(ctx, name)
+		_, err := s.db.ProfilePictureName(ctx, creds.UserID, pictures[name])
+		return err == nil
+	}
+	fake.decision = hosted.Decision{Purpose: hosted.PurposeSwitch, Account: hosted.Account{ID: "pa_1", Username: "justin"}}
+	approval := "approved-for-" + s.id
+	body := SignInSwitchRequest{To: "portico", CurrentPassword: testPassword, Approval: approval, Device: device(1)}
+	if w := call(t, s, "POST", "/v1/admin/sign-in/switch", owner, body, nil); w.Code != 200 {
+		t.Fatalf("the switch answered %d: %s", w.Code, w.Body)
+	}
+	if has("justin") || !has("sam") {
+		t.Fatalf("after the switch: the owner's picture kept %v, sam's kept %v", has("justin"), has("sam"))
+	}
+	fake.decision = hosted.Decision{Purpose: hosted.PurposeLink, Account: hosted.Account{ID: "pa_2", Username: "sam"}}
+	done := MoveCompleteRequest{Username: "sam", Password: testPassword, Approval: approval, Device: device(2)}
+	if w := call(t, s, "POST", "/v1/auth/move/complete", "", done, nil); w.Code != 200 {
+		t.Fatalf("sam's move answered %d: %s", w.Code, w.Body)
+	}
+	if has("sam") {
+		t.Fatal("sam's picture is still stored here after he moved")
+	}
+}
