@@ -71,82 +71,114 @@ func keptRange(v *SourceVideo, client ClientProfile, codec *ClientVideoCodec) st
 	return r
 }
 
-// chooseVideoOutput picks the picture a conversion produces for this device:
-// the first of the server's outputs the engine takes on one of its HLS
-// transports, keeping the source's HDR where both sides can. ok is false when
-// no output of this server reaches the device.
+// chooseVideoOutput picks the picture a conversion produces for this device. ok is
+// false when no output of this server reaches the device.
+//
+// The source's HDR is kept where the device shows it and an output carries it (ten
+// bits), in the inventory's order: the chip's encoders first, then software, AV1
+// last. Otherwise the picture is standard range, and what matters is that it
+// converts in real time: the chip's encoders first, then software HEVC and H.264,
+// then software AV1, each at 8 bits before 10. Ten bits keep nothing once the
+// picture is standard range, and software AV1 at 10 bits, which a browser was
+// given for every HDR film before, is several times too slow for a 4K film.
 func chooseVideoOutput(v *SourceVideo, client ClientProfile, transports []ClientTransport, allowHDR bool, outputs ConversionOutputs, audio *SourceAudio, target QualityTarget) (videoOutput, bool) {
-	preferredDepth := 8
-	if v != nil && v.BitDepth >= 10 {
-		preferredDepth = 10
-	}
-	ordered := append([]ConversionVideoOutput{}, outputs.Video...)
-	// Retain source depth before reducing it, without promoting an 8-bit source.
-	sort.SliceStable(ordered, func(i, j int) bool {
-		return ordered[i].BitDepth == preferredDepth && ordered[j].BitDepth != preferredDepth
-	})
-	for _, o := range ordered {
-		codec := client.videoCodec(o.Codec)
-		if codec == nil || !codec.decodesDepth(o.BitDepth) {
-			continue
-		}
-		profile := "high"
-		if o.Codec == "hevc" {
-			profile = "main"
-			if o.BitDepth == 10 {
-				profile = "main 10"
+	if allowHDR {
+		for _, o := range outputs.Video {
+			if o.BitDepth < 10 {
+				continue
 			}
-		}
-		if o.Codec == "av1" {
-			profile = "main"
-		}
-		if o.Codec == "h264" {
-			profile = convertedH264Profile(codec)
-		}
-		if profile == "" || len(codec.Profiles) > 0 && !convertedProfileAllowed(profile, codec.Profiles) {
-			continue
-		}
-		ranges := []string{}
-		if kept := keptRange(v, client, codec); kept != "" && allowHDR && containsString(o.Ranges, kept) && o.BitDepth >= 10 {
-			ranges = append(ranges, kept)
-		}
-		if containsString(o.Ranges, mediafacts.RangeSDR) && (len(codec.DynamicRanges) == 0 || containsString(codec.DynamicRanges, mediafacts.RangeSDR)) {
-			ranges = append(ranges, mediafacts.RangeSDR)
-		}
-		for _, r := range ranges {
-			var best videoOutput
-			score := -1
-			for _, name := range o.Transports {
-				for _, t := range transports {
-					if t.Transport == name && containsString(t.Video, o.Codec) {
-						audioScore := 0
-						if audio != nil {
-							converted := audioOutputFor(audio, client, target, &t, outputs)
-							if !converted.NoRate {
-								audioScore = converted.Channels * 10
-								if converted.LosslessCodec {
-									audioScore++
-								}
-							}
-							if len(audioRejections(audio, client, t)) == 0 && serverCopyAudio(name, audio.Codec) && !bitrateOver(audio.BitRate, target.MaxAudioBitrateBPS) {
-								audioScore = 1000
-							}
-							if audioScore == 0 {
-								continue
-							}
-						}
-						if audioScore > score {
-							best, score = videoOutput{Codec: o.Codec, BitDepth: o.BitDepth, Range: r, Transport: name}, audioScore
-						}
-					}
+			codec := client.videoCodec(o.Codec)
+			if kept := keptRange(v, client, codec); kept != "" && containsString(o.Ranges, kept) {
+				if chosen, ok := tryVideoOutput(o, kept, client, transports, outputs, audio, target); ok {
+					return chosen, true
 				}
 			}
-			if score >= 0 {
-				return best, true
-			}
+		}
+	}
+	standard := append([]ConversionVideoOutput{}, outputs.Video...)
+	sort.SliceStable(standard, func(i, j int) bool {
+		a, b := realTimeRank(standard[i]), realTimeRank(standard[j])
+		if a != b {
+			return a < b
+		}
+		return standard[i].BitDepth < standard[j].BitDepth
+	})
+	for _, o := range standard {
+		if chosen, ok := tryVideoOutput(o, mediafacts.RangeSDR, client, transports, outputs, audio, target); ok {
+			return chosen, true
 		}
 	}
 	return videoOutput{}, false
+}
+
+// realTimeRank orders standard-range outputs by how surely they convert in real
+// time: the chip's encoders, then software HEVC and H.264 (in the inventory's
+// order), then software AV1, whose encoders are several times slower.
+func realTimeRank(o ConversionVideoOutput) int {
+	switch {
+	case o.Hardware:
+		return 0
+	case o.Codec != "av1":
+		return 1
+	}
+	return 2
+}
+
+// tryVideoOutput is one output in one range, if the device decodes it and one of
+// its HLS transports takes it, with the transport whose sound suits the device best.
+func tryVideoOutput(o ConversionVideoOutput, r string, client ClientProfile, transports []ClientTransport, outputs ConversionOutputs, audio *SourceAudio, target QualityTarget) (videoOutput, bool) {
+	codec := client.videoCodec(o.Codec)
+	if codec == nil || !codec.decodesDepth(o.BitDepth) || !containsString(o.Ranges, r) {
+		return videoOutput{}, false
+	}
+	if r == mediafacts.RangeSDR && len(codec.DynamicRanges) > 0 && !containsString(codec.DynamicRanges, mediafacts.RangeSDR) {
+		return videoOutput{}, false
+	}
+	profile := "high"
+	if o.Codec == "hevc" {
+		profile = "main"
+		if o.BitDepth == 10 {
+			profile = "main 10"
+		}
+	}
+	if o.Codec == "av1" {
+		profile = "main"
+	}
+	if o.Codec == "h264" {
+		profile = convertedH264Profile(codec)
+	}
+	if profile == "" || len(codec.Profiles) > 0 && !convertedProfileAllowed(profile, codec.Profiles) {
+		return videoOutput{}, false
+	}
+	var best videoOutput
+	score := -1
+	for _, name := range o.Transports {
+		for _, t := range transports {
+			if t.Transport != name || !containsString(t.Video, o.Codec) {
+				continue
+			}
+			audioScore := 0
+			if audio != nil {
+				converted := audioOutputFor(audio, client, target, &t, outputs)
+				if !converted.NoRate {
+					audioScore = converted.Channels * 10
+					if converted.LosslessCodec {
+						audioScore++
+					}
+				}
+				if len(audioRejections(audio, client, t)) == 0 && serverCopyAudio(name, audio.Codec) && !bitrateOver(audio.BitRate, target.MaxAudioBitrateBPS) {
+					audioScore = 1000
+				}
+				if audioScore == 0 {
+					continue
+				}
+			}
+			if audioScore > score {
+				best, score = videoOutput{Codec: o.Codec, BitDepth: o.BitDepth, Range: r, Transport: name}, audioScore
+			}
+		}
+	}
+	return best, score >= 0
 }
 
 // losslessAudio reports whether a source track is losslessly coded, so that
