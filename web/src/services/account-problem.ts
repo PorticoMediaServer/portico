@@ -44,6 +44,19 @@ export function problemMessage(error: unknown, place: ProblemPlace): MessageId {
     case 'too_many_servers': return 'next.account.problem.tooManyServers';
     case 'server_not_linked': return 'next.account.problem.serverNotLinked';
     case 'confirm_email': return 'next.account.problem.confirmEmail';
+    case 'password_wrong': return 'next.account.problem.passwordWrong';
+    case 'sign_in_again': return 'next.account.problem.signInAgain';
+    case 'no_password': return 'next.account.problem.noPassword';
+    case 'email_limit': return 'next.account.problem.emailLimit';
+    case 'email_in_use': return 'next.account.problem.emailInUse';
+    case 'owns_server': return 'next.account.delete.ownsServer';
+    case 'last_way_in': return 'next.account.problem.lastWayIn';
+    case 'two_step_on': return 'next.account.problem.twoStepOn';
+    case 'two_step_not_started': return 'next.account.problem.twoStepNotStarted';
+    case 'provider_in_use': return 'next.account.provider.inUse';
+    case 'provider_unavailable': return 'next.account.provider.unavailable';
+    case 'not_owner': return 'next.account.servers.notOwner';
+    case 'owner_cannot_leave': return 'next.account.servers.ownerCannotLeave';
     default: return 'next.account.problem.internal';
   }
 }

@@ -85,7 +85,7 @@ export function AccountProviderReturn({arrival}: {arrival: {id?: string; code?: 
       sessionStorage.removeItem(startedKey(arrival.id));
       if (answer.twoStep) { setState({phase: 'twoStep', challenge: answer.twoStep.challengeId}); return; }
       if (answer.tokens) accountSession.keep(answer.tokens);
-      goTo(answer.connected ? '/account?section=security' : flow.next, {replace: true});
+      goTo(answer.connected ? `/account?tab=security&connected=${answer.connected}` : flow.next, {replace: true});
     } catch (caught) {
       if (caught instanceof ServicesError && (caught.code === 'username_needed' || caught.code === 'username_taken' || caught.code === 'invalid')) {
         setState({phase: 'username', error: caught.code === 'username_needed' ? undefined : caught});
@@ -125,7 +125,7 @@ export function AccountProviderReturn({arrival}: {arrival: {id?: string; code?: 
     <ServicesHeading>{t('next.account.provider.failedTitle')}</ServicesHeading>
     <ServicesNotice tone="error">{t(state.error ? providerProblem(state.error) : 'next.account.provider.failed')}</ServicesNotice>
     <ServicesActions><Button variant="primary" onClick={() => goTo(signInPath(flow?.next ?? '/account'), {replace: true})}>{t('next.account.backToSignIn')}</Button></ServicesActions>
-    {flow?.connect && <AuthLinks><button type="button" onClick={() => goTo('/account?section=security', {replace: true})}>{t('next.account.provider.backToAccount')}</button></AuthLinks>}
+    {flow?.connect && <AuthLinks><button type="button" onClick={() => goTo('/account?tab=security', {replace: true})}>{t('next.account.provider.backToAccount')}</button></AuthLinks>}
   </ServicesAuthStage>;
   return <ServicesAuthStage variant="state"><ServicesHeading>{t('next.account.provider.finishing')}</ServicesHeading></ServicesAuthStage>;
 }

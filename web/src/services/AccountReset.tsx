@@ -24,7 +24,7 @@ export function AccountReset({next}: {next: string}) {
     <ServicesStateIcon />
     <ServicesHeading>{t('next.account.reset.doneTitle')}</ServicesHeading>
     <ServicesLead>{t('next.account.reset.done')}</ServicesLead>
-    {providers.length > 0 && <ServicesNotice tone="info">{t('next.account.reset.providers', {providers: providers.map(item => item === 'apple' ? 'Apple' : 'Google').join(' / ')})}</ServicesNotice>}
+    {providers.length > 0 && <ServicesNotice tone="info">{t('next.account.reset.providers', {providers: providers.map(item => t(item === 'apple' ? 'accounts.provider.apple' : 'accounts.provider.google')).join(' / ')})}</ServicesNotice>}
     <ServicesActions><Button variant="primary" onClick={() => goTo(signInPath(next), {replace: true})}>{t('next.account.signIn.submit')}</Button></ServicesActions>
   </ServicesAuthStage>;
   if (!sent) return <ServicesAuthStage variant="reset">
