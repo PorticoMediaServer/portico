@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
@@ -60,6 +61,14 @@ func TestUploadSpeedAndTheAwayLimit(t *testing.T) {
 	}
 	if th.quality(first.ID) != "1080p-low" || th.quality(second.ID) != "480p" {
 		t.Fatalf("the refused play changed what was playing")
+	}
+	// The Dashboard's count: two streams playing lower than they asked for, one start refused.
+	if held := th.s.playback.UploadHeld(); held.Narrowed != 2 || held.Refused != 1 {
+		t.Fatalf("the upload speed is holding back %+v, want 2 narrowed and 1 refused", held)
+	}
+	th.clock = th.clock.Add(6 * time.Minute)
+	if held := th.s.playback.UploadHeld(); held.Narrowed != 2 || held.Refused != 0 {
+		t.Fatalf("six minutes on the upload speed is holding back %+v, want 2 narrowed and no refusal", held)
 	}
 
 	// The owner's own limit away from home, with no upload speed given.
