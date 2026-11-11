@@ -86,6 +86,9 @@ func (d *DB) SplitVersion(ctx context.Context, versionID string) (string, error)
 		if err := b.labelsChanged(id); err != nil {
 			return err
 		}
+		if err := b.versionsChanged(item, id); err != nil {
+			return err
+		}
 		for _, key := range keys {
 			if _, err := b.exec(`UPDATE item_keys SET item_id = ? WHERE library_id = ? AND kind = ? AND (key = ? OR key > ? AND key < ?)`,
 				id, library, KeyFile, key, key+"#", key+"$"); err != nil {
