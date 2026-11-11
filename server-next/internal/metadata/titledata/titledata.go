@@ -17,8 +17,9 @@
 // A mood tag adds to a title and replaces nothing it has, so titles in a library set to local
 // metadata only get them too, from the ids their files carry (definition area 4, rule 58).
 //
-// The owner's switch, "Download title data", is on unless switched off. Off, the file and every
-// mood tag go and no request is made.
+// Owners and people know the feature as Enhanced Recommendations; "title data" is the code's
+// name for its file. The owner's switch, Enhanced Recommendations, is on unless switched off.
+// Off, the file and every mood tag go and no request is made.
 package titledata
 
 import (
@@ -78,10 +79,10 @@ const (
 // Setting is the owner's choice, the settings document "title_data": only the owner reads or
 // saves it, at /v1/admin/settings/title_data.
 type Setting struct {
-	// Download is "Download title data", on by default: once a week Portico downloads one file
-	// of moods, themes and similar titles for films and shows from data.getportico.tv, the same
-	// file for every server, and sends nothing about your library. Off, the file and its tags
-	// are removed at once and nothing is downloaded.
+	// Download is the switch named Enhanced Recommendations, on by default. The line under it:
+	// "When Enhanced Recommendations are enabled, Portico regularly downloads additional
+	// metadata to supplement existing data. This database is provided by Portico."
+	// Off, the file and its tags are removed at once and nothing is downloaded.
 	Download bool `json:"download"`
 	// Address is where the signed list is, for a copy of it on the owner's own host: https, or
 	// http on this machine. Empty means DefaultAddress. Whatever the address, the list must be
@@ -112,7 +113,7 @@ type state struct {
 }
 
 // ErrRefused is a list or file that failed a check. The copy in use stays in use.
-var ErrRefused = errors.New("title data refused")
+var ErrRefused = errors.New("Enhanced Recommendations data refused")
 
 func refused(format string, args ...any) error {
 	return fmt.Errorf("%w: %s", ErrRefused, fmt.Sprintf(format, args...))
@@ -248,7 +249,7 @@ func (u *Updater) Open(ctx context.Context) error {
 // go; switched on, or given a new address, the list is fetched.
 func (u *Updater) Run(ctx context.Context) {
 	if err := u.Open(ctx); err != nil {
-		u.log().Warn("the title data kept from before could not be opened", "error", err)
+		u.log().Warn("the Enhanced Recommendations data kept from before could not be opened", "error", err)
 	}
 	kick := make(chan struct{}, 1)
 	Document.Watch(u.Settings, func(Setting) {
@@ -271,7 +272,7 @@ func (u *Updater) Run(ctx context.Context) {
 		next = time.Hour
 		if !u.setting().on() {
 			if err := u.remove(ctx); err != nil && ctx.Err() == nil {
-				u.log().Warn("removing the title data failed", "error", err)
+				u.log().Warn("removing the Enhanced Recommendations data failed", "error", err)
 			}
 			due = time.Time{}
 			continue
@@ -283,7 +284,7 @@ func (u *Updater) Run(ctx context.Context) {
 				}
 				failures++
 				due = time.Now().Add(min(firstRetry<<min(failures-1, 5), lastRetry))
-				u.log().Warn("checking for new title data failed; the data in use stays", "error", err)
+				u.log().Warn("checking for new Enhanced Recommendations data failed; the data in use stays", "error", err)
 			} else {
 				failures = 0
 				due = time.Now().Add(checkEvery + rand.N(spread))
@@ -291,7 +292,7 @@ func (u *Updater) Run(ctx context.Context) {
 		}
 		if time.Since(applied) > applyEvery {
 			if err := u.Apply(ctx); err != nil && ctx.Err() == nil {
-				u.log().Warn("giving titles their mood tags failed; it is tried again tomorrow", "error", err)
+				u.log().Warn("applying Enhanced Recommendations to titles failed; it is tried again tomorrow", "error", err)
 			}
 			applied = time.Now()
 		}
@@ -366,7 +367,7 @@ func (u *Updater) Check(ctx context.Context) error {
 	if err := u.saveState(ctx, state{Sequence: m.Sequence, Version: entry.DatasetVersion, File: name}); err != nil {
 		return err
 	}
-	u.log().Info("new title data is in use", "version", entry.DatasetVersion, "release", m.Sequence)
+	u.log().Info("new Enhanced Recommendations data is in use", "version", entry.DatasetVersion, "release", m.Sequence)
 	u.removeOthers(name)
 	return u.Apply(ctx)
 }
@@ -498,7 +499,7 @@ func (u *Updater) download(ctx context.Context, listAddress string, f ManifestFi
 	}
 	// Room for the download, the expanded file and the floor that protects the database.
 	if !diskspace.Room(u.Dir, f.Bytes+f.UncompressedBytes+diskspace.ProducerFloor) {
-		return "", errors.New("not enough free space for the title data")
+		return "", errors.New("not enough free space for the Enhanced Recommendations data")
 	}
 	body, err := u.source().Open(ctx, address)
 	if err != nil {
@@ -595,7 +596,7 @@ func usable(u *url.URL) bool {
 func (HTTPS) Open(ctx context.Context, address string) (io.ReadCloser, error) {
 	u, err := url.Parse(address)
 	if err != nil || !usable(u) {
-		return nil, refused("the title data address must be https")
+		return nil, refused("the Enhanced Recommendations address must be https")
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, address, nil)
 	if err != nil {
@@ -607,7 +608,7 @@ func (HTTPS) Open(ctx context.Context, address string) (io.ReadCloser, error) {
 	}
 	if res.StatusCode != http.StatusOK {
 		res.Body.Close()
-		return nil, fmt.Errorf("title data: %s answered %s", u.Host, res.Status)
+		return nil, fmt.Errorf("Enhanced Recommendations: %s answered %s", u.Host, res.Status)
 	}
 	return res.Body, nil
 }
