@@ -3,16 +3,19 @@ import {parseTelemetryReading} from '../telemetry.ts';
 import {parsePlayHistory,parsePlaySummary} from '../play-history.ts';
 import {decodeGetAdminDashboardReportResponse} from '../../../contracts/src/decoders.ts';
 import type {GetAdminDashboardReportResponse} from '../../../contracts/src/types.ts';
-import {decodeGetAdminDashboardStatusResponse,decodeGetAdminPlayHistoryDashboardResponse,decodeGetAdminPlayHistoryPeopleResponse} from '../../../contracts/src/decoders.ts';
-import type {GetAdminDashboardStatusResponse,GetAdminPlayHistoryDashboardResponse,GetAdminPlayHistoryPeopleResponse} from '../../../contracts/src/types.ts';
+import {decodeGetAdminPlayHistoryDashboardResponse,decodeGetAdminPlayHistoryPeopleResponse} from '../../../contracts/src/decoders.ts';
+import type {GetAdminPlayHistoryDashboardResponse,GetAdminPlayHistoryPeopleResponse} from '../../../contracts/src/types.ts';
 import {routePath} from '../../../contracts/src/route-paths.ts';
+import type {Dashboard} from '../../../contracts/src/next/api.ts';
+import {callServer} from '../query/server-api.ts';
 import type {PlayHistoryApi,PlayHistoryFilters} from '../play-history.ts';
 import {dependsOn} from '../freshness-hub.ts';
 import {queryKeys} from '../query/keys.ts';
 import type {ViewerQueryOptions} from '../query/react.ts';
 
 /** Owner analytics are separate from administrator People management. */
-export type DashboardStatus=GetAdminDashboardStatusResponse;
+/** The rebuilt server's Dashboard read (`GET /v1/admin/dashboard`): alerts, scans, tasks and the totals of now. */
+export type DashboardStatus=Dashboard;
 export type DashboardHistory=GetAdminPlayHistoryDashboardResponse;
 export type DashboardPeople=GetAdminPlayHistoryPeopleResponse;
 export type DashboardReport=GetAdminDashboardReportResponse;
@@ -61,11 +64,28 @@ export function parseDashboardHistory(value:unknown):DashboardHistory {
  for(const item of out.top)if(!item.itemId || !whole(item.plays)||!whole(item.people)||item.people>item.plays||!['movie_plays','episode_plays','track_plays'].includes(item.countUnit))invalid();
  return out;
 }
+const record=(v:unknown):v is Record<string,unknown>=>v!==null&&typeof v==='object'&&!Array.isArray(v);
+const name=(v:unknown)=>typeof v==='string'&&v.length>0&&v.length<=4096;
+const count=(v:unknown)=>typeof v==='number'&&whole(v);
+const optionalWhole=(v:unknown)=>v===undefined||count(v);
+/**
+ * Checks the Dashboard read and words its alerts the way the page shows them: `subject` is the library or
+ * remote source the alert is about, and `reason` is a remote source's problem as text (the server's own
+ * `reason` there is a code: unreachable or sign_in).
+ */
 export function parseDashboardStatus(value:unknown):DashboardStatus {
- const out=decodeGetAdminDashboardStatusResponse(value);
- if(!Number.isFinite(Date.parse(out.observedAt)) || out.alerts.length>24 || out.scans.length>1000 || out.tasks.items.length>3)invalid();
- for(const a of out.alerts)if(!a.code||!a.action.kind||Object.keys(a.params).length>8||Object.values(a.params).some(v=>v.length>1024)||a.count!==undefined&&!whole(a.count))invalid();
- return out;
+ if(!record(value)||typeof value.observedAt!=='string'||!Number.isFinite(Date.parse(value.observedAt))||!Array.isArray(value.alerts)||value.alerts.length>24||
+    !Array.isArray(value.scans)||value.scans.length>1000||!record(value.tasks)||!count(value.tasks.count)||!Array.isArray(value.tasks.items)||value.tasks.items.length>3)invalid();
+ const alerts=(value.alerts as unknown[]).map(a=>{
+  if(!record(a)||!name(a.code)||typeof a.severity!=='string'||typeof a.major!=='boolean'||!record(a.params)||!record(a.action)||!name(a.action.kind)||typeof a.action.target!=='string'||!optionalWhole(a.count))invalid();
+  const params=a.params as Record<string,unknown>;
+  if(Object.keys(params).length>8||Object.values(params).some(v=>typeof v!=='string'||v.length>1024))invalid();
+  const p=params as Record<string,string>,subject=p.library??p.source,reason=a.code==='remote_unreachable'?p.problem:p.reason;
+  return {...a,params:{...p,...(subject?{subject}:{}),...(reason?{reason}:{})}} as Dashboard['alerts'][number];
+ });
+ for(const s of value.scans as unknown[])if(!record(s)||!name(s.libraryId)||typeof s.libraryName!=='string'||typeof s.phase!=='string'||!count(s.discovered)||!count(s.analyzed)||!optionalWhole(s.total))invalid();
+ for(const t of value.tasks.items as unknown[])if(!record(t)||!name(t.id)||!name(t.kind)||typeof t.state!=='string'||!optionalWhole(t.processed)||!optionalWhole(t.total))invalid();
+ return {...(value as unknown as Dashboard),alerts};
 }
 function query(filters:PlayHistoryFilters):URLSearchParams {
  const out=reportQuery(filters);out.set("period",filters.period);
@@ -108,7 +128,7 @@ export class DashboardDataClient {
   return out;
  }
  async status(signal?:AbortSignal):Promise<DashboardStatus>{
-  return parseDashboardStatus(await this.api.request(routePath('get_admin_dashboard_status'),'GET',undefined,signal));
+  return parseDashboardStatus(await callServer(this.api,'GET /v1/admin/dashboard',{signal}));
  }
  async people(filters:PlayHistoryFilters,cursor='',limit=12,signal?:AbortSignal):Promise<DashboardPeople>{
   const q=query(filters);q.set('limit',String(Math.max(1,Math.min(100,limit))));if(cursor)q.set('cursor',cursor);

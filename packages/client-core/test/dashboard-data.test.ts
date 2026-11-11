@@ -76,3 +76,18 @@ test('#682: admin session video with null frame observations still parses, the o
  const observed = parseDashboardSessionFacts({media: {video: {...video, hdr10Plus: false, dolbyVisionRpu: true, dolbyVisionBaseLayer: false}}, currentBitrateKbps: 0, rateWindowMs: 5000, live: false}).media as {video: Record<string, unknown>};
  assert.equal(observed.video.hdr10Plus, false); assert.equal(observed.video.dolbyVisionRpu, true);
 });
+
+test('the Dashboard reads the rebuilt server and shows which source an alert is about and why', async () => {
+ const paths: string[] = [];
+ const body = {observedAt: '2026-11-11T12:00:00Z', openReports: 0, nowPlaying: {streams: 0, away: 0, converting: 0}, backups: {read: true},
+  scans: [], tasks: {count: 0, items: []},
+  alerts: [{code: 'remote_unreachable', severity: 'major', major: true, params: {source: 'NAS', reason: 'sign_in', problem: '401 Unauthorized'}, action: {kind: 'remote-source', target: 'src_1'}},
+   {code: 'backup_failed', severity: 'major', major: true, params: {reason: 'the backup folder is full'}, action: {kind: 'backups', target: ''}}]};
+ const client = new DashboardDataClient({request: async <T,>(path: string) => {paths.push(path); return body as T;}});
+ const status = await client.status();
+ assert.deepEqual(paths, ['/v1/admin/dashboard']);
+ assert.equal(status.alerts[0].params.subject, 'NAS');
+ assert.equal(status.alerts[0].params.reason, '401 Unauthorized');
+ assert.equal(status.alerts[1].params.reason, 'the backup folder is full');
+ await assert.rejects(new DashboardDataClient({request: async <T,>() => ({...body, alerts: [{code: 'x'}]}) as T}).status());
+});
