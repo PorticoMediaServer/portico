@@ -7,37 +7,40 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
-	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
-	"github.com/PorticoMediaServer/portico/server-next/internal/remote/remotetest"
 )
 
-// Sending POST twice is safe for these routes without an Idempotency-Key, for the reason given.
-// Every other POST creates something and must honour the key; the test below fails for a POST
-// in neither list, so a new creating route cannot be added without it.
-var repeatSafeWithoutKey = map[string]string{
-	"POST /v1/admin/remote-sources/{id}/test":     "tests the saved connection and replaces its status",
-	"POST /v1/setup/owner":                        "happens once: a repeat is told the server is set up",
-	"POST /v1/auth/sign-in":                       "a lost answer leaves a sign-in nobody holds, which expires",
-	"POST /v1/auth/two-factor":                    "the second step of a sign-in: as sign-in",
-	"POST /v1/auth/refresh":                       "carries its own request id: a repeat gets the same tokens",
-	"POST /v1/auth/password":                      "sets the password",
-	"POST /v1/auth/password-reset/confirm":        "uses up its code: a repeat is refused",
-	"POST /v1/auth/codes":                         "a lost answer leaves a TV code nobody holds, which expires",
-	"POST /v1/auth/codes/{id}/approve":            "sets the code's state",
-	"POST /v1/auth/codes/{id}/redeem":             "uses up its code: a repeat is refused",
-	"POST /v1/auth/invitations/{id}/accept":       "uses up its invitation: a repeat is refused",
-	"POST /v1/me/two-factor":                      "starts two-step sign-in again, replacing what was not confirmed",
-	"POST /v1/me/two-factor/confirm":              "sets the state",
-	"POST /v1/me/two-factor/recovery-codes":       "replaces the codes; the answer is the only copy either way",
-	"POST /v1/profiles/{id}/select":               "sets the device's profile",
-	"POST /v1/admin/members/{id}/password-reset":  "replaces the member's reset code",
-	"POST /v1/system/identity-proof":              "changes nothing",
-	"POST /v1/items/state:undo":                   "uses up its undo offer: a repeat is refused",
-	"POST /v1/queues/{id}/entries":                "needs If-Match: a repeat has an old revision and is refused",
-	"POST /v1/queues/{id}/entries/{entryId}/move": "needs If-Match: a repeat has an old revision and is refused",
-	"POST /v1/queues/{id}/advance":                "sets the current entry",
-	"POST /v1/queues/{id}/prepare-next":           "changes nothing that lasts",
-	"POST /v1/queues/{id}/commit-next":            "sets the current entry",
+// A creating POST must honour the Idempotency-Key: an app that never had the answer sends the
+// request again with the same key and must get the thing made the first time. Each area's
+// retry_<area>_test.go says, in an init, which of its routes are tested here (retryAreas) and
+// which are safe to repeat without a key and why (safeToRepeat). The test fails for a POST in
+// neither, so a new creating route cannot be added without one; and an area adds its entries in
+// its own file, so two areas never edit the same one.
+
+// retryCase is one creating route. body is the request; other is a different body sent with the
+// same key, which must be refused.
+type retryCase struct {
+	route        string
+	path         func() string // the path, where it holds an id made earlier; else the route's
+	body, other  any
+	count        func() int      // how many of the thing exist; nil where the id is the whole proof
+	inMemoryOnly bool            // a restart ends it by design
+	created      func(id string) // told the id the first request made, for a later case's path
+}
+
+// retryAreas are the areas' creating routes, each given the test's server.
+var retryAreas []func(th *theatre) []retryCase
+
+// repeatSafeWithoutKey is every POST that is safe to send twice without a key, with why.
+var repeatSafeWithoutKey = map[string]string{}
+
+// safeToRepeat adds an area's routes that need no Idempotency-Key, with the reason for each.
+func safeToRepeat(reasons map[string]string) {
+	for route, why := range reasons {
+		if _, twice := repeatSafeWithoutKey[route]; twice {
+			panic(route + " is listed as safe to repeat by two areas")
+		}
+		repeatSafeWithoutKey[route] = why
+	}
 }
 
 // An app that never had the answer to a creating request sends it again with the same
@@ -47,39 +50,9 @@ var repeatSafeWithoutKey = map[string]string{
 func TestCreatesAreSafeToRepeat(t *testing.T) {
 	th := newTheatre(t)
 	token := func() string { return th.owner.AccessToken }
-	dav := remotetest.NewDAV(t, map[string]string{"Films/film.mkv": "x"})
-	var queueID string
-	cases := []struct {
-		route        string
-		path         func() string
-		body, other  any
-		count        func() int // how many of the thing exist; nil where the id is the whole proof
-		inMemoryOnly bool       // a restart ends it by design
-	}{
-		{route: "POST /v1/admin/remote-sources", body: RemoteSourceCreate{Kind: "webdav", Name: "NAS", WebDAV: &WebDAVSettings{Address: dav.URL, User: dav.User, Password: dav.Password}},
-			other: RemoteSourceCreate{Kind: "webdav", Name: "Other", WebDAV: &WebDAVSettings{Address: dav.URL, User: dav.User, Password: dav.Password}},
-			count: func() int { return th.named("/v1/admin/remote-sources", "name", "NAS") }},
-		{route: "POST /v1/profiles", body: ProfileCreate{Name: "Guest"}, other: ProfileCreate{Name: "Other"},
-			count: func() int { return th.named("/v1/profiles", "name", "Guest") }},
-		{route: "POST /v1/admin/members", body: MemberCreate{Username: "sam", Password: testPassword},
-			other: MemberCreate{Username: "alex", Password: testPassword},
-			count: func() int { return th.named("/v1/admin/members", "username", "sam") }},
-		{route: "POST /v1/admin/invitations", body: InvitationCreate{Note: "for Sam"}, other: InvitationCreate{Note: "for Alex"},
-			count: func() int { return th.named("/v1/admin/invitations", "note", "for Sam") }},
-		{route: "POST /v1/admin/api-keys", body: KeyCreate{Name: "Tool", Scopes: []string{"read"}},
-			other: KeyCreate{Name: "Tool", Scopes: []string{"admin"}},
-			count: func() int { return th.named("/v1/admin/api-keys", "name", "Tool") }},
-		{route: "POST /v1/me/tokens", body: KeyCreate{Name: "Script", Scopes: []string{"read"}},
-			other: KeyCreate{Name: "Other", Scopes: []string{"read"}},
-			count: func() int { return th.named("/v1/me/tokens", "name", "Script") }},
-		{route: "POST /v1/me/app-passwords", body: KeyCreate{Name: "Old TV"}, other: KeyCreate{Name: "Other"},
-			count: func() int { return th.named("/v1/me/app-passwords", "name", "Old TV") }},
-		{route: "POST /v1/queues", body: QueueCreate{Source: playqueue.QueueSource{Items: th.eps[:]}},
-			other: QueueCreate{Source: playqueue.QueueSource{Items: []string{th.eps[1]}}}},
-		{route: "POST /v1/queues/{id}/playlist", path: func() string { return "/v1/queues/" + queueID + "/playlist" },
-			body: QueueSave{Name: "Evening"}, other: QueueSave{Name: "Morning"}},
-		{route: "POST /v1/playback/sessions", body: PlaybackStart{ItemID: th.film}, other: PlaybackStart{ItemID: th.song},
-			inMemoryOnly: true},
+	var cases []retryCase
+	for _, area := range retryAreas {
+		cases = append(cases, area(th)...)
 	}
 
 	keyed := map[string]bool{}
@@ -103,8 +76,8 @@ func TestCreatesAreSafeToRepeat(t *testing.T) {
 		if code >= 300 || first == "" {
 			t.Fatalf("%s answered %d: %v", c.route, code, firstAnswer)
 		}
-		if c.route == "POST /v1/queues" {
-			queueID = first
+		if c.created != nil {
+			c.created(first)
 		}
 		repeats := []string{"after a dropped connection"}
 		if !c.inMemoryOnly {
@@ -157,7 +130,8 @@ func TestCreatesAreSafeToRepeat(t *testing.T) {
 	}
 	for _, r := range th.s.Routes() {
 		if strings.HasPrefix(r.Pattern, "POST ") && !keyed[r.Pattern] && repeatSafeWithoutKey[r.Pattern] == "" {
-			t.Errorf("%s creates something or not? Test that it honours the Idempotency-Key, or say in repeatSafeWithoutKey why a repeat is safe", r.Pattern)
+			t.Errorf("%s creates something or not? In its area's retry_<area>_test.go, add it to retryAreas to test that it honours "+
+				"the Idempotency-Key, or to safeToRepeat with why a repeat is safe", r.Pattern)
 		}
 	}
 }
