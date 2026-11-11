@@ -258,13 +258,14 @@ type NewSession struct {
 // startSession registers the device and inserts the session, for a user already proven.
 func startSession(tx *sql.Tx, userID int64, n NewSession, now time.Time) (SessionState, error) {
 	at := now.UnixMilli()
-	// However a sign-in was proven (a password, a TV code approved earlier, a second step), an
-	// account waiting to move, left or not moved gets none.
+	// However a sign-in was proven (a password, a TV code approved earlier, a second step, a
+	// move), an account turned off, waiting to move, left or not moved gets none.
 	var state string
-	if err := tx.QueryRow(`SELECT state FROM users WHERE id = ?`, userID).Scan(&state); err != nil {
+	var disabled bool
+	if err := tx.QueryRow(`SELECT state, disabled_at IS NOT NULL FROM users WHERE id = ?`, userID).Scan(&state, &disabled); err != nil {
 		return SessionState{}, err
 	}
-	if state != "active" {
+	if state != "active" || disabled {
 		return SessionState{}, ErrBadCredentials
 	}
 	var deviceID int64
