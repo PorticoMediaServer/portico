@@ -26,7 +26,8 @@ type Manager struct {
 
 	// AfterScan, when set, is called with a library's public id after a scan of it ends
 	// without error: what the scan found is then looked up.
-	AfterScan func(ctx context.Context, library string)
+	// startedAt is when the scan started: what it added was added since.
+	AfterScan func(ctx context.Context, library string, startedAt time.Time)
 }
 
 // library is the lane scans and library removals share, so that a library is never removed
@@ -151,6 +152,7 @@ func (m *Manager) scan(ctx context.Context, work jobs.Work) error {
 		m.mu.Unlock()
 		work.Progress(int64(stats.Files), 0)
 	}
+	started := time.Now()
 	stats, err := scanner.Scan(ctx, lib)
 	m.mu.Lock()
 	m.stats[lib.PublicID] = stats
@@ -162,7 +164,7 @@ func (m *Manager) scan(ctx context.Context, work jobs.Work) error {
 		// Folders the scan found are watched from now on.
 		m.rewatch(ctx, lib, false)
 		if m.AfterScan != nil {
-			m.AfterScan(ctx, lib.PublicID)
+			m.AfterScan(ctx, lib.PublicID, started)
 		}
 	}
 	return err

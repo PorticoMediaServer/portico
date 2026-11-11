@@ -141,6 +141,16 @@ func (d *DB) SongsWithoutLyrics(ctx context.Context, libraryID int64, notSince t
 	return d.songs(ctx, songColumns+where, append(args, notSince.UnixMilli(), FileLyrics, limit))
 }
 
+// SongsAddedSince lists a library's songs added at or after a time that have no lyrics, no
+// lyrics file beside them, and no provider's "none" yet, a page at a time in id order: pass
+// the last id of one page to get the next. It reads along the items_by_added index.
+func (d *DB) SongsAddedSince(ctx context.Context, libraryID int64, since time.Time, afterID int64, limit int) ([]LyricsSong, error) {
+	return d.songs(ctx, songColumns+` WHERE t.library_id = ? AND t.kind = ? AND t.added_at >= ? AND t.id > ?
+		AND NOT EXISTS (SELECT 1 FROM lyrics l WHERE l.item_id = t.id)
+		AND NOT EXISTS (SELECT 1 FROM media m JOIN files f ON f.media_id = m.id WHERE m.item_id = t.id AND f.role = ? AND f.missing_since_at IS NULL)
+		ORDER BY t.id LIMIT ?`, []any{libraryID, KindTrack, since.UnixMilli(), afterID, FileLyrics, limit})
+}
+
 func (d *DB) songs(ctx context.Context, query string, args []any) ([]LyricsSong, error) {
 	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {

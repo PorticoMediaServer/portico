@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"time"
@@ -44,18 +45,23 @@ func (s *Server) startMetadata(ctx context.Context) error {
 	s.metadataJobs()
 	s.picturePass()
 	// What a scan found is looked up when it ends.
-	s.scans.AfterScan = func(ctx context.Context, library string) { s.lookUp(ctx, library) }
+	s.scans.AfterScan = func(ctx context.Context, library string, startedAt time.Time) { s.lookUp(ctx, library, startedAt) }
 	go s.lookupsAgain(ctx)
 	return nil
 }
 
 // lookUp starts a library's lookup and refresh, unless the library has no provider to ask
 // (local metadata only, or no key for its provider): then there is nothing to do, and no task
-// is listed for it.
-func (s *Server) lookUp(ctx context.Context, library string) {
+// is listed for it. After a scan, addedSince is when it started, so the songs it added are
+// asked about for lyrics; the hourly run passes none.
+func (s *Server) lookUp(ctx context.Context, library string, addedSince time.Time) {
 	asks, err := s.metadata.Asks(ctx, library)
 	if err == nil && asks {
-		_, err = s.jobs.Start(ctx, jobAfterScan, jobs.Request{Target: jobs.Target{Library: library}})
+		var params json.RawMessage
+		if !addedSince.IsZero() {
+			params, _ = json.Marshal(afterScanParams{AddedSince: addedSince.UnixMilli()})
+		}
+		_, err = s.jobs.Start(ctx, jobAfterScan, jobs.Request{Target: jobs.Target{Library: library}, Params: params})
 	}
 	if err != nil && ctx.Err() == nil && !errors.Is(err, db.ErrNotFound) { // a library removed since is not an error
 		s.log.Error("looking a library's titles up could not be started", "library", library, "error", err)
@@ -80,7 +86,7 @@ func (s *Server) lookupsAgain(ctx context.Context) {
 			s.log.Error("libraries to look up again could not be read", "error", err)
 		}
 		for _, lib := range libraries {
-			s.lookUp(ctx, lib.PublicID)
+			s.lookUp(ctx, lib.PublicID, time.Time{})
 		}
 	}
 }

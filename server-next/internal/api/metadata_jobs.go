@@ -38,6 +38,12 @@ const (
 	jobFetchLyrics = "fetch_lyrics"
 )
 
+// afterScanParams are what a scan tells the lookup after it: when it started, so only the
+// songs it added are asked about.
+type afterScanParams struct {
+	AddedSince int64 `json:"addedSince,omitempty"`
+}
+
 // afterScanRefreshes bounds how many due titles one scan's follow-up refreshes; the rest are
 // still due at the next.
 const afterScanRefreshes = 10_000
@@ -112,9 +118,16 @@ func (s *Server) metadataJobs() {
 		if err != nil {
 			return err
 		}
-		// Songs without lyrics, where the owner chose "Files, then LRCLIB" (never in a library
-		// set to local metadata only).
-		_, err = s.metadata.FetchMissingLyrics(ctx, all[at].ID, false)
+		// Lyrics for the songs this scan added, where the owner chose "Files, then LRCLIB" (never
+		// in a library set to local metadata only). The rest of the library is asked about only
+		// when a person starts Fetch missing lyrics.
+		var params afterScanParams
+		if len(work.Params) > 0 {
+			json.Unmarshal(work.Params, &params)
+		}
+		if params.AddedSince > 0 {
+			_, err = s.metadata.FetchNewLyrics(ctx, all[at].ID, time.UnixMilli(params.AddedSince))
+		}
 		return providerSentence(err)
 	}})
 	s.jobs.Register(jobs.Kind{Name: jobFetchLyrics, Access: jobs.Admins, Check: libraryCheck,
