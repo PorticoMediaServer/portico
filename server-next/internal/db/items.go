@@ -440,8 +440,23 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		if len(q.Kinds) > 0 {
 			under = " AND d.kind IN " + kindList
 		}
-		gathered := fmt.Sprintf(` AND i.id IN (SELECT item_id FROM item_tags WHERE tag_id = %[1]d UNION
-			SELECT d.id FROM item_tags h CROSS JOIN items d WHERE h.tag_id = %[1]d AND d.root_id = h.item_id%[2]s)`, tag, under)
+		// In a library, only that library's tagged items are gathered, and the tag is common
+		// or rare by how many of this list's items it covers: a genre on three hundred
+		// artists is on few rows and covers twenty thousand tracks.
+		own, below := "", ""
+		if library != 0 {
+			own, below = fmt.Sprintf(" AND library_id = %d", library), fmt.Sprintf(" AND h.library_id = %d", library)
+			if under != "" {
+				err := tx.QueryRowContext(ctx, fmt.Sprintf(`SELECT (SELECT count(*) FROM (SELECT 1 FROM item_tags WHERE tag_id = %[1]d%[2]s AND kind IN %[4]s LIMIT %[5]d))
+					+ (SELECT count(*) FROM (SELECT 1 FROM item_tags h CROSS JOIN items d ON d.root_id = h.item_id
+					WHERE h.tag_id = %[1]d%[3]s AND d.kind IN %[4]s LIMIT %[5]d))`, tag, own, below, kindList, rareTag)).Scan(&uses)
+				if err != nil {
+					return false, err
+				}
+			}
+		}
+		gathered := fmt.Sprintf(` AND i.id IN (SELECT item_id FROM item_tags WHERE tag_id = %[1]d%[3]s UNION
+			SELECT d.id FROM item_tags h CROSS JOIN items d WHERE h.tag_id = %[1]d%[4]s AND d.root_id = h.item_id%[2]s)`, tag, under, own, below)
 		// With nothing asked for but a library, kinds and the tag, the total reads no row of
 		// items: item_tags knows each tagged item's library, kind and rating, and what is
 		// under a tagged title is counted from an index that holds each one's rating too.
