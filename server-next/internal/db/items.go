@@ -580,13 +580,12 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		w.add(` AND i.id`, not, ` IN (SELECT item_id FROM user_item_state WHERE profile_id = @viewer_profile AND `, flag.column, ` = 1)`)
 	}
 	if q.Watched != nil {
-		// A playable item is watched when its own state says so. An item that holds others is
-		// watched when nothing the viewer may see under it is left unwatched.
-		unwatched := underHolder(`EXISTS (SELECT 1 FROM items c WHERE {under} AND `+acc.visible("c")+` AND NOT EXISTS (
-			SELECT 1 FROM user_item_state w WHERE w.profile_id = @viewer_profile AND w.item_id = c.id AND w.played = 1))`, "i.id", " OR ")
-		w.add(` AND CASE WHEN i.kind IN `, playableKindsSQL, ` THEN `, boolSQL(*q.Watched), ` = EXISTS (
-			SELECT 1 FROM user_item_state w WHERE w.profile_id = @viewer_profile AND w.item_id = i.id AND w.played = 1)
-			ELSE `, boolSQL(*q.Watched), ` = (i.leaf_count > 0 AND NOT (`, unwatched, `)) END`)
+		// A playable item is watched when its own state says so. An item that holds others
+		// carries a watched mark on the viewer's state row for it, kept by settleWatched: it
+		// is watched when the viewer has watched everything it may see under it. So both are
+		// the same one look, and a list of watched shows reads nothing under them.
+		w.add(` AND `, boolSQL(*q.Watched), ` = EXISTS (SELECT 1 FROM user_item_state w
+			WHERE w.profile_id = @viewer_profile AND w.item_id = i.id AND w.played = 1)`)
 	}
 	if q.Resolution != "" {
 		class, ok := resolutionClasses[q.Resolution]

@@ -15,13 +15,19 @@ import (
 // holds through every rescan. It returns the new title's id.
 func (d *DB) SplitVersion(ctx context.Context, versionID string) (string, error) {
 	publicID := NewID("itm")
-	err := d.write(ctx, User, func(tx *sql.Tx) error {
+	err := d.write(ctx, User, func(tx *sql.Tx) (err error) {
 		b := newBatchTx(tx)
 		defer b.close()
+		// The new title is one more thing under its season and show, unwatched by everyone.
+		defer func() {
+			if err == nil {
+				err = b.settleWatchedForAll(time.Now().UnixMilli())
+			}
+		}()
 		var media, item, library int64
 		var kind ItemKind
 		var parent, root, index, parentIndex, rating sql.NullInt64
-		err := tx.QueryRow(`SELECT m.id, i.id, i.library_id, i.kind, i.parent_id, i.root_id, i.index_number, i.parent_index, i.rating_age
+		err = tx.QueryRow(`SELECT m.id, i.id, i.library_id, i.kind, i.parent_id, i.root_id, i.index_number, i.parent_index, i.rating_age
 			FROM media m JOIN items i ON i.id = m.item_id WHERE m.public_id = ?`, versionID).
 			Scan(&media, &item, &library, &kind, &parent, &root, &index, &parentIndex, &rating)
 		if errors.Is(err, sql.ErrNoRows) {
@@ -95,6 +101,7 @@ func (d *DB) SplitVersion(ctx context.Context, versionID string) (string, error)
 		if kind.Playable() {
 			leaf = 1
 		}
+		b.leavesChanged(parent.Int64, root.Int64)
 		for _, holder := range []int64{parent.Int64, root.Int64} {
 			if holder == 0 || holder == parent.Int64 && holder == root.Int64 && leaf == 0 {
 				continue
