@@ -76,7 +76,8 @@ func TestTheOwnerOrdersLibrariesAndExploresFolders(t *testing.T) {
 	for _, name := range []string{"Films", "Music"} {
 		var lib AdminLibrary
 		kind := map[string]string{"Films": "movies", "Music": "music"}[name]
-		if w := call(t, s, "POST", "/v1/admin/libraries", owner, LibraryCreate{Name: name, Kind: kind, Folders: []string{filepath.Join(root, map[string]string{"Films": "films", "Music": "Music"}[name])}}, &lib); w.Code != 200 {
+		folder := filepath.Join(root, map[string]string{"Films": "films", "Music": "Music"}[name])
+		if w := call(t, s, "POST", "/v1/admin/libraries", owner, LibraryCreate{Name: name, Kind: kind, Folders: []string{folder}}, &lib); w.Code != 200 {
 			t.Fatalf("creating %s answered %d: %s", name, w.Code, w.Body)
 		}
 		ids = append(ids, lib.ID)
