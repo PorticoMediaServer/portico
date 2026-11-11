@@ -66,7 +66,11 @@ type Service interface {
 	// approval that comes back carries everything the finish needs.
 	StartApproval(ctx context.Context, req ApprovalRequest) (Approval, error)
 	// FinishApproval checks an approval the person's browser or app brought back and says
-	// who approved what. One made for another server, or for nothing, is ErrDeclined.
+	// who approved what. One made for another server, or for nothing, is ErrDeclined. The
+	// server keeps nothing between start and finish and its id is public, so this must accept
+	// only an approval whose start this server signed with its identity key, and each one
+	// once: an approval merely "for this server id" would let anyone who can reach Portico
+	// Services own an unclaimed server without the setup code.
 	FinishApproval(ctx context.Context, serverID, returned string) (Decision, error)
 }
 
