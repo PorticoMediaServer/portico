@@ -256,6 +256,15 @@ type NewSession struct {
 // startSession registers the device and inserts the session, for a user already proven.
 func startSession(tx *sql.Tx, userID int64, n NewSession, now time.Time) (SessionState, error) {
 	at := now.UnixMilli()
+	// However a sign-in was proven (a password, a TV code approved earlier, a second step), an
+	// account waiting to move, left or not moved gets none.
+	var state string
+	if err := tx.QueryRow(`SELECT state FROM users WHERE id = ?`, userID).Scan(&state); err != nil {
+		return SessionState{}, err
+	}
+	if state != "active" {
+		return SessionState{}, ErrBadCredentials
+	}
 	var deviceID int64
 	// A name someone gave the device is kept; the app's own facts are brought up to date.
 	err := tx.QueryRow(`INSERT INTO devices (public_id, client_id, name, platform, app, app_version, created_at, last_seen_at)
@@ -353,11 +362,26 @@ func proofStands(tx *sql.Tx, now time.Time, limits []Limit, ok bool, userID int6
 	if ok {
 		var hash sql.NullString
 		var disabled bool
-		err := tx.QueryRow(`SELECT password_hash, disabled_at IS NOT NULL FROM users WHERE id = ?`, userID).Scan(&hash, &disabled)
+		var state string
+		err := tx.QueryRow(`SELECT password_hash, disabled_at IS NOT NULL, state FROM users WHERE id = ?`, userID).Scan(&hash, &disabled, &state)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return false, err
 		}
 		ok = err == nil && !disabled && hash.Valid && hash.String == checkedHash
+		if ok && state != "active" {
+			// For a while after a switch to Portico Accounts, a waiting person's old password
+			// proves who they are, and is answered with what to do next. Otherwise an account
+			// that cannot sign in now is refused like a wrong password.
+			move, moving, err := readMove(context.Background(), tx)
+			if err != nil {
+				return false, err
+			}
+			if state == "waiting" && moving && move.To == "portico" && now.Sub(move.At) < OldPasswordWorks {
+				*refused = ErrAccountWaiting
+				return false, nil
+			}
+			ok = false
+		}
 	}
 	if !ok {
 		*refused = ErrBadCredentials
