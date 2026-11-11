@@ -36,10 +36,11 @@ test('a choice becomes the session quality request in the server\u2019s own valu
   assert.equal(qualityChoiceOf({mode: 'original'}), 'original');
   assert.equal(qualityChoiceOf({mode: 'limit', maxHeight: 720}), undefined);
   assert.equal(qualityChoiceOf(undefined), undefined);
-  assert.equal(audioTrackId(3), 'a3');
-  assert.equal(audioTrackId('a12'), 'a12');
-  assert.equal(audioTrackId('3'), undefined);
-  assert.equal(audioStreamIndex('a3'), 3);
+  // The server names a track of the file by its stream index.
+  assert.equal(audioTrackId(3), '3');
+  assert.equal(audioTrackId('12'), '12');
+  assert.equal(audioTrackId('a3'), undefined);
+  assert.equal(audioStreamIndex('3'), 3);
 });
 
 const steps = fixedQualities.filter(q => q.height <= 1080);

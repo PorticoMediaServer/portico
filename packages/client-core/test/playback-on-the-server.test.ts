@@ -101,3 +101,15 @@ test('subtitles the server serves as WebVTT and lyrics it lists are read for the
   const shown = view.selection.resource!.document!;
   assert.equal(activeLyricLine(shown, 3.5, 0), 1);
 });
+
+test('a stream limit and a stop from another device are said as they are, not "try again"', async () => {
+  const {playbackUserMessage} = await import('../src/playback-messages.ts');
+  const {playbackFailure} = await import('../src/presentation/playback-failure.ts');
+  const {sessionEndMessage} = await import('../src/session-end.ts');
+  assert.match(playbackFailure('server_stream_limit_reached').text ?? '', /stream limit/);
+  assert.equal(playbackFailure('stream_limit_reached').body, 'web.player.error.streamLimit');
+  const stopped = sessionEndMessage({reason: 'stopped_elsewhere'});
+  assert.match(stopped, /another device/);
+  assert.equal(playbackUserMessage(stopped), stopped, 'the end sentence the service stored is what the card shows');
+  assert.notEqual(playbackUserMessage('anything the server said'), 'anything the server said');
+});

@@ -176,6 +176,7 @@ const message = (e: unknown, fallback: string): string => {
       case 'queue_ended': return serviceText('queuePlayer.queueEnded');
       case 'not_found': return serviceText('queuePlayer.notFound');
       case 'stream_limit_reached': return serviceText('queuePlayer.streamLimit');
+      case 'server_stream_limit_reached': case 'conversion_off': return playbackUserMessage(e);
       case 'transcode_not_allowed': return serviceText('queuePlayer.transcodeNotAllowed');
       case 'unsupported_media': return serviceText('queuePlayer.unsupported');
       case 'connection_too_slow': return serviceText('queuePlayer.connectionTooSlow');

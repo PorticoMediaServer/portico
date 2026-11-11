@@ -25,12 +25,14 @@ function qualityRungs(options: PlaybackOptions): readonly QualityRung[] {
 
 function sourceOffer(version: MediaVersion, rungs: readonly QualityRung[]): PlayerSourceOffer {
   const video = version.video[0], audio = version.audio[0], known = version.video.length + version.audio.length > 0;
-  let index = 0;
+  // A track of the file is named by its stream index ("1"); a file beside it ("f3-0") gets a number past them.
+  let beside = 100_000;
+  const index = (id: string) => /^\d{1,6}$/.test(id) ? Number(id) : beside++;
   const streams: PlayerOfferedStream[] = [
-    ...version.video.map((s): PlayerOfferedStream => ({index: index++, type: 'video', codec: s.codec, default: true, forced: false, enabled: false, reason: 'track_selection_unavailable'})),
-    ...version.audio.map((s): PlayerOfferedStream => ({index: index++, type: 'audio', codec: s.codec, default: s.default, forced: false, enabled: true, reason: '',
+    ...version.video.map((s): PlayerOfferedStream => ({index: index(s.id), type: 'video', codec: s.codec, default: true, forced: false, enabled: false, reason: 'track_selection_unavailable'})),
+    ...version.audio.map((s): PlayerOfferedStream => ({index: index(s.id), type: 'audio', codec: s.codec, default: s.default, forced: false, enabled: true, reason: '',
       ...(s.language ? {language: s.language} : {}), ...(s.title ? {title: s.title} : {}), ...(s.channels ? {channels: s.channels} : {}), ...(s.layout ? {channelLayout: s.layout} : {})})),
-    ...version.subtitles.map((s): PlayerOfferedStream => ({index: index++, type: 'subtitle', codec: s.format, default: s.default, forced: s.forced, enabled: false, reason: 'subtitle_delivery_unavailable',
+    ...version.subtitles.map((s): PlayerOfferedStream => ({index: index(s.id), type: 'subtitle', codec: s.format, default: s.default, forced: s.forced, enabled: false, reason: 'subtitle_delivery_unavailable',
       ...(s.language ? {language: s.language} : {}), ...(s.title ? {title: s.title} : {})})),
   ];
   return Object.freeze({id: version.id, available: true, container: version.container ?? '', videoCodec: video?.codec ?? '', audioCodec: audio?.codec ?? '',

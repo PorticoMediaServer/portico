@@ -12,12 +12,12 @@ const scope={serverId:'server',authority:'local' as const,accountId:'account',pr
 const fence={kind:'queue' as const,playback:{scope,run:1},sessionId:'session',itemId:'movie',sourceId:'source',entryId:'entry',generation:1};
 function fixture(){
  const options=parseOptions({itemId:'movie',kind:'movie',versions:[
-  {id:'v1',label:'First',durationMs:120000,parts:[],video:[],audio:[{id:'a1',codec:'aac',title:'Wrong version'}],subtitles:[]},
+  {id:'v1',label:'First',durationMs:120000,parts:[],video:[],audio:[{id:'1',codec:'aac',title:'Wrong version'}],subtitles:[]},
   {id:'v2',label:'Chosen',durationMs:120000,parts:[],video:[{id:'v0',codec:'h264',height:1080,interlaced:false}],audio:[
-   {id:'a3',codec:'ac3',language:'en',channels:6,layout:'5.1',default:false},
-   {id:'a4',codec:'aac',language:'en',title:'Commentary',channels:2,layout:'stereo',default:true}],subtitles:[]}],qualities:[{mode:'original'},{mode:'automatic'},{mode:'fixed',id:'720p-low'}],chapters:[],markers:[]});
+   {id:'3',codec:'ac3',language:'en',channels:6,layout:'5.1',default:false},
+   {id:'4',codec:'aac',language:'en',title:'Commentary',channels:2,layout:'stereo',default:true}],subtitles:[]}],qualities:[{mode:'original'},{mode:'automatic'},{mode:'fixed',id:'720p-low'}],chapters:[],markers:[]});
  const session=parseSession({id:'session',revision:'1',kind:'vod',role:'local',state:'playing',itemId:'movie',versionId:'v2',queue:{queueId:'queue',entryId:'entry'},
-  presentation:{generation:1,mode:'direct',url:'/v1/media/current',startPositionMs:0,subtitles:[],decision:{},audioTrackId:'a3',quality:{mode:'automatic',id:'720p-low'}}});
+  presentation:{generation:1,mode:'direct',url:'/v1/media/current',startPositionMs:0,subtitles:[],decision:{},audioTrackId:'3',quality:{mode:'automatic',id:'720p-low'}}});
  const resource:SubtitleResource={id:'real-subtitle',sourceId:'source',revision:1,scope:'personal',language:'en',title:'',format:'srt',origin:'sidecar',rights:'owned',offsetUs:'-500000',canManage:true,enabled:true,renderer:'external_text',default:false,forced:false};
  const plan:SubtitlePlan={version:1,sessionId:'session',generation:1,sourceId:'source',revision:1,catalogRevision:1,renderer:'external_text',mode:'track',offAvailable:true,offsetUs:'-500000',selected:resource,resources:[resource,{...resource,id:'fractional',offsetUs:'500'}],discovered:[]};
  const offers:PlayerOffersData={scope:{serverId:'server',libraryId:'library',itemId:'movie',viewerFence:'detail-viewer'},revision:'offers-1',preparedVersions:[],preparedOffersRevision:'',subtitlePlan:plan,subtitlePlanUnavailableReason:null,
@@ -34,7 +34,7 @@ function fixture(){
 
 test('the parent uses the actual selected grouped version and selected stream, never its first/default track',()=>{
  const f=fixture(),model=f.model();assert.ok(model,'detail and Home viewer fences are independent opaque scopes');
- assert.deepEqual(model.audio.map(r=>r.id),['a3','a4']);assert.equal(model.audio[0].primary,'English');assert.equal(model.audio[1].primary,'Commentary');
+ assert.deepEqual(model.audio.map(r=>r.id),['3','4']);assert.equal(model.audio[0].primary,'English');assert.equal(model.audio[1].primary,'Commentary');
  assert.equal(model.audio[0].selected,true);assert.equal(model.audio[1].selected,false);assert.equal(model.audio[1].unavailable,true);
  assert.equal(model.audioLabel,'English');assert.equal(model.subtitles.find(row=>row.selected)?.id,'resource:real-subtitle');
  assert.equal(model.automatic,true);assert.equal(model.qualityLabel,'720p');assert.equal(model.quality.find(row=>row.selected)?.id,'auto');
@@ -43,9 +43,9 @@ test('the parent uses the actual selected grouped version and selected stream, n
 
 test('real source choices dispatch exact wire identities and full fence through the one runtime',async()=>{
  const f=fixture(),model=f.model()!;
- await model.selectAudio('a3');await model.selectSubtitle('resource:real-subtitle');await model.selectSubtitle('off');await model.selectQuality('auto');model.selectSpeed('1.5');
- assert.deepEqual(f.calls,[['audio',fence,'a3'],['subtitle',fence,'real-subtitle'],['subtitle',fence,null],['quality',fence,'automatic'],['speed',fence,1.5]]);
- await assert.rejects(model.selectAudio('a4'),/unavailable/);await assert.rejects(model.selectSubtitle('resource:fractional'),/unavailable/);
+ await model.selectAudio('3');await model.selectSubtitle('resource:real-subtitle');await model.selectSubtitle('off');await model.selectQuality('auto');model.selectSpeed('1.5');
+ assert.deepEqual(f.calls,[['audio',fence,'3'],['subtitle',fence,'real-subtitle'],['subtitle',fence,null],['quality',fence,'automatic'],['speed',fence,1.5]]);
+ await assert.rejects(model.selectAudio('4'),/unavailable/);await assert.rejects(model.selectSubtitle('resource:fractional'),/unavailable/);
  await assert.rejects(model.selectQuality('1080p-high'),/unavailable/);assert.throws(()=>model.selectSpeed('3'),/unavailable/);
  assert.equal(f.calls.length,5);
 });

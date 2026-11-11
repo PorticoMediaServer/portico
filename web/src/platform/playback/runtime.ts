@@ -691,7 +691,7 @@ export class WebShellPlaybackRuntime {
         // pressed in, else its show, album or book anchored on it; a lone title is one entry.
         const from = captured.from ?? (options.container ? {container: options.container} : undefined);
         await deadline.race(stack.queue.playItem(item.id, startSeconds, undefined, undefined, undefined,
-          {...(versionId ? {versionId} : {}), ...(audio ? {audioTrackId: audio.id} : {})}, {signal: lifetime, isCurrent: current, ...(from ? {from} : {})}));
+          {...(versionId ? {versionId} : {}), ...(audio ? {audioTrackId: audio.id} : {})}, {signal: lifetime, isCurrent: current, propagateError: true, ...(from ? {from} : {})}));
         if (!current()) problem(deadline.expired() && !context.signal.aborted ? 'playback_start_timeout' : 'stale_selection_context');
         const session = stack.queue.currentSession();
         if (stack.service.getSnapshot().phase === 'error' || session?.itemId !== item.id

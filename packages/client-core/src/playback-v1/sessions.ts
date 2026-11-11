@@ -552,7 +552,7 @@ export class PlaybackSessionController {
     const check = () => {if (!owns()) throw new DOMException('Playback change retired', 'AbortError');};
     // A change that re-plans carries where the player is, so the new presentation starts there
     // and not at the last report (which can be a report interval old).
-    const at = this.state.observation?.positionMs;
+    const at = this.heardMs ?? this.state.observation?.positionMs;
     if (replans(change) && change.positionMs === undefined && change.seek === undefined && at !== undefined) change = {...change, positionMs: Math.max(0, Math.round(at))};
     const serial = ++this.changeSerial;
     const run = async (): Promise<Session | undefined> => {
@@ -656,7 +656,7 @@ export class PlaybackSessionController {
   async stop(): Promise<void> {
     const session = this.state.session;
     ++this.startToken;
-    const at = this.state.observation?.positionMs;
+    const at = this.heardMs ?? this.state.observation?.positionMs;
     const finalReport = this.reporter?.flush().catch(() => {});
     this.retireReporter();
     this.player.pause();

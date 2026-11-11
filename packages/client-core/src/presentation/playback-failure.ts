@@ -34,6 +34,8 @@ const bodies: Readonly<Record<string, MessageId>> = {
   invalid_playback_target: 'web.player.error.notAvailable',
   client_update_required: 'web.player.error.updateRequired',
   'This account is already playing as many streams as it is allowed.': 'web.player.error.streamLimit',
+  stream_limit_reached: 'web.player.error.streamLimit',
+  conversion_off: 'web.player.error.conversionOff',
 };
 
 export function playbackFailure(error: string | undefined): PlaybackFailure {
