@@ -35,3 +35,4 @@ ci-plan.json
 go.work.sum
 
 ci-tools/
+/.media-tools/

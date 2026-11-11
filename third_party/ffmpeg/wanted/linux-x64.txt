@@ -1,0 +1,242 @@
+# What the Linux x86 bundle must have. One "kind name" per line.
+#   configure / refuse-configure   an option FFmpeg is built with / must not be built with
+#   decoder encoder demuxer muxer filter protocol bsf hwaccel   a name FFmpeg must list
+#   option <where> <name>          an option that "ffmpeg -h <where>" must show
+# The names come from what server-next calls and from the hardware the owner asked for.
+
+refuse-configure --enable-nonfree
+refuse-configure --enable-libfdk-aac
+
+# Libraries
+configure --enable-libass
+configure --enable-fontconfig
+configure --enable-libfreetype
+configure --enable-libfribidi
+configure --enable-libharfbuzz
+configure --enable-libbluray
+configure --enable-libdvdnav
+configure --enable-libdvdread
+configure --enable-libsoxr
+configure --enable-libdovi
+configure --enable-bzlib
+configure --enable-libdav1d
+configure --enable-libsvtav1
+configure --enable-libx264
+configure --enable-libx265
+configure --enable-libvpx
+configure --enable-libzimg
+configure --enable-libplacebo
+configure --enable-libzvbi
+configure --enable-zlib
+configure --enable-iconv
+configure --enable-lzma
+configure --enable-libxml2
+configure --enable-openssl
+configure --enable-libmp3lame
+configure --enable-libopus
+configure --enable-libvorbis
+configure --enable-libtheora
+configure --enable-libwebp
+configure --enable-libopenmpt
+configure --enable-chromaprint
+configure --enable-libsrt
+# Hardware
+configure --enable-libvpl
+configure --enable-vaapi
+configure --enable-libdrm
+configure --enable-ffnvcodec
+configure --enable-nvenc
+configure --enable-nvdec
+configure --enable-cuvid
+configure --enable-cuda-llvm
+configure --enable-amf
+configure --enable-opencl
+configure --enable-vulkan
+configure --enable-libshaderc
+
+# Video and audio the server reads
+decoder h264
+decoder hevc
+decoder av1
+decoder vp9
+decoder vp8
+decoder mpeg2video
+decoder mpeg4
+decoder vc1
+decoder wmv3
+decoder vvc
+decoder prores
+decoder mjpeg
+decoder theora
+decoder aac
+decoder ac3
+decoder eac3
+decoder truehd
+decoder dca
+decoder flac
+decoder opus
+decoder vorbis
+decoder mp3
+decoder alac
+decoder ape
+decoder wavpack
+decoder wmav2
+decoder wmapro
+decoder wmalossless
+decoder pcm_s16le
+decoder pcm_s24le
+decoder dsd_lsbf
+decoder subrip
+decoder webvtt
+decoder ass
+decoder pgssub
+decoder dvdsub
+decoder dvbsub
+decoder cc_dec
+decoder libzvbi_teletextdec
+decoder h264_cuvid
+decoder hevc_cuvid
+
+# What the server writes
+encoder libx264
+encoder libx265
+encoder libsvtav1
+encoder aac
+encoder ac3
+encoder eac3
+encoder flac
+encoder alac
+encoder libopus
+encoder libmp3lame
+encoder pcm_s16le
+encoder pcm_f32le
+encoder mjpeg
+encoder png
+encoder libwebp
+encoder webvtt
+# Intel Quick Sync
+encoder h264_qsv
+encoder hevc_qsv
+encoder av1_qsv
+# VA-API (Intel and AMD on Linux)
+encoder h264_vaapi
+encoder hevc_vaapi
+encoder av1_vaapi
+# NVIDIA
+encoder h264_nvenc
+encoder hevc_nvenc
+encoder av1_nvenc
+# AMD AMF
+encoder h264_amf
+encoder hevc_amf
+encoder av1_amf
+
+hwaccel vaapi
+hwaccel qsv
+hwaccel cuda
+hwaccel opencl
+hwaccel vulkan
+
+demuxer mov
+demuxer matroska
+demuxer mpegts
+demuxer mpeg
+demuxer hls
+demuxer flv
+demuxer avi
+demuxer asf
+demuxer ogg
+demuxer flac
+demuxer mp3
+demuxer wav
+demuxer hevc
+demuxer vobsub
+demuxer ffmetadata
+demuxer lavfi
+demuxer dvdvideo
+demuxer libopenmpt
+
+muxer hls
+muxer mp4
+muxer mpegts
+muxer matroska
+muxer webvtt
+muxer rawvideo
+muxer s16le
+muxer f32le
+muxer null
+muxer chromaprint
+
+protocol file
+protocol pipe
+protocol http
+protocol https
+protocol bluray
+protocol srt
+
+bsf dovi_rpu
+bsf dovi_profile
+bsf filter_units
+bsf extract_extradata
+bsf hevc_mp4toannexb
+bsf h264_mp4toannexb
+bsf aac_adtstoasc
+
+# Software picture work
+filter scale
+filter format
+filter fps
+filter pad
+filter setsar
+filter select
+filter overlay
+filter subtitles
+filter bwdif
+filter yadif
+filter colorspace
+filter zscale
+filter tonemap
+filter tonemapx
+filter libplacebo
+filter hwupload
+filter hwdownload
+# Sound
+filter aresample
+filter pan
+filter volume
+filter alimiter
+filter aformat
+filter atrim
+filter asetpts
+filter ebur128
+filter ametadata
+# Intel Quick Sync
+filter vpp_qsv
+filter overlay_qsv
+filter scale_qsv
+filter deinterlace_qsv
+# VA-API
+filter scale_vaapi
+filter tonemap_vaapi
+filter deinterlace_vaapi
+filter overlay_vaapi
+# NVIDIA
+filter hwupload_cuda
+filter scale_cuda
+filter tonemap_cuda
+filter overlay_cuda
+filter bwdif_cuda
+# OpenCL and Vulkan
+filter tonemap_opencl
+filter scale_opencl
+filter overlay_opencl
+filter bwdif_opencl
+filter scale_vulkan
+filter overlay_vulkan
+filter bwdif_vulkan
+
+# Portico's patches
+option bsf=dovi_profile mode
+option demuxer=mpegts merge_dovi
+option protocol=bluray min_playlist_length
+option encoder=libx265 hdr10plus
