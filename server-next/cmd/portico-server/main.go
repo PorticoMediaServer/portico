@@ -22,6 +22,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediaengine"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediaexec"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/titledata"
+	"github.com/PorticoMediaServer/portico/server-next/internal/serverlog"
 )
 
 // version is set by the release build.
@@ -79,6 +80,14 @@ func run(log *slog.Logger) error {
 		return err
 	}
 	libraryfile.ServerData = serverData
+	// Everything logged from here on is also kept in the data folder for Messages.
+	serverLog, err := serverlog.Open(filepath.Join(*data, "logs"), os.Stderr)
+	if err != nil {
+		return err
+	}
+	defer serverLog.Close()
+	log = slog.New(serverLog.Handler())
+	slog.SetDefault(log)
 	// Media tools are started through this binary as their helper. That lets a scan keep a
 	// few confined workers going, where it would otherwise build a sandbox for every file.
 	if _, err := mediaexec.Configure(mediaexec.Options{}); err != nil {
@@ -130,6 +139,8 @@ func run(log *slog.Logger) error {
 	// downloaded until a release is signed, or while the owner has it switched off.
 	go (&titledata.Updater{DB: d, Dir: filepath.Join(*data, "title-data"), Log: log}).Run(ctx)
 	// No write timeout: media and the events feed are long replies. Slow request headers are bounded.
+	// Messages read the log kept in the data folder.
+	handler.UseLog(serverLog)
 	srv := &http.Server{Addr: *listen, Handler: handler, ReadHeaderTimeout: 10 * time.Second}
 	failed := make(chan error, 1)
 	go func() { failed <- srv.ListenAndServe() }()
