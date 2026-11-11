@@ -43,7 +43,7 @@ func TestAHostWithIPv6LoopbackOnlyReadsAFile(t *testing.T) {
 	}
 	ffmpeg, ffprobe := decodertest.QualifiedFFmpeg(t), decodertest.QualifiedFFprobe(t)
 	real := listenIPv4
-	listenIPv4 = func() (*net.TCPListener, error) { return nil, syscall.EADDRNOTAVAIL }
+	listenIPv4 = func(int) (*net.TCPListener, error) { return nil, syscall.EADDRNOTAVAIL }
 	defer func() { listenIPv4 = real }()
 
 	path := filepath.Join(t.TempDir(), "probe.mkv")
@@ -71,6 +71,21 @@ func TestAHostWithIPv6LoopbackOnlyReadsAFile(t *testing.T) {
 	}
 	reservation.Close()
 	bridge.Close()
+
+	// A host that has IPv4 loopback, where only one bind failed, is refused, not moved to [::1].
+	failOnce := true
+	listenIPv4 = func(port int) (*net.TCPListener, error) {
+		if failOnce || port != 0 {
+			failOnce = false
+			return nil, syscall.EADDRINUSE
+		}
+		return real(0)
+	}
+	if b, err := Open(context.Background(), file, info.Size()); err == nil {
+		b.Close()
+		t.Fatalf("a host with IPv4 loopback was told %s", b.URL())
+	}
+	listenIPv4 = func(int) (*net.TCPListener, error) { return nil, syscall.EADDRNOTAVAIL }
 
 	modes := []string{"off"}
 	if decoder.ProbeConfinement(context.Background()) == nil {
