@@ -153,12 +153,19 @@ func (b *batchTx) insertMedia(itemID int64, position int, v *ImportVersion, fact
 	return id, b.versionsChanged(itemID)
 }
 
+// widestPresent is the width of the widest version of the items row in scope that can still
+// be played: a version one of whose files is missing does not count, so a title whose 4K copy
+// was deleted stops sorting as 4K.
+const widestPresent = `(SELECT max(m.width) FROM media m WHERE m.item_id = items.id AND NOT EXISTS (SELECT 1 FROM media_parts p
+	JOIN files f ON f.id = p.file_id WHERE p.media_id = m.id AND f.missing_since_at IS NOT NULL))`
+
 // versionsChanged must be called, in the same transaction, by whatever has just given an item
-// a version, taken one from it, or changed a version's picture size. It writes the width of
-// the item's widest version on the item, which the sort by resolution is read from.
+// a version, taken one from it, changed a version's picture size, or found one of a version's
+// files gone or back. It writes the width of the item's widest playable version on the item,
+// which the sort by resolution is read from.
 func (b *batchTx) versionsChanged(items ...int64) error {
 	for _, id := range items {
-		if _, err := b.exec(`UPDATE items SET best_width = (SELECT max(m.width) FROM media m WHERE m.item_id = items.id) WHERE id = ?`, id); err != nil {
+		if _, err := b.exec(`UPDATE items SET best_width = `+widestPresent+` WHERE id = ? AND best_width IS NOT `+widestPresent, id); err != nil {
 			return err
 		}
 	}
