@@ -238,6 +238,15 @@ func run(log *slog.Logger) (err error) {
 	tlsConfig := &tls.Config{GetCertificate: certs.GetCertificate, MinVersion: tls.VersionTLS12, NextProtos: []string{"http/1.1"}}
 	failed := make(chan error, 1)
 	go func() { failed <- srv.Serve(tlsport.Listen(ln, tlsConfig)) }()
+	// The home router is asked to forward the public port to this one while the owner's
+	// remote access settings want it, and to stop when the server stops. A server listening
+	// only on this machine cannot be forwarded to, so the router is never asked.
+	port := ln.Addr().(*net.TCPAddr)
+	if port.IP.IsLoopback() {
+		port.Port = 0
+	}
+	mapped := make(chan struct{})
+	go func() { handler.ServePortMapping(ctx, port.Port); close(mapped) }()
 	log.Info("portico-server is serving", "listen", *listen, "data", *data, "version", version)
 
 	restart := false
@@ -262,6 +271,7 @@ func run(log *slog.Logger) (err error) {
 	stop()
 	handler.Wait(wait)
 	waitFor(wait, &background)
+	<-mapped
 	// Where everyone had got to is saved before the database closes, and every converter stopped.
 	handler.Playback().Save(wait, db.User)
 	// Today's statistics so far are added to the day's totals.
