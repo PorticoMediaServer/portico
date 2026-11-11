@@ -479,7 +479,7 @@ func BuildConversion(r ConversionRequest) (ConversionGraph, error) {
 			if profile == "" {
 				profile = "high"
 			}
-			out.Video = append(out.Video, "-profile:v", profile, "-level:v", strconv.FormatFloat(float64(level)/10, 'f', 1, 64))
+			out.Video = append(out.Video, "-profile:v", profile, "-level:v", levelArg(backend, level, 10))
 		}
 		if target.VideoCodec == "hevc" {
 			profile := "main"
@@ -490,7 +490,7 @@ func BuildConversion(r ConversionRequest) (ConversionGraph, error) {
 			if level == 0 {
 				level = HEVCOutputLevel(target.Width, target.Height, target.FrameRate)
 			}
-			out.Video = append(out.Video, "-profile:v", profile, "-tag:v", "hvc1", "-level:v", strconv.FormatFloat(float64(level)/30, 'f', 1, 64))
+			out.Video = append(out.Video, "-profile:v", profile, "-tag:v", "hvc1", "-level:v", levelArg(backend, level, 30))
 			if encoder == "libx265" {
 				params := "pools=2:frame-threads=2:open-gop=0:repeat-headers=1"
 				if target.DynamicRange == "hdr10" {
@@ -624,4 +624,16 @@ func boundedScaleFilter(backend HardwareBackend, width, height int) string {
 		return "scale=w='max(2,trunc(" + display + "*" + ratio + "/2)*2)':h='max(2,trunc(ih*" + ratio + "/2)*2)',setsar=1"
 	}
 	return filter + "=w='max(2,trunc(iw*" + ratio + "/2)*2)':h='max(2,trunc(ih*" + ratio + "/2)*2)'"
+}
+
+// levelArg is the -level value for an encoder. The software encoders take the
+// level as written ("4.0"); the device encoders take it as a number with names
+// for some levels only, and "4.0" is not one of VA-API's or Quick Sync's names,
+// so it was read as level 4 and the encoder failed on the first picture. The
+// plain level_idc (40 for H.264 4.0, 120 for HEVC 4.0) means the same to all of them.
+func levelArg(backend HardwareBackend, idc, per int) string {
+	if backend == BackendSoftware {
+		return strconv.FormatFloat(float64(idc)/float64(per), 'f', 1, 64)
+	}
+	return strconv.Itoa(idc)
 }
