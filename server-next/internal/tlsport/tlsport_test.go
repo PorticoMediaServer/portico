@@ -123,3 +123,17 @@ func TestOwnCertificateOnTheOnePort(t *testing.T) {
 		t.Fatalf("plain HTTP after HTTPS was turned off: %q %v", body, err)
 	}
 }
+
+// A plain HTTP connection keeps the kernel's file-to-socket copy for media, and the Keys folder
+// exists for the owner to put the files in.
+func TestPlainConnectionsKeepSendfileAndKeysExist(t *testing.T) {
+	var conn net.Conn = &peeked{}
+	if _, ok := conn.(io.ReaderFrom); !ok {
+		t.Fatal("a plain connection lost ReadFrom, so media would be copied through user space")
+	}
+	keys := filepath.Join(t.TempDir(), "Keys")
+	NewStore(keys, quiet, time.Now)
+	if info, err := os.Stat(keys); err != nil || !info.IsDir() || info.Mode().Perm() != 0o700 {
+		t.Fatalf("the Keys folder: %v %v", info, err)
+	}
+}
