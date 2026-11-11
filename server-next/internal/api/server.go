@@ -72,6 +72,16 @@ type Server struct {
 	remote *remote.Registry
 	// driveSignIns are Google sign-ins for Drive sources under way.
 	driveSignIns remote.DriveSignIns
+
+	// The newer areas each keep their fields in a type of their own, in area_<name>.go,
+	// beside their start-up. Nothing below this line changes when an area grows.
+	consoleArea
+	setupArea
+	toolsArea
+	togetherArea
+	downloadsArea
+	readingArea
+	liveTVArea
 }
 
 // Route is one operation, kept so the contract can be generated and the operation budget counted.
@@ -218,6 +228,15 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.scans = scan.NewManager(s.jobs, &scan.Scanner{DB: d, Prober: scan.FileProber{}, Log: log})
 	s.libraryRoutes()
 	s.jobRoutes()
+	// The newer areas start themselves, in this fixed order (the console first: its settings
+	// are what the others read). An area adds to its own start function, never to this list.
+	for _, start := range []func(context.Context) error{
+		s.startConsole, s.startSetup, s.startTools, s.startTogether, s.startDownloads, s.startReading, s.startLiveTV,
+	} {
+		if err := start(ctx); err != nil {
+			return nil, err
+		}
+	}
 	// Every kind of job is registered by now: the jobs asked for before the server last
 	// stopped are taken up again.
 	if err := s.jobs.Resume(); err != nil {
