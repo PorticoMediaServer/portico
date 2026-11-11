@@ -37,6 +37,16 @@ type snapshot struct {
 	Tags        []TagName      `json:"tags"`
 	Credits     []snapCredit   `json:"credits"`
 	Pictures    []int64        `json:"lockedPictures"` // images rows locked as the role's choice
+	// For a show: its episode order and offset, and, before its match changed, each season's
+	// and episode's own details, so Undo puts the show back as a whole.
+	Numbering *EpisodeNumbering `json:"numbering,omitempty"`
+	Children  []childSnapshot   `json:"children,omitempty"`
+}
+
+// childSnapshot is a season or an episode of a show, as a change of the show's match found it.
+type childSnapshot struct {
+	ID int64 `json:"id"`
+	snapshot
 }
 
 type snapCredit struct {
@@ -108,6 +118,32 @@ func remember(b *batchTx, itemID int64, kind HistoryKind, now int64) error {
 	if err != nil {
 		return err
 	}
+	var itemKind ItemKind
+	if err := b.queryRow(`SELECT kind FROM items WHERE id = ?`, itemID).Scan(&itemKind); err != nil {
+		return err
+	}
+	if itemKind == KindShow {
+		numbering, err := episodeNumbering(b, itemID)
+		if err != nil {
+			return err
+		}
+		s.Numbering = &numbering
+		// A new match gives the seasons and episodes the new show's details, and an undo of one
+		// puts the old back: either is kept with theirs, so it can be undone in turn.
+		if kind == HistoryMatch || kind == HistoryUndo {
+			children, err := queryInts(b.tx, `SELECT id FROM items WHERE root_id = ? AND kind IN (?, ?) ORDER BY id`, itemID, KindSeason, KindEpisode)
+			if err != nil {
+				return err
+			}
+			for _, child := range children {
+				c, err := takeSnapshot(b, child)
+				if err != nil {
+					return err
+				}
+				s.Children = append(s.Children, childSnapshot{ID: child, snapshot: c})
+			}
+		}
+	}
 	raw, err := json.Marshal(s)
 	if err != nil {
 		return err
@@ -175,15 +211,27 @@ func (d *DB) UndoMetadata(ctx context.Context, publicID, entryID string) (int64,
 		if err := remember(b, id, HistoryUndo, now); err != nil {
 			return err
 		}
-		sets, args := "updated_at = ?, revision = revision + 1", []any{now}
-		for _, column := range snapshotColumns {
-			if value, ok := s.Columns[column]; ok {
-				sets += ", " + column + " = ?"
-				args = append(args, value)
+		im := &importer{batchTx: b, now: now, tags: map[TagName]int64{}, people: map[string]int64{}}
+		if err := restore(b, im, library, id, &s, now); err != nil {
+			return err
+		}
+		// A show's seasons and episodes as they were before its match changed, those still here.
+		for i := range s.Children {
+			var under bool
+			if err := b.queryRow(`SELECT EXISTS (SELECT 1 FROM items WHERE id = ? AND root_id = ?)`, s.Children[i].ID, id).Scan(&under); err != nil {
+				return err
+			}
+			if under {
+				if err := restore(b, im, library, s.Children[i].ID, &s.Children[i].snapshot, now); err != nil {
+					return err
+				}
 			}
 		}
-		if _, err := b.exec(`UPDATE items SET `+sets+` WHERE id = ?`, append(args, id)...); err != nil {
-			return err
+		if s.Numbering != nil {
+			if _, err := b.exec(`UPDATE items SET extra = json_set(ifnull(extra, '{}'), '$.episodeOrder', ?, '$.episodeOffset', ?) WHERE id = ?`,
+				s.Numbering.Order, s.Numbering.Offset, id); err != nil {
+				return err
+			}
 		}
 		// What has no rating of its own uses its show's: a show's episodes follow it again, and an
 		// episode or season put back follows its show as it is now, not as the snapshot found it,
@@ -197,59 +245,10 @@ func (d *DB) UndoMetadata(ctx context.Context, publicID, entryID string) (int64,
 			AND content_rating IS NULL`, id); err != nil {
 			return err
 		}
-		steps := []string{`DELETE FROM item_external_ids WHERE item_id = ?`, `DELETE FROM item_keys WHERE item_id = ? AND kind = ` + strconv.Itoa(int(KeyProvider)),
-			`DELETE FROM item_tags WHERE item_id = ? AND tag_id IN (SELECT id FROM tags WHERE kind IN ('genre', 'studio', 'network', 'country', 'label'))`,
-			`DELETE FROM credits WHERE item_id = ?`, `UPDATE images SET locked = 0 WHERE item_id = ? AND locked = 1`}
-		for _, step := range steps {
-			if _, err := b.exec(step, id); err != nil {
-				return err
-			}
-		}
-		for _, ext := range s.ExternalIDs {
-			if _, err := b.exec(`INSERT INTO item_external_ids (item_id, provider, external_id) VALUES (?, ?, ?)`, id, ext.Provider, ext.ID); err != nil {
-				return err
-			}
-		}
-		for _, key := range s.Keys {
-			// Another title that has taken the id since keeps it: the server never merges by itself.
-			if _, err := b.exec(`INSERT INTO item_keys (library_id, kind, key, item_id) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING`,
-				library, KeyProvider, key, id); err != nil {
-				return err
-			}
-		}
-		im := &importer{batchTx: b, now: now, tags: map[TagName]int64{}, people: map[string]int64{}}
-		for _, tag := range s.Tags {
-			tagID, err := im.tagID(tag)
-			if err != nil {
-				return err
-			}
-			if err := b.tagItem(id, tagID); err != nil {
-				return err
-			}
-		}
 		// The rating may be put back, on the title and on what under it has none of its own:
 		// the copies of it on the tag rows follow, after the tags are written.
 		if err := b.ratingChanged(id); err != nil {
 			return err
-		}
-		position := 0
-		for _, c := range s.Credits {
-			var exists bool
-			if err := b.queryRow(`SELECT EXISTS (SELECT 1 FROM people WHERE id = ?)`, c.Person).Scan(&exists); err != nil {
-				return err
-			}
-			if !exists {
-				continue // a person no title holds any more has gone
-			}
-			if err := b.insertCredit(id, position, c.Person, c.Role, c.Character); err != nil {
-				return err
-			}
-			position++
-		}
-		for _, picture := range s.Pictures {
-			if _, err := b.exec(`UPDATE images SET locked = 1 WHERE id = ? AND item_id = ?`, picture, id); err != nil {
-				return err
-			}
 		}
 		if err := b.queryRow(`SELECT revision FROM items WHERE id = ?`, id).Scan(&revision); err != nil {
 			return err
@@ -257,4 +256,68 @@ func (d *DB) UndoMetadata(ctx context.Context, publicID, entryID string) (int64,
 		return appendChange(tx, Change{At: now, Topic: TopicItem, Op: OpUpdated, RefID: id, LibraryID: library})
 	})
 	return revision, err
+}
+
+// restore puts one title's details, ids, tags, credits and chosen pictures back as a
+// snapshot has them. The caller makes ratings follow and tells their copies.
+func restore(b *batchTx, im *importer, library, id int64, s *snapshot, now int64) error {
+	sets, args := "updated_at = ?, revision = revision + 1", []any{now}
+	for _, column := range snapshotColumns {
+		if value, ok := s.Columns[column]; ok {
+			sets += ", " + column + " = ?"
+			args = append(args, value)
+		}
+	}
+	if _, err := b.exec(`UPDATE items SET `+sets+` WHERE id = ?`, append(args, id)...); err != nil {
+		return err
+	}
+	steps := []string{`DELETE FROM item_external_ids WHERE item_id = ?`, `DELETE FROM item_keys WHERE item_id = ? AND kind = ` + strconv.Itoa(int(KeyProvider)),
+		`DELETE FROM item_tags WHERE item_id = ? AND tag_id IN (SELECT id FROM tags WHERE kind IN ('genre', 'studio', 'network', 'country', 'label'))`,
+		`DELETE FROM credits WHERE item_id = ?`, `UPDATE images SET locked = 0 WHERE item_id = ? AND locked = 1`}
+	for _, step := range steps {
+		if _, err := b.exec(step, id); err != nil {
+			return err
+		}
+	}
+	for _, ext := range s.ExternalIDs {
+		if _, err := b.exec(`INSERT INTO item_external_ids (item_id, provider, external_id) VALUES (?, ?, ?)`, id, ext.Provider, ext.ID); err != nil {
+			return err
+		}
+	}
+	for _, key := range s.Keys {
+		// Another title that has taken the id since keeps it: the server never merges by itself.
+		if _, err := b.exec(`INSERT INTO item_keys (library_id, kind, key, item_id) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING`,
+			library, KeyProvider, key, id); err != nil {
+			return err
+		}
+	}
+	for _, tag := range s.Tags {
+		tagID, err := im.tagID(tag)
+		if err != nil {
+			return err
+		}
+		if err := b.tagItem(id, tagID); err != nil {
+			return err
+		}
+	}
+	position := 0
+	for _, c := range s.Credits {
+		var exists bool
+		if err := b.queryRow(`SELECT EXISTS (SELECT 1 FROM people WHERE id = ?)`, c.Person).Scan(&exists); err != nil {
+			return err
+		}
+		if !exists {
+			continue // a person no title holds any more has gone
+		}
+		if err := b.insertCredit(id, position, c.Person, c.Role, c.Character); err != nil {
+			return err
+		}
+		position++
+	}
+	for _, picture := range s.Pictures {
+		if _, err := b.exec(`UPDATE images SET locked = 1 WHERE id = ? AND item_id = ?`, picture, id); err != nil {
+			return err
+		}
+	}
+	return nil
 }
