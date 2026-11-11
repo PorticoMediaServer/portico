@@ -639,7 +639,11 @@ func TestAListOpensAtAnyPositionAndByLetter(t *testing.T) {
 			t.Fatalf("the rail counts %d titles of %d", position, len(whole))
 		}
 	}
-	if _, err := l.d.Items(ctx, l.all, db.ItemQuery{Library: l.libs[0].PublicID, At: 3, Cursor: "x"}); !errors.Is(err, db.ErrInvalid) {
+	first, err := l.d.Items(ctx, l.all, db.ItemQuery{Library: l.libs[0].PublicID, Limit: 1})
+	if err != nil || first.NextCursor == "" {
+		t.Fatalf("first page: %v", err)
+	}
+	if _, err := l.d.Items(ctx, l.all, db.ItemQuery{Library: l.libs[0].PublicID, At: 3, Cursor: first.NextCursor}); !errors.Is(err, db.ErrInvalid) {
 		t.Fatalf("a position with a cursor: %v", err)
 	}
 }
