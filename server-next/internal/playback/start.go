@@ -268,6 +268,11 @@ func (s *Service) create(ctx context.Context, in StartInput) (*session, error) {
 	s.sessions[sess.ID] = sess
 	sess.op.Lock()
 	s.mu.Unlock()
+	if s.totals != nil {
+		s.totals.Add("plays"+split(&sess.Session), 1)
+		s.totals.Most("streams_peak", int64(total+1))
+		s.totals.Person(c.Viewer.UserID)
+	}
 	defer sess.op.Unlock()
 	for _, other := range replaced {
 		s.finish(ctx, other)

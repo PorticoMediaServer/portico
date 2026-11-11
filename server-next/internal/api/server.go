@@ -21,6 +21,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/artwork"
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
+	"github.com/PorticoMediaServer/portico/server-next/internal/console"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
@@ -56,6 +57,8 @@ type Server struct {
 	// queues builds and runs play queues. See queues.go.
 	queues  *playqueue.Service
 	network networkState
+	// totals counts the server's lifetime statistics. See statistics.go.
+	totals *console.Totals
 	// settings are the owner's settings documents, held in memory. See settings.go.
 	settings *settings.Settings
 	media    func(w http.ResponseWriter, r *http.Request, grant, file string)
@@ -180,6 +183,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.systemRoutes()
 	s.networkRoutes()
 	s.settingsRoutes()
+	s.statisticsRoutes()
 	s.identityRoutes()
 	s.authRoutes()
 	s.profileRoutes()
@@ -192,12 +196,17 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.artwork = artwork.New(dataDir)
 	s.imageRoutes()
 	s.playback = playback.New(d, playback.NoEngine{}, playback.NoEngine{}, log, func() time.Time { return s.now() })
+	s.totals = &console.Totals{DB: d, Log: log, Now: func() time.Time { return s.now() }}
+	s.playback.CountInto(s.totals)
 	go s.playback.Run(ctx)
 	s.playbackRoutes()
 	s.queues = playqueue.New(d, s.playback, func() time.Time { return s.now() })
 	s.queueRoutes()
 	return s, nil
 }
+
+// Totals are the server's lifetime statistics: the server runs them, and flushes them as it stops.
+func (s *Server) Totals() *console.Totals { return s.totals }
 
 // Routes lists every registered operation.
 func (s *Server) Routes() []*Route { return s.routes }
