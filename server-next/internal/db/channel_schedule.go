@@ -69,6 +69,7 @@ type ChannelSelection struct {
 	// AddedSince, when not zero, keeps only titles added since then.
 	AddedSince time.Time
 	Always     []string // public ids, played whatever the conditions say
+	OnlyAlways bool     // the Always titles and nothing else
 	Never      []string // public ids, never played; Never wins
 	// Text asks for each title's summary, to test words against.
 	Text bool
@@ -161,13 +162,15 @@ func (sel ChannelSelection) where(ctx context.Context, tx *sql.Tx, q *query) err
 		q.add(` AND i.public_id NOT IN (`, q.list(sel.Never), `)`)
 	}
 	match := "1"
-	if len(sel.Conditions) > 0 {
+	if sel.OnlyAlways {
+		match = "0"
+	} else if len(sel.Conditions) > 0 {
 		var err error
 		if match, err = conditionGroup(ctx, tx, q, sel.Match, sel.Conditions); err != nil {
 			return err
 		}
 	}
-	if !sel.AddedSince.IsZero() {
+	if !sel.AddedSince.IsZero() && !sel.OnlyAlways {
 		match = "(" + match + ") AND i.added_at >= " + q.arg(sel.AddedSince.UnixMilli())
 	}
 	if len(sel.Always) > 0 {

@@ -5,8 +5,10 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -27,6 +29,8 @@ type LibraryChannel struct {
 	Summary   string   `json:"summary"`
 	TimeZone  string   `json:"timeZone"`
 	Libraries []string `json:"libraries"`
+	// Logo is the uploaded logo's address; without one the apps draw a monogram.
+	Logo string `json:"logo,omitempty"`
 	// State is onAir, building, needsSchedule, needsAttention or off.
 	State            string     `json:"state"`
 	Problem          string     `json:"problem,omitempty"`
@@ -152,10 +156,12 @@ func (s *Server) libraryChannelRoutes() {
 	Handle(s, "PATCH /v1/admin/library-channels/{id}", Owner, s.saveLibraryChannel).MaxBody = builderBody
 	Handle(s, "DELETE /v1/admin/library-channels/{id}", Owner, s.deleteLibraryChannel)
 	Handle(s, "POST /v1/admin/library-channels/{id}/regenerate", Owner, s.regenerateLibraryChannel)
-	Handle(s, "GET /v1/admin/library-channels/presets", Owner, s.listBlockPresets)
-	Handle(s, "POST /v1/admin/library-channels/presets", Owner, s.createBlockPreset)
-	Handle(s, "PATCH /v1/admin/library-channels/presets/{id}", Owner, s.saveBlockPreset)
-	Handle(s, "DELETE /v1/admin/library-channels/presets/{id}", Owner, s.deleteBlockPreset)
+	s.logoRoute()
+	Handle(s, "DELETE /v1/admin/library-channels/{id}/logo", Owner, s.deleteChannelLogo)
+	Handle(s, "GET /v1/admin/block-presets", Owner, s.listBlockPresets)
+	Handle(s, "POST /v1/admin/block-presets", Owner, s.createBlockPreset)
+	Handle(s, "PATCH /v1/admin/block-presets/{id}", Owner, s.saveBlockPreset)
+	Handle(s, "DELETE /v1/admin/block-presets/{id}", Owner, s.deleteBlockPreset)
 }
 
 func channelError(err error) error {
@@ -205,6 +211,9 @@ func (s *Server) libraryChannelOut(ch db.LibraryChannel, b *librarychannels.Buil
 	out := LibraryChannel{ID: ch.PublicID, Name: ch.Name, Number: ch.Number, On: ch.On, Description: ch.Description, Summary: ch.Description,
 		TimeZone: ch.TimeZone, Libraries: ch.Libraries, State: stateWord(ch, s.now()), Problem: ch.Problem, Titles: ch.Titles,
 		revision: ch.Revision}
+	if ch.LogoHash != "" {
+		out.Logo = "/v1/images/" + ch.LogoHash
+	}
 	if !ch.ScheduledThrough.IsZero() {
 		through := ch.ScheduledThrough.UTC()
 		out.ScheduledThrough = &through
@@ -246,14 +255,37 @@ func (s *Server) listLibraryChannels(r *http.Request, _ None) (Page[LibraryChann
 	return out, nil
 }
 
-// checkBuilder refuses a builder that cannot be saved and answers it as stored.
-func (s *Server) checkBuilder(ctx context.Context, b *librarychannels.Builder, zone string) (string, error) {
+// checkBuilder refuses a builder that cannot be saved and answers it as stored. Blocks added
+// from a preset are filled in from it first. hasLogo says the channel has an uploaded logo,
+// which the on-screen logo needs.
+func (s *Server) checkBuilder(ctx context.Context, b *librarychannels.Builder, zone string, hasLogo bool) (string, error) {
 	if _, err := librarychannels.LoadZone(zone); err != nil {
 		return "", channelError(err)
+	}
+	if b.LogoOnScreen.On && !hasLogo {
+		return "", ErrField("builder.logoOnScreen.on", "Upload a logo to show it on screen.")
 	}
 	kinds, err := s.db.LibraryKinds(ctx)
 	if err != nil {
 		return "", err
+	}
+	for n := range b.Blocks {
+		blk := &b.Blocks[n]
+		if blk.FromPreset == "" {
+			continue
+		}
+		preset, err := s.db.BlockPreset(ctx, blk.FromPreset)
+		if errors.Is(err, db.ErrNotFound) {
+			return "", ErrField("builder.blocks["+strconv.Itoa(n)+"].fromPreset", "That block preset no longer exists.")
+		}
+		if err != nil {
+			return "", err
+		}
+		var recipe librarychannels.Recipe
+		if err := json.Unmarshal([]byte(preset.Recipe), &recipe); err != nil {
+			return "", err
+		}
+		recipe.Copy(blk, preset.Name, preset.Library, kinds[preset.Library])
 	}
 	titles, err := s.db.TitleLibraries(ctx, append(b.Pinned(), b.Weighted()...))
 	if err != nil {
@@ -341,7 +373,7 @@ func (s *Server) createLibraryChannel(r *http.Request, req LibraryChannelSave) (
 	if req.Builder == nil {
 		return LibraryChannel{}, ErrField("builder.libraries", "Choose at least one library.")
 	}
-	if save.Builder, err = s.checkBuilder(r.Context(), req.Builder, save.TimeZone); err != nil {
+	if save.Builder, err = s.checkBuilder(r.Context(), req.Builder, save.TimeZone, false); err != nil {
 		return LibraryChannel{}, err
 	}
 	save.Libraries = req.Builder.Libraries()
@@ -426,7 +458,7 @@ func (s *Server) saveLibraryChannel(r *http.Request, req LibraryChannelSave) (Li
 		}
 	}
 	// The builder is checked again whatever changed: a library or a pinned title may have gone.
-	if save.Builder, err = s.checkBuilder(ctx, b, save.TimeZone); err != nil {
+	if save.Builder, err = s.checkBuilder(ctx, b, save.TimeZone, ch.LogoHash != ""); err != nil {
 		return LibraryChannel{}, err
 	}
 	save.Libraries = b.Libraries()
@@ -499,7 +531,7 @@ func (s *Server) previewLibraryChannel(r *http.Request, req ChannelPreviewAsk) (
 	if zone == "" {
 		zone = s.serverZone()
 	}
-	if _, err := s.checkBuilder(ctx, &req.Builder, zone); err != nil {
+	if _, err := s.checkBuilder(ctx, &req.Builder, zone, true); err != nil {
 		return ChannelPreview{}, err
 	}
 	loc, _ := librarychannels.LoadZone(zone)
@@ -639,4 +671,59 @@ func (s *Server) saveBlockPreset(r *http.Request, req BlockPresetSave) (BlockPre
 
 func (s *Server) deleteBlockPreset(r *http.Request, _ None) (None, error) {
 	return None{}, s.db.DeleteBlockPreset(r.Context(), r.PathValue("id"))
+}
+
+// logoRoute takes the picture itself as the body, so it is registered by hand, with the same
+// sign-in check as every route.
+func (s *Server) logoRoute() {
+	route := &Route{Pattern: "PUT /v1/admin/library-channels/{id}/logo", Access: Owner, Scope: ScopeAdmin,
+		Response: reflect.TypeFor[LibraryChannel]()}
+	s.routes = append(s.routes, route)
+	s.mux.HandleFunc(route.Pattern, func(w http.ResponseWriter, r *http.Request) {
+		r, err := s.admit(r, route)
+		if err != nil {
+			s.writeError(w, r, err)
+			return
+		}
+		data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, librarychannels.MaxLogoBytes))
+		if err != nil {
+			s.writeError(w, r, refusal(http.StatusRequestEntityTooLarge, "body_too_large", "A logo is up to 10 MB.", false))
+			return
+		}
+		picture, hash, err := librarychannels.ReadLogo(data)
+		if errors.Is(err, librarychannels.ErrLogo) {
+			s.writeError(w, r, ErrInvalid("Upload a JPEG, PNG or GIF from 16 to 4,096 pixels a side."))
+			return
+		}
+		if err == nil {
+			err = s.artwork.Put(hash, picture)
+		}
+		if err == nil {
+			err = s.db.SetLibraryChannelLogo(r.Context(), r.PathValue("id"), hash, s.now())
+		}
+		var ch db.LibraryChannel
+		if err == nil {
+			ch, err = s.db.LibraryChannel(r.Context(), r.PathValue("id"), false)
+		}
+		if err != nil {
+			s.writeError(w, r, channelError(err))
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
+		json.NewEncoder(w).Encode(s.libraryChannelOut(ch, nil, false))
+	})
+}
+
+// deleteChannelLogo goes back to the monogram; with no logo the apps draw none on screen.
+func (s *Server) deleteChannelLogo(r *http.Request, _ None) (LibraryChannel, error) {
+	ctx := r.Context()
+	if err := s.db.SetLibraryChannelLogo(ctx, r.PathValue("id"), "", s.now()); err != nil {
+		return LibraryChannel{}, channelError(err)
+	}
+	ch, err := s.db.LibraryChannel(ctx, r.PathValue("id"), false)
+	if err != nil {
+		return LibraryChannel{}, channelError(err)
+	}
+	return s.libraryChannelOut(ch, nil, false), nil
 }
