@@ -218,11 +218,11 @@ func subtitleAsk(pick *SubtitlePick) (track *string, delivery string, err error)
 
 // playbackOptions previews a start. The query can name a version, tracks and a quality to
 // see how they would be delivered: versionId, audioId, subtitleId ("none" for off), quality
-// (a mode) with qualityId or the max… numbers, network and throughputKbps.
+// (a mode) with qualityId or the max… numbers, and network.
 func (s *Server) playbackOptions(r *http.Request, _ None) (PlaybackOptions, error) {
 	q := r.URL.Query()
 	number := func(name string) int { n, _ := strconv.Atoi(q.Get(name)); return max(n, 0) }
-	ask := playback.Ask{VersionID: q.Get("versionId"), Network: q.Get("network"), ThroughputKbps: number("throughputKbps")}
+	ask := playback.Ask{VersionID: q.Get("versionId"), Network: q.Get("network")}
 	if q.Has("audioId") {
 		id := q.Get("audioId")
 		ask.Audio = &id
@@ -268,7 +268,7 @@ func (s *Server) startPlayback(r *http.Request, req PlaybackStart) (PlaybackSess
 	in := playback.StartInput{Caller: s.playbackCaller(r), Key: key, Hash: requestHash(req), ItemID: req.ItemID, Queue: req.Queue,
 		PositionMs: req.StartPositionMs, FromStart: req.StartFrom == "beginning" || req.StartFrom == "startOver",
 		Paused: req.State == playback.StatePaused,
-		Ask:    playback.Ask{VersionID: req.VersionID, Quality: req.Quality, Network: req.Network, ThroughputKbps: req.ThroughputKbps}}
+		Ask:    playback.Ask{VersionID: req.VersionID, Quality: req.Quality, Network: req.Network}}
 	if req.Audio != nil {
 		in.Ask.Audio = &req.Audio.TrackID
 	}
@@ -326,8 +326,7 @@ func (s *Server) changePlayback(r *http.Request, req PlaybackChange) (PlaybackSe
 		return s.remoteChange(r, r.PathValue("id"), req)
 	}
 	change := playback.Change{State: req.State, Replan: req.Replan, PositionMs: req.PositionMs, Failure: req.Failure,
-		Ask: playback.Ask{VersionID: req.VersionID, Quality: req.Quality, SubtitleOffsetMs: req.SubtitleOffsetMs,
-			ThroughputKbps: req.ThroughputKbps}}
+		Ask: playback.Ask{VersionID: req.VersionID, Quality: req.Quality, SubtitleOffsetMs: req.SubtitleOffsetMs}}
 	if req.Audio != nil {
 		change.Ask.Audio = &req.Audio.TrackID
 	}
