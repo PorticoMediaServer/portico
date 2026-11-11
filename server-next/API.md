@@ -173,7 +173,7 @@ session is unknown (`404`), and the app starts again by itself where it was.
 | `POST /v1/queues/{id}/playlist` | Save the queue as a playlist |
 | `GET /v1/items/{id}/subtitles`, `PUT /v1/items/{id}/subtitles/offset` | A title's subtitles (in the file, or beside it) and the timing nudge this profile gave them, which is kept for that title |
 | `GET /v1/items/{id}/lyrics` | A song's lyrics: those kept with the song first (`pasted`, from its `tags`, or the `provider`'s with the credit "Lyrics provided by LRCLIB"), then files beside it, timed lines in order |
-| `PUT /v1/admin/items/{id}/lyrics`, `POST /v1/admin/items/{id}/lyrics/fetch` | The owner and administrators paste a song's lyrics (plain or LRC, at most 256 KB, text that can be shown), which everyone sees and no fetch replaces; or fetch one song's from LRCLIB, in any library. Fetch missing lyrics for a library is the `fetch_lyrics` job; a music library's `options.lyrics` (`lrclib`) looks them up after each scan |
+| `PUT /v1/admin/items/{id}/lyrics`, `POST /v1/admin/items/{id}/lyrics/fetch` | The owner and administrators paste a song's lyrics (plain or LRC, at most 256 KB, text that can be shown), which everyone sees and no fetch replaces; or fetch one song's from LRCLIB, in any library. Fetch missing lyrics for a library is the `fetch_lyrics` job; a music library's `options.lyrics` (`lrclib`) looks up the songs each scan adds |
 | `GET /v1/admin/playback/stream-limits`, `PUT /v1/admin/playback/stream-limits` | The owner's stream limits: in total, per person, and for one person |
 | `GET /v1/admin/playback/failures`, `DELETE /v1/admin/playback/failures/{id}` | Remembered "this way of playing this file failed on this device", and forgetting one |
 
