@@ -40,11 +40,12 @@ type Client struct {
 	origin string
 	http   *fetch.Client
 
-	// The last release asked about, so asking for its discs right after its details is not a
-	// second request for the same answer.
-	mu   sync.Mutex
-	last *release
-	at   time.Time
+	// The last release asked about, by the id it was asked by, so asking for its discs right
+	// after its details is not a second request for the same answer.
+	mu     sync.Mutex
+	last   *release
+	lastID string
+	at     time.Time
 }
 
 // Every is the spacing MusicBrainz asks of every client: one request a second.
@@ -55,6 +56,7 @@ const Every = time.Second
 func New(origin string, every time.Duration) *Client {
 	c := fetch.New("musicbrainz", every, time.Minute)
 	c.Busy503 = true
+	c.MovedIsAnswer = true
 	return &Client{origin: strings.TrimRight(origin, "/"), http: c}
 }
 
@@ -154,13 +156,29 @@ func creditLine(list []credit) string {
 	return out.String()
 }
 
-// genres are the most-voted genres, as MusicBrainz's voters name them.
+// genres are the most-voted genres, as MusicBrainz's voters name them. A release's own votes
+// and its release group's are added up by name. A genre with less than a tenth of the votes
+// of the most-voted one is left out: Abbey Road's 25 votes for rock come with one or two each
+// for ambient, dance and trance.
 func genres(list []genre) []string {
-	sorted := append([]genre(nil), list...)
+	votes := map[string]int{}
+	var sorted []genre
+	for _, g := range list {
+		if g.Name == "" {
+			continue
+		}
+		if _, seen := votes[g.Name]; !seen {
+			sorted = append(sorted, genre{Name: g.Name})
+		}
+		votes[g.Name] += g.Count
+	}
+	for i := range sorted {
+		sorted[i].Count = votes[sorted[i].Name]
+	}
 	sort.SliceStable(sorted, func(a, b int) bool { return sorted[a].Count > sorted[b].Count })
 	var out []string
 	for _, g := range sorted[:min(len(sorted), maxGenres)] {
-		if g.Name != "" {
+		if g.Count*10 >= sorted[0].Count {
 			out = append(out, g.Name)
 		}
 	}
@@ -275,18 +293,19 @@ func (c *Client) release(ctx context.Context, id string) (*release, error) {
 		return nil, metadata.ErrNotFound
 	}
 	c.mu.Lock()
-	if c.last != nil && c.last.ID == id && time.Since(c.at) < 10*time.Minute {
+	if c.last != nil && c.lastID == id && time.Since(c.at) < 10*time.Minute {
 		r := c.last
 		c.mu.Unlock()
 		return r, nil
 	}
 	c.mu.Unlock()
+	// A release merged into another answers with the other, under its own id.
 	var r release
 	if err := c.get(ctx, "/release/"+id, url.Values{"inc": {"recordings+artist-credits+release-groups+labels+genres"}}, &r); err != nil {
 		return nil, err
 	}
 	c.mu.Lock()
-	c.last, c.at = &r, time.Now()
+	c.last, c.lastID, c.at = &r, id, time.Now()
 	c.mu.Unlock()
 	return &r, nil
 }
