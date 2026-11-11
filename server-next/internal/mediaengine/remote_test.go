@@ -97,15 +97,18 @@ func TestAFilmOnRemoteStoragePlays(t *testing.T) {
 		t.Fatalf("a lower quality should be a conversion: %+v", second)
 	}
 	base := second.URL[:strings.LastIndex(second.URL, "/")+1]
-	_, _, master := h.media(second.URL)
-	var variant string
-	for _, line := range strings.Split(string(master), "\n") {
-		if line = strings.TrimSpace(line); line != "" && !strings.HasPrefix(line, "#") {
-			variant = line
-			break
+	code, _, playlist := h.media(second.URL)
+	if !strings.Contains(string(playlist), "#EXTINF:") {
+		var variant string
+		for _, line := range strings.Split(string(playlist), "\n") {
+			if line = strings.TrimSpace(line); line != "" && !strings.HasPrefix(line, "#") {
+				variant = line
+				break
+			}
 		}
+		code, _, playlist = h.media(base + variant)
 	}
-	code, _, playlist := h.media(base + variant)
+
 	var segment string
 	for _, line := range strings.Split(string(playlist), "\n") {
 		if line = strings.TrimSpace(line); line != "" && !strings.HasPrefix(line, "#") {
