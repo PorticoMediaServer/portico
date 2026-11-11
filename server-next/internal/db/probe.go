@@ -58,7 +58,7 @@ type Probe struct {
 	Chapters   []Marker
 	Problem    FileProblem
 	// Title is the title written inside the file, or "". It is kept with the file, and names
-	// the title only where local details are all there is: see UseEmbeddedTitle.
+	// the title only where local details are all there is: see useEmbeddedTitle.
 	Title string
 }
 
@@ -198,17 +198,6 @@ func useEmbeddedTitle(b *batchTx, itemID, now int64) error {
 	_, err = b.exec(`UPDATE items SET title = ?, sort_title = ?, updated_at = ? WHERE id = ? AND title <> ?`,
 		title, sorttext.Key(title, "", language), now, itemID, title)
 	return err
-}
-
-// UseEmbeddedTitle is for the metadata service to call when a provider was asked about a
-// title and did not match it (after it has set refreshed_at): the title then takes the one
-// written inside its file, if there is one and nothing better names it.
-func (d *DB) UseEmbeddedTitle(ctx context.Context, itemID int64) error {
-	return d.write(ctx, Background, func(tx *sql.Tx) error {
-		b := newBatchTx(tx)
-		defer b.close()
-		return useEmbeddedTitle(b, itemID, time.Now().UnixMilli())
-	})
 }
 
 // streamFacts is the part of a version's summary that comes from its first file's tracks.
