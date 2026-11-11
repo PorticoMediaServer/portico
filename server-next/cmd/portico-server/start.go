@@ -3,8 +3,11 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/supervise"
 )
 
 // What the packaged program needs at its start: the names the release packages give its
@@ -53,4 +56,36 @@ func packaged(log *slog.Logger, packagedName, name, fallback string) string {
 		log.Warn("two settings name the same thing and differ; the first is used", "used", packagedName, "value", v, "ignored", name, "ignoredValue", other)
 	}
 	return v
+}
+
+// answerService answers the Windows installer's service arguments, or runs as the service
+// itself, and then ends the program. Anywhere else it returns at once.
+func answerService() {
+	handled, err := serviceCommand()
+	if !handled {
+		return
+	}
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	os.Exit(0)
+}
+
+// watchService stops the server when it is the worker of a Windows service and its standard
+// input closes: that is how the service tells it to stop, and it also happens if the service
+// process dies.
+func watchService(stop func()) {
+	if os.Getenv(supervise.WorkerEnvironment) == "1" {
+		supervise.WatchParent(stop, os.Stdin)
+	}
+}
+
+// logStderr is where the log goes besides its files. A package whose service manager keeps no
+// output says so (PORTICO_LOG_STDERR=off): the files are then the only log.
+func logStderr() io.Writer {
+	if os.Getenv("PORTICO_LOG_STDERR") == "off" {
+		return io.Discard
+	}
+	return os.Stderr
 }
