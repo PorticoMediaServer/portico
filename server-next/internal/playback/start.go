@@ -273,6 +273,7 @@ func (s *Service) create(ctx context.Context, in StartInput) (*session, error) {
 	s.started++
 	sess.order = s.started
 	s.sessions[sess.ID] = sess
+	s.tell(StatePlaying, sess)
 	sess.op.Lock()
 	s.mu.Unlock()
 	defer sess.op.Unlock()

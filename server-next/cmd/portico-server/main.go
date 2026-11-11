@@ -7,10 +7,12 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -85,6 +87,12 @@ func run(log *slog.Logger) error {
 	}
 	// rclone, which remote sources run, stops with the server.
 	defer handler.RemoteSources().Close()
+	// No webhook may call Portico's own API.
+	if _, port, err := net.SplitHostPort(*listen); err == nil {
+		if n, err := strconv.Atoi(port); err == nil {
+			handler.Webhooks().ListensOn(n)
+		}
+	}
 	// The media engine plans and runs the streams. Its conversions folder is emptied at start:
 	// no stream outlives a restart.
 	engine, err := mediaengine.New(ctx, d, mediaengine.Options{Folder: filepath.Join(*data, "transcodes"), Log: log, Remote: handler.RemoteSources().Open})
