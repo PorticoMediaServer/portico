@@ -27,9 +27,11 @@ type Purpose string
 const (
 	// PurposeSetup makes the approving Portico Account the owner of a new server.
 	PurposeSetup Purpose = "setup"
-	// PurposeSwitch moves a server over to Portico Accounts (the owner approves), or links a
-	// waiting person's account to their Portico Account.
+	// PurposeSwitch moves a server over to Portico Accounts; the owner approves.
 	PurposeSwitch Purpose = "switch"
+	// PurposeLink links a person waiting after a switch to their Portico Account. It has its
+	// own purpose so an approval made for the owner's switch can never be shown for it.
+	PurposeLink Purpose = "link"
 	// PurposeChangeOwner makes the approving account the server's new owner.
 	PurposeChangeOwner Purpose = "change_owner"
 )
