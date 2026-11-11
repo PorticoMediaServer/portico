@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/live"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
 )
@@ -199,6 +200,14 @@ func (s *Server) startPlayback(r *http.Request, req PlaybackStart) (PlaybackSess
 		if req.ItemID != "" || req.Queue != nil {
 			return PlaybackSession{}, ErrField("channel", "Say which title, queue entry or channel to play: one of them.")
 		}
+		if lv, err := s.db.ViewerLive(r.Context(), viewer(r)); err != nil {
+			return PlaybackSession{}, err
+		} else if ch, err := s.db.LiveChannelByID(r.Context(), viewer(r), req.Channel); err == nil && ch.Kind == db.ChannelFromSource {
+			if !mayWatch(lv, ch) {
+				return PlaybackSession{}, ErrNotFound()
+			}
+			return s.watchSourceChannel(r, ch)
+		}
 		tuned, err := s.tuneChannel(r.Context(), viewer(r), req.Channel)
 		if err != nil {
 			return PlaybackSession{}, err
@@ -277,6 +286,9 @@ func (s *Server) startPlayback(r *http.Request, req PlaybackStart) (PlaybackSess
 }
 
 func (s *Server) getPlayback(r *http.Request, _ None) (PlaybackSession, error) {
+	if live.IsLive(r.PathValue("id")) {
+		return s.liveSession(r, nil)
+	}
 	c := s.playbackCaller(r)
 	session, err := s.playback.Get(r.PathValue("id"), c.Viewer, c.SignInID)
 	return sessionOut(session), playbackError(err)
@@ -285,6 +297,10 @@ func (s *Server) getPlayback(r *http.Request, _ None) (PlaybackSession, error) {
 func (s *Server) changePlayback(r *http.Request, req PlaybackChange) (PlaybackSession, error) {
 	if req.State != "" && req.State != playback.StatePlaying && req.State != playback.StatePaused {
 		return PlaybackSession{}, ErrField("state", "The state is playing or paused.")
+	}
+	if live.IsLive(r.PathValue("id")) {
+		paused := req.State == playback.StatePaused
+		return s.liveSession(r, &paused)
 	}
 	change := playback.Change{State: req.State, Replan: req.Replan, PositionMs: req.PositionMs, Failure: req.Failure,
 		Ask: playback.Ask{VersionID: req.VersionID, Quality: req.Quality, SubtitleOffsetMs: req.SubtitleOffsetMs,
@@ -314,6 +330,11 @@ func (s *Server) changePlayback(r *http.Request, req PlaybackChange) (PlaybackSe
 // lives and when to report next. A session that is over answers 410; one this server does
 // not know (it restarted) answers 404, and the app starts again where it was.
 func (s *Server) reportPlayback(r *http.Request, req PlaybackProgress) (PlaybackLease, error) {
+	if live.IsLive(r.PathValue("id")) {
+		paused := req.State == playback.StatePaused
+		session, err := s.liveSession(r, &paused)
+		return session.Lease, err
+	}
 	c := s.playbackCaller(r)
 	session, err := s.playback.Report(r.Context(), r.PathValue("id"), c.Viewer, c.SignInID,
 		playback.Report{State: req.State, PositionMs: req.PositionMs, PlayedMs: req.PlayClockMs})
@@ -326,6 +347,10 @@ func (s *Server) reportPlayback(r *http.Request, req PlaybackProgress) (Playback
 
 // stopPlayback is safe to repeat: stopping a session that is unknown or already over succeeds.
 func (s *Server) stopPlayback(r *http.Request, req PlaybackStop) (None, error) {
+	if live.IsLive(r.PathValue("id")) {
+		s.viewings.Stop(r.PathValue("id"), CallerFrom(r.Context()).UserID)
+		return None{}, nil
+	}
 	s.playback.Stop(r.Context(), r.PathValue("id"), CallerFrom(r.Context()).UserID, req.PositionMs)
 	return None{}, nil
 }

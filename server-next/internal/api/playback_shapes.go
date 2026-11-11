@@ -204,11 +204,13 @@ type PlaybackSession struct {
 	Queue     *playback.QueueLink `json:"queue,omitempty"`
 	// Channel is the Library Channel this session joined, with the programme's times: pausing
 	// and going back reach as far as the programme's start, and Go to live joins it again.
-	Channel      *playback.ChannelLink `json:"channel,omitempty"`
-	Lease        PlaybackLease         `json:"lease"`
-	Presentation Presentation          `json:"presentation"`
-	PlaybackInfo JSON                  `json:"playbackInfo,omitempty"`
-	End          *SessionEnd           `json:"end,omitempty"`
+	Channel *playback.ChannelLink `json:"channel,omitempty"`
+	// Live is what a live session can play, from its oldest kept moment to live.
+	Live         *LiveWindow   `json:"live,omitempty"`
+	Lease        PlaybackLease `json:"lease"`
+	Presentation Presentation  `json:"presentation"`
+	PlaybackInfo JSON          `json:"playbackInfo,omitempty"`
+	End          *SessionEnd   `json:"end,omitempty"`
 	// RetryAfterMs is set on a 202: the stream needs a moment longer. Send the same start
 	// again after this long.
 	RetryAfterMs int64 `json:"retryAfterMs,omitempty"`

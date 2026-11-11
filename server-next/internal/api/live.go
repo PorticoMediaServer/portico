@@ -414,12 +414,6 @@ func (s *Server) tuneChannel(ctx context.Context, v db.Viewer, channelID string)
 	if !lv.LiveTV {
 		return librarychannels.Tuned{}, ErrNotFound()
 	}
-	if ch, err := s.db.LiveChannelByID(ctx, v, channelID); err == nil && ch.Kind == db.ChannelFromSource {
-		if !mayWatch(lv, ch) {
-			return librarychannels.Tuned{}, ErrNotFound()
-		}
-		return librarychannels.Tuned{}, notYet("live_watching_unavailable", "This server can't play a tuner's or playlist's channels yet.")
-	}
 	tuned, err := s.channels.Tune(ctx, v, channelID)
 	if slate, ok := librarychannels.IsSlate(err); ok {
 		e := ErrConflict("channel_slate", "Nothing is playing on this channel right now.")
