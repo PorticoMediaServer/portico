@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/diskspace"
 	"github.com/PorticoMediaServer/portico/server-next/internal/settings"
 )
 
@@ -67,24 +68,71 @@ var Document = settings.Define("backups", Settings{Days: []int{0, 1, 2, 3, 4, 5,
 			return &settings.Invalid{Field: "folder", Message: "Choose a folder by its full path."}
 		}
 		s.Folder = filepath.Clean(s.Folder)
-		if err := writable(s.Folder); err != nil {
-			return &settings.Invalid{Field: "folder", Message: "Portico cannot write to this folder."}
-		}
 	}
+	// A check also runs when the server starts, so it looks at nothing outside the value: a
+	// backup drive not mounted yet keeps the owner's settings. Whether the folder can be
+	// written is answered by the backups page and found by each backup.
 	return nil
 })
 
-// writable makes the folder if it is missing and checks a file can be written in it.
+// writable checks a file can be written in an existing folder.
 func writable(folder string) error {
-	if err := os.MkdirAll(folder, 0o700); err != nil {
-		return err
-	}
 	f, err := os.CreateTemp(folder, ".portico-check-*")
 	if err != nil {
 		return err
 	}
 	f.Close()
 	return os.Remove(f.Name())
+}
+
+// folderLimit bounds how long the backup folder may take to answer: a check of it, and
+// writing one backup into it. A drive that has gone away fails the backup, never the server.
+var (
+	folderCheckLimit = 5 * time.Second
+	folderWriteLimit = 2 * time.Hour
+)
+
+// folderHook, set by tests, stands for a backup drive that does not answer.
+var folderHook func(folder string)
+
+// ErrFolderSlow: the backup folder did not answer in time.
+var ErrFolderSlow = errors.New("the backup folder did not answer in time")
+
+// within runs fn in its own goroutine and gives up waiting after limit: a call into a hung
+// network drive can block for ever, and only that goroutine waits on it.
+func within(limit time.Duration, fn func() error) error {
+	done := make(chan error, 1)
+	go func() { done <- fn() }()
+	timer := time.NewTimer(limit)
+	defer timer.Stop()
+	select {
+	case err := <-done:
+		return err
+	case <-timer.C:
+		return ErrFolderSlow
+	}
+}
+
+// FolderWritable says whether a backup could be written to the backup folder now.
+func (s *Service) FolderWritable() bool {
+	return within(folderCheckLimit, func() error { return s.prepareFolder(s.Folder()) }) == nil
+}
+
+// prepareFolder makes the default folder inside the data folder if it is missing, and checks
+// a chosen one exists and can be written. A chosen folder is never made: a drive that is not
+// mounted must not be replaced by a folder on the disk beneath it.
+func (s *Service) prepareFolder(folder string) error {
+	if Document.Get(s.Settings).Folder == "" {
+		if err := os.MkdirAll(folder, 0o700); err != nil {
+			return err
+		}
+	} else if info, err := os.Stat(folder); err != nil || !info.IsDir() {
+		return fmt.Errorf("the backup folder %s is not there: is its drive connected?", folder)
+	}
+	if err := writable(folder); err != nil {
+		return fmt.Errorf("Portico cannot write to the backup folder %s", folder)
+	}
+	return nil
 }
 
 // Credentials name the working credentials a backup holds, for the owner's page to say so.
@@ -203,11 +251,14 @@ func (s *Service) Start(scheduled bool) (string, error) {
 // and the pictures people uploaded; then its description. Nothing is in the backup folder
 // under its name until all of it has been written.
 func (s *Service) make(ctx context.Context, id string, scheduled bool) error {
-	folder := s.Folder()
-	if err := os.MkdirAll(folder, 0o700); err != nil {
-		return err
+	// The database is copied on its own disk, inside the data folder: the copy runs a step at
+	// a time on the connection that writes, and a slow backup drive must never hold that.
+	if free, err := diskspace.Free(s.DataDir); err == nil {
+		if size := databaseSize(s.DataDir); size > 0 && free < size {
+			return fmt.Errorf("the data folder's disk needs %d MB free to copy the database for a backup", size>>20)
+		}
 	}
-	work, err := os.MkdirTemp(folder, ".making-")
+	work, err := os.MkdirTemp(s.DataDir, workPrefix)
 	if err != nil {
 		return err
 	}
@@ -246,24 +297,73 @@ func (s *Service) make(ctx context.Context, id string, scheduled bool) error {
 	files = append(files, pictures...)
 	desc.Pictures = len(pictures)
 
-	archive := filepath.Join(work, id+".tar.gz")
-	if err := writeArchive(archive, files); err != nil {
-		return err
+	// Only now is the backup folder touched, by this goroutine alone and within a limit.
+	folder := s.Folder()
+	return within(folderWriteLimit, func() error {
+		if folderHook != nil {
+			folderHook(folder)
+		}
+		if err := s.prepareFolder(folder); err != nil {
+			return err
+		}
+		partial := filepath.Join(folder, makingPrefix+id+".tar.gz")
+		defer os.Remove(partial)
+		if err := writeArchive(partial, files); err != nil {
+			return err
+		}
+		info, err := os.Stat(partial)
+		if err != nil {
+			return err
+		}
+		desc.Size = info.Size()
+		raw, _ := json.MarshalIndent(desc, "", "  ")
+		description := filepath.Join(folder, makingPrefix+id+".json")
+		defer os.Remove(description)
+		if err := os.WriteFile(description, raw, 0o600); err != nil {
+			return err
+		}
+		// The archive goes in first: a description is only ever beside a whole backup.
+		if err := os.Rename(partial, filepath.Join(folder, id+".tar.gz")); err != nil {
+			return err
+		}
+		return os.Rename(description, filepath.Join(folder, id+".json"))
+	})
+}
+
+const (
+	// workPrefix names a backup's work folder in the data folder; makingPrefix a backup not
+	// yet whole in the backup folder. Both are removed at start if a stop left them.
+	workPrefix   = ".backup-"
+	makingPrefix = ".making-"
+)
+
+// databaseSize is the size of the database and its log.
+func databaseSize(dataDir string) int64 {
+	var size int64
+	for _, name := range []string{"main.db", "main.db-wal"} {
+		if info, err := os.Stat(filepath.Join(dataDir, name)); err == nil {
+			size += info.Size()
+		}
 	}
-	info, err := os.Stat(archive)
-	if err != nil {
-		return err
+	return size
+}
+
+// removeLeftovers removes what a stop in the middle of a backup, a check or a restore left:
+// each can hold a whole copy of the database.
+func (s *Service) removeLeftovers() {
+	for _, pattern := range []string{workPrefix + "*", ".checking-*", ".staging-*"} {
+		names, _ := filepath.Glob(filepath.Join(s.DataDir, pattern))
+		for _, name := range names {
+			os.RemoveAll(name)
+		}
 	}
-	desc.Size = info.Size()
-	raw, _ := json.MarshalIndent(desc, "", "  ")
-	if err := os.WriteFile(filepath.Join(work, id+".json"), raw, 0o600); err != nil {
-		return err
-	}
-	// The archive goes in first: a description is only ever beside a whole backup.
-	if err := os.Rename(archive, filepath.Join(folder, id+".tar.gz")); err != nil {
-		return err
-	}
-	return os.Rename(filepath.Join(work, id+".json"), filepath.Join(folder, id+".json"))
+	within(folderCheckLimit, func() error {
+		names, _ := filepath.Glob(filepath.Join(s.Folder(), makingPrefix+"*"))
+		for _, name := range names {
+			os.RemoveAll(name)
+		}
+		return nil
+	})
 }
 
 type archived struct{ name, path string }

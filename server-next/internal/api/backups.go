@@ -23,10 +23,17 @@ type Backups struct {
 	// NextAt is when the next scheduled backup runs; absent for Never.
 	NextAt *time.Time `json:"nextAt,omitempty"`
 	Folder string     `json:"folder"`
+	// FolderWritable says a backup could be written to the folder now. False is a drive that
+	// is not connected, or a folder Portico may not write to: the settings are kept, and each
+	// backup fails with the reason until it can.
+	FolderWritable bool `json:"folderWritable"`
 	// Readable says that anyone with a backup file can read the working credentials inside it
 	// (the server's keys, remote sources' sign-ins and the key file that opens them): no
-	// backup here has a passphrase.
-	Readable bool `json:"readable"`
+	// backup here has a passphrase. ReadableMeans says what that lets them do, for the page
+	// to say in plain words: sign in to this server as the owner, and use the remote storage
+	// sign-ins.
+	Readable      bool     `json:"readable"`
+	ReadableMeans []string `json:"readableMeans"`
 }
 
 // BackupStarted is a backup being made.
@@ -60,7 +67,8 @@ func (s *Server) Backups() *backup.Service { return s.backups }
 func (s *Server) backupRoutes() {
 	Handle(s, "GET /v1/admin/backups", Owner, func(r *http.Request, _ None) (Backups, error) {
 		list, err := s.backups.List()
-		out := Backups{Items: list, Running: s.backups.Running(), Folder: s.backups.Folder(), Readable: true}
+		out := Backups{Items: list, Running: s.backups.Running(), Folder: s.backups.Folder(), Readable: true,
+			ReadableMeans: []string{"sign_in_as_owner", "use_remote_storage_sign_ins"}, FolderWritable: s.backups.FolderWritable()}
 		if out.Items == nil {
 			out.Items = []backup.Backup{}
 		}
@@ -134,7 +142,7 @@ func (s *Server) inspectBackup(r *http.Request, req BackupInspect) (BackupInspec
 	default:
 		return BackupInspection{}, ErrInvalid("Name a listed backup by id, or a backup file by its path.")
 	}
-	contents, err := backup.Inspect(r.Context(), archive, s.backups.Folder())
+	contents, err := backup.Inspect(r.Context(), archive, s.backups.DataDir)
 	var damaged *backup.ErrDamaged
 	if errors.As(err, &damaged) {
 		return BackupInspection{}, refusal(http.StatusUnprocessableEntity, "backup_refused", damaged.Error(), false)
