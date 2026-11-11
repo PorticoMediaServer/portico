@@ -26,7 +26,7 @@ const {NativePlaybackRuntime} = await sourceModule(new URL('../src-next/platform
   'react-native': {AppState: {}, NativeModules: {}},
   './start-failure': {startFailureHttp: unused}, './capacity-retry': {capacityRetryHttp: unused}, './listening-controls': {createNativeListeningReadPort: unused},
   '../../../../../packages/client-core/src/index': {PlaybackService: unused}, '../../../../../packages/client-core/src/detail': {DetailService: unused}, '../../shell/freshness': {viewerQueriesFor: unused},
-  '../../../../../packages/client-core/src/media-item': {parseMediaItem: unused}, '../../../../../packages/contracts/src/routes': {encodedRoutePath: unused, routePath: unused},
+  '../../../../../packages/client-core/src/media-item': {parseMediaItem: unused}, '../../../../../packages/client-core/src/items': {entryFromItem: unused, readItem: unused}, '../../../../../packages/contracts/src/routes': {encodedRoutePath: unused, routePath: unused},
   '../../../../../packages/client-core/src/playback-v1/sessions': {SessionsClient: unused}, '../../../../../packages/client-core/src/playback-v1/local-http': {localV1Http: unused},
   '../../../../../packages/client-core/src/playback-v1/http': {call: unused}, '../../../../../packages/client-core/src/playback-v1/options': {PlaybackOptionsClient: unused},
   '../../../../../packages/client-core/src/playback-v1/v1-queue-player': {V1QueuePlayer: unused, serverSupportsQueueTransitions: unused, queueVideoKind: unused},

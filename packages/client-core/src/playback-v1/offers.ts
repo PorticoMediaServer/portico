@@ -74,10 +74,10 @@ const qualityIdOf = (session: Session): string => {
  * `GET /v1/items/{id}/playback-options` and, while one plays, `GET /v1/playback/sessions/{id}`.
  */
 export async function readPlayerOffers(api: Requester, q: PlayerOffersQuery, scope: ContentScope, signal?: AbortSignal): Promise<PlayerOffersData> {
-  const session = q.sessionId ? parseSession(await api.request(playbackPath('GET /v1/playback/sessions/{id}', {id: q.sessionId}), 'GET', undefined, signal)) : undefined;
+  const session = q.sessionId ? parseSession(await api.request(playbackPath('GET /v1/playback/sessions/{id}', {id: q.sessionId}), 'GET', undefined, signal)) : undefined; // query-read: kept (the player's read of what it is playing now, never cached)
   const query = session?.versionId ? '?' + new URLSearchParams({versionId: session.versionId}) : '';
-  const options = parseOptions(await api.request(playbackPath('GET /v1/items/{id}/playback-options', {id: q.itemId}) + query, 'GET', undefined, signal));
-  const libraryId = q.libraryId ?? (await api.request<{libraryId?: unknown}>(playbackPath('GET /v1/items/{id}', {id: q.itemId}), 'GET', undefined, signal)).libraryId;
+  const options = parseOptions(await api.request(playbackPath('GET /v1/items/{id}/playback-options', {id: q.itemId}) + query, 'GET', undefined, signal)); // query-read: kept (the player's read of what it is playing now, never cached)
+  const libraryId = q.libraryId ?? (await api.request<{libraryId?: unknown}>(playbackPath('GET /v1/items/{id}', {id: q.itemId}), 'GET', undefined, signal)).libraryId; // query-read: kept (the player's read of what it is playing now, never cached)
   if (typeof libraryId !== 'string' || !libraryId) throw Object.assign(new Error('This title is not in a library.'), {code: 'invalid_playback_offers'});
   const rungs = qualityRungs(options);
   const sources = Object.freeze(options.versions.map(version => sourceOffer(version, rungs)));
