@@ -420,4 +420,8 @@ export const remoteSourcesMessages = {
   'next.remoteSources.on': 'On',
   'next.remoteSources.doneTitle': '{name} is connected',
   'next.remoteSources.doneLede': 'Portico is reading its folders. Titles appear in {name} as they’re found.',
+  'next.remoteSources.state.setup': 'Setup not finished',
+  'next.remoteSources.continueSetup': 'Continue setup',
+  'next.remoteSources.notOnServerYet': 'This isn’t available on this server yet.',
+  'next.remoteSources.perSecond': 'Requests a second',
 } as const;

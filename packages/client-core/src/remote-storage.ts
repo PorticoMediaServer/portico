@@ -101,3 +101,14 @@ export async function addRemoteFolderToLibrary(api: ServerRequester, libraryId: 
 /** Makes a library from a folder of a source; it starts its first scan. */
 export const createLibraryOnRemoteFolder = (api: ServerRequester, library: Readonly<{name: string; kind: string}>, folder: RemoteFolderRef, signal?: AbortSignal): Promise<AdminLibrary> =>
   callServer(api, 'POST /v1/admin/libraries', {body: {name: library.name.trim(), kind: library.kind, folders: [], remoteFolders: [folder]} as never, signal});
+
+/** The refusal for a step the server does not offer yet. Nothing is sent and nothing is pretended. */
+export const notOnServerYet = (): Error => Object.assign(new Error('This is not available on this server yet.'), {code: 'not_on_server'});
+export const isNotOnServerYet = (error: unknown): boolean => (error as {code?: unknown} | null)?.code === 'not_on_server';
+/** OneDrive or Dropbox with a token pasted from `rclone authorize` (rule 8). The server's field for it is being
+ * built; until it is in the routes this answers that it is not available. */
+export async function addCloudTokenSource(_api: ServerRequester, _source: Readonly<{name: string; provider: 'onedrive' | 'dropbox'; token: string; path: string; preset: RemotePreset}>,
+  _signal?: AbortSignal): Promise<RemoteSource> { throw notOnServerYet(); }
+/** A new rclone remote made from its kind and settings rather than pasted (rule 8). Being built on the server, as above. */
+export async function addRcloneRemoteFromFields(_api: ServerRequester, _source: Readonly<{name: string; type: string; options: Readonly<Record<string, string>>; path: string; preset: RemotePreset}>,
+  _signal?: AbortSignal): Promise<RemoteSource> { throw notOnServerYet(); }
