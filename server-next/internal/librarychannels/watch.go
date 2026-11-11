@@ -25,18 +25,44 @@ type PreviewProgramme struct {
 	Title            *db.ProgrammeTitle
 }
 
-// Preview builds today's schedule, from local midnight in the channel's time zone, for a
-// document that has not been saved. Its cost follows the size of the chosen libraries: it is
-// the owner's editor, asked again a moment after each edit.
-func (s *Service) Preview(ctx context.Context, b *Builder, loc *time.Location) (Preview, error) {
-	now := s.now()
+// Preview builds the rest of today's schedule, in the channel's time zone, for a document
+// that has not been saved, exactly as saving it would: a new channel from now; an existing one
+// (channelID) keeps what is scheduled up to the end of the programme now on and builds the
+// rest from its stored orders. Its cost follows the size of the chosen libraries: it is the
+// owner's editor, asked again a moment after each edit.
+func (s *Service) Preview(ctx context.Context, b *Builder, loc *time.Location, channelID string) (Preview, error) {
+	now := s.now().Truncate(time.Second)
 	local := now.In(loc)
 	midnight := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, loc)
-	st := &State{}
-	rows, report, err := Build(ctx, s.db, b, loc, st, midnight, midnight.AddDate(0, 0, 1), now, nil)
+	st, from := &State{}, now
+	var kept []db.ScheduleRow
+	var discarded []Discarded
+	if channelID != "" {
+		ch, err := s.db.LibraryChannelForSchedule(ctx, channelID)
+		if err != nil {
+			return Preview{}, err
+		}
+		if !ch.ScheduledThrough.IsZero() {
+			ch.Rebuild = true // a save builds again from the end of the programme now on
+			_, _, stored, start, thrown, err := s.plan(ctx, ch, now)
+			if err != nil {
+				return Preview{}, err
+			}
+			*st, from, discarded = stored, start, thrown
+			if kept, err = s.db.ChannelProgrammes(ctx, ch.ChannelID, midnight, from); err != nil {
+				return Preview{}, err
+			}
+		}
+	}
+	until := midnight.AddDate(0, 0, 1)
+	if from.After(until) {
+		until = from
+	}
+	built, report, err := Build(ctx, s.db, b, loc, st, from, until, now, discarded)
 	if err != nil {
 		return Preview{}, err
 	}
+	rows := append(kept, built...)
 	out := Preview{Titles: report.Titles, Unplaceable: report.Unplaceable}
 	if out.Hours, err = s.hours(ctx, b, st); err != nil {
 		return Preview{}, err
