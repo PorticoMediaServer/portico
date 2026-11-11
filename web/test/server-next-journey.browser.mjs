@@ -201,6 +201,16 @@ try {
         return requests.lists.some(query => Number(query.get('at')) > 200);
       }, 50);
       await page.evaluate(() => {for (const box of [document.scrollingElement, ...document.querySelectorAll('main, main *')]) if (box) box.scrollTop = 0;});
+      // The letter rail comes from its own request; a letter opens the list where that letter starts.
+      const letter = page.getByRole('button', {name: 'Jump to M', exact: true});
+      await letter.waitFor();
+      if (!requests.seen.some(line => line.startsWith('GET /v1/facets 200'))) throw new Error('The letters were not read.');
+      const jumps = requests.lists.filter(query => query.has('at')).length;
+      await letter.focus();
+      await page.keyboard.press('Enter');
+      await until('The list opening at M', async () => requests.lists.filter(query => query.has('at')).length > jumps
+        && (await page.locator('article[data-card-kind]').allInnerTexts()).some(text => /^(The |A )?M/.test(text.trim())));
+      await page.evaluate(() => {for (const box of [document.scrollingElement, ...document.querySelectorAll('main, main *')]) if (box) box.scrollTop = 0;});
       await page.getByRole('button', {name: 'Filters', exact: true}).click();
       await page.getByText('Genre', {exact: true}).click();
       await page.getByRole('checkbox').first().click();

@@ -71,13 +71,16 @@ test('Home with a film and a book to read can be selected from: the film is sele
 });
 
 test('a list page never waits for the count, and a jump opens the list at its position', async () => {
-  const asked: string[] = [];
+  const asked: string[] = [], facts: object[] = [];
   let answerCount = (_: unknown): void => {};
   const film = (n: number) => ({id: 'itm_' + n, kind: 'movie', title: 'Film ' + n, images: {}, state: {watched: false, playCount: 0, favorite: false, inList: false, notInterested: false}});
   const session = new BrowseSession({query: {libraryId: 'lib_films', pivot: 'movies', capabilities: {} as never, nodes: [], sorts: [{field: 'title', direction: 'asc'}]},
-    current: () => true, item: entry => entry,
+    current: () => true, item: entry => entry, onFacts: value => {facts.push(value);},
     request: (path: string) => {
-      const query = new URL(path, 'http://server').searchParams; asked.push(query.toString());
+      const url = new URL(path, 'http://server'), query = url.searchParams;
+      // The letter rail: its own request, never part of a page.
+      if (url.pathname === '/v1/facets') return Promise.resolve({facet: 'letter', values: [{value: '#', count: 3}, {value: 'A', count: 40}, {value: 'B', count: 25}]});
+      asked.push(query.toString());
       if (query.get('total') === 'true') return new Promise(resolve => {answerCount = resolve;});
       const at = Number(query.get('at') ?? (query.get('cursor') ? 2 : 0));
       return Promise.resolve({items: [film(at), film(at + 1)], ...(at + 2 < 450 ? {nextCursor: 'after-' + (at + 1)} : {})});
@@ -89,6 +92,8 @@ test('a list page never waits for the count, and a jump opens the list at its po
   assert.equal(asked.filter(query => query.includes('total=true')).length, 1, 'the count is asked once, by itself');
   assert.ok(asked.some(query => !query.includes('total') && query.includes('limit=2')), 'the page did not ask for it');
   answerCount({items: [film(0)], total: 450}); await new Promise(resolve => setImmediate(resolve));
+  // Both facts reach the screen without another page being read: the length, and where each letter starts.
+  assert.deepEqual(facts, [{positionIndex: {'#': 0, A: 3, B: 43}}, {total: 450}]);
   // The next page follows its cursor and now knows the total.
   const second = await session.fetchPage(2, 2, none);
   assert.deepEqual([second.total, second.totalIsLowerBound ?? false], [450, false]);

@@ -216,6 +216,7 @@ export class NativeLibraryDestination {
       request: (path, method, body, signal) => this.request(path, method, body, signal),
       ...(this.options.api.requestRaw ? {requestRaw: this.options.api.requestRaw.bind(this.options.api)} : {}),
       current: () => this.current() && (this.session === session || this.replacing === session) && this.state.phase === 'ready',
+      onFacts: facts => {if (this.state.phase === 'ready') this.state.collection?.learn?.(session.fetchPage, facts);},
       item: entry => entry,
       onRevision: revision => this.publish({revision}),
       // Only the first page of a replayable view carries the aggregate; later pages never
