@@ -4,13 +4,17 @@
 # each, and play every film as it is and converted, with the sources' request limits on.
 # Prints a report and keeps it as report.txt.
 #
-#   server-next/scripts/remote-acceptance.sh <ssh-host> --dir <folder> --dav-port <n> --port <n> [--keep]
+#   server-next/scripts/remote-acceptance.sh <ssh-host> --dir <folder> --dav-port <n> --port <n> [options]
 #
 #   --dir       the folder on the host to work in, relative to the home folder or absolute. It
 #               is made if missing; a run replaces what an earlier run left there.
 #   --dav-port  the port the WebDAV server listens on, on 127.0.0.1.
 #   --port      the port the Portico server listens on, on 127.0.0.1.
 #   --keep      leave the media, the logs and the server's data for a look.
+#   --ffmpeg <folder>     the folder holding the ffmpeg and ffprobe to use, for the test media
+#                         and as the server's own; the host's are used without it.
+#   --keep-free-gb <n>    stop before making the media if less than n GB would be left free
+#                         (the media and the server's data take about 1 GB); 5 without it.
 #
 # All three are required, so a run cannot land on what another server on the host uses; a
 # port that is taken stops the run before anything starts. Run from a Portico checkout: it
@@ -20,8 +24,8 @@
 # the run passed, failed or was interrupted; the Portico server stops the rclone it started.
 set -euo pipefail
 
-usage() { sed -n '7,14p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
-host="" dir="" dav_port="" port="" keep="" on_host=""
+usage() { sed -n '7,18p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+host="" dir="" dav_port="" port="" keep="" on_host="" ffmpeg_dir="" keep_free=5
 while [[ $# -gt 0 ]]; do
 	case "$1" in
 	--on-host) on_host=1 ;;
@@ -29,6 +33,8 @@ while [[ $# -gt 0 ]]; do
 	--dav-port) dav_port="${2:-}"; shift ;;
 	--port) port="${2:-}"; shift ;;
 	--keep) keep=--keep ;;
+	--ffmpeg) ffmpeg_dir="${2:-}"; shift ;;
+	--keep-free-gb) keep_free="${2:-}"; shift ;;
 	-*) usage ;;
 	*) host="$1" ;;
 	esac
@@ -37,6 +43,8 @@ done
 [[ -n "$dir" && "$dir" != "/" && "$dir" != "~" && "$dir" != "." && "$dir" != *..* && "$dir" =~ ^[A-Za-z0-9._/-]+$ ]] || usage
 for p in "$dav_port" "$port"; do [[ "$p" =~ ^[0-9]+$ && "$p" -ge 1024 && "$p" -le 65535 ]] || usage; done
 [[ "$dav_port" != "$port" ]] || usage
+[[ "$keep_free" =~ ^[0-9]+$ ]] || usage
+[[ -z "$ffmpeg_dir" || "$ffmpeg_dir" =~ ^/[A-Za-z0-9._/-]+$ ]] || usage
 
 if [[ -z "$on_host" ]]; then
 	[[ -n "$host" ]] || usage
@@ -51,7 +59,7 @@ if [[ -z "$on_host" ]]; then
 	ssh "$host" "mkdir -p '$dir'"
 	scp -q "$build/portico-server" "$build/acceptance.sh" "$build/client-profiles.json" "$host:$dir/"
 	status=0
-	ssh "$host" "bash '$dir/acceptance.sh' --on-host --dir '$dir' --dav-port $dav_port --port $port $keep" || status=$?
+	ssh "$host" "bash '$dir/acceptance.sh' --on-host --dir '$dir' --dav-port $dav_port --port $port --keep-free-gb $keep_free ${ffmpeg_dir:+--ffmpeg '$ffmpeg_dir'} $keep" || status=$?
 	scp -q "$host:$dir/report.txt" "./remote-acceptance-$host-$(date -u +%Y%m%dT%H%M%SZ).txt" && echo "report copied here"
 	exit "$status"
 fi
@@ -62,6 +70,15 @@ taken() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
 for p in "$dav_port" "$port"; do
 	if taken "$p"; then echo "port $p on 127.0.0.1 is in use on this host; choose another" >&2; exit 1; fi
 done
+if [[ -n "$ffmpeg_dir" ]]; then
+	[[ -x "$ffmpeg_dir/ffmpeg" && -x "$ffmpeg_dir/ffprobe" ]] || { echo "no ffmpeg and ffprobe in $ffmpeg_dir" >&2; exit 1; }
+	export PATH="$ffmpeg_dir:$PATH" PORTICO_FFMPEG="$ffmpeg_dir/ffmpeg" PORTICO_FFPROBE="$ffmpeg_dir/ffprobe"
+fi
+free_gb=$(df -Pk . | awk 'NR == 2 { print int($4 / 1048576) }')
+if ((free_gb - 1 < keep_free)); then
+	echo "only $free_gb GB free here; the run would leave less than $keep_free GB" >&2
+	exit 1
+fi
 for tool in ffmpeg ffprobe rclone curl jq; do
 	command -v "$tool" >/dev/null || { echo "missing on this host: $tool" >&2; exit 1; }
 done
@@ -89,7 +106,7 @@ trap cleanup EXIT
 trap 'exit 130' INT TERM
 
 report "Portico remote storage acceptance on $(hostname), $(date -u +%FT%TZ)"
-report "rclone $(rclone version | head -1), $(ffmpeg -version | head -1)"
+report "rclone $(rclone version | head -1); $(command -v ffmpeg): $(ffmpeg -version | head -1); $free_gb GB free at the start"
 
 # The media: a 1080p film, a 4K film, an MP4 whose picture and sound are stored in long
 # separate runs (badly interleaved), and one folder of 3,000 small files to time a big
