@@ -166,10 +166,10 @@ func Masked(address string) string {
 	return u.String()
 }
 
-// streamKey names a channel sent without a guide id by a hash of its address, which may hold
-// a sign-in and so never appears itself.
-func streamKey(address string) string {
-	sum := sha256.Sum256([]byte(address))
+// streamKey names a channel sent without a guide id by a hash of its name and its stream's
+// host and path, which may hold a sign-in and so never appear themselves.
+func streamKey(name string) string {
+	sum := sha256.Sum256([]byte(name))
 	return "stream:" + hex.EncodeToString(sum[:8])
 }
 
