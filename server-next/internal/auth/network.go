@@ -88,7 +88,24 @@ func (n Networks) ThroughUnlistedProxy(r *http.Request) bool {
 // This only ever takes trust away, so the header cannot be used to gain anything.
 func (n Networks) FromHome(r *http.Request) bool {
 	addr, ok := n.Client(r)
-	return ok && n.AtHome(addr) && !n.ThroughUnlistedProxy(r)
+	return ok && n.AtHome(addr) && !n.ThroughUnlistedProxy(r) && !n.BareProxy(r)
+}
+
+// BareProxy reports whether a request came from a listed proxy without saying who it came from:
+// no X-Forwarded-For, or one whose nearest entry cannot be read. Its only address is then the
+// proxy's own, which is usually at home, and believing it would make everyone the proxy passes
+// on count as the household. Such a request is never from home.
+func (n Networks) BareProxy(r *http.Request) bool {
+	ap, err := netip.ParseAddrPort(r.RemoteAddr)
+	if err != nil {
+		return false
+	}
+	peer := ap.Addr().Unmap().WithZone("")
+	if !within(n.Proxies, peer) {
+		return false
+	}
+	addr, ok := n.Client(r)
+	return !ok || addr == peer
 }
 
 // AtHome reports whether an address is on one of the owner's home networks.

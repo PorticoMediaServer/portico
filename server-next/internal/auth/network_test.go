@@ -77,11 +77,13 @@ func TestUnlistedProxyIsNeverHome(t *testing.T) {
 		peer, forwarded string
 		home            bool
 	}{
-		"straight from home":                        {"192.168.1.20", "", true},
-		"through an unlisted proxy on this machine": {"127.0.0.1", "203.0.113.9", false},
-		"the same, claiming a home address":         {"127.0.0.1", "192.168.1.20", false},
-		"through the listed proxy, from home":       {"192.168.1.2", "192.168.1.20", true},
-		"through the listed proxy, from away":       {"192.168.1.2", "203.0.113.9", false},
+		"straight from home":                         {"192.168.1.20", "", true},
+		"through an unlisted proxy on this machine":  {"127.0.0.1", "203.0.113.9", false},
+		"the same, claiming a home address":          {"127.0.0.1", "192.168.1.20", false},
+		"through the listed proxy, from home":        {"192.168.1.2", "192.168.1.20", true},
+		"through the listed proxy, from away":        {"192.168.1.2", "203.0.113.9", false},
+		"the listed proxy with no forwarding header": {"192.168.1.2", "", false},
+		"the listed proxy with an unreadable header": {"192.168.1.2", "unknown", false},
 	} {
 		r := httptest.NewRequest("GET", "/", nil)
 		r.RemoteAddr = c.peer + ":4000"

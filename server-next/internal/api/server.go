@@ -239,6 +239,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	id := db.NewID("req")
 	w.Header().Set("X-Request-Id", id)
 	r = r.WithContext(context.WithValue(r.Context(), requestIDKey, id))
+	s.noteBareProxy(r)
 	defer func() {
 		if p := recover(); p != nil {
 			if p == http.ErrAbortHandler {
