@@ -1,10 +1,11 @@
 package api
 
 import (
-	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 )
 
 // Under a rating limit a title with no rating is hidden until the main profile turns
