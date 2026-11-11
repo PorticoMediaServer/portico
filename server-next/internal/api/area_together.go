@@ -39,5 +39,6 @@ func (s *Server) startTogether(ctx context.Context) error {
 	s.goBackground(func() { s.sweepMemory(ctx) })
 	s.receiverRoutes()
 	s.groupRoutes()
+	s.castRoutes()
 	return nil
 }
