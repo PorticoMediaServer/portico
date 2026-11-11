@@ -22,7 +22,7 @@ import {channelMessage} from '../playback/linear-protocol.ts';
 import {PlaybackApiError, call, enc, idempotencyKey, type V1Http} from './http.ts';
 import {serviceText} from '../presentation/service-text.ts';
 import {SessionsClient, type StartContext, type StartPreparation, type Timers} from './sessions.ts';
-import {ObservationReporter} from './observation.ts';
+import {ProgressReporter} from './progress.ts';
 
 type ChannelEvents = Readonly<{onResync?(listener: () => void): () => void; onResyncRead?(read: (context: ResyncReadContext) => Promise<void>, options?: {priority?: number}): {dispose(): void}}>;
 export type V1ChannelOptions = Readonly<{events?: ChannelEvents; http: V1Http; key?: () => string; now?: () => number; pollMs?: number; timers?: Timers}>;
@@ -140,7 +140,7 @@ export function channelView(s: Session, channel: ChannelReference): ChannelView 
   return Object.freeze({playbackId: s.id, status: l?.state === 'recoverable' ? 'recoverable' : undefined, linear});
 }
 
-type Active = {wake?: () => void; serial: number; channel: ChannelReference; startAbort: AbortController; id?: string; session?: Session; joined: boolean; reporter?: ObservationReporter<Session>; tail: Promise<unknown>; closed: boolean};
+type Active = {wake?: () => void; serial: number; channel: ChannelReference; startAbort: AbortController; id?: string; session?: Session; joined: boolean; reporter?: ProgressReporter; tail: Promise<unknown>; closed: boolean};
 
 const message = (e: unknown): string => {
   if (e instanceof PlaybackApiError) {
@@ -344,16 +344,15 @@ export class V1ChannelControl implements ChannelPlayback {
     if (!signal?.aborted) this.accept(a, parseChannelSession(r.body), observational);
   }
 
-  /** One sample a second carries the lease, and its ack the current channel view when it
-   * changed: no second request a second. A failed sample is replaced by the next one. */
-  private reporterFor(a: Active, id: string): ObservationReporter<Session> {
-    return new ObservationReporter<Session>({
-      claim: body => this.sessions.claimObserver(id, body),
-      send: sample => this.sessions.observe(id, sample, undefined, body => parseChannelSession(body, this.now)),
-      onView: session => { if (this.current(a)) this.accept(a, session); },
+  /** Progress keeps the session alive; a later presentation named in its answer is read again.
+   * A failed report is replaced by the next one. */
+  private reporterFor(a: Active, id: string): ProgressReporter {
+    return new ProgressReporter({
+      send: report => this.sessions.progress(id, report),
+      onNewer: () => { if (this.current(a)) void this.read(a).catch(() => {}); },
       onEnded: () => { if (this.current(a)) void this.read(a).catch(e => { if (this.current(a)) { this.sink?.error(message(e), true); this.active = undefined; } }); },
       onConnection: healthy => { if (!healthy && this.current(a)) this.sink?.error(message(undefined), false); },
-      // Samples run on real time, like the channel's own clock (the injected timers pace start
+      // Reports run on real time, like the channel's own clock (the injected timers pace start
       // preparation only); pollMs fixes their cadence for hosts and tests that need it.
       ...(this.pollMs !== undefined ? {everyMs: this.pollMs} : {}),
     });

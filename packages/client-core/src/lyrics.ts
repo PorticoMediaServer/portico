@@ -4,6 +4,7 @@ import {unreadableServerResponse} from './server-messages.ts';
 import {keepReadable} from './tolerant.ts';
 import {wireDurations} from './wire-units.ts';
 import type { ContentScope, LibraryContentApi } from './library-content.ts';
+import {lyricsView} from './playback-v1/track-lists.ts';
 export type LyricLine = Readonly<{
     atMs: number | null;
     text: string;
@@ -207,13 +208,12 @@ export class LyricsService {
     private publish(p: Partial<LyricsSnapshot>) { this.state = Object.freeze({ ...this.state, ...p, generation: this.generation }); for (const f of this.listeners)
         f(); }
     private path(suffix = '') { return encodedRoutePath("get_items_id_lyrics", {"id": encodeURIComponent(this.target.itemId)}) + (suffix); }
-    private query() { const q = new URLSearchParams(); if (this.target.sessionId)
-        q.set('sessionId', this.target.sessionId); if (this.target.sourceId)
-        q.set('sourceId', this.target.sourceId); return q.size ? '?' + q.toString() : ''; }
+    private query() { return ''; }
     private request(path: string, method: string, body: unknown, signal: AbortSignal) { return this.api.requestLyrics ? this.api.requestLyrics<unknown>(path, method, body, signal) : this.api.request<unknown>(path, method, body, signal); }
     private bound() { const source = this.state.data?.source; if (!source)
         throw new Error('No verified song source is selected.'); return { sourceId: source.id, sourceVersion: source.version, sessionId: this.target.sessionId ?? '' }; }
-    private check(raw: unknown) { return parseLyricsView(raw, this.scope, this.target); }
+    /** The server lists a song's lyrics (`items`); `lyricsView` makes the screen's view of them. */
+    private check(raw: unknown) { return lyricsView(raw, this.scope, this.target); }
     /** `write`: the answer to a lyrics write (and its fresh read). Step 7: only a write's answer still
      * refuses a moved viewer fence; on a read a moved fence is a newer answer, and 401/403 still clear. */
     private async run(work: (signal: AbortSignal) => Promise<Partial<LyricsSnapshot>>, write = false) {

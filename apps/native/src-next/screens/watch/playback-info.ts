@@ -94,7 +94,7 @@ export async function readNativePlaybackInfo(
     if (!current()) return;
     // FMT-22: the notice and the comparison share one reconciliation of this occurrence's losses.
     const notice = nativeWatchLossNotice({losses: reconciledPlaybackLosses(session.playbackInfo, session.observedPlayback)});
-    return Object.freeze({fence: captured, revision: session.revision, comparison, ...(notice ? {notice} : {})});
+    return Object.freeze({fence: captured, revision: String(session.presentation.generation), comparison, ...(notice ? {notice} : {})});
   } catch (error) {
     if (!current()) return;
     throw error;

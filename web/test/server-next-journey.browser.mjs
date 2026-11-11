@@ -2,12 +2,15 @@
 // fresh data folder and the web development server itself, on localhost, and walks the journeys of
 // the areas that have moved: set up the owner, sign in, choose a profile with a PIN, stay signed in
 // across a server restart, go back to Who's watching when a PIN changes elsewhere, browse a seeded
-// library (Home, a list and its filter, a film, a show), change what is watched, sign out.
+// library (Home, a list and its filter, a film, a show), change what is watched, play real films
+// (made here with ffmpeg and added to a library through the API), sign out.
 //
 //   cd server-next && go build -o /path/to/portico-server-next ./cmd/portico-server
 //   cd server-next && go build -o /path/to/portico-seed ./cmd/portico-seed   (for the browse steps)
 //   cd web && PORTICO_SERVER_NEXT_BIN=/path/to/portico-server-next [PORTICO_SEED_BIN=/path/to/portico-seed] \
 //     [CHROMIUM_PATH=…] [PLAYWRIGHT=/path/to/playwright/index.mjs] node test/server-next-journey.browser.mjs
+//
+// The playback steps need ffmpeg on the PATH, and a Chromium that plays H.264 and AAC.
 //
 // Each step prints "pass" or "FAIL" and the script carries on where it can, so one run says exactly
 // which steps hold. It exits 1 when any step failed.
@@ -16,7 +19,7 @@
 // recorded answer in server/testdata/contracts. The app cannot open without its settings registry.
 import {execFileSync, spawn} from 'node:child_process';
 import http from 'node:http';
-import {mkdtemp, readFile, rm} from 'node:fs/promises';
+import {mkdtemp, readFile, rm, writeFile} from 'node:fs/promises';
 import {createServer as netServer} from 'node:net';
 import {tmpdir} from 'node:os';
 import {dirname, join} from 'node:path';
@@ -45,7 +48,8 @@ if (seedBin) execFileSync(seedBin, ['-db', join(data, 'main.db'), '-items', '300
 const serverPort = await freePort(), serverOrigin = `http://127.0.0.1:${serverPort}`;
 let server;
 async function startServer() {
-  server = spawn(serverBin, ['-data', data, '-listen', `127.0.0.1:${serverPort}`], {stdio: 'ignore'});
+  // Titles are never looked up at the real TMDB: its address is a port nothing listens on.
+  server = spawn(serverBin, ['-data', data, '-listen', `127.0.0.1:${serverPort}`], {stdio: 'ignore', env: {...process.env, PORTICO_TMDB_ORIGIN: 'http://127.0.0.1:9'}});
   await until('The server starting', async () => (await fetch(serverOrigin + '/v1/system')).ok);
 }
 async function stopServer() {
@@ -105,11 +109,153 @@ async function signIn(page) {
 }
 const shell = page => page.getByRole('button', {name: /account menu/});
 
+/** Two short real films: one the browser plays as it is (H.264 and AAC in MP4, with a subtitle
+ * file beside it), one it cannot (MPEG-2 and AC-3 in Matroska), which the server converts. */
+async function makeFilms() {
+  const folder = await mkdtemp(join(tmpdir(), 'portico-next-films-'));
+  cleanups.push(() => rm(folder, {recursive: true, force: true}));
+  const film = (name, args) => {
+    const dir = join(folder, name);
+    execFileSync('mkdir', ['-p', dir]);
+    execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=size=640x360:rate=24', '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000', '-t', '60', ...args(join(dir, name))]);
+    return dir;
+  };
+  const direct = film('Journey Film (2024)', out => ['-ac', '2', '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-g', '48', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', out + '.mp4']);
+  await writeFile(join(direct, 'Journey Film (2024).en.srt'), '1\n00:00:00,500 --> 00:00:59,000\nHello from the subtitle file\n');
+  film('Converted Film (2023)', out => ['-ac', '2', '-c:v', 'mpeg2video', '-b:v', '2M', '-c:a', 'ac3', '-b:a', '192k', out + '.mkv']);
+  return folder;
+}
+
+/** The video element's own clock and state, as the page plays it. */
+const videoState = page => page.evaluate(() => {
+  const video = document.querySelector('video');
+  return video ? {time: video.currentTime, paused: video.paused, src: video.currentSrc || video.src, ready: video.readyState} : null;
+});
+async function advances(page, what, from = 0) {
+  let start;
+  await until(what + ' playing', async () => {const v = await videoState(page); if (v && v.time > from + 0.5 && !v.paused) {start ??= v.time; return true;} return false;}, 300);
+  await until(what + ' moving on', async () => ((await videoState(page))?.time ?? 0) > start + 1.5, 100);
+}
+
+async function playback(page, requests) {
+  const sessions = [];
+  page.on('response', async answer => {
+    const url = new URL(answer.url());
+    if (url.pathname === '/v1/playback/sessions' && answer.request().method() === 'POST' || /^\/v1\/playback\/sessions\/[^/]+$/.test(url.pathname) && answer.request().method() === 'PATCH')
+      sessions.push(await answer.json().catch(() => null));
+  });
+  const owner = () => ownerToken().then(o => o.token);
+  const api = async (method, path, body) => {
+    const answer = await fetch(serverOrigin + path, {method, headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + await owner(), 'Idempotency-Key': 'journey-' + Math.random().toString(36).slice(2, 14)}, body: body === undefined ? undefined : JSON.stringify(body)});
+    return {status: answer.status, body: await answer.json().catch(() => undefined)};
+  };
+  let films = {};
+  await step('two real films are added to a library through the API and scanned', async () => {
+    const folder = await makeFilms();
+    const made = await api('POST', '/v1/admin/libraries', {name: 'Real films', kind: 'movies', folders: [folder]});
+    if (made.status !== 200 && made.status !== 201) throw new Error('The library was not made: ' + made.status + ' ' + JSON.stringify(made.body));
+    await until('The scan', async () => {const scan = await api('GET', `/v1/admin/libraries/${made.body.id}/scan`); return scan.body?.state === 'idle' && !!scan.body.lastScanFinishedAt;}, 300);
+    const listed = await api('GET', `/v1/items?library=${made.body.id}`);
+    for (const item of listed.body.items) films[/Converted/.test(item.title) ? 'converted' : 'direct'] = item.id;
+    if (!films.direct || !films.converted) throw new Error('The scan did not list both films: ' + JSON.stringify(listed.body));
+  });
+  // Opening an address on an account with more than one profile asks Who's watching first.
+  const openTitle = async (window, id) => {
+    await window.goto(`${origin}/item/${id}`, {waitUntil: 'domcontentloaded'});
+    if (await window.getByText(/Who.s watching/).waitFor({timeout: 8000}).then(() => true, () => false)) await window.getByRole('button', {name: /owner/}).first().click();
+  };
+  // The player hides its controls while playing; moving the pointer brings them back.
+  const controls = async () => {await page.mouse.move(600, 400); await page.mouse.move(620 + Math.random() * 40, 420); await page.waitForTimeout(300);};
+  const press = async name => {await controls(); await page.getByRole('button', {name, exact: true}).first().click();};
+  const choose = async (menu, row) => {await controls(); await page.getByRole('button', {name: menu}).first().click(); await page.getByRole('radio', {name: row}).first().dispatchEvent('click'); await page.keyboard.press('Escape');};
+  const account = async () => (await api('GET', '/v1/playback/sessions')).body.items;
+  let stoppedAt = 0, stoppedUrl = '';
+  await step('Play on a film the browser can play plays the file itself', async () => {
+    await openTitle(page, films.direct);
+    await page.getByRole('button', {name: 'Play', exact: true}).first().click();
+    await advances(page, 'The film');
+    const started = sessions.at(-1);
+    if (started?.presentation?.mode !== 'direct' || started.presentation.route !== 'original') throw new Error('It was not played as the file itself: ' + JSON.stringify(started?.presentation));
+    if (!requests.seen.some(line => /^GET \/v1\/media\/[^/]+\/original 20[06]/.test(line))) throw new Error('The file was not read from its media address.');
+  });
+  await step('Pause holds the picture and the server hears it; Play goes on', async () => {
+    await press('Pause');
+    await until('The pause', async () => (await videoState(page))?.paused === true);
+    const held = (await videoState(page)).time;
+    await until('The server hearing of the pause', async () => (await account())[0]?.state === 'paused', 100);
+    await page.waitForTimeout(1500);
+    if (Math.abs((await videoState(page)).time - held) > 0.1) throw new Error('The picture moved while paused.');
+    await press('Play');
+    await advances(page, 'The film after Play', held);
+  });
+  await step('Forward 30 seconds seeks and playing goes on from there', async () => {
+    const before = (await videoState(page)).time;
+    await press('Forward 30 seconds');
+    await until('The seek', async () => ((await videoState(page))?.time ?? 0) > before + 25, 100);
+    await advances(page, 'The film after the seek', before + 25);
+  });
+  await step('Choosing 240p while playing moves to a converted stream at the same place', async () => {
+    const before = (await videoState(page)).time;
+    await choose(/^Original$/, /240p/);
+    await until('The change of quality', async () => sessions.at(-1)?.presentation?.quality?.id === '240p', 100);
+    const changed = sessions.at(-1).presentation;
+    if (changed.mode !== 'stream' || changed.route !== 'converted' || !/master\.m3u8$/.test(changed.url)) throw new Error('The new quality is not a converted stream: ' + JSON.stringify(changed));
+    if (Math.abs(changed.startPositionMs / 1000 - before) > 5) throw new Error(`The stream starts at ${changed.startPositionMs} ms, the picture was at ${before} s.`);
+    await advances(page, 'The converted stream', before - 1);
+  });
+  await step('Subtitles chosen in the player are drawn by the page', async () => {
+    await choose('Subtitles and audio', /English/);
+    await until('The subtitle on screen', async () => (await page.evaluate(() => [...document.querySelector('video').textTracks].some(t => t.mode === 'showing' && [...(t.activeCues ?? [])].some(c => /Hello from the subtitle file/.test(c.text))))), 150);
+  });
+  await step('Closing the player stops the session and leaves nothing playing on the server', async () => {
+    stoppedAt = (await videoState(page)).time;
+    stoppedUrl = sessions.at(-1).presentation.url;
+    await press('Close player');
+    await until('The stop', async () => requests.seen.some(line => /^DELETE \/v1\/playback\/sessions\/[^ ]+ 204/.test(line)), 100);
+    if ((await account()).length) throw new Error('The server still lists a session: ' + JSON.stringify(await account()));
+    const media = await fetch(serverOrigin + stoppedUrl);
+    if (media.status !== 404) throw new Error('The stopped stream still answers ' + media.status);
+  });
+  await step('Continue Watching in another window resumes where it stopped', async () => {
+    const other = await browser.newContext({viewport: {width: 1440, height: 900}}), second = await other.newPage();
+    try {
+      const resumed = [];
+      second.on('response', async answer => {if (new URL(answer.url()).pathname === '/v1/playback/sessions' && answer.request().method() === 'POST') resumed.push(await answer.json().catch(() => null));});
+      await signIn(second);
+      await second.getByRole('button', {name: /owner/}).first().click();
+      await second.getByRole('heading', {name: 'Continue Watching'}).waitFor();
+      await second.getByRole('button', {name: /Journey Film/}).first().click();
+      await second.getByRole('button', {name: /^Resume/}).first().click();
+      await until('The resumed start', async () => resumed.length > 0, 100);
+      const at = resumed[0].presentation.startPositionMs / 1000;
+      if (Math.abs(at - stoppedAt) > 3) throw new Error(`It resumed at ${at} s; it was stopped at ${stoppedAt} s.`);
+      await advances(second, 'The resumed film', at - 1);
+      await second.getByRole('button', {name: 'Close player'}).first().click({force: true}).catch(() => {});
+    } finally {await other.close();}
+  });
+  await step('Play on a film the browser cannot play plays a converted stream', async () => {
+    await openTitle(page, films.converted);
+    await page.getByRole('button', {name: 'Play', exact: true}).first().click();
+    await advances(page, 'The converted film');
+    const started = sessions.at(-1)?.presentation;
+    if (started?.mode !== 'stream' || started.route !== 'converted') throw new Error('It was not converted: ' + JSON.stringify(started));
+  });
+  await step('A film played to its end is marked watched', async () => {
+    await press('Forward 30 seconds');
+    await page.waitForTimeout(1500);
+    await press('Forward 30 seconds');
+    await until('The end of the film', async () => (await api('GET', `/v1/items/${films.converted}`)).body?.state?.watched === true, 300);
+    await press('Close player');
+  });
+}
+
 try {
   const setup = await browser.newContext({viewport: {width: 1440, height: 900}});
   await step('set up the owner with the setup code from the data folder', async () => {
     const page = await setup.newPage(), requests = watch(page);
     await page.goto(origin + '/', {waitUntil: 'domcontentloaded'});
+    // The development server compiles the app on its first page, which can take a while.
+    await page.getByRole('radio', {name: /Local sign-in/}).waitFor({timeout: 120000});
     await page.getByRole('radio', {name: /Local sign-in/}).check();
     await page.getByLabel('Username').fill('owner');
     await page.getByLabel('Password', {exact: true}).fill(password);
@@ -256,6 +402,7 @@ try {
       if (!requests.has('POST /v1/items/state:undo 204')) throw new Error('The server was not asked to undo.');
     });
   }
+  await playback(page, requests);
   await step('sign out returns to sign-in, and stays signed out after a reload', async () => {
     await shell(page).click();
     await page.getByText('Sign out', {exact: true}).click();

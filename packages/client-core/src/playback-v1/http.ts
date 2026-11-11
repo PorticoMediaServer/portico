@@ -2,10 +2,10 @@ import {randomId} from '../random-id.ts';
 import {resendableRefusal, retryWriterCapacity} from '../writer-capacity.ts';
 import {serverNow} from '../server-clock.ts';
 /**
- * The HTTP seam for playback v1. Modules speak in `V1Request`/`V1Response` so the same code runs
- * against the real server (an adapter over `HttpLocalApi`/`fetch`, phase 2 wiring) and
- * `FakePlaybackServer`. Non-2xx responses become `PlaybackApiError` with the style guide's error
- * fields (§4.6): `code`, `retry` class, `current` (on 412) and `Retry-After`.
+ * The HTTP seam for playback. Modules speak in `V1Request`/`V1Response` so the same code runs
+ * against the real server (an adapter over `HttpLocalApi`/`fetch`) and test fakes. Non-2xx
+ * responses become `PlaybackApiError` with the server's error fields: `code`, whether a resend
+ * may work (`retry`), and `Retry-After` or `retryAfterMs`.
  */
 export type V1Request = Readonly<{method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'; path: string; headers?: Readonly<Record<string, string>>; body?: unknown; signal?: AbortSignal;
   /** Give up after this long (default: the transport's own deadline). */
@@ -86,7 +86,8 @@ export async function callOnce(http: V1Http, request: V1Request, ok?: readonly n
   if (good) return r;
   const e = (r.body as {error?: {code?: unknown; retry?: unknown; current?: unknown; retryAfterMs?: unknown; reason?: unknown}} | undefined)?.error;
   const code = typeof e?.code === 'string' ? e.code : r.status === 404 ? 'not_found' : 'request_failed';
-  const retry = (['never', 'same_request', 'after_refresh', 'after_reauth'] as const).includes(e?.retry as RetryClass) ? e!.retry as RetryClass : defaultRetry(r.status);
+  // The server says only whether sending the same request again may work.
+  const retry: RetryClass = e?.retry === true ? 'same_request' : e?.retry === false && r.status !== 401 ? 'never' : defaultRetry(r.status);
   const reason = typeof e?.reason === 'string' && e.reason.length <= 128 ? e.reason : undefined;
   throw new PlaybackApiError(r.status, code, retry, e?.current, retryAfter(r, e), reason);
 }

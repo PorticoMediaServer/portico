@@ -56,6 +56,8 @@ export type WebPlaybackSettings = Readonly<{
   /** Canonical playback.showSyncedLyrics; absent/unknown keeps the Lyrics opening withdrawn. */
   lyricsEnabled?: () => boolean;
   musicDefaults?: () => Readonly<{shuffle: boolean; repeat: 'off' | 'one' | 'all'}> | undefined;
+  /** Autoplay next, its countdown and Stop at season end. */
+  postPlay?: () => import('@core/playback-v1/post-play.ts').PostPlaySettings;
   webVolume: () => boolean;
 }>;
 /** The shell supplies an actual viewer-bound transport/feed, and destroys this runtime before

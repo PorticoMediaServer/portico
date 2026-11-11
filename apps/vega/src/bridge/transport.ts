@@ -7,8 +7,8 @@ export type WireResponse = {status: number; headers: Record<string, string>; bod
 type Settle = {resolve(value: WireResponse): void; reject(error: Error): void};
 type Pending = Settle & {identifier: string; domain: string; url: string; method: string; headers: Record<string, string>; body: string | null; limit: number; sensitive: boolean; xhr?: XMLHttpRequest; started: boolean; done: boolean; timer?: ReturnType<typeof setTimeout>};
 
-const MAX_ACTIVE = 12, MAX_WAITING = 64, TIMEOUT_MS = 15000, OBSERVATION_TIMEOUT_MS = 1500;
-const OBSERVATION = /\/v1\/playback\/sessions\/[^/?#]+\/observation(?:$|\?)/;
+const MAX_ACTIVE = 12, MAX_WAITING = 64, TIMEOUT_MS = 15000, PROGRESS_TIMEOUT_MS = 5000;
+const PROGRESS = /\/v1\/playback\/sessions\/[^/?#]+\/progress(?:$|\?)/;
 const requests = new Map<string, Pending>();
 const waiting: Pending[] = [];
 let active = 0;
@@ -21,10 +21,10 @@ export function submit(admission: Admission): Promise<WireResponse> {
     const {identifier, domain} = admission;
     let sensitive: boolean;
     try { sensitive = requestCredentials(admission.url, admission.headers, admission.body); } catch (error) { reject(error as Error); return; }
-    // A playback observation never waits behind other requests: the next one, a second later,
-    // replaces it. Queueing it would only deliver stale state late.
-    const observation = admission.method === 'PUT' && OBSERVATION.test(admission.url);
-    if (requests.has(identifier) || (active >= MAX_ACTIVE && (observation || waiting.length >= MAX_WAITING))) { reject(failure(domain, admission.busy)); return; }
+    // A progress report never waits behind other requests: the next one replaces it. Queueing it
+    // would only deliver a stale position late.
+    const progress = admission.method === 'PUT' && PROGRESS.test(admission.url);
+    if (requests.has(identifier) || (active >= MAX_ACTIVE && (progress || waiting.length >= MAX_WAITING))) { reject(failure(domain, admission.busy)); return; }
     const headers: Record<string, string> = {};
     if (admission.headers && typeof admission.headers === 'object') {
       for (const [key, value] of Object.entries(admission.headers as Record<string, unknown>)) if (typeof value === 'string') headers[key] = value;
@@ -48,7 +48,7 @@ export function cancel(identifier: string): void {
  * resumed whatever was playing, every 15 s.
  */
 function limitFor(url: string): number {
-  if (OBSERVATION.test(url)) return OBSERVATION_TIMEOUT_MS;
+  if (PROGRESS.test(url)) return PROGRESS_TIMEOUT_MS;
   const asked = /[?&]waitMs=(\d{1,5})(&|$)/.exec(url);
   return asked ? Math.max(TIMEOUT_MS, Number(asked[1]) + 10_000) : TIMEOUT_MS;
 }

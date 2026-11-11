@@ -43,7 +43,7 @@ export function watchPanelModel(runtime:WebShellPlaybackRuntime,snapshot:WebPlay
  // OffersService owns its detail viewer fence. The Home authority fence intentionally
  // has a different scope and must never be compared with that opaque token.
  const words=videoTrackWords(i18n.t,i18n.locale),t=i18n.t;
- const isCurrent=()=>{const live=runtime.getSnapshot();return !live.disposed&&live.authority===snapshot.authority&&sameFence(live.fence,fence)&&live.session?.versionId===version.id&&live.session.revision===session.revision&&live.options===options&&live.offers===offers;};
+ const isCurrent=()=>{const live=runtime.getSnapshot();return !live.disposed&&live.authority===snapshot.authority&&sameFence(live.fence,fence)&&live.session?.versionId===version.id&&live.session.presentation.generation===session.presentation.generation&&live.options===options&&live.offers===offers;};
  const check=()=>{if(!isCurrent())throw new DOMException('Playback source retired','AbortError');};
  const audio=Object.freeze(version.audio.map(track=>{
   const name=videoTrackName(track,words),enabled=source.streams.some(s=>s.type==='audio'&&s.enabled&&s.index===audioStreamIndex(track.id));

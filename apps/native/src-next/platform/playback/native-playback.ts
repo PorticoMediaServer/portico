@@ -167,8 +167,6 @@ export class NativePlayback {
       // The engines seek inside the stream they hold; the server follows the requests.
       serverSeek: () => false,
       wantsPlaying: () => this.service?.getSnapshot().intent === 'playing',
-      // A pause or play asked elsewhere goes through the service that owns the engine (RN-09).
-      onRemoteControl: state => { const service = this.service; if (!service) return; if (state === 'paused') service.pause(); else service.resume(); },
       onServerEnded: (session, end) => this.serverEnded(session.id, end),
       onLeaseExpired: (session, positionMs) => void this.leaseExpired(session, positionMs),
     });
@@ -522,9 +520,6 @@ export class NativePlayback {
         // off on its way here (a seek settling at the very end), so the end is said again.
         if (self.engine.state !== 'ended' && self.engine.loaded === payload.generation) { self.lastState = 'ended'; self.engine.report(payload.generation, 'ended', payload.positionSeconds * 1000, 'state'); }
         await self.controller.confirmEnded();
-      },
-      async markerSkipped(id: string, skipped: Readonly<{markerId: string; mode: 'automatic' | 'manual'; positionMs: number}>) {
-        if (self.controller.getSnapshot().session?.id === id) self.controller.noteSkip(skipped);
       },
       // The engine could not play the presentation: the server is told, and re-plans the same
       // session another way where the picture was. The queue and its place are untouched.

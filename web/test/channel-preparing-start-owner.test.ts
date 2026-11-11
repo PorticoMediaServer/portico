@@ -142,17 +142,6 @@ test('actual channel SDK retry-only abort has no resource or cleanup', async () 
   finally {f.control.close();f.reg.dispose();f.owner.dispose();}
 });
 
-test('an impossible live 202 is refused by the strict start decoder without install, timer or cleanup', async () => {
-  const f = controlFixture(), refused: {message: string; terminal: boolean}[] = [];
-  f.replies.push(Promise.resolve(response({...real(), retryAfterMs: 500})));
-  try {
-    assert.throws(() => parseStartPreparation({...real(), retryAfterMs: 500}), {name: 'ContractError'});
-    await f.start((message, terminal) => {refused.push({message, terminal});});await settle();
-    assert.deepEqual(f.calls.map(call => call.method), ['POST']);assert.equal(f.installed.length, 0);
-    assert.equal(f.jobs.size, 0);assert.equal(f.cleanupCalls.length, 0);
-    assert.equal(refused.length, 1);assert.equal(refused[0]!.terminal, true);assert.ok(refused[0]!.message.length > 0);
-  } finally {f.control.close();f.reg.dispose();f.owner.dispose();}
-});
 
 test('actual channel SDK late201 after caller abort uses only its original host GET and DELETE', async () => {
   const f = controlFixture(), held = deferred<ReturnType<typeof response>>();f.replies.push(held.promise);
