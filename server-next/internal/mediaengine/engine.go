@@ -105,6 +105,13 @@ func New(ctx context.Context, d *db.DB, o Options) (*Engine, error) {
 			return
 		}
 		decoder.ConfigureToolchain(tools)
+		// Whether a graphics device can run the Dolby Vision and tone-map filters is tried
+		// beside the start as well; until it answers, those conversions are not offered.
+		go func() {
+			if tried, err := decoder.ProbeToolchainGraphics(ctx, ffmpeg, tools); err == nil {
+				decoder.ConfigureToolchain(tried)
+			}
+		}()
 		e.converter, e.fragmented = true, tools.Muxers["mp4"] && tools.Muxers["hls"]
 		// The hardware encoders are tried out now, beside the start, so no play waits for
 		// that: until it is done a conversion is planned in software.
