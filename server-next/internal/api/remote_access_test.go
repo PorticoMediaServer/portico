@@ -181,6 +181,10 @@ func TestResetRemoteAccessFile(t *testing.T) {
 		v.RemoteAccess, v.RemoteSecurity, v.SecureConnections = "off", "enhanced", "required"
 	})
 	edit := NetworkSettingsEdit{HomeNetworks: &[]string{}, TrustedProxies: []string{}}
+	if w := reach(s, "PUT", "/v1/admin/settings/network", owner, "127.0.0.1", "localhost", false, edit); w.Code != 409 {
+		t.Fatalf("emptying the home networks with remote access off was not warned about: %d", w.Code)
+	}
+	edit.ConfirmRefusal = true
 	if w := reach(s, "PUT", "/v1/admin/settings/network", owner, "127.0.0.1", "localhost", false, edit); w.Code != 200 {
 		t.Fatalf("emptying the home networks answered %d: %s", w.Code, w.Body)
 	}
@@ -213,5 +217,44 @@ func TestRefusedListKeepsTheNewest(t *testing.T) {
 	list := s.remote.refusedList()
 	if len(list) != maxRefused || list[0].Address != "host"+strconv.Itoa(maxRefused+4)+".example:443" {
 		t.Fatalf("the list holds %d, newest %+v", len(list), list[0])
+	}
+}
+
+
+// An owner may choose what is risky for their own server: warned at the moment of choosing,
+// reminded while it holds, never refused. Enhanced with no address to allow is the example:
+// the default path never puts anyone there, but an owner who asks for it gets it.
+func TestRiskyChoicesAreWarnedAndAllowed(t *testing.T) {
+	s := newTestServer(t)
+	owner := onMain(t, s, setup(t, s)).AccessToken
+	reach(s, "POST", "/v1/setup/finish", owner, "127.0.0.1", "localhost", false, SetupFinish{})
+	warnings := func() []string {
+		var st RemoteAccessStatus
+		jsonInto(reach(s, "GET", "/v1/admin/remote-access", owner, "127.0.0.1", "localhost", false, nil), &st)
+		var out []string
+		for _, w := range st.Warnings {
+			out = append(out, w.Code)
+		}
+		return out
+	}
+	if got := warnings(); len(got) != 1 || got[0] != "plain_http_outside" {
+		t.Fatalf("after setup the warnings are %q", got)
+	}
+	var v RemoteAccessSettings
+	jsonInto(reach(s, "GET", "/v1/admin/settings/remote-access", owner, "127.0.0.1", "localhost", false, nil), &v)
+	save := RemoteAccessSave{RemoteAccessSettings: v}
+	save.EnhancedWithoutAddress = true
+	if w := reach(s, "PUT", "/v1/admin/settings/remote-access", owner, "203.0.113.9", "203.0.113.1:32500", true, save); w.Code != 409 {
+		t.Fatalf("Enhanced with no address, from outside, was not warned about: %d %s", w.Code, w.Body)
+	}
+	save.ConfirmRefusal = true
+	if w := reach(s, "PUT", "/v1/admin/settings/remote-access", owner, "203.0.113.9", "203.0.113.1:32500", true, save); w.Code != 200 {
+		t.Fatalf("the confirmed choice was refused: %d %s", w.Code, w.Body)
+	}
+	if code := reach(s, "GET", "/v1/system", "", "203.0.113.9", "203.0.113.1:32500", true, nil).Code; code != 403 {
+		t.Fatalf("Enhanced with no address let an outside connection in (%d)", code)
+	}
+	if got := warnings(); len(got) != 1 || got[0] != "enhanced_without_address" {
+		t.Fatalf("the warnings are %q", got)
 	}
 }

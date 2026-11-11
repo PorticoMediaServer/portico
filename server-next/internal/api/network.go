@@ -44,6 +44,8 @@ type NetworkSettings struct {
 type NetworkSettingsEdit struct {
 	HomeNetworks   *[]string `json:"homeNetworks,omitempty"`
 	TrustedProxies []string  `json:"trustedProxies"`
+	// ConfirmRefusal accepts that the connection making this save will be refused after it.
+	ConfirmRefusal bool `json:"confirmRefusal,omitempty"`
 }
 
 const (
@@ -175,10 +177,13 @@ func (s *Server) saveNetworkSettings(r *http.Request, req NetworkSettingsEdit) (
 	if stored.Proxies == nil {
 		stored.Proxies = []string{}
 	}
+	proposed := auth.Networks{Home: auth.DefaultHome()}
 	if req.HomeNetworks != nil {
-		if home, err := auth.ParseNetworks(*req.HomeNetworks); err != nil || len(home) > maxNetworks {
+		home, err := auth.ParseNetworks(*req.HomeNetworks)
+		if err != nil || len(home) > maxNetworks {
 			return NetworkSettings{}, ErrField("homeNetworks", "List up to 64 addresses or networks such as 192.168.1.0/24.")
 		}
+		proposed.Home = home
 	}
 	proxies, err := auth.ParseNetworks(stored.Proxies)
 	if err != nil || len(proxies) > maxNetworks {
@@ -189,6 +194,13 @@ func (s *Server) saveNetworkSettings(r *http.Request, req NetworkSettingsEdit) (
 		if p.Bits() < 8 {
 			return NetworkSettings{}, ErrField("trustedProxies", "A trusted proxy is your own proxy's address or network, not most of the internet.")
 		}
+	}
+	// A home list that no longer holds the owner can shut them out with the remote access
+	// settings: warned and confirmed, never refused.
+	proposed.Proxies = proxies
+	v, allowed := s.remote.current()
+	if check := s.judgeWith(r, v, allowed, s.setupFinished(), false, proposed); check.Refused && !req.ConfirmRefusal {
+		return NetworkSettings{}, errWouldRefuse(check)
 	}
 	match, err := settingsIfMatch(r)
 	if err != nil {
