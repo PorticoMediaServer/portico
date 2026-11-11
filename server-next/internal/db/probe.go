@@ -126,6 +126,9 @@ func storeProbe(b *batchTx, p *Probe, now int64) error {
 				nz(facts.videoCodec), nz(facts.audioCodec), nz(facts.audioChannel), nz(facts.hdr), v.id); err != nil {
 				return err
 			}
+			if err := b.versionsChanged(v.item); err != nil {
+				return err
+			}
 		}
 		if _, err := b.exec(`UPDATE media SET duration_ms = (SELECT nullif(sum(CASE WHEN p.end_ms IS NOT NULL THEN p.end_ms - ifnull(p.start_ms, 0)
 			ELSE max(ifnull(f.duration_ms, 0) - ifnull(p.start_ms, 0), 0) END), 0) FROM media_parts p JOIN files f ON f.id = p.file_id
