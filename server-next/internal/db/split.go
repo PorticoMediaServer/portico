@@ -82,6 +82,10 @@ func (d *DB) SplitVersion(ctx context.Context, versionID string) (string, error)
 		if _, err := b.exec(`UPDATE media SET item_id = ?, position = 0 WHERE id = ?`, id, media); err != nil {
 			return err
 		}
+		// The new title sits where the old one did, under the same labels.
+		if err := b.labelsChanged(id); err != nil {
+			return err
+		}
 		for _, key := range keys {
 			if _, err := b.exec(`UPDATE item_keys SET item_id = ? WHERE library_id = ? AND kind = ? AND (key = ? OR key > ? AND key < ?)`,
 				id, library, KeyFile, key, key+"#", key+"$"); err != nil {

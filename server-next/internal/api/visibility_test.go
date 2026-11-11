@@ -37,6 +37,13 @@ var titleChanges = []titleChange{
 			return nil
 		},
 		fault: "the moved episode keeps the rating of the show it came from"},
+	{name: "a scan moves an episode's file into a show with a label",
+		covers: []string{"db.Import"}, run: func(w *world) map[string]string {
+			open, labelled := w.addShow("Open", 8), w.addShow("Labelled", 8, w.label(0))
+			w.check("before the move")
+			w.moveEpisode(open, labelled)
+			return nil
+		}},
 	{name: "a file goes, the trash is emptied, and the file comes back",
 		covers: []string{"db.Import", "db.EmptyTrash"}, run: func(w *world) map[string]string {
 			return w.goneAndBack()
@@ -75,6 +82,15 @@ var titleChanges = []titleChange{
 	{name: "the owner narrows a profile's restrictions and a member's libraries",
 		covers: []string{"PUT /v1/profiles/{id}/restrictions", "PATCH /v1/admin/members/{id}"}, run: func(w *world) map[string]string {
 			w.narrow()
+			return nil
+		}},
+	{name: "every title's covering labels are worked out again from nothing",
+		covers: []string{"db.RebuildCoveringLabels"}, run: func(w *world) map[string]string {
+			w.addTitles()
+			w.check("after labelled titles were added")
+			if err := w.s.db.RebuildCoveringLabels(background); err != nil {
+				w.t.Fatal(err)
+			}
 			return nil
 		}},
 }

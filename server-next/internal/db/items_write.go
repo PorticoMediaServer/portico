@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"path"
+	"slices"
 	"strings"
 	"time"
 
@@ -590,6 +591,18 @@ func (im *importer) createItem(it *ImportItem, parent *importedItem, keys []Item
 		}
 		if _, err := im.exec(`INSERT INTO item_tags (item_id, tag_id, library_id, kind) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING`,
 			id, tagID, im.batch.LibraryID, it.Kind); err != nil {
+			return err
+		}
+	}
+	// The item is covered by its own labels and by those of what it sits under.
+	covered := slices.ContainsFunc(it.Tags, func(tag TagName) bool { return tag.Kind == TagLabel })
+	if !covered && parent != nil {
+		if err := im.queryRow(`SELECT labels IS NOT NULL FROM items WHERE id = ?`, parent.id).Scan(&covered); err != nil {
+			return err
+		}
+	}
+	if covered {
+		if err := im.labelsChanged(id); err != nil {
 			return err
 		}
 	}

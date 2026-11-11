@@ -17,6 +17,7 @@ type facts struct {
 	items   map[string]*stored
 	rules   map[int64]rule
 	tagKind map[string]string   // a tag's id: its kind
+	tagRow  map[string]int64    // a tag's id: its row
 	credits map[string][]string // a person's id: the items that credit them
 }
 
@@ -30,6 +31,7 @@ type stored struct {
 	tags                      []string
 	watched                   map[int64]bool // the profiles that watched it
 	media                     string         // what its versions are, so a probe counts as a change
+	labels                    string         // the covering labels as stored on the row
 	people                    []string
 }
 
@@ -122,18 +124,26 @@ func (w *world) query(dest func(rows *sql.Rows) error, query string) {
 
 // read takes the facts from the stored rows.
 func (w *world) read() *facts {
-	f := &facts{items: map[string]*stored{}, rules: map[int64]rule{}, tagKind: map[string]string{}, credits: map[string][]string{}}
+	f := &facts{items: map[string]*stored{}, rules: map[int64]rule{}, tagKind: map[string]string{}, tagRow: map[string]int64{},
+		credits: map[string][]string{}}
+	w.query(func(rows *sql.Rows) error {
+		var tag string
+		var row int64
+		err := rows.Scan(&tag, &row)
+		f.tagRow[tag] = row
+		return err
+	}, `SELECT public_id, id FROM tags`)
 	byRow := map[int64]*stored{}
 	w.query(func(rows *sql.Rows) error {
 		var it stored
 		var row int64
 		var parent, root sql.NullString
-		err := rows.Scan(&row, &it.id, &it.library, &it.kind, &it.title, &parent, &root, &it.rating, &it.year, &it.certificate)
+		err := rows.Scan(&row, &it.id, &it.library, &it.kind, &it.title, &parent, &root, &it.rating, &it.year, &it.certificate, &it.labels)
 		it.parent, it.root, it.watched = parent.String, root.String, map[int64]bool{}
 		f.items[it.id], byRow[row] = &it, &it
 		return err
 	}, `SELECT i.id, i.public_id, l.public_id, i.kind, i.title, p.public_id, r.public_id, i.rating_age, ifnull(i.year, 0),
-		ifnull(i.content_rating, '') FROM items i JOIN libraries l ON l.id = i.library_id
+		ifnull(i.content_rating, ''), ifnull(i.labels, '') FROM items i JOIN libraries l ON l.id = i.library_id
 		LEFT JOIN items p ON p.id = i.parent_id LEFT JOIN items r ON r.id = i.root_id`)
 	w.query(func(rows *sql.Rows) error {
 		var item int64
@@ -260,6 +270,7 @@ func (w *world) check(stage string) {
 			w.fail("%s: the owner is kept from %s", stage, f.describe(id))
 		}
 	}
+	w.coveringLabels(stage, f)
 	w.remember(f)
 	// Every card's counts are checked. The lists under a holder are read for the holders the
 	// change touched and two of each kind, since reading every one for every profile is slow.
@@ -344,6 +355,43 @@ func (w *world) check(stage string) {
 }
 
 // difference says how a list differs from what it should hold.
+// coveringLabels holds the labels stored on every title to the rule: they are the labels of
+// the title itself, of what it sits in and of what that sits in, and no others. Then every
+// row is worked out again from nothing, which must change none of them.
+func (w *world) coveringLabels(stage string, f *facts) {
+	w.t.Helper()
+	for id, it := range f.items {
+		rows := map[int64]bool{}
+		for _, at := range []string{id, it.parent, it.root} {
+			if above := f.items[at]; above != nil {
+				for _, tag := range above.tags {
+					if f.tagKind[tag] == db.TagLabel {
+						rows[f.tagRow[tag]] = true
+					}
+				}
+			}
+		}
+		want := ""
+		for _, row := range slices.Sorted(maps.Keys(rows)) {
+			want += fmt.Sprint(",", row)
+		}
+		if want != "" {
+			want += ","
+		}
+		if it.labels != want {
+			w.fail("%s: %s has the covering labels %q stored, and its own and its ancestors' labels are %q", stage, f.describe(id), it.labels, want)
+		}
+	}
+	if err := w.s.db.RebuildCoveringLabels(background); err != nil {
+		w.t.Fatal(err)
+	}
+	for id, it := range w.read().items {
+		if before := f.items[id]; before != nil && before.labels != it.labels {
+			w.fail("%s: working the covering labels out again changed %s from %q to %q", stage, f.describe(id), before.labels, it.labels)
+		}
+	}
+}
+
 func (w *world) difference(f *facts, got, want []string) string {
 	var extra, missing []string
 	for _, id := range got {

@@ -240,6 +240,7 @@ type show struct {
 	library
 	dir, item string
 	rating    int
+	labels    []db.TagName
 }
 
 const addedSeason = 9
@@ -247,17 +248,17 @@ const addedSeason = 9
 func (w *world) showItems(s show) []db.ImportItem {
 	rating := s.rating
 	return []db.ImportItem{
-		{Kind: db.KindShow, Keys: []db.ItemKey{db.FolderKey(s.path, s.dir)}, Title: s.dir, RatingAge: &rating, Tags: []db.TagName{{Kind: db.TagGenre, Name: "Drama"}}},
+		{Kind: db.KindShow, Keys: []db.ItemKey{db.FolderKey(s.path, s.dir)}, Title: s.dir, RatingAge: &rating, Tags: append([]db.TagName{{Kind: db.TagGenre, Name: "Drama"}}, s.labels...)},
 		{Kind: db.KindSeason, Title: fmt.Sprint("Season ", addedSeason), IndexNumber: intp(addedSeason), ParentRow: 1, ChildKey: fmt.Sprint("s", addedSeason)},
 	}
 }
 
 func intp(n int) *int { return &n }
 
-func (w *world) addShow(name string, rating int) show {
+func (w *world) addShow(name string, rating int, labels ...db.TagName) show {
 	w.t.Helper()
 	lib := w.library(db.LibraryShows)
-	s := show{library: lib, dir: w.name(name), rating: rating}
+	s := show{library: lib, dir: w.name(name), rating: rating, labels: labels}
 	season := fmt.Sprintf("%s/Season %02d", s.dir, addedSeason)
 	b := db.ImportBatch{LibraryID: lib.id, PathID: lib.path, Dirs: []db.ImportDir{{RelPath: s.dir}, {RelPath: season}}, Items: w.showItems(s)}
 	for e := 1; e <= 3; e++ {
