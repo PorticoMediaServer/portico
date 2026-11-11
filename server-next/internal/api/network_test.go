@@ -383,7 +383,9 @@ func TestVisitorsFromTheGateway(t *testing.T) {
 	}
 
 	var system System
-	if from(t, s, gateway, "", "GET", "/v1/system", "", nil, &system); codes(system.Warnings) != "gateway_visitors" || !strings.Contains(system.Warnings[0].Message, gateway) {
+	// Whoever is setting up is told, without the gateway's address: they are not signed in.
+	if from(t, s, gateway, "", "GET", "/v1/system", "", nil, &system); codes(system.Warnings) != "gateway_visitors" ||
+		strings.Contains(system.Warnings[0].Message, gateway) || !strings.Contains(system.Warnings[0].Message, "home router") {
 		t.Fatalf("before setup, a request from the gateway is told %+v", system.Warnings)
 	}
 	system = System{}
@@ -421,7 +423,8 @@ func TestVisitorsFromTheGateway(t *testing.T) {
 		t.Errorf("while guessing, the gateway and its neighbour are listed as %q and %q, want away and home", got["Device 901"], got["Device 902"])
 	}
 	settings := get[NetworkSettings](t, s, owner.AccessToken, "/v1/admin/settings/network")
-	if codes(settings.Warnings) != "gateway_visitors" || slices.Contains(settings.HomeNetworks, gateway+"/32") {
+	if codes(settings.Warnings) != "gateway_visitors" || slices.Contains(settings.HomeNetworks, gateway+"/32") ||
+		!strings.Contains(settings.Warnings[0].Message, "If "+gateway+" is your home router") {
 		t.Errorf("the owner's settings warn %q with home networks %v", codes(settings.Warnings), settings.HomeNetworks)
 	}
 
@@ -440,6 +443,11 @@ func TestVisitorsFromTheGateway(t *testing.T) {
 		t.Errorf("with the gateway in the owner's home networks it is listed as %q, want home", got["Device 904"])
 	}
 	settings = get[NetworkSettings](t, s, owner.AccessToken, "/v1/admin/settings/network")
+	for _, w := range settings.Warnings {
+		if w.Code == "gateway_at_home" && strings.Contains(w.Message, "take "+gateway+" out") {
+			t.Errorf("the warning tells the owner to remove an address they never listed: %q", w.Message)
+		}
+	}
 	if got := codes(settings.Warnings); !strings.Contains(got, "gateway_at_home") || strings.Contains(got, "gateway_visitors") {
 		t.Errorf("with the gateway in the owner's home networks the settings warn %q", got)
 	}

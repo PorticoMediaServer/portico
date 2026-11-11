@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/netip"
 	"slices"
@@ -158,28 +157,43 @@ var defaultGateway = auth.DefaultGateway
 // such a visitor is away; if the owner's own list holds the gateway they are at home, as the
 // owner said, and the owner is told what that means.
 
-const (
-	gatewayAwayMessage = "Requests are arriving from this server's network gateway, %s, so the server cannot tell who is at home: " +
-		"they all count as away from home. This is usual when the server runs in a container with a published port. " +
-		"To fix it, run the container with host networking, or put a reverse proxy in front and add it to Trusted proxies."
-	gatewayHomeMessage = "Requests are arriving from this server's network gateway, %s, which is in your home networks, so they all count as at home. " +
+// The two sentences. named is the gateway as the sentence calls it: with its address for the
+// owner, without it for whoever is setting the server up, who is not signed in.
+func gatewayAwayMessage(named, router string) string {
+	return "Requests are arriving from " + named + ", so the server cannot tell who is at home: they all count as away from home. " +
+		"If the server runs in a container with a published port, this is usual: run the container with host networking, " +
+		"or put a reverse proxy in front and add it to Trusted proxies. " +
+		"If " + router + " is your home router, devices at home that use the server's public or Portico address come back through the router: " +
+		"use the server's home address at home, or add your home network to Home networks " +
+		"if you accept that outside visitors who arrive through the router would count as at home too."
+}
+
+func gatewayHomeMessage(named string) string {
+	return "Requests are arriving from " + named + ", which is in your home networks, so they all count as at home. " +
 		"If the server runs in a container with a published port, people outside your home can arrive from that address too and would count as at home. " +
-		"To fix it, run the container with host networking, or put a reverse proxy in front and add it to Trusted proxies, and take %s out of your home networks."
-)
+		"To fix it, run the container with host networking, or put a reverse proxy in front and add it to Trusted proxies, " +
+		"and list only the addresses that are really at home."
+}
 
 // gatewayWarning is the warning for a request, or for the requests of the last day, that
-// arrived from the gateway with no forwarded address. ok is false when there is none.
-func gatewayWarning(networks auth.Networks, gateway netip.Addr, home []netip.Prefix) (Warning, bool) {
+// arrived from the gateway with no forwarded address. ok is false when there is none. The
+// address is left out of the sentence unless address is set: it is the one thing here that
+// describes the network, and nobody setting a server up needs it.
+func gatewayWarning(networks auth.Networks, gateway netip.Addr, home []netip.Prefix, address bool) (Warning, bool) {
 	if !gateway.IsValid() {
 		return Warning{}, false
 	}
+	named, router := "this server's network gateway", "that"
+	if address {
+		named, router = named+", "+gateway.String(), gateway.String()
+	}
 	for _, p := range home {
 		if networks.Gateway != gateway && p.Contains(gateway) {
-			return Warning{Code: "gateway_at_home", Message: fmt.Sprintf(gatewayHomeMessage, gateway, gateway)}, true
+			return Warning{Code: "gateway_at_home", Message: gatewayHomeMessage(named)}, true
 		}
 	}
 	if networks.Gateway == gateway {
-		return Warning{Code: "gateway_visitors", Message: fmt.Sprintf(gatewayAwayMessage, gateway)}, true
+		return Warning{Code: "gateway_visitors", Message: gatewayAwayMessage(named, router)}, true
 	}
 	return Warning{}, false
 }
@@ -208,7 +222,7 @@ func (s *Server) noteGateway(r *http.Request) {
 	s.network.gatewayAt = now
 	s.network.mu.Unlock()
 	if first {
-		if w, ok := gatewayWarning(s.networks(), gateway, s.networks().Home); ok {
+		if w, ok := gatewayWarning(s.networks(), gateway, s.networks().Home, true); ok {
 			s.log.Warn(w.Message, "gateway", gateway.String())
 		}
 	}
@@ -393,7 +407,7 @@ func (s *Server) networkWarnings(networks auth.Networks) []Warning {
 	if latest != "" {
 		out = append(out, Warning{Code: "proxy_not_listed_public", Message: publicProxyNotice(latest, others)})
 	}
-	if w, ok := gatewayWarning(networks, gateway, networks.Home); ok && gatewaySeen {
+	if w, ok := gatewayWarning(networks, gateway, networks.Home, true); ok && gatewaySeen {
 		out = append(out, w)
 	}
 	return out
