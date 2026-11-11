@@ -22,8 +22,8 @@ type Dashboard struct {
 	Alerts []DashboardAlert `json:"alerts"`
 	// Scans are the library scans waiting or running.
 	Scans []DashboardScan `json:"scans"`
-	// Tasks are the other jobs waiting or running, and a backup being made: the first few,
-	// running first, and how many there are.
+	// Tasks are the other jobs waiting or running, a backup being made and an upgrade still
+	// finishing: the first few, running first, and how many there are.
 	Tasks      DashboardTasks   `json:"tasks"`
 	NowPlaying StreamTotals     `json:"nowPlaying"`
 	Backups    DashboardBackups `json:"backups"`
@@ -68,7 +68,10 @@ type DashboardTasks struct {
 	Items []DashboardTask `json:"items"`
 }
 
-// DashboardTask is a job or a backup. Cancel a job with DELETE /v1/jobs/{id}.
+// DashboardTask is a job, a backup being made, or an upgrade still finishing after the server
+// started (kind upgrade, its phase saying how far it has got; waiting when it stopped on an
+// error and is tried again at the next start). Cancel a job with
+// DELETE /v1/jobs/{id}; a backup and an upgrade cannot be cancelled.
 type DashboardTask struct {
 	ID          string `json:"id"`
 	Kind        string `json:"kind"`
@@ -137,6 +140,17 @@ func (s *Server) dashboard(r *http.Request, _ None) (Dashboard, error) {
 		byID[l.PublicID] = l
 	}
 	var tasks []DashboardTask
+	// An upgrade whose slow part runs after the server started is a task until it ends.
+	// One that stopped on an error waits for the next start, and says so.
+	if version, reached, running, ok, err := s.db.UpgradeLeft(ctx); err != nil {
+		return out, err
+	} else if ok {
+		state := db.JobRunning
+		if !running {
+			state = db.JobWaiting
+		}
+		tasks = append(tasks, DashboardTask{ID: "upgrade-" + strconv.Itoa(version), Kind: "upgrade", Phase: "reached " + strconv.FormatInt(reached, 10), State: state})
+	}
 	if p := s.backups.Running(); p != nil {
 		tasks = append(tasks, DashboardTask{ID: p.ID, Kind: "backup", Phase: "copying", State: db.JobRunning})
 	}
