@@ -2,7 +2,9 @@ package librarychannels
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"slices"
 	"sort"
 	"strings"
@@ -112,13 +114,16 @@ type pool struct {
 }
 
 type build struct {
-	ctx       context.Context
-	src       Source
-	b         *Builder
-	loc       *time.Location
-	st        *State
-	now       time.Time
-	pools     map[string]*pool
+	ctx   context.Context
+	src   Source
+	b     *Builder
+	loc   *time.Location
+	st    *State
+	now   time.Time
+	pools map[string]*pool
+	// base is the seed new orders are made from: a hash of the builder, so a preview and the
+	// save of the same document make the same order.
+	base      uint64
 	discarded map[int64]bool
 	// thrownAway is the programmes a rebuild threw away, in time order.
 	thrownAway []Discarded
@@ -136,7 +141,7 @@ func Build(ctx context.Context, src Source, b *Builder, loc *time.Location, st *
 	if st.Shows == nil {
 		st.Shows = map[int64]Place{}
 	}
-	bd := &build{ctx: ctx, src: src, b: b, loc: loc, st: st, now: now, pools: map[string]*pool{}, discarded: map[int64]bool{}}
+	bd := &build{ctx: ctx, src: src, b: b, loc: loc, st: st, now: now, pools: map[string]*pool{}, discarded: map[int64]bool{}, base: seedOf(b)}
 	bd.putBack(discarded)
 	main, err := bd.pool("", &b.Selection)
 	if err != nil {
@@ -186,6 +191,14 @@ func placeLess(a, b Place) bool {
 	return a.ID < b.ID
 }
 
+// seedOf is a hash of a builder document.
+func seedOf(b *Builder) uint64 {
+	raw, _ := json.Marshal(b)
+	h := fnv.New64a()
+	h.Write(raw)
+	return h.Sum64()
+}
+
 func mix(x uint64) uint64 {
 	x += 0x9e3779b97f4a7c15
 	x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9
@@ -226,8 +239,11 @@ func sortKey(sortBy string, c db.ChannelCandidate) string {
 	return value + "\x00" + fmt.Sprintf("%020d", c.ID)
 }
 
-// maxProgramme is the longest title a channel schedules.
-const maxProgramme = 24 * time.Hour
+// maxProgramme and minProgramme are the longest and shortest titles a channel schedules.
+const (
+	maxProgramme = 24 * time.Hour
+	minProgramme = time.Minute
+)
 
 func (bd *build) pool(key string, sel *Selection) (*pool, error) {
 	if p := bd.pools[key]; p != nil {
@@ -273,7 +289,7 @@ func (bd *build) pool(key string, sel *Selection) (*pool, error) {
 			shows = append(shows, c)
 			return nil
 		}
-		if !c.Show && (c.DurationMS <= 0 || c.DurationMS > maxProgramme.Milliseconds()) {
+		if !c.Show && !playable(c.DurationMS) {
 			p.unplaceable++
 			return nil
 		}
@@ -300,7 +316,7 @@ func (bd *build) pool(key string, sel *Selection) (*pool, error) {
 				return nil, err
 			}
 			for _, e := range episodes {
-				if e.DurationMS <= 0 || e.DurationMS > maxProgramme.Milliseconds() {
+				if !playable(e.DurationMS) {
 					p.unplaceable++
 					continue
 				}
@@ -338,7 +354,9 @@ func (p *pool) hashFor(seed uint64) {
 func (bd *build) order(key string) *Order {
 	o := bd.st.Orders[key]
 	if o == nil {
-		o = &Order{Seed: mix(uint64(bd.now.UnixNano()) ^ mix(uint64(len(key))+uint64(len(bd.st.Orders))))}
+		h := fnv.New64a()
+		h.Write([]byte(key))
+		o = &Order{Seed: mix(bd.base ^ h.Sum64())}
 		bd.st.Orders[key] = o
 	}
 	return o
@@ -456,8 +474,18 @@ func (bd *build) pick(o *Order, p *pool, sel *Selection, room int64) (title, boo
 	return title{}, false
 }
 
-// episode is the episode of show to play next under the selection, and marks it played.
-func (bd *build) episode(show int64, sel *Selection, o *Order) (db.Episode, bool, error) {
+// playable says a title or episode of this length can be scheduled: a known length of at
+// least a minute (shorter ones, stray clips or bad data, would fill a week with rows) and at
+// most a day.
+func playable(ms int64) bool {
+	return ms >= minProgramme.Milliseconds() && ms <= maxProgramme.Milliseconds()
+}
+
+// episode is the episode of show to play next under the selection. An episode that is placed
+// moves the show's place; one that does not fit room leaves the place where it is, so it airs
+// later. Episodes that can never be scheduled are passed over for good.
+func (bd *build) episode(show int64, sel *Selection, o *Order, room int64) (db.Episode, bool, error) {
+	fits := func(e db.Episode) bool { return room <= 0 || e.DurationMS <= room }
 	if sel.Episodes == "random" {
 		count, err := bd.src.ShowEpisodeCount(bd.ctx, show)
 		if err != nil || count == 0 {
@@ -468,7 +496,7 @@ func (bd *build) episode(show int64, sel *Selection, o *Order) (db.Episode, bool
 		if err == db.ErrNotFound {
 			return db.Episode{}, false, nil
 		}
-		return e, err == nil, err
+		return e, err == nil && playable(e.DurationMS) && fits(e), err
 	}
 	for try := 0; try < 50; try++ {
 		place := bd.st.Shows[show]
@@ -484,12 +512,36 @@ func (bd *build) episode(show int64, sel *Selection, o *Order) (db.Episode, bool
 			continue
 		}
 		e := next[0]
-		bd.st.Shows[show] = Place{e.Season, e.Number, e.ID}
-		if e.DurationMS > 0 && e.DurationMS <= maxProgramme.Milliseconds() {
-			return e, true, nil
+		if !playable(e.DurationMS) {
+			bd.st.Shows[show] = Place{e.Season, e.Number, e.ID}
+			continue
 		}
+		if !fits(e) {
+			return db.Episode{}, false, nil
+		}
+		bd.st.Shows[show] = Place{e.Season, e.Number, e.ID}
+		return e, true, nil
 	}
 	return db.Episode{}, false, nil
+}
+
+// runLength is how many more episodes of a show play in a row after the one just placed: the
+// rest of the marathon, or under In order by "Show then episode", every episode it has left.
+func (bd *build) runLength(sel *Selection, show int64) (int, error) {
+	if sel.Episodes == "marathon" {
+		if sel.Marathon == 0 {
+			return 11, nil
+		}
+		return sel.Marathon - 1, nil
+	}
+	place := bd.st.Shows[show]
+	left, err := bd.src.ShowEpisodes(bd.ctx, show, place.Season, place.Number, place.ID, 5000)
+	return len(left), err
+}
+
+// inRuns says a show's episodes play in a row: a marathon, or In order by show then episode.
+func inRuns(sel *Selection) bool {
+	return sel.Episodes == "marathon" || sel.Order == "inOrder" && sel.Sort == "episode" && sel.Episodes != "mixed"
 }
 
 // next is the next programme of a selection: its item and length, or false for the slate.
@@ -501,17 +553,17 @@ func (bd *build) next(poolKey, orderKey string, sel *Selection, room int64) (int
 	}
 	o := bd.order(orderKey)
 	bd.rewind(o, p)
-	if sel.Episodes == "marathon" && o.Show != 0 && o.Left > 0 {
-		o.Left--
-		e, ok, err := bd.episode(o.Show, sel, o)
+	if inRuns(sel) && o.Show != 0 && o.Left > 0 {
+		e, ok, err := bd.episode(o.Show, sel, o, room)
 		if err != nil {
 			return 0, 0, false, err
 		}
-		if ok && (room <= 0 || e.DurationMS <= room) {
+		if ok {
+			o.Left--
 			bd.played(e.ID)
 			return e.ID, e.DurationMS, true, nil
 		}
-		o.Show, o.Left = 0, 0
+		o.Show, o.Left = 0, 0 // the next episode does not fit here: it stays next for its show
 	}
 	for try := 0; try < 20; try++ {
 		t, ok := bd.pick(o, p, sel, room)
@@ -522,19 +574,19 @@ func (bd *build) next(poolKey, orderKey string, sel *Selection, room int64) (int
 			bd.played(t.id)
 			return t.id, t.ms, true, nil
 		}
-		e, ok, err := bd.episode(t.id, sel, o)
+		e, ok, err := bd.episode(t.id, sel, o, room)
 		if err != nil {
 			return 0, 0, false, err
 		}
-		if !ok || room > 0 && e.DurationMS > room {
+		if !ok {
 			continue
 		}
-		if sel.Episodes == "marathon" {
-			run := sel.Marathon
-			if run == 0 {
-				run = 12
+		if inRuns(sel) {
+			n, err := bd.runLength(sel, t.id)
+			if err != nil {
+				return 0, 0, false, err
 			}
-			o.Show, o.Left = t.id, run-1
+			o.Show, o.Left = t.id, n
 		}
 		bd.played(t.id, e.ID)
 		return e.ID, e.DurationMS, true, nil
