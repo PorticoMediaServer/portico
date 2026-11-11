@@ -98,12 +98,12 @@ func (s *Service) ServeMedia(w http.ResponseWriter, r *http.Request, token, file
 		deadline(w)
 		a, err := openArchive(f.at, f.size)
 		if err != nil {
-			writeError(w, http.StatusUnprocessableEntity, "book_damaged", err.Error())
+			damaged(w, f, "book_damaged", err.Error())
 			return
 		}
 		book, err := s.epub(version, a)
 		if err != nil {
-			writeError(w, http.StatusUnprocessableEntity, "book_damaged", err.Error())
+			damaged(w, f, "book_damaged", err.Error())
 			return
 		}
 		part, ok := book.byPath[strings.TrimPrefix(file, "parts/")]
@@ -111,7 +111,7 @@ func (s *Service) ServeMedia(w http.ResponseWriter, r *http.Request, token, file
 			writeError(w, http.StatusNotFound, "not_found", "This is not available.")
 			return
 		}
-		sendEntry(w, a, part.Path, part.Type)
+		sendEntry(w, f, a, part.Path, part.Type)
 	case strings.HasPrefix(file, "pages/") && format == FormatCBZ:
 		deadline(w)
 		n, err := strconv.Atoi(strings.TrimPrefix(file, "pages/"))
@@ -121,7 +121,7 @@ func (s *Service) ServeMedia(w http.ResponseWriter, r *http.Request, token, file
 		}
 		a, aerr := openArchive(f.at, f.size)
 		if aerr != nil {
-			writeError(w, http.StatusUnprocessableEntity, "book_damaged", aerr.Error())
+			damaged(w, f, "book_damaged", aerr.Error())
 			return
 		}
 		c, cerr := readComic(a)
@@ -129,7 +129,7 @@ func (s *Service) ServeMedia(w http.ResponseWriter, r *http.Request, token, file
 			writeError(w, http.StatusNotFound, "not_found", "This is not available.")
 			return
 		}
-		s.sendPage(ctx, w, a, c.pages[n], width)
+		s.sendPage(ctx, w, f, a, c.pages[n], width)
 	default:
 		writeError(w, http.StatusNotFound, "not_found", "This is not available.")
 	}
@@ -137,15 +137,15 @@ func (s *Service) ServeMedia(w http.ResponseWriter, r *http.Request, token, file
 
 // sendPage sends one comic page: as it is in the file, or made smaller when it is wider than
 // the reader asked for. A page too large to prepare safely is refused, and only that page.
-func (s *Service) sendPage(ctx context.Context, w http.ResponseWriter, a *archive, name string, width int) {
+func (s *Service) sendPage(ctx context.Context, w http.ResponseWriter, f *bookFile, a *archive, name string, width int) {
 	entry := a.entries[name]
-	sendPicture(ctx, w, name, entry.UncompressedSize64, entry.Open, width, func() { sendEntry(w, a, name, pageTypes[strings.ToLower(path.Ext(name))]) })
+	sendPicture(ctx, w, f, entry.UncompressedSize64, entry.Open, width, func() { sendEntry(w, f, a, name, pageTypes[strings.ToLower(path.Ext(name))]) })
 }
 
 // sendPicture sends one page whose bytes open gives: made smaller when it is wider than the
 // reader asked for, otherwise as it is, by send. A page too large to prepare safely is
-// refused, and only that page.
-func sendPicture(ctx context.Context, w http.ResponseWriter, name string, size uint64, open func() (io.ReadCloser, error), width int, send func()) {
+// refused, and only that page. f is the book's file when the page is inside it.
+func sendPicture(ctx context.Context, w http.ResponseWriter, f *bookFile, size uint64, open func() (io.ReadCloser, error), width int, send func()) {
 	if size > maxPartSize {
 		writeError(w, http.StatusUnprocessableEntity, "page_too_large", errPageTooLarge.Error())
 		return
@@ -161,7 +161,7 @@ func sendPicture(ctx context.Context, w http.ResponseWriter, name string, size u
 			writeErrorRetry(w, http.StatusServiceUnavailable, "busy", errBusy.Error())
 			return
 		case err != nil:
-			writeError(w, http.StatusUnprocessableEntity, "page_damaged", "This page can't be shown.")
+			damaged(w, f, "page_damaged", "This page can't be shown.")
 			return
 		case out != nil:
 			defer done()
@@ -222,7 +222,7 @@ func (s *Service) serveImagePage(w http.ResponseWriter, r *http.Request, g grant
 		_, err := f.Seek(0, io.SeekStart)
 		return io.NopCloser(f), err
 	}
-	sendPicture(r.Context(), w, page.Path, uint64(info.Size()), open, width, func() {
+	sendPicture(r.Context(), w, nil, uint64(info.Size()), open, width, func() {
 		// Deciding whether to make the page smaller may have read its header: start again.
 		if _, err := f.Seek(0, io.SeekStart); err != nil {
 			writeError(w, http.StatusUnprocessableEntity, "page_damaged", "This page can't be shown.")
@@ -238,11 +238,11 @@ func (s *Service) serveImagePage(w http.ResponseWriter, r *http.Request, g grant
 // sendEntry streams one entry of the archive as it unpacks; nothing is held whole. The archive
 // reader stops at the size the entry declares, so a damaged or dishonest entry ends the reply
 // early instead of sending more.
-func sendEntry(w http.ResponseWriter, a *archive, name, contentType string) {
+func sendEntry(w http.ResponseWriter, f *bookFile, a *archive, name, contentType string) {
 	entry := a.entries[name]
 	rc, err := entry.Open()
 	if err != nil {
-		writeError(w, http.StatusUnprocessableEntity, "book_damaged", errDamaged.Error())
+		damaged(w, f, "book_damaged", errDamaged.Error())
 		return
 	}
 	defer rc.Close()
@@ -260,6 +260,18 @@ const sendWithin = 2 * time.Minute
 func deadline(w http.ResponseWriter) {
 	// A writer that cannot take a deadline (only ever a test's) is sent without one.
 	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(sendWithin))
+}
+
+// damaged answers a part or page that could not be read: damaged, or, when the book is on a
+// remote source that stopped answering partway, "try again". f is nil for a page that is a
+// file of its own.
+func damaged(w http.ResponseWriter, f *bookFile, code, message string) {
+	if f != nil && f.explain(errDamaged) == ErrSourceUnreachable {
+		w.Header().Set("Retry-After", "5")
+		writeErrorRetry(w, http.StatusServiceUnavailable, "source_unreachable", ErrSourceUnreachable.Error())
+		return
+	}
+	writeError(w, http.StatusUnprocessableEntity, code, message)
 }
 
 func fileType(format string) string {
