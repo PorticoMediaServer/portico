@@ -463,7 +463,7 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
         const nextProfile = nextAccount.profiles.find(value => value.id === authority.profileId);
         if (!selection || selection.serverUrl !== original.serverUrl || !sameViewer(selection.session, session!)
           || (['accountId', 'profileId', 'serverId', 'authority'] as const).some(key => me.viewer[key] !== session!.viewer[key])
-          || !nextProfile || nextProfile.pinRequired !== profile.pinRequired) {end(); return;}
+          || !nextProfile) {end(); return;}
         if (me.viewer.role !== session!.viewer.role || nextAccount.account.role !== currentAccount().account.role) {rebuild(); return;}
         // Revalidate Home before committing the other private facts. Same-scope read failures
         // retain the entire published body; a changed Home fence retires it in the transport.
@@ -532,12 +532,12 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
         const ticket = readOrder.identity.begin();
         const [me, nextAccount, nextAvatars] = await Promise.all([
           readViewerIdentity(readers, session!.viewer, requestSignal),
-          readers.readAccount(requestSignal), identities.avatars(requestSignal),
+          readers.readAccount(requestSignal), identities.avatars(requestSignal).catch(noPictures),
         ]);
         await resourceCurrent(requestSignal);
         const nextProfile = nextAccount.profiles.find(value => value.id === authority.profileId);
         if ((['accountId', 'profileId', 'serverId', 'authority'] as const).some(key => me.viewer[key] !== session!.viewer[key])
-          || !nextProfile || nextProfile.pinRequired !== profile.pinRequired) {end(); return;}
+          || !nextProfile) {end(); return;}
         if (me.viewer.role !== session!.viewer.role || nextAccount.account.role !== currentAccount().account.role) {rebuild(); return;}
         readOrder.identity.apply(ticket, () => {account = nextAccount; avatars = nextAvatars; publish();});
       }),

@@ -11,10 +11,13 @@ const item = (id: string) => ({id, kind: 'movie', title: id, libraryId: 'lib_fil
 function server(saved: Readonly<{order?: string[]; hidden?: string[]}> = {}) {
   const sent: unknown[] = [];
   let order = saved.order ?? [], hidden = saved.hidden ?? [], offline = false;
-  const rows = () => [{id: 'continue', title: 'Continue Watching', shape: 'landscape', items: [item('a')]}, {id: 'recently_added', title: 'Recently Added', shape: 'poster', items: [item('b')]}]
-    .filter(row => row.id === 'continue' || !hidden.includes(row.id)).sort((x, y) => (order.indexOf(x.id) + 1 || 99) - (order.indexOf(y.id) + 1 || 99));
+  // As GET /v1/home answers: in the saved order without hidden rows; with hidden=include, a hidden row in its place, named, with no items.
+  const rows = (include: boolean) => [{id: 'continue', title: 'Continue Watching', shape: 'landscape', items: [item('a')]}, {id: 'recently_added', title: 'Recently Added', shape: 'poster', items: [item('b')]}]
+    .sort((x, y) => (order.indexOf(x.id) + 1 || 99) - (order.indexOf(y.id) + 1 || 99))
+    .flatMap(row => row.id !== 'continue' && hidden.includes(row.id) ? include ? [{...row, items: [], hidden: true}] : [] : [row]);
+  const asked: string[] = [];
   const api = {request: async <T>(path: string, method = 'GET', body?: unknown): Promise<T> => {
-    if (path.startsWith('/v1/home')) return {rows: rows()} as T;
+    if (path.startsWith('/v1/home')) {asked.push(path); return {rows: rows(path.includes('hidden=include'))} as T;}
     if (method === 'PATCH') {
       if (offline) throw Object.assign(new Error('Saved on this device.'), {code: 'sync_pending'});
       sent.push(body); const values = (body as {values: Record<string, string[] | null>}).values;
@@ -22,7 +25,7 @@ function server(saved: Readonly<{order?: string[]; hidden?: string[]}> = {}) {
     }
     return {...settings, effective: {...settings.effective, 'home.rowOrder': order, 'home.hiddenRowIds': hidden}} as T;
   }};
-  return {api, sent, goOffline: () => {offline = true;}};
+  return {api, sent, asked, goOffline: () => {offline = true;}};
 }
 
 test('Customize Home saves the order and hidden rows as settings, Home follows, and Reset takes both away', async () => {
@@ -33,12 +36,24 @@ test('Customize Home saves the order and hidden rows as settings, Home follows, 
   assert.equal(await editor.save(), true);
   assert.deepEqual(sent, [{scope: 'profile-server', deviceClass: 'web', values: {'home.rowOrder': ['recently_added', 'continue'], 'home.hiddenRowIds': ['recently_added']}}]);
   assert.deepEqual(home.getSnapshot().document!.rows.map(row => row.id), ['continue']);
-  // A hidden row is left out of Home, so the editor names it by the title it was last seen under, and it can be shown again.
   await editor.load();
   const hidden = editor.getSnapshot().draft!.view.rows.find(row => row.id === 'recently_added')!;
   assert.equal(hidden.title, 'Recently Added'); assert.equal(hidden.hidden, true);
   assert.equal(await editor.reset(), true);
   assert.deepEqual(sent[1], {scope: 'profile-server', deviceClass: 'web', values: {'home.rowOrder': null, 'home.hiddenRowIds': null}});
+  assert.deepEqual(home.getSnapshot().document!.rows.map(row => row.id), ['continue', 'recently_added']);
+});
+
+test('after a restart Customize Home names a hidden row from the server and can show it again; Home itself never asks for hidden rows', async () => {
+  const {api, sent, asked} = server({hidden: ['recently_added']}), home = new HomeService(api), editor = new HomeLayoutEditor(home, {requestId: () => 'r', isCurrent: () => true});
+  await home.load();
+  assert.deepEqual(home.getSnapshot().document!.rows.map(row => row.id), ['continue']);
+  await editor.load();
+  assert.deepEqual(asked, ['/v1/home', '/v1/home?hidden=include']);
+  const hidden = editor.getSnapshot().draft!.view.rows.find(row => row.id === 'recently_added')!;
+  assert.equal(hidden.title, 'Recently Added'); assert.equal(hidden.hidden, true);
+  editor.show('recently_added', true); assert.equal(await editor.save(), true);
+  assert.deepEqual((sent[0] as {values: Record<string, unknown>}).values['home.hiddenRowIds'], []);
   assert.deepEqual(home.getSnapshot().document!.rows.map(row => row.id), ['continue', 'recently_added']);
 });
 
