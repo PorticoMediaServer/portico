@@ -54,8 +54,12 @@ type Store struct {
 	warned  time.Time
 }
 
-// NewStore keeps certificates read from the folder keys.
+// NewStore keeps certificates read from the folder keys, which it makes (readable by the
+// server alone) so the owner has somewhere to put them.
 func NewStore(keys string, log *slog.Logger, now func() time.Time) *Store {
+	if err := os.MkdirAll(keys, 0o700); err != nil {
+		log.Warn("the Keys folder could not be made", "folder", keys, "error", err)
+	}
 	return &Store{keys: keys, log: log, now: now}
 }
 
@@ -106,6 +110,10 @@ func (s *Store) Check() {
 		return
 	}
 	cert, leaf, problem := load(certPath, keyPath, src, s.now())
+	if info, err := os.Stat(keyPath); err == nil && info.Mode().Perm()&0o077 != 0 {
+		// Not refused: a container often cannot change it.
+		s.log.Warn("the key file for your own address can be read by other users of this machine", "file", keyPath)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if src != s.source {
