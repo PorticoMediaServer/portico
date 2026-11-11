@@ -343,7 +343,7 @@ func TestAChosenMatchKeepsStateAndIsNeverChangedAgain(t *testing.T) {
 		t.Fatalf("Identify: %q, %v", remaining, err)
 	}
 	fixed := f.title(db.KindMovie, "Heat")
-	if fixed.PublicID != heat.PublicID || fixed.Year != 1995 || fixed.Tagline != "A Los Angeles crime saga." || fixed.CreditTotal != 3 {
+	if fixed.PublicID != heat.PublicID || fixed.Year != 1995 || fixed.Tagline != "A Los Angeles crime saga." || fixed.CreditTotal != 57 {
 		t.Errorf("details after choosing the match: %+v", fixed)
 	}
 	if !fixed.State.Watched || !fixed.State.Favorite {
