@@ -54,8 +54,10 @@ async function send<T>({origin, cookie}: Transport, route: ServicesRoute, values
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (options.token) headers.Authorization = `Bearer ${options.token}`;
   if (options.create) headers['Idempotency-Key'] = crypto.randomUUID();
-  // The header asks Services to keep the refresh token in its cookie. The cookie's path is the
-  // renewal route alone, so no other call carries it even though cookies are allowed.
+  // The header asks Services to keep the refresh token in its cookie (`__Host-portico_refresh`,
+  // path `/`), so the browser must be allowed to send and keep cookies. The browser sends that
+  // cookie with every request to this address anyway; Services reads it only on the routes that
+  // sign in, renew or sign out, and only with this header.
   if (cookie) headers['Portico-Refresh'] = 'cookie';
   let response: Response;
   try {
