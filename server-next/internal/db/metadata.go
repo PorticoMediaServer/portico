@@ -65,6 +65,8 @@ type MatchItem struct {
 	ParentID    int64
 	ParentTitle string
 	ParentAsked bool
+	// Layout is, for an album, how many tracks the library has on each disc, in disc order.
+	Layout []int
 }
 
 // refreshGrown makes a matched show or album that gained an episode or a track in this import
@@ -112,6 +114,13 @@ func (d *DB) ToMatch(ctx context.Context, libraryID int64, kinds []ItemKind, aft
 			[]any{items[i].ID}, func(e *ExternalID) []any { return []any{&e.Provider, &e.ID} })
 		if err != nil {
 			return nil, err
+		}
+		if items[i].Kind == KindAlbum {
+			items[i].Layout, err = queryAll(ctx, tx, `SELECT count(*) FROM items WHERE parent_id = ? AND kind = ?
+				GROUP BY ifnull(parent_index, 1) ORDER BY ifnull(parent_index, 1)`, []any{items[i].ID, KindTrack}, func(n *int) []any { return []any{n} })
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 	return items, nil
