@@ -142,6 +142,8 @@ func playbackError(err error) error {
 		return refusal(http.StatusBadRequest, "client_update_required", "Update the app to play on this server.", false)
 	case errors.Is(err, playback.ErrDisc):
 		return notYet("disc_playback_unavailable", "Discs can't be played on this server.")
+	case errors.Is(err, playback.ErrConversionBroken):
+		return refusal(http.StatusInternalServerError, "conversion_unavailable", playback.ConversionBroken, false)
 	case errors.Is(err, playback.ErrSourceUnavailable):
 		e := refusal(http.StatusServiceUnavailable, "source_unavailable", "The file for this title can't be reached right now.", true)
 		e.RetryAfterMs = 5000
