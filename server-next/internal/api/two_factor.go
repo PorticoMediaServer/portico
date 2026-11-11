@@ -70,10 +70,10 @@ func (s *Server) twoFactorRoutes() {
 	// A sign-in the owner's settings hold back until two-step sign-in is set up can do
 	// exactly that, and nothing else.
 	Handle(s, "GET /v1/me/two-factor", SignedIn, s.twoFactorState).Enrolling = true
-	Handle(s, "POST /v1/me/two-factor", SignedIn, s.enrolTwoFactor).Enrolling = true
-	Handle(s, "POST /v1/me/two-factor/confirm", SignedIn, s.verifyTwoFactor).Enrolling = true
-	Handle(s, "POST /v1/me/two-factor/recovery-codes", SignedIn, s.newRecoveryCodes)
-	Handle(s, "DELETE /v1/me/two-factor", SignedIn, s.disableTwoFactor)
+	sensitive(Handle(s, "POST /v1/me/two-factor", SignedIn, s.enrolTwoFactor)).Enrolling = true
+	sensitive(Handle(s, "POST /v1/me/two-factor/confirm", SignedIn, s.verifyTwoFactor)).Enrolling = true
+	sensitive(Handle(s, "POST /v1/me/two-factor/recovery-codes", SignedIn, s.newRecoveryCodes))
+	sensitive(Handle(s, "DELETE /v1/me/two-factor", SignedIn, s.disableTwoFactor))
 }
 
 func recoveryHash(userID int64, typed string) string {

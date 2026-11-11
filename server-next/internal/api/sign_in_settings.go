@@ -81,7 +81,7 @@ func (s *Server) signInSettingsRoutes() {
 		_, saved, err := s.db.SettingDocument(r.Context(), signInSettingsKey)
 		return SignInSettings{s.policy(), revision(saved)}, err
 	})
-	Handle(s, "PATCH /v1/admin/settings/sign-in", Owner, func(r *http.Request, req SignInSettingsEdit) (SignInSettings, error) {
+	sensitive(Handle(s, "PATCH /v1/admin/settings/sign-in", Owner, func(r *http.Request, req SignInSettingsEdit) (SignInSettings, error) {
 		p := s.policy()
 		set(&p.StaySignedInDays, req.StaySignedInDays)
 		set(&p.PINRememberDays, req.PINRememberDays)
@@ -109,5 +109,5 @@ func (s *Server) signInSettingsRoutes() {
 		}
 		s.setPolicy(p)
 		return SignInSettings{p, revision(saved)}, nil
-	})
+	}))
 }
