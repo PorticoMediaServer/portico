@@ -48,10 +48,23 @@ var (
 // the library's scan depth and a remote source's preset differ, the lower wins: a library on
 // File list only, or a source on Just list the files, has nothing read.
 func (r *run) probe() error {
+	// How many files there are to read is counted once, here: it includes what an earlier
+	// scan left unread, which the walk of this one did not see as new.
+	unread, err := r.s.DB.UnprobedCount(r.ctx, r.lib.ID)
+	if err != nil {
+		return err
+	}
+	r.stats.Unread = unread
+	if r.s.Progress != nil {
+		r.s.Progress(r.stats)
+	}
 	var after int64
 	for {
 		files, err := r.s.DB.UnprobedFiles(r.ctx, r.lib.ID, after, r.batch)
 		if err != nil || len(files) == 0 {
+			if err == nil {
+				r.stats.Unread = 0
+			}
 			return err
 		}
 		// Up to four files are read at once: each read is a confined tool at low priority, so
@@ -91,6 +104,7 @@ func (r *run) probe() error {
 		if err := r.s.DB.StoreProbes(r.ctx, probes); err != nil {
 			return err
 		}
+		r.stats.Unread = max(r.stats.Unread-len(files), 0)
 		if r.s.Progress != nil {
 			r.s.Progress(r.stats)
 		}

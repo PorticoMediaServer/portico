@@ -329,6 +329,16 @@ func TestALibrarySaysHowItsFoldersAreKeptUpToDate(t *testing.T) {
 			t.Fatalf("reading the library answered %d", w.Code)
 		}
 		if f := now.Folders[0]; f.Watched && f.Notice == "" && f.ScanEveryMinutes == 0 {
+			// Where the watching switch is shown, the owner is told what it does not cover.
+			if now.WatchNote != watchNote {
+				t.Errorf("a watched library's note: %q", now.WatchNote)
+			}
+			off := false
+			var unwatched AdminLibrary
+			edit := LibraryEdit{Options: &LibraryOptions{Depth: "basic", Trash: TrashRule{Mode: "manual"}, Watch: &off}}
+			if w := call(t, s, "PATCH", "/v1/admin/libraries/"+lib.ID, owner, edit, &unwatched); w.Code != 200 || unwatched.WatchNote != "" {
+				t.Errorf("with watching off: %d, note %q", w.Code, unwatched.WatchNote)
+			}
 			return
 		}
 		if time.Now().After(deadline) {

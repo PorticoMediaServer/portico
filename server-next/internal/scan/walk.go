@@ -56,8 +56,11 @@ type Stats struct {
 	FilesGone    int
 	ItemsNew     int
 	Probed       int
-	Removed      int   // missing titles the library's trash rule removed
-	RowsWritten  int64 // rows the folder walk inserted, updated or deleted
+	// Unread is how many of the library's files still have their details (length, tracks)
+	// to be read: it grows while the folders are walked and falls as the reading pass goes.
+	Unread      int
+	Removed     int   // missing titles the library's trash rule removed
+	RowsWritten int64 // rows the folder walk inserted, updated or deleted
 }
 
 // errEmptied is the state of a library folder that had files and now lists as empty: most
@@ -97,8 +100,7 @@ func (s *Scanner) Scan(ctx context.Context, lib db.Library) (Stats, error) {
 		}
 		paths[p.ID] = unavailable
 	}
-	// Books and comics are not audio or video: there is nothing in them for the prober.
-	if lib.Options.Depth != db.DepthFiles && (s.Prober != nil || s.ReaderProber != nil) && lib.Kind != db.LibraryBooks && lib.Kind != db.LibraryComics {
+	if r.reads() {
 		if err := r.probe(); err != nil {
 			return r.stats, err
 		}
@@ -109,6 +111,13 @@ func (s *Scanner) Scan(ctx context.Context, lib db.Library) (Stats, error) {
 		}
 	}
 	return r.stats, s.DB.EndScan(ctx, lib.ID, paths)
+}
+
+// reads reports whether this scan reads the inside of files. Books and comics are not audio
+// or video: there is nothing in them for the prober.
+func (r *run) reads() bool {
+	return r.lib.Options.Depth != db.DepthFiles && (r.s.Prober != nil || r.s.ReaderProber != nil) && r.lib.Kind != db.LibraryBooks &&
+		r.lib.Kind != db.LibraryComics
 }
 
 func (s *Scanner) log() *slog.Logger {
@@ -461,6 +470,9 @@ func (r *run) store(f *folder, gone []db.FileRef) error {
 			}
 			in := db.ImportFile{FileRef: file.ref(), Role: file.role, Size: file.entry.Size, ModifiedNS: file.entry.ModifiedNS,
 				Unprobed: file.role == db.FileMedia, Problem: file.problem}
+			if in.Unprobed && r.reads() {
+				r.stats.Unread++
+			}
 			if file.stream != nil {
 				in.Streams = []db.Stream{*file.stream}
 			}
