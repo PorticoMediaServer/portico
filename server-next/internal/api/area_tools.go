@@ -4,10 +4,12 @@ import (
 	"context"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/compat"
+	"github.com/PorticoMediaServer/portico/server-next/internal/dlna"
 	"github.com/PorticoMediaServer/portico/server-next/internal/secrets"
 	"github.com/PorticoMediaServer/portico/server-next/internal/webhooks"
 )
@@ -22,6 +24,13 @@ type toolsArea struct {
 	// compat and compatKey serve the Jellyfin-compatible routes. See compat.go.
 	compat    compatState
 	compatKey []byte
+	// remoteAccessDoc is the remote-access settings, and dlna the DLNA server they switch. See dlna.go.
+	remoteAccessDoc remoteAccessState
+	dlna            *dlna.Server
+	// silentProxySeen says DLNA has served a request from a trusted proxy that passed on no
+	// visitor's address since the server started; the remote-access settings warn about it.
+	// (The record #2328 keeps of such a proxy replaces this once both are on main.)
+	silentProxySeen atomic.Bool
 }
 
 // startTools builds this area's services and registers its routes and job kinds. New calls it
@@ -37,6 +46,10 @@ func (s *Server) startTools(ctx context.Context) error {
 	s.compatKey = []byte(compatKey)
 	s.integrationRoutes()
 	s.mcpRoutes()
+	if err := s.loadRemoteAccess(ctx); err != nil {
+		return err
+	}
+	s.dlnaRoutes()
 	box, err := secrets.Open(s.dataDir)
 	if err != nil {
 		return err
