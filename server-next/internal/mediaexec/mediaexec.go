@@ -337,9 +337,35 @@ func environment() []string {
 	for _, name := range passedEnvironment {
 		if v, ok := os.LookupEnv(name); ok {
 			out = append(out, name+"="+v)
+		} else if name == "LIBVA_DRIVERS_PATH" {
+			if dir := vaDriversFolder(); dir != "" {
+				out = append(out, name+"="+dir)
+			}
 		}
 	}
 	return out
+}
+
+// vaDriverFolders is where Linux distributions keep VA-API drivers, most specific first.
+// Portico's FFmpeg has only the Debian and Ubuntu folder built in, so on Fedora, Arch and
+// others it would find no driver that is installed.
+var vaDriverFolders = map[string][]string{
+	"amd64": {"/usr/lib/x86_64-linux-gnu/dri", "/usr/lib64/dri", "/usr/lib/dri"},
+	"arm64": {"/usr/lib/aarch64-linux-gnu/dri", "/usr/lib64/dri", "/usr/lib/dri"},
+}
+
+// vaDriversFolder is the folder a media process is pointed at for VA-API drivers when the
+// owner has not set LIBVA_DRIVERS_PATH: the first of the usual ones that exists.
+func vaDriversFolder() string {
+	if runtime.GOOS != "linux" {
+		return ""
+	}
+	for _, dir := range vaDriverFolders[runtime.GOARCH] {
+		if info, err := os.Stat(dir); err == nil && info.IsDir() {
+			return dir
+		}
+	}
+	return ""
 }
 
 // HardwareEnvironment carries only the existing driver allowlist to a private
@@ -352,6 +378,10 @@ func hardwareEnvironment() [][2]string {
 	for _, name := range []string{"LIBVA_DRIVER_NAME", "LIBVA_DRIVERS_PATH", "CUDA_VISIBLE_DEVICES", "NVIDIA_VISIBLE_DEVICES", "NVIDIA_DRIVER_CAPABILITIES"} {
 		if v, ok := os.LookupEnv(name); ok {
 			out = append(out, [2]string{name, v})
+		} else if name == "LIBVA_DRIVERS_PATH" {
+			if dir := vaDriversFolder(); dir != "" {
+				out = append(out, [2]string{name, dir})
+			}
 		}
 	}
 	return out

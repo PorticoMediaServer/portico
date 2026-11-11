@@ -116,6 +116,19 @@ func LinuxHardwareSandboxArgs(environment [][2]string) []string {
 	for _, dir := range hardwareReadable {
 		args = append(args, "--ro-bind-try", dir, dir)
 	}
+	// A driver folder the owner named with LIBVA_DRIVERS_PATH (a driver the distribution
+	// does not package, say under /opt) is readable too; without that the variable names
+	// a folder the job cannot see.
+	for _, kv := range environment {
+		if kv[0] != "LIBVA_DRIVERS_PATH" {
+			continue
+		}
+		for _, dir := range filepath.SplitList(kv[1]) {
+			if filepath.IsAbs(dir) && filepath.Clean(dir) == dir && dir != "/" {
+				args = append(args, "--ro-bind-try", dir, dir)
+			}
+		}
+	}
 	args = append(args, "--dev-bind-try", "/dev/dri", "/dev/dri")
 	for _, device := range []string{"/dev/dxg", "/dev/mpp_service", "/dev/rga", "/dev/dma_heap"} {
 		args = append(args, "--dev-bind-try", device, device)
