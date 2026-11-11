@@ -6,6 +6,7 @@ package live
 import (
 	"bufio"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -300,7 +301,8 @@ type GuideChannel struct {
 // a time, never holding the whole guide. Entities are never expanded and a DOCTYPE may name
 // only the tv document.
 func ParseGuide(r io.Reader, report *Report, channel func(GuideChannel) error, programme func(Programme) error) error {
-	dec := xml.NewDecoder(r)
+	budget := &elementBudget{r: r}
+	dec := xml.NewDecoder(budget)
 	dec.CharsetReader = charset
 	depth, root := 0, false
 	count := 0
@@ -308,6 +310,9 @@ func ParseGuide(r io.Reader, report *Report, channel func(GuideChannel) error, p
 		tok, err := dec.Token()
 		if err == io.EOF {
 			break
+		}
+		if errors.Is(err, errElementTooLarge) {
+			return err
 		}
 		if err != nil {
 			return fmt.Errorf("the guide could not be read: %w", err)
@@ -326,6 +331,7 @@ func ParseGuide(r io.Reader, report *Report, channel func(GuideChannel) error, p
 				root = true
 				continue
 			}
+			budget.left = maxElement // each channel and programme is read within its own budget
 			switch t.Name.Local {
 			case "channel":
 				var row struct {
@@ -388,6 +394,32 @@ func ParseGuide(r io.Reader, report *Report, channel func(GuideChannel) error, p
 	return nil
 }
 
+// maxElement is the most one channel or programme of a guide may take. A real one is a few
+// kilobytes; the decoder holds what it reads of an element, so this bounds its memory too.
+const maxElement = 1 << 20
+
+var errElementTooLarge = errors.New("a programme or channel in the guide is larger than 1 MB")
+
+// elementBudget fails a read once the element being read has taken more than its budget.
+// Between elements, before the first one, the budget is the whole guide's.
+type elementBudget struct {
+	r    io.Reader
+	left int64
+	open bool
+}
+
+func (b *elementBudget) Read(p []byte) (int, error) {
+	if !b.open {
+		b.open, b.left = true, maxElement
+	}
+	if b.left <= 0 {
+		return 0, errElementTooLarge
+	}
+	n, err := b.r.Read(p[:min(int64(len(p)), b.left)])
+	b.left -= int64(n)
+	return n, err
+}
+
 func decodeProgramme(dec *xml.Decoder, t *xml.StartElement) (Programme, bool, error) {
 	var row struct {
 		Channel  string   `xml:"channel,attr"`
@@ -414,6 +446,9 @@ func decodeProgramme(dec *xml.Decoder, t *xml.StartElement) (Programme, bool, er
 		} `xml:"rating"`
 	}
 	if err := dec.DecodeElement(&row, t); err != nil {
+		if errors.Is(err, errElementTooLarge) {
+			return Programme{}, false, err
+		}
 		return Programme{}, false, fmt.Errorf("the guide could not be read: %w", err)
 	}
 	start, errStart := parseXMLTVTime(row.Start)
