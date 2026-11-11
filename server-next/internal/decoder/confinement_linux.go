@@ -72,7 +72,7 @@ func decodeLinux(text string) (linuxSpec, error) {
 	}
 	host, port, e := net.SplitHostPort(v.Endpoint)
 	n, _ := strconv.Atoi(port)
-	if e != nil || host != "127.0.0.1" || n < 1 || n > 65535 || !filepath.IsAbs(v.Executable) || filepath.Clean(v.Executable) != v.Executable || len(v.Arguments) > 256 ||
+	if e != nil || host != "127.0.0.1" && host != "::1" || n < 1 || n > 65535 || !filepath.IsAbs(v.Executable) || filepath.Clean(v.Executable) != v.Executable || len(v.Arguments) > 256 ||
 		len(v.Libraries) > maxLibraryFiles {
 		return v, ErrInvalidConfiguration
 	}
@@ -390,7 +390,7 @@ func runOuter(v linuxSpec, fds []*os.File) error {
 	}
 	target, _ := url.Parse("http://" + v.Endpoint)
 	transport := &http.Transport{Proxy: nil, DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-		return (&net.Dialer{Timeout: 5 * time.Second}).DialContext(ctx, "tcp4", v.Endpoint)
+		return (&net.Dialer{Timeout: 5 * time.Second}).DialContext(ctx, "tcp", v.Endpoint)
 	}, ResponseHeaderTimeout: 15 * time.Second, MaxIdleConnsPerHost: 8}
 	defer transport.CloseIdleConnections()
 	server := &http.Server{Handler: proxyHandler(target, transport, v.OutputPath), ReadHeaderTimeout: 5 * time.Second, MaxHeaderBytes: 32 << 10}
@@ -420,7 +420,7 @@ func runInner(v linuxSpec, fds []*os.File) error {
 	if v.Probe {
 		return nil
 	}
-	listener, e := net.Listen("tcp4", v.Endpoint)
+	listener, e := net.Listen("tcp", v.Endpoint)
 	if e != nil {
 		return e
 	}

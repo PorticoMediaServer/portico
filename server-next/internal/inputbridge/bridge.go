@@ -34,7 +34,7 @@ type Bridge struct {
 	source   io.ReaderAt
 	size     int64
 	server   *http.Server
-	ipv4     *net.TCPListener
+	ipv4     *net.TCPListener // nil on a host with IPv6 loopback only
 	ipv6     *net.TCPListener // nil on a host with no IPv6 loopback
 	requests chan struct{}
 	done     chan struct{}
@@ -44,27 +44,36 @@ type Bridge struct {
 // Open starts serving a source of a known size on a fresh loopback port. The
 // tool is told the IPv4 address. The same port on IPv6 loopback is held too, so
 // nothing else can sit there, unless the host has no IPv6 loopback at all (many
-// containers), where there is nothing to hold.
+// containers), where there is nothing to hold. On a host with IPv6 loopback only,
+// the tool is told [::1].
 // The bridge stops when ctx ends or Close is called.
 func Open(ctx context.Context, source io.ReaderAt, size int64) (*Bridge, error) {
 	if ctx == nil || ctx.Err() != nil || source == nil || size <= 0 {
 		return nil, ErrInput
 	}
-	ipv4, err := net.ListenTCP("tcp4", &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	var listeners []net.Listener
+	ipv4, err := listenIPv4()
+	var ipv6 *net.TCPListener
 	if err != nil {
-		return nil, err
-	}
-	listeners := []net.Listener{ipv4}
-	ipv6, err := listenIPv6(ipv4.Addr().(*net.TCPAddr).Port)
-	if err == nil {
+		// A host with IPv6 loopback only: the tool is told [::1].
+		if ipv6, err = listenIPv6(0); err != nil {
+			return nil, err
+		}
+		ipv4 = nil
 		listeners = append(listeners, ipv6)
-	} else if probe, probeErr := listenIPv6(0); probeErr == nil {
-		// IPv6 loopback works, so this port is taken there by something else.
-		probe.Close()
-		ipv4.Close()
-		return nil, err
 	} else {
-		ipv6 = nil
+		listeners = append(listeners, ipv4)
+		ipv6, err = listenIPv6(ipv4.Addr().(*net.TCPAddr).Port)
+		if err == nil {
+			listeners = append(listeners, ipv6)
+		} else if probe, probeErr := listenIPv6(0); probeErr == nil {
+			// IPv6 loopback works, so this port is taken there by something else.
+			probe.Close()
+			ipv4.Close()
+			return nil, err
+		} else {
+			ipv6 = nil
+		}
 	}
 	var secret [32]byte
 	if _, err = rand.Read(secret[:]); err != nil {
@@ -77,7 +86,8 @@ func Open(ctx context.Context, source io.ReaderAt, size int64) (*Bridge, error) 
 		source: source, size: size, ipv4: ipv4, ipv6: ipv6,
 		path: "/input/" + hex.EncodeToString(secret[:]), requests: make(chan struct{}, 8), done: make(chan struct{}),
 	}
-	b.url = "http://" + ipv4.Addr().String() + b.path
+	told := listeners[0].Addr().String()
+	b.url = "http://" + told + b.path
 	b.server = &http.Server{
 		Handler: b, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 5 * time.Second, MaxHeaderBytes: 4096,
 		BaseContext: func(net.Listener) context.Context { return ctx },
@@ -91,7 +101,12 @@ func Open(ctx context.Context, source io.ReaderAt, size int64) (*Bridge, error) 
 	return b, nil
 }
 
-// listenIPv6 is replaced in tests to stand in for a host without IPv6 loopback.
+// listenIPv4 and listenIPv6 are replaced in tests to stand in for a host without one of
+// the two loopbacks.
+var listenIPv4 = func() (*net.TCPListener, error) {
+	return net.ListenTCP("tcp4", &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1)})
+}
+
 var listenIPv6 = func(port int) (*net.TCPListener, error) {
 	return net.ListenTCP("tcp6", &net.TCPAddr{IP: net.IPv6loopback, Port: port})
 }

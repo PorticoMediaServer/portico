@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -82,7 +83,7 @@ func sandboxArgv(job Job, _ Posture) ([]string, error) {
 	var b strings.Builder
 	b.WriteString("(version 1)\n(allow default)\n(deny network*)\n")
 	if job.Loopback != "" {
-		_, port, _ := strings.Cut(job.Loopback, ":")
+		_, port, _ := net.SplitHostPort(job.Loopback)
 		b.WriteString(`(allow network-outbound (remote tcp "localhost:` + port + `"))` + "\n")
 	}
 	// "/Library/Apple/usr/libexec/oah" is Rosetta's runtime: an Intel FFmpeg on

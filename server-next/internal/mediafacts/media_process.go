@@ -14,7 +14,7 @@ import (
 func probeJob(binary string, args []string, input string) mediaexec.Job {
 	job := mediaexec.Job{Executable: binary, Args: args}
 	if u, err := url.Parse(input); err == nil && (u.Scheme == "http" || u.Scheme == "https") {
-		if u.Hostname() == "127.0.0.1" {
+		if u.Hostname() == "127.0.0.1" || u.Hostname() == "::1" {
 			job.Loopback = u.Host
 		}
 		return job
