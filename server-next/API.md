@@ -27,7 +27,7 @@ Assistant) are a separate short document and are not counted here.
 | Repeating a request | `PUT`, `PATCH` and `DELETE` are safe to repeat by design. A `POST` that creates something takes an `Idempotency-Key` header; a repeat returns what was created, and the same key with a different body is `422 idempotency_key_reused`. A `2xx` always means it happened. |
 | Edits by two people | `ETag` out and `If-Match` in, only on documents two people or devices edit: owner settings, the metadata editor, shared lists, queues. A stale `If-Match` is `412`. Never on watched, favourite, rating or progress: the last tap wins. |
 | Slow work | Reads answer or fail; they never say "not ready". A slow write answers `202` with a `Job` to watch at `/v1/jobs/{id}`. Starting playback and preparing a download may answer `202 preparing`; the client repeats the same request. |
-| Changes | `GET /v1/events` is a server-sent event stream with a cursor. An event says "this changed, read it again" and never carries the data. A `resync` event means "reread everything you show" and always has an id. An `access` change means what this profile may see has changed: throw the cache away. |
+| Changes | `GET /v1/events` is a server-sent event stream with a cursor. An event says "this changed, read it again" and never carries the data. A `resync` event means "reread everything you show" and always has an id. An `access` change means what this profile may see has changed: throw the cache away. Things that live only in memory (`receiver`, `playback`, `group`) come on the same feed; they are kept two minutes, so a reader away longer, or across a restart, gets a `resync`. The cursor is opaque. |
 | Time | Timestamps are RFC 3339 UTC strings ending `At`. Durations and positions are whole milliseconds ending `Ms`. |
 | Unknown things | Clients ignore fields, enum values and event types they do not know. Every enum is open. The server ignores unknown request fields. |
 | Server-tuned values | The server tells clients how often to report progress, how long to wait before retrying and the largest page it will serve. Clients do not hard-code them. |
@@ -197,7 +197,7 @@ Not carried: `GET /v1/setup/state`, `POST /v1/setup/browser`, `/app`, `/remote-c
 steps above); `/v1/networking/connection` (`atHome` on `GET /v1/system`). Linking a TV with a
 Portico Account is between the app and Portico Services.
 
-### Playing together and on other devices (20)
+### Playing together and on other devices (21)
 
 All of it is memory: a restart ends every group and every move in flight. Changes arrive on
 `GET /v1/events` as "this group changed" or "this device is being asked"; the app rereads.
@@ -215,16 +215,21 @@ Nothing here takes `If-Match`: the last action wins.
 | `PUT /v1/groups/{id}/me`, `DELETE /v1/groups/{id}/me` | A member | Where this member is and whether it is ready, which also keeps it present; leave |
 | `GET /v1/receivers` | Any signed-in profile | The account's open devices that accept playback, at home or away, and what each is playing. Cast and AirPlay targets are found by the app, not listed here |
 | `PUT /v1/receivers/current`, `DELETE /v1/receivers/current` | A signed-in device | This device accepts playback from the account's other devices, or stops |
-| `POST /v1/receivers/{id}/requests`, `GET /v1/receivers/{id}/requests/{requestId}` | A device of the same account | Ask a device to play (title, place, audio and subtitle picks, queue) or to be controlled; see allowed, declined, playing or failed. The first device keeps playing until the second is |
+| `POST /v1/receivers/{id}/requests`, `GET /v1/receivers/{id}/requests/{requestId}`, `DELETE /v1/receivers/{id}/requests/{requestId}` | A device of the same account | Ask a device to play (title, place, audio and subtitle picks, queue) or to be controlled; see allowed, declined, playing or failed; cancel. The first device keeps playing until the second is, and a move not playing in two minutes has failed |
 | `GET /v1/receivers/current/requests`, `PATCH /v1/receivers/current/requests/{requestId}` | The receiving device | What is being asked; allow, decline, report playing or failed. The device itself remembers which devices it allowed |
 | `GET /v1/cast/config` | Any signed-in profile, on a Portico Accounts server | The Cast application id. A local server answers `404` and has no `cast` capability |
 | `POST /v1/cast/codes` | Any signed-in profile, on a Portico Accounts server | A pairing code for the TV the sender is casting to |
 | `POST /v1/cast/redeem` | The Cast receiver, with the code | A sign-in that can play what the casting profile may see and nothing else (session scope `cast`), renewed by the ordinary refresh; it ends when the account signs it out or after a day unused |
 
-Controlling a device afterwards is the ordinary `PATCH` and `DELETE /v1/playback/sessions/{id}`,
-which already reach another device of the same account. The queue moves with `POST /v1/queues`
-and `from` another queue. AirPlay is `POST /v1/playback/sessions/{id}/airplay`, counted with
-playback.
+Controlling a device afterwards is the ordinary `PATCH` and `DELETE /v1/playback/sessions/{id}`.
+`DELETE` stops any of the account's sessions, as the stream limit screen needs. `PATCH` on a
+session of another device, once that device allowed this one, does not change the session: it
+sets the session's `command` (state, seek, skip next or previous, audio, subtitles), the device
+hears of it on its feed and does it through its own routes. The device moving playback in
+starts with `requestId`, so the two devices count as one stream until it reports playing. The
+queue moves with `POST /v1/queues` and `source.queue`, another queue of the account. "Play from
+other devices" is the device setting `devices.playFromOtherDevices`. AirPlay is
+`POST /v1/playback/sessions/{id}/airplay`, counted with playback.
 
 Not carried: `/v1/handoffs/*` (the request above is the move, and it is not stored);
 `/v1/receivers/{id}/grants` (permission is remembered by the device that gives it);
