@@ -79,6 +79,11 @@ type StartRequest struct {
 	// first. Burn is the subtitle a plan with burn-in draws into the picture.
 	Subtitles []TextRenditionPlan
 	Burn      *BurnSubtitle
+	// BurnLoad reads the subtitle to burn when the converter first needs it, in
+	// place of Burn. Reading a track out of a large file takes a while: this way
+	// the stream is started at once and shows "getting ready" meanwhile, and the
+	// reading stops if the stream does. Its context ends with the stream.
+	BurnLoad func(context.Context) (*BurnSubtitle, error)
 	// Audio makes this a planned music stream (from PlanAudio): the device
 	// decodes the original or an exact conversion with the server's trim and
 	// gain. Plan is not read. SeekIndex is the file's seek index, for a direct
@@ -225,7 +230,7 @@ func (s *Streams) Start(ctx context.Context, r StartRequest) (Stream, error) {
 	}
 	st := &stream{
 		id: token(), session: r.SessionID, grant: token(), mode: mode, source: source, plan: &plan, request: r.Request,
-		duration: plan.Duration, text: append([]TextRenditionPlan{}, r.Subtitles...), burn: r.Burn,
+		duration: plan.Duration, text: append([]TextRenditionPlan{}, r.Subtitles...), burn: r.Burn, burnLoad: r.BurnLoad,
 		changed: make(chan struct{}), replaced: r.Replaced, failedHook: r.Failed, served: -1, audio: r.Audio, seekIndex: r.SeekIndex,
 	}
 	s.Stop(r.SessionID)
@@ -480,7 +485,7 @@ func (s *Streams) replace(id string, plan *DeliveryPlan, position float64) bool 
 	}
 	next := &stream{
 		id: token(), session: old.session, grant: token(), mode: "hls", source: old.source, plan: plan, request: old.request,
-		duration: old.duration, text: old.text, burn: old.burn, openInput: old.openInput, disc: old.disc,
+		duration: old.duration, text: old.text, burn: old.burn, burnLoad: old.burnLoad, openInput: old.openInput, disc: old.disc,
 		changed: make(chan struct{}), replaced: old.replaced, failedHook: old.failedHook, served: -1,
 	}
 	old.state = streamStopped
