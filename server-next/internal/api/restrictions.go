@@ -23,6 +23,12 @@ type Restrictions struct {
 	// the profile can never go beyond. They are read-only.
 	AccountAllLibraries bool     `json:"accountAllLibraries"`
 	AccountLibraries    []string `json:"accountLibraries"`
+	// AllowWatchTogether lets the profile start and join Watch Together groups. Left out of
+	// a PUT, it stays as it is. Turning it off takes the profile out of its groups at once.
+	// AccountAllowWatchTogether is the account's own switch, read-only here, which the
+	// profile's cannot lift.
+	AllowWatchTogether        *bool `json:"allowWatchTogether,omitempty"`
+	AccountAllowWatchTogether bool  `json:"accountAllowWatchTogether"`
 }
 
 // The most labels or libraries one profile's restrictions can name, and the highest age limit.
@@ -33,7 +39,8 @@ const (
 
 func restrictionsOut(r db.Restrictions) Restrictions {
 	return Restrictions{MaxRatingAge: r.MaxRatingAge, BlockedLabels: r.BlockedLabels, AllLibraries: r.AllLibraries, Libraries: r.Libraries,
-		AccountAllLibraries: r.AccountAllLibraries, AccountLibraries: r.AccountLibraries}
+		AccountAllLibraries: r.AccountAllLibraries, AccountLibraries: r.AccountLibraries, AllowWatchTogether: r.AllowWatchTogether,
+		AccountAllowWatchTogether: r.AccountAllowWatchTogether}
 }
 
 // restrictionRoutes are for the account's main profile, or an owner or admin acting on a
@@ -60,7 +67,13 @@ func (s *Server) restrictionRoutes() {
 			return Restrictions{}, ErrField("libraries", "That is too many libraries.")
 		}
 		out, err := s.db.SetProfileRestrictions(r.Context(), userID, r.PathValue("id"), db.Restrictions{MaxRatingAge: req.MaxRatingAge,
-			BlockedLabels: req.BlockedLabels, AllLibraries: req.AllLibraries, Libraries: req.Libraries}, s.now())
+			BlockedLabels: req.BlockedLabels, AllLibraries: req.AllLibraries, Libraries: req.Libraries,
+			AllowWatchTogether: req.AllowWatchTogether}, s.now())
+		if err == nil && req.AllowWatchTogether != nil && !*req.AllowWatchTogether {
+			if p, err := s.db.Profile(r.Context(), userID, r.PathValue("id")); err == nil {
+				s.groups.LeaveAll(p.ID)
+			}
+		}
 		switch {
 		case errors.Is(err, db.ErrUnknownLibrary):
 			return Restrictions{}, ErrField("libraries", "One of these libraries does not exist.")

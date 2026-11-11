@@ -24,6 +24,10 @@ type Restrictions struct {
 	// screen can say where the account is the stricter of the two.
 	AccountAllLibraries bool
 	AccountLibraries    []string
+	// AllowWatchTogether is the profile's Watch Together switch; nil when setting leaves it as
+	// it is. AccountAllowWatchTogether is the account's, which the profile's cannot lift.
+	AllowWatchTogether        *bool
+	AccountAllowWatchTogether bool
 }
 
 func publicIDs(q interface {
@@ -48,8 +52,10 @@ func publicIDs(q interface {
 func restrictions(tx *sql.Tx, userID int64, publicID string) (int64, Restrictions, error) {
 	var out Restrictions
 	var id int64
-	err := tx.QueryRow(`SELECT p.id, p.max_rating_age, p.all_libraries, u.all_libraries FROM profiles p JOIN users u ON u.id = p.user_id
-		WHERE p.user_id = ? AND p.public_id = ?`, userID, publicID).Scan(&id, &out.MaxRatingAge, &out.AllLibraries, &out.AccountAllLibraries)
+	out.AllowWatchTogether = new(bool)
+	err := tx.QueryRow(`SELECT p.id, p.max_rating_age, p.all_libraries, u.all_libraries, p.allow_watch_together, u.allow_watch_together
+		FROM profiles p JOIN users u ON u.id = p.user_id WHERE p.user_id = ? AND p.public_id = ?`, userID, publicID).
+		Scan(&id, &out.MaxRatingAge, &out.AllLibraries, &out.AccountAllLibraries, out.AllowWatchTogether, &out.AccountAllowWatchTogether)
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, out, ErrNotFound
 	}
@@ -107,6 +113,11 @@ func (d *DB) SetProfileRestrictions(ctx context.Context, userID int64, publicID 
 		if _, err := tx.Exec(`UPDATE profiles SET max_rating_age = ?, all_libraries = ?, updated_at = ? WHERE id = ?`,
 			r.MaxRatingAge, r.AllLibraries, now.UnixMilli(), id); err != nil {
 			return err
+		}
+		if r.AllowWatchTogether != nil {
+			if _, err := tx.Exec(`UPDATE profiles SET allow_watch_together = ? WHERE id = ?`, *r.AllowWatchTogether, id); err != nil {
+				return err
+			}
 		}
 		if _, err := tx.Exec(`DELETE FROM profile_restrictions WHERE profile_id = ?`, id); err != nil {
 			return err
