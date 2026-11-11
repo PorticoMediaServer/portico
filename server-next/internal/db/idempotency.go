@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"time"
@@ -39,4 +40,20 @@ func rememberCreated(tx *sql.Tx, userID int64, key, requestHash, createdRef stri
 	_, err := tx.Exec(`INSERT INTO idempotency_keys (user_id, key, request_hash, created_ref, created_at) VALUES (?, ?, ?, ?, ?)`,
 		userID, key, requestHash, createdRef, now.UnixMilli())
 	return err
+}
+
+// CreatedBefore answers what an earlier request with the same Idempotency-Key created, for a
+// creating request whose work is not a row of the database (a backup is files). "" is a new key.
+func (d *DB) CreatedBefore(ctx context.Context, userID int64, key, requestHash string) (string, error) {
+	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback()
+	return createdBefore(tx, userID, key, requestHash)
+}
+
+// RememberCreated records what a keyed request created, for CreatedBefore.
+func (d *DB) RememberCreated(ctx context.Context, userID int64, key, requestHash, ref string, now time.Time) error {
+	return d.write(ctx, User, func(tx *sql.Tx) error { return rememberCreated(tx, userID, key, requestHash, ref, now) })
 }
