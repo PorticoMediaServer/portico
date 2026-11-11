@@ -153,10 +153,10 @@ func readableItem(ctx context.Context, tx *sql.Tx, v Viewer, publicID string) (i
 	if err != nil {
 		return 0, 0, err
 	}
-	return acc.readable(ctx, tx, v, publicID)
+	return acc.readableBook(ctx, tx, v, publicID)
 }
 
-func (a access) readable(ctx context.Context, tx *sql.Tx, v Viewer, publicID string) (int64, ItemKind, error) {
+func (a access) readableBook(ctx context.Context, tx *sql.Tx, v Viewer, publicID string) (int64, ItemKind, error) {
 	var id int64
 	var kind ItemKind
 	err := tx.QueryRowContext(ctx, `SELECT i.id, i.kind FROM items i WHERE i.public_id = @id AND `+a.visible("i"),
@@ -213,7 +213,7 @@ func (d *DB) SaveAnnotations(ctx context.Context, v Viewer, edits []AnnotationEd
 // annotations it holds after markers too old to matter are removed.
 func openAnnotatedBook(ctx context.Context, tx *sql.Tx, v Viewer, acc access, publicID string, now time.Time) (*annotatedBook, error) {
 	book := &annotatedBook{}
-	if book.id, book.kind, book.err = acc.readable(ctx, tx, v, publicID); book.err != nil {
+	if book.id, book.kind, book.err = acc.readableBook(ctx, tx, v, publicID); book.err != nil {
 		if errors.Is(book.err, ErrNotFound) {
 			return book, nil
 		}
