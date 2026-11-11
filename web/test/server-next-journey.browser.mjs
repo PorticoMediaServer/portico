@@ -172,6 +172,13 @@ try {
     await page.getByRole('button', {name: /owner/}).click();
     await shell(page).waitFor();
   });
+  // A profile with a PIN asks for it again after a reload (the restart step above); one without stays open.
+  await step('a reload keeps the profile that was open', async () => {
+    await page.reload({waitUntil: 'domcontentloaded'});
+    await shell(page).waitFor();
+    if (!/owner/.test(await shell(page).getAttribute('aria-label') ?? '')) throw new Error('The reload opened someone else.');
+    if (await page.getByRole('button', {name: /Kid/}).count()) throw new Error('The reload asked Who\'s watching.');
+  });
   if (seedBin) {
     const pressed = name => page.getByRole('button', {name, exact: true}).getAttribute('aria-pressed');
     const stateOf = async id => (await (await fetch(`${serverOrigin}/v1/items/${id}`, {headers: {Authorization: 'Bearer ' + (await ownerToken()).token}})).json()).state;
@@ -215,23 +222,21 @@ try {
       await until('A rating being chosen', async () => /7 out of 10/.test(await rating.innerText()));
       await page.getByRole('button', {name: 'Save'}).click();
       await until('The rating', async () => (await stateOf(film)).rating === 7);
-      // A reload asks Who's watching again on an account with more than one profile, then returns to the page.
       await page.reload({waitUntil: 'domcontentloaded'});
-      await page.getByRole('button', {name: /owner/}).click();
       await page.getByRole('button', {name: 'Mark as unwatched'}).waitFor();
       if (await pressed('My List') !== 'true') throw new Error('My List was not kept.');
     });
     await step('a change made in one window shows in another without a reload', async () => {
       const other = await browser.newContext({viewport: {width: 1440, height: 900}}), second = await other.newPage();
       try {
-        // Each window is sent to the film's page; opening an address asks Who's watching first.
         const openFilm = async window => {
           await window.goto(`${origin}/item/${film}`, {waitUntil: 'domcontentloaded'});
-          await window.getByRole('button', {name: /owner/}).click();
           await window.getByRole('button', {name: 'Mark as unwatched'}).waitFor();
         };
+        // A new window signs in and chooses its profile once; after that an address opens straight to its page.
         await signIn(second);
-        await second.getByRole('button', {name: /owner/}).waitFor();
+        await second.getByRole('button', {name: /owner/}).click();
+        await shell(second).waitFor();
         await openFilm(second);
         await openFilm(page);
         await page.getByRole('button', {name: 'Mark as unwatched'}).click();

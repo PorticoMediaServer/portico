@@ -93,3 +93,20 @@ test('a device clock that runs fast still offers Forget for a profile the server
     assert.equal(gate.deviceRemembers('s1', 'alex'), true, 'and the avatar menu agrees');
   } finally {observeServerTime('http://server.test', Date.now(), Date.now(), Date.now());}
 });
+
+test('a reload keeps the profile this tab had open; signing out or another profile does not', () => {
+  // The tab's own sessionStorage: kept across a reload, not shared with other tabs.
+  const own = new DeviceStorage();
+  (globalThis as {sessionStorage?: unknown}).sessionStorage = own;
+  try {
+    gate.resetTabSessionGate(); tab.values.clear();
+    assert.equal(gate.tabHadOpen(held), false);
+    gate.admitProfile('s1', 'alex');
+    gate.resetTabSessionGate(); // the reload
+    assert.equal(gate.tabAdmits(held), false, 'not remembered on the device: the caller still checks for a PIN');
+    assert.equal(gate.tabHadOpen(held), true);
+    assert.equal(gate.tabHadOpen({...held, profileId: 'kids'}), false, 'another tab chose someone else');
+    gate.forgetTabServer('s1');
+    assert.equal(gate.tabHadOpen(held), false, 'signed out');
+  } finally {delete (globalThis as {sessionStorage?: unknown}).sessionStorage;}
+});
