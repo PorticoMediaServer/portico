@@ -2,6 +2,8 @@ package api
 
 import (
 	"net/http"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 )
 
 // System is what an app reads before sign-in to learn what this server is and can do.
@@ -19,6 +21,12 @@ type System struct {
 	SetupRequired bool `json:"setupRequired"`
 	// SignInMethods lists the ways to sign in, in the order to offer them.
 	SignInMethods []string `json:"signInMethods"`
+	// SignIn is the server's kind of sign-in: "portico" when people sign in with a Portico
+	// Account, "local" when they sign in to this server directly. Apps read it before showing
+	// any sign-in form.
+	SignIn string `json:"signIn"`
+	// AtHome says the caller is on one of the owner's home networks, as this server sees it.
+	AtHome bool `json:"atHome"`
 }
 
 // Health is the answer of the health checks.
@@ -48,8 +56,16 @@ func (s *Server) systemRoutes() {
 		if err != nil {
 			return System{}, err
 		}
+		kind, err := s.signInKind(r.Context())
+		if err != nil {
+			return System{}, err
+		}
+		methods := []string{"password"}
+		if kind == "portico" {
+			methods = []string{"portico"}
+		}
 		out := System{ID: s.id, Name: name, APIMajor: APIMajor, Capabilities: []string{},
-			SetupRequired: !hasUsers, SignInMethods: []string{"password"}}
+			SetupRequired: !hasUsers, SignInMethods: methods, SignIn: kind, AtHome: s.networks().FromHome(r)}
 		if _, err := s.admit(r, &Route{Access: SignedIn, Scope: ScopeRead}); err == nil {
 			out.Version = s.version
 		}
@@ -59,7 +75,7 @@ func (s *Server) systemRoutes() {
 
 // serverName is the name the owner gave this server, or "Portico" until they do.
 func (s *Server) serverName(r *http.Request) (string, error) {
-	name, ok, err := s.db.Setting(r.Context(), "server.name")
+	name, ok, err := s.db.Setting(r.Context(), db.ServerNameKey)
 	if err == nil && !ok {
 		name = "Portico"
 	}

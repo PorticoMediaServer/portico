@@ -15,6 +15,8 @@ import (
 // in neither list, so a new creating route cannot be added without it.
 var repeatSafeWithoutKey = map[string]string{
 	"POST /v1/setup/owner":                        "happens once: a repeat is told the server is set up",
+	"POST /v1/setup/portico":                      "saves nothing: a repeat asks for another approval address",
+	"POST /v1/setup/portico/finish":               "happens once: a repeat is told the server is set up",
 	"POST /v1/auth/sign-in":                       "a lost answer leaves a sign-in nobody holds, which expires",
 	"POST /v1/auth/two-factor":                    "the second step of a sign-in: as sign-in",
 	"POST /v1/auth/refresh":                       "carries its own request id: a repeat gets the same tokens",
