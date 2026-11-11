@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -23,6 +24,7 @@ func TestLyricsRoutes(t *testing.T) {
 	owner := onMain(t, s, signedIn).AccessToken
 	server := lrclibtest.New(t)
 	s.metadata.Lyrics = lrclib.New(server.URL, 0)
+	scanStarted := time.Now().Add(-time.Second)
 	lib, err := s.db.CreateLibrary(ctx, "Music", db.LibraryMusic, "en", []string{t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
@@ -53,15 +55,17 @@ func TestLyricsRoutes(t *testing.T) {
 	}
 
 	// Files only, the default: what a scan finds is not looked up.
-	afterScan := func() {
+	// The lookup a scan starts when it ends, told when the scan started.
+	afterScan := func(started time.Time) {
 		t.Helper()
-		job, err := s.jobs.Start(ctx, jobAfterScan, jobs.Request{Target: jobs.Target{Library: lib.PublicID}})
+		params, _ := json.Marshal(afterScanParams{AddedSince: started.UnixMilli()})
+		job, err := s.jobs.Start(ctx, jobAfterScan, jobs.Request{Target: jobs.Target{Library: lib.PublicID}, Params: params})
 		if err != nil {
 			t.Fatal(err)
 		}
 		waitForJob(t, s, owner, job.PublicID)
 	}
-	afterScan()
+	afterScan(scanStarted)
 	if got := lyrics("Come Together"); len(got) != 0 || server.Requests.Load() != 0 {
 		t.Fatalf("a Files-only library looked lyrics up: %+v", got)
 	}
@@ -72,7 +76,12 @@ func TestLyricsRoutes(t *testing.T) {
 	if w := call(t, s, "PATCH", "/v1/admin/libraries/"+lib.PublicID, owner, LibraryEdit{Options: &options}, &admin); w.Code != 200 || admin.Options.Lyrics != "lrclib" {
 		t.Fatalf("choosing LRCLIB: %d %+v", w.Code, admin.Options)
 	}
-	afterScan()
+	// A later scan that added no songs asks about none: the library is not walked.
+	afterScan(time.Now())
+	if server.Requests.Load() != 0 {
+		t.Fatalf("a scan that added nothing asked LRCLIB %d times", server.Requests.Load())
+	}
+	afterScan(scanStarted)
 	if got := lyrics("Come Together"); len(got) != 1 || got[0].Origin != "provider" || got[0].Format != "lrc" || got[0].Credit != "Lyrics provided by LRCLIB" {
 		t.Fatalf("lyrics after the scan's lookup: %+v", got)
 	}
