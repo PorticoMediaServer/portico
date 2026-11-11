@@ -27,6 +27,16 @@ type StartInput struct {
 	// Prepared, when set, is a stream got ready ahead of time for this start: it becomes the
 	// session's stream, so playback carries on without a gap.
 	Prepared *Prepared
+	// Channel, when set, is the Library Channel this title is on now. Such a session saves no
+	// place and no watched mark, and its play is the owner's record only.
+	Channel *ChannelLink
+}
+
+// ChannelLink is the Library Channel a session joined and the programme it joined.
+type ChannelLink struct {
+	ID       string    `json:"id"`
+	StartsAt time.Time `json:"startsAt"`
+	EndsAt   time.Time `json:"endsAt"`
 }
 
 // Prepared is the next title of a queue planned and its stream started before the current
@@ -221,7 +231,7 @@ func (s *Service) create(ctx context.Context, in StartInput) (*session, error) {
 	sess.Session = Session{ID: db.NewID("pbs"), UserID: c.Viewer.UserID, ProfileID: c.Viewer.ProfileID, SignInID: c.SignInID,
 		Device: device, Item: r.item, VersionID: r.version.PublicID, fileID: r.version.FileID, Queue: in.Queue,
 		State: StatePlaying, Choice: r.choice, Network: r.network, Plan: r.plan, Generation: 1,
-		StartPositionMs: position, PositionMs: position, StartedAt: now, LeaseUntil: now.Add(lease)}
+		StartPositionMs: position, PositionMs: position, StartedAt: now, LeaseUntil: now.Add(lease), Channel: in.Channel}
 	if in.Prepared != nil {
 		// The stream is already running under this id, from the start of the title.
 		in.Prepared.mu.Lock()
