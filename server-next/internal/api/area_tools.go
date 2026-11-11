@@ -2,8 +2,10 @@ package api
 
 import (
 	"context"
+	"sync/atomic"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/dlna"
 	"github.com/PorticoMediaServer/portico/server-next/internal/secrets"
 	"github.com/PorticoMediaServer/portico/server-next/internal/webhooks"
 )
@@ -13,11 +15,22 @@ import (
 type toolsArea struct {
 	// webhooks sends the owner’s webhooks. See webhooks.go.
 	webhooks *webhooks.Service
+	// remoteAccessDoc is the remote-access settings, and dlna the DLNA server they switch. See dlna.go.
+	remoteAccessDoc remoteAccessState
+	dlna            *dlna.Server
+	// silentProxySeen says DLNA has served a request from a trusted proxy that passed on no
+	// visitor's address since the server started; the remote-access settings warn about it.
+	// (The record #2328 keeps of such a proxy replaces this once both are on main.)
+	silentProxySeen atomic.Bool
 }
 
 // startTools builds this area's services and registers its routes and job kinds. New calls it
 // once, after the job runner exists and before the jobs left from the last run are taken up.
 func (s *Server) startTools(ctx context.Context) error {
+	if err := s.loadRemoteAccess(ctx); err != nil {
+		return err
+	}
+	s.dlnaRoutes()
 	box, err := secrets.Open(s.dataDir)
 	if err != nil {
 		return err
