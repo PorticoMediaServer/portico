@@ -17,6 +17,9 @@ type Book struct {
 	// MaySave says the profile, and its account, may download, which is what saving the
 	// book's own file needs.
 	MaySave bool
+	// Next is the next volume of the book's series that the viewer may see, offered when this
+	// one is finished; nil when it is the last, or not in a series.
+	Next *ItemRef
 }
 
 // BookVersion is one file of a book. Path is empty for a file on remote storage.
@@ -65,6 +68,10 @@ func (d *DB) Book(ctx context.Context, v Viewer, publicID string) (Book, error) 
 		func(b *BookVersion) []any {
 			return []any{&b.PublicID, &b.Name, &b.FileID, &b.FileName, &b.Path, &b.Size, &b.ModifiedNS}
 		})
+	if err != nil {
+		return out, err
+	}
+	out.Next, err = nextVolume(ctx, tx, v, acc, out.ID)
 	return out, err
 }
 
@@ -89,4 +96,33 @@ func (d *DB) BookAccess(ctx context.Context, v Viewer, itemID, fileID int64) (vi
 		return false, false, nil
 	}
 	return err == nil, maySave, err
+}
+
+// volumeOrder is the order of a series' volumes: by number, then those with none by title.
+const volumeOrder = `i.index_number IS NULL, i.index_number, i.sort_title, i.id`
+
+// nextVolume is the volume after this one in its series, in volumeOrder: a book in a series
+// of books, or an issue of a comic series.
+func nextVolume(ctx context.Context, tx *sql.Tx, v Viewer, acc access, id int64) (*ItemRef, error) {
+	// The volumes beside this one, as (holder, relation) of item_relations or as the children
+	// of its parent.
+	siblings := `SELECT i.* FROM item_relations r JOIN items i ON i.id = r.related_item_id
+		WHERE r.item_id = (SELECT item_id FROM item_relations WHERE related_item_id = @me AND kind = @series LIMIT 1) AND r.kind = @series`
+	var parent sql.NullInt64
+	if err := tx.QueryRowContext(ctx, `SELECT parent_id FROM items WHERE id = ? AND kind = ?`, id, KindIssue).Scan(&parent); err == nil && parent.Valid {
+		siblings = `SELECT * FROM items WHERE parent_id = @parent AND kind = @issue`
+	} else if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
+	ref := &ItemRef{}
+	err := tx.QueryRowContext(ctx, `WITH me AS (SELECT index_number IS NULL AS u, index_number AS n, sort_title AS t, id FROM items WHERE id = @me)
+		SELECT i.public_id, i.kind, i.title, i.index_number FROM (`+siblings+`) i, me
+		WHERE (i.index_number IS NULL, ifnull(i.index_number, 0), i.sort_title, i.id) > (me.u, ifnull(me.n, 0), me.t, me.id)
+		AND `+acc.visible("i")+` ORDER BY `+volumeOrder+` LIMIT 1`,
+		append(v.args(), sql.Named("me", id), sql.Named("series", RelationSeriesMember), sql.Named("parent", parent.Int64),
+			sql.Named("issue", KindIssue))...).Scan(&ref.PublicID, &ref.Kind, &ref.Title, &ref.Index)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	return ref, err
 }
