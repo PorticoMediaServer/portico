@@ -64,7 +64,7 @@ type Server struct {
 	network networkState
 	// settings are the owner's settings documents, held in memory. See settings.go.
 	settings *settings.Settings
-	media   func(w http.ResponseWriter, r *http.Request, grant, file string)
+	media    func(w http.ResponseWriter, r *http.Request, grant, file string)
 	// feeds caps the change feeds each sign-in holds open. See catalogue.go.
 	feeds feeds
 	// remote opens the owner's remote sources. See remote_sources.go.
