@@ -60,6 +60,10 @@ func porticoServer(t *testing.T) (*Server, string, string) {
 	if got := memberState(t, s, owner, "alex"); got != "waiting" {
 		t.Fatalf("alex is %q", got)
 	}
+	// Nobody on a Portico Accounts server has a password here.
+	if w := call(t, s, "POST", "/v1/admin/members", owner, MemberCreate{Username: "kim", Password: testPassword}, nil); w.Code != 409 {
+		t.Fatalf("adding a password account to a Portico Accounts server answered %d: %s", w.Code, w.Body)
+	}
 	return s, owner, moved.Session.AccessToken
 }
 
