@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -76,6 +77,50 @@ var titleChanges = []titleChange{
 			w.narrow()
 			return nil
 		}},
+	{name: "a provider rates a show for adults and names its episodes, a film stays unmatched and takes the title in its file",
+		covers: []string{"db.ApplyDetails", "db.ApplyChildren", "db.SetUnmatched", "db.UseEmbeddedTitle"}, run: func(w *world) map[string]string {
+			w.provider()
+			return nil
+		}},
+	{name: "a folder is taken out of a library",
+		covers: []string{"db.RemoveFolder"}, run: func(w *world) map[string]string {
+			lib := w.library(db.LibraryMusic)
+			if err := w.s.db.RemoveFolder(background, lib.id, lib.path); err != nil {
+				w.t.Fatal(err)
+			}
+			return nil
+		}},
+	{name: "a library is deleted",
+		covers: []string{"db.DeleteLibrary"}, run: func(w *world) map[string]string {
+			lib := w.library(db.LibraryShows)
+			var id string
+			if err := w.raw.QueryRow(`SELECT public_id FROM libraries WHERE id = ?`, lib.id).Scan(&id); err != nil {
+				w.t.Fatal(err)
+			}
+			if err := w.s.db.DeleteLibrary(background, lib.id); err != nil {
+				w.t.Fatal(err)
+			}
+			// Its lists are gone for everyone; nothing of it may be left in any other read.
+			w.views = slices.DeleteFunc(w.views, func(view [2]string) bool { return view[0] == id })
+			for _, v := range w.viewers {
+				if code := status(w.t, w.s, "GET", "/v1/items?library="+id+"&kind=show", v.token, nil); code != 404 {
+					w.fail("%s: a list of the deleted library answered %d", v.name, code)
+				}
+			}
+			return nil
+		}},
+	{name: "a show is deleted with its files, and then one version of a film",
+		covers: []string{"db.Deleted"}, run: func(w *world) map[string]string {
+			w.deleteTitles()
+			return nil
+		}},
+	{name: "every file of a library is marked to be read again",
+		covers: []string{"db.ForgetProbes"}, run: func(w *world) map[string]string {
+			if err := w.s.db.ForgetProbes(background, w.library(db.LibraryMovies).id); err != nil {
+				w.t.Fatal(err)
+			}
+			return nil
+		}},
 }
 
 // noRowNeeded are the routes and data-layer writes that change something titles hang on and
@@ -84,6 +129,17 @@ var noRowNeeded = map[string]string{
 	"db.RememberTracks":                       "keeps the audio and subtitle language a profile chose; no list, count or rule reads it",
 	"db.RemoveUnusedTitleDataTags":            "deletes mood tags no title carries, so no title changes",
 	"PUT /v1/playback/sessions/{id}/progress": "writes the position through db.SaveProgress, which has a row",
+	"db.SetSubtitleOffset":                    "keeps a subtitle timing a profile chose; no list, count or rule reads it",
+	"PUT /v1/items/{id}/subtitles/offset":     "writes the timing through db.SetSubtitleOffset, which no list, count or rule reads",
+	"POST /v1/items/query":                    "a read: the list of GET /v1/items with its filter in the body, checked wherever that list is",
+	"POST /v1/items/state:batch":              "marks many titles through db.SetStates, which has a row",
+	"POST /v1/jobs":                           "marks everything in a view through db.SetStates, which has a row",
+	"DELETE /v1/jobs/{id}":                    "stops such a job; what it had already marked went through db.SetStates",
+	"DELETE /v1/admin/libraries/{id}":         "removes the library through db.DeleteLibrary, which has a row",
+	"DELETE /v1/admin/libraries/{id}/missing": "empties the trash through db.EmptyTrash, which has a row",
+	"DELETE /v1/admin/items/{id}":             "deletes the files and records it through db.Deleted, which has a row",
+	"DELETE /v1/admin/versions/{id}":          "deletes one version's files and records it through db.Deleted, which has a row",
+	"PATCH /v1/admin/libraries/{id}":          "a library's name, options and folders; a folder taken out goes through db.RemoveFolder, which has a row",
 }
 
 // The routes that change nothing a title is or how it is listed. A new route must be added
@@ -118,6 +174,20 @@ func init() {
 			"POST /v1/queues/{id}/advance", "POST /v1/queues/{id}/prepare-next", "POST /v1/queues/{id}/commit-next",
 			"POST /v1/queues/{id}/playlist", "POST /v1/playback/sessions", "PATCH /v1/playback/sessions/{id}",
 			"DELETE /v1/playback/sessions/{id}",
+		},
+		"a list a profile keeps points at titles and changes none; no rating, label or library is written": {
+			"POST /v1/lists", "PATCH /v1/lists/{id}", "DELETE /v1/lists/{id}", "POST /v1/lists/{id}/entries",
+			"PATCH /v1/lists/{id}/entries/{entryId}", "DELETE /v1/lists/{id}/entries/{entryId}", "PUT /v1/lists/{id}/shares",
+		},
+		"records of what was played or typed, and a profile's picture: no title and no watched mark is written": {
+			"DELETE /v1/history", "DELETE /v1/history/{id}", "DELETE /v1/search/history",
+			"PUT /v1/profiles/{id}/avatar", "DELETE /v1/profiles/{id}/avatar",
+		},
+		"where a library reads from, and who may connect: titles change only when a scan runs, and a scan's writes have rows": {
+			"POST /v1/admin/libraries", "POST /v1/admin/libraries/{id}/scan", "DELETE /v1/admin/libraries/{id}/scan",
+			"POST /v1/admin/remote-sources", "PATCH /v1/admin/remote-sources/{id}", "DELETE /v1/admin/remote-sources/{id}",
+			"POST /v1/admin/remote-sources/drive-sign-in", "POST /v1/admin/remote-sources/{id}/test",
+			"DELETE /v1/admin/blocked-networks/{id}",
 		},
 	} {
 		for _, route := range routes {
