@@ -27,6 +27,10 @@ type Profile struct {
 	// limits or its account's role. It means nothing else. An app keeps it with whatever it
 	// has cached for the profile and throws the cache away when it differs.
 	AccessMarker string `json:"accessMarker"`
+	// Avatar is the address of the profile's picture, absent when it has none. It is fetched
+	// signed in, like any other request, with size=small (the default) or size=large; the
+	// address changes when the picture does, so an app can keep what it fetched.
+	Avatar string `json:"avatar,omitempty"`
 }
 
 // ProfileCreate adds a profile. Send an Idempotency-Key so a repeat does not add a second one.
@@ -64,8 +68,12 @@ type ProfileSelect struct {
 var profileColors = []string{"blue", "violet", "mint", "coral", "gold", "slate", "rose", "sky"}
 
 func profileOut(p db.Profile) Profile {
-	return Profile{ID: p.PublicID, Name: p.Name, Color: p.Color, IsPrimary: p.Primary, PINRequired: p.PINHash != "",
+	out := Profile{ID: p.PublicID, Name: p.Name, Color: p.Color, IsPrimary: p.Primary, PINRequired: p.PINHash != "",
 		AccessMarker: strconv.FormatInt(p.AccessChangedAt, 36)}
+	if p.Picture != 0 {
+		out.Avatar = "/v1/profiles/" + p.PublicID + "/avatar?v=" + strconv.FormatInt(p.Picture, 36)
+	}
+	return out
 }
 
 func profilesOut(profiles []db.Profile) []Profile {
@@ -86,6 +94,7 @@ func (s *Server) profileRoutes() {
 	Handle(s, "DELETE /v1/profiles/{id}", SignedIn, s.deleteProfile)
 	Handle(s, "POST /v1/profiles/{id}/select", SignedIn, s.selectProfile)
 	s.restrictionRoutes()
+	s.profilePictureRoutes()
 }
 
 // manager returns the caller if this session may change the account itself: only a session
