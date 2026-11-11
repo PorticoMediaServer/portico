@@ -177,5 +177,10 @@ func (s *Server) editPreferences(r *http.Request, req PreferencesEdit) (Preferen
 			return Preferences{}, err
 		}
 	}
+	if set[playFromOtherDevices] == "false" {
+		// Off refuses everything at once: nothing more is asked of this device, and nobody it
+		// allowed may control it.
+		s.receivers.Close(CallerFrom(r.Context()).SessionID)
+	}
 	return s.preferences(r, req.DeviceClass)
 }

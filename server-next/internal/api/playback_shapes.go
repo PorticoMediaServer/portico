@@ -206,6 +206,9 @@ type PlaybackSession struct {
 	Presentation Presentation        `json:"presentation"`
 	PlaybackInfo JSON                `json:"playbackInfo,omitempty"`
 	End          *SessionEnd         `json:"end,omitempty"`
+	// Command is the latest thing another of the account's devices asked this device to do:
+	// it does each command once, by its id, through its own routes.
+	Command *playback.Command `json:"command,omitempty"`
 	// RetryAfterMs is set on a 202: the stream needs a moment longer. Send the same start
 	// again after this long.
 	RetryAfterMs int64 `json:"retryAfterMs,omitempty"`
@@ -249,6 +252,9 @@ type PlaybackStart struct {
 	// DiscTitle names one title of a disc. Disc playback is not available yet: a start that
 	// names one is refused with 501 disc_playback_unavailable.
 	DiscTitle JSON `json:"discTitle,omitempty"`
+	// RequestID is the request from another device this start answers, when playback moves
+	// here: until this device reports playing, the two count as one stream.
+	RequestID string `json:"requestId,omitempty"`
 }
 
 type PlaybackSeek struct {
@@ -273,6 +279,9 @@ type PlaybackChange struct {
 	// Failure says the player could not play what it was given. The server remembers that
 	// for this file on this device and moves the session to the next way of playing it.
 	Failure *playback.Failure `json:"failure,omitempty"`
+	// Skip is next or previous, sent from another device: the playing device moves along its
+	// own queue.
+	Skip string `json:"skip,omitempty"`
 }
 
 // PlaybackProgress is a device's report of where it is.
@@ -354,7 +363,7 @@ func decisions(p playback.Plan) PlaybackDecisions {
 func sessionOut(v playback.Session) PlaybackSession {
 	out := PlaybackSession{ID: v.ID, Kind: sessionKind(v.Item.Kind), State: v.State, ItemID: v.Item.PublicID, VersionID: v.VersionID,
 		Queue: v.Queue, Lease: PlaybackLease{ExpiresAt: v.LeaseUntil.UTC(), ReportEveryMs: v.ReportEvery().Milliseconds()},
-		PlaybackInfo: v.Plan.PlaybackInfo}
+		PlaybackInfo: v.Plan.PlaybackInfo, Command: v.Command}
 	subtitles := v.Stream.Subtitles
 	if subtitles == nil {
 		subtitles = []playback.SubtitleFile{}
