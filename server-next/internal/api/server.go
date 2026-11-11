@@ -61,7 +61,9 @@ type Server struct {
 	// queues builds and runs play queues. See queues.go.
 	queues  *playqueue.Service
 	network networkState
-	media   func(w http.ResponseWriter, r *http.Request, grant, file string)
+	// remote is the owner's remote access settings. See remote_access.go.
+	remote remoteState
+	media  func(w http.ResponseWriter, r *http.Request, grant, file string)
 	// feeds caps the change feeds each sign-in holds open. See catalogue.go.
 	feeds feeds
 	// remote opens the owner's remote sources. See remote_sources.go.
@@ -186,8 +188,12 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	if err := s.loadNetworks(ctx); err != nil {
 		return nil, err
 	}
+	if err := s.loadRemoteAccess(ctx); err != nil {
+		return nil, err
+	}
 	s.systemRoutes()
 	s.networkRoutes()
+	s.remoteAccessRoutes()
 	s.identityRoutes()
 	s.authRoutes()
 	s.profileRoutes()
@@ -274,6 +280,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			s.writeError(w, r, errors.New("panic"))
 		}
 	}()
+	// What the owner allows from outside the home networks is decided before anything else.
+	if e := s.outsideRefusal(r); e != nil {
+		s.writeError(w, r, e)
+		return
+	}
 	if _, pattern := s.mux.Handler(r); pattern == "" {
 		// An address that is no route of the API, and is not under /v1/ at all, is the web
 		// app's: its files, and the pages inside it. Nothing under /v1/ ever goes there.
@@ -486,6 +497,9 @@ func (s *Server) admit(r *http.Request, route *Route) (*http.Request, error) {
 		}
 		c = Caller{SessionID: claims.SessionID, UserID: claims.UserID, ProfileID: claims.ProfileID, Role: claims.Role, Manage: claims.Manage,
 			Stamp: db.TokenStamp{Boot: claims.Boot, Seq: claims.Seq}}
+	}
+	if err := s.refuseNonOwnerAway(r, c.UserID); err != nil {
+		return r, err
 	}
 	switch {
 	case route.Access == WithProfile && c.ProfileID == 0:
