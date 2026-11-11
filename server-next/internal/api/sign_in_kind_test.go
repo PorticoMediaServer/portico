@@ -211,6 +211,32 @@ func TestChangeOwner(t *testing.T) {
 	}
 }
 
+// A change of owner is in the activity record with the new owner's name, also when the
+// previous owner's account is removed with it, and it turns the webhooks off.
+func TestChangeOwnerIsRecordedAndTurnsWebhooksOff(t *testing.T) {
+	s := newTestServer(t)
+	owner := onMain(t, s, setup(t, s)).AccessToken
+	var sam Member
+	call(t, s, "POST", "/v1/admin/members", owner, MemberCreate{Username: "sam", Password: testPassword}, &sam)
+	if w := call(t, s, "POST", "/v1/admin/webhooks", owner,
+		WebhookCreate{Name: "Home Assistant", URL: "http://192.168.1.20:8123/api/webhook/x", Events: []string{"playback.started"}}, nil); w.Code != 200 {
+		t.Fatalf("adding a webhook answered %d: %s", w.Code, w.Body)
+	}
+	if w := call(t, s, "POST", "/v1/admin/owner", owner, OwnerChangeRequest{Password: testPassword, AccountID: sam.ID, Previous: "removed"}, nil); w.Code != 204 {
+		t.Fatalf("changing owner answered %d: %s", w.Code, w.Body)
+	}
+	newOwner := signInAs(t, s, "sam", testPassword, 3).AccessToken
+	var record Page[ActivityEntry]
+	call(t, s, "GET", "/v1/admin/audit?action=owner.", newOwner, nil, &record)
+	if len(record.Items) != 1 || !strings.Contains(record.Items[0].Detail, "new owner sam") || !strings.Contains(record.Items[0].Detail, "removed") {
+		t.Fatalf("the activity record of the change of owner: %+v", record.Items)
+	}
+	var hooks Page[Webhook]
+	if call(t, s, "GET", "/v1/admin/webhooks", newOwner, nil, &hooks); len(hooks.Items) != 1 || hooks.Items[0].Enabled {
+		t.Fatalf("after a change of owner the webhooks are %+v, want the one, turned off", hooks.Items)
+	}
+}
+
 // A local server that starts over stays local and has nothing queued for Portico Services;
 // one that leaves Portico Accounts has its one message queued.
 func TestOnlyALeavingPorticoServerQueuesItsMessage(t *testing.T) {

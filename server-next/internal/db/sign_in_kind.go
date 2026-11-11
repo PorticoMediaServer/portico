@@ -605,6 +605,23 @@ func (d *DB) ChangeOwner(ctx context.Context, o OwnerChange) (int64, error) {
 				return err
 			}
 		}
+		// Recorded while the previous owner's account is still there to name: the line is kept
+		// when the account goes.
+		var newOwner string
+		if err := tx.QueryRow(`SELECT username FROM users WHERE id = ?`, target).Scan(&newOwner); err != nil {
+			return err
+		}
+		if err := audit(tx, o.OwnerID, "owner.change", newOwner, "new owner "+newOwner+", previous owner "+o.Previous, o.Now); err != nil {
+			return err
+		}
+		// The webhooks were the previous owner's: each is turned off, and what it had waiting is
+		// dropped, until the new owner turns it on again.
+		if _, err := tx.Exec(`DELETE FROM outbox WHERE state = 'waiting' AND webhook_id IN (SELECT id FROM webhooks WHERE enabled = 1)`); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`UPDATE webhooks SET enabled = 0, last_error = NULL, revision = revision + 1, updated_at = ? WHERE enabled = 1`, at); err != nil {
+			return err
+		}
 		if o.Previous == "removed" {
 			if err := revoke(tx, c, o.Now, "account_removed", `user_id = ?`, o.OwnerID); err != nil {
 				return err
@@ -620,7 +637,7 @@ func (d *DB) ChangeOwner(ctx context.Context, o OwnerChange) (int64, error) {
 				return err
 			}
 		}
-		return audit(tx, o.OwnerID, "owner.change", "", "previous owner "+o.Previous, o.Now)
+		return nil
 	})
 	if err == nil {
 		err = refused
