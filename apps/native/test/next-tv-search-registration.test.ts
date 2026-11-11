@@ -20,6 +20,7 @@ import {mediaSelectionKey} from '../../../packages/client-core/src/media-selecti
 import * as selectionCore from '../../../packages/client-core/src/selection-model';
 import {selectedItemsLabel} from '../src-next/shell/selection-display';
 import {hooks, screenModule, stackSlotFixture} from './helpers/screen-harness.mjs';
+import {legacySearchFetch, legacySearchRequest, legacySearchResponse} from '../../../packages/client-core/test/fixtures/legacy-search.ts';
 
 const tick = () => new Promise<void>(resolve => setImmediate(resolve));
 type Element = {type: any; props: Record<string, any>};
@@ -70,13 +71,13 @@ async function setup() {
   const unavailable = (): never => {throw new Error('unexpected_tv_search_port');};
   const context: NativeShellBootstrapContext = {
     current: () => current, session: () => session, authority: () => authority, navigation,
-    api: new HttpLocalApi('https://fixture.invalid', '', async (input, init) => {
+    api: new HttpLocalApi('https://fixture.invalid', '', legacySearchFetch(async (input, init) => {
       const url = new URL(String(input)); paths.push(url.pathname + url.search);
       const data = url.pathname === '/v1/search' ? searchPage(url) : url.pathname.includes('/history') ? history
         : {queryId:'genre_query',revision: 'opaque', hasGenres: true, genres: [{value: 'drama', label: 'Drama', count: 20, covers: [], backdrop: art('drama')}]};
       assert.equal(init?.method ?? 'GET', 'GET');
       return new Response(JSON.stringify(data), {status: 200, headers: {'Content-Type': 'application/json'}});
-    }),
+    })),
     subscribeAuthority: listener => {authorityListeners.add(listener); return () => {authorityListeners.delete(listener);};},
     preferences: () => tvPreferences(true), subscribePreferences: listener => {preferenceListeners.add(listener); return () => {preferenceListeners.delete(listener);};},
     get home() {return unavailable();}, get events() {return unavailable();}, get appVersion() {return unavailable();}, get serverName() {return unavailable();},

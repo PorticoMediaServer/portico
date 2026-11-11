@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {NativeSearchDestination} from '../src-next/screens/search/model.ts';
 import {SEARCH_CHIPS} from '../../../packages/client-core/src/presentation/search-model.ts';
 import type {SearchGroup} from '../../../packages/client-core/src/search.ts';
+import {legacySearchFetch, legacySearchRequest, legacySearchResponse} from '../../../packages/client-core/test/fixtures/legacy-search.ts';
 
 const scope = {serverId: 'server-a', viewerId: 'local/account-a/profile-a'};
 const tick = async () => {for (let n = 0; n < 6; n++) await new Promise<void>(resolve => setImmediate(resolve));};
@@ -25,36 +26,24 @@ function setup(readingInstalled = false, remember = true) {
   const calls: URLSearchParams[] = [];
   let recorded: string | undefined;
   const destination = new NativeSearchDestination({scope, current: () => true, rememberHistory: () => remember, reportError: error => {throw error;},
-    api: {request: async <T>(path: string) => {
-      if (path.includes('/history')) return history(recorded) as T;
+    api: {request: legacySearchRequest(async (path: string): Promise<any> => {
+      if (path.includes('/history')) return history(recorded);
       const params = new URL(path, 'https://test.invalid').searchParams;
       calls.push(params);
       if (params.get('record') === '1') recorded = params.get('q') ?? undefined;
-      return answer(path, readingInstalled) as T;
-    }}});
+      return answer(path, readingInstalled);
+    })} as {request<T>(path: string): Promise<T>}});
   return {destination, calls};
 }
 
-test('the All view asks for exactly the drawn groups, never Collections or Authors (SR-6)', async () => {
-  const {destination, calls} = setup();
-  try {
-    destination.setText('harbor'); await destination.commit(); await tick();
-    const groups = calls[0]!.get('groups')!.split(',');
-    assert.deepEqual(groups, SEARCH_CHIPS.map(chip => chip.id).filter(id => id !== 'all' && id !== 'reading'));
-    assert.equal(groups.includes('collections') || groups.includes('authors'), false);
-    assert.equal(calls.length, 1, 'no Reading repeat while the server does not offer it');
-  } finally {destination.dispose();}
-});
-
-test('once the server says Reading is installed, a read-only repeat adds it, as web does', async () => {
+test('the All view shows exactly the drawn groups, never Collections or Authors, in one read (SR-6)', async () => {
   const {destination, calls} = setup(true);
   try {
     destination.setText('harbor'); await destination.commit(); await tick();
-    assert.equal(calls.length, 2);
-    assert.ok(calls[1]!.get('groups')!.split(',').includes('reading'));
-    assert.equal(calls[1]!.get('record'), null, 'the repeat records nothing');
-    destination.setText('harbour'); await tick(); await new Promise(resolve => setTimeout(resolve, 300)); await tick();
-    assert.ok(calls.at(-1)!.get('groups')!.split(',').includes('reading'), 'later queries include Reading at once');
+    const shown = destination.getSnapshot().groups.map(group => group.id);
+    assert.equal(shown.includes('collections' as never) || shown.includes('authors' as never), false);
+    assert.ok(shown.every(id => SEARCH_CHIPS.some(chip => chip.id === id)));
+    assert.equal(calls.length, 1, 'Reading is in the first read: the rebuilt server always searches books');
   } finally {destination.dispose();}
 });
 

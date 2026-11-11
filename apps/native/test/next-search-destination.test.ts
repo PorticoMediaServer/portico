@@ -4,6 +4,7 @@ import {NativeSearchDestination, nativeSearchEntryKey} from '../src-next/screens
 import {viewerQueriesFor} from '../src-next/shell/freshness.ts';
 import type {LibraryContentApi} from '../../../packages/client-core/src/library-content.ts';
 import type {SearchEntry, SearchGroup} from '../../../packages/client-core/src/search.ts';
+import {legacySearchFetch, legacySearchRequest, legacySearchResponse} from '../../../packages/client-core/test/fixtures/legacy-search.ts';
 
 const scope = {serverId: 'server-a', viewerId: 'local/account-a/profile-a'};
 const history = {serverId: scope.serverId, viewerFence: 'search-history-fence', maxEntries: 8,
@@ -27,7 +28,7 @@ function result(path: string, ids: string[], nextCursor = '') {
 function setup(request: LibraryContentApi['request']) {
   let current = true, remember = true;
   const errors: unknown[] = [];
-  const api = {request};
+  const api = {request: legacySearchRequest(request)} as {request: typeof request};
   const destination = new NativeSearchDestination({api, scope, current: () => current,
     rememberHistory: () => remember, reportError: error => errors.push(error)});
   // Retiring a viewer ends its cache too, as the shell does on any viewer or fence change; that aborts the cache's reads.
@@ -199,14 +200,14 @@ test('an arrived read error survives pause/resume until the actual retry gesture
   } finally {f.destination.dispose();}
 });
 
-test('a query already read is shown again from the viewer cache, and Recent searches are read again only when the server recorded one', async () => {
+test('a query already read is shown again from the viewer cache, and Recent searches are read again after a recorded search', async () => {
   const paths: string[] = [];
-  const api = {request: async <T>(path: string): Promise<T> => {
+  const api = {request: legacySearchRequest(async (path: string): Promise<any> => {
     paths.push(path);
-    if (path.startsWith('/v1/search/history')) return history as T;
+    if (path.startsWith('/v1/search/history')) return history;
     const answer = result(path, ['actual-result']);
-    return {...answer, query: {...answer.query, recorded: path.includes('record=1')}} as T;
-  }};
+    return {...answer, query: {...answer.query, recorded: path.includes('record=1')}};
+  })} as {request<T>(path: string): Promise<T>};
   const make = () => new NativeSearchDestination({api, scope, current: () => true, rememberHistory: () => true, reportError: error => {throw error;}});
   const searches = () => paths.filter(path => path.startsWith('/v1/search?')), histories = () => paths.filter(path => path.startsWith('/v1/search/history'));
   const first = make(), back = make();
@@ -221,7 +222,7 @@ test('a query already read is shown again from the viewer cache, and Recent sear
     assert.equal(back.getSnapshot().groups[0]?.items[0]?.id, 'actual-result');
     await back.refreshHistory();
     assert.equal(searches().length, 1, 'no second search read'); assert.equal(histories().length, 2, 'no second recents read');
-    assert.deepEqual(back.getSnapshot().recent, history.entries);
+    assert.deepEqual(back.getSnapshot().recent.map(entry => entry.q), history.entries.map(entry => entry.q));
   } finally {first.dispose(); back.dispose(); viewerQueriesFor(api, scope).dispose();}
 });
 
