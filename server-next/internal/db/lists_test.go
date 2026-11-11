@@ -292,4 +292,21 @@ func TestCollectionVisibleToEveryone(t *testing.T) {
 	if _, err := l.d.AddToList(ctx, other, both.PublicID, 0, []string{seen[2]}, 0, "", "", now); !errors.Is(err, db.ErrNotAllowed) {
 		t.Fatalf("another profile changed a collection visible to everyone: %v", err)
 	}
+	// Making it private tells the other profiles to remove it from their open screens.
+	head, err := l.d.ChangesHead(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	no := false
+	if _, err := l.d.EditList(ctx, owner, both.PublicID, 0, db.ListChange{Everyone: &no}, now); err != nil {
+		t.Fatal(err)
+	}
+	events, _, _, err := l.d.Events(ctx, child, head, 100)
+	if err != nil || !slices.ContainsFunc(events, func(e db.Event) bool { return e.Topic == db.TopicList && e.Op == db.OpDeleted }) {
+		t.Fatalf("the child was not told the collection became private: %+v, %v", events, err)
+	}
+	if _, err := l.d.List(ctx, child, both.PublicID); !errors.Is(err, db.ErrNotFound) {
+		t.Fatalf("the child still reads the private collection: %v", err)
+	}
+
 }
