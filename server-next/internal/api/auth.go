@@ -304,6 +304,18 @@ func (s *Server) signIn(r *http.Request, req SignInRequest) (SignInResponse, err
 	if err != nil {
 		return SignInResponse{}, err
 	}
+	// A server using Portico Accounts signs nobody in with a password. The one thing an old
+	// password still does there, for a while after the switch, is tell a waiting person what
+	// to do next (the transaction answers that); any other right password counts as wrong.
+	if kind, err := s.signInKind(ctx); err != nil {
+		return SignInResponse{}, err
+	} else if kind == "portico" && ok {
+		account, err := s.db.Account(ctx, creds.UserID)
+		if err != nil {
+			return SignInResponse{}, err
+		}
+		ok = account.State == "waiting"
+	}
 	// If the account has two-step sign-in, this challenge is stored in place of a session.
 	device, _ := json.Marshal(session.Device)
 	challenge := Challenge{Token: auth.NewSecret(), ExpiresAt: now.Add(challengeLife).UTC()}
@@ -376,6 +388,9 @@ func (s *Server) signOut(r *http.Request, _ None) (None, error) {
 // two-step sign-in, its code. The account's other devices are signed out; this one stays.
 func (s *Server) changePassword(r *http.Request, req PasswordRequest) (None, error) {
 	ctx, now := r.Context(), s.now()
+	if err := s.refuseOnPortico(r); err != nil {
+		return None{}, err
+	}
 	caller, err := manager(r)
 	if err != nil {
 		return None{}, err
