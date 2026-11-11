@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/netip"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -354,6 +356,92 @@ func TestUnlistedProxyAtAPublicAddress(t *testing.T) {
 	}
 	if lines := strings.Count(log.String(), "from public addresses"); lines != maxSilentProxies {
 		t.Errorf("%d public addresses sending the header twice wrote %d log lines, want %d", maxSilentProxies+4, lines, maxSilentProxies)
+	}
+}
+
+// In a container with a published port every visitor can arrive from the container network's
+// gateway. While the server is guessing what is home, that address is away, setup says so
+// to whoever is doing it and the owner's settings say so afterwards. If the owner lists a
+// home network that holds the gateway, that is saved and holds, and the owner is warned.
+func TestVisitorsFromTheGateway(t *testing.T) {
+	const gateway, neighbour = "172.17.0.1", "172.17.0.9"
+	old := defaultGateway
+	defaultGateway = func() netip.Addr { return netip.MustParseAddr(gateway) }
+	t.Cleanup(func() { defaultGateway = old })
+	s := newTestServer(t)
+	// What the server would guess inside a container: itself and the container's network.
+	s.networks()
+	s.network.mu.Lock()
+	s.network.defaults = []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8"), netip.MustParsePrefix("172.17.0.0/16")}
+	s.network.mu.Unlock()
+	codes := func(warnings []Warning) string {
+		var out []string
+		for _, w := range warnings {
+			out = append(out, w.Code)
+		}
+		return strings.Join(out, ",")
+	}
+
+	var system System
+	if from(t, s, gateway, "", "GET", "/v1/system", "", nil, &system); codes(system.Warnings) != "gateway_visitors" || !strings.Contains(system.Warnings[0].Message, gateway) {
+		t.Fatalf("before setup, a request from the gateway is told %+v", system.Warnings)
+	}
+	system = System{}
+	if from(t, s, neighbour, "", "GET", "/v1/system", "", nil, &system); len(system.Warnings) != 0 {
+		t.Errorf("a request from another address is warned: %+v", system.Warnings)
+	}
+	// Setup works from the gateway all the same.
+	var in SignInResponse
+	body := SetupOwnerRequest{SetupCode: s.setupCode, Username: "Justin", Password: testPassword, Device: device(0)}
+	if got := from(t, s, gateway, "", "POST", "/v1/setup/owner", "", body, &in); got != 200 {
+		t.Fatalf("setup from the gateway answered %d", got)
+	}
+	owner := onMain(t, s, in)
+	system = System{}
+	if from(t, s, gateway, "", "GET", "/v1/system", "", nil, &system); len(system.Warnings) != 0 {
+		t.Errorf("after setup a stranger is still told about the gateway: %+v", system.Warnings)
+	}
+	signInFrom := func(peer, forwarded string, n int) {
+		t.Helper()
+		body := SignInRequest{Username: "justin", Password: testPassword, Device: device(n)}
+		if got := from(t, s, peer, forwarded, "POST", "/v1/auth/sign-in", "", body, nil); got != 200 {
+			t.Fatalf("signing in from %s answered %d", peer, got)
+		}
+	}
+	labels := func() map[string]string {
+		out := map[string]string{}
+		for _, d := range get[Page[Device]](t, s, owner.AccessToken, "/v1/devices").Items {
+			out[d.Name] = d.Network
+		}
+		return out
+	}
+	signInFrom(gateway, "", 901)
+	signInFrom(neighbour, "", 902)
+	if got := labels(); got["Device 901"] != "away" || got["Device 902"] != "home" {
+		t.Errorf("while guessing, the gateway and its neighbour are listed as %q and %q, want away and home", got["Device 901"], got["Device 902"])
+	}
+	settings := get[NetworkSettings](t, s, owner.AccessToken, "/v1/admin/settings/network")
+	if codes(settings.Warnings) != "gateway_visitors" || slices.Contains(settings.HomeNetworks, gateway+"/32") {
+		t.Errorf("the owner's settings warn %q with home networks %v", codes(settings.Warnings), settings.HomeNetworks)
+	}
+
+	// The owner says the container's network is home. It is their server: saved, and said.
+	edit := NetworkSettingsEdit{HomeNetworks: &[]string{"172.17.0.0/16"}, TrustedProxies: []string{}}
+	if w := call(t, s, "PUT", "/v1/admin/settings/network", owner.AccessToken, edit, &settings); w.Code != 200 || len(settings.Warnings) != 0 {
+		t.Fatalf("listing the container's network as home answered %d with warnings %q", w.Code, codes(settings.Warnings))
+	}
+	// A proxy on the host that passes addresses on is the other warning's business, not this one's.
+	signInFrom(gateway, "203.0.113.9", 903)
+	if got := codes(get[NetworkSettings](t, s, owner.AccessToken, "/v1/admin/settings/network").Warnings); got != "proxy_not_listed" {
+		t.Errorf("a request through a proxy at the gateway warns %q, want proxy_not_listed", got)
+	}
+	signInFrom(gateway, "", 904)
+	if got := labels(); got["Device 904"] != "home" {
+		t.Errorf("with the gateway in the owner's home networks it is listed as %q, want home", got["Device 904"])
+	}
+	settings = get[NetworkSettings](t, s, owner.AccessToken, "/v1/admin/settings/network")
+	if got := codes(settings.Warnings); !strings.Contains(got, "gateway_at_home") || strings.Contains(got, "gateway_visitors") {
+		t.Errorf("with the gateway in the owner's home networks the settings warn %q", got)
 	}
 }
 

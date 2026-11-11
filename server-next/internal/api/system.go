@@ -21,6 +21,11 @@ type System struct {
 	SetupRequired bool `json:"setupRequired"`
 	// SignInMethods lists the ways to sign in, in the order to offer them.
 	SignInMethods []string `json:"signInMethods"`
+	// Warnings are for the person setting the server up, and are sent only until the owner
+	// account exists: today, that this request arrived from the server's network gateway, so
+	// the server cannot tell home from away as it is set up. The codes are those of the
+	// owner's network settings, where the same warning is shown afterwards.
+	Warnings []Warning `json:"warnings,omitempty"`
 }
 
 // Health is the answer of the health checks.
@@ -50,6 +55,12 @@ func (s *Server) systemRoutes() {
 			SetupRequired: !hasUsers, SignInMethods: []string{"password"}}
 		if _, err := s.admit(r, &Route{Access: SignedIn, Scope: ScopeRead}); err == nil {
 			out.Version = s.version
+		}
+		// Setup works from any network. This only tells whoever is doing it what to expect.
+		if gateway, from := s.fromGateway(r); from && !hasUsers {
+			if w, ok := gatewayWarning(s.networks(), gateway, s.networks().Home); ok {
+				out.Warnings = []Warning{w}
+			}
 		}
 		return out, nil
 	})

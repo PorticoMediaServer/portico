@@ -158,3 +158,29 @@ func TestUnlistedLocalProxy(t *testing.T) {
 		}
 	}
 }
+
+// While the server is guessing what is home, the one address every visitor can arrive from
+// in a container or behind some routers, the default gateway, is not home; the rest of that
+// network is. Once the owner lists their home networks, their list alone decides.
+func TestTheGatewayIsNotHomeByDefault(t *testing.T) {
+	inContainer := "Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\t\tMTU\tWindow\tIRTT\n" +
+		"eth0\t00000000\t010011AC\t0003\t0\t0\t0\t00000000\t0\t0\t0\n" +
+		"eth0\t000011AC\t00000000\t0001\t0\t0\t0\t0000FFFF\t0\t0\t0\n"
+	gateway := gatewayIn(inContainer)
+	if gateway.String() != "172.17.0.1" {
+		t.Fatalf("the gateway read from the route table is %v, want 172.17.0.1", gateway)
+	}
+	if got := gatewayIn("Iface\tDestination\tGateway\n"); got.IsValid() {
+		t.Errorf("a table with no default route gave the gateway %v", got)
+	}
+	home := []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8"), netip.MustParsePrefix("172.17.0.0/16")}
+	guessed, chosen := Networks{Home: home, Gateway: gateway}, Networks{Home: home}
+	for addr, want := range map[string]bool{"172.17.0.1": false, "::ffff:172.17.0.1": false, "172.17.0.9": true, "127.0.0.1": true, "203.0.113.5": false} {
+		if got := guessed.AtHome(netip.MustParseAddr(addr)); got != want {
+			t.Errorf("while guessing, %s at home: %v, want %v", addr, got, want)
+		}
+	}
+	if !chosen.AtHome(gateway) {
+		t.Error("the owner listed a network holding the gateway, and it does not count as home")
+	}
+}
