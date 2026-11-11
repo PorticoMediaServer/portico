@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -26,10 +27,62 @@ const maxPictureBytes = 10 << 20
 var pictureRoles = map[string]db.ImageRole{"poster": db.ImagePoster, "backdrop": db.ImageBackdrop, "logo": db.ImageLogo,
 	"thumb": db.ImageThumb, "banner": db.ImageBanner, "cover": db.ImageCover, "portrait": db.ImagePortrait}
 
-var pictureClient = &http.Client{Timeout: 30 * time.Second,
-	// The address is the provider's picture server and a path; an answer pointing elsewhere is
-	// not followed, so the server only ever connects to the provider's own host.
-	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+// pictureRedirects are the providers' picture hosts whose addresses answer with a redirect,
+// each with the hosts it may send a download on to. A redirect is followed only from one of
+// these hosts to one of its own, over https, at most three times, and never to an address on
+// this machine or the local network. Every other redirect is refused: TMDB's picture server
+// answers directly. Cover Art Archive's cover address sends the download on to the Internet
+// Archive's numbered download hosts.
+var pictureRedirects = map[string][]string{
+	"coverartarchive.org": {"archive.org", "*.archive.org"},
+}
+
+// redirectsOverHTTP and redirectsToPrivate let a test's stand-in, on a plain address on this
+// machine, play the provider. They are never set outside tests.
+var redirectsOverHTTP, redirectsToPrivate bool
+
+var pictureClient = &http.Client{Timeout: 30 * time.Second, CheckRedirect: checkPictureRedirect}
+
+// checkPictureRedirect says whether a picture download may follow a redirect to req.
+func checkPictureRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) > 3 {
+		return errors.New("the picture's address redirected more than three times")
+	}
+	allowed, ok := pictureRedirects[strings.ToLower(via[0].URL.Hostname())]
+	host := strings.ToLower(req.URL.Hostname())
+	known := false
+	for _, a := range allowed {
+		if host == a || strings.HasPrefix(a, "*.") && strings.HasSuffix(host, a[1:]) {
+			known = true
+		}
+	}
+	switch {
+	case !ok || !known:
+		return fmt.Errorf("the picture's address redirected to %s, which is not its provider's", host)
+	case req.URL.Scheme != "https" && !redirectsOverHTTP:
+		return errors.New("the picture's address redirected to a plain http address")
+	}
+	if redirectsToPrivate {
+		return nil
+	}
+	addresses, err := net.DefaultResolver.LookupIPAddr(req.Context(), host)
+	if err != nil {
+		return err
+	}
+	for _, a := range addresses {
+		if !publicAddress(a.IP) {
+			return fmt.Errorf("the picture's address redirected to %s, which is not on the Internet", host)
+		}
+	}
+	return nil
+}
+
+// publicAddress reports whether ip is on the Internet: not this machine, the local network,
+// a link-local address or an unspecified one.
+func publicAddress(ip net.IP) bool {
+	return !(ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() ||
+		ip.IsInterfaceLocalMulticast() || ip.IsMulticast())
+}
 
 // fetchPicture downloads one picture a provider offers. Every app sees it from the server's
 // own copy and never asks the provider.
