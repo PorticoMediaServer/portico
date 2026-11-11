@@ -199,6 +199,8 @@ type SessionState struct {
 	ProfilePrimary  bool
 	// MemberOnly: the session never has more than a member's rights. See NewSession.
 	MemberOnly bool
+	// Cast: a Cast receiver's sign-in, which can only play, on its one profile. See cast.go.
+	Cast bool
 
 	DevicePublicID string
 	InstallationID string
@@ -215,14 +217,14 @@ func sessionState(ctx context.Context, q queryer, id int64) (SessionState, error
 		SELECT s.id, s.public_id, s.token_generation, s.expires_at, ifnull(s.previous_at, s.created_at),
 			s.revoked_at IS NOT NULL, s.refresh_hash, ifnull(s.previous_refresh_hash, ''), ifnull(s.previous_request_id, ''),
 			u.id, u.public_id, u.role, u.disabled_at IS NOT NULL,
-			ifnull(p.id, 0), ifnull(p.public_id, ''), ifnull(p.is_primary, 0), s.scope = 'member',
+			ifnull(p.id, 0), ifnull(p.public_id, ''), ifnull(p.is_primary, 0), s.scope = 'member', s.scope = 'cast',
 			d.public_id, d.client_id
 		FROM sessions s JOIN users u ON u.id = s.user_id JOIN devices d ON d.id = s.device_id
 		LEFT JOIN profiles p ON p.id = s.profile_id
 		WHERE s.id = ?`, id).Scan(&s.ID, &s.PublicID, &s.Generation, &expires, &renewed,
 		&s.revoked, &s.refreshHash, &s.previousHash, &s.previousRequestID,
 		&s.UserID, &s.UserPublicID, &s.UserRole, &s.disabled,
-		&s.ProfileID, &s.ProfilePublicID, &s.ProfilePrimary, &s.MemberOnly,
+		&s.ProfileID, &s.ProfilePublicID, &s.ProfilePrimary, &s.MemberOnly, &s.Cast,
 		&s.DevicePublicID, &s.InstallationID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return s, ErrNotFound
@@ -442,6 +444,9 @@ func (d *DB) RenewSession(ctx context.Context, r Renewal) (out SessionState, rep
 		switch {
 		case r.Generation == s.Generation && r.Hash == s.refreshHash:
 			at := r.Now.UnixMilli()
+			if s.Cast {
+				r.ExpiresAt = r.Now.Add(CastIdle) // a Cast receiver unused for a day is signed out
+			}
 			if _, err := tx.Exec(`UPDATE sessions SET refresh_hash = ?, token_generation = token_generation + 1,
 					previous_refresh_hash = ?, previous_request_id = ?, previous_at = ?,
 					expires_at = ?, last_used_at = ?, remote_addr = nullif(?, '') WHERE id = ?`,
