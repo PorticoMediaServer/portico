@@ -20,13 +20,11 @@ import (
 // trim from each end and where it can seek, which is what lets one song run into the next
 // without a gap. That plan needs the file measured exactly, by decoding it once.
 //
-// The scan makes the measurement when it reads the file and keeps it with the file
-// (files.audio_exact), so a play has it at once. A file the scan could not measure that way
-// (a very long one, a platform without the scan's worker, a file scanned before this was
-// built) is measured the first time it is planned, and that is kept in memory until the
-// file changes or the server restarts. A plan waits a short while for it; if it takes
-// longer, this play is planned the ordinary way and the measurement carries on beside it,
-// so the next play of the file has it.
+// The measurement is made the first time a file is planned this way and kept with the file
+// (files.audio_exact), so it is made once for each song a listener really plays, and never
+// by a scan. A plan waits a short while for it; if it takes longer, this play is planned the
+// ordinary way and the measurement carries on beside it, so the next play of the file has
+// it. A scan that reads the file again clears what was kept.
 
 // musicWait is how long a plan waits for a file to be measured.
 const musicWait = 3 * time.Second
@@ -41,7 +39,7 @@ type measuredMusic struct {
 
 // measured returns a music file's exact facts, and false when they are not there in time
 // or the file cannot be measured.
-func (e *Engine) measured(ctx context.Context, path string, place db.FileOnDisk) (*measuredMusic, bool) {
+func (e *Engine) measured(ctx context.Context, fileID int64, path string, place db.FileOnDisk) (*measuredMusic, bool) {
 	key := fmt.Sprint(path, "\x00", place.Size, "\x00", place.ModifiedNS)
 	e.mu.Lock()
 	m := e.music[key]
@@ -58,11 +56,15 @@ func (e *Engine) measured(ctx context.Context, path string, place db.FileOnDisk)
 			defer cancel()
 			modified := time.Unix(0, place.ModifiedNS)
 			if place.AudioExact != "" && json.Unmarshal([]byte(place.AudioExact), &m.facts) == nil && m.facts.SampleRate > 0 {
-				// The scan measured it. Only the seek index is made now, which is quick.
+				// It was measured before. Only the seek index is made now, which is quick.
 				m.index, m.err = e.place("").streams.AudioSeekIndex(run, path, place.Size, modified, &m.facts)
 				return
 			}
-			m.facts, m.index, m.err = e.place("").streams.MeasureAudio(run, path, place.Size, modified)
+			if m.facts, m.index, m.err = e.place("").streams.MeasureAudio(run, path, place.Size, modified); m.err == nil {
+				if raw, err := json.Marshal(m.facts); err == nil {
+					_ = e.db.KeepAudioExact(run, fileID, place, string(raw))
+				}
+			}
 		}()
 	}
 	e.mu.Unlock()
@@ -87,7 +89,7 @@ func (e *Engine) musicPlan(ctx context.Context, r playback.PlanRequest, request 
 		remoteID != 0 || len(r.Failures) > 0 {
 		return nil
 	}
-	m, ok := e.measured(ctx, path, place)
+	m, ok := e.measured(ctx, r.Version.FileID, path, place)
 	if !ok {
 		return nil
 	}
