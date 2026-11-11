@@ -24,6 +24,10 @@ type Restrictions struct {
 	// screen can say where the account is the stricter of the two.
 	AccountAllLibraries bool
 	AccountLibraries    []string
+	// AllowDownloads lets the profile download, within its account's own switch
+	// (AccountAllowDownloads, read-only here). Nil in a change leaves it as it is.
+	AllowDownloads        *bool
+	AccountAllowDownloads bool
 }
 
 func publicIDs(q interface {
@@ -48,8 +52,11 @@ func publicIDs(q interface {
 func restrictions(tx *sql.Tx, userID int64, publicID string) (int64, Restrictions, error) {
 	var out Restrictions
 	var id int64
-	err := tx.QueryRow(`SELECT p.id, p.max_rating_age, p.all_libraries, u.all_libraries FROM profiles p JOIN users u ON u.id = p.user_id
-		WHERE p.user_id = ? AND p.public_id = ?`, userID, publicID).Scan(&id, &out.MaxRatingAge, &out.AllLibraries, &out.AccountAllLibraries)
+	var allowDownloads bool
+	err := tx.QueryRow(`SELECT p.id, p.max_rating_age, p.all_libraries, u.all_libraries, p.allow_downloads, u.allow_downloads FROM profiles p
+		JOIN users u ON u.id = p.user_id WHERE p.user_id = ? AND p.public_id = ?`, userID, publicID).
+		Scan(&id, &out.MaxRatingAge, &out.AllLibraries, &out.AccountAllLibraries, &allowDownloads, &out.AccountAllowDownloads)
+	out.AllowDownloads = &allowDownloads
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, out, ErrNotFound
 	}
@@ -104,8 +111,8 @@ func (d *DB) SetProfileRestrictions(ctx context.Context, userID int64, publicID 
 			}
 			labels = append(labels, tag)
 		}
-		if _, err := tx.Exec(`UPDATE profiles SET max_rating_age = ?, all_libraries = ?, updated_at = ? WHERE id = ?`,
-			r.MaxRatingAge, r.AllLibraries, now.UnixMilli(), id); err != nil {
+		if _, err := tx.Exec(`UPDATE profiles SET max_rating_age = ?, all_libraries = ?, allow_downloads = coalesce(?, allow_downloads), updated_at = ?
+			WHERE id = ?`, r.MaxRatingAge, r.AllLibraries, r.AllowDownloads, now.UnixMilli(), id); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(`DELETE FROM profile_restrictions WHERE profile_id = ?`, id); err != nil {
