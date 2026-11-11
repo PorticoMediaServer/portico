@@ -38,6 +38,16 @@ type BookAnswer struct {
 	Contents []BookContents `json:"contents,omitempty"`
 	// Pages are a comic's pages in reading order, by their names in the archive.
 	Pages []string `json:"pages,omitempty"`
+	// Next is the next volume of the series, offered when this one is finished; nothing opens
+	// by itself.
+	Next *NextVolume `json:"next,omitempty"`
+}
+
+// NextVolume is the volume after a book in its series.
+type NextVolume struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	Index *int   `json:"index,omitempty"`
 }
 
 // BookVersion is one file of a book.
@@ -83,6 +93,9 @@ func (s *Server) openBook(r *http.Request, _ None) (BookAnswer, error) {
 	opened := s.reading.Open(r.Context(), book, version)
 	out := BookAnswer{ItemID: book.PublicID, Version: version.PublicID, Versions: []BookVersion{}, Format: opened.Format,
 		Fingerprint: opened.Fingerprint, Size: version.Size, SaveURL: opened.SaveURL}
+	if book.Next != nil {
+		out.Next = &NextVolume{ID: book.Next.PublicID, Title: book.Next.Title, Index: book.Next.Index}
+	}
 	for _, v := range book.Versions {
 		out.Versions = append(out.Versions, BookVersion{ID: v.PublicID, Format: reading.Format(v.FileName), Name: v.Name})
 	}
