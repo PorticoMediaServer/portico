@@ -521,6 +521,10 @@ type Caller struct {
 	Key bool
 	// Enrol says the caller may only set up two-step sign-in, which the owner requires.
 	Enrol bool
+	// PINStale says the caller is on the account's main profile, entered it with a remembered
+	// PIN, and has not typed the PIN in the last hour. It does everything the profile can
+	// except what pinRecheck guards.
+	PINStale bool
 	// KeyScopes are what the key may do; nil for a signed-in person and for an app password.
 	KeyScopes []string
 	// KeyID is the key's own row, for a key, token or app password; 0 for a signed-in person.
@@ -571,7 +575,8 @@ func (s *Server) admit(r *http.Request, route *Route) (*http.Request, error) {
 			return r, ErrUnauthorized()
 		}
 		c = Caller{SessionID: claims.SessionID, UserID: claims.UserID, ProfileID: claims.ProfileID, Role: claims.Role, Manage: claims.Manage, Enrol: claims.Enrol,
-			Stamp: db.TokenStamp{Boot: claims.Boot, Seq: claims.Seq}}
+			PINStale: claims.Manage && claims.ManageUntil != 0 && s.now().UnixMilli() >= claims.ManageUntil,
+			Stamp:    db.TokenStamp{Boot: claims.Boot, Seq: claims.Seq}}
 	}
 	if err := s.refuseNonOwnerAway(r, c.UserID); err != nil {
 		return r, err
@@ -590,6 +595,9 @@ func (s *Server) admit(r *http.Request, route *Route) (*http.Request, error) {
 		return r, ErrConflict("profile_selection_required", "Choose a profile to continue.")
 	case route.Access == Admin && c.Role != "owner" && c.Role != "admin", route.Access == Owner && c.Role != "owner":
 		return r, ErrNotPermitted()
+	}
+	if err := s.pinRecheck(r, route, c); err != nil {
+		return r, err
 	}
 	return r.WithContext(context.WithValue(r.Context(), callerKey, c)), nil
 }

@@ -69,6 +69,11 @@ type ProfilePIN struct {
 type ProfileSelect struct {
 	// PIN is needed only when the profile's pinRequired is true.
 	PIN string `json:"pin,omitempty"`
+	// RememberPIN asks that this device need not ask for the PIN again for as long as the
+	// owner allows. The answer then carries a pinToken to keep.
+	RememberPIN bool `json:"rememberPin,omitempty"`
+	// PINToken is the pinToken kept from an earlier answer, sent in place of the PIN.
+	PINToken string `json:"pinToken,omitempty"`
 }
 
 var profileColors = []string{"blue", "violet", "mint", "coral", "gold", "slate", "rose", "sky"}
@@ -99,6 +104,7 @@ func (s *Server) profileRoutes() {
 	Handle(s, "DELETE /v1/profiles/{id}/pin", SignedIn, s.removeProfilePIN)
 	Handle(s, "DELETE /v1/profiles/{id}", SignedIn, s.deleteProfile)
 	Handle(s, "POST /v1/profiles/{id}/select", SignedIn, s.selectProfile)
+	Handle(s, "PUT /v1/profiles/order", SignedIn, s.orderProfiles)
 	s.restrictionRoutes()
 	s.profilePictureRoutes()
 }
@@ -286,6 +292,10 @@ func (s *Server) changeProfilePIN(r *http.Request, hash string, proof *db.Passwo
 		if userID, sessionID, err = s.profileOwner(r); err != nil {
 			return Profile{}, err
 		}
+		// Without the password, a PIN is changed only by someone who has just typed one.
+		if err := s.pinStale(r, caller); err != nil {
+			return Profile{}, err
+		}
 	}
 	p, err := s.db.UpdateProfile(r.Context(), db.ProfileEdit{UserID: userID, PublicID: r.PathValue("id"), PINHash: &hash,
 		SessionID: sessionID, Proof: proof, Now: s.now()})
@@ -343,7 +353,26 @@ func (s *Server) selectProfile(r *http.Request, req ProfileSelect) (Session, err
 		return Session{}, err
 	}
 	sel := db.ProfileSelection{UserID: caller.UserID, SessionID: caller.SessionID, ProfileID: p.ID, CheckedPINHash: p.PINHash, AtHome: s.fromHome(r), Now: now}
-	if p.PINHash != "" {
+	remember, pinToken := time.Duration(s.signInSettings().PINRememberDays)*24*time.Hour, ""
+	var kept pinMemory
+	if p.PINHash != "" && req.PIN == "" && req.PINToken != "" {
+		// A remembered PIN: good on the device it was given to, until the PIN changes or the
+		// owner's time for remembering runs out. It cannot be guessed, so a stale one counts
+		// against nobody; the app asks for the PIN.
+		session, err := s.db.SessionState(ctx, caller.SessionID, now)
+		if errors.Is(err, db.ErrNotFound) {
+			return Session{}, errSignInEnded()
+		}
+		if err != nil {
+			return Session{}, err
+		}
+		sel.Remembered = true
+		sel.PINOK = s.tokens.Recall("pin", req.PINToken, &kept) && kept.Profile == p.ID && kept.Device == session.DevicePublicID &&
+			kept.PIN == pinFingerprint(p.PINHash) && now.Before(time.UnixMilli(kept.At).Add(remember))
+		if !sel.PINOK {
+			return Session{}, refusal(http.StatusForbidden, "profile_pin_reentry", "Enter this profile's PIN.", false)
+		}
+	} else if p.PINHash != "" {
 		if req.PIN == "" {
 			return Session{}, errBadPIN()
 		}
@@ -370,6 +399,10 @@ func (s *Server) selectProfile(r *http.Request, req ProfileSelect) (Session, err
 		if sel.PINOK, err = s.passwords.Check(ctx, p.PINHash, req.PIN); err != nil {
 			return Session{}, err
 		}
+		if req.RememberPIN && remember > 0 {
+			sel.TypedFor = pinTypedFor
+			pinToken = s.tokens.Remember("pin", pinMemory{Profile: p.ID, Device: session.DevicePublicID, PIN: pinFingerprint(p.PINHash), At: now.UnixMilli()})
+		}
 	}
 	st, err := s.db.SelectProfile(ctx, sel)
 	var limited *db.LimitedError
@@ -385,5 +418,10 @@ func (s *Server) selectProfile(r *http.Request, req ProfileSelect) (Session, err
 	case err != nil:
 		return Session{}, err
 	}
-	return s.session(st, now, ""), nil
+	out := s.session(st, now, "")
+	if pinToken != "" {
+		expires := now.Add(remember).UTC()
+		out.PINToken, out.PINTokenExpiresAt = pinToken, &expires
+	}
+	return out, nil
 }
