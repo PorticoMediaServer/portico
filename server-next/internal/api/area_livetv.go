@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/dvr"
@@ -25,8 +26,8 @@ type liveTVArea struct {
 	viewings *live.Viewings
 	// recorder records Live TV; dvrOptions are its settings, defaults until the dvr settings
 	// document exists. See dvr.go.
-	recorder   *dvr.Service
-	dvrOptions func() dvr.Options
+	recorder *dvr.Service
+	dvrNow   atomic.Pointer[dvr.Options]
 }
 
 // startLiveTV builds this area's services and registers its routes and job kinds. New calls it
@@ -53,11 +54,16 @@ func (s *Server) startLiveTV(ctx context.Context) error {
 	if err != nil {
 		home = s.dataDir
 	}
-	defaults := dvr.Defaults(home)
-	s.dvrOptions = func() dvr.Options { return defaults }
-	s.recorder = dvr.New(s.db, s.tuners, s.sources, s.viewings, s.log, func() time.Time { return s.now() }, func() dvr.Options { return s.dvrOptions() })
+	s.setDVROptions(dvr.Defaults(home))
+	s.recorder = dvr.New(s.db, s.tuners, s.sources, s.viewings, s.log, func() time.Time { return s.now() }, s.dvrOptions)
 	go s.recorder.Run(ctx)
 	s.dvrRoutes()
 	s.liveProgrammeRoutes()
 	return nil
 }
+
+// dvrOptions are the recording settings in force: the defaults until the dvr settings
+// document exists. setDVROptions replaces them; the recorder reads them as it goes.
+func (s *Server) dvrOptions() dvr.Options { return *s.dvrNow.Load() }
+
+func (s *Server) setDVROptions(o dvr.Options) { s.dvrNow.Store(&o) }
