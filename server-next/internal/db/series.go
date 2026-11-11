@@ -74,6 +74,9 @@ func joinSeries(b *batchTx, library, film int64, s SeriesRef, now int64) error {
 		if n, _ := res.RowsAffected(); n == 0 {
 			return nil
 		}
+		if err := b.collectionsRated(collection); err != nil {
+			return err
+		}
 		return appendChange(b.tx, Change{At: now, Topic: TopicItem, Op: OpUpdated, RefID: collection, LibraryID: library})
 	case !errors.Is(err, sql.ErrNoRows):
 		return err
@@ -102,6 +105,9 @@ func joinSeries(b *batchTx, library, film int64, s SeriesRef, now int64) error {
 			return err
 		}
 	}
+	if err := b.collectionsRated(collection); err != nil {
+		return err
+	}
 	return appendChange(b.tx, Change{At: now, Topic: TopicItem, Op: OpCreated, RefID: collection, LibraryID: library})
 }
 
@@ -129,7 +135,12 @@ func leaveSeries(b *batchTx, library, film, now int64) error {
 			if err := removeItem(b, library, collection, now); err != nil {
 				return err
 			}
-		} else if err := appendChange(b.tx, Change{At: now, Topic: TopicItem, Op: OpUpdated, RefID: collection, LibraryID: library}); err != nil {
+			continue
+		}
+		if err := b.collectionsRated(collection); err != nil {
+			return err
+		}
+		if err := appendChange(b.tx, Change{At: now, Topic: TopicItem, Op: OpUpdated, RefID: collection, LibraryID: library}); err != nil {
 			return err
 		}
 	}
