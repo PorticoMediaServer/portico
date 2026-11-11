@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/atomicfile"
 )
@@ -175,4 +176,67 @@ func shrink(source image.Image, width int) *image.RGBA {
 		}
 	}
 	return to
+}
+
+// Sweep removes the pictures nothing uses any more: every one stored before a time whose id
+// used does not name. used calls yield with every id in use, in ascending order; a picture
+// stored since the time is kept, as one just stored may not be recorded yet. Smaller copies
+// go with their picture. It returns how many pictures it removed.
+func (s *Store) Sweep(before time.Time, used func(yield func(id string) error) error) (int, error) {
+	prefixes, err := os.ReadDir(s.originals)
+	if errors.Is(err, fs.ErrNotExist) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	var stored []string // the pictures of the folders read so far, not yet compared
+	next := 0           // the next folder to read
+	var unused []string
+	// fill reads folders until a picture at or after id is waiting, or there are no more.
+	fill := func(id string) error {
+		for next < len(prefixes) && (len(stored) == 0 || stored[len(stored)-1] < id) {
+			entries, err := os.ReadDir(filepath.Join(s.originals, prefixes[next].Name()))
+			next++
+			if err != nil {
+				return err
+			}
+			for _, e := range entries {
+				info, err := e.Info()
+				if err == nil && ValidID(e.Name()) && info.ModTime().Before(before) {
+					stored = append(stored, e.Name())
+				}
+			}
+		}
+		return nil
+	}
+	err = used(func(id string) error {
+		if err := fill(id); err != nil {
+			return err
+		}
+		for len(stored) > 0 && stored[0] <= id {
+			if stored[0] != id {
+				unused = append(unused, stored[0])
+			}
+			stored = stored[1:]
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	if err := fill("~"); err != nil { // after every id
+		return 0, err
+	}
+	unused = append(unused, stored...)
+	for _, id := range unused {
+		if err := os.Remove(place(s.originals, id, "")); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return 0, err
+		}
+		copies, _ := filepath.Glob(place(s.sized, id, ".w*"))
+		for _, c := range copies {
+			os.Remove(c)
+		}
+	}
+	return len(unused), nil
 }
