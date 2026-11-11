@@ -42,6 +42,16 @@ type ChannelLink struct {
 	EndsAt   time.Time `json:"endsAt"`
 	// MaxKbps is the channel's Limited bitrate, held for every quality change; 0 for none.
 	MaxKbps int `json:"maxKbps,omitempty"`
+	// Logo is the channel's on-screen logo, drawn by the app over the picture and never
+	// burned into it: its address, corner (topRight unless set) and size (medium unless set).
+	Logo *ChannelLogo `json:"logo,omitempty"`
+}
+
+// ChannelLogo is a channel's on-screen logo.
+type ChannelLogo struct {
+	URL    string `json:"url"`
+	Corner string `json:"corner"`
+	Size   string `json:"size"`
 }
 
 // Prepared is the next title of a queue planned and its stream started before the current
