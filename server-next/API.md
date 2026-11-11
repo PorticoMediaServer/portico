@@ -252,8 +252,10 @@ everyone with the library sees, read like any title (`GET /v1/items?library=…&
 
 With the library option `groupSeries` (Group films from the same series, on unless turned off) a
 collection appears by itself once two films of a series are matched in the library, named
-without "Collection", and later films join it. One the owner deletes is not made again; one
-whose titles the owner changed takes no more by itself.
+without "Collection", and later films join it. One the owner deletes is not made again; a film
+the owner takes out of one stays out, and later films still join. Turning the option off removes
+the automatic collections nobody changed; one the owner renamed, reordered or edited stays as an
+ordinary collection.
 
 ## Not on the wire, on purpose
 
