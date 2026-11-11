@@ -107,6 +107,22 @@ func upgradeCopies(path string) []upgradeCopy {
 	return out
 }
 
+// RemoveUpgradeCopy removes the copy kept from before the latest upgrade, when the owner asks.
+// After it there is no way back to the version before. It says whether there was a copy;
+// removing one that is not there is not an error, so asking twice is the same as once.
+func (d *DB) RemoveUpgradeCopy() (bool, error) {
+	removed := false
+	var errs []error
+	for _, c := range upgradeCopies(d.path) {
+		if err := os.Remove(c.path); err == nil {
+			removed = true
+		} else if !errors.Is(err, os.ErrNotExist) {
+			errs = append(errs, err)
+		}
+	}
+	return removed, errors.Join(errs...)
+}
+
 // upgrade brings an existing database up to this program's version, or refuses it.
 func (d *DB) upgrade(ctx context.Context) error {
 	var recorded sql.NullInt64
