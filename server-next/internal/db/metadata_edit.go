@@ -338,7 +338,7 @@ func (d *DB) EditMetadata(ctx context.Context, publicID string, revision int64, 
 				if err != nil {
 					return err
 				}
-				if _, err := b.exec(`INSERT INTO item_tags (item_id, tag_id) VALUES (?, ?) ON CONFLICT DO NOTHING`, id, tagID); err != nil {
+				if err := b.tagItem(id, tagID); err != nil {
 					return err
 				}
 			}
@@ -361,6 +361,13 @@ func (d *DB) EditMetadata(ctx context.Context, publicID string, revision int64, 
 				if err := b.insertCredit(id, position, personID, credit.Role, credit.Character); err != nil {
 					return err
 				}
+			}
+		}
+		if edit.ContentRating != nil {
+			// The rating changed, on the title and on what is under it that has none of its
+			// own: the copies of it elsewhere follow in this transaction, after the tags.
+			if err := b.ratingChanged(id); err != nil {
+				return err
 			}
 		}
 		next = current + 1
