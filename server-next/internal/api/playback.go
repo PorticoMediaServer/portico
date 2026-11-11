@@ -5,8 +5,10 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/downloads"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
 )
@@ -26,6 +28,10 @@ func (s *Server) playbackRoutes() {
 	media := &Route{Pattern: "GET /v1/media/{grant}/{file...}", Access: Public, Scope: ScopeOpen}
 	s.routes = append(s.routes, media)
 	s.mux.HandleFunc(media.Pattern, func(w http.ResponseWriter, r *http.Request) {
+		if grant := r.PathValue("grant"); strings.HasPrefix(grant, downloads.GrantPrefix) {
+			s.serveDownload(w, r, grant, r.PathValue("file"))
+			return
+		}
 		if s.media == nil {
 			s.writeError(w, r, ErrNotFound())
 			return

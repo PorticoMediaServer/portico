@@ -16,7 +16,8 @@ type SessionDevice struct {
 	Name     string
 	// UserPublicID is the account the sign-in belongs to.
 	UserPublicID string
-	Platform     string
+	// Platform is what the app said the device is: ios, android, tvos, web.
+	Platform string
 	// SignInPublicID is the sign-in's own id. Another device names it when it remembers
 	// which sign-ins it let control it.
 	SignInPublicID string

@@ -79,11 +79,13 @@ func (d *DB) PreparedByID(ctx context.Context, id int64) (Prepared, error) {
 	return scanPrepared(d.read.QueryRowContext(ctx, `SELECT `+preparedColumns+` FROM prepared_media WHERE id = ?`, id))
 }
 
-// NextPrepared returns the copy that has waited longest, leaving out those in skip (being
-// made already). ErrNotFound when nothing waits.
+// NextPrepared returns the copy that has waited longest and that a request which is not
+// paused still wants, leaving out those in skip (being made already). ErrNotFound when
+// nothing waits.
 func (d *DB) NextPrepared(ctx context.Context, skip []int64) (Prepared, error) {
-	return scanPrepared(d.read.QueryRowContext(ctx, `SELECT `+preparedColumns+` FROM prepared_media
-		WHERE state IN ('waiting', 'preparing') AND id NOT IN `+intList(skip)+` ORDER BY created_at, id LIMIT 1`))
+	return scanPrepared(d.read.QueryRowContext(ctx, `SELECT `+preparedColumns+` FROM prepared_media p
+		WHERE state IN ('waiting', 'preparing') AND id NOT IN `+intList(skip)+` AND EXISTS (SELECT 1 FROM download_items x
+		JOIN downloads d ON d.id = x.download_id WHERE x.prepared_id = p.id AND x.state = 0 AND d.paused = 0) ORDER BY created_at, id LIMIT 1`))
 }
 
 // SetPreparedState records that a copy is being made, or why it could not be.
