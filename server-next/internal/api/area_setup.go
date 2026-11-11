@@ -10,8 +10,6 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/portmap"
 	"github.com/PorticoMediaServer/portico/server-next/internal/publicaddr"
 	"github.com/PorticoMediaServer/portico/server-next/internal/tlsport"
-	"path/filepath"
-	"time"
 )
 
 // setupArea is what setup and remote access (area 2) keeps on the server. Add this area's fields here and its start-up
