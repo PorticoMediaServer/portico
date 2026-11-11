@@ -75,7 +75,15 @@ type AnnotationResult struct {
 	Error      *Error      `json:"error,omitempty"`
 }
 
-const maxAnnotationBatch = 500
+// A batch is at most 500 changes and 2 MB: hundreds of ordinary highlights fit, and an app
+// whose queue is larger sends it in several batches. One annotation of the largest size (8,000
+// characters marked and a 4,000-character note, in any script, with its place and extra) fits
+// in oneAnnotationBody.
+const (
+	maxAnnotationBatch = 500
+	batchBody          = 2 << 20
+	oneAnnotationBody  = 128 << 10
+)
 
 func (s *Server) annotationRoutes() {
 	Handle(s, "GET /v1/items/{id}/annotations", WithProfile, func(r *http.Request, _ None) (Page[Annotation], error) {
@@ -96,7 +104,7 @@ func (s *Server) annotationRoutes() {
 		}
 		return out, nil
 	})
-	Handle(s, "PUT /v1/items/{id}/annotations/{annotationId}", WithProfile, func(r *http.Request, req AnnotationBody) (Annotation, error) {
+	one := Handle(s, "PUT /v1/items/{id}/annotations/{annotationId}", WithProfile, func(r *http.Request, req AnnotationBody) (Annotation, error) {
 		out, err := s.saveAnnotations(r, []AnnotationChange{{ItemID: r.PathValue("id"), ID: r.PathValue("annotationId"), AnnotationBody: req}})
 		if err != nil {
 			return Annotation{}, err
@@ -106,6 +114,7 @@ func (s *Server) annotationRoutes() {
 		}
 		return *out[0].Annotation, nil
 	})
+	one.BodyLimit = oneAnnotationBody
 	Handle(s, "DELETE /v1/items/{id}/annotations/{annotationId}", WithProfile, func(r *http.Request, _ None) (None, error) {
 		out, err := s.saveAnnotations(r, []AnnotationChange{{ItemID: r.PathValue("id"), ID: r.PathValue("annotationId"), Delete: true}})
 		if err != nil {
@@ -116,13 +125,14 @@ func (s *Server) annotationRoutes() {
 		}
 		return None{}, nil
 	})
-	Handle(s, "POST /v1/annotations:batch", WithProfile, func(r *http.Request, req AnnotationBatch) (AnnotationResults, error) {
+	batch := Handle(s, "POST /v1/annotations:batch", WithProfile, func(r *http.Request, req AnnotationBatch) (AnnotationResults, error) {
 		if len(req.Changes) == 0 || len(req.Changes) > maxAnnotationBatch {
-			return AnnotationResults{}, ErrField("changes", "Send 1 to 500 changes.")
+			return AnnotationResults{}, ErrField("changes", "Send 1 to 500 changes, of at most 2 MB in all.")
 		}
 		out, err := s.saveAnnotations(r, req.Changes)
 		return AnnotationResults{Results: out}, err
 	})
+	batch.BodyLimit = batchBody
 }
 
 func (s *Server) saveAnnotations(r *http.Request, changes []AnnotationChange) ([]AnnotationResult, error) {
