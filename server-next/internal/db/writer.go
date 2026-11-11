@@ -22,10 +22,32 @@ const userStreak = 4
 var errClosed = errors.New("database is closed")
 
 type writeRequest struct {
-	ctx   context.Context
-	fn    func(tx *sql.Tx) error
-	after func()
-	done  chan error
+	ctx    context.Context
+	fn     func(tx *sql.Tx) error
+	after  func()
+	done   chan error
+	person bool      // a person's write, not background work
+	queued time.Time // when it joined the queue
+}
+
+// A person's write that had to wait behind background work is a sign that someone is using
+// the server while an import runs. For busyFor after the last such wait, background work is
+// advised to keep each transaction to busyBatch, so the next tap waits about that long and
+// not a whole batch. With nobody waiting, an import uses its full batches and its full speed.
+var (
+	busyFor   = 5 * time.Second
+	busyBatch = 5 * time.Millisecond
+)
+
+// NextImportFiles advises how many files the next import transaction should hold, given how
+// many the last one held and how long it took. It is normal, the caller's own batch size,
+// unless a person's write has lately waited behind background work; then it is as many as
+// fit in busyBatch.
+func (d *DB) NextImportFiles(files, normal int, took time.Duration) int {
+	if time.Since(time.Unix(0, d.personWaited.Load())) > busyFor || files <= 0 || took <= 0 {
+		return normal
+	}
+	return min(max(int(float64(files)*float64(busyBatch)/float64(took)), 1), normal)
 }
 
 // write runs fn in one transaction on the single write connection and commits it.
@@ -43,7 +65,7 @@ func (d *DB) write(ctx context.Context, p Priority, fn func(tx *sql.Tx) error) e
 // write begins. It is for in-memory state that must change in step with what was committed:
 // whatever the next transaction reads from memory already reflects this one.
 func (d *DB) writeThen(ctx context.Context, p Priority, fn func(tx *sql.Tx) error, after func()) error {
-	req := writeRequest{ctx: ctx, fn: fn, after: after, done: make(chan error, 1)}
+	req := writeRequest{ctx: ctx, fn: fn, after: after, done: make(chan error, 1), person: p == User, queued: time.Now()}
 	select {
 	case d.queues[p] <- req:
 		return <-req.done
@@ -56,6 +78,7 @@ func (d *DB) writeThen(ctx context.Context, p Priority, fn func(tx *sql.Tx) erro
 
 func (d *DB) writer() {
 	streak := 0
+	var lastBackground time.Time // when background work last finished
 	for {
 		// While the WAL is being emptied, background work waits and the writer looks in on
 		// the WAL whenever it has nothing else to do. See checkpoint.go.
@@ -91,7 +114,15 @@ func (d *DB) writer() {
 				}
 			}
 		}
+		// A person's write that was already waiting when background work last finished has
+		// waited behind it.
+		if req.person && lastBackground.After(req.queued) {
+			d.personWaited.Store(time.Now().UnixNano())
+		}
 		err := d.run(req)
+		if !req.person {
+			lastBackground = time.Now()
+		}
 		if err == nil && req.after != nil {
 			req.after()
 		}
