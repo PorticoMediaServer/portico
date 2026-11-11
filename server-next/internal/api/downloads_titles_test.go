@@ -32,8 +32,8 @@ func (rig *downloadRig) importAlbum() string {
 }
 
 // The Downloads page reads every request with its titles at once, each title with its show,
-// season and episode, or its album and artist; a title the profile may no longer see keeps
-// its row but says nothing more about where it sits.
+// season and episode, or its album and artist. A request for what the profile may no longer
+// see is absent, and comes back with access.
 func TestTheDownloadsListCarriesEveryTitleAndWhereItSits(t *testing.T) {
 	rig := newDownloadRig(t)
 	show := rig.importShow(1, 2)
@@ -69,27 +69,32 @@ func TestTheDownloadsListCarriesEveryTitleAndWhereItSits(t *testing.T) {
 		t.Errorf("the detail read gives %+v", detail.Items)
 	}
 
-	// A profile limited to the films library after asking for the show keeps the rows, with
-	// no show, season or episode named.
+	// A profile limited to the films library after asking for the show no longer has the
+	// request in its list or behind its address; it comes back when the limit is lifted.
 	var partner Profile
 	call(t, rig.s, "POST", "/v1/profiles", rig.owner, ProfileCreate{Name: "Partner"}, &partner)
 	var onPartner Session
 	call(t, rig.s, "POST", "/v1/profiles/"+partner.ID+"/select", signIn(t, rig.s, 2).Session.AccessToken, ProfileSelect{}, &onPartner)
-	if code, _ := rig.ask(onPartner.AccessToken, DownloadAsk{ItemID: show, Quality: "original"}); code != 201 {
+	code, asked := rig.ask(onPartner.AccessToken, DownloadAsk{ItemID: show, Quality: "original"})
+	if code != 201 {
 		t.Fatalf("the partner asking answered %d", code)
 	}
-	limited := Restrictions{Libraries: []string{rig.films.PublicID}}
-	if w := call(t, rig.s, "PUT", "/v1/profiles/"+partner.ID+"/restrictions", rig.owner, limited, nil); w.Code != 200 {
+	restrictions := "/v1/profiles/" + partner.ID + "/restrictions"
+	if w := call(t, rig.s, "PUT", restrictions, rig.owner, Restrictions{Libraries: []string{rig.films.PublicID}}, nil); w.Code != 200 {
 		t.Fatalf("limiting the partner answered %d: %s", w.Code, w.Body)
 	}
-	hidden := get[Page[Download]](t, rig.s, onPartner.AccessToken, "/v1/downloads").Items
-	if len(hidden) != 1 || len(hidden[0].Items) != 2 {
-		t.Fatalf("the partner's list is %+v", hidden)
+	if hidden := get[Page[Download]](t, rig.s, onPartner.AccessToken, "/v1/downloads").Items; len(hidden) != 0 {
+		t.Fatalf("the limited partner's list is %+v", hidden)
 	}
-	for _, e := range hidden[0].Items {
-		if e.ParentTitle != "" || e.SeasonNumber != nil || e.EpisodeNumber != nil {
-			t.Errorf("a title the partner may not see says where it sits: %+v", e)
-		}
+	if code := status(t, rig.s, "GET", "/v1/downloads/"+asked.ID, onPartner.AccessToken, nil); code != 404 {
+		t.Fatalf("the limited partner's request answered %d, want 404", code)
+	}
+	if w := call(t, rig.s, "PUT", restrictions, rig.owner, Restrictions{AllLibraries: true}, nil); w.Code != 200 {
+		t.Fatalf("lifting the limit answered %d: %s", w.Code, w.Body)
+	}
+	if back := get[Page[Download]](t, rig.s, onPartner.AccessToken, "/v1/downloads").Items; len(back) != 1 || len(back[0].Items) != 2 ||
+		back[0].Counts.Titles != 2 || back[0].Counts.Ready != 2 {
+		t.Fatalf("after the limit was lifted the partner's list is %+v", back)
 	}
 }
 
