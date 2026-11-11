@@ -20,6 +20,16 @@ type BackupRestore struct {
 	CurrentPassword string `json:"currentPassword"`
 	// Code is the authenticator or recovery code, for an owner with two-step sign-in.
 	Code string `json:"code,omitempty"`
+	// NotMadeHereConfirmed says the owner was warned that this backup was not made by this
+	// server, or was changed since, and typed the confirmation. Without it such a backup is
+	// refused with 409 backup_not_made_here and the warning.
+	NotMadeHereConfirmed bool `json:"notMadeHereConfirmed,omitempty"`
+}
+
+// notMadeHere is the warning for a backup without this server's mark.
+func notMadeHere() *Error {
+	return ErrConflict("backup_not_made_here", "This backup wasn't made by this server, or has been changed since. "+
+		"Restoring it replaces every account, including yours, with what is in the file.")
 }
 
 // RestoreStaged says the restore is ready and waits for a restart.
@@ -60,6 +70,10 @@ func (s *Server) restoreRoutes() {
 		default:
 			return RestoreStaged{}, ErrInvalid("Name a listed backup by id, or a backup file by its full path.")
 		}
+		// A backup this server did not make is warned of before anything else is asked.
+		if !req.NotMadeHereConfirmed && !backup.MadeHere(s.backups.DataDir, archive) {
+			return RestoreStaged{}, notMadeHere()
+		}
 		proof, err := s.passwordProof(r, req.CurrentPassword, req.Code)
 		if err != nil {
 			return RestoreStaged{}, proofError(err)
@@ -67,8 +81,13 @@ func (s *Server) restoreRoutes() {
 		if err := s.db.ConfirmRestore(r.Context(), proof, name, s.now()); err != nil {
 			return RestoreStaged{}, proofError(err)
 		}
-		// Unpacked once; the database that will be put in place is the one checked.
-		if err := backup.Stage(r.Context(), archive, s.backups.DataDir, name, s.now()); err != nil {
+		// Unpacked once; the database that will be put in place is the one checked, and its
+		// mark is checked over the very bytes unpacked.
+		err = backup.Stage(r.Context(), archive, s.backups.DataDir, name, s.now(), req.NotMadeHereConfirmed)
+		if errors.Is(err, backup.ErrNotMadeHere) {
+			return RestoreStaged{}, notMadeHere()
+		}
+		if err != nil {
 			return RestoreStaged{}, backupRefusal(err)
 		}
 		return RestoreStaged{Playing: len(s.playback.All()), CanRestart: canRestart}, nil
