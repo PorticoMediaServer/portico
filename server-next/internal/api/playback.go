@@ -259,6 +259,14 @@ func (s *Server) startPlayback(r *http.Request, req PlaybackStart) (PlaybackSess
 	if (req.ItemID == "") == (req.Queue == nil) {
 		return PlaybackSession{}, ErrField("itemId", "Say which title to play, or which queue entry.")
 	}
+	if c := CallerFrom(r.Context()); req.Queue != nil && c.Role == roleCast {
+		// A Cast receiver plays only its own queue.
+		if own, err := s.ownQueue(r.Context(), c, req.Queue.QueueID); err != nil {
+			return PlaybackSession{}, err
+		} else if !own {
+			return PlaybackSession{}, refusal(http.StatusForbidden, "playback_only", "This sign-in can only play what it was sent.", false)
+		}
+	}
 	if req.Queue != nil {
 		// The queue moves to the entry being started, and the entry says which title it is.
 		var err error
