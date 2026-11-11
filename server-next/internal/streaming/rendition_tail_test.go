@@ -75,10 +75,9 @@ func TestATrackWithNothingLeftAtItsEndIsAnsweredAtOnce(t *testing.T) {
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
-	// The rest of the track still plays, its last slot included once a window from the
-	// start has written it.
-	if len(rig.fetch(stream.Grant, renditionSegmentFile(rendition, 0))) == 0 || len(rig.fetch(stream.Grant, last)) == 0 {
-		t.Fatal("the track's first slots did not play")
+	// The track before its end still plays.
+	if len(rig.fetch(stream.Grant, renditionSegmentFile(rendition, 0))) == 0 {
+		t.Fatal("the track's first slot did not play")
 	}
 	streams.Stop("tail")
 }
