@@ -52,6 +52,7 @@ type workload struct {
 	libs     []db.Library
 	holders  []string // shows, seasons and albums to open
 	leaves   []string // films, episodes, tracks and books to open and mark
+	videos   []string // the films and episodes among them, for a stream to play
 	people   []string
 	mu       sync.Mutex
 	reads    map[string][]time.Duration
@@ -88,6 +89,9 @@ func newWorkload(ctx context.Context, d *db.DB, viewers []db.Viewer) (*workload,
 					for _, item := range page.Items {
 						if kind.Playable() {
 							w.leaves = append(w.leaves, item.PublicID)
+							if lib.Kind == db.LibraryMovies || lib.Kind == db.LibraryShows {
+								w.videos = append(w.videos, item.PublicID)
+							}
 						} else {
 							w.holders = append(w.holders, item.PublicID)
 						}
