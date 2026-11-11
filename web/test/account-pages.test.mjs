@@ -272,3 +272,16 @@ test('after signing in, only a path on this address is opened', async () => {
   assert.equal(signIn.returnPath('?next=' + encodeURIComponent('/approve/abc?x=1#y')), '/approve/abc?x=1#y');
   assert.equal(signIn.returnPath(''), '/account');
 });
+
+test('Approve a server waits until the page shows which account will own it', async () => {
+  fresh();
+  session.accountSession.keep(tokens);
+  const {h, approve} = await pages();
+  routes['GET /v1/approvals/apr_3'] = () => [200, {id: 'apr_3', state: 'waiting', serverId: 'srv_ghi', serverName: 'Den', purpose: 'setup'}];
+  routes['GET /v1/account'] = () => [503, refusal('busy')];
+  const draw = () => h.render(() => h.react.createElement(approve.ApproveServer, {id: 'apr_3'}));
+  draw(); await settle();
+  const button = nodes(draw()).find(node => textOf(node.props?.children) === 'next.account.approve.approve');
+  assert.equal(button.props.disabled, true);
+  h.dispose();
+});
