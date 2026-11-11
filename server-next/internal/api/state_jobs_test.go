@@ -165,6 +165,7 @@ func TestAFailedReadDoesNotEndTheJobAsDone(t *testing.T) {
 	me := CallerOf(t, s, limited)
 
 	req := jobs.Request{Target: jobs.Target{Filter: view}, Params: []byte(`{"watched": true}`), UserID: me.UserID, ProfileID: me.ProfileID}
+	stopServer(s)
 	closeDB(s.db)
 	err := s.runStateJob(context.Background(), jobs.Work{Job: db.Job{CreatedAt: 1}, Request: req, Progress: func(int64, int64) {}})
 	if err == nil {

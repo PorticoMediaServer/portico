@@ -245,7 +245,7 @@ func (s *Server) Webhooks() *webhooks.Service { return s.webhooks }
 // events go for everyone, a person who paused their history included: the owner sees every
 // play anyway.
 func (s *Server) startWebhooks(ctx context.Context) {
-	go s.webhooks.Run(ctx)
+	s.goBackground(func() { s.webhooks.Run(ctx) })
 	s.webhooks.Emit(webhooks.ServerStarted, map[string]string{"version": s.version})
 	s.playback.Notify(func(event string, p playback.Session) {
 		name := map[string]string{playback.StatePlaying: webhooks.PlaybackStarted, playback.StatePaused: webhooks.PlaybackPaused,

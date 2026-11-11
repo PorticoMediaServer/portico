@@ -132,7 +132,7 @@ func newTheatre(t *testing.T) *theatre {
 	path := filepath.Join(t.TempDir(), "main.db")
 	s := openTestServer(t, path)
 	th := &theatre{T: t, s: s, path: path, engine: &fakeEngine{}, clock: time.Now(), libs: map[string]db.Library{}}
-	s.now = func() time.Time { return th.clock }
+	s.setClock(func() time.Time { return th.clock })
 	s.playback.SetEngine(th.engine, th.engine)
 	th.owner = onMain(t, s, setup(t, s))
 	ctx := context.Background()

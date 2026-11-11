@@ -16,6 +16,8 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/artwork"
@@ -55,7 +57,11 @@ type Server struct {
 	id       string
 	identity identity
 	routes   []*Route
-	now      func() time.Time
+	// clock is where the server reads the time. Its background work reads it from the moment
+	// the server is made, so it is replaced only through setClock. See now.
+	clock atomic.Pointer[func() time.Time]
+	// background is the work the server does by itself. See goBackground.
+	background sync.WaitGroup
 	// setupCode is what creating the owner needs. It is made at start while there is no
 	// account, and written to the log and to setupFile, never sent to an app.
 	setupCode, setupFile string
@@ -186,8 +192,9 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{db: d, dataDir: dataDir, tokens: tokens, log: log, mux: http.NewServeMux(), version: version, id: identity.id, identity: identity, now: time.Now,
+	s := &Server{db: d, dataDir: dataDir, tokens: tokens, log: log, mux: http.NewServeMux(), version: version, id: identity.id, identity: identity,
 		passwords: auth.NewPasswords(auth.PasswordCost, auth.PINCost)}
+	s.setClock(time.Now)
 	if set, err := d.HasUsers(ctx); err != nil {
 		return nil, err
 	} else if !set {
@@ -223,7 +230,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.listRoutes()
 	s.stateBatchRoutes()
 	s.playback = playback.New(d, playback.NoEngine{}, playback.NoEngine{}, log, func() time.Time { return s.now() })
-	go s.playback.Run(ctx)
+	s.goBackground(func() { s.playback.Run(ctx) })
 	s.playbackRoutes()
 	s.queues = playqueue.New(d, s.playback, func() time.Time { return s.now() })
 	s.queueRoutes()
@@ -247,8 +254,34 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	if err := s.jobs.Resume(); err != nil {
 		return nil, err
 	}
-	go s.jobs.RunTidy(ctx)
+	s.goBackground(func() { s.jobs.RunTidy(ctx) })
 	return s, nil
+}
+
+// goBackground runs work the server does by itself, which must stop when the context given to
+// New ends. Wait waits for it.
+func (s *Server) goBackground(run func()) {
+	s.background.Add(1)
+	go func() {
+		defer s.background.Done()
+		run()
+	}()
+}
+
+// Wait returns, once the context given to New has ended, when everything the server does by
+// itself has stopped and written what it had to: jobs in hand put back to waiting, every
+// area's background work. Only then may the database close. It gives up when ctx ends.
+func (s *Server) Wait(ctx context.Context) {
+	s.jobs.Wait(ctx)
+	stopped := make(chan struct{})
+	go func() {
+		s.background.Wait()
+		close(stopped)
+	}()
+	select {
+	case <-stopped:
+	case <-ctx.Done():
+	}
 }
 
 // RemoteSources opens the owner's remote sources for the scanner and for playback.
@@ -257,6 +290,12 @@ func (s *Server) RemoteSources() *remote.Registry { return s.remote }
 // ServeWebWith gives the server the web app to answer with at every address that is not the
 // API's. Call it before serving.
 func (s *Server) ServeWebWith(web http.Handler) { s.web = web }
+
+// now is the server's time.
+func (s *Server) now() time.Time { return (*s.clock.Load())() }
+
+// setClock replaces the server's clock, which tests do while its background work runs.
+func (s *Server) setClock(now func() time.Time) { s.clock.Store(&now) }
 
 // Routes lists every registered operation.
 func (s *Server) Routes() []*Route { return s.routes }

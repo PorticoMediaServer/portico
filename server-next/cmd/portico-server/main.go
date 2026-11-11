@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 
@@ -181,10 +182,19 @@ func run(log *slog.Logger) (err error) {
 		log.Warn("no web app to serve: only the API is answered. Give its folder with -web, or put it in a folder named web beside this binary")
 	}
 	go engine.Run(ctx)
-	go handler.Totals().Run(ctx)
+	// Work of the program's own that writes to the database, waited for before it closes.
+	var background sync.WaitGroup
+	goBackground := func(run func()) {
+		background.Add(1)
+		go func() {
+			defer background.Done()
+			run()
+		}()
+	}
+	goBackground(func() { handler.Totals().Run(ctx) })
 	// The list of changes behind the events feed is kept short. A reader further behind than
 	// what is kept is told to read everything again.
-	go func() {
+	goBackground(func() {
 		tick := time.NewTicker(5 * time.Minute)
 		defer tick.Stop()
 		for {
@@ -197,7 +207,7 @@ func run(log *slog.Logger) (err error) {
 				}
 			}
 		}
-	}()
+	})
 	// Moods and similar titles: the published title data file, checked weekly. Nothing is
 	// downloaded until a release is signed, or while the owner has it switched off.
 	titleData := &titledata.Updater{DB: d, Dir: filepath.Join(*data, "title-data"), Log: log}
@@ -210,7 +220,7 @@ func run(log *slog.Logger) (err error) {
 		titleData.Address = os.Getenv("PORTICO_TITLE_DATA_ADDRESS")
 		log.Warn("title data comes from a test publication", "address", titleData.Address)
 	}
-	go titleData.Run(ctx)
+	goBackground(func() { titleData.Run(ctx) })
 	// No write timeout: media and the events feed are long replies. Slow request headers are bounded.
 	// Messages read the log kept in the data folder.
 	handler.UseLog(serverLog)
@@ -234,9 +244,13 @@ func run(log *slog.Logger) (err error) {
 	if err := srv.Shutdown(wait); err != nil && !errors.Is(err, context.DeadlineExceeded) {
 		return err
 	}
-	// Jobs in hand stop and are put back to waiting, so the next start does not take them for
-	// jobs that were cut short.
-	handler.Jobs().Wait(wait)
+	// Everything the server does by itself stops and is waited for before the database closes:
+	// jobs in hand are put back to waiting, the webhook sender records the attempt it was
+	// making, playback saves where everyone had got to. A restart the owner asked for has not
+	// ended the context yet, so it is ended here.
+	stop()
+	handler.Wait(wait)
+	waitFor(wait, &background)
 	// Where everyone had got to is saved before the database closes, and every converter stopped.
 	handler.Playback().Save(wait, db.User)
 	// Today's statistics so far are added to the day's totals.
@@ -249,6 +263,19 @@ func run(log *slog.Logger) (err error) {
 		return errRestart
 	}
 	return nil
+}
+
+// waitFor waits for a group of goroutines, or until ctx ends.
+func waitFor(ctx context.Context, group *sync.WaitGroup) {
+	done := make(chan struct{})
+	go func() {
+		group.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-ctx.Done():
+	}
 }
 
 // errRestart asks main to start the server again once everything has stopped.

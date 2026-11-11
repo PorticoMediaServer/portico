@@ -430,8 +430,12 @@ func libraryError(err error) error {
 }
 
 // RunSchedules starts scans by themselves until ctx ends: when watched folders change and on
-// rescan intervals. The program calls it once, beside serving.
-func (s *Server) RunSchedules(ctx context.Context) { s.scans.Run(ctx) }
+// rescan intervals. The program calls it once, beside serving; Wait waits for it too.
+func (s *Server) RunSchedules(ctx context.Context) {
+	s.background.Add(1)
+	defer s.background.Done()
+	s.scans.Run(ctx)
+}
 
 func (s *Server) libraryRoutes() {
 	s.explorerRoutes()

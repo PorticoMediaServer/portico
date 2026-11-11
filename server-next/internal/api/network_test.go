@@ -93,14 +93,14 @@ func TestTrustedProxiesAndHomeNetworks(t *testing.T) {
 		wrong.Device = device(100 + n)
 		// The wait for wrong passwords is not what is being tested: step past it.
 		clock := time.Now().Add(time.Duration(n) * 2 * time.Minute)
-		s.now = func() time.Time { return clock }
+		s.setClock(func() time.Time { return clock })
 		if got := from(t, s, proxy, guesser, "POST", "/v1/auth/sign-in", "", wrong, nil); got != 401 {
 			t.Fatalf("wrong password %d through the proxy answered %d", n, got)
 		}
 	}
 	// Past the wait for wrong passwords, which is a minute at most; the block lasts fifteen.
 	later := time.Now().Add(62 * time.Minute)
-	s.now = func() time.Time { return later }
+	s.setClock(func() time.Time { return later })
 	right := SignInRequest{Username: "justin", Password: testPassword, Device: device(200)}
 	if got := from(t, s, proxy, guesser, "POST", "/v1/auth/sign-in", "", right, nil); got != 429 {
 		t.Errorf("the network that guessed 30 times was answered %d, want 429", got)
@@ -147,7 +147,7 @@ func TestTrustedProxiesAndHomeNetworks(t *testing.T) {
 	if got := from(t, s, "127.0.0.1", "203.0.113.60", "POST", "/v1/auth/sign-in", "", unlisted, nil); got != 200 {
 		t.Fatalf("a sign-in through an unlisted proxy answered %d", got)
 	}
-	s.now = time.Now
+	s.setClock(time.Now)
 	owner = onMain(t, s, signIn(t, s, 0))
 	networks := map[string]string{}
 	for _, d := range get[Page[Device]](t, s, owner.AccessToken, "/v1/devices").Items {
@@ -158,6 +158,7 @@ func TestTrustedProxiesAndHomeNetworks(t *testing.T) {
 	}
 
 	// The settings are still there after a restart.
+	stopServer(s)
 	closeDB(s.db)
 	if got := openTestServer(t, path).networkSettings(0); len(got.TrustedProxies) != 1 || got.HomeNetworksDefault {
 		t.Errorf("after a restart the settings are %+v", got)
@@ -200,11 +201,11 @@ func TestListedProxyThatSendsNoAddress(t *testing.T) {
 	for n := range 30 {
 		wrong.Device = device(400 + n)
 		clock := time.Now().Add(time.Duration(n) * 2 * time.Minute)
-		s.now = func() time.Time { return clock }
+		s.setClock(func() time.Time { return clock })
 		from(t, s, proxy, "", "POST", "/v1/auth/sign-in", "", wrong, nil)
 	}
 	later := time.Now().Add(62 * time.Minute)
-	s.now = func() time.Time { return later }
+	s.setClock(func() time.Time { return later })
 	right := SignInRequest{Username: "justin", Password: testPassword, Device: device(500)}
 	if got := from(t, s, proxy, "", "POST", "/v1/auth/sign-in", "", right, nil); got != 429 {
 		t.Errorf("after 30 wrong guesses through the silent proxy the next sign-in answered %d, want 429", got)
@@ -265,11 +266,11 @@ func TestUnlistedProxyOnThisMachine(t *testing.T) {
 	for n := range 30 {
 		wrong.Device = device(600 + n)
 		clock := time.Now().Add(time.Duration(n) * 2 * time.Minute)
-		s.now = func() time.Time { return clock }
+		s.setClock(func() time.Time { return clock })
 		through(stranger, "POST", "/v1/auth/sign-in", "", wrong, nil)
 	}
 	later := time.Now().Add(62 * time.Minute)
-	s.now = func() time.Time { return later }
+	s.setClock(func() time.Time { return later })
 
 	// Everyone through the proxy is blocked from signing in, and told who to ask.
 	fresh := SignInRequest{Username: "justin", Password: testPassword, Device: device(700)}
@@ -486,6 +487,7 @@ func TestPINGuessesAcrossDevicesShareOneCount(t *testing.T) {
 	if code != 429 || wait < 50_000 || wait > 60_000 {
 		t.Fatalf("the right PIN on an eleventh device answered %d with a wait of %d ms, want 429 and about a minute", code, wait)
 	}
+	stopServer(s)
 	closeDB(s.db)
 	s = openTestServer(t, path)
 	if code, _ := try(321, "4821"); code != 429 {
@@ -504,7 +506,7 @@ func TestPINGuessesAcrossDevicesShareOneCount(t *testing.T) {
 		try(340+n, "0000")
 	}
 	clock := time.Now().Add(61 * time.Second)
-	s.now = func() time.Time { return clock }
+	s.setClock(func() time.Time { return clock })
 	if code, _ := try(360, "7777"); code != 200 {
 		t.Fatalf("the right PIN after the wait answered %d, want 200", code)
 	}
