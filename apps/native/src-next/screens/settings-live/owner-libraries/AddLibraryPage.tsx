@@ -80,7 +80,7 @@ export function AddLibraryPage({api, serverName, onCreate, onCancel, busy, error
     </FormScrollView>
     <View style={{flexDirection: 'row', gap: 10, paddingHorizontal: 20, paddingVertical: 12, borderTopWidth: 1, borderTopColor: theme.colors.lineSoft, backgroundColor: theme.colors.ink}}>
       <Button variant="glass" size="small" disabled={busy} onPress={onCancel}>{t(firstRun ? 'web.setup.skip' : 'action.cancel')}</Button>
-      <Button size="small" loading={busy} disabled={!valid || busy} onPress={() => onCreate({name: name.trim(), kind, folders: folders.map(folder => folder.path), ...(choice.source ? {expectedRemoteSource: {sourceId: choice.source.id, generation: choice.source.generation}} : {}), ...(!firstRun && agent ? {metadataAgent: agent as 'online' | 'local'} : {}), ...(!firstRun && language ? {metadataLanguage: language} : {})})} style={{flex: 1}}>{t(firstRun ? 'web.setup.addLibraryScan' : 'web.empty.addLibrary')}</Button>
+      <Button size="small" loading={busy} disabled={!valid || busy} onPress={() => onCreate({name: name.trim(), kind, folders: folders.map(folder => folder.path), ...(!firstRun && agent ? {metadataAgent: agent as 'online' | 'local'} : {}), ...(!firstRun && language ? {metadataLanguage: language} : {})})} style={{flex: 1}}>{t(firstRun ? 'web.setup.addLibraryScan' : 'web.empty.addLibrary')}</Button>
     </View>
     <FolderSourcePicker open={exploring} onOpenChange={setExploring} api={api} serverName={serverName} ports={firstRun ? undefined : ports} runtime={firstRun ? undefined : runtime}
       chosen={choice} onUse={setChoice}/>

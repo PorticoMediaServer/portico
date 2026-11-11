@@ -1,49 +1,37 @@
-import React, {createContext, useCallback, useContext, useEffect, useRef, useState} from 'react';
-import {ScrollView, Text, View} from 'react-native';
-import {defaultI18n} from '../../../../../../packages/i18n/src';
-import {type DAVConnectionResult, type RemoteState, type RemoteSource, type SourceReadPreset, type SourceReadSettings, type SourceReadValues, type SourceAdvancedSettings, type SourceChoiceApplyResult, type SourceChoiceIntent} from '../../../../../../packages/client-core/src/remote-sources';
-import {sourceChoiceAdopt, sourceChoiceCommand, sourceChoiceComparison, sourceChoiceResetDefinition, type SourceChoiceCommand, type SourceChoiceDefinition} from '../../../../../../packages/client-core/src/remote-source-choice';
+import React, {createContext, useContext, useEffect, useState} from 'react';
+import {Linking, Text, View} from 'react-native';
+import {defaultI18n, type MessageId} from '../../../../../../packages/i18n/src';
+import {defaultRemotePreset, isNotOnServerYet, remotePresets, remoteSourceCreate, type RemoteFolder, type RemoteLimits, type RemotePreset, type RemoteSource} from '../../../../../../packages/client-core/src/remote-storage';
+import type {AdminLibrary} from '../../../../../../packages/contracts/src/next/api';
 import {Button} from '../../../kit/controls/Button';
 import {TextField} from '../../../kit/controls/TextField';
-import {Switch} from '../../../kit/controls/Switch';
 import {useTheme} from '../../../kit/theme';
-import type {NativeRemoteSourcesController} from './controller';
-import {SourceAnalysisConsent} from './SourceAnalysisConsent';
-import {SourceReadingControls} from './SourceReadingControls';
-import {ConnectionTestCard} from './ConnectionTestCard';
-import {connectionTestField} from './reading-presentation';
-import {LibraryGroup, LibraryRow} from '../../settings-live/owner-libraries/controls';
 import {StandardBackdrop} from '../../../kit/artwork';
 import {FormScrollView} from '../../../platform/keyboard';
+import type {NativeRemoteSourcesController} from './controller';
 
 type Translate = typeof defaultI18n.t;
-type Common = {controller: NativeRemoteSourcesController; t: Translate; onCancel: () => void; isCurrent: () => boolean};
+/** A folder chosen on a source, for a library. */
+export type ChosenSourceFolder = Pick<RemoteFolder, 'name' | 'path'>;
 
+/** The server's refusal in the owner's words; a step this server does not offer yet says so plainly. */
 export function remoteSourceError(t: Translate, error: unknown): string {
+  if (isNotOnServerYet(error)) return t('next.remoteSources.notOnServerYet');
   const code = error && typeof error === 'object' && 'code' in error && typeof error.code === 'string' ? error.code : '';
-  const keys = {unauthorized: 'next.remoteSources.error.signIn', forbidden: 'next.remoteSources.error.forbidden', not_permitted: 'next.remoteSources.error.forbidden',
-    storage_command_conflict: 'next.remoteSources.error.changed', revision_mismatch: 'next.remoteSources.error.changed', remote_source_changed: 'next.remoteSources.error.changed',
-    idempotency_key_reused: 'next.remoteSources.error.reused', request_in_progress: 'next.remoteSources.error.busy', refresh_failed: 'next.remoteSources.error.refreshFailed',
-    remote_invalid_configuration: 'next.remoteSources.error.invalid', invalid_request: 'next.remoteSources.error.invalid'} as const;
+  const message = (error as {message?: unknown} | null)?.message;
+  if ((code === 'invalid_field' || code === 'invalid_request' || code === 'remote_unreachable') && typeof message === 'string' && message && message.length < 300) return message;
+  const keys = {unauthorized: 'next.remoteSources.error.signIn', forbidden: 'next.remoteSources.error.forbidden', source_in_use: 'next.remoteSources.error.changed'} as const;
   return t(Object.prototype.hasOwnProperty.call(keys, code) ? keys[code as keyof typeof keys] : 'next.remoteSources.error.generic');
 }
-
-export function receiptCheckRequired(state: RemoteState): boolean {
-  // A confirmed command's follow-up list read can fail after the service cleared its receipt.
-  // Check the original operation; never turn that refresh failure into a new mutation.
-  return state.ambiguous || !!state.operationId && !state.receipt && !state.rclone
-    && (!state.errorCode || state.errorCode === 'remote_source_not_listed');
-}
-
-export function useAttempt(parentCurrent: () => boolean) {
-  const live = useRef(true);
-  useEffect(() => {live.current = true; return () => {live.current = false;};}, []);
-  return useCallback(() => live.current && parentCurrent(), [parentCurrent]);
-}
-
 export const SourceWizardContext = createContext<Readonly<{step: number; back: () => void}> | undefined>(undefined);
+export const stateWords: Record<string, MessageId> = {
+  connected: 'next.remoteSources.state.ready', setup: 'next.remoteSources.state.setup', unreachable: 'next.remoteSources.state.unreachable',
+  sign_in: 'next.remoteSources.state.credentials', waiting: 'next.remoteSources.state.waiting', limited: 'next.remoteSources.state.limited',
+  needs_attention: 'next.remoteSources.state.attention',
+};
+const presetLabel = (preset: RemotePreset): MessageId => (`next.settingsSpec.server.remote-sources.panels.newSource.tabs.1.groups.0.rows.0.control.options.${remotePresets.findIndex(one => one.id === preset)}.label`) as MessageId;
 
-export function Page({title, t, busy, onCancel, children, footer, wizardStep, scrollable = true}: {title: string; t: Translate; busy: boolean; onCancel: () => void; children: React.ReactNode; footer: React.ReactNode; wizardStep?: number; scrollable?: boolean}) {
+export function Page({title, t, busy, onCancel, children, footer, wizardStep}: {title: string; t: Translate; busy: boolean; onCancel: () => void; children: React.ReactNode; footer: React.ReactNode; wizardStep?: number}) {
   const theme = useTheme(), wizard = useContext(SourceWizardContext), step = wizardStep ?? wizard?.step;
   return <View style={{flex: 1}}><StandardBackdrop/>
     <View style={{padding: 20, flexDirection: 'row', alignItems: 'center', gap: 16}}>
@@ -52,240 +40,160 @@ export function Page({title, t, busy, onCancel, children, footer, wizardStep, sc
     </View>
     {step !== undefined && <View style={{paddingHorizontal: 20, gap: 8}}>
       <View style={{flexDirection: 'row', gap: 4}}>{[1, 2, 3, 4, 5].map(value => <View key={value} style={{flex: 1, height: 3, borderRadius: 2, backgroundColor: value <= step ? theme.colors.accentStrong : theme.colors.lineSoft}}/>)}</View><Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('next.remoteSources.stepOf', {step})}</Text></View>}
-    {scrollable ? <FormScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" style={{flex: 1}} contentContainerStyle={{padding: 20, gap: 16}}>{children}</FormScrollView> : <View style={{flex: 1, minHeight: 0, padding: 20}}>{children}</View>}
-    <View style={{padding: 20, borderTopWidth: 1, borderTopColor: theme.colors.line, gap: 12}}>
-      {wizard && step !== undefined && step > 1 && step < 5 && <Button variant="glass" disabled={busy} onPress={wizard.back}>{t('next.remoteSources.back')}</Button>}{footer}
-    </View>
+    <FormScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" style={{flex: 1}} contentContainerStyle={{padding: 20, gap: 16}}>{children}</FormScrollView>
+    <View style={{padding: 20, borderTopWidth: 1, borderTopColor: theme.colors.line, gap: 12}}>{footer}</View>
   </View>;
 }
-
 export function Problem({message}: {message?: string}) {
   const theme = useTheme();
   return message ? <Text accessibilityRole="alert" style={[theme.type.body, {color: theme.colors.danger}]}>{message}</Text> : null;
 }
-
-/** The connection is a local draft. It is never copied into a store, receipt or persisted setting. */
-export function ConnectionEditor({controller, t, source, onCancel, onSaved, isCurrent}: Common & {source?: RemoteSource; onSaved: (source: RemoteSource) => void}) {
-  const theme = useTheme(), wizard = useContext(SourceWizardContext), current = useAttempt(isCurrent), inFlight = useRef(false), revision = useRef(0), testedRevision = useRef(-1);
-  const [name, setName] = useState(source?.name ?? ''), [root, setRoot] = useState(''), [username, setUsername] = useState(''), [password, setPassword] = useState('');
-  const [insecureLocal, setInsecureLocal] = useState(source?.insecureLocal ?? false), [busy, setBusy] = useState(false);
-  const [tested, setTested] = useState<DAVConnectionResult>(), [error, setError] = useState<string>(), [errorField, setErrorField] = useState<'password'>(), [testing, setTesting] = useState(false);
-  const changedConnection = !source || !!root || !!username || !!password;
-  const input = () => ({name, root, username, password, insecureLocal});
-  const edit = (setter: (value: string) => void) => (value: string) => {revision.current++; setter(value); setTested(undefined); setError(undefined); setErrorField(undefined);};
-  const test = async () => {
-    if (inFlight.current || !current()) return;
-    inFlight.current = true;
-    const captured = revision.current, guard = () => current() && revision.current === captured;
-    setBusy(true); setTesting(true); setError(undefined); setErrorField(undefined); setTested(undefined);
-    try {const result = await controller.testConnection(input(), guard); if (guard()) {testedRevision.current = captured; setTested(result);}}
-    catch (problem) {if (guard()) {const field = connectionTestField(problem); setErrorField(field); setError(field ? 'The storage rejected the sign-in. Check the user name and password.' : remoteSourceError(t, problem));}}
-    finally {inFlight.current = false; if (current()) {setBusy(false); setTesting(false);}}
-  };
-  const finish = () => {
-    const state = controller.getSnapshot().sources;
-    if (state.receipt && !state.receipt.removed && current()) {onSaved(state.receipt.source); return;}
-    if (current()) setError(remoteSourceError(t, {code: state.errorCode}));
-  };
-  const save = async () => {
-    if (inFlight.current || !current() || !name.trim() || changedConnection && (!tested || testedRevision.current !== revision.current)) return;
-    inFlight.current = true;
-    const draft = {...input(), keepConnection: !changedConnection, keepPassword: !!source && !changedConnection, expectedGeneration: source?.generation};
-    setBusy(true); setError(undefined); setPassword(''); setTested(undefined);
-    try {await controller.configure(source?.id ?? null, draft, source, current); if (current()) finish();}
-    catch (problem) {if (current()) setError(remoteSourceError(t, problem));}
-    finally {inFlight.current = false; if (current()) setBusy(false);}
-  };
-  const recover = async () => {
-    if (inFlight.current || !current()) return;
-    inFlight.current = true;
-    setBusy(true); setError(undefined);
-    try {await controller.recover(); if (current()) finish();}
-    catch (problem) {if (current()) setError(remoteSourceError(t, problem));}
-    finally {inFlight.current = false; if (current()) setBusy(false);}
-  };
-  const ambiguous = receiptCheckRequired(controller.getSnapshot().sources);
-  return <Page title={source?.name ?? t('next.remoteSources.add')} t={t} busy={busy} onCancel={onCancel}
-    footer={ambiguous ? <Button onPress={() => {void recover();}} disabled={busy}>{t('next.remoteSources.checkResult')}</Button>
-      : <Button onPress={() => {void save();}} loading={busy} disabled={busy || !name.trim() || changedConnection && !tested}>{t(wizard ? 'next.remoteSources.continue' : 'next.remoteSources.saveAndContinue')}</Button>}>
-    {tested ? <LibraryGroup><LibraryRow first label={name} help={tested.origin} trailing={<Button variant="text" size="small" disabled={busy || ambiguous} onPress={() => {revision.current++; setTested(undefined); setError(undefined); setErrorField(undefined);}}>{t('web.selection.edit')}</Button>}/></LibraryGroup> : <>
-    <TextField label={t('next.remoteSources.name')} value={name} onChangeText={edit(setName)} editable={!busy && !ambiguous} autoCorrect={false}/>
-    {!!source?.origin && <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{source.origin}</Text>}
-    <TextField label={t('next.remoteSources.address')} value={root} onChangeText={edit(setRoot)} editable={!busy && !ambiguous} autoCapitalize="none" autoCorrect={false} keyboardType="url"/>
-    <TextField label={t('next.remoteSources.username')} value={username} onChangeText={edit(setUsername)} editable={!busy && !ambiguous} autoCapitalize="none" autoCorrect={false} autoComplete="off"/>
-    <TextField label={t('next.remoteSources.password')} error={errorField === 'password' ? error : undefined} value={password} onChangeText={edit(setPassword)} editable={!busy && !ambiguous} secureTextEntry autoCapitalize="none" autoCorrect={false} autoComplete="off"/>
-    <Switch checked={insecureLocal} onCheckedChange={value => {revision.current++; setInsecureLocal(value); setTested(undefined); setError(undefined); setErrorField(undefined);}} disabled={busy || ambiguous} variant="phone">{t('next.remoteSources.insecureLocal')}</Switch>
-    </>}
-    {!tested && !error && <Button variant="glass" onPress={() => {void test();}} disabled={busy || ambiguous || !name.trim() || !root.trim()}>{testing ? t('next.remoteSources.testing') : t('next.remoteSources.test')}</Button>}
-    <ConnectionTestCard testing={testing} result={tested} error={error} t={t} disabled={busy || ambiguous || !name.trim() || !root.trim()} onTestAgain={() => {void test();}}/>
-
-  </Page>;
+function Choice({label, hint, picked, onPress}: {label: string; hint?: string; picked: boolean; onPress: () => void}) {
+  return <Button variant={picked ? 'primary' : 'glass'} onPress={onPress} accessibilityState={{selected: picked}}>{hint ? `${label} · ${hint}` : label}</Button>;
 }
-
-const presets: readonly SourceReadPreset[] = ['list', 'once', 'everything', 'ask'];
-const presetLabels = [
-  'next.settingsSpec.server.remote-sources.panels.source.tabs.1.groups.0.rows.0.control.options.0.label',
-  'next.settingsSpec.server.remote-sources.panels.source.tabs.1.groups.0.rows.0.control.options.1.label',
-  'next.settingsSpec.server.remote-sources.panels.source.tabs.1.groups.0.rows.0.control.options.2.label',
-  'next.settingsSpec.server.remote-sources.panels.source.tabs.1.groups.0.rows.0.control.options.3.label',
-] as const;
-
-/** The drawn name of one known reading preset, from the same options the editor uses. */
-export function sourceReadPresetLabel(t: Translate, preset: SourceReadPreset): string {
-  return t(presetLabels[presets.indexOf(preset)]);
-}
-
-export function ReadingEditor({controller, t, source, onCancel, onSaved, onAccepted, isCurrent}: Common & {source: RemoteSource; onSaved: (source: RemoteSource) => void; onAccepted?: (source: RemoteSource) => void}) {
-  const current = useAttempt(isCurrent), inFlight = useRef(false), wizard = useContext(SourceWizardContext);
-  const [profile, setProfile] = useState<SourceReadSettings>(), [advanced, setAdvanced] = useState<SourceAdvancedSettings>(), [values, setValues] = useState<SourceReadValues>();
-  const profileOwner = useRef<SourceReadSettings | undefined>(undefined), revision = useRef(0), renderedRevision = revision.current;
-  const owns = () => current() && profileOwner.current === profile && revision.current === renderedRevision;
-  const [consent, setConsent] = useState<boolean>(), [consentDirty, setConsentDirty] = useState(false);
+/** Runs one action, showing its refusal; a second tap while it runs does nothing. */
+function useRun(t: Translate, isCurrent: () => boolean) {
   const [busy, setBusy] = useState(false), [error, setError] = useState<string>();
-  const [unknown, setUnknown] = useState<SourceChoiceIntent>();
-  const [accepted, setAccepted] = useState<{result: Exclude<SourceChoiceApplyResult, {kind: 'unknown'}>; command: SourceChoiceCommand}>();
-  const choiceOpening = useRef<AbortController | undefined>(undefined);
-  useEffect(() => {const opening = new AbortController(); choiceOpening.current = opening; return () => opening.abort();}, []);
-  const accept = (next: SourceReadSettings, nextAdvanced: SourceAdvancedSettings) => {
-    profileOwner.current = next; revision.current++; setProfile(next); setAdvanced(nextAdvanced); setValues(next.values);
-    setConsent(next.values.allowAdvancedMediaAnalysis); setConsentDirty(false);
+  const run = (work: () => Promise<void>) => {
+    if (busy) return;
+    setBusy(true); setError(undefined);
+    void work().catch(failure => {if (isCurrent()) setError(remoteSourceError(t, failure));}).finally(() => {if (isCurrent()) setBusy(false);});
   };
-  const load = async () => {
-    if (inFlight.current || !current()) return;
-    inFlight.current = true; setBusy(true); setError(undefined);
-    try {
-      const [next, nextAdvanced] = await Promise.all([controller.readProfile(source, current), controller.readAdvanced(source, current)]);
-      if (current()) accept(next, nextAdvanced);
-    } catch (problem) {if (current()) setError(remoteSourceError(t, problem));}
-    finally {inFlight.current = false; if (current()) setBusy(false);}
-  };
-  useEffect(() => {void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  const matchingSource = async (settings: SourceReadSettings) => {
-    await controller.load();
-    if (!current()) return;
-    const state = controller.getSnapshot().sources;
-    return [state.receipt && !state.receipt.removed ? state.receipt.source : undefined, ...state.sources]
-      .find(row => row?.id === settings.sourceId && String(row.generation) === settings.generation);
-  };
-  const adoptChoice = async (result: SourceChoiceApplyResult, command: SourceChoiceCommand) => {
-    if (!owns()) return;
-    if (result.kind === 'unknown') {setUnknown(result.intent); setError(remoteSourceError(t, result.error)); return;}
-    setUnknown(undefined); setAccepted({result, command});
-    if (result.kind !== 'applied') {setError(t('next.remoteSources.error.refreshFailed')); return;}
-    const nextSource = await matchingSource(result.settings);
-    if (!owns()) return;
-    if (!nextSource) {setError(t('next.remoteSources.error.refreshFailed')); return;}
-    onAccepted?.(nextSource);
-  };
-  // Choices write the exact offered Reading/Advanced pair. Dirty independent
-  // consent is resolved only by its explicit Save action below.
-  const select = async (offered: SourceChoiceDefinition) => {
-    if (inFlight.current || !owns() || !profile || !advanced || consentDirty || unknown || accepted || !choiceOpening.current) return;
-    const command = sourceChoiceCommand(profile, advanced, offered);
-    if (!command) return;
-    inFlight.current = true; setBusy(true); setError(undefined);
-    try {await adoptChoice(await controller.saveProfileStartChoice(profile, advanced, offered, {signal: choiceOpening.current.signal, isCurrent: owns, consentDirty: false}), command);}
-    catch (problem) {if (owns()) setError(remoteSourceError(t, problem));}
-    finally {inFlight.current = false; if (current()) setBusy(false);}
-  };
-  const recoverChoice = async () => {
-    if (inFlight.current || !owns()) return;
-    inFlight.current = true; setBusy(true); setError(undefined);
-    try {
-      if (unknown) await adoptChoice(await controller.recoverStartChoice(unknown, owns), unknown.command);
-      else if (accepted) {
-        const next = await controller.reconcileChoiceProfile(source.id, owns);
-        if (!sourceChoiceAdopt(next, accepted.command, accepted.result.accepted)) throw {code: 'refresh_failed'};
-        const nextSource = await matchingSource(next);
-        if (owns() && nextSource) onAccepted?.(nextSource); else if (owns()) throw {code: 'refresh_failed'};
-      }
-    } catch (problem) {if (owns()) setError(remoteSourceError(t, problem));}
-    finally {inFlight.current = false; if (current()) setBusy(false);}
-  };
-  const save = async (stay = false) => {
-    if (inFlight.current || !profile || !values || !owns() || unknown || accepted || consentDirty && !stay) return;
-    // The read's own consent fact is dropped again here: an ordinary save omits
-    // the field, so it can neither grant nor revoke the recorded permission.
-    const {scanDepth, wholeFileReads, connections, requestsPerSecond, bytesPerSecond} = values;
-    const command = {scanDepth, wholeFileReads, connections, requestsPerSecond, bytesPerSecond,
-      ...(consentDirty && typeof consent === 'boolean' ? {allowAdvancedMediaAnalysis: consent} : {})};
-    inFlight.current = true; setBusy(true); setError(undefined);
-    try {
-      const next = await controller.saveProfile(profile, command, owns);
-      if (!owns()) return;
-      const nextSource = await matchingSource(next);
-      if (!owns()) return;
-      if (!nextSource) throw {code: 'refresh_failed'};
-      if (stay) onAccepted?.(nextSource); else onSaved(nextSource);
-    } catch (problem) {if (owns()) setError(remoteSourceError(t, problem));}
-    finally {inFlight.current = false; if (current()) setBusy(false);}
-  };
-  const ambiguous = receiptCheckRequired(controller.getSnapshot().sources);
-  const recover = async () => {
-    if (inFlight.current || !current()) return;
-    inFlight.current = true; setBusy(true); setError(undefined);
-    try {
-      await controller.recover();
-      const state = controller.getSnapshot().sources;
-      if (state.ambiguous || !state.receipt || state.receipt.removed || state.receipt.source.id !== source.id) throw {code: state.errorCode};
-      await controller.readProfile(state.receipt.source, current);
-      if (current()) onAccepted?.(state.receipt.source);
-    } catch (problem) {if (current()) setError(remoteSourceError(t, problem));}
-    finally {inFlight.current = false; if (current()) setBusy(false);}
-  };
-  const comparison = profile && sourceChoiceComparison(profile), reset = profile && sourceChoiceResetDefinition(profile);
-  const blocked = busy || ambiguous || !!unknown || !!accepted;
-  return <Page title={t('next.remoteSources.reading')} t={t} busy={busy} onCancel={onCancel}
-    footer={unknown || accepted ? <Button disabled={busy} onPress={() => {void recoverChoice();}}>{t('next.remoteSources.checkResult')}</Button>
-      : ambiguous ? <Button disabled={busy} onPress={() => {void recover();}}>{t('next.remoteSources.checkResult')}</Button>
-      : <Button disabled={busy || !profile || !values || consentDirty} onPress={() => {void save();}}>{t(wizard ? 'next.remoteSources.continue' : 'next.remoteSources.save')}</Button>}>
-    {profile && values && <>
-      <SourceReadingControls values={values} profile={profile} comparison={comparison} baseline={comparison ? profile.choiceBaseline?.reading : undefined} disabled={blocked} choicesDisabled={blocked || consentDirty || !advanced}
-        onSelect={offered => {void select(offered);}} t={t}
-        onLimit={(field, value) => {if (blocked || !owns()) return; revision.current++; setValues({...values, [field]: value});}}
-        onReset={reset ? () => {void select(reset);} : undefined}/>
-      <SourceAnalysisConsent value={consent} disabled={blocked} t={t} onChange={value => {if (!blocked && owns()) {revision.current++; setConsent(value); setConsentDirty(true);}}}/>
-      {consentDirty && <Button variant="glass" disabled={blocked} onPress={() => {void save(true);}}>{t('next.remoteSources.saveAnalysisConsent')}</Button>}
-    </>}
-    {!profile && !busy && <Button variant="glass" onPress={() => {void load();}}>{t('next.remoteSources.retry')}</Button>}
+  return {busy, error, run};
+}
+
+/** The preset and its limits (rules 11, 12): a preset starts its limits, which stay editable. */
+export function ReadingFields({t, preset, limits, busy, onPreset, onLimits}: {t: Translate; preset: RemotePreset; limits: RemoteLimits; busy: boolean; onPreset: (preset: RemotePreset) => void; onLimits: (limits: RemoteLimits) => void}) {
+  const number = (value: string, fallback: number) => {const parsed = Number.parseInt(value, 10); return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;};
+  return <View style={{gap: 12}}>
+    {remotePresets.map(option => <Choice key={option.id} label={t(presetLabel(option.id))} picked={preset === option.id} onPress={() => {if (!busy) {onPreset(option.id); onLimits(option.limits);}}}/>)}
+    <TextField label={t('next.remoteSources.connections')} value={String(limits.connections)} keyboardType="number-pad" editable={!busy} onChangeText={value => onLimits({...limits, connections: number(value, limits.connections)})}/>
+    <TextField label={t('next.remoteSources.perSecond')} value={String(limits.perSecond)} keyboardType="number-pad" editable={!busy} onChangeText={value => onLimits({...limits, perSecond: number(value, limits.perSecond)})}/>
+  </View>;
+}
+
+type Kind = 'webdav' | 'rclone' | 'cloud' | 'newRclone' | 'drive';
+const kinds: readonly Readonly<{id: Kind; label: MessageId; hint: MessageId}>[] = [
+  {id: 'webdav', label: 'next.remoteSources.connectWebdav', hint: 'next.remoteSources.kindCommon'},
+  {id: 'rclone', label: 'next.remoteSources.connectRclone', hint: 'next.remoteSources.connectRcloneHint'},
+  {id: 'cloud', label: 'next.remoteSources.connectCloud', hint: 'next.remoteSources.connectCloudHint'},
+  {id: 'newRclone', label: 'next.remoteSources.remoteKind', hint: 'next.remoteSources.kindIncluded'},
+  {id: 'drive', label: 'next.remoteSources.connectDrive', hint: 'next.remoteSources.connectDriveHint'},
+];
+
+/** The wizard (rules 8 to 12): what to connect, its details tested and saved together, how Portico reads it, then folders. */
+export function AddSourceFlow({controller, t, isCurrent, onCancel, onSaved}: {controller: NativeRemoteSourcesController; t: Translate; isCurrent: () => boolean;
+  onCancel: () => void; onSaved: (source: RemoteSource) => void}) {
+  const {busy, error, run} = useRun(t, isCurrent);
+  const [step, setStep] = useState<1 | 2 | 3>(1), [kind, setKind] = useState<Kind>('webdav'), [created, setCreated] = useState<RemoteSource>();
+  const [f, setF] = useState({name: '', address: '', user: '', password: '', config: '', path: '', token: '', provider: 'onedrive' as 'onedrive' | 'dropbox', remoteType: '', options: '',
+    driveMode: 'key' as 'key' | 'oauth', key: '', clientId: '', clientSecret: '', signIn: '', redirectedUrl: ''});
+  const [preset, setPreset] = useState<RemotePreset>(defaultRemotePreset), [limits, setLimits] = useState<RemoteLimits>(remotePresets[1]!.limits);
+  const set = (patch: Partial<typeof f>) => setF(value => ({...value, ...patch}));
+  const field = (label: MessageId, key: keyof typeof f, secure = false) => <TextField label={t(label)} value={String(f[key])} secureTextEntry={secure} editable={!busy}
+    autoCapitalize="none" autoCorrect={false} onChangeText={value => set({[key]: value} as Partial<typeof f>)}/>;
+  const testAndSave = () => run(async () => {
+    let source: RemoteSource;
+    if (kind === 'cloud') source = await controller.addCloudToken({name: f.name.trim(), provider: f.provider, token: f.token, path: f.path, preset});
+    else if (kind === 'newRclone') source = await controller.addRcloneFromFields({name: f.name.trim(), type: f.remoteType.trim(), path: f.path, preset,
+      options: Object.fromEntries(f.options.split('\n').map(line => line.split('=')).filter(parts => parts.length >= 2).map(([key, ...rest]) => [key!.trim(), rest.join('=').trim()]))});
+    else {
+      const body = remoteSourceCreate(kind === 'webdav' ? {kind, name: f.name, address: f.address, user: f.user, password: f.password}
+        : kind === 'rclone' ? {kind, name: f.name, config: f.config, path: f.path}
+          : f.driveMode === 'key' ? {kind: 'drive', name: f.name, path: f.path, serviceAccountKey: f.key} : {kind: 'drive', name: f.name, path: f.path, signIn: f.signIn, redirectedUrl: f.redirectedUrl}, preset);
+      if ('missing' in body) throw Object.assign(new Error(''), {code: 'invalid_request'});
+      source = await controller.add(body);
+    }
+    if (isCurrent()) {setCreated(source); setStep(3);}
+  });
+  const saveReading = () => run(async () => {
+    if (!created) return;
+    const source = await controller.change(created.id, {preset, limits});
+    if (isCurrent()) onSaved(source);
+  });
+  const signIn = () => run(async () => {
+    const started = await controller.startDriveSignIn(f.clientId, f.clientSecret);
+    if (!isCurrent()) return;
+    set({signIn: started.signIn});
+    await Linking.openURL(started.address);
+  });
+  const title = t(step === 1 ? 'next.remoteSources.whatToConnect' : step === 2 ? 'next.remoteSources.remote' : 'next.remoteSources.howTreated');
+  return <SourceWizardContext.Provider value={{step, back: () => setStep(value => (value > 1 ? value - 1 : value) as 1 | 2 | 3)}}>
+    <Page title={title} t={t} busy={busy} onCancel={onCancel} footer={step === 1 ? <Button variant="primary" onPress={() => setStep(2)}>{t('next.remoteSources.continue')}</Button>
+      : step === 2 ? <Button variant="primary" loading={busy} disabled={!f.name.trim()} onPress={testAndSave}>{t('next.remoteSources.test')}</Button>
+        : <Button variant="primary" loading={busy} onPress={saveReading}>{t('next.remoteSources.saveAndContinue')}</Button>}>
+      <Problem message={error}/>
+      {step === 1 && kinds.map(option => <Choice key={option.id} label={t(option.label)} hint={t(option.hint)} picked={kind === option.id} onPress={() => setKind(option.id)}/>)}
+      {step === 2 && <>
+        {field('next.remoteSources.name', 'name')}
+        {kind === 'webdav' && <>{field('next.remoteSources.address', 'address')}{field('next.remoteSources.username', 'user')}{field('next.remoteSources.password', 'password', true)}</>}
+        {kind === 'rclone' && <>{field('next.remoteSources.connectRclone', 'config')}{field('next.remoteSources.cloudFolder', 'path')}</>}
+        {kind === 'cloud' && <>{(['onedrive', 'dropbox'] as const).map(provider => <Choice key={provider} label={t(provider === 'onedrive' ? 'next.remoteSources.cloudOneDrive' : 'next.remoteSources.cloudDropbox')}
+          picked={f.provider === provider} onPress={() => set({provider})}/>)}{field('next.remoteSources.cloudToken', 'token')}{field('next.remoteSources.cloudFolder', 'path')}</>}
+        {kind === 'newRclone' && <>{field('next.remoteSources.remoteKind', 'remoteType')}{field('next.remoteSources.connectRcloneHint', 'options')}{field('next.remoteSources.cloudFolder', 'path')}</>}
+        {kind === 'drive' && <>
+          <Choice label={t('next.remoteSources.driveServiceAccount')} picked={f.driveMode === 'key'} onPress={() => set({driveMode: 'key'})}/>
+          <Choice label={t('next.remoteSources.driveOAuth')} picked={f.driveMode === 'oauth'} onPress={() => set({driveMode: 'oauth'})}/>
+          {f.driveMode === 'key' ? field('next.remoteSources.driveKey', 'key') : <>
+            {field('next.remoteSources.driveClientId', 'clientId')}{field('next.remoteSources.driveClientSecret', 'clientSecret', true)}
+            <Button variant="glass" disabled={busy || !f.clientId.trim() || !f.clientSecret} onPress={signIn}>{t('next.remoteSources.driveOAuthSignIn')}</Button>
+            {!!f.signIn && field('next.remoteSources.driveOAuthPasteAction', 'redirectedUrl')}</>}
+          {field('next.remoteSources.cloudFolder', 'path')}</>}
+      </>}
+      {step === 3 && <ReadingFields t={t} preset={preset} limits={limits} busy={busy} onPreset={setPreset} onLimits={setLimits}/>}
+    </Page>
+  </SourceWizardContext.Provider>;
+}
+
+/** Continue setup (rule 10): open a source's folders, choose one, and put it in a library, new or existing. */
+export function FolderStep({controller, t, source, isCurrent, onDone, onCancel}: {controller: NativeRemoteSourcesController; t: Translate; source: RemoteSource;
+  isCurrent: () => boolean; onDone: () => void; onCancel: () => void}) {
+  const {busy, error, run} = useRun(t, isCurrent);
+  const [path, setPath] = useState(''), [folders, setFolders] = useState<readonly RemoteFolder[]>(), [libraries, setLibraries] = useState<readonly AdminLibrary[]>([]);
+  const [target, setTarget] = useState(''), [name, setName] = useState(source.name), [kind, setKind] = useState('movies');
+  useEffect(() => {setFolders(undefined); void controller.folders(source.id, path).then(list => {if (isCurrent()) setFolders(list);}, () => {if (isCurrent()) setFolders([]);});}, [controller, source.id, path, isCurrent]);
+  useEffect(() => {void controller.libraries().then(list => {if (isCurrent()) setLibraries(list);}, () => {});}, [controller, isCurrent]);
+  const kinds = ['movies', 'shows', 'anime', 'music', 'audiobooks', 'books', 'comics'] as const;
+  return <Page title={t('next.remoteSources.foldersHeader', {name: source.name})} t={t} busy={busy} onCancel={onCancel} wizardStep={4}
+    footer={<Button variant="primary" loading={busy} disabled={!target && !name.trim()} onPress={() => run(async () => {
+      await controller.putFolderInLibrary(source, path, target ? {id: target} : {name: name.trim(), kind});
+      if (isCurrent()) onDone();
+    })}>{t('next.remoteSources.saveAndContinue')}</Button>}>
     <Problem message={error}/>
+    <Text>{t('next.remoteSources.folderPath')} /{path}</Text>
+    {!!path && <Button variant="text" size="small" onPress={() => setPath(path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '')}>{t('next.remoteSources.back')}</Button>}
+    {folders === undefined ? <Text>{t('next.remoteSources.folderListing')}</Text> : folders.map(folder => <Button key={folder.path} variant="glass" onPress={() => setPath(folder.path)}>{folder.name}</Button>)}
+    {libraries.map(library => <Choice key={library.id} label={library.name} picked={target === library.id} onPress={() => setTarget(library.id)}/>)}
+    <Choice label={t('next.remoteSources.newLibrary')} picked={target === ''} onPress={() => setTarget('')}/>
+    {!target && <><TextField label={t('next.remoteSources.libraryName')} value={name} onChangeText={setName} editable={!busy}/>
+      {kinds.map((value, index) => <Choice key={value} label={t(`next.settingsSpec.server.libraries.panels.newLibrary.tabs.0.groups.0.rows.1.control.options.${index}.label` as MessageId)} picked={kind === value} onPress={() => setKind(value)}/>)}</>}
   </Page>;
 }
 
-export function DisconnectEditor({controller, t, source, onCancel, onSaved, isCurrent}: Common & {source: RemoteSource; onSaved: () => void}) {
-  const theme = useTheme(), current = useAttempt(isCurrent), inFlight = useRef(false);
-  const [name, setName] = useState(''), [busy, setBusy] = useState(false), [error, setError] = useState<string>();
-  const remove = async () => {
-    if (inFlight.current || name !== source.name || !current()) return;
-    inFlight.current = true;
-    setBusy(true); setError(undefined);
-    try {
-      await controller.remove(source, current);
-      const state = controller.getSnapshot().sources;
-      if (current() && (state.alreadyDone || state.receipt?.removed || state.rclone?.sourceId === source.id && state.rclone.removed)) onSaved();
-      else if (current()) setError(remoteSourceError(t, {code: state.errorCode}));
-    } catch (problem) {if (current()) setError(remoteSourceError(t, problem));}
-    finally {inFlight.current = false; if (current()) setBusy(false);}
-  };
-  const ambiguous = receiptCheckRequired(controller.getSnapshot().sources);
-  const recover = async () => {
-    if (inFlight.current || !current()) return;
-    inFlight.current = true; setBusy(true); setError(undefined);
-    try {
-      await controller.recover();
-      const state = controller.getSnapshot().sources;
-      if (!state.ambiguous && (state.receipt?.removed || state.rclone?.sourceId === source.id && state.rclone.removed) && current()) onSaved();
-      else if (current()) setError(remoteSourceError(t, {code: state.errorCode}));
-    } catch (problem) {if (current()) setError(remoteSourceError(t, problem));}
-    finally {inFlight.current = false; if (current()) setBusy(false);}
-  };
-  return <Page title={t('next.remoteSources.disconnectTitle', {name: source.name})} t={t} busy={busy} onCancel={onCancel}
-    footer={ambiguous ? <Button onPress={() => {void recover();}} disabled={busy}>{t('next.remoteSources.checkResult')}</Button>
-      : <Button variant="glass" style={{backgroundColor: `${theme.colors.record}24`}} textStyle={{color: theme.colors.record}} onPress={() => {void remove();}} disabled={busy || name !== source.name}>{t('next.remoteSources.disconnect')}</Button>}>
-    <Text style={[theme.type.body, {color: theme.colors.text}]}>{t('next.remoteSources.disconnectBody')}</Text>
-    <TextField label={t('next.remoteSources.disconnectConfirm')} value={name} onChangeText={setName} editable={!busy} autoCorrect={false} autoCapitalize="none"/>
+/** A saved source: test, rename, preset and limits, replace its password or configuration (tested again), continue setup, disconnect. */
+export function ManageSource({controller, t, source, isCurrent, onClose, onContinue}: {controller: NativeRemoteSourcesController; t: Translate; source: RemoteSource;
+  isCurrent: () => boolean; onClose: () => void; onContinue: (source: RemoteSource) => void}) {
+  const {busy, error, run} = useRun(t, isCurrent);
+  const [shown, setShown] = useState(source), [name, setName] = useState(source.name), [secret, setSecret] = useState(''), [confirm, setConfirm] = useState<string>();
+  const [preset, setPreset] = useState<RemotePreset>(remotePresets.find(one => one.id === source.preset)?.id ?? defaultRemotePreset), [limits, setLimits] = useState(source.limits);
+  const save = () => run(async () => {
+    const replaced = !secret ? {} : source.kind === 'webdav' ? {webdav: {address: shown.webdav!.address, ...(shown.webdav?.user ? {user: shown.webdav.user} : {}), password: secret}}
+      : source.kind === 'rclone' ? {rclone: {config: secret}} : {drive: {serviceAccountKey: secret}};
+    const next = await controller.change(source.id, {name: name.trim(), preset, limits, ...replaced});
+    if (isCurrent()) {setShown(next); setSecret('');}
+  });
+  return <Page title={shown.name} t={t} busy={busy} onCancel={onClose} footer={<Button variant="primary" loading={busy} disabled={!name.trim()} onPress={save}>{t('next.remoteSources.save')}</Button>}>
+    <Text>{t(stateWords[shown.state] ?? 'next.remoteSources.state.problem')}{shown.problem ? ` · ${shown.problem}` : ''}</Text>
     <Problem message={error}/>
+    <Button variant="glass" disabled={busy} onPress={() => run(async () => {const tested = await controller.test(source.id); if (isCurrent()) setShown(tested);})}>{t('next.remoteSources.test')}</Button>
+    {shown.state === 'setup' && <Button variant="primary" onPress={() => onContinue(shown)}>{t('next.remoteSources.continueSetup')}</Button>}
+    <TextField label={t('next.remoteSources.name')} value={name} onChangeText={setName} editable={!busy}/>
+    <ReadingFields t={t} preset={preset} limits={limits} busy={busy} onPreset={setPreset} onLimits={setLimits}/>
+    <TextField label={t(source.kind === 'webdav' ? 'next.remoteSources.password' : source.kind === 'rclone' ? 'next.remoteSources.connectRclone' : 'next.remoteSources.driveKey')}
+      value={secret} secureTextEntry={source.kind === 'webdav'} onChangeText={setSecret} editable={!busy} autoCapitalize="none" autoCorrect={false}/>
+    {confirm === undefined ? <Button variant="text" onPress={() => setConfirm('')}>{t('next.remoteSources.disconnect')}</Button> : <>
+      <Text>{t('next.remoteSources.disconnectBody')}</Text>
+      <TextField label={t('next.remoteSources.disconnectConfirm')} value={confirm} onChangeText={setConfirm}/>
+      <Button variant="glass" disabled={busy || confirm !== shown.name} onPress={() => run(async () => {await controller.remove(source.id); if (isCurrent()) onClose();})}>{t('next.remoteSources.disconnect')}</Button></>}
   </Page>;
 }

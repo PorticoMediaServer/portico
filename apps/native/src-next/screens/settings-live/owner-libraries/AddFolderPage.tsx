@@ -56,7 +56,7 @@ export function AddFolderPage({api, serverName, source, expectedRevision, onSave
     </FormScrollView>
     <View style={{flexDirection: 'row', gap: 10, paddingHorizontal: 20, paddingVertical: 12, borderTopWidth: 1, borderTopColor: theme.colors.lineSoft, backgroundColor: theme.colors.ink}}>
       <Button variant="glass" size="small" disabled={busy} onPress={onCancel}>{t('action.cancel')}</Button>
-      <Button size="small" loading={busy} disabled={!valid || busy} onPress={() => onSave({name: name.trim(), path: path.trim(), classification, followSymlinks: follow, intervalSeconds: interval, ...(choice.source ? {expectedRemoteSource: {sourceId: choice.source.id, generation: choice.source.generation}} : {}), expectedRevision: expectedRevision ?? 0, acceptReplacement: false})} style={{flex: 1}}>{t('next.ownerLibraries.save')}</Button>
+      <Button size="small" loading={busy} disabled={!valid || busy} onPress={() => onSave({name: name.trim(), path: path.trim(), classification, followSymlinks: follow, intervalSeconds: interval, expectedRevision: expectedRevision ?? 0, acceptReplacement: false})} style={{flex: 1}}>{t('next.ownerLibraries.save')}</Button>
     </View>
     <FolderSourcePicker open={exploring} onOpenChange={setExploring} api={api} serverName={serverName} ports={ports} runtime={runtime} multiple={false}
       chosen={choice} onUse={next => {const folder = next.folders[0]; if (folder) {setChoice(next); setPath(folder.path); if (!name) setName(folder.name); if (next.source) {setClassification('local'); setFollow(false);}}}}/>
