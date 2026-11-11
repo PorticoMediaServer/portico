@@ -14,8 +14,10 @@ import (
 // CapabilityDocumentVersion is the wire version of the capability document: the
 // one description of what a device can play. A device publishes it once per
 // distinct document; planning reads the stored copy, so every route that
-// creates or re-plans a session sees the same facts. A version this server
-// does not know is refused rather than half-read.
+// creates or re-plans a session sees the same facts. Within a version, fields
+// are only ever added, and a field this server does not know is ignored. A
+// document of any other version is not half-read: the device is planned from
+// the baseline until the server or the app catches up, and plays.
 const CapabilityDocumentVersion = 2
 
 // MaxCapabilityDocumentBytes bounds one published document (two engines).
@@ -201,7 +203,8 @@ type EngineCapabilities struct {
 	LiveChannels bool `json:"liveChannels,omitempty"`
 }
 
-// CapabilityEngines holds one profile per engine. Native is required.
+// CapabilityEngines holds one profile per engine. A document without Native is
+// planned from the baseline.
 type CapabilityEngines struct {
 	Native *EngineCapabilities `json:"native"`
 	MPV    *EngineCapabilities `json:"mpv,omitempty"`
@@ -286,7 +289,12 @@ var (
 // CapabilityFieldError names the first field of a document that was refused.
 type CapabilityFieldError struct{ Path string }
 
-func (e *CapabilityFieldError) Error() string { return ErrCapabilityDocument.Error() }
+func (e *CapabilityFieldError) Error() string {
+	if e.Path == "" {
+		return ErrCapabilityDocument.Error()
+	}
+	return "The device capability document is not valid: " + e.Path + "."
+}
 func (e *CapabilityFieldError) Unwrap() error { return ErrCapabilityDocument }
 
 func capabilityField(path string) error { return &CapabilityFieldError{Path: path} }
@@ -338,6 +346,10 @@ func evidenceValue(v string) bool {
 // name is kept (the planner simply never matches it), so a newer client is not
 // refused by an older server for knowing about a codec the server has not met.
 // Unknown fields are ignored for the same reason.
+//
+// A document of a version this server does not know is not an error: it reads
+// as the baseline, so an app newer or older than the server still plays, and
+// every plan made for it carries the note that says so.
 func ParseCapabilityDocument(raw []byte) (CapabilityDocument, error) {
 	var d CapabilityDocument
 	if len(raw) == 0 || len(raw) > MaxCapabilityDocumentBytes {
@@ -349,8 +361,11 @@ func ParseCapabilityDocument(raw []byte) (CapabilityDocument, error) {
 	if json.Unmarshal(raw, &head) != nil {
 		return d, capabilityField("")
 	}
+	if head.Version < 1 {
+		return d, capabilityField("version")
+	}
 	if head.Version != CapabilityDocumentVersion {
-		return d, ErrCapabilityDocumentVersion
+		return BaselineCapabilityDocument(), nil
 	}
 	if json.NewDecoder(bytes.NewReader(raw)).Decode(&d) != nil {
 		return CapabilityDocument{}, capabilityField("")
@@ -453,7 +468,12 @@ func (d *CapabilityDocument) validate() error {
 		}
 	}
 	if d.Engines.Native == nil {
-		return capabilityField("engines.native")
+		// A device that describes no player of its own is planned from the
+		// baseline (Profile). A second player without the first describes nothing.
+		if d.Engines.MPV != nil {
+			return capabilityField("engines.native")
+		}
+		return nil
 	}
 	if err := d.Engines.Native.validate("engines.native"); err != nil {
 		return err
@@ -659,6 +679,10 @@ func (d *CapabilityDocument) normalize() {
 }
 
 func (e *EngineCapabilities) normalize() {
+	// A device that does not say how it knows is taken to be reading its own table.
+	if e.Evidence == "" {
+		e.Evidence = EvidenceDeclared
+	}
 	fill := func(v *[]string) {
 		if *v == nil {
 			*v = []string{}
@@ -730,7 +754,8 @@ func (d CapabilityDocument) engine(name string) *EngineCapabilities {
 func (d CapabilityDocument) HasEngine(name string) bool { return d.engine(name) != nil }
 
 // Profile is one engine of the document as planning reads it, with the viewer's
-// overrides applied. An engine the document does not describe reads as native.
+// overrides applied. An engine the document does not describe reads as native,
+// and a document that describes none reads as the baseline.
 func (d CapabilityDocument) Profile(name string) ClientProfile {
 	e := d.engine(name)
 	if e == nil {
