@@ -302,7 +302,8 @@ func TestUnlistedProxyOnThisMachine(t *testing.T) {
 	if code, refused := through(ownerAt, "POST", main+"/select", entered.AccessToken, ProfileSelect{PIN: "0000"}, nil); code != 403 || refused.Code != "profile_pin_invalid" {
 		t.Errorf("a wrong PIN through the proxy answered %d %s", code, refused.Code)
 	}
-	if code, refused := through(ownerAt, "POST", main+"/select", entered.AccessToken, ProfileSelect{PIN: "2468"}, nil); code != 429 || refused.Code != "profile_pin_locked" || refused.Message == blockedNetworkMessage {
+	code, refused := through(ownerAt, "POST", main+"/select", entered.AccessToken, ProfileSelect{PIN: "2468"}, nil)
+	if code != 429 || refused.Code != "profile_pin_locked" || refused.Message == blockedNetworkMessage {
 		t.Errorf("the right PIN straight after a wrong one answered %d %s %q, want the PIN's own wait", code, refused.Code, refused.Message)
 	}
 
