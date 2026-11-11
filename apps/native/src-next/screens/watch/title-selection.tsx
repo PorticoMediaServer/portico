@@ -19,19 +19,18 @@ export function createNativeTitleSelection(context: NativeShellBootstrapContext,
     current: () => context.current() && !controller.getSnapshot().retired,
     getSnapshot: () => {
       const state = controller.getSnapshot(), workspace = state.workspace, data = workspace?.data, detail = state.detail;
-      const scope = data?.scope ?? detail?.data?.scope, revision = data?.revision ?? detail?.data?.revision;
+      const scope = data?.scope ?? detail?.data?.scope;
       const viewer = context.session()?.viewer;
       const groups: NativeSelectionGroup[] = [];
       const episodes = data?.episodes.sections.flatMap(section => section.entries).filter((entry): entry is ContentEntry => entry.kind === 'episode') ?? [];
       if (episodes.length) groups.push({id: 'title-episodes', items: episodes});
       for (const row of [...(detail?.data?.related?.rows ?? []), ...(state.recommendationRows ?? [])]) if (row.entries.length) groups.push({id: `title-related:${row.id}`, items: row.entries});
-      const viewId = JSON.stringify(['native-title', key, data?.show.id ?? '', revision?.catalog ?? 0, revision?.viewer ?? 0]);
-      // The page's own viewer fence and revisions are the selection's only context, and the
-      // selection bar's own reads re-check them; a page still loading has none.
-      const captured: SelectionContext | undefined = scope && revision && viewer && workspace?.phase === 'ready'
+      const viewId = JSON.stringify(['native-title', key, data?.show.id ?? '']);
+      // A page still loading has no selection.
+      const captured: SelectionContext | undefined = scope && viewer && workspace?.phase === 'ready'
         && (viewer.authority === 'local' || viewer.authority === 'hosted') && viewId.length <= 4096
         ? {scope: {serverId: viewer.serverId, authority: viewer.authority, accountId: viewer.accountId, profileId: viewer.profileId,
-          viewId, privacyFence: scope.viewerFence}, revision: {catalogRevision: String(revision.catalog), viewerRevision: String(revision.viewer)}} : undefined;
+          viewId, privacyFence: 'opened'}, revision: {catalogRevision: '0', viewerRevision: '0'}} : undefined;
       return {key: viewId, context: captured, groups};
     },
   };

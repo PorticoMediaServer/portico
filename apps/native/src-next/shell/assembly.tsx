@@ -280,7 +280,7 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
   const onDocument = () => {
     if (!alive || !context.current()) return;
     const document = context.home.getSnapshot().document;
-    if (!document || document.serverId !== scope.serverId || document.viewerFence !== context.authority().viewerFence) return;
+    if (!document) return;
     const next = homeSelectionContext(scope, document);
     if (!same(next, controller.getSnapshot().context)) {controller.setContext(next, environment());}
     if (!currentHome()) return;

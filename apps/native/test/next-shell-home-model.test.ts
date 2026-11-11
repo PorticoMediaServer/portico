@@ -10,11 +10,11 @@ import type {ContentEntry} from '../../../packages/client-core/src/library-conte
 const authority: ShellAuthority = {serverId: 'server-a', accountId: 'account-a', profileId: 'profile-a', epoch: 'authority-a', viewerFence: 'viewer-a'};
 const entry = (id: string, overrides: Partial<ContentEntry> = {}): ContentEntry => ({id, libraryId: 'library-a', kind: 'movie', title: id, ...overrides});
 const row = (id: string, overrides: Partial<HomeRow> = {}): HomeRow => ({
-  id, title: id, kind: 'recently_added', artworkShape: 'poster', viewerFence: 'viewer-a', entries: [entry(id)],
+  id, title: id, kind: 'recently_added', artworkShape: 'poster', entries: [entry(id)],
   privacySensitivity: '', policyState: '', priority: 1, required: false, hideable: true, reorderable: true, critical: false, cursorCapable: true,
-  total: 1, start: 0, limit: 20, hasMore: false, nextCursor: '', endpoint: '', revision: {catalog: 1, viewer: 1}, ...overrides,
+  total: 1, start: 0, limit: 20, hasMore: false, nextCursor: '', endpoint: '', ...overrides,
 });
-const document = (rows: readonly HomeRow[]): HomeDocument => ({serverId: 'server-a', viewerFence: 'viewer-a', rows, spotlight: [], layout: {revision: 1, rowOrder: [], hiddenRowIds: []}, revision: {catalog: 1, viewer: 1}, generatedAt: '2026-10-22T00:00:00Z'});
+const document = (rows: readonly HomeRow[]): HomeDocument => ({rows, spotlight: [], layout: {revision: 1, rowOrder: [], hiddenRowIds: []}});
 
 test('Libraries opens only an authorized remembered library, including the one-library first-use case', () => {
   const libraries = [{id: 'a', name: 'a', kind: 'movie'}, {id: 'b', name: 'b', kind: 'movie'}];
@@ -111,13 +111,6 @@ test('a failed memory write does not deadlock the next legitimate library choice
   await assert.rejects(memory.remember(authority, 'first'), /storage-unavailable/);
   await memory.remember(authority, 'second');
   assert.equal(await memory.read(authority), 'second');
-});
-
-test('retained Home cannot render under a different server or viewer permission fence', () => {
-  const home = document([row('a')]);
-  assert.strictEqual(authorizedHome(home, authority), home);
-  assert.equal(authorizedHome(home, {...authority, serverId: 'other'}), undefined);
-  assert.equal(authorizedHome(home, {...authority, viewerFence: 'revoked'}), undefined);
 });
 
 test('platform filtering preserves server row objects/order and suppresses TV Read rows', () => {

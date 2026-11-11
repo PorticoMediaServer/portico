@@ -52,7 +52,7 @@ export class MediaSelectionService {
    else await worker.mutate(this.intent!);
    if(this.disposed||generation!==this.generation)return;
    const after=worker.getSnapshot();
-   if(after.pending.length)update(after.pending[0].phase==='conflict'?'conflict':'failed',after.mutationError?.message??'The result could not be confirmed. Retry to check it.');
+   if(after.pending.length)update('failed',after.mutationError?.message??'The result could not be confirmed. Retry to check it.');
    else update('saved');
   }catch(error){if(this.disposed||generation!==this.generation)return;update('failed',error instanceof Error?error.message:'Couldn’t update this item.');}
  }}finally{if(!this.disposed&&generation===this.generation){this.busy=false;this.publish();}}}

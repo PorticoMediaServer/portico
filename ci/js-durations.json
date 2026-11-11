@@ -23,7 +23,6 @@
     "apps/native/test/next-tv-saved-activation-snapshot.test.ts": 0.6423304759999999,
     "packages/client-core/test/abort-lifetime.test.ts": 3.342236211,
     "packages/client-core/test/connection-note.test.ts": 3.351389858,
-    "packages/client-core/test/home-service.test.ts": 0.908046405,
     "packages/client-core/test/media-item-duration.test.ts": 0.241643502,
     "packages/client-core/test/playback-settings.test.ts": 0.320169675,
     "packages/client-core/test/report-context.test.ts": 2.11152418,

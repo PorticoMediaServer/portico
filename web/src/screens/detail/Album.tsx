@@ -67,8 +67,7 @@ export function AlbumScreen({context, libraryId, albumId, onBack, onArtist}: Alb
     void readListeningSimilar(life.api, scope, albumId, {limit: 12, by: 'sound', signal: life.signal(request.signal)})
       .then(value => {
         if (!request.signal.aborted && life.current() && service.getSnapshot().projection === projection
-          && value.itemId === albumId && value.libraryId === libraryId
-          && value.revision.catalog === projection.revision.catalog && value.revision.viewer === projection.revision.viewer)
+          && value.itemId === albumId && value.libraryId === libraryId)
           setSimilar({life, projection, value, scope});
       }, error => {if (!request.signal.aborted && life.current()) context.effects.reportError(error);});
     return () => request.abort();

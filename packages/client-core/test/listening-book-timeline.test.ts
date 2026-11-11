@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {parseBookProgress,parseBookTimeline,readBookTimeline,listeningSleepChoices} from '../src/listening.ts';
 import {validateContentEntry} from '../src/library-content.ts';
-import {validateHomeDocument,validateHomeRow} from '../src/home.ts';
 
 const progress={bookId:'book',itemId:'part',partPositionMs:15000,positionMs:75000,durationMs:150000,remainingMs:75000,chapter:{index:0,number:3,title:'Actual chapter',startMs:10000,endMs:60000}};
 const timeline={bookId:'book',libraryId:'books',revision:{catalog:2,viewer:3},parts:[{itemId:'part',title:'Part 2',offsetMs:60000,durationMs:90000}],totalCount:2,nextCursor:'next',durationMs:150000,progress,seek:{itemId:'part',startMs:15000}};
@@ -34,12 +33,4 @@ test('book and music metadata survive shared content parsing without fabricated 
 test('books offer chapter and book boundaries; songs retain their item boundary',()=>{
  assert.deepEqual(listeningSleepChoices('audiobook_file'),['off',15,30,45,60,90,'chapter','book']);
  assert.deepEqual(listeningSleepChoices('song'),['off',15,30,45,60,90,'item']);
-});
-
-test('Home document and paginated row keep embedded book progress and the actual part target',()=>{
- const book={id:'book',kind:'book',title:'Book',libraryId:'books',durationMs:150000,progressMs:75000,bookProgress:progress,playback:{itemId:'part',startMs:15000}};
- const row={id:'continue_books',viewerFence:'f',title:'Continue your books',kind:'continue',artworkShape:'square',entries:[book],total:1,start:0,limit:2,hasMore:false,nextCursor:'',revision:{catalog:1,viewer:1}};
- const parsed=validateHomeRow(row);
- const doc=validateHomeDocument({serverId:'s',viewerFence:'f',spotlight:[],rows:[row],layout:{revision:1,rowOrder:[],hiddenRowIds:[]},revision:{catalog:1,viewer:1},generatedAt:'2026-10-22T00:00:00Z'});
- for(const entry of [parsed.entries[0],doc.rows[0].entries[0]]){assert.deepEqual(entry.bookProgress,progress);assert.equal(entry.id,'book');assert.equal(entry.playback?.itemId,'part');assert.equal(entry.playback?.startSeconds,15);assert.equal(entry.duration,150);assert.equal(entry.progressSeconds,75);}
 });

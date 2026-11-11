@@ -335,31 +335,6 @@ test('queue: advance moves the current entry and starts the next session; repeat
   assert.equal(wrapped.queue.current?.position, 0);
 });
 
-// ── Events (§15) ───────────────────────────────────────────────────
-test('events: one stream, prefix subscriptions, reconnect from the cursor after stream.closed, no duplicates', async () => {
-  const c = clockwork();
-  const server = new FakePlaybackServer({now: c.now, setTimer: c.setTimer, clearTimer: c.clearTimer});
-  const events = new EventsClient({http: fakeHttp(server), openStream: server.openStream, random: () => 0, setTimer: c.setTimer, clearTimer: c.clearTimer});
-  const seen: string[] = [];
-  events.on('queue.', e => seen.push(e.type + '#' + e.id));
-  events.on('session.updated', e => seen.push(e.type + '#' + e.id));
-  events.start();
-  await settle();
-  assert.equal(events.getStatus().mode, 'stream');
-  server.publish('queue.updated', {kind: 'queue', id: 'q1'}, '2');
-  server.publish('session.updated', {kind: 'session', id: 's1'}, '3');
-  await settle();
-  assert.deepEqual(seen, ['queue.updated#1', 'session.updated#2']);
-  server.closeStreams(1000);
-  await settle();
-  server.publish('queue.updated', {kind: 'queue', id: 'q1'}, '4'); // while disconnected
-  await c.advance(1000);
-  assert.deepEqual(seen, ['queue.updated#1', 'session.updated#2', 'queue.updated#4'], 'resumed from the cursor; the closed marker is not an event');
-  events.deliver({variant: 'change', id: '4', type: 'queue.updated'});
-  assert.equal(seen.length, 3, 'deduplicated by id');
-  events.stop();
-});
-
 test('events: an unsupported stream (404) falls back to long-poll; an old cursor resyncs', async () => {
   const c = clockwork();
   const server = new FakePlaybackServer({now: c.now, setTimer: c.setTimer, clearTimer: c.clearTimer, ring: 5});

@@ -46,8 +46,8 @@ export type ScreenContext = Readonly<{
     addToCollection?: (target: EntryActionTarget, anchor: HTMLElement) => Promise<void>;
     deleteTitle?: (target: EntryActionTarget, anchor: HTMLElement) => Promise<void>;
     reportError: (error: unknown) => void;
-    /** A short confirmation toast. */
-    notify?: (message: string) => void;
+    /** A short confirmation toast, with one action (Undo) when given. */
+    notify?: (message: string, action?: Readonly<{label: string; onAction: () => void}>) => void;
   }>;
 }>;
 

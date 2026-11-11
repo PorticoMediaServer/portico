@@ -37,7 +37,7 @@ export class NativeHomePaging {
       pending.loading = false;
       if (outcome.rowId === pending.rowId && outcome.requestedCursor === pending.cursor && outcome.applied) {
         pending.fulfilled = {waitingId: pending.waitingId, ...(outcome.firstItemId === null ? {} : {firstItemId: outcome.firstItemId})};
-      } else pending.failed = outcome.status === 'failed' || outcome.status === 'stale';
+      } else pending.failed = outcome.status === 'failed';
       this.publish();
     } catch (error) {
       if (!this.alive || !this.current() || this.rows.get(row.id) !== pending) return;

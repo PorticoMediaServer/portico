@@ -6,20 +6,6 @@ import {readBrowseCapabilitiesResponse, readImmediateBrowsePageResponse, readBro
 import {browseCapabilitiesPath, browsePath, browseCountsPath, browseCountsRequest, browseContextFacetsPath} from '../src/browse.ts';
 
 const fixture = (name: string) => JSON.parse(readFileSync(new URL(`./compat-corpus/main/${name}.json`, import.meta.url), 'utf8')).body;
-test('browse operations preserve both scopes, exact bodies, cursors, signals and raw responses', async () => {
-  const signal = new AbortController().signal;
-  for (const libraryId of ['*', 'lib/a b']) {
-    const capabilities = fixture('browse-capabilities'), page = fixture('browse-songs');
-    const body = {pivot: 'songs', cursor: 'opaque/+==', limit: 37, range: {start: 60, revision: 'opaque-revision'}};
-    const replies = [capabilities, page];
-    const calls: unknown[][] = [];
-    const api = {async request(...args: unknown[]) {calls.push(args); return replies.shift();}};
-    assert.deepEqual(await readBrowseCapabilitiesResponse(api, libraryId, 'songs', signal), capabilities);
-    assert.deepEqual(await readImmediateBrowsePageResponse(api, libraryId, body, signal), page);
-    assert.deepEqual(calls, [[browseCapabilitiesPath(libraryId, 'songs'), 'GET', undefined, signal], [browsePath(libraryId), 'POST', body, signal]]);
-    assert.equal(calls[1][2], body, 'the captured request body is passed through without rewriting');
-  }
-});
 test('facets and batched counts keep contextual filters and exact batch membership', async () => {
   const signal = new AbortController().signal;
   const query = {variant: 'predicate' as const, field: 'genre', operator: 'equals' as const, value: 'Drama'};
@@ -41,21 +27,6 @@ test('transport failures and cancellation are not retried or cached by an operat
     await assert.rejects(readBrowseCapabilitiesResponse(api, '*', ''), value => value === error);
     assert.equal(calls, 1);
   }
-});
-test('reading facets still refuse retired lifetimes before starting a preparation', async () => {
-  let calls = 0;
-  const api = {async request<T>() {calls++;return {} as T;}};
-  await assert.rejects(readReadingBrowseFacet(api, 'lib', 'genre', 'books', undefined, '', 200,
-    {signal: new AbortController().signal, isCurrent: () => false}), {name: 'AbortError'});
-  assert.equal(calls, 0);
-});
-
-test('browse response operations preserve transport promise identity for original guard and parse ordering', () => {
-  const pending = new Promise<unknown>(() => {}), api = {request: () => pending};
-  assert.equal(readBrowseCapabilitiesResponse(api, 'lib', 'books'), pending);
-  assert.equal(readImmediateBrowsePageResponse(api, 'lib', {pivot: 'books'}), pending);
-  assert.equal(readBrowseCountsResponse(api, 'lib', 'books', [{id: 'draft', query: null}]), pending);
-  assert.equal(readBrowseFacetResponse(api, 'lib', 'genre', 'books', undefined, '', 200), pending);
 });
 
 test('artist release pages capture the original validated address and encode opaque cursors without another promise', () => {

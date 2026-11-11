@@ -13,7 +13,7 @@ import {viewerQueryScope} from '../../../../packages/client-core/src/query/viewe
 import type {DirectSnapshot} from '../../../../packages/client-core/src/profile-management';
 import {IdentityClient} from '../../../../packages/client-core/src/identity-client';
 import {currentPreferenceSnapshot, type PreferenceSnapshot} from '../../../../packages/client-core/src/preferences';
-import {parseLibraryList, type LibraryDirectoryFences} from '../../../../packages/client-core/src/library-list';
+import {parseLibraryList} from '../../../../packages/client-core/src/library-list';
 import {createRoleProbe} from './role-probe';
 import {LocalSessionRefresher} from '../../../../packages/client-core/src/session-refresh';
 import {EventsClient} from '../../../../packages/client-core/src/playback-v1/events';
@@ -284,7 +284,6 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
     assertCurrent();
     const document = documentService.getSnapshot().document;
     if (!document) throw documentService.getSnapshot().error ?? Object.assign(new Error('invalid_home'), {code: 'invalid_home'});
-    if (document.serverId !== session.viewer.serverId) throw Object.assign(new Error('identity_mismatch'), {code: 'identity_mismatch'});
     account = initialAccount;
     signInHint = Object.freeze({serverId: selected.connection.pin.serverId, accountId: session.viewer.accountId, familyId: session.sessionFamilyId,
       fingerprint: selected.connection.pin.fingerprint, origin: original.serverUrl, serverName: server.name, username: initialAccount.account.username, signIn: selected.signIn});
@@ -299,7 +298,8 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
     installationSettings = await records.change('preferences:v1', raw => ({record: raw, value: raw}));
     assertCurrent();
     let unread = 0;
-    let viewerFence = document.viewerFence, directoryPrivacy = librariesResult?.fences?.privacyFence;
+    // The rebuilt server has no viewer fence: when a viewer's access changes it says so, and the shell restarts.
+    const viewerFence = 'opened';
     const authority: ShellAuthority = Object.freeze({serverId: session.viewer.serverId, accountId: session.viewer.accountId, profileId: session.viewer.profileId,
       // H-11: the whole shell is keyed on this authority. Only a new family, profile, PIN, privacy
       // fence or sign-out may change it; a token renewal sliding the inactivity horizon must not,
@@ -309,19 +309,7 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
       // Who the viewer is and what they may see: the library directory's privacy fence (client
       // data step 5). The key never follows the live viewer fence: a directory that did not answer
       // at start keys the shell on the Home fence it opened with, and its first answer is adopted.
-      privacyFence: directoryPrivacy ?? 'opened:' + document.viewerFence});
-    /** A later directory answer for a different viewer or what they may see ends this shell. */
-    const privacyMoved = (fences: LibraryDirectoryFences | undefined): boolean => {
-      if (!fences) return false;
-      if (directoryPrivacy === undefined) {directoryPrivacy = fences.privacyFence; return false;}
-      return fences.privacyFence !== directoryPrivacy;
-    };
-    let publishedFence = viewerFence;
-    // Subscribed before any Home reader, so every later subscriber already sees the new fence.
-    cleanups.push(documentService.subscribe(() => {
-      const next = documentService.getSnapshot().document;
-      if (alive && next && next.serverId === authority.serverId) viewerFence = next.viewerFence;
-    }));
+      privacyFence: 'opened'});
     const scopeIdentity = authorityKey(authority);
     let invalidReported = false;
     const current = () => {
@@ -357,7 +345,6 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
         const ticket = readOrder.libraries.begin();
         const result = parseLibraryList(await readLibraryDirectoryResponse(readers, requestSignal));
         assertCurrent(); if (requestSignal.aborted) throw cancelled();
-        if (privacyMoved(result.fences)) {end(); throw cancelled();}
         const selected = await readNativeSelectedViewer(); assertCurrent();
         if (requestSignal.aborted || !selected || selected.serverUrl !== original.serverUrl || !sameViewer(selected.session, session!)) throw cancelled();
         try {await accountBinding.assertCurrent();}
@@ -485,7 +472,6 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
         await accountBinding.assertCurrent(); assertCurrent();
         preferences = currentPreferenceSnapshot(preferences, nextFacts.preferences); installationSettings = nextInstallation;
         // A directory that did not answer keeps the libraries already known (or stays unavailable).
-        if (privacyMoved(nextLibraries?.fences)) {end(); return;}
         if (nextLibraries) readOrder.libraries.apply(tickets.libraries, () => {libraries = Object.freeze(nextLibraries.items); librariesUnavailable = false;});
         text.refreshDeviceRegion();
         readOrder.identity.apply(tickets.identity, () => {account = nextAccount; avatars = nextAvatars;});
@@ -569,13 +555,7 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
       if (failure) {end(failure); return;}
       publish();
     };
-    cleanups.push(bound.subscribe(publish), local.subscribeRoute(routeChanged), documentService.subscribe(() => {
-      const next = documentService.getSnapshot().document;
-      if (!ready || !current() || !next) return;
-      if (next.serverId !== authority.serverId) {end(); return;}
-      // A library added or removed: same shell and player, Home-data checks follow the new fence.
-      if (publishedFence !== viewerFence) {publishedFence = viewerFence; publish();}
-    }));
+    cleanups.push(bound.subscribe(publish), local.subscribeRoute(routeChanged));
     let expanded = playback.getSnapshot().dock.local?.expanded === true;
     cleanups.push(playback.subscribe(() => {const next = playback!.getSnapshot().dock.local?.expanded === true; if (next !== expanded) {expanded = next; publish();}}));
     const refreshQuietly = () => {if (current()) void refresh().catch(error => {if (current()) bound.reportError(error);});};

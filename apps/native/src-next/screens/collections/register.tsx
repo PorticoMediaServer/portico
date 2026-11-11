@@ -85,8 +85,8 @@ function CollectionHost({route, active, context, runtime}: {route: CollectionRou
       return {key: JSON.stringify(['collection', route.libraryId, route.collectionId, projection?.query]), witness: state,
         context: projection && !state.error && viewer && (viewer.authority === 'local' || viewer.authority === 'hosted') ? {
           scope: {serverId: viewer.serverId, authority: viewer.authority, accountId: viewer.accountId, profileId: viewer.profileId,
-            viewId: JSON.stringify(['collection', route.libraryId, route.collectionId, projection.query]), privacyFence: projection.scope.viewerFence},
-          revision: {catalogRevision: String(projection.revision.catalog), viewerRevision: String(projection.revision.viewer)},
+            viewId: JSON.stringify(['collection', route.libraryId, route.collectionId, projection.query]), privacyFence: 'opened'},
+          revision: {catalogRevision: '0', viewerRevision: '0'},
         } : null, sections: [{id: 'items', entries: resident.entries, positions: resident.positions}]};
     }}, port), {area: 'saved', aggregates: true, preserveEvicted: true});
   }, [context, controller, route]);

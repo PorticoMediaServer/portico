@@ -106,31 +106,30 @@ export class NativeTitleController {
     const detail = this.retired ? undefined : this.detail.getSnapshot(), creditData = detail?.data ?? undefined;
     if (creditData !== this.creditData) {
       this.credits?.dispose(); this.credits = undefined; this.creditData = creditData ?? undefined;
-      if (creditData) this.credits = new NativeTitleCredits({id: creditData.item.id, revision: creditData.revision,
+      if (creditData) this.credits = new NativeTitleCredits({id: creditData.item.id,
         credits: creditData.metadata.credits, totals: creditData.metadata.creditTotals,
         current: () => this.current() && this.detail.getSnapshot().data === creditData,
         read: (group, cursor, signal) => readCreditPage(this.options.api, creditData.item.id, group, {cursor, limit: 37}, signal), changed: this.changed});
       for (const row of this.related.values()) row.dispose();
       this.related = new Map();
-      // Each related row continues through the title's row route under this detail's fence and revision.
       if (creditData) for (const row of creditData.related?.rows ?? []) {
         const source = {libraryId: creditData.item.libraryId, itemId: creditData.item.id, kind: creditData.item.kind};
         const api = {request: <T,>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => {
           if (!this.current() || this.detail.getSnapshot().data !== creditData) return Promise.reject(new DOMException('Title changed', 'AbortError'));
           return this.options.api.request<T>(path, method, body, signal);
         }};
-        this.related.set(row.id, nativeRelatedRow(api, source, row, {viewerFence: creditData.scope.viewerFence, revision: creditData.revision}, this.changed));
+        this.related.set(row.id, nativeRelatedRow(api, source, row, this.changed));
       }
     }
     const workspace = this.retired ? undefined : this.workspace.getSnapshot(), data = workspace?.data;
     if (workspace?.phase === 'ready' && data && data !== this.ingested) {
       this.ingested = data;
       this.pages.ingest({key: JSON.stringify([data.show.id, data.selected.seasonId, data.selected.group, workspace.route?.playState ?? 'all']),
-        fence: JSON.stringify([data.scope.serverId, data.scope.libraryId, data.scope.viewerFence, data.revision.catalog, data.revision.viewer]),
+        fence: JSON.stringify([data.scope.serverId, data.scope.libraryId]),
         episodeCursor: workspace.pagination.cursor, seasonCursor: workspace.seasonPagination.cursor, episodes: data.episodes.sections[0]?.entries ?? [], seasons: data.seasons});
     }
-    if (data && (this.entry.kind === 'show' || this.entry.kind === 'season')) this.readRecommendations({kind: 'show', id: data.show.id}, data.revision);
-    else if (creditData && this.entry.kind === 'movie' && creditData.item.kind === 'movie' && this.filmRelated === 'none') this.readRecommendations({kind: 'item', id: creditData.item.id}, creditData.revision);
+    if (data && (this.entry.kind === 'show' || this.entry.kind === 'season')) this.readRecommendations({kind: 'show', id: data.show.id}, {catalog: 0, viewer: 0});
+    else if (creditData && this.entry.kind === 'movie' && creditData.item.kind === 'movie' && this.filmRelated === 'none') this.readRecommendations({kind: 'item', id: creditData.item.id}, {catalog: 0, viewer: 0});
     const related: Record<string, NativeRelatedRowSnapshot> = {};
     for (const [id, row] of this.related) related[id] = row.getSnapshot();
     for (const [id, row] of this.recommended) related[id] = row.getSnapshot();
@@ -250,7 +249,7 @@ export class NativeTitleController {
   markSeason = async (seasonId: string, watched: boolean): Promise<void> => {
     if (!this.current()) return;
     const state = await getContainerState(this.options.api, 'season', seasonId);
-    await setContainerState(this.options.api, 'season', seasonId, {expectedRevision: state.revision, watched});
+    await setContainerState(this.options.api, 'season', seasonId, {watched});
     if (!this.current()) return;
     await this.workspace.refresh();
     this.changed();

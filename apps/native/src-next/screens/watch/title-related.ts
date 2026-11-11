@@ -59,9 +59,9 @@ export class NativeRelatedRow {
   dispose(): void {this.off(); this.pager.dispose();}
 }
 
-/** A title's related row (detail.related) under its detail's fence and revision. */
-export function nativeRelatedRow(api: HomeApi, source: Parameters<typeof relatedRowPager>[1], row: RelatedMovieRow, scope: Parameters<typeof relatedRowPager>[3], changed: () => void): NativeRelatedRow {
-  return new NativeRelatedRow(JSON.stringify([source.itemId, scope.revision, row.id]), relatedRowPager(api, source, row, scope), changed);
+/** A title's related row (detail.related). */
+export function nativeRelatedRow(api: HomeApi, source: Parameters<typeof relatedRowPager>[1], row: RelatedMovieRow, changed: () => void): NativeRelatedRow {
+  return new NativeRelatedRow(JSON.stringify([source.itemId, row.id]), relatedRowPager(api, source, row), changed);
 }
 
 /** A listening title's similar row on its first page's basis and revision. */

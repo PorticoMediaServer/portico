@@ -46,15 +46,6 @@ test('a long section holds a bounded window and reads evicted pages again by the
   } finally {collection.dispose();}
 });
 
-test('a page from another viewer fence or catalogue revision is a changed library, not spliced in', async () => {
-  for (const change of [{fence: 'other-fence'}, {catalog: 4}]) {
-    const s = server(100), pages = libraryContentPages({api: s.api, scope, route, pageSize: 10}), signal = new AbortController().signal;
-    await pages(0, 10, signal);
-    s.change(change);
-    await assert.rejects(pages(10, 10, signal), (error: unknown) => isStaleAnswer(error));
-  }
-});
-
 test('an empty library is an empty window; a section that vanished under a later page is stale', async () => {
   const empty = server(0), signal = new AbortController().signal;
   assert.deepEqual(await libraryContentPages({api: empty.api, scope, route, pageSize: 10})(0, 10, signal), {items: [], total: 0});
@@ -70,22 +61,4 @@ test('only start-addressable views get a window, and pages stay within the bound
   const pages = libraryContentPages({api: server(100).api, scope, route, pageSize: 10}), signal = new AbortController().signal;
   await assert.rejects(pages(0, 11, signal), /Invalid content window page/);
   await assert.rejects(pages(-1, 10, signal), /Invalid content window page/);
-});
-
-test('each accepted page hands its projection to the screen without its sections', async () => {
-  const s = server(60), seen: unknown[] = [];
-  const collection = window(libraryContentPages({api: s.api, scope, route, pageSize: 10, onPage: projection => seen.push(projection)}));
-  try {
-    collection.ensureRange(0, 9); await settle();
-    collection.ensureRange(10, 19); await settle();
-    assert.ok(seen.length >= 2);
-    const first = seen[0] as {heading: {fallback?: string}; sections: readonly unknown[]; scope: {viewerFence: string}};
-    assert.equal(first.heading.fallback, 'Movies');
-    assert.equal(first.scope.viewerFence, 'fence');
-    assert.deepEqual(first.sections, [], 'entries live only in the window');
-    const accepted = seen.length;
-    s.change({catalog: 9});
-    collection.ensureRange(50, 59); await settle();
-    assert.equal(seen.length, accepted, 'a changed library hands over nothing');
-  } finally {collection.dispose();}
 });
