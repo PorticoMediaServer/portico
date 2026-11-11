@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
@@ -468,13 +469,42 @@ func converterKilled(err error) bool {
 	return false
 }
 
+// converterStoppedOutside reports whether a converter was stopped by somebody
+// else (the kernel when memory ran out, a kill), as against crashing by itself:
+// killed, terminated, interrupted or hung up, with the statuses a sandbox gives
+// for those, or ffmpeg's own 255 for being asked to stop. A crash (a
+// segmentation fault, an abort) is not this: it can be the encoder's doing.
+func converterStoppedOutside(err error) bool {
+	var exit *exec.ExitError
+	if !errors.As(err, &exit) {
+		return false
+	}
+	if status, ok := exit.Sys().(syscall.WaitStatus); ok && status.Signaled() {
+		switch status.Signal() {
+		case syscall.SIGKILL, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP, syscall.SIGQUIT, syscall.SIGPIPE:
+			return true
+		}
+		return false
+	}
+	switch exit.ExitCode() {
+	case 255, 128 + 1, 128 + 2, 128 + 3, 128 + 9, 128 + 13, 128 + 15:
+		return true
+	}
+	return false
+}
+
 // A converter that dies by no fault of the film (stopped from outside, crashed,
 // gone silent, or its producer hit a fault of the server's own) is started again
-// by the next request. converterDeaths is how many times in a row that may
-// happen without a single new segment in between: after that the stream fails,
+// by the next request. converterDeaths is how many tries it gets in a row
+// without a single new segment in between: the third death fails the stream,
 // so a file that crashes the converter at one spot, or a machine that kills it
 // every time, is never retried for ever.
 const converterDeaths = 3
+
+// converterOpening is how much longer than converterSilence a converter reading
+// a remote source may take to finish its first segment: opening a large file on
+// slow remote storage can take minutes before anything comes out.
+const converterOpening = 3
 
 // converterSilence is how long a running converter may go without finishing a
 // segment, while also not reporting any progress, before it is taken to be stuck
@@ -499,5 +529,5 @@ func (h *HLS) died(id string, from int, owned *hlsWindow) bool {
 		s.deaths = 0
 	}
 	s.deaths++
-	return s.deaths <= converterDeaths && h.restartAllowedLocked(id)
+	return s.deaths < converterDeaths && h.restartAllowedLocked(id)
 }
