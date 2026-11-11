@@ -34,9 +34,12 @@ type MetadataSettings struct {
 	IncludeAdult bool `json:"includeAdult"`
 }
 
-// TMDBSettings is the owner's TMDB read access token, shown only as set or not.
+// TMDBSettings is the owner's TMDB read access token, shown only as set or not. Without one
+// the server uses Portico's own built-in key.
 type TMDBSettings struct {
 	KeySet bool `json:"keySet"`
+	// UsingBuiltIn says lookups use Portico's own key, because the owner has not set one.
+	UsingBuiltIn bool `json:"usingBuiltIn"`
 	// EnterAgain says a key is stored but this server cannot open it (its key file was lost
 	// or replaced): it must be entered again.
 	EnterAgain bool `json:"enterAgain,omitempty"`
@@ -105,7 +108,7 @@ func (s *Server) metadataSettingsRoutes() {
 
 func (p providerSettings) page() MetadataSettings {
 	return MetadataSettings{IncludeAdult: p.IncludeAdult,
-		TMDB: TMDBSettings{KeySet: p.TMDBKey != "", EnterAgain: p.enterAgain[settingTMDBKey]},
+		TMDB: TMDBSettings{KeySet: p.TMDBKey != "", UsingBuiltIn: p.TMDBKey == "", EnterAgain: p.enterAgain[settingTMDBKey]},
 		OpenSubtitles: OpenSubtitlesSettings{APIKeySet: p.SubtitleKey != "", Username: p.SubtitleUser, PasswordSet: p.SubtitlePassword != "",
 			EnterAgain: p.enterAgain[settingOpenSubtitlesKeys]}}
 }
@@ -243,10 +246,12 @@ func (s *Server) loadMetadataSettings(ctx context.Context) error {
 
 // useProviders hands the settings to what uses them. Called with providers.mu held.
 func (s *Server) useProviders(p providerSettings) {
-	online := map[string]metadata.Provider{}
-	if p.TMDBKey != "" {
-		online["tmdb"] = tmdb.New(p.TMDBKey, s.providers.tmdbHost)
+	// TMDB is always there: the owner's own key, else Portico's built-in one.
+	key := p.TMDBKey
+	if key == "" {
+		key = tmdb.ProjectToken
 	}
+	online := map[string]metadata.Provider{"tmdb": tmdb.New(key, s.providers.tmdbHost)}
 	s.metadata.Use(online, p.IncludeAdult)
 	// Subtitle search needs the API key and the account (definition 07, rule 67). A new client
 	// is made for every save, so a refused password is tried again only once the owner changes it.

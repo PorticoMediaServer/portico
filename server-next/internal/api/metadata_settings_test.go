@@ -69,13 +69,13 @@ func TestProviderKeys(t *testing.T) {
 	owner = onMain(t, s, signIn(t, s, 2)).AccessToken
 	page = MetadataSettings{}
 	if call(t, s, "GET", "/v1/admin/metadata/settings", owner, nil, &page); page.TMDB.KeySet || !page.TMDB.EnterAgain || !page.OpenSubtitles.EnterAgain ||
-		s.metadata.Providers["tmdb"] != nil {
+		!page.TMDB.UsingBuiltIn || s.metadata.Providers["tmdb"] == nil {
 		t.Fatalf("with the key file gone: %+v", page)
 	}
 	empty := ""
 	put(owner, MetadataSettingsEdit{TMDBKey: &empty}, 200)
 	page = MetadataSettings{}
-	if call(t, s, "GET", "/v1/admin/metadata/settings", owner, nil, &page); page.TMDB.KeySet || page.TMDB.EnterAgain {
+	if call(t, s, "GET", "/v1/admin/metadata/settings", owner, nil, &page); page.TMDB.KeySet || page.TMDB.EnterAgain || !page.TMDB.UsingBuiltIn {
 		t.Fatalf("after removing the key: %+v", page)
 	}
 }
