@@ -193,6 +193,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.channels = librarychannels.New(d, log, func() time.Time { return s.now() })
 	go s.channels.Run(ctx)
 	s.libraryChannelRoutes()
+	s.liveRoutes()
 	return s, nil
 }
 

@@ -421,6 +421,9 @@ type Progress struct {
 	At time.Time
 	// WatchedMS is how long the title has actually played in this playing.
 	WatchedMS int64
+	// OwnerOnly saves no place and no watched mark: a finished play goes into the owner's
+	// Play history only, as a Library Channel's plays do.
+	OwnerOnly bool
 }
 
 // Settings a profile can change that decide what a position means. Values are percentages.
@@ -521,7 +524,7 @@ func percent(prefs map[string]string, key string, fallback, low, high int64) int
 }
 
 func (w *stateWriter) saveProgress(sample Progress, prefs map[string]string) (finished bool, err error) {
-	paused := prefs[PrefPauseHistory] == "true"
+	paused := prefs[PrefPauseHistory] == "true" || sample.OwnerOnly
 	var id, duration int64
 	var kind ItemKind
 	var title, holder, completion string
