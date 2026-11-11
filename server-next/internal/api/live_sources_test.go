@@ -167,6 +167,9 @@ func TestAnXtreamSignInIsNeverShownAndATunerSaysItsTuners(t *testing.T) {
 	if n := len(get[Page[Channel]](t, s, owner, "/v1/live/channels").Items); n != 1 {
 		t.Fatalf("a failed refresh left %d channels, want the one it had", n)
 	}
+	if !get[Guide](t, s, owner, "/v1/live/guide").OutOfDate {
+		t.Fatal("after a failed refresh the guide does not say it is out of date")
+	}
 
 	tuner := addSource(t, s, owner, LiveSourceSave{Kind: "hdhomerun", Name: new("Antenna"), Config: &live.Config{TunerURL: fake.URL + "/hdhr",
 		GuideURL: fake.URL + "/guide.xml.gz"}})
