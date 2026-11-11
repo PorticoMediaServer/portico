@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // A file in the data folder that Portico did not make is refused and left exactly as it
@@ -62,4 +63,69 @@ func TestAFailureToReadTheVersionIsReportedAsItself(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "reading the database's version failed") || strings.Contains(err.Error(), "delete") {
 		t.Fatalf("Open says %v", err)
 	}
+}
+
+// holdExclusively opens the database the way a tool that wants it to itself does, so that
+// nothing else can even read it, and returns what lets go of it.
+func holdExclusively(t *testing.T, path string) func() {
+	t.Helper()
+	other, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	other.SetMaxOpenConns(1)
+	if _, err := other.Exec(`PRAGMA locking_mode = EXCLUSIVE; BEGIN IMMEDIATE; UPDATE libraries SET revision = revision; COMMIT`); err != nil {
+		t.Fatal(err)
+	}
+	return func() { other.Close() }
+}
+
+// A server started while the one before it is still letting go of the database waits for
+// it, as every other connection does, and starts.
+func TestOpenWaitsOutADatabaseThatIsBrieflyBusy(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "main.db")
+	d, err := Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Close()
+	release := holdExclusively(t, path)
+	began := time.Now()
+	time.AfterFunc(400*time.Millisecond, release)
+	d, err = Open(ctx, path)
+	if err != nil {
+		t.Fatalf("opening a database that was busy for a moment: %v", err)
+	}
+	d.Close()
+	if waited := time.Since(began); waited < 300*time.Millisecond {
+		t.Fatalf("Open returned after %s, before the database was let go: the test held nothing", waited)
+	}
+}
+
+// A database something else keeps hold of is refused for what it is: in use. It is never
+// called unreadable, and it is not touched.
+func TestADatabaseHeldBySomethingElseIsRefusedAsInUse(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "main.db")
+	d, err := Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Close()
+	usual := busyTimeoutMs
+	busyTimeoutMs = 300
+	t.Cleanup(func() { busyTimeoutMs = usual })
+	release := holdExclusively(t, path)
+	defer release()
+	_, err = Open(ctx, path)
+	if err == nil || !strings.Contains(err.Error(), "another Portico server or tool has the database") || !strings.Contains(err.Error(), "nothing in it has been changed") ||
+		strings.Contains(err.Error(), "could not be read as a database") {
+		t.Fatalf("opening a database held by something else: %v", err)
+	}
+	release()
+	if d, err = Open(ctx, path); err != nil {
+		t.Fatalf("opening it once it was let go: %v", err)
+	}
+	d.Close()
 }

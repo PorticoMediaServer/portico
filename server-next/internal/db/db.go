@@ -13,7 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	_ "modernc.org/sqlite"
+	"modernc.org/sqlite"
 )
 
 //go:embed schema.sql
@@ -97,6 +97,12 @@ const (
 	readCacheKiB  = 16 << 10
 )
 
+// busyTimeoutMs is how long any connection waits for a database another connection has
+// locked before giving up. sqliteBusy is SQLite's code for giving up.
+var busyTimeoutMs = 5000
+
+const sqliteBusy = 5
+
 // checkIsOurs refuses a file that is there and is not a Portico database, before anything
 // is opened for writing: opening a database the way Portico does switches it to WAL mode,
 // and a file from another program must be left exactly as it was.
@@ -104,13 +110,21 @@ func checkIsOurs(ctx context.Context, path string) error {
 	if info, err := os.Stat(path); err != nil || info.Size() == 0 {
 		return nil // not there yet, or empty: Open makes it
 	}
-	look, err := sql.Open("sqlite", "file:"+url.PathEscape(path)+"?mode=ro")
+	// The look waits as long as every other connection does for a database that is busy: a
+	// server that has just been stopped can still be finishing its last writes.
+	look, err := sql.Open("sqlite", "file:"+url.PathEscape(path)+"?mode=ro&_pragma="+url.QueryEscape(fmt.Sprintf("busy_timeout(%d)", busyTimeoutMs)))
 	if err != nil {
 		return err
 	}
 	defer look.Close()
 	var ours bool
 	if err := look.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations')`).Scan(&ours); err != nil {
+		// Busy is not "unreadable": the file is a database, and something else is using it.
+		var busy *sqlite.Error
+		if errors.As(err, &busy) && busy.Code()&0xff == sqliteBusy {
+			return fmt.Errorf("another Portico server or tool has the database at %s open and did not let go of it within %d seconds; "+
+				"nothing in it has been changed. Stop the other one, or wait for it to finish, and start again", path, busyTimeoutMs/1000)
+		}
 		return fmt.Errorf("%s could not be read as a database, and nothing in it has been changed: %w", path, err)
 	}
 	if !ours {
@@ -123,7 +137,7 @@ func open(path, mode string, conns, cacheKiB int) (*sql.DB, error) {
 	q := url.Values{}
 	q.Set("mode", mode)
 	q.Set("_txlock", "immediate")
-	for _, pragma := range []string{"busy_timeout(5000)", "journal_mode(WAL)", "synchronous(FULL)", "foreign_keys(1)",
+	for _, pragma := range []string{fmt.Sprintf("busy_timeout(%d)", busyTimeoutMs), "journal_mode(WAL)", "synchronous(FULL)", "foreign_keys(1)",
 		"wal_autocheckpoint(0)", fmt.Sprintf("journal_size_limit(%d)", walKeepBytes)} {
 		q.Add("_pragma", pragma)
 	}
