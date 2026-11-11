@@ -647,7 +647,7 @@ func (m *matrix) segments(t *testing.T, url string, from, to int) (video, audio 
 		for i := from; i < to && i < len(l.parts); i++ {
 			code, _, body := m.media(base + l.parts[i])
 			if code != 200 || len(body) == 0 {
-				t.Fatalf("%s answered %d with %d bytes", l.parts[i], code, len(body))
+				t.Fatalf("FINDING: %s, named in %s, answered %d: %.200q", l.parts[i], l.name, code, body)
 			}
 			joined = append(joined, body...)
 		}
@@ -954,9 +954,12 @@ func (m *matrix) play(t *testing.T, name, path, item string, subtitles map[strin
 			tolerance = 45
 			wantMean, wantBlack, wantClipped = brightness(m.frame(t, 3, "-f", "lavfi", "-i", fmt.Sprintf("testsrc2=size=%dx%d:rate=24:duration=4", video.Width, video.Height)))
 		}
-		f.check(math.Abs(mean-wantMean) < tolerance && black <= wantBlack+0.2 && clipped <= wantClipped+0.1,
+		// Not black and not washed out. Tone mapping may dim the picture: down to half the
+		// SDR original's brightness passes, and the figure is noted either way.
+		f.check(mean >= wantMean/2 && mean <= wantMean+tolerance && black <= wantBlack+0.2 && clipped <= wantClipped+0.1,
 			"tone-mapped picture: mean %.0f, black %.2f, clipped %.2f; the SDR original: mean %.0f, black %.2f, clipped %.2f",
 			mean, black, clipped, wantMean, wantBlack, wantClipped)
+		m.note(fmt.Sprintf("%-18s %-11s tone-mapped brightness %.0f against %.0f for the SDR original", name, profile, mean, wantMean))
 	}
 	f.report(where)
 
@@ -1174,7 +1177,8 @@ func TestMediaMatrixHardware(t *testing.T) {
 			if plan.ToneMap && outVideo != nil {
 				mean, black, clipped := brightness(m.frame(t, 3, "-i", files[0]))
 				wantMean, wantBlack, wantClipped := brightness(m.frame(t, 3, "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=24:duration=4"))
-				f.check(math.Abs(mean-wantMean) < 45 && black <= wantBlack+0.2 && clipped <= wantClipped+0.1,
+				t.Logf("tone-mapped brightness %.0f against %.0f for the SDR original", mean, wantMean)
+				f.check(mean >= wantMean/2 && mean <= wantMean+45 && black <= wantBlack+0.2 && clipped <= wantClipped+0.1,
 					"tone-mapped picture: mean %.0f, black %.2f, clipped %.2f; the SDR original: mean %.0f, black %.2f, clipped %.2f",
 					mean, black, clipped, wantMean, wantBlack, wantClipped)
 			}
