@@ -219,6 +219,8 @@ const source69PreferenceBindings:Readonly<Record<string,SettingsBinding>>={
  'playback.startedThresholdPercent':{form:'preferences',key:'playback.startedThresholdPercent',scope:'profile-server'},
  'privacy.showActivity':{form:'preferences',key:'privacy.showActivityToMembers',scope:'profile-server'},
  'privacy.includeWatchTogether':{form:'preferences',key:'privacy.includeInWatchTogether',scope:'profile-server'},
+ // A film or episode resumes this much before where it stopped; the server applies it when a play starts.
+ 'playback.resumeRewindMs':{form:'preferences',key:'playback.resumeRewindMs',scope:'profile-server'},
  'privacy.pauseHistory':{form:'preferences',key:'privacy.pauseWatchHistory',scope:'profile-server'},
  // Asked again for the main profile's PIN, on a device that remembers it, before a sensitive change.
  'profile.askPin':{form:'preferences',key:'security.askPinForSensitiveSettings',scope:'profile-server'},

@@ -83,7 +83,7 @@ export function AccountProfilesView({binding, onSwitchServer, focusProfileId}: {
   const switchServer = () => {if (viewCurrent() && selectedNow.current === selection && activeRecovery.current === recovery) onSwitchServer();};
 
   return <>
-    {selected ? <ServerProfilePIN key={JSON.stringify([selected.id, selected.pinRevision])} serverName={server.name} profile={selected} remember={remember} onRememberChange={!canRemember ? undefined : value => {if (viewCurrent() && selectedNow.current === selection && !activeRecovery.current && !binding.getSnapshot().busy) setRemember(value);}}
+    {selected ? <ServerProfilePIN key={JSON.stringify([selected.id, selected.pinRequired])} serverName={server.name} profile={selected} remember={remember} onRememberChange={!canRemember ? undefined : value => {if (viewCurrent() && selectedNow.current === selection && !activeRecovery.current && !binding.getSnapshot().busy) setRemember(value);}}
       busy={state.busy || seconds > 0} error={pinError} rejectionKey={state.error} errorText={seconds ? defaultI18n.t('accounts.profiles.pinLocked', {seconds}) : undefined}
       failure={!pinError && !seconds ? state.error : undefined} onComplete={pin => {if (viewCurrent() && selectedNow.current === selection && !activeRecovery.current && !binding.getSnapshot().busy) void binding.chooseProfile(selected.id, pin, canRemember && remember);}}
       onOtherProfiles={otherProfiles} onSwitchServer={switchServer} onForgotPIN={() => {

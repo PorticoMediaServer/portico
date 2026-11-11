@@ -20,7 +20,7 @@ export function ProfileFace({initial, art = 'blue', tint, palette, locked = fals
   </span>;
 }
 
-type SelectionProfile = Readonly<{id: string; name: string; eligible: boolean; art?: string; primary?: boolean; pinRequired?: boolean; pinRevision?: number; revision?: number;
+type SelectionProfile = Readonly<{id: string; name: string; eligible: boolean; art?: string; primary?: boolean; pinRequired?: boolean;
   unavailableReason?: 'membership_required' | 'membership_revoked' | 'server_restriction'}>;
 export type ProfilePickerProfile = SelectionProfile & Readonly<{initial?: string}>;
 export type ProfilePickerProps = ArtStyleProps & Readonly<{

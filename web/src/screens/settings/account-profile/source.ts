@@ -138,27 +138,27 @@ export class ProfileSettingsSource {
       if (this.current() && this.snapshot.document) this.publish({...this.snapshot, avatars});
     } catch (error) {if (this.current()) this.publish({loading: false, busy: false, inUseId: this.scope.profileId, error});}
   };
-  picture = (target: Pick<ManagedProfile, 'id' | 'revision'>, file?: File): Promise<void> => this.mutate(async document => {
-    const profile = document.profiles.find(candidate => candidate.id === target.id && candidate.revision === target.revision);
+  picture = (target: Pick<ManagedProfile, 'id'>, file?: File): Promise<void> => this.mutate(async document => {
+    const profile = document.profiles.find(candidate => candidate.id === target.id);
     if (!profile) throw new CodedError('conflict', 'Refresh the profiles before trying again.');
     if (file) await this.identity.uploadAvatar(profile.id, file, file.type);
     else await this.identity.removeAvatar(profile.id);
   }).then(() => this.loadPictures());
-  /** Bind a PIN dialog to the profile/revision it actually opened for. */
-  setPIN = (target: Pick<ManagedProfile, 'id' | 'revision'>, pin: string): Promise<void> => this.mutate(async document => {
-    const profile = document.profiles.find(candidate => candidate.id === target.id && candidate.revision === target.revision);
+  /** Bind a PIN dialog to the profile it actually opened for; the later save wins. */
+  setPIN = (target: Pick<ManagedProfile, 'id'>, pin: string): Promise<void> => this.mutate(async document => {
+    const profile = document.profiles.find(candidate => candidate.id === target.id);
     if (!profile) throw new CodedError('conflict', 'Refresh the profiles before trying again.');
     await this.client.edit(profile, {pin}, this.lifetime.signal);
   });
-  forgetDevices = (target: Pick<ManagedProfile, 'id' | 'revision'>): Promise<void> => this.mutate(async document => {
-    const profile = document.profiles.find(candidate => candidate.id === target.id && candidate.revision === target.revision && candidate.pinRequired);
+  forgetDevices = (target: Pick<ManagedProfile, 'id'>): Promise<void> => this.mutate(async document => {
+    const profile = document.profiles.find(candidate => candidate.id === target.id && candidate.pinRequired);
     if (!profile) throw new CodedError('conflict', 'Refresh the profiles before trying again.');
     await this.client.forgetTrust(profile.id, this.lifetime.signal);
   });
-  previewDelete = async (target: Pick<ManagedProfile, 'id' | 'revision'>): Promise<ProfileDeletion> => {
+  previewDelete = async (target: Pick<ManagedProfile, 'id'>): Promise<ProfileDeletion> => {
     if (!this.current() || this.snapshot.busy || this.pending) throw new CodedError('conflict', 'Refresh the profiles before trying again.');
     const document = this.requireManager();
-    const profile = document.profiles.find(candidate => candidate.id === target.id && candidate.revision === target.revision && !candidate.primary);
+    const profile = document.profiles.find(candidate => candidate.id === target.id && !candidate.primary);
     if (!profile) throw new CodedError('conflict', 'Refresh the profiles before trying again.');
     const preview = await this.client.previewDelete(profile, this.lifetime.signal);
     if (!this.current()) throw new CodedError('forbidden', 'The selected profile is no longer available.');

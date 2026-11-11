@@ -138,11 +138,12 @@ test('channel admission notifies current choices while upload keeps its original
   assert.equal(denied.calls(), 0);denied.source.dispose();
 });
 
-test('switch proof excludes display names/art/ordering but includes original target/PIN/trust revisions', () => {
+test('switch proof excludes display names/art/ordering but includes the target, its access and whether it has a PIN', () => {
   const f = fixture(), original = switchOfferKey(f.context.facts.identity), target = f.context.facts.identity.profiles[1]!;
   f.rename();assert.equal(switchOfferKey(f.context.facts.identity), original);
   assert.equal(switchOfferKey({...f.context.facts.identity, profiles: [...f.context.facts.identity.profiles].reverse()}), original);
-  for (const field of ['revision', 'pinRevision', 'trustRevision'] as const) assert.notEqual(profileTargetKey({...target, [field]: 77}), profileTargetKey(target));
+  assert.notEqual(profileTargetKey({...target, accessMarker: 'changed'}), profileTargetKey(target));
+  assert.notEqual(profileTargetKey({...target, pinRequired: !target.pinRequired}), profileTargetKey(target));
   f.source.dispose();
 });
 
@@ -167,7 +168,7 @@ test('mounted Shell retains switch and PIN input through rename and retires the 
     one(ui, 'TextField').props.onChange({currentTarget: {value: '1234'}});ui = draw();const originalConfirm = all(tree(one(ui, 'Dialog').props.footer), 'Button')[1].props.onClick;
     f.source.update({identity: {...f.context.facts.identity, serverName: 'Again', profiles: f.context.facts.identity.profiles.map(profile => ({...profile, name: 'Renamed ' + profile.name}))}});
     ui = draw();assert.ok(one(ui, 'Dialog').props.open);assert.equal(one(ui, 'TextField').props.value, '1234');
-    f.source.update({identity: {...f.context.facts.identity, profiles: f.context.facts.identity.profiles.map(profile => profile.id === 'other' ? {...profile, pinRevision: 99} : profile)}});
+    f.source.update({identity: {...f.context.facts.identity, profiles: f.context.facts.identity.profiles.map(profile => profile.id === 'other' ? {...profile, pinRequired: !profile.pinRequired} : profile)}});
     draw();ui = draw();assert.equal(one(ui, 'Dialog').props.open, false);assert.equal(opening.current(), false);originalConfirm();assert.equal(switches.length, 0);
   } finally {h.dispose();globalThis.window = priorWindow;f.source.dispose();}
 });

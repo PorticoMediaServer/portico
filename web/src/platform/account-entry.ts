@@ -863,7 +863,8 @@ export class BrowserAccountEntry {
    const fresh=parseDirectSnapshot(await readDirectAccount(api, op.signal),{authority:'local',accountId:snapshot.account.id,serverId:snapshot.serverId});
    if(!current())return;
    const target=fresh.profiles.find(profile=>profile.id===profileId);
-   if(fresh.account.revision!==snapshot.account.revision||fresh.account.disabled||fresh.twoStepSetupRequired||!target||target.pinRevision<=original.pinRevision||target.revision<original.revision)throw new CodedError('cancelled','The profile changed. Choose it again.');
+   // Recovery set a new PIN: the profile must still be there and still ask for one.
+   if(fresh.account.disabled||fresh.twoStepSetupRequired||!target||!target.pinRequired)throw new CodedError('cancelled','The profile changed. Choose it again.');
    const after=await this.ports.store.read();if(!current())return;if(after.revision!==before.revision||!selected(after))throw new CodedError('cancelled','The server selection changed.');
    // Dispatch on this original API/session under this one operation. Never call
    // the public chooser later and let it discover a successor entry.

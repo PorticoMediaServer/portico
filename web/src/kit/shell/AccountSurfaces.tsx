@@ -14,7 +14,7 @@ import styles from './account.module.css';
 const tDefault = createI18n().t;
 export type ProfileTone = 'blue' | 'violet' | 'mint' | 'coral' | 'gold' | 'slate' | 'rose' | 'sky';
 export type ProfileAvatarSize = 22 | 30 | 32 | 34 | 38 | 40 | 48 | 54 | 84 | 168;
-export type ProfileIdentity = Readonly<{id: string; name: string; username?: string; initial: string; art?: ProfileTone; pinRequired?: boolean; primary?: boolean; revision?: number; pinRevision?: number; trustRevision?: number}>;
+export type ProfileIdentity = Readonly<{id: string; name: string; username?: string; initial: string; art?: ProfileTone; pinRequired?: boolean; primary?: boolean; accessMarker?: string}>;
 /** A profile label is never promoted into a username. */
 export function IdentityName({person}: {person: Pick<ProfileIdentity, 'name' | 'username'>}) {
   const profile = differingProfileName(person.name, person.username);

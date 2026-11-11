@@ -7,9 +7,9 @@ import {createTheme, nativeType} from '../src-next/kit/theme';
 import {defaultI18n} from '../../../packages/i18n/src';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
 
-const profile = {id: 'profile', name: 'Demo', primary: true, position: 0, art: 'blue' as const, revision: 1, pinRevision: 1, pinRequired: false};
+const profile = {id: 'profile', name: 'Demo', primary: true, position: 0, art: 'blue' as const, accessMarker: 'a', pinRequired: false};
 const account: DirectSnapshot = {authority: 'local', serverId: 'server', account: {id: 'account', username: 'demo', primaryProfileId: profile.id,
-  role: 'owner', revision: 1, disabled: false, allowedLibraries: []}, profiles: [profile], canManage: true,
+  role: 'owner', disabled: false, allowedLibraries: []}, profiles: [profile], canManage: true,
   capabilities: {manageAccount: true, managePeople: true, manageServer: true, manageSignIn: true}};
 const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'fence'};
 
