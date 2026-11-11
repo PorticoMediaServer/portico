@@ -99,6 +99,24 @@ try {
     await again.close();
   });
 
+  await step('a Tag name nobody has is told in place, and the page stays', async () => {
+    await page.getByRole('textbox', {name: 'Add a Tag'}).fill('zzz-no-such-tag');
+    await page.getByRole('button', {name: 'Add a Tag'}).click();
+    await page.getByText('There is no Tag called zzz-no-such-tag.').waitFor();
+    if (failureWords.test(await page.locator('main').innerText())) throw new Error('The page shows a failure.');
+    await page.getByText('Two-step verification', {exact: true}).waitFor();
+  }, page);
+
+  await step('limits that cannot be read say so in place, and the page stays', async () => {
+    await page.route('**/v1/profiles/*/restrictions', route => route.fulfill({status: 500, contentType: 'application/json',
+      body: JSON.stringify({error: {code: 'internal', message: 'Something went wrong on the server.', retry: true, requestId: 'req_journey'}})}));
+    await page.getByRole('list', {name: /profiles/i}).getByRole('listitem').filter({hasText: 'owner'}).getByRole('button', {name: 'Manage'}).click();
+    await page.getByRole('list', {name: /profiles/i}).getByRole('listitem').filter({hasText: 'Kid'}).getByRole('button', {name: 'Manage'}).click();
+    await page.getByText('This profile’s limits didn’t load.').waitFor();
+    if (failureWords.test(await page.locator('main').innerText())) throw new Error('The page shows a failure.');
+    await page.unroute('**/v1/profiles/*/restrictions');
+  }, page);
+
   await step('Forgot PIN on the child\'s profile asks for the account password and two-step code, and the new PIN opens it', async () => {
     const child = await context.browser().newContext({viewport: {width: 1440, height: 900}});
     const kidPage = await child.newPage(), kidRequests = j.watch(kidPage);
