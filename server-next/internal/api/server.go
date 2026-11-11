@@ -24,6 +24,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
+	"github.com/PorticoMediaServer/portico/server-next/internal/serverlog"
 	"github.com/PorticoMediaServer/portico/server-next/internal/settings"
 )
 
@@ -58,6 +59,8 @@ type Server struct {
 	network networkState
 	// dataDir is the folder the server keeps its files in.
 	dataDir string
+	// serverLog is the server's log, for Messages. See logs.go.
+	serverLog *serverlog.Log
 	// settings are the owner's settings documents, held in memory. See settings.go.
 	settings *settings.Settings
 	media    func(w http.ResponseWriter, r *http.Request, grant, file string)
@@ -202,6 +205,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	go s.playback.Run(ctx)
 	s.playbackRoutes()
 	s.activityRoutes()
+	s.logRoutes()
 	s.queues = playqueue.New(d, s.playback, func() time.Time { return s.now() })
 	s.queueRoutes()
 	return s, nil

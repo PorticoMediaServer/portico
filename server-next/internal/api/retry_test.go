@@ -37,6 +37,7 @@ var repeatSafeWithoutKey = map[string]string{
 	"POST /v1/queues/{id}/prepare-next":           "changes nothing that lasts",
 	"POST /v1/queues/{id}/commit-next":            "sets the current entry",
 	"POST /v1/notifications/read-all":             "sets the state",
+	"POST /v1/admin/support-export":               "changes nothing: the export is made as it is sent and not kept",
 }
 
 // An app that never had the answer to a creating request sends it again with the same
