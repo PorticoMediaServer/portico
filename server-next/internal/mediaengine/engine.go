@@ -428,6 +428,17 @@ func (s saved) PreferenceSource(key string) string {
 }
 
 // Plan asks the media engine how the version reaches the device.
+// holdToLimits applies what the viewer's account is held to: no converting at all, and a
+// video bitrate cap on any connection that is not the home network.
+func holdToLimits(request *streaming.PlanRequest, limits db.PlayLimits) {
+	if limits.NoConversion {
+		request.TranscodingEnabled = false
+	}
+	if limits.RemoteMaxBitrateKbps > 0 && request.Connection.NetworkClass != streaming.NetworkLocal {
+		request.MemberCeiling = streaming.ReplanCeilings{Remote: true, MaxVideoBitrateBPS: limits.RemoteMaxBitrateKbps * 1000}
+	}
+}
+
 func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -455,6 +466,7 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 	if r.Network == playback.NetworkLocal {
 		request.Connection.NetworkClass = streaming.NetworkLocal
 	}
+	holdToLimits(&request, r.Limits)
 	if len(r.Capabilities) > 0 {
 		device, err := streaming.ParseCapabilityDocument(r.Capabilities)
 		if err != nil {

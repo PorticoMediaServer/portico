@@ -42,6 +42,7 @@ change the schema, before and after the first release, is rule 9 of `RULES.md`.
 | | `devices` | yes | The device list, and revoking a lost device |
 | | `device_capabilities` | yes | Starting playback on another device |
 | | `library_access`, `profile_restrictions` | yes | Keeping a library or a label away from a member or a child |
+| | `account_restrictions` | yes | The owner keeping a label away from every profile of a member's account, where the member cannot lift it |
 | | `sessions` | yes | Staying signed in; ending a sign-in |
 | | `auth_codes` | yes | TV sign-in codes, password reset, two-step sign-in, recovery codes |
 | | `invitations` | yes | Inviting people |
