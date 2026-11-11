@@ -53,6 +53,8 @@ type DB struct {
 
 	// upgradesDone closes when the upgrade's background work has stopped. See upgrade.go.
 	upgradesDone chan struct{}
+	// personWaited is when a person's write last waited behind background work. See writer.go.
+	personWaited atomic.Int64
 	draining     atomic.Bool // background work is held back while the WAL is emptied
 	holdUntil    time.Time   // when the present hold ends whether or not the file emptied
 	holdAgain    time.Time   // after a hold that ran out: when the next may begin
