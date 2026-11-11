@@ -72,32 +72,42 @@ func (f *finding) check(ok bool, format string, args ...any) {
 	}
 }
 
-// knownFailures are disagreements already reported on PR #2604, by the case's name, with
-// the number of the finding there. Such a case is logged, not failed, so a new failure
-// stands out; when it starts coming out as planned the test fails, so its line is removed
-// here. A case marked sometimes fails only on some runs and may pass quietly.
+// knownFailures are cases that come out other than planned today, for a reason that is known
+// and owned. Each says what a viewer loses and what removes the mark. Such a case is logged,
+// not failed, so a new failure stands out; when it starts coming out as planned the test
+// fails, so its mark is removed. A case marked sometimes fails only on some runs and may
+// pass quietly.
 var knownFailures = map[string]struct {
-	finding   int
-	sometimes bool
+	loses, until string
+	sometimes    bool
 }{
-	"hevc-hlg for chromium after a seek":                          {finding: 1},
-	"h264-10bit for chromium after a seek":                        {finding: 1},
-	"long-jump for chromium after a seek":                         {finding: 1},
-	"hevc-hdr10 for chromium after a seek":                        {finding: 1, sometimes: true},
-	"hevc-hdr10 for chromium with the picture subtitle burned in": {finding: 1, sometimes: true},
-	"hevc-4k-hdr10-tone-mapped on vaapi":                          {finding: 3},
+	// Finding 1 on #2604. It depends on the AV1 encoder: seen on every run on GitHub's runners
+	// (Ubuntu 24.04's ffmpeg 6.1.1 and its SVT-AV1), not with ffmpeg 8.0.1 and SVT-AV1 2.3.0
+	// on mini-1, where these cases come out as planned and so report FIXED?. The job is the
+	// measure; an owner on Ubuntu 24.04's ffmpeg is who loses this.
+	"hevc-hlg for chromium after a seek":   {loses: seekLoss, until: seekFix},
+	"h264-10bit for chromium after a seek": {loses: seekLoss, until: seekFix},
+	"long-jump for chromium after a seek":  {loses: seekLoss, until: seekFix},
+	"hevc-hdr10 for chromium after a seek": {loses: seekLoss + "; sometimes the stream also ends early, answering \"This playback has ended\"",
+		until: seekFix, sometimes: true},
+	"hevc-hdr10 for chromium with the picture subtitle burned in": {loses: seekLoss, until: seekFix, sometimes: true},
 }
+
+const (
+	seekLoss = "a person on a browser who seeks in a film converted to AV1 sees the picture start about 1.4 s later than the player was told"
+	seekFix  = "the streaming lane holds an AV1 conversion to the fixed segment grid after a seek (finding 1 on #2604)"
+)
 
 func (f *finding) report(where string) {
 	f.t.Helper()
 	known, isKnown := knownFailures[where]
 	switch {
 	case len(f.failed) > 0 && isKnown:
-		f.t.Logf("EXPECTED FAILURE (finding %d on #2604) %s:\n  %s", known.finding, where, strings.Join(f.failed, "\n  "))
+		f.t.Logf("EXPECTED FAILURE %s: %s, until %s:\n  %s", where, known.loses, known.until, strings.Join(f.failed, "\n  "))
 	case len(f.failed) > 0:
 		f.t.Errorf("FINDING %s: what came out is not what was planned:\n  %s", where, strings.Join(f.failed, "\n  "))
 	case isKnown && !known.sometimes:
-		f.t.Errorf("FIXED? %s now comes out as planned, but finding %d on #2604 says it does not: if it is fixed, remove it from knownFailures", where, known.finding)
+		f.t.Errorf("FIXED? %s now comes out as planned, but it is marked as failing until %s: if that has landed, remove its mark from knownFailures", where, known.until)
 	}
 }
 
