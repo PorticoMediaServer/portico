@@ -157,12 +157,18 @@ func (c *Client) wait(ctx context.Context, bucket string) error {
 	c.mu.Lock()
 	now := time.Now()
 	hold := c.paused
-	if t := c.allowance(bucket, now); t.After(hold) {
-		hold = t
+	spread, gap := c.allowance(bucket, now)
+	if spread.After(hold) {
+		hold = spread
 	}
 	if hold.Sub(now) > c.maxWait {
 		c.mu.Unlock()
 		return &SlowDown{Provider: c.name, Until: hold}
+	}
+	if gap > 0 {
+		// Only a request that is sent takes a place in the spread: one refused above does not
+		// push the ones after it further out.
+		c.budgets[bucket].next = spread.Add(gap)
 	}
 	start := now
 	for _, t := range []time.Time{c.next, hold} {
@@ -188,27 +194,26 @@ func (c *Client) wait(ctx context.Context, bucket string) error {
 }
 
 // allowance is the earliest a request of a bucket may start by what the provider last said
-// is left of its allowance. A used-up allowance waits for its reset. Under a tenth left, the
-// rest is spread to the reset, using at most half of it, so the server slows down before it
-// is refused and leaves some for the provider's other clients. Called with mu held.
-func (c *Client) allowance(bucket string, now time.Time) time.Time {
+// is left of its allowance, and the gap to leave after it when the rest is being spread. A
+// used-up allowance waits for its reset. Under a tenth left, the rest is spread to the reset,
+// using at most half of it, so the server slows down before it is refused and leaves some for
+// the provider's other clients. Called with mu held.
+func (c *Client) allowance(bucket string, now time.Time) (time.Time, time.Duration) {
 	b := c.budgets[bucket]
 	if b == nil || !b.reset.After(now) {
-		return time.Time{}
+		return time.Time{}, 0
 	}
 	switch {
 	case b.left <= 0:
-		return b.reset
+		return b.reset, 0
 	case b.left*10 < b.limit:
-		gap := b.reset.Sub(now) / time.Duration(max(b.left/2, 1))
 		start := b.next
 		if start.Before(now) {
 			start = now
 		}
-		b.next = start.Add(gap)
-		return start
+		return start, b.reset.Sub(now) / time.Duration(max(b.left/2, 1))
 	}
-	return time.Time{}
+	return time.Time{}, 0
 }
 
 // count keeps what a provider's X-RateLimit headers say about a bucket. The reset is Unix

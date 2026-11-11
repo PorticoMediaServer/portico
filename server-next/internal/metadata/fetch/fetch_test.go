@@ -108,3 +108,32 @@ func TestRateLimitHeadersSlowRequestsBeforeARefusal(t *testing.T) {
 		t.Errorf("three searches with two of 400 left took %v", took)
 	}
 }
+
+// A request refused because the spread would make it wait too long takes no place in it, so
+// refusals do not keep the provider from being asked once its allowance resets.
+func TestRefusedRequestsDoNotPushTheSpreadOut(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-RateLimit-Limit", "400")
+		w.Header().Set("X-RateLimit-Remaining", "2")
+		w.Header().Set("X-RateLimit-Reset", "1") // a second from now
+		w.Write([]byte("ok"))
+	}))
+	defer server.Close()
+	c := New("test", 0, 50*time.Millisecond)
+	for range 2 { // the second takes the spread's next place, a second on
+		if _, err := get(t, c, server.URL); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for range 20 {
+		if _, err := get(t, c, server.URL); err == nil {
+			t.Fatal("a request a second away was sent with a 50 ms wait")
+		}
+	}
+	time.Sleep(1100 * time.Millisecond) // the allowance resets
+	for range 2 {
+		if _, err := get(t, c, server.URL); err != nil {
+			t.Fatalf("after the reset: %v", err)
+		}
+	}
+}
