@@ -99,7 +99,11 @@ function SetupStates({controller, target, onAdmitted, onLeave}: {controller: Set
       return <Layout testID="accounts-setup" title={t('web.setup.codeTitle')} body={view.invalid ? t('web.setup.codeInvalid') : t('web.setup.codeHint')}
         primaryAction={{id: 'continue', label: t('accounts.signIn.continue'), disabled: busy || !setupCode.trim(), loading: busy, onPress: () => controller.submitCode(setupCode)}}
         secondaryAction={back}
-        beforeActions={<View style={{alignSelf: 'stretch', gap: 14, marginBottom: 20}}>{field(t('web.setup.codeLabel'), setupCode, setSetupCode)}</View>}/>;
+        beforeActions={<View style={{alignSelf: 'stretch', gap: 14, marginBottom: 20}}>{field(t('web.setup.codeLabel'), setupCode, setSetupCode)}
+          <View testID="setup-code-folders" style={{gap: 4}}>
+            {(['web.setup.codeFolderWindows', 'web.setup.codeFolderLinuxPackage', 'web.setup.codeFolderMac', 'web.setup.codeFolderDocker', 'web.setup.codeFolderByHand', 'web.setup.codeFolderLog'] as const)
+              .map(key => <Text key={key} style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t(key)}</Text>)}
+          </View></View>}/>;
     case 'lockout': {
       // The address in use won't work once setup is complete (auth.html 1e panel 5): only the fixes that would let it in,
       // and always a quiet Back, to choose again (on its own where no fix applies: Remote access leaves this network out).
