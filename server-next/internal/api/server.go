@@ -209,6 +209,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.invitationRoutes()
 	s.keyRoutes()
 	s.catalogueRoutes()
+	s.tagRoutes()
 	s.itemFileRoutes()
 	s.artwork = artwork.New(dataDir)
 	s.imageRoutes()
