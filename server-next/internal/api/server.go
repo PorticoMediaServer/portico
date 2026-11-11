@@ -358,7 +358,7 @@ func Handle[Req, Resp any](s *Server, pattern string, access Access, fn func(r *
 		if route.BodyLimit > 0 {
 			limit = route.BodyLimit
 		}
-		if err := readBody(w, r, &req, noBody, limit); err != nil {
+		if err := readBodyLimit(w, r, &req, noBody, limit); err != nil {
 			s.writeError(w, r, err)
 			return
 		}
@@ -396,9 +396,15 @@ type replier interface{ reply(h http.Header) int }
 // facts the media engine writes for the player. The contract calls it unknown.
 type JSON = json.RawMessage
 
-// readBody reads a bounded JSON body into out. Fields this server does not know are ignored,
-// so a newer app can talk to an older server; /v1/system says what the server understands.
-func readBody(w http.ResponseWriter, r *http.Request, out any, noBody bool, limit int64) error {
+// readBody reads a JSON body of at most maxBody into out. Fields this server does not know are
+// ignored, so a newer app can talk to an older server; /v1/system says what the server
+// understands.
+func readBody(w http.ResponseWriter, r *http.Request, out any, noBody bool) error {
+	return readBodyLimit(w, r, out, noBody, maxBody)
+}
+
+// readBodyLimit is readBody for a route that takes a body of at most limit.
+func readBodyLimit(w http.ResponseWriter, r *http.Request, out any, noBody bool, limit int64) error {
 	body := http.MaxBytesReader(w, r.Body, limit)
 	if noBody {
 		// Many HTTP libraries send an empty object, "{}", with every request; it says nothing.
