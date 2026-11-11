@@ -203,6 +203,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.preferenceRoutes()
 	s.deviceRoutes()
 	s.memberRoutes()
+	s.signInKindRoutes()
 	s.invitationRoutes()
 	s.keyRoutes()
 	s.catalogueRoutes()

@@ -69,5 +69,6 @@ func (s *Server) startSetup(ctx context.Context) error {
 	s.networkRoutes()
 	s.remoteAccessRoutes()
 	s.setupRoutes()
+	s.switchRoutes()
 	return nil
 }
