@@ -77,7 +77,7 @@ func mergeItems(b *batchTx, from, into, now int64) error {
 		WHERE id IN (?, ?, ?) OR parent_id = ?`, into, z.parent.Int64, z.root.Int64, into); err != nil {
 		return err
 	}
-	// What moved under the merged title is covered by its labels now.
+	// The merged title and what moved under it are covered by its labels now, the other's among them.
 	if err := b.labelsChanged(into); err != nil {
 		return err
 	}
@@ -143,6 +143,9 @@ func mergeInto(b *batchTx, library, from, into, now int64) error {
 		{`DELETE FROM list_entries WHERE item_id = ? AND list_id IN (SELECT list_id FROM list_entries WHERE item_id = ?)`, []any{from, into}},
 		{`UPDATE list_entries SET item_id = ? WHERE item_id = ?`, []any{into, from}},
 		{`UPDATE queue_entries SET item_id = ? WHERE item_id = ?`, []any{into, from}},
+		// The title that remains carries the labels of both: a profile kept from either is
+		// kept from the merged title, and never gains one through a merge.
+		{copyLabels, []any{into, from}},
 		{`UPDATE play_history SET item_id = ? WHERE item_id = ?`, []any{into, from}},
 		{`UPDATE OR IGNORE item_relations SET item_id = ? WHERE item_id = ?`, []any{into, from}},
 		{`UPDATE OR IGNORE item_relations SET related_item_id = ? WHERE related_item_id = ?`, []any{into, from}},

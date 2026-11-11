@@ -25,6 +25,14 @@ const coveringLabels = `(SELECT ',' || group_concat(tag_id, ',') || ',' FROM (SE
 	JOIN tags t ON t.id = it.tag_id AND t.kind = 'label'
 	WHERE it.item_id IN (items.id, items.parent_id, items.root_id) ORDER BY it.tag_id))`
 
+// copyLabels gives one item (the first argument) the labels another carries itself (the
+// second), for a title that stands in for the other from now on: the title two are merged
+// into, and a title split off another. A profile kept from the one is then kept from the
+// other. The caller follows it with labelsChanged.
+const copyLabels = `INSERT INTO item_tags (item_id, tag_id, library_id, kind, rating_age)
+	SELECT i.id, t.tag_id, i.library_id, i.kind, i.rating_age FROM item_tags t JOIN tags g ON g.id = t.tag_id AND g.kind = 'label'
+	JOIN items i ON i.id = ? WHERE t.item_id = ? ON CONFLICT DO NOTHING`
+
 // labelsChanged writes the covering labels of each of these items and of everything under
 // them. Each statement finds its rows through a key or an index and leaves alone the rows
 // that are already right.

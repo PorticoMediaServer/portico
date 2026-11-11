@@ -114,3 +114,72 @@ func TestAMergeKeepsRatingLimitsAndBlockedLabels(t *testing.T) {
 		})
 	}
 }
+
+// A version is split off a film into a title of its own. The new title is the same film to a
+// restricted profile: it carries the film's labels and its rating, so a profile kept from the
+// film by either is kept from the new title too.
+func TestASplitTitleKeepsTheLabelsAndRatingOfTheFilmItCameFrom(t *testing.T) {
+	l := newLibrary(t, 1500)
+	films := db.ItemQuery{Library: l.libs[0].PublicID, Kinds: []db.ItemKind{db.KindMovie}, Limit: 200}
+	var film db.Item
+	var version string
+	for _, it := range everything(t, l.d, l.all, films) {
+		detail, err := l.d.Item(ctx, l.all, it.PublicID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(detail.Versions) > 1 {
+			film, version = it, detail.Versions[1].PublicID
+			break
+		}
+	}
+	if version == "" {
+		t.Fatal("the test library has no film with two versions")
+	}
+	if err := db.PutLabel(l.d, film.PublicID, "Not tonight", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.d.ExecForTest(ctx, `UPDATE items SET content_rating = 'R', rating_age = 17 WHERE public_id = ?`, film.PublicID); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetRatingAge(l.d, film.PublicID, 17); err != nil {
+		t.Fatal(err)
+	}
+	labels, err := l.d.Tags(ctx, db.TagLabel)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var label string
+	for _, tag := range labels {
+		if tag.Name == "Not tonight" {
+			label = tag.PublicID
+		}
+	}
+	thirteen := 13
+	blocked, err := l.d.CreateSeedProfile(ctx, db.SeedProfile{Name: "blocked", BlockedTags: []string{label}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	limited, err := l.d.CreateSeedProfile(ctx, db.SeedProfile{Name: "limited", MaxRatingAge: &thirteen, AllowUnrated: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := func(v db.Viewer) int { return len(everything(t, l.d, v, films)) }
+	everyone, kept, young := count(l.all), count(blocked), count(limited)
+
+	if _, err := l.d.SplitVersion(ctx, version); err != nil {
+		t.Fatal(err)
+	}
+	if got := count(l.all); got != everyone+1 {
+		t.Fatalf("after the split everyone lists %d films; want one more than %d", got, everyone)
+	}
+	if got := count(blocked); got != kept {
+		t.Errorf("after the split the profile kept from the film's label lists %d films; it listed %d before and must gain none", got, kept)
+	}
+	if got := count(limited); got != young {
+		t.Errorf("after the split the profile limited to 13 lists %d films; it listed %d before and must gain none", got, young)
+	}
+	if wrong, _, err := db.CoveringLabels(l.d); err != nil || len(wrong) > 0 {
+		t.Errorf("stored labels: %v, %v", wrong, err)
+	}
+}

@@ -229,7 +229,8 @@ func (b *batchTx) tagItem(itemID, tagID int64) error {
 // another holder: a scan that finds its file elsewhere, or a merge. What a title inherits
 // from its holder moves with it: the rating that decides which profiles may see it, and the
 // top of its tree, for it and for everything under it. rating is the item's own where it has
-// one, else its new holder's. An episode moved from a show rated 8 into one rated 18 is then
+// one, else its new holder's; what is under it takes that rating too, except a title with a
+// rating of its own, which keeps it. An episode moved from a show rated 8 into one rated 18 is then
 // hidden from a profile limited to 8 at once.
 func (b *batchTx) movedUnder(id, root int64, rating *int) error {
 	if _, err := b.exec(`UPDATE items SET rating_age = ? WHERE id = ?`, rating, id); err != nil {
@@ -237,7 +238,8 @@ func (b *batchTx) movedUnder(id, root int64, rating *int) error {
 	}
 	if _, err := b.exec(`WITH RECURSIVE t(id) AS (SELECT id FROM items WHERE parent_id = ? UNION ALL
 		SELECT i.id FROM items i JOIN t ON i.parent_id = t.id)
-		UPDATE items SET root_id = ?, rating_age = ? WHERE id IN (SELECT id FROM t)`, id, root, rating); err != nil {
+		UPDATE items SET root_id = ?, rating_age = CASE WHEN content_rating IS NULL THEN ? ELSE rating_age END
+		WHERE id IN (SELECT id FROM t)`, id, root, rating); err != nil {
 		return err
 	}
 	// Each one's tag rows carry its rating too, for a limited profile's genre totals.
