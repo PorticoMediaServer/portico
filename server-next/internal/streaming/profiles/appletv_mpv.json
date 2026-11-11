@@ -1,0 +1,592 @@
+{
+ "source": "app table with invented probe answers, not captured from a device",
+ "document": {
+  "version": 2,
+  "engineSetting": "automatic",
+  "client": {
+   "family": "apple",
+   "form": "tv",
+   "platform": "tvos",
+   "os": "tvos",
+   "app": "portico-apple"
+  },
+  "display": {
+   "width": 3840,
+   "height": 2160,
+   "maxFrameRate": 60,
+   "dynamicRanges": [
+    "sdr",
+    "hdr10",
+    "hlg",
+    "dolby_vision"
+   ]
+  },
+  "audioOutput": {
+   "maxChannels": 8,
+   "route": "hdmi",
+   "spatial": true
+  },
+  "engines": {
+   "native": {
+    "name": "avplayer",
+    "evidence": "mixed",
+    "video": [
+     {
+      "codec": "h264",
+      "evidence": "declared",
+      "profiles": [
+       "baseline",
+       "constrained_baseline",
+       "main",
+       "high"
+      ],
+      "chromaSubsampling": [
+       "4:2:0"
+      ],
+      "bitDepths": [
+       8
+      ],
+      "maxWidth": 4096,
+      "maxHeight": 2304,
+      "maxFrameRate": 60,
+      "dynamicRanges": [
+       "sdr"
+      ]
+     },
+     {
+      "codec": "hevc",
+      "evidence": "probed",
+      "profiles": [
+       "main",
+       "main_10"
+      ],
+      "chromaSubsampling": [
+       "4:2:0"
+      ],
+      "bitDepths": [
+       8,
+       10
+      ],
+      "maxWidth": 4096,
+      "maxHeight": 2304,
+      "maxFrameRate": 60,
+      "dynamicRanges": [
+       "sdr",
+       "hdr10",
+       "hlg",
+       "dolby_vision"
+      ],
+      "codecTags": [
+       "hvc1",
+       "dvh1"
+      ],
+      "dolbyVisionProfiles": [
+       5,
+       8
+      ],
+      "dolbyVisionProfile8Compatibility": [
+       1
+      ]
+     }
+    ],
+    "audio": [
+     {
+      "codec": "aac",
+      "maxChannels": 8,
+      "evidence": "declared"
+     },
+     {
+      "codec": "mp3",
+      "maxChannels": 2,
+      "evidence": "declared"
+     },
+     {
+      "codec": "ac3",
+      "maxChannels": 6,
+      "evidence": "declared"
+     },
+     {
+      "codec": "eac3",
+      "maxChannels": 8,
+      "evidence": "declared",
+      "objectAudio": [
+       "atmos"
+      ]
+     },
+     {
+      "codec": "alac",
+      "maxChannels": 8,
+      "evidence": "declared"
+     },
+     {
+      "codec": "flac",
+      "maxChannels": 8,
+      "evidence": "declared"
+     },
+     {
+      "codec": "pcm",
+      "maxChannels": 8,
+      "evidence": "declared"
+     }
+    ],
+    "transports": [
+     {
+      "transport": "direct",
+      "containers": [
+       "mp4",
+       "m4v",
+       "mov"
+      ],
+      "video": [
+       "h264",
+       "hevc"
+      ],
+      "audio": [
+       "aac",
+       "mp3",
+       "ac3",
+       "eac3",
+       "alac",
+       "flac"
+      ]
+     },
+     {
+      "transport": "direct",
+      "containers": [
+       "mp3",
+       "m4a",
+       "m4b",
+       "aac",
+       "flac",
+       "wav",
+       "aiff"
+      ],
+      "video": [],
+      "audio": [
+       "aac",
+       "mp3",
+       "alac",
+       "flac",
+       "pcm"
+      ]
+     },
+     {
+      "transport": "hls_ts",
+      "containers": [
+       "mpegts"
+      ],
+      "video": [
+       "h264"
+      ],
+      "audio": [
+       "aac",
+       "mp3",
+       "ac3",
+       "eac3"
+      ]
+     },
+     {
+      "transport": "hls_fmp4",
+      "containers": [
+       "fmp4"
+      ],
+      "video": [
+       "h264",
+       "hevc"
+      ],
+      "audio": [
+       "aac",
+       "mp3",
+       "ac3",
+       "eac3",
+       "alac",
+       "flac"
+      ]
+     }
+    ],
+    "subtitleRendering": [
+     "text"
+    ],
+    "embeddedAudioSwitching": true,
+    "toneMapsHdr": true
+   },
+   "mpv": {
+    "name": "mpv",
+    "evidence": "declared",
+    "video": [
+     {
+      "codec": "h264",
+      "bitDepths": [
+       8,
+       10
+      ],
+      "maxWidth": 4096,
+      "maxHeight": 2304,
+      "maxFrameRate": 60,
+      "dynamicRanges": [
+       "sdr"
+      ],
+      "interlaced": true,
+      "evidence": "declared"
+     },
+     {
+      "codec": "hevc",
+      "bitDepths": [
+       8,
+       10
+      ],
+      "maxWidth": 4096,
+      "maxHeight": 2304,
+      "maxFrameRate": 60,
+      "dynamicRanges": [
+       "sdr",
+       "hdr10",
+       "hlg"
+      ],
+      "interlaced": true,
+      "evidence": "probed"
+     },
+     {
+      "codec": "vp9",
+      "bitDepths": [
+       8
+      ],
+      "maxWidth": 1920,
+      "maxHeight": 1080,
+      "maxFrameRate": 60,
+      "dynamicRanges": [
+       "sdr"
+      ],
+      "interlaced": true,
+      "evidence": "declared"
+     },
+     {
+      "codec": "av1",
+      "bitDepths": [
+       8
+      ],
+      "maxWidth": 1920,
+      "maxHeight": 1080,
+      "maxFrameRate": 60,
+      "dynamicRanges": [
+       "sdr"
+      ],
+      "interlaced": true,
+      "evidence": "declared"
+     },
+     {
+      "codec": "mpeg2video",
+      "evidence": "declared",
+      "bitDepths": [
+       8
+      ],
+      "maxWidth": 1920,
+      "maxHeight": 1080,
+      "dynamicRanges": [
+       "sdr"
+      ],
+      "interlaced": true
+     },
+     {
+      "codec": "mpeg4",
+      "evidence": "declared",
+      "bitDepths": [
+       8
+      ],
+      "maxWidth": 1920,
+      "maxHeight": 1080,
+      "dynamicRanges": [
+       "sdr"
+      ],
+      "interlaced": true
+     },
+     {
+      "codec": "vc1",
+      "evidence": "declared",
+      "bitDepths": [
+       8
+      ],
+      "maxWidth": 1920,
+      "maxHeight": 1080,
+      "dynamicRanges": [
+       "sdr"
+      ],
+      "interlaced": true
+     },
+     {
+      "codec": "vp8",
+      "evidence": "declared",
+      "bitDepths": [
+       8
+      ],
+      "maxWidth": 1920,
+      "maxHeight": 1080,
+      "dynamicRanges": [
+       "sdr"
+      ],
+      "interlaced": true
+     },
+     {
+      "codec": "wmv3",
+      "evidence": "declared",
+      "bitDepths": [
+       8
+      ],
+      "maxWidth": 1920,
+      "maxHeight": 1080,
+      "dynamicRanges": [
+       "sdr"
+      ],
+      "interlaced": true
+     },
+     {
+      "codec": "theora",
+      "evidence": "declared",
+      "bitDepths": [
+       8
+      ],
+      "maxWidth": 1920,
+      "maxHeight": 1080,
+      "dynamicRanges": [
+       "sdr"
+      ],
+      "interlaced": true
+     },
+     {
+      "codec": "msmpeg4v3",
+      "evidence": "declared",
+      "bitDepths": [
+       8
+      ],
+      "maxWidth": 1920,
+      "maxHeight": 1080,
+      "dynamicRanges": [
+       "sdr"
+      ],
+      "interlaced": true
+     }
+    ],
+    "audio": [
+     {
+      "codec": "aac",
+      "maxChannels": 8,
+      "evidence": "declared"
+     },
+     {
+      "codec": "mp3",
+      "maxChannels": 2,
+      "evidence": "declared"
+     },
+     {
+      "codec": "mp2",
+      "maxChannels": 2,
+      "evidence": "declared"
+     },
+     {
+      "codec": "ac3",
+      "maxChannels": 6,
+      "evidence": "declared"
+     },
+     {
+      "codec": "eac3",
+      "maxChannels": 8,
+      "evidence": "declared",
+      "variants": [
+       "eac3",
+       "eac3_joc"
+      ]
+     },
+     {
+      "codec": "dts",
+      "maxChannels": 8,
+      "evidence": "declared",
+      "variants": [
+       "dts_core",
+       "dts_hd_hra",
+       "dts_hd_ma",
+       "dtsx",
+       "dts_express"
+      ]
+     },
+     {
+      "codec": "truehd",
+      "maxChannels": 8,
+      "evidence": "declared",
+      "variants": [
+       "truehd",
+       "truehd_atmos"
+      ]
+     },
+     {
+      "codec": "flac",
+      "maxChannels": 8,
+      "evidence": "declared"
+     },
+     {
+      "codec": "alac",
+      "maxChannels": 8,
+      "evidence": "declared"
+     },
+     {
+      "codec": "opus",
+      "maxChannels": 8,
+      "evidence": "declared"
+     },
+     {
+      "codec": "vorbis",
+      "maxChannels": 8,
+      "evidence": "declared"
+     },
+     {
+      "codec": "pcm",
+      "maxChannels": 8,
+      "evidence": "declared"
+     },
+     {
+      "codec": "wmav2",
+      "maxChannels": 2,
+      "evidence": "declared"
+     },
+     {
+      "codec": "wmapro",
+      "maxChannels": 8,
+      "evidence": "declared"
+     }
+    ],
+    "audioPassthrough": [],
+    "transports": [
+     {
+      "transport": "direct",
+      "containers": [
+       "mkv",
+       "mp4",
+       "m4v",
+       "mov",
+       "webm",
+       "avi",
+       "ts",
+       "m2ts",
+       "mpg",
+       "mpeg",
+       "wmv",
+       "asf",
+       "flv",
+       "ogv",
+       "3gp"
+      ],
+      "video": [
+       "h264",
+       "hevc",
+       "vp9",
+       "av1",
+       "mpeg2video",
+       "mpeg4",
+       "vc1",
+       "vp8",
+       "wmv3",
+       "theora",
+       "msmpeg4v3"
+      ],
+      "audio": [
+       "aac",
+       "mp3",
+       "mp2",
+       "ac3",
+       "eac3",
+       "dts",
+       "truehd",
+       "flac",
+       "alac",
+       "opus",
+       "vorbis",
+       "pcm",
+       "wmav2",
+       "wmapro"
+      ]
+     },
+     {
+      "transport": "direct",
+      "containers": [
+       "mp3",
+       "m4a",
+       "m4b",
+       "aac",
+       "flac",
+       "ogg",
+       "opus",
+       "wav",
+       "aiff",
+       "wma",
+       "mka"
+      ],
+      "video": [],
+      "audio": [
+       "aac",
+       "mp3",
+       "mp2",
+       "ac3",
+       "eac3",
+       "dts",
+       "truehd",
+       "flac",
+       "alac",
+       "opus",
+       "vorbis",
+       "pcm",
+       "wmav2",
+       "wmapro"
+      ]
+     },
+     {
+      "transport": "hls_ts",
+      "containers": [
+       "mpegts"
+      ],
+      "video": [
+       "h264",
+       "hevc",
+       "mpeg2video"
+      ],
+      "audio": [
+       "aac",
+       "mp3",
+       "mp2",
+       "ac3",
+       "eac3"
+      ]
+     },
+     {
+      "transport": "hls_fmp4",
+      "containers": [
+       "fmp4"
+      ],
+      "video": [
+       "h264",
+       "hevc",
+       "vp9",
+       "av1"
+      ],
+      "audio": [
+       "aac",
+       "mp3",
+       "ac3",
+       "eac3",
+       "flac",
+       "alac",
+       "opus"
+      ]
+     }
+    ],
+    "subtitleRendering": [
+     "text",
+     "ass",
+     "pgs",
+     "vobsub",
+     "dvb"
+    ],
+    "toneMapsHdr": true,
+    "embeddedAudioSwitching": true
+   }
+  }
+ }
+}

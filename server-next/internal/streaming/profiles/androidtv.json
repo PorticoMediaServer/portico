@@ -1,0 +1,203 @@
+{
+ "source": "app table: written from documentation, not measured on a device",
+ "document": {
+  "version": 2,
+  "engineSetting": "automatic",
+  "client": {
+   "family": "androidtv",
+   "form": "tv",
+   "platform": "android",
+   "os": "android"
+  },
+  "display": {
+   "dynamicRanges": [
+    "sdr"
+   ]
+  },
+  "audioOutput": {
+   "maxChannels": 2
+  },
+  "engines": {
+   "native": {
+    "name": "exoplayer",
+    "evidence": "declared",
+    "video": [
+     {
+      "codec": "h264",
+      "evidence": "declared",
+      "bitDepths": [
+       8
+      ],
+      "maxWidth": 1920,
+      "maxHeight": 1080,
+      "maxFrameRate": 60,
+      "dynamicRanges": [
+       "sdr"
+      ]
+     },
+     {
+      "codec": "hevc",
+      "evidence": "declared",
+      "bitDepths": [
+       8
+      ],
+      "maxWidth": 1920,
+      "maxHeight": 1080,
+      "dynamicRanges": [
+       "sdr"
+      ]
+     },
+     {
+      "codec": "vp9",
+      "evidence": "declared",
+      "bitDepths": [
+       8
+      ],
+      "maxWidth": 1920,
+      "maxHeight": 1080,
+      "dynamicRanges": [
+       "sdr"
+      ]
+     },
+     {
+      "codec": "vp8",
+      "evidence": "declared",
+      "bitDepths": [
+       8
+      ]
+     },
+     {
+      "codec": "mpeg4",
+      "evidence": "declared",
+      "bitDepths": [
+       8
+      ]
+     }
+    ],
+    "audio": [
+     {
+      "codec": "aac",
+      "maxChannels": 6,
+      "evidence": "declared"
+     },
+     {
+      "codec": "mp3",
+      "maxChannels": 2,
+      "evidence": "declared"
+     },
+     {
+      "codec": "opus",
+      "maxChannels": 6,
+      "evidence": "declared"
+     },
+     {
+      "codec": "vorbis",
+      "maxChannels": 6,
+      "evidence": "declared"
+     },
+     {
+      "codec": "flac",
+      "maxChannels": 8,
+      "evidence": "declared"
+     },
+     {
+      "codec": "pcm",
+      "maxChannels": 8,
+      "evidence": "declared"
+     }
+    ],
+    "transports": [
+     {
+      "transport": "direct",
+      "containers": [
+       "mp4",
+       "m4v",
+       "mov",
+       "mkv",
+       "webm",
+       "ts",
+       "m2ts"
+      ],
+      "video": [
+       "h264",
+       "hevc",
+       "vp9",
+       "vp8",
+       "mpeg4"
+      ],
+      "audio": [
+       "aac",
+       "mp3",
+       "opus",
+       "vorbis",
+       "flac",
+       "pcm"
+      ]
+     },
+     {
+      "transport": "direct",
+      "containers": [
+       "mp3",
+       "m4a",
+       "m4b",
+       "aac",
+       "flac",
+       "ogg",
+       "opus",
+       "wav"
+      ],
+      "video": [],
+      "audio": [
+       "aac",
+       "mp3",
+       "opus",
+       "vorbis",
+       "flac",
+       "pcm"
+      ]
+     },
+     {
+      "transport": "hls_ts",
+      "containers": [
+       "mpegts"
+      ],
+      "video": [
+       "h264",
+       "hevc"
+      ],
+      "audio": [
+       "aac",
+       "mp3",
+       "ac3",
+       "eac3"
+      ]
+     },
+     {
+      "transport": "hls_fmp4",
+      "containers": [
+       "fmp4"
+      ],
+      "video": [
+       "h264",
+       "hevc",
+       "vp9",
+       "av1"
+      ],
+      "audio": [
+       "aac",
+       "mp3",
+       "ac3",
+       "eac3",
+       "flac",
+       "opus"
+      ]
+     }
+    ],
+    "subtitleRendering": [
+     "text"
+    ],
+    "embeddedAudioSwitching": true
+   }
+  }
+ }
+}

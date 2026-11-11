@@ -1,4 +1,4 @@
-import {withMpvEngine,webDeclaredProfile,appleDeclaredProfile,androidDeclaredProfile,fireTvDeclaredProfile,vegaDeclaredProfile,webosDeclaredProfile,tizenDeclaredProfile,castDeclaredProfile,appleProfile,androidProfile,probeWebProfile} from '../src/client-profile.ts';
+import {withMpvEngine,rokuDeclaredProfile,webDeclaredProfile,appleDeclaredProfile,androidDeclaredProfile,fireTvDeclaredProfile,vegaDeclaredProfile,webosDeclaredProfile,tizenDeclaredProfile,castDeclaredProfile,appleProfile,androidProfile,probeWebProfile} from '../src/client-profile.ts';
 import type {AppleNativeFacts} from '../src/client-profile.ts';
 
 // Synthetic probe responses exercise the production merge functions. These are
@@ -31,6 +31,8 @@ export const declaredProfiles={
  web:webDeclaredProfile(),ios:appleDeclaredProfile({television:false}),tvos:appleDeclaredProfile({television:true}),
  android:androidDeclaredProfile(),androidtv:androidDeclaredProfile({television:true}),firetv:fireTvDeclaredProfile(),
  vega:vegaDeclaredProfile(),webos:webosDeclaredProfile(),tizen:tizenDeclaredProfile(),
+ // A 1080p Roku, and a 4K one that reports Dolby Vision and AV1.
+ roku_hd:rokuDeclaredProfile({uhd:false}),roku_4k:rokuDeclaredProfile({uhd:true,av1:true,dolbyVision:true}),
  chromecast:castDeclaredProfile('chromecast'),ultra:castDeclaredProfile('chromecast_ultra'),google_tv:castDeclaredProfile('google_tv_4k'),
  chromium, safari_hdr:safariHDR,
  appletv_dv:appleProfile({television:true},appleTVRuntimeFacts),
