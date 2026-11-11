@@ -491,6 +491,13 @@ func (r *run) flush() error {
 		return nil
 	}
 	stats, err := r.s.DB.Import(r.ctx, batch)
+	// While someone is using the server the next transaction is kept short, so a tap does
+	// not wait for two hundred files; with nobody waiting it goes back to the full batch.
+	normal := r.s.BatchFiles
+	if normal <= 0 {
+		normal = 200
+	}
+	r.batch = r.s.DB.NextImportFiles(len(batch.Files)+len(batch.Moves), normal, stats.Took)
 	r.stats.FilesNew += stats.FilesNew
 	r.stats.FilesChanged += stats.FilesChanged
 	r.stats.ItemsNew += stats.ItemsNew
