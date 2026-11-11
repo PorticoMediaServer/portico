@@ -280,7 +280,7 @@ func TestRestrictedProfileNeverReceivesARestrictedTitle(t *testing.T) {
 					}
 				}
 				got, err := l.d.Facets(ctx, v, db.ItemQuery{Library: lib.PublicID, Kinds: []db.ItemKind{kind}}, db.FacetGenre)
-				if err != nil {
+				if err != nil && !errors.Is(err, db.ErrNotFound) { // not found: a library this profile may not open
 					t.Fatal(err)
 				}
 				if len(got) != len(want) {
