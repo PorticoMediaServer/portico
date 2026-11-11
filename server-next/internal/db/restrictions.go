@@ -174,8 +174,8 @@ func (d *DB) OrderProfiles(ctx context.Context, userID int64, publicIDs []string
 	})
 }
 
-// Deletion says what deleting a profile, or an account with all its profiles, removes for good.
-type Deletion struct {
+// ProfileDeletion says what deleting a profile, or an account with all its profiles, removes for good.
+type ProfileDeletion struct {
 	Profiles   int
 	History    int
 	InProgress int
@@ -189,8 +189,8 @@ type Deletion struct {
 	Keys       int
 }
 
-func deletion(ctx context.Context, tx *sql.Tx, where string, arg any) (Deletion, error) {
-	var out Deletion
+func deletion(ctx context.Context, tx *sql.Tx, where string, arg any) (ProfileDeletion, error) {
+	var out ProfileDeletion
 	err := tx.QueryRowContext(ctx, `SELECT
 		(SELECT count(*) FROM play_history h WHERE h.profile_id IN (SELECT id FROM profiles WHERE `+where+`)),
 		ifnull(sum(s.position_ms > 0 AND s.played = 0), 0), ifnull(sum(s.played), 0), ifnull(sum(s.favorite), 0), ifnull(sum(s.in_list), 0),
@@ -206,33 +206,33 @@ func deletion(ctx context.Context, tx *sql.Tx, where string, arg any) (Deletion,
 }
 
 // ProfileDeletion says what deleting one of the account's profiles would remove.
-func (d *DB) ProfileDeletion(ctx context.Context, userID int64, publicID string) (Deletion, error) {
+func (d *DB) ProfileDeletion(ctx context.Context, userID int64, publicID string) (ProfileDeletion, error) {
 	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
-		return Deletion{}, err
+		return ProfileDeletion{}, err
 	}
 	defer tx.Rollback()
 	var id int64
 	err = tx.QueryRowContext(ctx, `SELECT id FROM profiles WHERE user_id = ? AND public_id = ?`, userID, publicID).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
-		return Deletion{}, ErrNotFound
+		return ProfileDeletion{}, ErrNotFound
 	}
 	if err != nil {
-		return Deletion{}, err
+		return ProfileDeletion{}, err
 	}
 	return deletion(ctx, tx, `id = ?`, id)
 }
 
 // MemberDeletion says what deleting an account the actor may manage would remove.
-func (d *DB) MemberDeletion(ctx context.Context, actorID int64, actorRole, publicID string) (Deletion, error) {
+func (d *DB) MemberDeletion(ctx context.Context, actorID int64, actorRole, publicID string) (ProfileDeletion, error) {
 	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
-		return Deletion{}, err
+		return ProfileDeletion{}, err
 	}
 	defer tx.Rollback()
 	m, err := managed(tx, actorID, actorRole, publicID)
 	if err != nil {
-		return Deletion{}, err
+		return ProfileDeletion{}, err
 	}
 	out, err := deletion(ctx, tx, `user_id = ?`, m.ID)
 	if err != nil {

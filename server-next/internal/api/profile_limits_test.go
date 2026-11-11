@@ -104,10 +104,10 @@ func TestProfileOrderCapAndDeletionPreview(t *testing.T) {
 		t.Errorf("a third profile of two answered %d: %s", w.Code, w.Body)
 	}
 
-	if got := get[DeletionPreview](t, s, owner.AccessToken, "/v1/profiles/"+a.ID+"/deletion-preview"); got.Profiles != 1 {
+	if got := get[ProfileDeletionPreview](t, s, owner.AccessToken, "/v1/profiles/"+a.ID+"/deletion-preview"); got.Profiles != 1 {
 		t.Errorf("the profile's deletion preview is %+v", got)
 	}
-	if got := get[DeletionPreview](t, s, owner.AccessToken, "/v1/admin/members/"+max.ID+"/deletion-preview"); got.Profiles != 2 || got.SignIns != 1 || got.Devices != 1 {
+	if got := get[ProfileDeletionPreview](t, s, owner.AccessToken, "/v1/admin/members/"+max.ID+"/deletion-preview"); got.Profiles != 2 || got.SignIns != 1 || got.Devices != 1 {
 		t.Errorf("the member's deletion preview is %+v", got)
 	}
 	if code := status(t, s, "GET", "/v1/admin/members/"+ada.ID+"/deletion-preview", member.AccessToken, nil); code != 403 {

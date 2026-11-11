@@ -83,9 +83,9 @@ type ProfileOrder struct {
 	ProfileIDs []string `json:"profileIds"`
 }
 
-// DeletionPreview counts what deleting a profile, or a person with all their profiles,
+// ProfileDeletionPreview counts what deleting a profile, or a person with all their profiles,
 // removes for good. Nothing is deleted by asking.
-type DeletionPreview struct {
+type ProfileDeletionPreview struct {
 	// Profiles is how many profiles go: 1 for a profile.
 	Profiles   int `json:"profiles"`
 	History    int `json:"history"`
@@ -124,21 +124,21 @@ func errProfileOrder() *Error {
 	return ErrField("profileIds", "Send every profile of the account once, in the order to show them.")
 }
 
-func deletionOut(d db.Deletion) DeletionPreview {
-	return DeletionPreview{Profiles: d.Profiles, History: d.History, InProgress: d.InProgress, Watched: d.Watched, Favorites: d.Favorites,
+func deletionOut(d db.ProfileDeletion) ProfileDeletionPreview {
+	return ProfileDeletionPreview{Profiles: d.Profiles, History: d.History, InProgress: d.InProgress, Watched: d.Watched, Favorites: d.Favorites,
 		MyList: d.MyList, Ratings: d.Ratings, Lists: d.Lists, Devices: d.Devices, SignIns: d.SignIns, Keys: d.Keys}
 }
 
-func (s *Server) profileDeletionPreview(r *http.Request, _ None) (DeletionPreview, error) {
+func (s *Server) profileDeletionPreview(r *http.Request, _ None) (ProfileDeletionPreview, error) {
 	userID, _, err := s.profileOwner(r)
 	if err != nil {
-		return DeletionPreview{}, err
+		return ProfileDeletionPreview{}, err
 	}
 	out, err := s.db.ProfileDeletion(r.Context(), userID, r.PathValue("id"))
 	return deletionOut(out), refuse(err)
 }
 
-func (s *Server) memberDeletionPreview(r *http.Request, _ None) (DeletionPreview, error) {
+func (s *Server) memberDeletionPreview(r *http.Request, _ None) (ProfileDeletionPreview, error) {
 	caller := CallerFrom(r.Context())
 	out, err := s.db.MemberDeletion(r.Context(), caller.UserID, caller.Role, r.PathValue("id"))
 	return deletionOut(out), memberError(err)
