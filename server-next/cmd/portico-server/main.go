@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -81,7 +82,13 @@ func run(log *slog.Logger) error {
 	}
 	libraryfile.ServerData = serverData
 	// Everything logged from here on is also kept in the data folder for Messages.
-	serverLog, err := serverlog.Open(filepath.Join(*data, "logs"), os.Stderr)
+	// A package whose service manager keeps no output says so (PORTICO_LOG_STDERR=off): the
+	// files are then the only log.
+	var stderr io.Writer = os.Stderr
+	if os.Getenv("PORTICO_LOG_STDERR") == "off" {
+		stderr = io.Discard
+	}
+	serverLog, err := serverlog.Open(filepath.Join(*data, "logs"), stderr)
 	if err != nil {
 		return err
 	}
