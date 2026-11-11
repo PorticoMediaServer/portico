@@ -20,3 +20,11 @@ func init() {
 		}
 	})
 }
+
+// Restore and restart.
+func init() {
+	safeToRepeat(map[string]string{
+		"POST /v1/admin/backups/restore": "stages the same backup again in place of the one staged",
+		"POST /v1/admin/restart":         "a restart asked for twice is one restart",
+	})
+}
