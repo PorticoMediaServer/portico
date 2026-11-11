@@ -49,8 +49,12 @@ func delivery(owner settings.StreamingSettings) streaming.DeliveryConfiguration 
 // owner is told why on the settings page itself (the document's problem line, read back with
 // the document) as well as in the server log.
 func (e *Engine) applyConversion() {
+	// The settings are read once the switch before this one is over: of saves close together
+	// the last one saved is the last one put in force.
+	e.switching.Lock()
+	defer e.switching.Unlock()
 	owner := e.owner()
-	err := e.SetConversion(owner.ConversionFolder, owner.FFmpegProgram)
+	err := e.setConversion(owner.ConversionFolder, owner.FFmpegProgram)
 	if err != nil {
 		e.log.Error("the conversion folder or FFmpeg program in Settings could not be used, so the ones in use stay", "error", err)
 		settings.Streaming.Report(e.settings, "This is not in use: "+err.Error()+".")
