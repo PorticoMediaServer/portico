@@ -54,10 +54,16 @@ func main() {
 		}
 	}
 	if err != nil {
-		log.Error("portico-server stopped", "error", err)
+		// A failure after the log opened was written there already (see run).
+		if _, ok := err.(loggedError); !ok {
+			log.Error("portico-server stopped", "error", err)
+		}
 		os.Exit(1)
 	}
 }
+
+// loggedError is a failure run has written to the server's log as well as to stderr.
+type loggedError struct{ error }
 
 func env(name, fallback string) string {
 	if v := os.Getenv(name); v != "" {
@@ -66,7 +72,7 @@ func env(name, fallback string) string {
 	return fallback
 }
 
-func run(log *slog.Logger) error {
+func run(log *slog.Logger) (err error) {
 	data := flag.String("data", env("PORTICO_DATA", "data"), "folder for the database and everything else the server keeps (PORTICO_DATA)")
 	listen := flag.String("listen", env("PORTICO_LISTEN", ":32500"), "address to serve the API on (PORTICO_LISTEN)")
 	web := flag.String("web", env("PORTICO_WEB_DIR", ""), "folder of the built web app to serve; without it, a folder named web beside this binary (PORTICO_WEB_DIR)")
@@ -96,6 +102,14 @@ func run(log *slog.Logger) error {
 	defer serverLog.Close()
 	log = slog.New(serverLog.Handler())
 	slog.SetDefault(log)
+	// From here a failure to start or to keep serving goes to the log file as well, so
+	// Messages shows why after the next start. One before this point goes to stderr only.
+	defer func() {
+		if err != nil && !errors.Is(err, errRestart) {
+			log.Error("portico-server stopped", "error", err)
+			err = loggedError{err}
+		}
+	}()
 	// Media tools are started through this binary as their helper. That lets a scan keep a
 	// few confined workers going, where it would otherwise build a sandbox for every file.
 	if _, err := mediaexec.Configure(mediaexec.Options{}); err != nil {
