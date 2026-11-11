@@ -23,6 +23,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/librarychannels"
+	"github.com/PorticoMediaServer/portico/server-next/internal/live"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
 )
@@ -61,6 +62,10 @@ type Server struct {
 	feeds feeds
 	// channels builds Library Channel schedules and says what is on. See library_channels.go.
 	channels *librarychannels.Service
+	// sources refreshes Live TV sources. See live_sources.go.
+	sources *live.Service
+	// background lives as long as the server, for work a request starts and does not wait for.
+	background context.Context
 }
 
 // Route is one operation, kept so the contract can be generated and the operation budget counted.
@@ -194,6 +199,16 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	go s.channels.Run(ctx)
 	s.libraryChannelRoutes()
 	s.liveRoutes()
+	signInKey, err := d.SettingOrCreate(ctx, "live.signin_key", auth.NewKey)
+	if err != nil {
+		return nil, err
+	}
+	if s.sources, err = live.New(d, log, func() time.Time { return s.now() }, dataDir, signInKey); err != nil {
+		return nil, err
+	}
+	s.background = ctx
+	go s.sources.Run(ctx)
+	s.liveSourceRoutes()
 	return s, nil
 }
 
