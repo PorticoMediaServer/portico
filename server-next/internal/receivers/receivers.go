@@ -447,7 +447,8 @@ func (s *Service) Answer(signInID int64, id, answer, session string) (Request, e
 
 func (s *Service) finishLocked(req *Request, state, failed string) {
 	req.State, req.Failed, req.UpdatedAt = state, failed, s.now()
-	if req.Kind == KindPlay && state != StatePlaying && req.Started != "" {
+	// Only an end undoes the start: "allowed" keeps a move open, and is sent again harmlessly.
+	if req.Kind == KindPlay && !req.Open() && state != StatePlaying && req.Started != "" {
 		s.undo = append(s.undo, Undo{UserID: req.To.UserID, SignInID: req.To.SignInID, SessionID: req.Started})
 	}
 	s.tell(req.From.UserID, livefeed.OpUpdated, req.ID)
