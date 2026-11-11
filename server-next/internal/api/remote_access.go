@@ -708,6 +708,10 @@ type RemoteAccessSave struct {
 	AllowThisAddress bool `json:"allowThisAddress,omitempty"`
 	// ConfirmRefusal accepts that this connection will be refused after the save.
 	ConfirmRefusal bool `json:"confirmRefusal,omitempty"`
+	// ConfirmOwnerOnly accepts that, on a server that knows no home networks, nobody but the
+	// owner will be able to sign in after the save. It is its own question: confirming that
+	// this connection will be refused does not answer it.
+	ConfirmOwnerOnly bool `json:"confirmOwnerOnly,omitempty"`
 }
 
 // errWouldRefuse answers a save that would refuse the connection in use, unconfirmed.
@@ -749,9 +753,9 @@ func (s *Server) applyRemoteAccess(r *http.Request, req RemoteAccessSave, match 
 	// Owner only, on a server that knows no home networks, leaves nobody else able to sign in
 	// even at home: warned and confirmed when it is chosen, like Off, never refused.
 	if before, _ := s.access.current(); v.SignInFromOutside == "owner" && before.SignInFromOutside != "owner" &&
-		len(s.networks().Home) == 0 && !req.ConfirmRefusal {
+		len(s.networks().Home) == 0 && !req.ConfirmOwnerOnly {
 		return RemoteAccessSettings{}, ErrConflict("would_refuse_sign_in", "This server knows no home networks, so with this change nobody but the owner can sign in, even at home. "+
-			"List your home networks first, choose another setting, or confirm.")
+			"List your home networks first, choose another setting, or confirm with confirmOwnerOnly.")
 	}
 	v.revision = 0
 	raw, _ := json.Marshal(v)
