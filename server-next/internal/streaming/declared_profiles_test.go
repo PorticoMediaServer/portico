@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -12,25 +14,70 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediafacts"
 )
 
-// matrixDocuments reads the declared documents that carry an mpv engine.
+// profileNames lists the profile files in profiles/.
+func profileNames(t *testing.T) []string {
+	t.Helper()
+	paths, err := filepath.Glob("profiles/*.json")
+	if err != nil || len(paths) == 0 {
+		t.Fatal("no profile files", err)
+	}
+	var names []string
+	for _, path := range paths {
+		if !strings.HasSuffix(path, ".cases.json") {
+			names = append(names, strings.TrimSuffix(filepath.Base(path), ".json"))
+		}
+	}
+	return names
+}
+
+// profileDocument is one profile file's document as it is written. A file must say where
+// its facts came from.
+func profileDocument(t *testing.T, name string) json.RawMessage {
+	t.Helper()
+	var file struct {
+		Source   string          `json:"source"`
+		Document json.RawMessage `json:"document"`
+	}
+	raw, err := os.ReadFile("profiles/" + name + ".json")
+	if err == nil {
+		err = json.Unmarshal(raw, &file)
+	}
+	if err != nil {
+		t.Fatal(name, err)
+	}
+	if strings.TrimSpace(file.Source) == "" {
+		t.Fatalf("profiles/%s.json has no source note", name)
+	}
+	return file.Document
+}
+
+// recordedDocuments reads every profile as planning would: an app's document through the
+// same check a published one gets, the server's own two as the server loads them.
+func recordedDocuments(t *testing.T) map[string]CapabilityDocument {
+	t.Helper()
+	out := map[string]CapabilityDocument{}
+	for _, name := range profileNames(t) {
+		if name == "baseline" || name == "airplay" {
+			profileDocument(t, name)
+			out[name] = builtinDocument(name)
+			continue
+		}
+		d, err := ParseCapabilityDocument(profileDocument(t, name))
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		out[name] = d
+	}
+	return out
+}
+
+// matrixDocuments are the recorded documents that carry an mpv engine.
 func matrixDocuments(t *testing.T) map[string]CapabilityDocument {
 	t.Helper()
-	raw, e := os.ReadFile("testdata/client-profiles.json")
-	if e != nil {
-		t.Fatal(e)
-	}
-	var documents map[string]json.RawMessage
-	if e = json.Unmarshal(raw, &documents); e != nil {
-		t.Fatal(e)
-	}
-	out := map[string]CapabilityDocument{}
-	for name, raw := range documents {
-		d, e := ParseCapabilityDocument(raw)
-		if e != nil {
-			t.Fatalf("%s: %v", name, e)
-		}
-		if d.HasEngine(EngineMPV) {
-			out[name] = d
+	out := recordedDocuments(t)
+	for name, d := range out {
+		if !d.HasEngine(EngineMPV) {
+			delete(out, name)
 		}
 	}
 	return out
@@ -86,28 +133,14 @@ func TestDeclaredMpvEnginesTakeWhatTheNativePlayerCannot(t *testing.T) {
 	}
 }
 
+// matrixProfiles are the recorded documents with one engine, as that engine.
 func matrixProfiles(t *testing.T) map[string]ClientProfile {
 	t.Helper()
-	raw, e := os.ReadFile("testdata/client-profiles.json")
-	if e != nil {
-		t.Fatal(e)
-	}
-	var documents map[string]json.RawMessage
-	if e = json.Unmarshal(raw, &documents); e != nil {
-		t.Fatal(e)
-	}
-	out := map[string]ClientProfile{"baseline": BaselineClientProfile()}
-	for name, raw := range documents {
-		d, e := ParseCapabilityDocument(raw)
-		if e != nil {
-			t.Fatalf("%s: %v", name, e)
+	out := map[string]ClientProfile{}
+	for name, d := range recordedDocuments(t) {
+		if !d.HasEngine(EngineMPV) {
+			out[name] = d.Profile(EngineNative)
 		}
-		if d.HasEngine(EngineMPV) {
-			// Two-engine documents are covered by matrixDocuments: the matrix
-			// below is one engine's routes.
-			continue
-		}
-		out[name] = d.Profile(EngineNative)
 	}
 	return out
 }
@@ -120,34 +153,57 @@ const (
 	refused DeliveryStrategy = "refused"
 )
 
+// matrixRow is one kind of file, and what must hold for it on every device. What each
+// device is expected to be given is in that device's case file.
 type matrixRow struct {
 	source    string
 	build     func() DeliverySource
-	want      map[string]DeliveryStrategy
-	wantAudio map[string]string // output codec, independent of the selected route
 	configure func(*DeliveryInput)
-	check     func(*testing.T, string, DeliveryPlan)
+	check     func(*testing.T, DeliveryPlan)
 }
 
-func routes(defaultRoute DeliveryStrategy, overrides ...string) map[string]DeliveryStrategy {
-	out := map[string]DeliveryStrategy{"*": defaultRoute}
-	for _, group := range overrides {
-		parts := strings.SplitN(group, ":", 2)
-		for _, name := range strings.Fields(parts[1]) {
-			out[name] = DeliveryStrategy(parts[0])
-		}
-	}
-	return out
+// profileCase is one row of a case file, profiles/<name>.cases.json: how one kind of file
+// is expected to reach that device.
+type profileCase struct {
+	File string `json:"file"`
+	// Route is original, copy_remux, audio_conversion, video_conversion, or refused.
+	Route DeliveryStrategy `json:"route"`
+	// Audio is the codec the device is sent.
+	Audio string `json:"audio,omitempty"`
+	// Engine is the player chosen, for a document with two.
+	Engine string `json:"engine,omitempty"`
+	// Channels, Height and FrameRate are checked where a case states them.
+	Channels  int     `json:"channels,omitempty"`
+	Height    int     `json:"height,omitempty"`
+	FrameRate float64 `json:"frameRate,omitempty"`
+	// Note says why, for the person reading.
+	Note string `json:"note,omitempty"`
 }
-func audioCodecs(defaultCodec string, overrides ...string) map[string]string {
-	out := map[string]string{"*": defaultCodec}
-	for _, group := range overrides {
-		parts := strings.SplitN(group, ":", 2)
-		for _, name := range strings.Fields(parts[1]) {
-			out[name] = parts[0]
+
+// profileCases reads a profile's case file. It must name every kind of file in the
+// matrix, once, in the matrix's order.
+func profileCases(t *testing.T, name string, rows []matrixRow) []profileCase {
+	t.Helper()
+	file, err := os.Open("profiles/" + name + ".cases.json")
+	if err != nil {
+		t.Fatalf("profile %s has no case file: %v", name, err)
+	}
+	defer file.Close()
+	var cases []profileCase
+	decoder := json.NewDecoder(file)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&cases); err != nil {
+		t.Fatalf("profiles/%s.cases.json: %v", name, err)
+	}
+	if len(cases) != len(rows) {
+		t.Fatalf("profiles/%s.cases.json has %d cases; the matrix has %d kinds of file", name, len(cases), len(rows))
+	}
+	for i, row := range rows {
+		if cases[i].File != row.source {
+			t.Fatalf("profiles/%s.cases.json case %d is %q; the matrix has %q there", name, i+1, cases[i].File, row.source)
 		}
 	}
-	return out
+	return cases
 }
 
 // Converted sound: a device that plays FLAC over the chosen transport is given
@@ -203,124 +259,58 @@ func matrixRows() []matrixRow {
 	rotated := avc
 	rotated.Rotation = 90
 	return []matrixRow{
-		{source: "01_mp4_h264_aac", build: build("mp4", "h264", avc, aac), want: routes(O), wantAudio: audioCodecs("aac")},
-		{source: "02_mkv_h264_aac", build: build("mkv", "h264", avc, aac), want: routes(R, "original:android androidtv firetv webos tizen shield_avr"), wantAudio: audioCodecs("aac")},
-		// Apple decodes AC3/EAC3 locally even with a stereo sink; passthrough-only
-		// clients require an active multichannel route. Losslessly coded surround
-		// goes to Dolby Digital Plus where the device decodes it to a surround output.
+		{source: "01_mp4_h264_aac", build: build("mp4", "h264", avc, aac)},
+		{source: "02_mkv_h264_aac", build: build("mkv", "h264", avc, aac)},
+		{source: "03_mkv_h264_ac3", build: build("mkv", "h264", avc, SourceAudio{Codec: "ac3", Channels: 6})},
+		{source: "04_mkv_h264_dtshd", build: build("mkv", "h264", avc, SourceAudio{Codec: "dts", Channels: 8, StreamDetail: mediafacts.StreamDetail{Profile: "DTS-HD MA"}})},
+		{source: "05_mkv_h264_truehd_atmos", build: build("mkv", "h264", avc, surround("truehd"))},
+		{source: "06_mp4_hdr10_eac3", build: build("mp4", "hevc", hdr10Detail, SourceAudio{Codec: "eac3", Channels: 6})},
+		{source: "07_mkv_hdr10_eac3", build: build("mkv", "hevc", hdr10Detail, SourceAudio{Codec: "eac3", Channels: 6})},
+		{source: "08_dv_p5_dvh1", build: build("mp4", "hevc", dv(5, 0, "dvh1"), aac)},
+		{source: "09_dv_p81_hvc1", build: build("mp4", "hevc", dv(8, 1, "hvc1"), aac)},
+		{source: "10_dv_p81_dvh1_hdr_only", build: build("mp4", "hevc", dv(8, 1, "dvh1"), aac)},
+		{source: "11_mkv_dv_p7_truehd", build: build("mkv", "hevc", dv(7, 1, ""), surround("truehd"))},
+		{source: "12_mkv_av1_10_opus", build: build("mkv", "av1", av1, SourceAudio{Codec: "opus", Channels: 2})},
+		{source: "13_webm_vp9_opus", build: build("webm", "vp9", vp9, SourceAudio{Codec: "opus", Channels: 2})},
+		{source: "14_mkv_hi10p", build: build("mkv", "h264", hi10, aac)},
+		{source: "15_interlaced_mpeg2_mp2", build: build("ts", "mpeg2video", mpeg2, SourceAudio{Codec: "mp2", Channels: 2})},
+		{source: "16_vc1_mkv", build: build("mkv", "vc1", vc1, aac)},
+		{source: "17_4k_h264_level52", build: build("mp4", "h264", uhd, aac)},
+		{source: "18_120fps", build: build("mp4", "h264", fast, aac)},
+		{source: "19_rotated_mp4", build: build("mp4", "h264", rotated, aac)},
+		{source: "20_rotated_mkv", build: build("mkv", "h264", rotated, aac)},
 		{
-			source:    "03_mkv_h264_ac3",
-			build:     build("mkv", "h264", avc, SourceAudio{Codec: "ac3", Channels: 6}),
-			want:      routes(A, "copy_remux:ios tvos safari_hdr appletv_dv", "original:shield_avr"),
-			wantAudio: audioCodecs("aac", "ac3:ios tvos safari_hdr appletv_dv shield_avr", "flac:android androidtv chromium firetv"),
-		},
-		{
-			source:    "04_mkv_h264_dtshd",
-			build:     build("mkv", "h264", avc, SourceAudio{Codec: "dts", Channels: 8, StreamDetail: mediafacts.StreamDetail{Profile: "DTS-HD MA"}}),
-			want:      routes(A, "original:shield_avr"),
-			wantAudio: audioCodecs("aac", "dts:shield_avr", "flac:android androidtv chromium firetv ios tvos safari_hdr appletv_dv"),
-		},
-		{
-			source:    "05_mkv_h264_truehd_atmos",
-			build:     build("mkv", "h264", avc, surround("truehd")),
-			want:      routes(A, "original:shield_avr"),
-			wantAudio: audioCodecs("aac", "truehd:shield_avr", "flac:android androidtv chromium firetv ios tvos safari_hdr appletv_dv"),
-		},
-		// Cast declares no EAC3 decoder. HDR-capable video alone cannot make this O/R.
-		{
-			source:    "06_mp4_hdr10_eac3",
-			build:     build("mp4", "hevc", hdr10Detail, SourceAudio{Codec: "eac3", Channels: 6}),
-			want:      routes(V, "original:safari_hdr appletv_dv shield_avr", "audio_conversion:ultra google_tv"),
-			wantAudio: audioCodecs("aac", "eac3:ios tvos safari_hdr appletv_dv shield_avr", "flac:android androidtv chromium firetv"),
-		},
-		{
-			source:    "07_mkv_hdr10_eac3",
-			build:     build("mkv", "hevc", hdr10Detail, SourceAudio{Codec: "eac3", Channels: 6}),
-			want:      routes(V, "copy_remux:safari_hdr appletv_dv", "original:shield_avr", "audio_conversion:ultra google_tv"),
-			wantAudio: audioCodecs("aac", "eac3:ios tvos safari_hdr appletv_dv shield_avr", "flac:android androidtv chromium firetv"),
-		},
-		{source: "08_dv_p5_dvh1", build: build("mp4", "hevc", dv(5, 0, "dvh1"), aac), want: routes(V, "original:appletv_dv shield_avr google_tv"), wantAudio: audioCodecs("aac")},
-		{source: "09_dv_p81_hvc1", build: build("mp4", "hevc", dv(8, 1, "hvc1"), aac), want: routes(V, "original:safari_hdr appletv_dv shield_avr ultra google_tv"), wantAudio: audioCodecs("aac")},
-		{
-			source:    "10_dv_p81_dvh1_hdr_only",
-			build:     build("mp4", "hevc", dv(8, 1, "dvh1"), aac),
-			want:      routes(V, "original:appletv_dv shield_avr google_tv", "copy_remux:safari_hdr ultra"),
-			wantAudio: audioCodecs("aac"),
-		},
-		{
-			source:    "11_mkv_dv_p7_truehd",
-			build:     build("mkv", "hevc", dv(7, 1, ""), surround("truehd")),
-			want:      routes(V, "audio_conversion:safari_hdr appletv_dv ultra google_tv", "original:shield_avr"),
-			wantAudio: audioCodecs("aac", "truehd:shield_avr", "flac:android androidtv chromium firetv ios tvos safari_hdr appletv_dv"),
-		},
-		// The older Google TV 4K declares no AV1 decoder. Shield here has no AV1 probe.
-		{
-			source:    "12_mkv_av1_10_opus",
-			build:     build("mkv", "av1", av1, SourceAudio{Codec: "opus", Channels: 2}),
-			want:      routes(V, "copy_remux:chromium"),
-			wantAudio: audioCodecs("aac", "opus:chromium android androidtv firetv shield_avr", "flac:ios tvos safari_hdr appletv_dv"),
-		},
-		// Chromecast gen 3 has no VP9 claim; 'Chromecast' is not a shared codec profile.
-		{
-			source:    "13_webm_vp9_opus",
-			build:     build("webm", "vp9", vp9, SourceAudio{Codec: "opus", Channels: 2}),
-			want:      routes(V, "original:chromium android androidtv firetv webos tizen shield_avr ultra google_tv"),
-			wantAudio: audioCodecs("aac", "opus:chromium android androidtv firetv webos tizen shield_avr ultra google_tv", "flac:ios tvos safari_hdr appletv_dv"),
-		},
-		{source: "14_mkv_hi10p", build: build("mkv", "h264", hi10, aac), want: routes(V), wantAudio: audioCodecs("aac")},
-		// The native Android probe does not report interlacing; TVs lack MP2 audio and MPEG2-in-HLS, so audio-only repair is unavailable.
-		{
-			source:    "15_interlaced_mpeg2_mp2",
-			build:     build("ts", "mpeg2video", mpeg2, SourceAudio{Codec: "mp2", Channels: 2}),
-			want:      routes(V),
-			wantAudio: audioCodecs("aac", "flac:android androidtv chromium firetv ios tvos safari_hdr appletv_dv shield_avr"),
-		},
-		{source: "16_vc1_mkv", build: build("mkv", "vc1", vc1, aac), want: routes(V, "original:shield_avr"), wantAudio: audioCodecs("aac")},
-		// Cast UHD tables stop at AVC level 5.1; a 5.2 source still needs conversion.
-		{source: "17_4k_h264_level52", build: build("mp4", "h264", uhd, aac), want: routes(O, "video_conversion:android androidtv firetv chromecast ultra google_tv"), wantAudio: audioCodecs("aac")},
-		{source: "18_120fps", build: build("mp4", "h264", fast, aac), want: routes(V), wantAudio: audioCodecs("aac"), check: func(t *testing.T, name string, p DeliveryPlan) {
-			want := 60.0
-			if name == "chromecast" {
-				want = 30
-			}
-			if p.MaxFrameRate != want {
-				t.Fatalf("fps cap %v want %v", p.MaxFrameRate, want)
-			}
-		}},
-		{source: "19_rotated_mp4", build: build("mp4", "h264", rotated, aac), want: routes(O), wantAudio: audioCodecs("aac")},
-		{source: "20_rotated_mkv", build: build("mkv", "h264", rotated, aac), want: routes(V, "original:android androidtv firetv webos tizen shield_avr"), wantAudio: audioCodecs("aac")},
-		{source: "21_nonfirst_audio", build: func() DeliverySource {
-			return *videoSource("mp4", "h264", avc, aac, SourceAudio{Codec: "aac", Channels: 2, Language: "fra"})
-		}, want: routes(R, "original:ios tvos android androidtv firetv safari_hdr appletv_dv shield_avr"), wantAudio: audioCodecs("aac"),
-			configure: func(in *DeliveryInput) { in.HasAudioChoice = true; in.AudioStream = 2 }, check: func(t *testing.T, _ string, p DeliveryPlan) {
+			source: "21_nonfirst_audio",
+			build: func() DeliverySource {
+				return *videoSource("mp4", "h264", avc, aac, SourceAudio{Codec: "aac", Channels: 2, Language: "fra"})
+			},
+			configure: func(in *DeliveryInput) { in.HasAudioChoice = true; in.AudioStream = 2 },
+			check: func(t *testing.T, p DeliveryPlan) {
 				if p.AudioStream != 2 {
 					t.Fatal("wrong audio stream", p.AudioStream)
 				}
-			}},
+			},
+		},
 		{
 			source:    "22_bitrate_above_lane",
 			build:     build("mp4", "h264", avc, aac),
-			want:      routes(V),
-			wantAudio: audioCodecs("aac"),
 			configure: func(in *DeliveryInput) { in.Target.MaxVideoBitrateBPS = 1_000_000 },
-			check: func(t *testing.T, _ string, p DeliveryPlan) {
+			check: func(t *testing.T, p DeliveryPlan) {
 				if p.VideoBitrateBPS > 1_000_000 {
 					t.Fatal("bitrate ceiling bypassed", p.VideoBitrateBPS)
 				}
 			},
 		},
-		{source: "23_owner_disables_conversion", build: build("mkv", "h264", hi10, aac), want: routes(refused), configure: func(in *DeliveryInput) { in.TranscodingEnabled = false }},
-		// Declared web and Vega also lack FLAC; a browser probe, not its name, enables O.
+		{source: "23_owner_disables_conversion", build: build("mkv", "h264", hi10, aac), configure: func(in *DeliveryInput) { in.TranscodingEnabled = false }},
 		{source: "24_flac_music", build: func() DeliverySource {
 			return DeliverySource{ID: "source", Container: "flac", Duration: 100, DetailKnown: true, Audio: []SourceAudio{{Codec: "flac", Channels: 2, Index: 0}}}
-		}, want: routes(O, "audio_conversion:baseline web vega"), wantAudio: audioCodecs("flac", "aac:baseline web vega")},
+		}},
 		{
+			// The device's own player has said it could not play the file as it is.
 			source:    "25_original_decode_error",
 			build:     build("mp4", "h264", avc, aac),
-			want:      routes(R),
-			wantAudio: audioCodecs("aac"),
 			configure: func(in *DeliveryInput) { in.Excluded = map[DeliveryStrategy]RouteRejection{O: {Code: "decode_error"}} },
-			check: func(t *testing.T, _ string, p DeliveryPlan) {
+			check: func(t *testing.T, p DeliveryPlan) {
 				if !rejected(p, O, RejectClientFailure) {
 					t.Fatal("failure not recorded")
 				}
@@ -328,6 +318,7 @@ func matrixRows() []matrixRow {
 		},
 	}
 }
+
 func matrixInput(row matrixRow, client ClientProfile) DeliveryInput {
 	source := row.build()
 	height := 0
@@ -347,6 +338,20 @@ func matrixInput(row matrixRow, client ClientProfile) DeliveryInput {
 	}
 	if row.configure != nil {
 		row.configure(&in)
+	}
+	return in
+}
+
+// matrixDocumentInput is matrixInput for a whole document: one engine as that engine, two
+// engines with the choice between them left to the planner. A failure the row names is the
+// platform player's.
+func matrixDocumentInput(row matrixRow, doc CapabilityDocument) DeliveryInput {
+	in := matrixInput(row, doc.Profile(EngineNative))
+	if doc.HasEngine(EngineMPV) {
+		in.Client, in.Device = ClientProfile{}, &doc
+		if in.Excluded != nil {
+			in.ExcludedByEngine, in.Excluded = map[string]map[DeliveryStrategy]RouteRejection{EngineNative: in.Excluded}, nil
+		}
 	}
 	return in
 }
@@ -420,29 +425,26 @@ func TestMatrixWithoutDolbyVisionTools(t *testing.T) {
 	}
 }
 
+// Every profile file plans the 25 kinds of file the way its case file says. The cases are
+// what a person on that device gets; a change to a rule or to a profile that moves one
+// shows here by name.
 func TestClientDeclaredTablesDriveDeliveryMatrix(t *testing.T) {
-	profiles := matrixProfiles(t)
+	documents := recordedDocuments(t)
 	rows := matrixRows()
 	if len(rows) != 25 {
-		t.Fatal("document 52 needs all 25 rows")
+		t.Fatal("the matrix is 25 kinds of file")
 	}
-	for _, row := range rows {
+	cases := map[string][]profileCase{}
+	for name := range documents {
+		cases[name] = profileCases(t, name, rows)
+	}
+	for i, row := range rows {
 		t.Run(row.source, func(t *testing.T) {
-			for name := range row.want {
-				if name != "*" {
-					if _, ok := profiles[name]; !ok {
-						t.Fatal("unknown route override", name)
-					}
-				}
-			}
-			for name, client := range profiles {
+			for name, doc := range documents {
 				t.Run(name, func(t *testing.T) {
-					want, ok := row.want[name]
-					if !ok {
-						want = row.want["*"]
-					}
-					p, e := planDelivery(matrixInput(row, client))
-					if want == refused {
+					want := cases[name][i]
+					p, e := planDelivery(matrixDocumentInput(row, doc))
+					if want.Route == refused {
 						var refusal ErrDeliveryRefused
 						if !errors.As(e, &refusal) || refusal.Code != ReasonTranscodeDisabledOwner {
 							t.Fatalf("want owner refusal got %+v %v", p, e)
@@ -452,34 +454,35 @@ func TestClientDeclaredTablesDriveDeliveryMatrix(t *testing.T) {
 					if e != nil {
 						t.Fatal(e)
 					}
-					if p.Strategy != want {
-						t.Fatalf("want %s got %s; routes=%+v", want, p.Strategy, p.Trace.Routes)
+					if p.Strategy != want.Route {
+						t.Fatalf("want %s got %s; routes=%+v", want.Route, p.Strategy, p.Trace.Routes)
 					}
-					audio, ok := row.wantAudio[name]
-					if !ok {
-						audio = row.wantAudio["*"]
+					if p.OutputAudioCodec != want.Audio {
+						t.Errorf("audio codec want %s got %s", want.Audio, p.OutputAudioCodec)
 					}
-					if p.OutputAudioCodec != audio {
-						t.Errorf("audio codec want %s got %s", audio, p.OutputAudioCodec)
+					if want.Engine != "" && p.Engine != want.Engine {
+						t.Errorf("player want %s got %s", want.Engine, p.Engine)
 					}
+					if doc.HasEngine(EngineMPV) && want.Engine == "" {
+						t.Error("a case for a document with two players must name the player")
+					}
+					// Surround keeps every channel the output carries, and a stereo output
+					// is given two, never a drop to mono or a layout it cannot play.
+					if want.Channels != 0 && p.AudioChannels != want.Channels {
+						t.Errorf("channels want %d got %d", want.Channels, p.AudioChannels)
+					}
+					if want.Height != 0 && p.TargetHeight != want.Height {
+						t.Errorf("height want %d got %d", want.Height, p.TargetHeight)
+					}
+					if want.FrameRate != 0 && p.MaxFrameRate != want.FrameRate {
+						t.Errorf("frame rate cap want %v got %v", want.FrameRate, p.MaxFrameRate)
+					}
+					// What holds on every device, whatever its case says.
 					if p.Strategy == A && p.AudioAction != "convert" {
 						t.Error("audio was not converted")
 					}
 					if p.Strategy == R && p.AudioAction != "copy" {
 						t.Error("audio was not copied")
-					}
-					// Eight-channel sources keep every channel the output carries:
-					// six through Safari, all eight on an Apple TV over HDMI.
-					if (row.source[:2] == "04" || row.source[:2] == "05") && (name == "safari_hdr" && p.AudioChannels != 6 || name == "appletv_dv" && p.AudioChannels != 8) {
-						t.Error("surround not retained", p.AudioChannels)
-					}
-					// A stereo output is given two channels, never a silent drop to mono or an unplayable layout.
-					if (row.source[:2] == "03" || row.source[:2] == "04" || row.source[:2] == "05") && p.Strategy == A && (name == "android" || name == "chromium" || name == "ios") &&
-						p.AudioChannels != 2 {
-						t.Error("stereo output not given stereo", p.AudioChannels)
-					}
-					if row.source[:2] == "17" && name == "chromecast" && p.TargetHeight != 1080 {
-						t.Error("gen 3 not capped at 1080p", p.TargetHeight)
 					}
 					if (row.source[:2] == "07" || row.source[:2] == "10" || row.source[:2] == "11" || row.source[:2] == "12") && (p.Strategy == R || p.Strategy == A) {
 						if p.OutputContainer != "fmp4_hls" {
@@ -495,13 +498,34 @@ func TestClientDeclaredTablesDriveDeliveryMatrix(t *testing.T) {
 						t.Error("interlaced conversion lacks deinterlacing")
 					}
 					if row.check != nil {
-						row.check(t, name, p)
+						row.check(t, p)
 					}
 				})
 			}
 		})
 	}
 }
+
+// ClientIdentity is there to explain a decision afterwards. Nothing in planning may read
+// it: a device is planned from what it says it plays, never from what it is called, so a
+// new platform needs a profile and no rule of its own.
+func TestPlanningNeverReadsWhoTheDeviceSaysItIs(t *testing.T) {
+	for name, doc := range recordedDocuments(t) {
+		renamed := doc
+		renamed.Client = ClientIdentity{Family: "another"}
+		for _, row := range matrixRows() {
+			named, e1 := planDelivery(matrixDocumentInput(row, doc))
+			other, e2 := planDelivery(matrixDocumentInput(row, renamed))
+			if named.Trace != nil && other.Trace != nil {
+				named.Trace.Client, other.Trace.Client = ClientSummary{}, ClientSummary{}
+			}
+			if fmt.Sprint(e1) != fmt.Sprint(e2) || !reflect.DeepEqual(named, other) {
+				t.Errorf("%s on %s is planned differently under another name", row.source, name)
+			}
+		}
+	}
+}
+
 func TestDeclaredProfilesNeverPassTrueHDOverBluetooth(t *testing.T) {
 	for name, client := range matrixProfiles(t) {
 		t.Run(name, func(t *testing.T) {

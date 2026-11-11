@@ -167,16 +167,18 @@ func newHouseWith(t *testing.T, ffmpeg, ffprobe string) (*house, *db.DB, *remote
 	h.token = session.AccessToken
 
 	// The device says what it plays, as a browser would.
-	profiles, err := os.ReadFile(filepath.Join("..", "streaming", "testdata", "client-profiles.json"))
+	raw, err := os.ReadFile(filepath.Join("..", "streaming", "profiles", "chromium.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	var documents map[string]json.RawMessage
-	if err := json.Unmarshal(profiles, &documents); err != nil {
+	var profile struct {
+		Document json.RawMessage `json:"document"`
+	}
+	if err := json.Unmarshal(raw, &profile); err != nil {
 		t.Fatal(err)
 	}
 	h.device = session.DeviceID
-	h.call("PUT", "/v1/devices/"+session.DeviceID+"/capabilities", documents["chromium"], nil, 204)
+	h.call("PUT", "/v1/devices/"+session.DeviceID+"/capabilities", profile.Document, nil, 204)
 	return h, d, handler.RemoteSources()
 }
 

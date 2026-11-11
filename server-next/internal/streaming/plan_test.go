@@ -3,7 +3,6 @@ package streaming
 import (
 	"encoding/json"
 	"errors"
-	"os"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediafacts"
@@ -11,17 +10,9 @@ import (
 
 func planTestDevice(t *testing.T, name string) *CapabilityDocument {
 	t.Helper()
-	raw, err := os.ReadFile("testdata/client-profiles.json")
-	if err != nil {
+	var d CapabilityDocument
+	if err := json.Unmarshal(profileDocument(t, name), &d); err != nil {
 		t.Fatal(err)
-	}
-	var documents map[string]CapabilityDocument
-	if err := json.Unmarshal(raw, &documents); err != nil {
-		t.Fatal(err)
-	}
-	d, ok := documents[name]
-	if !ok {
-		t.Fatalf("no shipped profile %q", name)
 	}
 	if err := d.Accept(); err != nil {
 		t.Fatal(err)

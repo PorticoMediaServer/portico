@@ -1,0 +1,199 @@
+{
+ "source": "app table: written from documentation, not measured on a device",
+ "document": {
+  "version": 2,
+  "engineSetting": "automatic",
+  "client": {
+   "family": "cast",
+   "form": "cast",
+   "platform": "cast",
+   "model": "chromecast_ultra",
+   "app": "portico-cast"
+  },
+  "display": {
+   "width": 3840,
+   "height": 2160,
+   "dynamicRanges": [
+    "sdr",
+    "hdr10",
+    "hlg"
+   ],
+   "maxFrameRate": 60
+  },
+  "audioOutput": {
+   "route": "hdmi",
+   "maxChannels": 2
+  },
+  "engines": {
+   "native": {
+    "name": "caf-shaka",
+    "evidence": "declared",
+    "video": [
+     {
+      "codec": "h264",
+      "evidence": "declared",
+      "bitDepths": [
+       8
+      ],
+      "maxWidth": 3840,
+      "maxHeight": 2160,
+      "maxLevel": 51,
+      "maxFrameRate": 60,
+      "dynamicRanges": [
+       "sdr"
+      ]
+     },
+     {
+      "codec": "vp8",
+      "evidence": "declared",
+      "bitDepths": [
+       8
+      ],
+      "maxWidth": 3840,
+      "maxHeight": 2160
+     },
+     {
+      "codec": "hevc",
+      "evidence": "declared",
+      "bitDepths": [
+       8,
+       10
+      ],
+      "maxWidth": 3840,
+      "maxHeight": 2160,
+      "maxLevel": 153,
+      "maxFrameRate": 60,
+      "dynamicRanges": [
+       "sdr",
+       "hdr10",
+       "hlg"
+      ],
+      "dolbyVisionProfiles": []
+     },
+     {
+      "codec": "vp9",
+      "evidence": "declared",
+      "bitDepths": [
+       8,
+       10
+      ],
+      "maxWidth": 3840,
+      "maxHeight": 2160,
+      "dynamicRanges": [
+       "sdr",
+       "hdr10",
+       "hlg"
+      ]
+     }
+    ],
+    "audio": [
+     {
+      "codec": "aac",
+      "maxChannels": 2,
+      "evidence": "declared"
+     },
+     {
+      "codec": "mp3",
+      "maxChannels": 2,
+      "evidence": "declared"
+     },
+     {
+      "codec": "opus",
+      "maxChannels": 2,
+      "evidence": "declared"
+     },
+     {
+      "codec": "vorbis",
+      "maxChannels": 2,
+      "evidence": "declared"
+     },
+     {
+      "codec": "flac",
+      "maxChannels": 2,
+      "evidence": "declared"
+     }
+    ],
+    "transports": [
+     {
+      "transport": "direct",
+      "containers": [
+       "mp4",
+       "m4v"
+      ],
+      "video": [
+       "h264",
+       "hevc"
+      ],
+      "audio": [
+       "aac",
+       "mp3"
+      ]
+     },
+     {
+      "transport": "direct",
+      "containers": [
+       "webm"
+      ],
+      "video": [
+       "vp8",
+       "vp9"
+      ],
+      "audio": [
+       "opus",
+       "vorbis"
+      ]
+     },
+     {
+      "transport": "direct",
+      "containers": [
+       "mp3",
+       "m4a",
+       "aac",
+       "flac",
+       "ogg",
+       "wav"
+      ],
+      "video": [],
+      "audio": [
+       "aac",
+       "mp3",
+       "opus",
+       "vorbis",
+       "flac"
+      ]
+     },
+     {
+      "transport": "hls_ts",
+      "containers": [
+       "mpegts"
+      ],
+      "video": [
+       "h264"
+      ],
+      "audio": [
+       "aac",
+       "mp3"
+      ]
+     },
+     {
+      "transport": "hls_fmp4",
+      "containers": [
+       "fmp4"
+      ],
+      "video": [
+       "h264",
+       "hevc"
+      ],
+      "audio": [
+       "aac",
+       "mp3"
+      ]
+     }
+    ],
+    "subtitleRendering": [
+     "text"
+    ]
+   }
+  }
+ }
+}

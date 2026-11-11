@@ -1,0 +1,193 @@
+{
+ "source": "app table: written from documentation, not measured on a device",
+ "document": {
+  "version": 2,
+  "engineSetting": "automatic",
+  "client": {
+   "family": "apple",
+   "form": "tv",
+   "platform": "tvos",
+   "os": "tvos",
+   "app": "portico-apple"
+  },
+  "display": {
+   "dynamicRanges": [
+    "sdr"
+   ]
+  },
+  "audioOutput": {
+   "maxChannels": 2
+  },
+  "engines": {
+   "native": {
+    "name": "avplayer",
+    "evidence": "declared",
+    "video": [
+     {
+      "codec": "h264",
+      "evidence": "declared",
+      "profiles": [
+       "baseline",
+       "constrained_baseline",
+       "main",
+       "high"
+      ],
+      "chromaSubsampling": [
+       "4:2:0"
+      ],
+      "bitDepths": [
+       8
+      ],
+      "maxWidth": 4096,
+      "maxHeight": 2304,
+      "maxFrameRate": 60,
+      "dynamicRanges": [
+       "sdr"
+      ]
+     },
+     {
+      "codec": "hevc",
+      "evidence": "declared",
+      "profiles": [
+       "main",
+       "main_10"
+      ],
+      "chromaSubsampling": [
+       "4:2:0"
+      ],
+      "bitDepths": [
+       8,
+       10
+      ],
+      "maxWidth": 4096,
+      "maxHeight": 2304,
+      "maxFrameRate": 60,
+      "dynamicRanges": [
+       "sdr"
+      ],
+      "codecTags": [
+       "hvc1",
+       "dvh1"
+      ]
+     }
+    ],
+    "audio": [
+     {
+      "codec": "aac",
+      "maxChannels": 8,
+      "evidence": "declared"
+     },
+     {
+      "codec": "mp3",
+      "maxChannels": 2,
+      "evidence": "declared"
+     },
+     {
+      "codec": "ac3",
+      "maxChannels": 6,
+      "evidence": "declared"
+     },
+     {
+      "codec": "eac3",
+      "maxChannels": 8,
+      "evidence": "declared"
+     },
+     {
+      "codec": "alac",
+      "maxChannels": 8,
+      "evidence": "declared"
+     },
+     {
+      "codec": "flac",
+      "maxChannels": 8,
+      "evidence": "declared"
+     },
+     {
+      "codec": "pcm",
+      "maxChannels": 8,
+      "evidence": "declared"
+     }
+    ],
+    "transports": [
+     {
+      "transport": "direct",
+      "containers": [
+       "mp4",
+       "m4v",
+       "mov"
+      ],
+      "video": [
+       "h264",
+       "hevc"
+      ],
+      "audio": [
+       "aac",
+       "mp3",
+       "ac3",
+       "eac3",
+       "alac",
+       "flac"
+      ]
+     },
+     {
+      "transport": "direct",
+      "containers": [
+       "mp3",
+       "m4a",
+       "m4b",
+       "aac",
+       "flac",
+       "wav",
+       "aiff"
+      ],
+      "video": [],
+      "audio": [
+       "aac",
+       "mp3",
+       "alac",
+       "flac",
+       "pcm"
+      ]
+     },
+     {
+      "transport": "hls_ts",
+      "containers": [
+       "mpegts"
+      ],
+      "video": [
+       "h264"
+      ],
+      "audio": [
+       "aac",
+       "mp3",
+       "ac3",
+       "eac3"
+      ]
+     },
+     {
+      "transport": "hls_fmp4",
+      "containers": [
+       "fmp4"
+      ],
+      "video": [
+       "h264",
+       "hevc"
+      ],
+      "audio": [
+       "aac",
+       "mp3",
+       "ac3",
+       "eac3",
+       "alac",
+       "flac"
+      ]
+     }
+    ],
+    "subtitleRendering": [
+     "text"
+    ],
+    "embeddedAudioSwitching": true
+   }
+  }
+ }
+}

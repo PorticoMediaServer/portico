@@ -1,0 +1,273 @@
+{
+ "source": "app table with invented probe answers, not captured from a device",
+ "document": {
+  "version": 2,
+  "engineSetting": "automatic",
+  "client": {
+   "family": "androidtv",
+   "form": "tv",
+   "platform": "android",
+   "os": "android"
+  },
+  "display": {
+   "dynamicRanges": [
+    "sdr",
+    "hdr10",
+    "dolby_vision"
+   ]
+  },
+  "audioOutput": {
+   "maxChannels": 8,
+   "route": "hdmi"
+  },
+  "engines": {
+   "native": {
+    "name": "exoplayer",
+    "evidence": "mixed",
+    "video": [
+     {
+      "codec": "h264",
+      "maxLevel": 52,
+      "bitDepths": [
+       8
+      ],
+      "maxWidth": 3840,
+      "maxHeight": 2160,
+      "maxFrameRate": 60,
+      "dynamicRanges": [
+       "sdr"
+      ],
+      "dolbyVisionProfiles": [],
+      "evidence": "probed"
+     },
+     {
+      "codec": "hevc",
+      "bitDepths": [
+       8,
+       10
+      ],
+      "maxWidth": 3840,
+      "maxHeight": 2160,
+      "maxFrameRate": 60,
+      "dynamicRanges": [
+       "sdr",
+       "hdr10",
+       "dolby_vision"
+      ],
+      "dolbyVisionProfiles": [
+       5,
+       8
+      ],
+      "evidence": "probed"
+     },
+     {
+      "codec": "vp9",
+      "bitDepths": [
+       8,
+       10
+      ],
+      "maxWidth": 3840,
+      "maxHeight": 2160,
+      "maxFrameRate": 60,
+      "dynamicRanges": [
+       "sdr"
+      ],
+      "dolbyVisionProfiles": [],
+      "evidence": "probed"
+     },
+     {
+      "codec": "mpeg2video",
+      "bitDepths": [
+       8
+      ],
+      "maxWidth": 1920,
+      "maxHeight": 1080,
+      "maxFrameRate": 60,
+      "dynamicRanges": [
+       "sdr"
+      ],
+      "dolbyVisionProfiles": [],
+      "evidence": "probed"
+     },
+     {
+      "codec": "vc1",
+      "bitDepths": [
+       8
+      ],
+      "maxWidth": 1920,
+      "maxHeight": 1080,
+      "maxFrameRate": 60,
+      "dynamicRanges": [
+       "sdr"
+      ],
+      "dolbyVisionProfiles": [],
+      "evidence": "probed"
+     }
+    ],
+    "audio": [
+     {
+      "codec": "aac",
+      "maxChannels": 6,
+      "evidence": "declared"
+     },
+     {
+      "codec": "mp3",
+      "maxChannels": 2,
+      "evidence": "declared"
+     },
+     {
+      "codec": "opus",
+      "maxChannels": 6,
+      "evidence": "declared"
+     },
+     {
+      "codec": "vorbis",
+      "maxChannels": 6,
+      "evidence": "declared"
+     },
+     {
+      "codec": "flac",
+      "maxChannels": 8,
+      "evidence": "declared"
+     },
+     {
+      "codec": "pcm",
+      "maxChannels": 8,
+      "evidence": "declared"
+     }
+    ],
+    "transports": [
+     {
+      "transport": "direct",
+      "containers": [
+       "mp4",
+       "m4v",
+       "mov",
+       "mkv",
+       "webm",
+       "ts",
+       "m2ts"
+      ],
+      "video": [
+       "h264",
+       "hevc",
+       "vp9",
+       "mpeg2video",
+       "vc1"
+      ],
+      "audio": [
+       "aac",
+       "mp3",
+       "opus",
+       "vorbis",
+       "flac",
+       "pcm",
+       "ac3",
+       "eac3",
+       "dts",
+       "truehd"
+      ]
+     },
+     {
+      "transport": "direct",
+      "containers": [
+       "mp3",
+       "m4a",
+       "m4b",
+       "aac",
+       "flac",
+       "ogg",
+       "opus",
+       "wav"
+      ],
+      "video": [],
+      "audio": [
+       "aac",
+       "mp3",
+       "opus",
+       "vorbis",
+       "flac",
+       "pcm"
+      ]
+     },
+     {
+      "transport": "hls_ts",
+      "containers": [
+       "mpegts"
+      ],
+      "video": [
+       "h264",
+       "hevc"
+      ],
+      "audio": [
+       "aac",
+       "mp3",
+       "ac3",
+       "eac3"
+      ]
+     },
+     {
+      "transport": "hls_fmp4",
+      "containers": [
+       "fmp4"
+      ],
+      "video": [
+       "h264",
+       "hevc",
+       "vp9"
+      ],
+      "audio": [
+       "aac",
+       "mp3",
+       "ac3",
+       "eac3",
+       "flac",
+       "opus"
+      ]
+     }
+    ],
+    "subtitleRendering": [
+     "text"
+    ],
+    "embeddedAudioSwitching": true,
+    "audioPassthrough": [
+     {
+      "codec": "ac3",
+      "maxChannels": 6,
+      "evidence": "probed"
+     },
+     {
+      "codec": "eac3",
+      "maxChannels": 8,
+      "objectAudio": [
+       "atmos"
+      ],
+      "evidence": "probed"
+     },
+     {
+      "codec": "dts",
+      "maxChannels": 8,
+      "objectAudio": [
+       "dtsx"
+      ],
+      "variants": [
+       "dts_core",
+       "dts_hd_hra",
+       "dts_hd_ma",
+       "dtsx"
+      ],
+      "evidence": "probed"
+     },
+     {
+      "codec": "truehd",
+      "maxChannels": 8,
+      "objectAudio": [
+       "atmos"
+      ],
+      "evidence": "probed"
+     }
+    ]
+   }
+  }
+ }
+}

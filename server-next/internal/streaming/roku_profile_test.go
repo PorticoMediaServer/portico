@@ -6,35 +6,12 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediafacts"
 )
 
-// rokuDocument is the document the Roku channel publishes from roDeviceInfo
-// (packages/client-core/src/client-profile.ts `rokuDeclaredProfile`, widened by
-// the channel): a 4K model that reports Dolby Vision and AV1. VIDEO.md VC-5b.
+// rokuDocument is the recorded 4K Roku that reports Dolby Vision and AV1
+// (profiles/roku_4k.json), with a receiver on its HDMI output.
 func rokuDocument(t *testing.T) ClientProfile {
 	t.Helper()
-	doc, err := ParseCapabilityDocument([]byte(`{
- "version":2,"engineSetting":"automatic",
- "client":{"family":"roku","form":"tv","platform":"roku","os":"roku","model":"4800X","app":"portico-roku"},
- "display":{"width":3840,"height":2160,"dynamicRanges":["sdr","hdr10","hdr10plus","hlg","dolby_vision"],"maxFrameRate":60},
- "audioOutput":{"route":"hdmi","maxChannels":8},
- "engines":{"native":{"name":"roku-video","evidence":"declared",
-  "video":[
-   {"codec":"h264","bitDepths":[8,10],"maxWidth":3840,"maxHeight":2160,"maxLevel":51,"maxFrameRate":60,"dynamicRanges":["sdr","dolby_vision"],"dolbyVisionProfiles":[9],"codecTags":["avc1",
-	"dva1","dvav"]},
-   {"codec":"hevc","bitDepths":[8,10],"maxWidth":3840,"maxHeight":2160,"maxLevel":153,"maxFrameRate":60,"dynamicRanges":["sdr","hdr10","hdr10plus","hlg","dolby_vision"],
-	"dolbyVisionProfiles":[5],"codecTags":["dvh1","dvhe","hev1","hvc1"]},
-   {"codec":"vp9","bitDepths":[8,10],"maxWidth":3840,"maxHeight":2160,"maxFrameRate":60,"dynamicRanges":["sdr","hdr10","hlg"]},
-   {"codec":"av1","bitDepths":[8,10],"maxWidth":3840,"maxHeight":2160,"maxFrameRate":60,"dynamicRanges":["sdr","hdr10","hdr10plus","hlg"]}],
-  "audio":[{"codec":"aac","maxChannels":6},{"codec":"mp3","maxChannels":2},{"codec":"flac","maxChannels":2},{"codec":"pcm","maxChannels":2},{"codec":"alac","maxChannels":2},{"codec":"opus",
-	"maxChannels":2},{"codec":"vorbis","maxChannels":2}],
-  "audioPassthrough":[{"codec":"ac3","maxChannels":6},{"codec":"eac3","maxChannels":8,"objectAudio":["atmos"]},{"codec":"dts","variants":["dts_core"],"maxChannels":8}],
-  "transports":[
-   {"transport":"direct","containers":["mp4","m4v","mov","mkv","ts","m2ts"],"video":["h264","hevc","vp9","av1"],"audio":["aac","mp3","ac3","eac3","flac","pcm","alac","opus","vorbis","dts"]},
-   {"transport":"hls_ts","containers":["mpegts"],"video":["h264","hevc","vp9","av1"],"audio":["aac","mp3","ac3","eac3"]},
-   {"transport":"hls_fmp4","containers":["fmp4"],"video":["h264","hevc","vp9","av1"],"audio":["aac","ac3","eac3"]}],
-  "subtitleRendering":["text"]}}}`))
-	if err != nil {
-		t.Fatal(err)
-	}
+	doc := recordedDocuments(t)["roku_4k"]
+	doc.AudioOutput.MaxChannels = 8
 	return doc.Profile(EngineNative)
 }
 
