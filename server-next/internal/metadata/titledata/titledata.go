@@ -46,6 +46,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/diskspace"
+	"github.com/PorticoMediaServer/portico/server-next/internal/settings"
 )
 
 // DefaultAddress is where the signed list is published. The owner can point the server at
@@ -74,16 +75,31 @@ const (
 	lastRetry  = 24 * time.Hour
 )
 
-// Setting is the owner's choice, stored as the settings document SettingKey.
+// Setting is the owner's choice, the settings document "title_data": only the owner reads or
+// saves it, at /v1/admin/settings/title_data.
 type Setting struct {
-	// Download is "Download title data". Missing means on.
-	Download *bool `json:"download,omitempty"`
-	// Address is where the signed list is. Empty means DefaultAddress.
+	// Download is "Download title data", on by default: once a week Portico downloads one file
+	// of moods, themes and similar titles for films and shows from data.getportico.tv, the same
+	// file for every server, and sends nothing about your library. Off, the file and its tags
+	// are removed at once and nothing is downloaded.
+	Download bool `json:"download"`
+	// Address is where the signed list is, for a copy of it on the owner's own host: https, or
+	// http on this machine. Empty means DefaultAddress. Whatever the address, the list must be
+	// signed by Portico's key.
 	Address string `json:"address,omitempty"`
 }
 
-// SettingKey names the owner's setting in the settings table.
-const SettingKey = "title_data"
+// Document is the owner's setting.
+var Document = settings.Define("title_data", Setting{Download: true}, func(s *Setting) error {
+	s.Address = strings.TrimSpace(s.Address)
+	if s.Address == "" {
+		return nil
+	}
+	if u, err := url.Parse(s.Address); err != nil || !usable(u) {
+		return &settings.Invalid{Field: "address", Message: "Give the address as https://, or http:// on this machine."}
+	}
+	return nil
+})
 
 // stateKey names what this server must remember across a restart: the newest list it accepted,
 // so an older one is refused, and the file in use.
@@ -116,7 +132,9 @@ type Updater struct {
 	// Address is a test publication's list, which wins over the owner's setting. A release
 	// leaves it empty.
 	Address string
-	Log     *slog.Logger
+	// Settings holds the owner's setting; nil is its default (on).
+	Settings *settings.Settings
+	Log      *slog.Logger
 }
 
 // ParseKey reads an Ed25519 public key written in standard base64, as PublishedKey is.
@@ -180,16 +198,9 @@ type ManifestFile struct {
 	UncompressedBytes int64  `json:"uncompressed_bytes"`
 }
 
-func (u *Updater) setting(ctx context.Context) (Setting, error) {
-	var s Setting
-	raw, ok, err := u.DB.Setting(ctx, SettingKey)
-	if err != nil || !ok {
-		return s, err
-	}
-	return s, json.Unmarshal([]byte(raw), &s)
-}
+func (u *Updater) setting() Setting { return Document.Get(u.Settings) }
 
-func (s Setting) on() bool { return s.Download == nil || *s.Download }
+func (s Setting) on() bool { return s.Download }
 
 func (s Setting) address() string {
 	if s.Address == "" {
@@ -218,9 +229,8 @@ func (u *Updater) saveState(ctx context.Context, st state) error {
 // Open puts the file kept from before a restart back in use, unless the owner switched title
 // data off.
 func (u *Updater) Open(ctx context.Context) error {
-	s, err := u.setting(ctx)
-	if err != nil || !s.on() {
-		return err
+	if !u.setting().on() {
+		return nil
 	}
 	st, err := u.state(ctx)
 	if err != nil || st.File == "" {
@@ -234,12 +244,19 @@ func (u *Updater) Open(ctx context.Context) error {
 }
 
 // Run keeps the file current until ctx ends: it fetches the list a minute after start and then
-// weekly, and reads the owner's switch hourly, so switching it off takes effect within the hour
-// and switching it on fetches within the hour.
+// weekly. A save of the owner's setting is acted on at once: switched off, the file and its tags
+// go; switched on, or given a new address, the list is fetched.
 func (u *Updater) Run(ctx context.Context) {
 	if err := u.Open(ctx); err != nil {
 		u.log().Warn("the title data kept from before could not be opened", "error", err)
 	}
+	kick := make(chan struct{}, 1)
+	Document.Watch(u.Settings, func(Setting) {
+		select {
+		case kick <- struct{}{}:
+		default:
+		}
+	})
 	var due, applied time.Time
 	failures := 0
 	next := time.Minute
@@ -248,13 +265,11 @@ func (u *Updater) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-time.After(next):
+		case <-kick:
+			due = time.Time{} // switched on or moved: fetch now
 		}
 		next = time.Hour
-		s, err := u.setting(ctx)
-		if err != nil {
-			continue
-		}
-		if !s.on() {
+		if !u.setting().on() {
 			if err := u.remove(ctx); err != nil && ctx.Err() == nil {
 				u.log().Warn("removing the title data failed", "error", err)
 			}
@@ -288,10 +303,7 @@ func (u *Updater) Run(ctx context.Context) {
 // signed list and, if it names a version this server does not have, downloads, checks and
 // installs that file. A refusal or failure leaves the copy in use as it was.
 func (u *Updater) Check(ctx context.Context) error {
-	s, err := u.setting(ctx)
-	if err != nil {
-		return err
-	}
+	s := u.setting()
 	if !s.on() {
 		return u.remove(ctx)
 	}

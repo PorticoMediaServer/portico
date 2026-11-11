@@ -21,6 +21,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/titledata"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/titledata/titledatatest"
+	"github.com/PorticoMediaServer/portico/server-next/internal/settings"
 )
 
 var ctx = context.Background()
@@ -32,16 +33,23 @@ func newUpdater(t *testing.T, key ed25519.PrivateKey) (*titledata.Updater, *titl
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { d.Close() })
-	setSwitch(t, d, true)
+	store, _, err := settings.Open(ctx, d)
+	if err != nil {
+		t.Fatal(err)
+	}
 	host := &titledatatest.Host{}
-	return &titledata.Updater{DB: d, Dir: filepath.Join(t.TempDir(), "title-data"), Source: host,
-		Key: key.Public().(ed25519.PublicKey)}, host
+	u := &titledata.Updater{DB: d, Dir: filepath.Join(t.TempDir(), "title-data"), Source: host,
+		Key: key.Public().(ed25519.PublicKey), Settings: store}
+	setSwitch(t, u, true)
+	return u, host
 }
 
-func setSwitch(t *testing.T, d *db.DB, on bool) {
+// setSwitch saves the owner's switch as the owner's settings page does, with the test host's
+// address.
+func setSwitch(t *testing.T, u *titledata.Updater, on bool) {
 	t.Helper()
-	raw, _ := json.Marshal(titledata.Setting{Download: &on, Address: titledatatest.Address})
-	if err := d.SaveSetting(ctx, titledata.SettingKey, string(raw), timeNow()); err != nil {
+	raw, _ := json.Marshal(titledata.Setting{Download: on, Address: titledatatest.Address})
+	if _, err := u.Settings.Write(ctx, 0, titledata.Document.Name(), raw, -1, timeNow()); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -209,7 +217,7 @@ func TestSwitchedOffRemovesTheFileAndAsksNothing(t *testing.T) {
 	if err := u.Check(ctx); err != nil {
 		t.Fatal(err)
 	}
-	setSwitch(t, u.DB, false)
+	setSwitch(t, u, false)
 	requests := host.Requests
 	if err := u.Check(ctx); err != nil {
 		t.Fatal(err)
@@ -217,7 +225,7 @@ func TestSwitchedOffRemovesTheFileAndAsksNothing(t *testing.T) {
 	if got := files(t, u); len(got) != 0 || host.Requests != requests {
 		t.Fatalf("switched off: the folder holds %v and %d requests were made", got, host.Requests-requests)
 	}
-	setSwitch(t, u.DB, true)
+	setSwitch(t, u, true)
 	host.Serve(titledatatest.Publish(t, key, 4, sample))
 	if err := u.Check(ctx); !errors.Is(err, titledata.ErrRefused) {
 		t.Fatalf("an older release after switching on again: want a refusal, got %v", err)
@@ -264,4 +272,44 @@ func TestPlainHTTPOnlyFromLoopback(t *testing.T) {
 			t.Fatalf("%s: %v, want refused", address, err)
 		}
 	}
+}
+
+// The owner's switch is a settings document, on by default, and a save of it is acted on at
+// once: switched on, the list is fetched without waiting; switched off, the file goes. An
+// address that is not https, or http on this machine, is refused.
+func TestTheOwnersSwitchIsActedOnAtOnce(t *testing.T) {
+	key := titledatatest.NewKey(t)
+	u, host := newUpdater(t, key)
+	doc, err := u.Settings.Read(titledata.Document.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var defaults titledata.Setting
+	if err := json.Unmarshal(doc.Defaults, &defaults); err != nil || !defaults.Download || defaults.Address != "" {
+		t.Fatalf("the defaults are %s", doc.Defaults)
+	}
+	var invalid *settings.Invalid
+	if _, err := u.Settings.Write(ctx, 0, titledata.Document.Name(), json.RawMessage(`{"address":"http://192.168.1.2/v3/manifest.json"}`),
+		-1, timeNow()); !errors.As(err, &invalid) || invalid.Field != "address" {
+		t.Fatalf("plain http to another machine: %v", err)
+	}
+
+	host.Serve(titledatatest.Publish(t, key, 5, sample))
+	run, stop := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() { u.Run(run); close(done) }()
+	t.Cleanup(func() { stop(); <-done })
+	// Run's own first fetch is a minute after start: only a save can make it sooner. Run may
+	// not be watching yet when the first save lands, so the save is made again while waiting.
+	soon := func(what string, on bool, ok func() bool) {
+		t.Helper()
+		for end := time.Now().Add(10 * time.Second); !ok(); time.Sleep(50 * time.Millisecond) {
+			if time.Now().After(end) {
+				t.Fatalf("%s: the folder holds %v", what, files(t, u))
+			}
+			setSwitch(t, u, on)
+		}
+	}
+	soon("switched on", true, func() bool { return slices.Equal(files(t, u), []string{"screen-2026.45.sqlite"}) })
+	soon("switched off", false, func() bool { return len(files(t, u)) == 0 })
 }
