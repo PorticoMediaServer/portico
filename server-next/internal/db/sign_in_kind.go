@@ -210,9 +210,11 @@ func (d *DB) SwitchSignIn(ctx context.Context, sw Switch) (SessionState, error) 
 			}
 			// Portico Accounts keep their pictures with Portico Services, never here. Each
 			// person's pictures stored on this server go when that person moves to their
-			// Portico Account: the owner's here, everyone else's in CompleteMoveToPortico.
-			// Profile pictures (#2215) are not on this base: once they are, clear the owner's
-			// profiles' picture column here, and the tidy-up removes the files.
+			// Portico Account: the owner's here, everyone else's in CompleteMoveToPortico. The
+			// picture store's tidy-up removes the files.
+			if err := dropPictures(tx, sw.OwnerID); err != nil {
+				return err
+			}
 		}
 		detail := "to " + sw.To
 		if sw.StartOver {
@@ -483,8 +485,10 @@ func (d *DB) CompleteMoveToPortico(ctx context.Context, m MoveToPortico) (Sessio
 			return err
 		}
 		// This person's pictures stored on this server go now, kept by Portico Services from
-		// here on. Profile pictures (#2215) are not on this base: once they are, clear this
-		// account's profiles' picture column here, and the tidy-up removes the files.
+		// here on; the picture store's tidy-up removes the files.
+		if err := dropPictures(tx, userID); err != nil {
+			return err
+		}
 		if err := limitClear(tx, m.Limits); err != nil {
 			return err
 		}
@@ -500,6 +504,12 @@ func (d *DB) CompleteMoveToPortico(ctx context.Context, m MoveToPortico) (Sessio
 	}
 	out.Stamp = stamp
 	return out, err
+}
+
+// dropPictures removes the stored profile pictures of every profile of an account.
+func dropPictures(tx *sql.Tx, userID int64) error {
+	_, err := tx.Exec(`DELETE FROM images WHERE profile_id IN (SELECT id FROM profiles WHERE user_id = ?)`, userID)
+	return err
 }
 
 func endMoveIfDone(tx *sql.Tx) error {
