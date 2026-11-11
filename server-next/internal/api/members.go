@@ -217,6 +217,17 @@ func (s *Server) editMember(r *http.Request, req MemberEdit) (Member, error) {
 	m, err := s.db.UpdateMember(r.Context(), db.MemberEdit{ActorID: caller.UserID, ActorRole: caller.Role, PublicID: r.PathValue("id"),
 		Role: req.Role, Disabled: req.Disabled, Notes: req.Notes, AllLibraries: req.AllLibraries, Libraries: req.Libraries,
 		AllowDownloads: req.AllowDownloads, Limits: limits, Now: s.now()})
+	if err == nil && req.Limits != nil && !m.Limits.AllowWatchTogether {
+		// Watch Together is off for the whole account: its profiles leave the groups they are
+		// in at once, as one profile does when its own switch is turned off.
+		profiles, err := s.db.Profiles(r.Context(), m.ID)
+		if err != nil {
+			return Member{}, err
+		}
+		for _, p := range profiles {
+			s.groups.LeaveAll(p.ID)
+		}
+	}
 	return memberOut(m), memberError(err)
 }
 
