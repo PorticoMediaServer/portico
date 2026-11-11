@@ -135,8 +135,9 @@ CREATE TABLE daily_totals (
 -- EPUB position or a page), made_on is that file's fingerprint, and progress is how far
 -- through the book it is (0 to 1), which places it when the file is replaced; text is the
 -- words that were marked, so it can always be read in the list. deleted_at marks one that was
--- deleted, kept 35 days so an older edit from a device that was out of reach cannot bring it
--- back. At most 5,000 per profile per book; a book's list is one range of annotations_book.
+-- deleted, kept 70 days (twice the oldest edit applied) so an edit from a device that was out of
+-- reach cannot bring it back. At most 5,000 per profile per book; a book's list is one range
+-- of annotations_book.
 -- (A profile's place in a book is user_item_state.position_text.)
 CREATE TABLE annotations (
   id         INTEGER NOT NULL PRIMARY KEY,
