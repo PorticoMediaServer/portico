@@ -20,6 +20,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/artwork"
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
+	"github.com/PorticoMediaServer/portico/server-next/internal/compat"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/jobs"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
@@ -75,6 +76,11 @@ type Server struct {
 	driveSignIns remote.DriveSignIns
 	// keyRequests slows a key that makes too many requests. See key_check.go.
 	keyRequests keyRequests
+	// integrations are the owner's switches for outside tools. See integrations.go.
+	integrations integrationState
+	// compat and compatKey serve the Jellyfin-compatible routes. See compat.go.
+	compat    compatState
+	compatKey []byte
 
 	// The newer areas each keep their fields in a type of their own, in area_<name>.go,
 	// beside their start-up. Nothing below this line changes when an area grows.
@@ -200,6 +206,14 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	if err := s.loadNetworks(ctx); err != nil {
 		return nil, err
 	}
+	if err := s.loadIntegrations(ctx); err != nil {
+		return nil, err
+	}
+	compatKey, err := d.SettingOrCreate(ctx, "compat.token_key", auth.NewKey)
+	if err != nil {
+		return nil, err
+	}
+	s.compatKey = []byte(compatKey)
 	s.systemRoutes()
 	s.networkRoutes()
 	s.identityRoutes()
@@ -210,6 +224,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.memberRoutes()
 	s.invitationRoutes()
 	s.keyRoutes()
+	s.integrationRoutes()
 	s.catalogueRoutes()
 	s.tagRoutes()
 	s.itemFileRoutes()
@@ -266,6 +281,10 @@ type contextKey int
 const (
 	requestIDKey contextKey = iota
 	callerKey
+	// presetCallerKey carries the caller of a request the server makes to itself for an
+	// outside tool (the compatible routes, the assistant address). Only code in this process
+	// can set it; the route's own checks still apply.
+	presetCallerKey
 )
 
 // RequestID returns the id this request is logged under and that its error body carries.
@@ -288,6 +307,17 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			s.writeError(w, r, errors.New("panic"))
 		}
 	}()
+	// The Jellyfin-compatible routes live outside /v1, whatever their capitals.
+	if !strings.HasPrefix(r.URL.Path, "/v1/") {
+		if op, values, ok := compat.Match(r.Method, r.URL.Path); ok && s.integrations.get().CompatibleRoutes {
+			if op == "" {
+				s.writeError(w, r, refusal(http.StatusMethodNotAllowed, "method_not_allowed", "This address does not take that method.", false))
+				return
+			}
+			s.serveCompat(w, r, op, values)
+			return
+		}
+	}
 	if _, pattern := s.mux.Handler(r); pattern == "" {
 		// An address that is no route of the API, and is not under /v1/ at all, is the web
 		// app's: its files, and the pages inside it. Nothing under /v1/ ever goes there.
@@ -458,7 +488,9 @@ type Caller struct {
 	// Manage says the caller is on the account's main profile, and so may change the account
 	// itself: its profiles, devices, sessions and password.
 	Manage bool
-	// KeyScopes are what the key the request came with may do; nil for a signed-in person.
+	// Key says the request came with a key, token or app password rather than a sign-in.
+	Key bool
+	// KeyScopes are what the key may do; nil for a signed-in person and for an app password.
 	KeyScopes []string
 	// Stamp is the token's place in the order of session changes: what a book's address
 	// carries so that it ends when this sign-in changes.
@@ -479,12 +511,19 @@ func (s *Server) admit(r *http.Request, route *Route) (*http.Request, error) {
 	if route.Access == Public {
 		return r, nil
 	}
-	token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-	if !ok {
-		return r, ErrUnauthorized()
-	}
+	token, hasToken := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 	var c Caller
-	if strings.HasPrefix(token, keyPrefix) {
+	if preset, ok := r.Context().Value(presetCallerKey).(Caller); ok {
+		c = preset
+		switch {
+		case c.Key && route.Scope == ScopeSession:
+			return r, refusal(http.StatusForbidden, "session_required", "This needs a signed-in person, not a key.", false)
+		case c.KeyScopes != nil && !contains(c.KeyScopes, string(route.Scope)) && !contains(c.KeyScopes, string(ScopeAdmin)):
+			return r, refusal(http.StatusForbidden, "insufficient_scope", "This key was not given the scope this needs.", false)
+		}
+	} else if !hasToken {
+		return r, ErrUnauthorized()
+	} else if strings.HasPrefix(token, keyPrefix) {
 		key, err := s.db.KeyCaller(r.Context(), keyHash(token), s.now())
 		if c, err = s.keyCheck(r, key, err, route.Scope); err != nil {
 			return r, err
