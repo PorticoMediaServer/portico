@@ -16,6 +16,9 @@ import (
 
 const fakeToken = "tok-" + "4f1c9e"
 
+// refreshedToken is what the stand-in rclone is given by its provider in place of fakeToken.
+const refreshedToken = `{"access_token":"a2","refresh_token":"r2"}`
+
 // TestMain lets the test binary stand in for rclone: "serve webdav portico:<root>" serves
 // a few files over WebDAV the way rclone would, with what a hostile listing could hold.
 func TestMain(m *testing.M) {
@@ -34,13 +37,17 @@ func fakeRclone(args []string) int {
 		}
 	}
 	env := os.Getenv
-	signedIn := env("RCLONE_CONFIG_PORTICO_TOKEN") == fakeToken ||
+	signedIn := env("RCLONE_CONFIG_PORTICO_TOKEN") == fakeToken || env("RCLONE_CONFIG_PORTICO_TOKEN") == refreshedToken ||
 		env("RCLONE_CONFIG_PORTICO_CLIENT_ID") == "client-1" && env("RCLONE_CONFIG_PORTICO_CLIENT_SECRET") == "secret-1" &&
 			strings.Contains(env("RCLONE_CONFIG_PORTICO_TOKEN"), `"refresh_token":"refresh-1"`) ||
 		strings.Contains(env("RCLONE_CONFIG_PORTICO_SERVICE_ACCOUNT_CREDENTIALS"), `"service_account"`)
 	if env("RCLONE_CONFIG_PORTICO_TYPE") != "drive" || !signedIn {
 		fmt.Fprintln(os.Stderr, "Failed to create file system: didn't find section in config file")
 		return 1
+	}
+	// Signed in with the pasted token, it is given a new one, and writes it where rclone does.
+	if env("RCLONE_CONFIG_PORTICO_TOKEN") == fakeToken {
+		os.WriteFile(env("RCLONE_CONFIG"), []byte("[portico]\ntype = drive\ntoken = "+refreshedToken+"\n"), 0o600)
 	}
 	root := strings.TrimPrefix(args[2], "portico:")
 	files := map[string]string{}
