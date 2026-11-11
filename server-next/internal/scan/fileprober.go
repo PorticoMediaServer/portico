@@ -154,6 +154,10 @@ func embeddedTitle(tag string) string {
 		return ""
 	case !strings.Contains(tag, " ") && strings.ContainsAny(tag, "._"):
 		return "" // a file name, not a title
+	case strings.ContainsFunc(tag, func(c rune) bool {
+		return c == '\u2028' || c == '\u2029' || (c >= '\u202a' && c <= '\u202e') || (c >= '\u2066' && c <= '\u2069')
+	}):
+		return "" // it would turn the title around, or break it, on everyone's screen
 	}
 	return tag
 }
