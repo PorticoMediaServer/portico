@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -781,24 +782,52 @@ func (d *DB) ChannelListings(ctx context.Context, channelID int64) (source int64
 	return source, key, notFound(err)
 }
 
-// GuideProgrammeByKey finds a programme of a channel's listings by the guide's own key, where
-// it airs now: one read of the programmes_key index.
-func (d *DB) GuideProgrammeByKey(ctx context.Context, source int64, guideKey, programmeKey string) (GuideProgramme, error) {
+// GuideProgrammeByKey finds where a booked programme of a channel's listings airs now. By the
+// guide's own id when it gives one; in an ordinary guide, whose programmes carry none (their
+// key is the channel and the start, so a moved programme has a new key), by the same title and
+// episode details within three hours either side of the booked time: a schedule change moves
+// a programme within its evening, and the window never reaches the same show's airing of the
+// next day. An airing already over is never taken.
+func (d *DB) GuideProgrammeByKey(ctx context.Context, source int64, guideKey, programmeKey string, booking Recording, now time.Time) (GuideProgramme, error) {
+	title, booked := booking.Title, booking.StartsAt
 	var p GuideProgramme
 	var starts, ends int64
-	err := d.guide.read.QueryRowContext(ctx, `SELECT starts_at, ends_at, title FROM programmes WHERE source_id = ? AND guide_key = ?
-		AND programme_key = ? ORDER BY starts_at LIMIT 1`, source, guideKey, programmeKey).Scan(&starts, &ends, &p.Title)
+	// A guide may give one id to every airing of an episode: the airing nearest the booked
+	// time, and not yet over, is the booking's.
+	err := d.guide.read.QueryRowContext(ctx, `SELECT starts_at, ends_at, title, programme_key FROM programmes WHERE source_id = ? AND guide_key = ?
+		AND programme_key = ? AND ends_at > ? ORDER BY abs(starts_at - ?) LIMIT 1`, source, guideKey, programmeKey, now.UnixMilli(),
+		booked.UnixMilli()).Scan(&starts, &ends, &p.Title, &p.ProgrammeKey)
+	if errors.Is(err, sql.ErrNoRows) && !strings.HasPrefix(programmeKey, "id:") {
+		// The guide gives no ids: its key is the channel and the start, so a moved programme
+		// has a new key. The one programme of the same title that overlaps the booked time is
+		// it; none or several, and the booking stays unresolved.
+		var n int
+		err = d.guide.read.QueryRowContext(ctx, `SELECT count(*), ifnull(max(starts_at), 0), ifnull(max(ends_at), 0), ifnull(max(title), ''), ifnull(max(programme_key), '') FROM programmes
+			WHERE source_id = ? AND guide_key = ? AND title = ? AND starts_at < ? AND ends_at > ? AND ends_at > ?
+			AND (? = '' OR ifnull(episode_title, '') = ?) AND (? IS NULL OR season_number = ?) AND (? IS NULL OR episode_number = ?)`,
+			source, guideKey, title, booked.Add(3*time.Hour).UnixMilli(), booked.Add(-3*time.Hour).UnixMilli(), now.UnixMilli(),
+			booking.EpisodeTitle, booking.EpisodeTitle, booking.Season, booking.Season, booking.Episode, booking.Episode).
+			Scan(&n, &starts, &ends, &p.Title, &p.ProgrammeKey)
+		if err == nil && n != 1 {
+			err = sql.ErrNoRows
+		}
+	}
 	p.StartsAt, p.EndsAt = time.UnixMilli(starts), time.UnixMilli(ends)
 	return p, notFound(err)
 }
 
 // MoveBooking follows a booking's programme where the guide has moved it, or says it is no
 // longer in the guide (inGuide false), when nothing is recording it yet.
-func (d *DB) MoveBooking(ctx context.Context, id int64, starts, ends time.Time, inGuide bool, now time.Time) error {
+func (d *DB) MoveBooking(ctx context.Context, id int64, key string, starts, ends time.Time, inGuide bool, now time.Time) error {
 	return d.write(ctx, Background, func(tx *sql.Tx) error {
-		_, err := tx.Exec(`UPDATE recordings SET starts_at = CASE WHEN ? THEN ? ELSE starts_at END, ends_at = CASE WHEN ? THEN ? ELSE ends_at END,
-			in_guide = ?, updated_at = ? WHERE id = ? AND state = ?`, inGuide, starts.UnixMilli(), inGuide, ends.UnixMilli(), inGuide,
+		_, err := tx.Exec(`UPDATE recordings SET programme_key = CASE WHEN ? THEN ? ELSE programme_key END,
+			starts_at = CASE WHEN ? THEN ? ELSE starts_at END, ends_at = CASE WHEN ? THEN ? ELSE ends_at END,
+			in_guide = ?, updated_at = ? WHERE id = ? AND state = ?`, inGuide, key, inGuide, starts.UnixMilli(), inGuide, ends.UnixMilli(), inGuide,
 			now.UnixMilli(), id, RecordingScheduled)
+		if err != nil && strings.Contains(err.Error(), "UNIQUE") {
+			// Someone booked the moved airing already: that booking records it.
+			_, err = tx.Exec(`UPDATE recordings SET in_guide = 0, updated_at = ? WHERE id = ? AND state = ?`, now.UnixMilli(), id, RecordingScheduled)
+		}
 		return err
 	})
 }
@@ -817,7 +846,7 @@ func (d *DB) RecordedBytes(ctx context.Context, libraryID int64) (int64, error) 
 // or the title) and newest first.
 func (d *DB) KeepCandidates(ctx context.Context) ([]Recording, error) {
 	rows, err := d.read.QueryContext(ctx, `SELECT `+recordingColumns+` FROM recordings r LEFT JOIN recording_rules u ON u.id = r.rule_id
-		WHERE r.state IN ('recorded', 'partial') AND r.keep = 0 AND u.keep_newest IS NULL AND u.keep_days IS NULL
+		WHERE r.state IN ('recorded', 'partial') AND r.keep = 0 AND u.id IS NULL
 		ORDER BY coalesce(r.series_key, r.title), r.starts_at DESC`)
 	if err != nil {
 		return nil, err

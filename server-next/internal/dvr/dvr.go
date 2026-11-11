@@ -76,6 +76,9 @@ type Service struct {
 	mu      sync.Mutex
 	running map[int64]*running
 	warned  map[string]time.Time // a viewing told it will be stopped, and when
+	// Deleted is told the title of each recording deleted, so anyone playing it is stopped,
+	// whether the owner deleted it or a keep rule did.
+	Deleted func(ctx context.Context, itemID int64)
 	// busy holds the bookings this run of the server tried and found every tuner taken: one
 	// whose time passed without being tried was missed because the server was off.
 	busy map[int64]bool
@@ -390,6 +393,12 @@ func (s *Service) openFile(folder, dir, name string, r db.Recording) (*os.File, 
 	if err := os.MkdirAll(path, 0o755); err != nil {
 		return nil, err
 	}
+	// The show's own details beside its folder, so the show carries the guide's rating too and
+	// a profile that hides unrated titles is treated as for any rated show.
+	show := filepath.Join(folder, filepath.FromSlash(strings.Split(dir, "/")[0]), "tvshow.nfo")
+	if _, err := os.Stat(show); errors.Is(err, os.ErrNotExist) {
+		os.WriteFile(show, []byte(ShowNFO(r)), 0o644)
+	}
 	nfo := filepath.Join(path, strings.TrimSuffix(name, ".ts")+".nfo")
 	if _, err := os.Stat(nfo); errors.Is(err, os.ErrNotExist) {
 		os.WriteFile(nfo, []byte(NFO(r)), 0o644)
@@ -461,7 +470,7 @@ func Layout(r db.Recording) (dir, name string) {
 	if r.ChannelName == "" {
 		channel = fmt.Sprintf("channel %d", r.ChannelID)
 	}
-	aired := r.StartsAt.Format("2006-01-02 15.04") + " " + cut(channel, 40)
+	aired := r.StartsAt.Format("2006-01-02 15.04") + " " + cut(channel, 40) + fmt.Sprintf(" %d", r.ChannelID)
 	if r.Season != nil && r.Episode != nil {
 		name = fmt.Sprintf("%s - S%02dE%02d", cut(show, 100), *r.Season, *r.Episode)
 		if r.EpisodeTitle != "" {
@@ -494,7 +503,20 @@ func clean(s string) string {
 	if s == "" {
 		return "Recording"
 	}
+	// Names Windows keeps for devices, as a whole name or before a dot, cannot be files there.
+	stem, _, _ := strings.Cut(strings.ToUpper(s), ".")
+	switch stem {
+	case "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+		"LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9":
+		s = "_" + s
+	}
 	return s
+}
+
+// ShowNFO is a show's own details, written once in its folder: its title and the guide's rating.
+func ShowNFO(r db.Recording) string {
+	esc := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;").Replace
+	return "<tvshow><title>" + esc(r.Title) + "</title><mpaa>" + esc(r.Rating) + "</mpaa></tvshow>\n"
 }
 
 // NFO is the guide's details in the form the scanner reads beside a file.
@@ -676,16 +698,16 @@ func (s *Service) follow(ctx context.Context, now time.Time) error {
 		if err != nil || source == 0 {
 			continue
 		}
-		p, err := s.db.GuideProgrammeByKey(ctx, source, key, r.ProgrammeKey)
+		p, err := s.db.GuideProgrammeByKey(ctx, source, key, r.ProgrammeKey, r, now)
 		switch {
 		case errors.Is(err, db.ErrNotFound):
 			if r.InGuide {
-				err = s.db.MoveBooking(ctx, r.ID, r.StartsAt, r.EndsAt, false, now)
+				err = s.db.MoveBooking(ctx, r.ID, r.ProgrammeKey, r.StartsAt, r.EndsAt, false, now)
 			} else {
 				err = nil
 			}
-		case err == nil && (!r.InGuide || !p.StartsAt.Equal(r.StartsAt) || !p.EndsAt.Equal(r.EndsAt)):
-			err = s.db.MoveBooking(ctx, r.ID, p.StartsAt, p.EndsAt, true, now)
+		case err == nil && (!r.InGuide || p.ProgrammeKey != r.ProgrammeKey || !p.StartsAt.Equal(r.StartsAt) || !p.EndsAt.Equal(r.EndsAt)):
+			err = s.db.MoveBooking(ctx, r.ID, p.ProgrammeKey, p.StartsAt, p.EndsAt, true, now)
 		}
 		if err != nil {
 			return err
@@ -709,6 +731,9 @@ func (s *Service) Rescan(ctx context.Context) {
 // scans the library so its title goes too. Whoever plays it is stopped by the caller.
 func (s *Service) Delete(ctx context.Context, r db.Recording) error {
 	s.Stop(r.ID)
+	if r.ItemID != 0 && s.Deleted != nil {
+		s.Deleted(ctx, r.ItemID)
+	}
 	dir, name := Layout(r)
 	folder := filepath.Join(s.options().Folder, filepath.FromSlash(dir))
 	os.Remove(filepath.Join(folder, name))
