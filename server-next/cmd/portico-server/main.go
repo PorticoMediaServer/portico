@@ -21,6 +21,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediaengine"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediaexec"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/titledata"
+	"github.com/PorticoMediaServer/portico/server-next/internal/webapp"
 )
 
 // version is set by the release build.
@@ -55,6 +56,7 @@ func env(name, fallback string) string {
 func run(log *slog.Logger) error {
 	data := flag.String("data", env("PORTICO_DATA", "data"), "folder for the database and everything else the server keeps (PORTICO_DATA)")
 	listen := flag.String("listen", env("PORTICO_LISTEN", ":32500"), "address to serve the API on (PORTICO_LISTEN)")
+	web := flag.String("web", env("PORTICO_WEB_DIR", ""), "folder of the built web app to serve; without it, a folder named web beside this binary (PORTICO_WEB_DIR)")
 	flag.Parse()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -96,6 +98,14 @@ func run(log *slog.Logger) error {
 	}
 	handler.Playback().SetEngine(engine, engine)
 	handler.ServeMediaWith(engine.ServeMedia)
+	// The web app is served by this same server, at every address that is not the API's, so
+	// an install needs no web server in front of it.
+	if dir := webapp.Find(*web); dir != "" {
+		handler.ServeWebWith(webapp.Handler(dir))
+		log.Info("serving the web app", "folder", dir)
+	} else {
+		log.Warn("no web app to serve: only the API is answered. Give its folder with -web, or put it in a folder named web beside this binary")
+	}
 	go engine.Run(ctx)
 	// The list of changes behind the events feed is kept short. A reader further behind than
 	// what is kept is told to read everything again.
