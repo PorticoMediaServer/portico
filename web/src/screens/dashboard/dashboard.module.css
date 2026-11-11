@@ -320,7 +320,6 @@
 .phoneTask + .phoneTask::before, .phoneSub + .phoneTask::before { content: ''; position: absolute; left: 72px; right: 0; top: 0; height: 1px; background: var(--color-line-soft); }
 .phoneTask b { display: block; font-size: var(--type-body-size); font-weight: var(--type-button-weight); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .phoneTask small { display: block; margin-top: 2px; font-size: var(--type-dashboard-phone-task-size); line-height: var(--type-dashboard-phone-task-line); color: var(--color-text-tertiary); }
-.phoneTask .phoneFile { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .phonePercent { font-size: var(--type-body-size); font-weight: var(--type-button-weight); color: var(--color-text-secondary); font-variant-numeric: tabular-nums; }
 .phoneRange { margin-bottom: 12px; }
 .phoneTiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px; margin-bottom: 12px; border-radius: 14px; overflow: hidden; background: var(--color-line-soft); }

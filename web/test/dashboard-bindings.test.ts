@@ -163,7 +163,7 @@ function cached() {
   const paths: string[] = []; let body: unknown = emptyHistory(), fail: unknown, gate: Promise<void> | undefined;
   const hub = new FreshnessHub({settleMs: 0});
   // One server behind both: the cache's own requester and each Dashboard's (which ends when that Dashboard closes).
-  const serve = async (path: string, signal?: AbortSignal) => {paths.push(path); if (gate) await gate; signal?.throwIfAborted(); if (fail) throw fail; return (path.includes('/status') ? status() : path.includes('/report') ? report() : body) as never;};
+  const serve = async (path: string, signal?: AbortSignal) => {paths.push(path); if (gate) await gate; signal?.throwIfAborted(); if (fail) throw fail; return (path === '/v1/admin/dashboard' ? status() : path.includes('/report') ? report() : body) as never;};
   const queries: ViewerQueries = createViewerQueries({scope: {serverId: 'server', viewerId: 'viewer'}, hub, api: {request: async (path, _method, _body, signal) => serve(path, signal)}, gcTimeMs: Infinity});
   const open = () => createDashboardBindings(options({queries, api: {...options().api, request: async (path, _method, _body, signal) => serve(path, signal)}}));
   return {paths, hub, queries, open, set: (next: unknown) => {body = next;}, refuse: (error: unknown) => {fail = error;}, hold: () => {let release!: () => void; gate = new Promise(resolve => {release = resolve;}); return () => {gate = undefined; release();};}};
