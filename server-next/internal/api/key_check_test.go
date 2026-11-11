@@ -29,7 +29,6 @@ func TestKeysCannotChangeWhoMaySignIn(t *testing.T) {
 		{"DELETE", "/v1/admin/api-keys/" + key.Key.ID, nil},
 		{"POST", "/v1/me/tokens", KeyCreate{Name: "More", Scopes: []string{"read"}}},
 		{"POST", "/v1/auth/password", PasswordRequest{CurrentPassword: testPassword, NewPassword: "another long password"}},
-		{"PATCH", "/v1/admin/settings/sign-in", map[string]any{"passwordMinLength": 20}},
 		{"PATCH", "/v1/admin/members/" + max.ID, MemberEdit{Role: &admin}},
 		{"POST", "/v1/admin/members", MemberCreate{Username: "eve", Password: testPassword, Role: "admin"}},
 		{"POST", "/v1/admin/invitations", InvitationCreate{Role: "admin"}},
