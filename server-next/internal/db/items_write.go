@@ -163,6 +163,11 @@ type ImportVersion struct {
 	// Shared says the same file or range also plays other items (two episodes in one file),
 	// so finding it on another item does not mean it moved from there.
 	Shared bool
+	// Whole says the version is everything its title is made of (a comic that is a folder of
+	// pictures): a title already stored has this as its one version, whichever file comes
+	// first now, so a page added ahead of the first is a new first page and not a second
+	// version.
+	Whole bool
 }
 
 // ImportPart is a whole file, or the range of a file between StartMS and EndMS.
@@ -783,9 +788,14 @@ func (im *importer) ensureVersion(itemID int64, v *ImportVersion) error {
 		return err
 	}
 	var mediaID, owner int64
-	err = im.queryRow(`SELECT m.id, m.item_id FROM media_parts p JOIN media m ON m.id = p.media_id
-		WHERE p.file_id = ? AND p.position = 0 AND p.start_ms IS ? ORDER BY m.item_id = ? DESC LIMIT 1`,
-		facts.fileIDs[0], v.Parts[0].StartMS, itemID).Scan(&mediaID, &owner)
+	if v.Whole {
+		// Found by its title, not by its first file.
+		err = im.queryRow(`SELECT id, item_id FROM media WHERE item_id = ? ORDER BY position, id LIMIT 1`, itemID).Scan(&mediaID, &owner)
+	} else {
+		err = im.queryRow(`SELECT m.id, m.item_id FROM media_parts p JOIN media m ON m.id = p.media_id
+			WHERE p.file_id = ? AND p.position = 0 AND p.start_ms IS ? ORDER BY m.item_id = ? DESC LIMIT 1`,
+			facts.fileIDs[0], v.Parts[0].StartMS, itemID).Scan(&mediaID, &owner)
+	}
 	if errors.Is(err, sql.ErrNoRows) || err == nil && owner != itemID && v.Shared {
 		var position int
 		if err := im.queryRow(`SELECT count(*) FROM media WHERE item_id = ?`, itemID).Scan(&position); err != nil {
