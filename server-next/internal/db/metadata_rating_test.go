@@ -112,3 +112,86 @@ func TestGenreChoicesFollowARatingChangedByHand(t *testing.T) {
 		}
 	}
 }
+
+// An episode put back by Undo follows its show's rating as it is now: Undo of an episode's
+// edit made before its show became adults only must not hand a rating-limited profile the
+// episode.
+func TestUndoOnAnEpisodeKeepsItsShowsRatingNow(t *testing.T) {
+	l := newLibrary(t, 1500)
+	age := 13
+	limited, err := l.d.CreateSeedProfile(ctx, db.SeedProfile{Name: "limited-by-rating", MaxRatingAge: &age})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ep db.Item
+	for _, e := range everything(t, l.d, limited, db.ItemQuery{Library: showsLibrary(l).PublicID, Kinds: []db.ItemKind{db.KindEpisode}, Limit: 200}) {
+		if e.ContentRating == "" {
+			ep = e
+			break
+		}
+	}
+	if ep.ID == 0 {
+		t.Fatal("the test library has no episode the limited profile sees without a rating of its own")
+	}
+	title, rating := "Renamed", "NC-17"
+	edit := func(id string, e db.MetadataEdit) {
+		t.Helper()
+		locks, err := l.d.MetadataLocks(ctx, id)
+		if err == nil {
+			_, err = l.d.EditMetadata(ctx, id, locks.Revision, e)
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	edit(ep.PublicID, db.MetadataEdit{Title: &title})
+	edit(ep.RootPublicID, db.MetadataEdit{ContentRating: &rating})
+	history, err := l.d.MetadataHistory(ctx, ep.PublicID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.d.UndoMetadata(ctx, ep.PublicID, history[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.d.Item(ctx, limited, ep.PublicID); err == nil {
+		t.Fatal("after Undo the limited profile can open an episode of an adults-only show")
+	}
+}
+
+// Merging a show into an adults-only show hides the episodes that move across.
+func TestMergedEpisodesTakeTheirNewShowsRating(t *testing.T) {
+	l := newLibrary(t, 1500)
+	age := 13
+	limited, err := l.d.CreateSeedProfile(ctx, db.SeedProfile{Name: "limited-by-rating", MaxRatingAge: &age})
+	if err != nil {
+		t.Fatal(err)
+	}
+	shows := showsLibrary(l)
+	visible := everything(t, l.d, limited, db.ItemQuery{Library: shows.PublicID, Kinds: []db.ItemKind{db.KindShow}, Limit: 200})
+	from, into := visible[0], visible[1]
+	locks, err := l.d.MetadataLocks(ctx, into.PublicID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rating := "NC-17"
+	if _, err := l.d.EditMetadata(ctx, into.PublicID, locks.Revision, db.MetadataEdit{ContentRating: &rating}); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.d.MergeItems(ctx, from.PublicID, into.PublicID); err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range everything(t, l.d, limited, db.ItemQuery{Library: shows.PublicID, Kinds: []db.ItemKind{db.KindEpisode}, Limit: 200}) {
+		if e.RootPublicID == into.PublicID {
+			t.Fatalf("the limited profile is offered %q, an episode of the adults-only show it was merged into", e.Title)
+		}
+	}
+}
+
+func showsLibrary(l *library) db.Library {
+	for _, lib := range l.libs {
+		if lib.Kind == db.LibraryShows {
+			return lib
+		}
+	}
+	return db.Library{}
+}
