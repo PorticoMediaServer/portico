@@ -40,14 +40,17 @@ const (
 
 // Why a session ended, when its own device did not stop it.
 const (
-	EndStopped       = "stopped"
-	EndReplaced      = "replaced"       // the same device started something else
-	EndLeaseExpired  = "lease_expired"  // the device went quiet
-	EndSignedOut     = "signed_out"     // the sign-in was ended or the account turned off
-	EndAccess        = "access_removed" // the profile may no longer see the title
-	EndTerminated    = "terminated"     // the owner or an administrator stopped it
-	EndPausedTooLong = "paused_timeout"
-	EndFailed        = "failed"
+	EndStopped = "stopped"
+	// EndStoppedElsewhere: another of the account's devices stopped it (the stream limit
+	// screen, or a move to another device), or the server undid a move that failed.
+	EndStoppedElsewhere = "stopped_elsewhere"
+	EndReplaced         = "replaced"       // the same device started something else
+	EndLeaseExpired     = "lease_expired"  // the device went quiet
+	EndSignedOut        = "signed_out"     // the sign-in was ended or the account turned off
+	EndAccess           = "access_removed" // the profile may no longer see the title
+	EndTerminated       = "terminated"     // the owner or an administrator stopped it
+	EndPausedTooLong    = "paused_timeout"
+	EndFailed           = "failed"
 )
 
 // ErrEnded: the session is known and over.
@@ -432,7 +435,8 @@ func (s *Service) Save(ctx context.Context, p db.Priority, only ...string) {
 // stream limit screen lists them to be stopped). positionMs, when not nil, is the final
 // position, and is taken only from the device that was playing: a stop from any other device
 // ends the stream and saves nothing that device sent, so the session keeps the last place
-// its own device reported. Stopping a session that is unknown or already over succeeds.
+// its own device reported, and the session says another device stopped it. Stopping a session
+// that is unknown or already over succeeds.
 func (s *Service) Stop(ctx context.Context, id string, userID, signInID int64, positionMs *int64) {
 	s.mu.Lock()
 	sess := s.sessions[id]
@@ -452,10 +456,14 @@ func (s *Service) Stop(ctx context.Context, id string, userID, signInID int64, p
 		s.mu.Unlock()
 		return
 	}
+	reason := EndStopped
+	if !own {
+		reason = EndStoppedElsewhere
+	}
 	if own && positionMs != nil {
 		s.sampleLocked(sess, *positionMs, sess.playedMs, s.now())
 	}
-	s.endLocked(sess, EndStopped, "")
+	s.endLocked(sess, reason, "")
 	s.mu.Unlock()
 	s.finish(ctx, sess)
 }
