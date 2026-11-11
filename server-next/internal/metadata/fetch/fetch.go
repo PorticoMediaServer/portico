@@ -5,11 +5,15 @@ package fetch
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"sync"
+	"testing"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata"
@@ -41,6 +45,27 @@ type Status struct {
 }
 
 func (e *Status) Error() string { return fmt.Sprintf("%s answered %d", e.Provider, e.Code) }
+
+// ErrLiveCallInTest refuses a request a test makes to anything but this machine. The rule:
+// tests never reach a live provider; they use a stand-in on 127.0.0.1, such as tmdbtest. It
+// holds wherever an address comes from: the built-in TMDB key with a server a test has not yet
+// pointed at a stand-in, or a provider's fixed address such as Cover Art Archive's.
+var ErrLiveCallInTest = errors.New("a test may not reach a live provider: tests use a stand-in on 127.0.0.1, such as tmdbtest")
+
+// liveInTest says whether a request to u is one a test may not send: the program is running
+// under go test and the host is not this machine. A name other than localhost is not looked
+// up; it is refused.
+func liveInTest(u *url.URL) bool {
+	if !testing.Testing() {
+		return false
+	}
+	host := u.Hostname()
+	if host == "localhost" {
+		return false
+	}
+	ip := net.ParseIP(host)
+	return ip == nil || !ip.IsLoopback()
+}
 
 // Client sends one provider's requests. Make one per provider and share it, so every caller
 // of that provider waits its turn.
@@ -77,6 +102,9 @@ func New(name string, every, maxWait time.Duration) *Client {
 // *Status for any other answer. A request with a body must be built with a body that can be
 // read again (http.NewRequest does that for bytes and strings), since a pause sends it twice.
 func (c *Client) Do(req *http.Request) ([]byte, error) {
+	if liveInTest(req.URL) {
+		return nil, fmt.Errorf("%s: %s: %w", c.name, req.URL.Host, ErrLiveCallInTest)
+	}
 	if req.Header.Get("User-Agent") == "" {
 		req.Header.Set("User-Agent", UserAgent)
 	}
