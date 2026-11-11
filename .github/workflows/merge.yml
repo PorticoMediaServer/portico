@@ -80,6 +80,7 @@ jobs:
         run: python3 ci/engineering_rules.py ${RATCHET_BASE:+--base "$RATCHET_BASE"} ${RATCHET_PREDECESSOR:+--predecessor "$RATCHET_PREDECESSOR"} ${RATCHET_QUEUE_HEAD:+--queue-head "$RATCHET_QUEUE_HEAD"}
       - name: Client-core API ownership ratchet
         env:
+          PORTICO_RATCHET_BUDGET_SECONDS: '360'
           CENSUS_BASE: ${{ steps.ratchet_base.outputs.base }}
           CENSUS_PREDECESSOR: ${{ steps.ratchet_base.outputs.predecessor }}
           CENSUS_QUEUE_HEAD: ${{ github.event.merge_group.head_sha }}
