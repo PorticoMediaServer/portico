@@ -9,12 +9,16 @@ import (
 
 // Account is a person's account on this server (a row of users).
 type Account struct {
-	ID        int64
-	PublicID  string
-	Username  string
-	Email     string
-	Role      string
-	Disabled  bool
+	ID       int64
+	PublicID string
+	Username string
+	Email    string
+	Role     string
+	Disabled bool
+	// State is "active", or why the account cannot sign in now: "waiting" to move after the
+	// kind of sign-in changed, "left" the server, or "not_moved" when the owner finished the
+	// move without it.
+	State     string
 	CreatedAt time.Time
 }
 
@@ -22,8 +26,8 @@ type Account struct {
 func (d *DB) Account(ctx context.Context, id int64) (Account, error) {
 	var u Account
 	var created int64
-	err := d.read.QueryRowContext(ctx, `SELECT id, public_id, username, ifnull(email, ''), role, disabled_at IS NOT NULL, created_at
-		FROM users WHERE id = ?`, id).Scan(&u.ID, &u.PublicID, &u.Username, &u.Email, &u.Role, &u.Disabled, &created)
+	err := d.read.QueryRowContext(ctx, `SELECT id, public_id, username, ifnull(email, ''), role, disabled_at IS NOT NULL, state, created_at
+		FROM users WHERE id = ?`, id).Scan(&u.ID, &u.PublicID, &u.Username, &u.Email, &u.Role, &u.Disabled, &u.State, &created)
 	if errors.Is(err, sql.ErrNoRows) {
 		return u, ErrNotFound
 	}
