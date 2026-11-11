@@ -1,6 +1,7 @@
 package prepare
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -10,7 +11,6 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
 	"github.com/PorticoMediaServer/portico/server-next/internal/inputbridge"
-	"github.com/PorticoMediaServer/portico/server-next/internal/mediatools"
 	"github.com/PorticoMediaServer/portico/server-next/internal/subtitleoffer"
 	"github.com/PorticoMediaServer/portico/server-next/internal/subtitles"
 )
@@ -35,67 +35,90 @@ func TextSubtitle(codec string) bool {
 	return subtitleoffer.TextFormat(codec) || subtitleoffer.TextFormat(subtitles.CodecFormat(codec))
 }
 
-// writeSubtitles writes out the text subtitles inside a part. The streams the scanner
-// recorded say which subtitle tracks are text; a fresh reading of the file gives each one's
-// number in the file, matched by its place among the subtitle tracks. A track that cannot be
-// written out is left out: the copy still plays.
-func (s *Service) writeSubtitles(ctx context.Context, p db.Prepared, part db.Part, number int) {
+// subtitleBundleMax bounds what one file's subtitles may take beside its copy, however many
+// tracks it has: the bundle they are read into is refused past it.
+const subtitleBundleMax = 64 << 20
+
+// writeSubtitles writes out the text subtitles inside a part and returns the bytes written,
+// which count in the copy's size. The streams the scanner recorded say which subtitle tracks
+// are text, by place among the file's subtitle tracks, which is how they are taken from it.
+// The file is read once for all of them, at background
+// priority as the encode is, into a small bundle that each WebVTT file is then made from. A
+// track that cannot be written out is left out: the copy still plays.
+func (s *Service) writeSubtitles(ctx context.Context, p db.Prepared, part db.Part, number int) int64 {
 	var text []int // places among the subtitle tracks
 	place := 0
 	for _, stream := range part.Streams {
 		if stream.Kind != db.StreamSubtitle {
 			continue
 		}
-		if TextSubtitle(stream.Codec) {
+		if TextSubtitle(stream.Codec) && len(text) < decoder.MaxBundledSubtitles {
 			text = append(text, place)
 		}
 		place++
 	}
 	if len(text) == 0 {
-		return
+		return 0
 	}
-	source, size, _, err := s.OpenFile(ctx, part.FileID)
-	if err != nil {
-		return
-	}
-	defer source.Close()
-	facts, err := inputbridge.Inspect(ctx, s.processes, mediatools.Resolve("ffprobe"), source, size)
-	if err != nil {
-		s.Log.Warn("the subtitles inside a file could not be read for its copy", "copy", p.PublicID, "error", err)
-		return
-	}
-	var numbers []int // each subtitle track's number in the file, in order
-	for _, stream := range facts.Streams {
-		if stream.Type == "subtitle" {
-			numbers = append(numbers, stream.Index)
+	key := fmt.Sprintf("%s:%d", p.PublicID, number)
+	warn := func(err error) {
+		if ctx.Err() == nil {
+			s.Log.Warn("the subtitles inside a file could not be written beside its copy", "copy", p.PublicID, "part", number, "error", err)
 		}
 	}
-	for _, n := range text {
-		if n >= len(numbers) {
+	bundle, err := s.bundle(ctx, part, text, key)
+	if err != nil {
+		warn(err)
+		return 0
+	}
+	var written int64
+	for k, n := range text {
+		vtt, err := s.toVTT(ctx, bundle, k, fmt.Sprintf("%s:sub%d", key, n))
+		if err == nil && len(vtt) == 0 {
+			err = fmt.Errorf("the subtitle track is empty")
+		}
+		if err == nil {
+			err = os.WriteFile(s.SubtitleFile(p, number, n), vtt, 0o600)
+		}
+		if err != nil {
+			warn(err)
 			continue
 		}
-		if err := s.writeSubtitle(ctx, p, source, size, number, n, numbers[n]); err != nil && ctx.Err() == nil {
-			s.Log.Warn("a subtitle inside a file could not be written beside its copy", "copy", p.PublicID, "track", numbers[n], "error", err)
-		}
+		written += int64(len(vtt))
 	}
+	return written
 }
 
-func (s *Service) writeSubtitle(ctx context.Context, p db.Prepared, source Source, size int64, part, n, number int) error {
+// bundle reads a part's file once and returns its text subtitles at places (among the
+// file's subtitle tracks, as the scanner recorded them), untouched, as one small Matroska file.
+func (s *Service) bundle(ctx context.Context, part db.Part, places []int, key string) ([]byte, error) {
+	source, size, _, err := s.OpenFile(ctx, part.FileID)
+	if err != nil {
+		return nil, err
+	}
+	defer source.Close()
 	bridge, err := inputbridge.Open(ctx, source, size)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer bridge.Close()
 	reservation, err := bridge.Reserve()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	vtt, err := decoder.RunSubtitleExtract(ctx, s.processes, fmt.Sprintf("%s:%d:sub%d", p.PublicID, part, n), s.FFmpeg, bridge.URL(), reservation, number, "vtt")
+	return decoder.RunSubtitleBundle(ctx, s.processes, key, s.FFmpeg, bridge.URL(), reservation, places, subtitleBundleMax)
+}
+
+// toVTT writes the kth track of a bundle as WebVTT. It reads only the bundle.
+func (s *Service) toVTT(ctx context.Context, bundle []byte, k int, key string) ([]byte, error) {
+	bridge, err := inputbridge.Open(ctx, bytes.NewReader(bundle), int64(len(bundle)))
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if len(vtt) == 0 {
-		return fmt.Errorf("the subtitle track is empty")
+	defer bridge.Close()
+	reservation, err := bridge.Reserve()
+	if err != nil {
+		return nil, err
 	}
-	return os.WriteFile(s.SubtitleFile(p, part, n), vtt, 0o600)
+	return decoder.RunSubtitleToVTT(ctx, s.processes, key, s.FFmpeg, bridge.URL(), reservation, k)
 }
