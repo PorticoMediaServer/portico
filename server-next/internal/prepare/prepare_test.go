@@ -89,7 +89,7 @@ func filmLibrary(t *testing.T) (*db.DB, db.Version) {
 
 func service(t *testing.T, d *db.DB, folder string, now func() time.Time) *Service {
 	t.Helper()
-	store, _, err := settings.Open(context.Background(), d, nil)
+	store, _, err := settings.Open(context.Background(), d)
 	if err != nil {
 		t.Fatal(err)
 	}
