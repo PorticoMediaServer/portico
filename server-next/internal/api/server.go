@@ -201,7 +201,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 		return nil, err
 	}
 	var damaged []error
-	if s.settings, damaged, err = settings.Open(ctx, d, nil); err != nil {
+	if s.settings, damaged, err = settings.Open(ctx, d); err != nil {
 		return nil, err
 	}
 	for _, err := range damaged {
