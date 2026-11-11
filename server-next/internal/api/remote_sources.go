@@ -73,9 +73,17 @@ type RcloneShown struct {
 // RcloneSettings are one remote from an rclone configuration, pasted as rclone config show
 // prints it ("[name]" then "key = value" lines; the remote's own name is not used), and the
 // folder within the remote. On an edit an empty configuration keeps the one stored.
+//
+// Type and Options, in place of Config, make a new remote: rclone's name for the kind of
+// storage (s3, sftp, smb, onedrive, dropbox...) and its options as rclone names them, with
+// passwords as typed. OneDrive and Dropbox take {"token": what `rclone authorize "onedrive"`
+// (or "dropbox") printed}. The remote is kept like a pasted one: none of its options is shown
+// again.
 type RcloneSettings struct {
-	Config string `json:"config,omitempty"`
-	Path   string `json:"path,omitempty"`
+	Config  string            `json:"config,omitempty"`
+	Type    string            `json:"type,omitempty"`
+	Options map[string]string `json:"options,omitempty"`
+	Path    string            `json:"path,omitempty"`
 }
 
 // DriveShown is a Google Drive source as shown: the folder in it, and what it signs in with
@@ -277,6 +285,23 @@ func remoteSettings(kind string, c *remote.Config, secret *remote.Secret, preset
 	return nil
 }
 
+// newRcloneRemote writes a new remote, given by its type and options, as the configuration it
+// is kept as, in place of a pasted one.
+func newRcloneRemote(ctx context.Context, rc *RcloneSettings) error {
+	if rc == nil || rc.Type == "" && len(rc.Options) == 0 {
+		return nil
+	}
+	if rc.Config != "" {
+		return ErrField("rclone", "Paste a remote, or give its type and options, not both.")
+	}
+	config, err := remote.NewRcloneRemote(ctx, rc.Type, rc.Options)
+	if err != nil {
+		return ErrField("rclone", "The remote could not be made: "+err.Error()+".")
+	}
+	rc.Config = config
+	return nil
+}
+
 // driveSettings folds a Drive source's settings in, finishing its sign-in if one is given.
 func (s *Server) driveSettings(ctx context.Context, c *remote.Config, secret *remote.Secret, d *DriveSettings) error {
 	if d == nil {
@@ -307,6 +332,11 @@ func (s *Server) createRemoteSource(r *http.Request, req RemoteSourceCreate) (Re
 	}
 	if req.Kind == "webdav" && req.WebDAV == nil {
 		return RemoteSource{}, ErrField("webdav", "Give the WebDAV address.")
+	}
+	if req.Kind == "rclone" {
+		if err := newRcloneRemote(ctx, req.Rclone); err != nil {
+			return RemoteSource{}, err
+		}
 	}
 	if req.Kind == "rclone" && (req.Rclone == nil || req.Rclone.Config == "") {
 		return RemoteSource{}, ErrField("rclone.config", "Paste the remote from the rclone configuration.")
@@ -347,7 +377,7 @@ func (s *Server) createRemoteSource(r *http.Request, req RemoteSourceCreate) (Re
 	}
 	if hashed.Rclone != nil {
 		rc := *hashed.Rclone
-		rc.Config = ""
+		rc.Config, rc.Options = "", nil
 		hashed.Rclone = &rc
 	}
 	if hashed.Drive != nil {
@@ -379,6 +409,11 @@ func (s *Server) editRemoteSource(r *http.Request, req RemoteSourceEdit) (Remote
 		}
 	}
 	oldAddress := c.Address
+	if row.Kind == "rclone" {
+		if err := newRcloneRemote(ctx, req.Rclone); err != nil {
+			return RemoteSource{}, err
+		}
+	}
 	var secret remote.Secret
 	if err := remoteSettings(row.Kind, &c, &secret, req.Preset, req.Limits, req.WebDAV, req.Rclone); err != nil {
 		return RemoteSource{}, err

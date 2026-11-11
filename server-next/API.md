@@ -521,7 +521,7 @@ The owner's alone. A source's password or key is never sent back; it can only be
 | `GET /v1/admin/remote-sources/{id}/folders?path=` | The folders in one folder of the source, for choosing a library's folders |
 | `POST /v1/admin/remote-sources/drive-sign-in` | Start a Google sign-in with the owner's own OAuth client; the address the browser is sent to is pasted into the Drive source's settings |
 
-A source is `webdav` (an address, user and password), `rclone` (one remote pasted from rclone's configuration, and a folder in it) or `drive` (Google Drive with a service account key or the sign-in above, and a folder in it). rclone and Drive are served by the rclone that comes with Portico.
+A source is `webdav` (an address, user and password), `rclone` (one remote pasted from rclone's configuration, or a new one given as `type` and `options` as rclone names them, and a folder in it; OneDrive and Dropbox take `{"token": …}` as `rclone authorize` printed it, and a OneDrive drive is looked up with Microsoft when no `drive_id` is given) or `drive` (Google Drive with a service account key or the sign-in above, and a folder in it). rclone and Drive are served by the rclone that comes with Portico.
 
 ### Libraries, scans and files (15 so far)
 
