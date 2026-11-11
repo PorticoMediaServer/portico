@@ -52,6 +52,15 @@ type seenAlert struct {
 	Told  bool      `json:"told,omitempty"`
 }
 
+// holdFor is how long a cause lasts before it is told. A failed backup is told at once: its alert
+// appears only when the server has stopped retrying it (console rule 55), so it does not come and go.
+func holdFor(code string) time.Duration {
+	if code == "backup_failed" {
+		return 0
+	}
+	return noticeAfter
+}
+
 // alertKey names one occurrence of an alert's cause: its code and what it is about. A new
 // version is named by its number, so a later version is told although the last is not installed.
 func alertKey(a DashboardAlert) string {
@@ -104,7 +113,7 @@ func (s *Server) tellNewAlerts(ctx context.Context) error {
 			e.Since = now
 		}
 		e.Seen = now
-		if !e.Told && now.Sub(e.Since) >= noticeAfter {
+		if !e.Told && now.Sub(e.Since) >= holdFor(a.Code) {
 			// The notice is sent before the row records it, so a stop between the two sends it
 			// again rather than never.
 			if err := s.notices().Send(ctx, notices.Server, a.Code, a.Params, a.Action.Target); err != nil {
