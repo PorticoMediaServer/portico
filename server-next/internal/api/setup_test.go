@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/hosted"
 )
@@ -46,8 +47,8 @@ func TestSetupCodeAndServerName(t *testing.T) {
 	code := s.setupCode
 	closeDB(s.db)
 	s = openTestServer(t, path)
-	if s.setupCode != code {
-		t.Fatalf("the setup code changed across a restart: %q then %q", code, s.setupCode)
+	if s.setupCode != code || len(auth.CodeKey(code)) != 16 {
+		t.Fatalf("the setup code is %q, then %q after a restart; want the same 16 characters", code, s.setupCode)
 	}
 
 	local := func(body any) int {
@@ -64,10 +65,10 @@ func TestSetupCodeAndServerName(t *testing.T) {
 	if got := local(wrong); got != 429 {
 		t.Fatalf("a sixth wrong code in a row answered %d, want 429", got)
 	}
-	// Another network is not slowed by this one's guesses.
+	// Behind a proxy everyone is one source: the right code gets through the wait strangers made.
 	right := SetupOwnerRequest{SetupCode: code, ServerName: "  Den  ", Username: "Justin", Password: testPassword, Device: device(0)}
-	if w := call(t, s, "POST", "/v1/setup/owner", "", right, nil); w.Code != 200 {
-		t.Fatalf("setup with the right code answered %d: %s", w.Code, w.Body)
+	if got := local(right); got != 200 {
+		t.Fatalf("the right code during the wait answered %d, want 200", got)
 	}
 	var system System
 	r := newRequest("GET", "/v1/system", "", nil)
