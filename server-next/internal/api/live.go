@@ -229,6 +229,16 @@ func (s *Server) programmes(ctx context.Context, v db.Viewer, channels []db.Live
 	if err != nil {
 		return nil, err
 	}
+	// A Library Channel's programme is shown from the title as it is now, and only when the row
+	// is still the title the schedule named: a row id can be used again after a delete.
+	var shown []int64
+	for id := range seen {
+		shown = append(shown, id)
+	}
+	current, err := s.db.ProgrammeTitles(ctx, shown)
+	if err != nil {
+		return nil, err
+	}
 	out := make([][]Programme, len(channels))
 	for n, rows := range all {
 		out[n] = []Programme{}
@@ -238,8 +248,12 @@ func (s *Server) programmes(ctx context.Context, v db.Viewer, channels []db.Live
 			switch {
 			case channels[n].Kind == db.ChannelFromLibrary && p.ItemID == 0:
 				item.Slate = true
-			case channels[n].Kind == db.ChannelFromLibrary && !seen[p.ItemID]:
+			case channels[n].Kind == db.ChannelFromLibrary && seen[p.ItemID] != p.ProgrammeKey:
 				item.NotAvailable = true
+			case channels[n].Kind == db.ChannelFromLibrary:
+				t := current[p.ItemID]
+				item.Title, item.EpisodeTitle, item.Season, item.Episode = t.Title, t.EpisodeTitle, t.Season, t.Episode
+				item.Summary, item.Rating, item.ItemID = t.Summary, t.ContentRating, t.PublicID
 			default:
 				item.Title, item.EpisodeTitle, item.Season, item.Episode = p.Title, p.EpisodeTitle, p.Season, p.Episode
 				item.Summary, item.Rating = p.Summary, p.Rating
