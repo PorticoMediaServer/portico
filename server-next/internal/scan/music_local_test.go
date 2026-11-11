@@ -7,8 +7,9 @@ import (
 )
 
 // An album's album.nfo speaks over its files' tags, its cover is the picture beside it before
-// the one inside its files (the scanner's own cover rule), and what the files and album.nfo
-// gave is never replaced by a provider's answer. A changed album.nfo or cover is read again.
+// the one inside its files (the scanner's own cover rule), and what album.nfo and the files
+// gave is never replaced by a provider's answer, apart from a song's title from its tags, which
+// gives way to the provider's (rule 6). A changed album.nfo or cover is read again.
 func TestAnAlbumsNFOFileAndCoversAreReadAndKept(t *testing.T) {
 	f := newFixture(t, db.LibraryMusic)
 	f.s.Pictures = pictures{}
@@ -44,8 +45,9 @@ func TestAnAlbumsNFOFileAndCoversAreReadAndKept(t *testing.T) {
 	if err := f.d.ApplyDetails(ctx, db.Background, track.ID, db.ItemDetails{Match: db.MatchFound, Title: "Sexy boy"}); err != nil {
 		t.Fatal(err)
 	}
-	if got := f.detail(track.PublicID); got.Title != "Sexy Boy" {
-		t.Errorf("a provider replaced a track's tagged title: %q", got.Title)
+	// A song's tag title gives way to the provider's (rule 6); album.nfo's album title does not.
+	if got := f.detail(track.PublicID); got.Title != "Sexy boy" {
+		t.Errorf("a provider's title did not replace a track's tag title: %q", got.Title)
 	}
 	if stats := f.scan(); stats.RowsWritten != 0 {
 		t.Fatalf("an unchanged rescan wrote %d rows", stats.RowsWritten)
