@@ -123,6 +123,7 @@ func TestAnAccountHeldToHomeAndToViewingHours(t *testing.T) {
 		"hours with no timezone":       `{"viewingHours":{"windows":[{"days":[1],"startMinute":0,"endMinute":60}]}}`,
 		"a rating of 40":               `{"maxRatingAge":40}`,
 		"no profiles at all":           `{"maxProfiles":0}`,
+		"three profiles":               `{"maxProfiles":3}`,
 		"a cap of nothing":             `{"remoteMaxBitrateKbps":0}`,
 		"a label nobody has":           `{"blockedLabels":["tag_nothing"]}`,
 	} {
@@ -298,5 +299,44 @@ func TestALimitsEditChangesOnlyWhatItNames(t *testing.T) {
 	}
 	if got = edit(`{"viewingHours":null}`); got.ViewingHours != nil || !got.HomeOnly {
 		t.Fatalf("lifting the hours left it as %+v", got)
+	}
+}
+
+// How many profiles an account may have is the owner's to lower: an administrator can hold a
+// member to everything else and cannot change that number. The choices are 1, 2 and 4; the
+// full eight is no lower limit.
+func TestOnlyTheOwnerLowersHowManyProfiles(t *testing.T) {
+	s, owner, max, _ := twoMembers(t)
+	addMember(t, s, owner, "ada", "admin")
+	admin := signInAs(t, s, "ada", testPassword, 1).AccessToken
+	edit := func(token, limits string) (int, MemberLimits) {
+		var out Member
+		w := call(t, s, "PATCH", "/v1/admin/members/"+max.ID, token, json.RawMessage(`{"limits":`+limits+`}`), nil)
+		if w.Code == 200 {
+			jsonInto(w, &out)
+		}
+		return w.Code, out.Limits
+	}
+	if code, _ := edit(admin, `{"maxProfiles":2}`); code != 403 {
+		t.Errorf("an administrator lowering the number of profiles answered %d, want 403", code)
+	}
+	if code, got := edit(admin, `{"homeOnly":true}`); code != 200 || !got.HomeOnly || got.MaxProfiles != nil {
+		t.Errorf("an administrator holding a member to home answered %d %+v", code, got)
+	}
+	for _, n := range []string{"1", "2", "4"} {
+		if code, got := edit(owner, `{"maxProfiles":`+n+`}`); code != 200 || got.MaxProfiles == nil {
+			t.Errorf("the owner choosing %s profiles answered %d %+v", n, code, got)
+		}
+	}
+	// An administrator who sends the number back unchanged changes nothing and is not refused;
+	// one who lifts it is.
+	if code, got := edit(admin, `{"maxProfiles":4,"homeOnly":false}`); code != 200 || got.HomeOnly || got.MaxProfiles == nil || *got.MaxProfiles != 4 {
+		t.Errorf("an administrator sending the same number back answered %d %+v", code, got)
+	}
+	if code, _ := edit(admin, `{"maxProfiles":null}`); code != 403 {
+		t.Errorf("an administrator lifting the number of profiles answered %d, want 403", code)
+	}
+	if code, got := edit(owner, `{"maxProfiles":8}`); code != 200 || got.MaxProfiles != nil {
+		t.Errorf("the owner choosing the full eight answered %d %+v, want no lower limit", code, got)
 	}
 }

@@ -32,7 +32,8 @@ type MemberLimits struct {
 	// RemoteMaxBitrateKbps is the most video bitrate the account gets away from home, or
 	// null for no cap of its own.
 	RemoteMaxBitrateKbps *int `json:"remoteMaxBitrateKbps"`
-	// MaxProfiles is how many profiles the account may have, 1 to 8, or null for 8. Lowering
+	// MaxProfiles is how many profiles the account may have: 1, 2 or 4, or null for the full
+	// eight (8 is taken as null). Only the owner changes it, not an administrator. Lowering
 	// it removes no profile.
 	MaxProfiles *int `json:"maxProfiles"`
 	// What the account may do at all. A profile's own switch can only narrow these. The
@@ -79,8 +80,13 @@ func (e *MemberLimitsEdit) UnmarshalJSON(raw []byte) error {
 	return nil
 }
 
-// over lays the edit over the limits as they are and checks the result.
-func (e *MemberLimitsEdit) over(current db.AccountLimits) (db.AccountLimits, error) {
+// over returns the edit as a change to make by someone with this role: it lays the edit
+// over the limits as they are and checks the result.
+func (e *MemberLimitsEdit) over(role string) func(db.AccountLimits) (db.AccountLimits, error) {
+	return func(current db.AccountLimits) (db.AccountLimits, error) { return e.overlay(role, current) }
+}
+
+func (e *MemberLimitsEdit) overlay(role string, current db.AccountLimits) (db.AccountLimits, error) {
 	next := memberLimitsOut(current)
 	var named map[string]json.RawMessage
 	if err := json.Unmarshal(e.sent, &named); err != nil {
@@ -94,6 +100,14 @@ func (e *MemberLimitsEdit) over(current db.AccountLimits) (db.AccountLimits, err
 	}
 	if next.ViewingHours != nil && len(next.ViewingHours.Windows) == 0 {
 		next.ViewingHours = nil // no windows is any time
+	}
+	if next.MaxProfiles != nil && *next.MaxProfiles == db.MaxProfiles {
+		next.MaxProfiles = nil // the full count is no lower limit
+	}
+	// How many profiles an account may have is the owner's to lower, nobody else's.
+	was, now := current.MaxProfiles, next.MaxProfiles
+	if role != "owner" && ((was == nil) != (now == nil) || was != nil && *was != *now) {
+		return current, ErrNotPermitted()
 	}
 	return memberLimitsIn(next)
 }
@@ -110,8 +124,8 @@ func memberLimitsIn(l MemberLimits) (db.AccountLimits, error) {
 		return none, ErrField("limits.blockedLabels", "That is too many labels.")
 	case l.RemoteMaxBitrateKbps != nil && (*l.RemoteMaxBitrateKbps < 100 || *l.RemoteMaxBitrateKbps > 1_000_000):
 		return none, ErrField("limits.remoteMaxBitrateKbps", "Use 100 to 1,000,000 kbps, or null for no cap.")
-	case l.MaxProfiles != nil && (*l.MaxProfiles < 1 || *l.MaxProfiles > db.MaxProfiles):
-		return none, ErrField("limits.maxProfiles", "Use 1 to 8, or null for 8.")
+	case l.MaxProfiles != nil && *l.MaxProfiles != 1 && *l.MaxProfiles != 2 && *l.MaxProfiles != 4:
+		return none, ErrField("limits.maxProfiles", "Choose 1, 2 or 4, or null for the full eight.")
 	}
 	return db.AccountLimits{HomeOnly: l.HomeOnly, Hours: l.ViewingHours, MaxRatingAge: l.MaxRatingAge, AllowUnrated: l.AllowUnrated,
 		BlockedLabels: l.BlockedLabels, RemoteMaxBitrateKbps: l.RemoteMaxBitrateKbps, MaxProfiles: l.MaxProfiles,
