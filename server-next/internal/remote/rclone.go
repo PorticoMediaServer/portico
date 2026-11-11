@@ -115,11 +115,23 @@ var rcloneKey = regexp.MustCompile(`^[a-z0-9_]{1,64}$`)
 
 // rclone is a source reached through rclone: an rclone process serving the remote over
 // WebDAV on a loopback port with a password made for it, read with the WebDAV source. The
-// remote's options go to rclone in its environment, never on its command line, and are
-// written to no file. rclone keeps to each provider's own request rules besides Portico's.
+// remote's options go to rclone in its environment, never on its command line. rclone keeps
+// to each provider's own request rules besides Portico's.
+//
+// A provider's sign-in token expires and rclone gets a new one; some providers (Box, and
+// OneDrive within 90 days) also replace the refresh token. rclone writes the new token to its
+// configuration file, which here is a private file of its own in rclone's home folder, empty
+// at start and deleted when rclone stops. A token rclone wrote there is handed to saved, which
+// keeps it sealed with the source, so the next start signs in with it.
 type rclone struct {
 	options map[string]string
 	root    string // the folder within the remote
+	// saved, when set, keeps a token rclone got. Set before the first use.
+	saved func(token string)
+	// tokenMu guards latest, the token rclone was last given or wrote. It is its own lock
+	// because the token is read after rclone exits, while Close holds mu waiting for that.
+	tokenMu sync.Mutex
+	latest  string
 
 	mu   sync.Mutex
 	cmd  *exec.Cmd
@@ -129,7 +141,7 @@ type rclone struct {
 
 // NewRclone serves one remote, given its options, from a folder within it.
 func NewRclone(options map[string]string, root string) *rclone {
-	return &rclone{options: options, root: strings.Trim(root, "/")}
+	return &rclone{options: options, root: strings.Trim(root, "/"), latest: options["token"]}
 }
 
 // current returns the WebDAV client of the running rclone, starting rclone if it is not
@@ -152,11 +164,20 @@ func (r *rclone) current(ctx context.Context) (*WebDAV, error) {
 	if err != nil {
 		return nil, err
 	}
+	var name [16]byte
+	rand.Read(name[:])
+	config := filepath.Join(home, hex.EncodeToString(name[:])+".conf")
+	if err := os.WriteFile(config, nil, 0o600); err != nil {
+		return nil, err
+	}
 	cmd := exec.Command(RcloneBinary(), "serve", "webdav", "portico:"+r.root, "--read-only", "--addr", "127.0.0.1:0")
 	// Its own process group, killed with the server if the server dies.
 	childprocess.Configure(cmd)
-	cmd.Env = []string{"RCLONE_CONFIG=" + os.DevNull, "RCLONE_USER=portico", "RCLONE_PASS=" + password, "HOME=" + home, "PATH=" + os.Getenv("PATH")}
+	cmd.Env = []string{"RCLONE_CONFIG=" + config, "RCLONE_USER=portico", "RCLONE_PASS=" + password, "HOME=" + home, "PATH=" + os.Getenv("PATH")}
 	for key, value := range r.options {
+		if key == "token" {
+			value = r.token()
+		}
 		cmd.Env = append(cmd.Env, "RCLONE_CONFIG_PORTICO_"+strings.ToUpper(key)+"="+value)
 	}
 	stderr, err := cmd.StderrPipe()
@@ -164,9 +185,11 @@ func (r *rclone) current(ctx context.Context) (*WebDAV, error) {
 		return nil, err
 	}
 	if err := cmd.Start(); err != nil {
+		os.Remove(config)
 		return nil, fmt.Errorf("rclone could not be started: %w", err)
 	}
 	done := make(chan struct{})
+	exited := make(chan struct{})
 	address := make(chan string, 1)
 	go func() {
 		// rclone says where it serves; after that its log is read and dropped.
@@ -181,6 +204,21 @@ func (r *rclone) current(ctx context.Context) (*WebDAV, error) {
 		}
 		io.Copy(io.Discard, stderr)
 		cmd.Wait()
+		close(exited)
+	}()
+	go func() {
+		// Every so often while rclone runs, and once after it stops, look for a new token.
+		tick := time.NewTicker(RcloneTokenCheck)
+		defer tick.Stop()
+		for running := true; running; {
+			select {
+			case <-tick.C:
+			case <-exited:
+				running = false
+			}
+			r.keepToken(config)
+		}
+		os.Remove(config)
 		close(done)
 	}()
 	stop := func() { childprocess.Kill(cmd); <-done }
@@ -202,6 +240,36 @@ func (r *rclone) current(ctx context.Context) (*WebDAV, error) {
 		stop()
 		return nil, ctx.Err()
 	}
+}
+
+// RcloneTokenCheck is how often a running rclone's configuration file is read for a new token.
+var RcloneTokenCheck = time.Minute
+
+// keepToken hands on a token rclone wrote to its configuration file, if it differs from the
+// one the source started with.
+func (r *rclone) keepToken(config string) {
+	if r.saved == nil {
+		return
+	}
+	raw, err := os.ReadFile(config)
+	if err != nil {
+		return
+	}
+	for _, line := range strings.Split(string(raw), "\n") {
+		key, value, ok := strings.Cut(line, "=")
+		if value = strings.TrimSpace(value); ok && strings.TrimSpace(key) == "token" && value != "" && value != r.token() {
+			r.tokenMu.Lock()
+			r.latest = value
+			r.tokenMu.Unlock()
+			r.saved(value)
+		}
+	}
+}
+
+func (r *rclone) token() string {
+	r.tokenMu.Lock()
+	defer r.tokenMu.Unlock()
+	return r.latest
 }
 
 var servingAt = regexp.MustCompile(`http://127\.0\.0\.1:[0-9]{1,5}/`)

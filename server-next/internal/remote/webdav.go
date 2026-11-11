@@ -288,13 +288,43 @@ func (f *davFile) get(off, length int64) (io.ReadCloser, error) {
 	if length > 0 {
 		spec += strconv.FormatInt(off+length-1, 10)
 	}
-	resp, err := f.w.request(f.ctx, http.MethodGet, f.u, "", http.Header{"Range": {spec}})
+	ctx, cancel := context.WithCancel(f.ctx)
+	resp, err := f.w.request(ctx, http.MethodGet, f.u, "", http.Header{"Range": {spec}})
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusPartialContent || !strings.HasPrefix(resp.Header.Get("Content-Range"), fmt.Sprintf("bytes %d-", off)) {
 		resp.Body.Close()
+		cancel()
 		return nil, ErrNoRanges
 	}
-	return resp.Body, nil
+	return &stallLimited{body: resp.Body, cancel: cancel}, nil
+}
+
+// ReadStall is how long one read of a file's bytes may wait for the server to send more
+// before the request is dropped. Without it a server that stops mid-file holds a scan for as
+// long as the scan lives. A player that pauses is not waiting inside a read, so it is not cut.
+var ReadStall = 2 * time.Minute
+
+// ErrStalled says the server stopped sending a file's bytes.
+var ErrStalled = errors.New("the remote source stopped sending the file")
+
+type stallLimited struct {
+	body   io.ReadCloser
+	cancel context.CancelFunc
+}
+
+func (s *stallLimited) Read(p []byte) (int, error) {
+	timer := time.AfterFunc(ReadStall, s.cancel)
+	n, err := s.body.Read(p)
+	if !timer.Stop() && err != nil {
+		err = ErrStalled
+	}
+	return n, err
+}
+
+func (s *stallLimited) Close() error {
+	s.cancel()
+	return s.body.Close()
 }
