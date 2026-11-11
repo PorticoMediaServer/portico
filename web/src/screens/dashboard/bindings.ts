@@ -15,7 +15,8 @@ import {readDocument} from '@core/query/admin-documents.ts';
 import type {ViewerQueries} from '@core/query/viewer-queries.ts';
 import {retryCertificate, type CertificateAction, type CertificateApi} from '@core/certificates.ts';
 import type {FactPart} from '@core/presentation/kit-model/index.ts';
-import {settingsServerHeader} from '../settings/server-header';
+import {storageServerHeader} from '../settings/server-header';
+import {readServerStorage} from '@core/server-admin/server-storage.ts';
 import type {ArtworkSource} from '../../kit/artwork/types';
 export type DashboardEvents = Pick<EventsClient, 'on'> & Partial<Pick<EventsClient, 'onResync' | 'onResyncRead' | 'resyncReads'>>;
 export type DashboardAlert = DashboardStatus['alerts'][number];
@@ -121,11 +122,7 @@ export function createDashboardBindings(options: DashboardBindingOptions): Dashb
       report: (filters, signal, fresh = true) => ownerRead(async () => {const wanted = {...filters, ...context}; const value = await (queries && cachedData ? cached(() => readDocument(queries, dashboardReportQuery(cachedData, wanted), {fresh, signal: waiting(signal)})) : data.report(wanted, signal)); return {...value, load: parseTelemetryReading(value.load)};}),
       people: (filters, cursor, signal) => ownerRead(() => data.people({...filters, ...context}, cursor, 100, signal)),
       plays: (filters, cursor, signal, fresh = true) => queries && cacheApi && !cursor ? cached(() => readDocument(queries, playHistoryFirstPageQuery(cacheApi, {...filters, ...context}), {fresh, signal: waiting(signal)})) : ownerRead(() => fetchPlayHistory(api, {...filters, ...context}, cursor, signal)),
-      server: signal => ownerRead(async () => {
-        const [health, storage] = await Promise.allSettled([consoleClient.measurement('health'), consoleClient.measurement('storage')]);
-        if (signal?.aborted) throw signal.reason;
-        return settingsServerHeader(health.status === 'fulfilled' ? health.value : undefined, storage.status === 'fulfilled' ? storage.value : undefined);
-      }),
+      server: signal => ownerRead(async () => storageServerHeader(await readServerStorage(api, signal))),
     },
     effects: {...options.effects,
       openHistory: () => {assert(true); options.effects.openHistory(context);},

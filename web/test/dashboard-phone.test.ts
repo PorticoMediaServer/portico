@@ -63,19 +63,17 @@ test('the phone Dashboard is a page: its own bar and server header over the stan
   assert.match(html, /Portico demo/);
   assert.match(html, />Updated a few seconds ago</);
   assert.match(html, />Refresh<\/button>/);
-  assert.deepEqual(headings(html).slice(0, 5), ['>Now playing<', '>Alerts<', '>Background activity<', '>Health<', '>Viewing statistics<']);
+  // Health and Viewing statistics come back when server load and the statistics move to the rebuilt server.
+  assert.deepEqual(headings(html).slice(0, 5), ['>Now playing<', '>Alerts<', '>Background activity<']);
   assert.doesNotMatch(html, /class="dashboard"/);
-  for (const label of ['Plays', 'People', 'Hours watched', 'Converted', '15% of plays', 'Most played', 'Most active', 'Play history']) assert.match(html, new RegExp('>' + label + '<'), label);
-  assert.match(html, />31</);
-  assert.match(html, />The Last of Us</);
-  assert.match(html, />sam_k</);
 });
 
 test('the desktop Dashboard keeps its Settings composition and its own section order', () => {
   Object.assign(state, {authority: true, value: {...readValue, ...page}});
   const html = renderToStaticMarkup(createElement(DashboardScreen, {bindings: bindings() as never, embedded: true}));
   assert.doesNotMatch(html, /data-dashboard-page|class="phoneBar"|>Updated a few seconds ago</);
-  assert.deepEqual(headings(html).slice(0, 5), ['>Now playing<', '>Server load<', '>Top people<', '>Play history<', '>Top played<']);
+  // Server load and the statistics come back when they move to the rebuilt server.
+  assert.deepEqual(headings(html).slice(0, 5), ['>Now playing<', '>Background tasks<']);
   assert.doesNotMatch(html, /class="phoneSession"|data-dashboard-page/);
 });
 

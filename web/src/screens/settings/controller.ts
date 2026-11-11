@@ -4,7 +4,7 @@ import {troubleshootingParts, troubleshootingRowShown} from './server/troublesho
 import type {QuietRefreshOutcome} from '@core/freshness-actions.ts';
 import type {QuietInput} from './quiet-refresh';
 import {LOG_DETAIL_MINUTES, type LogDetailMinutes} from '@core/server-administration.ts';
-import {ConsoleClient, type Measurement} from '@core/console.ts';
+import {ConsoleClient} from '@core/console.ts';
 import {PreferencesReader} from '@core/preferences-reader.ts';
 import {validatePreferencePatch, type PreferencePatch, type PreferenceScope, type PreferenceSnapshot} from '@core/preferences.ts';
 import {searchConfiguration, type SettingsConfiguration} from '@core/settings-configuration.ts';
@@ -18,7 +18,9 @@ import {defaultI18n} from '@i18n';
 import type {HttpLocalApi} from '@core/index.ts';
 import type {SettingPresentation} from '../../kit/settings';
 import type {SettingsContext, SettingsPageSnapshot} from './Settings';
-import {settingsServerHeader} from './server-header';
+import {storageServerHeader} from './server-header';
+import {readServerStorage} from '@core/server-admin/server-storage.ts';
+import {notOnThisServer} from '@core/query/server-api.ts';
 import {configurationFieldEligible, settingsRowEligible, type SettingsEligibility} from './eligibility';
 import {settingsRowVisible, settingsSectionVisible, type SettingsEnvironment} from '@core/presentation/settings-visibility.ts';
 import type {SettingsDevicePort} from '../../platform/settings-platform';
@@ -118,8 +120,6 @@ export class SettingsController {
   private closed = false;
   private headerLoading?: Promise<void>;
   private headerLoaded = false;
-  private headerHealth?: Measurement;
-  private headerStorage?: Measurement;
   private readonly quietClients = new Map<string,{client:ConsoleClient;abort:AbortController}>();
   private cancelQuietRead = (id: string) => {const read=this.quietClients.get(id);this.quietClients.delete(id);read?.abort.abort();read?.client.dispose();};
   private async quietRead<T>(id:string,read:(client:ConsoleClient,signal:AbortSignal)=>Promise<T>,install:(value:T)=>void,serial?:number):Promise<QuietRefreshOutcome> {
@@ -142,7 +142,7 @@ export class SettingsController {
     this.publish({});
   };
   private readonly offForms: (() => void)[] = [];
-  private header: ReturnType<typeof settingsServerHeader> = {facts: []};
+  private header: ReturnType<typeof storageServerHeader> = {facts: []};
   constructor(options: SettingsControllerOptions) {
     this.options = options; this.preferences = options.preferences;
     this.sectionReads = new SettingsSectionReads(this.current, () => {for (const listener of this.listeners) listener();});
@@ -173,7 +173,11 @@ export class SettingsController {
   }
   private current = () => !this.closed && this.options.isCurrent();
   private readConfiguration = async () => {
-    const configuration = await (this.options.readConfiguration?.(this.lifetime.signal) ?? this.console.configuration());
+    const configuration = await (this.options.readConfiguration?.(this.lifetime.signal) ?? this.console.configuration()).catch(error => {
+      // The rebuilt server has no configuration document: its settings move page by page.
+      if (notOnThisServer(error)) return undefined;
+      throw error;
+    });
     if (this.current()) this.configuration = configuration;
   };
   getSnapshot = (section: SettingsSection) => this.sectionReads.snapshot(`${section.scope}/${section.id}`);
@@ -292,10 +296,10 @@ export class SettingsController {
   loadServerHeader = (section: SettingsSection): Promise<void> => {
     if (!this.current() || !this.sectionVisible(section)) return Promise.resolve();
     if (section.scope === 'server' && this.forms.runtime && !this.headerLoading) this.headerLoading = (async () => {
-      const [health, storage] = await Promise.allSettled([this.console.measurement('health'), this.console.measurement('storage')]);
+      const storage = await readServerStorage(this.options.api, this.lifetime.signal).catch(() => undefined);
       if (!this.current()) return;
-      this.headerHealth=health.status === 'fulfilled' ? health.value : undefined;this.headerStorage=storage.status === 'fulfilled' ? storage.value : undefined;this.headerLoaded=true;
-      this.header = settingsServerHeader(this.headerHealth,this.headerStorage);
+      this.headerLoaded=true;
+      this.header = storageServerHeader(storage);
       this.publish({});
     })();
     return this.headerLoading ?? Promise.resolve();
@@ -331,16 +335,13 @@ export class SettingsController {
         blocked:()=>this.inputActive || this.writing,settlement:()=>this.writeSerial,
         refresh:async()=>{
           if(!this.current() || this.inputActive || this.writing || !this.sectionReads.hasRead('configuration'))return {kind:'deferred'};
-          return this.quietRead('configuration',(client,signal)=>this.options.readConfiguration?.(signal) ?? client.configuration(),configuration=>{this.configuration=configuration;},this.writeSerial);
+          return this.quietRead('configuration',(client,signal)=>(this.options.readConfiguration?.(signal) ?? client.configuration()).catch(error=>{if(notOnThisServer(error))return undefined;throw error;}),configuration=>{this.configuration=configuration;},this.writeSerial);
         }});
-      for(const name of ['health','storage'] as const)inputs.push({id:`header/${name}`,cancel:()=>this.cancelQuietRead(`header/${name}`),subscribe:this.subscribe,
+      inputs.push({id:'header/storage',cancel:()=>this.cancelQuietRead('header/storage'),subscribe:this.subscribe,
         blocked:()=>!this.headerLoaded,
         refresh:async()=>{
           if(!this.current() || !this.headerLoaded)return {kind:'deferred'};
-          return this.quietRead(`header/${name}`,client=>client.measurement(name),measurement=>{
-            if(name==='health')this.headerHealth=measurement;else this.headerStorage=measurement;
-            this.header=settingsServerHeader(this.headerHealth,this.headerStorage);
-          });
+          return this.quietRead('header/storage',(_client,signal)=>readServerStorage(this.options.api,signal),storage=>{this.header=storageServerHeader(storage);});
         }});
     }
     if(section.scope==='server' && section.id==='libraries') {

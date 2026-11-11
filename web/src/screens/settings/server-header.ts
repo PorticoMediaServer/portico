@@ -1,6 +1,7 @@
 import {defaultI18n, type I18n} from '@i18n';
 import type {Measurement} from '@core/console.ts';
 import {healthFacts} from '@core/server-admin/dashboard.ts';
+import {storageFacts, type ServerStorage} from '@core/server-admin/server-storage.ts';
 import type {FactPart} from '@core/presentation/kit-model/index.ts';
 
 /** The drawn header order, using only measurements returned by the selected server. */
@@ -16,4 +17,13 @@ export function settingsServerHeader(health?: Measurement, storage?: Measurement
   if (available(measured.freeBytes)) facts.push({id: 'free', role: 'value', text: i18n.t('settings.server.health.free', {bytes: i18n.bytes(measured.freeBytes)})});
   if (available(measured.databaseBytes)) facts.push({id: 'database', role: 'value', text: i18n.t('settings.server.health.database', {bytes: i18n.bytes(measured.databaseBytes)})});
   return {health: health?.facts.database ? measured.degraded ? 'attention' : 'normal' : undefined, facts};
+}
+
+/** The header on the rebuilt server, from its storage answer: free space and the database's size. */
+export function storageServerHeader(storage?: ServerStorage, i18n: I18n = defaultI18n): Readonly<{health?: 'normal' | 'attention'; facts: readonly FactPart[]}> {
+  if (!storage) return {facts: []};
+  const measured = storageFacts(storage), facts: FactPart[] = [];
+  if (measured.freeBytes !== undefined) facts.push({id: 'free', role: 'value', text: i18n.t('settings.server.health.free', {bytes: i18n.bytes(measured.freeBytes)})});
+  if (measured.databaseBytes !== undefined) facts.push({id: 'database', role: 'value', text: i18n.t('settings.server.health.database', {bytes: i18n.bytes(measured.databaseBytes)})});
+  return {health: measured.low ? 'attention' : 'normal', facts};
 }
