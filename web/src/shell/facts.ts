@@ -69,7 +69,6 @@ export function createShellFactOwner(o: Readonly<{
   let closed = false, retained = false, confirmedGuide = initial.guide, access: string | undefined = initial.direct ? libraryAccess(initial.direct, admitted.viewer.profileId) : undefined;
   // The shell is keyed on the directory's privacy fence (client data step 5): the first one seen
   // is this shell's, and a different one ends it. A library added or removed moves only the viewer fence.
-  let privacy = o.initial.identity.fences?.privacyFence;
   const current = () => !closed && o.isCurrent();
   // A mounted owner can return the same strictly parsed proof without another
   // network read. Known eligibility changes still retire before its display work.
@@ -135,14 +134,10 @@ export function createShellFactOwner(o: Readonly<{
       const raw = await readLibraryDirectoryResponse(o.api, context.signal);
       const value = parseLibraryList(raw);
       if (!sameRequest(captured, context.signal)) return {kind: 'superseded'};
-      if (value.fences) {
-        if (privacy !== undefined && value.fences.privacyFence !== privacy) {o.retire(); return {kind: 'superseded'};}
-        privacy = value.fences.privacyFence;
-      }
       // Same successful body, separate strict membership witness. Tolerant loss
       // may update labels but cannot ever prove a route absent.
       if (proofTicket) o.libraryRouteProof?.directory(proofTicket, raw);
-      return await publish(context, captured, () => updateIdentity({libraries: value.items, librariesUnavailable: undefined, ...(value.fences ? {fences: value.fences} : {})}));
+      return await publish(context, captured, () => updateIdentity({libraries: value.items, librariesUnavailable: undefined}));
     } catch (error) {return failed(error);}
     // It also proves who the viewer is (its privacy fence), so it keeps running for retained hidden media.
   }, true);

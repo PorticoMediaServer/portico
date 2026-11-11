@@ -1420,11 +1420,11 @@
     "reason": "Approved slice C guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
     "sites": [
       "apps/native/src-next/screens/library/model.ts#4e971c9a12412f91",
-      "apps/native/src-next/screens/library/model.ts#7e32ecf540433e2e"
+      "apps/native/src-next/screens/library/model.ts#773f5daaa12692b2"
     ],
     "guardHashes": {
       "apps/native/src-next/screens/library/model.ts#4e971c9a12412f91": "741e1c5ebbcefdfb335f0119214a366b35ad4720c3820de611efd3c8083c877b",
-      "apps/native/src-next/screens/library/model.ts#7e32ecf540433e2e": "53c23e5e1fcbb8fedaca6e4ea8f86b4f560218dae9e2d7f6b0ff013dd67e97f1"
+      "apps/native/src-next/screens/library/model.ts#773f5daaa12692b2": "7e04060298cb422aa7158d8ebcb53c4779b0f15e08424815456657e95c4403a4"
     }
   },
   "apps/native/src-next/screens/library/save-view.ts": {
@@ -1519,10 +1519,10 @@
     "category": "platform-transport",
     "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
     "sites": [
-      "web/src/screens/browse/controller.ts#54d5e5281c0a4cf3"
+      "web/src/screens/browse/controller.ts#668ba09f50bfc39f"
     ],
     "guardHashes": {
-      "web/src/screens/browse/controller.ts#54d5e5281c0a4cf3": "062354949b4468535c1c4ff38a9c9c4b8eb635a84d014e1ef32fbcb52cec1519"
+      "web/src/screens/browse/controller.ts#668ba09f50bfc39f": "1e6e08ad37d0b124657b7d7b86537ee778194568a3f2f2199339c8d453cd7bb5"
     }
   },
   "web/src/screens/browse/play-selection.ts": {
@@ -1549,10 +1549,10 @@
     "category": "platform-transport",
     "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
     "sites": [
-      "web/src/screens/detail/bindings.ts#fe166b3cbcc3f6a0"
+      "web/src/screens/detail/bindings.ts#04c3cec289334287"
     ],
     "guardHashes": {
-      "web/src/screens/detail/bindings.ts#fe166b3cbcc3f6a0": "811853a8b77232b7bdd4b1245f70206a15df46a8b680a75a6dff7414fbab14b5"
+      "web/src/screens/detail/bindings.ts#04c3cec289334287": "001362548943760ead2ec3f6b3fc0e05dcfa0f3c2aff1aaa96928808f8884d21"
     }
   },
   "web/src/screens/detail/context.ts": {
@@ -1595,13 +1595,13 @@
     "reason": "Approved slice W guard: forwards a named core-built request unchanged; adds only the reviewed lifetime, authority, abort or cleanup policy; constructs nothing.",
     "sites": [
       "web/src/shell/entry-metadata.tsx#150a33a71dd902c4",
-      "web/src/shell/entry-metadata.tsx#c7f646a0471f6e15",
+      "web/src/shell/entry-metadata.tsx#74f93bd1e86be8d7",
       "web/src/shell/entry-metadata.tsx#a43dcffc8886f2de",
       "web/src/shell/entry-metadata.tsx#a019ba1a4a146af7"
     ],
     "guardHashes": {
       "web/src/shell/entry-metadata.tsx#150a33a71dd902c4": "98aa43e8d7d3c946aea0c2671ad29536ac049249f526fa6d3ac14f1113d0685e",
-      "web/src/shell/entry-metadata.tsx#c7f646a0471f6e15": "39cdc283c205cc9c24b7c54b2415252682fc064a55f4766bb7ee6810207df329",
+      "web/src/shell/entry-metadata.tsx#74f93bd1e86be8d7": "f08ebf1ee8694526566dc364a9caa9dcea2c52b987fd5d3ef127f7e444ce9861",
       "web/src/shell/entry-metadata.tsx#a43dcffc8886f2de": "38f227069d0ced556e8e34eb7790160fc38ab4ee7727a30b1dcdcf0e7439c379",
       "web/src/shell/entry-metadata.tsx#a019ba1a4a146af7": "dd4d0a34e00b5931ceff2c61ab6d57ef334ca90971ce6085b75c49c335cfa2e5"
     }

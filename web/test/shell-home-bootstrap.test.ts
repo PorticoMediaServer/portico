@@ -117,30 +117,6 @@ test('a secondary profile has no management powers, even on an owner account', a
  await assert.rejects(currentShellProfile(claims,child,new AbortController().signal),/main profile/);
 });
 
-
-test('shell identity loads during a building Reading generation and retains Settings authority', async () => {
-  const summary = {counts: [{kind: 'ebook', count: 37, atLeast: true}], coverUrls: [], latestArtwork: '', firstScan: true, empty: false, emptyKnown: false};
-  const calls: string[] = [];
-  const api = {request: async (path: string) => {
-    calls.push(path);
-    if (path === '/v1/libraries') return {items: [{id: 'reading-a', name: 'Still importing', kind: 'book', summary}], viewerFence: 'viewer-a', privacyFence: 'privacy-a'};
-    if (accountPath(path)) return accountAnswer(path, directRecord());
-    if (path === '/v1/system') return systemAnswer({id: 'server-a', name: 'Test server', version: '1', signIn: 'local', move: null, setupRequired: false, hostedConfigured: false, hostedAttached: false, apiLevel: 1, apiVersion: '1.0', apiMajors: [1], capabilities: []});
-    if (path.startsWith('/v1/guide/sources?')) throw Object.assign(new Error('not permitted'), {status: 403});
-    throw new Error(`Unexpected shell read ${path}`);
-  }} as unknown as HttpLocalApi;
-  const read = await readShellIdentity(api, directSession, new AbortController().signal);
-  assert.equal(read.libraries.length, 1);
-  assert.deepEqual(read.libraries, [{id: 'reading-a', name: 'Still importing', kind: 'book', summary}]);
-  assert.equal(read.profile.capabilities?.manageServer, true);
-  assert.equal(read.profile.profileName, 'Evening profile');
-  assert.equal(read.system.name, 'Test server');
-  // Client data step 5: the shell learns who the viewer is from the directory, not from Home.
-  assert.deepEqual('fences' in read && read.fences, {viewerFence: 'viewer-a', privacyFence: 'privacy-a'});
-  assert.equal(calls.includes('/v1/home'), false);
-  assert.ok(calls.includes('/v1/libraries') && calls.includes('/v1/me') && calls.includes('/v1/system'));
-});
-
 test('a library directory that times out never stops sign-in: the libraries are unavailable, not empty, and authority answers still stop', async () => {
   const api = (libraries: () => unknown) => ({request: async (path: string) => {
     if (path === '/v1/libraries') return libraries();

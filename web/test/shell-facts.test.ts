@@ -76,13 +76,6 @@ test('independent server inputs retain each failure and full floor, even beside 
   assert.equal(reads(),1,'system retry or wake cannot shorten independent preference floor');
   h.preferenceFailure(undefined);await h.time.advance(7200000);assert.equal(reads(),2);h.dispose();
 });
-test('the directory\'s privacy fence keys the shell: a library added keeps it, another viewer or what they may see retires it', async () => {
-  const h=harness();h.rename();h.owner.request('directory');await h.time.advance(1500);
-  assert.equal(h.counts().retired,0);assert.equal(h.owner.source.getSnapshot().identity.libraries[0].name,'Cinema');
-  assert.deepEqual(h.owner.source.getSnapshot().identity.fences,{viewerFence:'directory',privacyFence:'privacy'});
-  h.privacy('another-viewer');h.owner.authority();await h.time.advance(1500);
-  assert.equal(h.counts().retired,1);h.dispose();
-});
 
 test('a members hint whose answer leaves library access as it was reads nothing more', async () => {
   const h=harness();

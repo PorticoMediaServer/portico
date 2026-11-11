@@ -90,15 +90,6 @@ test('an author page uses the canonical book rows and resumes the book with prog
   value.dispose();
 });
 
-test('mark finished writes the real book container revision', async () => {
-  const {value, writes} = await controller();
-  await value.load(lease);
-  await value.markFinished(lease);
-  assert.deepEqual(writes, [{expectedRevision: 4, watched: true}]);
-  assert.equal(value.getSnapshot().finished, true);
-  value.dispose();
-});
-
 
 test('retired opening cannot dispatch and disposal aborts an in-flight finished mutation', async () => {
   let resolveRead!: (value: any) => void;

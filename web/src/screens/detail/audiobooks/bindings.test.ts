@@ -38,8 +38,3 @@ test('a forged row or retired authority cannot start playback', async () => {
   await assert.rejects(h.binding.play(page, {...row}), {name: 'AbortError'});
   h.retire();await assert.rejects(h.binding.primary(page), {name: 'AbortError'});assert.deepEqual(h.starts, []);h.binding.dispose();
 });
-test('a superseded projection cannot authorize a command', async () => {
-  const h = harness();await h.binding.load();const page = h.binding.service.getSnapshot().projection!;
-  await h.moved();await h.binding.load();assert.notEqual(h.binding.service.getSnapshot().projection, page);
-  await assert.rejects(h.binding.primary(page), {name: 'AbortError'});h.binding.dispose();
-});

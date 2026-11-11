@@ -28,12 +28,12 @@ export function createNativeSavedSelection(context: NativeShellBootstrapContext,
       const lists = [snapshot.myList, snapshot.myListSquares, snapshot.favorites].flatMap((list, index) => list?.projection
         ? [{id: String(index), list, projection: list.projection}] : []);
       const first = lists[0]?.projection;
-      const key = JSON.stringify(lists.map(({id, list, projection}) => [id, list.route, projection.scope.viewerFence, projection.revision, projection.query]));
+      const key = JSON.stringify(lists.map(({id, list, projection}) => [id, list.route, projection.query]));
       const admitted = snapshot.phase === 'ready' && first && viewer && (authority === 'local' || authority === 'hosted');
       return {key, witness: snapshot.myList, context: admitted ? {
         scope: {serverId: viewer.serverId, authority, accountId: viewer.accountId, profileId: viewer.profileId,
           viewId: JSON.stringify(['native-saved', snapshot.myList.route, first.scope.entityId]), privacyFence: first.scope.viewerFence},
-        revision: {catalogRevision: String(first.revision.catalog), viewerRevision: String(first.revision.viewer)},
+        revision: {catalogRevision: '0', viewerRevision: '0'},
       } : null, sections: lists.flatMap(({id, projection}) => projection.sections.map(section => ({id: `${id}:${section.id}`,
         entries: section.entries.filter((entry): entry is ContentEntry => entry.kind !== 'playlist' && entry.kind !== 'playlist_entry' && entry.kind !== 'reading_group')})))};
     },
@@ -54,7 +54,7 @@ export function createNativeSavedViewSelection(context: NativeShellBootstrapCont
       const fence = projection?.scope.viewerFence ?? personal?.viewerFence;
       const admitted = !snapshot.error && !snapshot.saved?.error && !personal?.error && !!fence
         && (snapshot.phase === 'ready' || snapshot.phase === 'loading' && !!(projection || personal?.resource || personal?.entries.length));
-      const revision = projection ? {catalogRevision: String(projection.revision.catalog), viewerRevision: String(projection.revision.viewer)}
+      const revision = projection ? {catalogRevision: '0', viewerRevision: '0'}
         : {catalogRevision: JSON.stringify(['saved-resource', personal?.resource?.revision ?? personal?.revision]), viewerRevision: JSON.stringify(['saved', personal?.revision])};
       const entries = (projection?.sections ?? []).map(section => ({id: section.id, entries: section.entries.flatMap(entry =>
         entry.kind === 'playlist_entry' ? entry.hidden ? [] : [entry.media]

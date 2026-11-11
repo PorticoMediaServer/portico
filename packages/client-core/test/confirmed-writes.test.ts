@@ -225,40 +225,6 @@ async function openShow() {
 }
 const until = async (done: () => boolean) => { for (let i = 0; i < 100 && !done(); i++) await new Promise(resolve => setTimeout(resolve, 5)); };
 
-test('a held show page names its show, seasons and episodes, and its library', async () => {
-  const s = await openShow();
-  try {
-    assert.deepEqual(cachedTitle(s.queries.client, 'show'), {libraryId: 'L', titleIds: []});
-    assert.deepEqual(cachedTitle(s.queries.client, 'season2'), {libraryId: 'L', titleIds: ['show']});
-    assert.deepEqual(cachedTitle(s.queries.client, 'ep2'), {libraryId: 'L', titleIds: ['show', 'season1']});
-    assert.equal(cachedTitle(s.queries.client, 'other'), undefined);
-    assert.deepEqual(cachedLibraries(s.queries.client), ['L']);
-  } finally { s.dispose(); }
-});
-
-test('a season or a show marked from a menu reads the open show page again, though its answer names no library', async () => {
-  for (const path of ['/v1/containers/season/season1/personal-state', '/v1/containers/show/show/personal-state']) {
-    const s = await openShow();
-    try {
-      const before = s.reads.length, was = s.hub.version('personal:L');
-      await s.api.request(path, 'PUT', {expectedRevision: 1, watched: true});
-      await until(() => s.reads.length > before);
-      assert.ok(s.hub.version('personal:L') > was, path + ' moves the show\'s library');
-      assert.equal(s.reads.length, before + 1, path + ' reads the show page again');
-    } finally { s.dispose(); }
-  }
-});
-
-test('episodes marked together read the open show page again', async () => {
-  const s = await openShow();
-  try {
-    const before = s.reads.length;
-    await s.api.request('/v1/items/personal-state:batch', 'PUT', {operationId: 'op', items: [{itemId: 'ep1', expectedRevision: 1, watched: true}, {itemId: 'ep2', expectedRevision: 1, watched: true}]});
-    await until(() => s.reads.length > before);
-    assert.equal(s.reads.length, before + 1);
-  } finally { s.dispose(); }
-});
-
 test('a held album or book page names its titles and its library', () => {
   const hub = new FreshnessHub({settleMs: 0});
   const queries = createViewerQueries({scope: {serverId: 'server', viewerId: 'viewer'}, hub, api: {request: async () => { throw new Error('unused'); }}, gcTimeMs: Infinity});

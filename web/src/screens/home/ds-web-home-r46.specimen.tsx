@@ -48,10 +48,10 @@ const album = (id: string, title: string, artist: string, poster: string) =>
   entry(id, 'album', title, {artist: {id: `artist-${id}`, name: artist}, posterUrl: photo(poster)});
 
 const row = (id: string, code: string, title: string, artworkShape: HomeRow['artworkShape'], entries: readonly HomeEntry[], extra: Partial<HomeRow> = {}): HomeRow => ({
-  id, viewerFence: 'ds-web-home-r46', title, titleText: {code, fallback: title}, kind: id, artworkShape,
+  id, title, titleText: {code, fallback: title}, kind: id, artworkShape,
   endpoint: `/v1/home/rows/${id}`, privacySensitivity: 'personal', policyState: 'available', priority: 10,
   required: false, hideable: true, reorderable: true, critical: false, cursorCapable: true,
-  entries, total: entries.length, start: 0, limit: 20, hasMore: false, nextCursor: '', revision: {catalog: 1, viewer: 1}, ...extra,
+  entries, total: entries.length, start: 0, limit: 20, hasMore: false, nextCursor: '', ...extra,
 });
 
 const lastOfUs = episode('ep-last-of-us', "When You're Lost in the Darkness", 'The Last of Us', 'show-last-of-us', 1, 1, 4920, 1080, 'bd-tlou.jpg');
@@ -190,8 +190,8 @@ const spotlight: readonly HomeSpotlight[] = [
 ];
 
 const homeDocument: HomeDocument = {
-  serverId: 'specimen', viewerFence: 'ds-web-home-r46', rows, spotlight: spotlight.map(slide => slide),
-  layout: {revision: 1, rowOrder: rows.map(value => value.id), hiddenRowIds: []}, revision: {catalog: 1, viewer: 1}, generatedAt: now,
+  rows, spotlight: spotlight.map(slide => slide),
+  layout: {revision: 1, rowOrder: rows.map(value => value.id), hiddenRowIds: []},
 };
 
 /** mock.html#extras uses exactly these three artwork states; the entries carry only what they have. */

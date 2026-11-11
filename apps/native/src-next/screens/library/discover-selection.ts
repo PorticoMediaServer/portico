@@ -20,14 +20,14 @@ export function discoverSelectionSource(source: Readonly<{subscribe: (listener: 
       const groups: NativeSelectionGroup[] = discover.appended
         .filter(section => section.entries.length)
         .map(section => ({id: `discover:${section.id}`, items: section.entries.filter((entry): entry is ContentEntry => !!entry.id)}));
-      const viewId = JSON.stringify(['native-library-discover', state.library.id, state.tab.id, projection?.revision.catalog ?? 0, projection?.revision.viewer ?? 0, state.queryRevision]);
+      const viewId = JSON.stringify(['native-library-discover', state.library.id, state.tab.id, state.queryRevision]);
       // Only a loaded discover page from the signed-in viewer supplies a context; until then
       // there is nothing Select could truthfully join.
       const admitted = current() && state.phase === 'ready' && discover.phase === 'ready' && !!projection && !!account
         && (account.authority === 'local' || account.authority === 'hosted') && viewId.length <= 4096;
       const context: SelectionContext | undefined = admitted
         ? {scope: {serverId: account.serverId, authority: account.authority as 'local' | 'hosted', accountId: account.accountId, profileId: account.profileId,
-          viewId, privacyFence: projection.scope.viewerFence}, revision: {catalogRevision: String(projection.revision.catalog), viewerRevision: String(projection.revision.viewer)}}
+          viewId, privacyFence: 'opened'}, revision: {catalogRevision: '0', viewerRevision: '0'}}
         : undefined;
       return {key: viewId, context, groups};
     },

@@ -106,8 +106,7 @@ export type ContentProjection = Readonly<{
   heading: ContentHeading;
   entity?: ContentEntry;
   listening?: ListeningJourney;
-  scope: Readonly<{ serverId: string; libraryId: string; libraryKind: string; view: ContentSurface; entityId: string; viewerFence: string }>;
-  revision: Readonly<{ catalog: number; viewer: number }>;
+  scope: Readonly<{ serverId: string; libraryId: string; libraryKind: string; view: ContentSurface; entityId: string }>;
   navigation: readonly Readonly<{ id: string; labelKey: string; view: ContentView }>[];
   query: Readonly<{ sort: string; direction: string; category: string; q: string; limit: number; searchMode: 'none' | 'title_prefix' }>;
   sorts: readonly Readonly<{ id: string; labelKey: string; directions: readonly ('asc' | 'desc')[] }>[];
@@ -350,7 +349,7 @@ function scope(input: ContentScope): ContentScope {
 function projection(raw: unknown, expected: ContentRoute, bound: ContentScope, pageSize: number): ContentProjection {
   if (!record(raw) || !record(raw.scope) || !record(raw.revision) || !record(raw.query)) invalid();
   const s = raw.scope, r = raw.revision, q = raw.query;
-  if (s.serverId !== bound.serverId || s.libraryId !== (expected.libraryId ?? '') || s.view !== expected.view || s.entityId !== (expected.entityId ?? '') || !id(s.viewerFence) || !id(s.libraryKind)) invalid();
+  if (s.serverId !== bound.serverId || s.libraryId !== (expected.libraryId ?? '') || s.view !== expected.view || s.entityId !== (expected.entityId ?? '') || !id(s.libraryKind)) invalid();
   if (!count(r.catalog) || !count(r.viewer)) invalid();
   // A search mode this app does not know reads as no search.
   const searchMode = oneOfOr('content', 'query.searchMode', q.searchMode, ['none', 'title_prefix'] as const, 'none');
@@ -401,7 +400,7 @@ function projection(raw: unknown, expected: ContentRoute, bound: ContentScope, p
   if (raw.listening !== undefined && raw.listening !== null) { try { listening = parseListeningJourney(raw.listening, s.libraryId as string); } catch { noteSkipped('content', 'listening'); } }
   let empty: ContentHeading | undefined;
   if (raw.empty !== undefined && raw.empty !== null) { try { empty = heading(raw.empty); } catch { noteSkipped('content', 'empty'); } }
-  return Object.freeze({ ...(entity?{entity}:{}), ...(listening?{listening}:{}), heading: headingOr(raw.heading, s.view as string), scope: Object.freeze({ serverId: s.serverId as string, libraryId: s.libraryId as string, libraryKind: s.libraryKind as string, view: s.view as ContentSurface, entityId: s.entityId as string, viewerFence: s.viewerFence as string }), revision: Object.freeze({ catalog: r.catalog, viewer: r.viewer }), query: Object.freeze({ sort: q.sort, direction: q.direction, category: q.category, q: q.q, limit: q.limit, searchMode }), navigation: Object.freeze(navigation), sorts: Object.freeze(sorts), filters: Object.freeze(filters), sections: Object.freeze(sections), ...(empty ? { empty } : {}) });
+  return Object.freeze({ ...(entity?{entity}:{}), ...(listening?{listening}:{}), heading: headingOr(raw.heading, s.view as string), scope: Object.freeze({ serverId: s.serverId as string, libraryId: s.libraryId as string, libraryKind: s.libraryKind as string, view: s.view as ContentSurface, entityId: s.entityId as string }), query: Object.freeze({ sort: q.sort, direction: q.direction, category: q.category, q: q.q, limit: q.limit, searchMode }), navigation: Object.freeze(navigation), sorts: Object.freeze(sorts), filters: Object.freeze(filters), sections: Object.freeze(sections), ...(empty ? { empty } : {}) });
 }
 type Page = { cursor: string | null; sectionId?: string };
 const seenEntries = new WeakMap<ContentSection, Set<string>>();
@@ -454,7 +453,6 @@ export function libraryContentPages(options: Readonly<{ api: LibraryContentApi; 
   const bound = scope(options.scope), selected = route(options.route), pageSize = options.pageSize ?? 40;
   if (!contentViewRehydratable(selected.view) || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) throw new Error('Invalid content window.');
   const changed = () => new ContentFailure('stale_continuation', 'The library changed. Refresh to continue.', true);
-  let pinned: Readonly<{ viewerFence: string; catalog: number }> | undefined;
   return async (start, count, signal) => {
     if (!Number.isSafeInteger(start) || start < 0 || !Number.isInteger(count) || count < 1 || count > pageSize) throw new Error('Invalid content window page.');
     const query = new URLSearchParams({ view: selected.view, limit: String(count) });
@@ -462,12 +460,10 @@ export function libraryContentPages(options: Readonly<{ api: LibraryContentApi; 
     if (start > 0) query.set('start', String(start));
     const raw = await options.api.request<unknown>(encodedRoutePath("get_libraries_id_content", {"id": encodeURIComponent(selected.libraryId)}) + "?" + query, 'GET', undefined, signal);
     const result = projection(raw, selected, bound, pageSize);
-    if (pinned && (result.scope.viewerFence !== pinned.viewerFence || result.revision.catalog !== pinned.catalog)) throw changed();
     // The server leaves out an empty section: an empty library at the top, or a list that shrank under a later page.
     const grid = result.sections.find(section => section.id === 'items' && section.type === 'grid');
-    if (!grid) { if (start > 0) throw changed(); pinned ??= Object.freeze({ viewerFence: result.scope.viewerFence, catalog: result.revision.catalog }); options.onPage?.(Object.freeze({ ...result, sections: Object.freeze([]) })); return { items: Object.freeze([]), total: 0 }; }
+    if (!grid) { if (start > 0) throw changed(); options.onPage?.(Object.freeze({ ...result, sections: Object.freeze([]) })); return { items: Object.freeze([]), total: 0 }; }
     if ((grid.start ?? 0) !== start || grid.entries.length > count) invalid();
-    pinned ??= Object.freeze({ viewerFence: result.scope.viewerFence, catalog: result.revision.catalog });
     options.onPage?.(Object.freeze({ ...result, sections: Object.freeze([]) }));
     return { items: grid.entries, total: grid.totalCount };
   };
@@ -596,15 +592,6 @@ export class LibraryContentService {
     });
   }
   private mergeHead(route: ContentRoute, result: ContentProjection): void {
-    if (result.scope.viewerFence !== this.snapshot.projection?.scope.viewerFence) {
-      // An old tail and its cursors belong to the previous visibility policy.
-      this.history = []; this.current = { cursor: null };
-      this.operation = { route, page: this.current, history: [], fence: null };
-      this.publish({ projection: result, sections: result.sections, appended: result.sections, error: null,
-        head: Object.freeze({ serial: ++this.headSerial, sections: result.sections }),
-        pagination: Object.freeze({ cursor: null, canPrevious: false, next: Object.freeze(result.sections.filter(s => s.nextCursor).map(s => Object.freeze({ sectionId: s.id, cursor: s.nextCursor }))) }) });
-      return;
-    }
     // Nothing changed on the first page: nothing is published, so nothing re-renders.
     if (this.current.cursor === null && JSON.stringify(result) === JSON.stringify(this.snapshot.projection)) return;
     const head = Object.freeze({ serial: ++this.headSerial, sections: result.sections });

@@ -215,7 +215,6 @@ export class NativeLibraryDestination {
     const session: BrowseSession<ContentEntry> = new BrowseSession<ContentEntry>({query: this.query(capabilities, tab, predicates, sort),
       request: (path, method, body, signal) => this.request(path, method, body, signal),
       ...(this.options.api.requestRaw ? {requestRaw: this.options.api.requestRaw.bind(this.options.api)} : {}),
-      onPreparationError: error => this.publish({error}),
       current: () => this.current() && (this.session === session || this.replacing === session) && this.state.phase === 'ready',
       item: entry => entry,
       onRevision: revision => this.publish({revision}),

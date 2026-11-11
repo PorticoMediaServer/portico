@@ -91,8 +91,7 @@ export class NativeShellBootstrapServices {
     this.home = new HomeService({request: <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal) =>
       (method ?? 'GET') === 'GET' && body === undefined && path.split('?')[0] === routePath('get_home')
         ? homeReads<T>(path, signal, shared => {logHomeRead(); return this.call<T>('home', path, method, body, shared);})
-        : this.call<T>('home', path, method, body, signal)},
-      options.deviceClass === 'television' ? {initialLimit: 20} : {});
+        : this.call<T>('home', path, method, body, signal)});
     // Core disposal aborts owned reads but retains its last snapshot. A retained runtime
     // must never expose that body after this authority has been retired.
     const readHome = this.home.getSnapshot;

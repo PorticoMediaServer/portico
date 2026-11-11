@@ -52,20 +52,20 @@ function CheckedMetadata({value}: {value: Open & {target: EntryActionTarget}}) {
     }).catch(() => {if (current(value)) setFailed(true);});
     return () => {service.dispose(); value.lifetime.abort();};
   }, [api, value]);
-  const metadataApi = useMemo(() => ({async request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> {
-    if (!data || !current(value)) throw new DOMException('Metadata grant retired', 'AbortError');
+  const metadataApi = useMemo(() => {
+    // Requests pass only while this title's details are loaded and this opening is still the current one.
+    const isLive = () => data !== undefined && current(value);
+    return {async request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> {
+    if (!isLive()) throw new DOMException('Metadata grant retired', 'AbortError');
     const result = await api.request<T>(path, method, body, signal);
-    if (!current(value)) throw new DOMException('Metadata grant retired', 'AbortError');
-    // Every full editing document must retain the fresh Detail viewer fence.
-    if (result && typeof result === 'object' && 'viewerFence' in result && result.viewerFence !== data.scope.viewerFence) throw new Error('metadata-fence-mismatch');
+    if (!isLive()) throw new DOMException('Metadata grant retired', 'AbortError');
     return result;
   }, ...(value.ports.api.requestMetadataUpload ? {async requestMetadataUpload<T>(path: string, body: FormData, signal?: AbortSignal): Promise<T> {
     if (!data || !current(value)) throw new DOMException('Metadata grant retired', 'AbortError');
     const result = await value.ports.api.requestMetadataUpload!<T>(path, body, signal ? AbortSignal.any([signal, value.lifetime.signal]) : value.lifetime.signal);
     if (!current(value)) throw new DOMException('Metadata grant retired', 'AbortError');
-    if (result && typeof result === 'object' && 'viewerFence' in result && result.viewerFence !== data.scope.viewerFence) throw new Error('metadata-fence-mismatch');
     return result;
-  }} : {})}), [api, data, value]);
+  }} : {})};}, [api, data, value]);
   const scope = useMemo(() => ({serverId: value.ports.serverId, viewerId: value.ports.viewerId}), [value]);
   const target = useMemo(() => ({kind: 'item' as const, id: value.target.itemId, libraryId: value.target.libraryId}), [value]);
   return <Dialog open responsive={false} onOpenChange={open => {if (!open) close();}} title={defaultI18n.t('next.home.editSelection')}

@@ -9,11 +9,11 @@ import {viewerQueriesFor} from './freshness';
 /** The current queue song's own detail. The object is an issued offer token: only a read from
  * this port can produce one, and favorite() accepts it back only while everything it names
  * (target, fence, opening lifetime, offer and personal revision) is still the same document. */
-export type NativeListeningSong = Readonly<{itemId: string; libraryId: string; favorite: boolean; revision: number; actions: readonly DetailAction[]}>;
+export type NativeListeningSong = Readonly<{itemId: string; libraryId: string; favorite: boolean; actions: readonly DetailAction[]}>;
 
 type Bound = Readonly<{viewer: string; family: string; authority: string; navigation: number; fence: QueuePlaybackFence;
   lifetime: NativePlaybackReadLifetime; target: Readonly<{itemId: string; libraryId: string}>; scope: DetailScope; live: () => boolean}>;
-type Offer = Readonly<{bound: Bound; revision: number; favorite: boolean; viewerFence: string}>;
+type Offer = Readonly<{bound: Bound; favorite: boolean}>;
 
 const cancelled = () => Object.assign(new Error('cancelled'), {name: 'AbortError', code: 'cancelled'});
 const conflict = (error: unknown) => (error as {code?: unknown} | null)?.code === 'personal_state_conflict';
@@ -121,8 +121,8 @@ export function createNativeListeningSongDetail(context: NativeShellBootstrapCon
         if (opened.operation.abort.signal.aborted || !bound.live()) return;
         const data = opened.data;
         const token: NativeListeningSong = Object.freeze({itemId: bound.target.itemId, libraryId: bound.target.libraryId,
-          favorite: data.personal.favorite, revision: data.personal.revision, actions: data.actions});
-        issued.set(token, Object.freeze({bound, revision: data.personal.revision, favorite: data.personal.favorite, viewerFence: data.scope.viewerFence}));
+          favorite: data.personal.favorite, actions: data.actions});
+        issued.set(token, Object.freeze({bound, favorite: data.personal.favorite}));
         return token;
       } finally {opened.close();}
     },
@@ -135,8 +135,8 @@ export function createNativeListeningSongDetail(context: NativeShellBootstrapCon
       try {
         const data = opened.data, action = data.actions.find(entry => entry.id === 'favorite');
         // The fresh projection must still be the exact document the heart drew.
-        if (opened.operation.abort.signal.aborted || !bound.live() || data.scope.viewerFence !== offer.viewerFence
-          || data.scope.libraryId !== token.libraryId || data.item.id !== token.itemId || data.personal.revision !== offer.revision
+        if (opened.operation.abort.signal.aborted || !bound.live()
+          || data.scope.libraryId !== token.libraryId || data.item.id !== token.itemId
           || data.personal.favorite !== offer.favorite || data.personal.favorite === value || !action?.enabled) return false;
         await opened.service.mutate({action: 'favorite', value});
         const accepted = opened.service.getSnapshot().data;

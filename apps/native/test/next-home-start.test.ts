@@ -12,13 +12,13 @@ import {tvFocusIds, tvHomeRegionMap} from '../src-next/shell/tv-focus';
 const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'opening', viewerFence: 'viewer'};
 const ids = tvFocusIds(authority);
 const entry: HomeEntry = {id: 'song', kind: 'song', libraryId: 'music', title: 'Offered song'};
-const row: HomeRow = {id: 'music', title: 'Music', kind: 'ordinary', artworkShape: 'square', viewerFence: authority.viewerFence,
+const row: HomeRow = {id: 'music', title: 'Music', kind: 'ordinary', artworkShape: 'square',
   endpoint: '/home/music', privacySensitivity: 'viewer', policyState: 'allowed', priority: 0, required: false, hideable: true,
   reorderable: true, critical: false, cursorCapable: false, entries: [entry], total: 1, start: 0, limit: 20, hasMore: false,
-  nextCursor: '', revision: {catalog: 1, viewer: 1}};
+  nextCursor: ''};
 function document(rows: readonly HomeRow[] = [], spotlight: HomeDocument['spotlight'] = []): HomeDocument {
-  return {serverId: authority.serverId, viewerFence: authority.viewerFence, rows, spotlight,
-    layout: {revision: 1, rowOrder: rows.map(value => value.id), hiddenRowIds: []}, revision: {catalog: 1, viewer: 1}, generatedAt: '2026-10-26T00:00:00Z'};
+  return {rows, spotlight,
+    layout: {revision: 1, rowOrder: rows.map(value => value.id), hiddenRowIds: []}};
 }
 function fixture(value: HomeDocument, renderedRows = value.rows.map(item => item.id), mixesReady = false) {
   const registry = createFocusRegistry(), graph = tvHomeRegionMap(authority, renderedRows);
@@ -119,15 +119,6 @@ test('Home start follows the committed rendered row order and skips only explici
   assert.deepEqual(f.resolve().address, firstAddress, 'latest document order cannot replace the actual retained Home order');
   f.registry.configure({...f.graph.rows.get(row.id)!, enabled: false});
   assert.deepEqual(f.resolve().address, laterAddress);
-});
-
-test('real mixes are a fallback before Customize and unresolved or foreign documents never yield', () => {
-  const f = fixture(document(), [homeMixesFocusRow], true), address = {regionId: ids.row(homeMixesFocusRow), childId: 'mix'};
-  f.attach(address); f.attach(ids.last); assert.deepEqual(f.resolve().address, address);
-  for (const value of [undefined, {...document(), serverId: 'other'}, {...document(), viewerFence: 'other'}]) {
-    const start = resolveTVHomeStart(f.registry, homeStartModel(value, authority, {mixesReady: true}));
-    assert.equal(start.kind, 'waiting'); assert.equal(canYieldTVHomeMenu(start, address, clear), false);
-  }
 });
 
 test('Menu yields only at that same actual Home start with all other owners absent', () => {

@@ -11,7 +11,7 @@ export type NativeTitleCreditsSnapshot = Readonly<{
 const changed = () => Object.assign(new Error('stale_continuation'), {code: 'stale_continuation'});
 
 export type NativeTitleCreditsOptions = Readonly<{
-  id: string; revision: CreditPage['revision']; credits: readonly DetailCredit[];
+  id: string; credits: readonly DetailCredit[];
   totals?: Readonly<{cast: number; crew: number}>;
   current: () => boolean;
   read: (group: 'cast' | 'crew', cursor: string | undefined, signal: AbortSignal) => Promise<CreditPage>;
@@ -36,7 +36,7 @@ export class NativeTitleCredits {
   }
   getSnapshot = () => this.state;
   private current = () => !this.disposed && this.options.current();
-  private waitingId(group: 'cast' | 'crew', cursor?: string) {return JSON.stringify(['title-credits', this.options.id, this.options.revision, group, cursor ?? null]);}
+  private waitingId(group: 'cast' | 'crew', cursor?: string) {return JSON.stringify(['title-credits', this.options.id, group, cursor ?? null]);}
   private nextGroup(): 'cast' | 'crew' | undefined {
     for (const group of ['cast', 'crew'] as const) {
       const page = this.pages.get(group);
@@ -62,7 +62,7 @@ export class NativeTitleCredits {
       try {
         const page = await this.options.read(group, cursor, request.signal);
         if (!current()) return;
-        if (page.group !== group || page.revision.catalog !== this.options.revision.catalog || page.revision.viewer !== this.options.revision.viewer) throw changed();
+        if (page.group !== group) throw changed();
         const seen = this.cursors.get(group) ?? new Set<string>();
         if (page.nextCursor && (page.nextCursor === cursor || seen.has(page.nextCursor))) throw changed();
         if (cursor) seen.add(cursor); this.cursors.set(group, seen);

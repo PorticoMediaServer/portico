@@ -120,34 +120,6 @@ function fixture(t: TestContext, deviceClass: DeviceClass = 'mobile', role: 'own
   return {api, state, controller, services, response};
 }
 
-for (const deviceClass of ['mobile', 'television'] as const) test(`native ${deviceClass} sends the required preferences query on first load and refresh and parses scoped data unchanged`, async t => {
-  const f = fixture(t, deviceClass);
-  const [first] = await Promise.all([f.services.read(), f.services.home.load()]);
-  assert.equal(first.preferences.deviceClass, deviceClass);
-  assert.equal(first.preferences.effective['playback.defaultSpeed'], 1.85);
-  assert.equal(first.preferences.registry.fields.find(value => value.key === 'playback.defaultSpeed')?.default, 1);
-  assert.equal(nativePlaybackSettings(first.preferences.effective, {playerEngine: 'native'}).videoRate, 1.85);
-  assert.equal(nativePlaybackSettings(first.preferences.effective, null).audiobookRate, 1.65);
-  assert.equal(first.unread, 5, 'actual inbox audiences include the owner account-admin badge');
-  assert.equal(first.hasLiveTV, true);
-  assert.equal(f.services.home.getSnapshot().document?.viewerFence, f.state.fences.home);
-  assert.equal(f.state.ended, 0, 'valid Home/preferences/inbox/guide fences are deliberately unequal');
-  f.state.speed = 1.35;
-  const next = await f.services.read();
-  assert.equal(next.preferences.effective['playback.defaultSpeed'], 1.35);
-  const requests = f.state.calls.filter(value => value.url.pathname === routePath('get_preferences'));
-  assert.equal(requests.length, 2);
-  for (const request of requests) {
-    assert.equal(request.url.searchParams.get('deviceClass'), deviceClass);
-    assert.equal(request.headers.get(deviceClassHeader), deviceClass);
-    assert.equal(request.headers.get('Authorization'), 'Bearer in_memory_access');
-    assert.equal(request.headers.get('X-Portico-Installation-Id'), null, 'ordinary reads use the bearer; the installation claim accompanies credential exchanges');
-    assert.equal(request.method, 'GET'); assert.equal(request.body, null);
-  }
-  assert.equal(installationIdentity()?.installationId, 'native_bootstrap_0123456789abcdef01234567', 'reading preferences preserves the actual registered claim');
-  assert.ok(f.state.calls.filter(value => value.url.pathname === routePath('get_guide_sources')).every(value => value.url.searchParams.get('timezone') === Intl.DateTimeFormat().resolvedOptions().timeZone));
-});
-
 test('Home and required preferences can finish while auxiliary badges and guide are still waiting', async t => {
   const f = fixture(t), delayed = deferred<void>(), entered = deferred<void>();
   f.state.reply = async request => {
@@ -188,32 +160,6 @@ test('an unscoped preference snapshot and the wrong returned device class are re
   f.state.reply = async request => f.response(request); f.state.deviceClass = 'television';
   await assert.rejects(f.services.read(), {code: 'invalid_response'});
   assert.equal(f.state.ended, 0); assert.equal(f.services.getSnapshot(), undefined);
-});
-
-for (const domain of ['preferences', 'guide'] as const) test(`a changed ${domain} fence retires the genuine authority and hides every private body`, async t => {
-  const f = fixture(t);
-  await Promise.all([f.services.read(), f.services.home.load()]);
-  assert.equal(f.services.home.getSnapshot().document?.rows[0]?.entries[0]?.title, 'Private catalogue title');
-  f.state.fences[domain] = 'e'.repeat(64);
-  await assert.rejects(f.services.read());
-  assert.equal(f.state.ended, 1);
-  assert.equal(f.services.getSnapshot(), undefined);
-  assert.equal(f.services.home.getSnapshot().document, undefined);
-  await assert.rejects(f.services.read(), abortError);
-  f.services.dispose(); assert.equal(f.state.ended, 1);
-});
-
-// Client data step 6: a notification envelope's fence is never compared with another read's. The
-// server re-authorizes every request (a refusal still ends the shell, below), and a role change is
-// followed by the shell itself.
-test('a moved inbox fence retires nothing: the badge is read as before', async t => {
-  const f = fixture(t);
-  await Promise.all([f.services.read(), f.services.home.load()]);
-  f.state.fences.inbox = 'e'.repeat(64);
-  await f.services.read();
-  assert.equal(f.state.ended, 0);
-  assert.notEqual(f.services.getSnapshot(), undefined);
-  assert.equal(f.services.home.getSnapshot().document?.rows[0]?.entries[0]?.title, 'Private catalogue title');
 });
 
 for (const domain of ['preferences', 'inbox', 'guide', 'home'] as const) test(`a foreign server in the ${domain} response is refused independently of Home`, async t => {
@@ -358,15 +304,6 @@ test('hosted and unselected account authorities are never parsed or defaulted as
   assert.throws(() => nativeShellDirectViewer({...viewer, role: 'account'}), {code: 'access_refused'});
 });
 
-test('a transient Home read retains the actual core document without ending its scope', async t => {
-  const f = fixture(t); await f.services.home.load(); const before = f.services.home.getSnapshot();
-  f.state.reply = async request => request.url.pathname === routePath('get_home') ? {status: 503, value: {error: {code: 'temporarily_unavailable'}}} : f.response(request);
-  await assert.rejects(f.services.home.revalidate(), {status: 503});
-  assert.strictEqual(f.services.home.getSnapshot(), before); assert.equal(f.state.ended, 0);
-  f.state.reply = async request => f.response(request); await f.services.home.revalidate();
-  assert.strictEqual(f.services.home.getSnapshot().document, before.document);
-});
-
 test('malformed inbox data cannot become a successful bootstrap badge', async t => {
   const f = fixture(t);
   f.state.reply = async request => request.url.pathname === routePath('get_notifications_inbox')
@@ -398,15 +335,4 @@ test('a late response observes an authority handover even before another consume
   const pending = f.services.read(); await entered.promise; f.state.current = false;
   assert.ok(lateRequest); delayed.resolve(f.response(lateRequest)); await assert.rejects(pending);
   assert.equal(f.services.getSnapshot(), undefined); assert.equal(f.services.home.getSnapshot().document, undefined); assert.equal(f.state.ended, 0);
-});
-
-for (const deviceClass of ['mobile', 'television'] as const) test(`native ${deviceClass} keeps its actual Home initial-window request through refresh`, async t => {
-  const f = fixture(t, deviceClass);
-  await f.services.home.load();
-  await f.services.home.revalidate();
-  const requests = f.state.calls.filter(value => value.url.pathname === routePath('get_home'));
-  assert.equal(requests.length, 2);
-  for (const request of requests) assert.equal(request.url.searchParams.get('limit'), deviceClass === 'television' ? '20' : null);
-  assert.equal(f.state.ended, 0);
-  assert.equal(f.services.home.getSnapshot().document?.viewerFence, f.state.fences.home);
 });

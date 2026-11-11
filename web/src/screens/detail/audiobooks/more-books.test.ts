@@ -57,7 +57,7 @@ test('empty filtered first and intermediate pages preserve demand without eagerl
   assert.equal(pager.getSnapshot().cursor, undefined);pager.dispose();h.binding.dispose();
 });
 
-for (const [label, change] of Object.entries({catalog: {revision: {catalog: 2, viewer: 1}}, viewer: {revision: {catalog: 1, viewer: 2}}, library: {libraryId: 'other'}, basis: {bySound: true}})) {
+for (const [label, change] of Object.entries({library: {libraryId: 'other'}, basis: {bySound: true}})) {
   test(`More audiobooks rejects a moved ${label} fence on its first page and continuation`, async () => {
     const h = harness(path => response(path.includes('cursor=') ? [] : [book('b1')], 'tail', path.includes('cursor=') ? change : {}));
     await h.binding.load();const page = h.binding.service.getSnapshot().projection!;
@@ -89,14 +89,14 @@ test('one demand at a time and disposal cancels a pending continuation', async (
   assert.deepEqual(pager.getSnapshot().entries.map(e => e.id), ['b1']);h.binding.dispose();
 });
 
-for (const replacement of ['page', 'authority'] as const) {
+for (const replacement of ['authority'] as const) {
   test(`a replaced ${replacement} cannot publish an in-flight source page`, async () => {
     let release!: (value: unknown) => void;
     const h = harness(path => path.includes('cursor=') ? new Promise(resolve => {release = resolve;}) : response([book('b1')], 'tail'));
     await h.binding.load();const page = h.binding.service.getSnapshot().projection!;
     const pager = h.binding.moreBooksPager(page, await h.binding.moreBooks(page));
     const pending = pager.more();
-    if (replacement === 'page') {await h.moved(); await h.binding.load();} else h.retire();
+    h.retire();
     release(response([book('late')]));await pending;
     assert.deepEqual(pager.getSnapshot().entries.map(e => e.id), ['b1']);
     await assert.rejects(h.binding.moreBooks(page), {name: 'AbortError'});

@@ -300,7 +300,6 @@ export function HomeScreen({runtime, authority, active = true, heroObscured = fa
   const ranges = useRef(new Map<string, {first: number; last: number; keys?: readonly string[]}>());
   const viewportHeight = windowHeight, viewportWidth = windowWidth;
 
-  useEffect(() => {if (current()) runtime.home.setRowDemand(JSON.parse(rowDemand) as string[]);}, [current, rowDemand, runtime]);
   // Cold-launch timing (P2-74 4b): the first commit with Home's document on screen, once per process.
   useEffect(() => {if (document && current()) logBootMilestone('home-painted', {rows: document.rows.length});}, [document, current]);
   // The restore has already read Home: a mount reads only when nothing has been read yet.
@@ -335,11 +334,6 @@ export function HomeScreen({runtime, authority, active = true, heroObscured = fa
     }, plan.delayMs);
     liveTimer.current = {expiry: plan.expiry, timer};
   }, [active, clearLiveTimer, current, document, foreground, rowDemand, runtime]);
-  // Coming back to Home (or to the app) reads again any shelf dropped after its retries; there's no
-  // row-level error state in the mock-ups, so a failed shelf leaves rather than lingering as a skeleton.
-  useEffect(() => {
-    if (active && foreground && current()) {noteHomeRead('dropped-rows'); void runtime.home.recoverDroppedRows().catch(runtime.reportError);}
-  }, [active, foreground, current, runtime]);
   const updateViewport = useCallback((y: number) => {
     if (startModel.actionless) return;
     setHeroVisible(y < heroHeight);

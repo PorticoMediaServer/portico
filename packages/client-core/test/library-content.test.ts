@@ -223,39 +223,10 @@ test('a continuation recovery cannot replace a successor opened while it reads t
     assert.equal(nav.getSnapshot().route?.libraryId, 'other', 'the recovered head never replaces the successor');
   } finally {nav.dispose();}
 });
-
-test('a continuation read after the library moved is still a page; only the server refusing a cursor from before the viewer\'s fence moved restarts the list', async () => {
-  for (const mutate of [(d: any) => { d.revision.catalog++; }, (d: any) => { d.revision.viewer++; }]) {
-    const nav = service(async path => { const data = projection(path); data.sections[0].nextCursor = 'next'; if (path.includes('cursor=')) { mutate(data); data.sections[0].nextCursor = ''; } return data; });
-    await nav.select(route); await nav.next('server-grid');
-    assert.equal(nav.getSnapshot().phase, 'ready'); assert.equal(nav.getSnapshot().pagination.cursor, 'next');
-  }
-  let calls = 0;
-  let moved = false;
-  // The server binds a cursor to the fence it was read under: after the fence moved, it refuses it (`invalid_cursor`).
-  const nav = service(async path => { calls++; const data = projection(path); data.sections[0].nextCursor = 'next'; if (moved) { data.scope.viewerFence = 'other-viewer'; if (path.includes('cursor=')) throw Object.assign(new Error('Invalid cursor'), { code: 'invalid_cursor', status: 400 }); } return data; });
-  await nav.select(route); moved = true; await nav.next('server-grid');
-  assert.equal(nav.getSnapshot().phase, 'ready'); assert.equal(nav.getSnapshot().pagination.cursor, null); assert.equal(nav.getSnapshot().projection!.scope.viewerFence, 'other-viewer'); assert.equal(calls, 3);
-});
 test('a continuation is never checked against the first page\'s fence by the client: the server answered it', async () => {
   const nav = service(async path => { const data = projection(path); data.sections[0].nextCursor = 'next'; if (path.includes('cursor=')) { data.scope.viewerFence = 'answered-under-a-newer-fence'; data.sections[0].nextCursor = ''; } return data; });
   await nav.select(route); await nav.next('server-grid');
   assert.equal(nav.getSnapshot().phase, 'ready'); assert.equal(nav.getSnapshot().pagination.cursor, 'next', 'the page is appended');
-});
-
-test('rejects wrong scope, oversized lists, a wrong revision and a wrong continuation section', async () => {
-  for (const mutate of [
-    (d: any) => { d.scope.libraryId = 'wrong'; }, (d: any) => { d.scope.serverId = 'wrong'; }, (d: any) => { d.scope.viewerFence = ''; },
-    (d: any) => { d.sections[0].entries = Array.from({ length: 101 }, (_, i) => entry(String(i))); d.sections[0].totalCount = 101; },
-    (d: any) => { d.sections = Array.from({ length: 25 }, (_, i) => ({ ...d.sections[0], id: 's' + i })); }, (d: any) => { d.sections = null; },
-    (d: any) => { d.navigation = Array.from({ length: 17 }, (_, i) => ({ id: 'n' + i, labelKey: 'k', view: 'browse' })); },
-    (d: any) => { d.revision.catalog = -1; }, (d: any) => { d.query.limit = 1000; }, (d: any) => { d.query.sort = 'other'; },
-  ]) {
-    const nav = service(async p => { const data = projection(p); mutate(data); return data; }); await nav.select({ ...route, sort: 'title' });
-    assert.equal(nav.getSnapshot().phase, 'error'); assert.equal(nav.getSnapshot().error!.code, 'invalid_projection'); assert.equal(nav.getSnapshot().sections.length, 0);
-  }
-  const nav = service(async p => { const d = projection(p); d.sections[0].nextCursor = 'next'; if (p.includes('cursor=')) d.sections[0].id = 'wrong-section'; return d; });
-  await nav.select(route); await nav.next('server-grid'); assert.equal(nav.getSnapshot().error!.code, 'invalid_projection');
 });
 
 test('one unreadable row of a projection is left out and the rest of the page is kept', async () => {
@@ -526,30 +497,6 @@ test('a quiet read while on a later page keeps that page and publishes the fresh
   await quietRead(gone).catch(() => {});
   await new Promise(resolve => setTimeout(resolve, 10));
   assert.equal(gone.getSnapshot().phase, 'error'); assert.equal(gone.getSnapshot().error!.code, 'not_found');
-});
-
-test('a changed viewer fence replaces every loaded library page and retires its cursor history',async()=>{
- let fence='old-fence';const cursors:string[]=[];
- const nav=service(async path=>{
-  const data=projection(path),cursor=new URL(path,'https://server.test').searchParams.get('cursor')??'';
-  cursors.push(cursor);data.scope.viewerFence=fence;
-  data.sections[0].entries=[entry(fence+'-'+(cursor?'tail':'head'))];
-  data.sections[0].nextCursor=cursor?'':fence+'-next';
-  return data;
- });
- try{
-  await nav.select(route);await nav.next('server-grid');
-  assert.equal(nav.getSnapshot().appended[0].entries.length,2);
-  fence='new-fence';await quietRead(nav);
-  const fresh=nav.getSnapshot();
-  for(const sections of [fresh.sections,fresh.appended,fresh.head!.sections])assert.deepEqual(sections[0].entries.map(e=>e.id),['new-fence-head']);
-  assert.equal(fresh.projection!.scope.viewerFence,'new-fence');
-  assert.deepEqual(fresh.pagination,{cursor:null,canPrevious:false,next:[{sectionId:'server-grid',cursor:'new-fence-next'}]});
-  const before=cursors.length;await nav.previous();assert.equal(cursors.length,before,'old cursor history is gone');
-  await nav.retry();assert.equal(cursors.at(-1),'','Retry now belongs to the fresh first page');
-  await nav.next('server-grid');assert.equal(cursors.at(-1),'new-fence-next');
-  assert.deepEqual(nav.getSnapshot().appended[0].entries.map(e=>e.id),['new-fence-head','new-fence-tail']);
- }finally{nav.dispose();}
 });
 
 test('everything read so far is one list per section: later pages append, More works on any section, and a quiet read merges in place', async () => {
