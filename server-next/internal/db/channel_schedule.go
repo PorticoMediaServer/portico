@@ -22,6 +22,7 @@ import (
 //	length          atLeast, atMost, between     minutes; a show has no length, so it is not tested
 //	actor, director, writer, collection          any          public ids
 //	resolution      in                           sd, 720p, 1080p, 4k
+//	language        any                          an audio track's language code: "en", "fr"
 //
 // A condition this server does not know is kept in the document and not tested.
 type ChannelCondition struct {
@@ -51,13 +52,64 @@ var conditionOps = map[string]string{
 	"year": "is between before after", "decade": "in", "contentRating": "in", "communityRating": "atLeast atMost between",
 	"length": "atLeast atMost between", "resolution": "in",
 	"genre": "any all", "tag": "any all", "studio": "any all", "network": "any all", "country": "any all", "mood": "any all",
-	"actor": "any", "director": "any", "writer": "any", "collection": "any",
+	"actor": "any", "director": "any", "writer": "any", "collection": "any", "language": "any",
 }
+
+// MaxChannelConditionValues is how many values one Library Channel condition may hold.
+const MaxChannelConditionValues = 500
 
 var conditionTagKinds = map[string]string{"genre": TagGenre, "tag": TagLabel, "studio": TagStudio, "network": TagNetwork,
 	"country": TagCountry, "mood": TagMood}
 
 var conditionRoles = map[string]CreditRole{"actor": RoleActor, "director": RoleDirector, "writer": RoleWriter}
+
+// CheckValues refuses a known condition whose values the schedule could not use: the wrong
+// number for its operator, the wrong type, an unknown resolution word, or too many. A group
+// checks each of its conditions. A condition this server does not know is kept unchecked.
+func (c ChannelCondition) CheckValues() error {
+	if c.Conditions != nil || c.Match != "" {
+		for _, inner := range c.Conditions {
+			if err := inner.CheckValues(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if !c.Known() {
+		return nil
+	}
+	if len(c.Values) == 0 || len(c.Values) > MaxChannelConditionValues {
+		return invalid("a condition holds 1 to %d values", MaxChannelConditionValues)
+	}
+	switch c.Op {
+	case "is", "before", "after", "atLeast", "atMost":
+		if len(c.Values) != 1 {
+			return invalid("this condition takes one value")
+		}
+	case "between":
+		if len(c.Values) != 2 {
+			return invalid("this condition takes two values")
+		}
+	}
+	switch c.Field {
+	case "year", "decade", "communityRating", "length":
+		_, err := numbers(c.Values)
+		return err
+	case "resolution":
+		words, err := texts(c.Values)
+		for _, w := range words {
+			if _, ok := resolutionClasses[w]; !ok && err == nil {
+				err = invalid("%q is not a resolution", w)
+			}
+		}
+		return err
+	}
+	_, err := texts(c.Values)
+	return err
+}
+
+// HasTitleData says whether the server has Portico's title data, which moods come from.
+func (d *DB) HasTitleData() bool { return d.titleData.Load() != nil }
 
 // ChannelSelection is what one selection of a Library Channel draws from, ready to read.
 type ChannelSelection struct {
@@ -348,6 +400,13 @@ func condition(ctx context.Context, tx *sql.Tx, q *query, c ChannelCondition, ne
 		each = func(id int64) string {
 			return fmt.Sprintf("EXISTS (SELECT 1 FROM credits k WHERE k.person_id = %d AND k.role = %d AND k.item_id = i.id)", id, role)
 		}
+	} else if c.Field == "language" {
+		args := make([]string, len(values))
+		for n, v := range values {
+			args[n] = q.arg(strings.ToLower(v))
+		}
+		return fmt.Sprintf(`EXISTS (SELECT 1 FROM media m JOIN media_parts p ON p.media_id = m.id JOIN media_streams st ON st.file_id = p.file_id
+			WHERE m.item_id = i.id AND st.kind = %d AND lower(st.language) IN (%s))`, StreamAudio, strings.Join(args, ", ")), nil
 	} else { // collection
 		for _, publicID := range values {
 			var id int64
@@ -582,6 +641,16 @@ func (d *DB) SaveChannelSchedule(ctx context.Context, w ScheduleWrite) error {
 		}
 		_, err = tx.Exec(`UPDATE library_channels SET schedule_state = ?, scheduled_through_at = ?, state = ?, problem = nullif(?, '')
 			WHERE channel_id = ?`, w.State, w.Through.UnixMilli(), w.Word, w.Problem, w.ChannelID)
+		return err
+	})
+}
+
+// LibraryChannelFailed says on a channel's row that its schedule could not be built, unless
+// the channel was saved since.
+func (d *DB) LibraryChannelFailed(ctx context.Context, channelID, revision int64, problem string) error {
+	return d.write(ctx, Background, func(tx *sql.Tx) error {
+		_, err := tx.Exec(`UPDATE library_channels SET state = ?, problem = ? WHERE channel_id = ? AND revision = ?`,
+			LibraryChannelAttention, problem, channelID, revision)
 		return err
 	})
 }
