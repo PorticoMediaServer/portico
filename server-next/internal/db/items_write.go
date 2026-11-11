@@ -291,7 +291,11 @@ func (im *importer) run(stats *ImportStats) error {
 		}
 	}
 	for id, c := range im.counts {
-		im.leavesChanged(id)
+		if c.leaves < 0 {
+			im.leavesChanged(id)
+		} else {
+			im.leavesArrived(id)
+		}
 		if _, err := im.exec(`UPDATE items SET child_count = child_count + ?, leaf_count = leaf_count + ?,
 			last_child_added_at = max(ifnull(last_child_added_at, 0), ?) WHERE id = ?`, c.children, c.leaves, c.lastAdded, id); err != nil {
 			return err

@@ -86,8 +86,9 @@ func profileAccess(b *batchTx, profileID int64) (access, error) {
 	return loadAccess(context.Background(), b.tx, Viewer{UserID: user, ProfileID: profileID})
 }
 
-// leavesChanged notes that something playable came under these holders, left them or moved,
-// or that their own state rows were put back. settleWatchedForAll acts on it.
+// leavesChanged notes that something playable left these holders or moved between them, or
+// that state rows under them or their own were put back: any profile's mark may now differ.
+// settleWatchedForAll acts on it.
 func (b *batchTx) leavesChanged(holders ...int64) {
 	for _, holder := range holders {
 		if holder != 0 {
@@ -96,18 +97,32 @@ func (b *batchTx) leavesChanged(holders ...int64) {
 	}
 }
 
-// settleWatchedForAll settles the holders noted by leavesChanged for every profile whose
-// mark could differ: the ones that hold the mark, and the ones that have watched anything
-// under the holder. A profile that has watched nothing there cannot have, or come to have,
-// the mark. It runs at the end of the transaction that made the change.
+// leavesArrived notes that these holders gained new items nobody has watched. That can only
+// take the mark away, so only the profiles that hold it are looked at: one index look for a
+// holder nobody had finished, which is every holder during a first import.
+func (b *batchTx) leavesArrived(holders ...int64) {
+	for _, holder := range holders {
+		if holder != 0 {
+			b.watchedArrived = append(b.watchedArrived, holder)
+		}
+	}
+}
+
+// settleWatchedForAll settles the holders noted by leavesChanged and leavesArrived for every
+// profile whose mark could differ. For a holder that lost or exchanged items those are the
+// profiles that hold the mark and the ones that have watched anything under it: a profile
+// that has watched nothing there cannot have, or come to have, the mark. It runs at the end
+// of the transaction that made the change.
 func (b *batchTx) settleWatchedForAll(now int64) error {
-	holders := b.watchedDirty
-	b.watchedDirty = nil
-	slices.Sort(holders)
-	for _, holder := range slices.Compact(holders) {
-		profiles, err := queryInts(b.tx, `SELECT profile_id FROM user_item_state WHERE item_id = ?1 AND played = 1
-			UNION `+underHolder(`SELECT s.profile_id FROM items c CROSS JOIN user_item_state s ON s.item_id = c.id WHERE {under} AND s.played = 1`,
-			"?1", " UNION "), holder)
+	changed, arrived := b.watchedDirty, b.watchedArrived
+	b.watchedDirty, b.watchedArrived = nil, nil
+	slices.Sort(changed)
+	changed = slices.Compact(changed)
+	marked := `SELECT profile_id FROM user_item_state WHERE item_id = ?1 AND played = 1`
+	anyWatched := marked + ` UNION ` + underHolder(`SELECT s.profile_id FROM items c CROSS JOIN user_item_state s ON s.item_id = c.id
+		WHERE {under} AND s.played = 1`, "?1", " UNION ")
+	settle := func(holder int64, candidates string) error {
+		profiles, err := b.queryInts(candidates, holder)
 		if err != nil {
 			return err
 		}
@@ -120,8 +135,45 @@ func (b *batchTx) settleWatchedForAll(now int64) error {
 				return err
 			}
 		}
+		return nil
+	}
+	for _, holder := range changed {
+		if err := settle(holder, anyWatched); err != nil {
+			return err
+		}
+	}
+	slices.Sort(arrived)
+	for _, holder := range slices.Compact(arrived) {
+		if _, found := slices.BinarySearch(changed, holder); found {
+			continue
+		}
+		if err := settle(holder, marked); err != nil {
+			return err
+		}
 	}
 	return nil
+}
+
+// queryInts reads a column of ids with a statement kept for the transaction.
+func (b *batchTx) queryInts(query string, args ...any) ([]int64, error) {
+	stmt, err := b.stmt(query)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := stmt.Query(args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
 }
 
 // holdersAround lists a holder, the holders it sits under and the holders under it: every

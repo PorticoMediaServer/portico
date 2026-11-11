@@ -15,6 +15,8 @@ type batchTx struct {
 	// watchedDirty are the holders whose watched marks this transaction must settle for
 	// every profile before it ends. See watched_marks.go.
 	watchedDirty []int64
+	// watchedArrived are holders that only gained new, unwatched items: a lighter case.
+	watchedArrived []int64
 }
 
 func newBatchTx(tx *sql.Tx) *batchTx { return &batchTx{tx: tx, stmts: map[string]*sql.Stmt{}} }
