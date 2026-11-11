@@ -10,12 +10,15 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/compat"
@@ -49,6 +52,8 @@ type compatState struct {
 	// forgets the names, and the list then names the key "Portico".
 	mu       sync.Mutex
 	appNames map[string][]string
+	// notices bounds the notices each tool puts to administrators. See compatNotifyAdmins.
+	notices toolNotices
 }
 
 // serveCompat answers a compatible address. The caller has already matched it.
@@ -193,7 +198,7 @@ func (s *Server) compatOp(r *http.Request, op string, values []string) (any, err
 	case compat.Plugins:
 		return []any{}, nil
 	case compat.NotifyAdmins:
-		return nil, s.compatNotifyAdmins(r, c)
+		return nil, s.compatNotifyAdmins(r, c, token)
 	}
 	// Reports of changed files, a library refresh and a title's subtitle refresh wait for the
 	// scan services they would hand over to.
@@ -270,8 +275,10 @@ func (s *Server) compatInfo(r *http.Request, signedIn bool) (any, error) {
 
 // compatNotifyAdmins puts a tool's notice in the owner's and administrators' Notifications
 // (area 13 rule 38), through the route the console's message to administrators uses, as the
-// tool's caller: only an owner's or administrator's key or app password may.
-func (s *Server) compatNotifyAdmins(r *http.Request, c Caller) error {
+// tool's caller: only an owner's or administrator's key or app password may. A tool that
+// sends one on every download cannot fill the inbox: each key may put toolNoticesPerHour in
+// an hour, and the same words again within toolNoticeRepeat are taken as sent and stored once.
+func (s *Server) compatNotifyAdmins(r *http.Request, c Caller, token string) error {
 	var in struct{ Name, Description, URL string }
 	if err := json.NewDecoder(http.MaxBytesReader(nil, r.Body, maxBody)).Decode(&in); err != nil {
 		return ErrInvalid("Send the notice's name and description.")
@@ -282,7 +289,74 @@ func (s *Server) compatNotifyAdmins(r *http.Request, c Caller) error {
 			lines = append(lines, line)
 		}
 	}
-	return s.callAsWith(r, c, "POST", "/v1/admin/notifications", nil, ServerMessage{Audience: "admins", Message: strings.Join(lines, "\n")}, nil)
+	message := strings.Join(lines, "\n")
+	key, words, now := sha256.Sum256([]byte(token)), sha256.Sum256([]byte(message)), s.now()
+	repeat, wait := s.compat.notices.check(key, words, now)
+	switch {
+	case repeat:
+		return nil
+	case wait > 0:
+		return ErrTooMany("too_many_notices", "This tool has sent as many notices as it may this hour.", wait)
+	}
+	if err := s.callAsWith(r, c, "POST", "/v1/admin/notifications", nil, ServerMessage{Audience: "admins", Message: message}, nil); err != nil {
+		return err
+	}
+	s.compat.notices.record(key, words, now)
+	return nil
+}
+
+// How many notices a tool may put to administrators, per key.
+const (
+	toolNoticesPerHour = 30
+	toolNoticeRepeat   = 10 * time.Minute
+)
+
+// toolNotices remembers, in memory, when each key sent its notices in the last hour and the
+// words of those in the last toolNoticeRepeat. A restart forgets it, which lets a tool send at
+// most one more hour's worth. Both are bounded by toolNoticesPerHour for each key.
+type toolNotices struct {
+	mu   sync.Mutex
+	keys map[[32]byte]*toolNoticeLog
+}
+
+type toolNoticeLog struct {
+	sent  []time.Time
+	words map[[32]byte]time.Time
+}
+
+// check says whether these words from this key were sent within toolNoticeRepeat, or else how
+// long until the key may send another this hour (0: now).
+func (n *toolNotices) check(key, words [32]byte, now time.Time) (repeat bool, wait time.Duration) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	log := n.keys[key]
+	if log == nil {
+		return false, 0
+	}
+	log.sent = slices.DeleteFunc(log.sent, func(at time.Time) bool { return now.Sub(at) >= time.Hour })
+	maps.DeleteFunc(log.words, func(_ [32]byte, at time.Time) bool { return now.Sub(at) >= toolNoticeRepeat })
+	if _, ok := log.words[words]; ok {
+		return true, 0
+	}
+	if len(log.sent) >= toolNoticesPerHour {
+		return false, log.sent[0].Add(time.Hour).Sub(now)
+	}
+	return false, 0
+}
+
+// record notes a notice the key has sent.
+func (n *toolNotices) record(key, words [32]byte, now time.Time) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.keys == nil {
+		n.keys = map[[32]byte]*toolNoticeLog{}
+	}
+	log := n.keys[key]
+	if log == nil {
+		log = &toolNoticeLog{words: map[[32]byte]time.Time{}}
+		n.keys[key] = log
+	}
+	log.sent, log.words[words] = append(log.sent, now), now
 }
 
 // compatSignIn signs a tool in with a username and an app password, never the account's
