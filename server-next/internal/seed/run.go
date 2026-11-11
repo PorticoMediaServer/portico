@@ -102,18 +102,20 @@ func Profiles(ctx context.Context, d *db.DB, n int) ([]db.Viewer, error) {
 	var viewers []db.Viewer
 	for i := range n {
 		p := db.SeedProfile{Name: fmt.Sprint("viewer-", i)}
-		switch {
-		case i == n-1 && n > 1:
+		switch Restriction(i, n) {
+		case "rating":
 			age := 13
 			p.MaxRatingAge = &age
-		case i == n-2 && n > 2:
+		case "library":
 			for _, lib := range libraries {
 				if lib.Kind == db.LibraryMovies || lib.Kind == db.LibraryMusic {
 					p.Libraries = append(p.Libraries, lib.ID)
 				}
 			}
-		case i == n-3 && n > 3 && len(labels) > 0:
-			p.BlockedTags = []string{labels[0].PublicID}
+		case "label":
+			if len(labels) > 0 {
+				p.BlockedTags = []string{labels[0].PublicID}
+			}
 		}
 		v, err := d.CreateSeedProfile(ctx, p)
 		if err != nil {
@@ -122,6 +124,23 @@ func Profiles(ctx context.Context, d *db.DB, n int) ([]db.Viewer, error) {
 		viewers = append(viewers, v)
 	}
 	return viewers, nil
+}
+
+// Restriction says how the i-th of n seeded profiles is restricted: "label", "library",
+// "rating" or "" for not at all. Up to ten profiles, the last three are, one each way. With
+// more, for a run with many people, the later half are, in turn.
+func Restriction(i, n int) string {
+	ways := []string{"label", "library", "rating"}
+	if n <= 10 {
+		if at := i - (n - 3); at >= 0 && at > 3-n {
+			return ways[at]
+		}
+		return ""
+	}
+	if i < n/2 {
+		return ""
+	}
+	return ways[(i-n/2)%3]
 }
 
 // LeafKind is the playable kind a library of this kind holds.
