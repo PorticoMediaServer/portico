@@ -230,6 +230,9 @@ func (s *Server) acceptInvitation(r *http.Request, req InvitationAccept) (SignIn
 	if err != nil {
 		return SignInResponse{}, err
 	}
+	// Joining is this person's first sign-in: if the owner requires two-step sign-in of
+	// them, they set it up before anything else.
+	session.TwoStepRequired = s.signInSettings().TwoStepRequired
 	st, err := s.db.AcceptInvitation(ctx, db.Acceptance{CodeHash: invitationHash(r.PathValue("id")), Username: username,
 		PasswordHash: hash, ProfileName: req.ProfileName, Session: session, Now: now})
 	switch {

@@ -65,9 +65,11 @@ func errBadSecondStep() *Error {
 
 func (s *Server) twoFactorRoutes() {
 	Handle(s, "POST /v1/auth/two-factor", Public, s.finishTwoFactor)
-	Handle(s, "GET /v1/me/two-factor", SignedIn, s.twoFactorState)
-	Handle(s, "POST /v1/me/two-factor", SignedIn, s.enrolTwoFactor)
-	Handle(s, "POST /v1/me/two-factor/confirm", SignedIn, s.verifyTwoFactor)
+	// A sign-in the owner's settings hold back until two-step sign-in is set up can do
+	// exactly that, and nothing else.
+	Handle(s, "GET /v1/me/two-factor", SignedIn, s.twoFactorState).Enrolling = true
+	Handle(s, "POST /v1/me/two-factor", SignedIn, s.enrolTwoFactor).Enrolling = true
+	Handle(s, "POST /v1/me/two-factor/confirm", SignedIn, s.verifyTwoFactor).Enrolling = true
 	Handle(s, "POST /v1/me/two-factor/recovery-codes", SignedIn, s.newRecoveryCodes)
 	Handle(s, "DELETE /v1/me/two-factor", SignedIn, s.disableTwoFactor)
 }
@@ -116,8 +118,17 @@ func (s *Server) finishTwoFactor(r *http.Request, req TwoFactorFinish) (SignInRe
 // every other part of managing the account it needs the main profile: reading whether it is
 // on, turning it on or off, and making recovery codes.
 
+// enrolling is manager for the routes that set two-step sign-in up: they also take a sign-in
+// that is being held back until it has.
+func enrolling(r *http.Request) (Caller, error) {
+	if c := CallerFrom(r.Context()); c.Enrol {
+		return c, nil
+	}
+	return manager(r)
+}
+
 func (s *Server) twoFactorState(r *http.Request, _ None) (TwoFactorState, error) {
-	caller, err := manager(r)
+	caller, err := enrolling(r)
 	if err != nil {
 		return TwoFactorState{}, err
 	}
@@ -132,7 +143,7 @@ func (s *Server) twoFactorState(r *http.Request, _ None) (TwoFactorState, error)
 
 func (s *Server) enrolTwoFactor(r *http.Request, req TwoFactorEnrol) (TwoFactorSetup, error) {
 	ctx := r.Context()
-	if _, err := manager(r); err != nil {
+	if _, err := enrolling(r); err != nil {
 		return TwoFactorSetup{}, err
 	}
 	proof, err := s.passwordProof(r, req.CurrentPassword, "")
@@ -157,7 +168,7 @@ func (s *Server) enrolTwoFactor(r *http.Request, req TwoFactorEnrol) (TwoFactorS
 
 func (s *Server) verifyTwoFactor(r *http.Request, req TwoFactorVerify) (RecoveryCodes, error) {
 	now := s.now()
-	caller, err := manager(r)
+	caller, err := enrolling(r)
 	if err != nil {
 		return RecoveryCodes{}, err
 	}
@@ -212,6 +223,12 @@ func (s *Server) newRecoveryCodes(r *http.Request, req TwoFactorProof) (Recovery
 }
 
 func (s *Server) disableTwoFactor(r *http.Request, req TwoFactorProof) (None, error) {
+	// Someone the owner requires two-step sign-in of cannot turn it off.
+	if account, err := s.db.Account(r.Context(), CallerFrom(r.Context()).UserID); err != nil {
+		return None{}, err
+	} else if s.signInSettings().TwoStepRequired(account.Role) {
+		return None{}, refusal(http.StatusForbidden, "two_step_required", "This server requires two-step sign-in for your account.", false)
+	}
 	return None{}, s.provenTwice(r, req, func(proof db.PasswordProof) error {
 		return s.db.DisableTwoFactor(r.Context(), proof, s.now())
 	})

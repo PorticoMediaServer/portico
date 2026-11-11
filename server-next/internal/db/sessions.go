@@ -201,6 +201,8 @@ type SessionState struct {
 	MemberOnly bool
 	// Cast: a Cast receiver's sign-in, which can only play, on its one profile. See cast.go.
 	Cast bool
+	// Enrol: the session can only set up two-step sign-in. See NewSession.
+	Enrol bool
 
 	DevicePublicID string
 	InstallationID string
@@ -217,14 +219,14 @@ func sessionState(ctx context.Context, q queryer, id int64) (SessionState, error
 		SELECT s.id, s.public_id, s.token_generation, s.expires_at, ifnull(s.previous_at, s.created_at),
 			s.revoked_at IS NOT NULL, s.refresh_hash, ifnull(s.previous_refresh_hash, ''), ifnull(s.previous_request_id, ''),
 			u.id, u.public_id, u.role, u.disabled_at IS NOT NULL,
-			ifnull(p.id, 0), ifnull(p.public_id, ''), ifnull(p.is_primary, 0), s.scope = 'member', s.scope = 'cast',
+			ifnull(p.id, 0), ifnull(p.public_id, ''), ifnull(p.is_primary, 0), s.scope = 'member', s.scope = 'cast', s.scope = 'enrol',
 			d.public_id, d.client_id
 		FROM sessions s JOIN users u ON u.id = s.user_id JOIN devices d ON d.id = s.device_id
 		LEFT JOIN profiles p ON p.id = s.profile_id
 		WHERE s.id = ?`, id).Scan(&s.ID, &s.PublicID, &s.Generation, &expires, &renewed,
 		&s.revoked, &s.refreshHash, &s.previousHash, &s.previousRequestID,
 		&s.UserID, &s.UserPublicID, &s.UserRole, &s.disabled,
-		&s.ProfileID, &s.ProfilePublicID, &s.ProfilePrimary, &s.MemberOnly, &s.Cast,
+		&s.ProfileID, &s.ProfilePublicID, &s.ProfilePrimary, &s.MemberOnly, &s.Cast, &s.Enrol,
 		&s.DevicePublicID, &s.InstallationID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return s, ErrNotFound
@@ -255,6 +257,10 @@ type NewSession struct {
 	// MemberOnly starts a session that never has more than a member's rights, whichever
 	// profile it is on: a TV approved by someone who was not on the account's main profile.
 	MemberOnly bool
+	// TwoStepRequired, when set, says whether the owner requires two-step sign-in of an
+	// account with this role. A sign-in to such an account that has not set it up starts a
+	// session that can do nothing else until it has.
+	TwoStepRequired func(role string) bool
 }
 
 // startSession registers the device and inserts the session, for a user already proven.
@@ -283,6 +289,16 @@ func startSession(tx *sql.Tx, userID int64, n NewSession, now time.Time) (Sessio
 	scope := "app"
 	if n.MemberOnly {
 		scope = "member"
+	}
+	if n.TwoStepRequired != nil {
+		var role string
+		var enrolled bool
+		if err := tx.QueryRow(`SELECT role, two_factor_enabled_at IS NOT NULL FROM users WHERE id = ?`, userID).Scan(&role, &enrolled); err != nil {
+			return SessionState{}, err
+		}
+		if !enrolled && n.TwoStepRequired(role) {
+			scope = "enrol"
+		}
 	}
 	if _, err := tx.Exec(`INSERT INTO sessions (id, public_id, user_id, device_id, scope, refresh_hash, created_at, expires_at, last_used_at, remote_addr)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, nullif(?, ''))`,

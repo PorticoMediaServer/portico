@@ -83,6 +83,7 @@ Assistant) are a separate short document and are not counted here.
 | `POST /v1/auth/codes`, `GET /v1/auth/codes/{id}`, `POST /v1/auth/codes/{id}/approve`, `POST /v1/auth/codes/{id}/redeem` | Sign in on a TV by approving a code on a phone |
 | `GET /v1/auth/invitations/{id}`, `POST /v1/auth/invitations/{id}/accept` | Preview and accept an invitation |
 | `POST /v1/auth/password-reset/confirm` | Choose a new password with a reset code. The owner or an admin makes the code in People; the server sends no email, so there is no route that asks for one |
+| `POST /v1/auth/owner-reset`, `POST /v1/auth/owner-reset/confirm` | An owner who cannot sign in. The first makes the server write a one-time code to `reset-code.txt` in its data folder and answers only the file's name, the same every time and whatever username was sent. While a code is live no new one is written, and after one is used or cancelled a new one waits a minute. The second chooses the owner's new password with that code, and can turn the owner's two-step sign-in off. The code works once, for 15 minutes; five wrong tries cancel it. Nothing sent over the network alone resets the owner: it takes reading the file on the machine |
 | `POST /v1/auth/password` | Change your password |
 | `GET /v1/auth/remembered`, `DELETE /v1/auth/remembered/{id}` | Accounts remembered on this device's sign-in screen |
 
@@ -572,6 +573,7 @@ document is write-only: the answer says only whether it is set.
 |---|---|---|
 | `GET /v1/admin/settings` | Owner; a TV sees values and no secrets | The documents there are, each with its `ETag` |
 | `GET /v1/admin/settings/{name}`, `PUT /v1/admin/settings/{name}` | Owner | One document: each value, its default, and whether the config file sets it (then it cannot be changed here). `PUT` needs `If-Match`; a stale one is `412` with the current document. A value out of range is `422` naming the field |
+| `sign-in` document | Owner | `staySignedInDays` (7, 30, 90, 365) and `requireTwoStep` (`nobody`, `admins`, `everyone`). A person two-step is required of, who has not set it up, signs in to a session with `twoStepSetupRequired`: it can use only `GET /v1/me` and the two-step setup routes (anything else is 403 `two_step_setup_required`) until it is set up, then renews and carries on; they cannot turn it off (403 `two_step_required`) |
 
 Documents: `general` (server name, when heavy work runs, background speed, update check),
 `streaming` (Convert when needed, quality and music away from home, upload speed, which

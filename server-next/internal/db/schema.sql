@@ -685,7 +685,7 @@ CREATE TABLE sessions (
   user_id               INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   profile_id            INTEGER REFERENCES profiles(id) ON DELETE CASCADE,
   device_id             INTEGER NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
-  scope                 TEXT    NOT NULL DEFAULT 'app',
+  scope                 TEXT    NOT NULL DEFAULT 'app', -- or 'member', or 'enrol': may only set up two-step sign-in
   refresh_hash          TEXT    NOT NULL UNIQUE,
   previous_refresh_hash TEXT,
   previous_request_id   TEXT,
