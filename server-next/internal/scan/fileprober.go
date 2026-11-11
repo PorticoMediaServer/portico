@@ -65,6 +65,13 @@ var errToolRefused = errors.New("the media tool could not read the file")
 func (FileProber) Probe(ctx context.Context, path string) (Facts, error) {
 	// The confined tool is given one real file, so a link is resolved first. The path came
 	// from the scan's own walk of a library folder, never from a request.
+	// A film disc kept as a folder is read by the disc reader, as one title. The file the
+	// scan lists for it is only the disc's index, which the media tool cannot read.
+	if folder, ok := discOf(path); ok {
+		if folder, err := filepath.EvalSymlinks(folder); err == nil {
+			return probeDisc(ctx, folder)
+		}
+	}
 	real, err := filepath.EvalSymlinks(path)
 	if err != nil {
 		return Facts{}, err

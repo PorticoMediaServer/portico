@@ -11,6 +11,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
 	"github.com/PorticoMediaServer/portico/server-next/internal/decodertest"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediaexec"
+	"github.com/PorticoMediaServer/portico/server-next/internal/mediatools"
 	"github.com/PorticoMediaServer/portico/server-next/internal/scan"
 )
 
@@ -69,5 +70,26 @@ func TestFileProberReadsARealFile(t *testing.T) {
 	}
 	if _, err := (scan.FileProber{}).Probe(ctx, text); err != scan.ErrDamaged && err != scan.ErrNotMedia {
 		t.Fatalf("a text file: %v", err)
+	}
+}
+
+// A film kept as a disc folder is one title. Without the disc reader installed it is listed
+// under its folder's name and tried again next scan: it is not put in Files skipped as a
+// damaged file, which is what handing its index to the media tool did.
+func TestADiscFolderIsNotADamagedFile(t *testing.T) {
+	if _, err := exec.LookPath(mediatools.Resolve("portico-disc")); err == nil {
+		t.Skip("the disc reader is installed here: a made-up disc would rightly be refused by it")
+	}
+	f := newFixture(t, db.LibraryMovies)
+	f.write("Heat (1995)/BDMV/index.bdmv")
+	f.write("Heat (1995)/BDMV/STREAM/00001.m2ts")
+	f.s.Prober = scan.FileProber{}
+	f.scan()
+	if _, ok := f.titles(db.KindMovie)["Heat"]; !ok || len(f.titles(db.KindMovie)) != 1 {
+		t.Fatalf("the disc should be the one film Heat; films: %v", keys(f.titles(db.KindMovie)))
+	}
+	skipped, total, err := f.d.SkippedFiles(ctx, f.lib.ID, 0, 10)
+	if err != nil || total != 0 {
+		t.Fatalf("Files skipped: %+v, %v", skipped, err)
 	}
 }
