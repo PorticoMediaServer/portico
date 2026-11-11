@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/netip"
 	"slices"
@@ -34,7 +35,7 @@ type NetworkSettings struct {
 	TrustedProxies []string `json:"trustedProxies"`
 	// Warnings are what the owner should know about these settings, each a code and a plain
 	// sentence, for as long as it holds. It is empty when nothing is wrong, and is not part of
-	// what is saved. Four codes so far:
+	// what is saved. Six codes so far:
 	//   - proxy_everywhere: the trusted proxies cover most of the internet, so anyone can say
 	//     they are at home. The owner's choice: it is saved, and said.
 	//   - proxy_without_header: requests came from a trusted proxy's address with no
@@ -46,6 +47,11 @@ type NetworkSettings struct {
 	//   - proxy_not_listed_public: the same from public addresses, which may be the owner's
 	//     own proxy or CDN elsewhere or a stranger sending the header. One warning in all,
 	//     naming the latest address and how many others.
+	//   - gateway_visitors: requests came in the last day straight from this machine's default
+	//     gateway, as every visitor does in some container set-ups, so the server cannot tell
+	//     home from away and counts them as away.
+	//   - gateway_at_home: the same, but the owner's own home networks hold the gateway, so
+	//     they count as at home, as the owner said.
 	Warnings []Warning `json:"warnings"`
 
 	revision
@@ -96,6 +102,10 @@ type networkState struct {
 	unlisted map[string]time.Time
 	// public is the same for public addresses, which anyone on the internet can be.
 	public map[string]time.Time
+	// gateway is this machine's default gateway, read with the defaults, and gatewayAt is
+	// when a request last arrived from it without a forwarded address.
+	gateway   netip.Addr
+	gatewayAt time.Time
 }
 
 const (
@@ -120,27 +130,95 @@ func (n *networkState) set(stored storedNetworks) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	// A saved change starts the warnings afresh: the proxy named may no longer be listed.
-	n.stored, n.home, n.proxies, n.silent, n.unlisted, n.public = stored, home, proxies, nil, nil, nil
+	n.stored, n.home, n.proxies, n.silent, n.unlisted, n.public, n.gatewayAt = stored, home, proxies, nil, nil, nil, time.Time{}
 	return nil
 }
 
 func (n *networkState) current(now time.Time) (auth.Networks, storedNetworks) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
+	// The machine's own networks can change while the server runs: a laptop, a new lease.
+	if n.defaults == nil || now.Sub(n.defaultsAt) > defaultHomeFor {
+		n.defaults, n.gateway, n.defaultsAt = auth.DefaultHome(), defaultGateway(), now
+	}
+	// The owner's own list decides alone. While the server guesses, the gateway is left out.
 	if n.stored.Home != nil {
 		return auth.Networks{Home: n.home, Proxies: n.proxies}, n.stored
 	}
-	// The machine's own networks can change while the server runs: a laptop, a new lease.
-	if n.defaults == nil || now.Sub(n.defaultsAt) > defaultHomeFor {
-		n.defaults, n.defaultsAt = auth.DefaultHome(), now
+	return auth.Networks{Home: n.defaults, Proxies: n.proxies, Gateway: n.gateway}, n.stored
+}
+
+// defaultGateway is replaced in tests, which run on machines with gateways of their own.
+var defaultGateway = auth.DefaultGateway
+
+// The gateway is the one address every visitor can arrive from: in a container with a
+// published port (always with rootless Docker and Docker Desktop, and for IPv6 and for the
+// host's own connections with ordinary Docker), or behind a router that rewrites what it
+// forwards. The server then cannot tell home from away. While it is guessing what is home
+// such a visitor is away; if the owner's own list holds the gateway they are at home, as the
+// owner said, and the owner is told what that means.
+
+const (
+	gatewayAwayMessage = "Requests are arriving from this server's network gateway, %s, so the server cannot tell who is at home: " +
+		"they all count as away from home. This is usual when the server runs in a container with a published port. " +
+		"To fix it, run the container with host networking, or put a reverse proxy in front and add it to Trusted proxies."
+	gatewayHomeMessage = "Requests are arriving from this server's network gateway, %s, which is in your home networks, so they all count as at home. " +
+		"If the server runs in a container with a published port, people outside your home can arrive from that address too and would count as at home. " +
+		"To fix it, run the container with host networking, or put a reverse proxy in front and add it to Trusted proxies, and take %s out of your home networks."
+)
+
+// gatewayWarning is the warning for a request, or for the requests of the last day, that
+// arrived from the gateway with no forwarded address. ok is false when there is none.
+func gatewayWarning(networks auth.Networks, gateway netip.Addr, home []netip.Prefix) (Warning, bool) {
+	if !gateway.IsValid() {
+		return Warning{}, false
 	}
-	return auth.Networks{Home: n.defaults, Proxies: n.proxies}, n.stored
+	for _, p := range home {
+		if networks.Gateway != gateway && p.Contains(gateway) {
+			return Warning{Code: "gateway_at_home", Message: fmt.Sprintf(gatewayHomeMessage, gateway, gateway)}, true
+		}
+	}
+	if networks.Gateway == gateway {
+		return Warning{Code: "gateway_visitors", Message: fmt.Sprintf(gatewayAwayMessage, gateway)}, true
+	}
+	return Warning{}, false
+}
+
+// fromGateway reports whether a request arrived straight from the gateway with no forwarded
+// address, and is not from a proxy the owner listed: the case the warnings above are about.
+func (s *Server) fromGateway(r *http.Request) (netip.Addr, bool) {
+	networks := s.networks()
+	s.network.mu.Lock()
+	gateway := s.network.gateway
+	s.network.mu.Unlock()
+	if !gateway.IsValid() || peerAddr(r) != gateway.String() || r.Header.Get("X-Forwarded-For") != "" || networks.ProxyGaveNoAddress(r) {
+		return gateway, false
+	}
+	return gateway, true
+}
+
+func (s *Server) noteGateway(r *http.Request) {
+	gateway, from := s.fromGateway(r)
+	if !from {
+		return
+	}
+	now := s.now()
+	s.network.mu.Lock()
+	first := now.Sub(s.network.gatewayAt) > silentProxyFor
+	s.network.gatewayAt = now
+	s.network.mu.Unlock()
+	if first {
+		if w, ok := gatewayWarning(s.networks(), gateway, s.networks().Home); ok {
+			s.log.Warn(w.Message, "gateway", gateway.String())
+		}
+	}
 }
 
 // fromHome reports whether a request came from home, and notes a trusted proxy that passed
 // on no visitor's address: its visitors all count as away, and only the owner can fix that.
 func (s *Server) fromHome(r *http.Request) bool {
 	networks := s.networks()
+	s.noteGateway(r)
 	if networks.ProxyGaveNoAddress(r) {
 		s.noteSilentProxy(peerAddr(r))
 	}
@@ -291,6 +369,7 @@ func (s *Server) networkWarnings(networks auth.Networks) []Warning {
 		}
 		unlisted = append(unlisted, proxy)
 	}
+	gateway, gatewaySeen := s.network.gateway, now.Sub(s.network.gatewayAt) <= silentProxyFor
 	latest, others := "", -1
 	for address, at := range s.network.public {
 		if now.Sub(at) > silentProxyFor {
@@ -313,6 +392,9 @@ func (s *Server) networkWarnings(networks auth.Networks) []Warning {
 	}
 	if latest != "" {
 		out = append(out, Warning{Code: "proxy_not_listed_public", Message: publicProxyNotice(latest, others)})
+	}
+	if w, ok := gatewayWarning(networks, gateway, networks.Home); ok && gatewaySeen {
+		out = append(out, w)
 	}
 	return out
 }

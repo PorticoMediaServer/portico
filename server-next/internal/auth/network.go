@@ -5,6 +5,8 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"os"
+	"strconv"
 	"strings"
 )
 
@@ -18,6 +20,13 @@ type Networks struct {
 	// Proxies are believed when they pass on a client's address in X-Forwarded-For. The
 	// same header from any other address is ignored.
 	Proxies []netip.Prefix
+	// Gateway is the address this machine sends everything not on its own networks to: a
+	// home router, or inside a container the host's end of the container network. While
+	// the server is guessing what is home, a connection from this one address is not: some
+	// set-ups (a container with a published port, a router that rewrites what it forwards)
+	// make every visitor arrive from it, and all of them would count as at home. It is not
+	// set when the owner has said what home is: then their list alone decides.
+	Gateway netip.Addr
 }
 
 // maxForwardedHops is how many trusted proxies in a row a forwarded header is read through.
@@ -129,7 +138,39 @@ func (n Networks) FromHome(r *http.Request) bool {
 
 // AtHome reports whether an address is on one of the owner's home networks.
 func (n Networks) AtHome(addr netip.Addr) bool {
-	return addr.IsValid() && within(n.Home, addr.Unmap().WithZone(""))
+	addr = addr.Unmap().WithZone("")
+	return addr.IsValid() && addr != n.Gateway && within(n.Home, addr)
+}
+
+// DefaultGateway returns the IPv4 address this machine's default route goes through, or the
+// zero address where there is none or it cannot be read (it is read from Linux's route
+// table; a container is always Linux inside).
+func DefaultGateway() netip.Addr {
+	table, err := os.ReadFile("/proc/net/route")
+	if err != nil {
+		return netip.Addr{}
+	}
+	return gatewayIn(string(table))
+}
+
+// gatewayIn reads the default route's gateway from the text of /proc/net/route: the row
+// whose destination and mask are zero and whose flags say it has a gateway. The addresses
+// are hexadecimal with the bytes in the machine's order, which is reversed on every
+// machine this server runs on.
+func gatewayIn(table string) netip.Addr {
+	for _, line := range strings.Split(table, "\n")[1:] {
+		f := strings.Fields(line)
+		if len(f) < 8 || f[1] != "00000000" || f[7] != "00000000" {
+			continue
+		}
+		flags, err := strconv.ParseUint(f[3], 16, 32)
+		raw, err2 := strconv.ParseUint(f[2], 16, 32)
+		if err != nil || err2 != nil || flags&2 == 0 || raw == 0 {
+			continue
+		}
+		return netip.AddrFrom4([4]byte{byte(raw), byte(raw >> 8), byte(raw >> 16), byte(raw >> 24)})
+	}
+	return netip.Addr{}
 }
 
 // SourceKey is what wrong guesses from an address are counted against: the IPv4 address,
