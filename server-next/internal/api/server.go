@@ -185,32 +185,13 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	if err := s.loadPolicy(ctx); err != nil {
 		return nil, err
 	}
-	s.systemRoutes()
-	s.networkRoutes()
-	s.signInSettingsRoutes()
-	s.identityRoutes()
-	s.authRoutes()
-	s.ownerResetRoutes()
-	s.profileRoutes()
-	s.preferenceRoutes()
-	s.deviceRoutes()
-	s.memberRoutes()
-	s.invitationRoutes()
-	s.keyRoutes()
-	s.catalogueRoutes()
-	s.itemFileRoutes()
-	s.artwork = artwork.New(dataDir)
-	s.imageRoutes()
-	if s.remote, err = remote.NewRegistry(d, dataDir); err != nil {
+	s.registerSignInRoutes()
+	s.registerBrowseRoutes()
+	s.registerArtworkRoutes()
+	if err := s.registerLibraryRoutes(); err != nil {
 		return nil, err
 	}
-	s.remoteSourceRoutes()
-	s.playback = playback.New(d, playback.NoEngine{}, playback.NoEngine{}, log, func() time.Time { return s.now() })
-	go s.playback.Run(ctx)
-	s.playbackRoutes()
-	s.queues = playqueue.New(d, s.playback, func() time.Time { return s.now() })
-	s.queueRoutes()
-	s.subtitleRoutes()
+	s.registerPlaybackRoutes(ctx)
 	return s, nil
 }
 
