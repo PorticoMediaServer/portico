@@ -12,6 +12,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/jobs"
+	"github.com/PorticoMediaServer/portico/server-next/internal/metadata"
 )
 
 // Metadata work on a whole library or a selection runs as jobs, started with POST /v1/jobs:
@@ -85,8 +86,7 @@ func (s *Server) metadataJobs() {
 	}
 	s.jobs.Register(jobs.Kind{Name: jobMatchLibrary, Access: jobs.Admins, Check: libraryCheck,
 		Run: onLibrary(func(ctx context.Context, work jobs.Work, lib db.Library) error {
-			_, err := s.metadata.MatchLibrary(ctx, lib.ID)
-			return err
+			return matched(s.metadata.MatchLibrary(ctx, lib.ID))
 		})})
 	s.jobs.Register(jobs.Kind{Name: jobRefreshLibrary, Access: jobs.Admins, Check: libraryCheck,
 		Run: onLibrary(func(ctx context.Context, work jobs.Work, lib db.Library) error {
@@ -103,11 +103,14 @@ func (s *Server) metadataJobs() {
 			return nil // removed since
 		}
 		lib := all[at]
-		if _, err := s.metadata.MatchLibrary(ctx, lib.ID); err != nil {
+		stats, err := s.metadata.MatchLibrary(ctx, lib.ID)
+		if err != nil {
 			return providerSentence(err)
 		}
-		_, err = s.metadata.RefreshLibrary(ctx, lib.ID, time.Now(), afterScanRefreshes)
-		return providerSentence(err)
+		if _, err = s.metadata.RefreshLibrary(ctx, lib.ID, time.Now(), afterScanRefreshes); err != nil {
+			return providerSentence(err)
+		}
+		return matched(stats, nil)
 	}})
 	// A selection: the asker's main profile must see every title, or the job is refused as
 	// if one were not there.
@@ -147,6 +150,18 @@ func (s *Server) metadataJobs() {
 }
 
 // providerSentence turns a provider that did not answer into the sentence the job shows.
+// matched is how a run of MatchLibrary ends a job: done, saying how many titles the provider
+// failed on (each is asked again later by itself), or failed when the provider was down.
+func matched(stats metadata.MatchStats, err error) error {
+	if err != nil {
+		return providerSentence(err)
+	}
+	if stats.Failed > 0 {
+		return jobs.DoneWith{Note: fmt.Sprintf("The metadata provider could not be asked about %d titles this time. They are asked again later by themselves.", stats.Failed)}
+	}
+	return nil
+}
+
 func providerSentence(err error) error {
 	switch {
 	case err == nil, errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded), errors.Is(err, db.ErrNotFound):

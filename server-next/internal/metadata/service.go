@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -49,15 +50,35 @@ var providerKinds = map[db.ItemKind]string{db.KindMovie: "movie", db.KindShow: "
 type MatchStats struct {
 	Matched   int
 	Unmatched int
+	// Failed counts the titles the provider failed on this time: an error, a refusal, no
+	// answer in time. Each is asked again after a wait (see db.LookupFailed).
+	Failed int
 }
+
+// downAfter is how many titles in a row the provider may fail on before a run stops: by then
+// it is down, not refusing one title, and asking it about every other title would only fail too.
+const downAfter = 5
+
+// ErrProviderDown is a run of MatchLibrary stopped because the provider failed on several
+// titles in a row. The titles not reached are as they were.
+var ErrProviderDown = errors.New("the metadata provider did not answer")
+
+// providerError is an error from the provider itself, as opposed to one of this server's.
+type providerError struct{ err error }
+
+func (e providerError) Error() string { return e.err.Error() }
+func (e providerError) Unwrap() error { return e.err }
 
 // MatchLibrary asks the library's provider about every title it has not been asked about:
 // a confident answer's details are stored, and anything else goes on the library's Unmatched
 // items list. It is background work: each title is one small transaction at Background
 // priority, and no transaction is open while the provider is asked.
 //
-// An error means the provider could not be asked. The titles not reached are as they were,
-// and running it again carries on from there.
+// A title the provider fails on while it answers for others is passed over and asked again
+// later, after a wait that grows each time, so one title can never keep the rest from being
+// looked up. A provider that fails on several titles in a row, or on every title of a run, is
+// down: the run stops (ErrProviderDown) and the titles it failed on or did not reach are as they
+// were, so the next run asks about them again.
 func (s *Service) MatchLibrary(ctx context.Context, libraryID int64) (MatchStats, error) {
 	var stats MatchStats
 	src, err := s.DB.LibrarySource(ctx, libraryID)
@@ -73,16 +94,52 @@ func (s *Service) MatchLibrary(ctx context.Context, libraryID int64) (MatchStats
 		kinds = append(kinds, kind)
 	}
 	locale := Locale{Language: src.Language, Region: src.Region}
+	// failed are the titles the provider failed on since it last answered. They are recorded as
+	// failures only once it answers for a later title: until then it may simply be down, and a
+	// title is not to wait for a fault that was not its own.
+	var failed []int64
+	var lastErr error
+	answered := false
+	settle := func() error {
+		for _, id := range failed {
+			if err := s.DB.LookupFailed(ctx, id, time.Now()); err != nil {
+				return err
+			}
+		}
+		failed = failed[:0]
+		return nil
+	}
 	after := int64(0)
 	for {
 		items, err := s.DB.ToMatch(ctx, libraryID, kinds, after, 50)
-		if err != nil || len(items) == 0 {
+		if err != nil {
 			return stats, err
+		}
+		if len(items) == 0 {
+			if len(failed) > 0 && !answered {
+				return stats, fmt.Errorf("%w: %w", ErrProviderDown, lastErr)
+			}
+			return stats, settle()
 		}
 		for _, item := range items {
 			after = item.ID
 			matched, err := s.match(ctx, p, locale, src.Kind, item)
+			if ctx.Err() != nil {
+				return stats, ctx.Err()
+			}
+			if errors.As(err, new(providerError)) {
+				stats.Failed++
+				failed, lastErr = append(failed, item.ID), err
+				if len(failed) >= downAfter {
+					return stats, fmt.Errorf("%w: %w", ErrProviderDown, err)
+				}
+				continue
+			}
 			if err != nil {
+				return stats, err
+			}
+			answered = true
+			if err := settle(); err != nil {
 				return stats, err
 			}
 			if matched {
@@ -111,7 +168,7 @@ func (s *Service) match(ctx context.Context, p Provider, locale Locale, libraryK
 	if ref.ID == "" {
 		candidates, err := p.Search(ctx, q)
 		if err != nil {
-			return false, err
+			return false, providerError{err}
 		}
 		best, reason := Choose(q, candidates)
 		if best < 0 {
@@ -124,12 +181,14 @@ func (s *Service) match(ctx context.Context, p Provider, locale Locale, libraryK
 		return false, s.unmatched(ctx, item.ID, ReasonIDNotFound, nil)
 	}
 	if err != nil {
-		return false, err
+		return false, providerError{err}
 	}
 	if err := s.DB.ApplyDetails(ctx, db.Background, item.ID, details(record, db.MatchFound)); err != nil {
 		return false, err
 	}
 	s.moods(ctx, item.ID)
+	// A season the provider fails on leaves the show matched: its episodes come with the
+	// show's next refresh, and the failure counts as one for the run.
 	return true, s.children(ctx, p, locale, item.ID, ref)
 }
 
@@ -149,7 +208,7 @@ func (s *Service) children(ctx context.Context, p Provider, locale Locale, itemI
 			continue // a season the provider does not know keeps the names its files gave
 		}
 		if err != nil {
-			return err
+			return providerError{err}
 		}
 		children := make([]db.ItemDetails, len(records))
 		for i, record := range records {
