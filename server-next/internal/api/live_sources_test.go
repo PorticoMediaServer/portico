@@ -53,6 +53,28 @@ func fakeProvider(t *testing.T, now time.Time) *httptest.Server {
 		fmt.Fprint(w, `[{"GuideNumber":"4","GuideName":"Film Four","URL":"http://tuner.invalid/auto/v4"},
 			{"GuideNumber":"9","GuideName":"Paid","URL":"http://tuner.invalid/auto/v9","DRM":1}]`)
 	})
+	mux.HandleFunc("/tuned.m3u", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "#EXTM3U\n#EXTINF:-1 tvg-chno=\"1\",One\nhttp://%[1]s/stream/1.ts\n#EXTINF:-1 tvg-chno=\"2\",Two\nhttp://%[1]s/stream/2.ts\n", r.Host)
+	})
+	stream := func(w http.ResponseWriter, r *http.Request) {
+		for n := 0; r.Context().Err() == nil; n++ {
+			p := make([]byte, 188)
+			p[0], p[1] = 0x47, byte(n)
+			if _, err := w.Write(p); err != nil {
+				return
+			}
+			w.(http.Flusher).Flush()
+			time.Sleep(2 * time.Millisecond)
+		}
+	}
+	mux.HandleFunc("/stream/", stream)
+	mux.HandleFunc("/xtream/live/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/xtream/live/sam/s3cret-word/7.ts" {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		stream(w, r)
+	})
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 	return server
@@ -176,5 +198,81 @@ func TestAnXtreamSignInIsNeverShownAndATunerSaysItsTuners(t *testing.T) {
 	got := get[LiveSource](t, s, owner, "/v1/admin/live/sources/"+tuner.ID)
 	if got.TunerCount != 2 || got.Report == nil || got.Report.Channels != 1 || got.Report.SkippedChannels != 1 || got.Report.ChannelsWithGuide != 1 {
 		t.Fatalf("the tuner reads %+v %+v", got, got.Report)
+	}
+}
+
+// Watching a tuner's channel shares one connection among its viewers; a second channel on a
+// one-tuner source is refused naming what uses the tuner; the stream plays from live or from
+// a moment in the rewind stretch, and its address stops working when the session ends.
+func TestWatchingASourcesChannelSharesItsTuner(t *testing.T) {
+	s, owner, members := seededWith(t, 50, 2)
+	fake := fakeProvider(t, s.now())
+	t.Cleanup(s.tuners.Close) // before the fake source closes, which waits for its streams
+	addSource(t, s, owner, LiveSourceSave{Kind: "playlist", Name: new("Antenna"), TunerCount: new(1), Config: &live.Config{PlaylistURL: fake.URL + "/tuned.m3u"}})
+	channels := get[Page[Channel]](t, s, members[0], "/v1/live/channels").Items
+	if len(channels) != 2 {
+		t.Fatalf("channels: %+v", channels)
+	}
+	var first, second PlaybackSession
+	if w := call(t, s, "POST", "/v1/playback/sessions", members[0], PlaybackStart{Channel: channels[0].ID}, &first); w.Code != 201 ||
+		first.Kind != "live" || first.Live == nil || first.Presentation.URL == "" {
+		t.Fatalf("watching answered %d: %s", w.Code, w.Body)
+	}
+	if w := call(t, s, "POST", "/v1/playback/sessions", members[1], PlaybackStart{Channel: channels[0].ID}, &second); w.Code != 201 {
+		t.Fatalf("a second viewer of the same channel answered %d: %s", w.Code, w.Body)
+	}
+	var refused struct {
+		Error Error `json:"error"`
+	}
+	if w := call(t, s, "POST", "/v1/playback/sessions", owner, PlaybackStart{Channel: channels[1].ID}, &refused); w.Code != 409 ||
+		refused.Error.Code != "no_tuner" || !strings.Contains(refused.Error.Message, "Another viewer") {
+		t.Fatalf("a second channel on a one-tuner source answered %d %+v", w.Code, refused.Error)
+	}
+
+	read := func(address string) int {
+		ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+		defer cancel()
+		r := newRequest("GET", address, "", nil).WithContext(ctx)
+		w := serve(s, r)
+		if w.Code != 200 {
+			t.Logf("%s answered %d: %s", address, w.Code, w.Body)
+		}
+		return w.Body.Len()
+	}
+	time.Sleep(200 * time.Millisecond)
+	if n := read(first.Presentation.URL); n < 188*4 || n%188 != 0 {
+		t.Fatalf("reading live sent %d bytes", n)
+	}
+	if n := read(first.Presentation.URL + "?at=" + first.Live.OldestAt.Format(time.RFC3339Nano)); n < 188*4 {
+		t.Fatalf("reading from the oldest point sent %d bytes", n)
+	}
+	if code := status(t, s, "PUT", "/v1/playback/sessions/"+first.ID+"/progress", members[0], PlaybackProgress{State: "paused"}); code != 200 {
+		t.Fatalf("a live session's report answered %d", code)
+	}
+	status(t, s, "DELETE", "/v1/playback/sessions/"+first.ID, members[0], nil)
+	if code := status(t, s, "GET", first.Presentation.URL, "", nil); code != 404 {
+		t.Fatalf("a stopped session's stream answered %d", code)
+	}
+}
+
+// An Xtream channel plays from an address made at tune time from the sealed sign-in, which
+// no stored row and no answer ever holds.
+func TestAnXtreamChannelPlaysWithItsSealedSignIn(t *testing.T) {
+	s, owner, _ := seededWith(t, 50, 0)
+	fake := fakeProvider(t, s.now())
+	t.Cleanup(s.tuners.Close)
+	addSource(t, s, owner, LiveSourceSave{Kind: "xtream", Name: new("Provider"), Config: &live.Config{ServerURL: fake.URL + "/xtream"},
+		SignIn: &live.SignIn{Username: "sam", Password: "s3cret-word"}})
+	channels := get[Page[Channel]](t, s, owner, "/v1/live/channels").Items
+	var session PlaybackSession
+	if w := call(t, s, "POST", "/v1/playback/sessions", owner, PlaybackStart{Channel: channels[0].ID}, &session); w.Code != 201 ||
+		strings.Contains(w.Body.String(), "s3cret-word") {
+		t.Fatalf("watching answered %d: %s", w.Code, w.Body)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	time.Sleep(100 * time.Millisecond)
+	if w := serve(s, newRequest("GET", session.Presentation.URL, "", nil).WithContext(ctx)); w.Body.Len() < 188*4 {
+		t.Fatalf("the stream sent %d bytes", w.Body.Len())
 	}
 }

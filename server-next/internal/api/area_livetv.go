@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"path/filepath"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/librarychannels"
@@ -17,6 +18,9 @@ type liveTVArea struct {
 	sources *live.Service
 	// background lives as long as the server, for work a request starts and does not wait for.
 	background context.Context
+	// tuners runs each channel's shared input, and viewings the live sessions on them.
+	tuners   *live.Tuners
+	viewings *live.Viewings
 }
 
 // startLiveTV builds this area's services and registers its routes and job kinds. New calls it
@@ -33,5 +37,11 @@ func (s *Server) startLiveTV(ctx context.Context) error {
 	s.background = ctx
 	go s.sources.Run(ctx)
 	s.liveSourceRoutes()
+	s.tuners = live.NewTuners(filepath.Join(s.dataDir, "transcodes", "live"), live.StreamClient(), s.log, func() time.Time { return s.now() },
+		func() live.Tuning { return live.DefaultTuning })
+	s.viewings = live.NewViewings(func() time.Time { return s.now() })
+	go s.tuners.Run(ctx)
+	go s.viewings.Run(ctx)
+	s.liveStreamRoute()
 	return nil
 }
