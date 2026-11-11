@@ -23,6 +23,11 @@ func (s *Server) startTogether(ctx context.Context) error {
 	clock := func() time.Time { return s.now() }
 	s.live = livefeed.New(clock)
 	s.receivers = receivers.New(s.live, clock)
+	// A move that does not end playing stops what the asked device started under it, so two
+	// devices never keep playing as one stream.
+	s.receivers.OnUndo(func(u receivers.Undo) {
+		s.playback.Stop(context.Background(), u.SessionID, u.UserID, 0, nil)
+	})
 	// The account's other devices hear when one of its sessions starts, ends, pauses or plays.
 	s.playback.OnChange(func(userID int64, id string) {
 		s.live.ToAccount(userID, livefeed.TopicPlayback, livefeed.OpUpdated, id)
