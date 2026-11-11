@@ -7,7 +7,10 @@
 package tmdbtest
 
 import (
+	"bytes"
 	"embed"
+	"image"
+	"image/png"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -18,6 +21,13 @@ import (
 
 //go:embed answers/*.json
 var answers embed.FS
+
+// Picture is what the stand-in answers for every picture address: a 4 by 6 PNG.
+var Picture = func() []byte {
+	var buf bytes.Buffer
+	png.Encode(&buf, image.NewRGBA(image.Rect(0, 0, 4, 6)))
+	return buf.Bytes()
+}()
 
 // Server answers like TMDB. Requests counts every request it was sent. Down makes it answer
 // 503 to everything, as TMDB does when it is unwell.
@@ -55,6 +65,12 @@ func file(r *http.Request) string {
 func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	s.Requests.Add(1)
 	w.Header().Set("Content-Type", "application/json")
+	if strings.HasPrefix(r.URL.Path, "/t/p/") {
+		// A picture, which TMDB serves without a token: the same small one for every address.
+		w.Header().Set("Content-Type", "image/png")
+		w.Write(Picture)
+		return
+	}
 	switch {
 	case s.Down.Load():
 		w.WriteHeader(http.StatusServiceUnavailable)

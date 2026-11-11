@@ -205,10 +205,10 @@ Refreshing or editing a selection of titles is a bulk action, `POST /v1/jobs`.
 | `POST /v1/admin/items/{id}/merge`, `POST /v1/admin/versions/{id}/split` | Merge the title named in the body into this one (same kind, same library); split a version off into a title of its own, named from its file. Both hold through every scan (counted with Libraries, storage, files) |
 | `GET /v1/admin/libraries/{id}/unmatched` | Unmatched items: the library's titles looked up without a confident answer, by title, each with a plain reason and up to three closest matches. No count |
 | `GET /v1/admin/items/{id}/artwork` | The pictures a title could use for a `role`: beside the media, inside the file, the provider's, uploads, and a frame from the video |
-| `POST /v1/admin/items/{id}/artwork` | Upload a JPEG, PNG or WebP of at most 10 MB for a role; it is used and locked |
+| `POST /v1/admin/items/{id}/artwork` | Upload a JPEG, PNG or WebP of at most 10 MB for a `role`, sent as the body itself and judged by its contents (`415` otherwise, `413` over 10 MB); it is used and locked. A matched title's best provider picture of each role is fetched by the server when it is matched or refreshed |
 | `PUT /v1/admin/items/{id}/artwork/{role}` | Use this picture for the role, which locks it; or unlock the role |
 | `DELETE /v1/admin/items/{id}/artwork/{imageId}` | Remove an upload; the next best picture is used |
-| `POST /v1/admin/items/{id}/artwork/find` | Find more from the provider, fetch again, or make an episode's picture from the video |
+| `POST /v1/admin/items/{id}/artwork/find` | Find more: every picture the provider has for a `role`, fetched by the server and kept to choose from. Making an episode's picture from the video comes with the preview work |
 | `GET /v1/admin/metadata/settings`, `PUT /v1/admin/metadata/settings` | Own provider keys (write-only: the answer says only whether one is set), Include adult titles, cast photos, Download title data, the subtitle account |
 
 ## Not on the wire, on purpose

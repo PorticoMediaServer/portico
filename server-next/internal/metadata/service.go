@@ -17,6 +17,8 @@ type Service struct {
 	Providers map[string]Provider // by Name
 	// IncludeAdult is the owner's "Include adult titles" switch.
 	IncludeAdult bool
+	// Pictures keeps the provider's pictures the server fetches; nil fetches none.
+	Pictures PictureStore
 
 	// When each library's matched titles were last all looked through for a refresh. It is
 	// running state: after a restart the first call looks through them once.
@@ -122,6 +124,9 @@ func (s *Service) match(ctx context.Context, p Provider, locale Locale, item db.
 		return false, err
 	}
 	if err := s.DB.ApplyDetails(ctx, db.Background, item.ID, details(record, db.MatchFound)); err != nil {
+		return false, err
+	}
+	if err := s.storePictures(ctx, item.ID, record.Pictures, "", db.Background); err != nil {
 		return false, err
 	}
 	return true, s.children(ctx, p, locale, item.ID, ref)
@@ -263,6 +268,9 @@ func (s *Service) Identify(ctx context.Context, itemID string, ref Ref) (string,
 	if err != nil || remaining != itemID {
 		return remaining, err // merged into a title that has its details already
 	}
+	if err := s.storePictures(ctx, t.ID, record.Pictures, "", db.Background); err != nil {
+		return remaining, err
+	}
 	return remaining, s.children(ctx, p, locale, t.ID, record.Ref)
 }
 
@@ -311,6 +319,9 @@ func (s *Service) Rematch(ctx context.Context, itemID string) (bool, error) {
 	}
 	if _, err := s.DB.ChangeMatch(ctx, db.User, t.ID, details(record, db.MatchFound)); err != nil {
 		return false, err
+	}
+	if err := s.storePictures(ctx, t.ID, record.Pictures, "", db.Background); err != nil {
+		return true, err
 	}
 	return true, s.children(ctx, p, locale, t.ID, record.Ref)
 }
