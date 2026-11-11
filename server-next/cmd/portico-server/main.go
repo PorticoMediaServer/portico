@@ -210,7 +210,7 @@ func run(log *slog.Logger) (err error) {
 	})
 	// Moods and similar titles: the published title data file, checked weekly. Nothing is
 	// downloaded until a release is signed, or while the owner has it switched off.
-	titleData := &titledata.Updater{DB: d, Dir: filepath.Join(*data, "title-data"), Log: log}
+	titleData := &titledata.Updater{DB: d, Dir: filepath.Join(*data, "title-data"), Settings: handler.Settings(), Log: log}
 	// A test publication, signed with a throwaway key and served from this machine, for trying
 	// the title data before a release is signed. A release never sets these.
 	if key := os.Getenv("PORTICO_TITLE_DATA_KEY"); key != "" {
