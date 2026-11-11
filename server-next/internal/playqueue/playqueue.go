@@ -493,7 +493,7 @@ func (s *Service) Advance(ctx context.Context, c Caller, id string, ifMatch int6
 	if q, err = s.refill(ctx, c.Viewer, q); err != nil {
 		return q, err
 	}
-	if q, err = s.db.StepQueue(ctx, c.Viewer, id, 0, reason, entryID, s.now()); err != nil {
+	if q, err = s.db.StepQueue(ctx, c.Viewer, id, 0, reason, entryID, from, s.now()); err != nil {
 		return q, err
 	}
 	s.mu.Lock()
@@ -618,7 +618,7 @@ func (s *Service) CommitNext(ctx context.Context, c Caller, id, token string) (d
 		q, err := s.db.Queue(ctx, c.Viewer, id)
 		return q, session, err
 	}
-	q, err := s.db.StepQueue(ctx, c.Viewer, id, 0, "entry", p.entryID, s.now())
+	q, err := s.db.StepQueue(ctx, c.Viewer, id, 0, "entry", p.entryID, 0, s.now())
 	if err != nil {
 		s.playback.Drop(p.stream)
 		return q, playback.Session{}, err

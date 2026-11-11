@@ -656,8 +656,16 @@ func (d *DB) ChangeQueue(ctx context.Context, v Viewer, publicID string, ifMatch
 // entry played to its end, which repeat-one answers with the same entry), to the one before
 // ("previous"), or to a named entry. At the end of a queue that does not repeat it is
 // ErrQueueEnded and nothing changes. It also marks the queue as played now.
-func (d *DB) StepQueue(ctx context.Context, v Viewer, publicID string, ifMatch int64, reason string, entryID int64, now time.Time) (Queue, error) {
-	return d.editQueue(ctx, v, publicID, ifMatch, now, func(e *queueEdit) error {
+//
+// from, when not 0, is the entry the app was on when it asked for a completion, next or
+// previous. If the queue is no longer on it, the same request already moved it (its answer was
+// lost and it was sent again, perhaps while the first was still being written), and the queue
+// is answered as it stands without moving again.
+func (d *DB) StepQueue(ctx context.Context, v Viewer, publicID string, ifMatch int64, reason string, entryID, from int64, now time.Time) (Queue, error) {
+	q, err := d.editQueue(ctx, v, publicID, ifMatch, now, func(e *queueEdit) error {
+		if from != 0 && reason != "entry" && e.q.CurrentEntry != from {
+			return errAlreadyMoved
+		}
 		target := entryID
 		if reason != "entry" {
 			var err error
@@ -670,7 +678,14 @@ func (d *DB) StepQueue(ctx context.Context, v Viewer, publicID string, ifMatch i
 		_, err := e.tx.Exec(`UPDATE play_queues SET current_entry_id = ?, played_at = ? WHERE id = ?`, target, now.UnixMilli(), e.q.ID)
 		return err
 	})
+	if errors.Is(err, errAlreadyMoved) {
+		return d.Queue(ctx, v, publicID)
+	}
+	return q, err
 }
+
+// errAlreadyMoved is a move StepQueue was asked for a second time.
+var errAlreadyMoved = errors.New("the queue already moved off that entry")
 
 // QueueRefill is more of a queue's selection to put behind what it holds.
 type QueueRefill struct {
