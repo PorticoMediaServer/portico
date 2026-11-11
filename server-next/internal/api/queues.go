@@ -280,6 +280,10 @@ func (s *Server) createQueue(r *http.Request, req QueueCreate) (QueueCreated, er
 	if err != nil {
 		return QueueCreated{}, err
 	}
+	if req.Source.Queue != "" && !s.receivers.QueueOffered(CallerFrom(r.Context()).SessionID, req.Source.Queue) {
+		// Another device's queue is taken on only when that device moves playback here.
+		return QueueCreated{}, ErrNotFound()
+	}
 	q, err := s.queues.Create(r.Context(), s.playbackCaller(r), playqueue.CreateInput{Source: req.Source, Shuffle: req.Shuffle,
 		StartAt: req.StartAt, Resume: req.Resume, Key: key, Hash: requestHash(req)})
 	if err != nil {

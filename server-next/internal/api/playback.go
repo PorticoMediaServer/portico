@@ -220,7 +220,7 @@ func (s *Server) startPlayback(r *http.Request, req PlaybackStart) (PlaybackSess
 	if req.RequestID != "" {
 		// Playback moving here from another device: what that device plays still runs until
 		// this one plays, and the two are one stream meanwhile.
-		asked, err := s.receivers.Get(in.Caller.Viewer.UserID, req.RequestID)
+		asked, err := s.receivers.Get(in.Caller.SignInID, req.RequestID)
 		if err != nil || asked.To.SignInID != in.Caller.SignInID || !asked.Open() || asked.Play == nil || asked.Play.ItemID != req.ItemID {
 			return PlaybackSession{}, ErrField("requestId", "This is not an open request to play this title here.")
 		}
@@ -229,6 +229,11 @@ func (s *Server) startPlayback(r *http.Request, req PlaybackStart) (PlaybackSess
 	session, ready, created, err := s.playback.Start(r.Context(), in)
 	if err != nil {
 		return PlaybackSession{}, playbackError(err)
+	}
+	if req.RequestID != "" && !s.receivers.Started(in.Caller.SignInID, req.RequestID, session.ID) {
+		// The move ended while this device was starting: it is undone, as a failed move is.
+		s.playback.Stop(r.Context(), session.ID, in.Caller.Viewer.UserID, 0, nil)
+		return PlaybackSession{}, ErrConflict("move_over", "This move was cancelled or ran out of time.")
 	}
 	out := sessionOut(session)
 	switch {
