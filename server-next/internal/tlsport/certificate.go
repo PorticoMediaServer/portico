@@ -16,6 +16,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -54,6 +55,10 @@ type Store struct {
 	stamp   string // the files' sizes and times when last read
 	problem string
 	warned  time.Time
+	// zone and zoneCertificate serve the Portico certificate: a hello for a name under zone
+	// (".<name space>.portico.direct") gets it, at home and away; any other gets the owner's.
+	zone            string
+	zoneCertificate func(*tls.ClientHelloInfo) (*tls.Certificate, error)
 }
 
 // NewStore keeps certificates read from the folder keys, which it makes (readable by the
@@ -192,13 +197,28 @@ func (s *Store) Fingerprints() []string {
 
 // GetCertificate is for tls.Config: the owner's certificate while it is valid, otherwise none,
 // and the handshake fails while plain HTTP goes on working.
-func (s *Store) GetCertificate(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+func (s *Store) GetCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	if s.zoneCertificate != nil && hello != nil && strings.HasSuffix(strings.ToLower(hello.ServerName), s.zone) {
+		return s.zoneCertificate(hello)
+	}
 	if s.cert == nil || s.now().After(s.leaf.NotAfter) {
 		return nil, errors.New("this server has no certificate to offer")
 	}
 	return s.cert, nil
+}
+
+// ServeZone serves certificate for every name under zone ("<name space>.portico.direct"), the
+// Portico certificate, beside the owner's own. An empty zone stops it.
+func (s *Store) ServeZone(zone string, certificate func(*tls.ClientHelloInfo) (*tls.Certificate, error)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if zone == "" || certificate == nil {
+		s.zone, s.zoneCertificate = "", nil
+		return
+	}
+	s.zone, s.zoneCertificate = "."+strings.ToLower(strings.TrimSuffix(zone, ".")), certificate
 }
 
 // Run looks for a changed certificate every minute, and says in the log once a day while the

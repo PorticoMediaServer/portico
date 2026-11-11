@@ -65,6 +65,9 @@ type Finder struct {
 	real bool
 	// OnChange is told a new address, for Portico Services when it is connected.
 	OnChange func(address string)
+	// OnLocalChange is told when this machine's own addresses change, so the home addresses
+	// the server publishes can be sent again.
+	OnLocalChange func()
 
 	mu      sync.Mutex
 	want    bool
@@ -150,6 +153,9 @@ func (f *Finder) Run(ctx context.Context) {
 				continue
 			}
 			seen = now
+			if f.OnLocalChange != nil {
+				f.OnLocalChange()
+			}
 		}
 		f.mu.Lock()
 		want := f.want
