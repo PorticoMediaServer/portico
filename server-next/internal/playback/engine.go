@@ -136,6 +136,8 @@ type PlanRequest struct {
 	Failures []db.RouteFailure
 	// Preferences are the profile's and the device's settings, key to JSON value.
 	Preferences map[string]string
+	// AppLanguage is the language the app is shown in, or "".
+	AppLanguage string
 }
 
 // Routes a plan can take, cheapest first.
