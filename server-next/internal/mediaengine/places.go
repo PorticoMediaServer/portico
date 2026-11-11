@@ -1,0 +1,273 @@
+package mediaengine
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strconv"
+	"time"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
+	"github.com/PorticoMediaServer/portico/server-next/internal/mediatools"
+	"github.com/PorticoMediaServer/portico/server-next/internal/streaming"
+)
+
+// The owner can change the folder conversions are written to, and the ffmpeg that makes
+// them, while the server runs. A stream keeps the folder and the program it started with
+// until it ends, so nothing playing is interrupted; every stream started after the change
+// uses the new ones. Each pair of folder and program therefore has its own set of streams
+// (a place). There is one current place; an older one stays only while a stream in it is
+// still playing, and is then stopped and its folder cleared.
+
+// place is one conversion folder and one ffmpeg, with the streams started under them.
+type place struct {
+	streams *streaming.Streams
+	// folder is the conversion folder; number names this place's own folder inside it.
+	folder string
+	ffmpeg string
+	number int
+	// ctx ends this place's housekeeping; stop ends ctx.
+	ctx  context.Context
+	stop context.CancelFunc
+}
+
+// ownedFolder is the folder the server makes inside a folder the owner chose. The streams
+// empty their folder when they start and when they stop, so it is never the owner's folder
+// itself: pointing the setting at a folder with other things in it loses nothing.
+const ownedFolder = "portico-conversions"
+
+// open makes a place in a conversion folder. Each place writes to a numbered folder of its
+// own inside it, because a set of streams empties its folder when it starts and when it
+// stops, and two places can share one conversion folder (when only the program changed).
+// A folder that cannot be made or written to is refused. Caller holds mu, or is New.
+func (e *Engine) open(base, ffmpeg string) (*place, error) {
+	e.opened++
+	ctx, stop := context.WithCancel(e.ctx)
+	streams, err := streaming.New(ctx, streaming.Options{Folder: filepath.Join(base, strconv.Itoa(e.opened)), FFmpeg: ffmpeg,
+		Libraries: e.folders, Processes: e.processes})
+	if err != nil {
+		stop()
+		return nil, err
+	}
+	return &place{streams: streams, folder: base, ffmpeg: ffmpeg, number: e.opened, ctx: ctx, stop: stop}, nil
+}
+
+// empty removes what an earlier run of the server left in a conversion folder. It is only
+// ever called on a folder the server made for itself.
+func empty(base string) error {
+	if err := os.MkdirAll(base, 0o700); err != nil {
+		return err
+	}
+	entries, err := os.ReadDir(base)
+	for _, entry := range entries {
+		if err == nil {
+			err = os.RemoveAll(filepath.Join(base, entry.Name()))
+		}
+	}
+	return err
+}
+
+// SetConversion changes where conversions are written and which ffmpeg makes them, with no
+// restart. folder is a folder of the owner's choosing, in which the server keeps a folder
+// of its own; ffmpeg is a path to the program. Empty means the one the server started with.
+// Streams that are playing are not touched. A folder that cannot be written to, or a
+// program that is not there, is refused and nothing changes.
+func (e *Engine) SetConversion(folder, ffmpeg string) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	target := e.folder
+	if folder != "" {
+		if !filepath.IsAbs(folder) {
+			return errors.New("the conversion folder must be a full path")
+		}
+		target = filepath.Join(folder, ownedFolder)
+	}
+	program := e.program
+	if ffmpeg != "" {
+		path, err := exec.LookPath(ffmpeg)
+		if err != nil || !filepath.IsAbs(path) {
+			return fmt.Errorf("FFmpeg was not found at %s", ffmpeg)
+		}
+		program = path
+	}
+	if target == e.current.folder && program == e.current.ffmpeg {
+		return nil
+	}
+	if target != e.current.folder {
+		// A folder nothing plays from: what an earlier run left in it goes.
+		if err := empty(target); err != nil {
+			return fmt.Errorf("the conversion folder cannot be written to: %w", err)
+		}
+	}
+	next, err := e.open(target, program)
+	if err != nil {
+		return err
+	}
+	if program != e.current.ffmpeg {
+		// Everything that finds the tools by itself (the scanner's reader, previews) follows,
+		// and the new program is asked what it can do beside this: a play waits for the answer.
+		pair, probe := e.startFFmpeg, e.startFFprobe
+		if ffmpeg != "" {
+			pair = program
+			if sibling, err := exec.LookPath(filepath.Join(filepath.Dir(program), mediatools.Name("ffprobe"))); err == nil {
+				probe = sibling
+			}
+		}
+		if err := mediatools.ConfigurePair(pair, probe); err != nil && ffmpeg != "" {
+			next.stop()
+			return fmt.Errorf("FFmpeg at %s cannot be used: %w", ffmpeg, err)
+		}
+		e.asking = e.ask(program)
+	}
+	old := e.current
+	e.current = next
+	if e.running {
+		go next.streams.Run(next.ctx)
+	}
+	e.retired = append(e.retired, old)
+	e.closeIdleLocked()
+	return nil
+}
+
+// place is where a session's stream is, or the current place for a session with none.
+func (e *Engine) place(sessionID string) *place {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if p := e.by[sessionID]; p != nil {
+		return p
+	}
+	return e.current
+}
+
+// enter puts a session's next stream in the current place. A stream it had in an older
+// place is stopped first: a session has one stream. had says the session already had a
+// stream in the current place.
+func (e *Engine) enter(sessionID string) (in *place, had bool) {
+	e.mu.Lock()
+	old, current := e.by[sessionID], e.current
+	e.by[sessionID] = current
+	e.mu.Unlock()
+	if old != nil && old != current {
+		old.streams.Stop(sessionID)
+		e.mu.Lock()
+		e.closeIdleLocked()
+		e.mu.Unlock()
+	}
+	return current, old == current
+}
+
+// leave records that a session has no stream in a place any more.
+func (e *Engine) leave(sessionID string, in *place) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.by[sessionID] == in {
+		delete(e.by, sessionID)
+	}
+	e.closeIdleLocked()
+}
+
+// closeIdleLocked stops every older place no session plays from any more, and clears its
+// folder. Caller holds mu.
+func (e *Engine) closeIdleLocked() {
+	kept := e.retired[:0]
+	for _, p := range e.retired {
+		busy := false
+		for _, in := range e.by {
+			busy = busy || in == p
+		}
+		if busy {
+			kept = append(kept, p)
+			continue
+		}
+		go func() {
+			wait, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			if err := p.streams.Shutdown(wait); err != nil {
+				e.log.Error("clearing the conversion folder that is no longer used failed", "folder", p.folder, "error", err)
+			}
+			p.stop()
+			_ = os.Remove(filepath.Join(p.folder, strconv.Itoa(p.number)))
+		}()
+	}
+	e.retired = kept
+}
+
+// serving is the place whose streams answer an address: the one the grant belongs to.
+func (e *Engine) serving(grant, file string) *streaming.Streams {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for _, p := range e.retired {
+		if p.streams.Serves(grant, file) {
+			return p.streams
+		}
+	}
+	return e.current.streams
+}
+
+// toolset is what one ffmpeg can do.
+type toolset struct {
+	// asked is closed once ffmpeg has said what it can do. Until then the rest is not to be
+	// read: wait waits for it.
+	asked chan struct{}
+	// converter is false on a server without a working ffmpeg: only original files play.
+	// fragmented says its ffmpeg can write fragmented MP4 streams.
+	converter, fragmented bool
+	// ffmpeg is the converter's path, and hardware what has been found out about this
+	// machine's hardware encoders.
+	ffmpeg   string
+	hardware *decoder.HardwareDetector
+}
+
+// tools is the toolset in force.
+func (e *Engine) tools() *toolset {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.asking
+}
+
+// wait waits until ffmpeg has said what it can do, and reports whether this server can
+// convert and whether it can write fragmented MP4 streams.
+func (t *toolset) wait(ctx context.Context) (converter, fragmented bool, err error) {
+	select {
+	case <-t.asked:
+		return t.converter, t.fragmented, nil
+	case <-ctx.Done():
+		return false, false, ctx.Err()
+	}
+}
+
+// ask asks an ffmpeg what it can do. That takes several seconds, so it happens beside the
+// caller: the server serves at once, and only a play that arrives in those seconds waits.
+func (e *Engine) ask(ffmpeg string) *toolset {
+	t := &toolset{asked: make(chan struct{})}
+	if ffmpeg == "" {
+		ffmpeg = mediatools.Resolve("ffmpeg")
+	}
+	go func() {
+		defer close(t.asked)
+		path, err := exec.LookPath(ffmpeg)
+		if err != nil {
+			return
+		}
+		tools, err := decoder.ProbeToolchainKept(e.ctx, ffmpeg, e.kept)
+		if err != nil {
+			if e.ctx.Err() == nil {
+				e.log.Error("ffmpeg could not be asked what it can do, so only original files will play", "error", err)
+			}
+			return
+		}
+		decoder.ConfigureToolchain(tools)
+		t.converter, t.fragmented = true, tools.Muxers["mp4"] && tools.Muxers["hls"]
+		// The hardware encoders are tried out now, beside the start, so no play waits for
+		// that: until it is done a conversion is planned in software.
+		t.ffmpeg, t.hardware = path, &decoder.HardwareDetector{}
+		if libraries, err := decoder.ResolveLibraries(path, mediatools.Resolve("ffprobe"), nil); err == nil {
+			t.hardware.Libraries = libraries
+		}
+		t.hardware.SelectCached(path, "auto", "")
+	}()
+	return t
+}
