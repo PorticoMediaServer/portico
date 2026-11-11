@@ -78,30 +78,56 @@ func TestArtwork(t *testing.T) {
 	}
 	sh.do("DELETE", "/v1/admin/items/"+heat+"/artwork/"+other, nil, nil, 409) // a provider's picture stays to choose from
 
-	// Undo to before the removal: the upload is gone, so the choice before it comes back.
+	// Undo of the removal puts the upload back as the choice: its file was kept for History.
 	var history Page[MetadataHistoryEntry]
 	sh.do("GET", "/v1/admin/items/"+heat+"/metadata/history", nil, &history, 200)
 	if len(history.Items) != 3 || history.Items[0].Kind != "artwork_chosen" {
 		t.Fatalf("history: %+v", history.Items)
 	}
-	sh.do("POST", "/v1/admin/items/"+heat+"/metadata/history/"+history.Items[1].ID+"/undo", nil, nil, 200)
+	sh.do("POST", "/v1/admin/items/"+heat+"/metadata/history/"+history.Items[0].ID+"/undo", nil, nil, 200)
+	if got := sh.posters(heat); got[0].Source != "upload" || !got[0].Locked || got[0].URL != uploadURL || sh.detail(heat).Images["poster"] != uploadURL {
+		t.Fatalf("after undoing the removal: %+v", got)
+	}
+	// Undo to before the upload: the choice before it comes back.
+	sh.do("GET", "/v1/admin/items/"+heat+"/metadata/history", nil, &history, 200)
+	sh.do("POST", "/v1/admin/items/"+heat+"/metadata/history/"+history.Items[2].ID+"/undo", nil, nil, 200)
 	if got := sh.posters(heat); got[0].ID != other || !got[0].Locked {
-		t.Fatalf("after Undo: %+v", got)
+		t.Fatalf("after undoing the upload: %+v", got)
 	}
 
-	// The daily tidy-up's sweep takes the removed upload's file and nothing in use. A picture
-	// stored in the last hour is kept, so the clock is moved on.
+	// The daily tidy-up's sweep takes a removed upload's file only once no History entry names
+	// it, and never a picture in use. A picture stored in the last hour is kept, so the clock
+	// is moved on for each sweep.
+	for _, p := range sh.posters(heat) {
+		if p.Source == "upload" {
+			sh.do("DELETE", "/v1/admin/items/"+heat+"/artwork/"+p.ID, nil, nil, 204)
+		}
+	}
+	sweep := func() int {
+		t.Helper()
+		sh.s.setClock(func() time.Time { return time.Now().Add(2 * time.Hour) })
+		defer sh.s.setClock(time.Now)
+		removed, err := sh.s.SweepPictures(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		return removed
+	}
 	if removed, err := sh.s.SweepPictures(context.Background()); err != nil || removed != 0 {
 		t.Fatalf("a sweep within the hour removed %d: %v", removed, err)
 	}
-	sh.s.setClock(func() time.Time { return time.Now().Add(2 * time.Hour) })
-	if removed, err := sh.s.SweepPictures(context.Background()); err != nil || removed != 1 {
-		t.Fatalf("the sweep removed %d pictures, want the one upload: %v", removed, err)
+	if removed := sweep(); removed != 0 {
+		t.Fatalf("the sweep removed %d pictures while History names the upload", removed)
+	}
+	for range 20 { // History keeps a title's last 20 changes
+		sh.do("PUT", "/v1/admin/items/"+heat+"/artwork/backdrop", ArtworkChoice{Unlock: true}, nil, 200)
+	}
+	if removed := sweep(); removed != 1 {
+		t.Fatalf("the sweep removed %d pictures, want the one upload no History entry names", removed)
 	}
 	if w := call(t, sh.s, "GET", uploadURL, "", nil, nil); w.Code != 404 {
 		t.Fatalf("the removed upload's picture is still served: %d", w.Code)
 	}
-	sh.s.setClock(time.Now)
 	if w := call(t, sh.s, "GET", sh.detail(heat).Images["poster"], "", nil, nil); w.Code != 200 {
 		t.Fatalf("the poster in use was swept: %d", w.Code)
 	}
