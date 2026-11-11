@@ -157,3 +157,33 @@ func (sh *shelf) detail(id string) Item {
 	sh.do("GET", "/v1/items/"+id, nil, &item, 200)
 	return item
 }
+
+// Undo of an older choice of a poster leaves a poster chosen since as the one choice.
+func TestUndoOfAnOlderPictureChoiceKeepsALaterOne(t *testing.T) {
+	sh := newShelf(t, "Heat (1995).mkv")
+	var films ItemPage
+	sh.do("GET", "/v1/items?kind=movie&library="+sh.library, nil, &films, 200)
+	heat := films.Items[0].ID
+	var found Page[ArtworkPicture]
+	sh.do("POST", "/v1/admin/items/"+heat+"/artwork/find?role=poster", nil, &found, 200)
+	first, second := found.Items[0].ID, found.Items[1].ID
+	sh.do("PUT", "/v1/admin/items/"+heat+"/artwork/poster", ArtworkChoice{ImageID: first}, nil, 200)
+	sh.do("PUT", "/v1/admin/items/"+heat+"/artwork/poster", ArtworkChoice{ImageID: second}, nil, 200)
+	var picture bytes.Buffer
+	png.Encode(&picture, image.NewRGBA(image.Rect(0, 0, 30, 45)))
+	if w := sh.uploadPoster(sh.owner, heat, picture.Bytes()); w.Code != 201 {
+		t.Fatalf("upload answered %d: %s", w.Code, w.Body)
+	}
+	var history Page[MetadataHistoryEntry]
+	sh.do("GET", "/v1/admin/items/"+heat+"/metadata/history", nil, &history, 200)
+	sh.do("POST", "/v1/admin/items/"+heat+"/metadata/history/"+history.Items[1].ID+"/undo", nil, nil, 200) // the second choice
+	locked := 0
+	for _, p := range sh.posters(heat) {
+		if p.Locked {
+			locked++
+		}
+	}
+	if got := sh.posters(heat); locked != 1 || got[0].Source != "upload" || !got[0].Locked {
+		t.Fatalf("after undoing an older choice, %d posters are chosen: %+v", locked, got)
+	}
+}

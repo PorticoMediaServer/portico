@@ -484,9 +484,11 @@ func restoreChanged(b *batchTx, im *importer, library, id int64, before, after, 
 			}
 		}
 	}
+	// A role chosen again since keeps that later choice: a role has one chosen picture.
 	for p := range wasLocked {
 		if !leftLocked[p] {
-			if _, err := b.exec(`UPDATE images SET locked = 1 WHERE id = ? AND item_id = ?`, p, id); err != nil {
+			if _, err := b.exec(`UPDATE images SET locked = 1 WHERE id = ?1 AND item_id = ?2 AND NOT EXISTS (SELECT 1 FROM images o
+				WHERE o.item_id = ?2 AND o.role = images.role AND o.locked = 1)`, p, id); err != nil {
 				return err
 			}
 		}
