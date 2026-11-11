@@ -1,19 +1,43 @@
 package api
 
 import (
+	"fmt"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"slices"
+	"sync"
 	"testing"
 	"time"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/decodertest"
 )
 
+// sampleFilm is one small real film, made once: the server's scans read files for real.
+var sampleFilm struct {
+	sync.Once
+	data []byte
+}
+
+// writeFile writes a small real film, with a few bytes after it so that sizes differ.
 func writeFile(t *testing.T, path string, size int) {
 	t.Helper()
+	ffmpeg := decodertest.QualifiedFFmpeg(t)
+	decodertest.QualifiedFFprobe(t)
+	sampleFilm.Do(func() {
+		file := filepath.Join(t.TempDir(), "sample.mkv")
+		out, err := exec.Command(ffmpeg, "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=black:size=160x90:rate=24", "-f", "lavfi", "-i",
+			"anullsrc=r=48000:cl=stereo", "-t", "1", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", file).CombinedOutput()
+		if err != nil {
+			decodertest.Unavailable(t, fmt.Sprintf("fixture encode unavailable: %v %s", err, out))
+		}
+		sampleFilm.data, _ = os.ReadFile(file)
+	})
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(path, make([]byte, size), 0o644); err != nil {
+	if err := os.WriteFile(path, append(slices.Clone(sampleFilm.data), make([]byte, size)...), 0o644); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -116,7 +140,7 @@ func TestTheOwnerManagesLibrariesScansAndDeletes(t *testing.T) {
 	heat := missingItemID(t, s, owner, lib.ID, "Heat")
 	item := "/v1/admin/items/" + heat
 	var preview DeletionPreview
-	if w := call(t, s, "GET", item+"/deletion", owner, nil, &preview); w.Code != 200 || preview.Titles != 1 || preview.Files != 1 || preview.Bytes != 101 {
+	if w := call(t, s, "GET", item+"/deletion", owner, nil, &preview); w.Code != 200 || preview.Titles != 1 || preview.Files != 1 || preview.Bytes != int64(len(sampleFilm.data))+101 {
 		t.Fatalf("delete preview: %d %s", w.Code, w.Body)
 	}
 	if code := status(t, s, "DELETE", item+"?confirm=Heat", owner, nil); code != 403 {
