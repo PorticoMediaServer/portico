@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"reflect"
 	"strings"
 	"time"
 )
@@ -232,12 +233,15 @@ func (d *DB) SetLibraryOptions(ctx context.Context, libraryID int64, options Lib
 	}
 	return d.write(ctx, User, func(tx *sql.Tx) error {
 		now := time.Now().UnixMilli()
-		res, err := tx.Exec(`UPDATE libraries SET options = ?, revision = revision + 1, updated_at = ? WHERE id = ?`, options.json(), now, libraryID)
+		res, err := tx.Exec(`UPDATE libraries SET revision = revision + 1, updated_at = ? WHERE id = ?`, now, libraryID)
 		if err != nil {
 			return err
 		}
 		if n, _ := res.RowsAffected(); n == 0 {
 			return ErrNotFound
+		}
+		if err := options.save(tx, libraryID); err != nil {
+			return err
 		}
 		return appendChange(tx, Change{At: now, Topic: TopicLibrary, Op: OpUpdated, RefID: libraryID, LibraryID: libraryID})
 	})
@@ -246,4 +250,36 @@ func (d *DB) SetLibraryOptions(ctx context.Context, libraryID int64, options Lib
 func (o LibraryOptions) json() string {
 	raw, _ := json.Marshal(o)
 	return string(raw)
+}
+
+// save writes the owner's choices into a library's options document and changes nothing else
+// in it. The document is shared: other areas keep keys of their own there (the region
+// metadata reads, what automatic collections remember), and a save of these choices must not
+// wipe them. Every key these choices own is replaced, also by its absence (a choice back at
+// its default is left out); every other key stays as it was.
+func (o LibraryOptions) save(tx *sql.Tx, libraryID int64) error {
+	var stored sql.NullString
+	if err := tx.QueryRow(`SELECT options FROM libraries WHERE id = ?`, libraryID).Scan(&stored); err != nil {
+		return err
+	}
+	document := map[string]json.RawMessage{}
+	if stored.Valid {
+		json.Unmarshal([]byte(stored.String), &document)
+	}
+	fields := reflect.TypeFor[LibraryOptions]()
+	for i := range fields.NumField() {
+		name, _, _ := strings.Cut(fields.Field(i).Tag.Get("json"), ",")
+		delete(document, name)
+	}
+	var mine map[string]json.RawMessage
+	json.Unmarshal([]byte(o.json()), &mine)
+	for name, value := range mine {
+		document[name] = value
+	}
+	raw, err := json.Marshal(document)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(`UPDATE libraries SET options = ? WHERE id = ?`, string(raw), libraryID)
+	return err
 }
