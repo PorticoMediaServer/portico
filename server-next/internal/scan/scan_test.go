@@ -663,3 +663,23 @@ func TestScanNowAfterCancelRunsANewScan(t *testing.T) {
 		t.Fatalf("the new scan found %d titles; want the one film", stats.ItemsNew)
 	}
 }
+
+// A film or clip left in a show library is in the library under its cleaned file name, as
+// what it is, and is listed in Unmatched items. The episodes around it are not.
+func TestAStrayFilmInAShowLibraryIsUnmatched(t *testing.T) {
+	f := newFixture(t, db.LibraryShows)
+	f.write("The Wire/Season 1/The Wire - S01E01.mkv")
+	f.write("Our.Wedding.2019.1080p.mkv")
+	f.scan()
+	stray, ok := f.titles(db.KindMovie)["Our Wedding"]
+	if !ok {
+		t.Fatalf("the stray film is not in the library; films: %v", keys(f.titles(db.KindMovie)))
+	}
+	unmatched, err := f.d.Unmatched(ctx, f.lib.ID, nil, 10)
+	if err != nil || len(unmatched) != 1 || unmatched[0].PublicID != stray.PublicID || unmatched[0].Kind != db.KindMovie || unmatched[0].Reason == "" {
+		t.Fatalf("Unmatched items: %+v, %v", unmatched, err)
+	}
+	if again := f.scan(); again.RowsWritten != 0 {
+		t.Fatalf("an unchanged rescan wrote %d rows", again.RowsWritten)
+	}
+}
