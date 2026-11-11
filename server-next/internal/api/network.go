@@ -20,6 +20,10 @@ import (
 // networks is the only thing that makes a connection local or remote: it decides who is
 // never blocked for wrong guesses and what "Home network" and "Away from home" mean in the
 // device list. Setting a server up, and signing in, work from any network.
+//
+// A home list that no longer holds where the owner is can shut them out together with the
+// remote access settings; the reset-remote-access file in the data folder puts both back
+// (see remote_access.go).
 
 // NetworkSettings is the owner's network settings.
 type NetworkSettings struct {
