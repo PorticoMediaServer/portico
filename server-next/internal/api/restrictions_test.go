@@ -53,6 +53,10 @@ func TestAProfilesRestrictionsAreSetFromTheMainProfile(t *testing.T) {
 		t.Fatalf("a library the kid may not see answered %d, want 404 as for one that does not exist", code)
 	}
 
+	genres, err := s.db.Tags(ctx, db.TagGenre)
+	if err != nil || len(genres) == 0 {
+		t.Fatalf("the seeded library has no genres: %v", err)
+	}
 	for _, c := range []struct {
 		method, token string
 		body          any
@@ -62,6 +66,9 @@ func TestAProfilesRestrictionsAreSetFromTheMainProfile(t *testing.T) {
 		{"PUT", onKid.AccessToken, Restrictions{AllLibraries: true}, 403},
 		{"PUT", parent, map[string]any{"maxRatingAge": 99, "allLibraries": true}, 400},
 		{"PUT", parent, Restrictions{AllLibraries: true, BlockedLabels: []string{"tag_nothing"}}, 400},
+		// Only a label can be blocked. Search counts what a profile may see from the labels its
+		// index carries, so a genre taken here would be hidden from lists and still counted.
+		{"PUT", parent, Restrictions{AllLibraries: true, BlockedLabels: []string{genres[0].PublicID}}, 400},
 		{"PUT", parent, Restrictions{Libraries: []string{"lib_nothing"}}, 400},
 	} {
 		if code := status(t, s, c.method, address, c.token, c.body); code != c.want {
