@@ -8,12 +8,14 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
+	"github.com/PorticoMediaServer/portico/server-next/internal/remote/remotetest"
 )
 
 // Sending POST twice is safe for these routes without an Idempotency-Key, for the reason given.
 // Every other POST creates something and must honour the key; the test below fails for a POST
 // in neither list, so a new creating route cannot be added without it.
 var repeatSafeWithoutKey = map[string]string{
+	"POST /v1/admin/remote-sources/{id}/test":     "tests the saved connection and replaces its status",
 	"POST /v1/setup/owner":                        "happens once: a repeat is told the server is set up",
 	"POST /v1/auth/sign-in":                       "a lost answer leaves a sign-in nobody holds, which expires",
 	"POST /v1/auth/two-factor":                    "the second step of a sign-in: as sign-in",
@@ -45,6 +47,7 @@ var repeatSafeWithoutKey = map[string]string{
 func TestCreatesAreSafeToRepeat(t *testing.T) {
 	th := newTheatre(t)
 	token := func() string { return th.owner.AccessToken }
+	dav := remotetest.NewDAV(t, map[string]string{"Films/film.mkv": "x"})
 	var queueID string
 	cases := []struct {
 		route        string
@@ -53,6 +56,9 @@ func TestCreatesAreSafeToRepeat(t *testing.T) {
 		count        func() int // how many of the thing exist; nil where the id is the whole proof
 		inMemoryOnly bool       // a restart ends it by design
 	}{
+		{route: "POST /v1/admin/remote-sources", body: RemoteSourceCreate{Kind: "webdav", Name: "NAS", WebDAV: &WebDAVSettings{Address: dav.URL, User: dav.User, Password: dav.Password}},
+			other: RemoteSourceCreate{Kind: "webdav", Name: "Other", WebDAV: &WebDAVSettings{Address: dav.URL, User: dav.User, Password: dav.Password}},
+			count: func() int { return th.named("/v1/admin/remote-sources", "name", "NAS") }},
 		{route: "POST /v1/profiles", body: ProfileCreate{Name: "Guest"}, other: ProfileCreate{Name: "Other"},
 			count: func() int { return th.named("/v1/profiles", "name", "Guest") }},
 		{route: "POST /v1/admin/members", body: MemberCreate{Username: "sam", Password: testPassword},
