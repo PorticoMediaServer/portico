@@ -46,7 +46,7 @@ func (e *Invalid) Error() string { return e.Field + ": " + e.Message }
 // Unplayable is a refusal to play one version, with the versions of the title that would
 // play on this device instead.
 type Unplayable struct {
-	// Err is ErrUnsupported, ErrConversionOff, ErrTooSlow, ErrUpdateRequired or ErrSourceUnavailable.
+	// Err is ErrUnsupported, ErrConversionOff, ErrTooSlow, ErrUpdateRequired, ErrSourceUnavailable or ErrDisc.
 	Err          error
 	Alternatives []Alternative
 }
@@ -431,7 +431,7 @@ func (s *Service) resolve(ctx context.Context, c Caller, device db.SessionDevice
 	}
 	if chosen == nil {
 		err := attempts[0].err
-		for _, sentinel := range []error{ErrUnsupported, ErrConversionOff, ErrTooSlow, ErrUpdateRequired, ErrSourceUnavailable} {
+		for _, sentinel := range []error{ErrUnsupported, ErrConversionOff, ErrTooSlow, ErrUpdateRequired, ErrSourceUnavailable, ErrDisc} {
 			if !errors.Is(err, sentinel) {
 				continue
 			}

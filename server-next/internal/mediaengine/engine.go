@@ -244,6 +244,11 @@ func (e *Engine) source(ctx context.Context, version db.PlaybackVersion) (string
 	if err != nil {
 		return "", place, 0, mediafacts.Facts{}, err
 	}
+	if scan.DiscTitle(place.Path) {
+		// A film disc kept as a folder. The file the scanner lists for it is the disc's index,
+		// which ffprobe cannot read, and no build ships a disc reader yet: say so plainly.
+		return "", place, 0, mediafacts.Facts{}, playback.ErrDisc
+	}
 	key := fmt.Sprint(remoteID, "\x00", path, "\x00", place.Size, "\x00", place.ModifiedNS)
 	e.mu.Lock()
 	facts, ok := e.facts[key]
