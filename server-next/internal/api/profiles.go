@@ -31,6 +31,12 @@ type Profile struct {
 	// signed in, like any other request, with size=small (the default) or size=large; the
 	// address changes when the picture does, so an app can keep what it fetched.
 	Avatar string `json:"avatar,omitempty"`
+	// AvatarRef is for a server whose people sign in with a Portico Account: there a picture
+	// belongs to the person's Portico Account and is kept by Portico's hosted service, never
+	// by this server, and this is the reference an app uses to load it from there. Nothing
+	// fills it in yet: Portico Account sign-in and the hosted side are not built in this
+	// server, and what the reference holds is theirs to define.
+	AvatarRef string `json:"avatarRef,omitempty"`
 }
 
 // ProfileCreate adds a profile. Send an Idempotency-Key so a repeat does not add a second one.
