@@ -72,6 +72,10 @@ func mergeItems(b *batchTx, from, into, now int64) error {
 		WHERE id IN (?, ?, ?) OR parent_id = ?`, into, z.parent.Int64, z.root.Int64, into); err != nil {
 		return err
 	}
+	// What moved under the merged title is covered by its labels now.
+	if err := b.labelsChanged(into); err != nil {
+		return err
+	}
 	for _, change := range []Change{{Op: OpDeleted, RefID: from}, {Op: OpUpdated, RefID: into}} {
 		change.At, change.Topic, change.LibraryID = now, TopicItem, a.library
 		if err := appendChange(b.tx, change); err != nil {
@@ -199,7 +203,14 @@ func mergeInto(b *batchTx, library, from, into, now int64) error {
 			if err != nil {
 				return err
 			}
-			if _, err := b.exec(`UPDATE items SET root_id = ? WHERE parent_id = ?`, root, c.id); err != nil {
+			// It takes the rating of the title it is now under, unless it has one of its own,
+			// exactly as a title a scan finds moved does.
+			var rating *int
+			if err := b.queryRow(`SELECT CASE WHEN c.content_rating IS NULL THEN p.rating_age ELSE c.rating_age END
+				FROM items c, items p WHERE c.id = ? AND p.id = ?`, c.id, into).Scan(&rating); err != nil {
+				return err
+			}
+			if err := b.movedUnder(c.id, root, rating); err != nil {
 				return err
 			}
 			for _, id := range append(under, c.id) {
