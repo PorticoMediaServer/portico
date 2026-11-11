@@ -137,3 +137,38 @@ func TestPlainConnectionsKeepSendfileAndKeysExist(t *testing.T) {
 		t.Fatalf("the Keys folder: %v %v", info, err)
 	}
 }
+
+// The Portico certificate is served for every name under the server's Portico zone, its home
+// names included, and the owner's own certificate for any other name.
+func TestPorticoZoneGetsThePorticoCertificate(t *testing.T) {
+	keys := t.TempDir()
+	store := NewStore(keys, quiet, time.Now)
+	own := writeCert(t, keys, "media.example.com", time.Now().Add(90*24*time.Hour))
+	store.Use(Source{Domain: "media.example.com", CertificateFile: "certificate.pem", KeyFile: "certificate.key", WarnBefore: time.Hour})
+	portico := &tls.Certificate{Certificate: [][]byte{[]byte("portico")}}
+	store.ServeZone("ab12cd.portico.direct", func(*tls.ClientHelloInfo) (*tls.Certificate, error) { return portico, nil })
+	for name, want := range map[string]string{
+		"192-168-1-20.ab12cd.portico.direct": "portico",
+		"198-51-100-7.AB12CD.portico.direct": "portico",
+		"media.example.com":                  "own",
+		"portico.direct":                     "own",
+	} {
+		got, err := store.GetCertificate(&tls.ClientHelloInfo{ServerName: name})
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		which := "own"
+		if got == portico {
+			which = "portico"
+		} else if string(got.Certificate[0]) != string(own.Raw) {
+			which = "other"
+		}
+		if which != want {
+			t.Errorf("%s got the %s certificate, want %s", name, which, want)
+		}
+	}
+	store.ServeZone("", nil)
+	if got, _ := store.GetCertificate(&tls.ClientHelloInfo{ServerName: "192-168-1-20.ab12cd.portico.direct"}); got == portico {
+		t.Error("the Portico certificate is still served after the zone was removed")
+	}
+}
