@@ -4,11 +4,12 @@ The plan is 69 tables; the budget is 90. A table is added to the schema when its
 built, after asking what a user would lose without it. **In schema** means the table exists
 today. The schema is two files loaded as one, `internal/db/schema.sql` (the core) and
 `internal/db/schema_areas.sql` (the areas built on it), because a source file stops at 1,000
-lines; columns are documented there. How the areas use these tables is in `AREAS.md`.
+lines; columns are documented there. How the areas use these tables is in `AREAS.md`. How to
+change the schema, before and after the first release, is rule 9 of `RULES.md`.
 
 | Area | Table | In schema | What a user would lose without it |
 |---|---|---|---|
-| System | `schema_migrations` | yes | Upgrades that know where to start |
+| System | `schema_migrations` | yes | Upgrades that know where to start, and background upgrade work that carries on after a restart |
 | | `settings` | yes | Server settings |
 | | `jobs` | yes | Scans, matching and bulk actions that survive a restart and show progress |
 | | `idempotency_keys` | yes | A lost reply to "add to playlist" would add the track twice |
