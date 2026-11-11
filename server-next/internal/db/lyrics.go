@@ -149,3 +149,15 @@ func (d *DB) songs(ctx context.Context, query string, args []any) ([]LyricsSong,
 	defer tx.Rollback()
 	return queryAll(ctx, tx, query, args, scanSong)
 }
+
+// tagLyrics stores the lyrics a new song's own tags hold. Lyrics that cannot be kept (too long,
+// not text) are passed over, not the song.
+func (im *importer) tagLyrics(itemID int64, lyrics *Lyrics) error {
+	if lyrics == nil {
+		return nil
+	}
+	if _, err := putLyrics(im.tx, itemID, *lyrics, im.now); err != nil && !errors.Is(err, ErrInvalid) {
+		return err
+	}
+	return nil
+}
