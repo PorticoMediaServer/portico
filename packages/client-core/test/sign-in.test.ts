@@ -2,15 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {withUnknownFields} from './unknown-fields.ts';
 import {parseServerSignIn, ServerSignInProbe, signInLabelKey, serverSignInSettingsURL} from '../src/sign-in.ts';
-const system = (signIn = 'local') => ({id: 'server', name: 'Study', signIn, move:null,version: '1', setupRequired: false, hostedConfigured: true, hostedAttached: false, apiLevel: 1, apiVersion: '1.0', apiMajors: [1], capabilities: []});
+/** `GET /v1/system` as the server sends it. A password form is offered for the method `password`. */
+const system = (signIn = 'local') => ({id: 'server', name: 'Study', version: '1', apiMajor: 1, capabilities: [] as string[], setupRequired: false, signInMethods: [signIn === 'local' ? 'password' : signIn]});
 test('Change this on the web opens Sign-in on the exact chosen server without secrets or alternate authorities',()=>{
   assert.equal(serverSignInSettingsURL('http://192.168.1.5:32500'),'http://192.168.1.5:32500/settings?scope=server&section=signin');
   for(const address of ['https://user:pass@server.test','https://server.test/?code=secret','https://server.test/#secret','javascript:alert(1)','https://server.test/path'])assert.throws(()=>serverSignInSettingsURL(address));
 });
-test('explicit kind alone controls credential route and correct label, never old attached flag', async () => {
+test('the sign-in method the server names decides the credential route and its label', async () => {
   for (const signIn of ['local', 'portico'] as const) {
     const calls: unknown[] = [];
-    const probe = new ServerSignInProbe(async (url, init) => {calls.push([url, init]); return Response.json({...system(signIn), hostedAttached: signIn === 'local', apiLevel: 1, apiVersion: '1.0', apiMajors: [1], capabilities: []});});
+    const probe = new ServerSignInProbe(async (url, init) => {calls.push([url, init]); return Response.json(system(signIn));});
     await probe.inspect('http://192.168.1.5:8096');
     assert.equal(probe.getSnapshot().destination, signIn === 'local' ? 'local-account' : 'portico-account');
     assert.equal(signInLabelKey(signIn), 'accounts.session.' + signIn);
@@ -19,15 +20,15 @@ test('explicit kind alone controls credential route and correct label, never old
     probe.dispose();
   }
 });
-test('missing/unknown/malformed kind never offers credentials; setup remains separate', async () => {
-  for (const signIn of [undefined, '', 'both', 'hosted']) assert.throws(() => parseServerSignIn({...system(), signIn}), {code: 'invalid_system'});
+test('a server that names no sign-in method this app knows never gets a password form; setup remains separate', async () => {
+  for (const signInMethods of [undefined, [], ['passkey'], 'password', [7]]) assert.throws(() => parseServerSignIn({...system(), signInMethods}), {code: 'invalid_system'});
+  assert.equal(parseServerSignIn({...system(), signInMethods: ['passkey', 'password']}).signIn, 'local', 'a method this app does not know is ignored beside one it does');
   const probe = new ServerSignInProbe(async () => Response.json({...system(), setupRequired: true}));
   await probe.inspect('https://server.test'); assert.equal(probe.getSnapshot().destination, 'setup'); probe.dispose();
 });
-test('a newer server that adds fields to /system, or stops reporting a move or its Portico account state, still offers sign-in', async () => {
+test('a newer server that adds fields to /system still offers sign-in', async () => {
   assert.deepEqual(parseServerSignIn(withUnknownFields(system())), parseServerSignIn(system()));
-  const {move: _move, hostedConfigured: _configured, hostedAttached: _attached, ...fewer} = system('portico');
-  const probe = new ServerSignInProbe(async () => Response.json(withUnknownFields(fewer)));
+  const probe = new ServerSignInProbe(async () => Response.json(withUnknownFields(system('portico'))));
   await probe.inspect('https://server.test'); assert.equal(probe.getSnapshot().destination, 'portico-account'); probe.dispose();
 });
 test('cancelled/offline/timed-out/late probes cannot reopen an old password form', async () => {
@@ -77,44 +78,21 @@ test('injected value and explicitly bound fetch transports preserve their invoca
   }
 });
 
-// O-159, Justin's rule: if a server and a client can talk, allow the connection.
-test('negotiation connects on any shared API major, gates on capabilities, and refuses pre-release or non-overlapping servers', async () => {
+// If a server and a client can talk, allow the connection.
+test('negotiation connects on a shared API major, gates on capabilities, and refuses a server with no major in common', async () => {
   const {parseServerSignIn, negotiateServer, API_LEVEL_MISMATCH, APP_UPDATE_REQUIRED, CLIENT_API} = await import('../src/sign-in.ts');
   const {API_LEVEL, CAPABILITIES} = await import('../../contracts/src/api-level.ts');
-  const raw = {id: 'server', name: 'Study', version: '1', signIn: 'portico', move: null, setupRequired: false, hostedConfigured: true, hostedAttached: true};
-  const facts = {apiLevel: API_LEVEL, apiVersion: `${API_LEVEL}.0`, apiMajors: [API_LEVEL], capabilities: []};
-  for (const apiLevel of [undefined, 0, -1, 1.5, '1', null]) assert.throws(() => parseServerSignIn({...raw, ...facts, apiLevel}), /did not report how to sign in/);
-  const needsUpdate = (error: {code?: string}) => error.code === API_LEVEL_MISMATCH;
-  // A pre-release server (no negotiation facts, or unreadable ones) needs an update: no degraded session.
-  assert.throws(() => negotiateServer(parseServerSignIn({...raw, apiLevel: API_LEVEL})), needsUpdate);
-  for (const odd of [{apiVersion: 'one'}, {apiMajors: ['1']}, {apiMajors: []}, {capabilities: 'x'}, {capabilities: [7]}])
-    assert.throws(() => negotiateServer(parseServerSignIn({...raw, ...facts, ...odd})), needsUpdate, JSON.stringify(odd));
+  const raw = {...system(), apiMajor: API_LEVEL};
+  for (const apiMajor of [undefined, 0, -1, 1.5, '1', null]) assert.throws(() => parseServerSignIn({...raw, apiMajor}), /did not report how to sign in/);
+  for (const capabilities of [undefined, 'x']) assert.throws(() => parseServerSignIn({...raw, capabilities}), /did not report how to sign in/);
   // The 1.0 floor connects; nothing baseline is ever gated.
-  const floor = negotiateServer(parseServerSignIn({...raw, ...facts}));
-  assert.equal(floor.major, API_LEVEL); assert.equal(floor.version, `${API_LEVEL}.0`); assert.deepEqual(floor.capabilities, []);
-  // A newer minor with a post-1.0 capability connects; known ones gate, unknown ones are ignored.
-  const newer = negotiateServer(parseServerSignIn({...raw, ...facts, apiVersion: `${API_LEVEL}.7`, capabilities: ['future.thing', 'future.thing', 'alpha']}));
-  assert.equal(newer.version, `${API_LEVEL}.7`); assert.deepEqual(newer.capabilities, ['alpha', 'future.thing']); assert.equal(newer.can('alpha'), true); assert.equal(newer.can('beta'), false);
-  // A server that also serves a newer major is opened on the newest major both speak.
-  assert.equal(negotiateServer(parseServerSignIn({...raw, ...facts, apiLevel: API_LEVEL + 1, apiMajors: [API_LEVEL, API_LEVEL + 1]})).major, API_LEVEL);
+  const floor = negotiateServer(parseServerSignIn(raw));
+  assert.equal(floor.major, API_LEVEL); assert.deepEqual(floor.capabilities, []);
+  // A capability added after 1.0 gates its own feature; one this app does not know is carried and ignored.
+  const newer = negotiateServer(parseServerSignIn({...raw, capabilities: ['future.thing', 'future.thing', 'alpha', 7]}));
+  assert.deepEqual(newer.capabilities, ['alpha', 'future.thing']); assert.equal(newer.can('alpha'), true); assert.equal(newer.can('beta'), false);
   // No overlap: named for whoever must update.
-  assert.throws(() => negotiateServer(parseServerSignIn({...raw, ...facts, apiLevel: API_LEVEL + 1, apiMajors: [API_LEVEL + 1]})), (error: {code?: string}) => error.code === APP_UPDATE_REQUIRED);
-  assert.throws(() => negotiateServer(parseServerSignIn({...raw, ...facts}), {min: API_LEVEL + 1, max: API_LEVEL + 2}), needsUpdate);
+  assert.throws(() => negotiateServer(parseServerSignIn({...raw, apiMajor: API_LEVEL + 1})), (error: {code?: string}) => error.code === APP_UPDATE_REQUIRED);
+  assert.throws(() => negotiateServer(parseServerSignIn(raw), {min: API_LEVEL + 1, max: API_LEVEL + 2}), (error: {code?: string}) => error.code === API_LEVEL_MISMATCH);
   assert.deepEqual(CLIENT_API, {min: 1, max: API_LEVEL}); assert.deepEqual(CAPABILITIES, [], '1.0 advertises nothing: every catalogue entry is baseline');
-});
-
-test('the move window comes from the server and is counted in whole days on this calendar (P2-66)', async () => {
-  const {parseServerSignIn, moveOfferDays} = await import('../src/sign-in.ts');
-  const raw = {id: 'server', name: 'Study', version: '1', signIn: 'portico', move: 'to_portico', setupRequired: false, hostedConfigured: true, hostedAttached: true, apiLevel: 1, apiVersion: '1.0', apiMajors: [1], capabilities: []};
-  assert.equal(parseServerSignIn({...raw, moveEndsAt: '2026-11-20T10:00:00Z'}).moveEndsAt, '2026-11-20T10:00:00Z');
-  assert.equal(parseServerSignIn({...raw, moveEndsAt: null}).moveEndsAt, null);
-  assert.equal(parseServerSignIn(raw).moveEndsAt, null);
-  for (const moveEndsAt of ['not a date', 7, {}]) assert.throws(() => parseServerSignIn({...raw, moveEndsAt}), /move window/);
-  assert.throws(() => parseServerSignIn({...raw, move: null, moveEndsAt: '2026-11-20T10:00:00Z'}), /move window/, 'only a move to Portico Accounts has an old-sign-in window');
-  const now = new Date(2026, 9, 28, 21, 0);
-  assert.equal(moveOfferDays(new Date(2026, 9, 28, 23, 0).toISOString(), now), 0, 'ends today');
-  assert.equal(moveOfferDays(new Date(2026, 9, 29, 9, 0).toISOString(), now), 1, 'ends tomorrow: within the next day');
-  assert.equal(moveOfferDays(new Date(2026, 10, 27, 9, 0).toISOString(), now), 30);
-  assert.equal(moveOfferDays(new Date(2026, 9, 28, 20, 0).toISOString(), now), undefined, 'already over');
-  assert.equal(moveOfferDays(null, now), undefined);
 });

@@ -13,7 +13,7 @@ import {subtitleDisplay} from '../src/bridge/subtitles.ts';
 import {requestCredentials, verifiedCredentialOrigin} from '../src/bridge/credential-boundary.ts';
 // The real shared route owner has verified these same-server routes before engine commands.
 for (const origin of ['http://server.test', 'http://other.test']) {
-  requestCredentials(origin + '/v1/networking/identity-proof', {}, JSON.stringify({baseUrl: origin, nonce: 'N'.repeat(43)}));
+  requestCredentials(origin + '/v1/system/identity-proof', {}, JSON.stringify({baseUrl: origin, nonce: 'N'.repeat(43)}));
   verifiedCredentialOrigin({kind: 'portico.route-proof', version: '1', baseUrl: origin, nonce: 'N'.repeat(43), fingerprint: 'test-server'});
 }
 

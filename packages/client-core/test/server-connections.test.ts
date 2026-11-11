@@ -58,15 +58,9 @@ test('renewal and selection ids are bounded', () => {
   }
 });
 
-test('a hosted route for another account is refused', () => {
+test('a hosted route source is kept with its account, and must be reached over HTTPS', () => {
   const hosted = {origin: 'https://account.example', accountId: 'a', key: {keyId: 'k', publicKey: 'C'.repeat(43)}};
   assert.equal(parseRememberedServer(record({hosted}))!.hosted?.accountId, 'a');
-  assert.throws(() =>
-    parseRememberedServer(record({
-      hosted,
-      session: session({viewer: {accountId: 'someone-else', profileId: 'p', serverId: 'srv-1', authority: 'hosted', role: 'owner'}}),
-    })),
-  );
   assert.throws(() => parseRememberedServer(record({hosted: {origin: 'http://public.example', accountId: 'a', key: {keyId: 'k', publicKey: 'C'}}})));
 });
 

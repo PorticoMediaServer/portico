@@ -53,7 +53,7 @@ export async function revokeOverLiveRoute(record: RememberedServer, live: RouteC
       const renewed = await refreshStoredSession({env, api, family: {sessionFamilyId: record.session.sessionFamilyId, serverId: record.pin.serverId}, signal});
       api.setAccessToken(renewed.accessToken);
     }
-    await revokeCurrentSession<void>(api, signal);
+    await revokeCurrentSession(api, signal);
     return 'revoked';
   } catch (error) {
     if (gone(error)) return 'gone';

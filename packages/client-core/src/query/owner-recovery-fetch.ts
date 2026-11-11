@@ -1,4 +1,4 @@
-import {routePath} from '../../../contracts/src/routes.ts';
+import {serverPath} from './server-api.ts';
 import {routeOrigin, RouteError} from '../route-identity.ts';
 type OwnerRecoveryPlatform = {isAccountAuthority: (origin: string) => boolean; pendingCertificate: (origin: string) => unknown;
   checkPlainHttp?: (input: string) => void; certificateTrustAvailable: () => boolean; refused: (origin: string) => Promise<unknown>};
@@ -14,8 +14,8 @@ export function createOwnerRecoveryFetch(capturedOrigin: string, isCurrent: () =
     check(options.signal);
     const method = options.method ?? 'GET';
     if (typeof input !== 'string' ||
-        !(input === origin + routePath('prove_network_identity') && method === 'POST' ||
-          input === origin + routePath('get_system') && method === 'GET' && options.body == null))
+        !(input === origin + serverPath('POST /v1/system/identity-proof') && method === 'POST' ||
+          input === origin + serverPath('GET /v1/system') && method === 'GET' && options.body == null))
       throw new RouteError('invalid_address', 'Owner recovery contact is limited to the captured server.');
     const headers = new Headers(options.headers);
     headers.forEach((_value, name) => {

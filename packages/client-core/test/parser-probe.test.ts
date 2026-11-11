@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {HttpLocalApi} from '../src/index.ts';
+import {me} from './next-wire.ts';
 import {makeRecordingFetch, summarize, walkProbe, type ProbeInput} from '../tools/parser-probe.ts';
 
 const TOKEN = 'probe-secret-token';
@@ -96,7 +97,7 @@ function routesFor(libraryCount: number, role: string): Map<string, RouteBody> {
   const get = (path: string, json: unknown, status = 200) => routes.set(`GET ${path}`, {status, json});
   const post = (path: string, json: unknown, status = 200) => routes.set(`POST ${path}`, {status, json});
   get('/v1/system', {id: 'srv', name: 't', setupRequired: false, hostedConfigured: false, version: '1'});
-  get('/v1/me', {viewer: {accountId: 'a', profileId: 'p', serverId: 'srv', authority: 'local', role}});
+  get('/v1/me', me({accountId: 'a', profileId: 'p', role}));
   get('/v1/capabilities', {features: {playback_v1: true}});
   get('/v1/home?limit=12', homeDocument(2));
   get('/v1/home/layout', {revision: 1, rowOrder: ['recent'], hiddenRowIds: [], rows: [{id: 'recent', title: 'Recent', kind: 'recent', artworkShape: 'poster', libraryId: 'lib-0', required: false, hideable: true, reorderable: true, hidden: false}]});

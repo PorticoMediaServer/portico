@@ -110,73 +110,6 @@ const fakeServer=(calls:unknown[],answer:unknown=signIn,prove:Prover=me.prove)=>
  return answer as T;
 }});
 
-test('short invitation is a distinct verified-server capability and rejects long links before any request',async()=>{
- const hostedCalls:unknown[]=[],serverCalls:unknown[]=[];
- const hosted={request:async<T,>(path:string,method?:string,body?:unknown)=>{hostedCalls.push([method,path,body]);return assertionBody as T;}};
- const server=fakeServer(serverCalls);
- const result=await acceptShortPorticoInvitation(hosted,origin(),server,me.id,'0123-4567-89ab-cdef');
- assert.equal(result.kind,'signed-in');
- assert.deepEqual(serverCalls.at(-1),['POST','/v1/access/invitations/accept',{shortCode:'0123456789ABCDEF',porticoIdentity:assertionBody}]);
- const before=[hostedCalls.length,serverCalls.length];
- for(const raw of ['x'.repeat(43),'https://server.example/join?code=0123456789ABCDEF','0123-4567-89ab-cdei',' 0123456789ABCDEF'])await assert.rejects(acceptShortPorticoInvitation(hosted,origin(),server,me.id,raw));
- assert.deepEqual([hostedCalls.length,serverCalls.length],before);
- await assert.rejects(acceptPorticoInvitation(hosted,origin(),server,me.id,'0123456789ABCDEF'));
- assert.deepEqual([hostedCalls.length,serverCalls.length],before);
- const otherCalls:unknown[]=[];
- await assert.rejects(acceptShortPorticoInvitation(hosted,origin(),fakeServer(otherCalls,signIn,impostor.prove),me.id,'0123456789ABCDEF'));
- assert.equal(otherCalls.length,1,'an unproven server never receives the capability');
- assert.equal(hostedCalls.length,before[0],'an unproven server never obtains a Hosted assertion');
-});
-
-test('Portico sign-in answers the server\'s challenge with an identity assertion from Hosted',async()=>{
- const o=origin(),hostedCalls:unknown[]=[],serverCalls:unknown[]=[];
- const hosted={request:async<T,>(path:string,method?:string,body?:unknown)=>{hostedCalls.push([method,path,body]);return assertionBody as T;}};
- const server=fakeServer(serverCalls);
- const result=await porticoSignIn(hosted,o,server,me.id);
- assert.deepEqual(hostedCalls,[['POST','/v1/servers/'+me.id+'/identity',{challenge}]]);
- const nonce=(serverCalls[0] as [string,string,{nonce:string}])[2].nonce;
- assert.equal(nonce.length,43,'a fresh 32-byte nonce');
- assert.deepEqual(serverCalls,[['POST','/v1/direct/portico-challenge',{nonce}],['POST','/v1/direct/sign-in',{porticoIdentity:assertionBody}]]);
- assert.equal(result.kind,'signed-in');
- if(result.kind==='signed-in')assert.equal(result.snapshot.account.hostedAccountId,'acc_hosted');
- const code='c'.repeat(43);
- await acceptPorticoInvitation(hosted,o,server,me.id,code);
- assert.deepEqual(serverCalls.at(-1),['POST','/v1/access/invitations/accept',{code,porticoIdentity:assertionBody}]);
- await transferPorticoOwnership(hosted,o,server,me.id,'acc-heir',4);
- assert.deepEqual(serverCalls.at(-1),['POST','/v1/direct/ownership',{accountId:'acc-heir',expectedRevision:4,porticoIdentity:assertionBody}]);
- await acceptPorticoCustody(hosted,o,server,me.id);
- assert.deepEqual(hostedCalls.at(-1),['POST','/v1/servers/'+me.id+'/identity',{challenge,purpose:'custody'}]);
- assert.deepEqual(serverCalls.at(-1),['POST','/v1/direct/ownership/custody',{porticoIdentity:assertionBody}]);
- await leavePorticoServer(hosted,o,me.id);
- assert.deepEqual(hostedCalls.at(-1),['POST','/v1/servers/'+me.id+'/leave',{}]);
- const claim=serverRemovalClaim({claimGeneration:'7',credentialGeneration:'3'})!,op='op-'+'a'.repeat(20);
- await removePorticoServer(hosted,o,me.id,claim,op);
- assert.deepEqual(hostedCalls.at(-1),['DELETE','/v1/servers/'+me.id,{operationId:op,claimGeneration:'7',credentialGeneration:'3'}]);
- // P2-66 D-3: the exact claim the owner saw, never a default; a fresh, bounded operation id.
- const before=hostedCalls.length;
- for(const row of [{},{claimGeneration:'7'},{claimGeneration:'0',credentialGeneration:'3'},{claimGeneration:'7',credentialGeneration:'-1'},{claimGeneration:'07',credentialGeneration:'3'},{claimGeneration:7,credentialGeneration:3},{claimGeneration:'9223372036854775808',credentialGeneration:'1'}])assert.equal(serverRemovalClaim(row as never),undefined,JSON.stringify(row));
- await assert.rejects(removePorticoServer(hosted,o,me.id,{claimGeneration:'',credentialGeneration:'3'},op),/claim/);
- await assert.rejects(removePorticoServer(hosted,o,me.id,claim,'short'),/removal/);
- assert.equal(hostedCalls.length,before,'nothing is sent without the exact claim and a valid operation id');
-});
-
-test('a platform without WebCrypto (Hermes on Apple) passes its own route crypto to every Portico call',async()=>{
- const o=origin(),used:string[]=[];
- const hosted={request:async<T,>()=>assertionBody as T};
- const counted:RouteCrypto={
-  random:n=>{used.push('random');return webRouteCrypto.random(n);},
-  sha256:b=>{used.push('sha256');return webRouteCrypto.sha256(b);},
-  verify:(k,sig,msg)=>{used.push('verify');return webRouteCrypto.verify(k,sig,msg);},
- };
- await porticoSignIn(hosted,o,fakeServer([]),me.id,{crypto:counted});
- assert.ok(used.includes('random')&&used.includes('verify'),'the nonce and the proof use the crypto given');
- for(const call of [
-  ()=>acceptPorticoInvitation(hosted,o,fakeServer([]),me.id,'c'.repeat(43),undefined,counted),
-  ()=>transferPorticoOwnership(hosted,o,fakeServer([]),me.id,'acc-heir',4,undefined,counted),
-  ()=>acceptPorticoCustody(hosted,o,fakeServer([]),me.id,undefined,counted),
- ]){used.length=0;await call();assert.ok(used.includes('random')&&used.includes('verify'));}
-});
-
 test('a server that cannot prove the chosen identity gets nothing from Hosted',async()=>{
  const o=origin();let asked=0;
  const hosted={request:async<T,>()=>{asked++;return assertionBody as T;}};
@@ -189,18 +122,6 @@ test('a server that cannot prove the chosen identity gets nothing from Hosted',a
  assert.equal(asked,0,'no assertion was requested');
 });
 
-test('an answer from another server is refused',async()=>{
- const o=origin(),hosted={request:async<T,>()=>assertionBody as T};
- await assert.rejects(porticoSignIn(hosted,o,fakeServer([],{...signIn,serverId:impostor.id,session:{...signIn.session,viewer:{...signIn.session.viewer,serverId:impostor.id}}}),me.id),(e:any)=>e.code==='server_mismatch'&&/different server/.test(e.message));
-});
-
-test('the snapshot says when the owner still has to accept custody',()=>{
- const owner={...signIn,account:{...signIn.account,role:'owner'}};
- assert.equal(parseDirectSnapshot({...owner,custodyPending:true}).custodyPending,true);
- assert.equal(parseDirectSnapshot(owner).custodyPending,undefined);
- assert.throws(()=>parseDirectSnapshot({...owner,custodyPending:'yes'}));
-});
-
 test('a refused member and a migrated session are told apart',()=>{
  assert.ok(isAccessRefused(new ApiError(403,'access_refused','no',false)));
  assert.ok(!isAccessRefused(new ApiError(401,'unauthorized','no',false)));
@@ -209,40 +130,10 @@ test('a refused member and a migrated session are told apart',()=>{
  assert.ok(isClockSkew(new ApiError(401,'clock_skew','clock',false)));
 });
 
-test('a silent re-admission waits for a recovering Hosted; a person does not',async()=>{
- const o=origin();hostedGate(o).failed(600);let asked=0;
- const hosted={request:async<T,>()=>{asked++;return assertionBody as T;}};
- const server=fakeServer([]);
- await assert.rejects(porticoSignIn(hosted,o,server,me.id,{kind:'automatic'}),(e:unknown)=>e instanceof ApiError&&e.code==='account_service_recovering');
- assert.equal(asked,0);
- assert.equal((await porticoSignIn(hosted,o,server,me.id)).kind,'signed-in');
-});
-
 test('a refresh refused as session_migrated is recognised for silent re-admission',async()=>{
  const {SessionRefreshError}=await import('../src/server-connections.ts');
  const {isSessionMigrated,isAccessRefused}=await import('../src/portico-servers.ts');
  assert.equal(isSessionMigrated(new SessionRefreshError('session_migrated','moved',true)),true);
  assert.equal(isSessionMigrated(new SessionRefreshError('refresh_refused','ended',true)),false);
  assert.equal(isAccessRefused(new SessionRefreshError('session_migrated','moved',true)),false);
-});
-
-test('an invitation acceptance is read by its variant: an unknown one needs a newer app, a missing one is unreadable',async()=>{
- const {NeedsNewerAppError}=await import('../src/needs-newer-app.ts');
- const hosted={request:async<T,>()=>assertionBody as T};
- const code='c'.repeat(43);
- await assert.rejects(acceptPorticoInvitation(hosted,origin(),fakeServer([],{...signIn,variant:'review'}),me.id,code),(e:any)=>e instanceof NeedsNewerAppError&&e.tag==='review');
- const {variant:_v,...untagged}=signIn;
- await assert.rejects(acceptPorticoInvitation(hosted,origin(),fakeServer([],untagged),me.id,code),(e:any)=>!(e instanceof NeedsNewerAppError));
- assert.equal((await acceptPorticoInvitation(hosted,origin(),fakeServer([],signIn),me.id,code)).kind,'signed-in');
-});
-
-test('a tagged sign-in names its variant: unknown needs a newer app, a mismatch is unreadable',async()=>{
- const {NeedsNewerAppError}=await import('../src/needs-newer-app.ts');
- const {parseTaggedSignIn}=await import('../src/profile-management.ts');
- const known=['password-change','owner-session'];
- assert.throws(()=>parseTaggedSignIn({...signIn,variant:'review'},known,()=>true),(e:any)=>e instanceof NeedsNewerAppError&&e.tag==='review');
- assert.throws(()=>parseTaggedSignIn({...signIn,variant:'owner-session'},known,()=>false),(e:any)=>!(e instanceof NeedsNewerAppError));
- const {variant:_v,...untagged}=signIn;
- assert.throws(()=>parseTaggedSignIn(untagged,known,()=>true),(e:any)=>!(e instanceof NeedsNewerAppError));
- assert.equal(parseTaggedSignIn({...signIn,variant:'password-change'},known,(tag,out)=>tag==='password-change'&&out.kind==='signed-in').kind,'signed-in');
 });

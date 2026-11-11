@@ -25,7 +25,7 @@ const source = new ProfileSettingsSource({request: async <T>(path: string, metho
     if (mode === 'failure') throw Object.assign(new Error('test refusal'), {status: 403});
     const input = body as {name: string; art: string};
     accountDocument.profiles.push({id: 'test-created', name: input.name, primary: false, position: accountDocument.profiles.length, art: input.art, revision: 1, pinRevision: 1, pinRequired: false});
-  } else if (path !== '/v1/direct') throw new Error('Unexpected test route');
+  } else if (path !== '/v1/me') throw new Error('Unexpected test route');
   return structuredClone(accountDocument) as T;
 }}, {serverId: 'test-server', accountId: 'test-account', profileId: 'test-main'}, () => current);
 await source.load();

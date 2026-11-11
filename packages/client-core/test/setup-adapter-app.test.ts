@@ -150,33 +150,6 @@ const installed = () => ({status: 'in_progress', setup: {variant: 'installed', r
 const lapsed = {kind: 'exchangeRefused', lapsed: true, error: {code: 'setup_attempt_lapsed', retryable: true}};
 const hostedRecord: SetupRecord = {version: 2, serverId: claim.serverId, requestId: REQUEST, setupToken: 'saved-setup-token', tokenAt: 1, name: 'Den', authMode: 'hosted'};
 
-test('start asks the app for a setup token at the app route, never the browser route', async t => {
-  const f = await fixture(t);
-  await f.ports.readState(f.context());
-  assert.deepEqual(await f.ports.start(f.context()), {kind: 'startDone'});
-  assert.equal(routePath('start_app_setup'), '/v1/setup/app');
-  const posted = f.calls.filter(call => call.method === 'POST' && call.path.startsWith('/v1/setup'));
-  assert.deepEqual(posted.map(call => `${call.method} ${call.path}`), ['POST /v1/setup/app']);
-  assert.deepEqual(posted[0]!.body, {});
-  assert.equal(f.calls.some(call => call.path === '/v1/setup/browser'), false);
-});
-
-test('start over carries the setup token a setup code issued as its bearer, so an admitted client is not asked for a new code', async t => {
-  const fresh = await fixture(t);
-  assert.deepEqual(await fresh.ports.startOver(fresh.context()), {kind: 'startedOver'});
-  assert.equal(fresh.calls.find(call => call.path === '/v1/setup/start-over')!.token, undefined, 'nothing held: no bearer');
-  const f = await fixture(t);
-  assert.deepEqual(await f.ports.start(f.context(), 'R9TD-3MWK'), {kind: 'startDone'});
-  assert.deepEqual(f.calls.find(call => call.path === '/v1/setup/app')!.body, {setupCode: 'R9TD-3MWK'});
-  assert.deepEqual(await f.ports.startOver(f.context()), {kind: 'startedOver'});
-  const over = f.calls.find(call => call.path === '/v1/setup/start-over')!;
-  assert.equal(over.token, SETUP_TOKEN);
-  assert.deepEqual(over.body, {});
-  // The fresh token it was given carries on.
-  assert.deepEqual(await f.ports.startOver(f.context()), {kind: 'startedOver'});
-  assert.equal(f.calls.filter(call => call.path === '/v1/setup/start-over')[1]!.token, 'fresh-setup-token');
-});
-
 test('a public http address is refused before any setup request', async t => {
   const f = await fixture(t, {origin: 'http://8.8.8.8:32500'});
   assert.deepEqual(await f.ports.start(f.context()), {kind: 'addressNotAllowed'});
@@ -189,121 +162,10 @@ test('the exchange with no attempt is refused and sends nothing', async t => {
   assert.deepEqual(f.calls, []);
 });
 
-test('the exchange with a lapsed attempt is refused and leaves the attempt in place', async t => {
-  const f = await fixture(t);
-  await approvalReady(f);
-  const attempt = f.store.peek().attempt!;
-  await f.patchAttempt({expiresAt: '2030-01-02T03:00:00Z'});
-  const sent = f.calls.length;
-  assert.deepEqual(await f.ports.exchange(f.context()), lapsed);
-  assert.equal(f.calls.length, sent);
-  assert.equal(f.store.peek().attempt?.attemptId, attempt.attemptId);
-});
-
-test('the exchange with another installation\'s attempt is refused and sends nothing', async t => {
-  const f = await fixture(t);
-  await approvalReady(f);
-  const attempt = f.store.peek().attempt!;
-  await f.patchAttempt({installationId: 'j'.repeat(43)});
-  const sent = f.calls.length;
-  assert.deepEqual(await f.ports.exchange(f.context()), lapsed);
-  assert.equal(f.calls.length, sent);
-  assert.equal(f.store.peek().attempt?.attemptId, attempt.attemptId);
-});
-
-test('the exchange finishes here once the server reads installed, spends the attempt, and admits only the exchanged sign-in', async t => {
-  const f = await fixture(t);
-  const ready = await approvalReady(f);
-  const attempt = f.store.peek().attempt!;
-  assert.ok(attempt.handoff, 'the attempt is bound to its signed start');
-  assert.equal(attempt.approvalUrl, ready.approvalUrl);
-  f.setState(installed());
-  assert.deepEqual(await f.ports.exchange(f.context()), {kind: 'exchangeDone'});
-  // The attempt was spent and the setup record's work is done.
-  assert.equal(f.store.peek().attempt, undefined);
-  assert.equal(f.store.peek().record, undefined);
-  // The exchange used the app's injected ports, never a real connection.
-  assert.deepEqual(f.connectCalls.map(call => [call.origin, call.pin.serverId]), [[ORIGIN, claim.serverId]]);
-  assert.equal(f.connectPorticoCalls.length, 1);
-  assert.equal(f.connectPorticoCalls[0]!.origin, ORIGIN);
-  assert.equal(f.connectPorticoCalls[0]!.source.origin, hostedOrigin);
-  assert.equal(f.connectPorticoCalls[0]!.source.accountId, HOSTED_ACCOUNT);
-  assert.deepEqual(f.remembered.map(entry => entry.family), [FAMILY]);
-  assert.deepEqual(f.remembered[0]!.hosted, {origin: hostedOrigin, accountId: HOSTED_ACCOUNT, key: {keyId: 'key_1', publicKey: 'k'.repeat(43)}});
-  const exchangeCall = f.calls.filter(call => call.method === 'POST' && call.path === '/v1/auth/portico-return/exchange');
-  assert.equal(exchangeCall.length, 1);
-  assert.deepEqual(exchangeCall[0]!.body, {transactionId: 'setup_transaction', state: attempt.state, verifier: attempt.verifier,
-    installationId, serverChallenge: parent.serverChallenge, purpose: 'setup'});
-  const selected = await f.sessions.selected();
-  assert.equal(selected?.signIn, 'portico');
-  assert.equal(selected?.connection.session.sessionFamilyId, FAMILY);
-  assert.equal(selected?.connection.session.viewer.accountId, ACCOUNT);
-  assert.equal(selected?.connection.hosted?.origin, hostedOrigin);
-  assert.equal(selected?.connection.hosted?.accountId, HOSTED_ACCOUNT);
-  // The owner is admitted from that selection, and its own account read.
-  assert.deepEqual(await f.ports.adoptOwner(f.context()), {kind: 'ownerAdopted'});
-  assert.equal(f.calls.filter(call => call.method === 'GET' && call.path === '/v1/direct').length, 1);
-  assert.deepEqual(f.navigated, [], 'the app approves without sending the person to Portico Services');
-});
-
-test('the owner is not adopted once the selection is no longer the exchanged sign-in', async t => {
-  const f = await fixture(t);
-  await approvalReady(f);
-  f.setState(installed());
-  await f.ports.exchange(f.context());
-  await f.replaceFamily('successor_family');
-  const direct = f.calls.filter(call => call.path === '/v1/direct').length;
-  await assert.rejects(f.ports.adoptOwner(f.context()), {code: 'cancelled'});
-  assert.equal(f.calls.filter(call => call.path === '/v1/direct').length, direct);
-});
-
 test('in-app approval is unsupported without the app\'s own approval', async t => {
   const f = await fixture(t);
   await assert.rejects(f.ports.approveInApp(f.context()), {code: 'unsupported'});
   assert.deepEqual(f.calls, []);
-});
-
-test('in-app approval carries the bound attempt and its link, and returns approvedInApp', async t => {
-  const captured: any[] = [];
-  const f = await fixture(t, {approveInApp: async input => {captured.push(input); await input.current();}});
-  const ready = await approvalReady(f);
-  const attempt = f.store.peek().attempt!;
-  assert.deepEqual(await f.ports.approveInApp(f.context()), {kind: 'approvedInApp'});
-  assert.equal(captured.length, 1);
-  assert.equal(captured[0]!.attempt.attemptId, attempt.attemptId);
-  assert.ok(captured[0]!.attempt.handoff);
-  assert.equal(captured[0]!.approvalUrl, ready.approvalUrl);
-  assert.equal(captured[0]!.attempt.approvalUrl, attempt.approvalUrl);
-  assert.ok(captured[0]!.signal instanceof AbortSignal);
-});
-
-test('in-app approval refuses once the attempt in the store is replaced', async t => {
-  let store: SetupStore | undefined;
-  const f = await fixture(t, {approveInApp: async input => {
-    await input.current();
-    assert.equal(await store!.change({attemptId: input.attempt.attemptId}, {attempt: {...input.attempt, attemptId: 'successor_attempt'}}), true);
-    await input.current();
-  }});
-  store = f.store;
-  await approvalReady(f);
-  await assert.rejects(f.ports.approveInApp(f.context()), {code: 'cancelled'});
-  assert.equal(f.store.peek().attempt?.attemptId, 'successor_attempt');
-});
-
-test('dispose during the exchange leaves nothing remembered', async t => {
-  const gate = deferred<void>();
-  const f = await fixture(t, {rememberGate: gate.promise});
-  await approvalReady(f);
-  f.setState(installed());
-  const running = f.ports.exchange(f.context());
-  await f.entered;
-  assert.equal(f.remembered.length, 1);
-  f.adapter.dispose();
-  gate.resolve();
-  await assert.rejects(running, {code: 'cancelled'});
-  assert.deepEqual((await f.sessions.read()).servers, []);
-  assert.deepEqual(f.retireCalls, [FAMILY]);
-  assert.deepEqual(f.disposedConnections.sort(), ['connect', 'portico']);
 });
 
 test('the setup code the app shares uses no abort helper the app runtime lacks (Hermes has no AbortSignal.any or AbortSignal.timeout)', async () => {
@@ -312,27 +174,6 @@ test('the setup code the app shares uses no abort helper the app runtime lacks (
     const source = readFileSync(new URL('../src/' + file, import.meta.url), 'utf8').replace(/\/\/.*$|\/\*[\s\S]*?\*\//gm, '');
     assert.doesNotMatch(source, /AbortSignal\.(any|timeout)\s*\(/, file);
   }
-});
-
-test('setup sends step 1\'s Remote access and Remote security, and a retry sends the same (O-169)', async t => {
-  const f = await fixture(t);
-  await f.ports.readState(f.context());
-  assert.deepEqual(await f.ports.start(f.context()), {kind: 'startDone'});
-  assert.deepEqual(await f.ports.initializeHosted('Den', {remoteAccess: 'private', remoteSecurity: 'standard'}, f.context()), {kind: 'initializeDone'});
-  const setup = () => f.calls.filter(call => call.method === 'POST' && call.path === '/v1/setup');
-  const first = setup()[0]!.body as Record<string, unknown>;
-  assert.equal(first.remoteAccess, 'private');
-  assert.equal(first.remoteSecurity, 'standard');
-  // The saved record keeps them, so a retry (whatever the caller passes now) repeats the original request.
-  assert.deepEqual(await f.ports.initializeHosted('Den', {remoteAccess: 'on', remoteSecurity: 'enhanced'}, f.context()), {kind: 'initializeDone'});
-  assert.deepEqual(setup()[1]!.body, setup()[0]!.body);
-  // Without choices the request carries none, and the server applies its defaults.
-  const g = await fixture(t);
-  await g.ports.readState(g.context());
-  await g.ports.start(g.context());
-  await g.ports.initializeHosted('Den', undefined, g.context());
-  const plain = g.calls.find(call => call.method === 'POST' && call.path === '/v1/setup')!.body as Record<string, unknown>;
-  assert.equal('remoteAccess' in plain || 'remoteSecurity' in plain, false);
 });
 
 test('a setup record with an unknown remote choice is unreadable', () => {

@@ -36,5 +36,5 @@ export function setupOwnerGrantFor(grant: DirectSignIn, attempt: Bound, now: num
   return snapshot.serverId === attempt.serverId && snapshot.account.role === 'owner' && !snapshot.account.disabled && !!snapshot.account.hostedAccountId
     && session.viewer.profileId === snapshot.account.primaryProfileId && !grant.resetFileOwnerSession && !grant.passwordChangeRequired && !snapshot.twoStepSetupRequired
     && session.viewer.role === 'owner' && session.installationId === attempt.installationId && session.viewer.serverId === attempt.serverId
-    && session.serverIdentity?.publicKey === pin.publicKey && session.serverIdentity.fingerprint === pin.fingerprint && Date.parse(session.expiresAt) > now;
+    && Date.parse(session.expiresAt) > now;
 }

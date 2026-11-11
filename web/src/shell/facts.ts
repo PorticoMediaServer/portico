@@ -188,7 +188,7 @@ export function createShellFactOwner(o: Readonly<{
     try {
       const raw = await readDirectAccount(o.api, context.signal);
       // The strict parse of this same body is required before absence/eligibility inference.
-      const snapshot = parseDirectSnapshot(raw);
+      const snapshot = parseDirectSnapshot(raw, {serverId: captured.viewer.serverId});
       if (!sameRequest(captured, context.signal)) return {kind: 'superseded'};
       if (!acceptDirect(snapshot)) return {kind: 'superseded'};
       directProjection = {snapshot, session: captured}; members.invalidate(); return answered;

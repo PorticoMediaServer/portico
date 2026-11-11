@@ -2,6 +2,7 @@ import {createNativeHostedSource} from '../../../../packages/client-core/src/que
 import {createNativeCertificateFetch} from '../../../../packages/client-core/src/query/certificate-fetch';
 import {createOwnerRecoveryFetch} from '../../../../packages/client-core/src/query/owner-recovery-fetch';
 import {readConnectionFacts} from '../../../../packages/client-core/src/query/connection-operations';
+import {serverPath} from '../../../../packages/client-core/src/query/server-api';
 import {clockOrigin, observeResponseClock} from '../../../../packages/client-core/src/server-clock';
 import {nativeAvatarWireBody} from '../../../../packages/client-core/src/native-avatar-wire';
 import {accountExpectation, nativeAccountRead} from './account-work';
@@ -191,7 +192,7 @@ export const nativeCertificatePlatform: CertificatePlatform = {
   observedTLSLeaf: nativeProofTLSLeaf,
   proofFetcher: (origin, fingerprint) => async (input, options = {}) => {
     if (options.signal?.aborted) throw new RouteError('cancelled', 'certificate_proof_cancelled');
-    if (typeof input !== 'string' || input !== origin + routePath('prove_network_identity') || options.method !== 'POST' || typeof options.body !== 'string')
+    if (typeof input !== 'string' || input !== origin + serverPath('POST /v1/system/identity-proof') || options.method !== 'POST' || typeof options.body !== 'string')
       throw new RouteError('cancelled', 'Connection request cancelled.');
     const raw = await NativeModules.PorticoNetwork.proofRequest(origin, fingerprint, input, options.method, options.body);
     if (options.signal?.aborted) throw new RouteError('cancelled', 'Connection request cancelled.');

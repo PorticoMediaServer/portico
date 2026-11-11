@@ -16,12 +16,19 @@ export function pathLiterals(source) {
  return paths;
 }
 
+/** The rebuilt server's routes, as its generated route table names them: "GET /v1/items/{id}". A literal
+ * that is exactly one of these is a registered contract (`callServer` and `serverPath` take nothing else). */
+function tableRoutes() {
+ const table=readFileSync(fileURLToPath(new URL('../../contracts/src/next/api.ts',import.meta.url)),'utf8');
+ return new Set([...table.matchAll(/^  '([A-Z]+ \/v1\/[^']*)': \{/gm)].map(match=>match[1]));
+}
+
 export function checkGeneratedRoutes(root=fileURLToPath(new URL('../src/',import.meta.url))) {
- const errors=[];
+ const errors=[],registered=tableRoutes();
  function visit(dir) {for(const entry of readdirSync(dir,{withFileTypes:true})){
   const file=join(dir,entry.name);if(entry.isDirectory()){visit(file);continue;}if(!entry.name.endsWith('.ts'))continue;
   const name=relative(root,file).replaceAll('\\','/');
-  for(const {value,line}of pathLiterals(readFileSync(file,'utf8'))){errors.push(`${name}:${line}: use a generated API route builder`);}
+  for(const {value,line}of pathLiterals(readFileSync(file,'utf8'))){if(!registered.has(value))errors.push(`${name}:${line}: use a generated API route builder`);}
  }}
  visit(root);return errors;
 }

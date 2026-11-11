@@ -99,6 +99,10 @@ function parseValues(fields:ReadonlyMap<string,PreferenceField>,raw:unknown,scop
  * read is left out with its values, and the rest of the snapshot is kept. Everything else is
  * exact: the device class, the registry revision, each document's scope, revision and digest,
  * and every value and clamped key, which has to be one the published registry knows. */
+/** What a server with no preferences yet gives: nothing set, so every reader uses its own default. */
+export function noPreferences(deviceClass:DeviceClass):PreferenceSnapshot {
+ return Object.freeze({deviceClass,registry:Object.freeze({revision:'0',fields:Object.freeze([])}),documents:Object.freeze([]),effective:Object.freeze({}),effectiveSource:Object.freeze({}),clampedFields:Object.freeze([]),registryRevision:'0'});
+}
 export function parsePreferenceSnapshot(raw:unknown):PreferenceSnapshot {
  if(!object(raw))invalid();
  if(!deviceClasses.includes(raw.deviceClass as DeviceClass))invalid();

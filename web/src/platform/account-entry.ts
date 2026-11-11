@@ -493,13 +493,12 @@ export class BrowserAccountEntry {
    const result=await verifyOwnerResetFile(source,code,false,op.signal);
    if(result.kind!=='signed-in')throw new CodedError('invalid_response','The reset file did not return an owner session.');
    grant=result;if(!op.current()||this.api!==source)return false;
-   const pin=source.getRouteConnection()?.pin,native=result.session.serverIdentity;
+   const pin=source.getRouteConnection()?.pin;
    if(!pin||!sameServerPin(pin,state.pin)||result.snapshot.serverId!==state.server.id||result.snapshot.authority!=='local'||
     !result.resetFileOwnerSession||result.accountScoped||result.passwordChangeRequired||result.session.refreshToken||result.snapshot.twoStepSetupRequired||
     result.snapshot.account.disabled||result.snapshot.account.role!=='owner'||result.session.viewer.authority!=='local'||result.session.viewer.serverId!==state.server.id||
     result.session.viewer.role!=='owner'||result.session.viewer.accountId!==result.snapshot.account.id||result.session.viewer.profileId!==result.snapshot.account.primaryProfileId||
-    !result.snapshot.profiles.some(profile=>profile.id===result.snapshot.account.primaryProfileId&&profile.primary)||
-    !native||native.publicKey!==pin.publicKey||native.fingerprint!==pin.fingerprint)throw new CodedError('invalid_response','The reset file did not match this server owner.');
+    !result.snapshot.profiles.some(profile=>profile.id===result.snapshot.account.primaryProfileId&&profile.primary))throw new CodedError('invalid_response','The reset file did not match this server owner.');
    privateAPI=this.temporary(source,result.session);
    const env={...this.ports.environment(state.server.id),storage:this.ports.store.connectionStorage(state.server.id,{signIn:'portico',resetFileOwner:true,expectedRevision:revision})};
    await this.ports.remember(privateAPI,result.session,env,undefined,op.current);

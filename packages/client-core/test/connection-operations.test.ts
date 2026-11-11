@@ -11,11 +11,16 @@ test('connection reads and sign-out keep the captured requester, response and ca
   const signal = new AbortController().signal, response = {from: 'captured issuer'};
   const calls: unknown[][] = [];
   const api = {request: async <T,>(...args: unknown[]): Promise<T> => {calls.push(args); return response as T;}};
-  for (const operation of [readServerSystem, readDirectAccount, readViewerIdentity, revokeCurrentSession, readOwnerClaim])
-    assert.equal(await operation(api, signal), response);
+  assert.equal(await readServerSystem(api, signal), response);
+  assert.deepEqual(await readDirectAccount(api, signal), {me: response, profiles: response});
+  await revokeCurrentSession(api, signal);
+  assert.equal(await readOwnerClaim(api, signal), response);
   assert.deepEqual(calls, [
-    ['get_system','GET'],['get_direct_account','GET'],['get_me','GET'],['delete_sessions_current','DELETE'],['get_networking_claim','GET'],
-  ].map(([id,method]) => [routePath(id as 'get_system'),method,undefined,signal]));
+    ['/v1/system','GET'],['/v1/me','GET'],['/v1/profiles','GET'],['/v1/auth/session','DELETE'],[routePath('get_networking_claim'),'GET'],
+  ].map(([path,method]) => [path,method,undefined,signal]));
+  // Who the sign-in acts for comes back in the shape a session keeps, on the server it was asked of.
+  const me = {request: async <T,>(): Promise<T> => ({account: {id: 'acct', username: 'sam', role: 'owner'}, profile: {id: 'main'}, role: 'owner', canManageAccount: true}) as T};
+  assert.deepEqual(await readViewerIdentity(me, {serverId: 'srv'}), {viewer: {accountId: 'acct', profileId: 'main', serverId: 'srv', authority: 'local', role: 'owner'}});
 });
 
 test('claim and invitation intents preserve omission, frozen authority witnesses and bodies', async () => {
