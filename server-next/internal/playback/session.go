@@ -103,6 +103,25 @@ type Session struct {
 	pausedSince time.Time
 	End         *End
 	endedAt     time.Time
+	// Command is the latest thing another of the account's devices asked this session's device
+	// to do. The device does it through its own routes, as if its person had pressed it.
+	Command *Command
+}
+
+// Command is what another device asked a session's device to do: play or pause, seek, skip
+// to the next or previous entry of its queue, or pick an audio or subtitle track. ID is new
+// for each command, so the device does each once.
+type Command struct {
+	ID         string    `json:"id"`
+	State      string    `json:"state,omitempty"`
+	SeekMs     *int64    `json:"seekMs,omitempty"`
+	Skip       string    `json:"skip,omitempty"`
+	AudioID    *string   `json:"audioTrackId,omitempty"`
+	SubtitleID *string   `json:"subtitleTrackId,omitempty"`
+	From       string    `json:"fromDeviceId"`
+	At         time.Time `json:"at"`
+
+	key string
 }
 
 // ReportEvery is how often the session's device should say where it is.
@@ -162,6 +181,53 @@ type Service struct {
 	started  int64
 	// accessChecked is when running sessions were last checked against what may be seen.
 	accessChecked time.Time
+	// changed is told, under the lock, when a session starts, ends, is paused or played, or
+	// is sent a command, so the account's other devices can read it again.
+	changed func(userID int64, sessionID string)
+}
+
+// OnChange sets the function told when one of an account's sessions starts, ends, pauses,
+// plays or is sent a command. It is called with the service's lock held and must return at
+// once. Call it before the server starts serving.
+func (s *Service) OnChange(fn func(userID int64, sessionID string)) { s.changed = fn }
+
+func (s *Service) changedLocked(sess *session) {
+	if s.changed != nil {
+		s.changed(sess.UserID, sess.ID)
+	}
+}
+
+// Session returns any running or recently ended session of an account, for another of its
+// devices to look at or control.
+func (s *Service) Session(id string, userID int64) (Session, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	sess := s.sessions[id]
+	if sess == nil || sess.UserID != userID {
+		return Session{}, db.ErrNotFound
+	}
+	return sess.Session, nil
+}
+
+// SendCommand gives a running session a command from another of the account's devices. Its
+// device hears of it on its change feed, does it, and reports as usual.
+// A command sent again with the same key is not given again: a repeated "next" skips once.
+func (s *Service) SendCommand(id string, userID int64, cmd Command, key string) (Session, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	sess := s.sessions[id]
+	switch {
+	case sess == nil || sess.UserID != userID:
+		return Session{}, db.ErrNotFound
+	case sess.State == StateEnded:
+		return Session{}, ErrEnded
+	case key != "" && sess.Command != nil && sess.Command.key == key && sess.Command.From == cmd.From:
+		return sess.Session, nil
+	}
+	cmd.ID, cmd.At, cmd.key = db.NewID("cmd"), s.now(), key
+	sess.Command = &cmd
+	s.changedLocked(sess)
+	return sess.Session, nil
 }
 
 // New returns the session service. Run must be started for leases and progress to be kept.
@@ -290,6 +356,9 @@ func (s *Service) Report(ctx context.Context, id string, v db.Viewer, signInID i
 		state = StatePlaying
 	}
 	edge := jumped || state != sess.State || r.State == StateEnded
+	if state != sess.State {
+		s.changedLocked(sess)
+	}
 	s.setStateLocked(sess, state, now)
 	s.sampleLocked(sess, r.PositionMs, r.PlayedMs, now)
 	sess.LeaseUntil = now.Add(lease)
@@ -413,6 +482,7 @@ func (s *Service) end(ctx context.Context, id, reason, message string) {
 // reports are refused. finish must follow, outside the lock.
 func (s *Service) endLocked(sess *session, reason, message string) {
 	sess.State, sess.End, sess.endedAt = StateEnded, &End{Reason: reason, Message: message}, s.now()
+	s.changedLocked(sess)
 }
 
 // finish saves an ended session's last position and stops its stream, whose addresses stop

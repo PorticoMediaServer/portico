@@ -23,10 +23,12 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/jobs"
+	"github.com/PorticoMediaServer/portico/server-next/internal/livefeed"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
 	"github.com/PorticoMediaServer/portico/server-next/internal/remote"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/receivers"
 	"github.com/PorticoMediaServer/portico/server-next/internal/scan"
 )
 
@@ -72,6 +74,10 @@ type Server struct {
 	remote *remote.Registry
 	// driveSignIns are Google sign-ins for Drive sources under way.
 	driveSignIns remote.DriveSignIns
+	// live carries the changes to what lives only in memory onto the change feed.
+	live *livefeed.Publisher
+	// receivers are the devices open to playback from other devices. See receivers.go.
+	receivers *receivers.Service
 }
 
 // Route is one operation, kept so the contract can be generated and the operation budget counted.
@@ -187,6 +193,9 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	if err := s.loadNetworks(ctx); err != nil {
 		return nil, err
 	}
+	clock := func() time.Time { return s.now() }
+	s.live = livefeed.New(clock)
+	s.receivers = receivers.New(s.live, clock)
 	s.systemRoutes()
 	s.networkRoutes()
 	s.identityRoutes()
@@ -207,10 +216,13 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.remoteSourceRoutes()
 	s.historyRoutes()
 	s.listRoutes()
-	s.playback = playback.New(d, playback.NoEngine{}, playback.NoEngine{}, log, func() time.Time { return s.now() })
+	s.playback = playback.New(d, playback.NoEngine{}, playback.NoEngine{}, log, clock)
+	s.playback.OnChange(func(userID int64, id string) {
+		s.live.ToAccount(userID, livefeed.TopicPlayback, livefeed.OpUpdated, id)
+	})
 	go s.playback.Run(ctx)
 	s.playbackRoutes()
-	s.queues = playqueue.New(d, s.playback, func() time.Time { return s.now() })
+	s.queues = playqueue.New(d, s.playback, clock)
 	s.queueRoutes()
 	s.subtitleRoutes()
 
@@ -223,6 +235,8 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	if err := s.jobs.Resume(); err != nil {
 		return nil, err
 	}
+	go s.sweepMemory(ctx)
+	s.receiverRoutes()
 	go s.jobs.RunTidy(ctx)
 	return s, nil
 }

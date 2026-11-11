@@ -79,7 +79,8 @@ table held in memory by that package's service.
 ## 8. Playing together and on other devices
 
 - Packages: `internal/together` (groups), `internal/receivers` (devices open to play, requests
-  and moves), Cast routes in `internal/api/cast.go` over `auth`.
+  and moves), Cast routes in `internal/api/cast.go` over `auth`, and `internal/livefeed`
+  (what lives in memory, on the change feed).
 - Durable: nothing of a group or a move. Only `allow_watch_together`, two `preferences`
   ("visible in Watch Together" on the profile, "play from other devices" on the device), the
   Cast application id (`settings`), a Cast pairing code (`auth_codes`) and the receiver's
