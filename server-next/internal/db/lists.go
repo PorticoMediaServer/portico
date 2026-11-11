@@ -285,7 +285,7 @@ func (d *DB) ListEntries(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, 
 		page.NextCursor = strconv.FormatInt(positions[limit-1], 36)
 	}
 	if q.WithTotal {
-		if err := tx.QueryRowContext(ctx, `SELECT count(*)`+entries+where.countWhere(), where.args...).Scan(&page.Total); err != nil {
+		if err := tx.QueryRowContext(ctx, `SELECT count(*)`+entries+where.countWhere(true), where.args...).Scan(&page.Total); err != nil {
 			return page, err
 		}
 	}
