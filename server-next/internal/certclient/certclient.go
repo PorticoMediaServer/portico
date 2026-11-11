@@ -16,11 +16,13 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/binary"
+	"errors"
 	"log/slog"
 	"math/rand/v2"
 	"net/http"
 	"strings"
 	"sync"
+	"testing"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/hosted/schedule"
@@ -89,8 +91,9 @@ type Client struct {
 	// early says the last order was refused as too early while this server has no usable
 	// certificate, so the next one says so.
 	early bool
-	// polls counts the asks about the current order; failures the calls that failed in a row.
-	polls, failures int
+	// polls counts the asks about the current order; failures the calls that failed in a row;
+	// repeats the answers in a row that said to do something again before an order answered.
+	polls, failures, repeats int
 }
 
 func New(o Options) *Client {
@@ -99,7 +102,16 @@ func New(o Options) *Client {
 	}
 	if o.HTTP == nil {
 		o.HTTP = &http.Client{Timeout: 30 * time.Second}
+		if testing.Testing() && o.Services == Services {
+			// No test can ever reach the real Portico Services: a test that has not given
+			// this client a fake gets a connection that refuses.
+			o.HTTP.Transport = refuseAll{}
+		}
 	}
+	// A signed request is never sent on to wherever an answer points.
+	stopped := *o.HTTP
+	stopped.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	o.HTTP = &stopped
 	if o.Now == nil {
 		o.Now = time.Now
 	}
@@ -211,3 +223,10 @@ func (c *Client) set(s Status) {
 }
 
 func jitter() float64 { return rand.Float64() }
+
+// refuseAll is the connection a test gets when it has not set up a fake Portico Services.
+type refuseAll struct{}
+
+func (refuseAll) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, errors.New("tests never contact the real Portico Services")
+}

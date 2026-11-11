@@ -54,6 +54,10 @@ func (c *Client) load() {
 	if raw, err := os.ReadFile(c.path(stateFile)); err == nil {
 		json.Unmarshal(raw, &c.state)
 	}
+	// A kept wait is never longer than the longest the client honours.
+	if limit := c.o.Now().Add(longestWait); c.state.NextTryAt.After(limit) {
+		c.state.NextTryAt = limit
+	}
 	raw, err := os.ReadFile(c.path(certFile))
 	if err != nil {
 		return
@@ -116,13 +120,21 @@ func request(key *ecdsa.PrivateKey, nameSpace string) ([]byte, error) {
 // restart. It must be for this name, for the pending key, valid now, and verify to the
 // public roots.
 func (c *Client) install(chain []byte, key *ecdsa.PrivateKey, now time.Time) error {
+	// The chain must hold certificates and nothing else: the only key ever used is the one
+	// this server made, and it must be the key the certificate is for.
+	for rest := bytes.TrimSpace(chain); len(rest) > 0; rest = bytes.TrimSpace(rest) {
+		var block *pem.Block
+		if block, rest = pem.Decode(rest); block == nil || block.Type != "CERTIFICATE" {
+			return errChain
+		}
+	}
 	der, _ := x509.MarshalPKCS8PrivateKey(key)
-	both := append(bytes.TrimSpace(chain), '\n')
-	both = append(both, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})...)
-	cert, err := tls.X509KeyPair(both, both)
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})
+	cert, err := tls.X509KeyPair(chain, keyPEM)
 	if err != nil {
 		return errChain
 	}
+	both := append(append(bytes.TrimSpace(chain), '\n'), keyPEM...)
 	leaf, err := x509.ParseCertificate(cert.Certificate[0])
 	if err != nil || len(leaf.DNSNames) != 1 || leaf.DNSNames[0] != Name(c.state.NameSpace) {
 		return errChain

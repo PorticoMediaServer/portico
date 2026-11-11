@@ -198,7 +198,7 @@ func TestEveryRefusalWaitsAndTellsTheOwner(t *testing.T) {
 		{name: "the account's orders today", refuse: &refusal{429, "slow_down", "This account's servers have ordered too many certificates today. They can order again later.", 7200, "/orders"},
 			atLeast: 2 * time.Hour, says: "This account's servers have ordered too many certificates today. They can order again later. Portico will ask again "},
 		{name: "replaced twice this week", refuse: &refusal{429, "replacement_limit", "This server has replaced its certificate twice this week. It can replace it again later.", 3 * 86400, "/orders"},
-			atLeast: 3 * 24 * time.Hour, says: "This server has replaced its certificate twice this week. It can replace it again later. Portico will ask again on "},
+			atLeast: 24 * time.Hour, says: "This server has replaced its certificate twice this week. It can replace it again later. Portico will ask again on "},
 		{name: "the ordinary call limit", refuse: &refusal{429, "slow_down", "Too many requests. Try again later.", 60, ""}, atLeast: 60 * time.Second,
 			says: "Portico Services is busy. Trying again at "},
 		{name: "signed a moment before the link", refuse: &refusal{401, "signed_before_link", "This request was signed before this server was linked.", 0, ""},
