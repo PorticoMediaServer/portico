@@ -94,7 +94,7 @@ func playbackError(err error) error {
 func (s *Server) playbackCaller(r *http.Request) playback.Caller {
 	c := CallerFrom(r.Context())
 	return playback.Caller{Viewer: db.Viewer{UserID: c.UserID, ProfileID: c.ProfileID}, SignInID: c.SessionID,
-		AtHome: s.networks().FromHome(r)}
+		AtHome: s.fromHome(r)}
 }
 
 // deviceID is the device a capabilities route is about: one of the caller's own by id, or

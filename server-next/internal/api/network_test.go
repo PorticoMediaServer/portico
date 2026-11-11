@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -137,6 +138,52 @@ func TestTrustedProxiesAndHomeNetworks(t *testing.T) {
 	closeDB(s.db)
 	if got := openTestServer(t, path).networkSettings(0); len(got.TrustedProxies) != 1 || got.HomeNetworksDefault {
 		t.Errorf("after a restart the settings are %+v", got)
+	}
+}
+
+// A listed proxy that passes on no visitor's address must not make its visitors count as at
+// home, although the proxy itself is. They are away, the owner's network settings say what
+// is wrong, and once the proxy sends the address, a visitor at home is home again.
+func TestListedProxyThatSendsNoAddress(t *testing.T) {
+	s := newTestServer(t)
+	owner := onMainProfile(t, s)
+	const proxy = "192.168.1.2"
+	edit := NetworkSettingsEdit{HomeNetworks: &[]string{"192.168.1.0/24"}, TrustedProxies: []string{proxy}}
+	var saved NetworkSettings
+	if w := call(t, s, "PUT", "/v1/admin/settings/network", owner.AccessToken, edit, &saved); w.Code != 200 || len(saved.Notices) != 0 {
+		t.Fatalf("saving the settings answered %d with notices %v", w.Code, saved.Notices)
+	}
+	for n, forwarded := range []string{"", "unknown", "203.0.113.9", "192.168.1.20"} {
+		body := SignInRequest{Username: "justin", Password: testPassword, Device: device(300 + n)}
+		if got := from(t, s, proxy, forwarded, "POST", "/v1/auth/sign-in", "", body, nil); got != 200 {
+			t.Fatalf("signing in through the proxy with %q forwarded answered %d", forwarded, got)
+		}
+	}
+	networks := map[string]string{}
+	for _, d := range get[Page[Device]](t, s, owner.AccessToken, "/v1/devices").Items {
+		networks[d.Name] = d.Network
+	}
+	if networks["Device 300"] != "away" || networks["Device 301"] != "away" || networks["Device 302"] != "away" || networks["Device 303"] != "home" {
+		t.Errorf("no header, junk, an outside address and a home address are listed as %v, want away, away, away, home", networks)
+	}
+	notices := get[NetworkSettings](t, s, owner.AccessToken, "/v1/admin/settings/network").Notices
+	if len(notices) != 1 || !strings.Contains(notices[0], proxy) || !strings.Contains(notices[0], "X-Forwarded-For") {
+		t.Errorf("the owner's network settings say %q", notices)
+	}
+	// Wrong guesses through the silent proxy are counted against the proxy's address, like
+	// any network away from home, and are not let off as the household's.
+	wrong := SignInRequest{Username: "justin", Password: "not the password"}
+	for n := range 30 {
+		wrong.Device = device(400 + n)
+		clock := time.Now().Add(time.Duration(n) * 2 * time.Minute)
+		s.now = func() time.Time { return clock }
+		from(t, s, proxy, "", "POST", "/v1/auth/sign-in", "", wrong, nil)
+	}
+	later := time.Now().Add(62 * time.Minute)
+	s.now = func() time.Time { return later }
+	right := SignInRequest{Username: "justin", Password: testPassword, Device: device(500)}
+	if got := from(t, s, proxy, "", "POST", "/v1/auth/sign-in", "", right, nil); got != 429 {
+		t.Errorf("after 30 wrong guesses through the silent proxy the next sign-in answered %d, want 429", got)
 	}
 }
 

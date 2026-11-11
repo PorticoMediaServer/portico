@@ -37,8 +37,9 @@ func within(prefixes []netip.Prefix, addr netip.Addr) bool {
 // is not itself a trusted proxy. The header can be written by anyone, so it is read from
 // the end the trusted proxy wrote and no further than the first address that is not a
 // trusted proxy: whatever a client put before that is never looked at, so nothing a client
-// sends can make it count as the proxy. If the proxy's own entry cannot be read, the
-// request counts as coming from the proxy.
+// sends can make it count as the proxy. If the proxy's own entry cannot be read, or it sent
+// none, the answer is the proxy's own address: what wrong guesses are then counted against.
+// It is never taken for the visitor's; see ProxyGaveNoAddress.
 func (n Networks) Client(r *http.Request) (netip.Addr, bool) {
 	ap, err := netip.ParseAddrPort(r.RemoteAddr)
 	if err != nil {
@@ -82,13 +83,32 @@ func (n Networks) ThroughUnlistedProxy(r *http.Request) bool {
 	return err != nil || !within(n.Proxies, ap.Addr().Unmap().WithZone(""))
 }
 
-// FromHome reports whether a request came from one of the owner's home networks. A request
-// passed on by a proxy the owner has not listed is never from home: a proxy on the same
-// machine or network would otherwise make everyone on the internet look like the household.
-// This only ever takes trust away, so the header cannot be used to gain anything.
+// ProxyGaveNoAddress reports whether a request came from one of the owner's trusted proxies
+// without a visitor's address the server can use: no X-Forwarded-For, one that cannot be
+// read, or one naming only trusted proxies. All that is known then is the proxy's own
+// address, which says nothing about who is behind it.
+func (n Networks) ProxyGaveNoAddress(r *http.Request) bool {
+	ap, err := netip.ParseAddrPort(r.RemoteAddr)
+	if err != nil {
+		return false
+	}
+	peer := ap.Addr().Unmap().WithZone("")
+	if !within(n.Proxies, peer) {
+		return false
+	}
+	addr, _ := n.Client(r)
+	return addr == peer
+}
+
+// FromHome reports whether a request came from one of the owner's home networks. Two kinds
+// of request are never from home, whatever address they arrive from. One passed on by a
+// proxy the owner has not listed: a proxy on the same machine or network would otherwise
+// make everyone on the internet look like the household. And one from a listed proxy that
+// passes on no visitor's address: the proxy itself is usually at home, and everyone behind
+// it would be too. Both only ever take trust away, so no header can be used to gain anything.
 func (n Networks) FromHome(r *http.Request) bool {
 	addr, ok := n.Client(r)
-	return ok && n.AtHome(addr) && !n.ThroughUnlistedProxy(r)
+	return ok && n.AtHome(addr) && !n.ThroughUnlistedProxy(r) && !n.ProxyGaveNoAddress(r)
 }
 
 // AtHome reports whether an address is on one of the owner's home networks.
