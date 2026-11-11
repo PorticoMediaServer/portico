@@ -312,15 +312,15 @@ func TestADownloadAddressDoesNotLiveForEver(t *testing.T) {
 	var item DownloadedItem
 	call(t, rig.s, "GET", "/v1/downloads/"+dl.ID+"/items/"+rig.film, rig.owner, nil, &item)
 	start := time.Now()
-	defer func() { rig.s.now = time.Now }()
+	defer func() { rig.s.setClock(time.Now) }()
 	// Used every 20 hours, it never sits idle for its day, so only its week can end it.
 	for hours := 20; hours <= 160; hours += 20 {
-		rig.s.now = func() time.Time { return start.Add(time.Duration(hours) * time.Hour) }
+		rig.s.setClock(func() time.Time { return start.Add(time.Duration(hours) * time.Hour) })
 		if res, _ := rig.fetch(item.Files[0].URL, "Range", "bytes=0-9"); res.StatusCode != 206 {
 			t.Fatalf("after %d hours of steady use the address answered %d", hours, res.StatusCode)
 		}
 	}
-	rig.s.now = func() time.Time { return start.Add(180 * time.Hour) }
+	rig.s.setClock(func() time.Time { return start.Add(180 * time.Hour) })
 	if res, _ := rig.fetch(item.Files[0].URL, "Range", "bytes=0-9"); res.StatusCode != 404 {
 		t.Fatalf("after a week of steady use the address answered %d; want 404", res.StatusCode)
 	}

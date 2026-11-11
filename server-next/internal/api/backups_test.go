@@ -105,6 +105,7 @@ func TestRestoreNeedsThePasswordAgain(t *testing.T) {
 
 	// The next start makes it, through the one start-up path the server uses. A stop after
 	// the swap and before the sign-ins are ended is made first: the start after still ends them.
+	stopServer(s)
 	closeDB(s.db)
 	dir := filepath.Dir(path)
 	if restored, _, err := backup.Prepare(dir, time.Now()); err != nil || restored != started.ID {
@@ -115,7 +116,9 @@ func TestRestoreNeedsThePasswordAgain(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { closeDB(d) })
-	s, err = New(context.Background(), d, dir, "test", slog.New(slog.NewTextHandler(io.Discard, nil)))
+	ctx, cancel := context.WithCancel(context.Background())
+	s, err = New(ctx, d, dir, "test", slog.New(slog.NewTextHandler(io.Discard, nil)))
+	stopWhenDone(t, s, cancel)
 	if err != nil {
 		t.Fatal(err)
 	}

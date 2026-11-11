@@ -55,13 +55,13 @@ func (s *Server) startConsole(ctx context.Context) error {
 	s.statisticsRoutes()
 	s.updates = &updates.Checker{Settings: s.settings, Version: s.version, Now: func() time.Time { return s.now() }}
 	// Once a day, whether a newer version is out. Nothing is installed.
-	go s.updates.Run(ctx)
+	s.goBackground(func() { s.updates.Run(ctx) })
 	s.updateRoutes()
 	s.storageRoutes(s.dataDir)
 	s.backups = &backup.Service{DB: s.db, Settings: s.settings, DataDir: s.dataDir, Version: s.version, Log: s.log,
 		Now: func() time.Time { return s.now() }}
 	// Scheduled backups, at the owner's hour.
-	go s.backups.Run(ctx)
+	s.goBackground(func() { s.backups.Run(ctx) })
 	s.backupRoutes()
 	s.restart = make(chan struct{})
 	s.restoreRoutes()

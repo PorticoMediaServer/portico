@@ -27,7 +27,7 @@ func (s *Server) startDownloads(ctx context.Context) error {
 		Remote: s.remote.Open, Log: s.log, Now: func() time.Time { return s.now() }}); err != nil {
 		return err
 	}
-	go s.prepare.Run(ctx)
+	s.goBackground(func() { s.prepare.Run(ctx) })
 	s.jobs.Tidy("unused prepared copies", 6*time.Hour, s.prepare.Tidy)
 	s.downloads = &downloads.Service{DB: s.db, Prepare: s.prepare, Settings: s.settings, Now: func() time.Time { return s.now() }}
 	s.downloadRoutes()

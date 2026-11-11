@@ -36,7 +36,7 @@ func (s *Server) startTogether(ctx context.Context) error {
 	s.playback.OnChange(func(userID int64, id string) {
 		s.live.ToAccount(userID, livefeed.TopicPlayback, livefeed.OpUpdated, id)
 	})
-	go s.sweepMemory(ctx)
+	s.goBackground(func() { s.sweepMemory(ctx) })
 	s.receiverRoutes()
 	s.groupRoutes()
 	return nil
