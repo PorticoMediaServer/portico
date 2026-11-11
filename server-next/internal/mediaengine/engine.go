@@ -113,9 +113,9 @@ func New(ctx context.Context, d *db.DB, o Options) (*Engine, error) {
 		// The owner's own conversion folder and FFmpeg program. A change is put in force when
 		// it is saved, beside the save, because a new program is tried out first and that
 		// takes seconds; what was saved before this start is put in force the same way now.
-		settings.Streaming.Watch(e.settings, func(owner settings.StreamingSettings) { go e.applyConversion(owner) })
+		settings.Streaming.Watch(e.settings, func(settings.StreamingSettings) { go e.applyConversion() })
 		if owner := e.owner(); owner.ConversionFolder != "" || owner.FFmpegProgram != "" {
-			go e.applyConversion(owner)
+			go e.applyConversion()
 		}
 	}
 	return e, err
