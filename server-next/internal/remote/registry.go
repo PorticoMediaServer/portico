@@ -75,6 +75,9 @@ func (c Config) limits() Limits {
 	if c.Limits.PerSecond > 0 {
 		l.PerSecond = c.Limits.PerSecond
 	}
+	if c.Limits.DownloadBytesPerSecond > 0 {
+		l.DownloadBytesPerSecond = c.Limits.DownloadBytesPerSecond
+	}
 	return l
 }
 

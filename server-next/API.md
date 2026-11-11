@@ -535,7 +535,7 @@ The owner's alone. Adding, changing and disconnecting a source, and starting a D
 
 | Route | Purpose |
 |---|---|
-| `GET /v1/admin/remote-sources`, `GET /v1/admin/remote-sources/{id}` | The sources with their kind, settings, preset, limits and state (connected, unreachable, sign_in, waiting, setup) |
+| `GET /v1/admin/remote-sources`, `GET /v1/admin/remote-sources/{id}` | The sources with their kind, settings, preset, limits (connections, requests a second, and `downloadBytesPerSecond`, 0 for none) and state (connected, unreachable, sign_in, waiting, setup) |
 | `POST /v1/admin/remote-sources` | Add one: the connection is tested first and nothing is saved unless it works. Takes an `Idempotency-Key` |
 | `PATCH /v1/admin/remote-sources/{id}` | Rename, change the preset or limits, change the address or replace the password (tested first; a new host needs the password again) |
 | `DELETE /v1/admin/remote-sources/{id}` | Disconnect, once no library folder is on it (`409 source_in_use` otherwise) |

@@ -42,11 +42,13 @@ type RemoteSource struct {
 	Folders int `json:"folders"`
 }
 
-// RemoteLimits are a source's limits: connections at once and requests a second. Zero takes
-// the preset's.
+// RemoteLimits are a source's limits: connections at once, requests a second, and how fast
+// everything read from it may arrive, scans and playback together. Zero takes the preset's,
+// which for the download speed is no limit.
 type RemoteLimits struct {
-	Connections int     `json:"connections"`
-	PerSecond   float64 `json:"perSecond"`
+	Connections            int     `json:"connections"`
+	PerSecond              float64 `json:"perSecond"`
+	DownloadBytesPerSecond int64   `json:"downloadBytesPerSecond,omitempty"`
 }
 
 // WebDAVShown is a WebDAV source's settings as shown: never its password.
@@ -214,7 +216,7 @@ func (s *Server) remoteSourceOut(row db.RemoteSource) RemoteSource {
 	_ = json.Unmarshal([]byte(row.Config), &c)
 	preset, _ := remote.PresetNamed(c.Preset)
 	out := RemoteSource{ID: row.PublicID, Kind: row.Kind, Name: row.Name, Preset: preset.Name, Problem: row.LastError, Folders: row.Folders,
-		Limits: RemoteLimits{c.Limits.Connections, c.Limits.PerSecond}}
+		Limits: RemoteLimits{c.Limits.Connections, c.Limits.PerSecond, c.Limits.DownloadBytesPerSecond}}
 	switch row.Kind {
 	case "webdav":
 		out.WebDAV = &WebDAVShown{Address: c.Address, User: c.User, PasswordSet: c.SecretSet}
@@ -248,10 +250,10 @@ func remoteSettings(kind string, c *remote.Config, secret *remote.Secret, preset
 		c.Preset = *preset
 	}
 	if limits != nil {
-		if limits.Connections < 0 || limits.Connections > 64 || limits.PerSecond < 0 || limits.PerSecond > 1000 {
-			return ErrField("limits", "Connections are 1 to 64 and requests 1 to 1,000 a second.")
+		if limits.Connections < 0 || limits.Connections > 64 || limits.PerSecond < 0 || limits.PerSecond > 1000 || limits.DownloadBytesPerSecond < 0 {
+			return ErrField("limits", "Connections are 1 to 64, requests 1 to 1,000 a second, and the download speed is 0 (no limit) or more.")
 		}
-		c.Limits = remote.Limits{Connections: limits.Connections, PerSecond: limits.PerSecond}
+		c.Limits = remote.Limits{Connections: limits.Connections, PerSecond: limits.PerSecond, DownloadBytesPerSecond: limits.DownloadBytesPerSecond}
 	}
 	switch kind {
 	case "webdav":
