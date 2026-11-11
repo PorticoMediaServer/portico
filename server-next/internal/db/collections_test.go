@@ -155,3 +155,50 @@ func TestAHandMadeCollectionFollowsWhatItHolds(t *testing.T) {
 		t.Fatal("the child does not see the collection after the family film was put back")
 	}
 }
+
+// A collection made by grouping a series shows a rating-limited child while it holds a film
+// the child may see, and not once that film leaves it.
+func TestASeriesCollectionFollowsWhatItHolds(t *testing.T) {
+	l := newLibrary(t, 300)
+	owner, child := l.all, l.viewers[9] // the seeder's profile limited to a rating of 13
+	all, err := l.d.AllLibraries(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var films db.Library
+	for _, lib := range all {
+		if lib.Kind == db.LibraryMovies {
+			films = lib
+		}
+	}
+	var family, adult db.Item
+	for _, it := range everything(t, l.d, owner, db.ItemQuery{Library: films.PublicID, Kinds: []db.ItemKind{db.KindMovie}}) {
+		switch {
+		case family.ID == 0 && slices.Contains([]string{"G", "PG"}, it.ContentRating):
+			family = it
+		case adult.ID == 0 && slices.Contains([]string{"R", "NC-17"}, it.ContentRating):
+			adult = it
+		}
+	}
+	if family.ID == 0 || adult.ID == 0 {
+		t.Fatal("the seeded films have no family film and adult film to group")
+	}
+	series := &db.SeriesRef{Provider: "tmdb", ID: "424242", Name: "Picks Collection"}
+	for _, film := range []db.Item{family, adult} {
+		if err := l.d.ApplyDetails(ctx, db.Background, film.ID, db.ItemDetails{Match: db.MatchFound, Series: series}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	collections := func(v db.Viewer) int {
+		return len(everything(t, l.d, v, db.ItemQuery{Library: films.PublicID, Kinds: []db.ItemKind{db.KindCollection}}))
+	}
+	if collections(owner) != 1 || collections(child) != 1 {
+		t.Fatalf("after grouping, the owner sees %d collections and the child %d; want 1 each", collections(owner), collections(child))
+	}
+	if err := db.ChangeMatchOf(l.d, family.PublicID, db.ItemDetails{Match: db.MatchChosen, ProviderKey: "tmdb:movie:1"}); err != nil {
+		t.Fatal(err)
+	}
+	if collections(child) != 0 {
+		t.Fatal("the child still sees the collection after its family film left it")
+	}
+}
