@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -120,5 +121,37 @@ func TestRestoreNeedsThePasswordAgain(t *testing.T) {
 	call(t, s, "POST", "/v1/admin/backups/restore", owner, restore, nil)
 	if code := status(t, s, "DELETE", "/v1/admin/backups/restore", owner, nil); code != 204 || backup.PendingRestore(dir) != nil {
 		t.Errorf("cancelling the restore answered %d", code)
+	}
+}
+
+// A backup whose mark does not match (made elsewhere, or changed since) is restored only once
+// the owner has been warned and confirmed: the first try answers the warning.
+func TestRestoreWarnsOfABackupNotMadeHere(t *testing.T) {
+	s := newTestServer(t)
+	owner := onMainProfile(t, s).AccessToken
+	var started BackupStarted
+	call(t, s, "POST", "/v1/admin/backups", owner, nil, &started)
+	for s.Backups().Running() != nil {
+		time.Sleep(10 * time.Millisecond)
+	}
+	var inspected BackupInspection
+	if call(t, s, "POST", "/v1/admin/backups/inspect", owner, BackupInspect{ID: started.ID}, &inspected); !inspected.MadeHere {
+		t.Errorf("this server's own backup reads as not made here")
+	}
+	// The description is changed, as someone with the backup folder could.
+	desc := filepath.Join(s.Backups().Folder(), started.ID+".json")
+	raw, _ := os.ReadFile(desc)
+	os.WriteFile(desc, []byte(strings.Replace(string(raw), `"mark": "`, `"mark": "0`, 1)), 0o600)
+	if call(t, s, "POST", "/v1/admin/backups/inspect", owner, BackupInspect{ID: started.ID}, &inspected); inspected.MadeHere {
+		t.Errorf("a changed backup reads as made here")
+	}
+	restore := BackupRestore{BackupInspect: BackupInspect{ID: started.ID}, CurrentPassword: testPassword}
+	w := call(t, s, "POST", "/v1/admin/backups/restore", owner, restore, nil)
+	if w.Code != 409 || !strings.Contains(w.Body.String(), "replaces every account, including yours") {
+		t.Fatalf("restoring a changed backup without confirming answered %d: %s", w.Code, w.Body)
+	}
+	restore.NotMadeHereConfirmed = true
+	if code := status(t, s, "POST", "/v1/admin/backups/restore", owner, restore); code != 200 {
+		t.Errorf("restoring it, confirmed, answered %d", code)
 	}
 }

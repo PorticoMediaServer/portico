@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"context"
+	"crypto/hmac"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -56,15 +57,24 @@ type Pending struct {
 
 // Stage unpacks the backup at archivePath into the data folder, checks the database it holds
 // whole, and leaves it as the restore to make at the next start, in place of any restore
-// already staged. name is how the backup is named.
-func Stage(ctx context.Context, archivePath, dataDir, name string, now time.Time) error {
+// already staged. name is how the backup is named. A backup without this server's mark over
+// the very bytes unpacked is ErrNotMadeHere unless the owner confirmed it (notMadeHereOK).
+func Stage(ctx context.Context, archivePath, dataDir, name string, now time.Time, notMadeHereOK bool) error {
 	work, err := os.MkdirTemp(dataDir, ".staging-")
 	if err != nil {
 		return err
 	}
 	defer os.RemoveAll(work)
-	if err := unpack(archivePath, work, dataDir); err != nil {
+	key, err := markKey(dataDir)
+	if err != nil {
 		return err
+	}
+	m := newMarker(key)
+	if err := unpack(archivePath, work, dataDir, m); err != nil {
+		return err
+	}
+	if stated := statedMark(archivePath); !notMadeHereOK && (stated == "" || !hmac.Equal([]byte(stated), []byte(m.mark()))) {
+		return ErrNotMadeHere
 	}
 	if err := db.CheckCopy(ctx, filepath.Join(work, "main.db")); err != nil {
 		return &ErrDamaged{err.Error()}
@@ -85,7 +95,7 @@ func Stage(ctx context.Context, archivePath, dataDir, name string, now time.Time
 
 // unpack writes a backup's files into dir, refusing anything a backup never holds and a
 // database larger than the free space of the data folder's disk allows.
-func unpack(archivePath, dir, dataDir string) error {
+func unpack(archivePath, dir, dataDir string, m *marker) error {
 	f, err := os.Open(archivePath)
 	if err != nil {
 		return &ErrDamaged{"it cannot be opened"}
@@ -94,7 +104,10 @@ func unpack(archivePath, dir, dataDir string) error {
 	if info, err := f.Stat(); err != nil || !info.Mode().IsRegular() {
 		return &ErrDamaged{"it is not a file"}
 	}
-	zr, err := gzip.NewReader(f)
+	// Every byte read is marked as it passes, so the mark checked is of the bytes unpacked.
+	source := io.TeeReader(f, m)
+	defer io.Copy(io.Discard, source)
+	zr, err := gzip.NewReader(source)
 	if err != nil {
 		return &ErrDamaged{"it is not a Portico backup"}
 	}
