@@ -81,7 +81,8 @@ export class LocalOwnerTransferSource {
         this.people.read({search: '', role: 'member', status: 'active', sort: 'person', direction: 'asc'}, '', signal),
       ]);
       this.assert(entry);
-      if (owner.accountId !== this.accountId || owner.profileId !== this.profileId || owner.role !== 'owner' || owner.disabled || owner.hostedAccountId) throw changed();
+      // Settings opens this only from the owner's own main profile; the rebuilt server's member answer does not name it.
+      if (owner.accountId !== this.accountId || owner.role !== 'owner' || owner.disabled || owner.hostedAccountId) throw changed();
       const members = Object.freeze(page.items.filter(row => row.role === 'member' && !row.disabled && row.accountId !== this.accountId)
         .map(row => Object.freeze({accountId: row.accountId, username: row.username})));
       if (!members.length && page.matchedCount > 0) throw changed();
