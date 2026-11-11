@@ -123,6 +123,8 @@ func TestDLNA(t *testing.T) {
 		{"the server's .local name", home, map[string]string{"Host": short + ".local:32500"}, 200},
 		{"the server's MagicDNS name", home, map[string]string{"Host": short + ".tail1234.ts.net"}, 200},
 		{"a name the router made", home, map[string]string{"Host": "nas.fritz.box:32500"}, 200},
+		{"the Fritz!Box router's own name", home, map[string]string{"Host": "fritz.box"}, 200},
+		{"a bought name under the public .box domain", home, map[string]string{"Host": "nas.evil.box"}, 404},
 		{"a name of several parts under a home ending", home, map[string]string{"Host": "nas.home.lan"}, 200},
 		{"the owner's own domain, not yet added", home, map[string]string{"Host": "media.example.com"}, 404},
 		{"the owner's proxy passing a home address", proxy, map[string]string{"X-Forwarded-For": home}, 200},
