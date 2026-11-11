@@ -106,8 +106,15 @@ func accessChanged(tx *sql.Tx, now time.Time, where string, args ...any) error {
 	if err := rows.Close(); err != nil {
 		return err
 	}
+	// What a profile may see decides which episodes count toward a show being watched, so
+	// each profile's watched marks are worked out again from what it has watched.
+	b := newBatchTx(tx)
+	defer b.close()
 	for _, id := range ids {
 		if err := appendChange(tx, Change{At: now.UnixMilli(), Topic: TopicAccess, Op: OpUpdated, RefID: id, ProfileID: id}); err != nil {
+			return err
+		}
+		if err := rebuildWatched(b, id, now.UnixMilli()); err != nil {
 			return err
 		}
 	}
