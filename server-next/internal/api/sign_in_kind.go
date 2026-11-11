@@ -90,7 +90,13 @@ type SignInSwitchRequest struct {
 	StartOver bool   `json:"startOver,omitempty"`
 	// ServerName is typed by the owner to confirm Start over.
 	ServerName string `json:"serverName,omitempty"`
-	// Username and Password are the owner's on a server moving to local sign-in.
+	// CurrentPassword (and Code, with two-step sign-in) prove the owner, typed fresh, on a
+	// server with local sign-in: a switch or Start over replaces the owner's password and can
+	// remove everyone else, so a sign-in token alone must never be enough. A server using
+	// Portico Accounts has no password to ask; there the PIN check of sensitive writes is all.
+	CurrentPassword string `json:"currentPassword,omitempty"`
+	Code            string `json:"code,omitempty"`
+	// Username and Password are the owner's new ones on a server moving to local sign-in.
 	Username string `json:"username,omitempty"`
 	Password string `json:"password,omitempty"`
 	// Approval is what came back from approving the server with a Portico Account.
@@ -288,6 +294,15 @@ func (s *Server) signInSwitch(r *http.Request, req SignInSwitchRequest) (SignInR
 		return SignInResponse{}, err
 	}
 	sw := db.Switch{OwnerID: caller.UserID, To: req.To, StartOver: req.StartOver, Session: session, Now: now}
+	if kind, err := s.signInKind(ctx); err != nil {
+		return SignInResponse{}, err
+	} else if kind == "local" {
+		proof, err := s.passwordProof(r, req.CurrentPassword, req.Code)
+		if err != nil {
+			return SignInResponse{}, proofError(err)
+		}
+		sw.Proof = &proof
+	}
 	if req.To == "local" {
 		username, ok := auth.Username(req.Username)
 		if !ok {
@@ -315,7 +330,7 @@ func (s *Server) signInSwitch(r *http.Request, req SignInSwitchRequest) (SignInR
 	case errors.Is(err, db.ErrNotPermitted):
 		return SignInResponse{}, ErrNotPermitted()
 	case err != nil:
-		return SignInResponse{}, s.porticoTaken(r, err)
+		return SignInResponse{}, proofError(s.porticoTaken(r, err))
 	}
 	return s.signedIn(ctx, st, now, refresh)
 }
@@ -406,17 +421,11 @@ func (s *Server) moveCheck(r *http.Request, req MoveCheckRequest) (MoveCheck, er
 		}
 		return MoveCheck{Username: account.Username, Next: next}, nil
 	}
-	// The old password: the ordinary sign-in says whether this person is waiting to move.
-	key, _ := auth.Username(req.Username)
-	creds, err := s.db.CredentialsByUsername(ctx, key)
+	creds, limits, err := s.oldPassword(r, req.Username, req.Password)
 	if err != nil {
 		return MoveCheck{}, err
 	}
-	ok, err := s.passwords.Check(ctx, creds.PasswordHash, req.Password)
-	if err != nil {
-		return MoveCheck{}, err
-	}
-	if ok && moving && move.To == "portico" && now.Sub(move.At) < db.OldPasswordWorks {
+	if creds.UserID != 0 && moving && move.To == "portico" && now.Sub(move.At) < db.OldPasswordWorks {
 		if account, err := s.db.Account(ctx, creds.UserID); err == nil && account.State == "waiting" {
 			return MoveCheck{Username: account.Username, Next: next}, nil
 		}
@@ -425,6 +434,41 @@ func (s *Server) moveCheck(r *http.Request, req MoveCheckRequest) (MoveCheck, er
 		return MoveCheck{}, err
 	}
 	return MoveCheck{}, errBadMoveCode()
+}
+
+// oldPassword checks a waiting person's old password as strictly as a sign-in: counted against
+// the account as well as the network, and waited out first. An account with two-step sign-in
+// never moves on its password alone: it needs a code from the owner. Credentials come back
+// with UserID 0 unless the password is right and may be used; the limits are what a wrong
+// guess counts against.
+func (s *Server) oldPassword(r *http.Request, username, password string) (db.Credentials, []db.Limit, error) {
+	ctx, now := r.Context(), s.now()
+	key, _ := auth.Username(username)
+	limits := s.passwordLimits(r, key)
+	if wait, err := s.db.LimitWait(ctx, now, limits...); err != nil {
+		return db.Credentials{}, limits, err
+	} else if wait > 0 {
+		return db.Credentials{}, limits, errTooManyAttempts(wait)
+	}
+	creds, err := s.db.CredentialsByUsername(ctx, key)
+	if err != nil {
+		return db.Credentials{}, limits, err
+	}
+	ok, err := s.passwords.Check(ctx, creds.PasswordHash, password)
+	if err != nil || !ok {
+		return db.Credentials{}, limits, err
+	}
+	account, err := s.db.Account(ctx, creds.UserID)
+	if err != nil {
+		return db.Credentials{}, limits, err
+	}
+	if member, err := s.db.Member(ctx, account.PublicID); err != nil {
+		return db.Credentials{}, limits, err
+	} else if member.TwoFactor {
+		return db.Credentials{}, limits, ErrConflict("move_code_required",
+			"This account uses two-step sign-in, so it moves with a code from the server's owner, not its old password.")
+	}
+	return creds, limits, nil
 }
 
 func (s *Server) moveComplete(r *http.Request, req MoveCompleteRequest) (SignInResponse, error) {
@@ -497,7 +541,7 @@ func (s *Server) moveToPortico(r *http.Request, req MoveCompleteRequest) (SignIn
 	} else if wait > 0 {
 		return SignInResponse{}, errTooManyAttempts(wait)
 	}
-	account, err := s.approved(r, req.Approval, hosted.PurposeSwitch)
+	account, err := s.approved(r, req.Approval, hosted.PurposeLink)
 	if err != nil {
 		return SignInResponse{}, err
 	}
@@ -506,20 +550,16 @@ func (s *Server) moveToPortico(r *http.Request, req MoveCompleteRequest) (SignIn
 	if req.Code != "" {
 		m.CodeHash = moveHash(req.Code)
 	} else {
-		key, _ := auth.Username(req.Username)
-		creds, err := s.db.CredentialsByUsername(ctx, key)
+		creds, passwordLimits, err := s.oldPassword(r, req.Username, req.Password)
 		if err != nil {
 			return SignInResponse{}, err
 		}
-		ok, err := s.passwords.Check(ctx, creds.PasswordHash, req.Password)
-		if err != nil {
-			return SignInResponse{}, err
+		// A wrong password is counted by the transaction, against the account too; a hash
+		// nobody has never stands.
+		m.UserID, m.CheckedHash, m.Limits = creds.UserID, creds.PasswordHash, passwordLimits
+		if creds.UserID == 0 {
+			m.CheckedHash = "-"
 		}
-		if !ok {
-			// The transaction counts the wrong guess; a hash nobody has never stands.
-			creds.PasswordHash = "-"
-		}
-		m.UserID, m.CheckedHash = creds.UserID, creds.PasswordHash
 	}
 	st, err := s.db.CompleteMoveToPortico(ctx, m)
 	switch {
@@ -572,6 +612,9 @@ func (s *Server) changeOwner(r *http.Request, req OwnerChangeRequest) (None, err
 			name := req.NewAccount.ProfileName
 			if name == "" {
 				name = strings.TrimSpace(req.NewAccount.Username)
+			}
+			if !auth.ValidName(name) {
+				return None{}, ErrField("newAccount.profileName", "Give the profile a name of at most 120 characters.")
 			}
 			hash, err := s.passwords.Hash(ctx, req.NewAccount.Password)
 			if err != nil {
