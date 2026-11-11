@@ -24,6 +24,8 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
+	"github.com/PorticoMediaServer/portico/server-next/internal/secrets"
+	"github.com/PorticoMediaServer/portico/server-next/internal/webhooks"
 )
 
 // APIMajor is the number in the path. It changes only for a break old apps could not survive.
@@ -58,6 +60,8 @@ type Server struct {
 	media   func(w http.ResponseWriter, r *http.Request, grant, file string)
 	// feeds caps the change feeds each sign-in holds open. See catalogue.go.
 	feeds feeds
+	// webhooks sends the owner's webhooks. See webhooks.go.
+	webhooks *webhooks.Service
 }
 
 // Route is one operation, kept so the contract can be generated and the operation budget counted.
@@ -185,6 +189,19 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.playbackRoutes()
 	s.queues = playqueue.New(d, s.playback, func() time.Time { return s.now() })
 	s.queueRoutes()
+	box, err := secrets.Open(dataDir)
+	if err != nil {
+		return nil, err
+	}
+	s.webhooks = webhooks.New(d, box, log, func() time.Time { return s.now() }, func() (string, string) {
+		name, ok, _ := d.Setting(context.WithoutCancel(ctx), "server.name")
+		if !ok {
+			name = "Portico"
+		}
+		return s.id, name
+	})
+	s.webhookRoutes()
+	s.startWebhooks(ctx)
 	return s, nil
 }
 

@@ -36,6 +36,8 @@ var repeatSafeWithoutKey = map[string]string{
 	"POST /v1/queues/{id}/advance":                "sets the current entry",
 	"POST /v1/queues/{id}/prepare-next":           "changes nothing that lasts",
 	"POST /v1/queues/{id}/commit-next":            "sets the current entry",
+	"POST /v1/admin/webhooks/{id}/test":           "sends a test message: a repeat sends another, which changes nothing",
+	"POST /v1/admin/webhooks/{id}/secret":         "replaces the secret; the answer is the only copy either way",
 }
 
 // An app that never had the answer to a creating request sends it again with the same
@@ -68,6 +70,9 @@ func TestCreatesAreSafeToRepeat(t *testing.T) {
 			count: func() int { return th.named("/v1/me/tokens", "name", "Script") }},
 		{route: "POST /v1/me/app-passwords", body: KeyCreate{Name: "Old TV"}, other: KeyCreate{Name: "Other"},
 			count: func() int { return th.named("/v1/me/app-passwords", "name", "Old TV") }},
+		{route: "POST /v1/admin/webhooks", body: WebhookCreate{Name: "Home", URL: "http://192.168.1.20:8123/hook", Events: []string{"server.started"}},
+			other: WebhookCreate{Name: "Other", URL: "http://192.168.1.20:8123/hook", Events: []string{"server.started"}},
+			count: func() int { return th.named("/v1/admin/webhooks", "name", "Home") }},
 		{route: "POST /v1/queues", body: QueueCreate{Source: playqueue.QueueSource{Items: th.eps[:]}},
 			other: QueueCreate{Source: playqueue.QueueSource{Items: []string{th.eps[1]}}}},
 		{route: "POST /v1/queues/{id}/playlist", path: func() string { return "/v1/queues/" + queueID + "/playlist" },
@@ -163,7 +168,7 @@ func createdID(answer map[string]any) string {
 			return id
 		}
 	}
-	for _, inner := range []string{"key", "queue", "session"} {
+	for _, inner := range []string{"key", "queue", "session", "webhook"} {
 		if m, ok := answer[inner].(map[string]any); ok {
 			return createdID(m)
 		}
