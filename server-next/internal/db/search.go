@@ -554,6 +554,7 @@ func (s *searcher) totals() (map[int64]searchTotal, error) {
 			totals[g.code] = searchTotal{visible: n}
 		})
 	}
+	emptied := map[int64]int{}
 	done := func(err error) (map[int64]searchTotal, error) {
 		counting.Wait()
 		if err == nil {
@@ -561,6 +562,11 @@ func (s *searcher) totals() (map[int64]searchTotal, error) {
 		}
 		if err != nil {
 			return nil, err
+		}
+		for code, n := range emptied {
+			total := totals[code]
+			total.visible = max(total.visible-n, 0)
+			totals[code] = total
 		}
 		return totals, nil
 	}
@@ -589,6 +595,30 @@ func (s *searcher) totals() (map[int64]searchTotal, error) {
 	mu.Lock()
 	totals[searchPeople] = searchTotal{visible: visible, minimum: minimum}
 	mu.Unlock()
+	// A show, artist or album the profile would find nothing in is not listed, so it is not
+	// counted either: the index's facts cannot say so, so the main database is asked about
+	// each matching one, by the same condition a list uses (access.filled).
+	if filled := s.acc.filled("i", true); filled != "" {
+		for _, g := range searchGroups {
+			if g.code == searchPeople || g.kinds[0].Playable() {
+				continue
+			}
+			rows, err := s.candidates(s.match.all, g.code, 0, -1)
+			if err != nil || len(rows) == 0 {
+				if err != nil {
+					return done(err)
+				}
+				continue
+			}
+			items, _ := splitRows(rows)
+			var n int
+			if err := s.tx.QueryRowContext(s.ctx, `SELECT count(*) FROM json_each(@ids) j CROSS JOIN items i ON i.id = j.value
+				WHERE NOT (1`+filled+`)`, s.args(items)...).Scan(&n); err != nil {
+				return done(err)
+			}
+			emptied[g.code] = n
+		}
+	}
 	return done(nil)
 }
 

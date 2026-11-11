@@ -302,7 +302,8 @@ func (s *shelf) agrees(v db.Viewer, text, kind string, want int) {
 }
 
 // A label put on a show or a season hides it and everything under it from a profile that
-// blocks the label, in the results and in the counts, as soon as the index has followed the change.
+// blocks the label, in the results and in the counts, as soon as the index has followed the
+// change; and a show left with nothing the profile may see is hidden with it.
 func TestSearchFollowsALabel(t *testing.T) {
 	s := newShelf(t)
 	kids := film("Zardoz")
@@ -331,7 +332,9 @@ func TestSearchFollowsALabel(t *testing.T) {
 	if err := s.d.LabelItem(ctx, seasons[0].PublicID, labels[0].PublicID); err != nil {
 		t.Fatal(err)
 	}
-	s.agrees(child, "breaking", "show", 1)
+	// The show's only season is hidden, so the show holds nothing the profile may see: it is
+	// neither listed nor found.
+	s.agrees(child, "breaking", "show", 0)
 	s.agrees(child, "breaking", "episode", 0)
 	s.agrees(everyone, "breaking", "episode", 2)
 
