@@ -7,6 +7,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/backup"
 	"github.com/PorticoMediaServer/portico/server-next/internal/console"
+	"github.com/PorticoMediaServer/portico/server-next/internal/serverlog"
 	"github.com/PorticoMediaServer/portico/server-next/internal/settings"
 	"github.com/PorticoMediaServer/portico/server-next/internal/updates"
 )
@@ -26,6 +27,8 @@ type consoleArea struct {
 	// restart is closed when the owner asks for a restart. See restore.go.
 	restart     chan struct{}
 	restartOnce sync.Once
+	// serverLog is the server's log, for Messages. See logs.go.
+	serverLog *serverlog.Log
 }
 
 // Totals are the server's lifetime statistics: the server runs them, and flushes them as it stops.
@@ -59,5 +62,6 @@ func (s *Server) startConsole(ctx context.Context) error {
 	s.backupRoutes()
 	s.restart = make(chan struct{})
 	s.restoreRoutes()
+	s.logRoutes()
 	return nil
 }
