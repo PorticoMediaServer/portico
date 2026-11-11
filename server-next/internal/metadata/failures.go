@@ -25,12 +25,17 @@ func (e providerError) Error() string { return e.err.Error() }
 func (e providerError) Unwrap() error { return e.err }
 
 // outage reports whether a provider's failure is plainly the provider's own and not about the
-// title: no answer at all (a network error, a timeout), its own trouble (5xx) or a request to
-// slow down (429). Anything else, such as a refusal of one request (422), is about that title.
+// title: no answer at all (a network error, a timeout), its own trouble (5xx), a request to
+// slow down (429), or a key it refuses (401, 403), which is about the caller and is refused for
+// every title alike. Anything else, such as a refusal of one request (422), is about that title.
 func outage(err error) bool {
 	var status StatusError
 	if errors.As(err, &status) {
-		return status.Status >= 500 || status.Status == http.StatusTooManyRequests
+		switch status.Status {
+		case http.StatusUnauthorized, http.StatusForbidden, http.StatusTooManyRequests:
+			return true
+		}
+		return status.Status >= 500
 	}
 	var network net.Error
 	return errors.Is(err, context.DeadlineExceeded) || errors.As(err, &network)
