@@ -72,6 +72,7 @@ var (
 	ErrBadCode     = errors.New("that code didn't work")
 	ErrFull        = errors.New("the group is full")
 	ErrTooMany     = errors.New("this profile is in as many groups as it may be")
+	ErrTooSoon     = errors.New("this profile started as many groups as it may in two minutes")
 	ErrNotAllowed  = errors.New("only whoever may control can do that")
 	ErrNotHost     = errors.New("only the host can do that")
 	ErrElsewhere   = errors.New("this profile is in the group on another device")
@@ -307,6 +308,17 @@ func (s *Service) Create(m Member, name, control, key, hash string) (Group, bool
 	}
 	if s.inGroupsLocked(m.ProfileID) >= groupsPerProfile {
 		return Group{}, false, ErrTooMany
+	}
+	// A group it started and ended is kept two minutes to tell its members why, and counts
+	// until then: starting and ending groups in a loop cannot fill the server's memory.
+	recent := 0
+	for _, g := range s.groups {
+		if g.createdBy == m.ProfileID && (g.Ended != nil || g.Member(m.ProfileID) == nil) {
+			recent++
+		}
+	}
+	if s.inGroupsLocked(m.ProfileID)+recent >= groupsPerProfile {
+		return Group{}, false, ErrTooSoon
 	}
 	m.ID, m.SeenAt = db.NewID("gm"), s.now()
 	g := &Group{ID: db.NewID("grp"), Name: name, Control: control, Host: m.ProfileID, Members: []Member{m},
