@@ -40,7 +40,8 @@ func TestPlayHistoryForTheOwnerAndAdministrators(t *testing.T) {
 		t.Errorf("episodes only: %+v", episodes.Items)
 	}
 	var summary PlaySummary
-	if call(t, th.s, "GET", "/v1/admin/play-history/summary", owner, nil, &summary); len(summary.People) != 2 || len(summary.Titles) != 2 {
+	if call(t, th.s, "GET", "/v1/admin/play-history/summary", owner, nil, &summary); len(summary.People) != 2 || len(summary.Titles) != 2 ||
+		summary.Totals == nil || summary.Totals.Plays != 2 || summary.Window == 0 || summary.CountedFrom != nil {
 		t.Errorf("the summary: %+v", summary)
 	}
 
@@ -63,5 +64,10 @@ func TestPlayHistoryForTheOwnerAndAdministrators(t *testing.T) {
 	var held Page[PlayEntry]
 	if call(t, th.s, "GET", "/v1/admin/play-history", admin, nil, &held); len(held.Items) != 0 {
 		t.Errorf("an administrator held to music read %+v", held.Items)
+	}
+	// The server-wide totals are not theirs either: they would count the other libraries.
+	var heldSummary PlaySummary
+	if call(t, th.s, "GET", "/v1/admin/play-history/summary", admin, nil, &heldSummary); heldSummary.Totals != nil || len(heldSummary.Titles) != 0 {
+		t.Errorf("an administrator held to music read the summary %+v", heldSummary)
 	}
 }
