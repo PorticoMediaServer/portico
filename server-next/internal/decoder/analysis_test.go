@@ -83,7 +83,7 @@ func TestSegmentRegionRecipes(t *testing.T) {
 		},
 	)
 	graph := strings.Join(frames, " ")
-	if err != nil || !strings.Contains(graph, "fps=1:start_time=0,scale=256:144") || !strings.Contains(graph, "tonemap=") ||
+	if err != nil || !strings.Contains(graph, "fps=1:start_time=0,scale=iw*sar:ih,scale=256:144") || !strings.Contains(graph, "tonemap=") ||
 		!strings.Contains(graph, "format=gray -frames:v 901 -pix_fmt gray -f rawvideo pipe:1") {
 		t.Fatal(graph, err)
 	}
