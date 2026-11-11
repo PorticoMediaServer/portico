@@ -135,6 +135,9 @@ func TestAnOriginalDownloadIsFetchedByRangeAndOnlyByWhoMaySeeIt(t *testing.T) {
 	if code, again := rig.ask(rig.owner, DownloadAsk{ItemID: rig.film, Quality: "original"}); code != 200 || again.ID != first.ID {
 		t.Fatalf("asking again answered %d %+v", code, again)
 	}
+	if code, _ := rig.ask(rig.owner, DownloadAsk{ItemID: rig.film, Quality: "original", Selection: "unwatched"}); code != 409 {
+		t.Fatalf("asking again with other choices answered %d; want 409", code)
+	}
 	var item DownloadedItem
 	if w := call(t, rig.s, "GET", "/v1/downloads/"+first.ID+"/items/"+rig.film, rig.owner, nil, &item); w.Code != 200 || len(item.Files) != 1 {
 		t.Fatalf("the title's files answered %d: %s", w.Code, w.Body)
@@ -243,5 +246,51 @@ func TestASmallerCopyIsPreparedOnceForEveryoneWhoAsks(t *testing.T) {
 	}
 	if disposition := res.Header.Get("Content-Disposition"); !strings.Contains(disposition, "attachment") || !strings.Contains(disposition, "Film.mp4") {
 		t.Fatalf("a browser is not told to save it as Film.mp4: %q", disposition)
+	}
+}
+
+// A download address belongs to one sign-in. Once that sign-in ends (the person signs out on
+// the device, or the owner signs the device out), the address stops at its next range, as it
+// does when the download is removed.
+func TestADownloadAddressStopsWhenItsSignInEnds(t *testing.T) {
+	rig := newDownloadRig(t)
+	code, dl := rig.ask(rig.owner, DownloadAsk{ItemID: rig.film, Quality: "original"})
+	if code != 201 {
+		t.Fatalf("asking answered %d", code)
+	}
+	var item DownloadedItem
+	if w := call(t, rig.s, "GET", "/v1/downloads/"+dl.ID+"/items/"+rig.film, rig.owner, nil, &item); w.Code != 200 || len(item.Files) != 1 {
+		t.Fatalf("the title's files answered %d: %s", w.Code, w.Body)
+	}
+	if res, _ := rig.fetch(item.Files[0].URL, "Range", "bytes=0-99"); res.StatusCode != 206 {
+		t.Fatalf("the address answered %d before signing out", res.StatusCode)
+	}
+	if code := status(t, rig.s, "DELETE", "/v1/auth/session", rig.owner, nil); code != 204 {
+		t.Fatalf("signing out answered %d", code)
+	}
+	if res, _ := rig.fetch(item.Files[0].URL, "Range", "bytes=100-199"); res.StatusCode != 404 {
+		t.Fatalf("after signing out the download address answered %d; want 404", res.StatusCode)
+	}
+}
+
+// Using a download address keeps it working from day to day, but not for ever: a week after
+// it was given it stops, and the device asks for the title's addresses again.
+func TestADownloadAddressDoesNotLiveForEver(t *testing.T) {
+	rig := newDownloadRig(t)
+	_, dl := rig.ask(rig.owner, DownloadAsk{ItemID: rig.film, Quality: "original"})
+	var item DownloadedItem
+	call(t, rig.s, "GET", "/v1/downloads/"+dl.ID+"/items/"+rig.film, rig.owner, nil, &item)
+	start := time.Now()
+	defer func() { rig.s.now = time.Now }()
+	// Used every 20 hours, it never sits idle for its day, so only its week can end it.
+	for hours := 20; hours <= 160; hours += 20 {
+		rig.s.now = func() time.Time { return start.Add(time.Duration(hours) * time.Hour) }
+		if res, _ := rig.fetch(item.Files[0].URL, "Range", "bytes=0-9"); res.StatusCode != 206 {
+			t.Fatalf("after %d hours of steady use the address answered %d", hours, res.StatusCode)
+		}
+	}
+	rig.s.now = func() time.Time { return start.Add(180 * time.Hour) }
+	if res, _ := rig.fetch(item.Files[0].URL, "Range", "bytes=0-9"); res.StatusCode != 404 {
+		t.Fatalf("after a week of steady use the address answered %d; want 404", res.StatusCode)
 	}
 }

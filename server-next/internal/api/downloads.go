@@ -194,6 +194,8 @@ func downloadError(err error) error {
 		return refusal(http.StatusUnprocessableEntity, "too_many_titles", "That is more titles than one download can hold.", false)
 	case errors.Is(err, db.ErrKeyReused):
 		return errKeyReused()
+	case errors.Is(err, db.ErrConflict):
+		return ErrConflict("download_exists", "This is already being downloaded to this device with other choices. Change that download, or remove it first.")
 	case errors.Is(err, prepare.ErrSource):
 		e := refusal(http.StatusServiceUnavailable, "source_unavailable", "The file for this title can't be reached right now.", true)
 		e.RetryAfterMs = 30_000
@@ -527,7 +529,7 @@ func (s *Server) downloadedItem(r *http.Request, _ None) (DownloadedItem, error)
 	if version.PublicID == "" {
 		return DownloadedItem{}, downloadError(prepare.ErrSource)
 	}
-	grant := s.downloads.Grant(v, dl.PublicID, title.ItemPublicID)
+	grant := s.downloads.Grant(v, CallerFrom(ctx).SessionID, dl.PublicID, title.ItemPublicID)
 	base := "/v1/media/" + grant + "/"
 	shaped := versionOut(version)
 	out := DownloadedItem{Item: detailShape(detail), VersionID: version.PublicID, Quality: dl.Quality, Files: []DownloadFile{},
