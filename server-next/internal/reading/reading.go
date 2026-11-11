@@ -15,6 +15,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/http"
 	"path"
 	"strings"
 	"sync"
@@ -56,6 +57,9 @@ type Service struct {
 	// remote opens a remote source by its id, behind its throttle (remote.Registry.Open). Nil
 	// when there is none: a book on remote storage then says it cannot be reached that way.
 	remote func(ctx context.Context, sourceID int64) (remote.Storage, time.Duration, error)
+	// FromHome says whether a request came from the home network. With it set, a book's
+	// address is held to its account's home-only limit; viewing hours are held either way.
+	FromHome func(*http.Request) bool
 
 	mu    sync.Mutex
 	books map[string]*epub // EPUB package documents already read, by file and fingerprint

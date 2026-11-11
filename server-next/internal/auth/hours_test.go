@@ -14,11 +14,11 @@ func TestViewingHours(t *testing.T) {
 		}
 		return parsed
 	}
-	if open, until := (Hours{}).Open(at("2026-11-11T03:00:00Z")); !open || !until.IsZero() {
+	if open, until := (ViewingHours{}).Open(at("2026-11-11T03:00:00Z")); !open || !until.IsZero() {
 		t.Error("an account with no viewing hours is limited")
 	}
 	// Weekdays 16:00 to 20:00 in Halifax (UTC-4 in November), and Friday 21:00 to 01:00.
-	hours := Hours{Timezone: "America/Halifax", Windows: []Window{
+	hours := ViewingHours{Timezone: "America/Halifax", Windows: []ViewingWindow{
 		{Days: []int{1, 2, 3, 4, 5}, StartMinute: 16 * 60, EndMinute: 20 * 60},
 		{Days: []int{5}, StartMinute: 21 * 60, EndMinute: 60},
 	}}
@@ -41,11 +41,11 @@ func TestViewingHours(t *testing.T) {
 			t.Errorf("at %s: open %v until %s, want until %q", c.now, open, until.UTC().Format(time.RFC3339), c.until)
 		}
 	}
-	for name, bad := range map[string]Hours{
-		"an unknown timezone":   {Timezone: "Mars/Olympus", Windows: []Window{{Days: []int{1}, EndMinute: 60}}},
-		"a day that is not one": {Windows: []Window{{Days: []int{7}, EndMinute: 60}}},
-		"a window of no length": {Windows: []Window{{Days: []int{1}, StartMinute: 60, EndMinute: 60}}},
-		"a window with no days": {Windows: []Window{{EndMinute: 60}}},
+	for name, bad := range map[string]ViewingHours{
+		"an unknown timezone":   {Timezone: "Mars/Olympus", Windows: []ViewingWindow{{Days: []int{1}, EndMinute: 60}}},
+		"a day that is not one": {Windows: []ViewingWindow{{Days: []int{7}, EndMinute: 60}}},
+		"a window of no length": {Windows: []ViewingWindow{{Days: []int{1}, StartMinute: 60, EndMinute: 60}}},
+		"a window with no days": {Windows: []ViewingWindow{{EndMinute: 60}}},
 	} {
 		if bad.Valid() {
 			t.Errorf("%s was accepted", name)
