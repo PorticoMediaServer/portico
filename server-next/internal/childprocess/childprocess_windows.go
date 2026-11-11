@@ -4,6 +4,7 @@ package childprocess
 
 import (
 	"os/exec"
+	"syscall"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -62,7 +63,18 @@ func adoptTree() error {
 // the job object ends the child with the server, which is the same guarantee,
 // so they are dropped rather than failing Live TV and recording (BE-MEDIA-02).
 // Inputs are never passed this way on Windows: the child opens the path.
-func configure(cmd *exec.Cmd) { cmd.ExtraFiles = nil }
+//
+// Every child is also started with no console of its own (CREATE_NO_WINDOW). The server's
+// worker has none, so Windows would give each tool a new one, and every process with a
+// console is told to end when anyone signs out of Windows: a conversion would stop under
+// whoever was watching.
+func configure(cmd *exec.Cmd) {
+	cmd.ExtraFiles = nil
+	if cmd.SysProcAttr == nil {
+		cmd.SysProcAttr = &syscall.SysProcAttr{}
+	}
+	cmd.SysProcAttr.CreationFlags |= windows.CREATE_NO_WINDOW
+}
 
 func kill(cmd *exec.Cmd) {
 	if cmd == nil || cmd.Process == nil {
