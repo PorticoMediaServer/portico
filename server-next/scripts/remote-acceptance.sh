@@ -132,15 +132,33 @@ pids+=($!)
 for _ in $(seq 50); do curl -fsu "viewer:$dav_pass" -X PROPFIND -H 'Depth: 0' "http://127.0.0.1:$dav_port/" >/dev/null 2>&1 && break; sleep 0.2; done
 
 # The Portico server, with the host's rclone as the one that comes with it.
-PORTICO_RCLONE="$(command -v rclone)" ./portico-server -listen "127.0.0.1:$port" -data data >logs/server.log 2>&1 &
+PORTICO_RCLONE="$(command -v rclone)" ./portico-server -listen "127.0.0.1:$port" -data "$PWD/data" >logs/server.log 2>&1 &
 pids+=($!)
 api="http://127.0.0.1:$port"
 for _ in $(seq 100); do curl -fs "$api/v1/health/live" >/dev/null 2>&1 && break; sleep 0.2; done
 token=""
-call() { # call <method> <path> [json] -> body; fails on a status of 400 or more
-	local args=(-fsS -X "$1" "$api$2" -H "Authorization: Bearer $token")
+# call <method> <path> [json] -> body; fails on a status of 400 or more. Every call is in
+# logs/api.log with its status and the start of its answer.
+call() {
+	local args=(-sS -X "$1" "$api$2" -H "Authorization: Bearer $token" -o logs/answer -w '%{http_code}') status
 	[[ $# -ge 3 ]] && args+=(-H 'Content-Type: application/json' --data "$3")
-	curl "${args[@]}"
+	status=$(curl "${args[@]}" 2>>logs/api.log) || status=000
+	echo "$1 $2 -> $status $(head -c 400 logs/answer 2>/dev/null | tr '\n' ' ')" >>logs/api.log
+	cat logs/answer 2>/dev/null || true
+	[[ "$status" == 2* ]]
+}
+# media <path> <file> [range] fetches a stream's file, waiting while it is being prepared
+# (503); it fails when the answer is not a success after a minute or two.
+media() {
+	local status args=(-sS -H "Authorization: Bearer $token" -o "$2" -w '%{http_code}' "$api$1")
+	[[ $# -ge 3 ]] && args+=(-H "Range: bytes=$3")
+	for _ in $(seq 240); do
+		status=$(curl "${args[@]}" 2>>logs/api.log) || status=000
+		[[ "$status" == 503 || "$status" == 000 ]] || break
+		sleep 0.5
+	done
+	echo "GET $1 -> $status" >>logs/api.log
+	[[ "$status" == 200 || "$status" == 206 ]]
 }
 code=$(tr -d '[:space:]' <data/setup-code.txt)
 device='{"installationId":"'"$(printf 'a%.0s' {1..32})"'","name":"Acceptance"}'
@@ -194,7 +212,7 @@ play_library() { # play_library <library id> <label>
 			local size=$(stat -c %s "$local_file") from to
 			from=$((size / 2)) to=$((size / 2 + 1048575))
 			started=$(date +%s.%N)
-			curl -fsS -H "Authorization: Bearer $token" -H "Range: bytes=$from-$to" "$api$url" -o logs/range.bin || true
+			media "$url" logs/range.bin "$from-$to" || true
 			same=1
 			cmp -s logs/range.bin <(tail -c +$((from + 1)) "$local_file" | head -c 1048576) && same=0
 			check "$2 direct range: $title" "$same" "1 MB in $(since "$started") s"
@@ -202,21 +220,40 @@ play_library() { # play_library <library id> <label>
 			report "NOTE $2 direct: $title is not offered as it is to this browser profile ($(jq -r '.presentation.route // "no session"' <<<"$sess"))"
 		fi
 		# Converted at a low quality: the first three segments, and how long the first took.
-		[[ -n "$url" ]] && sess=$(call PATCH "/v1/playback/sessions/$(jq -r .id <<<"$sess")" '{"positionMs":0,"quality":{"mode":"fixed","id":"240p"}}' || echo '{}')
+		local id
+		id=$(jq -r '.id // empty' <<<"$sess")
+		if [[ -z "$id" ]]; then
+			check "$2 play: $title" 1 "no session: $(tail -1 logs/api.log | cut -c1-300)"
+			continue
+		fi
+		sess=$(call PATCH "/v1/playback/sessions/$id" '{"positionMs":0,"quality":{"mode":"fixed","id":"240p"}}' || echo '{}')
 		url=$(jq -r '.presentation.url // empty' <<<"$sess")
 		started=$(date +%s.%N)
-		local base=${url%/*}/ variant playlist got=0
-		for _ in $(seq 120); do body=$(curl -fsS -H "Authorization: Bearer $token" "$api$url" 2>/dev/null) && break; sleep 0.5; done
-		variant=$(grep -v '^#' <<<"$body" | grep . | head -1)
-		for _ in $(seq 120); do playlist=$(curl -fsS -H "Authorization: Bearer $token" "$api$base$variant" 2>/dev/null) && break; sleep 0.5; done
-		for segment in $(grep -v '^#' <<<"$playlist" | grep . | head -3); do
-			for _ in $(seq 240); do
-				curl -fsS -H "Authorization: Bearer $token" "$api${base}${segment}" -o logs/segment.bin 2>/dev/null && [[ -s logs/segment.bin ]] && { got=$((got + 1)); break; }
-				sleep 0.5
+		local base=${url%/*}/ variant="" segments="" got=0
+		if [[ -z "$url" ]]; then
+			check "$2 converted: $title" 1 "no stream at 240p: $(grep PATCH logs/api.log | tail -1 | cut -c1-300)"
+		else
+			# The address is a master playlist naming the picture's playlist, or, when nothing
+			# else is offered beside it, the picture's playlist itself.
+			if media "$url" logs/master.m3u8; then
+				if grep -q '^#EXTINF' logs/master.m3u8; then
+					cp logs/master.m3u8 logs/variant.m3u8 && variant=.
+				else
+					variant=$(grep -v '^#' logs/master.m3u8 | grep . | head -1 || true)
+					[[ -n "$variant" ]] && media "$base$variant" logs/variant.m3u8 || variant=""
+				fi
+			fi
+			if [[ -n "$variant" ]]; then
+				[[ "$variant" == */* ]] && base="$base${variant%/*}/"
+				segments=$(grep -v '^#' logs/variant.m3u8 | grep . | head -3 || true)
+			fi
+			for segment in $segments; do
+				media "$base$segment" logs/segment.bin && [[ -s logs/segment.bin ]] && got=$((got + 1))
 			done
-		done
-		check "$2 converted: $title" "$([[ $got -ge 1 ]] && echo 0 || echo 1)" "$got of 3 segments in $(since "$started") s"
-		call DELETE "/v1/playback/sessions/$(jq -r .id <<<"$sess")" >/dev/null || true
+			check "$2 converted: $title" "$([[ $got -ge 1 ]] && echo 0 || echo 1)" \
+				"$got of 3 segments in $(since "$started") s$([[ $got -ge 1 ]] || echo "; last: $(tail -1 logs/api.log)")"
+		fi
+		call DELETE "/v1/playback/sessions/$id" >/dev/null || true
 	done
 }
 
@@ -228,8 +265,9 @@ scan_library "Many over WebDAV" "$(jq -r .id <<<"$webdav")" Many files >/dev/nul
 
 # The request limits: the busiest second the WebDAV server saw, and the totals. rclone in
 # front of it has its own pacing, so its seconds count too.
-busiest=$(grep -oE '^[0-9/]+ [0-9:]+' logs/webdav.log | sort | uniq -c | sort -rn | head -1)
-report "WebDAV requests: $(grep -c 'PROPFIND' logs/webdav.log || true) listings, $(grep -cE '\bGET\b' logs/webdav.log || true) reads; busiest second: ${busiest:-none}"
+requests() { grep -E ": (PROPFIND|GET|HEAD) from " logs/webdav.log || true; }
+busiest=$(requests | grep -oE '^[0-9/]+ [0-9:]+' | sort | uniq -c | sort -rn | head -1 | awk '{ print $1 " requests at " $2 " " $3 }')
+report "WebDAV requests: $(requests | grep -c PROPFIND || true) listings, $(requests | grep -cE ': (GET|HEAD) ' || true) reads; busiest second: ${busiest:-none}"
 report "server log warnings: $(grep -cE 'level=(WARN|ERROR)' logs/server.log || true) (see logs/server.log with --keep)"
 failures=$(grep -c '^FAIL' report.txt || true)
 report "$([[ $failures == 0 ]] && echo 'ALL PASSED' || echo "$failures FAILED")"
