@@ -20,7 +20,10 @@ const resetCodeLife = time.Hour
 // Member is an account as the owner and admins see it.
 type Member struct {
 	Account
-	Disabled  bool      `json:"disabled"`
+	Disabled bool `json:"disabled"`
+	// State is "active", or "waiting" to move after the kind of sign-in changed, "left" the
+	// server, or "not_moved" when the owner finished the move without them.
+	State     string    `json:"state"`
 	CreatedAt time.Time `json:"createdAt"`
 	// AllLibraries, or else Libraries, says what the member may see.
 	AllLibraries     bool     `json:"allLibraries"`
@@ -87,7 +90,7 @@ func memberOut(m db.Member) Member {
 	if libraries == nil {
 		libraries = []string{}
 	}
-	out := Member{Account: accountOut(m.Account), Disabled: m.Disabled, CreatedAt: m.CreatedAt.UTC(), AllLibraries: m.AllLibraries,
+	out := Member{Account: accountOut(m.Account), Disabled: m.Disabled, State: m.State, CreatedAt: m.CreatedAt.UTC(), AllLibraries: m.AllLibraries,
 		Libraries: libraries, TwoFactorEnabled: m.TwoFactor, Notes: m.Notes, AllowDownloads: m.AllowDownloads, Profiles: m.Profiles,
 		Limits: memberLimitsOut(m.Limits)}
 	if out.Profiles == nil {
