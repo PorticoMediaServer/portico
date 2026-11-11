@@ -316,7 +316,7 @@ jobs:
       - name: Import with nobody using the server, then with constant use, nothing synced
         run: |
           source ci/server-next-load.sh
-          limited "$WORK/bin/portico-load" -mode mixed -no-sync -db "$WORK/main.db" -items "$EXTRA" -batch 10 -batch-time "$BUSY_BATCH" -out "$WORK/mixed.json" | tee "$WORK/mixed.txt"
+          limited "$WORK/bin/portico-load" -mode mixed -no-sync -db "$WORK/main.db" -items "$EXTRA" -batch 10 -batch-time "$BUSY_TIME" -out "$WORK/mixed.json" | tee "$WORK/mixed.txt"
           summarise "Commits NOT synced: reads and writes while importing $EXTRA more items" "$WORK/mixed.txt" "$WORK/mixed.json"
 
   report:
