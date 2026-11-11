@@ -22,20 +22,30 @@ const (
 	pictures   = "https://image.tmdb.org/t/p/original"
 	maxCast    = 50
 	maxResults = 10
+	// maxPictures is how many of each kind of picture are kept of TMDB's list, to choose from.
+	maxPictures = 20
 )
 
 // Client asks TMDB. The zero value is not usable: make one with New.
 type Client struct {
 	origin string
-	token  string
-	http   *fetch.Client
+	// pictures is where the pictures an answer names are fetched from: TMDB's picture
+	// server, or a test's own server.
+	pictures string
+	token    string
+	http     *fetch.Client
 }
 
 // New makes a client that signs its requests with an API read access token. origin is
 // tmdb.Origin, or a test's own server. TMDB allows about forty requests a second; the
 // client sends at most twenty.
 func New(token, origin string) *Client {
-	return &Client{origin: strings.TrimRight(origin, "/"), token: token, http: fetch.New("tmdb", 50*time.Millisecond, 30*time.Second)}
+	origin = strings.TrimRight(origin, "/")
+	base := pictures
+	if origin != Origin {
+		base = origin + "/t/p/original"
+	}
+	return &Client{origin: origin, pictures: base, token: token, http: fetch.New("tmdb", 50*time.Millisecond, 30*time.Second)}
 }
 
 func (c *Client) Name() string { return "tmdb" }
@@ -82,11 +92,11 @@ func year(date string) int {
 	return n
 }
 
-func picture(path string) string {
+func (c *Client) picture(path string) string {
 	if path == "" {
 		return ""
 	}
-	return pictures + path
+	return c.pictures + path
 }
 
 // title is the part of an answer every film and show has. A film has title and release_date;
@@ -105,10 +115,10 @@ type title struct {
 	Popularity    float64 `json:"popularity"`
 }
 
-func (t title) candidate(kind string, exact bool) metadata.Candidate {
+func (t title) candidate(c *Client, kind string, exact bool) metadata.Candidate {
 	return metadata.Candidate{Ref: metadata.Ref{Provider: "tmdb", Kind: kind, ID: strconv.FormatInt(t.ID, 10)},
 		Title: t.Title + t.Name, OriginalTitle: t.OriginalTitle + t.OriginalName, Year: year(t.ReleaseDate + t.FirstAirDate),
-		Overview: t.Overview, PosterURL: picture(t.PosterPath), Popularity: t.Popularity, Exact: exact}
+		Overview: t.Overview, PosterURL: c.picture(t.PosterPath), Popularity: t.Popularity, Exact: exact}
 }
 
 // findSources are the other providers' ids TMDB can look a title up by.
@@ -136,7 +146,7 @@ func (c *Client) Search(ctx context.Context, q metadata.Query) ([]metadata.Candi
 			results = found.Shows
 		}
 		if len(results) == 1 {
-			return []metadata.Candidate{results[0].candidate(q.Kind, true)}, nil
+			return []metadata.Candidate{results[0].candidate(c, q.Kind, true)}, nil
 		}
 	}
 	params := url.Values{"query": {q.Title}, "language": {language(q.Locale)}, "include_adult": {strconv.FormatBool(q.IncludeAdult)}}
@@ -150,7 +160,7 @@ func (c *Client) Search(ctx context.Context, q metadata.Query) ([]metadata.Candi
 	}
 	out := make([]metadata.Candidate, 0, min(len(page.Results), maxResults))
 	for _, result := range page.Results[:min(len(page.Results), maxResults)] {
-		out = append(out, result.candidate(q.Kind, false))
+		out = append(out, result.candidate(c, q.Kind, false))
 	}
 	return out, nil
 }
@@ -244,6 +254,14 @@ func (p people) credits(roles map[string]string) []metadata.Credit {
 	return out
 }
 
+// image is one picture in TMDB's list of a title's pictures.
+type image struct {
+	Path     string `json:"file_path"`
+	Width    int    `json:"width"`
+	Height   int    `json:"height"`
+	Language string `json:"iso_639_1"`
+}
+
 type details struct {
 	title
 	Tagline      string  `json:"tagline"`
@@ -256,7 +274,13 @@ type details struct {
 	Seasons      []struct {
 		Number int `json:"season_number"`
 	} `json:"seasons"`
-	Collection  *title   `json:"belongs_to_collection"`
+	Collection *title `json:"belongs_to_collection"`
+	// Images are the other pictures TMDB has for the title, best first in each list.
+	Images struct {
+		Posters   []image `json:"posters"`
+		Backdrops []image `json:"backdrops"`
+		Logos     []image `json:"logos"`
+	} `json:"images"`
 	Credits     people   `json:"credits"`
 	WholeRun    people   `json:"aggregate_credits"`
 	CreatedBy   []person `json:"created_by"`
@@ -310,15 +334,21 @@ func (c *Client) Details(ctx context.Context, ref metadata.Ref, locale metadata.
 	if err != nil {
 		return metadata.Record{}, err
 	}
-	parts := "credits,release_dates,external_ids"
+	parts := "credits,release_dates,external_ids,images"
 	if ref.Kind == "show" {
-		parts = "aggregate_credits,content_ratings,external_ids"
+		parts = "aggregate_credits,content_ratings,external_ids,images"
+	}
+	// Pictures in the library's language, and those with no words on them.
+	pictureLanguages := "null"
+	if lang, _, _ := strings.Cut(language(locale), "-"); lang != "" {
+		pictureLanguages = lang + ",null"
 	}
 	var d details
-	if err := c.get(ctx, "/"+path+"/"+url.PathEscape(ref.ID), url.Values{"language": {language(locale)}, "append_to_response": {parts}}, &d); err != nil {
+	if err := c.get(ctx, "/"+path+"/"+url.PathEscape(ref.ID), url.Values{"language": {language(locale)}, "append_to_response": {parts},
+		"include_image_language": {pictureLanguages}}, &d); err != nil {
 		return metadata.Record{}, err
 	}
-	base := d.candidate(ref.Kind, true)
+	base := d.candidate(c, ref.Kind, true)
 	r := metadata.Record{Ref: base.Ref, Title: base.Title, OriginalTitle: base.OriginalTitle, Overview: d.Overview, Tagline: d.Tagline,
 		Year: base.Year, ReleaseDate: d.ReleaseDate + d.FirstAirDate, ContentRating: d.rating(locale.Region), Rating: d.VoteAverage,
 		Genres: names(d.Genres), Studios: names(d.Companies), Networks: names(d.Networks), Countries: names(d.Countries),
@@ -337,9 +367,20 @@ func (c *Client) Details(ctx context.Context, ref metadata.Ref, locale metadata.
 	if r.OriginalTitle == r.Title {
 		r.OriginalTitle = ""
 	}
-	for role, path := range map[string]string{"poster": d.PosterPath, "backdrop": d.BackdropPath} {
-		if path != "" {
-			r.Pictures = append(r.Pictures, metadata.Picture{Role: role, URL: picture(path)})
+	// The title's own poster and backdrop first in each role, then the others TMDB has.
+	for _, set := range []struct {
+		role   string
+		first  string
+		others []image
+	}{{"poster", d.PosterPath, d.Images.Posters}, {"backdrop", d.BackdropPath, d.Images.Backdrops}, {"logo", "", d.Images.Logos}} {
+		if set.first != "" {
+			r.Pictures = append(r.Pictures, metadata.Picture{Role: set.role, URL: c.picture(set.first)})
+		}
+		for _, other := range set.others[:min(len(set.others), maxPictures)] {
+			if other.Path != set.first {
+				r.Pictures = append(r.Pictures, metadata.Picture{Role: set.role, URL: c.picture(other.Path), Language: other.Language,
+					Width: other.Width, Height: other.Height})
+			}
 		}
 	}
 	if d.ExternalIDs.IMDb != "" {
@@ -352,7 +393,7 @@ func (c *Client) Details(ctx context.Context, ref metadata.Ref, locale metadata.
 		r.Groups = append(r.Groups, season.Number)
 	}
 	if d.Collection != nil {
-		collection := d.Collection.candidate("collection", true)
+		collection := d.Collection.candidate(c, "collection", true)
 		r.Collection = &collection
 	}
 	return r, nil
@@ -388,7 +429,7 @@ func (c *Client) Children(ctx context.Context, parent metadata.Ref, group int, l
 			Overview: e.Overview, Year: year(e.AirDate), ReleaseDate: e.AirDate, Rating: e.VoteAverage, Credits: e.credits(crewRoles),
 			Index: e.Number, ParentIndex: group}
 		if e.StillPath != "" {
-			r.Pictures = []metadata.Picture{{Role: "thumb", URL: picture(e.StillPath)}}
+			r.Pictures = []metadata.Picture{{Role: "thumb", URL: c.picture(e.StillPath)}}
 		}
 		out = append(out, r)
 	}
@@ -466,7 +507,7 @@ func (c *Client) groupChildren(ctx context.Context, parent metadata.Ref, group i
 			r := metadata.Record{Ref: metadata.Ref{Provider: "tmdb", Kind: "episode", ID: strconv.FormatInt(e.ID, 10)}, Title: e.Name,
 				Overview: e.Overview, Year: year(e.AirDate), ReleaseDate: e.AirDate, Rating: e.VoteAverage, Index: index, ParentIndex: group}
 			if e.StillPath != "" {
-				r.Pictures = []metadata.Picture{{Role: "thumb", URL: picture(e.StillPath)}}
+				r.Pictures = []metadata.Picture{{Role: "thumb", URL: c.picture(e.StillPath)}}
 			}
 			out = append(out, r)
 		}

@@ -18,6 +18,8 @@ type Service struct {
 	IncludeAdult bool
 	// Lyrics is the lyrics provider, or nil.
 	Lyrics LyricsProvider
+	// Pictures keeps the provider's pictures the server fetches; nil fetches none.
+	Pictures PictureStore
 }
 
 // defaultProviders is the provider a library of each kind uses until the owner chooses.
@@ -165,6 +167,9 @@ func (s *Service) match(ctx context.Context, p Provider, locale Locale, libraryK
 		return false, providerError{err}
 	}
 	if err := s.DB.ApplyDetails(ctx, db.Background, item.ID, details(record, db.MatchFound)); err != nil {
+		return false, err
+	}
+	if err := s.storePictures(ctx, item.ID, record.Pictures, "", db.Background); err != nil {
 		return false, err
 	}
 	s.moods(ctx, item.ID)
@@ -405,6 +410,9 @@ func (s *Service) IdentifyShow(ctx context.Context, itemID string, ref Ref, offs
 	if err != nil || remaining != itemID {
 		return remaining, order, err // merged into a title that has its details already
 	}
+	if err := s.storePictures(ctx, t.ID, record.Pictures, "", db.Background); err != nil {
+		return remaining, order, err
+	}
 	s.moods(ctx, t.ID)
 	return remaining, order, s.children(ctx, p, locale, t.ID, record.Ref)
 }
@@ -463,6 +471,9 @@ func (s *Service) Rematch(ctx context.Context, itemID string) (bool, error) {
 	}
 	if _, err := s.DB.ChangeMatch(ctx, db.User, t.ID, details(record, db.MatchFound)); err != nil {
 		return false, err
+	}
+	if err := s.storePictures(ctx, t.ID, record.Pictures, "", db.Background); err != nil {
+		return true, err
 	}
 	s.moods(ctx, t.ID)
 	return true, s.children(ctx, p, locale, t.ID, record.Ref)
