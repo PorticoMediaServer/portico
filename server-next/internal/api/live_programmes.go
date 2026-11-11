@@ -83,7 +83,8 @@ func (s *Server) getProgramme(r *http.Request, _ None) (ProgrammeDetail, error) 
 	}
 	if ch.Kind == db.ChannelFromSource {
 		// More airings, to everyone allowed Live TV, on the channels they may watch.
-		airings, err := s.db.GuideAirings(ctx, p.SeriesKey, p.Title, s.now(), s.now().AddDate(0, 0, 14))
+		// At most 200 rows of the guide, so a common title ("News") costs a page, not the guide.
+		airings, err := s.db.GuideAirings(ctx, p.SeriesKey, p.Title, s.now(), s.now().AddDate(0, 0, 14), 200)
 		if err != nil {
 			return ProgrammeDetail{}, err
 		}

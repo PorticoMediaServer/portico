@@ -2,12 +2,14 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/dvr"
 	"github.com/PorticoMediaServer/portico/server-next/internal/live"
 )
@@ -20,7 +22,7 @@ func recordable(t *testing.T) (*Server, string, string) {
 	folder := t.TempDir()
 	options := dvr.Defaults(folder)
 	options.Folder, options.Floor = filepath.Join(folder, "Recorded TV"), 0
-	s.dvrOptions = func() dvr.Options { return options }
+	s.setDVROptions(options)
 	fake := fakeProvider(t, s.now())
 	t.Cleanup(s.tuners.Close)
 	addSource(t, s, owner, LiveSourceSave{Kind: "playlist", Name: new("Antenna"), TunerCount: new(2),
@@ -214,8 +216,9 @@ func TestAClashStopsAViewerAfterACountdownWhenTheOwnerChoseTo(t *testing.T) {
 	s, owner, _ := seededWith(t, 50, 0)
 	folder := t.TempDir()
 	options := dvr.Defaults(folder)
-	options.Folder, options.Floor = filepath.Join(folder, "Recorded TV"), 0
-	s.dvrOptions = func() dvr.Options { return options }
+	// No countdown to wait out: the test needs no clock of its own, so it runs under -race.
+	options.Folder, options.Floor, options.Countdown, options.CountdownFloor = filepath.Join(folder, "Recorded TV"), 0, 0, 0
+	s.setDVROptions(options)
 	fake := fakeProvider(t, s.now())
 	t.Cleanup(s.tuners.Close)
 	addSource(t, s, owner, LiveSourceSave{Kind: "playlist", Name: new("One tuner"), TunerCount: new(1),
@@ -234,12 +237,12 @@ func TestAClashStopsAViewerAfterACountdownWhenTheOwnerChoseTo(t *testing.T) {
 	}
 
 	options.StopViewers = true
+	s.setDVROptions(options)
 	s.recorder.Tick(ctx)
 	got := get[PlaybackSession](t, s, owner, "/v1/playback/sessions/"+watching.ID)
 	if got.Countdown == nil || !strings.Contains(got.Countdown.Reason, "Morning News") {
 		t.Fatalf("with stop-and-record the viewer's session reads %+v", got)
 	}
-	s.now = func() time.Time { return time.Now().Add(time.Minute) }
 	s.recorder.Tick(ctx) // the countdown is over: the viewer is stopped
 	s.recorder.Tick(ctx) // and the recording takes the tuner
 	if code := status(t, s, "GET", "/v1/playback/sessions/"+watching.ID, owner, nil); code != 404 {
@@ -249,4 +252,88 @@ func TestAClashStopsAViewerAfterACountdownWhenTheOwnerChoseTo(t *testing.T) {
 		t.Fatalf("after the countdown the recording reads %+v", got)
 	}
 	status(t, s, "DELETE", "/v1/dvr/recordings/"+rec.ID+"?action=stop", owner, nil)
+}
+
+// A booking follows its programme when the guide moves it, and one the guide no longer lists
+// says so and is never recorded in its place.
+func TestABookingFollowsItsProgrammeInTheGuide(t *testing.T) {
+	s, owner, _ := recordable(t)
+	var rec Recording
+	call(t, s, "POST", "/v1/dvr/recordings", owner, RecordingBook{Programme: programmeID(t, s, owner, "Night Film")}, &rec)
+	ctx := context.Background()
+	stored, _ := s.db.Recording(ctx, rec.ID)
+	source, key, err := s.db.ChannelListings(ctx, stored.ChannelID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	moved := stored.StartsAt.Add(30 * time.Minute)
+	if err := s.db.ReplaceSourceGuide(ctx, source, func(add func(db.GuideProgramme) error) error {
+		return add(db.GuideProgramme{GuideKey: key, StartsAt: moved, EndsAt: moved.Add(time.Hour), ProgrammeKey: stored.ProgrammeKey, Title: "Night Film"})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.recorder.FollowRules(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := get[Recording](t, s, owner, "/v1/dvr/recordings/"+rec.ID); !got.StartsAt.Equal(moved.UTC()) || !got.InGuide {
+		t.Fatalf("after the guide moved it the booking reads %+v", got)
+	}
+	s.db.ReplaceSourceGuide(ctx, source, func(func(db.GuideProgramme) error) error { return nil })
+	s.recorder.FollowRules(ctx)
+	if got := get[Recording](t, s, owner, "/v1/dvr/recordings/"+rec.ID); got.InGuide {
+		t.Fatalf("a booking the guide no longer lists reads %+v", got)
+	}
+}
+
+// The owner's default keep rule keeps the newest few recordings of each show and deletes the
+// older ones; a recording marked Keep is never deleted by it.
+func TestTheDefaultKeepRuleKeepsTheNewestOfEachShow(t *testing.T) {
+	s, owner, _ := recordable(t)
+	ctx := context.Background()
+	channels := get[Page[Channel]](t, s, owner, "/v1/live/channels").Items
+	ch, err := s.db.LiveChannelByID(ctx, viewerOfToken(t, s, owner), channels[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	day := s.now().Add(-72 * time.Hour)
+	var ids []int64
+	for n := range 3 {
+		r, _, err := s.db.BookAiring(ctx, db.Booking{ProfileID: 1, ProfileName: "Justin", ProfilePub: "prf", ChannelID: ch.ID, ChannelName: ch.Name,
+			ProgrammeKey: fmt.Sprint("news-", n), Title: "News", StartsAt: day.Add(time.Duration(n) * time.Hour), EndsAt: day.Add(time.Duration(n)*time.Hour + 30*time.Minute),
+			Now: s.now()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		s.db.RecordingFinished(ctx, r.ID, "recorded", "", s.now())
+		ids = append(ids, r.ID)
+	}
+	keep := true
+	oldest, _ := s.db.Recording(ctx, recordingPublic(t, s, ids[0]))
+	s.db.ChangeRecording(ctx, oldest.PublicID, db.RecordingChange{Keep: &keep}, s.now())
+	options := s.dvrOptions()
+	options.KeepNewest = 1
+	s.setDVROptions(options)
+	if err := s.recorder.Keep(ctx); err != nil {
+		t.Fatal(err)
+	}
+	for n, id := range ids {
+		_, err := s.db.Recording(ctx, recordingPublic(t, s, id))
+		if gone := err != nil; gone != (n == 1) {
+			t.Fatalf("recording %d gone=%v: the newest and the kept one stay, the one between goes", n, gone)
+		}
+	}
+}
+
+func recordingPublic(t *testing.T, s *Server, id int64) string {
+	t.Helper()
+	rows, err := s.db.Recordings(context.Background(), db.RecordingQuery{Limit: 50})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range rows {
+		if r.ID == id {
+			return r.PublicID
+		}
+	}
+	return "rec_gone"
 }
