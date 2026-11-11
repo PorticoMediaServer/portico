@@ -56,6 +56,8 @@ type Server struct {
 	// queues builds and runs play queues. See queues.go.
 	queues  *playqueue.Service
 	network networkState
+	// dataDir is the folder the server keeps its files in.
+	dataDir string
 	// settings are the owner's settings documents, held in memory. See settings.go.
 	settings *settings.Settings
 	media    func(w http.ResponseWriter, r *http.Request, grant, file string)
@@ -72,6 +74,8 @@ type Route struct {
 	Scope    Scope
 	Request  reflect.Type
 	Response reflect.Type
+	// MaxBody is the largest body the route reads, when it is not the usual 64 KiB.
+	MaxBody int64
 }
 
 // Scope is what a key made for a tool must have been given to use a route. A signed-in
@@ -157,6 +161,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 		return nil, err
 	}
 	s := &Server{db: d, tokens: tokens, log: log, mux: http.NewServeMux(), version: version, id: identity.id, identity: identity, now: time.Now,
+		dataDir:   dataDir,
 		passwords: auth.NewPasswords(auth.PasswordCost, auth.PINCost)}
 	if set, err := d.HasUsers(ctx); err != nil {
 		return nil, err
@@ -180,6 +185,8 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.systemRoutes()
 	s.networkRoutes()
 	s.settingsRoutes()
+	s.notificationRoutes()
+	s.reportRoutes()
 	s.identityRoutes()
 	s.authRoutes()
 	s.profileRoutes()
@@ -277,7 +284,7 @@ func (p *statusOnly) WriteHeader(status int)      { p.status = status }
 func Handle[Req, Resp any](s *Server, pattern string, access Access, fn func(r *http.Request, req Req) (Resp, error)) *Route {
 	noBody := reflect.TypeFor[Req]() == reflect.TypeFor[None]()
 	noReply := reflect.TypeFor[Resp]() == reflect.TypeFor[None]()
-	route := &Route{pattern, access, defaultScope(pattern, access), reflect.TypeFor[Req](), reflect.TypeFor[Resp]()}
+	route := &Route{pattern, access, defaultScope(pattern, access), reflect.TypeFor[Req](), reflect.TypeFor[Resp](), 0}
 	s.routes = append(s.routes, route)
 	s.mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
 		r, err := s.admit(r, route)
@@ -286,7 +293,7 @@ func Handle[Req, Resp any](s *Server, pattern string, access Access, fn func(r *
 			return
 		}
 		var req Req
-		if err := readBody(w, r, &req, noBody); err != nil {
+		if err := readBody(w, r, &req, noBody, route.MaxBody); err != nil {
 			s.writeError(w, r, err)
 			return
 		}
@@ -322,8 +329,11 @@ type JSON = json.RawMessage
 
 // readBody reads a bounded JSON body into out. Fields this server does not know are ignored,
 // so a newer app can talk to an older server; /v1/system says what the server understands.
-func readBody(w http.ResponseWriter, r *http.Request, out any, noBody bool) error {
-	body := http.MaxBytesReader(w, r.Body, maxBody)
+func readBody(w http.ResponseWriter, r *http.Request, out any, noBody bool, limit int64) error {
+	if limit == 0 {
+		limit = maxBody
+	}
+	body := http.MaxBytesReader(w, r.Body, limit)
 	if noBody {
 		// Many HTTP libraries send an empty object, "{}", with every request; it says nothing.
 		raw, err := io.ReadAll(body)

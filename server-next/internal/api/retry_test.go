@@ -36,6 +36,7 @@ var repeatSafeWithoutKey = map[string]string{
 	"POST /v1/queues/{id}/advance":                "sets the current entry",
 	"POST /v1/queues/{id}/prepare-next":           "changes nothing that lasts",
 	"POST /v1/queues/{id}/commit-next":            "sets the current entry",
+	"POST /v1/notifications/read-all":             "sets the state",
 }
 
 // An app that never had the answer to a creating request sends it again with the same
@@ -74,6 +75,11 @@ func TestCreatesAreSafeToRepeat(t *testing.T) {
 			body: QueueSave{Name: "Evening"}, other: QueueSave{Name: "Morning"}},
 		{route: "POST /v1/playback/sessions", body: PlaybackStart{ItemID: th.film}, other: PlaybackStart{ItemID: th.song},
 			inMemoryOnly: true},
+		{route: "POST /v1/reports", body: ReportCreate{Kind: "problem", Message: "No sound"}, other: ReportCreate{Kind: "problem", Message: "Other"},
+			count: func() int { return th.named("/v1/reports", "message", "No sound") }},
+		{route: "POST /v1/admin/notifications", body: ServerMessage{Audience: "everyone", Message: "Back at six"},
+			other: ServerMessage{Audience: "everyone", Message: "Back at seven"},
+			count: func() int { return th.named("/v1/notifications", "body", "Back at six") }},
 	}
 
 	keyed := map[string]bool{}

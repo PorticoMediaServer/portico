@@ -288,11 +288,14 @@ const (
 	TopicList    ChangeTopic = 6
 	// TopicPreferences: a profile's own settings changed: its other devices read them again.
 	TopicPreferences ChangeTopic = 7
+	// TopicNotice: an account's notifications changed. RefID is the account: its apps read
+	// their inbox and its unread count again.
+	TopicNotice ChangeTopic = 8
 )
 
 var changeTopicNames = map[ChangeTopic]string{
 	TopicItem: "item", TopicLibrary: "library", TopicState: "state", TopicPerson: "person",
-	TopicAccess: "access", TopicList: "list", TopicPreferences: "preferences",
+	TopicAccess: "access", TopicList: "list", TopicPreferences: "preferences", TopicNotice: "notice",
 }
 
 func (t ChangeTopic) String() string { return changeTopicNames[t] }
