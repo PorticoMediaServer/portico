@@ -62,6 +62,11 @@ var fields = []Setting{
 	intOf("playback.skipBackMs", 10000, []int{5000, 10000, 15000, 30000}, ScopeProfile),
 	intOf("playback.skipForwardMs", 30000, []int{10000, 15000, 30000, 60000}, ScopeProfile),
 	flag("playback.autoplayNext", true, ScopeProfile),
+	// Stop at season end: with autoplay on, the player does not go on by itself from a season's
+	// last episode into the next season. The player reads it, as it reads autoplayNext.
+	flag("playback.stopAtSeasonEnd", false, ScopeProfile),
+	// Rewind on resume: a film or episode resumes this much before where it stopped.
+	intOf("playback.resumeRewindMs", 0, []int{0, 5000, 10000, 30000}, ScopeProfile),
 	intOf("playback.upNextCountdownMs", 10000, []int{0, 5000, 10000, 15000}, ScopeProfile),
 	// Off: the credits card says when the next title starts, and it starts when this one ends.
 	flag("playback.startNextDuringCredits", false, ScopeProfile),
