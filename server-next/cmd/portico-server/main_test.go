@@ -3,6 +3,9 @@ package main
 import (
 	"bytes"
 	"log/slog"
+	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -84,5 +87,29 @@ func TestAnEarlierServersDataFolderIsRefused(t *testing.T) {
 	os.WriteFile(filepath.Join(data, "main.db"), nil, 0o600)
 	if err := oldServerData(data); err != nil {
 		t.Fatalf("a folder this server already uses: %v", err)
+	}
+}
+
+// The container's health check: ready is 0, anything else is not.
+func TestHealthCheckAsksTheRunningServer(t *testing.T) {
+	status := http.StatusOK
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/health/ready" {
+			t.Errorf("asked %s", r.URL.Path)
+		}
+		w.WriteHeader(status)
+	}))
+	_, port, _ := net.SplitHostPort(srv.Listener.Addr().String())
+	// The packaged address names every interface; the check reaches the server on this machine.
+	if err := healthCheck("0.0.0.0:" + port); err != nil {
+		t.Fatalf("a ready server: %v", err)
+	}
+	status = http.StatusServiceUnavailable
+	if err := healthCheck(":" + port); err == nil {
+		t.Fatal("a server that is not ready passed")
+	}
+	srv.Close()
+	if err := healthCheck("127.0.0.1:" + port); err == nil {
+		t.Fatal("no server passed")
 	}
 }
