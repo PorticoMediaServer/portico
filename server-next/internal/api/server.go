@@ -143,6 +143,9 @@ type Page[T any] struct {
 // None is the request type of a route with no body, and the response type of one that answers 204.
 type None struct{}
 
+// Jobs is the runner of background jobs, for the server to wait on when it stops.
+func (s *Server) Jobs() *jobs.Runner { return s.jobs }
+
 // New builds the server and registers every area's routes. dataDir is the folder the
 // server keeps its files in.
 func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logger) (*Server, error) {

@@ -130,6 +130,9 @@ func run(log *slog.Logger) error {
 	if err := srv.Shutdown(wait); err != nil && !errors.Is(err, context.DeadlineExceeded) {
 		return err
 	}
+	// Jobs in hand stop and are put back to waiting, so the next start does not take them for
+	// jobs that were cut short.
+	handler.Jobs().Wait(wait)
 	// Where everyone had got to is saved before the database closes, and every converter stopped.
 	handler.Playback().Save(wait, db.User)
 	if err := engine.Shutdown(wait); err != nil {
