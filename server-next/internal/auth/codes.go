@@ -34,6 +34,13 @@ func NewCode(groups int) string {
 	return b.String()
 }
 
+// IsCode reports whether typed is a code of the given number of groups of four symbols, in
+// any case, with or without its dashes.
+func IsCode(typed string, groups int) bool {
+	key := CodeKey(typed)
+	return len(key) == groups*4 && strings.Trim(key, codeAlphabet) == ""
+}
+
 // CodeKey is the form of a typed code that is hashed and compared: upper case, with the
 // dashes and spaces people add or leave out removed.
 func CodeKey(typed string) string {
