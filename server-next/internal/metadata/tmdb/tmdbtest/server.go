@@ -66,7 +66,13 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	s.Requests.Add(1)
 	w.Header().Set("Content-Type", "application/json")
 	if strings.HasPrefix(r.URL.Path, "/t/p/") {
-		// A picture, which TMDB serves without a token: the same small one for every address.
+		// A picture, which TMDB serves without a token: the same small one for every address,
+		// and a drawing for an SVG address, as some of TMDB's logos are.
+		if strings.HasSuffix(r.URL.Path, ".svg") {
+			w.Header().Set("Content-Type", "image/svg+xml")
+			w.Write([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="4" height="6"/>`))
+			return
+		}
 		w.Header().Set("Content-Type", "image/png")
 		w.Write(Picture)
 		return
