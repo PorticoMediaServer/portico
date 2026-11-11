@@ -182,12 +182,8 @@ func (d *DB) SwitchSignIn(ctx context.Context, sw Switch) (SessionState, error) 
 				}
 			}
 		case "portico":
-			var taken bool
-			if err := tx.QueryRow(`SELECT EXISTS (SELECT 1 FROM users WHERE portico_account_id = ? AND id <> ?)`, sw.PorticoAccountID, sw.OwnerID).Scan(&taken); err != nil {
+			if err := porticoAccountFree(tx, sw.PorticoAccountID, sw.OwnerID); err != nil {
 				return err
-			}
-			if taken {
-				return ErrConflict
 			}
 			// The owner signs in with the Portico Account from now on and loses the password.
 			if _, err := tx.Exec(`UPDATE users SET portico_account_id = ?, password_hash = NULL, password_changed_at = NULL, updated_at = ? WHERE id = ?`,
@@ -200,9 +196,11 @@ func (d *DB) SwitchSignIn(ctx context.Context, sw Switch) (SessionState, error) 
 			if _, err := tx.Exec(`DELETE FROM settings WHERE key = ?`, LeftMessageKey); err != nil {
 				return err
 			}
-			// Portico Accounts keep their pictures with Portico Services, never here. The
-			// pictures stored on this server go in this same commit once profile pictures
-			// (#2215) are on main: clear their column here, and the tidy-up removes the files.
+			// Portico Accounts keep their pictures with Portico Services, never here. Each
+			// person's pictures stored on this server go when that person moves to their
+			// Portico Account: the owner's here, everyone else's in CompleteMoveToPortico.
+			// Profile pictures (#2215) are not on this base: once they are, clear the owner's
+			// profiles' picture column here, and the tidy-up removes the files.
 		}
 		detail := "to " + sw.To
 		if sw.StartOver {
@@ -374,6 +372,111 @@ func (d *DB) CompleteMoveToLocal(ctx context.Context, m MoveToLocal) (SessionSta
 			return err
 		}
 		out, err = startSession(tx, code.UserID, m.Session, m.Now)
+		return err
+	})
+	if err == nil {
+		err = refused
+	}
+	out.Stamp = stamp
+	return out, err
+}
+
+// PorticoAccountTaken: the Portico Account is already on this server as another account.
+// Accounts are never merged.
+type PorticoAccountTaken struct{ Username string }
+
+func (e *PorticoAccountTaken) Error() string {
+	return "the portico account is already on this server as " + e.Username
+}
+
+func porticoAccountFree(tx *sql.Tx, porticoID string, userID int64) error {
+	var holder string
+	err := tx.QueryRow(`SELECT username FROM users WHERE portico_account_id = ? AND id <> ?`, porticoID, userID).Scan(&holder)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return &PorticoAccountTaken{Username: holder}
+}
+
+// MoveToPortico is a waiting person linking their Portico Account after a switch to Portico
+// Accounts, proven by a move code or, for a while after the switch, their old password.
+type MoveToPortico struct {
+	// CodeHash is the move code's hash; or else UserID with the CheckedHash its old password
+	// was compared against, outside the transaction, and found right.
+	CodeHash    string
+	UserID      int64
+	CheckedHash string
+	// PorticoAccountID and Username are the Portico Account's; the username is taken when no
+	// other account here has it, and the person's old one kept otherwise.
+	PorticoAccountID, Username string
+	Limits                     []Limit
+	Session                    NewSession
+	Now                        time.Time
+}
+
+// CompleteMoveToPortico links the account to the Portico Account, drops its password, makes it
+// active and signs it in, in one commit. A wrong, used or expired code, or an old password
+// that no longer stands, is ErrBadCredentials and counts as a wrong guess; a Portico Account
+// another account has is *PorticoAccountTaken.
+func (d *DB) CompleteMoveToPortico(ctx context.Context, m MoveToPortico) (SessionState, error) {
+	var out SessionState
+	var refused error
+	stamp, err := d.writeSessionsStamped(ctx, func(tx *sql.Tx, _ *changes) error {
+		refused = nil
+		userID := m.UserID
+		if m.CodeHash != "" {
+			code, err := redeemCode(tx, "move", m.CodeHash, m.Now)
+			if errors.Is(err, ErrBadCredentials) {
+				refused = err
+				return limitFail(tx, m.Now, m.Limits)
+			}
+			if err != nil {
+				return err
+			}
+			userID = code.UserID
+		} else {
+			move, moving, err := readMove(ctx, tx)
+			if err != nil {
+				return err
+			}
+			var hash sql.NullString
+			err = tx.QueryRow(`SELECT password_hash FROM users WHERE id = ?`, userID).Scan(&hash)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
+			if err != nil || !hash.Valid || hash.String != m.CheckedHash || !moving || move.To != "portico" || m.Now.Sub(move.At) >= OldPasswordWorks {
+				refused = ErrBadCredentials
+				return limitFail(tx, m.Now, m.Limits)
+			}
+		}
+		var state string
+		if err := tx.QueryRow(`SELECT state FROM users WHERE id = ?`, userID).Scan(&state); err != nil || state != "waiting" {
+			refused = ErrBadCredentials
+			return err
+		}
+		if err := porticoAccountFree(tx, m.PorticoAccountID, userID); err != nil {
+			return err
+		}
+		at := m.Now.UnixMilli()
+		if _, err := tx.Exec(`UPDATE users SET portico_account_id = ?, password_hash = NULL, password_changed_at = NULL, state = 'active',
+			username = CASE WHEN ? <> '' AND NOT EXISTS (SELECT 1 FROM users o WHERE o.username = ? AND o.id <> users.id) THEN ? ELSE username END,
+			updated_at = ? WHERE id = ?`, m.PorticoAccountID, m.Username, m.Username, m.Username, at, userID); err != nil {
+			return err
+		}
+		// This person's pictures stored on this server go now, kept by Portico Services from
+		// here on. Profile pictures (#2215) are not on this base: once they are, clear this
+		// account's profiles' picture column here, and the tidy-up removes the files.
+		if err := limitClear(tx, m.Limits); err != nil {
+			return err
+		}
+		if err := endMoveIfDone(tx); err != nil {
+			return err
+		}
+		var err error
+		out, err = startSession(tx, userID, m.Session, m.Now)
 		return err
 	})
 	if err == nil {
