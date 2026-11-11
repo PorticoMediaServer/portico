@@ -65,9 +65,9 @@ func TestCastOnlyWithPorticoAccounts(t *testing.T) {
 			t.Errorf("the receiver's %s %s answered %d, want 403", c.method, c.path, got)
 		}
 	}
-	th.clock = th.clock.Add(23 * time.Hour)
+	th.clock.Add(23 * time.Hour)
 	_, renewed := renew(t, th.s, paired.Session.RefreshToken, 7, "cast-renew")
-	if want := th.clock.Add(24 * time.Hour); !renewed.SessionExpiresAt.Equal(want.UTC().Truncate(time.Millisecond)) {
+	if want := th.clock.Now().Add(24 * time.Hour); !renewed.SessionExpiresAt.Equal(want.UTC().Truncate(time.Millisecond)) {
 		t.Fatalf("a renewed receiver's sign-in lasts until %s, want a day from now", renewed.SessionExpiresAt)
 	}
 }
