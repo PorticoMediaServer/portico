@@ -2486,6 +2486,7 @@ export interface Routes {
   'DELETE /v1/search/history': {access: 'withProfile'; request: undefined; response: undefined};
   'GET /v1/libraries': {access: 'withProfile'; request: undefined; response: Libraries};
   'GET /v1/libraries/{id}': {access: 'withProfile'; request: undefined; response: Library};
+  'GET /v1/libraries/{id}/landing': {access: 'withProfile'; request: undefined; response: Home};
   'GET /v1/items': {access: 'withProfile'; request: undefined; response: ItemPage};
   'POST /v1/items/query': {access: 'withProfile'; request: ItemQueryRequest; response: ItemPage};
   'GET /v1/items/{id}': {access: 'withProfile'; request: undefined; response: Item};
