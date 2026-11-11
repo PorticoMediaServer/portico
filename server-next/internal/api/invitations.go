@@ -253,7 +253,10 @@ func (s *Server) acceptedAgain(r *http.Request, req InvitationAccept) (SignInRes
 		return SignInResponse{}, errNoInvitation()
 	}
 	out, err := s.signIn(r, SignInRequest{Username: req.Username, Password: req.Password, Device: req.Device})
-	if _, refused := asError(err); refused {
+	if e, refused := asError(err); refused {
+		if e.Code == "away_from_home" {
+			return out, err
+		}
 		return SignInResponse{}, errNoInvitation()
 	}
 	return out, err
