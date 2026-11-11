@@ -146,6 +146,9 @@ func (d *DB) upgrade(ctx context.Context) error {
 	for ; version < current; version++ {
 		step := upgrades[version-firstVersion]
 		if err := d.finishSteps(ctx, version); err != nil {
+			if ctx.Err() != nil {
+				return errStoppedDuringUpgrade
+			}
 			return fmt.Errorf("finishing an earlier upgrade's background work failed, and the database stays at version %d; the database as it was before the upgrade is at %s: %w",
 				version, copied, err)
 		}
@@ -185,10 +188,23 @@ func (d *DB) finishBeforeServing(ctx context.Context) error {
 		return err
 	}
 	if err := d.finishSteps(ctx, last); err != nil {
-		return fmt.Errorf("finishing the upgrade to version %d failed, and the server cannot start until it is finished: %w", last, err)
+		if ctx.Err() != nil {
+			return errStoppedDuringUpgrade
+		}
+		before := ""
+		for _, c := range upgradeCopies(d.path) {
+			if c.from < last && last <= c.to {
+				before = fmt.Sprintf("; the database as it was before the upgrade is at %s, and going back to it needs the version of Portico that was installed before", c.path)
+			}
+		}
+		return fmt.Errorf("finishing the upgrade to version %d failed, and the server cannot start until it is finished%s: %w", last, before, err)
 	}
 	return nil
 }
+
+// A stop asked for while upgrade work runs before the server starts is not a failure: what
+// was done is kept, and the next start carries on from there.
+var errStoppedDuringUpgrade = errors.New("the server was stopped while finishing the upgrade; nothing is lost, and the next start carries on where this one stopped")
 
 // finishSteps runs, while the server starts, whatever background work the steps up to a
 // version still have. Before a newer step is applied it is called for every step already
