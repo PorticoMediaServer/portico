@@ -53,11 +53,16 @@ func noTuner(busy *live.NoTuner, userID int64) *Error {
 		switch {
 		case u.UserID == userID && u.Name != "":
 			names = append(names, u.Name)
+		case u.UserID == userID && !u.Record:
+			names = append(names, "Another of your devices")
 		case u.Record:
 			names = append(names, "A recording")
 		default:
 			names = append(names, "Another viewer")
 		}
+	}
+	if len(names) == 0 {
+		return ErrConflict("no_tuner", "Every tuner is busy. Try again in a moment.")
 	}
 	return ErrConflict("no_tuner", "Every tuner is busy: "+strings.Join(names, ", ")+".")
 }
@@ -79,7 +84,7 @@ func (s *Server) watchSourceChannel(r *http.Request, ch db.LiveChannel) (Playbac
 			return PlaybackSession{}, err
 		}
 	}
-	account, _ := s.viewings.Count(c.Viewer.UserID)
+	account, _ := s.viewings.Count(c.Viewer.UserID, c.SignInID)
 	for _, other := range s.playback.AccountSessions(c.Viewer.UserID) {
 		if c.SignInID == 0 || other.SignInID != c.SignInID {
 			account++
@@ -109,6 +114,8 @@ func (s *Server) watchSourceChannel(r *http.Request, ch db.LiveChannel) (Playbac
 		return PlaybackSession{}, ErrConflict("source_sign_in", "This channel's source needs its sign-in again.")
 	}
 	use := &live.Use{UserID: c.Viewer.UserID, Name: device.Name}
+	// What this device watches live gives its tuner back first, so it can change channel.
+	s.viewings.StopDevice(c.Viewer.UserID, c.SignInID)
 	in, err := s.tuners.Tune(ch.ID, sourceID, tuners, locator, use)
 	var busy *live.NoTuner
 	if errors.As(err, &busy) {
