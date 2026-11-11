@@ -57,6 +57,7 @@ func (s *Server) startSetup(ctx context.Context) error {
 	s.certs = tlsport.NewStore(filepath.Join(s.dataDir, "Keys"), s.log, func() time.Time { return s.now() })
 	// Enhanced waits on the owner's own certificate until it is loaded and valid for the address.
 	s.access.ownCertificateUsable = func() bool { return s.certs.Status().State == "ok" }
+	s.access.homeKnown = func() bool { return len(s.networks().Home) > 0 }
 	s.ports = portmap.New(s.log, nil)
 	s.public = publicaddr.New(s.log)
 	// When Portico Services is connected, a new public address is reported to it here.

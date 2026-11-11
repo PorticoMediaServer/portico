@@ -1,6 +1,8 @@
 package api
 
 import (
+	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -203,5 +205,60 @@ func TestPortMappingStartsWhenSetupFinishes(t *testing.T) {
 	}
 	if !s.ports.Wanted() {
 		t.Fatal("port mapping did not start when setup finished")
+	}
+}
+
+// A server that knows no home networks counts everyone as outside, the household included, so
+// Enhanced does not turn on by itself there: it waits and says why. The owner can still turn it
+// on, and can let only the owner sign in from outside, each after confirming.
+func TestEnhancedWaitsForHomeNetworksUnlessTheOwnerTurnsItOn(t *testing.T) {
+	s := newTestServer(t)
+	const local, host = "127.0.0.1", "localhost"
+	owner := setupFrom(t, s, local, SetupRemote{}).AccessToken
+	if w := reach(s, "POST", "/v1/setup/finish", owner, local, host, false, SetupFinish{}); w.Code != 200 {
+		t.Fatalf("finishing setup answered %d: %s", w.Code, w.Body)
+	}
+	none := []string{}
+	if w := reach(s, "PUT", "/v1/admin/settings/network", owner, local, host, false, NetworkSettingsEdit{HomeNetworks: &none, TrustedProxies: []string{}, ConfirmRefusal: true}); w.Code != 200 {
+		t.Fatalf("emptying the home networks answered %d: %s", w.Code, w.Body)
+	}
+	s.SetPorticoAddress("den.portico.example", true, "")
+	household := func() int {
+		return reach(s, "GET", "/v1/system", "", "192.168.1.20", "192.168.1.10:32500", false, nil).Code
+	}
+	status := func() RemoteAccessStatus {
+		var st RemoteAccessStatus
+		jsonInto(reach(s, "GET", "/v1/admin/remote-access", owner, local, host, false, nil), &st)
+		return st
+	}
+	if got := status().RemoteSecurity; got.Active != "standard" || got.Waiting != "no_home_networks" || got.Message == "" || household() != 200 {
+		t.Fatalf("with a certificate and no home networks: %+v, the household answered %d", got, household())
+	}
+
+	var v RemoteAccessSettings
+	jsonInto(reach(s, "GET", "/v1/admin/settings/remote-access", owner, local, host, false, nil), &v)
+	save := func(v RemoteAccessSettings, confirm bool) *httptest.ResponseRecorder {
+		return reach(s, "PUT", "/v1/admin/settings/remote-access", owner, local, host, false, RemoteAccessSave{RemoteAccessSettings: v, ConfirmRefusal: confirm})
+	}
+	v.SignInFromOutside = "owner"
+	if w := save(v, false); w.Code != 409 || !strings.Contains(w.Body.String(), "would_refuse_sign_in") {
+		t.Fatalf("owner only with no home networks, unconfirmed, answered %d: %s", w.Code, w.Body)
+	}
+	if w := save(v, true); w.Code != 200 {
+		t.Fatalf("owner only, confirmed, answered %d: %s", w.Code, w.Body)
+	}
+	if st := status(); !slices.ContainsFunc(st.Warnings, func(w Warning) bool { return w.Code == "owner_only_no_home" }) {
+		t.Fatalf("owner only with no home networks is not warned about: %+v", st.Warnings)
+	}
+
+	v.EnhancedWithoutHome = true
+	if w := save(v, false); w.Code != 409 || !strings.Contains(w.Body.String(), "would_refuse_this_route") {
+		t.Fatalf("turning Enhanced on with no home networks, unconfirmed, answered %d: %s", w.Code, w.Body)
+	}
+	if w := save(v, true); w.Code != 200 {
+		t.Fatalf("turning Enhanced on, confirmed, answered %d: %s", w.Code, w.Body)
+	}
+	if got := s.access.security(v, []string{"den.portico.example"}, true, false); got.Active != "enhanced" || household() != 403 {
+		t.Fatalf("after the owner turned Enhanced on: %+v, the household answered %d", got, household())
 	}
 }
