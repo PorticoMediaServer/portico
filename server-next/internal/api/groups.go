@@ -180,6 +180,8 @@ func groupError(err error) error {
 		return ErrNotFound()
 	case errors.Is(err, together.ErrBadCode):
 		return refusal(http.StatusNotFound, "code_invalid", "That code didn't work.", false)
+	case errors.Is(err, together.ErrTooSoon):
+		return ErrTooMany("too_many_groups_started", "You've started several groups just now. Try again in a couple of minutes.", 2*time.Minute)
 	case errors.Is(err, together.ErrFull):
 		return ErrConflict("group_full", "This group is full.")
 	case errors.Is(err, together.ErrTooMany):
