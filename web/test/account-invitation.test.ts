@@ -1,14 +1,16 @@
 import test from 'node:test';
-import {systemAnswer} from '../../packages/client-core/test/next-wire.ts';
+import {systemAnswer, signInAnswer} from '../../packages/client-core/test/next-wire.ts';
+import {setInstallationIdentity} from '@core/installation.ts';
 import assert from 'node:assert/strict';
 import {HttpLocalApi} from '@core/index.ts';
 import {BrowserAccountEntry} from '../src/platform/account-entry.ts';
 import type {ServerSignInProbe} from '@core/sign-in.ts';
 
-const origin = 'https://inviting.example', serverId = 'srv_' + 's'.repeat(43), code = 'i'.repeat(43);
+const origin = 'https://inviting.example', serverId = 'srv_' + 's'.repeat(43), code = 'K7QP-2MXD-9HRT-4WNC';
 const pin = {serverId, publicKey: 'p'.repeat(43), fingerprint: 'f'.repeat(43)};
 const system = {id: serverId, name: 'Actual inviting server', version: '1', signIn: 'local', move: null, setupRequired: false, hostedConfigured: false, hostedAttached: false, apiLevel: 1, apiVersion: '1.0', apiMajors: [1], capabilities: []};
-const preview = {allLibraries: false, expiresAt: '2099-01-01T00:00:00Z', inviterUsername: 'owner', libraries: [{name: 'Actual library'}], libraryCount: 1, role: 'member', serverName: system.name, signInMethod: 'local'};
+/** The rebuilt server's preview: it never names who invited the person. */
+const preview = {allLibraries: false, expiresAt: '2099-01-01T00:00:00Z', libraries: ['Actual library'], role: 'member', serverName: system.name};
 function response() {
   return {authority: 'local', serverId, canManage: true, capabilities: {manageAccount: true, managePeople: false, manageServer: false, manageSignIn: false},
     account: {id: 'created-account', username: 'new_user', primaryProfileId: 'main', role: 'member', revision: 1, disabled: false, allowedLibraries: []},
@@ -31,8 +33,8 @@ function fixture(destination: 'adopt' | 'server-origin' = 'adopt') {
   api.request = (async (path, _method, body) => {
     calls.push({path, body});
     if (path === '/v1/system') return systemAnswer(system);
-    if (path === '/v1/access/invitations/preview') return previewAnswer;
-    if (path === '/v1/access/invitations/accept') return {variant: 'accepted', accountId: 'created-account', profileId: 'main', username: 'new_user', role: 'member', allowedLibraries: []};
+    if (path === '/v1/auth/invitations/' + code) return previewAnswer;
+    if (path === '/v1/auth/invitations/' + code + '/accept') {const result = response();result.session.sessionFamilyId = family;result.session.accessToken = token;return signInAnswer(result);}
     if (path === '/v1/auth/sign-in') {if (signInGate) await signInGate; if (failSignIn) throw new Error('offline after membership creation'); const result = response();result.session.sessionFamilyId = family;result.session.accessToken = token;return result;}
     throw new Error('Unexpected endpoint: ' + path);
   }) as HttpLocalApi['request'];
@@ -54,9 +56,9 @@ function fixture(destination: 'adopt' | 'server-origin' = 'adopt') {
 const link = {server: origin, id: serverId, code};
 test('invitation code reaches only the verified server after kind/proof/link ownership guards', async () => {
   const f = fixture(); await f.entry.inspectInvitation(link);
-  assert.deepEqual(f.calls.map(value => value.path), ['/v1/system', '/v1/access/invitations/preview']);
+  assert.deepEqual(f.calls.map(value => value.path), ['/v1/system', '/v1/auth/invitations/' + code]);
   assert.equal(f.entry.getSnapshot().invitation?.libraries[0].name, 'Actual library');
-  assert.equal(f.entry.getSnapshot().phase, 'password'); assert.deepEqual(f.calls[1].body, {code}); f.entry.dispose();
+  assert.equal(f.entry.getSnapshot().phase, 'password'); assert.equal(f.calls[1].body, undefined); f.entry.dispose();
 });
 test('a link naming another identity is refused before the invitation secret is sent', async () => {
   const f = fixture(); await f.entry.inspectInvitation({...link, id: 'srv_' + 'x'.repeat(43)});
@@ -69,10 +71,17 @@ test('a cancelled invitation probe cannot post its old code through a successor 
   f.releaseProbe(); await old;
   assert.equal(f.calls.some(value => value.path.includes('invitations')), false); f.entry.dispose();
 });
-test('a preview cannot switch the verified local kind into a Portico credential path', async () => {
-  const f = fixture(); f.preview({...preview, signInMethod: 'portico'}); await f.entry.inspectInvitation(link);
-  assert.equal(f.entry.getSnapshot().invitation, undefined); assert.equal((f.entry.getSnapshot().error as {code: string}).code, 'invalid_response');
-  await f.entry.joinLocal('new_user', 'long enough password'); assert.equal(f.admitted.length, 0); f.entry.dispose();
+test('joining keeps the sign-in the server answers with: no second sign-in, and the new account is admitted', async () => {
+  setInstallationIdentity({installationId: 'i'.repeat(43), name: 'Test browser', platform: 'web', app: 'portico', appVersion: '1'});
+  try {
+    const f = fixture(); await f.entry.inspectInvitation(link);
+    await f.entry.joinLocal('new_user', 'long enough Password 1', 'New person');
+    const accept = f.calls.find(value => value.path.endsWith('/accept'));
+    assert.deepEqual((accept?.body as {username: string; profileName: string}).username, 'new_user');
+    assert.equal((accept?.body as {profileName: string}).profileName, 'New person');
+    assert.equal(f.calls.some(value => value.path === '/v1/auth/sign-in'), false, 'the join itself is the sign-in');
+    assert.deepEqual(f.admitted, ['issued-family']); f.entry.dispose();
+  } finally {setInstallationIdentity(undefined);}
 });
 
 

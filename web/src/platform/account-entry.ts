@@ -1,5 +1,7 @@
 import {createHostedDirectoryReadPort} from '@core/query/hosted-directory-source.ts';
-import {acceptLocalInvitation, previewLocalInvitation, readDirectAccount, readServerSystem, revokeCurrentSession} from '../../../packages/client-core/src/query/connection-operations.ts';
+import {previewLocalInvitation, readDirectAccount, readServerSystem, revokeCurrentSession} from '../../../packages/client-core/src/query/connection-operations.ts';
+import {decodePreviewInvitationResponse} from '../../../packages/contracts/src/decoders.ts';
+import {acceptServerInvitation, previewServerInvitation} from '@core/invitation-join.ts';
 import {HttpLocalApi, type HostedServer, type LocalSession} from '@core/index.ts';
 import {serverNow} from '@core/server-clock.ts';
 import {firstAnswering, serverAddressCandidates} from '@core/server-address.ts';
@@ -16,12 +18,11 @@ import {acceptPorticoInvitation, acceptShortPorticoInvitation, porticoSignIn, ty
 import type {JoinLink} from '@core/join-link.ts';
 import {parseShortInvitationCode} from '@core/short-invitation-code.ts';
 import {passwordStrength} from '@core/password-strength.ts';
-import {requestOwnerResetFile, verifyOwnerResetFile, verifyMemberResetCode, changeResetPassword, ownerResetSecurity, finishOwnerResetPassword, type ResetFileLocation} from '@core/account-reset.ts';
+import {requestOwnerResetFile, verifyOwnerResetFile, redeemMemberResetCode, ownerResetSecurity, finishOwnerResetPassword, type ResetFileLocation} from '@core/account-reset.ts';
 import {MemberAccountMoveClient, type MoveCodePreview, type MoveCodeLink} from '@core/account-move.ts';
 import {IdentityClient, type TwoFactorEnrolment} from '@core/identity-client.ts';
 import {CodedError, unreadableServerResponse} from '@core/server-messages.ts';
 import {routePath} from '../../../packages/contracts/src/routes.ts';
-import {decodePreviewInvitationResponse, decodePostAccessInvitationsAcceptResponse} from '../../../packages/contracts/src/decoders.ts';
 import type {PreviewInvitationResponse} from '../../../packages/contracts/src/types.ts';
 import {browserAppSessions, browserConnectionEnvironment, restoreBrowserConnection, observeBrowserSessionChanges} from './server-connections';
 import {browserAppSessionActions, type BrowserAppSessionActions} from './app-sessions';
@@ -328,7 +329,10 @@ export class BrowserAccountEntry {
   if(!api||!state.server||!['password','portico'].includes(state.phase))return;
   const op=this.operation();this.publish({...state,busy:true,error:undefined});
   try{
-   const preview=decodePreviewInvitationResponse(await previewLocalInvitation(api, capability, op.signal));
+   // A local-sign-in server's invitation is read on the rebuilt server's own route; a Portico Account server's
+   // invitation keeps its own route, which the Portico Account linking work moves.
+   const read=state.server.signIn==='local'?await previewServerInvitation(api, capability, op.signal):undefined;
+   const preview:PreviewInvitationResponse=read?{...read,libraries:[...read.libraries],libraryCount:read.libraries.length}:decodePreviewInvitationResponse(await previewLocalInvitation(api, capability, op.signal));
    if(!op.current())return;
    if(preview.signInMethod!==state.server.signIn||!['member','admin'].includes(preview.role))throw new CodedError('invalid_response','The invitation sign-in method changed.');
    this.invitationCapability=capability;this.publish({...state,invitation:preview,busy:false});
@@ -342,15 +346,20 @@ export class BrowserAccountEntry {
   try{
    const revision=(await this.ports.store.read()).revision;if(!op.current())return;
    if(this.joinedUsername!==undefined&&this.joinedUsername!==trimmed)throw new CodedError('invitation_used','Continue with the account already created.');
+   // Joining is the sign-in: the account is made and this device signed in to it in one answer, which is kept. A retry
+   // after that (the same person, a later step failed) is an ordinary sign-in to the account it made.
+   let result:DirectSignIn;
    if(this.joinedUsername===undefined){
-    const member=decodePostAccessInvitationsAcceptResponse(await acceptLocalInvitation(api, capability, trimmed, password, name, op.signal));
+    result=await acceptServerInvitation(api,capability,{username:trimmed,password,profileName:name},op.signal);
     if(!op.current())return;
-    if('unknownVariant' in member)throw new NeedsNewerAppError(String(member.variant));
-    if(!('accountId' in member)||!member.accountId||member.username!==trimmed)throw new CodedError('invalid_response','The invitation account could not be read.');
-    this.joinedAccountId=member.accountId;this.joinedUsername=trimmed;
-   }
+    if(result.kind==='signed-in'){
+     if(result.snapshot.account.username.toLowerCase()!==trimmed.toLowerCase())throw new CodedError('invalid_response','The invitation account could not be read.');
+     this.joinedAccountId=result.snapshot.account.id;
+    }
+    this.joinedUsername=trimmed;
+   }else result=await directSignIn(api,trimmed,password,op.signal);
    if(!op.current())return;
-   await this.accept(await directSignIn(api,trimmed,password,op.signal),api,revision,op);
+   await this.accept(result,api,revision,op);
   }catch(error){if(op.current())this.publish({...state,busy:false,error});}
  }
  async joinPortico(account:Readonly<{origin:string;accountId:string;request:HostedRequestApi['request'];isCurrent:()=>boolean}>){
@@ -587,29 +596,25 @@ export class BrowserAccountEntry {
    if(op.current())this.publish({...state,phase:'password',ownerReset:undefined,busy:false,error});return false;
   }
  }
- /** Code proof issues only a restricted transient family. Set its password,
-  * retire it, then use ordinary sign-in and the existing durable admission. */
+ /** The owner's reset file proof issues only a restricted transient family; a member's reset code sets the new
+  * password. Either way, ordinary sign-in and the existing durable admission follow. */
  async resetLocalPassword(proof:Readonly<{kind:'owner';code:string;turnOffTwoStep?:boolean}|{kind:'member';username:string;code:string}>,newPassword:string,secondFactorCode=''){
   if(!passwordStrength(newPassword).acceptable)return;
   if(proof.kind==='owner'){const details=await this.verifyLocalOwnerReset(proof.code);if(details&&await this.finishLocalOwnerResetPassword(newPassword,proof.turnOffTwoStep===true))await this.signIn(details.username,newPassword);return;}
   const state=this.state,api=this.api;
   if(state.phase!=='password'||state.server?.signIn!=='local'||state.invitation||!api||state.busy||!passwordStrength(newPassword).acceptable)return;
   const op=this.operation();this.publish({...state,busy:true,error:undefined});
-  let restricted:Extract<DirectSignIn,{kind:'signed-in'}>|undefined;
   try{
    const revision=(await this.ports.store.read()).revision;if(!op.current())return;
-   const result=await verifyMemberResetCode(api,proof.username,proof.code,op.signal);
-   if(result.kind!=='signed-in')throw new CodedError('invalid_response','The reset did not return a password-change session.');
-   restricted=result;
+   // The code sets the new password and signs nobody in; then an ordinary sign-in with it, which asks for the
+   // two-step code when the account still has two-step on (the code typed here answers it).
+   await redeemMemberResetCode(api,proof.username,proof.code,newPassword,op.signal);
    if(!op.current())return;
-   if(result.snapshot.serverId!==state.server.id||result.resetFileOwnerSession||!result.passwordChangeRequired||result.session.refreshToken||
-     result.snapshot.account.role==='owner')throw new CodedError('invalid_response','The reset did not match this account.');
-   await changeResetPassword(this.temporary(api,result.session),newPassword,secondFactorCode,op.signal);
-   await this.retire(api,result.session);restricted=undefined;
+   let result=await directSignIn(api,proof.username,newPassword,op.signal);
+   if(result.kind==='challenge'&&secondFactorCode.trim())result=await completeDirectSignInChallenge(api,result.token,secondFactorCode,op.signal);
    if(!op.current())return;
-   await this.accept(await directSignIn(api,result.snapshot.account.username,newPassword,op.signal),api,revision,op);
+   await this.accept(result,api,revision,op);
   }catch(error){if(op.current())this.publish({...state,busy:false,error});}
-  finally{if(restricted)await this.retire(api,restricted.session);}
  }
  /** Factor setup keeps the existing restricted account family. Passwords,
   * secrets and recovery codes stay in the caller's ephemeral form, never state/storage. */

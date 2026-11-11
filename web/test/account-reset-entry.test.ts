@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {HttpLocalApi} from '@core/index.ts';
 import type {ServerSignInProbe} from '@core/sign-in.ts';
 import {BrowserAccountEntry} from '../src/platform/account-entry.ts';
+import {setInstallationIdentity} from '@core/installation.ts';
 
 const serverId = 'srv_' + 's'.repeat(43), origin = 'https://reset.example';
 function fixture(kind: 'local' | 'portico' = 'local') {
@@ -31,6 +32,7 @@ function fixture(kind: 'local' | 'portico' = 'local') {
     if (path === '/v1/system') return systemAnswer(system);
     if (path === '/v1/auth/owner-reset/request') return {fileName: 'reset-code.txt', retryAfterSeconds: 1};
     if (path === '/v1/auth/owner-reset/verify' || path === '/v1/direct/password/reset') {if (verifyGate) await verifyGate; return {variant: 'password-change', ...grant(true)};}
+    if (path === '/v1/auth/password-reset/confirm') return undefined;
     if (path === '/v1/auth/sign-in') return signInAnswer(twoStep ? {challenge: {token: 'actual-factor-challenge', expiresAt: '2099-01-01T00:00:00Z'}} : grant(false));
     if (path === '/v1/auth/two-factor') return signInAnswer(grant(false));
     if (path === '/v1/auth/move/code') return {username: 'actual_user', signIn: kind, expiresAt: new Date(Date.now() + 3600000).toISOString()};
@@ -79,3 +81,16 @@ test('a Portico move-code preview cannot enter Local password redemption or expo
 });
 
 const settle = () => new Promise(resolve => setImmediate(resolve));
+
+test('a member\'s reset code sets the new password, then an ordinary sign-in admits the account; the two-step code typed answers the challenge', async () => {
+  setInstallationIdentity({installationId: 'i'.repeat(43), name: 'Test browser', platform: 'web', app: 'portico', appVersion: '1'});
+  for (const factor of [false, true]) {
+    const f = fixture(); if (factor) f.factor(); await f.entry.inspect(origin);
+    await f.entry.resetLocalPassword({kind: 'member', username: 'actual_user', code: 'K7QP-2MXD-9HRT'}, 'ordinary-new-password', factor ? '123456' : '');
+    const paths = f.calls.map(call => call.path).filter(path => path !== '/v1/system');
+    assert.deepEqual(paths, ['/v1/auth/password-reset/confirm', '/v1/auth/sign-in', ...(factor ? ['/v1/auth/two-factor'] : [])]);
+    assert.deepEqual(f.calls.find(call => call.path === '/v1/auth/password-reset/confirm')?.body, {username: 'actual_user', code: 'K7QP-2MXD-9HRT', newPassword: 'ordinary-new-password'});
+    assert.deepEqual(f.admitted, ['ordinary-family']); assert.deepEqual(f.retired, []); f.entry.dispose();
+  }
+  setInstallationIdentity(undefined);
+});
