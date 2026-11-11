@@ -63,5 +63,6 @@ func (s *Server) startConsole(ctx context.Context) error {
 	s.restart = make(chan struct{})
 	s.restoreRoutes()
 	s.logRoutes()
+	s.playHistoryRoutes()
 	return nil
 }
