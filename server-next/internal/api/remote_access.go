@@ -302,7 +302,7 @@ func (s *Server) ServeNetwork(ctx context.Context, port int) {
 	v, _ := s.access.current()
 	s.applyCertificate(v)
 	if port != 0 {
-		go s.public.Run(ctx)
+		s.goBackground(func() { s.public.Run(ctx) })
 	}
 	s.ports.Run(ctx)
 }
