@@ -201,6 +201,31 @@
         ],
         "type": "object"
       },
+      "Airing": {
+        "properties": {
+          "channel": {
+            "type": "string"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "channel",
+          "startsAt",
+          "endsAt"
+        ],
+        "type": "object"
+      },
       "Alternative": {
         "properties": {
           "label": {
@@ -420,6 +445,110 @@
         ],
         "type": "object"
       },
+      "Block": {
+        "properties": {
+          "days": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "from": {
+            "type": "string"
+          },
+          "fromPreset": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "ifEmpty": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "overrun": {
+            "type": "string"
+          },
+          "resume": {
+            "type": "string"
+          },
+          "selection": {
+            "$ref": "#/components/schemas/Selection"
+          },
+          "to": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "days",
+          "from",
+          "to"
+        ],
+        "type": "object"
+      },
+      "BlockPreset": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "library": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "recipe": {
+            "$ref": "#/components/schemas/Recipe"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "library",
+          "recipe"
+        ],
+        "type": "object"
+      },
+      "BlockPresetPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/BlockPreset"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "BlockPresetSave": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "library": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "recipe": {
+            "$ref": "#/components/schemas/Recipe"
+          }
+        },
+        "type": "object"
+      },
       "BlockedNetwork": {
         "properties": {
           "blockedUntil": {
@@ -601,6 +730,37 @@
         ],
         "type": "object"
       },
+      "Builder": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Selection"
+          },
+          {
+            "properties": {
+              "avoidRepeats": {
+                "type": "integer"
+              },
+              "blocks": {
+                "items": {
+                  "$ref": "#/components/schemas/Block"
+                },
+                "type": "array"
+              },
+              "logoOnScreen": {
+                "$ref": "#/components/schemas/Logo"
+              },
+              "quality": {
+                "$ref": "#/components/schemas/ChannelQuality"
+              }
+            },
+            "required": [
+              "quality",
+              "logoOnScreen"
+            ],
+            "type": "object"
+          }
+        ]
+      },
       "CapabilityDocument": {
         "properties": {},
         "type": "object"
@@ -618,6 +778,293 @@
         "required": [
           "token",
           "expiresAt"
+        ],
+        "type": "object"
+      },
+      "Channel": {
+        "properties": {
+          "favorite": {
+            "type": "boolean"
+          },
+          "group": {
+            "type": "string"
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "logo": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "number": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "number",
+          "kind",
+          "favorite",
+          "hidden"
+        ],
+        "type": "object"
+      },
+      "ChannelCondition": {
+        "properties": {
+          "conditions": {
+            "items": {
+              "$ref": "#/components/schemas/ChannelCondition"
+            },
+            "type": "array"
+          },
+          "exclude": {
+            "type": "boolean"
+          },
+          "field": {
+            "type": "string"
+          },
+          "match": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ChannelHealth": {
+        "properties": {
+          "building": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "onAir": {
+            "type": "boolean"
+          },
+          "programmes": {
+            "type": "integer"
+          },
+          "reaches": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "titles": {
+            "type": "integer"
+          },
+          "unplaceable": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "onAir",
+          "programmes",
+          "titles",
+          "unplaceable",
+          "building"
+        ],
+        "type": "object"
+      },
+      "ChannelLink": {
+        "properties": {
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "logo": {
+            "$ref": "#/components/schemas/ChannelLogo"
+          },
+          "maxKbps": {
+            "type": "integer"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "startsAt",
+          "endsAt"
+        ],
+        "type": "object"
+      },
+      "ChannelLogo": {
+        "properties": {
+          "corner": {
+            "type": "string"
+          },
+          "size": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "corner",
+          "size"
+        ],
+        "type": "object"
+      },
+      "ChannelMarks": {
+        "properties": {
+          "favorite": {
+            "type": "boolean"
+          },
+          "hidden": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "favorite",
+          "hidden"
+        ],
+        "type": "object"
+      },
+      "ChannelPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Channel"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "ChannelPreview": {
+        "properties": {
+          "hours": {
+            "type": "integer"
+          },
+          "sample": {
+            "items": {
+              "$ref": "#/components/schemas/PreviewTitle"
+            },
+            "type": "array"
+          },
+          "titles": {
+            "type": "integer"
+          },
+          "today": {
+            "items": {
+              "$ref": "#/components/schemas/PreviewProgramme"
+            },
+            "type": "array"
+          },
+          "unplaceable": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "titles",
+          "unplaceable",
+          "hours",
+          "sample",
+          "today"
+        ],
+        "type": "object"
+      },
+      "ChannelPreviewAsk": {
+        "properties": {
+          "builder": {
+            "$ref": "#/components/schemas/Builder"
+          },
+          "channelId": {
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "timeZone",
+          "builder"
+        ],
+        "type": "object"
+      },
+      "ChannelQuality": {
+        "properties": {
+          "maxKbps": {
+            "type": "integer"
+          },
+          "mode": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ChannelTemplate": {
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "builder": {
+            "$ref": "#/components/schemas/Builder"
+          },
+          "description": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "description",
+          "available",
+          "builder"
+        ],
+        "type": "object"
+      },
+      "ChannelTemplatePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ChannelTemplate"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
         ],
         "type": "object"
       },
@@ -764,6 +1211,22 @@
         ],
         "type": "object"
       },
+      "Countdown": {
+        "properties": {
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "endsAt",
+          "reason"
+        ],
+        "type": "object"
+      },
       "Credit": {
         "properties": {
           "character": {
@@ -807,6 +1270,49 @@
         "required": [
           "items",
           "total"
+        ],
+        "type": "object"
+      },
+      "DVR": {
+        "properties": {
+          "canRecord": {
+            "type": "boolean"
+          },
+          "conflicts": {
+            "type": "integer"
+          },
+          "folderOk": {
+            "type": "boolean"
+          },
+          "freeBytes": {
+            "type": "integer"
+          },
+          "hoursLeft": {
+            "type": "integer"
+          },
+          "keepRule": {
+            "type": "string"
+          },
+          "recorded": {
+            "type": "integer"
+          },
+          "unwatched": {
+            "type": "integer"
+          },
+          "upcoming": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "upcoming",
+          "recorded",
+          "unwatched",
+          "conflicts",
+          "freeBytes",
+          "hoursLeft",
+          "keepRule",
+          "folderOk",
+          "canRecord"
         ],
         "type": "object"
       },
@@ -1871,6 +2377,45 @@
         ],
         "type": "object"
       },
+      "Guide": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/GuideRow"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          },
+          "outOfDate": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items",
+          "outOfDate"
+        ],
+        "type": "object"
+      },
+      "GuideRow": {
+        "properties": {
+          "channel": {
+            "$ref": "#/components/schemas/Channel"
+          },
+          "programmes": {
+            "items": {
+              "$ref": "#/components/schemas/Programme"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "channel",
+          "programmes"
+        ],
+        "type": "object"
+      },
       "HDR": {
         "properties": {
           "delivered": {
@@ -2821,6 +3366,128 @@
         ],
         "type": "object"
       },
+      "LibraryChannel": {
+        "properties": {
+          "builder": {
+            "$ref": "#/components/schemas/Builder"
+          },
+          "description": {
+            "type": "string"
+          },
+          "droppedTitles": {
+            "type": "integer"
+          },
+          "health": {
+            "$ref": "#/components/schemas/ChannelHealth"
+          },
+          "id": {
+            "type": "string"
+          },
+          "libraries": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "logo": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "number": {
+            "type": "integer"
+          },
+          "on": {
+            "type": "boolean"
+          },
+          "problem": {
+            "type": "string"
+          },
+          "scheduledThrough": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "titles": {
+            "type": "integer"
+          },
+          "unknownConditions": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "number",
+          "on",
+          "summary",
+          "timeZone",
+          "libraries",
+          "state",
+          "titles"
+        ],
+        "type": "object"
+      },
+      "LibraryChannelOrder": {
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "type": "object"
+      },
+      "LibraryChannelPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LibraryChannel"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "LibraryChannelSave": {
+        "properties": {
+          "builder": {
+            "$ref": "#/components/schemas/Builder"
+          },
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "on": {
+            "type": "boolean"
+          },
+          "timeZone": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "LibraryCreate": {
         "properties": {
           "folders": {
@@ -3209,6 +3876,125 @@
         ],
         "type": "object"
       },
+      "LiveSource": {
+        "properties": {
+          "audience": {
+            "type": "string"
+          },
+          "config": {
+            "$ref": "#/components/schemas/SourceConfig"
+          },
+          "hasSignIn": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "lastError": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "paused": {
+            "type": "boolean"
+          },
+          "refreshedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "report": {
+            "$ref": "#/components/schemas/SourceReport"
+          },
+          "state": {
+            "type": "string"
+          },
+          "tunerCount": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "audience",
+          "tunerCount",
+          "paused",
+          "state",
+          "config",
+          "hasSignIn"
+        ],
+        "type": "object"
+      },
+      "LiveSourcePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LiveSource"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "LiveSourceSave": {
+        "properties": {
+          "audience": {
+            "type": "string"
+          },
+          "config": {
+            "$ref": "#/components/schemas/SourceConfig"
+          },
+          "guide": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "paused": {
+            "type": "boolean"
+          },
+          "playlist": {
+            "type": "string"
+          },
+          "signIn": {
+            "$ref": "#/components/schemas/SignIn"
+          },
+          "tunerCount": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "LiveWindow": {
+        "properties": {
+          "liveAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "oldestAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "oldestAt",
+          "liveAt"
+        ],
+        "type": "object"
+      },
       "LogDetail": {
         "properties": {
           "minutes": {
@@ -3274,6 +4060,20 @@
         "required": [
           "items"
         ],
+        "type": "object"
+      },
+      "Logo": {
+        "properties": {
+          "corner": {
+            "type": "string"
+          },
+          "on": {
+            "type": "boolean"
+          },
+          "size": {
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "LyricLine": {
@@ -3790,6 +4590,40 @@
           "items": {
             "items": {
               "$ref": "#/components/schemas/NowPlaying"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "OnNow": {
+        "properties": {
+          "channel": {
+            "$ref": "#/components/schemas/Channel"
+          },
+          "next": {
+            "$ref": "#/components/schemas/Programme"
+          },
+          "now": {
+            "$ref": "#/components/schemas/Programme"
+          }
+        },
+        "required": [
+          "channel"
+        ],
+        "type": "object"
+      },
+      "OnNowPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OnNow"
             },
             "type": "array"
           },
@@ -4486,8 +5320,14 @@
       },
       "PlaybackSession": {
         "properties": {
+          "channel": {
+            "$ref": "#/components/schemas/ChannelLink"
+          },
           "command": {
             "$ref": "#/components/schemas/Command"
+          },
+          "countdown": {
+            "$ref": "#/components/schemas/Countdown"
           },
           "end": {
             "$ref": "#/components/schemas/SessionEnd"
@@ -4503,6 +5343,9 @@
           },
           "lease": {
             "$ref": "#/components/schemas/PlaybackLease"
+          },
+          "live": {
+            "$ref": "#/components/schemas/LiveWindow"
           },
           "playbackInfo": {},
           "presentation": {
@@ -4536,6 +5379,9 @@
         "properties": {
           "audio": {
             "$ref": "#/components/schemas/AudioPick"
+          },
+          "channel": {
+            "type": "string"
           },
           "discTitle": {},
           "itemId": {
@@ -4895,6 +5741,53 @@
         ],
         "type": "object"
       },
+      "PreviewProgramme": {
+        "properties": {
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "title": {
+            "$ref": "#/components/schemas/PreviewTitle"
+          }
+        },
+        "required": [
+          "startsAt",
+          "endsAt"
+        ],
+        "type": "object"
+      },
+      "PreviewTitle": {
+        "properties": {
+          "episode": {
+            "type": "integer"
+          },
+          "episodeTitle": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "season": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "year": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "type": "object"
+      },
       "ProblemReport": {
         "properties": {
           "context": {},
@@ -5066,6 +5959,90 @@
           }
         },
         "type": "object"
+      },
+      "Programme": {
+        "properties": {
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "episode": {
+            "type": "integer"
+          },
+          "episodeTitle": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "notAvailable": {
+            "type": "boolean"
+          },
+          "rating": {
+            "type": "string"
+          },
+          "season": {
+            "type": "integer"
+          },
+          "slate": {
+            "type": "boolean"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "startsAt",
+          "endsAt"
+        ],
+        "type": "object"
+      },
+      "ProgrammeDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Programme"
+          },
+          {
+            "properties": {
+              "airings": {
+                "items": {
+                  "$ref": "#/components/schemas/Airing"
+                },
+                "type": "array"
+              },
+              "canRecord": {
+                "type": "boolean"
+              },
+              "channel": {
+                "$ref": "#/components/schemas/Channel"
+              },
+              "recording": {
+                "$ref": "#/components/schemas/Recording"
+              },
+              "reminder": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "channel",
+              "airings",
+              "reminder",
+              "canRecord"
+            ],
+            "type": "object"
+          }
+        ]
       },
       "Progress": {
         "properties": {
@@ -5775,6 +6752,175 @@
         ],
         "type": "object"
       },
+      "Recipe": {
+        "properties": {
+          "clauses": {
+            "items": {
+              "$ref": "#/components/schemas/ChannelCondition"
+            },
+            "type": "array"
+          },
+          "days": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "minutes": {
+            "type": "integer"
+          },
+          "order": {
+            "type": "string"
+          },
+          "startsAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "clauses",
+          "order",
+          "minutes"
+        ],
+        "type": "object"
+      },
+      "Recording": {
+        "properties": {
+          "bookedBy": {
+            "type": "string"
+          },
+          "channel": {
+            "type": "string"
+          },
+          "choice": {
+            "type": "string"
+          },
+          "conflict": {
+            "type": "boolean"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "episode": {
+            "type": "integer"
+          },
+          "episodeTitle": {
+            "type": "string"
+          },
+          "fromRule": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "inGuide": {
+            "type": "boolean"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "keep": {
+            "type": "boolean"
+          },
+          "padAfterMs": {
+            "type": "integer"
+          },
+          "padBeforeMs": {
+            "type": "integer"
+          },
+          "priority": {
+            "type": "integer"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "season": {
+            "type": "integer"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "channel",
+          "title",
+          "startsAt",
+          "endsAt",
+          "padBeforeMs",
+          "padAfterMs",
+          "priority",
+          "state",
+          "inGuide",
+          "keep",
+          "fromRule"
+        ],
+        "type": "object"
+      },
+      "RecordingBook": {
+        "properties": {
+          "padAfterMs": {
+            "type": "integer"
+          },
+          "padBeforeMs": {
+            "type": "integer"
+          },
+          "priority": {
+            "type": "integer"
+          },
+          "programme": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "programme"
+        ],
+        "type": "object"
+      },
+      "RecordingChange": {
+        "properties": {
+          "choice": {
+            "type": "string"
+          },
+          "keep": {
+            "type": "boolean"
+          },
+          "padAfterMs": {
+            "type": "integer"
+          },
+          "padBeforeMs": {
+            "type": "integer"
+          },
+          "priority": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "RecordingPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Recording"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
       "RecoveryCodes": {
         "properties": {
           "recoveryCodes": {
@@ -5919,6 +7065,52 @@
           "items": {
             "items": {
               "$ref": "#/components/schemas/RememberedFailure"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "ReminderOut": {
+        "properties": {
+          "channel": {
+            "type": "string"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "programme": {
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "programme",
+          "channel",
+          "title",
+          "startsAt",
+          "endsAt"
+        ],
+        "type": "object"
+      },
+      "ReminderOutPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ReminderOut"
             },
             "type": "array"
           },
@@ -6473,6 +7665,105 @@
         ],
         "type": "object"
       },
+      "Rule": {
+        "properties": {
+          "byTitle": {
+            "type": "boolean"
+          },
+          "channel": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "keepDays": {
+            "type": "integer"
+          },
+          "keepNewest": {
+            "type": "integer"
+          },
+          "newOnly": {
+            "type": "boolean"
+          },
+          "padAfterMs": {
+            "type": "integer"
+          },
+          "padBeforeMs": {
+            "type": "integer"
+          },
+          "paused": {
+            "type": "boolean"
+          },
+          "priority": {
+            "type": "integer"
+          },
+          "source": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "source",
+          "byTitle",
+          "newOnly",
+          "priority",
+          "paused"
+        ],
+        "type": "object"
+      },
+      "RulePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Rule"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "RuleSave": {
+        "properties": {
+          "anyChannel": {
+            "type": "boolean"
+          },
+          "keepDays": {
+            "type": "integer"
+          },
+          "keepNewest": {
+            "type": "integer"
+          },
+          "newOnly": {
+            "type": "boolean"
+          },
+          "padAfterMs": {
+            "type": "integer"
+          },
+          "padBeforeMs": {
+            "type": "integer"
+          },
+          "paused": {
+            "type": "boolean"
+          },
+          "priority": {
+            "type": "integer"
+          },
+          "programme": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "SavedPlaylist": {
         "properties": {
           "entries": {
@@ -6671,6 +7962,78 @@
         ],
         "type": "object"
       },
+      "Selection": {
+        "properties": {
+          "addedWithinDays": {
+            "type": "integer"
+          },
+          "always": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "conditions": {
+            "items": {
+              "$ref": "#/components/schemas/ChannelCondition"
+            },
+            "type": "array"
+          },
+          "episodes": {
+            "type": "string"
+          },
+          "kinds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "libraries": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "marathon": {
+            "type": "integer"
+          },
+          "match": {
+            "type": "string"
+          },
+          "mentions": {
+            "type": "string"
+          },
+          "never": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "onlyAlways": {
+            "type": "boolean"
+          },
+          "order": {
+            "type": "string"
+          },
+          "sort": {
+            "type": "string"
+          },
+          "weights": {
+            "items": {
+              "$ref": "#/components/schemas/Weight"
+            },
+            "type": "array"
+          },
+          "whenDone": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "libraries",
+          "kinds"
+        ],
+        "type": "object"
+      },
       "SelectionDelete": {
         "properties": {
           "ids": {
@@ -6753,6 +8116,41 @@
           "listEntries",
           "otherPeople",
           "alsoRemoves"
+        ],
+        "type": "object"
+      },
+      "SentChannel": {
+        "properties": {
+          "Group": {
+            "type": "string"
+          },
+          "GuideKey": {
+            "type": "string"
+          },
+          "Key": {
+            "type": "string"
+          },
+          "Locator": {
+            "type": "string"
+          },
+          "Logo": {
+            "type": "string"
+          },
+          "Name": {
+            "type": "string"
+          },
+          "Number": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "Key",
+          "Name",
+          "Number",
+          "Group",
+          "GuideKey",
+          "Locator",
+          "Logo"
         ],
         "type": "object"
       },
@@ -7016,6 +8414,21 @@
         ],
         "type": "object"
       },
+      "SignIn": {
+        "properties": {
+          "password": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "username",
+          "password"
+        ],
+        "type": "object"
+      },
       "SignInRequest": {
         "properties": {
           "device": {
@@ -7103,6 +8516,219 @@
         "required": [
           "id",
           "order"
+        ],
+        "type": "object"
+      },
+      "SourceChannel": {
+        "properties": {
+          "broughtIn": {
+            "type": "boolean"
+          },
+          "edited": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "group": {
+            "type": "string"
+          },
+          "guideKey": {
+            "type": "string"
+          },
+          "guideSource": {
+            "type": "string"
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "missing": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "number": {
+            "type": "string"
+          },
+          "sourceNumber": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "number",
+          "broughtIn",
+          "hidden"
+        ],
+        "type": "object"
+      },
+      "SourceChannelEdit": {
+        "properties": {
+          "broughtIn": {
+            "type": "boolean"
+          },
+          "guideKey": {
+            "type": "string"
+          },
+          "guideSource": {
+            "type": "string"
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "number": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "SourceChannelEdits": {
+        "properties": {
+          "channels": {
+            "items": {
+              "$ref": "#/components/schemas/SourceChannelEdit"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "channels"
+        ],
+        "type": "object"
+      },
+      "SourceChannelPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SourceChannel"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "SourceConfig": {
+        "properties": {
+          "channels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "firstNumber": {
+            "type": "integer"
+          },
+          "groups": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "guideUploaded": {
+            "type": "boolean"
+          },
+          "guideUrl": {
+            "type": "string"
+          },
+          "numbering": {
+            "type": "string"
+          },
+          "playlistUrl": {
+            "type": "string"
+          },
+          "refreshHours": {
+            "type": "integer"
+          },
+          "serverUrl": {
+            "type": "string"
+          },
+          "tunerUrl": {
+            "type": "string"
+          },
+          "uploaded": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "SourcePreview": {
+        "properties": {
+          "channels": {
+            "items": {
+              "$ref": "#/components/schemas/SentChannel"
+            },
+            "type": "array"
+          },
+          "report": {
+            "$ref": "#/components/schemas/SourceReport"
+          },
+          "tuners": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "report",
+          "channels",
+          "tuners"
+        ],
+        "type": "object"
+      },
+      "SourceReport": {
+        "properties": {
+          "channels": {
+            "type": "integer"
+          },
+          "channelsWithGuide": {
+            "type": "integer"
+          },
+          "examples": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "groups": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "programmes": {
+            "type": "integer"
+          },
+          "skippedChannels": {
+            "type": "integer"
+          },
+          "skippedProgrammes": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "channels",
+          "skippedChannels",
+          "programmes",
+          "skippedProgrammes",
+          "channelsWithGuide"
         ],
         "type": "object"
       },
@@ -7691,6 +9317,42 @@
         ],
         "type": "object"
       },
+      "TunerUse": {
+        "properties": {
+          "channel": {
+            "type": "string"
+          },
+          "using": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "channel",
+          "using"
+        ],
+        "type": "object"
+      },
+      "Tuners": {
+        "properties": {
+          "conflicts": {
+            "items": {
+              "$ref": "#/components/schemas/Recording"
+            },
+            "type": "array"
+          },
+          "inUse": {
+            "items": {
+              "$ref": "#/components/schemas/TunerUse"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "inUse",
+          "conflicts"
+        ],
+        "type": "object"
+      },
       "TwoFactorEnrol": {
         "properties": {
           "currentPassword": {
@@ -8102,6 +9764,21 @@
           "delivered"
         ],
         "type": "object"
+      },
+      "Weight": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "weight": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "weight"
+        ],
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -8410,6 +10087,143 @@
         "x-access": "owner"
       }
     },
+    "/v1/admin/block-presets": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlockPresetPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BlockPresetSave"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlockPreset"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/block-presets/{id}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "patch": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BlockPresetSave"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlockPreset"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
     "/v1/admin/blocked-networks": {
       "get": {
         "responses": {
@@ -8475,6 +10289,33 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DownloadsByPerson"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/dvr/tuners": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tuners"
                 }
               }
             },
@@ -9215,6 +11056,702 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SkippedFilePage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/library-channels": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryChannelPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryChannelSave"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryChannel"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/library-channels/order": {
+      "put": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryChannelOrder"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/library-channels/preview": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChannelPreviewAsk"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelPreview"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/library-channels/templates": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelTemplatePage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/library-channels/{id}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryChannel"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "patch": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryChannelSave"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryChannel"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/library-channels/{id}/logo": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryChannel"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "put": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryChannel"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/library-channels/{id}/regenerate": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryChannel"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/live/sources": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveSourcePage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LiveSourceSave"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveSource"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/live/sources/preview": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LiveSourceSave"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourcePreview"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/live/sources/{id}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveSource"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "patch": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LiveSourceSave"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveSource"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/live/sources/{id}/channels": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceChannelPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "patch": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourceChannelEdits"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/live/sources/{id}/refresh": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveSource"
                 }
               }
             },
@@ -11854,6 +14391,342 @@
         "x-access": "withProfile"
       }
     },
+    "/v1/dvr": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DVR"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/dvr/recordings": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordingPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      },
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordingBook"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Recording"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/dvr/recordings/{id}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      },
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Recording"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      },
+      "patch": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordingChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Recording"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/dvr/rules": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RulePage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      },
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuleSave"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Rule"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/dvr/rules/{id}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      },
+      "patch": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuleSave"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Rule"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
     "/v1/events": {
       "get": {
         "responses": {
@@ -13589,6 +16462,287 @@
           }
         },
         "x-access": "withProfile"
+      }
+    },
+    "/v1/live/channels": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/live/channels/{id}/state": {
+      "put": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChannelMarks"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelMarks"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/live/guide": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Guide"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/live/now": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnNowPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/live/programmes/{id}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProgrammeDetail"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/live/reminders": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReminderOutPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/live/reminders/{id}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      },
+      "put": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/live/streams/{grant}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "grant",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "security": [],
+        "x-access": "public"
       }
     },
     "/v1/me": {

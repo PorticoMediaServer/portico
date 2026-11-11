@@ -59,6 +59,13 @@ export interface AdminLibraryPage {
   nextCursor?: string;
 }
 
+export interface Airing {
+  id: string;
+  channel: string;
+  startsAt: string;
+  endsAt: string;
+}
+
 export interface Alternative {
   versionId: string;
   label: string;
@@ -121,6 +128,39 @@ export interface BatchError {
   message: string;
 }
 
+export interface Block {
+  id: string;
+  name?: string;
+  days: string[];
+  from: string;
+  to: string;
+  selection?: Selection;
+  fromPreset?: string;
+  overrun?: string;
+  resume?: string;
+  ifEmpty?: string;
+}
+
+export interface BlockPreset {
+  id: string;
+  name: string;
+  description?: string;
+  library: string;
+  recipe: Recipe;
+}
+
+export interface BlockPresetPage {
+  items: BlockPreset[];
+  nextCursor?: string;
+}
+
+export interface BlockPresetSave {
+  name?: string;
+  description?: string;
+  library?: string;
+  recipe?: Recipe;
+}
+
 export interface BlockedNetwork {
   id: string;
   network: string;
@@ -173,12 +213,106 @@ export interface BookVersion {
   name?: string;
 }
 
+export interface Builder extends Selection {
+  avoidRepeats?: number;
+  blocks?: Block[];
+  quality: ChannelQuality;
+  logoOnScreen: Logo;
+}
+
 export interface CapabilityDocument {
 }
 
 export interface Challenge {
   token: string;
   expiresAt: string;
+}
+
+export interface Channel {
+  id: string;
+  name: string;
+  number: string;
+  kind: string;
+  group?: string;
+  logo?: string;
+  favorite: boolean;
+  hidden: boolean;
+}
+
+export interface ChannelCondition {
+  field?: string;
+  mode?: string;
+  values?: string[];
+  exclude?: boolean;
+  match?: string;
+  conditions?: ChannelCondition[];
+}
+
+export interface ChannelHealth {
+  onAir: boolean;
+  message?: string;
+  reaches?: string;
+  programmes: number;
+  titles: number;
+  unplaceable: number;
+  building: boolean;
+}
+
+export interface ChannelLink {
+  id: string;
+  startsAt: string;
+  endsAt: string;
+  maxKbps?: number;
+  logo?: ChannelLogo;
+}
+
+export interface ChannelLogo {
+  url: string;
+  corner: string;
+  size: string;
+}
+
+export interface ChannelMarks {
+  favorite: boolean;
+  hidden: boolean;
+}
+
+export interface ChannelPage {
+  items: Channel[];
+  nextCursor?: string;
+}
+
+export interface ChannelPreview {
+  titles: number;
+  unplaceable: number;
+  hours: number;
+  sample: PreviewTitle[];
+  today: PreviewProgramme[];
+}
+
+export interface ChannelPreviewAsk {
+  channelId?: string;
+  timeZone: string;
+  builder: Builder;
+}
+
+export interface ChannelQuality {
+  mode?: string;
+  maxKbps?: number;
+}
+
+export interface ChannelTemplate {
+  key: string;
+  name: string;
+  description: string;
+  available: boolean;
+  reason?: string;
+  builder: Builder;
+}
+
+export interface ChannelTemplatePage {
+  items: ChannelTemplate[];
+  nextCursor?: string;
 }
 
 export interface CodeCollect {
@@ -228,6 +362,11 @@ export interface Condition {
   values: string[];
 }
 
+export interface Countdown {
+  endsAt: string;
+  reason: string;
+}
+
 export interface Credit {
   personId: string;
   name: string;
@@ -240,6 +379,18 @@ export interface CreditPage {
   items: Credit[];
   nextCursor?: string;
   total: number;
+}
+
+export interface DVR {
+  upcoming: number;
+  recorded: number;
+  unwatched: number;
+  conflicts: number;
+  freeBytes: number;
+  hoursLeft: number;
+  keepRule: string;
+  folderOk: boolean;
+  canRecord: boolean;
 }
 
 export interface Decision {
@@ -562,6 +713,17 @@ export interface GroupSummaryPage {
   nextCursor?: string;
 }
 
+export interface Guide {
+  items: GuideRow[];
+  nextCursor?: string;
+  outOfDate: boolean;
+}
+
+export interface GuideRow {
+  channel: Channel;
+  programmes: Programme[];
+}
+
 export interface HDR {
   source?: string;
   delivered?: string;
@@ -847,6 +1009,43 @@ export interface Library {
   filters?: Filter[];
 }
 
+export interface LibraryChannel {
+  id: string;
+  name: string;
+  number: number;
+  on: boolean;
+  description?: string;
+  summary: string;
+  timeZone: string;
+  libraries: string[];
+  logo?: string;
+  state: string;
+  problem?: string;
+  titles: number;
+  scheduledThrough?: string;
+  unknownConditions?: boolean;
+  droppedTitles?: number;
+  builder?: Builder;
+  health?: ChannelHealth;
+}
+
+export interface LibraryChannelOrder {
+  ids: string[];
+}
+
+export interface LibraryChannelPage {
+  items: LibraryChannel[];
+  nextCursor?: string;
+}
+
+export interface LibraryChannelSave {
+  name?: string;
+  description?: string;
+  timeZone?: string;
+  on?: boolean;
+  builder?: Builder;
+}
+
 export interface LibraryCreate {
   name: string;
   kind: string;
@@ -964,6 +1163,43 @@ export interface ListSharesSet {
   shares: ListShare[];
 }
 
+export interface LiveSource {
+  id: string;
+  kind: string;
+  name: string;
+  audience: string;
+  tunerCount: number;
+  paused: boolean;
+  state: string;
+  lastError?: string;
+  report?: SourceReport;
+  refreshedAt?: string;
+  config: SourceConfig;
+  hasSignIn: boolean;
+}
+
+export interface LiveSourcePage {
+  items: LiveSource[];
+  nextCursor?: string;
+}
+
+export interface LiveSourceSave {
+  kind?: string;
+  name?: string;
+  audience?: string;
+  tunerCount?: number;
+  paused?: boolean;
+  config?: SourceConfig;
+  signIn?: SignIn;
+  playlist?: string;
+  guide?: string;
+}
+
+export interface LiveWindow {
+  oldestAt: string;
+  liveAt: string;
+}
+
 export interface LogDetail {
   minutes: number;
 }
@@ -983,6 +1219,12 @@ export interface LogPage {
   items: LogLine[];
   nextCursor?: string;
   detailUntil?: string;
+}
+
+export interface Logo {
+  on?: boolean;
+  corner?: string;
+  size?: string;
 }
 
 export interface LyricLine {
@@ -1135,6 +1377,17 @@ export interface NowPlaying {
 
 export interface NowPlayingPage {
   items: NowPlaying[];
+  nextCursor?: string;
+}
+
+export interface OnNow {
+  channel: Channel;
+  now?: Programme;
+  next?: Programme;
+}
+
+export interface OnNowPage {
+  items: OnNow[];
   nextCursor?: string;
 }
 
@@ -1354,6 +1607,9 @@ export interface PlaybackSession {
   itemId: string;
   versionId: string;
   queue?: QueueLink;
+  channel?: ChannelLink;
+  live?: LiveWindow;
+  countdown?: Countdown;
   lease: PlaybackLease;
   presentation: Presentation;
   playbackInfo?: unknown;
@@ -1364,6 +1620,7 @@ export interface PlaybackSession {
 
 export interface PlaybackStart {
   itemId?: string;
+  channel?: string;
   queue?: QueueLink;
   versionId?: string;
   startPositionMs?: number;
@@ -1471,6 +1728,21 @@ export interface Presentation {
   audioRender?: unknown;
 }
 
+export interface PreviewProgramme {
+  startsAt: string;
+  endsAt: string;
+  title?: PreviewTitle;
+}
+
+export interface PreviewTitle {
+  id: string;
+  title: string;
+  episodeTitle?: string;
+  season?: number;
+  episode?: number;
+  year?: number;
+}
+
 export interface ProblemReport {
   id: string;
   reporter: string;
@@ -1525,6 +1797,29 @@ export interface ProfilePage {
 
 export interface ProfileSelect {
   pin?: string;
+}
+
+export interface Programme {
+  id: string;
+  startsAt: string;
+  endsAt: string;
+  title?: string;
+  episodeTitle?: string;
+  season?: number;
+  episode?: number;
+  summary?: string;
+  rating?: string;
+  itemId?: string;
+  slate?: boolean;
+  notAvailable?: boolean;
+}
+
+export interface ProgrammeDetail extends Programme {
+  channel: Channel;
+  airings: Airing[];
+  recording?: Recording;
+  reminder: boolean;
+  canRecord: boolean;
 }
 
 export interface Progress {
@@ -1757,6 +2052,57 @@ export interface ReceiverRequestPage {
   nextCursor?: string;
 }
 
+export interface Recipe {
+  clauses: ChannelCondition[];
+  order: string;
+  minutes: number;
+  startsAt?: string;
+  days?: string[];
+}
+
+export interface Recording {
+  id: string;
+  channel: string;
+  title: string;
+  episodeTitle?: string;
+  season?: number;
+  episode?: number;
+  startsAt: string;
+  endsAt: string;
+  padBeforeMs: number;
+  padAfterMs: number;
+  priority: number;
+  state: string;
+  reason?: string;
+  bookedBy?: string;
+  conflict?: boolean;
+  choice?: string;
+  inGuide: boolean;
+  keep: boolean;
+  fromRule: boolean;
+  itemId?: string;
+}
+
+export interface RecordingBook {
+  programme: string;
+  padBeforeMs?: number;
+  padAfterMs?: number;
+  priority?: number;
+}
+
+export interface RecordingChange {
+  padBeforeMs?: number;
+  padAfterMs?: number;
+  priority?: number;
+  keep?: boolean;
+  choice?: string;
+}
+
+export interface RecordingPage {
+  items: Recording[];
+  nextCursor?: string;
+}
+
 export interface RecoveryCodes {
   recoveryCodes: string[];
 }
@@ -1800,6 +2146,19 @@ export interface RememberedFailure {
 
 export interface RememberedFailurePage {
   items: RememberedFailure[];
+  nextCursor?: string;
+}
+
+export interface ReminderOut {
+  programme: string;
+  channel: string;
+  title: string;
+  startsAt: string;
+  endsAt: string;
+}
+
+export interface ReminderOutPage {
+  items: ReminderOut[];
   nextCursor?: string;
 }
 
@@ -1967,6 +2326,38 @@ export interface RoomYou {
   mayBecomeHost: boolean;
 }
 
+export interface Rule {
+  id: string;
+  title: string;
+  source: string;
+  channel?: string;
+  byTitle: boolean;
+  newOnly: boolean;
+  keepNewest?: number;
+  keepDays?: number;
+  priority: number;
+  padBeforeMs?: number;
+  padAfterMs?: number;
+  paused: boolean;
+}
+
+export interface RulePage {
+  items: Rule[];
+  nextCursor?: string;
+}
+
+export interface RuleSave {
+  programme?: string;
+  anyChannel?: boolean;
+  newOnly?: boolean;
+  keepNewest?: number;
+  keepDays?: number;
+  priority?: number;
+  padBeforeMs?: number;
+  padAfterMs?: number;
+  paused?: boolean;
+}
+
 export interface SavedPlaylist {
   playlistId: string;
   entries: number;
@@ -2027,6 +2418,24 @@ export interface SearchSuggestions {
   items: SearchSuggestion[];
 }
 
+export interface Selection {
+  libraries: string[];
+  kinds: string[];
+  match?: string;
+  conditions?: ChannelCondition[];
+  mentions?: string;
+  addedWithinDays?: number;
+  always?: string[];
+  never?: string[];
+  onlyAlways?: boolean;
+  order?: string;
+  sort?: string;
+  episodes?: string;
+  marathon?: number;
+  whenDone?: string;
+  weights?: Weight[];
+}
+
 export interface SelectionDelete {
   ids: string[];
 }
@@ -2047,6 +2456,16 @@ export interface SelectionDeletion {
   listEntries: number;
   otherPeople: number;
   alsoRemoves: TitleRef[];
+}
+
+export interface SentChannel {
+  Key: string;
+  Name: string;
+  Number: string;
+  Group: string;
+  GuideKey: string;
+  Locator: string;
+  Logo: string;
 }
 
 export interface ServerMessage {
@@ -2127,6 +2546,11 @@ export interface SetupOwnerRequest {
   device: DeviceInfo;
 }
 
+export interface SignIn {
+  username: string;
+  password: string;
+}
+
 export interface SignInRequest {
   username: string;
   password: string;
@@ -2154,6 +2578,69 @@ export interface SkippedFilePage {
 export interface Sort {
   id: string;
   order: string;
+}
+
+export interface SourceChannel {
+  id: string;
+  name: string;
+  number: string;
+  sourceNumber?: string;
+  group?: string;
+  broughtIn: boolean;
+  hidden: boolean;
+  missing?: boolean;
+  guideSource?: string;
+  guideKey?: string;
+  edited?: string[];
+}
+
+export interface SourceChannelEdit {
+  id: string;
+  name?: string;
+  number?: string;
+  guideSource?: string;
+  guideKey?: string;
+  hidden?: boolean;
+  broughtIn?: boolean;
+}
+
+export interface SourceChannelEdits {
+  channels: SourceChannelEdit[];
+}
+
+export interface SourceChannelPage {
+  items: SourceChannel[];
+  nextCursor?: string;
+}
+
+export interface SourceConfig {
+  playlistUrl?: string;
+  uploaded?: boolean;
+  guideUrl?: string;
+  guideUploaded?: boolean;
+  serverUrl?: string;
+  tunerUrl?: string;
+  refreshHours?: number;
+  groups?: string[];
+  channels?: string[];
+  numbering?: string;
+  firstNumber?: number;
+}
+
+export interface SourcePreview {
+  report: SourceReport;
+  channels: SentChannel[];
+  tuners: number;
+}
+
+export interface SourceReport {
+  channels: number;
+  skippedChannels: number;
+  programmes: number;
+  skippedProgrammes: number;
+  groups?: string[];
+  examples?: string[];
+  channelsWithGuide: number;
 }
 
 export interface State {
@@ -2318,6 +2805,16 @@ export interface TrashRule {
   days?: number;
 }
 
+export interface TunerUse {
+  channel: string;
+  using: string;
+}
+
+export interface Tuners {
+  inUse: TunerUse[];
+  conflicts: Recording[];
+}
+
 export interface TwoFactorEnrol {
   currentPassword: string;
 }
@@ -2446,6 +2943,11 @@ export interface WebhookTest {
   delivered: boolean;
   status?: number;
   error?: string;
+}
+
+export interface Weight {
+  id: string;
+  weight: number;
 }
 
 /** The body of every refusal. */
@@ -2687,4 +3189,48 @@ export interface Routes {
   'GET /v1/admin/downloads': {access: 'owner'; request: undefined; response: DownloadsByPerson};
   'DELETE /v1/admin/members/{id}/downloads': {access: 'owner'; request: undefined; response: undefined};
   'GET /v1/items/{id}/book': {access: 'withProfile'; request: undefined; response: BookAnswer};
+  'GET /v1/admin/library-channels': {access: 'owner'; request: undefined; response: LibraryChannelPage};
+  'POST /v1/admin/library-channels': {access: 'owner'; request: LibraryChannelSave; response: LibraryChannel};
+  'PUT /v1/admin/library-channels/order': {access: 'owner'; request: LibraryChannelOrder; response: undefined};
+  'GET /v1/admin/library-channels/templates': {access: 'owner'; request: undefined; response: ChannelTemplatePage};
+  'POST /v1/admin/library-channels/preview': {access: 'owner'; request: ChannelPreviewAsk; response: ChannelPreview};
+  'GET /v1/admin/library-channels/{id}': {access: 'owner'; request: undefined; response: LibraryChannel};
+  'PATCH /v1/admin/library-channels/{id}': {access: 'owner'; request: LibraryChannelSave; response: LibraryChannel};
+  'DELETE /v1/admin/library-channels/{id}': {access: 'owner'; request: undefined; response: undefined};
+  'POST /v1/admin/library-channels/{id}/regenerate': {access: 'owner'; request: undefined; response: LibraryChannel};
+  'PUT /v1/admin/library-channels/{id}/logo': {access: 'owner'; request: undefined; response: LibraryChannel};
+  'DELETE /v1/admin/library-channels/{id}/logo': {access: 'owner'; request: undefined; response: LibraryChannel};
+  'GET /v1/admin/block-presets': {access: 'owner'; request: undefined; response: BlockPresetPage};
+  'POST /v1/admin/block-presets': {access: 'owner'; request: BlockPresetSave; response: BlockPreset};
+  'PATCH /v1/admin/block-presets/{id}': {access: 'owner'; request: BlockPresetSave; response: BlockPreset};
+  'DELETE /v1/admin/block-presets/{id}': {access: 'owner'; request: undefined; response: undefined};
+  'GET /v1/live/channels': {access: 'withProfile'; request: undefined; response: ChannelPage};
+  'GET /v1/live/guide': {access: 'withProfile'; request: undefined; response: Guide};
+  'GET /v1/live/now': {access: 'withProfile'; request: undefined; response: OnNowPage};
+  'PUT /v1/live/channels/{id}/state': {access: 'withProfile'; request: ChannelMarks; response: ChannelMarks};
+  'GET /v1/admin/live/sources': {access: 'owner'; request: undefined; response: LiveSourcePage};
+  'POST /v1/admin/live/sources': {access: 'owner'; request: LiveSourceSave; response: LiveSource};
+  'POST /v1/admin/live/sources/preview': {access: 'owner'; request: LiveSourceSave; response: SourcePreview};
+  'GET /v1/admin/live/sources/{id}': {access: 'owner'; request: undefined; response: LiveSource};
+  'PATCH /v1/admin/live/sources/{id}': {access: 'owner'; request: LiveSourceSave; response: LiveSource};
+  'DELETE /v1/admin/live/sources/{id}': {access: 'owner'; request: undefined; response: undefined};
+  'POST /v1/admin/live/sources/{id}/refresh': {access: 'owner'; request: undefined; response: LiveSource};
+  'GET /v1/admin/live/sources/{id}/channels': {access: 'owner'; request: undefined; response: SourceChannelPage};
+  'PATCH /v1/admin/live/sources/{id}/channels': {access: 'owner'; request: SourceChannelEdits; response: undefined};
+  'GET /v1/live/streams/{grant}': {access: 'public'; request: undefined; response: undefined};
+  'GET /v1/dvr': {access: 'withProfile'; request: undefined; response: DVR};
+  'GET /v1/dvr/recordings': {access: 'withProfile'; request: undefined; response: RecordingPage};
+  'POST /v1/dvr/recordings': {access: 'withProfile'; request: RecordingBook; response: Recording};
+  'GET /v1/dvr/recordings/{id}': {access: 'withProfile'; request: undefined; response: Recording};
+  'PATCH /v1/dvr/recordings/{id}': {access: 'withProfile'; request: RecordingChange; response: Recording};
+  'DELETE /v1/dvr/recordings/{id}': {access: 'withProfile'; request: undefined; response: undefined};
+  'GET /v1/dvr/rules': {access: 'withProfile'; request: undefined; response: RulePage};
+  'POST /v1/dvr/rules': {access: 'withProfile'; request: RuleSave; response: Rule};
+  'PATCH /v1/dvr/rules/{id}': {access: 'withProfile'; request: RuleSave; response: Rule};
+  'DELETE /v1/dvr/rules/{id}': {access: 'withProfile'; request: undefined; response: undefined};
+  'GET /v1/admin/dvr/tuners': {access: 'owner'; request: undefined; response: Tuners};
+  'GET /v1/live/programmes/{id}': {access: 'withProfile'; request: undefined; response: ProgrammeDetail};
+  'GET /v1/live/reminders': {access: 'withProfile'; request: undefined; response: ReminderOutPage};
+  'PUT /v1/live/reminders/{id}': {access: 'withProfile'; request: undefined; response: undefined};
+  'DELETE /v1/live/reminders/{id}': {access: 'withProfile'; request: undefined; response: undefined};
 }
