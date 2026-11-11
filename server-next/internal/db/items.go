@@ -430,7 +430,9 @@ func total(ctx context.Context, tx *sql.Tx, where *query, acc access) (int, erro
 		err = tx.QueryRowContext(ctx, `SELECT count(*) FROM items i NOT INDEXED WHERE `+where.countWhere(false)+
 			` AND i.id IN (`+acc.blockedIDs(0, "")+`)`, where.args...).Scan(&hidden)
 	}
-	return all - hidden, err
+	// What is hidden is counted within the same list, so it can never be more than the list.
+	// Should the two statements ever disagree, a total is still never less than nothing.
+	return max(all-hidden, 0), err
 }
 
 // listRun reads one run of a page: the rows that have a sort value, or the rows that do not.
@@ -639,7 +641,7 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		// rows at all: item_tags knows each tagged item's library and kind, and what is under
 		// a tagged title is counted from an index.
 		if library != 0 && under != "" && acc.maxAge == nil && q.Parent == "" && q.Person == "" && q.YearFrom == 0 && q.YearTo == 0 &&
-			q.Favorite == nil && q.InList == nil && q.Watched == nil && q.Resolution == "" {
+			q.Favorite == nil && q.InList == nil && q.Watched == nil && q.Resolution == "" && len(q.Conditions) == 0 {
 			w.tagTotal = fmt.Sprintf(`SELECT count(*) FROM (
 				SELECT h.item_id FROM item_tags h WHERE h.tag_id = %[1]d AND h.library_id = %[2]d AND h.kind IN %[3]s
 				UNION SELECT d.id FROM item_tags h CROSS JOIN items d ON d.root_id = h.item_id
@@ -698,7 +700,9 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		w.add(` AND EXISTS (SELECT 1 FROM media m WHERE m.item_id = i.id AND m.width IS NOT NULL AND `, resolutionSQL, ` = `, fmt.Sprint(class), `)`)
 	}
 	if library != 0 && kindList != "" && acc.maxAge == nil && q.Parent == "" && q.Person == "" && q.Tag == "" && q.Genre == "" &&
-		q.YearFrom == 0 && q.YearTo == 0 && q.Favorite == nil && q.InList == nil && q.Watched == nil && q.Resolution == "" {
+		q.YearFrom == 0 && q.YearTo == 0 && q.Favorite == nil && q.InList == nil && q.Watched == nil && q.Resolution == "" &&
+		len(q.Conditions) == 0 {
+		// Any further condition narrows the list, and these shortcuts count the whole of it.
 		w.plainLibrary, w.plainKinds = library, kindList
 	}
 	if found, err := q.conditions(ctx, tx, w, &scoped); err != nil || !found {
