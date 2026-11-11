@@ -33,6 +33,7 @@ package mediaexec
 import (
 	"context"
 	"errors"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -93,7 +94,7 @@ type Job struct {
 	InputMount string
 	// WriteDirs are the job's private output folders.
 	WriteDirs []string
-	// Loopback is the numeric 127.0.0.1:port bridge the process may connect to,
+	// Loopback is the numeric 127.0.0.1:port (or [::1]:port) bridge the process may connect to,
 	// or empty for none. Linux bridge isolation uses decoder's verified helper
 	// (PreConfined). Generic Linux loopback jobs retain host network in optional
 	// mode and are refused when the owner requires the sandbox.
@@ -283,8 +284,8 @@ func validate(job *Job) error {
 }
 
 func loopbackEndpoint(endpoint string) bool {
-	host, port, ok := strings.Cut(endpoint, ":")
-	if !ok || host != "127.0.0.1" || port == "" || len(port) > 5 {
+	host, port, err := net.SplitHostPort(endpoint)
+	if err != nil || host != "127.0.0.1" && host != "::1" || port == "" || len(port) > 5 {
 		return false
 	}
 	for _, c := range port {

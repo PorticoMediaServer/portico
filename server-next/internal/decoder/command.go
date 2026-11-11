@@ -148,7 +148,7 @@ func bridgeEndpoint(input string) (string, error) {
 		return "", ErrInvalidConfiguration
 	}
 	host, port, err := net.SplitHostPort(u.Host)
-	if err != nil || host != "127.0.0.1" {
+	if err != nil || host != "127.0.0.1" && host != "::1" {
 		return "", ErrInvalidConfiguration
 	}
 	n, err := strconv.Atoi(port)

@@ -20,23 +20,32 @@ type EndpointReservation struct {
 }
 
 // ReserveEndpoints holds one loopback port on IPv4 and, where the host has
-// IPv6 loopback, on IPv6 too. ipv6 is nil on a host without it.
+// IPv6 loopback, on IPv6 too. ipv6 is nil on a host without it; ipv4 is nil on a
+// host with IPv6 loopback only, where the tool is told [::1].
 func ReserveEndpoints(ipv4, ipv6 *net.TCPListener) (*EndpointReservation, error) {
-	if ipv4 == nil {
+	if ipv4 == nil && ipv6 == nil {
 		return nil, ErrInvalidConfiguration
 	}
-	a, ok := ipv4.Addr().(*net.TCPAddr)
-	if !ok || !a.IP.Equal(net.IPv4(127, 0, 0, 1)) || a.Zone != "" || a.Port < 1 {
-		return nil, ErrInvalidConfiguration
+	var told *net.TCPAddr
+	listeners := []*net.TCPListener{}
+	if ipv4 != nil {
+		a, ok := ipv4.Addr().(*net.TCPAddr)
+		if !ok || !a.IP.Equal(net.IPv4(127, 0, 0, 1)) || a.Zone != "" || a.Port < 1 {
+			return nil, ErrInvalidConfiguration
+		}
+		told, listeners = a, append(listeners, ipv4)
 	}
-	listeners := []*net.TCPListener{ipv4}
 	if ipv6 != nil {
 		b, ok := ipv6.Addr().(*net.TCPAddr)
-		if !ok || !b.IP.Equal(net.IPv6loopback) || b.IP.To4() != nil || b.Zone != "" || a.Port != b.Port {
+		if !ok || !b.IP.Equal(net.IPv6loopback) || b.IP.To4() != nil || b.Zone != "" || b.Port < 1 || told != nil && told.Port != b.Port {
 			return nil, ErrInvalidConfiguration
+		}
+		if told == nil {
+			told = b
 		}
 		listeners = append(listeners, ipv6)
 	}
+	a := told
 	files := []*os.File{}
 	for _, listener := range listeners {
 		f, err := duplicateEndpoint(listener)
