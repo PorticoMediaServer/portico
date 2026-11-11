@@ -1,4 +1,3 @@
-import {readOwnerDashboardSessions} from '@core/owner-diagnostics-requests.ts';
 import {ownerCertificateRequest} from '@core/owner-requests.ts';
 import type {EventsClient} from '@core/playback-v1/events.ts';
 import type {SessionControls} from '@core/playback-controls.ts';
@@ -6,13 +5,9 @@ import type {HttpLocalApi} from '@core/index.ts';
 import {ConsoleClient, type ConsoleScope} from '@core/console.ts';
 import {DashboardDataClient, dashboardReportQuery, dashboardStatusQuery, type DashboardReport as WireDashboardReport, type DashboardReportFilters, type DashboardPeople, type DashboardStatus} from '@core/admin/dashboard.ts';
 import {parseReportContext, type ReportContext} from '@core/report-context.ts';
-import {parseDashboardSessions} from '@core/admin/activity-summary/parser.ts';
 import type {DashboardSessionsPage} from '@core/admin/activity-summary/types.ts';
-import {parseAdminSession, type AdminSession} from '@core/playback-v1/types.ts';
-import {AdminSessionsClient} from '@core/playback-v1/admin-sessions.ts';
-import {localV1Http} from '@core/playback-v1/local-http.ts';
-import {playbackControlsService} from '@core/playback-controls.ts';
-import {sendSeekTo, sendTransport} from '@core/server-admin/now-playing.ts';
+import type {AdminSession} from '@core/playback-v1/types.ts';
+import {readServerNowPlaying, stopServerStream, type ServerNowPlayingTotals} from '@core/admin/server-now-playing.ts';
 import {fetchPlayHistory, playHistoryFirstPageQuery, type PlayHistoryApi, type PlayHistoryFilters, type PlayHistoryPage} from '@core/play-history.ts';
 import {parseTelemetryReading, type TelemetryReading} from '@core/telemetry.ts';
 import {dependsOn} from '@core/freshness-hub.ts';
@@ -22,11 +17,10 @@ import {retryCertificate, type CertificateAction, type CertificateApi} from '@co
 import type {FactPart} from '@core/presentation/kit-model/index.ts';
 import {settingsServerHeader} from '../settings/server-header';
 import type {ArtworkSource} from '../../kit/artwork/types';
-import {DASHBOARD_SESSION_PAGE_SIZE} from './session-window';
 export type DashboardEvents = Pick<EventsClient, 'on'> & Partial<Pick<EventsClient, 'onResync' | 'onResyncRead' | 'resyncReads'>>;
 export type DashboardAlert = DashboardStatus['alerts'][number];
 export type DashboardSession = AdminSession & Pick<DashboardSessionsPage['items'][number], 'channel' | 'programme'>;
-export type DashboardSessions = Omit<Awaited<ReturnType<AdminSessionsClient['list']>>, 'items'> & {items: readonly DashboardSession[]};
+export type DashboardSessions = Readonly<{items: readonly DashboardSession[]; nextCursor: string; scope: Readonly<{serverId: string; viewerFence: string}>; totals: ServerNowPlayingTotals}>;
 export type DashboardFilters = Omit<PlayHistoryFilters, keyof ReportContext>;
 export type DashboardReportQuery = Omit<DashboardReportFilters, keyof ReportContext>;
 /** The drawn server header line: the same measurements ServerHeader draws, from this server only. */
@@ -42,7 +36,8 @@ export type DashboardBindings = Readonly<{
     sessions: (cursor?: string, signal?: AbortSignal) => Promise<DashboardSessions>;
     /** `fresh` (the default): ask the server; `false`: the viewer's held copy answers while nothing it was built from has moved. */
     status: (signal?: AbortSignal, fresh?: boolean) => Promise<DashboardStatus>;
-    /** Canonical session-specific permission/revision receipt, read only while its menu is open. */
+    /** Canonical session-specific permission/revision receipt, read only while its menu is open. Absent where the
+     * server offers no Move to (the rebuilt server). */
     controls?: (id: string, signal: AbortSignal) => Promise<SessionControls>;
     /** Live desktop load or the phone Health panel's canonical finite windows. */
     telemetry: (range: 'live' | '10m' | '1h' | '24h', signal?: AbortSignal) => Promise<TelemetryReading>;
@@ -53,7 +48,8 @@ export type DashboardBindings = Readonly<{
     server: (signal?: AbortSignal) => Promise<DashboardServerHeader>;
   }>;
   effects: Readonly<{
-    transport: (id: string, command: 'pause' | 'resume') => Promise<void>;
+    /** Pause and Resume of someone's stream; absent where the server offers neither (the rebuilt server). */
+    transport?: (id: string, command: 'pause' | 'resume') => Promise<void>;
     stop: (id: string, message?: string) => Promise<void>;
     /** The original timeline opening owns cancellation through every canonical control read/retry/write. */
     seek?: (id: string, positionMs: number, signal: AbortSignal) => Promise<void>;
@@ -93,12 +89,6 @@ export function createDashboardBindings(options: DashboardBindingOptions): Dashb
       const request = () => options.api.request<T>(path, method, body, readSignal);
       const result = await (options.events?.resyncReads && (!method || method === 'GET') ? options.events.resyncReads.run(readSignal, request) : request()); assert(); return result;} catch (error) {if (error && typeof error === 'object') refused((error as {status?: unknown}).status, (error as {code?: unknown}).code); throw error;}
   }};
-  const http = localV1Http({requestRaw: async (...args: Parameters<HttpLocalApi['requestRaw']>) => {
-    assert(); const [path, method, init] = args;
-    const readSignal = init?.signal ? AbortSignal.any([init.signal, life.signal]) : life.signal;
-    const request = () => options.api.requestRaw(path, method, {...init, signal: readSignal});
-    const result = await (options.events?.resyncReads && method === 'GET' ? options.events.resyncReads.run(readSignal, request) : request()); refused(result.status, (result.body as {error?: {code?: unknown}} | undefined)?.error?.code); assert(); return result;
-  }});
   // The status, the report and the play history's first page are the viewer's shared documents: they are read
   // with the cache's own requester, never this Dashboard's, so closing it never ends a read another view waits on.
   // This Dashboard stops waiting when it closes, and a refusal still ends it (`cached`).
@@ -112,39 +102,21 @@ export function createDashboardBindings(options: DashboardBindingOptions): Dashb
     catch (error) {if (error && typeof error === 'object') refused((error as {status?: unknown}).status, (error as {code?: unknown}).code); throw error;}
   });
   const waiting = (signal?: AbortSignal) => signal ? AbortSignal.any([signal, life.signal]) : life.signal;
-  const data = new DashboardDataClient(api), sessions = new AdminSessionsClient(http), consoleClient = new ConsoleClient(api, options.scope);
-  const controls = playbackControlsService(api.request.bind(api));
+  const data = new DashboardDataClient(api), consoleClient = new ConsoleClient(api, options.scope);
   const certificates: CertificateApi = {requestCertificate: <T>(action: CertificateAction, body: unknown, signal: AbortSignal): Promise<T> => {
     assert();
     return ownerCertificateRequest<T>(options.api, action, body, signal ? AbortSignal.any([signal, life.signal]) : life.signal).then(value => {assert(); return value;});
   }};
-  const operationControls = (signal: AbortSignal) => {
-    const service = playbackControlsService(async <T>(path: string, method?: string, body?: unknown): Promise<T> => {
-      assert(); signal.throwIfAborted();
-      const value = await api.request<T>(path, method, body, signal);
-      assert(); signal.throwIfAborted(); return value;
-    });
-    return {...service, readAdmin: async (id: string) => {
-      const value = await service.readAdmin(id);
-      // A canonical reread may update the revision, never the original target.
-      if (value.sessionId !== id) throw new Error('dashboard_controls_session_mismatch');
-      return value;
-    }};
-  };
-  let observed: string | undefined;
   const ownerRead = async <T>(work: () => Promise<T>) => {assert(true); const value = await work(); assert(true); return value;};
   return {
     scope: {...options.scope}, role: options.role, context, isCurrent: current, isMainProfile: options.isMainProfile, events: options.events, subscribeAuthority: listener => {listeners.add(listener); return () => {listeners.delete(listener);};}, artwork: options.artwork,
     read: {
-      sessions: async (cursor, signal) => {
-        assert(); const query = new URLSearchParams({limit: String(DASHBOARD_SESSION_PAGE_SIZE)}); if (cursor) query.set('cursor', cursor);
-        const raw = parseDashboardSessions((await readOwnerDashboardSessions(http, query, signal)).body); assert();
-        if (raw.scope.serverId !== options.scope.serverId || observed !== undefined && Date.parse(raw.observedAt) < Date.parse(observed)) {close(); throw new DOMException('Dashboard authority changed', 'AbortError');}
-        observed = raw.observedAt;
-        return {items: raw.items.map(item => ({...parseAdminSession(item), channel: item.channel, programme: item.programme})), nextCursor: raw.page.nextCursor ?? '', scope: raw.scope, totals: raw.totals};
+      // The rebuilt server answers every stream in one read, so there is no next page.
+      sessions: async (_cursor, signal) => {
+        assert(); const page = await readServerNowPlaying(api, signal); assert();
+        return {items: page.items, nextCursor: '', scope: {serverId: options.scope.serverId, viewerFence: ''}, totals: page.totals};
       },
       status: (signal, fresh = true) => queries && cachedData ? cached(() => readDocument(queries, dashboardStatusQuery(cachedData), {fresh, signal: waiting(signal)})) : ownerRead(() => data.status(signal)),
-      controls: async (id, signal) => {assert(); signal.throwIfAborted(); const value = await operationControls(signal).readAdmin(id); assert(); signal.throwIfAborted(); return value;},
       telemetry: (range, signal) => ownerRead(async () => {if (signal?.aborted) throw signal.reason; const value = await consoleClient.telemetry(range, context); if (signal?.aborted) throw signal.reason; return value;}),
       report: (filters, signal, fresh = true) => ownerRead(async () => {const wanted = {...filters, ...context}; const value = await (queries && cachedData ? cached(() => readDocument(queries, dashboardReportQuery(cachedData, wanted), {fresh, signal: waiting(signal)})) : data.report(wanted, signal)); return {...value, load: parseTelemetryReading(value.load)};}),
       people: (filters, cursor, signal) => ownerRead(() => data.people({...filters, ...context}, cursor, 100, signal)),
@@ -158,9 +130,7 @@ export function createDashboardBindings(options: DashboardBindingOptions): Dashb
     effects: {...options.effects,
       openHistory: () => {assert(true); options.effects.openHistory(context);},
       openHome: () => {assert(); options.effects.openHome();},
-      transport: async (id, command) => {assert(); await sendTransport(controls, id, command); assert();},
-      seek: async (id, positionMs, signal) => {assert(); signal.throwIfAborted(); await sendSeekTo(operationControls(signal), id, positionMs); assert(); signal.throwIfAborted();},
-      stop: async (id, message) => {assert(true); await sessions.terminate(id, message); assert(true); options.queries?.moved([dependsOn.event('admin.sessions')]);},
+      stop: async (id, message) => {assert(true); await stopServerStream(api, id, message); assert(true); options.queries?.moved([dependsOn.event('admin.sessions')]);},
       retryCertificate: async () => {assert(true); await retryCertificate(certificates, AbortSignal.timeout(15000)); assert(true);},
     },
     dispose: () => {close(); offAuthority?.(); consoleClient.dispose(); listeners.clear();},
