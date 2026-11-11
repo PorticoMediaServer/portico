@@ -67,6 +67,8 @@ type Engine struct {
 	running bool
 	// kept is the file what an ffmpeg can do is kept in between starts.
 	kept string
+	// switching is held for the whole of one change of folder or program.
+	switching sync.Mutex
 	// program is the ffmpeg the server was started with ("" finds it), and the others the
 	// tools found at start: what an owner's own FFmpeg is switched back to.
 	program, startFFmpeg, startFFprobe string
