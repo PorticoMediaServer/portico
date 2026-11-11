@@ -9,6 +9,7 @@ import type {PreferencesReader} from '@core/preferences-reader.ts';
 import {parseDirectSnapshot, type DirectSnapshot} from '@core/profile-management.ts';
 import {parseServerSignIn, type ServerSignIn} from '@core/sign-in.ts';
 import {fetchGuideSourceSummaries, type GuideSourceSummaries} from '@core/guide/directory.ts';
+import {notOnThisServer} from '@core/query/server-api.ts';
 import type {EventsClient} from '@core/playback-v1/events.ts';
 import {routePath} from '../../../packages/contracts/src/routes.ts';
 import type {ShellFacts} from './bootstrap';
@@ -114,7 +115,8 @@ export function createShellFactOwner(o: Readonly<{
   };
   const guide = (context: InterestReadContext) => context.shared('guide', signal =>
     fetchGuideSourceSummaries(o.api, admitted.viewer.serverId, Intl.DateTimeFormat().resolvedOptions().timeZone, signal).catch(error => {
-      if ((error as {status?: unknown} | null)?.status === 403) return undefined;
+      // A server without Live TV has no guide: that is no reason for every page to fail.
+      if ((error as {status?: unknown} | null)?.status === 403 || notOnThisServer(error)) return undefined;
       throw error;
     }));
   const preference = (context: InterestReadContext) => context.shared('preferences:web', signal => o.preferences.observePreferences('web', signal));
