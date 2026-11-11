@@ -155,6 +155,8 @@ type Service struct {
 	streams Streams
 	log     *slog.Logger
 	now     func() time.Time
+	// totals counts the server's lifetime statistics; nil counts nothing. See totals.go.
+	totals Counter
 
 	mu       sync.Mutex
 	sessions map[string]*session
@@ -318,7 +320,11 @@ func (s *Service) setStateLocked(sess *session, state string, now time.Time) {
 func (s *Service) sampleLocked(sess *session, positionMs, playedMs int64, now time.Time) {
 	sess.PositionMs = max(positionMs, 0)
 	// Played time only grows, and never faster than the clock.
+	before := sess.playedMs
 	sess.playedMs = min(max(sess.playedMs, playedMs), now.Sub(sess.StartedAt).Milliseconds())
+	if s.totals != nil && sess.playedMs > before {
+		s.totals.Add("played_ms"+split(&sess.Session), sess.playedMs-before)
+	}
 	sess.sampleAt, sess.dirty = now, true
 }
 
