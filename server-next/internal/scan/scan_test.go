@@ -342,9 +342,21 @@ func TestASplitHoldsThroughRescans(t *testing.T) {
 	heat := f.film("Heat")
 	f.watch(heat.PublicID)
 	version := f.detail(heat.PublicID).Versions[1]
+	locks, err := f.d.MetadataLocks(ctx, heat.PublicID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.d.EditMetadata(ctx, heat.PublicID, locks.Revision, db.MetadataEdit{Labels: &[]string{"Adults"}}); err != nil {
+		t.Fatal(err)
+	}
 	split, err := f.d.SplitVersion(ctx, version.PublicID)
 	if err != nil {
 		t.Fatal(err)
+	}
+	// The owner's label stays on the version split off, so a profile that blocks it does not
+	// see the new title.
+	if doc, err := f.d.MetadataDocument(ctx, split); err != nil || len(doc.Lists["labels"]) != 1 {
+		t.Fatalf("the split title's labels are %v (%v); want the original's", doc.Lists["labels"], err)
 	}
 	f.write("Heat (1995)/Heat (1995) - 4K.en.srt")
 	f.write("Heat (1995)/Heat (1995).fr.srt")
