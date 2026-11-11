@@ -366,18 +366,6 @@ export interface DownloadPage {
 
 export interface DownloadSubtitle extends PlaybackSubtitle {
   url?: string;
-  part?: number;
-}
-
-export interface DownloadSync {
-  holds: HeldTitle[];
-}
-
-export interface DownloadSyncReply {
-  playableUntil: string;
-  playableForMs: number;
-  remove: HeldRemoval[];
-  fetch: HeldTitle[];
 }
 
 export interface DownloadTarget {
@@ -413,12 +401,6 @@ export interface DownloadedItem {
   chapters: PlaybackChapter[];
   markers: PlaybackMarker[];
   lyrics?: Lyrics[];
-}
-
-export interface DownloadsByPerson {
-  items: PersonDownloads[];
-  copiesBytes: number;
-  roomBytes?: number;
 }
 
 export interface DriveSettings {
@@ -566,15 +548,6 @@ export interface HDR {
 
 export interface Health {
   status: string;
-}
-
-export interface HeldRemoval extends HeldTitle {
-  reason: string;
-}
-
-export interface HeldTitle {
-  downloadId: string;
-  itemId: string;
 }
 
 export interface HistoryEntry {
@@ -1039,7 +1012,6 @@ export interface Member extends Account {
   libraries: string[];
   twoFactorEnabled: boolean;
   notes?: string;
-  allowDownloads: boolean;
   lastActiveAt?: string;
   profiles: string[];
   limits: MemberLimits;
@@ -1058,7 +1030,6 @@ export interface MemberEdit {
   notes?: string;
   allLibraries?: boolean;
   libraries?: string[];
-  allowDownloads?: boolean;
   limits?: MemberLimitsEdit;
 }
 
@@ -1204,13 +1175,6 @@ export interface Person {
   birthplace?: string;
   images: Record<string, string>;
   titleCount?: number;
-}
-
-export interface PersonDownloads {
-  userId: string;
-  username: string;
-  titles: number;
-  copiesBytes: number;
 }
 
 export interface Play {
@@ -1918,8 +1882,6 @@ export interface Restrictions {
   libraries: string[];
   accountAllLibraries: boolean;
   accountLibraries: string[];
-  allowDownloads?: boolean;
-  accountAllowDownloads: boolean;
   accountMaxRatingAge?: number | null;
   accountAllowUnrated: boolean;
   accountBlockedLabels: string[];
@@ -2723,8 +2685,5 @@ export interface Routes {
   'PATCH /v1/downloads/{id}': {access: 'withProfile'; request: DownloadChange; response: Download};
   'DELETE /v1/downloads/{id}': {access: 'withProfile'; request: undefined; response: undefined};
   'GET /v1/downloads/{id}/items/{itemId}': {access: 'withProfile'; request: undefined; response: DownloadedItem};
-  'POST /v1/downloads/sync': {access: 'withProfile'; request: DownloadSync; response: DownloadSyncReply};
-  'GET /v1/admin/downloads': {access: 'owner'; request: undefined; response: DownloadsByPerson};
-  'DELETE /v1/admin/members/{id}/downloads': {access: 'owner'; request: undefined; response: undefined};
   'GET /v1/items/{id}/book': {access: 'withProfile'; request: undefined; response: BookAnswer};
 }
