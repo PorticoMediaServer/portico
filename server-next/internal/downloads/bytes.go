@@ -16,6 +16,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediafacts"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
+	"github.com/PorticoMediaServer/portico/server-next/internal/prepare"
 )
 
 // GrantPrefix starts every download address's grant. It holds a character a stream's grant
@@ -267,21 +268,54 @@ func (s *Service) openSubtitle(ctx context.Context, v db.Viewer, dl db.Download,
 			if dl.Quality == Original || title.Prepared == nil || title.Prepared.State != db.PreparedReady {
 				return nil, ErrGone // inside the original file, which the device has
 			}
-			file, err := os.Open(s.Prepare.SubtitleFile(*title.Prepared, place))
-			if err != nil {
-				return nil, ErrGone
-			}
-			info, err := file.Stat()
-			if err != nil {
-				file.Close()
-				return nil, ErrGone
-			}
-			return &File{ReadSeeker: file, Closer: file, Size: info.Size(), Modified: info.ModTime(),
-				ETag: fmt.Sprintf(`"%x-%x"`, info.Size(), info.ModTime().UnixNano()), ContentType: "text/vtt; charset=utf-8",
-				Name: saveName(title.Title, 0, 0, "vtt")}, nil
+			return s.openWritten(*title.Prepared, title.Title, 1, place)
 		}
+		// A subtitle inside a later part of a version in several files: "p<part>-s<place>",
+		// which must name a text subtitle the scanner recorded in that part's file.
+		var part, place int
+		if _, err := fmt.Sscanf(trackID, "p%d-s%d", &part, &place); err != nil || PartSubtitleID(part, place) != trackID ||
+			part < 2 || part > len(version.Parts) || dl.Quality == Original || title.Prepared == nil || title.Prepared.State != db.PreparedReady {
+			return nil, ErrGone
+		}
+		if codec, ok := subtitleAt(version.Parts[part-1], place); !ok || !prepare.TextSubtitle(codec) {
+			return nil, ErrGone
+		}
+		return s.openWritten(*title.Prepared, title.Title, part, place)
 	}
 	return nil, ErrGone
+}
+
+// PartSubtitleID is the track id of the subtitle at place inside a later part's file.
+func PartSubtitleID(part, place int) string { return fmt.Sprintf("p%d-s%d", part, place) }
+
+// subtitleAt is the codec of the subtitle at place among a part's subtitle tracks.
+func subtitleAt(part db.Part, place int) (string, bool) {
+	for _, stream := range part.Streams {
+		if stream.Kind != db.StreamSubtitle {
+			continue
+		}
+		if place == 0 {
+			return stream.Codec, true
+		}
+		place--
+	}
+	return "", false
+}
+
+// openWritten opens a subtitle written out beside a copy.
+func (s *Service) openWritten(p db.Prepared, title string, part, place int) (*File, error) {
+	file, err := os.Open(s.Prepare.SubtitleFile(p, part, place))
+	if err != nil {
+		return nil, ErrGone
+	}
+	info, err := file.Stat()
+	if err != nil {
+		file.Close()
+		return nil, ErrGone
+	}
+	return &File{ReadSeeker: file, Closer: file, Size: info.Size(), Modified: info.ModTime(),
+		ETag: fmt.Sprintf(`"%x-%x"`, info.Size(), info.ModTime().UnixNano()), ContentType: "text/vtt; charset=utf-8",
+		Name: saveName(title, 0, 0, "vtt")}, nil
 }
 
 func extension(name string) string {
