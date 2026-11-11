@@ -59,6 +59,9 @@ type BackupInspection struct {
 	Pictures    int      `json:"pictures"`
 	KeyFiles    []string `json:"keyFiles"`
 	Credentials []string `json:"credentials"`
+	// MadeHere is false for a backup without this server's mark, or changed since it was
+	// made: the page warns, and the restore needs the typed confirmation as well.
+	MadeHere bool `json:"madeHere"`
 	// CreatedAt is when a listed backup was made; everything changed since is undone.
 	CreatedAt *time.Time `json:"createdAt,omitempty"`
 	// Restoring lists what restoring it does, for the page to say before it starts.
@@ -155,7 +158,7 @@ func (s *Server) inspectBackup(r *http.Request, req BackupInspect) (BackupInspec
 	if err != nil {
 		return BackupInspection{}, err
 	}
-	out := BackupInspection{Pictures: contents.Pictures, KeyFiles: contents.KeyFiles, Credentials: contents.Credentials, CreatedAt: made,
+	out := BackupInspection{MadeHere: backup.MadeHere(s.backups.DataDir, archive), Pictures: contents.Pictures, KeyFiles: contents.KeyFiles, Credentials: contents.Credentials, CreatedAt: made,
 		Restoring: []string{"everything_since_undone", "removed_people_return", "server_restarts", "everyone_signs_in_again",
 			"keys_in_backup_work_again"}}
 	if out.KeyFiles == nil {
