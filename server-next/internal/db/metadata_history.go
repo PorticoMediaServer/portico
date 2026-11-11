@@ -1,6 +1,7 @@
 package db
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -171,18 +172,19 @@ func (d *DB) UndoMetadata(ctx context.Context, publicID, entryID string) (int64,
 		if err := json.Unmarshal([]byte(raw), &s); err != nil {
 			return err
 		}
+		// What the entry changed is the difference between the title before it and the title it
+		// left: the next entry's before, or the title as it is now. Only that is put back, so a
+		// later change to anything else, a label added since among them, stays.
+		after, err := afterEntry(b, id, entry)
+		if err != nil {
+			return err
+		}
 		now := time.Now().UnixMilli()
 		if err := remember(b, id, HistoryUndo, now); err != nil {
 			return err
 		}
-		sets, args := "updated_at = ?, revision = revision + 1", []any{now}
-		for _, column := range snapshotColumns {
-			if value, ok := s.Columns[column]; ok {
-				sets += ", " + column + " = ?"
-				args = append(args, value)
-			}
-		}
-		if _, err := b.exec(`UPDATE items SET `+sets+` WHERE id = ?`, append(args, id)...); err != nil {
+		im := &importer{batchTx: b, now: now, tags: map[TagName]int64{}, people: map[string]int64{}}
+		if err := restoreChanged(b, im, library, id, &s, &after, now); err != nil {
 			return err
 		}
 		// What has no rating of its own uses its show's: a show's episodes follow it again, and an
@@ -197,43 +199,142 @@ func (d *DB) UndoMetadata(ctx context.Context, publicID, entryID string) (int64,
 			AND content_rating IS NULL`, id); err != nil {
 			return err
 		}
-		steps := []string{`DELETE FROM item_external_ids WHERE item_id = ?`, `DELETE FROM item_keys WHERE item_id = ? AND kind = ` + strconv.Itoa(int(KeyProvider)),
-			`DELETE FROM item_tags WHERE item_id = ? AND tag_id IN (SELECT id FROM tags WHERE kind IN ('genre', 'studio', 'network', 'country', 'label'))`,
-			`DELETE FROM credits WHERE item_id = ?`, `UPDATE images SET locked = 0 WHERE item_id = ? AND locked = 1`}
-		for _, step := range steps {
+		// The rating may be put back, on the title and on what under it has none of its own:
+		// the copies of it on the tag rows follow, after the tags are written.
+		if err := b.ratingChanged(id); err != nil {
+			return err
+		}
+		if err := b.queryRow(`SELECT revision FROM items WHERE id = ?`, id).Scan(&revision); err != nil {
+			return err
+		}
+		return appendChange(tx, Change{At: now, Topic: TopicItem, Op: OpUpdated, RefID: id, LibraryID: library})
+	})
+	return revision, err
+}
+
+// afterEntry is a title as a History entry left it: the next entry's before, or the title now.
+func afterEntry(b *batchTx, itemID, entry int64) (snapshot, error) {
+	var raw string
+	err := b.queryRow(`SELECT before FROM metadata_history WHERE item_id = ? AND id > ? ORDER BY id LIMIT 1`, itemID, entry).Scan(&raw)
+	if errors.Is(err, sql.ErrNoRows) {
+		return takeSnapshot(b, itemID)
+	}
+	if err != nil {
+		return snapshot{}, err
+	}
+	var s snapshot
+	return s, json.Unmarshal([]byte(raw), &s)
+}
+
+// same reports whether two values of a snapshot are the same.
+func same(a, b any) bool {
+	x, _ := json.Marshal(a)
+	y, _ := json.Marshal(b)
+	return bytes.Equal(x, y)
+}
+
+// restoreChanged puts back on a title what one change made, and nothing else: each column the
+// change altered, each lock and value source it set or cleared, each tag it added or removed,
+// and its ids, credits and chosen pictures if it changed them. before is the title before the
+// change and after the title it left.
+func restoreChanged(b *batchTx, im *importer, library, id int64, before, after *snapshot, now int64) error {
+	var locked, local sql.NullString
+	if err := b.queryRow(`SELECT locked_fields, local_fields FROM items WHERE id = ?`, id).Scan(&locked, &local); err != nil {
+		return err
+	}
+	sets, args := "updated_at = ?, revision = revision + 1", []any{now}
+	for _, column := range snapshotColumns {
+		if column == "locked_fields" || column == "local_fields" || same(before.Columns[column], after.Columns[column]) {
+			continue
+		}
+		sets += ", " + column + " = ?"
+		args = append(args, before.Columns[column])
+	}
+	// Locks and sources field by field: what the change set goes, what it cleared comes back.
+	text := func(v any) sql.NullString { s, ok := v.(string); return sql.NullString{String: s, Valid: ok} }
+	locks, was, left := fieldSet(locked), fieldSet(text(before.Columns["locked_fields"])), fieldSet(text(after.Columns["locked_fields"]))
+	for field := range left {
+		if !was[field] {
+			delete(locks, field)
+		}
+	}
+	for field := range was {
+		if !left[field] {
+			locks[field] = true
+		}
+	}
+	sources, wasFrom, leftFrom := fieldSources(local), fieldSources(text(before.Columns["local_fields"])), fieldSources(text(after.Columns["local_fields"]))
+	for _, from := range []map[string]string{wasFrom, leftFrom} {
+		for field := range from {
+			if wasFrom[field] == leftFrom[field] {
+				continue
+			}
+			if wasFrom[field] == "" {
+				delete(sources, field)
+			} else {
+				sources[field] = wasFrom[field]
+			}
+		}
+	}
+	sets += ", locked_fields = ?, local_fields = ?"
+	args = append(args, fieldList(sortedFields(locks)), sourceJSON(sources))
+	if _, err := b.exec(`UPDATE items SET `+sets+` WHERE id = ?`, append(args, id)...); err != nil {
+		return err
+	}
+	if !same(before.ExternalIDs, after.ExternalIDs) || !same(before.Keys, after.Keys) {
+		for _, step := range []string{`DELETE FROM item_external_ids WHERE item_id = ?`, `DELETE FROM item_keys WHERE item_id = ? AND kind = ` + strconv.Itoa(int(KeyProvider))} {
 			if _, err := b.exec(step, id); err != nil {
 				return err
 			}
 		}
-		for _, ext := range s.ExternalIDs {
+		for _, ext := range before.ExternalIDs {
 			if _, err := b.exec(`INSERT INTO item_external_ids (item_id, provider, external_id) VALUES (?, ?, ?)`, id, ext.Provider, ext.ID); err != nil {
 				return err
 			}
 		}
-		for _, key := range s.Keys {
+		for _, key := range before.Keys {
 			// Another title that has taken the id since keeps it: the server never merges by itself.
 			if _, err := b.exec(`INSERT INTO item_keys (library_id, kind, key, item_id) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING`,
 				library, KeyProvider, key, id); err != nil {
 				return err
 			}
 		}
-		im := &importer{batchTx: b, now: now, tags: map[TagName]int64{}, people: map[string]int64{}}
-		for _, tag := range s.Tags {
-			tagID, err := im.tagID(tag)
-			if err != nil {
-				return err
-			}
-			if err := b.tagItem(id, tagID); err != nil {
+	}
+	// Tags one by one: one the change added goes, one it removed comes back; any other stays.
+	key := func(t TagName) TagName { return TagName{Kind: t.Kind, Name: normTag(t.Name)} }
+	had, has := map[TagName]bool{}, map[TagName]bool{}
+	for _, t := range before.Tags {
+		had[key(t)] = true
+	}
+	for _, t := range after.Tags {
+		has[key(t)] = true
+	}
+	for _, t := range after.Tags {
+		if !had[key(t)] {
+			if _, err := b.exec(`DELETE FROM item_tags WHERE item_id = ? AND tag_id IN (SELECT id FROM tags WHERE kind = ? AND norm_name = ?)`,
+				id, t.Kind, normTag(t.Name)); err != nil {
 				return err
 			}
 		}
-		// The rating may be put back, on the title and on what under it has none of its own:
-		// the copies of it on the tag rows follow, after the tags are written.
-		if err := b.ratingChanged(id); err != nil {
+	}
+	for _, t := range before.Tags {
+		if has[key(t)] {
+			continue
+		}
+		tagID, err := im.tagID(t)
+		if err != nil {
+			return err
+		}
+		if err := b.tagItem(id, tagID); err != nil {
+			return err
+		}
+	}
+	if !same(before.Credits, after.Credits) {
+		if _, err := b.exec(`DELETE FROM credits WHERE item_id = ?`, id); err != nil {
 			return err
 		}
 		position := 0
-		for _, c := range s.Credits {
+		for _, c := range before.Credits {
 			var exists bool
 			if err := b.queryRow(`SELECT EXISTS (SELECT 1 FROM people WHERE id = ?)`, c.Person).Scan(&exists); err != nil {
 				return err
@@ -246,15 +347,28 @@ func (d *DB) UndoMetadata(ctx context.Context, publicID, entryID string) (int64,
 			}
 			position++
 		}
-		for _, picture := range s.Pictures {
-			if _, err := b.exec(`UPDATE images SET locked = 1 WHERE id = ? AND item_id = ?`, picture, id); err != nil {
+	}
+	// Chosen pictures one by one, as locks.
+	wasLocked, leftLocked := map[int64]bool{}, map[int64]bool{}
+	for _, p := range before.Pictures {
+		wasLocked[p] = true
+	}
+	for _, p := range after.Pictures {
+		leftLocked[p] = true
+	}
+	for p := range leftLocked {
+		if !wasLocked[p] {
+			if _, err := b.exec(`UPDATE images SET locked = 0 WHERE id = ? AND item_id = ?`, p, id); err != nil {
 				return err
 			}
 		}
-		if err := b.queryRow(`SELECT revision FROM items WHERE id = ?`, id).Scan(&revision); err != nil {
-			return err
+	}
+	for p := range wasLocked {
+		if !leftLocked[p] {
+			if _, err := b.exec(`UPDATE images SET locked = 1 WHERE id = ? AND item_id = ?`, p, id); err != nil {
+				return err
+			}
 		}
-		return appendChange(tx, Change{At: now, Topic: TopicItem, Op: OpUpdated, RefID: id, LibraryID: library})
-	})
-	return revision, err
+	}
+	return nil
 }
