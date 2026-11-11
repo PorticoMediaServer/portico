@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -78,23 +79,46 @@ func TestAnnotations(t *testing.T) {
 		t.Fatalf("a hidden book's annotations answered %d", w.Code)
 	}
 
-	// Deleting one deletes it everywhere: an older edit that arrives later does not bring it back,
-	// and a deletion that arrives before the annotation it deletes keeps it from appearing.
+	// Deleting one deletes it everywhere: an older edit that arrives later does not bring it back.
 	if w := call(t, b.s, "DELETE", book+"/annotations/h1", owner, nil, nil); w.Code != 204 || len(list(owner)) != 0 {
 		t.Fatalf("deleting answered %d", w.Code)
 	}
 	if code, _ := put(owner, book+"/annotations/h1", older); code != 410 {
 		t.Fatalf("an edit to a deleted highlight answered %d", code)
 	}
-	var results AnnotationResults
+	// Deleting ones the server never had stores nothing, however many are sent, so they cannot
+	// take up a book's room.
 	itemID := b.find(db.KindBook, "Nineteen")
-	call(t, b.s, "POST", "/v1/annotations:batch", owner, map[string]any{"changes": []map[string]any{
-		{"itemId": itemID, "id": "h3", "delete": true},
-		{"itemId": itemID, "id": "h3", "kind": "bookmark", "location": "x", "progress": 0.3, "madeAgoMs": 5000},
-	}}, &results)
-	if len(results.Results) != 2 || results.Results[1].Error == nil || results.Results[1].Error.Code != "annotation_deleted" || len(list(owner)) != 0 {
-		t.Fatalf("a deletion sent before its annotation: %+v", results)
+	var results AnnotationResults
+	var deletions []map[string]any
+	for n := range maxAnnotationBatch {
+		deletions = append(deletions, map[string]any{"itemId": itemID, "id": fmt.Sprint("never-", n), "delete": true})
 	}
+	if w := call(t, b.s, "POST", "/v1/annotations:batch", owner, map[string]any{"changes": deletions}, &results); w.Code != 200 || results.Results[0].Error != nil {
+		t.Fatalf("deleting unknown annotations answered %d", w.Code)
+	}
+
+	// The largest annotation fits one request, and a full batch of ordinary highlights fits another.
+	big := map[string]any{"kind": "highlight", "color": "pink", "location": strings.Repeat("l", 4000), "progress": 0.9,
+		"text": strings.Repeat("漢", 8000), "note": strings.Repeat("字", 4000)}
+	if code, a := put(owner, book+"/annotations/big", big); code != 200 || a.Text != big["text"] {
+		t.Fatalf("the largest highlight answered %d", code)
+	}
+	var full []map[string]any
+	for n := range maxAnnotationBatch {
+		full = append(full, map[string]any{"itemId": itemID, "id": fmt.Sprint("h-", n), "kind": "highlight", "color": "blue",
+			"location": "epubcfi(/6/4!/4/2,/1:0,/1:400)", "progress": 0.5, "text": strings.Repeat("words ", 200)})
+	}
+	if w := call(t, b.s, "POST", "/v1/annotations:batch", owner, map[string]any{"changes": full}, &results); w.Code != 200 || results.Results[499].Error != nil {
+		t.Fatalf("a full batch of highlights answered %d: %s", w.Code, w.Body)
+	}
+	// Room for the 5,000 below.
+	deletions = []map[string]any{{"itemId": itemID, "id": "big", "delete": true}}
+	for _, r := range full[:maxAnnotationBatch-1] {
+		deletions = append(deletions, map[string]any{"itemId": itemID, "id": r["id"], "delete": true})
+	}
+	call(t, b.s, "POST", "/v1/annotations:batch", owner, map[string]any{"changes": deletions}, nil)
+	call(t, b.s, "DELETE", book+"/annotations/h-499", owner, nil, nil)
 
 	// A book holds 5,000 for one profile; the next is refused, and the list comes a page at a time.
 	for start := 0; start < db.MaxAnnotations; start += maxAnnotationBatch {
