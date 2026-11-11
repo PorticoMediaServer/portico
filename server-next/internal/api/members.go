@@ -213,7 +213,8 @@ func (s *Server) editMember(r *http.Request, req MemberEdit) (Member, error) {
 		hours = &stored
 	}
 	m, err := s.db.UpdateMember(r.Context(), db.MemberEdit{ActorID: caller.UserID, ActorRole: caller.Role, PublicID: r.PathValue("id"),
-		Role: req.Role, Disabled: req.Disabled, Notes: req.Notes, AllLibraries: req.AllLibraries, Libraries: req.Libraries, ViewingHours: hours, HomeOnly: req.HomeOnly, MaxProfiles: req.MaxProfiles, Now: s.now()})
+		Role: req.Role, Disabled: req.Disabled, Notes: req.Notes, AllLibraries: req.AllLibraries, Libraries: req.Libraries,
+		ViewingHours: hours, HomeOnly: req.HomeOnly, MaxProfiles: req.MaxProfiles, Now: s.now()})
 	return memberOut(m), memberError(err)
 }
 
