@@ -320,12 +320,12 @@ func (s *Service) Rematch(ctx context.Context, itemID string) (bool, error) {
 	return true, s.children(ctx, p, locale, t.ID, record.Ref)
 }
 
-// searchName is what a title is looked up by: the name and year its files give, read again
-// from its first file with the scanner's own naming, never the title shown, which after a
-// lookup that did not match may be one written inside the file. A title with no file is
-// looked up by the title it has.
+// searchName is what a title is looked up by: the title it has, or, when that is the title
+// written inside its file (shown after a lookup that did not match), the name and year its
+// file's name gives, read again with the scanner's own naming. A title an NFO file, a person
+// or a provider gave is looked up as it is, however badly its file is named.
 func (s *Service) searchName(ctx context.Context, libraryKind string, item db.MatchItem) (string, int, error) {
-	rel, err := s.DB.TitleFile(ctx, item.ID)
+	rel, err := s.DB.EmbeddedTitleFile(ctx, item.ID)
 	if errors.Is(err, db.ErrNotFound) {
 		return item.Title, item.Year, nil
 	}
