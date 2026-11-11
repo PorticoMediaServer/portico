@@ -12,17 +12,30 @@ export function registerInPageNavigation(navigate: InPageNavigate): () => void {
   return () => {if (registered === navigate) registered = undefined;};
 }
 export function inPageNavigationAvailable(): boolean {return registered !== undefined;}
+/** The path `to` names on this address, read the way the browser will read it, or undefined
+ * when it names another site. A browser takes `\` as `/` and drops tabs and line breaks, so
+ * `/\evil.example` and `/\t/evil.example` are another site; `/.//evil.example` resolves to the
+ * path `//evil.example`, which would be another site once handed back to the browser. */
+export function pathOnThisAddress(to: string, origin = location.origin): string | undefined {
+  if (!to.startsWith('/')) return undefined;
+  let url: URL;
+  try {url = new URL(to, origin);} catch {return undefined;}
+  const path = url.pathname + url.search + url.hash;
+  return url.origin === origin && !path.startsWith('//') ? path : undefined;
+}
 /** `to` is a path on this origin, such as `/account?tab=security` or `/welcome#join`. */
 export function goTo(to: string, options: Readonly<{replace?: boolean}> = {}): void {
-  if (!to.startsWith('/') || to.startsWith('//')) throw new Error('Only a path on this address can be opened in place.');
-  if (registered) {registered(to, options.replace === true); return;}
-  if (options.replace) location.replace(to); else location.assign(to);
+  const path = pathOnThisAddress(to);
+  if (path === undefined) throw new Error('Only a path on this address can be opened in place.');
+  if (registered) {registered(path, options.replace === true); return;}
+  if (options.replace) location.replace(path); else location.assign(path);
 }
 /** For an `<a href>` inside the app: open a same-origin path in place, leaving modified clicks
  * (new tab, new window) and other origins to the browser. */
 export function inPageClick(event: Pick<MouseEvent, 'defaultPrevented' | 'button' | 'metaKey' | 'ctrlKey' | 'shiftKey' | 'altKey' | 'preventDefault'>, href: string): void {
   if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || !registered) return;
-  if (!href.startsWith('/') || href.startsWith('//')) return;
+  const path = pathOnThisAddress(href);
+  if (path === undefined) return;
   event.preventDefault();
-  goTo(href);
+  goTo(path);
 }
