@@ -19,6 +19,7 @@ const fakeToken = "tok-" + "4f1c9e"
 // TestMain lets the test binary stand in for rclone: "serve webdav portico:<root>" serves
 // a few files over WebDAV the way rclone would, with what a hostile listing could hold.
 func TestMain(m *testing.M) {
+	fakeRcloneTools(os.Args[1:])
 	if len(os.Args) > 2 && os.Args[1] == "serve" && os.Args[2] == "webdav" {
 		os.Exit(fakeRclone(os.Args[1:]))
 	}
