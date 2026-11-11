@@ -172,12 +172,17 @@ func (s *Server) catalogueRoutes() {
 		if err != nil {
 			return Home{}, err
 		}
+		reading, err := s.db.ContinueReading(r.Context(), viewer(r))
+		if err != nil {
+			return Home{}, err
+		}
 		recent, err := s.db.RecentlyAdded(r.Context(), viewer(r))
 		if err != nil {
 			return Home{}, err
 		}
 		rows, err := s.homeLayout(r.Context(), viewer(r).ProfileID, []HomeRow{
 			{ID: "continue", Title: "Continue Watching", Shape: "landscape", Items: itemShapes(continuing)},
+			{ID: "continue_reading", Title: "Continue your books", Shape: "poster", Items: itemShapes(reading)},
 			{ID: "recently_added", Title: "Recently Added", Shape: "poster", Items: itemShapes(recent)},
 		}, withHidden)
 		// A row with nothing in it is left out, so an app never draws an empty shelf. A hidden
