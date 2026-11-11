@@ -3,17 +3,15 @@ import {routePath} from "../../contracts/src/route-paths.ts";
  * Recommendation feedback (Recommendations plan P5): "Not interested" on a recommendation card and
  * "Reset recommendations" in Privacy.
  *
- * Not interested is a personal-state field on the personal batch route
- * (`PUT /v1/items/personal-state:batch {items: [{itemId, notInterested}]}`): the title leaves every
- * recommendation and similar titles rank a little lower. `false` undoes it. It is a statement about
- * a title, so a show, album or book card sends its own id (the one row kind the batch accepts for a
- * container); a film or an episode sends the item's.
+ * Not interested is a field of the title's own state (`PUT /v1/items/{id}/state {notInterested}`): the
+ * title leaves every recommendation row. `false` undoes it. It is a statement about a title, so a show,
+ * album or book card sends its own id; a film or an episode sends the item's.
  *
  * Reset recommendations (`POST /v1/me/recommendations:reset`) forgets the profile's learned taste
  * and every Not interested mark; history, ratings and lists stay. The operation ID is the
  * idempotency key: a retry with the same ID returns the first receipt and resets nothing further.
  */
-import {PERSONAL_BATCH_PATH, parsePersonalBatchReceipt, personalBatchBody} from './personal-saved.ts';
+import {setItemState} from './items.ts';
 import {unreadableServerResponse} from './server-messages.ts';
 
 type Api = {request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>};
@@ -41,22 +39,18 @@ export function isRecommendationRow(row: {id: string; kind?: string}): boolean {
 export type NotInterestedInput = Readonly<{
   itemId: string;
   notInterested: boolean;
-  /** The signed-in server's id: the receipt must come from it. */
-  serverId: string;
-  /** A new operation ID per request (`^[A-Za-z0-9_-]{1,128}$`; a UUID fits). */
-  operationId: string;
+  /** Kept for callers from the old server: the rebuilt server answers with the title's state, not a receipt. */
+  serverId?: string;
+  operationId?: string;
   signal?: AbortSignal;
 }>;
 
-/** Marks (or unmarks) one title Not interested. Rejects with the row's error code when refused. */
+/** Marks (or unmarks) one title Not interested (`PUT /v1/items/{id}/state {notInterested}`). The revision is always 1:
+ * the later edit wins. A refusal keeps the server's code. */
 export async function setNotInterested(api: Api, input: NotInterestedInput): Promise<{revision: number}> {
   if (!input.itemId) throw new Error('A title is required.');
-  const body = personalBatchBody(input.operationId, [{itemId: input.itemId, notInterested: input.notInterested}]);
-  const receipt = parsePersonalBatchReceipt(await api.request<unknown>(PERSONAL_BATCH_PATH, 'PUT', body, input.signal), input.serverId, [input.itemId]);
-  const row = receipt.results[0]!;
-  if (!row.ok) throw Object.assign(new Error(row.message || 'The change was not accepted.'), {code: row.code});
-  const revision = (row.personal as {revision?: unknown} | null)?.revision;
-  return {revision: typeof revision === 'number' && Number.isSafeInteger(revision) && revision >= 0 ? revision : 0};
+  await setItemState(api, input.itemId, {notInterested: input.notInterested}, input.signal);
+  return {revision: 1};
 }
 
 export type RecommendationsResetReceipt = Readonly<{operationId: string; clearedNotInterested: number}>;
