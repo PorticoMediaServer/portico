@@ -201,11 +201,14 @@ func (m *Mapper) round(ctx context.Context) time.Duration {
 	return max(got.lifetime/2, time.Minute)
 }
 
+// setStatus records the router's answer, and a mapping it newly agreed to. What the router
+// holds is forgotten only by remove: a failed re-ask leaves the mapping it may still hold to be
+// renewed or removed.
 func (m *Mapper) setStatus(st Status, held *mapping) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.status = st
-	if held != nil || st.State != "open" {
+	if held != nil {
 		m.held = held
 	}
 }
@@ -220,7 +223,14 @@ func (m *Mapper) ask(ctx context.Context, internal, external int, life time.Dura
 		return mapping{}, errNoRouter
 	}
 	pmp := netip.AddrPortFrom(r.Gateway, uint16(r.PMPPort))
-	got, err := pcp(ctx, pmp, internal, external, life)
+	// A renewal of the mapping held carries its nonce.
+	var nonce []byte
+	m.mu.Lock()
+	if m.held != nil && m.held.protocol == "PCP" && m.held.internal == internal && m.held.asked == external {
+		nonce = m.held.nonce
+	}
+	m.mu.Unlock()
+	got, err := pcp(ctx, pmp, internal, external, life, nonce)
 	if errors.Is(err, errUnsupported) {
 		got, err = natPMP(ctx, pmp, internal, external, life)
 	}
@@ -251,7 +261,7 @@ func (m *Mapper) remove(ctx context.Context) {
 	var err error
 	switch held.protocol {
 	case "PCP":
-		_, err = pcp(ctx, pmp, held.internal, held.externalPort, 0)
+		_, err = pcp(ctx, pmp, held.internal, held.externalPort, 0, held.nonce)
 	case "NAT-PMP":
 		_, err = natPMP(ctx, pmp, held.internal, 0, 0)
 	case "UPnP":
