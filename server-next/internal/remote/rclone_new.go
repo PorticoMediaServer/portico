@@ -39,7 +39,11 @@ func NewRcloneRemote(ctx context.Context, kind string, options map[string]string
 	}
 	clean := map[string]string{}
 	for key, value := range options {
-		key, value = strings.ToLower(strings.TrimSpace(key)), strings.TrimSpace(value)
+		key = strings.ToLower(strings.TrimSpace(key))
+		if !passwords[key] {
+			// A password is kept as typed, spaces and all.
+			value = strings.TrimSpace(value)
+		}
 		if key == "token" {
 			value = pastedToken(value)
 		}

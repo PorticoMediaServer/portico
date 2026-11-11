@@ -36,13 +36,13 @@ func authorized(token string) string {
 }
 
 // A new rclone remote is written from its type and options as a pasted one would be: typed
-// passwords obscured as rclone keeps them, the token rclone authorize printed taken out of the
+// passwords obscured as rclone keeps them, exactly as typed, the token rclone authorize printed taken out of the
 // text around it, and a OneDrive remote's drive asked of Microsoft with the token (only when
 // no drive is given). What a pasted remote may not do, a new one may not either, and no
 // refusal repeats a value.
 func TestNewRcloneRemote(t *testing.T) {
 	fakeRcloneBinary(t)
-	password := "pw-" + "7c2e"
+	password := " pw-" + "7c2e " // spaces at either end are part of it
 	text, err := remote.NewRcloneRemote(ctx, "SFTP", map[string]string{"host": "nas.example", "user": "me", "pass": password, "key_file_pass": ""})
 	if err != nil {
 		t.Fatal(err)
