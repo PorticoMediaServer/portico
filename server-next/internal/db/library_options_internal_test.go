@@ -46,8 +46,13 @@ func TestSavingOptionsKeepsOtherAreasKeys(t *testing.T) {
 	check := func(when string, wantTrash string) {
 		t.Helper()
 		doc := document()
-		if doc["region"] != "CA" || doc["groupSeries"] != true || len(doc["removedCollections"].([]any)) != 1 {
+		if doc["region"] != "CA" || len(doc["removedCollections"].([]any)) != 1 {
 			t.Fatalf("%s: another area's keys were lost: %v", when, doc)
+		}
+		// Group films from the same series is one of these choices now: left out, it is on, the
+		// default, and taken out of the document.
+		if _, still := doc["groupSeries"]; still {
+			t.Fatalf("%s: grouping left at its default is still stored: %v", when, doc)
 		}
 		if _, still := doc["allowDelete"]; still || doc["depth"] != DepthFiles || doc["trash"].(map[string]any)["mode"] != wantTrash {
 			t.Fatalf("%s: the owner's choices were not saved as given: %v", when, doc)
