@@ -6,6 +6,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/console"
 	"github.com/PorticoMediaServer/portico/server-next/internal/settings"
+	"github.com/PorticoMediaServer/portico/server-next/internal/updates"
 )
 
 // consoleArea is what the owner console (area 12) keeps on the server: the owner's settings
@@ -16,6 +17,8 @@ type consoleArea struct {
 	settings *settings.Settings
 	// totals counts the server's lifetime statistics. See statistics.go.
 	totals *console.Totals
+	// updates looks for a newer version. See updates.go.
+	updates *updates.Checker
 }
 
 // Totals are the server's lifetime statistics: the server runs them, and flushes them as it stops.
@@ -37,5 +40,10 @@ func (s *Server) startConsole(ctx context.Context) error {
 	s.totals = &console.Totals{DB: s.db, Log: s.log, Now: func() time.Time { return s.now() }}
 	s.playback.CountInto(s.totals)
 	s.statisticsRoutes()
+	s.updates = &updates.Checker{Settings: s.settings, Version: s.version, Now: func() time.Time { return s.now() }}
+	// Once a day, whether a newer version is out. Nothing is installed.
+	go s.updates.Run(ctx)
+	s.updateRoutes()
+	s.storageRoutes(s.dataDir)
 	return nil
 }
