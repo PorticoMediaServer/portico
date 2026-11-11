@@ -97,3 +97,22 @@ func TestAssistant(t *testing.T) {
 		t.Errorf("with Assistants turned off the address answered %d, want 404", code)
 	}
 }
+
+// An assistant whose key acts as a limited profile is told the account has a stream, not the
+// title that profile may not see; and a tool call the server did not carry out is reported as
+// failed, never as done.
+func TestAssistantSeesOnlyWhatItsProfileMay(t *testing.T) {
+	th := newTheatre(t)
+	on := true
+	status(t, th.s, "PUT", "/v1/admin/settings/integrations", th.owner.AccessToken, IntegrationSettingsEdit{Assistants: &on})
+	key := kidsKey(t, th)
+	text, failed := toolCall(t, th.s, key, "now_playing", nil)
+	if failed || !strings.Contains(text, "playing") || strings.Contains(text, "Heat") || strings.Contains(text, th.film) {
+		t.Errorf("a limited profile's assistant was told %s", text)
+	}
+	var player KeyCreated
+	call(t, th.s, "POST", "/v1/me/tokens", th.owner.AccessToken, KeyCreate{Name: "Mark", Scopes: []string{"read", "playback"}}, &player)
+	if text, failed := toolCall(t, th.s, player.Secret, "mark_watched", map[string]any{"id": "..", "watched": true}); !failed {
+		t.Errorf("a call the router redirected was reported as done: %s", text)
+	}
+}

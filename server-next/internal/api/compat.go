@@ -235,7 +235,12 @@ func (s *Server) callAsWith(r *http.Request, c Caller, method, path string, quer
 	}
 	rec := httptest.NewRecorder()
 	s.mux.ServeHTTP(rec, req)
-	if rec.Code >= 400 {
+	// Only a 2xx means it was done. The router redirects an address it cleans up (an id of
+	// "..", say) without doing anything, so a redirect is not found, never success.
+	if rec.Code >= 300 && rec.Code < 400 {
+		return ErrNotFound()
+	}
+	if rec.Code < 200 || rec.Code >= 400 {
 		var refused errorBody
 		if json.Unmarshal(rec.Body.Bytes(), &refused) == nil && refused.Error.Code != "" {
 			refused.Error.Status = rec.Code
