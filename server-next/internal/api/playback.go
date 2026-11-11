@@ -47,9 +47,9 @@ func (s *Server) playbackRoutes() {
 		route.Scope = ScopeSession
 	}
 	Handle(s, "GET /v1/admin/playback/stream-limits", Owner, s.getStreamLimits)
-	Handle(s, "PUT /v1/admin/playback/stream-limits", Owner, s.putStreamLimits)
+	sensitive(Handle(s, "PUT /v1/admin/playback/stream-limits", Owner, s.putStreamLimits))
 	Handle(s, "GET /v1/admin/playback/failures", Owner, s.listPlaybackFailures)
-	Handle(s, "DELETE /v1/admin/playback/failures/{id}", Owner, s.forgetPlaybackFailure)
+	sensitive(Handle(s, "DELETE /v1/admin/playback/failures/{id}", Owner, s.forgetPlaybackFailure))
 }
 
 // The refusals of playback. Each says what happened in plain words and whether trying again
