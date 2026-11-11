@@ -123,8 +123,10 @@ jobs:
           Closed "$env:DATA\setup-code.txt"
           if (-not (Get-Content "$env:DATA\setup-code.txt")) { throw "the setup code is empty" }
           # A service has no standard error: the log file is the only place it can say anything.
-          if (-not (Get-ChildItem "$env:DATA\logs" -File | Where-Object Length -gt 0)) { throw "no log file is being written" }
-          Closed (Get-ChildItem "$env:DATA\logs" -File | Select-Object -First 1).FullName
+          # Read the file: while the server holds it open, Windows lists its size as 0.
+          $log = Get-ChildItem "$env:DATA\logs" -File -Filter *.log | Where-Object { Get-Content -Raw -LiteralPath $_.FullName } | Select-Object -First 1
+          if (-not $log) { throw "no log file is being written" }
+          Closed $log.FullName
       - name: A worker that ends unasked, with exit status 0, is started again
         shell: pwsh
         run: |
