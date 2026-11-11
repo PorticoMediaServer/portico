@@ -63,14 +63,11 @@ func (s *Service) Tune(ctx context.Context, v db.Viewer, channelID string) (Tune
 		if err != nil {
 			return Tuned{}, err
 		}
-		if !seen[r.ItemID] {
+		public, ok := seen[r.ItemID]
+		if !ok {
 			break // above the profile's limits: the slate plays
 		}
-		titles, err := s.db.ProgrammeTitles(ctx, []int64{r.ItemID})
-		if err != nil {
-			return Tuned{}, err
-		}
-		return Tuned{ItemID: titles[r.ItemID].PublicID, Offset: now.Sub(r.StartsAt), StartsAt: r.StartsAt, EndsAt: r.EndsAt, Quality: b.Quality}, nil
+		return Tuned{ItemID: public, Offset: now.Sub(r.StartsAt), StartsAt: r.StartsAt, EndsAt: r.EndsAt, Quality: b.Quality}, nil
 	}
 	return Tuned{}, slate
 }
