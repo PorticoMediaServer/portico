@@ -506,6 +506,17 @@ export interface FolderUsage {
   bytes: number;
 }
 
+export interface GenreEntry {
+  value: string;
+  label: string;
+  cover?: Record<string, string>;
+  count?: number;
+}
+
+export interface GenreList {
+  genres: GenreEntry[];
+}
+
 export interface GroupAction {
   action: string;
   positionMs?: number;
@@ -2530,6 +2541,7 @@ export interface Routes {
   'GET /v1/admin/api-keys': {access: 'owner'; request: undefined; response: KeyPage};
   'POST /v1/admin/api-keys': {access: 'owner'; request: KeyCreate; response: KeyCreated};
   'DELETE /v1/admin/api-keys/{id}': {access: 'owner'; request: undefined; response: undefined};
+  'GET /v1/genres': {access: 'withProfile'; request: undefined; response: GenreList};
   'GET /v1/search': {access: 'withProfile'; request: undefined; response: SearchResults};
   'GET /v1/search/suggestions': {access: 'withProfile'; request: undefined; response: SearchSuggestions};
   'GET /v1/search/history': {access: 'withProfile'; request: undefined; response: SearchHistory};

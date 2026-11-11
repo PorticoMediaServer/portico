@@ -1711,6 +1711,44 @@
         ],
         "type": "object"
       },
+      "GenreEntry": {
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "cover": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "label"
+        ],
+        "type": "object"
+      },
+      "GenreList": {
+        "properties": {
+          "genres": {
+            "items": {
+              "$ref": "#/components/schemas/GenreEntry"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "genres"
+        ],
+        "type": "object"
+      },
       "GroupAction": {
         "properties": {
           "action": {
@@ -11912,6 +11950,33 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Facets"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/genres": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenreList"
                 }
               }
             },
