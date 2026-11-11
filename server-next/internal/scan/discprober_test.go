@@ -55,6 +55,9 @@ func TestADiscIsItsMainFeature(t *testing.T) {
 func TestTheDiscReaderReadsTheFixtureDiscs(t *testing.T) {
 	reader := mediatools.Resolve("portico-disc")
 	if _, err := exec.LookPath(reader); err != nil {
+		if os.Getenv("PORTICO_REQUIRE_DISC_READER") == "1" {
+			t.Fatalf("the disc reader (portico-disc) must be installed here: %v", err)
+		}
 		t.Skip("the disc reader (portico-disc) is not installed here, so reading a real disc folder is not shown by this run")
 	}
 	for folder, kind := range map[string]string{"bluray-two-clip-bdmv/BDMV/index.bdmv": "bluray", "dvd-two-title-video-ts/VIDEO_TS/VIDEO_TS.IFO": "dvd"} {
@@ -63,7 +66,7 @@ func TestTheDiscReaderReadsTheFixtureDiscs(t *testing.T) {
 			t.Fatal(err)
 		}
 		if _, err := os.Stat(file); err != nil {
-			t.Skipf("the disc fixture is not in this checkout: %v", err)
+			t.Fatalf("the disc fixture is not in this checkout: %v", err)
 		}
 		facts, err := FileProber{}.Probe(context.Background(), file)
 		if err != nil || facts.Container != kind || facts.DurationMS < 60_000 || len(facts.Streams) == 0 {

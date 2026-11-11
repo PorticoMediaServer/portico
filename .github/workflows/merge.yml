@@ -162,7 +162,8 @@ jobs:
         run: |
           mkdir -p "$APT_CACHE/partial"
           install() {
-            sudo apt-get install -y --no-install-recommends -o Dir::Cache::archives="$APT_CACHE" ffmpeg bubblewrap
+            sudo apt-get install -y --no-install-recommends -o Dir::Cache::archives="$APT_CACHE" ffmpeg bubblewrap \
+              libbluray-dev libudfread-dev libdvdnav-dev libdvdread-dev
           }
           install || { sudo apt-get update && install; }
           sudo chown -R "$(id -u):$(id -g)" "$APT_CACHE"
@@ -172,9 +173,22 @@ jobs:
           done
           bwrap --unshare-all --die-with-parent --ro-bind / / --proc /proc --dev /dev --cap-drop ALL /bin/true
           ffmpeg -version | head -n 1
+      - name: Build the disc reader the scanner reads disc folders with
+        # The same compiler flags as scripts/build-portico-disc.py, against the system's libraries.
+        # It takes about a second, so it is not cached.
+        working-directory: third_party/portico-disc
+        run: |
+          modules="libbluray dvdnav dvdread libudfread"
+          cc -std=c11 -O2 -Wall -Wextra -Werror -D_FILE_OFFSET_BITS=64 $(pkg-config --cflags $modules) portico-disc.c \
+            -o "$RUNNER_TEMP/portico-disc" $(pkg-config --libs $modules)
+          sudo install -m 0755 "$RUNNER_TEMP/portico-disc" /usr/local/bin/portico-disc
       - run: go build ./...
       - run: go vet ./...
       - run: go test ./...
+      - name: Read the fixture discs with the disc reader (it must run here, not skip)
+        env:
+          PORTICO_REQUIRE_DISC_READER: '1'
+        run: go test ./internal/scan -run 'TestTheDiscReaderReadsTheFixtureDiscs' -count=1 -v
   go_build:
     needs: planner
     if: needs.planner.outputs.go == 'true'
