@@ -83,7 +83,11 @@ func (s *Service) Run(ctx context.Context) {
 		case <-changed:
 			timer.Stop()
 			s.readNewest() // the backup folder may have changed
-			wait = -1
+			// The retries under way were for the old settings; the next due backup has its own.
+			retryUntil, wait = time.Time{}, -1
+			if len(Document.Get(s.Settings).Days) == 0 {
+				s.forgetFailure()
+			}
 			continue
 		case <-timer.C:
 		}
@@ -107,11 +111,16 @@ func (s *Service) Run(ctx context.Context) {
 			}
 		}
 		if s.LastError() != nil {
+			// The owner is told once backups have failed for 4 hours: tonight's retries are
+			// used up, or they were already failing that long ago, before a restart.
+			since := s.failingSince()
+			if !s.Now().Before(retryUntil) || (!since.IsZero() && !s.Now().Before(since.Add(retryFor))) {
+				s.GiveUp()
+			}
 			if s.Now().Before(retryUntil) {
 				wait = retryEvery
 				continue
 			}
-			s.GiveUp()
 		}
 		retryUntil, wait = time.Time{}, -1
 	}

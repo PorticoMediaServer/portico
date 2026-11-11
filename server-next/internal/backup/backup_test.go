@@ -620,3 +620,160 @@ func TestAFailedScheduledBackupIsRetriedForFourHoursBeforeTheOwnerIsTold(t *test
 	until("no scheduled backup could be started", func() bool { _, err := s.Start(true); return err == nil })
 	until("the alert stayed after a scheduled backup succeeded", func() bool { return s.Running() == nil && s.Failed() == nil })
 }
+
+// The 4 hours before the owner is told are counted from the first failure and survive a
+// restart: a computer that is switched off every evening still tells its owner that the
+// nightly backup keeps failing. Choosing Never ends the alert, since no scheduled backup
+// can then succeed to end it.
+func TestTheFourHoursBeforeTheBackupAlertSurviveARestart(t *testing.T) {
+	ctx := context.Background()
+	s := newService(t)
+	drive := filepath.Join(t.TempDir(), "drive") // not mounted
+	if _, err := s.Settings.Write(ctx, 0, "backups", json.RawMessage(`{"folder":`+strconvQuote(drive)+`}`), -1, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	setUp := time.Date(2026, 11, 10, 12, 0, 0, 0, time.Local)
+	if _, err := s.DB.CreateOwner(ctx, db.NewOwner{Username: "owner", PasswordHash: "x", ProfileName: "Owner", Now: setUp,
+		Session: db.NewSession{ID: db.NewSessionID(), RefreshHash: "r", ExpiresAt: setUp.Add(24 * time.Hour),
+			Device: db.DeviceInfo{InstallationID: "test", Name: "Test", Platform: "web", App: "web", AppVersion: "1"}}}); err != nil {
+		t.Fatal(err)
+	}
+	var clock atomic.Int64
+	clock.Store(time.Date(2026, 11, 11, 3, 10, 0, 0, time.Local).UnixNano())
+	s.Now = func() time.Time { return time.Unix(0, clock.Load()) }
+	savedAfter, savedEvery := missedAfter, retryEvery
+	missedAfter, retryEvery = 0, time.Hour // one try for each start
+	defer func() { missedAfter, retryEvery = savedAfter, savedEvery }()
+	until := func(what string, ok func() bool) {
+		t.Helper()
+		for began := time.Now(); !ok(); time.Sleep(10 * time.Millisecond) {
+			if time.Since(began) > 10*time.Second {
+				t.Fatal(what)
+			}
+		}
+	}
+	run := func(s *Service) (stop func()) {
+		running, end := context.WithCancel(ctx)
+		ended := make(chan struct{})
+		go func() { s.Run(running); close(ended) }()
+		return func() { end(); <-ended; s.Wait() }
+	}
+
+	// The first night: the backup fails, and the computer is switched off before 4 hours pass.
+	stop := run(s)
+	until("no backup was tried", func() bool { return s.LastError() != nil && s.Running() == nil })
+	if s.Failed() != nil {
+		t.Fatal("the owner was told at the first failure")
+	}
+	stop()
+
+	// Switched on again five hours later: the first failed try tells the owner.
+	clock.Add(int64(5 * time.Hour))
+	again := &Service{DB: s.DB, Settings: s.Settings, DataDir: s.DataDir, Version: "test", Log: s.Log, Now: s.Now}
+	if again.Failed() != nil {
+		t.Fatal("the owner was told before any backup was tried after the start")
+	}
+	stop = run(again)
+	defer stop()
+	until("backups have failed for more than 4 hours across a restart and the owner was not told", func() bool { return again.Failed() != nil })
+
+	if _, err := s.Settings.Write(ctx, 0, "backups", json.RawMessage(`{"folder":`+strconvQuote(drive)+`,"days":[]}`), -1, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	until("the alert stayed up after the owner chose Never", func() bool { return again.Failed() == nil })
+	if !again.failingSince().IsZero() {
+		t.Error("after Never the time backups began to fail is still kept")
+	}
+}
+
+// The owner who mounts the drive and backs up by hand has a backup: that ends the alert and
+// the count towards it, though it was a scheduled backup that failed.
+func TestABackupMadeByHandEndsTheBackupAlert(t *testing.T) {
+	ctx := context.Background()
+	s := newService(t)
+	drive := filepath.Join(t.TempDir(), "drive") // not mounted
+	if _, err := s.Settings.Write(ctx, 0, "backups", json.RawMessage(`{"folder":`+strconvQuote(drive)+`}`), -1, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	start := func(scheduled bool) {
+		t.Helper()
+		if _, err := s.Start(scheduled); err != nil {
+			t.Fatal(err)
+		}
+		s.Wait()
+	}
+	start(true)
+	s.GiveUp()
+	if s.Failed() == nil || s.failingSince().IsZero() {
+		t.Fatalf("a failed scheduled backup: alert %v, failing since %v", s.Failed(), s.failingSince())
+	}
+	if err := os.MkdirAll(drive, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	start(false)
+	if s.Failed() != nil || s.LastError() != nil || !s.failingSince().IsZero() {
+		t.Fatalf("after a backup made by hand: alert %v, last failure %v, failing since %v", s.Failed(), s.LastError(), s.failingSince())
+	}
+}
+
+// A backup setting changed while a failed backup is being tried again ends those tries, and
+// the next night's backup has its own 4 hours of them: when it fails it is tried again, where
+// a mark left from the night before would have counted its tries as used up.
+func TestChangingBackupSettingsDuringRetriesGivesTheNextNightItsOwn(t *testing.T) {
+	ctx := context.Background()
+	s := newService(t)
+	drive := filepath.Join(t.TempDir(), "drive") // not mounted
+	write := func(doc string) {
+		t.Helper()
+		if _, err := s.Settings.Write(ctx, 0, "backups", json.RawMessage(doc), -1, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(`{"folder":` + strconvQuote(drive) + `}`)
+	setUp := time.Date(2026, 11, 10, 12, 0, 0, 0, time.Local)
+	if _, err := s.DB.CreateOwner(ctx, db.NewOwner{Username: "owner", PasswordHash: "x", ProfileName: "Owner", Now: setUp,
+		Session: db.NewSession{ID: db.NewSessionID(), RefreshHash: "r", ExpiresAt: setUp.Add(24 * time.Hour),
+			Device: db.DeviceInfo{InstallationID: "test", Name: "Test", Platform: "web", App: "web", AppVersion: "1"}}}); err != nil {
+		t.Fatal(err)
+	}
+	var clock, tries, tomorrow atomic.Int64
+	clock.Store(time.Date(2026, 11, 11, 3, 10, 0, 0, time.Local).UnixNano())
+	s.Now = func() time.Time { return time.Unix(0, clock.Load()) }
+	almostThree := time.Date(2026, 11, 12, 2, 59, 59, 990_000_000, time.Local).UnixNano()
+	folderHook = func(string) {
+		tries.Add(1)
+		if clock.Load() >= almostThree {
+			tomorrow.Add(1)
+		}
+		// Tomorrow's backup, once begun, is no longer due: only a retry can try it again.
+		clock.CompareAndSwap(almostThree, almostThree+int64(time.Second))
+	}
+	savedAfter, savedEvery := missedAfter, retryEvery
+	missedAfter, retryEvery = 0, 20*time.Millisecond
+	running, end := context.WithCancel(ctx)
+	ended := make(chan struct{})
+	go func() { s.Run(running); close(ended) }()
+	defer func() {
+		end()
+		<-ended
+		s.Wait()
+		folderWork.Wait()
+		missedAfter, retryEvery, folderHook = savedAfter, savedEvery, nil
+	}()
+	until := func(what string, ok func() bool) {
+		t.Helper()
+		for began := time.Now(); !ok(); time.Sleep(5 * time.Millisecond) {
+			if time.Since(began) > 10*time.Second {
+				t.Fatal(what)
+			}
+		}
+	}
+	until("the failed backup was not tried again", func() bool { return tries.Load() >= 2 })
+	// The owner changes a setting during the retries; the next backup is due tomorrow at 3.
+	write(`{"folder":` + strconvQuote(drive) + `,"keep":5}`)
+	time.Sleep(1500 * time.Millisecond) // the schedule looks at a backup under way once a second
+	// A moment before 3 tomorrow. That backup fails too, and is tried again.
+	clock.Store(almostThree)
+	write(`{"folder":` + strconvQuote(drive) + `,"keep":6}`) // wakes the schedule to look at the clock
+	until("tomorrow's failed backup was not tried again", func() bool { return tomorrow.Load() >= 2 })
+}
