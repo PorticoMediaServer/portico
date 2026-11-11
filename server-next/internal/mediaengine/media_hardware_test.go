@@ -125,7 +125,7 @@ func TestMediaMatrixHardware(t *testing.T) {
 				// The box covers the middle of the picture from 5 to 9 seconds.
 				shown := m.frame(t, 7, "-i", files[0])
 				after := m.frame(t, 3, "-i", files[0])
-				inside, _ := boxChange(shown, after)
+				lift, _ := boxChange(shown, after)
 				var bright float64
 				for y := boxY; y < boxY+boxH; y++ {
 					for x := boxX; x < boxX+boxW; x++ {
@@ -133,7 +133,7 @@ func TestMediaMatrixHardware(t *testing.T) {
 					}
 				}
 				bright /= boxW * boxH
-				f.check(bright > 200 && inside > 40, "the burned box is not in the picture at 7s (brightness %.0f, change %.0f)", bright, inside)
+				f.check(bright > 200 && lift > 40, "the burned box is not in the picture at 7s (brightness %.0f, %.0f brighter than at 3s)", bright, lift)
 			}
 			f.report(c.name + " on " + backend)
 		})

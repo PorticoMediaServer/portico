@@ -41,16 +41,19 @@ func brightness(frame []byte) (mean, black, clipped float64) {
 	return mean / n, black / n, clipped / n
 }
 
-// boxChange is how much the subtitle's box differs between two frames, inside and outside it.
-func boxChange(a, b []byte) (inside, outside float64) {
+// boxChange compares two frames: lift is how much brighter the subtitle's box is in a than
+// in b, on average, and outside how much the rest of the picture differs. Averaging the
+// box's brightness with its sign ignores the noise of two different encodes, which a white
+// box does not.
+func boxChange(a, b []byte) (lift, outside float64) {
 	var in, out, nIn, nOut float64
 	for y := 0; y < 180; y++ {
 		for x := 0; x < 320; x++ {
-			d := math.Abs(float64(a[y*320+x]) - float64(b[y*320+x]))
+			d := float64(a[y*320+x]) - float64(b[y*320+x])
 			if x >= boxX && x < boxX+boxW && y >= boxY && y < boxY+boxH {
 				in, nIn = in+d, nIn+1
 			} else {
-				out, nOut = out+d, nOut+1
+				out, nOut = out+math.Abs(d), nOut+1
 			}
 		}
 	}
