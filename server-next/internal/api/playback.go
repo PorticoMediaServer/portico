@@ -9,6 +9,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
+	"github.com/PorticoMediaServer/portico/server-next/internal/reading"
 )
 
 // Playback returns the service that runs viewing sessions, for the program to wire the media
@@ -22,10 +23,15 @@ func (s *Server) ServeMediaWith(serve func(w http.ResponseWriter, r *http.Reques
 
 func (s *Server) playbackRoutes() {
 	// Media addresses carry their own permission, the grant, so players that cannot send
-	// headers can fetch them. The engine answers them, bytes and refusals alike.
+	// headers can fetch them. The engine answers them, bytes and refusals alike; a book's
+	// address is answered by the reading service.
 	media := &Route{Pattern: "GET /v1/media/{grant}/{file...}", Access: Public, Scope: ScopeOpen}
 	s.routes = append(s.routes, media)
 	s.mux.HandleFunc(media.Pattern, func(w http.ResponseWriter, r *http.Request) {
+		if reading.IsGrant(r.PathValue("grant")) {
+			s.reading.ServeMedia(w, r, r.PathValue("grant"), r.PathValue("file"))
+			return
+		}
 		if s.media == nil {
 			s.writeError(w, r, ErrNotFound())
 			return
