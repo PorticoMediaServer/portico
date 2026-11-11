@@ -4,10 +4,8 @@ import (
 	"bufio"
 	"compress/gzip"
 	"context"
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
-	"encoding/base64"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,6 +21,7 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/secrets"
 )
 
 // Config is a source's settings, stored as JSON. The sign-in is never in it.
@@ -64,6 +63,7 @@ const (
 // Limits on what is read from a source.
 const (
 	maxPlaylistBytes = 256 << 20
+	maxListBytes     = 32 << 20 // a provider's or tuner's channel list, read whole: 50,000 channels is about 25 MB
 	maxGuideBytes    = 2 << 30
 	retryAfter       = 30 * time.Minute
 )
@@ -75,53 +75,102 @@ type Service struct {
 	now     func() time.Time
 	dir     string // where uploaded playlists and guides are kept
 	client  *http.Client
-	aead    cipher.AEAD
+	box     *secrets.Box
 	wake    chan struct{}
 	mu      sync.Mutex
 	tried   map[int64]time.Time // when each source was last tried, so a failing one waits
 	running map[int64]chan struct{}
 }
 
-// New makes the service. key seals sign-ins; dataDir is the server's data folder.
-func New(d *db.DB, log *slog.Logger, now func() time.Time, dataDir, key string) (*Service, error) {
-	raw, err := base64.RawURLEncoding.DecodeString(key)
-	if err != nil || len(raw) != 32 {
-		return nil, errors.New("the stored sign-in key is damaged")
+// New makes the service. dataDir is the folder beside the database: sign-ins are sealed with
+// the key file kept there, so a copy of the database alone opens none of them.
+func New(d *db.DB, log *slog.Logger, now func() time.Time, dataDir string) (*Service, error) {
+	box, err := secrets.Open(dataDir)
+	if err != nil {
+		return nil, err
 	}
-	block, _ := aes.NewCipher(raw)
-	aead, _ := cipher.NewGCM(block)
-	client := &http.Client{Timeout: 10 * time.Minute, CheckRedirect: func(r *http.Request, via []*http.Request) error {
-		if len(via) >= 5 || r.URL.Scheme != "http" && r.URL.Scheme != "https" {
-			return errors.New("too many redirects")
-		}
-		return nil
-	}}
-	return &Service{db: d, log: log, now: now, dir: filepath.Join(dataDir, "live"), client: client, aead: aead,
+	return &Service{db: d, log: log, now: now, dir: filepath.Join(dataDir, "live"), client: newClient(10 * time.Minute), box: box,
 		wake: make(chan struct{}, 1), tried: map[int64]time.Time{}, running: map[int64]chan struct{}{}}, nil
 }
 
 // SetClient replaces the HTTP client, for tests that answer from fake servers.
 func (s *Service) SetClient(c *http.Client) { s.client = c }
 
-// Seal seals a sign-in for storing; Open reads it back. Neither is ever shown to an app.
-func (s *Service) Seal(in SignIn) []byte {
-	raw, _ := json.Marshal(in)
-	nonce := make([]byte, s.aead.NonceSize())
-	rand.Read(nonce)
-	return s.aead.Seal(nonce, nonce, raw, []byte("live-source"))
+// newClient reads what sources send. A redirect may not leave http and https, nor go from
+// https to plain http, where an address carrying a sign-in would travel in clear.
+func newClient(timeout time.Duration) *http.Client {
+	return &http.Client{Timeout: timeout, CheckRedirect: func(r *http.Request, via []*http.Request) error {
+		switch {
+		case len(via) >= 5:
+			return errors.New("too many redirects")
+		case r.URL.Scheme != "http" && r.URL.Scheme != "https", via[0].URL.Scheme == "https" && r.URL.Scheme == "http":
+			return errors.New("a redirect to a less safe address")
+		}
+		return nil
+	}}
 }
 
-func (s *Service) open(sealed []byte) (SignIn, error) {
+// Seal seals a source's sign-in for storing, bound to that source, so it can be opened only
+// for it. Nothing ever shows it to an app or writes it to the log.
+func (s *Service) Seal(sourceID string, in SignIn) []byte {
+	raw, _ := json.Marshal(in)
+	return s.box.Seal("live-source:"+sourceID, raw)
+}
+
+// SignIn opens a source's sign-in, to read the source or to tune one of its channels.
+func (s *Service) SignIn(sourceID string, sealed []byte) (SignIn, error) {
 	var in SignIn
-	n := s.aead.NonceSize()
-	if len(sealed) < n {
-		return in, errors.New("no sign-in")
-	}
-	raw, err := s.aead.Open(nil, sealed[:n], sealed[n:], []byte("live-source"))
+	raw, err := s.box.Open("live-source:"+sourceID, sealed)
 	if err != nil {
-		return in, err
+		return in, ErrSignIn
 	}
 	return in, json.Unmarshal(raw, &in)
+}
+
+// StreamAddress is where a channel's stream is read from. A source that signs in keeps no
+// address in its channels, only the stream's id ("xtream:<id>"); the address, with the
+// sign-in in it as the provider wants, is made here in memory each time a channel is tuned.
+func StreamAddress(kind string, cfg Config, signIn SignIn, locator string) (string, error) {
+	id, ok := strings.CutPrefix(locator, "xtream:")
+	if kind != "xtream" || !ok {
+		return locator, nil
+	}
+	u, err := url.Parse(cfg.ServerURL)
+	if err != nil || signIn.Username == "" {
+		return "", ErrSignIn
+	}
+	u.Path = strings.TrimSuffix(u.Path, "/") + "/live/" + url.PathEscape(signIn.Username) + "/" + url.PathEscape(signIn.Password) + "/" + id + ".ts"
+	return u.String(), nil
+}
+
+// SameServer says whether two addresses reach the same scheme, host and port: a stored
+// sign-in is sent only there.
+func SameServer(a, b string) bool {
+	ua, errA := url.Parse(a)
+	ub, errB := url.Parse(b)
+	return errA == nil && errB == nil && ua.Scheme == ub.Scheme && ua.Host == ub.Host
+}
+
+// Masked shows an address with its query values hidden: a provider's playlist address often
+// carries the sign-in there.
+func Masked(address string) string {
+	u, err := url.Parse(address)
+	if err != nil || u.RawQuery == "" {
+		return address
+	}
+	q := u.Query()
+	for k := range q {
+		q.Set(k, "…")
+	}
+	u.RawQuery = q.Encode()
+	return u.String()
+}
+
+// streamKey names a channel sent without a guide id by a hash of its address, which may hold
+// a sign-in and so never appears itself.
+func streamKey(address string) string {
+	sum := sha256.Sum256([]byte(address))
+	return "stream:" + hex.EncodeToString(sum[:8])
 }
 
 // UploadPath is where a source's uploaded playlist or guide is kept.
@@ -228,7 +277,7 @@ func (s *Service) pull(ctx context.Context, kind string, cfg Config, signIn Sign
 			return out, fmt.Errorf("use an http or https address for the server")
 		}
 		q := url.Values{"username": {signIn.Username}, "password": {signIn.Password}, "action": {"get_live_streams"}}
-		body, err := s.fetch(ctx, joinPath(cfg.ServerURL, "/player_api.php", q), maxPlaylistBytes)
+		body, err := s.fetch(ctx, joinPath(cfg.ServerURL, "/player_api.php", q), maxListBytes)
 		if err != nil {
 			return out, err
 		}
@@ -257,10 +306,8 @@ func (s *Service) pull(ctx context.Context, kind string, cfg Config, signIn Sign
 				report.SkippedChannels++
 				continue
 			}
-			u, _ := url.Parse(cfg.ServerURL)
-			u.Path = strings.TrimSuffix(u.Path, "/") + "/live/" + signIn.Username + "/" + signIn.Password + "/" + strconv.FormatInt(id, 10) + ".ts"
-			c := Channel{Key: "xtream:" + strconv.FormatInt(id, 10), Name: st.Name, Number: st.Number.String(), GuideKey: st.EPG,
-				Locator: u.String(), Group: st.Category}
+			stream := "xtream:" + strconv.FormatInt(id, 10)
+			c := Channel{Key: stream, Name: st.Name, Number: st.Number.String(), GuideKey: st.EPG, Locator: stream, Group: st.Category}
 			if validLocator(st.Icon) {
 				c.Logo = st.Icon
 			}
@@ -288,7 +335,7 @@ func (s *Service) pull(ctx context.Context, kind string, cfg Config, signIn Sign
 			return out, fmt.Errorf("this is not an HDHomeRun tuner")
 		}
 		out.Tuners = info.TunerCount
-		if body, err = s.fetch(ctx, joinPath(cfg.TunerURL, "/lineup.json", nil), maxPlaylistBytes); err != nil {
+		if body, err = s.fetch(ctx, joinPath(cfg.TunerURL, "/lineup.json", nil), maxListBytes); err != nil {
 			return out, err
 		}
 		defer body.Close()
