@@ -27,6 +27,8 @@ func init() {
 		"POST /v1/admin/library-channels/{id}/regenerate": "sets the channel to be built again",
 		"POST /v1/admin/live/sources/preview":             "changes nothing",
 		"POST /v1/admin/live/sources/{id}/refresh":        "a refresh already running is waited for, not repeated",
+		"POST /v1/dvr/recordings":                         "an airing is booked once however often it is asked",
+		"POST /v1/dvr/rules":                              "a profile's rule for the same series and channel is answered, not made again",
 	})
 }
 
