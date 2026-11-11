@@ -21,13 +21,13 @@ func TestProfile5ForAnHDRDisplayConvertsToHD(t *testing.T) {
 	facts := plannerToolchain()
 	facts.Filters["libplacebo"] = true
 	facts.VulkanAvailable = true
-	outputs := onTheChip(decoder.AvailableConversionOutputs(facts))
+	outputs := decoder.AvailableConversionOutputs(facts)
 	plan, err := planDelivery(
 		DeliveryInput{
 			Source:             source,
 			Client:             client,
 			Server:             facts,
-			Outputs:            outputs,
+			Outputs:            &outputs,
 			FMP4Output:         true,
 			Policy:             openPolicy(),
 			Target:             QualityTarget{RungID: "original", Kind: QualityAutomatic, AllowHDR: true},

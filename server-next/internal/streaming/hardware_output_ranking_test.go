@@ -90,10 +90,11 @@ func TestPlannerRanksOnlyMeasuredHardwareOutputsAheadOfSoftware(t *testing.T) {
 }
 
 // What a browser is given for an HDR film it cannot play as it is, by what the server's chip
-// encodes. A film that plays beats HDR that stutters: HDR is kept only on the chip's 10-bit
-// encoder, and otherwise the picture is standard-range H.264, not software AV1 or HEVC at 10
-// bits, which a 4K film would outrun. The chip's AV1 is used only when no other chip output
-// reaches the browser, until AV1 after a seek is settled (proof finding 1 on #2604).
+// encodes. A browser that cannot show HDR gets standard-range H.264 (the chip's, then the
+// processor's), not software AV1 at 10 bits, which a 4K film would outrun; with the chip's
+// AV1 beside it, the chip's H.264, until AV1 after a seek is settled (proof finding 1 on
+// #2604). A browser that shows HDR keeps HDR (playback rule 13), on the chip when it can,
+// even if that means the chip's AV1.
 func TestWhatABrowserIsGivenForAnHDRFilm(t *testing.T) {
 	facts := &decoder.ToolchainFacts{Identity: "unit-selected-device",
 		Encoders: map[string]bool{"libx264": true, "libx265": true, "libaom-av1": true, "aac": true, "ac3": true, "eac3": true, "flac": true, "libopus": true},
@@ -143,10 +144,10 @@ func TestWhatABrowserIsGivenForAnHDRFilm(t *testing.T) {
 		{"Chromium shown SDR, no chip", chromiumSDR, videoSource("mkv", "hevc", hevcHDR, aac), nil, "h264 8 sdr software"},
 		{"Chromium shown SDR, chip H.264", chromiumSDR, videoSource("mkv", "hevc", hevcHDR, aac), []string{"h264:8"}, "h264 8 sdr chip"},
 		{"Chromium shown SDR, chip H.264 and AV1", chromiumSDR, videoSource("mkv", "hevc", hevcHDR, aac), []string{"h264:8", "av1:8", "av1:10"}, "h264 8 sdr chip"},
-		{"Chromium shown HDR, no chip", chromiumHDR, videoSource("mkv", "hevc", hevcHDR, aac), nil, "h264 8 sdr software"},
-		{"Chromium shown HDR, chip H.264 and AV1", chromiumHDR, videoSource("mkv", "hevc", hevcHDR, aac), []string{"h264:8", "av1:10"}, "h264 8 sdr chip"},
+		{"Chromium shown HDR, no chip", chromiumHDR, videoSource("mkv", "hevc", hevcHDR, aac), nil, "av1 10 hdr10 software"},
+		{"Chromium shown HDR, chip H.264 and AV1", chromiumHDR, videoSource("mkv", "hevc", hevcHDR, aac), []string{"h264:8", "av1:10"}, "av1 10 hdr10 chip"},
 		{"Chromium shown HDR, chip AV1 only", chromiumHDR, videoSource("mkv", "hevc", hevcHDR, aac), []string{"av1:10"}, "av1 10 hdr10 chip"},
-		{"Safari shown HDR, no chip", safariHDR, videoSource("mkv", "vp9", vp9HDR, aac), nil, "h264 8 sdr software"},
+		{"Safari shown HDR, no chip", safariHDR, videoSource("mkv", "vp9", vp9HDR, aac), nil, "hevc 10 hdr10 software"},
 		{"Safari shown HDR, chip HEVC 10-bit", safariHDR, videoSource("mkv", "vp9", vp9HDR, aac), []string{"hevc:10", "h264:8"}, "hevc 10 hdr10 chip"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -174,17 +175,4 @@ func TestWhatABrowserIsGivenForAnHDRFilm(t *testing.T) {
 			}
 		})
 	}
-}
-
-// onTheChip marks the server's 10-bit outputs as made by its graphics chip, which a
-// conversion that keeps HDR now needs. No chip is probed, so the arguments are still the
-// software encoder's: the path these tests check, and the one a chip falls back to.
-func onTheChip(o ConversionOutputs) *ConversionOutputs {
-	o.Video = append([]ConversionVideoOutput{}, o.Video...)
-	for i := range o.Video {
-		if o.Video[i].BitDepth >= 10 {
-			o.Video[i].Hardware = true
-		}
-	}
-	return &o
 }

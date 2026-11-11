@@ -306,13 +306,8 @@ func TestLosslessAudioKeepsTheBestTargetTheDeviceTakes(t *testing.T) {
 func TestConversionPictureFollowsTheServersOutputs(t *testing.T) {
 	vp9HDR := mediafacts.StreamDetail{Profile: "Profile 2", BitDepth: 10, Width: 3840, Height: 2160, FrameRate: 24, DynamicRange: mediafacts.RangeHDR10, BitRate: 30_000_000}
 	source := videoSource("mkv", "vp9", vp9HDR, SourceAudio{Codec: "aac", Channels: 2})
-	// Without a chip that encodes 10 bits, HDR is not kept through a conversion: a film
-	// that plays beats HDR that stutters.
-	if p := decide(t, source, appleTVProfile(), func(in *DeliveryInput) { in.FMP4Output = true }); p.OutputRange != mediafacts.RangeSDR || !p.ToneMap {
-		t.Fatal("HDR kept without a chip", p.OutputVideoCodec, p.OutputRange, p.OutputBitDepth)
-	}
-	// With one, the registered converter keeps 10-bit HDR in HEVC.
-	p := decide(t, source, appleTVProfile(), func(in *DeliveryInput) { in.Outputs, in.FMP4Output = onTheChip(DefaultConversionOutputs()), true })
+	// The registered converter keeps 10-bit HDR in HEVC.
+	p := decide(t, source, appleTVProfile(), func(in *DeliveryInput) { in.FMP4Output = true })
 	if p.Strategy != DeliveryVideoConversion || p.OutputVideoCodec != "hevc" || p.OutputRange != mediafacts.RangeHDR10 || p.OutputBitDepth != 10 || p.ToneMap || p.OutputContainer != "fmp4_hls" {
 		t.Fatal(p.OutputVideoCodec, p.OutputRange, p.OutputBitDepth, p.ToneMap, p.OutputContainer)
 	}
@@ -321,7 +316,7 @@ func TestConversionPictureFollowsTheServersOutputs(t *testing.T) {
 	outputs.Video = append(
 		[]ConversionVideoOutput{{Codec: "hevc", BitDepth: 10, Ranges: []string{mediafacts.RangeHDR10, mediafacts.RangeHLG, mediafacts.RangeSDR}, Transports: []string{TransportHLSFMP4}}},
 		outputs.Video...)
-	p = decide(t, source, appleTVProfile(), func(in *DeliveryInput) { in.Outputs, in.FMP4Output = onTheChip(outputs), true })
+	p = decide(t, source, appleTVProfile(), func(in *DeliveryInput) { in.Outputs, in.FMP4Output = &outputs, true })
 	if p.OutputVideoCodec != "hevc" || p.OutputRange != mediafacts.RangeHDR10 || p.OutputBitDepth != 10 || p.ToneMap || p.OutputContainer != "fmp4_hls" ||
 		p.Trace.Video.OutputRange != mediafacts.RangeHDR10 {
 		t.Fatal("HDR was not kept", p.OutputVideoCodec, p.OutputRange, p.ToneMap, p.OutputContainer)
