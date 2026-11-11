@@ -484,7 +484,7 @@ func readBodyLimit(w http.ResponseWriter, r *http.Request, out any, noBody bool,
 }
 
 func (s *Server) writeError(w http.ResponseWriter, r *http.Request, err error) {
-	e, ok := asError(err)
+	e, ok := asError(s.accountLimitRefusal(r, err))
 	if !ok {
 		// A client that went away is not a server fault worth a log line.
 		if !errors.Is(err, context.Canceled) {

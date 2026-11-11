@@ -320,6 +320,10 @@ func (s *Service) resolve(ctx context.Context, c Caller, device db.SessionDevice
 	if err != nil {
 		return out, err
 	}
+	limits, err := s.db.PlayLimits(ctx, c.Viewer.UserID)
+	if err != nil {
+		return out, err
+	}
 	out.item, out.device, out.network, out.prefs = item, device, network(ask.Network, c.AtHome), prefs
 
 	type attempt struct {
@@ -388,7 +392,7 @@ func (s *Service) resolve(ctx context.Context, c Caller, device db.SessionDevice
 			return a
 		}
 		request := PlanRequest{Item: item, Version: version, Capabilities: capabilities, Choice: a.choice, Network: out.network,
-			ThroughputKbps: ask.ThroughputKbps, Failures: failures, Preferences: prefs}
+			ThroughputKbps: ask.ThroughputKbps, Failures: failures, Preferences: prefs, Limits: limits}
 		a.plan, a.err = s.planner.Plan(request)
 		if a.err == nil && current == nil && (ask.Audio != nil || ask.Subtitle != nil) {
 			// Was the request's track a pick, or just what the server would have played anyway?

@@ -45,8 +45,11 @@ func (s *Server) keyCheck(r *http.Request, key db.KeyCaller, err error, scope Sc
 	case err != nil:
 		return Caller{}, err
 	}
-	// The account's viewing hours and home-only limit are checked here too, like a sign-in;
-	// they arrive with the viewing-hours and home-only work (#2316).
+	// A key is no way round the account's limits: one made at home, or while the hours were
+	// open, would otherwise work from anywhere at any time.
+	if err := s.db.AccountOpen(r.Context(), key.UserID, s.fromHome(r), s.now()); err != nil {
+		return Caller{}, err
+	}
 	switch {
 	case scope == ScopeSession:
 		return Caller{}, refusal(http.StatusForbidden, "session_required", "This needs a signed-in person, not a key.", false)

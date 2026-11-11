@@ -552,6 +552,19 @@ CREATE TABLE users (
   allow_dvr           INTEGER NOT NULL DEFAULT 0 CHECK (allow_dvr IN (0, 1)),
   allow_watch_together INTEGER NOT NULL DEFAULT 1 CHECK (allow_watch_together IN (0, 1)),
   allow_tokens        INTEGER NOT NULL DEFAULT 1 CHECK (allow_tokens IN (0, 1)),
+  -- What the owner or an admin holds the whole account to, and its own person cannot lift.
+  -- home_only: usable on the home network only. viewing_hours: the times of the week it may
+  -- be used, as JSON; NULL is any time. max_rating_age and allow_unrated bind every profile
+  -- as well as the profile's own. allow_conversion 0: only what plays without converting.
+  -- remote_max_bitrate_kbps: the most video bitrate away from home; NULL is no cap.
+  -- max_profiles: how many profiles the account may have; NULL is the server's eight.
+  home_only           INTEGER NOT NULL DEFAULT 0 CHECK (home_only IN (0, 1)),
+  viewing_hours       TEXT,
+  max_rating_age      INTEGER,
+  allow_unrated       INTEGER NOT NULL DEFAULT 0 CHECK (allow_unrated IN (0, 1)),
+  allow_conversion    INTEGER NOT NULL DEFAULT 1 CHECK (allow_conversion IN (0, 1)),
+  remote_max_bitrate_kbps INTEGER,
+  max_profiles        INTEGER,
   two_factor_secret   BLOB,
   two_factor_enabled_at INTEGER,
   two_factor_last_step INTEGER,
@@ -637,6 +650,14 @@ CREATE TABLE profile_restrictions (
   PRIMARY KEY (profile_id, tag_id)
 ) STRICT, WITHOUT ROWID;
 CREATE INDEX profile_restrictions_tag ON profile_restrictions (tag_id);
+
+-- Labels the owner or an admin keeps from every profile of an account.
+CREATE TABLE account_restrictions (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  tag_id  INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+  PRIMARY KEY (user_id, tag_id)
+) STRICT, WITHOUT ROWID;
+CREATE INDEX account_restrictions_tag ON account_restrictions (tag_id);
 
 -- One row per sign-in. The refresh token rotates on each renewal. The previous token's hash and
 -- the request id it was renewed with are kept until the next renewal, so a renewal whose reply
