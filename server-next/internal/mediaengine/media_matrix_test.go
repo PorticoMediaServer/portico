@@ -289,25 +289,29 @@ func pictureSubtitle(width, height, x, y, w, h, from, to int) []byte {
 const boxX, boxY, boxW, boxH = 100, 70, 120, 40
 
 // recorder is the media engine as the session layer sees it, with two differences for the
-// test: it plans for the device the test names, and it keeps the plan it made.
+// test: it plans for the device the test names, and it keeps the plan a stream was started
+// with (the session layer may plan more than once before it starts one).
 type recorder struct {
 	*mediaengine.Engine
-	mu     sync.Mutex
-	device json.RawMessage
-	last   *streaming.DeliveryPlan
+	mu      sync.Mutex
+	device  json.RawMessage
+	started *streaming.DeliveryPlan
 }
 
 func (r *recorder) Plan(request playback.PlanRequest) (playback.Plan, error) {
 	r.mu.Lock()
 	request.Capabilities = r.device
 	r.mu.Unlock()
-	plan, err := r.Engine.Plan(request)
-	if delivery, ok := mediaengine.PlannedDelivery(plan); err == nil && ok {
+	return r.Engine.Plan(request)
+}
+
+func (r *recorder) Start(ctx context.Context, request playback.StartRequest) (playback.Stream, error) {
+	if delivery, ok := mediaengine.PlannedDelivery(request.Plan); ok {
 		r.mu.Lock()
-		r.last = &delivery
+		r.started = &delivery
 		r.mu.Unlock()
 	}
-	return plan, err
+	return r.Engine.Start(ctx, request)
 }
 
 // matrix is a whole server with the owner signed in, and what the test knows of it.
@@ -341,7 +345,7 @@ func newMatrix(t *testing.T, ffmpeg, ffprobe string) *matrix {
 		t.Fatal(err)
 	}
 	rec := &recorder{Engine: engine}
-	handler.Playback().SetEngine(rec, engine)
+	handler.Playback().SetEngine(rec, rec)
 	handler.ServeMediaWith(engine.ServeMedia)
 	go engine.Run(ctx)
 	server := httptest.NewServer(handler)
@@ -418,12 +422,12 @@ func (m *matrix) title(t *testing.T, path string) (string, map[string]string) {
 		t.Fatalf("scanning %s: %+v, %v", path, stats, err)
 	}
 	var page api.ItemPage
-	m.call("GET", "/v1/items?library="+lib.PublicID+"&kind=movie", nil, &page, 200)
+	m.on(t).call("GET", "/v1/items?library="+lib.PublicID+"&kind=movie", nil, &page, 200)
 	if len(page.Items) != 1 {
 		t.Fatalf("the library lists %+v", page.Items)
 	}
 	var options api.PlaybackOptions
-	m.call("GET", "/v1/items/"+page.Items[0].ID+"/playback-options", nil, &options, 200)
+	m.on(t).call("GET", "/v1/items/"+page.Items[0].ID+"/playback-options", nil, &options, 200)
 	subtitles := map[string]string{}
 	for _, s := range options.Versions[0].Subtitles {
 		switch strings.ToLower(s.Format) {
@@ -443,7 +447,7 @@ func (m *matrix) title(t *testing.T, path string) (string, map[string]string) {
 func (m *matrix) start(t *testing.T, profile string, body api.PlaybackStart) (*api.PlaybackSession, streaming.DeliveryPlan, string) {
 	t.Helper()
 	m.rec.mu.Lock()
-	m.rec.device, m.rec.last = m.documents[profile], nil
+	m.rec.device, m.rec.started = m.documents[profile], nil
 	if profile == "baseline" {
 		m.rec.device = nil
 	}
@@ -451,7 +455,7 @@ func (m *matrix) start(t *testing.T, profile string, body api.PlaybackStart) (*a
 	key := fmt.Sprintf("%s-%d", profile, time.Now().UnixNano())
 	deadline := time.Now().Add(2 * time.Minute)
 	for {
-		w := m.do("POST", "/v1/playback/sessions", body, "Idempotency-Key", key)
+		w := m.on(t).do("POST", "/v1/playback/sessions", body, "Idempotency-Key", key)
 		raw, _ := io.ReadAll(w.Body)
 		w.Body.Close()
 		var session api.PlaybackSession
@@ -466,16 +470,21 @@ func (m *matrix) start(t *testing.T, profile string, body api.PlaybackStart) (*a
 			t.Fatal(err)
 		}
 		m.rec.mu.Lock()
-		last := m.rec.last
+		last := m.rec.started
 		m.rec.mu.Unlock()
 		if last == nil {
-			t.Fatal("the session started without the engine planning it")
+			t.Fatal("the session started without the engine starting a stream")
 		}
 		return &session, *last, ""
 	}
 }
 
 // stop ends a session; ending one already ended is fine.
+// on is the server as seen from one test, so a failed request fails that test.
+func (m *matrix) on(t *testing.T) *house {
+	return &house{T: t, url: m.url, token: m.token, data: m.data}
+}
+
 func (m *matrix) stop(session *api.PlaybackSession) {
 	m.do("DELETE", "/v1/playback/sessions/"+session.ID, nil).Body.Close()
 }
@@ -597,11 +606,14 @@ func (l playlist) at(i int) float64 {
 // playlists reads a stream's master playlist and the picture and sound playlists it names.
 func (m *matrix) playlists(t *testing.T, url string) (string, []playlist) {
 	t.Helper()
+	if !strings.HasSuffix(url, ".m3u8") {
+		t.Fatalf("FINDING: the plan is a stream, but the session was given %s", url)
+	}
 	base := url[:strings.LastIndex(url, "/")+1]
 	var lists []playlist
 	var read func(name string)
 	read = func(name string) {
-		code, _, body := m.media(base + name)
+		code, _, body := m.on(t).media(base + name)
 		if code != 200 {
 			t.Fatalf("%s answered %d", name, code)
 		}
@@ -661,11 +673,11 @@ func (m *matrix) segments(t *testing.T, f *finding, url string, from, to int) (v
 		}
 		var joined []byte
 		if l.init != "" {
-			_, _, body := m.media(base + l.init)
+			_, _, body := m.on(t).media(base + l.init)
 			joined = append(joined, body...)
 		}
 		for i := from; i < to && i < len(l.parts); i++ {
-			code, _, body := m.media(base + l.parts[i])
+			code, _, body := m.on(t).media(base + l.parts[i])
 			if code != 200 || len(body) == 0 {
 				f.check(false, "%s, named in %s, answered %d: %.200q", l.parts[i], l.name, code, body)
 				break
@@ -741,7 +753,9 @@ func (m *matrix) play(t *testing.T, name, path, item string, subtitles map[strin
 	if video == nil {
 		t.Fatalf("%s has no picture", path)
 	}
-	body := api.PlaybackStart{ItemID: item, StartFrom: "beginning"}
+	// The text subtitle when there is one, else none: a picture subtitle is burned only
+	// where the test asks for it.
+	body := api.PlaybackStart{ItemID: item, StartFrom: "beginning", Subtitles: &api.SubtitlePick{}}
 	if id, ok := subtitles["srt"]; ok {
 		body.Subtitles = &api.SubtitlePick{TrackID: &id}
 	}
@@ -762,7 +776,7 @@ func (m *matrix) play(t *testing.T, name, path, item string, subtitles map[strin
 
 	if plan.Strategy == streaming.DeliveryOriginal {
 		info, _ := os.Stat(path)
-		code, header, _ := m.media(p.URL, "Range", "bytes=0-0")
+		code, header, _ := m.on(t).media(p.URL, "Range", "bytes=0-0")
 		f.check(code == http.StatusPartialContent && strings.HasSuffix(header.Get("Content-Range"), "/"+strconv.FormatInt(info.Size(), 10)),
 			"the original answered %d %q", code, header.Get("Content-Range"))
 		if s.text {
