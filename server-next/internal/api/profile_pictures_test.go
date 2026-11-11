@@ -111,3 +111,39 @@ func TestProfilePictures(t *testing.T) {
 		t.Errorf("a removed picture answered %d, want 404", got.Code)
 	}
 }
+
+// Where people sign in with a Portico Account, a profile's picture belongs to that account:
+// this server refuses to take or remove one, says why, and stores nothing.
+func TestProfilePicturesOnAPorticoAccountsServer(t *testing.T) {
+	s := newTestServer(t)
+	in := setup(t, s)
+	owner, avatar := onMain(t, s, in), "/v1/profiles/"+in.Profiles[0].ID+"/avatar"
+	if err := s.db.SaveSetting(t.Context(), signInKindKey, signInPorticoAccounts, s.now()); err != nil {
+		t.Fatal(err)
+	}
+	var raw bytes.Buffer
+	png.Encode(&raw, image.NewRGBA(image.Rect(0, 0, 64, 64)))
+	var refused errorBody
+	w := sendPicture(s, owner.AccessToken, avatar, raw.Bytes())
+	if w.Code != 409 || jsonInto(w, &refused) != nil || refused.Error.Code != "managed_by_portico_account" || !strings.Contains(refused.Error.Message, "Portico Account") {
+		t.Fatalf("uploading a picture answered %d %+v", w.Code, refused.Error)
+	}
+	if code := status(t, s, "DELETE", avatar, owner.AccessToken, nil); code != 409 {
+		t.Errorf("removing a picture answered %d, want 409", code)
+	}
+	if got := get[Profile](t, s, owner.AccessToken, "/v1/profiles/"+in.Profiles[0].ID); got.Avatar != "" {
+		t.Errorf("the profile reads back with a local picture: %q", got.Avatar)
+	}
+	if kept, err := s.db.ProfilePictureName(t.Context(), mustUser(t, s, owner.AccessToken), in.Profiles[0].ID); err == nil {
+		t.Errorf("a picture was stored on this server: %q", kept)
+	}
+}
+
+func mustUser(t *testing.T, s *Server, token string) int64 {
+	t.Helper()
+	claims, err := s.tokens.CheckAccess(token, s.now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return claims.UserID
+}
