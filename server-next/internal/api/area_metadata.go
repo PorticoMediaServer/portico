@@ -18,6 +18,8 @@ type metadataArea struct {
 	metadata *metadata.Service
 	// keys is the owner's provider keys, opened. See metadata_settings.go.
 	keys providerKeys
+	// subtitleSearches remembers recent subtitle searches. See subtitle_search.go.
+	subtitleSearches subtitleSearches
 }
 
 // startMetadata builds this area's service and registers its routes. New calls it once, after
