@@ -120,11 +120,15 @@ func (m *Manager) startDue(ctx context.Context, now time.Time) {
 // by itself: whether it is watched, and how often it is scanned (0 for never). Where the
 // owner wants the library watched and it cannot be, the scan every hour, or every six on a
 // network share, that stands in is the interval reported. ok is false until the schedule is
-// running, and for a folder on remote storage, which follows its source.
+// running and the library has been looked at, and for a folder on remote storage, which
+// follows its source.
 func (m *Manager) FolderSchedule(lib db.Library, p db.LibraryPath) (watched bool, every time.Duration, ok bool) {
 	m.mu.Lock()
-	watched, ok = m.watched[lib.PublicID] && !lib.Options.NoWatch, m.running && p.RemoteID == 0
+	watched, known := m.watched[lib.PublicID]
 	m.mu.Unlock()
+	// Nothing is said about a library whose folders have not been looked at for watching
+	// yet: "not watched" would be a guess, and a wrong one a moment later.
+	watched, ok = watched && !lib.Options.NoWatch, m.running && known && p.RemoteID == 0
 	every = time.Duration(lib.Options.RescanMinutes) * time.Minute
 	if every == 0 && !watched && !lib.Options.NoWatch {
 		if every = unwatchedEvery; networkShare(p.Path) {
@@ -186,9 +190,14 @@ func (m *Manager) rewatch(ctx context.Context, lib db.Library, first bool) {
 				folders = append(folders, p.Path)
 			}
 		} else {
-			var err error
-			folders, err = m.scanner.DB.LibraryDirectories(ctx, lib.ID, maxWatched+1)
-			watched = err == nil && len(folders) <= maxWatched
+			stored, err := m.scanner.DB.LibraryDirectories(ctx, lib.ID, maxWatched+1)
+			watched = err == nil && len(stored) <= maxWatched
+			// The library's own folders are watched from the start, before any scan has
+			// stored them, so a new library is watched as soon as it is made.
+			for _, p := range lib.Paths {
+				folders = append(folders, p.Path)
+			}
+			folders = append(folders, stored...)
 		}
 		for _, folder := range folders {
 			if !watched {

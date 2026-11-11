@@ -323,6 +323,11 @@ func TestALibrarySaysHowItsFoldersAreKeptUpToDate(t *testing.T) {
 	if w := call(t, s, "POST", "/v1/admin/libraries", owner, LibraryCreate{Name: "Films", Kind: "movies", Folders: []string{root}}, &lib); w.Code != 200 {
 		t.Fatalf("creating the library answered %d: %s", w.Code, w.Body)
 	}
+	// The very first answer never says watching is not available for a folder that is about
+	// to be watched.
+	if lib.Folders[0].Notice != "" || lib.Folders[0].ScanEveryMinutes != 0 {
+		t.Fatalf("a new library's first answer: %+v", lib.Folders[0])
+	}
 	for deadline := time.Now().Add(20 * time.Second); ; time.Sleep(50 * time.Millisecond) {
 		var now AdminLibrary
 		if w := call(t, s, "GET", "/v1/admin/libraries/"+lib.ID, owner, nil, &now); w.Code != 200 {

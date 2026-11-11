@@ -69,6 +69,18 @@ type ScanParams struct {
 // Scan asks for a scan of a library. While one is waiting or running, asking again joins it.
 // With all set, the scan reads every file again, changed or not.
 func (m *Manager) Scan(ctx context.Context, libraryID string, ownerID int64, all bool) (db.Job, error) {
+	// A library asked about for the first time (it was just made) is watched before its
+	// first scan starts, so what its settings say about watching is true from the first answer
+	// and nothing that lands during that scan goes unheard.
+	m.mu.Lock()
+	_, known := m.watched[libraryID]
+	running := m.running
+	m.mu.Unlock()
+	if running && !known {
+		if lib, err := m.library(ctx, libraryID); err == nil {
+			m.rewatch(ctx, lib, true)
+		}
+	}
 	params, _ := json.Marshal(ScanParams{AllFiles: all})
 	return m.jobs.Start(ctx, db.JobScan, jobs.Request{Target: jobs.Target{Library: libraryID}, Params: params, UserID: ownerID})
 }
