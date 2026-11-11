@@ -35,6 +35,12 @@ test('Now playing reads every stream at once from the rebuilt server, in the car
     assert.equal(other.user, 'ada'); assert.equal(other.profile, 'ada', 'no profile name of its own: the account\'s'); assert.equal(other.location, 'local'); assert.equal(other.title, '');
     assert.deepEqual(out.totals, {streams: 2, paused: 1, converting: 1, bandwidthKbps: 10000, people: 2, atHome: 1, away: 1});
   } finally {b.dispose();}
+  // A stream whose profile was just deleted has no name for its last seconds: its card shows none, and the list still shows.
+  const nameless = createDashboardBindings(options({api: {...options().api, request: async () => ({items: [stream('a', {title: 'Heat'}), stream('b', {username: ''})]}) as never}}));
+  try {
+    const out = await nameless.read.sessions();
+    assert.deepEqual(out.items.map(s => s.user), ['max', '']); assert.equal(out.totals.streams, 2);
+  } finally {nameless.dispose();}
   const broken = createDashboardBindings(options({api: {...options().api, request: async () => ({items: [{id: 'a'}]}) as never}}));
   await assert.rejects(broken.read.sessions(), /invalid_now_playing/); broken.dispose();
 });

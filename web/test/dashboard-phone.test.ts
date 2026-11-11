@@ -113,6 +113,11 @@ test('a phone stream card draws the drawn lines: artwork shape, username first, 
   assert.doesNotMatch(desktop, /phoneSession|phoneProgress/);
 });
 
+test('a stream with no name draws its card without one', () => {
+  const html = card({user: '', profile: ''});
+  assert.match(html, /Long, Long Time/);
+  assert.match(html, /Living room TV/);
+});
 test('a paused phone stream says Paused; the owner and an administrator see Stop, but not on a stream they cannot name', () => {
   const paused = card({state: 'paused'});
   assert.match(paused, /data-state="paused"/);
