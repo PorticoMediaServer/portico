@@ -99,6 +99,17 @@ func credits(role db.CreditRole, names []string) []db.ImportCredit {
 	return out
 }
 
+// fromFile records which of an item's fields the file's own tags or a sidecar file gave, as
+// opposed to a folder's or a file's name. They are stored as the files' own, and a provider
+// never replaces them.
+func fromFile(item *db.ImportItem, given map[string]bool) {
+	for _, field := range []string{db.FieldTitle, db.FieldSortTitle, db.FieldSummary, db.FieldYear, db.FieldGenres, db.FieldCredits} {
+		if given[field] {
+			item.LocalFields = append(item.LocalFields, field)
+		}
+	}
+}
+
 func genreTags(d details) []db.TagName {
 	var out []db.TagName
 	for _, genre := range d.names("genres", "genre") {
@@ -132,12 +143,15 @@ func (r *run) musicUnits(f *folder) []unit {
 		disc := firstNumber(number(d["disc"]), first(read.DiscNumbers), 1)
 		artistItem := db.ImportItem{Kind: db.KindArtist, Title: artist, SortTitle: d["album_artist_sort"],
 			Keys: []db.ItemKey{{Kind: db.KeyName, Key: "artist|" + fold(artist)}}}
+		fromFile(&artistItem, map[string]bool{db.FieldTitle: firstOf(d["album_artist"], d["artist"]) != "", db.FieldSortTitle: d["album_artist_sort"] != ""})
 		if id := d["musicbrainz_albumartistid"]; id != "" {
 			artistItem.Keys = append([]db.ItemKey{{Kind: db.KeyEmbedded, Key: "musicbrainz-artist:" + id}}, artistItem.Keys...)
 			artistItem.ExternalIDs = []db.ExternalID{{Provider: "musicbrainz", ID: id}}
 		}
 		albumItem := db.ImportItem{Kind: db.KindAlbum, Title: album, SortTitle: d["album_sort"], Year: d.year(), ParentRow: 1,
 			ChildKey: "album|" + fold(album), Tags: genreTags(d), Credits: credits(db.RoleArtist, []string{artist})}
+		fromFile(&albumItem, map[string]bool{db.FieldTitle: d["album"] != "", db.FieldSortTitle: d["album_sort"] != "", db.FieldYear: d.year() > 0,
+			db.FieldGenres: len(albumItem.Tags) > 0, db.FieldCredits: firstOf(d["album_artist"], d["artist"]) != ""})
 		if id := d["musicbrainz_albumid"]; id != "" {
 			albumItem.Keys = []db.ItemKey{{Kind: db.KeyEmbedded, Key: "musicbrainz-release:" + id}}
 			albumItem.ExternalIDs = []db.ExternalID{{Provider: "musicbrainz", ID: id}}
@@ -169,10 +183,13 @@ func (r *run) musicUnits(f *folder) []unit {
 					part.EndMS = ms(chapter.End)
 				}
 				track := n + 1
-				u.items = append(u.items, db.ImportItem{Kind: db.KindTrack, Title: firstOf(chapter.Title, fmt.Sprintf("Track %d", track)),
+				item := db.ImportItem{Kind: db.KindTrack, Title: firstOf(chapter.Title, fmt.Sprintf("Track %d", track)),
 					Year: albumItem.Year, IndexNumber: &track, ParentIndex: &disc, ParentRow: 2, ChildKey: fmt.Sprintf("d%dt%d", disc, track),
 					Keys: []db.ItemKey{db.FileKey(r.path.ID, lead.rel, track)}, Credits: trackArtists,
-					Versions: []db.ImportVersion{{Parts: []db.ImportPart{part}}}})
+					Versions: []db.ImportVersion{{Parts: []db.ImportPart{part}}}}
+				// A cue sheet is a file's own word for its tracks' names.
+				fromFile(&item, map[string]bool{db.FieldTitle: chapter.Title != "", db.FieldCredits: firstOf(d["artist"], d["album_artist"]) != ""})
+				u.items = append(u.items, item)
 			}
 			units = append(units, u)
 			continue
@@ -181,6 +198,8 @@ func (r *run) musicUnits(f *folder) []unit {
 		name, _ := title(lead)
 		track := db.ImportItem{Kind: db.KindTrack, Title: firstOf(d["title"], name), SortTitle: d["title_sort"], Year: albumItem.Year,
 			ParentIndex: &disc, ParentRow: 2, Keys: keys, Credits: trackArtists, Versions: []db.ImportVersion{stored}}
+		fromFile(&track, map[string]bool{db.FieldTitle: d["title"] != "", db.FieldSortTitle: d["title_sort"] != "", db.FieldYear: d.year() > 0,
+			db.FieldCredits: firstOf(d["artist"], d["album_artist"]) != ""})
 		if n := firstNumber(number(d["track"]), first(read.TrackNumbers), 0); n > 0 {
 			track.IndexNumber, track.ChildKey = &n, fmt.Sprintf("d%dt%d", disc, n)
 		} else {
@@ -381,6 +400,9 @@ func (r *run) audiobookUnit(f *folder, book string, here []*found, elsewhere []d
 	item := db.ImportItem{Kind: db.KindAudiobook, Title: bookTitle, Year: year, Summary: d["description"], Tags: genreTags(d),
 		Credits: append(credits(db.RoleAuthor, authors), credits(db.RoleNarrator, narrators)...),
 		Keys:    []db.ItemKey{{Kind: db.KeyName, Key: "audiobook|" + fold(bookTitle) + "|" + fold(strings.Join(authors, ","))}}}
+	fromFile(&item, map[string]bool{db.FieldTitle: d["album"] != "" || folders.Title == "" && d["title"] != "", db.FieldYear: d.year() > 0,
+		db.FieldSummary: d["description"] != "", db.FieldGenres: len(item.Tags) > 0,
+		db.FieldCredits: len(d.names("authors", "author"))+len(d.names("album_artists", "album_artist"))+len(d.names("artists", "artist")) > 0})
 	for _, scheme := range []string{"asin", "isbn"} {
 		if id := firstOf(d[scheme]); id != "" {
 			item.ExternalIDs = append(item.ExternalIDs, db.ExternalID{Provider: scheme, ID: id})
