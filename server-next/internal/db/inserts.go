@@ -219,7 +219,10 @@ func (b *batchTx) tagItem(itemID, tagID int64) error {
 // rating_age of an item or of the items under it. It writes each one's present rating into
 // its tag rows, which a rating-limited profile's genre choices and totals are counted from.
 func (b *batchTx) ratingChanged(itemID int64) error {
-	_, err := b.exec(`UPDATE item_tags SET rating_age = (SELECT rating_age FROM items WHERE id = item_tags.item_id)
-		WHERE item_id = ?1 OR item_id IN (SELECT id FROM items WHERE root_id = ?1)`, itemID)
-	return err
+	if _, err := b.exec(`UPDATE item_tags SET rating_age = (SELECT rating_age FROM items WHERE id = item_tags.item_id)
+		WHERE item_id = ?1 OR item_id IN (SELECT id FROM items WHERE root_id = ?1)`, itemID); err != nil {
+		return err
+	}
+	// A title rated differently from what holds it can leave that holder empty.
+	return b.flagHolders(itemID)
 }

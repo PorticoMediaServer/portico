@@ -38,6 +38,10 @@ func (b *batchTx) labelsChanged(items ...int64) error {
 				return err
 			}
 		}
+		// A title covered differently from what holds it can leave that holder empty.
+		if err := b.flagHolders(id); err != nil {
+			return err
+		}
 	}
 	return nil
 }
