@@ -22,6 +22,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/artwork"
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/librarychannels"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
 	"github.com/PorticoMediaServer/portico/server-next/internal/remote"
@@ -68,6 +69,8 @@ type Server struct {
 	remote *remote.Registry
 	// driveSignIns are Google sign-ins for Drive sources under way.
 	driveSignIns remote.DriveSignIns
+	// channels builds Library Channel schedules and says what is on. See library_channels.go.
+	channels *librarychannels.Service
 }
 
 // Route is one operation, kept so the contract can be generated and the operation budget counted.
@@ -82,6 +85,8 @@ type Route struct {
 	// Status is the status of a reply with a body when it is not 200: 202 for a slow write
 	// that answers with a job to watch.
 	Status int
+	// MaxBody, when set, is this route's own bound on its JSON body in place of maxBody.
+	MaxBody int64
 }
 
 // Scope is what a key made for a tool must have been given to use a route. A signed-in
@@ -212,6 +217,9 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 		return nil, err
 	}
 	s.libraryRoutes()
+	s.channels = librarychannels.New(d, log, func() time.Time { return s.now() })
+	go s.channels.Run(ctx)
+	s.libraryChannelRoutes()
 	return s, nil
 }
 
@@ -306,7 +314,11 @@ func Handle[Req, Resp any](s *Server, pattern string, access Access, fn func(r *
 			return
 		}
 		var req Req
-		if err := readBody(w, r, &req, noBody); err != nil {
+		limit := int64(maxBody)
+		if route.MaxBody > 0 {
+			limit = route.MaxBody
+		}
+		if err := readBody(w, r, &req, noBody, limit); err != nil {
 			s.writeError(w, r, err)
 			return
 		}
@@ -346,8 +358,8 @@ type JSON = json.RawMessage
 
 // readBody reads a bounded JSON body into out. Fields this server does not know are ignored,
 // so a newer app can talk to an older server; /v1/system says what the server understands.
-func readBody(w http.ResponseWriter, r *http.Request, out any, noBody bool) error {
-	body := http.MaxBytesReader(w, r.Body, maxBody)
+func readBody(w http.ResponseWriter, r *http.Request, out any, noBody bool, limit int64) error {
+	body := http.MaxBytesReader(w, r.Body, limit)
 	if noBody {
 		// Many HTTP libraries send an empty object, "{}", with every request; it says nothing.
 		raw, err := io.ReadAll(body)
