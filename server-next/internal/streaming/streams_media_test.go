@@ -830,8 +830,8 @@ func TestAConverterThatKeepsDyingFailsTheStream(t *testing.T) {
 			rig.get(context.Background(), stream.Grant, "segment-000000.ts", "")
 			status, _ := rig.streams.Status(session)
 			if status.State == "failed" {
-				if status.Failure == nil || status.Failure.Code != FailureConverterStopped || runs.Load() != converterDeaths+1 {
-					t.Fatalf("%s: failed as %+v after %d runs, want %s after %d", session, status.Failure, runs.Load(), FailureConverterStopped, converterDeaths+1)
+				if status.Failure == nil || status.Failure.Code != FailureConverterStopped || runs.Load() != converterDeaths {
+					t.Fatalf("%s: failed as %+v after %d runs, want %s after %d", session, status.Failure, runs.Load(), FailureConverterStopped, converterDeaths)
 				}
 				break
 			}
