@@ -1,10 +1,13 @@
 package api
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"regexp"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -121,16 +124,19 @@ func TestTheOwnerAddsWebOrigins(t *testing.T) {
 	s := openTestServer(t, path)
 	owner := onMainProfile(t, s)
 	for _, bad := range []string{"*", "null", "https://*.example", "tools.example", "ftp://tools.example", "https://tools.example/app",
-		"https://tools.example?x=1", "https://someone@tools.example", "https://", ""} {
-		if got := status(t, s, "PUT", "/v1/admin/settings/network", owner.AccessToken, NetworkSettingsEdit{TrustedProxies: []string{}, WebOrigins: []string{bad}}); got != 400 {
+		"https://tools.example?x=1", "https://someone@tools.example", "https://", "",
+		// What a browser would send differently, so it could never match.
+		"https://münchen.example", "https://tools.example:08080", "https://tools.example:99999", "https://tools.example:0"} {
+		if got := status(t, s, "PUT", "/v1/admin/settings/network", owner.AccessToken, NetworkSettingsEdit{TrustedProxies: []string{}, WebOrigins: &[]string{bad}}); got != 400 {
 			t.Errorf("allowing %q answered %d, want 400", bad, got)
 		}
 	}
 	var saved NetworkSettings
-	edit := NetworkSettingsEdit{TrustedProxies: []string{}, WebOrigins: []string{
-		"http://localhost:5173", " HTTPS://Tools.Example:443/ ", "https://tools.example", "http://nas.example:8080", "https://web.getportico.tv"}}
+	edit := NetworkSettingsEdit{TrustedProxies: []string{}, WebOrigins: &[]string{
+		"http://localhost:5173", " HTTPS://Tools.Example:443/ ", "https://tools.example", "http://nas.example:8080", "https://web.getportico.tv",
+		"https://xn--mnchen-3ya.example"}}
 	if w := call(t, s, "PUT", "/v1/admin/settings/network", owner.AccessToken, edit, &saved); w.Code != 200 ||
-		!slices.Equal(saved.WebOrigins, []string{"http://localhost:5173", "https://tools.example", "http://nas.example:8080"}) ||
+		!slices.Equal(saved.WebOrigins, []string{"http://localhost:5173", "https://tools.example", "http://nas.example:8080", "https://xn--mnchen-3ya.example"}) ||
 		!slices.Equal(saved.BuiltInWebOrigins, []string{"https://web.getportico.tv"}) {
 		t.Fatalf("saving web origins: %d %+v", w.Code, saved)
 	}
@@ -151,14 +157,79 @@ func TestTheOwnerAddsWebOrigins(t *testing.T) {
 	check(s, "after saving")
 	closeDB(s.db)
 	check(openTestServer(t, path), "after a restart")
-	// A save that lists none takes them away again; the built-in one stays.
+	// A save that leaves the list out, as a screen that does not know of it would, keeps it.
 	s = openTestServer(t, path)
-	if got := status(t, s, "PUT", "/v1/admin/settings/network", owner.AccessToken, NetworkSettingsEdit{TrustedProxies: []string{}}); got != 200 {
+	if w := call(t, s, "PUT", "/v1/admin/settings/network", owner.AccessToken, NetworkSettingsEdit{TrustedProxies: []string{"10.0.0.2"}}, &saved); w.Code != 200 ||
+		len(saved.WebOrigins) != 4 || !slices.Equal(saved.TrustedProxies, []string{"10.0.0.2/32"}) {
+		t.Fatalf("a save without web origins: %d %+v", w.Code, saved)
+	}
+	check(s, "after a save that left the list out")
+	// A save with an empty list takes them away; the built-in one stays.
+	if got := status(t, s, "PUT", "/v1/admin/settings/network", owner.AccessToken, NetworkSettingsEdit{TrustedProxies: []string{}, WebOrigins: &[]string{}}); got != 200 {
 		t.Fatalf("clearing web origins answered %d", got)
 	}
 	if readable(asked(s, "https://tools.example", "GET", "/v1/system", ""), "https://tools.example") ||
 		!readable(asked(s, "https://web.getportico.tv", "GET", "/v1/system", ""), "https://web.getportico.tv") {
 		t.Error("after clearing, the owner's origin is still allowed or the built-in one is not")
+	}
+}
+
+// A settings document changed by hand to allow "null", "*" or an address with a path is not
+// believed: at start each saved entry is held to the rule a save is held to, and what fails
+// it is ignored. "null" is what a sandboxed frame or a page opened from a file sends.
+func TestASavedOriginThatIsNotOneAddressIsIgnored(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "main.db")
+	s := openTestServer(t, path)
+	onMainProfile(t, s)
+	document := `{"proxies":[],"origins":["null","*","https://tools.example/app","HTTPS://Loud.example","https://kept.example"]}`
+	if _, err := s.db.SaveSettingDocument(context.Background(), 0, networkSettingsKey, document, -1, s.now()); err != nil {
+		t.Fatal(err)
+	}
+	closeDB(s.db)
+	s = openTestServer(t, path)
+	for origin, want := range map[string]bool{"null": false, "*": false, "https://tools.example/app": false, "https://tools.example": false,
+		"HTTPS://Loud.example": false, "https://loud.example": false, "https://kept.example": true} {
+		if got := readable(asked(s, origin, "GET", "/v1/system", ""), origin); got != want {
+			t.Errorf("a page at %q may read answers: %v, want %v", origin, got, want)
+		}
+	}
+}
+
+// A page that is not allowed can still make a browser send a POST with no body, or with a
+// body that is not JSON, without asking first. No route that needs no sign-in may act on
+// one: each must refuse it. A new route that would accept one fails here.
+func TestNoRouteWithoutSignInActsOnABodyAPageCanSendUnasked(t *testing.T) {
+	s := openTestServer(t, filepath.Join(t.TempDir(), "main.db"))
+	onMainProfile(t, s)
+	checked := 0
+	for _, route := range s.Routes() {
+		method, path, _ := strings.Cut(route.Pattern, " ")
+		if route.Access != Public || method != "POST" {
+			continue
+		}
+		checked++
+		path = regexp.MustCompile(`\{[^}]+\}`).ReplaceAllString(path, "x")
+		for name, send := range map[string]func(r *http.Request){
+			"no body":         func(r *http.Request) {},
+			"a form":          func(r *http.Request) { r.Header.Set("Content-Type", "application/x-www-form-urlencoded") },
+			"JSON as text":    func(r *http.Request) { r.Header.Set("Content-Type", "text/plain") },
+			"an upload form":  func(r *http.Request) { r.Header.Set("Content-Type", "multipart/form-data; boundary=x") },
+			"no content type": func(r *http.Request) { r.Header.Del("Content-Type") },
+		} {
+			body := `{"username":"owner","password":"x","code":"x","token":"x","refreshToken":"x","name":"x"}`
+			if name == "no body" {
+				body = ""
+			}
+			r := httptest.NewRequest("POST", path, strings.NewReader(body))
+			send(r)
+			r.Header.Set("Origin", "https://evil.example")
+			if w := serve(s, r); w.Code < 400 {
+				t.Errorf("%s answered %d to %s from a page that is not allowed", route.Pattern, w.Code, name)
+			}
+		}
+	}
+	if checked < 5 {
+		t.Fatalf("only %d routes were checked", checked)
 	}
 }
 
