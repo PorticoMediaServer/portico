@@ -80,6 +80,27 @@ func TestConversionOffRefusesOnlyWhatNeedsConverting(t *testing.T) {
 		}
 	}
 
+	// A program that is not there is not put in force, and the owner is told on the settings
+	// page itself: the document reads back with one plain line. Taking it out clears the line.
+	problem := func() string {
+		var document api.SettingsDocument
+		h.call("GET", "/v1/admin/settings/streaming", nil, &document, 200)
+		return document.Problem
+	}
+	awaits := func(what string, holds func(string) bool) {
+		t.Helper()
+		for deadline := time.Now().Add(20 * time.Second); !holds(problem()); time.Sleep(100 * time.Millisecond) {
+			if time.Now().After(deadline) {
+				t.Fatalf("%s: the settings document says %q", what, problem())
+			}
+		}
+	}
+	awaits("a folder that works", func(line string) bool { return line == "" })
+	h.call("PUT", "/v1/admin/settings/streaming", map[string]any{"ffmpegProgram": "/nowhere/ffmpeg"}, nil, 200)
+	awaits("a program that is not there", func(line string) bool { return strings.Contains(line, "FFmpeg was not found at /nowhere/ffmpeg") })
+	h.call("PUT", "/v1/admin/settings/streaming", map[string]any{"ffmpegProgram": ""}, nil, 200)
+	awaits("the program taken out again", func(line string) bool { return line == "" })
+
 	// The device's stored document becomes one this server cannot read (a version it does
 	// not know). The film still plays, planned for a device that said nothing.
 	if err := d.PutDeviceCapabilities(ctx, 1, h.device, `{"version":99,"something":"new"}`, time.Now()); err != nil {
