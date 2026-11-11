@@ -24,7 +24,7 @@ type setupArea struct {
 	// certs is the certificate for the owner's own address, read from the Keys folder.
 	certs *tlsport.Store
 	// ports asks the home router to open the public port. It asks nothing until
-	// ServePortMapping runs it, which tests never do.
+	// ServeNetwork runs it, which tests never do.
 	ports *portmap.Mapper
 	// public finds the server's public address from outside services; like ports, it asks
 	// nothing until ServeNetwork runs it.
