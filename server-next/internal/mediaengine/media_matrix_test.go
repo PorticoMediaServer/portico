@@ -223,9 +223,9 @@ func cues(vtt string) []cue {
 	return out
 }
 
-// pgsBox is a picture subtitle: a white box w×h at x,y on a width×height picture, shown from
+// pictureSubtitle is a picture subtitle: a white box w×h at x,y on a width×height picture, shown from
 // one second to another, as a Blu-ray carries it.
-func pgsBox(width, height, x, y, w, h, from, to int) []byte {
+func pictureSubtitle(width, height, x, y, w, h, from, to int) []byte {
 	var out bytes.Buffer
 	segment := func(seconds int, kind byte, body []byte) {
 		out.WriteString("PG")
@@ -847,7 +847,7 @@ func TestMediaMatrix(t *testing.T) {
 			}
 			dir := t.TempDir()
 			for name, data := range map[string][]byte{"words.srt": []byte(srtText), "styled.ass": []byte(assText),
-				"box.sup": pgsBox(320, 180, boxX, boxY, boxW, boxH, pgsFrom, pgsTo)} {
+				"box.sup": pictureSubtitle(320, 180, boxX, boxY, boxW, boxH, pgsFrom, pgsTo)} {
 				if err := os.WriteFile(filepath.Join(dir, name), data, 0o600); err != nil {
 					t.Fatal(err)
 				}
