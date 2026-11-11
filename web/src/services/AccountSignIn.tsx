@@ -2,7 +2,7 @@ import {useState, type FormEvent, type ReactNode} from 'react';
 import {AuthLinks, AuthPasswordField} from '../kit/accounts/AuthStage';
 import {ServicesActions, ServicesAuthStage, ServicesHeading, ServicesLead, ServicesNotice} from '../kit/accounts/ServicesAuth';
 import {Button, TextField} from '../kit/controls';
-import {goTo} from '../platform/hosted-navigation';
+import {goTo, pathOnThisAddress} from '../platform/hosted-navigation';
 import {servicesI18n} from './i18n';
 import {account} from './account-session';
 import {ServicesError, thisDevice} from './services-api';
@@ -15,7 +15,7 @@ import styles from './services.module.css';
 /** Only a path on this address may be returned to after signing in. */
 export function returnPath(search = location.search, fallback = '/account'): string {
   const next = new URLSearchParams(search).get('next');
-  return next && next.startsWith('/') && !next.startsWith('//') ? next : fallback;
+  return (next && pathOnThisAddress(next)) || fallback;
 }
 export function signInPath(next: string): string { return `/sign-in?next=${encodeURIComponent(next)}`; }
 
