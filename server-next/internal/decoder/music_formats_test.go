@@ -58,7 +58,7 @@ func musicDSF(mult int) []byte {
 	}
 	return b.Bytes()
 }
-func TestMusicDSD64Through256R29(t *testing.T) {
+func TestMusicDSD64Through256(t *testing.T) {
 	testtier.Media(t, "encodes and decodes actual bounded music fixtures through FFmpeg")
 	ff, e := exec.LookPath("ffmpeg")
 	if e != nil {

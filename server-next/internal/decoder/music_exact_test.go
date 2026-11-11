@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-func TestMusicUntouchedPCMBitExactR29(t *testing.T) {
+func TestMusicUntouchedPCMBitExact(t *testing.T) {
 	testtier.Media(t, "encodes and decodes actual bounded music fixtures through FFmpeg")
 	ff, e := exec.LookPath("ffmpeg")
 	if e != nil {
@@ -81,7 +81,7 @@ func TestMusicUntouchedPCMBitExactR29(t *testing.T) {
 	}
 }
 
-func TestMusicTruePeakLimiterAndAudibleLengthR29(t *testing.T) {
+func TestMusicTruePeakLimiterAndAudibleLength(t *testing.T) {
 	testtier.Media(t, "encodes and decodes actual bounded music fixtures through FFmpeg")
 	ff, e := exec.LookPath("ffmpeg")
 	if e != nil {
@@ -183,7 +183,7 @@ func TestMusicTruePeakLimiterAndAudibleLengthR29(t *testing.T) {
 	t.Logf("four-times reconstructed peak=%f; exact audible frames=%d", got, frames)
 }
 
-func TestMusic24BitDitherActuallyQuantizesR29(t *testing.T) {
+func TestMusic24BitDitherActuallyQuantizes(t *testing.T) {
 	testtier.Media(t, "encodes and decodes actual bounded music fixtures through FFmpeg")
 	ff, e := exec.LookPath("ffmpeg")
 	if e != nil {

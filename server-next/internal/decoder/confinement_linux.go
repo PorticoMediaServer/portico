@@ -237,8 +237,8 @@ func sandboxArgs(v linuxSpec, socket string, n int) ([]string, error) {
 		return nil, e
 	}
 	// The decoder's own exact ELF dependencies are always bound, whatever the
-	// caller passed: a caller that passed none (the audio render measurement,
-	// NEW-29) got a sandbox where a dynamically linked ffprobe couldn't load
+	// caller passed: the audio render measurement passed none and got a
+	// sandbox where a dynamically linked ffprobe couldn't load
 	// libm.so.6, and every measurement failed as "unreadable".
 	var decoderLibs []string
 	if !v.Probe {
