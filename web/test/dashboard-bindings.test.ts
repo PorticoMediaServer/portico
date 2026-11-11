@@ -38,10 +38,26 @@ test('Now playing reads every stream at once from the rebuilt server, in the car
   const broken = createDashboardBindings(options({api: {...options().api, request: async () => ({items: [{id: 'a'}]}) as never}}));
   await assert.rejects(broken.read.sessions(), /invalid_now_playing/); broken.dispose();
 });
-test('administrator reads sessions only; secondary profile and member dispatch nothing', async () => {
+test('an administrator reads streams only; a secondary profile and a member dispatch nothing', async () => {
   for (const change of [{role: 'member' as const}, {isMainProfile: () => false}]) {let calls = 0; const b = createDashboardBindings(options({...change, api: {request: async () => {calls++; return {} as never;}, requestRaw: async () => {calls++; return {} as never;}}})); await assert.rejects(async () => b.read.sessions()); await assert.rejects(async () => b.read.status()); assert.equal(calls, 0); b.dispose();}
   const b = createDashboardBindings(options({role: 'admin'})); assert.equal((await b.read.sessions()).totals.streams, 0);
-  for (const read of [() => b.read.status(), () => b.read.people({period: 'all'}), () => b.read.report(reportQuery), () => b.read.telemetry('live'), () => b.read.plays({period: 'all'}), () => b.effects.stop('id'), () => b.effects.openHistory()]) await assert.rejects(async () => read()); b.dispose();
+  for (const read of [() => b.read.status(), () => b.read.people({period: 'all'}), () => b.read.report(reportQuery), () => b.read.telemetry('live'), () => b.read.plays({period: 'all'}), () => b.effects.openHistory()]) await assert.rejects(async () => read()); b.dispose();
+});
+test('an administrator may stop a stream (console definition, rule 1); a member and a secondary profile may not', async () => {
+  const stops: unknown[] = [];
+  const api = {...options().api, request: async (path: string, method?: string, body?: unknown) => {
+    if (method === 'DELETE') {stops.push({path, body}); return undefined as never;}
+    return {items: []} as never;}};
+  const admin = createDashboardBindings(options({role: 'admin', api}));
+  await admin.effects.stop('session', 'Closing for the night');
+  assert.deepEqual(stops, [{path: '/v1/admin/sessions/session', body: {message: 'Closing for the night'}}]);
+  admin.dispose();
+  for (const change of [{role: 'member' as const}, {isMainProfile: () => false}]) {
+    const b = createDashboardBindings(options({...change, api}));
+    await assert.rejects(async () => b.effects.stop('session'));
+    b.dispose();
+  }
+  assert.equal(stops.length, 1, 'only the administrator\'s stop was sent');
 });
 test('late private response after authority replacement is rejected and disposed source cannot read', async () => {
   let current = true, release!: (value: never) => void; const b = createDashboardBindings(options({isCurrent: () => current, api: {...options().api, request: async () => new Promise(resolve => {release = resolve;})}}));

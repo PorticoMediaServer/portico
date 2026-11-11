@@ -24,6 +24,9 @@ export function SessionCard({session: s, bindings: b, refresh, layout = 'desktop
   const act = async (action: () => Promise<void>, depart = false) => {if (!b.isCurrent() || busy) return; setBusy(true); try {await action(); if (b.isCurrent()) {setStop(false); refresh(depart ? s.id : undefined);}} catch (error) {if (b.isCurrent()) b.effects.reportError(error);} finally {if (b.isCurrent()) setBusy(false);}};
   const state = s.state === 'playing' ? t('next.dashboard.playing') : s.state === 'paused' ? t('next.dashboard.paused') : s.state === 'buffering' ? t('next.dashboard.buffering') : s.state === 'preparing' ? t('next.dashboard.preparing') : undefined;
   const title = sessionTitle(s), stopTitle = sessionStopTitle(s);
+  // The owner and administrators may stop a stream (console definition, rule 1), once Stop can name it: an
+  // administrator held to some libraries is sent a stream outside them untitled, and gets no Stop on it.
+  const canStop = (b.role === 'owner' || b.role === 'admin') && !!stopTitle;
   const runtime = s.durationMs ? fmtDur(s.durationMs / 3_600_000) : undefined;
   const move = useSessionMove(b, s, title, menu, retained, () => refresh());
   const overlayOpen = menu || stop || !!move.dialog || busy;
@@ -44,9 +47,9 @@ export function SessionCard({session: s, bindings: b, refresh, layout = 'desktop
   const menuItems = [
     ...(move.canMove ? [{id: 'move', icon: 'i-clock' as const, label: t('web.nowPlaying.moveTo'), onSelect: move.open}] : []),
     ...(b.effects.transport && ['paused', 'playing'].includes(s.state) ? [{id: 'transport', icon: s.state === 'paused' ? 'i-play' as const : 'i-pause' as const, label: s.state === 'paused' ? t('next.dashboard.resume') : t('next.dashboard.pause'), onSelect: () => {void act(() => b.effects.transport!(s.id, s.state === 'paused' ? 'resume' : 'pause'));}}] : []),
-    ...(b.role === 'owner' && stopTitle ? [{id: 'stop', icon: 'i-stop' as const, label: t('next.dashboard.stop'), destructive: true, onSelect: () => {setMessage(''); setStop(true);}}] : []),
+    ...(canStop ? [{id: 'stop', icon: 'i-stop' as const, label: t('next.dashboard.stop'), destructive: true, onSelect: () => {setMessage(''); setStop(true);}}] : []),
   ];
-  // A server that offers nothing here for this person (no Pause, no Move to, Stop for the owner alone) shows no menu.
+  // A server that offers nothing here for this person (no Pause, no Move to, no Stop) shows no menu.
   const sessionMenu = menuItems.length === 0 ? null : <><Menu open={menu} onOpenChange={setMenu} title={t('next.dashboard.sessionMenu', {user: s.user})} trigger={<Button ref={opener} data-session-menu icon="i-more" iconOnly size="xs" disabled={busy} aria-label={t('next.dashboard.sessionMenu', {user: s.user})} />} items={menuItems} />{move.dialog}</>;
   const stopDialog = <Dialog open={stop} onOpenChange={value => {if (!busy) setStop(value);}} title={t('next.dashboard.stopTitle', {title: stopTitle})} description={s.user && s.device ? t('next.dashboard.stopDetail', {user: s.user, device: s.device}) : undefined} returnFocusRef={opener} initialFocusRef={cancel} width={560} showCloseButton={false} className={styles.stopDialog} bodyClassName={styles.stopBody} footerClassName={styles.stopFooter}
     footer={<><Button ref={cancel} size="small" disabled={busy} onClick={() => setStop(false)}>{t('next.dashboard.cancel')}</Button><Button size="small" className={styles.stopButton} loading={busy} onClick={() => {void act(() => b.effects.stop(s.id, message.trim() || undefined), true);}}>{t('next.dashboard.stopPlayback')}</Button></>}>
@@ -87,7 +90,7 @@ export function SessionCard({session: s, bindings: b, refresh, layout = 'desktop
       <div className={styles.phoneSessionActions}>
         <span className={styles.phonePosition}>{s.live ? (s.startedAt ? t('next.dashboard.started', {time: defaultI18n.time(Date.parse(s.startedAt))}) : undefined)
           : s.durationMs ? t('next.kit.session.position', {position: t('next.kit.session.positionOf', {position: clock(s.positionMs), duration: clock(s.durationMs)})}) : clock(s.positionMs)}</span>
-        {b.role === 'owner' && stopTitle && <Button size="xs" variant="glass" icon="i-stop" className={styles.phoneStop} onClick={() => {setMessage(''); setStop(true);}}>{t('next.dashboard.stop')}</Button>}
+        {canStop && <Button size="xs" variant="glass" icon="i-stop" className={styles.phoneStop} onClick={() => {setMessage(''); setStop(true);}}>{t('next.dashboard.stop')}</Button>}
         {!retained && sessionMenu}
       </div>
       {!s.live && !!s.durationMs && <div className={styles.phoneProgress} aria-hidden="true"><i style={{width: `${Math.min(100, Math.max(0, s.positionMs / s.durationMs * 100))}%`}} /></div>}
@@ -109,7 +112,7 @@ export function SessionCard({session: s, bindings: b, refresh, layout = 'desktop
     </div>
     {state && s.state !== 'playing' && <span className={styles.sessionState}><Icon name={paused ? 'i-pause' : s.state === 'buffering' ? 'i-refresh' : 'i-play'} size={12} />{state}</span>}
     {!retained && <div className={styles.sessionHover}>
-      {b.role === 'owner' && stopTitle && <Button size="xs" variant="glass" icon="i-stop" onClick={() => {setMessage(''); setStop(true);}}>{t('next.dashboard.stop')}</Button>}
+      {canStop && <Button size="xs" variant="glass" icon="i-stop" onClick={() => {setMessage(''); setStop(true);}}>{t('next.dashboard.stop')}</Button>}
       {sessionMenu}
     </div>}
     {!s.live && !!s.durationMs && <div className={styles.sessionBar} aria-hidden="true"><i style={{width: `${Math.min(100, Math.max(0, s.positionMs / s.durationMs * 100))}%`}} /></div>}

@@ -130,7 +130,8 @@ export function createDashboardBindings(options: DashboardBindingOptions): Dashb
     effects: {...options.effects,
       openHistory: () => {assert(true); options.effects.openHistory(context);},
       openHome: () => {assert(); options.effects.openHome();},
-      stop: async (id, message) => {assert(true); await stopServerStream(api, id, message); assert(true); options.queries?.moved([dependsOn.event('admin.sessions')]);},
+      // The owner and administrators may stop a stream (console definition, rule 1).
+      stop: async (id, message) => {assert(); await stopServerStream(api, id, message); assert(); options.queries?.moved([dependsOn.event('admin.sessions')]);},
       retryCertificate: async () => {assert(true); await retryCertificate(certificates, AbortSignal.timeout(15000)); assert(true);},
     },
     dispose: () => {close(); offAuthority?.(); consoleClient.dispose(); listeners.clear();},
