@@ -346,7 +346,7 @@ func (s *Server) libraryRoutes() {
 		return s.libraryOut(r, lib)
 	})
 	Handle(s, "PATCH /v1/admin/libraries/{id}", Owner, s.editLibrary)
-	Handle(s, "DELETE /v1/admin/libraries/{id}", Owner, s.deleteLibrary).Status = http.StatusAccepted
+	sensitive(Handle(s, "DELETE /v1/admin/libraries/{id}", Owner, s.deleteLibrary)).Status = http.StatusAccepted
 	Handle(s, "POST /v1/admin/libraries/{id}/scan", Owner, s.startScan).with(ScopeLibrary).Status = http.StatusAccepted
 	Handle(s, "DELETE /v1/admin/libraries/{id}/scan", Owner, s.cancelScan).with(ScopeLibrary)
 	Handle(s, "GET /v1/admin/libraries/{id}/scan", Owner, s.scanStatus).with(ScopeLibrary)
@@ -354,8 +354,8 @@ func (s *Server) libraryRoutes() {
 	Handle(s, "GET /v1/admin/libraries/{id}/missing", Owner, s.missingTitles)
 	Handle(s, "DELETE /v1/admin/libraries/{id}/missing", Owner, s.emptyTrash)
 	Handle(s, "GET /v1/admin/items/{id}/deletion", Owner, s.previewItemDeletion)
-	Handle(s, "DELETE /v1/admin/items/{id}", Owner, s.deleteItem).with(ScopeLibrary)
-	Handle(s, "DELETE /v1/admin/versions/{id}", Owner, s.deleteVersion).with(ScopeLibrary)
+	sensitive(Handle(s, "DELETE /v1/admin/items/{id}", Owner, s.deleteItem)).with(ScopeLibrary)
+	sensitive(Handle(s, "DELETE /v1/admin/versions/{id}", Owner, s.deleteVersion)).with(ScopeLibrary)
 	Handle(s, "GET /v1/jobs/{id}", SignedIn, s.readJob)
 }
 
