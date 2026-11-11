@@ -64,6 +64,10 @@ func TestLabelsFollowMovesAndSplits(t *testing.T) {
 		if len(wrong) > 0 {
 			t.Errorf("%s: %d wrong, first: %s", when, len(wrong), wrong[0])
 		}
+		// A move or a label can leave a holder empty for some profile: it must be flagged.
+		if missing, _, _, err := db.HolderFlags(d); err != nil || len(missing) > 0 {
+			t.Errorf("%s: %d holders not flagged (%v), first: %v", when, len(missing), err, missing)
+		}
 	}
 	find := func(kind db.ItemKind, title string) db.Item {
 		t.Helper()

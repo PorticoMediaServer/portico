@@ -170,3 +170,56 @@ func SplitSecondVersions(d *DB, onlyCovered bool) (int, error) {
 	}
 	return n, nil
 }
+
+// HolderFlags works out from every item's rating and stored labels which holders some
+// playable title under them differs from, and compares that with each holder's stored flag.
+// missing names each holder that should be flagged and is not: one a profile could be left
+// with nothing under and still meet. extra counts flags nothing causes any more, which
+// ordinary writes are allowed to leave. stored is every item's flag.
+func HolderFlags(d *DB) (missing []string, extra int, stored map[int64]bool, err error) {
+	type row struct {
+		kind           ItemKind
+		parent, root   int64
+		rating, labels sql.NullString
+		flag           bool
+	}
+	items := map[int64]row{}
+	rows, err := d.read.Query(`SELECT id, kind, ifnull(parent_id, 0), ifnull(root_id, 0), rating_age, labels, may_empty FROM items`)
+	if err != nil {
+		return nil, 0, nil, err
+	}
+	for rows.Next() {
+		var id int64
+		var r row
+		if err := rows.Scan(&id, &r.kind, &r.parent, &r.root, &r.rating, &r.labels, &r.flag); err != nil {
+			rows.Close()
+			return nil, 0, nil, err
+		}
+		items[id] = r
+	}
+	if err := rows.Close(); err != nil {
+		return nil, 0, nil, err
+	}
+	want := map[int64]bool{}
+	for _, leaf := range items {
+		if !leaf.kind.Playable() {
+			continue
+		}
+		for _, id := range []int64{leaf.parent, leaf.root} {
+			if holder, ok := items[id]; ok && !holder.kind.Playable() && (holder.rating != leaf.rating || holder.labels != leaf.labels) {
+				want[id] = true
+			}
+		}
+	}
+	stored = map[int64]bool{}
+	for id, r := range items {
+		stored[id] = r.flag
+		switch {
+		case want[id] && !r.flag:
+			missing = append(missing, fmt.Sprintf("%s %d is not flagged, though a title under it is rated or covered differently", r.kind, id))
+		case r.flag && !want[id]:
+			extra++
+		}
+	}
+	return missing, extra, stored, nil
+}

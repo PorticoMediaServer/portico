@@ -263,12 +263,15 @@ func (b *batchTx) movedUnder(id, root int64, rating *int) error {
 // under a show, so it decides the show's watched mark. The caller's transaction must end
 // with settleWatchedForAll.
 func (b *batchTx) ratingChanged(itemID int64) error {
-	_, err := b.exec(`UPDATE item_tags SET rating_age = (SELECT rating_age FROM items WHERE id = item_tags.item_id)
-		WHERE item_id = ?1 OR item_id IN (SELECT id FROM items WHERE root_id = ?1)`, itemID)
-	if err != nil {
+	if _, err := b.exec(`UPDATE item_tags SET rating_age = (SELECT rating_age FROM items WHERE id = item_tags.item_id)
+		WHERE item_id = ?1 OR item_id IN (SELECT id FROM items WHERE root_id = ?1)`, itemID); err != nil {
 		return err
 	}
 	holders, err := holdersAround(b, itemID)
+	if err != nil {
+		return err
+	}
 	b.watchedRated = append(b.watchedRated, holders...)
-	return err
+	// A title rated differently from what holds it can leave that holder empty.
+	return b.flagHolders(itemID)
 }
