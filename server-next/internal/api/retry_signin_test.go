@@ -22,6 +22,9 @@ func init() {
 		}
 	})
 	safeToRepeat(map[string]string{
+		"POST /v1/auth/remembered":                   "reads the accounts named by device-held tokens; changes nothing",
+		"POST /v1/auth/owner-reset":                  "one reset code file, rate limited; a repeat keeps the same pending reset",
+		"POST /v1/auth/owner-reset/confirm":          "uses up its reset code: a repeat is refused",
 		"POST /v1/setup/owner":                       "happens once: a repeat is told the server is set up",
 		"POST /v1/auth/sign-in":                      "a lost answer leaves a sign-in nobody holds, which expires",
 		"POST /v1/auth/two-factor":                   "the second step of a sign-in: as sign-in",
@@ -31,7 +34,7 @@ func init() {
 		"POST /v1/auth/codes":                        "a lost answer leaves a TV code nobody holds, which expires",
 		"POST /v1/auth/codes/{id}/approve":           "sets the code's state",
 		"POST /v1/auth/codes/{id}/redeem":            "uses up its code: a repeat is refused",
-		"POST /v1/auth/invitations/{id}/accept":      "uses up its invitation: a repeat is refused",
+		"POST /v1/auth/invitations/{id}/accept":      "a repeat with the same account and password signs in to that account",
 		"POST /v1/me/two-factor":                     "starts two-step sign-in again, replacing what was not confirmed",
 		"POST /v1/me/two-factor/confirm":             "sets the state",
 		"POST /v1/me/two-factor/recovery-codes":      "replaces the codes; the answer is the only copy either way",
