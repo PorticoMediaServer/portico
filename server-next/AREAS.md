@@ -22,7 +22,7 @@ table held in memory by that package's service.
   says so. Routes: `GET /v1/admin/settings`, `GET`/`PUT /v1/admin/settings/{name}`. Other
   `settings` rows are the server's own notes and have no route: `sign_in_kind` (kept under that
   name: `portico_account`, absent means local), the link to Portico Services, which alerts
-  have been announced, the last hardware test, when timed work last ran, block presets.
+  have been announced, the last hardware test, when timed work last ran.
 - **Notices.** Package `internal/notices`: `Send(to, kind, params, ref)` where `to` is an
   account, a profile, the owner, the owner and administrators, or everyone. It writes
   `notifications` rows and a change. Nothing else tells a person anything; there is no email
@@ -108,7 +108,8 @@ table held in memory by that package's service.
   capped by the owner's limit; an Original is fetched straight from the library file through
   the same byte route playback uses, a smaller copy through `prepare`. A title in several
   files is every part for Original and one joined file when prepared. The byte family issues a
-  grant per request item and must charge the range it actually serves.
+  grant per request item and must charge the range it actually serves. `prepared_media` rows
+  go with their version, so the tidy-up also removes prepared files that have no row.
 - Order: (1) `prepare` with its job; (2) options, ask, list, remove for one title at
   Original; (3) prepared qualities; (4) shows, seasons, albums, playlists and "keep the
   next"; (5) `sync`; (6) the owner's page.
@@ -139,12 +140,12 @@ table held in memory by that package's service.
   `internal/dvr` (rules, bookings, the recorder), `internal/librarychannels` (the builder and its
   schedule).
 - Durable: `live_sources`, `channels`, `profile_channels`, `recording_rules`, `recordings`,
-  `reminders`, `library_channels`; the `live` and `dvr` documents; block presets (one
-  `settings` row); recorded files in the recordings folder. Memory: who is watching, tuners in
+  `reminders`, `library_channels`, `channel_schedule`, `block_presets`; the `live` and `dvr`
+  documents; recorded files in the recordings folder. Memory: who is watching, tuners in
   use, one shared input per channel with its rewind stretch (files under the conversion
   folder, emptied at start), countdowns, clashes, a recording's progress.
-- `guide.db` holds every programme, tuner listings and Library Channel schedules alike, so
-  the guide reads one way. `internal/db` opens it with its own writer:
+- `guide.db` holds every programme, tuner listings and a copy of each Library Channel's
+  schedule alike, so the guide reads one way. It can be deleted at any time. `internal/db` opens it with its own writer:
 
   ```sql
   CREATE TABLE programmes (
@@ -162,23 +163,43 @@ table held in memory by that package's service.
   ```
 
   A refresh replaces one source's rows in one transaction, so the old guide shows until the
-  new one is whole. If the file is lost, listings are fetched again and each Library Channel
-  is scheduled again from now, carrying on from `schedule_state`; nothing a person made is in
-  it. Bookings and reminders copy the facts they need.
+  new one is whole. A Library Channel's schedule is `channel_schedule` in the main database,
+  written with `schedule_state` in one transaction, one channel at a time; its rows are then
+  copied into `guide.db` (title and details read from the item), and at start any channel
+  whose copy is missing or behind is copied again. Losing the file costs a refetch and a
+  copy, nothing else. A source refresh and Empty cache never touch `channel_schedule`.
+  Bookings and reminders copy the facts they need.
 - A Library Channel's `builder` document: `libraries`, `kinds`, `match` (all or any),
   `conditions` (conditions and one level of groups, in the form of `POST /v1/items/query`),
   `mentions`, `addedWithinDays`, `always` and `never` (item ids, 500 each), `order`, `sort`,
-  `episodes`, `marathon`, `avoidRepeats`, `whenDone`, `weights` (100), `blocks` (50, never
+  `episodes`, `marathon`, `avoidRepeats`, `whenDone`, `weights` (100), `blocks` (500, never
   overlapping: days, from, to, a whole copied selection or the channel's own, what happens at
   the end, pick up or start again, what plays if nothing matches), `quality`, `logoOnScreen`.
   Unknown conditions are kept as they are. The schedule job reads the catalogue, never the
-  other way round.
+  other way round. Limits: 1,000 channels, 500 blocks a channel, 1,000 presets, 500 titles in
+  each pinned list, 2 MB a document; a larger one is refused.
+- Memory and state for Library Channels. Never hold parsed builders: the service keeps, per
+  channel, only its `libraries` list, quality, logo choice and state, and reads `builder` to
+  edit or to schedule. In `schedule_state` a shuffle is a seed and a cursor: the order is the
+  matching titles sorted by a hash of seed and id, the cursor is the last hash played, and a
+  title added later joins this round if its hash is ahead of the cursor. "Avoid repeats" is
+  at most the last 1,000 ids, and a show's place is kept only while it is part-way through.
+- Who may see a Library Channel is decided by one function, `librarychannels.Visible(viewer,
+  channel)`, and it fails closed. A profile sees a channel only if it may see every library
+  in `library_channels.libraries`, which is every library the channel draws from and the
+  library of every block's copied selection: a save adds a block's library to the list or is
+  refused. A library in the list that no longer exists hides the channel from everyone but
+  the owner, never shows it to everybody. The guide page, On now, search, reminders, `Tune`
+  and the channel's logo all go through it. Each programme then still checks the rating
+  limit and blocked Tags by `item_id`.
 - Interfaces: watching is `POST /v1/playback/sessions` with `channel`. Playback asks
   `live.Tune(channel, viewer)`: for a source's channel it answers a shared input (a growing
   local stream and its facts) that playback plans like a file with no end, or `no_tuner` with
   what is using them; the recorder is one more caller of `Tune`. For a Library Channel it
   answers the item on now and how far in, and playback starts an ordinary session there that
-  saves no place and no watched mark and writes its play for the owner only. A recording is an
+  saves no place and no watched mark and writes its play for the owner only. A
+  second person who books the same airing is added to `recordings.also_wanted_by`, and a
+  cancel by the booker passes the booking on. A recording is an
   ordinary title: `dvr` writes the file into the Recorded TV library's folder (made with the
   first booking) and creates its item, version and file rows through the scanner's own insert
   functions with the guide's details, so a later scan finds nothing new.
@@ -187,7 +208,8 @@ table held in memory by that package's service.
   and schedule job, then preview, templates, blocks and presets. (5) needs only (1).
 - `Review: full`: adding a source (the server fetches an address and parses an uploaded
   file), what a profile may watch and record (audience, switches, rating), the recorder's
-  writes and Delete (files on disk), and Library Channel visibility. The rest is `quick`.
+  writes and Delete (files on disk), Library Channel visibility, and the logo upload (an untrusted picture: reuse the profile
+  picture decoder). The rest is `quick`.
 
 ## 12. Owner console and operations
 
@@ -199,9 +221,16 @@ table held in memory by that package's service.
   (worked out while their cause lasts), a pause of background work, "record more detail".
 - Interfaces: playback, downloads and Live TV read `streaming`, `downloads`, `live` and `dvr`
   through `settings`; playback fills `play_history`'s new columns (person, library, away,
-  delivery) and counts into `daily_totals` through `console.Count(metric, n)`, written when a
-  day ends. "Keep play history" removes the owner's old rows only once the profile's own
-  History no longer needs them; nothing else removes a play. A backup lists the working
+  delivery) and counts into `daily_totals` through `console.Count(metric, n)`, which adds to
+  today's rows every few minutes and when the server stops. Playback's admission reads the
+  upload speed from `streaming` when a play starts away from home and may refuse it; a stream
+  already playing is never changed. "Keep play history" removes the owner's old rows only once the profile's own
+  History no longer needs them; nothing else removes a play. Play history is for the owner and
+  administrators; its list is in time order only, and a filter by kind or text and the
+  summary read the plays of their range, an accepted cost bounded at a million plays.
+  Removing a library or an account clears `play_history.library_id`, `user_id` and
+  `profile_id` a batch at a time in background writes before the parent row is deleted, so
+  the delete never holds the writer; say so to whoever builds those deletes. A backup lists the working
   credentials inside it (the server's keys, source sign-ins, a remote source's key file).
 - Order: (1) `settings` with the `general` and `streaming` documents, and move the three
   built documents onto it; (2) `notices`, the inbox and reports; (3) sessions, Play history,
@@ -228,8 +257,10 @@ table held in memory by that package's service.
 - Order: (1) the key check with its limits, and the profile on a key; (2) webhooks; (3)
   "files changed" and tool notices; (4) the compatible routes; (5) the assistant address; (6)
   DLNA.
-- `Review: full`: the key check, the compatible sign-in, the assistant address, and DLNA (it
-  opens files with no sign-in). Webhooks are `quick`.
+- `Review: full`: the key check, the compatible sign-in, the assistant address, DLNA (it
+  opens files with no sign-in), and the webhook sender (the server calls an address the owner
+  typed, the home network included: it follows no redirect and carries no credentials). The
+  rest of webhooks is `quick`.
 
 ## Put-off work that lands here
 

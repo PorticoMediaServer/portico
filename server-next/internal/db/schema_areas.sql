@@ -114,9 +114,9 @@ CREATE INDEX reports_status ON reports (status, created_at);
 -- delivered (plays.film.converted, played_ms.music.original, bytes_away.episode.repackaged),
 -- and people (how many different people played) and streams_peak. They are totals for the
 -- server, never for a person or a title, so there are a few dozen rows a day whatever the
--- size of the library or the household; a chart reads a range of days by the key. A finished
--- day's rows are written once; today's are worked out as asked. (Who played what is
--- play_history; the last day's load chart is in memory.)
+-- size of the library or the household; a chart reads a range of days by the key. Today's
+-- rows are added to every few minutes and when the server stops, so a restart loses at most
+-- those minutes. (Who played what is play_history; the last day's load chart is in memory.)
 CREATE TABLE daily_totals (
   day    INTEGER NOT NULL,
   metric TEXT    NOT NULL,
@@ -246,7 +246,7 @@ CREATE INDEX download_items_prepared ON download_items (prepared_id) WHERE prepa
 -- L. Live TV, recordings and Library Channels
 -- ---------------------------------------------------------------------------------------
 -- The guide itself (programmes) is in guide.db, which can be deleted and is filled again from
--- the sources and the Library Channels. Who is watching, tuners in use, the rewind stretch
+-- the sources and from channel_schedule. Who is watching, tuners in use, the rewind stretch
 -- and a recording's progress are in memory.
 
 -- Where channels and listings come from: a playlist (by address or uploaded), an Xtream
@@ -285,8 +285,9 @@ CREATE TABLE live_sources (
 -- is a JSON list of what the owner set by hand (number, name, listings), which a refresh
 -- leaves alone. guide_source_id and guide_key say which listings are this channel's.
 -- locator is where the stream is; it never reaches an app. The logo is a file in the data
--- folder named by logo_hash. Up to 50,000 a source. A page of the guide is a run of
--- channels_by_number or channels_by_name and costs the same however many channels there are.
+-- folder named by logo_hash. Up to 50,000 a source. A page of the guide is a run of one of
+-- the four ordered indexes (all channels by number or name, one source's, one group's) and
+-- costs the same however many channels there are.
 CREATE TABLE channels (
   id              INTEGER NOT NULL PRIMARY KEY,
   public_id       TEXT    NOT NULL UNIQUE,
@@ -311,6 +312,8 @@ CREATE TABLE channels (
 CREATE UNIQUE INDEX channels_source ON channels (source_id, source_key);
 CREATE INDEX channels_by_number ON channels (state, number, id);
 CREATE INDEX channels_by_name ON channels (state, sort_name, id);
+CREATE INDEX channels_of_source ON channels (source_id, state, number, id) WHERE source_id IS NOT NULL;
+CREATE INDEX channels_of_group ON channels (group_name, state, number, id) WHERE group_name IS NOT NULL;
 CREATE INDEX channels_guide ON channels (guide_source_id, guide_key) WHERE guide_source_id IS NOT NULL;
 
 -- large. A profile's own favourite channels and the channels it hid for itself. A row exists
@@ -326,26 +329,29 @@ CREATE TABLE profile_channels (
 CREATE INDEX profile_channels_channel ON profile_channels (channel_id);
 
 -- A Library Channel as the owner built it; its name, logo, on or off and place in the list
--- are its channels row. At most 100. builder is one JSON document, saved whole and read whole
--- with an ETag, described in AREAS.md: the libraries it draws from, films or shows or both,
--- the conditions and groups (in the item list's own filter form), the words to find, "added
--- in the last", the titles always and never included, the play order and how a show's
--- episodes run, "avoid repeats within", "play more or less often", the weekly blocks each
--- with its own copied selection, the quality choice and the on-screen logo. Titles and
--- libraries are named in it by public id: a channel is never looked up by what is in it, a
--- document is not a place for foreign keys, and a title that has gone is skipped. The
--- schedule is built a week ahead into guide.db and added to each day, so what has aired and
--- what is on never change and a film added today does not reshuffle tonight. schedule_state
--- is where the builder had got to at scheduled_through_at: for the channel's own selection and
--- for each block, the place in each show, what is left of a shuffle and what played lately,
--- so "pick up where it left off" holds across restarts and a lost guide.db. state is the
--- word on the channel's row (on air, building, needs a new schedule, needs attention) and
--- problem the one sentence why. Every row is held in memory by the Live TV service.
+-- are its channels row. At most 1,000. builder is one JSON document, saved whole and read
+-- whole with an ETag, at most 2 MB, described in AREAS.md: the libraries it draws from, films
+-- or shows or both, the conditions and groups (in the item list's own filter form), the words
+-- to find, "added in the last", the titles always and never included (500 each), the play
+-- order and how a show's episodes run, "avoid repeats within", "play more or less often", up
+-- to 500 weekly blocks each with its own copied selection, the quality choice and the
+-- on-screen logo. Titles and libraries are named in it by public id: a channel is never
+-- looked up by what is in it, and a title that has gone is skipped. libraries is a copy, as a
+-- JSON list of public ids, of every library the channel and its blocks draw from, written
+-- with each save: it is all that deciding who may see the channel needs, so the builder is
+-- read only to edit or to schedule and is never held in memory. schedule_state is where the
+-- schedule in channel_schedule had got to at scheduled_through_at, saved in the same
+-- transaction as the rows it describes: for the channel's own selection and for each block, a
+-- shuffle as a seed and a cursor (never a list of titles), the last titles played for "avoid
+-- repeats" (at most 1,000), and the place in each show that is part-way through. state is
+-- the word on the channel's row (on air, building, needs a new schedule, needs attention) and
+-- problem the one sentence why.
 CREATE TABLE library_channels (
   channel_id           INTEGER NOT NULL PRIMARY KEY REFERENCES channels(id) ON DELETE CASCADE,
   description          TEXT,
   time_zone            TEXT    NOT NULL,
   builder              TEXT    NOT NULL,
+  libraries            TEXT    NOT NULL,
   schedule_state       TEXT,
   scheduled_through_at INTEGER,
   state                TEXT    NOT NULL DEFAULT 'building',
@@ -354,6 +360,40 @@ CREATE TABLE library_channels (
   created_at           INTEGER NOT NULL,
   updated_at           INTEGER NOT NULL
 ) STRICT;
+
+-- large. What each Library Channel plays and when, from yesterday to a week ahead: the
+-- schedule itself. It is here, in the main database, so that what has aired and what is on
+-- never change, it is saved together with schedule_state, and it travels in a backup; the
+-- guide reads a copy of it in guide.db, which is filled again from here whenever it is
+-- missing. item_id NULL is the slate: a title that has gone, or a stretch nothing fits.
+-- Under a million small rows at 1,000 channels; each day about a seventh is added and removed,
+-- one channel to a transaction. "What is on this channel now" is one read of the key.
+CREATE TABLE channel_schedule (
+  channel_id INTEGER NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+  starts_at  INTEGER NOT NULL,
+  ends_at    INTEGER NOT NULL,
+  item_id    INTEGER REFERENCES items(id) ON DELETE SET NULL,
+  PRIMARY KEY (channel_id, starts_at)
+) WITHOUT ROWID;
+CREATE INDEX channel_schedule_item ON channel_schedule (item_id) WHERE item_id IS NOT NULL;
+
+-- A block the owner saved to use again on any Library Channel: at most 1,000. recipe is one
+-- JSON document: the selection (clauses that include or exclude), the order, the length, an
+-- optional start and the days. A preset draws from one library and goes with it. Adding a
+-- block from a preset copies the recipe into the channel, so changing or deleting a preset
+-- never changes a channel. Each is made, changed and deleted by itself, with its own ETag.
+CREATE TABLE block_presets (
+  id          INTEGER NOT NULL PRIMARY KEY,
+  public_id   TEXT    NOT NULL UNIQUE,
+  name        TEXT    NOT NULL,
+  description TEXT,
+  library_id  INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+  recipe      TEXT    NOT NULL,
+  revision    INTEGER NOT NULL DEFAULT 1,
+  created_at  INTEGER NOT NULL,
+  updated_at  INTEGER NOT NULL
+) STRICT;
+CREATE INDEX block_presets_library ON block_presets (library_id);
 
 -- Record series. It follows the guide's series id (series_key), or where the guide has none
 -- the same title on the same channel. channel_id NULL is any channel of the source. keep_newest
@@ -385,9 +425,11 @@ CREATE INDEX recording_rules_channel ON recording_rules (channel_id) WHERE chann
 -- recorded title or a line of History. One row however many people or rules ask. The
 -- programme's own facts are copied, so the row reads the same after the guide moves on, and
 -- programme_key finds it again when the guide moves it; in_guide is 0 while the guide no
--- longer lists it. profile_id and booked_by say who booked it. choice is the person's answer
--- to a tuner clash, which holds for this airing. reason says why a recording is partial or
--- failed. Once recording starts, item_id is its title in the one Recorded TV library, an
+-- longer lists it. profile_id and booked_by say who booked it; also_wanted_by is a JSON list
+-- of the other profiles that asked for the same airing, in order, so when the booker cancels
+-- the booking passes to the next of them and is cancelled only when nobody is left. choice is
+-- the person's answer to a tuner clash, which holds for this airing. reason says why a
+-- recording is partial or failed. Once recording starts, item_id is its title in the one Recorded TV library, an
 -- ordinary item with its file in the recordings folder; keep protects that title from every
 -- automatic deletion. A clash is worked out from the upcoming rows, never stored. Failed,
 -- cancelled and skipped rows are removed after 30 days, and a recorded row goes when its
@@ -400,6 +442,7 @@ CREATE TABLE recordings (
   profile_id     INTEGER REFERENCES profiles(id) ON DELETE SET NULL,
   item_id        INTEGER REFERENCES items(id) ON DELETE SET NULL,
   booked_by      TEXT    NOT NULL,
+  also_wanted_by TEXT,
   channel_name   TEXT    NOT NULL,
   programme_key  TEXT    NOT NULL,
   series_key     TEXT,
