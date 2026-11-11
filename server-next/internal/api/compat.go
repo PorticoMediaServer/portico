@@ -712,7 +712,7 @@ func (s *Server) compatSessions(r *http.Request, c Caller) (any, error) {
 			"PlayState":    map[string]any{"PositionTicks": compat.Ticks(p.PositionMs), "IsPaused": p.State == playback.StatePaused, "CanSeek": false}}
 		// A title the caller's profile may not see is left out; the stream itself is listed.
 		if p.Visible {
-			item := map[string]any{"Id": compat.ID(p.Item.PublicID), "Name": p.Title, "Type": compat.Kind(p.Item.Kind.String()),
+			item := map[string]any{"Id": compat.ID(p.Item.PublicID), "Name": p.Item.Title, "Type": compat.Kind(p.Item.Kind.String()),
 				"RunTimeTicks": compat.Ticks(p.Item.DurationMS)}
 			if p.Item.Root != nil {
 				item["SeriesName"], item["SeriesId"] = p.Item.Root.Title, compat.ID(p.Item.Root.PublicID)
