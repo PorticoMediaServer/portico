@@ -25,6 +25,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
 	"github.com/PorticoMediaServer/portico/server-next/internal/portmap"
+	"github.com/PorticoMediaServer/portico/server-next/internal/publicaddr"
 	"github.com/PorticoMediaServer/portico/server-next/internal/tlsport"
 )
 
@@ -67,7 +68,10 @@ type Server struct {
 	// ports asks the home router to open the public port. It asks nothing until
 	// ServePortMapping runs it, which tests never do.
 	ports *portmap.Mapper
-	media func(w http.ResponseWriter, r *http.Request, grant, file string)
+	// public finds the server's public address from outside services; like ports, it asks
+	// nothing until ServeNetwork runs it.
+	public *publicaddr.Finder
+	media  func(w http.ResponseWriter, r *http.Request, grant, file string)
 	// feeds caps the change feeds each sign-in holds open. See catalogue.go.
 	feeds feeds
 }
@@ -175,6 +179,9 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	}
 	s.certs = tlsport.NewStore(filepath.Join(dataDir, "Keys"), log, func() time.Time { return s.now() })
 	s.ports = portmap.New(log, nil)
+	s.public = publicaddr.New(log)
+	// When Portico Services is connected, a new public address is reported to it here.
+	s.public.OnChange = func(address string) { log.Info("this server's public address changed", "address", address) }
 	if err := s.loadRemoteAccess(ctx); err != nil {
 		return nil, err
 	}
