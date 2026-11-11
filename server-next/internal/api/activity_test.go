@@ -7,7 +7,7 @@ import "testing"
 func TestNowPlayingAndStop(t *testing.T) {
 	th := newTheatre(t)
 	owner := th.owner.AccessToken
-	addMember(t, th.s, owner, "ada", "admin")
+	ada := addMember(t, th.s, owner, "ada", "admin")
 	addMember(t, th.s, owner, "max", "member")
 	admin := signInAs(t, th.s, "ada", testPassword, 1).AccessToken
 	member := signInAs(t, th.s, "max", testPassword, 2).AccessToken
@@ -30,6 +30,24 @@ func TestNowPlayingAndStop(t *testing.T) {
 	if song.Username != "max" || song.Title != "Song" || song.DeviceName == "" || !song.Away {
 		t.Errorf("the member's stream reads %+v", song)
 	}
+	// An administrator whose account is held to the music library sees every stream, and the
+	// title only of the song.
+	music, no := []string{th.libs["music"].PublicID}, false
+	if code := status(t, th.s, "PATCH", "/v1/admin/members/"+ada.ID, owner, MemberEdit{AllLibraries: &no, Libraries: &music}); code != 200 {
+		t.Fatalf("holding the administrator to music answered %d", code)
+	}
+	held := signInAs(t, th.s, "ada", testPassword, 3).AccessToken
+	var limited Page[NowPlaying]
+	call(t, th.s, "GET", "/v1/admin/sessions", held, nil, &limited)
+	for _, p := range limited.Items {
+		if p.ID == theirs.ID && p.Title != "Song" || p.ID != theirs.ID && p.Title != "" {
+			t.Errorf("an administrator held to music reads %+v", p)
+		}
+	}
+	if len(limited.Items) != 2 {
+		t.Errorf("an administrator held to music sees %d streams, want 2", len(limited.Items))
+	}
+	admin = held // changing what the account may see renews its sign-ins
 	if code := status(t, th.s, "DELETE", "/v1/admin/sessions/"+theirs.ID, member, StreamStop{}); code != 403 {
 		t.Errorf("a member stopped a stream: %d", code)
 	}
