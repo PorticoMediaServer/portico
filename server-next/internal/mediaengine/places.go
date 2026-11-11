@@ -49,7 +49,7 @@ func (e *Engine) open(base, ffmpeg string) (*place, error) {
 	e.opened++
 	ctx, stop := context.WithCancel(e.ctx)
 	streams, err := streaming.New(ctx, streaming.Options{Folder: filepath.Join(base, strconv.Itoa(e.opened)), FFmpeg: ffmpeg,
-		Libraries: e.folders, Processes: e.processes})
+		Libraries: e.folders, Processes: e.processes, Settings: e})
 	if err != nil {
 		stop()
 		return nil, err

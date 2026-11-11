@@ -230,11 +230,12 @@ func TestDeviceToneMappingIsDeclared(t *testing.T) {
 	if p.Strategy != DeliveryVideoConversion || !p.ToneMap || !rejected(p, DeliveryOriginal, RejectDisplayRange) {
 		t.Fatal("HDR was sent to a screen that cannot show it", p.Strategy, p.Trace.Routes)
 	}
-	// A display that says nothing is not held against the decoder.
+	// A device that says nothing about its screen is taken to show standard range only: the
+	// server tone-maps for it. Decoding HDR is not the same as showing it.
 	silent := appleTVProfile()
 	silent.Display.DynamicRanges = nil
-	if p = decide(t, source, documentOf(silent).Profile(EngineNative), nil); p.Strategy != DeliveryOriginal {
-		t.Fatal(p.Strategy, p.Trace.Routes)
+	if p = decide(t, source, documentOf(silent).Profile(EngineNative), nil); p.Strategy != DeliveryVideoConversion || !p.ToneMap {
+		t.Fatal("HDR was sent to a device that said nothing about its screen", p.Strategy, p.Trace.Routes)
 	}
 	p = decide(t, source, sdrScreen(true, CapabilityOverrides{DisableHDR: true}), nil)
 	if p.Strategy != DeliveryVideoConversion || !p.ToneMap || !contains(p.Trace.Notes, NoteOverrideNoHDR) {
