@@ -165,13 +165,14 @@ CREATE INDEX annotations_deleted ON annotations (deleted_at) WHERE deleted_at IS
 -- K. Downloads
 -- ---------------------------------------------------------------------------------------
 
--- A smaller copy of one version that the server made, or is making, so it can be handed out
--- as one file: the one way to get a prepared copy, for downloads in the apps, for Save file in
--- a browser, and for anything later that needs one. recipe is the quality it was made at, as
--- one canonical word, so a second person asking for the same thing waits for nothing. The
--- copy is a file in the prepared folder named by public_id; a version in several files is
--- joined into one. The work is a job (kind prepare, target this row's public id), which
--- carries the progress. content_hash lets a device check the whole file arrived. A copy
+-- A smaller copy of one version that the server made, or is making: the one way to get a
+-- prepared copy, for downloads in the apps, for Save file in a browser, and for anything later
+-- that needs one. recipe is the quality it was made at, as one canonical word, so a second
+-- person asking for the same thing waits for nothing. The copy is a file in the prepared
+-- folder named by public_id, or one file per part for a version in several files. state is
+-- the queue: package prepare makes the oldest waiting copy a request still wants, as many at
+-- once as the owner allows, and how far it has got is in memory. content_hash is the SHA-256
+-- of the file (of each part's, separated by spaces), so a device can check it arrived. A copy
 -- nobody has asked for or fetched since last_used_at plus the owner's keeping time is removed,
 -- row and file. The owner's download space is the sum of size here: each copy counts once.
 -- Thousands of rows at most; asking for a copy is one read of the unique index.

@@ -160,7 +160,7 @@ func preparedArgs(input string, r PreparedRecipe, validate bool) ([]string, erro
 			return nil, ErrInvalidConfiguration
 		}
 		scale := fmt.Sprintf("scale=w='max(2,trunc(min(min(iw*sar,%d),%d*dar)/2)*2)':h='max(2,trunc(min(min(ih,%d),%d/dar)/2)*2)',setsar=1", r.Width, r.Height, r.Height, r.Width)
-		rate := []string{"-fpsmax", "60", "-fps_mode", "vfr", "-maxrate", strconv.Itoa(r.VideoKbps) + "k", "-bufsize", strconv.Itoa(r.VideoKbps*2) + "k", "-threads", "2"}
+		rate := []string{"-fpsmax", "60", "-maxrate", strconv.Itoa(r.VideoKbps) + "k", "-bufsize", strconv.Itoa(r.VideoKbps*2) + "k", "-threads", "2"}
 		if !hevc {
 			// An HDR source becomes a standard picture here: scaled in its own
 			// range, then tone-mapped on the processor, never written flat.
