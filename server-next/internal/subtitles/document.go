@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/PorticoMediaServer/portico/server-next/internal/subtitleoffer"
 	"strconv"
 	"strings"
@@ -163,6 +164,37 @@ func TextDocument(raw []byte, format string, durationUS int64) ([]byte, error) {
 		return nil, err
 	}
 	return textDocument(cues)
+}
+
+// TextAsASS writes a text subtitle that is not ASS (SRT, WebVTT, SAMI, TTML) as a plain
+// ASS script, which is the form the converter draws into a picture. It keeps what
+// the plain cues keep: the words, italics and "at the top".
+func TextAsASS(raw []byte, format string, durationUS int64) ([]byte, error) {
+	cues, err := ParseTolerant(raw, format, durationUS)
+	if err != nil {
+		return nil, err
+	}
+	stamp := func(ms int64) string {
+		return fmt.Sprintf("%d:%02d:%02d.%02d", ms/3600000, ms/60000%60, ms/1000%60, ms%1000/10)
+	}
+	var b strings.Builder
+	b.WriteString("[Script Info]\nScriptType: v4.00+\nPlayResX: 384\nPlayResY: 288\nScaledBorderAndShadow: yes\n\n[V4+ Styles]\n" +
+		"Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, " +
+		"ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n" +
+		"Style: Default,Arial,16,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,1,0,2,10,10,10,1\n\n[Events]\n" +
+		"Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n")
+	for _, cue := range cues {
+		// Braces start an override in ASS; a cue's own are only ever words.
+		text := strings.NewReplacer("{", "(", "}", ")", "\n", "\\N").Replace(cue.Text)
+		if cue.Italic {
+			text = "{\\i1}" + text
+		}
+		if cue.Top {
+			text = "{\\an8}" + text
+		}
+		fmt.Fprintf(&b, "Dialogue: 0,%s,%s,Default,,0,0,0,,%s\n", stamp(cue.StartMS), stamp(cue.EndMS), text)
+	}
+	return []byte(b.String()), nil
 }
 func Canonical(raw []byte, format string, durationUS int64) ([]byte, error) {
 	return CanonicalAsset(raw, nil, format, durationUS)
