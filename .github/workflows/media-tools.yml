@@ -169,6 +169,8 @@ jobs:
     env:
       PORTICO_REQUIRE_DECODER_SANDBOX: '1'
       PORTICO_TEST_TIER: all
+      # The suite that plays real files through the media engine and checks the output.
+      PORTICO_MEDIA_MATRIX: '1'
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
