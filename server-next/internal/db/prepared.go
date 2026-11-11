@@ -53,11 +53,14 @@ func scanPrepared(row interface{ Scan(...any) error }) (Prepared, error) {
 // WantPrepared returns the prepared copy of a version at a recipe, making the row (waiting)
 // when there is none. Asking again for one that exists counts as using it, so it is kept
 // longer. Asking is one read of the unique index and one small write.
-func (d *DB) WantPrepared(ctx context.Context, mediaID int64, recipe string, now time.Time) (p Prepared, err error) {
+//
+// estimate is about how big the copy will be. It stands as the copy's size until the copy is
+// made, so copies still waiting count against the owner's download space.
+func (d *DB) WantPrepared(ctx context.Context, mediaID int64, recipe string, estimate int64, now time.Time) (p Prepared, err error) {
 	err = d.write(ctx, User, func(tx *sql.Tx) error {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO prepared_media (public_id, media_id, recipe, created_at, last_used_at) VALUES (?, ?, ?, ?, ?)
+		if _, err := tx.ExecContext(ctx, `INSERT INTO prepared_media (public_id, media_id, recipe, size, created_at, last_used_at) VALUES (?, ?, ?, ?, ?, ?)
 			ON CONFLICT (media_id, recipe) DO UPDATE SET last_used_at = excluded.last_used_at`,
-			NewID("prp"), mediaID, recipe, now.UnixMilli(), now.UnixMilli()); err != nil {
+			NewID("prp"), mediaID, recipe, estimate, now.UnixMilli(), now.UnixMilli()); err != nil {
 			return err
 		}
 		p, err = scanPrepared(tx.QueryRowContext(ctx, `SELECT `+preparedColumns+` FROM prepared_media WHERE media_id = ? AND recipe = ?`, mediaID, recipe))
@@ -118,10 +121,11 @@ func (d *DB) UsePrepared(ctx context.Context, id int64, now time.Time) error {
 }
 
 // PreparedSpace is the room the server's copies take, each copy once however many people
-// asked for it. Thousands of rows at most.
+// asked for it: a copy made at its size, one waiting or being made at its estimate. A copy
+// that could not be made takes none. Thousands of rows at most.
 func (d *DB) PreparedSpace(ctx context.Context) (int64, error) {
 	var used int64
-	err := d.read.QueryRowContext(ctx, `SELECT ifnull(sum(size), 0) FROM prepared_media`).Scan(&used)
+	err := d.read.QueryRowContext(ctx, `SELECT ifnull(sum(size), 0) FROM prepared_media WHERE state <> 'failed'`).Scan(&used)
 	return used, err
 }
 

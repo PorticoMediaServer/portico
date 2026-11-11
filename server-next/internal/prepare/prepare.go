@@ -29,6 +29,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
+	"github.com/PorticoMediaServer/portico/server-next/internal/diskspace"
 	"github.com/PorticoMediaServer/portico/server-next/internal/inputbridge"
 	"github.com/PorticoMediaServer/portico/server-next/internal/libraryfile"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediatools"
@@ -71,6 +72,8 @@ type Service struct {
 	running map[int64]*making
 	// usable says the encoder was found; found once.
 	usable *bool
+	// warnedFull is when the log last said copies wait for disk room.
+	warnedFull time.Time
 }
 
 // making is one copy being made.
@@ -141,7 +144,7 @@ func (s *Service) Want(ctx context.Context, v db.Version, kind db.ItemKind, reci
 	} else if limited && EstimatedSize(v, recipe) > room {
 		return db.Prepared{}, ErrSpaceFull
 	}
-	p, err := s.DB.WantPrepared(ctx, mediaID, recipe, s.Now())
+	p, err := s.DB.WantPrepared(ctx, mediaID, recipe, EstimatedSize(v, recipe), s.Now())
 	s.kick()
 	return p, err
 }
@@ -221,6 +224,9 @@ func (s *Service) fill(ctx context.Context) {
 			}
 			return
 		}
+		if !s.diskRoom(ctx, p) {
+			return // tried again at the next tick
+		}
 		work, stop := context.WithCancel(ctx)
 		s.mu.Lock()
 		s.running[p.ID] = &making{stop: stop}
@@ -234,6 +240,31 @@ func (s *Service) fill(ctx context.Context) {
 			s.mu.Unlock()
 		}()
 	}
+}
+
+// freeSpace answers how much room is left where the copies are written; tests replace it.
+var freeSpace = diskspace.Free
+
+// diskRoom says whether the disk holding the copies (and the database beside them) has room
+// for this copy and diskspace.ProducerFloor more. Whatever the owner's download space, even
+// none, a copy never fills that disk: without room it waits, and the log says so at most
+// once an hour. A disk that cannot be measured is not taken for a full one.
+func (s *Service) diskRoom(ctx context.Context, p db.Prepared) bool {
+	free, err := freeSpace(s.Folder)
+	if err != nil || free >= diskspace.ProducerFloor+p.Size {
+		return true
+	}
+	s.mu.Lock()
+	warn := s.Now().Sub(s.warnedFull) > time.Hour
+	if warn {
+		s.warnedFull = s.Now()
+	}
+	s.mu.Unlock()
+	if warn {
+		s.Log.Warn("copies for downloads wait: the disk holding them is nearly full", "folder", s.Folder, "freeBytes", free,
+			"copyBytes", p.Size)
+	}
+	return false
 }
 
 // make makes one copy and records how it went. A copy stopped because the server is stopping,
