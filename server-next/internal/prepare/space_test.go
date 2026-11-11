@@ -18,7 +18,7 @@ import (
 func TestCopiesWaitingToBeMadeCountAgainstTheSpace(t *testing.T) {
 	d, v := filmLibrary(t)
 	ctx := context.Background()
-	store, _, err := settings.Open(ctx, d, nil)
+	store, _, err := settings.Open(ctx, d)
 	if err != nil {
 		t.Fatal(err)
 	}
