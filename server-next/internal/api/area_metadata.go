@@ -30,6 +30,7 @@ func (s *Server) startMetadata(ctx context.Context) error {
 	}
 	s.metadataRoutes()
 	s.metadataSettingsRoutes()
+	s.subtitleSearchRoutes()
 	s.editorRoutes()
 	s.collectionRoutes()
 	s.artworkRoutes()
