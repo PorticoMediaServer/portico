@@ -565,7 +565,8 @@ func TestAFilmInTwoFilesDownloadsWhole(t *testing.T) {
 		raw = append(raw, body)
 		files = append(files, db.ImportFile{FileRef: db.FileRef{Name: name}, Role: db.FileMedia, Size: info.Size(), ModifiedNS: info.ModTime().UnixNano(),
 			Container: "matroska", DurationMS: 2000, Bitrate: 3_000_000, Streams: []db.Stream{
-				{Kind: db.StreamVideo, Codec: "h264", Width: 640, Height: 360}, {Kind: db.StreamAudio, Codec: "aac", Channels: 1, SampleRate: 44100}}})
+				{Kind: db.StreamVideo, Codec: "h264", Width: 640, Height: 360}, {Kind: db.StreamAudio, Codec: "aac", Channels: 1, SampleRate: 44100},
+				{Kind: db.StreamSubtitle, Codec: "subrip", Language: "eng"}}})
 		parts = append(parts, db.ImportPart{File: db.FileRef{Name: name}})
 	}
 	if _, err := rig.s.db.Import(ctx, db.ImportBatch{LibraryID: rig.films.ID, PathID: rig.films.Paths[0].ID, Scan: 2, Dirs: []db.ImportDir{{}},
@@ -604,6 +605,17 @@ func TestAFilmInTwoFilesDownloadsWhole(t *testing.T) {
 		sum := sha256.Sum256(body)
 		if res.StatusCode != 200 || hex.EncodeToString(sum[:]) != file.SHA256 {
 			t.Fatalf("a part of the copy is not the one described: %d", res.StatusCode)
+		}
+	}
+	// Each part's subtitle comes with the copy, said to go with its own part.
+	byPart := map[int]string{}
+	for _, sub := range item.Subtitles {
+		byPart[sub.Part] = sub.URL
+	}
+	for part, text := range map[int]string{1: "Part 1", 2: "Part 2"} {
+		res, body := rig.fetch(byPart[part])
+		if byPart[part] == "" || res.StatusCode != 200 || !strings.Contains(string(body), text) {
+			t.Fatalf("the subtitle of part %d answered %d %q; subtitles %+v", part, res.StatusCode, body, item.Subtitles)
 		}
 	}
 }
