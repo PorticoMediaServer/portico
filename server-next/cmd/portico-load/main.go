@@ -145,6 +145,7 @@ func main() {
 		report.dir = filepath.Dir(*path)
 		mixed(ctx, d, cfg, *readers, *writesPerSec, *settle, wal, report)
 	default:
+		log.Fatal("-mode must be import, rescan, mixed, crowd or tree")
 	}
 
 	report.PeakRSSBytes, report.WALMaxBytes = peakRSS(), wal.max.Load()
