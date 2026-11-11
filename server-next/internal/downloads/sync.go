@@ -46,7 +46,15 @@ type Synced struct {
 // is still told what to remove and until when the rest plays.
 func (s *Service) Sync(ctx context.Context, v db.Viewer, deviceID int64, platform string, held []Held) (Synced, error) {
 	out := Synced{Until: s.Now().Add(OfflineFor), Remove: []Removal{}, Fetch: []Held{}}
-	switch err := s.May(ctx, v, platform); {
+	// Downloads taken away from this person are removed whatever else is so: the account
+	// and profile switches are read before the server's own.
+	err := s.May(ctx, v, platform)
+	if allowed, readErr := s.DB.DownloadsAllowed(ctx, v); readErr != nil {
+		return out, readErr
+	} else if !allowed {
+		err = ErrNotAllowed
+	}
+	switch {
 	case errors.Is(err, ErrNotAllowed):
 		for _, h := range held {
 			out.Remove = append(out.Remove, Removal{Held: h, Reason: RemoveDownloadsOff})
@@ -72,15 +80,15 @@ func (s *Service) Sync(ctx context.Context, v db.Viewer, deviceID int64, platfor
 	if err != nil {
 		return out, err
 	}
+	byRequest, err := s.DB.DeviceDownloadTitles(ctx, v.ProfileID, deviceID)
+	if err != nil {
+		return out, err
+	}
 	for _, request := range requests {
 		if request.Paused {
 			continue
 		}
-		_, titles, err := s.DB.DownloadOf(ctx, v.ProfileID, request.PublicID)
-		if err != nil {
-			return out, err
-		}
-		for _, t := range titles {
+		for _, t := range byRequest[request.ID] {
 			h := Held{Download: request.PublicID, Item: t.ItemPublicID}
 			ready := t.State == db.DownloadWanted && (request.Quality == Original || t.Prepared != nil && t.Prepared.State == db.PreparedReady)
 			if ready && !have[h] {
