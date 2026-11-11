@@ -305,24 +305,8 @@ func (im *importer) rename(id int64, it *ImportItem, parent *importedItem) (*imp
 			if rating == nil {
 				rating = parent.ratingAge
 			}
-			if _, err := im.exec(`UPDATE items SET rating_age = ? WHERE id = ?`, rating, id); err != nil {
+			if err := im.movedUnder(id, newRoot, rating); err != nil {
 				return nil, err
-			}
-			if _, err := im.exec(`WITH RECURSIVE t(id) AS (SELECT id FROM items WHERE parent_id = ? UNION ALL
-				SELECT i.id FROM items i JOIN t ON i.parent_id = t.id)
-				UPDATE items SET root_id = ?, rating_age = ? WHERE id IN (SELECT id FROM t)`, id, newRoot, rating); err != nil {
-				return nil, err
-			}
-			// Each one's tag rows carry its rating too, for a limited profile's genre totals.
-			moved, err := queryInts(im.tx, `WITH RECURSIVE t(id) AS (SELECT ? UNION ALL SELECT i.id FROM items i JOIN t ON i.parent_id = t.id)
-				SELECT id FROM t`, id)
-			if err != nil {
-				return nil, err
-			}
-			for _, each := range moved {
-				if err := im.ratingChanged(each); err != nil {
-					return nil, err
-				}
 			}
 			item.ratingAge = rating
 			leaf := 0

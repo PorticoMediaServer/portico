@@ -225,6 +225,35 @@ func (b *batchTx) tagItem(itemID, tagID int64) error {
 	return err
 }
 
+// movedUnder must be called, in the same transaction, by whatever has just put an item under
+// another holder: a scan that finds its file elsewhere, or a merge. What a title inherits
+// from its holder moves with it: the rating that decides which profiles may see it, and the
+// top of its tree, for it and for everything under it. rating is the item's own where it has
+// one, else its new holder's. An episode moved from a show rated 8 into one rated 18 is then
+// hidden from a profile limited to 8 at once.
+func (b *batchTx) movedUnder(id, root int64, rating *int) error {
+	if _, err := b.exec(`UPDATE items SET rating_age = ? WHERE id = ?`, rating, id); err != nil {
+		return err
+	}
+	if _, err := b.exec(`WITH RECURSIVE t(id) AS (SELECT id FROM items WHERE parent_id = ? UNION ALL
+		SELECT i.id FROM items i JOIN t ON i.parent_id = t.id)
+		UPDATE items SET root_id = ?, rating_age = ? WHERE id IN (SELECT id FROM t)`, id, root, rating); err != nil {
+		return err
+	}
+	// Each one's tag rows carry its rating too, for a limited profile's genre totals.
+	moved, err := queryInts(b.tx, `WITH RECURSIVE t(id) AS (SELECT ? UNION ALL SELECT i.id FROM items i JOIN t ON i.parent_id = t.id)
+		SELECT id FROM t`, id)
+	if err != nil {
+		return err
+	}
+	for _, each := range moved {
+		if err := b.ratingChanged(each); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // ratingChanged must be called, in the same transaction, by whatever has just changed the
 // rating_age of an item or of the items under it. It writes each one's present rating into
 // its tag rows, which a rating-limited profile's genre choices and totals are counted from,
