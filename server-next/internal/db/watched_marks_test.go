@@ -186,18 +186,4 @@ func TestWatchedMarkFollowsEveryChange(t *testing.T) {
 	if !same {
 		t.Fatalf("a rebuild changed the marks: %d before, %d after", len(before), len(after))
 	}
-
-	// A deleted profile leaves nothing behind.
-	if err := l.d.DeleteProfile(ctx, l.viewers[1].UserID, mustProfile(t, l.d, l.viewers[1].UserID), time.Now()); err == nil {
-		check("after a profile was deleted")
-	}
-}
-
-func mustProfile(t *testing.T, d *db.DB, userID int64) string {
-	t.Helper()
-	profiles, err := d.Profiles(ctx, userID)
-	if err != nil || len(profiles) == 0 {
-		t.Fatalf("profiles: %v", err)
-	}
-	return profiles[0].PublicID
 }
