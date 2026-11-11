@@ -134,6 +134,9 @@ func (s *Server) createInvitation(r *http.Request, req InvitationCreate) (Invita
 	if req.Role == "" {
 		req.Role = "member"
 	}
+	if req.Role != "member" && caller.SessionID == 0 {
+		return Invitation{}, errKeyCannot("invite an administrator")
+	}
 	if req.ExpiresInDays == 0 {
 		req.ExpiresInDays = 7
 	}
@@ -157,6 +160,9 @@ func (s *Server) createInvitation(r *http.Request, req InvitationCreate) (Invita
 
 func (s *Server) editInvitation(r *http.Request, req InvitationEdit) (Invitation, error) {
 	caller, now := CallerFrom(r.Context()), s.now()
+	if req.Role != nil && caller.SessionID == 0 {
+		return Invitation{}, errKeyCannot("change who is invited as an administrator")
+	}
 	if err := checkInvitation(req.Role, req.ExpiresInDays, req.Libraries, req.Note); err != nil {
 		return Invitation{}, err
 	}

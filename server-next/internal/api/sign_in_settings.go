@@ -109,5 +109,5 @@ func (s *Server) signInSettingsRoutes() {
 		}
 		s.setPolicy(p)
 		return SignInSettings{p, revision(saved)}, nil
-	})
+	}).Scope = ScopeSession // no key changes how people sign in
 }

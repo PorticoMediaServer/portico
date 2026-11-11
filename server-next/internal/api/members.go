@@ -161,6 +161,9 @@ func (s *Server) createMember(r *http.Request, req MemberCreate) (Member, error)
 	if !validRole(req.Role) {
 		return Member{}, ErrField("role", "A role is member or admin.")
 	}
+	if req.Role != "member" && caller.SessionID == 0 {
+		return Member{}, errKeyCannot("make an administrator")
+	}
 	if !db.Manages(caller.Role, req.Role) {
 		return Member{}, ErrNotPermitted()
 	}
@@ -184,6 +187,8 @@ func (s *Server) createMember(r *http.Request, req MemberCreate) (Member, error)
 func (s *Server) editMember(r *http.Request, req MemberEdit) (Member, error) {
 	caller := CallerFrom(r.Context())
 	switch {
+	case req.Role != nil && caller.SessionID == 0:
+		return Member{}, errKeyCannot("change who is an administrator")
 	case req.Role != nil && !validRole(*req.Role):
 		return Member{}, ErrField("role", "A role is member or admin.")
 	case req.Notes != nil && len(*req.Notes) > 4000:
@@ -250,4 +255,9 @@ func (s *Server) resetPassword(r *http.Request, req PasswordResetRequest) (None,
 		return None{}, refusal(http.StatusUnauthorized, "unauthorized", "That username or reset code is not correct.", false)
 	}
 	return None{}, err
+}
+
+// errKeyCannot refuses, to a key, something only a signed-in person may do.
+func errKeyCannot(what string) *Error {
+	return refusal(http.StatusForbidden, "session_required", "A key cannot "+what+": sign in as a person to do this.", false)
 }
