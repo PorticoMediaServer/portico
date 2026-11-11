@@ -35,11 +35,15 @@ table held in memory by that package's service.
 - **Webhooks.** Package `internal/webhooks`: any area calls `Emit(event, facts)`; it writes
   one `outbox` row per webhook that wants the event and a sender delivers them in order. Title
   events come from reading `changes` (with a cursor in a `settings` row), a minute late.
-- **Prepared copies.** Package `internal/prepare`: `Want(media, recipe)` answers a
-  `prepared_media` row, making it and its `prepare` job if needed; `Open(id)` gives the file.
-  It converts through the existing engine under the owner's background conversion limit and
-  yields to people watching. Downloads is its first caller; nothing else makes its own copies.
-- **Long work** is a row in `jobs`: `prepare`, `guide_refresh`, `channel_schedule`, `backup`,
+- **Prepared copies.** Package `internal/prepare`: `Want(version, kind, recipe)` answers a
+  `prepared_media` row, making it (waiting) if needed; `Files(row)` gives its files. The row's
+  own state is the queue: the service takes the oldest waiting copy whenever fewer than the
+  owner's "at once" limit are being made, converts it through the sandboxed encoder at
+  background priority (so it yields to people watching), and a copy cut short by a restart
+  waits again. How far a copy has got is in memory. It is not a `jobs` row: the runner does
+  one job per lane, where copies need a limit the owner changes, and nobody watches a copy
+  through `/v1/jobs`. Downloads is its first caller; nothing else makes its own copies.
+- **Long work** is a row in `jobs`: `guide_refresh`, `channel_schedule`, `backup`,
   `restore`. **The daily tidy-up** is one timer owned by the console; each area registers a
   function for it (expired prepared copies, old notices and reports, recordings past their
   keep rule, ended reminders, finished outbox rows, deleted annotations, each Library
@@ -107,10 +111,12 @@ table held in memory by that package's service.
 - Interfaces: the choices and sizes come from playback's quality ladder (`playback.Qualities`),
   capped by the owner's limit; an Original is fetched straight from the library file through
   the same byte route playback uses, a smaller copy through `prepare`. A title in several
-  files is every part for Original and one joined file when prepared. The byte family issues a
-  grant per request item and must charge the range it actually serves. `prepared_media` rows
-  go with their version, so the tidy-up also removes prepared files that have no row.
-- Order: (1) `prepare` with its job; (2) options, ask, list, remove for one title at
+  files is every part for Original, and one prepared file per part (the encoder reads one
+  file, and joined MP4 files need their timing rewritten); the device plays the parts as one
+  title. The byte family issues a grant per request item and must charge the range it
+  actually serves. `prepared_media` rows go with their version, so the tidy-up also removes
+  prepared files that have no row.
+- Order: (1) `prepare` with its queue; (2) options, ask, list, remove for one title at
   Original; (3) prepared qualities; (4) shows, seasons, albums, playlists and "keep the
   next"; (5) `sync`; (6) the owner's page.
 - `Review: full`: the byte routes and their grants (which file the server opens), and `sync`'s

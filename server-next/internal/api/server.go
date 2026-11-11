@@ -25,6 +25,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/jobs"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
+	"github.com/PorticoMediaServer/portico/server-next/internal/prepare"
 	"github.com/PorticoMediaServer/portico/server-next/internal/remote"
 	"github.com/PorticoMediaServer/portico/server-next/internal/scan"
 	"github.com/PorticoMediaServer/portico/server-next/internal/settings"
@@ -68,6 +69,8 @@ type Server struct {
 	// settings are the owner's settings documents, held in memory. See settings.go.
 	settings *settings.Settings
 	media    func(w http.ResponseWriter, r *http.Request, grant, file string)
+	// prepare makes the smaller copies people download. See prepare.
+	prepare *prepare.Service
 	// feeds caps the change feeds each sign-in holds open. See catalogue.go.
 	feeds feeds
 	// remote opens the owner's remote sources. See remote_sources.go.
@@ -223,6 +226,13 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 
 	s.jobs = jobs.New(ctx, d, log)
 	s.scans = scan.NewManager(s.jobs, &scan.Scanner{DB: d, Log: log})
+	// The copies made for downloads: made in the background, and swept when nobody wants them.
+	if s.prepare, err = prepare.New(prepare.Options{DB: d, Folder: filepath.Join(dataDir, "prepared"), Settings: s.settings, Remote: s.remote.Open,
+		Log: log, Now: func() time.Time { return s.now() }}); err != nil {
+		return nil, err
+	}
+	go s.prepare.Run(ctx)
+	s.jobs.Tidy("unused prepared copies", 6*time.Hour, s.prepare.Tidy)
 	s.libraryRoutes()
 	s.jobRoutes()
 	// Every kind of job is registered by now: the jobs asked for before the server last

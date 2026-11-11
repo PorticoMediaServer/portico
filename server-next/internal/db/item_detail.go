@@ -69,6 +69,10 @@ type Version struct {
 	id int64
 }
 
+// MediaID is the version's own row id, for the server's own records of it (a prepared copy).
+// It never goes on the wire.
+func (v Version) MediaID() int64 { return v.id }
+
 // Part is one file, or one range of a file, of a version.
 type Part struct {
 	FileID  int64
