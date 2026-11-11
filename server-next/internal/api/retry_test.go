@@ -114,7 +114,8 @@ func TestCreatesAreSafeToRepeat(t *testing.T) {
 				}
 			}
 		}
-		if code, _, answer := send(c.other); code != 422 {
+		// A route that takes no body cannot be sent a different one.
+		if code, _, answer := send(c.other); c.other != nil && code != 422 {
 			t.Errorf("%s with the same key and another body answered %d, want 422: %v", c.route, code, answer)
 		}
 	}
