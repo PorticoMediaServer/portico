@@ -1944,7 +1944,7 @@
     "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
     "guardHash": "3b9f4e100197332c3d8fc0886fec1e03f8569f2ed05096b34cc1dc5afd3602e0",
     "occurrences": 1,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651098315"
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/2326#issuecomment-6785659638"
   },
   "apps/native/src-next/screens/library/save-view.ts#0264bf6c758646fb": {
     "category": "platform-transport",
@@ -2040,7 +2040,7 @@
     "condition": "Forwards path, method, body, options and auth fully built by named client-core services unchanged; one dispatch, no guard retry or request construction. Exact complete canonical span hash and occurrence budget; any span change voids approval.",
     "guardHash": "e29e0007696d7ee10248a21562f52a376073d2f983848a3264b71c68f6be9f6b",
     "occurrences": 1,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6655467024"
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/2326#issuecomment-6785659638"
   },
   "web/src/screens/browse/play-selection.ts#706ca2db4bd6c293": {
     "category": "platform-transport",
