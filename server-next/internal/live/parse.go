@@ -194,9 +194,11 @@ func ParsePlaylist(r io.Reader, report *Report, fn func(Channel) error) error {
 		default:
 			pending = false
 			ch.Locator = text
+			// HD and SD feeds, or regional ones, often share a guide id: the name tells them apart.
 			if ch.Key == "" {
-				u, _ := url.Parse(text)
-				ch.Key = "name:" + ch.Name + "@" + u.Hostname() + u.Path
+				ch.Key = streamKey(text)
+			} else {
+				ch.Key += "|" + ch.Name
 			}
 			if seen[ch.Key] {
 				skip("A channel appears twice.")
