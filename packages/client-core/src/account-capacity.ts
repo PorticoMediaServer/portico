@@ -9,7 +9,7 @@ export type CapacityChangedEvent = Readonly<{variant: 'capacity'; id: string; ty
 export function parseCapacityChangedEvent(value: unknown): CapacityChangedEvent | undefined {
  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
  const raw = value as Record<string, unknown>;
- if (Object.keys(raw).length !== 4 || Object.keys(raw).some(key => key !== 'variant' && key !== 'id' && key !== 'type' && key !== 'at') || raw.variant !== 'capacity'
+ if (raw.variant !== 'capacity'
   || raw.type !== capacityChangedEventType || typeof raw.id !== 'string' || raw.id.length < 1 || raw.id.length > 128
   || /[\u0000-\u001f\u007f]/.test(raw.id) || typeof raw.at !== 'string'
   || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/.test(raw.at) || !Number.isFinite(Date.parse(raw.at))) return undefined;

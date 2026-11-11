@@ -8,7 +8,8 @@ const hint = {variant: 'capacity', id: '123', type: capacityChangedEventType, at
 test('capacity hints admit sequencing only, before generic event projection', () => {
  assert.deepEqual(parseEvent(hint), hint);
  for (const extra of [{resource: {kind: 'session', id: 'private'}}, {revision: '3'}, {data: {}}, {accountId: 'private'}, {playing: 0}]) {
-  assert.equal(parseEvent({...hint, ...extra}), undefined);
+  // A field this app does not know is ignored, and never carried into what the app keeps.
+  assert.deepEqual(parseEvent({...hint, ...extra}), hint);
  }
  assert.equal(parseEvent({...hint, at: 'private'}), undefined);
  assert.equal(parseEvent({variant: 'capacity', id: '123', type: capacityChangedEventType}), undefined);
@@ -26,4 +27,10 @@ test('controls retain actual account counts independently of visible rows', () =
  for (const streamLimit of [null, {scope: 'account', limit: 0, playing: 0}, {scope: 'account', limit: 2, playing: -1}, {scope: 'server', limit: 2, playing: 0}]) {
   assert.throws(() => parseRemotePlaybackControls({items: [], nextCursor: '', streamLimit}));
  }
+});
+
+test('an account stream limit with a field this app does not know is still read', async () => {
+ const {parseAccountStreamLimit} = await import('../src/playback-controls.ts');
+ assert.deepEqual(parseAccountStreamLimit({scope: 'account', limit: 3, playing: 1, perDevice: 2}), {scope: 'account', limit: 3, playing: 1});
+ assert.throws(() => parseAccountStreamLimit({scope: 'account', limit: 0, playing: 1}));
 });

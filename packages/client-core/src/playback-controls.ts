@@ -12,7 +12,7 @@ const obj=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object'&&!Ar
 const text=(v:unknown,max=256):v is string=>typeof v==='string'&&v.length<=max&&!/[\x00-\x1f]/.test(v);
 function invalid():never{throw new Error(unreadableServerResponse);}
 export function parseAccountStreamLimit(value:unknown):AccountStreamLimit{
- if(!obj(value)||Object.keys(value).length!==3||Object.keys(value).some(key=>!['scope','limit','playing'].includes(key))||value.scope!=='account'||!Number.isSafeInteger(value.limit)||Number(value.limit)<=0||!Number.isSafeInteger(value.playing)||Number(value.playing)<0)invalid();
+ if(!obj(value)||value.scope!=='account'||!Number.isSafeInteger(value.limit)||Number(value.limit)<=0||!Number.isSafeInteger(value.playing)||Number(value.playing)<0)invalid();
  return Object.freeze({scope:'account',limit:value.limit as number,playing:value.playing as number});
 }
 export function parseSessionControls(v:unknown):SessionControls{

@@ -147,7 +147,7 @@ export function parseBrowseNode(v:unknown,depth=0,path='query'):BrowseNode{
  const {variant,...body}=v;
 
  if(variant==='predicate'||variant==='relative'){
-  if(!('field' in body)||Object.keys(body).length!==3||!id(body.field)||!str(body.operator,64)||!operators.includes(body.operator))bad();
+  if(!('field' in body)||!id(body.field)||!str(body.operator,64)||!operators.includes(body.operator))bad();
   const operator=body.operator as BrowseOperator;
   // The relative-date predicate has a variant of its own; no other operator may use it.
   if((operator==='within-last-days')!==(variant==='relative'))bad();
@@ -277,7 +277,7 @@ export function parseBrowseResult(raw:unknown):BrowseResult{
  const selectionStates=['wholeSelection','wholeSelectionPreparing','wholeSelectionUnavailable'].filter(key=>raw[key]!==undefined&&raw[key]!==null);
  if(selectionStates.length>1)bad();
  const unavailable=raw.wholeSelectionUnavailable;
- if(unavailable!==undefined&&(!obj(unavailable)||Object.keys(unavailable).length!==1||!['search_not_bounded','source_changed'].includes(unavailable.reason as string)))bad();
+ if(unavailable!==undefined&&(!obj(unavailable)||!['search_not_bounded','source_changed'].includes(unavailable.reason as string)))bad();
  const wholeSelectionUnavailable=unavailable===undefined?undefined:freeze({reason:unavailable.reason as BrowseWholeSelectionUnavailable['reason']});
  const wholeSelection=parseWholeSelection(raw.wholeSelection,{revision:info.revision,pivot:raw.pivot,query:appliedQuery,sort:appliedSort});
  return freeze({
@@ -329,7 +329,6 @@ export function parseWholeSelection(raw:unknown,page?:WholeSelectionPage):Browse
    if(!obj(value)||!id(value.kind)||!wholeSelectionKinds.includes(value.kind)||seen.has(value.kind)||!count(value.count)||!obj(value.capabilityCounts)||!Array.isArray(value.libraries))return;
    seen.add(value.kind);
    const counts=value.capabilityCounts as Record<string,unknown>;
-   if(Object.keys(counts).length!==capabilityKeys.length||Object.keys(counts).some(key=>!capabilityKeys.includes(key)))return;
    const capabilities={} as Record<string,number>;
    for(const key of capabilityKeys){
     const amount=counts[key];
