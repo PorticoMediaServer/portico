@@ -472,6 +472,13 @@ func (s *Service) Leave(id string, profileID int64) error {
 	return nil
 }
 
+// LeaveAll takes a profile out of every group it is in: its Watch Together was turned off.
+func (s *Service) LeaveAll(profileID int64) {
+	for _, g := range s.List(profileID) {
+		s.Leave(g.ID, profileID)
+	}
+}
+
 // End ends a group for everyone; only its host may. Each member's playback carries on by itself.
 func (s *Service) End(id string, profileID int64) error {
 	s.mu.Lock()
