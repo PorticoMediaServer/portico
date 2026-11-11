@@ -28,4 +28,25 @@ func TestWebhookRoutes(t *testing.T) {
 	if got := status(t, s, "GET", "/v1/admin/webhooks", signInAs(t, s, "max", testPassword, 6).AccessToken, nil); got != 403 {
 		t.Errorf("a member listing webhooks answered %d, want 403", got)
 	}
+
+	// A key may look after webhooks but not set one up, point it elsewhere or replace its secret.
+	var key KeyCreated
+	call(t, s, "POST", "/v1/admin/api-keys", owner.AccessToken, KeyCreate{Name: "Tool", Scopes: []string{"admin"}}, &key)
+	elsewhere, renamed := "http://192.168.1.30/hook", "Renamed"
+	for _, c := range []struct {
+		method, path string
+		body         any
+		want         int
+	}{
+		{"POST", "/v1/admin/webhooks", WebhookCreate{Name: "Mine", URL: "http://192.168.1.30/hook", Events: []string{"playback.started"}}, 403},
+		{"PATCH", "/v1/admin/webhooks/" + made.Webhook.ID, WebhookEdit{URL: &elsewhere}, 403},
+		{"POST", "/v1/admin/webhooks/" + made.Webhook.ID + "/secret", nil, 403},
+		{"PATCH", "/v1/admin/webhooks/" + made.Webhook.ID, WebhookEdit{Name: &renamed}, 200},
+		{"GET", "/v1/admin/webhooks/" + made.Webhook.ID + "/deliveries", nil, 200},
+		{"DELETE", "/v1/admin/webhooks/" + made.Webhook.ID, nil, 204},
+	} {
+		if got := status(t, s, c.method, c.path, key.Secret, c.body); got != c.want {
+			t.Errorf("%s %s with a key answered %d, want %d", c.method, c.path, got, c.want)
+		}
+	}
 }
