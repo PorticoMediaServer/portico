@@ -12,11 +12,14 @@ export function restrictionRow(source: ProfileRestrictionsSource, profiles: Prof
   if (!isProfileRestriction(id)) return undefined;
   if (absent.includes(id)) return {present: false};
   const state = source.getSnapshot(), document = state.document;
-  if (!document) return {present: false};
+  // Limits that could not be read say so once, on the Highest rating row, instead of the rows vanishing.
+  if (!document) return state.error && !state.loading && id === 'profile.maxRating'
+    ? {present: true, readOnly: true, displayValue: '', error: defaultI18n.t('next.settings.profileLimitsFailed')} : {present: false};
   const manager = profiles.getSnapshot().document?.canManage === true;
   const common = {present: true, disabled: state.busy || !manager, readOnly: !manager, saving: state.busy};
   // Blocked Tags are kept by id; the row shows and takes their names.
-  if (id === 'profile.hiddenLabels') return {...common, value: document.blockedLabels.map(tag => state.tags?.find(choice => choice.id === tag)?.name ?? tag)};
+  if (id === 'profile.hiddenLabels') return {...common, value: document.blockedLabels.map(tag => state.tags?.find(choice => choice.id === tag)?.name ?? tag),
+    ...(state.problem ? {error: state.problem} : {})};
   if (id === 'profile.maxRating') {
     const system = state.systems?.find(system => system.id === document.ratingSystem) ?? (document.ratingSystem === '' ? state.systems?.[0] : undefined);
     return {...common, value: document.maximumAgeRating, choices: [
@@ -38,7 +41,13 @@ export function changeRestriction(source: ProfileRestrictionsSource, id: string,
     const tags = source.getSnapshot().tags ?? [], blocked: string[] = [];
     for (const entry of value) {
       const name = String(entry).trim(), tag = tags.find(choice => choice.id === name || choice.name.toLowerCase() === name.toLowerCase());
-      if (!tag) return Promise.reject(new CodedError('unknown_tag', `There is no Tag called ${name}.`));
+      // A Tag already blocked but not in the picker's list (no title the main profile sees has it) is shown and kept by its id.
+      if (!tag && document.blockedLabels.includes(name)) {if (!blocked.includes(name)) blocked.push(name); continue;}
+      if (!tag) {
+        const problem = defaultI18n.t('next.settings.noSuchTag', {name});
+        source.refuse(problem);
+        return Promise.reject(new CodedError('unknown_tag', problem));
+      }
       if (!blocked.includes(tag.id)) blocked.push(tag.id);
     }
     return source.save({blockedLabels: blocked});

@@ -5,7 +5,8 @@ import type {TagChoice} from '@core/profile-restrictions.ts';
 import {CodedError} from '@core/server-messages.ts';
 import type {ProfileSettingsSource} from './source';
 
-type Snapshot = Readonly<{loading: boolean; busy: boolean; document?: ProfileRestrictions; systems?: readonly RatingSystem[]; tags?: readonly TagChoice[]; error?: unknown}>;
+/** `problem`: what the person is told in place about the last edit, such as a Tag name that does not exist; the next save clears it. */
+type Snapshot = Readonly<{loading: boolean; busy: boolean; document?: ProfileRestrictions; systems?: readonly RatingSystem[]; tags?: readonly TagChoice[]; error?: unknown; problem?: string}>;
 const empty: Snapshot = Object.freeze({loading: true, busy: false});
 /** A selected profile's exact policy document, never a client-side content filter. */
 export class ProfileRestrictionsSource {
@@ -46,6 +47,8 @@ export class ProfileRestrictionsSource {
       this.publish({loading: false, busy: false, document, systems, tags});
     }).catch(error => {if (epoch === this.epoch) this.publish(managementPinRefused(error) ? {loading: false, busy: false} : {loading: false, busy: false, error});});
   };
+  /** Tells the person about an edit that was not sent, in place; the limits on screen stay as they are. */
+  refuse = (problem: string): void => {const state = this.getSnapshot(); if (state.document) this.publish({...state, problem});};
   save = async (changes: Parameters<IdentityClient['saveRestrictions']>[1]): Promise<void> => {
     const state = this.getSnapshot(), account = this.profiles.getSnapshot().document, selected = this.profiles.selected();
     if (!this.current() || state.busy || !state.document || !account?.canManage || !account.capabilities.manageAccount || !selected || selected.id !== state.document.profileId) {
