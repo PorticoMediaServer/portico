@@ -215,7 +215,7 @@ Nothing here takes `If-Match`: the last action wins.
 | `DELETE /v1/groups/{id}` | The host | End for everyone |
 | `POST /v1/groups/{id}/playback` | Whoever may control | Play, pause, seek, watch this entry, go ahead without someone |
 | `PUT /v1/groups/{id}/queue` | Whoever may control | The whole queue as it should now be (at most 256 titles) |
-| `PUT /v1/groups/{id}/me`, `DELETE /v1/groups/{id}/me` | A member | Where this member is and whether it is ready, which also keeps it present; leave |
+| `PUT /v1/groups/{id}/me`, `DELETE /v1/groups/{id}/me` | A member | Where this member is and whether it is ready, every 5 seconds, which also keeps it present (`here` moves the member to this device); leave |
 | `GET /v1/receivers` | Any signed-in profile | The account's open devices that accept playback, at home or away, and what each is playing. Cast and AirPlay targets are found by the app, not listed here |
 | `PUT /v1/receivers/current`, `DELETE /v1/receivers/current` | A signed-in device | This device accepts playback from the account's other devices, or stops |
 | `POST /v1/receivers/{id}/requests`, `GET /v1/receivers/{id}/requests/{requestId}`, `DELETE /v1/receivers/{id}/requests/{requestId}` | A device of the same account | Ask a device to play (title, place, audio and subtitle picks, queue) or to be controlled; see allowed, declined, playing or failed; cancel. The first device keeps playing until the second is, and a move not playing in two minutes has failed |
