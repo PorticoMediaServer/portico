@@ -326,6 +326,8 @@ func (st *remoteState) current() (RemoteAccessSettings, []string) {
 func (st *remoteState) security(v RemoteAccessSettings, allowed []string, finished, ready bool) RemoteSecurity {
 	st.mu.RLock()
 	pending, problem := st.portico != "" && !st.porticoReady, st.porticoProblem
+	// A Portico zone is an address Enhanced answers at: every name the server publishes in it.
+	hasZone := st.zone != ""
 	if v.OwnAddress.Enabled && v.OwnAddress.CertificateFile != "" && (st.ownCertificateUsable == nil || !st.ownCertificateUsable()) {
 		// Enhanced waits on a usable certificate of either kind: the Portico one or the owner's.
 		pending = true
@@ -336,7 +338,7 @@ func (st *remoteState) security(v RemoteAccessSettings, allowed []string, finish
 	case v.RemoteSecurity != "enhanced":
 	case !finished:
 		out.Waiting = "setup_not_finished"
-	case len(allowed) == 0 && !v.EnhancedWithoutAddress:
+	case len(allowed) == 0 && !hasZone && !v.EnhancedWithoutAddress:
 		out.Waiting = "no_approved_address"
 	case pending && !ready:
 		out.Waiting, out.Problem = "certificate_not_ready", problem
@@ -524,7 +526,7 @@ func (s *Server) warnings(v RemoteAccessSettings, sec RemoteSecurity, n auth.Net
 	switch {
 	case v.RemoteAccess == "off":
 		codes = append(codes, "remote_access_off")
-	case sec.Active == "enhanced" && v.EnhancedWithoutAddress && len(approved(v, s.porticoAddress())) == 0:
+	case sec.Active == "enhanced" && v.EnhancedWithoutAddress && len(approved(v, s.porticoAddress())) == 0 && s.porticoZone() == "":
 		codes = append(codes, "enhanced_without_address")
 	case sec.Active == "standard" && v.SecureConnections == "preferred":
 		codes = append(codes, "plain_http_outside")
@@ -645,7 +647,7 @@ func (s *Server) judgeAt(r *http.Request, v RemoteAccessSettings, allowed []stri
 		if v.SecureConnections == "required" {
 			out.Fixes = append(out.Fixes, "preferred")
 		}
-	case enhanced && !slices.Contains(allowed, out.Address):
+	case enhanced && !slices.Contains(allowed, out.Address) && !s.underOwnZone(out.Address, v):
 		out.Refused, out.Reason, out.Fixes = true, "address", []string{"allow", "standard"}
 	}
 	return out
