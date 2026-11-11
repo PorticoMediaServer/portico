@@ -17,6 +17,10 @@ test('A19: on a window shorter than 960px the sort rows tighten so the whole men
 
 test('A20: the empty sentence names a filter\'s values as each operator means them, decades with their own "the"', () => {
   const words = (field: string, operator: string, values: readonly unknown[]) => emptyFilterValues(field, operator, values);
+  // Yes-or-no filters are said in words, never "is true".
+  assert.equal(words('favorite', 'equals', [true]), 'a favorite');
+  assert.equal(words('watchlisted', 'equals', [false]), 'not in My List');
+  assert.equal(words('playState', 'equals', ['unplayed']), 'unwatched');
   // Decades.
   assert.equal(words('decade', 'in', [1990, 2000]), 'from the 1990s or 2000s');
   assert.equal(words('decade', 'contains-any', [1990, 2000]), 'from the 1990s or 2000s');
