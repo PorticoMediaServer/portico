@@ -14,6 +14,7 @@ import (
 func TestHardwareProbeConfinedWithResolvedLibraries(t *testing.T) {
 	ffmpeg := decodertest.QualifiedFFmpeg(t)
 	ffprobe := decodertest.QualifiedFFprobe(t)
+	t.Logf("trial ffmpeg: %s", ffmpeg) // scripts/hardware-check.sh names it
 	if !CheckConfinement(context.Background()) {
 		decodertest.Unavailable(t, "decoder confinement is unavailable on this host")
 	}
