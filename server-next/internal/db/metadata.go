@@ -51,6 +51,32 @@ type MatchItem struct {
 	ExternalIDs []ExternalID // ids its names or an NFO file gave
 }
 
+// LookupFailed records that the provider failed on a title not yet matched: it is passed
+// over until a wait has gone by, an hour the first time and twice as long each time after, up
+// to a week, so a title the provider keeps refusing is not asked about at every run.
+func (d *DB) LookupFailed(ctx context.Context, itemID int64, now time.Time) error {
+	return d.write(ctx, Background, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `UPDATE items SET extra = json_set(ifnull(extra, '{}'),
+			'$.lookupTries', ifnull(extra ->> '$.lookupTries', 0) + 1,
+			'$.lookupAfter', ?2 + min(3600000 << min(ifnull(extra ->> '$.lookupTries', 0), 8), 604800000))
+			WHERE id = ?1 AND match_state = 0`, itemID, now.UnixMilli())
+		return err
+	})
+}
+
+// LookupsDue lists the libraries (public ids) holding a title whose wait after a failed lookup
+// is over, so the lookup can be started again without waiting for a scan.
+func (d *DB) LookupsDue(ctx context.Context, now time.Time) ([]string, error) {
+	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	return queryAll(ctx, tx, `SELECT public_id FROM libraries l WHERE EXISTS (SELECT 1 FROM items i WHERE i.library_id = l.id
+		AND i.match_state = 0 AND i.parent_id IS NULL AND i.extra ->> '$.lookupAfter' <= ?)`, []any{now.UnixMilli()},
+		func(id *string) []any { return []any{id} })
+}
+
 // ToMatch lists a library's top-level titles of the given kinds that no provider has been
 // asked about, a page at a time in id order: pass the last id of one page to get the next.
 func (d *DB) ToMatch(ctx context.Context, libraryID int64, kinds []ItemKind, after int64, limit int) ([]MatchItem, error) {
@@ -63,9 +89,11 @@ func (d *DB) ToMatch(ctx context.Context, libraryID int64, kinds []ItemKind, aft
 	for i, kind := range kinds {
 		list[i] = int64(kind)
 	}
-	// The condition is written as the items_to_match index has it, so the read is the index.
+	// The condition is written as the items_to_match index has it, so the read is the index. A
+	// title the provider failed on waits until its time comes round again (see LookupFailed).
 	items, err := queryAll(ctx, tx, `SELECT id, kind, title, ifnull(year, 0) FROM items WHERE library_id = ? AND match_state = 0
-		AND parent_id IS NULL AND id > ? AND kind IN `+intList(list)+` ORDER BY id LIMIT ?`, []any{libraryID, after, limit},
+		AND parent_id IS NULL AND id > ? AND kind IN `+intList(list)+` AND ifnull(extra ->> '$.lookupAfter', 0) <= ?
+		ORDER BY id LIMIT ?`, []any{libraryID, after, time.Now().UnixMilli(), limit},
 		func(m *MatchItem) []any { return []any{&m.ID, &m.Kind, &m.Title, &m.Year} })
 	if err != nil {
 		return nil, err

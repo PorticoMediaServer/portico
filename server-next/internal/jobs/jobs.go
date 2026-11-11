@@ -99,6 +99,12 @@ type Work struct {
 	Progress func(done, total int64)
 }
 
+// DoneWith is what Run returns for work that finished but has something to say about it, such
+// as titles it could not reach this time: the job ends done, with Note as its message.
+type DoneWith struct{ Note string }
+
+func (d DoneWith) Error() string { return d.Note }
+
 // Kind is one kind of job, registered by the area that does the work.
 type Kind struct {
 	// Name is the kind as apps send it: "scan", "match_library".
@@ -350,6 +356,8 @@ func (r *Runner) work(l *lane) {
 		case stopped:
 			// The job was cancelled, and Cancel has recorded that. Nothing is recorded here,
 			// because the same work may already have been asked for again under the same row.
+		case errors.As(err, new(DoneWith)):
+			r.db.FinishJob(r.ctx, job.ID, db.JobDone, stored(err))
 		case err != nil:
 			r.log.Error("job failed", "kind", job.Kind, "target", job.Target, "error", err)
 			r.db.FinishJob(r.ctx, job.ID, db.JobFailed, stored(err))

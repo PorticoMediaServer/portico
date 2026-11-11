@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/jobs"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata"
@@ -27,7 +28,31 @@ func (s *Server) startMetadata(ctx context.Context) error {
 			s.log.Error("looking up what a scan found could not be started", "library", library, "error", err)
 		}
 	}
+	go s.lookupsAgain(ctx)
 	return nil
+}
+
+// lookupsAgain starts the lookup, hourly, for each library holding a title whose wait after the
+// provider failed on it is over, so it does not wait for the library's next scan.
+func (s *Server) lookupsAgain(ctx context.Context) {
+	tick := time.NewTicker(time.Hour)
+	defer tick.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-tick.C:
+		}
+		libraries, err := s.db.LookupsDue(ctx, time.Now())
+		if err != nil && ctx.Err() == nil {
+			s.log.Error("titles to look up again could not be read", "error", err)
+		}
+		for _, library := range libraries {
+			if _, err := s.jobs.Start(ctx, jobAfterScan, jobs.Request{Target: jobs.Target{Library: library}}); err != nil && ctx.Err() == nil {
+				s.log.Error("looking titles up again could not be started", "library", library, "error", err)
+			}
+		}
+	}
 }
 
 // UseProvider gives the server an online metadata source. Without one, titles are looked up
