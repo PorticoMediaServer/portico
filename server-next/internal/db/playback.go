@@ -311,14 +311,29 @@ func (d *DB) SetProfilePreference(ctx context.Context, profileID int64, key, val
 type PlayRecord struct {
 	Title             string
 	HiddenFromProfile bool
+	// ProfileName and AccountName are the profile and the account as they were named at
+	// the play. They outlive both.
+	ProfileName string
+	AccountName string
 }
 
 // PlayRecords lists a profile's finished plays, newest first, for the owner: it includes
 // plays made while the profile had its history paused. Anything shown to the profile itself
 // must leave out the rows with HiddenFromProfile.
 func (d *DB) PlayRecords(ctx context.Context, profileID int64, limit int) ([]PlayRecord, error) {
-	rows, err := d.read.QueryContext(ctx, `SELECT title, hidden_from_profile FROM play_history WHERE profile_id = ?
-		ORDER BY played_at DESC, id DESC LIMIT ?`, profileID, limit)
+	return d.playRecords(ctx, `WHERE profile_id = ?`, profileID, limit)
+}
+
+// ServerPlayRecords lists the finished plays of the whole server, newest first, for the
+// owner and admins. It is kept for good: a play is still here, under the names its title, its
+// profile and its account had, after any of them has been deleted.
+func (d *DB) ServerPlayRecords(ctx context.Context, limit int) ([]PlayRecord, error) {
+	return d.playRecords(ctx, `WHERE ? = 0`, 0, limit)
+}
+
+func (d *DB) playRecords(ctx context.Context, where string, arg int64, limit int) ([]PlayRecord, error) {
+	rows, err := d.read.QueryContext(ctx, `SELECT title, hidden_from_profile, profile_name, account_name FROM play_history `+where+`
+		ORDER BY played_at DESC, id DESC LIMIT ?`, arg, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -326,7 +341,7 @@ func (d *DB) PlayRecords(ctx context.Context, profileID int64, limit int) ([]Pla
 	var out []PlayRecord
 	for rows.Next() {
 		var r PlayRecord
-		if err := rows.Scan(&r.Title, &r.HiddenFromProfile); err != nil {
+		if err := rows.Scan(&r.Title, &r.HiddenFromProfile, &r.ProfileName, &r.AccountName); err != nil {
 			return nil, err
 		}
 		out = append(out, r)
@@ -559,9 +574,13 @@ func (w *stateWriter) saveProgress(sample Progress, prefs map[string]string) (fi
 		done = atCredits || done && completion != VideoCompletionCredits
 	}
 	if done {
-		res, err := w.exec(`INSERT INTO play_history (profile_id, item_id, device_id, client_event_id, played_at, watched_ms, item_kind, title,
-			subtitle, hidden_from_profile) VALUES (?, ?, ?, ?, ?, ?, ?, ?, nullif(?, ''), ?) ON CONFLICT (profile_id, client_event_id) DO NOTHING`,
-			w.viewer.ProfileID, id, nz(sample.DeviceID), sample.PlayID, sample.At.UnixMilli(), sample.WatchedMS, kind, title, holder, paused)
+		// The profile's and the account's names are copied: the play stays in the owner's
+		// record after either is deleted.
+		res, err := w.exec(`INSERT INTO play_history (profile_id, profile_name, account_name, item_id, device_id, client_event_id, played_at,
+			watched_ms, item_kind, title, subtitle, hidden_from_profile)
+			SELECT p.id, p.name, u.username, ?, ?, ?, ?, ?, ?, ?, nullif(?, ''), ? FROM profiles p JOIN users u ON u.id = p.user_id WHERE p.id = ?
+			ON CONFLICT (profile_id, client_event_id) DO NOTHING`,
+			id, nz(sample.DeviceID), sample.PlayID, sample.At.UnixMilli(), sample.WatchedMS, kind, title, holder, paused, w.viewer.ProfileID)
 		if err != nil {
 			return false, err
 		}

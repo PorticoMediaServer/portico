@@ -725,13 +725,19 @@ CREATE INDEX user_item_state_recent ON user_item_state (profile_id, last_played_
 CREATE INDEX user_item_state_favorites ON user_item_state (profile_id, favorite_at) WHERE favorite = 1;
 CREATE INDEX user_item_state_my_list ON user_item_state (profile_id, in_list_at) WHERE in_list = 1;
 
--- large. One row per finished play. The title is copied so history survives deletion.
+-- large. One row per finished play, kept for good: it is the owner's record of what was
+-- played on the server. The title is copied so the row survives the title's deletion, and the
+-- profile's and the account's names as they were at the play are copied so it survives theirs:
+-- profile_id then goes null. A profile's own History reads its rows by profile_id, so it is
+-- gone with the profile.
 -- client_event_id makes a repeated report count once. hidden_from_profile is 1 for a play
 -- made while the profile had history paused: the owner's play record has it, and nothing
 -- the profile itself is shown does.
 CREATE TABLE play_history (
   id              INTEGER NOT NULL PRIMARY KEY,
-  profile_id      INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  profile_id      INTEGER REFERENCES profiles(id) ON DELETE SET NULL,
+  profile_name    TEXT    NOT NULL,
+  account_name    TEXT    NOT NULL,
   item_id         INTEGER REFERENCES items(id) ON DELETE SET NULL,
   device_id       INTEGER REFERENCES devices(id) ON DELETE SET NULL,
   client_event_id TEXT    NOT NULL,
@@ -744,6 +750,7 @@ CREATE TABLE play_history (
   UNIQUE (profile_id, client_event_id)
 );
 CREATE INDEX play_history_profile ON play_history (profile_id, played_at);
+CREATE INDEX play_history_played ON play_history (played_at);
 CREATE INDEX play_history_item ON play_history (item_id) WHERE item_id IS NOT NULL;
 CREATE INDEX play_history_device ON play_history (device_id) WHERE device_id IS NOT NULL;
 
