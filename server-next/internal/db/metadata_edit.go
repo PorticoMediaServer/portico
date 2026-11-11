@@ -402,6 +402,7 @@ type RefreshItem struct {
 	RefreshedAt int64
 	AddedAt     int64
 	Continuing  bool         // a show that has not ended
+	Due         int64        // when it is due a refresh: DueForRefresh's order
 	ExternalIDs []ExternalID // filled by RefreshTarget; ToRefresh leaves it for ExternalIDs to answer
 }
 
@@ -454,8 +455,13 @@ func (d *DB) RefreshTarget(ctx context.Context, publicID string) (RefreshItem, i
 // longer knows the title), so it is not asked again until the title is next due.
 func (d *DB) MarkRefreshed(ctx context.Context, p Priority, itemID int64) error {
 	return d.write(ctx, p, func(tx *sql.Tx) error {
-		_, err := tx.Exec(`UPDATE items SET refreshed_at = ? WHERE id = ?`, time.Now().UnixMilli(), itemID)
-		return err
+		now := time.Now().UnixMilli()
+		if _, err := tx.Exec(`UPDATE items SET refreshed_at = ? WHERE id = ?`, now, itemID); err != nil {
+			return err
+		}
+		b := newBatchTx(tx)
+		defer b.close()
+		return b.scheduleRefresh(itemID, now)
 	})
 }
 

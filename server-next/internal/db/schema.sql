@@ -199,7 +199,8 @@ CREATE INDEX files_problem ON files (directory_id) WHERE problem IS NOT NULL;
 -- says where a value came from when it is not the provider's: field name to "file" (an NFO
 -- file or the file's own tags gave it, and a provider never replaces it) or "edit" (a person
 -- typed it). A field in neither has the provider's value, or the name its files gave.
--- refreshed_at is when a provider was last asked about the title.
+-- refreshed_at is when a provider was last asked about the title, and refresh_due when a
+-- matched top-level title is next due to be asked again (see refresh_due.go).
 CREATE TABLE items (
   id               INTEGER NOT NULL PRIMARY KEY,
   public_id        TEXT    NOT NULL UNIQUE,
@@ -228,6 +229,7 @@ CREATE TABLE items (
   locked_fields    TEXT,
   local_fields     TEXT,
   refreshed_at     INTEGER,
+  refresh_due      INTEGER,
   child_count      INTEGER NOT NULL DEFAULT 0,
   leaf_count       INTEGER NOT NULL DEFAULT 0,
   -- The labels that cover the item: its own, its season's or album's and its show's or
@@ -274,6 +276,8 @@ CREATE INDEX items_descendants ON items (root_id, kind, parent_index, index_numb
 CREATE INDEX items_to_match ON items (library_id, id) WHERE match_state = 0 AND parent_id IS NULL;
 CREATE INDEX items_unmatched ON items (library_id, sort_title, id) WHERE match_state = 3;
 CREATE INDEX items_to_refresh ON items (library_id, refreshed_at, id) WHERE match_state IN (1, 2) AND parent_id IS NULL;
+-- The matched titles due a refresh, in the order they fall due: a read of only what is due.
+CREATE INDEX items_due ON items (library_id, refresh_due, id) WHERE match_state IN (1, 2) AND parent_id IS NULL;
 
 -- large. "This folder, file or embedded ID means that item." Unique, so a rescan or a repeated
 -- job cannot create a second copy of a title, and a merged title stays merged.

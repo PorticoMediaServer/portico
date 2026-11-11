@@ -120,13 +120,7 @@ func TestTitlesAreRefreshedWhenTheyAreDue(t *testing.T) {
 	if done, asked := refresh(now.Add(3 * 24 * time.Hour)); done != 1 || asked != 1 {
 		t.Errorf("three days after matching: %d refreshed, %d requests", done, asked)
 	}
-	// It was refreshed just now, by the real clock: once it is no longer new it waits 30 days.
-	if done, _ := refresh(now.Add(20 * 24 * time.Hour)); done != 0 {
-		t.Errorf("twenty days on, a film was refreshed %d times; it is due at thirty", done)
-	}
-	if done, _ := refresh(now.Add(31 * 24 * time.Hour)); done != 1 {
-		t.Errorf("thirty-one days on: %d refreshed; want 1", done)
-	}
+	// When each title falls due after that is the database's rule: see TestARefreshFallsDueByKindAndAge.
 	if film := f.title(db.KindMovie, "The Matrix"); !strings.HasPrefix(film.Summary, "Set in the 22nd century") {
 		t.Errorf("after refreshes: %+v", film)
 	}
@@ -151,24 +145,5 @@ func TestANewEpisodeOfAMatchedShowIsLookedUpAtOnce(t *testing.T) {
 	// Nothing more was added: the show is not refreshed again.
 	if done, err := f.s.RefreshLibrary(ctx, f.lib.ID, time.Now(), 100); err != nil || done != 0 {
 		t.Errorf("a second run: %d refreshed, %v", done, err)
-	}
-}
-
-func TestAllTitlesAreLookedThroughAtMostHourly(t *testing.T) {
-	f := newFixture(t, db.LibraryMovies, "the.matrix.1999.1080p.mkv")
-	f.match()
-	due := time.Now().Add(2 * 24 * time.Hour) // when the film, being new, is first due
-	for _, step := range []struct {
-		at   time.Duration
-		want int
-		why  string
-	}{
-		{-40 * time.Minute, 0, "not due yet"},
-		{10 * time.Minute, 0, "due, but every title was looked through 50 minutes ago"},
-		{30 * time.Minute, 1, "due, and the last look through was over an hour ago"},
-	} {
-		if done, err := f.s.RefreshLibrary(ctx, f.lib.ID, due.Add(step.at), 100); err != nil || done != step.want {
-			t.Errorf("%s: %d refreshed, %v; want %d", step.why, done, err, step.want)
-		}
 	}
 }
