@@ -49,10 +49,14 @@ func (d *DB) DeleteItem(ctx context.Context, publicID string) error {
 // the tag on the title, and the title's change.
 func (d *DB) LabelItem(ctx context.Context, publicID, tagPublicID string) error {
 	return d.write(ctx, User, func(tx *sql.Tx) error {
-		var id, library int64
-		if err := tx.QueryRow(`INSERT INTO item_tags (item_id, tag_id) SELECT i.id, t.id FROM items i, tags t
-			WHERE i.public_id = ? AND t.public_id = ? RETURNING item_id, (SELECT library_id FROM items WHERE id = item_id)`,
-			publicID, tagPublicID).Scan(&id, &library); err != nil {
+		var id, library, tag int64
+		if err := tx.QueryRow(`SELECT i.id, i.library_id, t.id FROM items i, tags t WHERE i.public_id = ? AND t.public_id = ?`,
+			publicID, tagPublicID).Scan(&id, &library, &tag); err != nil {
+			return err
+		}
+		b := newBatchTx(tx)
+		defer b.close()
+		if err := b.tagItem(id, tag); err != nil {
 			return err
 		}
 		return appendChange(tx, Change{At: time.Now().UnixMilli(), Topic: TopicItem, Op: OpUpdated, RefID: id, LibraryID: library})
@@ -69,6 +73,17 @@ func (d *DB) RateShow(ctx context.Context, publicID string, age int) error {
 		}
 		if _, err := tx.Exec(`UPDATE items SET rating_age = ? WHERE root_id = ? AND content_rating IS NULL`, age, id); err != nil {
 			return err
+		}
+		changed, err := ids(ctx, tx, `SELECT id FROM items WHERE id = ?1 OR root_id = ?1 AND content_rating IS NULL`, id)
+		if err != nil {
+			return err
+		}
+		b := newBatchTx(tx)
+		defer b.close()
+		for _, each := range changed {
+			if err := b.ratingChanged(each); err != nil {
+				return err
+			}
 		}
 		return appendChange(tx, Change{At: time.Now().UnixMilli(), Topic: TopicItem, Op: OpUpdated, RefID: id, LibraryID: library})
 	})
