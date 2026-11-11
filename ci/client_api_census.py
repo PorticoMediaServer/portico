@@ -980,7 +980,7 @@ def _main(argv=None, root=ROOT, paths=None):
     if a.queue_head and not a.base:p.error('--queue-head requires --base')
     for field in ['base','predecessor','queue_head']:
         if getattr(a,field):setattr(a,field,runtime.git.git(['rev-parse','--verify',getattr(a,field)+'^{commit}']).decode().strip())
-    queue_errors=check_queue(root,a.base,a.queue_head,lambda parent,snapshot,paths:main(['--base',parent],root=snapshot,paths=paths)) if a.queue_head else []
+    queue_errors=check_queue(root,a.predecessor or a.base,a.queue_head,lambda parent,snapshot,paths:main(['--base',parent],root=snapshot,paths=paths)) if a.queue_head else []
     exceptions=json.loads((root/ALLOWLIST).read_text())
     approvals=json.loads((root/APPROVALS).read_text()) if (root/APPROVALS).exists() else {}
     sites=scan(root,paths)

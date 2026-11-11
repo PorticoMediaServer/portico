@@ -280,7 +280,7 @@ def _main(argv, root=ROOT, paths=None):
     if args.queue_head and not args.base:parser.error('--queue-head requires --base')
     for field in ['base','predecessor','queue_head']:
         if getattr(args,field):setattr(args,field,active_runtime(root).git.git(['rev-parse','--verify',getattr(args,field)+'^{commit}']).decode().strip())
-    queue_errors=check_queue(root,args.base,args.queue_head,lambda parent,snapshot,paths:main(['--base',parent],root=snapshot,paths=paths)) if args.queue_head else []
+    queue_errors=check_queue(root,args.predecessor or args.base,args.queue_head,lambda parent,snapshot,paths:main(['--base',parent],root=snapshot,paths=paths)) if args.queue_head else []
     found=source_counts(root,paths)
     baseline_path=root/BASELINE.relative_to(ROOT)
     baseline=json.loads(baseline_path.read_text())
