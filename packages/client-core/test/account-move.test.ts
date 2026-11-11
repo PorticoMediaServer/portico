@@ -5,16 +5,13 @@ import {HttpLocalApi} from '../src/index.ts';
 import {parseServerSignIn} from '../src/sign-in.ts';
 import {makeMemberResetCode} from '../src/account-reset.ts';
 const code='A'.repeat(43),until=new Date(Date.now()+60000).toISOString();
-test('local move and reset codes preserve a canonical expected server identity without manufacturing one',async()=>{
+test('local move codes preserve a canonical expected server identity without manufacturing one, and reset codes name none',async()=>{
  const serverId='srv_'+'A'.repeat(43),row={accountId:'a',username:'alice',code,expiresAt:until};
  assert.equal(parseAccountMoveCodes({items:[{...row,serverId}]})[0].serverId,serverId);
  assert.equal(Object.hasOwn(parseAccountMoveCodes({items:[row]})[0],'serverId'),false);
  for(const invalid of [null,'server','srv_'+'B'.repeat(43)])assert.throws(()=>parseAccountMoveCodes({items:[{...row,serverId:invalid}]}));
- let raw:unknown={code,expiresAt:until,serverId};
- const api={request:async<T>()=>raw as T};
- assert.equal((await makeMemberResetCode(api,'member',1)).serverId,serverId);
- raw={code,expiresAt:until};assert.equal(Object.hasOwn(await makeMemberResetCode(api,'member',1),'serverId'),false);
- for(const invalid of [null,'server','srv_'+'B'.repeat(43)]){raw={code,expiresAt:until,serverId:invalid};await assert.rejects(makeMemberResetCode(api,'member',1));}
+ // A member's reset code on the rebuilt server names no server: there is nothing to expect or manufacture.
+ assert.equal(Object.hasOwn(await makeMemberResetCode({request:async<T>()=>({code:'K7QP-2MXD-9HRT',expiresAt:until,serverId}) as T},'member',1),'serverId'),false);
 });
 const move={id:'move_A',from:'portico',to:'local',startOver:false,stage:'moving_to_local',revision:2,people:137,profiles:180,invitations:4,waiting:120,serverName:'Home',ownAddressRequired:true,devices:214};
 const session={accessToken:'candidate_A',sessionFamilyId:'family_A',tokenGeneration:'1',expiresAt:'2099-01-01T00:00:00Z',authorizationHorizon:'2099-02-01T00:00:00Z',viewer:{serverId:'server',accountId:'member',profileId:'profile',authority:'local',role:'member'}};
