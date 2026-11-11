@@ -73,8 +73,10 @@ type NewOwner struct {
 	// kind of sign-in is then recorded in the same commit; without it the server is local.
 	PorticoAccountID string
 	ProfileName      string
-	Session          NewSession
-	Now              time.Time
+	// Settings are more settings rows setup decides, such as the remote access document.
+	Settings map[string]string
+	Session  NewSession
+	Now      time.Time
 }
 
 // SignInKindKey is the setting that holds the server's kind of sign-in. It is absent on a
@@ -108,6 +110,11 @@ func (d *DB) CreateOwner(ctx context.Context, o NewOwner) (SessionState, error) 
 				return err
 			}
 			if err := putSetting(tx, SignInKindKey, SignInPortico, at); err != nil {
+				return err
+			}
+		}
+		for key, value := range o.Settings {
+			if err := putSetting(tx, key, value, at); err != nil {
 				return err
 			}
 		}
