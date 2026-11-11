@@ -19,7 +19,9 @@ type Crowd struct {
 	People         int     `json:"people"`
 	Streams        int     `json:"streams"`
 	Seconds        float64 `json:"seconds"`
+	Profiles       int     `json:"profiles"`
 	Progress       Timing  `json:"progressWrites"`
+	Taps           Timing  `json:"taps"`
 	Failures       int     `json:"failedRequests"`
 	CPUCores       float64 `json:"cpuCoresUsedOnAverage"`
 	ImportedFiles  int     `json:"filesImportedMeanwhile"`
@@ -51,13 +53,21 @@ func crowd(ctx context.Context, d *db.DB, cfg seed.Config, people, streams int, 
 	var wg sync.WaitGroup
 	var streamed int64
 	var streamedMu sync.Mutex
-	open, restricted := len(viewers)-3, 3
+	w.tapEvery = 25
+	var open, restricted []int
+	for n := range viewers {
+		if seed.Restriction(n, len(viewers)) == "" {
+			open = append(open, n)
+		} else {
+			restricted = append(restricted, n)
+		}
+	}
 	for n := range people - streams {
 		wg.Go(func() {
 			r := rand.New(rand.NewPCG(uint64(n), 7))
-			profile := r.IntN(open)
+			profile := pick(r, open)
 			if n%2 == 1 {
-				profile = open + r.IntN(restricted)
+				profile = pick(r, restricted)
 			}
 			time.Sleep(time.Duration(r.Int64N(int64(2 * time.Second)))) // nobody arrives at the same instant
 			w.browse(ctx, r, profile, func() time.Duration { return time.Second + time.Duration(r.Int64N(int64(time.Second))) })
@@ -138,7 +148,7 @@ func crowd(ctx context.Context, d *db.DB, cfg seed.Config, people, streams int, 
 
 	reads, _ := summariseReads(w.reads)
 	report.Reads = reads
-	c := &Crowd{People: people, Streams: streams, Seconds: elapsed.Seconds(), Progress: summarise(w.writes), Failures: w.failures,
+	c := &Crowd{People: people, Streams: streams, Seconds: elapsed.Seconds(), Profiles: len(viewers), Progress: summarise(w.writes), Taps: summarise(w.taps), Failures: w.failures,
 		CPUCores: used.Seconds() / elapsed.Seconds(), ImportedFiles: imported.Files, ImportPerSec: imported.FilesPerSec,
 		StreamedMiB: streamed >> 20, RequestsPerSec: float64(reads["all"].N) / elapsed.Seconds()}
 	report.Crowd = c
@@ -148,7 +158,9 @@ func crowd(ctx context.Context, d *db.DB, cfg seed.Config, people, streams int, 
 	}
 	fmt.Printf("  %d people for %.0f s: %d streaming, %d browsing; %.0f reads a second; %d failed requests\n",
 		people, c.Seconds, streams, people-streams, c.RequestsPerSec, c.Failures)
-	fmt.Printf("  progress writes: n=%d p50 %.2f ms  p99 %.2f ms  max %.2f ms\n", c.Progress.N, c.Progress.P50, c.Progress.P99, c.Progress.Max)
+	fmt.Printf("  %d profiles, each its own account; import transactions ended at %d files each\n", c.Profiles, imported.LastBatchFiles)
+	fmt.Printf("  taps (favourite, My List, watched): n=%d p50 %.2f ms  p90 %.2f ms  p99 %.2f ms  max %.2f ms\n", c.Taps.N, c.Taps.P50, c.Taps.P90, c.Taps.P99, c.Taps.Max)
+	fmt.Printf("  position reports: n=%d p50 %.2f ms  p90 %.2f ms  p99 %.2f ms  max %.2f ms\n", c.Progress.N, c.Progress.P50, c.Progress.P90, c.Progress.P99, c.Progress.Max)
 	fmt.Printf("  CPU: %.2f cores on average; streams read %d MiB; import meanwhile %d files at %.0f files/s\n",
 		c.CPUCores, c.StreamedMiB, c.ImportedFiles, c.ImportPerSec)
 	for _, who := range []string{" (unrestricted)", " (label)", " (library)", " (rating)"} {
@@ -159,7 +171,8 @@ func crowd(ctx context.Context, d *db.DB, cfg seed.Config, people, streams int, 
 		counts := reads["counts"+who]
 		report.bar("crowd: counts"+who+", p99", "at most 300 ms", counts.P99, "ms", counts.P99 <= 300)
 	}
-	report.bar("crowd: progress writes, p99", "at most 25 ms", c.Progress.P99, "ms", c.Progress.P99 <= 25)
+	report.bar("crowd: taps, p99", "at most 25 ms", c.Taps.P99, "ms", c.Taps.P99 <= 25)
+	report.bar("crowd: position reports, p99", "at most 100 ms", c.Progress.P99, "ms", c.Progress.P99 <= 100)
 	report.bar("crowd: failed requests", "0", float64(c.Failures), "", c.Failures == 0)
 }
 

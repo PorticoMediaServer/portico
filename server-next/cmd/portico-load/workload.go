@@ -61,6 +61,10 @@ type workload struct {
 	failures int
 	// countFailures has a run go on past failed requests and report how many there were.
 	countFailures bool
+	// tapEvery, when set, has a browser tap a favourite, My List or watched once in so many
+	// requests; taps holds how long each took.
+	tapEvery int
+	taps     []time.Duration
 }
 
 // newWorkload reads enough of the library, from different ends of it, to have titles to ask for.
@@ -189,8 +193,29 @@ func (w *workload) browse(ctx context.Context, r *rand.Rand, profile int, pause 
 		// The seeder restricts the last three profiles, by label, by library and by rating.
 		// Their requests are also timed apart, because a restriction is checked row by row.
 		who := " (unrestricted)"
-		if at := n - (len(w.viewers) - 3); at >= 0 && len(w.viewers) > 3 {
-			who = []string{" (label)", " (library)", " (rating)"}[at]
+		if how := seed.Restriction(n, len(w.viewers)); how != "" {
+			who = " (" + how + ")"
+		}
+		// Now and then a person taps something: a favourite, My List, watched.
+		if w.tapEvery > 0 && r.IntN(w.tapEvery) == 0 {
+			var edit db.StateEdit
+			switch r.IntN(3) {
+			case 0:
+				edit.Favorite = pick(r, []*bool{&yes, &no})
+			case 1:
+				edit.InList = pick(r, []*bool{&yes, &no})
+			default:
+				edit.Watched = pick(r, []*bool{&yes, &no})
+			}
+			started := time.Now()
+			_, _, err := w.d.SetState(ctx, v, pick(r, w.videos), edit)
+			w.mu.Lock()
+			if err != nil && !errors.Is(err, db.ErrNotFound) && !errors.Is(err, db.ErrInvalid) && !errors.Is(err, context.Canceled) {
+				w.failures++
+				println("tap failed:", err.Error())
+			}
+			w.taps = append(w.taps, time.Since(started))
+			w.mu.Unlock()
 		}
 		// What a library's own screens list: mostly its titles, sometimes everything under them.
 		lib := pick(r, w.libs)
