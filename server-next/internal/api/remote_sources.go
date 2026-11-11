@@ -15,7 +15,8 @@ import (
 
 // Remote sources: storage Portico reaches over the network and never mounts. Only the owner
 // adds, tests, changes or disconnects one, and nothing secret a source signs in with is ever
-// sent back.
+// sent back. Adding, changing and disconnecting take the owner signed in, never a key: a key
+// that leaked must not be able to point the server at storage of its holder's choosing.
 
 // RemoteSource is a remote source as the owner sees it.
 type RemoteSource struct {
@@ -156,12 +157,12 @@ func (s *Server) remoteSourceRoutes() {
 		}
 		return out, err
 	})
-	Handle(s, "POST /v1/admin/remote-sources", Owner, s.createRemoteSource)
+	Handle(s, "POST /v1/admin/remote-sources", Owner, s.createRemoteSource).Scope = ScopeSession
 	Handle(s, "GET /v1/admin/remote-sources/{id}", Owner, func(r *http.Request, _ None) (RemoteSource, error) {
 		row, err := s.remoteSource(r)
 		return s.remoteSourceOut(row), err
 	})
-	Handle(s, "PATCH /v1/admin/remote-sources/{id}", Owner, s.editRemoteSource)
+	Handle(s, "PATCH /v1/admin/remote-sources/{id}", Owner, s.editRemoteSource).Scope = ScopeSession
 	Handle(s, "DELETE /v1/admin/remote-sources/{id}", Owner, func(r *http.Request, _ None) (None, error) {
 		row, err := s.db.RemoteSource(r.Context(), r.PathValue("id"))
 		if errors.Is(err, db.ErrNotFound) {
@@ -177,7 +178,7 @@ func (s *Server) remoteSourceRoutes() {
 		}
 		s.remote.Forget(row.ID)
 		return None{}, nil
-	})
+	}).Scope = ScopeSession
 	Handle(s, "POST /v1/admin/remote-sources/{id}/test", Owner, func(r *http.Request, _ None) (RemoteSource, error) {
 		row, err := s.remoteSource(r)
 		if err != nil {
@@ -197,7 +198,7 @@ func (s *Server) remoteSourceRoutes() {
 		}
 		id, address := s.driveSignIns.Start(req.ClientID, req.ClientSecret)
 		return DriveSignInStarted{SignIn: id, Address: address}, nil
-	})
+	}).Scope = ScopeSession
 }
 
 func (s *Server) remoteSource(r *http.Request) (db.RemoteSource, error) {
