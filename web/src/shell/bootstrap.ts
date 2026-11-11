@@ -143,9 +143,6 @@ async function readFacts(api: HttpLocalApi, session: LocalSession, preferences: 
   const [read, settings] = await Promise.all([readShellIdentity(api, session, signal), preferences.preferences('web', signal)]);
   const {libraries, profile, system, liveAvailable} = read, librariesUnavailable = 'librariesUnavailable' in read;
   rememberShell(session.sessionFamilyId, system.name);
-  // O-169: signed in, the server gives the owner's home networks; the route connection keeps
-  // them, so a VPN or tailnet range the owner added counts as home for routing from now on.
-  void api.connection(signal).then(facts => api.getRouteConnection()?.learnSignedInFacts(facts), () => {});
   await inbox.load();
   signal.throwIfAborted();
   return {witnesses: {system: read.system, direct: read.direct, guide: read.guide && {viewerFence:read.guide.viewerFence, revision:read.guide.revision}}, facts: {identity: {viewer: session.viewer, libraries, ...(librariesUnavailable ? {librariesUnavailable: true as const} : {}), serverName: system.name, serverVersion: system.version, serverApiVersion: system.apiVersion, signIn:system.signIn, ...profile,

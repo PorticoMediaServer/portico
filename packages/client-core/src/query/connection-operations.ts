@@ -7,7 +7,7 @@ import {clockOrigin, observeResponseClock} from '../server-clock.ts';
 import {HttpLocalApi, type Viewer} from '../index.ts';
 import {installationIdentity} from '../installation.ts';
 import type {ViewerRequester} from './viewer-queries.ts';
-import {callServer} from './server-api.ts';
+import {callServer, serverPath} from './server-api.ts';
 
 export function readServerSystem(api: ViewerRequester, signal?: AbortSignal): Promise<unknown> {
   return callServer(api, 'GET /v1/system', {signal});
@@ -120,15 +120,17 @@ export function decideBrowserHostedClaim<T = unknown>(api: HostedSender, decisio
 export function completeBrowserHostedReturn<T = unknown>(api: HostedSender, transactionId: string, signal?: AbortSignal, token?: string): Promise<T> {
   return api.send<T>(hostedEncodedPath('server_return_complete', {id: encodeURIComponent(transactionId)}), 'POST', {}, signal, token);
 }
-/** The platform supplies its certificate/redirect-refusing executor. The core owns
- * the anonymous connection URL, exact headers, clock observation and response bound. */
+/** The platform supplies its certificate/redirect-refusing executor. The core owns the anonymous URL (`GET /v1/system`), exact
+ * headers, clock observation and response bound, and answers only the home fact. */
 export async function readConnectionFacts(origin: string, signal: AbortSignal, fetcher: typeof fetch, normalizeOrigin = false): Promise<unknown> {
   const sentAt = Date.now();
-  const response = await fetcher((normalizeOrigin ? routeOrigin(origin) : origin) + routePath('get_connection'), {
+  const response = await fetcher((normalizeOrigin ? routeOrigin(origin) : origin) + serverPath('GET /v1/system'), {
     method: 'GET', redirect: 'error', credentials: 'omit', referrerPolicy: 'no-referrer', signal, headers: {Accept: 'application/json'},
   });
   observeResponseClock(clockOrigin(origin), response, sentAt);
-  return routeJSON(response, signal, 8192);
+  // The same reading as `homeFactsFromSystem` in route-connection.ts: `atHome` is never proof, and its absence is unknown.
+  const system = await routeJSON(response, signal, 8192) as {atHome?: unknown} | null;
+  return typeof system?.atHome === 'boolean' ? {remote: !system.atHome} : {};
 }
 
 function tvIdentity() {

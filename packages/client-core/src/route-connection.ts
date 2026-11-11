@@ -1,4 +1,4 @@
-import {routePath} from '../../contracts/src/route-paths.ts';
+import {serverPath} from './query/server-api.ts';
 import {candidateAllowed,DEFAULT_CONNECTION_POLICY,derivedLocalOrigin,insecureNeedsLocalConfirmation,type CandidateSource,type ConnectionPolicy} from './connection-policy.ts';
 import {addressClass,hostAddress,isLocalHost,parseCIDR,type ServerNetworkPolicy} from './network-locality.ts';
 import {RouteError,SECURE_CONNECTION_REQUIRED,probeRoute,routeJSON,routeOrigin,routeBytes,observedRouteTLSLeaf,privateRouteHost,sameServerPin,webRouteCrypto,type RouteCrypto,type RouteCandidate,type RouteProof,type ServerPin,type VerifiedRoutes} from './route-identity.ts';
@@ -51,6 +51,14 @@ export interface RouteConnectionOptions {
 }
 /** The facts of `/v1/networking/connection` this connection uses. A missing or unreadable answer
  * leaves the remembered policy as it was; `remote` must be an explicit false to count as home. */
+/** What the server's public `GET /v1/system` says about this device, as the facts the home check reads: `atHome` is the
+ * server's own answer to "is this caller on one of my home networks". It is never proof of anything (an impostor server can
+ * say true), so it is used only as the old connection answer was: to decide whether a plain-HTTP route may carry a sign-in.
+ * A server that does not say leaves `remote` unknown, which is the cautious case. */
+export function homeFactsFromSystem(raw:unknown):{remote?:boolean}{
+ const v=raw&&typeof raw==='object'&&!Array.isArray(raw)?raw as Record<string,unknown>:{};
+ return typeof v.atHome==='boolean'?{remote:!v.atHome}:{};
+}
 export function parseNetworkFacts(raw:unknown):{remote?:boolean;policy:ServerNetworkPolicy}{
  const v=raw&&typeof raw==='object'&&!Array.isArray(raw)?raw as Record<string,unknown>:{};
  const lanNetworks=Array.isArray(v.lanNetworks)&&v.lanNetworks.length<=64?v.lanNetworks.filter((x):x is string=>typeof x==='string'&&!!parseCIDR(x)):undefined;
@@ -171,9 +179,9 @@ export class RouteConnection {
  /** The policy and server facts every decision reads. */
  private connectionPolicy():ConnectionPolicy{try{return this.options.policy?.()??DEFAULT_CONNECTION_POLICY;}catch{return DEFAULT_CONNECTION_POLICY;}}
  private serverPolicy():ServerNetworkPolicy|undefined{return this.memory.policy;}
- /** A signed-in read of `/v1/networking/connection` (O-169): the server gives a signed-in caller
-  * the owner's home networks, so a VPN or tailnet range the owner added counts as home for
-  * routing from the first sign-in on. An unreadable answer leaves the remembered policy as it was. */
+ /** What a signed-in read of the server's connection facts says (O-169): the owner's home networks, so a VPN or tailnet
+  * range the owner added counts as home for routing from the first sign-in on. An unreadable answer leaves the remembered
+  * policy as it was. */
  learnSignedInFacts(raw:unknown){if(!this.disposed)this.learnPolicy(parseNetworkFacts(raw).policy);}
  private learnPolicy(policy:ServerNetworkPolicy){
   const next:RememberedNetworkPolicy={...(policy.lanNetworks?{lanNetworks:[...policy.lanNetworks]}:this.memory.policy?.lanNetworks?{lanNetworks:this.memory.policy.lanNetworks}:{}),...(policy.secureConnections?{secureConnections:policy.secureConnections}:this.memory.policy?.secureConnections?{secureConnections:this.memory.policy.secureConnections}:{}),observedAt:new Date().toISOString()};
@@ -181,7 +189,7 @@ export class RouteConnection {
  }
  private readFacts(origin:string,signal:AbortSignal):Promise<unknown>{
   if(this.options.readConnection)return this.options.readConnection(origin,signal);
-  return (this.options.fetcher??globalThis.fetch)(origin+routePath('get_connection'),{method:'GET',redirect:'error',credentials:'omit',referrerPolicy:'no-referrer',signal,headers:{Accept:'application/json'}}).then(r=>routeJSON(r,signal,8192));
+  return (this.options.fetcher??globalThis.fetch)(origin+serverPath('GET /v1/system'),{method:'GET',redirect:'error',credentials:'omit',referrerPolicy:'no-referrer',signal,headers:{Accept:'application/json'}}).then(r=>routeJSON(r,signal,8192)).then(homeFactsFromSystem);
  }
  /** Before credentials go over plain HTTP under "On my network", the server itself must count this
   * device as home. Anything else (away, no answer, unreadable) drops the route. */
