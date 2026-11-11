@@ -103,3 +103,27 @@ func TestKeysRefusedWherePersonCannotSignIn(t *testing.T) {
 		t.Errorf("a minute later the token answered %d, want 200", got)
 	}
 }
+
+// An owner's key can change the streaming settings, but not the two that choose the program
+// the server runs and the folder it empties: those take the owner signed in.
+func TestAKeyCannotChooseTheConversionFolderOrProgram(t *testing.T) {
+	s := newTestServer(t)
+	owner := onMainProfile(t, s)
+	var key KeyCreated
+	if w := call(t, s, "POST", "/v1/admin/api-keys", owner.AccessToken, KeyCreate{Name: "Script", Scopes: []string{"admin"}}, &key); w.Code != 200 {
+		t.Fatalf("making a key answered %d: %s", w.Code, w.Body)
+	}
+	for _, body := range []map[string]any{{"ffmpegProgram": "/bin/sh"}, {"conversionFolder": "/home"}, {"conversionsAtOnce": 2, "ffmpegProgram": ""}} {
+		var refused errorBody
+		if w := call(t, s, "PUT", "/v1/admin/settings/streaming", key.Secret, body, &refused); w.Code != 403 || refused.Error.Code != "session_required" {
+			t.Errorf("a key saving %v answered %d %s, want 403 session_required", body, w.Code, refused.Error.Code)
+		}
+	}
+	var doc SettingsDocument
+	if w := call(t, s, "PUT", "/v1/admin/settings/streaming", key.Secret, map[string]any{"conversionsAtOnce": 2}, &doc); w.Code != 200 {
+		t.Fatalf("a key saving another streaming setting answered %d: %s", w.Code, w.Body)
+	}
+	if w := call(t, s, "PUT", "/v1/admin/settings/streaming", owner.AccessToken, map[string]any{"conversionFolder": t.TempDir()}, &doc); w.Code != 200 {
+		t.Fatalf("the owner signed in saving the folder answered %d: %s", w.Code, w.Body)
+	}
+}
