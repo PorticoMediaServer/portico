@@ -21,6 +21,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/artwork"
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
+	"github.com/PorticoMediaServer/portico/server-next/internal/console"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
@@ -61,7 +62,9 @@ type Server struct {
 	// queues builds and runs play queues. See queues.go.
 	queues  *playqueue.Service
 	network networkState
-	media   func(w http.ResponseWriter, r *http.Request, grant, file string)
+	// totals counts the server's lifetime statistics. See statistics.go.
+	totals *console.Totals
+	media  func(w http.ResponseWriter, r *http.Request, grant, file string)
 	// feeds caps the change feeds each sign-in holds open. See catalogue.go.
 	feeds feeds
 	// remote opens the owner's remote sources. See remote_sources.go.
@@ -182,6 +185,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	}
 	s.systemRoutes()
 	s.networkRoutes()
+	s.statisticsRoutes()
 	s.identityRoutes()
 	s.authRoutes()
 	s.profileRoutes()
@@ -201,6 +205,8 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.historyRoutes()
 	s.listRoutes()
 	s.playback = playback.New(d, playback.NoEngine{}, playback.NoEngine{}, log, func() time.Time { return s.now() })
+	s.totals = &console.Totals{DB: d, Log: log, Now: func() time.Time { return s.now() }}
+	s.playback.CountInto(s.totals)
 	go s.playback.Run(ctx)
 	s.playbackRoutes()
 	s.queues = playqueue.New(d, s.playback, func() time.Time { return s.now() })
@@ -218,6 +224,9 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 
 // RemoteSources opens the owner's remote sources for the scanner and for playback.
 func (s *Server) RemoteSources() *remote.Registry { return s.remote }
+
+// Totals are the server's lifetime statistics: the server runs them, and flushes them as it stops.
+func (s *Server) Totals() *console.Totals { return s.totals }
 
 // Routes lists every registered operation.
 func (s *Server) Routes() []*Route { return s.routes }
