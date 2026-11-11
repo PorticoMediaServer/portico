@@ -26,7 +26,7 @@ func TestDestinations(t *testing.T) {
 		"169.254.169.254": true, "fe80::1": true, "224.0.0.251": true, "255.255.255.255": true,
 		"::ffff:127.0.0.1": true, "2002:7f00:1::": true, "64:ff9b::7f00:1": true, "::127.0.0.1": true,
 		"2001:0:4136:e378:8000:63bf:80ff:fffe": true, // Teredo carrying 127.0.0.1
-		"192.168.1.20": false, "10.0.0.5": false, "172.16.4.4": false, "100.101.102.103": false,
+		"192.168.1.20":                         false, "10.0.0.5": false, "172.16.4.4": false, "100.101.102.103": false,
 		"fd12::5": false, "203.0.113.9": false, "2001:db8::1": false, "2002:c0a8:114::": false,
 	} {
 		if got := forbidden(netip.MustParseAddr(addr)) != ""; got != refused {

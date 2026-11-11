@@ -77,13 +77,16 @@ type WebhookDelivery struct {
 
 func (s *Server) webhookRoutes() {
 	Handle(s, "GET /v1/admin/webhooks", Owner, s.listWebhooks)
-	Handle(s, "POST /v1/admin/webhooks", Owner, s.createWebhook)
+	// A webhook keeps sending every play to an outside address after the key that set it up
+	// is revoked, so making one, pointing it elsewhere and replacing its secret take a
+	// signed-in person (the owner's ruling, 11 November). A key may list, test and delete.
+	Handle(s, "POST /v1/admin/webhooks", Owner, s.createWebhook).Scope = ScopeSession
 	Handle(s, "PATCH /v1/admin/webhooks/{id}", Owner, s.editWebhook)
 	Handle(s, "DELETE /v1/admin/webhooks/{id}", Owner, func(r *http.Request, _ None) (None, error) {
 		return None{}, s.db.DeleteWebhook(r.Context(), CallerFrom(r.Context()).UserID, r.PathValue("id"), s.now())
 	})
 	Handle(s, "POST /v1/admin/webhooks/{id}/test", Owner, s.testWebhook)
-	Handle(s, "POST /v1/admin/webhooks/{id}/secret", Owner, s.replaceWebhookSecret)
+	Handle(s, "POST /v1/admin/webhooks/{id}/secret", Owner, s.replaceWebhookSecret).Scope = ScopeSession
 	Handle(s, "GET /v1/admin/webhooks/{id}/deliveries", Owner, s.webhookDeliveries)
 }
 
@@ -168,6 +171,9 @@ func firstError(err error) error {
 func (s *Server) editWebhook(r *http.Request, req WebhookEdit) (Webhook, error) {
 	if req.Name != nil && !auth.ValidName(*req.Name) {
 		return Webhook{}, ErrField("name", "Give the webhook a name of at most 120 characters.")
+	}
+	if req.URL != nil && CallerFrom(r.Context()).SessionID == 0 {
+		return Webhook{}, refusal(http.StatusForbidden, "session_required", "A key cannot change where a webhook sends: sign in as a person to do this.", false)
 	}
 	if req.URL != nil {
 		if err := checkWebhookURL(*req.URL); err != nil {
