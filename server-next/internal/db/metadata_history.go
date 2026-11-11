@@ -138,6 +138,21 @@ func remember(b *batchTx, itemID int64, kind HistoryKind, now int64) error {
 	return err
 }
 
+// rememberAfter records, at the end of a person's change, the title as the change left it, on
+// the History entry remember made for it in the same transaction.
+func rememberAfter(b *batchTx, itemID int64) error {
+	s, err := takeSnapshot(b, itemID)
+	if err != nil {
+		return err
+	}
+	raw, err := json.Marshal(s)
+	if err != nil {
+		return err
+	}
+	_, err = b.exec(`UPDATE metadata_history SET after = ? WHERE id = (SELECT max(id) FROM metadata_history WHERE item_id = ?)`, string(raw), itemID)
+	return err
+}
+
 // HistoryEntry is one line of a title's History.
 type HistoryEntry struct {
 	ID   string
@@ -190,9 +205,14 @@ func (d *DB) UndoMetadata(ctx context.Context, publicID, entryID string) (int64,
 			return err
 		}
 		// What the entry changed is the difference between the title before it and the title it
-		// left: the next entry's before, or the title as it is now. Only that is put back, so a
-		// later change to anything else, a label added since among them, stays.
-		after, err := afterEntry(b, id, entry)
+		// left, recorded in the change's own transaction. Only that is put back, and only where
+		// the title still has what the change left: a refresh since, a later change, or a label
+		// added since all stay.
+		after, err := afterEntry(b, entry)
+		if err != nil {
+			return err
+		}
+		current, err := takeSnapshot(b, id)
 		if err != nil {
 			return err
 		}
@@ -230,7 +250,7 @@ func (d *DB) UndoMetadata(ctx context.Context, publicID, entryID string) (int64,
 			}
 		}
 		im := &importer{batchTx: b, now: now, tags: map[TagName]int64{}, people: map[string]int64{}}
-		if err := restoreChanged(b, im, library, id, &s, &after, now); err != nil {
+		if err := restoreChanged(b, im, library, id, &s, &after, &current, now); err != nil {
 			return err
 		}
 		// What has no rating of its own uses its show's: a show's episodes follow it again, and an
@@ -264,6 +284,9 @@ func (d *DB) UndoMetadata(ctx context.Context, publicID, entryID string) (int64,
 				return err
 			}
 		}
+		if err := rememberAfter(b, id); err != nil {
+			return err
+		}
 		if err := b.queryRow(`SELECT revision FROM items WHERE id = ?`, id).Scan(&revision); err != nil {
 			return err
 		}
@@ -272,18 +295,33 @@ func (d *DB) UndoMetadata(ctx context.Context, publicID, entryID string) (int64,
 	return revision, err
 }
 
-// afterEntry is a title as a History entry left it: the next entry's before, or the title now.
-func afterEntry(b *batchTx, itemID, entry int64) (snapshot, error) {
+// afterEntry is a title as a History entry's change left it.
+func afterEntry(b *batchTx, entry int64) (snapshot, error) {
 	var raw string
-	err := b.queryRow(`SELECT before FROM metadata_history WHERE item_id = ? AND id > ? ORDER BY id LIMIT 1`, itemID, entry).Scan(&raw)
-	if errors.Is(err, sql.ErrNoRows) {
-		return takeSnapshot(b, itemID)
-	}
-	if err != nil {
+	if err := b.queryRow(`SELECT after FROM metadata_history WHERE id = ?`, entry).Scan(&raw); err != nil {
 		return snapshot{}, err
 	}
 	var s snapshot
 	return s, json.Unmarshal([]byte(raw), &s)
+}
+
+// fieldColumns and fieldTags are the items columns and the tag kind each lockable field holds.
+var (
+	fieldColumns = map[string][]string{FieldTitle: {"title"}, FieldSortTitle: {"sort_title"}, FieldOriginalTitle: {"original_title"},
+		FieldSummary: {"summary"}, FieldTagline: {"tagline"}, FieldYear: {"year"}, FieldReleaseDate: {"release_date"},
+		FieldContentRating: {"content_rating", "rating_age"}, FieldRating: {"community_rating"}, FieldEdition: {"edition"}}
+	fieldTags = map[string]string{FieldGenres: TagGenre, FieldStudios: TagStudio, FieldNetworks: TagNetwork, FieldCountries: TagCountry}
+)
+
+// tagsOf is a snapshot's tags of one kind.
+func tagsOf(tags []TagName, kind string) []TagName {
+	var out []TagName
+	for _, t := range tags {
+		if t.Kind == kind {
+			out = append(out, t)
+		}
+	}
+	return out
 }
 
 // same reports whether two values of a snapshot are the same.
@@ -296,37 +334,59 @@ func same(a, b any) bool {
 // restoreChanged puts back on a title what one change made, and nothing else: each column the
 // change altered, each lock and value source it set or cleared, each tag it added or removed,
 // and its ids, credits and chosen pictures if it changed them. before is the title before the
-// change and after the title it left.
-func restoreChanged(b *batchTx, im *importer, library, id int64, before, after *snapshot, now int64) error {
+// change, after the title it left and current the title now. A column, the ids or the credits
+// are put back only while they are still as the change left them: a refresh or a later
+// change since is newer than the change undone, and a rating raised since is never lowered.
+func restoreChanged(b *batchTx, im *importer, library, id int64, before, after, current *snapshot, now int64) error {
 	var locked, local sql.NullString
 	if err := b.queryRow(`SELECT locked_fields, local_fields FROM items WHERE id = ?`, id).Scan(&locked, &local); err != nil {
 		return err
 	}
 	sets, args := "updated_at = ?, revision = revision + 1", []any{now}
 	for _, column := range snapshotColumns {
-		if column == "locked_fields" || column == "local_fields" || same(before.Columns[column], after.Columns[column]) {
+		if column == "locked_fields" || column == "local_fields" || same(before.Columns[column], after.Columns[column]) ||
+			!same(current.Columns[column], after.Columns[column]) {
 			continue
 		}
 		sets += ", " + column + " = ?"
 		args = append(args, before.Columns[column])
 	}
 	// Locks and sources field by field: what the change set goes, what it cleared comes back.
+	// A field whose value changed since keeps its lock and source, or the next refresh would
+	// replace a later edit, a rating among them.
 	text := func(v any) sql.NullString { s, ok := v.(string); return sql.NullString{String: s, Valid: ok} }
+	changedSince := func(field string) bool {
+		if list, ok := fieldTags[field]; ok {
+			return !same(tagsOf(current.Tags, list), tagsOf(after.Tags, list))
+		}
+		switch field {
+		case FieldCredits:
+			return !same(current.Credits, after.Credits)
+		case FieldMatch:
+			return !same(current.ExternalIDs, after.ExternalIDs) || !same(current.Keys, after.Keys)
+		}
+		for _, column := range fieldColumns[field] {
+			if !same(current.Columns[column], after.Columns[column]) {
+				return true
+			}
+		}
+		return false
+	}
 	locks, was, left := fieldSet(locked), fieldSet(text(before.Columns["locked_fields"])), fieldSet(text(after.Columns["locked_fields"]))
 	for field := range left {
-		if !was[field] {
+		if !was[field] && !changedSince(field) {
 			delete(locks, field)
 		}
 	}
 	for field := range was {
-		if !left[field] {
+		if !left[field] && !changedSince(field) {
 			locks[field] = true
 		}
 	}
 	sources, wasFrom, leftFrom := fieldSources(local), fieldSources(text(before.Columns["local_fields"])), fieldSources(text(after.Columns["local_fields"]))
 	for _, from := range []map[string]string{wasFrom, leftFrom} {
 		for field := range from {
-			if wasFrom[field] == leftFrom[field] {
+			if wasFrom[field] == leftFrom[field] || changedSince(field) {
 				continue
 			}
 			if wasFrom[field] == "" {
@@ -341,7 +401,8 @@ func restoreChanged(b *batchTx, im *importer, library, id int64, before, after *
 	if _, err := b.exec(`UPDATE items SET `+sets+` WHERE id = ?`, append(args, id)...); err != nil {
 		return err
 	}
-	if !same(before.ExternalIDs, after.ExternalIDs) || !same(before.Keys, after.Keys) {
+	if (!same(before.ExternalIDs, after.ExternalIDs) || !same(before.Keys, after.Keys)) &&
+		same(current.ExternalIDs, after.ExternalIDs) && same(current.Keys, after.Keys) {
 		for _, step := range []string{`DELETE FROM item_external_ids WHERE item_id = ?`, `DELETE FROM item_keys WHERE item_id = ? AND kind = ` + strconv.Itoa(int(KeyProvider))} {
 			if _, err := b.exec(step, id); err != nil {
 				return err
@@ -389,7 +450,7 @@ func restoreChanged(b *batchTx, im *importer, library, id int64, before, after *
 			return err
 		}
 	}
-	if !same(before.Credits, after.Credits) {
+	if !same(before.Credits, after.Credits) && same(current.Credits, after.Credits) {
 		if _, err := b.exec(`DELETE FROM credits WHERE item_id = ?`, id); err != nil {
 			return err
 		}
