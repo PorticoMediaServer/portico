@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/audiofacts"
@@ -463,6 +464,16 @@ func (s *Streams) grant(grant string) (*stream, error) {
 		return nil, ErrGrantEnded
 	}
 	return st, nil
+}
+
+// Serves reports whether an address of ServeMedia belongs to a stream that is
+// live here, for a server that runs more than one set of streams.
+func (s *Streams) Serves(grant, file string) bool {
+	if grant == "subtitles" {
+		grant, _, _ = strings.Cut(file, "/")
+	}
+	_, err := s.grant(grant)
+	return err == nil
 }
 
 // replace swaps a stream for the same conversion under a new plan and a new

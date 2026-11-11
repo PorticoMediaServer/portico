@@ -12,12 +12,10 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"os/exec"
 	"sync"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
-	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
 	"github.com/PorticoMediaServer/portico/server-next/internal/inputbridge"
 	"github.com/PorticoMediaServer/portico/server-next/internal/libraryfile"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediafacts"
@@ -35,7 +33,8 @@ import (
 
 // Options says where the engine works.
 type Options struct {
-	// Folder is where conversions are written. It is emptied at start.
+	// Folder is where conversions are written. It is emptied at start, so it must be a
+	// folder of the server's own.
 	Folder string
 	// FFmpeg and FFprobe are the tools to run; empty finds the bundled or installed ones.
 	FFmpeg, FFprobe string
@@ -48,23 +47,28 @@ type Options struct {
 
 // Engine is the session layer's Planner and Streams, backed by the real media engine.
 type Engine struct {
-	db      *db.DB
-	streams *streaming.Streams
-	probe   mediafacts.Probe
-	// asked is closed once ffmpeg has said what it can do. Until then converter and
-	// fragmented are not to be read: tools waits for it.
-	asked chan struct{}
+	db    *db.DB
+	probe mediafacts.Probe
+	// ctx ends with the server. log is told what goes wrong beside a request.
+	ctx context.Context
+	log *slog.Logger
+	// The conversion folder and ffmpeg in force, the streams started under earlier ones that
+	// are still playing, and which of them each session's stream is in: see places.go.
+	// All guarded by mu.
+	current *place
+	retired []*place
+	by      map[string]*place
+	folder  string
+	opened  int
+	running bool
+	// program is the ffmpeg the server was started with ("" finds it), and the others the
+	// tools found at start: what an owner's own FFmpeg is switched back to.
+	program, startFFmpeg, startFFprobe string
+	asking                             *toolset
 	// remote opens remote sources; processes supervises the probes of remote files, which
 	// run on the decoder's isolated bridge, and the streams' converters.
 	remote    func(ctx context.Context, sourceID int64) (remote.Storage, time.Duration, error)
 	processes *processpool.Supervisor
-	// converter is false on a server without a working ffmpeg: only original files play.
-	// fragmented says its ffmpeg can write fragmented MP4 streams.
-	converter, fragmented bool
-	// ffmpeg is the converter's path, and hardware what has been found out about this
-	// machine's hardware encoders. Both are set before asked is closed.
-	ffmpeg   string
-	hardware *decoder.HardwareDetector
 
 	mu    sync.Mutex
 	facts map[string]mediafacts.Facts // by path, size and modified time
@@ -75,65 +79,51 @@ type Engine struct {
 // arrives in those first seconds waits for the answer. Run must be called for the engine to
 // do its housekeeping.
 func New(ctx context.Context, d *db.DB, o Options) (*Engine, error) {
-	e := &Engine{db: d, probe: mediafacts.Probe{Binary: o.FFprobe}, facts: map[string]mediafacts.Facts{}, remote: o.Remote, asked: make(chan struct{}),
+	e := &Engine{db: d, ctx: ctx, log: o.Log, probe: mediafacts.Probe{Binary: o.FFprobe}, facts: map[string]mediafacts.Facts{}, remote: o.Remote,
+		by: map[string]*place{}, folder: o.Folder, program: o.FFmpeg,
 		// No limit of its own: a limit here would refuse the fifth remote film being converted
 		// at once, since a converter is not made to wait for a slot.
 		processes: &processpool.Supervisor{}}
-	ffmpeg := o.FFmpeg
-	if ffmpeg == "" {
-		ffmpeg = mediatools.Resolve("ffmpeg")
+	if e.log == nil {
+		e.log = slog.Default()
 	}
-	log := o.Log
-	if log == nil {
-		log = slog.Default()
+	if err := empty(o.Folder); err != nil {
+		return nil, err
 	}
-	go func() {
-		defer close(e.asked)
-		if _, err := exec.LookPath(ffmpeg); err != nil {
-			return
-		}
-		tools, err := decoder.ProbeToolchain(ctx, ffmpeg)
-		if err != nil {
-			if ctx.Err() == nil {
-				log.Error("ffmpeg could not be asked what it can do, so only original files will play", "error", err)
-			}
-			return
-		}
-		decoder.ConfigureToolchain(tools)
-		e.converter, e.fragmented = true, tools.Muxers["mp4"] && tools.Muxers["hls"]
-		// The hardware encoders are tried out now, beside the start, so no play waits for
-		// that: until it is done a conversion is planned in software.
-		if path, err := exec.LookPath(ffmpeg); err == nil {
-			e.ffmpeg, e.hardware = path, &decoder.HardwareDetector{}
-			if libraries, err := decoder.ResolveLibraries(path, mediatools.Resolve("ffprobe"), nil); err == nil {
-				e.hardware.Libraries = libraries
-			}
-			e.hardware.SelectCached(path, "auto", "")
-		}
-	}()
-	streams, err := streaming.New(ctx, streaming.Options{Folder: o.Folder, FFmpeg: o.FFmpeg, Libraries: e.folders, Processes: e.processes})
-	e.streams = streams
+	e.startFFmpeg, e.startFFprobe = mediatools.ResolvePair()
+	e.asking = e.ask(o.FFmpeg)
+	current, err := e.open(o.Folder, o.FFmpeg)
+	e.current = current
 	return e, err
 }
 
-// tools waits until ffmpeg has said what it can do, and reports whether this server can
-// convert and whether it can write fragmented MP4 streams.
-func (e *Engine) tools(ctx context.Context) (converter, fragmented bool, err error) {
-	select {
-	case <-e.asked:
-		return e.converter, e.fragmented, nil
-	case <-ctx.Done():
-		return false, false, ctx.Err()
-	}
+// Run does the engine's housekeeping until ctx ends. Shutdown stops every stream.
+func (e *Engine) Run(ctx context.Context) {
+	e.mu.Lock()
+	e.running = true
+	go e.current.streams.Run(e.current.ctx)
+	e.mu.Unlock()
+	<-ctx.Done()
 }
 
-// Run does the engine's housekeeping until ctx ends. Shutdown stops every stream.
-func (e *Engine) Run(ctx context.Context)            { e.streams.Run(ctx) }
-func (e *Engine) Shutdown(ctx context.Context) error { return e.streams.Shutdown(ctx) }
+func (e *Engine) Shutdown(ctx context.Context) error {
+	e.mu.Lock()
+	places := append([]*place{e.current}, e.retired...)
+	e.retired = nil
+	e.mu.Unlock()
+	var first error
+	for _, p := range places {
+		if err := p.streams.Shutdown(ctx); err != nil && first == nil {
+			first = err
+		}
+		p.stop()
+	}
+	return first
+}
 
 // ServeMedia answers one request for a file of a stream, named by the stream's grant.
 func (e *Engine) ServeMedia(w http.ResponseWriter, r *http.Request, grant, file string) {
-	e.streams.ServeMedia(w, r, grant, file)
+	e.serving(grant, file).ServeMedia(w, r, grant, file)
 }
 
 func (e *Engine) folders() []string {
@@ -404,7 +394,8 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 	if err != nil {
 		return playback.Plan{}, err
 	}
-	converter, fragmented, err := e.tools(ctx)
+	tools := e.tools()
+	converter, fragmented, err := tools.wait(ctx)
 	if err != nil {
 		return playback.Plan{}, err
 	}
@@ -416,10 +407,10 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 		Connection:  streaming.DeliveryContext{NetworkClass: streaming.NetworkRemote},
 		Preferences: saved(r.Preferences),
 	}
-	if e.hardware != nil {
+	if tools.hardware != nil {
 		// Only what has already been measured: a play never waits for a hardware encoder
 		// to be tried out.
-		request.Hardware = e.hardware.SelectCached(e.ffmpeg, request.Settings.HardwareBackend, "")
+		request.Hardware = tools.hardware.SelectCached(tools.ffmpeg, request.Settings.HardwareBackend, "")
 	}
 	if r.Network == playback.NetworkLocal {
 		request.Connection.NetworkClass = streaming.NetworkLocal
@@ -585,7 +576,7 @@ func (e *Engine) Start(ctx context.Context, r playback.StartRequest) (playback.S
 		// The track is copied out of the file before the stream starts, which reads the
 		// whole file once. A start that waits longer than this is told to try again.
 		wait, cancel := context.WithTimeout(ctx, 2*time.Minute)
-		data, err := e.streams.SubtitleTrack(wait, p.path, p.place.Size, time.Unix(0, p.place.ModifiedNS), *p.burn)
+		data, err := e.place("").streams.SubtitleTrack(wait, p.path, p.place.Size, time.Unix(0, p.place.ModifiedNS), *p.burn)
 		cancel()
 		if err != nil {
 			if ctx.Err() == nil && wait.Err() != nil {
@@ -618,7 +609,11 @@ func (e *Engine) Start(ctx context.Context, r playback.StartRequest) (playback.S
 	if r.Failed != nil {
 		start.Failed = func(s streaming.Stream) { r.Failed(stream(s)) }
 	}
-	s, err := e.streams.Start(ctx, start)
+	in, had := e.enter(r.SessionID)
+	s, err := in.streams.Start(ctx, start)
+	if err != nil && !had {
+		e.leave(r.SessionID, in)
+	}
 	switch {
 	case errors.Is(err, streaming.ErrConversionCapacity), errors.Is(err, streaming.ErrConversionSpace):
 		// The owner's limit on conversions: the start waits and is tried again by itself.
@@ -642,12 +637,16 @@ func stream(s streaming.Stream) playback.Stream {
 }
 
 // Stop ends a session's stream; its address stops working.
-func (e *Engine) Stop(sessionID string) { e.streams.Stop(sessionID) }
+func (e *Engine) Stop(sessionID string) {
+	in := e.place(sessionID)
+	in.streams.Stop(sessionID)
+	e.leave(sessionID, in)
+}
 
 // Ready returns once the stream has something to play. A converter that needs longer is
 // "still preparing": the session layer answers the start with "try again".
 func (e *Engine) Ready(ctx context.Context, sessionID string) error {
-	err := e.streams.Ready(ctx, sessionID)
+	err := e.place(sessionID).streams.Ready(ctx, sessionID)
 	switch {
 	case err == nil, ctx.Err() != nil, errors.Is(err, streaming.ErrGrantEnded):
 		return err
