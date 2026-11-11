@@ -75,7 +75,29 @@ func ParseRcloneConfig(text string) (map[string]string, error) {
 	if rcloneRefusedTypes[options["type"]] {
 		return nil, fmt.Errorf("a remote of type %q reads this computer's own disk or wraps another remote, which Portico does not allow", options["type"])
 	}
+	if err := rcloneSignInRefusal(options); err != nil {
+		return nil, err
+	}
 	return options, nil
+}
+
+// rcloneSignInRefusal refuses a remote that would sign in with something other than its own
+// credentials. A Google Drive remote with neither its own OAuth client nor a service account
+// signs in with rclone's own client, shared with every copy of rclone (scanning rule 9). An
+// Oracle Object Storage remote signs in, by default and with most of its providers, as this
+// computer: from its environment, or as the cloud machine it runs on.
+func rcloneSignInRefusal(options map[string]string) error {
+	switch options["type"] {
+	case "drive":
+		if options["client_id"] == "" && options["service_account_credentials"] == "" {
+			return errors.New("a Google Drive remote needs your own OAuth client (client_id) or a service account key, never rclone's shared sign-in")
+		}
+	case "oracleobjectstorage":
+		if provider := options["provider"]; provider != "no_auth" && provider != "user_principal_auth" {
+			return errors.New("an Oracle Object Storage remote signs in as this computer unless its provider is no_auth or user_principal_auth, which Portico requires")
+		}
+	}
+	return nil
 }
 
 // rcloneRefusedTypes read this machine's disk (local, memory) or wrap another remote, which
@@ -87,12 +109,16 @@ var rcloneRefusedTypes = map[string]bool{"local": true, "alias": true, "union": 
 // storage: another remote (every wrapping type takes one as "remote" or "upstreams", so a
 // wrapping type newer than the list above is refused too), a file or socket on this computer
 // (an SSH key, a credentials file), or this computer's own cloud or Kerberos sign-in.
+// Checked against every option of every kind in rclone 1.75.2's own list.
 func rcloneLocalOption(key, value string) bool {
 	switch key {
 	case "remote", "upstreams", "unix_socket", "kerberos_ccache":
 		return true
 	case "env_auth", "use_msi", "use_az", "use_kerberos", "key_use_agent":
 		return value != "" && value != "false"
+	case "service_principal_name":
+		// HDFS with Kerberos, from this computer's own credential cache.
+		return value != ""
 	}
 	return strings.HasSuffix(key, "_file") || strings.HasSuffix(key, "_path")
 }

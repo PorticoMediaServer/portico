@@ -114,3 +114,34 @@ func TestNewRcloneRemote(t *testing.T) {
 		}
 	}
 }
+
+// A remote, pasted or new, signs in only with credentials of its own: never rclone's shared
+// Google client (scanning rule 9), and never this computer's own sign-in, which Oracle Object
+// Storage takes by default and HDFS takes with Kerberos.
+func TestRcloneRemotesSignInWithTheirOwnCredentials(t *testing.T) {
+	for _, paste := range []string{
+		"[a]\ntype = drive\ntoken = " + fakeToken + "\n",
+		"[a]\ntype = drive\nclient_id = \ntoken = " + fakeToken + "\n",
+		"[a]\ntype = oracleobjectstorage\nnamespace = n\n",
+		"[a]\ntype = oracleobjectstorage\nprovider = env_auth\n",
+		"[a]\ntype = oracleobjectstorage\nprovider = instance_principal_auth\n",
+		"[a]\ntype = oracleobjectstorage\nprovider = workload_identity_auth\n",
+		"[a]\ntype = oracleobjectstorage\nprovider = resource_principal_auth\n",
+		"[a]\ntype = hdfs\nnamenode = nn:8020\nservice_principal_name = hdfs/nn\n",
+	} {
+		if _, err := remote.ParseRcloneConfig(paste); err == nil || strings.Contains(err.Error(), fakeToken) {
+			t.Errorf("%q: %v", paste, err)
+		}
+	}
+	for _, paste := range []string{
+		"[a]\ntype = drive\nclient_id = own-client\nclient_secret = s\ntoken = " + fakeToken + "\n",
+		"[a]\ntype = drive\nservice_account_credentials = {\"type\":\"service_account\"}\n",
+		"[a]\ntype = oracleobjectstorage\nprovider = no_auth\nnamespace = n\n",
+		"[a]\ntype = oracleobjectstorage\nprovider = user_principal_auth\n",
+		"[a]\ntype = hdfs\nnamenode = nn:8020\nusername = me\n",
+	} {
+		if _, err := remote.ParseRcloneConfig(paste); err != nil {
+			t.Errorf("%q was refused: %v", paste, err)
+		}
+	}
+}

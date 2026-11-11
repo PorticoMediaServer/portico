@@ -34,7 +34,7 @@ func TestRcloneTokenOutlivesARestart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("an empty key file: %v", err)
 	}
-	pasted := "[mine]\ntype = drive\ntoken = " + fakeToken + "\n"
+	pasted := "[mine]\ntype = drive\nclient_id = own-client\ntoken = " + fakeToken + "\n"
 	sealed, err := registry.Seal("src_one", remote.Secret{Rclone: pasted})
 	if err != nil {
 		t.Fatal(err)
