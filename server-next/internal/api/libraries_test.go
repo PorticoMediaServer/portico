@@ -1,9 +1,11 @@
 package api
 
 import (
+	"context"
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -271,5 +273,42 @@ func TestDeleteNamesWhatSharesAFileAndRefusesAMissingDisk(t *testing.T) {
 	}
 	if left := episodes(); len(left) != 0 {
 		t.Errorf("episodes left after the delete: %+v", left)
+	}
+}
+
+// A library's settings say how each folder is kept up to date: watched, or, where watching
+// was asked for and is not available, how often it is scanned instead.
+func TestALibrarySaysHowItsFoldersAreKeptUpToDate(t *testing.T) {
+	for every, want := range map[time.Duration]string{time.Hour: "every hour", 6 * time.Hour: "every 6 hours", 30 * time.Minute: "every 30 minutes",
+		24 * time.Hour: "every day", 72 * time.Hour: "every 3 days"} {
+		if got := everyText(every); got != want {
+			t.Errorf("everyText(%v) = %q; want %q", every, got, want)
+		}
+	}
+	if runtime.GOOS != "linux" {
+		t.Skip("folders are watched on Linux only")
+	}
+	s := newTestServer(t)
+	ctx, stop := context.WithCancel(context.Background())
+	defer stop()
+	go s.RunSchedules(ctx)
+	owner := onMain(t, s, setup(t, s)).AccessToken
+	root := filepath.Join(t.TempDir(), "films")
+	writeFile(t, filepath.Join(root, "Heat (1995).mkv"), 1)
+	var lib AdminLibrary
+	if w := call(t, s, "POST", "/v1/admin/libraries", owner, LibraryCreate{Name: "Films", Kind: "movies", Folders: []string{root}}, &lib); w.Code != 200 {
+		t.Fatalf("creating the library answered %d: %s", w.Code, w.Body)
+	}
+	for deadline := time.Now().Add(20 * time.Second); ; time.Sleep(50 * time.Millisecond) {
+		var now AdminLibrary
+		if w := call(t, s, "GET", "/v1/admin/libraries/"+lib.ID, owner, nil, &now); w.Code != 200 {
+			t.Fatalf("reading the library answered %d", w.Code)
+		}
+		if f := now.Folders[0]; f.Watched && f.Notice == "" && f.ScanEveryMinutes == 0 {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the folder never said it was watched: %+v", now.Folders[0])
+		}
 	}
 }

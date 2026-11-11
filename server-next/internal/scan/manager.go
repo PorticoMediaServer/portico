@@ -22,6 +22,7 @@ type Manager struct {
 	watcher *watcher         // set while Run is going, where folders can be watched
 	changed chan string      // libraries with a change to look at, while Run is going
 	watched map[string]bool  // the libraries whose every folder is watched
+	running bool             // Run is going: what is watched is known
 }
 
 // library is the lane scans and library removals share, so that a library is never removed

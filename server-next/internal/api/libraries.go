@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"net/http"
 	"os"
@@ -51,6 +52,13 @@ type LibraryFolder struct {
 	// Problem says why a folder that is not available could not be scanned.
 	Problem    string     `json:"problem,omitempty"`
 	LastScanAt *time.Time `json:"lastScanAt,omitempty"`
+	// Watched says the folder is being watched for changes.
+	Watched bool `json:"watched"`
+	// ScanEveryMinutes is how often the folder is scanned by itself; 0 is never.
+	ScanEveryMinutes int `json:"scanEveryMinutes"`
+	// Notice is a sentence for the library's settings when the folder is not kept up to date
+	// the way the owner chose: watching was asked for and is not available for it.
+	Notice string `json:"notice,omitempty"`
 }
 
 // AdminLibrary is a library as its owner manages it.
@@ -234,12 +242,40 @@ func optionsIn(o LibraryOptions) db.LibraryOptions {
 		NoWatch: o.Watch != nil && !*o.Watch, RescanMinutes: o.RescanMinutes}
 }
 
-func foldersOut(folders []db.LibraryFolder) []LibraryFolder {
+func (s *Server) foldersOut(lib db.Library, folders []db.LibraryFolder) []LibraryFolder {
 	out := []LibraryFolder{}
 	for _, f := range folders {
-		out = append(out, LibraryFolder{Path: f.Path, Available: f.State == "ok", Problem: f.Error, LastScanAt: timePtr(f.LastScanAt)})
+		folder := LibraryFolder{Path: f.Path, Available: f.State == "ok", Problem: f.Error, LastScanAt: timePtr(f.LastScanAt)}
+		for _, p := range lib.Paths {
+			if p.ID != f.ID {
+				continue
+			}
+			if watched, every, ok := s.scans.FolderSchedule(lib, p); ok {
+				folder.Watched, folder.ScanEveryMinutes = watched, int(every/time.Minute)
+				if !watched && !lib.Options.NoWatch {
+					folder.Notice = "Watching is not available for this folder; scanning " + everyText(every) + " instead."
+				}
+			}
+		}
+		out = append(out, folder)
 	}
 	return out
+}
+
+// everyText is an interval in words: "every hour", "every 6 hours", "every 30 minutes".
+func everyText(every time.Duration) string {
+	switch hours := int(every / time.Hour); {
+	case every%time.Hour != 0:
+		return fmt.Sprintf("every %d minutes", int(every/time.Minute))
+	case hours == 1:
+		return "every hour"
+	case hours%24 == 0 && hours > 24:
+		return fmt.Sprintf("every %d days", hours/24)
+	case hours == 24:
+		return "every day"
+	default:
+		return fmt.Sprintf("every %d hours", hours)
+	}
 }
 
 func jobOut(j db.Job) *Job {
@@ -254,7 +290,7 @@ func jobOut(j db.Job) *Job {
 }
 
 func (s *Server) libraryOut(r *http.Request, l db.AdminLibrary) (AdminLibrary, error) {
-	out := AdminLibrary{ID: l.PublicID, Name: l.Name, Kind: l.Kind, Language: l.Language, Folders: foldersOut(l.Folders),
+	out := AdminLibrary{ID: l.PublicID, Name: l.Name, Kind: l.Kind, Language: l.Language, Folders: s.foldersOut(l.Library, l.Folders),
 		Options: libraryOptionsOut(l.Options), LastScanStartedAt: timePtr(l.ScanStartedAt), LastScanFinishedAt: timePtr(l.ScanFinishedAt)}
 	job, err := s.db.JobFor(r.Context(), db.JobScan, l.PublicID)
 	if err != nil && !errors.Is(err, db.ErrNotFound) {
@@ -532,7 +568,7 @@ func (s *Server) scanStatus(r *http.Request, _ None) (ScanStatus, error) {
 	if err != nil {
 		return ScanStatus{}, err
 	}
-	out := ScanStatus{State: "idle", Folders: foldersOut(lib.Folders), LastScanStartedAt: timePtr(lib.ScanStartedAt),
+	out := ScanStatus{State: "idle", Folders: s.foldersOut(lib.Library, lib.Folders), LastScanStartedAt: timePtr(lib.ScanStartedAt),
 		LastScanFinishedAt: timePtr(lib.ScanFinishedAt)}
 	job, err := s.db.JobFor(r.Context(), db.JobScan, lib.PublicID)
 	if err != nil && !errors.Is(err, db.ErrNotFound) {
