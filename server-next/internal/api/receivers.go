@@ -146,10 +146,11 @@ func (s *Server) receiverRoutes() {
 	}
 }
 
-// sweepMemory fails requests a device did not start in time, so the device that asked hears
-// so even when nobody reads it, until ctx ends.
+// sweepMemory, every second until ctx ends, fails requests a device did not start in time and
+// moves groups on (a wait that is over, a host gone too long), so the devices concerned hear
+// even when nobody reads.
 func (s *Server) sweepMemory(ctx context.Context) {
-	tick := time.NewTicker(5 * time.Second)
+	tick := time.NewTicker(time.Second)
 	defer tick.Stop()
 	for {
 		select {
@@ -157,6 +158,7 @@ func (s *Server) sweepMemory(ctx context.Context) {
 			return
 		case <-tick.C:
 			s.receivers.Sweep()
+			s.groups.Sweep()
 		}
 	}
 }
