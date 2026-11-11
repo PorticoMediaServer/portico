@@ -191,3 +191,49 @@ func TestStartingAndEndingGroupsIsBounded(t *testing.T) {
 		t.Fatalf("a group once the ended ones were dropped answered %d", code)
 	}
 }
+
+// Turning a profile's Watch Together off takes it out of its groups at once and refuses it
+// a group from then on; leaving the switch out of an edit leaves it as it was.
+func TestWatchTogetherSwitch(t *testing.T) {
+	th := newTheatre(t)
+	host := th.owner.AccessToken
+	var kid Profile
+	call(t, th.s, "POST", "/v1/profiles", host, ProfileCreate{Name: "Kid"}, &kid)
+	var onKid Session
+	call(t, th.s, "POST", "/v1/profiles/"+kid.ID+"/select", signIn(t, th.s, 3).Session.AccessToken, ProfileSelect{}, &onKid)
+	path := "/v1/profiles/" + kid.ID + "/restrictions"
+	var limits Restrictions
+	if call(t, th.s, "GET", path, host, nil, &limits); limits.AllowWatchTogether == nil || !*limits.AllowWatchTogether || !limits.AccountAllowWatchTogether {
+		t.Fatalf("a new profile's Watch Together: %+v", limits)
+	}
+	_, made := th.room("POST", "/v1/groups", host, GroupCreate{Name: "Cartoons", Control: "everyone"})
+	if code, _ := th.room("POST", "/v1/groups/join", onKid.AccessToken, GroupJoin{Code: made.Invitation.Code}); code != 200 {
+		t.Fatalf("the kid joining answered %d", code)
+	}
+	age := 6
+	if call(t, th.s, "PUT", path, host, Restrictions{MaxRatingAge: &age, AllLibraries: true}, &limits); !*limits.AllowWatchTogether {
+		t.Fatal("an edit that left the switch out turned Watch Together off")
+	}
+	off := false
+	if code := status(t, th.s, "PUT", path, host, Restrictions{MaxRatingAge: &age, AllLibraries: true, AllowWatchTogether: &off}); code != 200 {
+		t.Fatalf("turning Watch Together off answered %d", code)
+	}
+	if _, room := th.room("GET", "/v1/groups/"+made.ID, host, nil); len(room.Members) != 1 {
+		t.Fatalf("the kid is still in the group: %d members", len(room.Members))
+	}
+	for _, c := range []struct{ method, path string }{{"GET", "/v1/groups"}, {"POST", "/v1/groups/join"}, {"POST", "/v1/groups"}} {
+		var body any
+		switch c.path {
+		case "/v1/groups/join":
+			body = GroupJoin{Code: made.Invitation.Code}
+		case "/v1/groups":
+			if c.method == "POST" {
+				body = GroupCreate{Name: "Mine", Control: "host"}
+			}
+		}
+		var refused errorBody
+		if w := call(t, th.s, c.method, c.path, onKid.AccessToken, body, &refused); w.Code != 403 || refused.Error.Code != "watch_together_off" {
+			t.Errorf("%s %s with Watch Together off answered %d %s", c.method, c.path, w.Code, refused.Error.Code)
+		}
+	}
+}
