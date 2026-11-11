@@ -72,10 +72,10 @@ class LiveRatchets(unittest.TestCase):
         self.assertEqual(len(census.scan(self.root)),0)
         self.assertEqual(self.checks(base),(1,1),'different dependency inputs require entry-bound installs, not final types')
         install('2.0.0');b=self.commit('B restores the typed request under the stale bound')
-        self.assertEqual(self.checks(a),(1,1))
+        self.assertEqual(self.checks(base,a,b),(1,1),'B must check its own dependency change')
         (self.root/'web/src/clean.ts').write_text('export {};')
         c=self.commit('C clean')
-        self.assertEqual(self.checks(base,b,c),(1,1),'ALLGREEN history cannot reinterpret A with B types')
+        self.assertEqual(self.checks(base,b,c),(0,0),'C does not recheck earlier dependency changes')
         (package/'package.json').write_text(json.dumps({'name':'@test/platform-transport','version':'9.0.0','types':'index.d.ts'}))
         self.assertEqual(self.checks(base),(1,1),'even equal entry lockfiles cannot use a mismatched installed package')
 
@@ -267,21 +267,22 @@ class LiveRatchets(unittest.TestCase):
         second=self.group(first,'B',self.source,merge=merge)
         head=self.group(second,'C',removed if cleanup else None,merge=merge)
         before=self.git('status','--porcelain')
-        self.assertEqual(self.checks(self.base,second),(0,0),'aggregate and immediate ranges alone miss failed B')
+        self.assertEqual(self.checks(self.base,first,head),(1,1),'an entry checks all its own commits, including failed B')
         self.assertEqual(queue_increments(self.root,self.base,head),[(self.base,first),(first,second),(second,head)])
-        self.assertEqual(self.checks(self.base,second,head),(1,1))
+        self.assertEqual(queue_increments(self.root,second,head),[(second,head)])
+        self.assertEqual(self.checks(self.base,second,head),(0,0),'C does not recheck B from the preceding entry')
         self.assertEqual(self.git('status','--porcelain'),before,'historical checks do not alter the checkout/index')
 
-    def test_clean_third_group_cannot_carry_a_failed_restoration_under_headgreen(self):
+    def test_clean_third_group_does_not_recheck_an_earlier_failed_restoration(self):
         self.three_group_case()
 
-    def test_every_entry_is_checked_even_when_a_later_entry_removes_the_growth(self):
+    def test_entry_checks_its_own_commits_even_when_a_later_commit_removes_growth(self):
         self.three_group_case(cleanup=True)
 
-    def test_linear_rebase_queue_entries_are_each_checked(self):
+    def test_linear_rebase_queue_checks_only_its_own_commits(self):
         self.three_group_case(merge=False)
 
-    def test_three_harmless_groups_pass_full_history_before_and_after_main_advances(self):
+    def test_three_harmless_groups_pass_before_and_after_main_advances(self):
         first=self.group(self.base,'A',self.prefix+"fetch('/v1/kept');\nsetInterval(tick, 1000);\n")
         second=self.group(first,'B');head=self.group(second,'C')
         for target in [self.base,first]:self.assertEqual(self.checks(target,second,head),(0,0))
@@ -299,14 +300,16 @@ class LiveRatchets(unittest.TestCase):
                 (self.root/'.gitattributes').write_text(self.path+' export-subst\n')
                 first=self.group(target,name+'A',removed,merge=merge)
                 second=self.group(first,name+'B',original,merge=merge)
+                self.assertEqual(self.checks(target,first,second),(1,1),'B checks restoration against exact removal blobs')
                 head=self.group(second,name+'C',merge=merge)
                 before=(self.git('rev-parse','HEAD'),self.git('write-tree'),self.git('status','--porcelain'))
                 self.assertEqual(self.checks(target),(0,0),'aggregate alone sees no net change')
                 self.assertEqual(self.checks(first),(1,1),'the restored call must grow against the exact removal blob')
-                for base in [target,first]:self.assertEqual(self.checks(base,second,head),(1,1))
+                self.assertEqual(self.checks(target,second,head),(0,0),'C does not recheck B')
+                self.assertEqual(self.checks(first,second,head),(1,1),'final-tree growth against the base is still rejected')
                 self.assertEqual((self.git('rev-parse','HEAD'),self.git('write-tree'),self.git('status','--porcelain')),before)
                 (self.root/'.gitattributes').unlink();head=self.commit('Later removal of archive attribute')
-                self.assertEqual(self.checks(target,second,head),(1,1))
+                self.assertEqual(self.checks(target,second,head),(0,0))
 
     def test_snapshot_bytes_ignore_export_attributes_filters_and_worktree_edits(self):
         source=b'// $Format:%n$\r\nfetch("/v1/exact");\r\n'
