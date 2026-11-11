@@ -14,6 +14,10 @@ type Tuned struct {
 	Offset           time.Duration
 	StartsAt, EndsAt time.Time
 	Quality          Quality
+	// Logo is the on-screen logo the app draws over the picture, when the owner turned it on
+	// and uploaded one: its picture's hash, corner and size.
+	Logo     *Logo
+	LogoHash string
 }
 
 // ErrSlate: the channel shows its slate now: nothing is scheduled, the title has gone, or the
@@ -67,7 +71,12 @@ func (s *Service) Tune(ctx context.Context, v db.Viewer, channelID string) (Tune
 		if !ok {
 			break // above the profile's limits: the slate plays
 		}
-		return Tuned{ItemID: public, Offset: now.Sub(r.StartsAt), StartsAt: r.StartsAt, EndsAt: r.EndsAt, Quality: b.Quality}, nil
+		out := Tuned{ItemID: public, Offset: now.Sub(r.StartsAt), StartsAt: r.StartsAt, EndsAt: r.EndsAt, Quality: b.Quality}
+		if b.LogoOnScreen.On && ch.LogoHash != "" {
+			logo := b.LogoOnScreen
+			out.Logo, out.LogoHash = &logo, ch.LogoHash
+		}
+		return out, nil
 	}
 	return Tuned{}, slate
 }
