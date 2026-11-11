@@ -228,7 +228,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.subtitleRoutes()
 
 	s.jobs = jobs.New(ctx, d, log)
-	s.scans = scan.NewManager(s.jobs, &scan.Scanner{DB: d, Prober: scan.FileProber{}, Log: log})
+	s.scans = scan.NewManager(s.jobs, &scan.Scanner{DB: d, Prober: scan.FileProber{}, Pictures: s.artwork, Log: log})
 	s.libraryRoutes()
 	s.jobRoutes()
 	// The newer areas start themselves, in this fixed order (the console first: its settings

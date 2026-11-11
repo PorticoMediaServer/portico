@@ -1,7 +1,11 @@
 package scan
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"image"
 	"path"
 	"sort"
 	"strconv"
@@ -151,6 +155,9 @@ func (r *run) musicUnits(f *folder) []unit {
 			albumItem.Keys = append(albumItem.Keys, albumFolderKey(r.path.ID, folder, d["album"]))
 		}
 		artistItem.Reread, albumItem.Reread = reread, reread
+		// The album's picture: one beside its songs (cover.jpg, folder.jpg), else the one
+		// inside this song. It is kept when the album is first made.
+		albumItem.Images = r.cover(f, albumFolder(lead.rel) == f.rel, tags)
 		u := unit{files: v.files(), items: []db.ImportItem{artistItem, albumItem}}
 		trackArtists := credits(db.RoleArtist, []string{firstOf(d["artist"], artist)})
 		var chapters []localmetadata.Chapter
@@ -400,6 +407,7 @@ func (r *run) audiobookUnit(f *folder, book string, here []*found, elsewhere []d
 	if book != "" {
 		item.Keys = append(item.Keys, db.FolderKey(r.path.ID, book))
 	}
+	item.Images = r.cover(f, book != "" && book == f.rel, tags)
 
 	// The parts in order: by path, which puts disc folders and numbered files right.
 	refs := append([]db.FileRef(nil), elsewhere...)
@@ -490,4 +498,43 @@ func albumFolderKey(pathID int64, folder, album string) db.ItemKey {
 		key.Key += "|" + fold(album)
 	}
 	return key
+}
+
+// cover is the picture of an album or a book: a picture file in its own folder when own says
+// the folder being scanned is that folder, else the front cover inside the audio file. The
+// folder's picture files are read once for the folder, however many songs it holds.
+func (r *run) cover(f *folder, own bool, tags audiotags.Tags) []db.ImportImage {
+	if own {
+		if f.cover == nil {
+			found := r.pictures(f.files, "", 0, true, false)
+			f.cover = &found
+		}
+		if len(*f.cover) > 0 {
+			return *f.cover
+		}
+	}
+	if r.s.Pictures == nil || len(tags.Pictures) == 0 {
+		return nil
+	}
+	// Type 3 is the front cover; without one the first picture stands for the album.
+	picture := tags.Pictures[0]
+	for _, each := range tags.Pictures {
+		if each.Type == 3 {
+			picture = each
+			break
+		}
+	}
+	if len(picture.Data) == 0 || len(picture.Data) > maxPicture {
+		return nil
+	}
+	sum := sha256.Sum256(picture.Data)
+	id := hex.EncodeToString(sum[:])
+	if err := r.s.Pictures.Put(id, picture.Data); err != nil {
+		return nil
+	}
+	out := db.ImportImage{Role: db.ImagePoster, Source: db.ImageFromEmbedded, FileHash: id}
+	if config, _, err := image.DecodeConfig(bytes.NewReader(picture.Data)); err == nil {
+		out.Width, out.Height = config.Width, config.Height
+	}
+	return []db.ImportImage{out}
 }

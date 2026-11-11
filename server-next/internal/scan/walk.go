@@ -254,7 +254,8 @@ type folder struct {
 	files   []*found // every file the scan keeps, by name
 	media   []*found
 	differs bool
-	fresh   bool // the last scan did not store this folder
+	cover   *[]db.ImportImage // the folder's own pictures as an album's or a book's, once read
+	fresh   bool              // the last scan did not store this folder
 	// changed are the names, in lower case, of the NFO files and pictures here that were
 	// added, changed or removed since the last scan.
 	changed []string
