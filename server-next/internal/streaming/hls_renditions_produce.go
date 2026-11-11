@@ -403,18 +403,23 @@ func (h *HLS) produceRendition(ctx context.Context, id string, r AudioRenditionP
 	}
 
 	h.mu.Lock()
-	throttled := w.throttled
+	throttled, relocating := w.throttled, w.relocating
 	h.mu.Unlock()
 	if err != nil && !throttled && ctx.Err() == nil {
 		failed(classifyConverterFailure(tail.String()))
 	}
-	if err == nil && !throttled && ctx.Err() == nil {
+	// FFmpeg also exits 0 when its source stops early (a file cut short, a connection
+	// dropped half way), but then it says so on standard error; the true end of a track
+	// is silent. A film must never end early, so an end is noted only for a silent
+	// converter on a local file, whose standard error this reads; otherwise the next
+	// request starts it again (playback rule 76a).
+	if err == nil && !throttled && !relocating && ctx.Err() == nil && remoteInput == nil && strings.TrimSpace(tail.String()) == "" {
 		h.noteRenditionEnd(id, r, dir, from, hlsSegmentCount(plan.Duration))
 	}
 }
 
-// noteRenditionEnd is a converter that ran to its end without being stopped: what it
-// did not write from its first slot on, the track does not have. That is the end of
+// noteRenditionEnd is a converter that ran to its end silently, without being stopped:
+// what it did not write from its first slot on, the track does not have. That is the end of
 // the track, not a failure, so asking for those slots again answers at once instead of
 // starting the converter over and over.
 func (h *HLS) noteRenditionEnd(id string, r AudioRenditionPlan, dir string, from, count int) {
