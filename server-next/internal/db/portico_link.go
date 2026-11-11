@@ -357,6 +357,24 @@ func (d *DB) MarkLeft(ctx context.Context, issuedAt int64, accountIDs []string, 
 	})
 }
 
+// LetBackIn turns an account that left back on. Nothing else about it changes; an account
+// the owner turned off stays off. It answers ErrNotFound for an account that is not here;
+// one that has not left is left as it is.
+func (d *DB) LetBackIn(ctx context.Context, actorID int64, publicID string, now time.Time) error {
+	return d.write(ctx, User, func(tx *sql.Tx) error {
+		var state string
+		if err := tx.QueryRow(`SELECT state FROM users WHERE public_id = ?`, publicID).Scan(&state); errors.Is(err, sql.ErrNoRows) {
+			return ErrNotFound
+		} else if err != nil || state != "left" {
+			return err
+		}
+		if _, err := tx.Exec(`UPDATE users SET state = 'active', updated_at = ? WHERE public_id = ?`, now.UnixMilli(), publicID); err != nil {
+			return err
+		}
+		return audit(tx, actorID, "portico.let_back_in", publicID, "", now)
+	})
+}
+
 // PorticoMember is one account of this server for the document Portico Services keeps.
 type PorticoMember struct {
 	AccountID string
