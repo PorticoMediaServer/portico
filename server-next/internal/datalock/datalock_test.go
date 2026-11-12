@@ -41,6 +41,26 @@ func TestASecondServerOnTheFolderIsRefusedUntilTheFirstStops(t *testing.T) {
 	again.Release()
 }
 
+// A server refused a folder it had taken leaves no lock file there, and the folder can be
+// taken again.
+func TestAServerRefusedAfterTakingTheFolderLeavesNoLockFile(t *testing.T) {
+	folder := t.TempDir()
+	held, err := Hold(folder)
+	if err != nil {
+		t.Fatal(err)
+	}
+	held.Drop()
+	held.Release()
+	if _, err := os.Stat(filepath.Join(folder, FileName)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("the lock file is still there: %v", err)
+	}
+	again, err := Hold(folder)
+	if err != nil {
+		t.Fatalf("taking the folder again: %v", err)
+	}
+	again.Release()
+}
+
 // The lock is between processes, and belongs to the process: when a server is killed the
 // system lets the folder go, and nothing has to be cleared by hand. The other server here is
 // this test binary run again as TestServerHoldingAFolder.

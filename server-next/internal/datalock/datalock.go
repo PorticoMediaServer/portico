@@ -58,6 +58,14 @@ func Hold(folder string) (*Held, error) {
 // Release lets the folder go. Closing the file lets the lock go.
 func (h *Held) Release() { h.file.Close() }
 
+// Drop lets the folder go and removes the lock file, for a server that took the folder and
+// was then refused it for another reason: it leaves no file of its own there. Release after
+// Drop does nothing.
+func (h *Held) Drop() {
+	h.file.Close()
+	os.Remove(h.file.Name())
+}
+
 // Warn tells the log, once the server has one, what the lock does not cover here. It is
 // said after the folder is held because the log is kept in the folder: a server that is
 // refused writes nothing there.

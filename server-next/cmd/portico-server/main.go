@@ -127,6 +127,7 @@ func run(log *slog.Logger) (err error) {
 	// Refused here, after the log has opened, so that the reason is in the log file: a service
 	// on Windows or under launchd has no other place to say why it did not start.
 	if err := oldServerData(*data); err != nil {
+		held.Drop()
 		return err
 	}
 	// Media tools are started through this binary as their helper. That lets a scan keep a
