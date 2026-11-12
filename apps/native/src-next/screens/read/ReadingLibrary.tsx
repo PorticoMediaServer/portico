@@ -4,7 +4,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {generatedCoverTint} from '@portico/design';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {readingResumePage, type ReadingItem} from '../../../../../packages/client-core/src';
-import type {BrowseCapabilities} from '../../../../../packages/client-core/src/browse';
+import type {BrowseCapabilities, BrowseNode} from '../../../../../packages/client-core/src/browse';
 import {readLibrarySummaries, type LibrarySummary} from '../../../../../packages/client-core/src/library-summary';
 import {formatDuration} from '../../../../../packages/client-core/src/presentation/content';
 import {libraryTabs, readingTabModel, type LibraryTabId} from '../../../../../packages/client-core/src/presentation/library-tabs';
@@ -26,6 +26,9 @@ import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import type {BrowseLabels} from '../../kit/browse';
 import {NativeReadingBooks} from './ReadingBooks';
+import {ReadingFacetList} from './ReadingFacetList';
+import {openNativeReadSeries} from './eligibility';
+import type {FacetRequest} from '../../../../../packages/client-core/src/query/reading-facets';
 import {LibraryCompactHeader, LibraryTabs} from '../library/LibraryScreen';
 import {isReadingLibraryKind} from './platform';
 import {nativePublicationReadsAvailable} from '../../../platform/offline-reading';
@@ -122,7 +125,13 @@ export function NativeReadingLibraryScreen(props: NativeReadingLibraryScreenProp
   const capability = reading && opening && reading.opening === opening && opening.isCurrent() ? reading : undefined;
   const gridTab = useMemo(() => capability?.phase === 'ready' && capability.data
     ? readingTabModel(capability.data)?.find(value => value.id === 'browse') : undefined, [capability]);
-  const tabs = useMemo(() => gridTab ? [authoredTabs[0]!, gridTab] : authoredTabs, [authoredTabs, gridTab]);
+  // The tabs the library's own reading pivots offer: Books or Volumes and issues, with Authors and
+  // Series where the library has them (phone-read frames).
+  const tabs = useMemo(() => capability?.phase === 'ready' && capability.data ? readingTabModel(capability.data) ?? authoredTabs : authoredTabs, [authoredTabs, capability]);
+  const [authorQuery, setAuthorQuery] = useState<readonly BrowseNode[]>();
+  const facetRequest = useMemo<FacetRequest>(() => Object.assign((path: string, _method: 'GET', _body: undefined, signal: AbortSignal) => scopedContext.api.request(path, 'GET', undefined, signal),
+    {requestRaw: scopedContext.api.requestRaw.bind(scopedContext.api), isCurrent: () => opening?.isCurrent() === true}), [scopedContext, opening]);
+  const chooseTab = (id: LibraryTabId) => {setAuthorQuery(undefined); setTab(id);};
   useEffect(() => {
     if (!opening) return;
     const ab = new AbortController();
@@ -239,14 +248,19 @@ export function NativeReadingLibraryScreen(props: NativeReadingLibraryScreenProp
         : counts.length ? <View style={{flexDirection: 'row', gap: 16, marginTop: 10, flexWrap: 'wrap'}}>
           {counts.map(text => <Text key={text} style={[browseType(theme, 15, 500), {color: theme.colors.textTertiary}]}>{text}</Text>)}</View> : null}
       <View style={{marginTop: 16}}><LibraryTabs items={tabs} selected={tab} enabled phone={false} regionId={`reading-tabs-${libraryId}`}
-        leftEdge="reading-tabs-edge" onSelect={id => setTab(id)}/></View>
+        leftEdge="reading-tabs-edge" onSelect={chooseTab}/></View>
     </View> : <LibraryCompactHeader switcher={switcher} onLibraries={onBack} testID="native-reading-library-header">
       <LibraryTabs items={tabs} selected={tab} enabled phone={theme.platform === 'phone'} regionId={`reading-tabs-${libraryId}`}
-        leftEdge="reading-tabs-edge" onSelect={id => setTab(id)}/>
+        leftEdge="reading-tabs-edge" onSelect={chooseTab}/>
     </LibraryCompactHeader>}
     {(!gridTab || tab === 'discover') ? <ReadingSelectionToolbar port={readingActions} runtime={runtime}/> : null}
     {!opening ? <View style={{flex: 1}}>{loading}</View> : tab === 'discover' ? discover
-      : !theme.isTV && gridTab && library ? <NativeReadingBooks context={scopedContext} opening={opening} runtime={runtime} library={library} tab={gridTab} labels={labels}
+      : (tab === 'authors' || tab === 'series') && gridTab ? <ReadingFacetList key={tab} libraryId={libraryId} field={tab === 'authors' ? 'author' : 'series'} pivot={gridTab.pivot ?? 'books'}
+        request={facetRequest} runtime={runtime} onChoose={choice => {
+          if (tab === 'authors') {setAuthorQuery([{variant: 'predicate', field: 'author', operator: 'equals', value: choice.value}]); setTab('browse');}
+          else void openNativeReadSeries(opening.context, {libraryId, seriesId: choice.seriesId ?? choice.value}, opening.origin).catch(runtime.reportError);
+        }}/>
+      : !theme.isTV && gridTab && library ? <NativeReadingBooks key={authorQuery ? JSON.stringify(authorQuery) : 'all'} query={authorQuery} context={scopedContext} opening={opening} runtime={runtime} library={library} tab={gridTab} labels={labels}
         owner={context.session()?.viewer.role === 'owner'} onCount={tablet ? projectGridCount : undefined}
         onDownload={offerDownload}/>
       : !theme.isTV && !capability ? <View style={{flex: 1}}>{loading}</View>

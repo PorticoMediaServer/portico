@@ -46,7 +46,8 @@ type BooksLease = Readonly<{origin: NativeReadOrigin; family: string; life: Abor
  * Browse toolbar over real capabilities and quick filters — with the real
  * Filters panel docked beside it in landscape. A card opens the item's own
  * Reading book page; this surface never opens the reader itself. */
-export function NativeReadingBooks({context, runtime, library, tab, owner, labels, filterWidth = 360, onCount, opening, onDownload}: {
+export function NativeReadingBooks({context, runtime, library, tab, owner, labels, filterWidth = 360, onCount, opening, onDownload, query}: {
+  /** A filter the grid opens with (an author chosen from the Authors tab). */ query?: readonly BrowseNode[];
   context: NativeShellBootstrapContext; runtime: NativeShellRuntime; library: Library; /** The browsable tab the server's own reading pivots published. */ tab: LibraryTab;
   owner: boolean; labels: BrowseLabels; filterWidth?: number; opening: NativeReadingPageOpening;
   onDownload?: (offer: NativeReadingDownloadOffer) => void;
@@ -100,6 +101,8 @@ export function NativeReadingBooks({context, runtime, library, tab, owner, label
   const countOwner = useMemo(() => ({}), []);
   useEffect(() => {onCount?.(countOwner, filtered ? resultCount || undefined : undefined);}, [countOwner, filtered, onCount, resultCount]);
   useEffect(() => () => {onCount?.(countOwner, undefined);}, [countOwner, onCount]);
+  const opened = useRef(false);
+  useEffect(() => {if (query && !opened.current && state.phase === 'ready') {opened.current = true; destination.setQuery(query);}}, [query, state.phase, destination]);
   const applyQuery = (predicates: readonly BrowseNode[]) => {
     if (!filters) {destination.setQuery(predicates); return;}
     filters.setPredicates(predicates); // Debounced count/facet refresh of the same panel.
