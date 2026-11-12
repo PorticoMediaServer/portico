@@ -24,7 +24,32 @@ type Genre struct {
 	PublicID, Name string
 	CoverHash      string
 	CoverRole      ImageRole // the kind of picture the cover is: a backdrop, or a library's own covers
-	Count          int
+	// Posters are the posters (for what is listened to or read, the covers) of the first two
+	// of its titles the viewer may see that have one, two titles, the same two on every read
+	// until the library changes: a phone's genre tile draws them.
+	Posters    []string
+	PosterRole ImageRole
+	Count      int
+}
+
+// genrePosters is how many posters a genre carries.
+const genrePosters = 2
+
+// postersOf is the SQL for the file hashes, joined by commas, of the posters of the first
+// genrePosters titles the viewer may see among a genre's candidates (an SQL query of item_id),
+// in roles (an SQL list of image roles). visible is the viewer's condition on the items row i.
+func postersOf(candidates, roles, visible string) string {
+	return fmt.Sprintf(`(SELECT group_concat(h, ',') FROM (SELECT min(im.file_hash) AS h FROM (%s) c CROSS JOIN items i ON i.id = c.item_id
+		CROSS JOIN images im ON im.item_id = i.id AND im.role IN %s AND im.selected = 1 WHERE im.file_hash IS NOT NULL AND %s
+		GROUP BY i.id ORDER BY i.id LIMIT %d))`, candidates, roles, visible, genrePosters)
+}
+
+// splitPosters reads postersOf's answer.
+func splitPosters(joined string) []string {
+	if joined == "" {
+		return []string{}
+	}
+	return strings.Split(joined, ",")
 }
 
 // Genres lists the genres of the films and shows the viewer may see, by name, at most 200.
@@ -56,15 +81,17 @@ func (d *DB) Genres(ctx context.Context, v Viewer, library string, counts bool) 
 		AND x.tag_id = t.id%s ORDER BY x.library_id, x.kind, x.rating_age, x.item_id LIMIT %d`, in, kinds, acc.rated("x", ""), genreCandidates)
 	genres, err := queryAll(ctx, tx, fmt.Sprintf(`SELECT t.id, t.public_id, t.name, ifnull((SELECT im.file_hash FROM (%s) c
 			CROSS JOIN items i ON i.id = c.item_id CROSS JOIN images im ON im.item_id = i.id AND im.role = %d AND im.selected = 1
-			WHERE im.file_hash IS NOT NULL AND %s LIMIT 1), '') FROM tags t WHERE t.kind = '%s'
+			WHERE im.file_hash IS NOT NULL AND %s LIMIT 1), ''), ifnull(%s, '') FROM tags t WHERE t.kind = '%s'
 		AND EXISTS (SELECT 1 FROM (%s) c CROSS JOIN items i ON i.id = c.item_id WHERE %s) ORDER BY t.norm_name LIMIT %d`,
-		candidates, ImageBackdrop, acc.visible("i"), TagGenre, candidates, acc.visible("i"), maxGenres), v.args(),
+		candidates, ImageBackdrop, acc.visible("i"), postersOf(candidates, fmt.Sprintf("(%d)", ImagePoster), acc.visible("i")),
+		TagGenre, candidates, acc.visible("i"), maxGenres), v.args(),
 		func(g *struct {
-			id int64
+			id      int64
+			posters string
 			Genre
 		}) []any {
-			g.CoverRole = ImageBackdrop
-			return []any{&g.id, &g.PublicID, &g.Name, &g.CoverHash}
+			g.CoverRole, g.PosterRole = ImageBackdrop, ImagePoster
+			return []any{&g.id, &g.PublicID, &g.Name, &g.CoverHash, &g.posters}
 		})
 	if err != nil || len(genres) == 0 {
 		return nil, err
@@ -74,6 +101,7 @@ func (d *DB) Genres(ctx context.Context, v Viewer, library string, counts bool) 
 	list := make([]int64, len(genres))
 	for n, g := range genres {
 		out[n], place[g.id], list[n] = g.Genre, n, g.id
+		out[n].Posters = splitPosters(g.posters)
 	}
 	if !counts {
 		return out, nil
@@ -162,20 +190,39 @@ func (d *DB) libraryGenres(ctx context.Context, v Viewer, library string) ([]Gen
 		count[c.Value], marks[n] = c.Count, fmt.Sprintf("@genre%d", n)
 		args = append(args, sql.Named(fmt.Sprintf("genre%d", n), c.Value))
 	}
-	roles := fmt.Sprintf("(%d)", ImageBackdrop)
+	roles, posterRoles, posterRole := fmt.Sprintf("(%d)", ImageBackdrop), fmt.Sprintf("(%d)", ImagePoster), ImagePoster
 	if kind != LibraryMovies && kind != LibraryShows && kind != LibraryAnime {
 		roles = fmt.Sprintf("(%d, %d)", ImageCover, ImagePoster) // what is listened to or read has a cover
+		posterRoles, posterRole = roles, ImageCover
 	}
 	// The first few titles of the library that carry the genre, in the order of the tag
 	// table's own key, and the first of them the viewer may see that has a picture.
 	cover := fmt.Sprintf(`FROM (SELECT x.item_id FROM item_tags x WHERE x.tag_id = t.id AND x.library_id = %d
 			LIMIT %d) c CROSS JOIN items i ON i.id = c.item_id CROSS JOIN images im ON im.item_id = i.id AND im.role IN %s AND im.selected = 1
 		WHERE im.file_hash IS NOT NULL AND %s LIMIT 1`, libraryID, genreCandidates, roles, acc.visible("i"))
-	genres, err := queryAll(ctx, tx, fmt.Sprintf(`SELECT t.public_id, t.name, ifnull((SELECT im.file_hash %s), ''), ifnull((SELECT im.role %s), 0)
-		FROM tags t WHERE t.public_id IN (%s) ORDER BY t.norm_name`, cover, cover, strings.Join(marks, ", ")), args,
-		func(g *Genre) []any { return []any{&g.PublicID, &g.Name, &g.CoverHash, &g.CoverRole} })
-	for n := range genres {
-		genres[n].Count = count[genres[n].PublicID]
+	var kinds []int64
+	for _, k := range genreKinds[kind] {
+		kinds = append(kinds, int64(k))
 	}
-	return genres, err
+	// The posters are of the titles the genre is counted over: a music library's albums.
+	ofKinds := ""
+	if len(kinds) > 0 {
+		ofKinds = " AND x.kind IN " + intList(kinds)
+	}
+	candidates := fmt.Sprintf(`SELECT x.item_id FROM item_tags x WHERE x.tag_id = t.id AND x.library_id = %d%s LIMIT %d`,
+		libraryID, ofKinds, genreCandidates)
+	type row struct {
+		Genre
+		posters string
+	}
+	genres, err := queryAll(ctx, tx, fmt.Sprintf(`SELECT t.public_id, t.name, ifnull((SELECT im.file_hash %s), ''), ifnull((SELECT im.role %s), 0),
+		ifnull(%s, '') FROM tags t WHERE t.public_id IN (%s) ORDER BY t.norm_name`, cover, cover, postersOf(candidates, posterRoles, acc.visible("i")),
+		strings.Join(marks, ", ")), args,
+		func(g *row) []any { return []any{&g.PublicID, &g.Name, &g.CoverHash, &g.CoverRole, &g.posters} })
+	out := make([]Genre, len(genres))
+	for n, g := range genres {
+		out[n] = g.Genre
+		out[n].Count, out[n].Posters, out[n].PosterRole = count[g.PublicID], splitPosters(g.posters), posterRole
+	}
+	return out, err
 }

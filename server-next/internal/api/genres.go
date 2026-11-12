@@ -23,6 +23,11 @@ type GenreEntry struct {
 	Label string            `json:"label"`
 	Cover map[string]string `json:"cover,omitempty"`
 	Count *int              `json:"count,omitempty"`
+	// Posters are up to two pictures, each of a different title the profile may see that
+	// carries the genre, the same two on every read until the library changes: a film's or
+	// show's poster, or for one library of music or books its titles' covers. A phone's genre
+	// tile draws them. Always present, empty when there are none.
+	Posters []map[string]string `json:"posters"`
 }
 
 func (s *Server) genreRoutes() {
@@ -39,7 +44,10 @@ func (s *Server) genreRoutes() {
 		}
 		out := GenreList{Genres: make([]GenreEntry, len(genres))}
 		for n, g := range genres {
-			out.Genres[n] = GenreEntry{Value: g.PublicID, Label: g.Name}
+			out.Genres[n] = GenreEntry{Value: g.PublicID, Label: g.Name, Posters: []map[string]string{}}
+			for _, hash := range g.Posters {
+				out.Genres[n].Posters = append(out.Genres[n].Posters, imageMap([]db.Image{{Role: g.PosterRole, FileHash: hash}}))
+			}
 			if g.CoverHash != "" {
 				out.Genres[n].Cover = imageMap([]db.Image{{Role: g.CoverRole, FileHash: g.CoverHash}})
 			}
