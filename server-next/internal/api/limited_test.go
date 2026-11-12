@@ -22,14 +22,22 @@ func TestALimitedChannelCapsEveryQuality(t *testing.T) {
 	if q := session.Presentation.Quality; code != 201 || q.Mode == playback.QualityOriginal || q.Mode == playback.QualityLimit && q.MaxVideoBitrateKbps > 2000 {
 		t.Fatalf("a start naming no quality on a 2000 kbps channel answered %d with %+v", code, q)
 	}
+	// Automatic on a limited channel is planned at the cap, never above it (definition area 11,
+	// rule 110: no viewer is sent more than the number the owner gives).
 	code, s2 := th.start(token, "join-cap2", PlaybackStart{Channel: ch.ID, Quality: &playback.Quality{Mode: playback.QualityAutomatic}})
-	if code != 201 || s2.Presentation.Quality.Mode != playback.QualityAutomatic {
-		t.Fatalf("automatic answered %d with %+v", code, s2.Presentation.Quality)
+	if q := s2.Presentation.Quality; code != 201 || q.Mode != playback.QualityLimit || q.MaxVideoBitrateKbps == 0 || q.MaxVideoBitrateKbps > 2000 {
+		t.Fatalf("automatic on a 2000 kbps channel answered %d with %+v", code, q)
 	}
 	// Switching to Original in the player stays under the cap.
 	var changed PlaybackSession
 	if w := call(t, th.s, "PATCH", "/v1/playback/sessions/"+s2.ID, token, PlaybackChange{Quality: &playback.Quality{Mode: playback.QualityOriginal}},
 		&changed); w.Code != 200 || changed.Presentation.Quality.Mode == playback.QualityOriginal || changed.Presentation.Quality.MaxVideoBitrateKbps > 2000 {
 		t.Fatalf("switching to Original answered %d with %+v", w.Code, changed.Presentation.Quality)
+	}
+	// Automatic on a channel with no limit is unchanged. (A new start ends the session above.)
+	free := makeChannel(t, th.s, th.owner.AccessToken, "Films, any quality", *th.filmChannel())
+	if code, s3 := th.start(token, "join-free", PlaybackStart{Channel: free.ID, Quality: &playback.Quality{Mode: playback.QualityAutomatic}}); code != 201 ||
+		s3.Presentation.Quality.Mode != playback.QualityAutomatic || s3.Presentation.Quality.MaxVideoBitrateKbps != 0 {
+		t.Fatalf("automatic on a channel with no limit answered %d with %+v", code, s3.Presentation.Quality)
 	}
 }

@@ -143,18 +143,15 @@ type Ask struct {
 	MaxKbps int
 }
 
-// ceiling holds a quality at or below maxKbps. The original, or a fixed entry, becomes a limit
-// at the cap; a higher limit comes down to it; Automatic stays automatic, told the connection
-// is no faster than the cap.
+// ceiling holds a quality at or below maxKbps (a Library Channel's Limited bitrate: no viewer
+// is sent more, definition area 11 rule 110). A higher limit comes down to it; Automatic, the
+// original or a fixed entry is planned as a limit at the cap. The throughput is passed on as
+// it came: nothing caps by it.
 func ceiling(q Quality, throughput, maxKbps int) (Quality, int) {
 	if maxKbps <= 0 {
 		return q, throughput
 	}
 	switch q.Mode {
-	case QualityAutomatic:
-		if throughput == 0 || throughput > maxKbps {
-			throughput = maxKbps
-		}
 	case QualityLimit:
 		if q.MaxVideoBitrateKbps == 0 || q.MaxVideoBitrateKbps > maxKbps {
 			q.MaxVideoBitrateKbps = maxKbps
