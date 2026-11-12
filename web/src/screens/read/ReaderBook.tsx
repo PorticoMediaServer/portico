@@ -2,7 +2,7 @@ import {ReaderHighlightsExport} from './ReaderHighlightsExport';
 import type {ReadingAnnotationPort} from '@core/reading-annotations.ts';
 import {randomId} from '@core/random-id.ts';
 import {isReaderComicFormat, readingLocationFromReader, readerErrorCode} from '@portico/reader-core';
-import {ReaderAnnotationActions, ReaderAnnotationList, useReaderAnnotations, useAnnotationLease} from './ReaderAnnotations';
+import {ReaderAnnotationActions, ReaderAnnotationList, useReaderAnnotations, useAnnotationLease, usePlaceEarlierCopies} from './ReaderAnnotations';
 import {readingSearchStepIndex} from './search-step';
 import {useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {defaultI18n} from '@i18n';
@@ -85,6 +85,7 @@ export function ReaderBook({book, active, reportError, onBack, onOpenSettings, o
   const fixed = publication.format !== 'epub', comic = isReaderComicFormat(publication.format);
   const notes = useReaderAnnotations(book.annotations, controller, authority, active, snapshot.status === 'ready');
   const annotationLease=useAnnotationLease(notes.service);
+  usePlaceEarlierCopies(notes.service, controller, active && snapshot.status === 'ready');
   const listSignal=annotationPanel.current.signal;
   if(!active)annotationPanel.current.abort();
   useLayoutEffect(()=>{const original=annotationPanel.current;return()=>original.abort();},[]);

@@ -8,6 +8,7 @@
 .list { display:grid; gap:12px; padding:16px; }
 .list article { border-bottom:1px solid var(--color-line); padding-bottom:14px; }
 .anchor { display:block; width:100%; border:0; background:none; color:var(--color-text); text-align:left; font:inherit; cursor:pointer; white-space:pre-wrap; }
+.list article > button + button { margin-inline-start:8px; }
 .list time { display:block; color:var(--color-text-tertiary); font-size:var(--type-caption-size); margin:8px 0; }
 
 .list article[data-colour='yellow'] { border-inline-start:3px solid var(--color-amber); padding-inline-start:12px; }
