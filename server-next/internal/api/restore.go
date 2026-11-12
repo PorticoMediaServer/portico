@@ -105,9 +105,15 @@ func (s *Server) restoreRoutes() {
 				return RestoreStaged{}, proofError(err)
 			}
 		}
+		// The approval made a new link, here and at Portico Services. It is carried across
+		// the restore, so the restored server starts on the link Portico Services holds.
+		keep, err := s.db.KeptLink(r.Context())
+		if err != nil {
+			return RestoreStaged{}, err
+		}
 		// Unpacked once; the database that will be put in place is the one checked, and its
 		// mark is checked over the very bytes unpacked.
-		err := backup.Stage(r.Context(), archive, s.backups.DataDir, name, s.now(), req.NotMadeHereConfirmed)
+		err = backup.StageKeeping(r.Context(), archive, s.backups.DataDir, name, s.now(), req.NotMadeHereConfirmed, keep)
 		if errors.Is(err, backup.ErrNotMadeHere) {
 			return RestoreStaged{}, s.notMadeHere()
 		}
