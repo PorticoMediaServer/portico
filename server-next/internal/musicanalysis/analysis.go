@@ -119,7 +119,7 @@ func (s *Service) run(ctx context.Context, work jobs.Work) error {
 	}
 	model := runtime.Identity().Version
 	var done int64
-	after := int64(0)
+	after, unreachable := int64(0), 0
 	for {
 		tracks, err := s.DB.TracksToAnalyse(ctx, lib.ID, model, after, page)
 		if err != nil || len(tracks) == 0 {
@@ -131,6 +131,17 @@ func (s *Service) run(ctx context.Context, work jobs.Work) error {
 				return errors.Join(err, s.DB.SaveTrackAnalyses(context.WithoutCancel(ctx), batch, s.Now()))
 			}
 			a, err := s.analyse(ctx, runtime, supervisor, ffmpeg, t)
+			if errors.Is(err, errNotNow) {
+				// No row: the song is listed again next time. Many in a row is the drive or
+				// the share, not the songs: stop, and the hourly start tries again.
+				after = t.ItemID
+				if unreachable++; unreachable >= unreachableInARow {
+					return errors.Join(jobs.DoneWith{Note: "This library's files can't be reached right now. They are tried again later."},
+						s.DB.SaveTrackAnalyses(context.WithoutCancel(ctx), batch, s.Now()))
+				}
+				continue
+			}
+			unreachable = 0
 			if err != nil {
 				// Cancelled or stopping, or the model itself failed: keep what is done.
 				return errors.Join(err, s.DB.SaveTrackAnalyses(context.WithoutCancel(ctx), batch, s.Now()))
@@ -184,18 +195,25 @@ func PausedUntil(hours settings.HeavyWorkSettings, now time.Time) (time.Time, bo
 	return opens, !open
 }
 
-// songUnreadable is kept for a song the model could not read; it is not tried again until
-// its file changes.
+// songUnreadable is kept for a song the decoder or the model could not read; it is not tried
+// again until its file changes.
 const songUnreadable = "This song's sound could not be read."
 
-// analyse reads one song. An error is the job's to stop on (cancelled, or the model failed);
-// a song that cannot be read is a TrackAnalysis with Failed set.
+// errNotNow is a song whose file cannot be opened now. That is usually the drive or the share
+// (unplugged, asleep, not mounted yet), not the song, so nothing is kept for it.
+var errNotNow = errors.New("the song's file cannot be opened now")
+
+// unreachableInARow songs whose files will not open end a run.
+const unreachableInARow = 20
+
+// analyse reads one song. errNotNow is a file that cannot be opened now; any other error is
+// the job's to stop on (cancelled, or the model failed); a song the decoder or the model
+// cannot read is a TrackAnalysis with Failed set.
 func (s *Service) analyse(ctx context.Context, runtime *sonic.Runtime, supervisor *processpool.Supervisor, ffmpeg string, t db.TrackToAnalyse) (db.TrackAnalysis, error) {
 	out := db.TrackAnalysis{Track: t}
 	file, err := os.Open(t.Path)
 	if err != nil {
-		out.Failed = songUnreadable
-		return out, nil
+		return out, errNotNow
 	}
 	defer file.Close()
 	durationUS := t.DurationMS * 1000
