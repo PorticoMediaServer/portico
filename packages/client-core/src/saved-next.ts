@@ -216,7 +216,9 @@ export async function sendPlaylistCommand(api: SavedNextApi, bound: SavedScope, 
         const first = order.find(row => !ids.includes(row.id))?.id;
         const body = after ? {after} : first ? {before: first} : undefined;
         if (!body) continue;
-        list = await edit<List>(api, entryPath(entryId), 'PATCH', revision, body, signal);
+        try {list = await edit<List>(api, entryPath(entryId), 'PATCH', revision, body, signal);}
+        // Once a move has landed the list is no longer the one on screen: say so, so it is read again.
+        catch (error) {throw list && error && typeof error === 'object' ? Object.assign(error, {partlyMade: true}) : error;}
         revision = revisionOf(list);
       }
       return receipt(id, list);
