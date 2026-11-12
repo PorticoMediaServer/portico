@@ -338,6 +338,10 @@ type Person struct {
 	// with how many, most first. A person page's groups (Acting, Directing, ...); one group's
 	// titles are GET /v1/items?person=<id>&role=<role>.
 	Roles []PersonRole `json:"roles,omitempty"`
+	// KindCounts counts distinct visible titles by kind, for the page's film, show,
+	// album and book groups. KnownFor holds at most twelve of its top-level titles.
+	KindCounts map[string]int `json:"kindCounts,omitempty"`
+	KnownFor   []Item         `json:"knownFor,omitempty"`
 }
 
 // PersonRole is one role of a person and how many titles the caller may see credit them in it.

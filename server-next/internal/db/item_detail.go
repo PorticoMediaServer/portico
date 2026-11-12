@@ -353,7 +353,9 @@ type Person struct {
 	// Titles is how many items the viewer may see that credit this person.
 	Titles int
 	// Roles are the person's roles on those items, most titles first: a person page's groups.
-	Roles []PersonRole
+	Roles      []PersonRole
+	KindCounts map[string]int
+	KnownFor   []Item
 }
 
 // PersonRole is one role a person has, and on how many titles the viewer may see.
@@ -396,5 +398,36 @@ func (d *DB) Person(ctx context.Context, v Viewer, publicID string) (Person, err
 	p.Roles, err = queryAll(ctx, tx, `SELECT c.role, count(DISTINCT i.id) FROM credits c JOIN items i ON i.id = c.item_id
 		WHERE c.person_id = ? AND `+acc.visible("i")+` GROUP BY c.role ORDER BY 2 DESC, c.role`, []any{id},
 		func(r *PersonRole) []any { return []any{&r.Role, &r.Titles} })
-	return p, err
+	if err != nil {
+		return p, err
+	}
+	type kindCount struct {
+		Kind  ItemKind
+		Count int
+	}
+	counts, err := queryAll(ctx, tx, `SELECT i.kind, count(DISTINCT i.id) FROM credits c JOIN items i ON i.id = c.item_id
+		WHERE c.person_id = ? AND `+acc.visible("i")+` GROUP BY i.kind`, []any{id},
+		func(k *kindCount) []any { return []any{&k.Kind, &k.Count} })
+	if err != nil {
+		return p, err
+	}
+	p.KindCounts = map[string]int{}
+	for _, k := range counts {
+		p.KindCounts[k.Kind.String()] = k.Count
+	}
+	// Billing position is stored with every credit. Directors and writers (including
+	// creators) rank with the lead; each top-level title is returned only once.
+	p.KnownFor, err = queryAll(ctx, tx, `SELECT `+itemColumns+` FROM items i JOIN credits c ON c.item_id = i.id`+stateJoin+`
+		c.person_id = @person AND i.kind IN (1, 2, 6, 8, 9, 10, 11) AND `+acc.visible("i")+` GROUP BY i.id
+		ORDER BY min(CASE WHEN c.role IN (@director, @writer) THEN 0 ELSE c.position END),
+		i.community_rating DESC, i.year DESC, i.id LIMIT 12`,
+		[]any{sql.Named("viewer_profile", v.ProfileID), sql.Named("person", id), sql.Named("director", RoleDirector), sql.Named("writer", RoleWriter)},
+		func(it *Item) []any { return it.dest() })
+	if err != nil {
+		return p, err
+	}
+	if err := loadImages(ctx, tx, p.KnownFor); err != nil {
+		return p, err
+	}
+	return p, loadLeafCounts(ctx, tx, v, acc, p.KnownFor)
 }

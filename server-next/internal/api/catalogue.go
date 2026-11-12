@@ -237,7 +237,7 @@ func (s *Server) catalogueRoutes() {
 			return Person{}, refuse(err)
 		}
 		out := Person{ID: p.PublicID, Name: p.Name, Biography: p.Biography, BirthDate: p.BirthDate, DeathDate: p.DeathDate,
-			Birthplace: p.Birthplace, Images: imageMap(p.Images), TitleCount: &p.Titles}
+			Birthplace: p.Birthplace, Images: imageMap(p.Images), TitleCount: &p.Titles, KindCounts: p.KindCounts, KnownFor: itemShapes(p.KnownFor)}
 		for _, role := range p.Roles {
 			out.Roles = append(out.Roles, PersonRole{Role: role.Role.String(), TitleCount: role.Titles})
 		}
