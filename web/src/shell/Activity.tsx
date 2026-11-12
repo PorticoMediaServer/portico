@@ -40,7 +40,9 @@ export function createOwnerActivity(context: ShellAssemblyContext, time: TimeEnv
     useEffect(() => { if (open) void service.retry(); }, [service, open]);
     useEffect(() => service.keepFresh(open ? ACTIVITY_OPEN_READ_MS : ACTIVITY_GLANCE_READ_MS, () => document.visibilityState === 'visible'), [service, open]);
     const retry = () => { void service.retry(); };
-    const view = activityPanelView(snapshot, context.facts.serverName, time, {onDashboard, onRetry: retry, openUpdate, openIssue});
+    // A row that goes somewhere closes the popover first: it is modal, so left open it would cover the page it opened.
+    const leave = <A extends unknown[]>(go: (...args: A) => void) => (...args: A) => {setOpen(false); go(...args);};
+    const view = activityPanelView(snapshot, context.facts.serverName, time, {onDashboard: leave(onDashboard), onRetry: retry, openUpdate: leave(openUpdate), openIssue: leave(openIssue)});
     if (presentation !== 'topbar') {
       const {count, update, majorIssue, busy, dot} = activityIndicator(view);
       const activityLabel = count === undefined ? defaultI18n.t('next.shell.activity') : defaultI18n.t(update ? 'next.shell.activityLabelUpdate' : 'next.shell.activityLabel', {count});

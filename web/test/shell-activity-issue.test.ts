@@ -52,9 +52,8 @@ test('the server order selects the drawn row and later issues stay off the glanc
   assert.equal(view([first, second]).majorIssue?.title, defaultI18n.t('next.shell.issue.storageTitle'));
 });
 
-test('no issue, an unknown code or an unready read never invents a row or a destination', () => {
+test('no issue or an unready read never invents a row or a destination', () => {
   assert.equal(view([]).majorIssue, undefined);
-  assert.equal(activityMajorIssue(issue('future_issue', {kind: 'library-source', target: 'source-1'}, {library: 'Archive'}), defaultI18n.t, () => {}), undefined);
   for (const phase of ['idle', 'loading', 'error', 'unavailable'] as const) {
     const stale = activityPanelView({phase, document: parseActivitySummary(document([issue('storage_nearly_full', {kind: 'storage', target: ''})]))}, f.server, environment,
       {onDashboard: () => {}, onRetry: () => {}, openUpdate: () => {}, openIssue: () => {}});
@@ -63,11 +62,18 @@ test('no issue, an unknown code or an unready read never invents a row or a dest
   assert.equal(activityMajorIssue(undefined, defaultI18n.t, () => {}), undefined);
 });
 
-test('a major alert the panel has no words for still marks the server as needing attention, and invents no row', () => {
-  const parsed = parseActivitySummary(document([issue('future_issue', {kind: 'library-source', target: 'source-1'})]));
-  const ready = activityPanelView({phase: 'ready', document: parsed}, f.server, environment, {onDashboard: () => {}, onRetry: () => {}, openUpdate: () => {}, openIssue: () => {}});
-  assert.equal(ready.health, 'attention');
-  assert.equal(ready.majorIssue, undefined);
+test('unknown and data-folder alerts stay visible and open the Dashboard without issuing a command', () => {
+  const dashboard: unknown[] = [], commands: unknown[] = [];
+  for (const code of ['future_issue', 'data_folder_readable']) {
+    const parsed = parseActivitySummary(document([issue(code, {kind: 'fix-permissions', target: ''}, {message: 'Move the data folder to another drive.'})]));
+    const ready = activityPanelView({phase: 'ready', document: parsed}, f.server, environment,
+      {onDashboard: section => dashboard.push(section), onRetry: () => {}, openUpdate: () => {}, openIssue: value => commands.push(value)});
+    assert.equal(ready.health, 'attention');
+    assert.equal(ready.majorIssue?.title, code === 'future_issue' ? 'Move the data folder to another drive.' : defaultI18n.t('next.dashboard.permissionsAlert'));
+    ready.majorIssue!.onOpen();
+  }
+  assert.deepEqual(dashboard, [undefined, undefined]);
+  assert.deepEqual(commands, []);
   assert.equal(view([]).health, 'normal');
 });
 
