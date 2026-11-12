@@ -516,6 +516,8 @@ test('a renewal on another profile of the same sign-in ends the running shell as
   const held = server('a', 'p1').connection.session;
   assert.equal(loaded.renewalMovedProfile(held, {...held, accessToken: 'renewed', viewer: {...held.viewer, profileId: 'p2'}}), true);
   assert.equal(loaded.renewalMovedProfile(held, {...held, accessToken: 'renewed', viewer: {...held.viewer, profileId: ''}}), true, 'the profile taken away');
+  const renewed = {...held, accessToken: 'renewed', viewer: {...held.viewer, profileId: 'p2'}};
+  assert.deepEqual(new loaded.NativeProfileMoved(renewed).viewer, {accountId: 'membership-a', profileId: 'p2', role: 'owner', familyId: 'family-a'});
   assert.equal(loaded.renewalMovedProfile(held, {...held, accessToken: 'renewed'}), false, 'an ordinary renewal');
   assert.equal(loaded.renewalMovedProfile(held, {...held, viewer: {...held.viewer, accountId: 'other', profileId: 'p2'}}), false, 'another account is not a moved profile');
   assert.equal(loaded.renewalMovedProfile(held, {...held, sessionFamilyId: 'other', viewer: {...held.viewer, profileId: 'p2'}}), false, 'another sign-in is not a moved profile');

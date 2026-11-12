@@ -418,7 +418,7 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
     cleanups.push(context.subscribePreferences(publish));
     refresher = new LocalSessionRefresher({env, api: local, session, onRotated: renewed => {
       // Another profile of this same sign-in (desk B on #3018): the old profile's screens end and Who's watching opens.
-      if (!current() || !sameViewer(session!, renewed)) {end(current() && renewalMovedProfile(session!, renewed) ? new NativeProfileMoved() : undefined); return;}
+      if (!current() || !sameViewer(session!, renewed)) {end(current() && renewalMovedProfile(session!, renewed) ? new NativeProfileMoved(renewed) : undefined); return;}
       ownTokens.add(renewed.accessToken);
       local.setOutboxSession(renewed);
       if (renewed.viewer.role !== session!.viewer.role) {session = renewed; rebuild(); return;}

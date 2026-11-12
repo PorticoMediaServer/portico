@@ -50,5 +50,5 @@ test('the subscription is released with the shell, and renewals in place stay it
   assert.match(source, /if \(!current\(\) \|\| !sameViewer\(session!, renewed\)\) \{end\([^;{}]*\); return;\}\n\s+ownTokens\.add\(renewed\.accessToken\);/,
     'only a renewal of the same viewer joins the shell\'s tokens');
   // #3018: a renewal for this same sign-in on another profile (a switch whose answer was lost) ends with NativeProfileMoved: Who's watching.
-  assert.match(source, /\{end\(current\(\) && renewalMovedProfile\(session!, renewed\) \? new NativeProfileMoved\(\) : undefined\); return;\}/);
+  assert.match(source, /\{end\(current\(\) && renewalMovedProfile\(session!, renewed\) \? new NativeProfileMoved\(renewed\) : undefined\); return;\}/);
 });
