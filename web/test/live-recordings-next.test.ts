@@ -112,6 +112,7 @@ test('cancelling a booking, stopping one that is recording, keeping and deleting
   await c.load({view: 'upcoming'}); await tick();
   const [scheduled, running] = c.getSnapshot().page!.recordings;
   await c.cancel(scheduled!); await tick();
+  assert.ok(calls.some(call => call.method === 'GET' && route(call).pathname === '/v1/dvr'), 'the tab counts are read again once the server has acted');
   await c.cancel(c.getSnapshot().page!.recordings.find(one => one.id === running!.id) ?? running!); await tick();
   await c.load({view: 'history'}); await tick();
   const made = c.getSnapshot().page!.recordings[0]!;

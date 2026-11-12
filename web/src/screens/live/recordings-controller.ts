@@ -253,6 +253,8 @@ export function createRecordingsController(input: RecordingsControllerOptions) {
     const after = model.getSnapshot();
     commandError = '';
     adoptFacts();
+    // The tab counts are the server's: read them again once it has acted.
+    void controller.readSummary().catch(() => {});
     if (after.accessDenied) {
       clearFacts(true);
       return Object.freeze({committed: true, refreshed: false, busy: false});
@@ -387,7 +389,7 @@ export function createRecordingsController(input: RecordingsControllerOptions) {
       throw failure;
     }
   }
-  return {
+  const controller = {
     /** Only the exact resident objects of a settled destination generation pass.
      * A replacement, a refresh in flight or a failed destination refuses them. */
     contains(recording: Recording): boolean {
@@ -504,5 +506,6 @@ export function createRecordingsController(input: RecordingsControllerOptions) {
     },
     dispose,
   };
+  return controller;
 }
 export type RecordingsController = ReturnType<typeof createRecordingsController>;

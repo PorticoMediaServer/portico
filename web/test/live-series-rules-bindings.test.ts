@@ -100,12 +100,13 @@ test('a refused save keeps the rule as shown; a second command while one runs se
   } finally {f.binding.dispose();}
 });
 
-test('the server previews no edit of an existing rule: Preview says so and sends nothing', async () => {
+test('the server previews no edit of an existing rule: the editor shows no Coming up, reports nothing and sends nothing', async () => {
   const f = setup();
   try {
     await f.binding.load();const before = f.calls.length, row = f.binding.getSnapshot().view!.rules[0]!;
     await f.binding.preview(row, row.settings);
-    assert.equal((f.binding.getSnapshot().previewError as {code?: string})?.code, 'not_on_server');
+    assert.equal(f.binding.getSnapshot().previewError, undefined);assert.equal(f.binding.getSnapshot().preview, undefined);
+    assert.equal(f.binding.getSnapshot().previewLoading, false);
     assert.equal(f.calls.length, before);
   } finally {f.binding.dispose();}
 });

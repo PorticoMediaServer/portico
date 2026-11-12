@@ -6,6 +6,7 @@ import {useLocation, useSearch} from '@tanstack/react-router';
 import {defaultI18n} from '@i18n';
 import {clampGuideStart, guideDayMenu, guideNowStart, guideRange, localDayStart, legacyChannel, legacyChannelRow, legacyProgram, pxPerMsFor, type GuideChannelRow, type GuideProgram} from '@core/guide/index.ts';
 import {dayPrimeTime} from '@core/channel-guide.ts';
+import {liveChannel} from '@core/guide/next-source.ts';
 import type {GuideSourceSummaries, GuideSourceSummary} from '@core/guide/directory.ts';
 import type {LegacyGuideOptions} from '@core/guide/legacy-source.ts';
 import {dependsOn} from '@core/freshness-hub.ts';
@@ -51,15 +52,13 @@ function selectGuideSources(sources: readonly GuideSourceSummary[] | undefined, 
   return sources?.filter(source => (!search.sourceId || source.id === search.sourceId) && (!search.kind || search.kind === 'all' || source.provenance === search.kind)) ?? [];
 }
 function admittedChannel(options: LegacyGuideOptions, row: GuideChannelRow) {
+  // A new-server row is one it answered for the channels asked for: its source and group are the server's own filters.
+  if (liveChannel(row)) return options.kind === 'library-channel' && row.kind !== 'library' || options.kind === 'live-source' && row.kind === 'library' ? undefined : row;
   const channel = legacyChannel(row);
   if (!channel) return undefined;
   if (options.kind !== 'all' && channel.provenance !== options.kind) return undefined;
   if (options.sourceId && channel.sourceId !== options.sourceId) return undefined;
   return channel;
-}
-function playableChannel(options: LegacyGuideOptions, row: GuideChannelRow) {
-  const channel = admittedChannel(options, row);
-  return channel && channel.tuneAvailable && !channel.tuneUnavailableReason ? channel : undefined;
 }
 /** This guide page's own membership witness: the same row object at the same
  * row index, in the store that drew it. A replacement page has other objects. */
@@ -252,15 +251,8 @@ function LiveArea({captured, context, search, pathname}: {captured: ProtectedLib
   if (!lease) return null;
   if (authorityFailure) return <ScreenProblem context={lease.screen} error={authorityFailure} retry={() => {if (context.isCurrent()) setReopen(value => value + 1);}}/>;
   if (!lease.live || !lease.life.current() || !lease.routeCurrent()) return null;
-  const play = (channel: GuideChannelRow, admission?: SelectionAdmission) => {
-    const actual = playableChannel(lease.options, channel), playback = lease.playbackOwner;
-    if (!actual || !playback || !admission || admission.row !== channel) return;
-    const current = () => lease.live && lease.life.current() && lease.routeCurrent() && admission.row === channel
-      && admission.current() && !!playableChannel(lease.options, channel);
-    if (!current()) return;
-    void playback.playFromGuide(actual, {signal: lease.life.signal(), isCurrent: current}).catch(lease.screen.effects.reportError);
-  };
-  const onPlay = lease.playbackOwner ? play : undefined;
+  // Watching a channel moves with the player (Watch live: a playback session for the channel). Until then the guide offers no
+  // Watch, and an On now card opens its programme.
   const sources = summary?.lease === lease ? summary.value.sources : undefined;
   const selectedSources = selectGuideSources(sources, search);
   const groupCounts = new Map<string, number>();
@@ -270,7 +262,10 @@ function LiveArea({captured, context, search, pathname}: {captured: ProtectedLib
   const groups = [...groupCounts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   const through = range.end, days = guideDayMenu(now, start, timezone, range), today = localDayStart(now, timezone);
   const throughDay = through === undefined ? undefined : new Intl.DateTimeFormat(defaultI18n.region.formatLocale, {weekday: 'long', timeZone: timezone}).format(through - 1);
-  const hasSources = !!sources?.length;
+  // A server without the sources list (the server follow-up) still has channels: the page goes by the channels it reads,
+  // offering All and Favorites, and says there are none only when there are none.
+  const noChannels = !!sources && !sources.length && snapshot.total === 0;
+  const hasSources = !!sources?.length || !!snapshot.total;
   // Spec §10: a stale guide and a server-wide reason are said once, from the server's own state (LT-3, LT-4).
   const serverWide = liveServerWideNotice(selectedSources, owner), stale = liveGuideStale(selectedSources);
   const openLiveSettings = () => {if (context.isCurrent()) void router.navigate({to: '/settings', search: {scope: 'server', section: 'live'}}).catch(context.effects.reportError);};
@@ -284,10 +279,11 @@ function LiveArea({captured, context, search, pathname}: {captured: ProtectedLib
     const channel = lease.bindings.store.channelAt(index), page = lease.bindings.store.programsFor(index, readStart, readEnd);
     rows.push({index, ...(channel ? {channel, witness: guideWitness(lease, index, channel)} : {}), programs: page.programs, complete: page.complete, failed: page.failed});
   }
+  // The count of favourites is the server's, from its sources list; a server without that list gives none to show.
   const favoriteCount = selectedSources.reduce((sum, source) => sum + source.favoriteCount, 0);
   const chips = [
     {id: 'all', label: t('channels.filterAll'), count: snapshot.total, selected: !search.group && !search.favorites, onSelect: () => navigate({group: undefined, favorites: undefined})},
-    {id: 'favorites', label: t('channels.favorites'), favorites: true, count: favoriteCount, selected: search.favorites === true, onSelect: () => navigate({favorites: !search.favorites || undefined, group: undefined})},
+    {id: 'favorites', label: t('channels.favorites'), favorites: true, ...(selectedSources.length ? {count: favoriteCount} : {}), selected: search.favorites === true, onSelect: () => navigate({favorites: !search.favorites || undefined, group: undefined})},
     ...groups.map(([group, count]) => ({id: `group:${group}`, label: group, count, selected: search.group === group, onSelect: () => navigate({group, favorites: undefined})})),
     ...(owner ? [{id: 'hidden', label: t('channels.showHidden'), selected: search.hidden === true, onSelect: () => navigate({hidden: !search.hidden || undefined})}] : []),
   ];
@@ -301,15 +297,14 @@ function LiveArea({captured, context, search, pathname}: {captured: ProtectedLib
   const sourceName = search.sourceId ? selectedSources[0]?.provenance === 'library-channel' ? t('channels.custom.name') : selectedSources[0]?.name : t('channels.all');
   return <>
     {failed === lease ? <div className={styles.guideState}><StateView title={t('next.states.pageFailed')} body={t('next.states.pageFailedBody')} primary={{id: 'retry', label: t('next.states.tryAgain'), onPress: () => {if (lease.life.current() && lease.routeCurrent()) setAttempt(value => value + 1);}}}/></div>
-      : sources && !sources.length && !owner ? <div className={styles.guideState}><StateView title={t('channels.noSourcesTitle')} body={t(context.identity?.viewer.role === 'owner' ? 'channels.noSourcesOwner' : 'channels.noSourcesMember')}/></div>
+      : noChannels && !owner ? <div className={styles.guideState}><StateView title={t('channels.noSourcesTitle')} body={t(context.identity?.viewer.role === 'owner' ? 'channels.noSourcesOwner' : 'channels.noSourcesMember')}/></div>
         : <GuideScreen title={t('next.home.shell.live')}
           switcher={hasSources ? {value: search.sourceId ? JSON.stringify(['source', selectedSources[0]?.provenance, search.sourceId]) : 'all', options: sourceOptions, onChange: switchSource} : undefined}
           summary={hasSources ? {name: sourceName ?? t('channels.all'), ...(snapshot.total !== undefined ? {channels: snapshot.total} : {}), ...(throughDay ? {through: t('next.live.guideThrough', {day: throughDay})} : {})} : undefined}
           onTabChange={() => {if (context.isCurrent()) void enterRecordings(JSON.parse(searchKey), 'upcoming').catch(context.effects.reportError);}}
           chips={chips}
           onNow={width >= 1024 && hasSources ? <LiveOnNow owner={lease.bindings} now={now} timezone={timezone} artwork={context.artwork} reducedMotion={appearance.reducedMotion}
-            onOpen={(channel, programme, witness) => {if (!witness || witness.row !== channel || !witness.current() || !admittedChannel(lease.options, channel)) return;selectRow({lease, channel, programme, admission: witness});}}
-            onPlay={onPlay}/> : undefined}
+            onOpen={(channel, programme, witness) => {if (!witness || witness.row !== channel || !witness.current() || !admittedChannel(lease.options, channel)) return;selectRow({lease, channel, programme, admission: witness});}}/> : undefined}
           day={{label: t('guide.day'), value: String(localDayStart(start, timezone)),
             options: days.map(day => ({value: String(day), label: day === today ? t('guide.today') : new Intl.DateTimeFormat(defaultI18n.region.formatLocale, {weekday: 'long', timeZone: timezone}).format(day)})),
             onChange: value => {const day = days.find(day => String(day) === value);if (day === undefined) return;
@@ -318,7 +313,7 @@ function LiveArea({captured, context, search, pathname}: {captured: ProtectedLib
             onChange: sort => {if (sort === 'number' || sort === 'name' || sort === 'favorites') navigate({sort});}}}
           notice={guideNotice}
           problem={snapshot.channelsError ? <StateView variant="page" title={t('guide.tileFailed')} primary={{id: 'retry', label: t('next.states.tryAgain'), onPress: () => {if (lease.life.current()) lease.bindings.store.retry();}}}/> : undefined}
-          empty={sources && !sources.length ? <StateView variant="page" title={t('channels.noSourcesTitle')} body={t('web.live.noSourcesOwner')}
+          empty={noChannels ? <StateView variant="page" title={t('channels.noSourcesTitle')} body={t('web.live.noSourcesOwner')}
             primary={{id: 'settings', label: t('web.live.setUpChannels'), onPress: () => {if (context.isCurrent()) void router.navigate({to: '/settings', search: {scope: 'server', section: 'live'}});}}}/> : snapshot.total === 0 ? <StateView variant="page" title={t('guide.filterEmpty', {filter: search.group ?? (search.favorites ? t('channels.favorites') : search.q ?? t('channels.all'))})}
             primary={{id: 'all', label: t('channels.showAll'), onPress: () => navigate({group: undefined, favorites: undefined, q: undefined})}}/> : undefined}
           view={view} onViewChange={view => {if (context.isCurrent()) {remember(view);navigate({view});}}}
@@ -327,15 +322,14 @@ function LiveArea({captured, context, search, pathname}: {captured: ProtectedLib
           rows={rows} total={total}
           selected={currentSelection ? {channelId: currentSelection.selection.channel.id, ...(currentSelection.selection.programme ? {programmeId: currentSelection.selection.programme.id} : {})} : undefined}
           onSelect={(channel, programme, witness) => {if (!witness || witness.row !== channel || !witness.current() || !admittedChannel(lease.options, channel)) return;selectRow({lease, channel, ...(programme ? {programme} : {}), admission: witness});}}
-          onPlay={onPlay}
           channelMenu={(channel, witness) => guideChannelMenuEntries(channel, {owner, busy: preferenceBusy === lease,
-            onFavorite: row => channelPreference(row, witness, {favorite: !row.favorite, hidden: legacyChannel(row)?.hidden ?? false}),
+            onFavorite: row => channelPreference(row, witness, {favorite: !row.favorite, hidden: legacyChannel(row)?.hidden ?? liveChannel(row)?.hidden ?? false}),
             onHidden: (row, hidden) => channelHidden(row, hidden, witness),
             onEdit: editChannel})}
           onVisibleWindow={onVisibleWindow} onRetry={() => {if (lease.life.current()) lease.bindings.store.retry();}}/>}
     {currentSelection && <ProgrammePanel key={JSON.stringify([currentSelection.selection.lease.id, currentSelection.selection.channel.sourceId, currentSelection.selection.channel.id, currentSelection.selection.programme?.id, currentSelection.selection.programme?.start])} context={lease.screen} admission={currentSelection.admission} channel={currentSelection.selection.channel} programme={currentSelection.selection.programme}
       now={now} timezone={timezone} open onClose={() => closeSelection(currentSelection.selection)}
-      onWatch={onPlay ? () => onPlay(currentSelection.selection.channel, currentSelection.admission) : undefined} onChanged={onChanged} onViewRecordings={() => openRecordings(currentSelection.selection)}/>}
+      onChanged={onChanged} onViewRecordings={() => openRecordings(currentSelection.selection)}/>}
   <ToastHost toast={visibilityToast?.lease === lease && lease?.life.current() && lease.routeCurrent() ? visibilityToast.toast : null} onDismiss={() => setVisibilityToast(undefined)}/></>;
 }
 const recordingsNav: RecordingsNavigation = {state: () => router.state.location.state, back: () => router.history.back(),

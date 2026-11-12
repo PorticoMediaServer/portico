@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {nextGuideSource} from '../src/guide/next-source.ts';
+import {liveChannel, nextChannelRow, nextGuideSource} from '../src/guide/next-source.ts';
 
 const channel = (n: number) => ({id: `ch_${n}`, name: `Channel ${n}`, number: String(n), kind: 'live', favorite: false, hidden: false});
 const programme = (n: number) => ({id: `pg_${n}`, startsAt: '2026-11-12T18:00:00Z', endsAt: '2026-11-12T19:00:00Z', title: `Show ${n}`, season: 1, episode: n});
@@ -60,4 +60,11 @@ test('a linked channel the profile may not see is simply not found', async () =>
   const {findChannel} = await import('../src/guide/next-source.ts');
   const api = {request: async <T>(): Promise<T> => { throw Object.assign(new Error('Not found.'), {status: 404, code: 'not_found'}); }};
   assert.equal(await findChannel(api, 'ch_hidden'), undefined);
+});
+
+test('a row made from a new-server channel names that channel; any other row names none', () => {
+  const channel = {id: 'chn_1', name: 'Harbour News', number: '101', kind: 'source', favorite: false, hidden: true};
+  const row = nextChannelRow(channel);
+  assert.equal(liveChannel(row)?.hidden, true);
+  assert.equal(liveChannel({...row}), undefined, 'a copy, or a row of the old guide, is not one');
 });

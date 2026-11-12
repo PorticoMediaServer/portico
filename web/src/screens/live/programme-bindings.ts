@@ -71,7 +71,8 @@ export function createProgrammeBindings(context: ScreenContext, row: GuideChanne
   const airing = (id: string, start: number, end: number, channelId: string): PreviewAiring => Object.freeze({id, start, time: time(start),
     range: defaultI18n.t('guide.cellTime', {start: time(start), end: time(end)}),
     day: new Date(start).toDateString() === new Date(now()).toDateString() ? defaultI18n.t('guide.today') : new Intl.DateTimeFormat(env.locale, {weekday: 'long', timeZone: env.timezone}).format(start),
-    title: programme?.subtitle || programme?.title || '', channelId});
+    // An airing names no episode, so it is called by the programme's title, never by this episode's name.
+    title: programme?.title || '', channelId});
 
   return {
     getSnapshot: () => state,
