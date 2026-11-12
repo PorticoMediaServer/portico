@@ -79,7 +79,7 @@ Assistant) are a separate short document and are not counted here.
 | `POST /v1/auth/two-factor` | Finish a two-step sign-in |
 | `POST /v1/auth/refresh` | Renew tokens |
 | `DELETE /v1/auth/session` | Sign out |
-| `POST /v1/auth/portico/challenge`, `POST /v1/auth/portico/exchange` | Sign in with a Portico Account: the server's challenge out; then the challenge, the sign-in note Portico Services signed for it, and an invitation's code for a person joining, in, and tokens out. The note is checked against the root key the server is built with, for this server, this link and this challenge, once. A local server answers `409 local_sign_in` |
+| `POST /v1/auth/portico/challenge`, `POST /v1/auth/portico/exchange` | Sign in with a Portico Account: the server's challenge out (the request is sent as `application/json` with `{}`; anything else is `415`, so a page on another site cannot ask for one unasked); then the challenge, the sign-in note Portico Services signed for it, and an invitation's code for a person joining, in, and tokens out. The note is checked against the root key the server is built with, for this server, this link and this challenge, once. A local server answers `409 local_sign_in` |
 | `POST /v1/auth/codes`, `GET /v1/auth/codes/{id}`, `POST /v1/auth/codes/{id}/approve`, `POST /v1/auth/codes/{id}/redeem` | Sign in on a TV by approving a code on a phone |
 | `GET /v1/auth/invitations/{id}`, `POST /v1/auth/invitations/{id}/accept` | Preview and accept an invitation |
 | `POST /v1/auth/password-reset/confirm` | Choose a new password with a reset code. The owner or an admin makes the code in People; the server sends no email, so there is no route that asks for one |

@@ -136,7 +136,7 @@ func refusalCode(w *httptest.ResponseRecorder) string {
 func (p *porticoRig) challenge() string {
 	p.Helper()
 	var out PorticoChallenge
-	if w := call(p.T, p.s, "POST", "/v1/auth/portico/challenge", "", nil, &out); w.Code != 200 || out.ServerID != p.s.id {
+	if w := call(p.T, p.s, "POST", "/v1/auth/portico/challenge", "", PorticoChallengeRequest{}, &out); w.Code != 200 || out.ServerID != p.s.id {
 		p.Fatalf("the challenge answered %d: %s", w.Code, w.Body)
 	}
 	return out.Challenge
@@ -241,7 +241,7 @@ func TestALocalServerNeverContactsPorticoServices(t *testing.T) {
 	} {
 		var body any = map[string]any{"returnUrl": "https://cabin.example/back", "approval": "x", "note": map[string]any{}, "device": device(3)}
 		if strings.HasSuffix(route, "/challenge") {
-			body = nil
+			body = PorticoChallengeRequest{}
 		}
 		if w := call(t, s, "POST", route, owner.AccessToken, body, nil); w.Code != want {
 			t.Errorf("POST %s on a local server answered %d, want %d: %s", route, w.Code, want, w.Body)
@@ -267,7 +267,7 @@ func TestALocalServerNeverContactsPorticoServices(t *testing.T) {
 // keeps each person's email address and username as Portico Services gave them.
 func TestLinkingAndSigningInWithAPorticoAccount(t *testing.T) {
 	p := newPorticoRig(t)
-	if code := status(t, p.s, "POST", "/v1/auth/portico/challenge", "", nil); code != 409 {
+	if code := status(t, p.s, "POST", "/v1/auth/portico/challenge", "", PorticoChallengeRequest{}); code != 409 {
 		t.Fatalf("a server not yet linked gave a challenge: %d", code)
 	}
 	p.link(accountJustin)
@@ -536,7 +536,7 @@ func TestNotesAreAppliedOnceAndOnlyForThisLink(t *testing.T) {
 	if state.State != "unlinked" || state.Problem != msgPorticoUnlinked {
 		t.Errorf("after the owner removed the server: %+v", state)
 	}
-	if code := status(t, p.s, "POST", "/v1/auth/portico/challenge", "", nil); code != 409 {
+	if code := status(t, p.s, "POST", "/v1/auth/portico/challenge", "", PorticoChallengeRequest{}); code != 409 {
 		t.Errorf("an unlinked server gave a challenge: %d", code)
 	}
 	calls := len(p.fake.Calls())
@@ -952,5 +952,27 @@ func TestAnAddressThatKeepsChangingIsSentAtMostEveryFewMinutes(t *testing.T) {
 	p.run(documentGap)
 	if sent() != settled+3 || held() != address {
 		t.Errorf("a change the owner made by hand inside the gap sent %d documents, holding %s", sent()-settled, held())
+	}
+}
+
+// A page on another site can make a browser send a POST with no body, or with one that is not
+// JSON, without asking the server first. On a linked server the challenge route, which takes
+// nothing, refuses each of those; an app's JSON request gets its challenge.
+func TestAChallengeIsNotGivenToARequestAPageCanSendUnasked(t *testing.T) {
+	p := newPorticoRig(t)
+	p.link(accountJustin)
+	for name, kind := range map[string]string{"no body": "", "a form": "application/x-www-form-urlencoded", "JSON as text": "text/plain",
+		"an upload form": "multipart/form-data; boundary=x"} {
+		r := httptest.NewRequest("POST", "/v1/auth/portico/challenge", strings.NewReader(""))
+		if kind != "" {
+			r.Header.Set("Content-Type", kind)
+		}
+		r.Header.Set("Origin", "https://evil.example")
+		if w := serve(p.s, r); w.Code != 415 {
+			t.Errorf("a challenge asked for with %s answered %d, want 415", name, w.Code)
+		}
+	}
+	if p.challenge() == "" {
+		t.Error("an app's request got no challenge")
 	}
 }
