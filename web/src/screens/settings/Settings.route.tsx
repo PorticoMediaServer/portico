@@ -36,7 +36,7 @@ import {LibraryLyricsAction} from './libraries/LibraryLyricsAction';
 import {RemoveLibraryButton} from './libraries/RemoveLibrary';
 import {isLibraryPanelContext, libraryScanAction} from './libraries/model';
 import {createServerSettingsSurfaces} from './server';
-import {createTroubleshootingSurfaces} from './server/troubleshooting';
+import {createTroubleshootingSurfaces, partError} from './server/troubleshooting';
 import {createDirectMember, type NewDirectMember} from '@core/direct-member-create.ts';
 import {MessageOptions} from './server/troubleshooting/MessageOptions';
 import {PlaybackProblems} from './server/troubleshooting/PlaybackProblems';
@@ -485,7 +485,7 @@ export function SettingsEntry() {
         if (!current()) return Promise.reject(new DOMException('The settings scope ended.', 'AbortError'));
         return openOwnerLogEvents(api, headers, context.session().accessToken, signal);
       }}}) : undefined;
-    const playbackProblems = troubleshooting?.parts.has('problems') ? new PlaybackProblemsSource({transport:api,isCurrent:current,reportError,subscribe:listener=>{authorityListeners.add(listener);return()=>{authorityListeners.delete(listener);};}}) : undefined;
+    const playbackProblems = troubleshooting?.parts.has('problems') ? new PlaybackProblemsSource({transport:api,isCurrent:current,reportError:partError(reportError),subscribe:listener=>{authorityListeners.add(listener);return()=>{authorityListeners.delete(listener);};}}) : undefined;
     const previewLife = new AbortController();
     const preview = createScreenPlayEffect({isCurrent: current, runtime: () => mediaRuntime});
     // The Sign-in page's Reset file group names the server's own data folder. It is
