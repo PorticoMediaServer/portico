@@ -71,6 +71,7 @@ export const readerMessages = {
   'next.reader.underThreeHours': 'Under three hours',
   'next.reader.shortReadsFromWordCount': 'Under three hours, from the word count',
   'next.reader.aboutDuration': 'About {duration}',
+  'next.reader.openedNear': 'Opened near where you left off',
   'next.reader.bulkLimit': 'Edit up to {count, number} books at a time.',
   'next.reader.bookNumber': 'Book {number}',
   'next.reader.readNext': 'Read next',

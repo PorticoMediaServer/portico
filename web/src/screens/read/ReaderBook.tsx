@@ -6,7 +6,7 @@ import {ReaderAnnotationActions, ReaderAnnotationList, useReaderAnnotations, use
 import {readingSearchStepIndex} from './search-step';
 import {useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {defaultI18n} from '@i18n';
-import type {ReadingPreferences} from '@portico/client-core';
+import type {ReadingPreferences, ReadingProgress} from '@portico/client-core';
 import type {ReadingController, ReadingPublication, ReaderErrorCode, ReaderLocation, ReaderContentsTarget, ReaderSearchResult, ReaderTocItem} from '@portico/reader-core';
 import {useShellWidth} from '../../shell/viewport';
 import {useWindowHeight} from '../../kit/theme';
@@ -26,6 +26,7 @@ import type {ReaderChapterMark} from './ReaderChrome';
 import fixedStyles from './fixed-page.module.css';
 import {ReaderMatchNavigation} from './ReaderMatchNavigation';
 import {ReaderBrowserHint} from './ReaderBrowserHint';
+import {ToastHost, type ToastData} from '../../kit/overlays';
 const {t} = defaultI18n;
 const directionIcon = (direction: ReadDirection): 'i-rtl' | 'i-ltr' | 'i-vscroll' => direction === 'rtl' ? 'i-rtl' : direction === 'vertical' ? 'i-vscroll' : 'i-ltr';
 /** Real outline boundaries, including nested chapters; coincident starts draw one tick. */
@@ -70,7 +71,12 @@ export function readerCurrentContentsId(items: readonly ReaderTocItem[], locatio
   if (flat.filter(item => item.location.progression === start).length === 1) return current.id;
 }
 type ReaderSearchScope = Readonly<{query: string; active: boolean; abort: AbortController}>;
-export type ReaderBookState = Readonly<{publication: ReadingPublication; controller: ReadingController; authority: ReaderMountAuthority; location?: ReaderLocation; contentsTarget?: ReaderContentsTarget; annotations?: ReadingAnnotationPort}>;
+export type ReaderBookState = Readonly<{publication: ReadingPublication; controller: ReadingController; authority: ReaderMountAuthority; location?: ReaderLocation; contentsTarget?: ReaderContentsTarget; annotations?: ReadingAnnotationPort;
+  /** How far through the person was in another file of this book (a replaced file, another version). */
+  near?: number}>;
+/** A place saved in another file of this book cannot be used exactly; the book opens as far
+ * through as it was instead (10-reading rule 14). */
+export const readerNear = (saved: ReadingProgress): number | undefined => saved.progress?.stale ? saved.progress.location.progression : undefined;
 
 export function ReaderBook({book, active, reportError, onBack, onOpenSettings, onSearchAll, environment = 'web', crease, saveHighlights}: {saveHighlights?: (revision: number, signal: AbortSignal) => Promise<'saved' | 'cancelled'>; environment?: ReaderEnvironment; book: ReaderBookState; active: boolean; reportError: (error: unknown) => void; onBack: () => void; onOpenSettings: () => void; onSearchAll?: (query: string) => void; /** Actual vertical book fold for this window, or absent. */ crease?: Readonly<{left: number; right: number}>}) {
   const {controller, publication, authority} = book;
@@ -132,6 +138,22 @@ export function ReaderBook({book, active, reportError, onBack, onOpenSettings, o
     const off = controller.subscribe(apply); apply();
     return () => {operation.abort(); off();};
   }, [book.contentsTarget, publication, authority, controller]);
+  // 10-reading rule 14: a place from another file of this book opens as far through this one, and says so.
+  const [nearNotice, setNearNotice] = useState<ToastData | null>(null);
+  useEffect(() => {
+    const near = book.near;
+    if (near === undefined) return;
+    const operation = new AbortController(); let applied = false;
+    const apply = () => {
+      if (applied || operation.signal.aborted || controller.getSnapshot().status !== 'ready' || !authority.isCurrent()) return;
+      applied = true;
+      void controller.navigate({kind: 'progression', value: near}, operation.signal)
+        .then(() => {if (!operation.signal.aborted && authority.isCurrent()) setNearNotice({id: 'near', message: t('next.reader.openedNear')});})
+        .catch(error => {if (!operation.signal.aborted && authority.isCurrent()) contentsError.current(error);});
+    };
+    const off = controller.subscribe(apply); apply();
+    return () => {operation.abort(); off();};
+  }, [book.near, authority, controller]);
   const engineError = useCallback((code: ReaderErrorCode) => reportError({code}), [reportError]);
   const layout = readerBookPresentation(width, environment, height), {presentation} = layout;
   const compactDocument = publication.format === 'pdf' && presentation === 'phone';
@@ -274,6 +296,7 @@ export function ReaderBook({book, active, reportError, onBack, onOpenSettings, o
           onPress: (element: HTMLButtonElement) => {const root = element.closest<HTMLElement>('[data-reader-root]'); void (document.fullscreenElement ? document.exitFullscreen() : root?.requestFullscreen())?.catch(reportError);}}] : []),
       ], publication.format === 'epub' ? 'epub' : comic ? 'comic' : 'pdf')})}/>
     {active && <ReaderAnnotationActions service={notes.service} snapshot={snapshot} controller={controller} onSearch={!comic ? text => {changeQuery(text);setPanel('search');} : undefined} reportError={reportError}/>}
+    {active && <ToastHost toast={nearNotice} onDismiss={() => setNearNotice(null)}/>}
     {active && environment === 'web' && snapshot.status === 'ready' && <ReaderBrowserHint visible={presentation === 'phone' && !panel && !fixedMenu && !currentHit && snapshot.selection === null && !hint}/>}
     {active && fixed && <FixedPageMenus controller={controller} authority={authority} format={publication.format} reportError={engineError}
       open={fixedMenu} onOpenChange={setFixedMenu} anchorRef={zoomAnchor} directionRef={directionAnchor} moreRef={moreAnchor}/>}
