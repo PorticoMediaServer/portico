@@ -26,8 +26,20 @@ const handoffModule = async (react: unknown, back: unknown, entry = (..._args: u
   '../../kit/focus': {FocusProvider: 'Provider', FocusRegion: 'Region'}, '../../kit/theme': {nativeType, useTheme: () => theme},
   '../../kit/states/sentence-parts': {stateSentenceParts}, '../../platform/native-blur': {BlurView: 'Blur', glassRecipe: () => ({nativeBlur: true})},
   '../../screens/destinations/useEntryFocus': {useDestinationEntryFocus: entry}, './TVAuthLayout': {TVAuthLayout: 'Layout'}, './entry-revision': revision,
+  '../../platform/account-authority': {hostedUrl: 'https://web.getportico.tv'},
+  '../../platform/forgot-pin-handoff': await screenModule(new URL('../src-next/platform/forgot-pin-handoff.ts', import.meta.url), {react: {default: {}},
+    './account-authority': {hostedUrl: 'https://web.getportico.tv'}, '../../../../packages/client-core/src/route-identity': await import('../../../packages/client-core/src/route-identity.ts')}),
 });
 };
+
+test('a Portico Accounts server\'s Forgot PIN hands off to web.getportico.tv opening that one server, and nowhere else', async () => {
+  const h = hooks(), {publicTVHandoffAddress} = await handoffModule(h.react, {});
+  const id = 'srv_' + 'A'.repeat(43), open = `https://web.getportico.tv/servers?open=${id}`;
+  assert.deepEqual(publicTVHandoffAddress(open), {url: open, display: 'web.getportico.tv/servers', pathname: '/servers', search: `?open=${id}`},
+    'typed, the short address opens the list, where the person picks the server');
+  for (const url of [`${open}&token=private`, 'https://web.getportico.tv/servers?open=not-a-server', `https://web.getportico.tv/servers?link=${id}`])
+    assert.throws(() => publicTVHandoffAddress(url));
+});
 
 test('TV hand-off URLs contain only a public address, including the real profile-management query', async () => {
   const h = hooks(), {publicTVHandoffAddress} = await handoffModule(h.react, {});
@@ -72,7 +84,7 @@ test('unsigned Forgot PIN has the profile why, public QR, one initially focused 
   const {TVForgotPINHandoff} = await handoffModule({...React, default: React}, {
     addEventListener: (_name: string, listener: () => boolean) => {listeners.add(listener); return {remove: () => listeners.delete(listener)};},
   }, (...args) => entries.push(args));
-  const props = {profileName: 'Actual profile', url: 'https://server.example/settings/profile', body: 'account.tvHandoffTitle', onBack: () => callbacks.push('back')};
+  const props = {profileName: 'Actual profile', serverAddress: 'https://server.example', server: {id: 'srv_' + 'A'.repeat(43), signIn: 'local'}, onBack: () => callbacks.push('back')}, url = 'https://server.example/settings/profile';
   let tree: any;
   const host = createFabricHookHost(() => {tree = scope(TVForgotPINHandoff, props);});
   await act(() => host.mount());
@@ -81,9 +93,9 @@ test('unsigned Forgot PIN has the profile why, public QR, one initially focused 
     assert.equal(tree.props.eyebrow, props.profileName);
     assert.equal(tree.props.portico, false, 'there is no terms line');
     assert.equal(tree.props.heading, 'Forgot PIN?');
-    assert.equal(tree.props.body, defaultI18n.t('account.tvHandoffTitle'));
+    assert.equal(tree.props.body, defaultI18n.t('next.auth.tv.forgotPINBody'));
     const card = nodes(tree.props.aside);
-    assert.equal(card.find(node => node.type === 'QR').props.value, props.url);
+    assert.equal(card.find(node => node.type === 'QR').props.value, url);
     assert.equal(card.filter(node => node.type === 'Text').length, 2, 'no device sign-in code is present');
     assert.ok(card.some(node => node.props.children === 'server.example/settings/profile'));
     assert.ok(card.some(node => node.props.children === defaultI18n.t('next.auth.tv.handoffHint')));
@@ -102,12 +114,20 @@ test('unsigned Forgot PIN has the profile why, public QR, one initially focused 
 
 test('unsigned Forgot PIN rejects code/credential/query hand-offs instead of drawing them at picker level', async () => {
   const h = hooks(), {TVForgotPINHandoff} = await handoffModule(h.react, {});
-  const props = {profileName: 'Actual profile', body: 'account.tvHandoffTitle', onBack() {}};
-  for (const url of ['https://server.example/account', 'https://server.example/settings?scope=account&section=profile',
-    'https://server.example/settings/profile?token=private', 'https://server.example/settings/profile#grant',
-    'https://username:password@server.example/settings/profile']) {
-    assert.throws(() => h.render(() => scope(TVForgotPINHandoff, {...props, url})));
+  const props = {profileName: 'Actual profile', server: {id: 'srv_' + 'A'.repeat(43), signIn: 'local'}, onBack() {}};
+  for (const serverAddress of ['https://username:password@server.example', 'file:///settings', 'javascript:alert(1)']) {
+    assert.throws(() => h.render(() => scope(TVForgotPINHandoff, {...props, serverAddress})));
   }
+});
+
+test('a Portico Accounts server\'s Forgot PIN on a TV hands off to web.getportico.tv, where its password can be checked', async () => {
+  const h = hooks(), {TVForgotPINHandoff} = await handoffModule(h.react, {});
+  const id = 'srv_' + 'A'.repeat(43);
+  const tree = h.render(() => scope(TVForgotPINHandoff, {profileName: 'Alex', serverAddress: 'https://a1.ns.portico.direct:32500', server: {id, signIn: 'portico'}, onBack() {}}));
+  assert.equal(tree.props.body, defaultI18n.t('next.auth.tv.forgotPINPorticoBody'));
+  const card = nodes(tree.props.aside);
+  assert.equal(card.find(node => node.type === 'QR').props.value, `https://web.getportico.tv/servers?open=${id}`);
+  assert.ok(card.some(node => [node.props.children].flat().includes('web.getportico.tv/servers')), 'typed, it opens the list, where the server is chosen');
 });
 
 for (const requirement of ['password', 'two-step'] as const) test(`required ${requirement} stays a public-only hand-off with explicit retry and no sign-in code`, async () => {

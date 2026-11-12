@@ -1,6 +1,7 @@
 import {createRoot} from 'react-dom/client';
 import {useState} from 'react';
 import {IconSprite} from '../../kit/Icon';
+import {ProfilePINRecovery} from '../../kit/accounts/ProfilePINRecovery';
 import {AuthStage, LocalServerSignIn, PorticoServerSignIn, ServerIdentityFailure, ServerProfiles, ServerProfilePIN} from '../../kit/accounts';
 import {ServicesActions, ServicesAuthStage, ServicesHeading, ServicesLead, ServicesSignedInAccount} from '../../kit/accounts/ServicesAuth';
 import {Button} from '../../kit/controls/Button';
@@ -33,6 +34,17 @@ function Specimen() {
   if (frame === 'welcome') return <ServicesAuthStage><ServicesHeading singleLine>{defaultI18n.t('auth.welcomeHome')}</ServicesHeading><ServicesLead>{defaultI18n.t('web.signin.accountLede')}</ServicesLead>
     <ServicesSignedInAccount username="nana_r" onDifferent={() => record('different')} />
     <ServicesActions><Button variant="primary" onClick={() => record('continue')}>{defaultI18n.t('action.continue')}</Button></ServicesActions></ServicesAuthStage>;
+  // Auth18 on a Portico Accounts server: the Portico Account's password, checked by Portico Services.
+  const portico = {
+    '18-portico': {phase: 'ready', account: {username: 'demo', hasPassword: true, twoStep: false}},
+    '18-portico-two-step': {phase: 'ready', account: {username: 'demo', hasPassword: true, twoStep: true}},
+    '18-portico-no-password': {phase: 'ready', account: {username: 'demo', hasPassword: false, twoStep: false}},
+    '18-portico-elsewhere': {phase: 'elsewhere'},
+  } as const;
+  if (frame in portico) return <ProfilePINRecovery profileName="Alex" username="demo" phase="portico" portico={portico[frame as keyof typeof portico]}
+    onPassword={() => record('password')} onPorticoPassword={(password, code) => record('portico-password', {code})} onPorticoRetry={() => record('retry')}
+    onPorticoElsewhere={() => record('elsewhere')} onSetPassword={() => record('set-password')} onCode={() => record('code')} onPIN={() => record('pin')}
+    onClose={() => record('close')} onOpen={() => record('open')} />;
   if (frame === '4b') return <PorticoServerSignIn serverName="Portico demo" onContinue={() => record('portico')} onRecovery={() => record('recovery')} onMoveCode={() => record('move-code')} />;
   return <LocalServerSignIn serverName="Portico demo" initialUsername="nana_r" remembered={remembered}
     onSignIn={(username, password) => record('sign-in', {username, password})} onForgotPassword={() => record('forgot-password')} onJoin={() => record('join')} />;
