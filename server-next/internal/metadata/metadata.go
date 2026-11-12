@@ -49,6 +49,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/fetch"
 )
 
 // Ref names one thing at a provider: TMDB's film 603 is {"tmdb", "movie", "603"}.
@@ -174,8 +176,9 @@ type Provider interface {
 	Children(ctx context.Context, parent Ref, group int, locale Locale) ([]Record, error)
 }
 
-// ErrNotFound is a provider's answer that it has no such title.
-var ErrNotFound = errors.New("the provider has no such title")
+// ErrNotFound is a provider's answer that it has no such title. It is fetch's, so a provider's
+// client of either package answers the one error.
+var ErrNotFound = fetch.ErrNotFound
 
 // StatusError is a provider's answer with a status other than found or not found: a refusal
 // of one request (4xx), its own trouble (5xx) or a request to slow down (429).

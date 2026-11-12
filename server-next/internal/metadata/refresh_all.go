@@ -56,24 +56,27 @@ func (s *Service) RefreshAll(ctx context.Context, libraryID int64, since time.Ti
 // RefreshTitles is Refresh metadata on a selection: each title not refreshed since a time is
 // asked about again, and one with no match is looked up again from its name and year. A title
 // that is gone, or that no provider is asked about, is passed over. progress is told how many
-// titles are done. An error means the provider could not be asked.
-func (s *Service) RefreshTitles(ctx context.Context, itemIDs []string, since time.Time, progress func(done int64)) error {
+// titles are done. It says which libraries the titles it reached are in, whose picture passes
+// fetch what the refresh recorded. An error means the provider could not be asked.
+func (s *Service) RefreshTitles(ctx context.Context, itemIDs []string, since time.Time, progress func(done int64)) (libraries map[int64]bool, err error) {
+	libraries = map[int64]bool{}
 	for n, id := range itemIDs {
 		if err := ctx.Err(); err != nil {
-			return err
+			return libraries, err
 		}
 		item, libraryID, err := s.DB.RefreshTarget(ctx, id)
 		switch {
 		case errors.Is(err, db.ErrNotFound):
 			continue
 		case err != nil:
-			return err
+			return libraries, err
 		}
 		if item.RefreshedAt < since.UnixMilli() {
 			src, err := s.DB.LibrarySource(ctx, libraryID)
 			if err != nil {
-				return err
+				return libraries, err
 			}
+			libraries[libraryID] = true
 			p := s.provider(src)
 			switch {
 			case p == nil || providerKinds[item.Kind] == "":
@@ -83,10 +86,10 @@ func (s *Service) RefreshTitles(ctx context.Context, itemIDs []string, since tim
 				_, err = s.Rematch(ctx, id)
 			}
 			if err != nil && !errors.Is(err, ErrMatchLocked) && !errors.Is(err, ErrNoProvider) {
-				return err
+				return libraries, err
 			}
 		}
 		progress(int64(n + 1))
 	}
-	return nil
+	return libraries, nil
 }

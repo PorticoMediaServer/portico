@@ -127,11 +127,13 @@ func (s *Server) metadataJobs() {
 		},
 		Run: func(ctx context.Context, work jobs.Work) error {
 			total := int64(len(work.Target.Items))
-			err := s.metadata.RefreshTitles(ctx, work.Target.Items, time.UnixMilli(work.Job.CreatedAt), func(done int64) { work.Progress(done, total) })
-			// The selection's titles may be in any library; a pass with nothing to fetch reads one index.
+			libraries, err := s.metadata.RefreshTitles(ctx, work.Target.Items, time.UnixMilli(work.Job.CreatedAt), func(done int64) { work.Progress(done, total) })
+			// The pictures the refresh recorded are in the libraries of the selection's titles.
 			if all, listErr := s.db.AllLibraries(ctx); listErr == nil {
 				for _, lib := range all {
-					s.fetchPicturesLater(ctx, lib.PublicID)
+					if libraries[lib.ID] {
+						s.fetchPicturesLater(ctx, lib.PublicID)
+					}
 				}
 			}
 			return providerSentence(err)
