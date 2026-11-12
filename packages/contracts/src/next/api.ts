@@ -40,6 +40,25 @@ export interface ActivityEntryPage {
   nextCursor?: string;
 }
 
+export interface AdminJob {
+  id: string;
+  kind: string;
+  state: string;
+  libraryId?: string;
+  libraryName?: string;
+  progress?: JobProgress;
+  error?: string;
+  createdAt: string;
+  startedAt?: string;
+  finishedAt?: string;
+  canRetry: boolean;
+}
+
+export interface AdminJobPage {
+  items: AdminJob[];
+  nextCursor?: string;
+}
+
 export interface AdminLibrary {
   id: string;
   name: string;
@@ -59,9 +78,67 @@ export interface AdminLibraryPage {
   nextCursor?: string;
 }
 
+export interface AlertAction {
+  kind: string;
+  target: string;
+}
+
 export interface Alternative {
   versionId: string;
   label: string;
+}
+
+export interface Annotation {
+  id: string;
+  kind: string;
+  color?: string;
+  location: string;
+  madeOn?: string;
+  progress: number;
+  chapter?: string;
+  text?: string;
+  note?: string;
+  extra?: unknown;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AnnotationBatch {
+  changes: AnnotationChange[];
+}
+
+export interface AnnotationBody {
+  kind: string;
+  color: string;
+  location: string;
+  madeOn: string;
+  progress: number;
+  chapter: string;
+  text: string;
+  note: string;
+  extra: unknown;
+  madeAgoMs: number;
+}
+
+export interface AnnotationChange extends AnnotationBody {
+  itemId: string;
+  id: string;
+  delete: boolean;
+}
+
+export interface AnnotationPage {
+  items: Annotation[];
+  nextCursor?: string;
+}
+
+export interface AnnotationResult {
+  id: string;
+  annotation?: Annotation;
+  error?: ApiError;
+}
+
+export interface AnnotationResults {
+  results: AnnotationResult[];
 }
 
 export interface AudioPick {
@@ -147,6 +224,9 @@ export interface BookAnswer {
   spine?: string[];
   contents?: BookContents[];
   pages?: string[];
+  place?: unknown;
+  placeExact?: boolean;
+  next?: NextVolume;
 }
 
 export interface BookContents {
@@ -174,6 +254,20 @@ export interface BookVersion {
 }
 
 export interface CapabilityDocument {
+}
+
+export interface CastCode {
+  code: string;
+  expiresAt: string;
+}
+
+export interface CastConfig {
+  applicationId: string;
+}
+
+export interface CastRedeem {
+  code: string;
+  device: DeviceInfo;
 }
 
 export interface Challenge {
@@ -240,6 +334,62 @@ export interface CreditPage {
   items: Credit[];
   nextCursor?: string;
   total: number;
+}
+
+export interface Dashboard {
+  observedAt: string;
+  alerts: DashboardAlert[];
+  scans: DashboardScan[];
+  tasks: DashboardTasks;
+  nowPlaying: StreamTotals;
+  backups: DashboardBackups;
+  openReports: number;
+}
+
+export interface DashboardAlert {
+  code: string;
+  severity: string;
+  major: boolean;
+  params: Record<string, string>;
+  action: AlertAction;
+  count?: number;
+}
+
+export interface DashboardBackup {
+  id: string;
+  createdAt: string;
+  scheduled: boolean;
+}
+
+export interface DashboardBackups {
+  read: boolean;
+  last?: DashboardBackup;
+}
+
+export interface DashboardScan {
+  kind: string;
+  libraryId: string;
+  libraryName: string;
+  phase: string;
+  discovered: number;
+  analyzed: number;
+  total?: number;
+}
+
+export interface DashboardTask {
+  id: string;
+  kind: string;
+  libraryId?: string;
+  libraryName?: string;
+  phase: string;
+  state: string;
+  processed?: number;
+  total?: number;
+}
+
+export interface DashboardTasks {
+  count: number;
+  items: DashboardTask[];
 }
 
 export interface Decision {
@@ -618,6 +768,16 @@ export interface IdentityQuestion {
   nonce: string;
 }
 
+export interface IntegrationSettings {
+  assistants: boolean;
+  compatibleRoutes: boolean;
+}
+
+export interface IntegrationSettingsEdit {
+  assistants?: boolean;
+  compatibleRoutes?: boolean;
+}
+
 export interface Invitation {
   id: string;
   code?: string;
@@ -964,6 +1124,26 @@ export interface ListSharesSet {
   shares: ListShare[];
 }
 
+export interface Load {
+  period: string;
+  from: string;
+  until: string;
+  buckets: LoadBucket[];
+  observedAt: string;
+  series: Record<string, LoadPoint[]>;
+}
+
+export interface LoadBucket {
+  start: string;
+  end: string;
+  partial: boolean;
+}
+
+export interface LoadPoint {
+  t: string;
+  v: number;
+}
+
 export interface LogDetail {
   minutes: number;
 }
@@ -1002,6 +1182,9 @@ export interface Lyrics {
 export interface LyricsPage {
   items: Lyrics[];
   nextCursor?: string;
+}
+
+export interface MCPReply {
 }
 
 export interface Marker {
@@ -1093,6 +1276,12 @@ export interface NetworkSettingsEdit {
   trustedProxies: string[];
 }
 
+export interface NextVolume {
+  id: string;
+  title: string;
+  index?: number;
+}
+
 export interface Notification {
   id: string;
   kind: string;
@@ -1136,6 +1325,21 @@ export interface NowPlaying {
 export interface NowPlayingPage {
   items: NowPlaying[];
   nextCursor?: string;
+}
+
+export interface OfflinePlay {
+  itemId: string;
+  playId: string;
+  positionMs: number;
+  playedMs: number;
+  madeAgoMs: number;
+}
+
+export interface OfflinePlayResult {
+  itemId: string;
+  playId: string;
+  finished: boolean;
+  error?: BatchError;
 }
 
 export interface Part {
@@ -1700,6 +1904,8 @@ export interface Ratings {
 
 export interface RcloneSettings {
   config?: string;
+  type?: string;
+  options?: Record<string, string>;
   path?: string;
 }
 
@@ -1895,6 +2101,8 @@ export interface Restrictions {
   accountLibraries: string[];
   allowDownloads?: boolean;
   accountAllowDownloads: boolean;
+  allowWatchTogether?: boolean;
+  accountAllowWatchTogether: boolean;
 }
 
 export interface Room {
@@ -2167,6 +2375,7 @@ export interface State {
 
 export interface StateBatch {
   items: StateBatchEdit[];
+  plays?: OfflinePlay[];
 }
 
 export interface StateBatchEdit extends StateRequest {
@@ -2175,6 +2384,7 @@ export interface StateBatchEdit extends StateRequest {
 
 export interface StateBatchReply {
   items: StateBatchResult[];
+  plays?: OfflinePlayResult[];
 }
 
 export interface StateBatchResult {
@@ -2253,6 +2463,12 @@ export interface StreamLimits {
 
 export interface StreamStop {
   message?: string;
+}
+
+export interface StreamTotals {
+  streams: number;
+  away: number;
+  converting: number;
 }
 
 export interface SubtitleFile {
@@ -2612,12 +2828,16 @@ export interface Routes {
   'GET /v1/admin/items/{id}/deletion': {access: 'owner'; request: undefined; response: DeletionPreview};
   'DELETE /v1/admin/items/{id}': {access: 'owner'; request: undefined; response: DeletionResult};
   'DELETE /v1/admin/versions/{id}': {access: 'owner'; request: undefined; response: DeletionResult};
+  'GET /v1/admin/jobs': {access: 'owner'; request: undefined; response: AdminJobPage};
+  'POST /v1/admin/jobs/{id}/retry': {access: 'owner'; request: undefined; response: Job};
   'POST /v1/jobs': {access: 'signedIn'; request: JobStart; response: Job};
   'GET /v1/jobs/{id}': {access: 'signedIn'; request: undefined; response: Job};
   'DELETE /v1/jobs/{id}': {access: 'signedIn'; request: undefined; response: undefined};
+  'GET /v1/admin/load': {access: 'owner'; request: undefined; response: Load};
   'GET /v1/admin/settings': {access: 'owner'; request: undefined; response: SettingsDocumentPage};
   'GET /v1/admin/settings/{name}': {access: 'owner'; request: undefined; response: SettingsDocument};
   'PUT /v1/admin/settings/{name}': {access: 'owner'; request: JSON; response: SettingsDocument};
+  'DELETE /v1/admin/upgrade-copy': {access: 'owner'; request: undefined; response: undefined};
   'GET /v1/admin/sessions': {access: 'admin'; request: undefined; response: NowPlayingPage};
   'DELETE /v1/admin/sessions/{id}': {access: 'admin'; request: StreamStop; response: undefined};
   'GET /v1/admin/audit': {access: 'owner'; request: undefined; response: ActivityEntryPage};
@@ -2649,6 +2869,10 @@ export interface Routes {
   'PATCH /v1/admin/reports/{id}': {access: 'owner'; request: ReportEdit; response: ProblemReport};
   'DELETE /v1/admin/reports/{id}': {access: 'owner'; request: undefined; response: undefined};
   'GET /v1/admin/reports/{id}/log': {access: 'owner'; request: undefined; response: undefined};
+  'GET /v1/admin/dashboard': {access: 'owner'; request: undefined; response: Dashboard};
+  'GET /v1/admin/settings/integrations': {access: 'owner'; request: undefined; response: IntegrationSettings};
+  'PUT /v1/admin/settings/integrations': {access: 'owner'; request: IntegrationSettingsEdit; response: IntegrationSettings};
+  'POST /v1/mcp': {access: 'signedIn'; request: JSON; response: MCPReply};
   'GET /v1/admin/webhooks': {access: 'owner'; request: undefined; response: WebhookPage};
   'POST /v1/admin/webhooks': {access: 'owner'; request: WebhookCreate; response: WebhookSecret};
   'PATCH /v1/admin/webhooks/{id}': {access: 'owner'; request: WebhookEdit; response: Webhook};
@@ -2674,6 +2898,9 @@ export interface Routes {
   'PUT /v1/groups/{id}/queue': {access: 'withProfile'; request: GroupQueue; response: Room};
   'PUT /v1/groups/{id}/me': {access: 'withProfile'; request: GroupMe; response: Room};
   'DELETE /v1/groups/{id}/me': {access: 'withProfile'; request: undefined; response: undefined};
+  'GET /v1/cast/config': {access: 'withProfile'; request: undefined; response: CastConfig};
+  'POST /v1/cast/codes': {access: 'withProfile'; request: undefined; response: CastCode};
+  'POST /v1/cast/redeem': {access: 'public'; request: CastRedeem; response: SignInResponse};
   'GET /v1/items/{id}/download-options': {access: 'withProfile'; request: undefined; response: DownloadOptions};
   'GET /v1/downloads': {access: 'withProfile'; request: undefined; response: DownloadPage};
   'POST /v1/downloads': {access: 'withProfile'; request: DownloadAsk; response: Download};
@@ -2687,4 +2914,8 @@ export interface Routes {
   'GET /v1/admin/downloads': {access: 'owner'; request: undefined; response: DownloadsByPerson};
   'DELETE /v1/admin/members/{id}/downloads': {access: 'owner'; request: undefined; response: undefined};
   'GET /v1/items/{id}/book': {access: 'withProfile'; request: undefined; response: BookAnswer};
+  'GET /v1/items/{id}/annotations': {access: 'withProfile'; request: undefined; response: AnnotationPage};
+  'PUT /v1/items/{id}/annotations/{annotationId}': {access: 'withProfile'; request: AnnotationBody; response: Annotation};
+  'DELETE /v1/items/{id}/annotations/{annotationId}': {access: 'withProfile'; request: undefined; response: undefined};
+  'POST /v1/annotations:batch': {access: 'withProfile'; request: AnnotationBatch; response: AnnotationResults};
 }

@@ -132,6 +132,71 @@
         ],
         "type": "object"
       },
+      "AdminJob": {
+        "properties": {
+          "canRetry": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "finishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "libraryId": {
+            "type": "string"
+          },
+          "libraryName": {
+            "type": "string"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/JobProgress"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "state",
+          "createdAt",
+          "canRetry"
+        ],
+        "type": "object"
+      },
+      "AdminJobPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AdminJob"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
       "AdminLibrary": {
         "properties": {
           "folders": {
@@ -201,6 +266,21 @@
         ],
         "type": "object"
       },
+      "AlertAction": {
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "target"
+        ],
+        "type": "object"
+      },
       "Alternative": {
         "properties": {
           "label": {
@@ -213,6 +293,186 @@
         "required": [
           "versionId",
           "label"
+        ],
+        "type": "object"
+      },
+      "Annotation": {
+        "properties": {
+          "chapter": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "extra": {},
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "madeOn": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "progress": {
+            "type": "number"
+          },
+          "text": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "location",
+          "progress",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "AnnotationBatch": {
+        "properties": {
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/AnnotationChange"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "changes"
+        ],
+        "type": "object"
+      },
+      "AnnotationBody": {
+        "properties": {
+          "chapter": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string"
+          },
+          "extra": {},
+          "kind": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "madeAgoMs": {
+            "type": "integer"
+          },
+          "madeOn": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "progress": {
+            "type": "number"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "color",
+          "location",
+          "madeOn",
+          "progress",
+          "chapter",
+          "text",
+          "note",
+          "extra",
+          "madeAgoMs"
+        ],
+        "type": "object"
+      },
+      "AnnotationChange": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AnnotationBody"
+          },
+          {
+            "properties": {
+              "delete": {
+                "type": "boolean"
+              },
+              "id": {
+                "type": "string"
+              },
+              "itemId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "itemId",
+              "id",
+              "delete"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "AnnotationPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Annotation"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "AnnotationResult": {
+        "properties": {
+          "annotation": {
+            "$ref": "#/components/schemas/Annotation"
+          },
+          "error": {
+            "$ref": "#/components/schemas/Error"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "AnnotationResults": {
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/AnnotationResult"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "results"
         ],
         "type": "object"
       },
@@ -480,6 +740,9 @@
           "mediaUrl": {
             "type": "string"
           },
+          "next": {
+            "$ref": "#/components/schemas/NextVolume"
+          },
           "pages": {
             "items": {
               "type": "string"
@@ -491,6 +754,10 @@
               "$ref": "#/components/schemas/BookPart"
             },
             "type": "array"
+          },
+          "place": {},
+          "placeExact": {
+            "type": "boolean"
           },
           "saveUrl": {
             "type": "string"
@@ -603,6 +870,48 @@
       },
       "CapabilityDocument": {
         "properties": {},
+        "type": "object"
+      },
+      "CastCode": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "expiresAt"
+        ],
+        "type": "object"
+      },
+      "CastConfig": {
+        "properties": {
+          "applicationId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "applicationId"
+        ],
+        "type": "object"
+      },
+      "CastRedeem": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "device": {
+            "$ref": "#/components/schemas/DeviceInfo"
+          }
+        },
+        "required": [
+          "code",
+          "device"
+        ],
         "type": "object"
       },
       "Challenge": {
@@ -807,6 +1116,202 @@
         "required": [
           "items",
           "total"
+        ],
+        "type": "object"
+      },
+      "Dashboard": {
+        "properties": {
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/DashboardAlert"
+            },
+            "type": "array"
+          },
+          "backups": {
+            "$ref": "#/components/schemas/DashboardBackups"
+          },
+          "nowPlaying": {
+            "$ref": "#/components/schemas/StreamTotals"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "openReports": {
+            "type": "integer"
+          },
+          "scans": {
+            "items": {
+              "$ref": "#/components/schemas/DashboardScan"
+            },
+            "type": "array"
+          },
+          "tasks": {
+            "$ref": "#/components/schemas/DashboardTasks"
+          }
+        },
+        "required": [
+          "observedAt",
+          "alerts",
+          "scans",
+          "tasks",
+          "nowPlaying",
+          "backups",
+          "openReports"
+        ],
+        "type": "object"
+      },
+      "DashboardAlert": {
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/AlertAction"
+          },
+          "code": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "major": {
+            "type": "boolean"
+          },
+          "params": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "severity": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "severity",
+          "major",
+          "params",
+          "action"
+        ],
+        "type": "object"
+      },
+      "DashboardBackup": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "scheduled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "createdAt",
+          "scheduled"
+        ],
+        "type": "object"
+      },
+      "DashboardBackups": {
+        "properties": {
+          "last": {
+            "$ref": "#/components/schemas/DashboardBackup"
+          },
+          "read": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "read"
+        ],
+        "type": "object"
+      },
+      "DashboardScan": {
+        "properties": {
+          "analyzed": {
+            "type": "integer"
+          },
+          "discovered": {
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "libraryId": {
+            "type": "string"
+          },
+          "libraryName": {
+            "type": "string"
+          },
+          "phase": {
+            "type": "string"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "libraryId",
+          "libraryName",
+          "phase",
+          "discovered",
+          "analyzed"
+        ],
+        "type": "object"
+      },
+      "DashboardTask": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "libraryId": {
+            "type": "string"
+          },
+          "libraryName": {
+            "type": "string"
+          },
+          "phase": {
+            "type": "string"
+          },
+          "processed": {
+            "type": "integer"
+          },
+          "state": {
+            "type": "string"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "phase",
+          "state"
+        ],
+        "type": "object"
+      },
+      "DashboardTasks": {
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DashboardTask"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "count",
+          "items"
         ],
         "type": "object"
       },
@@ -2054,6 +2559,32 @@
         ],
         "type": "object"
       },
+      "IntegrationSettings": {
+        "properties": {
+          "assistants": {
+            "type": "boolean"
+          },
+          "compatibleRoutes": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "assistants",
+          "compatibleRoutes"
+        ],
+        "type": "object"
+      },
+      "IntegrationSettingsEdit": {
+        "properties": {
+          "assistants": {
+            "type": "boolean"
+          },
+          "compatibleRoutes": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "Invitation": {
         "properties": {
           "acceptedAt": {
@@ -3209,6 +3740,86 @@
         ],
         "type": "object"
       },
+      "Load": {
+        "properties": {
+          "buckets": {
+            "items": {
+              "$ref": "#/components/schemas/LoadBucket"
+            },
+            "type": "array"
+          },
+          "from": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "period": {
+            "type": "string"
+          },
+          "series": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/LoadPoint"
+              },
+              "type": "array"
+            },
+            "type": "object"
+          },
+          "until": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "period",
+          "from",
+          "until",
+          "buckets",
+          "observedAt",
+          "series"
+        ],
+        "type": "object"
+      },
+      "LoadBucket": {
+        "properties": {
+          "end": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "partial": {
+            "type": "boolean"
+          },
+          "start": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "partial"
+        ],
+        "type": "object"
+      },
+      "LoadPoint": {
+        "properties": {
+          "t": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "v": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "t",
+          "v"
+        ],
+        "type": "object"
+      },
       "LogDetail": {
         "properties": {
           "minutes": {
@@ -3339,6 +3950,10 @@
         "required": [
           "items"
         ],
+        "type": "object"
+      },
+      "MCPReply": {
+        "properties": {},
         "type": "object"
       },
       "Marker": {
@@ -3655,6 +4270,24 @@
         ],
         "type": "object"
       },
+      "NextVolume": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "index": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "type": "object"
+      },
       "Notification": {
         "properties": {
           "archived": {
@@ -3799,6 +4432,55 @@
         },
         "required": [
           "items"
+        ],
+        "type": "object"
+      },
+      "OfflinePlay": {
+        "properties": {
+          "itemId": {
+            "type": "string"
+          },
+          "madeAgoMs": {
+            "type": "integer"
+          },
+          "playId": {
+            "type": "string"
+          },
+          "playedMs": {
+            "type": "integer"
+          },
+          "positionMs": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "itemId",
+          "playId",
+          "positionMs",
+          "playedMs",
+          "madeAgoMs"
+        ],
+        "type": "object"
+      },
+      "OfflinePlayResult": {
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/BatchError"
+          },
+          "finished": {
+            "type": "boolean"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "playId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemId",
+          "playId",
+          "finished"
         ],
         "type": "object"
       },
@@ -5597,7 +6279,16 @@
           "config": {
             "type": "string"
           },
+          "options": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
           "path": {
+            "type": "string"
+          },
+          "type": {
             "type": "string"
           }
         },
@@ -6189,6 +6880,9 @@
           "accountAllowDownloads": {
             "type": "boolean"
           },
+          "accountAllowWatchTogether": {
+            "type": "boolean"
+          },
           "accountLibraries": {
             "items": {
               "type": "string"
@@ -6199,6 +6893,9 @@
             "type": "boolean"
           },
           "allowDownloads": {
+            "type": "boolean"
+          },
+          "allowWatchTogether": {
             "type": "boolean"
           },
           "blockedLabels": {
@@ -6230,7 +6927,8 @@
           "libraries",
           "accountAllLibraries",
           "accountLibraries",
-          "accountAllowDownloads"
+          "accountAllowDownloads",
+          "accountAllowWatchTogether"
         ],
         "type": "object"
       },
@@ -7142,6 +7840,12 @@
               "$ref": "#/components/schemas/StateBatchEdit"
             },
             "type": "array"
+          },
+          "plays": {
+            "items": {
+              "$ref": "#/components/schemas/OfflinePlay"
+            },
+            "type": "array"
           }
         },
         "required": [
@@ -7172,6 +7876,12 @@
           "items": {
             "items": {
               "$ref": "#/components/schemas/StateBatchResult"
+            },
+            "type": "array"
+          },
+          "plays": {
+            "items": {
+              "$ref": "#/components/schemas/OfflinePlayResult"
             },
             "type": "array"
           }
@@ -7486,6 +8196,25 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "StreamTotals": {
+        "properties": {
+          "away": {
+            "type": "integer"
+          },
+          "converting": {
+            "type": "integer"
+          },
+          "streams": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "streams",
+          "away",
+          "converting"
+        ],
         "type": "object"
       },
       "SubtitleFile": {
@@ -8467,6 +9196,33 @@
         "x-access": "admin"
       }
     },
+    "/v1/admin/dashboard": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Dashboard"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
     "/v1/admin/downloads": {
       "get": {
         "responses": {
@@ -8787,6 +9543,70 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DeletionPreview"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/jobs": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminJobPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/jobs/{id}/retry": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
                 }
               }
             },
@@ -9215,6 +10035,33 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SkippedFilePage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/load": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Load"
                 }
               }
             },
@@ -10348,6 +11195,68 @@
         "x-access": "owner"
       }
     },
+    "/v1/admin/settings/integrations": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationSettings"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "put": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntegrationSettingsEdit"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationSettings"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
     "/v1/admin/settings/network": {
       "get": {
         "responses": {
@@ -10615,6 +11524,26 @@
               }
             },
             "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/upgrade-copy": {
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Done"
           },
           "default": {
             "content": {
@@ -10913,6 +11842,43 @@
           }
         },
         "x-access": "owner"
+      }
+    },
+    "/v1/annotations:batch": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnnotationBatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnnotationResults"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
       }
     },
     "/v1/auth/codes": {
@@ -11329,6 +12295,98 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/TwoFactorFinish"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "security": [],
+        "x-access": "public"
+      }
+    },
+    "/v1/cast/codes": {
+      "post": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CastCode"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/cast/config": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CastConfig"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/cast/redeem": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CastRedeem"
               }
             }
           },
@@ -12636,6 +13694,134 @@
         "x-access": "withProfile"
       }
     },
+    "/v1/items/{id}/annotations": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnnotationPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/items/{id}/annotations/{annotationId}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "annotationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      },
+      "put": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "annotationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnnotationBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Annotation"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
     "/v1/items/{id}/book": {
       "get": {
         "parameters": [
@@ -13589,6 +14775,43 @@
           }
         },
         "x-access": "withProfile"
+      }
+    },
+    "/v1/mcp": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JSON"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MCPReply"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "signedIn"
       }
     },
     "/v1/me": {
