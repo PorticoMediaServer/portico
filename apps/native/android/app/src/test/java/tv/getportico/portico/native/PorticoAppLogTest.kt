@@ -12,7 +12,7 @@ import org.robolectric.annotation.Config
 @Config(sdk = [33], manifest = Config.NONE)
 class PorticoAppLogTest {
   @Test fun theLastRunIsPrivateBoundedAndCanBeCleared() {
-    val app = RuntimeEnvironment.getApplication<android.app.Application>()
+    val app = RuntimeEnvironment.getApplication()
     val log = PorticoAppLog(app)
     log.write(null)
     assertNull(log.read())
