@@ -2140,6 +2140,15 @@ export interface MoveState {
   since: string;
 }
 
+export interface MoveTicket {
+  username: string;
+  expiresAt: string;
+}
+
+export interface MoveTicketRequest {
+  ticket: string;
+}
+
 export interface MusicMix {
   id: string;
   style?: string;
@@ -4220,6 +4229,7 @@ export interface Routes {
   'POST /v1/admin/owner': {access: 'owner'; request: OwnerChangeRequest; response: undefined};
   'POST /v1/auth/move/check': {access: 'public'; request: MoveCheckRequest; response: MoveCheck};
   'POST /v1/auth/move/complete': {access: 'public'; request: MoveCompleteRequest; response: SignInResponse};
+  'POST /v1/auth/move/ticket': {access: 'public'; request: MoveTicketRequest; response: MoveTicket};
   'POST /v1/me/leave': {access: 'signedIn'; request: LeaveRequest; response: undefined};
   'POST /v1/auth/portico/challenge': {access: 'public'; request: PorticoChallengeRequest; response: PorticoChallenge};
   'POST /v1/auth/portico/exchange': {access: 'public'; request: PorticoExchange; response: SignInResponse};

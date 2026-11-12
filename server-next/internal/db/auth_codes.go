@@ -2,7 +2,9 @@ package db
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"time"
 )
@@ -47,6 +49,36 @@ func redeemCode(tx *sql.Tx, kind, hash string, now time.Time) (Code, error) {
 	}
 	c.ExpiresAt = time.UnixMilli(expires)
 	return c, err
+}
+
+// PeekCode reads a code that has not been used and has not expired, without using it up.
+func (d *DB) PeekCode(ctx context.Context, kind, hash string, now time.Time) (Code, error) {
+	c := Code{Kind: kind, Hash: hash}
+	var expires int64
+	err := d.read.QueryRowContext(ctx, `SELECT ifnull(user_id, 0), ifnull(payload, ''), expires_at FROM auth_codes
+		WHERE code_hash = ? AND kind = ? AND used_at IS NULL AND expires_at > ?`, hash, kind, now.UnixMilli()).Scan(&c.UserID, &c.Payload, &expires)
+	if errors.Is(err, sql.ErrNoRows) {
+		return c, ErrBadCredentials
+	}
+	c.ExpiresAt = time.UnixMilli(expires)
+	return c, err
+}
+
+// PasswordMark is what a code made by a right password keeps of that password: a digest of its
+// stored hash, so a password changed since makes the code stand for nothing.
+func PasswordMark(passwordHash string) string {
+	sum := sha256.Sum256([]byte("password-mark|" + passwordHash))
+	return hex.EncodeToString(sum[:])
+}
+
+// PasswordStands says whether the account's password is still the one a PasswordMark was made from.
+func (d *DB) PasswordStands(ctx context.Context, userID int64, mark string) (bool, error) {
+	var hash sql.NullString
+	err := d.read.QueryRowContext(ctx, `SELECT password_hash FROM users WHERE id = ?`, userID).Scan(&hash)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil && hash.Valid && PasswordMark(hash.String) == mark, err
 }
 
 // RedeemCode uses a code up on its own. Flows that must do more in the same commit call

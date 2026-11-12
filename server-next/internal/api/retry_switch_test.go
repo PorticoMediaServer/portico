@@ -9,7 +9,8 @@ func init() {
 		"POST /v1/admin/members/{id}/move-code": "replaces the person's code; the answer is the only copy either way",
 		"POST /v1/admin/sign-in/move-codes":     "replaces everyone's codes; the answer is the only copy either way",
 		"POST /v1/admin/owner":                  "happens once: a repeat is refused, the caller is no longer the owner",
-		"POST /v1/auth/move/check":              "changes nothing",
+		"POST /v1/auth/move/check":              "an old password makes a ticket: a repeat makes another, each working once and for minutes",
+		"POST /v1/auth/move/ticket":             "changes nothing: it reads which account a ticket is for, without using it",
 		"POST /v1/auth/move/complete":           "uses up its code: a repeat is refused",
 		"POST /v1/me/leave":                     "happens once: a repeat is signed out by the first",
 	})

@@ -141,6 +141,19 @@ type MoveCheck struct {
 	Ticket string `json:"ticket,omitempty"`
 }
 
+// MoveTicketRequest asks which account a move ticket is for, without using it.
+type MoveTicketRequest struct {
+	Ticket string `json:"ticket"`
+}
+
+// MoveTicket names the account a ticket would move, for the page that finishes the move to ask
+// the person first: "Move {username} on {server} to your Portico Account?". Server accounts
+// have no display name (names are their profiles'), so the username is all there is.
+type MoveTicket struct {
+	Username  string    `json:"username"`
+	ExpiresAt time.Time `json:"expiresAt"`
+}
+
 // MoveCompleteRequest finishes a move: to local sign-in the code with the chosen username and
 // password; to Portico Accounts the code or old password with the Portico approval.
 type MoveCompleteRequest struct {
@@ -203,6 +216,7 @@ func (s *Server) signInKindRoutes() {
 	Handle(s, "POST /v1/admin/owner", Owner, s.changeOwner).Scope = ScopeSession
 	Handle(s, "POST /v1/auth/move/check", Public, s.moveCheck)
 	Handle(s, "POST /v1/auth/move/complete", Public, s.moveComplete)
+	Handle(s, "POST /v1/auth/move/ticket", Public, s.moveTicketPeek)
 	Handle(s, "POST /v1/me/leave", SignedIn, s.leave)
 }
 
@@ -463,7 +477,7 @@ func (s *Server) moveCheck(r *http.Request, req MoveCheckRequest) (MoveCheck, er
 	if creds.UserID != 0 && moving && move.To == "portico" && now.Sub(move.At) < db.OldPasswordWorks {
 		if account, err := s.db.Account(ctx, creds.UserID); err == nil && account.State == "waiting" && !account.Disabled {
 			ticket := auth.NewSecret()
-			if err := s.db.CreateCode(ctx, db.Code{Kind: moveTicketKind, Hash: moveTicketHash(ticket), UserID: creds.UserID,
+			if err := s.db.CreateCode(ctx, db.Code{Kind: moveTicketKind, Hash: moveTicketHash(ticket), UserID: creds.UserID, Payload: db.PasswordMark(creds.PasswordHash),
 				ExpiresAt: earliest(now.Add(moveTicketLasts), move.At.Add(db.OldPasswordWorks))}, now); err != nil {
 				return MoveCheck{}, err
 			}
@@ -569,6 +583,45 @@ func (s *Server) porticoTaken(r *http.Request, err error) error {
 
 // moveToPortico links a waiting person's account to the Portico Account they approved with,
 // proven by their move code or, within 30 days of the switch, their old password.
+// moveTicketPeek answers which waiting account a ticket is for and when it ends, without spending
+// it, so the page finishing the move never trusts a link's own words. A wrong, used or expired
+// ticket, or one whose password has changed since, counts as a wrong guess under the move limits.
+func (s *Server) moveTicketPeek(r *http.Request, req MoveTicketRequest) (MoveTicket, error) {
+	ctx, now := r.Context(), s.now()
+	limits := s.moveLimits(r)
+	if wait, err := s.db.LimitWait(ctx, now, limits...); err != nil {
+		return MoveTicket{}, err
+	} else if wait > 0 {
+		return MoveTicket{}, errTooManyAttempts(wait)
+	}
+	refuse := func() (MoveTicket, error) {
+		if err := s.db.RecordFailure(ctx, now, limits...); err != nil {
+			return MoveTicket{}, err
+		}
+		return MoveTicket{}, errBadMoveCode()
+	}
+	if req.Ticket == "" {
+		return refuse()
+	}
+	ticket, err := s.db.PeekCode(ctx, moveTicketKind, moveTicketHash(req.Ticket), now)
+	if errors.Is(err, db.ErrBadCredentials) {
+		return refuse()
+	}
+	if err != nil {
+		return MoveTicket{}, err
+	}
+	if stands, err := s.db.PasswordStands(ctx, ticket.UserID, ticket.Payload); err != nil {
+		return MoveTicket{}, err
+	} else if !stands {
+		return refuse()
+	}
+	account, err := s.db.Account(ctx, ticket.UserID)
+	if err != nil || account.State != "waiting" || account.Disabled {
+		return refuse()
+	}
+	return MoveTicket{Username: account.Username, ExpiresAt: ticket.ExpiresAt.UTC()}, nil
+}
+
 func (s *Server) moveToPortico(r *http.Request, req MoveCompleteRequest) (SignInResponse, error) {
 	ctx, now := r.Context(), s.now()
 	session, refresh, err := s.newSession(r, req.Device, now)
@@ -602,7 +655,7 @@ func (s *Server) moveToPortico(r *http.Request, req MoveCompleteRequest) (SignIn
 		if err != nil {
 			return SignInResponse{}, err
 		}
-		m.UserID, m.Ticketed = ticket.UserID, true
+		m.UserID, m.Ticketed, m.CheckedHash = ticket.UserID, true, ticket.Payload
 	} else {
 		creds, passwordLimits, err := s.oldPassword(r, req.Username, req.Password)
 		if err != nil {
