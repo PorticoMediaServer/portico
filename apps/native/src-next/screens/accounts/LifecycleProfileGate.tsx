@@ -7,7 +7,6 @@ import {useTheme} from '../../kit/theme';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
 import {HttpHostedApi} from '../../../../../packages/client-core/src';
-import {routeOrigin} from '../../../../../packages/client-core/src/route-identity';
 import type {PickerProfile} from '../../../../../packages/client-core/src/session-lifecycle';
 import {BootWaitLine} from '../../shell/StartupBoot';
 import {TVForgotPINHandoff, TVPickerRememberRow, TVProfilePINForm, TVWhosWatching} from '../../tv/auth';
@@ -123,7 +122,7 @@ export function LifecycleProfileGate() {
     onOpen={value => {recovery.controller.dispose(); setRecovery(undefined); setCode(value); send(value);}}
     onClose={() => {recovery.controller.dispose(); setRecovery(undefined); setCode('');}}/>;
   if (theme.isTV && forgot && connection) return <TVForgotPINHandoff profileName={profile.name}
-    url={new URL('/settings/profile', routeOrigin(connection.api.baseUrl)).href} body="next.auth.tv.forgotPINBody" onBack={back}/>;
+    serverAddress={connection.api.baseUrl} server={{id: state.server.serverId, signIn: state.server.signIn}} onBack={back}/>;
   // Under the boxes in a line of its own height (TVCodeErrorLine): no margin of its own, so nothing moves when it shows.
   const pinStatus = failure && !failure.silent ? <Text style={[theme.type.caption, {color: theme.colors.danger}]}>{profilePinFailureText(failed) ?? failure.body}</Text> : undefined;
   if (theme.isTV) return <TVProfilePINForm profile={option(profile)} code={code} onCodeChange={setCode} busy={busy} error={pinStatus}
