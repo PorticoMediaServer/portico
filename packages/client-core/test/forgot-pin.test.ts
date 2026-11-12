@@ -125,3 +125,30 @@ test('provider PIN recovery requires its own checked mark and forwards only the 
     f.controller.dispose();
   }
 });
+
+
+test('provider refusals keep their distinct codes through native conversion and PIN recovery', async () => {
+  const {ServicesError} = await import('../src/portico-account.ts');
+  const {porticoApiError} = await import('../src/portico-services-native.ts');
+  for (const code of ['account_password_exists', 'provider_sign_in_not_recent', 'account_password_required',
+    'provider_unavailable_here', 'provider_return_incomplete', 'two_step_wrong']) {
+    for (const native of [false, true]) {
+      const f = porticoFlow(), error = new ServicesError(409, code);
+      const source = {accountId: 'acct_ada', isCurrent: () => true, identity: async () => {throw new Error('no password');},
+        providerIdentity: async () => {throw native ? porticoApiError(error) : error;}};
+      await f.controller.porticoProvider('google', '', source);
+      assert.equal(f.controller.getSnapshot().phase, 'portico');
+      assert.equal((f.controller.getSnapshot().error as {code: string}).code, code);
+      await f.controller.reset('2468');
+      assert.equal(f.sent.length, 1, 'a refused proof cannot set a PIN');
+      f.controller.dispose();
+    }
+  }
+});
+
+test('missing provider support is not a request to set a password', async () => {
+  const f = porticoFlow();
+  await f.controller.porticoProvider('google');
+  assert.equal((f.controller.getSnapshot().error as {code: string}).code, 'provider_unavailable_here');
+  assert.equal(f.sent.length, 0); f.controller.dispose();
+});

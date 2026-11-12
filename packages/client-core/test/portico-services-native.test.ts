@@ -57,7 +57,7 @@ test('two-step: the sign-in asks for the code, and the code finishes it', async 
   const challenge = await client.login('ada', 'right').then(() => assert.fail('signed in without the code'), (error: unknown) => {
     assert.ok(error instanceof MFARequiredError); return error.challenge;
   });
-  await assert.rejects(client.mfa(challenge, '000000'), (error: unknown) => error instanceof ApiError && presentError(error, 'sign-in').category === 'invalid-input');
+  await assert.rejects(client.mfa(challenge, '000000'), (error: unknown) => error instanceof ApiError && error.code === 'two_step_wrong' && presentError(error, 'sign-in').category === 'invalid-input');
   assert.equal((await client.mfa(challenge, ' 123456 ')).accessToken, 'pat_2');
 });
 
