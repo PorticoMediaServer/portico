@@ -152,6 +152,9 @@ func fetchPicture(ctx context.Context, url string) ([]byte, error) {
 		return nil, err
 	}
 	defer res.Body.Close()
+	if res.StatusCode == http.StatusNotFound || res.StatusCode == http.StatusGone {
+		return nil, fmt.Errorf("the picture's address answered %d: %w", res.StatusCode, errPictureGone)
+	}
 	if res.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("the picture's address answered %d", res.StatusCode)
 	}
@@ -160,15 +163,72 @@ func fetchPicture(ctx context.Context, url string) ([]byte, error) {
 		return nil, err
 	}
 	if len(data) > maxPictureBytes || !strings.HasPrefix(http.DetectContentType(data), "image/") {
-		return nil, errors.New("the provider's picture is too large or not a picture")
+		return nil, fmt.Errorf("the provider's picture is too large or not a picture: %w", errPictureGone)
 	}
 	return data, nil
 }
 
-// storePictures fetches the provider's pictures of a title that it does not have yet, keeps
-// them in the picture store and records them: the first of each role, or with role set every
-// one of that role. No transaction is open while they are fetched. A picture that cannot be
-// fetched now is tried again at the next refresh, and never fails the lookup it came with.
+// errPictureGone is a picture's address that will not give a picture: the provider no longer
+// has it, or what it serves is too large or not a picture. Anything else may work next time.
+var errPictureGone = errors.New("no picture at this address")
+
+// FetchPictures is the picture pass for a library: it fetches the provider's pictures that
+// lookups and refreshes recorded, keeps each in the picture store in its two sizes and shows it, one at a
+// time and at Background priority, so it never holds up a lookup or a person. It does at most
+// limit and says how many it stored. An address that gives no picture is dropped; one that
+// cannot be reached now is tried at the next pass.
+func (s *Service) FetchPictures(ctx context.Context, libraryID int64, limit int) (int, error) {
+	if s.Pictures == nil {
+		return 0, nil
+	}
+	stored, after := 0, int64(0)
+	for stored < limit {
+		page, err := s.DB.PicturesToFetch(ctx, libraryID, after, 50)
+		if err != nil || len(page) == 0 {
+			return stored, err
+		}
+		for _, p := range page {
+			after = p.ID
+			data, err := fetchPicture(ctx, p.SourceURL)
+			if ctx.Err() != nil {
+				return stored, ctx.Err()
+			}
+			if errors.Is(err, errPictureGone) {
+				if err := s.DB.PictureGone(ctx, p.ID); err != nil {
+					return stored, err
+				}
+				continue
+			}
+			if err != nil {
+				continue // not reached now: the next pass asks again
+			}
+			sum := sha256.Sum256(data)
+			hash := hex.EncodeToString(sum[:])
+			if err := s.Pictures.Put(hash, data); errors.Is(err, artwork.ErrNotAPicture) {
+				if err := s.DB.PictureGone(ctx, p.ID); err != nil {
+					return stored, err
+				}
+				continue
+			} else if err != nil {
+				return stored, err
+			}
+			if err := s.DB.PictureFetched(ctx, p.ID, hash); err != nil {
+				return stored, err
+			}
+			if stored++; stored >= limit {
+				return stored, nil
+			}
+		}
+	}
+	return stored, nil
+}
+
+// storePictures records the provider's pictures of a title that it does not have yet: the
+// first of each role, or with role set every one of that role. A lookup or a refresh (role
+// "") records only their addresses and moves on, so a title's details never wait for its
+// pictures: the picture pass (FetchPictures) fetches and shows them after. Find more (role set)
+// is a person waiting for the answer, so its pictures are fetched now. No transaction is open
+// while they are fetched, and a picture that cannot be fetched never fails what it came with.
 func (s *Service) storePictures(ctx context.Context, itemID int64, pictures []Picture, role string, priority db.Priority) error {
 	if s.Pictures == nil || len(pictures) == 0 {
 		return nil
@@ -187,6 +247,10 @@ func (s *Service) storePictures(ctx context.Context, itemID int64, pictures []Pi
 		}
 		firsts[p.Role] = true
 		if have[p.URL] {
+			continue
+		}
+		if role == "" {
+			found = append(found, db.NewPicture{Role: code, SourceURL: p.URL, Width: p.Width, Height: p.Height, Language: p.Language})
 			continue
 		}
 		data, err := fetchPicture(ctx, p.URL)

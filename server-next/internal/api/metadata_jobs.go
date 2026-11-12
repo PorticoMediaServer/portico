@@ -81,7 +81,9 @@ func (s *Server) metadataJobs() {
 			if err != nil {
 				return err
 			}
-			return providerSentence(do(ctx, work, lib))
+			err = do(ctx, work, lib)
+			s.fetchPicturesLater(ctx, lib.PublicID)
+			return providerSentence(err)
 		}
 	}
 	s.jobs.Register(jobs.Kind{Name: jobMatchLibrary, Access: jobs.Admins, Check: libraryCheck,
@@ -102,7 +104,9 @@ func (s *Server) metadataJobs() {
 		if at < 0 {
 			return nil // removed since
 		}
-		return s.lookUpAndRefresh(ctx, all[at].ID, time.Now())
+		err = s.lookUpAndRefresh(ctx, all[at].ID, time.Now())
+		s.fetchPicturesLater(ctx, all[at].PublicID)
+		return err
 	}})
 	// A selection: the asker's main profile must see every title, or the job is refused as
 	// if one were not there.
@@ -124,6 +128,12 @@ func (s *Server) metadataJobs() {
 		Run: func(ctx context.Context, work jobs.Work) error {
 			total := int64(len(work.Target.Items))
 			err := s.metadata.RefreshTitles(ctx, work.Target.Items, time.UnixMilli(work.Job.CreatedAt), func(done int64) { work.Progress(done, total) })
+			// The selection's titles may be in any library; a pass with nothing to fetch reads one index.
+			if all, listErr := s.db.AllLibraries(ctx); listErr == nil {
+				for _, lib := range all {
+					s.fetchPicturesLater(ctx, lib.PublicID)
+				}
+			}
 			return providerSentence(err)
 		}})
 	s.jobs.Register(jobs.Kind{Name: jobEditItems, Access: jobs.Admins,
