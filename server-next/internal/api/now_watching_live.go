@@ -55,3 +55,39 @@ func (s *Server) nowWatchingLive(r *http.Request) ([]NowPlaying, error) {
 	}
 	return out, nil
 }
+
+// accountLiveStreams are the account's live channels being watched, as the account's other
+// devices see them: the channel named only where the asking profile may watch it.
+func (s *Server) accountLiveStreams(r *http.Request, c playback.Caller) ([]AccountStream, error) {
+	var out []AccountStream
+	lv, err := s.liveViewer(r)
+	mayKnow := err == nil
+	for _, v := range s.viewings.All() {
+		if v.UserID != c.Viewer.UserID {
+			continue
+		}
+		state := playback.StatePlaying
+		if v.Paused {
+			state = playback.StatePaused
+		}
+		stream := AccountStream{ID: v.ID, DeviceName: v.Name, Kind: "live", State: state, StartedAt: v.StartedAt.UTC(),
+			Current: c.SignInID != 0 && v.SignInID == c.SignInID}
+		if device, err := s.db.SessionDevice(r.Context(), v.SignInID); err == nil {
+			stream.DeviceID = device.PublicID
+		} else if !errors.Is(err, db.ErrNotFound) {
+			return nil, err
+		}
+		if mayKnow {
+			ch, err := s.db.LiveChannelByID(r.Context(), viewer(r), v.ChannelID)
+			if err != nil && !errors.Is(err, db.ErrNotFound) {
+				return nil, err
+			}
+			if err == nil && mayWatch(lv, ch) {
+				stream.Title = ch.Name
+			}
+		}
+		out = append(out, stream)
+	}
+	slices.SortFunc(out, func(a, b AccountStream) int { return cmp.Compare(b.StartedAt.UnixNano(), a.StartedAt.UnixNano()) })
+	return out, nil
+}
