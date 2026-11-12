@@ -375,18 +375,19 @@ test('continuation coalesces a section and retains first-page entity and listeni
 });
 
 
-test('real content service offers resume beyond forty parts and appends a real cursor page', async () => {
+/** The rebuilt server's answers for an audiobook library: a book's detail (its chapters or parts, the
+ * listener's place) and a series' volumes a page at a time. */
+const rebuiltLibrary = {id: 'books', name: 'Audiobooks', kind: 'audiobooks'};
+const rebuiltBook = (id: string, parts: number, positionMs = 0) => ({id, kind: 'audiobook', title: id, libraryId: 'books', images: {}, addedAt: '2026-11-12T00:00:00Z',
+  state: positionMs ? {positionMs} : {}, versions: [{id: 'v1', parts: Array.from({length: parts}, (_, n) => ({size: 1, startMs: n * 60_000, endMs: (n + 1) * 60_000, streams: []}))}]});
+const rebuiltSeries = {id: 'series-1', kind: 'series', title: 'Series', libraryId: 'books', images: {}, addedAt: '2026-11-12T00:00:00Z', state: {}};
+const volume = (id: string) => ({id, kind: 'audiobook', title: id, libraryId: 'books', images: {}, addedAt: '2026-11-12T00:00:00Z', state: {}});
+
+test('a book of eighty-one parts lists them all from its detail and resumes from the listener\'s place', async () => {
   const starts: any[] = [], requests: string[] = [];
-  const rows = Array.from({length: 81}, (_, i) => ({id: `file-${i + 1}`, kind: 'audiobook_file', libraryId: 'books', title: `Part ${i + 1}`, playback: {itemId: `file-${i + 1}`}}));
   const api = {request: async (path: string) => {
     requests.push(path);
-    const url = new URL(path, 'https://server.test'), cursor = url.searchParams.get('cursor');
-    const section = {id: 'files', type: 'list', heading: {key: 'files', fallback: 'Files'}, entries: cursor === 'next-2' ? rows.slice(80) : cursor ? rows.slice(40, 80) : rows.slice(0, 40), totalCount: 81, nextCursor: cursor === 'next-2' ? '' : cursor ? 'next-2' : 'next-1'};
-    return {scope: {serverId: 'server', libraryId: 'books', libraryKind: 'book', view: 'book', entityId: 'book-1', viewerFence: 'fence'},
-      revision: {catalog: 1, viewer: 1}, query: {sort: '', direction: '', category: '', q: '', limit: 40, searchMode: 'none'},
-      heading: {key: 'book', fallback: 'Book'}, sections: [section],
-      ...(cursor ? {} : {entity: {id: 'book-1', libraryId: 'books', kind: 'book', title: 'Book'},
-        listening: {target: {kind: 'book', id: 'book-1', libraryId: 'books'}, actions: ['play'], resume: {itemId: 'file-41', positionMs: 120000}, resumeUnavailable: false}})};
+    return new URL(path, 'https://server.test').pathname === '/v1/items/book-1' ? rebuiltBook('book-1', 81, 2_520_000) : rebuiltLibrary;
   }};
   const {NativeAudiobookController} = await screenModule(new URL('../src-next/screens/destinations/audiobooks/model.ts', import.meta.url), {
     react: {default: {}}, '../lifetime': {nativeDestinationLifetime: () => ({scope: {serverId: 'server', viewerId: 'viewer'}, current: () => true})},
@@ -395,16 +396,13 @@ test('real content service offers resume beyond forty parts and appends a real c
   });
   const value = new NativeAudiobookController({context: {api, playback: {start: async (input: any) => {starts.push(input);}}}, kind: 'book', libraryId: 'books', id: 'book-1'});
   await value.load(lease);
-  assert.equal(value.getSnapshot().sections[0].entries.length, 40);
+  assert.equal(value.getSnapshot().sections[0].id, 'files');
+  assert.equal(value.getSnapshot().sections[0].entries.length, 81, 'the detail lists every part; nothing pages');
   await value.resume(lease);
-  assert.deepEqual(starts[0].target, {itemId: 'file-41', startSeconds: 120});
-  assert.equal(requests.length, 1);
+  assert.deepEqual(starts[0].target, {itemId: 'book-1', startSeconds: 2520});
   await value.next('files', lease);
-  assert.equal(value.getSnapshot().sections[0].entries.length, 80);
-  await value.next('files', lease);
-  assert.equal(value.getSnapshot().sections[0].entries.length, 81);
+  assert.equal(requests.filter(path => path.startsWith('/v1/items/')).length, 1);
   assert.equal(value.getSnapshot().entity.id, 'book-1');
-  assert.equal(value.getSnapshot().listening.resume.itemId, 'file-41');
   value.dispose();
 });
 
@@ -541,10 +539,10 @@ test('a scoped loading publication restores the cached book when its opening is 
     './BookScreen': {BookScreen: 'book'}, './AuthorSeriesScreen': {AuthorSeriesScreen: 'author'},
   });
   const api = {request: async (path: string) => {
-    const url = new URL(path, 'https://server.test'), id = url.searchParams.get('entityId')!; requests.push(id);
-    return {scope: {serverId: 'server', libraryId: 'books', libraryKind: 'book', view: 'book', entityId: id, viewerFence: 'fence'},
-      revision: {catalog: 1, viewer: 1}, query: {sort: '', direction: '', category: '', q: '', limit: 40, searchMode: 'none'},
-      entity: {id, libraryId: 'books', kind: 'book', title: id}, sections: [{id: 'files', type: 'list', heading: {key: 'files'}, entries: [], totalCount: 0, nextCursor: ''}]};
+    const url = new URL(path, 'https://server.test');
+    if (!url.pathname.startsWith('/v1/items/')) return rebuiltLibrary;
+    const id = decodeURIComponent(url.pathname.split('/')[3]!); requests.push(id);
+    return rebuiltBook(id, 0);
   }};
   const context = {api, authority: () => ({}), playback: {start: async () => {}},
     subscribeAuthority: (fn: () => void) => {callbacks.add(fn); return () => callbacks.delete(fn);},
@@ -567,25 +565,18 @@ test('a scoped loading publication restores the cached book when its opening is 
   renderer.dispose();
 });
 
-test('real chapter and author book continuations retain ordered eighty-one row membership', async () => {
-  for (const [kind, sectionId, rowKind] of [['book', 'chapters', 'chapter'], ['author', 'books', 'book']]) {
-    const id = `${kind}-1`;
-    const rows = Array.from({length: 81}, (_, i) => ({id: `row-${i}`, kind: rowKind, libraryId: 'books', title: `Row ${i}`}));
+test('real author and series book continuations retain ordered eighty-one row membership', async () => {
+  for (const kind of ['author', 'book_series'] as const) {
+    const id = kind === 'author' ? 'author-1' : 'series-1';
+    const rows = Array.from({length: 81}, (_, i) => volume(`row-${i}`));
+    // Both pages read the rebuilt server: their own title, and the books a page at a time.
     const api = {request: async (path: string) => {
       const url = new URL(path, 'https://server.test'), cursor = url.searchParams.get('cursor');
       const start = cursor === 'page-3' ? 80 : cursor ? 40 : 0;
-      // An author's page reads the rebuilt server: the person, and their books in the library a page at a time.
-      if (kind === 'author') {
-        if (url.pathname === '/v1/people/author-1') return {id, name: 'Original', images: {}};
-        if (url.pathname.startsWith('/v1/libraries/')) return {id: 'books', name: 'Audiobooks', kind: 'audiobooks'};
-        return {items: rows.slice(start, start + 40).map(row => ({id: row.id, kind: 'audiobook', title: row.title, libraryId: 'books'})), total: 81,
-          ...(start === 80 ? {} : {nextCursor: start === 40 ? 'page-3' : 'page-2'})};
-      }
-      const section = {id: sectionId, type: 'list', heading: {key: sectionId}, entries: rows.slice(start, start + 40), totalCount: 81,
-        nextCursor: start === 80 ? '' : start === 40 ? 'page-3' : 'page-2'};
-      return {scope: {serverId: 'server', libraryId: 'books', libraryKind: 'book', view: kind, entityId: id, viewerFence: 'fence'},
-        revision: {catalog: 1, viewer: 1}, query: {sort: '', direction: '', category: '', q: '', limit: 40, searchMode: 'none'},
-        sections: [section], ...(cursor ? {} : {entity: {id, libraryId: 'books', kind, title: 'Original'}})};
+      if (url.pathname === '/v1/people/author-1') return {id, name: 'Original', images: {}};
+      if (url.pathname === '/v1/items/series-1') return rebuiltSeries;
+      if (url.pathname.startsWith('/v1/libraries/')) return rebuiltLibrary;
+      return {items: rows.slice(start, start + 40), total: 81, ...(start === 80 ? {} : {nextCursor: start === 40 ? 'page-3' : 'page-2'})};
     }};
     const {NativeAudiobookController} = await screenModule(new URL('../src-next/screens/destinations/audiobooks/model.ts', import.meta.url), {
       react: {default: {}}, '../lifetime': {nativeDestinationLifetime: () => ({scope: {serverId: 'server', viewerId: 'viewer'}, current: () => true})},
@@ -595,7 +586,7 @@ test('real chapter and author book continuations retain ordered eighty-one row m
     const value = new NativeAudiobookController({context: {api, playback: {}}, kind, libraryId: 'books', id});
     await value.load(lease);
     const first = value.getSnapshot().sections[0].entries[0];
-    await value.next(sectionId, lease); await value.next(sectionId, lease);
+    await value.next('books', lease); await value.next('books', lease);
     assert.deepEqual(value.getSnapshot().sections[0].entries.map((row: any) => row.id), rows.map(row => row.id));
     assert.equal(value.getSnapshot().sections[0].entries[0], first);
     assert.equal(value.getSnapshot().entity.id, id);
@@ -605,28 +596,26 @@ test('real chapter and author book continuations retain ordered eighty-one row m
 
 test('real stale continuation retains rows and only explicit recovery refreshes page one', async () => {
   const requests: string[] = [];
-  const row = {id: 'file-1', libraryId: 'books', kind: 'audiobook_file', title: 'Part'};
   const api = {request: async (path: string) => {
+    const url = new URL(path, 'https://server.test');
+    if (url.pathname === '/v1/items/series-1') return rebuiltSeries;
+    if (url.pathname.startsWith('/v1/libraries/')) return rebuiltLibrary;
     requests.push(path);
-    const cursor = new URL(path, 'https://server.test').searchParams.get('cursor');
-    if (cursor) throw Object.assign(new Error('expired'), {code: 'invalid_cursor'});
-    return {scope: {serverId: 'server', libraryId: 'books', libraryKind: 'book', view: 'book', entityId: 'book-1', viewerFence: 'fence'},
-      revision: {catalog: 1, viewer: 1}, query: {sort: '', direction: '', category: '', q: '', limit: 40, searchMode: 'none'},
-      entity: {id: 'book-1', libraryId: 'books', kind: 'book', title: 'Book'},
-      sections: [{id: 'files', type: 'list', heading: {key: 'files'}, entries: [row], totalCount: 41, nextCursor: 'expired'}]};
+    if (url.searchParams.get('cursor')) throw Object.assign(new Error('expired'), {code: 'invalid_cursor'});
+    return {items: [volume('book-a')], total: 41, nextCursor: 'expired'};
   }};
   const {NativeAudiobookController} = await screenModule(new URL('../src-next/screens/destinations/audiobooks/model.ts', import.meta.url), {
     react: {default: {}}, '../lifetime': {nativeDestinationLifetime: () => ({scope: {serverId: 'server', viewerId: 'viewer'}, current: () => true})},
     '../../../../../../packages/client-core/src/library-content': {LibraryContentService},
     '../../../../../../packages/client-core/src/container-state': {getContainerState: async () => ({revision: 4, watched: false})},
   });
-  const value = new NativeAudiobookController({context: {api, playback: {}}, kind: 'book', libraryId: 'books', id: 'book-1'});
-  await value.load(lease); await value.next('files', lease);
+  const value = new NativeAudiobookController({context: {api, playback: {}}, kind: 'book_series', libraryId: 'books', id: 'series-1'});
+  await value.load(lease); await value.next('books', lease);
   assert.equal(requests.length, 2);
   assert.equal(value.getSnapshot().continuation.phase, 'refresh-required');
-  assert.equal(value.getSnapshot().sections[0].entries[0].id, 'file-1');
-  assert.equal(value.getSnapshot().entity.id, 'book-1');
-  await value.next('files', lease); assert.equal(requests.length, 2);
+  assert.equal(value.getSnapshot().sections[0].entries[0].id, 'book-a');
+  assert.equal(value.getSnapshot().entity.id, 'series-1');
+  await value.next('books', lease); assert.equal(requests.length, 2);
   await value.recover(lease); assert.equal(requests.length, 3);
   assert.equal(new URL(requests[2], 'https://server.test').searchParams.has('cursor'), false);
   value.dispose();
@@ -634,33 +623,32 @@ test('real stale continuation retains rows and only explicit recovery refreshes 
 
 test('a late real continuation from a departed opening cannot change cached rows or a successor', async () => {
   let resolveOld!: (v: any) => void, pending = true, calls = 0;
-  const row = (id: string) => ({id, libraryId: 'books', kind: 'audiobook_file', title: id});
-  const projection = (cursor: boolean) => ({scope: {serverId: 'server', libraryId: 'books', libraryKind: 'book', view: 'book', entityId: 'book-1', viewerFence: 'fence'},
-    revision: {catalog: 1, viewer: 1}, query: {sort: '', direction: '', category: '', q: '', limit: 40, searchMode: 'none'},
-    sections: [{id: 'files', type: 'list', heading: {key: 'files'}, entries: [row(cursor ? 'file-2' : 'file-1')], totalCount: 2, nextCursor: cursor ? '' : 'next'}],
-    ...(cursor ? {} : {entity: {id: 'book-1', libraryId: 'books', kind: 'book', title: 'Book'}})});
+  const page = (cursor: boolean) => cursor ? {items: [volume('book-b')], total: 2} : {items: [volume('book-a')], total: 2, nextCursor: 'next'};
   const api = {request: async (path: string) => {
-    const cursor = new URL(path, 'https://server.test').searchParams.has('cursor');
-    if (!cursor) return projection(false);
+    const url = new URL(path, 'https://server.test');
+    if (url.pathname === '/v1/items/series-1') return rebuiltSeries;
+    if (url.pathname.startsWith('/v1/libraries/')) return rebuiltLibrary;
+    const cursor = url.searchParams.has('cursor');
+    if (!cursor) return page(false);
     calls++;
     if (pending) {pending = false; return new Promise(resolve => {resolveOld = resolve;});}
-    return projection(true);
+    return page(true);
   }};
   const {NativeAudiobookController} = await screenModule(new URL('../src-next/screens/destinations/audiobooks/model.ts', import.meta.url), {
     react: {default: {}}, '../lifetime': {nativeDestinationLifetime: () => ({scope: {serverId: 'server', viewerId: 'viewer'}, current: () => true})},
     '../../../../../../packages/client-core/src/library-content': {LibraryContentService},
     '../../../../../../packages/client-core/src/container-state': {getContainerState: async () => ({revision: 4, watched: false})},
   });
-  const value = new NativeAudiobookController({context: {api, playback: {}}, kind: 'book', libraryId: 'books', id: 'book-1'});
+  const value = new NativeAudiobookController({context: {api, playback: {}}, kind: 'book_series', libraryId: 'books', id: 'series-1'});
   const abort = new AbortController(), old = {signal: abort.signal, isCurrent: () => !abort.signal.aborted};
   await value.load(old);
-  const oldRequest = value.next('files', old);
+  const oldRequest = value.next('books', old);
   abort.abort(); await oldRequest;
   const successor = {signal: new AbortController().signal, isCurrent: () => true};
-  await value.next('files', successor);
-  resolveOld(projection(true)); await Promise.resolve();
+  await value.next('books', successor);
+  resolveOld(page(true)); await Promise.resolve();
   assert.equal(calls, 2);
-  assert.deepEqual(value.getSnapshot().sections[0].entries.map((v: any) => v.id), ['file-1', 'file-2']);
+  assert.deepEqual(value.getSnapshot().sections[0].entries.map((v: any) => v.id), ['book-a', 'book-b']);
   value.dispose();
 });
 
