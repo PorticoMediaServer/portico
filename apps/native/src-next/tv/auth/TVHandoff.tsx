@@ -1,3 +1,5 @@
+import {hostedUrl} from '../../platform/account-authority';
+import {forgotPINHandoff} from '../../platform/forgot-pin-handoff';
 import React, {useEffect} from 'react';
 import {Text, View} from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
@@ -18,6 +20,9 @@ export function publicTVHandoffAddress(value: string): {url: string; display: st
   const url = new URL(value);
   if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.hash) throw new Error('native_tv_handoff_url_invalid');
   const keys = [...url.searchParams.keys()];
+  // web.getportico.tv opening one server from the account's list (a Portico Accounts server's Forgot PIN).
+  if (url.pathname === '/servers' && keys.length === 1 && /^srv_[A-Za-z0-9_-]{43}$/.test(url.searchParams.get('open') ?? ''))
+    return {url: url.href, display: `${url.host}${url.pathname}`, pathname: url.pathname, search: url.search};
   const management = url.searchParams.get('scope') === 'server' && url.searchParams.get('section') === 'live';
   const profile = url.searchParams.get('scope') === 'account' && url.searchParams.get('section') === 'profile';
   if (keys.length && (url.pathname !== '/settings' || keys.length !== 2 || new Set(keys).size !== 2
@@ -90,9 +95,10 @@ function RequiredSetupHandoff(props: TVRequiredSetupHandoffProps) {
 }
 
 export type TVForgotPINHandoffProps = Readonly<{
-  profileName: string; url: string; onBack: () => void;
-  /** The exact §34 sentence is separate from the management card's heading. */
-  body: MessageId; reference?: MessageId;
+  profileName: string; onBack: () => void;
+  /** The server's address and identity: a Portico Accounts server's PIN is reset at web.getportico.tv
+   * (`platform/forgot-pin-handoff.ts`), a local server's on its own profile page. */
+  serverAddress: string; server: Readonly<{id: string; signIn: 'local' | 'portico'}>; reference?: MessageId;
 }>;
 
 /** §34 keeps its owner at the same account/picker level. There are no sign-in,
@@ -101,12 +107,14 @@ export function TVForgotPINHandoff(props: TVForgotPINHandoffProps) {
   return <FocusProvider><ForgotPINHandoff {...props}/></FocusProvider>;
 }
 function ForgotPINHandoff(props: TVForgotPINHandoffProps) {
-  const theme = useTheme(), material = glassRecipe(), address = publicTVHandoffAddress(props.url), id = 'tv.auth.profile.forgot-pin';
-  if (address.pathname !== '/settings/profile' || address.search) throw new Error('native_tv_forgot_pin_url_invalid');
+  const theme = useTheme(), material = glassRecipe(), target = forgotPINHandoff(props.serverAddress, props.server), address = publicTVHandoffAddress(target.url), id = 'tv.auth.profile.forgot-pin';
+  // A server's own profile page, or (a Portico Accounts server) web.getportico.tv opening this server.
+  if (!(address.pathname === '/settings/profile' && !address.search || address.pathname === '/servers' && address.search && new URL(address.url).origin === new URL(hostedUrl).origin))
+    throw new Error('native_tv_forgot_pin_url_invalid');
   useHandoffBack(props.onBack);
   useDestinationEntryFocus({visible: true, intent: 'enter', revision: 0}, {regionId: id, childId: 'back'});
   return <TVAuthLayout testID="tv-forgot-pin-handoff" portico={false} eyebrow={props.profileName}
-    heading={defaultI18n.t('pin.forgot')} body={defaultI18n.t(props.body)}
+    heading={defaultI18n.t('pin.forgot')} body={defaultI18n.t(target.body)}
     aside={handoffCodeCard(theme, address, props.reference ?? 'next.auth.tv.handoffHint', material.nativeBlur, 'tv-forgot-pin-card')}>
     <FocusRegion id={id} entry="back" order={['back']} style={{flexDirection: 'row'}}>
       <Button focusId="back" onPress={props.onBack} style={{height: 72, paddingHorizontal: 38, borderRadius: 14}}>{defaultI18n.t('action.back')}</Button>

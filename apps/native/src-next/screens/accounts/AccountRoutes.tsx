@@ -13,7 +13,6 @@ import {HttpHostedApi} from '../../../../../packages/client-core/src';
 import type {SetupPreview} from '../../../../../packages/client-core/src/setup-code';
 import type {TVConsentApprover} from '../../../../../packages/client-core/src/tv-consent';
 import type {AppServerSession} from '../../../../../packages/client-core/src/app-sessions';
-import {routeOrigin} from '../../../../../packages/client-core/src/route-identity';
 import {nativeAccounts} from '../../platform/accounts';
 import {nativeAppSessions, subscribeNativeAppSessions} from '../../platform/app-session-storage';
 import {switchNativeProfile} from '../../platform/native-session-lifecycle';
@@ -316,7 +315,7 @@ export function ProfileRoute({context, route, onBack, embedded = false}: {contex
   // TV: the picker, its PIN page and the forgotten-PIN page are one page Modal over the shell (TVProfileSwitchPage).
   if (theme.isTV && !embedded) return <TVProfileSwitchPage leave={tvLeave} onBack={() => {if (!busyRef.current) backRef.current();}} onGone={onBack}>
     {profile && forgotPIN ? <TVForgotPINHandoff profileName={profile.name}
-    url={new URL('/settings/profile', routeOrigin(context.api.baseUrl)).href} body="next.auth.tv.forgotPINBody" onBack={back}/>
+    serverAddress={context.api.baseUrl} server={{id: context.account.serverId, signIn: context.account.account.hostedAccountId ? 'portico' : 'local'}} onBack={back}/>
     : profile ? <TVProfilePINForm
     profile={{id: profile.id, name: profile.name, initial: [...profile.name][0] ?? '', color: profile.art, primary: profile.primary, pinRequired: true}}
     code={pin} onCodeChange={setPin} busy={busy} error={error ? <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger}]}>{profilePinFailureText(error) ?? presentError(error, 'profiles').body}</Text> : undefined}
