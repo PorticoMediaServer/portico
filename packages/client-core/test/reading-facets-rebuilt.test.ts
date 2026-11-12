@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {libraryBrowseCapabilities, libraryItemQuery} from '../src/library-browse.ts';
 import {parseBrowseCapabilities} from '../src/browse.ts';
 import {filterControlOf, filterValuesField} from '../src/presentation/browse-toolbar.ts';
+import {readingTabModel} from '../src/presentation/library-tabs.ts';
 import {appliedFilterParts} from '../src/presentation/kit-model/filters.ts';
 import {filterValueName} from '../src/filter-value-names.ts';
 import {nameFilterValues, readBrowseFacetResponse, readReadingBrowseFacet} from '../src/query/browse-reads.ts';
@@ -81,4 +82,17 @@ test('an author or series in use that the lists have not shown is named by readi
   await nameFilterValues(api, 'series', ['itm_far']);
   assert.deepEqual(asked, ['/v1/people/per_far', '/v1/people/per_gone', '/v1/items/itm_far']);
   assert.deepEqual([filterValueName('per_far'), filterValueName('per_gone'), filterValueName('itm_far')], ['Zadie Far', undefined, 'Far Series']);
+});
+
+// A Books library has Authors and Series tabs after its books; a Comics library leads with Series
+// and ends with Authors (the read-web frames). Each is offered only when the library has it.
+test('a Books or Comics library offers its Authors and Series lists as tabs', () => {
+  const tabs = (library: Record<string, unknown>) => readingTabModel(parseBrowseCapabilities(libraryBrowseCapabilities({id: 'lib', name: 'L', sorts: [{id: 'title', order: 'asc'}], ...library} as never, '')))
+    ?.map(tab => [tab.id, tab.facetSource?.field ?? '']);
+  const author = [{id: 'author', type: 'person'}];
+  assert.deepEqual(tabs({kind: 'books', views: [{kind: 'book'}, {kind: 'series'}], filters: author}),
+    [['discover', ''], ['browse', ''], ['authors', 'author'], ['series', 'series']]);
+  assert.deepEqual(tabs({kind: 'comics', views: [{kind: 'comic'}, {kind: 'series'}], filters: author}),
+    [['discover', ''], ['series', 'series'], ['browse', ''], ['authors', 'author']]);
+  assert.deepEqual(tabs({kind: 'books', views: [{kind: 'book'}], filters: []}), [['discover', ''], ['browse', '']]);
 });

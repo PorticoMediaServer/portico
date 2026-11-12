@@ -31,5 +31,6 @@ test('a reading library\'s list asks for its own kinds: books in a book library,
   // Without the library's lists (a page read by its library id alone) Books asks for both
   // kinds: each library holds only its own, so either library's list is its books.
   assert.equal(libraryItemQuery({id: 'lib'}, 'books', [], []).kind, 'audiobook,book');
-  assert.deepEqual((libraryBrowseCapabilities(comics, 'comics') as Caps).pivots.map(pivot => pivot.id), ['comics']);
+  // Its Series list comes first, as a tab, not as a list of comics.
+  assert.deepEqual((libraryBrowseCapabilities(comics, 'comics') as Caps).pivots.map(pivot => pivot.id), ['series', 'comics']);
 });
