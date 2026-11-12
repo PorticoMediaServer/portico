@@ -2,7 +2,7 @@ import {ReaderHighlightsExport} from './ReaderHighlightsExport';
 import type {ReadingAnnotationPort} from '@core/reading-annotations.ts';
 import {randomId} from '@core/random-id.ts';
 import {isReaderComicFormat, readingLocationFromReader, readerErrorCode, readerLocationFromReading} from '@portico/reader-core';
-import {ReaderAnnotationActions, ReaderAnnotationList, useReaderAnnotations, useAnnotationLease} from './ReaderAnnotations';
+import {ReaderAnnotationActions, ReaderAnnotationList, useReaderAnnotations, useAnnotationLease, usePlaceEarlierCopies} from './ReaderAnnotations';
 import {readingSearchStepIndex} from './search-step';
 import {useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {defaultI18n} from '@i18n';
@@ -93,6 +93,7 @@ export function ReaderBook({book, active, reportError, onBack, onOpenSettings, o
   const fixed = publication.format !== 'epub', comic = isReaderComicFormat(publication.format);
   const notes = useReaderAnnotations(book.annotations, controller, authority, active, snapshot.status === 'ready');
   const annotationLease=useAnnotationLease(notes.service);
+  usePlaceEarlierCopies(notes.service, controller, active && snapshot.status === 'ready');
   // 10-reading rule 22: the profile's highlights made in this file are drawn in the page.
   useEffect(() => {
     controller.setMarks(notes.state.entries.flatMap(entry => {

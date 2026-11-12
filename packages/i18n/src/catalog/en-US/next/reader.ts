@@ -25,6 +25,7 @@ export const readerMessages = {
   'next.reader.annotationReload': 'Refresh notes',
   'next.reader.annotationMore': 'Show more',
   'next.reader.annotationDelete': 'Remove',
+  'next.reader.earlierCopy': 'From an earlier copy of this book',
   'next.reader.annotationEdit': 'Edit note',
   'next.reader.annotationSave': 'Save note',
   'next.reader.annotationYellow': 'Yellow',
