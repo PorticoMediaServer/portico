@@ -128,6 +128,39 @@ test('removing an entry offers an Undo that puts its title back after the entry 
   await assert.rejects(sendPlaylistCommand(s.api, scope, {action: 'restore', undoToken: 'nonsense'}, {playlistId: 'pl'}, 'op3'), {code: 'undo_expired'});
 });
 
+test('an Undo goes back only into the list it came from', async () => {
+  const s = server(), entries = [{id: 'e1', itemId: 'a'}, {id: 'e2', itemId: 'b'}];
+  const removed = await sendPlaylistCommand(s.api, scope, {action: 'remove', entryId: 'e2'}, {playlistId: 'pl', revision: 7, entries}, 'op');
+  const sent = s.calls.length;
+  await assert.rejects(sendPlaylistCommand(s.api, scope, {action: 'restore', undoToken: removed.undoToken as string}, {playlistId: 'other'}, 'op2'), {code: 'undo_other_list'});
+  assert.equal(s.calls.length, sent, 'nothing is added to the other list');
+});
+
+test('an addition whose answer was lost is sent again with the same Idempotency-Key, so the title is not added twice', async () => {
+  const s = server(), raw = s.api.requestRaw;
+  let lose = true;
+  s.api.requestRaw = (async (path: string, method: string, options: {headers?: Record<string, string>; body?: unknown} = {}) => {
+    const answer = await raw(path, method, options);
+    if (method === 'POST' && lose) {lose = false; throw new TypeError('The network connection was lost.');}
+    return answer;
+  }) as typeof raw;
+  const saved = service(s.api);
+  await saved.select({view: 'playlist', playlistId: 'pl'});
+  await assert.rejects(saved.mutate({action: 'add', itemId: 'z'}));
+  await saved.retryMutation();
+  const posts = s.calls.filter(call => call.method === 'POST');
+  assert.equal(posts.length, 2);
+  assert.ok(posts[0]!.headers?.['Idempotency-Key']);
+  assert.equal(posts[1]!.headers?.['Idempotency-Key'], posts[0]!.headers?.['Idempotency-Key'], 'the repeat names the same operation');
+  // Restore and create name their operation too.
+  const entries = [{id: 'e1', itemId: 'a'}, {id: 'e2', itemId: 'b'}];
+  const removed = await sendPlaylistCommand(s.api, scope, {action: 'remove', entryId: 'e2'}, {playlistId: 'pl', revision: 7, entries}, 'remove-op');
+  await sendPlaylistCommand(s.api, scope, {action: 'restore', undoToken: removed.undoToken as string}, {playlistId: 'pl'}, 'restore-op');
+  await sendPlaylistCommand(s.api, scope, {action: 'create', name: 'New'}, {}, 'create-op');
+  assert.deepEqual(s.calls.slice(-2).map(call => [call.path, call.headers?.['Idempotency-Key']]), [['/v1/lists/pl/entries', 'restore-op'], ['/v1/lists', 'create-op']]);
+  saved.dispose();
+});
+
 test('a move places entries after an anchor, at the front, or swaps two neighbours in place', async () => {
   const entries = [{id: 'e1', itemId: 'a'}, {id: 'e2', itemId: 'b'}, {id: 'e3', itemId: 'c'}];
   const moves = async (intent: {entryIds: string[]; afterEntryId?: string}) => {

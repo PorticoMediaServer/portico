@@ -7,7 +7,7 @@
  * copy is refused with "This list changed. Reload and try again" (rule 34); removing an entry offers Undo for 30 seconds,
  * which puts it back in its place (rule 32); a list is reordered only in its own order (rule 31).
  */
-import type {Item, ItemPage, List, ListPage, ListShares, ListShare} from '../../contracts/src/next/api.ts';
+import type {Item, ItemPage, List, ListAdd, ListAdded, ListCreate, ListCreated, ListPage, ListShares, ListShare} from '../../contracts/src/next/api.ts';
 import {callServer, serverPath, type ServerRequester} from './query/server-api.ts';
 import {wireEntryFromItem} from './items.ts';
 import {CodedError} from './server-messages.ts';
@@ -166,11 +166,11 @@ async function edit<T>(api: SavedNextApi, path: string, method: 'PATCH' | 'PUT' 
   return sendRaw<T>(api, path, method, {'If-Match': `"${revision}"`}, body, signal);
 }
 
-/** An Undo of a removal: the title, and the entry it came after (empty at the front). */
-type UndoToken = Readonly<{itemId: string; after: string}>;
+/** An Undo of a removal: the list it was removed from, the title, and the entry it came after (empty at the front). */
+type UndoToken = Readonly<{listId: string; itemId: string; after: string}>;
 const encodeUndo = (token: UndoToken) => 'undo.' + btoa(JSON.stringify(token)).replace(/=+$/, '');
 function decodeUndo(raw: string): UndoToken {
-  try {const value = JSON.parse(atob(raw.slice(5))); if (raw.startsWith('undo.') && typeof value?.itemId === 'string' && typeof value.after === 'string') return value;} catch {/* refused below */}
+  try {const value = JSON.parse(atob(raw.slice(5))); if (raw.startsWith('undo.') && typeof value?.listId === 'string' && typeof value.itemId === 'string' && typeof value.after === 'string') return value;} catch {/* refused below */}
   throw new CodedError('undo_expired', 'Too late to undo.');
 }
 
@@ -183,8 +183,12 @@ export type PlaylistCommandContext = Readonly<{
 export async function sendPlaylistCommand(api: SavedNextApi, bound: SavedScope, intent: SavedIntent, context: PlaylistCommandContext, operationId: string, signal?: AbortSignal): Promise<Record<string, unknown>> {
   const receipt = (playlistId: string, list: Pick<List, 'revision'> | undefined, extra: Record<string, unknown> = {}) =>
     ({serverId: bound.serverId, viewerFence: 'viewer', operationId, playlistId, revision: list ? revisionOf(list) : (context.revision ?? 0) + 1, deleted: false, ...extra});
+  // An addition names its operation as its Idempotency-Key, which Retry keeps: a repeat whose first answer was lost
+  // adds nothing twice (a playlist would take a title twice, area 6 rule 24).
+  const once = {'Idempotency-Key': operationId};
   if (intent.action === 'create') {
-    const created = await callServer(api, 'POST /v1/lists', {body: {kind: 'playlist', name: intent.name.trim(), ...(intent.summary ? {description: intent.summary} : {}), ...(intent.itemIds?.length ? {items: [...intent.itemIds]} : {})}, signal});
+    const body: ListCreate = {kind: 'playlist', name: intent.name.trim(), ...(intent.summary ? {description: intent.summary} : {}), ...(intent.itemIds?.length ? {items: [...intent.itemIds]} : {})};
+    const created = await sendRaw<ListCreated>(api, serverPath('POST /v1/lists'), 'POST', once, body, signal);
     return receipt(created.id, created);
   }
   const id = context.playlistId;
@@ -192,16 +196,17 @@ export async function sendPlaylistCommand(api: SavedNextApi, bound: SavedScope, 
   const listPath = serverPath('GET /v1/lists/{id}', {id}), entryPath = (entryId: string) => `${listPath}/entries/${encodeURIComponent(entryId)}`;
   switch (intent.action) {
     case 'rename': return receipt(id, await edit<List>(api, listPath, 'PATCH', context.revision, {...(intent.name === undefined ? {} : {name: intent.name.trim()}), ...(intent.summary === undefined ? {} : {description: intent.summary})}, signal));
-    case 'add': return receipt(id, (await callServer(api, 'POST /v1/lists/{id}/entries', {id, body: {items: [intent.itemId]}, signal})).list);
+    case 'add': return receipt(id, (await sendRaw<ListAdded>(api, `${listPath}/entries`, 'POST', once, {items: [intent.itemId]} satisfies ListAdd, signal)).list);
     case 'restore': {
       const token = decodeUndo(intent.undoToken);
-      return receipt(id, (await callServer(api, 'POST /v1/lists/{id}/entries', {id, body: {items: [token.itemId], ...(token.after ? {after: token.after} : {})}, signal})).list);
+      if (token.listId !== id) throw new CodedError('undo_other_list', 'This can only be undone in the list it was removed from.');
+      return receipt(id, (await sendRaw<ListAdded>(api, `${listPath}/entries`, 'POST', once, {items: [token.itemId], ...(token.after ? {after: token.after} : {})} satisfies ListAdd, signal)).list);
     }
     case 'remove': {
       const order = context.entries ?? [], at = order.findIndex(entry => entry.id === intent.entryId);
       const list = await edit<List>(api, entryPath(intent.entryId), 'DELETE', context.revision, undefined, signal);
       // Undo puts the title back just after the entry in front of it (area 6 rule 32).
-      const undo = at >= 0 ? {undoToken: encodeUndo({itemId: order[at]!.itemId, after: at > 0 ? order[at - 1]!.id : ''}), undoUntil: new Date(Date.now() + 30_000).toISOString().replace(/\.\d+Z$/, 'Z')} : {};
+      const undo = at >= 0 ? {undoToken: encodeUndo({listId: id, itemId: order[at]!.itemId, after: at > 0 ? order[at - 1]!.id : ''}), undoUntil: new Date(Date.now() + 30_000).toISOString().replace(/\.\d+Z$/, 'Z')} : {};
       return receipt(id, list, {entryId: intent.entryId, ...undo});
     }
     case 'reorder': {
