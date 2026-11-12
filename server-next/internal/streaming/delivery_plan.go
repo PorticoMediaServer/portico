@@ -158,6 +158,10 @@ type DeliveryPlan struct {
 	// AudioPassthrough is true when the device hands the delivered audio to a
 	// receiver undecoded.
 	AudioPassthrough bool `json:"audioPassthrough,omitempty"`
+	// QualityHeight is the height ceiling the plan was made under (the quality chosen, narrowed
+	// by the owner's, the network's and the member's limits), 0 for none. TargetHeight is the
+	// height made, which for a film wider than 16:9 is less: 800 for a 3840x1600 film at 1080p.
+	QualityHeight int `json:"qualityHeight,omitempty"`
 }
 
 // DownmixITULimited names the one downmix the server performs: the ITU-R BS.775
@@ -866,6 +870,7 @@ func planDelivery(in DeliveryInput) (p DeliveryPlan, err error) {
 	}
 	encoded := client.videoCodec(picture.Codec)
 	p.TargetWidth, p.TargetHeight = conversionBox(encoded, picture.BitDepth, video, in.Target.MaxVideoHeight, in.Target.MaxVideoWidth)
+	p.QualityHeight = in.Target.MaxVideoHeight
 	if encoded != nil && video != nil {
 		point := encoded.forConversion(picture.BitDepth, video.Width, video.Height, video.FrameRate)
 		encoded = &point

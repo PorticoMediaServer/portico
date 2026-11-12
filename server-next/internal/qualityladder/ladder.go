@@ -43,14 +43,8 @@ func Find(id string) (Preset, bool) {
 	}
 	return Preset{}, false
 }
-func (p Preset) Width() int { return BoxWidth(p.Height) }
-
-// BoxWidth is the width of the frame a quality of this height names: a 16:9 picture that tall,
-// as a device or a network budget made for "1080p" expects. A quality is that whole box, not
-// its height alone, so a film wider than 16:9 is fitted to the width: a 3840x1600 film at
-// 1080p is 1920x800, not 2592x1080.
-func BoxWidth(height int) int {
-	switch height {
+func (p Preset) Width() int {
+	switch p.Height {
 	case 2160:
 		return 3840
 	case 1080:
@@ -62,7 +56,20 @@ func BoxWidth(height int) int {
 	case 240:
 		return 426
 	}
-	return max(0, height*16/9/2*2)
+	return 0
+}
+
+// BoxWidth is the width of the frame a quality of this height names: a 16:9 picture that tall,
+// as a device or a network budget made for "1080p" expects. A quality is that whole box, not
+// its height alone, so a film wider than 16:9 is fitted to the width: a 3840x1600 film at
+// 1080p is 1920x800, not 2592x1080. It is rounded up to even, so a 16:9 film keeps every line
+// of the height: 16:9 of 240 lines is 426.7, and a box 426 wide would make it 238 high.
+func BoxWidth(height int) int {
+	if height <= 0 {
+		return 0
+	}
+	w := (height*16 + 8) / 9
+	return w + w%2
 }
 
 // SameAsSource requires both measured facts. Resolution alone cannot show

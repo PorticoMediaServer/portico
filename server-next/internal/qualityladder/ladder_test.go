@@ -37,3 +37,12 @@ func TestAwayLimitNeverInventsNearestResolution(t *testing.T) {
 		}
 	}
 }
+
+// A quality's box is 16:9 of its height, rounded up to even, so a 16:9 film keeps every line.
+func TestBoxWidthKeepsEverySixteenByNineLine(t *testing.T) {
+	for height, want := range map[int]int{2160: 3840, 1080: 1920, 720: 1280, 480: 854, 240: 428, 0: 0} {
+		if got := BoxWidth(height); got != want {
+			t.Errorf("BoxWidth(%d) = %d, want %d", height, got, want)
+		}
+	}
+}
