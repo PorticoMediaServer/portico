@@ -8,7 +8,7 @@ import {Button} from '../../../../kit/controls';
 import {shellType} from '../../../../kit/shell/visual';
 import {useTheme} from '../../../../kit/theme';
 import {NativePlaybackProblemsSource} from './playback-problems-source';
-const ROUTES={original:'server.routes.route.original',copy_remux:'server.routes.route.copy_remux',audio_conversion:'server.routes.route.audio_conversion',video_conversion:'server.routes.route.video_conversion'} as const;
+const ROUTES={original:'server.routes.route.original',repackaged:'server.routes.route.repackaged',converted:'server.routes.route.converted'} as const;
 const ENGINES={native:'server.routes.engine.native',mpv:'server.routes.engine.mpv'} as const;
 export function NativePlaybackProblems({ports,runtime}:{ports:NativeSettingsLivePorts;runtime:NativeShellRuntime}){
   const context=ports.context,reportError=runtime.reportError,[held,setHeld]=useState<{context:typeof context;source:NativePlaybackProblemsSource}>();

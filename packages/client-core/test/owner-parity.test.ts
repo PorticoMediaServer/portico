@@ -39,10 +39,10 @@ test('moving the position bar is sent again quietly when the session moved, to t
 });
 
 test('a remembered playback problem names its title, and a bad title never drops the row', () => {
-  const memory = parsePlaybackFailureMemory({more: false, items: [
-    {sourceId: 'a1', engine: 'native', route: 'original', code: 'decode_error', detail: '', reportedAtMs: 2, expiresAtMs: 9, itemId: 'm1', title: 'Arrival', kind: 'movie'},
-    {sourceId: 'a1', engine: 'mpv', route: 'copy_remux', code: 'decode_error', detail: '', reportedAtMs: 1, expiresAtMs: 8},
-    {sourceId: 'b2', engine: 'native', route: 'original', code: 'x', detail: '', reportedAtMs: 3, expiresAtMs: 9, itemId: 7, title: 'Bad'},
+  const at = (n: number) => new Date(n * 1000).toISOString(), wire = {deviceName: 'TV', fileName: 'Arrival.mkv', code: 'decode_error', expiresAt: at(9)};
+  const memory = parsePlaybackFailureMemory({items: [
+    {...wire, id: 'a1', player: 'native', route: 'original', failedAt: at(2), itemId: 'm1', title: 'Arrival'},
+    {...wire, id: 'b2', player: 'native', route: 'original', failedAt: at(3), itemId: 7, title: 'Bad'},
   ]});
   const groups = groupPlaybackFailures(memory.items);
   assert.deepEqual(groups.map(g => [g.sourceId, g.item?.title]), [['b2', undefined], ['a1', 'Arrival']]);
