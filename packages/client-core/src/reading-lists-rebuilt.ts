@@ -7,7 +7,7 @@
  * - The library's titles: `GET /v1/items?library=&kind=book,comic,issue`, by title.
  * - Recently added: the same, by date added.
  * - Continue reading: the library's landing row `continue`, or Home's `continue_reading`.
- * - A series' volumes: `GET /v1/items?parent=`, in volume order.
+ * - A series' volumes: `GET /v1/items?series=`, in volume order: a book series and a comic series alike.
  *
  * A row names no version: the book's page and the reader ask the book route, which picks the
  * server's choice. A row's format is known only from a place made in it.
@@ -62,7 +62,7 @@ export async function rebuiltReadingPage(api: ServerRequester, options: Readonly
 /** A series' volumes, in volume order. */
 export async function rebuiltReadingSeries(api: ServerRequester, seriesId: string, options: Readonly<{cursor?: string; limit: number}>, signal?: AbortSignal):
   Promise<Readonly<{items: ReadingItem[]; nextCursor?: string}>> {
-  const page = await callServer(api, 'GET /v1/items', {signal, query: {parent: seriesId, sort: 'order', limit: options.limit, cursor: options.cursor}}) as ItemPage;
+  const page = await callServer(api, 'GET /v1/items', {signal, query: {series: seriesId, sort: 'order', limit: options.limit, cursor: options.cursor}}) as ItemPage;
   return {items: items(page?.items), ...(text(page?.nextCursor, 4096) ? {nextCursor: page.nextCursor} : {})};
 }
 

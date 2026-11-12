@@ -122,6 +122,6 @@ test('series collection keeps the volumes in the server\'s order and goes on fro
   await settle(() => rows.collection.itemAt(60) !== undefined && rows.collection.getSnapshot().totalIsLowerBound === false);
   assert.deepEqual([0, 1, 60].map(index => rows.collection.itemAt(index)?.id), ['unit-100', 'unit-99', 'unit-40']);
   assert.equal(rows.collection.getSnapshot().total, 62);
-  assert.ok(calls.every(url => url.pathname === '/v1/items' && url.searchParams.get('parent') === 'itm_series' && url.searchParams.get('sort') === 'order'));
+  assert.ok(calls.every(url => url.pathname === '/v1/items' && url.searchParams.get('series') === 'itm_series' && url.searchParams.get('sort') === 'order'));
   assert.equal(calls[0].searchParams.has('cursor'), false); assert.equal(calls[1].searchParams.get('cursor'), 'more');
 });
