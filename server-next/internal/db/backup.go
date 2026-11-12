@@ -109,6 +109,14 @@ func (d *DB) ConfirmRestore(ctx context.Context, p PasswordProof, backupID strin
 	return err
 }
 
+// RecordRestore records in the activity record a restore whose owner was proven some other
+// way than a password: by their Portico Account's fresh approval.
+func (d *DB) RecordRestore(ctx context.Context, actorID int64, backupID string, now time.Time) error {
+	return d.write(ctx, User, func(tx *sql.Tx) error {
+		return audit(tx, actorID, "backup.restore", backupID, "staged; made at the next start", now)
+	})
+}
+
 // EndEverySignIn ends every sign-in, after a restore: the restored database's sessions are
 // sign-ins from before it. API keys and personal tokens are not sign-ins and keep working.
 func (d *DB) EndEverySignIn(ctx context.Context, now time.Time) error {

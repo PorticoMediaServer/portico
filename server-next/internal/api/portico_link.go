@@ -774,36 +774,44 @@ func errLocalSignIn() *Error {
 // Account that owns the standing link can approve it: the owner's sign-in alone never hands
 // the server to another account.
 func (s *Server) porticoLinkFinish(r *http.Request, req PorticoLinkFinish) (PorticoLinkState, error) {
+	if err := s.porticoRelink(r, req.Approval); err != nil {
+		return PorticoLinkState{}, err
+	}
+	return s.porticoLinkState(r, None{})
+}
+
+// porticoRelink checks an approval that came back and makes the new link from it.
+func (s *Server) porticoRelink(r *http.Request, approval string) error {
 	ctx, now := r.Context(), s.now()
-	if req.Approval == "" || len(req.Approval) > 8192 {
-		return PorticoLinkState{}, ErrField("approval", "Send the approval exactly as it came back.")
+	if approval == "" || len(approval) > 8192 {
+		return ErrField("approval", "Send the approval exactly as it came back.")
 	}
 	if _, linked, err := s.db.Link(ctx); err != nil {
-		return PorticoLinkState{}, err
+		return err
 	} else if !linked {
-		return PorticoLinkState{}, errLocalSignIn()
+		return errLocalSignIn()
 	}
-	decision, err := s.hosted.FinishApproval(ctx, s.id, req.Approval)
+	decision, err := s.hosted.FinishApproval(ctx, s.id, approval)
 	if err == nil && decision.Purpose != hosted.PurposeSwitch {
 		err = hosted.ErrDeclined
 	}
 	if err != nil {
-		return PorticoLinkState{}, porticoError(err)
+		return porticoError(err)
 	}
 	err = s.db.LinkServer(ctx, db.NewLink{OwnerID: CallerFrom(ctx).UserID, AccountID: decision.Account.ID, IssuedAt: decision.IssuedAt, Now: now})
 	switch {
 	case errors.Is(err, db.ErrNotLinkOwner), errors.Is(err, db.ErrConflict):
-		return PorticoLinkState{}, refusal(http.StatusForbidden, "not_the_linked_account",
+		return refusal(http.StatusForbidden, "not_the_linked_account",
 			"This server belongs to another Portico Account. Approve with the Portico Account that owns it.", false)
 	case errors.Is(err, db.ErrStaleApproval):
-		return PorticoLinkState{}, porticoError(hosted.ErrDeclined)
+		return porticoError(hosted.ErrDeclined)
 	case errors.Is(err, db.ErrNotPermitted):
-		return PorticoLinkState{}, ErrNotPermitted()
+		return ErrNotPermitted()
 	case err != nil:
-		return PorticoLinkState{}, err
+		return err
 	}
 	s.porticoWake()
-	return s.porticoLinkState(r, None{})
+	return nil
 }
 
 // porticoApprovalPoll says whether an approval this server started has been given, for a

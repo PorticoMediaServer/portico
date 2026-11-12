@@ -12,7 +12,9 @@ import (
 
 // Restore and restart. Restoring checks a backup whole and unpacks it to be made at the next
 // start; the server restarts, everyone signs in again, and keys and tokens in the backup work
-// again, including any revoked since it was made. A restore needs the owner's password again.
+// again, including any revoked since it was made. A restore needs the owner's password again,
+// or, on a server linked to a Portico Account, where the owner has no password, a fresh
+// approval from that account.
 
 // BackupRestore names the backup to restore and proves it is the owner asking.
 type BackupRestore struct {
@@ -20,6 +22,10 @@ type BackupRestore struct {
 	CurrentPassword string `json:"currentPassword"`
 	// Code is the authenticator or recovery code, for an owner with two-step sign-in.
 	Code string `json:"code,omitempty"`
+	// Approval, on a server that uses Portico Accounts, takes the password's place: a fresh
+	// approval by the Portico Account that owns the server, started with
+	// POST /v1/admin/portico/link and brought back here instead of to its finish.
+	Approval string `json:"approval,omitempty"`
 	// NotMadeHereConfirmed says the owner was warned that this backup was not made by this
 	// server, or was changed since, and typed the confirmation. Without it such a backup is
 	// refused with 409 backup_not_made_here and the warning.
@@ -80,16 +86,28 @@ func (s *Server) restoreRoutes() {
 		if !req.NotMadeHereConfirmed && !backup.MadeHere(s.backups.DataDir, archive) {
 			return RestoreStaged{}, s.notMadeHere()
 		}
-		proof, err := s.passwordProof(r, req.CurrentPassword, req.Code)
-		if err != nil {
-			return RestoreStaged{}, proofError(err)
-		}
-		if err := s.db.ConfirmRestore(r.Context(), proof, name, s.now()); err != nil {
-			return RestoreStaged{}, proofError(err)
+		if _, linked, err := s.db.Link(r.Context()); err != nil {
+			return RestoreStaged{}, err
+		} else if linked {
+			// The owner of a Portico Accounts server has no password here to ask for.
+			if err := s.porticoOwnerApproved(r, req.Approval); err != nil {
+				return RestoreStaged{}, err
+			}
+			if err := s.db.RecordRestore(r.Context(), CallerFrom(r.Context()).UserID, name, s.now()); err != nil {
+				return RestoreStaged{}, err
+			}
+		} else {
+			proof, err := s.passwordProof(r, req.CurrentPassword, req.Code)
+			if err != nil {
+				return RestoreStaged{}, proofError(err)
+			}
+			if err := s.db.ConfirmRestore(r.Context(), proof, name, s.now()); err != nil {
+				return RestoreStaged{}, proofError(err)
+			}
 		}
 		// Unpacked once; the database that will be put in place is the one checked, and its
 		// mark is checked over the very bytes unpacked.
-		err = backup.Stage(r.Context(), archive, s.backups.DataDir, name, s.now(), req.NotMadeHereConfirmed)
+		err := backup.Stage(r.Context(), archive, s.backups.DataDir, name, s.now(), req.NotMadeHereConfirmed)
 		if errors.Is(err, backup.ErrNotMadeHere) {
 			return RestoreStaged{}, s.notMadeHere()
 		}
