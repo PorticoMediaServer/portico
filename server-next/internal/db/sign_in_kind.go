@@ -440,7 +440,8 @@ type MoveToPortico struct {
 	UserID      int64
 	CheckedHash string
 	// Ticketed is a move ticket for UserID, already spent: its old password was proved when the
-	// ticket was made, so there is no hash to compare, and the move's own window still applies.
+	// ticket was made, and CheckedHash is then the ticket's PasswordMark, so a password changed
+	// since voids it. The move's own window still applies.
 	Ticketed bool
 	// PorticoAccountID and Username are the Portico Account's; the username is taken when no
 	// other account here has it, and the person's old one kept otherwise.
@@ -480,7 +481,8 @@ func (d *DB) CompleteMoveToPortico(ctx context.Context, m MoveToPortico) (Sessio
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				return err
 			}
-			if err != nil || !hash.Valid || !m.Ticketed && hash.String != m.CheckedHash || !moving || move.To != "portico" || m.Now.Sub(move.At) >= OldPasswordWorks {
+			stands := hash.Valid && (m.Ticketed && PasswordMark(hash.String) == m.CheckedHash || !m.Ticketed && hash.String == m.CheckedHash)
+			if err != nil || !stands || !moving || move.To != "portico" || m.Now.Sub(move.At) >= OldPasswordWorks {
 				refused = ErrBadCredentials
 				return limitFail(tx, m.Now, m.Limits)
 			}

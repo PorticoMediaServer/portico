@@ -147,3 +147,35 @@ func memberStateByName(t *testing.T, s *Server, username string) string {
 	}
 	return account.State
 }
+
+// The page finishing a move asks the server whose ticket it holds before asking anything of the
+// person, so a link can never put words in its mouth; asking spends nothing.
+func TestAMoveTicketNamesItsAccountWithoutBeingSpent(t *testing.T) {
+	s, fake := switchedToPortico(t)
+	fake.decision = hosted.Decision{Account: hosted.Account{ID: "pa_2", Username: "sammy"}}
+	ticket := moveTicket(t, s, "sam")
+	var peek MoveTicket
+	if w := call(t, s, "POST", "/v1/auth/move/ticket", "", MoveTicketRequest{Ticket: ticket}, &peek); w.Code != 200 || peek.Username != "sam" ||
+		peek.ExpiresAt.Sub(time.Now().Add(moveTicketLasts)).Abs() > time.Minute {
+		t.Fatalf("peeking at sam's ticket answered %d: %s", w.Code, w.Body)
+	}
+	if body := call(t, s, "POST", "/v1/auth/move/ticket", "", MoveTicketRequest{Ticket: ticket}, nil).Body.String(); strings.Contains(body, "acc_") || strings.Contains(body, "role") {
+		t.Fatalf("the peek says more than the username and its end: %s", body)
+	}
+	// Alex's ticket names alex, whoever holds it.
+	alex := moveTicket(t, s, "alex")
+	call(t, s, "POST", "/v1/auth/move/ticket", "", MoveTicketRequest{Ticket: alex}, &peek)
+	if peek.Username != "alex" {
+		t.Fatalf("alex's ticket was named %q", peek.Username)
+	}
+	// Peeking spent nothing: the ticket still finishes the move.
+	if w := call(t, s, "POST", "/v1/auth/move/complete", "", withTicket(t, s, ticket), nil); w.Code != 200 {
+		t.Fatalf("moving after a peek answered %d: %s", w.Code, w.Body)
+	}
+	// A wrong or used ticket is a wrong guess, and says nothing.
+	for _, bad := range []string{"", "not-a-ticket", ticket} {
+		if code := status(t, s, "POST", "/v1/auth/move/ticket", "", MoveTicketRequest{Ticket: bad}); code != 401 {
+			t.Fatalf("peeking at %q answered %d, want 401", bad, code)
+		}
+	}
+}
