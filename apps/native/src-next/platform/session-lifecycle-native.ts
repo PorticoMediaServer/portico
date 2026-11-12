@@ -125,7 +125,12 @@ export class NativeProfileGated extends Error {
 }
 /** The shell ended because a renewal put this sign-in on another profile, or on none (renewalMovedProfile): Who's watching opens. */
 export class NativeProfileMoved extends Error {
-  constructor() {super('native_profile_moved'); this.name = 'NativeProfileMoved';}
+  /** The profile the sign-in is on now (empty when none), for the lifecycle to hold. */
+  readonly viewer: Readonly<{accountId: string; profileId: string; role: string; familyId: string}>;
+  constructor(renewed: LocalSession) {
+    super('native_profile_moved'); this.name = 'NativeProfileMoved';
+    this.viewer = Object.freeze({accountId: renewed.viewer.accountId, profileId: renewed.viewer.profileId, role: renewed.viewer.role, familyId: renewed.sessionFamilyId});
+  }
 }
 export const nativeProfileGated = (error: unknown): boolean => (error as {code?: unknown} | null)?.code === 'profile_pin_reentry';
 /** A renewal for this same sign-in (family, server, account) that the server put on another profile, or on none: a switch

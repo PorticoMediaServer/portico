@@ -227,9 +227,9 @@ const cases: readonly Case[] = [
   {name: 'row 24: a profile missing from the list still gets a PIN screen', row: 24,
     from: snap(ready({viewer: viewer('gone'), remembered: true})), event: {type: 'gated'},
     state: {kind: 'enteringPin', reason: 'reentry', profile: {id: 'gone', pinRequired: true}}, effects: [fence, clear(), connectS1]},
-  {name: 'row 41: ready, a renewal on another profile → Who\'s watching on the open profile, shell fenced, no PIN asked and no way back', row: 41,
-    from: snap(ready({remembered: true})), event: {type: 'profileMoved'},
-    state: {kind: 'choosingProfile', focus: 'main', switching: false, viewer: viewer()}, effects: [fence, connectS1]},
+  {name: 'row 41: ready, a renewal on another profile → connecting, holding the profile the sign-in is now on, shell fenced, read again', row: 41,
+    from: snap(ready({remembered: true})), event: {type: 'profileMoved', viewer: viewer('kid')},
+    state: {kind: 'connecting', held: {viewer: viewer('kid'), remembered: false}}, effects: [fence, connectS1], advances: true},
   {name: 'row 25: ready, refresh refused → signInEnded, shell fenced', row: 25, from: snap(ready()), event: {type: 'signInEnded', username: 'justin'},
     state: {kind: 'signInEnded', username: 'justin'}, effects: [fence], advances: true},
   {name: 'row 25: also from the picker', row: 25, from: snap(choosing()), event: {type: 'signInEnded', username: 'justin'}, state: {kind: 'signInEnded'}, effects: [fence], advances: true},
@@ -479,7 +479,7 @@ test('generation advances on a change of server, account, profile or sign-in and
   const advanced = cases.filter(c => c.advances).map(c => c.row);
   const holds = cases.filter(c => !c.advances).map(c => c.row);
   // Rows that move authority at least once…
-  for (const row of [4, 5, 11, 16, 19, 25, 26, 29, 31, 33, 34, 35]) assert.ok(advanced.includes(row), `row ${row} advances`);
+  for (const row of [4, 5, 11, 16, 19, 25, 26, 29, 31, 33, 34, 35, 41]) assert.ok(advanced.includes(row), `row ${row} advances`);
   // …and rows that must never.
   for (const row of [0, 1, 2, 3, 7, 8, 9, 10, 12, 13, 14, 15, 17, 18, 20, 21, 23, 24, 27, 30, 32]) {
     assert.ok(holds.includes(row), `row ${row} has a case`);
@@ -797,4 +797,36 @@ test('Forget remembered profile applies only while the open profile is remembere
 
 test('a markerForgotten with nothing asking for it is ignored', () => {
   assert.equal(nextLifecycle(snap(ready({remembered: true})), {type: 'markerForgotten'}), undefined);
+});
+
+test('after profileMoved the lifecycle holds the profile the sign-in is on: a tap on the one that was open sends a select (desk B on #3053)', () => {
+  const owner: PickerProfile = {id: 'owner', name: 'Owner', primary: true, pinRequired: false};
+  const kids: PickerProfile = {id: 'kids', name: 'Kids', primary: false, pinRequired: false};
+  const gone: PickerProfile = {id: 'gone', name: 'Gone', primary: false, pinRequired: false};
+  const open = ready({viewer: viewer('owner'), profiles: [owner, kids, gone], canRemember: false});
+  const moved = nextLifecycle(snap(open), {type: 'profileMoved', viewer: viewer('kids')})!;
+  assert.equal(moved.snapshot.state.kind, 'connecting');
+  // The server is read again: a profile taken away meanwhile is not drawn.
+  const shown = nextLifecycle(moved.snapshot, {type: 'connected', facts: facts([owner, kids], false)})!;
+  const picker = shown.snapshot.state;
+  assert.equal(picker.kind, 'choosingProfile');
+  assert.equal(picker.kind === 'choosingProfile' && picker.viewer.profileId, 'kids', 'the profile the sign-in is now on');
+  assert.equal(picker.kind === 'choosingProfile' && picker.focus, 'kids');
+  assert.deepEqual(picker.kind === 'choosingProfile' && picker.profiles.map(value => value.id), ['owner', 'kids']);
+  assert.equal(shown.snapshot.generation, 8, 'the renewed profile replaces the old authority');
+  // The profile that was open is no longer the sign-in's: choosing it is sent to the server.
+  const back = nextLifecycle(shown.snapshot, {type: 'profileTapped', profileId: 'owner'})!;
+  assert.notEqual(back.snapshot.state.kind, 'ready');
+  assert.ok(back.effects.some(effect => effect.kind === 'select' && effect.profileId === 'owner'), 'the choice is sent to the server');
+  // The profile the sign-in is on, with no PIN: it opens with no request (row 15).
+  const stay = nextLifecycle(shown.snapshot, {type: 'profileTapped', profileId: 'kids'})!;
+  assert.equal(stay.snapshot.state.kind, 'ready');
+  assert.equal(stay.snapshot.state.kind === 'ready' && stay.snapshot.state.viewer.profileId, 'kids');
+  assert.deepEqual(stay.effects, []);
+});
+
+test('profileMoved for another account or another sign-in is ignored', () => {
+  const open = ready();
+  assert.equal(nextLifecycle(snap(open), {type: 'profileMoved', viewer: {...viewer('kid'), accountId: 'other'}}), undefined);
+  assert.equal(nextLifecycle(snap(open), {type: 'profileMoved', viewer: viewer('kid', 'other-family')}), undefined);
 });
