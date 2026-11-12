@@ -1,7 +1,7 @@
 import test from 'node:test';
 import {accountAnswer, accountPath} from '../../packages/client-core/test/next-wire.ts';
 import assert from 'node:assert/strict';
-import {ShellBootstrap, followsStoredSignIn, type ShellAssembler} from '../src/shell/bootstrap.ts';
+import {ShellBootstrap, followsStoredSignIn, sameShellAuthority, type ShellAssembler} from '../src/shell/bootstrap.ts';
 import type {SelectedViewerRecord} from '@core/viewer-selection.ts';
 
 class TabStorage {values = new Map<string, string>(); getItem(k: string) {return this.values.get(k) ?? null;} setItem(k: string, v: string) {this.values.set(k, v);} removeItem(k: string) {this.values.delete(k);}}
@@ -109,6 +109,21 @@ test('another tab choosing a different profile sends this tab to Who\'s watching
   assert.equal(next.bootstrap.getSnapshot().focus, 'alex', 'Who\'s watching starts on the profile this tab had open');
   assert.equal(next.disposed(), 1, 'the route to the other profile\'s sign-in is released');
   assert.equal(gate.tabAdmits({serverId: 'server-a', familyId: 'family-b', profileId: 'parent'}), false, 'still not admitted: the pick (and its PIN) comes first');
+  next.bootstrap.dispose();
+});
+
+test('a renewal mid-run onto another profile of this same sign-in restarts the tab, and the restart opens Who\'s watching (desk B on #3018)', async () => {
+  gate.resetTabSessionGate(); tab.values.clear();
+  const first = launch(() => direct([profile('alex', false, true)]));
+  await first.bootstrap.start();
+  first.bootstrap.dispose();
+  // The same family renewed onto "parent" (a switch whose answer this tab never got): onRotated restarts on a new authority.
+  const parent = {...session, accessToken: 'renewed', tokenGeneration: '2', viewer: {...session.viewer, profileId: 'parent'}};
+  assert.equal(sameShellAuthority(session as never, parent as never), false);
+  const next = launch(() => direct([profile('parent', true, true), profile('alex', false)]), parent);
+  await next.bootstrap.start();
+  assert.equal(next.bootstrap.getSnapshot().phase, 'choose-profile', 'the old profile\'s screens end and Who\'s watching opens');
+  assert.equal(next.bootstrap.getSnapshot().focus, 'alex');
   next.bootstrap.dispose();
 });
 

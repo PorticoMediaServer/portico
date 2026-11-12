@@ -89,8 +89,9 @@ async function fixture(options: Options = {}) {
     './server-display': {readNativeServerDisplays: async () => []}, './session-revocation': {drainRevocations: async () => 0, revokeInBackground: async () => {}},
     './sign-in-ended': signInEnded, './stale-routes': {purgeStaleRoutes: (value: unknown) => value},
   };
-  const {createNativeLifecyclePorts} = await screenModule(new URL('../src-next/platform/session-lifecycle-native.ts', import.meta.url), modules) as
+  const loaded = await screenModule(new URL('../src-next/platform/session-lifecycle-native.ts', import.meta.url), modules) as
     typeof import('../src-next/platform/session-lifecycle-native.ts');
+  const {createNativeLifecyclePorts} = loaded;
   const hint = 'hint' in options ? options.hint : {serverId: 'a', accountId: 'membership-a', familyId: 'family-a', fingerprint: 'fingerprint-a', origin: 'https://a.test',
     serverName: 'Home', username: 'justin', signIn: 'local'};
   const ports = createNativeLifecyclePorts({
@@ -136,7 +137,7 @@ async function fixture(options: Options = {}) {
     } as any,
     now: () => Date.parse('2026-10-31T12:00:00Z'), note: line => {notes.push(line);},
   });
-  return {ports, sessions, store: () => structuredClone(record!), entry, apis, selectArgs, remembers, revokes, issuedLogouts, signOuts, forgets, downloads, drains,
+  return {loaded, ports, sessions, store: () => structuredClone(record!), entry, apis, selectArgs, remembers, revokes, issuedLogouts, signOuts, forgets, downloads, drains,
     fences, log, notes, scheduler, listeners, setRecord: (value: AppSessionRecord) => {record = value;}};
 }
 
@@ -507,4 +508,15 @@ test('a PIN profile is remembered only after a correct PIN: not on the pick, a w
   assert.equal(life.getSnapshot().state.kind, 'ready');
   assert.deepEqual(fx.entry()!.remembered, {profileId: 'p1', familyId: 'family-new', expiresAt: FUTURE});
   life.dispose(); fx.ports.releaseConnection();
+});
+
+test('a renewal on another profile of the same sign-in ends the running shell as a PIN changed elsewhere does (Who\'s watching)', async () => {
+  // desk B on #3018: a switch that reached the server while this app thought it failed must not leave the old profile's screens up.
+  const {loaded} = await fixture();
+  const held = server('a', 'p1').connection.session;
+  assert.equal(loaded.renewalMovedProfile(held, {...held, accessToken: 'renewed', viewer: {...held.viewer, profileId: 'p2'}}), true);
+  assert.equal(loaded.renewalMovedProfile(held, {...held, accessToken: 'renewed', viewer: {...held.viewer, profileId: ''}}), true, 'the profile taken away');
+  assert.equal(loaded.renewalMovedProfile(held, {...held, accessToken: 'renewed'}), false, 'an ordinary renewal');
+  assert.equal(loaded.renewalMovedProfile(held, {...held, viewer: {...held.viewer, accountId: 'other', profileId: 'p2'}}), false, 'another account is not a moved profile');
+  assert.equal(loaded.renewalMovedProfile(held, {...held, sessionFamilyId: 'other', viewer: {...held.viewer, profileId: 'p2'}}), false, 'another sign-in is not a moved profile');
 });

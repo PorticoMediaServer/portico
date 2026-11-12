@@ -124,6 +124,11 @@ export class NativeProfileGated extends Error {
   constructor() {super('native_profile_gated'); this.name = 'NativeProfileGated';}
 }
 export const nativeProfileGated = (error: unknown): boolean => (error as {code?: unknown} | null)?.code === 'profile_pin_reentry';
+/** A renewal for this same sign-in (family, server, account) that the server put on another profile, or on none: a switch
+ * whose answer this app never got, or the profile taken away. The running shell must not keep showing the old profile's
+ * screens while every request is answered for the new one: it ends as a PIN changed elsewhere does, and Who's watching opens. */
+export const renewalMovedProfile = (held: LocalSession, renewed: LocalSession): boolean => held.sessionFamilyId === renewed.sessionFamilyId
+  && (['serverId', 'accountId', 'authority'] as const).every(key => held.viewer[key] === renewed.viewer[key]) && held.viewer.profileId !== renewed.viewer.profileId;
 
 const cancelled = () => Object.assign(new Error('native_session_lifecycle_cancelled'), {name: 'AbortError', code: 'cancelled'});
 // CC-03: the server may change this account's role; it is reconciled into the session, so it is not another viewer.
