@@ -216,11 +216,15 @@ test('Activity explicitly notifies its admitted source and redraws the name with
     getSnapshot = () => this.state;subscribe = () => () => {};setActive() {}attach() {}async load() {loads++;}async retry() {}keepFresh() {return () => {};}dispose() {this.off();}
   }
   const module = await componentModule(new URL('../src/shell/Activity.tsx', import.meta.url), {react: h.react, './fact-source': {subscribeFacts}, './fact-hooks': hooks,
-    '@core/admin/activity-summary/index.ts': {ActivitySummaryService: Activity, ACTIVITY_OPEN_READ_MS: 5000, ACTIVITY_GLANCE_READ_MS: 30000}, '../kit/shell': {TopBarActivity: 'TopBarActivity'}, './activity-model': {activityPanelView: (_state: unknown, serverName: string) => ({serverName})}});
-  const owner = module.createOwnerActivity(f.context, {}, () => {}, () => {}, () => {});
+    '@core/admin/activity-summary/index.ts': {ActivitySummaryService: Activity, ACTIVITY_OPEN_READ_MS: 5000, ACTIVITY_GLANCE_READ_MS: 30000}, '../kit/shell': {TopBarActivity: 'TopBarActivity'}, './activity-model': {activityPanelView: (_state: unknown, serverName: string, _time: unknown, actions: object) => ({serverName, ...actions})}});
+  let dashboards = 0;
+  const owner = module.createOwnerActivity(f.context, {}, () => {dashboards++;}, () => {}, () => {});
   const draw = () => tree(h.render(() => h.react.createElement(owner.OwnerActivity, {})));
   try {
     draw();assert.equal(loads, 1);assert.ok(lastSource);f.rename();assert.equal(sourceChanges, 1);assert.equal(one(draw(), 'TopBarActivity').props.view.serverName, 'Renamed server');assert.equal(constructed, 1);assert.equal(loads, 1);
+    // A row that goes somewhere closes the popover, which is modal and would otherwise cover the page it opened.
+    let bar = one(draw(), 'TopBarActivity');bar.props.onOpenChange(true);bar = one(draw(), 'TopBarActivity');assert.equal(bar.props.open, true);
+    bar.props.view.onDashboard();assert.equal(one(draw(), 'TopBarActivity').props.open, false);assert.equal(dashboards, 1);
     f.source.update({identity: {...f.context.facts.identity, capabilities: {manageServer: false} as never}});assert.equal(lastSource, null);
   } finally {h.dispose();owner.dispose();f.source.dispose();}
 });

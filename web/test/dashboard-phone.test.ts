@@ -137,3 +137,18 @@ test('the phone page header draws only the facts the server returned and offers 
   assert.match(html, /aria-label="Back"[^>]*><svg/);
   assert.doesNotMatch(html, /Database/);
 });
+
+
+test('desktop and phone keep unknown alerts and non-fixable data-folder explanations visible without actions', () => {
+  for (const phone of [false, true]) {
+    Object.assign(state, {authority: true, value: {...readValue, ...page, alerts: [
+      {code: 'future_alert', severity: 'major', major: true, params: {message: 'A new server problem.'}, action: {kind: 'storage', target: ''}},
+      {code: 'data_folder_readable', severity: 'major', major: true, params: {message: 'Move the data folder to another drive.', reason: 'not_kept_here'}, action: {kind: 'none', target: ''}},
+    ]}});
+    const html = renderToStaticMarkup(createElement(DashboardScreen, {bindings: bindings() as never, phone}));
+    assert.match(html, /A new server problem\./);
+    assert.match(html, /Other accounts can read the data folder/);
+    assert.match(html, /Move the data folder to another drive\./);
+    assert.doesNotMatch(html, /not_kept_here|>Troubleshooting<|>Storage &amp; backups<|>Fix permissions</);
+  }
+});

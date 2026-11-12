@@ -1,4 +1,4 @@
-import {useCallback, useLayoutEffect, useState, useSyncExternalStore} from 'react';
+import {useCallback, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
 import type {DashboardBindings} from './bindings';
 import {readDashboardAccounts} from './pages';
 export type ReadState<T> = Readonly<{value?: T; loading: boolean; failed: boolean}>;
@@ -9,10 +9,13 @@ const accountChanges = ['playback.history', 'stream.resync'];
  * a held old response cannot publish or report through the passive-cleanup gap. */
 export function useDashboardRead<T>(bindings: DashboardBindings, load: (signal: AbortSignal, fresh: boolean) => Promise<T>, enabled: boolean, everyMs = 0, changes: readonly string[] = defaultChanges) {
   const [version, setVersion] = useState(0), [state, setState] = useState<ReadState<T> & {loader?: typeof load}>({loading: true, failed: false});
-  const refresh = useCallback(() => setVersion(v => v + 1), []);
+  // A refresh follows an action (Fix permissions, Retry): its read asks the server, never the held copy from before the action.
+  const forced = useRef(false);
+  const refresh = useCallback(() => {forced.current = true; setVersion(v => v + 1);}, []);
   useLayoutEffect(() => {
     if (!enabled || !bindings.isCurrent()) return;
-    const controller = new AbortController(); let flight: Promise<void> | undefined, queued = false, lastError: unknown, first = true;
+    const controller = new AbortController(); let flight: Promise<void> | undefined, queued = false, lastError: unknown, first = !forced.current;
+    forced.current = false;
     setState(previous => previous.loader === load ? {...previous, loading: true, failed: false} : {loader: load, loading: true, failed: false});
     const read = (): Promise<void> => {
       if (flight) {queued = true; return flight;}

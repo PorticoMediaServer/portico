@@ -247,3 +247,16 @@ test('stopping a stream that has already ended is not an error', async () => {
   const b = createDashboardBindings(options({api: {...options().api, request: async (_path, method) => {if (method === 'DELETE') throw {status: 404, code: 'not_found'}; return {items: []} as never;}}}));
   await b.effects.stop('gone'); b.dispose();
 });
+
+
+test('only a current owner may fix data-folder permissions through the shared command', async () => {
+  const calls: unknown[] = [];
+  const b = createDashboardBindings(options({api: {...options().api, request: async (path, method) => {calls.push([path, method]); return {path: '/srv/portico', owner: 'portico', account: 'portico', readableByOthers: false, fixable: false, checked: true} as never;}}}));
+  await b.effects.fixPermissions!();
+  assert.deepEqual(calls, [['/v1/admin/data-folder/permissions/fix', 'POST']]);
+  b.dispose();
+  await assert.rejects(() => b.effects.fixPermissions!());
+  const admin = createDashboardBindings(options({role: 'admin'}));
+  await assert.rejects(() => admin.effects.fixPermissions!());
+  admin.dispose();
+});
