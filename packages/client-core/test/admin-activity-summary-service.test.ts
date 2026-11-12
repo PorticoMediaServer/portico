@@ -41,6 +41,8 @@ class Feed {
   onResync(fn: () => void) {this.resync.add(fn); return () => {this.resync.delete(fn);};}
   emit(type: string) {for (const fn of [...this.listeners.get(type) ?? []]) fn({id: 'event', type, revision: '1'});}
   count() {return [...this.listeners.values()].reduce((n, s) => n + s.size, this.resync.size);}
+  connected = false;
+  getStatus = () => ({mode: 'stream' as const, connected: this.connected, failures: 0});
 }
 function harness(handler: (request: V1Request, index: number) => V1Response | Promise<V1Response> = () => ok(), initial: ActivitySummaryScope | null = scope) {
   const requests: V1Request[] = [], clock = new Clock(), feed = new Feed();
@@ -120,6 +122,15 @@ test('the rebuilt server sends no change for the summary: a held one is read aga
   const refused = harness((_r, n) => n === 1 ? ok() : {status: 403, headers: {}, body: {error: {code: 'forbidden', message: 'x'}}}); refused.activate(); await refused.service.load();
   refused.service.keepFresh(5000); await refused.clock.advance(5000); await refused.clock.advance(20_000);
   assert.equal(refused.requests.length, 2, 'a refused read stops the rereading'); refused.service.dispose();
+});
+test('the server\'s activity change reads the summary again, and the slow fallback reads only while the change feed is not connected', async () => {
+  const h = harness(); h.activate(); await h.service.load(); assert.equal(h.requests.length, 1);
+  h.feed.connected = true;
+  const stop = h.service.keepFresh(30_000);
+  await h.clock.advance(90_000); assert.equal(h.requests.length, 1, 'connected: the timer sends nothing');
+  h.feed.emit('admin.sessions'); await h.clock.advance(1000); assert.equal(h.requests.length, 2, 'the activity change (admin.sessions) reads it');
+  h.feed.connected = false; await h.clock.advance(30_000); assert.equal(h.requests.length, 3, 'feed down: the fallback reads');
+  stop(); h.service.dispose();
 });
 test('observation revisions compare all nanoseconds and never replace a newer summary with an older completion', async () => {
   const h = harness((_r, n) => ok(wire({observedAt: n === 1 ? '2026-10-22T07:00:00.000000002Z' : '2026-10-22T07:00:00.000000001Z'})));

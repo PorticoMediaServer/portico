@@ -2,7 +2,7 @@ import {routePath} from '../../../../contracts/src/route-paths.ts';
 import {utcOrderKey} from '../../local-session.ts';
 import {call} from '../../playback-v1/http.ts';
 import type {EventsClient} from '../../playback-v1/events.ts';
-type ActivityEvents = Pick<EventsClient, 'on' | 'onResync'> & Partial<Pick<EventsClient, 'resyncReads' | 'onResyncRead'>>;
+type ActivityEvents = Pick<EventsClient, 'on' | 'onResync'> & Partial<Pick<EventsClient, 'resyncReads' | 'onResyncRead' | 'getStatus'>>;
 import {parseActivitySummary,parseDashboardSessions} from './parser.ts';
 import {dependsOn} from '../../freshness-hub.ts';
 import {queryKeys} from '../../query/keys.ts';
@@ -11,9 +11,9 @@ import type {ViewerQueries} from '../../query/viewer-queries.ts';
 import type {ViewerQueryOptions} from '../../query/react.ts';
 import type {DashboardSessionsSnapshot, ActivitySummaryErrorCode, ActivitySummarySnapshot, ActivitySummarySource, ActivitySummarySourceStore, ActivitySummaryTimers, OwnerActivitySummary} from './types.ts';
 
-/** How often the owner's summary is read again on the rebuilt server, which sends no change for it: while the popover
- * is open, and otherwise while its glyph shows. */
-export const ACTIVITY_OPEN_READ_MS = 5_000, ACTIVITY_GLANCE_READ_MS = 30_000;
+/** The owner's summary reads again on the server's `activity` change (mapped onto `admin.sessions`, server-next #3060).
+ * Only while the change feed is not connected is it read again on a slow timer instead. */
+export const ACTIVITY_FALLBACK_READ_MS = 30_000;
 const hintTypes = ['admin.sessions', 'library.scan.updated', 'job.updated', 'operation.updated', 'server.updated', 'list.changed'] as const;
 /** What the owner's summary is built from: the same hints that make the service read it again. */
 const summaryMoved = hintTypes.map(type => dependsOn.event(type));
@@ -143,14 +143,15 @@ export class ActivitySummaryService {
   load = (): Promise<void> => this.read(undefined, false);
   /** Always asks the server. */
   retry = (): Promise<void> => this.read(undefined, true);
-  /** The rebuilt server's change feed carries nothing for streams, scans or tasks, so a held summary is read again
-   * every `everyMs` (when `when` allows: the web skips a hidden tab) until the returned stop. A read already on its
-   * way is shared, a refused one stops it, and a read never stacks on another. */
+  /** The fallback for a summary held while the change feed is not connected: it is read again every `everyMs` (when
+   * `when` allows: the web skips a hidden tab, the phones a backgrounded app) until the returned stop. While the feed is
+   * connected its `activity` change reads it instead, so the timer sends nothing. A read already on its way is shared,
+   * a refused one stops it, and a read never stacks on another. */
   keepFresh(everyMs: number, when: () => boolean = () => true): () => void {
     let timer: unknown, stopped = false;
     const next = () => {
       if (stopped || this.disposed || this.blocked) return;
-      timer = this.timers.setTimer(() => {timer = undefined; if (stopped) return; void (when() ? this.retry() : Promise.resolve()).finally(next);}, everyMs);
+      timer = this.timers.setTimer(() => {timer = undefined; if (stopped) return; void (when() && this.readEvents?.getStatus?.().connected !== true ? this.retry() : Promise.resolve()).finally(next);}, everyMs);
     };
     next();
     return () => {stopped = true; if (timer !== undefined) this.timers.clearTimer(timer); timer = undefined;};

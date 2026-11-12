@@ -1,7 +1,7 @@
 import {subscribeFacts} from './fact-source';
 import {useShellFacts} from './fact-hooks';
 import {useEffect, useMemo, useState, useSyncExternalStore} from 'react';
-import {ACTIVITY_GLANCE_READ_MS, ACTIVITY_OPEN_READ_MS, ActivitySummaryService, type ActivitySummarySource, type ActivitySummarySourceStore} from '@core/admin/activity-summary/index.ts';
+import {ACTIVITY_FALLBACK_READ_MS, ActivitySummaryService, type ActivitySummarySource, type ActivitySummarySourceStore} from '@core/admin/activity-summary/index.ts';
 import {localV1Http} from '@core/playback-v1/local-http.ts';
 import type {TimeEnvironment} from '@core/presentation/kit-model/index.ts';
 import {TopBarActivity, type ActivityPanelView} from '../kit/shell';
@@ -35,10 +35,10 @@ export function createOwnerActivity(context: ShellAssemblyContext, time: TimeEnv
       mounted.add(service); service.setActive(true); service.attach(context.events); void service.load();
       return () => { mounted.delete(service); service.setActive(false); service.dispose(); };
     }, [service]);
-    // The rebuilt server sends no change for streams, scans or tasks: opening the popover reads now, and the summary is
-    // read again while it shows (more often while the popover is open; never in a hidden tab).
+    // The server's activity change reads the summary again; opening the popover reads it now, and only while the change
+    // feed is not connected does a slow timer read it (never in a hidden tab).
     useEffect(() => { if (open) void service.retry(); }, [service, open]);
-    useEffect(() => service.keepFresh(open ? ACTIVITY_OPEN_READ_MS : ACTIVITY_GLANCE_READ_MS, () => document.visibilityState === 'visible'), [service, open]);
+    useEffect(() => service.keepFresh(ACTIVITY_FALLBACK_READ_MS, () => document.visibilityState === 'visible'), [service]);
     const retry = () => { void service.retry(); };
     // A row that goes somewhere closes the popover first: it is modal, so left open it would cover the page it opened.
     const leave = <A extends unknown[]>(go: (...args: A) => void) => (...args: A) => {setOpen(false); go(...args);};

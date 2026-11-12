@@ -20,7 +20,7 @@ import type {FactPart} from '@core/presentation/kit-model/index.ts';
 import {storageServerHeader} from '../settings/server-header';
 import {readServerStorage} from '@core/server-admin/server-storage.ts';
 import type {ArtworkSource} from '../../kit/artwork/types';
-export type DashboardEvents = Pick<EventsClient, 'on'> & Partial<Pick<EventsClient, 'onResync' | 'onResyncRead' | 'resyncReads'>>;
+export type DashboardEvents = Pick<EventsClient, 'on'> & Partial<Pick<EventsClient, 'onResync' | 'onResyncRead' | 'resyncReads' | 'getStatus'>>;
 export type DashboardAlert = DashboardStatus['alerts'][number];
 export type DashboardSession = AdminSession & Pick<DashboardSessionsPage['items'][number], 'channel' | 'programme'>;
 export type DashboardSessions = Readonly<{items: readonly DashboardSession[]; nextCursor: string; scope: Readonly<{serverId: string; viewerFence: string}>; totals: ServerNowPlayingTotals}>;

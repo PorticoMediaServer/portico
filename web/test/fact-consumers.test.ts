@@ -216,7 +216,7 @@ test('Activity explicitly notifies its admitted source and redraws the name with
     getSnapshot = () => this.state;subscribe = () => () => {};setActive() {}attach() {}async load() {loads++;}async retry() {}keepFresh() {return () => {};}dispose() {this.off();}
   }
   const module = await componentModule(new URL('../src/shell/Activity.tsx', import.meta.url), {react: h.react, './fact-source': {subscribeFacts}, './fact-hooks': hooks,
-    '@core/admin/activity-summary/index.ts': {ActivitySummaryService: Activity, ACTIVITY_OPEN_READ_MS: 5000, ACTIVITY_GLANCE_READ_MS: 30000}, '../kit/shell': {TopBarActivity: 'TopBarActivity'}, './activity-model': {activityPanelView: (_state: unknown, serverName: string, _time: unknown, actions: object) => ({serverName, ...actions})}});
+    '@core/admin/activity-summary/index.ts': {ActivitySummaryService: Activity, ACTIVITY_FALLBACK_READ_MS: 30000}, '../kit/shell': {TopBarActivity: 'TopBarActivity'}, './activity-model': {activityPanelView: (_state: unknown, serverName: string, _time: unknown, actions: object) => ({serverName, ...actions})}});
   let dashboards = 0;
   const owner = module.createOwnerActivity(f.context, {}, () => {dashboards++;}, () => {}, () => {});
   const draw = () => tree(h.render(() => h.react.createElement(owner.OwnerActivity, {})));
