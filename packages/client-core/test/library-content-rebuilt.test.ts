@@ -285,3 +285,16 @@ test('an audiobook of several files lists its parts plainly; only the first, the
   assert.deepEqual(snap.projection?.listening?.actions, ['play', 'enqueue']);
   nav.dispose();
 });
+
+test('a several-file book shows no place, and of its whole-book chapters only the one at its start plays (a stopgap)', async () => {
+  const stream = {index: 0, kind: 'audio', codec: 'mp3', channels: 2, sampleRate: 44100};
+  const nav = service(audiobookApi({state: {positionMs: 450_000}, versions: [{id: 'v1', durationMs: 600_000, parts: [{size: 1000, streams: [stream]}, {size: 1000, streams: [stream]}],
+    markers: [{kind: 'chapter', startMs: 0, endMs: 300_000, title: 'One'}, {kind: 'chapter', startMs: 300_000, endMs: 600_000, title: 'Two'}]}]}));
+  await nav.select({libraryId: 'lib_a', view: 'book', entityId: 'bk_1'});
+  const snap = nav.getSnapshot();
+  assert.deepEqual(snap.sections.find(section => section.id === 'chapters')!.entries.map(entry => [entry.title, entry.playback]), [
+    ['One', {itemId: 'bk_1', startSeconds: 0}], ['Two', undefined]]);
+  assert.equal(snap.projection?.entity?.bookProgress, undefined, 'a place inside the first file is not shown as the book\'s');
+  assert.equal(snap.projection?.listening?.resume, undefined);
+  nav.dispose();
+});
