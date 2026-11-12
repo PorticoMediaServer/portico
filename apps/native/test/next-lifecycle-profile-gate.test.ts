@@ -250,5 +250,9 @@ test('a refused PIN\'s message stays on the PIN page: Back to Who\'s watching sh
     await g.host.rerender();
     assert.equal(g.tree().type, 'TVWho');
     assert.equal(nodes(g.tree().props.children).some(node => node?.props?.accessibilityRole === 'alert'), false, 'Who\'s watching carries no refusal');
+    await act(async () => {nodes(g.tree().props.children).find(node => node.type === 'Picker').props.onSelect('alex'); await settle();});
+    await g.host.rerender();
+    assert.equal(g.tree().type, 'TVPIN');
+    assert.equal(g.tree().props.error, undefined, 'the PIN page opened again starts with no message');
   } finally {await g.host.unmount(); g.lifecycle.dispose();}
 });

@@ -61,7 +61,8 @@ export function LifecycleProfileGate() {
   const back = () => {
     if (recovery) {recovery.controller.dispose(); setRecovery(undefined); return;}
     if (forgot) {setForgot(false); return;}
-    if (state.kind === 'enteringPin') lifecycle.otherProfiles();
+    // Leaving the PIN page forgets its refusal, so a PIN page opened again starts with no message.
+    if (state.kind === 'enteringPin') {lifecycle.actions.submitPin.reset(); lifecycle.otherProfiles();}
     else if (state.kind === 'choosingProfile' && state.switching) lifecycle.cancelSwitch();
   };
   useEffect(() => {
