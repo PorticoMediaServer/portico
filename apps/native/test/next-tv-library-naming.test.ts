@@ -9,6 +9,8 @@ import {nativeLibraryCanSave} from '../src-next/screens/library/model';
 import {NativeLibrarySaveView} from '../src-next/screens/library/save-view';
 import {createNativeTVNameInput} from '../src-next/tv/library/keyboard-state';
 import {screenModule} from './helpers/screen-harness.mjs';
+// The Save view sheet's own rules, against the old server's view documents through the shared translator; the rebuilt server's are client-core's.
+import {legacySavedApi} from '../../../packages/client-core/test/fixtures/legacy-saved.ts';
 
 const library = {id: 'movies', name: 'Movies', kind: 'movie'};
 const pivot = {id: 'movies', labelKey: 'library.tab.movies', entityKinds: ['movie'], defaultSort: [{field: 'title', direction: 'asc'}],
@@ -31,10 +33,10 @@ async function fixture(value = 'Action') {
   const destination = {getSnapshot: () => source, captureSavedView: (actual: unknown) => {assert.equal(actual, draft); captured++; return definition;}};
   const context = {current: () => active, authority: () => authority, session: () => ({viewer: {...authority, authority: 'local'}}), libraries: () => [library], navigation,
     subscribeAuthority: (fn: () => void) => {listeners.add(fn); return () => {listeners.delete(fn);};},
-    api: {request: async <T>(_path: string, method?: string, body?: unknown): Promise<T> => {
+    api: legacySavedApi({request: async <T>(_path: string, method?: string, body?: unknown): Promise<T> => {
       if (method === 'POST') {posts.push(body); return {serverId: 'server', viewerFence: 'actual-viewer', receipt: {operationId, revision: 2, resourceId: 'new-view', deleted: false}} as T;}
       return {serverId: 'server', viewerFence: 'actual-viewer', revision: 1, resources: [], nextCursor: ''} as T;
-    }}};
+    }})};
   const {createNativeTVLibraryNaming} = await screenModule(new URL('../src-next/tv/library/save-view.ts', import.meta.url), {
     react: {default: {}},
     '../../../../../packages/client-core/src/presentation/saved-view-summary': {savedViewSummary},
@@ -59,7 +61,9 @@ test('TV naming uses the canonical conditions only, then saves the one real capt
     await pending;
     assert.equal(f.posts.length, 1); assert.equal(f.posts[0].name, 'Genre Actiona');
     assert.notEqual(f.posts[0].summary, 'Genre Action. Title A to Z.');
-    assert.deepEqual(f.posts[0].definition.query, {variant: 'group', all: [{variant: 'predicate', field: 'genre', operator: 'contains-any', value: ['Action']}]});
+    // The rebuilt server keeps the view as its library and list query (`genre=Action`); read back, that is the one genre
+    // filter the opening captured, even though the toolbar's own conditions were cleared since.
+    assert.deepEqual(f.posts[0].definition.query, {variant: 'predicate', field: 'genre', operator: 'equals', value: 'Action'});
     assert.deepEqual(f.saved, ['new-view']); assert.equal(naming.controller.getSnapshot().open, false);
   } finally {naming.dispose(); f.navigation.dispose();}
 });

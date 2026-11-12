@@ -15,13 +15,16 @@ export const legacyPersonalTransport: PersonalSavedTransport = Object.freeze({
   async clearHistory(api, _bound, _operationId, signal, body) {
     return (api as {request<T>(p: string, m?: string, b?: unknown, s?: AbortSignal): Promise<T>}).request<unknown>(routePath('post_personal_history_actions'), 'POST', body, signal);
   },
-  async collections(api, _bound, cursor, signal) {
-    const query = new URLSearchParams({limit: '40', ...(cursor ? {cursor} : {}), kind: 'collection'});
+  async directory(api, _bound, kind, cursor, signal) {
+    const query = new URLSearchParams({limit: '40', ...(cursor ? {cursor} : {}), kind});
     return (api as Requester).request<unknown>(routePath('get_saved_resources') + '?' + query, 'GET', undefined, signal);
   },
   async resource(api, _bound, resourceId, asked, cursor, signal) {
     const query = resourceContentParams(new URLSearchParams({limit: '40', ...(cursor ? {cursor} : {})}), asked);
     return (api as Requester).request<unknown>(encodedRoutePath('get_saved_resources_id_content', {id: encodeURIComponent(resourceId)}) + '?' + query, 'GET', undefined, signal);
+  },
+  async row(api, _bound, resourceId, signal) {
+    return (api as Requester).request<unknown>(encodedRoutePath('get_saved_resources_id', {id: encodeURIComponent(resourceId)}), 'GET', undefined, signal);
   },
   /** The old route, method and body, as the service built them. */
   async send(api, _bound, _intent, _context, _operationId, signal, old) {

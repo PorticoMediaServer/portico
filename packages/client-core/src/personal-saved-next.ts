@@ -13,7 +13,7 @@ import {callServer, serverPath, type ServerRequester} from './query/server-api.t
 import {wireEntryFromItem} from './items.ts';
 import {CodedError} from './server-messages.ts';
 import {decodeUndo, edit, encodeUndo, filterLabels, items, listFilters, pageSorts, revisionOf, sendRaw, type SavedNextApi} from './saved-next.ts';
-import {libraryQueryControls} from './library-browse.ts';
+import {libraryItemQuery, libraryQueryControls} from './library-browse.ts';
 import type {HistoryPeriod, ResourceContentQuery, SavedScope} from './saved.ts';
 import type {PersonalSavedIntent, SavedDefinition} from './personal-saved.ts';
 
@@ -59,12 +59,25 @@ function collectionOf(bound: SavedScope, list: List, card = false): Record<strin
     visibility: list.everyone ? 'server' : 'private', revision: revisionOf(list), role: owner ? 'owner' : 'viewer', entryCount: list.count,
     actions: owner ? ['update', 'delete', 'entries', 'reorder'] : [], status: 'ready', invalidComponents: [], pinned: false, pinRevision: 0, shares: []};
 }
-/** The profile's collections, its own and those made visible to everyone, as cards. */
-export async function readCollections(api: SavedNextApi, bound: SavedScope, cursor: string | null, signal?: AbortSignal): Promise<unknown> {
-  const page: ListPage = await callServer(api, 'GET /v1/lists', {query: {kind: 'collection', limit: PAGE, cursor: cursor ?? undefined}, signal});
-  if (!page || !Array.isArray(page.items)) throw new CodedError('invalid_saved', 'The collections could not be read.');
+/** The profile's collections (its own and those made visible to everyone) or its saved views, as cards. */
+export async function readDirectory(api: SavedNextApi, bound: SavedScope, kind: 'collection' | 'view', cursor: string | null, signal?: AbortSignal): Promise<unknown> {
+  const wire = kind === 'view' ? 'saved_view' : 'collection';
+  const page: ListPage = await callServer(api, 'GET /v1/lists', {query: {kind: wire, limit: PAGE, cursor: cursor ?? undefined}, signal});
+  if (!page || !Array.isArray(page.items)) throw new CodedError('invalid_saved', 'The saved lists could not be read.');
   return {serverId: bound.serverId, viewerFence: 'viewer', revision: 0, nextCursor: page.nextCursor ?? '',
-    resources: page.items.filter(list => list.kind === 'collection').map(list => collectionOf(bound, list, true))};
+    resources: page.items.filter(list => list.kind === wire).map(list => kind === 'view' ? viewCard(bound, list) : collectionOf(bound, list, true))};
+}
+/** A saved view's card: music views draw square art. */
+function viewCard(bound: SavedScope, list: List): Record<string, unknown> {
+  const definition = definitionOf(list), squares = ['artists', 'albums', 'songs'].includes(definition?.pivot ?? '');
+  return {...collectionCard(list), shape: squares ? 'squares' : 'posters', ...viewOf(bound, list, definition)};
+}
+/** One collection or saved view by its id, as `readPersonalResource` checks it (Customize Home names a view by id). */
+export async function readResourceRow(api: SavedNextApi, bound: SavedScope, resourceId: string, signal?: AbortSignal): Promise<unknown> {
+  const list = await callServer(api, 'GET /v1/lists/{id}', {id: resourceId, signal});
+  if (list.kind === 'saved_view') return viewOf(bound, list, definitionOf(list));
+  if (list.kind === 'collection') return collectionOf(bound, list);
+  throw new CodedError('not_found', 'This list is not a collection or a saved view.');
 }
 
 /** Where a later page of a collection starts: its place in the whole collection, the entry just in front of it and
@@ -150,6 +163,17 @@ export async function sendResourceCommand(api: SavedNextApi, bound: SavedScope, 
   // overwrites nothing, so a transport that cannot send headers still sends it, without the key, as a playlist's does.
   const add = (id: string, body: ListAdd, key: string) => api.requestRaw ? sendRaw<ListAdded>(api, serverPath('POST /v1/lists/{id}/entries', {id}), 'POST', {'Idempotency-Key': key}, body, signal)
     : callServer(api, 'POST /v1/lists/{id}/entries', {id, body, signal});
+  if (intent.action === 'create' && intent.kind === 'view') {
+    // The view keeps its library and the item list's query its sort and filter make (rule 24); a filter the server
+    // cannot answer is refused here, in the browse page's own words, before anything is sent.
+    const d = intent.definition;
+    if (!d) throw new CodedError('invalid_saved', 'A saved view needs its sort and filter.');
+    const {library: _, ...list} = libraryItemQuery({id: d.libraryId}, d.pivot, d.query ? ('all' in d.query ? d.query.all : [d.query]) : [], d.sort) as Record<string, unknown>;
+    const query = new URLSearchParams(Object.entries(list).filter(([, value]) => value !== undefined).map(([key, value]) => [key, String(value)])).toString();
+    const body: ListCreate = {kind: 'saved_view', name: intent.name.trim(), ...(intent.summary ? {description: intent.summary} : {}), library: d.libraryId, query};
+    const created = api.requestRaw ? await sendRaw<ListCreated>(api, serverPath('POST /v1/lists'), 'POST', {'Idempotency-Key': operationId}, body, signal) : await callServer(api, 'POST /v1/lists', {body, signal});
+    return answer(created.id, created);
+  }
   if (intent.action === 'create') {
     if (intent.kind !== 'collection') throw new CodedError('not_available', 'This is not available on this server yet.');
     const body: ListCreate = {kind: 'collection', name: intent.name.trim(), ...(intent.summary ? {description: intent.summary} : {}), everyone: intent.visibility === 'server'};

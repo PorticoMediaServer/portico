@@ -10,6 +10,8 @@ import {validateHomeSeeAll} from '../src/home.ts';
 import {parseContentSeeAll} from '../src/library-content.ts';
 import {PersonalSavedService} from '../src/personal-saved.ts';
 import {savedViewSummary} from '../src/presentation/saved-view-summary.ts';
+// The old server's view documents carry the expression tree itself; the rebuilt server's are personal-saved-next.test.ts's.
+import {legacyPersonalTransport} from './fixtures/legacy-personal-transport.ts';
 
 /**
  * Relative recency (`within-last-days`) meets four layers that do not all say the same
@@ -265,6 +267,7 @@ test('a saved view is transport for the query it stores, and rendering withholds
     }},
     {serverId: 'server', viewerId: 'viewer'},
     async () => '00000000-0000-4000-8000-000000000001',
+    legacyPersonalTransport,
   );
   await service.select({view: 'views'});
   // This fixture supplies an unexpressible definition. The client keeps and serializes it;

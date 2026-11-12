@@ -230,6 +230,7 @@ function views(view: Record<string, unknown> = {}) {
     async request<T>(path: string, method = 'GET'): Promise<T> {
       calls.push({path, method});
       const url = new URL(path, 'https://x');
+      if (url.pathname === '/v1/lists' && url.searchParams.get('kind') === 'saved_view') return {items: [list(), {...list(), id: 'v2', name: 'Albums', query: 'kind=album', library: 'music'}]} as T;
       if (url.pathname === '/v1/lists/v1') {if (gone) throw Object.assign(new Error('gone'), {status: 404, code: 'not_found'}); return list() as T;}
       if (url.pathname === '/v1/items' && url.searchParams.get('library') === 'films') return {items: [{...item('a'), libraryId: 'films'}, {...item('b'), libraryId: 'films'}], total: 2} as T;
       if (url.pathname === '/v1/items') return {items: [], total: 0} as T;
@@ -237,6 +238,7 @@ function views(view: Record<string, unknown> = {}) {
     },
     async requestRaw(path: string, method: string, options: {headers?: Record<string, string>; body?: unknown} = {}) {
       calls.push({path, method, headers: options.headers, body: options.body});
+      if (path === '/v1/lists' && method === 'POST') return {status: 201, headers: {}, body: {...list(), id: 'made', name: (options.body as {name: string}).name}};
       if (options.headers?.['If-Match'] !== `"${revision}"`) return {status: 412, headers: {}, body: {error: {code: 'list_changed', message: 'changed'}}};
       if (method === 'PATCH') {name = (options.body as {name: string}).name; revision++; return {status: 200, headers: {}, body: list()};}
       if (method === 'DELETE') {gone = true; return {status: 204, headers: {}};}
@@ -284,4 +286,47 @@ test('a saved view whose filter lost a part opens with the rest and says what wa
   assert.equal(review.getSnapshot().resource?.status, 'needs-review');
   assert.equal(odd.calls.some(call => call.path.includes('library=')), false, 'its titles are not read');
   review.dispose();
+});
+
+test('the Views tab lists the profile\'s saved views as cards, music ones square', async () => {
+  const s = views();
+  const saved = service(s.api);
+  await saved.select({view: 'views'} as never);
+  const shot = saved.getSnapshot();
+  assert.equal(shot.error, null);
+  assert.deepEqual(shot.resources.map(r => [r.id, r.kind, r.shape, r.definition?.pivot, [...r.actions]]), [['v1', 'view', 'posters', 'movies', ['update', 'delete']], ['v2', 'view', 'squares', 'albums', ['update', 'delete']]]);
+  assert.equal(new URL(s.calls[0]!.path, 'https://x').searchParams.get('kind'), 'saved_view');
+  saved.dispose();
+});
+
+test('Save view keeps the library and the item list\'s query its sort and filter make, once, under its own key', async () => {
+  const s = views();
+  const saved = service(s.api);
+  await saved.select({view: 'views'} as never);
+  const definition = {libraryId: 'films', pivot: 'movies', query: {variant: 'predicate', field: 'genre', operator: 'equals', value: 'Drama'}, sort: [{field: 'year', direction: 'desc'}], presentation: 'grid'};
+  assert.equal(await saved.mutate({action: 'create', kind: 'view', name: 'Drama by year', definition} as never), true);
+  const made = s.calls.find(call => call.method === 'POST')!;
+  assert.deepEqual(made.body, {kind: 'saved_view', name: 'Drama by year', library: 'films', query: 'kind=movie&genre=Drama&sort=year&order=desc'});
+  assert.equal(made.headers?.['Idempotency-Key'], '00000000-0000-4000-8000-000000000001');
+  assert.equal(saved.getSnapshot().result?.resourceId, 'made');
+  saved.dispose();
+});
+
+test('a view whose filter the server cannot answer is refused before anything is sent', async () => {
+  const s = views();
+  const saved = service(s.api);
+  await saved.select({view: 'views'} as never);
+  const definition = {libraryId: 'films', pivot: 'movies', query: {variant: 'predicate', field: 'title', operator: 'starts-with', value: 'A'}, sort: [{field: 'title', direction: 'asc'}], presentation: 'grid'};
+  assert.equal(await saved.mutate({action: 'create', kind: 'view', name: 'A titles', definition} as never), false);
+  assert.equal(s.calls.some(call => call.method === 'POST'), false);
+  assert.equal(saved.getSnapshot().mutationError?.message, 'This filter is not available yet.', 'in the browse page\'s own words');
+  saved.dispose();
+});
+
+test('a saved view is read by its id, as Customize Home names it', async () => {
+  const s = views();
+  const {readPersonalResource} = await import('../src/personal-saved.ts');
+  const row = await readPersonalResource(s.api as never, scope, 'v1');
+  assert.deepEqual([row.id, row.kind, row.status, row.definition?.libraryId], ['v1', 'view', 'ready', 'films']);
+  assert.deepEqual(s.calls.map(call => call.path), ['/v1/lists/v1']);
 });
