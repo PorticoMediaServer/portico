@@ -23,7 +23,7 @@ func fakeRcloneTools(args []string) {
 			{"Name":"onedrive","Options":[{"Name":"token"},{"Name":"drive_id"},{"Name":"drive_type"}]},{"Name":"dropbox","Options":[{"Name":"token"}]},
 			{"Name":"local","Options":[]}]`)
 		os.Exit(0)
-	case len(args) == 3 && args[0] == "lsjson" && args[1] == "--stat":
+	case len(args) >= 3 && args[0] == "lsjson" && args[1] == "--stat" && strings.HasPrefix(args[len(args)-1], "portico:"):
 		// As rclone answers: a configuration it cannot use, a sign-in the provider refuses, and
 		// a token the provider replaces (written where rclone writes it). A folder is there when
 		// a file is inside it; a file is not a folder; the top is always a folder.
@@ -37,7 +37,7 @@ func fakeRcloneTools(args []string) {
 		case os.Getenv("RCLONE_CONFIG_PORTICO_TOKEN") == fakeToken:
 			os.WriteFile(os.Getenv("RCLONE_CONFIG"), []byte("[portico]\ntype = drive\ntoken = "+refreshedToken+"\n"), 0o600)
 		}
-		root := strings.TrimPrefix(args[2], "portico:")
+		root := strings.TrimPrefix(args[len(args)-1], "portico:")
 		if root == "" {
 			fmt.Print(`{"Path":"","IsDir":true}`)
 			os.Exit(0)

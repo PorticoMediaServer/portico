@@ -52,7 +52,8 @@ func (r *rclone) checkRemote(ctx context.Context, home string) error {
 	defer os.Remove(config)
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, RcloneBinary(), "lsjson", "--stat", "portico:"+r.root)
+	// One try: a provider that refuses is answered sooner and asked less.
+	cmd := exec.CommandContext(ctx, RcloneBinary(), "lsjson", "--stat", "--retries", "1", "--low-level-retries", "1", "portico:"+r.root)
 	childprocess.Configure(cmd)
 	cmd.Env = r.remoteEnv(config, home)
 	var out, stderr bytes.Buffer
@@ -74,7 +75,7 @@ func (r *rclone) checkRemote(ctx context.Context, home string) error {
 	case exited.ExitCode() == 3 || exited.ExitCode() == 4:
 		// rclone's own codes: directory not found, file not found.
 		return ErrFolderMissing
-	case signInRefused.Match(stderr.Bytes()):
+	case signInRefused.MatchString(stderr.String()):
 		return ErrSignIn
 	}
 	return nil
@@ -89,12 +90,30 @@ func (r *rclone) check(ctx context.Context) error {
 	return r.checkRemote(ctx, home)
 }
 
-// signInRefused is how rclone reports a provider refusing the remote's sign-in. rclone has no
-// exit code of its own for it, so its words are read: an HTTP 401 or 403 (WebDAV, HTTP, the
-// OAuth kinds), an OAuth refresh refused, an S3 key or signature refused, an SSH, FTP or SMB
-// log-in refused.
-var signInRefused = regexp.MustCompile(`(?i)\b(401|403)\b|unauthori[sz]ed|forbidden|invalid_grant|invalid_client|` +
-	`InvalidAccessKeyId|SignatureDoesNotMatch|AccessDenied|unable to authenticate|\b530\b|login incorrect|logon.failure`)
+// signInRefused reads what rclone printed for a provider refusing the remote's sign-in. rclone
+// has no exit code of its own for it, so its words are read, line by line: an HTTP 401 or 403
+// stated as a status ("401 Unauthorized", "403 Forbidden", "Error 403"), an OAuth refresh
+// refused, an S3 key or signature refused, an SSH, FTP or SMB log-in refused. A number in a
+// folder's name or a port is not a status, and a line about a rate limit or quota (Google
+// Drive answers those with 403) is never a sign-in.
+var signInRefused signInWords
+
+type signInWords struct{}
+
+var (
+	signInStatus = regexp.MustCompile(`(?i)\b40[13] (?:unauthori[sz]ed|forbidden)\b|\b(?:error|http|status|code)\W{0,3}40[13]\b`)
+	signInWord   = regexp.MustCompile(`(?i)invalid_grant|invalid_client|InvalidAccessKeyId|SignatureDoesNotMatch|AccessDenied|unable to authenticate|login incorrect|not logged in|logon.failure`)
+	notSignIn    = regexp.MustCompile(`(?i)rate.?limit|quota|too many requests`)
+)
+
+func (signInWords) MatchString(text string) bool {
+	for _, line := range strings.Split(text, "\n") {
+		if !notSignIn.MatchString(line) && (signInStatus.MatchString(line) || signInWord.MatchString(line)) {
+			return true
+		}
+	}
+	return false
+}
 
 // limited keeps at most n bytes of what is written to it, and takes the rest without error.
 type limited struct {
