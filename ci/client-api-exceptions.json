@@ -1224,12 +1224,12 @@
     "sites": [
       "web/src/screens/settings/settings-request.ts#4c0bb24220992292",
       "web/src/screens/settings/settings-request.ts#aaa69da7e55cfa03",
-      "web/src/screens/settings/settings-request.ts#2c1b1146df88646a"
+      "web/src/screens/settings/settings-request.ts#17de8d58362e160f"
     ],
     "guardHashes": {
       "web/src/screens/settings/settings-request.ts#4c0bb24220992292": "b7f8e39ba5d3abfc1d463732cb0d3cae623f056ca236646d876d926a54a4862f",
       "web/src/screens/settings/settings-request.ts#aaa69da7e55cfa03": "b7f8e39ba5d3abfc1d463732cb0d3cae623f056ca236646d876d926a54a4862f",
-      "web/src/screens/settings/settings-request.ts#2c1b1146df88646a": "f0bdaad6e44a2961d5c7b6198234f0dcc4bf67e9d832877678044cf7a85e33bd"
+      "web/src/screens/settings/settings-request.ts#17de8d58362e160f": "fa178a9fd9878bc532b34b7a82518955b4785dcad5d28bc4399bc24765690c31"
     }
   },
   "apps/native/src-next/screens/read/ReadOwnerEditSheet.tsx": {

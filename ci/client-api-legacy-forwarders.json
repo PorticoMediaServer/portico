@@ -1486,19 +1486,6 @@
       "occurrences": 1
     },
     {
-      "binding": "web/src/screens/settings/settings-request.ts#2c1b1146df88646a",
-      "file": "web/src/screens/settings/settings-request.ts",
-      "line": 34,
-      "guardHash": "f0bdaad6e44a2961d5c7b6198234f0dcc4bf67e9d832877678044cf7a85e33bd",
-      "owner": "request",
-      "shape": "request",
-      "callHash": "74abfb68526da10a50809de7f59beddd11d4d5cecb099223ca28bfc3f5899a6e",
-      "callText": "original.request<T>(path, method, body, captured)",
-      "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
-      "reason": "call is not a named guard",
-      "occurrences": 1
-    },
-    {
       "binding": "web/src/screens/together/bindings.ts#fe35eb19feab662c",
       "file": "web/src/screens/together/bindings.ts",
       "line": 23,
