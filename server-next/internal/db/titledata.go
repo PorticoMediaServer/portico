@@ -114,9 +114,18 @@ func (d *DB) UseTitleData(path string) error {
 		}
 		next = &titleData{conn: conn}
 	}
+	old := d.titleData.Swap(next)
+	if betweenSwapAndMark != nil {
+		betweenSwapAndMark()
+	}
+	// Marked after the swap: a choice that begins before the mark reads the new file, and one
+	// that began earlier is marked stale and made again.
 	d.moods.stale(0) // the row labels may have changed
-	if old := d.titleData.Swap(next); old != nil {
+	if old != nil {
 		return old.conn.Close()
 	}
 	return nil
 }
+
+// betweenSwapAndMark is called, in a test only, between the swap and the mark in UseTitleData.
+var betweenSwapAndMark func()
