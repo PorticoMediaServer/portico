@@ -167,7 +167,7 @@ session is unknown (`404`), and the app starts again by itself where it was.
 | `GET /v1/devices/{id}/capabilities`, `PUT /v1/devices/{id}/capabilities` | What a device's players can do, stored as the app sent it. `{id}` may be `current`. |
 | `GET /v1/items/{id}/playback-options` | Versions, tracks, the quality menu, where it resumes, and what a start that names nothing would play and how |
 | `POST /v1/playback/sessions` | Start. `201` with the session, `200` for a repeat of the same `Idempotency-Key`, or `202` with `retryAfterMs` while the stream gets ready. Ends whatever the same device was playing. |
-| `GET /v1/playback/sessions` | What the account is playing on all its devices, and its stream limit. A title the asking profile may not see is unnamed. |
+| `GET /v1/playback/sessions` | What the account is playing on all its devices, and its stream limit. A title the asking profile may not see is unnamed. Each one playing from a queue says what plays next (`next`: `itemId`, `title`, only a title the asking profile may see), for Next up; Play on's device list carries the same in `playing` |
 | `GET /v1/playback/sessions/{id}` | The device's own session. An ended one can be read for two minutes and says why it ended. |
 | `PATCH /v1/playback/sessions/{id}` | Pause, play, seek, change version, audio, subtitles or quality, or report that the player could not play it |
 | `PUT /v1/playback/sessions/{id}/progress` | Where the player is. Answers how long the session now lives and when to report next (10 seconds while playing). `410` when the session is over. |
