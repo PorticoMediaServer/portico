@@ -89,3 +89,9 @@ test('a retired channel action cannot write after its exact lookup', async () =>
   await assert.rejects(setServerChannelHidden(api, 'server', 's1', 'c1', true, () => 'operation', new AbortController().signal, () => current));
   assert.equal(calls, 1);
 });
+
+test('on a new-server channel the owner gets no Hide channel until the owner screens bring it there', async () => {
+  const {nextChannelRow} = await import('@core/guide/next-source.ts');
+  const row = nextChannelRow({id: 'chn_1', name: 'Harbour News', number: '101', kind: 'source', favorite: false, hidden: false});
+  assert.deepEqual(guideChannelMenuEntries(row, actions(true)).map(entry => entry.id), ['favorite']);
+});

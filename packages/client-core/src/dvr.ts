@@ -10,13 +10,17 @@ import {durationIntent, wireDurations} from './wire-units.ts';
 import {parseGuideProgramme} from './channel-guide.ts';
 import type {ChannelApi, GuideChannel, GuideProgramme} from './channel-guide';
 export type DVRView = 'upcoming' | 'recorded' | 'rules' | 'history' | 'storage';
-export type RecordingState = 'scheduled' | 'conflicted' | 'waiting-source' | 'waiting-guide' | 'preparing' | 'recording' | 'finalizing' | 'completed' | 'incomplete-playable' | 'failed' | 'cancelled' | 'pending-delete' | 'deleted';
+export type RecordingState = 'scheduled' | 'conflicted' | 'skipped' | 'waiting-source' | 'waiting-guide' | 'preparing' | 'recording' | 'finalizing' | 'completed' | 'incomplete-playable' | 'failed' | 'cancelled' | 'pending-delete' | 'deleted';
 export type RecordingOptions = {beforeSeconds: number; afterSeconds: number; priority: number; retentionDays: number; episodeLimit: number};
 export type Occurrence = {sourceId: string; channelId: string; generation: string; programmeId: string};
 export type RecordingChannel = {id:string;name:string;number:string;mark?:{text:string;seed:string}};
 export type Recording = {id: string; revision: number; occurrence: Occurrence; programme: GuideProgramme; ruleId: string; options: RecordingOptions; start: string; end: string; state: RecordingState; reason: string; keep: boolean; itemId: string; libraryId: string; coverageStart: string; coverageEnd: string; bytes: number; channel?: RecordingChannel; watched?: boolean|null;
  /** FEAT-08: the show this recording belongs to (rows group by it); absent for one-offs. */
- seriesId?: string; seriesTitle?: string; positionMs?:number;durationMs?:number;overlaps?:RecordingOverlap[]; conflicts: {start: string; end: string; demand: number; capacity: number}[]};
+ seriesId?: string; seriesTitle?: string; positionMs?:number;durationMs?:number;overlaps?:RecordingOverlap[];
+ /** When it clashes; how many tuners there are and how many it needs only when the server says. */
+ conflicts: {start: string; end: string; demand?: number; capacity?: number}[];
+ /** Who booked it, by name (rule 48). */
+ bookedBy?: string};
 export type RuleConfig = {matchKind?:"series"|"title";title?:string;channelId?:string;name: string; sourceId: string; seriesId: string; enabled: boolean; episodes: 'all' | 'new'; allowedChannels: string[]; blockedChannels: string[]; keywords: string[]; blockedKeywords: string[]; options: RecordingOptions};
 export type RecordingRule = {id: string; revision: number; config: RuleConfig; reconcileState: string; diagnostic: string; updatedAt: string;summary?:RuleSummary};
 export type DVRPage = {recordings: Recording[]; rules: RecordingRule[]; nextCursor: string; revision: number; captureAvailable: boolean; captureUnavailableReason: string; deletionAvailable: boolean; usage: {bytes: number; pendingDeleteBytes: number; recordings: number}};

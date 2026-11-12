@@ -9,6 +9,7 @@ export type RecordedGroupLease = {
   context: ScreenContext;
   group: string;
   sort: RecordingsSort;
+  everyone: boolean;
   /** False once this panel's layout retirement ran, before its reader aborts. */
   live: boolean;
   /** The group's own live flag plus the exact door route witness. */
@@ -20,7 +21,7 @@ export type RecordedGroupLease = {
 /** One committed recorded-group panel. The exact context, show key and sort own
  * the reader and a separate play lifetime; layout retirement retires both before
  * abort, so replay cannot reuse a disposed reader or borrow a later context. */
-export function useRecordedGroupLease(context: ScreenContext | undefined, group: string, sort: RecordingsSort, doorCurrent: () => boolean): RecordedGroupLease | undefined {
+export function useRecordedGroupLease(context: ScreenContext | undefined, group: string, sort: RecordingsSort, doorCurrent: () => boolean, everyone = false): RecordedGroupLease | undefined {
   const [published, publish] = useState<RecordedGroupLease>();
   // The door witness belongs to this exact opening: keep the one this effect ran
   // with instead of recreating the reader whenever the route hands a new closure.
@@ -32,13 +33,13 @@ export function useRecordedGroupLease(context: ScreenContext | undefined, group:
     const doorCurrent = door.current;
     const current = () => !!held && held.live && context.isCurrent() && doorCurrent();
     const screen: ScreenContext = forwardIdentity(context, {isCurrent: current});
-    const reader = createRecordedGroupReader(screen, group, sort), playLife = screenLifetime(screen);
-    const lease: RecordedGroupLease = {id: crypto.randomUUID(), context, group, sort, live: true, current, reader, playLife};
+    const reader = createRecordedGroupReader(screen, group, sort, everyone), playLife = screenLifetime(screen);
+    const lease: RecordedGroupLease = {id: crypto.randomUUID(), context, group, sort, everyone, live: true, current, reader, playLife};
     held = lease;
     publish(lease);
     void reader.load().catch(() => {});
     return () => {lease.live = false;reader.dispose();playLife.dispose();};
     // doorCurrent is captured by this exact panel opening.
-  }, [context, group, sort]);
-  return published?.live && published.context === context && published.group === group && published.sort === sort && published.current() ? published : undefined;
+  }, [context, group, sort, everyone]);
+  return published?.live && published.context === context && published.group === group && published.sort === sort && published.everyone === everyone && published.current() ? published : undefined;
 }

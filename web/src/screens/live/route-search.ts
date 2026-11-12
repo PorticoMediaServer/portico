@@ -1,4 +1,4 @@
-export type LiveScreenSearch = Readonly<{sourceId?: string; /** Owners: hidden channels are drawn so they can be shown again. */ hidden?: boolean; channelId?: string; kind?: 'all' | 'live-source' | 'library-channel'; group?: string; q?: string; view?: 'guide' | 'list'; tab?: 'guide' | 'recordings'; dvr?: 'upcoming' | 'recorded' | 'rules' | 'history' | 'storage'; favorites?: boolean; sort?: 'number' | 'name' | 'favorites'}>;
+export type LiveScreenSearch = Readonly<{sourceId?: string; /** Owners: hidden channels are drawn so they can be shown again. */ hidden?: boolean; channelId?: string; kind?: 'all' | 'live-source' | 'library-channel'; group?: string; q?: string; view?: 'guide' | 'list'; tab?: 'guide' | 'recordings'; dvr?: 'upcoming' | 'recorded' | 'rules' | 'history' | 'storage'; /** Recordings: everyone's rather than this profile's own (rule 48). */ scope?: 'everyone'; favorites?: boolean; sort?: 'number' | 'name' | 'favorites'}>;
 function text(raw: Record<string, unknown>, key: string, max = 256): string | undefined {
   const value = raw[key];
   if (value === undefined) return undefined;
@@ -13,7 +13,7 @@ export function parseLiveScreenSearch(raw: Record<string, unknown>): LiveScreenS
   const dvr = (['upcoming', 'recorded', 'rules', 'history', 'storage'] as const).find(value => value === raw.dvr);
   const sort = (['number', 'name', 'favorites'] as const).find(value => value === raw.sort);
   const kind = (['all', 'live-source', 'library-channel'] as const).find(value => value === raw.kind);
-  if (raw.view !== undefined && !view || raw.tab !== undefined && !tab || raw.dvr !== undefined && !dvr || raw.sort !== undefined && !sort || raw.kind !== undefined && !kind || raw.favorites !== undefined && typeof raw.favorites !== 'boolean' || raw.hidden !== undefined && typeof raw.hidden !== 'boolean') throw new Error('invalid-live-route');
+  if (raw.scope !== undefined && raw.scope !== 'everyone' || raw.view !== undefined && !view || raw.tab !== undefined && !tab || raw.dvr !== undefined && !dvr || raw.sort !== undefined && !sort || raw.kind !== undefined && !kind || raw.favorites !== undefined && typeof raw.favorites !== 'boolean' || raw.hidden !== undefined && typeof raw.hidden !== 'boolean') throw new Error('invalid-live-route');
   return {...(sourceId ? {sourceId} : {}), ...(channelId ? {channelId} : {}), ...(group ? {group} : {}), ...(q ? {q} : {}),
-    ...(view ? {view} : {}), ...(tab ? {tab} : {}), ...(dvr ? {dvr} : {}), ...(sort ? {sort} : {}), ...(kind ? {kind} : {}), ...(typeof raw.favorites === 'boolean' ? {favorites: raw.favorites} : {}), ...(raw.hidden === true ? {hidden: true} : {})};
+    ...(view ? {view} : {}), ...(tab ? {tab} : {}), ...(dvr ? {dvr} : {}), ...(sort ? {sort} : {}), ...(kind ? {kind} : {}), ...(typeof raw.favorites === 'boolean' ? {favorites: raw.favorites} : {}), ...(raw.hidden === true ? {hidden: true} : {}), ...(raw.scope === 'everyone' ? {scope: 'everyone' as const} : {})};
 }

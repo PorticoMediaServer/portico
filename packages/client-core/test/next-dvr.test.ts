@@ -43,3 +43,33 @@ test('a recording that was made plays from the Recorded TV library, which is rea
   await client.list('recorded');
   assert.equal(paths.filter(path => path.startsWith('/v1/items/')).length, 1);
 });
+
+// Review desk B, #2896: a conflict states no tuner count the server did not send, and a booking keeps its channel and who booked it.
+test('a conflict states no tuner count the server did not send', () => {
+  const shown = nextRecording(booking({conflict: true} as Partial<DvrRecording>));
+  assert.equal(shown.conflicts[0]?.capacity, undefined);
+  assert.equal(shown.conflicts[0]?.demand, undefined);
+});
+test('a booking keeps its channel name and who booked it for the row', () => {
+  const shown = nextRecording(booking({channel: 'BBC One', bookedBy: 'Ana'} as Partial<DvrRecording>));
+  assert.equal(shown.channel?.name, 'BBC One');
+  assert.equal(shown.bookedBy, 'Ana');
+});
+test('a skipped airing reads as Skipped, never Cancelled', () => {
+  assert.equal(nextRecording(booking({state: 'skipped'} as Partial<DvrRecording>)).state, 'skipped');
+});
+test('Everyone\'s asks the server for every profile\'s recordings; a profile that may not record reads no rules', async () => {
+  const paths: string[] = [];
+  const api = {async request<T>(path: string): Promise<T> {
+    paths.push(path);
+    if (path === '/v1/dvr') return {upcoming: 1, recorded: 0, unwatched: 0, conflicts: 0, freeBytes: 1, hoursLeft: 1, keepRule: '', folderOk: true, canRecord: false} as T;
+    return {items: []} as T;
+  }};
+  const client = new NextDVRClient(api);
+  client.everyone = true;
+  await client.list('upcoming');
+  assert.ok(paths.includes('/v1/dvr/recordings?scope=everyone'));
+  assert.equal((await client.summary()).rules, 0);
+  assert.ok(!paths.some(path => path.startsWith('/v1/dvr/rules')), 'the rules read a profile may not make is never sent');
+  assert.ok(paths.includes('/v1/dvr/recordings?state=history&scope=everyone'));
+});

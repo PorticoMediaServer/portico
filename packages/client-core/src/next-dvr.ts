@@ -20,7 +20,7 @@ export type RecordingSpace = Readonly<{freeBytes: number; hoursLeft: number; kee
 const stateOf = (recording: DvrRecording): RecordingState => (
   recording.state === 'scheduled' ? (recording.conflict ? 'conflicted' : 'scheduled')
     : recording.state === 'recording' ? 'recording' : recording.state === 'recorded' ? 'completed' : recording.state === 'partial' ? 'incomplete-playable'
-      : recording.state === 'failed' ? 'failed' : 'cancelled') as RecordingState;
+      : recording.state === 'failed' ? 'failed' : recording.state === 'skipped' ? 'skipped' : 'cancelled') as RecordingState;
 
 /** A new-server booking in the fields the recordings screens read. */
 export function nextRecording(recording: DvrRecording, libraryId = ''): Recording {
@@ -33,7 +33,10 @@ export function nextRecording(recording: DvrRecording, libraryId = ''): Recordin
       priority: recording.priority, retentionDays: 0, episodeLimit: 0},
     start: recording.startsAt, end: recording.endsAt, state: stateOf(recording), reason: recording.reason ?? '', keep: recording.keep,
     itemId: recording.itemId ?? '', libraryId: recording.itemId ? libraryId : '', coverageStart: recording.startsAt, coverageEnd: recording.endsAt, bytes: 0,
-    conflicts: recording.conflict ? [{start: recording.startsAt, end: recording.endsAt, demand: 2, capacity: 1}] : []} as Recording;
+    // The server names the channel and who booked it; it sends no tuner count, so none is given.
+    ...(recording.channel ? {channel: {id: recording.channel, name: recording.channel, number: ''}} : {}),
+    ...(recording.bookedBy ? {bookedBy: recording.bookedBy} : {}),
+    conflicts: recording.conflict ? [{start: recording.startsAt, end: recording.endsAt}] : []} as Recording;
 }
 /** A new-server series rule in the fields the Series rules screen reads. */
 export function nextRule(rule: DvrRule): RecordingRule {
@@ -71,7 +74,9 @@ export class NextDVRClient {
     }
     return out;
   }
-  private history() { return this.every((cursor, signal) => readRecordings(this.api, {history: true}, cursor, signal)); }
+  private history() { return this.every((cursor, signal) => readRecordings(this.api, {history: true, everyone: this.everyone}, cursor, signal)); }
+  /** Everyone's recordings rather than this profile's own (rule 48): the server answers it for any profile that may watch. */
+  everyone = false;
   /**
    * The Recorded TV library, which every recording that was made is a title of: what plays one names it. The server gives a
    * recording only its title, so the library is read once from one of them.
@@ -100,12 +105,14 @@ export class NextDVRClient {
       return page([], answer.items.map(nextRule), answer.nextCursor);
     }
     if (view === 'recorded') return page(await this.shown((await this.history()).filter(one => made(one) && (!group || one.title === group))), []);
-    const answer = await this.call(signal => readRecordings(this.api, {history: view === 'history'}, cursor || undefined, signal));
+    const answer = await this.call(signal => readRecordings(this.api, {history: view === 'history', everyone: this.everyone}, cursor || undefined, signal));
     return page(await this.shown(answer.items), [], answer.nextCursor);
   }
   async summary(): Promise<DVRSummary> {
     // The server gives no count of rules or titles: they are counted from its lists.
-    const [dvr, rules, groups] = await Promise.all([this.call(signal => readDvr(this.api, signal)), this.every((cursor, signal) => readRules(this.api, false, cursor, signal)), this.groups()]);
+    const [dvr, groups] = await Promise.all([this.call(signal => readDvr(this.api, signal)), this.groups()]);
+    // A profile that may watch but not record has no rules to read (the server refuses it): it counts none.
+    const rules = dvr.canRecord ? await this.every((cursor, signal) => readRules(this.api, false, cursor, signal)) : [];
     return {upcoming: dvr.upcoming, recorded: dvr.recorded, rules: rules.length, conflicts: dvr.conflicts, groups: groups.groups.length, unwatched: dvr.unwatched};
   }
   /** The Recorded tab's titles: the recordings made, grouped by title, newest first (or by title). */

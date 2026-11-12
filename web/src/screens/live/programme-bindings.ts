@@ -22,10 +22,11 @@ export type ProgrammeSnapshot = Readonly<{
   /** A cancel this panel confirmed; the guide's own mark arrives with the next guide read. */
   recordingRemoved?: boolean;
   favorite: boolean;
-  preview?: Readonly<{matches: number; airings: readonly PreviewAiring[]}>;
+  /** `matches` is what a rule would record, only when the server previews it. */
+  preview?: Readonly<{matches?: number; airings: readonly PreviewAiring[]}>;
   previewLoading: boolean;
   busy?: 'record' | 'series' | 'cancel' | 'favorite';
-  notice?: 'recorded' | 'series' | 'cancelled';
+  notice?: 'recorded' | 'series' | 'cancelled' | 'stopped';
   error?: string;
 }>;
 
@@ -92,7 +93,8 @@ export function createProgrammeBindings(context: ScreenContext, row: GuideChanne
         const airings = detail.airings.map(one => airing(one.id, Date.parse(one.startsAt), Date.parse(one.endsAt), one.channel))
           .filter(one => one.id !== programme.id && one.start > now()).sort((left, right) => left.start - right.start);
         publish({phase: 'ready', favorite: detail.channel.favorite, previewLoading: false, ...(detail.recording ? {recording: detail.recording} : {}),
-          preview: Object.freeze({matches: airings.length, airings: Object.freeze(airings.slice(0, 5))})});
+          // The title's other airings, not what a rule would record: no count is said for them.
+          preview: Object.freeze({airings: Object.freeze(airings.slice(0, 5))})});
       } catch (error) {
         if (!current()) return;
         publish({phase: 'ready', previewLoading: false, error: refusalText(error)});
@@ -124,8 +126,10 @@ export function createProgrammeBindings(context: ScreenContext, row: GuideChanne
       if (!state.recording || state.busy) return false;
       publish({busy: 'cancel', error: undefined, notice: undefined});
       try {
-        await endRecording(life.api, state.recording.id, 'cancel', life.signal());
-        assert();publish({recording: undefined, recordingRemoved: true, notice: 'cancelled'});env.onChanged?.();
+        // A recording in progress is stopped, which keeps what was captured (rule 50); a booking is cancelled.
+        const stop = state.recording.state === 'recording';
+        await endRecording(life.api, state.recording.id, stop ? 'stop' : 'cancel', life.signal());
+        assert();publish({recording: undefined, recordingRemoved: true, notice: stop ? 'stopped' : 'cancelled'});env.onChanged?.();
         return true;
       } catch (error) { if (current()) publish({error: refusalText(error)});return false; }
       finally { publish({busy: undefined}); }

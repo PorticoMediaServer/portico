@@ -7,7 +7,7 @@ const react = 'data:text/javascript,' + encodeURIComponent(`export * from '${imp
 const loader = registerHooks({load(url, context, next) {
   const module = (source: string) => ({format: 'module' as const, source, shortCircuit: true});
   if (url.endsWith('.module.css')) return module('export default new Proxy({}, {get:(_,k)=>String(k)});');
-  if (url.endsWith('/kit/controls/index.ts')) return module("export const Button='button',Chip='chip',Select='select';");
+  if (url.endsWith('/kit/controls/index.ts')) return module("export const Button='button',Chip='chip',Segmented='segmented',Select='select';");
   if (url.endsWith('/kit/overlays/index.ts')) return module("export const Banner='banner',Dialog='dialog',Menu='menu',SidePanel='panel';");
   if (url.endsWith('/kit/artwork/index.ts')) return module("export const ChannelMark='channel';");
   if (url.endsWith('/kit/states/index.ts')) return module("export const StateView='state';");

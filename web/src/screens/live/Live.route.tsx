@@ -346,6 +346,12 @@ function LiveRouteScreen() {
   if (search.tab !== 'recordings') return <BoundLive captured={captured}/>;
   const view = search.dvr ?? 'upcoming';
   if (view === 'rules') return <SeriesRulesEntry captured={captured} onView={openView}/>;
-  return <RecordingsScreen captured={captured} view={view === 'recorded' || view === 'history' || view === 'storage' ? view : 'upcoming'} onView={openView} onGuide={openGuide}/>;
+  const shown = view === 'recorded' || view === 'history' || view === 'storage' ? view : 'upcoming';
+  // Everyone's recordings, or this profile's own: kept in the address, so it holds across the tabs.
+  const openScope = (everyone: boolean) => {
+    const {scope: _scope, ...rest} = search;
+    if (captured) void enterRecordings(everyone ? {...rest, scope: 'everyone'} : rest, shown).catch(() => {});
+  };
+  return <RecordingsScreen captured={captured} view={shown} everyone={search.scope === 'everyone'} onView={openView} onScope={openScope} onGuide={openGuide}/>;
 }
 export default defineWebScreen({id: 'live', component: LiveRouteScreen, validateSearch: parseLiveScreenSearch});
