@@ -89,7 +89,10 @@ func TestAudioSeekMatchesFullPrefixTrim(t *testing.T) {
 						different++
 					}
 				}
-				if codec == "aac" && maxDiff <= 1 && len(full) == len(seek) {
+				// A lossy decoder may round one sample one step differently after a seek (AAC
+				// everywhere, MP3 on arm64); the trim is what this test is about, and it is
+				// exact when the lengths match. Lossless FLAC must match to the bit.
+				if codec != "flac" && maxDiff <= 1 && len(full) == len(seek) {
 					return
 				}
 				t.Fatalf("seek changed %s samples: %d/%d, max difference %d, different %d, first %v/%v", codec, len(full), len(seek), maxDiff, different, full[:24], seek[:24])
