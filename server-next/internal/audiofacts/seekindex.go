@@ -690,6 +690,56 @@ func MP3HeaderSamples(ctx context.Context, prefix []byte) (samples int64, rate i
 	return frames * first.frames, first.rate, true
 }
 
+// MP3VariableBitrate samples three frames at each of five positions in a headerless
+// MP3. Equal bitrates leave the normal CBR duration alone; differing bitrates need
+// a full frame count. Unreadable samples do not justify reading the whole file.
+func MP3VariableBitrate(ctx context.Context, read ExtentReader, size int64) (bool, error) {
+	prefix, err := read(ctx, 0, min(10, size))
+	if err != nil {
+		return false, err
+	}
+	start := id3End(prefix)
+	if start >= size {
+		return false, errUnindexable
+	}
+	var bitrate byte
+	var first mp3Frame
+	for n := int64(0); n < 5; n++ {
+		offset := start + (size-start)*n/5
+		sample, err := read(ctx, offset, min(8192, size-offset))
+		if err != nil {
+			return false, err
+		}
+		c := &byteCursor{ctx: ctx, size: int64(len(sample)), buf: sample}
+		_, err = firstMP3Frame(c)
+		if err != nil {
+			return false, err
+		}
+		for j := 0; j < 3; j++ {
+			if ok, err := c.need(4); err != nil {
+				return false, err
+			} else if !ok {
+				break
+			}
+			frame, ok := mp3Header(c.view())
+			if !ok {
+				return false, errUnindexable
+			}
+			if bitrate == 0 {
+				bitrate, first = c.view()[2]>>4, frame
+			}
+			if frame.rate != first.rate || frame.layer != first.layer || frame.version != first.version {
+				return false, errUnindexable
+			}
+			if c.view()[2]>>4 != bitrate {
+				return true, nil
+			}
+			c.skip(int64(frame.length))
+		}
+	}
+	return false, nil
+}
+
 // MP3Head reads the header with as little as possible: ten bytes, then
 // 64 KiB from where an ID3 tag (often holding a cover picture) ends.
 func MP3Head(read func(offset, length int64) ([]byte, error)) ([]byte, error) {

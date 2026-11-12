@@ -220,7 +220,8 @@ func (p Probe) CompleteAudioPackets(ctx context.Context, path string, facts *Fac
 }
 
 // CompleteMP3Length corrects a local headerless MP3's bitrate-based estimate without
-// another ffprobe process. Headered MP3s need only a small header read. Optional read
+// another ffprobe process. Headered MP3s need only a small header read; headerless
+// CBR files need only a few frame samples spread through the file. Optional read
 // failures preserve the ordinary facts; an unchanged scan does not try again.
 func (p Probe) CompleteMP3Length(ctx context.Context, path string, facts *Facts) error {
 	if facts.Container != "mp3" || facts.AudioCodec != "mp3" || facts.VideoCodec != "" {
@@ -249,7 +250,12 @@ func (p Probe) completeMP3Length(ctx context.Context, path string, facts *Facts)
 	if _, _, ok := audiofacts.MP3HeaderSamples(ctx, head); ok {
 		return nil
 	}
-	samples, rate, err := audiofacts.MP3Samples(ctx, func(_ context.Context, offset, length int64) ([]byte, error) { return read(offset, length) }, size)
+	extent := func(_ context.Context, offset, length int64) ([]byte, error) { return read(offset, length) }
+	variable, err := audiofacts.MP3VariableBitrate(ctx, extent, size)
+	if err != nil || !variable {
+		return err
+	}
+	samples, rate, err := audiofacts.MP3Samples(ctx, extent, size)
 	if err != nil || samples <= 0 || rate <= 0 {
 		return ErrNoPackets
 	}
