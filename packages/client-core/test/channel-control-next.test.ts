@@ -45,7 +45,8 @@ test('a stream this device cannot play is said plainly and its session is stoppe
 
 test('a live HLS stream the server converted is played as HLS', async () => {
   const f = control(r => r.method === 'POST' ? {status: 201, body: live({presentation: {...live().presentation, url: '/v1/live/streams/grant/index.m3u8', route: 'repackaged', container: 'mpegts_hls'}})} : {status: 204},
-    {plays: p => !(p.mode === 'live' && p.route === 'original')});
+    // The server's time is pinned at the window's live moment, so the join target does not move with the real clock.
+    {plays: p => !(p.mode === 'live' && p.route === 'original'), serverNow: () => Date.parse('2026-11-12T20:05:00Z')});
   await f.c.open(reference('live-source', 'chn_1'), f.sink);
   try {
     const view = f.views.at(-1)!;
@@ -103,4 +104,23 @@ test('a start refused because the server is converting all it may says so in the
   const f = control(() => ({status: 429, body: {error: {code: 'conversion_capacity', message: sentence, retry: false}}}));
   await f.c.open(reference('library-channel', 'chn_lib'), f.sink);
   assert.deepEqual(f.errors.map(([m]) => m), [sentence]);
+});
+
+// Review desk A, #2957 at ff393475f. A person rewinds a converted live channel, watches for twenty minutes and presses Go
+// to live (11 rule 26): live is NOW, twenty minutes past where it was when the session was last read.
+test('Go to live on a converted live channel goes to live now, not to where live was when the session was read', async () => {
+  const oldest = Date.parse('2026-11-12T20:00:00Z'), liveAtStart = Date.parse('2026-11-12T20:05:00Z');
+  const hls = () => live({presentation: {...live().presentation, url: '/v1/live/streams/grant/index.m3u8', route: 'converted', container: 'fmp4_hls'},
+    live: {oldestAt: new Date(oldest).toISOString(), liveAt: new Date(liveAtStart).toISOString()}});
+  let clock = liveAtStart;
+  const f = control(r => r.method === 'POST' ? {status: 201, body: hls()} : r.method === 'PATCH' ? {status: 200, body: hls()} : {status: 204}, {serverNow: () => clock});
+  await f.c.open(reference('live-source', 'chn_1'), f.sink);
+  try {
+    assert.equal(f.views.at(-1)!.linear.desired.seek?.positionUs, String((liveAtStart - oldest) * 1000), 'it joins at live');
+    clock = liveAtStart + 20 * 60_000;
+    f.c.goLive();
+    await wait(20);
+    const target = Number(f.views.at(-1)!.linear.desired.seek?.positionUs) / 1000;
+    assert.ok(target >= clock - oldest - 5_000, `Go to live asked for ${Math.round((clock - oldest - target) / 60_000)} minutes behind live`);
+  } finally {f.c.close();}
 });
