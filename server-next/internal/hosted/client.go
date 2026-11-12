@@ -338,7 +338,7 @@ func (c *Client) VerifyIdentity(serverID, challenge, returned string) (Account, 
 		return Account{}, nil, err
 	}
 	c.Keep(envelope.Certificate)
-	return Account{ID: identity.AccountID, Username: identity.Username, DisplayName: identity.DisplayName, Email: identity.Email},
+	return Account{ID: identity.AccountID, Username: identity.Username, DisplayName: identity.DisplayName, Email: identity.Email, PasswordChecked: identity.PasswordChecked},
 		identity.Pictures, nil
 }
 
