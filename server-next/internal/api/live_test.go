@@ -141,16 +141,16 @@ func TestJoiningALibraryChannelStartsWhereTheProgrammeIs(t *testing.T) {
 	th := newTheatre(t)
 	token := th.owner.AccessToken
 	ch := makeChannel(t, th.s, token, "Films", *th.filmChannel())
-	rows := programmes(t, th.s, ch.ID, th.clock, th.clock.Add(time.Hour))
+	rows := programmes(t, th.s, ch.ID, th.clock.Now(), th.clock.Now().Add(time.Hour))
 	if len(rows) == 0 || rows[0].ItemID == 0 {
 		t.Fatalf("nothing is on: %+v", rows)
 	}
-	claims, err := th.s.tokens.CheckAccess(token, th.clock)
+	claims, err := th.s.tokens.CheckAccess(token, th.clock.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
-	th.clock = rows[0].StartsAt.Add(25 * time.Minute)
-	token, _ = th.s.tokens.Access(claims, th.clock, th.clock.Add(time.Hour))
+	th.clock.Set(rows[0].StartsAt.Add(25 * time.Minute))
+	token, _ = th.s.tokens.Access(claims, th.clock.Now(), th.clock.Now().Add(time.Hour))
 	code, session := th.start(token, "join", PlaybackStart{Channel: ch.ID})
 	if code != 201 || session.Channel == nil || session.Channel.ID != ch.ID || session.ItemID != th.film {
 		t.Fatalf("joining answered %d %+v", code, session)

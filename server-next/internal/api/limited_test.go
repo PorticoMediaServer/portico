@@ -14,10 +14,10 @@ func TestALimitedChannelCapsEveryQuality(t *testing.T) {
 	b := th.filmChannel()
 	b.Quality = librarychannels.ChannelQuality{Mode: "limited", MaxKbps: 2000}
 	ch := makeChannel(t, th.s, token, "Films", *b)
-	rows := programmes(t, th.s, ch.ID, th.clock, th.clock.Add(time.Hour))
-	claims, _ := th.s.tokens.CheckAccess(token, th.clock)
-	th.clock = rows[0].StartsAt.Add(5 * time.Minute)
-	token, _ = th.s.tokens.Access(claims, th.clock, th.clock.Add(time.Hour))
+	rows := programmes(t, th.s, ch.ID, th.clock.Now(), th.clock.Now().Add(time.Hour))
+	claims, _ := th.s.tokens.CheckAccess(token, th.clock.Now())
+	th.clock.Set(rows[0].StartsAt.Add(5 * time.Minute))
+	token, _ = th.s.tokens.Access(claims, th.clock.Now(), th.clock.Now().Add(time.Hour))
 	code, session := th.start(token, "join-cap", PlaybackStart{Channel: ch.ID})
 	if q := session.Presentation.Quality; code != 201 || q.Mode == playback.QualityOriginal || q.Mode == playback.QualityLimit && q.MaxVideoBitrateKbps > 2000 {
 		t.Fatalf("a start naming no quality on a 2000 kbps channel answered %d with %+v", code, q)
