@@ -1,3 +1,4 @@
+import {appLog} from '@core/app-log.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {AppSessionStore,type AppSessionRecord,type AppServerSession} from '@core/app-sessions.ts';
@@ -39,15 +40,17 @@ test('a cancelled queued server selection cannot commit or settle over its succe
 });
 test('server signout retires exact device-server family before remote call and offline failure never resurrects it',async()=>{
  const f=setup();await f.actions.switchServer('first');f.setOffline();const session=(await f.store.selected())!.connection.session;
- const result=await f.actions.signOutServer(session);assert.equal(result[0].status,'rejected');
+ appLog.write('error','app','error');
+ const result=await f.actions.signOutServer(session);assert.equal(appLog.snapshot(),'');assert.equal(result[0].status,'rejected');
  assert.equal(await f.viewer.read(),null);assert.deepEqual((await f.store.read()).servers.map(v=>v.connection.pin.serverId),['local','second']);
  assert.equal(f.revoked[0].connection.session.sessionFamilyId,'family-first');
  await f.actions.switchServer('local');assert.equal((await f.viewer.read())?.session.viewer.profileId,'profile-local');f.actions.dispose();
 });
 test('account signout ends only Portico families and account session, preserving Local through offline cleanup',async()=>{
  const f=setup();f.setOffline();let account=0;
+ appLog.write('error','app','error');
  const result=await f.actions.signOutPorticoAccount(scope,async()=>{account++;throw new Error('offline account revoke queued');});
- assert.equal(account,1);assert.equal(result.filter(v=>v.status==='rejected').length,3);
+ assert.equal(appLog.snapshot(),'');assert.equal(account,1);assert.equal(result.filter(v=>v.status==='rejected').length,3);
  assert.deepEqual(f.revoked.map(v=>v.connection.pin.serverId),['first','second']);
  assert.deepEqual((await f.store.read()).servers.map(v=>v.connection.pin.serverId),['local']);assert.equal((await f.viewer.read())?.session.viewer.serverId,'local');f.actions.dispose();
 });

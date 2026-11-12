@@ -1,3 +1,4 @@
+import {appLog} from '@core/app-log.ts';
 import {porticoAccount, type HeldSignIn, type Tokens} from '@core/portico-account.ts';
 
 /** This browser's sign-in to its Portico Account. Portico Services keeps its refresh token in an
@@ -23,6 +24,7 @@ function readFlag(): string | null {
 }
 function notify() { for (const listener of listeners) listener(); }
 function write(tokens: Tokens | undefined, began = false) {
+  if (tokens === undefined) appLog.clear();
   current = tokens;
   const next = tokens === undefined ? null : began ? Date.now().toString(36) : mark ?? '1';
   if (next !== mark) {
@@ -36,6 +38,7 @@ if (typeof window !== 'undefined') window.addEventListener('storage', event => {
   // Another tab signed in or out: this tab's access token, if any, is no longer the one to use.
   current = undefined;
   const next = readFlag();
+  if (next === null) appLog.clear();
   if (next !== null && next !== mark) signIns++;
   mark = next; flagged = next !== null;
   notify();

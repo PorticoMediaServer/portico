@@ -1,3 +1,4 @@
+import {appLog} from '@core/app-log.ts';
 import {readDirectAccount} from '../../../packages/client-core/src/query/connection-operations.ts';
 import {HttpLocalApi, type LocalSession} from '@core/index.ts';
 import {AppSessionStore, type AppServerSession, type PorticoAccountScope} from '@core/app-sessions.ts';
@@ -27,11 +28,13 @@ export class BrowserAppSessionActions {
  }
  async signOutServer(session:LocalSession){
   this.probe.cancel();const captured=await this.store.signOutServer(session.viewer.serverId,session.sessionFamilyId);
+  if(captured.length)appLog.clear();
   for(const entry of captured)forgetTabServer(entry.connection.pin.serverId);
   return Promise.allSettled(captured.map(async entry=>this.revoke(entry)));
  }
  async signOutPorticoAccount(account:PorticoAccountScope,logout:()=>Promise<void>){
   this.probe.cancel();const captured=await this.store.signOutPorticoAccount(account);
+  appLog.clear();
   for(const entry of captured)forgetTabServer(entry.connection.pin.serverId);
   return Promise.allSettled([Promise.resolve().then(logout),...captured.map(async entry=>this.revoke(entry))]);
  }
@@ -39,6 +42,7 @@ export class BrowserAppSessionActions {
   * now, and signed out at each server in the background. */
  async endPorticoAccount(account:PorticoAccountScope){
   this.probe.cancel();const captured=await this.store.signOutPorticoAccount(account);
+  if(captured.length)appLog.clear();
   for(const entry of captured)forgetTabServer(entry.connection.pin.serverId);
   void Promise.allSettled(captured.map(async entry=>this.revoke(entry)));
   return captured;

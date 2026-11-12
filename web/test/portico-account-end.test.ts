@@ -1,3 +1,4 @@
+import {appLog} from '@core/app-log.ts';
 // The servers this browser opened with its Portico Account end with that sign-in
 // (`platform/portico-account-end.ts`), against the account pages' real session module
 // (`services/account-session.ts`) and stand-ins for Portico Services and the saved servers.
@@ -49,7 +50,9 @@ test('Sign out on the account pages signs this browser out of the servers opened
   const a = await app();
   a.held().began(tokens); await a.settle();
   assert.deepEqual(a.ended, [{origin: ORIGIN, accountId: 'acct_0'}], 'a sign-in ends the servers of an account signed in before it');
+  appLog.write('error','app','error');
   await a.services.signOut(); await a.settle();
+  assert.equal(appLog.snapshot(), '');
   assert.deepEqual(a.ended.at(-1), {origin: ORIGIN, accountId: 'acct_1'});
   assert.deepEqual(a.servers.map(entry => entry.connection.pin.serverId), ['srv_cabin']);
 });
@@ -61,7 +64,9 @@ test('a sign-out in another tab, and a sign-in over another account there, end t
   a.signInAs('acct_2'); a.otherTab('portico.account.signedIn', 'another-sign-in'); await a.settle();
   assert.equal(a.held().current(), undefined, 'this tab no longer uses the other account\'s access token');
   assert.deepEqual(a.ended.slice(before).map(scope => (scope as {accountId: string}).accountId).sort(), ['acct_0', 'acct_1']);
+  appLog.write('warn','app','warning');
   a.otherTab('portico.account.signedIn', null); await a.settle();
+  assert.equal(appLog.snapshot(), '');
   assert.deepEqual(a.servers.map(entry => entry.connection.pin.serverId), ['srv_cabin']);
 });
 
