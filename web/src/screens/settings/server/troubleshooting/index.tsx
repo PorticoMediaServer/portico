@@ -17,6 +17,8 @@ import {SettingsFeedbackSource} from './feedback-source';
 import {SettingsSupportSource} from './support-source';
 import {SettingsReportsSource} from './reports-source';
 import {troubleshootingParts, type TroubleshootingPart} from './parts';
+import {partError} from './part-error';
+export {partError};
 import type {ServerTier} from '@core/server-admin/route-access.ts';
 import styles from './troubleshooting.module.css';
 
@@ -118,12 +120,12 @@ function DetailWindowRow({source, detailMinutes, reportError}: {source: Settings
 const OWNER_PARTS = troubleshootingParts('owner');
 
 export function createTroubleshootingSurfaces(options: TroubleshootingSurfacesOptions): TroubleshootingSurfaces {
-  const parts = troubleshootingParts(options.tier);
-  const messages = new SettingsMessagesSource(options.transport, options.messageConnection, options.isCurrent, options.reportError);
-  const reports = new SettingsReportsSource(options.transport, options.serverId, options.viewerId, options.isCurrent, options.reportError,
+  const parts = troubleshootingParts(options.tier), ownError = partError(options.reportError);
+  const messages = new SettingsMessagesSource(options.transport, options.messageConnection, options.isCurrent, ownError);
+  const reports = new SettingsReportsSource(options.transport, options.serverId, options.viewerId, options.isCurrent, ownError,
     {reports: parts.has('reports'), stuckFiles: parts.has('stuckFiles')});
-  const feedback = new SettingsFeedbackSource(options.transport, options.serverId, options.viewerId, options.isCurrent, options.reportError);
-  const support = new SettingsSupportSource(options.transport, options.serverId, options.viewerId, options.isCurrent, options.reportError);
+  const feedback = new SettingsFeedbackSource(options.transport, options.serverId, options.viewerId, options.isCurrent, ownError);
+  const support = new SettingsSupportSource(options.transport, options.serverId, options.viewerId, options.isCurrent, ownError);
   const subscribe = (listener: () => void) => {
     const offs = [options.subscribe(listener), messages.subscribe(listener), reports.subscribe(listener), feedback.subscribe(listener), support.subscribe(listener)];
     return () => {for (const off of offs) off();};

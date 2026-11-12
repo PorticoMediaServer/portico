@@ -1,5 +1,6 @@
 import {clearPlaybackFailureMemory, groupPlaybackFailures, readPlaybackFailureMemory, type PlaybackFailureGroup} from '@core/playback-failure-memory.ts';
 import type {ReportTransport} from '@core/client-reports.ts';
+import {partError} from './part-error';
 
 type Snapshot = Readonly<{phase: 'idle' | 'loading' | 'ready' | 'error'; groups: readonly PlaybackFailureGroup[]; more: boolean; busy?: string; error?: unknown}>;
 const empty: Snapshot = Object.freeze({phase: 'idle', groups: [], more: false});
@@ -14,7 +15,10 @@ export class PlaybackProblemsSource {
   private read?: AbortController;
   private disposed = false;
   private off: () => void;
+  /** Its own failures stay in this part (see `partError`); only a lost sign-in or role reaches the page. */
+  private readonly reportError: (error: unknown) => void;
   constructor(private options: PlaybackProblemsOptions) {
+    this.reportError = partError(options.reportError);
     this.off = options.subscribe(() => {if (!options.isCurrent()) this.retire();});
   }
   getSnapshot = () => this.current() ? this.state : empty;
@@ -32,7 +36,7 @@ export class PlaybackProblemsSource {
       const value = await readPlaybackFailureMemory(this.options.transport, request.signal);
       if (this.current() && !request.signal.aborted) this.publish({...this.state, phase: 'ready', groups: groupPlaybackFailures(value.items), more: value.more});
     } catch (error) {
-      if (this.current() && !request.signal.aborted) {this.publish({...this.state, phase: 'error', groups: [], more: false, error});this.options.reportError(error);}
+      if (this.current() && !request.signal.aborted) {this.publish({...this.state, phase: 'error', groups: [], more: false, error});this.reportError(error);}
     }
   }
   async forget(sourceId: string) {
@@ -43,7 +47,7 @@ export class PlaybackProblemsSource {
       await clearPlaybackFailureMemory(this.options.transport, sourceId, this.lifetime.signal);
       if (this.current()) await this.load();
     } catch (error) {
-      if (this.current()) {this.publish({...this.state, error});this.options.reportError(error);}
+      if (this.current()) {this.publish({...this.state, error});this.reportError(error);}
     } finally {
       if (this.current()) this.publish({...this.state, busy: undefined});
     }

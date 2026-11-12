@@ -78,7 +78,9 @@ export class SettingsFeedbackSource {
   private mutation?: object;
   constructor(private readonly transport: ReportTransport,
     _serverId: string, _viewerId: string, private readonly isCurrent: () => boolean, private readonly reportError: (error: unknown) => void = () => {}) {}
-  private retire() {if (this.current()) {this.dispose(); this.reportError(new Error('feedback_authority_ended'));}}
+  /** The viewer may no longer read this part: it ends, and the page is told with the refusal's status, so a lost
+   *  sign-in or role reaches the page however its parts report their own failures. */
+  private retire(status: 401 | 403 = 403) {if (this.current()) {this.dispose(); this.reportError(Object.assign(new Error('feedback_authority_ended'), {status}));}}
   private current() {return !this.lifetime.signal.aborted && this.isCurrent();}
   getSnapshot = (): FeedbackSnapshot => this.current() ? this.state : empty;
   subscribe = (listener: () => void): (() => void) => {this.listeners.add(listener); return () => {this.listeners.delete(listener);};};
@@ -96,7 +98,7 @@ export class SettingsFeedbackSource {
       return value;
     } catch (error) {
       const failure = error && typeof error === 'object' ? error as {status?: number; code?: string} : {};
-      if (this.current() && (failure.status === 401 || failure.status === 403 || ['unauthorized', 'forbidden', 'not_permitted'].includes(failure.code ?? ''))) this.retire();
+      if (this.current() && (failure.status === 401 || failure.status === 403 || ['unauthorized', 'forbidden', 'not_permitted'].includes(failure.code ?? ''))) this.retire(failure.status === 401 || failure.code === 'unauthorized' ? 401 : 403);
       throw error;
     } finally {signal?.removeEventListener('abort', abort); this.lifetime.signal.removeEventListener('abort', abort);}
   }
