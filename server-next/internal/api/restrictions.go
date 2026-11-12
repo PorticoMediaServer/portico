@@ -51,12 +51,12 @@ type Restrictions struct {
 // was saved since by sending back what it read. maxRatingAge null lifts the rating limit;
 // blockedLabels and libraries, when sent, are the whole list. The later save of a field wins.
 type ProfileRestrictionsEdit struct {
-	MaxRatingAge   *int      `json:"maxRatingAge,omitempty"`
-	AllowUnrated   *bool     `json:"allowUnrated,omitempty"`
-	BlockedLabels  *[]string `json:"blockedLabels,omitempty"`
-	AllLibraries   *bool     `json:"allLibraries,omitempty"`
-	Libraries      *[]string `json:"libraries,omitempty"`
-	AllowDownloads *bool     `json:"allowDownloads,omitempty"`
+	MaxRatingAge   NullableInt `json:"maxRatingAge,omitempty"`
+	AllowUnrated   *bool       `json:"allowUnrated,omitempty"`
+	BlockedLabels  *[]string   `json:"blockedLabels,omitempty"`
+	AllLibraries   *bool       `json:"allLibraries,omitempty"`
+	Libraries      *[]string   `json:"libraries,omitempty"`
+	AllowDownloads *bool       `json:"allowDownloads,omitempty"`
 	// AllowWatchTogether turned off takes the profile out of its groups at once.
 	AllowWatchTogether *bool `json:"allowWatchTogether,omitempty"`
 
