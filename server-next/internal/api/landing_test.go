@@ -13,7 +13,7 @@ import (
 func TestALibraryLandingHoldsOnlyItsOwnTitles(t *testing.T) {
 	th := newTheatre(t)
 	token := th.owner.AccessToken
-	th.clock = time.Now()
+	th.clock.Set(time.Now())
 	stop := int64(30 * 60_000)
 	session := th.play(token, th.film)
 	status(t, th.s, "DELETE", "/v1/playback/sessions/"+session.ID, token, PlaybackStop{PositionMs: &stop})
