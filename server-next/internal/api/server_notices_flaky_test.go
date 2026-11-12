@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -114,5 +115,92 @@ func TestFreeSpaceAtTheLineIsOneNotice(t *testing.T) {
 	}
 	if told != 1 {
 		t.Errorf("free space at the warning line sent %d notices; want 1", told)
+	}
+}
+
+// A failed scheduled backup is told once its 4 hours of retries are used up (console rule 55),
+// at the first look after that and with no wait; not again while it lasts; and again after a
+// backup has succeeded and a later one has failed for as long.
+func TestAFailedBackupIsToldOnceItsRetriesAreUsedUp(t *testing.T) {
+	ctx := context.Background()
+	s := newTestServer(t)
+	owner := onMainProfile(t, s).AccessToken
+	// This machine's own free space must not raise the storage alert here.
+	if code := status(t, s, "PUT", "/v1/admin/settings/storage", owner, json.RawMessage(`{"warnPercent":1,"majorPercent":1}`)); code != 200 {
+		t.Fatalf("setting the storage warnings answered %d", code)
+	}
+	folder := func(path string) {
+		t.Helper()
+		if code := status(t, s, "PUT", "/v1/admin/settings/backups", owner, json.RawMessage(`{"folder":"`+path+`"}`)); code != 200 {
+			t.Fatalf("setting the backup folder answered %d", code)
+		}
+	}
+	scheduled := func() {
+		t.Helper()
+		if _, err := s.Backups().Start(true); err != nil {
+			t.Fatal(err)
+		}
+		for s.Backups().Running() != nil {
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	clock := time.Now()
+	look := func(after time.Duration) {
+		t.Helper()
+		clock = clock.Add(after)
+		s.setClock(func() time.Time { return clock })
+		defer s.setClock(time.Now)
+		if err := s.tellNewAlerts(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	told := func() int {
+		t.Helper()
+		var inbox Notifications
+		if w := call(t, s, "GET", "/v1/notifications?view=all", owner, nil, &inbox); w.Code != 200 {
+			t.Fatalf("the inbox answered %d: %s", w.Code, w.Body)
+		}
+		n := 0
+		for _, item := range inbox.Items {
+			if item.Kind == "backup_failed" {
+				n++
+			}
+		}
+		return n
+	}
+
+	// A scheduled backup into a folder that is not there: tried again quietly at first.
+	folder(filepath.Join(t.TempDir(), "unmounted", "backups"))
+	scheduled()
+	look(time.Minute)
+	if n := told(); n != 0 {
+		t.Fatalf("a first failure was told %d times; it is tried again for 4 hours first", n)
+	}
+	// The retries are used up: told at the next look, without the five minutes other causes wait.
+	s.Backups().GiveUp()
+	look(time.Minute)
+	if n := told(); n != 1 {
+		t.Fatalf("after the retries were used up the owner was told %d times; want 1", n)
+	}
+	for range 5 {
+		look(10 * time.Minute)
+	}
+	if n := told(); n != 1 {
+		t.Fatalf("a failure that lasts was told %d times; want 1", n)
+	}
+	// A backup succeeds, and later another fails for as long.
+	folder(t.TempDir())
+	scheduled()
+	if s.Backups().Failed() != nil {
+		t.Fatal("a successful backup left the failure standing")
+	}
+	look(wellAfter)
+	look(time.Minute)
+	folder(filepath.Join(t.TempDir(), "unmounted", "backups"))
+	scheduled()
+	s.Backups().GiveUp()
+	look(time.Minute)
+	if n := told(); n != 2 {
+		t.Fatalf("a later failure, after a success, was told %d times in all; want 2", n)
 	}
 }
