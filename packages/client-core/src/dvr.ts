@@ -20,9 +20,16 @@ export type Recording = {id: string; revision: number; occurrence: Occurrence; p
  /** When it clashes; how many tuners there are and how many it needs only when the server says. */
  conflicts: {start: string; end: string; demand?: number; capacity?: number}[];
  /** Who booked it, by name (rule 48). */
- bookedBy?: string};
+ bookedBy?: string;
+ /** What holds the tuners at a conflict's time: this account's recordings by title, anyone else's as "A recording" (rule 42). */
+ tunersUsedBy?: string[];
+ /** Whether this profile may change, stop or delete it (`mayChange`), and cancel a booking not yet started (`mayCancel`). Absent
+  * from a server that does not say: the screen then decides as before. */
+ mayChange?: boolean; mayCancel?: boolean};
 export type RuleConfig = {matchKind?:"series"|"title";title?:string;channelId?:string;name: string; sourceId: string; seriesId: string; enabled: boolean; episodes: 'all' | 'new'; allowedChannels: string[]; blockedChannels: string[]; keywords: string[]; blockedKeywords: string[]; options: RecordingOptions};
-export type RecordingRule = {id: string; revision: number; config: RuleConfig; reconcileState: string; diagnostic: string; updatedAt: string;summary?:RuleSummary};
+export type RecordingRule = {id: string; revision: number; config: RuleConfig; reconcileState: string; diagnostic: string; updatedAt: string;summary?:RuleSummary;
+ /** The channel a rule records from, when the server names it without a summary. */
+ channel?:RecordingChannel};
 export type DVRPage = {recordings: Recording[]; rules: RecordingRule[]; nextCursor: string; revision: number; captureAvailable: boolean; captureUnavailableReason: string; deletionAvailable: boolean; usage: {bytes: number; pendingDeleteBytes: number; recordings: number}};
 export type Capacity = {known: boolean; effective: number; planningEstimate?: number; mode?: string};
 export type RecordingDetail = {recording: Recording; capacity: Capacity; overlaps: RecordingOverlap[]; nextOverlap: string};
@@ -322,7 +329,9 @@ export class DVRModel {
 
 export type RecordingOverlap={id:string;title:string;start:string;end:string;priority:number;state:string;channel?:RecordingChannel;ruleId?:string;episode?:GuideProgramme['episode']};
 export type RuleSummary={upcoming:number;recorded:number;conflicts:number;matchingTonight:number;next?:GuideProgramme;channel:RecordingChannel};
-export type DVRSummary={upcoming:number;recorded:number;rules:number;conflicts:number;groups:number;unwatched:number};
+export type DVRSummary={upcoming:number;recorded:number;rules:number;conflicts:number;groups:number;unwatched:number;
+ /** Whether this profile may see everyone's recordings (the Recorded TV library); absent when the server does not say. */
+ everyonesRecordings?:boolean};
 export type RecordingGroups={groups:{key:string;title:string;recordings:number;unwatched:number;kept:number;exceptions:number;latest:string;recording:Recording}[];nextCursor:string;revision:number};
 function checkedNumber(v:unknown):number{if(!number(v))invalid();return v;}
 function parseOverlaps(v:unknown):RecordingOverlap[]{if(!Array.isArray(v)||v.length>20)invalid();return v.map(o=>{if(!object(o)||!id(o.id)||!text(o.title,512)||!instant(o.start)||!instant(o.end)||!number(o.priority,-1000,1000)||!states.includes(o.state))invalid();const ch=o.channel;if(ch!==undefined&&(!object(ch)||!text(ch.id,64)||!text(ch.name,256)||!text(ch.number,32)))invalid();return {id:o.id,title:o.title,start:o.start,end:o.end,priority:o.priority,state:o.state,...(ch?{channel:parseRecordingChannel(ch)}:{}),...(typeof o.ruleId==='string'?{ruleId:o.ruleId}:{}),...(object(o.episode)?{episode:{season:checkedNumber(o.episode.season??0),number:checkedNumber(o.episode.number??0)}}:{})};});}

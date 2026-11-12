@@ -10,6 +10,8 @@ import {screenLifetime, type ScreenContext} from '../detail/context';
 /** The editor's bounded choices, the same values the Series rules editor offers. */
 export type SeriesChoice = Readonly<{episodes: 'new' | 'all'; keep: string; startEarly: number; endLate: number; anyChannel: boolean}>;
 export const defaultSeriesChoice: SeriesChoice = Object.freeze({episodes: 'new', keep: 'all', startEarly: 0, endLate: 0, anyChannel: false});
+/** Which episode an airing is, where the server says (beyond the generated contract). */
+type AiringEpisode = Readonly<{title?: string; episodeTitle?: string; season?: number; episode?: number}>;
 
 /** One upcoming airing of the selected programme, as the preview actually returned it. */
 export type PreviewAiring = Readonly<{id: string; start: number; time: string; range: string; day: string;
@@ -69,11 +71,14 @@ export function createProgrammeBindings(context: ScreenContext, row: GuideChanne
   };
   const recordable = () => !!programme && canRecord && programme.end > now();
   const time = (at: number) => new Intl.DateTimeFormat(env.locale, {hour: 'numeric', minute: '2-digit', timeZone: env.timezone}).format(at);
-  const airing = (id: string, start: number, end: number, channelId: string): PreviewAiring => Object.freeze({id, start, time: time(start),
-    range: defaultI18n.t('guide.cellTime', {start: time(start), end: time(end)}),
-    day: new Date(start).toDateString() === new Date(now()).toDateString() ? defaultI18n.t('guide.today') : new Intl.DateTimeFormat(env.locale, {weekday: 'long', timeZone: env.timezone}).format(start),
-    // An airing names no episode, so it is called by the programme's title, never by this episode's name.
-    title: programme?.title || '', channelId});
+  const airing = (id: string, start: number, end: number, channelId: string, told: AiringEpisode = {}): PreviewAiring => {
+    const episode = told.season !== undefined && told.episode !== undefined ? defaultI18n.t('downloads.title.episode', {season: told.season, episode: told.episode}) : undefined;
+    return Object.freeze({id, start, time: time(start), range: defaultI18n.t('guide.cellTime', {start: time(start), end: time(end)}),
+      day: new Date(start).toDateString() === new Date(now()).toDateString() ? defaultI18n.t('guide.today') : new Intl.DateTimeFormat(env.locale, {weekday: 'long', timeZone: env.timezone}).format(start),
+      // An airing is called by the episode the server names for it, or by the programme's title; never by this episode's name.
+      title: told.episodeTitle || told.title || programme?.title || '', ...(episode ? {episode} : {}), channelId});
+  };
+  let previewSerial = 0;
 
   return {
     getSnapshot: () => state,
@@ -90,7 +95,8 @@ export function createProgrammeBindings(context: ScreenContext, row: GuideChanne
         // Each reminder names its own channel (the server sends the channel's name).
         if (reminders) replaceReminders(reminders.items.map(item => ({programId: item.programme, channelId: item.channel, title: item.title, channelName: item.channel, start: Date.parse(item.startsAt)})));
         // More airings are the programme's own other airings, as the server listed them.
-        const airings = detail.airings.map(one => airing(one.id, Date.parse(one.startsAt), Date.parse(one.endsAt), one.channel))
+        const airings = (detail.airings as readonly (typeof detail.airings[number] & AiringEpisode & {channelId?: string})[])
+          .map(one => airing(one.id, Date.parse(one.startsAt), Date.parse(one.endsAt), one.channelId || one.channel, one))
           .filter(one => one.id !== programme.id && one.start > now()).sort((left, right) => left.start - right.start);
         publish({phase: 'ready', favorite: detail.channel.favorite, previewLoading: false, ...(detail.recording ? {recording: detail.recording} : {}),
           // The title's other airings, not what a rule would record: no count is said for them.
@@ -100,8 +106,20 @@ export function createProgrammeBindings(context: ScreenContext, row: GuideChanne
         publish({phase: 'ready', previewLoading: false, error: refusalText(error)});
       }
     },
-    /** The editor's choices change what a rule would record, not which airings exist: nothing to read again. */
-    preview: (_choice: SeriesChoice) => Promise.resolve(),
+    /** What a series rule with the editor's choices would record, from the server (`POST /v1/dvr/rules?preview=true`, which
+     * makes nothing). A server without a preview leaves the title's other airings shown, with no count. */
+    async preview(choice: SeriesChoice): Promise<void> {
+      if (!programme || !recordable()) return;
+      const serial = ++previewSerial;
+      publish({previewLoading: true});
+      try {
+        const answer = await saveRule(life.api, seriesRule(programme.id, choice), true, life.signal()) as {preview?: {matches: number; airings: readonly (AiringEpisode & {startsAt: string; endsAt: string; channel?: string})[]}};
+        assert();if (serial !== previewSerial) return;
+        if (!answer.preview) {publish({previewLoading: false});return;}
+        publish({previewLoading: false, preview: Object.freeze({matches: answer.preview.matches, airings: Object.freeze(answer.preview.airings.slice(0, 5)
+          .map((one, index) => airing(`${programme.id}:preview:${index}`, Date.parse(one.startsAt), Date.parse(one.endsAt), one.channel ?? '', one)))})});
+      } catch (error) {if (current() && serial === previewSerial) publish({previewLoading: false, error: refusalText(error)});}
+    },
     async record(): Promise<boolean> {
       if (!programme || !recordable() || state.busy) return false;
       publish({busy: 'record', error: undefined, notice: undefined});

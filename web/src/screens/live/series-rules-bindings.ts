@@ -23,8 +23,9 @@ type Environment = Readonly<{timezone: string; locale: string; now?: () => numbe
 
 export function ruleSettings(rule: RecordingRule): RuleSettings {
   const config = rule.config, title = config.matchKind === 'title';
+  const channelId = rule.summary?.channel.id ?? rule.channel?.id;
   const channel = title ? 'this' : config.allowedChannels.length === 0 ? 'any'
-    : config.allowedChannels.length === 1 && config.allowedChannels[0] === rule.summary?.channel.id ? 'this' : undefined;
+    : config.allowedChannels.length === 1 && config.allowedChannels[0] === channelId ? 'this' : undefined;
   return Object.freeze({enabled: config.enabled, episodes: config.episodes, ...(channel ? {channel} : {}), ...(title ? {channelLocked: true} : {}),
     keep: config.options.episodeLimit === 0 ? 'all' : String(config.options.episodeLimit), startEarly: config.options.beforeSeconds / 60, endLate: config.options.afterSeconds / 60});
 }
@@ -42,7 +43,7 @@ export function editedRuleConfig(rule: RecordingRule, settings: RuleSettings): R
     if (config.matchKind === 'title') {if (settings.channel !== 'this') throw invalid();}
     else if (settings.channel === 'any') config.allowedChannels = [];
     else {
-      const id = rule.summary?.channel.id;
+      const id = rule.summary?.channel.id ?? rule.channel?.id;
       if (!id) throw invalid();config.allowedChannels = [id];
     }
   }
@@ -75,12 +76,13 @@ export function createSeriesRulesBindings(context: ScreenContext, env: Environme
       ? defaultI18n.t('downloads.title.episode', {season: programme.episode.season, episode: programme.episode.number}) : undefined);
     return Object.freeze({id: programme.id, time: formatTime(programme.start), day: today ? defaultI18n.t('guide.today')
       : new Intl.DateTimeFormat(env.locale, {weekday: 'long', timeZone: env.timezone}).format(at), channelId: programme.channelId,
-      ...(rule.summary?.channel.id === programme.channelId ? {channel: rule.summary.channel.name} : {}), ...(episode ? {episode} : {}),
+      // A server preview names each airing's channel by name, in the programme's channel field.
+      ...(rule.summary?.channel.id === programme.channelId ? {channel: rule.summary.channel.name} : !rule.summary && programme.channelId ? {channel: programme.channelId} : {}), ...(episode ? {episode} : {}),
       title: programme.subtitle ?? programme.title, isNew: programme.newEvidence === 'new',
       ...(programme.recordingState ? {scheduled: programme.recordingState === 'scheduled'} : {})});
   };
   const model = (rule: RecordingRule): SeriesRule => {
-    const next = rule.summary?.next, channel = rule.summary?.channel, conflict = next?.recordingState ? next.recordingState === 'conflicted' : undefined;
+    const next = rule.summary?.next, channel = rule.summary?.channel ?? rule.channel, conflict = next?.recordingState ? next.recordingState === 'conflicted' : undefined;
     return freeze({id: rule.id, title: rule.config.name, glyph: Array.from(rule.config.name)[0] ?? '', channelId: channel?.id ?? '',
       ...(channel?.name ? {channelName: channel.name} : {}), actualCounts: true,
       ...(rule.summary ? {recorded: rule.summary.recorded, upcomingCount: rule.summary.upcoming, matchingTonight: rule.summary.matchingTonight, conflict} : {}),
@@ -147,7 +149,7 @@ export function createSeriesRulesBindings(context: ScreenContext, env: Environme
       const rule = captured(row);cancelPreview();const serial = previewSerial, ticket = generation;
       const owner = new NextDVRClient(api);previewClient = owner;clients.add(owner);publish({previewLoading: true});
       try {
-        const result = await owner.preview(editedRuleConfig(rule, settings));assert();
+        const result = await owner.preview(editedRuleConfig(rule, settings), rule.id);assert();
         if (serial !== previewSerial || ticket !== generation || entries.get(row.id)?.model !== row) throw cancelled();
         publish({previewLoading: false, preview: Object.freeze({ruleId: row.id, settings: freeze({...settings}), count: result.matches,
           airings: Object.freeze(result.sample.map(programme => airing(programme, rule)))})});

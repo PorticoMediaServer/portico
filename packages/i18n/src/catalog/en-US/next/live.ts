@@ -78,4 +78,8 @@ export const liveMessages = {
   'next.live.mine': 'Mine',
   'next.live.everyones': 'Everyone’s',
   'next.live.notYours': 'Only the person who booked this, the owner or an administrator can change it.',
+  'next.live.storageFloor': '{amount} GB is always kept free',
+  'next.live.storageCap': 'Recordings may use up to {amount} GB',
+  'next.live.keepRule': 'Kept: {rule}',
+  'next.live.storageForecast': 'The next two weeks of bookings need about {amount} GB ({hours, plural, one {# hour} other {# hours}})',
 } as const;

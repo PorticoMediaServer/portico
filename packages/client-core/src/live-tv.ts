@@ -67,8 +67,8 @@ export const setReminder = (api: ServerRequester, programme: string, on: boolean
 /** Counts, space and hours left, the keep rule, and whether this profile may record. */
 export const readDvr = (api: ServerRequester, signal?: AbortSignal): Promise<DvrOverview> => callServer(api, 'GET /v1/dvr', {signal});
 /** Upcoming bookings (conflicts first) or History; this profile's own, or everyone's for the owner. */
-export const readRecordings = (api: ServerRequester, which: Readonly<{history?: boolean; everyone?: boolean}> = {}, cursor?: string, signal?: AbortSignal): Promise<DvrRecordingPage> =>
-  callServer(api, 'GET /v1/dvr/recordings', {query: {...(which.history ? {state: 'history'} : {}), ...(which.everyone ? {scope: 'everyone'} : {}), cursor}, signal});
+export const readRecordings = (api: ServerRequester, which: Readonly<{history?: boolean; recorded?: boolean; everyone?: boolean}> = {}, cursor?: string, signal?: AbortSignal): Promise<DvrRecordingPage> =>
+  callServer(api, 'GET /v1/dvr/recordings', {query: {...(which.history ? {state: 'history'} : which.recorded ? {state: 'recorded'} : {}), ...(which.everyone ? {scope: 'everyone'} : {}), cursor}, signal});
 /** Books an airing. One someone else booked answers that booking, with this profile added to it. */
 export const bookRecording = (api: ServerRequester, book: DvrRecordingBook, signal?: AbortSignal): Promise<DvrRecording> =>
   callServer(api, 'POST /v1/dvr/recordings', {body: book, signal});
@@ -90,9 +90,9 @@ export const readRules = (api: ServerRequester, everyone = false, cursor?: strin
 /** Makes a rule from a programme; with `preview` it answers what it would record and makes nothing. */
 export const saveRule = (api: ServerRequester, rule: DvrRuleSave, preview = false, signal?: AbortSignal): Promise<DvrRule> =>
   callServer(api, 'POST /v1/dvr/rules', {query: {...(preview ? {preview: true} : {})}, body: rule, signal});
-/** Edits, pauses or resumes a rule. */
-export const changeRule = (api: ServerRequester, id: string, rule: DvrRuleSave, signal?: AbortSignal): Promise<DvrRule> =>
-  callServer(api, 'PATCH /v1/dvr/rules/{id}', {id, body: rule, signal});
+/** Edits, pauses or resumes a rule; with `preview` it answers what the edited rule would record and saves nothing. */
+export const changeRule = (api: ServerRequester, id: string, rule: DvrRuleSave, signal?: AbortSignal, preview = false): Promise<DvrRule> =>
+  callServer(api, 'PATCH /v1/dvr/rules/{id}', {id, query: {...(preview ? {preview: true} : {})}, body: rule, signal});
 /** Deletes a rule, keeping or cancelling what it has booked. */
 export const removeRule = (api: ServerRequester, id: string, bookings: 'keep' | 'cancel', signal?: AbortSignal): Promise<void> =>
   callServer(api, 'DELETE /v1/dvr/rules/{id}', {id, query: {bookings}, signal}).then(() => undefined);

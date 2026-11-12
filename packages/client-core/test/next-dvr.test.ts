@@ -71,7 +71,7 @@ test('Everyone\'s asks the server for every profile\'s recordings; a profile tha
   assert.ok(paths.includes('/v1/dvr/recordings?scope=everyone'));
   assert.equal((await client.summary()).rules, 0);
   assert.ok(!paths.some(path => path.startsWith('/v1/dvr/rules')), 'the rules read a profile may not make is never sent');
-  assert.ok(paths.includes('/v1/dvr/recordings?state=history&scope=everyone'));
+  assert.ok(paths.includes('/v1/dvr/recordings?state=recorded&scope=everyone'));
 });
 
 // Review desk B, #2896 round two.
@@ -98,4 +98,47 @@ test('a refused read still retires what is shown', async () => {
   client.onAccessChanged(() => {lostAccess = true;});
   await assert.rejects(client.list('upcoming'));
   assert.equal(lostAccess, true);
+});
+
+// The recording facts the server sends (#2947): size, this profile's place and watched mark, the library, who may change it,
+// and at a conflict how many tuners there are and what holds them.
+test('a booking carries the server\'s size, place, watched mark, library, permissions and tuner facts', () => {
+  const shown = nextRecording(booking({state: 'recorded', itemId: 'itm_1', channelId: 'chn_1', channel: 'Harbour News', libraryId: 'lib_rec', bytes: 2_500_000_000,
+    positionMs: 600_000, durationMs: 1_800_000, watched: false, mayChange: true, mayCancel: false} as Partial<DvrRecording>));
+  assert.deepEqual([shown.bytes, shown.libraryId, shown.positionMs, shown.durationMs, shown.watched, shown.mayChange, shown.mayCancel, shown.channel?.id, shown.channel?.name],
+    [2_500_000_000, 'lib_rec', 600_000, 1_800_000, false, true, false, 'chn_1', 'Harbour News']);
+  const clash = nextRecording(booking({conflict: true, tuners: 2, tunersUsedBy: ['Evening Report', 'A recording'], mayChange: false, mayCancel: true} as Partial<DvrRecording>));
+  assert.equal(clash.conflicts[0]?.capacity, 2);
+  assert.deepEqual(clash.tunersUsedBy, ['Evening Report', 'A recording']);
+  assert.deepEqual([clash.mayChange, clash.mayCancel], [false, true]);
+  // A server that does not send them: nothing is made up.
+  const plain = nextRecording(booking({itemId: 'itm_2'}));
+  assert.deepEqual([plain.bytes, plain.watched, plain.mayChange, plain.conflicts.length], [0, undefined, undefined, 0]);
+});
+
+test('the library comes with the title: no item is read to find it', async () => {
+  const paths: string[] = [];
+  const api = {async request<T>(path: string): Promise<T> {
+    paths.push(path);
+    return {items: [booking({id: 'r1', state: 'recorded', itemId: 'itm_1', libraryId: 'lib_rec', mayChange: true} as Partial<DvrRecording>)]} as T;
+  }};
+  const page = await new NextDVRClient(api).list('history');
+  assert.equal(page.recordings[0]!.libraryId, 'lib_rec');
+  assert.ok(!paths.some(path => path.startsWith('/v1/items/')));
+});
+
+test('Delete says what it removes as the server has it now: its size and whether anyone is playing it', async () => {
+  const api = {async request<T>(): Promise<T> { return booking({id: 'r1', state: 'recorded', bytes: 3_000_000_000, playingNow: 2, keep: true} as Partial<DvrRecording>) as T; }};
+  const preview = await new NextDVRClient(api).deletePreview(nextRecording(booking({id: 'r1', state: 'recorded'})));
+  assert.deepEqual([preview.bytes, preview.activeReaders, preview.keep], [3_000_000_000, true, true]);
+});
+
+test('Storage and the counts carry the server\'s space facts and whether everyone\'s recordings may be seen', async () => {
+  const dvr = {upcoming: 1, recorded: 0, unwatched: 0, conflicts: 0, freeBytes: 1e12, hoursLeft: 300, keepRule: 'Until space is needed', folderOk: true, canRecord: false,
+    usedBytes: 2e11, floorBytes: 5e10, capBytes: 0, keepDays: 30, keepNewest: 0, upcomingBytes: 4e10, upcomingHours: 12, everyonesRecordings: false};
+  const api = {async request<T>(path: string): Promise<T> { return (path === '/v1/dvr' ? dvr : {items: []}) as T; }};
+  const client = new NextDVRClient(api);
+  const space = await client.storage();
+  assert.deepEqual([space.usedBytes, space.floorBytes, space.capBytes, space.upcomingBytes, space.upcomingHours], [2e11, 5e10, 0, 4e10, 12]);
+  assert.equal((await client.summary()).everyonesRecordings, false);
 });
