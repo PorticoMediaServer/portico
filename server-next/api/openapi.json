@@ -2895,13 +2895,23 @@
           "label": {
             "type": "string"
           },
+          "posters": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "array"
+          },
           "value": {
             "type": "string"
           }
         },
         "required": [
           "value",
-          "label"
+          "label",
+          "posters"
         ],
         "type": "object"
       },
@@ -3574,6 +3584,9 @@
           },
           "rootId": {
             "type": "string"
+          },
+          "series": {
+            "$ref": "#/components/schemas/ItemRef"
           },
           "state": {
             "$ref": "#/components/schemas/ItemState"
@@ -7043,6 +7056,9 @@
           "next": {
             "type": "string"
           },
+          "ticket": {
+            "type": "string"
+          },
           "username": {
             "type": "string"
           }
@@ -7121,6 +7137,9 @@
           },
           "identity": {},
           "password": {
+            "type": "string"
+          },
+          "ticket": {
             "type": "string"
           },
           "username": {
@@ -7676,7 +7695,13 @@
       },
       "Part": {
         "properties": {
+          "durationMs": {
+            "type": "integer"
+          },
           "endMs": {
+            "type": "integer"
+          },
+          "offsetMs": {
             "type": "integer"
           },
           "size": {
@@ -9005,6 +9030,9 @@
           "context": {},
           "createdAt": {
             "format": "date-time",
+            "type": "string"
+          },
+          "deviceName": {
             "type": "string"
           },
           "hasLog": {
@@ -12597,6 +12625,10 @@
             "type": "string"
           },
           "move": {
+            "type": "string"
+          },
+          "moveEndsAt": {
+            "format": "date-time",
             "type": "string"
           },
           "name": {

@@ -2,7 +2,9 @@ package api
 
 import (
 	"net/http"
+	"time"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/settings"
 )
 
@@ -37,6 +39,10 @@ type System struct {
 	// Move is "to_local" or "to_portico" while a switch of the kind of sign-in still has people
 	// waiting, so their apps offer the right step before sign-in; absent otherwise.
 	Move string `json:"move,omitempty"`
+	// MoveEndsAt, during a switch to Portico Accounts, is when a waiting person's old password
+	// stops moving their account (`POST /v1/auth/move/check`); after it, only the owner's move
+	// code does. Absent otherwise.
+	MoveEndsAt *time.Time `json:"moveEndsAt,omitempty"`
 }
 
 // Health is the answer of the health checks.
@@ -76,6 +82,10 @@ func (s *Server) systemRoutes() {
 			return System{}, err
 		} else if moving {
 			out.Move = "to_" + move.To
+			if move.To == "portico" {
+				ends := move.At.Add(db.OldPasswordWorks).UTC()
+				out.MoveEndsAt = &ends
+			}
 		}
 
 		if _, err := s.admit(r, &Route{Access: SignedIn, Scope: ScopeRead}); err == nil {
