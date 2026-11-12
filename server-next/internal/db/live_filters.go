@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"time"
 )
 
 // LiveChannelsAround reads, in one statement, up to window channels on each side of one
@@ -53,29 +54,45 @@ func (d *DB) LiveSourceFor(ctx context.Context, publicID string, owner bool) (in
 	return id, err == nil, err
 }
 
-// LiveFilters is what the channels in use can be filtered by, before the caller decides which
-// Library Channels the viewer may see: the sources that have a channel in use (for everyone,
-// or every source for the owner), the groups of those sources' channels, and each Library
-// Channel's group and libraries.
+// LiveFilters is what the channel list's filter menu is made from, before the caller decides
+// which Library Channels the viewer may see and applies the profile's own marks: the channels
+// in use of each source the viewer may see, counted by group; the profile's own favourite and
+// hidden marks on channels in use; and each Library Channel in use.
 type LiveFilters struct {
-	Sources []LiveSourceName
-	Groups  []string
-	Library []LiveLibraryGroup
+	Counts  []LiveGroupCount
+	Marks   []LiveChannelMark
+	Library []LiveLibraryEntry
 }
 
-// LiveSourceName is a source by its public id and name.
-type LiveSourceName struct{ ID, Name string }
-
-// LiveLibraryGroup is a Library Channel's group ("" for none) and the libraries it draws from.
-type LiveLibraryGroup struct {
-	Group     string
-	Libraries []string
+// LiveGroupCount is how many channels in use one source has in one group ("" for none), and
+// the lowest and highest source their listings come from (0 for none).
+type LiveGroupCount struct {
+	SourceID           int64
+	Group              string
+	Channels           int
+	MinGuide, MaxGuide int64
 }
 
-// ReadLiveFilters reads the sources and groups to filter by, in three small reads: the
-// sources through channels_of_source, the groups as one walk of channels_of_group with one
-// look for a channel the viewer may see in each, and the Library Channels, which are few.
-func (d *DB) ReadLiveFilters(ctx context.Context, owner bool) (LiveFilters, error) {
+// LiveChannelMark is one of the profile's own marks on a source's channel in use.
+type LiveChannelMark struct {
+	SourceID         int64
+	Group            string
+	Favorite, Hidden bool
+}
+
+// LiveLibraryEntry is one Library Channel in use: its group, the libraries it draws from, how
+// far its schedule reaches, and the profile's own marks on it.
+type LiveLibraryEntry struct {
+	Group            string
+	Libraries        []string
+	ScheduledThrough time.Time
+	Favorite, Hidden bool
+}
+
+// ReadLiveFilters reads the filter menu's makings in three reads: one count of the visible
+// sources' channels in use by source and group, which reads no row of the profile's; the
+// profile's own marks, which are few; and the Library Channels, which are few.
+func (d *DB) ReadLiveFilters(ctx context.Context, v Viewer, owner bool) (LiveFilters, error) {
 	var out LiveFilters
 	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
@@ -83,26 +100,42 @@ func (d *DB) ReadLiveFilters(ctx context.Context, owner bool) (LiveFilters, erro
 	}
 	defer tx.Rollback()
 	inUse := `c.state = 1 AND c.missing_since_at IS NULL`
-	if out.Sources, err = queryAll(ctx, tx, `SELECT s.public_id, s.name FROM live_sources s WHERE s.paused = 0 AND (? OR s.audience = 'everyone')
-		AND EXISTS (SELECT 1 FROM channels c WHERE c.source_id = s.id AND `+inUse+`)`, []any{owner},
-		func(n *LiveSourceName) []any { return []any{&n.ID, &n.Name} }); err != nil {
+	visibleSources := `c.kind = 1 AND c.source_id IN (SELECT id FROM live_sources WHERE paused = 0 AND (@owner OR audience = 'everyone'))`
+	args := []any{sql.Named("owner", owner), sql.Named("profile", v.ProfileID)}
+	// Read from channels_in_use_by_group alone, in its order: no row of the table is read.
+	if out.Counts, err = queryAll(ctx, tx, `SELECT c.source_id, ifnull(c.group_name, ''), count(*), min(ifnull(c.guide_source_id, 0)),
+		max(ifnull(c.guide_source_id, 0)) FROM channels c INDEXED BY channels_in_use_by_group
+		WHERE c.kind = 1 AND c.state = 1 AND c.missing_since_at IS NULL
+		AND c.source_id IN (SELECT id FROM live_sources WHERE paused = 0 AND (@owner OR audience = 'everyone'))
+		GROUP BY c.source_id, c.group_name`, args,
+		func(g *LiveGroupCount) []any {
+			return []any{&g.SourceID, &g.Group, &g.Channels, &g.MinGuide, &g.MaxGuide}
+		}); err != nil {
 		return out, err
 	}
-	if out.Groups, err = queryAll(ctx, tx, `SELECT g FROM (SELECT DISTINCT group_name AS g FROM channels WHERE group_name IS NOT NULL)
-		WHERE EXISTS (SELECT 1 FROM channels c JOIN live_sources s ON s.id = c.source_id WHERE c.group_name = g AND `+inUse+`
-			AND s.paused = 0 AND (? OR s.audience = 'everyone'))`, []any{owner},
-		func(g *string) []any { return []any{g} }); err != nil {
+	if out.Marks, err = queryAll(ctx, tx, `SELECT c.source_id, ifnull(c.group_name, ''), pc.favorite, pc.hidden FROM profile_channels pc
+		JOIN channels c ON c.id = pc.channel_id WHERE pc.profile_id = @profile AND (pc.favorite = 1 OR pc.hidden = 1) AND `+visibleSources+
+		` AND `+inUse, args, func(m *LiveChannelMark) []any { return []any{&m.SourceID, &m.Group, &m.Favorite, &m.Hidden} }); err != nil {
 		return out, err
 	}
-	type row struct{ group, libraries string }
-	rows, err := queryAll(ctx, tx, `SELECT ifnull(c.group_name, ''), ifnull(l.libraries, '[]') FROM channels c
-		JOIN library_channels l ON l.channel_id = c.id WHERE c.kind = 2 AND `+inUse, nil,
-		func(r *row) []any { return []any{&r.group, &r.libraries} })
+	type row struct {
+		group, libraries string
+		through          int64
+		favorite, hidden bool
+	}
+	rows, err := queryAll(ctx, tx, `SELECT ifnull(c.group_name, ''), ifnull(l.libraries, '[]'), ifnull(l.scheduled_through_at, 0),
+		ifnull(pc.favorite, 0), ifnull(pc.hidden, 0) FROM channels c JOIN library_channels l ON l.channel_id = c.id
+		LEFT JOIN profile_channels pc ON pc.profile_id = @profile AND pc.channel_id = c.id WHERE c.kind = 2 AND `+inUse, args,
+		func(r *row) []any { return []any{&r.group, &r.libraries, &r.through, &r.favorite, &r.hidden} })
 	if err != nil {
 		return out, err
 	}
 	for _, r := range rows {
-		out.Library = append(out.Library, LiveLibraryGroup{Group: r.group, Libraries: parseLibraries(r.libraries)})
+		e := LiveLibraryEntry{Group: r.group, Libraries: parseLibraries(r.libraries), Favorite: r.favorite, Hidden: r.hidden}
+		if r.through != 0 {
+			e.ScheduledThrough = time.UnixMilli(r.through)
+		}
+		out.Library = append(out.Library, e)
 	}
 	return out, nil
 }

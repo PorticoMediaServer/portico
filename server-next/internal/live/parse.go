@@ -35,8 +35,11 @@ type LiveSourceReport struct {
 	Groups            []string `json:"groups,omitempty"`
 	Examples          []string `json:"examples,omitempty"`
 	ChannelsWithGuide int      `json:"channelsWithGuide"`
-	groupsSeen        map[string]bool
-	examplesSeen      map[string]bool
+	// GuideThrough is when the last programme the guide brought in ends: how far the guide
+	// reaches. A refresh that fails keeps the report, and so the reach, of the last good one.
+	GuideThrough *time.Time `json:"guideThrough,omitempty"`
+	groupsSeen   map[string]bool
+	examplesSeen map[string]bool
 }
 
 func (r *LiveSourceReport) note(reason string) {

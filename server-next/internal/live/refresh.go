@@ -179,6 +179,10 @@ func (s *Service) refresh(ctx context.Context, src db.LiveSource) (LiveSourceRep
 					return nil
 				}
 				report.Programmes++
+				if report.GuideThrough == nil || p.EndsAt.After(*report.GuideThrough) {
+					ends := p.EndsAt.UTC()
+					report.GuideThrough = &ends
+				}
 				return add(db.GuideProgramme{GuideKey: p.GuideKey, StartsAt: p.StartsAt, EndsAt: p.EndsAt, ProgrammeKey: p.Key,
 					SeriesKey: p.SeriesKey, Title: p.Title, EpisodeTitle: p.EpisodeTitle, Season: p.Season, Episode: p.Episode,
 					Summary: p.Summary, Rating: p.Rating, RatingAge: p.RatingAge, Flags: p.Flags, ImageURL: p.Image})
