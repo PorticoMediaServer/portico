@@ -404,7 +404,12 @@ func newMatrix(t *testing.T, ffmpeg, ffprobe string) *matrix {
 	m.encoders = string(out) + string(filters)
 	version, _ := exec.Command(ffmpeg, "-hide_banner", "-version").Output()
 	first, _, _ := strings.Cut(string(version), "\n")
-	t.Logf("ffmpeg: %s (%s)", first, ffmpeg)
+	seekFaultFFmpeg = hasSeekFault(first)
+	marks := "the AV1 seek marks (finding 1) are in force: this FFmpeg's AV1 conversion after a seek starts off the segment grid"
+	if !seekFaultFFmpeg {
+		marks = "the AV1 seek marks (finding 1) are not in force: this FFmpeg has no such fault, so those cases must pass"
+	}
+	t.Logf("ffmpeg: %s (%s); %s", first, ffmpeg, marks)
 	return m
 }
 

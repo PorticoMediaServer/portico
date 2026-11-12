@@ -27,3 +27,19 @@ func TestAnExpectedFailureMarkHidesOnlyTheFailureItNames(t *testing.T) {
 		}
 	}
 }
+
+// The AV1 seek marks follow the FFmpeg: in force on FFmpeg 6, not on 8, nor on one whose
+// version cannot be read.
+func TestTheSeekMarksAreInForceOnlyOnFFmpeg6(t *testing.T) {
+	for line, want := range map[string]bool{
+		"ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023 the FFmpeg developers":   true,
+		"ffmpeg version n6.0 Copyright (c) 2000-2023 the FFmpeg developers":             true,
+		"ffmpeg version 8.0.1-3ubuntu2 Copyright (c) 2000-2025 the FFmpeg developers":   false,
+		"ffmpeg version 8.1.3 Copyright (c) 2000-2026 the FFmpeg developers":            false,
+		"ffmpeg version N-118000-gabcdef Copyright (c) 2000-2026 the FFmpeg developers": false,
+	} {
+		if got := hasSeekFault(line); got != want {
+			t.Errorf("%q: in force %v, want %v", line, got, want)
+		}
+	}
+}
