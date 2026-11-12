@@ -35,10 +35,10 @@ test('Together item parsing follows the captured transport lifetime check', asyn
 
 test('Quick Connect validates the response only after the original request settles', async () => {
   const read = pending();let validated = false;
-  const task = receiverLinkOperations({request<T>() {return read.promise as Promise<T>;}}).preview('code');
+  const task = receiverLinkOperations({request<T>() {return read.promise as Promise<T>;}}).preview('2345ABCD');
   const assertion = assert.rejects(task, /quick_connect_unreadable/);
   await settled();assert.equal(validated, false);
-  read.resolve({get requestId() {validated = true;return null;}});
+  read.resolve({get device() {validated = true;return null;}});
   await assertion;assert.equal(validated, true);
 });
 
