@@ -1,9 +1,9 @@
-import {entriesFromItems, readFacet, readItems, readLibrary} from '../items.ts';
+import {entriesFromItems, readFacet, readItems, readLibrary, type ItemListQuery} from '../items.ts';
 import {childrenQuery, libraryBrowseCapabilities, libraryItemQuery} from '../library-browse.ts';
 import type {ContentEntry} from '../library-content.ts';
 import {unreadableServerResponse} from '../server-messages.ts';
 import type {ServerRequester} from './server-api.ts';
-import {encodedRoutePath, routePath} from '../../../contracts/src/routes.ts';
+import {routePath} from '../../../contracts/src/routes.ts';
 import type {GuideRoute} from '../channel-guide.ts';
 import {acrossLibraries, browseCapabilitiesPath, browsePath, browseContextFacetsPath, browseCountsPath, browseCountsRequest, parseBrowseFacets,
   type BrowseNode, type BrowseRequestBody} from '../browse.ts';
@@ -52,19 +52,22 @@ export async function readReadingBrowseFacet(api: import('../library-content.ts'
   return page;
 }
 
-/** One page of an album's tracks in the album's own order, with the album's track count: the album page's list and its whole-album actions. */
-export async function readAlbumTrackPage(api: BrowseReadApi, libraryId: string, albumId: string, page: Readonly<{cursor?: string; limit: number}>,
-  signal?: AbortSignal): Promise<Readonly<{entries: readonly ContentEntry[]; nextCursor: string; total?: number}>> {
-  const answer = await readItems(api as ServerRequester, childrenQuery(albumId), {cursor: page.cursor || undefined, limit: page.limit, total: true}, signal);
+type MusicPage = Readonly<{entries: readonly ContentEntry[]; nextCursor: string; total?: number}>;
+type MusicPageRequest = Readonly<{cursor?: string; limit: number}>;
+async function readMusicPage(api: BrowseReadApi, libraryId: string, query: ItemListQuery, page: MusicPageRequest, signal?: AbortSignal): Promise<MusicPage> {
+  const answer = await readItems(api as ServerRequester, query, {cursor: page.cursor || undefined, limit: page.limit, total: true}, signal);
   if (!answer || !Array.isArray(answer.items)) throw new Error(unreadableServerResponse);
   return {entries: entriesFromItems(answer.items, libraryId), nextCursor: answer.nextCursor ?? '', ...(typeof answer.total === 'number' ? {total: answer.total} : {})};
 }
-
-/** Capture the original artist release address before its pager is constructed. */
-export function createArtistAlbumPageRead(api: BrowseReadApi, artistId: string) {
-  const path = encodedRoutePath('get_artists_id_albums', {id: encodeURIComponent(artistId)}) + '?limit=100';
-  return (cursor: string | undefined, signal: AbortSignal) => api.request(path + (cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''), 'GET', undefined, signal) as Promise<{albums?: unknown; nextCursor?: unknown}>;
-}
+/** One page of an album's tracks in the album's own order, with the album's track count: the album page's list and its whole-album actions. */
+export const readAlbumTrackPage = (api: BrowseReadApi, libraryId: string, albumId: string, page: MusicPageRequest, signal?: AbortSignal): Promise<MusicPage> =>
+  readMusicPage(api, libraryId, childrenQuery(albumId), page, signal);
+/** One page of an artist's albums, newest first: the artist page's releases. */
+export const readArtistReleasePage = (api: BrowseReadApi, libraryId: string, artistId: string, page: MusicPageRequest, signal?: AbortSignal): Promise<MusicPage> =>
+  readMusicPage(api, libraryId, {parent: artistId, kind: 'album', sort: 'year', order: 'desc'}, page, signal);
+/** One page of every song crediting an artist: `popular` is the server's most played (only songs someone sharing their activity played), `title` is all of them by name. */
+export const readArtistSongPage = (api: BrowseReadApi, libraryId: string, artistId: string, order: 'popular' | 'title', page: MusicPageRequest, signal?: AbortSignal): Promise<MusicPage> =>
+  readMusicPage(api, libraryId, {artist: artistId, kind: 'track', sort: order, ...(order === 'title' ? {order: 'asc' as const} : {})}, page, signal);
 
 /** One named channel in the existing selected-source guide window. */
 export function readSelectedChannelGuideResponse(api: BrowseReadApi,

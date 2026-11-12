@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {readBrowseCapabilitiesResponse, readImmediateBrowsePageResponse, readBrowseCountsResponse, readBrowseFacetResponse, readReadingBrowseFacet,
-  createArtistAlbumPageRead, readSelectedChannelGuideResponse} from '../src/query/browse-reads.ts';
+  readSelectedChannelGuideResponse} from '../src/query/browse-reads.ts';
 import {browseCapabilitiesPath, browsePath, browseCountsPath, browseCountsRequest, browseContextFacetsPath} from '../src/browse.ts';
 
 const fixture = (name: string) => JSON.parse(readFileSync(new URL(`./compat-corpus/main/${name}.json`, import.meta.url), 'utf8')).body;
@@ -27,21 +27,6 @@ test('transport failures and cancellation are not retried or cached by an operat
     await assert.rejects(readBrowseCapabilitiesResponse(api, '*', ''), value => value === error);
     assert.equal(calls, 1);
   }
-});
-
-test('artist release pages capture the original validated address and encode opaque cursors without another promise', () => {
-  const signal = new AbortController().signal, calls: unknown[][] = [], pending = new Promise<unknown>(() => {});
-  const api = {request(...args: unknown[]) {calls.push(args);return pending;}};
-  const read = createArtistAlbumPageRead(api, 'artist /?');
-  assert.equal(calls.length, 0, 'creating the pager reader does not dispatch');
-  assert.equal(read(undefined, signal), pending);
-  assert.equal(read('opaque /+?', signal), pending);
-  assert.deepEqual(calls, [
-    ['/v1/artists/artist%20%2F%3F/albums?limit=100', 'GET', undefined, signal],
-    ['/v1/artists/artist%20%2F%3F/albums?limit=100&cursor=opaque%20%2F%2B%3F', 'GET', undefined, signal],
-  ]);
-  assert.throws(() => createArtistAlbumPageRead(api, '..'), /Invalid route parameter/);
-  assert.equal(calls.length, 2, 'invalid path refuses before pager construction or transport');
 });
 
 test('single-channel guide retains exact query order, hidden policy and signal', async () => {
