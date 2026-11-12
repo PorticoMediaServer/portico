@@ -25,6 +25,12 @@ export interface AccountStream {
   durationMs?: number;
   startedAt: string;
   current: boolean;
+  next?: AccountStreamNext;
+}
+
+export interface AccountStreamNext {
+  itemId: string;
+  title: string;
 }
 
 export interface ActivityEntry {
@@ -195,6 +201,7 @@ export interface BackupInspection {
 export interface BackupRestore extends BackupInspect {
   currentPassword: string;
   code?: string;
+  approval?: string;
   notMadeHereConfirmed?: boolean;
 }
 
@@ -635,6 +642,17 @@ export interface DriveSignInStarted {
   address: string;
 }
 
+export interface DvrAiring {
+  title: string;
+  episodeTitle?: string;
+  season?: number;
+  episode?: number;
+  channel: string;
+  startsAt: string;
+  endsAt: string;
+  alreadyBooked: boolean;
+}
+
 export interface DvrOverview {
   upcoming: number;
   recorded: number;
@@ -645,11 +663,20 @@ export interface DvrOverview {
   keepRule: string;
   folderOk: boolean;
   canRecord: boolean;
+  usedBytes: number;
+  floorBytes: number;
+  capBytes: number;
+  keepDays: number;
+  keepNewest: number;
+  everyonesRecordings: boolean;
+  upcomingBytes: number;
+  upcomingHours: number;
 }
 
 export interface DvrRecording {
   id: string;
   channel: string;
+  channelId?: string;
   title: string;
   episodeTitle?: string;
   season?: number;
@@ -668,6 +695,16 @@ export interface DvrRecording {
   keep: boolean;
   fromRule: boolean;
   itemId?: string;
+  libraryId?: string;
+  bytes: number;
+  positionMs?: number;
+  durationMs?: number;
+  watched?: boolean;
+  playingNow?: number;
+  tuners?: number;
+  tunersUsedBy?: string[];
+  mayChange: boolean;
+  mayCancel?: boolean;
 }
 
 export interface DvrRecordingBook {
@@ -695,6 +732,7 @@ export interface DvrRule {
   title: string;
   source: string;
   channel?: string;
+  channelName?: string;
   byTitle: boolean;
   newOnly: boolean;
   keepNewest?: number;
@@ -703,6 +741,7 @@ export interface DvrRule {
   padBeforeMs?: number;
   padAfterMs?: number;
   paused: boolean;
+  preview?: DvrRulePreview;
 }
 
 export interface DvrRulePage {
@@ -710,9 +749,15 @@ export interface DvrRulePage {
   nextCursor?: string;
 }
 
+export interface DvrRulePreview {
+  matches: number;
+  airings: DvrAiring[];
+}
+
 export interface DvrRuleSave {
   programme?: string;
   anyChannel?: boolean;
+  channel?: string;
   newOnly?: boolean;
   keepNewest?: number;
   keepDays?: number;
@@ -1403,6 +1448,7 @@ export interface LibraryOptions {
   watch?: boolean;
   rescanMinutes: number;
   groupSeries?: boolean;
+  lyrics?: string;
 }
 
 export interface LibraryOrder {
@@ -1492,8 +1538,12 @@ export interface ListSharesSet {
 export interface LiveAiring {
   id: string;
   channel: string;
+  channelId: string;
   startsAt: string;
   endsAt: string;
+  episodeTitle?: string;
+  season?: number;
+  episode?: number;
 }
 
 export interface LiveChannel {
@@ -1587,6 +1637,7 @@ export interface LiveProgrammeDetail extends LiveProgramme {
 export interface LiveReminderOut {
   programme: string;
   channel: string;
+  channelId: string;
   title: string;
   startsAt: string;
   endsAt: string;
@@ -1773,11 +1824,21 @@ export interface Lyrics {
   text: string;
   lines: LyricLine[];
   offsetMs: number;
+  credit?: string;
+}
+
+export interface LyricsFetched {
+  found: boolean;
 }
 
 export interface LyricsPage {
   items: Lyrics[];
   nextCursor?: string;
+}
+
+export interface LyricsPaste {
+  text: string;
+  language?: string;
 }
 
 export interface MCPReply {
@@ -1854,6 +1915,7 @@ export interface Member extends Account {
   lastActiveAt?: string;
   profiles: string[];
   limits: MemberLimits;
+  porticoAccount: boolean;
 }
 
 export interface MemberCreate {
@@ -1984,6 +2046,26 @@ export interface MetadataPatch {
 
 export interface MetadataRefreshed {
   matched: boolean;
+}
+
+export interface MetadataSettings {
+  revision: number;
+  includeAdult: boolean;
+  tmdbCredentialConfigured: boolean;
+  tmdbCredentialUnreadable?: boolean;
+  openSubtitlesKeyConfigured: boolean;
+  openSubtitlesUsername: string;
+  openSubtitlesPasswordConfigured: boolean;
+  openSubtitles: OpenSubtitlesStatus;
+}
+
+export interface MetadataSettingsChange {
+  expectedRevision?: number;
+  includeAdult?: boolean;
+  tmdbReadToken?: string;
+  openSubtitlesApiKey?: string;
+  openSubtitlesUsername?: string;
+  openSubtitlesPassword?: string;
 }
 
 export interface MissingTitle {
@@ -2119,6 +2201,18 @@ export interface OfflinePlayResult {
   error?: BatchError;
 }
 
+export interface OpenSubtitlesStatus {
+  keySource: string;
+  accountSource: string;
+  account: string;
+  problem?: string;
+  checkedAt?: string;
+  retryAt?: string;
+  downloadsRemaining: number;
+  downloadsAllowed: number;
+  downloadsResetAt?: string;
+}
+
 export interface OwnAddress {
   enabled: boolean;
   domain: string;
@@ -2200,6 +2294,7 @@ export interface Person {
   birthplace?: string;
   images: Record<string, string>;
   titleCount?: number;
+  roles?: PersonRole[];
 }
 
 export interface PersonDownloads {
@@ -2207,6 +2302,17 @@ export interface PersonDownloads {
   username: string;
   titles: number;
   copiesBytes: number;
+}
+
+export interface PersonPage {
+  items: Person[];
+  nextCursor?: string;
+  total?: number;
+}
+
+export interface PersonRole {
+  role: string;
+  titleCount: number;
 }
 
 export interface Play {
@@ -2473,6 +2579,9 @@ export interface PorticoChallenge {
   challenge: string;
   serverId: string;
   expiresAt: string;
+}
+
+export interface PorticoChallengeRequest {
 }
 
 export interface PorticoExchange {
@@ -2894,7 +3003,19 @@ export interface Related {
 
 export interface RelatedGroup {
   relation: string;
+  person?: RelatedPerson;
+  tag?: RelatedTag;
   items: Item[];
+}
+
+export interface RelatedPerson {
+  id: string;
+  name: string;
+}
+
+export interface RelatedTag {
+  value: string;
+  label: string;
 }
 
 export interface Release {
@@ -3238,6 +3359,22 @@ export interface SelectionDeletion {
   alsoRemoves: TitleRef[];
 }
 
+export interface ServerDevice extends Device {
+  account: ServerDeviceAccount;
+  sessions: number;
+}
+
+export interface ServerDeviceAccount {
+  id: string;
+  username: string;
+  porticoAccount: boolean;
+}
+
+export interface ServerDevicePage {
+  items: ServerDevice[];
+  nextCursor?: string;
+}
+
 export interface ServerMessage {
   audience: string;
   message: string;
@@ -3528,6 +3665,11 @@ export interface StreamTotals {
   converting: number;
 }
 
+export interface SubtitleDownload {
+  versionId?: string;
+  ref: string;
+}
+
 export interface SubtitleFile {
   trackId: string;
   format: string;
@@ -3548,6 +3690,20 @@ export interface SubtitleOffset {
 export interface SubtitlePick {
   trackId?: string | null;
   delivery?: string;
+}
+
+export interface SubtitleResult {
+  ref: string;
+  language: string;
+  release?: string;
+  sdh: boolean;
+  forced: boolean;
+  downloads: number;
+}
+
+export interface SubtitleResults {
+  items: SubtitleResult[];
+  credit: string;
 }
 
 export interface SupportExportRequest {
@@ -3818,6 +3974,7 @@ export interface Routes {
   'DELETE /v1/admin/members/{id}': {access: 'admin'; request: undefined; response: undefined};
   'POST /v1/admin/members/{id}/password-reset': {access: 'admin'; request: PasswordResetCreate; response: PasswordResetCode};
   'GET /v1/admin/members/{id}/devices': {access: 'admin'; request: undefined; response: DevicePage};
+  'GET /v1/admin/devices': {access: 'admin'; request: undefined; response: ServerDevicePage};
   'DELETE /v1/admin/members/{id}/devices/{deviceId}': {access: 'admin'; request: undefined; response: undefined};
   'GET /v1/admin/invitations': {access: 'admin'; request: undefined; response: InvitationPage};
   'POST /v1/admin/invitations': {access: 'admin'; request: InvitationCreate; response: Invitation};
@@ -3847,6 +4004,7 @@ export interface Routes {
   'GET /v1/items/{id}': {access: 'withProfile'; request: undefined; response: Item};
   'GET /v1/items/{id}/credits': {access: 'withProfile'; request: undefined; response: CreditPage};
   'GET /v1/items/{id}/related': {access: 'withProfile'; request: undefined; response: Related};
+  'GET /v1/people': {access: 'withProfile'; request: undefined; response: PersonPage};
   'GET /v1/people/{id}': {access: 'withProfile'; request: undefined; response: Person};
   'GET /v1/facets': {access: 'withProfile'; request: undefined; response: Facets};
   'GET /v1/home': {access: 'withProfile'; request: undefined; response: Home};
@@ -3991,7 +4149,7 @@ export interface Routes {
   'POST /v1/auth/move/check': {access: 'public'; request: MoveCheckRequest; response: MoveCheck};
   'POST /v1/auth/move/complete': {access: 'public'; request: MoveCompleteRequest; response: SignInResponse};
   'POST /v1/me/leave': {access: 'signedIn'; request: LeaveRequest; response: undefined};
-  'POST /v1/auth/portico/challenge': {access: 'public'; request: undefined; response: PorticoChallenge};
+  'POST /v1/auth/portico/challenge': {access: 'public'; request: PorticoChallengeRequest; response: PorticoChallenge};
   'POST /v1/auth/portico/exchange': {access: 'public'; request: PorticoExchange; response: SignInResponse};
   'POST /v1/hosted/notices': {access: 'public'; request: HostedNotice; response: HostedNoticeAck};
   'POST /v1/hosted/approvals/{id}/poll': {access: 'public'; request: PorticoApprovalPollRequest; response: PorticoApprovalPoll};
@@ -3999,6 +4157,7 @@ export interface Routes {
   'GET /v1/admin/portico': {access: 'owner'; request: undefined; response: PorticoLinkState};
   'POST /v1/admin/portico/link': {access: 'owner'; request: PorticoLinkRequest; response: PorticoApproval};
   'POST /v1/admin/portico/link/finish': {access: 'owner'; request: PorticoLinkFinish; response: PorticoLinkState};
+  'POST /v1/admin/portico/left/{id}/let-back-in': {access: 'owner'; request: undefined; response: undefined};
   'GET /v1/admin/settings/integrations': {access: 'owner'; request: undefined; response: IntegrationSettings};
   'PUT /v1/admin/settings/integrations': {access: 'owner'; request: IntegrationSettingsEdit; response: IntegrationSettings};
   'POST /v1/mcp': {access: 'signedIn'; request: JSON; response: MCPReply};
@@ -4075,6 +4234,7 @@ export interface Routes {
   'POST /v1/admin/live/sources/{id}/refresh': {access: 'owner'; request: undefined; response: LiveSource};
   'GET /v1/admin/live/sources/{id}/channels': {access: 'owner'; request: undefined; response: LiveSourceChannelPage};
   'PATCH /v1/admin/live/sources/{id}/channels': {access: 'owner'; request: LiveSourceChannelEdits; response: undefined};
+  'GET /v1/live/streams/{grant}/{file}': {access: 'public'; request: undefined; response: undefined};
   'GET /v1/live/streams/{grant}': {access: 'public'; request: undefined; response: undefined};
   'GET /v1/dvr': {access: 'withProfile'; request: undefined; response: DvrOverview};
   'GET /v1/dvr/recordings': {access: 'withProfile'; request: undefined; response: DvrRecordingPage};
@@ -4097,6 +4257,14 @@ export interface Routes {
   'POST /v1/admin/items/{id}/metadata/refresh': {access: 'admin'; request: undefined; response: MetadataRefreshed};
   'POST /v1/admin/items/{id}/merge': {access: 'admin'; request: MergeRequest; response: MatchResult};
   'POST /v1/admin/versions/{id}/split': {access: 'admin'; request: undefined; response: MatchResult};
+  'PUT /v1/admin/items/{id}/lyrics': {access: 'admin'; request: LyricsPaste; response: LyricsPage};
+  'POST /v1/admin/items/{id}/lyrics/fetch': {access: 'admin'; request: undefined; response: LyricsFetched};
+  'GET /v1/admin/metadata/settings': {access: 'owner'; request: undefined; response: MetadataSettings};
+  'PUT /v1/admin/metadata/settings': {access: 'owner'; request: MetadataSettingsChange; response: MetadataSettings};
+  'POST /v1/admin/metadata/settings/opensubtitles/check': {access: 'owner'; request: undefined; response: OpenSubtitlesStatus};
+  'GET /v1/items/{id}/subtitles/search': {access: 'withProfile'; request: undefined; response: SubtitleResults};
+  'POST /v1/items/{id}/subtitles': {access: 'withProfile'; request: SubtitleDownload; response: ItemSubtitle};
+  'DELETE /v1/admin/items/{id}/subtitles/{subtitleId}': {access: 'admin'; request: undefined; response: undefined};
   'GET /v1/admin/items/{id}/metadata': {access: 'admin'; request: undefined; response: MetadataDocument};
   'PATCH /v1/admin/items/{id}/metadata': {access: 'admin'; request: MetadataPatch; response: MetadataDocument};
   'GET /v1/admin/items/{id}/metadata/history': {access: 'admin'; request: undefined; response: MetadataHistoryEntryPage};

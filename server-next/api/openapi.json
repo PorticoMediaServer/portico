@@ -63,6 +63,9 @@
           "kind": {
             "type": "string"
           },
+          "next": {
+            "$ref": "#/components/schemas/AccountStreamNext"
+          },
           "positionMs": {
             "type": "integer"
           },
@@ -86,6 +89,21 @@
           "positionMs",
           "startedAt",
           "current"
+        ],
+        "type": "object"
+      },
+      "AccountStreamNext": {
+        "properties": {
+          "itemId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemId",
+          "title"
         ],
         "type": "object"
       },
@@ -655,6 +673,9 @@
           },
           {
             "properties": {
+              "approval": {
+                "type": "string"
+              },
               "code": {
                 "type": "string"
               },
@@ -2135,12 +2156,59 @@
         ],
         "type": "object"
       },
+      "DvrAiring": {
+        "properties": {
+          "alreadyBooked": {
+            "type": "boolean"
+          },
+          "channel": {
+            "type": "string"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "episode": {
+            "type": "integer"
+          },
+          "episodeTitle": {
+            "type": "string"
+          },
+          "season": {
+            "type": "integer"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "channel",
+          "startsAt",
+          "endsAt",
+          "alreadyBooked"
+        ],
+        "type": "object"
+      },
       "DvrOverview": {
         "properties": {
           "canRecord": {
             "type": "boolean"
           },
+          "capBytes": {
+            "type": "integer"
+          },
           "conflicts": {
+            "type": "integer"
+          },
+          "everyonesRecordings": {
+            "type": "boolean"
+          },
+          "floorBytes": {
             "type": "integer"
           },
           "folderOk": {
@@ -2150,6 +2218,12 @@
             "type": "integer"
           },
           "hoursLeft": {
+            "type": "integer"
+          },
+          "keepDays": {
+            "type": "integer"
+          },
+          "keepNewest": {
             "type": "integer"
           },
           "keepRule": {
@@ -2163,6 +2237,15 @@
           },
           "upcoming": {
             "type": "integer"
+          },
+          "upcomingBytes": {
+            "type": "integer"
+          },
+          "upcomingHours": {
+            "type": "integer"
+          },
+          "usedBytes": {
+            "type": "integer"
           }
         },
         "required": [
@@ -2174,7 +2257,15 @@
           "hoursLeft",
           "keepRule",
           "folderOk",
-          "canRecord"
+          "canRecord",
+          "usedBytes",
+          "floorBytes",
+          "capBytes",
+          "keepDays",
+          "keepNewest",
+          "everyonesRecordings",
+          "upcomingBytes",
+          "upcomingHours"
         ],
         "type": "object"
       },
@@ -2183,7 +2274,13 @@
           "bookedBy": {
             "type": "string"
           },
+          "bytes": {
+            "type": "integer"
+          },
           "channel": {
+            "type": "string"
+          },
+          "channelId": {
             "type": "string"
           },
           "choice": {
@@ -2191,6 +2288,9 @@
           },
           "conflict": {
             "type": "boolean"
+          },
+          "durationMs": {
+            "type": "integer"
           },
           "endsAt": {
             "format": "date-time",
@@ -2217,10 +2317,25 @@
           "keep": {
             "type": "boolean"
           },
+          "libraryId": {
+            "type": "string"
+          },
+          "mayCancel": {
+            "type": "boolean"
+          },
+          "mayChange": {
+            "type": "boolean"
+          },
           "padAfterMs": {
             "type": "integer"
           },
           "padBeforeMs": {
+            "type": "integer"
+          },
+          "playingNow": {
+            "type": "integer"
+          },
+          "positionMs": {
             "type": "integer"
           },
           "priority": {
@@ -2241,6 +2356,18 @@
           },
           "title": {
             "type": "string"
+          },
+          "tuners": {
+            "type": "integer"
+          },
+          "tunersUsedBy": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "watched": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -2255,7 +2382,9 @@
           "state",
           "inGuide",
           "keep",
-          "fromRule"
+          "fromRule",
+          "bytes",
+          "mayChange"
         ],
         "type": "object"
       },
@@ -2324,6 +2453,9 @@
           "channel": {
             "type": "string"
           },
+          "channelName": {
+            "type": "string"
+          },
           "id": {
             "type": "string"
           },
@@ -2344,6 +2476,9 @@
           },
           "paused": {
             "type": "boolean"
+          },
+          "preview": {
+            "$ref": "#/components/schemas/DvrRulePreview"
           },
           "priority": {
             "type": "integer"
@@ -2383,10 +2518,31 @@
         ],
         "type": "object"
       },
+      "DvrRulePreview": {
+        "properties": {
+          "airings": {
+            "items": {
+              "$ref": "#/components/schemas/DvrAiring"
+            },
+            "type": "array"
+          },
+          "matches": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "matches",
+          "airings"
+        ],
+        "type": "object"
+      },
       "DvrRuleSave": {
         "properties": {
           "anyChannel": {
             "type": "boolean"
+          },
+          "channel": {
+            "type": "string"
           },
           "keepDays": {
             "type": "integer"
@@ -4642,6 +4798,9 @@
           "groupSeries": {
             "type": "boolean"
           },
+          "lyrics": {
+            "type": "string"
+          },
           "rescanMinutes": {
             "type": "integer"
           },
@@ -4946,12 +5105,24 @@
           "channel": {
             "type": "string"
           },
+          "channelId": {
+            "type": "string"
+          },
           "endsAt": {
             "format": "date-time",
             "type": "string"
           },
+          "episode": {
+            "type": "integer"
+          },
+          "episodeTitle": {
+            "type": "string"
+          },
           "id": {
             "type": "string"
+          },
+          "season": {
+            "type": "integer"
           },
           "startsAt": {
             "format": "date-time",
@@ -4961,6 +5132,7 @@
         "required": [
           "id",
           "channel",
+          "channelId",
           "startsAt",
           "endsAt"
         ],
@@ -5275,6 +5447,9 @@
           "channel": {
             "type": "string"
           },
+          "channelId": {
+            "type": "string"
+          },
           "endsAt": {
             "format": "date-time",
             "type": "string"
@@ -5293,6 +5468,7 @@
         "required": [
           "programme",
           "channel",
+          "channelId",
           "title",
           "startsAt",
           "endsAt"
@@ -5888,6 +6064,9 @@
       },
       "Lyrics": {
         "properties": {
+          "credit": {
+            "type": "string"
+          },
           "format": {
             "type": "string"
           },
@@ -5920,6 +6099,17 @@
         ],
         "type": "object"
       },
+      "LyricsFetched": {
+        "properties": {
+          "found": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "found"
+        ],
+        "type": "object"
+      },
       "LyricsPage": {
         "properties": {
           "items": {
@@ -5934,6 +6124,20 @@
         },
         "required": [
           "items"
+        ],
+        "type": "object"
+      },
+      "LyricsPaste": {
+        "properties": {
+          "language": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
         ],
         "type": "object"
       },
@@ -6160,6 +6364,9 @@
               "notes": {
                 "type": "string"
               },
+              "porticoAccount": {
+                "type": "boolean"
+              },
               "profiles": {
                 "items": {
                   "type": "string"
@@ -6182,7 +6389,8 @@
               "twoFactorEnabled",
               "allowDownloads",
               "profiles",
-              "limits"
+              "limits",
+              "porticoAccount"
             ],
             "type": "object"
           }
@@ -6653,6 +6861,67 @@
         ],
         "type": "object"
       },
+      "MetadataSettings": {
+        "properties": {
+          "includeAdult": {
+            "type": "boolean"
+          },
+          "openSubtitles": {
+            "$ref": "#/components/schemas/OpenSubtitlesStatus"
+          },
+          "openSubtitlesKeyConfigured": {
+            "type": "boolean"
+          },
+          "openSubtitlesPasswordConfigured": {
+            "type": "boolean"
+          },
+          "openSubtitlesUsername": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "tmdbCredentialConfigured": {
+            "type": "boolean"
+          },
+          "tmdbCredentialUnreadable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "revision",
+          "includeAdult",
+          "tmdbCredentialConfigured",
+          "openSubtitlesKeyConfigured",
+          "openSubtitlesUsername",
+          "openSubtitlesPasswordConfigured",
+          "openSubtitles"
+        ],
+        "type": "object"
+      },
+      "MetadataSettingsChange": {
+        "properties": {
+          "expectedRevision": {
+            "type": "integer"
+          },
+          "includeAdult": {
+            "type": "boolean"
+          },
+          "openSubtitlesApiKey": {
+            "type": "string"
+          },
+          "openSubtitlesPassword": {
+            "type": "string"
+          },
+          "openSubtitlesUsername": {
+            "type": "string"
+          },
+          "tmdbReadToken": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "MissingTitle": {
         "properties": {
           "id": {
@@ -7101,6 +7370,45 @@
         ],
         "type": "object"
       },
+      "OpenSubtitlesStatus": {
+        "properties": {
+          "account": {
+            "type": "string"
+          },
+          "accountSource": {
+            "type": "string"
+          },
+          "checkedAt": {
+            "type": "string"
+          },
+          "downloadsAllowed": {
+            "type": "integer"
+          },
+          "downloadsRemaining": {
+            "type": "integer"
+          },
+          "downloadsResetAt": {
+            "type": "string"
+          },
+          "keySource": {
+            "type": "string"
+          },
+          "problem": {
+            "type": "string"
+          },
+          "retryAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "keySource",
+          "accountSource",
+          "account",
+          "downloadsRemaining",
+          "downloadsAllowed"
+        ],
+        "type": "object"
+      },
       "OwnAddress": {
         "properties": {
           "certificateFile": {
@@ -7345,6 +7653,12 @@
           "name": {
             "type": "string"
           },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/PersonRole"
+            },
+            "type": "array"
+          },
           "titleCount": {
             "type": "integer"
           }
@@ -7376,6 +7690,41 @@
           "username",
           "titles",
           "copiesBytes"
+        ],
+        "type": "object"
+      },
+      "PersonPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Person"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "PersonRole": {
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "titleCount": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "role",
+          "titleCount"
         ],
         "type": "object"
       },
@@ -8238,6 +8587,10 @@
           "serverId",
           "expiresAt"
         ],
+        "type": "object"
+      },
+      "PorticoChallengeRequest": {
+        "properties": {},
         "type": "object"
       },
       "PorticoExchange": {
@@ -9576,13 +9929,49 @@
             },
             "type": "array"
           },
+          "person": {
+            "$ref": "#/components/schemas/RelatedPerson"
+          },
           "relation": {
             "type": "string"
+          },
+          "tag": {
+            "$ref": "#/components/schemas/RelatedTag"
           }
         },
         "required": [
           "relation",
           "items"
+        ],
+        "type": "object"
+      },
+      "RelatedPerson": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
+      "RelatedTag": {
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "label"
         ],
         "type": "object"
       },
@@ -10766,6 +11155,64 @@
         ],
         "type": "object"
       },
+      "ServerDevice": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Device"
+          },
+          {
+            "properties": {
+              "account": {
+                "$ref": "#/components/schemas/ServerDeviceAccount"
+              },
+              "sessions": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "account",
+              "sessions"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "ServerDeviceAccount": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "porticoAccount": {
+            "type": "boolean"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "porticoAccount"
+        ],
+        "type": "object"
+      },
+      "ServerDevicePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ServerDevice"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
       "ServerMessage": {
         "properties": {
           "audience": {
@@ -11779,6 +12226,20 @@
         ],
         "type": "object"
       },
+      "SubtitleDownload": {
+        "properties": {
+          "ref": {
+            "type": "string"
+          },
+          "versionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref"
+        ],
+        "type": "object"
+      },
       "SubtitleFile": {
         "properties": {
           "format": {
@@ -11847,6 +12308,54 @@
             ]
           }
         },
+        "type": "object"
+      },
+      "SubtitleResult": {
+        "properties": {
+          "downloads": {
+            "type": "integer"
+          },
+          "forced": {
+            "type": "boolean"
+          },
+          "language": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "release": {
+            "type": "string"
+          },
+          "sdh": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ref",
+          "language",
+          "sdh",
+          "forced",
+          "downloads"
+        ],
+        "type": "object"
+      },
+      "SubtitleResults": {
+        "properties": {
+          "credit": {
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SubtitleResult"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items",
+          "credit"
+        ],
         "type": "object"
       },
       "SupportExportRequest": {
@@ -13125,6 +13634,33 @@
         "x-access": "owner"
       }
     },
+    "/v1/admin/devices": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerDevicePage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
+      }
+    },
     "/v1/admin/downloads": {
       "get": {
         "responses": {
@@ -13693,6 +14229,90 @@
         "x-access": "owner"
       }
     },
+    "/v1/admin/items/{id}/lyrics": {
+      "put": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LyricsPaste"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LyricsPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
+      }
+    },
+    "/v1/admin/items/{id}/lyrics/fetch": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LyricsFetched"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
+      }
+    },
     "/v1/admin/items/{id}/match": {
       "put": {
         "parameters": [
@@ -14010,6 +14630,44 @@
               }
             },
             "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
+      }
+    },
+    "/v1/admin/items/{id}/subtitles/{subtitleId}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "subtitleId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
           },
           "default": {
             "content": {
@@ -15769,6 +16427,95 @@
         "x-access": "admin"
       }
     },
+    "/v1/admin/metadata/settings": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetadataSettings"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "put": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MetadataSettingsChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetadataSettings"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/metadata/settings/opensubtitles/check": {
+      "post": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenSubtitlesStatus"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
     "/v1/admin/notifications": {
       "post": {
         "requestBody": {
@@ -16021,6 +16768,36 @@
               }
             },
             "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/portico/left/{id}/let-back-in": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
           },
           "default": {
             "content": {
@@ -18169,6 +18946,16 @@
     },
     "/v1/auth/portico/challenge": {
       "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PorticoChallengeRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "content": {
@@ -20654,6 +21441,51 @@
           }
         },
         "x-access": "withProfile"
+      },
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubtitleDownload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemSubtitle"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
       }
     },
     "/v1/items/{id}/subtitles/offset": {
@@ -20684,6 +21516,43 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SubtitleOffset"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/items/{id}/subtitles/search": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubtitleResults"
                 }
               }
             },
@@ -21586,6 +22455,45 @@
         "x-access": "public"
       }
     },
+    "/v1/live/streams/{grant}/{file}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "grant",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "file",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "security": [],
+        "x-access": "public"
+      }
+    },
     "/v1/mcp": {
       "post": {
         "requestBody": {
@@ -22206,6 +23114,33 @@
         "responses": {
           "204": {
             "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/people": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonPage"
+                }
+              }
+            },
+            "description": "OK"
           },
           "default": {
             "content": {
