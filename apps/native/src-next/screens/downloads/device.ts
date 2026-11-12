@@ -119,7 +119,7 @@ function connectNativeDownloadsDevice(context: NativeShellBootstrapContext, devi
       } finally {abort.signal.removeEventListener('abort', stop); signal?.removeEventListener('abort', stop);}
     },
   };
-  const service = new DownloadsService(api);
+  const service = new DownloadsService(api, undefined, undefined, viewer.profileId, false);
   custody = claimNativeDownloadsDevice(device, () => {alive = false; abort.abort(); service.stop(); service.dispose();});
   device.adopt(viewer);
   const adapter = createNativeOfflineDownloadsAdapter(undefined, device);

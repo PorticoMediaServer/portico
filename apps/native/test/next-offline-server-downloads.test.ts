@@ -1,0 +1,36 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {offlineFixture, viewer, owner, settle, digest, title} from './helpers/offline-fixture.mjs';
+import {downloadCopyId, downloadPreparation} from '../../../packages/client-core/src/downloads-service.ts';
+import {downloaded, request} from '../../../packages/client-core/test/helpers/downloads-next.ts';
+
+test('a server-next original arrives, plays with no server, expires after its permission and keeps an offline removal', async t => {
+  const f = await offlineFixture(); t.after(() => f.offline.dispose());
+  const id = downloadCopyId('dl_one', 'itm_film'), p = downloadPreparation(request(), request().items![0]!);
+  f.service.downloaded = async () => downloaded;
+  f.service.grant = async () => ({url: downloaded.files[0]!.url, artifact: {ref: downloaded.versionId, sha256: '', bytes: 100, fileName: 'media.mp4', container: 'mp4', contentType: ''}});
+  f.handlers.set('/v1/downloads/sync', () => ({playableUntil: new Date(Date.now() + 30 * 86400000).toISOString(), playableForMs: 30 * 86400000, fetch: [], remove: []}));
+  await f.offline.open(); f.offline.connect(f.api, f.service as any, viewer); await settle();
+  await f.offline.fetch(p);
+  assert.equal(f.started[0]?.sha256, '', 'no server digest was fabricated');
+  assert.equal(f.started[0]?.sourceId, downloaded.versionId);
+  assert.equal(JSON.parse(f.started[0]!.meta).downloadId, 'dl_one');
+  const native = f.entries.get(id)!; Object.assign(native, {state: 'ready', bytesDone: 100, sha256: digest}); f.emit(native); await settle();
+  const entry = f.offline.getSnapshot().entries[0]!;
+  assert.equal(f.offline.playabilityReason(entry), null); assert.equal(entry.receipt, undefined);
+  assert.equal(f.offline.playabilityReason(entry, {...viewer, profileId: 'someone_else'}), 'other_profile');
+  f.offline.disconnect();
+  const before = f.calls.length, media = await f.offline.localMedia(entry);
+  assert.ok(media.fileUrl.startsWith('file:')); assert.equal(f.calls.length, before, 'offline playback makes no request');
+  await f.offline.remove(entry); assert.deepEqual(f.offline.getSnapshot().entries, []);
+  const kept = JSON.parse(f.disk.state); assert.deepEqual(kept.removed[owner][id], {downloadId: 'dl_one', itemId: 'itm_film'});
+  f.handlers.set('/v1/downloads/dl_one/items/itm_film', () => undefined);
+  f.offline.connect(f.api, f.service as any, viewer); await settle();
+  assert.ok(f.calls.some(c => c.path === '/v1/downloads/dl_one/items/itm_film' && c.method === 'DELETE'));
+  assert.equal(JSON.parse(f.disk.state).removed[owner][id], undefined);
+  assert.deepEqual(f.offline.getSnapshot().entries, []);
+  const expired = await offlineFixture({state: JSON.stringify({...kept, permissions: {[owner]: 1}, removed: {}})}); t.after(() => expired.offline.dispose());
+  expired.seed(id, 'itm_film', {sha256: digest, meta: {downloadId: 'dl_one', owner, title, bundle: 4}});
+  expired.offline.adopt(viewer); await expired.offline.open();
+  assert.equal(expired.offline.playabilityReason(expired.offline.getSnapshot().entries[0]!), 'needs_check_in');
+});

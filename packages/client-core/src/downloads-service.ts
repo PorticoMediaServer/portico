@@ -1,374 +1,179 @@
+import type {Download, DownloadedItem, DownloadTitle as ServerTitle} from '../../contracts/src/next/api.ts';
+import type {GetContainerDownloadOptionsResponse} from '../../contracts/src/types.ts';
+import {parseDownloadOptions} from './downloads.ts';
 import {canonicalQualityLadder} from '../../contracts/src/types.ts';
+import {qualityPresentation} from './playback-v1/quality-presentation.ts';
 import {unreadableServerResponse} from './server-messages.ts';
-import {decodeGetContainerDownloadOptionsResponse} from "../../contracts/src/decoders.ts";
-import {routeBody} from "../../contracts/src/routes.ts";
-import type {RouteResponse} from "../../contracts/src/route-paths.ts";
-import {routePath, encodedRoutePath} from "../../contracts/src/route-paths.ts";
 import {randomId} from './random-id.ts';
-import {mergeRevalidatedList} from './freshness-actions.ts';
-/** The server side of downloads, as one framework-free service shared by web and Apple: what
- * the server is preparing for this profile, what may be asked for, and the actions on each.
- *
- * Forgiving by design: a failed refresh keeps the list that is on screen. While anything is
- * still being prepared it polls gently; once everything has settled it stops. */
 import {serviceProblem} from './presentation/service-text.ts';
-import {downloadReasonMessage,parseDownloadProfileRevocation,parseDownloadBatch,parseDownloadBundle,parseDownloadGrant,parseDownloadOptions,parseDownloadPage,parseDownloadPreparation,parseDownloadSettings,parseDownloadUsage,type DownloadAction,type DownloadBatch,type DownloadBundle,type DownloadGrant,type DownloadOptionsView,type DownloadPreparation,type DownloadQualityChoice,type DownloadUsage,originalQuality} from './downloads.ts';
-import {createDownloadRequest,getDownloadRequest,isDownloadRequestTerminal,listDownloadRequests,type DownloadEpisodes,type DownloadRequest,type DownloadRequestKind} from './download-requests.ts';
+import {downloadReasonMessage, originalQuality, type DownloadAction, type DownloadBatch, type DownloadBundle, type DownloadGrant, type DownloadOptionsView, type DownloadPreparation, type DownloadQualityChoice, type DownloadTitle, type DownloadUsage} from './downloads.ts';
+import type {DownloadEpisodes, DownloadRequest, DownloadRequestKind} from './download-requests.ts';
+import {askForDownload, changeDownload, listDownloads, readDownload, readDownloadedItem, readDownloadOptions, readDownloadUsage, removeDownloadedTitle} from './device-downloads.ts';
 
-export type DownloadsApi={request<T>(path:string,method?:string,body?:unknown,signal?:AbortSignal):Promise<T>};
-/** Items for one preparation batch. A whole container (show, season, album, book, playlist) is
- * never a batch target: it goes through `requestContainer`, the durable container request. */
-export type DownloadTarget=Readonly<{versionId?:string;mediaId?:string;mediaIds?:readonly string[];nextAfterMediaId?:string}>;
-/** A whole-container request (show, season, album, book or playlist — never TV). */
-export type ContainerDownloadTarget=Readonly<{kind:DownloadRequestKind;id:string;title?:string}>;
-export type ContainerDownloadPolicy=Readonly<{episodes:DownloadEpisodes;keepNext?:number}>;
-export type TrackedDownloadRequest=Readonly<{request:DownloadRequest;title:string;error?:string}>;
-export type DownloadsSnapshot=Readonly<{phase:'idle'|'loading'|'ready'|'error';items:readonly DownloadPreparation[];usage?:DownloadUsage;busy:readonly string[];error?:string;/** The failure behind `error`, for `presentError`/`say` (category, code, retry). */failure?:unknown;unavailable?:boolean;/** The next page cursor (`''` when the list is complete). */nextCursor:string;/** A further page is being read. */loadingMore:boolean;/** Whole-container requests started on this device, newest first. */requests:readonly TrackedDownloadRequest[]}>;
+export type DownloadsApi = {request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>};
+export type DownloadTarget = Readonly<{versionId?: string; mediaId?: string; mediaIds?: readonly string[]; nextAfterMediaId?: string}>;
+export type ContainerDownloadTarget = Readonly<{kind: DownloadRequestKind; id: string; title?: string}>;
+export type ContainerDownloadPolicy = Readonly<{episodes: DownloadEpisodes; keepNext?: number}>;
+export type TrackedDownloadRequest = Readonly<{request: DownloadRequest; title: string; error?: string}>;
+export type DownloadsSnapshot = Readonly<{phase: 'idle' | 'loading' | 'ready' | 'error'; items: readonly DownloadPreparation[]; usage?: DownloadUsage; busy: readonly string[]; error?: string; failure?: unknown; unavailable?: boolean; nextCursor: string; loadingMore: boolean; requests: readonly TrackedDownloadRequest[]}>;
 
-const ACTIVE=new Set(['queued','running']);
-/** One full-list page (the server allows up to 200; 100 keeps a poll page small). */
-const PAGE_LIMIT=100;
-/** Discovery reads at most this many pages of a device's requests per pass. */
-const DISCOVERY_PAGES=10;
-const progressMark=(r:DownloadRequest)=>`${r.state}/${r.totalKnown}/${r.total}/${r.ready}/${r.preparing}/${r.queued}/${r.failed}/${r.paused}`;
-// X-04: the words come from the catalogue; `failure` keeps the error for screens that present it themselves.
-const say=(e:unknown,fallback:'downloads.error.load'|'downloads.error.action')=>serviceProblem(e,'downloads',fallback,fallback==='downloads.error.load'?'load':'action');
+/** Stable local identity for one title of a request. The length makes both ids reversible. */
+export const downloadCopyId = (downloadId: string, itemId: string) => `${downloadId.length}_${downloadId}${itemId}`;
+export function downloadCopyReference(id: string): {downloadId: string; itemId: string} {
+  const end = id.indexOf('_'), length = Number(id.slice(0, end)), rest = id.slice(end + 1);
+  if (end < 1 || !Number.isSafeInteger(length) || length < 1 || length >= rest.length || !/^[A-Za-z0-9_-]+$/.test(rest)) throw new Error(unreadableServerResponse);
+  return {downloadId: rest.slice(0, length), itemId: rest.slice(length)};
+}
+const titleFacts = (title: ServerTitle): DownloadTitle => ({kind: title.kind === 'book' ? 'ebook' : title.kind === 'audiobook' ? 'book' : title.kind === 'track' ? 'song' : title.kind === 'issue' ? 'comic' : title.kind, title: title.title, parentTitle: title.parentTitle ?? '', parentId: '', groupId: '', groupTitle: '', groupNumber: title.seasonNumber ?? null, number: title.episodeNumber ?? null, artist: title.artist ?? '', year: 0, durationSeconds: 0, onServer: true});
+export function downloadPreparation(download: Download, title: ServerTitle, profileId = ''): DownloadPreparation {
+  const state = download.paused ? 'paused' : title.state === 'waiting' ? 'queued' : title.state === 'preparing' ? 'running' : title.state === 'leftOut' ? 'unavailable' : title.state === 'ready' || title.state === 'expired' || title.state === 'failed' ? title.state : 'queued';
+  const total = title.sizeBytes ?? title.totalBytes ?? 0, done = title.doneBytes ?? 0;
+  return Object.freeze<DownloadPreparation>({id: downloadCopyId(download.id, title.itemId), downloadId: download.id, itemId: title.itemId, versionId: download.versionId, libraryId: '', profileId,
+    title: titleFacts(title), quality: download.quality, origin: download.counts.titles > 1 ? 'container' : 'item', batchId: download.id, state, reason: title.reason ?? '',
+    artifact: {kind: download.quality === 'original' ? 'source' : 'prepared', ref: download.versionId ?? '', sha256: '', bytes: total, estimated: state !== 'ready', container: '', contentType: '', fileName: ''},
+    progress: {bytesDone: done, bytesTotal: total, bytesTotalEstimated: state !== 'ready', percent: total > 0 ? Math.min(100, done / total * 100) : 0, etaSeconds: null},
+    actions: state === 'ready' ? ['remove'] : state === 'paused' ? ['resume', 'remove'] : state === 'failed' || state === 'expired' ? ['retry', 'remove'] : ['pause', 'remove'],
+    revision: 0, createdAt: download.createdAt, updatedAt: download.createdAt, readyAt: state === 'ready' ? download.createdAt : '', expiresAt: title.keptUntil ?? ''});
+}
+function requestFacts(download: Download, profileId: string): DownloadRequest {
+  const c = download.counts;
+  return {requestId: download.id, total: c.titles, totalKnown: true, state: c.waiting ? 'preparing' : 'complete', ready: c.ready, preparing: download.items?.filter(t => t.state === 'preparing').length ?? 0,
+    queued: Math.max(0, c.waiting - (download.items?.filter(t => t.state === 'preparing').length ?? 0)), failed: c.failed, paused: download.paused ? c.waiting : 0,
+    items: (download.items ?? []).map(title => ({itemId: title.itemId, reason: title.reason, preparation: downloadPreparation(download, title, profileId)})), nextCursor: ''};
+}
+export function downloadedBundle(copyId: string, downloaded: DownloadedItem): DownloadBundle {
+  const item = downloaded.item;
+  return {preparationId: copyId, itemId: item.id, quality: downloaded.quality, qualityLabel: downloaded.quality,
+    title: {...titleFacts({itemId: item.id, kind: item.kind, title: item.title, state: 'ready'}), year: item.year ?? 0, durationSeconds: (item.durationMs ?? 0) / 1000, parentId: item.parentId ?? '', parentTitle: item.parent?.title ?? ''}, overview: item.summary ?? '',
+    media: {container: downloaded.files[0]?.container ?? '', videoCodec: '', audioCodec: '', width: 0, height: 0}, artwork: [],
+    chapters: downloaded.chapters.map((c, index) => ({index, title: c.title ?? '', startSeconds: c.startMs / 1000, endSeconds: (downloaded.chapters[index + 1]?.startMs ?? item.durationMs ?? c.startMs) / 1000})),
+    markers: downloaded.markers.map(m => ({kind: m.type, startSeconds: m.startMs / 1000, endSeconds: m.endMs / 1000, automatic: m.automaticSafe})),
+    audio: downloaded.audio.map((a, index) => ({index: Number(a.id) || index, language: a.language ?? '', title: a.title ?? '', codec: a.codec, channels: a.channels ?? 0, default: a.default ?? false})),
+    subtitles: downloaded.subtitles.filter(s => s.url).map(s => {
+      const form = s.format === 'srt' ? 'vtt' : s.format === 'ssa' ? 'ass' : s.format === 'sup' ? 'pgs' : s.format;
+      return {id: s.id, revision: 1, language: s.language ?? '', title: s.title ?? '', default: s.default, forced: s.forced, files: {[form]: {path: s.url!, contentType: 'application/octet-stream'}}};
+    })};
+}
 
-export class DownloadsService{
- private api:DownloadsApi;private operationId:()=>string;private pollMs:number;
- private state:DownloadsSnapshot=Object.freeze<DownloadsSnapshot>({phase:'idle',items:[],busy:[],nextCursor:'',loadingMore:false,requests:[]});
- private listeners=new Set<()=>void>();private timer?:ReturnType<typeof setTimeout>;private generation=0;private disposed=false;private watching=false;
- /** Failed reads in a row. The list is tried again by itself, a little later each time. */
- private failures=0;
- /** Rotate bounded probes through claims outside the first active pages. */
- private probeOffset=0;
- /** One bounded, fair poller follows all container requests. */
- private requestTimer?:ReturnType<typeof setTimeout>;
- private requestPoll?:Promise<void>;
- private requestRefresh?:Promise<void>;
- /** A failed discovery is read again quietly; the list's own error stays the list's. */
- private rediscover?:ReturnType<typeof setTimeout>;
- private pendingRequests=new Set<string>();
- private lifetime=new AbortController();
- /** Whole-container requests followed on this device, by request id. */
- private tracked=new Map<string,TrackedDownloadRequest>();
- /** Each followed request's progress when its first member page was last read. */
- private memberMarks=new Map<string,string>();
- /** The device whose whole-container requests are found again on the server (`followDevice`). */
- private deviceId='';
- constructor(api:DownloadsApi,operationId:()=>string=()=>randomId(),pollMs=5000){this.api=api;this.operationId=operationId;this.pollMs=pollMs;}
- getSnapshot=()=>this.state;
- subscribe=(fn:()=>void)=>{this.listeners.add(fn);return()=>{this.listeners.delete(fn);};};
- private publish(patch:Partial<DownloadsSnapshot>){if(this.disposed)return;this.state=Object.freeze({...this.state,...patch});this.listeners.forEach(f=>f());}
- dispose(){this.disposed=true;this.generation++;clearTimeout(this.timer);clearTimeout(this.requestTimer);clearTimeout(this.rediscover);this.lifetime.abort();this.pendingRequests.clear();this.listeners.clear();}
-
- /** Starts following the list. Safe to call again; `stop` ends the polling without forgetting. */
- start(){this.watching=true;void this.refresh();void this.refreshRequests();}
- stop(){this.watching=false;clearTimeout(this.timer);}
- private pagePath(cursor:string,state?:string){return routePath("list_download_preparations") + "?limit=" + (PAGE_LIMIT) + (cursor?'&cursor='+encodeURIComponent(cursor):'') + (state?'&state='+encodeURIComponent(state):'');}
- /** PERF-S12: the UI pages the list — one page per call, newest first — instead of re-reading up
-  * to 10 × 100 every 5 s. Every page is reachable; nothing is silently truncated. */
- async refresh():Promise<void>{
-  const generation=++this.generation;clearTimeout(this.timer);
-  if(this.state.phase==='idle')this.publish({phase:'loading'});
-  try{
-   const result=parseDownloadPage(await this.api.request<unknown>(this.pagePath('')));
-   if(generation!==this.generation)return;
-   this.failures=0;
-   this.publish({phase:'ready',items:Object.freeze(result.items.filter(p=>p.state!=='cancelled'||p.actions.length>0)),nextCursor:result.nextCursor,loadingMore:false,error:undefined,failure:undefined,unavailable:false});
-    void this.api.request<RouteResponse<"get_download_usage">>(routePath("get_download_usage")).then(raw=>{try{if(generation===this.generation)this.publish({usage:parseDownloadUsage(raw)});}catch{}},()=>{});
-  }catch(e){
-   if(generation!==this.generation)return;
-   const status=(e as {status?:number}|null)?.status, code=(e as {code?:string}|null)?.code;
-   // Feature absence is only the unsupported route or the server's explicit canonical code.
-   // A generic 503 (server_busy/timeout) is a transient failure and keeps its retry path.
-   if(status===404||code==='downloads_unavailable'){this.failures=0;this.publish({phase:'ready',unavailable:true,error:undefined,failure:undefined});}
-   else{this.failures++;this.publish({phase:this.state.items.length?'ready':'error',error:say(e,'downloads.error.load'),failure:e,unavailable:false});}
+/** The rebuilt server's downloads, adapted once to the existing phone/web presentation model. */
+export class DownloadsService {
+  private state: DownloadsSnapshot = Object.freeze({phase: 'idle', items: [], busy: [], nextCursor: '', loadingMore: false, requests: []});
+  private listeners = new Set<() => void>();
+  private lifetime = new AbortController();
+  private timer?: ReturnType<typeof setTimeout>;
+  private watching = false;
+  private disposed = false;
+  private generation = 0;
+  private refreshing?: Promise<void>;
+  private deviceId = '';
+  private downloads = new Map<string, Download>();
+  private api: DownloadsApi; private operationId: () => string; private pollMs: number; private profileId: string; private everyDevice: boolean;
+  constructor(api: DownloadsApi, operationId: () => string = randomId, pollMs = 5000, profileId = '', everyDevice = true) {this.api = api; this.operationId = operationId; this.pollMs = pollMs; this.profileId = profileId; this.everyDevice = everyDevice;}
+  getSnapshot = () => this.state;
+  subscribe = (fn: () => void) => {this.listeners.add(fn); return () => {this.listeners.delete(fn);};};
+  private publish(patch: Partial<DownloadsSnapshot>) {if (this.disposed) return; this.state = Object.freeze({...this.state, ...patch}); this.listeners.forEach(fn => fn());}
+  dispose() {this.disposed = true; this.generation++; this.stop(); this.lifetime.abort(); this.listeners.clear();}
+  start() {if (this.watching) return; this.watching = true; void this.refresh();}
+  stop() {this.watching = false; clearTimeout(this.timer);}
+  followDevice(deviceId: string) {if (this.deviceId === deviceId) return; this.deviceId = deviceId; if (this.watching) void this.refresh();}
+  private show(downloads: readonly Download[]) {
+    this.downloads = new Map(downloads.map(d => [d.id, d]));
+    this.publish({phase: 'ready', error: undefined, failure: undefined, unavailable: false,
+      items: downloads.flatMap(d => (d.items ?? []).map(t => downloadPreparation(d, t, this.profileId))),
+      requests: downloads.filter(d => this.deviceId && d.deviceId === this.deviceId && (d.counts.titles > 1 || ['show', 'season', 'album', 'artist', 'playlist', 'book'].includes(d.target.kind))).map(d => ({title: d.target.title, request: requestFacts(d, this.profileId)}))});
   }
-  this.schedule(generation);
- }
- /**
-  * Reads the list again behind what is shown (a download asked for on another device, one the
-  * server finished, failed or let go). The first page is merged in: rows already loaded below it
-  * stay, unchanged rows are the same rows. Nothing is said if the read fails: what is shown stays
-  * and the call rejects, for the caller to try again later.
-  */
- async revalidate():Promise<void>{
-  if(this.disposed||this.state.phase!=='ready'||this.state.unavailable||this.state.loadingMore)return;
-  const generation=this.generation;
-  const result=parseDownloadPage(await this.api.request<unknown>(this.pagePath('')));
-  if(generation!==this.generation||this.disposed||this.state.loadingMore)return;
-  const fresh=result.items.filter(p=>p.state!=='cancelled'||p.actions.length>0);
-  const items=mergeRevalidatedList(this.state.items,fresh,p=>p.id,{same:(a,b)=>JSON.stringify(a)===JSON.stringify(b),complete:!result.nextCursor});
-  if(items!==this.state.items)this.publish({items:Object.freeze([...items]),...(this.state.nextCursor?{}:{nextCursor:result.nextCursor})});
-  void this.api.request<RouteResponse<"get_download_usage">>(routePath("get_download_usage")).then(raw=>{try{if(generation===this.generation)this.publish({usage:parseDownloadUsage(raw)});}catch{}},()=>{});
-  // Something that started being prepared elsewhere is followed at the ordinary pace from here.
-  clearTimeout(this.timer);this.schedule(generation);
- }
- /** Reads the next page and appends it (deduplicated by id). A no-op without a cursor. */
- async loadMore():Promise<void>{
-  const cursor=this.state.nextCursor;
-  if(!cursor||this.state.loadingMore||this.disposed)return;
-  const generation=this.generation;
-  this.publish({loadingMore:true});
-  try{
-   const result=parseDownloadPage(await this.api.request<unknown>(this.pagePath(cursor)));
-   if(generation!==this.generation||this.disposed){this.publish({loadingMore:false});return;}
-   const seen=new Set(this.state.items.map(p=>p.id));
-   const items=[...this.state.items,...result.items.filter(p=>(p.state!=='cancelled'||p.actions.length>0)&&!seen.has(p.id))];
-   this.publish({items:Object.freeze(items),nextCursor:result.nextCursor,loadingMore:false});
-  }catch(e){
-   if(generation!==this.generation||this.disposed)return;
-   this.publish({loadingMore:false,error:say(e,'downloads.error.load'),failure:e});
-  }
- }
- /** Reads exact preparations without walking or extending the on-screen list. Callers recover
-  * their durable preparation ids in batches of at most 200, within their own owner lifetime. */
- async lookupPreparations(ids:readonly string[],signal?:AbortSignal):Promise<readonly DownloadPreparation[]>{
-  if(ids.length>200||ids.some(id=>!/^[A-Za-z0-9_-]{1,160}$/.test(id)))throw new Error('Read up to 200 preparation ids.');
-  if(this.disposed||signal?.aborted)throw Object.assign(new Error('Download lookup cancelled.'),{name:'AbortError'});
-  const wanted=new Set(ids);
-  if(!wanted.size)return Object.freeze([]);
-  const controller=new AbortController(),abort=()=>controller.abort();
-  signal?.addEventListener('abort',abort,{once:true});this.lifetime.signal.addEventListener('abort',abort,{once:true});
-  try{
-   const query=new URLSearchParams({limit:'200',ids:[...wanted].join(',')});
-   const result=parseDownloadPage(await this.api.request<unknown>(routePath("list_download_preparations")+'?'+query,'GET',undefined,controller.signal));
-   if(controller.signal.aborted)throw Object.assign(new Error('Download lookup cancelled.'),{name:'AbortError'});
-   if(result.nextCursor||result.items.some(p=>!wanted.has(p.id)))throw new Error(unreadableServerResponse);
-   return Object.freeze(result.items);
-  }finally{signal?.removeEventListener('abort',abort);this.lifetime.signal.removeEventListener('abort',abort);}
- }
- private schedule(generation:number){
-  if(!this.watching||generation!==this.generation||this.disposed)return;
-  // A list that could not be read is tried again quietly, three polls later at first and then
-  // less and less often (five minutes at most), so a server that is away is not asked forever
-  // at full pace. While something is being prepared it is polled at the ordinary pace.
-  if(this.failures>0)this.timer=setTimeout(()=>void this.refresh(),Math.min(this.pollMs*3*2**Math.min(this.failures-1,6),300000));
-  else if(this.state.items.some(p=>ACTIVE.has(p.state)))this.timer=setTimeout(()=>void this.poll(),this.pollMs);
- }
- /** PERF-S12: the 5 s poll reads only active preparations — one page each of `queued` and
-  * `running`. Queued claims are not capped, so a third sparse page reads up to 200 loaded
-  * claims absent from those pages, rotating through older rows. Finished preparations
-  * settle without a full reload or individual requests. Stops when nothing is active. */
- private async poll():Promise<void>{
-  const generation=this.generation;clearTimeout(this.timer);
-  try{
-   const [queued,running]=await Promise.all([
-    parseDownloadPage(await this.api.request<unknown>(this.pagePath('', 'queued'))),
-    parseDownloadPage(await this.api.request<unknown>(this.pagePath('', 'running'))),
-   ]);
-   if(generation!==this.generation||this.disposed)return;
-   const active=[...queued.items,...running.items];
-   const seen=new Set(active.map(p=>p.id));
-   const byId=new Map(this.state.items.map(p=>[p.id,p]));
-   for(const p of active)byId.set(p.id,p);
-   // A sparse page reads older loaded claims together, including transitions
-   // out of active states. One bounded request replaces a request per claim.
-   const missing=this.state.items.filter(p=>ACTIVE.has(p.state)&&!seen.has(p.id));
-   const start=missing.length?this.probeOffset%missing.length:0;
-   const probes=Array.from({length:Math.min(200,missing.length)},(_,i)=>missing[(start+i)%missing.length]);
-   this.probeOffset=start+probes.length;
-   if(probes.length){
-    const page=parseDownloadPage(await this.api.request<RouteResponse<"list_download_preparations">>(routePath("list_download_preparations") + "?" + (new URLSearchParams({limit:'200',ids:probes.map(p=>p.id).join(',')}))));
-    const returned=new Set(page.items.map(p=>p.id));
-    for(const p of page.items)byId.set(p.id,p);
-    for(const p of probes)if(!returned.has(p.id))byId.delete(p.id);
-   }
-   if(generation!==this.generation||this.disposed)return;
-   // Page order first, then actives from beyond the loaded pages.
-   const paged:DownloadPreparation[]=[];
-   for(const p of this.state.items){const current=byId.get(p.id);if(current)paged.push(current);}
-   for(const p of active)if(!paged.some(q=>q.id===p.id))paged.push(p);
-   this.failures=0;
-   this.publish({phase:'ready',items:Object.freeze(paged.filter(p=>p.state!=='cancelled'||p.actions.length>0)),error:undefined,failure:undefined});
-  }catch(e){
-   if(generation!==this.generation||this.disposed)return;
-   this.failures++;
-   this.publish({phase:this.state.items.length?'ready':'error',error:say(e,'downloads.error.load'),failure:e});
-  }
-  this.schedule(generation);
- }
- /** What may be downloaded for one title, with sizes; the server decides, this shows it. */
- async options(itemId:string,signal?:AbortSignal):Promise<DownloadOptionsView>{
-  return parseDownloadOptions(await this.api.request<RouteResponse<"get_download_options">>(encodedRoutePath("get_download_options", {"itemId": encodeURIComponent(itemId)}),'GET',undefined,signal),itemId);
- }
- /** Combined sizes for the same visible selection a container request admits. */
- async containerOptions(target:ContainerDownloadTarget,deviceId:string,policy:ContainerDownloadPolicy,signal?:AbortSignal){
-  const result=decodeGetContainerDownloadOptionsResponse(await this.api.request<unknown>(routePath("get_container_download_options"),'POST',routeBody("get_container_download_options",{target:{kind:target.kind,id:target.id},deviceId,policy:{...policy}}),signal));
-  if(result.target.id!==target.id||result.target.kind!==target.kind)throw new Error(unreadableServerResponse);
-  return result;
- }
-
- /** The qualities a whole show, season, album, book or playlist may be asked for: the original,
-  * and each smaller quality this server can make. The server decides; nothing is assumed here. */
- async revokeProfile(profileKey:string){return parseDownloadProfileRevocation(await this.api.request<RouteResponse<"revoke_profile_downloads">>(routePath("revoke_profile_downloads"),'POST',routeBody("revoke_profile_downloads", {profileKey,operationId:this.operationId()})));}
-
- async serverUsage(cursor='',limit=256){return parseDownloadUsage(await this.api.request<RouteResponse<"get_download_usage">>(routePath("get_download_usage") + "?scope=server&cursor=" + (encodeURIComponent(cursor)) + "&limit=" + (limit)));}
-
- async qualities(signal?:AbortSignal):Promise<readonly DownloadQualityChoice[]>{
-  return parseDownloadSettings(await this.api.request<RouteResponse<"get_download_settings">>(routePath("get_download_settings"),'GET',undefined,signal)).qualities;
- }
- /** Asks the server to prepare one title, several, a whole season or album, or the next one.
-  * A batch is partial by design: what could not be accepted is reported, the rest proceeds.
-  * `operationId`: the caller's own id for this intent, so a retry of the same choice resends the identical body under it
-  * (the server replays it); a changed choice needs a new one (a changed body under an old id is 422
-  * `idempotency_key_reused`). A new id per call when omitted. */
- async request(target:DownloadTarget,quality:string=originalQuality,operationId?:string):Promise<DownloadBatch>{
-  if(!canonicalQualityLadder.some(q=>q.id===quality))throw new Error('Choose a download quality.');
-  if(operationId!==undefined&&!/^[A-Za-z0-9_-]{1,160}$/.test(operationId))throw new Error('A download request needs a stable operationId.');
-  // Only the item fields are sent, whatever else the caller's object carries (containers are durable requests).
-  const body={operationId:operationId??this.operationId(),...(target.versionId?{versionId:target.versionId}:{}),...(target.mediaId?{mediaId:target.mediaId}:{}),...(target.mediaIds?{mediaIds:[...target.mediaIds]}:{}),...(target.nextAfterMediaId?{nextAfterMediaId:target.nextAfterMediaId}:{}),quality};
-  const batch=parseDownloadBatch(await this.api.request<RouteResponse<"create_download_preparations">>(routePath("create_download_preparations"),'POST',body));
-  void this.refresh();return batch;
- }
- /**
-  * Starts one whole-container download (show, season, album, book or playlist)
-  * and follows its request until it completes or fails. The caller keeps its
-  * own operationId per intent for safe retries. Capture shows as an
-  * indeterminate state until `totalKnown` is true.
-  */
- async requestContainer(input:Readonly<{target:ContainerDownloadTarget;deviceId:string;quality?:string;policy:ContainerDownloadPolicy;operationId?:string}>):Promise<DownloadRequest>{
-  if(!input.target||input.target.kind!=='show'&&input.target.kind!=='season'&&input.target.kind!=='album'&&input.target.kind!=='book'&&input.target.kind!=='playlist'||!input.target.id)throw new Error('Whole downloads cover shows, seasons, albums, books and playlists.');
-  const title=input.target.title??'';
-  const request=await createDownloadRequest(this.api,{operationId:input.operationId??this.operationId(),target:{kind:input.target.kind,id:input.target.id},deviceId:input.deviceId,quality:input.quality,policy:{...input.policy}});
-  this.tracked.set(request.requestId,Object.freeze({request,title}));
-  this.publish({requests:Object.freeze([...this.tracked.values()])});
-  if(!isDownloadRequestTerminal(request.state))this.pendingRequests.add(request.requestId);
-  this.scheduleRequests();
-  return request;
- }
- /** Names the device this service runs on. The whole-show, season, album, book and playlist
-  * downloads it started are then found again on the server whenever the list is followed, so
-  * closing the app, or signing in again, doesn't lose track of one that is still being prepared:
-  * the server keeps the request, and this is how its remaining members reach the device. */
- followDevice(deviceId:string){
-  if(this.deviceId===deviceId)return;
-  this.deviceId=deviceId;
-  if(this.watching)void this.refreshRequests();
- }
- /** Discovers requests and queues every followed id. Each turn reads at most 20, two at a time;
-  * unfinished ids return to the tail so requests after the first 20 cannot starve. */
- refreshRequests():Promise<void>{
-  if(this.disposed)return Promise.resolve();
-  if(this.requestRefresh)return this.requestRefresh;
-  const work=(async()=>{
-   let deviceId:string;
-   do{
-    deviceId=this.deviceId;
-    if(deviceId){
-     try{
-      // Every page, up to a bound: a device can have more requests at work than one page holds.
-      let cursor='';
-      for(let pages=0;pages<DISCOVERY_PAGES;pages++){
-       const listed=await listDownloadRequests(this.api,deviceId,{cursor,signal:this.lifetime.signal});
-       if(this.disposed||deviceId!==this.deviceId)break;
-       for(const summary of listed.requests)if(!this.tracked.has(summary.requestId)){
-        this.tracked.set(summary.requestId,Object.freeze({title:summary.title,request:Object.freeze({requestId:summary.requestId,total:0,totalKnown:false,state:summary.state,ready:0,preparing:0,queued:0,failed:0,paused:0,items:Object.freeze([]),nextCursor:''})}));
-       }
-       if(!listed.nextCursor||listed.nextCursor===cursor)break;
-       cursor=listed.nextCursor;
+  refresh(): Promise<void> {
+    if (this.disposed) return Promise.resolve();
+    if (this.refreshing) return this.refreshing;
+    const generation = this.generation;
+    clearTimeout(this.timer);
+    if (this.state.phase === 'idle') this.publish({phase: 'loading'});
+    const task = (async () => {
+      try {
+        const downloads = await listDownloads(this.api, this.everyDevice, this.lifetime.signal);
+        if (generation !== this.generation || this.disposed) return;
+        this.show(downloads);
+        void readDownloadUsage(this.api, this.lifetime.signal).then(u => {if (generation === this.generation) this.publish({usage: {profileId: this.profileId, profileBytes: u.copiesBytes, profileCount: downloads.length, serverBytes: u.copiesBytes, serverCount: downloads.length, distinctArtifactBytes: u.copiesBytes, maxPreparedBytes: 0, remainingBytes: u.roomBytes ?? null, retentionDays: 0, profiles: []}});}, () => {});
+      } catch (e) {
+        if (generation !== this.generation || this.disposed) return;
+        const unavailable = (e as {status?: number; code?: string})?.status === 404 || (e as {code?: string})?.code === 'downloads_unavailable';
+        this.publish(unavailable ? {phase: 'ready', unavailable: true, error: undefined, failure: undefined} : {phase: this.state.items.length ? 'ready' : 'error', unavailable: false, failure: e, error: serviceProblem(e, 'downloads', 'downloads.error.load', 'load')});
+      } finally {
+        if (this.watching && !this.disposed && generation === this.generation && (this.state.failure || this.state.items.some(p => p.state === 'queued' || p.state === 'running'))) this.timer = setTimeout(() => void this.refresh(), this.pollMs);
       }
-      if(this.disposed)return;
-      if(deviceId!==this.deviceId)continue;
-     }catch{
-      // Requests already followed are still read below; discovery is tried again later.
-      if(this.disposed)return;
-      if(deviceId===this.deviceId&&this.rediscover===undefined)this.rediscover=setTimeout(()=>{this.rediscover=undefined;if(this.watching)void this.refreshRequests();},this.pollMs*3);
-     }
+    })();
+    this.refreshing = task.finally(() => {if (this.refreshing === pending) this.refreshing = undefined;});
+    const pending = this.refreshing; return pending;
+  }
+  revalidate = () => this.refresh();
+  refreshRequests = () => this.refresh();
+  async loadMore(): Promise<void> {} // The rebuilt server returns the complete device list.
+  async lookupPreparations(ids: readonly string[], signal?: AbortSignal): Promise<readonly DownloadPreparation[]> {
+    if (ids.length > 200) throw new Error('Read up to 200 preparation ids.');
+    if (this.disposed || signal?.aborted) throw Object.assign(new Error('Download lookup cancelled.'), {name: 'AbortError'});
+    const refs = [...new Set(ids)].map(id => ({id, ...downloadCopyReference(id)}));
+    const controller = new AbortController(), abort = () => controller.abort();
+    signal?.addEventListener('abort', abort, {once: true}); this.lifetime.signal.addEventListener('abort', abort, {once: true});
+    try {
+      const found: DownloadPreparation[] = [];
+      for (const downloadId of new Set(refs.map(r => r.downloadId))) {
+        const d = await readDownload(this.api, downloadId, controller.signal);
+        const wanted = new Set(refs.filter(r => r.downloadId === downloadId).map(r => r.itemId));
+        for (const title of d.items ?? []) if (wanted.has(title.itemId)) found.push(downloadPreparation(d, title, this.profileId));
+      }
+      return found;
+    } finally {signal?.removeEventListener('abort', abort); this.lifetime.signal.removeEventListener('abort', abort);}
+  }
+  async qualities(_signal?: AbortSignal): Promise<readonly DownloadQualityChoice[]> {
+    return canonicalQualityLadder.filter(q => q.id !== 'automatic').map(q => ({quality: q.id, label: qualityPresentation(q.id).label, kind: q.id === 'original' ? 'source' as const : 'optimized' as const, targetDisplayHeight: q.height}));
+  }
+  downloaded(id: string, signal?: AbortSignal): Promise<DownloadedItem> {const ref = downloadCopyReference(id); return readDownloadedItem(this.api, ref.downloadId, ref.itemId, signal ?? this.lifetime.signal);}
+  async options(itemId: string, signal?: AbortSignal): Promise<DownloadOptionsView> {
+    return parseDownloadOptions(await readDownloadOptions(this.api, itemId, {}, signal), itemId);
+  }
+  async containerOptions(target: ContainerDownloadTarget, _deviceId: string, policy: ContainerDownloadPolicy, signal?: AbortSignal): Promise<GetContainerDownloadOptionsResponse> {
+    const menu = await readDownloadOptions(this.api, target.id, {selection: policy.episodes, ...(policy.episodes === 'next' ? {keepNext: policy.keepNext} : {})}, signal);
+    return {target: {id: target.id, kind: target.kind}, total: menu.titles, options: menu.items.map(o => ({quality: o.quality, label: o.label, available: o.available, estimatedBytes: o.sizeBytes, estimated: o.estimated, sameAsOriginal: o.quality === 'original', unknownSizeCount: 0, unavailableCount: o.available ? 0 : menu.titles}))};
+  }
+  async request(target: DownloadTarget, quality = originalQuality, operationId?: string): Promise<DownloadBatch> {
+    if (operationId !== undefined && !/^[A-Za-z0-9_-]{1,160}$/.test(operationId)) throw new Error('A download request needs a stable operationId.');
+    const ids = target.mediaIds ?? (target.mediaId ? [target.mediaId] : []);
+    if (!ids.length) throw new Error('Choose a title to download.');
+    const items: DownloadPreparation[] = [], rejected: {itemId: string; code: string}[] = [];
+    let batchId = '', duplicate = true;
+    for (const [index, itemId] of ids.entries()) {
+      const asked = await askForDownload(this.api, {itemId, versionId: target.versionId, quality, operationId: ids.length === 1 ? operationId ?? this.operationId() : `${operationId ?? this.operationId()}_${index}`}, this.lifetime.signal);
+      const d = await readDownload(this.api, asked.id, this.lifetime.signal);
+      batchId ||= d.id; duplicate &&= this.downloads.has(d.id); this.downloads.set(d.id, d);
+      for (const t of d.items ?? []) t.state === 'leftOut' ? rejected.push({itemId: t.itemId, code: t.reason ?? 'source_unavailable'}) : items.push(downloadPreparation(d, t, this.profileId));
     }
-    if(deviceId!==this.deviceId)continue;
-    for(const id of this.tracked.keys())this.pendingRequests.add(id);
-    await this.pollRequests();
-    // Native starts the list before supplying its device. Coalescing must not lose
-    // that discovery, or a device change made while the preceding list was pending.
-   }while(!this.disposed&&deviceId!==this.deviceId);
-  })();
-  const tracked=work.finally(()=>{if(this.requestRefresh===tracked)this.requestRefresh=undefined;});
-  this.requestRefresh=tracked;return tracked;
- }
- private scheduleRequests(){
-  if(this.disposed||this.requestTimer!==undefined||this.requestPoll||!this.pendingRequests.size)return;
-  this.requestTimer=setTimeout(()=>{this.requestTimer=undefined;void this.pollRequests();},this.pollMs);
- }
- private pollRequests():Promise<void>{
-  if(this.disposed)return Promise.resolve();
-  if(this.requestPoll)return this.requestPoll;
-  clearTimeout(this.requestTimer);this.requestTimer=undefined;
-  const ids=[...this.pendingRequests].slice(0,20);
-  for(const id of ids)this.pendingRequests.delete(id);
-  let next=0,completed=false;
-  const worker=async()=>{
-   while(next<ids.length&&!this.disposed){
-    const id=ids[next++],prior=this.tracked.get(id);
-    if(!prior)continue;
-    try{
-     // Counts alone while nothing has moved; the first member page only when progress changed
-     // since it was last read (it carries the preparations a device enrols).
-     const status=await getDownloadRequest(this.api,id,{limit:0,signal:this.lifetime.signal});
-     if(this.disposed)return;
-     const mark=progressMark(status),unchanged=this.memberMarks.get(id)===mark;
-     const request=unchanged?Object.freeze({...status,items:prior.request.items,nextCursor:prior.request.nextCursor}):await getDownloadRequest(this.api,id,{signal:this.lifetime.signal});
-     if(this.disposed)return;
-     if(!unchanged)this.memberMarks.set(id,progressMark(request));
-     const current=this.tracked.get(id);
-     if(!current)continue;
-     this.tracked.set(id,Object.freeze({...current,request,error:undefined}));
-     if(!isDownloadRequestTerminal(request.state))this.pendingRequests.add(id);
-     else completed=completed||!isDownloadRequestTerminal(prior.request.state);
-    }catch(e){
-     if(this.disposed)return;
-     if((e as {status?:number}|null)?.status===404){this.tracked.delete(id);this.memberMarks.delete(id);}
-     else{const current=this.tracked.get(id);if(current){this.tracked.set(id,Object.freeze({...current,error:say(e,'downloads.error.load')}));this.pendingRequests.add(id);}}
-    }
-   }
-  };
-  const work=Promise.all([worker(),worker()]).then(()=>{
-   if(this.disposed)return;
-   this.publish({requests:Object.freeze([...this.tracked.values()])});
-   if(completed)void this.refresh();
-  });
-  const tracked=work.finally(()=>{if(this.requestPoll===tracked)this.requestPoll=undefined;this.scheduleRequests();});
-  this.requestPoll=tracked;return tracked;
- }
- /** Applies one action. The server fences an action on the row's revision; when the row moved
-  * between the screen reading it and the person pressing the button, the row is read again and
-  * the action sent once more if it still applies, so a person only hears about a conflict when
-  * what they acted on has really become something else. */
- async act(preparation:DownloadPreparation,action:DownloadAction):Promise<void>{
-  if(this.state.busy.includes(preparation.id))return;
-  this.publish({busy:[...this.state.busy,preparation.id],error:undefined,failure:undefined});
-  const path=encodedRoutePath("get_download_preparation", {"id": encodeURIComponent(preparation.id)});
-  const send=async(revision:number)=>parseDownloadPreparation(await this.api.request<unknown>(path+'/actions','POST',{operationId:this.operationId(),action,expectedRevision:revision}));
-  const show=(next:DownloadPreparation)=>this.publish({items:action==='remove'?this.state.items.filter(p=>p.id!==next.id):this.state.items.map(p=>p.id===next.id?next:p)});
-  try{
-   show(await send(preparation.revision));
-  }catch(e){
-   let failure:unknown=e;
-   if((e as {status?:number}|null)?.status===409){
-    try{
-     const current=parseDownloadPreparation(await this.api.request<unknown>(path));
-     if(current.actions.includes(action)){show(await send(current.revision));failure=undefined;}
-     else{
-      // It became something this action no longer applies to (it finished, or was removed
-      // elsewhere). Showing it as it is now is the answer; there is nothing to report.
-      this.publish({items:this.state.items.map(p=>p.id===current.id?current:p)});failure=undefined;
-     }
-    }catch(again){failure=again;}
-   }
-   if(failure!==undefined)this.publish({error:say(failure,'downloads.error.action'),failure});
-  }finally{this.publish({busy:this.state.busy.filter(id=>id!==preparation.id)});void this.refresh();}
- }
- /** The address the prepared file is fetched from. Pass the token of the address this device
-  * already holds for the download (`renew`) to keep that same address alive; a transfer the
-  * device's own downloader is holding then carries on under it. */
- async grant(preparation:Pick<DownloadPreparation,'id'>,renew?:string):Promise<DownloadGrant>{
-  return parseDownloadGrant(await this.api.request<RouteResponse<"create_download_grant">>(encodedRoutePath("create_download_grant", {"id": encodeURIComponent(preparation.id)}),'POST',routeBody("create_download_grant", {operationId:this.operationId(),...(renew?{renew}:{})})));
- }
- /** Everything that travels with a ready download: title facts, artwork, chapters, markers,
-  * audio and subtitle tracks. The files it names are fetched under the grant's address. */
- async bundle(preparation:Pick<DownloadPreparation,'id'>,signal?:AbortSignal):Promise<DownloadBundle>{
-  return parseDownloadBundle(await this.api.request<RouteResponse<"get_download_bundle">>(encodedRoutePath("get_download_bundle", {"id": encodeURIComponent(preparation.id)}),'GET',undefined,signal),preparation.id);
- }
- reason(preparation:DownloadPreparation):string{return preparation.reason?downloadReasonMessage(preparation.reason):'';}
+    void (this.refreshing ?? Promise.resolve()).then(() => this.refresh()); return {batchId, items, rejected, accepted: items.length, duplicate};
+  }
+  async requestContainer(input: Readonly<{target: ContainerDownloadTarget; deviceId: string; quality?: string; policy: ContainerDownloadPolicy; operationId?: string}>): Promise<DownloadRequest> {
+    const asked = await askForDownload(this.api, {...(input.target.kind === 'playlist' ? {listId: input.target.id} : {itemId: input.target.id}), operationId: input.operationId ?? this.operationId(), quality: input.quality ?? originalQuality, selection: input.policy.episodes, ...(input.policy.episodes === 'next' ? {keepNext: input.policy.keepNext} : {})}, this.lifetime.signal);
+    const d = await readDownload(this.api, asked.id, this.lifetime.signal);
+    this.downloads.set(d.id, d); void (this.refreshing ?? Promise.resolve()).then(() => this.refresh()); return requestFacts(d, this.profileId);
+  }
+  async act(preparation: DownloadPreparation, action: DownloadAction): Promise<void> {
+    const {downloadId, itemId} = downloadCopyReference(preparation.id);
+    this.publish({busy: [...this.state.busy, preparation.id], error: undefined, failure: undefined});
+    try {
+      if (action === 'remove' || action === 'cancel') await removeDownloadedTitle(this.api, downloadId, itemId, this.lifetime.signal);
+      else await changeDownload(this.api, downloadId, action === 'retry' ? {retry: true} : {paused: action === 'pause'}, this.lifetime.signal);
+      await this.refreshing; await this.refresh();
+    } catch (e) {this.publish({failure: e, error: serviceProblem(e, 'downloads', 'downloads.error.action', 'action')});}
+    finally {this.publish({busy: this.state.busy.filter(id => id !== preparation.id)});}
+  }
+  async grant(preparation: Pick<DownloadPreparation, 'id'>, _renew?: string): Promise<DownloadGrant> {
+    const {downloadId, itemId} = downloadCopyReference(preparation.id), downloaded = await readDownloadedItem(this.api, downloadId, itemId, this.lifetime.signal);
+    if (downloaded.files.length !== 1) throw Object.assign(new Error(downloadReasonMessage('several_files')), {code: 'several_files'});
+    const f = downloaded.files[0];
+    if (!Number.isSafeInteger(f.sizeBytes) || f.sizeBytes < 1 || !downloaded.versionId || downloaded.quality !== 'original' && !/^[a-f0-9]{64}$/.test(f.sha256 ?? '')) throw new Error(unreadableServerResponse);
+    return {preparationId: preparation.id, itemId, url: f.url, token: '', issuedAt: '', expiresAt: '', renewAfterSeconds: 0, renewed: false,
+      artifact: {kind: downloaded.quality === 'original' ? 'source' : 'prepared', ref: downloaded.versionId, sha256: f.sha256 ?? '', bytes: f.sizeBytes, estimated: false, container: f.container ?? '', fileName: `${downloaded.item.title}.${f.container ?? 'bin'}`, contentType: ''}};
+  }
+  async bundle(preparation: Pick<DownloadPreparation, 'id'>, signal?: AbortSignal): Promise<DownloadBundle> {
+    const {downloadId, itemId} = downloadCopyReference(preparation.id); return downloadedBundle(preparation.id, await readDownloadedItem(this.api, downloadId, itemId, signal));
+  }
+  reason(preparation: DownloadPreparation): string {return preparation.reason ? downloadReasonMessage(preparation.reason) : '';}
 }

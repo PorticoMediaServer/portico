@@ -171,3 +171,16 @@ test('same-artifact receipt renewal stays usable; disposal and nonlocal addresse
     await assert.rejects(y.owner.prepare(y.entry,() => true));
   }
 });
+
+test('a server-next copy uses the actual native artifact and current viewer permission without a signed receipt', async () => {
+  const x = setup(), owner = x.owner.owner()!;
+  const entry: OfflineEntry = {...x.entry, receipt: undefined, downloadId: 'dl_one',
+    owner: JSON.stringify([owner.authority, owner.accountId, owner.profileId, owner.serverId]), artifact: {sha256: 'b'.repeat(64), bytes: 10}};
+  x.setEntries([entry]);
+  const source = await x.owner.prepare(entry, () => true);
+  assert.equal(source.session().mode, 'local'); assert.deepEqual(source.artifact, entry.artifact);
+  x.setEntries([{...entry, artifact: {sha256: 'c'.repeat(64), bytes: 10}}]);
+  assert.equal(source.current(), false, 'a different local file cannot inherit its admission');
+  x.setEntries([{...entry, owner: 'another viewer'}]);
+  await assert.rejects(x.owner.prepare(entry, () => true));
+});

@@ -48,7 +48,7 @@ export type DownloadTitle = Readonly<{
 export type DownloadArtifact = Readonly<{kind: DownloadArtifactKind; ref: string; sha256: string; bytes: number; estimated: boolean; container: string; contentType: string; fileName: string}>;
 export type DownloadProgress = Readonly<{bytesDone: number; bytesTotal: number; bytesTotalEstimated: boolean; percent: number; etaSeconds: number|null}>;
 export type DownloadPreparation = Readonly<{
-  id: string; versionId?:string; itemId: string; libraryId: string; profileId: string; title: DownloadTitle; quality: string; origin: DownloadOrigin;
+  id: string; downloadId?: string; versionId?:string; itemId: string; libraryId: string; profileId: string; title: DownloadTitle; quality: string; origin: DownloadOrigin;
   batchId: string; state: DownloadState; reason: string; artifact: DownloadArtifact; progress: DownloadProgress;
   actions: readonly DownloadAction[]; revision: number; createdAt: string; updatedAt: string; readyAt: string; expiresAt: string;
 }>;
@@ -351,6 +351,21 @@ function storage(raw: unknown): DownloadStorage {
 
 export function parseDownloadOptions(raw: unknown, itemId: string): DownloadOptionsView {
   if (!object(raw) || raw.itemId !== itemId || !text(raw.kind, 64)) invalid();
+  // Server-next supplies one menu for titles and containers. Keep its real choices in the existing view model.
+  if (raw.items !== undefined) {
+    if (!count(raw.titles) || !text(raw.default, 64) || raw.roomBytes !== undefined && !count(raw.roomBytes)) invalid();
+    const choices = array(raw.items, 16).map(value => {
+      if (!object(value) || !code(value.quality) || !text(value.label, 128) || !count(value.sizeBytes) || typeof value.estimated !== 'boolean' || typeof value.prepared !== 'boolean' || typeof value.available !== 'boolean' || !text(value.reason ?? '', 1024)) invalid();
+      return Object.freeze({quality: value.quality, label: value.label, kind: value.quality === 'original' ? 'source' as const : 'optimized' as const,
+        estimatedBytes: value.sizeBytes, estimated: value.estimated, available: value.available, reason: String(value.reason ?? ''), requiresPreparation: value.prepared,
+        targetDisplayHeight: 0, maxVideoBitrateBps: 0, maxAudioBitrateBps: 0, preparedProfileId: '', preparedVersionId: '', preparationId: '', preparationState: ''});
+    });
+    if (!choices.length) invalid();
+    const original = choices.find(o => o.quality === 'original');
+    return Object.freeze({itemId, kind: raw.kind, options: Object.freeze(choices), policy: Object.freeze({allowDownloads: true, reason: ''}),
+      source: Object.freeze({container: '', videoCodec: '', audioCodec: '', height: 0, durationSeconds: 0, bytes: original?.estimatedBytes ?? 0, available: original?.available ?? false}),
+      storage: Object.freeze({remainingBytes: raw.roomBytes === undefined ? null : raw.roomBytes as number, maxPreparedBytes: 0, committedBytes: 0, retentionDays: 0})});
+  }
   const source = wireDurations(raw.source,{durationSeconds:"durationMs"});
   if (!object(source) || !text(source.container ?? '', 64) || !count(source.bytes) || typeof source.available !== 'boolean') invalid();
   if (typeof source.durationSeconds !== 'number' || !Number.isFinite(source.durationSeconds) || source.durationSeconds < 0) invalid();

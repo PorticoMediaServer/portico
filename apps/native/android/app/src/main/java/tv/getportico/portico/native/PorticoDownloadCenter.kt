@@ -215,7 +215,7 @@ internal object PorticoDownloadCenter {
     val url = request["url"] as? String
     val wanted = (request["sha256"] as? String)?.lowercase() ?: ""
     val bytes = PorticoMpvSupport.integer(request["bytes"])
-    if (!safeIdentifier(id) || !SHA256.matches(wanted) || bytes == null || url == null || !(url.startsWith("https://") || url.startsWith("http://"))) return null
+    if (!safeIdentifier(id) || (wanted.isNotEmpty() && !SHA256.matches(wanted) || wanted.isEmpty() && !safeIdentifier(request["sourceId"] as? String)) || bytes == null || bytes <= 0 || url == null || !(url.startsWith("https://") || url.startsWith("http://"))) return null
     id!!
     val entry = entries[id] ?: HashMap()
     if (entry["state"] == "removed") return null
@@ -225,6 +225,7 @@ internal object PorticoDownloadCenter {
     active.remove(id)?.let { it.stopped = "superseded"; it.call?.cancel() }
     // What is already on the device belongs to one exact file. It is continued under any address
     // for that same file, and thrown away only when the file asked for now is a different one.
+    if (entry["sha256"] != wanted || wanted.isEmpty() && (entry["sourceId"] != request["sourceId"] || PorticoMpvSupport.integer(entry["bytes"]) != bytes)) partial(id).delete()
     for (key in TEXT_FIELDS) (request[key] as? String)?.let { entry[key] = it }
     entry["id"] = id
     entry["bytes"] = bytes.toDouble()
@@ -252,7 +253,7 @@ internal object PorticoDownloadCenter {
     active.remove(id)?.let { it.stopped = "superseded"; it.call?.cancel() }
     val digest = (entry["sha256"] as? String)?.lowercase() ?: ""
     val bytes = PorticoMpvSupport.integer(entry["bytes"])
-    if (!SHA256.matches(digest) || bytes == null) {
+    if (digest.isNotEmpty() && !SHA256.matches(digest) || digest.isEmpty() && !safeIdentifier(entry["sourceId"] as? String) || bytes == null || bytes <= 0) {
       entry["state"] = "failed"; entry["error"] = "verification_failed"; entry["waiting"] = ""
       save(); changed(id, true); release()
       return
@@ -782,7 +783,7 @@ internal object PorticoDownloadCenter {
     retirePublicationGeneration(id)
     var error = failure
     if (error == null) {
-      if (digest != transfer.digest || part.length() != transfer.bytes) error = "verification_failed"
+      if (!SHA256.matches(digest) || transfer.digest.isNotEmpty() && digest != transfer.digest || part.length() != transfer.bytes) error = "verification_failed"
     }
     if (error == "verification_failed") part.delete()
     if (error == null) {
@@ -790,6 +791,7 @@ internal object PorticoDownloadCenter {
       if (part != final) final.delete()
       if (part == final || part.renameTo(final)) {
         val size = final.length().toDouble()
+        entry["sha256"] = digest
         entry["state"] = "ready"; entry["error"] = ""; entry["bytes"] = size; entry["bytesDone"] = size
         entry["file"] = final.name
         entry["completedAt"] = System.currentTimeMillis().toDouble()
@@ -842,7 +844,7 @@ internal object PorticoDownloadCenter {
   private val extras = Executors.newFixedThreadPool(2) { Thread(it, "portico-download-extras") }
   private val IDENTIFIER = Regex("^[A-Za-z0-9_-]{1,160}$")
   private val SHA256 = Regex("^[a-f0-9]{64}$")
-  private val TEXT_FIELDS = listOf("itemId", "title", "subtitle", "quality", "fileName", "sha256", "contentType", "artworkUrl", "meta")
+  private val TEXT_FIELDS = listOf("itemId", "title", "subtitle", "quality", "fileName", "sha256", "sourceId", "contentType", "artworkUrl", "meta")
 }
 
 /**

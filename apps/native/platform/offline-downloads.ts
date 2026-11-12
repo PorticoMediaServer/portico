@@ -1,3 +1,5 @@
+import {downloadPreparation, downloadedBundle} from '../../../packages/client-core/src/downloads-service';
+import {downloadedSubtitleText, keepDownloadsInStep, readDownload, removeDownloadedTitle, reportDownloadPlay} from '../../../packages/client-core/src/device-downloads';
 import {refreshOfflineReadingProgressResponse, syncOfflineReadingObservationResponse} from '../../../packages/client-core/src/reading-offline-coordination';
 import {readOfflineDownloadBundleResponse, readDownloadReceiptKeysResponse, issueDownloadReceiptsResponse, revalidateDownloadReceiptsResponse, revokeRemovedDownloadReceipt, syncOfflineDownloadPlaysResponse} from '../../../packages/client-core/src/download-coordination';
 import {stepNativeSelectionActionDownloads, type NativeSelectionActionDownloadIntent} from '../src-next/screens/library/selection-action-downloads';
@@ -74,7 +76,7 @@ export type OfflineEntry = Readonly<{
    * started again without being asked. */
   held: boolean;
   bytes: number; bytesDone: number; addedAt: number;
-  receipt?: DownloadReceipt; libraryId?: string; kind?: string;
+  artifact?: Readonly<{sha256: string; bytes: number}>; downloadId?: string; receipt?: DownloadReceipt; libraryId?: string; kind?: string;
   /** Owner recorded natively when the transfer started, for entries with no receipt yet. */
   owner?: string;
   /** What the download is of, as the server last described it. */
@@ -108,7 +110,7 @@ export type OfflineOthersTarget = Readonly<{revision: number; bytes: number}>;
 type OtherMember = Readonly<{id: string; owner: string; artifact: string; generation: string; bytes: number}>;
 export type Viewer = Readonly<{authority: string; accountId: string; profileId: string; serverId: string}>;
 type Api = {baseUrl: string; mediaUrl(path: string): string; request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>};
-type Play = DeferredProgressEntry;
+type Play = DeferredProgressEntry & {downloadId?: string; playedMs?: number};
 export type OfflineDisplay = Readonly<{title: string; subtitle?: string; artworkUrl?: string; libraryId?: string; kind?: string}>;
 type OfflineWant = OfflineDisplay & Readonly<{itemId: string}>;
 type StartedTransfer = Readonly<{id: string; owner?: string; generation?: string}>;
@@ -136,7 +138,7 @@ const BUNDLE_COMPLETE = 4;
 const trickplayTileName = (tile: number) => `trickplay-${tile}`;
 const chapterImageName = (index: number) => `chapter-${index}`;
 type Meta = {
-  libraryId?: string; kind?: string; owner?: string; receipt?: DownloadReceipt; title?: DownloadTitle;
+  downloadId?: string; libraryId?: string; kind?: string; owner?: string; receipt?: DownloadReceipt; title?: DownloadTitle;
   onServer?: boolean; changed?: boolean; claim?: string; token?: string; extras?: string[]; bundle?: number; publication?: boolean; viewingSynced?: boolean;
 };
 
@@ -168,6 +170,8 @@ type Stored = {
   renewed: Record<string, number>;
   /** B-14.21: the receipt clock's floor (receipt-clock.ts): never earlier than the latest time trusted. */
   clockFloor: number;
+  permissions: Record<string, number>;
+  removed: Owned<{downloadId: string; itemId: string}>;
 };
 
 const native = NativeModules.PorticoDownloads as undefined | {
@@ -236,7 +240,7 @@ function storedReading(raw: unknown): Owned<ReadingRecord> {
 }
 /** Marks a document read from an earlier layout, so open() rewrites it once. */
 const upgradedLayout = Symbol('upgradedLayout');
-const emptyStored = (): Stored => ({version: 3, reading: {}, settings: defaults, plays: {}, resume: {}, keys: {}, wanted: {}, selectionActions: {}, wantedPublications: {}, enrolledMembers: {}, nextAfter: {}, renewed: {}, clockFloor: 0});
+const emptyStored = (): Stored => ({version: 3, reading: {}, settings: defaults, plays: {}, resume: {}, keys: {}, wanted: {}, selectionActions: {}, wantedPublications: {}, enrolledMembers: {}, nextAfter: {}, renewed: {}, clockFloor: 0, permissions: {}, removed: {}});
 
 /** A present document must be readable in full. An unsupported or damaged record
  * is never replaced with an empty outbox on the next settings/progress write. */
@@ -299,6 +303,10 @@ function readStored(parsed: any): Stored {
   out.renewed = record(parsed.renewed ?? {});
   if (Object.values(out.renewed).some(value => !safeInteger(value))) invalid();
   if (parsed.clockFloor !== undefined && !safeInteger(parsed.clockFloor)) invalid();
+  out.removed = owned(parsed.removed ?? {});
+  for (const values of Object.values(out.removed)) for (const value of Object.values(values)) if (!object(value) || typeof value.downloadId !== 'string' || typeof value.itemId !== 'string') invalid();
+  out.permissions = record(parsed.permissions ?? {});
+  if (Object.values(out.permissions).some(value => !safeInteger(value, 1))) invalid();
   out.clockFloor = typeof parsed.clockFloor === 'number' ? parsed.clockFloor : 0;
   return out;
 }
@@ -398,6 +406,7 @@ export class OfflineDownloads {
    * revision changes whenever any member or its stored bytes change. */
   private othersRevision = 0;
   private othersSignature = '';
+  private downloadSync?: {generation: number; task: Promise<void>};
   /** Removing a book fences new reader observations before waiting for its outbox. */
   private removingReading = new Map<string, number>();
 
@@ -540,7 +549,8 @@ export class OfflineDownloads {
     void this.open().then(async () => {
       if (this.generation !== generation) return;
       const owner = offlineOwnerKey(viewer);
-      await this.refreshKeys(generation, api);
+      if (!service.downloaded || this.ownedEntries(owner).some(e => e.receipt)) await this.refreshKeys(generation, api);
+      await this.syncDownloads(generation);
       if (this.generation !== generation) return;
       this.publishEntries();
       this.publish({pendingProgress: this.pendingCount()});
@@ -579,6 +589,8 @@ export class OfflineDownloads {
       state: raw.state, error: String(raw.error ?? ''), waiting: raw.waiting === 'wifi' || raw.waiting === 'network' ? raw.waiting : '', held: raw.intent === 'hold',
       bytes: Number(raw.bytes) || 0, bytesDone: Number(raw.bytesDone) || 0, addedAt: Number(raw.addedAt) || 0, receipt,
       libraryId: meta.libraryId || undefined, kind: info?.kind || meta.kind || undefined,
+      ...(typeof raw.sha256 === 'string' && /^[a-f0-9]{64}$/.test(raw.sha256) && safeInteger(raw.bytes, 1) ? {artifact: {sha256: raw.sha256, bytes: raw.bytes}} : {}),
+      downloadId: typeof meta.downloadId === 'string' ? meta.downloadId : undefined,
       owner: typeof meta.owner === 'string' && meta.owner ? meta.owner : undefined,
       info, onServer: meta.onServer !== false, changedOnServer: meta.changed === true,
     });
@@ -600,7 +612,7 @@ export class OfflineDownloads {
       void this.measure();
       // The receipt was asked for before the first byte moved; this is for the one that could
       // not be had then.
-      if (!next.receipt && this.entryOwner(next) === this.ownerKey()) void this.obtainReceipt(next.id);
+      if (!next.receipt && !next.downloadId && this.entryOwner(next) === this.ownerKey()) void this.obtainReceipt(next.id);
     }
     // A download that stopped by itself is started again without anybody having to notice.
     if (next.state !== before?.state && (next.state === 'failed' || next.state === 'paused')) void this.tend(this.generation);
@@ -1040,7 +1052,7 @@ export class OfflineDownloads {
     if (!native || !service || !api || !owner) throw new Error(serviceText('downloads.connectToStart'));
     const reason = this.blocked(preparation); if (reason) throw new Error(reason);
     this.starting.set(preparation.id, preparation.artifact.bytes);
-    try { await this.transfer({id: preparation.id, itemId: preparation.itemId, quality: preparation.quality, libraryId: preparation.libraryId, title: preparation.title}, owner, api, service, generation); }
+    try { await this.transfer({id: preparation.id, itemId: preparation.itemId, quality: preparation.quality, downloadId: preparation.downloadId, libraryId: preparation.libraryId, title: preparation.title}, owner, api, service, generation); }
     finally { this.starting.delete(preparation.id); this.publishPending(); }
   }
   /** Starts, or continues, moving one download's bytes.
@@ -1050,7 +1062,7 @@ export class OfflineDownloads {
    * The address is the one this download already had whenever the server will keep it alive,
    * and the bytes already here are continued either way: they belong to the file, not to the
    * address. */
-  private async transfer(target: {id: string; itemId: string; quality: string; libraryId?: string; title?: DownloadTitle}, owner: string, api: Api, service: DownloadsService, generation: number, continuing = false, explicit = false) {
+  private async transfer(target: {id: string; itemId: string; quality: string; downloadId?: string; libraryId?: string; title?: DownloadTitle}, owner: string, api: Api, service: DownloadsService, generation: number, continuing = false, explicit = false) {
     if (!native) throw new Error(serviceText('downloads.unavailableOnDevice'));
     const incarnation = this.incarnations.get(target.id) ?? {};
     this.incarnations.set(target.id, incarnation);
@@ -1064,6 +1076,10 @@ export class OfflineDownloads {
     };
     current();
     const held = this.metas.get(target.id) ?? {};
+    if (target.downloadId || held.downloadId) {
+      await this.transferDownload(target, {...held, downloadId: target.downloadId ?? held.downloadId}, owner, api, service, generation, continuing, current, () => this.incarnations.get(target.id) === incarnation);
+      return;
+    }
     const claim = held.claim ?? target.id;
     // A receipt that has run out, or soon will, is no better than none for a download that may
     // finish with no connection.
@@ -1081,13 +1097,88 @@ export class OfflineDownloads {
     if (receipt && title?.kind !== 'ebook' && title?.kind !== 'comic' && !held.viewingSynced) await this.initialViewing(target.id, receipt, owner, api, generation);
     void this.bundle(target.id, api, service, generation, grant.url);
   }
+  private async syncDownloads(generation = this.generation): Promise<void> {
+    const api = this.api, service = this.service, owner = this.ownerKey();
+    if (!api || !owner || !service?.downloaded || generation !== this.generation) return;
+    if (this.downloadSync?.generation === generation) return this.downloadSync.task;
+    const current = () => generation === this.generation && this.api === api && this.ownerKey() === owner;
+    const task = (async () => {
+      for (const [id, ref] of Object.entries(this.stored.removed[owner] ?? {})) {
+        try {await removeDownloadedTitle(api, ref.downloadId, ref.itemId);} catch (e) {if ((e as {status?: number})?.status !== 404) return;}
+        if (!current()) return;
+        if (this.stored.removed[owner]?.[id] === ref) {delete this.stored.removed[owner][id]; if (!await this.persist()) return;}
+      }
+      await keepDownloadsInStep(api, {
+      held: async () => this.ownedEntries(owner).flatMap(e => e.downloadId ? [{downloadId: e.downloadId, itemId: e.itemId}] : []),
+      remove: async ref => {if (!current()) return; for (const entry of this.ownedEntries(owner).filter(e => e.downloadId === ref.downloadId && e.itemId === ref.itemId)) await this.remove(entry, true);},
+      fetch: async ref => {
+        if (!current() || Object.values(this.stored.removed[owner] ?? {}).some(r => r.downloadId === ref.downloadId && r.itemId === ref.itemId) || this.all.some(e => this.entryOwner(e) === owner && e.downloadId === ref.downloadId && e.itemId === ref.itemId)) return;
+        const request = await readDownload(api, ref.downloadId); if (!current()) return;
+        const title = request.items?.find(t => t.itemId === ref.itemId);
+        if (title) await this.want([downloadPreparation(request, title)], undefined, service);
+      },
+      renew: async permission => {
+        if (!current()) return;
+        const until = Date.parse(permission.playableUntil), duration = permission.playableForMs;
+        if (!Number.isFinite(until) || !safeInteger(duration, 1) || duration > 30 * 24 * 60 * 60 * 1000) throw new Error(serviceText('downloads.error.load'));
+        this.trustServerTime([new Date(until - duration).toISOString()]);
+        this.stored.permissions[owner] = Math.min(until, this.receiptNow() + duration);
+        if (!await this.persist()) throw new Error(serviceText('downloads.deviceUnwritable'));
+      },
+      });
+    })().catch(() => {});
+    this.downloadSync = {generation, task};
+    try {await task;} finally {if (this.downloadSync?.task === task) this.downloadSync = undefined;}
+  }
+  private async transferDownload(target: {id: string; itemId: string; quality: string}, held: Meta, owner: string, api: Api, service: DownloadsService, generation: number, continuing: boolean, current: () => OfflineEntry | undefined, incarnationCurrent: () => boolean) {
+    const described = await service.downloaded(target.id); current();
+    if (described.item.id !== target.itemId || described.files.length !== 1) throw new Error(downloadReasonMessage('several_files'));
+    await this.syncDownloads(generation); current();
+    if (!this.stored.permissions[owner] || this.stored.permissions[owner] <= this.receiptNow()) throw new Error(serviceText('downloads.offline.needsCheckIn'));
+    const grant = await service.grant(target); const entry = current();
+    const reason = this.admission(grant.artifact.bytes); if (!continuing && reason) throw new Error(reason);
+    const bundle = downloadedBundle(target.id, described);
+    const meta: Meta = {...held, owner, title: bundle.title, libraryId: described.item.libraryId, kind: bundle.title.kind, onServer: true};
+    if (!Object.values(this.stored.plays[owner] ?? {}).some(p => p.itemId === target.itemId)) bucket(this.stored.resume, owner)[target.itemId] = (described.item.state.positionMs ?? 0) / 1000;
+    await this.startTransfer(target, meta, grant, api, continuing ? entry : undefined, incarnationCurrent);
+    if (generation === this.generation && incarnationCurrent()) void this.bundle(target.id, api, service, generation);
+  }
+  private async downloadBundle(id: string, api: Api, service: DownloadsService, generation: number) {
+    if (!native) return;
+    const described = await service.downloaded(id), bundle = downloadedBundle(id, described);
+    if (generation !== this.generation || !this.all.some(e => e.id === id)) return;
+    await native.writeExtra(id, 'bundle.json', JSON.stringify(bundle));
+    const saved = new Set(this.metas.get(id)?.extras ?? []);
+    const files: [string, string][] = Object.entries(described.item.images).filter(([role]) => ['poster', 'cover', 'backdrop'].includes(role));
+    let complete = true;
+    for (const [name, url] of files) {
+      if (saved.has(name)) continue;
+      const outcome = await native.fetchExtra(id, name, api.mediaUrl(url)).catch(() => 'later');
+      if (generation !== this.generation || !this.all.some(e => e.id === id)) return;
+      if (outcome === 'saved') saved.add(name); else if (outcome !== 'missing') complete = false;
+    }
+    // The existing subtitle cache names its files by track identity.
+    for (let index = 0; index < bundle.subtitles.length; index++) {
+      const source = described.subtitles.filter(s => s.url)[index];
+      if (!source?.url) continue;
+      for (const [name] of subtitleExtraFiles(bundle.subtitles[index])) {
+        const outcome = await native.fetchExtra(id, name, api.mediaUrl(source.url)).catch(() => 'later');
+        if (generation !== this.generation || !this.all.some(e => e.id === id)) return;
+        if (outcome === 'saved') {
+          if (source.format === 'srt') {try {await native.writeExtra(id, name, downloadedSubtitleText('srt', await native.readExtra(id, name)));} catch {complete = false; continue;}}
+          saved.add(name);
+        } else if (outcome !== 'missing') complete = false;
+      }
+    }
+    await this.patch(id, {title: bundle.title, kind: bundle.title.kind, extras: [...saved], bundle: complete ? BUNDLE_COMPLETE : 1});
+  }
   private async startTransfer(target: {id: string; itemId: string; quality: string}, meta: Meta, grant: Awaited<ReturnType<DownloadsService['grant']>>, api: Api, continuing?: OfflineEntry, current: () => boolean = () => true): Promise<StartedTransfer | undefined> {
     if (!native) return;
     const lines = meta.title ? downloadTitleLines(meta.title) : {title: '', subtitle: ''};
     this.metas.set(target.id, meta);
     const request = {
       id: target.id, url: api.mediaUrl(grant.url), fileName: grant.artifact.fileName, bytes: grant.artifact.bytes, sha256: grant.artifact.sha256,
-      contentType: grant.artifact.contentType, itemId: target.itemId, title: lines.title, subtitle: lines.subtitle, quality: target.quality, meta: JSON.stringify(meta),
+      sourceId: grant.artifact.ref, contentType: grant.artifact.contentType, itemId: target.itemId, title: lines.title, subtitle: lines.subtitle, quality: target.quality, meta: JSON.stringify(meta),
       ...(continuing ? {expectedGeneration: this.publicationStateGenerations.get(continuing)} : {}),
     };
     // A successful native start rotates its generation too. Its own exact
@@ -1116,6 +1207,7 @@ export class OfflineDownloads {
     if (!native || this.bundling.has(id) || (before?.bundle ?? 0) >= BUNDLE_COMPLETE && (!reading || before?.publication === true)) return;
     this.bundling.add(id);
     try {
+      if (before?.downloadId) {await this.downloadBundle(id, api, service, generation); return;}
       const claim = this.metas.get(id)?.claim ?? id;
       const raw = await readOfflineDownloadBundleResponse(api, claim);
       const described = parseDownloadBundle(raw, claim);
@@ -1151,6 +1243,8 @@ export class OfflineDownloads {
     const owner = this.ownerKey(), api = this.api, service = this.service;
     if (generation !== this.generation || !owner || !api || !service || !this.state.ready) return;
     await this.measure();
+    if (generation !== this.generation) return;
+    await this.syncDownloads(generation);
     if (generation !== this.generation) return;
     void this.collect(generation);
     void this.syncProgress(generation);
@@ -1245,6 +1339,10 @@ export class OfflineDownloads {
         if (generation !== this.generation || api !== this.api) throw Object.assign(new Error('cancelled'), {code: 'cancelled'});
         if (this.pendingReading(entry)) throw this.readingRemovalRefused(entry);
       }
+      if (!withdrawn && entry.downloadId && owner) {
+        bucket(this.stored.removed, owner)[entry.id] = {downloadId: entry.downloadId, itemId: entry.itemId};
+        if (!await this.persist()) throw new Error(serviceText('downloads.deviceUnwritable'));
+      }
       this.incarnations.delete(entry.id);
       await native?.remove(entry.id);
       this.retried.delete(entry.id);
@@ -1259,6 +1357,7 @@ export class OfflineDownloads {
         delete this.stored.wantedPublications[owner]?.[entry.id];
       }
       if (!await this.persist()) throw Object.assign(new Error('reading_progress_not_saved'), {code: 'persistence_error'});
+      if (!withdrawn && entry.downloadId && api && generation === this.generation && owner === this.ownerKey()) void this.syncDownloads(generation);
       if (!withdrawn && receipt && api && generation === this.generation && api === this.api && owner === this.ownerKey()) void revokeRemovedDownloadReceipt(api, operationId(), receipt.receiptId).catch(() => {});
     } finally {release();}
   }
@@ -1423,7 +1522,7 @@ export class OfflineDownloads {
     if (generation !== this.generation || !api || !owner) return;
     const mine = this.ownedEntries(owner);
     // A finished download with no receipt yet (it could not be had when the transfer began).
-    for (const e of mine) if (e.state === 'ready' && !e.receipt) void this.obtainReceipt(e.id, generation);
+    for (const e of mine) if (e.state === 'ready' && !e.receipt && !e.downloadId) void this.obtainReceipt(e.id, generation);
     let held = mine.filter(e => e.receipt);
     if (!held.length) return;
     const now = this.receiptNow(), soon = held.some(e => Date.parse(e.receipt!.claims.expiresAt) - now < 7 * 24 * 60 * 60 * 1000);
@@ -1562,6 +1661,11 @@ export class OfflineDownloads {
   playabilityReason(entry: OfflineEntry, viewer: Viewer | undefined = this.viewer): OfflinePlayabilityReason|null {
     if (!viewer) return 'sign_in';
     if (entry.state !== 'ready') return 'not_finished';
+    if (entry.downloadId) {
+      if (this.entryOwner(entry) !== offlineOwnerKey(viewer)) return 'other_profile';
+      const until = this.stored.permissions[offlineOwnerKey(viewer)];
+      return !until ? 'needs_setup' : this.receiptNow() >= until ? 'needs_check_in' : null;
+    }
     if (!entry.receipt || !this.verified.has(signedIdentity(entry.receipt))) return 'needs_setup';
     const now = this.receiptNow();
     if (!receiptUsable(entry.receipt.claims, viewer, new Date(now))) return Date.parse(entry.receipt.claims.expiresAt) <= now ? 'needs_check_in' : 'other_profile';
@@ -1585,7 +1689,7 @@ export class OfflineDownloads {
   /** A local file read cannot escape the viewer/generation/artifact that admitted it. */
   private localRead(entry: OfflineEntry): () => OfflineEntry {
     const generation=this.generation, owner=this.ownerKey();
-    const identity=(value:OfflineEntry)=>JSON.stringify([value.id,value.itemId,this.entryOwner(value),value.receipt?.claims.preparationId,value.receipt?.claims.artifact.sha256,value.receipt?.claims.artifact.bytes]);
+    const identity=(value:OfflineEntry)=>JSON.stringify([value.id,value.itemId,this.entryOwner(value),value.receipt?.claims.preparationId,value.receipt?.claims.artifact.sha256,value.receipt?.claims.artifact.bytes,value.downloadId,value.artifact?.sha256,value.bytes]);
     const expected=identity(entry);
     const current=()=>{
       const live=this.all.find(value=>value.id===entry.id);
@@ -1875,18 +1979,23 @@ export class OfflineDownloads {
     return Object.freeze({bundle, subtitles: Object.freeze(subtitles), backdropUrl: saved.has('backdrop') && dir ? dir + 'extras/backdrop' : '', trickplayTiles: Object.freeze(trickplayTiles), chapterImages: Object.freeze(chapterImages)});
   }
   private lastLocalWrite = new Map<string, number>();
+  private localPlayTime = new Map<string, {at: number; playing: boolean; playedMs: number}>();
   /** Progress from Portico's player for a downloaded title. A playing position is written at most
    * every 10 seconds; pauses, stops and the end always are. */
   recordProgress(progress: LocalProgress): void {
     const now = Date.now(), last = this.lastLocalWrite.get(progress.entryId) ?? 0;
+    const previous = this.localPlayTime.get(progress.playId);
+    const playedMs = (previous?.playedMs ?? 0) + (previous?.playing ? Math.max(0, Math.min(30_000, now - previous.at)) : 0);
+    this.localPlayTime.set(progress.playId, {at: now, playing: progress.state === 'playing', playedMs});
+    if (this.localPlayTime.size > MAX_PLAYS) this.localPlayTime.delete(this.localPlayTime.keys().next().value!);
     if (progress.state === 'playing' && now - last < 10000) return;
     this.lastLocalWrite.set(progress.entryId, now);
     if (this.lastLocalWrite.size > 32) this.lastLocalWrite.delete(this.lastLocalWrite.keys().next().value!);
-    void this.observed({id: progress.entryId, playId: progress.playId, positionSeconds: progress.positionSeconds, durationSeconds: progress.durationSeconds, ended: progress.ended, final: progress.state !== 'playing'});
+    void this.observed({id: progress.entryId, playId: progress.playId, positionSeconds: progress.positionSeconds, durationSeconds: progress.durationSeconds, ended: progress.ended, final: progress.state !== 'playing', playedMs});
   }
   /** One observation of a play. Every play of a download is its own entry in the journal, kept
    * until the server has answered for it; its latest position replaces its earlier ones. */
-  private async observed(event: {id: string; playId?: string; positionSeconds: number; durationSeconds: number; ended: boolean; final: boolean}) {
+  private async observed(event: {id: string; playId?: string; positionSeconds: number; durationSeconds: number; ended: boolean; final: boolean; playedMs?: number}) {
     const entry = this.all.find(e => e.id === event.id); if (!entry) return;
     // Filed under the viewer whose receipt authorised this playback, not under whoever is signed
     // in when the journal is finally sent. Playing offline is only permitted through `playable`,
@@ -1903,7 +2012,7 @@ export class OfflineDownloads {
     const observedAt = Math.max(Date.now(), Math.max(this.observationTimes.get(clockKey) ?? 0, ...pendingTimes) + 1);
     this.observationTimes.set(clockKey, observedAt);
     if (this.observationTimes.size > MAX_PLAYS) this.observationTimes.delete(this.observationTimes.keys().next().value!);
-    plays[playId] = {playId, itemId: entry.itemId, positionSeconds: position, ...(event.ended ? {ended: true} : {}), observedAt: new Date(observedAt).toISOString()};
+    plays[playId] = {playId, itemId: entry.itemId, ...(entry.downloadId ? {downloadId: entry.downloadId, playedMs: event.playedMs ?? 0} : {}), positionSeconds: position, ...(event.ended ? {ended: true} : {}), observedAt: new Date(observedAt).toISOString()};
     if (Object.keys(plays).length > MAX_PLAYS) {
       const latest = new Map<string, Play>();
       for (const play of Object.values(plays)) {
@@ -1939,6 +2048,13 @@ export class OfflineDownloads {
       const entries = Object.values(this.stored.plays[owner] ?? {}).slice(0, 100);
       if (!entries.length) return;
       try {
+        const modern = entries.filter(e => e.downloadId);
+        for (const play of modern) {
+          await reportDownloadPlay(api, {itemId: play.itemId, playId: play.playId, positionMs: Math.round(play.positionSeconds * 1000), playedMs: play.playedMs ?? 0, madeAgoMs: Math.max(0, Date.now() - Date.parse(play.observedAt))});
+          if (this.generation !== generation) return;
+          if (this.stored.plays[owner]?.[play.playId] === play) delete this.stored.plays[owner][play.playId];
+        }
+        if (modern.length) {await this.persist(); continue;}
         const receipt = parseDeferredProgressReceipt(await syncOfflineDownloadPlaysResponse(api, operationId(), entries));
         if (this.generation !== generation) return;
         // Anything the server answered about, accepted or not, is settled and must not be resent

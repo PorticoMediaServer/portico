@@ -1,15 +1,17 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {DownloadsService} from '../src/downloads-service.ts';
+import {request} from './helpers/downloads-next.ts';
 
 // #736: a retried submit resends the identical body under the same operation id; a changed choice needs a new one.
 // The item request now takes the caller's id for its intent; without one it still makes a new id per call.
-const batch = {batchId: 'b', accepted: 0, items: [], rejected: [], duplicate: false};
+const batch = request();
 function fixture() {
   const sent: any[] = [];
   let n = 0;
   const service = new DownloadsService({request: async <T,>(path: string, method = 'GET', body?: any): Promise<T> => {
-    if (path === '/v1/downloads/preparations' && method === 'POST') {sent.push(body); return batch as T;}
+    if (path === '/v1/downloads' && method === 'POST') {sent.push(body); return batch as T;}
+    if (path === '/v1/downloads/dl_one') return batch as T;
     return {items: [], nextCursor: ''} as T;
   }} as any, () => `generated_${++n}`);
   return {service, sent};
@@ -19,7 +21,7 @@ test('an item request sent with the caller operation id sends exactly that id, a
   const {service, sent} = fixture();
   await service.request({mediaId: 'film'}, '720p-high', 'held_1');
   await service.request({mediaId: 'film'}, '720p-high', 'held_1');
-  assert.deepEqual(sent, [{operationId: 'held_1', mediaId: 'film', quality: '720p-high'}, {operationId: 'held_1', mediaId: 'film', quality: '720p-high'}]);
+  assert.deepEqual(sent, [{operationId: 'held_1', itemId: 'film', versionId: undefined, quality: '720p-high'}, {operationId: 'held_1', itemId: 'film', versionId: undefined, quality: '720p-high'}]);
 });
 
 test('without the caller id each item request gets a new one, and a malformed id is refused before anything is sent', async () => {

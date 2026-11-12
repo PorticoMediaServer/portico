@@ -25,7 +25,7 @@ export function serverPath(route: keyof Routes, options: Readonly<{id?: string; 
 
 /** One request to the new server, typed by the route table generated from the server's own routes. */
 export function callServer<K extends keyof Routes>(api: ServerRequester, route: K,
-  options: Readonly<{id?: string; query?: Readonly<Record<string, string | number | boolean | undefined>>; body?: Routes[K]['request']; signal?: AbortSignal}> = {}): Promise<Routes[K]['response']> {
+  options: Readonly<{id?: string; ids?: Readonly<Record<string, string>>; query?: Readonly<Record<string, string | number | boolean | undefined>>; body?: Routes[K]['request']; signal?: AbortSignal}> = {}): Promise<Routes[K]['response']> {
   return api.request<Routes[K]['response']>(serverPath(route, options), route.slice(0, route.indexOf(' ')), options.body, options.signal);
 }
 
