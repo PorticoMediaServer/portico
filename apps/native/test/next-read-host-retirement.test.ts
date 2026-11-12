@@ -1,5 +1,6 @@
 // @fabric-react
 import test, {after} from 'node:test';
+import {rebuiltBookFetch} from './rebuilt-book-fixture';
 import assert from 'node:assert/strict';
 import {HttpLocalApi, createReadingHost, connectReadingHost} from '../../../packages/client-core/src';
 import {parsePreferenceSnapshot} from '../../../packages/client-core/src/preferences';
@@ -30,11 +31,7 @@ for (const activity of [{initial: true, current: true}, {initial: false, current
 test(`the original session keeps activity ${activity.initial}->${activity.current} and forwards retirement`, async t => {
   let current = true, input: ((message: string) => void) | undefined;
   const authority = new Set<() => void>(), calls: string[] = [], packets: Record<string, unknown>[] = [];
-  const revision = 'a'.repeat(64), api = new HttpLocalApi('http://127.0.0.1:39141', 'reader-fixture-token', async (_url, init = {}) => {
-    const method = init.method ?? 'GET'; calls.push(method);
-    const data = method === 'POST' ? {sessionId: 'session', itemId: 'item', sourceId: 'source', revision, size: 100, format: 'pdf', metadata: {title: 'Stored title'}} : {progress: null};
-    return method === 'DELETE' ? new Response(null, {status: 204}) : new Response(JSON.stringify(data), {headers: {'Content-Type': 'application/json', ETag: `"${revision}"`}});
-  });
+  const api = new HttpLocalApi('http://127.0.0.1:39141', 'reader-fixture-token', rebuiltBookFetch(calls));
   const life = new AbortController();
   const client = api.reading({viewer: {authority: 'local', serverId: 'server', accountId: 'account', profileId: 'profile', role: 'member'}, isCurrent: () => current, signal: life.signal});
   const owner = createReadingSessionOwner({current: () => current, subscribe: listener => {authority.add(listener); return () => {authority.delete(listener);};},
@@ -56,41 +53,19 @@ test(`the original session keeps activity ${activity.initial}->${activity.curren
   assert.equal(calls.length, before, 'retirement does not borrow another viewer');
 });
 
-for (const authorityRetired of [false, true])
-test(`original ReadingClient close uses only the original authority (retired=${authorityRetired})`, async () => {
-  let current = true; const calls: string[] = [], listeners = new Set<() => void>(), clientLife = new AbortController();
-  const revision = 'a'.repeat(64), api = new HttpLocalApi('http://127.0.0.1:39141', 'reader-fixture-token', async (_url, init = {}) => {
-    const method = init.method ?? 'GET'; calls.push(method);
-    const data = method === 'POST' ? {sessionId: 'session', itemId: 'item', sourceId: 'source', revision, size: 100, format: 'pdf', metadata: {title: 'Stored title'}} : {progress: null};
-    return method === 'DELETE' ? new Response(null, {status: 204}) : new Response(JSON.stringify(data), {headers: {'Content-Type': 'application/json', ETag: `"${revision}"`}});
-  });
-  const client = api.reading({viewer: {authority: 'local', serverId: 'server', accountId: 'account', profileId: 'profile', role: 'member'}, isCurrent: () => current, signal: clientLife.signal});
-  const owner = createReadingSessionOwner({current: () => current, subscribe: listener => {listeners.add(listener); return () => {listeners.delete(listener);};},
-    acquire: async () => {const original = await client.open({itemId: 'item', sourceId: 'source'});
-      return {session: {manifest: original.manifest, signal: original.signal, headPDF: original.headPDF, readRange: original.readRange,
-        readAsset: original.readAsset, page: original.page, progress: original.progress, saveProgress: original.saveProgress,
-        close: async closeSignal => {if (current) await original.close(closeSignal);}}, release: () => {clientLife.abort(); client.dispose();}};}});
-  await owner.ensure();
-  if (authorityRetired) {current = false; for (const listener of [...listeners]) listener();}
-  await owner.dispose();
-  assert.equal(calls.filter(method => method === 'DELETE').length, authorityRetired ? 0 : 1);
-});
-
+// Nothing is held on the server while a book is open: closing it stops the book's own requests.
 test('removing a retained route closes its original session while the same authority remains current', async () => {
-  let authority = true, retained = true; const calls: string[] = [], listeners = new Set<() => void>(), clientLife = new AbortController();
-  const revision = 'a'.repeat(64), api = new HttpLocalApi('http://127.0.0.1:39141', 'reader-fixture-token', async (_url, init = {}) => {
-    const method = init.method ?? 'GET'; calls.push(method);
-    const data = method === 'POST' ? {sessionId: 'session', itemId: 'item', sourceId: 'source', revision, size: 100, format: 'pdf', metadata: {title: 'Stored title'}} : {progress: null};
-    return method === 'DELETE' ? new Response(null, {status: 204}) : new Response(JSON.stringify(data), {headers: {'Content-Type': 'application/json', ETag: `"${revision}"`}});
-  });
+  let authority = true, retained = true, opened: AbortSignal | undefined; const calls: string[] = [], listeners = new Set<() => void>(), clientLife = new AbortController();
+  const api = new HttpLocalApi('http://127.0.0.1:39141', 'reader-fixture-token', rebuiltBookFetch(calls));
   const client = api.reading({viewer: {authority: 'local', serverId: 'server', accountId: 'account', profileId: 'profile', role: 'member'}, isCurrent: () => authority, signal: clientLife.signal});
   const owner = createReadingSessionOwner({current: () => authority && retained, subscribe: listener => {listeners.add(listener); return () => {listeners.delete(listener);};},
-    acquire: async () => {const original = await client.open({itemId: 'item', sourceId: 'source'});
+    acquire: async () => {const original = await client.open({itemId: 'item', sourceId: 'source'}); opened = original.signal;
       return {session: {manifest: original.manifest, signal: original.signal, headPDF: original.headPDF, readRange: original.readRange,
         readAsset: original.readAsset, page: original.page, progress: original.progress, saveProgress: original.saveProgress,
         close: async closeSignal => {if (authority) await original.close(closeSignal);}}, release: () => {clientLife.abort(); client.dispose();}};}});
-  await owner.ensure(); retained = false; for (const listener of [...listeners]) listener(); await owner.dispose();
-  assert.equal(calls.filter(method => method === 'DELETE').length, 1);
+  await owner.ensure(); const sent = calls.length; retained = false; for (const listener of [...listeners]) listener(); await owner.dispose();
+  assert.equal(opened?.aborted, true, 'the book stops its requests');
+  assert.equal(calls.length, sent, 'and sends nothing on leaving');
   authority = false;
 });
 
@@ -100,14 +75,9 @@ test(`actual live host with its presentation binding fences original close on ${
   const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'original', viewerFence: 'a'.repeat(64)};
   const viewer = {authority: 'local', serverId: 'server', accountId: 'account', profileId: 'profile', role: 'member'} as const;
   let valid = true; const listeners = new Set<() => void>(), calls: string[] = [];
-  const revision = 'a'.repeat(64), navigation = new NativeShellNavigation(authority, () => authority);
+  const navigation = new NativeShellNavigation(authority, () => authority);
   const route = {kind: 'read', itemId: 'item', sourceId: 'source'} as const;
-  const api = new HttpLocalApi('http://127.0.0.1:39141', 'reader-fixture-token', async (url, init = {}) => {
-    const method = init.method ?? 'GET'; calls.push(method);
-    const data = method === 'POST' ? {sessionId: 'session', itemId: 'item', sourceId: 'source', revision, size: 100, format: 'pdf', metadata: {title: 'Stored title'}}
-      : String(url).endsWith('/versions') ? {chosenSourceId: 'source', versions: [{sourceId: 'source', inventoryAvailable: true, size: 100, format: 'pdf'}]} : {progress: null};
-    return method === 'DELETE' ? new Response(null, {status: 204}) : new Response(JSON.stringify(data), {headers: {'Content-Type': 'application/json', ETag: `"${revision}"`}});
-  });
+  const api = new HttpLocalApi('http://127.0.0.1:39141', 'reader-fixture-token', rebuiltBookFetch(calls));
   const context = {api, navigation, authority: () => authority, current: () => valid,
     session: () => ({viewer, sessionFamilyId: 'family'}),
     subscribeAuthority: (listener: () => void) => {listeners.add(listener); return () => {listeners.delete(listener);};}};
@@ -136,10 +106,11 @@ test(`actual live host with its presentation binding fences original close on ${
   try {
     await act(async () => {await host.mount(); for (let i = 0; i < 4; i++) await new Promise<void>(resolve => setImmediate(resolve));});
     assert.equal((tree as {type?: unknown} | undefined)?.type, 'NativeReadingGuestHost', 'the original accepted session reached the ready guest outlet');
-    assert.equal(calls.filter(method => method === 'POST').length, 1);
+    assert.ok(calls.includes('GET /v1/items/item/book'), 'the book was read from the rebuilt server');
+    const sent = calls.length;
     if (removal === 'route') navigation.back(authority);
     else {valid = false; for (const listener of [...listeners]) listener();}
     await act(async () => {for (let i = 0; i < 3; i++) await new Promise<void>(resolve => setImmediate(resolve));});
-    assert.equal(calls.filter(method => method === 'DELETE').length, removal === 'route' ? 1 : 0);
+    assert.deepEqual(calls.slice(sent), [], 'leaving sends nothing, under this viewer or another');
   } finally {await host.unmount(); binding!.dispose(); navigation.dispose();}
 });

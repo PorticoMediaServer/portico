@@ -22,9 +22,9 @@ for (const revokeEvicted of [false, true])
 test(`actual retained Read components cap guest residency and restore original sessions (evicted revoked=${revokeEvicted})`, async t => {
   let finishRange: ((value: Response) => void) | undefined, rangeCancelled: Promise<boolean> | undefined, cleanupRequested = false;
   let cleanupFabric = async () => {}, cleanupRenderer = () => {}, cleanupNavigation = () => {};
-  const revision = 'a'.repeat(64);
+  const revision = '0123456789abcdef';
   const releaseHeld = () => {cleanupRequested = true; const release = finishRange; finishRange = undefined;
-    release?.(new Response(new Uint8Array([7]), {status: 206, headers: {'Content-Type': 'application/pdf', 'Content-Length': '1', 'Content-Range': 'bytes 0-0/100', ETag: `"${revision}"`}}));};
+    release?.(new Response(new Uint8Array([7]), {status: 206, headers: {'Content-Type': 'application/pdf', 'Content-Length': '1', 'Content-Range': 'bytes 0-0/100'}}));};
   const boundedOutcome = async () => {if (!rangeCancelled) return undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {return await Promise.race([rangeCancelled, new Promise<never>((_, reject) => {timer = setTimeout(() => reject(new Error('range cancellation did not settle')), 2000);})]);}
@@ -51,21 +51,20 @@ test(`actual retained Read components cap guest residency and restore original s
   const preferences = {getSnapshot: () => snapshot, subscribe: () => () => {}};
   const api = new HttpLocalApi('http://127.0.0.1:39141', 'reader-fixture-token', async (url, init = {}) => {
     const method = init.method ?? 'GET', path = new URL(String(url)).pathname;
-    if (path.endsWith('/reading/versions')) {
-      const item = path.split('/')[3]!; calls.push({method, item, kind: 'versions'});
-      return new Response(JSON.stringify({chosenSourceId: `source-${item.slice(5)}`, versions: [{sourceId: `source-${item.slice(5)}`, inventoryAvailable: true, size: 100, format: 'pdf'}]}), {headers: {'Content-Type': 'application/json'}});
+    // The rebuilt server: the book route says how to read it (asked once for its versions, once to open it), the
+    // title carries the profile's place, and the PDF's bytes come from the book's media address.
+    const json = (value: unknown) => new Response(JSON.stringify(value), {headers: {'Content-Type': 'application/json'}});
+    const book = path.match(/^\/v1\/items\/(item-(\d+))\/book$/), detail = path.match(/^\/v1\/items\/(item-(\d+))$/), media = path.match(/^\/v1\/media\/grant-(\d+)\/source$/);
+    if (book) {
+      calls.push({method, item: book[1], kind: 'book'});
+      return json({itemId: book[1], version: `source-${book[2]}`, versions: [{id: `source-${book[2]}`, format: 'pdf'}], format: 'pdf', fingerprint: revision, size: 100, mediaUrl: `/v1/media/grant-${book[2]}`});
     }
-    if (method === 'POST') {
-      const body = JSON.parse(String(init.body)), item = body.itemId, index = Number(item.slice(5)); calls.push({method, item});
-      const manifest = {sessionId: `session-${index}`, itemId: item, sourceId: body.sourceId, revision, size: 100, format: 'pdf', metadata: {title: item}};
-      return new Response(JSON.stringify(manifest), {headers: {'Content-Type': 'application/json', ETag: `"${revision}"`}});
+    if (detail) {
+      calls.push({method, item: detail[1], kind: 'detail'});
+      return json({id: detail[1], kind: 'book', title: detail[1], state: {position: JSON.stringify({format: 'pdf', pageIndex: Number(detail[2]), progression: 0, fingerprint: revision})}});
     }
-    const match = path.match(/\/sessions\/session-(\d+)/), index = Number(match?.[1]); calls.push({method, item: `item-${index}`});
-    if (path.endsWith('/source')) return new Promise<Response>(resolve => {finishRange = resolve; if (cleanupRequested) releaseHeld();});
-    if (method === 'DELETE') return new Response(null, {status: 204});
-    return new Response(JSON.stringify({progress: {sourceId: `source-${index}`, sourceRevision: revision,
-      location: {format: 'pdf', pageIndex: index, progression: 0}, revision: 1, observedAt: 1, stale: false}}),
-      {headers: {'Content-Type': 'application/json', ETag: `"${revision}"`}});
+    if (media) {calls.push({method, item: `item-${media[1]}`, kind: 'source'}); return new Promise<Response>(resolve => {finishRange = resolve; if (cleanupRequested) releaseHeld();});}
+    throw new Error(`unexpected request ${method} ${path}`);
   });
   const context: any = {navigation, authority: () => authority, current: () => authorityCurrent,
     session: () => ({viewer, sessionFamilyId: 'family'}), subscribeAuthority: (listener: () => void) => {authorityListeners.add(listener); return () => {authorityListeners.delete(listener);};},
@@ -123,7 +122,7 @@ test(`actual retained Read components cap guest residency and restore original s
     for (let index = 0; index < 20; index++) {
       if (index) {assert.equal(navigation.open({kind: 'search-reading', query: `book ${index}`}, authority), true); await settle();}
       assert.equal(navigation.open({kind: 'read', itemId: `item-${index}`, sourceId: `source-${index}`}, authority), true); await settle();
-      assert.equal(calls.filter(call => call.method === 'POST').length, index + 1);
+      assert.equal(calls.filter(call => call.kind === 'book').length, 2 * (index + 1), 'each book is asked for its versions and opened once');
       assert.ok(views.size <= 2); assert.ok([...views].filter(view => view.active).length <= 1);
       assert.ok([...views].some(view => view.guest?.session.manifest.itemId === `item-${index}`), 'actual current guest is ready');
       if (index === 0) {const guest = [...views].find(view => view.active)!.guest;
@@ -132,7 +131,6 @@ test(`actual retained Read components cap guest residency and restore original s
         releaseHeld(); await settle();}
     }
     assert.ok(peak <= 2, `at most two committed WebView boundaries, observed ${peak}`);
-    assert.equal(calls.filter(call => call.kind === 'versions').length, 20);
     const stale = allViews.find(view => !view.live && view.guest?.session.manifest.itemId === 'item-0'); assert.ok(stale);
     if (revokeEvicted) {const original = originals.get('item-1'); assert.ok(original); original.retire(); await settle();}
     for (let index = 19; index >= 0; index--) {
@@ -142,13 +140,13 @@ test(`actual retained Read components cap guest residency and restore original s
         assert.ok(flatten(fabric.root).some(node => node.type === 'StateView'), 'revoked original exposes the unavailable state');}
       else {assert.ok(view); assert.equal(view.guest.session.manifest.itemId, `item-${index}`); assert.equal(view.guest.session.manifest.sourceId, `source-${index}`);
         assert.equal(view.guest.session.manifest.revision, revision); assert.equal(view.guest.initialProgress.progress.location.pageIndex, index);}
-      assert.equal(calls.filter(call => call.method === 'POST').length, 20, 'Back never opens a replacement session');
-      assert.equal(calls.filter(call => call.kind === 'versions').length, 20, 'Back never refreshes the source');
+      assert.equal(calls.filter(call => call.kind === 'book').length, 40, 'Back never opens a book again or refreshes its source');
       if (index === 0) {stale.props.onError(); stale.props.onMessage({nativeEvent: {url: appleReaderEntry, data: 'stale'}}); await settle();
         assert.equal([...views].find(value => value.active)?.guest.session.manifest.itemId, 'item-0');}
       if (index) {assert.equal(navigation.back(authority), true); await settle(); assert.equal(navigation.back(authority), true); await settle();}
     }
-    assert.equal(calls.filter(call => call.method === 'DELETE').length, revokeEvicted ? 18 : 19, 'each still-current removed original was closed once');
+    for (let index = 1; index < 20; index++) assert.equal(originals.get(`item-${index}`).signal.aborted, true, `the removed original item-${index} stopped its requests`);
+    assert.equal(originals.get('item-0').signal.aborted, false, 'the book still on screen keeps reading');
     const before = calls.length; authorityCurrent = false; for (const listener of [...authorityListeners]) listener(); await settle();
     assert.equal(calls.length, before, 'authority retirement causes no new IO');
   }

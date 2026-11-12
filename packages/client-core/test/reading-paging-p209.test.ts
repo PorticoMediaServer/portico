@@ -60,13 +60,6 @@ test('Periodical issues ask for oldest first and check that order', async () => 
   await assert.rejects(reading.periodicalIssues('library', 'g'.repeat(43), 'magazine', {order: 'sideways' as 'oldest'}), coded('invalid_request'));
 });
 
-test('Versions carry the server choice, which must be a listed version', async () => {
-  const versions = [{sourceId: 'one', format: 'pdf', size: 1, inventoryAvailable: true}, {sourceId: 'two', format: 'epub', size: 1, inventoryAvailable: true}];
-  assert.equal((await client(() => ({chosenSourceId: 'two', versions})).reading.versions('book')).chosenSourceId, 'two');
-  await assert.rejects(client(() => ({chosenSourceId: 'three', versions})).reading.versions('book'), coded('invalid_document'));
-  await assert.rejects(client(() => ({versions})).reading.versions('book'), coded('invalid_document'));
-});
-
 test('Offline refresh results match the receipts sent, in order', () => {
   assert.equal(readingOfflineRefreshPath, '/v1/reading/offline/progress/read');
   const revision = 'a'.repeat(64);

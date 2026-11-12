@@ -1,4 +1,5 @@
 import {validReadingCover} from './reading-cover.ts';
+import {serverPath} from './query/server-api.ts';
 import {retryAfterFrom} from './timer.ts';
 import {readingSavedGroupPath, parseReadingSavedGroupMembership, validReadingSavedGroupCommand, type ReadingSavedGroupTarget, type ReadingSavedGroupCommand} from './reading-saved-group.ts';
 import {readingFavoritePath, parseReadingFavorite, validReadingFavoriteCommand, type ReadingFavoriteCommand} from './reading-favorite.ts';
@@ -318,7 +319,7 @@ type BookAnswer = Readonly<{itemId: string; version: string; versions: readonly 
   direction?: string; parts?: readonly Readonly<{path: string; type: string; size: number}>[]; spine?: readonly string[];
   contents?: readonly Readonly<{title: string; part: string; fragment?: string; depth: number}>[]; pages?: readonly string[]}>;
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
-const itemPath = (itemId: string) => '/v1/items/' + encodeURIComponent(itemId);
+const itemPath = (itemId: string) => serverPath('GET /v1/items/{id}', {id: itemId});
 /** A media address the server gave: its own, under /v1/media/, never another origin. */
 const mediaAddress = (v: unknown): v is string => typeof v === 'string' && /^\/v1\/media\/[A-Za-z0-9._-]+(\/source\?save=1)?$/.test(v);
 function parseBook(raw: unknown, itemId: string): BookAnswer {
@@ -367,6 +368,13 @@ async function received(pending: Promise<Response>, signal: AbortSignal): Promis
 }
 
 /** Bounded streaming consumption; cancellation also works with a stalled body. */
+async function text(response: Response, max: number, check: () => void): Promise<Uint8Array> {
+  const declared = response.headers.get('Content-Length');
+  if (declared !== null && (!/^\d+$/.test(declared) || !integer(Number(declared), 0, max))) { await discard(response); return fail('response_size'); }
+  const out = new TextEncoder().encode(await response.text());
+  check();
+  return out.length > max ? fail('response_size') : out;
+}
 async function bytes(response: Response, max: number, signal: AbortSignal, check: () => void, exact?: number): Promise<Uint8Array> {
   const declared = response.headers.get('Content-Length');
   if (declared !== null && (!/^\d+$/.test(declared) || !integer(Number(declared), 0, max) || (exact !== undefined && Number(declared) !== exact))) {
@@ -547,7 +555,8 @@ export class ReadingClient {
     return this.response(path, {method, headers: {...headers, Accept: 'application/json', ...(payload === undefined ? {} : {'Content-Type': 'application/json'})}, ...(payload === undefined ? {} : {body: payload})}, signal, async (r, active, check) => {
       if (r.status !== 200) return this.error(r, active, check);
       if (mime(r.headers.get('Content-Type')) !== 'application/json') return fail('invalid_response');
-      const raw = await bytes(r, max, active, check);
+      // A phone's fetch (Hermes) gives a response no body stream: its JSON is read as text, within the same limit.
+      const raw = r.body ? await bytes(r, max, active, check) : await text(r, max, check);
       let value: T;
       try { value = frozen(decode(JSON.parse(new TextDecoder('utf-8', {fatal: true}).decode(raw)), r.headers.get('Portico-Mutation-Recovered') === 'true')); }
       catch { return fail('invalid_document'); }
@@ -753,7 +762,7 @@ export class ReadingClient {
   /** How to read one version of a book (the server's choice when version is absent). */
   async book(itemId: string, version: string | undefined, signal?: AbortSignal): Promise<BookAnswer> {
     if (!id(itemId) || version !== undefined && !id(version)) fail('invalid_request');
-    return this.json(query(itemPath(itemId) + '/book', {version}), 'GET', undefined, signal, raw => parseBook(raw, itemId), 8 << 20);
+    return this.json(query(serverPath('GET /v1/items/{id}/book', {id: itemId}), {version}), 'GET', undefined, signal, raw => parseBook(raw, itemId), 8 << 20);
   }
   /** A book's versions. Anything that is not a book (a film, a song) is not found. */
   async versions(itemId: string, signal?: AbortSignal): Promise<GetItemsItemIdReadingVersionsResponse> {
@@ -798,7 +807,7 @@ export class ReadingClient {
   }
   async setState(itemId: string, edit: Record<string, unknown>, signal?: AbortSignal): Promise<Record<string, unknown>> {
     if (!id(itemId)) fail('invalid_request');
-    return this.json(itemPath(itemId) + '/state', 'PUT', edit, signal, raw => isRecord(raw) ? raw : fail('invalid_document'), 64 << 10);
+    return this.json(serverPath('PUT /v1/items/{id}/state', {id: itemId}), 'PUT', edit, signal, raw => isRecord(raw) ? raw : fail('invalid_document'), 64 << 10);
   }
 }
 
@@ -983,7 +992,7 @@ export class ReadingSession {
     const entries: ReadingAnnotationsPage['entries'][number][] = [];
     let next = '';
     for (let page = 0; page < maxAnnotationPages; page++) {
-      const raw = await this.#client.json(query(itemPath(this.manifest.itemId) + '/annotations', {cursor: next || undefined}), 'GET', undefined, signal, value => value, 16 << 20);
+      const raw = await this.#client.json(query(serverPath('GET /v1/items/{id}/annotations', {id: this.manifest.itemId}), {cursor: next || undefined}), 'GET', undefined, signal, value => value, 16 << 20);
       this.#check();
       if (!isRecord(raw) || !Array.isArray(raw.items)) fail('invalid_document');
       for (const row of raw.items) {
@@ -1009,7 +1018,7 @@ export class ReadingSession {
   mutateAnnotation = async (request: ReadingAnnotationMutation, signal?: AbortSignal): Promise<Readonly<{revision: number}>> => {
     this.#check();
     const captured = captureReadingAnnotationMutation(request, location => validateLocation(location, this.manifest));
-    const path = itemPath(this.manifest.itemId) + '/annotations/' + encodeURIComponent(captured.id);
+    const path = serverPath('GET /v1/items/{id}/annotations', {id: this.manifest.itemId}) + '/' + encodeURIComponent(captured.id);
     if (captured.operation === 'delete') {
       await this.#client.response(path, {method: 'DELETE'}, signal, async (r, active, check) => {
         if (r.status !== 204) return this.#client.error(r, active, check);
