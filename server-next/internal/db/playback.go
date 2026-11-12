@@ -429,27 +429,18 @@ func (d *DB) playRecords(ctx context.Context, where string, arg int64, limit int
 
 // RouteFailure is one remembered "this way of playing this file failed on this device".
 type RouteFailure struct {
-	PublicID  string
 	Player    string
 	Route     string
 	Code      string
 	Detail    string
 	FailedAt  time.Time
 	ExpiresAt time.Time
-	// For the owner's list.
-	DeviceName string
-	ItemID     string
-	ItemTitle  string
-	FileName   string
 }
 
 // RecordRouteFailure remembers that a way of delivering a file failed on a device's player,
 // until expires. A later failure of the same way replaces the earlier one.
 func (d *DB) RecordRouteFailure(ctx context.Context, deviceID, fileID int64, f RouteFailure) error {
 	return d.write(ctx, User, func(tx *sql.Tx) error {
-		if _, err := tx.Exec(`DELETE FROM playback_route_failures WHERE expires_at <= ?`, f.FailedAt.UnixMilli()); err != nil {
-			return err
-		}
 		_, err := tx.Exec(`INSERT INTO playback_route_failures (public_id, device_id, file_id, player, route, code, detail, failed_at, expires_at)
 			VALUES (?, ?, ?, ?, ?, ?, nullif(?, ''), ?, ?) ON CONFLICT (device_id, file_id, player, route) DO UPDATE SET
 			code = excluded.code, detail = excluded.detail, failed_at = excluded.failed_at, expires_at = excluded.expires_at`,
@@ -460,20 +451,9 @@ func (d *DB) RecordRouteFailure(ctx context.Context, deviceID, fileID int64, f R
 
 // RouteFailures returns what is remembered now for one file on one device, for planning.
 func (d *DB) RouteFailures(ctx context.Context, deviceID, fileID int64, now time.Time) ([]RouteFailure, error) {
-	return d.routeFailures(ctx, `f.device_id = ? AND f.file_id = ? AND f.expires_at > ?`, deviceID, fileID, now.UnixMilli())
-}
-
-// AllRouteFailures lists everything remembered now, newest first, for the owner.
-func (d *DB) AllRouteFailures(ctx context.Context, now time.Time) ([]RouteFailure, error) {
-	return d.routeFailures(ctx, `f.expires_at > ?`, now.UnixMilli())
-}
-
-func (d *DB) routeFailures(ctx context.Context, where string, args ...any) ([]RouteFailure, error) {
-	rows, err := d.read.QueryContext(ctx, `SELECT f.public_id, f.player, f.route, f.code, ifnull(f.detail, ''), f.failed_at, f.expires_at,
-		dev.name, fl.name, ifnull(i.public_id, ''), ifnull(i.title, '')
-		FROM playback_route_failures f JOIN devices dev ON dev.id = f.device_id JOIN files fl ON fl.id = f.file_id
-		LEFT JOIN items i ON i.id = (SELECT m.item_id FROM media_parts p JOIN media m ON m.id = p.media_id WHERE p.file_id = f.file_id LIMIT 1)
-		WHERE `+where+` ORDER BY f.failed_at DESC, f.id DESC LIMIT 500`, args...)
+	rows, err := d.read.QueryContext(ctx, `SELECT player, route, code, ifnull(detail, ''), failed_at, expires_at
+		FROM playback_route_failures WHERE device_id = ? AND file_id = ? AND expires_at > ?
+		ORDER BY failed_at DESC, id DESC LIMIT 500`, deviceID, fileID, now.UnixMilli())
 	if err != nil {
 		return nil, err
 	}
@@ -482,8 +462,7 @@ func (d *DB) routeFailures(ctx context.Context, where string, args ...any) ([]Ro
 	for rows.Next() {
 		var f RouteFailure
 		var failed, expires int64
-		if err := rows.Scan(&f.PublicID, &f.Player, &f.Route, &f.Code, &f.Detail, &failed, &expires, &f.DeviceName, &f.FileName,
-			&f.ItemID, &f.ItemTitle); err != nil {
+		if err := rows.Scan(&f.Player, &f.Route, &f.Code, &f.Detail, &failed, &expires); err != nil {
 			return nil, err
 		}
 		f.FailedAt, f.ExpiresAt = time.UnixMilli(failed), time.UnixMilli(expires)
@@ -492,13 +471,22 @@ func (d *DB) routeFailures(ctx context.Context, where string, args ...any) ([]Ro
 	return out, rows.Err()
 }
 
-// ForgetRouteFailure removes one remembered failure, so the next play tries that way again.
-// Forgetting one that is already gone changes nothing.
-func (d *DB) ForgetRouteFailure(ctx context.Context, publicID string) error {
-	return d.write(ctx, User, func(tx *sql.Tx) error {
-		_, err := tx.Exec(`DELETE FROM playback_route_failures WHERE public_id = ?`, publicID)
+// RetryRouteFailure consumes an expired failure only when its way is actually tried again.
+// Expired rows never affect planning; keeping them until then lets Messages say it once,
+// including after a restart. There is at most one row per device, file, player and route.
+func (d *DB) RetryRouteFailure(ctx context.Context, deviceID, fileID int64, player, route string, now time.Time) (bool, error) {
+	retried := false
+	err := d.write(ctx, User, func(tx *sql.Tx) error {
+		r, err := tx.Exec(`DELETE FROM playback_route_failures WHERE device_id = ? AND file_id = ? AND player = ? AND route = ? AND expires_at <= ?`,
+			deviceID, fileID, player, route, now.UnixMilli())
+		if err != nil {
+			return err
+		}
+		n, err := r.RowsAffected()
+		retried = n > 0
 		return err
 	})
+	return retried, err
 }
 
 // Progress is where one playback had got to when its device last said.
