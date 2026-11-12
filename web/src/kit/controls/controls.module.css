@@ -190,6 +190,7 @@
 .select[data-state="open"] {box-shadow: 0 0 0 2px var(--color-accent);}
 .select[aria-invalid="true"] {box-shadow: inset 0 0 0 1.5px var(--color-danger);}
 .selectPortal {position: fixed; inset: 0; z-index: var(--layer-menu); pointer-events: none;}
+.selectPortal[data-within-dialog="true"] {z-index: calc(var(--layer-dialog) + 1);}
 .selectMenu {pointer-events: auto; z-index: var(--layer-menu); min-width: var(--radix-select-trigger-width); max-width: calc(100vw - 16px); max-height: var(--radix-select-content-available-height); padding: 6px; border-radius: 14px; color: var(--color-text); background: color-mix(in srgb, var(--color-raised-high) 97%, transparent); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); box-shadow: 0 30px 70px -18px color-mix(in srgb, var(--color-shadow) 90%, transparent), 0 0 0 1px color-mix(in srgb, var(--color-text) 12%, transparent); animation: menuIn var(--motion-standard) var(--ease-out); transform-origin: var(--radix-select-content-transform-origin); font-family: var(--font); line-height: normal;}
 .selectMenu[data-rich] {min-width: min(264px, calc(100vw - 16px)); max-width: min(480px, calc(100vw - 16px));}
 .selectMenu[data-state="closed"] {animation: menuOut var(--motion-quick) var(--ease-in); pointer-events: none;}
