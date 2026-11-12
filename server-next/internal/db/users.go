@@ -290,3 +290,12 @@ func (d *DB) RedeemOwnerReset(ctx context.Context, codeHash, newHash string, tur
 	}
 	return err
 }
+
+// PorticoAccountIsUsers says the Portico Account is the one this account on the server signs
+// in with: the proof a forgotten PIN may be replaced with on a server that uses Portico
+// Accounts.
+func (d *DB) PorticoAccountIsUsers(ctx context.Context, userID int64, porticoAccountID string) (bool, error) {
+	var ok bool
+	err := d.read.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM users WHERE id = ? AND portico_account_id = ?)`, userID, porticoAccountID).Scan(&ok)
+	return ok && porticoAccountID != "", err
+}

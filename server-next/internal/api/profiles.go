@@ -63,6 +63,11 @@ type ProfilePIN struct {
 	// Code is the authenticator or recovery code, needed with the password when the
 	// account has two-step sign-in.
 	Code string `json:"code,omitempty"`
+	// Challenge and Identity, on a server that uses Portico Accounts, prove the account in
+	// place of the password: a challenge from POST /v1/auth/portico/challenge and the sign-in
+	// note Portico Services signed for it, as a sign-in sends them. See porticoPINProof.
+	Challenge string          `json:"challenge,omitempty"`
+	Identity  json.RawMessage `json:"identity,omitempty"`
 }
 
 // ProfileSelect chooses the profile this session acts for.
@@ -261,6 +266,9 @@ func (s *Server) getProfile(r *http.Request, _ None) (Profile, error) {
 func (s *Server) setProfilePIN(r *http.Request, req ProfilePIN) (Profile, error) {
 	if !auth.ValidPIN(req.PIN) {
 		return Profile{}, ErrField("pin", "A PIN is four digits.")
+	}
+	if len(req.Identity) > 0 {
+		return s.porticoForgotPIN(r, req)
 	}
 	var proof *db.PasswordProof
 	if req.CurrentPassword != "" {
