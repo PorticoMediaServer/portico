@@ -117,7 +117,7 @@ export const dashboardMessages = {
   'next.dashboard.stop': 'Stop',
   'next.dashboard.stopTitle': 'Stop playback of “{title}”?',
   'next.dashboard.stopUntitled': 'Stop this playback?',
-  'next.dashboard.stopDetail': 'Playback stops on {user}’s {device}, and they see that the server owner stopped it.',
+  'next.dashboard.stopDetail': 'Playback stops on {user}’s {device}, and they’re told it was stopped.',
   'next.dashboard.message': 'Message to the viewer',
   'next.dashboard.messagePlaceholder': 'The server is restarting in five minutes.',
   'next.dashboard.messageHelp': 'Shown with the notice. Up to 500 characters.',

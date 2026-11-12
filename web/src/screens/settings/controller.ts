@@ -312,7 +312,9 @@ export class SettingsController {
       .map(location => settingsBinding(location.row.id)?.form)
       .map(id => id === 'connectivityStatus' ? 'connectivity' : id)
       .filter((id): id is NonNullable<typeof id> => id !== undefined && !!this.forms[id]));
-    const reads = [...formIds].map(id => ({id: `form/${id}`, load: async () => {const form = this.forms[id]!;await form.load();if (form.error()) throw form.error();}}));
+    // A form whose route the rebuilt server does not have yet leaves its rows out (they have no value) instead of
+    // failing the section: its settings move page by page.
+    const reads = [...formIds].map(id => ({id: `form/${id}`, load: async () => {const form = this.forms[id]!;await form.load();const error = form.error();if (error && !notOnThisServer(error)) throw error;}}));
     // ST-7: optional, so a refused or failed read omits its one row and the section still loads.
     const awayLimit = this.awayLimit;
     if (awayLimit && [...settingsRowIndex.values()].some(location => location.section === section && settingsBinding(location.row.id)?.form === 'awayLimit' && this.eligible(location.row)))

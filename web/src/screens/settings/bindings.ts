@@ -78,7 +78,7 @@ export function createSettingsBindings(controller: SettingsController, options: 
       const fact = signInSwitch(row.id) ?? sections.signIn?.rowState(row.id);
       return fact ? controller.sectionVisible(context.section) && fact.present : controller.eligible(row, context);
     },
-    audience: section => ['dashboard', 'libraries', 'people'].includes(section.id) || section.id === 'troubleshooting' && troubleshootingParts('admin').size > 0 ? 'administrators' : 'owner',
+    audience: section => ['dashboard', 'history', 'libraries', 'people'].includes(section.id) || section.id === 'troubleshooting' && troubleshootingParts('admin').size > 0 ? 'administrators' : 'owner',
     serverHealth: controller.serverHealth,
     serverFacts: controller.serverFacts,
     rowState: (row, context) => signInSwitch(row.id) ?? sections.signIn?.rowState(row.id) ?? controller.rowState(row, context),

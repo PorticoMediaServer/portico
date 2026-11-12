@@ -47,10 +47,11 @@ function HistoryTable({bindings: b}: {bindings: DashboardBindings}) {
       // A removed person's or library's play stays, reading "removed" (console rule 19).
       person: {title: entry.user, avatar: entry.user.slice(0, 1).toUpperCase(), avatarKey: entry.user, meta: !entry.accountId ? t('next.dashboard.removed') : entry.profile !== entry.user ? entry.profile : undefined},
       // The platform wire identifier is not an app display name. Actual app waits for the checked producer.
-      player: {title: '', meta: entry.device},
+      // How it was delivered goes beside the device: the Home/Away badge is too narrow for both.
+      player: {title: '', meta: [entry.device, entry.delivery && deliveryWords[entry.delivery] ? t(deliveryWords[entry.delivery]) : undefined].filter(Boolean).join(' · ') || undefined},
       played: {title: formatHistoryStarted(entry.startedAt, b.context.timeZone, b.context.until)},
       for: {title: entry.completed ? t('next.dashboard.finished') : entry.watchedMs !== undefined ? formatHistoryDuration(entry.watchedMs / 1000) : '', ...(entry.durationSeconds > 0 ? {meta: entry.completed ? formatHistoryDuration(entry.durationSeconds) : t('next.dashboard.ofDuration', {duration: formatHistoryDuration(entry.durationSeconds, true)})} : entry.kind === 'channel' ? {meta: t('next.dashboard.live')} : {})},
-      ...(entry.location === 'local' || entry.location === 'remote' ? {where: {title: t(entry.location === 'local' ? 'next.dashboard.home' : 'next.dashboard.away'), ...(entry.delivery && deliveryWords[entry.delivery] ? {meta: t(deliveryWords[entry.delivery])} : {}), tone: 'quiet' as const}} : {}),
+      ...(entry.location === 'local' || entry.location === 'remote' ? {where: {title: t(entry.location === 'local' ? 'next.dashboard.home' : 'next.dashboard.away'), tone: 'quiet' as const}} : {}),
     }};
   }), [rows, b]);
   return <SettingsGroup title={t('next.dashboard.playsHeading')} plain><ReadFeedback openHome={b.effects.openHome} state={failed ? {loading: false, failed: true, refresh: () => {state.refresh(); people.refresh();}} : state} />{!failed && <SettingsTable label={t('next.dashboard.history')} searchLabel={t('next.dashboard.search')} rows={tableRows}

@@ -13,12 +13,13 @@ const configuration: SettingsConfiguration = {revision: 4, registryRevision: 'ac
 ]};
 const preferences: PreferenceSnapshot = {deviceClass: 'web', registry: {revision: 'test', fields: []}, documents: [], effective: {}, effectiveSource: {}, clampedFields: [], registryRevision: 'test'};
 
-function fixture(input: {owner?: boolean; readConfiguration?: SettingsControllerOptions['readConfiguration']; hold?: boolean; foreign?: boolean} = {}) {
+function fixture(input: {owner?: boolean; readConfiguration?: SettingsControllerOptions['readConfiguration']; hold?: boolean; foreign?: boolean; missing?: string; engines?: boolean} = {}) {
   const calls: string[] = [], signals: AbortSignal[] = [];
   let release!: () => void, current = true, configurationSignal: AbortSignal | undefined;
   const gate = input.hold ? new Promise<void>(resolve => {release = resolve;}) : Promise.resolve();
   const api: SettingsControllerOptions['api'] = {request: async <T>(path: string, _method?: string, _body?: unknown, signal?: AbortSignal) => {
     calls.push(path);if (signal) signals.push(signal);
+    if (input.missing && path.startsWith(input.missing)) throw Object.assign(new Error('Not found.'), {status: 404, code: 'not_found'});
     const scope = {serverId: input.foreign ? 'another-server' : serverId, viewerFence: fence};
     if (path === '/v1/admin/settings/configuration') {configurationSignal = signal;await gate;return {scope, data: configuration} as T;}
     const name = path.split('/').at(-1)!;
@@ -28,7 +29,7 @@ function fixture(input: {owner?: boolean; readConfiguration?: SettingsController
   const controller = new SettingsController({api, serverId, viewerId: 'captured-viewer', role: input.owner === false ? 'member' : 'owner', mainProfile: true,
     capabilities: {manageServer: input.owner !== false, managePeople: false, manageSignIn: false}, preferences, reader,
     readConfiguration: input.readConfiguration, isCurrent: () => current, reportError: error => {throw error;},
-    environment: {platform: 'web', os: 'browser'}, eligibility: {hasEngine: () => false, library: () => undefined},
+    environment: {platform: 'web', os: 'browser'}, eligibility: {hasEngine: () => input.engines === true, library: () => undefined},
     reading: {read: () => {throw new Error('Unexpected Reading read');}, patch: () => {throw new Error('Unexpected Reading write');}},
   });
   return {controller, calls, signals, configurationSignal: () => configurationSignal, release: () => release(), retire: () => {current = false;}, dispose: () => {controller.dispose();reader.dispose();}};
@@ -52,6 +53,19 @@ test('a server with no configuration route opens the page with nothing configure
   const f = fixture({readConfiguration: async () => {throw Object.assign(new Error('Not found.'), {status: 404, code: 'not_found'});}});
   try {await f.controller.load(section);assert.equal(f.controller.getSnapshot(section).error, undefined);assert.deepEqual(f.controller.configurationMatches('integrations.max_webhooks'), []);}
   finally {f.dispose();}
+});
+test('a page whose settings form is not on the server yet opens without that form\'s rows', async () => {
+  const f = fixture({readConfiguration: async () => configuration, missing: '/v1/admin/console/settings', engines: true});
+  const history = settingsSpec.find(section => section.scope === 'server' && section.id === 'history')!;
+  const find = (node: unknown): any => {if (!node || typeof node !== 'object') return undefined; if ((node as {id?: unknown}).id === 'history.keepHistory' && (node as {control?: unknown}).control) return node; for (const value of Object.values(node)) {const found = find(value); if (found) return found;} return undefined;};
+  const keep = find(history);
+  assert.ok(keep, 'the section has its Keep play history row');
+  try {
+    await f.controller.load(history);
+    assert.ok(f.calls.includes('/v1/admin/console/settings'), 'the form was asked');
+    assert.equal(f.controller.getSnapshot(history).error, undefined);
+    assert.equal(f.controller.rowState(keep).present, false, 'a setting the server does not act on is not shown');
+  } finally {f.dispose();}
 });
 test('foreign configuration fails the real section read and is never searchable', async () => {
   const f = fixture({foreign: true});
