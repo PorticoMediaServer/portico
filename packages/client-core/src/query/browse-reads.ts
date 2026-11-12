@@ -3,6 +3,7 @@ import {childrenQuery, libraryBrowseCapabilities, libraryItemQuery} from '../lib
 import type {ContentEntry} from '../library-content.ts';
 import {unreadableServerResponse} from '../server-messages.ts';
 import type {ServerRequester} from './server-api.ts';
+import {readRebuiltReadingFacet} from './reading-facets-rebuilt.ts';
 import {routePath} from '../../../contracts/src/routes.ts';
 import type {GuideRoute} from '../channel-guide.ts';
 import {acrossLibraries, browseCapabilitiesPath, browsePath, browseContextFacetsPath, browseCountsPath, browseCountsRequest, parseBrowseFacets,
@@ -43,11 +44,14 @@ export async function readBrowseFacetResponse(api: BrowseReadApi, libraryId: str
     .filter(value => !wanted || value.label.toLocaleLowerCase().includes(wanted));
   return {field, total: values.length, values: values.slice(0, limit)};
 }
-/** A Reading library's author and series lists, read once. */
+/** A Reading library's filter choices: its authors and series from the rebuilt server's people and
+ * series lists, any other filter from the library's own counted choices. */
 export async function readReadingBrowseFacet(api: import('../library-content.ts').LibraryContentApi, libraryId: string,
   field: string, pivot: string, query: BrowseNode | undefined, search: string, limit: number,
   lifetime: Readonly<{signal: AbortSignal; isCurrent: () => boolean}>) {
-  const page = parseBrowseFacets(await api.request(browseContextFacetsPath(libraryId, field, pivot, query, search, limit), 'GET', undefined, lifetime.signal), field);
+  const page = field === 'author' || field === 'series'
+    ? await readRebuiltReadingFacet(api as ServerRequester, {libraryId, field, q: search, limit}, lifetime.signal)
+    : parseBrowseFacets(await readBrowseFacetResponse(api as BrowseReadApi, libraryId, field, pivot, query, search, limit, lifetime.signal), field);
   if (!lifetime.isCurrent()) throw Object.assign(new Error('The list closed.'), {name: 'AbortError'});
   return page;
 }
