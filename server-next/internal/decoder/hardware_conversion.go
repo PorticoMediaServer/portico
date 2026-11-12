@@ -498,12 +498,12 @@ func BuildConversion(r ConversionRequest) (ConversionGraph, error) {
 			}
 			out.Video = append(out.Video, "-profile:v", profile, "-tag:v", "hvc1", "-level:v", levelArg(backend, level, 30))
 			if encoder == "libx265" {
-				// Two frames in flight on two threads, as every encode had; from four threads
-				// on, x265 picks the number of frames in flight for its pool itself.
+				// The share grows only the worker pool. Frame threads stay at two whatever the
+				// share: FFmpeg would hand x265 -threads as its frame threads otherwise, and the
+				// number of frames encoded at once is the one thread setting that can change the
+				// picture (each also holds a whole frame's working memory). So the encode is the
+				// encode it has always been, only with more workers on it.
 				params := "pools=" + strconv.Itoa(threads) + ":frame-threads=2:open-gop=0:repeat-headers=1"
-				if threads >= 4 {
-					params = "pools=" + strconv.Itoa(threads) + ":open-gop=0:repeat-headers=1"
-				}
 				if target.DynamicRange == "hdr10" {
 					params += ":hdr10=1"
 					if target.MasterDisplay != "" {

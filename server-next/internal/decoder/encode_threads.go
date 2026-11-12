@@ -13,7 +13,8 @@ import (
 // started with, and takes the share in force at its next window, which the throttle and seeks
 // start often. The kernel shares the processor fairly between them meanwhile.
 //
-// Hardware encodes are neither counted nor given threads. Background work (prepared versions,
+// For x265 the share is its worker pool only: it keeps two frame threads, so its picture is
+// what it was. Hardware encodes are neither counted nor given threads. Background work (prepared versions,
 // analysis) keeps its two threads and low priority.
 const (
 	minEncodeThreads = 2
