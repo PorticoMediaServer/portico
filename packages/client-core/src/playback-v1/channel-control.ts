@@ -235,6 +235,8 @@ export class V1ChannelControl implements ChannelPlayback {
   private wanted: 'playing' | 'paused' = 'playing';
   /** The next start places the viewer at the start of the programme now on. */
   private placeNextAtStart = false;
+  /** Attachments count across starts: a channel tuned again is a new stream the engine must join, never the old one. */
+  private attachments = 0;
   private stopping: Promise<unknown> = Promise.resolve();
 
   constructor(options: V1ChannelOptions) {
@@ -400,7 +402,7 @@ export class V1ChannelControl implements ChannelPlayback {
       // A new stream (the start, or the server's new presentation): the engine joins it where the
       // server starts it; a live stream from its live edge.
       const fromStart = !a.joined && a.placeAtStart && s.kind === 'title';
-      a.at = Object.freeze({generation: a.at.generation + 1, key, seekId: this.key(), targetMs: fromStart ? 0 : s.kind === 'title' ? s.presentation.startPositionMs : liveJoinMs(s, this.serverNow())});
+      a.at = Object.freeze({generation: ++this.attachments, key, seekId: this.key(), targetMs: fromStart ? 0 : s.kind === 'title' ? s.presentation.startPositionMs : liveJoinMs(s, this.serverNow())});
       a.joined = true;
       // At the start of the programme now on (11 rule 109's oldest point): the server is told where the viewer is.
       if (fromStart) void this.patch(a, {state: this.wanted, seek: {id: a.at.seekId, positionMs: 0}});
@@ -492,7 +494,7 @@ export class V1ChannelControl implements ChannelPlayback {
   }
   /** A live stream joined again from its live edge: a new attachment of the same stream. */
   private reload(a: Active) {
-    a.at = Object.freeze({generation: a.at.generation + 1, key: a.at.key, seekId: this.key(), targetMs: a.session ? liveJoinMs(a.session, this.serverNow()) : 0});
+    a.at = Object.freeze({generation: ++this.attachments, key: a.at.key, seekId: this.key(), targetMs: a.session ? liveJoinMs(a.session, this.serverNow()) : 0});
     this.emit(a);
   }
 
