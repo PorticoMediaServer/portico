@@ -108,3 +108,9 @@ func (d *DB) SaveSettingDocument(ctx context.Context, actorID int64, key, value 
 	})
 	return revision, err
 }
+
+// RecordActivity writes one line to the activity record for something the server did on a
+// person's behalf outside any other write, with what it was and why.
+func (d *DB) RecordActivity(ctx context.Context, actorID int64, action, target, detail string, now time.Time) error {
+	return d.write(ctx, User, func(tx *sql.Tx) error { return audit(tx, actorID, action, target, detail, now) })
+}

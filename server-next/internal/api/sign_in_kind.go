@@ -329,6 +329,9 @@ func (s *Server) signInSwitch(r *http.Request, req SignInSwitchRequest) (SignInR
 	case err != nil:
 		return SignInResponse{}, proofError(s.porticoTaken(r, err))
 	}
+	if req.To == "portico" {
+		s.twoStepOffForPortico(ctx, st.UserID, now)
+	}
 	return s.signedIn(ctx, st, now, refresh)
 }
 

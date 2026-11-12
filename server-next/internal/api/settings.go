@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -22,6 +23,10 @@ type SettingsDocument struct {
 	Defaults JSON `json:"defaults"`
 	// ETag is the document's ETag, also sent as the ETag header on a read of one document.
 	ETag string `json:"etag"`
+	// NotApplicable names the fields that do not apply on this server, each with one plain
+	// line a screen shows in place of the setting. A save that turns such a field on is
+	// refused with the same line.
+	NotApplicable map[string]string `json:"notApplicable,omitempty"`
 
 	revision
 }
@@ -34,7 +39,7 @@ func (s *Server) settingsRoutes() {
 			if err != nil {
 				return out, err
 			}
-			out.Items = append(out.Items, settingsDocument(doc))
+			out.Items = append(out.Items, s.settingsOut(r.Context(), doc))
 		}
 		return out, nil
 	})
@@ -43,7 +48,7 @@ func (s *Server) settingsRoutes() {
 		if errors.Is(err, settings.ErrNoDocument) {
 			return SettingsDocument{}, ErrNotFound()
 		}
-		return settingsDocument(doc), err
+		return s.settingsOut(r.Context(), doc), err
 	})
 	// A save sends the fields it changes; a field left out keeps its value. With If-Match, a
 	// document saved since is refused with 412 and the page reads it again.
@@ -54,6 +59,9 @@ func (s *Server) settingsRoutes() {
 		}
 		if len(change) == 0 {
 			return SettingsDocument{}, ErrInvalid("Send the settings to change.")
+		}
+		if err := s.refuseNotApplicable(r.Context(), r.PathValue("name"), change); err != nil {
+			return SettingsDocument{}, err
 		}
 		doc, err := s.settings.Write(r.Context(), CallerFrom(r.Context()).UserID, r.PathValue("name"), change, match, s.now())
 		var invalid *settings.Invalid
@@ -67,8 +75,15 @@ func (s *Server) settingsRoutes() {
 		case err != nil:
 			return SettingsDocument{}, err
 		}
-		return settingsDocument(doc), nil
+		return s.settingsOut(r.Context(), doc), nil
 	})
+}
+
+// settingsOut is a document as its page reads it, with what does not apply on this server.
+func (s *Server) settingsOut(ctx context.Context, doc settings.Document) SettingsDocument {
+	out := settingsDocument(doc)
+	out.NotApplicable, _ = s.settingsNotApplicable(ctx, doc.Name)
+	return out
 }
 
 func settingsDocument(doc settings.Document) SettingsDocument {
