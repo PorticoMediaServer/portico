@@ -466,6 +466,9 @@ func (s *Server) accountPlayback(r *http.Request, _ None) (AccountPlayback, erro
 		if v.Visible {
 			stream.ItemID, stream.Title, stream.DurationMs = v.Item.PublicID, v.Title, v.Item.DurationMS
 		}
+		if stream.Next, err = s.nextUp(r.Context(), c.Viewer, v.Session); err != nil {
+			return AccountPlayback{}, err
+		}
 		out.Items = append(out.Items, stream)
 	}
 	out.Limit, err = s.playback.AccountLimit(r.Context(), c.SignInID)

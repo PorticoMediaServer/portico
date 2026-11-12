@@ -228,6 +228,9 @@ func (s *Server) listReceivers(r *http.Request, _ None) (Page[ReceiverItem], err
 		for _, v := range sessions {
 			if v.SignInID == rc.SignInID {
 				stream := streamOut(v, titles, c.SessionID)
+				if stream.Next, err = s.nextUp(r.Context(), viewer(r), v); err != nil {
+					return Page[ReceiverItem]{}, err
+				}
 				item.Playing = &stream
 			}
 		}
