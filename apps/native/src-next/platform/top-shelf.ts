@@ -1,3 +1,4 @@
+import {notOnThisServer} from '../../../../packages/client-core/src/query/server-api';
 import {NativeModules, Platform} from 'react-native';
 import {issueTopShelfToken} from '../../../../packages/client-core/src/query/connection-operations';
 import {parseTopShelfToken} from '../../../../packages/client-core/src/identity-devices';
@@ -59,7 +60,14 @@ export function bindTopShelf(owner: NativeTopShelfOwner, port: NativeTopShelfPor
   const issue = async () => {
     if (!viewer?.installationId || !origin) return;
     abort?.abort(); abort = new AbortController();
-    const grant = parseTopShelfToken(await issueTopShelfToken(owner.tokenApi, viewer.installationId, abort.signal));
+    let grant: ReturnType<typeof parseTopShelfToken>;
+    try {grant = parseTopShelfToken(await issueTopShelfToken(owner.tokenApi, viewer.installationId, abort.signal));}
+    catch (error) {
+      if (!notOnThisServer(error)) throw error;
+      // This server has no shelf feed. Clear the previous viewer's shelf without failing Home.
+      if (current()) await port.clear();
+      return;
+    }
     if (!current()) return;
     await port.configure(origin, grant.token, grant.expiresAt, topShelfOwnerKey(viewer));
     if (current()) schedule(grant.expiresAt);

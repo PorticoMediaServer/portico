@@ -83,3 +83,17 @@ test('televisions bind the shelf (Apple TV, Android TV, Fire TV); phones and tab
     }
   } finally {Object.assign(Platform, before); NativeModules.PorticoTopShelf = module;}
 });
+
+test('an unsupported shelf clears old content without reporting a Home error; real denials still report', async () => {
+  for (const status of [404, 403]) {
+    const errors: unknown[] = [], calls: string[] = [];
+    const failure = Object.assign(new Error('refused'), {status, code: status === 404 ? 'not_found' : 'forbidden'});
+    const dispose = bindTopShelf({current: () => true, viewer: () => viewer, baseUrl: 'https://media.test',
+      tokenApi: {request: async () => {throw failure;}}, subscribePlayback: () => () => {}, playbackKey: () => undefined},
+      {configure: async () => {calls.push('configure');}, clear: async () => {calls.push('clear');}, changed() {}}, error => errors.push(error));
+    await settle();
+    assert.deepEqual(errors, status === 404 ? [] : [failure]);
+    assert.deepEqual(calls, status === 404 ? ['clear'] : []);
+    dispose();
+  }
+});
