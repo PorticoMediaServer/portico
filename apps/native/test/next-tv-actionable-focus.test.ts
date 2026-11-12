@@ -382,7 +382,7 @@ for (const kind of ['person', 'collection'] as const) test(`${kind} actual entit
 test('MusicMixes actual original caller scope names its panel through failed busy work without enabling commands', async () => {
   const b = await bindings(), o = await overlayBindings(b), presentation = await import('../src-next/kit/browse/presentation');
   const {MusicMixesRow} = await screenModule(new URL('../src-next/screens/destinations/music/MusicMixesRow.tsx', import.meta.url), {
-    react: b.react, 'react-native': b.native, 'react-native-svg': {default: 'Svg', Defs: 'Defs', RadialGradient: 'Gradient', Rect: 'Rect', Stop: 'Stop'},
+    react: b.react, 'react-native': b.native, 'react-native-svg': {default: 'Svg', Defs: 'Defs', RadialGradient: 'Gradient', Rect: 'Rect', Stop: 'Stop'}, '../../../../../../packages/client-core/src/music-mixes-controller': {mixSaveOnServer: false},
     '../../../../../../packages/i18n/src': {defaultI18n}, '../../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork'}, '../../../kit/controls': {Focusable: b.Focusable},
     '../../../kit/focus': b.focus, '../../../kit/overlays': {...o.menu, SidePanel: o.surface.SidePanel}, '../../../kit/theme': {useTheme: () => b.theme, nativeType},
     '../../../kit/browse/presentation': presentation});

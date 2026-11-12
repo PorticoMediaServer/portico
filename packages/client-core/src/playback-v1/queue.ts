@@ -34,7 +34,8 @@ export type QueueCreateOptions = Readonly<{
 
 /** What the server builds a queue from, for one selector. */
 export function queueSource(source: Selector): Record<string, unknown> {
-  if ('container' in source) return {container: source.container.id};
+  // A mix is its own source on the rebuilt server; it plays like a playlist of its songs.
+  if ('container' in source) return source.container.kind === 'mix' ? {mix: source.container.id} : {container: source.container.id};
   if ('items' in source) return {items: [...source.items.ids]};
   if ('saved' in source) return {list: source.saved.id};
   if ('queue' in source) return {queue: source.queue.id};

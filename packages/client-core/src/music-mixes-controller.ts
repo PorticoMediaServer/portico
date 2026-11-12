@@ -1,7 +1,8 @@
-import {decodeGetMusicMixesResponse, decodePostMusicMixesIdPlaylistResponse, routePath,
+import {decodePostMusicMixesIdPlaylistResponse, routePath,
   type GetMusicMixesResponse, type PostMusicMixesIdPlaylistResponse} from '../../contracts/src/index.ts';
+import type {MusicMix, MusicMixPage} from '../../contracts/src/next/api.ts';
 import {musicMixDisplayName} from './music-mixes.ts';
-import {notOnThisServer} from './query/server-api.ts';
+import {callServer, notOnThisServer} from './query/server-api.ts';
 import type {V1QueuePlayer} from './playback-v1/v1-queue-player.ts';
 import type {QueueHeader} from './playback-v1/types.ts';
 import type {DetailApi} from './detail.ts';
@@ -37,7 +38,26 @@ function freeze<T>(value: T): T {
 /** One portable profile-scoped row for Home and Music Discover. Only the generated
  * read/copy contracts and canonical naming formatter define its contents. */
 /** Whether the server has Mixes. The rebuilt server does not yet: see the stopgap in `read`. */
-const mixesOnServer = false;
+/** A stopgap, not a deferral: the rebuilt server saves a mix as a playlist only through a queue, which would replace what
+ * the device is playing, so Save as playlist is left out of the row's menu until `POST /v1/music/mixes/{id}/playlist`,
+ * being built in this campaign by the missing-reads server lane, lands. One switch; turn it on with that route. */
+export const mixSaveOnServer = false;
+/** A stable tint for a mix, from its first cover's album: the rebuilt server sends none. */
+function tintOf(albumId: string): string {
+  let hash = 0;
+  for (const char of albumId) hash = (hash * 31 + char.codePointAt(0)!) >>> 0;
+  const hue = hash % 360, s = 0.35, l = 0.32, k = (n: number) => (n + hue / 30) % 12, a = s * Math.min(l, 1 - l);
+  const channel = (n: number) => Math.round(255 * (l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1)))).toString(16).padStart(2, '0');
+  return '#' + channel(0) + channel(8) + channel(4);
+}
+/** One mix of `GET /v1/music/mixes` in the shape the rows draw: named from its style, or else its first artist (area 6
+ * music notes), "and more" when it has more artists, up to three covers. */
+function mixOf(mix: MusicMix): Mix {
+  const nameSource = mix.style ? {kind: 'style', model: 'musicnn-mtt', tag: mix.style, version: 'server'} : {kind: 'artist', artistId: mix.artists[0]?.id ?? ''};
+  return {id: mix.id, artists: mix.artists.map(artist => ({id: artist.id, name: artist.name})), more: mix.moreArtists === true, songCount: mix.songs,
+    covers: mix.covers.slice(0, 3).map(cover => ({album: {id: cover.albumId, name: ''}, posterUrl: cover.image ?? ''})),
+    tint: tintOf(mix.covers[0]?.albumId ?? mix.id), nameSource} as Mix;
+}
 export function createMusicMixesController(options: MusicMixesOptions) {
   const api = {request: options.api.request.bind(options.api)}, principal = Object.freeze({serverId: options.principal.serverId,
     authority: options.principal.authority, accountId: options.principal.accountId, profileId: options.principal.profileId});
@@ -83,15 +103,11 @@ export function createMusicMixesController(options: MusicMixesOptions) {
     const task = Promise.resolve().then(async () => {
       try {
         if (!current() || ticket !== generation || active.aborted) throw cancelled();
-        // A stopgap, not a deferral: the rebuilt server has no Mixes yet (its analysis is owed in the campaign queue), so
-        // nothing is asked and the row, its More and the Mixes target stay hidden rather than failing. Remove this when
-        // the server's route lands and move the read onto it.
-        if (!mixesOnServer) {publish({phase: 'ready', rows: Object.freeze([])});return;}
-        const response = decodeGetMusicMixesResponse(await api.request<unknown>(routePath('get_music_mixes'), 'GET', undefined, active));
+        // The profile's mixes, at most six; none means the row is absent (not enough listening analysed yet).
+        const page: MusicMixPage = await callServer(api, 'GET /v1/music/mixes', {signal: active});
         if (!current() || ticket !== generation || active.aborted) throw cancelled();
-        if (Object.entries(principal).some(([key, value]) => response.scope[key as keyof MusicMixPrincipal] !== value)) {dispose();throw invalid();}
-        if (new Set(response.data.mixes.map(mix => mix.id)).size !== response.data.mixes.length) throw invalid();
-        raw = freeze(response.data.mixes);publish({phase: 'ready', rows: names()});
+        if (!page || !Array.isArray(page.items) || new Set(page.items.map(mix => mix.id)).size !== page.items.length) throw invalid();
+        raw = freeze(page.items.map(mixOf));publish({phase: 'ready', rows: names()});
       } catch (error) {
         // Mixes are not on the rebuilt server yet: the row is simply absent, with no message.
         if (notOnThisServer(error)) {if (current() && ticket === generation && !active.aborted) publish({phase: 'ready', rows: Object.freeze([])});return;}
