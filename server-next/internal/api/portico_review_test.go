@@ -57,7 +57,7 @@ func TestReviewARefusedDocumentIsNotCalledUnreachable(t *testing.T) {
 		if code, _, _ := p.signIn(accountSam, p.invite(), 1); code != 200 {
 			t.Fatal("sam could not join")
 		}
-		p.step()
+		p.run(documentGap)
 		var state PorticoLinkState
 		call(t, p.s, "GET", "/v1/admin/portico", p.owner.AccessToken, nil, &state)
 		if state.Problem == msgPorticoUnreachable || state.Problem == "" {
