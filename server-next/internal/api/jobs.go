@@ -31,6 +31,7 @@ type JobTarget struct {
 
 func (s *Server) jobRoutes() {
 	s.stateJobs()
+	s.listViewJobs()
 	// The owner's list of tasks, Run again, and the tidy-up of tasks that ended: admin_jobs.go.
 	s.adminJobRoutes()
 	// The kind decides who may start it, so the route itself only needs someone signed in.
