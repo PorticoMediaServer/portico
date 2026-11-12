@@ -21,8 +21,10 @@ export type MessagesSnapshot = Readonly<{phase: 'idle'|'loading'|'ready'|'error'
   /** When "Record more detail" ends; absent while it is off. */
   detailUntil?: string;
   /** How many days messages are kept: read for the owner only. */
-  keepDays?: KeepMessageDays; changing: boolean}>;
-const empty: MessagesSnapshot = Object.freeze({phase: 'idle', lines: [], level: '', live: false, reconnecting: false, changing: false});
+  keepDays?: KeepMessageDays;
+  /** How long the next "Record more detail" lasts: 30 minutes unless the person chose another length (rule 67). */
+  detailMinutes: LogDetailMinutes; changing: boolean}>;
+const empty: MessagesSnapshot = Object.freeze({phase: 'idle', lines: [], level: '', live: false, reconnecting: false, detailMinutes: 30, changing: false});
 const object = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v);
 const invalid = () => Object.assign(new Error('invalid_server_log'), {code: 'invalid_server_log'});
 const time = (v: unknown): v is string => typeof v === 'string' && Number.isFinite(Date.parse(v));
@@ -78,11 +80,9 @@ export class SettingsMessagesSource {
   private generation = 0;
   private retired = false;
   private readonly keeping: boolean;
-  /** `keeping` reads and sets how long messages are kept: the owner's alone, so an administrator is never sent
-   *  that read. The phone's Messages is the owner's and still passes its operation id in this place (nothing
-   *  uses it since the detail request became a PUT): that call keeps too. */
-  constructor(private readonly transport: ReportTransport, private readonly connection: MessageConnection|undefined, private readonly isCurrent: () => boolean, private readonly reportError: (error: unknown) => void = () => {}, options: Readonly<{keeping?: boolean}> | (() => string) = {}) {
-    this.keeping = typeof options === 'function' || options.keeping === true;
+  /** `keeping` reads and sets how long messages are kept: the owner's alone, so an administrator is never sent that read. */
+  constructor(private readonly transport: ReportTransport, private readonly connection: MessageConnection|undefined, private readonly isCurrent: () => boolean, private readonly reportError: (error: unknown) => void = () => {}, options: Readonly<{keeping?: boolean}> = {}) {
+    this.keeping = options.keeping === true;
   }
   private current() {return !this.retired && !this.lifetime.signal.aborted && this.isCurrent();}
   getSnapshot = (): MessagesSnapshot => this.current() ? this.state : empty;
@@ -109,8 +109,7 @@ export class SettingsMessagesSource {
       this.publish({phase: 'ready', lines: [...page.lines].reverse().slice(-500), detailUntil: page.detailUntil, ...(keepDays ? {keepDays} : {}), readAt: serverNow()});
     } catch (error) {if (this.read === read && !read.signal.aborted && this.current()) {this.publish({phase: 'error'});this.failure(error);}}
   };
-  /** `_kind` is the filter by kind the phone still passes; the server keeps no kind for a line yet. */
-  select = async (level: LogLevel|'', _kind?: string) => {
+  select = async (level: LogLevel|'') => {
     if (!this.current()) return;
     const generation = ++this.generation;this.stopTail();
     this.publish({level, lines: []});await this.load();
@@ -154,9 +153,12 @@ export class SettingsMessagesSource {
     };
     void connect();
   }
-  /** Starts "Record more detail" for `minutes` (30 unless chosen) or ends it. The same request is safe to send again. */
-  detail = async (on: boolean, minutes: LogDetailMinutes = 30): Promise<void> => {
-    if (!this.current() || this.state.changing || on && !(LOG_DETAIL_MINUTES as readonly number[]).includes(minutes)) return;
+  /** The length the next "Record more detail" lasts, wherever it is started from. */
+  chooseLength = (minutes: LogDetailMinutes) => {if ((LOG_DETAIL_MINUTES as readonly number[]).includes(minutes)) this.publish({detailMinutes: minutes});};
+  /** Starts "Record more detail" for the chosen length or ends it. The same request is safe to send again. */
+  detail = async (on: boolean): Promise<void> => {
+    const minutes = this.state.detailMinutes;
+    if (!this.current() || this.state.changing) return;
     this.publish({changing: true});
     try {
       const answer = await callServer(this.transport, 'PUT /v1/admin/logs/detail', {body: {minutes: on ? minutes : 0}, signal: this.lifetime.signal});
