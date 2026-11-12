@@ -76,7 +76,7 @@ func checkStreaming(s *StreamingSettings) error {
 		}
 	}
 	if s.GraphicsDevice != "automatic" && s.GraphicsDevice != "processor" && !slices.Contains(GraphicsDevices, s.GraphicsDevice) {
-		return &Invalid{Field: "graphicsDevice", Message: "Choose Automatic, Processor only or one of the graphics devices listed."}
+		return &Invalid{Field: "graphicsDevice", Message: "Choose Automatic, software encoding or one of the graphics devices listed."}
 	}
 	s.ConversionFolder, s.FFmpegProgram = strings.TrimSpace(s.ConversionFolder), strings.TrimSpace(s.FFmpegProgram)
 	for _, f := range []struct{ name, value string }{{"conversionFolder", s.ConversionFolder}, {"ffmpegProgram", s.FFmpegProgram}} {
