@@ -149,3 +149,5 @@ li:first-child > .feedbackRow { border-top: 0; }
 .page[data-view="messages"] .tabs { gap: 30px; }
 .page[data-view="messages"] .tab { padding: 16px 0 14px; font-size: var(--type-tab-size); font-weight: var(--type-tab-weight); }
 .page[data-view="messages"] .tab[aria-selected="true"]::after { left: 0; right: 0; height: 3px; border-radius: 3px; background: var(--color-accent); }
+.newLines { display: block; margin: 0 auto 8px; padding: 6px 14px; border: 0; border-radius: 999px; background: color-mix(in srgb, var(--color-accent) 16%, transparent); color: var(--color-accent-strong); font: inherit; font-size: var(--type-caption-size); font-weight: var(--type-button-weight); cursor: pointer; }
+.messageLog { overflow-anchor: none; }

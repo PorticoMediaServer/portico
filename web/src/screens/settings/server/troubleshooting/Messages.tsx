@@ -19,9 +19,9 @@ export function MessagesPanel({source, options, canDetail = true}: Readonly<{sou
   const [now, setNow] = useState(serverNow());
   useEffect(() => {void source.load();return source.pause;}, [source]);
   useEffect(() => {const timer = setInterval(() => setNow(serverNow()), 30000);return () => clearInterval(timer);}, []);
-  // Newest first (rule 66): while following, a new line arrives at the top, and the list stays there unless the
-  // person has scrolled down to read.
-  useEffect(() => {if (state.live && box.current && box.current.scrollTop < 48) box.current.scrollTop = 0;}, [state.lines, state.live]);
+  // Newest first (rule 66): at the top a new line arrives live; further down, new lines wait behind "N new lines" so
+  // what the person reads stays in place on every browser.
+  const atTop = () => {const top = (box.current?.scrollTop ?? 0) < 48; source.setAtTop(top);};
   const until = state.detailUntil, detailed = !!until && Date.parse(until) > now;
   return <div className={styles.messagePanels}>
     {options}
@@ -43,7 +43,8 @@ export function MessagesPanel({source, options, canDetail = true}: Readonly<{sou
         {state.live ? <span className={styles.following} data-paused={state.reconnecting || undefined} role="status">{t(state.reconnecting ? 'web.logs.reconnecting' : 'web.logs.following')}</span>
           : <><span className={styles.note}>{state.readAt ? t('web.logs.updated', {time: defaultI18n.dateTime(state.readAt)}) : ''}</span><Button size="small" variant="glass" disabled={state.phase === 'loading'} onClick={() => {void source.load();}}>{t('web.logs.refresh')}</Button></>}
       </div>
-      <div ref={box} className={styles.messageLog} role="log" aria-live="off" aria-busy={state.phase === 'loading'}>
+      {state.waiting > 0 && <button type="button" className={styles.newLines} onClick={() => {source.showWaiting(); if (box.current) box.current.scrollTop = 0;}}>{t('web.logs.newLines', {count: state.waiting})}</button>}
+      <div ref={box} onScroll={atTop} className={styles.messageLog} role="log" aria-live="off" aria-busy={state.phase === 'loading'}>
         {state.lines.map(line => <div key={line.sequence} className={styles.messageLine} data-level={line.level}>
           <time dateTime={line.at}>{messageTime(defaultI18n, line.at)}</time><b data-level={line.level}>{t(levelKey(line.level))}</b><span className={styles.messageKind}>{t(kindKey(line.kind))}</span><span>{line.message}{line.detail && <small className={styles.messageDetail}>{line.detail}</small>}</span>
         </div>)}

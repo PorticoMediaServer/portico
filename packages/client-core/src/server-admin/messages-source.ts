@@ -26,8 +26,11 @@ export type MessagesSnapshot = Readonly<{phase: 'idle'|'loading'|'ready'|'error'
   /** How many days messages are kept: read for the owner only. */
   keepDays?: KeepMessageDays;
   /** How long the next "Record more detail" lasts: 30 minutes unless the person chose another length (rule 67). */
-  detailMinutes: LogDetailMinutes; changing: boolean}>;
-const empty: MessagesSnapshot = Object.freeze({phase: 'idle', lines: [], level: '', kind: '', live: false, reconnecting: false, detailMinutes: 30, changing: false});
+  detailMinutes: LogDetailMinutes; changing: boolean;
+  /** New lines held while the person reads further down, so what they read stays in place; shown on asking, or on
+   *  returning to the top. */
+  waiting: number}>;
+const empty: MessagesSnapshot = Object.freeze({phase: 'idle', lines: [], level: '', kind: '', live: false, reconnecting: false, detailMinutes: 30, changing: false, waiting: 0});
 const object = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v);
 const invalid = () => Object.assign(new Error('invalid_server_log'), {code: 'invalid_server_log'});
 const time = (v: unknown): v is string => typeof v === 'string' && Number.isFinite(Date.parse(v));
@@ -84,6 +87,8 @@ export class SettingsMessagesSource {
   private timer?: ReturnType<typeof setTimeout>;
   private generation = 0;
   private retired = false;
+  private atTop = true;
+  private held: readonly MessageLine[] = [];
   private readonly keeping: boolean;
   /** `keeping` reads and sets how long messages are kept: the owner's alone, so an administrator is never sent that read. */
   constructor(private readonly transport: ReportTransport, private readonly connection: MessageConnection|undefined, private readonly isCurrent: () => boolean, private readonly reportError: (error: unknown) => void = () => {}, options: Readonly<{keeping?: boolean}> = {}) {
@@ -103,6 +108,9 @@ export class SettingsMessagesSource {
   load = async (): Promise<void> => {
     if (!this.current()) return;
     this.read?.abort(); const read = new AbortController();this.read = read;
+    // A read while the person reads further down (a phone re-reads every few seconds while following) keeps their lines
+    // and holds the new ones.
+    const keep = !this.atTop && this.state.lines.length > 0;
     this.publish({phase: 'loading'});
     const {level, kind} = this.state;
     try {
@@ -111,13 +119,15 @@ export class SettingsMessagesSource {
         this.keeping ? callServer(this.transport, 'GET /v1/admin/settings/{name}', {id: 'logs', signal: read.signal}).then(keptDays) : Promise.resolve(undefined),
       ]);
       if (this.read !== read || read.signal.aborted || !this.current()) return;
-      this.publish({phase: 'ready', lines: page.lines.slice(0, 500), detailUntil: page.detailUntil, ...(keepDays ? {keepDays} : {}), readAt: serverNow()});
+      if (keep && !this.atTop) for (const line of page.lines) this.hold(line); else this.held = [];
+      const lines = keep && !this.atTop ? this.state.lines : page.lines.slice(0, 500);
+      this.publish({phase: 'ready', lines, detailUntil: page.detailUntil, ...(keepDays ? {keepDays} : {}), readAt: serverNow(), waiting: this.held.length});
     } catch (error) {if (this.read === read && !read.signal.aborted && this.current()) {this.publish({phase: 'error'});this.failure(error);}}
   };
   select = async (level: LogLevel|'', kind: MessageKind|'' = this.state.kind) => {
     if (!this.current()) return;
     const generation = ++this.generation;this.stopTail();
-    this.publish({level, kind, lines: []});await this.load();
+    this.held = [];this.publish({level, kind, lines: [], waiting: 0});await this.load();
     if (generation === this.generation && this.current() && this.state.phase === 'ready') this.startTail();
   };
   setLive = (live: boolean) => {if (!this.current()) return;++this.generation;this.stopTail();this.publish({live, reconnecting: false});if (live) this.startTail();};
@@ -146,7 +156,7 @@ export class SettingsMessagesSource {
           let line: MessageLine;try {line = messageLine(JSON.parse(event.data));} catch {return;}
           const {level, kind} = this.state;
           if (level && logLevels.indexOf(line.level) > logLevels.indexOf(level) || kind && line.kind !== kind) return;
-          this.publish({lines: appendMessage(this.state.lines, line)});
+          if (this.atTop) this.publish({lines: appendMessage(this.state.lines, line)}); else {this.hold(line);this.publish({waiting: this.held.length});}
         }, controller.signal);
       } catch (error) {if (!active()) return;
         if (terminalMessageError(error)) {this.failure(error);return;}
@@ -182,6 +192,16 @@ export class SettingsMessagesSource {
       this.publish({keepDays: saved});
     } catch (error) {if (this.current()) this.failure(error);throw error;}
     finally {this.publish({changing: false});}
+  };
+  private hold(line: MessageLine) {if (!this.state.lines.some(l => l.sequence === line.sequence)) this.held = appendMessage(this.held, line);}
+  /** Whether the person is at the top of the list. Away from it, new lines wait; back at the top, they come in. */
+  setAtTop = (atTop: boolean) => {if (atTop === this.atTop) return;this.atTop = atTop;if (atTop) this.showWaiting();};
+  /** Brings in the lines that waited. */
+  showWaiting = () => {
+    if (!this.current() || !this.held.length) return;
+    let lines = this.state.lines;
+    for (const line of this.held) lines = appendMessage(lines, line);
+    this.held = [];this.publish({lines, waiting: 0});
   };
   pause = () => {++this.generation;this.stopTail();this.read?.abort();this.read = undefined;this.publish({live: false, reconnecting: false});};
   dispose = () => {this.pause();this.lifetime.abort();this.state = empty;this.listeners.clear();};

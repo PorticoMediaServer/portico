@@ -15,7 +15,7 @@ import {alpha, shellType} from '../../../../kit/shell/visual';
 import {useTheme} from '../../../../kit/theme';
 
 /** The owner and administrators read Messages (console rule 1, frame 33); only the owner keeps it and records more detail. */
-function messagesReader(context: NativeShellBootstrapContext): boolean {
+export function messagesReader(context: NativeShellBootstrapContext): boolean {
   const authority = context.authority(), account = context.account;
   return nativeStorageOwner(context) || context.current() && account.serverId === authority.serverId && account.account.id === authority.accountId && !account.account.disabled && account.canManage;
 }
@@ -53,12 +53,17 @@ function createMessages(context: NativeShellBootstrapContext, reportError: Nativ
   };
 }
 type Group = ReturnType<typeof createMessages>;
-export function NativeMessages({ports, runtime}: {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime}) {
+/** `pageScrollY` is how far the page is scrolled and `scrollToY` scrolls it: away from the log's top, new lines wait. */
+export function NativeMessages({ports, runtime, pageScrollY = 0, scrollToY}: {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; pageScrollY?: number; scrollToY?: (y: number) => void}) {
   const context = ports.context, reportError = runtime.reportError, [group, setGroup] = useState<Group>();
   useLayoutEffect(() => {const next = createMessages(context,reportError);setGroup(next);return next.dispose;},[context,reportError]);
-  return group?.context === context ? <Messages group={group} runtime={runtime}/> : null;
+  return group?.context === context ? <Messages group={group} runtime={runtime} pageScrollY={pageScrollY} scrollToY={scrollToY}/> : null;
 }
-export function Messages({group, runtime}: {group: Group; runtime: NativeShellRuntime}) {
+export function Messages({group, runtime, pageScrollY = 0, scrollToY}: {group: Group; runtime: NativeShellRuntime; pageScrollY?: number; scrollToY?: (y: number) => void}) {
+  // Newest first (rule 66): at the log's top a new line arrives live; further down it waits behind "N new lines", so
+  // what the person reads stays in place.
+  const [rootY, setRootY] = useState(0), [logY, setLogY] = useState(0);
+  useEffect(() => {group.source.setAtTop(pageScrollY - (rootY + logY) < 48);}, [group, pageScrollY, rootY, logY]);
   const {source} = group, state = useSyncExternalStore(source.subscribe,source.getSnapshot,source.getSnapshot), failure = useSyncExternalStore(group.subscribeFailure,group.getFailure,group.getFailure), theme = useTheme(), t = runtime.text.t as typeof defaultI18n.t;
   const [now,setNow] = useState(serverNow), [filter, setFilter] = useState<Readonly<{kind: 'level' | 'category'}>>();
   const filterRef = useRef(filter);
@@ -68,7 +73,7 @@ export function Messages({group, runtime}: {group: Group; runtime: NativeShellRu
   const until = state.detailUntil, recording = !!until && Date.parse(until) > now;
   const detail = () => {if (!group.current() || source.getSnapshot().changing) return;group.clearFailure();void source.detail(!recording).catch(error => {if (group.current()) group.failure(error);});};
   const keep = (days: KeepMessageDays) => {if (!group.current()) return;group.clearFailure();void source.keep(days).catch(error => {if (group.current()) group.failure(error);});};
-  return <View style={{marginTop:14,gap:12}} testID="server-troubleshooting-messages">
+  return <View style={{marginTop:14,gap:12}} testID="server-troubleshooting-messages" onLayout={event => setRootY(event.nativeEvent.layout.y)}>
     <Text style={[shellType(17,800),{color:theme.colors.text}]}>{t('web.logs.messages')}</Text><Text style={[shellType(13,400,18),{color:theme.colors.textSecondary}]}>{t('web.logs.messagesLede')}</Text>
     <View style={{padding:14,gap:8,borderRadius:14,backgroundColor:theme.colors.raised}}><Text style={[shellType(15,700),{color:theme.colors.text}]}>{recording ? t('next.settingsSpec.server.troubleshooting.groups.0.rows.0.label') : t('settings.server.detailWindow.forMinutes',{minutes:state.detailMinutes})}</Text><Text style={{color:theme.colors.textSecondary}}>{recording && until ? t('settings.server.detailWindow.until',{time:defaultI18n.time(Date.parse(until))}) : t('settings.server.detailWindow.help')}</Text>{group.owner && <Button size="compact" loading={state.changing} disabled={state.changing} onPress={detail}>{t(recording ? 'settings.server.detailWindow.stop' : 'settings.server.detailWindow.start')}</Button>}</View>
     <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8}}>
@@ -88,7 +93,8 @@ export function Messages({group, runtime}: {group: Group; runtime: NativeShellRu
         }}))}/>
     {failure && <Text accessibilityRole="alert" style={{color:theme.colors.record}}>{t('error.unavailable')}</Text>}
     {state.phase === 'loading' && !state.lines.length && <Text style={{color:theme.colors.textSecondary}}>{t('web.logs.loadingMessages')}</Text>}{state.phase === 'ready' && !state.lines.length && <Text style={{color:theme.colors.textSecondary}}>{t('web.logs.noMessages')}</Text>}
-    <View style={{borderRadius: 14, overflow: 'hidden', backgroundColor: theme.colors.messageLog, borderWidth: 1, borderColor: theme.colors.lineSoft}}>
+    {state.waiting > 0 && <Button size="small" variant="glass" testID="server-messages-new-lines" onPress={() => {group.source.showWaiting(); scrollToY?.(rootY + logY);}}>{t('web.logs.newLines', {count: state.waiting})}</Button>}
+    <View onLayout={event => setLogY(event.nativeEvent.layout.y)} style={{borderRadius: 14, overflow: 'hidden', backgroundColor: theme.colors.messageLog, borderWidth: 1, borderColor: theme.colors.lineSoft}}>
       {state.lines.map((row, index) => <View key={row.sequence} style={{gap: 3, paddingVertical: 7, paddingHorizontal: 12, backgroundColor: row.level === 'error' ? alpha(theme.colors.danger, .07) : undefined, borderTopWidth: index ? 1 : 0, borderColor: alpha(theme.colors.lineStrong, .35)}}><View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 10}}><Text style={{fontFamily: 'monospace', fontSize: 11.5, color: theme.colors.textTertiary}}>{defaultI18n.time(Date.parse(row.at))}</Text><Text style={{fontFamily: 'monospace', fontSize: 11.5, fontWeight: '700', color: row.level === 'error' ? theme.colors.danger : row.level === 'warn' ? theme.colors.amber : row.level === 'info' ? theme.colors.textSecondary : theme.colors.textTertiary}}>{t(`web.logs.level.${row.level}`)}</Text><Text style={{fontFamily: 'monospace', fontSize: 11.5, color: theme.colors.textTertiary}}>{t(`server.logCategory.${row.kind}`)}</Text></View><Text selectable style={[shellType(13.5, 500, 19), {color: row.level === 'error' ? theme.colors.text : theme.colors.textSecondary}]}>{row.message}</Text>{row.detail ? <Text selectable style={{fontFamily: 'monospace', fontSize: 11.5, color: theme.colors.textTertiary}}>{row.detail}</Text> : null}</View>)}
     </View>
     {group.owner && !recording && <Select label={t('next.settingsSpec.server.troubleshooting.advanced.groups.0.rows.1.label')} value={String(state.detailMinutes)} options={LOG_DETAIL_MINUTES.map(value=>({value:String(value),label:t('web.dvr.minutes',{count:value})}))} disabled={state.changing} onValueChange={value=>{const chosen=Number(value);if(group.current() && LOG_DETAIL_MINUTES.includes(chosen as LogDetailMinutes))source.chooseLength(chosen as LogDetailMinutes);}}/>}

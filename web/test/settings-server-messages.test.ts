@@ -168,3 +168,22 @@ test('a line carries its kind, and following live with a kind chosen adds only t
   for (let n = 0; n < 20; n++) await Promise.resolve();
   assert.deepEqual(source.getSnapshot().lines.map(x => x.message), ['Scanned']);source.dispose();
 });
+
+test('away from the top new lines wait, so what the person reads stays in place; asking or returning to the top brings them in', async t => {
+  t.mock.timers.enable({apis: ['setTimeout']});
+  let pages = 0;
+  const source = new SettingsMessagesSource({request: async <T>() => ({items: pages++ ? [wire(9), wire(2), wire(1)] : [wire(2), wire(1)]}) as T}, {open: async () => new Response(
+    `event: line\ndata: ${JSON.stringify(wire(5))}\n\n`, {headers: {'Content-Type': 'text/event-stream'}})}, () => true);
+  await source.load();
+  source.setAtTop(false);
+  source.setLive(true);for (let n = 0; n < 20; n++) await Promise.resolve();
+  assert.deepEqual(source.getSnapshot().lines.map(x => x.message), ['Backup finished 2', 'Backup finished 1'], 'the lines read stay as they were');
+  assert.equal(source.getSnapshot().waiting, 1);
+  await source.load();
+  assert.deepEqual(source.getSnapshot().lines.map(x => x.message), ['Backup finished 2', 'Backup finished 1'], 'a phone\'s re-read waits too');
+  assert.equal(source.getSnapshot().waiting, 2);
+  source.showWaiting();
+  assert.deepEqual(source.getSnapshot().lines.map(x => x.message), ['Backup finished 9', 'Backup finished 5', 'Backup finished 2', 'Backup finished 1']);
+  assert.equal(source.getSnapshot().waiting, 0);
+  source.dispose();
+});

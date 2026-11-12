@@ -1438,6 +1438,7 @@ export const webMessages = {
   'web.logs.allLevels': 'All levels',
   'web.logs.levelAndAbove': '{level} and above',
   'web.logs.everything': 'Everything',
+  'web.logs.newLines': '{count, plural, one {# new line} other {# new lines}}',
   'web.logs.recordFallback': 'Record',
   'web.logs.following': 'Following',
   'web.logs.loadingMessages': 'Loading messages',
