@@ -1,12 +1,11 @@
 import type {QuietRefreshOutcome} from './freshness-actions.ts';
 import {expectedRemoteSource,type ExpectedRemoteSource} from './remote-source-selection.ts';
-import {parseLibrarySummary} from './library-summary.ts';
 import type {LibrarySummary} from './library-summary.ts';
 import type {RouteResponse} from "../../contracts/src/route-paths.ts";
-import {encodedRoutePath, routePath} from "../../contracts/src/route-paths.ts";
-import {callServer} from './query/server-api.ts';
+import {encodedRoutePath} from "../../contracts/src/route-paths.ts";
+import {callServer, serverPath} from './query/server-api.ts';
 import {unreadableServerResponse} from './server-messages.ts';
-import {firstOfEach,keepReadable,noteSkipped,oneOfOr} from './tolerant.ts';
+import {firstOfEach,keepReadable} from './tolerant.ts';
 import {queryKeys} from './query/keys.ts';
 import {until} from './query/until.ts';
 import {libraryAdminDependencies} from './library-inventory.ts';
@@ -37,19 +36,6 @@ const integer=(v:unknown):v is number=>typeof v==='number'&&Number.isSafeInteger
 const statuses:readonly string[]=['queued','running','paused','complete','complete_with_warnings','failed','cancelled'];
 class Failure extends Error{code:string;retryable:boolean;constructor(code:string,message:string,retryable=false){super(message);this.code=code;this.retryable=retryable;}}
 function invalid():never{throw new Failure('invalid_management',unreadableServerResponse);}
-function rows(v:unknown,max:number):unknown[]{if(!Array.isArray(v)||v.length>max)invalid();return v;}
-/** An action this app does not know is not offered, and a repeated one is offered once. The list stays short. */
-function actions<T extends string>(v:unknown,allowed:readonly T[]):readonly T[]{const values=rows(v,16),known=[...new Set(values.filter((a):a is T=>allowed.includes(a as T)))];if(known.length!==values.length)noteSkipped('library-management','actions',values.length-known.length);return Object.freeze(known);}
-function parseJob(v:unknown,libraryId?:string):LibraryAdminJob{if(!object(v)||!id(v.id)||!id(v.libraryId)||libraryId!==undefined&&v.libraryId!==libraryId||!statuses.includes(v.status as string)||!integer(v.processed)||!text(v.createdAt,128)||v.updatedAt!==null&&!text(v.updatedAt,128)||v.finishedAt!==null&&!text(v.finishedAt,128)||v.error!==undefined&&!text(v.error))invalid();
- // A failure code this app does not know is left off, and a finished scan is never offered Cancel.
- const errorCode=v.errorCode==='source_unavailable'&&v.status==='failed'?v.errorCode:undefined;if(v.errorCode!==undefined&&errorCode===undefined)noteSkipped('library-management','job.errorCode');
- const offered=actions(v.actions,['pause','resume','cancel','retry'] as const),a=['queued','running','paused'].includes(v.status as string)?offered:Object.freeze(offered.filter(action=>action!=='cancel'));return Object.freeze({id:v.id,libraryId:v.libraryId,status:v.status as LibraryJobStatus,processed:v.processed,...(id(v.sourceId)?{sourceId:v.sourceId}:{}),...(text(v.phase,128)?{phase:v.phase}:{}),...(integer(v.analyzed)?{analyzed:v.analyzed}:{}),...(integer(v.warnings)?{warnings:v.warnings}:{}),...(text(v.pauseReason,128)?{pauseReason:v.pauseReason}:{}),createdAt:v.createdAt,updatedAt:v.updatedAt as string|null,finishedAt:v.finishedAt as string|null,...(v.error===undefined?{}:{error:v.error as string}),...(errorCode===undefined?{}:{errorCode}),actions:a});}
-function parseLibrary(v:unknown):ManagedLibrary{if(!object(v)||!id(v.id)||!text(v.name,512)||!['movie','tv','anime','music','audiobook','book','comic'].includes(v.kind as string)||!integer(v.revision)||v.revision<1||!object(v.source))invalid();const s=v.source;if(!text(s.path,8192)||s.observedAt!==undefined&&!text(s.observedAt,128)||s.message!==undefined&&!text(s.message))invalid();
- // A folder state this app does not know reads as not yet known, and a last scan it cannot read is left off the library.
- const lastScan=v.lastScan===null?null:keepReadable('library-management','library.lastScan',[v.lastScan],job=>parseJob(job,v.id as string))[0]??null;
- return Object.freeze({id:v.id,name:v.name,kind:v.kind as ManagedLibrary['kind'],revision:v.revision,...(integer(v.position)?{position:v.position}:{}),source:Object.freeze({path:s.path,availability:oneOfOr('library-management','library.source.availability',s.availability,['unknown','available','unavailable'] as const,'unknown'),basis:oneOfOr('library-management','library.source.basis',s.basis,['not_checked','probe'] as const,'not_checked'),...(s.observedAt===undefined?{}:{observedAt:s.observedAt as string}),...(s.message===undefined?{}:{message:s.message as string})}),lastScan,actions:actions(v.actions,['rename','scan','remove'] as const),...attention(v.attention),...(v.summary===undefined?{}:{summary:parseLibrarySummary(v.summary)}),...(object(v.audience)&&typeof v.audience.everyone==='boolean'&&integer(v.audience.accounts)?{audience:Object.freeze({everyone:v.audience.everyone,accounts:v.audience.accounts})}:{}),...(integer(v.filesSkipped)?{filesSkipped:v.filesSkipped}:{})});}
-/** Tolerant: an unreadable attention block is left out rather than failing the library. */
-function attention(v:unknown):{attention?:ManagedLibrary['attention']}{if(!object(v)||!integer(v.files)||v.files<1)return {};return {attention:Object.freeze({files:v.files,atLeast:v.atLeast===true})};}
 /** A page of the files that need attention in one library, owner only. Unreadable rows are skipped. */
 export async function fetchEpisodeIssues(api:LibraryContentApi,libraryId:string,cursor='',signal?:AbortSignal):Promise<EpisodeIssuePage>{
  const q=new URLSearchParams({limit:'40'});if(cursor)q.set('cursor',cursor);
@@ -58,7 +44,6 @@ export async function fetchEpisodeIssues(api:LibraryContentApi,libraryId:string,
  const issues=raw.issues.filter((x:unknown):x is Record<string,unknown>=>object(x)&&id(x.assetId)&&text(x.sourceName,8192)&&text(x.code,256)).map(x=>Object.freeze({assetId:x.assetId as string,sourceName:x.sourceName as string,code:x.code as string}));
  return Object.freeze({issues:Object.freeze(issues),nextCursor:raw.nextCursor});
 }
-function parseScope(v:unknown,s:ContentScope){if(!object(v)||v.serverId!==s.serverId||!id(v.viewerFence))invalid();return Object.freeze({serverId:s.serverId,viewerFence:v.viewerFence});}
 function errorInfo(e:unknown):LibraryManagementError{const v=e as {code?:unknown;retryable?:unknown};return Object.freeze({code:id(v?.code)?v.code:'request_failed',message:e instanceof Error?e.message:'Library management request failed.',retryable:v?.retryable===true});}
 /** The server says the same request may simply be repeated: `retry: same_request`, or a 5xx/429 that says nothing else. */
 function sameRequest(e:unknown):boolean{const v=e as {status?:unknown;retry?:unknown;retryable?:unknown;code?:unknown}|null;if(!v||v.code==='timeout'||v.code==='cancelled')return false;if(typeof v.retry==='string')return v.retry==='same_request';const status=typeof v.status==='number'?v.status:0;return status===429||status>=500&&v.retryable!==false;}
@@ -68,46 +53,47 @@ type Lane='directory'|'selected'|'jobs';type PageOperation={cursor:string|null;h
 export class LibraryManagementService{
  private readRetries:number;private retryBaseMs:number;private api:LibraryContentApi;private scope:ContentScope;private pageSize:number;private timeoutMs:number;private epoch=0;private generation=0;private disposed=false;private listeners=new Set<()=>void>();private controls:Partial<Record<Lane,AbortController>>={};private sequences:Record<Lane,number>={directory:0,selected:0,jobs:0};private operations:Partial<Record<'directory'|'jobs',PageOperation>>={};private mutationController?:AbortController;private mutationPromise?:Promise<void>;private mutationKey='';private queries?:ViewerQueries;private state:LibraryManagementSnapshot;
  /** `queries`: the viewer's cache; a library's own document (`selectLibrary`) is read through it, shared with every other view of it. */
- constructor(o:{api:LibraryContentApi;scope:ContentScope;pageSize?:number;timeoutMs?:number;readRetries?:number;retryBaseMs?:number;queries?:ViewerQueries}){this.readRetries=o.readRetries??3;this.retryBaseMs=o.retryBaseMs??1000;this.api=o.api;this.scope=checkScope(o.scope);if(o.queries&&o.queries.scope.serverId!==this.scope.serverId)throw new Error('Library management is read from its own server\'s cache.');this.queries=o.queries;this.pageSize=o.pageSize??40;this.timeoutMs=o.timeoutMs??15000;if(!Number.isInteger(this.pageSize)||this.pageSize<1||this.pageSize>40||!Number.isFinite(this.timeoutMs)||this.timeoutMs<1||this.timeoutMs>60000)throw new Error('Invalid management request bounds.');this.state=this.empty();}
+ constructor(o:{api:LibraryContentApi;scope:ContentScope;pageSize?:number;timeoutMs?:number;readRetries?:number;retryBaseMs?:number;queries?:ViewerQueries;scanRecheckMs?:number}){this.scanRecheckMs=o.scanRecheckMs??5000;this.readRetries=o.readRetries??3;this.retryBaseMs=o.retryBaseMs??1000;this.api=o.api;this.scope=checkScope(o.scope);if(o.queries&&o.queries.scope.serverId!==this.scope.serverId)throw new Error('Library management is read from its own server\'s cache.');this.queries=o.queries;this.pageSize=o.pageSize??40;this.timeoutMs=o.timeoutMs??15000;if(!Number.isInteger(this.pageSize)||this.pageSize<1||this.pageSize>40||!Number.isFinite(this.timeoutMs)||this.timeoutMs<1||this.timeoutMs>60000)throw new Error('Invalid management request bounds.');this.state=this.empty();}
  private quietDirectory?:AbortController;
  /** Cancels only the mounted quiet directory read; ordinary paging and command owners stay intact. */
  invalidateQuietDirectory=():void=>{const c=this.quietDirectory;this.quietDirectory=undefined;c?.abort();if(c&&this.controls.directory===c)delete this.controls.directory;};
  getSnapshot=()=>this.state;subscribe=(listener:()=>void)=>{this.listeners.add(listener);return()=>this.listeners.delete(listener);};
  private empty():LibraryManagementSnapshot{return Object.freeze({generation:this.generation,scope:this.scope,selectedLibraryId:null,directory:blank(),selected:blank(),jobs:blank(),jobFilter:Object.freeze({}),mutation:Object.freeze({phase:'idle',kind:null,error:null})});}
  private active(){if(this.disposed)throw new Error('Library management service is disposed.');}
- private publish(p:Partial<LibraryManagementSnapshot>){this.state=Object.freeze({...this.state,...p,generation:++this.generation});for(const fn of this.listeners)fn();}
+ private publish(p:Partial<LibraryManagementSnapshot>){this.state=Object.freeze({...this.state,...p,generation:++this.generation});for(const fn of this.listeners)fn();this.followScan();}
+ /** How often a running scan is looked at again. */
+ private scanRecheckMs:number;private scanTimer:ReturnType<typeof setTimeout>|undefined;
+ /** The rebuilt server says nothing on the change feed when a scan ends, so while the list or the selected library
+  * shows a scan running, both are read again every few seconds, and not once none does. */
+ private followScan(){
+  const running=(l:ManagedLibrary|undefined)=>l?.lastScan?.status==='running';
+  const any=!!this.state.directory.data?.items.some(running)||running(this.state.selected.data?.library);
+  if(!any||this.scanTimer||this.disposed)return;
+  this.scanTimer=setTimeout(()=>{this.scanTimer=undefined;if(this.disposed)return;
+   void this.refreshDirectory();const id=this.state.selectedLibraryId;if(id&&running(this.state.selected.data?.library))void this.resource(id,true).catch(()=>{});},this.scanRecheckMs);
+ }
  private denied(e:unknown){const v=e as {status?:unknown;code?:unknown};return v?.status===401||v?.status===403||['unauthorized','forbidden','permission_changed','session_revoked'].includes(String(v?.code));}
  /** The server refused the owner: what was read for them is kept nowhere, in this service or in the viewer's cache. */
  private forgetCached(){this.queries?.client.removeQueries({queryKey:queryKeys.adminLibraries()});}
- private stop(){this.epoch++;for(const c of Object.values(this.controls))c?.abort();this.mutationController?.abort();this.mutationPromise=undefined;this.mutationKey='';this.operations={};}
+ private stop(){if(this.scanTimer){clearTimeout(this.scanTimer);this.scanTimer=undefined;}this.epoch++;for(const c of Object.values(this.controls))c?.abort();this.mutationController?.abort();this.mutationPromise=undefined;this.mutationKey='';this.operations={};}
  cancel(){this.active();this.stop();this.publish(this.empty());}
  setScope(scope:ContentScope,api:LibraryContentApi){this.active();const next=checkScope(scope);if(this.queries&&this.queries.scope.serverId!==next.serverId)throw new Error('Library management is read from its own server\'s cache: build a new one for another server.');this.stop();this.scope=next;this.api=api;this.publish(this.empty());}
  dispose(){this.stop();this.disposed=true;this.listeners.clear();}
  loadLibraries():Promise<void>{this.active();return this.page('directory',{cursor:null,history:[],pageIndex:0});}
  nextLibraries(){return this.turn('directory',true);}previousLibraries(){return this.turn('directory',false);}
- loadJobs(filter:LibraryJobFilter={}):Promise<void>{this.active();if(!object(filter)||filter.libraryId!==undefined&&!id(filter.libraryId)||filter.status!==undefined&&!statuses.includes(filter.status))throw new Error('Invalid job filter.');const checked=Object.freeze({...filter});this.publish({jobFilter:checked});return this.page('jobs',{cursor:null,history:[],filter:checked});}
+ loadJobs(filter:LibraryJobFilter={}):Promise<void>{this.active();if(!object(filter)||filter.libraryId!==undefined&&!id(filter.libraryId)||filter.status!==undefined&&!statuses.includes(filter.status))throw new Error('Invalid job filter.');const checked=Object.freeze({...filter});
+  // The rebuilt server reads a library's scan with the library itself; no screen lists this lane, so it holds an empty page and asks nothing.
+  this.publish({jobFilter:checked,jobs:Object.freeze({...blank<AdminPage<LibraryAdminJob>>(),phase:'ready',data:Object.freeze({scope:this.serverScope(),revision:1,items:Object.freeze([]),nextCursor:''})})});return Promise.resolve();}
  nextJobs(){return this.turn('jobs',true);}previousJobs(){return this.turn('jobs',false);}
  async selectLibrary(libraryId:string){this.active();if(!id(libraryId))throw new Error('Invalid library ID.');this.controls.selected?.abort();this.controls.jobs?.abort();this.mutationController?.abort();this.mutationController=undefined;this.mutationPromise=undefined;this.mutationKey='';this.publish({selectedLibraryId:libraryId,selected:blank(),jobs:blank(),mutation:Object.freeze({phase:'idle',kind:null,error:null})});await Promise.all([this.resource(libraryId,false),this.loadJobs({libraryId})]);}
  private turn(lane:'directory'|'jobs',next:boolean):Promise<void>{this.active();const read=this.state[lane],op=this.operations[lane];if(read.phase!=='ready'||!read.data||!op)return Promise.resolve();const history=[...op.history];let cursor:string|null;if(next){if(!read.data.nextCursor)return Promise.resolve();cursor=read.data.nextCursor;history.push(op.cursor);if(history.length>64)history.shift();}else{if(!history.length)return Promise.resolve();cursor=history.pop()!;}return this.page(lane,{...op,cursor,history,pageIndex:(op.pageIndex??0)+(next?1:-1),anchor:{revision:read.data.revision}});}
  private async read<T>(lane:Lane,load:(c:AbortController,api:LibraryContentApi)=>Promise<T>,position:{cursor:string|null;canPrevious:boolean}={cursor:null,canPrevious:false}){this.controls[lane]?.abort();const c=new AbortController();this.controls[lane]=c;const seq=++this.sequences[lane],epoch=this.epoch,api=this.api;this.publish({[lane]:Object.freeze({...blank(),...position,phase:'loading'})});try{const data=await load(c,api);if(this.disposed||epoch!==this.epoch||seq!==this.sequences[lane])return;this.publish({[lane]:Object.freeze({...position,phase:'ready',data,error:null})});}catch(e){if(this.disposed||epoch!==this.epoch||seq!==this.sequences[lane])return;const error=errorInfo(e);if(this.denied(e)){this.stop();this.forgetCached();this.publish({...this.empty(),[lane]:Object.freeze({...blank(),phase:'error',error})});return;}this.publish({[lane]:Object.freeze({...position,data:null,phase:['stale_continuation','invalid_cursor'].includes(error.code)?'refresh-required':'error',error})});}}
- private pagePath(lane:'directory'|'jobs',op:PageOperation):string{const params=new URLSearchParams({limit:String(this.pageSize)});if(op.cursor)params.set('cursor',op.cursor);if(op.filter?.libraryId)params.set('libraryId',op.filter.libraryId);if(op.filter?.status)params.set('status',op.filter.status);return routePath(lane==='directory'?'get_admin_libraries':'get_admin_jobs')+'?'+params;}
- private parsePage(lane:'directory'|'jobs',op:PageOperation,raw:unknown){if(!object(raw)||!integer(raw.revision)||!text(raw.nextCursor))invalid();const scope=parseScope(raw.scope,this.scope);if(op.anchor&&raw.revision!==op.anchor.revision)throw new Failure('stale_continuation','Library management changed. Refresh this list.',true);if(raw.nextCursor&&(raw.nextCursor===op.cursor||op.history.includes(raw.nextCursor)))invalid();/* A library or a scan this app cannot read, or a scan outside the filter that was asked for, is left out alone; a repeated id keeps its first row. */const items=firstOfEach('library-management',lane,keepReadable('library-management',lane,rows(raw.items,this.pageSize),v=>{if(lane==='directory')return parseLibrary(v);const job=parseJob(v,op.filter?.libraryId);if(op.filter?.status&&job.status!==op.filter.status)invalid();return job;}),i=>i.id);return Object.freeze({scope,revision:raw.revision,items:Object.freeze(items),nextCursor:raw.nextCursor});}
+ /** The rebuilt server's library list, `GET /v1/admin/libraries` (owner), a page at a time. */
+ private pagePath(_lane:'directory'|'jobs',op:PageOperation):string{return serverPath('GET /v1/admin/libraries',{query:{cursor:op.cursor??undefined}});}
+ /** The rebuilt server answers no viewer fence: this service's own scope stands for it. */
+ private serverScope(){return Object.freeze({serverId:this.scope.serverId,viewerFence:'server'});}
+ private parsePage(lane:'directory'|'jobs',op:PageOperation,raw:unknown){if(lane!=='directory'||!object(raw)||!Array.isArray(raw.items)||raw.items.length>this.pageSize*2||raw.nextCursor!==undefined&&!text(raw.nextCursor))invalid();const nextCursor=(raw.nextCursor as string|undefined)??'';if(nextCursor&&(nextCursor===op.cursor||op.history.includes(nextCursor)))invalid();/* A library this app cannot read is left out alone; a repeated id keeps its first row. */const items=firstOfEach('library-management',lane,keepReadable('library-management',lane,raw.items,fromServerLibrary),i=>i.id);return Object.freeze({scope:this.serverScope(),revision:1,items:Object.freeze(items),nextCursor});}
  private page(lane:'directory'|'jobs',op:PageOperation):Promise<void>{this.operations[lane]=op;const path=this.pagePath(lane,op);return this.read(lane,async(c,api)=>this.parsePage(lane,op,await this.readRetrying(api,path,c)),{cursor:op.cursor,canPrevious:op.history.length>0});}
- /** Rebuilds expired revision-bound cursors to the same logical page, privately and at most 64 pages. */
- private async reanchorDirectory(target:PageOperation,originalError:unknown,api:LibraryContentApi,c:AbortController,owns:()=>boolean):Promise<{op:PageOperation;data:AdminPage<ManagedLibrary>}|undefined>{
-  let op:PageOperation={cursor:null,history:[],pageIndex:0};
-  for(let index=0;index<64;index++){
-   if(!owns())return;
-   const raw=await this.readRetrying(api,this.pagePath('directory',op),c);
-   if(!owns())return;
-   const data=this.parsePage('directory',op,raw) as AdminPage<ManagedLibrary>;
-   if(index===(target.pageIndex??target.history.length))return {op,data};
-   // A shorter directory cannot prove a replacement for the old page. Keep it owed.
-   if(!data.nextCursor)throw originalError;
-   op={cursor:data.nextCursor,history:[...op.history,op.cursor],pageIndex:index+1,anchor:{revision:data.revision}};
-  }
-  throw originalError;
- }
  /** Revalidates only the visible directory window, without replacing other lanes or receipts. */
  async refreshDirectory():Promise<QuietRefreshOutcome>{
   if(this.disposed||this.state.directory.phase==='loading')return {kind:'deferred'};
@@ -116,19 +102,9 @@ export class LibraryManagementService{
   this.controls.directory?.abort();this.controls.directory=c;this.quietDirectory=c;
   const owns=()=>!this.disposed&&epoch===this.epoch&&seq===this.sequences.directory&&!c.signal.aborted&&this.state.directory===before;
   try{
-   let result:{op:PageOperation;data:AdminPage<ManagedLibrary>}|undefined;
-   try{
-    const raw=await this.readRetrying(api,this.pagePath('directory',original),c);
-    if(!owns())return {kind:'deferred'};
-    result={op:original,data:this.parsePage('directory',original,raw) as AdminPage<ManagedLibrary>};
-   }catch(error){
-    if(!owns())return {kind:'deferred'};
-    const code=(error as {code?:unknown}|null)?.code;
-    if(!original.cursor||code!=='stale_continuation'&&code!=='invalid_cursor')throw error;
-    result=await this.reanchorDirectory(original,error,api,c,owns);
-   }
-   if(!owns()||!result)return {kind:'deferred'};
-   const {op,data}=result;
+   const raw=await this.readRetrying(api,this.pagePath('directory',original),c);
+   if(!owns())return {kind:'deferred'};
+   const op=original,data=this.parsePage('directory',original,raw) as AdminPage<ManagedLibrary>;
    this.operations.directory=op;
    this.publish({directory:Object.freeze({phase:'ready',data,error:null,cursor:op.cursor,canPrevious:op.history.length>0})});
    return {kind:'adopted'};
@@ -148,7 +124,7 @@ export class LibraryManagementService{
     try{return this.parseLibraryDocument(await this.readRetrying(api,encodedRoutePath("get_admin_libraries_id", {"id": encodeURIComponent(libraryId)}),c),libraryId);}finally{signal.removeEventListener('abort',stop);}},
    meta:{dependencies:libraryAdminDependencies(libraryId)}};
  }
- private parseLibraryDocument(raw:unknown,libraryId:string):LibraryDocument{if(!object(raw))invalid();const scope=parseScope(raw.scope,this.scope);const library=parseLibrary(raw.library);if(library.id!==libraryId)invalid();return Object.freeze({scope,library});}
+ private parseLibraryDocument(raw:unknown,libraryId:string):LibraryDocument{const library=fromServerLibrary(raw);if(library.id!==libraryId)invalid();return Object.freeze({scope:this.serverScope(),library});}
  /** The cached document of a library, when nothing it was built from has moved since it was read. */
  private cachedLibrary(libraryId:string):LibraryDocument|undefined{
   const queries=this.queries;if(!queries)return undefined;
@@ -195,12 +171,13 @@ export class LibraryManagementService{
   })();
   this.mutationPromise=promise;return promise;
  }
- rename(name:string,expectedRevision:number):Promise<void>{this.active();const selected=this.state.selected.data;if(!selected||this.state.selected.phase!=='ready'||!selected.library.actions.includes('rename'))throw new Error('Select a library that allows renaming.');const normalized=name.trim();if(!normalized||new TextEncoder().encode(normalized).length>100||!text(normalized,100)||!integer(expectedRevision)||expectedRevision!==selected.library.revision)throw new Error('The library name or expected revision is invalid.');return this.mutate('rename',selected.library.id,'PATCH',encodedRoutePath("patch_admin_libraries_id", {"id": encodeURIComponent(selected.library.id)}),{name:normalized,expectedRevision});}
+ rename(name:string,expectedRevision:number):Promise<void>{this.active();const selected=this.state.selected.data;if(!selected||this.state.selected.phase!=='ready'||!selected.library.actions.includes('rename'))throw new Error('Select a library that allows renaming.');const normalized=name.trim();if(!normalized||new TextEncoder().encode(normalized).length>100||!text(normalized,100)||!integer(expectedRevision)||expectedRevision!==selected.library.revision)throw new Error('The library name or expected revision is invalid.');return this.mutate('rename',selected.library.id,'PATCH',serverPath('PATCH /v1/admin/libraries/{id}',{id:selected.library.id}),{name:normalized});}
  /** `full` re-reads every file, changed or not ("Scan all files"); the default lets the server choose (first import, weekly integrity or incremental). */
- scan(mode?:'full'):Promise<void>{this.active();const selected=this.state.selected.data;if(!selected||this.state.selected.phase!=='ready'||!selected.library.actions.includes('scan'))throw new Error('Select a library that allows scanning.');return this.mutate('scan',selected.library.id,'POST',encodedRoutePath("post_libraries_id_scans", {"id": encodeURIComponent(selected.library.id)})+(mode?'?mode='+mode:''));}
- cancelJob(jobId:string):Promise<void>{this.active();const job=this.state.jobs.data?.items.find(j=>j.id===jobId)??this.state.selected.data?.library.lastScan;if(!job||job.id!==jobId||!job.actions.includes('cancel'))throw new Error('Select a job that allows cancellation.');return this.mutate('cancel',job.libraryId,'DELETE',encodedRoutePath("delete_admin_ingestion_jobs_id", {"id": encodeURIComponent(jobId)}));}
- controlJob(jobId:string,action:'pause'|'resume'|'retry'):Promise<void>{this.active();const job=this.state.jobs.data?.items.find(j=>j.id===jobId);if(!job||!job.actions.includes(action))throw new Error('This scan does not allow that action.');return this.mutate('scan',job.libraryId,'POST',encodedRoutePath("post_admin_ingestion_jobs_id_action", {"id": encodeURIComponent(jobId), "action": action}));}
- private mutate(kind:'create'|'rename'|'scan'|'cancel',libraryId:string,method:string,path:string,body?:unknown):Promise<void>{const key=JSON.stringify([kind,libraryId,body,path]);if(this.mutationPromise){if(this.mutationKey===key)return this.mutationPromise;throw new Error('Wait for the current library command to finish.');}const epoch=this.epoch,c=new AbortController();let selected=this.state.selectedLibraryId;this.mutationController=c;this.mutationKey=key;this.publish({mutation:Object.freeze({phase:'pending',kind,error:null})});const promise=(async()=>{try{const raw=await this.request(this.api,path,method,body,c);if(this.disposed||epoch!==this.epoch||c.signal.aborted||selected!==this.state.selectedLibraryId)return;if(kind==='create'){const submitted=body as {name:string;kind:string};if(!object(raw)||!id(raw.id)||raw.name!==submitted.name||raw.kind!==submitted.kind)invalid();selected=raw.id;this.publish({selectedLibraryId:selected,selected:blank(),jobs:blank(),jobFilter:Object.freeze({libraryId:selected})});}else if(kind==='rename'){if(!object(raw))invalid();parseScope(raw.scope,this.scope);const library=parseLibrary(raw.library);if(library.id!==libraryId||library.name!==(body as {name:string}).name||library.revision<(body as {expectedRevision:number}).expectedRevision)invalid();}else if(kind==='scan'&&!path.endsWith('/pause')&&!path.endsWith('/resume')&&(!object(raw)||!id(raw.id)||!integer(raw.processed)))invalid();/* Every cached owner document of this library (a new library: the list) is read again when next asked for. */this.queries?.moved(kind==='create'?[dependsOn.libraries]:libraryAdminDependencies(libraryId));await this.reconcile();if(!this.disposed&&epoch===this.epoch&&!c.signal.aborted)this.publish({mutation:Object.freeze({phase:'complete',kind,error:null})});}catch(e){if(this.disposed||epoch!==this.epoch||c.signal.aborted&&this.mutationController!==c||selected!==this.state.selectedLibraryId)return;const error=errorInfo(e);if(this.denied(e)){this.stop();this.forgetCached();this.publish({...this.empty(),mutation:Object.freeze({phase:'error',kind,error})});return;}const definite=['source_changed','library_configuration_conflict','source_already_configured','invalid_request','invalid_metadata_language','not_found','forbidden','unauthorized'].includes(error.code);this.publish({mutation:Object.freeze({phase:definite?'error':'ambiguous',kind,error})});}finally{if(this.mutationController===c){this.mutationPromise=undefined;this.mutationKey='';}}})();this.mutationPromise=promise;return promise;}
+ scan(mode?:'full'):Promise<void>{this.active();const selected=this.state.selected.data;if(!selected||this.state.selected.phase!=='ready'||!selected.library.actions.includes('scan'))throw new Error('Select a library that allows scanning.');return this.mutate('scan',selected.library.id,'POST',serverPath('POST /v1/admin/libraries/{id}/scan',{id:selected.library.id}),mode==='full'?{allFiles:true}:{});}
+ cancelJob(jobId:string):Promise<void>{this.active();const job=this.state.jobs.data?.items.find(j=>j.id===jobId)??this.state.selected.data?.library.lastScan;if(!job||job.id!==jobId||!job.actions.includes('cancel'))throw new Error('Select a job that allows cancellation.');return this.mutate('cancel',job.libraryId,'DELETE',serverPath('DELETE /v1/admin/libraries/{id}/scan',{id:job.libraryId}));}
+ /** The rebuilt server offers no pause or resume of a scan; a failed one is scanned again. */
+ controlJob(jobId:string,action:'pause'|'resume'|'retry'):Promise<void>{this.active();const job=this.state.jobs.data?.items.find(j=>j.id===jobId)??this.state.selected.data?.library.lastScan;if(!job||job.id!==jobId||!job.actions.includes(action)||action!=='retry')throw new Error('This scan does not allow that action.');return this.mutate('scan',job.libraryId,'POST',serverPath('POST /v1/admin/libraries/{id}/scan',{id:job.libraryId}),{});}
+ private mutate(kind:'create'|'rename'|'scan'|'cancel',libraryId:string,method:string,path:string,body?:unknown):Promise<void>{const key=JSON.stringify([kind,libraryId,body,path]);if(this.mutationPromise){if(this.mutationKey===key)return this.mutationPromise;throw new Error('Wait for the current library command to finish.');}const epoch=this.epoch,c=new AbortController();let selected=this.state.selectedLibraryId;this.mutationController=c;this.mutationKey=key;this.publish({mutation:Object.freeze({phase:'pending',kind,error:null})});const promise=(async()=>{try{const raw=await this.request(this.api,path,method,body,c);if(this.disposed||epoch!==this.epoch||c.signal.aborted||selected!==this.state.selectedLibraryId)return;if(kind==='create'){const submitted=body as {name:string;kind:string};if(!object(raw)||!id(raw.id)||raw.name!==submitted.name||raw.kind!==submitted.kind)invalid();selected=raw.id;this.publish({selectedLibraryId:selected,selected:blank(),jobs:blank(),jobFilter:Object.freeze({libraryId:selected})});}else if(kind==='rename'){const library=fromServerLibrary(raw);if(library.id!==libraryId||library.name!==(body as {name:string}).name)invalid();}else if(kind==='scan'&&(!object(raw)||!id(raw.id)))invalid();/* Every cached owner document of this library (a new library: the list) is read again when next asked for. */this.queries?.moved(kind==='create'?[dependsOn.libraries]:libraryAdminDependencies(libraryId));await this.reconcile();if(!this.disposed&&epoch===this.epoch&&!c.signal.aborted)this.publish({mutation:Object.freeze({phase:'complete',kind,error:null})});}catch(e){if(this.disposed||epoch!==this.epoch||c.signal.aborted&&this.mutationController!==c||selected!==this.state.selectedLibraryId)return;const error=errorInfo(e);if(this.denied(e)){this.stop();this.forgetCached();this.publish({...this.empty(),mutation:Object.freeze({phase:'error',kind,error})});return;}const definite=['source_changed','library_configuration_conflict','source_already_configured','invalid_request','invalid_metadata_language','not_found','forbidden','unauthorized'].includes(error.code);this.publish({mutation:Object.freeze({phase:definite?'error':'ambiguous',kind,error})});}finally{if(this.mutationController===c){this.mutationPromise=undefined;this.mutationKey='';}}})();this.mutationPromise=promise;return promise;}
  /** A read the server says may be repeated (`retry: same_request`, a 5xx or 429) is tried again
   * with backoff, honouring Retry-After, before the page shows its error with Try again. */
  private async readRetrying(api:LibraryContentApi,path:string,c:AbortController):Promise<unknown>{
@@ -276,3 +253,24 @@ export function cleanServerPath(path:string):string{
 export const typedServerPath=(typed:string):string=>typed.trim();
 /** The server's word for each library kind the screens offer. */
 const serverLibraryKinds:Readonly<Record<string,string>>={movie:'movies',tv:'shows',anime:'anime',music:'music',audiobook:'audiobooks',book:'books',comic:'comics'};
+/** The screens' word for each of the server's library kinds. */
+const pageLibraryKinds:Readonly<Record<string,ManagedLibrary['kind']>>={movies:'movie',shows:'tv',anime:'anime',music:'music',audiobooks:'audiobook',books:'book',comics:'comic'};
+/**
+ * One library of the rebuilt server (`AdminLibrary`) in the shape the Libraries page draws. Its folders are
+ * found or not by the last scan; a scan running now is its last scan, which Cancel stops; the owner may rename,
+ * scan and remove it.
+ */
+function fromServerLibrary(v:unknown):ManagedLibrary{
+ if(!object(v)||!id(v.id)||!text(v.name,512)||typeof v.kind!=='string'||!pageLibraryKinds[v.kind]||!text(v.revision,64)||!Array.isArray(v.folders)||!v.folders.length||typeof v.scanning!=='boolean')invalid();
+ const folders=v.folders.filter(object),first=folders[0];
+ if(!first||!text(first.path,8192))invalid();
+ const libraryId=v.id,started=text(v.lastScanStartedAt,128)?v.lastScanStartedAt:undefined,finished=text(v.lastScanFinishedAt,128)?v.lastScanFinishedAt:undefined;
+ const scan=(status:LibraryJobStatus,actions:LibraryAdminJob['actions']):LibraryAdminJob=>Object.freeze({id:'scan:'+libraryId,libraryId,status,processed:0,
+  createdAt:started??finished??'',updatedAt:null,finishedAt:status==='running'?null:finished??null,actions:Object.freeze(actions)});
+ const revision=Number.parseInt(v.revision,10);
+ return Object.freeze({id:libraryId,name:v.name,kind:pageLibraryKinds[v.kind],revision:Number.isSafeInteger(revision)&&revision>0?revision:1,
+  source:Object.freeze({path:first.path as string,availability:folders.every(folder=>folder.available===true)?'available' as const:'unavailable' as const,basis:'probe' as const,
+   ...(text(first.lastScanAt,128)?{observedAt:first.lastScanAt}:{}),...(text(first.problem)&&first.problem?{message:first.problem}:{})}),
+  lastScan:v.scanning?scan('running',['cancel']):finished?scan('complete',[]):null,
+  actions:Object.freeze(['rename','scan','remove'] as const)});
+}

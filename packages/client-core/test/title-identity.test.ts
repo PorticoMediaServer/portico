@@ -43,12 +43,12 @@ test('emptying repeats while the server says there is more and adds the totals u
   assert.throws(() => parseMissingEmptied({titles: 1, files: 0}));
 });
 
-test('merging and removing a library send what the owner confirmed', async () => {
+test('merging sends what the owner confirmed; removing a library asks the rebuilt server and waits for the job that removes it', async () => {
   const calls: unknown[] = [];
-  const api = {request: async <T>(path: string, method?: string, body?: unknown): Promise<T> => { calls.push([path, method, body]); return (path.endsWith('/merge') ? {itemId: 'b'} : {libraryId: 'films', removing: true}) as T; }};
+  const api = {request: async <T>(path: string, method?: string, body?: unknown): Promise<T> => { calls.push([path, method, body]); return (path.endsWith('/merge') ? {itemId: 'b'} : path.startsWith('/v1/jobs/') ? {id: 'job_1', kind: 'delete_library', state: 'done'} : {id: 'job_1', kind: 'delete_library', state: 'waiting'}) as T; }};
   assert.equal(await mergeTitles(api, 'a', 'b'), 'b');
-  await removeLibrary(api, 'films', 'Films', 7);
-  assert.deepEqual(calls, [['/v1/admin/titles/merge', 'POST', {fromId: 'a', intoId: 'b'}], ['/v1/admin/libraries/films', 'DELETE', {confirmation: 'Films', expectedRevision: 7}]]);
+  await removeLibrary(api, 'films', 'Films', 7, 1);
+  assert.deepEqual(calls, [['/v1/admin/titles/merge', 'POST', {fromId: 'a', intoId: 'b'}], ['/v1/admin/libraries/films?confirm=Films', 'DELETE', undefined], ['/v1/jobs/job_1', 'GET', undefined]]);
   await assert.rejects(mergeTitles(api, 'a', 'a'));
 });
 
