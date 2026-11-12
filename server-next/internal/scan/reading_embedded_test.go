@@ -3,10 +3,13 @@ package scan_test
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/remote"
 )
 
 // zipped is a real archive of the given entries, in order.
@@ -197,5 +200,33 @@ func TestOnlyTheFileSaysItIsAPeriodical(t *testing.T) {
 	}
 	if len(got) != 1 || got["Real Issue"] != 1 {
 		t.Fatalf("magazines: %v (want only the file that says so)", got)
+	}
+}
+
+// Reading all remote chapters is Complete-depth work, not an ordinary metadata scan.
+func TestRemoteEPUBWordCountsRequireCompleteDepth(t *testing.T) {
+	for _, depth := range []string{db.DepthBasic, db.DepthComplete} {
+		f := newFixture(t, db.LibraryBooks)
+		f.put("book.epub", epub(t, "3.0", `<dc:title>Counted</dc:title>`))
+		store := &storage{root: f.root}
+		f.s.Remote = func(context.Context, int64) (remote.Storage, time.Duration, error) { return store, time.Hour, nil }
+		libraries, err := f.d.AllLibraries(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		library := libraries[0]
+		library.Options.Depth = depth
+		f.lib = library
+		library.Paths[0].RemoteID, library.Paths[0].Path = 1, ""
+		if _, err := f.s.Scan(ctx, library); err != nil {
+			t.Fatal(err)
+		}
+		count := f.titles(db.KindBook)["Counted"].WordCount
+		if depth == db.DepthBasic && count != nil {
+			t.Fatal("Basic read the remote book's text")
+		}
+		if depth == db.DepthComplete && (count == nil || *count != 1) {
+			t.Fatal("Complete did not count the remote book's words")
+		}
 	}
 }

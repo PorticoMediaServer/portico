@@ -851,8 +851,9 @@ export class ReadingSession {
       });
     } finally { this.#savingFile = false; }
   };
-  /** The book's own file, of any size; large-file platform saves should use saveFileTo. */
+  /** Buffer a small original. Large-file platform saves must use saveFileTo. */
   saveFile = async (operationId: string, signal?: AbortSignal): Promise<Uint8Array> => {
+    if (this.manifest.size > 64 << 20) fail('response_size');
     const chunks: Uint8Array[] = [];
     await this.saveFileTo(operationId, async chunk => {chunks.push(chunk.slice());}, signal);
     const result = new Uint8Array(this.manifest.size); let at = 0;
