@@ -811,17 +811,6 @@ func (im *importer) tagID(tag TagName) (int64, error) {
 	return id, err
 }
 
-// normTag folds a tag name so "Sci-Fi", "sci fi" and "Science Fiction" are one genre.
-func normTag(name string) string {
-	folded := strings.Join(strings.FieldsFunc(sorttext.Fold(name), func(r rune) bool {
-		return r == '-' || r == '_' || r == '.' || r == ',' || r == ' ' || r == '\t'
-	}), " ")
-	if folded == "sci fi" || folded == "scifi" {
-		return "science fiction"
-	}
-	return folded
-}
-
 func (im *importer) personID(credit ImportCredit) (int64, error) {
 	cacheKey := credit.Person.Provider + "\x00" + credit.Person.ID
 	if credit.Person.ID == "" {
