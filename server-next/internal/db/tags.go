@@ -5,6 +5,9 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"strings"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/sorttext"
 )
 
 // TagPage is one page of the tags a viewer may see, by kind and then name.
@@ -101,4 +104,15 @@ func (d *DB) VisibleTags(ctx context.Context, v Viewer, all bool, kind, cursor s
 		page.Tags[n] = r.Tag
 	}
 	return page, nil
+}
+
+// normTag folds a tag name so "Sci-Fi", "sci fi" and "Science Fiction" are one genre.
+func normTag(name string) string {
+	folded := strings.Join(strings.FieldsFunc(sorttext.Fold(name), func(r rune) bool {
+		return r == '-' || r == '_' || r == '.' || r == ',' || r == ' ' || r == '\t'
+	}), " ")
+	if folded == "sci fi" || folded == "scifi" {
+		return "science fiction"
+	}
+	return folded
 }
