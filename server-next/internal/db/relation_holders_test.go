@@ -180,7 +180,8 @@ func TestSeriesAndCollectionsHoldNothingAProfileMayNotSee(t *testing.T) {
 }
 
 // A list of one show, one person or one collection leaves out a season or show the profile is
-// left with nothing in, as a library's list does, and counts it out of the total.
+// left with nothing in, and one a blocked label covers, as a library's list does, and counts
+// both out of the total.
 func TestAListOfOneTitlePersonOrCollectionLeavesOutEmptiedHolders(t *testing.T) {
 	d, err := db.Open(ctx, filepath.Join(t.TempDir(), "main.db"))
 	if err != nil {
@@ -213,6 +214,13 @@ func TestAListOfOneTitlePersonOrCollectionLeavesOutEmptiedHolders(t *testing.T) 
 	items = append(items, db.ImportItem{Kind: db.KindCollection, Title: "Box", Keys: []db.ItemKey{box}})
 	show("Haunted", true)
 	show("Sunny", false, true)
+	// And rows the label covers themselves: a third season of Sunny, and a show in the box.
+	three, sunny, locked := 3, db.ItemKey{Kind: db.KeyName, Key: "Sunny"}, db.ItemKey{Kind: db.KeyName, Key: "Locked"}
+	scary := []db.TagName{{Kind: db.TagLabel, Name: "Scary"}}
+	items = append(items,
+		db.ImportItem{Kind: db.KindSeason, Keys: []db.ItemKey{{Kind: db.KeyName, Key: "Sunny/2"}}, Parent: &sunny, Title: "Season 3", IndexNumber: &three, Tags: scary},
+		db.ImportItem{Kind: db.KindShow, Keys: []db.ItemKey{locked}, Title: "Locked", Credits: host, Tags: scary,
+			ExtraOf: []db.ItemKey{box}, ExtraKind: db.RelationCollectionMember})
 	if _, err := d.Import(ctx, db.ImportBatch{LibraryID: shows.ID, PathID: shows.Paths[0].ID, Scan: 1, Dirs: []db.ImportDir{{}}, Items: items}); err != nil {
 		t.Fatal(err)
 	}
@@ -254,8 +262,8 @@ func TestAListOfOneTitlePersonOrCollectionLeavesOutEmptiedHolders(t *testing.T) 
 		if !slices.Equal(got, c.want) || err != nil || page.Total != len(c.want) {
 			t.Errorf("%s for the profile kept from the label: %v, total %d (%v); want %v", c.name, got, page.Total, err, c.want)
 		}
-		if all := everything(t, d, everyone, c.q); len(all) != 2 {
-			t.Errorf("%s for everyone: %d, want 2", c.name, len(all))
+		if all := everything(t, d, everyone, c.q); len(all) != 3 {
+			t.Errorf("%s for everyone: %d, want 3", c.name, len(all))
 		}
 	}
 }
