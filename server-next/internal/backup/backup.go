@@ -306,10 +306,11 @@ func (s *Service) noteFailing(failed bool) {
 // forgetFailure ends the alert and what led to it: the owner has chosen Never, so no
 // scheduled backup can succeed to end it.
 func (s *Service) forgetFailure() {
+	// The database first: what the page shows is never ahead of what survives a restart.
+	s.noteFailing(false)
 	s.mu.Lock()
 	s.last, s.failed = nil, nil
 	s.mu.Unlock()
-	s.noteFailing(false)
 }
 
 // GiveUp is called when a scheduled backup has failed and its 4 hours of retries are used
@@ -338,9 +339,16 @@ func (s *Service) Start(scheduled bool) (string, error) {
 	}
 	s.making.Go(func() {
 		err := s.make(stopping, id, scheduled)
+		// When backups began to fail is recorded before the backup reads as finished, so a
+		// stop in between cannot leave a success with the old failure time kept (or the
+		// reverse) for the next start to count from. A backup cut off by a stop records nothing.
+		cutOff := stopping.Err() != nil && err != nil
+		if !cutOff && (err == nil || scheduled) {
+			s.noteFailing(err != nil)
+		}
 		s.mu.Lock()
 		s.running = nil
-		if stopping.Err() != nil && err != nil {
+		if cutOff {
 			// Not a failure to tell the owner of: a scheduled backup cut off by a stop is
 			// made again soon after the next start (see missed).
 			s.mu.Unlock()
@@ -355,9 +363,6 @@ func (s *Service) Start(scheduled bool) (string, error) {
 			s.last = err
 		}
 		s.mu.Unlock()
-		if err == nil || scheduled {
-			s.noteFailing(err != nil)
-		}
 		if err != nil {
 			s.Log.Error("a backup failed", "backup", id, "error", err)
 			return
