@@ -31,6 +31,7 @@ export const servicesRoutes = {
   approvalLookup: ['POST', '/v1/approvals/lookup'],
   approvalDecision: ['POST', '/v1/approvals/{id}/decision'],
   servers: ['GET', '/v1/servers'],
+  serverIdentity: ['POST', '/v1/servers/{id}/identity'],
   leaveServer: ['DELETE', '/v1/servers/{id}/membership'],
   removeServer: ['DELETE', '/v1/servers/{id}'],
   tvLookup: ['POST', '/v1/tv-codes/lookup'],
