@@ -40,6 +40,8 @@ type Server struct {
 	PictureRequests atomic.Int64
 	PicturesDown    atomic.Bool
 	PicturesHang    atomic.Bool
+	// Token is the read access token the last request to the API was signed with.
+	Token atomic.Pointer[string]
 }
 
 // New starts a stand-in that stops when the test ends.
@@ -90,6 +92,9 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/png")
 		w.Write(Picture)
 		return
+	}
+	if token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok {
+		s.Token.Store(&token)
 	}
 	switch {
 	case s.Down.Load():

@@ -39,7 +39,7 @@ regexes = ['''^\s*"sealKey": "QtCssvBYZS87DqrTRRJbTm-Ju7EO4zZzfAOACKNE_AU",?$'''
 # TheTVDB and are not user or server secrets.
 [[allowlists]]
 description = "Built-in metadata provider credentials"
-paths = ['''server/internal/metadata/project\.go''']
+paths = ['''server/internal/metadata/project\.go''', '''^server-next/internal/metadata/tmdb/project\.go$''']
 
 # Example tokens in the API guide, idempotency and request keys in tests, and
 # SQL that matches the generic key pattern.
