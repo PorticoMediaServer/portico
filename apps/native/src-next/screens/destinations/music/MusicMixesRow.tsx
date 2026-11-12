@@ -9,6 +9,7 @@ import {browseType} from '../../../kit/browse/presentation';
 import {FocusRegion} from '../../../kit/focus';
 import {MenuRow, SidePanel} from '../../../kit/overlays';
 import type {NativeMusicMixRow, NativeMusicMixesCaller, NativeMusicMixesPort} from './mixes';
+import {mixSaveOnServer} from '../../../../../../packages/client-core/src/music-mixes-controller';
 import {TVRow} from '../../../kit/layout/TVRow';
 
 const t = defaultI18n.t;
@@ -123,7 +124,8 @@ export function MusicMixesRow({port, artwork, reportError, title = t('music.mixe
       onOpenChange={open => {if (!open && !busy) setMenu(undefined);}} returnFocusRef={menu.ref} initialFocusRef={firstAction} showClose={false} dismissOnBack={!busy} width={640}>
       <MenuRow ref={firstAction} focusId="play" label={t('entry.play')} icon="i-play" disabled={busy} onPress={() => command('play')}/>
       <MenuRow focusId="shuffle" label={t('title.shuffle')} icon="i-shuffle" disabled={busy} onPress={() => command('shuffle')}/>
-      <MenuRow focusId="save" label={t('player.queueSave')} icon="i-listplus" disabled={busy} onPress={() => command('save')}/>
+      {/* Save as playlist waits for its route (mixSaveOnServer): a stopgap, see music-mixes-controller.ts. */}
+      {mixSaveOnServer && <MenuRow focusId="save" label={t('player.queueSave')} icon="i-listplus" disabled={busy} onPress={() => command('save')}/>}
     </SidePanel>}
   </View>;
 }

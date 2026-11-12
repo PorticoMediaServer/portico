@@ -1,6 +1,7 @@
 import {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode} from 'react';
 import {defaultI18n} from '@i18n';
 import {musicMixDisplayName} from '@core/music-mixes.ts';
+import {mixSaveOnServer} from '@core/music-mixes-controller.ts';
 import {Shelf} from '../../kit/layout';
 import {SquareCard} from '../../kit/cards';
 import {Artwork} from '../../kit/artwork';
@@ -55,7 +56,8 @@ export function MusicMixesRow({binding, artwork, more, empty, target = false, re
       onOpenChange={open => {if (!open) setMenu(undefined);}}>
       <MenuItem icon="i-play" disabled={!binding.canPlay(shown.row)} onSelect={() => {if (menuRef.current === shown) run(shown.row, 'play');}}>{t('next.controls.play')}</MenuItem>
       <MenuItem icon="i-shuffle" disabled={!binding.canPlay(shown.row)} onSelect={() => {if (menuRef.current === shown) run(shown.row, 'shuffle');}}>{t('next.dock.shuffle')}</MenuItem>
-      <MenuItem icon="i-plus" onSelect={() => {if (menuRef.current === shown) run(shown.row, 'save');}}>{t('player.queueSave')}</MenuItem>
+      {/* Save as playlist waits for its route (mixSaveOnServer): a stopgap, see music-mixes-controller.ts. */}
+      {mixSaveOnServer && <MenuItem icon="i-plus" onSelect={() => {if (menuRef.current === shown) run(shown.row, 'save');}}>{t('player.queueSave')}</MenuItem>}
     </Menu>}
   </div>;
 }
