@@ -68,7 +68,7 @@ func (s *Server) fillViewRows(r *http.Request, rows []HomeRow) error {
 			continue
 		}
 		filled++
-		items, err := s.viewRowItems(ctx, r, row.Library, row.Query)
+		page, query, err := s.viewRowItems(ctx, r, row.Library, row.Query)
 		if ctx.Err() != nil && r.Context().Err() == nil {
 			filled = filledViewRows // out of time: this row and the rest stay deferred
 			continue
@@ -76,38 +76,39 @@ func (s *Server) fillViewRows(r *http.Request, rows []HomeRow) error {
 		if err != nil {
 			return err
 		}
-		row.Items, row.Deferred = items, false
+		row.Items, row.NextCursor, row.Query, row.Deferred = itemShapes(page.Items), page.NextCursor, query, false
 	}
 	return nil
 }
 
-// viewRowItems reads the first titles of a saved view. When that finds nothing, the view is
-// read again as it opens (see openView): a filter naming something that no longer exists is
-// left out, as it is when the person opens the view.
-func (s *Server) viewRowItems(ctx context.Context, r *http.Request, library, query string) ([]Item, error) {
-	read := func(query string) ([]Item, error) {
+// viewRowItems reads the first titles of a saved view, and says the query they were read
+// with. When that finds nothing, the view is read again as it opens (see openView): a filter
+// naming something that no longer exists is left out, as it is when the person opens the view.
+func (s *Server) viewRowItems(ctx context.Context, r *http.Request, library, query string) (db.ItemPage, string, error) {
+	read := func(query string) (db.ItemPage, error) {
 		values, err := url.ParseQuery(query)
 		if err != nil {
-			return nil, db.ErrInvalid
+			return db.ItemPage{}, nil
 		}
 		q, err := itemQuery(values)
 		if err != nil {
-			return nil, db.ErrInvalid
+			return db.ItemPage{}, nil
 		}
 		q.Library, q.Limit, q.WithTotal = library, viewRowLength, false
 		page, err := s.db.Items(ctx, viewer(r), q)
 		if errors.Is(err, db.ErrNotFound) || errors.Is(err, db.ErrInvalid) {
-			return []Item{}, nil
+			return db.ItemPage{}, nil
 		}
-		return itemShapes(page.Items), err
+		return page, err
 	}
-	items, err := read(query)
-	if err != nil || len(items) > 0 {
-		return items, err
+	page, err := read(query)
+	if err != nil || len(page.Items) > 0 {
+		return page, query, err
 	}
 	opened, dropped, err := s.openView(r, query)
 	if err != nil || len(dropped) == 0 {
-		return items, err
+		return page, query, err
 	}
-	return read(opened)
+	page, err = read(opened)
+	return page, opened, err
 }
