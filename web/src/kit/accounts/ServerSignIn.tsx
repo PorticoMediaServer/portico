@@ -43,18 +43,19 @@ export function LocalServerSignIn({serverName, initialUsername = '', remembered 
     </AuthLinks>
   </AuthStage>;
 }
-/** `moveDays`: whole days left to use the old sign-in during a move to Portico Accounts (0 is
- * today). Absent means no move is on, and nothing about the old sign-in is shown. */
-export function PorticoServerSignIn({serverName, busy, error, moveDays, plainHttp = false, onContinue, onRecovery, onOldPassword}: {
-  serverName: string; busy?: boolean; error?: unknown; moveDays?: number; plainHttp?: boolean; onContinue: () => void; onRecovery?: () => void; onOldPassword?: () => void;
+/** `moving`: a move to Portico Accounts is on and this browser hasn't moved yet. P2-66: the move is
+ * stated first, then the old sign-in is offered with `moveDays` (the server's own remaining days;
+ * not offered when the server gives no end), then the owner's move code. */
+export function PorticoServerSignIn({serverName, busy, error, moving = false, moveDays, plainHttp = false, onContinue, onRecovery, onOldPassword, onMoveCode}: {
+  serverName: string; busy?: boolean; error?: unknown; moving?: boolean; moveDays?: number; plainHttp?: boolean; onContinue: () => void; onRecovery?: () => void; onOldPassword?: () => void; onMoveCode?: () => void;
 }) {
-  const moving = moveDays !== undefined;
   return <AuthStage phoneShape="top"><p className={styles.eyebrow}>{t('accounts.signIn.to')}</p><h1>{serverName}</h1>
     <p className={styles.lede}>{t('accounts.signIn.handoffBody', {server: serverName})}</p>{plainHttp && <p className={styles.lede}>{t('accounts.signIn.handoffPlainHttp', {server: serverName})}</p>}<AuthError error={error} />
     <Button className={styles.handoffSubmit} variant="primary" loading={busy} onClick={onContinue}>{t('accounts.signIn.handoff')}</Button>
     {moving && <p className={styles.lede}>{t('accounts.move.toPortico', {server: serverName})}</p>}
     <AuthLinks><button type="button" data-quiet disabled={!onRecovery || busy} onClick={onRecovery}>{t('accounts.signIn.cannotUsePortico')}</button>
-      {moving && <button type="button" data-quiet disabled={!onOldPassword || busy} onClick={onOldPassword}>{t('accounts.move.oldPasswordAction', {days: moveDays})}</button>}
+      {moving && moveDays !== undefined && onOldPassword && <button type="button" data-quiet disabled={busy} onClick={onOldPassword}>{t('accounts.move.oldPasswordAction', {days: moveDays})}</button>}
+      {moving && onMoveCode && <button type="button" data-quiet disabled={busy} onClick={onMoveCode}>{t('accounts.move.haveCode')}</button>}
     </AuthLinks>
   </AuthStage>;
 }

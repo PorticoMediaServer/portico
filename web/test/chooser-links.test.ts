@@ -65,7 +65,7 @@ test('a shared link opened at web.getportico.tv/join leaves the address bar, and
   assert.deepEqual(replaced, ['/join'], 'the fragment is out of the address and its history entry');
   assert.deepEqual(went, ['/servers']);
   const {takeCarriedInvitation} = await import('../src/platform/invitation-carry.ts');
-  assert.deepEqual(takeCarriedInvitation(), {code: 'K7QP-2MXD-9HRT-4WNC', address: 'https://a1.ns.portico.direct:32400'});
+  assert.deepEqual(takeCarriedInvitation(), {code: 'K7QP-2MXD-9HRT-4WNC', address: 'https://a1.ns.portico.direct:32400', kind: 'invitation'});
   (globalThis as any).location.hash = '#not-a-link'; went.length = 0; JoinArrival();
   assert.deepEqual(went, ['/servers#join'], 'a link that is not one opens Join to type it');
 });

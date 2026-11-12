@@ -36,6 +36,7 @@ function fixture(kind: 'local' | 'portico' = 'local') {
     if (path === '/v1/auth/sign-in') return signInAnswer(twoStep ? {challenge: {token: 'actual-factor-challenge', expiresAt: '2099-01-01T00:00:00Z'}} : grant(false));
     if (path === '/v1/auth/two-factor') {if (refuseFactor) throw new ApiError(401, 'invalid_credentials', 'That code is not right.'); return signInAnswer(grant(false));}
     if (path === '/v1/auth/move/code') return {username: 'actual_user', signIn: kind, expiresAt: new Date(Date.now() + 3600000).toISOString()};
+    if (path === '/v1/auth/move/check') return {username: 'actual_user', next: kind === 'portico' ? 'portico_account' : 'choose_password'};
     if (path === '/v1/auth/move/local') {if (verifyGate) await verifyGate; return grant(false);}
     throw new Error('Unexpected public route: ' + path);
   }) as HttpLocalApi['request'];
@@ -77,7 +78,7 @@ test('a Portico move-code preview cannot enter Local password redemption or expo
   const f = fixture('portico'); await f.entry.inspect(origin); await f.entry.previewMoveCode('m'.repeat(43));
   assert.equal(f.entry.getSnapshot().phase, 'move-portico'); assert.doesNotMatch(JSON.stringify(f.entry.getSnapshot()), /mmmmmmmm/);
   await f.entry.redeemLocalMove('chosen_user', 'ordinary-new-password');
-  assert.deepEqual(f.calls.map(call => call.path), ['/v1/system', '/v1/auth/move/code']); assert.deepEqual(f.admitted, []); f.entry.dispose();
+  assert.deepEqual(f.calls.map(call => call.path), ['/v1/system', '/v1/auth/move/check']); assert.deepEqual(f.admitted, []); f.entry.dispose();
 });
 
 const settle = () => new Promise(resolve => setImmediate(resolve));

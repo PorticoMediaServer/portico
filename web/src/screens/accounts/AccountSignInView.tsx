@@ -136,7 +136,8 @@ export function AccountSignInView({entry, form, takeReturn, takeMove, initialize
     && memberView.target.pin === state.pin && !state.invitation;
   const openMember = (mode: 'old-password' | 'code') => {
     if (!alive.current || busy || initializing || joining || entry.getSnapshot() !== state || form.getSnapshot() !== input || !state.origin || !state.pin || !state.server || state.invitation) return;
-    if (mode === 'old-password' ? state.phase !== 'portico' || state.server.move !== 'to_portico' : state.phase !== 'password' || state.server.move !== 'to_local') return;
+    if (mode === 'old-password' ? state.phase !== 'portico' || state.server.move !== 'to_portico'
+      : !(state.phase === 'password' && state.server.move === 'to_local' || state.phase === 'portico' && state.server.move === 'to_portico')) return;
     form.clear(); setRecovery(undefined); setError(undefined);
     setMemberView({mode, target: {entry, origin: state.origin, serverId: state.server.id, pin: state.pin}});
   };
@@ -147,12 +148,9 @@ export function AccountSignInView({entry, form, takeReturn, takeMove, initialize
   const continuePortico = () => {
     const epoch = input.inputEpoch, serverId = state.server?.id, origin = state.origin, pin = state.pin, phase = state.phase;
     if (!serverId || busy || !alive.current || entry.getSnapshot() !== state || form.getSnapshot() !== input || phase !== 'portico' && phase !== 'move-portico') return;
-    // Signing in goes on at web.getportico.tv, which opens this server from the account's list.
-    if (phase === 'portico') {const handoff = entry.porticoHandoff(browserAccountOrigin(import.meta.env, location)); if (handoff) location.assign(handoff.url); return;}
-    void entry.preparePorticoSignIn(browserAccountOrigin(import.meta.env, location)).then(url => {
-      const current = entry.getSnapshot();
-      if (url && alive.current && form.getSnapshot().inputEpoch === epoch && current.phase === phase && current.server?.id === serverId && current.origin === origin && current.pin === pin) location.assign(url);
-    }).catch(failure => {if (alive.current && form.getSnapshot().inputEpoch === epoch && entry.getSnapshot().origin === origin && entry.getSnapshot().pin === pin) setError(failure);});
+    // Signing in, and a move with the owner's code, go on at web.getportico.tv, which holds the Portico Account.
+    const handoff = entry.porticoHandoff(browserAccountOrigin(import.meta.env, location));
+    if (handoff && entry.getSnapshot() === state && form.getSnapshot().inputEpoch === epoch && state.origin === origin && state.pin === pin) location.assign(handoff.url);
   };
   const chooseServer = () => {void router.navigate({to: '/servers'});};
   const identityFailure = entry.serverIdentityFailure(chooseServer, () => {
@@ -181,7 +179,7 @@ export function AccountSignInView({entry, form, takeReturn, takeMove, initialize
     <Button variant="ghost" disabled={busy} onClick={cancel}>{defaultI18n.t('action.back')}</Button>
   </AuthStage>;
   const moveMode = state.phase === 'move-local' ? 'local' : state.phase === 'move-portico' ? 'portico' : state.phase === 'move-code' ? 'code'
-    : memberView && currentMember && (memberView.mode === 'old-password' ? state.phase === 'portico' : state.phase === 'password') ? memberView.mode : undefined;
+    : memberView && currentMember && (memberView.mode === 'old-password' ? state.phase === 'portico' : state.phase === 'password' || state.phase === 'portico') ? memberView.mode : undefined;
   if (moveMode && state.server && !state.invitation) return <MemberMoveForm key={`${moveMode}:${input.inputEpoch}`} mode={moveMode} serverName={state.server.name}
     initialUsername={state.movePreview?.username ?? input.username} busy={busy} error={failure} onBack={reauthenticate}
     onCode={code => runMove(() => entry.previewMoveCode(code))} onOldPassword={(username, password) => runMove(() => entry.proveLocalMovePassword(username, password))}
@@ -204,7 +202,8 @@ export function AccountSignInView({entry, form, takeReturn, takeMove, initialize
     onMoveCode={state.server.move === 'to_local' && !state.invitation ? () => openMember('code') : undefined} />;
   if (state.phase === 'portico' && state.server?.signIn === 'portico') return <PorticoServerSignIn serverName={state.server.name} busy={busy} error={failure} onContinue={continuePortico}
     plainHttp={location.protocol === 'http:'}
-    moveDays={state.server.move === 'to_portico' && !state.invitation && !moveReconnected(state.server.id) ? moveOfferDays(state.server.moveEndsAt) : undefined} onOldPassword={() => openMember('old-password')}
+    moving={state.server.move === 'to_portico' && !state.invitation && !moveReconnected(state.server.id)} moveDays={moveOfferDays(state.server.moveEndsAt)}
+    onOldPassword={() => openMember('old-password')} onMoveCode={() => openMember('code')}
     onRecovery={state.invitation ? undefined : openPorticoRecovery}/>;
   if (!failure && (initializing || busy || state.phase === 'checking' || state.phase === 'profiles' || state.phase === 'ready')) return <AuthStage legal={false}>
     <p role="status">{defaultI18n.t(state.phase === 'profiles' || state.phase === 'ready' ? 'auth.loadingProfiles' : 'status.loading')}</p>
