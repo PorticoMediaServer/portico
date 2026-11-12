@@ -31,7 +31,38 @@ func (v *Viewings) Others(userID, signInID int64) (account, total int) {
 			account++
 		}
 	}
+	for _, h := range v.held {
+		if signInID != 0 && h.signInID == signInID {
+			continue
+		}
+		total++
+		if h.userID == userID {
+			account++
+		}
+	}
 	return account, total
+}
+
+// heldPlace is a stream's place taken for a viewing still tuning.
+type heldPlace struct{ userID, signInID int64 }
+
+// Hold takes a stream's place for a viewing about to tune, so a start counted now cannot be
+// passed by another while it reaches its source. Start fills it; Release gives it back when
+// the viewing never starts.
+func (v *Viewings) Hold(userID, signInID int64) string {
+	id := token(8)
+	v.mu.Lock()
+	v.held[id] = heldPlace{userID: userID, signInID: signInID}
+	v.mu.Unlock()
+	return id
+}
+
+// Release gives back a place held for a viewing that did not start. Releasing one that
+// started, or twice, is nothing.
+func (v *Viewings) Release(id string) {
+	v.mu.Lock()
+	delete(v.held, id)
+	v.mu.Unlock()
 }
 
 type stoppedViewing struct {
