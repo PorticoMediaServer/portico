@@ -151,15 +151,6 @@ func ownState(value string) string {
 	return "(SELECT " + value + " FROM user_item_state own WHERE own.profile_id = @viewer_profile AND own.item_id = i.id)"
 }
 
-// shuffleKey is the place of an item in the order a seed decides: its id multiplied by a
-// number the seed gives, modulo a prime above any id a library has. Every seed is a different
-// walk through the list that meets each item once.
-func shuffleKey(seed int64) string {
-	// The multiplier is odd and large, so neighbours in the library land far apart.
-	multiplier := (uint64(seed)*0x9e3779b97f4a7c15>>33)%(shufflePrime-2) + 2
-	return `((i.id % ` + itoa(shufflePrime) + `) * ` + itoa(int64(multiplier)) + ` % ` + itoa(shufflePrime) + `)`
-}
-
 // sortFor returns how a sort orders. A random order needs the seed it was begun with, which
 // its cursor carries from page to page.
 func sortFor(sort string, seed int64) (sortSpec, bool) {
