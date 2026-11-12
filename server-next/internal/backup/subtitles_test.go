@@ -75,11 +75,25 @@ func TestBackupRestoresDownloadedSubtitles(t *testing.T) {
 			t.Errorf("accepted unsafe subtitle name %q", unsafe)
 		}
 	}
-	// Losing a referenced file must fail the backup instead of keeping an unrestorable one.
+	// One subtitle lost on disk must not stop every later backup of the server.
 	if err := os.Remove(filepath.Join(s.DataDir, name)); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.make(ctx, "portico-20261112-040000", false); err == nil {
-		t.Fatal("backup succeeded without its downloaded subtitle")
+	if err := s.make(ctx, "portico-20261112-040000", false); err != nil {
+		t.Fatalf("a missing subtitle stopped the backup: %v", err)
+	}
+	missingArchive, err := s.Path("portico-20261112-040000")
+	if err != nil {
+		t.Fatal(err)
+	}
+	withoutSubtitle := t.TempDir()
+	if _, err := Inspect(ctx, missingArchive, withoutSubtitle); err != nil {
+		t.Fatalf("backup without the lost subtitle cannot be inspected: %v", err)
+	}
+	if err := Stage(ctx, missingArchive, withoutSubtitle, "missing subtitle", time.Now(), true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(withoutSubtitle, pendingDir, name)); !os.IsNotExist(err) {
+		t.Fatalf("a missing subtitle was not skipped: %v", err)
 	}
 }

@@ -438,7 +438,13 @@ func (s *Service) make(ctx context.Context, id string, scheduled bool) error {
 		if entryKind(name) != "subtitle" {
 			return fmt.Errorf("a downloaded subtitle has an invalid file name")
 		}
-		files = append(files, archived{name: name, path: filepath.Join(s.DataDir, filepath.FromSlash(name))})
+		path := filepath.Join(s.DataDir, filepath.FromSlash(name))
+		if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
+			continue
+		} else if err != nil {
+			return err
+		}
+		files = append(files, archived{name: name, path: path})
 	}
 	desc.Pictures = len(pictures)
 
