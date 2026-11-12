@@ -73,3 +73,29 @@ test('Everyone\'s asks the server for every profile\'s recordings; a profile tha
   assert.ok(!paths.some(path => path.startsWith('/v1/dvr/rules')), 'the rules read a profile may not make is never sent');
   assert.ok(paths.includes('/v1/dvr/recordings?state=history&scope=everyone'));
 });
+
+// Review desk B, #2896 round two.
+test('a command the server refuses on someone else’s recording is not read as losing access to Recordings', async () => {
+  // Everyone's: a member cancels a booking another profile made. The server answers 403 not_permitted
+  // (dvr.go deleteRecording), which is about that one recording, not about this profile's access.
+  const api = {async request<T>(_path: string, method?: string): Promise<T> {
+    if (method === 'DELETE') throw Object.assign(new Error('This action is not permitted.'), {status: 403, code: 'not_permitted'});
+    return {items: []} as T;
+  }};
+  const client = new NextDVRClient(api as never);
+  client.everyone = true;
+  let lostAccess = false;
+  client.onAccessChanged(() => {lostAccess = true;});
+  const theirs = nextRecording({id: 'rec_1', channel: 'BBC One', title: 'News', startsAt: '2026-11-12T20:00:00Z', endsAt: '2026-11-12T21:00:00Z',
+    padBeforeMs: 0, padAfterMs: 0, priority: 0, state: 'scheduled', inGuide: true, keep: false, fromRule: false, bookedBy: 'Ana'} as DvrRecording);
+  await assert.rejects(client.cancel(theirs));
+  assert.equal(lostAccess, false, 'the whole Recordings screen was retired as "no access"');
+});
+test('a refused read still retires what is shown', async () => {
+  const api = {async request<T>(): Promise<T> { throw Object.assign(new Error('forbidden'), {status: 403}); }};
+  const client = new NextDVRClient(api as never);
+  let lostAccess = false;
+  client.onAccessChanged(() => {lostAccess = true;});
+  await assert.rejects(client.list('upcoming'));
+  assert.equal(lostAccess, true);
+});

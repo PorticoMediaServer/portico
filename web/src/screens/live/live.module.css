@@ -342,6 +342,7 @@
 .groupPanel { background: var(--color-panel); }
 .groupPanel > header { padding: 30px 32px 10px; }
 .groupRow { display: grid; grid-template-columns: 120px minmax(0, 1fr) auto; gap: 16px; align-items: center; padding: 12px 0; border-top: 1px solid var(--color-line-soft); }
+.rowRefusal { grid-column: 1 / -1; margin: 0; color: var(--color-danger-text); font-size: var(--type-caption-size); }
 .groupCopy { min-width: 0; }
 .groupCopy b { display: block; font-size: var(--type-wide-title-size); font-weight: var(--type-row-heading-weight); }
 .groupCopy small { display: flex; align-items: center; font-size: calc(var(--type-caption-size) * 25 / 26); color: var(--color-text-tertiary); margin-top: 3px; }

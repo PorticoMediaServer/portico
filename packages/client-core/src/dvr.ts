@@ -308,7 +308,7 @@ export class DVRModel {
    else{const page=await this.client.list(query.view,query.cursor);if(epoch===this.epoch)this.publish({page,loading:false,accessDenied:false});}}
   catch(e){if(epoch===this.epoch)this.publish({loading:false,error:dvrMessage(e),...(isAccessError(e)?{page:null,storage:null,detail:null,accessDenied:true}:{})});}
  }
- async act(work:()=>Promise<unknown>):Promise<boolean>{if(this.snapshot.mutating||this.closed)return false;const epoch=this.epoch,mutation=++this.mutation;this.publish({mutating:true,error:''});try{await work();if(this.closed||epoch!==this.epoch)return false;await this.load();return true;}catch(e){if(!this.closed&&epoch===this.epoch)this.publish({error:dvrMessage(e),...(isAccessError(e)?{page:null,storage:null,detail:null,accessDenied:true}:{})});return false;}finally{if(mutation===this.mutation)this.publish({mutating:false});}}
+ async act(work:()=>Promise<unknown>):Promise<boolean>{if(this.snapshot.mutating||this.closed)return false;const epoch=this.epoch,mutation=++this.mutation;this.publish({mutating:true,error:''});try{await work();if(this.closed||epoch!==this.epoch)return false;await this.load();return true;}catch(e){/* A refused command (403) is a refusal of that command; only a lost sign-in (401) retires what is shown. */if(!this.closed&&epoch===this.epoch)this.publish({error:dvrMessage(e),...((e as {status?:unknown}|null)?.status===401?{page:null,storage:null,detail:null,accessDenied:true}:{})});return false;}finally{if(mutation===this.mutation)this.publish({mutating:false});}}
  async moreOverlaps(){
   const d=this.snapshot.detail,epoch=this.epoch,request=++this.overlapRequest;if(!d?.nextOverlap)return;
   try{const next=await this.client.detail(d.recording.id,d.nextOverlap);
