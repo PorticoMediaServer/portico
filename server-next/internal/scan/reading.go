@@ -246,8 +246,10 @@ func (r *run) embedded(file *found) (d details, read bool) {
 		if more == nil {
 			more = map[string]string{}
 		}
-		if words, err := reading.EPUBWords(f, f.Size()); err == nil {
-			more["word_count"] = strconv.Itoa(words)
+		if r.path.RemoteID == 0 || r.lib.Options.Depth == db.DepthComplete {
+			if words, err := reading.EPUBWords(f, f.Size()); err == nil {
+				more["word_count"] = strconv.Itoa(words)
+			}
 		}
 	} else {
 		raw, err := reading.ComicInfo(f, f.Size())

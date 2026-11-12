@@ -107,6 +107,8 @@ test('annotations made in this file are shown, those from an earlier copy stay l
 test('saving an original above 64 MB streams each chunk to the platform without a file-size cap', async () => {
   const size = 65 * 1024 * 1024, s = server('epub', size);
   const session = await s.client.open({itemId: 'itm_book', sourceId: 'med_one'});
+  await assert.rejects(session.saveFile('01234567-89ab-cdef-0123-456789abcdef'),
+    (error: unknown) => error instanceof ReadingError && error.code === 'response_size');
   let written = 0;
   await session.saveFileTo('01234567-89ab-cdef-0123-456789abcdef', async chunk => {assert.ok(chunk.length <= 65536); written += chunk.length;});
   assert.equal(written, size);
