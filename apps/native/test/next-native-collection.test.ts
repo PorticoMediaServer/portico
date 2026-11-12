@@ -40,11 +40,17 @@ const projection = (sort = 'custom') => ({
     entries: [{id: 'm1', kind: 'movie', title: 'Toy Story', year: 1995}, {id: 'm2', kind: 'movie', title: 'Toy Story 2', year: 1999, watched: true}]}],
 });
 
+// The rebuilt server's answers for a collection: its title, its library, and a window of its titles.
+const rebuilt = (url: URL, titles: (at: number, limit: number) => readonly unknown[], total: number) =>
+  url.pathname === '/v1/items' ? {items: titles(Number(url.searchParams.get('at') ?? 0), Number(url.searchParams.get('limit'))), total}
+  : url.pathname === '/v1/libraries/library' ? {id: 'library', name: 'Films', kind: 'movies'}
+  : {id: 'c1', kind: 'collection', title: 'Toy Story Collection', libraryId: 'library'};
+
 test('the collection controller reads the real collection view and its own sorts', async () => {
   const paths: string[] = [];
   const api = new HttpLocalApi('https://portico.test', '', async input => {
-    const url = new URL(String(input)); paths.push(url.search);
-    return new Response(JSON.stringify(projection(url.searchParams.get('sort') ?? 'custom')), {status: 200});
+    const url = new URL(String(input)); if (url.pathname === '/v1/items') paths.push(url.search);
+    return new Response(JSON.stringify(rebuilt(url, () => members, 2)), {status: 200});
   });
   const controller = new NativeCollectionController({api, scope: {serverId: 'server', viewerId: 'viewer'}, libraryId: 'library', collectionId: 'c1', title: 'Fallback', current: () => true});
   try {
@@ -64,9 +70,9 @@ test('the collection controller reads the real collection view and its own sorts
     await controller.sort('title', 'desc');
     await settle();
     assert.equal(paths.at(-1)?.includes('sort=title'), true);
+    assert.equal(paths.at(-1)?.includes('order=desc'), true);
     assert.equal(paths.at(-1)?.includes('cursor='), false, 'pages are read by index, never by cursor');
-    assert.equal(paths.at(-1)?.includes('view=collection'), true);
-    assert.equal(paths.at(-1)?.includes('entityId=c1'), true);
+    assert.equal(paths.at(-1)?.includes('collection=c1'), true);
   } finally {controller.dispose();}
 });
 
@@ -103,11 +109,10 @@ test('TV collection draws the name, film facts, Play all, Shuffle and the real m
 test('a long collection keeps a bounded window and reads evicted pages again by index', async () => {
   const total = 1000, starts: number[] = [];
   const api = new HttpLocalApi('https://portico.test', '', async input => {
-    const url = new URL(String(input)), start = Number(url.searchParams.get('start') ?? 0), limit = Number(url.searchParams.get('limit'));
-    starts.push(start);
-    const body = projection();
-    const entries = Array.from({length: Math.max(0, Math.min(limit, total - start))}, (_, n) => ({id: `m${start + n}`, kind: 'movie', title: `Film ${start + n}`, year: 2000}));
-    return new Response(JSON.stringify({...body, sections: [{...body.sections[0], totalCount: total, entries, start}]}), {status: 200});
+    const url = new URL(String(input));
+    if (url.pathname === '/v1/items') starts.push(Number(url.searchParams.get('at') ?? 0));
+    const titles = (start: number, limit: number) => Array.from({length: Math.max(0, Math.min(limit, total - start))}, (_, n) => ({id: `m${start + n}`, kind: 'movie', title: `Film ${start + n}`, year: 2000}));
+    return new Response(JSON.stringify(rebuilt(url, titles, total)), {status: 200});
   });
   const controller = new NativeCollectionController({api, scope: {serverId: 'server', viewerId: 'viewer'}, libraryId: 'library', collectionId: 'c1', title: 'Fallback', current: () => true});
   try {
