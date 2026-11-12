@@ -12,7 +12,8 @@ import (
 
 // An artist's page: every song crediting the artist, a page at a time with the total, from the
 // artist's own id; and Popular, the artist's songs most played on the server in the last
-// seven days first, then by plays ever, with songs nobody has played left out. A song a
+// seven days first, then by plays ever, by profiles that share their activity, with songs
+// nobody has played left out. A song a
 // profile may not see is in neither, nor in a count.
 func TestAnArtistsSongsAndPopularSongs(t *testing.T) {
 	s := newTestServer(t)
@@ -140,6 +141,19 @@ func TestAnArtistsSongsAndPopularSongs(t *testing.T) {
 	if err := s.db.SetProfilePreference(ctx, 1, db.PrefPauseHistory, "false", time.Now()); err != nil {
 		t.Fatal(err)
 	}
+	// The owner's profile does not share its activity yet (the Privacy setting is off unless
+	// turned on), so none of its plays count.
+	if got, _ := titles(owner, popular); len(got) != 0 {
+		t.Errorf("Popular from a profile that does not share its activity: %v", got)
+	}
+	share := func(on bool) {
+		t.Helper()
+		edit := PreferencesEdit{Scope: "profile-server", DeviceClass: "web", Values: map[string]any{db.PrefShareActivity: on}}
+		if code := status(t, s, "PATCH", "/v1/preferences", owner, edit); code != 200 {
+			t.Fatalf("saving the Privacy setting answered %d", code)
+		}
+	}
+	share(true)
 	// Charlie has three plays this week, Delta and Bravo one each (Delta more ever); Alpha none
 	// this week but four ever; Echo was only played with history paused; Foxtrot is Bo's.
 	if got, _ := titles(owner, popular); !slices.Equal(got, []string{"Charlie", "Delta", "Bravo", "Alpha"}) {
@@ -148,6 +162,12 @@ func TestAnArtistsSongsAndPopularSongs(t *testing.T) {
 	if got, _ := titles(onQuiet.AccessToken, popular); !slices.Equal(got, []string{"Delta", "Bravo", "Alpha"}) {
 		t.Errorf("Popular for the profile kept from the label: %v", got)
 	}
+	// Turned off again, the profile's plays leave Popular at once.
+	share(false)
+	if got, _ := titles(owner, popular); len(got) != 0 {
+		t.Errorf("Popular after the profile stopped sharing its activity: %v", got)
+	}
+	share(true)
 	// One album's songs can be sorted so too; a whole library cannot.
 	if got, _ := titles(owner, "/v1/items?parent="+get[Item](t, s, owner, "/v1/items/"+ids["Alpha id"]).ParentID+"&sort=popular"); len(got) != 4 {
 		t.Errorf("an album's songs by popularity: %v", got)
