@@ -3,8 +3,8 @@
 .find, .sheetFind { height: 46px; border-radius: 12px; background: var(--color-raised); box-shadow: inset 0 0 0 1px var(--color-line); display: flex; align-items: center; gap: 10px; padding: 0 12px 0 14px; color: var(--color-text-tertiary); }
 .find input, .sheetFind input { flex: 1; min-width: 0; background: none; border: 0; outline: 0; font: inherit; font-size: 15px; font-weight: 600; color: var(--color-text); }
 .find input::placeholder, .sheetFind input::placeholder { color: var(--color-text-tertiary); }
-.find:focus-within { box-shadow: inset 0 0 0 1px var(--color-line), 0 0 0 3px var(--color-focus); }
-.find input:focus-visible { outline: 0; }
+.find:focus-within, .sheetFind:focus-within { box-shadow: inset 0 0 0 1px var(--color-line), 0 0 0 3px var(--color-focus); }
+.find input:focus-visible, .sheetFind input:focus-visible { outline: 0; }
 .find input::-webkit-search-cancel-button { -webkit-appearance: none; display: none; }
 .clearSearch { width: 26px; height: 26px; flex: none; padding: 0; border: 0; border-radius: 50%; background: color-mix(in srgb, var(--color-text) 10%, transparent); color: var(--color-text-secondary); display: grid; place-items: center; cursor: pointer; }
 .accountNav { margin-top: 24px; }
@@ -29,6 +29,7 @@
 .serverNavHeader small { display: block; font-size: 13px; font-weight: 600; color: var(--color-text-tertiary); margin-top: 1px; }
 .roleBadge { font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: color-mix(in srgb, var(--color-ink) 60%, transparent); color: var(--color-text-secondary); }
 .settingsNav[data-layout='phone'] { width: 100%; }
+.settingsNav[data-layout='phone'] .find { margin: 0 20px 16px; }
 .settingsNav[data-layout='phone'] .accountNav { margin-top: 18px; }
 .settingsNav[data-layout='phone'] .groupHeading { margin: 0 20px 8px; padding: 0; font-size: 13.5px; color: var(--color-text-tertiary); }
 .settingsNav[data-layout='phone'] .groupHeading small { display: none; }
