@@ -725,8 +725,8 @@
     "category": "platform-url",
     "reason": "Approved CC-3 player/event byte transport: The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
     "sites": [
-      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoEventStream.kt#67ad1f839c71556c",
-      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoEventStream.kt#190d7495e63ddc0b"
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoEventStream.kt#06d581daf16b55f5",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoEventStream.kt#74be33646c7363e6"
     ]
   },
   "apps/vega/src/bridge/event-stream.ts": {

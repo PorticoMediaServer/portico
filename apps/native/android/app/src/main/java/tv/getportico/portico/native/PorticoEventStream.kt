@@ -5,10 +5,12 @@ import android.os.SystemClock
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReadableMap
+import com.facebook.react.bridge.WritableMap
 import java.io.IOException
 import java.io.InterruptedIOException
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.OkHttpClient
@@ -21,9 +23,13 @@ internal object PorticoEventStream {
     var response: Response? = null
     var reading = false
     var received = 0L
+    /** The response is closed once, by whichever of cancel and the reader gets there first. */
+    val closed = AtomicBoolean(false)
   }
 
   private val entries = HashMap<String, Entry>()
+  /** The maps handed back to JavaScript; a JVM test, which has no React Native library, swaps in JavaOnlyMap. */
+  internal var newMap: () -> WritableMap = { Arguments.createMap() }
   private val readers = Executors.newFixedThreadPool(4)
   private val client by lazy {
     OkHttpClient.Builder().porticoTrust()
@@ -59,9 +65,9 @@ internal object PorticoEventStream {
           promise.reject("event_redirect", "Event redirects are not allowed.")
           return
         }
-        val result = Arguments.createMap()
+        val result = newMap()
         result.putInt("status", response.code)
-        val fields = Arguments.createMap()
+        val fields = newMap()
         for (name in response.headers.names()) fields.putString(name, response.headers.values(name).joinToString(", "))
         result.putMap("headers", fields)
         synchronized(entries) {
@@ -97,7 +103,7 @@ internal object PorticoEventStream {
           entry.reading = false
           count < 0 || entry.received > 1048576
         }
-        val result = Arguments.createMap()
+        val result = newMap()
         result.putBoolean("done", ended)
         if (!ended && count > 0) result.putString("data", Base64.encodeToString(bytes.copyOf(count), Base64.NO_WRAP))
         if (ended) cancel(id, entry)
@@ -106,7 +112,7 @@ internal object PorticoEventStream {
         val expired = SystemClock.elapsedRealtime() - entry.startedAt >= 2_100_000
         val cancelled = synchronized(entries) { entries[id] !== entry }
         cancel(id, entry)
-        if (expired) promise.resolve(Arguments.createMap().apply { putBoolean("done", true) })
+        if (expired) promise.resolve(newMap().apply { putBoolean("done", true) })
         else {
           val code = when {
             cancelled -> "event_cancelled"
@@ -116,6 +122,9 @@ internal object PorticoEventStream {
           }
           promise.reject(code, "The event connection was interrupted.")
         }
+      } finally {
+        // A stream cancelled while this read was in flight is closed here, on the thread that read it.
+        if (synchronized(entries) { entries[id] !== entry }) close(entry)
       }
     }
   }
@@ -124,13 +133,22 @@ internal object PorticoEventStream {
 
   /** A late callback can end its own stream, never a replacement with the same identifier. */
   private fun cancel(id: String?, expected: Entry?) {
-    val entry = synchronized(entries) {
+    val (entry, reading) = synchronized(entries) {
       val current = entries[id] ?: return
       if (expected != null && current !== expected) return
       entries.remove(id)
-    } ?: return
+      current to current.reading
+    }
     entry.call.cancel()
-    entry.response?.close()
+    // A read in flight owns the response's source: closing it from this thread, under that read,
+    // throws "Unbalanced enter/exit" from OkHttp. The cancelled call ends the read, and the reader
+    // closes the response itself once it sees its stream is gone.
+    if (!reading) close(entry)
+  }
+
+  private fun close(entry: Entry) {
+    if (!entry.closed.compareAndSet(false, true)) return
+    try { entry.response?.close() } catch (_: Exception) { /* the connection is already gone */ }
   }
 
   fun cancelOwnedBy(owner: Any) {
