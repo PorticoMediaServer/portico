@@ -34,6 +34,8 @@ function server(format: 'epub' | 'cbz' | 'pdf' = 'epub', saveSize?: number) {
     if (path.startsWith('/v1/items/itm_book/annotations/')) return init.method === 'DELETE' ? new Response(null, {status: 204}) : json({id: path.split('/').pop()});
     if (path === '/v1/media/b.first/parts/OEBPS/chapter 1.xhtml') return json({error: {code: 'not_found'}}, 404);
     if (path === '/v1/media/b.second/parts/OEBPS/chapter 1.xhtml') return new Response(chapter, {headers: {'Content-Type': 'application/xhtml+xml', 'Content-Length': String(chapter.length)}});
+    if (init.method === 'HEAD' && path === '/v1/media/b.first/source') return json({error: {code: 'not_found'}}, 404);
+    if (init.method === 'HEAD' && path === '/v1/media/b.second/source') return new Response(null, {headers: {'Content-Disposition': 'attachment; filename=book.pdf'}});
     throw new Error('unexpected request ' + init.method + ' ' + path);
   };
   const client = new HttpLocalApi('http://127.0.0.1:39117', 'token', fetcher).reading({viewer, isCurrent: () => true});
@@ -112,4 +114,14 @@ test('saving an original above 64 MB streams each chunk to the platform without 
   let written = 0;
   await session.saveFileTo('01234567-89ab-cdef-0123-456789abcdef', async chunk => {assert.ok(chunk.length <= 65536); written += chunk.length;});
   assert.equal(written, size);
+});
+
+// A browser saves a book's own file by following its save address, so a file of any size is saved
+// and nothing is held in the page (10-reading rule 45). An address that has ended is asked for again.
+test('a book is saved from its full save address, asked for again when it has ended', async () => {
+  const s = server('pdf');
+  const session = await s.client.open({itemId: 'itm_book', sourceId: 'med_one'});
+  s.renew();
+  assert.equal(await session.saveAddress(), 'http://127.0.0.1:39117/v1/media/b.second/source?save=1');
+  assert.deepEqual(s.calls.filter(call => call.url.pathname.startsWith('/v1/media/')).map(call => call.init.method), ['HEAD', 'HEAD'], 'only headers are read');
 });
