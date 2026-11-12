@@ -1,7 +1,7 @@
 import {headerWordmark} from '../kit/shell/brand';
 import React, {useCallback, useMemo, useRef, useSyncExternalStore} from 'react';
 import {motionRules} from '@portico/design';
-import {findNodeHandle, Image, ScrollView, Text, View} from 'react-native';
+import {findNodeHandle, Image, Platform, ScrollView, Text, View} from 'react-native';
 import Svg, {Defs, LinearGradient, Rect, Stop, Path} from 'react-native-svg';
 import Animated, {useAnimatedStyle, useSharedValue, withDelay, withTiming} from 'react-native-reanimated';
 import {defaultI18n} from '../../../../packages/i18n/src';
@@ -60,7 +60,14 @@ export function TVRail({libraries, hasLiveTV, destination, profile, unread = fal
     labelOpacity.value = value ? withDelay(motion.transforms ? motionRules.staggerMs[0] : 0, withTiming(1, motion.timing('standard'))) : withTiming(0, motion.timing('quick'));
   };
   const changeRef = useRef(change); changeRef.current = change;
-  const focusChanged = useCallback((owns: boolean) => changeRef.current(owns), []);
+  // Apple TV enters the closed rail by geometry (react-native-tvos places a nextFocusLeft guide inside a focused card that has
+  // grown, so it is never used): Left lands on whichever item is level with the card. Entering from the page goes to the
+  // current page's item, as Android TV's nextFocusLeft does.
+  const opened = useRef(false);
+  const focusChanged = useCallback((owns: boolean) => {
+    if (owns && !opened.current && Platform.OS === 'ios') registry.focusRegion(ids.rail);
+    opened.current = owns; changeRef.current(owns);
+  }, [registry, ids.rail]);
   React.useEffect(() => {if (!motion.transforms) expanded.value = open ? 1 : 0;}, [expanded, motion.transforms, open]);
   const panel = useAnimatedStyle(() => ({transform: [{translateX: (expanded.value - 1) * (spec.openWidth - spec.width)}]}));
   const counter = useAnimatedStyle(() => ({transform: [{translateX: (1 - expanded.value) * (spec.openWidth - spec.width)}]}));
