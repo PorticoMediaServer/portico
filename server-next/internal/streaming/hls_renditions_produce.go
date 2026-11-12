@@ -2,6 +2,7 @@ package streaming
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -143,6 +144,11 @@ func (h *HLS) produceRendition(ctx context.Context, id string, r AudioRenditionP
 		return
 	}
 	dir, err := h.createStreamingOutput(ctx, id, plan)
+	if errors.Is(err, ErrSegmentPreparing) {
+		// The stream's folder is busy for a moment (another window is making it, or it is
+		// being moved): not a failure of this track. The request waiting asks again.
+		return
+	}
 	if err != nil {
 		failed(FailureOutOfSpace)
 		return
