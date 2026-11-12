@@ -297,3 +297,10 @@ func (d *DB) PorticoAccountID(ctx context.Context, userID int64) (string, error)
 	err := d.read.QueryRowContext(ctx, `SELECT portico_account_id FROM users WHERE id = ?`, userID).Scan(&id)
 	return id.String, notFound(err)
 }
+
+// OwnerUserID is the owner's account, for what only the owner's devices are told.
+func (d *DB) OwnerUserID(ctx context.Context) (int64, error) {
+	var id int64
+	err := d.read.QueryRowContext(ctx, `SELECT id FROM users WHERE role = 'owner'`).Scan(&id)
+	return id, notFound(err)
+}

@@ -38,6 +38,8 @@ export function serverEventsFrom(frame: Frame): readonly ServerEvent[] {
     // (the id is the request), or what a device plays changed or was sent a command (the session).
     case 'receiver': case 'playback': return [{id, type: change.topic + '.changed', ...(typeof change.id === 'string' && change.id ? {resource: {kind: change.topic, id: change.id}} : {})}];
     case 'person': case 'list': return [{id, type: change.topic + '.changed', ...(typeof change.id === 'string' && change.id ? {resource: {kind: change.topic, id: change.id}} : {})}];
+    // What the owner's activity panel and Now playing show changed (a stream, a scan or a task): they read again. The server sends it to the owner's devices only.
+    case 'activity': return [{id, type: 'admin.sessions'}];
     default: return [{id, type: 'stream.unknown'}];
   }
 }
