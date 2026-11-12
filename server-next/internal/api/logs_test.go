@@ -91,6 +91,38 @@ func TestMessagesAndSupportExport(t *testing.T) {
 		r, _ := f.Open()
 		raw, _ := io.ReadAll(r)
 		files[f.Name] = string(raw)
+		r.Close()
+	}
+	var capabilities ServerCapabilities
+	if err := json.Unmarshal([]byte(files["capabilities.json"]), &capabilities); err != nil {
+		t.Fatal(err)
+	}
+	areas := map[string]bool{}
+	for _, c := range capabilities.Items {
+		areas[c.Area] = true
+	}
+	if !areas["ffmpeg"] || !areas["graphics"] || !areas["folders"] || !areas["protection"] ||
+		strings.Contains(files["capabilities.json"], s.dataDir) || !strings.Contains(files["capabilities.json"], "[path]") {
+		t.Fatalf("the export's capabilities: %s", files["capabilities.json"])
+	}
+	withPaths := call(t, s, "POST", "/v1/admin/support-export", owner.AccessToken, SupportExportRequest{Days: 1, IncludePaths: true}, nil)
+	included, err := zip.NewReader(bytes.NewReader(withPaths.Body.Bytes()), int64(withPaths.Body.Len()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range included.File {
+		if f.Name != "capabilities.json" {
+			continue
+		}
+		r, err := f.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw, err := io.ReadAll(r)
+		r.Close()
+		if err != nil || !strings.Contains(string(raw), s.dataDir) {
+			t.Fatalf("Include paths lost the capabilities' data folder: %s (%v)", raw, err)
+		}
 	}
 	messages := files["messages.jsonl"]
 	if !strings.Contains(messages, "a library folder cannot be read") || strings.Contains(messages, "heat.mkv") || strings.Contains(messages, "hunter2") ||

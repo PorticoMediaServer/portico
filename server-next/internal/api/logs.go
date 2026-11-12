@@ -303,6 +303,8 @@ func (s *Server) supportExport(w http.ResponseWriter, r *http.Request, req Suppo
 		}
 	}
 	add("settings.json").Encode(settingsOut)
+	capabilities, _ := json.Marshal(s.serverCapabilities(r.Context()))
+	add("capabilities.json").Encode(cleanValues(capabilities, clean))
 	if s.serverLog != nil {
 		messages := add("messages.jsonl")
 		for _, file := range s.serverLog.Files(from) {
