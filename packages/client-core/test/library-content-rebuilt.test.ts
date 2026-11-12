@@ -280,6 +280,8 @@ test('an audiobook of several files lists its parts plainly; only the first, the
   assert.deepEqual(snap.sections.find(section => section.id === 'files')!.entries.map(entry => [entry.kind, entry.title, entry.duration, entry.playback]), [
     ['audiobook_file', 'Part 1', undefined, {itemId: 'bk_1', startSeconds: 0}], ['audiobook_file', 'Part 2', undefined, undefined]]);
   assert.equal(snap.projection?.entity?.bookProgress, undefined, 'nothing listened to yet');
-  assert.deepEqual(snap.projection?.listening?.resume, {itemId: 'bk_1', positionSeconds: 0});
+  // A several-file book plays only its first file on the rebuilt server today: no Resume, Play from the start only (a stopgap).
+  assert.equal(snap.projection?.listening?.resume, undefined);
+  assert.deepEqual(snap.projection?.listening?.actions, ['play', 'enqueue']);
   nav.dispose();
 });

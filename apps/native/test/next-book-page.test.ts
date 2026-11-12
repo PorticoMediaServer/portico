@@ -385,7 +385,7 @@ const rebuiltBook = (id: string, parts: number, positionMs = 0) => ({id, kind: '
 const rebuiltSeries = {id: 'series-1', kind: 'series', title: 'Series', libraryId: 'books', images: {}, addedAt: '2026-11-12T00:00:00Z', state: {}};
 const volume = (id: string) => ({id, kind: 'audiobook', title: id, libraryId: 'books', images: {}, addedAt: '2026-11-12T00:00:00Z', state: {}});
 
-test('a book of eighty-one parts lists them all from its detail and resumes from the listener\'s place', async () => {
+test('a book of eighty-one parts lists them all from its detail, offers no Resume, and Start over plays it from the beginning', async () => {
   const starts: any[] = [], requests: string[] = [];
   const api = {request: async (path: string) => {
     requests.push(path);
@@ -400,8 +400,11 @@ test('a book of eighty-one parts lists them all from its detail and resumes from
   await value.load(lease);
   assert.equal(value.getSnapshot().sections[0].id, 'files');
   assert.equal(value.getSnapshot().sections[0].entries.length, 81, 'the detail lists every part; nothing pages');
+  // Stopgap: the rebuilt server plays only a several-file book's first file, so a place past it is not resumed.
   await value.resume(lease);
-  assert.deepEqual(starts[0].target, {itemId: 'book-1', startSeconds: 2520});
+  assert.equal(starts.length, 0);
+  await value.startOver(lease);
+  assert.deepEqual(starts[0].target, {itemId: 'book-1', startSeconds: 0});
   await value.next('files', lease);
   assert.equal(requests.filter(path => path.startsWith('/v1/items/')).length, 1);
   assert.equal(value.getSnapshot().entity.id, 'book-1');
