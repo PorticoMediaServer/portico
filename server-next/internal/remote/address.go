@@ -191,37 +191,41 @@ func dialControl(ctx context.Context) func(network, address string, c syscall.Ra
 }
 
 // rcloneAddressOption says an option's value names a place to connect to: its name says so
-// (host, hostname, namenode, endpoint, url, auth, or ending in _url, _endpoint or _address),
-// or its value is an address with a scheme.
+// (host, hostname, namenode, endpoint, url, auth, site, socks_proxy, or ending in _url,
+// _endpoint or _address), or its value is an address with a scheme.
 func rcloneAddressOption(key, value string) bool {
 	switch key {
-	case "host", "hostname", "namenode", "endpoint", "url", "auth":
+	case "host", "hostname", "namenode", "endpoint", "url", "auth", "site", "socks_proxy":
 		return true
 	}
 	return strings.HasSuffix(key, "_url") || strings.HasSuffix(key, "_endpoint") || strings.HasSuffix(key, "_address") || strings.Contains(value, "://")
+}
+
+// optionHost is the host an option names, or "" when it names none.
+func optionHost(key, value string) string {
+	value = strings.TrimSpace(value)
+	if key == "type" || value == "" || value == "true" || value == "false" || !rcloneAddressOption(key, value) {
+		return ""
+	}
+	if strings.Contains(value, "://") {
+		if u, err := url.Parse(value); err == nil {
+			return u.Hostname()
+		}
+		return value
+	}
+	// host, host:port, [v6]:port, or node@host:port.
+	host := value[strings.LastIndex(value, "@")+1:]
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	return host
 }
 
 // rcloneHosts are the hosts a remote's options name.
 func rcloneHosts(options map[string]string) []string {
 	var hosts []string
 	for key, value := range options {
-		value = strings.TrimSpace(value)
-		if key == "type" || value == "" || value == "true" || value == "false" || !rcloneAddressOption(key, value) {
-			continue
-		}
-		host := value
-		if strings.Contains(value, "://") {
-			if u, err := url.Parse(value); err == nil {
-				host = u.Hostname()
-			}
-		} else {
-			// host, host:port, [v6]:port, or node@host:port.
-			host = host[strings.LastIndex(host, "@")+1:]
-			if h, _, err := net.SplitHostPort(host); err == nil {
-				host = h
-			}
-		}
-		if host != "" {
+		if host := optionHost(key, value); host != "" {
 			hosts = append(hosts, host)
 		}
 	}
@@ -251,13 +255,25 @@ func rcloneAddressRefusal(options map[string]string) error {
 		if key == "type" {
 			continue
 		}
+		host := plainHost(optionHost(key, value))
 		for _, piece := range valuePieces(value) {
+			// "metadata" and "instance-data" are also ordinary words (a description, a user's
+			// name): they count only as the host an option names. An address, or a name with a
+			// dot, counts anywhere.
+			if word := plainHost(piece); metadataNames[word] && !strings.Contains(word, ".") && word != host {
+				continue
+			}
 			if kind, _ := textKind(piece); kind == linkLocalAddress {
 				return ErrAddressRefused
 			}
 		}
 	}
 	return nil
+}
+
+// plainHost is a host as compared: lower case, without brackets or a trailing dot.
+func plainHost(host string) string {
+	return strings.ToLower(strings.TrimSuffix(strings.Trim(host, "[]"), "."))
 }
 
 func isMetadataIP(ip net.IP) bool {
