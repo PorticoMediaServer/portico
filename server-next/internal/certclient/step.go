@@ -78,7 +78,7 @@ func (c *Client) Step(ctx context.Context) time.Time {
 			// A start inside a wait: say where things stand, so a certificate already
 			// installed and still good is in use now and not when the wait ends.
 			next := c.state.NextTryAt
-			c.set(Status{State: "waiting", NextTryAt: &next})
+			c.set(Status{State: "waiting", Message: msgPaused, NextTryAt: &next})
 		}
 		return c.state.NextTryAt
 	}
