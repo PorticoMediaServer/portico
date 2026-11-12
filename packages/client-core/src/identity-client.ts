@@ -49,6 +49,10 @@ export class IdentityClient{
  async resetPIN(profileId:string,pin:string,proof?:Readonly<{currentPassword:string;code?:string}>,signal?:AbortSignal):Promise<void>{
   await callServer(this.api,'PUT /v1/profiles/{id}/pin',{id:profileId,body:{pin,...(proof?{currentPassword:proof.currentPassword,...(proof.code?{code:proof.code}:{})}:{})},signal});
  }
+ /** A Portico PIN recovery uses only Services' password-checked note, never the password itself. */
+ async resetPorticoPIN(profileId:string,pin:string,proof:Readonly<{challenge:string;identity:unknown}>,signal?:AbortSignal):Promise<void>{
+  await callServer(this.api,'PUT /v1/profiles/{id}/pin',{id:profileId,body:{pin,challenge:proof.challenge,identity:proof.identity},signal});
+ }
  async removeAvatar(profileId:string):Promise<void>{await this.api.request(encodedRoutePath("delete_direct_profiles_id_avatar", {"id": id(profileId)}),'DELETE');}
  avatar(raw:unknown):ProfileAvatar{return parseProfileAvatar(raw);}
  /** Every profile's current picture version in one read; a profile with none is absent. */

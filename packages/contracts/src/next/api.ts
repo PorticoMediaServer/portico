@@ -2767,6 +2767,8 @@ export interface ProfilePIN {
   pin: string;
   currentPassword?: string;
   code?: string;
+  challenge?: string;
+  identity?: unknown;
 }
 
 export interface ProfilePage {

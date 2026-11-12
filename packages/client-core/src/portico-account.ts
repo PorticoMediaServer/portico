@@ -181,6 +181,9 @@ export function porticoAccount(held: HeldSignIn, origin = '', {cookie = false, f
      * minutes); `note` is the server's news when it is behind, for the app to carry there. */
     serverIdentity: (server: string, challenge: string, signal?: AbortSignal) =>
       person<{identity: unknown; note?: unknown}>('serverIdentity', {id: server}, {challenge}, {signal}),
+    /** A PIN recovery note: Services checks this typed password and two-step code before marking it. */
+    serverPINIdentity: (server: string, challenge: string, proof: Proof, signal?: AbortSignal) =>
+      person<{identity: unknown}>('serverIdentity', {id: server}, {challenge, ...proof}, {signal}),
     leaveServer: (server: string) => person<void>('leaveServer', {id: server}),
     removeServer: (server: string) => person<void>('removeServer', {id: server}),
     lookupTV: (code: string) => person<TVCode>('tvLookup', {}, {code}),

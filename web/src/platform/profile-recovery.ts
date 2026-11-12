@@ -1,7 +1,9 @@
 import {HttpLocalApi, type LocalSession} from '@core/index.ts';
 import type {DirectSnapshot} from '@core/profile-management.ts';
 import type {SignInKind} from '@core/app-sessions.ts';
-import {ProfileRecoveryController, type ProfileRecoveryState} from '@core/profile-recovery.ts';
+import {account, accountSession} from '../services/account-session';
+import {porticoAccountHolder} from './portico-account-holder';
+import {ProfileRecoveryController, type ProfileRecoveryState, type PorticoPINProofSource} from '@core/profile-recovery.ts';
 
 /** The PIN recovery lifecycle is shared with native in client-core. A temporary
  * sign-in proves one PIN reset. It never replaces the selected server/viewer,
@@ -27,6 +29,10 @@ export class BrowserProfileRecovery {
   portico() {
     return this.flow.portico();
   }
+  async porticoPassword(password: string, twoStepCode = '') {
+    const source = await browserPorticoPINProof();
+    if (!this.disposed) await this.flow.porticoPassword(password, twoStepCode, source);
+  }
   code(code: string) {return this.flow.code(code);}
   reset(pin: string) {return this.flow.reset(pin);}
   async openProfile(pin: string, current: () => boolean) {
@@ -34,4 +40,11 @@ export class BrowserProfileRecovery {
     await this.openRecovered(pin, current);
   }
   dispose() {this.disposed = true; this.flow.dispose();}
+}
+
+/** The browser account held for this one recovery attempt. No local recovery calls this. */
+export async function browserPorticoPINProof(): Promise<PorticoPINProofSource> {
+  const signIns = accountSession.signIns(), who = await porticoAccountHolder.who();
+  return {accountId: who.id, isCurrent: () => accountSession.signedIn() && accountSession.signIns() === signIns,
+    identity: (serverId, challenge, proof, signal) => account.serverPINIdentity(serverId, challenge, proof, signal)};
 }
