@@ -90,6 +90,10 @@ type Account struct {
 	Email    string `json:"email,omitempty"`
 	// Role is the account's own role. A session's role can be lower: see Viewer.
 	Role string `json:"role"`
+	// HostedAccountID is the Portico Account this account signs in with, on a server that
+	// uses Portico Accounts. Only GET /v1/me sends it, to the account's own person: a member
+	// list never shows anyone else's.
+	HostedAccountID string `json:"hostedAccountId,omitempty"`
 }
 
 // SignInResponse is the answer to a sign-in: the new session, the account and its profiles.
@@ -482,6 +486,9 @@ func (s *Server) me(r *http.Request, _ None) (Me, error) {
 		return Me{}, err
 	}
 	out := Me{Account: accountOut(account), Role: caller.Role, CanManageAccount: caller.Manage}
+	if out.Account.HostedAccountID, err = s.db.PorticoAccountID(ctx, caller.UserID); err != nil {
+		return Me{}, err
+	}
 	if caller.ProfileID != 0 {
 		p, err := s.db.ProfileByID(ctx, caller.UserID, caller.ProfileID)
 		if err != nil {
