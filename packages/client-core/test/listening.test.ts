@@ -1,5 +1,6 @@
 import test,{type TestContext} from 'node:test';
 import assert from 'node:assert/strict';
+import {legacyListening} from './fixtures/legacy-listening.ts';
 import {ListeningService,loadListeningSelection,listeningItemInput,parseListeningJourney,parseListeningPreferences,readBookTimeline,readListeningItem,readListeningContext,type ListeningRequest} from '../src/listening.ts';
 import type {PlaybackService} from '../src/index.ts';
 import {defaultAudiobookPreferences,type AudiobookPreferences} from '../src/audiobook-preferences.ts';
@@ -40,9 +41,10 @@ function setup(t:TestContext,options:{preferences?:Partial<typeof prefs>;context
   const id=path.split('/')[3];return wrapped(options.context?.(id)??{itemId:id,libraryId:'library',kind:'song',albumId:'album',artistId:'artist'});
  });
  const queue=options.queue??(()=>({queueId:'queue',entryId:'entry-1'}));
- const service=new ListeningService(scope,request,engine as unknown as PlaybackService,()=>now,undefined,options.audiobook,queue);
+ const sent:{path:string;body:unknown;method?:string}[]=[];
+ const service=new ListeningService(scope,legacyListening(request,(path,body,method)=>sent.push({path,body,method})),engine as unknown as PlaybackService,()=>now,undefined,options.audiobook,queue);
  t.after(()=>service.dispose());
- service.connect();return {service,engine,writes,setNow:(v:number)=>{now=v;}};
+ service.connect();return {service,engine,writes,sent,setNow:(v:number)=>{now=v;}};
 }
 test('preferences strictly validate rates, revision and bounded inactivity choices; scope is never caller-switchable',async()=>{
  assert.deepEqual(parseListeningPreferences(prefs),prefs);
@@ -106,10 +108,10 @@ test('late old-profile reads and disposed clocks cannot publish or pause',async 
  let resolve!:(v:unknown)=>void;const f=setup(t,{request:()=>new Promise(r=>{resolve=r;})});f.service.dispose();resolve(wrapped(prefs));await settle();f.setNow(99*60000);f.service.tick();
  assert.equal(f.service.getSnapshot().phase,'disposed');assert.equal(f.service.getSnapshot().context,null);assert.equal(f.engine.pauses,0);
 });
-test('save conflict retains actual preference and demands explicit reload; context retry is real',async t=>{
+test('a refused save keeps the actual preference and asks for a reload (the rebuilt server keeps the later save, with no conflict); context retry is real',async t=>{
  let failedContext=true;const f=setup(t,{request:async(path,_body,method)=>{if(path==='/v1/listening/preferences'){if(method==='PUT')throw Object.assign(new Error('conflict'),{code:'listening_preferences_conflict'});return wrapped(prefs);}if(failedContext)throw new Error('offline');return wrapped({itemId:'song',libraryId:'library',kind:'song'});}});await settle();
  assert.equal(f.service.getSnapshot().context,null);failedContext=false;f.service.retryContext();await settle();assert.equal(f.service.getSnapshot().context?.itemId,'song');
- await assert.rejects(f.service.savePreferences({bookRate:2}),/changed on another device/);assert.deepEqual(f.service.getSnapshot().preferences,prefs);assert.equal(f.service.getSnapshot().phase,'error');await f.service.refreshPreferences();assert.equal(f.service.getSnapshot().phase,'ready');
+ await assert.rejects(f.service.savePreferences({bookRate:2}),/could not be confirmed/);assert.deepEqual(f.service.getSnapshot().preferences,prefs);assert.equal(f.service.getSnapshot().phase,'error');await f.service.refreshPreferences();assert.equal(f.service.getSnapshot().phase,'ready');
 });
 test('full listening action reads every signed page, preserving server order and mix seed',async()=>{
  const items=Array.from({length:205},(_,i)=>listeningItemInput(`song-${i}`,target));let calls=0;
@@ -177,7 +179,7 @@ test('PERF-24: a video session never asks for listening details; a listening one
  const engine=new Engine();const paths:string[]=[];
  const request:ListeningRequest=async(path)=>{paths.push(path);if(path==='/v1/listening/preferences')return wrapped(prefs);const id=path.split('/')[3];return wrapped({itemId:id,libraryId:'library',kind:'song',albumId:'album',artistId:'artist'});};
  engine.state={...engine.state,itemId:'movie',session:{id:'s_movie',generation:1}};
- const service=new ListeningService(scope,request,engine as unknown as PlaybackService,()=>0,(itemId,sessionId)=>!(itemId==='movie'&&sessionId==='s_movie'));
+ const service=new ListeningService(scope,legacyListening(request),engine as unknown as PlaybackService,()=>0,(itemId,sessionId)=>!(itemId==='movie'&&sessionId==='s_movie'));
  t.after(()=>service.dispose());
  service.connect();await settle();
  assert.equal(paths.filter(p=>p.includes('/items/')).length,0,'no /listening for the movie');
@@ -659,4 +661,13 @@ test('MU-4: a failing details read retries only once on its own',async t=>{
  let reads=0;const f=setup(t,{request:async path=>{if(path==='/v1/listening/preferences')return wrapped(prefs);reads++;throw new Error('offline');}});await settle();
  t.mock.timers.tick(5000);await settle();t.mock.timers.tick(60000);await settle();
  assert.equal(reads,2);assert.equal(f.service.mayAdvance(),true);
+});
+
+test('the two listening settings are the profile\'s own settings: read from /v1/preferences and saved there for the profile everywhere',async t=>{
+ const f=setup(t);await settle();
+ assert.deepEqual(f.service.getSnapshot().preferences,prefs);
+ assert.equal(f.sent[0]?.path,'/v1/preferences?deviceClass=web');
+ await f.service.savePreferences({bookRate:2,passoutMinutes:60});
+ assert.deepEqual(f.sent.at(-1),{path:'/v1/preferences',method:'PATCH',body:{scope:'profile-server',deviceClass:'web',values:{'audiobooks.defaultSpeed':2,'playback.sleepTimerMinutes':60}}});
+ assert.deepEqual([f.service.getSnapshot().preferences?.bookRate,f.service.getSnapshot().preferences?.passoutMinutes],[2,60]);
 });

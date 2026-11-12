@@ -8,6 +8,9 @@ import {retainMusicMixes} from '../src/screens/browse/music-mixes-owner.ts';
 import {bindMusicMixes} from '../src/screens/browse/music-mixes-binding.ts';
 import type {ShellAssemblyContext} from '../src/shell/bootstrap';
 import type {QueueHeader} from '@core/playback-v1/types.ts';
+// These wait for the rebuilt server's Mixes read (GET /v1/music/mixes, Mixes PR 2, after the sound model in #2932):
+// until it lands the Mixes row is hidden by one switch (`mixesOnServer` in client-core music-mixes-controller.ts).
+const waitsForServerMixes = {skip: 'waits for the rebuilt server\'s GET /v1/music/mixes (Mixes PR 2); the row is hidden until it lands'};
 
 const principal = {serverId: 'unit-server', authority: 'local' as const, accountId: 'unit-account', profileId: 'unit-profile'};
 const operationId = '11111111-1111-4111-8111-111111111111';
@@ -35,7 +38,7 @@ function setup(handler?: (path: string, method: string, body: unknown, signal?: 
 }
 const caller = () => ({signal: new AbortController().signal, isCurrent: () => true});
 
-test('one generated read preserves server order/art/counts and exposes only canonical localized names', async () => {
+test('one generated read preserves server order/art/counts and exposes only canonical localized names', waitsForServerMixes, async () => {
   const f = setup();assert.equal(f.calls.length, 0);
   try {
     const a = f.source.load(), b = f.source.load();assert.strictEqual(a, b);await a;
@@ -49,7 +52,7 @@ test('one generated read preserves server order/art/counts and exposes only cano
   } finally {f.source.dispose();}
 });
 
-test('all four captured principal fields fence the response without borrowing a viewerFence', async () => {
+test('all four captured principal fields fence the response without borrowing a viewerFence', waitsForServerMixes, async () => {
   for (const field of ['serverId', 'authority', 'accountId', 'profileId'] as const) {
     const f = setup(async () => {const data = page();data.scope = {...data.scope, [field]: 'other'};return data;});
     await assert.rejects(f.source.load());assert.equal(f.source.getSnapshot().phase, 'retired');assert.deepEqual(f.source.getSnapshot().rows, []);
@@ -57,7 +60,7 @@ test('all four captured principal fields fence the response without borrowing a 
   }
 });
 
-test('Save uses the displayed canonical name and one captured operation receipt; no duplicate copy is dispatched', async () => {
+test('Save uses the displayed canonical name and one captured operation receipt; no duplicate copy is dispatched', waitsForServerMixes, async () => {
   const held = deferred<unknown>(), f = setup(async (_path, method) => method === 'GET' ? page() : held.promise);
   try {
     await f.source.load();const row = f.source.getSnapshot().rows[1];
@@ -69,7 +72,7 @@ test('Save uses the displayed canonical name and one captured operation receipt;
   } finally {held.resolve(receipt());f.source.dispose();}
 });
 
-test('stale Save or Play 404 only refreshes this row and never retries a playlist copy', async () => {
+test('stale Save or Play 404 only refreshes this row and never retries a playlist copy', waitsForServerMixes, async () => {
   for (const action of ['save', 'play']) {
     let reads = 0;
     const f = setup(async (_path, method) => {if (method === 'GET') return page(++reads === 1 ? 'old' : 'fresh');throw denied(404);});
@@ -83,7 +86,7 @@ test('stale Save or Play 404 only refreshes this row and never retries a playlis
   }
 });
 
-test('an unknown copy outcome retains its original operation across refresh and never creates a replacement receipt', async () => {
+test('an unknown copy outcome retains its original operation across refresh and never creates a replacement receipt', waitsForServerMixes, async () => {
   let copies = 0, ids = 0;
   const f = setup(async (_path, method) => {
     if (method === 'GET') return page();
@@ -98,7 +101,7 @@ test('an unknown copy outcome retains its original operation across refresh and 
   } finally {f.source.dispose();}
 });
 
-test('Play sends only the genuine mix container through the original caller lifetime and same port', async () => {
+test('Play sends only the genuine mix container through the original caller lifetime and same port', waitsForServerMixes, async () => {
   const held = deferred<QueueHeader>(), f = setup();let active = true;
   let captured: {signal?: AbortSignal; isCurrent?: () => boolean} | undefined;
   const port = {async playSegments(segments: unknown, options?: {signal?: AbortSignal; isCurrent?: () => boolean}) {
@@ -112,7 +115,7 @@ test('Play sends only the genuine mix container through the original caller life
   } finally {held.resolve(queue);f.source.dispose();}
 });
 
-test('original signal retirement during ID generation refuses before any POST', async () => {
+test('original signal retirement during ID generation refuses before any POST', waitsForServerMixes, async () => {
   const id = deferred<string>(), f = setup(undefined, {requestId: () => id.promise}), navigation = new AbortController();
   try {
     await f.source.load();const save = f.source.save(f.source.getSnapshot().rows[0], {signal: navigation.signal, isCurrent: () => true});
@@ -120,7 +123,7 @@ test('original signal retirement during ID generation refuses before any POST', 
   } finally {id.resolve(operationId);f.source.dispose();}
 });
 
-test('retired authority discards a late copy receipt and cannot revive on Back', async () => {
+test('retired authority discards a late copy receipt and cannot revive on Back', waitsForServerMixes, async () => {
   const held = deferred<unknown>(), f = setup(async (_path, method) => method === 'GET' ? page() : held.promise);
   try {
     await f.source.load();const row = f.source.getSnapshot().rows[0], save = f.source.save(row, caller());
@@ -131,7 +134,7 @@ test('retired authority discards a late copy receipt and cannot revive on Back',
   } finally {held.resolve(receipt());f.source.dispose();}
 });
 
-test('relabel uses the same formatter and retires old-language handles without another server read', async () => {
+test('relabel uses the same formatter and retires old-language handles without another server read', waitsForServerMixes, async () => {
   let language = 'one';
   const f = setup(undefined, {t: (key, values) => (key === 'music.mix.name' ? language + ':' : '') + defaultI18n.t(key, values)});
   try {
@@ -141,7 +144,7 @@ test('relabel uses the same formatter and retires old-language handles without a
   } finally {f.source.dispose();}
 });
 
-test('Home and MusicDiscover retain one lazy profile source and erase it when the last lease closes', async () => {
+test('Home and MusicDiscover retain one lazy profile source and erase it when the last lease closes', waitsForServerMixes, async () => {
   const f = setup(), preferences = new Set<() => void>();
   const context = {api: f.api, session: () => ({sessionFamilyId: 'unit-family', viewer: {...principal, role: 'member'}}), isCurrent: () => true,
     preferences: {subscribe(listener: () => void) {preferences.add(listener);return () => {preferences.delete(listener);};}}} as unknown as ShellAssemblyContext;
@@ -154,7 +157,7 @@ test('Home and MusicDiscover retain one lazy profile source and erase it when th
   } finally {home.release();discover.release();f.source.dispose();}
 });
 
-test('generated count/art validation and mismatched receipts remain closed; denied authority erases old rows', async () => {
+test('generated count/art validation and mismatched receipts remain closed; denied authority erases old rows', waitsForServerMixes, async () => {
   for (const invalid of ['count', 'covers', 'receipt', 'denied']) {
     const f = setup(async (_path, method) => {
       if (method !== 'GET') {if (invalid === 'denied') throw denied(403);return {...receipt(), operationId: 'wrong-operation'};}
@@ -169,7 +172,7 @@ test('generated count/art validation and mismatched receipts remain closed; deni
   }
 });
 
-test('a view binding retires only its own command and subscription while the shared profile source remains usable', async () => {
+test('a view binding retires only its own command and subscription while the shared profile source remains usable', waitsForServerMixes, async () => {
   const held = deferred<QueueHeader>(), f = setup(), navigation = new AbortController();
   let observed: {signal?: AbortSignal; isCurrent?: () => boolean} | undefined, notices = 0;
   const runtime = {cataloguePlayback: () => ({playSegments: async (_segments: unknown, options?: {signal?: AbortSignal; isCurrent?: () => boolean}) => {observed = options;return held.promise;}})};
@@ -184,7 +187,7 @@ test('a view binding retires only its own command and subscription while the sha
   } finally {held.resolve(queue);binding.dispose();f.source.dispose();}
 });
 
-test('a late same-runtime replacement invalidates only the original Play; an absent executor is genuinely unavailable', async () => {
+test('a late same-runtime replacement invalidates only the original Play; an absent executor is genuinely unavailable', waitsForServerMixes, async () => {
   const held = deferred<QueueHeader>(), f = setup(), life = new AbortController();let observed: {isCurrent?: () => boolean} | undefined;
   const first = {cataloguePlayback: () => ({playSegments: async (_segments: unknown, options?: {isCurrent?: () => boolean}) => {observed = options;return held.promise;}})};
   let runtime: typeof first | undefined;

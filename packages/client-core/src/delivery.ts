@@ -318,6 +318,8 @@ export function setDeliveryContext(context:{transportClass?:string|null;deviceCl
  if(context.deviceClass!==undefined)sharedDeviceClass=context.deviceClass;
  if(context.appLanguage!==undefined)sharedAppLanguage=context.appLanguage ? Intl.getCanonicalLocales(context.appLanguage)[0] ?? '' : '';
 }
+/** The kind of device this app says it is (web, mobile, tablet or television), or '' before it has said. */
+export function deliveryDeviceClass():''|'web'|'mobile'|'tablet'|'television'{return sharedDeviceClass;}
 export function deliveryContextHeaders():Record<string,string>{
  return {...(sharedTransportClass==='unknown'?{}:{[transportClassHeader]:sharedTransportClass}),...(sharedDeviceClass?{[deviceClassHeader]:sharedDeviceClass}:{}),...(sharedAppLanguage?{[appLanguageHeader]:sharedAppLanguage}:{})};
 }

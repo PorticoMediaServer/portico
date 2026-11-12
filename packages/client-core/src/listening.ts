@@ -1,4 +1,6 @@
 import {encodedRoutePath, routePath} from "../../contracts/src/route-paths.ts";
+import {serverPath} from './query/server-api.ts';
+import {deliveryDeviceClass} from './delivery.ts';
 import {wireDurations} from './wire-units.ts';
 import {unreadableServerResponse} from './server-messages.ts';
 /** One listening policy for a proved account/profile/server/device lane.
@@ -29,7 +31,7 @@ export type ListeningPreferences=Readonly<{revision:number;bookRate:number;passo
 export type ListeningTarget=Readonly<{libraryId:string;kind:'library'|'song'|'artist'|'album'|'disc'|'book';id:string}>;
 export type ListeningJourney=Readonly<{target:ListeningTarget;actions:readonly ('play'|'shuffle'|'mix'|'enqueue')[];resume?:Readonly<{itemId:string;positionSeconds:number}>;resumeUnavailable:boolean}>;
 export type ListeningItem=Readonly<{itemId:string;libraryId:string;kind:string;bookId?:string;lastBookItemId?:string;bookEndAvailable?:boolean;albumId?:string;artistId?:string}>;
-export type ListeningRequest=(path:string,body?:unknown,method?:'GET'|'POST'|'PUT',signal?:AbortSignal)=>Promise<unknown>;
+export type ListeningRequest=(path:string,body?:unknown,method?:'GET'|'POST'|'PUT'|'PATCH',signal?:AbortSignal)=>Promise<unknown>;
 export type SleepChoice='off'|'chapter'|'item'|'book'|15|30|45|60|90;
 export type ListeningTimer=Readonly<{choice:SleepChoice;label:string;deadline?:number;wallDeadline?:number;libraryId?:string;endSeconds?:number;itemId?:string;bookId?:string;sessionId?:string;generation?:number;occurrence?:ListeningTimerOccurrence;bookBoundary?:ListeningBookBoundary}>;
 export type ListeningSnapshot=Readonly<{eqApplied:boolean;levelingApplied:boolean;rewind?:Readonly<{seconds:number;fromSeconds:number;toSeconds:number;messageKey:'listening.rewound'}>; phase:'loading'|'ready'|'saving'|'error'|'disposed';preferences:ListeningPreferences|null;context:ListeningItem|null;rate:number;timer:ListeningTimer|null;timerLoading:boolean;stopped:boolean;message:string|null;error:string|null}>;
@@ -42,6 +44,13 @@ export function parseListeningPreferences(v:unknown):ListeningPreferences {
  if(!object(v)||Object.keys(v).some(key=>!['revision','bookRate','passoutMinutes'].includes(key))||!counter(v.revision)||!audiobookRates.includes(v.bookRate as never)||!passoutChoices.includes(v.passoutMinutes as never))bad();
  return Object.freeze({revision:v.revision,bookRate:v.bookRate as number,passoutMinutes:v.passoutMinutes as number});
 }
+const bookRateKey='audiobooks.defaultSpeed',passoutKey='playback.sleepTimerMinutes';
+/** The listening settings out of the profile's settings document: the values in force for this device. */
+export function listeningOf(raw:unknown):ListeningPreferences{
+ if(!object(raw)||!object(raw.effective))bad();
+ return parseListeningPreferences({revision:0,bookRate:raw.effective[bookRateKey],passoutMinutes:raw.effective[passoutKey]});
+}
+const listeningDeviceClass=()=>deliveryDeviceClass()||'web';
 export function listeningData(raw:unknown,scope:ListeningViewerScope):unknown {
  if(!object(raw)||!object(raw.scope)||(['serverId','authority','accountId','profileId'] as const).some(k=>(raw.scope as Record<string,unknown>)[k]!==scope[k]))bad();
  return raw.data;
@@ -113,10 +122,13 @@ export class ListeningService {
  refreshAudiobookPreferences(){if(!this.disposed)this.syncNativePolicy();}
  retryContext(){if(this.disposed)return;const failed=this.contextFailed;this.itemId='';this.publish({error:null});this.observe();if(this.itemId===failed)this.contextFailed=failed;}
  connect(){if(this.connected||this.disposed)return;this.connected=true;this.unsubscribe=this.playback.subscribe(()=>this.observe());this.interval=setInterval(()=>this.tick(),1000);void this.refreshPreferences();this.observe();}
- async refreshPreferences(){const g=++this.prefGeneration;this.publish({phase:'loading',error:null});try{const p=parseListeningPreferences(listeningData(await this.request(routePath("get_listening_preferences"),undefined,'GET',this.abort.signal),this.scope));if(this.disposed||g!==this.prefGeneration)return;this.publish({phase:'ready',preferences:p,error:null});this.applyRate();}catch(e){if(!this.disposed&&g===this.prefGeneration)this.publish({phase:'error',error:'Listening preferences could not be loaded. Retry before changing them.'});}}
+ /** The two listening settings are ordinary profile settings on the rebuilt server (`GET /v1/preferences`):
+  * the speed a new audiobook starts at and how long playback goes on without a touch before it pauses. */
+ async refreshPreferences(){const g=++this.prefGeneration;this.publish({phase:'loading',error:null});try{const p=listeningOf(await this.request(serverPath('GET /v1/preferences',{query:{deviceClass:listeningDeviceClass()}}),undefined,'GET',this.abort.signal));if(this.disposed||g!==this.prefGeneration)return;this.publish({phase:'ready',preferences:p,error:null});this.applyRate();}catch(e){if(!this.disposed&&g===this.prefGeneration)this.publish({phase:'error',error:'Listening preferences could not be loaded.'});}}
+ /** Saves them for the profile everywhere (`PATCH /v1/preferences`, scope profile-server); the later save wins. */
  async savePreferences(patch:Partial<Omit<ListeningPreferences,'revision'>>){const old=this.state.preferences;if(this.disposed||!old||this.state.phase!=='ready')throw new Error('Load listening preferences before saving.');const next=parseListeningPreferences({...old,...patch});const g=++this.prefGeneration;this.publish({phase:'saving',error:null});
-  try{const p=parseListeningPreferences(listeningData(await this.request(routePath("put_listening_preferences"),next,'PUT',this.abort.signal),this.scope));if(this.disposed||g!==this.prefGeneration)return;this.interact();this.publish({phase:'ready',preferences:p,error:null});this.applyRate();}
-  catch(e){if(this.disposed||g!==this.prefGeneration)return;const conflict=object(e)&&e.code==='listening_preferences_conflict';this.publish({phase:'error',error:conflict?'These preferences changed on another device. Reload them before saving again.':'The preference save could not be confirmed. Reload to recover its actual result.'});throw new Error(this.state.error!);}
+  try{const p=listeningOf(await this.request(serverPath('PATCH /v1/preferences'),{scope:'profile-server',deviceClass:listeningDeviceClass(),values:{[bookRateKey]:next.bookRate,[passoutKey]:next.passoutMinutes}},'PATCH',this.abort.signal));if(this.disposed||g!==this.prefGeneration)return;this.interact();this.publish({phase:'ready',preferences:p,error:null});this.applyRate();}
+  catch(e){if(this.disposed||g!==this.prefGeneration)return;this.publish({phase:'error',error:'The preference save could not be confirmed. Reload to recover its actual result.'});throw new Error(this.state.error!);}
  }
  /** The speed for this playback, chosen in the player. Settings keep the default a new playback
   * starts at; this goes on through the queue and is forgotten when the viewer starts something new. */

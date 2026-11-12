@@ -10,8 +10,8 @@ test('real local PlaybackService and V1QueuePlayer never request a server listen
   const paths: string[] = [];
   const http: V1Http = {send: async request => {
     paths.push(request.path);
-    assert.equal(request.path, '/v1/listening/preferences', 'a local source ID reached a server request');
-    return {status: 200, headers: {}, body: {scope: viewer, data: {revision: 0, bookRate: 1.5, passoutMinutes: 30}}};
+    assert.equal(request.path.split('?')[0], '/v1/preferences', 'a local source ID reached a server request');
+    return {status: 200, headers: {}, body: {deviceClass: 'web', effective: {'audiobooks.defaultSpeed': 1.5, 'playback.sleepTimerMinutes': 30}}};
   }};
   const api = new V1PlaybackApi(http);
   let serial = 0;
@@ -26,10 +26,10 @@ test('real local PlaybackService and V1QueuePlayer never request a server listen
   assert.equal(player.listening.getSnapshot().context, null);
   await playback.playLocal('file:another-private-source', () => make('local:session:two'));
   await new Promise<void>(resolve => setImmediate(resolve));
-  assert.deepEqual(paths, ['/v1/listening/preferences']);
+  assert.deepEqual(paths, ['/v1/preferences?deviceClass=web']);
   assert.equal(player.listening.mayAdvance(), true);
   assert.equal(player.listening.mayTransition(3600), true);
   player.dispose(); playback.leave();
   await new Promise<void>(resolve => setImmediate(resolve));
-  assert.deepEqual(paths, ['/v1/listening/preferences']);
+  assert.deepEqual(paths, ['/v1/preferences?deviceClass=web']);
 });
