@@ -64,6 +64,9 @@ type porticoLink struct {
 	// answered, until each runs out.
 	challengeKey []byte
 	used         map[string]time.Time
+	// ended says the link has ended and no new one has been told of since: the certificate
+	// client's reports are ignored until then. See porticoCertificate.
+	ended bool
 	// resetCode is the setup code that switches the server to local sign-in, when the owner
 	// asked for one from the data folder; see portico_reset.go.
 	resetCode string
@@ -428,8 +431,13 @@ func (s *Server) porticoPublished() []hosted.Address {
 // zone is given as an address still waiting for its certificate, so Enhanced waits, works as
 // Standard and says why.
 func (s *Server) porticoCertificate(st certclient.Status) {
+	// A report that arrives after the link has ended (the client was inside a call to Portico
+	// Services when the owner switched to local sign-in) brings nothing back.
+	s.link.mu.Lock()
+	ended := s.link.ended
+	s.link.mu.Unlock()
 	zone := ""
-	if st.NameSpace != "" && st.State != "off" && st.State != "unlinked" {
+	if !ended && st.NameSpace != "" && st.State != "off" && st.State != "unlinked" {
 		zone = st.NameSpace + "." + certclient.Zone
 	}
 	switch {
@@ -448,8 +456,20 @@ func (s *Server) porticoCertificate(st certclient.Status) {
 // porticoUnlinked is told when the link has ended: the certificate client stops asking, and
 // the server stops publishing and answering at its Portico names.
 func (s *Server) porticoUnlinked() {
+	s.link.mu.Lock()
+	s.link.ended = true
+	s.link.mu.Unlock()
 	s.portico.Unlinked()
 	s.porticoCertificate(certclient.Status{State: "off"})
+}
+
+// porticoLinked is told of a link, at start and after every new one: the certificate
+// client's reports count again, and it begins.
+func (s *Server) porticoLinked(issuedAt time.Time) {
+	s.link.mu.Lock()
+	s.link.ended = false
+	s.link.mu.Unlock()
+	s.portico.Linked(issuedAt)
 }
 
 // porticoChangedByOwner says the owner has just changed, by hand, something the document

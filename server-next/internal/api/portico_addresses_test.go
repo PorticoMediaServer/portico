@@ -32,3 +32,23 @@ func TestThePorticoZoneWaitsForItsCertificate(t *testing.T) {
 	p.s.porticoUnlinked()
 	stands("after the link has ended", "", "")
 }
+
+// Review desk A, #2889. The certificate client can be inside a call to Portico Services when
+// the link ends; its report, arriving afterwards, must not bring the zone back.
+func TestReviewAALateCertificateReportDoesNotBringTheZoneBackAfterTheLinkEnded(t *testing.T) {
+	p := newPorticoRig(t)
+	p.link(accountJustin)
+	p.s.porticoCertificate(certclient.Status{State: "issued", NameSpace: "abc123", CertificateReady: true})
+	p.s.porticoUnlinked()
+	// The call that was in flight ends: Portico Services was busy, try again later.
+	p.s.porticoCertificate(certclient.Status{State: "waiting", NameSpace: "abc123", CertificateReady: true})
+	if zone := p.s.porticoZone(); zone != "" {
+		t.Errorf("after the link ended a late report set the zone to %q; it stays until the next restart", zone)
+	}
+	// A new link makes the client's reports count again.
+	p.s.porticoLinked(p.clock.Now())
+	p.s.porticoCertificate(certclient.Status{State: "issued", NameSpace: "abc123", CertificateReady: true})
+	if zone := p.s.porticoZone(); zone == "" {
+		t.Error("after linking again a certificate report did not set the zone")
+	}
+}

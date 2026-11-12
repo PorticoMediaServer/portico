@@ -84,7 +84,7 @@ func (s *Server) startSetup(ctx context.Context) error {
 	// (onLinked, onUnlinked, published), above the line that starts its background work.
 	// The certificate client asks for the server's address and certificate only between the
 	// two: told of a link it begins, and told the link has ended it stops for good.
-	s.link.onLinked = s.portico.Linked
+	s.link.onLinked = s.porticoLinked
 	s.link.onUnlinked = s.porticoUnlinked
 	// The server's document carries the addresses it publishes; a change of address is looked
 	// at at once, and the link's own gap decides when it is sent.
