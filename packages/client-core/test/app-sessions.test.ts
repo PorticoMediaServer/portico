@@ -175,3 +175,25 @@ test('an unreadable saved record is never overwritten or erased by a new sign-in
   await assert.rejects(store.select('a'));
   assert.deepEqual(raw, unreadable, 'the record is exactly as it was');
 });
+
+test('a profile picked within the same family is saved even after the family\'s own route write moved the revision (TV, 12 Nov)', async () => {
+  // The pick captures the revision, its own connection then saves route memory, then the pick saves its answer with a new selection.
+  const a = entry('a'), store = storage([a]);
+  const pick = store.connectionStorage('a', {signIn: 'local', expectedRevision: (await store.read()).revision});
+  await store.connectionStorage('a').change(current => ({...current!, routes: {...current!.routes, lastGood: 'https://a.test'}}));
+  const picked: RememberedServer = {...a.connection, selectionId: 'p'.repeat(32), session: {...a.connection.session, accessToken: 'kids-token',
+    viewer: {...a.connection.session.viewer, profileId: 'kids'}}};
+  await pick.change(() => picked);
+  const saved = (await store.selected())!.connection;
+  assert.equal(saved.session.viewer.profileId, 'kids', 'the switch\'s own answer is the stored session');
+  assert.equal(saved.selectionId, picked.selectionId);
+});
+
+test('another family on the server still needs a current admission', async () => {
+  const a = entry('a'), store = storage([a]);
+  const stale = store.connectionStorage('a', {signIn: 'local', expectedRevision: (await store.read()).revision});
+  await store.connectionStorage('a').change(current => ({...current!, routes: {...current!.routes, lastGood: 'https://a.test'}}));
+  const other: RememberedServer = {...a.connection, selectionId: 'o'.repeat(32), session: {...a.connection.session, sessionFamilyId: 'other-family'}};
+  await assert.rejects(stale.change(() => other), {code: 'cancelled'});
+  assert.equal((await store.selected())!.connection.session.sessionFamilyId, a.connection.session.sessionFamilyId);
+});

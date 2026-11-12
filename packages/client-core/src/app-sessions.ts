@@ -154,7 +154,11 @@ export class AppSessionStore {
           if (connection === undefined) return next(old, old.servers.filter(v => v !== entry));
           const checked = parseRememberedServer(connection);
           if (!checked || checked.pin.serverId !== serverId) invalid();
-          const replacement = !entry || checked.selectionId !== entry.connection.selectionId || checked.session.sessionFamilyId !== entry.connection.session.sessionFamilyId;
+          // A replacement is another family on this server (a new sign-in), and it needs a current admission. The same family
+          // saved with a new selection is the same sign-in: a profile picked within it. The family's own route and rotation
+          // writes since the pick began must not refuse that (TV, 12 Nov: the pick's connection saved its route memory first,
+          // the pick's own answer was refused, and the device stayed on the old profile while the server had moved).
+          const replacement = !entry || checked.session.sessionFamilyId !== entry.connection.session.sessionFamilyId;
           const rollback = admitted && !!previous && connection === previous.connection && entry?.connection.selectionId === accepted?.selectionId && entry?.connection.session.sessionFamilyId === accepted?.session.sessionFamilyId;
           if (replacement && !rollback && (!admission || admitted || old.revision !== admission.expectedRevision)) cancelled();
           const signIn = rollback ? previous!.signIn : replacement ? admission!.signIn : entry!.signIn;
