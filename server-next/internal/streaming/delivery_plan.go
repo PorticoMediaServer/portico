@@ -288,6 +288,15 @@ func bitrateOver(actual int64, ceiling int) bool {
 // maximum_compatibility deliberately takes the most converted admissible route,
 // because the most normalized output is the most widely playable.
 func planDelivery(in DeliveryInput) (p DeliveryPlan, err error) {
+	// The owner chose software encoding (console rule 32): the graphics device is never
+	// used, and that includes the filters that run on one (the Vulkan reshaping of a Dolby
+	// Vision profile 5 picture, the Vulkan and OpenCL tone maps). The plan and the
+	// conversion built from it see an FFmpeg without them.
+	if softwareEncodingChosen(in.Config) && in.Server != nil && (in.Server.VulkanAvailable || in.Server.OpenCLAvailable) {
+		facts := *in.Server
+		facts.VulkanAvailable, facts.OpenCLAvailable = false, false
+		in.Server = &facts
+	}
 	if in.Device != nil {
 		return planDevice(in)
 	}

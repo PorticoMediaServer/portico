@@ -246,3 +246,9 @@ func (c DeliveryConfiguration) ClampDownloadQuality(requested string) string {
 func (c DeliveryConfiguration) DownloadQualityAllowed(quality string) bool {
 	return c.ClampDownloadQuality(quality) == quality
 }
+
+// softwareEncodingChosen reports the owner's conversion-device setting "software encoding":
+// conversions run on the processor and no graphics device is used for any part of one.
+func softwareEncodingChosen(c DeliveryConfiguration) bool {
+	return c.HardwareBackend == string(decoder.BackendSoftware)
+}
