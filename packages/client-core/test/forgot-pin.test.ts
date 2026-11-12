@@ -87,3 +87,19 @@ test('an unmarked note, a changed account or closing recovery cannot reset a Por
   closed.controller.dispose(); await closed.controller.reset('2468');
   assert.equal(closed.sent.length, 1);
 });
+
+
+test('Services passwordless refusal reaches the recovery screen as account_password_required', async () => {
+  const {ServicesError} = await import('../src/portico-account.ts');
+  const {porticoApiError} = await import('../src/portico-services-native.ts');
+  const error = new ServicesError(409, 'account_password_required');
+  const native = porticoApiError(error);
+  assert.equal((native as {code: string}).code, 'account_password_required');
+  const f = porticoFlow();
+  const source = {accountId: 'acct_ada', isCurrent: () => true, identity: async () => {throw native;}};
+  await f.controller.porticoPassword('anything typed', '', source);
+  assert.equal(f.controller.getSnapshot().phase, 'portico');
+  assert.equal((f.controller.getSnapshot().error as {code: string}).code, 'account_password_required');
+  assert.equal(f.sent.length, 1, 'no PIN goes to the server');
+  f.controller.dispose();
+});
