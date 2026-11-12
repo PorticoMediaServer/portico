@@ -23,7 +23,7 @@ export function pathOnThisAddress(to: string, origin = location.origin): string 
   const path = url.pathname + url.search + url.hash;
   return url.origin === origin && !path.startsWith('//') ? path : undefined;
 }
-/** `to` is a path on this origin, such as `/account?tab=security` or `/welcome#join`. */
+/** `to` is a path on this origin, such as `/account?tab=security` or `/servers#join`. */
 export function goTo(to: string, options: Readonly<{replace?: boolean}> = {}): void {
   const path = pathOnThisAddress(to);
   if (path === undefined) throw new Error('Only a path on this address can be opened in place.');
