@@ -220,7 +220,7 @@ func TestListedProxyThatSendsNoAddress(t *testing.T) {
 func TestSilentProxiesAreLoggedOnceAndOnlyWhileNoted(t *testing.T) {
 	s := newTestServer(t)
 	var log bytes.Buffer
-	s.log = slog.New(slog.NewTextHandler(&log, nil))
+	s.networkLog = slog.New(slog.NewTextHandler(&log, nil)).With("log_kind", "network")
 	for range 2 {
 		for n := range maxSilentProxies + 4 {
 			s.noteSilentProxy(fmt.Sprintf("172.18.0.%d", n+1))
@@ -336,7 +336,7 @@ func TestUnlistedProxyAtAPublicAddress(t *testing.T) {
 	s := newTestServer(t)
 	owner := onMainProfile(t, s)
 	var log bytes.Buffer
-	s.log = slog.New(slog.NewTextHandler(&log, nil))
+	s.networkLog = slog.New(slog.NewTextHandler(&log, nil)).With("log_kind", "network")
 	wrong := SignInRequest{Username: "justin", Password: "not the password"}
 	for range 2 {
 		for n := range maxSilentProxies + 4 {

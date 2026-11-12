@@ -270,7 +270,7 @@ func (r *Runner) Resume() error {
 		case !ok:
 			r.db.FinishJob(r.ctx, job.ID, db.JobFailed, "This server no longer does this kind of work.")
 		case job.State == db.JobRunning && job.Attempts >= 2:
-			r.log.Error("job not run again: it was cut short twice", "kind", job.Kind, "target", job.Target)
+			r.jobLog(job).Error("job not run again: it was cut short twice", "kind", job.Kind, "target", job.Target)
 			r.db.FinishJob(r.ctx, job.ID, db.JobFailed, Interrupted)
 		default:
 			r.enqueue(k, job)
@@ -359,7 +359,7 @@ func (r *Runner) work(l *lane) {
 		case errors.As(err, new(DoneWith)):
 			r.db.FinishJob(r.ctx, job.ID, db.JobDone, stored(err))
 		case err != nil:
-			r.log.Error("job failed", "kind", job.Kind, "target", job.Target, "error", err)
+			r.jobLog(job).Error("job failed", "kind", job.Kind, "target", job.Target, "error", err)
 			r.db.FinishJob(r.ctx, job.ID, db.JobFailed, stored(err))
 		default:
 			r.db.FinishJob(r.ctx, job.ID, db.JobDone, "")
@@ -412,7 +412,7 @@ func (r *Runner) run(ctx context.Context, k Kind, job db.Job) (err error) {
 	// A fault in a kind's code ends that job as failed and takes nothing else down.
 	defer func() {
 		if fault := recover(); fault != nil {
-			r.log.Error("job panicked", "kind", job.Kind, "target", job.Target, "panic", fault, "stack", string(debug.Stack()))
+			r.jobLog(job).Error("job panicked", "kind", job.Kind, "target", job.Target, "panic", fault, "stack", string(debug.Stack()))
 			err = &Failure{Shown: "This stopped because of a fault in the server. The server's log has the details."}
 		}
 	}()
@@ -444,4 +444,13 @@ func ProfileOf(job db.Job) int64 {
 	var req Request
 	json.Unmarshal([]byte(job.Payload), &req)
 	return req.ProfileID
+}
+
+// A scan's own failures belong with its file/folder warnings, including failures the
+// runner reports after the scanner returns. Other job kinds retain the server logger.
+func (r *Runner) jobLog(job db.Job) *slog.Logger {
+	if job.Kind == db.JobScan {
+		return r.log.With("log_kind", "scan")
+	}
+	return r.log
 }

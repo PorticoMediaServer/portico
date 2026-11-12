@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"log/slog"
 	"path/filepath"
 	"time"
 
@@ -15,6 +16,8 @@ import (
 // setupArea is what setup and remote access (area 2) keeps on the server. Add this area's fields here and its start-up
 // to startSetup, in this file, so that building the area never edits server.go.
 type setupArea struct {
+	// networkLog is shared by network services and their API callbacks.
+	networkLog *slog.Logger
 	// portico gets a server linked to a Portico Account its Portico address and certificate,
 	// in the background. It contacts nothing until the link's client says the server is
 	// linked (portico.Linked, with the link's issue time), so a server with local sign-in
@@ -45,8 +48,9 @@ type setupArea struct {
 // startSetup builds this area's services and registers its routes and job kinds. New calls it
 // once, after the job runner exists and before the jobs left from the last run are taken up.
 func (s *Server) startSetup(ctx context.Context) error {
+	s.networkLog = s.log.With("log_kind", "network")
 	s.portico = certclient.New(certclient.Options{ServerID: s.id, Key: s.identity.key, Keys: filepath.Join(s.dataDir, "Keys"),
-		Log: s.log.With("log_kind", "network"), Now: func() time.Time { return s.now() }, OnChange: s.porticoCertificate})
+		Log: s.networkLog, Now: func() time.Time { return s.now() }, OnChange: s.porticoCertificate})
 	s.goBackground(func() { s.portico.Run(ctx) })
 	if err := s.loadSetupCode(ctx, s.dataDir); err != nil {
 		return err
@@ -57,16 +61,16 @@ func (s *Server) startSetup(ctx context.Context) error {
 	if err := s.loadNetworks(ctx); err != nil {
 		return err
 	}
-	s.certs = tlsport.NewStore(filepath.Join(s.dataDir, "Keys"), s.log.With("log_kind", "network"), func() time.Time { return s.now() })
+	s.certs = tlsport.NewStore(filepath.Join(s.dataDir, "Keys"), s.networkLog, func() time.Time { return s.now() })
 	// Enhanced waits on the owner's own certificate until it is loaded and valid for the address.
 	s.access.ownCertificateUsable = func() bool { return s.certs.Status().State == "ok" }
 	s.access.homeKnown = func() bool { return len(s.networks().Home) > 0 }
-	s.ports = portmap.New(s.log.With("log_kind", "network"), nil)
-	s.public = publicaddr.New(s.log.With("log_kind", "network"))
+	s.ports = portmap.New(s.networkLog, nil)
+	s.public = publicaddr.New(s.networkLog)
 	// A new public address, or a change of this machine's own, changes the addresses the
 	// server publishes; the signed document is sent again through OnAddressesChange.
 	s.public.OnChange = func(address string) {
-		s.log.Info("this server's public address changed", "address", address)
+		s.networkLog.Info("this server's public address changed", "address", address)
 		s.addressesChanged()
 	}
 	s.public.OnLocalChange = s.addressesChanged
