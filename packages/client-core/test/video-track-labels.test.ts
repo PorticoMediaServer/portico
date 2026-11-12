@@ -4,6 +4,7 @@ import {videoPictureName,videoAudioFormatName,videoTrackName,videoTrackWords,for
 import {parseOptions} from '../src/playback-v1/types.ts';
 import {validateSubtitleCatalog} from '../src/subtitles.ts';
 import type {AudioStream,SubtitleStream,VideoStream} from '../src/playback-v1/types.ts';
+import {defaultI18n} from '../../i18n/src/index.ts';
 const words:VideoTrackWords={fourK:'4K',stereo:'Stereo',mono:'Mono',channels:n=>`${n} channels`,withAtmos:format=>`${format} with Atmos`,withDtsx:value=>`${value} (DTS:X)`,besideFile:format=>`${format}, beside the file`,language:tag=>(({en:'English',eng:'English',ja:'Japanese'} as Readonly<Record<string,string>>)[tag]??''),subtitleFlags:{sdh:'SDH',forced:'forced'}};
 const audio=(facts:Partial<AudioStream>={}):AudioStream=>({id:'a1',codec:'truehd',atmos:false,default:true,commentary:false,visualImpaired:false,...facts});
 const video=(facts:Partial<VideoStream>={}):VideoStream=>({id:'v0',codec:'hevc',...facts});
@@ -90,4 +91,16 @@ test('published chooser descriptions separate picture, audio and size without in
  assert.equal([videoAudioFormatName(audio({codec:'ac3',layout:'5.1'}),words),'9.8 GB'].join(', '),'Dolby Digital 5.1, 9.8 GB');
  assert.equal(videoPictureName(video(),words),'');
  assert.equal(videoAudioFormatName(audio({codec:'',channels:undefined}),words),'');
+});
+
+test('a track is named by its language even where the runtime has no Intl.DisplayNames (Hermes on Android)', () => {
+  const real = Intl.DisplayNames;
+  try {
+    Object.defineProperty(Intl, 'DisplayNames', {configurable: true, writable: true, value: undefined});
+    const name = videoTrackName({format: 'srt', language: 'en', source: 'sidecar', forced: false, sdh: false}, videoTrackWords(defaultI18n.t));
+    assert.equal(name.first, 'English');
+    assert.equal(videoTrackName({format: 'srt', language: 'fra', source: 'embedded', forced: false, sdh: false}, videoTrackWords(defaultI18n.t)).first, 'French');
+  } finally {
+    Object.defineProperty(Intl, 'DisplayNames', {configurable: true, writable: true, value: real});
+  }
 });
