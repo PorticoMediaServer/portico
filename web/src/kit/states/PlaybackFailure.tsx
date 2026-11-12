@@ -34,7 +34,7 @@ export function PlaybackFailure({error, onRetry, onVersions, onReport, onClose, 
     const close: StateAction = {id: 'close', label: closeLabel ?? t('action.close'), onPress: onClose};
     const report: StateAction | undefined = onReport ? {id: 'report', label: t('web.player.error.report'), icon: 'i-flag', onPress: onReport} : undefined;
     return <section className={styles.failure} data-layout="player" role="alert">
-      <StateLayout className={portrait ? styles.strip : undefined} variant={phone ? 'landscape' : 'player'} backdrop={null} icon={portrait ? undefined : icon} tone="warning" title={title} body={body}
+      <StateLayout variant={phone ? 'landscape' : 'player'} backdrop={null} icon={portrait ? undefined : icon} tone="warning" title={title} body={body}
         primary={tryAgain} secondary={versions ?? close} links={[...(versions ? [close] : []), ...(report ? [report] : [])]}>{children}</StateLayout>
     </section>;
   }
