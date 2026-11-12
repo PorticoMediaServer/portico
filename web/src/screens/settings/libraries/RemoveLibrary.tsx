@@ -10,8 +10,9 @@ import styles from './libraries.module.css';
 const t = defaultI18n.t;
 
 /** Remove library, said plainly: the owner types the library's own name before
- * the red button turns on (owner-libraries.html#7). The files on disk are never
- * touched by this command. */
+ * the red button turns on (owner-libraries.html#7). It says what goes and what stays in the
+ * same words as the phone's dialog (03-scanning rule 6). The files on disk are never touched
+ * by this command. */
 export function RemoveLibrary({open, onOpenChange, libraryId, service, api, onRemoved, onError}: Readonly<{
   open: boolean; onOpenChange: (open: boolean) => void; libraryId: string; service: LibraryManagementService;
   api: LibraryContentApi; onRemoved: () => void; onError: (error: unknown) => void;
@@ -43,11 +44,11 @@ export function RemoveLibrary({open, onOpenChange, libraryId, service, api, onRe
   };
   return <Dialog open={open} onOpenChange={value => {if (!lifetime.current?.running) onOpenChange(value);}} dismissOnBack={!busy} dismissOnOutsidePress={!busy} showCloseButton={!busy} size="sm" role="alertdialog"
     title={t('next.settingsSpec.server.libraries.panels.library.tabs.0.groups.2.rows.0.control.label')}
-    description={t('next.settingsSpec.server.libraries.panels.library.tabs.0.groups.2.rows.0.control.confirm')}
+    description={t('server.library.removeGoes')}
     footer={<><Button disabled={busy} onClick={() => {if (!lifetime.current?.running) onOpenChange(false);}}>{t('next.settings.cancel')}</Button>
       <Button variant="primary" loading={busy} disabled={busy || !name || typed !== name} onClick={() => { void confirm(); }}>{t('next.settingsSpec.server.libraries.panels.library.tabs.0.groups.2.rows.0.control.label')}</Button></>}>
     <div className={styles.form}>
-      <p className={styles.formNote}>{t('next.settingsSpec.server.libraries.panels.library.tabs.0.groups.2.rows.0.help')}</p>
+      <p className={styles.formNote}>{t('server.library.removeKept')}</p>
       <TextField label={name} value={typed} onChange={event => setTyped(event.currentTarget.value)} />
       {failed && <p role="alert">{t('next.settings.libraries.removeFailed')}</p>}
     </div>
