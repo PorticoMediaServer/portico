@@ -114,7 +114,12 @@ export function porticoAccount(held: HeldSignIn, origin = '', {cookie = false, f
       // Another tab may have renewed already: a different held sign-in is the newer one.
       const now = held.current();
       // compareSessionAuthority is for media server sign-ins; a Portico Services sign-in has no session family or generation, so the sign-in held is compared as itself.
-      const renewed = now && now !== tokens ? now : await renew().catch(() => undefined);
+      let renewed = now && now !== tokens ? now : undefined;
+      if (!renewed) {
+        // Only a renewal Services refuses ends the sign-in (`renew` forgets it then). One that could
+        // not reach Services, or failed on its side, keeps it, to renew again at the next call.
+        try { renewed = await renew(); } catch (failure) { throw failure instanceof ServicesError && failure.code === 'signed_out' ? error : failure; }
+      }
       if (!renewed) { held.forget(tokens); throw error; }
       return anyone<T>(route, values, body, {...options, token: renewed.accessToken});
     }
