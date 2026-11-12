@@ -1,7 +1,7 @@
 import type {AudioStream, SubtitleStream, VideoStream} from './playback-v1/types.ts';
 import type {SubtitleResource} from './subtitles.ts';
 import type {MessageId, MessageValues} from '../../i18n/src/index.ts';
-import {trackName} from './presentation/language.ts';
+import {languageKey, trackName} from './presentation/language.ts';
 
 /** Technical naming accepts facts without requiring an invented track identity. */
 export type VideoAudioFormatFacts = Pick<AudioStream, 'codec' | 'profile' | 'variant' | 'objectAudio' | 'channels' | 'layout'> & Partial<Pick<AudioStream, 'atmos' | 'dtsx'>>;
@@ -27,7 +27,8 @@ export function videoTrackWords(t: Translate, locale?: string): VideoTrackWords 
     withDtsx: value => t('player.track.formatWithDtsx', {value}),
     besideFile: format => t('player.track.besideFile', {format}),
     subtitleFlags: {sdh: t('next.kit.fileInfo.sdh'), forced: t('mediaInfo.forced')},
-    language: tag => trackName({language: tag}, locale)};
+    // Hermes on Android has no Intl.DisplayNames: the catalogue's own name, or every track reads "Track 1".
+    language: tag => trackName({language: tag}, locale) || (languageKey(tag) ? t(`language.${languageKey(tag)}` as MessageId) : '')};
 }
 
 const AUDIO: Readonly<Record<string, string>> = {aac: 'AAC', ac3: 'Dolby Digital', eac3: 'Dolby Digital Plus', truehd: 'Dolby TrueHD', dts: 'DTS', dca: 'DTS', flac: 'FLAC', alac: 'ALAC', opus: 'Opus', mp3: 'MP3', vorbis: 'Vorbis', pcm: 'LPCM'};
