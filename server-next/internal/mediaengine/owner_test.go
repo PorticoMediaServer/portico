@@ -46,7 +46,7 @@ func TestEachStreamingSettingChangesExactlyWhatItIsFor(t *testing.T) {
 			func(c streaming.DeliveryConfiguration) bool {
 				return !c.AudioConversionAllowed(true) && !c.VideoConversionAllowed(true)
 			}},
-		"processor only": {func(s *settings.StreamingSettings) { s.GraphicsDevice = "processor" }, []string{"HardwareBackend", "HardwareSelection"},
+		"software encoding": {func(s *settings.StreamingSettings) { s.GraphicsDevice = "processor" }, []string{"HardwareBackend", "HardwareSelection"},
 			func(c streaming.DeliveryConfiguration) bool { return c.HardwareBackend == "software" }},
 		"one kind of graphics device": {func(s *settings.StreamingSettings) { s.GraphicsDevice = "qsv" }, []string{"HardwareBackend"},
 			func(c streaming.DeliveryConfiguration) bool { return c.HardwareBackend == "qsv" }},
