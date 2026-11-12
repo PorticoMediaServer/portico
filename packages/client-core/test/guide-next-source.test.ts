@@ -41,3 +41,17 @@ test('a block of the guide is answered by channel from the server\'s pages for t
   await source.programs(['ch_2'], start, end, signal);
   assert.equal(paths.filter(path => path.startsWith('/v1/live/guide')).length, 2);
 });
+
+test('On now lists the server\'s order with what is on and next, and a channel named by a link is found by paging when the server has no around', async () => {
+  const {nextOnNowSource, findChannel} = await import('../src/guide/next-source.ts');
+  const now = {request: async <T>(path: string): Promise<T> => ({items: [{channel: channel(9), now: programme(9)}, {channel: channel(2)}], nextCursor: undefined}) as T};
+  const source = nextOnNowSource(now);
+  const page = await source.channels(0, 10, signal);
+  assert.deepEqual(page.items.map(row => row.id), ['ch_9', 'ch_2']);
+  const block = await source.programs(['ch_9', 'ch_2'], Date.parse('2026-11-12T18:30:00Z'), Date.parse('2026-11-12T19:30:00Z'), signal);
+  assert.deepEqual([block.ch_9!.length, block.ch_2!.length], [1, 0]);
+  const {api} = server();
+  const found = await findChannel(api, 'ch_5', Date.parse('2026-11-12T18:30:00Z'));
+  assert.deepEqual([found?.row.name, found?.now?.title], ['Channel 5', 'Show 5']);
+  assert.equal(await findChannel(api, 'ch_99'), undefined);
+});

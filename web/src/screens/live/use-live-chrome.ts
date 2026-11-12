@@ -126,7 +126,7 @@ export function useLiveChromePort(context: ShellAssemblyContext | undefined, run
         && currentChannel.sourceId === held.channel.sourceId && currentChannel.generation === held.channel.generation;
     };
     const run = async () => {
-      const current = await held.bindings.selectedChannel({sourceId: held.channel.sourceId, channelId: held.channel.channelId, provenance: held.channel.kind}, abort.signal);
+      const current = await held.bindings.chromeChannel({sourceId: held.channel.sourceId, channelId: held.channel.channelId, provenance: held.channel.kind}, abort.signal);
       if (!current || current.generation !== held.channel.generation || !admitted()) return;
       const row = legacyChannelRow(current);
       const down = source.neighbor ? await source.neighbor(row, -1, abort.signal).catch(() => undefined) : undefined;

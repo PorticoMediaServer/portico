@@ -16,7 +16,7 @@ test('On now retains genuine programme flags/episode/progress and never promotes
   assert.deepEqual(result.facts.map(part => part.text), ['S3 E1', 'Stored subtitle']);
   assert.deepEqual(onNowProgramme([{...programme, start: now + 1}], now, defaultI18n, 'UTC'), {title: defaultI18n.t('guide.noInformation'), facts: []});
 });
-test('On now requests bounded server favorites order and retires with the same authority', async () => {
+test('On now reads the server\'s own On now order (favourites first) and retires with the same authority', async () => {
   const calls: URL[] = [], denied = Object.assign(new Error('denied'), {status: 403});
   const context = withQueries({scope: {serverId: 'server', viewerId: 'viewer'}, isCurrent: () => true,
     api: {async request(path: string) {calls.push(new URL(path, 'https://example.test'));throw denied;}}}) as unknown as ScreenContext;
@@ -24,9 +24,8 @@ test('On now requests bounded server favorites order and retires with the same a
   const shelf = owner.onNow();assert.equal(calls.length, 0);
   shelf.store.setViewport({firstRow: 0, lastRow: 4, start: 1_000, end: 1_001});
   for (let i = 0; i < 12; i++) await new Promise(setImmediate);
-  assert.equal(calls.length, 1);assert.equal(calls[0].searchParams.get('sort'), 'favorites');
-  assert.equal(calls[0].searchParams.get('sourceId'), 'actual-source');assert.equal(calls[0].searchParams.get('group'), 'Drama');
-  assert.equal(calls[0].searchParams.get('limit'), '50');assert.equal(owner.life.current(), false);
+  assert.equal(calls.length, 1);assert.equal(calls[0].pathname, '/v1/live/now');
+  assert.equal(owner.life.current(), false);
   assert.deepEqual(shelf.store.resident(), {channelPages: 0, tiles: 0, programs: 0, inFlight: 0, queued: 0});
   shelf.dispose();owner.dispose();
 });

@@ -5,7 +5,8 @@
  * pages in order and keeps what it has read for the view, so scrolling back reads nothing again.
  */
 import type {LiveChannel, LiveProgramme} from '../../../contracts/src/next/api.ts';
-import {readChannels, readGuide, type ChannelChoice} from '../live-tv.ts';
+import {channelSources, readChannels, readGuide, readOnNow, type ChannelChoice} from '../live-tv.ts';
+import type {GuideSourceSummaries, GuideSourceSummary} from './directory.ts';
 import type {ServerRequester} from '../query/server-api.ts';
 import type {ChannelPage, GuideChannelRow, GuideDataSource, GuideProgram} from './types.ts';
 
@@ -58,4 +59,65 @@ export function nextGuideSource(api: ServerRequester, choice: ChannelChoice = {}
       return Object.freeze(Object.fromEntries(channelIds.map(id => [id, byChannel.get(id) ?? []])));
     },
   };
+}
+
+/**
+ * On now from the new server (`GET /v1/live/now`): favourites first, then by number, each channel with what is on and what
+ * is next. The same data source the On now row already reads; a block of time answers the programmes on now and next that
+ * overlap it.
+ */
+export function nextOnNowSource(api: ServerRequester): GuideDataSource {
+  let walk: Walk<[GuideChannelRow, GuideProgram[]]> = {items: [], done: false};
+  const read = (signal: AbortSignal) => {
+    walk.reading ??= readOnNow(api, walk.cursor, signal).then(page => {
+      walk.items.push(...page.items.map(row => [nextChannelRow(row.channel), [row.now, row.next].flatMap(programme => programme ? [nextProgram(row.channel.id, programme)] : [])] as [GuideChannelRow, GuideProgram[]]));
+      walk.cursor = page.nextCursor; walk.done = !page.nextCursor;
+    }).finally(() => {walk.reading = undefined;});
+    return walk.reading;
+  };
+  return {
+    reset() { walk = {items: [], done: false}; },
+    async channels(from: number, limit: number, signal: AbortSignal): Promise<ChannelPage> {
+      while (walk.items.length < from + limit && !walk.done) await read(signal);
+      return {items: walk.items.slice(from, from + limit).map(([row]) => row), total: walk.done ? walk.items.length : walk.items.length + 1};
+    },
+    async programs(channelIds: readonly string[], start: number, end: number) {
+      const byChannel = new Map(walk.items.map(([row, programmes]) => [row.id, programmes]));
+      return Object.freeze(Object.fromEntries(channelIds.map(id => [id, (byChannel.get(id) ?? []).filter(programme => programme.end > start && programme.start < end)])));
+    },
+  };
+}
+
+/**
+ * One channel by its id, for a link that names it, with what is on it now: read from the guide around it for this minute, or
+ * found by paging the guide when the server has no `around`.
+ */
+export async function findChannel(api: ServerRequester, id: string, now = Date.now(), signal?: AbortSignal): Promise<Readonly<{row: GuideChannelRow; now?: GuideProgram}> | undefined> {
+  const window = {from: new Date(now), to: new Date(now + 60_000)};
+  let cursor: string | undefined;
+  for (let page = 0; page < 40; page++) {
+    const answer = await readGuide(api, window, page === 0 ? {around: id, hidden: true} : {hidden: true}, cursor, signal);
+    const match = answer.items.find(row => row.channel.id === id);
+    if (match) {
+      const on = match.programmes.find(programme => Date.parse(programme.startsAt) <= now && now < Date.parse(programme.endsAt));
+      return {row: nextChannelRow(match.channel), ...(on ? {now: nextProgram(id, on)} : {})};
+    }
+    // A server without `around` answers from the start: page through the guide from there.
+    cursor = answer.nextCursor;
+    if (!cursor) return undefined;
+  }
+  return undefined;
+}
+
+/**
+ * The guide's sources and groups to filter by, from the first page of channels, in the shape the Live page's filters read. A
+ * server without the follow-up sends none: the page then offers All and Favorites, and the guide's reach is its own default.
+ */
+export async function nextGuideSummaries(api: ServerRequester, signal?: AbortSignal): Promise<GuideSourceSummaries> {
+  const page = await readChannels(api, {}, undefined, signal);
+  const sources = channelSources(page).map((source, position): GuideSourceSummary => ({id: source.id, name: source.name, generation: '', publishedAt: '',
+    availableStart: '', availableEnd: source.guideThrough ?? '', provenance: source.kind === 'library' ? 'library-channel' : 'live-source',
+    refreshState: source.outOfDate ? 'stale' : 'ready', position, recordAvailable: source.kind !== 'library', guideDays: 0, channelCount: source.channels,
+    favoriteCount: Math.min(source.favorites, source.channels), groups: source.groups.map(group => group.name), groupCounts: source.groups, unavailableReasons: {}}));
+  return Object.freeze({viewerFence: '', revision: '', sources: Object.freeze(sources)});
 }
