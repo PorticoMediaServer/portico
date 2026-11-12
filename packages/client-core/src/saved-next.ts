@@ -146,8 +146,8 @@ export async function readShareCandidates(api: SavedNextApi, playlistId: string,
 }
 
 const unsupported = (): never => {throw new CodedError('saved_unsupported', 'This app cannot send list changes safely.');};
-/** A change sent with its own headers. Saved changes need them (If-Match, Idempotency-Key), so a transport that cannot
- * send headers is refused before anything is sent: a change must never go without them and overwrite or repeat. */
+/** A change sent with its own headers (If-Match, Idempotency-Key). An edit needs If-Match, so through a transport that
+ * cannot send headers it is refused before anything is sent: it must never go without one and overwrite (rule 34). */
 async function sendRaw<T>(api: SavedNextApi, path: string, method: 'POST' | 'PATCH' | 'PUT' | 'DELETE', headers: Readonly<Record<string, string>>, body: unknown, signal?: AbortSignal): Promise<T> {
   if (!api.requestRaw) return unsupported();
   const answer = await api.requestRaw(path, method, {headers, body, signal});
@@ -184,11 +184,14 @@ export async function sendPlaylistCommand(api: SavedNextApi, bound: SavedScope, 
   const receipt = (playlistId: string, list: Pick<List, 'revision'> | undefined, extra: Record<string, unknown> = {}) =>
     ({serverId: bound.serverId, viewerFence: 'viewer', operationId, playlistId, revision: list ? revisionOf(list) : (context.revision ?? 0) + 1, deleted: false, ...extra});
   // An addition names its operation as its Idempotency-Key, which Retry keeps: a repeat whose first answer was lost
-  // adds nothing twice (a playlist would take a title twice, area 6 rule 24).
+  // adds nothing twice (a playlist would take a title twice, area 6 rule 24). It overwrites nothing, so a transport
+  // that cannot send headers (the pickers outside Saved) still sends it, without the key.
   const once = {'Idempotency-Key': operationId};
+  const addTo = (id: string, body: ListAdd) => api.requestRaw ? sendRaw<ListAdded>(api, serverPath('POST /v1/lists/{id}/entries', {id}), 'POST', once, body, signal)
+    : callServer(api, 'POST /v1/lists/{id}/entries', {id, body, signal});
   if (intent.action === 'create') {
     const body: ListCreate = {kind: 'playlist', name: intent.name.trim(), ...(intent.summary ? {description: intent.summary} : {}), ...(intent.itemIds?.length ? {items: [...intent.itemIds]} : {})};
-    const created = await sendRaw<ListCreated>(api, serverPath('POST /v1/lists'), 'POST', once, body, signal);
+    const created = api.requestRaw ? await sendRaw<ListCreated>(api, serverPath('POST /v1/lists'), 'POST', once, body, signal) : await callServer(api, 'POST /v1/lists', {body, signal});
     return receipt(created.id, created);
   }
   const id = context.playlistId;
@@ -196,11 +199,11 @@ export async function sendPlaylistCommand(api: SavedNextApi, bound: SavedScope, 
   const listPath = serverPath('GET /v1/lists/{id}', {id}), entryPath = (entryId: string) => `${listPath}/entries/${encodeURIComponent(entryId)}`;
   switch (intent.action) {
     case 'rename': return receipt(id, await edit<List>(api, listPath, 'PATCH', context.revision, {...(intent.name === undefined ? {} : {name: intent.name.trim()}), ...(intent.summary === undefined ? {} : {description: intent.summary})}, signal));
-    case 'add': return receipt(id, (await sendRaw<ListAdded>(api, `${listPath}/entries`, 'POST', once, {items: [intent.itemId]} satisfies ListAdd, signal)).list);
+    case 'add': return receipt(id, (await addTo(id, {items: [intent.itemId]})).list);
     case 'restore': {
       const token = decodeUndo(intent.undoToken);
       if (token.listId !== id) throw new CodedError('undo_other_list', 'This can only be undone in the list it was removed from.');
-      return receipt(id, (await sendRaw<ListAdded>(api, `${listPath}/entries`, 'POST', once, {items: [token.itemId], ...(token.after ? {after: token.after} : {})} satisfies ListAdd, signal)).list);
+      return receipt(id, (await addTo(id, {items: [token.itemId], ...(token.after ? {after: token.after} : {})})).list);
     }
     case 'remove': {
       const order = context.entries ?? [], at = order.findIndex(entry => entry.id === intent.entryId);
