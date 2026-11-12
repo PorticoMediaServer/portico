@@ -300,6 +300,8 @@ type toolset struct {
 	// machine's hardware encoders.
 	ffmpeg   string
 	hardware *decoder.HardwareDetector
+	// problem is why ffmpeg could not be asked, for "What this server can do".
+	problem string
 }
 
 // tools is the toolset in force.
@@ -356,6 +358,7 @@ func (e *Engine) ask(ffmpeg string) *toolset {
 			if e.ctx.Err() == nil {
 				e.log.Error("ffmpeg could not be asked what it can do, so only original files will play", "error", err)
 			}
+			t.problem = err.Error()
 			return
 		}
 		// A switch made meanwhile has put another program in force: this answer is not
