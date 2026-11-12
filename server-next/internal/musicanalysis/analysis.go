@@ -52,6 +52,9 @@ type Service struct {
 	tried   bool
 	// recent are the times the last songs took, for the estimate of time left.
 	recent []time.Duration
+	// read, in tests, reads a song in place of the model, with model the model's name.
+	read  func(ctx context.Context, t db.TrackToAnalyse) (db.TrackAnalysis, error)
+	model string
 }
 
 // Locate is the default place of the installed model.
@@ -118,11 +121,17 @@ func (s *Service) run(ctx context.Context, work jobs.Work) error {
 	if lib.Options.NoSoundAnalysis {
 		return nil // turned off since the job was asked for: what was read stays
 	}
-	runtime, supervisor, ffmpeg := s.Runtime(ctx)
-	if runtime == nil {
-		return jobs.DoneWith{Note: "Music analysis can't run on this server."}
+	read, model := s.read, s.model
+	if read == nil {
+		runtime, supervisor, ffmpeg := s.Runtime(ctx)
+		if runtime == nil {
+			return jobs.DoneWith{Note: "Music analysis can't run on this server."}
+		}
+		read = func(ctx context.Context, t db.TrackToAnalyse) (db.TrackAnalysis, error) {
+			return s.analyse(ctx, runtime, supervisor, ffmpeg, t)
+		}
+		model = runtime.Identity().Version
 	}
-	model := runtime.Identity().Version
 	var done int64
 	after, unreachable := int64(0), 0
 	for {
@@ -138,13 +147,17 @@ func (s *Service) run(ctx context.Context, work jobs.Work) error {
 			if err := s.waitForHours(ctx); err != nil {
 				return keep(err)
 			}
+			// The owner may have turned it off while it read: it stops here, keeping what is read.
+			if now, err := s.library(ctx, lib.PublicID); err != nil || now.Options.NoSoundAnalysis {
+				return keep(err)
+			}
 			group := tracks[from:min(from+SongsAtOnce, len(tracks))]
 			results := make([]result, len(group))
 			var wg sync.WaitGroup
 			for n, t := range group {
 				wg.Go(func() {
 					started := time.Now()
-					results[n].a, results[n].err = s.analyse(ctx, runtime, supervisor, ffmpeg, t)
+					results[n].a, results[n].err = read(ctx, t)
 					if results[n].err == nil {
 						s.measured(time.Since(started))
 					}
