@@ -476,6 +476,70 @@
         ],
         "type": "object"
       },
+      "ArtworkChoice": {
+        "properties": {
+          "imageId": {
+            "type": "string"
+          },
+          "unlock": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "ArtworkPicture": {
+        "properties": {
+          "height": {
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "locked": {
+            "type": "boolean"
+          },
+          "selected": {
+            "type": "boolean"
+          },
+          "source": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "width": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "url",
+          "selected",
+          "locked"
+        ],
+        "type": "object"
+      },
+      "ArtworkPicturePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ArtworkPicture"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
       "AudioPick": {
         "properties": {
           "trackId": {
@@ -1015,6 +1079,60 @@
           "expiresAt",
           "intervalMs"
         ],
+        "type": "object"
+      },
+      "CollectionCreate": {
+        "properties": {
+          "itemIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "type": "object"
+      },
+      "CollectionCreated": {
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "CollectionEdit": {
+        "properties": {
+          "add": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "order": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "remove": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "Command": {
@@ -2867,6 +2985,9 @@
       },
       "HomeRow": {
         "properties": {
+          "deferred": {
+            "type": "boolean"
+          },
           "hidden": {
             "type": "boolean"
           },
@@ -2878,6 +2999,15 @@
               "$ref": "#/components/schemas/Item"
             },
             "type": "array"
+          },
+          "library": {
+            "type": "string"
+          },
+          "nextCursor": {
+            "type": "string"
+          },
+          "query": {
+            "type": "string"
           },
           "reason": {
             "type": "string"
@@ -2894,6 +3024,26 @@
           "title",
           "shape",
           "items"
+        ],
+        "type": "object"
+      },
+      "HostedNotice": {
+        "properties": {
+          "note": {}
+        },
+        "required": [
+          "note"
+        ],
+        "type": "object"
+      },
+      "HostedNoticeAck": {
+        "properties": {
+          "ack": {
+            "$ref": "#/components/schemas/SignedAck"
+          }
+        },
+        "required": [
+          "ack"
         ],
         "type": "object"
       },
@@ -4489,6 +4639,9 @@
           "depth": {
             "type": "string"
           },
+          "groupSeries": {
+            "type": "boolean"
+          },
           "rescanMinutes": {
             "type": "integer"
           },
@@ -4850,6 +5003,21 @@
         ],
         "type": "object"
       },
+      "LiveChannelGroup": {
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "count"
+        ],
+        "type": "object"
+      },
       "LiveChannelMarks": {
         "properties": {
           "favorite": {
@@ -4875,10 +5043,57 @@
           },
           "nextCursor": {
             "type": "string"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/LiveChannelSource"
+            },
+            "type": "array"
           }
         },
         "required": [
           "items"
+        ],
+        "type": "object"
+      },
+      "LiveChannelSource": {
+        "properties": {
+          "channels": {
+            "type": "integer"
+          },
+          "favorites": {
+            "type": "integer"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/LiveChannelGroup"
+            },
+            "type": "array"
+          },
+          "guideThrough": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "outOfDate": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "channels",
+          "favorites",
+          "groups"
         ],
         "type": "object"
       },
@@ -5415,6 +5630,10 @@
             },
             "type": "array"
           },
+          "guideThrough": {
+            "format": "date-time",
+            "type": "string"
+          },
           "programmes": {
             "type": "integer"
           },
@@ -5560,6 +5779,29 @@
         "required": [
           "t",
           "v"
+        ],
+        "type": "object"
+      },
+      "LocalSignInReset": {
+        "properties": {
+          "device": {
+            "$ref": "#/components/schemas/DeviceInfo"
+          },
+          "password": {
+            "type": "string"
+          },
+          "setupCode": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "setupCode",
+          "username",
+          "password",
+          "device"
         ],
         "type": "object"
       },
@@ -5768,6 +6010,12 @@
       },
       "MatchRequest": {
         "properties": {
+          "episodeOffset": {
+            "type": "integer"
+          },
+          "episodeOrder": {
+            "type": "string"
+          },
           "id": {
             "type": "string"
           },
@@ -5783,6 +6031,9 @@
       "MatchResult": {
         "properties": {
           "itemId": {
+            "type": "string"
+          },
+          "notice": {
             "type": "string"
           }
         },
@@ -6279,6 +6530,12 @@
       },
       "MetadataMatch": {
         "properties": {
+          "episodeOffset": {
+            "type": "integer"
+          },
+          "episodeOrder": {
+            "type": "string"
+          },
           "ids": {
             "additionalProperties": {
               "type": "string"
@@ -6517,7 +6774,7 @@
       },
       "MoveCompleteRequest": {
         "properties": {
-          "approval": {
+          "challenge": {
             "type": "string"
           },
           "code": {
@@ -6526,6 +6783,7 @@
           "device": {
             "$ref": "#/components/schemas/DeviceInfo"
           },
+          "identity": {},
           "password": {
             "type": "string"
           },
@@ -6556,6 +6814,12 @@
       },
       "NetworkSettings": {
         "properties": {
+          "builtInWebOrigins": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "homeNetworks": {
             "items": {
               "type": "string"
@@ -6576,12 +6840,20 @@
               "$ref": "#/components/schemas/Warning"
             },
             "type": "array"
+          },
+          "webOrigins": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           }
         },
         "required": [
           "homeNetworks",
           "homeNetworksDefault",
           "trustedProxies",
+          "webOrigins",
+          "builtInWebOrigins",
           "warnings"
         ],
         "type": "object"
@@ -6598,6 +6870,12 @@
             "type": "array"
           },
           "trustedProxies": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "webOrigins": {
             "items": {
               "type": "string"
             },
@@ -7169,6 +7447,9 @@
           },
           "watchedMs": {
             "type": "integer"
+          },
+          "withheld": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -7355,9 +7636,6 @@
           },
           "subtitles": {
             "$ref": "#/components/schemas/SubtitlePick"
-          },
-          "throughputKbps": {
-            "type": "integer"
           },
           "versionId": {
             "type": "string"
@@ -7715,9 +7993,6 @@
           "subtitles": {
             "$ref": "#/components/schemas/SubtitlePick"
           },
-          "throughputKbps": {
-            "type": "integer"
-          },
           "versionId": {
             "type": "string"
           }
@@ -7881,6 +8156,158 @@
         },
         "required": [
           "state"
+        ],
+        "type": "object"
+      },
+      "PorticoApproval": {
+        "properties": {
+          "approvalId": {
+            "type": "string"
+          },
+          "approvalUrl": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "pollAfterMs": {
+            "type": "integer"
+          },
+          "pollToken": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "approvalId",
+          "approvalUrl",
+          "code",
+          "pollToken",
+          "expiresAt",
+          "pollAfterMs"
+        ],
+        "type": "object"
+      },
+      "PorticoApprovalPoll": {
+        "properties": {
+          "approval": {
+            "type": "string"
+          },
+          "pollAfterMs": {
+            "type": "integer"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "pollAfterMs"
+        ],
+        "type": "object"
+      },
+      "PorticoApprovalPollRequest": {
+        "properties": {
+          "pollToken": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "pollToken"
+        ],
+        "type": "object"
+      },
+      "PorticoChallenge": {
+        "properties": {
+          "challenge": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "serverId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "challenge",
+          "serverId",
+          "expiresAt"
+        ],
+        "type": "object"
+      },
+      "PorticoExchange": {
+        "properties": {
+          "challenge": {
+            "type": "string"
+          },
+          "device": {
+            "$ref": "#/components/schemas/DeviceInfo"
+          },
+          "identity": {},
+          "invitation": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "challenge",
+          "identity",
+          "device"
+        ],
+        "type": "object"
+      },
+      "PorticoLinkFinish": {
+        "properties": {
+          "approval": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "approval"
+        ],
+        "type": "object"
+      },
+      "PorticoLinkRequest": {
+        "properties": {
+          "returnUrl": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "returnUrl"
+        ],
+        "type": "object"
+      },
+      "PorticoLinkState": {
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "lastContactAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "linkedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "listed": {
+            "type": "boolean"
+          },
+          "problem": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "listed"
         ],
         "type": "object"
       },
@@ -8202,6 +8629,20 @@
         },
         "type": "object"
       },
+      "ProfileOrder": {
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "type": "object"
+      },
       "ProfilePIN": {
         "properties": {
           "code": {
@@ -8279,6 +8720,12 @@
         "properties": {
           "pin": {
             "type": "string"
+          },
+          "pinToken": {
+            "type": "string"
+          },
+          "rememberPin": {
+            "type": "boolean"
           }
         },
         "type": "object"
@@ -9240,6 +9687,9 @@
               "allowThisAddress": {
                 "type": "boolean"
               },
+              "confirmOwnerOnly": {
+                "type": "boolean"
+              },
               "confirmRefusal": {
                 "type": "boolean"
               }
@@ -9279,6 +9729,9 @@
           },
           "ipv6": {
             "type": "boolean"
+          },
+          "ipv6Note": {
+            "type": "string"
           },
           "ownAddress": {
             "$ref": "#/components/schemas/OwnAddress"
@@ -10120,6 +10573,12 @@
       },
       "SearchGroup": {
         "properties": {
+          "channels": {
+            "items": {
+              "$ref": "#/components/schemas/LiveChannel"
+            },
+            "type": "array"
+          },
           "items": {
             "items": {
               "$ref": "#/components/schemas/Item"
@@ -10352,6 +10811,13 @@
           "installationId": {
             "type": "string"
           },
+          "pinToken": {
+            "type": "string"
+          },
+          "pinTokenExpiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
           "refreshToken": {
             "type": "string"
           },
@@ -10485,6 +10951,9 @@
           "max": {
             "type": "number"
           },
+          "maxItems": {
+            "type": "integer"
+          },
           "min": {
             "type": "number"
           },
@@ -10515,6 +10984,15 @@
             "type": "string"
           },
           "name": {
+            "type": "string"
+          },
+          "notApplicable": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "problem": {
             "type": "string"
           },
           "values": {}
@@ -10594,22 +11072,6 @@
           }
         ]
       },
-      "SetupPorticoApproval": {
-        "properties": {
-          "approvalUrl": {
-            "type": "string"
-          },
-          "expiresAt": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "required": [
-          "approvalUrl",
-          "expiresAt"
-        ],
-        "type": "object"
-      },
       "SetupPorticoFinish": {
         "allOf": [
           {
@@ -10663,6 +11125,9 @@
       },
       "SignInPreview": {
         "properties": {
+          "approval": {
+            "$ref": "#/components/schemas/PorticoApproval"
+          },
           "approvalUrl": {
             "type": "string"
           },
@@ -10832,6 +11297,21 @@
         "required": [
           "to",
           "device"
+        ],
+        "type": "object"
+      },
+      "SignedAck": {
+        "properties": {
+          "payload": {
+            "type": "string"
+          },
+          "signature": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "payload",
+          "signature"
         ],
         "type": "object"
       },
@@ -12550,6 +13030,74 @@
         "x-access": "admin"
       }
     },
+    "/v1/admin/collections/{id}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
+      },
+      "patch": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectionEdit"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
+      }
+    },
     "/v1/admin/dashboard": {
       "get": {
         "responses": {
@@ -12904,6 +13452,208 @@
           }
         },
         "x-access": "owner"
+      }
+    },
+    "/v1/admin/items/{id}/artwork": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtworkPicturePage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
+      },
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtworkPicture"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
+      }
+    },
+    "/v1/admin/items/{id}/artwork/find": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtworkPicturePage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
+      }
+    },
+    "/v1/admin/items/{id}/artwork/{imageId}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "imageId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
+      }
+    },
+    "/v1/admin/items/{id}/artwork/{role}": {
+      "put": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "role",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArtworkChoice"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtworkPicturePage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
       }
     },
     "/v1/admin/items/{id}/deletion": {
@@ -13546,6 +14296,53 @@
           }
         },
         "x-access": "owner"
+      }
+    },
+    "/v1/admin/libraries/{id}/collections": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionCreated"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
       }
     },
     "/v1/admin/libraries/{id}/missing": {
@@ -15193,6 +15990,107 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StreamLimits"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/portico": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PorticoLinkState"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/portico/link": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PorticoLinkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PorticoApproval"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/portico/link/finish": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PorticoLinkFinish"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PorticoLinkState"
                 }
               }
             },
@@ -17269,6 +18167,72 @@
         "x-access": "public"
       }
     },
+    "/v1/auth/portico/challenge": {
+      "post": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PorticoChallenge"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "security": [],
+        "x-access": "public"
+      }
+    },
+    "/v1/auth/portico/exchange": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PorticoExchange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "security": [],
+        "x-access": "public"
+      }
+    },
     "/v1/auth/refresh": {
       "post": {
         "requestBody": {
@@ -18934,6 +19898,92 @@
           }
         },
         "x-access": "withProfile"
+      }
+    },
+    "/v1/hosted/approvals/{id}/poll": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PorticoApprovalPollRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PorticoApprovalPoll"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "security": [],
+        "x-access": "public"
+      }
+    },
+    "/v1/hosted/notices": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HostedNotice"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostedNoticeAck"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "security": [],
+        "x-access": "public"
       }
     },
     "/v1/images/{id}": {
@@ -21561,6 +22611,43 @@
         "x-access": "signedIn"
       }
     },
+    "/v1/profiles/order": {
+      "put": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileOrder"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfilePage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "signedIn"
+      }
+    },
     "/v1/profiles/{id}": {
       "delete": {
         "parameters": [
@@ -22996,6 +24083,44 @@
         "x-access": "owner"
       }
     },
+    "/v1/setup/local-sign-in": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocalSignInReset"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "security": [],
+        "x-access": "public"
+      }
+    },
     "/v1/setup/owner": {
       "post": {
         "requestBody": {
@@ -23051,7 +24176,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SetupPorticoApproval"
+                  "$ref": "#/components/schemas/PorticoApproval"
                 }
               }
             },

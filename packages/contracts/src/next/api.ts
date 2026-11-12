@@ -141,6 +141,27 @@ export interface AnnotationResults {
   results: AnnotationResult[];
 }
 
+export interface ArtworkChoice {
+  imageId?: string;
+  unlock?: boolean;
+}
+
+export interface ArtworkPicture {
+  id: string;
+  source: string;
+  url: string;
+  width?: number;
+  height?: number;
+  language?: string;
+  selected: boolean;
+  locked: boolean;
+}
+
+export interface ArtworkPicturePage {
+  items: ArtworkPicture[];
+  nextCursor?: string;
+}
+
 export interface AudioPick {
   trackId: string;
 }
@@ -303,6 +324,22 @@ export interface CodeStarted {
   deviceSecret: string;
   expiresAt: string;
   intervalMs: number;
+}
+
+export interface CollectionCreate {
+  title: string;
+  itemIds?: string[];
+}
+
+export interface CollectionCreated {
+  id: string;
+}
+
+export interface CollectionEdit {
+  title?: string;
+  add?: string[];
+  remove?: string[];
+  order?: string[];
 }
 
 export interface Command {
@@ -869,6 +906,18 @@ export interface HomeRow {
   shape: string;
   items: Item[];
   hidden?: boolean;
+  library?: string;
+  query?: string;
+  nextCursor?: string;
+  deferred?: boolean;
+}
+
+export interface HostedNotice {
+  note: unknown;
+}
+
+export interface HostedNoticeAck {
+  ack: SignedAck;
 }
 
 export interface IdentityProof {
@@ -1353,6 +1402,7 @@ export interface LibraryOptions {
   allowDelete: boolean;
   watch?: boolean;
   rescanMinutes: number;
+  groupSeries?: boolean;
 }
 
 export interface LibraryOrder {
@@ -1457,6 +1507,11 @@ export interface LiveChannel {
   hidden: boolean;
 }
 
+export interface LiveChannelGroup {
+  name: string;
+  count: number;
+}
+
 export interface LiveChannelMarks {
   favorite: boolean;
   hidden: boolean;
@@ -1465,6 +1520,18 @@ export interface LiveChannelMarks {
 export interface LiveChannelPage {
   items: LiveChannel[];
   nextCursor?: string;
+  sources?: LiveChannelSource[];
+}
+
+export interface LiveChannelSource {
+  id: string;
+  name: string;
+  kind: string;
+  channels: number;
+  favorites: number;
+  groups: LiveChannelGroup[];
+  guideThrough?: string;
+  outOfDate?: boolean;
 }
 
 export interface LiveCountdown {
@@ -1626,6 +1693,7 @@ export interface LiveSourceReport {
   groups?: string[];
   examples?: string[];
   channelsWithGuide: number;
+  guideThrough?: string;
 }
 
 export interface LiveSourceSave {
@@ -1663,6 +1731,13 @@ export interface LoadBucket {
 export interface LoadPoint {
   t: string;
   v: number;
+}
+
+export interface LocalSignInReset {
+  setupCode: string;
+  username: string;
+  password: string;
+  device: DeviceInfo;
 }
 
 export interface LogDetail {
@@ -1733,10 +1808,13 @@ export interface MatchRequest {
   provider?: string;
   id?: string;
   keepAsIs?: boolean;
+  episodeOrder?: string;
+  episodeOffset?: number;
 }
 
 export interface MatchResult {
   itemId: string;
+  notice?: string;
 }
 
 export interface Me {
@@ -1878,6 +1956,8 @@ export interface MetadataMatch {
   state: string;
   locked: boolean;
   ids: Record<string, string>;
+  episodeOrder?: string;
+  episodeOffset?: number;
 }
 
 export interface MetadataPatch {
@@ -1947,7 +2027,8 @@ export interface MoveCompleteRequest {
   code?: string;
   username?: string;
   password?: string;
-  approval?: string;
+  challenge?: string;
+  identity?: unknown;
   device: DeviceInfo;
 }
 
@@ -1960,6 +2041,8 @@ export interface NetworkSettings {
   homeNetworks: string[];
   homeNetworksDefault: boolean;
   trustedProxies: string[];
+  webOrigins: string[];
+  builtInWebOrigins: string[];
   warnings: Warning[];
 }
 
@@ -1967,6 +2050,7 @@ export interface NetworkSettingsEdit {
   homeNetworks?: string[];
   trustedProxies: string[];
   confirmRefusal?: boolean;
+  webOrigins?: string[];
 }
 
 export interface NextVolume {
@@ -2148,6 +2232,7 @@ export interface PlayEntry {
   watchedMs: number;
   away: boolean;
   delivery?: string;
+  withheld?: boolean;
 }
 
 export interface PlayEntryPage {
@@ -2200,7 +2285,6 @@ export interface PlaybackChange {
   subtitleOffsetMs?: number;
   seek?: PlaybackSeek;
   positionMs?: number;
-  throughputKbps?: number;
   replan?: boolean;
   failure?: Failure;
   skip?: string;
@@ -2313,7 +2397,6 @@ export interface PlaybackStart {
   audio?: AudioPick;
   subtitles?: SubtitlePick;
   network?: string;
-  throughputKbps?: number;
   discTitle?: unknown;
   requestId?: string;
 }
@@ -2365,6 +2448,55 @@ export interface PortMappingStatus {
   externalPort?: number;
   problem?: string;
   checkedAt?: string;
+}
+
+export interface PorticoApproval {
+  approvalId: string;
+  approvalUrl: string;
+  code: string;
+  pollToken: string;
+  expiresAt: string;
+  pollAfterMs: number;
+}
+
+export interface PorticoApprovalPoll {
+  state: string;
+  approval?: string;
+  pollAfterMs: number;
+}
+
+export interface PorticoApprovalPollRequest {
+  pollToken: string;
+}
+
+export interface PorticoChallenge {
+  challenge: string;
+  serverId: string;
+  expiresAt: string;
+}
+
+export interface PorticoExchange {
+  challenge: string;
+  identity: unknown;
+  invitation?: string;
+  device: DeviceInfo;
+}
+
+export interface PorticoLinkFinish {
+  approval: string;
+}
+
+export interface PorticoLinkRequest {
+  returnUrl: string;
+}
+
+export interface PorticoLinkState {
+  state: string;
+  accountId?: string;
+  linkedAt?: string;
+  lastContactAt?: string;
+  listed: boolean;
+  problem?: string;
 }
 
 export interface PreferenceDocument {
@@ -2461,6 +2593,10 @@ export interface ProfileEdit {
   color?: string;
 }
 
+export interface ProfileOrder {
+  ids: string[];
+}
+
 export interface ProfilePIN {
   pin: string;
   currentPassword?: string;
@@ -2484,6 +2620,8 @@ export interface ProfileRestrictionsEdit {
 
 export interface ProfileSelect {
   pin?: string;
+  rememberPin?: boolean;
+  pinToken?: string;
 }
 
 export interface Progress {
@@ -2789,6 +2927,7 @@ export interface RememberedFailurePage {
 export interface RemoteAccessSave extends RemoteAccessSettings {
   allowThisAddress?: boolean;
   confirmRefusal?: boolean;
+  confirmOwnerOnly?: boolean;
 }
 
 export interface RemoteAccessSettings {
@@ -2799,6 +2938,7 @@ export interface RemoteAccessSettings {
   portMapping: string;
   publicPort: number;
   ipv6: boolean;
+  ipv6Note?: string;
   ownAddress: OwnAddress;
   allowedAddresses: string[];
   findAtHome: boolean;
@@ -3050,6 +3190,7 @@ export interface SearchGroup {
   totalIsMinimum?: boolean;
   items?: Item[];
   people?: Person[];
+  channels?: LiveChannel[];
   nextCursor?: string;
 }
 
@@ -3117,6 +3258,8 @@ export interface Session {
   deviceId: string;
   installationId: string;
   viewer: Viewer;
+  pinToken?: string;
+  pinTokenExpiresAt?: string;
   twoStepSetupRequired?: boolean;
 }
 
@@ -3154,6 +3297,7 @@ export interface Setting {
   scopes: string[];
   group: string;
   labelKey: string;
+  maxItems?: number;
 }
 
 export interface SettingsDocument {
@@ -3161,6 +3305,8 @@ export interface SettingsDocument {
   values: unknown;
   defaults: unknown;
   etag: string;
+  problem?: string;
+  notApplicable?: Record<string, string>;
 }
 
 export interface SettingsDocumentPage {
@@ -3181,11 +3327,6 @@ export interface SetupOwnerRequest extends SetupRemote {
   password: string;
   profileName?: string;
   device: DeviceInfo;
-}
-
-export interface SetupPorticoApproval {
-  approvalUrl: string;
-  expiresAt: string;
 }
 
 export interface SetupPorticoFinish extends SetupRemote {
@@ -3217,6 +3358,7 @@ export interface SignInPreview {
   keysRemoved: number;
   porticoAddressRemoved: boolean;
   approvalUrl?: string;
+  approval?: PorticoApproval;
   porticoUnavailable?: boolean;
 }
 
@@ -3256,6 +3398,11 @@ export interface SignInSwitchRequest {
   password?: string;
   approval?: string;
   device: DeviceInfo;
+}
+
+export interface SignedAck {
+  payload: string;
+  signature: string;
 }
 
 export interface SkippedFile {
@@ -3650,6 +3797,7 @@ export interface Routes {
   'DELETE /v1/profiles/{id}/pin': {access: 'signedIn'; request: undefined; response: undefined};
   'DELETE /v1/profiles/{id}': {access: 'signedIn'; request: undefined; response: undefined};
   'POST /v1/profiles/{id}/select': {access: 'signedIn'; request: ProfileSelect; response: Session};
+  'PUT /v1/profiles/order': {access: 'signedIn'; request: ProfileOrder; response: ProfilePage};
   'GET /v1/profiles/{id}/restrictions': {access: 'signedIn'; request: undefined; response: Restrictions};
   'PUT /v1/profiles/{id}/restrictions': {access: 'signedIn'; request: ProfileRestrictionsEdit; response: Restrictions};
   'PUT /v1/profiles/{id}/avatar': {access: 'signedIn'; request: undefined; response: Profile};
@@ -3830,7 +3978,7 @@ export interface Routes {
   'POST /v1/admin/remote-access/route-check': {access: 'owner'; request: RemoteAccessSettings; response: RouteCheck};
   'POST /v1/admin/remote-access/check': {access: 'owner'; request: undefined; response: RemoteAccessStatus};
   'POST /v1/setup/owner': {access: 'public'; request: SetupOwnerRequest; response: SignInResponse};
-  'POST /v1/setup/portico': {access: 'public'; request: SetupPorticoRequest; response: SetupPorticoApproval};
+  'POST /v1/setup/portico': {access: 'public'; request: SetupPorticoRequest; response: PorticoApproval};
   'POST /v1/setup/portico/finish': {access: 'public'; request: SetupPorticoFinish; response: SignInResponse};
   'POST /v1/setup/finish': {access: 'owner'; request: SetupFinish; response: RemoteSecurity};
   'GET /v1/admin/sign-in': {access: 'owner'; request: undefined; response: SignInState};
@@ -3843,6 +3991,14 @@ export interface Routes {
   'POST /v1/auth/move/check': {access: 'public'; request: MoveCheckRequest; response: MoveCheck};
   'POST /v1/auth/move/complete': {access: 'public'; request: MoveCompleteRequest; response: SignInResponse};
   'POST /v1/me/leave': {access: 'signedIn'; request: LeaveRequest; response: undefined};
+  'POST /v1/auth/portico/challenge': {access: 'public'; request: undefined; response: PorticoChallenge};
+  'POST /v1/auth/portico/exchange': {access: 'public'; request: PorticoExchange; response: SignInResponse};
+  'POST /v1/hosted/notices': {access: 'public'; request: HostedNotice; response: HostedNoticeAck};
+  'POST /v1/hosted/approvals/{id}/poll': {access: 'public'; request: PorticoApprovalPollRequest; response: PorticoApprovalPoll};
+  'POST /v1/setup/local-sign-in': {access: 'public'; request: LocalSignInReset; response: SignInResponse};
+  'GET /v1/admin/portico': {access: 'owner'; request: undefined; response: PorticoLinkState};
+  'POST /v1/admin/portico/link': {access: 'owner'; request: PorticoLinkRequest; response: PorticoApproval};
+  'POST /v1/admin/portico/link/finish': {access: 'owner'; request: PorticoLinkFinish; response: PorticoLinkState};
   'GET /v1/admin/settings/integrations': {access: 'owner'; request: undefined; response: IntegrationSettings};
   'PUT /v1/admin/settings/integrations': {access: 'owner'; request: IntegrationSettingsEdit; response: IntegrationSettings};
   'POST /v1/mcp': {access: 'signedIn'; request: JSON; response: MCPReply};
@@ -3945,4 +4101,12 @@ export interface Routes {
   'PATCH /v1/admin/items/{id}/metadata': {access: 'admin'; request: MetadataPatch; response: MetadataDocument};
   'GET /v1/admin/items/{id}/metadata/history': {access: 'admin'; request: undefined; response: MetadataHistoryEntryPage};
   'POST /v1/admin/items/{id}/metadata/history/{entryId}/undo': {access: 'admin'; request: undefined; response: MetadataDocument};
+  'POST /v1/admin/libraries/{id}/collections': {access: 'admin'; request: CollectionCreate; response: CollectionCreated};
+  'PATCH /v1/admin/collections/{id}': {access: 'admin'; request: CollectionEdit; response: undefined};
+  'DELETE /v1/admin/collections/{id}': {access: 'admin'; request: undefined; response: undefined};
+  'GET /v1/admin/items/{id}/artwork': {access: 'admin'; request: undefined; response: ArtworkPicturePage};
+  'PUT /v1/admin/items/{id}/artwork/{role}': {access: 'admin'; request: ArtworkChoice; response: ArtworkPicturePage};
+  'DELETE /v1/admin/items/{id}/artwork/{imageId}': {access: 'admin'; request: undefined; response: undefined};
+  'POST /v1/admin/items/{id}/artwork/find': {access: 'admin'; request: undefined; response: ArtworkPicturePage};
+  'POST /v1/admin/items/{id}/artwork': {access: 'admin'; request: undefined; response: ArtworkPicture};
 }
