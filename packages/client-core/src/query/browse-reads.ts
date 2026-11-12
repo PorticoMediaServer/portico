@@ -1,5 +1,7 @@
-import {readFacet, readItems, readLibrary} from '../items.ts';
-import {libraryBrowseCapabilities, libraryItemQuery} from '../library-browse.ts';
+import {entriesFromItems, readFacet, readItems, readLibrary} from '../items.ts';
+import {childrenQuery, libraryBrowseCapabilities, libraryItemQuery} from '../library-browse.ts';
+import type {ContentEntry} from '../library-content.ts';
+import {unreadableServerResponse} from '../server-messages.ts';
 import type {ServerRequester} from './server-api.ts';
 import {encodedRoutePath, routePath} from '../../../contracts/src/routes.ts';
 import type {GuideRoute} from '../channel-guide.ts';
@@ -48,6 +50,14 @@ export async function readReadingBrowseFacet(api: import('../library-content.ts'
   const page = parseBrowseFacets(await api.request(browseContextFacetsPath(libraryId, field, pivot, query, search, limit), 'GET', undefined, lifetime.signal), field);
   if (!lifetime.isCurrent()) throw Object.assign(new Error('The list closed.'), {name: 'AbortError'});
   return page;
+}
+
+/** One page of an album's tracks in the album's own order, with the album's track count: the album page's list and its whole-album actions. */
+export async function readAlbumTrackPage(api: BrowseReadApi, libraryId: string, albumId: string, page: Readonly<{cursor?: string; limit: number}>,
+  signal?: AbortSignal): Promise<Readonly<{entries: readonly ContentEntry[]; nextCursor: string; total?: number}>> {
+  const answer = await readItems(api as ServerRequester, childrenQuery(albumId), {cursor: page.cursor || undefined, limit: page.limit, total: true}, signal);
+  if (!answer || !Array.isArray(answer.items)) throw new Error(unreadableServerResponse);
+  return {entries: entriesFromItems(answer.items, libraryId), nextCursor: answer.nextCursor ?? '', ...(typeof answer.total === 'number' ? {total: answer.total} : {})};
 }
 
 /** Capture the original artist release address before its pager is constructed. */
