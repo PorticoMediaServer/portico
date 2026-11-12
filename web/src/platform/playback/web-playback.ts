@@ -324,9 +324,6 @@ export class WebPlayback implements PlaybackAdapter {
       wantsPlaying: () => this.service?.getSnapshot().intent === 'playing',
       onServerEnded: (session, end) => this.serverEnded(session.id, end),
       onLeaseExpired: (session, positionMs) => void this.leaseExpired(session, positionMs),
-      // A pause or play from another device or an administrator goes through the service, which
-      // owns the viewer's intent, so the player and the intent stay one (RN-09).
-      onRemoteControl: state => { const service = this.service; if (!service) return; if (state === 'paused') service.pause(); else service.resume(); },
     });
     this.startRegistration = host.preparingStarts?.attach(id => this.controller.getSnapshot().session?.id === id || this.service?.getSnapshot().session?.id === id);
     this.transport = this.makeTransport();
@@ -917,7 +914,7 @@ export class WebPlayback implements PlaybackAdapter {
           await self.controller.stop();
           self.controller.detach();
         } else if (!self.retired.has(id)) {
-          await self.client.stop(id, self.positions.get(id), signal, self.known.get(id)?.presentation.generation);
+          await self.client.stop(id, self.positions.get(id), signal);
         }
         self.registrations.changed(id);
         self.known.delete(id);
@@ -929,9 +926,6 @@ export class WebPlayback implements PlaybackAdapter {
       async progressPlayback(id: string, payload: {generation: number; sequence: number; positionSeconds: number; state: 'playing' | 'paused' | 'ended'}) {
         if (payload.state !== 'ended' || self.retired.has(id) || self.controller.getSnapshot().session?.id !== id) return;
         await self.controller.confirmEnded();
-      },
-      async markerSkipped(id: string, skipped: Readonly<{markerId: string; mode: 'automatic' | 'manual'; positionMs: number}>) {
-        if (self.controller.getSnapshot().session?.id === id) self.controller.noteSkip(skipped);
       },
       // The engine could not play the presentation: the server is told, and re-plans the same
       // session another way where the picture was. The queue and its place are untouched.

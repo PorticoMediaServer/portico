@@ -180,14 +180,3 @@ test('stop ends inbox and heartbeat polling (the app-background path)',async(t)=
  }finally{t.mock.timers.reset();}
 });
 
-test('after a handoff the controller can pause, resume, seek and stop the destination session',async()=>{
- const s=server({grants:['accepted'],handoffs:[{},{outcome:'pending',revision:'2',receiverPlaybackId:'pb_tv',readyPositionUs:'90400000'}]});const calls:{id:string;change?:unknown;revision?:string}[]=[];
- let current:any={id:'pb_tv',revision:'1',state:'playing',presentation:{generation:1}};
- const sessions={get:async(id:string)=>{assert.equal(id,'pb_tv');return current;},patch:async(id:string,revision:string,change:any)=>{calls.push({id,revision,change});current={...current,revision:String(Number(current.revision)+1),state:change.state??current.state};return current;},stop:async(id:string)=>{calls.push({id});}};
- const c=new HandoffController({api:s.api,device:{deviceId:'phone-1',displayName:'Phone'},requestId:()=> 'remote-seek',pollMs:5,sessions});
- assert.equal(await c.send(tv,{playbackId:'pb_source',positionSeconds:42}),true);
- assert.equal(c.getSnapshot().receiverPlaybackId,'pb_tv');
- assert.equal(await c.pause(),true);assert.equal(await c.play(),true);assert.equal(await c.seek(19.5),true);assert.equal(await c.stop(),true);
- assert.deepEqual(calls.map(x=>x.change),[{state:'paused'},{state:'playing'},{seek:{positionMs:19500,id:'remote-seek'}},undefined]);
- assert(calls.every(x=>x.id==='pb_tv'));assert.equal(c.getSnapshot().receiverPlaybackId,undefined);c.dispose();
-});

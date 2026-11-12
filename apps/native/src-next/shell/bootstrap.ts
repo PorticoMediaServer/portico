@@ -7,6 +7,7 @@ import {NativeScreenLifetime} from '../screens/settings-live/lifetime';
 import {sendNativeDeviceReport} from '../screens/settings-live/device-client-report';
 import {bindNativeTogether} from '../screens/settings-live/together-playback';
 import {audiobookPreferences} from '../../../../packages/client-core/src/audiobook-preferences';
+import {postPlaySettings} from '../../../../packages/client-core/src/playback-v1/post-play';
 import {routePath} from '../../../../packages/contracts/src/routes';
 import {HomeService} from '../../../../packages/client-core/src/home-service';
 import {viewerQueryScope} from '../../../../packages/client-core/src/query/viewer-queries';
@@ -368,7 +369,7 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
         // The sample-rate match is this device's own engine value, never the profile's.
         let matching: 'smart' | 'strict' | 'off' | undefined;
         try {const value = nativeDeviceSettings(context).read('music.sampleRateMatching'); matching = value === 'smart' || value === 'strict' || value === 'off' ? value : undefined;} catch {matching = undefined;}
-        return {...nativePlaybackSettings(currentPreferences().effective, installationSettings), audiobook: audiobookPreferences(currentPreferences()),
+        return {...nativePlaybackSettings(currentPreferences().effective, installationSettings), audiobook: audiobookPreferences(currentPreferences()), postPlay: postPlaySettings(currentPreferences()),
           audioEffects: {...musicAudioEffects(currentPreferences()), ...(matching ? {sampleRateMatching: matching} : {})}};
       }, subscribeSettings: contextBase.subscribePreferences, appVersion: contextBase.appVersion});
     playOn = new NativePlayOn({api: local, session: () => current() ? session : undefined,

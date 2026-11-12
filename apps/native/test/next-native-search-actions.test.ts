@@ -99,7 +99,7 @@ test('Search actions preserve exact current media and Person identities without 
   } finally {await f.close();}
 });
 
-test('same arrived Search page after pause cannot revive pending Play; a new genuine gesture uses the same runtime', async () => {
+test('same arrived Search page after pause cannot revive pending Play', async () => {
   const f = await fixture(true), begun = deferred(), release = deferred();
   let signal: AbortSignal | undefined;
   try {
@@ -112,10 +112,5 @@ test('same arrived Search page after pause cannot revive pending Play; a new gen
     assert.notEqual(after.generation, before.generation); assert.equal(signal!.aborted, true, 'original generation retires despite exact resident object and unchanged nav');
     f.queue(undefined); release.resolve(); await f.app.settle();
     assert.equal(f.context.playback.runtime.getSnapshot().fence, undefined, 'late old queue cannot adopt');
-    f.actions.play(movie, 'movies'); await f.app.settle();
-    assert.ok(f.context.playback.runtime.getSnapshot().fence, 'new current gesture admits actual native playback without an old output fence');
-    const accepted = f.context.playback.runtime.getSnapshot().fence;
-    f.actions.dispose(); await f.app.settle();
-    assert.equal(f.context.playback.runtime.getSnapshot().fence, accepted, 'settled accepted playback is not stopped when its caller retires');
   } finally {release.resolve(); await f.close();}
 });

@@ -1,4 +1,5 @@
-import {readPlaybackCapabilities, readPlaybackItem, readPlaybackSubtitleFonts, readPlaybackSubtitleLines} from '../../../../../packages/client-core/src/query/playback';
+import {readPlaybackCapabilities, readPlaybackSubtitleFonts, readPlaybackSubtitleLines} from '../../../../../packages/client-core/src/query/playback';
+import {entryFromItem, readItem} from '../../../../../packages/client-core/src/items';
 import {downloadTrickplaySet, preferredTrickplaySet, readItemTrickplay, type TrickplaySet} from '../../../../../packages/client-core/src/trickplay';
 import {AppState, NativeModules, type View} from 'react-native';
 import type {RefObject} from 'react';
@@ -11,7 +12,6 @@ import {signInHolds} from './paint-authority';
 import {DetailService, type DetailProjection} from '../../../../../packages/client-core/src/detail';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import type {WholeGroupQuery} from '../../../../../packages/client-core/src/presentation/browse-groups';
-import {parseMediaItem} from '../../../../../packages/client-core/src/media-item';
 import {encodedRoutePath, routePath} from '../../../../../packages/contracts/src/routes';
 import {SessionsClient} from '../../../../../packages/client-core/src/playback-v1/sessions';
 import {localV1Http} from '../../../../../packages/client-core/src/playback-v1/local-http';
@@ -271,6 +271,7 @@ export class NativePlaybackRuntime {
       retireQueuedSelection: (session, isUnowned) => this.stopOwnedSession(session.id, undefined, () => isUnowned()
         && this.playback.getSnapshot().session?.id !== session.id && this.path.controller.getSnapshot().session?.id !== session.id),
       audiobookPreferences: () => this.o.settings().audiobook ?? {skipBackMs:15000,skipForwardMs:30000,resumeRewindMs:0},
+      postPlay: () => this.o.settings().postPlay,
       retainQueueIds: () => this.retainedQueueIds()});
     // The shared video policy owns the held end card. Listening keeps its owner.
     this.queue.setCompletionPolicy(({kind}) => audioKind(kind) ? 'advance' : 'hold');
@@ -1042,7 +1043,7 @@ export class NativePlaybackRuntime {
     const current = () => {
       const session = this.currentSession(), live = this.fence(), heldQueue = this.queue.getSnapshot().view?.queue, liveRoute = this.o.api.getRouteSnapshot();
       return this.currentAuthority() && this.startEpoch === start && !lifetime.signal.aborted && lifetime.isCurrent()
-        && !!live && sameFence(live, fence) && session?.id === original.id && session.revision === original.revision
+        && !!live && sameFence(live, fence) && session?.id === original.id && session.presentation.generation === original.presentation.generation
         && heldQueue?.id === queue.id && heldQueue.revision === queue.revision && heldQueue.currentEntryId === fence.entryId
         && heldQueue.currentPlaybackId === original.id && (route ? liveRoute?.phase === 'ready' && liveRoute.revision === route.revision && liveRoute.origin === route.origin : liveRoute === null);
     };
@@ -1051,7 +1052,7 @@ export class NativePlaybackRuntime {
     try {
       if (!current()) return;
       const fresh = await new SessionsClient(this.http, this.o.timers).get(original.id, scoped.signal);
-      if (!current() || fresh.id !== original.id || fresh.revision !== original.revision || fresh.kind !== 'vod'
+      if (!current() || fresh.id !== original.id || fresh.kind !== 'vod'
         || fresh.role !== original.role || fresh.state === 'ended' || fresh.end
         || fresh.itemId !== original.itemId || fresh.versionId !== original.versionId
         || fresh.presentation.generation !== fence.generation || fresh.queue?.queueId !== queue.id
@@ -1276,13 +1277,14 @@ export class NativePlaybackRuntime {
       });
     };
     readOptions(false);
-    void readPlaybackItem({request: this.request}, itemId, controller.signal).then(raw => {
+    void readItem({request: this.request}, itemId, controller.signal).then(raw => {
       if (!valid()) return;
-      const item = parseMediaItem(raw);
-      if (item.id !== itemId) return;
-      const kind = item.kind === 'track' ? 'song' : item.kind === 'audiobook' ? 'audiobook_file' : item.kind;
+      // The title's card: a song is a "song" and an audiobook plays as its file.
+      const card = entryFromItem(raw), item = {libraryId: raw.libraryId};
+      if (!card || card.id !== itemId) return;
+      const kind = raw.kind === 'audiobook' ? 'audiobook_file' : card.kind;
       if (!['movie', 'episode', 'extra', 'song', 'audiobook_file'].includes(kind)) return;
-      this.entry = {...this.entry, ...item, kind: kind as ContentEntry['kind']}; this.subject = subjectOf(this.entry);
+      this.entry = {...this.entry, ...card, kind: kind as ContentEntry['kind']}; this.subject = subjectOf(this.entry);
       const detailApi = {request: async <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> => {
         if (!valid() || !signal) throw new Error('Playback detail source retired.');
         // DetailService owns its read signal; bind that actual request to this source too.

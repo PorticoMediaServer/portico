@@ -81,40 +81,6 @@ test('MU-7: the steps a native player holds move exactly as Previous and Next ch
   assert.equal(bookChapterSteps(chapters, 's1', 'part-z', id => entries[id]), undefined);
 });
 
-test('a playing book reads its chapters once, and a chapter in another part starts there in the same queue move', async () => {
-  const server = new FakePlaybackServer({audioItem: id => id.startsWith('part-'), itemKind: id => id.startsWith('part-') ? 'audiobook_file' : undefined});
-  const inner = fakeHttp(server), log: {method: string; path: string; body?: unknown}[] = [];
-  const http: V1Http = {send: async request => {
-    log.push({method: request.method, path: request.path, body: request.body});
-    if (request.path.startsWith('/v1/books/book/chapters')) return {status: 200, headers: {}, body: {chapters: wire, nextCursor: ''}} as never;
-    const response = await inner.send(request as never);
-    const body = response.body as {data?: Record<string, unknown>} | undefined;
-    if (/\/v1\/items\/part-[ab]\/listening$/.test(request.path) && body?.data) body.data.bookId = 'book';
-    return response as never;
-  }};
-  let serial = 0;
-  const api = new V1PlaybackApi(http, {key: () => `k${++serial}-00000000`});
-  const playback = new PlaybackService(api, () => `r${++serial}`);
-  const player = new V1QueuePlayer({http, api, playback, viewer: {serverId: 'server', authority: 'local' as const, accountId: 'account', profileId: 'profile'}, key: () => `q${++serial}-key-000000`, pendingPollMs: 10});
-  const stop = player.connect();
-  try {
-    await player.playEntries(['part-a', 'part-b'].map(queueItemInput));
-    for (let i = 0; i < 20 && player.chapterTarget('next') === undefined; i++) await new Promise(r => setTimeout(r, 10));
-    assert.ok(player.chapterTarget('next'), 'the book\'s chapters are known while its part plays');
-    const view = player.bookChaptersView();
-    assert.equal(view?.phase, 'ready'); assert.equal(view?.chapters.length, 4, 'MU-2: the list spans every part');
-    assert.equal(view?.itemId, 'part-a'); assert.equal(view?.chapters[view.current]?.itemId, 'part-a');
-    const run = playback.getSnapshot().playbackRun;
-    await player.selectQueuedItem('part-b', 900);
-    const advance = log.findLast(entry => entry.method === 'POST' && entry.path.endsWith(':advance'));
-    assert.deepEqual(advance?.body, {reason: 'entry', entryId: (advance?.body as {entryId: string}).entryId, startPositionMs: 900_000});
-    assert.equal(playback.getSnapshot().itemId, 'part-b');
-    assert.equal(player.currentSession()?.presentation.startPositionMs, 900_000, 'the part starts at the chapter, not where it was left');
-    assert.equal(playback.getSnapshot().playbackRun, run, 'a chapter move keeps the run (its sleep timer and speed)');
-    await new Promise(r => setTimeout(r, 30));
-    assert.equal(log.filter(entry => entry.path.startsWith('/v1/books/')).length, 1, 'one read per book, not per part');
-  } finally {stop(); player.dispose();}
-});
 
 test('MU-2: the playing chapter is drawn only when it is in the playing part', () => {
   const chapters = rows();

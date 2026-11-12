@@ -11,6 +11,8 @@ export function sessionEndMessage(end:Readonly<{reason:string;message?:string}>)
   // Live TV's handover sentence (LT-8), the same words its band uses.
   case 'tuner_reserved':return serviceText('live.handover.stopped');
   case 'lease_expired':return serviceText('player.ended.leaseExpired');
+  // Stopped from another device of the same account.
+  case 'stopped_elsewhere':return serviceText('player.ended.other');
   case 'replaced':return serviceText('player.ended.replaced');
   case 'restored':return serviceText('player.ended.restored');
   case 'paused_timeout':return serviceText('player.ended.pausedTimeout');

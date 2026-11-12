@@ -25,7 +25,7 @@ test('actual bootstrap device commits reach the existing capability publisher an
     holdLibraries = true; const refresh = runtime.refresh(); await began.promise;
     await source.write('forceStereo', true); await source.write('playerEngine', 'native'); await app.settle();
     assert.equal(source.read('forceStereo'), true);
-    const published = app.requests.filter(request => request.path === '/v1/me/devices/current/capabilities').at(-1)?.body;
+    const published = app.requests.filter(request => request.path === '/v1/devices/current/capabilities').at(-1)?.body;
     assert.equal(published?.overrides.forceStereo, true); assert.equal(published?.engineSetting, 'native');
     release.resolve(); await refresh; await app.settle();
     assert.equal(source.read('forceStereo'), true, 'an earlier parallel record observation cannot overwrite the newer committed value');

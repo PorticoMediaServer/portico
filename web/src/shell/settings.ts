@@ -3,6 +3,7 @@ import {preferenceValue, type PreferenceSnapshot} from '@core/preferences.ts';
 import {regionPreferences, subtitlePreferences, type SubtitlePreferences} from '@core/preference-effects.ts';
 import {musicAudioEffects, musicQueueDefaults} from '@core/music-preferences.ts';
 import {audiobookPreferences} from '@core/audiobook-preferences.ts';
+import {postPlaySettings} from '@core/playback-v1/post-play.ts';
 import type {SkipMode} from '../../../packages/player-core/src/index.ts';
 import type {WebPlaybackSettings} from '../platform/playback';
 
@@ -26,7 +27,7 @@ export function shellPlaybackSettings(source: PreferenceSnapshot | (() => Prefer
     audiobookSpeed: () => preferenceValue<number>(preferences(), 'audiobooks.defaultSpeed'),
     audiobookPreferences: () => audiobookPreferences(preferences()),
     skipModes: () => ({intro: preferenceValue<SkipMode>(preferences(), 'playback.introSkip'), credits: preferenceValue<SkipMode>(preferences(), 'playback.creditsSkip'), recap: preferenceValue<SkipMode>(preferences(), 'playback.recapSkip')}),
-    audioEffects: () => musicAudioEffects(preferences()), musicDefaults: () => musicQueueDefaults(preferences()),
+    audioEffects: () => musicAudioEffects(preferences()), musicDefaults: () => musicQueueDefaults(preferences()), postPlay: () => postPlaySettings(preferences()),
     lyricsEnabled: () => preferenceValue<boolean>(preferences(), 'playback.showSyncedLyrics') === true,
     subtitlePreferences: () => subtitlePreferences(preferences()),
     webVolume: () => !(/iPhone|iPad|iPod/.test(browser.userAgent) || /Macintosh/.test(browser.userAgent) && browser.maxTouchPoints > 1),

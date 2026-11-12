@@ -1,13 +1,11 @@
-import {encodedRoutePath} from '../../../contracts/src/routes.ts';
-import type {ItemResponse} from '../media-item.ts';
+import {readPlaybackItem, type PlaybackItem} from '../playback-v1/item.ts';
 
 /** Uncached playing-item read, preserving the original retry and timer budget. */
-export async function readPlaybackItemBounded(api: {request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>}, itemId: string, signal: AbortSignal, current: () => boolean, timers: {setTimer(run: () => void, ms: number): unknown; clearTimer(timer: unknown): void}): Promise<ItemResponse> {
-  const path = encodedRoutePath('get_items_id', {id: encodeURIComponent(itemId)});
+export async function readPlaybackItemBounded(api: {request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>}, itemId: string, signal: AbortSignal, current: () => boolean, timers: {setTimer(run: () => void, ms: number): unknown; clearTimer(timer: unknown): void}): Promise<PlaybackItem> {
   for (let attempt = 0; ; attempt++) {
     // A read that hangs is a failure too: each attempt gets 8 s.
     const attemptLife = new AbortController(), expiry = timers.setTimer(() => attemptLife.abort(), 8000);
-    try { return await api.request<ItemResponse>(path, 'GET', undefined, AbortSignal.any([signal, attemptLife.signal])); }
+    try { return await readPlaybackItem(api, itemId, AbortSignal.any([signal, attemptLife.signal])); }
     catch (error) {
       const failure = error as {name?: string; status?: number; retryable?: boolean} | undefined;
       const timedOut = attemptLife.signal.aborted && !signal.aborted;

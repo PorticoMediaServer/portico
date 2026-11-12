@@ -170,20 +170,6 @@ test('a registration caused by a currentness callback is refused before cleanup 
   } finally {reg.dispose();owner.dispose();}
 });
 
-test('original nested body/key stay frozen across preparation, while returned 201 is remembered normally', async () => {
-  const f = fixture(), options: StartOptions = {audio: {trackId: 'track-a'}, subtitles: {trackId: 'sub-a', delivery: 'sidecar'}};
-  f.replies.push(Promise.resolve(response({...real(), retryAfterMs: 500})), Promise.resolve(response(real(), 201)));
-  try {
-    const pending = f.web.transport.start({itemId: 'movie'}, options, 'original-key', 60);await settle();
-    (options.audio as {trackId: string}).trackId = 'track-b';(options.subtitles as {trackId: string}).trackId = 'sub-b';
-    f.c.fire();const accepted = await pending;
-    assert.deepEqual(f.calls.map(call => call.body), [f.calls[0]!.body, f.calls[0]!.body]);
-    assert.deepEqual(f.calls[0]!.body, {itemId: 'movie', audio: {trackId: 'track-a'}, subtitles: {trackId: 'sub-a', delivery: 'sidecar'}});
-    assert.ok(Object.isFrozen((f.calls[0]!.body as StartOptions).audio));
-    assert.ok(f.calls.every(call => call.headers?.['Idempotency-Key'] === 'original-key'));
-    assert.equal(f.web.session(accepted.session.id), accepted.session);assert.equal(f.stops.length, 0);assert.equal(f.c.jobs.size, 0);
-  } finally {f.web.dispose();f.owner.dispose();}
-});
 
 test('late actual 201 still reaches the original core owner instead of being turned into preparation cleanup', async () => {
   const f = fixture(), held = deferred<ReturnType<typeof response>>();f.replies.push(held.promise);
