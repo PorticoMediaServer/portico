@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
-	"net/http"
 	"time"
 )
 
@@ -24,30 +22,13 @@ type providerError struct{ err error }
 func (e providerError) Error() string { return e.err.Error() }
 func (e providerError) Unwrap() error { return e.err }
 
-// outage reports whether a provider's failure is plainly the provider's own and not about the
-// title: no answer at all (a network error, a timeout), its own trouble (5xx), a request to
-// slow down (429), or a key it refuses (401, 403), which is about the caller and is refused for
-// every title alike. Anything else, such as a refusal of one request (422), is about that title.
-func outage(err error) bool {
-	var status StatusError
-	if errors.As(err, &status) {
-		switch status.Status {
-		case http.StatusUnauthorized, http.StatusForbidden, http.StatusTooManyRequests:
-			return true
-		}
-		return status.Status >= 500
-	}
-	var network net.Error
-	return errors.Is(err, context.DeadlineExceeded) || errors.As(err, &network)
-}
-
 // failures is what one run (a lookup or a refresh of a library) does with the titles the
 // provider fails on, so one title can never keep the rest from being reached.
 //
 //   - A failure about one title (a refusal) is recorded at once (db.ProviderFailed): the title
 //     waits before it is asked again, an hour at first and twice as long each time after, up to
 //     a week, and the run goes on. It is not a sign that the provider is down.
-//   - A failure that is plainly the provider's (outage) is passed over and held. Once the
+//   - A failure that is plainly the provider's (providerOutage) is passed over and held. Once the
 //     provider answers or refuses for a later title, it is up after all, and the held titles are
 //     recorded too. Five such failures in a row, or a run that met nothing else, is a provider
 //     that is down: the run stops with ErrProviderDown and those titles are as they were, with
@@ -72,7 +53,7 @@ func (f *failures) took(ctx context.Context, itemID int64, err error) (handled b
 		return false, f.settle(ctx)
 	}
 	f.count++
-	if !outage(err) {
+	if !providerOutage(err) {
 		f.upSince, f.inARow = true, 0
 		if err := f.settle(ctx); err != nil {
 			return true, err
