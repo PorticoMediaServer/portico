@@ -45,18 +45,26 @@ test('a title page read before is drawn from the viewer\'s cache at once, with n
 
 test('an album or artist page read before is drawn from the viewer\'s cache at once, with no request', async () => {
   let reads = 0;
-  const album = (path: string) => ({version: 1, scope: {serverId: 'server', libraryId: 'library', libraryKind: 'music', view: 'album', entityId: 'album', viewerFence: 'fence'}, revision: {catalog: 1, viewer: 1},
-    heading: {key: 'entity.title', fallback: 'Album'}, navigation: [], query: {sort: 'title', direction: 'asc', category: '', q: '', limit: 40, searchMode: 'none'}, sorts: [], filters: [], sections: [],
-    entity: {id: 'album', kind: 'album', title: 'Album', libraryId: 'library'}, path});
-  const queries = testQueries({request: async (path: string) => {reads++; return album(path);}}, scope);
+  // The rebuilt server's answers: the album, its songs and its library. One page read is these
+  // three requests, kept as one entry of the viewer's cache.
+  const answer = (path: string) => {
+    const u = new URL(path, 'https://server.test');
+    if (u.pathname === '/v1/items') return {items: [{id: 'song', kind: 'track', title: 'Song', index: 1, parentIndex: 1}], total: 1};
+    if (u.pathname.startsWith('/v1/libraries/')) return {id: 'library', name: 'Music', kind: 'music'};
+    return {id: 'album', kind: 'album', title: 'Album', libraryId: 'library'};
+  };
+  const queries = testQueries({request: async (path: string) => {reads++; return answer(path);}}, scope);
   const first = new LibraryContentService({queries, scope});
   await first.select({libraryId: 'library', view: 'album', entityId: 'album'});
   assert.equal(first.getSnapshot().phase, 'ready', String(first.getSnapshot().error?.code));
+  assert.equal(first.getSnapshot().projection?.entity?.id, 'album');
   first.dispose();
+  const before = reads;
   const second = new LibraryContentService({queries, scope});
   void second.select({libraryId: 'library', view: 'album', entityId: 'album'});
-  assert.equal(second.getSnapshot().phase, 'ready');
-  assert.equal(reads, 1);
+  assert.equal(second.getSnapshot().phase, 'ready', 'Back draws the page on the first frame');
+  assert.equal(second.getSnapshot().projection?.entity?.id, 'album');
+  assert.equal(reads, before, 'Back costs no request');
   second.dispose(); queries.dispose();
 });
 
