@@ -293,7 +293,7 @@ export class V1QueuePlayer implements QueueController {
     } satisfies QueueWorkspaceService});
   }
 
-  private request(path: string, body?: unknown, method: 'GET' | 'POST' | 'PUT' = 'GET', signal?: AbortSignal): Promise<unknown> {
+  private request(path: string, body?: unknown, method: 'GET' | 'POST' | 'PUT' | 'PATCH' = 'GET', signal?: AbortSignal): Promise<unknown> {
     return call(this.http, {method, path, body, signal}).then(r => r.body);
   }
 

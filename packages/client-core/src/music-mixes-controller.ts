@@ -36,6 +36,8 @@ function freeze<T>(value: T): T {
 
 /** One portable profile-scoped row for Home and Music Discover. Only the generated
  * read/copy contracts and canonical naming formatter define its contents. */
+/** Whether the server has Mixes. The rebuilt server does not yet: see the stopgap in `read`. */
+const mixesOnServer = false;
 export function createMusicMixesController(options: MusicMixesOptions) {
   const api = {request: options.api.request.bind(options.api)}, principal = Object.freeze({serverId: options.principal.serverId,
     authority: options.principal.authority, accountId: options.principal.accountId, profileId: options.principal.profileId});
@@ -81,6 +83,10 @@ export function createMusicMixesController(options: MusicMixesOptions) {
     const task = Promise.resolve().then(async () => {
       try {
         if (!current() || ticket !== generation || active.aborted) throw cancelled();
+        // A stopgap, not a deferral: the rebuilt server has no Mixes yet (its analysis is owed in the campaign queue), so
+        // nothing is asked and the row, its More and the Mixes target stay hidden rather than failing. Remove this when
+        // the server's route lands and move the read onto it.
+        if (!mixesOnServer) {publish({phase: 'ready', rows: Object.freeze([])});return;}
         const response = decodeGetMusicMixesResponse(await api.request<unknown>(routePath('get_music_mixes'), 'GET', undefined, active));
         if (!current() || ticket !== generation || active.aborted) throw cancelled();
         if (Object.entries(principal).some(([key, value]) => response.scope[key as keyof MusicMixPrincipal] !== value)) {dispose();throw invalid();}
