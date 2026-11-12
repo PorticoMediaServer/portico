@@ -1,4 +1,5 @@
-import {routeBody, routePath, routePattern, encodedRoutePath} from '../../../contracts/src/routes.ts';
+import {reviewLocalTVAuthorization, decideLocalTVAuthorization} from './connection-operations.ts';
+import {routePath, routePattern, encodedRoutePath} from '../../../contracts/src/routes.ts';
 import type {ItemResponse} from '../media-item.ts';
 import {parseMediaItem} from '../media-item.ts';
 
@@ -27,16 +28,14 @@ export function receiverLinkOperations(api: ReceiverApi) {
   const text = (value: unknown, max: number): string | undefined => typeof value === 'string' && value.length > 0 && value.length <= max ? value : undefined;
   return {
     async preview(code: string, life?: Readonly<{signal: AbortSignal}>) {
-      const raw = await api.request<{requestId?: unknown; userCode?: unknown; deviceName?: unknown; platform?: unknown}>(
-        routePath('post_quick_connect_review'), 'POST', routeBody('post_quick_connect_review', {userCode: code.trim().toUpperCase()}), life?.signal);
+      const raw = await reviewLocalTVAuthorization(api, code, life?.signal);
       const requestId = text(raw?.requestId, 128), userCode = text(raw?.userCode, 32), deviceName = text(raw?.deviceName, 64);
       if (!requestId || !userCode || !deviceName) throw new Error('quick_connect_unreadable');
       const platform = text(raw?.platform, 32);
       return Object.freeze({requestId, userCode, deviceName, ...(platform ? {platform} : {})});
     },
     async decide(requestId: string, code: string, decision: 'approve' | 'deny', life?: Readonly<{signal: AbortSignal}>): Promise<void> {
-      await api.request(routePath('post_quick_connect_decision'), 'POST',
-        routeBody('post_quick_connect_decision', {requestId, userCode: code.trim().toUpperCase(), decision}), life?.signal);
+      await decideLocalTVAuthorization(api, code, decision, life?.signal);
     },
   };
 }

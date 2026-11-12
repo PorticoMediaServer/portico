@@ -251,3 +251,30 @@ func TestSignInOnATVByCode(t *testing.T) {
 		t.Errorf("approving without a sign-in answered %d, want 401", code)
 	}
 }
+
+func TestTVCanCancelItsCodeBeforeOrAfterApproval(t *testing.T) {
+	s := newTestServer(t)
+	phone := onMainProfile(t, s)
+	for _, approved := range []bool{false, true} {
+		var tv CodeStarted
+		call(t, s, "POST", "/v1/auth/codes", "", CodeStart{Device: device(7)}, &tv)
+		path := "/v1/auth/codes/" + tv.Code
+		if got := status(t, s, "DELETE", path, "", CodeCollect{DeviceSecret: "not-the-secret"}); got != 404 {
+			t.Fatalf("another secret cancelled a code: %d", got)
+		}
+		if approved {
+			status(t, s, "POST", path+"/approve", phone.AccessToken, CodeDecision{})
+		}
+		for range 2 {
+			if got := status(t, s, "DELETE", path, "", CodeCollect{DeviceSecret: tv.DeviceSecret}); got != 204 {
+				t.Fatalf("cancel answered %d", got)
+			}
+		}
+		if got := status(t, s, "GET", path, phone.AccessToken, nil); got != 404 {
+			t.Fatalf("cancelled code is still reviewable: %d", got)
+		}
+		if got := status(t, s, "POST", path+"/redeem", "", CodeCollect{DeviceSecret: tv.DeviceSecret}); got != 410 {
+			t.Fatalf("cancelled code still redeems: %d", got)
+		}
+	}
+}

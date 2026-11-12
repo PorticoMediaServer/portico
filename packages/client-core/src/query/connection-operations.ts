@@ -1,10 +1,13 @@
+import {normalizeSetupCode, type SetupPreview} from '../setup-code.ts';
+import type {DeviceAuthorization} from '../device-authorization.ts';
+import {serverNow} from '../server-clock.ts';
 /** Connection, sign-in and setup operations. These preserve their caller-owned authority,
  * cancellation, parsers and recovery; they deliberately do not enter the viewer query cache. */
 import {routePath, routeBody, type RouteResponse} from '../../../contracts/src/routes.ts';
 import {routePath as hostedPath, routeBody as hostedBody, encodedRoutePath as hostedEncodedPath} from '../../../contracts/src/hosted/routes.ts';
 import {routeOrigin, routeJSON} from '../route-identity.ts';
 import {clockOrigin, observeResponseClock} from '../server-clock.ts';
-import {HttpLocalApi, type Viewer} from '../index.ts';
+import {ApiError, HttpLocalApi, type Viewer} from '../index.ts';
 import {installationIdentity} from '../installation.ts';
 import type {ViewerRequester} from './viewer-queries.ts';
 import {callServer, serverPath} from './server-api.ts';
@@ -54,14 +57,46 @@ export function previewLocalInvitation<T = unknown>(api: ViewerRequester, capabi
 export function acceptLocalInvitation<T = unknown>(api: ViewerRequester, capability: object, username: string, password: string, name: string, signal?: AbortSignal): Promise<T> {
   return api.request<T>(routePath('post_access_invitations_accept'), 'POST', {...capability, username, password, ...(name.trim() ? {name: name.trim()} : {})}, signal);
 }
-export function createLocalTVAuthorization<T = unknown>(api: ViewerRequester, requestId: string, signal?: AbortSignal): Promise<T> {
-  return api.request<T>(routePath('post_quick_connect'), 'POST', routeBody('post_quick_connect', {requestId, ...tvIdentity()}), signal);
+/** Adapt the server's code protocol to the existing protected TV journal. */
+export async function createLocalTVAuthorization<T = unknown>(api: ViewerRequester, _requestId: string, signal?: AbortSignal): Promise<T> {
+  const device = installationIdentity();
+  if (!device) throw Object.assign(new Error('native_tv_consent_invalid'), {code: 'invalid_consent'});
+  const started = await callServer(api, 'POST /v1/auth/codes', {body: {device}, signal});
+  const verificationUri = new URL('/device', (api as ViewerRequester & {baseUrl: string}).baseUrl).href;
+  const value: DeviceAuthorization = {userCode: started.code, deviceCode: started.code + ':' + started.deviceSecret,
+    expiresAt: started.expiresAt, expiresIn: Math.max(0, Math.ceil((Date.parse(started.expiresAt) - serverNow()) / 1000)),
+    interval: Math.ceil(started.intervalMs / 1000), verificationUri, verificationUriComplete: verificationUri + '#code=' + started.code};
+  return value as T;
 }
-export function pollLocalTVAuthorization<T = unknown>(api: ViewerRequester, deviceCode: string, signal?: AbortSignal): Promise<T> {
-  return api.request<T>(routePath('post_quick_connect_token'), 'POST', routeBody('post_quick_connect_token', {deviceCode}), signal);
+export async function pollLocalTVAuthorization<T = unknown>(api: ViewerRequester, deviceCode: string, signal?: AbortSignal): Promise<T> {
+  const [code, deviceSecret] = deviceCode.split(':');
+  try {
+    const result = await callServer(api, 'POST /v1/auth/codes/{id}/redeem', {id: code, body: {deviceSecret}, signal});
+    if (result.status === 'pending') throw new ApiError(400, 'authorization_pending', 'Awaiting approval.');
+    if (result.status !== 'approved' || !result.signIn?.session) throw new ApiError(502, 'invalid_response', 'Unreadable TV approval.');
+    return result.signIn.session as T;
+  } catch (error) {
+    if (error instanceof ApiError && ['code_expired', 'sign_in_denied'].includes(error.code))
+      throw new ApiError(error.status, error.code === 'code_expired' ? 'expired_token' : 'access_denied', error.message, false);
+    throw error;
+  }
 }
-export function cancelLocalTVAuthorization<T = unknown>(api: ViewerRequester, deviceCode: string, signal?: AbortSignal): Promise<T> {
-  return api.request<T>(routePath('post_quick_connect_cancel'), 'POST', routeBody('post_quick_connect_cancel', {deviceCode}), signal);
+export async function cancelLocalTVAuthorization<T = unknown>(api: ViewerRequester, deviceCode: string, signal?: AbortSignal): Promise<T> {
+  const [code, deviceSecret] = deviceCode.split(':');
+  await api.request('/v1/auth/codes/' + encodeURIComponent(code), 'DELETE', {deviceSecret}, signal).catch(error => {
+    if (!(error instanceof ApiError && error.status === 404 && error.code === 'code_not_found')) throw error;
+  });
+  return undefined as T;
+}
+/** The same local approval read for the account screen, web device page and receiver link. */
+export async function reviewLocalTVAuthorization(api: ViewerRequester, code: string, signal?: AbortSignal): Promise<SetupPreview> {
+  const userCode = normalizeSetupCode(code);
+  const raw = await callServer(api, 'GET /v1/auth/codes/{id}', {id: userCode, signal});
+  return {requestId: userCode, userCode, deviceName: raw.device.name, platform: raw.device.platform ?? '',
+    appVersion: raw.device.appVersion ?? '', expiresAt: raw.expiresAt};
+}
+export function decideLocalTVAuthorization(api: ViewerRequester, code: string, decision: 'approve' | 'deny', signal?: AbortSignal): Promise<void> {
+  return callServer(api, 'POST /v1/auth/codes/{id}/approve', {id: normalizeSetupCode(code), body: {deny: decision === 'deny'}, signal}).then(() => {});
 }
 /** The original local approval opening exposes only its two core-built POSTs. */
 export function createLocalDeviceApprovalTransport(request: HttpLocalApi['request'], opening: {
