@@ -73,9 +73,10 @@ function NativeReading({guest}: {guest: ReadingGuest}) {
       const adapters = publication.format === 'epub' ? [createEpubAdapter({fonts: fonts!.fonts, unreadable: defaultI18n.t('next.reader.unreadableSection')})] : publication.format === 'pdf'
         ? [createPdfAdapter(readerPdfAdapterOptions)] : [createComicAdapter({format: publication.format, unreadable: defaultI18n.t('next.reader.unreadablePage'), pages: publication.comicPages!})];
       reader = bindReadPreferences({adapters, preferences: guest.preferences, authority, reportError: () => {if (alive) setFailed(true);}});
-      progress = bindReadingProgress({controller: reader.controller, session: guest.session, initial: guest.initialProgress, authority, reportError: () => {if (alive) setFailed(true);}});
+      const near = guest.contentsTarget ? undefined : readerNear(guest.initialProgress);
+      progress = bindReadingProgress({controller: reader.controller, session: guest.session, initial: guest.initialProgress, authority, reportError: () => {if (alive) setFailed(true);}, held: near !== undefined});
       progressRef.current = progress;
-      setBook({...(guest.session.manifest.canAnnotate === true && guest.session.annotations && guest.session.mutateAnnotation ? {annotations:{manifest:guest.session.manifest,signal:guest.session.signal,annotations:guest.session.annotations,mutateAnnotation:guest.session.mutateAnnotation}} : {}), publication, controller: reader.controller, authority, contentsTarget: guest.contentsTarget, location: publication.resumeLocation(guest.initialProgress) ?? undefined, near: readerNear(guest.initialProgress)});
+      setBook({...(guest.session.manifest.canAnnotate === true && guest.session.annotations && guest.session.mutateAnnotation ? {annotations:{manifest:guest.session.manifest,signal:guest.session.signal,annotations:guest.session.annotations,mutateAnnotation:guest.session.mutateAnnotation}} : {}), publication, controller: reader.controller, authority, contentsTarget: guest.contentsTarget, location: publication.resumeLocation(guest.initialProgress) ?? undefined, near, landed: progress.landed});
     })().catch(() => {if (alive) setFailed(true);});
     return () => {
       alive = false; offActive(); offCrease(); progressRef.current = undefined;
