@@ -64,7 +64,7 @@ export function lastCrash(): Promise<FatalRecord | undefined> {
   return store.change<FatalRecord | undefined>(KEY, raw => {
     const kept = readFatalRecord(raw);
     if (!kept || kept.at < Date.now() - APP_LOG_AGE_MS) return {record: null, value: undefined};
-    const safe = {...kept, message: 'Error', stack: ''};
+    const safe = {...kept, message: 'Error', stack: ''}; // lint-strings-allow: stored generic exception label; no exception text survives
     return {record: safe, value: safe};
   }).catch(() => undefined);
 }
