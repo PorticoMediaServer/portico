@@ -81,6 +81,9 @@ export type LifecycleEvent =
   | Readonly<{type: 'markerForgotten'}>
   | Readonly<{type: 'managementUnlocked'; facts: SelectedFacts}>
   | Readonly<{type: 'gated'}>
+  /** A renewal put the open sign-in on another profile, or on none (a switch whose answer this device never got, or the profile
+   *  taken away): the open profile's screens end and Who's watching opens (row 41). */
+  | Readonly<{type: 'profileMoved'}>
   | Readonly<{type: 'signInEnded'; username: string}>
   | Readonly<{type: 'identityFailed'; code: IdentityFailureCode}>
   | Readonly<{type: 'networkLost'}>
@@ -262,6 +265,12 @@ export function nextLifecycle(current: LifecycleSnapshot, event: LifecycleEvent)
         switching: false}, 24, [{kind: 'fenceShell'}, {kind: 'clearMarker', serverId: s.server.serverId},
         // The shell's connection ended with it: reconnect for the PIN screen (art, Forgot PIN?). Its answer moves nothing.
         {kind: 'connect', serverId: s.server.serverId}]);}
+  case 'profileMoved':
+    // Row 41: not a PIN to enter again and not a switch the person asked for, so no way back to the old profile's screens:
+    // Who's watching, starting on the profile that was open. The shell's connection ended with it: reconnect for the faces.
+    if (s.kind !== 'ready') return undefined;
+    return to({kind: 'choosingProfile', server: s.server, viewer: s.viewer, profiles: s.profiles, focus: s.viewer.profileId, switching: false,
+      canRemember: s.canRemember}, 41, [{kind: 'fenceShell'}, {kind: 'connect', serverId: s.server.serverId}]);
   case 'signInEnded':
     if (s.kind !== 'ready' && s.kind !== 'choosingProfile' && s.kind !== 'enteringPin') return undefined;
     return to({kind: 'signInEnded', server: s.server, held: {server: s.server, viewer: s.viewer, remembered: false}, username: event.username}, 25, [{kind: 'fenceShell'}], {authority: true});
