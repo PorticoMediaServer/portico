@@ -88,6 +88,15 @@ func readEPUB(a *archive) (*epub, error) {
 		return nil, errDamaged
 	}
 	book := &epub{byPath: map[string]Part{}}
+	// The reader in the app reads the book as its EPUB engine does, from the container to the
+	// package document, so those two are parts of the book too.
+	for _, doc := range [][2]string{{"META-INF/container.xml", "application/xml"}, {opfPath, "application/oebps-package+xml"}} {
+		if f := a.entries[doc[0]]; f != nil {
+			part := Part{Path: doc[0], Type: doc[1], Size: int64(f.UncompressedSize64)}
+			book.parts = append(book.parts, part)
+			book.byPath[doc[0]] = part
+		}
+	}
 	byID := map[string]string{}
 	nav, ncx := "", ""
 	for _, item := range pkg.Manifest {
