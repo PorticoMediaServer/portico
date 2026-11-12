@@ -2,8 +2,10 @@ package api
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -40,7 +42,10 @@ func TestWhatThisServerCanDoSaysWhatWorksAndWhyNot(t *testing.T) {
 	owner := onMain(t, s, setup(t, s)).AccessToken
 	clock := newRigClock(time.Now())
 	s.setClock(clock.Now)
-	read := func() ServerCapabilities { t.Helper(); return get[ServerCapabilities](t, s, owner, "/v1/admin/capabilities") }
+	read := func() ServerCapabilities {
+		t.Helper()
+		return get[ServerCapabilities](t, s, owner, "/v1/admin/capabilities")
+	}
 
 	// Before the engine has answered, FFmpeg and the graphics devices are being checked.
 	all := read()
@@ -57,6 +62,15 @@ func TestWhatThisServerCanDoSaysWhatWorksAndWhyNot(t *testing.T) {
 	}
 
 	conversions, recordings := t.TempDir(), filepath.Join(t.TempDir(), "Recorded TV")
+	// The parent is not Portico's folder. Looking at a missing recordings folder
+	// must work without creating a probe file in that parent.
+	if os.Geteuid() != 0 {
+		parent := filepath.Dir(recordings)
+		if err := os.Chmod(parent, 0o500); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = os.Chmod(parent, 0o700) })
+	}
 	s.setDVROptions(dvr.Options{Folder: recordings})
 	engine := &toolsEngine{fakeEngine: &fakeEngine{}, caps: mediaengine.Capabilities{Converter: true, FFmpeg: "/opt/ffmpeg", Version: "7.1",
 		ConversionFolder: conversions, Graphics: []decoder.HardwareProbe{
@@ -126,5 +140,38 @@ func TestWhatThisServerCanDoSaysWhatWorksAndWhyNot(t *testing.T) {
 		if code := status(t, s, "GET", "/v1/admin/capabilities", token, nil); code != 401 && code != 403 {
 			t.Errorf("someone other than the owner was answered %d", code)
 		}
+	}
+}
+
+func TestFolderCheckKeepsOnlyOneLookInFlight(t *testing.T) {
+	var look folderLook
+	look.mu.Lock()
+	defer look.mu.Unlock()
+	var calls atomic.Int32
+	release := make(chan struct{})
+	t.Cleanup(func() { close(release) })
+	problem := errors.New("drive answered")
+	check := func() error { calls.Add(1); <-release; return problem }
+	folder := filepath.Join(t.TempDir(), "recordings")
+	if err := look.check(folder, check); err == nil {
+		t.Fatal("hung drive did not time out")
+	}
+	if err := look.check(folder, check); err == nil {
+		t.Fatal("hung drive did not time out again")
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("started %d checks for one folder", calls.Load())
+	}
+	// A separate folder can still finish while this drive has not answered.
+	if err := look.check(t.TempDir(), func() error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	// Complete and consume the original result; no replacement check is run.
+	release <- struct{}{}
+	if err := look.check(folder, check); !errors.Is(err, problem) {
+		t.Fatalf("lost original result: %v", err)
+	}
+	if calls.Load() != 1 || len(look.pending) != 0 {
+		t.Fatal("finished check was retained or replaced")
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/backup"
 	"github.com/PorticoMediaServer/portico/server-next/internal/capabilityreport"
 	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
 	"github.com/PorticoMediaServer/portico/server-next/internal/hardwarefacts"
@@ -184,6 +185,8 @@ type folderLook struct {
 	at    time.Time
 	key   string
 	items []Capability
+	// A timed-out drive still has one check until that check answers.
+	pending map[string]chan error
 }
 
 func (s *Server) folderCapabilities(conversions string) []Capability {
@@ -191,7 +194,9 @@ func (s *Server) folderCapabilities(conversions string) []Capability {
 	if s.dvrNow.Load() != nil {
 		recordings = s.dvrOptions().Folder
 	}
-	key := conversions + "\x00" + s.backups.Folder() + "\x00" + recordings
+	backups := s.backups.Folder()
+	defaultBackups := backup.Document.Get(s.settings).Folder == ""
+	key := conversions + "\x00" + backups + "\x00" + recordings
 	look := &s.folderLook
 	look.mu.Lock()
 	defer look.mu.Unlock()
@@ -200,50 +205,84 @@ func (s *Server) folderCapabilities(conversions string) []Capability {
 		return look.items
 	}
 	look.at, look.key = now, key
-	items := []Capability{folderCapability("data", s.dataDir, writable(s.dataDir))}
+	items := []Capability{folderCapability("data", s.dataDir, look.check(s.dataDir, func() error { return writable(s.dataDir) }))}
 	if conversions != "" {
-		items = append(items, folderCapability("conversions", conversions, writable(conversions)))
+		items = append(items, folderCapability("conversions", conversions, look.check(conversions, func() error { return writable(conversions) })))
 	}
-	items = append(items, folderCapability("backups", s.backups.Folder(), s.backups.FolderProblem()))
-	if recordings != "" {
-		if _, err := os.Stat(recordings); errors.Is(err, os.ErrNotExist) {
-			// Made with the first recording, inside the folder above it.
-			c := folderCapability("recordings", recordings, writable(filepath.Dir(recordings)))
-			if c.State == capabilityWorks {
-				c.State, c.Detail = capabilityNotUsed, "Made with the first recording."
+	items = append(items, folderCapability("backups", backups, look.check(backups, func() error {
+		// Only the default folder inside Portico's data folder may be made here.
+		// FolderProblem has its own timeout, which would lose track of a hung probe.
+		if defaultBackups {
+			if err := os.MkdirAll(backups, 0o700); err != nil {
+				return err
 			}
-			items = append(items, c)
-		} else {
-			items = append(items, folderCapability("recordings", recordings, writable(recordings)))
 		}
+		return writable(backups)
+	})))
+	if recordings != "" {
+		problem := look.check(recordings, func() error {
+			if _, err := os.Stat(recordings); errors.Is(err, os.ErrNotExist) {
+				// The parent may be a media folder. Only inspect it; never write there.
+				info, err := os.Stat(filepath.Dir(recordings))
+				if err != nil {
+					return err
+				}
+				if !info.IsDir() {
+					return errors.New("the parent is not a folder")
+				}
+				return errRecordingFolderNotMade
+			}
+			return writable(recordings)
+		})
+		items = append(items, folderCapability("recordings", recordings, problem))
 	}
 	look.items = items
 	return items
 }
 
+var errRecordingFolderNotMade = errors.New("made with the first recording")
+
 func folderCapability(name, path string, problem error) Capability {
 	c := Capability{Area: "folders", Name: name, Path: path, State: capabilityWorks}
-	if problem != nil {
+	if errors.Is(problem, errRecordingFolderNotMade) {
+		c.State, c.Detail = capabilityNotUsed, "Made with the first recording. Write access is checked once it exists."
+	} else if problem != nil {
 		c.State, c.Reason, c.Detail = capabilityBroken, "not_writable", "Portico cannot write to this folder: "+problem.Error()
 	}
 	return c
 }
 
-// writable makes and removes one small file in the folder, within folderCheckLimit.
-func writable(folder string) error {
-	done := make(chan error, 1)
-	go func() {
-		f, err := os.CreateTemp(folder, ".portico-check-*")
-		if err == nil {
-			f.Close()
-			err = os.Remove(f.Name())
-		}
-		done <- err
-	}()
+// check is called with l.mu held. A timeout leaves the same buffered result in
+// pending, so later requests wait for it instead of starting another check.
+func (l *folderLook) check(folder string, check func() error) error {
+	if l.pending == nil {
+		l.pending = make(map[string]chan error)
+	}
+	folder = filepath.Clean(folder)
+	done := l.pending[folder]
+	if done == nil {
+		done = make(chan error, 1)
+		l.pending[folder] = done
+		go func() { done <- check() }()
+	}
 	select {
 	case err := <-done:
+		delete(l.pending, folder)
 		return err
 	case <-time.After(folderCheckLimit):
 		return errors.New("it did not answer in time")
 	}
+}
+
+// writable makes and removes one small file in Portico's configured folder.
+func writable(folder string) error {
+	f, err := os.CreateTemp(folder, ".portico-check-*")
+	if err != nil {
+		return err
+	}
+	if err := f.Close(); err != nil {
+		_ = os.Remove(f.Name())
+		return err
+	}
+	return os.Remove(f.Name())
 }
