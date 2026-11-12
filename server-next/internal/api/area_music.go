@@ -20,6 +20,7 @@ func (s *Server) startMusic(ctx context.Context) error {
 		Hours: func() settings.HeavyWorkSettings { return settings.General.Get(s.settings).HeavyWork }}
 	s.jobs.Register(music.Kind())
 	s.goBackground(func() { s.analyseMusic(ctx, music) })
+	s.musicMixRoutes(&musicanalysis.Mixer{DB: s.db, Now: s.now})
 	return nil
 }
 
