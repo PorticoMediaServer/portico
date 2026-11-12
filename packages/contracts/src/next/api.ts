@@ -46,6 +46,22 @@ export interface ActivityEntryPage {
   nextCursor?: string;
 }
 
+export interface ActivityStreams {
+  count: number;
+  converting: number;
+  items: NowPlaying[];
+}
+
+export interface ActivitySummary {
+  observedAt: string;
+  serverName: string;
+  streams: ActivityStreams;
+  scans: DashboardScan[];
+  tasks: DashboardTasks;
+  alerts: DashboardAlert[];
+  lastScanAt?: string;
+}
+
 export interface AdminJob {
   id: string;
   kind: string;
@@ -1449,6 +1465,7 @@ export interface LibraryOptions {
   rescanMinutes: number;
   groupSeries?: boolean;
   lyrics?: string;
+  soundAnalysis?: boolean;
 }
 
 export interface LibraryOrder {
@@ -2117,6 +2134,30 @@ export interface MoveCompleteRequest {
 export interface MoveState {
   to: string;
   since: string;
+}
+
+export interface MusicMix {
+  id: string;
+  style?: string;
+  artists: MusicMixArtist[];
+  moreArtists?: boolean;
+  covers: MusicMixCover[];
+  songs: number;
+}
+
+export interface MusicMixArtist {
+  id: string;
+  name: string;
+}
+
+export interface MusicMixCover {
+  albumId: string;
+  image?: string;
+}
+
+export interface MusicMixPage {
+  items: MusicMix[];
+  nextCursor?: string;
 }
 
 export interface NetworkSettings {
@@ -2893,6 +2934,7 @@ export interface QueueSource {
   view?: QueueView;
   radio?: string;
   queue?: string;
+  mix?: string;
 }
 
 export interface QueueView {
@@ -2977,6 +3019,15 @@ export interface ReceiverRequest {
 export interface ReceiverRequestPage {
   items: ReceiverRequest[];
   nextCursor?: string;
+}
+
+export interface RecommendationsReset {
+  operationId?: string;
+}
+
+export interface RecommendationsResetDone {
+  serverId: string;
+  operationId?: string;
 }
 
 export interface RecoveryCodes {
@@ -3558,6 +3609,17 @@ export interface Sort {
   order: string;
 }
 
+export interface SoundAnalysisStatus {
+  available: boolean;
+  on: boolean;
+  state: string;
+  songs: number;
+  analyzed: number;
+  pausedUntil?: string;
+  secondsLeft?: number;
+  estimating?: boolean;
+}
+
 export interface State {
   version: string;
   newest?: Release;
@@ -4024,6 +4086,7 @@ export interface Routes {
   'POST /v1/admin/remote-sources/drive-sign-in': {access: 'owner'; request: DriveSignInStart; response: DriveSignInStarted};
   'GET /v1/history': {access: 'withProfile'; request: undefined; response: HistoryPage};
   'DELETE /v1/history/{id}': {access: 'withProfile'; request: undefined; response: undefined};
+  'POST /v1/me/recommendations:reset': {access: 'withProfile'; request: RecommendationsReset; response: RecommendationsResetDone};
   'DELETE /v1/history': {access: 'withProfile'; request: undefined; response: undefined};
   'GET /v1/lists': {access: 'withProfile'; request: undefined; response: ListPage};
   'POST /v1/lists': {access: 'withProfile'; request: ListCreate; response: ListCreated};
@@ -4095,6 +4158,7 @@ export interface Routes {
   'PUT /v1/admin/settings/{name}': {access: 'owner'; request: JSON; response: SettingsDocument};
   'DELETE /v1/admin/upgrade-copy': {access: 'owner'; request: undefined; response: undefined};
   'GET /v1/admin/sessions': {access: 'admin'; request: undefined; response: NowPlayingPage};
+  'GET /v1/admin/activity': {access: 'owner'; request: undefined; response: ActivitySummary};
   'DELETE /v1/admin/sessions/{id}': {access: 'admin'; request: StreamStop; response: undefined};
   'GET /v1/admin/audit': {access: 'owner'; request: undefined; response: ActivityEntryPage};
   'GET /v1/admin/statistics': {access: 'owner'; request: undefined; response: Statistics};
@@ -4277,4 +4341,6 @@ export interface Routes {
   'DELETE /v1/admin/items/{id}/artwork/{imageId}': {access: 'admin'; request: undefined; response: undefined};
   'POST /v1/admin/items/{id}/artwork/find': {access: 'admin'; request: undefined; response: ArtworkPicturePage};
   'POST /v1/admin/items/{id}/artwork': {access: 'admin'; request: undefined; response: ArtworkPicture};
+  'GET /v1/admin/libraries/{id}/sound-analysis': {access: 'owner'; request: undefined; response: SoundAnalysisStatus};
+  'GET /v1/music/mixes': {access: 'withProfile'; request: undefined; response: MusicMixPage};
 }
