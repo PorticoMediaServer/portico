@@ -183,8 +183,9 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) (ArtworkPicture,
 // a picture is put in the store a moment before the row that names it is written.
 const pictureGrace = time.Hour
 
-// SweepPictures removes from the picture store every picture no images row names any more: a
-// removed upload, a picture beside the media that was replaced, those of titles that left. It
+// SweepPictures removes from the picture store every picture nothing names any more (see
+// db.PictureHashes): a removed upload, a picture beside the media that was replaced, those of
+// titles that left, a channel logo replaced. It
 // is one step of the daily tidy-up and safe to run at any time. It returns how many it removed.
 func (s *Server) SweepPictures(ctx context.Context) (int, error) {
 	return s.artwork.Sweep(s.now().Add(-pictureGrace), func(yield func(string) error) error {

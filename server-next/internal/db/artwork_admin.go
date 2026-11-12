@@ -240,13 +240,16 @@ func (d *DB) RemovePicture(ctx context.Context, publicID, imageID string) error 
 	})
 }
 
-// PictureHashes calls fn with the name of every picture any images row uses (titles', people's,
-// profiles') or a History entry names, each once, in ascending order: what the picture store keeps. It reads in one pass
-// over the table, so it is for the daily tidy-up, not for a request.
+// PictureHashes calls fn with the name of every picture the server keeps in its picture store,
+// each once, in ascending order: what any images row uses (titles', people's, profiles'), what
+// a History entry names, and every channel's logo. A new place that names a stored picture is
+// added here, or the sweep takes its pictures. It reads in one pass over each, so it is for the
+// daily tidy-up, not for a request.
 func (d *DB) PictureHashes(ctx context.Context, fn func(hash string) error) error {
 	// A removed upload that a History entry still names is kept, so Undo can put it back.
 	rows, err := d.read.QueryContext(ctx, `SELECT file_hash FROM images WHERE file_hash IS NOT NULL
-		UNION SELECT u.value ->> '$.hash' FROM metadata_history h, json_each(h.before, '$.uploads') u ORDER BY 1`)
+		UNION SELECT u.value ->> '$.hash' FROM metadata_history h, json_each(h.before, '$.uploads') u
+		UNION SELECT logo_hash FROM channels WHERE logo_hash IS NOT NULL ORDER BY 1`)
 	if err != nil {
 		return err
 	}
