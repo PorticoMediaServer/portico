@@ -1,4 +1,4 @@
-import {useLayoutEffect, useMemo, useSyncExternalStore} from 'react';
+import {useEffect, useLayoutEffect, useMemo, useSyncExternalStore} from 'react';
 import {useFocusRegistry} from './FocusRegion';
 import type {FocusAddress} from './registry';
 import {createDestinationEntryFocus, type NativeDestinationActivation} from './destination-entry';
@@ -15,4 +15,6 @@ export function useDestinationEntryFocus(activation: NativeDestinationActivation
     }
     if (request(activation, {regionId, childId})) onRequested?.();
   }, [activation, onRequested, childId, regionId, registry, request, revision]);
+  // A page that unmounts never goes on asking for its starting focus.
+  useEffect(() => () => request.stop(), [request]);
 }
