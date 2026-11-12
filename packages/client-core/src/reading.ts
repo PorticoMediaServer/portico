@@ -829,18 +829,24 @@ export class ReadingSession {
       return bytes(r, entry.size, active, check, entry.size);
     });
   };
-  /** Where a browser saves the book's own file, of any size: it downloads the file itself under
-   * the file's name, and nothing is held in the page. The address is checked first, and asked for
-   * again if it has ended, so a book open for hours still saves. */
-  saveAddress = async (signal?: AbortSignal): Promise<string> => {
+  /** Where a browser saves the book's own file, of any size, over the connection's verified route:
+   * it downloads the file itself under the file's name, and nothing is held in the page. Fails
+   * with network_error while the route is not ready. */
+  saveAddressNow = (): string => {
     this.#check();
-    if (this.manifest.canSaveFile !== true) fail('not_permitted');
+    if (this.manifest.canSaveFile !== true || !this.#access.saveUrl) fail('not_permitted');
+    return this.#client.address(this.#access.saveUrl) || fail('network_error');
+  };
+  /** The same address once checked with one HEAD, asked for again if it has ended, so a book open
+   * for hours still saves. */
+  saveAddress = async (signal?: AbortSignal): Promise<string> => {
+    this.saveAddressNow();
     await this.#binary(a => a.saveUrl ?? fail('not_permitted'), {method: 'HEAD'}, signal, async (r, active, check) => {
       if (r.status !== 200) return this.#client.error(r, active, check);
       if (!(r.headers.get('Content-Disposition') ?? '').startsWith('attachment')) fail('source_changed');
       check(); discard(r);
     });
-    return this.#client.address(this.#access.saveUrl ?? fail('not_permitted'));
+    return this.saveAddressNow();
   };
   /** Save without holding the whole file in memory. The platform supplies its private file sink. */
   saveFileTo = async (operationId: string, write: (chunk: Uint8Array) => Promise<void>, signal?: AbortSignal): Promise<void> => {
