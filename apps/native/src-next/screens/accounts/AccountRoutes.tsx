@@ -172,7 +172,7 @@ export function ProfileRoute({context, route, onBack, embedded = false}: {contex
     setBusy(true); setError(undefined);
     // The session lifecycle makes the switch: a profile with a PIN always asks for it.
     try {await switchNativeProfile(session.sessionFamilyId, id, code);} catch (failure) {if (alive.current) {
-      if (theme.isTV && code !== undefined) {cancelWrongPin(); wrongPinTimer.current = setTimeout(() => {wrongPinTimer.current = undefined; if (alive.current) setPin('');}, 400);} else setPin('');
+      if (theme.isTV && code !== undefined) {cancelWrongPin(); wrongPinTimer.current = setTimeout(() => {wrongPinTimer.current = undefined; if (alive.current) setPin(current => current === code ? '' : current);}, 400);} else setPin('');
       setError(failure);
     }} finally {if (alive.current) setBusy(false);}
   };

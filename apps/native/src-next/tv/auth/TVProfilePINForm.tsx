@@ -46,7 +46,10 @@ function ProfilePINForm(props: TVProfilePINFormProps) {
   const ownsPlayPause = useTVPlayPauseOwner('overlay');
   useTVKeyEvent(event => {if (event.key === 'playPause' && event.phase === 'press' && ownsPlayPause()) remove();});
   const digit = (value: string) => {
-    if (props.busy || props.code.length >= 4 || !/^\d$/.test(value)) return;
+    if (props.busy || !/^\d$/.test(value)) return;
+    // A refused PIN is still in the boxes for 400 ms: a digit pressed then starts the next PIN at once (never lost).
+    if (props.error && props.code.length >= 4) {submitted.current = undefined; props.onCodeChange(value); return;}
+    if (props.code.length >= 4) return;
     const next = props.code + value;
     props.onCodeChange(next);
     if (next.length === 4 && submitted.current !== next) {submitted.current = next; props.onSubmit(next);}

@@ -202,3 +202,36 @@ test('on TV a refused PIN stays in the boxes for 400 ms, then they empty for the
     assert.equal(g.tree().props.code, '', 'the boxes empty after 400 ms');
   } finally {await g.host.unmount(); g.lifecycle.dispose();}
 });
+
+test('on TV a digit pressed during the 400 ms after a refusal is kept, not wiped', async () => {
+  const g = await gate(false, true, true);
+  try {
+    const picker = nodes(g.tree().props.children).find(node => node.type === 'Picker');
+    await act(async () => {picker.props.onSelect('alex'); await settle();});
+    await g.host.rerender();
+    await act(() => g.tree().props.onCodeChange('1111'));
+    await act(async () => {g.tree().props.onSubmit('1111'); await settle();});
+    await g.host.rerender();
+    await act(() => g.tree().props.onCodeChange('2'));
+    await act(async () => {await new Promise(resolve => setTimeout(resolve, 450));});
+    await g.host.rerender();
+    assert.equal(g.tree().props.code, '2', 'the next PIN started during the refusal survives the clear');
+  } finally {await g.host.unmount(); g.lifecycle.dispose();}
+});
+
+test('on a phone a refusal does not wipe the PIN field later', async () => {
+  const g = await gate(false, false, true);
+  try {
+    const picker = nodes(g.tree().props.beforeActions).find(node => node.type === 'Picker');
+    await act(async () => {picker.props.onSelect('alex'); await settle();});
+    await g.host.rerender();
+    const entry = () => nodes(g.tree().props.beforeActions).find(node => node.type === 'PIN');
+    await act(() => entry().props.onChange('1111'));
+    await act(async () => {entry().props.onComplete('1111'); await settle();});
+    await g.host.rerender();
+    await act(() => entry().props.onChange('3'));
+    await act(async () => {await new Promise(resolve => setTimeout(resolve, 450));});
+    await g.host.rerender();
+    assert.equal(entry().props.value, '3', 'what the person typed after the refusal stays');
+  } finally {await g.host.unmount(); g.lifecycle.dispose();}
+});
