@@ -7,15 +7,15 @@ import {screenModule} from './helpers/screen-harness.mjs';
 async function fixture() {
   const commands: any[] = [], errors: unknown[] = [];
   let permitted = true;
-  const receiver = {id: 'tv', displayName: 'Living room', kind: 'portico', platform: 'tvos', presence: 'online'};
+  const receiver = {id: 'tv', displayName: 'Living room', platform: 'tvos', allowed: false};
   const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch'};
   const fence = {kind: 'queue', itemId: 'episode-1', sessionId: 'original', entryId: 'entry-1'};
   const entry = {id: 'episode-1', title: 'Episode one', kind: 'episode', stillUrl: '/v1/art/one', show: {id: 'show', name: 'Show'}, seasonNumber: 1, episodeNumber: 1};
   const local = {fence, playing: true, kind: 'video'};
   let snapshot: any = {authority, fence, entry, playback: {phase: 'ready', positionSeconds: 12, duration: 100}, dock: {local}};
-  let report: any = {sessionId: 'receiver-1', item: {id: 'episode-1', title: 'Episode one'}, device: {name: 'Living room'},
-    state: 'playing', positionMs: 45_000, durationMs: 100_000, actions: ['pause', 'seek', 'stop'],
-    next: {entryId: 'entry-2', itemId: 'episode-2', title: 'Episode two', available: true}};
+  // What the account's playback list says the TV plays (client-core RemoteStream).
+  let report: any = {sessionId: 'receiver-1', itemId: 'episode-1', title: 'Episode one', deviceName: 'Living room',
+    state: 'playing', positionMs: 45_000, durationMs: 100_000};
   const playbackListeners = new Set<() => void>();
   const playback = {getSnapshot: () => snapshot, subscribe: (listener: () => void) => {playbackListeners.add(listener); return () => playbackListeners.delete(listener);},
     beginRemote: async (value: any) => {snapshot = {...snapshot, dock: {...snapshot.dock, remote: value}};},
@@ -27,7 +27,7 @@ async function fixture() {
     getSnapshot() {return this.state;}
     async refresh() {for (const listener of this.listeners) listener();}
     async send() {this.state = {...this.state, phase: 'done', receiverPlaybackId: 'receiver-1'}; for (const listener of this.listeners) listener(); return true;}
-    async refreshRemote() {}
+    async refreshRemote() {this.state = {...this.state, remote: report};}
     async pause() {commands.push(['pause']); return true;}
     async play() {commands.push(['play']); return true;}
     async seek(position: number) {commands.push(['seek', position]); return true;}
@@ -42,10 +42,10 @@ async function fixture() {
     dispose() {}
   }
   const {NativePlayOn} = await screenModule(new URL('../src-next/platform/play-on/controller.ts', import.meta.url), {
-    react: {default: {}}, '../../../../../packages/client-core/src/playback-controls': {playbackControlsService: () => ({remote: async () => ({items: report ? [report] : []})})},
+    react: {default: {}},
     '../../../../../packages/client-core/src/remote-playback': {HandoffController: Handoff},
     '../../../../../packages/player-core/src': {sameFence: (a: unknown, b: unknown) => a === b},
-    '../../../../../packages/contracts/src/routes': {routePath: () => '/v1/receivers'}, './cast': {NativeCastCaller: Cast},
+    './cast': {NativeCastCaller: Cast},
   });
   const session = {deviceId: 'phone'};
   const controller = new NativePlayOn({api: {request: async () => ({})}, session: () => session, deviceName: () => 'Phone', playback: () => playback,
@@ -56,7 +56,7 @@ async function fixture() {
     replaceLocal: () => {snapshot = {...snapshot, entry: {id: 'other', title: 'Other title', stillUrl: '/v1/art/other'}};}};
 }
 
-test('handoff keeps the exact chooser anchor and exposes only receiver-reported clock, next entry and actions', async t => {
+test('a move keeps the exact chooser anchor and shows only the clock the server reads for the TV', async t => {
   const f = await fixture(); t.after(() => f.controller.dispose());
   const anchor = {current: {measureInWindow() {}}};
   assert.equal(f.controller.open(anchor), true); assert.equal(f.controller.getSnapshot().anchorRef, anchor);
@@ -67,36 +67,36 @@ test('handoff keeps the exact chooser anchor and exposes only receiver-reported 
   assert.equal(beforeReport.positionKnown, false); assert.deepEqual(beforeReport.allows, {pause: false, resume: false, seek: false, stop: false});
   const remote = f.controller.getSnapshot().remote;
   assert.equal(remote.positionSeconds, 45); assert.equal(remote.durationSeconds, 100); assert.equal(remote.positionKnown, true);
-  assert.equal(remote.entry, f.entry); assert.equal(remote.next, f.report().next);
-  assert.deepEqual(remote.allows, {pause: true, resume: false, seek: true, stop: true});
+  assert.equal(remote.entry, f.entry);
+  assert.equal(remote.next, undefined, 'no next-up line until the server reads the TV\'s next entry');
+  assert.deepEqual(remote.allows, {pause: true, resume: true, seek: true, stop: true}, 'every control while the TV plays');
   f.replaceLocal(); assert.equal(f.controller.getSnapshot().remote.entry, f.entry, 'another local title never supplies remote display facts');
   f.controller.openRemote(); assert.equal(f.controller.getSnapshot().remoteOpen, true); assert.equal(f.controller.getSnapshot().open, false);
   assert.deepEqual(f.errors, []);
 });
 
-test('remote seeks use the current receiver position, clamp the title and recheck allowed actions', async t => {
+test('remote seeks use the current receiver position, clamp the title, and stop once the TV has stopped', async t => {
   const f = await fixture(); t.after(() => f.controller.dispose());
   await f.controller.send(f.receiver); await f.settle();
   const id = f.controller.getSnapshot().remote.id;
   await f.controller.skip(-90, id); await f.controller.skip(500, id); await f.controller.command('seek', 500, id);
   assert.deepEqual(f.commands, [['seek', 0], ['seek', 100], ['seek', 100]]);
-  f.setReport({...f.report(), actions: []}); await f.controller.skip(1, id);
+  f.setReport({...f.report(), state: 'ended'}); await f.controller.skip(1, id);
   assert.equal(f.commands.length, 4);
   await f.controller.pause(id); await f.controller.resume(id); await f.controller.skip(10, id); await f.controller.startOver(id);
   await f.controller.command('seek', 30, id); await f.controller.stop(id);
-  assert.equal(f.commands.length, 4, 'retained controls cannot write after the receiver removes their grants');
+  assert.equal(f.commands.length, 4, 'retained controls cannot write once the TV stopped playing it');
   assert.deepEqual(f.errors, []);
 });
 
-test('changed receiver items clear captured episode art and unknown duration; next is taken from the same report', async t => {
+test('changed receiver items clear captured episode art and unknown duration', async t => {
   const f = await fixture(); t.after(() => f.controller.dispose());
   await f.controller.send(f.receiver); await f.settle(); const id = f.controller.getSnapshot().remote.id;
-  f.setReport({...f.report(), item: {id: 'episode-2', title: 'Episode two'}, durationMs: undefined,
-    next: {entryId: 'entry-3', itemId: 'episode-3', title: 'Episode three', available: true}});
+  f.setReport({...f.report(), itemId: 'episode-2', title: 'Episode two', durationMs: undefined});
   await f.controller.skip(0, id);
   const remote = f.controller.getSnapshot().remote;
   assert.equal(remote.itemId, 'episode-2'); assert.equal(remote.title, 'Episode two'); assert.equal(remote.entry, undefined);
-  assert.equal(remote.durationSeconds, 0); assert.equal(remote.next.itemId, 'episode-3');
+  assert.equal(remote.durationSeconds, 0);
   f.setReport(undefined); await f.controller.skip(0, id);
   assert.equal(f.controller.getSnapshot().remote.positionKnown, false); assert.equal(f.controller.getSnapshot().remote.next, undefined);
   assert.equal(f.controller.getSnapshot().remote.allows.seek, false);

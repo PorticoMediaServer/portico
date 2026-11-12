@@ -135,17 +135,14 @@ export function NativePlayOnSheets({controller, artwork, ambient, airPlayVideo, 
     {state.directoryPhase === 'loading' && !state.receivers.length && <Text style={[theme.type.body, {color: theme.colors.textTertiary, paddingVertical: 14}]}>{t('playOn.looking')}</Text>}
     {state.directoryPhase === 'error' && <Text style={[theme.type.body, {color: theme.colors.textSecondary, paddingVertical: 14}]}>{state.directoryError || t('playOn.devicesUnavailable')}</Text>}
     {state.receivers.map(receiver => <Focusable key={receiver.id} focusId={`play-on-${receiver.id}`} testID={`play-on-${receiver.id}`} focusKind="row" accessibilityRole="button"
-      accessibilityLabel={`${receiver.displayName}, ${receiver.kind === 'portico' ? t('playOn.porticoDevice') : t('playOn.castDevice')}`}
+      accessibilityLabel={`${receiver.displayName}, ${t('playOn.porticoDevice')}`}
       disabled={state.sending || castState?.transferPending || castState?.phase === 'casting'} onPress={() => {void controller.send(receiver);}}
       style={({focused}) => ({...rowStyle, backgroundColor: focused ? 'rgba(237,245,250,.12)' : 'transparent'})}>
       <Icon name={receiverIcon(receiver.platform)} size={tablet ? 22 : 24} color={theme.colors.textSecondary}/>
       <View style={{flex: 1}}><Text style={titleStyle}>{receiver.displayName}</Text>
         <View style={{flexDirection: 'row', flexWrap: 'wrap', columnGap: 10}}>
-          <Text style={helperStyle}>{receiver.kind === 'portico' && playOnPlatformName(receiver.platform)
-            ? t('next.cast.receiverOn', {platform: playOnPlatformName(receiver.platform)!})
-            : receiver.kind === 'portico' ? t('playOn.porticoDevice') : t('playOn.castDevice')}</Text>
-          {receiver.kind !== 'portico' && playOnPlatformName(receiver.platform) && <Text style={helperStyle}>{playOnPlatformName(receiver.platform)}</Text>}
-          {receiver.presence === 'offline' && <Text style={helperStyle}>{t('playOn.offline')}</Text>}
+          <Text style={helperStyle}>{playOnPlatformName(receiver.platform)
+            ? t('next.cast.receiverOn', {platform: playOnPlatformName(receiver.platform)!}) : t('playOn.porticoDevice')}</Text>
         </View>
       </View><Icon name="i-right" size={18} color={theme.colors.textTertiary}/>
     </Focusable>)}

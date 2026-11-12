@@ -35,6 +35,9 @@ export type PlaybackChoices = Readonly<{
   subtitleOffsetMs?: number;
   /** This device's estimate of its connection to the server, sent with a quality change so the server can refuse one the connection cannot carry. */
   throughputKbps?: number;
+  /** Another device's request this start answers, when playback moves here from it: the two
+   * count as one stream until this one plays. Used only by a new session start. */
+  moveRequestId?: string;
 }>;
 
 export type FixedQualityId = QualityId;

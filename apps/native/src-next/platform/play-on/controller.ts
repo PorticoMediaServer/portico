@@ -2,25 +2,21 @@ import type {RefObject} from 'react';
 import type {View} from 'react-native';
 import type {CastDockIdentity} from '../../kit/dock';
 import type {CastSnapshot} from '../../../../../packages/client-core/src/cast';
-import {playbackControlsService} from '../../../../../packages/client-core/src/playback-controls';
-import {HandoffController, type HandoffPhase, type HandoffSnapshot} from '../../../../../packages/client-core/src/remote-playback';
-import type {Receiver} from '../../../../../packages/client-core/src/social-playback';
+import {HandoffController, type HandoffPhase, type HandoffSnapshot, type PlayOnDevice} from '../../../../../packages/client-core/src/remote-playback';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import type {QueueEntry} from '../../../../../packages/client-core/src/playback-v1/types';
 import type {LocalSession} from '../../../../../packages/client-core/src/index';
 import {sameFence, type DockPlayback, type PlaybackFence, type RemoteDock} from '../../../../../packages/player-core/src';
-import {routePath} from '../../../../../packages/contracts/src/routes';
 import {NativeCastCaller, type NativeCastState} from './cast';
 import type {NativePlaybackAdapter} from '../playback/types';
 
-/** Play on, natively: the Portico devices this profile may send to, the handoff that
- * moves this phone's playback to one of them, and the remote that follows it after.
+/** Play on, natively: the account's other open devices, the move of this phone's playback
+ * to one of them, and the remote that follows it after.
  *
- * Every fact is the server's or the receiving device's own: the directory comes from
- * `GET /v1/receivers`, the takeover only counts once the television proves it is
- * playing, and the position and controls the remote shows are read from the playing
- * device through `GET /v1/playback/controls`. Cast uses the installed native
- * transport and the shared admitted queue-transfer controller.
+ * Every fact is the server's or the receiving device's own: the list comes from
+ * `GET /v1/receivers`, the move only counts once the other device reports it is playing,
+ * and the position the remote shows is read from the account's playback list. Cast uses
+ * the installed native transport and the shared admitted queue-transfer controller.
  *
  * One send is one attempt with its own connection id: the initiating dock playback,
  * fence, authority and session are captured before any await and checked again before
@@ -34,14 +30,16 @@ export type PlayOnRemote = Readonly<{
   itemId?: string;
   /** Captured display facts belong only to this item, never a later local title. */
   entry?: ContentEntry;
-  /** The receiving session's own next entry, when the controls report supplies it. */
+  /** The receiving device's next entry. The server's read of it is being built; until it
+   * lands this stays empty and the bar shows no next-up line. */
   next?: QueueEntry;
   positionSeconds: number;
   positionKnown: boolean;
   durationSeconds: number;
   playing: boolean;
   stopped: boolean;
-  /** Only what the playing device's own report allows; nothing before the first report. */
+  /** Every control while the other device plays or pauses the title; nothing before the
+   * first read or once it stopped. A refused control shows the server's words. */
   allows: Readonly<Record<'pause' | 'resume' | 'seek' | 'stop', boolean>>;
 }>;
 
@@ -51,12 +49,12 @@ export type PlayOnSnapshot = Readonly<{
   anchorRef?: RefObject<View | null>;
   cast?: NativeCastState;
   castRemoteOpen?: boolean;
-  receivers: readonly Receiver[];
+  receivers: readonly PlayOnDevice[];
   directoryPhase: HandoffSnapshot['directoryPhase'];
   directoryError?: string;
   phase: HandoffPhase;
   message?: string;
-  target?: Receiver;
+  target?: PlayOnDevice;
   sending: boolean;
   remote?: PlayOnRemote;
   /** The full remote is open (the dock's bar opened it). */
@@ -68,6 +66,8 @@ export type PlayOnSnapshot = Readonly<{
 type Options = Readonly<{
   api: Readonly<{baseUrl?: string; createCastStopKey?():Promise<string>; request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>;
     requestRaw?(path: string, method: string, options?: Readonly<{headers?: Readonly<Record<string, string>>; body?: unknown; signal?: AbortSignal}>): Promise<{status: number; headers: Record<string, string>; body?: unknown}>}>;
+  /** The app's change feed, when it has one: a move is answered sooner than by asking again. */
+  events?: ConstructorParameters<typeof HandoffController>[0]['events'];
   session: () => LocalSession | undefined;
   deviceName: () => string;
   playback: () => NativePlaybackAdapter | undefined;
@@ -78,8 +78,8 @@ type Options = Readonly<{
 const POLL_MS = 5000;
 const STOPPED_CLEAR_MS = 15_000;
 const wire = (value: string) => value.replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 96);
-const cancelled = () => Object.assign(new Error('cancelled'), {name: 'AbortError', code: 'cancelled'});
 const NONE = Object.freeze({pause: false, resume: false, seek: false, stop: false});
+const ALL = Object.freeze({pause: true, resume: true, seek: true, stop: true});
 
 export class NativePlayOn {
   private readonly options: Options;
@@ -155,12 +155,8 @@ export class NativePlayOn {
     if (this.disposed || !this.options.current()) return false;
     const session = this.options.session();
     if (!this.controller && session?.deviceId) {
-      const controller = new HandoffController({
-        api: {request: (path, method, body, signal) => this.request(path, method, body, signal),
-          ...(this.options.api.requestRaw ? {requestRaw: (path, method, options) => this.requestRaw(path, method, options)} : {})},
-        device: {deviceId: session.deviceId, displayName: this.options.deviceName()},
-        requestId: () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`,
-      });
+      // Every send and control adds its own captured guard on top of this.
+      const controller = new HandoffController({api: this.options.api, events: this.options.events, isCurrent: () => !this.disposed && this.options.current()});
       const stop = controller.subscribe(() => this.follow(controller.getSnapshot()));
       this.controller = controller;
       this.offController = stop;
@@ -179,44 +175,18 @@ export class NativePlayOn {
     const cast=this.cast.getSnapshot().cast;if(['connecting','pairing','waiting'].includes(cast.phase)||cast.transferPending)this.cast.controls('stop');
   };
 
-  /** A request from the attempt that started it: the identity captured at send is checked
-   * before and after every call, so a replaced authority/session cannot continue one. */
-  private async request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> {
-    // The receiver directory is a read of who exists, not a handoff: it answers before
-    // any send exists, so it is guarded by the current session and authority captured at
-    // this request. Every actual handoff call below still requires the immutable lease.
-    if (method === undefined && path === routePath('social_get_v1_receivers')) {
-      const session = this.options.session(), authority = this.options.playback()?.getSnapshot().authority;
-      const same = () => this.options.current() && !!session && this.options.session() === session
-        && sameAuthority(this.options.playback()?.getSnapshot().authority, authority);
-      if (!same()) throw cancelled();
-      const value = await this.options.api.request<T>(path, method, body, signal);
-      if (!same()) throw cancelled();
-      return value;
-    }
-    const attempt = this.attempt, connection = this.connection, lease = this.lease;
-    const same = () => this.bound(attempt, connection) && !!lease && this.options.session() === lease.session
+  /** The send's own guard: the attempt, session, authority and local run captured at send are
+   * checked before and after every call, so a replaced run cannot continue one. */
+  private sendGuard(attempt: number, connection: string | undefined, lease: NonNullable<NativePlayOn['lease']>): () => boolean {
+    return () => this.bound(attempt, connection) && this.options.session() === lease.session
       && sameAuthority(this.options.playback()?.getSnapshot().authority, lease.authority)
       && !!this.options.playback()?.getSnapshot().fence && sameFence(this.options.playback()!.getSnapshot().fence!, lease.fence);
-    if (!same()) throw cancelled();
-    const value = await this.options.api.request<T>(path, method, body, signal);
-    if (!same()) throw cancelled();
-    return value;
   }
-
-  /** The session-control transport (SessionsClient builds on requestRaw): the same
-   * captured identity guard, so a pause/seek from an old attempt cannot reach a new one. */
-  private async requestRaw(path: string, method: string, options?: Readonly<{headers?: Readonly<Record<string, string>>; body?: unknown; signal?: AbortSignal}>)
-    : Promise<{status: number; headers: Record<string, string>; body?: unknown}> {
-    const attempt = this.attempt, connection = this.connection, lease = this.lease;
-    // The remote control follows a committed handoff, where the local player has already
-    // retired; its fence is not required, but the session and authority never change.
-    const same = () => this.bound(attempt, connection) && !!lease && this.options.session() === lease.session
+  /** The remote's guard once the move is done: the local player has retired, so its run is not
+   * required, but the attempt, session and authority never change. */
+  private controlGuard(attempt: number, connection: string | undefined, lease: NonNullable<NativePlayOn['lease']>): () => boolean {
+    return () => this.bound(attempt, connection) && this.options.session() === lease.session
       && sameAuthority(this.options.playback()?.getSnapshot().authority, lease.authority);
-    if (!same() || !this.options.api.requestRaw) throw cancelled();
-    const value = await this.options.api.requestRaw(path, method, options);
-    if (!same()) throw cancelled();
-    return value;
   }
 
   /** Moves this phone's playback to the receiver. The statement of what is playing is
@@ -227,7 +197,7 @@ export class NativePlayOn {
   closeCastRemote = (): void => {this.publish({castRemoteOpen:false});};
   castCommand=(type:string,position?:number,expected?:CastDockIdentity,takeover?:CastSnapshot['takeover']):void=>{this.cast.controls(type,position,expected,takeover);};
 
-  send = async (receiver: Receiver): Promise<void> => {
+  send = async (receiver: PlayOnDevice): Promise<void> => {
     if(this.state.cast?.cast.transferPending||['connecting','pairing','waiting','casting'].includes(this.state.cast?.cast.phase??''))return;
     const playback = this.options.playback(), session = this.options.session();
     if (!playback || !session) return;
@@ -237,11 +207,16 @@ export class NativePlayOn {
     const attempt = ++this.attempt;
     const connection = `playon_${wire(receiver.id)}_${attempt.toString(36)}${Date.now().toString(36)}`;
     this.stopPolling();
-    this.lease = Object.freeze({session, authority: snapshot.authority, fence});
+    const lease = this.lease = Object.freeze({session, authority: snapshot.authority, fence});
     this.connection = connection; this.fence = fence; this.local = Object.freeze({...local, playing: false, expanded: false});
     this.receiverPlaybackId = undefined;
     this.publish({sending: true, message: undefined, error: undefined, phase: 'asking', target: receiver});
-    const playing = await this.controller!.send(receiver, {playbackId: fence.sessionId, positionSeconds: snapshot.playback.positionSeconds}).catch(error => {
+    const current = snapshot.session?.id === fence.sessionId ? snapshot.session : undefined;
+    const playing = await this.controller!.send(receiver, {playbackId: fence.sessionId, itemId: fence.itemId, positionSeconds: snapshot.playback.positionSeconds,
+      ...(current?.presentation.audioTrackId ? {audioTrackId: current.presentation.audioTrackId} : {}),
+      ...(current ? {subtitleTrackId: current.presentation.subtitle?.trackId ?? ''} : {}),
+      ...(current?.queue ? {queueId: current.queue.queueId} : {})},
+    this.sendGuard(attempt, connection, lease), this.controlGuard(attempt, connection, lease)).catch(error => {
       if (this.bound(attempt, connection)) this.options.reportError(error);
       return false;
     });
@@ -296,25 +271,19 @@ export class NativePlayOn {
     try {
       await controller.refreshRemote();
       if (!this.bound(attempt, connection, sessionId)) return;
-      const page = await playbackControlsService(<T,>(path: string, method?: string, body?: unknown) => this.options.api.request<T>(path, method, body)).remote();
-      if (!this.bound(attempt, connection, sessionId)) return;
-      const report = page.items.find(item => item.sessionId === sessionId);
-      const current = this.state.remote;
+      const report = controller.getSnapshot().remote, current = this.state.remote;
       if (!report || !current) {
-        // No report is not a grant: every control stays off until the device answers.
         if (current) this.publish({remote: {...current, positionKnown: false, next: undefined, allows: NONE}});
         return;
       }
-      // An unavailable read is not an ended session: only its own report can say ended.
       const stopped = report.state === 'ended';
-      const allows = {pause: report.actions.includes('pause'), resume: report.actions.includes('resume'),
-        seek: report.actions.includes('seek'), stop: report.actions.includes('stop')};
-      this.publish({remote: {...current, positionSeconds: Math.max(0, report.positionMs / 1000),
-        positionKnown: true, itemId: report.item?.id, entry: report.item?.id === current.entry?.id ? current.entry : undefined,
-        next: report.next?.available ? report.next : undefined,
-        durationSeconds: report.durationMs ? report.durationMs / 1000 : report.item?.id === current.itemId ? current.durationSeconds : 0,
-        playing: report.state === 'playing' && !stopped, stopped, allows, title: report.item?.title,
-        ...(report.device.name ? {device: report.device.name} : {})}});
+      this.publish({remote: {...current, positionSeconds: report.positionMs / 1000,
+        positionKnown: !stopped, itemId: report.itemId, entry: report.itemId === current.entry?.id ? current.entry : undefined,
+        // next: the receiving device's next entry slots in here once the server's read carries it.
+        next: undefined,
+        durationSeconds: report.durationMs ? report.durationMs / 1000 : report.itemId === current.itemId ? current.durationSeconds : 0,
+        playing: report.state === 'playing', stopped, allows: report.state === 'playing' || report.state === 'paused' ? ALL : NONE, title: report.title,
+        ...(report.deviceName ? {device: report.deviceName} : {})}});
       if (stopped) {this.stopPolling(); await this.push('stopped', false, attempt, connection);}
       else await this.push('playing', false, attempt, connection);
     } catch (error) {

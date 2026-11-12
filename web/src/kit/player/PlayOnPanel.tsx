@@ -27,7 +27,8 @@ function Receivers({port, t, onSend, sending, failed}: {port: PlayOnReceiversPor
       disabled={sending !== undefined} onClick={() => onSend(receiver.id)}>
       <Icon name="i-tvdev" size={20} /><span>{receiver.name}{receiver.detail && <small>{receiver.detail}</small>}</span>{sending === receiver.id ? <small>{t('next.cast.receiverBusy')}</small> : <Icon name="i-right" size={18} />}
     </button>)}</div>
-    {failed && <p className={styles.footnote} role="status">{t('next.cast.receiverFailed', {device: snapshot.items.find(receiver => receiver.id === failed)?.name ?? ''})}</p>}
+    {(sending || failed) && snapshot.message ? <p className={styles.footnote} role="status">{snapshot.message}</p>
+      : failed && <p className={styles.footnote} role="status">{t('next.cast.receiverFailed', {device: snapshot.items.find(receiver => receiver.id === failed)?.name ?? ''})}</p>}
   </>;
 }
 
