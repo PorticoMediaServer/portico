@@ -310,3 +310,65 @@ func TestCollectionVisibleToEveryone(t *testing.T) {
 	}
 
 }
+
+// A list read backwards (order=desc) starts at its last entry: Move to bottom and an Undo of a first entry name it.
+func TestAListReadBackwardsStartsAtItsLastEntry(t *testing.T) {
+	l := newLibrary(t, 600)
+	films := everything(t, l.d, l.all, db.ItemQuery{Library: l.libs[0].PublicID, Kinds: []db.ItemKind{db.KindMovie}, Limit: 3})
+	if len(films) < 3 {
+		t.Fatalf("the test library needs three films, has %d", len(films))
+	}
+	list, err := l.d.CreateList(ctx, l.all, db.NewList{Kind: db.ListCollection, Name: "Picks", SortName: "picks",
+		Items: []string{films[0].PublicID, films[1].PublicID, films[2].PublicID}}, "key-r", "hash-r", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := l.d.ListEntries(ctx, l.all, db.ItemQuery{List: list.PublicID, Sort: db.SortOrder, Desc: true, Limit: 1})
+	if err != nil || len(page.Items) != 1 {
+		t.Fatalf("read %d entries: %v", len(page.Items), err)
+	}
+	if got := page.Items[0].PublicID; got != films[2].PublicID {
+		t.Fatalf("a list read backwards answered %s, want its last entry %s (its first is %s)", got, films[2].PublicID, films[0].PublicID)
+	}
+}
+
+// Read backwards a page at a time, a list comes out whole and reversed: every entry once, none skipped.
+func TestAListPagesBackwardsToItsStart(t *testing.T) {
+	l := newLibrary(t, 600)
+	films := everything(t, l.d, l.all, db.ItemQuery{Library: l.libs[0].PublicID, Kinds: []db.ItemKind{db.KindMovie}, Limit: 7})
+	if len(films) < 7 {
+		t.Fatalf("the test library needs seven films, has %d", len(films))
+	}
+	films = films[:7] // three pages of three: two full and one short
+	ids := make([]string, len(films))
+	for n, film := range films {
+		ids[n] = film.PublicID
+	}
+	list, err := l.d.CreateList(ctx, l.all, db.NewList{Kind: db.ListPlaylist, Name: "Long", SortName: "long", Items: ids}, "key-p", "hash-p", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var read []string
+	cursor := ""
+	for pages := 0; pages < 10; pages++ {
+		page, err := l.d.ListEntries(ctx, l.all, db.ItemQuery{List: list.PublicID, Sort: db.SortOrder, Desc: true, Limit: 3, Cursor: cursor})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, it := range page.Items {
+			read = append(read, it.PublicID)
+		}
+		if cursor = page.NextCursor; cursor == "" {
+			break
+		}
+	}
+	want := slices.Clone(ids)
+	slices.Reverse(want)
+	if !slices.Equal(read, want) {
+		t.Fatalf("read backwards %v, want %v", read, want)
+	}
+	// Forwards is as it was.
+	if got, _, _ := entries(t, l.d, l.all, list.PublicID); !slices.Equal(got, ids) {
+		t.Fatalf("read forwards %v, want %v", got, ids)
+	}
+}

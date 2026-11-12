@@ -275,8 +275,17 @@ func (d *DB) ListEntries(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, 
 		return page, err
 	}
 	entries := ` FROM list_entries e CROSS JOIN items i ON i.id = e.item_id` + stateJoin + `e.list_id = ` + strconv.FormatInt(list, 10) + ` AND `
+	// Its own order, or that order backwards (`order=desc`, the list's last entries first); a cursor is the position
+	// of the last entry read, and the next page goes on past it in the same direction.
+	bound, order := ` AND e.position > `+where.arg(after), ` ORDER BY e.position`
+	if q.Desc {
+		bound, order = "", ` ORDER BY e.position DESC`
+		if q.Cursor != "" {
+			bound = ` AND e.position < ` + where.arg(after)
+		}
+	}
 	rows, err := tx.QueryContext(ctx, `SELECT `+itemColumns+`, e.id, e.position`+entries+where.pageWhere()+
-		` AND e.position > `+where.arg(after)+` ORDER BY e.position LIMIT `+strconv.Itoa(limit+1), where.args...)
+		bound+order+` LIMIT `+strconv.Itoa(limit+1), where.args...)
 	if err != nil {
 		return page, err
 	}
