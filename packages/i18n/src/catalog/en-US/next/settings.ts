@@ -165,6 +165,7 @@ export const settingsMessages = {
   'next.settings.people.resetCode': 'Make a reset code',
   'next.settings.people.resetCodeTitle': 'Reset code for {username}',
   'next.settings.people.resetCodeGive': 'Give this to them. They type it on the server’s sign-in page, under Forgot password?, and choose a new password.',
+  'next.settings.people.resetCodeStops': 'Their old password stopped working when this code was made, and they were signed out on every device.',
   'next.settings.people.resetCodeOnce': 'Works once, until {time}. Portico doesn’t send it: read it out or send it any way you like.',
   'next.settings.people.resetCodeOff': 'Also turn off two-step verification',
   'next.settings.people.resetCodeOffHelp': 'Only if they lost their authenticator too.',

@@ -1,5 +1,6 @@
-import {encodedRoutePath} from "../../contracts/src/route-paths.ts";
 import {parseServerInvitation,parsePeopleInvitationPage} from './direct-account.ts';
+import {callServer} from './query/server-api.ts';
+import {fetchMemberDevices,memberDevicesPath} from './query/member-devices.ts';
 /**
  * Wire shapes for server administration: access tiers, invitations, per-member
  * limits, devices, API keys, message logs and connectivity.
@@ -47,6 +48,10 @@ export type MemberLimits=Readonly<{
  maximumAge:number;
  allowUnrated:boolean;
  schedule:AccessSchedule;channelPolicy:ChannelPolicy;tagPolicy:TagPolicy}>;
+/** A person's whole-account limits on the rebuilt server (`limits` on a member). A save names only the fields it changes.
+ * The account's Downloads switch is `allowDownloads` on the member itself, not one of these. */
+export type AccountLimits=Readonly<{homeOnly:boolean;viewingHours?:Readonly<{timezone?:string;windows:readonly ScheduleWindow[]}>|null;maxRatingAge?:number|null;allowUnrated:boolean;
+ blockedLabels:readonly string[];remoteMaxBitrateKbps?:number|null;maxProfiles?:number|null;allowWatchTogether:boolean;allowTokens:boolean}>;
 export type LimitsDocument=Readonly<{accountId:string;revision:number;updatedAt?:string;limits:MemberLimits}> & StreamLimitFacts;
 /**
  * `disabledAt` and `disabledReason` are present while the account is off: when it was turned off,
@@ -56,7 +61,9 @@ export type LimitsDocument=Readonly<{accountId:string;revision:number;updatedAt?
 export type AccessMember=Readonly<{accountId:string;username:string;email?:string;displayName?:string;profileId:string;role:AccessTier;disabled:boolean;
  disabledAt?:string;disabledReason?:'owner'|'left'|'did_not_move';
  hostedAccountId?:string;notes?:string;joinedVia?:string;joinedAt?:string;profileNames?:readonly string[];lastActiveAt?:string;liveState?:'idle'|'watching'|'listening';
- revision:number;allowedLibraries:readonly string[];limitsRevision:number;limits:MemberLimits}> & StreamLimitFacts;
+ revision:number;allowedLibraries:readonly string[];limitsRevision:number;limits:MemberLimits;
+ /** The rebuilt server's own whole-account limits as read, when it keeps them: a save sends them back whole with the changes. */
+ accountLimits?:AccountLimits}> & StreamLimitFacts;
 export type Invitation=Readonly<{id:string;email?:never;notes?:string;serverId?:string;role:'member'|'admin';allowedLibraries:readonly string[];state:InvitationState;
  createdAt:string;expiresAt:string;acceptedAt?:string;accountId?:string;revision:number;code?:string;
  /** The one Portico Account this invitation is for, when the owner named one. */
@@ -185,27 +192,20 @@ export const parseAccessMemberPage=(raw:unknown)=>page(raw,parseAccessMember,row
  * deleted with a person. `playsKept` rows of the owner's play history stay, with the person's
  * names blanked.
  */
+/** Who deleting removes, read just before the plain confirm that names them. The rebuilt server does not count what
+ * goes with the account, so the counts are absent; `revision` is always 1. */
 export type MemberDeletionPreview=Readonly<{accountId:string;username:string;role:AccessTier;revision:number;porticoAccount:boolean;
- profiles:number;devices:number;playlists:number;savedResources:number;playsKept:number}>;
-export function parseMemberDeletionPreview(raw:unknown):MemberDeletionPreview{
- if(!obj(raw))return invalid();
- return Object.freeze({accountId:str(raw.accountId),username:str(raw.username,64),role:oneOf(raw.role,accessTiers),revision:num(raw.revision,1),
-  porticoAccount:bool(raw.porticoAccount),profiles:num(raw.profiles),devices:num(raw.devices),playlists:num(raw.playlists),
-  savedResources:num(raw.savedResources),playsKept:num(raw.playsKept)});
-}
+ profiles?:number;devices?:number;playlists?:number;savedResources?:number;playsKept?:number}>;
 type MemberDeletionApi=Readonly<{request<T>(path:string,method?:string,body?:unknown,signal?:AbortSignal):Promise<T>}>;
-const memberPath=(accountId:string)=>encodedRoutePath("delete_direct_member", {"id": encodeURIComponent(str(accountId))});
-/** Reads what deleting this member will remove. Changes nothing. */
+/** Reads the member deleting would remove. Changes nothing. */
 export async function previewMemberDeletion(api:MemberDeletionApi,accountId:string,signal?:AbortSignal):Promise<MemberDeletionPreview>{
- const preview=parseMemberDeletionPreview(await api.request<unknown>(memberPath(accountId)+'/deletion-preview','GET',undefined,signal));
- return preview.accountId===accountId?preview:invalid();
+ const member=await callServer(api,'GET /v1/admin/members/{id}',{id:str(accountId),signal});
+ if(!obj(member)||member.id!==accountId)return invalid();
+ return Object.freeze({accountId,username:str(member.username,64),role:oneOf(member.role,accessTiers),revision:1,porticoAccount:false});
 }
-/**
- * Deletes the member the preview describes. The server refuses (412 `revision_mismatch`) when the
- * member changed since the preview was read: read it again and confirm again.
- */
+/** Deletes the member the preview names. */
 export async function deleteMember(api:MemberDeletionApi,preview:MemberDeletionPreview,signal?:AbortSignal):Promise<void>{
- await api.request<void>(memberPath(preview.accountId),'DELETE',{expectedRevision:preview.revision},signal);
+ await callServer(api,'DELETE /v1/admin/members/{id}',{id:str(preview.accountId),signal});
 }
 
 export function parseInvitation(raw:unknown):Invitation{
@@ -226,12 +226,22 @@ export function parseAccessDevicePage(raw:unknown):AdministrationPage<AccessDevi
  if(!obj(raw)||Object.hasOwn(raw,'approvalRequired'))return invalid();
  return page(raw,parseAccessDevice,row=>row.id,true);
 }
-/** Ends only this person's captured device family/families; future normal sign-in is allowed. */
-export async function signOutMemberDevice(api:MemberDeletionApi,accountId:string,deviceId:string,signal?:AbortSignal):Promise<void>{
- await api.request(encodedRoutePath('post_direct_member_device_sign_out',{id:encodeURIComponent(str(accountId)),deviceId:encodeURIComponent(str(deviceId))}),'POST',undefined,signal);
+type NextDevice=Readonly<{id:string;name:string;platform?:string;app?:string;appVersion?:string;createdAt:string;lastSeenAt:string;network?:string;signedIn:boolean}>;
+/** The devices of a person the viewer manages: the list that person sees under Signed-in devices. One page. */
+export async function readMemberDevices(api:MemberDeletionApi,accountId:string,signal?:AbortSignal):Promise<AdministrationPage<AccessDevice>>{
+ const raw=await fetchMemberDevices(api,str(accountId),signal);
+ if(!obj(raw)||!Array.isArray(raw.items))return invalid();
+ const items=(raw.items as NextDevice[]).map(device=>parseAccessDevice({id:device?.id,accountId,name:device?.name??'',platform:device?.platform??'',app:device?.app??'',appVersion:device?.appVersion??'',
+  lastNetwork:device?.network??'',liveState:'idle',firstSeenAt:device?.createdAt,lastSeenAt:device?.lastSeenAt,revision:1}));
+ return Object.freeze({limit:Math.max(1,items.length),nextCursor:'',items:Object.freeze(items)});
 }
+/** Signs this person out of one device at once; signing in on it again is allowed. */
+export async function signOutMemberDevice(api:MemberDeletionApi,accountId:string,deviceId:string,signal?:AbortSignal):Promise<void>{
+ await api.request(memberDevicesPath(str(accountId))+'/'+encodeURIComponent(str(deviceId)),'DELETE',undefined,signal);
+}
+/** Signs this person out of every device on their list, one at a time (the server has no route for all at once). */
 export async function signOutMemberDevices(api:MemberDeletionApi,accountId:string,signal?:AbortSignal):Promise<void>{
- await api.request(encodedRoutePath('post_direct_member_devices_sign_out',{id:encodeURIComponent(str(accountId))}),'POST',undefined,signal);
+ for(const device of (await readMemberDevices(api,accountId,signal)).items)await signOutMemberDevice(api,accountId,device.id,signal);
 }
 
 

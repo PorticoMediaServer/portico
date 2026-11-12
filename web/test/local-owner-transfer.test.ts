@@ -5,23 +5,18 @@ import {LocalOwnerTransferSource} from '../src/screens/settings/local-owner-tran
 import {guardedSettingsRequest, localOwnerTransferTransport} from '../src/screens/settings/settings-request.ts';
 
 // Accepting-composition vectors, authored UNRUN. Fixtures carry actual People
-// envelopes and revisions; the presenter is not an authority or a role receipt.
-const limits = {accessTokens: false, maxProfiles: 2, allowRemote: false, conversion: 'none', maxStreams: 1, maxStreamsMode: 'limit'};
-const row = (accountId: string, role = 'member') => ({accountId, username: accountId, role, revision: 3, limitsRevision: 1,
-  disabled: false, status: 'active', hasMoveCode: false, allowedLibraries: [], libraryNames: [], maxStreams: 1, maxStreamsMode: 'limit',
-  serverMaxStreams: null, effectiveMaxStreams: 1, profileCount: 1, profileNames: ['Main'], liveState: 'idle'});
+// envelopes (the rebuilt server's, whose revisions are always 1); the presenter is not an authority or a role receipt.
+/** An account as the rebuilt server answers it. */
+const member = (id: string, role = 'member') => ({id, username: id, role, disabled: false, createdAt: '2026-11-01T00:00:00Z', allLibraries: true, libraries: [], twoFactorEnabled: false});
 function fixture() {
-  let current = true, revision = 3, link = false, fail: unknown, complete = 0, reconciled = 0, navigated = 0;
+  let current = true, role = 'member', fail: unknown, complete = 0, reconciled = 0, navigated = 0;
   let post: (() => Promise<void>) | undefined;
   const calls: {path: string; method?: string; body?: unknown}[] = [];
   const api: ProfileAPI = {request: async <T>(path: string, method?: string, body?: unknown): Promise<T> => {
+    if (path === '/v1/admin/playback/stream-limits' || path === '/v1/admin/sessions') throw Object.assign(new Error('not here'), {status: 404, code: 'not_found'});
     calls.push({path, method, body});
-    if (path.includes('/members?')) return {items: [row('member'), row('admin', 'admin')], totalCount: 2, matchedCount: 2, nextCursor: '', limit: 40} as T;
-    if (path === '/v1/admin/access/members/owner' || path === '/v1/admin/access/members/member') {
-      const owner = path.endsWith('/owner');
-      return {...row(owner ? 'owner' : 'member', owner ? 'owner' : 'member'), profileId: owner ? 'owner-main' : 'member-main',
-        revision: owner ? 9 : revision, limits, ...(link && !owner ? {hostedAccountId: 'contradictory-link'} : {})} as T;
-    }
+    if (path === '/v1/admin/members') return {items: [member('owner', 'owner'), member('member', role), member('admin', 'admin')]} as T;
+    if (path === '/v1/admin/members/owner' || path === '/v1/admin/members/member') return (path.endsWith('/owner') ? member('owner', 'owner') : member('member', role)) as T;
     if (path === '/v1/direct/ownership') {if (fail) throw fail; await post?.(); return undefined as T;}
     throw new Error('Unexpected transfer request');
   }};
@@ -41,20 +36,20 @@ function fixture() {
     }});
   return {source, calls, get complete() {return complete;}, get reconciled() {return reconciled;}, get navigated() {return navigated;},
     retire: () => {current = false;build.abort();}, restoreParent: () => {current = true;},
-    revised: () => {revision++;}, linked: () => {link = true;}, fail: (error: unknown) => {fail = error;}, wait: (value: () => Promise<void>) => {post = value;}};
+    revised: () => {role = 'admin';}, fail: (error: unknown) => {fail = error;}, wait: (value: () => Promise<void>) => {post = value;}};
 }
 const caller = () => {
   const abort = new AbortController();
   return {signal: abort.signal, isCurrent: () => !abort.signal.aborted, retire: () => abort.abort()};
 };
-const input = {accountId: 'member', currentPassword: ' original password ', expectedRevision: 9};
+const input = {accountId: 'member', currentPassword: ' original password ', expectedRevision: 1};
 
 test('one bounded original inventory uses the CALLER revision and never fabricates a role receipt', async () => {
   const f = fixture(), life = caller();
   try {
     const port = await f.source.open(life);
     assert.deepEqual(port.opening.members, [{accountId: 'member', username: 'member'}]);
-    assert.equal(port.opening.ownerRevision, 9); assert.equal(f.calls.length, 2);
+    assert.equal(port.opening.ownerRevision, 1, 'the rebuilt server keeps no revisions: always 1'); assert.equal(f.calls.length, 2);
     await assert.rejects(port.accept({...input, expectedRevision: 3}, life));
     assert.equal(f.calls.length, 2);
     await port.accept(input, life);
@@ -72,12 +67,12 @@ test('Cancel A and reopen B never lets the retained A port act or close B', asyn
     await second.accept(input, b); assert.equal(f.complete, 1);
   } finally {f.source.dispose();}
 });
-for (const mode of ['authority', 'caller', 'target-revision', 'contradictory-link'] as const) test('original transfer refuses '+mode+' without an accepting write', async () => {
+for (const mode of ['authority', 'caller', 'target-role'] as const) test('original transfer refuses '+mode+' without an accepting write', async () => {
   const f = fixture(), life = caller();
   try {
     const port = await f.source.open(life);
     if (mode === 'authority') f.retire(); if (mode === 'caller') life.retire();
-    if (mode === 'target-revision') f.revised(); if (mode === 'contradictory-link') f.linked();
+    if (mode === 'target-role') f.revised();
     await assert.rejects(port.accept(input, life));
     assert.equal(f.calls.some(value => value.path === '/v1/direct/ownership'), false); assert.equal(f.complete, 0);
   } finally {f.source.dispose();}
@@ -171,7 +166,7 @@ test('ordinary Settings request still refuses a response after its build retires
   await assert.rejects(purpose.request('/v1/admin/access/members', 'GET'));
 });
 
-const newInput = {newAccount:{username:'newowner',name:'New owner',password:'New-password2!'},currentPassword:' original password ',expectedRevision:9};
+const newInput = {newAccount:{username:'newowner',name:'New owner',password:'New-password2!'},currentPassword:' original password ',expectedRevision:1};
 test('new-owner creation uses the original transfer opening without a separate member write',async()=>{
  const f=fixture(),life=caller();
  try {

@@ -267,13 +267,15 @@ function PeopleWorkspace({bindings, initialStatus, rowActions, advancedRows}: {b
   const values: Readonly<Record<string, SettingsValue | undefined>> = person ? {
     'people.username': person.username, ...(bindings.signIn === 'portico' && person.email !== undefined ? {'people.email': person.email} : {}), 'people.notes': person.notes ?? '', 'people.role': person.role === 'admin' ? 'administrator' : person.role,
     'people.libraries': person.allowedLibraries.length || chooseLibraries ? 'some' : 'all', ...(bindings.streamLimits ? {'people.maxStreams': bindings.streamLimits.read(person)} : {}),
-    'people.awayAccess': person.limits.allowRemote ? 'allowed' : 'home', 'people.conversions': person.limits.conversion === 'audio' ? 'sound' : person.limits.conversion,
+    // The whole-account limit rows show when the server keeps this account's limits. It keeps no limit on converting,
+    // so that row is not shown.
+    ...(person.accountLimits ? {'people.awayAccess': person.limits.allowRemote ? 'allowed' : 'home',
     'people.hours': person.limits.schedule.windows.length || chooseHours ? 'set' : 'any', 'people.hoursTimezone': person.limits.schedule.timezone,
-    'people.maxRating': person.limits.maxContentRating || 'none', 'people.allowUnrated': person.limits.allowUnrated, 'people.accessTokens': person.limits.accessTokens,
+    'people.maxRating': person.limits.maxContentRating || 'none', 'people.allowUnrated': person.limits.allowUnrated, 'people.accessTokens': person.limits.accessTokens} : {}),
   } : {};
   const state = (row: SettingsRow): SettingPresentation => row.id === personMemberResetCodeRow.id
     ? {present: resetView?.present === true, disabled: !resetView?.canMake}
-    : {present: !!person && (Object.hasOwn(values, row.id) || ['people.turnOff', 'people.delete', 'people.profiles', 'people.hoursList', 'people.hiddenLabels'].includes(row.id) || row.id === 'people.libraryList' && (chooseLibraries || !!person.allowedLibraries.length)),
+    : {present: !!person && (Object.hasOwn(values, row.id) || ['people.turnOff', 'people.delete', 'people.profiles', ...(person.accountLimits ? ['people.hoursList', 'people.hiddenLabels'] : [])].includes(row.id) || row.id === 'people.libraryList' && (chooseLibraries || !!person.allowedLibraries.length)),
       value: values[row.id], displayValue: typeof values[row.id] === 'string' ? values[row.id] as string : undefined, disabled: saving || !canEdit};
   const change = (row: SettingsRow, value: SettingsValue) => {
     if (!person || !canEdit) return;
@@ -292,7 +294,6 @@ function PeopleWorkspace({bindings, initialStatus, rowActions, advancedRows}: {b
         return;
       }
       else if (row.id === 'people.awayAccess') patch.allowRemote = value === 'allowed';
-      else if (row.id === 'people.conversions') patch.conversion = value === 'sound' ? 'audio' : value as MemberLimits['conversion'];
       else if (row.id === 'people.maxRating') patch.maxContentRating = value === 'none' ? '' : String(value);
       else if (row.id === 'people.allowUnrated') patch.allowUnrated = value === true;
       else if (row.id === 'people.accessTokens') patch.accessTokens = value === true;
@@ -383,7 +384,7 @@ function PeopleWorkspace({bindings, initialStatus, rowActions, advancedRows}: {b
     {advancedRows}
     {personId && <SettingsPanel open onClose={() => {if (resetView && !resetView.leave()) return; admitPerson();}} title={person?.username ?? personRow?.username ?? t(section.title)} audience={t(bindings.actor.role === 'owner' ? 'next.shell.serverVisibility.ownerShared' : 'next.shell.serverVisibility.administrator')}
       returnFocusRef={opener} selectedTab={tab} onTabChange={next => {if (next === tab) return; if (resetView && !resetView.leave()) return; setTab(next);}} saveState={saving ? 'saving' : saved ? 'saved' : undefined}
-      error={error ? t('next.states.pageFailedBody') : undefined} tabs={personPanel.tabs!.map(tab => ({id: tab.id, title: t(tab.title), content: !person ? <p role="status">{t('next.settings.loading')}</p> : tab.id === 'devices' && bindings.devices ? <PeopleDevices key={person.accountId} accountId={person.accountId} api={bindings.devices} isCurrent={bindings.authority.isCurrent} canSignOut={canEdit} onError={failure} /> : <SettingsRows holder={tab} state={state} change={change} reset={() => {}} advancedOpen={advanced} onAdvancedChange={setAdvanced}
+      error={error ? t('next.states.pageFailedBody') : undefined} tabs={personPanel.tabs!.filter(tab => tab.id !== 'devices' || bindings.devices).map(tab => ({id: tab.id, title: t(tab.title), content: !person ? <p role="status">{t('next.settings.loading')}</p> : tab.id === 'devices' && bindings.devices ? <PeopleDevices key={person.accountId} accountId={person.accountId} api={bindings.devices} isCurrent={bindings.authority.isCurrent} canSignOut={canEdit} onError={failure} /> : <SettingsRows holder={tab} state={state} change={change} reset={() => {}} advancedOpen={advanced} onAdvancedChange={setAdvanced}
         renderSpecial={special} />
       }))} />}
     {resetView?.sheet && <MemberResetCodeSheet {...resetView.sheet} />}
@@ -392,7 +393,7 @@ function PeopleWorkspace({bindings, initialStatus, rowActions, advancedRows}: {b
       onClose={() => {if (!saving) {setCommand(undefined); setBulk(undefined);}}} returnFocusRef={confirmOpener}
       confirm={{label: t('next.settings.apply'), pending: saving,
         disabled: bulkLibraryChoice === 'some' && !bulkLibraryIds.length || bulkLibraryChoice === 'keep' && !Object.keys(bulk ?? {}).length, onConfirm: applyCommand}}>
-      <SettingsRows holder={section.panels!.bulkAccess} advancedOpen={false} onAdvancedChange={() => {}} reset={() => {}} state={row => ({present: ['bulk.libraries', 'bulk.awayAccess', 'bulk.maxRating'].includes(row.id) || row.id === 'bulk.maxStreams' && !!bindings.streamLimits, disabled: saving,
+      <SettingsRows holder={section.panels!.bulkAccess} advancedOpen={false} onAdvancedChange={() => {}} reset={() => {}} state={row => ({present: ['bulk.libraries', ...(command.rows.every(person => person.accountLimits) ? ['bulk.awayAccess', 'bulk.maxRating'] : [])].includes(row.id) || row.id === 'bulk.maxStreams' && !!bindings.streamLimits, disabled: saving,
         value: row.id === 'bulk.libraries' ? bulkLibraryChoice : row.id === 'bulk.maxStreams' ? bindings.streamLimits?.readBulk(bulk) : row.id === 'bulk.awayAccess' ? bulk?.allowRemote === undefined ? 'keep' : bulk.allowRemote ? 'allowed' : 'home' : bulk?.maxContentRating === undefined ? 'keep' : bulk.maxContentRating || 'none',
         ...(row.id === 'bulk.libraries' ? {control: <div>
           <RichSelect aria-label={t(row.label)} value={bulkLibraryChoice} disabled={saving} options={row.control.options!.map(option => ({value: String(option.value), label: t(option.label), description: option.hint && t(option.hint)}))}

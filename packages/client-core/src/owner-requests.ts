@@ -41,14 +41,6 @@ export const readOwnerSecuritySummary = <T = unknown>(api: OwnerRequestApi, sign
 export const ownerCertificateRequest = <T = unknown>(api: OwnerRequestApi, action: 'status' | 'config' | 'retry', body: unknown, signal?: AbortSignal): Promise<T> => api.request<T>(routePath(action === 'status' ? 'get_networking_certificate' : action === 'config' ? 'post_networking_certificate_config' : 'post_networking_certificate_retry'), action === 'status' ? 'GET' : 'POST', body, signal);
 export const broadcastOwnerNotification = <T = unknown>(api: OwnerRequestApi, body: unknown, signal?: AbortSignal): Promise<T> => api.request<T>(routePath('post_admin_notifications_broadcast'), 'POST', body, signal);
 
-export const readOwnerAccessDevices = <T = unknown>(api: OwnerRequestApi, query: string, signal?: AbortSignal): Promise<T> => api.request<T>(routePath('get_admin_access_devices') + query, 'GET', undefined, signal);
-export const readOwnerPeoplePage = <T = unknown>(api: OwnerRequestApi, section: 'members' | 'invitations' | 'devices', cursor?: string, signal?: AbortSignal): Promise<T> => {
-  const params = new URLSearchParams({limit: '50'});
-  if (section === 'invitations') params.set('state', 'pending');
-  if (cursor) params.set('cursor', cursor);
-  return api.request<T>(routePath(({members: 'get_admin_access_members', invitations: 'get_admin_access_invitations', devices: 'get_admin_access_devices'} as const)[section]) + '?' + params.toString(), 'GET', undefined, signal);
-};
-
 export const readOwnerSignInSettings = <T = unknown>(api: OwnerRequestApi, signal?: AbortSignal): Promise<T> => api.request<T>(routePath('get_sign_in_settings'), 'GET', undefined, signal);
 export const readOwnerMetadataSettings = <T = unknown>(api: OwnerRequestApi, signal?: AbortSignal): Promise<T> => api.request<T>(routePath('get_metadata_settings'), 'GET', undefined, signal);
 export const readOwnerTranscodeCapacity = <T = unknown>(api: OwnerRequestApi, signal?: AbortSignal): Promise<T> => api.request<T>(routePath('get_admin_transcode_capacity'), 'GET', undefined, signal);

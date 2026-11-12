@@ -6,10 +6,10 @@ import {MemberResetCodePanel, MemberResetCodeSource, type MemberResetCodeOpening
 
 // Authored UNRUN against the real opening and canonical Make/replace helpers.
 // Fixture strings are synthetic; no owner session, clipboard or server is used.
-const serverId = 'srv_' + 'A'.repeat(43), codeA = 'A'.repeat(43), codeB = 'B'.repeat(43);
+const serverId = 'srv_' + 'A'.repeat(43), codeA = 'K7QP-2MXD-9HRT', codeB = '4WNC-8ZTA-3MQX';
 const expiresAt = '2030-01-01T01:00:00Z';
-const original = {code: codeA, expiresAt, serverId};
-const replacement = {code: codeB, expiresAt, serverId};
+const original = {code: codeA, expiresAt};
+const replacement = {code: codeB, expiresAt: '2030-01-01T01:05:00Z'};
 const target = Object.freeze({accountId: 'member-1', username: 'Member', role: 'member' as const, revision: 7});
 function deferred<T>() {let resolve!: (value: T) => void, reject!: (error: unknown) => void;
   const promise = new Promise<T>((yes, no) => {resolve = yes;reject = no;});return {promise, resolve, reject};}
@@ -30,17 +30,17 @@ function ready(opening: MemberResetCodeOpening) {const state = opening.getSnapsh
 test('an explicit Make uses only the original target/revision and publishes the canonical response', async () => {
   const f = fixture(), opening = f.open();await settle();
   assert.deepEqual(f.calls.map(call => [call.path, call.method, call.body]), [
-    ['/v1/direct/members/member-1/reset-code', 'POST', {expectedRevision: 7, turnOffTwoStep: false}],
+    ['/v1/admin/members/member-1/password-reset', 'POST', {resetTwoFactor: false}],
   ]);
   assert.deepEqual(ready(opening).result, original);
 });
 
-test('replacement withdraws old code/copy before IO, claims once and forwards the exact original proof', async () => {
+test('replacement withdraws old code/copy before IO, claims once and makes a new code with the new two-step choice', async () => {
   const f = fixture(), opening = f.open();await settle();const shown = ready(opening), held = deferred<unknown>();f.replies.push(held.promise);
   const change = opening.change(shown, true);
   assert.deepEqual(opening.getSnapshot(), {kind: 'pending', turnOffTwoStep: true});
   await opening.copy(shown);await opening.change(shown, false);assert.deepEqual(f.copies, []);assert.equal(f.calls.length, 2);
-  assert.deepEqual(f.calls[1].body, {expectedRevision: 7, turnOffTwoStep: true, originalResetCode: codeA});
+  assert.deepEqual(f.calls[1].body, {resetTwoFactor: true});
   held.resolve(replacement);await change;assert.deepEqual(ready(opening).result, replacement);
   assert.equal(ready(opening).turnOffTwoStep, true);
 });
@@ -53,8 +53,8 @@ test('a lost replacement remains unresolved with the original error, never resto
   await opening.change(shown, false);await opening.copy(shown);await opening.issue();assert.equal(f.calls.length, 2);assert.deepEqual(f.copies, []);
 });
 
-test('a changed deadline, repeated code or foreign server is never published as a replacement', async () => {
-  for (const response of [{...replacement, expiresAt: '2030-01-01T02:00:00Z'}, original, {...replacement, serverId: 'srv_' + 'B'.repeat(42) + 'A'}]) {
+test('a repeated code or one already expired is never published as a replacement', async () => {
+  for (const response of [original, {...replacement, expiresAt: '2029-12-31T00:00:00Z'}]) {
     const f = fixture(), opening = f.open();await settle();f.replies.push(Promise.resolve(response));
     await opening.change(ready(opening), true);assert.equal(opening.getSnapshot().kind, 'unresolved');assert.equal(f.calls.length, 2);
   }

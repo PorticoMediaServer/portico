@@ -43,6 +43,7 @@ export function MemberResetCodeSheet({open, username, result, turnOffTwoStep, on
         {result.error && <p className={styles.error} role="alert">{result.error}</p>}
         <div className={styles.code} dir="ltr">{result.code}</div>
         <p className={styles.help}>{t('next.settings.people.resetCodeOnce', {time: defaultI18n.time(result.expiresAt)})}</p>
+        <p className={styles.help}>{t('next.settings.people.resetCodeStops')}</p>
         <label className={styles.choice}>
           <span>{t('next.settings.people.resetCodeOff')}<small id={offId}>{t('next.settings.people.resetCodeOffHelp')}</small></span>
           <Switch checked={turnOffTwoStep} disabled={busy || !onTurnOffTwoStepChange} aria-describedby={offId}

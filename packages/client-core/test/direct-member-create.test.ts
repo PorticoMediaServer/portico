@@ -17,12 +17,15 @@ test('the form is ready only with a valid username, a profile name and an 8 to 7
   assert.equal(directMemberInputReady({...input, password: 'é'.repeat(37)}), false, '74 bytes is over the server\'s 72');
 });
 
-test('Add account posts the trimmed account once to POST /v1/direct/members and returns the new id', async () => {
+test('Add account creates the trimmed account once, then limits it to its libraries, and returns the new id', async () => {
   const calls: {path: string; method?: string; body?: unknown}[] = [];
   const api = {request: async <T>(path: string, method?: string, body?: unknown): Promise<T> => {calls.push({path, method, body}); return {id: 'acc_1', username: 'jules', role: 'member'} as T;}};
   const created = await createDirectMember(api as never, {...input, allowedLibraries: ['lib_a']});
   assert.deepEqual(created, {id: 'acc_1', username: 'jules'});
-  assert.deepEqual(calls, [{path: '/v1/direct/members', method: 'POST', body: {username: 'jules', name: 'Jules', password: 'long enough pass', allowedLibraries: ['lib_a']}}]);
+  assert.deepEqual(calls, [{path: '/v1/admin/members', method: 'POST', body: {username: 'jules', profileName: 'Jules', password: 'long enough pass'}},
+    {path: '/v1/admin/members/acc_1', method: 'PATCH', body: {allLibraries: false, libraries: ['lib_a']}}]);
+  calls.length = 0; await createDirectMember(api as never, input);
+  assert.equal(calls.length, 1, 'all libraries is the new account\'s default');
 });
 
 test('an incomplete account is never sent, and a malformed answer is not a success', async () => {
@@ -33,9 +36,9 @@ test('an incomplete account is never sent, and a malformed answer is not a succe
   await assert.rejects(createDirectMember(api as never, input), /invalid/);
 });
 
-test('a taken username (409 conflict) is told apart from every other refusal', () => {
-  assert.equal(directMemberCreateFailure(Object.assign(new Error('x'), {code: 'conflict'})), 'taken');
-  for (const code of ['invalid_request', 'not_permitted', 'writer_capacity', undefined]) assert.equal(directMemberCreateFailure(Object.assign(new Error('x'), {code})), 'failed');
+test('a taken username (409 username_taken) is told apart from every other refusal', () => {
+  assert.equal(directMemberCreateFailure(Object.assign(new Error('x'), {code: 'username_taken'})), 'taken');
+  for (const code of ['conflict', 'invalid_request', 'not_permitted', 'writer_capacity', undefined]) assert.equal(directMemberCreateFailure(Object.assign(new Error('x'), {code})), 'failed');
 });
 
 // Sol 8 on #817: the server measures in UTF-8 bytes and checks the profile name too.

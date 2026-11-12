@@ -34,7 +34,7 @@ async function fixture(deferPerson = false, callerRole = 'owner') {
       async shortCode(captured: any, operationId: string) {writes.push({kind: 'invite-short-code', captured, operationId}); return {serverId: 'srv', expiresAt: '2099-01-01T00:00:00Z', shortCode: '7QK29MXPABCD1234'};}
     }, privatePersonNotes: (value: string) => value.trim() || null},
     '../../../../../../packages/client-core/src/server-administration': {
-      parseAccessDevicePage: (raw: unknown) => raw,
+      readMemberDevices: (api: any, accountId: string, signal: AbortSignal) => api.request(`/v1/admin/members/${accountId}/devices`, 'GET', undefined, signal),
       signOutMemberDevice: async (_: unknown, accountId: string, deviceId: string) => {writes.push({kind: 'signout-device', accountId, deviceId});},
       signOutMemberDevices: async (_: unknown, accountId: string) => {writes.push({kind: 'signout-all', accountId});},
       previewMemberDeletion: async () => preview,
@@ -117,16 +117,13 @@ test('a failed People mutation remains visible, is not retried, and retired hand
 });
 
 const device = {id: 'device-fixture', accountId: row.accountId, name: 'Tablet'};
-test('Devices reads only the captured person, pages explicitly, and signs out exact devices or all', async () => {
+test('Devices reads the captured person\'s whole list once and signs out exact devices or all', async () => {
   const f = await fixture(); await f.load(); await f.source.open(row);
   const first = f.source.loadDevices(person);
-  const url = new URL(f.deviceReads[0].path, 'http://fixture.invalid');
-  assert.equal(url.pathname, '/v1/admin/access/devices'); assert.equal(url.searchParams.get('account'), person.accountId); assert.equal(url.searchParams.get('limit'), '40');
-  f.deviceReads[0].resolve({items: [device], nextCursor: 'next'}); await first;
-  assert.equal(f.deviceReads.length, 1, 'no eager paging');
-  const more = f.source.loadDevices(person, true); assert.equal(new URL(f.deviceReads[1].path, 'http://fixture.invalid').searchParams.get('cursor'), 'next');
-  f.deviceReads[1].resolve({items: [{...device, id: 'second'}], nextCursor: ''}); await more;
+  assert.equal(f.deviceReads[0].path, '/v1/admin/members/member-fixture/devices');
+  f.deviceReads[0].resolve({items: [device, {...device, id: 'second'}], nextCursor: ''}); await first;
   assert.equal(f.source.getSnapshot().devices.items.length, 2);
+  await f.source.loadDevices(person, true); assert.equal(f.deviceReads.length, 1, 'there is no second page');
   assert.equal(await f.source.signOutDevices(person, {...device}), false, 'must use the captured published row');
   assert.equal(await f.source.signOutDevices(person, device), true);
   assert.deepEqual(f.writes, [{kind: 'signout-device', accountId: person.accountId, deviceId: device.id}]);
@@ -136,13 +133,10 @@ test('Devices reads only the captured person, pages explicitly, and signs out ex
   f.source.dispose();
 });
 
-test('Devices rejects another account, cursor loops and replies from closed detail openings', async () => {
+test('Devices rejects another account and replies from closed detail openings', async () => {
   const f = await fixture(); await f.load(); await f.source.open(row);
   let pending = f.source.loadDevices(person); f.deviceReads.at(-1).resolve({items: [{...device, accountId: 'another'}], nextCursor: ''}); await pending;
   assert.equal(f.source.getSnapshot().devices, undefined); assert.equal(f.source.getSnapshot().devicesError.message, 'native_people_device_scope_mismatch');
-  pending = f.source.loadDevices(person); f.deviceReads.at(-1).resolve({items: [device], nextCursor: 'loop'}); await pending;
-  pending = f.source.loadDevices(person, true); f.deviceReads.at(-1).resolve({items: [], nextCursor: 'loop'}); await pending;
-  assert.equal(f.source.getSnapshot().devicesError.message, 'native_people_device_cursor_loop');
   pending = f.source.loadDevices(person); f.source.closePerson(); assert.equal(f.deviceReads.at(-1).signal.aborted, true);
   f.deviceReads.at(-1).resolve({items: [device], nextCursor: ''}); await pending;
   assert.equal(f.source.getSnapshot().devices, undefined); assert.equal(await f.source.signOutDevices(person, device), false); assert.equal(f.writes.length, 0);

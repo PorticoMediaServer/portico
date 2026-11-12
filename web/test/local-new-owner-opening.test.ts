@@ -8,23 +8,17 @@ import {guardedSettingsRequest, localOwnerTransferTransport} from '../src/screen
 // authored UNRUN. Fixtures carry actual People envelopes and revisions, and the
 // transport is the production Settings/transfer boundary rather than a stand-in.
 
-const limits = {accessTokens: false, maxProfiles: 2, allowRemote: false, conversion: 'none', maxStreams: 1, maxStreamsMode: 'limit'};
-const row = (accountId: string, role = 'member') => ({accountId, username: accountId, role, revision: 3, limitsRevision: 1,
-  disabled: false, status: 'active', hasMoveCode: false, allowedLibraries: [], libraryNames: [], maxStreams: 1, maxStreamsMode: 'limit',
-  serverMaxStreams: null, effectiveMaxStreams: 1, profileCount: 1, profileNames: ['Main'], liveState: 'idle'});
-
+/** An account as the rebuilt server answers it. */
+const member = (id: string, role = 'member') => ({id, username: id, role, disabled: false, createdAt: '2026-11-01T00:00:00Z', allLibraries: true, libraries: [], twoFactorEnabled: false});
 function fixture() {
-  let current = true, revision = 3, fail: unknown, complete = 0, reconciled = 0, navigated = 0;
+  let current = true, role = 'member', fail: unknown, complete = 0, reconciled = 0, navigated = 0;
   let post: (() => Promise<void>) | undefined;
   const calls: {path: string; method?: string; body?: unknown}[] = [];
   const api: ProfileAPI = {request: async <T>(path: string, method?: string, body?: unknown): Promise<T> => {
+    if (path === '/v1/admin/playback/stream-limits' || path === '/v1/admin/sessions') throw Object.assign(new Error('not here'), {status: 404, code: 'not_found'});
     calls.push({path, method, body});
-    if (path.includes('/members?')) return {items: [row('member'), row('admin', 'admin')], totalCount: 2, matchedCount: 2, nextCursor: '', limit: 40} as T;
-    if (path === '/v1/admin/access/members/owner' || path === '/v1/admin/access/members/member') {
-      const owner = path.endsWith('/owner');
-      return {...row(owner ? 'owner' : 'member', owner ? 'owner' : 'member'), profileId: owner ? 'owner-main' : 'member-main',
-        revision: owner ? 9 : revision, limits} as T;
-    }
+    if (path === '/v1/admin/members') return {items: [member('owner', 'owner'), member('member', role), member('admin', 'admin')]} as T;
+    if (path === '/v1/admin/members/owner' || path === '/v1/admin/members/member') return (path.endsWith('/owner') ? member('owner', 'owner') : member('member', role)) as T;
     if (path === '/v1/direct/ownership') {if (fail) throw fail; await post?.(); return undefined as T;}
     throw new Error('Unexpected transfer request');
   }};
@@ -41,19 +35,19 @@ function fixture() {
     }});
   return {source, calls, get complete() {return complete;}, get reconciled() {return reconciled;}, get navigated() {return navigated;},
     retire: () => {current = false;build.abort();}, restoreParent: () => {current = true;},
-    revised: () => {revision++;}, fail: (error: unknown) => {fail = error;}, wait: (value: () => Promise<void>) => {post = value;}};
+    revised: () => {role = 'admin';}, fail: (error: unknown) => {fail = error;}, wait: (value: () => Promise<void>) => {post = value;}};
 }
 const caller = () => {
   const abort = new AbortController();
   return {signal: abort.signal, isCurrent: () => !abort.signal.aborted, retire: () => abort.abort()};
 };
 const newAccount = () => ({username: 'harbourview', name: 'Harbour View', password: 'New-password2!'});
-const input = () => ({newAccount: newAccount(), currentPassword: ' original password ', expectedRevision: 9});
+const input = () => ({newAccount: newAccount(), currentPassword: ' original password ', expectedRevision: 1});
 const ownership = (calls: {path: string; method?: string; body?: unknown}[]) => calls.filter(value => value.path === '/v1/direct/ownership');
 const drain = async (ready: () => unknown) => {for (let i = 0; i < 8 && !ready(); i++) await Promise.resolve();};
 
 test('a caller-owned newAccount mutated after accept cannot change the accepting body', async () => {
-  const f = fixture(), life = caller(), draft = newAccount(), command = {newAccount: draft, currentPassword: ' original password ', expectedRevision: 9};
+  const f = fixture(), life = caller(), draft = newAccount(), command = {newAccount: draft, currentPassword: ' original password ', expectedRevision: 1};
   let release!: () => void;
   f.wait(() => new Promise<void>(resolve => {release = resolve;}));
   try {
@@ -62,7 +56,7 @@ test('a caller-owned newAccount mutated after accept cannot change the accepting
     draft.username = 'swapped'; draft.name = 'Swapped'; draft.password = 'Swapped-password9!';
     await drain(() => typeof release === 'function');
     release(); await pending;
-    assert.deepEqual(ownership(f.calls).map(value => value.body), [{accountId: '', currentPassword: ' original password ', expectedRevision: 9,
+    assert.deepEqual(ownership(f.calls).map(value => value.body), [{accountId: '', currentPassword: ' original password ', expectedRevision: 1,
       newAccount: {username: 'harbourview', name: 'Harbour View', password: 'New-password2!'}}]);
     assert.equal(f.complete, 1);
   } finally {f.source.dispose();}
