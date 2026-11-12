@@ -1,4 +1,5 @@
 import React, {useMemo} from 'react';
+import {Platform} from 'react-native';
 import {FocusProvider, FocusRegion, useFocusRegistry} from './FocusRegion';
 import {createDestinationEntryFocus} from './destination-entry';
 import {useDestinationEntryFocus} from './useDestinationEntryFocus';
@@ -10,7 +11,7 @@ export function ProfileEntryRegion(props: Props) {
 }
 function Region({scope, entry, order, children}: Props) {
   const registry = useFocusRegistry();
-  const opening = useMemo(() => ({scope, request: createDestinationEntryFocus(registry)}), [registry, scope]);
+  const opening = useMemo(() => ({scope, request: createDestinationEntryFocus(registry, {reask: Platform.isTV})}), [registry, scope]);
   useDestinationEntryFocus({visible: true, intent: 'enter', revision: 0}, entry ? {regionId: opening.scope, childId: entry} : undefined, undefined, opening.request);
   return <FocusRegion id={scope} enabled={order.length > 0} entry={entry} order={order} orientation="horizontal" style={{alignSelf: 'stretch'}}>{children}</FocusRegion>;
 }
