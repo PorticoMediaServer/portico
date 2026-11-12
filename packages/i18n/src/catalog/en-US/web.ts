@@ -1432,7 +1432,7 @@ export const webMessages = {
   'web.logs.category.network': 'Network',
   'web.logs.category.client': 'Client',
   'web.logs.messages': 'Messages',
-  'web.logs.messagesLede': 'What the server has been saying. Nothing here includes file paths, passwords or tokens.',
+  'web.logs.messagesLede': 'What the server has been saying. File paths are shown; passwords and tokens never are.',
   'web.logs.level': 'Level',
   'web.logs.allLevels': 'All levels',
   'web.logs.levelAndAbove': '{level} and above',
