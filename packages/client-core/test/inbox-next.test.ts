@@ -169,3 +169,29 @@ test('the viewer\'s inboxes share one read of a view, and a view opened again sh
   assert.equal(reads(s.calls), first, 'nothing is read again for a view held in the cache');
   a.dispose(); b.dispose(); c.dispose();
 });
+
+test('a notice opens what it is about, from its kind and ref, as the Dashboard\'s alert does; a message has nothing to open', async () => {
+  const {notificationIntent} = await import('../src/notification-actions.ts');
+  const of = (kind: string, ref?: string) => noticeOf({id: 'x', kind, ...(ref ? {ref} : {}), createdAt: '2026-11-12T10:00:00Z', read: false, archived: false});
+  const opens = (kind: string, ref?: string) => of(kind, ref).actions.map(action => [action.label, notificationIntent(action, of(kind, ref))]);
+  assert.deepEqual(opens('storage_nearly_full'), [['Storage & backups', {kind: 'server-storage'}]]);
+  assert.deepEqual(opens('backup_failed'), [['Storage & backups', {kind: 'server-storage'}]]);
+  assert.deepEqual(opens('update_available'), [['Dashboard', {kind: 'dashboard'}]]);
+  assert.deepEqual(opens('remote_unreachable', 'src_9'), [['Remote sources', {kind: 'server-remote-sources', sourceId: 'src_9'}]]);
+  assert.deepEqual(opens('report_reply', 'rep_4'), [['Open report', {kind: 'own-feedback', reportId: 'rep_4'}]]);
+  assert.deepEqual([opens('message'), opens('tool_message'), opens('report_reply'), opens('something_new')], [[], [], [], []], 'a reply without its report has nothing to open');
+  assert.equal(of('remote_unreachable', 'src_9').arguments.ref, 'src_9', 'the ref is kept on the notice');
+});
+
+test('a change hint that arrives during a write waits for the write, then reads the view once', async () => {
+  const s = server(), service = new InboxService(s.api, () => 'op');
+  await service.load(); s.holdWrites(true);
+  const write = service.apply('read', ['n-1']); await tick();
+  const before = reads(s.calls, 'unread');
+  service.refresh(); await tick();
+  assert.equal(reads(s.calls, 'unread'), before, 'nothing is read while the write is out');
+  s.holdWrites(false); s.held.forEach(held => held.resolve()); await write; await tick(); await tick();
+  assert.ok(reads(s.calls, 'unread') > before, 'the view is read once the write answers');
+  assert.deepEqual(service.getSnapshot().items.map(item => item.id), ['n-2'], 'the read view keeps the change');
+  service.dispose();
+});
