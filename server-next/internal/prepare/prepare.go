@@ -213,7 +213,10 @@ func (s *Service) Run(ctx context.Context) {
 }
 
 func (s *Service) fill(ctx context.Context) {
-	limit := settings.Streaming.Get(s.Settings).BackgroundConversionsAtOnce
+	limit := s.processes.Stats().BackgroundCapacity
+	if owner := settings.Streaming.Get(s.Settings).BackgroundConversionsAtOnce; owner > 0 {
+		limit = min(limit, owner)
+	}
 	for ctx.Err() == nil {
 		s.mu.Lock()
 		busy := slices.Collect(maps.Keys(s.running))

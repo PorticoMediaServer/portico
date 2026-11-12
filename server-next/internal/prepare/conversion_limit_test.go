@@ -15,6 +15,7 @@ func TestStreamingLimitKeepsCopiesWaitingUntilTheirTurn(t *testing.T) {
 	d, film, wanting := filmLibrary(t)
 	s := service(t, d, t.TempDir(), time.Now)
 	ctx := context.Background()
+	s.processes.Limit = 4
 	// Stand in for copies already running: changing the limit must leave them alone.
 	for id := int64(-4); id < 0; id++ {
 		s.running[id] = &making{}
@@ -51,19 +52,41 @@ func TestStreamingLimitKeepsCopiesWaitingUntilTheirTurn(t *testing.T) {
 	if p := waitReady(t, d, first.ID); p.State != db.PreparedReady {
 		t.Fatalf("raising the Streaming limit did not make the waiting copy: %+v", p)
 	}
-	// No limit must admit another copy even with four already occupying the queue.
-	s.mu.Lock()
-	s.running[-4] = &making{}
-	s.mu.Unlock()
+}
+
+func TestNoOwnerCapLeavesExcessCopiesWaitingForThePool(t *testing.T) {
+	d, film, wanting := filmLibrary(t)
+	s := service(t, d, t.TempDir(), time.Now)
+	ctx := context.Background()
+	s.processes.Limit = 1
+	// One copy occupies the pool; the default owner value is zero, not another cap.
+	s.running[-1] = &making{}
 	film.Height = 1080
-	second, err := s.Want(ctx, film, db.KindMovie, "480p")
-	if err != nil {
-		t.Fatal(err)
+	var queued []db.Prepared
+	for _, recipe := range []string{"240p", "480p"} {
+		p, err := s.Want(ctx, film, db.KindMovie, recipe)
+		if err != nil {
+			t.Fatal(err)
+		}
+		wanting(p)
+		queued = append(queued, p)
 	}
-	wanting(second)
-	save(0)
 	s.fill(ctx)
-	if p := waitReady(t, d, second.ID); p.State != db.PreparedReady {
-		t.Fatalf("No limit did not make the waiting copy: %+v", p)
+	for _, p := range queued {
+		if current, _ := d.PreparedByID(ctx, p.ID); current.State != db.PreparedWaiting {
+			t.Fatalf("a copy beyond pool capacity is %s, want Waiting", current.State)
+		}
 	}
+	delete(s.running, -1)
+	work, cancel := context.WithCancel(ctx)
+	defer cancel()
+	stopped := make(chan struct{})
+	go func() { s.Run(work); close(stopped) }()
+	for _, p := range queued {
+		if ready := waitReady(t, d, p.ID); ready.State != db.PreparedReady {
+			t.Fatalf("a copy did not start when the pool had room: %+v", ready)
+		}
+	}
+	cancel()
+	<-stopped
 }
