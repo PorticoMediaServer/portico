@@ -12,13 +12,19 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediafacts"
 )
 
-// What the planner gives every declared device for seven sources, at Original and at a
-// 720p limit, on four kinds of server (no chip; a chip that encodes H.264; one that also
-// encodes HEVC 10-bit; one that also encodes AV1 10-bit): the route, the output's codec,
-// bit depth and range, and whether the chip makes it. The table is
-// testdata/conversion_choices.txt; any change to a choice shows here as the lines that
-// differ. PORTICO_UPDATE_CHOICES=1 writes the table again after a change that is meant.
-func TestConversionChoicesForEveryDevice(t *testing.T) {
+// conversionChoice is what the planner gave one declared device for one source, target
+// and kind of server.
+type conversionChoice struct {
+	device, source, target, chip string
+	plan                         DeliveryPlan
+	err                          error
+}
+
+// conversionChoices plans every declared device for seven sources, at Original and at a
+// 720p limit, on four kinds of server: no chip; a chip that encodes H.264; one that also
+// encodes HEVC 10-bit; one that also encodes AV1 10-bit.
+func conversionChoices(t *testing.T) []conversionChoice {
+	t.Helper()
 	facts := &decoder.ToolchainFacts{Identity: "unit-selected-device",
 		Encoders: map[string]bool{"libx264": true, "libx265": true, "libaom-av1": true, "aac": true, "ac3": true, "eac3": true, "flac": true, "libopus": true},
 		Decoders: map[string]bool{"h264": true, "hevc": true, "av1": true, "vp9": true, "vc1": true, "truehd": true, "aac": true},
@@ -68,7 +74,7 @@ func TestConversionChoicesForEveryDevice(t *testing.T) {
 	}
 	chips := map[string][]string{"no-chip": nil, "chip-h264": {"h264:8"}, "chip-h264-hevc10": {"h264:8", "hevc:8", "hevc:10"},
 		"chip-h264-hevc10-av1": {"h264:8", "hevc:8", "hevc:10", "av1:8", "av1:10"}}
-	var lines []string
+	var out []conversionChoice
 	for name, doc := range plannerDocuments(t) {
 		for sourceName, source := range sources {
 			for targetName, target := range targets {
@@ -81,23 +87,36 @@ func TestConversionChoicesForEveryDevice(t *testing.T) {
 					doc := doc
 					p, err := planDelivery(DeliveryInput{Source: source, Device: &doc, Server: facts, Hardware: selected, Policy: openPolicy(),
 						Target: target, Config: DefaultDeliveryConfiguration(), TranscodingEnabled: true, FMP4Output: true})
-					got := ""
-					if err != nil {
-						got = "refused: " + err.Error()
-					} else {
-						where := "software"
-						if p.HardwareBackend != "" && p.HardwareBackend != string(decoder.BackendSoftware) {
-							where = "chip"
-						}
-						got = fmt.Sprintf("%s %s %d %s %s", p.Mode, p.OutputVideoCodec, p.OutputBitDepth, p.Trace.Video.OutputRange, where)
-						if p.OutputVideoCodec == "" {
-							got = fmt.Sprintf("%s (no video conversion)", p.Mode)
-						}
-					}
-					lines = append(lines, fmt.Sprintf("%-14s | %-25s | %-8s | %-20s => %s", name, sourceName, targetName, chipName, got))
+					out = append(out, conversionChoice{name, sourceName, targetName, chipName, p, err})
 				}
 			}
 		}
+	}
+	return out
+}
+
+// The table of those choices: the route, the output's codec, bit depth and range, and
+// whether the chip makes it. It is testdata/conversion_choices.txt; any change to a choice
+// shows here as the lines that differ. PORTICO_UPDATE_CHOICES=1 writes the table again
+// after a change that is meant.
+func TestConversionChoicesForEveryDevice(t *testing.T) {
+	var lines []string
+	for _, c := range conversionChoices(t) {
+		got := ""
+		if c.err != nil {
+			got = "refused: " + c.err.Error()
+		} else {
+			p := c.plan
+			where := "software"
+			if p.HardwareBackend != "" && p.HardwareBackend != string(decoder.BackendSoftware) {
+				where = "chip"
+			}
+			got = fmt.Sprintf("%s %s %d %s %s", p.Mode, p.OutputVideoCodec, p.OutputBitDepth, p.Trace.Video.OutputRange, where)
+			if p.OutputVideoCodec == "" {
+				got = fmt.Sprintf("%s (no video conversion)", p.Mode)
+			}
+		}
+		lines = append(lines, fmt.Sprintf("%-14s | %-25s | %-8s | %-20s => %s", c.device, c.source, c.target, c.chip, got))
 	}
 	sort.Strings(lines)
 	got := strings.Join(lines, "\n") + "\n"
@@ -127,5 +146,36 @@ func TestConversionChoicesForEveryDevice(t *testing.T) {
 	}
 	if changed > 0 || len(lines) != len(want) {
 		t.Fatalf("%d of %d choices differ from %s (%d lines there); set PORTICO_UPDATE_CHOICES=1 if the change is meant", changed, len(lines), path, len(want))
+	}
+}
+
+// A chip changes only who makes a conversion, never what it makes: for every declared
+// device, source and target, each kind of chip gives the picture that no chip gives (codec,
+// bit depth, range and size), made by the chip where it can. Playback rule 13, and the
+// owner's decision of 11 Nov: the chip when it has the capability, software otherwise, and
+// whether the processor keeps up is not the server's to decide, so nothing about the
+// picture is lowered to keep a conversion quick.
+func TestAChipChangesOnlyWhoMakesTheConversion(t *testing.T) {
+	picture := func(c conversionChoice) string {
+		if c.err != nil {
+			return "refused: " + c.err.Error()
+		}
+		p, size := c.plan, ""
+		if p.ConversionTarget != nil {
+			size = fmt.Sprintf("%dx%d", p.ConversionTarget.Width, p.ConversionTarget.Height)
+		}
+		return fmt.Sprintf("%s %s %d %s %s", p.Mode, p.OutputVideoCodec, p.OutputBitDepth, p.Trace.Video.OutputRange, size)
+	}
+	choices := conversionChoices(t)
+	without := map[string]string{}
+	for _, c := range choices {
+		if c.chip == "no-chip" {
+			without[c.device+"|"+c.source+"|"+c.target] = picture(c)
+		}
+	}
+	for _, c := range choices {
+		if want := without[c.device+"|"+c.source+"|"+c.target]; picture(c) != want {
+			t.Errorf("%s, %s at %s, %s: %s; with no chip: %s", c.device, c.source, c.target, c.chip, picture(c), want)
+		}
 	}
 }
