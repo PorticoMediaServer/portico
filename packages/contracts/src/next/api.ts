@@ -40,6 +40,25 @@ export interface ActivityEntryPage {
   nextCursor?: string;
 }
 
+export interface AdminJob {
+  id: string;
+  kind: string;
+  state: string;
+  libraryId?: string;
+  libraryName?: string;
+  progress?: JobProgress;
+  error?: string;
+  createdAt: string;
+  startedAt?: string;
+  finishedAt?: string;
+  canRetry: boolean;
+}
+
+export interface AdminJobPage {
+  items: AdminJob[];
+  nextCursor?: string;
+}
+
 export interface AdminLibrary {
   id: string;
   name: string;
@@ -67,6 +86,59 @@ export interface AlertAction {
 export interface Alternative {
   versionId: string;
   label: string;
+}
+
+export interface Annotation {
+  id: string;
+  kind: string;
+  color?: string;
+  location: string;
+  madeOn?: string;
+  progress: number;
+  chapter?: string;
+  text?: string;
+  note?: string;
+  extra?: unknown;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AnnotationBatch {
+  changes: AnnotationChange[];
+}
+
+export interface AnnotationBody {
+  kind: string;
+  color: string;
+  location: string;
+  madeOn: string;
+  progress: number;
+  chapter: string;
+  text: string;
+  note: string;
+  extra: unknown;
+  madeAgoMs: number;
+}
+
+export interface AnnotationChange extends AnnotationBody {
+  itemId: string;
+  id: string;
+  delete: boolean;
+}
+
+export interface AnnotationPage {
+  items: Annotation[];
+  nextCursor?: string;
+}
+
+export interface AnnotationResult {
+  id: string;
+  annotation?: Annotation;
+  error?: ApiError;
+}
+
+export interface AnnotationResults {
+  results: AnnotationResult[];
 }
 
 export interface AudioPick {
@@ -152,6 +224,9 @@ export interface BookAnswer {
   spine?: string[];
   contents?: BookContents[];
   pages?: string[];
+  place?: unknown;
+  placeExact?: boolean;
+  next?: NextVolume;
 }
 
 export interface BookContents {
@@ -179,6 +254,20 @@ export interface BookVersion {
 }
 
 export interface CapabilityDocument {
+}
+
+export interface CastCode {
+  code: string;
+  expiresAt: string;
+}
+
+export interface CastConfig {
+  applicationId: string;
+}
+
+export interface CastRedeem {
+  code: string;
+  device: DeviceInfo;
 }
 
 export interface Challenge {
@@ -509,6 +598,103 @@ export interface DriveSignInStarted {
   address: string;
 }
 
+export interface DvrOverview {
+  upcoming: number;
+  recorded: number;
+  unwatched: number;
+  conflicts: number;
+  freeBytes: number;
+  hoursLeft: number;
+  keepRule: string;
+  folderOk: boolean;
+  canRecord: boolean;
+}
+
+export interface DvrRecording {
+  id: string;
+  channel: string;
+  title: string;
+  episodeTitle?: string;
+  season?: number;
+  episode?: number;
+  startsAt: string;
+  endsAt: string;
+  padBeforeMs: number;
+  padAfterMs: number;
+  priority: number;
+  state: string;
+  reason?: string;
+  bookedBy?: string;
+  conflict?: boolean;
+  choice?: string;
+  inGuide: boolean;
+  keep: boolean;
+  fromRule: boolean;
+  itemId?: string;
+}
+
+export interface DvrRecordingBook {
+  programme: string;
+  padBeforeMs?: number;
+  padAfterMs?: number;
+  priority?: number;
+}
+
+export interface DvrRecordingChange {
+  padBeforeMs?: number;
+  padAfterMs?: number;
+  priority?: number;
+  keep?: boolean;
+  choice?: string;
+}
+
+export interface DvrRecordingPage {
+  items: DvrRecording[];
+  nextCursor?: string;
+}
+
+export interface DvrRule {
+  id: string;
+  title: string;
+  source: string;
+  channel?: string;
+  byTitle: boolean;
+  newOnly: boolean;
+  keepNewest?: number;
+  keepDays?: number;
+  priority: number;
+  padBeforeMs?: number;
+  padAfterMs?: number;
+  paused: boolean;
+}
+
+export interface DvrRulePage {
+  items: DvrRule[];
+  nextCursor?: string;
+}
+
+export interface DvrRuleSave {
+  programme?: string;
+  anyChannel?: boolean;
+  newOnly?: boolean;
+  keepNewest?: number;
+  keepDays?: number;
+  priority?: number;
+  padBeforeMs?: number;
+  padAfterMs?: number;
+  paused?: boolean;
+}
+
+export interface DvrTunerUse {
+  channel: string;
+  using: string;
+}
+
+export interface DvrTuners {
+  inUse: DvrTunerUse[];
+  conflicts: DvrRecording[];
+}
+
 export interface ApiError {
   code: string;
   message: string;
@@ -546,6 +732,10 @@ export interface Filter {
   values?: string[];
 }
 
+export interface FinishedMove {
+  notMoved: number;
+}
+
 export interface FolderChoice {
   name: string;
   path: string;
@@ -565,6 +755,17 @@ export interface FolderList {
 export interface FolderUsage {
   name: string;
   bytes: number;
+}
+
+export interface GenreEntry {
+  value: string;
+  label: string;
+  cover?: Record<string, string>;
+  count?: number;
+}
+
+export interface GenreList {
+  genres: GenreEntry[];
 }
 
 export interface GroupAction {
@@ -664,6 +865,7 @@ export interface Home {
 export interface HomeRow {
   id: string;
   title: string;
+  reason?: string;
   shape: string;
   items: Item[];
   hidden?: boolean;
@@ -677,6 +879,16 @@ export interface IdentityProof {
 export interface IdentityQuestion {
   baseUrl: string;
   nonce: string;
+}
+
+export interface IntegrationSettings {
+  assistants: boolean;
+  compatibleRoutes: boolean;
+}
+
+export interface IntegrationSettingsEdit {
+  assistants?: boolean;
+  compatibleRoutes?: boolean;
 }
 
 export interface Invitation {
@@ -895,6 +1107,10 @@ export interface KeyPage {
   nextCursor?: string;
 }
 
+export interface LeaveRequest {
+  deleteData: boolean;
+}
+
 export interface Libraries {
   items: Library[];
 }
@@ -906,6 +1122,201 @@ export interface Library {
   views?: View[];
   sorts?: Sort[];
   filters?: Filter[];
+}
+
+export interface LibraryChannel {
+  id: string;
+  name: string;
+  number: number;
+  on: boolean;
+  description?: string;
+  summary: string;
+  timeZone: string;
+  libraries: string[];
+  logo?: string;
+  state: string;
+  problem?: string;
+  titles: number;
+  scheduledThrough?: string;
+  unknownConditions?: boolean;
+  droppedTitles?: number;
+  builder?: LibraryChannelBuilder;
+  health?: LibraryChannelHealth;
+}
+
+export interface LibraryChannelBlock {
+  id: string;
+  name?: string;
+  days: string[];
+  from: string;
+  to: string;
+  selection?: LibraryChannelSelection;
+  fromPreset?: string;
+  overrun?: string;
+  resume?: string;
+  ifEmpty?: string;
+}
+
+export interface LibraryChannelBlockPreset {
+  id: string;
+  name: string;
+  description?: string;
+  library: string;
+  recipe: LibraryChannelRecipe;
+}
+
+export interface LibraryChannelBlockPresetPage {
+  items: LibraryChannelBlockPreset[];
+  nextCursor?: string;
+}
+
+export interface LibraryChannelBlockPresetSave {
+  name?: string;
+  description?: string;
+  library?: string;
+  recipe?: LibraryChannelRecipe;
+}
+
+export interface LibraryChannelBuilder extends LibraryChannelSelection {
+  avoidRepeats?: number;
+  blocks?: LibraryChannelBlock[];
+  quality: LibraryChannelQuality;
+  logoOnScreen: LibraryChannelLogo;
+}
+
+export interface LibraryChannelCondition {
+  field?: string;
+  mode?: string;
+  values?: string[];
+  exclude?: boolean;
+  match?: string;
+  conditions?: LibraryChannelCondition[];
+}
+
+export interface LibraryChannelHealth {
+  onAir: boolean;
+  message?: string;
+  reaches?: string;
+  programmes: number;
+  titles: number;
+  unplaceable: number;
+  building: boolean;
+}
+
+export interface LibraryChannelLink {
+  id: string;
+  startsAt: string;
+  endsAt: string;
+  maxKbps?: number;
+  logo?: LibraryChannelPlaybackLogo;
+}
+
+export interface LibraryChannelLogo {
+  on?: boolean;
+  corner?: string;
+  size?: string;
+}
+
+export interface LibraryChannelOrder {
+  ids: string[];
+}
+
+export interface LibraryChannelPage {
+  items: LibraryChannel[];
+  nextCursor?: string;
+}
+
+export interface LibraryChannelPlaybackLogo {
+  url: string;
+  corner: string;
+  size: string;
+}
+
+export interface LibraryChannelPreview {
+  titles: number;
+  unplaceable: number;
+  hours: number;
+  sample: LibraryChannelPreviewTitle[];
+  today: LibraryChannelPreviewProgramme[];
+}
+
+export interface LibraryChannelPreviewAsk {
+  channelId?: string;
+  timeZone: string;
+  builder: LibraryChannelBuilder;
+}
+
+export interface LibraryChannelPreviewProgramme {
+  startsAt: string;
+  endsAt: string;
+  title?: LibraryChannelPreviewTitle;
+}
+
+export interface LibraryChannelPreviewTitle {
+  id: string;
+  title: string;
+  episodeTitle?: string;
+  season?: number;
+  episode?: number;
+  year?: number;
+}
+
+export interface LibraryChannelQuality {
+  mode?: string;
+  maxKbps?: number;
+}
+
+export interface LibraryChannelRecipe {
+  clauses: LibraryChannelCondition[];
+  order: string;
+  minutes: number;
+  startsAt?: string;
+  days?: string[];
+}
+
+export interface LibraryChannelSave {
+  name?: string;
+  description?: string;
+  timeZone?: string;
+  on?: boolean;
+  builder?: LibraryChannelBuilder;
+}
+
+export interface LibraryChannelSelection {
+  libraries: string[];
+  kinds: string[];
+  match?: string;
+  conditions?: LibraryChannelCondition[];
+  mentions?: string;
+  addedWithinDays?: number;
+  always?: string[];
+  never?: string[];
+  onlyAlways?: boolean;
+  order?: string;
+  sort?: string;
+  episodes?: string;
+  marathon?: number;
+  whenDone?: string;
+  weights?: LibraryChannelWeight[];
+}
+
+export interface LibraryChannelTemplate {
+  key: string;
+  name: string;
+  description: string;
+  available: boolean;
+  reason?: string;
+  builder: LibraryChannelBuilder;
+}
+
+export interface LibraryChannelTemplatePage {
+  items: LibraryChannelTemplate[];
+  nextCursor?: string;
+}
+
+export interface LibraryChannelWeight {
+  id: string;
+  weight: number;
 }
 
 export interface LibraryCreate {
@@ -1028,6 +1439,232 @@ export interface ListSharesSet {
   shares: ListShare[];
 }
 
+export interface LiveAiring {
+  id: string;
+  channel: string;
+  startsAt: string;
+  endsAt: string;
+}
+
+export interface LiveChannel {
+  id: string;
+  name: string;
+  number: string;
+  kind: string;
+  group?: string;
+  logo?: string;
+  favorite: boolean;
+  hidden: boolean;
+}
+
+export interface LiveChannelMarks {
+  favorite: boolean;
+  hidden: boolean;
+}
+
+export interface LiveChannelPage {
+  items: LiveChannel[];
+  nextCursor?: string;
+}
+
+export interface LiveCountdown {
+  endsAt: string;
+  reason: string;
+}
+
+export interface LiveGuide {
+  items: LiveGuideRow[];
+  nextCursor?: string;
+  outOfDate: boolean;
+}
+
+export interface LiveGuideRow {
+  channel: LiveChannel;
+  programmes: LiveProgramme[];
+}
+
+export interface LiveOnNow {
+  channel: LiveChannel;
+  now?: LiveProgramme;
+  next?: LiveProgramme;
+}
+
+export interface LiveOnNowPage {
+  items: LiveOnNow[];
+  nextCursor?: string;
+}
+
+export interface LiveProgramme {
+  id: string;
+  startsAt: string;
+  endsAt: string;
+  title?: string;
+  episodeTitle?: string;
+  season?: number;
+  episode?: number;
+  summary?: string;
+  rating?: string;
+  itemId?: string;
+  slate?: boolean;
+  notAvailable?: boolean;
+}
+
+export interface LiveProgrammeDetail extends LiveProgramme {
+  channel: LiveChannel;
+  airings: LiveAiring[];
+  recording?: DvrRecording;
+  reminder: boolean;
+  canRecord: boolean;
+}
+
+export interface LiveReminderOut {
+  programme: string;
+  channel: string;
+  title: string;
+  startsAt: string;
+  endsAt: string;
+}
+
+export interface LiveReminderOutPage {
+  items: LiveReminderOut[];
+  nextCursor?: string;
+}
+
+export interface LiveSentChannel {
+  Key: string;
+  Name: string;
+  Number: string;
+  Group: string;
+  GuideKey: string;
+  Locator: string;
+  Logo: string;
+}
+
+export interface LiveSignIn {
+  username: string;
+  password: string;
+}
+
+export interface LiveSource {
+  id: string;
+  kind: string;
+  name: string;
+  audience: string;
+  tunerCount: number;
+  paused: boolean;
+  state: string;
+  lastError?: string;
+  report?: LiveSourceReport;
+  refreshedAt?: string;
+  config: LiveSourceConfig;
+  hasSignIn: boolean;
+}
+
+export interface LiveSourceChannel {
+  id: string;
+  name: string;
+  number: string;
+  sourceNumber?: string;
+  group?: string;
+  broughtIn: boolean;
+  hidden: boolean;
+  missing?: boolean;
+  guideSource?: string;
+  guideKey?: string;
+  edited?: string[];
+}
+
+export interface LiveSourceChannelEdit {
+  id: string;
+  name?: string;
+  number?: string;
+  guideSource?: string;
+  guideKey?: string;
+  hidden?: boolean;
+  broughtIn?: boolean;
+}
+
+export interface LiveSourceChannelEdits {
+  channels: LiveSourceChannelEdit[];
+}
+
+export interface LiveSourceChannelPage {
+  items: LiveSourceChannel[];
+  nextCursor?: string;
+}
+
+export interface LiveSourceConfig {
+  playlistUrl?: string;
+  uploaded?: boolean;
+  guideUrl?: string;
+  guideUploaded?: boolean;
+  serverUrl?: string;
+  tunerUrl?: string;
+  refreshHours?: number;
+  groups?: string[];
+  channels?: string[];
+  numbering?: string;
+  firstNumber?: number;
+}
+
+export interface LiveSourcePage {
+  items: LiveSource[];
+  nextCursor?: string;
+}
+
+export interface LiveSourcePreview {
+  report: LiveSourceReport;
+  channels: LiveSentChannel[];
+  tuners: number;
+}
+
+export interface LiveSourceReport {
+  channels: number;
+  skippedChannels: number;
+  programmes: number;
+  skippedProgrammes: number;
+  groups?: string[];
+  examples?: string[];
+  channelsWithGuide: number;
+}
+
+export interface LiveSourceSave {
+  kind?: string;
+  name?: string;
+  audience?: string;
+  tunerCount?: number;
+  paused?: boolean;
+  config?: LiveSourceConfig;
+  signIn?: LiveSignIn;
+  playlist?: string;
+  guide?: string;
+}
+
+export interface LiveWindow {
+  oldestAt: string;
+  liveAt: string;
+}
+
+export interface Load {
+  period: string;
+  from: string;
+  until: string;
+  buckets: LoadBucket[];
+  observedAt: string;
+  series: Record<string, LoadPoint[]>;
+}
+
+export interface LoadBucket {
+  start: string;
+  end: string;
+  partial: boolean;
+}
+
+export interface LoadPoint {
+  t: string;
+  v: number;
+}
+
 export interface LogDetail {
   minutes: number;
 }
@@ -1068,11 +1705,38 @@ export interface LyricsPage {
   nextCursor?: string;
 }
 
+export interface MCPReply {
+}
+
 export interface Marker {
   kind: string;
   startMs: number;
   endMs: number;
   title?: string;
+}
+
+export interface MatchCandidate {
+  provider: string;
+  id: string;
+  title: string;
+  originalTitle?: string;
+  year?: number;
+  overview?: string;
+  exact?: boolean;
+}
+
+export interface MatchCandidates {
+  items: MatchCandidate[];
+}
+
+export interface MatchRequest {
+  provider?: string;
+  id?: string;
+  keepAsIs?: boolean;
+}
+
+export interface MatchResult {
+  itemId: string;
 }
 
 export interface Me {
@@ -1102,12 +1766,16 @@ export interface Media {
 
 export interface Member extends Account {
   disabled: boolean;
+  state: string;
   createdAt: string;
   allLibraries: boolean;
   libraries: string[];
   twoFactorEnabled: boolean;
   notes?: string;
   allowDownloads: boolean;
+  lastActiveAt?: string;
+  profiles: string[];
+  limits: MemberLimits;
 }
 
 export interface MemberCreate {
@@ -1124,11 +1792,118 @@ export interface MemberEdit {
   allLibraries?: boolean;
   libraries?: string[];
   allowDownloads?: boolean;
+  limits?: MemberLimitsEdit;
+}
+
+export interface MemberLimits {
+  homeOnly: boolean;
+  viewingHours?: ViewingHours | null;
+  maxRatingAge?: number | null;
+  allowUnrated: boolean;
+  blockedLabels: string[];
+  remoteMaxBitrateKbps?: number | null;
+  maxProfiles?: number | null;
+  allowWatchTogether: boolean;
+  allowTokens: boolean;
+}
+
+export interface MemberLimitsEdit {
+  homeOnly?: boolean;
+  viewingHours?: ViewingHours;
+  maxRatingAge?: number;
+  allowUnrated?: boolean;
+  blockedLabels?: string[];
+  remoteMaxBitrateKbps?: number;
+  maxProfiles?: number;
+  allowWatchTogether?: boolean;
+  allowTokens?: boolean;
 }
 
 export interface MemberPage {
   items: Member[];
   nextCursor?: string;
+}
+
+export interface MergeRequest {
+  itemId: string;
+}
+
+export interface MetadataCredit {
+  personId?: string;
+  name?: string;
+  role: string;
+  character?: string;
+}
+
+export interface MetadataCredits {
+  values: MetadataCredit[];
+  source: string;
+  locked: boolean;
+}
+
+export interface MetadataDocument {
+  itemId: string;
+  kind: string;
+  revision: string;
+  fields: Record<string, MetadataField>;
+  lists: Record<string, MetadataList>;
+  credits?: MetadataCredits;
+  match: MetadataMatch;
+}
+
+export interface MetadataField {
+  value: unknown;
+  source: string;
+  locked: boolean;
+}
+
+export interface MetadataHistoryEntry {
+  id: string;
+  kind: string;
+  at: string;
+}
+
+export interface MetadataHistoryEntryPage {
+  items: MetadataHistoryEntry[];
+  nextCursor?: string;
+}
+
+export interface MetadataList {
+  values: string[];
+  source: string;
+  locked: boolean;
+}
+
+export interface MetadataMatch {
+  state: string;
+  locked: boolean;
+  ids: Record<string, string>;
+}
+
+export interface MetadataPatch {
+  title?: string;
+  sortTitle?: string;
+  originalTitle?: string;
+  edition?: string;
+  tagline?: string;
+  summary?: string;
+  year?: number;
+  releaseDate?: string;
+  contentRating?: string;
+  genres?: string[];
+  studios?: string[];
+  networks?: string[];
+  countries?: string[];
+  labels?: string[];
+  credits?: MetadataCredit[];
+  lock?: string[];
+  unlock?: string[];
+  lockAll?: boolean;
+  unlockAll?: boolean;
+}
+
+export interface MetadataRefreshed {
+  matched: boolean;
 }
 
 export interface MissingTitle {
@@ -1145,6 +1920,42 @@ export interface MissingTitles {
   total: number;
 }
 
+export interface MoveCheck {
+  username: string;
+  next: string;
+}
+
+export interface MoveCheckRequest {
+  code?: string;
+  username?: string;
+  password?: string;
+}
+
+export interface MoveCodeOut {
+  id: string;
+  username: string;
+  code: string;
+  expiresAt: string;
+}
+
+export interface MoveCodeOutPage {
+  items: MoveCodeOut[];
+  nextCursor?: string;
+}
+
+export interface MoveCompleteRequest {
+  code?: string;
+  username?: string;
+  password?: string;
+  approval?: string;
+  device: DeviceInfo;
+}
+
+export interface MoveState {
+  to: string;
+  since: string;
+}
+
 export interface NetworkSettings {
   homeNetworks: string[];
   homeNetworksDefault: boolean;
@@ -1155,6 +1966,13 @@ export interface NetworkSettings {
 export interface NetworkSettingsEdit {
   homeNetworks?: string[];
   trustedProxies: string[];
+  confirmRefusal?: boolean;
+}
+
+export interface NextVolume {
+  id: string;
+  title: string;
+  index?: number;
 }
 
 export interface Notification {
@@ -1200,6 +2018,60 @@ export interface NowPlaying {
 export interface NowPlayingPage {
   items: NowPlaying[];
   nextCursor?: string;
+}
+
+export interface OfflinePlay {
+  itemId: string;
+  playId: string;
+  positionMs: number;
+  playedMs: number;
+  madeAgoMs: number;
+}
+
+export interface OfflinePlayResult {
+  itemId: string;
+  playId: string;
+  finished: boolean;
+  error?: BatchError;
+}
+
+export interface OwnAddress {
+  enabled: boolean;
+  domain: string;
+  certificateFile: string;
+  keyFile: string;
+}
+
+export interface OwnCertificateStatus {
+  state: string;
+  problem?: string;
+  names?: string[];
+  expiresAt?: string;
+  expiresSoon?: boolean;
+}
+
+export interface OwnerChangeRequest {
+  password?: string;
+  code?: string;
+  accountId?: string;
+  newAccount?: MemberCreate;
+  approval?: string;
+  previousOwner: string;
+}
+
+export interface OwnerResetFinish {
+  code: string;
+  newPassword: string;
+  turnOffTwoStep?: boolean;
+}
+
+export interface OwnerResetStart {
+  username?: string;
+}
+
+export interface OwnerResetStarted {
+  fileName: string;
+  retryAfterMs: number;
 }
 
 export interface Part {
@@ -1418,6 +2290,9 @@ export interface PlaybackSession {
   itemId: string;
   versionId: string;
   queue?: QueueLink;
+  channel?: LibraryChannelLink;
+  live?: LiveWindow;
+  countdown?: LiveCountdown;
   lease: PlaybackLease;
   presentation: Presentation;
   playbackInfo?: unknown;
@@ -1428,6 +2303,7 @@ export interface PlaybackSession {
 
 export interface PlaybackStart {
   itemId?: string;
+  channel?: string;
   queue?: QueueLink;
   versionId?: string;
   startPositionMs?: number;
@@ -1480,6 +2356,15 @@ export interface PlaybackVideo {
   fps?: number;
   hdr?: string;
   bitrateKbps?: number;
+}
+
+export interface PortMappingStatus {
+  state: string;
+  protocol?: string;
+  externalAddress?: string;
+  externalPort?: number;
+  problem?: string;
+  checkedAt?: string;
 }
 
 export interface PreferenceDocument {
@@ -1587,6 +2472,16 @@ export interface ProfilePage {
   nextCursor?: string;
 }
 
+export interface ProfileRestrictionsEdit {
+  maxRatingAge?: number | null;
+  allowUnrated?: boolean;
+  blockedLabels?: string[];
+  allLibraries?: boolean;
+  libraries?: string[];
+  allowDownloads?: boolean;
+  allowWatchTogether?: boolean;
+}
+
 export interface ProfileSelect {
   pin?: string;
 }
@@ -1595,6 +2490,20 @@ export interface Progress {
   id: string;
   startedAt: string;
   pagesLeft: number;
+}
+
+export interface PublicAddressAnswer {
+  address?: string;
+  agreedBy?: string[];
+  problem?: string;
+  checkedAt?: string;
+}
+
+export interface PublishedAddress {
+  address: string;
+  port: number;
+  home: boolean;
+  name?: string;
 }
 
 export interface Quality {
@@ -1764,6 +2673,8 @@ export interface Ratings {
 
 export interface RcloneSettings {
   config?: string;
+  type?: string;
+  options?: Record<string, string>;
   path?: string;
 }
 
@@ -1831,6 +2742,14 @@ export interface RefreshRequest {
   requestId: string;
 }
 
+export interface RefusedAddress {
+  address: string;
+  reason: string;
+  fixes: string[];
+  lastAt: string;
+  refused: number;
+}
+
 export interface Related {
   groups: RelatedGroup[];
 }
@@ -1867,6 +2786,42 @@ export interface RememberedFailurePage {
   nextCursor?: string;
 }
 
+export interface RemoteAccessSave extends RemoteAccessSettings {
+  allowThisAddress?: boolean;
+  confirmRefusal?: boolean;
+}
+
+export interface RemoteAccessSettings {
+  remoteAccess: string;
+  remoteSecurity: string;
+  secureConnections: string;
+  signInFromOutside: string;
+  portMapping: string;
+  publicPort: number;
+  ipv6: boolean;
+  ownAddress: OwnAddress;
+  allowedAddresses: string[];
+  findAtHome: boolean;
+  enhancedWithoutAddress: boolean;
+  enhancedWithoutHome: boolean;
+  dlna: boolean;
+  dlnaNames: string[];
+  warning?: string;
+  certificateWarningDays: number;
+}
+
+export interface RemoteAccessStatus {
+  thisDevice: ThisDevice;
+  refused: RefusedAddress[];
+  remoteSecurity: RemoteSecurity;
+  warnings: Warning[];
+  certificate: OwnCertificateStatus;
+  router: PortMappingStatus;
+  publicAddress: PublicAddressAnswer;
+  identityCode: string;
+  addresses: PublishedAddress[];
+}
+
 export interface RemoteFolder {
   name: string;
   path: string;
@@ -1885,6 +2840,15 @@ export interface RemoteFolderRef {
 export interface RemoteLimits {
   connections: number;
   perSecond: number;
+  downloadBytesPerSecond?: number;
+}
+
+export interface RemoteSecurity {
+  chosen: string;
+  active: string;
+  waiting?: string;
+  message?: string;
+  problem?: string;
 }
 
 export interface RemoteSource {
@@ -1899,6 +2863,7 @@ export interface RemoteSource {
   state: string;
   waitingUntil?: string;
   problem?: string;
+  warning?: string;
   folders: number;
 }
 
@@ -1957,6 +2922,7 @@ export interface RestoreStaged {
 
 export interface Restrictions {
   maxRatingAge?: number | null;
+  allowUnrated: boolean;
   blockedLabels: string[];
   allLibraries: boolean;
   libraries: string[];
@@ -1964,6 +2930,11 @@ export interface Restrictions {
   accountLibraries: string[];
   allowDownloads?: boolean;
   accountAllowDownloads: boolean;
+  allowWatchTogether?: boolean;
+  accountAllowWatchTogether: boolean;
+  accountMaxRatingAge?: number | null;
+  accountAllowUnrated: boolean;
+  accountBlockedLabels: string[];
 }
 
 export interface Room {
@@ -2034,6 +3005,14 @@ export interface RoomYou {
   host: boolean;
   mayControl: boolean;
   mayBecomeHost: boolean;
+}
+
+export interface RouteCheck {
+  refused: boolean;
+  reason?: string;
+  address: string;
+  fixes: string[];
+  remoteSecurity: RemoteSecurity;
 }
 
 export interface SavedPlaylist {
@@ -2138,6 +3117,7 @@ export interface Session {
   deviceId: string;
   installationId: string;
   viewer: Viewer;
+  twoStepSetupRequired?: boolean;
 }
 
 export interface SessionEnd {
@@ -2188,12 +3168,62 @@ export interface SettingsDocumentPage {
   nextCursor?: string;
 }
 
-export interface SetupOwnerRequest {
+export interface SetupFinish {
+  remoteSecurity?: string;
+  allowThisAddress?: boolean;
+  confirmRefusal?: boolean;
+}
+
+export interface SetupOwnerRequest extends SetupRemote {
   setupCode: string;
+  serverName?: string;
   username: string;
   password: string;
   profileName?: string;
   device: DeviceInfo;
+}
+
+export interface SetupPorticoApproval {
+  approvalUrl: string;
+  expiresAt: string;
+}
+
+export interface SetupPorticoFinish extends SetupRemote {
+  approval: string;
+  device: DeviceInfo;
+}
+
+export interface SetupPorticoRequest {
+  setupCode: string;
+  serverName?: string;
+  returnUrl: string;
+}
+
+export interface SetupRemote {
+  remoteAccess?: string;
+  confirmRefusal?: boolean;
+}
+
+export interface SignInPreview {
+  to: string;
+  startOver: boolean;
+  signInAgain: number;
+  removed: number;
+  profilesRemoved: number;
+  profilesKept: number;
+  signedOut: number;
+  invitationsCancelled: number;
+  keysPaused: number;
+  keysRemoved: number;
+  porticoAddressRemoved: boolean;
+  approvalUrl?: string;
+  porticoUnavailable?: boolean;
+}
+
+export interface SignInPreviewRequest {
+  to: string;
+  startOver?: boolean;
+  returnUrl?: string;
 }
 
 export interface SignInRequest {
@@ -2207,6 +3237,25 @@ export interface SignInResponse {
   account?: Account;
   profiles?: Profile[];
   challenge?: Challenge;
+}
+
+export interface SignInState {
+  kind: string;
+  owner: Account;
+  move?: MoveState;
+  waiting: WaitingAccount[];
+}
+
+export interface SignInSwitchRequest {
+  to: string;
+  startOver?: boolean;
+  serverName?: string;
+  currentPassword?: string;
+  code?: string;
+  username?: string;
+  password?: string;
+  approval?: string;
+  device: DeviceInfo;
 }
 
 export interface SkippedFile {
@@ -2236,6 +3285,7 @@ export interface State {
 
 export interface StateBatch {
   items: StateBatchEdit[];
+  plays?: OfflinePlay[];
 }
 
 export interface StateBatchEdit extends StateRequest {
@@ -2244,6 +3294,7 @@ export interface StateBatchEdit extends StateRequest {
 
 export interface StateBatchReply {
   items: StateBatchResult[];
+  plays?: OfflinePlayResult[];
 }
 
 export interface StateBatchResult {
@@ -2366,6 +3417,9 @@ export interface System {
   setupRequired: boolean;
   signInMethods: string[];
   warnings?: Warning[];
+  signIn: string;
+  atHome: boolean;
+  move?: string;
 }
 
 export interface Tag {
@@ -2377,6 +3431,11 @@ export interface Tag {
 export interface TagPage {
   items: Tag[];
   nextCursor?: string;
+}
+
+export interface ThisDevice {
+  atHome: boolean;
+  address: string;
 }
 
 export interface TitleRef {
@@ -2431,6 +3490,20 @@ export interface UndoRequest {
   token: string;
 }
 
+export interface UnmatchedEntry {
+  itemId: string;
+  kind: string;
+  title: string;
+  year?: number;
+  reason: string;
+  matches: MatchCandidate[];
+}
+
+export interface UnmatchedEntryPage {
+  items: UnmatchedEntry[];
+  nextCursor?: string;
+}
+
 export interface VersionFiles {
   id: string;
   name?: string;
@@ -2446,6 +3519,23 @@ export interface Viewer {
   profileId?: string;
   serverId: string;
   role: string;
+}
+
+export interface ViewingHours {
+  timezone: string;
+  windows: ViewingWindow[];
+}
+
+export interface ViewingWindow {
+  days: number[];
+  startMinute: number;
+  endMinute: number;
+}
+
+export interface WaitingAccount {
+  id: string;
+  username: string;
+  codeExpiresAt?: string;
 }
 
 export interface Warning {
@@ -2533,18 +3623,15 @@ export interface Routes {
   'GET /v1/health/live': {access: 'public'; request: undefined; response: Health};
   'GET /v1/health/ready': {access: 'public'; request: undefined; response: Health};
   'GET /v1/system': {access: 'public'; request: undefined; response: System};
-  'GET /v1/admin/settings/network': {access: 'owner'; request: undefined; response: NetworkSettings};
-  'PUT /v1/admin/settings/network': {access: 'owner'; request: NetworkSettingsEdit; response: NetworkSettings};
-  'GET /v1/admin/blocked-networks': {access: 'admin'; request: undefined; response: BlockedNetworkPage};
-  'DELETE /v1/admin/blocked-networks/{id}': {access: 'admin'; request: undefined; response: undefined};
   'POST /v1/system/identity-proof': {access: 'public'; request: IdentityQuestion; response: IdentityProof};
-  'POST /v1/setup/owner': {access: 'public'; request: SetupOwnerRequest; response: SignInResponse};
   'POST /v1/auth/sign-in': {access: 'public'; request: SignInRequest; response: SignInResponse};
   'POST /v1/auth/refresh': {access: 'public'; request: RefreshRequest; response: Session};
   'DELETE /v1/auth/session': {access: 'public'; request: undefined; response: undefined};
   'POST /v1/auth/password': {access: 'signedIn'; request: PasswordRequest; response: undefined};
   'GET /v1/me': {access: 'signedIn'; request: undefined; response: Me};
   'POST /v1/auth/password-reset/confirm': {access: 'public'; request: PasswordResetRequest; response: undefined};
+  'POST /v1/auth/owner-reset': {access: 'public'; request: OwnerResetStart; response: OwnerResetStarted};
+  'POST /v1/auth/owner-reset/confirm': {access: 'public'; request: OwnerResetFinish; response: undefined};
   'POST /v1/auth/two-factor': {access: 'public'; request: TwoFactorFinish; response: SignInResponse};
   'GET /v1/me/two-factor': {access: 'signedIn'; request: undefined; response: TwoFactorState};
   'POST /v1/me/two-factor': {access: 'signedIn'; request: TwoFactorEnrol; response: TwoFactorSetup};
@@ -2564,7 +3651,7 @@ export interface Routes {
   'DELETE /v1/profiles/{id}': {access: 'signedIn'; request: undefined; response: undefined};
   'POST /v1/profiles/{id}/select': {access: 'signedIn'; request: ProfileSelect; response: Session};
   'GET /v1/profiles/{id}/restrictions': {access: 'signedIn'; request: undefined; response: Restrictions};
-  'PUT /v1/profiles/{id}/restrictions': {access: 'signedIn'; request: Restrictions; response: Restrictions};
+  'PUT /v1/profiles/{id}/restrictions': {access: 'signedIn'; request: ProfileRestrictionsEdit; response: Restrictions};
   'PUT /v1/profiles/{id}/avatar': {access: 'signedIn'; request: undefined; response: Profile};
   'GET /v1/profiles/{id}/avatar': {access: 'signedIn'; request: undefined; response: undefined};
   'DELETE /v1/profiles/{id}/avatar': {access: 'signedIn'; request: undefined; response: Profile};
@@ -2582,6 +3669,8 @@ export interface Routes {
   'PATCH /v1/admin/members/{id}': {access: 'admin'; request: MemberEdit; response: Member};
   'DELETE /v1/admin/members/{id}': {access: 'admin'; request: undefined; response: undefined};
   'POST /v1/admin/members/{id}/password-reset': {access: 'admin'; request: PasswordResetCreate; response: PasswordResetCode};
+  'GET /v1/admin/members/{id}/devices': {access: 'admin'; request: undefined; response: DevicePage};
+  'DELETE /v1/admin/members/{id}/devices/{deviceId}': {access: 'admin'; request: undefined; response: undefined};
   'GET /v1/admin/invitations': {access: 'admin'; request: undefined; response: InvitationPage};
   'POST /v1/admin/invitations': {access: 'admin'; request: InvitationCreate; response: Invitation};
   'PATCH /v1/admin/invitations/{id}': {access: 'admin'; request: InvitationEdit; response: Invitation};
@@ -2597,12 +3686,14 @@ export interface Routes {
   'GET /v1/admin/api-keys': {access: 'owner'; request: undefined; response: KeyPage};
   'POST /v1/admin/api-keys': {access: 'owner'; request: KeyCreate; response: KeyCreated};
   'DELETE /v1/admin/api-keys/{id}': {access: 'owner'; request: undefined; response: undefined};
+  'GET /v1/genres': {access: 'withProfile'; request: undefined; response: GenreList};
   'GET /v1/search': {access: 'withProfile'; request: undefined; response: SearchResults};
   'GET /v1/search/suggestions': {access: 'withProfile'; request: undefined; response: SearchSuggestions};
   'GET /v1/search/history': {access: 'withProfile'; request: undefined; response: SearchHistory};
   'DELETE /v1/search/history': {access: 'withProfile'; request: undefined; response: undefined};
   'GET /v1/libraries': {access: 'withProfile'; request: undefined; response: Libraries};
   'GET /v1/libraries/{id}': {access: 'withProfile'; request: undefined; response: Library};
+  'GET /v1/libraries/{id}/landing': {access: 'withProfile'; request: undefined; response: Home};
   'GET /v1/items': {access: 'withProfile'; request: undefined; response: ItemPage};
   'POST /v1/items/query': {access: 'withProfile'; request: ItemQueryRequest; response: ItemPage};
   'GET /v1/items/{id}': {access: 'withProfile'; request: undefined; response: Item};
@@ -2687,12 +3778,16 @@ export interface Routes {
   'GET /v1/admin/items/{id}/deletion': {access: 'owner'; request: undefined; response: DeletionPreview};
   'DELETE /v1/admin/items/{id}': {access: 'owner'; request: undefined; response: DeletionResult};
   'DELETE /v1/admin/versions/{id}': {access: 'owner'; request: undefined; response: DeletionResult};
+  'GET /v1/admin/jobs': {access: 'owner'; request: undefined; response: AdminJobPage};
+  'POST /v1/admin/jobs/{id}/retry': {access: 'owner'; request: undefined; response: Job};
   'POST /v1/jobs': {access: 'signedIn'; request: JobStart; response: Job};
   'GET /v1/jobs/{id}': {access: 'signedIn'; request: undefined; response: Job};
   'DELETE /v1/jobs/{id}': {access: 'signedIn'; request: undefined; response: undefined};
+  'GET /v1/admin/load': {access: 'owner'; request: undefined; response: Load};
   'GET /v1/admin/settings': {access: 'owner'; request: undefined; response: SettingsDocumentPage};
   'GET /v1/admin/settings/{name}': {access: 'owner'; request: undefined; response: SettingsDocument};
   'PUT /v1/admin/settings/{name}': {access: 'owner'; request: JSON; response: SettingsDocument};
+  'DELETE /v1/admin/upgrade-copy': {access: 'owner'; request: undefined; response: undefined};
   'GET /v1/admin/sessions': {access: 'admin'; request: undefined; response: NowPlayingPage};
   'DELETE /v1/admin/sessions/{id}': {access: 'admin'; request: StreamStop; response: undefined};
   'GET /v1/admin/audit': {access: 'owner'; request: undefined; response: ActivityEntryPage};
@@ -2725,6 +3820,32 @@ export interface Routes {
   'DELETE /v1/admin/reports/{id}': {access: 'owner'; request: undefined; response: undefined};
   'GET /v1/admin/reports/{id}/log': {access: 'owner'; request: undefined; response: undefined};
   'GET /v1/admin/dashboard': {access: 'owner'; request: undefined; response: Dashboard};
+  'GET /v1/admin/settings/network': {access: 'owner'; request: undefined; response: NetworkSettings};
+  'PUT /v1/admin/settings/network': {access: 'owner'; request: NetworkSettingsEdit; response: NetworkSettings};
+  'GET /v1/admin/blocked-networks': {access: 'admin'; request: undefined; response: BlockedNetworkPage};
+  'DELETE /v1/admin/blocked-networks/{id}': {access: 'admin'; request: undefined; response: undefined};
+  'GET /v1/admin/settings/remote-access': {access: 'owner'; request: undefined; response: RemoteAccessSettings};
+  'PUT /v1/admin/settings/remote-access': {access: 'owner'; request: RemoteAccessSave; response: RemoteAccessSettings};
+  'GET /v1/admin/remote-access': {access: 'owner'; request: undefined; response: RemoteAccessStatus};
+  'POST /v1/admin/remote-access/route-check': {access: 'owner'; request: RemoteAccessSettings; response: RouteCheck};
+  'POST /v1/admin/remote-access/check': {access: 'owner'; request: undefined; response: RemoteAccessStatus};
+  'POST /v1/setup/owner': {access: 'public'; request: SetupOwnerRequest; response: SignInResponse};
+  'POST /v1/setup/portico': {access: 'public'; request: SetupPorticoRequest; response: SetupPorticoApproval};
+  'POST /v1/setup/portico/finish': {access: 'public'; request: SetupPorticoFinish; response: SignInResponse};
+  'POST /v1/setup/finish': {access: 'owner'; request: SetupFinish; response: RemoteSecurity};
+  'GET /v1/admin/sign-in': {access: 'owner'; request: undefined; response: SignInState};
+  'POST /v1/admin/sign-in/preview': {access: 'owner'; request: SignInPreviewRequest; response: SignInPreview};
+  'POST /v1/admin/sign-in/switch': {access: 'owner'; request: SignInSwitchRequest; response: SignInResponse};
+  'POST /v1/admin/sign-in/finish': {access: 'owner'; request: undefined; response: FinishedMove};
+  'POST /v1/admin/members/{id}/move-code': {access: 'admin'; request: undefined; response: MoveCodeOut};
+  'POST /v1/admin/sign-in/move-codes': {access: 'admin'; request: undefined; response: MoveCodeOutPage};
+  'POST /v1/admin/owner': {access: 'owner'; request: OwnerChangeRequest; response: undefined};
+  'POST /v1/auth/move/check': {access: 'public'; request: MoveCheckRequest; response: MoveCheck};
+  'POST /v1/auth/move/complete': {access: 'public'; request: MoveCompleteRequest; response: SignInResponse};
+  'POST /v1/me/leave': {access: 'signedIn'; request: LeaveRequest; response: undefined};
+  'GET /v1/admin/settings/integrations': {access: 'owner'; request: undefined; response: IntegrationSettings};
+  'PUT /v1/admin/settings/integrations': {access: 'owner'; request: IntegrationSettingsEdit; response: IntegrationSettings};
+  'POST /v1/mcp': {access: 'signedIn'; request: JSON; response: MCPReply};
   'GET /v1/admin/webhooks': {access: 'owner'; request: undefined; response: WebhookPage};
   'POST /v1/admin/webhooks': {access: 'owner'; request: WebhookCreate; response: WebhookSecret};
   'PATCH /v1/admin/webhooks/{id}': {access: 'owner'; request: WebhookEdit; response: Webhook};
@@ -2750,6 +3871,9 @@ export interface Routes {
   'PUT /v1/groups/{id}/queue': {access: 'withProfile'; request: GroupQueue; response: Room};
   'PUT /v1/groups/{id}/me': {access: 'withProfile'; request: GroupMe; response: Room};
   'DELETE /v1/groups/{id}/me': {access: 'withProfile'; request: undefined; response: undefined};
+  'GET /v1/cast/config': {access: 'withProfile'; request: undefined; response: CastConfig};
+  'POST /v1/cast/codes': {access: 'withProfile'; request: undefined; response: CastCode};
+  'POST /v1/cast/redeem': {access: 'public'; request: CastRedeem; response: SignInResponse};
   'GET /v1/items/{id}/download-options': {access: 'withProfile'; request: undefined; response: DownloadOptions};
   'GET /v1/downloads': {access: 'withProfile'; request: undefined; response: DownloadPage};
   'POST /v1/downloads': {access: 'withProfile'; request: DownloadAsk; response: Download};
@@ -2763,4 +3887,62 @@ export interface Routes {
   'GET /v1/admin/downloads': {access: 'owner'; request: undefined; response: DownloadsByPerson};
   'DELETE /v1/admin/members/{id}/downloads': {access: 'owner'; request: undefined; response: undefined};
   'GET /v1/items/{id}/book': {access: 'withProfile'; request: undefined; response: BookAnswer};
+  'GET /v1/items/{id}/annotations': {access: 'withProfile'; request: undefined; response: AnnotationPage};
+  'PUT /v1/items/{id}/annotations/{annotationId}': {access: 'withProfile'; request: AnnotationBody; response: Annotation};
+  'DELETE /v1/items/{id}/annotations/{annotationId}': {access: 'withProfile'; request: undefined; response: undefined};
+  'POST /v1/annotations:batch': {access: 'withProfile'; request: AnnotationBatch; response: AnnotationResults};
+  'GET /v1/admin/library-channels': {access: 'owner'; request: undefined; response: LibraryChannelPage};
+  'POST /v1/admin/library-channels': {access: 'owner'; request: LibraryChannelSave; response: LibraryChannel};
+  'PUT /v1/admin/library-channels/order': {access: 'owner'; request: LibraryChannelOrder; response: undefined};
+  'GET /v1/admin/library-channels/templates': {access: 'owner'; request: undefined; response: LibraryChannelTemplatePage};
+  'POST /v1/admin/library-channels/preview': {access: 'owner'; request: LibraryChannelPreviewAsk; response: LibraryChannelPreview};
+  'GET /v1/admin/library-channels/{id}': {access: 'owner'; request: undefined; response: LibraryChannel};
+  'PATCH /v1/admin/library-channels/{id}': {access: 'owner'; request: LibraryChannelSave; response: LibraryChannel};
+  'DELETE /v1/admin/library-channels/{id}': {access: 'owner'; request: undefined; response: undefined};
+  'POST /v1/admin/library-channels/{id}/regenerate': {access: 'owner'; request: undefined; response: LibraryChannel};
+  'PUT /v1/admin/library-channels/{id}/logo': {access: 'owner'; request: undefined; response: LibraryChannel};
+  'DELETE /v1/admin/library-channels/{id}/logo': {access: 'owner'; request: undefined; response: LibraryChannel};
+  'GET /v1/admin/block-presets': {access: 'owner'; request: undefined; response: LibraryChannelBlockPresetPage};
+  'POST /v1/admin/block-presets': {access: 'owner'; request: LibraryChannelBlockPresetSave; response: LibraryChannelBlockPreset};
+  'PATCH /v1/admin/block-presets/{id}': {access: 'owner'; request: LibraryChannelBlockPresetSave; response: LibraryChannelBlockPreset};
+  'DELETE /v1/admin/block-presets/{id}': {access: 'owner'; request: undefined; response: undefined};
+  'GET /v1/live/channels': {access: 'withProfile'; request: undefined; response: LiveChannelPage};
+  'GET /v1/live/guide': {access: 'withProfile'; request: undefined; response: LiveGuide};
+  'GET /v1/live/now': {access: 'withProfile'; request: undefined; response: LiveOnNowPage};
+  'PUT /v1/live/channels/{id}/state': {access: 'withProfile'; request: LiveChannelMarks; response: LiveChannelMarks};
+  'GET /v1/admin/live/sources': {access: 'owner'; request: undefined; response: LiveSourcePage};
+  'POST /v1/admin/live/sources': {access: 'owner'; request: LiveSourceSave; response: LiveSource};
+  'POST /v1/admin/live/sources/preview': {access: 'owner'; request: LiveSourceSave; response: LiveSourcePreview};
+  'GET /v1/admin/live/sources/{id}': {access: 'owner'; request: undefined; response: LiveSource};
+  'PATCH /v1/admin/live/sources/{id}': {access: 'owner'; request: LiveSourceSave; response: LiveSource};
+  'DELETE /v1/admin/live/sources/{id}': {access: 'owner'; request: undefined; response: undefined};
+  'POST /v1/admin/live/sources/{id}/refresh': {access: 'owner'; request: undefined; response: LiveSource};
+  'GET /v1/admin/live/sources/{id}/channels': {access: 'owner'; request: undefined; response: LiveSourceChannelPage};
+  'PATCH /v1/admin/live/sources/{id}/channels': {access: 'owner'; request: LiveSourceChannelEdits; response: undefined};
+  'GET /v1/live/streams/{grant}': {access: 'public'; request: undefined; response: undefined};
+  'GET /v1/dvr': {access: 'withProfile'; request: undefined; response: DvrOverview};
+  'GET /v1/dvr/recordings': {access: 'withProfile'; request: undefined; response: DvrRecordingPage};
+  'POST /v1/dvr/recordings': {access: 'withProfile'; request: DvrRecordingBook; response: DvrRecording};
+  'GET /v1/dvr/recordings/{id}': {access: 'withProfile'; request: undefined; response: DvrRecording};
+  'PATCH /v1/dvr/recordings/{id}': {access: 'withProfile'; request: DvrRecordingChange; response: DvrRecording};
+  'DELETE /v1/dvr/recordings/{id}': {access: 'withProfile'; request: undefined; response: undefined};
+  'GET /v1/dvr/rules': {access: 'withProfile'; request: undefined; response: DvrRulePage};
+  'POST /v1/dvr/rules': {access: 'withProfile'; request: DvrRuleSave; response: DvrRule};
+  'PATCH /v1/dvr/rules/{id}': {access: 'withProfile'; request: DvrRuleSave; response: DvrRule};
+  'DELETE /v1/dvr/rules/{id}': {access: 'withProfile'; request: undefined; response: undefined};
+  'GET /v1/admin/dvr/tuners': {access: 'owner'; request: undefined; response: DvrTuners};
+  'GET /v1/live/programmes/{id}': {access: 'withProfile'; request: undefined; response: LiveProgrammeDetail};
+  'GET /v1/live/reminders': {access: 'withProfile'; request: undefined; response: LiveReminderOutPage};
+  'PUT /v1/live/reminders/{id}': {access: 'withProfile'; request: undefined; response: undefined};
+  'DELETE /v1/live/reminders/{id}': {access: 'withProfile'; request: undefined; response: undefined};
+  'GET /v1/admin/libraries/{id}/unmatched': {access: 'admin'; request: undefined; response: UnmatchedEntryPage};
+  'GET /v1/admin/items/{id}/matches': {access: 'admin'; request: undefined; response: MatchCandidates};
+  'PUT /v1/admin/items/{id}/match': {access: 'admin'; request: MatchRequest; response: MatchResult};
+  'POST /v1/admin/items/{id}/metadata/refresh': {access: 'admin'; request: undefined; response: MetadataRefreshed};
+  'POST /v1/admin/items/{id}/merge': {access: 'admin'; request: MergeRequest; response: MatchResult};
+  'POST /v1/admin/versions/{id}/split': {access: 'admin'; request: undefined; response: MatchResult};
+  'GET /v1/admin/items/{id}/metadata': {access: 'admin'; request: undefined; response: MetadataDocument};
+  'PATCH /v1/admin/items/{id}/metadata': {access: 'admin'; request: MetadataPatch; response: MetadataDocument};
+  'GET /v1/admin/items/{id}/metadata/history': {access: 'admin'; request: undefined; response: MetadataHistoryEntryPage};
+  'POST /v1/admin/items/{id}/metadata/history/{entryId}/undo': {access: 'admin'; request: undefined; response: MetadataDocument};
 }

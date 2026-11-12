@@ -132,6 +132,71 @@
         ],
         "type": "object"
       },
+      "AdminJob": {
+        "properties": {
+          "canRetry": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "finishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "libraryId": {
+            "type": "string"
+          },
+          "libraryName": {
+            "type": "string"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/JobProgress"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "state",
+          "createdAt",
+          "canRetry"
+        ],
+        "type": "object"
+      },
+      "AdminJobPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AdminJob"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
       "AdminLibrary": {
         "properties": {
           "folders": {
@@ -201,6 +266,21 @@
         ],
         "type": "object"
       },
+      "AlertAction": {
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "target"
+        ],
+        "type": "object"
+      },
       "Alternative": {
         "properties": {
           "label": {
@@ -213,6 +293,186 @@
         "required": [
           "versionId",
           "label"
+        ],
+        "type": "object"
+      },
+      "Annotation": {
+        "properties": {
+          "chapter": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "extra": {},
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "madeOn": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "progress": {
+            "type": "number"
+          },
+          "text": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "location",
+          "progress",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "AnnotationBatch": {
+        "properties": {
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/AnnotationChange"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "changes"
+        ],
+        "type": "object"
+      },
+      "AnnotationBody": {
+        "properties": {
+          "chapter": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string"
+          },
+          "extra": {},
+          "kind": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "madeAgoMs": {
+            "type": "integer"
+          },
+          "madeOn": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "progress": {
+            "type": "number"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "color",
+          "location",
+          "madeOn",
+          "progress",
+          "chapter",
+          "text",
+          "note",
+          "extra",
+          "madeAgoMs"
+        ],
+        "type": "object"
+      },
+      "AnnotationChange": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AnnotationBody"
+          },
+          {
+            "properties": {
+              "delete": {
+                "type": "boolean"
+              },
+              "id": {
+                "type": "string"
+              },
+              "itemId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "itemId",
+              "id",
+              "delete"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "AnnotationPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Annotation"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "AnnotationResult": {
+        "properties": {
+          "annotation": {
+            "$ref": "#/components/schemas/Annotation"
+          },
+          "error": {
+            "$ref": "#/components/schemas/Error"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "AnnotationResults": {
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/AnnotationResult"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "results"
         ],
         "type": "object"
       },
@@ -480,6 +740,9 @@
           "mediaUrl": {
             "type": "string"
           },
+          "next": {
+            "$ref": "#/components/schemas/NextVolume"
+          },
           "pages": {
             "items": {
               "type": "string"
@@ -491,6 +754,10 @@
               "$ref": "#/components/schemas/BookPart"
             },
             "type": "array"
+          },
+          "place": {},
+          "placeExact": {
+            "type": "boolean"
           },
           "saveUrl": {
             "type": "string"
@@ -603,6 +870,48 @@
       },
       "CapabilityDocument": {
         "properties": {},
+        "type": "object"
+      },
+      "CastCode": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "expiresAt"
+        ],
+        "type": "object"
+      },
+      "CastConfig": {
+        "properties": {
+          "applicationId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "applicationId"
+        ],
+        "type": "object"
+      },
+      "CastRedeem": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "device": {
+            "$ref": "#/components/schemas/DeviceInfo"
+          }
+        },
+        "required": [
+          "code",
+          "device"
+        ],
         "type": "object"
       },
       "Challenge": {
@@ -807,6 +1116,202 @@
         "required": [
           "items",
           "total"
+        ],
+        "type": "object"
+      },
+      "Dashboard": {
+        "properties": {
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/DashboardAlert"
+            },
+            "type": "array"
+          },
+          "backups": {
+            "$ref": "#/components/schemas/DashboardBackups"
+          },
+          "nowPlaying": {
+            "$ref": "#/components/schemas/StreamTotals"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "openReports": {
+            "type": "integer"
+          },
+          "scans": {
+            "items": {
+              "$ref": "#/components/schemas/DashboardScan"
+            },
+            "type": "array"
+          },
+          "tasks": {
+            "$ref": "#/components/schemas/DashboardTasks"
+          }
+        },
+        "required": [
+          "observedAt",
+          "alerts",
+          "scans",
+          "tasks",
+          "nowPlaying",
+          "backups",
+          "openReports"
+        ],
+        "type": "object"
+      },
+      "DashboardAlert": {
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/AlertAction"
+          },
+          "code": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "major": {
+            "type": "boolean"
+          },
+          "params": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "severity": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "severity",
+          "major",
+          "params",
+          "action"
+        ],
+        "type": "object"
+      },
+      "DashboardBackup": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "scheduled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "createdAt",
+          "scheduled"
+        ],
+        "type": "object"
+      },
+      "DashboardBackups": {
+        "properties": {
+          "last": {
+            "$ref": "#/components/schemas/DashboardBackup"
+          },
+          "read": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "read"
+        ],
+        "type": "object"
+      },
+      "DashboardScan": {
+        "properties": {
+          "analyzed": {
+            "type": "integer"
+          },
+          "discovered": {
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "libraryId": {
+            "type": "string"
+          },
+          "libraryName": {
+            "type": "string"
+          },
+          "phase": {
+            "type": "string"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "libraryId",
+          "libraryName",
+          "phase",
+          "discovered",
+          "analyzed"
+        ],
+        "type": "object"
+      },
+      "DashboardTask": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "libraryId": {
+            "type": "string"
+          },
+          "libraryName": {
+            "type": "string"
+          },
+          "phase": {
+            "type": "string"
+          },
+          "processed": {
+            "type": "integer"
+          },
+          "state": {
+            "type": "string"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "phase",
+          "state"
+        ],
+        "type": "object"
+      },
+      "DashboardTasks": {
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DashboardTask"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "count",
+          "items"
         ],
         "type": "object"
       },
@@ -1512,6 +2017,322 @@
         ],
         "type": "object"
       },
+      "DvrOverview": {
+        "properties": {
+          "canRecord": {
+            "type": "boolean"
+          },
+          "conflicts": {
+            "type": "integer"
+          },
+          "folderOk": {
+            "type": "boolean"
+          },
+          "freeBytes": {
+            "type": "integer"
+          },
+          "hoursLeft": {
+            "type": "integer"
+          },
+          "keepRule": {
+            "type": "string"
+          },
+          "recorded": {
+            "type": "integer"
+          },
+          "unwatched": {
+            "type": "integer"
+          },
+          "upcoming": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "upcoming",
+          "recorded",
+          "unwatched",
+          "conflicts",
+          "freeBytes",
+          "hoursLeft",
+          "keepRule",
+          "folderOk",
+          "canRecord"
+        ],
+        "type": "object"
+      },
+      "DvrRecording": {
+        "properties": {
+          "bookedBy": {
+            "type": "string"
+          },
+          "channel": {
+            "type": "string"
+          },
+          "choice": {
+            "type": "string"
+          },
+          "conflict": {
+            "type": "boolean"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "episode": {
+            "type": "integer"
+          },
+          "episodeTitle": {
+            "type": "string"
+          },
+          "fromRule": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "inGuide": {
+            "type": "boolean"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "keep": {
+            "type": "boolean"
+          },
+          "padAfterMs": {
+            "type": "integer"
+          },
+          "padBeforeMs": {
+            "type": "integer"
+          },
+          "priority": {
+            "type": "integer"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "season": {
+            "type": "integer"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "channel",
+          "title",
+          "startsAt",
+          "endsAt",
+          "padBeforeMs",
+          "padAfterMs",
+          "priority",
+          "state",
+          "inGuide",
+          "keep",
+          "fromRule"
+        ],
+        "type": "object"
+      },
+      "DvrRecordingBook": {
+        "properties": {
+          "padAfterMs": {
+            "type": "integer"
+          },
+          "padBeforeMs": {
+            "type": "integer"
+          },
+          "priority": {
+            "type": "integer"
+          },
+          "programme": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "programme"
+        ],
+        "type": "object"
+      },
+      "DvrRecordingChange": {
+        "properties": {
+          "choice": {
+            "type": "string"
+          },
+          "keep": {
+            "type": "boolean"
+          },
+          "padAfterMs": {
+            "type": "integer"
+          },
+          "padBeforeMs": {
+            "type": "integer"
+          },
+          "priority": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "DvrRecordingPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DvrRecording"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "DvrRule": {
+        "properties": {
+          "byTitle": {
+            "type": "boolean"
+          },
+          "channel": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "keepDays": {
+            "type": "integer"
+          },
+          "keepNewest": {
+            "type": "integer"
+          },
+          "newOnly": {
+            "type": "boolean"
+          },
+          "padAfterMs": {
+            "type": "integer"
+          },
+          "padBeforeMs": {
+            "type": "integer"
+          },
+          "paused": {
+            "type": "boolean"
+          },
+          "priority": {
+            "type": "integer"
+          },
+          "source": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "source",
+          "byTitle",
+          "newOnly",
+          "priority",
+          "paused"
+        ],
+        "type": "object"
+      },
+      "DvrRulePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DvrRule"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "DvrRuleSave": {
+        "properties": {
+          "anyChannel": {
+            "type": "boolean"
+          },
+          "keepDays": {
+            "type": "integer"
+          },
+          "keepNewest": {
+            "type": "integer"
+          },
+          "newOnly": {
+            "type": "boolean"
+          },
+          "padAfterMs": {
+            "type": "integer"
+          },
+          "padBeforeMs": {
+            "type": "integer"
+          },
+          "paused": {
+            "type": "boolean"
+          },
+          "priority": {
+            "type": "integer"
+          },
+          "programme": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "DvrTunerUse": {
+        "properties": {
+          "channel": {
+            "type": "string"
+          },
+          "using": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "channel",
+          "using"
+        ],
+        "type": "object"
+      },
+      "DvrTuners": {
+        "properties": {
+          "conflicts": {
+            "items": {
+              "$ref": "#/components/schemas/DvrRecording"
+            },
+            "type": "array"
+          },
+          "inUse": {
+            "items": {
+              "$ref": "#/components/schemas/DvrTunerUse"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "inUse",
+          "conflicts"
+        ],
+        "type": "object"
+      },
       "Error": {
         "properties": {
           "code": {
@@ -1645,6 +2466,17 @@
         ],
         "type": "object"
       },
+      "FinishedMove": {
+        "properties": {
+          "notMoved": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "notMoved"
+        ],
+        "type": "object"
+      },
       "FolderChoice": {
         "properties": {
           "cannotBeChosen": {
@@ -1708,6 +2540,44 @@
         "required": [
           "name",
           "bytes"
+        ],
+        "type": "object"
+      },
+      "GenreEntry": {
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "cover": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "label"
+        ],
+        "type": "object"
+      },
+      "GenreList": {
+        "properties": {
+          "genres": {
+            "items": {
+              "$ref": "#/components/schemas/GenreEntry"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "genres"
         ],
         "type": "object"
       },
@@ -2009,6 +2879,9 @@
             },
             "type": "array"
           },
+          "reason": {
+            "type": "string"
+          },
           "shape": {
             "type": "string"
           },
@@ -2052,6 +2925,32 @@
           "baseUrl",
           "nonce"
         ],
+        "type": "object"
+      },
+      "IntegrationSettings": {
+        "properties": {
+          "assistants": {
+            "type": "boolean"
+          },
+          "compatibleRoutes": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "assistants",
+          "compatibleRoutes"
+        ],
+        "type": "object"
+      },
+      "IntegrationSettingsEdit": {
+        "properties": {
+          "assistants": {
+            "type": "boolean"
+          },
+          "compatibleRoutes": {
+            "type": "boolean"
+          }
+        },
         "type": "object"
       },
       "Invitation": {
@@ -2770,6 +3669,17 @@
         ],
         "type": "object"
       },
+      "LeaveRequest": {
+        "properties": {
+          "deleteData": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "deleteData"
+        ],
+        "type": "object"
+      },
       "Libraries": {
         "properties": {
           "items": {
@@ -2818,6 +3728,660 @@
           "id",
           "name",
           "kind"
+        ],
+        "type": "object"
+      },
+      "LibraryChannel": {
+        "properties": {
+          "builder": {
+            "$ref": "#/components/schemas/LibraryChannelBuilder"
+          },
+          "description": {
+            "type": "string"
+          },
+          "droppedTitles": {
+            "type": "integer"
+          },
+          "health": {
+            "$ref": "#/components/schemas/LibraryChannelHealth"
+          },
+          "id": {
+            "type": "string"
+          },
+          "libraries": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "logo": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "number": {
+            "type": "integer"
+          },
+          "on": {
+            "type": "boolean"
+          },
+          "problem": {
+            "type": "string"
+          },
+          "scheduledThrough": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "titles": {
+            "type": "integer"
+          },
+          "unknownConditions": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "number",
+          "on",
+          "summary",
+          "timeZone",
+          "libraries",
+          "state",
+          "titles"
+        ],
+        "type": "object"
+      },
+      "LibraryChannelBlock": {
+        "properties": {
+          "days": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "from": {
+            "type": "string"
+          },
+          "fromPreset": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "ifEmpty": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "overrun": {
+            "type": "string"
+          },
+          "resume": {
+            "type": "string"
+          },
+          "selection": {
+            "$ref": "#/components/schemas/LibraryChannelSelection"
+          },
+          "to": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "days",
+          "from",
+          "to"
+        ],
+        "type": "object"
+      },
+      "LibraryChannelBlockPreset": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "library": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "recipe": {
+            "$ref": "#/components/schemas/LibraryChannelRecipe"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "library",
+          "recipe"
+        ],
+        "type": "object"
+      },
+      "LibraryChannelBlockPresetPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LibraryChannelBlockPreset"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "LibraryChannelBlockPresetSave": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "library": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "recipe": {
+            "$ref": "#/components/schemas/LibraryChannelRecipe"
+          }
+        },
+        "type": "object"
+      },
+      "LibraryChannelBuilder": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/LibraryChannelSelection"
+          },
+          {
+            "properties": {
+              "avoidRepeats": {
+                "type": "integer"
+              },
+              "blocks": {
+                "items": {
+                  "$ref": "#/components/schemas/LibraryChannelBlock"
+                },
+                "type": "array"
+              },
+              "logoOnScreen": {
+                "$ref": "#/components/schemas/LibraryChannelLogo"
+              },
+              "quality": {
+                "$ref": "#/components/schemas/LibraryChannelQuality"
+              }
+            },
+            "required": [
+              "quality",
+              "logoOnScreen"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "LibraryChannelCondition": {
+        "properties": {
+          "conditions": {
+            "items": {
+              "$ref": "#/components/schemas/LibraryChannelCondition"
+            },
+            "type": "array"
+          },
+          "exclude": {
+            "type": "boolean"
+          },
+          "field": {
+            "type": "string"
+          },
+          "match": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "LibraryChannelHealth": {
+        "properties": {
+          "building": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "onAir": {
+            "type": "boolean"
+          },
+          "programmes": {
+            "type": "integer"
+          },
+          "reaches": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "titles": {
+            "type": "integer"
+          },
+          "unplaceable": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "onAir",
+          "programmes",
+          "titles",
+          "unplaceable",
+          "building"
+        ],
+        "type": "object"
+      },
+      "LibraryChannelLink": {
+        "properties": {
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "logo": {
+            "$ref": "#/components/schemas/LibraryChannelPlaybackLogo"
+          },
+          "maxKbps": {
+            "type": "integer"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "startsAt",
+          "endsAt"
+        ],
+        "type": "object"
+      },
+      "LibraryChannelLogo": {
+        "properties": {
+          "corner": {
+            "type": "string"
+          },
+          "on": {
+            "type": "boolean"
+          },
+          "size": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "LibraryChannelOrder": {
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "type": "object"
+      },
+      "LibraryChannelPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LibraryChannel"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "LibraryChannelPlaybackLogo": {
+        "properties": {
+          "corner": {
+            "type": "string"
+          },
+          "size": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "corner",
+          "size"
+        ],
+        "type": "object"
+      },
+      "LibraryChannelPreview": {
+        "properties": {
+          "hours": {
+            "type": "integer"
+          },
+          "sample": {
+            "items": {
+              "$ref": "#/components/schemas/LibraryChannelPreviewTitle"
+            },
+            "type": "array"
+          },
+          "titles": {
+            "type": "integer"
+          },
+          "today": {
+            "items": {
+              "$ref": "#/components/schemas/LibraryChannelPreviewProgramme"
+            },
+            "type": "array"
+          },
+          "unplaceable": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "titles",
+          "unplaceable",
+          "hours",
+          "sample",
+          "today"
+        ],
+        "type": "object"
+      },
+      "LibraryChannelPreviewAsk": {
+        "properties": {
+          "builder": {
+            "$ref": "#/components/schemas/LibraryChannelBuilder"
+          },
+          "channelId": {
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "timeZone",
+          "builder"
+        ],
+        "type": "object"
+      },
+      "LibraryChannelPreviewProgramme": {
+        "properties": {
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "title": {
+            "$ref": "#/components/schemas/LibraryChannelPreviewTitle"
+          }
+        },
+        "required": [
+          "startsAt",
+          "endsAt"
+        ],
+        "type": "object"
+      },
+      "LibraryChannelPreviewTitle": {
+        "properties": {
+          "episode": {
+            "type": "integer"
+          },
+          "episodeTitle": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "season": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "year": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "type": "object"
+      },
+      "LibraryChannelQuality": {
+        "properties": {
+          "maxKbps": {
+            "type": "integer"
+          },
+          "mode": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "LibraryChannelRecipe": {
+        "properties": {
+          "clauses": {
+            "items": {
+              "$ref": "#/components/schemas/LibraryChannelCondition"
+            },
+            "type": "array"
+          },
+          "days": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "minutes": {
+            "type": "integer"
+          },
+          "order": {
+            "type": "string"
+          },
+          "startsAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "clauses",
+          "order",
+          "minutes"
+        ],
+        "type": "object"
+      },
+      "LibraryChannelSave": {
+        "properties": {
+          "builder": {
+            "$ref": "#/components/schemas/LibraryChannelBuilder"
+          },
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "on": {
+            "type": "boolean"
+          },
+          "timeZone": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "LibraryChannelSelection": {
+        "properties": {
+          "addedWithinDays": {
+            "type": "integer"
+          },
+          "always": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "conditions": {
+            "items": {
+              "$ref": "#/components/schemas/LibraryChannelCondition"
+            },
+            "type": "array"
+          },
+          "episodes": {
+            "type": "string"
+          },
+          "kinds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "libraries": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "marathon": {
+            "type": "integer"
+          },
+          "match": {
+            "type": "string"
+          },
+          "mentions": {
+            "type": "string"
+          },
+          "never": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "onlyAlways": {
+            "type": "boolean"
+          },
+          "order": {
+            "type": "string"
+          },
+          "sort": {
+            "type": "string"
+          },
+          "weights": {
+            "items": {
+              "$ref": "#/components/schemas/LibraryChannelWeight"
+            },
+            "type": "array"
+          },
+          "whenDone": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "libraries",
+          "kinds"
+        ],
+        "type": "object"
+      },
+      "LibraryChannelTemplate": {
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "builder": {
+            "$ref": "#/components/schemas/LibraryChannelBuilder"
+          },
+          "description": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "description",
+          "available",
+          "builder"
+        ],
+        "type": "object"
+      },
+      "LibraryChannelTemplatePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LibraryChannelTemplate"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "LibraryChannelWeight": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "weight": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "weight"
         ],
         "type": "object"
       },
@@ -3224,6 +4788,781 @@
         ],
         "type": "object"
       },
+      "LiveAiring": {
+        "properties": {
+          "channel": {
+            "type": "string"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "channel",
+          "startsAt",
+          "endsAt"
+        ],
+        "type": "object"
+      },
+      "LiveChannel": {
+        "properties": {
+          "favorite": {
+            "type": "boolean"
+          },
+          "group": {
+            "type": "string"
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "logo": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "number": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "number",
+          "kind",
+          "favorite",
+          "hidden"
+        ],
+        "type": "object"
+      },
+      "LiveChannelMarks": {
+        "properties": {
+          "favorite": {
+            "type": "boolean"
+          },
+          "hidden": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "favorite",
+          "hidden"
+        ],
+        "type": "object"
+      },
+      "LiveChannelPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LiveChannel"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "LiveCountdown": {
+        "properties": {
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "endsAt",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "LiveGuide": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LiveGuideRow"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          },
+          "outOfDate": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items",
+          "outOfDate"
+        ],
+        "type": "object"
+      },
+      "LiveGuideRow": {
+        "properties": {
+          "channel": {
+            "$ref": "#/components/schemas/LiveChannel"
+          },
+          "programmes": {
+            "items": {
+              "$ref": "#/components/schemas/LiveProgramme"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "channel",
+          "programmes"
+        ],
+        "type": "object"
+      },
+      "LiveOnNow": {
+        "properties": {
+          "channel": {
+            "$ref": "#/components/schemas/LiveChannel"
+          },
+          "next": {
+            "$ref": "#/components/schemas/LiveProgramme"
+          },
+          "now": {
+            "$ref": "#/components/schemas/LiveProgramme"
+          }
+        },
+        "required": [
+          "channel"
+        ],
+        "type": "object"
+      },
+      "LiveOnNowPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LiveOnNow"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "LiveProgramme": {
+        "properties": {
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "episode": {
+            "type": "integer"
+          },
+          "episodeTitle": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "notAvailable": {
+            "type": "boolean"
+          },
+          "rating": {
+            "type": "string"
+          },
+          "season": {
+            "type": "integer"
+          },
+          "slate": {
+            "type": "boolean"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "startsAt",
+          "endsAt"
+        ],
+        "type": "object"
+      },
+      "LiveProgrammeDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/LiveProgramme"
+          },
+          {
+            "properties": {
+              "airings": {
+                "items": {
+                  "$ref": "#/components/schemas/LiveAiring"
+                },
+                "type": "array"
+              },
+              "canRecord": {
+                "type": "boolean"
+              },
+              "channel": {
+                "$ref": "#/components/schemas/LiveChannel"
+              },
+              "recording": {
+                "$ref": "#/components/schemas/DvrRecording"
+              },
+              "reminder": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "channel",
+              "airings",
+              "reminder",
+              "canRecord"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "LiveReminderOut": {
+        "properties": {
+          "channel": {
+            "type": "string"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "programme": {
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "programme",
+          "channel",
+          "title",
+          "startsAt",
+          "endsAt"
+        ],
+        "type": "object"
+      },
+      "LiveReminderOutPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LiveReminderOut"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "LiveSentChannel": {
+        "properties": {
+          "Group": {
+            "type": "string"
+          },
+          "GuideKey": {
+            "type": "string"
+          },
+          "Key": {
+            "type": "string"
+          },
+          "Locator": {
+            "type": "string"
+          },
+          "Logo": {
+            "type": "string"
+          },
+          "Name": {
+            "type": "string"
+          },
+          "Number": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "Key",
+          "Name",
+          "Number",
+          "Group",
+          "GuideKey",
+          "Locator",
+          "Logo"
+        ],
+        "type": "object"
+      },
+      "LiveSignIn": {
+        "properties": {
+          "password": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "username",
+          "password"
+        ],
+        "type": "object"
+      },
+      "LiveSource": {
+        "properties": {
+          "audience": {
+            "type": "string"
+          },
+          "config": {
+            "$ref": "#/components/schemas/LiveSourceConfig"
+          },
+          "hasSignIn": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "lastError": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "paused": {
+            "type": "boolean"
+          },
+          "refreshedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "report": {
+            "$ref": "#/components/schemas/LiveSourceReport"
+          },
+          "state": {
+            "type": "string"
+          },
+          "tunerCount": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "audience",
+          "tunerCount",
+          "paused",
+          "state",
+          "config",
+          "hasSignIn"
+        ],
+        "type": "object"
+      },
+      "LiveSourceChannel": {
+        "properties": {
+          "broughtIn": {
+            "type": "boolean"
+          },
+          "edited": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "group": {
+            "type": "string"
+          },
+          "guideKey": {
+            "type": "string"
+          },
+          "guideSource": {
+            "type": "string"
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "missing": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "number": {
+            "type": "string"
+          },
+          "sourceNumber": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "number",
+          "broughtIn",
+          "hidden"
+        ],
+        "type": "object"
+      },
+      "LiveSourceChannelEdit": {
+        "properties": {
+          "broughtIn": {
+            "type": "boolean"
+          },
+          "guideKey": {
+            "type": "string"
+          },
+          "guideSource": {
+            "type": "string"
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "number": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "LiveSourceChannelEdits": {
+        "properties": {
+          "channels": {
+            "items": {
+              "$ref": "#/components/schemas/LiveSourceChannelEdit"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "channels"
+        ],
+        "type": "object"
+      },
+      "LiveSourceChannelPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LiveSourceChannel"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "LiveSourceConfig": {
+        "properties": {
+          "channels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "firstNumber": {
+            "type": "integer"
+          },
+          "groups": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "guideUploaded": {
+            "type": "boolean"
+          },
+          "guideUrl": {
+            "type": "string"
+          },
+          "numbering": {
+            "type": "string"
+          },
+          "playlistUrl": {
+            "type": "string"
+          },
+          "refreshHours": {
+            "type": "integer"
+          },
+          "serverUrl": {
+            "type": "string"
+          },
+          "tunerUrl": {
+            "type": "string"
+          },
+          "uploaded": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "LiveSourcePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LiveSource"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "LiveSourcePreview": {
+        "properties": {
+          "channels": {
+            "items": {
+              "$ref": "#/components/schemas/LiveSentChannel"
+            },
+            "type": "array"
+          },
+          "report": {
+            "$ref": "#/components/schemas/LiveSourceReport"
+          },
+          "tuners": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "report",
+          "channels",
+          "tuners"
+        ],
+        "type": "object"
+      },
+      "LiveSourceReport": {
+        "properties": {
+          "channels": {
+            "type": "integer"
+          },
+          "channelsWithGuide": {
+            "type": "integer"
+          },
+          "examples": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "groups": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "programmes": {
+            "type": "integer"
+          },
+          "skippedChannels": {
+            "type": "integer"
+          },
+          "skippedProgrammes": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "channels",
+          "skippedChannels",
+          "programmes",
+          "skippedProgrammes",
+          "channelsWithGuide"
+        ],
+        "type": "object"
+      },
+      "LiveSourceSave": {
+        "properties": {
+          "audience": {
+            "type": "string"
+          },
+          "config": {
+            "$ref": "#/components/schemas/LiveSourceConfig"
+          },
+          "guide": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "paused": {
+            "type": "boolean"
+          },
+          "playlist": {
+            "type": "string"
+          },
+          "signIn": {
+            "$ref": "#/components/schemas/LiveSignIn"
+          },
+          "tunerCount": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "LiveWindow": {
+        "properties": {
+          "liveAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "oldestAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "oldestAt",
+          "liveAt"
+        ],
+        "type": "object"
+      },
+      "Load": {
+        "properties": {
+          "buckets": {
+            "items": {
+              "$ref": "#/components/schemas/LoadBucket"
+            },
+            "type": "array"
+          },
+          "from": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "period": {
+            "type": "string"
+          },
+          "series": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/LoadPoint"
+              },
+              "type": "array"
+            },
+            "type": "object"
+          },
+          "until": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "period",
+          "from",
+          "until",
+          "buckets",
+          "observedAt",
+          "series"
+        ],
+        "type": "object"
+      },
+      "LoadBucket": {
+        "properties": {
+          "end": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "partial": {
+            "type": "boolean"
+          },
+          "start": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "partial"
+        ],
+        "type": "object"
+      },
+      "LoadPoint": {
+        "properties": {
+          "t": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "v": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "t",
+          "v"
+        ],
+        "type": "object"
+      },
       "LogDetail": {
         "properties": {
           "minutes": {
@@ -3356,6 +5695,10 @@
         ],
         "type": "object"
       },
+      "MCPReply": {
+        "properties": {},
+        "type": "object"
+      },
       "Marker": {
         "properties": {
           "endMs": {
@@ -3375,6 +5718,76 @@
           "kind",
           "startMs",
           "endMs"
+        ],
+        "type": "object"
+      },
+      "MatchCandidate": {
+        "properties": {
+          "exact": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "originalTitle": {
+            "type": "string"
+          },
+          "overview": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "year": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "provider",
+          "id",
+          "title"
+        ],
+        "type": "object"
+      },
+      "MatchCandidates": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MatchCandidate"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "MatchRequest": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "keepAsIs": {
+            "type": "boolean"
+          },
+          "provider": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "MatchResult": {
+        "properties": {
+          "itemId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemId"
         ],
         "type": "object"
       },
@@ -3480,13 +5893,29 @@
               "disabled": {
                 "type": "boolean"
               },
+              "lastActiveAt": {
+                "format": "date-time",
+                "type": "string"
+              },
               "libraries": {
                 "items": {
                   "type": "string"
                 },
                 "type": "array"
               },
+              "limits": {
+                "$ref": "#/components/schemas/MemberLimits"
+              },
               "notes": {
+                "type": "string"
+              },
+              "profiles": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "state": {
                 "type": "string"
               },
               "twoFactorEnabled": {
@@ -3495,11 +5924,14 @@
             },
             "required": [
               "disabled",
+              "state",
               "createdAt",
               "allLibraries",
               "libraries",
               "twoFactorEnabled",
-              "allowDownloads"
+              "allowDownloads",
+              "profiles",
+              "limits"
             ],
             "type": "object"
           }
@@ -3543,11 +5975,119 @@
             },
             "type": "array"
           },
+          "limits": {
+            "$ref": "#/components/schemas/MemberLimitsEdit"
+          },
           "notes": {
             "type": "string"
           },
           "role": {
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "MemberLimits": {
+        "properties": {
+          "allowTokens": {
+            "type": "boolean"
+          },
+          "allowUnrated": {
+            "type": "boolean"
+          },
+          "allowWatchTogether": {
+            "type": "boolean"
+          },
+          "blockedLabels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "homeOnly": {
+            "type": "boolean"
+          },
+          "maxProfiles": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "maxRatingAge": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "remoteMaxBitrateKbps": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "viewingHours": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ViewingHours"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "homeOnly",
+          "allowUnrated",
+          "blockedLabels",
+          "allowWatchTogether",
+          "allowTokens"
+        ],
+        "type": "object"
+      },
+      "MemberLimitsEdit": {
+        "properties": {
+          "allowTokens": {
+            "type": "boolean"
+          },
+          "allowUnrated": {
+            "type": "boolean"
+          },
+          "allowWatchTogether": {
+            "type": "boolean"
+          },
+          "blockedLabels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "homeOnly": {
+            "type": "boolean"
+          },
+          "maxProfiles": {
+            "type": "integer"
+          },
+          "maxRatingAge": {
+            "type": "integer"
+          },
+          "remoteMaxBitrateKbps": {
+            "type": "integer"
+          },
+          "viewingHours": {
+            "$ref": "#/components/schemas/ViewingHours"
           }
         },
         "type": "object"
@@ -3566,6 +6106,293 @@
         },
         "required": [
           "items"
+        ],
+        "type": "object"
+      },
+      "MergeRequest": {
+        "properties": {
+          "itemId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemId"
+        ],
+        "type": "object"
+      },
+      "MetadataCredit": {
+        "properties": {
+          "character": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "personId": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "role"
+        ],
+        "type": "object"
+      },
+      "MetadataCredits": {
+        "properties": {
+          "locked": {
+            "type": "boolean"
+          },
+          "source": {
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "$ref": "#/components/schemas/MetadataCredit"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "values",
+          "source",
+          "locked"
+        ],
+        "type": "object"
+      },
+      "MetadataDocument": {
+        "properties": {
+          "credits": {
+            "$ref": "#/components/schemas/MetadataCredits"
+          },
+          "fields": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/MetadataField"
+            },
+            "type": "object"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "lists": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/MetadataList"
+            },
+            "type": "object"
+          },
+          "match": {
+            "$ref": "#/components/schemas/MetadataMatch"
+          },
+          "revision": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemId",
+          "kind",
+          "revision",
+          "fields",
+          "lists",
+          "match"
+        ],
+        "type": "object"
+      },
+      "MetadataField": {
+        "properties": {
+          "locked": {
+            "type": "boolean"
+          },
+          "source": {
+            "type": "string"
+          },
+          "value": {}
+        },
+        "required": [
+          "value",
+          "source",
+          "locked"
+        ],
+        "type": "object"
+      },
+      "MetadataHistoryEntry": {
+        "properties": {
+          "at": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "at"
+        ],
+        "type": "object"
+      },
+      "MetadataHistoryEntryPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MetadataHistoryEntry"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "MetadataList": {
+        "properties": {
+          "locked": {
+            "type": "boolean"
+          },
+          "source": {
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "values",
+          "source",
+          "locked"
+        ],
+        "type": "object"
+      },
+      "MetadataMatch": {
+        "properties": {
+          "ids": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "locked": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "locked",
+          "ids"
+        ],
+        "type": "object"
+      },
+      "MetadataPatch": {
+        "properties": {
+          "contentRating": {
+            "type": "string"
+          },
+          "countries": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "credits": {
+            "items": {
+              "$ref": "#/components/schemas/MetadataCredit"
+            },
+            "type": "array"
+          },
+          "edition": {
+            "type": "string"
+          },
+          "genres": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "lock": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "lockAll": {
+            "type": "boolean"
+          },
+          "networks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "originalTitle": {
+            "type": "string"
+          },
+          "releaseDate": {
+            "type": "string"
+          },
+          "sortTitle": {
+            "type": "string"
+          },
+          "studios": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "tagline": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "unlock": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "unlockAll": {
+            "type": "boolean"
+          },
+          "year": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "MetadataRefreshed": {
+        "properties": {
+          "matched": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "matched"
         ],
         "type": "object"
       },
@@ -3618,6 +6445,115 @@
         ],
         "type": "object"
       },
+      "MoveCheck": {
+        "properties": {
+          "next": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "username",
+          "next"
+        ],
+        "type": "object"
+      },
+      "MoveCheckRequest": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "MoveCodeOut": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "code",
+          "expiresAt"
+        ],
+        "type": "object"
+      },
+      "MoveCodeOutPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MoveCodeOut"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "MoveCompleteRequest": {
+        "properties": {
+          "approval": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "device": {
+            "$ref": "#/components/schemas/DeviceInfo"
+          },
+          "password": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "device"
+        ],
+        "type": "object"
+      },
+      "MoveState": {
+        "properties": {
+          "since": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "to",
+          "since"
+        ],
+        "type": "object"
+      },
       "NetworkSettings": {
         "properties": {
           "homeNetworks": {
@@ -3652,6 +6588,9 @@
       },
       "NetworkSettingsEdit": {
         "properties": {
+          "confirmRefusal": {
+            "type": "boolean"
+          },
           "homeNetworks": {
             "items": {
               "type": "string"
@@ -3667,6 +6606,24 @@
         },
         "required": [
           "trustedProxies"
+        ],
+        "type": "object"
+      },
+      "NextVolume": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "index": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title"
         ],
         "type": "object"
       },
@@ -3814,6 +6771,172 @@
         },
         "required": [
           "items"
+        ],
+        "type": "object"
+      },
+      "OfflinePlay": {
+        "properties": {
+          "itemId": {
+            "type": "string"
+          },
+          "madeAgoMs": {
+            "type": "integer"
+          },
+          "playId": {
+            "type": "string"
+          },
+          "playedMs": {
+            "type": "integer"
+          },
+          "positionMs": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "itemId",
+          "playId",
+          "positionMs",
+          "playedMs",
+          "madeAgoMs"
+        ],
+        "type": "object"
+      },
+      "OfflinePlayResult": {
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/BatchError"
+          },
+          "finished": {
+            "type": "boolean"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "playId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemId",
+          "playId",
+          "finished"
+        ],
+        "type": "object"
+      },
+      "OwnAddress": {
+        "properties": {
+          "certificateFile": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "keyFile": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled",
+          "domain",
+          "certificateFile",
+          "keyFile"
+        ],
+        "type": "object"
+      },
+      "OwnCertificateStatus": {
+        "properties": {
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expiresSoon": {
+            "type": "boolean"
+          },
+          "names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "problem": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "type": "object"
+      },
+      "OwnerChangeRequest": {
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "approval": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "newAccount": {
+            "$ref": "#/components/schemas/MemberCreate"
+          },
+          "password": {
+            "type": "string"
+          },
+          "previousOwner": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "previousOwner"
+        ],
+        "type": "object"
+      },
+      "OwnerResetFinish": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "newPassword": {
+            "type": "string"
+          },
+          "turnOffTwoStep": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "code",
+          "newPassword"
+        ],
+        "type": "object"
+      },
+      "OwnerResetStart": {
+        "properties": {
+          "username": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "OwnerResetStarted": {
+        "properties": {
+          "fileName": {
+            "type": "string"
+          },
+          "retryAfterMs": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "fileName",
+          "retryAfterMs"
         ],
         "type": "object"
       },
@@ -4501,8 +7624,14 @@
       },
       "PlaybackSession": {
         "properties": {
+          "channel": {
+            "$ref": "#/components/schemas/LibraryChannelLink"
+          },
           "command": {
             "$ref": "#/components/schemas/Command"
+          },
+          "countdown": {
+            "$ref": "#/components/schemas/LiveCountdown"
           },
           "end": {
             "$ref": "#/components/schemas/SessionEnd"
@@ -4518,6 +7647,9 @@
           },
           "lease": {
             "$ref": "#/components/schemas/PlaybackLease"
+          },
+          "live": {
+            "$ref": "#/components/schemas/LiveWindow"
           },
           "playbackInfo": {},
           "presentation": {
@@ -4551,6 +7683,9 @@
         "properties": {
           "audio": {
             "$ref": "#/components/schemas/AudioPick"
+          },
+          "channel": {
+            "type": "string"
           },
           "discTitle": {},
           "itemId": {
@@ -4719,6 +7854,33 @@
         "required": [
           "id",
           "codec"
+        ],
+        "type": "object"
+      },
+      "PortMappingStatus": {
+        "properties": {
+          "checkedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "externalAddress": {
+            "type": "string"
+          },
+          "externalPort": {
+            "type": "integer"
+          },
+          "problem": {
+            "type": "string"
+          },
+          "protocol": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
         ],
         "type": "object"
       },
@@ -5074,6 +8236,45 @@
         ],
         "type": "object"
       },
+      "ProfileRestrictionsEdit": {
+        "properties": {
+          "allLibraries": {
+            "type": "boolean"
+          },
+          "allowDownloads": {
+            "type": "boolean"
+          },
+          "allowUnrated": {
+            "type": "boolean"
+          },
+          "allowWatchTogether": {
+            "type": "boolean"
+          },
+          "blockedLabels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "libraries": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "maxRatingAge": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      },
       "ProfileSelect": {
         "properties": {
           "pin": {
@@ -5099,6 +8300,49 @@
           "id",
           "startedAt",
           "pagesLeft"
+        ],
+        "type": "object"
+      },
+      "PublicAddressAnswer": {
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "agreedBy": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "checkedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "problem": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "PublishedAddress": {
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "home": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "address",
+          "port",
+          "home"
         ],
         "type": "object"
       },
@@ -5612,7 +8856,16 @@
           "config": {
             "type": "string"
           },
+          "options": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
           "path": {
+            "type": "string"
+          },
+          "type": {
             "type": "string"
           }
         },
@@ -5823,6 +9076,37 @@
         ],
         "type": "object"
       },
+      "RefusedAddress": {
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "fixes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "lastAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "refused": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "address",
+          "reason",
+          "fixes",
+          "lastAt",
+          "refused"
+        ],
+        "type": "object"
+      },
       "Related": {
         "properties": {
           "groups": {
@@ -5946,6 +9230,152 @@
         ],
         "type": "object"
       },
+      "RemoteAccessSave": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RemoteAccessSettings"
+          },
+          {
+            "properties": {
+              "allowThisAddress": {
+                "type": "boolean"
+              },
+              "confirmRefusal": {
+                "type": "boolean"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "RemoteAccessSettings": {
+        "properties": {
+          "allowedAddresses": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "certificateWarningDays": {
+            "type": "integer"
+          },
+          "dlna": {
+            "type": "boolean"
+          },
+          "dlnaNames": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "enhancedWithoutAddress": {
+            "type": "boolean"
+          },
+          "enhancedWithoutHome": {
+            "type": "boolean"
+          },
+          "findAtHome": {
+            "type": "boolean"
+          },
+          "ipv6": {
+            "type": "boolean"
+          },
+          "ownAddress": {
+            "$ref": "#/components/schemas/OwnAddress"
+          },
+          "portMapping": {
+            "type": "string"
+          },
+          "publicPort": {
+            "type": "integer"
+          },
+          "remoteAccess": {
+            "type": "string"
+          },
+          "remoteSecurity": {
+            "type": "string"
+          },
+          "secureConnections": {
+            "type": "string"
+          },
+          "signInFromOutside": {
+            "type": "string"
+          },
+          "warning": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "remoteAccess",
+          "remoteSecurity",
+          "secureConnections",
+          "signInFromOutside",
+          "portMapping",
+          "publicPort",
+          "ipv6",
+          "ownAddress",
+          "allowedAddresses",
+          "findAtHome",
+          "enhancedWithoutAddress",
+          "enhancedWithoutHome",
+          "dlna",
+          "dlnaNames",
+          "certificateWarningDays"
+        ],
+        "type": "object"
+      },
+      "RemoteAccessStatus": {
+        "properties": {
+          "addresses": {
+            "items": {
+              "$ref": "#/components/schemas/PublishedAddress"
+            },
+            "type": "array"
+          },
+          "certificate": {
+            "$ref": "#/components/schemas/OwnCertificateStatus"
+          },
+          "identityCode": {
+            "type": "string"
+          },
+          "publicAddress": {
+            "$ref": "#/components/schemas/PublicAddressAnswer"
+          },
+          "refused": {
+            "items": {
+              "$ref": "#/components/schemas/RefusedAddress"
+            },
+            "type": "array"
+          },
+          "remoteSecurity": {
+            "$ref": "#/components/schemas/RemoteSecurity"
+          },
+          "router": {
+            "$ref": "#/components/schemas/PortMappingStatus"
+          },
+          "thisDevice": {
+            "$ref": "#/components/schemas/ThisDevice"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/Warning"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "thisDevice",
+          "refused",
+          "remoteSecurity",
+          "warnings",
+          "certificate",
+          "router",
+          "publicAddress",
+          "identityCode",
+          "addresses"
+        ],
+        "type": "object"
+      },
       "RemoteFolder": {
         "properties": {
           "name": {
@@ -5998,6 +9428,9 @@
           "connections": {
             "type": "integer"
           },
+          "downloadBytesPerSecond": {
+            "type": "integer"
+          },
           "perSecond": {
             "type": "number"
           }
@@ -6005,6 +9438,30 @@
         "required": [
           "connections",
           "perSecond"
+        ],
+        "type": "object"
+      },
+      "RemoteSecurity": {
+        "properties": {
+          "active": {
+            "type": "string"
+          },
+          "chosen": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "problem": {
+            "type": "string"
+          },
+          "waiting": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "chosen",
+          "active"
         ],
         "type": "object"
       },
@@ -6042,6 +9499,9 @@
           },
           "waitingUntil": {
             "format": "date-time",
+            "type": "string"
+          },
+          "warning": {
             "type": "string"
           },
           "webdav": {
@@ -6219,16 +9679,44 @@
           "accountAllowDownloads": {
             "type": "boolean"
           },
+          "accountAllowUnrated": {
+            "type": "boolean"
+          },
+          "accountAllowWatchTogether": {
+            "type": "boolean"
+          },
+          "accountBlockedLabels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "accountLibraries": {
             "items": {
               "type": "string"
             },
             "type": "array"
           },
+          "accountMaxRatingAge": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "allLibraries": {
             "type": "boolean"
           },
           "allowDownloads": {
+            "type": "boolean"
+          },
+          "allowUnrated": {
+            "type": "boolean"
+          },
+          "allowWatchTogether": {
             "type": "boolean"
           },
           "blockedLabels": {
@@ -6255,12 +9743,16 @@
           }
         },
         "required": [
+          "allowUnrated",
           "blockedLabels",
           "allLibraries",
           "libraries",
           "accountAllLibraries",
           "accountLibraries",
-          "accountAllowDownloads"
+          "accountAllowDownloads",
+          "accountAllowWatchTogether",
+          "accountAllowUnrated",
+          "accountBlockedLabels"
         ],
         "type": "object"
       },
@@ -6500,6 +9992,35 @@
           "host",
           "mayControl",
           "mayBecomeHost"
+        ],
+        "type": "object"
+      },
+      "RouteCheck": {
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "fixes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "refused": {
+            "type": "boolean"
+          },
+          "remoteSecurity": {
+            "$ref": "#/components/schemas/RemoteSecurity"
+          }
+        },
+        "required": [
+          "refused",
+          "address",
+          "fixes",
+          "remoteSecurity"
         ],
         "type": "object"
       },
@@ -6844,6 +10365,9 @@
           "tokenGeneration": {
             "type": "string"
           },
+          "twoStepSetupRequired": {
+            "type": "boolean"
+          },
           "viewer": {
             "$ref": "#/components/schemas/Viewer"
           }
@@ -7020,29 +10544,194 @@
         ],
         "type": "object"
       },
-      "SetupOwnerRequest": {
+      "SetupFinish": {
         "properties": {
-          "device": {
-            "$ref": "#/components/schemas/DeviceInfo"
+          "allowThisAddress": {
+            "type": "boolean"
           },
-          "password": {
+          "confirmRefusal": {
+            "type": "boolean"
+          },
+          "remoteSecurity": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SetupOwnerRequest": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SetupRemote"
+          },
+          {
+            "properties": {
+              "device": {
+                "$ref": "#/components/schemas/DeviceInfo"
+              },
+              "password": {
+                "type": "string"
+              },
+              "profileName": {
+                "type": "string"
+              },
+              "serverName": {
+                "type": "string"
+              },
+              "setupCode": {
+                "type": "string"
+              },
+              "username": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "setupCode",
+              "username",
+              "password",
+              "device"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "SetupPorticoApproval": {
+        "properties": {
+          "approvalUrl": {
             "type": "string"
           },
-          "profileName": {
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "approvalUrl",
+          "expiresAt"
+        ],
+        "type": "object"
+      },
+      "SetupPorticoFinish": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SetupRemote"
+          },
+          {
+            "properties": {
+              "approval": {
+                "type": "string"
+              },
+              "device": {
+                "$ref": "#/components/schemas/DeviceInfo"
+              }
+            },
+            "required": [
+              "approval",
+              "device"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "SetupPorticoRequest": {
+        "properties": {
+          "returnUrl": {
+            "type": "string"
+          },
+          "serverName": {
             "type": "string"
           },
           "setupCode": {
-            "type": "string"
-          },
-          "username": {
             "type": "string"
           }
         },
         "required": [
           "setupCode",
-          "username",
-          "password",
-          "device"
+          "returnUrl"
+        ],
+        "type": "object"
+      },
+      "SetupRemote": {
+        "properties": {
+          "confirmRefusal": {
+            "type": "boolean"
+          },
+          "remoteAccess": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SignInPreview": {
+        "properties": {
+          "approvalUrl": {
+            "type": "string"
+          },
+          "invitationsCancelled": {
+            "type": "integer"
+          },
+          "keysPaused": {
+            "type": "integer"
+          },
+          "keysRemoved": {
+            "type": "integer"
+          },
+          "porticoAddressRemoved": {
+            "type": "boolean"
+          },
+          "porticoUnavailable": {
+            "type": "boolean"
+          },
+          "profilesKept": {
+            "type": "integer"
+          },
+          "profilesRemoved": {
+            "type": "integer"
+          },
+          "removed": {
+            "type": "integer"
+          },
+          "signInAgain": {
+            "type": "integer"
+          },
+          "signedOut": {
+            "type": "integer"
+          },
+          "startOver": {
+            "type": "boolean"
+          },
+          "to": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "to",
+          "startOver",
+          "signInAgain",
+          "removed",
+          "profilesRemoved",
+          "profilesKept",
+          "signedOut",
+          "invitationsCancelled",
+          "keysPaused",
+          "keysRemoved",
+          "porticoAddressRemoved"
+        ],
+        "type": "object"
+      },
+      "SignInPreviewRequest": {
+        "properties": {
+          "returnUrl": {
+            "type": "string"
+          },
+          "startOver": {
+            "type": "boolean"
+          },
+          "to": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "to"
         ],
         "type": "object"
       },
@@ -7083,6 +10772,67 @@
             "$ref": "#/components/schemas/Session"
           }
         },
+        "type": "object"
+      },
+      "SignInState": {
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "move": {
+            "$ref": "#/components/schemas/MoveState"
+          },
+          "owner": {
+            "$ref": "#/components/schemas/Account"
+          },
+          "waiting": {
+            "items": {
+              "$ref": "#/components/schemas/WaitingAccount"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "kind",
+          "owner",
+          "waiting"
+        ],
+        "type": "object"
+      },
+      "SignInSwitchRequest": {
+        "properties": {
+          "approval": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "currentPassword": {
+            "type": "string"
+          },
+          "device": {
+            "$ref": "#/components/schemas/DeviceInfo"
+          },
+          "password": {
+            "type": "string"
+          },
+          "serverName": {
+            "type": "string"
+          },
+          "startOver": {
+            "type": "boolean"
+          },
+          "to": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "to",
+          "device"
+        ],
         "type": "object"
       },
       "SkippedFile": {
@@ -7172,6 +10922,12 @@
               "$ref": "#/components/schemas/StateBatchEdit"
             },
             "type": "array"
+          },
+          "plays": {
+            "items": {
+              "$ref": "#/components/schemas/OfflinePlay"
+            },
+            "type": "array"
           }
         },
         "required": [
@@ -7202,6 +10958,12 @@
           "items": {
             "items": {
               "$ref": "#/components/schemas/StateBatchResult"
+            },
+            "type": "array"
+          },
+          "plays": {
+            "items": {
+              "$ref": "#/components/schemas/OfflinePlayResult"
             },
             "type": "array"
           }
@@ -7518,6 +11280,25 @@
         },
         "type": "object"
       },
+      "StreamTotals": {
+        "properties": {
+          "away": {
+            "type": "integer"
+          },
+          "converting": {
+            "type": "integer"
+          },
+          "streams": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "streams",
+          "away",
+          "converting"
+        ],
+        "type": "object"
+      },
       "SubtitleFile": {
         "properties": {
           "format": {
@@ -7604,6 +11385,9 @@
           "apiMajor": {
             "type": "integer"
           },
+          "atHome": {
+            "type": "boolean"
+          },
           "capabilities": {
             "items": {
               "type": "string"
@@ -7613,11 +11397,17 @@
           "id": {
             "type": "string"
           },
+          "move": {
+            "type": "string"
+          },
           "name": {
             "type": "string"
           },
           "setupRequired": {
             "type": "boolean"
+          },
+          "signIn": {
+            "type": "string"
           },
           "signInMethods": {
             "items": {
@@ -7641,7 +11431,9 @@
           "apiMajor",
           "capabilities",
           "setupRequired",
-          "signInMethods"
+          "signInMethods",
+          "signIn",
+          "atHome"
         ],
         "type": "object"
       },
@@ -7678,6 +11470,21 @@
         },
         "required": [
           "items"
+        ],
+        "type": "object"
+      },
+      "ThisDevice": {
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "atHome": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "atHome",
+          "address"
         ],
         "type": "object"
       },
@@ -7833,6 +11640,56 @@
         ],
         "type": "object"
       },
+      "UnmatchedEntry": {
+        "properties": {
+          "itemId": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "matches": {
+            "items": {
+              "$ref": "#/components/schemas/MatchCandidate"
+            },
+            "type": "array"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "year": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "itemId",
+          "kind",
+          "title",
+          "reason",
+          "matches"
+        ],
+        "type": "object"
+      },
+      "UnmatchedEntryPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/UnmatchedEntry"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
       "VersionFiles": {
         "properties": {
           "files": {
@@ -7884,6 +11741,65 @@
           "accountId",
           "serverId",
           "role"
+        ],
+        "type": "object"
+      },
+      "ViewingHours": {
+        "properties": {
+          "timezone": {
+            "type": "string"
+          },
+          "windows": {
+            "items": {
+              "$ref": "#/components/schemas/ViewingWindow"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "timezone",
+          "windows"
+        ],
+        "type": "object"
+      },
+      "ViewingWindow": {
+        "properties": {
+          "days": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "endMinute": {
+            "type": "integer"
+          },
+          "startMinute": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "days",
+          "startMinute",
+          "endMinute"
+        ],
+        "type": "object"
+      },
+      "WaitingAccount": {
+        "properties": {
+          "codeExpiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "username"
         ],
         "type": "object"
       },
@@ -8440,6 +12356,143 @@
         "x-access": "owner"
       }
     },
+    "/v1/admin/block-presets": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryChannelBlockPresetPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryChannelBlockPresetSave"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryChannelBlockPreset"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/block-presets/{id}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "patch": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryChannelBlockPresetSave"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryChannelBlockPreset"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
     "/v1/admin/blocked-networks": {
       "get": {
         "responses": {
@@ -8497,6 +12550,33 @@
         "x-access": "admin"
       }
     },
+    "/v1/admin/dashboard": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Dashboard"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
     "/v1/admin/downloads": {
       "get": {
         "responses": {
@@ -8505,6 +12585,33 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DownloadsByPerson"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/dvr/tuners": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DvrTuners"
                 }
               }
             },
@@ -8817,6 +12924,402 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DeletionPreview"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/items/{id}/match": {
+      "put": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchResult"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
+      }
+    },
+    "/v1/admin/items/{id}/matches": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchCandidates"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
+      }
+    },
+    "/v1/admin/items/{id}/merge": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MergeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchResult"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
+      }
+    },
+    "/v1/admin/items/{id}/metadata": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetadataDocument"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
+      },
+      "patch": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MetadataPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetadataDocument"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
+      }
+    },
+    "/v1/admin/items/{id}/metadata/history": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetadataHistoryEntryPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
+      }
+    },
+    "/v1/admin/items/{id}/metadata/history/{entryId}/undo": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "entryId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetadataDocument"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
+      }
+    },
+    "/v1/admin/items/{id}/metadata/refresh": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetadataRefreshed"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
+      }
+    },
+    "/v1/admin/jobs": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminJobPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/jobs/{id}/retry": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
                 }
               }
             },
@@ -9264,6 +13767,766 @@
         "x-access": "owner"
       }
     },
+    "/v1/admin/libraries/{id}/unmatched": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnmatchedEntryPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
+      }
+    },
+    "/v1/admin/library-channels": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryChannelPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryChannelSave"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryChannel"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/library-channels/order": {
+      "put": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryChannelOrder"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/library-channels/preview": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryChannelPreviewAsk"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryChannelPreview"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/library-channels/templates": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryChannelTemplatePage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/library-channels/{id}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryChannel"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "patch": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryChannelSave"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryChannel"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/library-channels/{id}/logo": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryChannel"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "put": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryChannel"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/library-channels/{id}/regenerate": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryChannel"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/live/sources": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveSourcePage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LiveSourceSave"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveSource"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/live/sources/preview": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LiveSourceSave"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveSourcePreview"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/live/sources/{id}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveSource"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "patch": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LiveSourceSave"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveSource"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/live/sources/{id}/channels": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveSourceChannelPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "patch": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LiveSourceChannelEdits"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/live/sources/{id}/refresh": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveSource"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/load": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Load"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
     "/v1/admin/logs": {
       "get": {
         "responses": {
@@ -9520,6 +14783,81 @@
         "x-access": "admin"
       }
     },
+    "/v1/admin/members/{id}/devices": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevicePage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
+      }
+    },
+    "/v1/admin/members/{id}/devices/{deviceId}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "deviceId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
+      }
+    },
     "/v1/admin/members/{id}/downloads": {
       "delete": {
         "parameters": [
@@ -9548,6 +14886,43 @@
           }
         },
         "x-access": "owner"
+      }
+    },
+    "/v1/admin/members/{id}/move-code": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoveCodeOut"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
       }
     },
     "/v1/admin/members/{id}/password-reset": {
@@ -9632,6 +15007,36 @@
           }
         },
         "x-access": "admin"
+      }
+    },
+    "/v1/admin/owner": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnerChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
       }
     },
     "/v1/admin/play-history": {
@@ -9788,6 +15193,97 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StreamLimits"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/remote-access": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoteAccessStatus"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/remote-access/check": {
+      "post": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoteAccessStatus"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/remote-access/route-check": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoteAccessSettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteCheck"
                 }
               }
             },
@@ -10378,6 +15874,68 @@
         "x-access": "owner"
       }
     },
+    "/v1/admin/settings/integrations": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationSettings"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "put": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntegrationSettingsEdit"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationSettings"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
     "/v1/admin/settings/network": {
       "get": {
         "responses": {
@@ -10421,6 +15979,68 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/NetworkSettings"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/settings/remote-access": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoteAccessSettings"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "put": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoteAccessSave"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoteAccessSettings"
                 }
               }
             },
@@ -10503,6 +16123,161 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SettingsDocument"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/sign-in": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInState"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/sign-in/finish": {
+      "post": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinishedMove"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/sign-in/move-codes": {
+      "post": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoveCodeOutPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
+      }
+    },
+    "/v1/admin/sign-in/preview": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignInPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInPreview"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/sign-in/switch": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignInSwitchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInResponse"
                 }
               }
             },
@@ -10660,6 +16435,26 @@
         "x-access": "owner"
       }
     },
+    "/v1/admin/upgrade-copy": {
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
     "/v1/admin/versions/{id}": {
       "delete": {
         "parameters": [
@@ -10695,6 +16490,43 @@
           }
         },
         "x-access": "owner"
+      }
+    },
+    "/v1/admin/versions/{id}/split": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchResult"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "admin"
       }
     },
     "/v1/admin/webhooks": {
@@ -10943,6 +16775,43 @@
           }
         },
         "x-access": "owner"
+      }
+    },
+    "/v1/annotations:batch": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnnotationBatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnnotationResults"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
       }
     },
     "/v1/auth/codes": {
@@ -11194,6 +17063,151 @@
         "x-access": "public"
       }
     },
+    "/v1/auth/move/check": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveCheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoveCheck"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "security": [],
+        "x-access": "public"
+      }
+    },
+    "/v1/auth/move/complete": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveCompleteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "security": [],
+        "x-access": "public"
+      }
+    },
+    "/v1/auth/owner-reset": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnerResetStart"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerResetStarted"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "security": [],
+        "x-access": "public"
+      }
+    },
+    "/v1/auth/owner-reset/confirm": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnerResetFinish"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "security": [],
+        "x-access": "public"
+      }
+    },
     "/v1/auth/password": {
       "post": {
         "requestBody": {
@@ -11359,6 +17373,98 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/TwoFactorFinish"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "security": [],
+        "x-access": "public"
+      }
+    },
+    "/v1/cast/codes": {
+      "post": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CastCode"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/cast/config": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CastConfig"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/cast/redeem": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CastRedeem"
               }
             }
           },
@@ -11884,6 +17990,342 @@
         "x-access": "withProfile"
       }
     },
+    "/v1/dvr": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DvrOverview"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/dvr/recordings": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DvrRecordingPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      },
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DvrRecordingBook"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DvrRecording"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/dvr/recordings/{id}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      },
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DvrRecording"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      },
+      "patch": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DvrRecordingChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DvrRecording"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/dvr/rules": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DvrRulePage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      },
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DvrRuleSave"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DvrRule"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/dvr/rules/{id}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      },
+      "patch": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DvrRuleSave"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DvrRule"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
     "/v1/events": {
       "get": {
         "responses": {
@@ -11912,6 +18354,33 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Facets"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/genres": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenreList"
                 }
               }
             },
@@ -12666,6 +19135,134 @@
         "x-access": "withProfile"
       }
     },
+    "/v1/items/{id}/annotations": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnnotationPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/items/{id}/annotations/{annotationId}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "annotationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      },
+      "put": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "annotationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnnotationBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Annotation"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
     "/v1/items/{id}/book": {
       "get": {
         "parameters": [
@@ -13222,6 +19819,43 @@
         "x-access": "withProfile"
       }
     },
+    "/v1/libraries/{id}/landing": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Home"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
     "/v1/lists": {
       "get": {
         "responses": {
@@ -13621,6 +20255,324 @@
         "x-access": "withProfile"
       }
     },
+    "/v1/live/channels": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveChannelPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/live/channels/{id}/state": {
+      "put": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LiveChannelMarks"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveChannelMarks"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/live/guide": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveGuide"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/live/now": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveOnNowPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/live/programmes/{id}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveProgrammeDetail"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/live/reminders": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveReminderOutPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/live/reminders/{id}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      },
+      "put": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/live/streams/{grant}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "grant",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "security": [],
+        "x-access": "public"
+      }
+    },
+    "/v1/mcp": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JSON"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MCPReply"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "signedIn"
+      }
+    },
     "/v1/me": {
       "get": {
         "responses": {
@@ -13722,6 +20674,36 @@
             }
           }
         ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "signedIn"
+      }
+    },
+    "/v1/me/leave": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeaveRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "204": {
             "description": "Done"
@@ -14915,7 +21897,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Restrictions"
+                "$ref": "#/components/schemas/ProfileRestrictionsEdit"
               }
             }
           },
@@ -15977,6 +22959,43 @@
         "x-access": "withProfile"
       }
     },
+    "/v1/setup/finish": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetupFinish"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoteSecurity"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
     "/v1/setup/owner": {
       "post": {
         "requestBody": {
@@ -15984,6 +23003,82 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/SetupOwnerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "security": [],
+        "x-access": "public"
+      }
+    },
+    "/v1/setup/portico": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetupPorticoRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupPorticoApproval"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "security": [],
+        "x-access": "public"
+      }
+    },
+    "/v1/setup/portico/finish": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetupPorticoFinish"
               }
             }
           },
