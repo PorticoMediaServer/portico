@@ -25,6 +25,7 @@ async function fixture(deferPerson = false, callerRole = 'owner') {
       async role(captured: any, role: any) {writes.push({kind: 'role', captured, role});}
       async limits(captured: any, limits: any) {writes.push({kind: 'limits', captured, limits});}
       async bulk(rows: any, action: any, access: any, operationId: any) {writes.push({kind: 'bulk', rows, action, access, operationId});}
+      async letBackIn(captured: any) {writes.push({kind: 'let-back-in', captured});}
       dispose() {}
     }},
     '../../../../../../packages/client-core/src/direct-account': {PeopleInvitationsClient: class {
@@ -202,4 +203,25 @@ test('administrator People lifetime permits member profile navigation but keeps 
   assert.equal(await f.source.enabled(person, false), false); f.source.beginInvitation();
   assert.equal(f.source.getSnapshot().invitationOpening, undefined); assert.equal(f.writes.length, 0);
   f.retire(); assert.equal(f.source.current(), false); f.source.dispose();
+});
+
+test('the owner lets back in someone who left from the row shown, and People is read again; anyone else, or an administrator, sends nothing (area 2 rule 39)', async () => {
+  const left = {...row, accountId: 'left-fixture', username: 'left', status: 'left'}, active = {...row, status: 'active'};
+  for (const role of ['owner', 'admin']) {
+    const f = await fixture(false, role);
+    const pending = f.source.load(); f.reads.at(-1).resolve(page([left, active])); await pending;
+    const reads = f.reads.length;
+    await f.source.letBackIn(active);
+    assert.equal(f.writes.length, 0, 'someone who has not left is not sent');
+    const done = f.source.letBackIn(left);
+    if (role === 'owner') {
+      await tick();
+      assert.deepEqual(f.writes, [{kind: 'let-back-in', captured: left}]);
+      assert.equal(f.reads.length, reads + 1, 'People is read again');
+      f.reads.at(-1).resolve(page([{...left, status: 'active'}, active]));
+    }
+    await done;
+    if (role === 'admin') assert.equal(f.writes.length, 0, 'an administrator sends nothing');
+    f.source.dispose();
+  }
 });
