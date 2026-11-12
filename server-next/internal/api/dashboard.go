@@ -98,6 +98,8 @@ type StreamTotals struct {
 	Streams    int `json:"streams"`
 	Away       int `json:"away"`
 	Converting int `json:"converting"`
+	// Problems are the streams whose player has waited ProblemAfter or more for its stream.
+	Problems int `json:"problems"`
 }
 
 // DashboardBackups says when the newest backup was made. Read is false while the backup
@@ -194,6 +196,9 @@ func (s *Server) dashboard(r *http.Request, _ None) (Dashboard, error) {
 		}
 		if v.Plan.Route == playback.RouteConverted {
 			out.NowPlaying.Converting++
+		}
+		if !v.BufferingSince.IsZero() && s.now().Sub(v.BufferingSince) >= ProblemAfter {
+			out.NowPlaying.Problems++
 		}
 	}
 	for _, v := range s.viewings.All() {
