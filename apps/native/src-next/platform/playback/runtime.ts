@@ -1584,7 +1584,8 @@ export class NativePlaybackRuntime {
       if (result === 'failed') this.playback.fail(before.intentId, serviceText('player.opt.unavailable'));
       else if (result === 'changed') this.applyOptions();
     }
-    if (typeof fact.effectiveRate === 'number') this.effectiveRate = fact.effectiveRate;
+    // A paused player reports rate 0: the speed shown and chosen stays the one it plays at.
+    if (typeof fact.effectiveRate === 'number' && fact.effectiveRate > 0) this.effectiveRate = fact.effectiveRate;
     if (Array.isArray(fact.supportedRates)) this.supportedRates = Object.freeze(fact.supportedRates.filter((rate: unknown): rate is number => typeof rate === 'number' && Number.isFinite(rate) && rate >= .5 && rate <= 3));
     if (fact.type === 'externalPlayback') this.followAirPlay(fact.active === true);
     else if (fact.type === 'progress' && this.airPlayActive) this.followAirPlay();
