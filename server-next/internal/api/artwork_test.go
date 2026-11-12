@@ -214,9 +214,11 @@ func TestPicturesFillInAfterTheDetails(t *testing.T) {
 	if job := sh.startJob(JobStart{Kind: "refresh_library", Target: JobTarget{Library: sh.library}}); job.State != "done" {
 		t.Fatalf("refresh: %+v", job)
 	}
+	// The pass stores the film's pictures one at a time, the poster first: wait for all three,
+	// not the first, before reading them.
 	var item Item
 	for range 500 {
-		if item = sh.detail(heat); item.Images["poster"] != "" {
+		if item = sh.detail(heat); item.Images["poster"] != "" && item.Images["backdrop"] != "" && item.Images["logo"] != "" {
 			break
 		}
 		time.Sleep(20 * time.Millisecond)
