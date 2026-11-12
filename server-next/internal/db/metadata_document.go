@@ -40,14 +40,15 @@ func (d *DB) MetadataDocument(ctx context.Context, publicID string) (MetadataDoc
 	}
 	defer tx.Rollback()
 	var id int64
+	var publication int
 	var title, sortTitle string
 	var original, summary, tagline, edition, release, rating, locked, local sql.NullString
 	var year sql.NullInt64
 	var community sql.NullFloat64
-	err = tx.QueryRowContext(ctx, `SELECT id, kind, revision, match_state, title, sort_title, original_title, summary, tagline, edition, year,
+	err = tx.QueryRowContext(ctx, `SELECT id, publication, kind, revision, match_state, title, sort_title, original_title, summary, tagline, edition, year,
 		release_date, content_rating, community_rating, locked_fields, local_fields, ifnull(extra ->> '$.episodeOrder', ''),
 		ifnull(extra ->> '$.episodeOffset', 0) FROM items WHERE public_id = ?`, publicID).Scan(
-		&id, &doc.Kind, &doc.Revision, &doc.Match, &title, &sortTitle, &original, &summary, &tagline, &edition, &year, &release, &rating,
+		&id, &publication, &doc.Kind, &doc.Revision, &doc.Match, &title, &sortTitle, &original, &summary, &tagline, &edition, &year, &release, &rating,
 		&community, &locked, &local, &doc.Numbering.Order, &doc.Numbering.Offset)
 	if errors.Is(err, sql.ErrNoRows) {
 		return doc, ErrNotFound
@@ -61,7 +62,7 @@ func (d *DB) MetadataDocument(ctx context.Context, publicID string) (MetadataDoc
 		}
 		return nil
 	}
-	doc.Fields = map[string]any{FieldTitle: title, FieldSortTitle: sortTitle, FieldOriginalTitle: text(original), FieldSummary: text(summary),
+	doc.Fields = map[string]any{FieldPublicationType: PublicationName(publication), FieldTitle: title, FieldSortTitle: sortTitle, FieldOriginalTitle: text(original), FieldSummary: text(summary),
 		FieldTagline: text(tagline), FieldEdition: text(edition), FieldReleaseDate: text(release), FieldContentRating: text(rating),
 		FieldYear: nil, FieldRating: nil}
 	if year.Valid {

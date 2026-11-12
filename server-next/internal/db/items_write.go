@@ -88,15 +88,19 @@ type ItemKey struct {
 // Descriptive fields are written when the item is first created. After that they belong to
 // metadata matching and to people's edits, and a rescan leaves them alone.
 type ImportItem struct {
-	Kind            ItemKind
-	Keys            []ItemKey
-	Parent          *ItemKey
-	Title           string
-	SortTitle       string // a sort title given by the files; empty means derive it from the title
-	Language        string
-	OriginalTitle   string
-	Year            int
-	ReleaseDate     string
+	Kind          ItemKind
+	Keys          []ItemKey
+	Parent        *ItemKey
+	Title         string
+	SortTitle     string // a sort title given by the files; empty means derive it from the title
+	Language      string
+	OriginalTitle string
+	Year          int
+	ReleaseDate   string
+	// Publication is a book's or comic's kind of publication, as its own file says it
+	// (PublicationBook, PublicationMagazine, PublicationNewspaper).
+	Publication     int
+	WordCount       *int
 	IndexNumber     *int
 	ParentIndex     *int
 	AddedAt         int64 // 0 means now
@@ -551,6 +555,9 @@ func (im *importer) importItem(it *ImportItem, stats *ImportStats) error {
 
 // describe gives an item its tags and credits.
 func (im *importer) describe(id int64, it *ImportItem) error {
+	if err := im.describeReading(id, it); err != nil {
+		return err
+	}
 	for _, tag := range it.Tags {
 		tagID, err := im.tagID(tag)
 		if err != nil {

@@ -1,3 +1,4 @@
+import {rebuiltPeriodicalGroups, rebuiltPeriodicalIssues} from './reading-periodicals-rebuilt.ts';
 import {validReadingCover} from './reading-cover.ts';
 import {serverPath} from './query/server-api.ts';
 import {rebuiltReadingContinue, rebuiltReadingPage, rebuiltReadingSeries} from './reading-lists-rebuilt.ts';
@@ -647,55 +648,12 @@ export class ReadingClient {
     return Object.freeze({row: {key: 'recent', items: page.items, ...(page.nextCursor ? {nextCursor: page.nextCursor} : {})}, newIssueCards: [], previewMarks: marks(page.items)});
   }
   async periodicalGroups(libraryId: string, publicationType: ReadingPeriodicalType, options: Readonly<{cursor?: string; limit?: number}> = {}, signal?: AbortSignal): Promise<ReadingPeriodicalGroupsPage> {
-    const limit = options.limit ?? 24;
-    if (!id(libraryId) || !periodicalType(publicationType) || !integer(limit, 1, 100) || options.cursor !== undefined && !seriesCursor(options.cursor)) fail('invalid_request');
-    const out = await this.json(query(routePath('get_reading_periodical_groups', {libraryId}), {...options, publicationType}), 'GET', undefined, signal, decodeGetReadingPeriodicalGroupsResponse, 2 << 20);
-    if (out.libraryId !== libraryId || out.publicationType !== publicationType || out.groups.length > limit || out.nextCursor !== undefined && (!seriesCursor(out.nextCursor) || out.groups.length < 1)) fail('invalid_document');
-    const groups = new Set<string>(), latest = new Set<string>();
-    for (const group of out.groups) {
-      if (!seriesID(group.id) || groups.has(group.id) || typeof group.name !== 'string' || !group.name.trim() || group.name.length > 4096 || !integer(group.issueCount, 1, Number.MAX_SAFE_INTEGER) || latest.has(group.latest.item.id)) fail('invalid_document');
-      validateIssue(group.latest, libraryId, publicationType, group.id);
-      groups.add(group.id); latest.add(group.latest.item.id);
-    }
-    return out;
+    if (!id(libraryId) || !periodicalType(publicationType) || !integer(options.limit ?? 24, 1, 100) || options.cursor !== undefined && options.cursor.length > 4096) fail('invalid_request');
+    return rebuiltPeriodicalGroups(this.#rebuilt, libraryId, publicationType, options, signal);
   }
-  /** Issues in the archive's actual date order: `newest` first (the default) or
-   * `oldest` first. The order is bound into the cursor, so a cursor continues
-   * only the order it came from. */
-  async periodicalIssues(libraryId: string, seriesId: string, publicationType: ReadingPeriodicalType, options: Readonly<{cursor?: string; limit?: number; issueDate?: string; year?: string; month?: string; order?: ReadingPeriodicalOrder}> = {}, signal?: AbortSignal): Promise<ReadingPeriodicalIssuesPage & {yearChoices: readonly ReadingYearChoice[]; dayChoices: readonly ReadingDayChoice[]; calendarMonth?: string}> {
-    const limit = options.limit ?? 50;
-    if (options.order !== undefined && options.order !== 'newest' && options.order !== 'oldest') fail('invalid_request');
-    const oldest = options.order === 'oldest';
-    if (options.month !== undefined && (publicationType !== 'newspaper' || options.month.length !== 7 || !issueDate(options.month, 'magazine') || options.year !== undefined && !options.month.startsWith(options.year + '-') || options.issueDate !== undefined && !options.issueDate.startsWith(options.month + '-'))) fail('invalid_request');
-    if (options.year !== undefined && (!/^[0-9]{4}$/.test(options.year) || !issueDate(options.year + '-01', 'magazine') || options.issueDate !== undefined && !options.issueDate.startsWith(options.year + '-')) || options.issueDate !== undefined && !issueDate(options.issueDate, publicationType) || !id(libraryId) || !seriesID(seriesId) || !periodicalType(publicationType) || !integer(limit, 1, 100) || options.cursor !== undefined && !seriesCursor(options.cursor)) fail('invalid_request');
-    const out = await this.json(query(routePath('get_reading_periodical_issues', {libraryId, seriesId}), {...options, publicationType}), 'GET', undefined, signal, decodeGetReadingPeriodicalIssuesResponse, 2 << 20);
-    if ((options.issueDate === undefined ? 'issueDate' in out : !('issueDate' in out) || out.issueDate !== options.issueDate) || out.libraryId !== libraryId || out.seriesId !== seriesId || out.publicationType !== publicationType || out.items.length > limit || out.nextCursor !== undefined && (!seriesCursor(out.nextCursor) || out.items.length < 1)) fail('invalid_document');
-    if (options.year === undefined ? 'year' in out : !('year' in out) || out.year !== options.year) fail('invalid_document');
-    if (options.month === undefined ? 'month' in out : !('month' in out) || out.month !== options.month) fail('invalid_document');
-    const dayChoices: ReadingDayChoice[] = [];
-    const days = 'days' in out ? out.days : [];
-    if (!Array.isArray(days) || days.length > 31 || options.month === undefined && days.length !== 0) fail('invalid_document');
-    for (const day of days) {
-      if (typeof day !== 'object' || day === null || typeof day.date !== 'string' || !issueDate(day.date, 'newspaper') || !day.date.startsWith(options.month + '-') || !integer(day.issueCount, 1, Number.MAX_SAFE_INTEGER) || dayChoices.length && dayChoices[dayChoices.length - 1].value >= day.date) fail('invalid_document');
-      dayChoices.push({value: day.date, count: day.issueCount});
-    }
-    const yearChoices: ReadingYearChoice[] = [];
-    const buckets = 'years' in out ? out.years : [];
-    if (!Array.isArray(buckets) || buckets.length > 9999) fail('invalid_document');
-    for (const bucket of buckets) {
-      if (typeof bucket !== 'object' || bucket === null || typeof bucket.year !== 'string' || !/^[0-9]{4}$/.test(bucket.year) || !issueDate(bucket.year + '-01', 'magazine') || !integer(bucket.issueCount, 1, Number.MAX_SAFE_INTEGER) || yearChoices.length && yearChoices[yearChoices.length - 1].value <= bucket.year) fail('invalid_document');
-      yearChoices.push({value: bucket.year, count: bucket.issueCount});
-    }
-    const seen = new Set<string>(); let previous: string | undefined;
-    for (const entry of out.items) {
-      validateIssue(entry, libraryId, publicationType, seriesId);
-      if (options.month !== undefined && !entry.issueDate.startsWith(options.month + '-')) fail('invalid_document');
-      if (options.year !== undefined && !entry.issueDate.startsWith(options.year + '-')) fail('invalid_document');
-      if (options.issueDate !== undefined && entry.issueDate !== options.issueDate) fail('invalid_document');
-      if (seen.has(entry.item.id) || previous !== undefined && (oldest ? previous > entry.issueDate : previous < entry.issueDate)) fail('invalid_document');
-      seen.add(entry.item.id); previous = entry.issueDate;
-    }
-    return {...out, yearChoices, dayChoices, calendarMonth: options.month};
+  async periodicalIssues(libraryId: string, seriesId: string, publicationType: ReadingPeriodicalType, options: Readonly<{cursor?: string; limit?: number; issueDate?: string; year?: string; month?: string; order?: ReadingPeriodicalOrder}> = {}, signal?: AbortSignal) {
+    if (!id(libraryId) || !id(seriesId) || !periodicalType(publicationType) || !integer(options.limit ?? 50, 1, 100) || options.order !== undefined && !['newest', 'oldest'].includes(options.order)) fail('invalid_request');
+    return rebuiltPeriodicalIssues(this.#rebuilt, libraryId, seriesId, publicationType, options, signal);
   }
   /** A series' volumes, in volume order. */
   async series(libraryId: string, seriesId: string, options: Readonly<{cursor?: string; limit?: number}> = {}, signal?: AbortSignal): Promise<ReadingSeriesPage & {overview?: ReadingSeriesOverview}> {
@@ -732,7 +690,7 @@ export class ReadingClient {
     if (!engineFormat(format)) fail('unsupported_format');
     const manifest = frozen({
       sessionId: book.version, itemId: request.itemId, sourceId: book.version, revision: book.fingerprint, format, size: book.size,
-      metadata: {...(typeof item.title === 'string' ? {title: item.title} : {}), ...(book.direction === 'rtl' ? {direction: 'rtl'} : {})},
+      metadata: {...(typeof item.wordCount === 'number' ? {wordCount: item.wordCount, estimatedSeconds: Math.ceil(item.wordCount * 60 / 250)} : {}), ...(typeof item.title === 'string' ? {title: item.title} : {}), ...(book.direction === 'rtl' ? {direction: 'rtl'} : {})},
       ...(format === 'epub' ? {resources: (book.parts ?? []).map(p => ({path: p.path, mime: p.type, size: p.size})), spine: [...(book.spine ?? [])],
         ...(book.contents?.length ? {contents: book.contents.slice(0, 512).map(c => ({title: c.title, section: c.part, depth: c.depth, ...(c.fragment ? {fragment: c.fragment} : {})}))} : {})} : {}),
       ...(comicFormat(format) ? {pageNames: [...(book.pages ?? [])]} : {}),
@@ -768,7 +726,7 @@ export const READING_SESSION_EXPIRED = 'reading_session_expired';
 const addressEnded = (error: unknown): error is ReadingError => error instanceof ReadingError && (error.status === 404 || error.status === 410);
 type BookAccess = Readonly<{mediaUrl: string; saveUrl?: string}>;
 /** Annotations are read whole: a book holds at most 5,000 for a profile, 500 to a page. */
-const maxAnnotationPages = 11;
+const maxAnnotationPages = 100;
 
 /** One open book. Nothing is open on the server: the book's parts, pages and file are read
  * through the media address the book route gave, which carries its own permission. Byte
@@ -867,21 +825,39 @@ export class ReadingSession {
       return bytes(r, entry.size, active, check, entry.size);
     });
   };
-  /** The book's own file. The page holds it whole before saving it, so it is limited to 64 MB here. */
-  saveFile = async (operationId: string, signal?: AbortSignal): Promise<Uint8Array> => {
+  /** Save without holding the whole file in memory. The platform supplies its private file sink. */
+  saveFileTo = async (operationId: string, write: (chunk: Uint8Array) => Promise<void>, signal?: AbortSignal): Promise<void> => {
     this.#check();
     if (this.manifest.canSaveFile !== true) fail('not_permitted');
     if (!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(operationId)) fail('invalid_request');
-    if (this.manifest.size > 64 << 20) fail('response_size');
     if (this.#savingFile) fail('request_in_progress');
     this.#savingFile = true;
     try {
-      return await this.#binary(a => a.saveUrl ?? fail('not_permitted'), {method: 'GET'}, signal, async (r, active, check) => {
+      await this.#binary(a => a.saveUrl ?? fail('not_permitted'), {method: 'GET'}, signal, async (r, active, check) => {
         if (r.status !== 200) return this.#client.error(r, active, check);
-        if (!(r.headers.get('Content-Disposition') ?? '').startsWith('attachment')) fail('source_changed');
-        return bytes(r, 64 << 20, active, check, this.manifest.size);
+        if (!(r.headers.get('Content-Disposition') ?? '').startsWith('attachment') || !r.body) fail('source_changed');
+        const reader = r.body.getReader(); let size = 0;
+        const abort = () => {void reader.cancel().catch(() => {});};
+        active.addEventListener('abort', abort, {once: true});
+        try {
+          for (;;) {
+            check(); const next = await reader.read(); check();
+            if (next.done) break;
+            size += next.value.byteLength; if (size > this.manifest.size) fail('response_size');
+            await write(next.value); check();
+          }
+          if (size !== this.manifest.size) fail('response_size');
+        } finally { active.removeEventListener('abort', abort); void reader.cancel().catch(() => {}); reader.releaseLock(); }
       });
     } finally { this.#savingFile = false; }
+  };
+  /** The book's own file, of any size; large-file platform saves should use saveFileTo. */
+  saveFile = async (operationId: string, signal?: AbortSignal): Promise<Uint8Array> => {
+    const chunks: Uint8Array[] = [];
+    await this.saveFileTo(operationId, async chunk => {chunks.push(chunk.slice());}, signal);
+    const result = new Uint8Array(this.manifest.size); let at = 0;
+    for (const chunk of chunks) {result.set(chunk, at); at += chunk.byteLength;}
+    return result;
   };
   page = async (index: number, options: Readonly<{width: number; signal?: AbortSignal}>): Promise<ReadingPage> => {
     if (!comicFormat(this.manifest.format)) fail('invalid_format');
@@ -918,7 +894,7 @@ export class ReadingSession {
       return {progress: {location: {format, progression: place.progression, ...(format === 'epub' ? {cfi: 'epubcfi(/6/2)'} : {pageIndex: 0})}, observedAt,
         revision: 1, sourceId: this.manifest.sourceId, sourceRevision: place.fingerprint ?? '', stale: true}};
     }
-    return {progress: {location, observedAt, revision: 1, sourceId: this.manifest.sourceId, sourceRevision: this.manifest.revision, stale: false}};
+    return {progress: {location, observedAt, revision: 1, sourceId: this.manifest.sourceId, sourceRevision: this.manifest.revision, stale: !exact}};
   };
   /** Saves the place; the later place wins on the server. Reaching the last page, or the very
    * end of the text, marks the book read there too. saved:false means a later place, saved on
@@ -935,7 +911,7 @@ export class ReadingSession {
     return {saved: true, progress: {location, observedAt: Date.now(), revision: expectedRevision + 1, sourceId: this.manifest.sourceId, sourceRevision: this.manifest.revision, stale: false}};
   };
   /** The profile's bookmarks, highlights and notes made in this file. Those made in an earlier
-   * copy of the book are kept on the server and not shown here yet. */
+   * copy of the book carry earlierCopy so the screen can try their words or list them separately. */
   annotations = async (cursor = '', _revision?: number, signal?: AbortSignal): Promise<ReadingAnnotationsPage> => {
     this.#check();
     if (cursor) return Object.freeze({sourceId: this.manifest.sourceId, sourceRevision: this.manifest.revision, revision: this.#annotationRevision, entries: [], nextCursor: ''});
@@ -946,12 +922,13 @@ export class ReadingSession {
       this.#check();
       if (!isRecord(raw) || !Array.isArray(raw.items)) fail('invalid_document');
       for (const row of raw.items) {
-        if (!isRecord(row) || row.madeOn !== this.manifest.revision || typeof row.id !== 'string' || typeof row.location !== 'string') continue;
+        if (!isRecord(row) || typeof row.id !== 'string' || typeof row.location !== 'string') continue;
         try {
           const location = JSON.parse(row.location) as ReadingLocation;
-          validateLocation(location, this.manifest);
+          const earlierCopy = row.madeOn !== this.manifest.revision;
+          if (!earlierCopy) validateLocation(location, this.manifest);
           const extra = isRecord(row.extra) ? row.extra : {};
-          entries.push(Object.freeze({id: row.id, kind: row.kind === 'highlight' ? 'highlight' : 'bookmark', location,
+          entries.push(Object.freeze({...(earlierCopy ? {earlierCopy: true as const} : {}), id: row.id, kind: row.kind === 'highlight' ? 'highlight' : 'bookmark', location,
             text: typeof row.text === 'string' ? row.text : '', note: typeof row.note === 'string' ? row.note : '',
             colour: (typeof row.color === 'string' ? row.color : '') as '' | 'yellow' | 'green' | 'blue' | 'pink',
             ...(Array.isArray(extra.rects) ? {rects: Object.freeze(extra.rects as {x: number; y: number; width: number; height: number}[])} : {}),
@@ -967,6 +944,7 @@ export class ReadingSession {
   /** Adds, changes or deletes one. The app makes the id, so sending it again changes nothing. */
   mutateAnnotation = async (request: ReadingAnnotationMutation, signal?: AbortSignal): Promise<Readonly<{revision: number}>> => {
     this.#check();
+    if (request.operation === 'upsert' && 'earlierCopy' in request && request.earlierCopy) fail('invalid_request');
     const captured = captureReadingAnnotationMutation(request, location => validateLocation(location, this.manifest));
     const path = serverPath('GET /v1/items/{id}/annotations', {id: this.manifest.itemId}) + '/' + encodeURIComponent(captured.id);
     if (captured.operation === 'delete') {

@@ -19,7 +19,7 @@ export class ReadingAnnotationService {
   private accept(page: ReadingAnnotationsPage, append: boolean) {
     if (append && page.revision !== this.state.revision) throw new Error('annotation_revision_changed');
     const entries = append ? [...this.state.entries, ...page.entries] : [...page.entries];
-    if (entries.length > 256 || new Set(entries.map(entry => entry.id)).size !== entries.length) throw new Error('invalid_reading_annotations');
+    if (entries.length > 5000 || new Set(entries.map(entry => entry.id)).size !== entries.length) throw new Error('invalid_reading_annotations');
     this.publish({entries: Object.freeze(entries), revision: page.revision, nextCursor: page.nextCursor, loading: false, saving: false});
   }
   load = async (more = false): Promise<void> => {

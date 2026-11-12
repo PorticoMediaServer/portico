@@ -25,15 +25,16 @@ const (
 // list the edit sets is locked, so no scan or refresh changes it afterwards; Unlock lets the
 // provider's value return at the next refresh.
 type MetadataEdit struct {
-	Title         *string
-	SortTitle     *string
-	OriginalTitle *string
-	Summary       *string
-	Tagline       *string
-	Year          *int
-	ReleaseDate   *string // YYYY-MM-DD, or "" for none
-	ContentRating *string
-	Edition       *string
+	Title           *string
+	SortTitle       *string
+	OriginalTitle   *string
+	Summary         *string
+	Tagline         *string
+	Year            *int
+	ReleaseDate     *string // YYYY-MM-DD, or "" for none
+	ContentRating   *string
+	PublicationType *string
+	Edition         *string
 	// Lists replace the whole list of one kind and lock it: genres, studios, networks,
 	// countries. Labels are the owner's own: no provider or scan changes them, so they are
 	// not locked.
@@ -76,7 +77,7 @@ var editLists = []struct {
 }
 
 // LockableFields are the names a field, list or the match is locked by.
-var LockableFields = []string{FieldTitle, FieldSortTitle, FieldOriginalTitle, FieldSummary, FieldTagline, FieldEdition, FieldYear,
+var LockableFields = []string{FieldPublicationType, FieldTitle, FieldSortTitle, FieldOriginalTitle, FieldSummary, FieldTagline, FieldEdition, FieldYear,
 	FieldReleaseDate, FieldContentRating, FieldRating, FieldGenres, FieldStudios, FieldNetworks, FieldCountries, FieldCredits, FieldMatch}
 
 // MetadataLocks says which of a title's fields a person locked, where each value that is not
@@ -159,6 +160,13 @@ func (d *DB) EditMetadata(ctx context.Context, publicID string, revision int64, 
 	}
 	if edit.Title != nil && strings.TrimSpace(*edit.Title) == "" {
 		return 0, invalid("%s: a title cannot be empty", FieldTitle)
+	}
+	publication, publicationOK := 0, true
+	if edit.PublicationType != nil {
+		publication, publicationOK = ParsePublication(*edit.PublicationType)
+	}
+	if !publicationOK {
+		return 0, invalid("publicationType: book, magazine or newspaper")
 	}
 	if edit.Year != nil && (*edit.Year < 0 || *edit.Year > 9999) {
 		return 0, invalid("%s: 0 to 9999", FieldYear)
@@ -275,6 +283,11 @@ func (d *DB) EditMetadata(ctx context.Context, publicID string, revision int64, 
 			}
 			sets += ", sort_title = ?"
 			args = append(args, sorttext.Key(title, explicit, language.String))
+		}
+		if edit.PublicationType != nil {
+			locks[FieldPublicationType], sources[FieldPublicationType] = true, SourceEdit
+			sets += ", publication = ?"
+			args = append(args, publication)
 		}
 		if edit.Year != nil {
 			locks[FieldYear], sources[FieldYear] = true, SourceEdit

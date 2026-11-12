@@ -22,6 +22,8 @@ type Item struct {
 	Title           string
 	Year            int
 	ReleaseDate     string
+	Publication     int
+	WordCount       *int
 	AddedAt         int64
 	DurationMS      int64
 	IndexNumber     *int
@@ -88,18 +90,21 @@ type ItemQuery struct {
 	Parent     string
 	Person     string
 	PersonRole CreditRole // with Person: only the titles where the person has this role
-	Tag        string
-	List       string // a playlist or collection; its own order is read by ListEntries
-	Collection string // a library's collection: the titles it holds
-	Series     string // a series of books, audiobooks or comics: its volumes
-	Genre      string // a genre by name, as people type it
-	Kinds      []ItemKind
-	YearFrom   int
-	YearTo     int
-	Watched    *bool
-	Favorite   *bool
-	InList     *bool
-	Resolution string // "sd", "720p", "1080p" or "4k"
+	// Publication keeps one kind of publication (PublicationMagazine...): its issues, and the
+	// series that hold them.
+	Publication *int
+	Tag         string
+	List        string // a playlist or collection; its own order is read by ListEntries
+	Collection  string // a library's collection: the titles it holds
+	Series      string // a series of books, audiobooks or comics: its volumes
+	Genre       string // a genre by name, as people type it
+	Kinds       []ItemKind
+	YearFrom    int
+	YearTo      int
+	Watched     *bool
+	Favorite    *bool
+	InList      *bool
+	Resolution  string // "sd", "720p", "1080p" or "4k"
 	// Conditions are further filters, each of which can take several values. See Condition.
 	Conditions []Condition
 	Sort       string
@@ -239,7 +244,7 @@ func (c *listCursor) fits(spec sortSpec) bool {
 	return len(c.Values) == len(spec.columns)
 }
 
-const itemColumns = `i.id, i.public_id, i.kind, i.title, i.sort_title, ifnull(i.year, 0), ifnull(i.release_date, ''), i.added_at,
+const itemColumns = `i.id, i.public_id, i.kind, i.title, i.sort_title, ifnull(i.year, 0), ifnull(i.release_date, ''), i.publication, i.word_count, i.added_at,
 	ifnull(i.duration_ms, 0), i.index_number, i.parent_index, i.child_count, ifnull(i.content_rating, ''),
 	ifnull(i.community_rating, 0), ifnull(i.parent_id, 0), ifnull(i.root_id, 0),
 	ifnull((SELECT public_id FROM items WHERE id = i.parent_id), ''), ifnull((SELECT public_id FROM items WHERE id = i.root_id), ''),
@@ -251,7 +256,7 @@ const itemFrom = ` FROM items i` + stateJoin
 
 // dest is where a row of itemColumns scans to.
 func (it *Item) dest() []any {
-	return append([]any{&it.ID, &it.PublicID, &it.Kind, &it.Title, &it.sortTitle, &it.Year, &it.ReleaseDate, &it.AddedAt,
+	return append([]any{&it.ID, &it.PublicID, &it.Kind, &it.Title, &it.sortTitle, &it.Year, &it.ReleaseDate, &it.Publication, &it.WordCount, &it.AddedAt,
 		&it.DurationMS, &it.IndexNumber, &it.ParentIndex, &it.ChildCount, &it.ContentRating, &it.CommunityRating,
 		&it.ParentID, &it.RootID, &it.ParentPublicID, &it.RootPublicID, &it.LibraryID}, it.State.dest()...)
 }
@@ -715,6 +720,7 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 			` UNION ALL SELECT id FROM items WHERE parent_id = ` + itoa(series)
 		scoped = true
 	}
+	q.publicationFilter(w, acc)
 	if q.Tag != "" || q.Genre != "" {
 		var tag int64
 		var uses int

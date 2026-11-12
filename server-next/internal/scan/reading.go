@@ -63,7 +63,11 @@ func (r *run) bookUnits(f *folder) []unit {
 		if isbn := d["isbn"]; isbn != "" {
 			item.ExternalIDs = []db.ExternalID{{Provider: "isbn", ID: isbn}}
 		}
+		if n, err := strconv.Atoi(d["word_count"]); err == nil {
+			item.WordCount = &n
+		}
 		item.Reread = r.rereads(file)
+		item.Publication, item.ReleaseDate = issue(d, name)
 		u := unit{files: []*found{file}}
 		if series := d["series"]; series != "" {
 			seriesKey := db.ItemKey{Kind: db.KeyName, Key: "series|" + fold(series)}
@@ -239,6 +243,12 @@ func (r *run) embedded(file *found) (d details, read bool) {
 			return d, false
 		}
 		more, _ = localmetadata.EPUBPackage(raw)
+		if more == nil {
+			more = map[string]string{}
+		}
+		if words, err := reading.EPUBWords(f, f.Size()); err == nil {
+			more["word_count"] = strconv.Itoa(words)
+		}
 	} else {
 		raw, err := reading.ComicInfo(f, f.Size())
 		if err != nil {
@@ -266,4 +276,36 @@ func comicDetails(item *db.ImportItem, d details) {
 	item.Year, item.Summary, item.Tags, item.Credits = d.year(), d["description"], genreTags(d), credits(db.RoleAuthor, writers)
 	given(item, fieldIf(d["album"] != "", db.FieldTitle), fieldIf(d.year() > 0, db.FieldYear), fieldIf(d["description"] != "", db.FieldSummary),
 		fieldIf(len(item.Tags) > 0, db.FieldGenres), fieldIf(len(writers) > 0, db.FieldCredits))
+	item.Publication, item.ReleaseDate = issue(d, item.Title)
+}
+
+var (
+	fullDate  = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}`)
+	monthDate = regexp.MustCompile(`^\d{4}-\d{2}$`)
+	// A date in a periodical's file name: "The Economist 2026-11-07", "Wired 2026-03".
+	namedDay   = regexp.MustCompile(`(?:^|[^\d])(\d{4}-\d{2}-\d{2})(?:[^\d]|$)`)
+	namedMonth = regexp.MustCompile(`(?:^|[^\d])(\d{4}-\d{2})(?:[^\d-]|$)`)
+)
+
+// issue is a book's or comic's publication, as its own file names it, and its date: the file's
+// own (a whole date, or a year and month for a magazine), or for a magazine or newspaper a date in
+// its name. A newspaper's issue is a day; a magazine's may be a month.
+func issue(d details, name string) (int, string) {
+	publication, _ := db.ParsePublication(d["publication"])
+	date := d["date"]
+	switch {
+	case fullDate.MatchString(date):
+		return publication, date[:10]
+	case publication == db.PublicationMagazine && monthDate.MatchString(date):
+		return publication, date
+	case publication == db.PublicationBook:
+		return publication, ""
+	}
+	if m := namedDay.FindStringSubmatch(name); m != nil {
+		return publication, m[1]
+	}
+	if m := namedMonth.FindStringSubmatch(name); m != nil && publication == db.PublicationMagazine {
+		return publication, m[1]
+	}
+	return publication, ""
 }

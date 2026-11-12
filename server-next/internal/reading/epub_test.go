@@ -19,7 +19,8 @@ func TestAnEPUB3WithItsRequiredModifiedDateReads(t *testing.T) {
 			<metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="id">urn:uuid:1</dc:identifier><dc:title>A Book</dc:title>
 			<meta property="dcterms:modified">2026-11-12T00:00:00Z</meta><meta name="cover" content="c1"/></metadata>
 			<manifest><item id="c1" href="c1.xhtml" media-type="application/xhtml+xml"/></manifest><spine><itemref idref="c1"/></spine></package>`},
-		{"OEBPS/c1.xhtml", `<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Words.</p></body></html>`},
+		{"OEBPS/c1.xhtml", `<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Not counted</title><style>hidden words</style></head>` +
+			`<body><p>Two <b>visible</b> words.</p><script>also hidden</script></body></html>`},
 	} {
 		w, err := zw.Create(e[0])
 		if err != nil {
@@ -35,6 +36,9 @@ func TestAnEPUB3WithItsRequiredModifiedDateReads(t *testing.T) {
 	book, err := readEPUB(a)
 	if err != nil {
 		t.Fatalf("a valid EPUB 3 is refused: %v", err)
+	}
+	if n, err := EPUBWords(bytes.NewReader(buf.Bytes()), int64(buf.Len())); err != nil || n != 3 {
+		t.Fatalf("word count %d: %v", n, err)
 	}
 	if len(book.spine) != 1 || book.spine[0] != "OEBPS/c1.xhtml" {
 		t.Fatalf("spine %v", book.spine)

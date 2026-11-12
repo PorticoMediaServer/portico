@@ -14,12 +14,14 @@ const client = (answer: (url: URL) => unknown) => {
 const issue = (date: string, id: string) => ({issueDate: date, item: {...item, id, format: 'epub', publicationType: {value: 'magazine', source: 'owner'}, series: {id: 'g'.repeat(43), name: 'Monthly', source: 'owner'}}});
 
 test('Periodical issues ask for oldest first and check that order', async () => {
-  const page = (items: unknown[]) => ({libraryId: 'library', seriesId: 'g'.repeat(43), publicationType: 'magazine', order: 'oldest', items, years: [], days: []});
-  const {calls, reading} = client(() => page([issue('1930-01', 'a'), issue('1930-02', 'b')]));
+  const page = (items: ReturnType<typeof issue>[]) => (url: URL) => url.pathname === '/v1/facets' ? {facet: 'issueYear', values: []}
+    : url.pathname.startsWith('/v1/items/') ? {id: 'g'.repeat(43), title: 'Monthly'}
+    : {items: items.map(entry => ({...entry.item, kind: 'book', releaseDate: entry.issueDate, images: {}, state: {watched: false}}))};
+  const {calls, reading} = client(page([issue('1930-01', 'a'), issue('1930-02', 'b')]));
   const out = await reading.periodicalIssues('library', 'g'.repeat(43), 'magazine', {order: 'oldest'});
-  assert.equal(calls[0].searchParams.get('order'), 'oldest');
+  assert.equal(calls[0].searchParams.get('order'), 'asc');
   assert.deepEqual(out.items.map(entry => entry.item.id), ['a', 'b']);
-  const reversed = client(() => page([issue('1930-02', 'b'), issue('1930-01', 'a')])).reading;
+  const reversed = client(page([issue('1930-02', 'b'), issue('1930-01', 'a')])).reading;
   await assert.rejects(reversed.periodicalIssues('library', 'g'.repeat(43), 'magazine', {order: 'oldest'}), coded('invalid_document'));
   await assert.rejects(reading.periodicalIssues('library', 'g'.repeat(43), 'magazine', {order: 'sideways' as 'oldest'}), coded('invalid_request'));
 });

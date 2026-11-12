@@ -20,6 +20,10 @@ const (
 	FacetDecade     = "decade" // the same as FacetYear
 	FacetRating     = "contentRating"
 	FacetResolution = "resolution"
+	// The years and the days a series' issues came out in, by their own dates: a magazine's
+	// years and a newspaper's calendar (with released= for one month).
+	FacetIssueYear = "issueYear"
+	FacetIssueDay  = "issueDay"
 	// FacetLetter is the letter rail: the first letter of every title in the list, in title
 	// order, "#" for digits and symbols, each with how many titles begin with it. A letter's
 	// position in the list sorted by title is the sum of the counts before it.
@@ -160,6 +164,10 @@ func (d *DB) Facets(ctx context.Context, v Viewer, q ItemQuery, facet string) ([
 			CASE class WHEN 4 THEN '4K' WHEN 3 THEN '1080p' WHEN 2 THEN '720p' ELSE 'SD' END, count(*) FROM (
 			SELECT DISTINCT i.id, %s AS class FROM %s JOIN media m ON m.item_id = i.id AND m.width IS NOT NULL WHERE %s)
 			GROUP BY class ORDER BY class DESC`, resolutionSQL, from, where)
+	case FacetIssueYear, FacetIssueDay:
+		width := map[string]int{FacetIssueYear: 4, FacetIssueDay: 10}[facet]
+		query = fmt.Sprintf(`SELECT substr(i.release_date, 1, %d), substr(i.release_date, 1, %d), count(*) FROM %s
+			WHERE %s AND length(i.release_date) >= %d GROUP BY 1 ORDER BY 1 DESC`, width, width, from, where, width)
 	default:
 		return nil, invalid("This list has no choices to count for that.")
 	}
