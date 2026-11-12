@@ -97,15 +97,23 @@ func slotWhole(path string) bool {
 // carryTail completes the held last slot of a stream's folder: once the converter has cut
 // the folded tail into a file of its own, those bytes are added to the end of the last slot
 // (MPEG-TS and fragmented MP4 both join that way) and the tail file goes. A converter that
-// finished the title silently without cutting a tail (exited) leaves the slot whole as it
-// is. Any other end leaves it held, so the next request starts the converter again.
-func carryTail(dir string, nameAt func(int) string, duration float64, exited bool) error {
+// finished the title (exited cleanly) without cutting a tail leaves the slot whole as it is:
+// the picture ended before the last mark. Any other end leaves it held for the next run.
+//
+// The mark is written before the joined slot takes the old one's place, and the tail goes
+// last, so a stop at any point never adds the tail twice: a joined slot always has its mark,
+// and a tail left beside a whole slot is only removed.
+func carryTail(dir string, nameAt func(int) string, duration float64, finished bool) error {
 	count := hlsSegmentCount(duration)
 	if count == 0 || hlsWrittenSlots(duration) <= count {
 		return nil
 	}
 	last, tail := filepath.Join(dir, nameAt(count-1)), filepath.Join(dir, nameAt(count))
-	if !segmentReady(last) || slotWhole(last) {
+	if !segmentReady(last) {
+		return nil
+	}
+	if slotWhole(last) {
+		_ = os.Remove(tail)
 		return nil
 	}
 	if segmentReady(tail) {
@@ -117,14 +125,20 @@ func carryTail(dir string, nameAt func(int) string, duration float64, exited boo
 		if err != nil {
 			return err
 		}
-		if err := os.WriteFile(last+".tmp", append(head, rest...), 0600); err != nil {
+		joined := append(head, rest...)
+		if err := os.WriteFile(last+".tmp", joined, 0600); err != nil {
+			return err
+		}
+		if err := os.WriteFile(last+".whole", []byte(strconv.Itoa(len(joined))), 0600); err != nil {
 			return err
 		}
 		if err := os.Rename(last+".tmp", last); err != nil {
 			return err
 		}
 		_ = os.Remove(tail)
-	} else if !exited {
+		return nil
+	}
+	if !finished {
 		return nil
 	}
 	info, err := os.Stat(last)

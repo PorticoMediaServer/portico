@@ -355,7 +355,6 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 			})
 			releaseRemote()
 			if err == nil {
-				// A clean run that said something (a source that stopped early) is not silent.
 				return nil, sanitizeConverterOutput(said.String(), path, h.root, h.memoryRoot)
 			}
 			return err, windowConverterDiagnostic(err, path, h.root, h.memoryRoot)
@@ -589,6 +588,11 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 	if err := childprocess.CheckOwnedIO(ctx); err != nil {
 		return
 	}
+	// A clean exit is the end of the title, whatever the converter printed on the way (a
+	// damaged frame, a timestamp complaint), unless its remote source failed under it: then
+	// it is a converter that lost its source, started again a few times like any other.
+	cutShort := e == nil && remoteInput != nil && sourceLost(remoteInput)
+	finished := e == nil && !throttled() && ctx.Err() == nil && !cutShort
 	// Record the final edge here as well as on the watcher's tick: a window that
 	// finishes inside one tick would otherwise publish no progress at all.
 	produced := from - 1
@@ -618,10 +622,10 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 				produced = highestProducedSegment(dir, from)
 			}
 		}
-		// Only a converter that finished silently has reached the end of the title: its last
-		// slot is whole even without a tail. Any other end leaves it held for a restart.
-		silent := e == nil && !throttled() && ctx.Err() == nil && strings.TrimSpace(diagnostic) == ""
-		if err := carryTail(dir, gridSlotName(delivery), duration, silent); err != nil {
+		// A converter that finished has written the title's end: its last slot is whole even
+		// without a tail (the picture ended before the last mark). Any other end leaves it
+		// held for the next run.
+		if err := carryTail(dir, gridSlotName(delivery), duration, finished); err != nil {
 			h.outputPublicationFailed(ctx, id, delivery, position, err)
 			return
 		}
@@ -631,10 +635,17 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 	if w := h.windows[id]; w == owned && produced > w.produced {
 		w.produced = produced
 	}
-	if s := h.streams[id]; s != nil && h.windows[id] == owned && e == nil && (timeline == nil || produced >= timeline.count()-1) {
+	if s := h.streams[id]; s != nil && h.windows[id] == owned && e == nil && !cutShort && (timeline == nil || produced >= timeline.count()-1) {
 		s.output = "complete"
 	}
 	h.mu.Unlock()
+	if cutShort && !throttled() && ctx.Err() == nil {
+		if h.died(id, from, owned) {
+			log.Printf("Conversion %s: the remote source stopped sending; it starts again on the next request", id)
+			return
+		}
+		h.failedWith(ctx, id, FailureSourceUnreadable, diagnostic)
+	}
 }
 
 // watchWindow enforces the throttle and published progress. Conversion that has
