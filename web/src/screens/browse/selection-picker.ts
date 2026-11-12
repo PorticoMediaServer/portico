@@ -1,5 +1,5 @@
 import {selectionQuerySelector} from '@core/selection-model/index.ts';
-import {fetchDestinationAuthority, parseHomeDestinationPicker, readQueryDestinationPickerResponse} from '@core/home-selection/destination-picker.ts';
+import {destinationFence} from '@core/home-selection/destination-picker.ts';
 import {DetailService} from '@core/detail.ts';
 import {HomeSelectionDestinations} from '@core/home-selection/destinations.ts';
 import type {HomeSelectionPicker} from '@core/home-selection/types.ts';
@@ -53,14 +53,10 @@ export class LibraryPickerProducer {
     if (queryTarget(this.targets)) {
       if (!queryDestinationTarget(this.targets, this.kind)) throw new Error('query-destination-unavailable');
       const selected = structuredClone(this.targets);
-      const request = {kind: this.kind, query: '', limit: 40};
-      const raw = await readQueryDestinationPickerResponse(this.api, request, this.lifetime.signal); this.check();
-      if (!raw || typeof raw !== 'object' || !('viewerFence' in raw) || typeof raw.viewerFence !== 'string' || !/^[a-f0-9]{64}$/.test(raw.viewerFence)) throw new Error('picker-authority-required');
-      const page = parseHomeDestinationPicker(raw, request, this.ports.serverId, raw.viewerFence);
       const viewId = await this.ports.requestId(); this.check();
       const target: SelectionTarget = {...structuredClone(selected), context: {
         scope: {serverId: this.ports.serverId, authority: identity.authority, accountId: identity.accountId, profileId: identity.profileId,
-          viewId, privacyFence: raw.viewerFence}, revision: {catalogRevision: String(page.revision.catalog), viewerRevision: String(page.revision.viewer)}}};
+          viewId, privacyFence: destinationFence}, revision: {catalogRevision: '0', viewerRevision: '0'}}};
       this.session = new HomeSelectionDestinations({api: this.api, events: identity.events, requestId: this.ports.requestId}, target, this.kind,
         this.lifetime.signal, this.current, this.update);
       await this.session.load();return;
@@ -100,15 +96,13 @@ export class LibraryPickerProducer {
       return Object.freeze({key: JSON.stringify([item.libraryId, item.kind, item.id]), item});
     });
     if (!picks.length) throw new Error('picker-target-required');
-    // The detail reads above only proved each leaf may be added (and agree with each other). The destination session
-    // holds the fence the destination read itself issues: never a detail's, the Search token or a descendant read
-    // (walk J-11, J-13: substituting the detail's fence made every add say "That list could not be updated.").
-    const authority = await fetchDestinationAuthority(this.api, this.kind, this.ports.serverId, this.lifetime.signal); this.check();
+    // The detail reads above only proved each leaf may be added (and agree with each other). The lists they go into
+    // carry their own revisions, so the selection holds no fence of theirs.
     const viewId = await this.ports.requestId(); this.check();
     const target: SelectionTarget = Object.freeze({mode: 'explicit', items: Object.freeze(picks), displayItems: Object.freeze(picks), context: {
       scope: {serverId: this.ports.serverId, authority: identity.authority, accountId: identity.accountId, profileId: identity.profileId,
-        viewId, privacyFence: authority.viewerFence},
-      revision: {catalogRevision: String(authority.revision.catalog), viewerRevision: String(authority.revision.viewer)}}});
+        viewId, privacyFence: destinationFence},
+      revision: {catalogRevision: '0', viewerRevision: '0'}}});
     this.session = new HomeSelectionDestinations({api: this.api, events: identity.events, requestId: this.ports.requestId}, target, this.kind,
       this.lifetime.signal, this.current, this.update);
     await this.session.load();
