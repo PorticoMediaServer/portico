@@ -20,7 +20,7 @@ import * as abortSignals from '../src-next/platform/abort-signals';
 import * as localInvitation from '../src-next/platform/local-invitation';
 import * as tvOpening from '../src-next/screens/accounts/tv-code-opening';
 import * as chooser from '../src-next/screens/accounts/directory-chooser';
-import {nativeHostedSource} from '../src-next/platform/server-connections';
+import {nativeHostedSource, nativeNetworkFetch} from '../src-next/platform/server-connections';
 import {NativeAccountWorkspace} from '../src-next/platform/account-workspace';
 import {hostedUrl} from '../src-next/platform/account-authority';
 import {NativeModules} from './react-native-stub.mjs';
@@ -155,7 +155,14 @@ async function entry(t: any, f: F) {
     '../../../../../packages/client-core/src/password-strength': passwordPolicy, '../../../../../packages/client-core/src/join-link': joinLink,
     '../../../../../packages/client-core/src/short-invitation-code': invitationCode,
     '../../kit/theme': {useTheme: () => theme}, '../../kit/states': {StateLayout: 'Layout'}, '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', TextField: 'Field'},
-    '../../platform/accounts': {nativeAccounts: {accountCredentials: () => f.owner}}, '../../platform/account-work': accountWork,
+    '../../platform/accounts': {nativeAccounts: {accountCredentials: () => f.owner,
+      // The account's list read over the actual native transport; the signed list's own check is client-core's (portico-server-list.test.ts).
+      porticoServers: async (issued: {accessToken: string}) => {
+        const answer = await nativeNetworkFetch(hostedUrl + '/v1/servers', {method: 'GET', headers: {Authorization: 'Bearer ' + issued.accessToken}});
+        const value = await answer.json() as any;
+        if (!answer.ok) throw new core.ApiError(answer.status, value?.error?.code ?? 'request_failed', 'refused', answer.status >= 500);
+        return {items: value.items};
+      }}}, '../../platform/account-work': accountWork,
     '../../platform/account-authority': {hostedUrl}, '../../platform/portico-sign-in': {NativePorticoSignIn: Auth},
     '../../platform/server-connections': await import('../src-next/platform/server-connections'),
     '../../platform/tv-menu': {useTVMenuCapture() {}}, '../../platform/negotiation': {negotiationRefusal: () => undefined}, './ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'}, './tv-code-opening': tvOpening, './directory-chooser': chooser, './LegalAgreement': {LegalAgreement: 'LegalAgreement'}, './PhoneAccountForm': {PhoneAccountForm: 'Layout'}, './PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'}, './PhoneAccountSignIn': {PhoneAccountSignIn: 'SignIn'}, './PhoneFrontDoor': {PhoneFrontDoor: 'FrontDoor'},

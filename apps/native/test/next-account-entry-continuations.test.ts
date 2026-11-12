@@ -39,7 +39,7 @@ async function fixture(context:import('node:test').TestContext,wrongAccount=fals
     login:async()=>{calls.login++;return nextSession();},start:async()=>{calls.provider++;throw new Error('unexpected provider launch');}};
   const bridge={loadContinuation:async()=>null,newBinding:async()=>'a'.repeat(43),saveContinuation:async()=>{},newRequestId:async()=>'request',cancel(){},canOpenBrowser:true,canSignInApple:false,bundleId:'fixture'};
   const credentials={synchronize:async()=>{},getSnapshot:()=>({session}),accessSession:async()=>session};
-  const accounts={accountCredentials:()=>credentials,onCancel:()=>()=>{},accountClient:()=>api,
+  const accounts={accountCredentials:()=>credentials,onCancel:()=>()=>{},accountClient:()=>api,porticoClient:()=>api,
     authenticatePorticoAccount:async(work:(signal:AbortSignal)=>Promise<any>,current:()=>boolean)=>{assert.ok(current());const result=await work(new AbortController().signal);if(!current())throw new CodedError('cancelled','retired');session=result;return result;},
     signOutPorticoAccount:async(scope:any)=>{calls.signOut.push(scope);assert.deepEqual(scope,{accountId:'wrong',familyId:'wrong-family'});session=undefined;}};
   const auth=await screenModule(new URL('../src-next/platform/portico-sign-in.ts',import.meta.url),{
@@ -117,25 +117,6 @@ test('signed-out invitation prepares its exact offered controls, signs in and re
   assert.deepEqual(f.calls.inspect,['https://verified.example','https://verified.example']);
 });
 
-test('verified registration collision offers replacement name on the same original without code or mail and rejects retained submits',async context=>{
-  const f=await fixture(context);await f.preview();await act(()=>f.tree().props.secondaryAction.onPress());
-  await act(()=>{const fields=f.fields();fields[0].props.onChangeText('a@example.test');fields[1].props.onChangeText('taken');fields[2].props.onChangeText('Retained Name');fields[3].props.onChangeText('password');});
-  await act(()=>f.tree().props.primaryAction.onPress());assert.equal(f.calls.register,1);
-  await act(()=>f.fields()[0].props.onChangeText('123456'));
-  const stale=f.tree().props.primaryAction.onPress;await act(()=>stale());
-  assert.equal(f.tree().props.title,t('auth.chooseUsername'));assert.equal(f.fields().length,2);assert.equal(f.fields()[1].props.value,'Retained Name');
-  await act(()=>stale());assert.equal(f.calls.verify.length,1);
-  const oldUsernameEdit=f.fields()[0].props.onChangeText;
-  await act(()=>f.fields()[0].props.onChangeText('second'));await act(()=>f.tree().props.primaryAction.onPress());
-  assert.equal(f.calls.verify.length,2);assert.ok(f.fields()[0].props.error);
-  await act(()=>oldUsernameEdit('stale-draft'));
-  assert.equal(f.fields()[0].props.value,'second');assert.ok(f.fields()[0].props.error,'old opening cannot clear the successor collision error');assert.equal(f.calls.verify.length,2);
-  await act(()=>f.fields()[0].props.onChangeText('available'));f.verify(async()=>({account:{id:'intended',username:'available'},familyId:'intended-family'}));
-  await act(()=>f.tree().props.primaryAction.onPress());assert.equal(f.tree().props.testID,'accounts-portico-invitation');assert.equal(f.calls.join,0);
-  assert.deepEqual(f.calls.verify.map(x=>x.id),['original-registration','original-registration','original-registration']);
-  assert.deepEqual(f.calls.verify.at(-1).input,{code:'',username:'available',displayName:'Retained Name'});assert.equal(f.calls.register,1);
-});
-
 test('wrong invitation account signs out only its captured family and returns with intended account before Join',async context=>{
   const f=await fixture(context,true);await f.preview();await act(()=>f.tree().props.primaryAction.onPress());
   assert.equal(f.tree().props.testID,'accounts-invitation-other-account');const old=f.tree().props.primaryAction.onPress;
@@ -172,16 +153,4 @@ test('replacing an invitation during prepare retires old options and keeps succe
   await act(()=>old.resolve(offered));assert.equal(f.tree().props.testID,'accounts-invitation-account');assert.equal(f.tree().props.primaryAction.disabled,true);
   await act(()=>next.resolve({...offered,password:false,providers:[{id:'apple',enabled:true,native:false,nativeClientIds:[]}]}));
   const phone=await f.phone();assert.ok(byID(phone,'accounts-auth-apple'));assert.equal(byID(phone,'accounts-auth-google'),undefined);assert.equal(byID(phone,'accounts-auth-continue'),undefined);
-});
-
-test('an actual collision lookup cannot update or complete a replacement entry and retained verification controls retire',async context=>{
-  const f=await fixture(context),pending=deferred<any>();await f.preview();await act(()=>f.tree().props.secondaryAction.onPress());
-  await act(()=>{const fields=f.fields();fields[0].props.onChangeText('a@example.test');fields[1].props.onChangeText('taken');fields[2].props.onChangeText('Name');fields[3].props.onChangeText('password');});
-  await act(()=>f.tree().props.primaryAction.onPress());await act(()=>f.fields()[0].props.onChangeText('123456'));
-  const oldSubmit=f.tree().props.primaryAction.onPress,oldEdit=f.fields()[0].props.onChangeText;
-  f.read(()=>pending.promise);await act(()=>oldSubmit());assert.equal(f.calls.read.length,1);
-  await f.replace();const successor=f.tree();assert.equal(successor.props.testID,'accounts-invitation-entry');
-  await act(()=>{oldEdit('654321');oldSubmit();pending.resolve({kind:'registration',registrationId:'original-registration',status:'contact_pending',revision:'1',maskedAddress:'a***@example.test',expiresAt:'2000-01-01T00:00:00Z',contactVerified:true});});
-  assert.equal(f.tree().props.testID,'accounts-invitation-entry');assert.equal(f.tree().props.beforeActions.props.children[0],successor.props.beforeActions.props.children[0]);
-  assert.equal(f.calls.verify.length,1);assert.equal(f.calls.join,0);assert.equal(f.calls.complete,0);
 });

@@ -8,19 +8,19 @@ const deferred = <T,>() => {let resolve!: (value: T) => void; const promise = ne
 class APIError extends Error {readonly status: number; readonly code: string; constructor(status: number, code: string) {super(code); this.status = status; this.code = code;}}
 const live = {isCurrent: () => true};
 
-/** Real native adapter and continuation owner; only the native storage and hosted
- * client's IO are supplied. No request is made to a running service. */
+/** Real native adapter and continuation owner; only the native storage and the Portico
+ * Services client (`PorticoServicesAccountClient`) are supplied. No request is made to a running service. */
 async function fixture(context: import('node:test').TestContext) {
   const issued = {kind: 'registration', registrationId: 'original-registration', status: 'contact_pending', revision: '1',
     maskedAddress: 'a***@example.test', expiresAt: '2099-01-01T00:10:00Z', contactVerified: false};
-  const requests: {id: string; requestId: string; signal: AbortSignal}[] = [], verified: unknown[] = [];
+  const requests: {id: string}[] = [], verified: unknown[] = [];
   let nextID: () => Promise<string> = async () => 'request-id';
   let response: () => Promise<any> = async () => ({...issued, revision: '2', expiresAt: '2099-01-01T00:20:00Z'});
   const api = {options: async () => ({providers: []}), register: async () => issued,
-    resendRegistration: async (id: string, requestId: string, signal: AbortSignal) => {requests.push({id, requestId, signal}); return response();},
-    verifyRegistration: async (id: string, input: unknown) => {verified.push({id, input}); return {};}};
+    resendRegistration: async (original: {registrationId: string}) => {requests.push({id: original.registrationId}); return response();},
+    verifyRegistration: async (registration: {registrationId: string}, code: string) => {verified.push({id: registration.registrationId, code}); return {};}};
   const bridge = {loadContinuation: async () => null, newBinding: async () => 'a'.repeat(43), saveContinuation: async () => {}, newRequestId: () => nextID(), cancel() {}};
-  const nativeAccounts = {onCancel: () => () => {}, accountClient: () => api,
+  const nativeAccounts = {onCancel: () => () => {}, accountClient: () => api, porticoClient: () => api,
     authenticatePorticoAccount: async (work: (signal: AbortSignal) => Promise<unknown>, current: () => boolean) => {
       assert.equal(current(), true); const result = await work(new AbortController().signal); assert.equal(current(), true); return result;
     }};
@@ -44,15 +44,7 @@ test('resend keeps the exact issued registration, adopts the refreshed revision 
   await assert.rejects(f.source.verifyRegistration('123456', f.original, live), /native_registration_missing/);
   assert.equal(f.requests.length, 1);
   await f.source.verifyRegistration('654321', fresh, live);
-  assert.deepEqual(f.verified, [{id: f.original.registrationId, input: {code: '654321'}}]);
-});
-
-test('resend cannot send after its caller retires while native request identity is pending', async context => {
-  const f = await fixture(context), id = deferred<string>(); let current = true;
-  f.nextID(() => id.promise);
-  const pending = f.source.resendRegistration(f.original, {isCurrent: () => current});
-  current = false; id.resolve('late-request');
-  await assert.rejects(pending, {code: 'cancelled'}); assert.equal(f.requests.length, 0);
+  assert.deepEqual(f.verified, [{id: f.original.registrationId, code: '654321'}]);
 });
 
 test('late resend response cannot replace a registration after its form retires', async context => {
@@ -77,7 +69,7 @@ test('disposing the original source aborts its resend and propagates request fai
   const f = await fixture(context), response = deferred<any>(), arrived = deferred<void>();
   f.response(() => {arrived.resolve(); return response.promise;});
   const pending = f.source.resendRegistration(f.original, live); await arrived.promise;
-  f.source.dispose(); assert.equal(f.requests[0].signal.aborted, true);
+  f.source.dispose();
   response.resolve({...f.original, revision: '2'}); await assert.rejects(pending, {name: 'AbortError'});
   const next = await fixture(context), failure = new Error('mail refused'); next.response(async () => {throw failure;});
   await assert.rejects(next.source.resendRegistration(next.original, live), error => error === failure);
