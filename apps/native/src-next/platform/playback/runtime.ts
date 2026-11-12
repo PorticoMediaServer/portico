@@ -418,6 +418,10 @@ export class NativePlaybackRuntime {
     const route = this.o.api.getRouteSnapshot();
     if (route && route.phase !== 'ready') {this.cancelSnapshot(); this.externalPresentationBinding = null; this.pictureBinding = undefined; this.pictureAttempt = undefined; this.pictureLeave = undefined; this.pictureState = 'idle'; this.externalController?.abort();}
     if (route && route.phase !== 'ready' && this.playback.getSnapshot().session?.mode !== 'local') this.recoverConnection();
+    if ((!route || route.phase === 'ready') && this.playback.getSnapshot().session?.mode !== 'local') {
+      if (this.playback.getSnapshot().intent === 'paused') this.recovery.clear();
+      this.playback.recovering(this.playback.getSnapshot().intentId, false);
+    }
     this.coordinator.setConnection(!route || route.phase === 'ready');
     if (route && route.phase !== 'ready') this.publish();
   }
@@ -1167,6 +1171,8 @@ export class NativePlaybackRuntime {
     this.updating = true;
     try {
       const state = this.playback.getSnapshot(), fence = this.fence();
+      if (state.intent === 'paused') this.recovery.clear();
+      else if (this.snapshot.playback.intent === 'paused' && state.recovering) this.recoverConnection(false);
       if (state.channel) {
         const channel = state.channel, linear = state.linear;
         const name = linear?.name || this.channel?.channel.name;
@@ -1618,7 +1624,7 @@ export class NativePlaybackRuntime {
     else if (fact.type === 'ready') this.playback.ready(before.intentId);
     else if (fact.type === 'stalled') {
       if (before.session?.mode === 'local') this.playback.recovering(before.intentId, true);
-      else this.recoverConnection(false);
+      else if (before.intent === 'playing') this.recoverConnection(false);
     }
     else if (fact.type === 'seekApplied') this.playback.seekApplied(before.intentId, fact.seekRevision, fact.position, fact.paused ? 'paused' : 'playing');
     else if (fact.type === 'seekFailed') this.playback.seekFailed(before.intentId, fact.seekRevision, serviceText('queuePlayer.startFailed'));
@@ -1647,9 +1653,10 @@ export class NativePlaybackRuntime {
   private recoverConnection(recheckReadyRoute = true): void {
     const before = this.playback.getSnapshot();
     const current = () => {const state = this.playback.getSnapshot(); return this.active() && state.intentId === before.intentId
-      && state.playbackRun === before.playbackRun && !!state.session && (state.phase === 'starting' || state.phase === 'ready');};
-    if (!current()) return;
+      && state.playbackRun === before.playbackRun && state.intent === 'playing' && !!state.session && (state.phase === 'starting' || state.phase === 'ready');};
+    if (!this.active() || !before.session || before.phase !== 'starting' && before.phase !== 'ready') return;
     this.playback.recovering(before.intentId, true);
+    if (before.intent !== 'playing') {this.recovery.clear(); return;}
     this.recovery.start(`${before.intentId}/${before.playbackRun}`, current, () => {
       this.failure = recheckReadyRoute || this.o.api.getRouteSnapshot()?.phase !== 'ready'
         ? Object.freeze({intentId: before.intentId, run: before.playbackRun, reason: 'connection'}) : undefined;
