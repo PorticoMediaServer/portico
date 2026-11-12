@@ -290,3 +290,10 @@ func (d *DB) RedeemOwnerReset(ctx context.Context, codeHash, newHash string, tur
 	}
 	return err
 }
+
+// PorticoAccountID is the Portico Account an account signs in with; "" for a local account.
+func (d *DB) PorticoAccountID(ctx context.Context, userID int64) (string, error) {
+	var id sql.NullString
+	err := d.read.QueryRowContext(ctx, `SELECT portico_account_id FROM users WHERE id = ?`, userID).Scan(&id)
+	return id.String, notFound(err)
+}
