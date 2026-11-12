@@ -132,3 +132,38 @@ func TestMixesAreMadeFromWhatTheProfileListensTo(t *testing.T) {
 		t.Fatalf("a profile kept from the music has mixes %+v", got.Items)
 	}
 }
+
+// A radio from a song plays, after the song, the songs that sound closest to it first; one
+// from a song the model has not read goes by genre as before.
+func TestARadioPlaysWhatSoundsClosest(t *testing.T) {
+	th := newTheatre(t)
+	_, quiet := th.album("Quiet", 6)
+	_, loud := th.album("Loud", 6)
+	near := map[string]int{}
+	for _, s := range quiet {
+		near[s] = 0
+	}
+	for _, s := range loud {
+		near[s] = 1
+	}
+	// Before anything is analysed the radio goes by genre: it still plays.
+	if before := th.order(th.create(QueueCreate{Source: playqueue.QueueSource{Radio: loud[0]}}).Queue.ID); len(before) < 2 {
+		t.Fatalf("a radio before any analysis plays %v", before)
+	}
+	sounds(t, th, near)
+	made := th.create(QueueCreate{Source: playqueue.QueueSource{Radio: quiet[0]}})
+	order := th.order(made.Queue.ID)
+	if len(order) < 7 || order[0] != quiet[0] {
+		t.Fatalf("the radio plays %v", order)
+	}
+	for n, id := range order[1:6] {
+		if near[id] != 0 {
+			t.Fatalf("entry %d of the radio from a quiet song is %s, not one of the quiet songs: %v", n+1, id, order)
+		}
+	}
+	for _, id := range order[1:] {
+		if id == quiet[0] {
+			t.Fatalf("the radio picked the song it started from again: %v", order)
+		}
+	}
+}

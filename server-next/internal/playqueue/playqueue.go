@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"math/rand/v2"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -141,7 +142,14 @@ type selection struct {
 	// Skip is a title already in the queue that the walk should pass over once: the one
 	// that was playing when the order was made.
 	Skip int64 `json:"skip,omitempty"`
+	// Sound is the song, album or artist a radio by sound starts from; Picked are the songs it
+	// has put in the queue, the last radioPicked of them, so it does not pick them again.
+	Sound  string  `json:"sound,omitempty"`
+	Picked []int64 `json:"picked,omitempty"`
 }
+
+// radioPicked is how many of a radio's songs it keeps from picking again.
+const radioPicked = 500
 
 func (s *selection) text() string {
 	if s == nil {
@@ -179,6 +187,10 @@ type Service struct {
 	playback *playback.Service
 	now      func() time.Time
 
+	// SoundRadio gives the next songs of a radio by sound from a seed, leaving out those
+	// picked; none when the seed's songs have not been analysed, and the radio goes by genre.
+	// Set by the area that makes mixes.
+	SoundRadio func(ctx context.Context, v db.Viewer, seed string, picked []int64, limit int) ([]int64, error)
 	// Mixes gives the songs of one of the profile's mixes, by its id; set by the area that
 	// makes mixes. db.ErrNotFound is a mix the profile does not have now.
 	Mixes func(ctx context.Context, v db.Viewer, id string) ([]string, error)
@@ -208,6 +220,24 @@ func newSeed() int64 { return rand.Int64N(1<<62) + 1 }
 func (s *Service) take(ctx context.Context, v db.Viewer, sel *selection, limit int) ([]int64, error) {
 	if sel.Done {
 		return nil, nil
+	}
+	if sel.Sound != "" && s.SoundRadio != nil {
+		leave := append(slices.Clone(sel.Picked), sel.Skip)
+		items, err := s.SoundRadio(ctx, v, sel.Sound, leave, limit)
+		if err == nil && len(items) == 0 && len(sel.Picked) > 0 {
+			// Everything close has played: start again from the closest.
+			sel.Picked = nil
+			items, err = s.SoundRadio(ctx, v, sel.Sound, []int64{sel.Skip}, limit)
+		}
+		if err != nil {
+			return nil, err
+		}
+		if len(items) > 0 {
+			sel.Picked = append(sel.Picked, items...)
+			sel.Picked = sel.Picked[max(0, len(sel.Picked)-radioPicked):]
+			return items, nil
+		}
+		sel.Sound = "" // nothing near it has been analysed: by genre from here
 	}
 	q, err := sel.View.query()
 	if err != nil {
@@ -431,7 +461,11 @@ func (s *Service) radio(ctx context.Context, v db.Viewer, from string) (*selecti
 		return nil, QueueSource{}, err
 	}
 	view := QueueView{Library: library, Tag: genre, Kinds: []string{db.KindTrack.String()}}
-	return &selection{View: view, Radio: true, Shuffle: true, Seed: newSeed()}, QueueSource{View: &view}, nil
+	sel := &selection{View: view, Radio: true, Shuffle: true, Seed: newSeed()}
+	if s.SoundRadio != nil {
+		sel.Sound = from // by sound where the library has been analysed; by genre otherwise
+	}
+	return sel, QueueSource{View: &view}, nil
 }
 
 // refill takes more of a queue's selection when few entries are left after the current one.

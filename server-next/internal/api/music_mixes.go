@@ -37,9 +37,11 @@ type MusicMixCover struct {
 	Image   string `json:"image,omitempty"`
 }
 
-// musicMixRoutes serves the mixes and lets a queue be made from one.
+// musicMixRoutes serves the mixes, lets a queue be made from one, and gives radio its picks by
+// sound.
 func (s *Server) musicMixRoutes(music *musicanalysis.Mixer) {
 	s.queues.Mixes = func(ctx context.Context, v db.Viewer, id string) ([]string, error) { return music.MixSongs(ctx, v, id) }
+	s.queues.SoundRadio = music.Radio
 	Handle(s, "GET /v1/music/mixes", WithProfile, func(r *http.Request, _ None) (Page[MusicMix], error) {
 		mixes, err := music.Mixes(r.Context(), viewer(r))
 		if err != nil {
