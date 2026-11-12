@@ -149,3 +149,42 @@ func TestARedirectIsNeverFollowedInward(t *testing.T) {
 		}
 	}
 }
+
+// A name that answers with a metadata service's own address beside an ordinary one is refused:
+// that address is never a home device's. Any other link-local address beside an ordinary one
+// (a home device's fe80:: or self-assigned 169.254 address) is not.
+func TestAnRcloneNameWithAMetadataAddressIsRefused(t *testing.T) {
+	fakeRcloneBinary(t)
+	for _, tc := range []struct {
+		name    string
+		answers []string
+		refused bool
+	}{
+		{"mixed.example", []string{"192.168.1.20", "169.254.169.254"}, true},
+		{"mixed6.example", []string{"203.0.113.9", "fd00:ec2::254"}, true},
+		{"apipa.example", []string{"192.168.1.20", "169.254.10.20"}, false},
+		{"v6.example", []string{"fe80::211:32ff:fe12:3456", "192.168.1.20"}, false},
+	} {
+		remote.ResolveAllAs(t, tc.name, tc.answers)
+		options, err := remote.ParseRcloneConfig("[a]\ntype = sftp\nhost = " + tc.name + "\n")
+		if err != nil {
+			t.Fatal(err)
+		}
+		src := remote.NewRclone(options, "")
+		_, err = src.List(ctx, "")
+		src.Close()
+		if got := errors.Is(err, remote.ErrAddressRefused); got != tc.refused {
+			t.Errorf("%s %v: refused %v, want %v (%v)", tc.name, tc.answers, got, tc.refused, err)
+		}
+	}
+	// Every option's value is looked in, whatever the option is called; ordinary values pass.
+	for _, paste := range []string{
+		"[a]\ntype = s3\ndescription = films from the shed\nendpoint = https://s3.example:9000/\n",
+		"[a]\ntype = sftp\nhost = nas.local\nkey_pem = -----BEGIN OPENSSH PRIVATE KEY-----\\nb3BlbnNzaC1rZXktdjEAAAAA+/x/y==\\n-----END OPENSSH PRIVATE KEY-----\n",
+		"[a]\ntype = dropbox\ntoken = {\"access_token\":\"a.b/c\",\"expiry\":\"2026-11-11T19:00:00Z\"}\n",
+	} {
+		if _, err := remote.ParseRcloneConfig(paste); err != nil {
+			t.Errorf("%q: %v", paste, err)
+		}
+	}
+}
