@@ -172,14 +172,14 @@ func (d *DB) ViewCursorAt(ctx context.Context, v Viewer, q ItemQuery, itemPublic
 	return cursor, detail.ID, err
 }
 
-// shufflePrime is the modulus of the shuffle order: a prime above any item id a library has.
+// shufflePrime bounds the seeds of a shuffled order: any of them is a different order.
 const shufflePrime = 2147483647
 
 // ShuffledItems returns the next titles of a view in an order the seed decides: every title
 // exactly once before any comes again. after is the place the last call ended at (0 to
-// begin), and last the place to go on from. The order is each id multiplied by a number the
-// seed gives, modulo a prime: a different walk through the library for every seed, read
-// without building the whole list.
+// begin), and last the place to go on from. The order is each id's place under the seed
+// (shuffleKey): a different order of the library for every seed, read without building the
+// whole list.
 func (d *DB) ShuffledItems(ctx context.Context, v Viewer, q ItemQuery, seed, after int64, limit int) (items []int64, last int64, err error) {
 	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
