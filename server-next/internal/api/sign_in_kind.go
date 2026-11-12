@@ -134,6 +134,11 @@ type MoveCheckRequest struct {
 type MoveCheck struct {
 	Username string `json:"username"`
 	Next     string `json:"next"`
+	// Ticket, when an old password moves an account to a Portico Account, stands in for that
+	// password at `POST /v1/auth/move/complete`, so the password stays on the server's own page
+	// while the move finishes wherever the Portico Account is (web.getportico.tv). It works
+	// once, for five minutes at most and never past the move's end, for this account only.
+	Ticket string `json:"ticket,omitempty"`
 }
 
 // MoveCompleteRequest finishes a move: to local sign-in the code with the chosen username and
@@ -142,6 +147,8 @@ type MoveCompleteRequest struct {
 	Code     string `json:"code,omitempty"`
 	Username string `json:"username,omitempty"`
 	Password string `json:"password,omitempty"`
+	// Ticket is the one `POST /v1/auth/move/check` answered for an old password, in its place.
+	Ticket string `json:"ticket,omitempty"`
 	// Challenge and Identity prove the Portico Account a waiting person moves to: the
 	// challenge from POST /v1/auth/portico/challenge and the sign-in note Portico Services
 	// answered it with. A move is a sign-in, never an approval: an approval names an owner.
@@ -169,6 +176,21 @@ type LeaveRequest struct {
 }
 
 func moveHash(typed string) string { return auth.Hash("move|" + auth.CodeKey(typed)) }
+
+// A move ticket (MoveCheck.Ticket) is stored hashed as a one-time code of its own kind.
+const (
+	moveTicketKind  = "move_ticket"
+	moveTicketLasts = 5 * time.Minute
+)
+
+func moveTicketHash(ticket string) string { return auth.Hash("move-ticket|" + ticket) }
+
+func earliest(a, b time.Time) time.Time {
+	if b.Before(a) {
+		return b
+	}
+	return a
+}
 
 func (s *Server) signInKindRoutes() {
 	Handle(s, "GET /v1/admin/sign-in", Owner, s.signInState)
@@ -440,7 +462,12 @@ func (s *Server) moveCheck(r *http.Request, req MoveCheckRequest) (MoveCheck, er
 	}
 	if creds.UserID != 0 && moving && move.To == "portico" && now.Sub(move.At) < db.OldPasswordWorks {
 		if account, err := s.db.Account(ctx, creds.UserID); err == nil && account.State == "waiting" && !account.Disabled {
-			return MoveCheck{Username: account.Username, Next: next}, nil
+			ticket := auth.NewSecret()
+			if err := s.db.CreateCode(ctx, db.Code{Kind: moveTicketKind, Hash: moveTicketHash(ticket), UserID: creds.UserID,
+				ExpiresAt: earliest(now.Add(moveTicketLasts), move.At.Add(db.OldPasswordWorks))}, now); err != nil {
+				return MoveCheck{}, err
+			}
+			return MoveCheck{Username: account.Username, Next: next, Ticket: ticket}, nil
 		}
 	}
 	if err := s.db.RecordFailure(ctx, now, limits...); err != nil {
@@ -562,6 +589,20 @@ func (s *Server) moveToPortico(r *http.Request, req MoveCompleteRequest) (SignIn
 	m := db.MoveToPortico{Limits: limits, Session: session, Now: now}
 	if req.Code != "" {
 		m.CodeHash = moveHash(req.Code)
+	} else if req.Ticket != "" {
+		// Spent here, before the note is looked at: a ticket works once, whether the move then
+		// succeeds or the note is refused.
+		ticket, err := s.db.RedeemCode(ctx, moveTicketKind, moveTicketHash(req.Ticket), now)
+		if errors.Is(err, db.ErrBadCredentials) {
+			if err := s.db.RecordFailure(ctx, now, limits...); err != nil {
+				return SignInResponse{}, err
+			}
+			return SignInResponse{}, errBadMoveCode()
+		}
+		if err != nil {
+			return SignInResponse{}, err
+		}
+		m.UserID, m.Ticketed = ticket.UserID, true
 	} else {
 		creds, passwordLimits, err := s.oldPassword(r, req.Username, req.Password)
 		if err != nil {

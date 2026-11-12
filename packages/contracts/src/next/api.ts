@@ -860,6 +860,7 @@ export interface GenreEntry {
   label: string;
   cover?: Record<string, string>;
   count?: number;
+  posters: Record<string, string>[];
 }
 
 export interface GenreList {
@@ -1078,6 +1079,7 @@ export interface Item {
   available?: boolean;
   parent?: ItemRef;
   root?: ItemRef;
+  series?: ItemRef;
   tags?: Tag[];
   externalIds?: Record<string, string>;
   credits?: Credit[];
@@ -2102,6 +2104,7 @@ export interface MissingTitles {
 export interface MoveCheck {
   username: string;
   next: string;
+  ticket?: string;
 }
 
 export interface MoveCheckRequest {
@@ -2126,6 +2129,7 @@ export interface MoveCompleteRequest {
   code?: string;
   username?: string;
   password?: string;
+  ticket?: string;
   challenge?: string;
   identity?: unknown;
   device: DeviceInfo;
@@ -2298,6 +2302,8 @@ export interface Part {
   startMs?: number;
   endMs?: number;
   streams: Stream[];
+  durationMs?: number;
+  offsetMs?: number;
 }
 
 export interface PasswordRequest {
@@ -2710,6 +2716,7 @@ export interface ProblemReport {
   message?: string;
   context?: unknown;
   hasLog: boolean;
+  deviceName?: string;
   reply?: string;
   repliedAt?: string;
   createdAt: string;
@@ -3785,6 +3792,7 @@ export interface System {
   signIn: string;
   atHome: boolean;
   move?: string;
+  moveEndsAt?: string;
 }
 
 export interface Tag {
