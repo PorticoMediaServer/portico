@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -253,5 +254,34 @@ func TestNothingChangesOutsideTheAPI(t *testing.T) {
 	w := asked(s, "https://web.getportico.tv", "GET", "/index.html", "")
 	if w.Body.String() != "the web app" || w.Header().Get("Access-Control-Allow-Origin") != "" || len(w.Header().Values("Vary")) != 0 {
 		t.Errorf("a file of the web app: %d %v", w.Code, w.Header())
+	}
+}
+
+// The browser's shared transport adds these protocol/device headers before a server
+// can answer a sign-in or read. Keep the preflight aligned with the client declarations.
+func TestBrowserClientHeadersFitTheCORSPreflight(t *testing.T) {
+	required := []string{"Authorization", "Content-Type", "Idempotency-Key", "If-Match", "If-None-Match", "Range", "Last-Event-ID", "Cache-Control"}
+	custom := regexp.MustCompile(`['"]((?:Portico-|X-Portico-)[A-Za-z0-9-]+)['"]`)
+	for _, file := range []string{"http.ts", "delivery.ts", "installation.ts"} {
+		source, err := os.ReadFile(filepath.Join("..", "..", "..", "packages", "client-core", "src", file))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, match := range custom.FindAllSubmatch(source, -1) {
+			required = append(required, string(match[1]))
+		}
+	}
+	s := openTestServer(t, filepath.Join(t.TempDir(), "main.db"))
+	const origin = "https://web.getportico.tv"
+	w := asked(s, origin, "OPTIONS", "/v1/auth/portico/challenge", "", "Access-Control-Request-Method", "POST",
+		"Access-Control-Request-Headers", strings.ToLower(strings.Join(required, ", ")))
+	if w.Code != http.StatusNoContent || !readable(w, origin) || w.Header().Get("Access-Control-Allow-Credentials") != "" {
+		t.Fatalf("browser preflight: %d %v", w.Code, w.Header())
+	}
+	allowed := strings.Split(strings.ToLower(w.Header().Get("Access-Control-Allow-Headers")), ", ")
+	for _, name := range required {
+		if !slices.Contains(allowed, strings.ToLower(name)) {
+			t.Errorf("browser sends %s but CORS does not allow it", name)
+		}
 	}
 }
