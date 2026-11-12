@@ -18,6 +18,10 @@ import (
 // It uses a real listener and newly issued, local runner-only credentials. No
 // saved database, fixture credential, native state or production file enters it.
 func TestReadingHTTPClientPublication(t *testing.T) {
+	// The app's reader now reads books from the rebuilt server (server-next): its book route,
+	// media addresses and state route. This server's reading sessions are no longer the reader's
+	// pair; the same boundary is checked against server-next instead.
+	t.Skip("the reading client speaks the rebuilt server; this old server's reading sessions are not its pair")
 	node, err := exec.LookPath("node")
 	if err != nil {
 		t.Fatal("the configured reading-client integration needs Node", err)
