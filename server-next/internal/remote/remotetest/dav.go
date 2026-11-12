@@ -146,6 +146,11 @@ func (d *DAV) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			r.Header.Del("If-Match")
 			r.Header.Del("If-Unmodified-Since")
 		}
+		// The bytes are sent without the lock, as a real server sends several files at once: a
+		// reader that reads slowly (a download limit, a paused player) holds up no one else. A
+		// file's bytes are only ever replaced, never changed in place.
+		d.mu.Unlock()
+		defer d.mu.Lock()
 		http.ServeContent(w, r, "", modified, bytes.NewReader(body))
 	default:
 		http.Error(w, "not allowed", http.StatusMethodNotAllowed)
