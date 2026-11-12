@@ -48,6 +48,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 )
 
 // Ref names one thing at a provider: TMDB's film 603 is {"tmdb", "movie", "603"}.
@@ -186,4 +187,14 @@ type StatusError struct {
 
 func (e StatusError) Error() string {
 	return fmt.Sprintf("%s answered %d for %s", e.Provider, e.Status, e.Path)
+}
+
+// ProviderOutage says whether the answer is the provider's own trouble rather than about the
+// request, by the same codes as fetch's Status: a 5xx, a 429, or a key it refuses (401, 403).
+func (e StatusError) ProviderOutage() bool {
+	switch e.Status {
+	case http.StatusUnauthorized, http.StatusForbidden, http.StatusTooManyRequests:
+		return true
+	}
+	return e.Status >= 500
 }
