@@ -41,8 +41,8 @@ type Tuning struct {
 
 // DefaultTuning is the owner's defaults: 30 minutes of rewind but never more than 1.5 GB a
 // channel (30 minutes of a broadcast HD channel is about 4 GB, so the rewind of such a
-// channel is shorter), and 60 seconds of retrying. They become the owner's live settings with
-// the settings package.
+// channel is shorter), and 60 seconds of retrying. The server reads the owner's live document
+// for the stretch and retry time.
 var DefaultTuning = Tuning{Stretch: 30 * time.Minute, MaxBytes: 1536 << 20, Retry: 60 * time.Second}
 
 const (

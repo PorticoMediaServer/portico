@@ -27,8 +27,7 @@ type liveTVArea struct {
 	// liveHLS makes HLS of a channel for a device that cannot play its MPEG-TS as it is (the
 	// media engine); nil plays every channel as the source sends it.
 	liveHLS LiveHLS
-	// recorder records Live TV; dvrOptions are its settings, defaults until the dvr settings
-	// document exists. See dvr.go.
+	// recorder records Live TV; dvrOptions are the owner's current settings. See dvr.go.
 	recorder *dvr.Service
 	dvrNow   atomic.Pointer[dvr.Options]
 }
@@ -44,11 +43,12 @@ func (s *Server) startLiveTV(ctx context.Context) error {
 	if s.sources, err = live.New(s.db, s.log, func() time.Time { return s.now() }, s.dataDir); err != nil {
 		return err
 	}
+	s.sources.Settings = s.settings
 	s.liveContext = ctx
 	s.goBackground(func() { s.sources.Run(ctx) })
 	s.liveSourceRoutes()
 	s.tuners = live.NewTuners(filepath.Join(s.dataDir, "transcodes", "live"), live.StreamClient(), s.log, func() time.Time { return s.now() },
-		func() live.Tuning { return live.DefaultTuning })
+		func() live.Tuning { return live.Document.Get(s.settings).Tuning() })
 	s.viewings = live.NewViewings(func() time.Time { return s.now() })
 	// However a viewing ends, the HLS made for its device stops with it.
 	s.viewings.Ended = func(id string) {
@@ -63,9 +63,10 @@ func (s *Server) startLiveTV(ctx context.Context) error {
 	s.liveStreamRoute()
 	home, err := os.UserHomeDir()
 	if err != nil {
-		home = s.dataDir
+		home = filepath.Dir(s.dataDir)
 	}
-	s.setDVROptions(dvr.Defaults(home))
+	s.setDVROptions(dvr.Document.Get(s.settings).Options(home))
+	dvr.Document.Watch(s.settings, func(v dvr.RecordingSettings) { s.setDVROptions(v.Options(home)) })
 	s.recorder = dvr.New(s.db, s.tuners, s.sources, s.viewings, s.log, func() time.Time { return s.now() }, s.dvrOptions)
 	s.recorder.Deleted = s.stopPlaying
 	s.goBackground(func() { s.recorder.Run(ctx) })
@@ -74,8 +75,8 @@ func (s *Server) startLiveTV(ctx context.Context) error {
 	return nil
 }
 
-// dvrOptions are the recording settings in force: the defaults until the dvr settings
-// document exists. setDVROptions replaces them; the recorder reads them as it goes.
+// dvrOptions are the recording settings in force. A save replaces them; the recorder
+// reads them as it goes.
 func (s *Server) dvrOptions() dvr.Options { return *s.dvrNow.Load() }
 
 func (s *Server) setDVROptions(o dvr.Options) { s.dvrNow.Store(&o) }

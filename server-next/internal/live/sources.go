@@ -22,6 +22,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/secrets"
+	"github.com/PorticoMediaServer/portico/server-next/internal/settings"
 )
 
 // LiveSourceConfig is a source's settings, stored as JSON. The sign-in is never in it.
@@ -70,16 +71,17 @@ const (
 
 // Service refreshes sources in the background and answers previews.
 type Service struct {
-	db      *db.DB
-	log     *slog.Logger
-	now     func() time.Time
-	dir     string // where uploaded playlists and guides are kept
-	client  *http.Client
-	box     *secrets.Box
-	wake    chan struct{}
-	mu      sync.Mutex
-	tried   map[int64]time.Time // when each source was last tried, so a failing one waits
-	running map[int64]chan struct{}
+	Settings *settings.Settings
+	db       *db.DB
+	log      *slog.Logger
+	now      func() time.Time
+	dir      string // where uploaded playlists and guides are kept
+	client   *http.Client
+	box      *secrets.Box
+	wake     chan struct{}
+	mu       sync.Mutex
+	tried    map[int64]time.Time // when each source was last tried, so a failing one waits
+	running  map[int64]chan struct{}
 }
 
 // New makes the service. dataDir is the folder beside the database: sign-ins are sealed with

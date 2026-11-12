@@ -25,8 +25,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/scan"
 )
 
-// Options are the owner's recording settings. Until the dvr settings document exists the
-// server runs on these defaults.
+// Options are the recording settings in force, read from the owner's dvr document.
 type Options struct {
 	// Folder is where recordings are written: never inside Portico's data folder.
 	Folder              string
@@ -85,6 +84,7 @@ type Service struct {
 }
 
 type running struct {
+	folder string
 	stop   context.CancelFunc
 	byHand bool
 }
@@ -110,7 +110,33 @@ func (s *Service) Library(ctx context.Context) (db.Library, error) {
 		}
 		for _, l := range libraries {
 			if l.PublicID == id {
-				return l, nil
+				folders := make([]string, 0, len(l.Paths)+1)
+				for _, p := range l.Paths {
+					folders = append(folders, p.Path)
+					if p.Path == folder {
+						return l, nil
+					}
+				}
+				// Keep old recording folders in the one library; the next recording's new
+				// folder is added without removing any existing title or personal state.
+				folders = append(folders, folder)
+				added, _, err := s.db.EditLibrary(ctx, id, db.LibraryEdit{Folders: &folders})
+				if err != nil {
+					return db.Library{}, err
+				}
+				if !added {
+					return db.Library{}, fmt.Errorf("the recordings folder already belongs to another library")
+				}
+				updated, err := s.db.AllLibraries(ctx)
+				if err != nil {
+					return db.Library{}, err
+				}
+				for _, got := range updated {
+					if got.PublicID == id {
+						return got, nil
+					}
+				}
+				return db.Library{}, db.ErrNotFound
 			}
 		}
 	}
@@ -274,7 +300,7 @@ func (s *Service) start(ctx context.Context, r db.Recording, end time.Time) {
 	}
 	s.db.RecordingStarted(ctx, r.ID, reason, s.now())
 	work, cancel := context.WithDeadline(context.WithoutCancel(ctx), end)
-	run := &running{stop: cancel}
+	run := &running{stop: cancel, folder: opts.Folder}
 	s.mu.Lock()
 	s.running[r.ID] = run
 	s.mu.Unlock()
@@ -815,8 +841,29 @@ func (s *Service) discardEmpty(ctx context.Context, r db.Recording, why string) 
 // files are a recording's file and the guide's details beside it, where Delete removes them.
 func (s *Service) files(r db.Recording) []string {
 	dir, name := Layout(r)
-	folder := filepath.Join(s.options().Folder, filepath.FromSlash(dir))
-	return []string{filepath.Join(folder, name), filepath.Join(folder, strings.TrimSuffix(name, filepath.Ext(name))+".nfo")}
+	var paths []string
+	if r.ItemID != 0 {
+		var err error
+		paths, err = s.db.RecordingFilePaths(context.Background(), r.ItemID, dir, name)
+		if err != nil {
+			s.log.Warn("the files of a recording could not be read", "error", err)
+			return nil
+		}
+	}
+	if len(paths) == 0 {
+		folder := s.options().Folder
+		s.mu.Lock()
+		if active := s.running[r.ID]; active != nil && active.folder != "" {
+			folder = active.folder
+		}
+		s.mu.Unlock()
+		paths = []string{filepath.Join(folder, filepath.FromSlash(dir), name)}
+	}
+	var files []string
+	for _, path := range paths {
+		files = append(files, path, strings.TrimSuffix(path, filepath.Ext(path))+".nfo")
+	}
+	return files
 }
 
 func (s *Service) removeFiles(r db.Recording) {

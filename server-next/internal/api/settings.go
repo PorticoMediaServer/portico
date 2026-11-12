@@ -75,6 +75,9 @@ func (s *Server) settingsRoutes() {
 				}
 			}
 		}
+		if err := s.checkRecordingSettings(r.PathValue("name"), change); err != nil {
+			return SettingsDocument{}, err
+		}
 		if err := s.refuseNotApplicable(r.Context(), r.PathValue("name"), change); err != nil {
 			return SettingsDocument{}, err
 		}
