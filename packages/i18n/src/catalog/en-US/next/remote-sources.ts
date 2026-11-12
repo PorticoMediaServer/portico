@@ -424,5 +424,11 @@ export const remoteSourcesMessages = {
   'next.remoteSources.continueSetup': 'Continue setup',
   'next.remoteSources.notOnServerYet': 'This isn’t available on this server yet.',
   'next.remoteSources.perSecond': 'Requests a second',
+  'next.remoteSources.field.name': 'Give the source a name, up to 200 characters.',
+  'next.remoteSources.field.address': 'Give the WebDAV address, starting with https:// or http://, without a user name in it.',
+  'next.remoteSources.field.password': 'Give the password again for the new address.',
+  'next.remoteSources.field.config': 'Paste one remote exactly as rclone config show prints it: its [name] line, then its key = value lines.',
+  'next.remoteSources.field.drive': 'Paste the JSON key Google gives for a service account, or sign in with your own Google OAuth client.',
+  'next.remoteSources.field.limits': 'Connections are 1 to 64, and requests 1 to 1,000 a second.',
   'next.remoteSources.disconnectBodyNext': 'Portico stops using this source and forgets its sign-in. Nothing on the storage is changed. A source a library folder is still on can’t be disconnected: remove those folders from their libraries first.',
 } as const;

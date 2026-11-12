@@ -3,7 +3,7 @@ import {RadioGroup} from 'radix-ui';
 import {defaultI18n, type MessageId} from '@i18n';
 import {
   addCloudTokenSource, addRcloneRemoteFromFields, addRemoteFolderToLibrary, addRemoteSource, changeRemoteSource, createLibraryOnRemoteFolder,
-  defaultRemotePreset, isNotOnServerYet, listAdminLibraries, listRemoteSources, remotePresets, remoteSourceCreate, remoteSourceFolders,
+  defaultRemotePreset, listAdminLibraries, missingField, remoteRefusal, listRemoteSources, remotePresets, remoteSourceCreate, remoteSourceFolders,
   removeRemoteSource, startDriveSignIn, testRemoteSource, type RemoteFolder, type RemoteLimits, type RemotePreset, type RemoteSource,
 } from '@core/remote-storage.ts';
 import type {ServerRequester} from '@core/query/server-api.ts';
@@ -47,15 +47,12 @@ const kindLabel = (source: RemoteSource): MessageId => source.kind === 'rclone' 
 
 /** The server's refusal in the owner's words: its own message when it names what failed, otherwise a plain line. */
 export function remoteErrorText(error: unknown): string {
-  if (isNotOnServerYet(error)) return t('next.remoteSources.notOnServerYet');
-  const code = error && typeof error === 'object' && typeof (error as {code?: unknown}).code === 'string' ? (error as {code: string}).code : '';
-  if (code === 'unauthorized') return t('next.remoteSources.error.signIn');
-  if (code === 'forbidden') return t('next.remoteSources.error.forbidden');
-  // A field refusal (an address that did not answer, a configuration that is not one remote) and a source a library still
-  // uses are the server's own sentence.
-  const message = (error as {message?: unknown} | null)?.message;
-  if (['invalid_field', 'invalid_request', 'remote_unreachable', 'source_in_use'].includes(code) && typeof message === 'string' && message.trim() && message.length < 300) return message;
-  if (code === 'invalid_field' || code === 'invalid_request') return t('next.remoteSources.error.invalid');
+  const refusal = remoteRefusal(error);
+  if ('notOnServer' in refusal) return t('next.remoteSources.notOnServerYet');
+  if ('sentence' in refusal) return refusal.sentence;
+  if ('field' in refusal) return t(`next.remoteSources.field.${refusal.field}` as MessageId);
+  if (refusal.other === 'unauthorized') return t('next.remoteSources.error.signIn');
+  if (refusal.other === 'forbidden' || refusal.other === 'not_permitted') return t('next.remoteSources.error.forbidden');
   return t('next.remoteSources.error.generic');
 }
 
@@ -141,7 +138,7 @@ export function AddSourceDialog({api, open, returnFocusRef, isCurrent, onClose, 
           : fields.driveMode === 'key' ? {kind: 'drive', name: fields.name, path: fields.path, serviceAccountKey: fields.key} as const
             : {kind: 'drive', name: fields.name, path: fields.path, signIn: fields.signIn, redirectedUrl: fields.redirectedUrl} as const;
       const body = remoteSourceCreate(draft, preset);
-      if ('missing' in body) throw Object.assign(new Error(t('next.remoteSources.error.invalid')), {code: 'invalid_request'});
+      if ('missing' in body) throw missingField(body.missing);
       source = await addRemoteSource(api, body);
     }
     if (!isCurrent()) return;
@@ -273,7 +270,9 @@ function FolderStep({api, source, isCurrent, onDone}: Readonly<{api: ServerReque
 function ManageSourceDialog({api, source, isCurrent, onClose, onContinue}: Readonly<{api: ServerRequester; source: RemoteSource; isCurrent: () => boolean;
   onClose: () => void; onContinue: (source: RemoteSource) => void}>) {
   const [shown, setShown] = useState(source), [name, setName] = useState(source.name), [secret, setSecret] = useState('');
-  const [preset, setPreset] = useState<RemotePreset>((remotePresets.find(one => one.id === source.preset)?.id ?? defaultRemotePreset)), [limits, setLimits] = useState(source.limits);
+  const startPreset = remotePresets.find(one => one.id === source.preset) ?? remotePresets.find(one => one.id === defaultRemotePreset)!;
+  // A source saved before its preset step holds no limits yet: they start as its preset's own.
+  const [preset, setPreset] = useState<RemotePreset>(startPreset.id), [limits, setLimits] = useState(source.limits.connections > 0 && source.limits.perSecond > 0 ? source.limits : startPreset.limits);
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [confirm, setConfirm] = useState<string>();
   const run = (work: () => Promise<void>) => {
     if (busy) return;
@@ -290,7 +289,6 @@ function ManageSourceDialog({api, source, isCurrent, onClose, onContinue}: Reado
     footer={<><Button size="compact" variant="glass" onClick={onClose}>{t('next.remoteSources.cancel')}</Button><Button size="compact" variant="primary" loading={busy} disabled={!name.trim()} onClick={save}>{t('next.remoteSources.save')}</Button></>}>
     <div className={styles.fields}>
       <p><SourceStatus source={shown}/> {shown.problem}</p>
-      {error && <p className={styles.error} role="alert">{error}</p>}
       <span className={styles.rowActions}>
         <Button size="small" disabled={busy} onClick={() => run(async () => {const tested = await testRemoteSource(api, source.id); if (isCurrent()) setShown(tested);})}>{t('next.remoteSources.test')}</Button>
         {shown.state === 'setup' && <Button size="small" variant="primary" onClick={() => onContinue(shown)}>{t('next.remoteSources.continueSetup')}</Button>}
@@ -307,6 +305,8 @@ function ManageSourceDialog({api, source, isCurrent, onClose, onContinue}: Reado
         <p>{t('next.remoteSources.disconnectBodyNext')}</p>
         <TextField label={t('next.remoteSources.disconnectConfirm')} value={confirm} onChange={event => setConfirm(event.currentTarget.value)}/>
         <Button size="small" disabled={busy || confirm !== shown.name} onClick={() => run(async () => {await removeRemoteSource(api, source.id); if (isCurrent()) onClose();})}>{t('next.remoteSources.disconnect')}</Button></>}
+      {/* The answer to any action here sits beside Disconnect and just above Save, where the owner pressed. */}
+      {error && <p className={styles.error} role="alert">{error}</p>}
     </div>
   </Dialog>;
 }

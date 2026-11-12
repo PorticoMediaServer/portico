@@ -168,7 +168,8 @@ test('OneDrive or Dropbox by token and a new rclone remote say plainly that this
   assert.equal(sent, 0);
 });
 
-test('a refusal the server words for a field is shown as it said it, and anything else is a plain line', () => {
-  assert.equal(remoteErrorText(Object.assign(new Error('The address did not answer.'), {code: 'invalid_field'})), 'The address did not answer.');
+test('a refusal shows what the server wrote for this area, or names the field, and anything else is a plain line', () => {
+  assert.equal(remoteErrorText(Object.assign(new Error('Portico could not reach that address: connection refused'), {code: 'source_unreachable'})), 'Portico could not reach that address: connection refused');
+  assert.equal(remoteErrorText(Object.assign(new Error('Check the request and try again.'), {code: 'invalid_request', path: 'rclone.config'})), defaultI18n.t('next.remoteSources.field.config'));
   assert.equal(remoteErrorText(Object.assign(new Error('<script>'), {code: 'internal'})), defaultI18n.t('next.remoteSources.error.generic'));
 });
