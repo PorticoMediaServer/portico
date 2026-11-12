@@ -37,7 +37,7 @@ export type TVCode = Readonly<{id: string; device: Device}>;
 export type HeldSignIn = Readonly<{current: () => Tokens | undefined; keep: (tokens: Tokens) => void; forget: (held: Tokens | undefined) => void; kept?: () => boolean}>;
 
 type Options = Readonly<{token?: string; create?: boolean; signal?: AbortSignal}>;
-type Transport = Readonly<{origin: string; cookie: boolean}>;
+type Transport = Readonly<{origin: string; cookie: boolean; fetcher?: typeof fetch}>;
 
 /** A signed document's contents, for showing. The apps and servers that act on one check its signature. */
 export function envelopePayload<T>(envelope: {payload: string}): T {
@@ -48,7 +48,7 @@ export function envelopePayload<T>(envelope: {payload: string}): T {
 
 /** One call. A POST that makes something (`create`) carries a fresh Idempotency-Key, so a repeat
  * of the same press is answered once; a new press is a new request. */
-async function send<T>({origin, cookie}: Transport, route: ServicesRoute, values: Readonly<Record<string, string>>, body: unknown, options: Options): Promise<T> {
+async function send<T>({origin, cookie, fetcher = fetch}: Transport, route: ServicesRoute, values: Readonly<Record<string, string>>, body: unknown, options: Options): Promise<T> {
   const {method, path} = servicesRoute(route, values);
   const headers: Record<string, string> = {Accept: 'application/json'};
   if (body !== undefined) headers['Content-Type'] = 'application/json';
@@ -60,7 +60,7 @@ async function send<T>({origin, cookie}: Transport, route: ServicesRoute, values
   if (cookie) headers['Portico-Refresh'] = 'cookie';
   let response: Response;
   try {
-    response = await fetch(origin + path, {method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: options.signal, credentials: cookie ? 'same-origin' : 'omit', cache: 'no-store'}); // query-read: kept (Portico Services, the person's Portico Account: not a media server document)
+    response = await fetcher(origin + path, {method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: options.signal, credentials: cookie ? 'same-origin' : 'omit', cache: 'no-store'}); // query-read: kept (Portico Services, the person's Portico Account: not a media server document)
   } catch (error) {
     if (options.signal?.aborted) throw error;
     throw new ServicesError(0, 'unreachable');
@@ -81,9 +81,9 @@ const cookieRoutes: ReadonlySet<ServicesRoute> = new Set<ServicesRoute>(['signIn
 
 /** The account's operations. `origin` is Portico Services' own (empty on its own pages);
  * `cookie` is for those pages, where Services keeps the refresh token in its cookie. */
-export function porticoAccount(held: HeldSignIn, origin = '', {cookie = false}: Readonly<{cookie?: boolean}> = {}) {
+export function porticoAccount(held: HeldSignIn, origin = '', {cookie = false, fetcher}: Readonly<{cookie?: boolean; fetcher?: typeof fetch}> = {}) {
   type Values = Readonly<Record<string, string>>;
-  const anyone = <T>(route: ServicesRoute, values: Values = {}, body?: unknown, options: Options = {}) => send<T>({origin, cookie: cookie && cookieRoutes.has(route)}, route, values, body, options);
+  const anyone = <T>(route: ServicesRoute, values: Values = {}, body?: unknown, options: Options = {}) => send<T>({origin, cookie: cookie && cookieRoutes.has(route), fetcher}, route, values, body, options);
   let renewing: Promise<Tokens | undefined> | undefined;
   /** Renews the access token once it has run out. A renewal sent twice (two tabs) gets the same
    * answer from Services, so the tabs never sign each other out. */
@@ -140,6 +140,9 @@ export function porticoAccount(held: HeldSignIn, origin = '', {cookie = false}: 
       : anyone<{id: string; authorizeUrl: string}>('providerStart', {}, {provider, secretHash}),
     completeProvider: (flow: string, code: string, secret: string, device: Device, chosen: {username?: string; displayName?: string} = {}) =>
       anyone<ProviderCompletion>('providerComplete', {}, {id: flow, code, secret, device, ...chosen}, {create: true}).then(tokensKept),
+    /** For an app's own sign-in store, which renews and ends the sign-ins it keeps itself. */
+    renewWith: (refreshToken: string, signal?: AbortSignal) => anyone<Tokens>('refresh', {}, {refreshToken}, {signal}),
+    endWith: (accessToken: string, signal?: AbortSignal) => anyone<void>('signOut', {}, undefined, {token: accessToken, signal}),
     signOut: async () => {
       // Whatever is held now: the call may have renewed the access token to send it.
       try { await person<void>('signOut'); } finally { held.forget(held.current()); }
@@ -164,6 +167,8 @@ export function porticoAccount(held: HeldSignIn, origin = '', {cookie = false}: 
     approval: (approval: string, signal?: AbortSignal) => person<Approval>('approval', {id: approval}, undefined, {signal}),
     lookupApproval: (code: string) => person<Approval>('approvalLookup', {}, {code}),
     decideApproval: (approval: string, approve: boolean) => person<ApprovalDecision>('approvalDecision', {id: approval}, {approve}),
+    /** The account's signed server list as Services sends it, for an app to check (`portico-server-list.ts`). */
+    serverList: (signal?: AbortSignal) => person<{list: unknown; listToken: string; listVersion: number}>('servers', {}, undefined, {signal}),
     /** The account's servers, read from its signed list for showing; an app that opens one checks the signature. */
     servers: () => person<{list: {payload: string}}>('servers').then(answer => envelopePayload<{servers: ListedServer[]}>(answer.list).servers),
     leaveServer: (server: string) => person<void>('leaveServer', {id: server}),
