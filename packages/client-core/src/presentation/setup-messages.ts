@@ -19,6 +19,7 @@ export function setupErrorMessage(error: SetupError): string {
   if (error.code === 'setup_source_not_local') return defaultI18n.t('web.setup.notLocalSource');
   if (error.code === 'claim_unavailable') return defaultI18n.t('web.setup.servicesUnavailableBody');
   if (error.code === 'services_unreachable') return defaultI18n.t('web.setup.porticoUnreachable');
+  if (error.code === 'approval_address_foreign') return defaultI18n.t('web.setup.approvalAddressForeign');
   if (error.code === 'setup_installing') return defaultI18n.t('web.setup.stillInstalling');
   return presentError(error, 'sign-in', {operation: 'action', i18n: defaultI18n}).body;
 }

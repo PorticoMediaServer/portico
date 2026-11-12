@@ -65,6 +65,7 @@ type Paired = SetupPairing & {revision: number; installationId: string};
 type Of<K extends SetupInput['kind']> = Extract<SetupInput, {kind: K}>;
 type Own = {requestId: string; revision: string};
 const changed = () => new CodedError('cancelled', 'The pending setup or selected server changed.');
+const sameOrigin = (url: string, origin: string) => {try {return new URL(url).origin === new URL(origin).origin;} catch {return false;}};
 /** A best-effort cleanup request, ended after five seconds; its failure is ignored. */
 const bounded = async (send: (signal: AbortSignal) => Promise<unknown>) => {
   const linked = linkAbortSignals([], 5000);
@@ -205,6 +206,9 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
         if (state.status === 'ready') {
           const portico = await porticoReading(p, context.signal);
           if (portico) return {server: portico, local};
+        } else {
+          // A server already set up takes no approval: one that came back in the address is dropped unread.
+          deps.pageReturn?.(); porticoApproval = undefined; returnedApproval = undefined;
         }
         own = typeof state.setup === 'object' ? {requestId: state.setup.requestId, revision: state.setup.revision} : undefined;
         const ownerSessionHeld = state.status === 'complete' ? await heldOwner(p, context.signal) : undefined;
@@ -235,6 +239,8 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
         const approval = await callServer(p.api, 'POST /v1/setup/portico', {body: {setupCode, serverName: name.trim() || undefined, returnUrl: setupReturnUrl(deps.pageOrigin())}, signal: context.signal});
         await assertPaired(p);
         if (!approval?.approvalUrl || !/^https:\/\//.test(approval.approvalUrl) || !approval.approvalId || !approval.pollToken) throw new CodedError('invalid_response', unreadableServerResponse);
+        // The page goes only to the Portico Account site this app signs in with, never wherever a server points.
+        if (!sameOrigin(approval.approvalUrl, deps.hostedOrigin)) throw new CodedError('approval_address_foreign', 'The approval address is not on the Portico Account site.');
         porticoApproval = approval; returnedApproval = undefined;
         return {kind: 'initializeDone'};
       } catch (error) {

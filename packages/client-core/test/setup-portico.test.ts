@@ -9,6 +9,7 @@ import {createMemorySetupStore} from '../src/setup-store.ts';
 import type {SetupPortContext} from '../src/setup-controller.ts';
 import {createSetupAdapter} from '../src/setup-adapter.ts';
 import {readSetupPageReturn, setupApprovalAccount, setupReturnUrl} from '../src/setup-portico.ts';
+import {setupErrorMessage} from '../src/presentation/setup-messages.ts';
 
 const INSTALLATION = 'installation_for_setup_portico_00001', ORIGIN = 'http://203.0.113.10:32500', HOSTED = 'https://web.getportico.example';
 const SERVER = 'srv_setup_portico', PORTICO_ACCOUNT = 'pacct_owner', PUBLIC_KEY = Buffer.alloc(32, 7).toString('base64url');
@@ -23,12 +24,12 @@ const session = (over: {profileId?: string; role?: string; accessToken?: string}
 const signedIn = {session: session(), account: {id: 'acct', username: 'sam', role: 'owner'}, profiles: [{id: 'main', name: 'Sam', color: 'blue', isPrimary: true, pinRequired: false}]};
 
 type Call = {method: string; path: string; body?: any};
-async function fixture(t: TestContext, options: {answers?: Record<string, (body: any) => unknown>; pageReturn?: ReturnType<typeof readSetupPageReturn>} = {}) {
+async function fixture(t: TestContext, options: {answers?: Record<string, (body: any) => unknown>; pageReturn?: ReturnType<typeof readSetupPageReturn>; setUp?: boolean} = {}) {
   setInstallationIdentity({installationId: INSTALLATION, name: 'Browser', platform: 'web', app: 'portico', appVersion: '1'});
   t.after(() => setInstallationIdentity(undefined));
   const pin: ServerPin = {serverId: SERVER, publicKey: PUBLIC_KEY, fingerprint: routeBase64(await webRouteCrypto.sha256(routeBytes(PUBLIC_KEY, 32)))};
   const calls: Call[] = [], navigated: string[] = [];
-  let setupRequired = true;
+  let setupRequired = !options.setUp;
   const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), {status, headers: {'Content-Type': 'application/json'}});
   const refusal = (status: number, code: string) => json({error: {code, message: code, retry: false}}, status);
   const answers: Record<string, (body: any) => unknown> = {
@@ -65,7 +66,7 @@ async function fixture(t: TestContext, options: {answers?: Record<string, (body:
     installationId: () => INSTALLATION, navigate: url => {navigated.push(url);}, pageReturn: () => {const value = pageReturn; pageReturn = undefined; return value;}});
   t.after(() => adapter.dispose());
   const context = (): SetupPortContext => ({signal: new AbortController().signal, intentId: 'intent-1'});
-  return {ports: adapter.ports, calls, navigated, store, record: () => record, context};
+  return {ports: adapter.ports, calls, navigated, store, record: () => record, context, unread: () => pageReturn};
 }
 
 test('Portico Accounts asks for the setup code at any address, plain http on a public address included', async t => {
@@ -84,6 +85,25 @@ test('the setup code and the server\'s name go to the server, with a way back to
   assert.deepEqual([ready.kind, ready.kind === 'approvalReady' ? ready.approvalUrl : ''], ['approvalReady', HOSTED + '/approve/apv_1']);
   assert.deepEqual(f.store.peek(), {}, 'no setup record or attempt is written');
   assert.deepEqual(f.record().servers, [], 'no sign-in is kept before the approval comes back');
+});
+
+test('the page goes only to the Portico Account site: an approval address anywhere else is refused, plainly, and never opened', async t => {
+  for (const approvalUrl of ['https://elsewhere.example/approve/apv_1', 'https://web.getportico.example.elsewhere.example/approve/apv_1', 'https://web.getportico.example:8443/approve/apv_1']) {
+    const f = await fixture(t, {answers: {'POST /v1/setup/portico': () => ({approvalId: 'apv_1', approvalUrl, code: 'ABCD-EFGH', pollToken: 'poll_token_1', expiresAt: later(10), pollAfterMs: 3000})}});
+    await f.ports.start(f.context(), 'ABCD-EFGH');
+    await assert.rejects(f.ports.initializeHosted('Den', undefined, f.context()), {code: 'approval_address_foreign'}, approvalUrl);
+    await assert.rejects(f.ports.requestApproval(true, f.context()), {code: 'cancelled'}, 'the refused address is not kept to open later');
+    assert.deepEqual(f.navigated, []);
+  }
+  assert.match(setupErrorMessage({code: 'approval_address_foreign', retryable: false}), /isn’t on Portico’s site, so it wasn’t opened/);
+});
+
+test('a server already set up takes no approval: one that comes back in the address is dropped unread and never sent', async t => {
+  const f = await fixture(t, {setUp: true, pageReturn: {returned: true, approval: approvalFor()}});
+  assert.equal((await f.ports.readState(f.context())).server.kind, 'state');
+  assert.equal(f.unread(), undefined, 'the page\'s return is taken and dropped');
+  await assert.rejects(f.ports.exchange(f.context()), {code: 'cancelled'});
+  assert.equal(f.calls.some(call => call.path === '/v1/setup/portico/finish'), false);
 });
 
 test('a wrong setup code is asked again', async t => {
