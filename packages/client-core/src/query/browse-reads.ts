@@ -37,6 +37,8 @@ export async function readBrowseCountsResponse(api: BrowseReadApi, libraryId: st
 export async function readBrowseFacetResponse(api: BrowseReadApi, libraryId: string, field: string, pivot: string,
   query: BrowseNode | undefined, search: string, limit: number, signal?: AbortSignal) {
   if (libraryId === acrossLibraries) return api.request(browseContextFacetsPath(libraryId, field, pivot, query, search, limit), 'GET', undefined, signal);
+  // A library's authors are its people by that role, not a counted facet of the list.
+  if (field === 'author') return readRebuiltReadingFacet(api as ServerRequester, {libraryId, field, q: search, limit}, signal);
   // The counted filter itself is left out, so its other choices keep their counts.
   const others = conditions(query).flatMap(node => 'all' in node ? node.all : [node]).filter(node => !('field' in node) || node.field !== field);
   const facet = await readFacet(api as ServerRequester, field, libraryItemQuery({id: libraryId}, pivot, others, []), signal);

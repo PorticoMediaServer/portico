@@ -1,9 +1,10 @@
-import {useCallback, useMemo, useState, useSyncExternalStore, type ReactNode} from 'react';
+import {useCallback, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode} from 'react';
 import {useCoarsePointer} from '../../kit/theme';
 import {defaultI18n} from '@i18n';
 import type {BrowseNode, BrowseSortSelection} from '@core/browse.ts';
 import type {Library} from '@core/index.ts';
 import {browseNameId} from '@core/presentation/browse-toolbar.ts';
+import {filterValueName, namedFilterFields} from '@core/filter-value-names.ts';
 import {appliedFilterParts, browseToolbarModel, type FactPart, type TextEnvironment} from '@portico/client-core/kit-model';
 import {LibraryHeader, LibrarySwitcher, StickyBrowseHeader, BrowseToolbar, type LibraryChoice, type BrowseLabels} from '../../kit/browse';
 import {Tabs} from '../../kit/controls';
@@ -128,12 +129,25 @@ export function LibraryBrowse(bindings: LibraryBrowseBindings) {
   const model = useMemo(() => state.capabilities && state.sort ? browseToolbarModel(state.capabilities, library.kind, state.predicates, state.sort, {...env, owner: bindings.owner, scope: controller.source.base?.length ? 'group' : 'library'}) : undefined,
     [state.capabilities, state.sort, state.predicates, library.kind, env, bindings.owner, controller]);
   const sort = useCallback((sort: BrowseSortSelection) => {try {controller.setQuery(state.predicates, sort, state);} catch (error) {reportError(error);}}, [controller, state, reportError]);
+  // An author or series chip whose name this app has not listed yet (a link, a reload): read that
+  // list once so the chip says the name, not the id.
+  const [, named] = useState(0);
+  const unnamed = [...new Set((model?.applied ?? []).flatMap(node => 'field' in node && namedFilterFields.has(node.field)
+    && (Array.isArray(node.value) ? node.value : [node.value]).some(value => filterValueName(value) === undefined) ? [node.field] : []))].join(',');
+  useEffect(() => {
+    if (!unnamed) return;
+    const stop = new AbortController();
+    void Promise.all(unnamed.split(',').map(field => controller.facets(field, '', [], stop.signal).catch(() => undefined)))
+      .then(() => {if (!stop.signal.aborted) named(count => count + 1);});
+    return () => stop.abort();
+  }, [unnamed, controller]);
   if (!model) return null;
   const pivot = state.capabilities?.resolvedPivot ?? state.capabilities?.pivots.find(pivot => pivot.id === controller.source.pivot);
   const views = (pivot?.supportedViews ?? []).filter((view): view is BrowsePresentation['view'] => view === 'grid' || view === 'list');
   const view = views.find(view => view === appearance.view) ?? views[0];
   if (!view) return null;
-  const chips = model.applied.flatMap((node, index) => 'field' in node ? [{id: String(index), parts: appliedFilterParts(node, id => {const field = state.capabilities!.fields.find(field => field.id === id);return field ? browseLabels.field(field) : id;}, env)}] : []);
+  const chips = model.applied.flatMap((node, index) => 'field' in node ? [{id: String(index), parts: appliedFilterParts(node, id => {const field = state.capabilities!.fields.find(field => field.id === id);return field ? browseLabels.field(field) : id;}, env,
+    value => filterValueName(value) ?? String(value))}] : []);
   const setPredicates = (nodes: readonly BrowseNode[]) => {try {controller.setQuery(nodes, undefined, state);} catch (error) {bindings.reportError(error);}};
   // The retained count describes the same accepted generation still painted by
   // the collection. A pending replacement cannot use it as its new match count.

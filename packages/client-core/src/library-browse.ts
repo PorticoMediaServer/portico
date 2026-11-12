@@ -40,6 +40,8 @@ const fields: Readonly<Record<string, Readonly<{id: string; facet?: string} & Re
   favorite: {id: 'favorite', labelKey: 'browse.field.favorite', type: 'boolean', operators: ['equals'], controlHint: 'toggle', complexity: 'quick'},
   inList: {id: 'watchlisted', labelKey: 'browse.field.watchlisted', type: 'boolean', operators: ['equals'], controlHint: 'toggle', complexity: 'quick'},
   resolution: {id: 'resolution', labelKey: 'browse.field.resolution', type: 'enum', operators: ['equals', 'in'], controlHint: 'facet-multi-select', complexity: 'standard', facet: 'resolution'},
+  // A book's or audiobook's authors, ticked from the library's own Authors list; several can be.
+  author: {id: 'author', labelKey: 'browse.field.author', type: 'identity-set', operators: ['in', 'contains-any', 'equals'], controlHint: 'facet-multi-select', complexity: 'quick', facet: 'author'},
 };
 const quick: readonly Readonly<{id: string; labelKey: string; field: string; value: string | boolean}>[] = [
   {id: 'unwatched', labelKey: 'filter.unwatched', field: 'playState', value: 'unplayed'},
@@ -114,6 +116,13 @@ function genreTitlesQuery(nodes: readonly BrowseNode[], sorts: readonly BrowseSo
   return query as ItemListQuery;
 }
 
+/** One or several authors' ids as the list's author condition: any of them, or (contains-all) all of them. */
+const authors = (operator: string, value: unknown): string => {
+  const ids = Array.isArray(value) ? value : [value];
+  if (!ids.length || ids.some(id => typeof id !== 'string' || !id || id.includes(','))) unsupported();
+  return ids.length === 1 && operator !== 'contains-all' ? ids[0] as string : (operator === 'contains-all' ? 'all:' : 'any:') + ids.join(',');
+};
+
 /** The server's list for a tab with these filters and this order. The filters all apply together; anything else is refused. */
 export function libraryItemQuery(library: Readonly<{id: string; views?: WireLibrary['views']}>, pivotId: string, nodes: readonly BrowseNode[], sorts: readonly BrowseSortSelection[]): ItemListQuery {
   if (library.id === acrossLibraries && pivotId === genreTitlesPivot) return genreTitlesQuery(nodes, sorts);
@@ -129,9 +138,11 @@ export function libraryItemQuery(library: Readonly<{id: string; views?: WireLibr
     const {field, operator, value} = node;
     if (field === 'genre' && ['in', 'contains-any', 'equals', 'contains-all'].includes(operator) && query.genre === undefined) query.genre = String(one(value));
     else if (field === 'resolution' && ['in', 'equals'].includes(operator) && query.resolution === undefined) query.resolution = String(one(value));
-    // A Read library's author (a person) or series, chosen from its Authors or Series list.
-    else if (field === 'author' && operator === 'equals' && query.author === undefined) query.author = String(one(value));
-    else if (field === 'series' && operator === 'equals' && query.series === undefined) query.series = String(one(value));
+    // A book's authors (people), one or several from the Authors list or the filter's own control:
+    // the server takes them as one condition, "any:" or "all:" of their ids.
+    else if (field === 'author' && ['in', 'contains-any', 'equals', 'contains-all'].includes(operator) && query.author === undefined) query.author = authors(operator, value);
+    // A series, from the Series list or a link to it: the server's series list takes one.
+    else if (field === 'series' && ['in', 'contains-any', 'equals'].includes(operator) && query.series === undefined) query.series = String(one(value));
     else if (field === 'playState' && operator === 'equals' && (value === 'played' || value === 'unplayed')) query.watched = value === 'played';
     else if (field === 'favorite' && operator === 'equals' && typeof value === 'boolean') query.favorite = value;
     else if (field === 'watchlisted' && operator === 'equals' && typeof value === 'boolean') query.inList = value;
