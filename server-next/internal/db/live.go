@@ -135,7 +135,12 @@ type LiveChannelQuery struct {
 	NotFavorites bool
 	// Owner reads owner-only sources' channels too. Everyone else's read skips them in the
 	// statement itself, so it never walks a source it may not see.
-	Owner       bool
+	Owner bool
+	// SourceID keeps one source's channels, LibraryOnly only Library Channels, and Group one
+	// group's: each a run of its own index (channels_of_source, channels_of_group).
+	SourceID    int64
+	LibraryOnly bool
+	Group       string
 	AfterNumber int
 	AfterName   string
 	AfterID     int64
@@ -150,9 +155,37 @@ func (d *DB) LiveChannels(ctx context.Context, v Viewer, q LiveChannelQuery) ([]
 	if q.ByName {
 		order, after = "c.sort_name, c.id", "(c.sort_name, c.id) > (@name, @id)"
 	}
-	from := `channels c LEFT JOIN profile_channels pc ON pc.profile_id = @profile AND pc.channel_id = c.id`
+	from, where := q.clauses()
+	rows, err := d.read.QueryContext(ctx, `SELECT `+liveChannelColumns+` FROM `+from+liveChannelJoins+`
+		WHERE `+where+` AND `+after+` ORDER BY `+order+` LIMIT @limit`, q.args(v)...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []LiveChannel
+	for rows.Next() {
+		c, err := scanLiveChannel(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+// liveChannelColumns are what a channel is read with; scanLiveChannel reads them.
+const liveChannelColumns = `c.id, c.public_id, c.kind, c.name, c.sort_name, c.number, ifnull(c.group_name, ''),
+	ifnull(l.libraries, '[]'), ifnull(c.logo_hash, ''), ifnull(pc.favorite, 0), ifnull(pc.hidden, 0), ifnull(c.guide_source_id, 0),
+	ifnull(c.guide_key, ''), ifnull(s.audience, ''), ifnull(c.source_id, 0)`
+
+const liveChannelJoins = ` LEFT JOIN library_channels l ON l.channel_id = c.id LEFT JOIN live_sources s ON s.id = c.source_id`
+
+// clauses are the channels a query reads, without where to start: in use, not paused, not an
+// owner-only source's for anyone else, and the query's own filters.
+func (q LiveChannelQuery) clauses() (from, where string) {
+	from = `channels c LEFT JOIN profile_channels pc ON pc.profile_id = @profile AND pc.channel_id = c.id`
 	// A paused source's channels, and channels the source no longer sends, leave Live TV.
-	where := `c.state = 1 AND c.missing_since_at IS NULL AND ifnull(s.paused, 0) = 0 AND ` + after
+	where = `c.state = 1 AND c.missing_since_at IS NULL AND ifnull(s.paused, 0) = 0`
 	if !q.Owner {
 		where += ` AND (c.kind = 2 OR s.audience = 'everyone')`
 	}
@@ -166,34 +199,39 @@ func (d *DB) LiveChannels(ctx context.Context, v Viewer, q LiveChannelQuery) ([]
 	if !q.WithHidden {
 		where += ` AND ifnull(pc.hidden, 0) = 0`
 	}
-	rows, err := d.read.QueryContext(ctx, `SELECT c.id, c.public_id, c.kind, c.name, c.sort_name, c.number, ifnull(c.group_name, ''),
-		ifnull(l.libraries, '[]'), ifnull(c.logo_hash, ''), ifnull(pc.favorite, 0), ifnull(pc.hidden, 0), ifnull(c.guide_source_id, 0),
-		ifnull(c.guide_key, ''), ifnull(s.audience, ''), ifnull(c.source_id, 0) FROM `+from+` LEFT JOIN library_channels l ON l.channel_id = c.id
-		LEFT JOIN live_sources s ON s.id = c.source_id
-		WHERE `+where+` ORDER BY `+order+` LIMIT @limit`,
-		sql.Named("profile", v.ProfileID), sql.Named("number", q.AfterNumber), sql.Named("name", q.AfterName), sql.Named("id", q.AfterID),
-		sql.Named("limit", q.Limit))
-	if err != nil {
-		return nil, err
+	if q.SourceID != 0 {
+		where += ` AND c.source_id = @source`
 	}
-	defer rows.Close()
-	var out []LiveChannel
-	for rows.Next() {
-		var c LiveChannel
-		var libraries string
-		if err := rows.Scan(&c.ID, &c.PublicID, &c.Kind, &c.Name, &c.SortName, &c.Number, &c.Group, &libraries, &c.LogoHash, &c.Favorite,
-			&c.Hidden, &c.GuideSource, &c.GuideKey, &c.Audience, &c.SourceID); err != nil {
-			return nil, err
-		}
-		if json.Unmarshal([]byte(libraries), &c.Libraries) != nil {
-			c.Libraries = []string{""} // unreadable: names a library nobody may see
-		}
-		if c.Kind == ChannelFromLibrary {
-			c.GuideSource, c.GuideKey = LibraryGuideSource, c.PublicID
-		}
-		out = append(out, c)
+	if q.LibraryOnly {
+		where += ` AND c.kind = 2`
 	}
-	return out, rows.Err()
+	if q.Group != "" {
+		where += ` AND c.group_name = @group`
+	}
+	return from, where
+}
+
+func (q LiveChannelQuery) args(v Viewer) []any {
+	return []any{sql.Named("profile", v.ProfileID), sql.Named("number", q.AfterNumber), sql.Named("name", q.AfterName),
+		sql.Named("id", q.AfterID), sql.Named("limit", q.Limit), sql.Named("source", q.SourceID), sql.Named("group", q.Group)}
+}
+
+type rowScanner interface{ Scan(dest ...any) error }
+
+func scanLiveChannel(rows rowScanner, extra ...any) (LiveChannel, error) {
+	var c LiveChannel
+	var libraries string
+	if err := rows.Scan(append(extra, &c.ID, &c.PublicID, &c.Kind, &c.Name, &c.SortName, &c.Number, &c.Group, &libraries, &c.LogoHash,
+		&c.Favorite, &c.Hidden, &c.GuideSource, &c.GuideKey, &c.Audience, &c.SourceID)...); err != nil {
+		return c, err
+	}
+	if json.Unmarshal([]byte(libraries), &c.Libraries) != nil {
+		c.Libraries = []string{""} // unreadable: names a library nobody may see
+	}
+	if c.Kind == ChannelFromLibrary {
+		c.GuideSource, c.GuideKey = LibraryGuideSource, c.PublicID
+	}
+	return c, nil
 }
 
 // LiveChannelByID reads one channel in use with the profile's own marks.
