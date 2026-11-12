@@ -1,3 +1,4 @@
+import {legacyPersonalTransport} from './fixtures/legacy-personal-transport.ts';
 import {wireFixture} from './wire-fixture.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,7 +12,7 @@ const pageFields=(total:number)=>({query:{sort:'position',direction:'asc',catego
 const content=(r=resource(),entries:any[]=[])=>({resource:r,entries,nextCursor:'',...pageFields(entries.length)});
 const deferred=()=>{let resolve!:(v:any)=>void;const promise=new Promise<any>(r=>resolve=r);return{promise,resolve};};
 const tick=()=>new Promise(r=>setTimeout(r,0));
-function setup(request:(path:string,method?:string,body?:any,signal?:AbortSignal)=>Promise<any>){let n=0;return new PersonalSavedService({request:async (...args:any[])=>wireFixture(await (request as any)(...args),{'duration': 'durationMs', 'progressSeconds': 'progressMs', 'startSeconds': 'startMs', 'positionSeconds': 'positionMs'})},scope,async()=>`00000000-0000-4000-8000-${String(++n).padStart(12,'0')}`);}
+function setup(request:(path:string,method?:string,body?:any,signal?:AbortSignal)=>Promise<any>){let n=0;return new PersonalSavedService({request:async (...args:any[])=>wireFixture(await (request as any)(...args),{'duration': 'durationMs', 'progressSeconds': 'progressMs', 'startSeconds': 'startMs', 'positionSeconds': 'positionMs'})},scope,async()=>`00000000-0000-4000-8000-${String(++n).padStart(12,'0')}`,legacyPersonalTransport);}
 
 test('collection directory and opaque membership use exact server IDs, roles and page positions',async()=>{
  const paths:string[]=[];const s=setup(async p=>{paths.push(p);return p.includes('/content')?{...content(resource(),[{id:'member',hidden:false,media:media()},{id:'hidden',hidden:true}]),nextCursor:p.includes('cursor')?'':'next'}:directory([resource()]);});
