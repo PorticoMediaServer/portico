@@ -47,7 +47,13 @@ test('a live HLS stream the server converted is played as HLS', async () => {
   const f = control(r => r.method === 'POST' ? {status: 201, body: live({presentation: {...live().presentation, url: '/v1/live/streams/grant/index.m3u8', route: 'repackaged', container: 'mpegts_hls'}})} : {status: 204},
     {plays: p => !(p.mode === 'live' && p.route === 'original')});
   await f.c.open(reference('live-source', 'chn_1'), f.sink);
-  try {assert.equal(f.views.at(-1)?.linear.media.mode, 'hls');assert.equal(f.views.at(-1)?.linear.media.clock, 'dates');assert.deepEqual(f.errors, []);} finally {f.c.close();}
+  try {
+    const view = f.views.at(-1)!;
+    assert.equal(view.linear.media.mode, 'hls');assert.equal(view.linear.media.clock, 'dates');assert.deepEqual(f.errors, []);
+    // Read by program dates from the stretch's oldest moment (20:00): joined at live (20:05), never at the oldest moment.
+    assert.equal(view.linear.desired.seek?.positionUs, String(300_000 * 1000));
+    assert.equal(view.linear.media.originMs, Date.parse('2026-11-12T20:00:00Z'));
+  } finally {f.c.close();}
 });
 
 test('every tuner busy: the server\'s own words say what is using them', async () => {
