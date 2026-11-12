@@ -243,6 +243,16 @@ export class NativePeopleSource {
     } catch (error) {if (this.current() && this.mutation === token) this.fail(error); return false;}
     finally {if (this.current() && this.mutation === token) {this.mutation = undefined; this.publish({busy: false}); if (removed) void this.load();}}
   };
+  /** Let back in someone who left (area 2 rule 39): the owner's alone, on a row of the page shown. */
+  letBackIn = async (person: SettingsPersonRow): Promise<void> => {
+    if (!this.ownerControls()) return;
+    if (!this.current() || this.state.busy || this.state.loading || !this.state.people?.items.includes(person) || person.status !== 'left') return;
+    const token = this.mutation = {}; this.publish({busy: true, error: undefined});
+    let done = false;
+    try {await this.people.letBackIn(person); done = true;}
+    catch (error) {if (this.current() && this.mutation === token) this.fail(error);}
+    finally {if (this.current() && this.mutation === token) {this.mutation = undefined; this.publish({busy: false}); if (done) void this.load(this.state.cursor);}}
+  };
   revoke = async (invitation: ServerInvitation): Promise<void> => {
     if (!this.ownerControls()) return;
     if (!this.current() || this.state.busy || this.state.loading || !this.state.invitations?.items.includes(invitation) || invitation.state !== 'pending') return;
