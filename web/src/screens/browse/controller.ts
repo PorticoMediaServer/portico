@@ -1,4 +1,4 @@
-import {readBrowseCapabilitiesResponse, readBrowseCountsResponse, readBrowseFacetResponse, readReadingBrowseFacet} from '@core/query/browse-reads.ts';
+import {nameFilterValues, readBrowseCapabilitiesResponse, readBrowseCountsResponse, readBrowseFacetResponse, readReadingBrowseFacet} from '@core/query/browse-reads.ts';
 import {browseMembershipId, parseBrowseCapabilities, parseBrowseFacets, parseBrowseCounts, parseBrowseNode, completeBrowseNode,
   type BrowseCapabilities, type BrowseNode, type BrowseSortSelection, type BrowseWholeSelection, type BrowseWholeSelectionUnavailable} from '@core/browse.ts';
 import {BrowseSession, browseSessionBuilder, browseSessionClosed, type BrowseSessionQuery} from '@core/browse-session.ts';
@@ -264,6 +264,10 @@ export class BrowseController {
       : parseBrowseFacets(await readBrowseFacetResponse(this.api, this.source.libraryId, field, this.source.pivot, body.query, query, 200, signal), field);
     if (!this.current() || epoch !== this.epoch || signal.aborted) throw browseSessionClosed();
     return page;
+  }
+  /** Reads the names of author or series ids in use whose names this app has not listed. */
+  nameValues(field: 'author' | 'series', ids: readonly string[], signal: AbortSignal) {
+    return nameFilterValues(this.api, field, ids, signal);
   }
   async count(predicates: readonly BrowseNode[], signal: AbortSignal) {
     return (await this.counts([{id: 'draft', predicates}], signal))[0];
