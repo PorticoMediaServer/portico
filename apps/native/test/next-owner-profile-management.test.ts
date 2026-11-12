@@ -39,7 +39,7 @@ async function fixture(main = true, pinRequired = false) {
     '../../../../../packages/i18n/src': {defaultI18n: {t: (id: string) => id}},
     '../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: 'fixture failure'})},
     '../../../../../packages/contracts/src/routes': await import('../../../packages/contracts/src/routes.ts'),
-    '../../../../../packages/client-core/src/profile-management': {ManagedProfilesClient: class {
+    '../../../../../packages/client-core/src/profile-management': {nextProfileArt: (await import('../../../packages/client-core/src/profile-management.ts')).nextProfileArt, ManagedProfilesClient: class {
       async list() {return profiles;}
       async create(name: string, art: string) {writes.push({kind: 'create', name, art});}
       async edit(target: any, change: any) {writes.push({kind: 'edit', target, change});}
@@ -207,7 +207,7 @@ test('Add has an independent opening outside the profile sheet and ignores a can
   cancel(); byID(f.render(), 'settings-profile-add').props.onPress(); byID(f.render(), 'profile-add-name').props.onChangeText('Created');
   input('Late'); cancel(); save(); await tick();
   const current = dialog(f.render(), 'profile-add'); assert.equal(current.props.open, true); assert.equal(byID(current, 'profile-add-name').props.value, 'Created'); assert.equal(f.writes.length, 0);
-  footerAction(current, 'save')(); await tick(); assert.deepEqual(f.writes, [{kind: 'create', name: 'Created', art: 'blue'}]);
+  footerAction(current, 'save')(); await tick(); assert.deepEqual(f.writes, [{kind: 'create', name: 'Created', art: undefined}], 'untouched, the server chooses the colour');
 });
 
 test('limits inputs, Save and Cancel cannot cross an opening or submit a replaced draft', async () => {
