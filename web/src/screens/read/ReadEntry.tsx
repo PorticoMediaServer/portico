@@ -17,7 +17,7 @@ import {readerPdfAdapterOptions} from './pdf-worker';
 import type {ReaderMountAuthority} from './mount';
 import styles from './entry.module.css';
 import {takeContentsTarget, retireContentsTarget} from './contents-handoff';
-import {ReaderBook} from './ReaderBook';
+import {ReaderBook, readerNear} from './ReaderBook';
 import {readSearch} from './route-search';
 import {indexedReadingOpeningMarker, indexedReadingOpeningVersion, receiveIndexedReadingTarget, retireIndexedReadingOpening, subscribeIndexedReadingOpenings, type IndexedReadingReceiver} from '../search/reading-open-handoff';
 
@@ -26,7 +26,7 @@ import {ReadOpenFailure, readFailureKind, readFailureReported, type ReadFailureK
 const {t} = defaultI18n;
 type Captured = NonNullable<ReturnType<typeof useProtectedWebScreenContext>>;
 type OpenBook = Readonly<{session: ReadingSession; publication: ReadingPublication; controller: ReadingController;
-  authority: ReaderMountAuthority; location?: ReaderLocation; contentsTarget?: ReaderContentsTarget; annotations?: ReadingSession}>;
+  authority: ReaderMountAuthority; location?: ReaderLocation; near?: number; contentsTarget?: ReaderContentsTarget; annotations?: ReadingSession}>;
 type ReadEntryProps = {captured: Captured; itemId: string; sourceId?: string; active?: boolean; onClose?: () => void};
 type ReceiverOpening = {context: Captured['context']; itemId: string; sourceId?: string; location: typeof router.state.location;
   carriedLocation?: typeof router.state.location; settingsLocation?: typeof router.state.location;
@@ -170,7 +170,7 @@ function ReadEntryBody({captured, itemId, sourceId, active = true, onClose, rece
       session.signal.addEventListener('abort', () => {
         if (alive && !life.signal.aborted && currentReading() && readFailureKind(session.signal.reason) === 'ended') {setState({failed: 'ended'}); void dispose().catch(() => {});}
       }, {once: true, signal: life.signal});
-      setState({book: {session, publication, controller: reader.controller, authority: bindings.authority, location, contentsTarget, ...(session.manifest.canAnnotate === true ? {annotations:session} : {})}});
+      setState({book: {session, publication, controller: reader.controller, authority: bindings.authority, location, near: readerNear(saved), contentsTarget, ...(session.manifest.canAnnotate === true ? {annotations:session} : {})}});
     })().catch(error => {
       // A rejected bootstrap must never leave the reader on its loading skeleton. This attempt is
       // still the live one unless it was retired, so show the failure state; report only while the
