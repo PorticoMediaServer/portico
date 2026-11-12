@@ -1,11 +1,13 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -55,24 +57,58 @@ func TestTheGuideFiltersBySourceAndGroupWithinWhatTheProfileMaySee(t *testing.T)
 		t.Helper()
 		return get[LiveChannelPage](t, s, token, "/v1/live/channels"+query)
 	}
-	sourceNames := func(p LiveChannelPage) []string {
+	// menu writes the filter menu as one line per source: name, kind, channels, favourites,
+	// groups with their counts, whether the guide's reach is known, and out of date.
+	menu := func(p LiveChannelPage) []string {
 		var out []string
 		for _, src := range p.Sources {
-			out = append(out, src.Name)
+			line := fmt.Sprintf("%s %s %d/%d", src.Name, src.Kind, src.Channels, src.Favorites)
+			for _, g := range src.Groups {
+				line += fmt.Sprintf(" %s:%d", g.Name, g.Count)
+			}
+			if src.GuideThrough != nil {
+				line += " through"
+			}
+			if src.OutOfDate {
+				line += " out-of-date"
+			}
+			out = append(out, line)
 		}
 		return out
 	}
-	first := page(everything, "")
-	if got := sourceNames(first); !slices.Equal(got, []string{"Cable", "Library Channels"}) || !slices.Equal(first.Groups, []string{"Films", "News"}) {
-		t.Fatalf("a member is offered sources %v and groups %v", got, first.Groups)
+	want := func(token, query string, lines ...string) {
+		t.Helper()
+		if got := menu(page(token, query)); !slices.Equal(got, lines) {
+			t.Errorf("the menu%s reads %q, want %q", query, got, lines)
+		}
 	}
-	if got := page(owner, ""); !slices.Equal(sourceNames(got), []string{"Cable", "Mine", "Library Channels"}) ||
-		!slices.Equal(got.Groups, []string{"Films", "News", "Sports"}) {
-		t.Fatalf("the owner is offered sources %v and groups %v", sourceNames(got), got.Groups)
-	}
-	if got := page(filmsAndMusic, ""); !slices.Equal(sourceNames(got), []string{"Cable"}) {
-		t.Fatalf("a profile without the shows library is offered sources %v", sourceNames(got))
-	}
+	want(everything, "", "Cable live 2/0 Films:1 News:1 through", "Library Channels library 1/0 through")
+	want(owner, "", "Cable live 2/0 Films:1 News:1 through", "Mine live 1/0 Sports:1", "Library Channels library 1/0 through")
+	want(filmsAndMusic, "", "Cable live 2/0 Films:1 News:1 through")
+	// A favourite is counted; a hidden channel leaves the counts unless hidden ones are asked for.
+	cableChannels := page(everything, "?source="+cable.ID).Items
+	status(t, s, "PUT", "/v1/live/channels/"+cableChannels[0].ID+"/state", everything, LiveChannelMarks{Hidden: true})
+	status(t, s, "PUT", "/v1/live/channels/"+cableChannels[1].ID+"/state", everything, LiveChannelMarks{Favorite: true})
+	status(t, s, "PUT", "/v1/live/channels/"+tv.ID+"/state", everything, LiveChannelMarks{Favorite: true})
+	want(everything, "", "Cable live 1/1 Films:1 through", "Library Channels library 1/1 through")
+	want(everything, "?hidden=true", "Cable live 2/1 Films:1 News:1 through", "Library Channels library 1/1 through")
+	status(t, s, "PUT", "/v1/live/channels/"+cableChannels[0].ID+"/state", everything, LiveChannelMarks{})
+
+	// A source whose last refresh failed says its guide is out of date.
+	var down atomic.Bool
+	flaky := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if down.Load() {
+			w.WriteHeader(http.StatusBadGateway)
+			return
+		}
+		fmt.Fprint(w, "#EXTM3U\n#EXTINF:-1 tvg-chno=\"30\",Weather\nhttp://streams.invalid/w.ts\n")
+	}))
+	t.Cleanup(flaky.Close)
+	weather := addSource(t, s, owner, LiveSourceSave{Kind: "playlist", Name: new("Weather"), Config: &live.LiveSourceConfig{PlaylistURL: flaky.URL}})
+	down.Store(true)
+	s.sources.Refresh(context.Background(), weather.ID) // fails: the channels stay, the guide is out of date
+	want(owner, "?source="+weather.ID, "Cable live 2/0 Films:1 News:1 through", "Mine live 1/0 Sports:1", "Weather live 1/0 out-of-date",
+		"Library Channels library 1/0 through")
 
 	for _, c := range []struct {
 		token, query string
@@ -100,8 +136,8 @@ func TestTheGuideFiltersBySourceAndGroupWithinWhatTheProfileMaySee(t *testing.T)
 	if a, b := page(everything, "?source="+mine.ID), page(everything, "?source=src_nope"); fmt.Sprint(a) != fmt.Sprint(b) {
 		t.Errorf("an owner-only source and one that does not exist read differently: %+v and %+v", a, b)
 	}
-	if got := page(everything, "?source=library&cursor="+page(everything, "?limit=1").NextCursor); got.Sources != nil || got.Groups != nil {
-		t.Errorf("a later page repeats the sources and groups: %+v", got)
+	if got := page(everything, "?source=library&cursor="+page(everything, "?limit=1").NextCursor); got.Sources != nil {
+		t.Errorf("a later page repeats the sources: %+v", got)
 	}
 
 	stretch := "&from=" + s.now().Add(-time.Hour).UTC().Format(time.RFC3339) + "&to=" + s.now().Add(3*time.Hour).UTC().Format(time.RFC3339)
@@ -112,7 +148,6 @@ func TestTheGuideFiltersBySourceAndGroupWithinWhatTheProfileMaySee(t *testing.T)
 	if guide := get[LiveGuide](t, s, filmsAndMusic, "/v1/live/guide?source=library"+stretch); len(guide.Items) != 0 {
 		t.Fatalf("a profile without the shows library is shown its Library Channel in the guide: %+v", guide.Items)
 	}
-	_ = tv
 }
 
 // around=<channel> answers the channels either side of one channel, for the player's mini
