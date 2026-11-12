@@ -14,6 +14,8 @@ test('a library list without summaries, as the rebuilt server sends it, still li
  assert.deepEqual(rows.map(row=>row.name),['Films','Music','Shows']);
  for(const row of rows.slice(0,2))assert.deepEqual(row.summary,{counts:[],coverUrls:[],latestArtwork:'',firstScan:false,empty:false,emptyKnown:false});
  assert.equal(rows[2].summary.counts[0].count,24);
+ // The server's plural kinds read in the app's own words, so an audiobooks library draws square.
+ assert.deepEqual(rows.map(row=>row.kind),['movie','music','tv']);
  // An unreadable list or library row still refuses the read.
  await assert.rejects(readLibrarySummaries({async request<T>(){return {items:[{id:'lib_a',kind:'movies'}]} as T;}}));
 });

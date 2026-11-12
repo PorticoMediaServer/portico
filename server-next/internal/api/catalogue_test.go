@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -70,7 +71,7 @@ func TestBrowse(t *testing.T) {
 		t.Fatalf("%d libraries", len(libraries.Items))
 	}
 	films := get[Library](t, s, token, "/v1/libraries/"+libraries.Items[0].ID)
-	if len(films.Views) != 1 || films.Views[0].Kind != "movie" || len(films.Sorts) == 0 || len(films.Filters) == 0 {
+	if !slices.Equal(films.Views, []View{{"movie"}, {"collection"}}) || len(films.Sorts) == 0 || len(films.Filters) == 0 {
 		t.Fatalf("the film library does not say how to browse it: %+v", films)
 	}
 

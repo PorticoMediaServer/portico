@@ -12,7 +12,7 @@ import {itemKindOf, libraryKind, type ItemListQuery} from './items.ts';
 import {serverPath} from './query/server-api.ts';
 
 /** Each tab's name in the app, the kind of item it lists and its label. */
-const pivots: readonly Readonly<{id: string; kind: string; labelKey: string; views: readonly string[]}>[] = [
+const pivots: readonly Readonly<{id: string; kind: string; labelKey: string; views: readonly string[]; /** The kinds the list asks for, when more than the tab's own. */ lists?: string}>[] = [
   {id: 'movies', kind: 'movie', labelKey: 'library.movies', views: ['grid', 'list']},
   {id: 'shows', kind: 'show', labelKey: 'library.shows', views: ['grid', 'list']},
   {id: 'episodes', kind: 'episode', labelKey: 'library.episodes', views: ['list', 'grid']},
@@ -21,10 +21,12 @@ const pivots: readonly Readonly<{id: string; kind: string; labelKey: string; vie
   {id: 'songs', kind: 'track', labelKey: 'library.songs', views: ['list']},
   {id: 'books', kind: 'audiobook', labelKey: 'library.books', views: ['grid', 'list']},
   {id: 'books', kind: 'book', labelKey: 'library.tab.books', views: ['grid', 'list']},
-  {id: 'comics', kind: 'comic', labelKey: 'library.tab.volumesAndIssues', views: ['grid', 'list']},
+  // A comic library's tab lists its comics with their series, each series opening its volumes.
+  {id: 'comics', kind: 'comic', labelKey: 'library.tab.volumesAndIssues', views: ['grid', 'list'], lists: 'comic,series'},
+  {id: 'collections', kind: 'collection', labelKey: 'library.tab.collections', views: ['grid', 'list']},
 ];
 /** The server's sort names and the app's. */
-const sortIds: Readonly<Record<string, string>> = {title: 'title', added: 'added', year: 'year', release: 'releaseDate'};
+const sortIds: Readonly<Record<string, string>> = {title: 'title', added: 'added', year: 'year', release: 'releaseDate', latest: 'latestAired'};
 const wireSort = (field: string): string | undefined => Object.entries(sortIds).find(([, id]) => id === field)?.[0];
 /** The server's filters as the controls know them. */
 const fields: Readonly<Record<string, Readonly<{id: string; facet?: string} & Record<string, unknown>>>> = {
@@ -49,7 +51,8 @@ const pivotFor = (library: WireLibrary, pivotId: string) => pivots.find(pivot =>
 /** What this library's tab can be filtered and ordered by, as `parseBrowseCapabilities` reads it. */
 export function libraryBrowseCapabilities(library: WireLibrary, pivotId: string): unknown {
   const offered = pivots.filter(pivot => library.views?.some(view => view.kind === pivot.kind));
-  const sorts = (library.sorts ?? []).filter(sort => sortIds[sort.id]).map(sort => ({id: sortIds[sort.id]!, labelKey: 'sort.' + sortIds[sort.id], directions: ['asc', 'desc'], defaultDirection: sort.order === 'desc' ? 'desc' : 'asc', applicableKinds: []}));
+  // `latest` is a show's newest episode (the Recently aired tab); music's newest track has no name in the app yet.
+  const sorts = (library.sorts ?? []).filter(sort => sortIds[sort.id] && (sort.id !== 'latest' || ['shows', 'anime'].includes(library.kind))).map(sort => ({id: sortIds[sort.id]!, labelKey: 'sort.' + sortIds[sort.id], directions: ['asc', 'desc'], defaultDirection: sort.order === 'desc' ? 'desc' : 'asc', applicableKinds: []}));
   const filters = (library.filters ?? []).flatMap(filter => {
     const known = fields[filter.id];
     if (!known) return [];
@@ -73,9 +76,12 @@ const one = (value: unknown): string | number | boolean => {
 
 /** The server's list for a tab with these filters and this order. The filters all apply together; anything else is refused. */
 export function libraryItemQuery(library: Readonly<{id: string; views?: WireLibrary['views']}>, pivotId: string, nodes: readonly BrowseNode[], sorts: readonly BrowseSortSelection[]): ItemListQuery {
-  const pivot = pivots.find(each => each.id === pivotId && (!library.views || library.views.some(view => view.kind === each.kind)));
+  const candidates = pivots.filter(each => each.id === pivotId && (!library.views || library.views.some(view => view.kind === each.kind)));
+  const pivot = candidates[0];
   if (!pivot) throw new BrowseQueryError('pivot', 'That view is not available in this library.');
-  const query: Record<string, unknown> = {library: library.id, kind: pivot.kind};
+  // Books is an audiobook library's tab and a book library's. Without the library's lists, both
+  // kinds are asked for: each library holds only its own, so the list is that library's books.
+  const query: Record<string, unknown> = {library: library.id, kind: candidates.length > 1 ? candidates.map(each => each.lists ?? each.kind).join(',') : pivot.lists ?? pivot.kind};
   const add = (node: BrowseNode): void => {
     if ('all' in node) { node.all.forEach(add); return; }
     if (!('field' in node)) { unsupported(); return; }
