@@ -1,4 +1,5 @@
-import {useEffect, useLayoutEffect, useState, useSyncExternalStore} from 'react';
+import {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
+import {useRouterState} from '@tanstack/react-router';
 import {defaultI18n} from '@i18n';
 import {RouteError} from '@core/route-identity.ts';
 import {porticoAccountHolder} from '../../platform/portico-account-holder';
@@ -28,6 +29,7 @@ import {ServerlessAccountMenu} from './ServerlessAccountMenu';
 import {AccountSignInView} from './AccountSignInView';
 import {AccountSignInForm} from './sign-in-form';
 import {resumeAfterProfiles} from './chooser-resume';
+import {ChooserJoin, ChooserLocalAddress, ChooserStart, chooserIntent} from './ChooserStart';
 
 const t = defaultI18n.t;
 type Admitted = Readonly<{entry: BrowserAccountEntry; form: AccountSignInForm; dispose: () => void}>;
@@ -50,7 +52,30 @@ export function HostedServersScreen() {
   if (!signedIn) return <Replace to={'/sign-in?next=' + encodeURIComponent('/servers' + location.search)} />;
   if (error) return <DocumentBootReady><ServicesAuthStage><HostedError error={error} /><Button variant="primary" onClick={() => setAttempt(value => value + 1)}>{t('next.states.tryAgain')}</Button></ServicesAuthStage></DocumentBootReady>;
   if (!who) return <ServicesAuthStage><></></ServicesAuthStage>;
-  return <BoundServers key={who.id} who={who} />;
+  return <HostedChooser key={who.id} who={who} />;
+}
+
+/** The account's header, the same on the list and on its start pages. */
+function accountHeader(who: Account, signOut: () => void): ReactNode {
+  return <ServicesHeader notifications={false} avatar={<ServerlessAccountMenu username={who.username} name={who.displayName || who.username} t={t}
+    onAccount={() => goTo('/account')} onJoin={() => goTo('/servers#join')} onSetup={() => goTo('/servers#setup')} onApps={() => location.assign(distributionPage)}
+    onHelp={() => window.open('https://getportico.tv/docs/', '_blank', 'noopener,noreferrer')} onSignOut={signOut} />} />;
+}
+/** `/servers#join`, `#setup` and `#local` open their page in place of the list; an account with
+ * no servers yet sees the start (join, set up, or use an address). */
+function HostedChooser({who}: {who: Account}) {
+  const hash = useRouterState({select: state => state.location.hash});
+  const intent = chooserIntent(hash ? '#' + hash.replace(/^#/, '') : '');
+  const [code, setCode] = useState<string>(), [empty, setEmpty] = useState(false);
+  const back = () => goTo('/servers', {replace: true});
+  if (intent === 'join') return <ChooserJoin who={who} initialCode={code} onBack={back} />;
+  if (intent === 'local') return <ChooserLocalAddress onBack={back} />;
+  if (intent === 'setup' || empty) {
+    const signOut = () => void signOutBrowserPorticoAccount().then(() => goTo('/sign-in', {replace: true}), () => {});
+    return <ChooserStart header={accountHeader(who, signOut)} intent={intent === 'setup' ? 'setup' : undefined}
+      onJoin={value => {setCode(value); goTo('/servers#join');}} onLocal={() => goTo('/servers#local')} />;
+  }
+  return <BoundServers who={who} onEmpty={() => setEmpty(true)} />;
 }
 
 function Replace({to}: {to: string}) {
@@ -59,7 +84,9 @@ function Replace({to}: {to: string}) {
 }
 
 type Loaded = Readonly<{flow: ServicesDirectoryFlow<Admitted>; saved: ReadonlyMap<string, string>}>;
-function BoundServers({who}: {who: Account}) {
+function BoundServers({who, onEmpty}: {who: Account; onEmpty: () => void}) {
+  // The list's own read decides it is empty; the page shown then is the parent's.
+  const emptied = useRef(onEmpty); emptied.current = onEmpty;
   // One scope per mounted account (the parent keys on it): the account id binds the list and every
   // server sign-in opened from it.
   const [scope] = useState(() => Object.freeze({accountId: who.id}));
@@ -88,11 +115,11 @@ function BoundServers({who}: {who: Account}) {
           const item = initial.items.find(value => value.id === linked);
           if (!item) {void router.navigate({to: '/link-unavailable', search: {reason: 'access'}, replace: true}); return;}
         }
-        if (!initial.items.length) {goTo('/welcome#join', {replace: true}); return;}
+        if (!initial.items.length) {emptied.current(); return;}
         // Where each saved sign-in last worked, for the one fallback a state may offer.
         const saved = new Map<string, string>();
         for (const row of record.servers) if (row.signIn === 'portico' && row.connection.hosted?.accountId === scope.accountId && row.connection.routes.lastGood) saved.set(row.connection.pin.serverId, row.connection.routes.lastGood);
-        flow = new ServicesDirectoryFlow<Admitted>(initial, {current, read: directory.read, empty: () => {if (current()) goTo('/welcome#join', {replace: true});},
+        flow = new ServicesDirectoryFlow<Admitted>(initial, {current, read: directory.read, empty: () => {if (current()) emptied.current();},
           admit: (server, signal) => admitServer(server, scope.accountId, access, signal)}, !record.selectedServerId);
         setLoaded({flow, saved});
         const asked = opening || linked ? initial.items.find(item => item.id === (opening ?? linked)) : undefined;
@@ -175,9 +202,7 @@ function Chooser({who, flow, saved}: {who: Account; flow: ServicesDirectoryFlow<
   }, [flow, state.phase, state.waitingId, state.items, blocked, allOffline]);
   const name = who.displayName || who.username;
   const signOut = () => {setWorking(true); void signOutBrowserPorticoAccount().then(() => goTo('/sign-in', {replace: true}), failure => {setWorking(false); setFailure(failure);});};
-  const header = <ServicesHeader notifications={false} avatar={<ServerlessAccountMenu username={who.username} name={name} t={t}
-    onAccount={() => goTo('/account')} onJoin={() => goTo('/welcome#join')} onSetup={() => goTo('/welcome#setup')} onApps={() => location.assign(distributionPage)}
-    onHelp={() => window.open('https://getportico.tv/docs/', '_blank', 'noopener,noreferrer')} onSignOut={signOut} />} />;
+  const header = accountHeader(who, signOut);
   const admitted = state.phase === 'opened' ? state.admitted : undefined;
   if (admitted) return <AccountSignInView entry={admitted.entry} form={admitted.form} initialize={false} onCancel={() => flow.cancelOpening(flow.getSnapshot())} />;
   const target = state.target;
@@ -211,7 +236,7 @@ function Chooser({who, flow, saved}: {who: Account; flow: ServicesDirectoryFlow<
       offline={allOffline} connecting={allOffline && connecting} seconds={state.seconds} pendingId={state.pendingId} busy={state.phase === 'reading' || working}
       error={failure ? <HostedError error={failure} /> : <Notice notice={connecting && transient ? undefined : directoryNotice(state, 'list', target?.name)} />}
       onOpen={id => {const item = state.items.find(value => value.id === id); if (item) void flow.open(item, state);}} onRefresh={() => void flow.refresh(state)}
-      onAccount={() => goTo('/account')} onJoin={() => goTo('/welcome#join')} onSetup={() => goTo('/welcome#setup')} onLocal={() => goTo('/welcome#local')}
+      onAccount={() => goTo('/account')} onJoin={() => goTo('/servers#join')} onSetup={() => goTo('/servers#setup')} onLocal={() => goTo('/servers#local')}
       onDifferentAccount={signOut} onRemove={id => {const item = state.items.find(value => value.id === id); if (item) startRemoval(item);}} />
     {removing && <Dialog open onOpenChange={open => {if (!open && !working) setRemoving(undefined);}} size="sm" role="alertdialog"
       title={t(removing.server.ownedByMe ? 'web.chooser.removeTitle' : 'web.chooser.leaveTitle', {server: removing.server.name})}
