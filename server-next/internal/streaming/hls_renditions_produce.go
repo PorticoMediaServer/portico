@@ -421,22 +421,31 @@ func (h *HLS) produceRendition(ctx context.Context, id string, r AudioRenditionP
 	if err != nil && !throttled && ctx.Err() == nil {
 		failed(classifyConverterFailure(tail.String()))
 	}
-	// A clean exit is the end of the track, whatever the converter printed on the way: its
-	// last slot is whole without a tail, and what it did not write the track does not have.
-	// The one exception is a remote source that failed under it (FFmpeg exits 0 then too):
-	// that run lost its source, and the next request starts it again (playback rule 76a), a
-	// few times in a row and then the track fails, as a converter that keeps dying does.
+	// What a run did is decided from the run itself, never from what the converter printed
+	// on the way (a damaged frame): it exited cleanly, its remote source (if any) did not
+	// fail under it, and then by what it wrote. A run that wrote through the last listed
+	// slot finished the track: that slot is whole without a tail. A run that wrote nothing
+	// from its first slot found nothing there: the track ends at that slot (a track shorter
+	// than the title). A run that stopped in between (a file cut short, FFmpeg exits 0 then
+	// too) is neither, and the next request starts it again from the slot it did not write
+	// (playback rule 76a). A run that lost its remote source is started again a few times in
+	// a row and then the track fails, as a converter that keeps dying does.
 	clean := err == nil && !throttled && !relocating && ctx.Err() == nil
 	cutShort := clean && remoteInput != nil && sourceLost(remoteInput)
-	if carryErr := carryTail(dir, slotName, plan.Duration, clean && !cutShort); carryErr != nil && ctx.Err() == nil {
+	count := hlsSegmentCount(plan.Duration)
+	reached := from
+	for reached < count && segmentReady(filepath.Join(dir, renditionSegmentFile(r, reached))) {
+		reached++
+	}
+	if carryErr := carryTail(dir, slotName, plan.Duration, clean && !cutShort && reached >= count); carryErr != nil && ctx.Err() == nil {
 		failed(FailureConverter)
 		return
 	}
 	switch {
 	case cutShort && h.renditionCutShort(id, r, progressed) >= converterDeaths:
 		failed(FailureSourceUnreadable)
-	case clean && !cutShort:
-		h.noteRenditionEnd(id, r, dir, from, hlsSegmentCount(plan.Duration))
+	case clean && !cutShort && reached == from:
+		h.noteRenditionEnd(id, r, dir, from, count)
 	}
 }
 

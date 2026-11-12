@@ -588,11 +588,14 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 	if err := childprocess.CheckOwnedIO(ctx); err != nil {
 		return
 	}
-	// A clean exit is the end of the title, whatever the converter printed on the way (a
-	// damaged frame, a timestamp complaint), unless its remote source failed under it: then
-	// it is a converter that lost its source, started again a few times like any other.
+	// Whether a run reached the title's end is decided from the run itself, never from what
+	// the converter printed on the way (a damaged frame, a timestamp complaint): it exited
+	// cleanly, its remote source (if any) did not fail under it, and it wrote the last
+	// listed slot. A run that lost its remote source is a converter that lost its source,
+	// started again a few times like any other.
 	cutShort := e == nil && remoteInput != nil && sourceLost(remoteInput)
-	finished := e == nil && !throttled() && ctx.Err() == nil && !cutShort
+	clean := e == nil && !throttled() && ctx.Err() == nil && !cutShort
+	emptyRun := false
 	// Record the final edge here as well as on the watcher's tick: a window that
 	// finishes inside one tick would otherwise publish no progress at all.
 	produced := from - 1
@@ -624,7 +627,10 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 		}
 		// A converter that finished has written the title's end: its last slot is whole even
 		// without a tail (the picture ended before the last mark). Any other end leaves it
-		// held for the next run.
+		// held for the next run. A clean run that wrote nothing at all is counted as a death,
+		// so a slot that cannot be made ends in the plain failure, never in runs without end.
+		finished := clean && produced >= hlsSegmentCount(duration)-1
+		emptyRun = clean && produced < from
 		if err := carryTail(dir, gridSlotName(delivery), duration, finished); err != nil {
 			h.outputPublicationFailed(ctx, id, delivery, position, err)
 			return
@@ -639,12 +645,16 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 		s.output = "complete"
 	}
 	h.mu.Unlock()
-	if cutShort && !throttled() && ctx.Err() == nil {
+	if (cutShort || emptyRun) && !throttled() && ctx.Err() == nil {
 		if h.died(id, from, owned) {
-			log.Printf("Conversion %s: the remote source stopped sending; it starts again on the next request", id)
+			log.Printf("Conversion %s: the converter stopped short of the end; it starts again on the next request", id)
 			return
 		}
-		h.failedWith(ctx, id, FailureSourceUnreadable, diagnostic)
+		code := FailureConverterStopped
+		if cutShort {
+			code = FailureSourceUnreadable
+		}
+		h.failedWith(ctx, id, code, diagnostic)
 	}
 }
 
