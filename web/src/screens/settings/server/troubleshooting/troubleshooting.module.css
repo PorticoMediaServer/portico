@@ -127,9 +127,9 @@ li:first-child > .feedbackRow { border-top: 0; }
 .following[data-paused] { color: var(--color-amber); }
 .following[data-paused]::before { box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-amber) 16%, transparent); }
 .messageLog { margin: 0 18px 18px; padding: 8px 6px; max-height: 560px; overflow: auto; border-radius: 12px; background: var(--color-message-log); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-text) 5%, transparent); font-family: var(--font-mono); font-size: var(--type-troubleshooting-messages-log-size); line-height: var(--type-troubleshooting-messages-log-line); }
-.messageLine { display: grid; grid-template-columns: 148px 52px minmax(0,1fr); gap: 14px; padding: 4px 12px; border-radius: 6px; color: var(--color-text-secondary); overflow-wrap: anywhere; }
+.messageLine { display: grid; grid-template-columns: 148px 52px 66px minmax(0,1fr); gap: 14px; padding: 4px 12px; border-radius: 6px; color: var(--color-text-secondary); overflow-wrap: anywhere; }
 .messageLine time { white-space: nowrap; }
-.messageLine time { color: var(--color-text-tertiary); }
+.messageLine time, .messageKind { color: var(--color-text-tertiary); }
 .messageLine b { font-weight: var(--type-button-weight); }
 .messageDetail { display: block; color: var(--color-text-tertiary); }
 .messageLine > span:last-child { font-family: var(--font); font-size: var(--type-troubleshooting-messages-text-size); font-weight: var(--type-troubleshooting-messages-text-weight); line-height: var(--type-troubleshooting-messages-text-line); }
@@ -143,7 +143,7 @@ li:first-child > .feedbackRow { border-top: 0; }
 .messageSkeleton i { height: 12px; border-radius: 6px; background: color-mix(in srgb, var(--color-text) 7%, transparent); }
 .messageFailure { display: flex; align-items: center; gap: 14px; margin: 14px 18px; padding: 12px 16px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--color-amber) 20%, transparent); background: color-mix(in srgb, var(--color-amber) 8%, transparent); font-size: var(--type-row-subtitle-size); color: var(--color-text-secondary); }
 .messageFailure button { margin-left: auto; border: 0; background: none; padding: 0; font: inherit; font-weight: var(--type-button-weight); color: var(--color-accent-strong); cursor: pointer; }
-@media (max-width: 600px) { .messageLine { grid-template-columns: 1fr 52px; } .messageSkeleton { grid-template-columns: 1fr 52px 66px; } .messageLine > span:last-child { grid-column: 1 / -1; } .messageSkeleton > i:last-child { display: none; } }
+@media (max-width: 600px) { .messageLine { grid-template-columns: 1fr 52px 66px; } .messageSkeleton { grid-template-columns: 1fr 52px 66px; } .messageLine > span:last-child { grid-column: 1 / -1; } .messageSkeleton > i:last-child { display: none; } }
 
 .page[data-view="messages"] { gap: 8px; }
 .page[data-view="messages"] .tabs { gap: 30px; }

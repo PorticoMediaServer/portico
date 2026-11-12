@@ -17,7 +17,8 @@ type ViewerRole = 'owner' | 'administrator' | 'member';
 type Translate = typeof defaultI18n.t;
 
 
-/** Settings › Server › Troubleshooting on the phone (owner-server.html frame 33). */
+/** Settings › Server › Troubleshooting on the phone (owner-server.html frame 33). An administrator reads Messages alone
+ *  (console rule 1); the other parts are the owner's. */
 export function NativeServerTroubleshooting({ports, runtime, compactHeader = false, initialTab}: {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; compactHeader?: boolean; initialTab?: 'messages' | 'feedback' | 'reports' | 'support'}) {
   const theme = useTheme(), t = runtime.text.t as Translate, context = ports.context;
   const viewerRole: ViewerRole = context.account.account.role === 'owner' ? 'owner' : context.account.canManage ? 'administrator' : 'member';
@@ -31,11 +32,11 @@ export function NativeServerTroubleshooting({ports, runtime, compactHeader = fal
       <ServerHeader serverName={context.serverName} viewerRole={viewerRole} audience={viewerRole === 'administrator' ? 'administrators' : 'owner'} variant="phone" style={{marginBottom: 12}}/>
       {!compactHeader && <Text accessibilityRole="header" style={[settingsPageHeading(theme), {color: theme.colors.text}]}>{t('settings.server.troubleshooting')}</Text>}
       <Tabs testID="server-troubleshooting-tabs" style={{marginTop: 12, marginHorizontal: -20}} value={tab} onValueChange={value => {if (value === 'messages' || value === 'feedback' || value === 'reports' || value === 'support') setTab(value);}} accessibilityLabel={t('settings.server.troubleshooting')}
-        items={[{value: 'messages', label: t('web.logs.messages')}, {value: 'feedback', label: openReports ? `${t('server.feedbackTab')} ${openReports}` : t('server.feedbackTab')}, {value: 'reports', label: t('server.reportsTab')}, {value: 'support', label: t('server.support')}]}/>
+        items={viewerRole !== 'owner' ? [{value: 'messages', label: t('web.logs.messages')}] : [{value: 'messages', label: t('web.logs.messages')}, {value: 'feedback', label: openReports ? `${t('server.feedbackTab')} ${openReports}` : t('server.feedbackTab')}, {value: 'reports', label: t('server.reportsTab')}, {value: 'support', label: t('server.support')}]}/>
       {tab === 'messages' && <><NativeMessages ports={ports} runtime={runtime}/><NativePlaybackProblems ports={ports} runtime={runtime}/></>}
-      {tab === 'feedback' && feedback.group && <NativeFeedback ports={ports} runtime={runtime} group={feedback.group}/>}
-      {tab === 'reports' && reports && <NativeReports group={reports}/>}
-      {tab === 'support' && support && <NativeSupport group={support}/>}
+      {viewerRole === 'owner' && tab === 'feedback' && feedback.group && <NativeFeedback ports={ports} runtime={runtime} group={feedback.group}/>}
+      {viewerRole === 'owner' && tab === 'reports' && reports && <NativeReports group={reports}/>}
+      {viewerRole === 'owner' && tab === 'support' && support && <NativeSupport group={support}/>}
     </ScrollView>
   </View>;
 }
