@@ -1,5 +1,6 @@
 import type {BrowseFacetPage} from '../browse.ts';
 import {callServer, type ServerRequester} from './server-api.ts';
+import {rememberFilterNames} from '../filter-value-names.ts';
 
 /** A search reads at most this many names before it says its count is only a lower bound, so a
  * keystroke in a library of tens of thousands of authors never reads all of them. */
@@ -39,6 +40,7 @@ export async function readRebuiltReadingFacet(api: ServerRequester,
   do {
     const answer = await choices(api, options.libraryId, options.field, cursor, total === undefined && !wanted, signal);
     if (total === undefined && typeof answer.total === 'number') total = answer.total;
+    rememberFilterNames(answer.choices);
     values.push(...answer.choices.filter(choice => !wanted || choice.label.toLocaleLowerCase().includes(wanted)));
     cursor = answer.nextCursor || undefined; read += answer.read;
   } while (cursor && values.length < need && (!wanted || read < searchedAtMost));
