@@ -182,6 +182,8 @@ export class NativePlaybackRuntime {
   private options?: PlaybackOptions;
   private bookmarks = new Map<string, Bookmark>();
   private updating = false;
+  private lastPlayState: 'paused' | 'playing' = 'paused';
+  private routeWasReady = true;
   private factDepth = 0;
   private factPublication = false;
   private preparing = false;
@@ -269,6 +271,7 @@ export class NativePlaybackRuntime {
       }});
     if (options.offlineDevice) this.offline = new NativeOfflinePlayback(options.session, options.offlineDevice);
     this.playback = new PlaybackService(this.offline?.wrap(this.path.transport) ?? this.path.transport, options.requestId, {queueRequired: true, deferRecovery: true, pageVisibility: visibility});
+    this.lastPlayState = this.playback.getSnapshot().intent;
     this.queue = new V1QueuePlayer({http: startHttp, api: this.path.transport, playback: this.playback, viewer: this.scope, key: options.requestId, events: options.events,
       transitions: () => this.transitions, native: options.nativeListening, nativeFor: kind => nativeListeningFor(this.serverKinds)(kind),
       retireQueuedSelection: (session, isUnowned) => this.stopOwnedSession(session.id, undefined, () => isUnowned()
@@ -416,9 +419,11 @@ export class NativePlaybackRuntime {
   private routeChanged(): void {
     if (!this.active()) return;
     const route = this.o.api.getRouteSnapshot();
+    const ready = !route || route.phase === 'ready', returned = ready && !this.routeWasReady;
+    this.routeWasReady = ready;
     if (route && route.phase !== 'ready') {this.cancelSnapshot(); this.externalPresentationBinding = null; this.pictureBinding = undefined; this.pictureAttempt = undefined; this.pictureLeave = undefined; this.pictureState = 'idle'; this.externalController?.abort();}
     if (route && route.phase !== 'ready' && this.playback.getSnapshot().session?.mode !== 'local') this.recoverConnection();
-    if ((!route || route.phase === 'ready') && this.playback.getSnapshot().session?.mode !== 'local') {
+    if (returned && this.playback.getSnapshot().session?.mode !== 'local') {
       if (this.playback.getSnapshot().intent === 'paused') this.recovery.clear();
       this.playback.recovering(this.playback.getSnapshot().intentId, false);
     }
@@ -1167,12 +1172,15 @@ export class NativePlaybackRuntime {
     return {...common, fence, kind: kindOf(kind) as 'video' | 'music' | 'audiobook', queue: readyQueue};
   }
   private changed(): void {
-    if (this.updating || this.transitionEpoch !== undefined || !this.active()) return;
+    if (!this.active()) return;
+    const state = this.playback.getSnapshot(), previousPlayState = this.lastPlayState;
+    this.lastPlayState = state.intent;
+    if (state.intent === 'paused') this.recovery.clear();
+    else if (previousPlayState === 'paused' && state.recovering) this.recoverConnection(false);
+    if (this.updating || this.transitionEpoch !== undefined) return;
     this.updating = true;
     try {
-      const state = this.playback.getSnapshot(), fence = this.fence();
-      if (state.intent === 'paused') this.recovery.clear();
-      else if (this.snapshot.playback.intent === 'paused' && state.recovering) this.recoverConnection(false);
+      const fence = this.fence();
       if (state.channel) {
         const channel = state.channel, linear = state.linear;
         const name = linear?.name || this.channel?.channel.name;
@@ -1656,7 +1664,7 @@ export class NativePlaybackRuntime {
       && state.playbackRun === before.playbackRun && state.intent === 'playing' && !!state.session && (state.phase === 'starting' || state.phase === 'ready');};
     if (!this.active() || !before.session || before.phase !== 'starting' && before.phase !== 'ready') return;
     this.playback.recovering(before.intentId, true);
-    if (before.intent !== 'playing') {this.recovery.clear(); return;}
+    if (!current()) return;
     this.recovery.start(`${before.intentId}/${before.playbackRun}`, current, () => {
       this.failure = recheckReadyRoute || this.o.api.getRouteSnapshot()?.phase !== 'ready'
         ? Object.freeze({intentId: before.intentId, run: before.playbackRun, reason: 'connection'}) : undefined;
