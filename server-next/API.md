@@ -598,7 +598,8 @@ document is write-only: the answer says only whether it is set.
 Documents: `general` (server name, when heavy work runs (`heavyWork`: `hours` `any`, `overnight` for 1 to 6 am, or `chosen` with `days`, `from` and `to` on the server's clock; sent whole), background speed, update check),
 `streaming` (Convert when needed, quality and music away from home, upload speed, which
 playback reads when a play starts away from home and may refuse it for, the
-conversion folder, the graphics device, hardware decoding, conversion limits, End paused video
+conversion folder, the graphics device, hardware decoding, `conversionsAtOnce` and
+`backgroundConversionsAtOnce` (0 means no owner cap; a save leaves active work alone), End paused video
 after), `storage` (Keep generated files, the free-space warnings), `backups`, `logs`,
 `notices` (who gets server notices, keeping times for notices and Play history), `downloads`
 (on or off, highest quality, space, how long prepared copies are kept), `title_data`

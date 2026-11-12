@@ -32,6 +32,9 @@ type StreamingSettings struct {
 	// ConversionsAtOnce is how many videos may be converted at once, 0 for no limit. A play
 	// that needs converting at the limit waits and starts by itself.
 	ConversionsAtOnce int `json:"conversionsAtOnce"`
+	// BackgroundConversionsAtOnce caps prepared copies made in the background, independently
+	// of plays. Zero adds no owner cap; work already running completes.
+	BackgroundConversionsAtOnce int `json:"backgroundConversionsAtOnce"`
 	// ToneMapping converts an HDR picture to standard range for a screen that cannot show
 	// HDR. With it off such a picture is converted without it and looks washed out; that is
 	// for troubleshooting.
@@ -84,8 +87,15 @@ func checkStreaming(s *StreamingSettings) error {
 			return &Invalid{Field: f.name, Message: "Give the full path, or leave it empty for the server's own."}
 		}
 	}
-	if s.ConversionsAtOnce < 0 || s.ConversionsAtOnce > 1000 {
-		return &Invalid{Field: "conversionsAtOnce", Message: "Give a number of conversions, or 0 for no limit."}
+	for _, f := range []struct {
+		name  string
+		value int
+	}{
+		{"conversionsAtOnce", s.ConversionsAtOnce}, {"backgroundConversionsAtOnce", s.BackgroundConversionsAtOnce},
+	} {
+		if f.value < 0 || f.value > 1000 {
+			return &Invalid{Field: f.name, Message: "Give a number of conversions, or 0 for no limit."}
+		}
 	}
 	return nil
 }
