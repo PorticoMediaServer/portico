@@ -243,6 +243,12 @@ export class SettingsPeopleClient {
     return Object.freeze({accountId: person.accountId, revision: 1, limits: Object.freeze({...next.limits, maxStreams: saved.maxStreams, maxStreamsMode: saved.maxStreamsMode}),
       serverMaxStreams: saved.serverMaxStreams, effectiveMaxStreams: saved.effectiveMaxStreams});
   }
+  /** Let back in someone who left the server (area 2 rule 39): they can sign in again, and everything they had, kept
+   * since they left, is theirs again. The owner's alone; the server turns back on only an account that left. */
+  async letBackIn(person: SettingsPersonRow): Promise<void> {
+    if (person.status !== 'left') invalid();
+    await this.call(s => callServer(this.api, 'POST /v1/admin/portico/left/{id}/let-back-in', {id: person.accountId, signal: s}));
+  }
   /** One request per account (the server has no bulk route); the accounts done are returned. Bulk access sets libraries
    * and, where the server keeps them, away from home, the highest rating, tokens and the profile count; the stream count
    * goes to the owner's stream limits. An account whose limits the server does not keep is refused before anything is sent. */
