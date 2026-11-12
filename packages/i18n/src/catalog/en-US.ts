@@ -1289,6 +1289,7 @@ export const enUS = {
   'notifications.notice.toolMessageTitle': 'A message from a connected tool',
   'notifications.notice.reportReplyTitle': 'A reply to your report',
   'notifications.notice.otherTitle': 'Something on your server needs a look',
+  'notifications.notice.openReport': 'Open report',
   'notifications.view.unread': 'Unread',
   'notifications.view.all': 'All',
   'notifications.view.archived': 'Archived',

@@ -27,6 +27,7 @@ export function notificationDestination(action: NotificationAction, libraries: r
     case 'server-people': return canManageServer ? {view: 'settings', scope: 'server', section: 'people'} : undefined;
     case 'server-network': return canManageServer ? {view: 'settings', scope: 'server', section: 'remote'} : undefined;
     case 'server-storage': return canManageServer ? {view: 'settings', scope: 'server', section: 'storage'} : undefined;
+    case 'server-remote-sources': return canManageServer ? {view: 'settings', scope: 'server', section: 'remote-sources'} : undefined;
     case 'server-feedback': return canManageServer ? {view: 'settings', scope: 'server', section: 'troubleshooting'} : undefined;
     case 'dashboard': return canManageServer ? {view: 'dashboard'} : undefined;
     case 'recordings': return {view: 'live', tab: 'recordings'};

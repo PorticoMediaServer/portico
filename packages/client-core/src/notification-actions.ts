@@ -24,6 +24,8 @@ export type NotificationIntent =
   | Readonly<{kind: 'server-network'}>
   /** Server › Storage. Administrators only. */
   | Readonly<{kind: 'server-storage'}>
+  /** Settings > Remote sources: a remote source that can't be reached (the server's own alert target). */
+  | Readonly<{kind: 'server-remote-sources'; sourceId?: string}>
   /** Server › Troubleshooting › Viewer feedback (the reports list). Administrators only. */
   | Readonly<{kind: 'server-feedback'; reportId?: string}>
   | Readonly<{kind: 'dashboard'}>
@@ -67,6 +69,7 @@ export function notificationIntent(action: NotificationAction, note?: Notificati
     case 'admin-devices': return {kind: 'server-people'};
     case 'settings-network': return {kind: 'server-network'};
     case 'settings-storage': return {kind: 'server-storage'};
+    case 'settings-remote-sources': return {kind: 'server-remote-sources', ...(entityId ? {sourceId: entityId} : {})};
     case 'admin-feedback': return {kind: 'server-feedback', ...(entityId ? {reportId: entityId} : {})};
     case 'server': return {kind: 'dashboard'};
     case 'recordings': case 'recording': return {kind: 'recordings', ...(entityId ? {recordingId: entityId} : {})};
