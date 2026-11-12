@@ -27,7 +27,7 @@ import type {HttpLocalApi, LocalSession, Library} from '../../../../packages/cli
 import {beginRestoreTrace, markRestore} from './restore-trace';
 import {noteHomeRead} from './home-read-log';
 import {trackNativeConnection} from '../platform/server-connections';
-import {NativeProfileGated, nativeProfileGated, renewalMovedProfile, type NativeConnected} from '../platform/session-lifecycle-native';
+import {NativeProfileGated, NativeProfileMoved, nativeProfileGated, renewalMovedProfile, type NativeConnected} from '../platform/session-lifecycle-native';
 import {nativeRememberedProfile, nativeSessionLifecycle} from '../platform/native-session-lifecycle';
 import {nativeManageGate, nativeManageRefused} from '../platform/manage-gate';
 import {beginNativeInstallation} from '../platform/installation';
@@ -131,7 +131,7 @@ const sameViewer = (a: LocalSession, b: LocalSession): boolean => a.sessionFamil
 
 /** Uses the existing encrypted native sign-in, signed routes and current membership verification.
  * It registers the persisted installation before restoring credentials; it creates no sign-in UI. */
-export async function restoreNativeShellRuntime(makeBindings: NativeShellBindingsFactory, options: {signal?: AbortSignal; installationOwner?: ReturnType<typeof beginNativeInstallation>; adopted?: NativeConnected; onAuthorityEnded: (error?: NativeIdentityFailure | NativeSignInEnded | NativeProfileGated) => void; onSessionRenewed?: () => void}): Promise<RestoredNativeShellRuntime | undefined> {
+export async function restoreNativeShellRuntime(makeBindings: NativeShellBindingsFactory, options: {signal?: AbortSignal; installationOwner?: ReturnType<typeof beginNativeInstallation>; adopted?: NativeConnected; onAuthorityEnded: (error?: NativeIdentityFailure | NativeSignInEnded | NativeProfileGated | NativeProfileMoved) => void; onSessionRenewed?: () => void}): Promise<RestoredNativeShellRuntime | undefined> {
   // A root may retain its original installation through a failed online restore
   // for a separately receipt-admitted offline opening. Never create a competing
   // generation or dispose an installation borrowed from that root.
@@ -165,7 +165,7 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
     for (const listener of [...authorityListeners]) listener();
     authorityListeners.clear(); preferenceListeners.clear(); listeners.clear();
   };
-  const end = (error?: NativeIdentityFailure | NativeSignInEnded | NativeProfileGated) => {if (alive) {homeActionDiagnostics.lifetime?.('bootstrap-authority-ended', signal.signal, installation);dispose(); options.onAuthorityEnded(error);}};
+  const end = (error?: NativeIdentityFailure | NativeSignInEnded | NativeProfileGated | NativeProfileMoved) => {if (alive) {homeActionDiagnostics.lifetime?.('bootstrap-authority-ended', signal.signal, installation);dispose(); options.onAuthorityEnded(error);}};
   // Role-dependent services (owner pages, inbox audience, privileged actions) restart from the
   // committed selection through the ordinary renewal path; nothing privileged survives a demotion.
   // The viewer's cache is scoped by role (viewerQueryScope), and admin documents live in it: a role
@@ -418,7 +418,7 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
     cleanups.push(context.subscribePreferences(publish));
     refresher = new LocalSessionRefresher({env, api: local, session, onRotated: renewed => {
       // Another profile of this same sign-in (desk B on #3018): the old profile's screens end and Who's watching opens.
-      if (!current() || !sameViewer(session!, renewed)) {end(current() && renewalMovedProfile(session!, renewed) ? new NativeProfileGated() : undefined); return;}
+      if (!current() || !sameViewer(session!, renewed)) {end(current() && renewalMovedProfile(session!, renewed) ? new NativeProfileMoved() : undefined); return;}
       ownTokens.add(renewed.accessToken);
       local.setOutboxSession(renewed);
       if (renewed.viewer.role !== session!.viewer.role) {session = renewed; rebuild(); return;}

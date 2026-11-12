@@ -123,10 +123,14 @@ export class NativeProfileGated extends Error {
   readonly code = 'profile_pin_reentry';
   constructor() {super('native_profile_gated'); this.name = 'NativeProfileGated';}
 }
+/** The shell ended because a renewal put this sign-in on another profile, or on none (renewalMovedProfile): Who's watching opens. */
+export class NativeProfileMoved extends Error {
+  constructor() {super('native_profile_moved'); this.name = 'NativeProfileMoved';}
+}
 export const nativeProfileGated = (error: unknown): boolean => (error as {code?: unknown} | null)?.code === 'profile_pin_reentry';
 /** A renewal for this same sign-in (family, server, account) that the server put on another profile, or on none: a switch
  * whose answer this app never got, or the profile taken away. The running shell must not keep showing the old profile's
- * screens while every request is answered for the new one: it ends as a PIN changed elsewhere does, and Who's watching opens. */
+ * screens while every request is answered for the new one: it ends (NativeProfileMoved) and Who's watching opens. */
 export const renewalMovedProfile = (held: LocalSession, renewed: LocalSession): boolean => held.sessionFamilyId === renewed.sessionFamilyId
   && (['serverId', 'accountId', 'authority'] as const).every(key => held.viewer[key] === renewed.viewer[key]) && held.viewer.profileId !== renewed.viewer.profileId;
 
