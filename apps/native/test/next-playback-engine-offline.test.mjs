@@ -86,7 +86,7 @@ async function fixture(engine = 'mpv', local = false, withOptions = true) {
     command: async command => {commands.push(command);}, subscribe(fn) {listener = fn; return () => {listener = undefined;};}};
   const coordinator = new NativePlaybackCoordinator(service, transport, () => 'owner', () => state.session.streamUrl, fact => runtime.acceptFact(fact),
     {initial: engine, choose: () => engine, transport: () => transport});
-  Object.assign(runtime, {retired: false, factDepth: 0, factPublication: false, playback: service, coordinator, expanded: true, displaySubtitles: true,
+  Object.assign(runtime, {lastPlayState: state.intent, routeWasReady: true, retired: false, factDepth: 0, factPublication: false, playback: service, coordinator, expanded: true, displaySubtitles: true,
     options: withOptions ? {itemId: 'item', versions: [{id: 'version', audio: [{id: 'a1'}, {id: 'a7'}]}]} : undefined,
     recovery: new recovery.NativePlaybackRecovery(timers), audioTrackSelection: new audio.NativeAudioTrackSelection(),
     subtitleStyles: new styles.NativeSubtitleStyleChoices(),
@@ -212,6 +212,28 @@ test('a returning route clears Reconnecting on a paused open player without anot
   assert.equal(f.state.recovering, undefined);
   assert.equal(f.state.intent, 'paused'); assert.equal(f.commands.at(-1).paused, true);
   f.timers.advance(120_000); assert.equal(f.state.phase, 'ready');
+});
+
+test('re-entrant Pause and Play are tracked even when the last published snapshot still says playing', async t => {
+  const f = await fixture('native'); t.after(() => f.dispose());
+  f.runtime.o.api.getRouteSnapshot = () => ({phase: 'reconnecting'});
+  f.runtime.routeChanged(); f.timers.advance(60_000);
+  f.runtime.snapshot = {playback: {...f.state}};
+  f.runtime.updating = true;
+  f.state.intent = 'paused'; f.runtime.changed();
+  assert.equal(f.runtime.snapshot.playback.intent, 'playing');
+  f.timers.advance(120_000); assert.equal(f.state.phase, 'ready');
+  f.state.intent = 'playing'; f.runtime.changed();
+  f.timers.advance(89_999); assert.equal(f.state.phase, 'ready');
+  f.timers.advance(1); assert.equal(f.state.phase, 'error', 'Play has its own deadline without an Apple stall or error fact');
+});
+
+test('another ready-route update does not clear a slow-server stall', async t => {
+  const f = await fixture(); t.after(() => f.dispose());
+  f.emit('stalled'); assert.equal(f.state.recovering, true);
+  f.runtime.routeChanged(); await drain();
+  assert.equal(f.state.recovering, true);
+  f.timers.advance(90_000); assert.equal(f.state.phase, 'error');
 });
 
 test('verified native readiness clears the same outage while a paused tick does not invent progress', async t => {
