@@ -15,7 +15,9 @@ import type {ConnectionPolicy} from './connection-policy.ts';
 import {RouteError,routeBase64,probeRoute,routeOrigin,routeJSON,serverPin,sameServerPin,verifyRoutes,webRouteCrypto,type RouteCrypto,type RouteKey,type ServerPin,type SignedRoutes,type VerifiedRoutes} from './route-identity.ts';
 export type RememberedServer = {
  version:'1';selectionId?:string;logicalOrigin:string;session:LocalSession;pin:ServerPin;
- hosted?:{origin:string;accountId:string;key:RouteKey};
+ /** `key` is the first service's route-signing key, for its signed route documents; a server opened
+  * from the new service's signed server list (`portico-server-list.ts`) has none and keeps none. */
+ hosted?:{origin:string;accountId:string;key?:RouteKey};
  routes:{current?:SignedRoutes;previous?:SignedRoutes;paired:string[];lastGood?:string;policy?:RememberedNetworkPolicy};
  /** A refresh sent but not yet stored: retried with this same request id, so the server replays its answer. */
  pendingRefresh?:string;
@@ -145,9 +147,9 @@ async function restoreStoredSession(env:ConnectionEnvironment,source:((record:Re
  if(expected&&(record.session.sessionFamilyId!==expected.sessionFamilyId||BigInt(record.session.tokenGeneration)<BigInt(expected.tokenGeneration)||(record.session.tokenGeneration===expected.tokenGeneration&&record.session.accessToken!==expected.accessToken)||record.session.viewer.serverId!==expected.viewer.serverId||record.session.viewer.accountId!==expected.viewer.accountId||record.session.viewer.profileId!==expected.viewer.profileId))return;
  const pin=await serverPin(record.pin.serverId,record.pin.publicKey,record.pin.fingerprint,env.crypto??webRouteCrypto);check();
  const memory:RouteMemory={paired:record.routes.paired,lastGood:record.routes.lastGood,...(record.routes.policy?{policy:record.routes.policy}:{})};let current:VerifiedRoutes|undefined,previous:VerifiedRoutes|undefined;
- if(record.hosted){for(const field of ['current','previous'] as const){const signed=record.routes[field];if(signed){const verified=await verifyRoutes(signed,record.hosted.key,{accountId:record.hosted.accountId,serverId:pin.serverId,pin},env.crypto);check();if(field==='current')current=verified;else previous=verified;}}}
+ const routeKeyOf=record.hosted?.key;if(record.hosted&&routeKeyOf){for(const field of ['current','previous'] as const){const signed=record.routes[field];if(signed){const verified=await verifyRoutes(signed,routeKeyOf,{accountId:record.hosted.accountId,serverId:pin.serverId,pin},env.crypto);check();if(field==='current')current=verified;else previous=verified;}}}
  const freshSource=source?.(record),hosted=record.hosted;
- const connection=new RouteConnection({pin,logicalOrigin:record.logicalOrigin,memory:{...memory,current,previous},fetcher:env.fetcher,crypto:env.crypto,discover:env.discover,onProbeFailure:env.onProbeFailure,policy:env.policy,readConnection:env.readConnection,fresh:freshSource&&hosted?async signal=>{const next=await currentDocument(freshSource,env,pin,hosted.key,signal);hosted.key=next.key;return next.routes;}:undefined});
+ const connection=new RouteConnection({pin,logicalOrigin:record.logicalOrigin,memory:{...memory,current,previous},fetcher:env.fetcher,crypto:env.crypto,discover:env.discover,onProbeFailure:env.onProbeFailure,policy:env.policy,readConnection:env.readConnection,fresh:freshSource&&hosted?.key?async signal=>{const next=await currentDocument(freshSource,env,pin,hosted.key!,signal);hosted.key=next.key;return next.routes;}:undefined});
  try{
   await connection.resolve(signal);check();
   const selected=await env.storage.read();check();
@@ -241,7 +243,7 @@ export async function connectTrustedProfileServer(env:ConnectionEnvironment,scop
  const pin=await serverPin(record.pin.serverId,record.pin.publicKey,record.pin.fingerprint,env.crypto);
  const memory:RouteMemory={paired:record.routes.paired,lastGood:record.routes.lastGood,...(record.routes.policy?{policy:record.routes.policy}:{})};
  let current:VerifiedRoutes|undefined,previous:VerifiedRoutes|undefined;
- if(record.hosted)for(const field of ['current','previous']as const){const signed=record.routes[field];if(signed){const v=await verifyRoutes(signed,record.hosted.key,{accountId:scope.accountId,serverId:scope.serverId,pin},env.crypto);if(field==='current')current=v;else previous=v;}}
+ const savedKey=record.hosted?.key;if(savedKey)for(const field of ['current','previous']as const){const signed=record.routes[field];if(signed){const v=await verifyRoutes(signed,savedKey,{accountId:scope.accountId,serverId:scope.serverId,pin},env.crypto);if(field==='current')current=v;else previous=v;}}
  const connection=new RouteConnection({pin,logicalOrigin:record.logicalOrigin,memory:{...memory,current,previous},fetcher:env.fetcher,crypto:env.crypto,discover:env.discover,onProbeFailure:env.onProbeFailure,policy:env.policy,readConnection:env.readConnection});
  try{await connection.resolve(signal);const selected=await env.storage.read();if(!sameSelection(selected,record)||signal.aborted)throw new RouteError('cancelled','The saved server selection changed.');const api=new HttpLocalApi(record.logicalOrigin,'',env.fetcher);api.useRoutes(connection);return api;}catch(e){connection.dispose();throw e;}
 }

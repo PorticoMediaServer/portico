@@ -171,6 +171,10 @@ export function porticoAccount(held: HeldSignIn, origin = '', {cookie = false, f
     serverList: (signal?: AbortSignal) => person<{list: unknown; listToken: string; listVersion: number}>('servers', {}, undefined, {signal}),
     /** The account's servers, read from its signed list for showing; an app that opens one checks the signature. */
     servers: () => person<{list: {payload: string}}>('servers').then(answer => envelopePayload<{servers: ListedServer[]}>(answer.list).servers),
+    /** A sign-in note for one server, answering the challenge it gave (`portico.identity.v1`, five
+     * minutes); `note` is the server's news when it is behind, for the app to carry there. */
+    serverIdentity: (server: string, challenge: string, signal?: AbortSignal) =>
+      person<{identity: unknown; note?: unknown}>('serverIdentity', {id: server}, {challenge}, {signal}),
     leaveServer: (server: string) => person<void>('leaveServer', {id: server}),
     removeServer: (server: string) => person<void>('removeServer', {id: server}),
     lookupTV: (code: string) => person<TVCode>('tvLookup', {}, {code}),
