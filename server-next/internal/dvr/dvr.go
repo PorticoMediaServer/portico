@@ -253,6 +253,12 @@ func (s *Service) Tick(ctx context.Context) {
 
 // start takes a tuner for a recording and writes the stream until end.
 func (s *Service) start(ctx context.Context, r db.Recording, end time.Time) {
+	// A worker can finish after Tick reads Upcoming but before it checks the running map.
+	// Do not restart that finished row from the tick's older snapshot.
+	current, err := s.db.Recording(ctx, r.PublicID)
+	if err != nil || current.State != db.RecordingScheduled && current.State != db.RecordingRecording {
+		return
+	}
 	opts := s.options()
 	if s.full(ctx, opts.Folder) {
 		s.db.RecordingFinished(ctx, r.ID, db.RecordingFailed, "Space ran out", s.now())
