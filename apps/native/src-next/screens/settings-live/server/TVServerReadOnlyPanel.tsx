@@ -11,8 +11,8 @@ import {signInLabelKey} from '../../../../../../packages/client-core/src/sign-in
 import {listApiKeys, listWebhooks} from '../../../../../../packages/client-core/src/api-access';
 import {fetchPlayHistory} from '../../../../../../packages/client-core/src/play-history';
 import {captureReportContext} from '../../../../../../packages/client-core/src/report-context';
-import {RemoteSourceService} from '../../../../../../packages/client-core/src/remote-sources';
-import {sourceStateText} from '../../../../../../packages/client-core/src/server-admin/storage-words';
+import {listRemoteSources} from '../../../../../../packages/client-core/src/remote-storage';
+import {stateWords} from '../../settings/remote-sources/RemoteSourceForms';
 import {liveSourceState} from '../../../../../../packages/client-core/src/server-admin/live-words';
 import {parseUpdateReport} from '../../../../../../packages/client-core/src/administration';
 import {Button, Focusable} from '../../../kit/controls';
@@ -78,11 +78,9 @@ export function TVServerReadOnlyPanel({page, ports, runtime, lifetime, statusOnl
         })), nextCursor: history.nextCursor};
       }
       if (page === 'remote-sources') {
-        const service = new RemoteSourceService(api, {serverId: lifetime.authority.serverId, viewerId: lifetime.authority.profileId}, async () => {throw new Error('native_tv_server_read_only');}, current);
-        try {
-          await service.revalidate();
-          return {facts: service.getSnapshot().sources.map(source => ({id: source.id, label: source.name, value: sourceStateText(t, defaultI18n.has, source)}))};
-        } finally {service.dispose();}
+        // Each source with its state, in the words the phone's Remote sources screen uses.
+        const sources = await listRemoteSources(api, abort.signal);
+        return {facts: sources.map(source => ({id: source.id, label: source.name, value: t(stateWords[source.state] ?? 'next.remoteSources.state.problem')}))};
       }
       if (page === 'live') {
         const list = parseLiveSources(await readOwnerLiveSources({request:read}), lifetime.authority.serverId);
