@@ -33,7 +33,8 @@ type Dashboard struct {
 }
 
 // DashboardAlert is one line with one action. Code is storage_nearly_full, backup_failed,
-// library_unreachable, remote_unreachable or update_available; Severity is warning or major.
+// data_folder_readable, library_unreachable, remote_unreachable or update_available; Severity
+// is warning or major.
 type DashboardAlert struct {
 	Code     string            `json:"code"`
 	Severity string            `json:"severity"`
@@ -44,8 +45,9 @@ type DashboardAlert struct {
 	Count *int `json:"count,omitempty"`
 }
 
-// AlertAction is where the alert's one action goes: storage, backups, library-source (Target
-// is the library), remote-source (Target is the source) or update.
+// AlertAction is where the alert's one action goes: storage, backups, fix-permissions (POST
+// /v1/admin/data-folder/permissions/fix, once the owner confirms), library-source (Target is
+// the library), remote-source (Target is the source) or update.
 type AlertAction struct {
 	Kind   string `json:"kind"`
 	Target string `json:"target"`
@@ -232,8 +234,9 @@ func (s *Server) scanLine(j db.Job, lib db.AdminLibrary) DashboardScan {
 	return out
 }
 
-// alerts are the causes that last now, most urgent first: free space, a failed backup, a
-// library folder or remote source that cannot be reached, then a new version.
+// alerts are the causes that last now, most urgent first: free space, a failed backup, a data
+// folder other accounts can open, a library folder or remote source that cannot be reached,
+// then a new version.
 func (s *Server) alerts(libraries []db.AdminLibrary, sources []db.RemoteSource) []DashboardAlert {
 	out := []DashboardAlert{}
 	add := func(code, severity string, params map[string]string, kind, target string, count int) {
@@ -254,6 +257,10 @@ func (s *Server) alerts(libraries []db.AdminLibrary, sources []db.RemoteSource) 
 	}
 	if failed := s.backups.Failed(); failed != nil {
 		add("backup_failed", "major", map[string]string{"reason": clip(failed.Error())}, "backups", "", 0)
+	}
+	// One look at the data folder's own mode (data_folder.go).
+	if p := s.dataFolderPermissions(); p.ReadableByOthers {
+		add("data_folder_readable", "major", map[string]string{"path": p.Path, "account": p.Account}, "fix-permissions", "", 0)
 	}
 	for _, l := range libraries {
 		unreachable := 0

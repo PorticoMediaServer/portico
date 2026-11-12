@@ -63,6 +63,7 @@ func (s *Server) startConsole(ctx context.Context) error {
 	s.goBackground(func() { s.updates.Run(ctx) })
 	s.updateRoutes()
 	s.storageRoutes(s.dataDir)
+	s.dataFolderRoutes()
 	s.backups = &backup.Service{DB: s.db, Settings: s.settings, DataDir: s.dataDir, Version: s.version, Log: s.log,
 		Now: func() time.Time { return s.now() }, Stopping: ctx}
 	// Scheduled backups, at the owner's hour. A backup being made when the server stops is

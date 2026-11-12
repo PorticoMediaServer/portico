@@ -29,6 +29,9 @@ func newTestServer(t *testing.T) *Server {
 // it, before its database closes: when the test ends, or when the test restarts it.
 func openTestServer(t *testing.T, path string) *Server {
 	t.Helper()
+	// Private, as the program makes its data folder (a test's own folder is 0755), so that
+	// no test but the one about it has the data folder alert.
+	os.Chmod(filepath.Dir(path), 0o700)
 	d, err := db.Open(context.Background(), path)
 	if err != nil {
 		t.Fatal(err)
