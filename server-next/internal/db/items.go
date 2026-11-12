@@ -76,7 +76,7 @@ const (
 	SortRandom          = "random"     // one order for as long as a reader pages through it
 )
 
-// ItemQuery says which items to list. Library, Parent, Person, Tag and Collection are public ids. At
+// ItemQuery says which items to list. Library, Parent, Person, Tag, Collection and Series are public ids. At
 // least one of them, or one of the state filters, must be set.
 type ItemQuery struct {
 	Library    string
@@ -85,6 +85,7 @@ type ItemQuery struct {
 	Tag        string
 	List       string // a playlist or collection; its own order is read by ListEntries
 	Collection string // a library's collection: the titles it holds
+	Series     string // a series of books, audiobooks or comics: its volumes
 	Genre      string // a genre by name, as people type it
 	Kinds      []ItemKind
 	YearFrom   int
@@ -160,6 +161,18 @@ func sortFor(sort string, seed int64) (sortSpec, bool) {
 	}
 	spec, ok := sortSpecs[sort]
 	return spec, ok
+}
+
+// seriesOrder is a series' own order, as volumeOrder has it: by volume number, then the
+// volumes with none by title.
+var seriesOrder = sortSpec{columns: []string{"ifnull(i.index_number, 1e18)", "i.sort_title"}}
+
+// sortSpec is how this list is ordered. Its own order means volume order for a series.
+func (q ItemQuery) sortSpec(seed int64) (sortSpec, bool) {
+	if q.Sort == SortOrder && q.Series != "" {
+		return seriesOrder, true
+	}
+	return sortFor(q.Sort, seed)
 }
 
 // listCursor is where the next page starts: the sort it belongs to and the position of the
@@ -245,7 +258,7 @@ func (d *DB) Items(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, error)
 	var page ItemPage
 	if q.Sort == "" {
 		q.Sort = SortTitle
-		if q.Parent != "" {
+		if q.Parent != "" || q.Series != "" {
 			q.Sort = SortOrder
 		}
 	}
@@ -259,17 +272,17 @@ func (d *DB) Items(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, error)
 	if cursor != nil && cursor.Seed != 0 {
 		seed = cursor.Seed
 	}
-	spec, ok := sortFor(q.Sort, seed)
+	spec, ok := q.sortSpec(seed)
 	if !ok {
 		return page, invalid("This list cannot be sorted that way.")
 	}
 	if cursor != nil && !cursor.fits(spec) {
 		return page, ErrCursorExpired
 	}
-	if q.Sort == SortOrder && q.Parent == "" {
+	if q.Sort == SortOrder && q.Parent == "" && q.Series == "" {
 		// Season and episode numbers order one show's items. Over a whole library they have
 		// no index and mean nothing, so the list would be sorted afresh for every page.
-		return page, invalid("Only the titles inside a show, season, artist or album can be sorted in their own order.")
+		return page, invalid("Only the titles inside a show, season, artist, album or series can be sorted in their own order.")
 	}
 	if q.Limit <= 0 {
 		q.Limit = defaultPageSize
@@ -527,7 +540,7 @@ func listRun(ctx context.Context, tx *sql.Tx, where *query, spec sortSpec, q Ite
 
 // cursorAt returns the cursor that makes a list carry on just after one of its items.
 func cursorAt(ctx context.Context, tx *sql.Tx, v Viewer, q ItemQuery, item int64) (string, error) {
-	spec, ok := sortFor(q.Sort, 0)
+	spec, ok := q.sortSpec(0)
 	if !ok || q.Sort == SortRandom {
 		return "", invalid("A list in random order cannot start from a chosen title.")
 	}
@@ -656,6 +669,19 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		}
 		w.add(` AND i.id IN (SELECT related_item_id FROM item_relations WHERE kind = `, itoa(int64(RelationCollectionMember)),
 			` AND item_id = `, itoa(collection), `)`)
+		scoped = true
+	}
+	if q.Series != "" {
+		// A series the viewer may not see is not found, as it is when opened on its own.
+		var series int64
+		err := tx.QueryRowContext(ctx, `SELECT i.id FROM items i WHERE i.public_id = ? AND i.kind = `+itoa(int64(KindSeries))+` AND `+
+			acc.visible("i"), q.Series).Scan(&series)
+		if err != nil {
+			return false, notFound(err)
+		}
+		// A book or audiobook is tied to its series; a comic's issues sit under theirs.
+		w.add(` AND (i.id IN (SELECT related_item_id FROM item_relations WHERE kind = `, itoa(int64(RelationSeriesMember)),
+			` AND item_id = `, itoa(series), `) OR i.parent_id = `, itoa(series), `)`)
 		scoped = true
 	}
 	if q.Tag != "" || q.Genre != "" {

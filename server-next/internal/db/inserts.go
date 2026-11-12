@@ -277,7 +277,8 @@ func (b *batchTx) ratingChanged(itemID int64) error {
 		return err
 	}
 	// A collection holding the title takes the lowest rating of its films: see collection_rating.go.
-	collections, err := queryInts(b.tx, `SELECT item_id FROM item_relations WHERE kind = ? AND related_item_id = ?`, RelationCollectionMember, itemID)
+	// So does a series holding the book.
+	collections, err := queryInts(b.tx, `SELECT item_id FROM item_relations WHERE kind IN `+heldByRelation+` AND related_item_id = ?`, itemID)
 	if err != nil {
 		return err
 	}

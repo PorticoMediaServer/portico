@@ -121,6 +121,11 @@ func removeItem(b *batchTx, libraryID, id, now int64) error {
 	if err != nil {
 		return err
 	}
+	series, err := queryInts(b.tx, subtree+`SELECT DISTINCT r.item_id FROM item_relations r JOIN t ON t.id = r.related_item_id WHERE r.kind = ?`,
+		id, RelationSeriesMember)
+	if err != nil {
+		return err
+	}
 	if _, err := b.exec(`DELETE FROM items WHERE id = ?`, id); err != nil {
 		return err
 	}
@@ -147,7 +152,8 @@ func removeItem(b *batchTx, libraryID, id, now int64) error {
 			return err
 		}
 	}
-	return nil
+	// A series that held one of these volumes is rated again from the ones it has left.
+	return b.collectionsRated(series...)
 }
 
 func queryInts(tx *sql.Tx, query string, args ...any) ([]int64, error) {

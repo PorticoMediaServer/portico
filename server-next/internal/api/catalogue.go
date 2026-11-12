@@ -182,6 +182,33 @@ func (s *Server) catalogueRoutes() {
 		}
 		return out, nil
 	})
+	// A library's people by one role: the Authors tab of an audiobook or book library.
+	Handle(s, "GET /v1/people", WithProfile, func(r *http.Request, _ None) (PersonPage, error) {
+		query := r.URL.Query()
+		if query.Get("library") == "" || query.Get("role") == "" {
+			return PersonPage{}, ErrField("library", "Say which library's people, and by which role: author or narrator.")
+		}
+		limit, err := limitParam(query)
+		if err != nil {
+			return PersonPage{}, err
+		}
+		total, err := boolParam(query, "total")
+		if err != nil {
+			return PersonPage{}, err
+		}
+		page, err := s.db.People(r.Context(), viewer(r), query.Get("library"), query.Get("role"), query.Get("cursor"), limit, total != nil && *total)
+		if err != nil {
+			return PersonPage{}, refuse(err)
+		}
+		out := PersonPage{Items: make([]Person, len(page.People)), NextCursor: page.NextCursor}
+		for n, p := range page.People {
+			out.Items[n] = Person{ID: p.PublicID, Name: p.Name, Images: imageMap(p.Images), TitleCount: &p.Titles}
+		}
+		if total != nil && *total {
+			out.Total = &page.Total
+		}
+		return out, nil
+	})
 	Handle(s, "GET /v1/people/{id}", WithProfile, func(r *http.Request, _ None) (Person, error) {
 		p, err := s.db.Person(r.Context(), viewer(r), r.PathValue("id"))
 		if err != nil {
@@ -306,10 +333,10 @@ func browseBy(kind string) ([]View, []Sort, []Filter) {
 		return []View{{"artist"}, {"album"}, {"track"}}, append(append(sorts[:3:3], Sort{db.SortDuration, "desc"}, Sort{db.SortLatest, "desc"}), ownSorts...),
 			append(filters, Filter{ID: "artist", Type: "person"}, Filter{ID: "durationMs", Type: "number"})
 	case db.LibraryAudiobooks:
-		return []View{{"audiobook"}}, append(append(sorts[:3:3], Sort{db.SortDuration, "desc"}), ownSorts...),
+		return []View{{"audiobook"}, {"series"}}, append(append(sorts[:3:3], Sort{db.SortDuration, "desc"}), ownSorts...),
 			append(filters, Filter{ID: "author", Type: "person"}, Filter{ID: "narrator", Type: "person"}, Filter{ID: "durationMs", Type: "number"})
 	}
-	return []View{{"book"}}, append(sorts[:3:3], ownSorts...), append(filters, Filter{ID: "author", Type: "person"})
+	return []View{{"book"}, {"series"}}, append(sorts[:3:3], ownSorts...), append(filters, Filter{ID: "author", Type: "person"})
 }
 
 // defaultOrder is the direction a sort starts in when the request does not say.
@@ -346,7 +373,7 @@ func limitParam(query url.Values) (int, error) {
 // server does not know is ignored.
 func itemQuery(query url.Values) (db.ItemQuery, error) {
 	q := db.ItemQuery{Library: query.Get("library"), Parent: query.Get("parent"), Sort: query.Get("sort"), Cursor: query.Get("cursor"), List: query.Get("list"),
-		Collection: query.Get("collection")}
+		Collection: query.Get("collection"), Series: query.Get("series")}
 	// A filter may be sent more than once, and each time as "v", "v1,v2", or with how its
 	// values combine in front: "any:v1,v2", "all:v1,v2", "none:v1,v2". A value that holds
 	// a comma goes in the body of POST /v1/items/query instead.

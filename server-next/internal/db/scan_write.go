@@ -351,7 +351,7 @@ func (im *importer) relate(id int64, it *ImportItem) error {
 	if _, err = im.exec(`INSERT INTO item_relations (item_id, kind, related_item_id) VALUES (?, ?, ?) ON CONFLICT DO NOTHING`, owner.id, it.ExtraKind, id); err != nil {
 		return err
 	}
-	if it.ExtraKind == RelationCollectionMember {
+	if it.ExtraKind == RelationCollectionMember || it.ExtraKind == RelationSeriesMember {
 		return im.collectionsRated(owner.id)
 	}
 	return nil
