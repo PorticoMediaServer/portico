@@ -240,3 +240,44 @@ test('an author page whose person read names someone else has no header, never t
   assert.equal(nav.getSnapshot().projection?.entity, undefined);
   nav.dispose();
 });
+
+/** An audiobook's own page on the rebuilt server: the detail carries its chapters (one whole file) or its parts. */
+function audiobookApi(item: Record<string, unknown>) {
+  return async (path: string) => {
+    const u = new URL(path, 'https://server.test');
+    if (u.pathname === '/v1/items/bk_1') return {id: 'bk_1', kind: 'audiobook', title: 'The Martian', libraryId: 'lib_a', summary: 'A stranded astronaut.', durationMs: 600_000,
+      images: {poster: '/v1/images/bk'}, state: {positionMs: 250_000}, addedAt: '2026-11-12T00:00:00Z',
+      credits: [{personId: 'per_1', name: 'Andy Weir', role: 'author'}, {personId: 'per_2', name: 'R. C. Bray', role: 'narrator'}], ...item};
+    return {id: 'lib_a', name: 'Audiobooks', kind: 'audiobooks'};
+  };
+}
+
+test('an audiobook page lists its chapters, who wrote and read it, and where the listener is; each chapter plays the book from its start', async () => {
+  const nav = service(audiobookApi({index: 2, series: {id: 'ser_1', kind: 'series', title: 'Mars'}, versions: [{id: 'v1', parts: [{size: 1, startMs: 0, endMs: 600_000, streams: []}],
+    markers: [{kind: 'chapter', startMs: 0, endMs: 200_000, title: 'Sol 6'}, {kind: 'intro', startMs: 0, endMs: 5000}, {kind: 'chapter', startMs: 200_000, endMs: 600_000, title: 'Sol 7'}]}]}));
+  await nav.select({libraryId: 'lib_a', view: 'book', entityId: 'bk_1'});
+  const snap = nav.getSnapshot(), page = snap.projection!;
+  assert.equal(snap.phase, 'ready');
+  assert.deepEqual([page.entity?.kind, page.entity?.title, page.entity?.author, page.entity?.narrators, page.entity?.count], ['book', 'The Martian', 'Andy Weir', ['R. C. Bray'], 2]);
+  assert.deepEqual(page.entity?.series, [{name: 'Mars', position: '2'}]);
+  const chapters = snap.sections.find(section => section.id === 'chapters')!.entries;
+  assert.deepEqual(chapters.map(entry => [entry.kind, entry.title, entry.duration, entry.playback]), [
+    ['chapter', 'Sol 6', 200, {itemId: 'bk_1', startSeconds: 0}], ['chapter', 'Sol 7', 400, {itemId: 'bk_1', startSeconds: 200}]]);
+  assert.deepEqual(snap.sections.find(section => section.id === 'context')!.entries.map(entry => [entry.kind, entry.id, entry.title]),
+    [['author', 'per_1', 'Andy Weir'], ['book_series', 'ser_1', 'Mars']]);
+  assert.deepEqual([page.entity?.bookProgress?.positionMs, page.entity?.bookProgress?.remainingMs, page.entity?.bookProgress?.chapter?.number], [250_000, 350_000, 2]);
+  assert.deepEqual(page.listening?.resume, {itemId: 'bk_1', positionSeconds: 250});
+  nav.dispose();
+});
+
+test('an audiobook of several files lists its parts, each playing from its place in the whole book', async () => {
+  const nav = service(audiobookApi({state: {}, versions: [{id: 'v1', parts: [{size: 1, startMs: 0, endMs: 300_000, streams: []}, {size: 1, startMs: 300_000, endMs: 600_000, streams: []}]}]}));
+  await nav.select({libraryId: 'lib_a', view: 'book', entityId: 'bk_1'});
+  const snap = nav.getSnapshot();
+  assert.equal(snap.sections.some(section => section.id === 'chapters'), false);
+  assert.deepEqual(snap.sections.find(section => section.id === 'files')!.entries.map(entry => [entry.kind, entry.title, entry.playback]), [
+    ['audiobook_file', 'Part 1', {itemId: 'bk_1', startSeconds: 0}], ['audiobook_file', 'Part 2', {itemId: 'bk_1', startSeconds: 300}]]);
+  assert.equal(snap.projection?.entity?.bookProgress, undefined, 'nothing listened to yet');
+  assert.deepEqual(snap.projection?.listening?.resume, {itemId: 'bk_1', positionSeconds: 0});
+  nav.dispose();
+});

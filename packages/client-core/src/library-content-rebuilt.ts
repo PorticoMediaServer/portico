@@ -11,8 +11,8 @@
  * artist's albums, a collection's titles. A section the rebuilt server has no read for (an
  * artist's popular songs, every song crediting them) is not sent, so the page leaves it out.
  */
-import type {Home, Item, ItemPage, Library as WireLibrary, Person} from '../../contracts/src/next/api.ts';
-import type {ContentProjection, ContentRoute, ContentScope, ContentSection} from './library-content.ts';
+import type {Home, Item, ItemPage, Library as WireLibrary, Marker, Person} from '../../contracts/src/next/api.ts';
+import type {ContentEntry, ContentProjection, ContentRoute, ContentScope, ContentSection} from './library-content.ts';
 import {entriesFromItems, entryFromItem, entryFromPerson, libraryKind} from './items.ts';
 import {callServer, type ServerRequester} from './query/server-api.ts';
 import {firstOfEach} from './tolerant.ts';
@@ -60,7 +60,7 @@ const holders: Readonly<Record<string, Holder>> = {
 
 
 /** The views the rebuilt server answers. */
-export const rebuiltContentViews: ReadonlySet<string> = new Set(['discover', ...Object.keys(holders)]);
+export const rebuiltContentViews: ReadonlySet<string> = new Set(['discover', 'book', ...Object.keys(holders)]);
 
 /** A section's cursor names its section, so its next page reaches its own read. */
 const sectionCursor = (section: string, cursor: string): string => cursor ? `${section}~${cursor}` : '';
@@ -79,6 +79,7 @@ const holderSorts: Readonly<Record<string, ContentProjection['sorts']>> = {
 /** One page of a view the rebuilt server answers. `cursor` is a section's next page, from that section's `nextCursor`. */
 export function rebuiltContent(api: ServerRequester, route: ContentRoute, bound: ContentScope, pageSize: number, signal?: AbortSignal, cursor?: string | null): Promise<ContentProjection> {
   if (route.view === 'discover') return discoverFromLanding(api, route, bound, pageSize, signal);
+  if (route.view === 'book') return audiobookPage(api, route, bound, signal);
   if (holders[route.view]) return holderPage(api, route, bound, Math.min(pageSize, 200), signal, {next: readCursor(cursor)});
   throw new Error('This view has no rebuilt read.');
 }
@@ -164,5 +165,61 @@ async function discoverFromLanding(api: ServerRequester, route: ContentRoute, bo
     navigation: Object.freeze([]),
     query: Object.freeze({sort: '', direction: '', category: '', q: '', limit: pageSize, searchMode: 'none'}),
     sorts: Object.freeze([]), filters: Object.freeze([]), sections: Object.freeze(sections),
+  }) as ContentProjection;
+}
+
+/**
+ * An audiobook's page: the book (`GET /v1/items/{id}`), who wrote and read it, its chapters or its parts, its
+ * series, and where the listener is. Everything comes from the detail: a version that is one whole file carries
+ * its chapters as `markers` of kind `chapter`; a book of several files carries no chapters, and its parts
+ * (each with its place in the whole book) are the list. Every row plays the book itself from its start.
+ */
+async function audiobookPage(api: ServerRequester, route: ContentRoute, bound: ContentScope, signal?: AbortSignal): Promise<ContentProjection> {
+  const id = route.entityId ?? '';
+  const [item, library] = await Promise.all([callServer(api, 'GET /v1/items/{id}', {id, signal}) as Promise<Item>, kindOf(api, route.libraryId, signal)]);
+  const found = item?.id === id && item.kind === 'audiobook' ? entryFromItem(item, route.libraryId) : undefined;
+  const libraryId = route.libraryId, version = item?.versions?.[0];
+  const play = (startMs: number) => Object.freeze({itemId: id, startSeconds: Math.max(0, startMs) / 1000});
+  const seconds = (startMs?: number, endMs?: number) => startMs !== undefined && endMs !== undefined && endMs > startMs ? Math.round((endMs - startMs) / 1000) : undefined;
+  const chapterMarks = (version?.markers ?? []).filter((mark): mark is Marker => mark?.kind === 'chapter' && Number.isFinite(mark.startMs)).sort((a, b) => a.startMs - b.startMs);
+  const chapters = chapterMarks.map((mark, n) => Object.freeze({id: `${id}:chapter:${n + 1}`, kind: 'chapter', libraryId, title: mark.title || `Chapter ${n + 1}`,
+    trackNumber: n + 1, ...(seconds(mark.startMs, mark.endMs) ? {duration: seconds(mark.startMs, mark.endMs)} : {}), playback: play(mark.startMs)}) as ContentEntry);
+  const partsOf = version?.parts ?? [];
+  let at = 0;
+  const parts = chapters.length || partsOf.length < 2 ? [] : partsOf.map((part, n) => {
+    const start = part.startMs ?? at, end = part.endMs; at = end ?? at;
+    return Object.freeze({id: `${id}:part:${n + 1}`, kind: 'audiobook_file', libraryId, title: `Part ${n + 1}`, trackNumber: n + 1,
+      ...(seconds(start, end) ? {duration: seconds(start, end)} : {}), playback: play(start)}) as ContentEntry;
+  });
+  // Who wrote it opens their page; the series opens its own (sent once the server names a book's series).
+  const credits = item?.credits ?? [];
+  const authors = credits.filter(credit => credit.role === 'author' && credit.personId && credit.name);
+  const narrators = credits.filter(credit => credit.role === 'narrator' && credit.name).map(credit => credit.name);
+  const series = (item as Item & {series?: {id?: string; title?: string}} | undefined)?.series;
+  const context = [
+    ...authors.map(credit => Object.freeze({id: credit.personId, kind: 'author', title: credit.name, libraryId, navigation: Object.freeze({view: 'author', entityId: credit.personId})}) as ContentEntry),
+    ...(series?.id && series.title ? [Object.freeze({id: series.id, kind: 'book_series', title: series.title, libraryId, navigation: Object.freeze({view: 'book_series', entityId: series.id})}) as ContentEntry] : []),
+  ];
+  // Where the listener is: the book's place, and the chapter it falls in.
+  const durationMs = item?.durationMs, positionMs = item?.state?.positionMs ?? 0;
+  const chapterIndex = chapterMarks.reduce((found, mark, n) => mark.startMs <= positionMs ? n : found, -1);
+  const current = chapterIndex >= 0 ? chapterMarks[chapterIndex]! : undefined;
+  const bookProgress = positionMs > 0 ? Object.freeze({bookId: id, itemId: id, partPositionMs: positionMs, positionMs,
+    ...(durationMs ? {durationMs, remainingMs: Math.max(0, durationMs - positionMs)} : {}),
+    ...(current ? {chapter: Object.freeze({index: chapterIndex, number: chapterIndex + 1, title: current.title || `Chapter ${chapterIndex + 1}`, startMs: current.startMs, endMs: current.endMs})} : {})}) : undefined;
+  const entity = found ? (({playback: _ignored, ...rest}) => Object.freeze({...rest, ...(authors.length ? {author: authors.map(credit => credit.name).join(', ')} : {}),
+    ...(narrators.length ? {narrators: Object.freeze(narrators)} : {}), ...(chapters.length ? {count: chapters.length} : {}), ...(bookProgress ? {bookProgress} : {}),
+    ...(series?.id && series.title ? {series: Object.freeze([Object.freeze({name: series.title, ...(item?.index ? {position: String(item.index)} : {})})])} : {})}))(found as Record<string, unknown> & {playback?: unknown}) as ContentEntry : undefined;
+  const section = (sectionId: string, entries: readonly ContentEntry[]): ContentSection => Object.freeze({id: sectionId, type: 'list', heading: Object.freeze({key: `library.content.${sectionId}`, fallback: ''}),
+    entries: Object.freeze(entries), totalCount: entries.length, nextCursor: '', start: 0});
+  return Object.freeze({
+    heading: Object.freeze({key: 'library.content.book', fallback: entity?.title ?? ''}),
+    ...(entity ? {entity, listening: Object.freeze({target: Object.freeze({kind: 'book', id, libraryId}), actions: Object.freeze(['play', 'enqueue'] as const),
+      resume: Object.freeze({itemId: id, positionSeconds: positionMs / 1000}), resumeUnavailable: false})} : {}),
+    scope: Object.freeze({serverId: bound.serverId, libraryId, libraryKind: library.kind, view: route.view, entityId: id}),
+    navigation: Object.freeze([]),
+    query: Object.freeze({sort: '', direction: '', category: '', q: '', limit: chapters.length || parts.length, searchMode: 'none'}),
+    sorts: Object.freeze([]), filters: Object.freeze([]),
+    sections: Object.freeze([...(chapters.length ? [section('chapters', chapters)] : []), ...(parts.length ? [section('files', parts)] : []), ...(context.length ? [section('context', context)] : [])]),
   }) as ContentProjection;
 }

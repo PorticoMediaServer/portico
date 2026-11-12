@@ -95,7 +95,8 @@ test('synopsis support does not relax unsafe controls: unsafe text is never show
 
 test('publishes exact server semantic rows, order, metadata and chapter playback intent', async () => {
   const nav = service(async path => projection(path, { sections: [{ id: 'server-chapters', type: 'list', heading: { key: 'book.chapters', fallback: 'Chapters' }, entries: [{ id: 'chapter-9', kind: 'chapter', title: 'First chosen by server', addedAt: null, playback: { itemId: 'file-2', startSeconds: 97.5 } }, { id: 'chapter-1', kind: 'chapter', title: 'Second chosen by server', playback: { itemId: 'file-1', startSeconds: 0 } }], totalCount: 2, nextCursor: '' }] }));
-  await nav.select({ libraryId: 'books', view: 'book', entityId: 'book-1' });
+  // A view still read from the content route (an audiobook's page is read from the rebuilt server).
+  await nav.select({ libraryId: 'books', view: 'season', entityId: 'book-1' });
   const state = nav.getSnapshot(); assert.equal(state.phase, 'ready');
   assert.deepEqual(state.sections[0].entries.map(e => e.id), ['chapter-9','chapter-1']);
   assert.equal(state.sections[0].heading.fallback, 'Chapters');
@@ -109,8 +110,8 @@ test('all typed domain routes request one canonical endpoint with encoded query 
   const paths: string[] = [];
   const nav = service(async path => { paths.push(path); return projection(path); });
   // Discover, an album, an artist and a collection are read from the rebuilt server (library-content-rebuilt.test.ts).
-  for (const view of ['browse','collections','categories','show','season','book'] as const) {
-    await nav.select({ libraryId: 'library/a', view, ...(['show','season','book'].includes(view) ? { entityId: 'entity&x=1' } : {}) });
+  for (const view of ['browse','collections','categories','show','season'] as const) {
+    await nav.select({ libraryId: 'library/a', view, ...(['show','season'].includes(view) ? { entityId: 'entity&x=1' } : {}) });
     assert.equal(nav.getSnapshot().phase, 'ready');
     assert.ok(paths.at(-1)!.startsWith('/v1/libraries/library%2Fa/content?'));
   }
@@ -349,10 +350,10 @@ test('temporary refresh failure retains content but invalid and denied responses
 });
 
 test('entity identity and art are independent of page rows and fenced to the requested library and entity',async()=>{
- // A view still read from the content route (an album's page is read from the rebuilt server).
- const target:ContentRoute={libraryId:'music',view:'book',entityId:'release'};
+ // The one page with a header still read from the content route (album and book pages are read from the rebuilt server).
+ const target:ContentRoute={libraryId:'music',view:'disc',entityId:'release'};
  for(const change of [null,{id:'other'},{libraryId:'private'},{kind:'album'},{playback:{itemId:'track'}}]){
-  const nav=service(async path=>projection(path,{entity:{id:'release',libraryId:'music',kind:'book',title:'Release',subtitle:'Artist',posterUrl:'/cover',backdropUrl:'/backdrop',count:205,...change},sections:[]}));
+  const nav=service(async path=>projection(path,{entity:{id:'release',libraryId:'music',kind:'disc',title:'Release',subtitle:'Artist',posterUrl:'/cover',backdropUrl:'/backdrop',count:205,...change},sections:[]}));
   await nav.select(target);
   if(change===null||'playback' in change){assert.equal(nav.getSnapshot().phase,'ready');assert.equal(nav.getSnapshot().projection?.entity?.count,205);assert.equal(nav.getSnapshot().projection?.entity?.backdropUrl,'/backdrop');assert.equal(nav.getSnapshot().projection?.entity?.playback,undefined,'the page\'s own entity never plays');}
   else assert.equal(nav.getSnapshot().phase,'error');
@@ -529,9 +530,9 @@ test('everything read so far is one list per section: later pages append, More w
 });
 
 
-// The author and series pages read the rebuilt server (library-content-rebuilt.test.ts); a book's page is still read here.
-test('a book hero is the exact entity in its own library',async()=>{
- for(const view of ['book'] as const){
+// The author, series and book pages read the rebuilt server (library-content-rebuilt.test.ts); a disc's page is still read here.
+test('a disc hero is the exact entity in its own library',async()=>{
+ for(const view of ['disc'] as const){
   const target:ContentRoute={libraryId:'books',view,entityId:'group'};
   for(const change of [null,{id:'other'},{libraryId:'private'},{kind:'author'}]){
    const nav=service(async path=>projection(path,{entity:{id:'group',libraryId:'books',kind:view,title:'Writer',...change},sections:[]}));
