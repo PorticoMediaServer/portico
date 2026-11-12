@@ -145,7 +145,7 @@ Assistant) are a separate short document and are not counted here.
 | `GET /v1/lists/{id}/shares`, `PUT /v1/lists/{id}/shares` | Who a list is shared with |
 | `GET /v1/jobs/{id}`, `POST /v1/jobs`, `DELETE /v1/jobs/{id}` | Run a bulk action over a selection, watch it, cancel it |
 | `POST /v1/jobs` kind `set_state` | Any profile: set watched, favourite, My List, Not interested or rating on every title in a view it sees. `target.filter` is the view's `GET /v1/items` query; `params` are the state fields |
-| `POST /v1/jobs` kind `add_view_to_list` | Any profile: add every title of a view it sees to a playlist or collection it may change, in the view's own order (its `sort` and `order` kept). `target.filter` is the view's `GET /v1/items` query; `params` is `{"list": id}`. A list is filled to at most 10,000 entries this way. The finished job's `error` says how many were added, were in it already and were left out; taken up again after a restart it adds nothing twice |
+| `POST /v1/jobs` kind `add_view_to_list` | Any profile: add every title of a view it sees to a playlist or collection it may change, in the view's own order (its `sort` and `order` kept). `target.filter` is the view's `GET /v1/items` query; `params` is `{"list": id}`. The finished job's `error` says how many were added and were in it already; taken up again after a restart it adds nothing twice |
 
 ### Playback (34)
 
