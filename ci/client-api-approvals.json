@@ -2349,9 +2349,9 @@
     "sourceHashes": {
       "apps/native/Native/PorticoPlayer.m": "4d0ca12b5df268169d52a51ad1224af320fba32b17b3eafa6456d51923530a1b",
       "apps/native/Native/PorticoReadingByteStream.swift": "9ee7f684b94a8502bcac3c2d58ee7a0a57601d473d3b9593a13874f8bb671c80",
-      "apps/native/Native/PorticoSubtitleSelection.m": "7ba8ed6829f2efdad8be81aee20e613f8ca5a683bffb70d845b2dc612b846780",
+      "apps/native/Native/PorticoSubtitleSelection.m": "392f93fc8921eb72307257821e6a62d850534c6ddac03242a1224f796e5933c9",
       "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt": "edb2e75ef918049dd5ba18053dbb0015fae584b196354f3b19e11eb0b9819826",
-      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "b8962889600f7c3de726562f43d48bdf0b7678f9363fa71534cf89bd754f717b",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "7913140b21448b97f135a5144a1d5fe8fa6ecb588aa023e428406e1ad7638e31",
       "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt": "2aef5e1926575fc2aec62159067cf9e9af8a70e165eea647c083e6dc48d5776e",
       "apps/native/src-next/platform/server-connections.ts": "ab1a062468ad09a178c8cbe26f01ac77e2790af032e95dff8f9ea6775536d570",
       "apps/native/src-next/platform/profile-transport.ts": "d8704265b92d73a46e62fb5e9512406b64301148628e31a097f4e7b3540fed14",
@@ -2376,9 +2376,9 @@
     "sourceHashes": {
       "apps/native/Native/PorticoPlayer.m": "4d0ca12b5df268169d52a51ad1224af320fba32b17b3eafa6456d51923530a1b",
       "apps/native/Native/PorticoReadingByteStream.swift": "9ee7f684b94a8502bcac3c2d58ee7a0a57601d473d3b9593a13874f8bb671c80",
-      "apps/native/Native/PorticoSubtitleSelection.m": "7ba8ed6829f2efdad8be81aee20e613f8ca5a683bffb70d845b2dc612b846780",
+      "apps/native/Native/PorticoSubtitleSelection.m": "392f93fc8921eb72307257821e6a62d850534c6ddac03242a1224f796e5933c9",
       "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt": "edb2e75ef918049dd5ba18053dbb0015fae584b196354f3b19e11eb0b9819826",
-      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "b8962889600f7c3de726562f43d48bdf0b7678f9363fa71534cf89bd754f717b",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "7913140b21448b97f135a5144a1d5fe8fa6ecb588aa023e428406e1ad7638e31",
       "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt": "2aef5e1926575fc2aec62159067cf9e9af8a70e165eea647c083e6dc48d5776e",
       "apps/native/src-next/platform/server-connections.ts": "ab1a062468ad09a178c8cbe26f01ac77e2790af032e95dff8f9ea6775536d570",
       "apps/native/src-next/platform/profile-transport.ts": "d8704265b92d73a46e62fb5e9512406b64301148628e31a097f4e7b3540fed14",
@@ -2403,9 +2403,9 @@
     "sourceHashes": {
       "apps/native/Native/PorticoPlayer.m": "4d0ca12b5df268169d52a51ad1224af320fba32b17b3eafa6456d51923530a1b",
       "apps/native/Native/PorticoReadingByteStream.swift": "9ee7f684b94a8502bcac3c2d58ee7a0a57601d473d3b9593a13874f8bb671c80",
-      "apps/native/Native/PorticoSubtitleSelection.m": "7ba8ed6829f2efdad8be81aee20e613f8ca5a683bffb70d845b2dc612b846780",
+      "apps/native/Native/PorticoSubtitleSelection.m": "392f93fc8921eb72307257821e6a62d850534c6ddac03242a1224f796e5933c9",
       "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt": "edb2e75ef918049dd5ba18053dbb0015fae584b196354f3b19e11eb0b9819826",
-      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "b8962889600f7c3de726562f43d48bdf0b7678f9363fa71534cf89bd754f717b",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "7913140b21448b97f135a5144a1d5fe8fa6ecb588aa023e428406e1ad7638e31",
       "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt": "2aef5e1926575fc2aec62159067cf9e9af8a70e165eea647c083e6dc48d5776e",
       "apps/native/src-next/platform/server-connections.ts": "ab1a062468ad09a178c8cbe26f01ac77e2790af032e95dff8f9ea6775536d570",
       "apps/native/src-next/platform/profile-transport.ts": "d8704265b92d73a46e62fb5e9512406b64301148628e31a097f4e7b3540fed14",
@@ -2422,17 +2422,17 @@
       "https://github.com/PorticoMediaServer/portico/pull/1015"
     ]
   },
-  "apps/native/Native/PorticoSubtitleSelection.m#57d901ace2691c8d": {
+  "apps/native/Native/PorticoSubtitleSelection.m#026860faf25ada97": {
     "category": "platform-url",
-    "reason": "Reviewed native M policy: Constructs only an expected subtitle-grant path for equality validation against the core-supplied document URL. This locally constructed comparison never issues a request. Retains exact grant/resource/revision and origin validation.",
-    "guardHash": "d2100a220777b76f31aa41952ae4a2dc02dda18346cda5b99a10f2a8471abf4d",
+    "reason": "Reviewed native M policy: Constructs only an expected subtitle-grant path (ending in {revision}.vtt) for equality validation against the core-supplied document URL. This locally constructed comparison never issues a request. Retains exact grant/resource/revision and origin validation.",
+    "guardHash": "b41297148e5ef9a87f2b4b831519fa04da746a43eb75da9077de314a1f75f14e",
     "guardSpan": "native-function",
     "sourceHashes": {
       "apps/native/Native/PorticoPlayer.m": "4d0ca12b5df268169d52a51ad1224af320fba32b17b3eafa6456d51923530a1b",
       "apps/native/Native/PorticoReadingByteStream.swift": "9ee7f684b94a8502bcac3c2d58ee7a0a57601d473d3b9593a13874f8bb671c80",
-      "apps/native/Native/PorticoSubtitleSelection.m": "7ba8ed6829f2efdad8be81aee20e613f8ca5a683bffb70d845b2dc612b846780",
+      "apps/native/Native/PorticoSubtitleSelection.m": "392f93fc8921eb72307257821e6a62d850534c6ddac03242a1224f796e5933c9",
       "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt": "edb2e75ef918049dd5ba18053dbb0015fae584b196354f3b19e11eb0b9819826",
-      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "b8962889600f7c3de726562f43d48bdf0b7678f9363fa71534cf89bd754f717b",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "7913140b21448b97f135a5144a1d5fe8fa6ecb588aa023e428406e1ad7638e31",
       "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt": "2aef5e1926575fc2aec62159067cf9e9af8a70e165eea647c083e6dc48d5776e",
       "apps/native/src-next/platform/server-connections.ts": "ab1a062468ad09a178c8cbe26f01ac77e2790af032e95dff8f9ea6775536d570",
       "apps/native/src-next/platform/profile-transport.ts": "d8704265b92d73a46e62fb5e9512406b64301148628e31a097f4e7b3540fed14",
@@ -2442,24 +2442,24 @@
       "packages/client-core/src/media-sources.ts": "bc0ea98883b94f7b7d77ba241dbe278f1bf46df70de6709cd4da92546f95bb29"
     },
     "occurrences": 1,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651110042",
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-1",
     "condition": "Exact count-one canonical native function; only core-supplied operations/capabilities reach it. Preserve the reviewed URL/method/header/auth/body, validation, bounds, byte conversions, cancellation, redirect/privacy, admission and deadline policy. All six native helper/source files match the #1010 packet byte-for-byte. Caller ownership extractions already on main (#1005/#1015) are bound with their current adapter files and core destinations; no native policy changes.",
     "dependencyReviewUrls": [
       "https://github.com/PorticoMediaServer/portico/pull/1005",
       "https://github.com/PorticoMediaServer/portico/pull/1015"
     ]
   },
-  "apps/native/Native/PorticoSubtitleSelection.m#9898da05db456db5": {
+  "apps/native/Native/PorticoSubtitleSelection.m#1401ee57bc07d99b": {
     "category": "platform-url",
-    "reason": "Reviewed native M policy: Builds the player-fetched subtitle document request from the core grant URL. Keeps Accept JSON, conditional ETag, no bearer, redirect refusal, 15-second deadline, response/cue bounds and existing subtitle cadence.",
-    "guardHash": "39aa7dc25023203bc18acb07ea236e80a8384a6738031b00d7760678d2eda9b9",
+    "reason": "Reviewed native M policy: Builds the player-fetched subtitle document request from the core grant URL. Accepts WebVTT (text/vtt) or JSON, conditional ETag, no bearer, redirect refusal, 15-second deadline, response/cue bounds and existing subtitle cadence.",
+    "guardHash": "88fadb66b4e0cf45da8082a40b4ffb1dc53e5049394bd38703c40edbeb0b1890",
     "guardSpan": "native-function",
     "sourceHashes": {
       "apps/native/Native/PorticoPlayer.m": "4d0ca12b5df268169d52a51ad1224af320fba32b17b3eafa6456d51923530a1b",
       "apps/native/Native/PorticoReadingByteStream.swift": "9ee7f684b94a8502bcac3c2d58ee7a0a57601d473d3b9593a13874f8bb671c80",
-      "apps/native/Native/PorticoSubtitleSelection.m": "7ba8ed6829f2efdad8be81aee20e613f8ca5a683bffb70d845b2dc612b846780",
+      "apps/native/Native/PorticoSubtitleSelection.m": "392f93fc8921eb72307257821e6a62d850534c6ddac03242a1224f796e5933c9",
       "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt": "edb2e75ef918049dd5ba18053dbb0015fae584b196354f3b19e11eb0b9819826",
-      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "b8962889600f7c3de726562f43d48bdf0b7678f9363fa71534cf89bd754f717b",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "7913140b21448b97f135a5144a1d5fe8fa6ecb588aa023e428406e1ad7638e31",
       "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt": "2aef5e1926575fc2aec62159067cf9e9af8a70e165eea647c083e6dc48d5776e",
       "apps/native/src-next/platform/server-connections.ts": "ab1a062468ad09a178c8cbe26f01ac77e2790af032e95dff8f9ea6775536d570",
       "apps/native/src-next/platform/profile-transport.ts": "d8704265b92d73a46e62fb5e9512406b64301148628e31a097f4e7b3540fed14",
@@ -2469,24 +2469,24 @@
       "packages/client-core/src/media-sources.ts": "bc0ea98883b94f7b7d77ba241dbe278f1bf46df70de6709cd4da92546f95bb29"
     },
     "occurrences": 1,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651110042",
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-1",
     "condition": "Exact count-one canonical native function; only core-supplied operations/capabilities reach it. Preserve the reviewed URL/method/header/auth/body, validation, bounds, byte conversions, cancellation, redirect/privacy, admission and deadline policy. All six native helper/source files match the #1010 packet byte-for-byte. Caller ownership extractions already on main (#1005/#1015) are bound with their current adapter files and core destinations; no native policy changes.",
     "dependencyReviewUrls": [
       "https://github.com/PorticoMediaServer/portico/pull/1005",
       "https://github.com/PorticoMediaServer/portico/pull/1015"
     ]
   },
-  "apps/native/Native/PorticoSubtitleSelection.m#0609aff755d74562": {
+  "apps/native/Native/PorticoSubtitleSelection.m#f2e83c6c0ca485c6": {
     "category": "platform-url",
     "reason": "Reviewed native M policy: Executes the same bounded conditional subtitle document request built from the core grant URL; preserves the original response/lifetime checks and cue/cache behavior.",
-    "guardHash": "39aa7dc25023203bc18acb07ea236e80a8384a6738031b00d7760678d2eda9b9",
+    "guardHash": "88fadb66b4e0cf45da8082a40b4ffb1dc53e5049394bd38703c40edbeb0b1890",
     "guardSpan": "native-function",
     "sourceHashes": {
       "apps/native/Native/PorticoPlayer.m": "4d0ca12b5df268169d52a51ad1224af320fba32b17b3eafa6456d51923530a1b",
       "apps/native/Native/PorticoReadingByteStream.swift": "9ee7f684b94a8502bcac3c2d58ee7a0a57601d473d3b9593a13874f8bb671c80",
-      "apps/native/Native/PorticoSubtitleSelection.m": "7ba8ed6829f2efdad8be81aee20e613f8ca5a683bffb70d845b2dc612b846780",
+      "apps/native/Native/PorticoSubtitleSelection.m": "392f93fc8921eb72307257821e6a62d850534c6ddac03242a1224f796e5933c9",
       "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt": "edb2e75ef918049dd5ba18053dbb0015fae584b196354f3b19e11eb0b9819826",
-      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "b8962889600f7c3de726562f43d48bdf0b7678f9363fa71534cf89bd754f717b",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "7913140b21448b97f135a5144a1d5fe8fa6ecb588aa023e428406e1ad7638e31",
       "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt": "2aef5e1926575fc2aec62159067cf9e9af8a70e165eea647c083e6dc48d5776e",
       "apps/native/src-next/platform/server-connections.ts": "ab1a062468ad09a178c8cbe26f01ac77e2790af032e95dff8f9ea6775536d570",
       "apps/native/src-next/platform/profile-transport.ts": "d8704265b92d73a46e62fb5e9512406b64301148628e31a097f4e7b3540fed14",
@@ -2496,7 +2496,7 @@
       "packages/client-core/src/media-sources.ts": "bc0ea98883b94f7b7d77ba241dbe278f1bf46df70de6709cd4da92546f95bb29"
     },
     "occurrences": 1,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651110042",
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-1",
     "condition": "Exact count-one canonical native function; only core-supplied operations/capabilities reach it. Preserve the reviewed URL/method/header/auth/body, validation, bounds, byte conversions, cancellation, redirect/privacy, admission and deadline policy. All six native helper/source files match the #1010 packet byte-for-byte. Caller ownership extractions already on main (#1005/#1015) are bound with their current adapter files and core destinations; no native policy changes.",
     "dependencyReviewUrls": [
       "https://github.com/PorticoMediaServer/portico/pull/1005",
@@ -2511,9 +2511,9 @@
     "sourceHashes": {
       "apps/native/Native/PorticoPlayer.m": "4d0ca12b5df268169d52a51ad1224af320fba32b17b3eafa6456d51923530a1b",
       "apps/native/Native/PorticoReadingByteStream.swift": "9ee7f684b94a8502bcac3c2d58ee7a0a57601d473d3b9593a13874f8bb671c80",
-      "apps/native/Native/PorticoSubtitleSelection.m": "7ba8ed6829f2efdad8be81aee20e613f8ca5a683bffb70d845b2dc612b846780",
+      "apps/native/Native/PorticoSubtitleSelection.m": "392f93fc8921eb72307257821e6a62d850534c6ddac03242a1224f796e5933c9",
       "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt": "edb2e75ef918049dd5ba18053dbb0015fae584b196354f3b19e11eb0b9819826",
-      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "b8962889600f7c3de726562f43d48bdf0b7678f9363fa71534cf89bd754f717b",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "7913140b21448b97f135a5144a1d5fe8fa6ecb588aa023e428406e1ad7638e31",
       "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt": "2aef5e1926575fc2aec62159067cf9e9af8a70e165eea647c083e6dc48d5776e",
       "apps/native/src-next/platform/server-connections.ts": "ab1a062468ad09a178c8cbe26f01ac77e2790af032e95dff8f9ea6775536d570",
       "apps/native/src-next/platform/profile-transport.ts": "d8704265b92d73a46e62fb5e9512406b64301148628e31a097f4e7b3540fed14",
@@ -2538,9 +2538,9 @@
     "sourceHashes": {
       "apps/native/Native/PorticoPlayer.m": "4d0ca12b5df268169d52a51ad1224af320fba32b17b3eafa6456d51923530a1b",
       "apps/native/Native/PorticoReadingByteStream.swift": "9ee7f684b94a8502bcac3c2d58ee7a0a57601d473d3b9593a13874f8bb671c80",
-      "apps/native/Native/PorticoSubtitleSelection.m": "7ba8ed6829f2efdad8be81aee20e613f8ca5a683bffb70d845b2dc612b846780",
+      "apps/native/Native/PorticoSubtitleSelection.m": "392f93fc8921eb72307257821e6a62d850534c6ddac03242a1224f796e5933c9",
       "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt": "edb2e75ef918049dd5ba18053dbb0015fae584b196354f3b19e11eb0b9819826",
-      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "b8962889600f7c3de726562f43d48bdf0b7678f9363fa71534cf89bd754f717b",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "7913140b21448b97f135a5144a1d5fe8fa6ecb588aa023e428406e1ad7638e31",
       "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt": "2aef5e1926575fc2aec62159067cf9e9af8a70e165eea647c083e6dc48d5776e",
       "apps/native/src-next/platform/server-connections.ts": "ab1a062468ad09a178c8cbe26f01ac77e2790af032e95dff8f9ea6775536d570",
       "apps/native/src-next/platform/profile-transport.ts": "d8704265b92d73a46e62fb5e9512406b64301148628e31a097f4e7b3540fed14",
@@ -2565,9 +2565,9 @@
     "sourceHashes": {
       "apps/native/Native/PorticoPlayer.m": "4d0ca12b5df268169d52a51ad1224af320fba32b17b3eafa6456d51923530a1b",
       "apps/native/Native/PorticoReadingByteStream.swift": "9ee7f684b94a8502bcac3c2d58ee7a0a57601d473d3b9593a13874f8bb671c80",
-      "apps/native/Native/PorticoSubtitleSelection.m": "7ba8ed6829f2efdad8be81aee20e613f8ca5a683bffb70d845b2dc612b846780",
+      "apps/native/Native/PorticoSubtitleSelection.m": "392f93fc8921eb72307257821e6a62d850534c6ddac03242a1224f796e5933c9",
       "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt": "edb2e75ef918049dd5ba18053dbb0015fae584b196354f3b19e11eb0b9819826",
-      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "b8962889600f7c3de726562f43d48bdf0b7678f9363fa71534cf89bd754f717b",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "7913140b21448b97f135a5144a1d5fe8fa6ecb588aa023e428406e1ad7638e31",
       "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt": "2aef5e1926575fc2aec62159067cf9e9af8a70e165eea647c083e6dc48d5776e",
       "apps/native/src-next/platform/server-connections.ts": "ab1a062468ad09a178c8cbe26f01ac77e2790af032e95dff8f9ea6775536d570",
       "apps/native/src-next/platform/profile-transport.ts": "d8704265b92d73a46e62fb5e9512406b64301148628e31a097f4e7b3540fed14",
@@ -2592,9 +2592,9 @@
     "sourceHashes": {
       "apps/native/Native/PorticoPlayer.m": "4d0ca12b5df268169d52a51ad1224af320fba32b17b3eafa6456d51923530a1b",
       "apps/native/Native/PorticoReadingByteStream.swift": "9ee7f684b94a8502bcac3c2d58ee7a0a57601d473d3b9593a13874f8bb671c80",
-      "apps/native/Native/PorticoSubtitleSelection.m": "7ba8ed6829f2efdad8be81aee20e613f8ca5a683bffb70d845b2dc612b846780",
+      "apps/native/Native/PorticoSubtitleSelection.m": "392f93fc8921eb72307257821e6a62d850534c6ddac03242a1224f796e5933c9",
       "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt": "edb2e75ef918049dd5ba18053dbb0015fae584b196354f3b19e11eb0b9819826",
-      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "b8962889600f7c3de726562f43d48bdf0b7678f9363fa71534cf89bd754f717b",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "7913140b21448b97f135a5144a1d5fe8fa6ecb588aa023e428406e1ad7638e31",
       "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt": "2aef5e1926575fc2aec62159067cf9e9af8a70e165eea647c083e6dc48d5776e",
       "apps/native/src-next/platform/server-connections.ts": "ab1a062468ad09a178c8cbe26f01ac77e2790af032e95dff8f9ea6775536d570",
       "apps/native/src-next/platform/profile-transport.ts": "d8704265b92d73a46e62fb5e9512406b64301148628e31a097f4e7b3540fed14",
@@ -2611,17 +2611,17 @@
       "https://github.com/PorticoMediaServer/portico/pull/1015"
     ]
   },
-  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt#c109c699f8043aa7": {
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt#a54ee23938fc448c": {
     "category": "platform-url",
-    "reason": "Reviewed native M policy: Builds the player subtitle document request from the core grant URL with unchanged Accept JSON and conditional ETag, origin/grant checks, redirect refusal, bounded document/cues, and subtitle cadence. No bearer is added.",
-    "guardHash": "8a27023dfe3bcb7f43bb792651badfcf710b7a9aa52ac2ad57a9bd3c5b7a355e",
+    "reason": "Reviewed native M policy: Builds the player subtitle document request from the core grant URL with Accept text/vtt or JSON and conditional ETag, origin/grant checks, redirect refusal, bounded document/cues, and subtitle cadence. No bearer is added.",
+    "guardHash": "fae9681903017674b6f45731065536b135d2cfd857cf8e4c5d257422c63479f1",
     "guardSpan": "native-function",
     "sourceHashes": {
       "apps/native/Native/PorticoPlayer.m": "4d0ca12b5df268169d52a51ad1224af320fba32b17b3eafa6456d51923530a1b",
       "apps/native/Native/PorticoReadingByteStream.swift": "9ee7f684b94a8502bcac3c2d58ee7a0a57601d473d3b9593a13874f8bb671c80",
-      "apps/native/Native/PorticoSubtitleSelection.m": "7ba8ed6829f2efdad8be81aee20e613f8ca5a683bffb70d845b2dc612b846780",
+      "apps/native/Native/PorticoSubtitleSelection.m": "392f93fc8921eb72307257821e6a62d850534c6ddac03242a1224f796e5933c9",
       "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt": "edb2e75ef918049dd5ba18053dbb0015fae584b196354f3b19e11eb0b9819826",
-      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "b8962889600f7c3de726562f43d48bdf0b7678f9363fa71534cf89bd754f717b",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "7913140b21448b97f135a5144a1d5fe8fa6ecb588aa023e428406e1ad7638e31",
       "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt": "2aef5e1926575fc2aec62159067cf9e9af8a70e165eea647c083e6dc48d5776e",
       "apps/native/src-next/platform/server-connections.ts": "ab1a062468ad09a178c8cbe26f01ac77e2790af032e95dff8f9ea6775536d570",
       "apps/native/src-next/platform/profile-transport.ts": "d8704265b92d73a46e62fb5e9512406b64301148628e31a097f4e7b3540fed14",
@@ -2631,24 +2631,24 @@
       "packages/client-core/src/media-sources.ts": "bc0ea98883b94f7b7d77ba241dbe278f1bf46df70de6709cd4da92546f95bb29"
     },
     "occurrences": 1,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651110042",
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-1",
     "condition": "Exact count-one canonical native function; only core-supplied operations/capabilities reach it. Preserve the reviewed URL/method/header/auth/body, validation, bounds, byte conversions, cancellation, redirect/privacy, admission and deadline policy. All six native helper/source files match the #1010 packet byte-for-byte. Caller ownership extractions already on main (#1005/#1015) are bound with their current adapter files and core destinations; no native policy changes.",
     "dependencyReviewUrls": [
       "https://github.com/PorticoMediaServer/portico/pull/1005",
       "https://github.com/PorticoMediaServer/portico/pull/1015"
     ]
   },
-  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt#44733a7897e5cdb9": {
+  "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt#f1c06c8c48cd2967": {
     "category": "platform-url",
     "reason": "Reviewed native M policy: Executes that same player subtitle grant request through the existing native client; retains unchanged response, currentness and cue/cache handling.",
-    "guardHash": "8a27023dfe3bcb7f43bb792651badfcf710b7a9aa52ac2ad57a9bd3c5b7a355e",
+    "guardHash": "fae9681903017674b6f45731065536b135d2cfd857cf8e4c5d257422c63479f1",
     "guardSpan": "native-function",
     "sourceHashes": {
       "apps/native/Native/PorticoPlayer.m": "4d0ca12b5df268169d52a51ad1224af320fba32b17b3eafa6456d51923530a1b",
       "apps/native/Native/PorticoReadingByteStream.swift": "9ee7f684b94a8502bcac3c2d58ee7a0a57601d473d3b9593a13874f8bb671c80",
-      "apps/native/Native/PorticoSubtitleSelection.m": "7ba8ed6829f2efdad8be81aee20e613f8ca5a683bffb70d845b2dc612b846780",
+      "apps/native/Native/PorticoSubtitleSelection.m": "392f93fc8921eb72307257821e6a62d850534c6ddac03242a1224f796e5933c9",
       "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt": "edb2e75ef918049dd5ba18053dbb0015fae584b196354f3b19e11eb0b9819826",
-      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "b8962889600f7c3de726562f43d48bdf0b7678f9363fa71534cf89bd754f717b",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "7913140b21448b97f135a5144a1d5fe8fa6ecb588aa023e428406e1ad7638e31",
       "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt": "2aef5e1926575fc2aec62159067cf9e9af8a70e165eea647c083e6dc48d5776e",
       "apps/native/src-next/platform/server-connections.ts": "ab1a062468ad09a178c8cbe26f01ac77e2790af032e95dff8f9ea6775536d570",
       "apps/native/src-next/platform/profile-transport.ts": "d8704265b92d73a46e62fb5e9512406b64301148628e31a097f4e7b3540fed14",
@@ -2658,7 +2658,7 @@
       "packages/client-core/src/media-sources.ts": "bc0ea98883b94f7b7d77ba241dbe278f1bf46df70de6709cd4da92546f95bb29"
     },
     "occurrences": 1,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6651110042",
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-1",
     "condition": "Exact count-one canonical native function; only core-supplied operations/capabilities reach it. Preserve the reviewed URL/method/header/auth/body, validation, bounds, byte conversions, cancellation, redirect/privacy, admission and deadline policy. All six native helper/source files match the #1010 packet byte-for-byte. Caller ownership extractions already on main (#1005/#1015) are bound with their current adapter files and core destinations; no native policy changes.",
     "dependencyReviewUrls": [
       "https://github.com/PorticoMediaServer/portico/pull/1005",
@@ -2673,9 +2673,9 @@
     "sourceHashes": {
       "apps/native/Native/PorticoPlayer.m": "4d0ca12b5df268169d52a51ad1224af320fba32b17b3eafa6456d51923530a1b",
       "apps/native/Native/PorticoReadingByteStream.swift": "9ee7f684b94a8502bcac3c2d58ee7a0a57601d473d3b9593a13874f8bb671c80",
-      "apps/native/Native/PorticoSubtitleSelection.m": "7ba8ed6829f2efdad8be81aee20e613f8ca5a683bffb70d845b2dc612b846780",
+      "apps/native/Native/PorticoSubtitleSelection.m": "392f93fc8921eb72307257821e6a62d850534c6ddac03242a1224f796e5933c9",
       "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt": "edb2e75ef918049dd5ba18053dbb0015fae584b196354f3b19e11eb0b9819826",
-      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "b8962889600f7c3de726562f43d48bdf0b7678f9363fa71534cf89bd754f717b",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "7913140b21448b97f135a5144a1d5fe8fa6ecb588aa023e428406e1ad7638e31",
       "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt": "2aef5e1926575fc2aec62159067cf9e9af8a70e165eea647c083e6dc48d5776e",
       "apps/native/src-next/platform/server-connections.ts": "ab1a062468ad09a178c8cbe26f01ac77e2790af032e95dff8f9ea6775536d570",
       "apps/native/src-next/platform/profile-transport.ts": "d8704265b92d73a46e62fb5e9512406b64301148628e31a097f4e7b3540fed14",
@@ -2700,9 +2700,9 @@
     "sourceHashes": {
       "apps/native/Native/PorticoPlayer.m": "4d0ca12b5df268169d52a51ad1224af320fba32b17b3eafa6456d51923530a1b",
       "apps/native/Native/PorticoReadingByteStream.swift": "9ee7f684b94a8502bcac3c2d58ee7a0a57601d473d3b9593a13874f8bb671c80",
-      "apps/native/Native/PorticoSubtitleSelection.m": "7ba8ed6829f2efdad8be81aee20e613f8ca5a683bffb70d845b2dc612b846780",
+      "apps/native/Native/PorticoSubtitleSelection.m": "392f93fc8921eb72307257821e6a62d850534c6ddac03242a1224f796e5933c9",
       "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt": "edb2e75ef918049dd5ba18053dbb0015fae584b196354f3b19e11eb0b9819826",
-      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "b8962889600f7c3de726562f43d48bdf0b7678f9363fa71534cf89bd754f717b",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "7913140b21448b97f135a5144a1d5fe8fa6ecb588aa023e428406e1ad7638e31",
       "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt": "2aef5e1926575fc2aec62159067cf9e9af8a70e165eea647c083e6dc48d5776e",
       "apps/native/src-next/platform/server-connections.ts": "ab1a062468ad09a178c8cbe26f01ac77e2790af032e95dff8f9ea6775536d570",
       "apps/native/src-next/platform/profile-transport.ts": "d8704265b92d73a46e62fb5e9512406b64301148628e31a097f4e7b3540fed14",
@@ -2739,9 +2739,9 @@
     "sourceHashes": {
       "apps/native/Native/PorticoPlayer.m": "4d0ca12b5df268169d52a51ad1224af320fba32b17b3eafa6456d51923530a1b",
       "apps/native/Native/PorticoReadingByteStream.swift": "9ee7f684b94a8502bcac3c2d58ee7a0a57601d473d3b9593a13874f8bb671c80",
-      "apps/native/Native/PorticoSubtitleSelection.m": "7ba8ed6829f2efdad8be81aee20e613f8ca5a683bffb70d845b2dc612b846780",
+      "apps/native/Native/PorticoSubtitleSelection.m": "392f93fc8921eb72307257821e6a62d850534c6ddac03242a1224f796e5933c9",
       "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoRuntime.kt": "edb2e75ef918049dd5ba18053dbb0015fae584b196354f3b19e11eb0b9819826",
-      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "b8962889600f7c3de726562f43d48bdf0b7678f9363fa71534cf89bd754f717b",
+      "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoSubtitleSelection.kt": "7913140b21448b97f135a5144a1d5fe8fa6ecb588aa023e428406e1ad7638e31",
       "apps/native/android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt": "2aef5e1926575fc2aec62159067cf9e9af8a70e165eea647c083e6dc48d5776e",
       "apps/native/src-next/platform/server-connections.ts": "ab1a062468ad09a178c8cbe26f01ac77e2790af032e95dff8f9ea6775536d570",
       "apps/native/src-next/platform/profile-transport.ts": "d8704265b92d73a46e62fb5e9512406b64301148628e31a097f4e7b3540fed14",

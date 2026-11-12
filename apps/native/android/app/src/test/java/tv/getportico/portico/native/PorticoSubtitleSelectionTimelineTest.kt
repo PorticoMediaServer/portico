@@ -23,8 +23,8 @@ class PorticoSubtitleSelectionTimelineTest {
     val fixture = Fixture()
     assertEquals(1, fixture.http.calls.size)
     val initial = fixture.http.calls.single()
-    assertEquals("https://server.invalid/v1/media/subtitles/grant-a/resource-a/1", initial.request().url.toString())
-    assertEquals("application/json", initial.request().header("Accept"))
+    assertEquals("https://server.invalid/v1/media/subtitles/grant-a/resource-a/1.vtt", initial.request().url.toString())
+    assertEquals("text/vtt, application/json", initial.request().header("Accept"))
     assertNull(initial.request().header("If-None-Match"))
     initial.respond(200, document("first"), "\"first\"")
     fixture.loop.runCurrent()
@@ -40,6 +40,15 @@ class PorticoSubtitleSelectionTimelineTest {
     fixture.owner.invalidate()
     assertTrue(fixture.http.calls.last().isCanceled())
     assertEquals(0, fixture.loop.pendingCount)
+  }
+
+  /** The rebuilt server answers the subtitle address with WebVTT; its cues are shown as they are. */
+  @Test fun aWebVttAnswerIsShown() {
+    val fixture = Fixture()
+    fixture.http.calls.single().respond(200, "WEBVTT\n\n00:00:00.000 --> 00:02:00.000\nFrom the file\n", "\"vtt\"", "text/vtt; charset=utf-8")
+    fixture.loop.runCurrent()
+    assertEquals("From the file", fixture.display.text)
+    assertEquals("", fixture.statuses.last())
   }
 
   @Test fun transportFailuresRetainCuesRetryAfterFiveSecondsAndNeverRenewTheGrant() {
@@ -206,7 +215,7 @@ class PorticoSubtitleSelectionTimelineTest {
       owner.apply(mapOf(
         "mode" to "track", "revision" to 1, "resourceRevision" to 1,
         "resourceId" to resource, "offsetUs" to "0", "binding" to binding,
-        "documentUrl" to "https://server.invalid/v1/media/subtitles/grant-a/$resource/1",
+        "documentUrl" to "https://server.invalid/v1/media/subtitles/grant-a/$resource/1.vtt",
       ), "https://server.invalid/v1/media/grant-a/video")
     }
 
@@ -269,11 +278,11 @@ class PorticoSubtitleSelectionTimelineTest {
     override fun timeout(): Timeout = callTimeout
     override fun clone(): Call = ControlledCall(accepted)
 
-    fun respond(code: Int, body: String = "", etag: String? = null) {
+    fun respond(code: Int, body: String = "", etag: String? = null, type: String = "application/json") {
       val receiver = completion()
       val response = Response.Builder().request(accepted).protocol(Protocol.HTTP_1_1)
-        .code(code).message("fixture").header("Content-Type", "application/json")
-        .body(body.toResponseBody("application/json".toMediaType()))
+        .code(code).message("fixture").header("Content-Type", type)
+        .body(body.toResponseBody(type.toMediaType()))
       if (etag != null) response.header("ETag", etag)
       receiver.onResponse(this, response.build())
     }

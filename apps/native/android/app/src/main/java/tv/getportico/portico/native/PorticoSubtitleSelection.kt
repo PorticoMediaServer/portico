@@ -152,8 +152,8 @@ internal class PorticoSubtitleSelection(
       return
     }
     val grant = media?.pathSegments?.getOrNull(2) ?: ""
-    // Subtitle files have a place of their own beside the media: /v1/media/subtitles/<grant>/<resource>/<revision>.
-    val expected = "/v1/media/subtitles/$grant/$resourceId/${(value["resourceRevision"] as Number).toLong()}"
+    // Subtitle files have a place of their own beside the media: /v1/media/subtitles/<grant>/<resource>/<revision>.vtt.
+    val expected = "/v1/media/subtitles/$grant/$resourceId/${(value["resourceRevision"] as Number).toLong()}.vtt"
     // The document travels the way the media does: the same scheme, host and port, under the
     // media's own grant. A server reached over plain HTTP serves its subtitles over plain HTTP too.
     if (target == null || media == null || !(target.scheme == "https" || target.scheme == "http") || target.scheme != media.scheme ||
@@ -220,7 +220,7 @@ internal class PorticoSubtitleSelection(
     val target = url ?: return
     if (call != null) return
     lastRequest = elapsedRealtime()
-    val request = Request.Builder().url(target.toString()).header("Accept", "application/json")
+    val request = Request.Builder().url(target.toString()).header("Accept", "text/vtt, application/json")
     // The validator of the document already held, so "still authorised, unchanged" is one header.
     val validator = etag
     if (!validator.isNullOrEmpty() && cues != null) request.header("If-None-Match", validator)
@@ -234,13 +234,16 @@ internal class PorticoSubtitleSelection(
         var body: ByteArray? = null
         var failure: String? = null
         var transient = false
+        var vtt = false
         val code = response.code
         val tag = response.header("ETag")?.takeIf { it.length <= 256 }
         response.use {
           if (code == 200) {
-            val json = it.header("Content-Type")?.substringBefore(';')?.trim()?.lowercase() == "application/json"
+            // The rebuilt server answers WebVTT; JSON cues are the earlier form.
+            val type = it.header("Content-Type")?.substringBefore(';')?.trim()?.lowercase()
+            vtt = type == "text/vtt"
             val source = it.body?.source()
-            if (!json || source == null || (it.body?.contentLength() ?: 0) > BYTE_LIMIT) failure = "Subtitles are unavailable or access was revoked."
+            if (!(vtt || type == "application/json") || source == null || (it.body?.contentLength() ?: 0) > BYTE_LIMIT) failure = "Subtitles are unavailable or access was revoked."
             else try {
               val buffer = Buffer()
               while (source.read(buffer, 16384) != -1L) if (buffer.size > BYTE_LIMIT) { failure = "Subtitle data exceeded the supported limit."; break }
@@ -256,12 +259,12 @@ internal class PorticoSubtitleSelection(
             failure = "Subtitles are unavailable or access was revoked."
           }
         }
-        main.post { finished(attempt, started, Answer(code, tag, body, failure, transient)) }
+        main.post { finished(attempt, started, Answer(code, tag, body, failure, transient, vtt)) }
       }
     })
   }
 
-  private class Answer(val code: Int, val etag: String?, val body: ByteArray?, val failure: String?, val transient: Boolean)
+  private class Answer(val code: Int, val etag: String?, val body: ByteArray?, val failure: String?, val transient: Boolean, val vtt: Boolean = false)
 
   private fun finished(attempt: Int, started: Call, answer: Answer?) {
     if (attempt != generation || call !== started) return
@@ -288,7 +291,7 @@ internal class PorticoSubtitleSelection(
       status(answer.failure ?: "Subtitles are unavailable or access was revoked.")
       return
     }
-    val parsed = parse(answer.body)
+    val parsed = if (answer.vtt) try { parseWebVtt(answer.body.toString(Charsets.UTF_8)) } catch (_: Exception) { null } else parse(answer.body)
     if (parsed == null) {
       etag = null
       cues = null
@@ -390,7 +393,7 @@ internal class PorticoSubtitleSelection(
 
     private const val BYTE_LIMIT = 8L * 1024 * 1024
     private const val DAY_US = 86_400_000_000L
-    private val ROUTE = Regex("^/v1/media/subtitles/[A-Za-z0-9_-]{1,128}/[A-Za-z0-9_-]{1,128}/[1-9][0-9]*$")
+    private val ROUTE = Regex("^/v1/media/subtitles/[A-Za-z0-9_-]{1,128}/[A-Za-z0-9_-]{1,128}/[1-9][0-9]*\\.vtt$")
 
     /** A scoped media grant, not a bearer credential; a redirect is never followed. */
     private val client: OkHttpClient by lazy {
