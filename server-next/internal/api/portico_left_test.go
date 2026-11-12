@@ -20,6 +20,7 @@ func TestTheOwnerCanLetAPersonWhoLeftBackIn(t *testing.T) {
 	if code, _ := p.notice(p.fake.Note(p.s.id)); code != 200 {
 		t.Fatalf("the note answered %d", code)
 	}
+	p.step() // the note wakes the link's work, which sees the member list without sam
 	if code, refused, _ := p.signIn(accountSam, "", 1); code != 403 || refused != "left_server" {
 		t.Fatalf("a person who left answered %d %s, want 403 left_server", code, refused)
 	}
@@ -53,15 +54,15 @@ func TestTheOwnerCanLetAPersonWhoLeftBackIn(t *testing.T) {
 	}
 }
 
-// A request Portico Services refuses as signed before the server's present link (a database
-// put back from an older backup) is not a matter of the server's name.
-func TestARequestSignedBeforeTheLinkTellsTheOwnerToLinkAgain(t *testing.T) {
+// A request Portico Services refuses for its signature, with the clocks agreeing, is not a
+// matter of the server's name: the owner is told to link the server again.
+func TestARequestRefusedForItsSignatureTellsTheOwnerToLinkAgain(t *testing.T) {
 	p := newPorticoRig(t)
 	p.link(accountJustin)
 	p.servicesAnswer(func(r *http.Request) *http.Response {
 		if r.Method == "PUT" && strings.HasSuffix(r.URL.Path, "/document") {
 			return canned(401, map[string]string{"Date": p.clock.Now().UTC().Format(http.TimeFormat)},
-				`{"error":{"code":"signed_before_link","message":"refused","retry":false,"requestId":"req_1"}}`)
+				`{"error":{"code":"signature","message":"refused","retry":false,"requestId":"req_1"}}`)
 		}
 		return nil
 	})
@@ -72,6 +73,6 @@ func TestARequestSignedBeforeTheLinkTellsTheOwnerToLinkAgain(t *testing.T) {
 	var state PorticoLinkState
 	call(t, p.s, "GET", "/v1/admin/portico", p.owner.AccessToken, nil, &state)
 	if state.Problem != msgPorticoRelink {
-		t.Errorf("a request signed before the link is shown to the owner as %q", state.Problem)
+		t.Errorf("a request refused for its signature is shown to the owner as %q", state.Problem)
 	}
 }

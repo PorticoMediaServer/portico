@@ -461,8 +461,7 @@ const (
 		"If this lasts three days, nobody will be able to sign in with a Portico Account until you link this server again."
 	msgPorticoOwner = "Portico Services can't list this server: the Portico Account of its owner has not approved it. " +
 		"Change owner again and have the new owner approve with their Portico Account, or link this server again."
-	msgPorticoRelink = "Portico Services no longer accepts this server's requests. That happens when the server's data was put back " +
-		"from an older backup. Link this server again."
+	msgPorticoRelink  = "Portico Services no longer accepts this server's requests. Link this server again."
 	msgPorticoDetails = "Portico Services didn't accept this server's details, so the server isn't listed in people's apps. " +
 		"Give the server a name of at most 120 characters on one line; if that doesn't help, link this server again."
 )
@@ -502,8 +501,8 @@ func (s *Server) porticoProblem(err error) {
 		case refused.Code == "owner_not_approved":
 			s.link.setProblem(msgPorticoOwner)
 		case refused.Status == http.StatusUnauthorized:
-			// Not the clock (that is a ClockError): Portico Services holds a newer link for
-			// this server than the server does, or no longer takes its key.
+			// Not the clock (that is a ClockError): the server's key is not the one Portico
+			// Services holds for it.
 			s.link.setProblem(msgPorticoRelink)
 		default:
 			s.link.setProblem(msgPorticoDetails)
@@ -679,15 +678,7 @@ func (s *Server) porticoLetBackIn(r *http.Request, _ None) (None, error) {
 	} else if err != nil {
 		return None{}, err
 	}
-	// Portico Services dropped this person from the server's list when they left, so the
-	// document goes again even when it reads the same as the last one sent.
-	if link, linked, err := s.db.Link(r.Context()); err != nil {
-		return None{}, err
-	} else if linked {
-		if _, err := s.db.UpdateLink(r.Context(), link.IssuedAt, s.now(), func(l *db.Link) { l.DocumentDigest, l.PeopleDigest = "resend", "" }); err != nil && !errors.Is(err, db.ErrNoLink) {
-			return None{}, err
-		}
-	}
+	// The member list changed, so the document goes.
 	s.porticoWake()
 	return None{}, nil
 }
