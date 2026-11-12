@@ -1,6 +1,7 @@
-import {DVRClient, DVRModel, activeRecording, dvrMessage, isAccessError, mutableRecording,
-  type DeletePreview, type DVRPage, type DVRQuery, type DVRSummary, type Recording, type RecordingDetail, type RecordingGroups, type RecordingStorage} from '@core/dvr.ts';
-import {encodedRoutePath, routePath} from '../../../../packages/contracts/src/routes.ts';
+import {DVRModel, activeRecording, dvrMessage, isAccessError, mutableRecording,
+  type DeletePreview, type DVRPage, type DVRQuery, type DVRSummary, type Recording, type RecordingDetail, type RecordingGroups} from '@core/dvr.ts';
+import {NextDVRClient, type RecordingSpace} from '@core/next-dvr.ts';
+import {serverPath} from '@core/query/server-api.ts';
 import {recordingsWindow} from './recordings-window';
 import type {ChannelApi} from '@core/channel-guide.ts';
 
@@ -20,7 +21,7 @@ export type RecordingsSnapshot = Readonly<{
   phase: RecordingsPhase;
   page: DVRPage | null;
   detail: RecordingDetail | null;
-  storage: RecordingStorage | null;
+  storage: RecordingSpace | null;
   summary: DVRSummary | null;
   groups: RecordingGroups | null;
   /** The order the resident groups were read with; `groups.nextCursor` is the server's. */
@@ -39,8 +40,6 @@ export type RecordingsCommandOutcome = Readonly<{committed: boolean; refreshed: 
 export type RecordingsControllerOptions = Readonly<{
   api: ChannelApi;
   serverId: string;
-  /** The existing DVR receipt generator; 48 lowercase hex, never a UUID alias. */
-  requestId: () => Promise<string>;
   /** The owning route/principal lease. */
   signal: AbortSignal;
   /** The borrowed family/profile/role/navigation epoch that owns this screen. */
@@ -48,7 +47,6 @@ export type RecordingsControllerOptions = Readonly<{
 }>;
 
 const sorts: readonly RecordingsSort[] = ['recent', 'title', 'oldest'];
-const receiptText = /^[a-f0-9]{48}$/;
 const recordingText = /^[a-f0-9]{64}$/;
 const cancelled = () => new DOMException('recordings-scope-closed', 'AbortError');
 const invalid = () => Object.assign(new Error('recordings-query-invalid'), {code: 'recordings-query-invalid'});
@@ -66,7 +64,6 @@ const isCancelled = (failure: unknown) => failure instanceof DOMException && fai
 export function createRecordingsController(input: RecordingsControllerOptions) {
   // Captured once: a later caller cannot swap the API, the server or the receipt source.
   const {api: sourceApi, serverId, signal, isCurrent} = input;
-  const requestId = input.requestId;
   const life = new AbortController();
   const listeners = new Set<() => void>();
   /** The one armed command: its mutation HTTP may only leave while this exact
@@ -76,9 +73,9 @@ export function createRecordingsController(input: RecordingsControllerOptions) {
   type ModelRead = Readonly<{serial: number; epoch: number; flight: object | undefined; query: DVRQuery}>;
   let dispatchRead: ModelRead | undefined;
   const modelRequest = (path: string, read: ModelRead) => read.query.recordingId
-    ? path === encodedRoutePath('get_dvr_recordings_id', {id: read.query.recordingId})
-    : read.query.view === 'storage' ? path === routePath('get_dvr_storage')
-      : path.startsWith(routePath('get_dvr') + '?');
+    ? path === serverPath('GET /v1/dvr/recordings/{id}', {id: read.query.recordingId})
+    : read.query.view === 'storage' ? path === serverPath('GET /v1/dvr')
+      : path.startsWith(serverPath('GET /v1/dvr/recordings')) || path.startsWith(serverPath('GET /v1/dvr/rules'));
   const readCurrent = (read: ModelRead) => !closed && !signal.aborted && !life.signal.aborted && read.serial === loadSerial && read.epoch === epoch
     && (read.flight === undefined || read.flight === tailFlight && tailBusy);
   const api: ChannelApi = {
@@ -110,7 +107,8 @@ export function createRecordingsController(input: RecordingsControllerOptions) {
       try {return super.load(next);} finally {dispatchRead = previous;}
     }
   }
-  const model = new DestinationModel(new DVRClient(api, serverId, requestId));
+  const client = new NextDVRClient(api);
+  const model = new DestinationModel(client);
   let closed = false, started = false, stopModel: (() => void) | undefined;
   /** Bumped by a new page/detail/storage load and by disposal, so an older load cannot land. */
   let loadSerial = 0;
@@ -121,7 +119,7 @@ export function createRecordingsController(input: RecordingsControllerOptions) {
   let loading = false, accessDenied = false, errorText = '', commandError = '';
   let deletion: Readonly<{recording: Recording; preview: DeletePreview; serial: number; epoch: number; query: RecordingsQuery}> | undefined;
   let query: RecordingsQuery = Object.freeze({view: 'upcoming'});
-  let page: DVRPage | null = null, detail: RecordingDetail | null = null, storage: RecordingStorage | null = null;
+  let page: DVRPage | null = null, detail: RecordingDetail | null = null, storage: RecordingSpace | null = null;
   let summary: DVRSummary | null = null, groups: RecordingGroups | null = null, groupsSort: RecordingsSort = 'recent';
   const pages = recordingsWindow<DVRPage>(), groupPages = recordingsWindow<RecordingGroups>();
   let tailFlight: object | undefined;
@@ -376,7 +374,7 @@ export function createRecordingsController(input: RecordingsControllerOptions) {
     tailFlight = flight;tailBusy = true;tailError = '';publish();
     try {
       if (!current() || at !== epoch || serial !== groupsSerial || destination !== loadSerial || sort !== groupsSort || tailFlight !== flight) throw cancelled();
-      const value = groupPages.cached(cursor) ?? await model.client.groups(sort, cursor);
+      const value = groupPages.cached(cursor) ?? await client.groups(sort, cursor);
       if (!current() || at !== epoch || serial !== groupsSerial || destination !== loadSerial || sort !== groupsSort || tailFlight !== flight) throw cancelled();
       groupPages.accept(cursor, value);groups = value;tailBusy = false;tailError = '';publish();
     } catch (failure) {
@@ -418,7 +416,7 @@ export function createRecordingsController(input: RecordingsControllerOptions) {
       start();
       const at = epoch, serial = ++summarySerial;
       try {
-        const value = await model.client.summary();
+        const value = await client.summary();
         if (!current()) throw cancelled();
         if (at !== epoch || serial !== summarySerial) throw cancelled();
         summary = value;accessDenied = false;errorText = '';
@@ -441,7 +439,7 @@ export function createRecordingsController(input: RecordingsControllerOptions) {
       publish();
       try {
         if (!current() || at !== epoch || serial !== groupsSerial || groupsSort !== sort) throw cancelled();
-        const value = await model.client.groups(sort, cursor);
+        const value = await client.groups(sort, cursor);
         if (!current()) throw cancelled();
         if (at !== epoch || serial !== groupsSerial || groupsSort !== sort) throw cancelled();
         groups = value;groupPages.reset(cursor, value);accessDenied = false;errorText = '';
@@ -453,31 +451,19 @@ export function createRecordingsController(input: RecordingsControllerOptions) {
         throw failure;
       }
     },
-    /** The same genuine 48-hex DVR operation receipt later command integration
-     * awaits; mints nothing itself and is fenced like every other read. */
-    async requestReceipt(): Promise<string> {
-      if (!current()) throw cancelled();
-      start();
-      const at = epoch;
-      const value = await requestId();
-      if (!current()) throw cancelled();
-      if (at !== epoch) throw cancelled();
-      if (typeof value !== 'string' || !receiptText.test(value)) throw invalid();
-      return value;
-    },
     /** Cancel one exact resident recording through the same private model, using
      * the canonical mutable/active states the legacy menu offers. */
     async cancel(recording: Recording): Promise<RecordingsCommandOutcome> {
       const target = commandTarget(recording);
       if (!mutableRecording(target) && !activeRecording(target)) throw notOffered();
-      return command(() => model.client.cancel(target));
+      return command(() => client.cancel(target));
     },
     /** Keep or stop keeping one exact resident recording, only in the legacy
      * keepable states; the client sends the toggled value for this revision. */
     async keep(recording: Recording): Promise<RecordingsCommandOutcome> {
       const target = commandTarget(recording);
       if (!keepable.includes(target.state)) throw notOffered();
-      return command(() => model.client.keep(target));
+      return command(() => client.keep(target));
     },
     /** Resolve a tuner conflict in this recording's favour by raising its priority
      * above every recording it actually overlaps. The server validates the value. */
@@ -485,7 +471,7 @@ export function createRecordingsController(input: RecordingsControllerOptions) {
       const target = commandTarget(recording);
       if (!mutableRecording(target) || !Number.isSafeInteger(priority)) throw notOffered();
       const bounded = Math.min(1000, Math.max(-1000, priority));
-      return command(() => model.client.update(target, {...target.options, priority: bounded}));
+      return command(() => client.update(target, {...target.options, priority: bounded}));
     },
     /** The server's own delete preview for the exact resident row, offered only by
      * the actual current page for a non-active recording. The returned object is
@@ -496,7 +482,7 @@ export function createRecordingsController(input: RecordingsControllerOptions) {
       start();
       const serial = loadSerial, at = epoch, forQuery = query;
       deletion = undefined;
-      const preview = await model.client.deletePreview(target);
+      const preview = await client.deletePreview(target);
       if (!current()) throw cancelled();
       if (serial !== loadSerial || at !== epoch || !sameDestination(forQuery, query) || !resident(target) || !offersDelete(target)) {
         throw cancelled();
@@ -514,7 +500,7 @@ export function createRecordingsController(input: RecordingsControllerOptions) {
       if (!bound || bound.recording !== target || bound.serial !== loadSerial || bound.epoch !== epoch
         || !sameDestination(bound.query, query) || !offersDelete(target)) throw stalePreview();
       deletion = undefined;
-      return command(() => model.client.delete(target, bound.preview));
+      return command(() => client.delete(target, bound.preview));
     },
     dispose,
   };

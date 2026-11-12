@@ -1,3 +1,4 @@
+import type {RecordingSpace} from './next-dvr.ts';
 import {routePath, encodedRoutePath} from "../../contracts/src/route-paths.ts";
 import {unreadableServerResponse} from './server-messages.ts';
 import {serviceProblem, serviceText} from './presentation/service-text.ts';
@@ -278,14 +279,16 @@ function storagePolicy(v:StoragePolicy):StoragePolicy{return {revision:v.revisio
 export function validStoragePolicy(v:unknown):v is StoragePolicy{return object(v)&&number(v.revision,1)&&number(v.retentionDays,0,3650)&&number(v.episodeLimit,0,100000)&&number(v.floorBytes)&&number(v.capBytes);}
 
 export type DVRQuery = {view:DVRView;cursor?:string;recordingId?:string};
-export type DVRSnapshot = Readonly<{query:DVRQuery;page:DVRPage|null;storage:RecordingStorage|null;detail:RecordingDetail|null;loading:boolean;mutating:boolean;accessDenied:boolean;error:string;revision:number}>;
+/** What the model reads through: the recordings, one recording, and the recordings' space. */
+export type DVRModelClient = {onAccessChanged(listener:()=>void):void;activate():void;dispose():void;detail(recordingId:string,after?:string):Promise<RecordingDetail>;storage():Promise<RecordingSpace>;list(view:Exclude<DVRView,'storage'>,cursor?:string):Promise<DVRPage>};
+export type DVRSnapshot = Readonly<{query:DVRQuery;page:DVRPage|null;storage:RecordingSpace|null;detail:RecordingDetail|null;loading:boolean;mutating:boolean;accessDenied:boolean;error:string;revision:number}>;
 /** Observable query state, not a navigator. All destinations are supplied by the
  * application's existing LibraryNavigationService. Late reads cannot revive a
  * previous route or viewer; authorization errors clear private presentation. */
 export class DVRModel {
  private listeners=new Set<()=>void>();private epoch=0;private overlapRequest=0;private mutation=0;private closed=false;private activation=0;
  private snapshot:DVRSnapshot={query:{view:'upcoming'},page:null,storage:null,detail:null,loading:false,mutating:false,accessDenied:false,error:'',revision:0};
- readonly client:DVRClient;constructor(client:DVRClient){this.client=client;this.observeAccess();}
+ readonly client:DVRModelClient;constructor(client:DVRModelClient){this.client=client;this.observeAccess();}
  private observeAccess(){this.client.onAccessChanged(()=>{this.epoch++;this.publish({page:null,detail:null,storage:null,loading:false,mutating:false,accessDenied:true,error:dvrMessage({status:403})});});}
  activate(){const lease=++this.activation;this.epoch++;this.closed=false;this.client.activate();this.observeAccess();this.publish({page:null,detail:null,storage:null,loading:false,mutating:false,accessDenied:false,error:''});return lease;}
  deactivate(lease:number){if(lease===this.activation)this.dispose();}
@@ -306,7 +309,7 @@ export class DVRModel {
   const d=this.snapshot.detail,epoch=this.epoch,request=++this.overlapRequest;if(!d?.nextOverlap)return;
   try{const next=await this.client.detail(d.recording.id,d.nextOverlap);
    if(epoch!==this.epoch||request!==this.overlapRequest)return;
-   if(next.recording.revision!==d.recording.revision){await this.load();return;}
+   if(next.recording.id!==d.recording.id){await this.load();return;}
    const overlaps=[...new Map([...d.overlaps,...next.overlaps].map(o=>[o.id,o])).values()];
    this.publish({detail:{...next,overlaps}});
   }catch(e){if(epoch===this.epoch&&request===this.overlapRequest)this.publish({error:dvrMessage(e),...(isAccessError(e)?{page:null,storage:null,detail:null,accessDenied:true}:{})});}

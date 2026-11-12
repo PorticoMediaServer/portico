@@ -11,7 +11,7 @@ import {ChannelMark} from '../../kit/artwork';
 import {Icon} from '../../kit/Icon';
 import {Banner, Dialog, Menu, SidePanel, type MenuEntry} from '../../kit/overlays';
 import {StateView} from '../../kit/states';
-import {RecordingsLayout, RecordingStorage} from '../../kit/dvr/RecordingsLayout';
+import {RecordingsLayout} from '../../kit/dvr/RecordingsLayout';
 import {RuleGap} from '../../kit/dvr/RuleCard';
 import {LiveRecordingTabs, RecordingPhoneTabs} from './SeriesRules';
 import type {RecordingsController, RecordingsSort, RecordingsView} from './recordings-controller';
@@ -315,20 +315,10 @@ export function HistoryView({snapshot, now, controller}: {controller: Recordings
 function StorageView({snapshot, tuners}: {snapshot: ReturnType<RecordingsController['getSnapshot']>; tuners?: TunerController}) {
   const storage = snapshot.storage;
   if (!storage) return null;
-  const measured = !!storage.measurement.measuredAt;
+  // What the server says about the recordings' space: free, about how many hours are left, and whether the folder can be written.
   return <div className={styles.recBody}><div className={styles.storagePanel}>
-    {measured ? <RecordingStorage used={t('next.live.storageUsed', {amount: Math.round(storage.measurement.usedBytes / 1e9)})}
-      free={t('next.live.storageFree', {amount: Math.round(storage.measurement.freeBytes / 1e9)})}
-      remaining={t('recordings.hoursLeft', {count: storage.forecastHours})} label={t('recordings.storage')}
-      fraction={storage.measurement.usedBytes / Math.max(1, storage.measurement.usedBytes + storage.measurement.freeBytes)}/> : <p>{t('server.usage.notMeasuredYet')}</p>}
-    <dl className={styles.storageFacts}>
-      <div><dt>{t('web.liveTv.space.reserved')}</dt><dd>{measured ? defaultI18n.bytes(storage.measurement.reservedBytes) : t('server.usage.notMeasuredYet')}</dd></div>
-      <div><dt>{t('web.liveTv.space.waitingDelete')}</dt><dd>{defaultI18n.bytes(storage.pendingDeleteBytes)}</dd></div>
-      <div><dt>{t('web.liveTv.space.forecast')}</dt><dd>{t('web.liveTv.space.forecastOver', {size: defaultI18n.bytes(storage.forecastBytes), hours: storage.forecastHours})}</dd></div>
-    </dl>
-    {storage.forecastDescription && <p>{storage.forecastDescription}</p>}
-    {storage.policy.retentionDays > 0 && <p>{t('recordings.retention', {count: storage.policy.retentionDays})}</p>}
-    {measured && !storage.measurement.writeHealthy && <Banner>{t('recordings.unavailableBody')}</Banner>}
+    <p><b>{t('next.live.storageFree', {amount: Math.round(storage.freeBytes / 1e9)})}</b> · {t('recordings.hoursLeft', {count: storage.hoursLeft})}</p>
+    {!storage.writeHealthy && <Banner>{t('recordings.unavailableBody')}</Banner>}
   </div>{tuners && <Tuners controller={tuners} detailed/>}</div>;
 }
 
@@ -378,10 +368,7 @@ function Boundary({context, view, routeCurrent, onView, onGuide}: {context: Scre
         {views.map(item => <Chip className={styles.recordingsChip} key={item.id} selected={item.id === view} count={item.count} onClick={() => goView(item.id)}>{item.label}</Chip>)}
       </div>
       {snapshot.storage && <button type="button" className={styles.storageButton} aria-label={t('recordings.storage')} onClick={() => goView('storage')}>
-        <RecordingStorage used={t('next.live.storageUsed', {amount: Math.round(snapshot.storage.measurement.usedBytes / 1e9)})}
-          free={t('next.live.storageFree', {amount: Math.round(snapshot.storage.measurement.freeBytes / 1e9)})}
-          remaining={t('recordings.hoursLeft', {count: snapshot.storage.forecastHours})} label={t('recordings.storage')}
-          fraction={snapshot.storage.measurement.usedBytes / Math.max(1, snapshot.storage.measurement.usedBytes + snapshot.storage.measurement.freeBytes)}/>
+        <span>{t('next.live.storageFree', {amount: Math.round(snapshot.storage.freeBytes / 1e9)})} · {t('recordings.hoursLeft', {count: snapshot.storage.hoursLeft})}</span>
       </button>}
     </div>
     {snapshot.error && <Banner className={styles.recordingsBanner} action={{label: t('next.states.tryAgain'), onAction: retry}}>{snapshot.error}</Banner>}

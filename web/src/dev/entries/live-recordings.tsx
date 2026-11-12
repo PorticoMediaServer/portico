@@ -1,7 +1,8 @@
+import type {RecordingSpace} from '@core/next-dvr.ts';
 import {createRoot} from 'react-dom/client';
 import {defaultI18n} from '@i18n';
 import type {GuideProgramme} from '@core/channel-guide.ts';
-import type {Recording, RecordingDetail, RecordingStorage} from '@core/dvr.ts';
+import type {Recording, RecordingDetail} from '@core/dvr.ts';
 import {Chip} from '../../kit/controls';
 import {Icon, IconSprite} from '../../kit/Icon';
 import {ProfileAvatarFace, TopBarActivity} from '../../kit/shell';
@@ -41,9 +42,7 @@ const later2 = recording('r-later2', 'waiting-source', 'Wild Plains', at(18, 45)
 const detail: RecordingDetail = {recording: conflict, capacity: {known: true, effective: 2}, nextOverlap: '',
   overlaps: [{id: 'o1', title: 'The Long Road North', start: iso(at(17, 53)), end: iso(at(20, 20)), priority: 0, state: 'recording'}, // lint-strings-allow fixture data
     {id: 'o2', title: 'The Clockmakers', start: iso(at(19, 30)), end: iso(at(20, 15)), priority: 0, state: 'scheduled'}]}; // lint-strings-allow fixture data
-const storage: RecordingStorage = {policy: {revision: 1, retentionDays: 30, episodeLimit: 10, floorBytes: 0, capBytes: 0},
-  measurement: {freeBytes: 412e9, usedBytes: 64e9, reservedBytes: 0, writeHealthy: true, measuredAt: iso(NOW)},
-  pendingDeleteBytes: 0, forecastBytes: 0, forecastHours: 230, forecastDescription: '', captureAvailable: true, warning: ''};
+const storage: RecordingSpace = {freeBytes: 412e9, hoursLeft: 96, keepRule: 'until-space-needed', writeHealthy: true};
 const groupRecording = (title: string, channelFact: ReturnType<typeof channel>, recorded: number, extra: Partial<Recording> = {}) =>
   recording(`g-${title}`, 'completed', title, recorded, recorded + 30 * 60_000, channelFact, {watched: false, ...extra});
 const groups = {revision: 1, nextCursor: '', groups: [

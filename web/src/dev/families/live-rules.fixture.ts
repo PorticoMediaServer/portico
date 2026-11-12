@@ -11,4 +11,4 @@ const rules: readonly SeriesRule[] = [
   {id: 'football', title: t('next.live.example.football'), glyph: 'S', tone: 'sport', channelId: 'sport', channelName: t('guide.anyChannel'), upcomingCount: 1, settings: base, next: t('next.live.nextConflict', {time: '8:00 PM'}), conflict: true},
   {id: 'wild', title: t('next.live.example.wild'), glyph: 'W', tone: 'documentary', channelId: 'atlas', channelName: atlas, upcomingCount: 2, settings: {...base, enabled: false, episodes: 'new', channel: 'this', keep: '3'}, next: ''},
 ];
-export const seriesRulesFixture: SeriesRulesView = {sourceName: t('next.live.example.source'), channelCount: 14, guideThrough: t('next.live.example.saturday'), upcomingCount: 8, recordedCount: 20, conflictCount: 1, storage: {used: 64, free: 412, hoursLeft: 230}, rules, selectedRuleId: 'clockmakers'};
+export const seriesRulesFixture: SeriesRulesView = {sourceName: t('next.live.example.source'), channelCount: 14, guideThrough: t('next.live.example.saturday'), upcomingCount: 8, recordedCount: 20, conflictCount: 1, storage: {free: 412, hoursLeft: 230}, rules, selectedRuleId: 'clockmakers'};

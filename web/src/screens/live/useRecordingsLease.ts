@@ -5,7 +5,6 @@ import {createRecordingsController, type RecordingsController, type RecordingsVi
 import {TunerController} from '../settings/server-livetv/recording/tuner-controller';
 import {canReadRecordingTuners} from './recording-status-access';
 
-const randomHex = async () => Array.from(crypto.getRandomValues(new Uint8Array(24)), value => value.toString(16).padStart(2, '0')).join('');
 
 export type RecordingsLease = {
   id: string;
@@ -38,7 +37,7 @@ export function useRecordingsLease(context: ScreenContext | undefined, view: Rec
     const current = () => !!held && held.live && context.isCurrent() && routeCurrent();
     const screen: ScreenContext = forwardIdentity(context, {isCurrent: current});
     const life = screenLifetime(screen);
-    const controller = createRecordingsController({api: life.api, serverId: context.scope.serverId, requestId: randomHex,
+    const controller = createRecordingsController({api: life.api, serverId: context.scope.serverId,
       signal: life.signal(), isCurrent: life.current});
     const tunerCurrent = () => life.current() && canReadRecordingTuners(context.identity, context.scope.serverId);
     const tuners = view === 'storage' && canReadRecordingTuners(context.identity, context.scope.serverId)
