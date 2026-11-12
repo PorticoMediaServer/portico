@@ -131,6 +131,9 @@ test('a rewound viewer watches the programme to its own end, then goes on at the
     assert.equal(f.starts(), 2, 'at its end, the channel is tuned again');
     const view = f.views.at(-1)!;
     assert.deepEqual([view.playbackId, view.linear.desired.seek?.positionUs], ['ses_2', '0'], 'placed at the start of the programme now on');
+    // The same channel tuned again is a new stream: the engine joins it rather than staying on the old one (which the server has stopped).
+    const before = f.views.filter(v => v.playbackId === 'ses_1').at(-1)!;
+    assert.notEqual(view.linear.media.bufferGeneration, before.linear.media.bufferGeneration, 'a new attachment');
     const placed = f.sent.find(r => r.method === 'PATCH' && r.path === '/v1/playback/sessions/ses_2')!;
     assert.deepEqual([(placed.body as {state: string}).state, (placed.body as {seek: {positionMs: number}}).seek.positionMs], ['playing', 0]);
   } finally {f.c.close();}
