@@ -100,3 +100,12 @@ export async function readPorticoServerList(origin: string, accessToken: string,
   const list = await openServerList(answer.list as Envelope, accountId, options.held ?? 0, crypto, options.now);
   return {items: listedServers(list), version: list.version, listToken: answer.listToken};
 }
+
+/** The same for a page that holds the account's sign-in in a `porticoAccount` (the account pages at
+ * web.getportico.tv): the account it names, then its checked list. */
+export async function openAccountServerList(account: Pick<ReturnType<typeof porticoAccount>, 'account' | 'serverList'>, crypto: RouteCrypto,
+  options: Readonly<{held?: number; signal?: AbortSignal; now?: number}> = {}): Promise<{accountId: string; items: HostedServer[]; version: number; listToken: string}> {
+  const [me, answer] = await Promise.all([account.account(options.signal), account.serverList(options.signal)]);
+  const list = await openServerList(answer.list as Envelope, me.id, options.held ?? 0, crypto, options.now);
+  return {accountId: me.id, items: listedServers(list), version: list.version, listToken: answer.listToken};
+}

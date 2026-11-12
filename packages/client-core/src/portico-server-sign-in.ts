@@ -4,6 +4,7 @@
  * built with and answers with its own sign-in, exactly as for a password. */
 import {callServer} from './query/server-api.ts';
 import {CodedError} from './server-messages.ts';
+import {envelopePayload} from './portico-account.ts';
 import {openOnlyProfile, parseDirectSignIn, signInDevice, type DirectSignIn, type ProfileAPI} from './profile-management.ts';
 
 /** What Portico Services answers for one server and challenge (`porticoAccount().serverIdentity`). */
@@ -12,14 +13,29 @@ export type SignInNote = Readonly<{identity: unknown; note?: unknown}>;
 /** `api` is connected to the server already proved to hold `serverId`'s key. `noteFor` asks Portico
  * Services for the sign-in note. A note for a server that is behind is carried there afterwards; it
  * is Services' to send as well, so a failure to carry it never fails the sign-in. */
-export async function porticoServerSignIn(api: ProfileAPI, serverId: string, noteFor: (challenge: string) => Promise<SignInNote>, signal?: AbortSignal): Promise<DirectSignIn> {
+export async function porticoServerSignIn(api: ProfileAPI, serverId: string, noteFor: (challenge: string) => Promise<SignInNote>, signal?: AbortSignal,
+  options: Readonly<{invitation?: string; accountId?: string; isCurrent?: () => boolean}> = {}): Promise<DirectSignIn> {
+  // Nothing more goes to the server or to Services once the caller's sign-in is no longer the current one.
+  const check = () => {if (options.isCurrent && !options.isCurrent()) throw new CodedError('cancelled', 'The Portico Account changed.');};
+  check();
   const asked = await callServer(api, 'POST /v1/auth/portico/challenge', {signal});
+  check();
   if (asked?.serverId !== serverId || typeof asked.challenge !== 'string' || !asked.challenge)
     throw new CodedError('server_mismatch', 'The server answered as a different server.');
   const answer = await noteFor(asked.challenge);
+  check();
+  // A page holding one account's sign-in sends only that account's note (another tab may have
+  // signed in as someone else meanwhile).
+  if (options.accountId !== undefined && notedAccount(answer.identity) !== options.accountId)
+    throw new CodedError('account_changed', 'The Portico Account changed. Try again.');
   const signedIn = await openOnlyProfile(api, parseDirectSignIn(await callServer(api, 'POST /v1/auth/portico/exchange',
-    {body: {challenge: asked.challenge, identity: answer.identity, device: signInDevice()}, signal})), signal);
+    {body: {challenge: asked.challenge, identity: answer.identity, device: signInDevice(), ...(options.invitation ? {invitation: options.invitation} : {})}, signal})), signal);
   if (signedIn.kind === 'signed-in' && signedIn.snapshot.serverId !== serverId) throw new CodedError('server_mismatch', 'The server answered as a different server.');
   if (answer.note !== undefined) void callServer(api, 'POST /v1/hosted/notices', {body: {note: answer.note}}).catch(() => undefined);
   return signedIn;
+}
+
+/** The account a sign-in note names, read for comparing only: the server checks the signature. */
+function notedAccount(identity: unknown): string | undefined {
+  try { return envelopePayload<{accountId?: unknown}>(identity as {payload: string}).accountId as string | undefined; } catch { return undefined; }
 }

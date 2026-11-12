@@ -63,3 +63,16 @@ test('a server opened from the new signed server list is remembered under its Po
   assert.deepEqual(remembered?.hosted, {origin: 'https://web.getportico.tv', accountId: 'acct'});
   assert.throws(() => parseRememberedServer(saved({origin: 'https://web.getportico.tv', accountId: 'acct', key: {keyId: 1}})), {code: 'invalid_saved_connection'});
 });
+
+test('joining by invitation sends its code with the note, and a note for another account is never sent', async () => {
+  const encode = (value: unknown) => btoa(JSON.stringify(value)).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+  const noteFor = (accountId: string) => async (challenge: string) => ({identity: {payload: encode({kind: 'portico.identity.v1', accountId, serverId: 'srv', challenge}), signature: 's', keyId: 'k'}});
+  const s = server({
+    'POST /v1/auth/portico/challenge': () => ({challenge: 'challenge-from-srv-000000', serverId: 'srv', expiresAt: later(5)}),
+    'POST /v1/auth/portico/exchange': call => (assert.equal(call.body.invitation, 'invitation-code'), signedIn),
+  });
+  assert.equal((await porticoServerSignIn(s.api, 'srv', noteFor('acct'), undefined, {accountId: 'acct', invitation: 'invitation-code'})).kind, 'signed-in');
+  const other = server({'POST /v1/auth/portico/challenge': () => ({challenge: 'challenge-from-srv-000000', serverId: 'srv', expiresAt: later(5)})});
+  await assert.rejects(porticoServerSignIn(other.api, 'srv', noteFor('someone-else'), undefined, {accountId: 'acct'}), {code: 'account_changed'});
+  assert.deepEqual(other.calls.map(call => call.path), ['/v1/auth/portico/challenge'], 'nothing is sent to the server');
+});
