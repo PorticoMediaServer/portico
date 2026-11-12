@@ -493,3 +493,22 @@ CREATE TABLE reminders (
 ) STRICT, WITHOUT ROWID;
 CREATE INDEX reminders_channel ON reminders (channel_id, programme_key);
 CREATE INDEX reminders_end ON reminders (ends_at);
+
+-- large. What sound analysis made of each song: its place in the model's sound space
+-- (embedding, 200 numbers) and the model's 50 style scores (tags), both as little-endian
+-- float32. One row per song, kept with the song through a rename or a move; file_id, size and
+-- modified_ns say which file was read, so a replaced file is read again, and model is the
+-- model it came from, so a new model reads every song again. failed says why a song could
+-- not be read (it is not tried again until its file changes); its embedding is then empty.
+-- Mixes and radio by sound read it; nothing else does.
+CREATE TABLE track_embeddings (
+  item_id     INTEGER NOT NULL PRIMARY KEY REFERENCES items(id) ON DELETE CASCADE,
+  file_id     INTEGER NOT NULL,
+  size        INTEGER NOT NULL,
+  modified_ns INTEGER NOT NULL,
+  model       TEXT    NOT NULL,
+  embedding   BLOB,
+  tags        BLOB,
+  failed      TEXT,
+  analysed_at INTEGER NOT NULL
+) STRICT;

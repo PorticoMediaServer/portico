@@ -517,6 +517,10 @@ Refreshing or editing a selection of titles is a bulk action, `POST /v1/jobs`, w
 After every scan the server starts `metadata_after_scan` for the library itself: new titles are
 looked up, then what is due is refreshed.
 
+On a server with Portico's sound model installed, the server starts `music_analysis` for a music
+library itself, hourly, when it has songs not yet read: each song is read once by the model, in the
+`heavyWork` hours, for Mixes and radio by sound. Without the model nothing is started.
+
 | Route | Purpose |
 |---|---|
 | `GET /v1/admin/items/{id}/metadata`, `PATCH /v1/admin/items/{id}/metadata` | The editor's document with its `ETag`: each field and list with its value, where it came from (provider, file, edit) and whether it is locked. Edit fields and lists, which locks them; lock or unlock a field, a list, the match or everything. Needs `If-Match`; a stale one is `412`. A value out of range is `422` naming the field and its limit |
@@ -578,7 +582,7 @@ document is write-only: the answer says only whether it is set.
 | `GET /v1/admin/settings/{name}`, `PUT /v1/admin/settings/{name}` | Owner | One document: each value, its default, and whether the config file sets it (then it cannot be changed here). `PUT` needs `If-Match`; a stale one is `412` with the current document. A value out of range is `422` naming the field |
 | `sign-in` document | Owner | `staySignedInDays` (7, 30, 90, 365), `requireTwoStep` (`nobody`, `admins`, `everyone`) and `pinRememberDays` (0, 7, 30, 90). A person two-step is required of, who has not set it up, signs in to a session with `twoStepSetupRequired`: it can use only `GET /v1/me` and the two-step setup routes (anything else is 403 `two_step_setup_required`) until it is set up, then renews and carries on; they cannot turn it off (403 `two_step_required`) On a server that uses Portico Accounts `requireTwoStep` does not apply: the document says so in `notApplicable` with the line to show ("Two-step verification is set on each person's Portico Account."), a save that turns it on is refused with that line, and switching to Portico Accounts turns it off |
 
-Documents: `general` (server name, when heavy work runs, background speed, update check),
+Documents: `general` (server name, when heavy work runs (`heavyWork`: `hours` `any`, `overnight` for 1 to 6 am, or `chosen` with `days`, `from` and `to` on the server's clock; sent whole), background speed, update check),
 `streaming` (Convert when needed, quality and music away from home, upload speed, which
 playback reads when a play starts away from home and may refuse it for, the
 conversion folder, the graphics device, hardware decoding, conversion limits, End paused video

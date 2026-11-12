@@ -15,6 +15,8 @@ type GeneralSettings struct {
 	// It only ever tells the owner; nothing is installed.
 	UpdateCheck   string `json:"updateCheck"`
 	UpdateAddress string `json:"updateAddress,omitempty"`
+	// HeavyWork is when heavy background work runs: see HeavyWorkSettings.
+	HeavyWork HeavyWorkSettings `json:"heavyWork"`
 }
 
 // The values of UpdateCheck.
@@ -25,7 +27,7 @@ const (
 )
 
 // General is the general settings document.
-var General = Define("general", GeneralSettings{Name: "Portico", UpdateCheck: UpdatesAutomatic}, func(g *GeneralSettings) error {
+var General = Define("general", GeneralSettings{Name: "Portico", UpdateCheck: UpdatesAutomatic, HeavyWork: HeavyWorkSettings{Hours: HeavyAnyTime}}, func(g *GeneralSettings) error {
 	g.Name = strings.TrimSpace(g.Name)
 	if g.Name == "" || utf8.RuneCountInString(g.Name) > 50 {
 		return &Invalid{Field: "name", Message: "Give the server a name of up to 50 characters."}
@@ -41,5 +43,5 @@ var General = Define("general", GeneralSettings{Name: "Portico", UpdateCheck: Up
 	default:
 		return &Invalid{Field: "updateCheck", Message: "Choose Automatically, Never, or your own address."}
 	}
-	return nil
+	return g.HeavyWork.check()
 })
