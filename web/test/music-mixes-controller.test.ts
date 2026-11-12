@@ -12,7 +12,8 @@ import type {QueueHeader} from '@core/playback-v1/types.ts';
 
 const principal = {serverId: 'unit-server', authority: 'local' as const, accountId: 'unit-account', profileId: 'unit-profile'};
 const operationId = '11111111-1111-4111-8111-111111111111';
-const receipt = () => ({serverId: principal.serverId, operationId, playlistId: 'unit-playlist', revision: 1, deleted: false, viewerFence: 'saved-only'});
+// The rebuilt server answers Save as playlist with the new playlist (POST /v1/music/mixes/{id}/playlist, #3027).
+const receipt = () => ({id: 'unit-playlist', kind: 'playlist', name: 'Saved mix', owner: {id: 'me', name: 'Me'}, role: 'owner', count: 12, covers: [], revision: '1', createdAt: '', updatedAt: ''});
 const queue = {id: 'unit-queue', revision: '1', total: 12, repeat: 'off', segments: []} as QueueHeader;
 const denied = (status: number) => Object.assign(new Error('unit rejected'), {status});
 function deferred<T>() {let resolve!: (value: T) => void;const promise = new Promise<T>(done => {resolve = done;});return {promise, resolve};}
@@ -24,10 +25,16 @@ function mix(id = 'unit-mix', artist = false) {
 const page = (id = 'unit-mix') => ({items: [mix(id), mix(id + '-artist', true)]});
 function setup(handler?: (path: string, method: string, body: unknown, signal?: AbortSignal) => Promise<unknown>,
   options: {requestId?: () => Promise<string>; t?: typeof defaultI18n.t} = {}) {
-  const life = new AbortController(), calls: {path: string; method: string; body: unknown; signal?: AbortSignal}[] = [];
+  const life = new AbortController(), calls: {path: string; method: string; body: unknown; signal?: AbortSignal; headers?: Record<string, string>}[] = [];
   let active = true;
+  const answer = (path: string, method: string, body: unknown, signal?: AbortSignal) => handler ? handler(path, method, body, signal) : Promise.resolve(method === 'GET' ? page() : receipt());
+  // The app's transport: Save goes with its Idempotency-Key header; a refusal comes back as its status.
   const api = {async request<T>(path: string, method = 'GET', body?: unknown, signal?: AbortSignal) {
-    calls.push({path, method, body, signal});return (handler ? await handler(path, method, body, signal) : method === 'GET' ? page() : receipt()) as T;
+    calls.push({path, method, body, signal});return await answer(path, method, body, signal) as T;
+  }, async requestRaw(path: string, method: 'POST', options: {headers?: Record<string, string>; body?: unknown; signal?: AbortSignal} = {}) {
+    calls.push({path, method, body: options.body, signal: options.signal, headers: options.headers});
+    try {return {status: 200, headers: {}, body: await answer(path, method, options.body, options.signal)};}
+    catch (error) {const status = (error as {status?: number}).status;if (!status) throw error;return {status, headers: {}, body: {error: {code: 'refused', message: 'refused'}}};}
   }};
   const source = createMusicMixesController({api, principal, requestId: options.requestId ?? (async () => operationId),
     signal: life.signal, isCurrent: () => active, t: options.t ?? defaultI18n.t});
@@ -70,8 +77,8 @@ test('Save uses the displayed canonical name and one captured operation receipt;
     const save = f.source.save(row, caller());await assert.rejects(f.source.save(row, caller()), {name: 'AbortError'});
     await setImmediate();
     assert.equal(f.calls.length, 2);assert.equal(f.calls[1].path, routePath('post_music_mixes_id_playlist', {id: row.mix.id}));
-    assert.deepEqual(f.calls[1].body, {operationId, name: row.name});
-    held.resolve(receipt());const result = await save;assert.equal(result?.playlistId, 'unit-playlist');assert.equal(result?.viewerFence, 'saved-only');
+    assert.deepEqual([f.calls[1].body, f.calls[1].headers?.['Idempotency-Key']], [{name: row.name}, operationId]);
+    held.resolve(receipt());const result = await save;assert.equal(result?.playlistId, 'unit-playlist');assert.equal(result?.operationId, operationId);
   } finally {held.resolve(receipt());f.source.dispose();}
 });
 
@@ -143,7 +150,7 @@ test('relabel uses the same formatter and retires old-language handles without a
   try {
     await f.source.load();const old = f.source.getSnapshot().rows[0];language = 'two';f.source.relabel();
     const row = f.source.getSnapshot().rows[0];assert.equal(row.name, 'two:Rock mix');assert.equal(f.source.contains(old), false);
-    await f.source.save(row, caller());assert.deepEqual(f.calls[1].body, {operationId, name: row.name});assert.equal(f.calls.length, 2);
+    await f.source.save(row, caller());assert.deepEqual(f.calls[1].body, {name: row.name});assert.equal(f.calls.length, 2);
   } finally {f.source.dispose();}
 });
 
@@ -160,17 +167,16 @@ test('Home and MusicDiscover retain one lazy profile source and erase it when th
   } finally {home.release();discover.release();f.source.dispose();}
 });
 
-test('generated count/art validation and mismatched receipts remain closed; denied authority erases old rows', async () => {
-  for (const invalid of ['count', 'covers', 'receipt', 'denied']) {
+// The rebuilt read is the server's typed answer: counts and covers are its own. What Save can still get wrong is its answer.
+test('a Save answer that is not a playlist is refused; denied authority erases old rows', async () => {
+  for (const invalid of ['receipt', 'denied']) {
     const f = setup(async (_path, method) => {
-      if (method !== 'GET') {if (invalid === 'denied') throw denied(403);return {...receipt(), operationId: 'wrong-operation'};}
-      const data = page();if (invalid === 'count') data.data.mixes[0].songCount = 201;
-      if (invalid === 'covers') data.data.mixes[0].covers.pop();return data;
+      if (method !== 'GET') {if (invalid === 'denied') throw denied(403);return {...receipt(), id: ''};}
+      return page();
     });
     try {
-      if (invalid === 'count' || invalid === 'covers') {await assert.rejects(f.source.load());assert.equal(f.source.getSnapshot().rows.length, 0);}
-      else {await f.source.load();await assert.rejects(f.source.save(f.source.getSnapshot().rows[0], caller()));
-        if (invalid === 'denied') assert.equal(f.source.getSnapshot().phase, 'retired');}
+      await f.source.load();await assert.rejects(f.source.save(f.source.getSnapshot().rows[0], caller()));
+      if (invalid === 'denied') assert.equal(f.source.getSnapshot().phase, 'retired');
     } finally {f.source.dispose();}
   }
 });

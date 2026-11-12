@@ -1,4 +1,4 @@
-import {decodePostMusicMixesIdPlaylistResponse, routePath,
+import {routePath,
   type GetMusicMixesResponse, type PostMusicMixesIdPlaylistResponse} from '../../contracts/src/index.ts';
 import type {MusicMix, MusicMixPage} from '../../contracts/src/next/api.ts';
 import {musicMixDisplayName} from './music-mixes.ts';
@@ -13,7 +13,9 @@ export type MusicMixRow = Readonly<{mix: Immutable<Mix>; name: string}>;
 export type MusicMixLifetime = Readonly<{signal: AbortSignal; isCurrent: () => boolean}>;
 export type MusicMixesSnapshot = Readonly<{phase: 'idle' | 'loading' | 'ready' | 'error' | 'retired'; rows: readonly MusicMixRow[]; error?: unknown}>;
 export type MusicMixPrincipal = Readonly<{serverId: string; authority: 'local' | 'hosted'; accountId: string; profileId: string}>;
-export type MusicMixesOptions = Readonly<{api: DetailApi; principal: MusicMixPrincipal; requestId: () => Promise<string>;
+/** The app's transport. Its `requestRaw` sends Save's Idempotency-Key, so a Retry after a lost answer makes one playlist. */
+type MixesApi = DetailApi & Partial<Readonly<{requestRaw(path: string, method: 'POST', options?: Readonly<{headers?: Readonly<Record<string, string>>; body?: unknown; signal?: AbortSignal}>): Promise<{status: number; headers: Record<string, string>; body?: unknown}>}>>;
+export type MusicMixesOptions = Readonly<{api: MixesApi; principal: MusicMixPrincipal; requestId: () => Promise<string>;
   signal: AbortSignal; isCurrent: () => boolean; t: Parameters<typeof musicMixDisplayName>[2]}>;
 const cancelled = () => Object.assign(new Error('Music Mixes changed'), {name: 'AbortError'});
 const invalid = () => Object.assign(new Error('invalid_music_mixes'), {code: 'invalid_music_mixes'});
@@ -38,10 +40,9 @@ function freeze<T>(value: T): T {
 /** One portable profile-scoped row for Home and Music Discover. Only the generated
  * read/copy contracts and canonical naming formatter define its contents. */
 /** Whether the server has Mixes. The rebuilt server does not yet: see the stopgap in `read`. */
-/** A stopgap, not a deferral: the rebuilt server saves a mix as a playlist only through a queue, which would replace what
- * the device is playing, so Save as playlist is left out of the row's menu until `POST /v1/music/mixes/{id}/playlist`,
- * being built in this campaign by the missing-reads server lane, lands. One switch; turn it on with that route. */
-export const mixSaveOnServer = false;
+/** Save as playlist is in the row's menu: `POST /v1/music/mixes/{id}/playlist` saves the mix's songs as the profile sees
+ * them now, as a new playlist, without touching the device's queue (#3027). */
+export const mixSaveOnServer = true;
 /** A stable tint for a mix, from its first cover's album: the rebuilt server sends none. */
 function tintOf(albumId: string): string {
   let hash = 0;
@@ -59,7 +60,7 @@ function mixOf(mix: MusicMix): Mix {
     tint: tintOf(mix.covers[0]?.albumId ?? mix.id), nameSource} as Mix;
 }
 export function createMusicMixesController(options: MusicMixesOptions) {
-  const api = {request: options.api.request.bind(options.api)}, principal = Object.freeze({serverId: options.principal.serverId,
+  const api = {request: options.api.request.bind(options.api)}, sendRaw = options.api.requestRaw?.bind(options.api), principal = Object.freeze({serverId: options.principal.serverId,
     authority: options.principal.authority, accountId: options.principal.accountId, profileId: options.principal.profileId});
   const {requestId, signal, isCurrent, t} = options, life = new AbortController();
   const listeners = new Set<() => void>(), commands = new Set<AbortController>();
@@ -161,10 +162,20 @@ export function createMusicMixesController(options: MusicMixesOptions) {
       const task = Promise.resolve().then(async () => {
         try {
           const operationId = await issued;command.assert();
-          const response = decodePostMusicMixesIdPlaylistResponse(await api.request<unknown>(routePath('post_music_mixes_id_playlist', {id: row.mix.id}),
-            'POST', {operationId, name: row.name}, command.signal));
+          // The playlist is named as the row shows the mix; the operation is its Idempotency-Key, which a Retry keeps.
+          const path = routePath('post_music_mixes_id_playlist', {id: row.mix.id}), body = {name: row.name};
+          const list = sendRaw ? await sendRaw(path, 'POST', {headers: {'Idempotency-Key': operationId}, body, signal: command.signal}).then(answer => {
+            if (answer.status >= 400) {
+              const error = (answer.body as {error?: {code?: string; message?: string}} | undefined)?.error;
+              throw Object.assign(new Error(error?.message ?? 'The playlist could not be made.'), {status: answer.status, code: error?.code ?? 'request_failed'});
+            }
+            return answer.body;
+          }) : await api.request<unknown>(path, 'POST', body, command.signal);
           command.assert();
-          if (response.serverId !== principal.serverId || response.operationId !== operationId) throw invalid();
+          const made = list as {id?: unknown; revision?: unknown} | undefined;
+          if (typeof made?.id !== 'string' || !made.id) throw invalid();
+          // The rebuilt server answers the new playlist; the screens read the receipt they always did.
+          const response: PostMusicMixesIdPlaylistResponse = {serverId: principal.serverId, operationId, playlistId: made.id, revision: Number(made.revision) || 0, deleted: false, viewerFence: 'viewer'};
           if (receipts.get(key) === issued) receipts.delete(key);
           return freeze(response);
         } catch (error) {if (await stale(error, command.isCurrent)) return undefined;throw error;}
