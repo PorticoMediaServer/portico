@@ -165,6 +165,8 @@ function PeopleWorkspace({bindings, initialStatus, rowActions, advancedRows}: {b
   const queryRead = useRef<AbortController | undefined>(undefined), detailRead = useRef<AbortController | undefined>(undefined), pagingRead = useRef<AbortController | undefined>(undefined);
   const quiet = useRef({page,query,personId,person,saving,loading,command,denied,live});
   const confirmOpener = useRef<HTMLElement | null>(null);
+  // Let back in (area 2 rule 39): the owner's, on someone who left; one confirmation.
+  const [letBackIn, setLetBackIn] = useState<SettingsPersonRow>(), letBackInOpener = useRef<HTMLElement | null>(null);
   useLayoutEffect(() => {
     quiet.current={page,query,personId,person,saving,loading,command,denied,live};
     for(const listener of quietListeners.current)listener();
@@ -369,7 +371,9 @@ function PeopleWorkspace({bindings, initialStatus, rowActions, advancedRows}: {b
         options: [...filter.options.map(option => ({value: option.value, label: t(option.label)})),
           ...(filter.id === 'status' && !filter.options.some(option => option.value === 'waiting') ? [{value: 'waiting', label: t('next.settings.personStatus.waiting')}] : [])]}))}
       searchLabel={t(table.search!)} countLabel={page ? t(filtered ? 'next.settings.peopleCount' : 'next.settings.peopleTotal', {matched: page.matchedCount, total: page.totalCount}) : undefined} emptyLabel={t(table.empty!)} loading={loading}
-      rowActions={rowActions ? row => {const person = page?.items.find(item => item.accountId === row.id); return person ? rowActions(person) ?? null : null;} : undefined}
+      rowActions={rowActions || bindings.actor.role === 'owner' ? row => {const person = page?.items.find(item => item.accountId === row.id); if (!person) return null;
+        if (person.status === 'left' && bindings.actor.role === 'owner') return <Button size="xs" variant="glass" disabled={saving} onClick={event => {letBackInOpener.current = event.currentTarget; setLetBackIn(person);}}>{t('next.settings.letBackIn')}</Button>;
+        return rowActions?.(person) ?? null;} : undefined}
       matchedCount={page?.matchedCount} hasMore={!!page?.nextCursor} onLoadMore={more} selected={selected} onSelectionChange={setSelected}
       rowAction={{label: t(table.rowAction!.label), onAction: (row, element) => {if (row.id === personId) return; if (resetView && !resetView.leave()) return; opener.current = element; admitPerson(row.id); setTab(personPanel.tabs![0].id);}}}
       bulkActions={[
@@ -405,6 +409,10 @@ function PeopleWorkspace({bindings, initialStatus, rowActions, advancedRows}: {b
     {command && command.action !== 'access' && <Dialog open title={t('next.settings.confirmPeople', {count: command.rows.length})} onOpenChange={open => {if (!open && !saving) {setCommand(undefined); setBulk(undefined);}}}
       returnFocusRef={confirmOpener} footer={<><Button disabled={saving} onClick={() => {setCommand(undefined); setBulk(undefined);}}>{t('next.settings.cancel')}</Button><Button variant="primary" loading={saving} onClick={applyCommand}>{t('next.settings.apply')}</Button></>}>
       <p>{t(command.action === 'remove' ? table.select!.bulk[2].confirm! : table.select!.bulk[1].confirm!)}</p>
+    </Dialog>}
+    {letBackIn && <Dialog open title={t('next.settings.letBackInTitle', {name: letBackIn.username})} onOpenChange={open => {if (!open && !saving) setLetBackIn(undefined);}} returnFocusRef={letBackInOpener}
+      footer={<><Button disabled={saving} onClick={() => setLetBackIn(undefined)}>{t('next.settings.cancel')}</Button><Button variant="primary" loading={saving} onClick={() => {const person = letBackIn; void run(async () => {await client.letBackIn(person); setLetBackIn(undefined);});}}>{t('next.settings.letBackIn')}</Button></>}>
+      <p>{t('next.settings.letBackInBody')}</p>
     </Dialog>}
     {bindings.addAccount && <AddAccountDialog open={addOpen} onOpenChange={setAddOpen} libraries={bindings.libraries} returnFocusRef={addOpener}
       add={(input, signal) => {if (!bindings.authority.isCurrent()) return Promise.reject(new DOMException('The settings scope ended.', 'AbortError')); return bindings.addAccount!(input, signal);}}

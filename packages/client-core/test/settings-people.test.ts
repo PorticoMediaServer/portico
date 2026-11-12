@@ -184,3 +184,18 @@ test('a person waiting to move, one who left and one not moved show as such, and
   const quiet = new SettingsPeopleClient({request: async <T,>(path: string): Promise<T> => {calls.push(path); return (path === '/v1/admin/members' ? {items: [member('amy')]} : {items: []}) as T;}}, () => true);
   await quiet.read(query); assert.equal(calls.includes('/v1/admin/sign-in'), false); quiet.dispose();
 });
+
+test('Let back in sends the person who left to the server\'s let-back-in, and refuses anyone who has not left (area 2 rule 39)', async () => {
+  const calls: Call[] = [];
+  const client = new SettingsPeopleClient({request: async <T,>(path: string, method?: string, body?: unknown): Promise<T> => {
+    calls.push({path, method, body});
+    return (path === '/v1/admin/members' ? {items: [member('lee', {state: 'left'}), member('amy')]} : path === '/v1/admin/sign-in' ? {waiting: []} : {items: []}) as T;
+  }}, () => true);
+  const rows = (await client.read(query)).items, of = (id: string) => rows.find(row => row.accountId === id)!;
+  const before = calls.length;
+  await client.letBackIn(of('lee'));
+  assert.deepEqual(calls.slice(before).map(call => [call.method, call.path]), [['POST', '/v1/admin/portico/left/lee/let-back-in']]);
+  await assert.rejects(client.letBackIn(of('amy')), /invalid_settings_people/);
+  assert.equal(calls.length, before + 1, 'nothing is sent for someone who has not left');
+  client.dispose();
+});
