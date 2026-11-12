@@ -102,6 +102,7 @@ func New(ctx context.Context, d *db.DB, o Options) (*Engine, error) {
 	if e.log == nil {
 		e.log = slog.Default()
 	}
+	e.shareDeviceSetting()
 	if err := empty(o.Folder); err != nil {
 		return nil, err
 	}

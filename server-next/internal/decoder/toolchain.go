@@ -84,7 +84,38 @@ func dolbyVisionNoVulkan(reason string) string {
 	}
 	return text + ". They still play on a device that plays Dolby Vision itself."
 }
-func CurrentToolchain() *ToolchainFacts { return installedToolchain.Load() }
+
+// softwareEncoding answers, when the server has set it, whether the owner's conversion-device
+// setting is software encoding as it is now.
+var softwareEncoding atomic.Pointer[func() bool]
+
+// SetSoftwareEncodingChosen gives the decoder the owner's conversion-device setting: chosen
+// is asked each time FFmpeg's facts are read, so a change applies to the next job with no
+// restart. nil takes it away again.
+func SetSoftwareEncodingChosen(chosen func() bool) {
+	if chosen == nil {
+		softwareEncoding.Store(nil)
+		return
+	}
+	softwareEncoding.Store(&chosen)
+}
+
+// CurrentToolchain is what the FFmpeg in force can do, as every job is planned from it: a
+// conversion, a thumbnail, a preview, a linear output. With software encoding chosen the
+// graphics device is never used, so the filters that run on one (the Vulkan reshaping of a
+// Dolby Vision profile 5 picture, the Vulkan and OpenCL tone maps) are reported as absent.
+// What the trial at start found is kept as it was, for the hardware page and for the day the
+// owner switches back.
+func CurrentToolchain() *ToolchainFacts {
+	facts := installedToolchain.Load()
+	chosen := softwareEncoding.Load()
+	if facts == nil || chosen == nil || !(facts.VulkanAvailable || facts.OpenCLAvailable) || !(*chosen)() {
+		return facts
+	}
+	without := *facts
+	without.VulkanAvailable, without.OpenCLAvailable = false, false
+	return &without
+}
 
 // RestoreToolchain puts back what CurrentToolchain returned earlier (nil
 // included), for a test that configured a probed toolchain for itself.
