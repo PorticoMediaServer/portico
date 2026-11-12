@@ -18,7 +18,7 @@ export function WatchCapacityWait({wait}: {wait: WebPlaybackCapacityWait}) {
   if (!wait.isCurrent()) return null;
   const seconds = Math.max(0, Math.ceil((wait.retryAt - now) / 1000));
   return <div className={styles.cover}>
-    <PlaybackFailure error={undefined} onRetry={async () => { if (wait.isCurrent()) wait.retryNow(); }} onError={() => undefined}
+    <PlaybackFailure icon="i-clock" error={undefined} onRetry={async () => { if (wait.isCurrent()) wait.retryNow(); }} onError={() => undefined}
       retryLabel={t('web.player.error.tryAgainNow')}
       onClose={() => { if (wait.isCurrent()) wait.cancel(); }} closeLabel={t('next.states.back')}
       heading={t('web.player.error.conversionBusyTitle')} sentence={t('web.player.error.conversionBusy')}>
