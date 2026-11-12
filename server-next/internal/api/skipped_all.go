@@ -23,7 +23,7 @@ type ServerSkippedFile struct {
 var serverSkippedPage = skippedPage
 
 func (s *Server) skippedRoutes() {
-	Handle(s, "GET /v1/admin/skipped", Owner, s.allSkippedFiles)
+	Handle(s, "GET /v1/admin/skipped", Admin, s.allSkippedFiles)
 }
 
 // allSkippedFiles answers a page of the list. The cursor is the last file's place in the list,
@@ -41,7 +41,7 @@ func (s *Server) allSkippedFiles(r *http.Request, _ None) (Page[ServerSkippedFil
 			return out, refusal(http.StatusBadRequest, "cursor_expired", "Start the list again.", false)
 		}
 	}
-	files, err := s.db.AllSkippedFiles(r.Context(), directory, file, serverSkippedPage+1)
+	files, err := s.db.SkippedFilesFor(r.Context(), viewer(r), directory, file, serverSkippedPage+1)
 	if err != nil {
 		return out, err
 	}

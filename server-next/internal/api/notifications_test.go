@@ -121,3 +121,23 @@ func TestReportsPerDayAreCapped(t *testing.T) {
 		t.Errorf("a refused report wrote its log: %d logs, then %d", len(before), len(after))
 	}
 }
+
+// A crash-only viewer must filter before paging, rather than dropping problem reports on a page.
+func TestOwnerFiltersReportsByKind(t *testing.T) {
+	s := newTestServer(t)
+	owner := onMainProfile(t, s).AccessToken
+	var crash ProblemReport
+	if code := call(t, s, "POST", "/v1/reports", owner, ReportCreate{Kind: "crash", Log: "crash log"}, &crash).Code; code != 200 {
+		t.Fatalf("crash report answered %d", code)
+	}
+	if code := status(t, s, "POST", "/v1/reports", owner, ReportCreate{Kind: "problem", Message: "A problem"}); code != 200 {
+		t.Fatalf("problem report answered %d", code)
+	}
+	var crashes Page[ProblemReport]
+	if w := call(t, s, "GET", "/v1/admin/reports?kind=crash&status=open", owner, nil, &crashes); w.Code != 200 || len(crashes.Items) != 1 || crashes.Items[0].ID != crash.ID {
+		t.Fatalf("crash-only reports answered %d: %s", w.Code, w.Body)
+	}
+	if code := status(t, s, "GET", "/v1/admin/reports?kind=unknown", owner, nil); code != 400 {
+		t.Errorf("unknown report kind answered %d", code)
+	}
+}

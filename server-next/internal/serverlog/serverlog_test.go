@@ -62,6 +62,14 @@ func TestReadPagesFilterAndDetail(t *testing.T) {
 	if len(recent) != 250 || recent[0].Attrs["n"] != "0" {
 		t.Errorf("%d lines in memory", len(recent))
 	}
+	log.With("log_kind", "scan").Info("scan ended")
+	kinds, _, _ := l.Read(Query{Kind: "scan", Limit: 100})
+	if len(kinds) != 1 || kinds[0].Kind != "scan" || kinds[0].Message != "scan ended" {
+		t.Fatalf("the kind filter returned %+v", kinds)
+	}
+	if lines, _ := l.Since(250); len(lines) != 1 || lines[0].Kind != "scan" {
+		t.Fatalf("the live log lost the kind: %+v", lines)
+	}
 	l.Detail(time.Now().Add(time.Hour))
 	log.Debug("recorded now", "n", strconv.Itoa(1000))
 	select {

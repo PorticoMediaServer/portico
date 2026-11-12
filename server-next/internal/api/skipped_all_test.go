@@ -8,7 +8,7 @@ import (
 
 // Settings › Troubleshooting lists every file a scan could not use, of every library, in one
 // list paged by cursor, each with its library and why; a file that is gone or now fine leaves
-// the list, and nobody but the owner may read it.
+// the list, and administrators see only their own libraries.
 func TestTheOwnerSeesEveryLibrarysSkippedFilesInOneList(t *testing.T) {
 	s := newTestServer(t)
 	owner := onMain(t, s, setup(t, s)).AccessToken
@@ -55,6 +55,22 @@ func TestTheOwnerSeesEveryLibrarysSkippedFilesInOneList(t *testing.T) {
 	}
 	if in[made[0].ID] != 2 || in[made[1].ID] != 1 {
 		t.Fatalf("by library: %v", in)
+	}
+
+	admin := addMember(t, s, owner, "ada", "admin")
+	limited := signInAs(t, s, "ada", testPassword, 1)
+	var all Page[ServerSkippedFile]
+	if w := call(t, s, "GET", "/v1/admin/skipped", limited.AccessToken, nil, &all); w.Code != 200 || len(all.Items) != 2 || all.NextCursor == "" {
+		t.Fatalf("an administrator's first page answered %d: %s", w.Code, w.Body)
+	}
+	onlyShows, no := []string{made[1].ID}, false
+	if code := status(t, s, "PATCH", "/v1/admin/members/"+admin.ID, owner, MemberEdit{AllLibraries: &no, Libraries: &onlyShows}); code != 200 {
+		t.Fatalf("restricting libraries answered %d", code)
+	}
+	limited = signInAs(t, s, "ada", testPassword, 2)
+	all = Page[ServerSkippedFile]{}
+	if w := call(t, s, "GET", "/v1/admin/skipped", limited.AccessToken, nil, &all); w.Code != 200 || len(all.Items) != 1 || all.Items[0].LibraryID != made[1].ID || all.NextCursor != "" {
+		t.Fatalf("a restricted administrator's list answered %d: %s", w.Code, w.Body)
 	}
 
 	// A file that is gone leaves the list at the next scan. (A folder left empty would be

@@ -134,10 +134,11 @@ func (d *DB) CreateReport(ctx context.Context, n NewReport) (Report, error) {
 	return out, err
 }
 
-// ReportQuery picks reports. Viewer, when set, is one profile's own; Status narrows by status.
+// ReportQuery picks reports. Viewer, when set, is one profile's own; Status and Kind narrow the list before paging.
 type ReportQuery struct {
 	Viewer *Viewer
 	Status string
+	Kind   string
 	After  int64 // the id of the last one read, 0 for the first page
 	Limit  int
 }
@@ -147,6 +148,9 @@ func (d *DB) Reports(ctx context.Context, q ReportQuery) ([]Report, error) {
 	where, args := `1 = 1`, []any{}
 	if q.Viewer != nil {
 		where, args = `user_id = ? AND profile_id = ?`, append(args, q.Viewer.UserID, q.Viewer.ProfileID)
+	}
+	if q.Kind != "" {
+		where, args = where+` AND kind = ?`, append(args, q.Kind)
 	}
 	if q.Status != "" {
 		where, args = where+` AND status = ?`, append(args, q.Status)

@@ -46,7 +46,7 @@ type setupArea struct {
 // once, after the job runner exists and before the jobs left from the last run are taken up.
 func (s *Server) startSetup(ctx context.Context) error {
 	s.portico = certclient.New(certclient.Options{ServerID: s.id, Key: s.identity.key, Keys: filepath.Join(s.dataDir, "Keys"),
-		Log: s.log, Now: func() time.Time { return s.now() }, OnChange: s.porticoCertificate})
+		Log: s.log.With("log_kind", "network"), Now: func() time.Time { return s.now() }, OnChange: s.porticoCertificate})
 	s.goBackground(func() { s.portico.Run(ctx) })
 	if err := s.loadSetupCode(ctx, s.dataDir); err != nil {
 		return err
@@ -57,12 +57,12 @@ func (s *Server) startSetup(ctx context.Context) error {
 	if err := s.loadNetworks(ctx); err != nil {
 		return err
 	}
-	s.certs = tlsport.NewStore(filepath.Join(s.dataDir, "Keys"), s.log, func() time.Time { return s.now() })
+	s.certs = tlsport.NewStore(filepath.Join(s.dataDir, "Keys"), s.log.With("log_kind", "network"), func() time.Time { return s.now() })
 	// Enhanced waits on the owner's own certificate until it is loaded and valid for the address.
 	s.access.ownCertificateUsable = func() bool { return s.certs.Status().State == "ok" }
 	s.access.homeKnown = func() bool { return len(s.networks().Home) > 0 }
-	s.ports = portmap.New(s.log, nil)
-	s.public = publicaddr.New(s.log)
+	s.ports = portmap.New(s.log.With("log_kind", "network"), nil)
+	s.public = publicaddr.New(s.log.With("log_kind", "network"))
 	// A new public address, or a change of this machine's own, changes the addresses the
 	// server publishes; the signed document is sent again through OnAddressesChange.
 	s.public.OnChange = func(address string) {
