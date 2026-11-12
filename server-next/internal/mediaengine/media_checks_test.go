@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -72,42 +73,82 @@ func (f *finding) check(ok bool, format string, args ...any) {
 	}
 }
 
-// knownFailures are cases that come out other than planned today, for a reason that is known
-// and owned. Each says what a viewer loses and what removes the mark. Such a case is logged,
-// not failed, so a new failure stands out; when it starts coming out as planned the test
-// fails, so its mark is removed. A case marked sometimes fails only on some runs and may
-// pass quietly.
-var knownFailures = map[string]struct {
-	loses, until string
-	sometimes    bool
-}{
+// knownFailures are failures that come out today for a reason that is known and owned, by
+// the case's name. Each mark names the failure line it expects, what a viewer loses and what
+// removes it. A failed line a mark of its case expects is logged, not failed, so a new
+// failure stands out; any other failed line in the same case is still a FINDING. A mark
+// seen on every run whose line stops coming fails the test with FIXED?, so the mark is
+// removed. A sometimes mark comes and goes; a run that does not show it says so in the log,
+// and the mark is removed when what it waits for has landed and the job has stopped showing it.
+var knownFailures = map[string][]mark{
 	// Finding 1 on #2604. It depends on the AV1 encoder: seen on every run on GitHub's runners
 	// (Ubuntu 24.04's ffmpeg 6.1.1 and its SVT-AV1), not with ffmpeg 8.0.1 and SVT-AV1 2.3.0
 	// on mini-1, where these cases come out as planned and so report FIXED?. The job is the
 	// measure; an owner on Ubuntu 24.04's ffmpeg is who loses this.
-	"hevc-hlg for chromium after a seek":   {loses: seekLoss, until: seekFix},
-	"h264-10bit for chromium after a seek": {loses: seekLoss, until: seekFix},
-	"long-jump for chromium after a seek":  {loses: seekLoss, until: seekFix},
-	"hevc-hdr10 for chromium after a seek": {loses: seekLoss + "; sometimes the stream also ends early, answering \"This playback has ended\"",
-		until: seekFix, sometimes: true},
-	"hevc-hdr10 for chromium with the picture subtitle burned in": {loses: seekLoss, until: seekFix, sometimes: true},
+	"hevc-hlg for chromium after a seek":   {lateAfterSeek},
+	"h264-10bit for chromium after a seek": {lateAfterSeek},
+	"long-jump for chromium after a seek":  {lateAfterSeek},
+	"hevc-hdr10 for chromium after a seek": {lateAfterSeek, endedAfterSeek},
 }
 
-const (
-	seekLoss = "a person on a browser who seeks in a film converted to AV1 sees the picture start about 1.4 s later than the player was told"
-	seekFix  = "the streaming lane holds an AV1 conversion to the fixed segment grid after a seek (finding 1 on #2604)"
+type mark struct {
+	expect       *regexp.Regexp
+	loses, until string
+	sometimes    bool
+}
+
+var (
+	lateAfterSeek = mark{
+		expect: regexp.MustCompile(`^(video|audio) starts at [0-9.]+s, want about [0-9]+s$`),
+		loses:  "a person on a browser who seeks in a film converted to AV1 sees the picture start about 1.4 s later than the player was told",
+		until:  "the streaming lane holds an AV1 conversion to the fixed segment grid after a seek (finding 1 on #2604)",
+	}
+	// Seen in 4 of 7 runs on the runners, only here: the server ends the stream it started
+	// for the seek before it serves the last segment its own playlist names (the test stops
+	// nothing until that segment is read).
+	endedAfterSeek = mark{
+		expect:    regexp.MustCompile(`^segment-[0-9]+\.m4s, named in video\.m3u8, answered 404: .*This playback has ended`),
+		loses:     "a person on a browser who seeks in a film converted to AV1 can have the film stop before its end, with \"This playback has ended\"",
+		until:     "the streaming lane finds why the server ends a stream it started for a seek before its last segment, and fixes it",
+		sometimes: true,
+	}
 )
+
+// classify sorts a case's failed lines against its marks: the lines no mark expects, and
+// for each mark whether one of its lines came.
+func classify(marks []mark, failed []string) (unexpected []string, seen []bool) {
+	seen = make([]bool, len(marks))
+	for _, line := range failed {
+		matched := false
+		for i, m := range marks {
+			if m.expect.MatchString(line) {
+				seen[i], matched = true, true
+				break
+			}
+		}
+		if !matched {
+			unexpected = append(unexpected, line)
+		}
+	}
+	return unexpected, seen
+}
 
 func (f *finding) report(where string) {
 	f.t.Helper()
-	known, isKnown := knownFailures[where]
-	switch {
-	case len(f.failed) > 0 && isKnown:
-		f.t.Logf("EXPECTED FAILURE %s: %s, until %s:\n  %s", where, known.loses, known.until, strings.Join(f.failed, "\n  "))
-	case len(f.failed) > 0:
+	marks := knownFailures[where]
+	unexpected, seen := classify(marks, f.failed)
+	if len(unexpected) > 0 {
 		f.t.Errorf("FINDING %s: what came out is not what was planned:\n  %s", where, strings.Join(f.failed, "\n  "))
-	case isKnown && !known.sometimes:
-		f.t.Errorf("FIXED? %s now comes out as planned, but it is marked as failing until %s: if that has landed, remove its mark from knownFailures", where, known.until)
+	}
+	for i, m := range marks {
+		switch {
+		case seen[i] && len(unexpected) == 0:
+			f.t.Logf("EXPECTED FAILURE %s: %s, until %s:\n  %s", where, m.loses, m.until, strings.Join(f.failed, "\n  "))
+		case !seen[i] && m.sometimes:
+			f.t.Logf("NOT SEEN THIS RUN %s: the sometimes mark for %q", where, m.loses)
+		case !seen[i]:
+			f.t.Errorf("FIXED? %s no longer shows %q, marked as failing until %s: if that has landed, remove its mark from knownFailures", where, m.expect, m.until)
+		}
 	}
 }
 
