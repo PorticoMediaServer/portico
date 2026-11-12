@@ -93,7 +93,7 @@ export class NativePlayOn {
   /** The immutable original send lease: the session, authority and local fence the
    * handoff was started from. Every handoff IO re-checks it; a replaced playback run
    * (same authority, new fence) retires the attempt. */
-  private lease?: Readonly<{session: LocalSession; authority: NonNullable<ReturnType<NativePlaybackAdapter['getSnapshot']>['authority']>; fence: PlaybackFence}>;
+  private lease?: Readonly<{session: LocalSession; authority: NonNullable<ReturnType<NativePlaybackAdapter['getSnapshot']>['authority']>; fence?: PlaybackFence}>;
   private polling = false;
   private disposed = false;
   private state: PlayOnSnapshot = Object.freeze({open: false, receivers: [], directoryPhase: 'idle', phase: 'idle', sending: false, remoteOpen: false});
@@ -113,7 +113,7 @@ export class NativePlayOn {
       const current = options.playback()?.getSnapshot(), remote = current?.dock.remote;
       // A new local playback run (same authority, a different fence) while the handoff
       // is still being asked/prepared retires it: a successor's session is never borrowed.
-      if (this.state.sending && this.lease && current?.fence && !sameFence(current.fence, this.lease.fence)) {
+      if (this.state.sending && this.lease?.fence && current?.fence && !sameFence(current.fence, this.lease.fence)) {
         this.attempt++; this.controller?.cancel(); this.lease = undefined;
         if (this.state.remote) this.clearRemote(); else this.publish({sending: false, phase: 'failed', error: 'playOn.cancelled'});
         return;
@@ -178,7 +178,7 @@ export class NativePlayOn {
   private sendGuard(attempt: number, connection: string | undefined, lease: NonNullable<NativePlayOn['lease']>): () => boolean {
     return () => this.bound(attempt, connection) && this.options.session() === lease.session
       && sameAuthority(this.options.playback()?.getSnapshot().authority, lease.authority)
-      && !!this.options.playback()?.getSnapshot().fence && sameFence(this.options.playback()!.getSnapshot().fence!, lease.fence);
+      && !!lease.fence && !!this.options.playback()?.getSnapshot().fence && sameFence(this.options.playback()!.getSnapshot().fence!, lease.fence);
   }
   /** The remote's guard once the move is done: the local player has retired, so its run is not
    * required, but the attempt, session and authority never change. */
@@ -234,6 +234,33 @@ export class NativePlayOn {
         positionSeconds: snapshot.playback.positionSeconds, durationSeconds: snapshot.playback.duration,
         positionKnown: false, playing: true, stopped: false, allows: NONE}});
     await this.push('playing', true, attempt, connection);
+    this.startPolling(attempt, connection);
+  };
+
+  /** Controls what another device plays (rule 28), after its yes; this phone's own playback
+   * carries on. The full remote opens on what the server says that device plays. */
+  control = async (receiver: PlayOnDevice): Promise<void> => {
+    if(this.state.cast?.cast.transferPending||['connecting','pairing','waiting','casting'].includes(this.state.cast?.cast.phase??''))return;
+    const playback = this.options.playback(), session = this.options.session(), playing = receiver.playing;
+    if (!playback || !session || !playing || playing.state === 'ended' || this.state.sending) return;
+    if (!this.open(this.state.anchorRef)) return;
+    const attempt = ++this.attempt;
+    const connection = `playon_${wire(receiver.id)}_c${attempt.toString(36)}${Date.now().toString(36)}`;
+    this.stopPolling();
+    const lease = this.lease = Object.freeze({session, authority: playback.getSnapshot().authority});
+    this.connection = connection; this.fence = undefined; this.local = undefined; this.receiverPlaybackId = undefined;
+    this.publish({sending: true, message: undefined, error: undefined, phase: 'asking', target: receiver, remote: undefined});
+    const taken = await this.controller!.control(receiver, this.controlGuard(attempt, connection, lease)).catch(error => {
+      if (this.bound(attempt, connection)) this.options.reportError(error);
+      return false;
+    });
+    if (!this.bound(attempt, connection)) return;
+    if (!taken) {this.publish({sending: false, phase: 'failed', open: true, error: this.state.message ?? 'playOn.notReachable'}); return;}
+    this.receiverPlaybackId = this.controller!.getSnapshot().receiverPlaybackId;
+    this.publish({open: false, sending: false, remoteOpen: true, error: undefined, target: receiver,
+      remote: {id: connection, device: receiver.displayName, ...(playing.title ? {title: playing.title} : {}), ...(playing.itemId ? {itemId: playing.itemId} : {}),
+        positionSeconds: playing.positionMs / 1000, durationSeconds: (playing.durationMs ?? 0) / 1000, positionKnown: true,
+        playing: playing.state === 'playing', stopped: false, allows: ALL}});
     this.startPolling(attempt, connection);
   };
 

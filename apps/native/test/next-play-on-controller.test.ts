@@ -27,6 +27,7 @@ async function fixture() {
     getSnapshot() {return this.state;}
     async refresh() {for (const listener of this.listeners) listener();}
     async send() {this.state = {...this.state, phase: 'done', receiverPlaybackId: 'receiver-1'}; for (const listener of this.listeners) listener(); return true;}
+    async control(target: any) {commands.push(['control', target.id]); this.state = {...this.state, phase: 'done', receiverPlaybackId: target.playing.sessionId}; for (const listener of this.listeners) listener(); return true;}
     async refreshRemote() {this.state = {...this.state, remote: report};}
     async pause() {commands.push(['pause']); return true;}
     async play() {commands.push(['play']); return true;}
@@ -51,7 +52,7 @@ async function fixture() {
   const controller = new NativePlayOn({api: {request: async () => ({})}, session: () => session, deviceName: () => 'Phone', playback: () => playback,
     current: () => permitted, reportError: (error: unknown) => errors.push(error)});
   const settle = () => new Promise<void>(resolve => setImmediate(resolve));
-  return {controller, receiver, entry, commands, errors, settle, report: () => report,
+  return {controller, receiver, entry, commands, errors, settle, report: () => report, local: () => snapshot,
     setReport: (value: any) => {report = value;}, revoke: () => {permitted = false;},
     replaceLocal: () => {snapshot = {...snapshot, entry: {id: 'other', title: 'Other title', stillUrl: '/v1/art/other'}};}};
 }
@@ -111,4 +112,20 @@ test('retired authority and other remote ids cannot issue a command', async t =>
   await f.controller.pause('not-this-remote'); await f.controller.skip(10, 'not-this-remote');
   f.revoke(); await f.controller.pause(id); await f.controller.skip(10, id); await f.controller.command('seek', 10, id);
   assert.deepEqual(f.commands, []); assert.deepEqual(f.errors, []);
+});
+
+test('rule 28: Control takes over what the TV plays by itself; the remote opens on the server\'s title and this phone\'s playback stays', async t => {
+  const f = await fixture(); t.after(() => f.controller.dispose());
+  f.controller.open();
+  const tv = {...f.receiver, playing: {sessionId: 'receiver-1', deviceName: 'Living room', state: 'playing', itemId: 'ep9', title: 'Episode nine', positionMs: 30_000, durationMs: 100_000}};
+  await f.controller.control(tv); await f.settle();
+  assert.deepEqual(f.commands[0], ['control', 'tv']);
+  const state = f.controller.getSnapshot();
+  assert.equal(state.remoteOpen, true); assert.equal(state.open, false);
+  assert.equal(state.remote.title, 'Episode one', 'then follows the server\'s read of the TV');
+  assert.equal(state.remote.entry, undefined, 'no local title is borrowed');
+  assert.equal(f.local().dock.remote, undefined, 'the local dock is left as it is');
+  await f.controller.pause(state.remote.id);
+  assert.deepEqual(f.commands.at(-1), ['pause']);
+  assert.deepEqual(f.errors, []);
 });

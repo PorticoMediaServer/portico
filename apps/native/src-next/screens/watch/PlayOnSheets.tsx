@@ -141,10 +141,14 @@ export function NativePlayOnSheets({controller, artwork, ambient, airPlayVideo, 
       <Icon name={receiverIcon(receiver.platform)} size={tablet ? 22 : 24} color={theme.colors.textSecondary}/>
       <View style={{flex: 1}}><Text style={titleStyle}>{receiver.displayName}</Text>
         <View style={{flexDirection: 'row', flexWrap: 'wrap', columnGap: 10}}>
-          <Text style={helperStyle}>{playOnPlatformName(receiver.platform)
-            ? t('next.cast.receiverOn', {platform: playOnPlatformName(receiver.platform)!}) : t('playOn.porticoDevice')}</Text>
+          <Text style={helperStyle}>{receiver.playing && receiver.playing.state !== 'ended'
+            ? receiver.playing.title ? t('playOn.playingTitle', {title: receiver.playing.title}) : t('playOn.playingSomething')
+            : playOnPlatformName(receiver.platform) ? t('next.cast.receiverOn', {platform: playOnPlatformName(receiver.platform)!}) : t('playOn.porticoDevice')}</Text>
         </View>
-      </View><Icon name="i-right" size={18} color={theme.colors.textTertiary}/>
+      </View>
+      {receiver.playing && receiver.playing.state !== 'ended' ? <Button testID={`play-on-control-${receiver.id}`} variant="glass" size="compact" accessibilityLabel={t('playOn.controlDevice', {device: receiver.displayName})}
+        disabled={state.sending || castState?.transferPending || castState?.phase === 'casting'} onPress={() => {void controller.control(receiver);}}>{t('playOn.control')}</Button>
+        : <Icon name="i-right" size={18} color={theme.colors.textTertiary}/>}
     </Focusable>)}
     {state.directoryPhase === 'ready' && !state.receivers.length && <Text style={[theme.type.body, {color: theme.colors.textTertiary, paddingVertical: 14}]}>{t('playOn.noDevices')}</Text>}
     {tablet && <View style={{height: 1, marginVertical: 6, marginHorizontal: 10, backgroundColor: 'rgba(237,245,250,.08)'}}/>}

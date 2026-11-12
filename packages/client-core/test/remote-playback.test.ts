@@ -66,7 +66,11 @@ class StandIn {
   private route(d: Device, method: string, path: string, body: any): unknown {
     let m: RegExpMatchArray | null;
     if (path === '/v1/receivers' && method === 'GET')
-      return {items: this.devices.filter(x => x.open).map(x => ({id: x.deviceId, name: x.name, platform: 'androidtv', current: x === d, allowed: x.allowed.has(d.signIn)}))};
+      return {items: this.devices.filter(x => x.open).map(x => {
+        const s = [...this.sessions.values()].find(v => v.signIn === x.signIn && v.state !== 'ended');
+        return {id: x.deviceId, name: x.name, platform: 'androidtv', current: x === d, allowed: x.allowed.has(d.signIn),
+          ...(s ? {playing: {id: s.id, deviceId: x.deviceId, deviceName: x.name, kind: 'vod', state: s.state, positionMs: s.positionMs, startedAt: 'x', current: false, ...(this.visible[d.profile]!.has(s.itemId) ? {itemId: s.itemId, title: 'Title ' + s.itemId} : {})}} : {})};
+      })};
     if (path === '/v1/receivers/current' && method === 'PUT') {if (d.off) {d.open = false; throw fail(409, 'play_from_other_devices_off');} d.open = true; return {id: d.deviceId, renewEveryMs: 60_000};}
     if (path === '/v1/receivers/current' && method === 'DELETE') {this.goAway(d); return {};}
     if (path === '/v1/receivers/current/requests' && method === 'GET')
@@ -140,7 +144,9 @@ function television(server: StandIn, d: Device, options: {allowed?: ReturnType<t
       command: (_id, c) => {commands.push(c);},
     }});
   host.start();
-  return {host, loads, commands};
+  /** The TV's own person starts something on it. */
+  const play = (itemId: string) => {const id = server.start(d, itemId); now = {itemId, playbackId: id, playing: true, positionSeconds: 0}; return id;};
+  return {host, loads, commands, play};
 }
 function phone(server: StandIn, d: Device) {
   const sessionId = server.start(d, 'movie');
@@ -353,4 +359,66 @@ test('the change feed\'s receiver and playback topics reach remote playback', ()
     [{id: '8', type: 'playback.changed', resource: {kind: 'playback', id: 'ps_1'}}]);
   assert.deepEqual(serverEventsFrom({id: '9', event: 'change', data: JSON.stringify({topic: 'receiver', op: 'updated'})}),
     [{id: '9', type: 'receiver.changed'}]);
+});
+
+test('rule 28: a phone controls what the TV is playing by itself, after the TV\'s yes; its own playback carries on', async t => {
+  const server = new StandIn(), tvDevice = server.device('Living room'), phoneDevice = server.device('Phone');
+  const tv = television(server, tvDevice); t.after(() => tv.host.dispose());
+  await until('the TV to open', () => tvDevice.open);
+  const tvSession = tv.play('ep1');
+  const {controller, sessionId} = phone(server, phoneDevice); t.after(() => controller.dispose());
+  await controller.refresh();
+  const target = controller.getSnapshot().receivers[0]!;
+  assert.deepEqual(target.playing && {sessionId: target.playing.sessionId, title: target.playing.title}, {sessionId: tvSession, title: 'Title ep1'}, 'Play on shows what the TV plays');
+  const controlling = controller.control(target);
+  await until('the TV to ask', () => !!tv.host.getSnapshot().asking);
+  assert.equal(tv.host.getSnapshot().asking!.kind, 'control');
+  assert.match(controller.getSnapshot().message!, /Approve this on Living room/);
+  await tv.host.decide(tv.host.getSnapshot().asking!, 'allow');
+  assert.equal(await controlling, true);
+  assert.equal(controller.getSnapshot().receiverPlaybackId, tvSession);
+  assert.equal(server.sessions.get(sessionId)!.state, 'playing', 'the phone\'s own playback carries on');
+  assert.equal(await controller.pause(), true);
+  await until('the TV to pause', () => tv.commands.length === 1);
+  assert.equal(tv.commands[0]!.state, 'paused');
+  assert.equal(tv.loads.length, 0, 'nothing was started on the TV');
+});
+
+test('rule 28: a remembered phone is not asked again, and a declined one says so', async t => {
+  const server = new StandIn(), tvDevice = server.device('Living room'), a = server.device('Phone'), b = server.device('Tablet');
+  const allowed = memoryAllowedDevices(); allowed.add(a.signIn);
+  const tv = television(server, tvDevice, {allowed}); t.after(() => tv.host.dispose());
+  await until('the TV to open', () => tvDevice.open);
+  tv.play('movie');
+  const first = phone(server, a), second = phone(server, b); t.after(() => {first.controller.dispose(); second.controller.dispose();});
+  await first.controller.refresh(); await second.controller.refresh();
+  assert.equal(await first.controller.control(first.controller.getSnapshot().receivers.find(r => r.displayName === 'Living room')!), true);
+  assert.equal(tv.host.getSnapshot().asking, undefined, 'the remembered phone is answered by the TV itself');
+  const asking = second.controller.control(second.controller.getSnapshot().receivers.find(r => r.displayName === 'Living room')!);
+  await until('the TV to ask about the tablet', () => tv.host.getSnapshot().asking?.from.deviceName === 'Tablet');
+  await tv.host.decide(tv.host.getSnapshot().asking!, 'decline');
+  assert.equal(await asking, false);
+  assert.equal(second.controller.getSnapshot().message, 'Living room declined.');
+});
+
+test('a device forgotten in This device is asked again, and the TV lists whom it allowed by name', async t => {
+  const server = new StandIn(), tvDevice = server.device('Living room'), phoneDevice = server.device('Phone');
+  const allowed = memoryAllowedDevices();
+  const tv = television(server, tvDevice, {allowed}); t.after(() => tv.host.dispose());
+  await until('the TV to open', () => tvDevice.open);
+  tv.play('movie');
+  const {controller} = phone(server, phoneDevice); t.after(() => controller.dispose());
+  await controller.refresh();
+  const asking = controller.control(controller.getSnapshot().receivers[0]!);
+  await until('the TV to ask', () => !!tv.host.getSnapshot().asking);
+  await tv.host.decide(tv.host.getSnapshot().asking!, 'allow');
+  assert.equal(await asking, true);
+  assert.deepEqual(allowed.list!(), [{signInId: phoneDevice.signIn, name: 'Phone'}]);
+  allowed.forget!(phoneDevice.signIn);
+  await until('the TV to open again, forgetting whom the server knew it allowed', () => tvDevice.open && !tvDevice.allowed.has(phoneDevice.signIn) && server.calls.filter(c => c.signIn === tvDevice.signIn && c.method === 'DELETE').length === 1);
+  await controller.refresh();
+  const again = controller.control(controller.getSnapshot().receivers[0]!);
+  await until('the TV to ask again', () => !!tv.host.getSnapshot().asking);
+  await tv.host.decide(tv.host.getSnapshot().asking!, 'decline');
+  assert.equal(await again, false);
 });

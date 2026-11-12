@@ -1,6 +1,7 @@
 import {ProfileRoute} from '../accounts/AccountRoutes';
 import {NativeAccessTokensPanel, NativeAccountSecurityPanel} from './NativeAccountSecurityPanels';
 import {DeviceAboutPanel} from './DeviceAboutPanel';
+import {AllowedDevicesPanel} from './AllowedDevicesPanel';
 import {NativeConnectionAddressRow, NativeConnectionStatusRow, NativeInsecureConnectionsRow, NativeTestConnectionRow} from './NativeConnectionRows';
 import {IntroCreditsReview} from './owner-libraries/IntroCreditsReview';
 import React, {useEffect, useLayoutEffect, useMemo, useState, useSyncExternalStore} from 'react';
@@ -201,6 +202,7 @@ export function renderNativeSettingsPanel(id: SettingsCustomId, deps: NativeSett
     case 'about': return <DeviceAboutPanel {...deps} runtime={_runtime}/>;
     case 'privacyNote': return <PrivacyNotePanel {...deps}/>;
     case 'remoteControls': return <RemoteControlsPanel {...deps}/>;
+    case 'allowedDevices': return <AllowedDevicesPanel {...deps}/>;
     case 'equalizer': return <SettingsRow first testID="settings-panel-equalizer" label={deps.t('next.settingsSpec.account.music.groups.0.rows.3.label')} onPress={() => deps.openRoute({kind: 'settings-equalizer'})}/>;
     default: return undefined;
   }

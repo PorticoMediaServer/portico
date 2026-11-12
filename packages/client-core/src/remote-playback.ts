@@ -249,15 +249,50 @@ export class HandoffController {
 
   /** Asks a device to let this one control it, and waits for the answer: at once from a device
    * that remembers this sign-in, else after its person answers. */
-  private async askControl(target: PlayOnDevice): Promise<boolean> {
-    const signal = new AbortController().signal, deadline = Date.now() + 60_000;
-    let asked = this.asked = parseDeviceRequest(await this.call(this.controlGuard, 'POST /v1/receivers/{id}/requests', {id: target.id}, {kind: 'control'}));
-    while (asked.state === 'asking' && Date.now() < deadline) {
+  private async askControl(target: PlayOnDevice, signal: AbortSignal = new AbortController().signal, onAsking?: () => void): Promise<DeviceRequest> {
+    const deadline = Date.now() + 60_000;
+    let asked = this.asked = parseDeviceRequest(await this.call(this.controlGuard, 'POST /v1/receivers/{id}/requests', {id: target.id}, {kind: 'control'}, signal));
+    while (asked.state === 'asking' && Date.now() < deadline && !signal.aborted) {
+      onAsking?.();
       await this.sleeper.sleep(this.pollMs, signal);
-      asked = this.asked = parseDeviceRequest(await this.call(this.controlGuard, 'GET /v1/receivers/{id}/requests/{requestId}', {id: target.id, requestId: asked.id}));
+      if (signal.aborted) break;
+      asked = this.asked = parseDeviceRequest(await this.call(this.controlGuard, 'GET /v1/receivers/{id}/requests/{requestId}', {id: target.id, requestId: asked.id}, undefined, signal));
     }
-    return asked.state === 'allowed';
+    if (asked.state === 'asking') void this.withdraw(target.id, asked);
+    return asked;
   }
+
+  /** Controls what another of the account's devices plays (rule 28), after the same permission
+   * as a move: a device that remembers this sign-in answers by itself, otherwise its person is
+   * asked. This device's own playback carries on. Resolves true once the bar follows it. */
+  async control(target: PlayOnDevice, guard: RemoteGuard = () => true): Promise<boolean> {
+    const playing = target.playing;
+    if (!playing || playing.state === 'ended') return false;
+    this.run?.abort();
+    const run = this.run = new AbortController(), signal = run.signal, device = {device: target.displayName};
+    const fail = (message: string) => {if (!signal.aborted) this.publish({phase: 'failed', message}); return false;};
+    this.controlGuard = guard;
+    this.publish({phase: 'asking', target, message: undefined, receiverPlaybackId: undefined, remote: undefined});
+    try {
+      if (!target.allowed) {
+        const asked = await this.askControl(target, signal, () => this.publish({message: serviceText('playOn.approveOn', device)}));
+        if (signal.aborted) return false;
+        if (asked.state !== 'allowed') return fail(serviceText(asked.state === 'declined' ? 'playOn.declined' : asked.failed === 'not_accepting' ? 'playOn.notAccepting' : 'playOn.didNotAnswer', device));
+      }
+      this.publish({phase: 'done', receiverPlaybackId: playing.sessionId, remote: playing, message: serviceText('playOn.playingOn', device)});
+      void this.refreshRemote();
+      return true;
+    } catch (e) {
+      if (signal.aborted || (e as Error)?.name === 'AbortError') return false;
+      if (status(e) === 404) return fail(serviceText('playOn.notAccepting', device));
+      if (status(e) === 0) return fail(serviceText('playOn.notReachable', device));
+      return fail(serviceProblem(e, 'devices', 'playOn.controlUnavailable', 'action'));
+    } finally {
+      if (this.run === run) this.run = undefined;
+    }
+  }
+  /** Stops following the other device; it carries on playing. */
+  release() {this.cancel(); this.publish({phase: 'idle', receiverPlaybackId: undefined, remote: undefined, message: undefined});}
 
   /** Reads what the other device plays now. False when it no longer plays it. */
   async refreshRemote(): Promise<boolean> {
@@ -271,16 +306,16 @@ export class HandoffController {
       return !!remote && remote.state !== 'ended';
     } catch {return false;}
   }
-  play() {return this.control({state: 'playing'});}
-  pause() {return this.control({state: 'paused'});}
+  play() {return this.command({state: 'playing'});}
+  pause() {return this.command({state: 'paused'});}
   seek(positionSeconds: number) {
     if (!Number.isFinite(positionSeconds) || positionSeconds < 0) return Promise.resolve(false);
-    return this.control({seek: {positionMs: Math.round(positionSeconds * 1000)}});
+    return this.command({seek: {positionMs: Math.round(positionSeconds * 1000)}});
   }
-  next() {return this.control({skip: 'next'});}
-  stop() {return this.control();}
+  next() {return this.command({skip: 'next'});}
+  stop() {return this.command();}
   /** A command for the other device: it carries it out itself. A refusal shows the server's words. */
-  private control(change?: Readonly<Record<string, unknown>>): Promise<boolean> {
+  private command(change?: Readonly<Record<string, unknown>>): Promise<boolean> {
     const id = this.state.receiverPlaybackId;
     if (!id) return Promise.resolve(false);
     return this.controlWork = this.controlWork.catch(() => false).then(async () => {
@@ -296,7 +331,7 @@ export class HandoffController {
         catch (e) {
           // The server forgets who may control a device when it restarts; the device remembers,
           // so it is asked once more and answers by itself (rule 42), and the command is sent again.
-          if (status(e) !== 403 || code(e) !== 'control_not_allowed' || !this.state.target || !await this.askControl(this.state.target)) throw e;
+          if (status(e) !== 403 || code(e) !== 'control_not_allowed' || !this.state.target || (await this.askControl(this.state.target)).state !== 'allowed') throw e;
           await this.call(this.controlGuard, 'PATCH /v1/playback/sessions/{id}', {id}, change);
         }
         if (this.state.receiverPlaybackId === id) await this.refreshRemote();
@@ -325,11 +360,20 @@ export type ReceiverPlayer = Readonly<{
   /** Carries out a command on the session it plays. */
   command(sessionId: string, command: ReceiverCommand): void;
 }>;
-/** The sign-ins this device's person allowed, kept by the device itself (rule 23). */
-export type AllowedDevices = Readonly<{has(signInId: string): boolean; add(signInId: string): void}>;
+/** The sign-ins this device's person allowed, kept by the device itself (rule 23), with the
+ * name each device had when it was allowed, so This device can list them and forget one. */
+export type AllowedDevices = Readonly<{
+  has(signInId: string): boolean;
+  add(signInId: string, name?: string): void;
+  list?(): readonly Readonly<{signInId: string; name: string}>[];
+  forget?(signInId: string): void;
+  /** Called after a device was forgotten. */
+  onForget?(listener: () => void): () => void;
+}>;
 export function memoryAllowedDevices(): AllowedDevices {
-  const held = new Set<string>();
-  return {has: id => held.has(id), add: id => {held.add(id);}};
+  const held = new Map<string, string>(), forgot = new Set<() => void>();
+  return {has: id => held.has(id), add: (id, name = '') => {held.set(id, name);}, list: () => [...held].map(([signInId, name]) => ({signInId, name})),
+    forget: id => {if (held.delete(id)) for (const fn of [...forgot]) fn();}, onForget: fn => {forgot.add(fn); return () => {forgot.delete(fn);};}};
 }
 
 export type ReceiverPhase = 'off' | 'opening' | 'waiting' | 'starting' | 'turned-off' | 'error';
@@ -390,6 +434,13 @@ export class ReceiverHost {
     if (this.run) return;
     const run = this.run = new AbortController(), signal = run.signal;
     if (this.events) this.followEvents(signal);
+    // A device forgotten in This device is asked again: the server's own memory of whom this
+    // device allowed goes when it stops accepting and opens again.
+    const offForget = this.allowed.onForget?.(() => {
+      if (signal.aborted || !this.isCurrent()) return;
+      void this.api.request(at('DELETE /v1/receivers/current').path, 'DELETE').catch(() => {}).then(() => {this.renewAt = 0; this.sleeper.wake();});
+    });
+    if (offForget) signal.addEventListener('abort', offForget, {once: true});
     void (async () => {
       let failures = 0, renewEvery = 60_000;
       this.renewAt = 0;
@@ -468,7 +519,7 @@ export class ReceiverHost {
       this.sleeper.wake();
       return;
     }
-    if (request.from.signInId) this.allowed.add(request.from.signInId);
+    if (request.from.signInId) this.allowed.add(request.from.signInId, request.from.deviceName);
     await this.proceed(request, signal);
     this.sleeper.wake();
   }
