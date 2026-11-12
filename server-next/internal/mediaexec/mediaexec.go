@@ -379,7 +379,15 @@ func hardwareEnvironment() [][2]string {
 	// folders needs its own libraries found too. The sandbox mounts those folders and adds
 	// them after the tool's own; it is never passed to a software job.
 	for _, name := range []string{"LIBVA_DRIVER_NAME", "LIBVA_DRIVERS_PATH", "CUDA_VISIBLE_DEVICES", "NVIDIA_VISIBLE_DEVICES", "NVIDIA_DRIVER_CAPABILITIES", "LD_LIBRARY_PATH"} {
-		if v, ok := os.LookupEnv(name); ok {
+		v, ok := os.LookupEnv(name)
+		if ok && (name == "LIBVA_DRIVERS_PATH" || name == "LD_LIBRARY_PATH") {
+			// Only the folders a hardware job may be shown leave here. The decoder's bridge
+			// helper builds its sandbox from this list in a process of its own, which does
+			// not know the data folder; it must never be handed one to skip.
+			v = strings.Join(ownerFolders(v), string(os.PathListSeparator))
+			ok = v != ""
+		}
+		if ok {
 			out = append(out, [2]string{name, v})
 		} else if name == "LIBVA_DRIVERS_PATH" {
 			if dir := vaDriversFolder(); dir != "" {

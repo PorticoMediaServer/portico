@@ -161,3 +161,32 @@ func TestAFolderHoldingTheTemporaryFolderIsNotShownToHardwareJobs(t *testing.T) 
 		t.Fatalf("skipped: %v", skipped)
 	}
 }
+
+// A hardware job whose input comes over the decoder's private bridge has its sandbox built by
+// a helper process (decoder.RunHelper), from the hardware environment the server hands it
+// (HardwareEnvironment). That helper is a fresh process: Configure was never called in it, so
+// it does not know the data folder. The folder the guard skips in the server must therefore
+// already be gone from what the server hands over. (Review desk A's test for #2813.)
+func TestReviewATheBridgeHelperIsNotHandedAFolderHoldingTheDataFolder(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("TMPDIR", t.TempDir())
+	data, drivers := filepath.Join(home, "portico"), filepath.Join(home, "drivers")
+	for _, dir := range []string{data, drivers} {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("LD_LIBRARY_PATH", home+":"+drivers)
+	withDataFolder(t, data)
+	handed := HardwareEnvironment() // in the server, which knows the data folder
+
+	// In the helper: no data folder configured.
+	withDataFolder(t, "")
+	args := strings.Join(LinuxHardwareSandboxArgs(handed), " ") + " "
+	if strings.Contains(args, "--ro-bind-try "+home+" ") {
+		t.Fatalf("the bridge helper mounts %s, which holds the data folder %s, for a hardware job:\n%s", home, data, args)
+	}
+	if !strings.Contains(args, "--ro-bind-try "+drivers+" ") {
+		t.Fatalf("the driver folder is no longer shown: %s", args)
+	}
+}
