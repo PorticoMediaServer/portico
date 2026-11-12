@@ -1,6 +1,7 @@
 import {routeBody} from "../../contracts/src/routes.ts";
 import type {RouteResponse} from "../../contracts/src/route-paths.ts";
 import {routePath} from "../../contracts/src/route-paths.ts";
+import {changeNotices,readAllNotices,readNotices,readUnreadNotices,type NoticeChange} from './notifications-next.ts';
 import {randomId} from './random-id.ts';
 import {installationIdentity} from './installation.ts';
 
@@ -13,7 +14,7 @@ const feedbackClientWord=/^[A-Za-z0-9][A-Za-z0-9 ._+-]{0,39}$/;
  * them; only a first load with nothing to show is an error state. State changes are optimistic
  * and are put back if the server refuses them. */
 import {
- mergeNotifications,parseFeedbackCapabilities,parseFeedbackSubmission,parseNotificationBatchResult,parseNotificationInbox,parseNotificationSummary,
+ mergeNotifications,parseFeedbackCapabilities,parseFeedbackSubmission,
  type FeedbackCapabilities,type FeedbackSubmissionResult,type Notification,type NotificationAudience,type NotificationCounts,type NotificationDelta,type NotificationInbox,
 } from './notifications.ts';
 import {serviceProblem,serviceText} from './presentation/service-text.ts';
@@ -58,45 +59,26 @@ export type InboxSnapshot=Readonly<{
 const PAGE=50,MAX_PAGE=100;
 /** What every cached notification document moves with: the server's hint, or a change made on this device. */
 const notificationsMoved=dependsOn.event('notification.changed');
-const inboxPath=(audience:NotificationAudience,view:InboxView,limit:number)=>routePath("get_notifications_inbox") + "?audience=" + (encodeURIComponent(audience)) + "&state=" + (view) + "&limit=" + limit;
+/** The administrators' audience has no inbox of its own on the rebuilt server: its notices come to each profile's inbox. */
+const emptyAdmin=(view:InboxView):NotificationInbox=>({revision:1,audience:'account-admin',audiences:['profile'],state:view,counts:{unread:0,read:0,archived:0,total:0},items:[],nextCursor:'',observedAt:Date.now(),retentionDays:0});
 const noCounts:NotificationCounts=Object.freeze({unread:0,read:0,archived:0,total:0});
 const data=(raw:unknown):unknown=>raw&&typeof raw==='object'&&'data' in (raw as Record<string,unknown>)?(raw as Record<string,unknown>).data:raw;
-/**
- * A cached notification document is shared by every inbox of the viewer, so it is read with a
- * requester that lives as long as the cache (`api`: the shell's, or the cache's own), never one
- * screen's: closing the screen that started the read must not end it for the others. The checks a
- * screen's requester made travel with the read: the answer is this cache's server's, for the audience asked for.
- */
-function cachedNotifications<T>(queries:ViewerQueries,api:InboxApi,path:string,audience:NotificationAudience,parse:(value:unknown)=>T&{audience:string},signal:AbortSignal):Promise<T>{
- return api.request<unknown>(path,'GET',undefined,signal).then(raw=>{
-  const envelope=raw&&typeof raw==='object'&&!Array.isArray(raw)?raw as {scope?:unknown;data?:unknown}:undefined;
-  const scope=envelope?.scope&&typeof envelope.scope==='object'&&!Array.isArray(envelope.scope)?envelope.scope as {serverId?:unknown;viewerFence?:unknown}:undefined;
-  // Every notification document comes in the server's envelope. Its fence's shape is checked, never
-  // compared with another read's (CLIENT-DATA-REVIEW §4.4); another server's answer ends the screens waiting on it.
-  const fenceText=scope?.viewerFence;
-  if(!envelope||!('data' in envelope)||!scope||typeof scope.serverId!=='string'||!isText(fenceText))throw notificationInvalid();
-  if(scope.serverId!==queries.scope.serverId)throw notificationScopeChanged();
-  if(!/^[a-f0-9]{64}$/.test(fenceText))throw notificationInvalid();
-  const value=parse(envelope.data);
-  if(value.audience!==audience)throw notificationInvalid();
-  return value;
- });
+/** A view's first page, read with a requester that lives as long as the cache (`api`: the shell's, or the cache's own),
+ * never one screen's: closing the screen that started the read must not end it for the others. */
+function pageOf(api:InboxApi,audience:NotificationAudience,view:InboxView,cursor:string|undefined,signal:AbortSignal):Promise<NotificationInbox>{
+ return audience==='profile'?readNotices(api,view,cursor,signal):Promise.resolve(emptyAdmin(view));
 }
-const isText=(value:unknown):value is string=>typeof value==='string';
-const notificationInvalid=()=>Object.assign(new Error('invalid_notifications_response'),{code:'invalid_response'});
-/** Another server answered for this viewer's notifications: every screen waiting on the read retires (`onScopeChanged`). */
-const notificationScopeChanged=()=>Object.assign(new Error('notifications_scope_changed'),{code:'access_refused',scopeChanged:true});
 const isScopeChanged=(error:unknown)=>!!error&&typeof error==='object'&&(error as {scopeChanged?:unknown}).scopeChanged===true;
 /** A notification view's first page in the viewer's cache. */
 export function inboxFirstPageQuery(queries:ViewerQueries,audience:NotificationAudience,view:InboxView,api:InboxApi=queries.api):ViewerQueryOptions<NotificationInbox>{
  return {queryKey:queryKeys.notificationsInbox(audience,view),
-  queryFn:({signal})=>cachedNotifications(queries,api,inboxPath(audience,view,PAGE),audience,parseNotificationInbox,signal),
+  queryFn:({signal})=>pageOf(api,audience,view,undefined,signal),
   meta:{dependencies:[notificationsMoved]}};
 }
 /** The viewer's unread count in one audience, in the viewer's cache. */
 export function unreadCountQuery(queries:ViewerQueries,audience:NotificationAudience,api:InboxApi=queries.api):ViewerQueryOptions<number>{
  return {queryKey:queryKeys.notificationsUnread(audience),
-  queryFn:async({signal})=>(await cachedNotifications(queries,api,routePath("get_notifications_unread_count") + "?audience=" + (encodeURIComponent(audience)),audience,parseNotificationSummary,signal)).counts.unread,
+  queryFn:async({signal})=>audience==='profile'?readUnreadNotices(api,signal):0,
   meta:{dependencies:[notificationsMoved]}};
 }
 // A transport failure ("Failed to fetch") is not something to show a person; the server's own
@@ -193,7 +175,7 @@ export class InboxService{
  private async firstPage(audience:NotificationAudience,view:InboxView,limit:number,signal:AbortSignal,fresh:boolean):Promise<NotificationInbox>{
   const queries=this.options.queries;
   if(queries&&limit===PAGE){const options=inboxFirstPageQuery(queries,audience,view,this.options.cacheApi);return this.scoped(until(queries.client.fetchQuery(fresh?{...options,staleTime:0}:options),signal));}
-  return parseNotificationInbox(data(await this.api.request<RouteResponse<"get_notifications_inbox">>(inboxPath(audience,view,limit),'GET',undefined,signal)));
+  return pageOf(this.api,audience,view,undefined,signal);
  }
  /** `fresh`: something moved that the cached page may not include (a hint, a resync, a conflict). */
  private async read(audience:NotificationAudience,view:InboxView,limit:number,fresh:boolean):Promise<void>{
@@ -231,7 +213,7 @@ export class InboxService{
    // or dispatch a retained continuation against the replacement view.
    if(!this.moreCurrent(flight))return;
    const {audience,view,cursor,controller}=flight;
-   const inbox=parseNotificationInbox(data(await this.api.request<RouteResponse<"get_notifications_inbox">>(routePath("get_notifications_inbox") + "?audience=" + (encodeURIComponent(audience)) + "&state=" + (view) + "&limit=" + PAGE + "&cursor=" + (encodeURIComponent(cursor)),'GET',undefined,controller.signal)));
+   const inbox=await pageOf(this.api,audience,view,cursor,controller.signal);
    if(!this.moreCurrent(flight))return;
    this.moreFlight=undefined;
    this.cursor=inbox.nextCursor;
@@ -355,25 +337,24 @@ export class InboxService{
  }
  private async dispatch(flight:InboxFlight,before:InboxSnapshot):Promise<void>{
   const {token,intent}=flight;
-  // The wire body is derived from the immutable intent alone: no later
-  // revision, audience or operations can be substituted into this dispatch.
-  const body={operationId:intent.operationId,expectedRevision:intent.expectedRevision,audience:intent.audience,
-   operations:intent.operations.map(operation=>({action:operation.action,...(operation.ids?{ids:[...operation.ids]}:{})}))};
   // A listener woken by the optimistic rows may synchronously load, reread or
   // dispose this service. Those retire the flight and its signal, so nothing is
   // sent for a page that is no longer admitted.
   if(!this.owns(token)||!this.current(flight)||flight.controller.signal.aborted)return;
   try{
-   const result=parseNotificationBatchResult(data(await this.api.request<RouteResponse<"post_notifications_inbox_actions">>(routePath("post_notifications_inbox_actions"),'POST',routeBody("post_notifications_inbox_actions", body),flight.controller.signal)));
+   // The rebuilt server marks each notice on its own, or every one read at once; it answers nothing to merge.
+   for(const operation of intent.operations){
+    if(operation.action==='read-all')await readAllNotices(this.api,flight.controller.signal);
+    else await changeNotices(this.api,operation.action as NoticeChange,operation.ids??[],flight.controller.signal);
+   }
    if(!this.owns(token))return;
    this.flight=undefined;
    if(!this.current(flight))return;
-   // The confirmed change is now part of this page: a later write fences at the
-   // revision the server just returned, never at the one it replaced.
-   this.admit(result.revision,intent.audience,this.state.view);
-   // Every cached notification document of this viewer (another view, another inbox, the badge) is read again when next asked for.
+   // Every cached notification document of this viewer (another view, another inbox, the badge) is read again when next asked for,
+   // and the page on screen is read again quietly for the server's own counts.
    this.options.queries?.moved([notificationsMoved]);
-   this.publish({counts:result.counts,revision:result.revision});this.unreadDirty=true;void this.refreshUnread();
+   this.unreadDirty=true;void this.refreshUnread();
+   this.pending=Infinity;
   }catch(e){
    if(!this.owns(token))return;
    // The page this attempt was aimed at is gone. Release this claim and stop:
@@ -462,7 +443,7 @@ export class InboxService{
  private async unreadCount(audience:NotificationAudience,signal:AbortSignal,fresh:boolean):Promise<number>{
   const queries=this.options.queries;
   if(queries){const options=unreadCountQuery(queries,audience,this.options.cacheApi);return this.scoped(until(queries.client.fetchQuery(fresh?{...options,staleTime:0}:options),signal));}
-  return parseNotificationSummary(data(await this.api.request<RouteResponse<"get_notifications_unread_count">>(routePath("get_notifications_unread_count") + "?audience=" + (encodeURIComponent(audience)),'GET',undefined,signal))).counts.unread;
+  return audience==='profile'?readUnreadNotices(this.api,signal):0;
  }
 
 }
