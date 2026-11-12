@@ -150,6 +150,70 @@
         ],
         "type": "object"
       },
+      "ActivityStreams": {
+        "properties": {
+          "converting": {
+            "type": "integer"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/NowPlaying"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "count",
+          "converting",
+          "items"
+        ],
+        "type": "object"
+      },
+      "ActivitySummary": {
+        "properties": {
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/DashboardAlert"
+            },
+            "type": "array"
+          },
+          "lastScanAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "scans": {
+            "items": {
+              "$ref": "#/components/schemas/DashboardScan"
+            },
+            "type": "array"
+          },
+          "serverName": {
+            "type": "string"
+          },
+          "streams": {
+            "$ref": "#/components/schemas/ActivityStreams"
+          },
+          "tasks": {
+            "$ref": "#/components/schemas/DashboardTasks"
+          }
+        },
+        "required": [
+          "observedAt",
+          "serverName",
+          "streams",
+          "scans",
+          "tasks",
+          "alerts"
+        ],
+        "type": "object"
+      },
       "AdminJob": {
         "properties": {
           "canRetry": {
@@ -4804,6 +4868,9 @@
           "rescanMinutes": {
             "type": "integer"
           },
+          "soundAnalysis": {
+            "type": "boolean"
+          },
           "trash": {
             "$ref": "#/components/schemas/TrashRule"
           },
@@ -7078,6 +7145,87 @@
         "required": [
           "to",
           "since"
+        ],
+        "type": "object"
+      },
+      "MusicMix": {
+        "properties": {
+          "artists": {
+            "items": {
+              "$ref": "#/components/schemas/MusicMixArtist"
+            },
+            "type": "array"
+          },
+          "covers": {
+            "items": {
+              "$ref": "#/components/schemas/MusicMixCover"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "string"
+          },
+          "moreArtists": {
+            "type": "boolean"
+          },
+          "songs": {
+            "type": "integer"
+          },
+          "style": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "artists",
+          "covers",
+          "songs"
+        ],
+        "type": "object"
+      },
+      "MusicMixArtist": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
+      "MusicMixCover": {
+        "properties": {
+          "albumId": {
+            "type": "string"
+          },
+          "image": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "albumId"
+        ],
+        "type": "object"
+      },
+      "MusicMixPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MusicMix"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
         ],
         "type": "object"
       },
@@ -9572,6 +9720,9 @@
           "list": {
             "type": "string"
           },
+          "mix": {
+            "type": "string"
+          },
           "queue": {
             "type": "string"
           },
@@ -9840,6 +9991,28 @@
         },
         "required": [
           "items"
+        ],
+        "type": "object"
+      },
+      "RecommendationsReset": {
+        "properties": {
+          "operationId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "RecommendationsResetDone": {
+        "properties": {
+          "operationId": {
+            "type": "string"
+          },
+          "serverId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "serverId"
         ],
         "type": "object"
       },
@@ -11813,6 +11986,43 @@
         ],
         "type": "object"
       },
+      "SoundAnalysisStatus": {
+        "properties": {
+          "analyzed": {
+            "type": "integer"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "estimating": {
+            "type": "boolean"
+          },
+          "on": {
+            "type": "boolean"
+          },
+          "pausedUntil": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "secondsLeft": {
+            "type": "integer"
+          },
+          "songs": {
+            "type": "integer"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "available",
+          "on",
+          "state",
+          "songs",
+          "analyzed"
+        ],
+        "type": "object"
+      },
       "State": {
         "properties": {
           "checkedAt": {
@@ -13052,6 +13262,33 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/v1/admin/activity": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivitySummary"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
     "/v1/admin/api-keys": {
       "get": {
         "responses": {
@@ -15203,6 +15440,43 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SkippedFilePage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/libraries/{id}/sound-analysis": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SoundAnalysisStatus"
                 }
               }
             },
@@ -22680,6 +22954,43 @@
         "x-access": "signedIn"
       }
     },
+    "/v1/me/recommendations:reset": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecommendationsReset"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationsResetDone"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
     "/v1/me/sessions": {
       "delete": {
         "responses": {
@@ -23040,6 +23351,33 @@
         },
         "security": [],
         "x-access": "public"
+      }
+    },
+    "/v1/music/mixes": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MusicMixPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
       }
     },
     "/v1/notifications": {
