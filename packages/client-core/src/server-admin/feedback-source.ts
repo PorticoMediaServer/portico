@@ -1,10 +1,34 @@
-import {encodedRoutePath} from '../../../contracts/src/route-paths.ts';
-import {ConsoleClient, type FeedbackStatus, type ConsoleAPI} from '../console.ts';
-import type {FeedbackItem} from '../notifications.ts';
+import type {FeedbackStatus} from '../console.ts';
+import type {ProblemReport} from '../../../contracts/src/next/api.ts';
 import type {ReportTransport} from '../client-reports.ts';
-import {randomId} from '../random-id.ts';
+import {serverPath} from '../query/server-api.ts';
 
-export type FeedbackReport = FeedbackItem;
+/** One report a person sent with "Report a problem", or a crash report an app sent, as the
+ * owner's list shows it. What it is about, the title and the app come from the report's context,
+ * as the app described them; a report without them reads as "Something else". */
+export type FeedbackReport = Readonly<{
+  id: string;
+  status: FeedbackStatus;
+  /** What it is about: playback, library, apps, account or other (a crash report is apps). */
+  kind: string;
+  category: string;
+  message: string;
+  /** The reporter's username and profile, as the server names them. */
+  reporter: string;
+  crash: boolean;
+  /** The report came with the app's log (crash reports only, for now). */
+  hasLog: boolean;
+  itemId?: string;
+  itemTitle?: string;
+  /** Milliseconds since 1970. */
+  createdAt: number;
+  client?: Readonly<{platform: string; appVersion?: string; online?: boolean}>;
+  /** The owner's last reply, which reached the reporter as a notice. */
+  reply?: string;
+  /** The current name of the device it was sent from, as the server knows it from the sign-in
+   * that sent it (never what the app wrote); absent when that device was forgotten. */
+  deviceName?: string;
+}>;
 
 export type FeedbackSnapshot = Readonly<{
   phase: 'idle' | 'loading' | 'ready' | 'error';
@@ -14,147 +38,138 @@ export type FeedbackSnapshot = Readonly<{
 }>;
 
 const empty: FeedbackSnapshot = Object.freeze({phase: 'idle', reports: Object.freeze([])});
+const STATUSES: Readonly<Record<string, FeedbackStatus>> = {open: 'open', in_progress: 'in-progress', resolved: 'resolved', closed: 'closed'};
+const WIRE: Readonly<Record<FeedbackStatus, string>> = {open: 'open', 'in-progress': 'in_progress', resolved: 'resolved', closed: 'closed'};
+const text = (value: unknown, max: number) => typeof value === 'string' && value.length <= max ? value : undefined;
+const ended = () => Object.assign(new Error('The feedback request ended.'), {name: 'AbortError'});
+
+/** A report as the server sends it. A status this app does not know reads as open; a report
+ * without an id is refused. */
+export function parseOwnerReport(value: unknown): FeedbackReport {
+  const v = value as Partial<ProblemReport> & {context?: unknown} | null;
+  if (!v || typeof v !== 'object' || !text(v.id, 200) || !v.id) throw new Error('Invalid report.');
+  const context = v.context && typeof v.context === 'object' && !Array.isArray(v.context) ? v.context as Record<string, unknown> : {};
+  const crash = v.kind === 'crash';
+  const [kind, category] = crash ? ['apps', 'crash'] : (text(context.about, 120) ?? '').split('/');
+  const item = context.item && typeof context.item === 'object' ? context.item as Record<string, unknown> : undefined;
+  const platform = text(context.platform, 40);
+  const created = Date.parse(text(v.createdAt, 64) ?? '');
+  return Object.freeze({id: v.id, status: STATUSES[v.status ?? ''] ?? 'open', kind: kind || 'other', category: category || 'other',
+    message: text(v.message, 10000) ?? '', reporter: text(v.reporter, 400) ?? '', crash, hasLog: v.hasLog === true,
+    ...(item && text(item.id, 200) ? {itemId: item.id as string} : {}), ...(item && text(item.title, 400) ? {itemTitle: item.title as string} : {}),
+    createdAt: Number.isFinite(created) ? created : 0,
+    ...(platform ? {client: Object.freeze({platform, ...(text(context.appVersion, 40) ? {appVersion: context.appVersion as string} : {}),
+      ...(typeof context.online === 'boolean' ? {online: context.online} : {})})} : {}),
+    ...(text(v.reply, 4000) ? {reply: v.reply} : {}),
+    ...(text((v as {deviceName?: unknown}).deviceName, 200) ? {deviceName: (v as {deviceName: string}).deviceName} : {})});
+}
 
 /**
- * Owner-scoped viewer feedback over the feedback-report routes. The list, one report
- * and the status/reply write all go through the same console client and captured
- * viewer fence as the rest of Settings. A reply reaches the reporter's inbox.
+ * The owner's reports (`GET /v1/admin/reports`, newest first, a page at a time), one report, and
+ * setting its status with a reply (`PATCH /v1/admin/reports/{id}`); the reply reaches the reporter
+ * as a notice. Everything goes through the captured viewer's transport; a refusal that says this
+ * viewer may no longer read them ends the source.
  */
 export class SettingsFeedbackSource {
   private state: FeedbackSnapshot = empty;
   private readonly listeners = new Set<() => void>();
   private readonly lifetime = new AbortController();
   private reading?: Promise<void>;
-  private readonly console: ConsoleClient;
-  private readonly reportIO = new Map<string, {signal: AbortSignal; admit: () => boolean}>();
   private mutation?: object;
-  /** One operation per intended change, kept until the server answers it. */
-  private readonly operations = new Map<string, string>();
-  constructor(transport: ReportTransport, serverId: string, viewerId: string, private readonly isCurrent: () => boolean, private readonly reportError: (error: unknown) => void = () => {}) {
-    const api = transport as ConsoleAPI;
-    this.console = new ConsoleClient({request: async <T>(path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> => {
-      const held = this.reportIO.get(path.split('?')[0]);
-      const valid = () => this.current() && !signal?.aborted && (!held || !held.signal.aborted && held.admit());
-      if (!valid()) throw Object.assign(new Error('The feedback request ended.'), {name: 'AbortError'});
-      const request = new AbortController(), abort = () => request.abort();
-      signal?.addEventListener('abort', abort, {once: true});held?.signal.addEventListener('abort', abort, {once: true});this.lifetime.signal.addEventListener('abort', abort, {once: true});
-      try {
-        if (!valid()) throw Object.assign(new Error('The feedback request ended.'), {name: 'AbortError'});
-        const value = await (api.requestConsole ? api.requestConsole<T>(path, method, body, request.signal) : api.request<T>(path, method, body, request.signal));
-        if (!valid()) throw Object.assign(new Error('The feedback request ended.'), {name: 'AbortError'});
-        return value;
-      } catch (error) {
-        const failure = error && typeof error === 'object' ? error as {status?: number; code?: string} : {};
-        if (this.current() && (failure.status === 401 || failure.status === 403 || ['unauthorized','forbidden','not_permitted'].includes(failure.code ?? ''))) this.retire();
-        throw error;
-      } finally {signal?.removeEventListener('abort', abort);held?.signal.removeEventListener('abort', abort);this.lifetime.signal.removeEventListener('abort', abort);}
-    }}, {serverId, viewerId});
-    this.console.onDenied(() => this.retire());
-  }
-  private retire() {if (this.current()) {this.dispose();this.reportError(new Error('feedback_authority_ended'));}}
+  constructor(private readonly transport: ReportTransport,
+    _serverId: string, _viewerId: string, private readonly isCurrent: () => boolean, private readonly reportError: (error: unknown) => void = () => {}) {}
+  private retire() {if (this.current()) {this.dispose(); this.reportError(new Error('feedback_authority_ended'));}}
   private current() {return !this.lifetime.signal.aborted && this.isCurrent();}
   getSnapshot = (): FeedbackSnapshot => this.current() ? this.state : empty;
-  subscribe = (listener: () => void): (() => void) => {this.listeners.add(listener);return () => {this.listeners.delete(listener);};};
-  private publish(state: FeedbackSnapshot) {if (this.current()) {this.state = Object.freeze(state);for (const listener of [...this.listeners]) listener();}}
+  subscribe = (listener: () => void): (() => void) => {this.listeners.add(listener); return () => {this.listeners.delete(listener);};};
+  private publish(state: FeedbackSnapshot) {if (this.current()) {this.state = Object.freeze(state); for (const listener of [...this.listeners]) listener();}}
+
+  /** One call under this source's lifetime and the caller's. */
+  private async call<T>(path: string, method: string, body?: unknown, signal?: AbortSignal): Promise<T> {
+    const valid = () => this.current() && !signal?.aborted;
+    if (!valid()) throw ended();
+    const request = new AbortController(), abort = () => request.abort();
+    signal?.addEventListener('abort', abort, {once: true}); this.lifetime.signal.addEventListener('abort', abort, {once: true});
+    try {
+      const value = await this.transport.request<T>(path, method, body, request.signal);
+      if (!valid()) throw ended();
+      return value;
+    } catch (error) {
+      const failure = error && typeof error === 'object' ? error as {status?: number; code?: string} : {};
+      if (this.current() && (failure.status === 401 || failure.status === 403 || ['unauthorized', 'forbidden', 'not_permitted'].includes(failure.code ?? ''))) this.retire();
+      throw error;
+    } finally {signal?.removeEventListener('abort', abort); this.lifetime.signal.removeEventListener('abort', abort);}
+  }
+  /** The one read: a page of the list, or one report. */
+  private document<T>(path: string, signal?: AbortSignal): Promise<T> {return this.call<T>(path, 'GET', undefined, signal);}
+  private async page(cursor?: string) {
+    const raw = await this.document<{items?: unknown[]; nextCursor?: string}>(serverPath('GET /v1/admin/reports', {query: {cursor}}));
+    const items: FeedbackReport[] = [];
+    for (const value of raw?.items ?? []) {try {items.push(parseOwnerReport(value));} catch {/* one unreadable report is left out */}}
+    return {items, next: text(raw?.nextCursor, 64) || undefined};
+  }
+
   load = (): Promise<void> => {
     if (!this.current() || this.reading) return this.reading ?? Promise.resolve();
     const task = Promise.resolve().then(async () => {
       this.publish({...this.state, phase: 'loading'});
       try {
-        const page = await this.console.feedbackReports();
+        const page = await this.page();
         if (!this.current()) return;
-        this.publish({phase: 'ready', reports: page.items, ...(page.nextCursor ? {next: page.nextCursor} : {})});
-      } catch {if (this.current() && !this.lifetime.signal.aborted) this.publish({...this.state, phase: 'error'});}
+        this.publish({phase: 'ready', reports: page.items, ...(page.next ? {next: page.next} : {})});
+      } catch {if (this.current()) this.publish({...this.state, phase: 'error'});}
       finally {this.reading = undefined;}
     });
-    this.reading = task;return task;
+    this.reading = task; return task;
   };
   /** The next page the server named, appended in its order. */
   more = (): Promise<void> => {
     const cursor = this.state.next;
     if (!this.current() || this.reading || !cursor) return this.reading ?? Promise.resolve();
     const task = Promise.resolve().then(async () => {
-      if (!this.current()) return;
       this.publish({...this.state, phase: 'loading'});
       try {
-        const page = await this.console.feedbackReports(cursor);
+        const page = await this.page(cursor);
         if (!this.current()) return;
         const known = new Set(this.state.reports.map(report => report.id));
-        this.publish({...this.state, phase: 'ready', reports: [...this.state.reports, ...page.items.filter(report => !known.has(report.id))], ...(page.nextCursor ? {next: page.nextCursor} : {next: undefined})});
+        this.publish({phase: 'ready', reports: [...this.state.reports, ...page.items.filter(report => !known.has(report.id))], ...(page.next ? {next: page.next} : {})});
       } catch {if (this.current()) this.publish({...this.state, phase: 'error'});}
       finally {this.reading = undefined;}
     });
-    this.reading = task;return task;
+    this.reading = task; return task;
   };
-  /** One report exactly as the server keeps it, for the dialog that is open now. */
-  private async withReportIO<T>(id: string, signal: AbortSignal, admit: () => boolean, action: () => Promise<T>): Promise<T> {
-    const paths = [encodedRoutePath('get_admin_feedback_reports_id', {id: encodeURIComponent(id)}), encodedRoutePath('post_admin_feedback_reports_id_status', {id: encodeURIComponent(id)})];
-    if (!this.current() || signal.aborted || !admit() || paths.some(path => this.reportIO.has(path))) throw Object.assign(new Error('The feedback request ended.'), {name: 'AbortError'});
-    const held = {signal, admit};for (const path of paths) this.reportIO.set(path, held);
-    try {return await action();} finally {for (const path of paths) if (this.reportIO.get(path) === held) this.reportIO.delete(path);}
-  }
+  /** One report as the server keeps it now, for the dialog that is open. */
   async read(id: string, signal: AbortSignal): Promise<FeedbackReport> {
     const selected = this.state.reports.find(report => report.id === id);
     if (!selected) throw new Error('The selected report is no longer listed.');
-    const admit = () => this.current() && !signal.aborted && this.state.reports.includes(selected);
-    return this.withReportIO(id, signal, admit, async () => {
-      const report = await this.console.feedbackReport(id);
-      if (!admit() || report.id !== id) throw Object.assign(new Error('The feedback request ended.'), {name: 'AbortError'});
-      this.publish({...this.state, reports: this.state.reports.map(row => row === selected ? report : row)});
-      return report;
-    });
+    const report = parseOwnerReport(await this.document(serverPath('GET /v1/admin/reports/{id}', {id}), signal));
+    if (!this.current() || signal.aborted || report.id !== id || !this.state.reports.includes(selected)) throw ended();
+    this.publish({...this.state, reports: this.state.reports.map(row => row === selected ? report : row)});
+    return report;
   }
-  /**
-   * Save status and reply on the report the dialog captured. If the report moved while the
-   * dialog was open, the owner's edit is carried over to the newer revision once (ruling: the
-   * change is silent), and the answer is the row the list then shows.
-   */
+  /** Sets the report's status, and sends a reply when there is one. The last change wins. */
   async triage(report: FeedbackReport, status: FeedbackStatus, reply: string, signal: AbortSignal): Promise<FeedbackReport> {
-    if (!this.current() || signal.aborted || this.mutation || !this.state.reports.includes(report) || !['open','in-progress','resolved','closed'].includes(status) || reply.length > 2000) throw Object.assign(new Error('The feedback scope ended.'), {name: 'AbortError'});
-    const flight = {};this.mutation = flight;
-    const admit = () => this.current() && !signal.aborted && this.mutation === flight && this.state.reports.includes(report);
+    if (!this.current() || signal.aborted || this.mutation || !this.state.reports.includes(report) || !WIRE[status] || reply.length > 2000) throw ended();
+    const flight = {}; this.mutation = flight;
     try {
-      return await this.withReportIO(report.id, signal, admit, async () => {
-        let current = report;
-        for (let attempt = 0; attempt < 2; attempt++) {
-          try {
-            if (!admit()) throw Object.assign(new Error('The feedback scope ended.'), {name: 'AbortError'});
-            // A retry after a lost answer reuses its operation, so it is the same change.
-            const intent = JSON.stringify([current.id, current.revision, status, reply]);
-            const operationId = this.operations.get(intent) ?? randomId();this.operations.set(intent, operationId);
-            const saved = await this.console.transitionFeedback(current.id, {operationId, expectedRevision: current.revision, status, reply});
-            this.operations.delete(intent);
-            if (!admit() || saved.id !== report.id) throw Object.assign(new Error('The feedback scope ended.'), {name: 'AbortError'});
-            this.publish({...this.state, reports: this.state.reports.map(row => row === report ? saved : row)});
-            return saved;
-          } catch (error) {
-            if (!admit()) throw Object.assign(new Error('The feedback scope ended.'), {name: 'AbortError'});
-            const code = (error as {code?: string}).code, httpStatus = (error as {status?: number}).status;
-            // A stated refusal is final for that operation; only a lost answer keeps it.
-            if (typeof httpStatus === 'number' && httpStatus >= 400 && httpStatus < 500) this.operations.delete(JSON.stringify([current.id, current.revision, status, reply]));
-            if (attempt === 0 && (code === 'console_conflict' || code === 'revision_mismatch')) {
-              current = await this.console.feedbackReport(report.id);
-              if (!admit() || current.id !== report.id) throw Object.assign(new Error('The feedback scope ended.'), {name: 'AbortError'});
-              continue;
-            }
-            throw error;
-          }
-        }
-        throw new Error('feedback_conflict');
-      });
+      const words = reply.trim();
+      const saved = parseOwnerReport(await this.call(serverPath('PATCH /v1/admin/reports/{id}', {id: report.id}), 'PATCH', {status: WIRE[status], ...(words ? {reply: words} : {})}, signal));
+      if (!this.current() || signal.aborted || saved.id !== report.id) throw ended();
+      this.publish({...this.state, reports: this.state.reports.map(row => row.id === report.id ? saved : row)});
+      return saved;
     } finally {if (this.mutation === flight) this.mutation = undefined;}
   }
-  retry = (): Promise<void> => {this.state = empty;return this.load();};
-  dispose(): void {if (!this.lifetime.signal.aborted) {this.lifetime.abort();this.listeners.clear();this.reportIO.clear();this.operations.clear();this.mutation = undefined;this.console.dispose();this.state = empty;}}
+  retry = (): Promise<void> => {this.state = empty; return this.load();};
+  dispose(): void {if (!this.lifetime.signal.aborted) {this.lifetime.abort(); this.listeners.clear(); this.mutation = undefined; this.state = empty;}}
 }
 
 /** The kind of problem the triage screens draw: Playback, Metadata, Subtitles or Other. */
-export function feedbackTriageCategory(report: Pick<FeedbackItem, 'kind' | 'category'>): 'playback' | 'metadata' | 'subtitles' | 'other' {
+export function feedbackTriageCategory(report: Readonly<{kind: string; category: string}>): 'playback' | 'metadata' | 'subtitles' | 'other' {
   return report.kind === 'playback' ? report.category === 'subtitles' ? 'subtitles' : 'playback' : report.kind === 'library' ? 'metadata' : 'other';
 }
 
 /** Where a report came from, as the `server.feedback.sentFrom` sentence takes it. */
-export function feedbackSentFrom(report: Pick<FeedbackItem, 'client'>): Readonly<{platform: string; version: string; online: 'yes' | 'no' | 'unknown'}> | undefined {
+export function feedbackSentFrom(report: Readonly<{client?: FeedbackReport['client']}>): Readonly<{platform: string; version: string; online: 'yes' | 'no' | 'unknown'}> | undefined {
   const client = report.client;
-  return client ? {platform: client.platform, version: client.appVersion, online: client.online === undefined ? 'unknown' : client.online ? 'yes' : 'no'} : undefined;
+  return client ? {platform: client.platform, version: client.appVersion ?? '', online: client.online === undefined ? 'unknown' : client.online ? 'yes' : 'no'} : undefined;
 }
