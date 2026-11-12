@@ -3,6 +3,7 @@ import {Fragment, forwardRef, useCallback, useEffect, useId, useLayoutEffect, us
 import {Select as SelectPrimitive} from 'radix-ui';
 import {defaultI18n} from '@i18n';
 import {Dialog} from '../overlays/Dialog';
+import {useInDialog} from '../overlays/shared';
 import {Icon} from '../Icon';
 import {moveOption, matchingOption} from './model';
 import styles from './controls.module.css';
@@ -64,6 +65,8 @@ const ChoiceSelect = forwardRef<HTMLButtonElement, ChoiceSelectProps>(function C
   const tabDirection = useRef<number | null>(null);
   const currentValue = value ?? localValue;
   const currentOpen = open ?? localOpen;
+  // A list opened from inside a dialog opens over it, as the kit's popovers and tooltips do; under the dialog's scrim it can't be clicked.
+  const withinDialog = useInDialog(currentOpen, trigger);
   useLayoutEffect(() => {
     if (!currentOpen || phone || !rich) return;
     const surface = menu; if (!surface) return;
@@ -115,7 +118,7 @@ const ChoiceSelect = forwardRef<HTMLButtonElement, ChoiceSelectProps>(function C
         <span className={styles.selectValue}><SelectPrimitive.Value placeholder={placeholder}>{selectedLabel}</SelectPrimitive.Value></span>
         <SelectPrimitive.Icon><Icon name="i-down" size={18} /></SelectPrimitive.Icon>
       </SelectPrimitive.Trigger>
-      <SelectPrimitive.Portal container={portalTarget}><div className={styles.selectPortal}>
+      <SelectPrimitive.Portal container={portalTarget}><div className={styles.selectPortal} data-within-dialog={withinDialog || undefined}>
         <SelectPrimitive.Content ref={setMenu} position="popper" align="end" sideOffset={6} collisionPadding={8} className={styles.selectMenu} data-rich={rich || undefined} data-stacked-hints={rich && menuFit.stacked || undefined} style={rich ? {width: menuFit.width} : undefined}
           onKeyDown={event => {
             if (event.key !== 'Tab') return;
