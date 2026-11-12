@@ -35,6 +35,8 @@ type Identity struct {
 	// Pictures are where the account's profile pictures on this server can be read. The
 	// server keeps the addresses and hands them to apps; it never fetches a picture.
 	Pictures []Picture `json:"pictures"`
+	// PasswordChecked is signed by Services only after checking the password typed with this note request.
+	PasswordChecked bool `json:"passwordChecked,omitempty"`
 }
 
 // Picture is one profile's picture. ProfileID names a profile on this server; it is empty

@@ -104,6 +104,8 @@ type Account struct {
 	// Email is filled by a sign-in, never by an approval. The server's owner and
 	// administrators see it in People; the server does nothing else with it.
 	Email string
+	// PasswordChecked comes only from a verified sign-in note, never an approval.
+	PasswordChecked bool
 }
 
 // Picture is where one profile's picture can be read. See trust.Picture.
