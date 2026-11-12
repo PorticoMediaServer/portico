@@ -40,6 +40,25 @@ export interface ActivityEntryPage {
   nextCursor?: string;
 }
 
+export interface AdminJob {
+  id: string;
+  kind: string;
+  state: string;
+  libraryId?: string;
+  libraryName?: string;
+  progress?: JobProgress;
+  error?: string;
+  createdAt: string;
+  startedAt?: string;
+  finishedAt?: string;
+  canRetry: boolean;
+}
+
+export interface AdminJobPage {
+  items: AdminJob[];
+  nextCursor?: string;
+}
+
 export interface AdminLibrary {
   id: string;
   name: string;
@@ -59,9 +78,67 @@ export interface AdminLibraryPage {
   nextCursor?: string;
 }
 
+export interface AlertAction {
+  kind: string;
+  target: string;
+}
+
 export interface Alternative {
   versionId: string;
   label: string;
+}
+
+export interface Annotation {
+  id: string;
+  kind: string;
+  color?: string;
+  location: string;
+  madeOn?: string;
+  progress: number;
+  chapter?: string;
+  text?: string;
+  note?: string;
+  extra?: unknown;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AnnotationBatch {
+  changes: AnnotationChange[];
+}
+
+export interface AnnotationBody {
+  kind: string;
+  color: string;
+  location: string;
+  madeOn: string;
+  progress: number;
+  chapter: string;
+  text: string;
+  note: string;
+  extra: unknown;
+  madeAgoMs: number;
+}
+
+export interface AnnotationChange extends AnnotationBody {
+  itemId: string;
+  id: string;
+  delete: boolean;
+}
+
+export interface AnnotationPage {
+  items: Annotation[];
+  nextCursor?: string;
+}
+
+export interface AnnotationResult {
+  id: string;
+  annotation?: Annotation;
+  error?: ApiError;
+}
+
+export interface AnnotationResults {
+  results: AnnotationResult[];
 }
 
 export interface AudioPick {
@@ -147,6 +224,9 @@ export interface BookAnswer {
   spine?: string[];
   contents?: BookContents[];
   pages?: string[];
+  place?: unknown;
+  placeExact?: boolean;
+  next?: NextVolume;
 }
 
 export interface BookContents {
@@ -174,6 +254,20 @@ export interface BookVersion {
 }
 
 export interface CapabilityDocument {
+}
+
+export interface CastCode {
+  code: string;
+  expiresAt: string;
+}
+
+export interface CastConfig {
+  applicationId: string;
+}
+
+export interface CastRedeem {
+  code: string;
+  device: DeviceInfo;
 }
 
 export interface Challenge {
@@ -240,6 +334,62 @@ export interface CreditPage {
   items: Credit[];
   nextCursor?: string;
   total: number;
+}
+
+export interface Dashboard {
+  observedAt: string;
+  alerts: DashboardAlert[];
+  scans: DashboardScan[];
+  tasks: DashboardTasks;
+  nowPlaying: StreamTotals;
+  backups: DashboardBackups;
+  openReports: number;
+}
+
+export interface DashboardAlert {
+  code: string;
+  severity: string;
+  major: boolean;
+  params: Record<string, string>;
+  action: AlertAction;
+  count?: number;
+}
+
+export interface DashboardBackup {
+  id: string;
+  createdAt: string;
+  scheduled: boolean;
+}
+
+export interface DashboardBackups {
+  read: boolean;
+  last?: DashboardBackup;
+}
+
+export interface DashboardScan {
+  kind: string;
+  libraryId: string;
+  libraryName: string;
+  phase: string;
+  discovered: number;
+  analyzed: number;
+  total?: number;
+}
+
+export interface DashboardTask {
+  id: string;
+  kind: string;
+  libraryId?: string;
+  libraryName?: string;
+  phase: string;
+  state: string;
+  processed?: number;
+  total?: number;
+}
+
+export interface DashboardTasks {
+  count: number;
+  items: DashboardTask[];
 }
 
 export interface Decision {
@@ -506,6 +656,17 @@ export interface FolderUsage {
   bytes: number;
 }
 
+export interface GenreEntry {
+  value: string;
+  label: string;
+  cover?: Record<string, string>;
+  count?: number;
+}
+
+export interface GenreList {
+  genres: GenreEntry[];
+}
+
 export interface GroupAction {
   action: string;
   positionMs?: number;
@@ -603,6 +764,7 @@ export interface Home {
 export interface HomeRow {
   id: string;
   title: string;
+  reason?: string;
   shape: string;
   items: Item[];
   hidden?: boolean;
@@ -616,6 +778,16 @@ export interface IdentityProof {
 export interface IdentityQuestion {
   baseUrl: string;
   nonce: string;
+}
+
+export interface IntegrationSettings {
+  assistants: boolean;
+  compatibleRoutes: boolean;
+}
+
+export interface IntegrationSettingsEdit {
+  assistants?: boolean;
+  compatibleRoutes?: boolean;
 }
 
 export interface Invitation {
@@ -967,6 +1139,26 @@ export interface ListSharesSet {
   shares: ListShare[];
 }
 
+export interface Load {
+  period: string;
+  from: string;
+  until: string;
+  buckets: LoadBucket[];
+  observedAt: string;
+  series: Record<string, LoadPoint[]>;
+}
+
+export interface LoadBucket {
+  start: string;
+  end: string;
+  partial: boolean;
+}
+
+export interface LoadPoint {
+  t: string;
+  v: number;
+}
+
 export interface LogDetail {
   minutes: number;
 }
@@ -1007,11 +1199,38 @@ export interface LyricsPage {
   nextCursor?: string;
 }
 
+export interface MCPReply {
+}
+
 export interface Marker {
   kind: string;
   startMs: number;
   endMs: number;
   title?: string;
+}
+
+export interface MatchCandidate {
+  provider: string;
+  id: string;
+  title: string;
+  originalTitle?: string;
+  year?: number;
+  overview?: string;
+  exact?: boolean;
+}
+
+export interface MatchCandidates {
+  items: MatchCandidate[];
+}
+
+export interface MatchRequest {
+  provider?: string;
+  id?: string;
+  keepAsIs?: boolean;
+}
+
+export interface MatchResult {
+  itemId: string;
 }
 
 export interface Me {
@@ -1047,6 +1266,9 @@ export interface Member extends Account {
   twoFactorEnabled: boolean;
   notes?: string;
   allowDownloads: boolean;
+  lastActiveAt?: string;
+  profiles: string[];
+  limits: MemberLimits;
 }
 
 export interface MemberCreate {
@@ -1063,11 +1285,118 @@ export interface MemberEdit {
   allLibraries?: boolean;
   libraries?: string[];
   allowDownloads?: boolean;
+  limits?: MemberLimitsEdit;
+}
+
+export interface MemberLimits {
+  homeOnly: boolean;
+  viewingHours?: ViewingHours | null;
+  maxRatingAge?: number | null;
+  allowUnrated: boolean;
+  blockedLabels: string[];
+  remoteMaxBitrateKbps?: number | null;
+  maxProfiles?: number | null;
+  allowWatchTogether: boolean;
+  allowTokens: boolean;
+}
+
+export interface MemberLimitsEdit {
+  homeOnly?: boolean;
+  viewingHours?: ViewingHours;
+  maxRatingAge?: number;
+  allowUnrated?: boolean;
+  blockedLabels?: string[];
+  remoteMaxBitrateKbps?: number;
+  maxProfiles?: number;
+  allowWatchTogether?: boolean;
+  allowTokens?: boolean;
 }
 
 export interface MemberPage {
   items: Member[];
   nextCursor?: string;
+}
+
+export interface MergeRequest {
+  itemId: string;
+}
+
+export interface MetadataCredit {
+  personId?: string;
+  name?: string;
+  role: string;
+  character?: string;
+}
+
+export interface MetadataCredits {
+  values: MetadataCredit[];
+  source: string;
+  locked: boolean;
+}
+
+export interface MetadataDocument {
+  itemId: string;
+  kind: string;
+  revision: string;
+  fields: Record<string, MetadataField>;
+  lists: Record<string, MetadataList>;
+  credits?: MetadataCredits;
+  match: MetadataMatch;
+}
+
+export interface MetadataField {
+  value: unknown;
+  source: string;
+  locked: boolean;
+}
+
+export interface MetadataHistoryEntry {
+  id: string;
+  kind: string;
+  at: string;
+}
+
+export interface MetadataHistoryEntryPage {
+  items: MetadataHistoryEntry[];
+  nextCursor?: string;
+}
+
+export interface MetadataList {
+  values: string[];
+  source: string;
+  locked: boolean;
+}
+
+export interface MetadataMatch {
+  state: string;
+  locked: boolean;
+  ids: Record<string, string>;
+}
+
+export interface MetadataPatch {
+  title?: string;
+  sortTitle?: string;
+  originalTitle?: string;
+  edition?: string;
+  tagline?: string;
+  summary?: string;
+  year?: number;
+  releaseDate?: string;
+  contentRating?: string;
+  genres?: string[];
+  studios?: string[];
+  networks?: string[];
+  countries?: string[];
+  labels?: string[];
+  credits?: MetadataCredit[];
+  lock?: string[];
+  unlock?: string[];
+  lockAll?: boolean;
+  unlockAll?: boolean;
+}
+
+export interface MetadataRefreshed {
+  matched: boolean;
 }
 
 export interface MissingTitle {
@@ -1094,6 +1423,12 @@ export interface NetworkSettings {
 export interface NetworkSettingsEdit {
   homeNetworks?: string[];
   trustedProxies: string[];
+}
+
+export interface NextVolume {
+  id: string;
+  title: string;
+  index?: number;
 }
 
 export interface Notification {
@@ -1139,6 +1474,21 @@ export interface NowPlaying {
 export interface NowPlayingPage {
   items: NowPlaying[];
   nextCursor?: string;
+}
+
+export interface OfflinePlay {
+  itemId: string;
+  playId: string;
+  positionMs: number;
+  playedMs: number;
+  madeAgoMs: number;
+}
+
+export interface OfflinePlayResult {
+  itemId: string;
+  playId: string;
+  finished: boolean;
+  error?: BatchError;
 }
 
 export interface Part {
@@ -1703,6 +2053,8 @@ export interface Ratings {
 
 export interface RcloneSettings {
   config?: string;
+  type?: string;
+  options?: Record<string, string>;
   path?: string;
 }
 
@@ -1806,6 +2158,17 @@ export interface RememberedFailurePage {
   nextCursor?: string;
 }
 
+export interface RemoteAccessSettings {
+  dlna: boolean;
+  dlnaNames: string[];
+  warning?: string;
+}
+
+export interface RemoteAccessSettingsEdit {
+  dlna?: boolean;
+  dlnaNames?: string[];
+}
+
 export interface RemoteFolder {
   name: string;
   path: string;
@@ -1896,6 +2259,7 @@ export interface RestoreStaged {
 
 export interface Restrictions {
   maxRatingAge?: number | null;
+  allowUnrated: boolean;
   blockedLabels: string[];
   allLibraries: boolean;
   libraries: string[];
@@ -1903,6 +2267,11 @@ export interface Restrictions {
   accountLibraries: string[];
   allowDownloads?: boolean;
   accountAllowDownloads: boolean;
+  allowWatchTogether?: boolean;
+  accountAllowWatchTogether: boolean;
+  accountMaxRatingAge?: number | null;
+  accountAllowUnrated: boolean;
+  accountBlockedLabels: string[];
 }
 
 export interface Room {
@@ -2175,6 +2544,7 @@ export interface State {
 
 export interface StateBatch {
   items: StateBatchEdit[];
+  plays?: OfflinePlay[];
 }
 
 export interface StateBatchEdit extends StateRequest {
@@ -2183,6 +2553,7 @@ export interface StateBatchEdit extends StateRequest {
 
 export interface StateBatchReply {
   items: StateBatchResult[];
+  plays?: OfflinePlayResult[];
 }
 
 export interface StateBatchResult {
@@ -2261,6 +2632,12 @@ export interface StreamLimits {
 
 export interface StreamStop {
   message?: string;
+}
+
+export interface StreamTotals {
+  streams: number;
+  away: number;
+  converting: number;
 }
 
 export interface SubtitleFile {
@@ -2364,6 +2741,20 @@ export interface UndoRequest {
   token: string;
 }
 
+export interface UnmatchedEntry {
+  itemId: string;
+  kind: string;
+  title: string;
+  year?: number;
+  reason: string;
+  matches: MatchCandidate[];
+}
+
+export interface UnmatchedEntryPage {
+  items: UnmatchedEntry[];
+  nextCursor?: string;
+}
+
 export interface VersionFiles {
   id: string;
   name?: string;
@@ -2379,6 +2770,17 @@ export interface Viewer {
   profileId?: string;
   serverId: string;
   role: string;
+}
+
+export interface ViewingHours {
+  timezone: string;
+  windows: ViewingWindow[];
+}
+
+export interface ViewingWindow {
+  days: number[];
+  startMinute: number;
+  endMinute: number;
 }
 
 export interface Warning {
@@ -2515,6 +2917,8 @@ export interface Routes {
   'PATCH /v1/admin/members/{id}': {access: 'admin'; request: MemberEdit; response: Member};
   'DELETE /v1/admin/members/{id}': {access: 'admin'; request: undefined; response: undefined};
   'POST /v1/admin/members/{id}/password-reset': {access: 'admin'; request: PasswordResetCreate; response: PasswordResetCode};
+  'GET /v1/admin/members/{id}/devices': {access: 'admin'; request: undefined; response: DevicePage};
+  'DELETE /v1/admin/members/{id}/devices/{deviceId}': {access: 'admin'; request: undefined; response: undefined};
   'GET /v1/admin/invitations': {access: 'admin'; request: undefined; response: InvitationPage};
   'POST /v1/admin/invitations': {access: 'admin'; request: InvitationCreate; response: Invitation};
   'PATCH /v1/admin/invitations/{id}': {access: 'admin'; request: InvitationEdit; response: Invitation};
@@ -2530,6 +2934,7 @@ export interface Routes {
   'GET /v1/admin/api-keys': {access: 'owner'; request: undefined; response: KeyPage};
   'POST /v1/admin/api-keys': {access: 'owner'; request: KeyCreate; response: KeyCreated};
   'DELETE /v1/admin/api-keys/{id}': {access: 'owner'; request: undefined; response: undefined};
+  'GET /v1/genres': {access: 'withProfile'; request: undefined; response: GenreList};
   'GET /v1/search': {access: 'withProfile'; request: undefined; response: SearchResults};
   'GET /v1/search/suggestions': {access: 'withProfile'; request: undefined; response: SearchSuggestions};
   'GET /v1/search/history': {access: 'withProfile'; request: undefined; response: SearchHistory};
@@ -2620,12 +3025,16 @@ export interface Routes {
   'GET /v1/admin/items/{id}/deletion': {access: 'owner'; request: undefined; response: DeletionPreview};
   'DELETE /v1/admin/items/{id}': {access: 'owner'; request: undefined; response: DeletionResult};
   'DELETE /v1/admin/versions/{id}': {access: 'owner'; request: undefined; response: DeletionResult};
+  'GET /v1/admin/jobs': {access: 'owner'; request: undefined; response: AdminJobPage};
+  'POST /v1/admin/jobs/{id}/retry': {access: 'owner'; request: undefined; response: Job};
   'POST /v1/jobs': {access: 'signedIn'; request: JobStart; response: Job};
   'GET /v1/jobs/{id}': {access: 'signedIn'; request: undefined; response: Job};
   'DELETE /v1/jobs/{id}': {access: 'signedIn'; request: undefined; response: undefined};
+  'GET /v1/admin/load': {access: 'owner'; request: undefined; response: Load};
   'GET /v1/admin/settings': {access: 'owner'; request: undefined; response: SettingsDocumentPage};
   'GET /v1/admin/settings/{name}': {access: 'owner'; request: undefined; response: SettingsDocument};
   'PUT /v1/admin/settings/{name}': {access: 'owner'; request: JSON; response: SettingsDocument};
+  'DELETE /v1/admin/upgrade-copy': {access: 'owner'; request: undefined; response: undefined};
   'GET /v1/admin/sessions': {access: 'admin'; request: undefined; response: NowPlayingPage};
   'DELETE /v1/admin/sessions/{id}': {access: 'admin'; request: StreamStop; response: undefined};
   'GET /v1/admin/audit': {access: 'owner'; request: undefined; response: ActivityEntryPage};
@@ -2657,6 +3066,12 @@ export interface Routes {
   'PATCH /v1/admin/reports/{id}': {access: 'owner'; request: ReportEdit; response: ProblemReport};
   'DELETE /v1/admin/reports/{id}': {access: 'owner'; request: undefined; response: undefined};
   'GET /v1/admin/reports/{id}/log': {access: 'owner'; request: undefined; response: undefined};
+  'GET /v1/admin/dashboard': {access: 'owner'; request: undefined; response: Dashboard};
+  'GET /v1/admin/settings/integrations': {access: 'owner'; request: undefined; response: IntegrationSettings};
+  'PUT /v1/admin/settings/integrations': {access: 'owner'; request: IntegrationSettingsEdit; response: IntegrationSettings};
+  'POST /v1/mcp': {access: 'signedIn'; request: JSON; response: MCPReply};
+  'GET /v1/admin/settings/remote-access': {access: 'owner'; request: undefined; response: RemoteAccessSettings};
+  'PUT /v1/admin/settings/remote-access': {access: 'owner'; request: RemoteAccessSettingsEdit; response: RemoteAccessSettings};
   'GET /v1/admin/webhooks': {access: 'owner'; request: undefined; response: WebhookPage};
   'POST /v1/admin/webhooks': {access: 'owner'; request: WebhookCreate; response: WebhookSecret};
   'PATCH /v1/admin/webhooks/{id}': {access: 'owner'; request: WebhookEdit; response: Webhook};
@@ -2682,6 +3097,9 @@ export interface Routes {
   'PUT /v1/groups/{id}/queue': {access: 'withProfile'; request: GroupQueue; response: Room};
   'PUT /v1/groups/{id}/me': {access: 'withProfile'; request: GroupMe; response: Room};
   'DELETE /v1/groups/{id}/me': {access: 'withProfile'; request: undefined; response: undefined};
+  'GET /v1/cast/config': {access: 'withProfile'; request: undefined; response: CastConfig};
+  'POST /v1/cast/codes': {access: 'withProfile'; request: undefined; response: CastCode};
+  'POST /v1/cast/redeem': {access: 'public'; request: CastRedeem; response: SignInResponse};
   'GET /v1/items/{id}/download-options': {access: 'withProfile'; request: undefined; response: DownloadOptions};
   'GET /v1/downloads': {access: 'withProfile'; request: undefined; response: DownloadPage};
   'POST /v1/downloads': {access: 'withProfile'; request: DownloadAsk; response: Download};
@@ -2695,4 +3113,18 @@ export interface Routes {
   'GET /v1/admin/downloads': {access: 'owner'; request: undefined; response: DownloadsByPerson};
   'DELETE /v1/admin/members/{id}/downloads': {access: 'owner'; request: undefined; response: undefined};
   'GET /v1/items/{id}/book': {access: 'withProfile'; request: undefined; response: BookAnswer};
+  'GET /v1/items/{id}/annotations': {access: 'withProfile'; request: undefined; response: AnnotationPage};
+  'PUT /v1/items/{id}/annotations/{annotationId}': {access: 'withProfile'; request: AnnotationBody; response: Annotation};
+  'DELETE /v1/items/{id}/annotations/{annotationId}': {access: 'withProfile'; request: undefined; response: undefined};
+  'POST /v1/annotations:batch': {access: 'withProfile'; request: AnnotationBatch; response: AnnotationResults};
+  'GET /v1/admin/libraries/{id}/unmatched': {access: 'admin'; request: undefined; response: UnmatchedEntryPage};
+  'GET /v1/admin/items/{id}/matches': {access: 'admin'; request: undefined; response: MatchCandidates};
+  'PUT /v1/admin/items/{id}/match': {access: 'admin'; request: MatchRequest; response: MatchResult};
+  'POST /v1/admin/items/{id}/metadata/refresh': {access: 'admin'; request: undefined; response: MetadataRefreshed};
+  'POST /v1/admin/items/{id}/merge': {access: 'admin'; request: MergeRequest; response: MatchResult};
+  'POST /v1/admin/versions/{id}/split': {access: 'admin'; request: undefined; response: MatchResult};
+  'GET /v1/admin/items/{id}/metadata': {access: 'admin'; request: undefined; response: MetadataDocument};
+  'PATCH /v1/admin/items/{id}/metadata': {access: 'admin'; request: MetadataPatch; response: MetadataDocument};
+  'GET /v1/admin/items/{id}/metadata/history': {access: 'admin'; request: undefined; response: MetadataHistoryEntryPage};
+  'POST /v1/admin/items/{id}/metadata/history/{entryId}/undo': {access: 'admin'; request: undefined; response: MetadataDocument};
 }

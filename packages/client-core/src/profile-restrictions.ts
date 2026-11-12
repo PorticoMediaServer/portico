@@ -17,15 +17,16 @@ export const RATING_LIMITS: RatingSystem = Object.freeze({id: 'age', name: 'Age'
  * What a profile is kept from seeing (`Restrictions` on the wire). The server decides what is shown;
  * a screen only shows and edits this. `maximumAgeRating` is '' for no limit; an age the choices do not
  * name shows as the highest choice below it. `blockedLabels` are Tag ids (the wire still says labels).
- * `libraries` and `allLibraries` are sent back unchanged with every save, since a save replaces all of it.
- * Downloads are read as the server sends them; `accountAllowDownloads` is the account's own switch, sent back unchanged.
- * Live TV, recordings and Watch Together are not read here yet and read as allowed.
+ * The account's library and rating limits are sent back unchanged with every save.
+ * Downloads and Watch Together are read as the server sends them; the account's switches are sent back unchanged.
+ * Live TV and recordings are not read here yet and read as allowed.
  */
 export type ProfileRestrictions = Readonly<{profileId: string; ratingSystem: string; maximumAgeRating: string; maximumAge: number; allowUnrated: boolean;
   blockedLabels: readonly string[]; allLibraries: boolean; libraries: readonly string[]; accountAllLibraries: boolean; accountLibraries: readonly string[];
-  allowDownloads: boolean; accountAllowDownloads: boolean; allowLiveTv: boolean; allowDvr: boolean; allowWatchTogether: boolean}>;
-/** Allow unrated titles, downloads, Live TV, recordings and Watch Together are not sent: the server does not keep them yet. */
-export type RestrictionChanges = Partial<Omit<ProfileRestrictions, 'profileId' | 'maximumAge' | 'accountAllLibraries' | 'accountLibraries' | 'accountAllowDownloads'>>;
+  accountMaxRatingAge: number | null; accountAllowUnrated: boolean; accountBlockedLabels: readonly string[];
+  allowDownloads: boolean; accountAllowDownloads: boolean; allowLiveTv: boolean; allowDvr: boolean; allowWatchTogether: boolean; accountAllowWatchTogether: boolean}>;
+/** Editable profile limits; the account's switches are preserved from the current read. */
+export type RestrictionChanges = Partial<Omit<ProfileRestrictions, 'profileId' | 'maximumAge' | 'accountAllLibraries' | 'accountLibraries' | 'accountAllowDownloads' | 'accountAllowWatchTogether' | 'accountMaxRatingAge' | 'accountAllowUnrated' | 'accountBlockedLabels'>>;
 
 const ids = (value: unknown): string[] => Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string' && v.length > 0) : [];
 /** The choice that shows a stored age: the highest whose age is at or below it. */
@@ -38,10 +39,12 @@ export function parseRestrictions(profileId: string, raw: unknown): ProfileRestr
   const v = raw as Partial<Restrictions> | null;
   if (!v || typeof v !== 'object' || (v.maxRatingAge !== null && v.maxRatingAge !== undefined && !Number.isInteger(v.maxRatingAge))) throw new Error(unreadableServerResponse);
   const age = v.maxRatingAge ?? null, code = ratingCode(age);
-  return Object.freeze({profileId, ratingSystem: age === null ? '' : RATING_LIMITS.id, maximumAgeRating: code, maximumAge: age ?? -1, allowUnrated: false,
+  return Object.freeze({profileId, ratingSystem: age === null ? '' : RATING_LIMITS.id, maximumAgeRating: code, maximumAge: age ?? -1, allowUnrated: v.allowUnrated === true,
     blockedLabels: Object.freeze(ids(v.blockedLabels)), allLibraries: v.allLibraries !== false, libraries: Object.freeze(ids(v.libraries)),
     accountAllLibraries: v.accountAllLibraries !== false, accountLibraries: Object.freeze(ids(v.accountLibraries)),
-    allowDownloads: v.allowDownloads !== false, accountAllowDownloads: v.accountAllowDownloads !== false, allowLiveTv: true, allowDvr: true, allowWatchTogether: true});
+    accountMaxRatingAge: v.accountMaxRatingAge ?? null, accountAllowUnrated: v.accountAllowUnrated === true, accountBlockedLabels: Object.freeze(ids(v.accountBlockedLabels)),
+    allowDownloads: v.allowDownloads !== false, accountAllowDownloads: v.accountAllowDownloads !== false, allowLiveTv: true, allowDvr: true,
+    allowWatchTogether: v.allowWatchTogether !== false, accountAllowWatchTogether: v.accountAllowWatchTogether !== false});
 }
 
 /** `member` is the account id when an owner or administrator manages someone else's profile. */
@@ -53,9 +56,10 @@ export async function saveRestrictions(api: ServerRequester, current: ProfileRes
   const next = {...current, ...changes};
   const value = next.maximumAgeRating === '' ? undefined : RATING_LIMITS.values.find(option => option.code === next.maximumAgeRating);
   if (next.maximumAgeRating !== '' && !value) throw new Error('Choose one of the ratings offered.');
-  const body: Restrictions = {maxRatingAge: value ? value.minimumAge : null, blockedLabels: [...next.blockedLabels], allLibraries: next.allLibraries,
+  const body: Restrictions = {maxRatingAge: value ? value.minimumAge : null, allowUnrated: next.allowUnrated, blockedLabels: [...next.blockedLabels], allLibraries: next.allLibraries,
     libraries: [...next.libraries], accountAllLibraries: current.accountAllLibraries, accountLibraries: [...current.accountLibraries],
-    accountAllowDownloads: current.accountAllowDownloads};
+    accountMaxRatingAge: current.accountMaxRatingAge, accountAllowUnrated: current.accountAllowUnrated, accountBlockedLabels: [...current.accountBlockedLabels],
+    accountAllowDownloads: current.accountAllowDownloads, accountAllowWatchTogether: current.accountAllowWatchTogether};
   return parseRestrictions(current.profileId, await callServer(api, 'PUT /v1/profiles/{id}/restrictions', {id: current.profileId, query: {member}, body, signal}));
 }
 
