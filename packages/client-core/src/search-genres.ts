@@ -9,6 +9,7 @@ import {refuseUnknownVariant} from './tolerant.ts';
 import {readPreparation, type PreparationRequestPort, type PreparationResponse, type PreparationRuntime} from './read-preparation.ts';
 import {serverNow} from './server-clock.ts';
 import {isVersionedArtwork} from './artwork/versioned.ts';
+import {callServer, type ServerRequester} from './query/server-api.ts';
 
 export type SearchGenreArt = Readonly<{kind: 'item' | 'show'; id: string; path: string}>;
 export type SearchGenre = Readonly<{
@@ -188,6 +189,42 @@ type Predecessor = {lease: GenreLease; revision: string};
  * Previews and pages without anchors release immediately. Returned objects keep wire fields
  * only; metadata/leases live in weak maps. Parent controllers retain only bounded windows. */
 export async function readSearchGenres(api: SearchGenreApi, request: SearchGenreRequest = {}, signal?: AbortSignal,
+  options: SearchGenreReadOptions = {}): Promise<SearchGenrePage> {
+  current(signal, options.isCurrent);
+  return readRebuiltGenres(api, request, signal, options.isCurrent);
+}
+
+/** The rebuilt server's genres (`GET /v1/genres?counts=true`): the films' and shows' genres the profile may see, by
+ * name, at most 200, each with its count and one cover. A tile's slot keeps only the genres with its art: `backdrop`
+ * the cover; `covers`, two posters (`posters`, being built by the browse-reads lane: until it lands the phone draws
+ * the backdrop tile as a stopgap, not a deferral). The list is read whole and handed out a slice at a time. */
+async function readRebuiltGenres(api: SearchGenreApi, request: SearchGenreRequest, signal: AbortSignal | undefined, isCurrent: (() => boolean) | undefined): Promise<SearchGenrePage> {
+  const answer = await callServer(api as ServerRequester, 'GET /v1/genres', {query: {counts: true}, signal});
+  current(signal, isCurrent);
+  if (!object(answer) || !Array.isArray(answer.genres) || answer.genres.length > 2000) invalid();
+  const genres = answer.genres.flatMap((entry): SearchGenre[] => {
+    if (!object(entry) || !text(entry.value, 512) || !text(entry.label, 512)) return [];
+    const cover = object(entry.cover) ? entry.cover : {};
+    const backdrop = typeof cover.backdrop === 'string' ? cover.backdrop : typeof cover.poster === 'string' ? cover.poster : typeof cover.cover === 'string' ? cover.cover : undefined;
+    // Two posters from two of its titles (`posters`, each an image map), for the phone's tile.
+    const posters = (Array.isArray(entry.posters) ? entry.posters : []).flatMap(images => object(images) && typeof (images.poster ?? images.cover) === 'string' ? [String(images.poster ?? images.cover)] : []).slice(0, 2);
+    const art = (path: string): SearchGenreArt => Object.freeze({kind: 'item' as const, id: entry.value as string, path});
+    return [Object.freeze({value: entry.value, label: entry.label, count: safeCount(entry.count) ? entry.count : 0,
+      ...(backdrop ? {backdrop: art(backdrop)} : {}), covers: Object.freeze(posters.map(art))})];
+  });
+  // Stopgap, not a deferral: while the server sends no posters at all, the covers slot keeps the genres with a
+  // backdrop, which the phone draws as the backdrop tile.
+  const postersSent = answer.genres.some(entry => object(entry) && Array.isArray(entry.posters));
+  const eligible = request.preview === 'backdrop' ? genres.filter(genre => genre.backdrop)
+    : request.preview === 'covers' ? genres.filter(genre => genre.covers.length === 2 || !postersSent && genre.backdrop) : genres;
+  const limit = Math.max(1, Math.min(request.limit ?? 50, 50)), offset = request.cursor && /^o\d{1,5}$/.test(request.cursor) ? Number(request.cursor.slice(1)) : 0;
+  const shown = eligible.slice(offset, offset + limit), more = !request.preview && offset + limit < eligible.length;
+  return Object.freeze({queryId: 'genres', revision: 'genres', hasGenres: genres.length > 0, genres: Object.freeze(shown),
+    ...(more ? {nextCursor: `o${offset + limit}`} : {})}) as unknown as SearchGenrePage;
+}
+
+/** The old server's genre read: a prepared query with cursors. */
+export async function readPreparedSearchGenres(api: SearchGenreApi, request: SearchGenreRequest = {}, signal?: AbortSignal,
   options: SearchGenreReadOptions = {}): Promise<SearchGenrePage> {
   current(signal, options.isCurrent);
   searchGenresPath(request);

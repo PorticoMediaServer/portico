@@ -237,7 +237,9 @@ function SearchGenre({genre, empty, runtime, width, onPress}: {genre: NativeSear
   const t = runtime.text.t;
   const theme = useTheme(), gradient = useId();
   const tint = channelTint(genre.id);
-  if (!empty) return <GenreTile testID={`search-genre-${encodeURIComponent(genre.id)}`} title={genre.name} variant="video" width={width}
+  // Stopgap, not a deferral: until the server sends two posters per genre (being built by the browse-reads
+  // lane), a genre without them is drawn as the backdrop tile, so Browse by genre is not empty.
+  if (!empty && genre.coverPaths.length >= 2) return <GenreTile testID={`search-genre-${encodeURIComponent(genre.id)}`} title={genre.name} variant="video" width={width}
     covers={genre.coverPaths.slice(0, 2).flatMap(path => {const source = runtime.artwork(path); return source ? [source] : [];})}
     palette={{first: tint, second: tint}} onNavigate={onPress}/>;
   return <Focusable testID={`search-genre-${encodeURIComponent(genre.id)}`} accessibilityLabel={genre.name} onPress={onPress} focusRadius={12} style={{width, height: 84, borderRadius: 12, overflow: 'hidden', backgroundColor: theme.colors.raised}}>
