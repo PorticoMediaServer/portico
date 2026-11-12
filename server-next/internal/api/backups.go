@@ -102,6 +102,9 @@ func (s *Server) backupRoutes() {
 			return BackupStarted{ID: id}, err
 		}
 		id, err := s.backups.Start(false)
+		if errors.Is(err, backup.ErrPaused) {
+			return BackupStarted{}, ErrConflict("backup_running", "A scheduled backup is paused. Resume background work or wait for the pause to end, then try again.")
+		}
 		if errors.Is(err, backup.ErrRunning) {
 			return BackupStarted{}, ErrConflict("backup_running", "A backup is being made. Try again when it has finished.")
 		}

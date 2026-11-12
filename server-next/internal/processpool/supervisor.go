@@ -145,6 +145,8 @@ type Supervisor struct {
 	waitQueues       [5][]uint64
 	nextWaitID       uint64
 	backgroundNormal atomic.Bool
+	// backgroundFullCapacity changes only admission, guarded by mu.
+	backgroundFullCapacity bool
 	// notify is closed and replaced on every release, which wakes every waiter to
 	// re-check its own pool. The queues are short and only one waiter can win, so
 	// a broadcast is correct rather than wasteful.
@@ -221,13 +223,13 @@ func (s *Supervisor) limitLocked(p pool) int {
 		return max(1, DefaultPlaybackLimit)
 	}
 	if p == poolBackground {
-		if s.backgroundNormal.Load() {
+		if s.backgroundNormal.Load() || s.backgroundFullCapacity {
 			return max(1, runtime.NumCPU())
 		}
 		return max(1, DefaultBackgroundLimit)
 	}
 	if p == poolScanProbe {
-		if s.backgroundNormal.Load() {
+		if s.backgroundNormal.Load() || s.backgroundFullCapacity {
 			return max(1, runtime.NumCPU())
 		}
 		return max(1, DefaultBackgroundLimit)

@@ -105,11 +105,8 @@ func New(ctx context.Context, d *db.DB, o Options) (*Engine, error) {
 	}
 	e.shareDeviceSetting()
 	background := func(g settings.GeneralSettings) {
-		priority := "lower"
-		if g.BackgroundSpeed == "fast" {
-			priority = "normal"
-		}
-		_ = e.processes.SetBackgroundTaskPriority(priority)
+		_ = e.processes.SetBackgroundTaskPriority("lower")
+		e.processes.SetBackgroundFullCapacity(g.BackgroundSpeed == "fast")
 	}
 	background(settings.General.Get(e.settings))
 	if e.settings != nil {

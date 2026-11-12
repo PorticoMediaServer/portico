@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/processpool"
 	"github.com/PorticoMediaServer/portico/server-next/internal/settings"
 )
 
@@ -36,13 +38,26 @@ func TestBackgroundSpeedReachesTheRunningEngine(t *testing.T) {
 	if _, err := docs.Write(ctx, 0, "general", json.RawMessage(`{"backgroundSpeed":"fast"}`), -1, time.Now()); err != nil {
 		t.Fatal(err)
 	}
-	if e.processes.BackgroundTaskPriority() != "normal" {
-		t.Fatal("Fast did not reach the running supervisor")
+	if stats := e.processes.Stats(); stats.BackgroundCapacity != max(1, runtime.NumCPU()) || stats.ScanProbeCapacity != max(1, runtime.NumCPU()) {
+		t.Fatalf("Fast did not raise background capacity: %+v", stats)
+	}
+	for _, key := range []string{"analysis:priority", "scan:priority"} {
+		if err := e.processes.RunFunc(ctx, key, func(_ context.Context, lowPriority bool) error {
+			if !lowPriority {
+				t.Fatal("Fast raised background work to playback's OS priority")
+			}
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if e.processes.BackgroundTaskPriority() != "lower" {
+		t.Fatal("Fast lost the lower process priority")
 	}
 	if _, err := docs.Write(ctx, 0, "general", json.RawMessage(`{"backgroundSpeed":"gentle"}`), -1, time.Now()); err != nil {
 		t.Fatal(err)
 	}
-	if e.processes.BackgroundTaskPriority() != "lower" {
-		t.Fatal("Gentle did not restore the background priority")
+	if e.processes.BackgroundTaskPriority() != "lower" || e.processes.Stats().BackgroundCapacity != max(1, processpool.DefaultBackgroundLimit) {
+		t.Fatal("Gentle did not restore the lower background capacity and priority")
 	}
 }
