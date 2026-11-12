@@ -6,7 +6,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
 )
 
 // trackEnds is where each video and audio track of a file ends: its last packet's time plus
@@ -131,20 +134,41 @@ func TestAConvertedSongPlaysToItsLastSample(t *testing.T) {
 				t.Fatalf("AC-3 for a browser was not converted over HLS: %s audio %s", plan.Strategy, plan.AudioAction)
 			}
 			rig.ready("song")
-			rig.requireEnds(rig.trackEnds(song), rig.playedEnds(stream.Grant))
+			rig.requireEndsWithin(rig.trackEnds(song), rig.playedEnds(stream.Grant), songAllowance())
 			rig.streams.Stop("song")
 		})
 	}
 }
 
 // requireEnds fails a stream whose tracks end before the source's. A converted track's last
-// packets are cut differently: it may end a little early (an MP3 or AC-3 frame is at most
-// 36 ms, a frame of a 24 fps film 42 ms, and FFmpeg 6.1.1's AAC encoder ends a 15.5 s song
-// 59 ms early with nothing folded or carried). The loss this is for is the folded tail, 0.4 s
-// to under a second; 0.1 s holds well below it.
+// packet is cut differently, so it may end up to one packet early (an MP3 or AC-3 frame is
+// at most 36 ms, a frame of a 24 fps film 42 ms); anything more is the end of the title lost.
 func (r *mediaRig) requireEnds(source, played map[string]float64) {
 	r.t.Helper()
-	const packet = 0.1
+	r.requireEndsWithin(source, played, 0.05)
+}
+
+// songAllowance is how early a converted song may end. FFmpeg 6 and older's AAC encoder ends
+// a 15.5 s song 59 ms early with nothing folded or carried (FFmpeg 6.1.1, on the CI runner),
+// which is the encoder's last frames and not a lost tail (0.4 s or more); newer FFmpegs end it
+// within one packet, so they are held to that.
+func songAllowance() float64 {
+	if facts := decoder.CurrentToolchain(); facts != nil && olderThanFFmpeg7(facts.Version) {
+		return 0.1
+	}
+	return 0.05
+}
+
+// olderThanFFmpeg7 reads FFmpeg's major version from its version text ("6.1.1-3ubuntu5",
+// "8.1.3-Portico"); one it cannot read counts as new.
+func olderThanFFmpeg7(version string) bool {
+	major, err := strconv.Atoi(strings.TrimLeft(strings.SplitN(version, ".", 2)[0], "nN"))
+	return err == nil && major < 7
+}
+
+// requireEndsWithin is requireEnds with the allowance given.
+func (r *mediaRig) requireEndsWithin(source, played map[string]float64, packet float64) {
+	r.t.Helper()
 	for kind, end := range source {
 		got, ok := played[kind]
 		if !ok {
