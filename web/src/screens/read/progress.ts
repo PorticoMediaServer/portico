@@ -4,10 +4,14 @@ import type {ReaderMountAuthority} from './mount';
 
 /** Only observed engine locations enter the canonical CAS writer. A conflict
  * never overwrites a newer server position or manufactures saved progress. */
-export function bindReadingProgress({controller, session, initial, authority, reportError}: Readonly<{
+export function bindReadingProgress({controller, session, initial, authority, reportError, held = false}: Readonly<{
   controller: ReadingController; session: Pick<ReadingSession, 'manifest' | 'signal' | 'saveProgress'>; initial: ReadingProgress;
   authority: ReaderMountAuthority; reportError: (error: unknown) => void;
+  /** While the book is taken near a place from another file, nothing is saved: that place stays
+   * until the person moves on from where they land (landed() marks the landing). */
+  held?: boolean;
 }>) {
+  let holding = held;
   let expectedRevision = initial.progress?.revision ?? 0;
   let accepting = true, blocked = false, timer: ReturnType<typeof setTimeout> | undefined;
   let pending: ReturnType<typeof readingLocationFromReader> | undefined;
@@ -40,7 +44,9 @@ export function bindReadingProgress({controller, session, initial, authority, re
       || snapshot.sourceId !== session.manifest.sourceId || snapshot.sourceRevision !== session.manifest.revision) return;
     const location = readingLocationFromReader(snapshot.location), key = JSON.stringify(location);
     if (key === observed) return;
-    observed = key; pending = location;
+    observed = key;
+    if (holding) return;
+    pending = location;
     if (timer === undefined) timer = setTimeout(() => {timer = undefined; void flush();}, 1000);
   };
   const off = controller.subscribe(update);
@@ -53,6 +59,12 @@ export function bindReadingProgress({controller, session, initial, authority, re
     stopping = (save ? flush() : Promise.resolve()).finally(() => {clearTimeout(deadline); life.abort(); pending = undefined;});
     return stopping;
   };
+  const landed = () => {
+    if (!holding) return;
+    holding = false;
+    const snapshot = controller.getSnapshot();
+    if (snapshot.status === 'ready' && snapshot.location) observed = JSON.stringify(readingLocationFromReader(snapshot.location));
+  };
   update();
-  return Object.freeze({flush, stop});
+  return Object.freeze({flush, stop, landed});
 }

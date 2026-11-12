@@ -73,7 +73,9 @@ export function readerCurrentContentsId(items: readonly ReaderTocItem[], locatio
 type ReaderSearchScope = Readonly<{query: string; active: boolean; abort: AbortController}>;
 export type ReaderBookState = Readonly<{publication: ReadingPublication; controller: ReadingController; authority: ReaderMountAuthority; location?: ReaderLocation; contentsTarget?: ReaderContentsTarget; annotations?: ReadingAnnotationPort;
   /** How far through the person was in another file of this book (a replaced file, another version). */
-  near?: number}>;
+  near?: number;
+  /** Told when the book has landed near that place, so moving on from there is saved. */
+  landed?: () => void}>;
 /** A place saved in another file of this book cannot be used exactly; the book opens as far
  * through as it was instead (10-reading rule 14). */
 export const readerNear = (saved: ReadingProgress): number | undefined => saved.progress?.stale ? saved.progress.location.progression : undefined;
@@ -140,8 +142,8 @@ export function ReaderBook({book, active, reportError, onBack, onOpenSettings, o
   }, [book.contentsTarget, publication, authority, controller]);
   // 10-reading rule 14: a place from another file of this book opens as far through this one, and says so.
   const [nearNotice, setNearNotice] = useState<ToastData | null>(null);
+  const {near, landed} = book;
   useEffect(() => {
-    const near = book.near;
     if (near === undefined) return;
     const operation = new AbortController(); let applied = false;
     const apply = () => {
@@ -149,11 +151,12 @@ export function ReaderBook({book, active, reportError, onBack, onOpenSettings, o
       applied = true;
       void controller.navigate({kind: 'progression', value: near}, operation.signal)
         .then(() => {if (!operation.signal.aborted && authority.isCurrent()) setNearNotice({id: 'near', message: t('next.reader.openedNear')});})
-        .catch(error => {if (!operation.signal.aborted && authority.isCurrent()) contentsError.current(error);});
+        .catch(error => {if (!operation.signal.aborted && authority.isCurrent()) contentsError.current(error);})
+        .finally(() => {if (!operation.signal.aborted) landed?.();});
     };
     const off = controller.subscribe(apply); apply();
     return () => {operation.abort(); off();};
-  }, [book.near, authority, controller]);
+  }, [near, landed, authority, controller]);
   const engineError = useCallback((code: ReaderErrorCode) => reportError({code}), [reportError]);
   const layout = readerBookPresentation(width, environment, height), {presentation} = layout;
   const compactDocument = publication.format === 'pdf' && presentation === 'phone';

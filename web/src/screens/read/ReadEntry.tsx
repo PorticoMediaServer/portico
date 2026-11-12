@@ -26,7 +26,7 @@ import {ReadOpenFailure, readFailureKind, readFailureReported, type ReadFailureK
 const {t} = defaultI18n;
 type Captured = NonNullable<ReturnType<typeof useProtectedWebScreenContext>>;
 type OpenBook = Readonly<{session: ReadingSession; publication: ReadingPublication; controller: ReadingController;
-  authority: ReaderMountAuthority; location?: ReaderLocation; near?: number; contentsTarget?: ReaderContentsTarget; annotations?: ReadingSession}>;
+  authority: ReaderMountAuthority; location?: ReaderLocation; near?: number; landed?: () => void; contentsTarget?: ReaderContentsTarget; annotations?: ReadingSession}>;
 type ReadEntryProps = {captured: Captured; itemId: string; sourceId?: string; active?: boolean; onClose?: () => void};
 type ReceiverOpening = {context: Captured['context']; itemId: string; sourceId?: string; location: typeof router.state.location;
   carriedLocation?: typeof router.state.location; settingsLocation?: typeof router.state.location;
@@ -164,13 +164,15 @@ function ReadEntryBody({captured, itemId, sourceId, active = true, onClose, rece
       const adapters = publication.format === 'epub' ? [createEpubAdapter({fonts: fonts!.fonts, unreadable: t('next.reader.unreadableSection')})]
         : publication.format === 'pdf' ? [createPdfAdapter(readerPdfAdapterOptions)] : [createComicAdapter({format: publication.format, unreadable: t('next.reader.unreadablePage'), pages: publication.comicPages!})];
       reader = bindReadPreferences({adapters, preferences: bindings.preferences, authority: bindings.authority, reportError: code => reportError({code})});
-      progress = bindReadingProgress({controller: reader.controller, session, initial: saved, authority: bindings.authority, reportError});
+      // An open with its own target (a chapter from the contents) goes there instead of near the old place.
+      const near = contentsTarget ? undefined : readerNear(saved);
+      progress = bindReadingProgress({controller: reader.controller, session, initial: saved, authority: bindings.authority, reportError, held: near !== undefined});
       // RD-7: the client already reopened an ended session once, transparently; if the session ends
       // anyway, leave the book for the ended page with Open again (which resumes at the saved place).
       session.signal.addEventListener('abort', () => {
         if (alive && !life.signal.aborted && currentReading() && readFailureKind(session.signal.reason) === 'ended') {setState({failed: 'ended'}); void dispose().catch(() => {});}
       }, {once: true, signal: life.signal});
-      setState({book: {session, publication, controller: reader.controller, authority: bindings.authority, location, near: readerNear(saved), contentsTarget, ...(session.manifest.canAnnotate === true ? {annotations:session} : {})}});
+      setState({book: {session, publication, controller: reader.controller, authority: bindings.authority, location, near, landed: progress.landed, contentsTarget, ...(session.manifest.canAnnotate === true ? {annotations:session} : {})}});
     })().catch(error => {
       // A rejected bootstrap must never leave the reader on its loading skeleton. This attempt is
       // still the live one unless it was retired, so show the failure state; report only while the
