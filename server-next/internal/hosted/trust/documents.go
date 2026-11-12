@@ -39,6 +39,8 @@ type Identity struct {
 	Pictures []Picture `json:"pictures"`
 	// PasswordChecked is signed by Services only after checking the password typed with this note request.
 	PasswordChecked bool `json:"passwordChecked,omitempty"`
+	// ProviderChecked is signed only after a fresh, one-use provider proof for an account without a password.
+	ProviderChecked bool `json:"providerChecked,omitempty"`
 }
 
 // Picture is one profile's picture. ProfileID names a profile on this server; it is empty
