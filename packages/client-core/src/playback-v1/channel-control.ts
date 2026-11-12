@@ -138,10 +138,11 @@ export type ChannelAttachment = Readonly<{generation: number; key: string; seekI
 const engineMode = (s: Session): 'direct' | 'hls' =>
   s.kind === 'live' ? (s.presentation.route === 'original' ? 'direct' : 'hls') : s.presentation.mode === 'direct' ? 'direct' : 'hls';
 /**
- * Where a live stream is joined: its live edge. Live HLS is read by its program dates from the window's oldest moment, so the
- * edge is that far along; a live source's own stream starts where this device joined it, at media time 0.
+ * Where a live stream is joined: its live edge, now. Live HLS is read by its program dates from the window's oldest moment, so
+ * the edge is that far along, and never earlier than the server's time (a window read a while ago is behind it); a live
+ * source's own stream starts where this device joined it, at media time 0.
  */
-const liveJoinMs = (s: Session) => engineMode(s) === 'hls' && s.window ? s.window.liveAtMs - s.window.oldestAtMs : 0;
+const liveJoinMs = (s: Session, serverNow: number) => engineMode(s) === 'hls' && s.window ? Math.max(s.window.liveAtMs, serverNow) - s.window.oldestAtMs : 0;
 
 /** The session as the channel projection `PlaybackService.applyChannel` reads. */
 export function channelView(s: Session, channel: ChannelReference, at: ChannelAttachment, timing: Readonly<{now: number; serverNow: number}>): ChannelView {
@@ -384,7 +385,7 @@ export class V1ChannelControl implements ChannelPlayback {
       if (!s.presentation.url || s.presentation.generation <= 0) return;
       // A new stream (the start, or the server's new presentation): the engine joins it where the
       // server starts it; a live stream from its live edge.
-      a.at = Object.freeze({generation: a.at.generation + 1, key, seekId: this.key(), targetMs: s.kind === 'title' ? s.presentation.startPositionMs : liveJoinMs(s)});
+      a.at = Object.freeze({generation: a.at.generation + 1, key, seekId: this.key(), targetMs: s.kind === 'title' ? s.presentation.startPositionMs : liveJoinMs(s, this.serverNow())});
       a.joined = true;
       this.scheduleRetune(a, s);
     }
@@ -452,7 +453,7 @@ export class V1ChannelControl implements ChannelPlayback {
   }
   /** A live stream joined again from its live edge: a new attachment of the same stream. */
   private reload(a: Active) {
-    a.at = Object.freeze({generation: a.at.generation + 1, key: a.at.key, seekId: this.key(), targetMs: a.session ? liveJoinMs(a.session) : 0});
+    a.at = Object.freeze({generation: a.at.generation + 1, key: a.at.key, seekId: this.key(), targetMs: a.session ? liveJoinMs(a.session, this.serverNow()) : 0});
     this.emit(a);
   }
 
