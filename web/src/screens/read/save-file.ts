@@ -1,27 +1,17 @@
 import type {ReadingSession} from '@portico/client-core';
-import {randomId} from '@core/random-id.ts';
 
-/** Save only fully received, checked original bytes. No public network URL,
- * native download receipt, detached server transfer or second Reader session. */
+/** Saves the book's own file, of any size (10-reading rule 45): the browser follows the server's
+ * save address and downloads the file itself under its own name, so nothing is held in the page.
+ * The address belongs to this book and this sign-in, and only a profile allowed to download has one. */
 export async function saveReadingFile(session: ReadingSession, signal: AbortSignal, current: () => boolean): Promise<void> {
   const check = () => {
     if (signal.aborted || session.signal.aborted || !current()) throw new DOMException('Reading source retired', 'AbortError');
   };
   check();
-  const bytes = await session.saveFile(randomId(), signal);
+  const address = await session.saveAddress(signal);
   check();
-  if (!(bytes.buffer instanceof ArrayBuffer)) throw new Error('invalid_response');
-  const blob = new Blob([bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)], {type: 'application/octet-stream'});
-  const url = URL.createObjectURL(blob);
-  try {
-    check();
-    const link = document.createElement('a');
-    link.href = url; link.download = 'publication'; link.rel = 'noopener noreferrer';
-    link.referrerPolicy = 'no-referrer'; link.hidden = true;
-    document.body.appendChild(link);
-    try {check(); link.click();} finally {link.remove();}
-  } catch (error) {URL.revokeObjectURL(url); throw error;}
-  // The browser owns already-received bytes after the explicit click, while
-  // the temporary object URL remains bounded and is never persisted.
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  const link = document.createElement('a');
+  link.href = address; link.rel = 'noopener noreferrer'; link.referrerPolicy = 'no-referrer'; link.hidden = true;
+  document.body.appendChild(link);
+  try {link.click();} finally {link.remove();}
 }
