@@ -71,6 +71,8 @@ type stream struct {
 	// audioEnds is, by audio rendition, the first slot a converter that exited cleanly
 	// did not write: that track has no media from there (it is shorter than the title).
 	audioEnds map[int]int
+	// audioCutShort counts, by audio rendition, the runs that lost their remote source.
+	audioCutShort map[int]int
 	// served is the furthest segment handed to the viewer: the position the
 	// throttle and the per-stream storage ceiling are measured against.
 	served int

@@ -143,7 +143,7 @@ func (f remoteFile) openWindow(ctx context.Context, ffmpeg, ffprobe string, proc
 	// The remote server chooses the bytes. Held to single-file formats, they cannot be a
 	// playlist that sends the converter to another address.
 	options := []string{"-format_whitelist", mediaexec.LocalInputFormats}
-	window := &bridgeWindow{bridge: bridge, ffmpeg: ffmpeg, ffprobe: ffprobe, processes: processes, libraries: libraries}
+	window := &bridgeWindow{bridge: bridge, reader: reader, ffmpeg: ffmpeg, ffprobe: ffprobe, processes: processes, libraries: libraries}
 	return &PlaybackInput{ReleaseSource: reader.Close, Options: options}, window, nil
 }
 
@@ -154,11 +154,22 @@ type sequentialReaderAt struct {
 	file remote.File
 	body io.ReadCloser
 	pos  int64
+	// broken says the last read failed: a converter that then exits has lost its source,
+	// not reached the end of the file.
+	broken bool
 }
 
-func (r *sequentialReaderAt) ReadAt(p []byte, off int64) (int, error) {
+// lostSource says the reading ended in a failure no later read made good.
+func (r *sequentialReaderAt) lostSource() bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	return r.broken
+}
+
+func (r *sequentialReaderAt) ReadAt(p []byte, off int64) (n int, err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	defer func() { r.broken = err != nil && !errors.Is(err, io.EOF) }()
 	size := r.file.Size()
 	if off >= size {
 		return 0, io.EOF
@@ -174,7 +185,7 @@ func (r *sequentialReaderAt) ReadAt(p []byte, off int64) (int, error) {
 		}
 		r.body, r.pos = body, off
 	}
-	n, err := io.ReadFull(r.body, p[:min(int64(len(p)), size-off)])
+	n, err = io.ReadFull(r.body, p[:min(int64(len(p)), size-off)])
 	r.pos += int64(n)
 	if err != nil {
 		r.body.Close()
@@ -202,6 +213,7 @@ func (r *sequentialReaderAt) Close() error {
 // the session's folder. Each run reserves the bridge's port until the tool has really exited.
 type bridgeWindow struct {
 	bridge          *inputbridge.Bridge
+	reader          *sequentialReaderAt
 	ffmpeg, ffprobe string
 	processes       *processpool.Supervisor
 	libraries       []string
@@ -232,3 +244,13 @@ func (w *bridgeWindow) Run(ctx context.Context, dir string, build func(string) (
 }
 
 func (w *bridgeWindow) Close() error { return w.bridge.Close() }
+
+// lostSource says the converter's last read of the remote file failed.
+func (w *bridgeWindow) lostSource() bool { return w.reader != nil && w.reader.lostSource() }
+
+// sourceLost says a run's remote input ended in a failure: its converter exiting cleanly
+// then is not the end of the title. A local file's end is the file's.
+func sourceLost(input subtitles.WindowInput) bool {
+	lost, ok := input.(interface{ lostSource() bool })
+	return ok && lost.lostSource()
+}

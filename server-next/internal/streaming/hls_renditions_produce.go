@@ -416,24 +416,47 @@ func (h *HLS) produceRendition(ctx context.Context, id string, r AudioRenditionP
 	}
 
 	h.mu.Lock()
-	throttled, relocating := w.throttled, w.relocating
+	throttled, relocating, progressed := w.throttled, w.relocating, w.produced >= from
 	h.mu.Unlock()
 	if err != nil && !throttled && ctx.Err() == nil {
 		failed(classifyConverterFailure(tail.String()))
 	}
-	// FFmpeg also exits 0 when its source stops early (a file cut short, a connection
-	// dropped half way), but then it says so on standard error; the true end of a track
-	// is silent. A film must never end early, so only a silent converter is taken to have
-	// reached the end: its last slot is whole without a tail, and what it did not write the
-	// track does not have. Otherwise the next request starts it again (playback rule 76a).
-	silent := err == nil && !throttled && !relocating && ctx.Err() == nil && strings.TrimSpace(tail.String()) == ""
-	if carryErr := carryTail(dir, slotName, plan.Duration, silent); carryErr != nil && ctx.Err() == nil {
+	// A clean exit is the end of the track, whatever the converter printed on the way: its
+	// last slot is whole without a tail, and what it did not write the track does not have.
+	// The one exception is a remote source that failed under it (FFmpeg exits 0 then too):
+	// that run lost its source, and the next request starts it again (playback rule 76a), a
+	// few times in a row and then the track fails, as a converter that keeps dying does.
+	clean := err == nil && !throttled && !relocating && ctx.Err() == nil
+	cutShort := clean && remoteInput != nil && sourceLost(remoteInput)
+	if carryErr := carryTail(dir, slotName, plan.Duration, clean && !cutShort); carryErr != nil && ctx.Err() == nil {
 		failed(FailureConverter)
 		return
 	}
-	if silent {
+	switch {
+	case cutShort && h.renditionCutShort(id, r, progressed) >= converterDeaths:
+		failed(FailureSourceUnreadable)
+	case clean && !cutShort:
 		h.noteRenditionEnd(id, r, dir, from, hlsSegmentCount(plan.Duration))
 	}
+}
+
+// renditionCutShort counts a track's runs in a row that lost their remote source without a
+// new slot in between, and says how many there have been.
+func (h *HLS) renditionCutShort(id string, r AudioRenditionPlan, progressed bool) int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	s := h.streams[id]
+	if s == nil {
+		return 0
+	}
+	if s.audioCutShort == nil {
+		s.audioCutShort = map[int]int{}
+	}
+	if progressed {
+		s.audioCutShort[r.Ordinal] = 0
+	}
+	s.audioCutShort[r.Ordinal]++
+	return s.audioCutShort[r.Ordinal]
 }
 
 // noteRenditionEnd is a converter that ran to its end silently, without being stopped:
