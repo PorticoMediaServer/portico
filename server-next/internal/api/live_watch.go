@@ -190,7 +190,16 @@ func (s *Server) watchSourceChannel(r *http.Request, ch db.LiveChannel, asked st
 			s.viewings.Stop(v.ID, c.Viewer.UserID)
 			return PlaybackSession{}, playbackError(err)
 		}
-		s.viewings.SetPlay(v.ID, play)
+		if !s.viewings.SetPlay(v.ID, play) {
+			// The viewing ended while its channel was being measured (the device started
+			// again, or the session was stopped): its Ended came before there was anything to
+			// stop, so what was just made is stopped here, or it would hold its place against
+			// the owner's limit on conversions until a restart.
+			if play != nil {
+				s.liveHLS.StopLive(v.ID)
+			}
+			return PlaybackSession{}, ErrNotFound()
+		}
 		v.Play = play
 	}
 	out := s.liveSessionOut(*v)
