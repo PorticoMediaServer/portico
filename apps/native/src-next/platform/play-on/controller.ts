@@ -4,7 +4,6 @@ import type {CastDockIdentity} from '../../kit/dock';
 import type {CastSnapshot} from '../../../../../packages/client-core/src/cast';
 import {HandoffController, type HandoffPhase, type HandoffSnapshot, type PlayOnDevice} from '../../../../../packages/client-core/src/remote-playback';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
-import type {QueueEntry} from '../../../../../packages/client-core/src/playback-v1/types';
 import type {LocalSession} from '../../../../../packages/client-core/src/index';
 import {sameFence, type DockPlayback, type PlaybackFence, type RemoteDock} from '../../../../../packages/player-core/src';
 import {NativeCastCaller, type NativeCastState} from './cast';
@@ -30,9 +29,8 @@ export type PlayOnRemote = Readonly<{
   itemId?: string;
   /** Captured display facts belong only to this item, never a later local title. */
   entry?: ContentEntry;
-  /** The receiving device's next entry. The server's read of it is being built; until it
-   * lands this stays empty and the bar shows no next-up line. */
-  next?: QueueEntry;
+  /** What the receiving device plays next, as the server reads its queue. */
+  next?: Readonly<{itemId: string; title: string; available: boolean}>;
   positionSeconds: number;
   positionKnown: boolean;
   durationSeconds: number;
@@ -279,8 +277,7 @@ export class NativePlayOn {
       const stopped = report.state === 'ended';
       this.publish({remote: {...current, positionSeconds: report.positionMs / 1000,
         positionKnown: !stopped, itemId: report.itemId, entry: report.itemId === current.entry?.id ? current.entry : undefined,
-        // next: the receiving device's next entry slots in here once the server's read carries it.
-        next: undefined,
+        next: report.next && !stopped ? {...report.next, available: true} : undefined,
         durationSeconds: report.durationMs ? report.durationMs / 1000 : report.itemId === current.itemId ? current.durationSeconds : 0,
         playing: report.state === 'playing', stopped, allows: report.state === 'playing' || report.state === 'paused' ? ALL : NONE, title: report.title,
         ...(report.deviceName ? {device: report.deviceName} : {})}});

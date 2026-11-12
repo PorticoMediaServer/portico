@@ -336,11 +336,14 @@ test('a stale command is not carried out again when the TV reads its session lat
 test('the list leaves this device out and keeps what another device plays, unnamed when this profile may not see it', () => {
   const list = parseReceivers({items: [
     {id: 'dev_me', name: 'Phone', current: true, allowed: false},
-    {id: 'dev_tv', name: 'Living room', platform: 'androidtv', current: false, allowed: true, playing: {id: 'ps_1', deviceId: 'dev_tv', deviceName: 'Living room', kind: 'vod', state: 'paused', positionMs: 5000, startedAt: 'x', current: false}},
+    {id: 'dev_tv', name: 'Living room', platform: 'androidtv', current: false, allowed: true, playing: {id: 'ps_1', deviceId: 'dev_tv', deviceName: 'Living room', kind: 'vod', state: 'paused', positionMs: 5000, startedAt: 'x', current: false,
+      next: {itemId: 'ep2', title: 'Episode two'}}},
+    {id: 'dev_kids', name: 'Kids room', current: false, allowed: false, playing: {id: 'ps_2', deviceId: 'dev_kids', deviceName: 'Kids room', kind: 'vod', state: 'playing', positionMs: 0, startedAt: 'x', current: false}},
   ]});
-  assert.equal(list.length, 1);
+  assert.equal(list.length, 2);
   assert.deepEqual(list[0], {id: 'dev_tv', displayName: 'Living room', platform: 'androidtv', allowed: true,
-    playing: {sessionId: 'ps_1', deviceName: 'Living room', state: 'paused', positionMs: 5000}});
+    playing: {sessionId: 'ps_1', deviceName: 'Living room', state: 'paused', positionMs: 5000, next: {itemId: 'ep2', title: 'Episode two'}}});
+  assert.deepEqual(list[1]!.playing, {sessionId: 'ps_2', deviceName: 'Kids room', state: 'playing', positionMs: 0}, 'no title and no next when this profile may not see them');
 });
 
 test('the change feed\'s receiver and playback topics reach remote playback', () => {
