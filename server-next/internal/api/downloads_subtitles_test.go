@@ -70,7 +70,7 @@ func TestACopysSubtitlesAreReadInOnePass(t *testing.T) {
 	}
 	args = append(args, maps...)
 	// Noise, lossless, so the file is several MiB: more than the four 1 MiB blocks the source keeps.
-	args = append(args, "-c:v", "libx264", "-qp", "0", "-c:a", "aac", "-c:s", "srt", "-shortest", clip)
+	args = append(args, "-c:v", "libx264", "-qp", "0", "-c:a", "aac", "-c:s", "srt", clip)
 	if out, err := exec.Command("ffmpeg", args...).CombinedOutput(); err != nil {
 		t.Fatalf("making the clip failed: %v %s", err, out)
 	}

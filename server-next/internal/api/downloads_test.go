@@ -53,11 +53,13 @@ func makeClip(t *testing.T, path, subtitle string) {
 	srt := filepath.Join(t.TempDir(), "inside.srt")
 	os.WriteFile(srt, []byte("1\n00:00:00,000 --> 00:00:01,500\n"+subtitle+"\n"), 0o600)
 	// A limit, so that an ffmpeg that never finishes fails this test by name, not the whole run.
+	// No -shortest: both sources already end at two seconds, and with that option and a
+	// subtitle input FFmpeg 8.1.3 now and then never finishes (about 1 run in 50).
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=25:duration=2",
 		"-f", "lavfi", "-i", "sine=frequency=440:duration=2", "-i", srt, "-map", "0", "-map", "1", "-map", "2",
-		"-c:v", "libx264", "-b:v", "3M", "-c:a", "aac", "-c:s", "srt", "-metadata:s:s:0", "language=eng", "-shortest", path)
+		"-c:v", "libx264", "-b:v", "3M", "-c:a", "aac", "-c:s", "srt", "-metadata:s:s:0", "language=eng", path)
 	out, err := cmd.CombinedOutput()
 	if ctx.Err() != nil {
 		t.Fatalf("ffmpeg had not finished making a two-second test clip after 2 minutes, and was stopped: %s", out)
