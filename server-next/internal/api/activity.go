@@ -48,6 +48,29 @@ type NowPlaying struct {
 	Route     string            `json:"route"`
 	Delivery  PlaybackDecisions `json:"delivery"`
 	StartedAt time.Time         `json:"startedAt"`
+	// BufferingSince is when the player said it was waiting for the stream (State is then
+	// buffering), and Problem says it has waited ProblemAfter or more: it is listed first.
+	BufferingSince *time.Time `json:"bufferingSince,omitempty"`
+	Problem        bool       `json:"problem,omitempty"`
+}
+
+// ProblemAfter is how long a player waits for its stream before Now playing calls it a
+// problem. The definition does not say what a problem is (area 12 rule 7): this is the lead's
+// choice, long enough that a seek or a start's own loading is not one.
+const ProblemAfter = 10 * time.Second
+
+// sortNowPlaying is Now playing's one order, which the activity popover shows too (area 12
+// rules 7 and 9): a problem first, then conversions, then the newest start.
+func sortNowPlaying(items []NowPlaying) {
+	slices.SortStableFunc(items, func(a, b NowPlaying) int {
+		if problem := cmp.Compare(btoi(b.Problem), btoi(a.Problem)); problem != 0 {
+			return problem
+		}
+		if converting := cmp.Compare(btoi(b.Route == playback.RouteConverted), btoi(a.Route == playback.RouteConverted)); converting != 0 {
+			return converting
+		}
+		return b.StartedAt.Compare(a.StartedAt)
+	})
 }
 
 // StreamStop is what the viewer is told when the owner or an administrator stops a stream.
@@ -106,8 +129,9 @@ func (s *Server) activityRoutes() {
 	})
 }
 
-// nowPlaying lists every stream: conversions first, then the newest start. Paused streams
-// count; a title in a library the asking administrator's account does not have is unnamed.
+// nowPlaying lists every stream, titles and channels watched, in sortNowPlaying's order.
+// Paused streams count; a title in a library the asking administrator's account does not
+// have is unnamed.
 func (s *Server) nowPlaying(r *http.Request, _ None) (Page[NowPlaying], error) {
 	sessions := s.playback.All()
 	ids, profiles := make([]int64, len(sessions)), make([]int64, len(sessions))
@@ -126,12 +150,6 @@ func (s *Server) nowPlaying(r *http.Request, _ None) (Page[NowPlaying], error) {
 	if err != nil {
 		return Page[NowPlaying]{}, err
 	}
-	slices.SortStableFunc(sessions, func(a, b playback.Session) int {
-		if converting := cmp.Compare(btoi(b.Plan.Route == playback.RouteConverted), btoi(a.Plan.Route == playback.RouteConverted)); converting != 0 {
-			return converting
-		}
-		return b.StartedAt.Compare(a.StartedAt)
-	})
 	out := Page[NowPlaying]{Items: make([]NowPlaying, 0, len(sessions))}
 	for _, v := range sessions {
 		person := people[v.ProfileID]
@@ -151,15 +169,18 @@ func (s *Server) nowPlaying(r *http.Request, _ None) (Page[NowPlaying], error) {
 			}
 		}
 		item.ConvertingToHeight = v.Plan.ConvertingToHeight
+		if !v.BufferingSince.IsZero() {
+			since := v.BufferingSince.UTC()
+			item.State, item.BufferingSince, item.Problem = playback.StateBuffering, &since, s.now().Sub(v.BufferingSince) >= ProblemAfter
+		}
 		out.Items = append(out.Items, item)
 	}
 	channels, err := s.nowWatchingLive(r)
 	if err != nil {
 		return Page[NowPlaying]{}, err
 	}
-	// A channel watched has no conversion state to order by beside the titles: the newest
-	// start first among them, after the titles' own order.
 	out.Items = append(out.Items, channels...)
+	sortNowPlaying(out.Items)
 	return out, nil
 }
 
