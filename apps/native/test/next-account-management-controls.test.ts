@@ -27,6 +27,7 @@ async function fixture() {
     '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
     '../../../../../packages/client-core/src/presentation/errors': {presentError: (error: Error) => ({title: 'Error', body: error.message})},
     '../../../../../packages/client-core/src/profile-management': {PROFILE_ART: ['blue', 'violet', 'mint', 'coral', 'gold', 'slate', 'rose', 'sky'],
+      nextProfileArt: (await import('../../../packages/client-core/src/profile-management.ts')).nextProfileArt,
       ManagedProfilesClient: class {async list() {return profiles;} async create(...args: unknown[]) {calls.push(['create', ...args]);} async edit(...args: unknown[]) {calls.push(['edit', ...args]);}}},
     '../../../../../packages/client-core/src/identity-client': {IdentityClient: class {
       async avatars() {return [];} async restrictions() {return restrictions;} async ratingSystems() {return [{id: 'ratings', values: []}];}
@@ -79,6 +80,18 @@ test('profile Add and Rename submit the chosen color and preselect the current c
     const dialog = nodes(f.tree()).find(value => value.type === 'Dialog' && value.props.testID === 'profile-rename');
     await act(() => button(dialog, 'action.save').props.onPress());
     assert.deepEqual(f.calls.find(call => call[0] === 'edit')?.[2], {name: 'Profile', art: 'gold'});
+  } finally {await f.host.unmount();}
+});
+
+test('a new profile nobody coloured sends no colour, so the server gives the first unused one, which is the one shown', async () => {
+  const f = await fixture(); await act(() => f.host.mount());
+  try {
+    await act(() => button(f.tree(), 'profile.add').props.onPress());
+    await act(() => byID(f.tree(), 'profile-add-name').props.onChangeText('Cinema'));
+    // The account's one profile is violet, so the server's pick is blue, the first unused.
+    assert.equal(byID(f.tree(), 'profile-add-colors').props.value, 'blue');
+    await act(() => button(byID(f.tree(), 'profile-add'), 'action.save').props.onPress());
+    assert.deepEqual(f.calls.find(call => call[0] === 'create'), ['create', 'Cinema', undefined], 'untouched: no colour is sent');
   } finally {await f.host.unmount();}
 });
 

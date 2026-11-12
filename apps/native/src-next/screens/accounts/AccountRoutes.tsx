@@ -5,7 +5,7 @@ import {Dimensions, Platform, Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
 import {profilePinFailureText} from './profile-pin-failure';
-import {ManagedProfilesClient, parseDirectSnapshot, type ManagedProfile, type ProfileArt, type ProfileDeletion} from '../../../../../packages/client-core/src/profile-management';
+import {ManagedProfilesClient, nextProfileArt, parseDirectSnapshot, type ManagedProfile, type ProfileArt, type ProfileDeletion} from '../../../../../packages/client-core/src/profile-management';
 import {routePath} from '../../../../../packages/contracts/src/routes';
 import {IdentityClient} from '../../../../../packages/client-core/src/identity-client';
 import type {ProfileRestrictions, RatingSystem} from '../../../../../packages/client-core/src/identity-restrictions';
@@ -100,7 +100,8 @@ export function ProfileRoute({context, route, onBack, embedded = false}: {contex
   const editDraftRef = useRef({name: '', pin: '', again: ''});
   const [addition, setAddition] = useState<ProfileAddOpening>(), additionRef = useRef<ProfileAddOpening | undefined>(undefined);
   const [addName, setAddName] = useState(''), addNameRef = useRef('');
-  const [addArt, setAddArt] = useState<ProfileArt>('blue'), [artDraft, setArtDraft] = useState<ProfileArt>('blue');
+  // A new profile's colour is sent only once chosen; until then the server's pick (the first unused) is shown.
+  const [addArt, setAddArt] = useState<ProfileArt>(), [artDraft, setArtDraft] = useState<ProfileArt>('blue');
   const [actionBusy, setActionBusy] = useState(false), [problem, setProblem] = useState(''), [notice, setNotice] = useState('');
   const [lease, setLease] = useState<ProfileLease>();
   const activeTicket = useRef<AbortController | undefined>(undefined);
@@ -207,7 +208,7 @@ export function ProfileRoute({context, route, onBack, embedded = false}: {contex
     // The Add controls are not rendered at the 8-profile limit, so that case never reaches here.
     if (activeTicket.current || profiles.length >= 8) return;
     if (!manage || !lease?.current()) {setProblem(presentError(staleProfiles(), 'profiles').body); return;}
-    const next = {lease}; retireAddition(); additionRef.current = next; setAddition(next); setAddArt('blue'); setProblem(''); setNotice('');
+    const next = {lease}; retireAddition(); additionRef.current = next; setAddition(next); setAddArt(undefined); setProblem(''); setNotice('');
   };
   const closeAddition = () => {if (additionCurrent()) {activeTicket.current?.abort(); retireAddition();}};
   const closeEdit = () => {if (editorCurrent()) {activeTicket.current?.abort(); retireEditor();}};
@@ -397,7 +398,7 @@ export function ProfileRoute({context, route, onBack, embedded = false}: {contex
     <Dialog testID="profile-add" open={additionCurrent()} onOpenChange={open => {if (!open) closeAddition();}} title={t('profile.addTitle')}
       footer={<View style={{flexDirection: 'row', gap: 8}}><Button focusId="cancel" variant="glass" disabled={actionBusy} onPress={closeAddition}>{t('action.cancel')}</Button><Button focusId="save" loading={actionBusy} disabled={!addName.trim()} onPress={submitAdd}>{t('action.save')}</Button></View>}>
       <TextField label={t('profile.name')} value={addName} onChangeText={value => {if (additionCurrent() && !activeTicket.current) {addNameRef.current = value; setAddName(value);}}} maxLength={120} testID="profile-add-name"/>
-      {!theme.isTV && <ProfileColorPicker value={addArt} onChange={value => {if (additionCurrent() && !activeTicket.current) setAddArt(value);}} disabled={actionBusy} testID="profile-add-colors"/>}
+      {!theme.isTV && <ProfileColorPicker value={addArt ?? nextProfileArt(profiles)} onChange={value => {if (additionCurrent() && !activeTicket.current) setAddArt(value);}} disabled={actionBusy} testID="profile-add-colors"/>}
     </Dialog>
     <Dialog testID="profile-rename" open={edit?.kind === 'rename' && editorCurrent()} onOpenChange={open => {if (!open) closeEdit();}} title={t('profile.renameTitle', {name: edit?.profile.name ?? ''})}
       footer={<View style={{flexDirection: 'row', gap: 8}}><Button focusId="cancel" variant="glass" disabled={actionBusy} onPress={closeEdit}>{t('action.cancel')}</Button><Button focusId="save" loading={actionBusy} disabled={!nameDraft.trim()} onPress={submitRename}>{t('action.save')}</Button></View>}>
