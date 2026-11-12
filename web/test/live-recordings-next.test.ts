@@ -172,3 +172,17 @@ test('Everyone\'s recordings are read with the server\'s everyone scope', async 
   await c.load({view: 'history'}); await tick();
   assert.equal(route(calls[0]!).searchParams.get('scope'), 'everyone');
 });
+
+test('a command refused with 403 (someone else\'s recording) is said on its row, and nothing else on screen is retired', async () => {
+  const {api} = server(call => call.method === 'DELETE' ? Object.assign(new Error('This action is not permitted.'), {status: 403}) : {items: [booking('u1'), booking('u2', {bookedBy: 'Ana'})]});
+  const c = createRecordingsController({api, serverId: 'server', signal: new AbortController().signal, isCurrent: () => true, everyone: true});
+  await c.load({view: 'upcoming'}); await tick();
+  const theirs = c.getSnapshot().page!.recordings[1]!;
+  const outcome = await c.cancel(theirs); await tick();
+  assert.equal(outcome.committed, false);
+  const after = c.getSnapshot();
+  assert.equal(after.accessDenied, false);
+  assert.equal(after.page?.recordings.length, 2, 'the list stays');
+  assert.equal(after.commandRecordingId, 'u2');
+  assert.equal(after.commandError, 'Only the person who booked this, the owner or an administrator can change it.');
+});

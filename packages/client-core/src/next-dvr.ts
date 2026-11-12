@@ -58,10 +58,13 @@ export class NextDVRClient {
   onAccessChanged(listener: () => void) { this.accessChanged = listener; }
   dispose() { this.accessChanged = undefined; this.lifetime.abort(); }
   private get signal() { return this.lifetime.signal; }
-  /** A refusal of access retires what is shown, as the old client did. */
-  private async call<T>(work: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  /**
+   * A refused read (401, 403) retires what is shown: the profile no longer has Recordings. A refused command is only a
+   * refusal of that command (someone else's recording in Everyone's answers 403), unless the sign-in itself is gone (401).
+   */
+  private async call<T>(work: (signal: AbortSignal) => Promise<T>, command = false): Promise<T> {
     try { return await work(this.signal); }
-    catch (error) { const status = (error as {status?: number} | null)?.status; if (status === 401 || status === 403) this.accessChanged?.(); throw error; }
+    catch (error) { const status = (error as {status?: number} | null)?.status; if (status === 401 || status === 403 && !command) this.accessChanged?.(); throw error; }
   }
   /** Every page of a list, up to PAGES of them. */
   private async every<T>(read: (cursor: string | undefined, signal: AbortSignal) => Promise<{items: T[]; nextCursor?: string}>): Promise<T[]> {
@@ -135,18 +138,18 @@ export class NextDVRClient {
   /** Padding and priority. */
   async update(recording: Recording, options: Recording['options']): Promise<Recording> {
     return nextRecording(await this.call(signal => changeRecording(this.api, recording.id, {padBeforeMs: options.beforeSeconds * 1000, padAfterMs: options.afterSeconds * 1000,
-      priority: options.priority}, signal)), this.recordedLibrary);
+      priority: options.priority}, signal), true), this.recordedLibrary);
   }
   /** A conflict's choice: record this one instead, or skip it. */
   async choose(recording: Recording, choice: 'record' | 'skip'): Promise<Recording> {
-    return nextRecording(await this.call(signal => changeRecording(this.api, recording.id, {choice}, signal)), this.recordedLibrary);
+    return nextRecording(await this.call(signal => changeRecording(this.api, recording.id, {choice}, signal), true), this.recordedLibrary);
   }
   async keep(recording: Recording): Promise<Recording> {
-    return nextRecording(await this.call(signal => changeRecording(this.api, recording.id, {keep: !recording.keep}, signal)), this.recordedLibrary);
+    return nextRecording(await this.call(signal => changeRecording(this.api, recording.id, {keep: !recording.keep}, signal), true), this.recordedLibrary);
   }
   /** Cancels a booking, or stops one that is recording (what was captured is kept). */
   async cancel(recording: Recording): Promise<Recording> {
-    await this.call(signal => endRecording(this.api, recording.id, recording.state === 'recording' ? 'stop' : 'cancel', signal));
+    await this.call(signal => endRecording(this.api, recording.id, recording.state === 'recording' ? 'stop' : 'cancel', signal), true);
     return {...recording, state: 'cancelled' as RecordingState};
   }
   /** The server has no separate preview of a delete: it is the recording as shown. */
@@ -154,7 +157,7 @@ export class NextDVRClient {
     return {recordingId: recording.id, revision: 0, bytes: recording.bytes, keep: recording.keep, activeReaders: false, result: 'delete'};
   }
   async delete(recording: Recording, _preview: DeletePreview): Promise<Recording> {
-    await this.call(signal => endRecording(this.api, recording.id, 'delete', signal));
+    await this.call(signal => endRecording(this.api, recording.id, 'delete', signal), true);
     return {...recording, state: 'cancelled' as RecordingState};
   }
   /** Pause or resume a rule, or change its choices. */
@@ -162,10 +165,10 @@ export class NextDVRClient {
     return nextRule(await this.call(signal => changeRule(this.api, ruleId, {newOnly: config.episodes === 'new', priority: config.options.priority, paused: !config.enabled,
       anyChannel: config.allowedChannels.length === 0, ...(config.options.episodeLimit ? {keepNewest: config.options.episodeLimit} : {}),
       ...(config.options.retentionDays ? {keepDays: config.options.retentionDays} : {}), padBeforeMs: config.options.beforeSeconds * 1000,
-      padAfterMs: config.options.afterSeconds * 1000}, signal)));
+      padAfterMs: config.options.afterSeconds * 1000}, signal), true));
   }
   async deleteRule(rule: RecordingRule, future: 'keep' | 'cancel'): Promise<boolean> {
-    await this.call(signal => removeRule(this.api, rule.id, future, signal));
+    await this.call(signal => removeRule(this.api, rule.id, future, signal), true);
     return true;
   }
   /** What an edited rule would record: the server previews only a rule being made from a programme, so there is none. */

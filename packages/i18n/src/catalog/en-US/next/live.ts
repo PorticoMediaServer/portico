@@ -77,4 +77,5 @@ export const liveMessages = {
   'next.live.whose': 'Whose recordings',
   'next.live.mine': 'Mine',
   'next.live.everyones': 'Everyone’s',
+  'next.live.notYours': 'Only the person who booked this, the owner or an administrator can change it.',
 } as const;

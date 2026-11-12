@@ -1,11 +1,14 @@
 import {NextDVRClient} from '@core/next-dvr.ts';
+import {commandRefusal} from './command-refusal';
 import {dvrMessage, playableRecording, type DVRPage, type Recording} from '@core/dvr.ts';
 import {screenLifetime, type ScreenContext} from '../detail/context';
 
 const cancelled = () => new DOMException('Recorded show closed', 'AbortError');
 
 export type RecordedGroupSnapshot = Readonly<{phase: 'idle' | 'loading' | 'ready' | 'error' | 'retired';
-  recordings: readonly Recording[]; nextCursor?: string; busy: boolean; error?: string}>;
+  recordings: readonly Recording[]; nextCursor?: string; busy: boolean; error?: string;
+  /** The recording a refused command was for, so its row says it. */
+  errorRecordingId?: string}>;
 
 /**
  * One show's own recordings, read by the server's recorded-group key. The main
@@ -49,9 +52,9 @@ export function createRecordedGroupReader(context: ScreenContext, group: string,
   const command = async (work: (target: Recording) => Promise<unknown>, target: Recording): Promise<boolean> => {
     assert();
     if (state.busy || !state.recordings.includes(target)) return false;
-    publish({busy: true, error: undefined});
+    publish({busy: true, error: undefined, errorRecordingId: undefined});
     try { await work(target); assert(); await read(); return true; }
-    catch (error) { if (current()) publish({error: dvrMessage(error)}); return false; }
+    catch (error) { if (current()) publish({error: commandRefusal(error), errorRecordingId: target.id}); return false; }
     finally { publish({busy: false}); }
   };
   return {

@@ -48,6 +48,11 @@ function timeRange(start: string, end: string) {
   return t('guide.cellTime', {start: same ? from.slice(0, -(meridiem.length + 1)) : from, end: to});
 }
 function rangeOf(recording: Recording) { return timeRange(recording.start, recording.end); }
+/** Whether this viewer may change any profile's recording: the owner and administrators may; anyone else only their own.
+ * The server sends no per-row "can change" fact, so a member is offered no changes in Everyone's (their own are in Mine). */
+function changesEveryones(context: ScreenContext) { return context.identity?.viewer.role === 'owner' || context.identity?.viewer.role === 'admin'; }
+/** A refused command, said on the row it was for. */
+function RowRefusal({text}: {text?: string}) { return text ? <p className={styles.rowRefusal} role="alert">{text}</p> : null; }
 /** What Delete removes: its size only when the server has said it. */
 function deleteBody(recording: Recording | undefined) {
   return recording && recording.bytes > 0 ? t('web.dvr.deleteBody', {size: bytesLabel(recording.bytes)}) : t('next.live.deleteBody');
@@ -84,7 +89,7 @@ function RecordingCopy({recording}: {recording: Recording}) {
     <small className={styles.recMeta}>{recording.programme.flags?.live && <span className={styles.recFlag} data-kind="live">{t('guide.live')}</span>}{recording.programme.flags?.new && <span className={styles.recFlag} data-kind="new">{t('guide.new')}</span>}{recording.channel && <span>{mark && <ChannelMark mark={mark} size={18}/>}{recording.channel.name}</span>}{recording.ruleId ? <span><Icon name="i-series" size={15}/>{t('next.live.seriesRule')}</span> : <span>{t('next.live.oneTime')}</span>}{recording.bookedBy && <span>{t('next.live.bookedBy', {name: recording.bookedBy})}</span>}</small>
   </div>;
 }
-function RecordingRow({recording, now, onCancel, onDetails}: {recording: Recording; now: number; onCancel?: () => void; onDetails?: () => void}) {
+function RecordingRow({recording, now, onCancel, onDetails, refusal}: {recording: Recording; now: number; onCancel?: () => void; onDetails?: () => void; refusal?: string}) {
   const [menuOpen, setMenuOpen] = useState(false);
   const items: readonly MenuEntry[] = [
     ...(onCancel ? [{id: 'cancel', label: t('recordings.cancelAction'), icon: 'i-close' as const, destructive: true, onSelect: onCancel}] : []),
@@ -97,10 +102,11 @@ function RecordingRow({recording, now, onCancel, onDetails}: {recording: Recordi
       {items.length > 0 && <Menu open={menuOpen} onOpenChange={open => setMenuOpen(open)} title={t('web.dvr.actionsFor', {title: recording.programme.title})}
         trigger={<Button className={styles.recMore} variant="ghost" size="small" iconOnly icon="i-more" aria-label={t('web.dvr.actionsFor', {title: recording.programme.title})}/>} items={items}/>}
     </div>
+    <RowRefusal text={refusal}/>
   </div>;
 }
 
-function ConflictBox({context, recording, detail: supplied, onResolve, onCancel, onDetails}: {context: ScreenContext; recording: Recording; detail?: RecordingDetail; onResolve: (detail?: RecordingDetail) => void; onCancel?: () => void; onDetails?: () => void}) {
+function ConflictBox({context, recording, detail: supplied, onResolve, onCancel, onDetails, refusal}: {context: ScreenContext; recording: Recording; detail?: RecordingDetail; onResolve?: (detail?: RecordingDetail) => void; onCancel?: () => void; onDetails?: () => void; refusal?: string}) {
   const [detail, setDetail] = useState<RecordingDetail | undefined>(supplied);
   useEffect(() => {
     if (supplied || !context.isCurrent()) return;
@@ -122,10 +128,11 @@ function ConflictBox({context, recording, detail: supplied, onResolve, onCancel,
       <div className={styles.recWhen}><b>{timeOf(recording.start)}</b><small>{rangeOf(recording)}</small></div>
       <RecordingArt recording={recording}/>
       <RecordingCopy recording={recording}/>
-      <div className={styles.recRight}><StatePill recording={recording}/><Button className={styles.conflictAction} variant="primary" onClick={() => onResolve(detail)}>{t('web.dvr.seeConflict')}</Button>
+      <div className={styles.recRight}><StatePill recording={recording}/>{onResolve && <Button className={styles.conflictAction} variant="primary" onClick={() => onResolve(detail)}>{t('web.dvr.seeConflict')}</Button>}
         {items.length > 0 && <Menu open={menuOpen} onOpenChange={open => setMenuOpen(open)} title={t('web.dvr.actionsFor', {title: recording.programme.title})}
           trigger={<Button className={styles.recMore} variant="ghost" size="small" iconOnly icon="i-more" aria-label={t('web.dvr.actionsFor', {title: recording.programme.title})}/>} items={items}/>}</div>
     </div>
+    <RowRefusal text={refusal}/>
     {detail && detail.overlaps.length > 0 && <div className={styles.conflictOthers}>
       <span>{t('next.live.usingTuners')}</span>
       {detail.overlaps.map(other => <span key={other.id}><b>{other.title}</b><em>{t('guide.cellTime', {start: timeOf(other.start), end: timeOf(other.end)})}</em></span>)}
@@ -203,7 +210,9 @@ export function RecordingsPager({controller, snapshot}: {controller: RecordingsC
   </div>;
 }
 
-export function UpcomingView({context, controller, snapshot, now, onResolve, conflictDetails}: {context: ScreenContext; controller: RecordingsController; snapshot: ReturnType<RecordingsController['getSnapshot']>; now: number; onResolve: (recording: Recording, detail?: RecordingDetail) => void; conflictDetails?: Readonly<Record<string, RecordingDetail>>}) {
+export function UpcomingView({context, controller, snapshot, now, onResolve, conflictDetails, canChange = true}: {context: ScreenContext; controller: RecordingsController; snapshot: ReturnType<RecordingsController['getSnapshot']>; now: number; onResolve: (recording: Recording, detail?: RecordingDetail) => void; conflictDetails?: Readonly<Record<string, RecordingDetail>>; canChange?: boolean}) {
+  const refusal = (recording: Recording) => snapshot.commandRecordingId === recording.id ? snapshot.commandError : undefined;
+  const cancel = (recording: Recording) => canChange ? () => {void controller.cancel(recording);} : undefined;
   const recordings = snapshot.page?.recordings ?? [];
   const conflicted = recordings.filter(recording => recording.state === 'conflicted');
   const current = recordings.filter(recording => ['recording', 'preparing', 'finalizing'].includes(recording.state) && recording.state !== 'conflicted');
@@ -212,11 +221,11 @@ export function UpcomingView({context, controller, snapshot, now, onResolve, con
   const closeShown = (target: Recording | undefined) => setShown(current => current === target ? undefined : current);
   return <div className={styles.recBody}>
     {conflicted.length > 0 && <section className={styles.recSection}><h2>{t('recordings.conflicts')}<span>{snapshot.summary?.conflicts ?? conflicted.length}</span></h2>
-      {conflicted.map(recording => <ConflictBox key={recording.id} context={context} recording={recording} detail={conflictDetails?.[recording.id]} onResolve={detail => onResolve(recording, detail)} onCancel={() => {void controller.cancel(recording);}} onDetails={() => setShown(recording)}/>)}</section>}
+      {conflicted.map(recording => <ConflictBox key={recording.id} context={context} recording={recording} detail={conflictDetails?.[recording.id]} {...(canChange ? {onResolve: (detail?: RecordingDetail) => onResolve(recording, detail)} : {})} onCancel={cancel(recording)} onDetails={() => setShown(recording)} refusal={refusal(recording)}/>)}</section>}
     {current.length > 0 && <section className={styles.recSection}><h2>{t('next.live.recordingNow')}</h2>
-      {current.map(recording => <RecordingRow key={recording.id} recording={recording} now={now} onCancel={() => {void controller.cancel(recording);}}/>)}</section>}
+      {current.map(recording => <RecordingRow key={recording.id} recording={recording} now={now} onCancel={cancel(recording)} refusal={refusal(recording)}/>)}</section>}
     {later.length > 0 && <section className={styles.recSection}><h2>{t('next.live.laterToday')}<span>{dateOf(later[0]!.start)}</span></h2>
-      {later.map(recording => <RecordingRow key={recording.id} recording={recording} now={now} onCancel={() => {void controller.cancel(recording);}} onDetails={() => setShown(recording)}/>)}</section>}
+      {later.map(recording => <RecordingRow key={recording.id} recording={recording} now={now} onCancel={cancel(recording)} onDetails={() => setShown(recording)} refusal={refusal(recording)}/>)}</section>}
     {!conflicted.length && !current.length && !later.length && <StateView title={t('recordings.noneScheduled')} body={t('recordings.noneScheduledBody')}/>}
     <RecordingsPager controller={controller} snapshot={snapshot}/>
     <Dialog open={!!shown} onOpenChange={open => {if (!open) closeShown(shown);}} title={shown?.programme.title} description={shown ? rangeOf(shown) : undefined} width={440}
@@ -248,6 +257,7 @@ function RecordedGroupPanel({context, current, group, title, sort, everyone, onC
 }
 function CommittedRecordedGroupPanel({lease, title, onClose}: {lease: RecordedGroupLease; title: string; onClose: () => void}) {
   const state = useSyncExternalStore(lease.reader.subscribe, lease.reader.getSnapshot, lease.reader.getSnapshot);
+  const canChange = !lease.everyone || changesEveryones(lease.context);
   type DeleteRequest = {token: string; recording: Recording};
   const [removeRequest, setRemoveRequest] = useState<DeleteRequest>();
   const {opening: removeOpening, consume: consumeRemove} = useCommittedOpening(removeRequest);
@@ -284,16 +294,17 @@ function CommittedRecordedGroupPanel({lease, title, onClose}: {lease: RecordedGr
   return <SidePanel open onOpenChange={open => {if (!open) closePanel();}} width={640} topInset={76} title={title}
     description={t('recordings.showCount', {count: state.recordings.length})} className={styles.groupPanel}
     footer={<Button variant="glass" onClick={closePanel}>{t('next.overlays.close')}</Button>}>
-    {state.error && <Banner>{state.error}</Banner>}
+    {state.error && !state.errorRecordingId && <Banner>{state.error}</Banner>}
     {state.recordings.map(recording => <div className={styles.groupRow} key={recording.id}>
       <RecordingArt recording={recording}/>
       <div className={styles.groupCopy}><b>{recording.programme.subtitle || recording.programme.title}</b><small>{dayOf(recording.start, serverNow())}<RuleGap/>{rangeOf(recording)}</small>
         <small>{recording.keep ? t('recordings.kept') : recording.watched === true ? t('next.live.watched') : recording.watched === false ? t('next.live.unwatched') : null}</small></div>
       <div className={styles.groupActions}>
         <Button variant="glass" size="small" icon="i-play" disabled={!playableRecording(recording)} onClick={() => play(recording)}>{t('next.live.play')}</Button>
-        <Button variant="ghost" size="small" disabled={state.busy || !playableRecording(recording)} onClick={() => keep(recording)}>{recording.keep ? t('web.dvr.stopKeeping') : t('web.dvr.keep')}</Button>
-        <Button variant="ghost" size="small" disabled={state.busy} onClick={() => requestRemove(recording)}>{t('web.dvr.deleteRecording')}</Button>
+        {canChange && <Button variant="ghost" size="small" disabled={state.busy || !playableRecording(recording)} onClick={() => keep(recording)}>{recording.keep ? t('web.dvr.stopKeeping') : t('web.dvr.keep')}</Button>}
+        {canChange && <Button variant="ghost" size="small" disabled={state.busy} onClick={() => requestRemove(recording)}>{t('web.dvr.deleteRecording')}</Button>}
       </div>
+      <RowRefusal text={state.errorRecordingId === recording.id ? state.error : undefined}/>
     </div>)}
     {state.nextCursor && <Button className={styles.groupMore} variant="glass" onClick={() => {if (lease.current()) void lease.reader.more().catch(() => {});}}>{t('next.live.more')}</Button>}
     <Dialog open={!!removeOpening} onOpenChange={open => {if (!open && removeOpening) dismissRemove(removeOpening);}} width={440} title={t('web.dvr.deleteTitle', {title: removeOpening?.target.recording.programme.title ?? ''})}
@@ -359,7 +370,7 @@ function Boundary({context, view, everyone, routeCurrent, onView, onScope, onGui
   const loading = snapshot.phase === 'loading' || snapshot.phase === 'idle';
   const body = loading ? <p role="status">{t('recordings.loading')}</p>
     : snapshot.error && !snapshot.page && !snapshot.storage ? <StateView title={t('next.states.pageFailed')} body={t('next.states.pageFailedBody')} primary={{id: 'retry', label: t('next.states.tryAgain'), onPress: retry}}/>
-      : view === 'upcoming' ? <UpcomingView context={context} controller={lease.controller} snapshot={snapshot} now={now} onResolve={openConflict}/>
+      : view === 'upcoming' ? <UpcomingView context={context} controller={lease.controller} snapshot={snapshot} now={now} onResolve={openConflict} canChange={!everyone || changesEveryones(context)}/>
         : view === 'recorded' ? <RecordedView context={context} controller={lease.controller} current={lease.current} snapshot={snapshot} everyone={everyone}/>
           : view === 'history' ? <HistoryView snapshot={snapshot} now={now} controller={lease.controller}/>
             : <StorageView snapshot={snapshot} tuners={lease.tuners}/>;

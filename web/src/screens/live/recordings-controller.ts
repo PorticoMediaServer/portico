@@ -1,5 +1,6 @@
 import {DVRModel, activeRecording, dvrMessage, isAccessError, mutableRecording,
   type DeletePreview, type DVRPage, type DVRQuery, type DVRSummary, type Recording, type RecordingDetail, type RecordingGroups} from '@core/dvr.ts';
+import {commandRefusal} from './command-refusal';
 import {NextDVRClient, type RecordingSpace} from '@core/next-dvr.ts';
 import {serverPath} from '@core/query/server-api.ts';
 import {recordingsWindow} from './recordings-window';
@@ -34,6 +35,8 @@ export type RecordingsSnapshot = Readonly<{
   mutating: boolean;
   /** The last command failure; cleared by the next committed command. */
   commandError: string;
+  /** The recording that command was for, so its row says it. */
+  commandRecordingId?: string;
 }>;
 /** A command's actual outcome: the ACK and the genuine reload are separate facts. */
 export type RecordingsCommandOutcome = Readonly<{committed: boolean; refreshed: boolean; busy: boolean}>;
@@ -120,6 +123,7 @@ export function createRecordingsController(input: RecordingsControllerOptions) {
    * destination change on the same lease; this fences them across actual retirement. */
   let epoch = 0, summarySerial = 0, groupsSerial = 0;
   let loading = false, accessDenied = false, errorText = '', commandError = '';
+  let commandRecordingId: string | undefined;
   let deletion: Readonly<{recording: Recording; preview: DeletePreview; serial: number; epoch: number; query: RecordingsQuery}> | undefined;
   let query: RecordingsQuery = Object.freeze({view: 'upcoming'});
   let page: DVRPage | null = null, detail: RecordingDetail | null = null, storage: RecordingSpace | null = null;
@@ -148,7 +152,7 @@ export function createRecordingsController(input: RecordingsControllerOptions) {
       : page || detail || storage || summary || groups ? 'ready' : 'idle';
     return Object.freeze({query, phase, page, detail, storage, summary, groups, groupsSort, paging: paging(),
       accessDenied: closed ? false : accessDenied || snapshot.accessDenied, error,
-      mutating: closed ? false : snapshot.mutating, commandError: closed ? '' : commandError});
+      mutating: closed ? false : snapshot.mutating, commandError: closed ? '' : commandError, ...(closed || !commandRecordingId ? {} : {commandRecordingId})});
   }
   function publish() {
     if (closed) return;
@@ -184,7 +188,7 @@ export function createRecordingsController(input: RecordingsControllerOptions) {
     disarmCommand();
     epoch++;summarySerial++;groupsSerial++;resetPaging();
     dropResident();summary = groups = null;groupsSort = 'recent';
-    deletion = undefined;accessDenied = denied;errorText = '';commandError = '';
+    deletion = undefined;accessDenied = denied;errorText = '';commandError = '';commandRecordingId = undefined;
     publish();
   }
   function recordFailure(failure: unknown) {
@@ -210,7 +214,7 @@ export function createRecordingsController(input: RecordingsControllerOptions) {
   /** One command through the same private model. The mutation may only leave while
    * its captured destination generation and lease are live, and a known ACK is
    * never relabelled by what the later genuine reload does. */
-  async function command(work: () => Promise<unknown>): Promise<RecordingsCommandOutcome> {
+  async function command(work: () => Promise<unknown>, recordingId?: string): Promise<RecordingsCommandOutcome> {
     if (!current()) throw cancelled();
     if (model.getSnapshot().mutating) return Object.freeze({committed: false, refreshed: false, busy: true});
     deletion = undefined;
@@ -244,17 +248,18 @@ export function createRecordingsController(input: RecordingsControllerOptions) {
       return Object.freeze({committed: ack, refreshed: false, busy: false});
     }
     if (!ack) {
-      if (isAccessError(failure)) {
+      // Only a lost sign-in retires what is shown; a refused command (403) is a refusal of that command alone.
+      if ((failure as {status?: unknown} | null)?.status === 401) {
         clearFacts(true);
         return Object.freeze({committed: false, refreshed: false, busy: false});
       }
       adoptFacts();
-      if (!isCancelled(failure)) commandError = dvrMessage(failure);
+      if (!isCancelled(failure)) {commandError = commandRefusal(failure);commandRecordingId = recordingId;}
       publish();
       return Object.freeze({committed: false, refreshed: false, busy: false});
     }
     const after = model.getSnapshot();
-    commandError = '';
+    commandError = '';commandRecordingId = undefined;
     adoptFacts();
     // The tab counts are the server's: read them again once it has acted.
     void controller.readSummary().catch(() => {});
@@ -281,7 +286,7 @@ export function createRecordingsController(input: RecordingsControllerOptions) {
     loadSerial++;epoch++;summarySerial++;groupsSerial++;resetPaging();
     model.dispose();
     page = detail = storage = null;summary = groups = null;groupsSort = 'recent';deletion = undefined;
-    loading = false;accessDenied = false;errorText = '';commandError = '';
+    loading = false;accessDenied = false;errorText = '';commandError = '';commandRecordingId = undefined;
     state = Object.freeze({query, phase: 'retired', page: null, detail: null, storage: null, summary: null, groups: null,
       groupsSort: 'recent', paging: paging(), accessDenied: false, error: '', mutating: false, commandError: ''});
     try { if (!silent) notify(); } finally { listeners.clear(); }
@@ -332,7 +337,7 @@ export function createRecordingsController(input: RecordingsControllerOptions) {
         // summary/group facts and the receipt lease are deliberately untouched.
         dropResident();
       }
-      deletion = undefined;if (!continuation) query = captured;loading = !continuation;errorText = '';commandError = '';
+      deletion = undefined;if (!continuation) query = captured;loading = !continuation;errorText = '';commandError = '';commandRecordingId = undefined;
       publish();
       try {
         // Publication calls external subscribers. They may synchronously replace
@@ -461,14 +466,14 @@ export function createRecordingsController(input: RecordingsControllerOptions) {
     async cancel(recording: Recording): Promise<RecordingsCommandOutcome> {
       const target = commandTarget(recording);
       if (!mutableRecording(target) && !activeRecording(target)) throw notOffered();
-      return command(() => client.cancel(target));
+      return command(() => client.cancel(target), target.id);
     },
     /** Keep or stop keeping one exact resident recording, only in the legacy
      * keepable states; the client sends the toggled value for this revision. */
     async keep(recording: Recording): Promise<RecordingsCommandOutcome> {
       const target = commandTarget(recording);
       if (!keepable.includes(target.state)) throw notOffered();
-      return command(() => client.keep(target));
+      return command(() => client.keep(target), target.id);
     },
     /** A conflict's choice (rule 42): Record this instead, or Skip this one. The server's answer
      * comes back with the outcome, so the dialog can say when the airing still clashes. */
@@ -476,7 +481,7 @@ export function createRecordingsController(input: RecordingsControllerOptions) {
       const target = commandTarget(recording);
       if (!mutableRecording(target)) throw notOffered();
       let answered: Recording | undefined;
-      const outcome = await command(async () => {answered = await client.choose(target, choice);});
+      const outcome = await command(async () => {answered = await client.choose(target, choice);}, target.id);
       return Object.freeze({...outcome, ...(answered ? {recording: answered} : {})});
     },
     /** The server's own delete preview for the exact resident row, offered only by
@@ -506,7 +511,7 @@ export function createRecordingsController(input: RecordingsControllerOptions) {
       if (!bound || bound.recording !== target || bound.serial !== loadSerial || bound.epoch !== epoch
         || !sameDestination(bound.query, query) || !offersDelete(target)) throw stalePreview();
       deletion = undefined;
-      return command(() => client.delete(target, bound.preview));
+      return command(() => client.delete(target, bound.preview), target.id);
     },
     dispose,
   };
