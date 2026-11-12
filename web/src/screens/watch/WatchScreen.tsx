@@ -363,6 +363,9 @@ export function WatchScreen({binding, snapshot, expanded, onCollapse, onControls
       } catch {return false;}
     }};
   }, [binding, snapshot.authority, sourceKey, promptFenceKey, snapshot.playback.intentId, snapshot.playback.playbackRun]);
+  // While playback has failed only the transport gives way (states.html frames 8 and 10): nothing can play until the
+  // viewer chooses, and the failure's words and Try again take its place. The top and bottom rows stay.
+  const playbackFailed = snapshot.playback.phase === 'error';
   const seekPresent = !endCard && chromeVisible && !!bounds, gestureInactive = !videoGesture?.active;
   const promptFocusAllowed = gestureInactive && !panel && !externalPanel && !more && !shortcuts && !stillWatching;
   const promptHost = useMemo<PromptFocusHost | undefined>(() => promptSource ? {...promptSource, source: promptSource, seekPresent,
@@ -451,7 +454,7 @@ export function WatchScreen({binding, snapshot, expanded, onCollapse, onControls
         </div>}
         {endCard ? <WatchEndCardView card={endCard} canReplay={can('replay')} onReplay={() => send({kind: 'replay'})} onClose={() => send({kind: 'stop'})} layout={mobile ? 'phone' : 'desktop'} reportError={binding.reportError}
           artwork={url => binding.artwork.foreground(url, 512, 16 / 9, {group: 'playback', priority: 'high'})} /> : <>
-        <div className={styles.center} inert={!chromeVisible || videoGesture?.active || undefined}>{transport}</div>
+        {!playbackFailed && <div className={styles.center} inert={!chromeVisible || videoGesture?.active || undefined}>{transport}</div>}
         <div className={styles.bottom} inert={!chromeVisible || videoGesture?.active || undefined}>
           <div className={styles.seek}>
             <span className={styles.rail}>
@@ -502,7 +505,7 @@ export function WatchScreen({binding, snapshot, expanded, onCollapse, onControls
             <div className={styles.leading}>{surfaces?.available.includes('episodes')
               ? <Button size="small" variant="glass" icon="i-stack" onClick={event => showPanel('episodes', event.currentTarget)}>{t('next.controls.episodes')}</Button>
               : surfaces?.available.includes('queue') ? <Button size="small" variant="glass" icon="i-queue" onClick={event => showPanel('queue', event.currentTarget)}>{t('player.queue')}</Button> : null}</div>
-            {transport}
+            {playbackFailed ? <span aria-hidden="true" /> : transport}
             <div className={styles.trailing}>
               {!coarsePointer && can('volume') && <span className={styles.volume}><Control icon="i-vol" label={t(presentation?.muted ? 'player.unmute' : 'player.mute')} action={() => send({kind: 'mute'})} />
                 <Slider min={0} max={1} step={.01} value={presentation?.muted ? 0 : presentation?.volume} aria-label={t('player.volume')} onValueChange={volume => send({kind: 'volume', volume})} /></span>}
