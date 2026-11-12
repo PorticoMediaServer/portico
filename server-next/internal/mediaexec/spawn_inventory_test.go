@@ -34,7 +34,7 @@ var processSpawns = map[string]string{
 
 	"internal/remote/rclone_new.go:rcloneTool": "rclone config providers and rclone obscure, input on stdin, while the owner makes a new remote; no media",
 
-	"internal/remote/rclone_folder.go:checkFolder": "rclone lsjson --stat on a source's own folder before it is served, options in its environment; no media",
+	"internal/remote/rclone_folder.go:checkRemote": "rclone lsjson --stat on a source's own folder and sign-in before it is served, options in its environment; no media",
 }
 
 type spawn struct{ file, function string }
