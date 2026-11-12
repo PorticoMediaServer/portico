@@ -238,7 +238,7 @@ export const remoteSourcesMessages = {
   'next.remoteSources.chooseThisFolder': 'Choose this folder',
   'next.remoteSources.chosen': 'Chosen',
   'next.remoteSources.useOneFolder': 'Use 1 folder',
-  'next.remoteSources.useFolders': 'Use {count} folders',
+  'next.remoteSources.useFolders': '{count, plural, one {Use # folder} other {Use # folders}}',
   'next.remoteSources.folderListing': 'Listing from the storage…',
   'next.remoteSources.folderListFailedTitle': 'Portico couldn’t list “{name}”.',
   'next.remoteSources.folderListFailedHelp': 'The storage didn’t answer. Nothing is wrong with the folders you chose.',
