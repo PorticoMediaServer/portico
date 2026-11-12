@@ -187,6 +187,8 @@ const message = (e: unknown): string => {
     if (e.code === 'limit_reached' || e.code === 'stream_limit_reached') return e.serverMessage ?? 'This account is already playing as many streams as it is allowed.';
     if (e.code === 'source_sign_in') return e.serverMessage ?? 'This channel’s source needs its sign-in again.';
     if (e.code === 'session_ended') return 'This channel playback has ended. Select the channel again.';
+    // Any other refusal the server explains (a server converting all it may: 429 conversion_capacity) is said in its words.
+    if (e.serverMessage) return e.serverMessage;
   }
   return 'Channel playback could not connect. Check the server and retry.';
 };
@@ -196,7 +198,7 @@ export const channelEndMessage = (end: Session['end']): string => {
   if (end?.message) return end.message;
   return 'This channel playback has ended. Select the channel again.';
 };
-const terminal = (e: unknown) => e instanceof PlaybackApiError && ([401, 403, 404, 410].includes(e.status) || ['no_tuner', 'limit_reached', 'stream_limit_reached', 'source_sign_in'].includes(e.code));
+const terminal = (e: unknown) => e instanceof PlaybackApiError && ([401, 403, 404, 410].includes(e.status) || ['no_tuner', 'limit_reached', 'stream_limit_reached', 'source_sign_in', 'conversion_capacity'].includes(e.code));
 
 /** How long a started channel may take to have its stream, and how often to look. */
 export const CHANNEL_STREAM_WAIT_MS = 60_000, CHANNEL_STREAM_POLL_MS = 500;

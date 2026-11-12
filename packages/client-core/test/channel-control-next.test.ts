@@ -95,3 +95,12 @@ test('Go to live on a live source joins its stream again from live', async () =>
     assert.deepEqual(f.sent.filter(r => r.method === 'PATCH').map(r => r.body), [{state: 'playing'}]);
   } finally {f.c.close();}
 });
+
+// Review desk A, #2957: a server converting as many streams as its owner allows refuses the start with 429
+// conversion_capacity and its own sentence. That is not a connection fault, and the person should read the server's words.
+test('a start refused because the server is converting all it may says so in the server\'s words', async () => {
+  const sentence = 'This server is converting as many streams as it is allowed. Try again when one finishes.';
+  const f = control(() => ({status: 429, body: {error: {code: 'conversion_capacity', message: sentence, retry: false}}}));
+  await f.c.open(reference('library-channel', 'chn_lib'), f.sink);
+  assert.deepEqual(f.errors.map(([m]) => m), [sentence]);
+});
