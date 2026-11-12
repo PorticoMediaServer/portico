@@ -510,6 +510,31 @@ func load(session: Foundation.URLSession, optionalSession: URLSession?, request:
         # Editing the original row alongside the re-hash cannot raise its budget.
         with self.assertRaises(ValueError):transport_rehash_budgets(new,{'old':approval('a')},pins(['new','new']))
 
+    def test_same_id_transport_rehash_keeps_its_historical_budget(self):
+        original={'site':dict(category='platform-transport',guardHash='a',occurrences=1)}
+        first={'site':dict(category='platform-transport',guardHash='b',occurrences=1,
+                           previousSiteId='site',previousGuardHash='a',previousCommit='original')}
+        second={'site':dict(category='platform-transport',guardHash='c',occurrences=1,
+                            previousSiteId='site',previousGuardHash='b',previousCommit='first')}
+        history={'original':original,'first':first}
+        load=lambda entry:history[entry['previousCommit']].get(entry['previousSiteId'],{})
+        def pins(ledger,n=1):
+            return {'web/x.ts':dict(category='platform-transport',reason='core request only',
+                                   sites=list(ledger)*n,guardHashes={key:entry['guardHash'] for key,entry in ledger.items()})}
+        transport_rehash_budgets(first,original,pins(first),load)
+        # Once landed, both ledgers have lost the original same-ID row (#2907).
+        transport_rehash_budgets(first,first,pins(first),load)
+        transport_rehash_budgets(second,first,pins(second),load)
+        transport_rehash_budgets(second,second,pins(second),load)
+        with self.assertRaises(ValueError):transport_rehash_budgets(second,second,pins(second,2),load)
+        split={**first,'other':{**first['site'],'guardHash':'d'}}
+        with self.assertRaises(ValueError):transport_rehash_budgets(split,split,pins(split),load)
+        history['original']={'site':{**original['site'],'occurrences':2}}
+        with self.assertRaises(ValueError):transport_rehash_budgets(first,original,pins(first),load)
+        history['original']={}
+        with self.assertRaises(ValueError):transport_rehash_budgets(first,original,pins(first),load)
+        with self.assertRaises(ValueError):transport_rehash_budgets(second,second,pins(second),load)
+
 
 class ClientApiCensusEndToEnd(unittest.TestCase):
     def fixture(self, source, filename='web/src/guard.ts', category='platform-transport', dependencies=None):
@@ -1390,11 +1415,20 @@ func stream(session: Foundation.URLSession, request: RequestValue) async throws 
                  'rulingUrl':'https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646375725',
                  'pullRequest':'https://github.com/PorticoMediaServer/portico/pull/912',
                  'reviewUrl':'https://github.com/PorticoMediaServer/portico/pull/912#issuecomment-123','spanEvidence':evidence}
-            (root/APPROVALS).write_text(json.dumps({old['id']:original,site['id']:row}))
+            (root/APPROVALS).write_text(json.dumps({site['id']:row}))
             (root/ALLOWLIST).write_text(json.dumps({filename:{**pin,'sites':[s['id']for s in sites],
                 'guardHashes':{site['id']:site['guardHash']}}}))
             with self.subTest(duplicate=duplicate):
                 self.assertEqual(main(['--base',previous],root=root),int(duplicate))
+            if not duplicate:
+                self.git(root,'add','.');self.git(root,'commit','-qm','Land the reviewed transport replacement')
+                self.git(root,'commit','--allow-empty','-qm','An unrelated later change')
+                self.assertEqual(self.check(root)[0],0,'later entries must recover the replaced approval')
+                unrelated=self.git(root,'commit-tree',self.git(root,'rev-parse','HEAD^{tree}').strip(),
+                                   '-m','Unrelated history').strip()
+                (root/APPROVALS).write_text(json.dumps({site['id']:{**row,'previousCommit':unrelated}}))
+                code,output=self.check(root)
+                self.assertEqual(code,1);self.assertIn('outside its immutable ancestry',output)
 
     def test_objc_rehash_cannot_substitute_the_message_receiver(self):
         source='''+ (void)prove:(NSString *)origin fingerprint:(NSString *)fingerprint url:(NSString *)requestURL method:(NSString *)method body:(NSString *)body completion:(void (^)(NSDictionary *))completion {

@@ -845,7 +845,7 @@ def validate_approvals(approvals):
                 raise ValueError(f'{key}: re-hash requires old/new hashes, immutable commits, editing PR, independent review and complete span evidence')
 
 
-def transport_rehash_budgets(approvals, old_approvals, exceptions):
+def transport_rehash_budgets(approvals, old_approvals, exceptions, load_previous=None):
     """Every retained/replacement allowance consumes its original shared budget."""
     nodes={};limits={};affected=set()
     for ledger in [old_approvals,approvals]:
@@ -853,9 +853,23 @@ def transport_rehash_budgets(approvals, old_approvals, exceptions):
             if entry['category']=='platform-transport':
                 node=(key,entry['guardHash']);nodes[node]=entry
                 limits[node]=min(limits.get(node,entry['occurrences']),entry['occurrences'])
-    for key,entry in approvals.items():
+    # A same-ID re-hash replaces its predecessor's ledger row. Recover that
+    # exact historical approval, including its own lineage, after it lands.
+    # Resolve the same graph on its own PR too, before the base row disappears.
+    if load_previous:
+        nodes={(key,entry['guardHash']):entry for key,entry in approvals.items() if entry['category']=='platform-transport'}
+    pending=list(nodes.items())
+    for (key,_),entry in pending:
         if entry['category']!='platform-transport' or 'previousSiteId' not in entry:continue
-        previous=nodes.get((entry['previousSiteId'],entry['previousGuardHash']),{})
+        node=(entry['previousSiteId'],entry['previousGuardHash'])
+        if node not in nodes and load_previous:
+            previous=load_previous(entry)
+            if previous.get('category')=='platform-transport' and previous.get('guardHash')==node[1]:
+                if previous['occurrences']>limits.get(node,previous['occurrences']):
+                    raise ValueError(f'{key}: historical transport approval exceeds the comparison base budget')
+                nodes[node]=previous;limits[node]=previous['occurrences']
+                pending.append((node,previous))
+        previous=nodes.get(node,{})
         if not previous or entry['occurrences']>limits[entry['previousSiteId'],entry['previousGuardHash']]:
             raise ValueError(f'{key}: transport re-hash expands the original occurrence budget; a new ruling is required')
     used=Counter()
@@ -883,7 +897,12 @@ def verify_rehashes(root, base, sites, approvals, old_approvals, old_baseline=No
     Review links are checked by independent human review, as for all ledger rows.
     """
     moves={};snapshots={}
-    transport_rehash_budgets(approvals,old_approvals,exceptions or {})
+    def load_previous(entry):
+        commit=entry['previousCommit']
+        if subprocess.run(['git','merge-base','--is-ancestor',commit,base],cwd=root).returncode:
+            raise ValueError(f"{entry['previousSiteId']}: re-hash source/review commit is outside its immutable ancestry")
+        return historical_json(root,commit,APPROVALS).get(entry['previousSiteId'],{})
+    transport_rehash_budgets(approvals,old_approvals,exceptions or {},load_previous)
     for key,entry in approvals.items():
         if 'previousSiteId' not in entry:continue
         current=[s for s in sites if s['id']==key]
