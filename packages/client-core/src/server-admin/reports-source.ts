@@ -40,7 +40,9 @@ export class SettingsReportsSource {
     this.console = new ConsoleClient({request: this.transport.request, requestConsole: <T>(path: string, method: string, body: unknown, signal: AbortSignal) => this.request(signal, current => api.requestConsole ? api.requestConsole<T>(path, method, body, current) : api.request<T>(path, method, body, current))}, {serverId, viewerId});
     this.console.onDenied(() => this.retire());
   }
-  private retire() {if (this.current()) {this.dispose();this.reportError(new Error('reports_authority_ended'));}}
+  /** The viewer may no longer read this part: it ends, and the page is told with the refusal's status, so a lost
+   *  sign-in or role reaches the page however its parts report their own failures. */
+  private retire(status: 401 | 403 = 403) {if (this.current()) {this.dispose();this.reportError(Object.assign(new Error('reports_authority_ended'), {status}));}}
   private async request<T>(signal: AbortSignal | undefined, send: (signal: AbortSignal) => Promise<T>): Promise<T> {
     if (!this.current() || signal?.aborted) throw Object.assign(new Error('The report request ended.'), {name: 'AbortError'});
     const request = new AbortController(), abort = () => request.abort();
@@ -52,7 +54,7 @@ export class SettingsReportsSource {
       return value;
     } catch (error) {
       const failure = error && typeof error === 'object' ? error as {status?: number; code?: string} : {};
-      if (this.current() && (failure.status === 401 || failure.status === 403 || ['unauthorized','forbidden','not_permitted'].includes(failure.code ?? ''))) this.retire();
+      if (this.current() && (failure.status === 401 || failure.status === 403 || ['unauthorized','forbidden','not_permitted'].includes(failure.code ?? ''))) this.retire(failure.status === 401 || failure.code === 'unauthorized' ? 401 : 403);
       throw error;
     } finally {signal?.removeEventListener('abort', abort);this.lifetime.signal.removeEventListener('abort', abort);}
   }
