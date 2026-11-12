@@ -1282,6 +1282,12 @@ export const enUS = {
   'feedback.duplicateTitle': 'Already reported',
   'feedback.duplicateBody': 'You reported this recently, so it has been added to that report rather than sent again.',
   'notifications.fromServer': 'From your server',
+  // The rebuilt server's notices carry a kind and its facts; the app words them (`notifications-next.ts`).
+  'notifications.notice.updateBody': 'Portico {latest} is ready to install. This server runs {current}.',
+  'notifications.notice.messageTitle': 'A message from the server owner',
+  'notifications.notice.toolMessageTitle': 'A message from a connected tool',
+  'notifications.notice.reportReplyTitle': 'A reply to your report',
+  'notifications.notice.otherTitle': 'Something on your server needs a look',
   'notifications.view.unread': 'Unread',
   'notifications.view.all': 'All',
   'notifications.view.archived': 'Archived',
