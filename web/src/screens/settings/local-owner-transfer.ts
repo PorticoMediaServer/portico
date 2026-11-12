@@ -1,6 +1,6 @@
 import type {ProfileAPI} from '@core/profile-management.ts';
 import {SettingsPeopleClient} from '@core/settings-people.ts';
-import {transferLocalOwnership, transferLocalOwnershipToNewAccount, type LocalOwnerCreate} from '@core/portico-servers.ts';
+import {localOwnerChangeOnly, transferLocalOwnership, transferLocalOwnershipToNewAccount, type LocalOwnerCreate} from '@core/portico-servers.ts';
 
 export type LocalOwnerCandidate = Readonly<{accountId: string; username: string}>;
 export type LocalOwnerTransferCaller = Readonly<{isCurrent: () => boolean; signal: AbortSignal}>;
@@ -52,7 +52,7 @@ export class LocalOwnerTransferSource {
   constructor(private readonly api: ProfileAPI, options: LocalOwnerTransferOptions) {
     this.accountId = options.accountId; this.profileId = options.profileId;
     this.parentCurrent = options.isCurrent; this.onTransferred = options.onTransferred;
-    this.transferApi = options.transferApi;
+    this.transferApi = localOwnerChangeOnly(options.transferApi);
     this.people = new SettingsPeopleClient(api, this.current);
   }
   private current = () => {
