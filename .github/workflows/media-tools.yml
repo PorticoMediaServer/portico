@@ -275,6 +275,8 @@ jobs:
         run: |
           go test ./internal/mediaengine -run '^TestMediaMatrix$' -count=1 -v > "$RUNNER_TEMP/matrix.log" 2>&1 && passed=1
           grep -E '^\s*(--- |PASS|FAIL|ok|panic)|_test.go:[0-9]+:' "$RUNNER_TEMP/matrix.log" || true
+          # On a failure the lines under each finding say what came out; show the log whole.
+          [ "${passed:-0}" = 1 ] || grep -vE '"event":"conversion_started"|^=== ' "$RUNNER_TEMP/matrix.log"
           if grep -qE '^\s*--- SKIP' "$RUNNER_TEMP/matrix.log"; then echo "a real-media case was skipped, so the bundle did not convert it"; exit 1; fi
           [ "${passed:-0}" = 1 ]
       - name: Every server test, media tests included, with the bundle as FFmpeg
