@@ -4,9 +4,12 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 )
 
 // Viewing is one device watching a source's channel. It is running state: a restart ends it
@@ -26,6 +29,35 @@ type Viewing struct {
 	// CountdownReason says so in a sentence.
 	CountdownTo     time.Time
 	CountdownReason string
+	// Play is how the device plays the channel when it cannot take the source's own stream:
+	// nil for the source's MPEG-TS as it is.
+	Play *Play
+}
+
+// Play is HLS made for one device from a channel's shared input, for a device that cannot
+// play the source's MPEG-TS as it is (package mediaengine makes it).
+type Play struct {
+	// Route is repackaged (the source's picture and sound, in HLS) or converted.
+	Route string
+	// Engine is the device's player that plays it; Container is mpegts_hls or fmp4_hls.
+	Engine, Container string
+}
+
+// Conversion is a device starting to watch a channel, for the media engine to decide how it
+// plays it: the source's MPEG-TS as it is, or HLS made for the device (a Play).
+type Conversion struct {
+	// SessionID is the viewing the HLS belongs to.
+	SessionID string
+	Input     *Input
+	// Capabilities is the document the device last published; nil plans for a device that
+	// plays only the most widely supported formats.
+	Capabilities json.RawMessage
+	// Preferences are the profile's and the device's settings, key to JSON value.
+	Preferences map[string]string
+	// Network is local, remote or cellular; Limits is what the account is held to away from
+	// home.
+	Network string
+	Limits  db.PlayLimits
 }
 
 // Viewings holds every live viewing.
@@ -34,6 +66,9 @@ type Viewings struct {
 	byID    map[string]*Viewing
 	byGrant map[string]*Viewing
 	now     func() time.Time
+	// Ended is told each viewing that ends, however it ends, so what was made for it stops
+	// too. Set it before the viewings are used.
+	Ended func(id string)
 }
 
 // Lease is how long a viewing lives without a report from its device; it reports every
@@ -108,14 +143,14 @@ func (v *Viewings) Report(id string, userID int64, paused bool) (Viewing, bool) 
 }
 
 // ByGrant finds the viewing a stream address belongs to.
-func (v *Viewings) ByGrant(grant string) (*Input, bool) {
+func (v *Viewings) ByGrant(grant string) (Viewing, bool) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	w := v.byGrant[grant]
 	if w == nil {
-		return nil, false
+		return Viewing{}, false
 	}
-	return w.Input, true
+	return *w, true
 }
 
 // Stop ends a viewing, letting go of its input. Stopping one that is gone succeeds.
@@ -129,7 +164,19 @@ func (v *Viewings) Stop(id string, userID int64) {
 	delete(v.byID, id)
 	delete(v.byGrant, w.Grant)
 	v.mu.Unlock()
+	if v.Ended != nil {
+		v.Ended(id)
+	}
 	w.Input.Leave(w.use)
+}
+
+// SetPlay records how a viewing's device plays its channel.
+func (v *Viewings) SetPlay(id string, play *Play) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if w := v.byID[id]; w != nil {
+		w.Play = play
+	}
 }
 
 // Count is how many live viewings an account has on other sign-ins, and the server
