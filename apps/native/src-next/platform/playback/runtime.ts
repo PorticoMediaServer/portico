@@ -192,6 +192,8 @@ export class NativePlaybackRuntime {
   private serverKinds: readonly string[] = [];
   private transitions = false;
   private effectiveRate = 0;
+  /** The speed last asked of the engine: what Playback options shows while the engine reports none. */
+  private chosenRate = 1;
   private supportedRates: readonly number[] = [];
   private surfaceOwner?: object;
   private surfaceTag?: number;
@@ -1436,6 +1438,7 @@ export class NativePlaybackRuntime {
     }
     this.readForcedImage(fence, forcedPath);
     if (subtitles && this.forcedImageAvailable(fence) && this.choices.get('forcedOnly', fence.playback, false)) subtitles = {...subtitles, forcedOnly: true};
+    this.chosenRate = rate;
     this.coordinator.setOptions(rate, null, subtitles);
     const version = this.options?.versions.find(value => value.id === session?.versionId);
     this.path.setAutomatic(session?.presentation.quality.mode === 'automatic' ? {steps: automaticSteps(this.options?.qualities ?? []), originalKbps: version?.bitrateKbps} : null);
@@ -1531,11 +1534,11 @@ export class NativePlaybackRuntime {
       startFailure: this.startFailure, capacityWait: this.capacityWait, firstVideoFrame, ...this.startingFields(fence),
       initialPresentation: this.initialPresentation?.read(fence),
       ...(fence && this.forcedImageAvailable(fence) ? {forcedOnly: Object.freeze({on: this.choices.get('forcedOnly', fence.playback, false)})} : {}),
-      options: this.options, subtitles: this.subtitleService?.getSnapshot(), ...(fence?.kind === 'queue' ? {subtitleStyle: this.subtitleStyles.read(fence, this.o.settings().subtitles)} : {}), localTracks, audioTrackSelection: this.audioTrackSelection.getSnapshot(), seekWindow, engine: this.coordinator.getEngine() === 'mpv' ? 'mpv' : 'native', lease: this.coordinator.getSnapshot(), effectiveRate: playback.nativeListening?.effectiveRate ?? this.effectiveRate, supportedRates: playback.nativeListening?.supportedRates ?? this.supportedRates, externalPresentationBinding,
+      options: this.options, subtitles: this.subtitleService?.getSnapshot(), ...(fence?.kind === 'queue' ? {subtitleStyle: this.subtitleStyles.read(fence, this.o.settings().subtitles)} : {}), localTracks, audioTrackSelection: this.audioTrackSelection.getSnapshot(), seekWindow, engine: this.coordinator.getEngine() === 'mpv' ? 'mpv' : 'native', lease: this.coordinator.getSnapshot(), effectiveRate: playback.nativeListening?.effectiveRate ?? (this.effectiveRate > 0 ? this.effectiveRate : this.chosenRate), supportedRates: playback.nativeListening?.supportedRates ?? this.supportedRates, externalPresentationBinding,
       ...(this.o.pictureInPictureControls ? {pictureInPicture: Object.freeze({request: this.pictureRequests, active: this.pictureAttempt?.state === 'active', state: this.pictureState, automatic: !this.retired && this.o.settings().autoPictureInPicture !== false,
         ...(this.pictureBinding && externalPresentationBinding && sameNativePresentation(this.pictureBinding, externalPresentationBinding) ? {binding: this.pictureBinding} : {})})} : {}), retired: this.retired,
       bookChapters: fence?.kind === 'queue' ? this.queue.bookChaptersView() : null,
-      capabilities: Object.freeze({queueSelection: queueSelectionReady, queueEdit: queueEditReady, queuePolicy: ready && fence?.kind === 'queue' && !!view && session?.queue?.queueId === view.queue.id && view.queue.currentEntryId === fence.entryId, retry: playback.phase === 'error' && !this.preparing && fence?.kind === 'queue' && session?.kind === 'vod' && session.presentation.subtitle?.delivery !== 'other' && view?.queue.currentEntryId === fence.entryId && view.queue.entries.some(entry => entry.id === fence.entryId && !entry.hidden && !entry.removed), play: ready && playback.intent === 'paused', pause: ready && playback.intent === 'playing', stop: !!fence, seek: ready && (seekWindow ? seekWindow.endSeconds > seekWindow.startSeconds : playback.duration > 0),
+      capabilities: Object.freeze({queueSelection: queueSelectionReady, queueEdit: queueEditReady, queuePolicy: ready && fence?.kind === 'queue' && !!view && session?.queue?.queueId === view.queue.id && view.queue.currentEntryId === fence.entryId, retry: playback.phase === 'error' && !this.preparing && fence?.kind === 'queue' && session?.kind === 'vod' && session.presentation.subtitle?.delivery !== 'other' && view?.queue.currentEntryId === fence.entryId && view.queue.entries.some(entry => entry.id === fence.entryId && !entry.hidden && !entry.removed), play: ready && playback.intent === 'paused' || playback.phase === 'ended' && fence?.kind === 'queue' && !this.retired, pause: ready && playback.intent === 'playing', stop: !!fence, seek: ready && (seekWindow ? seekWindow.endSeconds > seekWindow.startSeconds : playback.duration > 0),
         previous: ready && fence?.kind === 'queue' && (chapterPrevious !== undefined ? !!chapterPrevious : playback.positionSeconds > 3 || currentIndex > 0), next: ready && fence?.kind === 'queue' && (chapterNext !== undefined ? !!chapterNext : !!view && view.next.reason !== 'end'), cast: ready && fence?.kind === 'queue' && !!this.o.openDestinations,
         // The system route picker moves the retained player; Portico adds no second transport.
         airPlayVideo: ready && fence?.kind === 'queue' && localPicture?.kind === 'video' && !this.path.controller.getSnapshot().changing
@@ -1597,7 +1600,8 @@ export class NativePlaybackRuntime {
       if (result === 'failed') this.playback.fail(before.intentId, serviceText('player.opt.unavailable'));
       else if (result === 'changed') this.applyOptions();
     }
-    if (typeof fact.effectiveRate === 'number') this.effectiveRate = fact.effectiveRate;
+    // A paused player reports rate 0: the speed shown and chosen stays the one it plays at.
+    if (typeof fact.effectiveRate === 'number' && fact.effectiveRate > 0) this.effectiveRate = fact.effectiveRate;
     if (Array.isArray(fact.supportedRates)) this.supportedRates = Object.freeze(fact.supportedRates.filter((rate: unknown): rate is number => typeof rate === 'number' && Number.isFinite(rate) && rate >= .5 && rate <= 3));
     if (fact.type === 'externalPlayback') this.followAirPlay(fact.active === true);
     else if (fact.type === 'progress' && this.airPlayActive) this.followAirPlay();
@@ -1695,7 +1699,13 @@ export class NativePlaybackRuntime {
   policyAdvance = async (fence: PlaybackFence, mode: 'manual' | 'still-watching'): Promise<void> => {if (fence.kind === 'queue') await this.videoPolicy.advance(fence, mode);};
   policyCancelAutoplay = (fence: PlaybackFence): void => {if (fence.kind === 'queue') this.videoPolicy.cancelAutoplay(fence);};
 
-  toggle = async (fence: PlaybackFence): Promise<void> => { if (this.matches(fence)) { const state = this.playback.getSnapshot(); if (state.intent === 'playing') this.playback.pause(); else this.playback.resume(); } };
+  toggle = async (fence: PlaybackFence): Promise<void> => {
+    if (!this.matches(fence)) return;
+    const state = this.playback.getSnapshot();
+    // At the end, Play plays the title again from its start, as the end card's Play again does.
+    if (state.phase === 'ended' && fence.kind === 'queue') { await this.replay(fence); return; }
+    if (state.intent === 'playing') this.playback.pause(); else this.playback.resume();
+  };
   selectQueuedEntry = async (fence: PlaybackFence, request: V1QueuedEntrySelection, lifetime: NativePlaybackReadLifetime): Promise<void> => {
     if (!this.matches(fence) || fence.kind !== 'queue' || !this.snapshot.capabilities.queueSelection
       || lifetime.signal.aborted || !lifetime.isCurrent()) return;
