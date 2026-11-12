@@ -340,11 +340,13 @@ func browseBy(kind string) ([]View, []Sort, []Filter) {
 		{ID: "actor", Type: "person"}, {ID: "director", Type: "person"}, {ID: "writer", Type: "person"},
 		{ID: "resolution", Type: "choice", Values: []string{"sd", "720p", "1080p", "4k"}}, {ID: "dynamicRange", Type: "text"},
 		{ID: "audioLanguage", Type: "text"}, {ID: "subtitleLanguage", Type: "text"}, {ID: "versions", Type: "number"}}
+	// A film or show library's collections are a list of their own (kind=collection); an anime
+	// library is browsed as a show library is. A comic library lists its comics and their series.
 	switch kind {
 	case db.LibraryMovies:
-		return []View{{"movie"}}, append(sorts, videoSorts...), append(filters, video...)
-	case db.LibraryShows:
-		return []View{{"show"}, {"episode"}}, append(append(sorts, videoSorts...), Sort{db.SortLatest, "desc"}),
+		return []View{{"movie"}, {"collection"}}, append(sorts, videoSorts...), append(filters, video...)
+	case db.LibraryShows, db.LibraryAnime:
+		return []View{{"show"}, {"episode"}, {"collection"}}, append(append(sorts, videoSorts...), Sort{db.SortLatest, "desc"}),
 			append(append(filters, video...), Filter{ID: "network", Type: "tag"})
 	case db.LibraryMusic:
 		return []View{{"artist"}, {"album"}, {"track"}}, append(append(sorts[:3:3], Sort{db.SortDuration, "desc"}, Sort{db.SortLatest, "desc"}), ownSorts...),
@@ -353,7 +355,11 @@ func browseBy(kind string) ([]View, []Sort, []Filter) {
 		return []View{{"audiobook"}, {"series"}}, append(append(sorts[:3:3], Sort{db.SortDuration, "desc"}), ownSorts...),
 			append(filters, Filter{ID: "author", Type: "person"}, Filter{ID: "narrator", Type: "person"}, Filter{ID: "durationMs", Type: "number"})
 	}
-	return []View{{"book"}, {"series"}}, append(sorts[:3:3], ownSorts...), append(filters, Filter{ID: "author", Type: "person"})
+	reading := []View{{"book"}, {"series"}}
+	if kind == db.LibraryComics {
+		reading = []View{{"comic"}, {"series"}}
+	}
+	return reading, append(sorts[:3:3], ownSorts...), append(filters, Filter{ID: "author", Type: "person"})
 }
 
 // defaultOrder is the direction a sort starts in when the request does not say.
