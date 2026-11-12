@@ -201,7 +201,13 @@ func TestOpeningBooks(t *testing.T) {
 		t.Fatalf("a chapter answered %d %q", r.StatusCode, r.Header.Get("Content-Type"))
 	}
 	// (A path with ".." in it is redirected to its plain form by the router before it gets here.)
-	for _, path := range []string{"/parts/META-INF/container.xml", "/parts/OEBPS/../../etc/passwd", "/parts/mimetype", "/pages/0", "/nothing"} {
+	// The container and the package document are read the way the app's EPUB engine reads a book.
+	for path, kind := range map[string]string{"/parts/META-INF/container.xml": "application/xml", "/parts/OEBPS/content.opf": "application/oebps-package+xml"} {
+		if r := b.fetch(book.MediaURL + path); r.StatusCode != 200 || r.Header.Get("Content-Type") != kind {
+			t.Fatalf("%s answered %d %q", path, r.StatusCode, r.Header.Get("Content-Type"))
+		}
+	}
+	for _, path := range []string{"/parts/OEBPS/../../etc/passwd", "/parts/mimetype", "/pages/0", "/nothing"} {
 		if r := b.fetch(book.MediaURL + path); r.StatusCode != 404 && r.StatusCode != 307 {
 			t.Fatalf("%s answered %d", path, r.StatusCode)
 		}
