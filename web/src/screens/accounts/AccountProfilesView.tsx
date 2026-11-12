@@ -3,7 +3,10 @@ import {defaultI18n} from '@i18n';
 import type {DirectSnapshot} from '@core/profile-management.ts';
 import type {AccountEntryState} from '../../platform/account-entry';
 import {AuthError, AuthStage, ServerProfiles, ServerProfilePIN} from '../../kit/accounts';
-import {ProfilePINRecovery} from '../../kit/accounts/ProfilePINRecovery';
+import {ProfilePINRecovery, type PorticoRecoveryView} from '../../kit/accounts/ProfilePINRecovery';
+import {goTo} from '../../platform/hosted-navigation';
+import {porticoHandoffUrl} from '../../platform/portico-handoff';
+import {browserAccountOrigin} from '../../platform/account-origin';
 import {usePINLockSeconds} from '../../kit/accounts/pin-feedback';
 import {Button} from '../../kit/controls';
 
@@ -12,9 +15,11 @@ type RecoveryPhase = Parameters<typeof ProfilePINRecovery>[0]['phase'];
  * No temporary proof, family or viewer credential is a view-model field. */
 export type ProfileRecoveryView = Readonly<{
   subscribe: (listener: () => void) => () => void;
-  getSnapshot: () => Readonly<{phase: RecoveryPhase; busy?: boolean; error?: unknown}>;
+  getSnapshot: () => Readonly<{phase: RecoveryPhase; busy?: boolean; error?: unknown; portico?: PorticoRecoveryView}>;
   password: (value: string) => Promise<void>;
-  portico: () => Promise<void>;
+  /** On a Portico Accounts server: reads the Portico Account this page holds (or that it holds none). */
+  preparePortico: () => Promise<void>;
+  porticoPassword: (password: string, twoStepCode: string) => Promise<void>;
   code: (value: string) => Promise<void>;
   reset: (value: string) => Promise<void>;
   openProfile: (pin: string, current: () => boolean) => Promise<void>;
@@ -94,7 +99,7 @@ export function AccountProfilesView({binding, onSwitchServer, focusProfileId}: {
         remember={remember} onRememberChange={!canRemember ? undefined : value => {if (viewCurrent() && !activeRecovery.current && !binding.getSnapshot().busy) setRemember(value);}}
         // A tick on the picker remembers a profile without a PIN at once, and carries to a PIN profile's page, where it applies after a correct PIN.
         onSelect={profile => {if (!viewCurrent() || selectedNow.current !== selection || activeRecovery.current || binding.getSnapshot().busy) return; if (profile.pinRequired) {const selected = {id: profile.id}; selectedNow.current = selected; setSelection(selected);} else void binding.chooseProfile(profile.id, '', canRemember && remember);}} />}
-    {selected && recovery && <Recovery binding={binding} flow={recovery.flow} current={() => openingCurrent(recovery)} profileName={selected.name} username={snapshot.account.username}
+    {selected && recovery && <Recovery binding={binding} flow={recovery.flow} current={() => openingCurrent(recovery)} profileName={selected.name} username={snapshot.account.username} serverId={server.id}
       onClose={() => retire(recovery)} onOpen={pin => {
         if (!openingCurrent(recovery) || recovery.completing || recovery.flow.getSnapshot().phase !== 'done') return;
         recovery.completing = true; setRecovery(undefined);
@@ -103,18 +108,20 @@ export function AccountProfilesView({binding, onSwitchServer, focusProfileId}: {
   </>;
 }
 
-function Recovery({binding, flow, current, profileName, username, onClose, onOpen}: {
+function Recovery({binding, flow, current, profileName, username, serverId, onClose, onOpen}: {
   binding: ProfilePickerViewBinding; flow: ProfileRecoveryView; current: () => boolean; profileName: string; username: DirectSnapshot['account']['username'];
-  onClose: () => void; onOpen: (pin: string) => void;
+  serverId: string; onClose: () => void; onOpen: (pin: string) => void;
 }) {
-  const state = useSyncExternalStore(flow.subscribe, flow.getSnapshot), [busy, setBusy] = useState(false), [error, setError] = useState<unknown>();
+  const state = useSyncExternalStore(flow.subscribe, flow.getSnapshot);
   const active = useRef<{live: boolean} | undefined>(undefined), [lifetime, setLifetime] = useState<{live: boolean}>();
-  useLayoutEffect(() => {const own = {live: true}; active.current = own; setLifetime(own); setBusy(false); return () => {own.live = false; if (active.current === own) active.current = undefined;};}, [flow]);
+  useLayoutEffect(() => {const own = {live: true}; active.current = own; setLifetime(own); return () => {own.live = false; if (active.current === own) active.current = undefined;};}, [flow]);
   const live = () => lifetime?.live && active.current === lifetime && current();
-  const portico = async () => {
-    if (busy || !live()) return; setBusy(true); setError(undefined);
-    try {await flow.portico();} catch (failure) {if (live()) setError(failure);} finally {if (live()) setBusy(false);}
-  };
-  return <ProfilePINRecovery profileName={profileName} username={username} phase={state.phase} busy={state.busy || busy} error={state.error ?? error}
-    onPassword={password => {if (live()) void flow.password(password);}} onPortico={() => void portico()} onCode={code => {if (live()) void flow.code(code);}} onPIN={pin => {if (live()) void flow.reset(pin);}} onClose={() => {if (live()) onClose();}} onOpen={pin => {if (live()) onOpen(pin);}} />;
+  // On a Portico Accounts server the Portico Account this page holds is read as the step opens.
+  const porticoStep = state.phase === 'portico' && !state.portico;
+  useLayoutEffect(() => {if (porticoStep) void flow.preparePortico();}, [flow, porticoStep]);
+  return <ProfilePINRecovery profileName={profileName} username={username} phase={state.phase} busy={state.busy} error={state.error} portico={state.portico}
+    onPassword={password => {if (live()) void flow.password(password);}} onPorticoPassword={(password, code) => {if (live()) void flow.porticoPassword(password, code);}}
+    onPorticoRetry={() => {if (live()) void flow.preparePortico();}} onSetPassword={() => {if (live()) goTo('/account?tab=security');}}
+    onPorticoElsewhere={() => {if (live()) location.assign(porticoHandoffUrl({hostedOrigin: browserAccountOrigin(import.meta.env, location), serverId, pageOrigin: location.origin}).url);}}
+    onCode={code => {if (live()) void flow.code(code);}} onPIN={pin => {if (live()) void flow.reset(pin);}} onClose={() => {if (live()) onClose();}} onOpen={pin => {if (live()) onOpen(pin);}} />;
 }

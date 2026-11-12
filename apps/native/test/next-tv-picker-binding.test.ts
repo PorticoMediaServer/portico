@@ -127,8 +127,8 @@ test('TV entry Forgot PIN keeps the same account operation and returns to the sa
     await act(() => tree.props.onForgotPIN());
     assert.equal(tree.type, 'Forgot');
     assert.equal(tree.props.profileName, profile.name);
-    assert.equal(tree.props.url, 'https://verified.example/settings/profile');
-    assert.equal(tree.props.body, 'next.auth.tv.forgotPINBody');
+    assert.equal(tree.props.serverAddress, 'https://verified.example');
+    assert.equal(tree.props.server.signIn, 'local', 'a local server: its own profile page');
     assert.deepEqual(calls, baseline, 'opening the public hand-off has no sign-out, selection, polling or operation retirement');
     await act(() => tree.props.onBack());
     assert.equal(tree.type, 'PIN'); assert.equal(tree.props.profile.id, profile.id); assert.equal(tree.props.code, '');
@@ -200,7 +200,7 @@ test('TV profile-switch hand-off preserves its current family, selection control
     attempts.pop();
     await act(() => tree.props.onCodeChange('99'));
     await act(() => tree.props.onForgotPIN());
-    assert.equal(tree.type, 'Forgot'); assert.equal(tree.props.url, 'https://verified.example/settings/profile');
+    assert.equal(tree.type, 'Forgot'); assert.equal(tree.props.serverAddress, 'https://verified.example');
     await act(() => {assert.equal([...back.listeners][0]!(), true);});
     assert.equal(tree.type, 'PIN'); assert.equal(tree.props.code, ''); assert.equal(exited, 0, 'hardware Back returns to the pad, not the previous route');
     await act(() => tree.props.onForgotPIN());

@@ -24,7 +24,7 @@ import {decodeMeGetResponse} from '../../../../packages/contracts/src/hosted/dec
 import {readNativeServerDisplays, rememberNativeServerDisplay} from './server-display';
 import type {PickTrace} from './pick-deadline';
 import type {PorticoPINProofSource} from '../../../../packages/client-core/src/profile-recovery';
-import {accountExpectation, nativeAccountWork} from './account-work';
+import {accountExpectation, nativeAccountRead, nativeAccountWork} from './account-work';
 
 /** Every listener hears the event even when one before it throws: a screen's bug must not stop a
  * sign-out, a server switch or a Portico Account sign-out half-way. A failure is reported, not hidden. */
@@ -210,6 +210,16 @@ export class NativeAccounts {
           ...(bridge?.canSignInApple ? {apple: (nonce: string) => bridge.signInApple(nonce)} : {}),
           ...(bridge?.canOpenBrowser ? {browser: (url: string, id: string) => bridge.openBrowser(url, id)} : {}),
         }))};
+  }
+  /** What Forgot PIN's Portico step shows before anything is typed: whose password it is, whether the
+   * account has one (Google- or Apple-only accounts don't), and whether a two-step code goes with it. */
+  async porticoRecoveryAccount(source: PorticoPINProofSource): Promise<Readonly<{username: string; hasPassword: boolean; twoStep: boolean}>> {
+    const credentials = this.accountCredentials(), held = credentials.getSnapshot().session;
+    if (!held || held.account.id !== source.accountId || !source.isCurrent()) throw Object.assign(new Error('native_account_changed'), {code: 'account_changed'});
+    const who = await nativeAccountRead(credentials, issued => porticoAccount(heldFor(issued.accessToken), hostedUrl, {fetcher: nativeNetworkFetch}).account()
+      .catch(error => {throw porticoApiError(error);}), {expected: accountExpectation(held), isCurrent: source.isCurrent});
+    if (who.id !== source.accountId) throw Object.assign(new Error('native_account_changed'), {code: 'account_changed'});
+    return Object.freeze({username: who.username, hasPassword: who.hasPassword, twoStep: who.twoStep});
   }
   accountClient(binding: string, isCurrent?: () => boolean, ownsResult?: () => boolean) {this.assertCurrent(); return createNativeAccountClient(hostedUrl, binding, isCurrent, ownsResult);}
   async authenticatePorticoAccount(callback: (signal: AbortSignal) => Promise<HostedSession>, callerCurrent?: () => boolean) {

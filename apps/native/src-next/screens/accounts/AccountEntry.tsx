@@ -1642,7 +1642,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     <BootWaitLine active={busy} serverName={server!.name} testID="accounts-profile-wait"/></>);
   }
   if (theme.isTV && stage === 'profile-forgot-pin') return <TVForgotPINHandoff profileName={profile!.name}
-    url={new URL('/settings/profile', operation.current!.serverOrigin()).href} body="next.auth.tv.forgotPINBody" onBack={back}/>;
+    serverAddress={operation.current!.serverOrigin()} server={{id: server!.id, signIn: server!.signIn}} onBack={back}/>;
   if (theme.isTV && stage === 'profile-pin') return <TVProfilePINForm
     profile={{id: profile!.id, name: profile!.name, initial: [...profile!.name][0] ?? '', color: profile!.art, primary: profile!.primary, pinRequired: true}}
     code={code} onCodeChange={setCode} busy={busy} error={status} onBack={back}
