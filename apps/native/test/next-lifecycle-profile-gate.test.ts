@@ -6,6 +6,7 @@ import {defaultI18n} from '../../../packages/i18n/src';
 import {presentError} from '../../../packages/client-core/src/presentation/errors';
 import {createTheme} from '../src-next/kit/theme';
 import {SessionLifecycle, type LifecyclePorts, type SelectInput} from '../../../packages/client-core/src/session-lifecycle-runtime';
+import {ApiError} from '../../../packages/client-core/src';
 import {act, createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import {screenModule} from './helpers/screen-harness.mjs';
 
@@ -15,13 +16,17 @@ const server = {serverId: 's1', name: 'Portico demo', signIn: 'local' as const};
 const viewer = (profileId: string, familyId: string) => ({accountId: 'a1', profileId, role: 'owner', familyId});
 const profiles = [{id: 'main', name: 'Demo', primary: true, pinRequired: false}, {id: 'alex', name: 'Alex', primary: false, pinRequired: true}];
 
-async function gate(rememberProfiles: boolean, isTV = false) {
+async function gate(rememberProfiles: boolean, isTV = false, refuse = false) {
   const selects: SelectInput[] = [];
   const ports = {
     readRecords: async () => ({outcome: 'ok' as const, servers: 1, held: {server, viewer: viewer('main', 'f1'), remembered: false, profilePinRequired: false}}),
     resetRecords: async () => {}, readHeld: async () => ({servers: 1}),
     connect: async () => ({profiles, rememberProfiles}),
-    select: async (input: SelectInput) => {selects.push(input); return {viewer: viewer(input.profileId, 'f2'), remembered: input.remember};},
+    select: async (input: SelectInput) => {
+      selects.push(input);
+      if (refuse) throw new ApiError(403, 'profile_pin_invalid', 'That PIN is not correct.');
+      return {viewer: viewer(input.profileId, 'f2'), remembered: input.remember};
+    },
     storeSelect: async () => {}, signOutServer: async () => ({servers: 0}), signOutAccount: async () => ({servers: 0}), forgetServer: async () => ({servers: 0}),
     clearMarker: async () => {}, fenceShell: () => {}, drainRevocations: () => {}, observeRecords: () => () => {}, classifyConnect: () => undefined,
     connection: () => undefined, adopt: () => undefined, lendInstallation: () => {}, releaseConnection: () => {},
@@ -179,4 +184,21 @@ test('on TV the faces carry the same checkbox only where the server allows remem
       assert.equal(g.selects[0]?.remember, true);
     } finally {await g.host.unmount(); g.lifecycle.dispose();}
   }
+});
+
+test('on TV a refused PIN stays in the boxes for 400 ms, then they empty for the next try (motion S.3)', async () => {
+  const g = await gate(false, true, true);
+  try {
+    const picker = nodes(g.tree().props.children).find(node => node.type === 'Picker');
+    await act(async () => {picker.props.onSelect('alex'); await settle();});
+    await g.host.rerender();
+    await act(() => g.tree().props.onCodeChange('1111'));
+    await act(async () => {g.tree().props.onSubmit('1111'); await settle();});
+    await g.host.rerender();
+    assert.equal(g.tree().type, 'TVPIN');
+    assert.equal(g.tree().props.code, '1111', 'the refused PIN is still shown');
+    await act(async () => {await new Promise(resolve => setTimeout(resolve, 450));});
+    await g.host.rerender();
+    assert.equal(g.tree().props.code, '', 'the boxes empty after 400 ms');
+  } finally {await g.host.unmount(); g.lifecycle.dispose();}
 });

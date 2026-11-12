@@ -57,7 +57,8 @@ export function TVCodeBoxes({code, length, masked = false, busy, error}: {code: 
     accessibilityValue={{min: 0, max: length, now: count, text: value}} style={{flexDirection: 'row', gap: 18}}>
     {Array.from({length}, (_, index) => <View key={index} accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{width: 104, height: 116, borderRadius: 18,
       alignItems: 'center', justifyContent: 'center', backgroundColor: `${theme.colors.ink}9E`, borderWidth: 2,
-      borderColor: error ? theme.colors.danger : index === code.length ? theme.colors.accentStrong : theme.colors.lineStrong}}>
+      // S.3: red while the refused code is still in the boxes; once they clear the next code is not typed into red.
+      borderColor: error && code.length === length ? theme.colors.danger : index === code.length ? theme.colors.accentStrong : theme.colors.lineStrong}}>
       {code[index] ? masked ? <View style={{width: 24, height: 24, borderRadius: 12, backgroundColor: theme.colors.text}}/>
         : <Text style={[nativeType({size: 28, weight: 800, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.text}]}>{code[index]}</Text>
         : index === code.length && !busy ? <View style={{width: 3, height: 52, borderRadius: 1, backgroundColor: theme.colors.accentStrong}}/> : null}

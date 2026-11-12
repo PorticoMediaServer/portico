@@ -44,6 +44,14 @@ export function LifecycleProfileGate() {
   const profileId = state.kind === 'enteringPin' ? state.profile.id : undefined;
   // A new PIN screen starts empty; the tick is the person's and carries from the picker to the PIN page and back.
   useEffect(() => {setCode(''); setForgot(false);}, [profileId]);
+  // notes/motion.md S.3, as the in-app picker does: a refused PIN stays in the red boxes for 400 ms, then they empty for
+  // the next try (each refusal is a new lifecycle state).
+  const refused = state.kind === 'enteringPin' && state.rejected ? state : undefined;
+  useEffect(() => {
+    if (!refused) return;
+    const timer = setTimeout(() => setCode(''), 400);
+    return () => clearTimeout(timer);
+  }, [refused]);
   const choosing = state.kind === 'choosingProfile' || state.kind === 'enteringPin';
   useEffect(() => {if (!choosing) setRemember(false);}, [choosing]);
   useEffect(() => () => recovery?.controller.dispose(), [recovery]);
@@ -109,7 +117,9 @@ export function LifecycleProfileGate() {
     onClose={() => {recovery.controller.dispose(); setRecovery(undefined); setCode('');}}/>;
   if (theme.isTV && forgot && connection) return <TVForgotPINHandoff profileName={profile.name}
     url={new URL('/settings/profile', routeOrigin(connection.api.baseUrl)).href} body="next.auth.tv.forgotPINBody" onBack={back}/>;
-  if (theme.isTV) return <TVProfilePINForm profile={option(profile)} code={code} onCodeChange={setCode} busy={busy} error={status}
+  // Under the boxes in a line of its own height (TVCodeErrorLine): no margin of its own, so nothing moves when it shows.
+  const pinStatus = failure && !failure.silent ? <Text style={[theme.type.caption, {color: theme.colors.danger}]}>{profilePinFailureText(failed) ?? failure.body}</Text> : undefined;
+  if (theme.isTV) return <TVProfilePINForm profile={option(profile)} code={code} onCodeChange={setCode} busy={busy} error={pinStatus}
     {...(state.canRemember ? {remember: {checked: remember, onChange: setRemember}} : {})}
     hints={busy ? wait : undefined} onSubmit={send} onBack={back} onForgotPIN={() => {if (!busy) {setCode(''); setForgot(true);}}}/>;
   // A profile is always named; only an account that couldn't be read falls back to the plain title.
