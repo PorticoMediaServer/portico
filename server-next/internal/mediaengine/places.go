@@ -164,6 +164,7 @@ func (e *Engine) setConversion(folder, ffmpeg string) error {
 		}
 		if tools.converter {
 			decoder.ConfigureToolchain(facts)
+			e.tryGraphics(tools, tools.ffmpeg, facts)
 		}
 		e.asking = tools
 	}
@@ -366,9 +367,27 @@ func (e *Engine) ask(ffmpeg string) *toolset {
 			return
 		}
 		decoder.ConfigureToolchain(facts)
+		e.tryGraphics(t, t.ffmpeg, facts)
 		// The hardware encoders are tried out now, beside the start, so no play waits for
 		// that: until it is done a conversion is planned in software.
 		t.hardware.SelectCached(t.ffmpeg, "auto", "")
 	}()
 	return t
+}
+
+// tryGraphics asks, beside the start or a switch, whether a graphics device can run the
+// Dolby Vision and tone-map filters for this program; until it answers, those conversions
+// are not offered. An answer for a program that is no longer the one in force is dropped.
+func (e *Engine) tryGraphics(t *toolset, ffmpeg string, facts decoder.ToolchainFacts) {
+	go func() {
+		tried, err := decoder.ProbeToolchainGraphics(e.ctx, ffmpeg, facts)
+		if err != nil {
+			return
+		}
+		e.switching.Lock()
+		defer e.switching.Unlock()
+		if e.tools() == t {
+			decoder.ConfigureToolchain(tried)
+		}
+	}()
 }
