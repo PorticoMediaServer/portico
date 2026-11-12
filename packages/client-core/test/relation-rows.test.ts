@@ -33,19 +33,14 @@ test('one more() at a time, and nothing after dispose', async () => {
   assert.deepEqual(pager.getSnapshot().entries, []);
 });
 
-test('the similar row pages by cursor on its first basis', async () => {
+test('the rebuilt listening related row has no continuation to request', async () => {
   const scope = {serverId: 'srv', authority: 'local', accountId: 'a', profileId: 'p'};
-  const album = (id: string) => ({id, kind: 'album', title: id, libraryId: 'music', navigation: {view: 'album', entityId: id}});
-  const page = (entries: unknown[], next?: string, bySound = true) => ({scope: {serverId: 'srv', authority: 'local', accountId: 'a', profileId: 'p'}, data: {itemId: 'a1', libraryId: 'music', bySound, revision: {catalog: 1, viewer: 1}, entries, ...(next ? {hasMore: true, nextCursor: next} : {hasMore: false})}});
-  const server = api(path => path.includes('cursor=') ? page([album('b2')]) : page([album('b1')], 'c1'));
+  const album = (id: string) => ({id, kind: 'album', title: id, libraryId: 'music'});
+  const server = api(path => path.endsWith('/related') ? {groups: [{relation: 'more_like_this', items: [album('b1')]}]} : album('a1'));
   const first = await readListeningSimilar(server, scope, 'a1', {by: 'sound', limit: 24});
-  assert.equal(first.nextCursor, 'c1');
   const pager = listeningSimilarPager(server, scope, first, {limit: 24});
   await pager.more();
-  assert.equal(server.paths[1], '/v1/items/a1/similar?limit=24&by=sound&cursor=c1');
-  assert.deepEqual(pager.getSnapshot().entries.map(e => e.id), ['b1', 'b2']);
-  // A page on another basis is a stale continuation.
-  const switched = listeningSimilarPager(api(() => page([album('b3')], undefined, false)), scope, first);
-  await switched.more();
-  assert.equal(switched.getSnapshot().error?.stale, true);
+  assert.deepEqual(server.paths, ['/v1/items/a1', '/v1/items/a1/related']);
+  assert.deepEqual(pager.getSnapshot().entries.map(e => e.id), ['b1']);
+  assert.equal(pager.getSnapshot().cursor, undefined);
 });
