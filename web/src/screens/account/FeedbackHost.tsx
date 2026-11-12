@@ -37,5 +37,5 @@ export function FeedbackHost() {
 }
 function BoundFeedback({controller}: {controller: ViewerFeedback}) {
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
-  return state.open ? <FeedbackDialog snapshot={state} title={state.target?.item.title} hasPlayback={!!state.target?.playback} problem={controller.problem()} onChange={patch => controller.change(patch)} onSubmit={() => {void controller.submit();}} onClose={controller.close} /> : null;
+  return state.open ? <FeedbackDialog snapshot={state} title={state.target?.item.title} problem={controller.problem()} onChange={patch => controller.change(patch)} onSubmit={() => {void controller.submit();}} onClose={controller.close} /> : null;
 }

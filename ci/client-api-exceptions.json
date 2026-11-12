@@ -1735,16 +1735,6 @@
       "apps/native/src-next/shell/bootstrap-services.ts#de7bb4bc80ff725c": "4b62d415ec5c785ef36a7993f165dfaa55290e0f51838f59eeede3af604d103f"
     }
   },
-  "web/src/screens/account/feedback-controller.ts": {
-    "category": "platform-transport",
-    "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
-    "sites": [
-      "web/src/screens/account/feedback-controller.ts#e6ba4e741880a9f2"
-    ],
-    "guardHashes": {
-      "web/src/screens/account/feedback-controller.ts#e6ba4e741880a9f2": "8fabc2ceab1613fd3df43770c02062e60b3f5a484292363d34071d5e305d82d1"
-    }
-  },
   "web/src/screens/live/bindings.ts": {
     "category": "platform-transport",
     "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
