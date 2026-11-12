@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
@@ -22,7 +23,8 @@ type metadataArea struct {
 // startMetadata builds this area's service and registers its routes. New calls it once, after
 // the job runner exists and before the jobs left from the last run are taken up.
 func (s *Server) startMetadata(ctx context.Context) error {
-	s.metadata = &metadata.Service{DB: s.db, Providers: map[string]metadata.Provider{}, Settings: s.settings, Pictures: s.artwork}
+	s.metadata = &metadata.Service{DB: s.db, Providers: map[string]metadata.Provider{}, Settings: s.settings, Pictures: s.artwork,
+		SubtitleDir: filepath.Join(s.dataDir, "subtitles")}
 	if err := s.loadProviderKeys(ctx); err != nil {
 		return err
 	}

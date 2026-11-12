@@ -41,6 +41,7 @@ export const ownerParityMessages = {
   'server.metadata.openSubtitlesTesting': 'Testing…',
   'server.metadata.openSubtitlesTestUnsaved': 'Save your changes, then test them.',
   'server.metadata.openSubtitlesNotSetUp': 'Not set up. Add your OpenSubtitles API key to search for subtitles.',
+  'server.metadata.openSubtitlesKeyUnreadable': 'Your OpenSubtitles key and account can no longer be read on this server. Enter them again to search for subtitles.',
   'server.metadata.openSubtitlesNotTested': 'Not tested yet',
   'server.metadata.openSubtitlesSignedIn': 'Signed in and working',
   'server.metadata.openSubtitlesKeyWorks': 'The key works. Add your account too, so Portico can download.',

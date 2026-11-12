@@ -318,6 +318,25 @@ func sortedUnique(list []string) []string {
 	return slices.Compact(list)
 }
 
+// Allowance is how many downloads the account has in a day, and how many are left today.
+type Allowance struct{ Allowed, Remaining int }
+
+// Check signs in with the owner's key and account and reads the account's allowance: Test
+// connection on Server › Metadata. It fails as a search would: ErrKeyRefused, ErrSignInRefused,
+// a *fetch.SlowDown, or no answer.
+func (c *Client) Check(ctx context.Context) (Allowance, error) {
+	var answer struct {
+		Data struct {
+			Allowed   int `json:"allowed_downloads"`
+			Remaining int `json:"remaining_downloads"`
+		} `json:"data"`
+	}
+	if err := c.call(ctx, http.MethodGet, "/infos/user", nil, &answer); err != nil {
+		return Allowance{}, err
+	}
+	return Allowance{Allowed: answer.Data.Allowed, Remaining: answer.Data.Remaining}, nil
+}
+
 // Download asks OpenSubtitles for a subtitle file as SRT, which counts against the account's
 // daily allowance, then fetches it from the address the answer gives.
 func (c *Client) Download(ctx context.Context, ref string) ([]byte, string, error) {
