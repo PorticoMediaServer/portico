@@ -133,6 +133,27 @@ func personValue(ctx context.Context, tx *sql.Tx, value string) (int64, error) {
 	return person, err
 }
 
+// conditionPerson finds the person a person condition's value names. For "artist" the value
+// may also be an artist's own id, as an artist's page has it: the artist is then the person
+// most often credited as artist on its albums, or failing those on its songs. A scan names
+// an artist by its album artist and credits that person on each album, and no link is kept
+// from the artist to the person.
+func conditionPerson(ctx context.Context, tx *sql.Tx, field, value string) (int64, error) {
+	person, err := personValue(ctx, tx, value)
+	if err != nil || person != 0 || field != "artist" {
+		return person, err
+	}
+	err = tx.QueryRowContext(ctx, `SELECT c.person_id FROM items a JOIN items t ON t.root_id = a.id AND t.kind IN (?2, ?3)
+		JOIN credits c ON c.item_id = t.id AND c.role = ?4
+		WHERE a.public_id = ?1 AND a.kind = ?5
+		GROUP BY c.person_id ORDER BY sum(t.kind = ?2) DESC, count(*) DESC, c.person_id LIMIT 1`,
+		value, KindAlbum, KindTrack, RoleArtist, KindArtist).Scan(&person)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	return person, err
+}
+
 // personTest is the test that a person is credited on an item, in one role or (0) in any.
 func personTest(person int64, role CreditRole) string {
 	if person == 0 {
@@ -183,7 +204,7 @@ func (c Condition) test(ctx context.Context, tx *sql.Tx, w *query) (string, erro
 			}
 			tests = append(tests, tagTest(tag))
 		case isPerson:
-			person, err := personValue(ctx, tx, value)
+			person, err := conditionPerson(ctx, tx, c.Field, value)
 			if err != nil {
 				return "", err
 			}
@@ -291,7 +312,7 @@ func (q ItemQuery) conditions(ctx context.Context, tx *sql.Tx, w *query, scoped 
 				in = fmt.Sprintf(" AND c.role = %d", role)
 			}
 			for _, value := range c.Values {
-				person, err := personValue(ctx, tx, value)
+				person, err := conditionPerson(ctx, tx, c.Field, value)
 				if err != nil {
 					return false, err
 				}
