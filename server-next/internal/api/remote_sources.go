@@ -446,12 +446,19 @@ func (s *Server) editRemoteSource(r *http.Request, req RemoteSourceEdit) (Remote
 	if req.Rclone != nil || req.Drive != nil {
 		// A new configuration or folder: test it, with the stored configuration unless a new
 		// one was given. The configuration names its own hosts, so it is kept with them.
-		if secret == (remote.Secret{}) {
+		stored := secret == (remote.Secret{})
+		if stored {
 			if secret, err = s.remote.Secret(ctx, row.ID); err != nil {
 				return RemoteSource{}, ErrConflict("source_secret_lost", "Paste the remote's configuration again.")
 			}
 		}
+		before := secret
 		if err := s.testSource(ctx, row.Kind, c, &secret); err != nil {
+			if stored && secret != before {
+				// The change is not saved, but the test signed in with the stored token and the
+				// provider may have replaced it: the newest one is kept with the old settings.
+				_ = s.remote.KeepToken(ctx, row.ID, secret)
+			}
 			return RemoteSource{}, err
 		}
 		if edit.Secret, err = s.remote.Seal(row.PublicID, secret); err != nil {

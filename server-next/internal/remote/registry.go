@@ -336,6 +336,27 @@ func (r *Registry) keepToken(id, revision int64, publicID, kind string, secret *
 	}
 }
 
+// KeepToken keeps, with a saved source's settings as they are, the secret a test of a change to
+// it ended with, when the change was not saved: the provider may have given a new token during
+// that test and retired the one stored, so the source would otherwise need its sign-in again for
+// a mistyped folder. The rclone already serving the source signs in with the retired token, so
+// it is stopped, and starts again with this one when next used.
+func (r *Registry) KeepToken(ctx context.Context, id int64, secret Secret) error {
+	row, err := r.db.RemoteSourceByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	sealed, err := r.Seal(row.PublicID, secret)
+	if err != nil {
+		return err
+	}
+	if err := r.db.SetRemoteSourceSecret(ctx, id, row.Revision, sealed); err != nil {
+		return err
+	}
+	r.Forget(id)
+	return nil
+}
+
 // withToken puts a token rclone got into a source's secret, as the next start signs in with it.
 func withToken(kind string, secret *Secret, token string) bool {
 	switch kind {

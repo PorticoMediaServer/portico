@@ -77,3 +77,16 @@ func TestASavedSourceWhoseSignInStoppedWorkingNeedsItAgain(t *testing.T) {
 		t.Fatalf("the source's state: %v %q", err, got.State)
 	}
 }
+
+// A test that fails (a mistyped folder) still hands back the token the provider gave during it:
+// the token it started with may be retired.
+func TestATokenFromAFailedTestIsHandedBack(t *testing.T) {
+	fakeRcloneBinary(t)
+	secret := remote.Secret{Rclone: "[g]\ntype = drive\nclient_id = own-client\ntoken = " + fakeToken + "\n"}
+	if err := remote.TestKeepingToken(ctx, "rclone", remote.Config{Path: "Meda"}, &secret); !errors.Is(err, remote.ErrFolderMissing) {
+		t.Fatalf("the test: %v", err)
+	}
+	if !strings.Contains(secret.Rclone, "token = "+refreshedToken) {
+		t.Fatalf("the secret after a failed test: %q", secret.Rclone)
+	}
+}
