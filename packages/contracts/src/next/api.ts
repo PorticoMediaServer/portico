@@ -59,6 +59,11 @@ export interface AdminLibraryPage {
   nextCursor?: string;
 }
 
+export interface AlertAction {
+  kind: string;
+  target: string;
+}
+
 export interface Alternative {
   versionId: string;
   label: string;
@@ -240,6 +245,62 @@ export interface CreditPage {
   items: Credit[];
   nextCursor?: string;
   total: number;
+}
+
+export interface Dashboard {
+  observedAt: string;
+  alerts: DashboardAlert[];
+  scans: DashboardScan[];
+  tasks: DashboardTasks;
+  nowPlaying: StreamTotals;
+  backups: DashboardBackups;
+  openReports: number;
+}
+
+export interface DashboardAlert {
+  code: string;
+  severity: string;
+  major: boolean;
+  params: Record<string, string>;
+  action: AlertAction;
+  count?: number;
+}
+
+export interface DashboardBackup {
+  id: string;
+  createdAt: string;
+  scheduled: boolean;
+}
+
+export interface DashboardBackups {
+  read: boolean;
+  last?: DashboardBackup;
+}
+
+export interface DashboardScan {
+  kind: string;
+  libraryId: string;
+  libraryName: string;
+  phase: string;
+  discovered: number;
+  analyzed: number;
+  total?: number;
+}
+
+export interface DashboardTask {
+  id: string;
+  kind: string;
+  libraryId?: string;
+  libraryName?: string;
+  phase: string;
+  state: string;
+  processed?: number;
+  total?: number;
+}
+
+export interface DashboardTasks {
+  count: number;
+  items: DashboardTask[];
 }
 
 export interface Decision {
@@ -2263,6 +2324,12 @@ export interface StreamStop {
   message?: string;
 }
 
+export interface StreamTotals {
+  streams: number;
+  away: number;
+  converting: number;
+}
+
 export interface SubtitleFile {
   trackId: string;
   format: string;
@@ -2657,6 +2724,7 @@ export interface Routes {
   'PATCH /v1/admin/reports/{id}': {access: 'owner'; request: ReportEdit; response: ProblemReport};
   'DELETE /v1/admin/reports/{id}': {access: 'owner'; request: undefined; response: undefined};
   'GET /v1/admin/reports/{id}/log': {access: 'owner'; request: undefined; response: undefined};
+  'GET /v1/admin/dashboard': {access: 'owner'; request: undefined; response: Dashboard};
   'GET /v1/admin/webhooks': {access: 'owner'; request: undefined; response: WebhookPage};
   'POST /v1/admin/webhooks': {access: 'owner'; request: WebhookCreate; response: WebhookSecret};
   'PATCH /v1/admin/webhooks/{id}': {access: 'owner'; request: WebhookEdit; response: Webhook};
