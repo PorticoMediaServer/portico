@@ -33,7 +33,8 @@ export class AppLog {
  private lines: {at: number; text: string; bytes: number}[] = [];
  private size = 0;
  private listeners = new Set<() => void>();
- constructor(private now: () => number = Date.now) {}
+ private now: () => number;
+ constructor(now: () => number = Date.now) {this.now = now;}
  private trim() {
   const oldest = this.now() - APP_LOG_AGE_MS;
   while (this.lines.length && (this.size > APP_LOG_BYTES || this.lines[0].at < oldest)) this.size -= this.lines.shift()!.bytes;
